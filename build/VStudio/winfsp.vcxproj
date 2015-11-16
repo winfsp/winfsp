@@ -118,7 +118,22 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\sys\cleanup.c" />
+    <ClCompile Include="..\..\src\sys\close.c" />
+    <ClCompile Include="..\..\src\sys\create.c" />
+    <ClCompile Include="..\..\src\sys\devctrl.c" />
+    <ClCompile Include="..\..\src\sys\dirctrl.c" />
     <ClCompile Include="..\..\src\sys\driver.c" />
+    <ClCompile Include="..\..\src\sys\ea.c" />
+    <ClCompile Include="..\..\src\sys\fileinfo.c" />
+    <ClCompile Include="..\..\src\sys\flush.c" />
+    <ClCompile Include="..\..\src\sys\fsctrl.c" />
+    <ClCompile Include="..\..\src\sys\lockctrl.c" />
+    <ClCompile Include="..\..\src\sys\read.c" />
+    <ClCompile Include="..\..\src\sys\seinfo.c" />
+    <ClCompile Include="..\..\src\sys\shutdown.c" />
+    <ClCompile Include="..\..\src\sys\volinfo.c" />
+    <ClCompile Include="..\..\src\sys\write.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\sys\driver.h" />
