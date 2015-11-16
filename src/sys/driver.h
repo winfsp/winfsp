@@ -10,9 +10,9 @@
 #include <wdm.h>
 
 #if DBG
-#define DEBUGLOG(...)                   DbgPrint(__FUNCTION__ ": " __VA_ARGS__)
+#define DEBUGLOG(fmt, ...)              DbgPrint(__FUNCTION__ ": " fmt "\n", __VA_ARGS__)
 #else
-#define DEBUGLOG(...)                   ((void)0)
+#define DEBUGLOG(fmt, ...)              ((void)0)
 #endif
 
 #endif
