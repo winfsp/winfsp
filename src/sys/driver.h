@@ -42,6 +42,12 @@ DRIVER_DISPATCH FspWrite;
 /* fast I/O */
 FAST_IO_CHECK_IF_POSSIBLE FspFastIoCheckIfPossible;
 
+/* filter callbacks */
+NTSTATUS
+FspAcquireForSectionSynchronization(
+    _In_ PFS_FILTER_CALLBACK_DATA Data,
+    _Out_ PVOID *CompletionContext);
+
 /* extern */
 PDEVICE_OBJECT FspDeviceObject;
 

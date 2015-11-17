@@ -54,6 +54,9 @@
     <ClCompile Include="..\..\src\sys\read.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\sys\resource.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\sys\security.c">
       <Filter>Source Files</Filter>
     </ClCompile>

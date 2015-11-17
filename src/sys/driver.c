@@ -22,9 +22,9 @@ DriverEntry(
     UNREFERENCED_PARAMETER(RegistryPath);
 
     NTSTATUS Status;
-    UNICODE_STRING DeviceName;
 
     /* create the file system device object */
+    UNICODE_STRING DeviceName;
     RtlInitUnicodeString(&DeviceName, L"" DRIVER_NAME);
     Status = IoCreateDevice(DriverObject, 0, &DeviceName, FILE_DEVICE_FILE_SYSTEM, 0, FALSE,
         &FspDeviceObject);
@@ -94,6 +94,17 @@ DriverEntry(
     FspFastIoDispatch.ReleaseForCcFlush = 0;
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
+    /* setup filter callbacks */
+    FS_FILTER_CALLBACKS FspFilterCallbacks = { 0 };
+    FspFilterCallbacks.SizeOfFsFilterCallbacks = sizeof FspFilterCallbacks;
+    FspFilterCallbacks.PreAcquireForSectionSynchronization = FspAcquireForSectionSynchronization;
+    Status = FsRtlRegisterFileSystemFilterCallbacks(DriverObject, &FspFilterCallbacks);
+    if (!NT_SUCCESS(Status))
+    {
+        IoDeleteDevice(FspDeviceObject);
+        return Status;
+    }
+
     return STATUS_SUCCESS;
 }
 
@@ -102,6 +113,11 @@ FspUnload(
     _In_ PDRIVER_OBJECT DriverObject)
 {
     UNREFERENCED_PARAMETER(DriverObject);
+
+    PAGED_CODE();
+
+    if (0 != FspDeviceObject)
+        IoDeleteDevice(FspDeviceObject);
 }
 
 PDEVICE_OBJECT FspDeviceObject;

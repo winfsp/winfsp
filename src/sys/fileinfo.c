@@ -22,6 +22,8 @@ FspQueryInformation(
     UNREFERENCED_PARAMETER(DeviceObject);
     UNREFERENCED_PARAMETER(Irp);
 
+    PAGED_CODE();
+
     return STATUS_NOT_IMPLEMENTED;
 }
 
@@ -32,6 +34,8 @@ FspSetInformation(
 {
     UNREFERENCED_PARAMETER(DeviceObject);
     UNREFERENCED_PARAMETER(Irp);
+
+    PAGED_CODE();
 
     return STATUS_NOT_IMPLEMENTED;
 }

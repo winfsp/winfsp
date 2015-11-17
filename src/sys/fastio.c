@@ -33,5 +33,7 @@ FspFastIoCheckIfPossible(
     UNREFERENCED_PARAMETER(IoStatus);
     UNREFERENCED_PARAMETER(DeviceObject);
 
+    PAGED_CODE();
+
     return FALSE;
 }

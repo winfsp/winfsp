@@ -22,6 +22,8 @@ FspQueryVolumeInformation(
     UNREFERENCED_PARAMETER(DeviceObject);
     UNREFERENCED_PARAMETER(Irp);
 
+    PAGED_CODE();
+
     return STATUS_NOT_IMPLEMENTED;
 }
 
@@ -32,6 +34,8 @@ FspSetVolumeInformation(
 {
     UNREFERENCED_PARAMETER(DeviceObject);
     UNREFERENCED_PARAMETER(Irp);
+
+    PAGED_CODE();
 
     return STATUS_NOT_IMPLEMENTED;
 }
