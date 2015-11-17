@@ -94,7 +94,10 @@ DriverEntry(
     FspFastIoDispatch.ReleaseForCcFlush = FspReleaseForCcFlush;
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
-    /* register as a file system; this informs all filter drivers */
+    /*
+     * Register as a file system; this informs all filter drivers.
+     * Future drivers will not be informed because we are a FILE_DEVICE_FILE_SYSTEM!
+     */
     IoRegisterFileSystem(FspDeviceObject);
 
     return STATUS_SUCCESS;
