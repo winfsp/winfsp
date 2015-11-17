@@ -13,7 +13,7 @@
 
 #if DBG
 #define DEBUGLOG(fmt, ...)              \
-    DbgPrint(DRIVER_NAME ": " __FUNCTION__ ": " fmt "\n", __VA_ARGS__)
+    DbgPrint(DRIVER_NAME "!" __FUNCTION__ ": " fmt "\n", __VA_ARGS__)
 #else
 #define DEBUGLOG(fmt, ...)              ((void)0)
 #endif
@@ -42,7 +42,7 @@ DRIVER_DISPATCH FspWrite;
 /* fast I/O */
 FAST_IO_CHECK_IF_POSSIBLE FspFastIoCheckIfPossible;
 
-/* filter callbacks */
+/* resource acquisition */
 FAST_IO_ACQUIRE_FILE FspAcquireFileForNtCreateSection;
 FAST_IO_RELEASE_FILE FspReleaseFileForNtCreateSection;
 FAST_IO_ACQUIRE_FOR_MOD_WRITE FspAcquireForModWrite;
