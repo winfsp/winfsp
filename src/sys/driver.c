@@ -105,6 +105,9 @@ DriverEntry(
         return Status;
     }
 
+    /* register as a file system; this informs all filter drivers */
+    IoRegisterFileSystem(FspDeviceObject);
+
     return STATUS_SUCCESS;
 }
 
