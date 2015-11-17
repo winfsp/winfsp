@@ -1,5 +1,5 @@
 /**
- * @file sys/seinfo.c
+ * @file sys/security.c
  *
  * @copyright 2015 Bill Zissimopoulos
  */

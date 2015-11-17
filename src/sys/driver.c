@@ -6,8 +6,6 @@
 
 #include <sys/driver.h>
 
-PDEVICE_OBJECT FspDeviceObject;
-
 DRIVER_INITIALIZE DriverEntry;
 DRIVER_UNLOAD FspUnload;
 
@@ -105,3 +103,5 @@ FspUnload(
 {
     UNREFERENCED_PARAMETER(DriverObject);
 }
+
+PDEVICE_OBJECT FspDeviceObject;

@@ -42,4 +42,7 @@ DRIVER_DISPATCH FspWrite;
 /* fast I/O */
 FAST_IO_CHECK_IF_POSSIBLE FspFastIoCheckIfPossible;
 
+/* extern */
+PDEVICE_OBJECT FspDeviceObject;
+
 #endif
