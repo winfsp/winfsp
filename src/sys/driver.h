@@ -51,6 +51,6 @@ FAST_IO_ACQUIRE_FOR_CCFLUSH FspAcquireForCcFlush;
 FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 
 /* extern */
-PDEVICE_OBJECT FspDeviceObject;
+extern PDEVICE_OBJECT FspDeviceObject;
 
 #endif

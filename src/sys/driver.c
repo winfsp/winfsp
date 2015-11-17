@@ -62,7 +62,7 @@ DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_SET_QUOTA] = 0;
     DriverObject->MajorFunction[IRP_MJ_PNP] = 0;
 
-    /* setup fast I/O */
+    /* setup fast I/O and resource acquisition */
     static FAST_IO_DISPATCH FspFastIoDispatch = { 0 };
     FspFastIoDispatch.SizeOfFastIoDispatch = sizeof FspFastIoDispatch;
     FspFastIoDispatch.FastIoCheckIfPossible = FspFastIoCheckIfPossible;
