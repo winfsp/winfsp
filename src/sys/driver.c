@@ -109,7 +109,11 @@ FspUnload(
     PAGED_CODE();
 
     if (0 != FspDeviceObject)
+    {
+        IoUnregisterFileSystem(FspDeviceObject);
         IoDeleteDevice(FspDeviceObject);
+        FspDeviceObject = 0;
+    }
 }
 
 PDEVICE_OBJECT FspDeviceObject;
