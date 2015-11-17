@@ -7,7 +7,7 @@
 #ifndef WINFSP_SYS_DRIVER_H_INCLUDED
 #define WINFSP_SYS_DRIVER_H_INCLUDED
 
-#include <wdm.h>
+#include <ntifs.h>
 
 #define DRIVER_NAME                     "winfsp"
 
@@ -38,5 +38,8 @@ DRIVER_DISPATCH FspSetSecurity;
 DRIVER_DISPATCH FspSetVolumeInformation;
 DRIVER_DISPATCH FspShutdown;
 DRIVER_DISPATCH FspWrite;
+
+/* fast I/O */
+FAST_IO_CHECK_IF_POSSIBLE FspFastIoCheckIfPossible;
 
 #endif

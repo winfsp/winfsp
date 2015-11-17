@@ -57,10 +57,13 @@
     <ClCompile Include="..\..\src\sys\ea.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\seinfo.c">
+    <ClCompile Include="..\..\src\sys\shutdown.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\shutdown.c">
+    <ClCompile Include="..\..\src\sys\security.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\sys\fastio.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

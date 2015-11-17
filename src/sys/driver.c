@@ -64,6 +64,38 @@ DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_SET_QUOTA] = 0;
     DriverObject->MajorFunction[IRP_MJ_PNP] = 0;
 
+    /* setup fast I/O */
+    static FAST_IO_DISPATCH FspFastIoDispatch = { 0 };
+    FspFastIoDispatch.SizeOfFastIoDispatch = sizeof FspFastIoDispatch;
+    FspFastIoDispatch.FastIoCheckIfPossible = FspFastIoCheckIfPossible;
+    FspFastIoDispatch.FastIoRead = FsRtlCopyRead;
+    FspFastIoDispatch.FastIoWrite = FsRtlCopyWrite;
+    FspFastIoDispatch.FastIoQueryBasicInfo = 0;
+    FspFastIoDispatch.FastIoQueryStandardInfo = 0;
+    FspFastIoDispatch.FastIoLock = 0;
+    FspFastIoDispatch.FastIoUnlockSingle = 0;
+    FspFastIoDispatch.FastIoUnlockAll = 0;
+    FspFastIoDispatch.FastIoUnlockAllByKey = 0;
+    FspFastIoDispatch.FastIoDeviceControl = 0;
+    FspFastIoDispatch.AcquireFileForNtCreateSection = 0;
+    FspFastIoDispatch.ReleaseFileForNtCreateSection = 0;
+    FspFastIoDispatch.FastIoDetachDevice = 0;
+    FspFastIoDispatch.FastIoQueryNetworkOpenInfo = 0;
+    FspFastIoDispatch.AcquireForModWrite = 0;
+    FspFastIoDispatch.MdlRead = FsRtlMdlReadDev;
+    FspFastIoDispatch.MdlReadComplete = FsRtlMdlReadCompleteDev;
+    FspFastIoDispatch.PrepareMdlWrite = FsRtlPrepareMdlWriteDev;
+    FspFastIoDispatch.MdlWriteComplete = FsRtlMdlWriteCompleteDev;
+    FspFastIoDispatch.FastIoReadCompressed = 0;
+    FspFastIoDispatch.FastIoWriteCompressed = 0;
+    FspFastIoDispatch.MdlReadCompleteCompressed = 0;
+    FspFastIoDispatch.MdlWriteCompleteCompressed = 0;
+    FspFastIoDispatch.FastIoQueryOpen = 0;
+    FspFastIoDispatch.ReleaseForModWrite = 0;
+    FspFastIoDispatch.AcquireForCcFlush = 0;
+    FspFastIoDispatch.ReleaseForCcFlush = 0;
+    DriverObject->FastIoDispatch = &FspFastIoDispatch;
+
     return STATUS_SUCCESS;
 }
 
