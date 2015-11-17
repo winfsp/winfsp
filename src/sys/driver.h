@@ -11,12 +11,58 @@
 
 #define DRIVER_NAME                     "winfsp"
 
+/* DEBUGLOG */
 #if DBG
 #define DEBUGLOG(fmt, ...)              \
     DbgPrint(DRIVER_NAME "!" __FUNCTION__ ": " fmt "\n", __VA_ARGS__)
 #else
 #define DEBUGLOG(fmt, ...)              ((void)0)
 #endif
+
+/* enter/leave*/
+#if DBG
+#define FSP_ENTER_(...)                 \
+    __VA_ARGS__;                        \
+    try                                 \
+    {
+#define FSP_LEAVE_(rfmt, r, fmt, ...)   \
+    goto fsp_leave_label;               \
+    fsp_leave_label:;                   \
+    }                                   \
+    finally                             \
+    {                                   \
+        const char *fsp_leave_format = AbnormalTermination() ? \
+            DRIVER_NAME "!" __FUNCTION__ "(" fmt ") = !AbnormalTermination\n" : \
+            DRIVER_NAME "!" __FUNCTION__ "(" fmt ")" rfmt "\n"; \
+        DbgPrint(fsp_leave_format, __VA_ARGS__, r); \
+    }
+#else
+#define FSP_ENTER_(...)                 \
+    __VA_ARGS__;                        \
+    {
+#define FSP_LEAVE_(rfmt, r, fmt, ...)   \
+    goto fsp_leave_label;               \
+    fsp_leave_label:;                   \
+    }
+#endif
+#define FSP_ENTER(...)                  \
+    NTSTATUS Result = STATUS_SUCCESS; FSP_ENTER_(__VA_ARGS__)
+#define FSP_LEAVE(fmt, ...)             \
+    FSP_LEAVE_(" = %#lx", (long)Result, fmt, __VA_ARGS__); return Result
+#define FSP_ENTER_BOOL(...)             \
+    BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)
+#define FSP_LEAVE_BOOL(fmt, ...)        \
+    FSP_LEAVE_(" = %d", (int)Result, fmt, __VA_ARGS__); return Result
+#define FSP_ENTER_VOID(...)             \
+    FSP_ENTER_(__VA_ARGS__)
+#define FSP_LEAVE_VOID(fmt, ...)        \
+    FSP_LEAVE_("", 0, fmt, __VA_ARGS__)
+#define FSP_RETURN(...)                 \
+    do                                  \
+    {                                   \
+        __VA_ARGS__;                    \
+        goto fsp_leave_label;           \
+    } while (0,0)
 
 /* driver major functions */
 DRIVER_DISPATCH FspCleanup;
@@ -52,5 +98,8 @@ FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 
 /* extern */
 extern PDEVICE_OBJECT FspDeviceObject;
+
+/* disable warnings */
+#pragma warning(disable:4100)           /* unreferenced formal parameter */
 
 #endif

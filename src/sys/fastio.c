@@ -24,16 +24,9 @@ FspFastIoCheckIfPossible(
     _In_ PDEVICE_OBJECT DeviceObject
     )
 {
-    UNREFERENCED_PARAMETER(FileObject);
-    UNREFERENCED_PARAMETER(FileOffset);
-    UNREFERENCED_PARAMETER(Length);
-    UNREFERENCED_PARAMETER(Wait);
-    UNREFERENCED_PARAMETER(LockKey);
-    UNREFERENCED_PARAMETER(CheckForReadOperation);
-    UNREFERENCED_PARAMETER(IoStatus);
-    UNREFERENCED_PARAMETER(DeviceObject);
+    FSP_ENTER_BOOL(PAGED_CODE());
 
-    PAGED_CODE();
+    Result = FALSE;
 
-    return FALSE;
+    FSP_LEAVE_BOOL("", 0);
 }

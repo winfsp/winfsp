@@ -17,10 +17,9 @@ FspDeviceControl(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
-    UNREFERENCED_PARAMETER(Irp);
+    FSP_ENTER(PAGED_CODE());
 
-    PAGED_CODE();
+    Result = STATUS_NOT_IMPLEMENTED;
 
-    return STATUS_NOT_IMPLEMENTED;
+    FSP_LEAVE("", 0);
 }

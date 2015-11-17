@@ -26,18 +26,18 @@ VOID
 FspAcquireFileForNtCreateSection(
     _In_ PFILE_OBJECT FileObject)
 {
-    UNREFERENCED_PARAMETER(FileObject);
+    FSP_ENTER_VOID(PAGED_CODE());
 
-    PAGED_CODE();
+    FSP_LEAVE_VOID("", 0);
 }
 
 VOID
 FspReleaseFileForNtCreateSection(
     _In_ PFILE_OBJECT FileObject)
 {
-    UNREFERENCED_PARAMETER(FileObject);
+    FSP_ENTER_VOID(PAGED_CODE());
 
-    PAGED_CODE();
+    FSP_LEAVE_VOID("", 0);
 }
 
 NTSTATUS
@@ -47,14 +47,11 @@ FspAcquireForModWrite(
     _Out_ PERESOURCE *ResourceToRelease,
     _In_ PDEVICE_OBJECT DeviceObject)
 {
-    UNREFERENCED_PARAMETER(FileObject);
-    UNREFERENCED_PARAMETER(EndingOffset);
-    UNREFERENCED_PARAMETER(ResourceToRelease);
-    UNREFERENCED_PARAMETER(DeviceObject);
+    FSP_ENTER(PAGED_CODE());
 
-    PAGED_CODE();
+    Result = STATUS_NOT_IMPLEMENTED;
 
-    return STATUS_NOT_IMPLEMENTED;
+    FSP_LEAVE("", 0);
 }
 
 NTSTATUS
@@ -63,13 +60,11 @@ FspReleaseForModWrite(
     _In_ PERESOURCE ResourceToRelease,
     _In_ PDEVICE_OBJECT DeviceObject)
 {
-    UNREFERENCED_PARAMETER(FileObject);
-    UNREFERENCED_PARAMETER(ResourceToRelease);
-    UNREFERENCED_PARAMETER(DeviceObject);
+    FSP_ENTER(PAGED_CODE());
 
-    PAGED_CODE();
+    Result = STATUS_NOT_IMPLEMENTED;
 
-    return STATUS_NOT_IMPLEMENTED;
+    FSP_LEAVE("", 0);
 }
 
 NTSTATUS
@@ -77,12 +72,11 @@ FspAcquireForCcFlush(
     _In_ PFILE_OBJECT FileObject,
     _In_ PDEVICE_OBJECT DeviceObject)
 {
-    UNREFERENCED_PARAMETER(FileObject);
-    UNREFERENCED_PARAMETER(DeviceObject);
+    FSP_ENTER(PAGED_CODE());
 
-    PAGED_CODE();
+    Result = STATUS_NOT_IMPLEMENTED;
 
-    return STATUS_NOT_IMPLEMENTED;
+    FSP_LEAVE("", 0);
 }
 
 NTSTATUS
@@ -90,10 +84,9 @@ FspReleaseForCcFlush(
     _In_ PFILE_OBJECT FileObject,
     _In_ PDEVICE_OBJECT DeviceObject)
 {
-    UNREFERENCED_PARAMETER(FileObject);
-    UNREFERENCED_PARAMETER(DeviceObject);
+    FSP_ENTER(PAGED_CODE());
 
-    PAGED_CODE();
+    Result = STATUS_NOT_IMPLEMENTED;
 
-    return STATUS_NOT_IMPLEMENTED;
+    FSP_LEAVE("", 0);
 }
