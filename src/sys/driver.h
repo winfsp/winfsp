@@ -43,10 +43,12 @@ DRIVER_DISPATCH FspWrite;
 FAST_IO_CHECK_IF_POSSIBLE FspFastIoCheckIfPossible;
 
 /* filter callbacks */
-NTSTATUS
-FspAcquireForSectionSynchronization(
-    _In_ PFS_FILTER_CALLBACK_DATA Data,
-    _Out_ PVOID *CompletionContext);
+FAST_IO_ACQUIRE_FILE FspAcquireFileForNtCreateSection;
+FAST_IO_RELEASE_FILE FspReleaseFileForNtCreateSection;
+FAST_IO_ACQUIRE_FOR_MOD_WRITE FspAcquireForModWrite;
+FAST_IO_RELEASE_FOR_MOD_WRITE FspReleaseForModWrite;
+FAST_IO_ACQUIRE_FOR_CCFLUSH FspAcquireForCcFlush;
+FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 
 /* extern */
 PDEVICE_OBJECT FspDeviceObject;

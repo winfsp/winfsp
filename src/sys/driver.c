@@ -75,11 +75,11 @@ DriverEntry(
     FspFastIoDispatch.FastIoUnlockAll = 0;
     FspFastIoDispatch.FastIoUnlockAllByKey = 0;
     FspFastIoDispatch.FastIoDeviceControl = 0;
-    FspFastIoDispatch.AcquireFileForNtCreateSection = 0;
-    FspFastIoDispatch.ReleaseFileForNtCreateSection = 0;
+    FspFastIoDispatch.AcquireFileForNtCreateSection = FspAcquireFileForNtCreateSection;
+    FspFastIoDispatch.ReleaseFileForNtCreateSection = FspReleaseFileForNtCreateSection;
     FspFastIoDispatch.FastIoDetachDevice = 0;
     FspFastIoDispatch.FastIoQueryNetworkOpenInfo = 0;
-    FspFastIoDispatch.AcquireForModWrite = 0;
+    FspFastIoDispatch.AcquireForModWrite = FspAcquireForModWrite;
     FspFastIoDispatch.MdlRead = FsRtlMdlReadDev;
     FspFastIoDispatch.MdlReadComplete = FsRtlMdlReadCompleteDev;
     FspFastIoDispatch.PrepareMdlWrite = FsRtlPrepareMdlWriteDev;
@@ -89,21 +89,10 @@ DriverEntry(
     FspFastIoDispatch.MdlReadCompleteCompressed = 0;
     FspFastIoDispatch.MdlWriteCompleteCompressed = 0;
     FspFastIoDispatch.FastIoQueryOpen = 0;
-    FspFastIoDispatch.ReleaseForModWrite = 0;
-    FspFastIoDispatch.AcquireForCcFlush = 0;
-    FspFastIoDispatch.ReleaseForCcFlush = 0;
+    FspFastIoDispatch.ReleaseForModWrite = FspReleaseForModWrite;
+    FspFastIoDispatch.AcquireForCcFlush = FspAcquireForCcFlush;
+    FspFastIoDispatch.ReleaseForCcFlush = FspReleaseForCcFlush;
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
-
-    /* setup filter callbacks */
-    FS_FILTER_CALLBACKS FspFilterCallbacks = { 0 };
-    FspFilterCallbacks.SizeOfFsFilterCallbacks = sizeof FspFilterCallbacks;
-    FspFilterCallbacks.PreAcquireForSectionSynchronization = FspAcquireForSectionSynchronization;
-    Status = FsRtlRegisterFileSystemFilterCallbacks(DriverObject, &FspFilterCallbacks);
-    if (!NT_SUCCESS(Status))
-    {
-        IoDeleteDevice(FspDeviceObject);
-        return Status;
-    }
 
     /* register as a file system; this informs all filter drivers */
     IoRegisterFileSystem(FspDeviceObject);
