@@ -21,6 +21,15 @@
 
 /* enter/leave*/
 #if DBG
+#define FSP_DEBUGLOG(rfmt, r, fmt, ...) \
+    DbgPrint(AbnormalTermination() ?    \
+        DRIVER_NAME "!" __FUNCTION__ "(" fmt ") = !AbnormalTermination\n" :\
+        DRIVER_NAME "!" __FUNCTION__ "(" fmt ")" rfmt "\n",\
+        __VA_ARGS__, r)
+#else
+#define FSP_DEBUGLOG(rfmt, r, fmt, ...) ((void)0)
+#endif
+#if DBG
 #define FSP_ENTER_(...)                 \
     __VA_ARGS__;                        \
     try                                 \
@@ -31,10 +40,7 @@
     }                                   \
     finally                             \
     {                                   \
-        const char *fsp_leave_format = AbnormalTermination() ? \
-            DRIVER_NAME "!" __FUNCTION__ "(" fmt ") = !AbnormalTermination\n" : \
-            DRIVER_NAME "!" __FUNCTION__ "(" fmt ")" rfmt "\n"; \
-        DbgPrint(fsp_leave_format, __VA_ARGS__, r); \
+        FSP_DEBUGLOG(rfmt, r, fmt, __VA_ARGS__);\
     }
 #else
 #define FSP_ENTER_(...)                 \
@@ -52,7 +58,7 @@
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_BOOL(fmt, ...)        \
-    FSP_LEAVE_(" = %d", (int)Result, fmt, __VA_ARGS__); return Result
+    FSP_LEAVE_(" = %s", Result ? "TRUE" : "FALSE", fmt, __VA_ARGS__); return Result
 #define FSP_ENTER_VOID(...)             \
     FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_VOID(fmt, ...)        \
