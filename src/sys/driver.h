@@ -32,6 +32,7 @@
 #if DBG
 const char *NtStatusSym(NTSTATUS Status);
 #define FSP_ENTER_(...)                 \
+    try { DbgBreakPoint(); } except(EXCEPTION_EXECUTE_HANDLER) {}\
     __VA_ARGS__;                        \
     try                                 \
     {

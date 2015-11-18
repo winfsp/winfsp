@@ -23,7 +23,7 @@ DriverEntry(
 
     /* create the file system device object */
     UNICODE_STRING DeviceName;
-    RtlInitUnicodeString(&DeviceName, L"" DRIVER_NAME);
+    RtlInitUnicodeString(&DeviceName, L"\\" DRIVER_NAME);
     Result = IoCreateDevice(DriverObject, 0, &DeviceName, FILE_DEVICE_FILE_SYSTEM, 0, FALSE,
         &FspDeviceObject);
     if (!NT_SUCCESS(Result))
@@ -32,7 +32,7 @@ DriverEntry(
     /* setup the driver object */
     DriverObject->DriverUnload = FspUnload;
     DriverObject->MajorFunction[IRP_MJ_CREATE] = FspCreate;
-    DriverObject->MajorFunction[IRP_MJ_CREATE_NAMED_PIPE] = 0;
+    //DriverObject->MajorFunction[IRP_MJ_CREATE_NAMED_PIPE] = IopInvalidDeviceRequest;
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = FspClose;
     DriverObject->MajorFunction[IRP_MJ_READ] = FspRead;
     DriverObject->MajorFunction[IRP_MJ_WRITE] = FspWrite;
@@ -46,19 +46,19 @@ DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_DIRECTORY_CONTROL] = FspDirectoryControl;
     DriverObject->MajorFunction[IRP_MJ_FILE_SYSTEM_CONTROL] = FspFileSystemControl;
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = FspDeviceControl;
-    DriverObject->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = 0;
+    //DriverObject->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = IopInvalidDeviceRequest;
     DriverObject->MajorFunction[IRP_MJ_SHUTDOWN] = FspShutdown;
     DriverObject->MajorFunction[IRP_MJ_LOCK_CONTROL] = FspLockControl;
     DriverObject->MajorFunction[IRP_MJ_CLEANUP] = FspCleanup;
-    DriverObject->MajorFunction[IRP_MJ_CREATE_MAILSLOT] = 0;
+    //DriverObject->MajorFunction[IRP_MJ_CREATE_MAILSLOT] = IopInvalidDeviceRequest;
     DriverObject->MajorFunction[IRP_MJ_QUERY_SECURITY] = FspQuerySecurity;
     DriverObject->MajorFunction[IRP_MJ_SET_SECURITY] = FspSetSecurity;
-    DriverObject->MajorFunction[IRP_MJ_POWER] = 0;
-    DriverObject->MajorFunction[IRP_MJ_SYSTEM_CONTROL] = 0;
-    DriverObject->MajorFunction[IRP_MJ_DEVICE_CHANGE] = 0;
-    DriverObject->MajorFunction[IRP_MJ_QUERY_QUOTA] = 0;
-    DriverObject->MajorFunction[IRP_MJ_SET_QUOTA] = 0;
-    DriverObject->MajorFunction[IRP_MJ_PNP] = 0;
+    //DriverObject->MajorFunction[IRP_MJ_POWER] = IopInvalidDeviceRequest;
+    //DriverObject->MajorFunction[IRP_MJ_SYSTEM_CONTROL] = IopInvalidDeviceRequest;
+    //DriverObject->MajorFunction[IRP_MJ_DEVICE_CHANGE] = IopInvalidDeviceRequest;
+    //DriverObject->MajorFunction[IRP_MJ_QUERY_QUOTA] = IopInvalidDeviceRequest;
+    //DriverObject->MajorFunction[IRP_MJ_SET_QUOTA] = IopInvalidDeviceRequest;
+    //DriverObject->MajorFunction[IRP_MJ_PNP] = IopInvalidDeviceRequest;
 
     /* setup fast I/O and resource acquisition */
     static FAST_IO_DISPATCH FspFastIoDispatch = { 0 };
@@ -66,27 +66,27 @@ DriverEntry(
     FspFastIoDispatch.FastIoCheckIfPossible = FspFastIoCheckIfPossible;
     FspFastIoDispatch.FastIoRead = FsRtlCopyRead;
     FspFastIoDispatch.FastIoWrite = FsRtlCopyWrite;
-    FspFastIoDispatch.FastIoQueryBasicInfo = 0;
-    FspFastIoDispatch.FastIoQueryStandardInfo = 0;
-    FspFastIoDispatch.FastIoLock = 0;
-    FspFastIoDispatch.FastIoUnlockSingle = 0;
-    FspFastIoDispatch.FastIoUnlockAll = 0;
-    FspFastIoDispatch.FastIoUnlockAllByKey = 0;
-    FspFastIoDispatch.FastIoDeviceControl = 0;
+    //FspFastIoDispatch.FastIoQueryBasicInfo = 0;
+    //FspFastIoDispatch.FastIoQueryStandardInfo = 0;
+    //FspFastIoDispatch.FastIoLock = 0;
+    //FspFastIoDispatch.FastIoUnlockSingle = 0;
+    //FspFastIoDispatch.FastIoUnlockAll = 0;
+    //FspFastIoDispatch.FastIoUnlockAllByKey = 0;
+    //FspFastIoDispatch.FastIoDeviceControl = 0;
     FspFastIoDispatch.AcquireFileForNtCreateSection = FspAcquireFileForNtCreateSection;
     FspFastIoDispatch.ReleaseFileForNtCreateSection = FspReleaseFileForNtCreateSection;
-    FspFastIoDispatch.FastIoDetachDevice = 0;
-    FspFastIoDispatch.FastIoQueryNetworkOpenInfo = 0;
+    //FspFastIoDispatch.FastIoDetachDevice = 0;
+    //FspFastIoDispatch.FastIoQueryNetworkOpenInfo = 0;
     FspFastIoDispatch.AcquireForModWrite = FspAcquireForModWrite;
     FspFastIoDispatch.MdlRead = FsRtlMdlReadDev;
     FspFastIoDispatch.MdlReadComplete = FsRtlMdlReadCompleteDev;
     FspFastIoDispatch.PrepareMdlWrite = FsRtlPrepareMdlWriteDev;
     FspFastIoDispatch.MdlWriteComplete = FsRtlMdlWriteCompleteDev;
-    FspFastIoDispatch.FastIoReadCompressed = 0;
-    FspFastIoDispatch.FastIoWriteCompressed = 0;
-    FspFastIoDispatch.MdlReadCompleteCompressed = 0;
-    FspFastIoDispatch.MdlWriteCompleteCompressed = 0;
-    FspFastIoDispatch.FastIoQueryOpen = 0;
+    //FspFastIoDispatch.FastIoReadCompressed = 0;
+    //FspFastIoDispatch.FastIoWriteCompressed = 0;
+    //FspFastIoDispatch.MdlReadCompleteCompressed = 0;
+    //FspFastIoDispatch.MdlWriteCompleteCompressed = 0;
+    //FspFastIoDispatch.FastIoQueryOpen = 0;
     FspFastIoDispatch.ReleaseForModWrite = FspReleaseForModWrite;
     FspFastIoDispatch.AcquireForCcFlush = FspAcquireForCcFlush;
     FspFastIoDispatch.ReleaseForCcFlush = FspReleaseForCcFlush;
