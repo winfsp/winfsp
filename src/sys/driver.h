@@ -21,21 +21,27 @@
 
 /* enter/leave*/
 #if DBG
-#define FSP_DEBUGLOG(rfmt, r, fmt, ...) \
+BOOLEAN HasDbgBreakPoint(const char *Function);
+const char *NtStatusSym(NTSTATUS Status);
+#define FSP_DEBUGLOG_(rfmt, r, fmt, ...)\
     DbgPrint(AbnormalTermination() ?    \
         DRIVER_NAME "!" __FUNCTION__ "(" fmt ") = !AbnormalTermination\n" :\
         DRIVER_NAME "!" __FUNCTION__ "(" fmt ")" rfmt "\n",\
         __VA_ARGS__, r)
+#define FSP_DEBUGBRK_()                 \
+    do                                  \
+    {                                   \
+        if (HasDbgBreakPoint(__FUNCTION__))\
+            try { DbgBreakPoint(); } except(EXCEPTION_EXECUTE_HANDLER) {}\
+    } while (0,0)
 #else
-#define FSP_DEBUGLOG(rfmt, r, fmt, ...) ((void)0)
+#define FSP_DEBUGLOG_(rfmt, r, fmt, ...)((void)0)
+#define FSP_DEBUGBRK_()                 ((void)0)
 #endif
-#if DBG
-BOOLEAN HasDbgBreakPoint(const char *Function);
-const char *NtStatusSym(NTSTATUS Status);
 #define FSP_ENTER_(...)                 \
-    if (HasDbgBreakPoint(__FUNCTION__)) \
-        try { DbgBreakPoint(); } except(EXCEPTION_EXECUTE_HANDLER) {}\
+    FSP_DEBUGBRK_();                    \
     __VA_ARGS__;                        \
+    FsRtlEnterFileSystem();             \
     try                                 \
     {
 #define FSP_LEAVE_(rfmt, r, fmt, ...)   \
@@ -44,17 +50,9 @@ const char *NtStatusSym(NTSTATUS Status);
     }                                   \
     finally                             \
     {                                   \
-        FSP_DEBUGLOG(rfmt, r, fmt, __VA_ARGS__);\
+        FsRtlExitFileSystem();          \
+        FSP_DEBUGLOG_(rfmt, r, fmt, __VA_ARGS__);\
     }
-#else
-#define FSP_ENTER_(...)                 \
-    __VA_ARGS__;                        \
-    {
-#define FSP_LEAVE_(rfmt, r, fmt, ...)   \
-    goto fsp_leave_label;               \
-    fsp_leave_label:;                   \
-    }
-#endif
 #define FSP_ENTER(...)                  \
     NTSTATUS Result = STATUS_SUCCESS; FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE(fmt, ...)             \
