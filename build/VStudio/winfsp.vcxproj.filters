@@ -24,6 +24,9 @@
     <ClCompile Include="..\..\src\sys\create.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\sys\debug.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\sys\devctrl.c">
       <Filter>Source Files</Filter>
     </ClCompile>

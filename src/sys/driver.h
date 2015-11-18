@@ -30,6 +30,7 @@
 #define FSP_DEBUGLOG(rfmt, r, fmt, ...) ((void)0)
 #endif
 #if DBG
+const char *NtStatusSym(NTSTATUS Status);
 #define FSP_ENTER_(...)                 \
     __VA_ARGS__;                        \
     try                                 \
@@ -54,7 +55,7 @@
 #define FSP_ENTER(...)                  \
     NTSTATUS Result = STATUS_SUCCESS; FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE(fmt, ...)             \
-    FSP_LEAVE_(" = %#lx", (long)Result, fmt, __VA_ARGS__); return Result
+    FSP_LEAVE_(" = %s", NtStatusSym(Result), fmt, __VA_ARGS__); return Result
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_BOOL(fmt, ...)        \

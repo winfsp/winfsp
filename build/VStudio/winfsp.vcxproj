@@ -121,6 +121,7 @@
     <ClCompile Include="..\..\src\sys\cleanup.c" />
     <ClCompile Include="..\..\src\sys\close.c" />
     <ClCompile Include="..\..\src\sys\create.c" />
+    <ClCompile Include="..\..\src\sys\debug.c" />
     <ClCompile Include="..\..\src\sys\devctrl.c" />
     <ClCompile Include="..\..\src\sys\dirctrl.c" />
     <ClCompile Include="..\..\src\sys\driver.c" />
