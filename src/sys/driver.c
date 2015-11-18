@@ -110,7 +110,6 @@ FspUnload(
 
     if (0 != FspDeviceObject)
     {
-        IoUnregisterFileSystem(FspDeviceObject);
         IoDeleteDevice(FspDeviceObject);
         FspDeviceObject = 0;
     }
