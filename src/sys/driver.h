@@ -30,9 +30,11 @@
 #define FSP_DEBUGLOG(rfmt, r, fmt, ...) ((void)0)
 #endif
 #if DBG
+BOOLEAN HasDbgBreakPoint(const char *Function);
 const char *NtStatusSym(NTSTATUS Status);
 #define FSP_ENTER_(...)                 \
-    try { DbgBreakPoint(); } except(EXCEPTION_EXECUTE_HANDLER) {}\
+    if (HasDbgBreakPoint(__FUNCTION__)) \
+        try { DbgBreakPoint(); } except(EXCEPTION_EXECUTE_HANDLER) {}\
     __VA_ARGS__;                        \
     try                                 \
     {

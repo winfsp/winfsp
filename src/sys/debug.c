@@ -7,6 +7,17 @@
 #include <sys/driver.h>
 
 #if DBG
+static ANSI_STRING DbgBreakPointInc = RTL_CONSTANT_STRING("Fsp*");
+BOOLEAN HasDbgBreakPoint(const char *Function)
+{
+    /* poor man's breakpoints; work around 32 breakpoints kernel limit */
+    if (KeGetCurrentIrql() > APC_LEVEL)
+        return TRUE;
+    ANSI_STRING Name;
+    RtlInitAnsiString(&Name, Function);
+    return FsRtlIsDbcsInExpression(&DbgBreakPointInc, &Name);
+}
+
 const char *NtStatusSym(NTSTATUS Status)
 {
     switch (Status)
