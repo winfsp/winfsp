@@ -24,10 +24,12 @@ DriverEntry(
     /* create the file system device object */
     UNICODE_STRING DeviceName;
     RtlInitUnicodeString(&DeviceName, L"\\Device\\" DEVICE_NAME);
-    Result = IoCreateDevice(DriverObject, 0, &DeviceName, FILE_DEVICE_FILE_SYSTEM, 0, FALSE,
-        &FspDeviceObject);
+    Result = IoCreateDevice(DriverObject,
+        sizeof(FSP_FILE_SYSTEM_DEVICE_EXTENSION), &DeviceName, FILE_DEVICE_FILE_SYSTEM, 0, FALSE,
+        &FspFileSystemDeviceObject);
     if (!NT_SUCCESS(Result))
         FSP_RETURN();
+    FspDeviceExtension(FspFileSystemDeviceObject)->Kind = FspFileSystemDeviceExtensionKind;
 
     /* setup the driver object */
     DriverObject->DriverUnload = FspUnload;
@@ -96,7 +98,7 @@ DriverEntry(
      * Register as a file system; this informs all filter drivers.
      * Future drivers will *not* be informed because we are a FILE_DEVICE_FILE_SYSTEM!
      */
-    IoRegisterFileSystem(FspDeviceObject);
+    IoRegisterFileSystem(FspFileSystemDeviceObject);
 
     FSP_LEAVE("DriverObject->DriverName=\"%wZ\", RegistryPath=\"%wZ\"",
         &DriverObject->DriverName, RegistryPath);
@@ -108,14 +110,14 @@ FspUnload(
 {
     FSP_ENTER_VOID(PAGED_CODE());
 
-    if (0 != FspDeviceObject)
+    if (0 != FspFileSystemDeviceObject)
     {
-        IoDeleteDevice(FspDeviceObject);
-        FspDeviceObject = 0;
+        IoDeleteDevice(FspFileSystemDeviceObject);
+        FspFileSystemDeviceObject = 0;
     }
 
     FSP_LEAVE_VOID("DriverObject->DriverName=\"%wZ\"",
         &DriverObject->DriverName);
 }
 
-PDEVICE_OBJECT FspDeviceObject;
+PDEVICE_OBJECT FspFileSystemDeviceObject;

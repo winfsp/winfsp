@@ -21,6 +21,8 @@ FspQueryVolumeInformation(
 {
     FSP_ENTER(PAGED_CODE());
 
+    ASSERT(IRP_MJ_QUERY_VOLUME_INFORMATION == IoGetCurrentIrpStackLocation(Irp)->MajorFunction);
+
     Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     Result = STATUS_INVALID_DEVICE_REQUEST;
@@ -34,6 +36,8 @@ FspSetVolumeInformation(
     _In_ PIRP Irp)
 {
     FSP_ENTER(PAGED_CODE());
+
+    ASSERT(IRP_MJ_SET_VOLUME_INFORMATION == IoGetCurrentIrpStackLocation(Irp)->MajorFunction);
 
     Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);

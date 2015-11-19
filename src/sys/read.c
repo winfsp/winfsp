@@ -19,6 +19,8 @@ FspRead(
 {
     FSP_ENTER(PAGED_CODE());
 
+    ASSERT(IRP_MJ_READ == IoGetCurrentIrpStackLocation(Irp)->MajorFunction);
+
     Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     Result = STATUS_INVALID_DEVICE_REQUEST;

@@ -73,6 +73,40 @@ const char *NtStatusSym(NTSTATUS Status);
         goto fsp_leave_label;           \
     } while (0,0)
 
+/* types */
+enum
+{
+    FspFileSystemDeviceExtensionKind = 0,
+    FspVolumeDeviceExtensionKind,
+};
+typedef struct
+{
+    UINT8 Kind;
+} FSP_DEVICE_EXTENSION;
+typedef struct
+{
+    FSP_DEVICE_EXTENSION Base;
+} FSP_FILE_SYSTEM_DEVICE_EXTENSION;
+typedef struct
+{
+    FSP_DEVICE_EXTENSION Base;
+} FSP_VOLUME_DEVICE_EXTENSION;
+static inline
+FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
+{
+    return DeviceObject->DeviceExtension;
+}
+static inline
+FSP_FILE_SYSTEM_DEVICE_EXTENSION *FspFileSystemDeviceExtension(PDEVICE_OBJECT DeviceObject)
+{
+    return DeviceObject->DeviceExtension;
+}
+static inline
+FSP_VOLUME_DEVICE_EXTENSION *FspVolumeDeviceExtension(PDEVICE_OBJECT DeviceObject)
+{
+    return DeviceObject->DeviceExtension;
+}
+
 /* driver major functions */
 DRIVER_DISPATCH FspCleanup;
 DRIVER_DISPATCH FspClose;
@@ -106,7 +140,10 @@ FAST_IO_ACQUIRE_FOR_CCFLUSH FspAcquireForCcFlush;
 FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 
 /* extern */
-extern PDEVICE_OBJECT FspDeviceObject;
+extern PDEVICE_OBJECT FspFileSystemDeviceObject;
+
+/* I/O increment */
+#define FSP_IO_INCREMENT                IO_NETWORK_INCREMENT
 
 /* disable warnings */
 #pragma warning(disable:4100)           /* unreferenced formal parameter */
