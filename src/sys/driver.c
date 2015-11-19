@@ -23,7 +23,7 @@ DriverEntry(
 
     /* create the file system device object */
     UNICODE_STRING DeviceName;
-    RtlInitUnicodeString(&DeviceName, L"\\" DRIVER_NAME);
+    RtlInitUnicodeString(&DeviceName, L"\\Device\\" DEVICE_NAME);
     Result = IoCreateDevice(DriverObject, 0, &DeviceName, FILE_DEVICE_FILE_SYSTEM, 0, FALSE,
         &FspDeviceObject);
     if (!NT_SUCCESS(Result))

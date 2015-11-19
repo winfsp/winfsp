@@ -9,7 +9,8 @@
 
 #include <ntifs.h>
 
-#define DRIVER_NAME                     "winfsp"
+#define DRIVER_NAME                     "WinFsp"
+#define DEVICE_NAME                     "WinFsp"
 
 /* DEBUGLOG */
 #if DBG
