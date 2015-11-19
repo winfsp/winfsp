@@ -22,8 +22,6 @@
 
 /* enter/leave*/
 #if DBG
-BOOLEAN HasDbgBreakPoint(const char *Function);
-const char *NtStatusSym(NTSTATUS Status);
 #define FSP_DEBUGLOG_(rfmt, r, fmt, ...)\
     DbgPrint(AbnormalTermination() ?    \
         DRIVER_NAME "!" __FUNCTION__ "(" fmt ") = !AbnormalTermination\n" :\
@@ -58,6 +56,20 @@ const char *NtStatusSym(NTSTATUS Status);
     NTSTATUS Result = STATUS_SUCCESS; FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE(fmt, ...)             \
     FSP_LEAVE_(" = %s", NtStatusSym(Result), fmt, __VA_ARGS__); return Result
+#define FSP_ENTER_MJ(...)               \
+    NTSTATUS Result = STATUS_SUCCESS;   \
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);(void)IrpSp;\
+    FSP_ENTER_(__VA_ARGS__)
+#define FSP_LEAVE_MJ(fmt, ...)          \
+    FSP_LEAVE_(" = %s", NtStatusSym(Result),\
+        "'%c', %s%s, Flags=%x, " \
+        fmt,                            \
+        FspDeviceExtension(DeviceObject)->Kind,\
+        IrpMajorFunctionSym(IrpSp->MajorFunction),\
+        IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MajorFunction),\
+        IrpSp->Flags,                   \
+        __VA_ARGS__);                   \
+    return Result
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_BOOL(fmt, ...)        \
@@ -76,8 +88,8 @@ const char *NtStatusSym(NTSTATUS Status);
 /* types */
 enum
 {
-    FspFileSystemDeviceExtensionKind = 0,
-    FspVolumeDeviceExtensionKind,
+    FspFileSystemDeviceExtensionKind = 'F',
+    FspVolumeDeviceExtensionKind = 'V',
 };
 typedef struct
 {
@@ -138,6 +150,14 @@ FAST_IO_ACQUIRE_FOR_MOD_WRITE FspAcquireForModWrite;
 FAST_IO_RELEASE_FOR_MOD_WRITE FspReleaseForModWrite;
 FAST_IO_ACQUIRE_FOR_CCFLUSH FspAcquireForCcFlush;
 FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
+
+/* debug */
+#if DBG
+BOOLEAN HasDbgBreakPoint(const char *Function);
+const char *NtStatusSym(NTSTATUS Status);
+const char *IrpMajorFunctionSym(UCHAR MajorFunction);
+const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);
+#endif
 
 /* extern */
 extern PDEVICE_OBJECT FspFileSystemDeviceObject;

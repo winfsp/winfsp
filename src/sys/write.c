@@ -17,13 +17,13 @@ FspWrite(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    FSP_ENTER(PAGED_CODE());
+    FSP_ENTER_MJ(PAGED_CODE());
 
-    ASSERT(IRP_MJ_WRITE == IoGetCurrentIrpStackLocation(Irp)->MajorFunction);
+    ASSERT(IRP_MJ_WRITE == IrpSp->MajorFunction);
 
     Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     Result = STATUS_INVALID_DEVICE_REQUEST;
 
-    FSP_LEAVE("", 0);
+    FSP_LEAVE_MJ("", 0);
 }

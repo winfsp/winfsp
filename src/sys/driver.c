@@ -100,7 +100,7 @@ DriverEntry(
      */
     IoRegisterFileSystem(FspFileSystemDeviceObject);
 
-    FSP_LEAVE("DriverObject->DriverName=\"%wZ\", RegistryPath=\"%wZ\"",
+    FSP_LEAVE("DriverName=\"%wZ\", RegistryPath=\"%wZ\"",
         &DriverObject->DriverName, RegistryPath);
 }
 
@@ -116,7 +116,7 @@ FspUnload(
         FspFileSystemDeviceObject = 0;
     }
 
-    FSP_LEAVE_VOID("DriverObject->DriverName=\"%wZ\"",
+    FSP_LEAVE_VOID("DriverName=\"%wZ\"",
         &DriverObject->DriverName);
 }
 
