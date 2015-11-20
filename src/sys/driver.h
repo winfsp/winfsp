@@ -62,7 +62,7 @@
     FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(                         \
-        FSP_DEBUGLOG_("%c%c, %s%s, IrpSp->Flags=%x, " fmt, " = %s%s%lld%s",\
+        FSP_DEBUGLOG_("%c%c, %s%s, IrpSp->Flags=%x, " fmt, " = %s[%lld]",\
             FspDeviceExtension(DeviceObject)->Kind,\
             Irp->RequestorMode == KernelMode ? 'K' : 'U',\
             IrpMajorFunctionSym(IrpSp->MajorFunction),\
@@ -70,9 +70,7 @@
             IrpSp->Flags,               \
             __VA_ARGS__,                \
             NtStatusSym(Result),        \
-            NT_SUCCESS(Result) ? "[" : "",\
-            Irp->IoStatus.Information,  \
-            NT_SUCCESS(Result) ? "]" : "");\
+            !NT_SUCCESS(Result) ? 0 : Irp->IoStatus.Information);\
         if (STATUS_PENDING == Result)   \
             IoMarkIrpPending(Irp);      \
         else                            \
