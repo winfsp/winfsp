@@ -27,14 +27,14 @@ FspCreate(
     Result = STATUS_INVALID_DEVICE_REQUEST;
 
     FSP_LEAVE_MJ(
-        "FileObject=%p:\"%wZ\", "
+        "FileObject=%p[%p:\"%wZ\"], "
         "DesiredAccess=%#lx, "
         "ShareAccess=%#x, "
         "Options=%#lx, "
         "FileAttributes=%#x, "
         "AllocationSize=%#lx:%#lx, "
         "Ea=%p, EaLength=%ld",
-        IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName,
+        IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName,
         IrpSp->Parameters.Create.SecurityContext->DesiredAccess,
         IrpSp->Parameters.Create.ShareAccess,
         IrpSp->Parameters.Create.Options,

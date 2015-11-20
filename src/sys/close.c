@@ -26,5 +26,5 @@ FspClose(
 
     Result = STATUS_INVALID_DEVICE_REQUEST;
 
-    FSP_LEAVE_MJ("", 0);
+    FSP_LEAVE_MJ("FileObject=%p", IrpSp->FileObject);
 }
