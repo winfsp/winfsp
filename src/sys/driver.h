@@ -73,16 +73,14 @@
             NT_SUCCESS(Result) ? "[" : "",\
             Irp->IoStatus.Information,  \
             NT_SUCCESS(Result) ? "]" : "");\
-        if (STATUS_PENDING != Result)   \
+        if (STATUS_PENDING == Result)   \
+            IoMarkIrpPending(Irp);      \
+        else                            \
         {                               \
             if (!NT_SUCCESS(Result))    \
                 Irp->IoStatus.Information = 0;\
             Irp->IoStatus.Status = Result;\
             IoCompleteRequest(Irp, FSP_IO_INCREMENT);\
-        }                               \
-        else                            \
-        {                               \
-            IoMarkIrpPending(Irp);      \
         }                               \
     );                                  \
     return Result
