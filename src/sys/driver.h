@@ -22,11 +22,11 @@
 
 /* enter/leave*/
 #if DBG
-#define FSP_DEBUGLOG_(rfmt, r, fmt, ...)\
+#define FSP_DEBUGLOG_(fmt, rfmt, ...)   \
     DbgPrint(AbnormalTermination() ?    \
         DRIVER_NAME "!" __FUNCTION__ "(" fmt ") = !AbnormalTermination\n" :\
         DRIVER_NAME "!" __FUNCTION__ "(" fmt ")" rfmt "\n",\
-        __VA_ARGS__, r)
+        __VA_ARGS__)
 #define FSP_DEBUGBRK_()                 \
     do                                  \
     {                                   \
@@ -34,7 +34,7 @@
             try { DbgBreakPoint(); } except(EXCEPTION_EXECUTE_HANDLER) {}\
     } while (0,0)
 #else
-#define FSP_DEBUGLOG_(rfmt, r, fmt, ...)((void)0)
+#define FSP_DEBUGLOG_(fmt, rfmt, ...)   ((void)0)
 #define FSP_DEBUGBRK_()                 ((void)0)
 #endif
 #define FSP_ENTER_(...)                 \
@@ -43,42 +43,41 @@
     FsRtlEnterFileSystem();             \
     try                                 \
     {
-#define FSP_LEAVE_(rfmt, r, fmt, ...)   \
+#define FSP_LEAVE_(fmt, rfmt, ...)      \
     goto fsp_leave_label;               \
     fsp_leave_label:;                   \
     }                                   \
     finally                             \
     {                                   \
         FsRtlExitFileSystem();          \
-        FSP_DEBUGLOG_(rfmt, r, fmt, __VA_ARGS__);\
+        FSP_DEBUGLOG_(fmt, rfmt, __VA_ARGS__);\
     }
 #define FSP_ENTER(...)                  \
     NTSTATUS Result = STATUS_SUCCESS; FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE(fmt, ...)             \
-    FSP_LEAVE_(" = %s", NtStatusSym(Result), fmt, __VA_ARGS__); return Result
+    FSP_LEAVE_(fmt, " = %s", __VA_ARGS__, NtStatusSym(Result)); return Result
 #define FSP_ENTER_MJ(...)               \
     NTSTATUS Result = STATUS_SUCCESS;   \
-    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);(void)IrpSp;\
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (void)IrpSp;\
     FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_MJ(fmt, ...)          \
-    FSP_LEAVE_(" = %s", NtStatusSym(Result),\
-        "%c%c, %s%s, IrpSp->Flags=%x, " \
-        fmt,                            \
+    FSP_LEAVE_("%c%c, %s%s, IrpSp->Flags=%x, " fmt, " = %s",\
         FspDeviceExtension(DeviceObject)->Kind,\
         Irp->RequestorMode == KernelMode ? 'K' : 'U',\
         IrpMajorFunctionSym(IrpSp->MajorFunction),\
         IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MajorFunction),\
         IrpSp->Flags,                   \
-        __VA_ARGS__);                   \
+        __VA_ARGS__,                    \
+        NtStatusSym(Result));           \
     return Result
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_BOOL(fmt, ...)        \
-    FSP_LEAVE_(" = %s", Result ? "TRUE" : "FALSE", fmt, __VA_ARGS__); return Result
+    FSP_LEAVE_(fmt, " = %s", __VA_ARGS__, Result ? "TRUE" : "FALSE"); return Result
 #define FSP_ENTER_VOID(...)             \
     FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_VOID(fmt, ...)        \
-    FSP_LEAVE_("", 0, fmt, __VA_ARGS__)
+    FSP_LEAVE_(fmt, "", __VA_ARGS__)
 #define FSP_RETURN(...)                 \
     do                                  \
     {                                   \
