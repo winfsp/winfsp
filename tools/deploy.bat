@@ -10,5 +10,5 @@ echo on
 cd %~dp0..
 mkdir %TARGET% 2>nul
 copy build\VStudio\build\%CONFIG%\%DRIVER% %TARGET%
-echo sc create winfsp type=filesys binPath=%%~dp0%DRIVER% >%TARGET%sc-create.bat
-echo sc delete winfsp >%TARGET%sc-delete.bat
+echo sc create WinFsp type=filesys binPath=%%~dp0%DRIVER% >%TARGET%sc-create.bat
+echo sc delete WinFsp >%TARGET%sc-delete.bat
