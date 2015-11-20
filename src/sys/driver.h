@@ -39,29 +39,29 @@
 #endif
 #define FSP_ENTER_(...)                 \
     FSP_DEBUGBRK_();                    \
-    __VA_ARGS__;                        \
     FsRtlEnterFileSystem();             \
     try                                 \
-    {
-#define FSP_LEAVE_(fmt, rfmt, ...)      \
+    {                                   \
+        __VA_ARGS__
+#define FSP_LEAVE_(...)                 \
     goto fsp_leave_label;               \
     fsp_leave_label:;                   \
     }                                   \
     finally                             \
     {                                   \
+        __VA_ARGS__;                    \
         FsRtlExitFileSystem();          \
-        FSP_DEBUGLOG_(fmt, rfmt, __VA_ARGS__);\
     }
 #define FSP_ENTER(...)                  \
     NTSTATUS Result = STATUS_SUCCESS; FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE(fmt, ...)             \
-    FSP_LEAVE_(fmt, " = %s", __VA_ARGS__, NtStatusSym(Result)); return Result
+    FSP_LEAVE_(FSP_DEBUGLOG_(fmt, " = %s", __VA_ARGS__, NtStatusSym(Result))); return Result
 #define FSP_ENTER_MJ(...)               \
     NTSTATUS Result = STATUS_SUCCESS;   \
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (void)IrpSp;\
     FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_MJ(fmt, ...)          \
-    FSP_LEAVE_("%c%c, %s%s, IrpSp->Flags=%x, " fmt, " = %s",\
+    FSP_LEAVE_(FSP_DEBUGLOG_("%c%c, %s%s, IrpSp->Flags=%x, " fmt, " = %s",\
         FspDeviceExtension(DeviceObject)->Kind,\
         Irp->RequestorMode == KernelMode ? 'K' : 'U',\
         IrpMajorFunctionSym(IrpSp->MajorFunction),\
@@ -69,15 +69,17 @@
         IrpSp->Flags,                   \
         __VA_ARGS__,                    \
         NtStatusSym(Result));           \
+        if (STATUS_PENDING != Result)   \
+            IoCompleteRequest(Irp, FSP_IO_INCREMENT));\
     return Result
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_BOOL(fmt, ...)        \
-    FSP_LEAVE_(fmt, " = %s", __VA_ARGS__, Result ? "TRUE" : "FALSE"); return Result
+    FSP_LEAVE_(FSP_DEBUGLOG_(fmt, " = %s", __VA_ARGS__, Result ? "TRUE" : "FALSE")); return Result
 #define FSP_ENTER_VOID(...)             \
     FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_VOID(fmt, ...)        \
-    FSP_LEAVE_(fmt, "", __VA_ARGS__)
+    FSP_LEAVE_(FSP_DEBUGLOG_(fmt, "", __VA_ARGS__))
 #define FSP_RETURN(...)                 \
     do                                  \
     {                                   \
