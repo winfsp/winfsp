@@ -21,8 +21,6 @@ FspRead(
 
     ASSERT(IRP_MJ_READ == IrpSp->MajorFunction);
 
-    Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
     Result = STATUS_INVALID_DEVICE_REQUEST;
 
     FSP_LEAVE_MJ("", 0);

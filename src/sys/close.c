@@ -22,16 +22,8 @@ FspClose(
     ASSERT(IRP_MJ_CLOSE == IrpSp->MajorFunction);
 
     if (FspFileSystemDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind)
-    {
-        Result = STATUS_SUCCESS;
-        Irp->IoStatus.Status = Result;
-        Irp->IoStatus.Information = 0;
-        IoCompleteRequest(Irp, FSP_IO_INCREMENT);
-        FSP_RETURN();
-    }
+        FSP_RETURN(Irp->IoStatus.Information = 0);
 
-    Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
     Result = STATUS_INVALID_DEVICE_REQUEST;
 
     FSP_LEAVE_MJ("", 0);

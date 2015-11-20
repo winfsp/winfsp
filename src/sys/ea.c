@@ -23,8 +23,6 @@ FspQueryEa(
 
     ASSERT(IRP_MJ_QUERY_EA == IrpSp->MajorFunction);
 
-    Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
     Result = STATUS_INVALID_DEVICE_REQUEST;
 
     FSP_LEAVE_MJ("", 0);
@@ -39,8 +37,6 @@ FspSetEa(
 
     ASSERT(IRP_MJ_SET_EA == IrpSp->MajorFunction);
 
-    Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
     Result = STATUS_INVALID_DEVICE_REQUEST;
 
     FSP_LEAVE_MJ("", 0);
