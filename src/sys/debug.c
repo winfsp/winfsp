@@ -14,7 +14,7 @@ static ANSI_STRING DbgBreakPointInc = RTL_CONSTANT_STRING("Fsp*");
 BOOLEAN HasDbgBreakPoint(const char *Function)
 {
     /* poor man's breakpoints; work around 32 breakpoints kernel limit */
-    if (KeGetCurrentIrql() > APC_LEVEL)
+    if (KeGetCurrentIrql() > APC_LEVEL) /* FsRtlIsDbcsInExpression restriction */
         return TRUE;
     ANSI_STRING Name;
     RtlInitAnsiString(&Name, Function);

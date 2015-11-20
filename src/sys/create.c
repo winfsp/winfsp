@@ -34,5 +34,19 @@ FspCreate(
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     Result = STATUS_INVALID_DEVICE_REQUEST;
 
-    FSP_LEAVE_MJ("", 0);
+    FSP_LEAVE_MJ(
+        "FileObject=%p:\"%wZ\", "
+        "DesiredAccess=%#lx, "
+        "ShareAccess=%#x, "
+        "Options=%#lx, "
+        "FileAttributes=%#x, "
+        "AllocationSize=%#lx:%#lx, "
+        "Ea=%p, EaLength=%ld",
+        IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName,
+        IrpSp->Parameters.Create.SecurityContext->DesiredAccess,
+        IrpSp->Parameters.Create.ShareAccess,
+        IrpSp->Parameters.Create.Options,
+        IrpSp->Parameters.Create.FileAttributes,
+        Irp->Overlay.AllocationSize.HighPart, Irp->Overlay.AllocationSize.LowPart,
+        Irp->AssociatedIrp.SystemBuffer, IrpSp->Parameters.Create.EaLength);
 }

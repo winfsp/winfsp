@@ -62,9 +62,10 @@
     FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(" = %s", NtStatusSym(Result),\
-        "'%c', %s%s, Flags=%x, " \
+        "%c%c, %s%s, IrpSp->Flags=%x, " \
         fmt,                            \
         FspDeviceExtension(DeviceObject)->Kind,\
+        Irp->RequestorMode == KernelMode ? 'K' : 'U',\
         IrpMajorFunctionSym(IrpSp->MajorFunction),\
         IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MajorFunction),\
         IrpSp->Flags,                   \
