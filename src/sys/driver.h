@@ -62,21 +62,29 @@
     FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(                         \
-        FSP_DEBUGLOG_("%c%c, %s%s, IrpSp->Flags=%x, " fmt, " = %s",\
+        FSP_DEBUGLOG_("%c%c, %s%s, IrpSp->Flags=%x, " fmt, " = %s%s%lld%s",\
             FspDeviceExtension(DeviceObject)->Kind,\
             Irp->RequestorMode == KernelMode ? 'K' : 'U',\
             IrpMajorFunctionSym(IrpSp->MajorFunction),\
             IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MajorFunction),\
             IrpSp->Flags,               \
             __VA_ARGS__,                \
-            NtStatusSym(Result));       \
+            NtStatusSym(Result),        \
+            NT_SUCCESS(Result) ? "[" : "",\
+            Irp->IoStatus.Information,  \
+            NT_SUCCESS(Result) ? "]" : "");\
         if (STATUS_PENDING != Result)   \
         {                               \
             if (!NT_SUCCESS(Result))    \
                 Irp->IoStatus.Information = 0;\
             Irp->IoStatus.Status = Result;\
             IoCompleteRequest(Irp, FSP_IO_INCREMENT);\
-        });                             \
+        }                               \
+        else                            \
+        {                               \
+            IoMarkIrpPending(Irp);      \
+        }                               \
+    );                                  \
     return Result
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)
