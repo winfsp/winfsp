@@ -8,10 +8,9 @@
 #define WINFSP_SYS_DRIVER_H_INCLUDED
 
 #include <ntifs.h>
+#include <fsctl.h>
 
 #define DRIVER_NAME                     "WinFsp"
-#define DISK_DEVICE_NAME                "WinFsp.Disk"
-#define NET_DEVICE_NAME                 "WinFsp.Net"
 
 /* DEBUGLOG */
 #if DBG

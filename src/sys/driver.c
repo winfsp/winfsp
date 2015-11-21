@@ -23,13 +23,13 @@ DriverEntry(
 
     /* create the file system control device objects */
     UNICODE_STRING DeviceName;
-    RtlInitUnicodeString(&DeviceName, L"\\Device\\" DISK_DEVICE_NAME);
+    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
     Result = IoCreateDevice(DriverObject,
         sizeof(FSP_FSCTL_DEVICE_EXTENSION), &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM, 0, FALSE,
         &FspFsctlDiskDeviceObject);
     if (!NT_SUCCESS(Result))
         FSP_RETURN();
-    RtlInitUnicodeString(&DeviceName, L"\\Device\\" NET_DEVICE_NAME);
+    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
     Result = IoCreateDevice(DriverObject,
         sizeof(FSP_FSCTL_DEVICE_EXTENSION), &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM, 0, FALSE,
         &FspFsctlNetDeviceObject);
