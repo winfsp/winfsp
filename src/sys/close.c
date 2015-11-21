@@ -21,7 +21,7 @@ FspClose(
 
     ASSERT(IRP_MJ_CLOSE == IrpSp->MajorFunction);
 
-    if (FspFileSystemDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind)
+    if (FspFsctlDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind)
         FSP_RETURN(Irp->IoStatus.Information = 0);
 
     Result = STATUS_INVALID_DEVICE_REQUEST;

@@ -21,7 +21,7 @@ FspCreate(
 
     ASSERT(IRP_MJ_CREATE == IrpSp->MajorFunction);
 
-    if (FspFileSystemDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind)
+    if (FspFsctlDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind)
         FSP_RETURN(Irp->IoStatus.Information = FILE_OPENED);
 
     Result = STATUS_INVALID_DEVICE_REQUEST;

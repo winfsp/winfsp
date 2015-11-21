@@ -21,15 +21,22 @@ DriverEntry(
 {
     FSP_ENTER();
 
-    /* create the file system device object */
+    /* create the file system control device objects */
     UNICODE_STRING DeviceName;
-    RtlInitUnicodeString(&DeviceName, L"\\Device\\" DEVICE_NAME);
+    RtlInitUnicodeString(&DeviceName, L"\\Device\\" DISK_DEVICE_NAME);
     Result = IoCreateDevice(DriverObject,
-        sizeof(FSP_FILE_SYSTEM_DEVICE_EXTENSION), &DeviceName, FILE_DEVICE_FILE_SYSTEM, 0, FALSE,
-        &FspFileSystemDeviceObject);
+        sizeof(FSP_FSCTL_DEVICE_EXTENSION), &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM, 0, FALSE,
+        &FspFsctlDiskDeviceObject);
     if (!NT_SUCCESS(Result))
         FSP_RETURN();
-    FspDeviceExtension(FspFileSystemDeviceObject)->Kind = FspFileSystemDeviceExtensionKind;
+    RtlInitUnicodeString(&DeviceName, L"\\Device\\" NET_DEVICE_NAME);
+    Result = IoCreateDevice(DriverObject,
+        sizeof(FSP_FSCTL_DEVICE_EXTENSION), &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM, 0, FALSE,
+        &FspFsctlNetDeviceObject);
+    if (!NT_SUCCESS(Result))
+        FSP_RETURN(IoDeleteDevice(FspFsctlDiskDeviceObject));
+    FspDeviceExtension(FspFsctlDiskDeviceObject)->Kind = FspFsctlDeviceExtensionKind;
+    FspDeviceExtension(FspFsctlNetDeviceObject)->Kind = FspFsctlDeviceExtensionKind;
 
     /* setup the driver object */
     DriverObject->DriverUnload = FspUnload;
@@ -94,11 +101,9 @@ DriverEntry(
     FspFastIoDispatch.ReleaseForCcFlush = FspReleaseForCcFlush;
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
-    /*
-     * Register as a file system; this informs all filter drivers.
-     * Future drivers will *not* be informed because we are a FILE_DEVICE_FILE_SYSTEM!
-     */
-    IoRegisterFileSystem(FspFileSystemDeviceObject);
+    /* register our device objects as file systems */
+    IoRegisterFileSystem(FspFsctlDiskDeviceObject);
+    IoRegisterFileSystem(FspFsctlNetDeviceObject);
 
     FSP_LEAVE("DriverName=\"%wZ\", RegistryPath=\"%wZ\"",
         &DriverObject->DriverName, RegistryPath);
@@ -110,14 +115,20 @@ FspUnload(
 {
     FSP_ENTER_VOID(PAGED_CODE());
 
-    if (0 != FspFileSystemDeviceObject)
+    if (0 != FspFsctlDiskDeviceObject)
     {
-        IoDeleteDevice(FspFileSystemDeviceObject);
-        FspFileSystemDeviceObject = 0;
+        IoDeleteDevice(FspFsctlDiskDeviceObject);
+        FspFsctlDiskDeviceObject = 0;
+    }
+    if (0 != FspFsctlNetDeviceObject)
+    {
+        IoDeleteDevice(FspFsctlNetDeviceObject);
+        FspFsctlNetDeviceObject = 0;
     }
 
     FSP_LEAVE_VOID("DriverName=\"%wZ\"",
         &DriverObject->DriverName);
 }
 
-PDEVICE_OBJECT FspFileSystemDeviceObject;
+PDEVICE_OBJECT FspFsctlDiskDeviceObject;
+PDEVICE_OBJECT FspFsctlNetDeviceObject;

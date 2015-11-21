@@ -10,7 +10,8 @@
 #include <ntifs.h>
 
 #define DRIVER_NAME                     "WinFsp"
-#define DEVICE_NAME                     "WinFsp"
+#define DISK_DEVICE_NAME                "WinFsp.Disk"
+#define NET_DEVICE_NAME                 "WinFsp.Net"
 
 /* DEBUGLOG */
 #if DBG
@@ -100,8 +101,9 @@
 /* types */
 enum
 {
-    FspFileSystemDeviceExtensionKind = 'F',
-    FspVolumeDeviceExtensionKind = 'V',
+    FspFsctlDeviceExtensionKind = 'C',  /* file system control device (e.g. \Device\WinFsp.Disk) */
+    FspFsvrtDeviceExtensionKind = 'V',  /* virtual volume device (e.g. \Device\Volume{GUID}) */
+    FspFsvolDeviceExtensionKind = 'F',  /* file system volume device (unnamed) */
 };
 typedef struct
 {
@@ -110,23 +112,32 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-} FSP_FILE_SYSTEM_DEVICE_EXTENSION;
+} FSP_FSCTL_DEVICE_EXTENSION;
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-} FSP_VOLUME_DEVICE_EXTENSION;
+} FSP_FSVRT_DEVICE_EXTENSION;
+typedef struct
+{
+    FSP_DEVICE_EXTENSION Base;
+} FSP_FSVOL_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
     return DeviceObject->DeviceExtension;
 }
 static inline
-FSP_FILE_SYSTEM_DEVICE_EXTENSION *FspFileSystemDeviceExtension(PDEVICE_OBJECT DeviceObject)
+FSP_FSCTL_DEVICE_EXTENSION *FspFsctlDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
     return DeviceObject->DeviceExtension;
 }
 static inline
-FSP_VOLUME_DEVICE_EXTENSION *FspVolumeDeviceExtension(PDEVICE_OBJECT DeviceObject)
+FSP_FSVRT_DEVICE_EXTENSION *FspFsvrtDeviceExtension(PDEVICE_OBJECT DeviceObject)
+{
+    return DeviceObject->DeviceExtension;
+}
+static inline
+FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
     return DeviceObject->DeviceExtension;
 }
@@ -172,7 +183,8 @@ const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);
 #endif
 
 /* extern */
-extern PDEVICE_OBJECT FspFileSystemDeviceObject;
+extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
+extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
 
 /* I/O increment */
 #define FSP_IO_INCREMENT                IO_NETWORK_INCREMENT
