@@ -1,25 +1,25 @@
 /**
- * @file sys/lockctrl.c
+ * @file sys/devctl.c
  *
  * @copyright 2015 Bill Zissimopoulos
  */
 
 #include <sys/driver.h>
 
-DRIVER_DISPATCH FspLockControl;
+DRIVER_DISPATCH FspDeviceControl;
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text(PAGE, FspLockControl)
+#pragma alloc_text(PAGE, FspDeviceControl)
 #endif
 
 NTSTATUS
-FspLockControl(
+FspDeviceControl(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
-    ASSERT(IRP_MJ_LOCK_CONTROL == IrpSp->MajorFunction);
+    ASSERT(IRP_MJ_DEVICE_CONTROL == IrpSp->MajorFunction);
 
     Result = STATUS_INVALID_DEVICE_REQUEST;
 

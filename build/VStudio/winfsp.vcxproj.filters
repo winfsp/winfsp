@@ -27,10 +27,10 @@
     <ClCompile Include="..\..\src\sys\debug.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\devctrl.c">
+    <ClCompile Include="..\..\src\sys\devctl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\dirctrl.c">
+    <ClCompile Include="..\..\src\sys\dirctl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\sys\driver.c">
@@ -48,10 +48,10 @@
     <ClCompile Include="..\..\src\sys\flush.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\fsctrl.c">
+    <ClCompile Include="..\..\src\sys\fsctl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\lockctrl.c">
+    <ClCompile Include="..\..\src\sys\lockctl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\sys\read.c">
