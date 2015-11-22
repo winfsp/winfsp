@@ -143,6 +143,7 @@
     <ClCompile Include="..\..\src\sys\flush.c" />
     <ClCompile Include="..\..\src\sys\fsctl.c" />
     <ClCompile Include="..\..\src\sys\lockctl.c" />
+    <ClCompile Include="..\..\src\sys\misc.c" />
     <ClCompile Include="..\..\src\sys\read.c" />
     <ClCompile Include="..\..\src\sys\resource.c" />
     <ClCompile Include="..\..\src\sys\security.c" />

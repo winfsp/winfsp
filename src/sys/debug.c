@@ -86,7 +86,7 @@ const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction)
         SYMBRC(IRP_MN_COMPLETE_MDL)
         SYMBRC(IRP_MN_COMPLETE_MDL_DPC)
         default:
-            return "[Unknown]";
+            return "[IRP_MN:Unknown]";
         }
     case IRP_MJ_DIRECTORY_CONTROL:
         switch (MinorFunction)
@@ -94,7 +94,7 @@ const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction)
         SYMBRC(IRP_MN_QUERY_DIRECTORY)
         SYMBRC(IRP_MN_NOTIFY_CHANGE_DIRECTORY)
         default:
-            return "[Unknown]";
+            return "[IRP_MN:Unknown]";
         }
     case IRP_MJ_FILE_SYSTEM_CONTROL:
         switch (MinorFunction)
@@ -105,7 +105,7 @@ const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction)
         SYMBRC(IRP_MN_LOAD_FILE_SYSTEM)
         SYMBRC(IRP_MN_KERNEL_CALL)
         default:
-            return "[Unknown]";
+            return "[IRP_MN:Unknown]";
         }
     case IRP_MJ_LOCK_CONTROL:
         switch (MinorFunction)
@@ -115,7 +115,7 @@ const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction)
         SYMBRC(IRP_MN_UNLOCK_ALL)
         SYMBRC(IRP_MN_UNLOCK_ALL_BY_KEY)
         default:
-            return "[Unknown]";
+            return "[IRP_MN:Unknown]";
         }
     case IRP_MJ_POWER:
         switch (MinorFunction)
@@ -125,7 +125,7 @@ const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction)
         SYMBRC(IRP_MN_SET_POWER)
         SYMBRC(IRP_MN_QUERY_POWER)
         default:
-            return "[Unknown]";
+            return "[IRP_MN:Unknown]";
         }
     case IRP_MJ_SYSTEM_CONTROL:
         switch (MinorFunction)
@@ -142,7 +142,7 @@ const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction)
         SYMBRC(IRP_MN_EXECUTE_METHOD)
         SYMBRC(IRP_MN_REGINFO_EX)
         default:
-            return "[Unknown]";
+            return "[IRP_MN:Unknown]";
         }
     case IRP_MJ_PNP:
         switch (MinorFunction)
@@ -153,10 +153,22 @@ const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction)
         SYMBRC(IRP_MN_CANCEL_REMOVE_DEVICE)
         SYMBRC(IRP_MN_SURPRISE_REMOVAL)
         default:
-            return "[Unknown]";
+            return "[IRP_MN:Unknown]";
         }
     default:
         return "";
+    }
+}
+
+const char *IoctlCodeSym(ULONG ControlCode)
+{
+    switch (ControlCode)
+    {
+    SYM(FSP_FSCTL_CREATE)
+    SYM(FSP_FSCTL_DELETE)
+    SYM(FSP_FSCTL_TRANSACT)
+    default:
+        return "IOCTL:Unknown";
     }
 }
 #endif

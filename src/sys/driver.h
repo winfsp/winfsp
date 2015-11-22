@@ -8,6 +8,7 @@
 #define WINFSP_SYS_DRIVER_H_INCLUDED
 
 #include <ntifs.h>
+#include <ntstrsafe.h>
 #include <wdmsec.h>
 #include <winfsp/fsctl.h>
 
@@ -176,12 +177,16 @@ FAST_IO_RELEASE_FOR_MOD_WRITE FspReleaseForModWrite;
 FAST_IO_ACQUIRE_FOR_CCFLUSH FspAcquireForCcFlush;
 FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 
+/* misc */
+NTSTATUS CreateGuid(GUID *Guid);
+
 /* debug */
 #if DBG
 BOOLEAN HasDbgBreakPoint(const char *Function);
 const char *NtStatusSym(NTSTATUS Status);
 const char *IrpMajorFunctionSym(UCHAR MajorFunction);
 const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);
+const char *IoctlCodeSym(ULONG ControlCode);
 #endif
 
 /* extern */
