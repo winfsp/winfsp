@@ -12,7 +12,7 @@
 #include <winfsp/fsctl.h>
 
 #define DRIVER_NAME                     "WinFsp"
-#define DRIVER_SDDL                     "D:P(A;;GA;;;SY)(A;;GA;;;BA)"
+#define DEVICE_SDDL                     "D:P(A;;GA;;;SY)(A;;GA;;;BA)"
     /* system and builtin administrators have full access */
 
 /* DEBUGLOG */

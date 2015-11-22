@@ -24,7 +24,7 @@ DriverEntry(
     /* create the file system control device objects */
     UNICODE_STRING DeviceSddl;
     UNICODE_STRING DeviceName;
-    RtlInitUnicodeString(&DeviceSddl, L"" DRIVER_SDDL);
+    RtlInitUnicodeString(&DeviceSddl, L"" DEVICE_SDDL);
     RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
     Result = IoCreateDeviceSecure(DriverObject,
         sizeof(FSP_FSCTL_DEVICE_EXTENSION), &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM, 0, FALSE,
