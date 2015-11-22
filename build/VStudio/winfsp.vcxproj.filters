@@ -9,6 +9,9 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
+    <Filter Include="Include\winfsp">
+      <UniqueIdentifier>{904f0df1-2fb8-4f84-aa46-fa929488c39a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\sys\cleanup.c">
@@ -73,8 +76,8 @@
     <ClInclude Include="..\..\src\sys\driver.h">
       <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\inc\fsctl.h">
-      <Filter>Include</Filter>
+    <ClInclude Include="..\..\inc\winfsp\fsctl.h">
+      <Filter>Include\winfsp</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

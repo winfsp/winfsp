@@ -22,16 +22,20 @@ DriverEntry(
     FSP_ENTER();
 
     /* create the file system control device objects */
+    UNICODE_STRING DeviceSddl;
     UNICODE_STRING DeviceName;
+    RtlInitUnicodeString(&DeviceSddl, L"" DRIVER_SDDL);
     RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
-    Result = IoCreateDevice(DriverObject,
+    Result = IoCreateDeviceSecure(DriverObject,
         sizeof(FSP_FSCTL_DEVICE_EXTENSION), &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM, 0, FALSE,
+        &DeviceSddl, &FspDeviceClassGuid,
         &FspFsctlDiskDeviceObject);
     if (!NT_SUCCESS(Result))
         FSP_RETURN();
     RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
-    Result = IoCreateDevice(DriverObject,
+    Result = IoCreateDeviceSecure(DriverObject,
         sizeof(FSP_FSCTL_DEVICE_EXTENSION), &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM, 0, FALSE,
+        &DeviceSddl, &FspDeviceClassGuid,
         &FspFsctlNetDeviceObject);
     if (!NT_SUCCESS(Result))
         FSP_RETURN(IoDeleteDevice(FspFsctlDiskDeviceObject));
