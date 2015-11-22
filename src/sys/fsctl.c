@@ -59,7 +59,9 @@ FspFsctlFileSystemControl(
 {
     NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    if (IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction)
+    switch (IrpSp->MinorFunction)
+    {
+    case IRP_MN_USER_FS_REQUEST:
         switch (IrpSp->Parameters.FileSystemControl.FsControlCode)
         {
         case FSP_FSCTL_CREATE:
@@ -69,6 +71,7 @@ FspFsctlFileSystemControl(
             Result = FspFsctlDeleteVolume(DeviceObject, IrpSp);
             break;
         }
+    }
     return Result;
 }
 
@@ -80,13 +83,17 @@ FspFsvrtFileSystemControl(
 {
     NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    if (IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction)
+    switch (IrpSp->MinorFunction)
+    {
+    case IRP_MN_USER_FS_REQUEST:
         switch (IrpSp->Parameters.FileSystemControl.FsControlCode)
         {
         case FSP_FSCTL_TRANSACT:
             Result = FspFsvolTransact(DeviceObject, IrpSp);
             break;
         }
+        break;
+    }
     return Result;
 }
 
@@ -96,7 +103,18 @@ FspFsvolFileSystemControl(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    switch (IrpSp->MinorFunction)
+    {
+    case IRP_MN_USER_FS_REQUEST:
+        break;
+    case IRP_MN_MOUNT_VOLUME:
+        break;
+    case IRP_MN_VERIFY_VOLUME:
+        break;
+    }
+    return Result;
 }
 
 NTSTATUS
