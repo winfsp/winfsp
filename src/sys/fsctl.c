@@ -6,12 +6,24 @@
 
 #include <sys/driver.h>
 
+static
+NTSTATUS
+FspFsctlCreateVolume(PDEVICE_OBJECT DeviceObject, PIO_STACK_LOCATION IrpSp);
+static
+NTSTATUS
+FspFsctlDeleteVolume(PDEVICE_OBJECT DeviceObject, PIO_STACK_LOCATION IrpSp);
+static
+NTSTATUS
+FspFsvolTransact(PDEVICE_OBJECT DeviceObject, PIO_STACK_LOCATION IrpSp);
 static DRIVER_DISPATCH FspFsctlFileSystemControl;
 static DRIVER_DISPATCH FspFsvrtFileSystemControl;
 static DRIVER_DISPATCH FspFsvolFileSystemControl;
 DRIVER_DISPATCH FspFileSystemControl;
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspFsctlCreateVolume)
+#pragma alloc_text(PAGE, FspFsctlDeleteVolume)
+#pragma alloc_text(PAGE, FspFsvolTransact)
 #pragma alloc_text(PAGE, FspFsctlFileSystemControl)
 #pragma alloc_text(PAGE, FspFsvrtFileSystemControl)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControl)
@@ -20,11 +32,44 @@ DRIVER_DISPATCH FspFileSystemControl;
 
 static
 NTSTATUS
+FspFsctlCreateVolume(PDEVICE_OBJECT DeviceObject, PIO_STACK_LOCATION IrpSp)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static
+NTSTATUS
+FspFsctlDeleteVolume(PDEVICE_OBJECT DeviceObject, PIO_STACK_LOCATION IrpSp)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static
+NTSTATUS
+FspFsvolTransact(PDEVICE_OBJECT DeviceObject, PIO_STACK_LOCATION IrpSp)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static
+NTSTATUS
 FspFsctlFileSystemControl(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    if (IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction)
+        switch (IrpSp->Parameters.FileSystemControl.FsControlCode)
+        {
+        case FSP_FSCTL_CREATE:
+            Result = FspFsctlCreateVolume(DeviceObject, IrpSp);
+            break;
+        case FSP_FSCTL_DELETE:
+            Result = FspFsctlDeleteVolume(DeviceObject, IrpSp);
+            break;
+        }
+    return Result;
 }
 
 static
@@ -33,7 +78,16 @@ FspFsvrtFileSystemControl(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    if (IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction)
+        switch (IrpSp->Parameters.FileSystemControl.FsControlCode)
+        {
+        case FSP_FSCTL_TRANSACT:
+            Result = FspFsvolTransact(DeviceObject, IrpSp);
+            break;
+        }
+    return Result;
 }
 
 static
