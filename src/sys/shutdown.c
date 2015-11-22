@@ -6,11 +6,22 @@
 
 #include <sys/driver.h>
 
+static DRIVER_DISPATCH FspFsvolShutdown;
 DRIVER_DISPATCH FspShutdown;
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspFsvolShutdown)
 #pragma alloc_text(PAGE, FspShutdown)
 #endif
+
+static
+NTSTATUS
+FspFsvolShutdown(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
 
 NTSTATUS
 FspShutdown(
@@ -21,7 +32,13 @@ FspShutdown(
 
     ASSERT(IRP_MJ_SHUTDOWN == IrpSp->MajorFunction);
 
-    Result = STATUS_INVALID_DEVICE_REQUEST;
+    switch (FspDeviceExtension(DeviceObject)->Kind)
+    {
+    case FspFsvolDeviceExtensionKind:
+        FSP_RETURN(Result = FspFsvolShutdown(DeviceObject, Irp));
+    default:
+        FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
+    }
 
     FSP_LEAVE_MJ("", 0);
 }
