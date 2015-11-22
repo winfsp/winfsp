@@ -62,7 +62,7 @@
     FSP_LEAVE_(FSP_DEBUGLOG_(fmt, " = %s", __VA_ARGS__, NtStatusSym(Result))); return Result
 #define FSP_ENTER_MJ(...)               \
     NTSTATUS Result = STATUS_SUCCESS;   \
-    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (void)IrpSp;\
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);\
     FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(                         \

@@ -6,7 +6,8 @@
 
 #include <sys/driver.h>
 
-static DRIVER_DISPATCH FspFsvolDirectoryControl;
+static NTSTATUS FspFsvolDirectoryControl(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspDirectoryControl;
 
 #ifdef ALLOC_PRAGMA
@@ -14,11 +15,8 @@ DRIVER_DISPATCH FspDirectoryControl;
 #pragma alloc_text(PAGE, FspDirectoryControl)
 #endif
 
-static
-NTSTATUS
-FspFsvolDirectoryControl(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolDirectoryControl(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
@@ -35,7 +33,7 @@ FspDirectoryControl(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolDirectoryControl(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolDirectoryControl(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }

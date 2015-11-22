@@ -6,9 +6,12 @@
 
 #include <sys/driver.h>
 
-static DRIVER_DISPATCH FspFsctlCleanup;
-static DRIVER_DISPATCH FspFsvrtCleanup;
-static DRIVER_DISPATCH FspFsvolCleanup;
+static NTSTATUS FspFsctlCleanup(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvrtCleanup(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolCleanup(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspCleanup;
 
 #ifdef ALLOC_PRAGMA
@@ -18,33 +21,24 @@ DRIVER_DISPATCH FspCleanup;
 #pragma alloc_text(PAGE, FspCleanup)
 #endif
 
-static
-NTSTATUS
-FspFsctlCleanup(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsctlCleanup(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     NTSTATUS Result = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
     return Result;
 }
 
-static
-NTSTATUS
-FspFsvrtCleanup(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvrtCleanup(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     NTSTATUS Result = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
     return Result;
 }
 
-static
-NTSTATUS
-FspFsvolCleanup(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolCleanup(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
@@ -61,11 +55,11 @@ FspCleanup(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolCleanup(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolCleanup(DeviceObject, Irp, IrpSp));
     case FspFsvrtDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvrtCleanup(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvrtCleanup(DeviceObject, Irp, IrpSp));
     case FspFsctlDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsctlCleanup(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsctlCleanup(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }

@@ -6,8 +6,10 @@
 
 #include <sys/driver.h>
 
-static DRIVER_DISPATCH FspFsvolQueryVolumeInformation;
-static DRIVER_DISPATCH FspFsvolSetVolumeInformation;
+static NTSTATUS FspFsvolQueryVolumeInformation(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolSetVolumeInformation(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspQueryVolumeInformation;
 DRIVER_DISPATCH FspSetVolumeInformation;
 
@@ -18,20 +20,14 @@ DRIVER_DISPATCH FspSetVolumeInformation;
 #pragma alloc_text(PAGE, FspSetVolumeInformation)
 #endif
 
-static
-NTSTATUS
-FspFsvolQueryVolumeInformation(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolQueryVolumeInformation(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static
-NTSTATUS
-FspFsvolSetVolumeInformation(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolSetVolumeInformation(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
@@ -48,7 +44,7 @@ FspQueryVolumeInformation(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolQueryVolumeInformation(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolQueryVolumeInformation(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
@@ -68,7 +64,7 @@ FspSetVolumeInformation(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolSetVolumeInformation(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolSetVolumeInformation(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }

@@ -6,7 +6,8 @@
 
 #include <sys/driver.h>
 
-static DRIVER_DISPATCH FspFsvolRead;
+static NTSTATUS FspFsvolRead(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspRead;
 
 #ifdef ALLOC_PRAGMA
@@ -14,11 +15,8 @@ DRIVER_DISPATCH FspRead;
 #pragma alloc_text(PAGE, FspRead)
 #endif
 
-static
-NTSTATUS
-FspFsvolRead(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolRead(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
@@ -35,7 +33,7 @@ FspRead(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolRead(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolRead(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }

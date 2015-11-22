@@ -6,7 +6,8 @@
 
 #include <sys/driver.h>
 
-static DRIVER_DISPATCH FspFsvolFlushBuffers;
+static NTSTATUS FspFsvolFlushBuffers(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspFlushBuffers;
 
 #ifdef ALLOC_PRAGMA
@@ -14,11 +15,8 @@ DRIVER_DISPATCH FspFlushBuffers;
 #pragma alloc_text(PAGE, FspFlushBuffers)
 #endif
 
-static
-NTSTATUS
-FspFsvolFlushBuffers(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolFlushBuffers(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
@@ -35,7 +33,7 @@ FspFlushBuffers(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolFlushBuffers(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolFlushBuffers(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }

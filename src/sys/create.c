@@ -6,9 +6,12 @@
 
 #include <sys/driver.h>
 
-static DRIVER_DISPATCH FspFsctlCreate;
-static DRIVER_DISPATCH FspFsvrtCreate;
-static DRIVER_DISPATCH FspFsvolCreate;
+static NTSTATUS FspFsctlCreate(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvrtCreate(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolCreate(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspCreate;
 
 #ifdef ALLOC_PRAGMA
@@ -18,33 +21,24 @@ DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspCreate)
 #endif
 
-static
-NTSTATUS
-FspFsctlCreate(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsctlCreate(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     NTSTATUS Result = STATUS_SUCCESS;
     Irp->IoStatus.Information = FILE_OPENED;
     return Result;
 }
 
-static
-NTSTATUS
-FspFsvrtCreate(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvrtCreate(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     NTSTATUS Result = STATUS_SUCCESS;
     Irp->IoStatus.Information = FILE_OPENED;
     return Result;
 }
 
-static
-NTSTATUS
-FspFsvolCreate(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolCreate(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
@@ -61,11 +55,11 @@ FspCreate(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolCreate(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolCreate(DeviceObject, Irp, IrpSp));
     case FspFsvrtDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvrtCreate(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvrtCreate(DeviceObject, Irp, IrpSp));
     case FspFsctlDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsctlCreate(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsctlCreate(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }

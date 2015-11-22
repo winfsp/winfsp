@@ -6,7 +6,8 @@
 
 #include <sys/driver.h>
 
-static DRIVER_DISPATCH FspFsvolLockControl;
+static NTSTATUS FspFsvolLockControl(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspLockControl;
 
 #ifdef ALLOC_PRAGMA
@@ -14,11 +15,8 @@ DRIVER_DISPATCH FspLockControl;
 #pragma alloc_text(PAGE, FspLockControl)
 #endif
 
-static
-NTSTATUS
-FspFsvolLockControl(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolLockControl(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
@@ -35,7 +33,7 @@ FspLockControl(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolLockControl(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolLockControl(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }

@@ -6,8 +6,10 @@
 
 #include <sys/driver.h>
 
-static DRIVER_DISPATCH FspFsvolQueryEa;
-static DRIVER_DISPATCH FspFsvolSetEa;
+static NTSTATUS FspFsvolQueryEa(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolSetEa(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspQueryEa;
 DRIVER_DISPATCH FspSetEa;
 
@@ -18,20 +20,14 @@ DRIVER_DISPATCH FspSetEa;
 #pragma alloc_text(PAGE, FspSetEa)
 #endif
 
-static
-NTSTATUS
-FspFsvolQueryEa(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolQueryEa(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static
-NTSTATUS
-FspFsvolSetEa(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolSetEa(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
@@ -48,7 +44,7 @@ FspQueryEa(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolQueryEa(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolQueryEa(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
@@ -68,7 +64,7 @@ FspSetEa(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolSetEa(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolSetEa(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }

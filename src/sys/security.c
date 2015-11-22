@@ -6,8 +6,10 @@
 
 #include <sys/driver.h>
 
-static DRIVER_DISPATCH FspFsvolQuerySecurity;
-static DRIVER_DISPATCH FspFsvolSetSecurity;
+static NTSTATUS FspFsvolQuerySecurity(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolSetSecurity(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspQuerySecurity;
 DRIVER_DISPATCH FspSetSecurity;
 
@@ -18,20 +20,14 @@ DRIVER_DISPATCH FspSetSecurity;
 #pragma alloc_text(PAGE, FspSetSecurity)
 #endif
 
-static
-NTSTATUS
-FspFsvolQuerySecurity(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolQuerySecurity(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static
-NTSTATUS
-FspFsvolSetSecurity(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolSetSecurity(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
@@ -48,7 +44,7 @@ FspQuerySecurity(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolQuerySecurity(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolQuerySecurity(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
@@ -68,7 +64,7 @@ FspSetSecurity(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolSetSecurity(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolSetSecurity(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }

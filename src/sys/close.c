@@ -6,9 +6,12 @@
 
 #include <sys/driver.h>
 
-static DRIVER_DISPATCH FspFsctlClose;
-static DRIVER_DISPATCH FspFsvrtClose;
-static DRIVER_DISPATCH FspFsvolClose;
+static NTSTATUS FspFsctlClose(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvrtClose(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolClose(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspClose;
 
 #ifdef ALLOC_PRAGMA
@@ -18,33 +21,24 @@ DRIVER_DISPATCH FspClose;
 #pragma alloc_text(PAGE, FspClose)
 #endif
 
-static
-NTSTATUS
-FspFsctlClose(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsctlClose(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     NTSTATUS Result = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
     return Result;
 }
 
-static
-NTSTATUS
-FspFsvrtClose(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvrtClose(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     NTSTATUS Result = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
     return Result;
 }
 
-static
-NTSTATUS
-FspFsvolClose(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+static NTSTATUS FspFsvolClose(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
@@ -61,11 +55,11 @@ FspClose(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolClose(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvolClose(DeviceObject, Irp, IrpSp));
     case FspFsvrtDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvrtClose(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsvrtClose(DeviceObject, Irp, IrpSp));
     case FspFsctlDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsctlClose(DeviceObject, Irp));
+        FSP_RETURN(Result = FspFsctlClose(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
