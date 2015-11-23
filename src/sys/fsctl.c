@@ -8,8 +8,6 @@
 
 static NTSTATUS FspFsctlCreateVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-static NTSTATUS FspFsvrtAccessCheck(
-    PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode);
 static NTSTATUS FspFsvrtDeleteVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvrtTransact(
@@ -24,7 +22,6 @@ DRIVER_DISPATCH FspFileSystemControl;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlCreateVolume)
-#pragma alloc_text(PAGE, FspFsvrtAccessCheck)
 #pragma alloc_text(PAGE, FspFsvrtDeleteVolume)
 #pragma alloc_text(PAGE, FspFsvrtTransact)
 #pragma alloc_text(PAGE, FspFsctlFileSystemControl)
@@ -92,30 +89,12 @@ static NTSTATUS FspFsctlCreateVolume(
     return Result;
 }
 
-static NTSTATUS FspFsvrtAccessCheck(
-    PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode)
-{
-    NTSTATUS Result = STATUS_ACCESS_DENIED;
-    SECURITY_SUBJECT_CONTEXT SecuritySubjectContext;
-    ACCESS_MASK GrantedAccess;
-
-    SeCaptureSubjectContext(&SecuritySubjectContext);
-    if (SeAccessCheck(SecurityDescriptor,
-        &SecuritySubjectContext, FALSE,
-        DesiredAccess, 0, 0, IoGetFileObjectGenericMapping(), AccessMode,
-        &GrantedAccess, &Result))
-        Result = STATUS_SUCCESS;
-    SeReleaseSubjectContext(&SecuritySubjectContext);
-
-    return Result;
-}
-
 static NTSTATUS FspFsvrtDeleteVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     NTSTATUS Result;
 
-    Result = FspFsvrtAccessCheck(
+    Result = SecuritySubjectContextAccessCheck(
         FspFsvrtDeviceExtension(DeviceObject)->SecurityDescriptorBuf,
         FILE_WRITE_DATA, Irp->RequestorMode);
     if (!NT_SUCCESS(Result))
@@ -129,7 +108,7 @@ static NTSTATUS FspFsvrtTransact(
 {
     NTSTATUS Result;
 
-    Result = FspFsvrtAccessCheck(
+    Result = SecuritySubjectContextAccessCheck(
         FspFsvrtDeviceExtension(DeviceObject)->SecurityDescriptorBuf,
         FILE_WRITE_DATA, Irp->RequestorMode);
     if (!NT_SUCCESS(Result))

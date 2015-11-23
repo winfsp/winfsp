@@ -192,6 +192,8 @@ FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 
 /* misc */
 NTSTATUS CreateGuid(GUID *Guid);
+NTSTATUS SecuritySubjectContextAccessCheck(
+    PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode);
 
 /* debug */
 #if DBG
