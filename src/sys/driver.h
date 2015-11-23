@@ -13,10 +13,12 @@
 #include <winfsp/fsctl.h>
 
 #define DRIVER_NAME                     "WinFsp"
-#define FSP_FSCTL_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;WD)"
-    /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ|GENERIC_WRITE */
-#define FSP_FSVRT_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;WD)"
-    /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ|GENERIC_WRITE */
+
+/* IoCreateDeviceSecure default SDDL's */
+#define FSP_FSCTL_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;WD)"
+    /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ */
+#define FSP_FSVRT_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;WD)"
+    /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ */
 
 /* DEBUGLOG */
 #if DBG
@@ -26,7 +28,7 @@
 #define DEBUGLOG(fmt, ...)              ((void)0)
 #endif
 
-/* enter/leave*/
+/* FSP_ENTER/FSP_LEAVE */
 #if DBG
 #define FSP_DEBUGLOG_(fmt, rfmt, ...)   \
     DbgPrint(AbnormalTermination() ?    \
@@ -37,7 +39,7 @@
     do                                  \
     {                                   \
         if (HasDbgBreakPoint(__FUNCTION__))\
-            try { DbgBreakPoint(); } except(EXCEPTION_EXECUTE_HANDLER) {}\
+            try { DbgBreakPoint(); } except (EXCEPTION_EXECUTE_HANDLER) {}\
     } while (0,0)
 #else
 #define FSP_DEBUGLOG_(fmt, rfmt, ...)   ((void)0)
@@ -103,6 +105,14 @@
         goto fsp_leave_label;           \
     } while (0,0)
 
+/* misc macros */
+#define FSP_TAG                         ' psF'
+#define FSP_IO_INCREMENT                IO_NETWORK_INCREMENT
+
+/* disable warnings */
+#pragma warning(disable:4100)           /* unreferenced formal parameter */
+#pragma warning(disable:4200)           /* zero-sized array in struct/union */
+
 /* types */
 enum
 {
@@ -121,6 +131,7 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
+    UINT8 SecurityDescriptorBuf[];
 } FSP_FSVRT_DEVICE_EXTENSION;
 typedef struct
 {
@@ -194,11 +205,5 @@ const char *IoctlCodeSym(ULONG ControlCode);
 /* extern */
 extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
-
-/* I/O increment */
-#define FSP_IO_INCREMENT                IO_NETWORK_INCREMENT
-
-/* disable warnings */
-#pragma warning(disable:4100)           /* unreferenced formal parameter */
 
 #endif
