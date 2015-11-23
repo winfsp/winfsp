@@ -13,8 +13,10 @@
 #include <winfsp/fsctl.h>
 
 #define DRIVER_NAME                     "WinFsp"
-#define DEVICE_SDDL                     "D:P(A;;GA;;;SY)(A;;GA;;;BA)"
-    /* system and builtin administrators have full access */
+#define FSP_FSCTL_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;WD)"
+    /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ|GENERIC_WRITE */
+#define FSP_FSVRT_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;WD)"
+    /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ|GENERIC_WRITE */
 
 /* DEBUGLOG */
 #if DBG

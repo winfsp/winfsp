@@ -43,11 +43,13 @@ static NTSTATUS FspFsctlCreateVolume(
     if (!NT_SUCCESS(Result))
         return Result;
 
+    /* create the virtual volume device */
     PDEVICE_OBJECT FsvrtDeviceObject;
     UNICODE_STRING DeviceSddl;
     UNICODE_STRING DeviceName;
-    RtlInitUnicodeString(&DeviceSddl, L"" DEVICE_SDDL);
-    RtlInitEmptyUnicodeString(&DeviceName, Irp->AssociatedIrp.SystemBuffer, FSP_FSCTL_CREATE_BUFFER_SIZEMAX);
+    RtlInitUnicodeString(&DeviceSddl, L"" FSP_FSVRT_DEVICE_SDDL);
+    RtlInitEmptyUnicodeString(&DeviceName,
+        Irp->AssociatedIrp.SystemBuffer, FSP_FSCTL_CREATE_BUFFER_SIZEMAX);
     Result = RtlUnicodeStringPrintf(&DeviceName,
         L"\\Device\\Volume{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
         Guid.Data1, Guid.Data2, Guid.Data3,
@@ -55,7 +57,8 @@ static NTSTATUS FspFsctlCreateVolume(
         Guid.Data4[4], Guid.Data4[5], Guid.Data4[6], Guid.Data4[7]);
     ASSERT(NT_SUCCESS(Result));
     Result = IoCreateDeviceSecure(DeviceObject->DriverObject,
-        sizeof(FSP_FSVRT_DEVICE_EXTENSION), &DeviceName, DeviceObject->DeviceType, 0, FALSE,
+        sizeof(FSP_FSVRT_DEVICE_EXTENSION), &DeviceName, FILE_DEVICE_VIRTUAL_DISK,
+        FILE_DEVICE_SECURE_OPEN, FALSE,
         &DeviceSddl, 0,
         &FsvrtDeviceObject);
     if (!NT_SUCCESS(Result))
