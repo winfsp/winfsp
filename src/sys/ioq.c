@@ -144,9 +144,7 @@ static VOID FspIoqProcessReleaseLock(PIO_CSQ IoCsq, KIRQL Irql)
 
 static VOID FspIoqCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
-    Irp->IoStatus.Status = STATUS_CANCELLED;
-    Irp->IoStatus.Information = 0;
-    IoCompleteRequest(Irp, FSP_IO_INCREMENT);
+    FspCompleteRequest(Irp, STATUS_CANCELLED);
 }
 
 VOID FspIoqInitialize(FSP_IOQ *Ioq)
@@ -203,7 +201,7 @@ VOID FspIoqCancelAll(FSP_IOQ *Ioq)
 {
     PIRP Irp;
     while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, 0)))
-        FspIoqCompleteCanceledIrp(&Ioq->PendingIoCsq, Irp);
+        FspCompleteRequest(Irp, STATUS_CANCELLED);
     while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->ProcessIoCsq, 0)))
-        FspIoqCompleteCanceledIrp(&Ioq->ProcessIoCsq, Irp);
+        FspCompleteRequest(Irp, STATUS_CANCELLED);
 }

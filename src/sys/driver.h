@@ -80,14 +80,13 @@
             NtStatusSym(Result),        \
             !NT_SUCCESS(Result) ? 0 : Irp->IoStatus.Information);\
         if (STATUS_PENDING == Result)   \
-            IoMarkIrpPending(Irp);      \
+        {\
+            ASSERT(FspFsvrtDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind);\
+            FspIoqPostIrp(&FspFsvrtDeviceExtension(DeviceObject)->Ioq, Irp);\
+                /* also marks the IRP pending */\
+        }\
         else                            \
-        {                               \
-            if (!NT_SUCCESS(Result))    \
-                Irp->IoStatus.Information = 0;\
-            Irp->IoStatus.Status = Result;\
-            IoCompleteRequest(Irp, FSP_IO_INCREMENT);\
-        }                               \
+            FspCompleteRequest(Irp, Result);\
     );                                  \
     return Result
 #define FSP_ENTER_BOOL(...)             \
@@ -208,6 +207,7 @@ FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
 }
 
 /* misc */
+VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result);
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspSecuritySubjectContextAccessCheck(
     PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode);

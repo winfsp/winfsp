@@ -6,14 +6,26 @@
 
 #include <sys/driver.h>
 
-NTSTATUS CreateGuid(GUID *Guid);
-NTSTATUS SecuritySubjectContextAccessCheck(
+NTSTATUS FspCreateGuid(GUID *Guid);
+NTSTATUS FspSecuritySubjectContextAccessCheck(
     PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode);
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text(PAGE, CreateGuid)
-#pragma alloc_text(PAGE, SecuritySubjectContextAccessCheck)
+#pragma alloc_text(PAGE, FspCreateGuid)
+#pragma alloc_text(PAGE, FspSecuritySubjectContextAccessCheck)
 #endif
+
+VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result)
+{
+    // !PAGED_CODE();
+
+    ASSERT(STATUS_PENDING != Result);
+
+    if (!NT_SUCCESS(Result))
+        Irp->IoStatus.Information = 0;
+    Irp->IoStatus.Status = Result;
+    IoCompleteRequest(Irp, FSP_IO_INCREMENT);
+}
 
 NTSTATUS FspCreateGuid(GUID *Guid)
 {
