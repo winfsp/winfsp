@@ -174,6 +174,11 @@ VOID FspIoqEnable(FSP_IOQ *Ioq, int Delta)
     KeReleaseSpinLock(&Ioq->SpinLock, Irql);
 }
 
+PKEVENT FspIoqPendingIrpEvent(FSP_IOQ *Ioq)
+{
+    return &Ioq->PendingIrpEvent;
+}
+
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp)
 {
     NTSTATUS Result;
@@ -190,7 +195,7 @@ PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, ULONG millis)
         Timeout.QuadPart = (LONGLONG)millis * 10000;
         Result = KeWaitForSingleObject(&Ioq->PendingIrpEvent, Executive, KernelMode, FALSE,
             -1 == millis ? 0 : &Timeout);
-        if (!NT_SUCCESS(Result))
+        if (STATUS_SUCCESS != Result)
             return 0;
     }
     return IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, (PVOID)1);
