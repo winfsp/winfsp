@@ -113,51 +113,6 @@
 #pragma warning(disable:4100)           /* unreferenced formal parameter */
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
 
-/* types */
-enum
-{
-    FspFsctlDeviceExtensionKind = 'C',  /* file system control device (e.g. \Device\WinFsp.Disk) */
-    FspFsvrtDeviceExtensionKind = 'V',  /* virtual volume device (e.g. \Device\Volume{GUID}) */
-    FspFsvolDeviceExtensionKind = 'F',  /* file system volume device (unnamed) */
-};
-typedef struct
-{
-    UINT8 Kind;
-} FSP_DEVICE_EXTENSION;
-typedef struct
-{
-    FSP_DEVICE_EXTENSION Base;
-} FSP_FSCTL_DEVICE_EXTENSION;
-typedef struct
-{
-    FSP_DEVICE_EXTENSION Base;
-    UINT8 SecurityDescriptorBuf[];
-} FSP_FSVRT_DEVICE_EXTENSION;
-typedef struct
-{
-    FSP_DEVICE_EXTENSION Base;
-} FSP_FSVOL_DEVICE_EXTENSION;
-static inline
-FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
-{
-    return DeviceObject->DeviceExtension;
-}
-static inline
-FSP_FSCTL_DEVICE_EXTENSION *FspFsctlDeviceExtension(PDEVICE_OBJECT DeviceObject)
-{
-    return DeviceObject->DeviceExtension;
-}
-static inline
-FSP_FSVRT_DEVICE_EXTENSION *FspFsvrtDeviceExtension(PDEVICE_OBJECT DeviceObject)
-{
-    return DeviceObject->DeviceExtension;
-}
-static inline
-FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
-{
-    return DeviceObject->DeviceExtension;
-}
-
 /* driver major functions */
 DRIVER_DISPATCH FspCleanup;
 DRIVER_DISPATCH FspClose;
@@ -189,6 +144,68 @@ FAST_IO_ACQUIRE_FOR_MOD_WRITE FspAcquireForModWrite;
 FAST_IO_RELEASE_FOR_MOD_WRITE FspReleaseForModWrite;
 FAST_IO_ACQUIRE_FOR_CCFLUSH FspAcquireForCcFlush;
 FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
+
+/* I/O queue */
+typedef struct
+{
+    KSPIN_LOCK SpinLock;
+    int Enabled;
+    LIST_ENTRY PendingIrpList, ProcessIrpList;
+    IO_CSQ PendingIoCsq, ProcessIoCsq;
+} FSP_IOQ;
+VOID FspIoqInitialize(FSP_IOQ *Ioq);
+VOID FspIoqEnable(FSP_IOQ *Ioq, int Delta);
+BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp);
+PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq);
+BOOLEAN FspIoqProcessIrp(FSP_IOQ *Ioq, PIRP Irp);
+PIRP FspIoqRemoveProcessIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
+VOID FspIoqCancelAll(FSP_IOQ *Ioq);
+
+/* device extensions */
+enum
+{
+    FspFsctlDeviceExtensionKind = 'C',  /* file system control device (e.g. \Device\WinFsp.Disk) */
+    FspFsvrtDeviceExtensionKind = 'V',  /* virtual volume device (e.g. \Device\Volume{GUID}) */
+    FspFsvolDeviceExtensionKind = 'F',  /* file system volume device (unnamed) */
+};
+typedef struct
+{
+    UINT8 Kind;
+} FSP_DEVICE_EXTENSION;
+typedef struct
+{
+    FSP_DEVICE_EXTENSION Base;
+} FSP_FSCTL_DEVICE_EXTENSION;
+typedef struct
+{
+    FSP_DEVICE_EXTENSION Base;
+    FSP_IOQ Ioq;
+    UINT8 SecurityDescriptorBuf[];
+} FSP_FSVRT_DEVICE_EXTENSION;
+typedef struct
+{
+    FSP_DEVICE_EXTENSION Base;
+} FSP_FSVOL_DEVICE_EXTENSION;
+static inline
+FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
+{
+    return DeviceObject->DeviceExtension;
+}
+static inline
+FSP_FSCTL_DEVICE_EXTENSION *FspFsctlDeviceExtension(PDEVICE_OBJECT DeviceObject)
+{
+    return DeviceObject->DeviceExtension;
+}
+static inline
+FSP_FSVRT_DEVICE_EXTENSION *FspFsvrtDeviceExtension(PDEVICE_OBJECT DeviceObject)
+{
+    return DeviceObject->DeviceExtension;
+}
+static inline
+FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
+{
+    return DeviceObject->DeviceExtension;
+}
 
 /* misc */
 NTSTATUS CreateGuid(GUID *Guid);
