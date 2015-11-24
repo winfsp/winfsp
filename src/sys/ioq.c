@@ -7,6 +7,8 @@
 #include <sys/driver.h>
 
 /*
+ * Overview
+ *
  * An FSP_IOQ encapsulates the main FSP mechanism for handling IRP's.
  * It has two queues: a "Pending" queue for managing newly arrived IRP's
  * and a "Processing" queue for managing IRP's currently being processed
@@ -21,7 +23,8 @@
  * marshalled back to us and will be then removed from the Processing queue
  * and completed.
  *
- * IRP State diagram:
+ *
+ * IRP State Diagram
  *                                 +--------------------+
  *           |                     |                    | StartProcessingIrp
  *           v                     |                    v
@@ -44,46 +47,37 @@
  *           |                     |
  *           +---------------------+
  *
- * Note that the Pending queue is controlled by a semaphore object, which
- * counts how many IRP's are in the queue. The semaphore is incremented for
- * every IRP that is inserted into the Pending queue and decremented every
- * time an IRP is removed from the Pending queue.
+ *
+ * Pending Queue Event Object
+ *
+ * Note that the Pending queue is controlled by a manual event object.
+ * The event object remains signaled for as long as the queue is not empty.
  */
 
 static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
-
     if (0 > Ioq->Enabled)
         return STATUS_ACCESS_DENIED;
-
-    /* SpinLock: acquired, IRQL: DISPATCH_LEVEL */
     InsertTailList(&Ioq->PendingIrpList, &Irp->Tail.Overlay.ListEntry);
-    KeReleaseSemaphore(&Ioq->PendingSemaphore, FSP_IO_INCREMENT, 1, FALSE);
-        /* KeReleaseSemaphore allowed at DISPATCH_LEVEL with Wait==FALSE */
-
+    /* list is not empty; wake up any waiters */
+    KeSetEvent(&Ioq->PendingIrpEvent, 1, FALSE);
     return STATUS_SUCCESS;
 }
 
 static VOID FspIoqPendingRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
-    RemoveEntryList(&Irp->Tail.Overlay.ListEntry);
+    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
+    if (RemoveEntryList(&Irp->Tail.Overlay.ListEntry))
+        /* list is empty; future threads should go to sleep */
+        KeClearEvent(&Ioq->PendingIrpEvent);
 }
 
 static PIRP FspIoqPendingPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
-    PLIST_ENTRY Head, Entry;
-
-    if (!PeekContext && 0 > Ioq->Enabled)
-        return 0;
-
-    Head = &Ioq->PendingIrpList;
-    if (0 == Irp)
-        Entry = Head->Flink;
-    else
-        Entry = Irp->Tail.Overlay.ListEntry.Flink;
-
+    PLIST_ENTRY Head = &Ioq->PendingIrpList;
+    PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
     return Head != Entry ? CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry) : 0;
 }
 
@@ -101,21 +95,14 @@ static VOID FspIoqPendingReleaseLock(PIO_CSQ IoCsq, KIRQL Irql)
 
 static VOID FspIoqPendingCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
-    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
-    LARGE_INTEGER Timeout = { 0 };
-
-    /* SpinLock: not acquired */
-    KeWaitForSingleObject(&Ioq->PendingSemaphore, Executive, KernelMode, FALSE, &Timeout);
     FspCompleteRequest(Irp, STATUS_CANCELLED);
 }
 
 static NTSTATUS FspIoqProcessInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
-
     if (0 > Ioq->Enabled)
         return STATUS_ACCESS_DENIED;
-
     InsertTailList(&Ioq->ProcessIrpList, &Irp->Tail.Overlay.ListEntry);
     return STATUS_SUCCESS;
 }
@@ -128,24 +115,14 @@ static VOID FspIoqProcessRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 static PIRP FspIoqProcessPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
-    PLIST_ENTRY Head, Entry;
-
-    if (!PeekContext && 0 > Ioq->Enabled)
-        return 0;
-
-    Head = &Ioq->ProcessIrpList;
-    if (0 == Irp)
-        Entry = Head->Flink;
-    else
-        Entry = Irp->Tail.Overlay.ListEntry.Flink;
-
+    PLIST_ENTRY Head = &Ioq->ProcessIrpList;
+    PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
     for (; Head != Entry; Entry = Entry->Flink)
     {
         Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
         if (Irp == PeekContext)
             return Irp;
     }
-
     return 0;
 }
 
@@ -170,7 +147,7 @@ VOID FspIoqInitialize(FSP_IOQ *Ioq)
 {
     RtlZeroMemory(Ioq, sizeof *Ioq);
     KeInitializeSpinLock(&Ioq->SpinLock);
-    KeInitializeSemaphore(&Ioq->PendingSemaphore, 0, 1000000000);
+    KeInitializeEvent(&Ioq->PendingIrpEvent, NotificationEvent, FALSE);
     InitializeListHead(&Ioq->PendingIrpList);
     InitializeListHead(&Ioq->ProcessIrpList);
     IoCsqInitializeEx(&Ioq->PendingIoCsq,
@@ -208,21 +185,12 @@ PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, ULONG millis)
 {
     NTSTATUS Result;
     LARGE_INTEGER Timeout;
-    PIRP Irp;
-
     Timeout.QuadPart = (LONGLONG)millis * 10000;
-    Result = KeWaitForSingleObject(&Ioq->PendingSemaphore, Executive, KernelMode, FALSE,
+    Result = KeWaitForSingleObject(&Ioq->PendingIrpEvent, Executive, KernelMode, FALSE,
         -1 == millis ? 0 : &Timeout);
     if (!NT_SUCCESS(Result))
         return 0;
-
-    Irp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, (PVOID)1);
-
-    if (0 == Irp)
-        /* signal the semaphore again; turns out we did not get an IRP! */
-        KeReleaseSemaphore(&Ioq->PendingSemaphore, FSP_IO_INCREMENT, 1, FALSE);
-
-    return Irp;
+    return IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, (PVOID)1);
 }
 
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp)

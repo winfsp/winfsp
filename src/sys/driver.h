@@ -149,7 +149,7 @@ typedef struct
 {
     KSPIN_LOCK SpinLock;
     int Enabled;
-    KSEMAPHORE PendingSemaphore;
+    KEVENT PendingIrpEvent;
     LIST_ENTRY PendingIrpList, ProcessIrpList;
     IO_CSQ PendingIoCsq, ProcessIoCsq;
 } FSP_IOQ;
