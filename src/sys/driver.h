@@ -149,13 +149,14 @@ typedef struct
 {
     KSPIN_LOCK SpinLock;
     int Enabled;
+    KSEMAPHORE PendingSemaphore;
     LIST_ENTRY PendingIrpList, ProcessIrpList;
     IO_CSQ PendingIoCsq, ProcessIoCsq;
 } FSP_IOQ;
 VOID FspIoqInitialize(FSP_IOQ *Ioq);
 VOID FspIoqEnable(FSP_IOQ *Ioq, int Delta);
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp);
-PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq);
+PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, ULONG millis);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 VOID FspIoqCancelAll(FSP_IOQ *Ioq);
