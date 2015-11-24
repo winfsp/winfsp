@@ -23,13 +23,13 @@
  *
  * State diagram:
  *                                 +--------------------+
- *           |                     |                    | ProcessIrp
+ *           |                     |                    | StartProcessingIrp
  *           v                     |                    v
  *     +------------+              |              +------------+
  *     |     MJ     |              |              | Processing |
  *     +------------+              |              +------------+
  *           |                     |                    |
- *           | PostIrp             |                    | RemoveProcessIrp
+ *           | PostIrp             |                    | EndProcessingIrp
  *           v                     |                    v
  *     +------------+              |              +------------+
  *     |   Pending  |              |              |  TRANSACT  |
@@ -189,12 +189,12 @@ PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq)
     return IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, (PVOID)1);
 }
 
-BOOLEAN FspIoqProcessIrp(FSP_IOQ *Ioq, PIRP Irp)
+BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp)
 {
     return STATUS_SUCCESS == IoCsqInsertIrpEx(&Ioq->ProcessIoCsq, Irp, 0, 0);
 }
 
-PIRP FspIoqRemoveProcessIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint)
+PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint)
 {
     return IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, (PVOID)IrpHint);
 }

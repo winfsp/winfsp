@@ -157,8 +157,8 @@ VOID FspIoqInitialize(FSP_IOQ *Ioq);
 VOID FspIoqEnable(FSP_IOQ *Ioq, int Delta);
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq);
-BOOLEAN FspIoqProcessIrp(FSP_IOQ *Ioq, PIRP Irp);
-PIRP FspIoqRemoveProcessIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
+BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
+PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 VOID FspIoqCancelAll(FSP_IOQ *Ioq);
 
 /* device extensions */
