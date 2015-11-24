@@ -183,13 +183,16 @@ BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp)
 
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, ULONG millis)
 {
-    NTSTATUS Result;
-    LARGE_INTEGER Timeout;
-    Timeout.QuadPart = (LONGLONG)millis * 10000;
-    Result = KeWaitForSingleObject(&Ioq->PendingIrpEvent, Executive, KernelMode, FALSE,
-        -1 == millis ? 0 : &Timeout);
-    if (!NT_SUCCESS(Result))
-        return 0;
+    if (0 != millis)
+    {
+        NTSTATUS Result;
+        LARGE_INTEGER Timeout;
+        Timeout.QuadPart = (LONGLONG)millis * 10000;
+        Result = KeWaitForSingleObject(&Ioq->PendingIrpEvent, Executive, KernelMode, FALSE,
+            -1 == millis ? 0 : &Timeout);
+        if (!NT_SUCCESS(Result))
+            return 0;
+    }
     return IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, (PVOID)1);
 }
 
