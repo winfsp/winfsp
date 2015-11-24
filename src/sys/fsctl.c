@@ -48,7 +48,7 @@ static NTSTATUS FspFsctlCreateVolume(
 
     /* create volume guid */
     GUID Guid;
-    Result = CreateGuid(&Guid);
+    Result = FspCreateGuid(&Guid);
     if (!NT_SUCCESS(Result))
         return Result;
 
@@ -94,7 +94,7 @@ static NTSTATUS FspFsvrtDeleteVolume(
 {
     NTSTATUS Result;
 
-    Result = SecuritySubjectContextAccessCheck(
+    Result = FspSecuritySubjectContextAccessCheck(
         FspFsvrtDeviceExtension(DeviceObject)->SecurityDescriptorBuf,
         FILE_WRITE_DATA, Irp->RequestorMode);
     if (!NT_SUCCESS(Result))
@@ -108,7 +108,7 @@ static NTSTATUS FspFsvrtTransact(
 {
     NTSTATUS Result;
 
-    Result = SecuritySubjectContextAccessCheck(
+    Result = FspSecuritySubjectContextAccessCheck(
         FspFsvrtDeviceExtension(DeviceObject)->SecurityDescriptorBuf,
         FILE_WRITE_DATA, Irp->RequestorMode);
     if (!NT_SUCCESS(Result))

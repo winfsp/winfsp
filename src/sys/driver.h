@@ -208,8 +208,8 @@ FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
 }
 
 /* misc */
-NTSTATUS CreateGuid(GUID *Guid);
-NTSTATUS SecuritySubjectContextAccessCheck(
+NTSTATUS FspCreateGuid(GUID *Guid);
+NTSTATUS FspSecuritySubjectContextAccessCheck(
     PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode);
 
 /* debug */

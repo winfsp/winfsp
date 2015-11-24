@@ -15,7 +15,7 @@ NTSTATUS SecuritySubjectContextAccessCheck(
 #pragma alloc_text(PAGE, SecuritySubjectContextAccessCheck)
 #endif
 
-NTSTATUS CreateGuid(GUID *Guid)
+NTSTATUS FspCreateGuid(GUID *Guid)
 {
     PAGED_CODE();
 
@@ -30,7 +30,7 @@ NTSTATUS CreateGuid(GUID *Guid)
     return Result;
 }
 
-NTSTATUS SecuritySubjectContextAccessCheck(
+NTSTATUS FspSecuritySubjectContextAccessCheck(
     PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode)
 {
     PAGED_CODE();
