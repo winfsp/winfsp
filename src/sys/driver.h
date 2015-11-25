@@ -80,11 +80,19 @@
             NtStatusSym(Result),        \
             !NT_SUCCESS(Result) ? 0 : Irp->IoStatus.Information);\
         if (STATUS_PENDING == Result)   \
-        {\
-            ASSERT(FspFsvrtDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind);\
-            FspIoqPostIrp(&FspFsvrtDeviceExtension(DeviceObject)->Ioq, Irp);\
-                /* also marks the IRP pending */\
-        }\
+        {                               \
+            if (0 == (IrpSp->Control & SL_PENDING_RETURNED))\
+            {                           \
+                /* if the IRP has not been marked pending already */\
+                ASSERT(FspFsvolDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind);\
+                FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =\
+                    FspFsvolDeviceExtension(DeviceObject);\
+                FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =\
+                    FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);\
+                if (!FspIoqPostIrp(&FsvrtDeviceExtension->Ioq, Irp))\
+                     FspCompleteRequest(Irp, STATUS_ACCESS_DENIED);\
+            }                           \
+        }                               \
         else                            \
             FspCompleteRequest(Irp, Result);\
     );                                  \
@@ -198,6 +206,7 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
+    PDEVICE_OBJECT FsvrtDeviceObject;
 } FSP_FSVOL_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)

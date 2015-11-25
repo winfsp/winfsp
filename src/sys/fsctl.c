@@ -125,6 +125,9 @@ static NTSTATUS FspFsvrtTransact(
 
     NTSTATUS Result;
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
+    PUINT8 SystemBufferEnd;
+    FSP_TRANSACT_RSP *Response;
+    PIRP ProcessIrp;
 
     /* access check */
     Result = FspSecuritySubjectContextAccessCheck(
@@ -132,7 +135,32 @@ static NTSTATUS FspFsvrtTransact(
     if (!NT_SUCCESS(Result))
         return Result;
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    /* process any user-mode file system responses */
+    Response = SystemBuffer;
+    SystemBufferEnd = (PUINT8)SystemBuffer + InputBufferLength;
+    for (;;)
+    {
+        if ((PUINT8)Response + sizeof(Response->Size) > SystemBufferEnd ||
+            sizeof(FSP_TRANSACT_RSP) > Response->Size ||
+            (PUINT8)Response + Response->Size > SystemBufferEnd)
+            break;
+
+        ProcessIrp = FspIoqEndProcessingIrp(&FsvrtDeviceExtension->Ioq, Response->Hint);
+        if (0 == ProcessIrp)
+            /* either IRP was canceled or a bogus IrpHint was provided */
+            continue;
+
+        //FspDispatchProcessedIrp(ProcessIrp, Response);
+
+        Response = (PVOID)((PUINT8)Response + Response->Size);
+    }
+
+    if (FspIoqPostIrp(&FsvrtDeviceExtension->TransactIoq, Irp))
+        Result = STATUS_PENDING;
+    else
+        Result = STATUS_ACCESS_DENIED;
+
+    return Result;
 }
 
 static NTSTATUS FspFsctlFileSystemControl(
