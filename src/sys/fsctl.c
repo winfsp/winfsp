@@ -79,15 +79,10 @@ static NTSTATUS FspFsctlCreateVolume(
     {
         FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
         FsvrtDeviceExtension->Base.Kind = FspFsvrtDeviceExtensionKind;
-        FspIoqInitialize(&FsvrtDeviceExtension->TransactIoq);
         FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
         RtlCopyMemory(FspFsvrtDeviceExtension(FsvrtDeviceObject)->SecurityDescriptorBuf,
             SecurityDescriptor, InputBufferLength);
         Irp->IoStatus.Information = DeviceName.Length + 1;
-        Result = FspTransactThreadStart(&FsvrtDeviceExtension->TransactThread,
-            &FsvrtDeviceExtension->TransactIoq, &FsvrtDeviceExtension->Ioq);
-        if (!NT_SUCCESS(Result))
-            IoDeleteDevice(FsvrtDeviceObject);
     }
 
     /* free the temporary security descriptor */
@@ -125,9 +120,10 @@ static NTSTATUS FspFsvrtTransact(
 
     NTSTATUS Result;
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
-    PUINT8 SystemBufferEnd;
+    PUINT8 SystemBufferPtr, SystemBufferEnd;
     FSP_TRANSACT_RSP *Response;
-    PIRP ProcessIrp;
+    FSP_TRANSACT_REQ *Request;
+    PIRP ProcessIrp, PendingIrp;
 
     /* access check */
     Result = FspSecuritySubjectContextAccessCheck(
@@ -155,12 +151,43 @@ static NTSTATUS FspFsvrtTransact(
         Response = (PVOID)((PUINT8)Response + Response->Size);
     }
 
-    if (FspIoqPostIrp(&FsvrtDeviceExtension->TransactIoq, Irp))
-        Result = STATUS_PENDING;
-    else
-        Result = STATUS_ACCESS_DENIED;
+    /* wait for a pending IRP */
+    while (0 == (PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, 300)))
+    {
+        if (!FspIoqEnabled(&FsvrtDeviceExtension->Ioq))
+            return STATUS_CANCELLED;
+    }
 
-    return Result;
+    /* send any pending IRP's to the user-mode file system */
+    SystemBufferPtr = SystemBuffer;
+    SystemBufferEnd = (PUINT8)SystemBuffer + OutputBufferLength;
+    ASSERT(SystemBufferPtr + FSP_FSCTL_TRANSACT_REQ_SIZEMAX + sizeof(Request->Size) <= SystemBufferEnd);
+    for (BOOLEAN LoopedOnce = FALSE;; LoopedOnce = TRUE)
+    {
+        if (SystemBufferPtr + FSP_FSCTL_TRANSACT_REQ_SIZEMAX + sizeof(Request->Size) > SystemBufferEnd)
+            break;
+
+        if (!FspIoqStartProcessingIrp(&FsvrtDeviceExtension->Ioq, PendingIrp))
+        {
+            FspCompleteRequest(PendingIrp, STATUS_CANCELLED);
+            if (!LoopedOnce)
+                return STATUS_CANCELLED;
+            break;
+        }
+
+        Request = PendingIrp->Tail.Overlay.DriverContext[0];
+        RtlCopyMemory(SystemBufferPtr, Request, Request->Size);
+        SystemBufferPtr += Request->Size;
+
+        PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, 0);
+        if (0 == PendingIrp)
+            break;
+    }
+    ASSERT(SystemBufferPtr + sizeof(Request->Size) <= SystemBufferEnd);
+    RtlZeroMemory(SystemBufferPtr, SystemBufferEnd - SystemBufferPtr);
+    Irp->IoStatus.Information = SystemBufferPtr - (PUINT8)SystemBuffer;
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFsctlFileSystemControl(

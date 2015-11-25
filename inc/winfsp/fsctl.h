@@ -31,6 +31,7 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 
 #define FSP_FSCTL_CREATE_BUFFER_SIZE    64
 #define FSP_FSCTL_TRANSACT_BUFFER_SIZE  4096
+#define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  1536
 
 /* marshalling */
 #pragma warning(push)

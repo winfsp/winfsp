@@ -162,24 +162,13 @@ typedef struct
     IO_CSQ PendingIoCsq, ProcessIoCsq;
 } FSP_IOQ;
 VOID FspIoqInitialize(FSP_IOQ *Ioq);
-VOID FspIoqEnable(FSP_IOQ *Ioq, int Delta);
-PKEVENT FspIoqPendingIrpEvent(FSP_IOQ *Ioq);
+BOOLEAN FspIoqEnabled(FSP_IOQ *Ioq);
+VOID FspIoqDisable(FSP_IOQ *Ioq);
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, ULONG millis);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 VOID FspIoqCancelAll(FSP_IOQ *Ioq);
-
-/* transact thread */
-typedef struct
-{
-    PKTHREAD Thread;
-    KEVENT Event;
-    FSP_IOQ *TransactIoq, *Ioq;
-} FSP_TRANSACT_THREAD;
-NTSTATUS FspTransactThreadStart(FSP_TRANSACT_THREAD *TransactThread,
-    FSP_IOQ *TransactIoq, FSP_IOQ *Ioq);
-VOID FspTransactThreadStop(FSP_TRANSACT_THREAD *TransactThread);
 
 /* device extensions */
 enum
@@ -199,8 +188,7 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-    FSP_IOQ TransactIoq, Ioq;
-    FSP_TRANSACT_THREAD TransactThread;
+    FSP_IOQ Ioq;
     UINT8 SecurityDescriptorBuf[];
 } FSP_FSVRT_DEVICE_EXTENSION;
 typedef struct

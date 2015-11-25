@@ -57,7 +57,7 @@
 static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
-    if (0 > Ioq->Enabled)
+    if (0 >= Ioq->Enabled)
         return STATUS_ACCESS_DENIED;
     InsertTailList(&Ioq->PendingIrpList, &Irp->Tail.Overlay.ListEntry);
     /* list is not empty; wake up any waiters */
@@ -101,7 +101,7 @@ static VOID FspIoqPendingCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
 static NTSTATUS FspIoqProcessInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
-    if (0 > Ioq->Enabled)
+    if (0 >= Ioq->Enabled)
         return STATUS_ACCESS_DENIED;
     InsertTailList(&Ioq->ProcessIrpList, &Irp->Tail.Overlay.ListEntry);
     return STATUS_SUCCESS;
@@ -164,19 +164,25 @@ VOID FspIoqInitialize(FSP_IOQ *Ioq)
         FspIoqProcessAcquireLock,
         FspIoqProcessReleaseLock,
         FspIoqProcessCompleteCanceledIrp);
+    Ioq->Enabled = 1;
 }
 
-VOID FspIoqEnable(FSP_IOQ *Ioq, int Delta)
+BOOLEAN FspIoqEnabled(FSP_IOQ *Ioq)
+{
+    BOOLEAN Result;
+    KIRQL Irql;
+    KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
+    Result = 0 < Ioq->Enabled;
+    KeReleaseSpinLock(&Ioq->SpinLock, Irql);
+    return Result;
+}
+
+VOID FspIoqDisable(FSP_IOQ *Ioq)
 {
     KIRQL Irql;
     KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
-    Ioq->Enabled += Delta;
+    Ioq->Enabled = 0;
     KeReleaseSpinLock(&Ioq->SpinLock, Irql);
-}
-
-PKEVENT FspIoqPendingIrpEvent(FSP_IOQ *Ioq)
-{
-    return &Ioq->PendingIrpEvent;
 }
 
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp)
