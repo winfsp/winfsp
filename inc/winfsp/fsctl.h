@@ -32,4 +32,30 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_CREATE_BUFFER_SIZE    64
 #define FSP_FSCTL_TRANSACT_BUFFER_SIZE  4096
 
+/* marshalling */
+#pragma warning(push)
+#pragma warning(disable:4200)           /* zero-sized array in struct/union */
+typedef struct
+{
+    ULONG Size;
+    UINT_PTR Hint;
+    UINT8 Kind;
+    union
+    {
+        UINT8 Placeholder; // !!!: REMOVE
+    } Req;
+} FSP_TRANSACT_REQ;
+typedef struct
+{
+    ULONG Size;
+    UINT_PTR Hint;
+    IO_STATUS_BLOCK IoStatus;
+    UINT8 Kind;
+    union
+    {
+        UINT8 Placeholder; // !!!: REMOVE
+    } Req;
+} FSP_TRANSACT_RSP;
+#pragma warning(pop)
+
 #endif
