@@ -50,15 +50,15 @@
  *
  * Event Object
  *
- * The FSP_IOQ includes a manual event object. The event object remains
- * signaled when the FSP_IOQ object is disabled or when the Pending queue
- * is not empty.
+ * The FSP_IOQ includes a manual event object. The event object becomes
+ * signaled when the FSP_IOQ object is stopped or for as long as the Pending
+ * queue is not empty.
  */
 
 static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
-    if (0 >= Ioq->Enabled)
+    if (Ioq->Stopped)
         return STATUS_ACCESS_DENIED;
     InsertTailList(&Ioq->PendingIrpList, &Irp->Tail.Overlay.ListEntry);
     /* list is not empty; wake up any waiters */
@@ -69,7 +69,7 @@ static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertCo
 static VOID FspIoqPendingRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
-    if (RemoveEntryList(&Irp->Tail.Overlay.ListEntry) && 0 < Ioq->Enabled)
+    if (RemoveEntryList(&Irp->Tail.Overlay.ListEntry) && !Ioq->Stopped)
         /* list is empty; future threads should go to sleep */
         KeClearEvent(&Ioq->PendingIrpEvent);
 }
@@ -77,7 +77,7 @@ static VOID FspIoqPendingRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 static PIRP FspIoqPendingPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
-    if (!PeekContext && 0 >= Ioq->Enabled)
+    if (!PeekContext && Ioq->Stopped)
         return 0;
     PLIST_ENTRY Head = &Ioq->PendingIrpList;
     PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
@@ -104,7 +104,7 @@ static VOID FspIoqPendingCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
 static NTSTATUS FspIoqProcessInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
-    if (0 >= Ioq->Enabled)
+    if (Ioq->Stopped)
         return STATUS_ACCESS_DENIED;
     InsertTailList(&Ioq->ProcessIrpList, &Irp->Tail.Overlay.ListEntry);
     return STATUS_SUCCESS;
@@ -118,10 +118,12 @@ static VOID FspIoqProcessRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 static PIRP FspIoqProcessPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
-    if (!PeekContext && 0 >= Ioq->Enabled)
+    if (!PeekContext && Ioq->Stopped)
         return 0;
     PLIST_ENTRY Head = &Ioq->ProcessIrpList;
     PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
+    if (!PeekContext)
+        return Head != Entry ? CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry) : 0;
     for (; Head != Entry; Entry = Entry->Flink)
     {
         Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
@@ -169,26 +171,31 @@ VOID FspIoqInitialize(FSP_IOQ *Ioq)
         FspIoqProcessAcquireLock,
         FspIoqProcessReleaseLock,
         FspIoqProcessCompleteCanceledIrp);
-    Ioq->Enabled = 1;
 }
 
-BOOLEAN FspIoqEnabled(FSP_IOQ *Ioq)
+VOID FspIoqStop(FSP_IOQ *Ioq)
+{
+    KIRQL Irql;
+    KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
+    Ioq->Stopped = TRUE;
+    /* we are being stopped, permanently wake up waiters */
+    KeSetEvent(&Ioq->PendingIrpEvent, 1, FALSE);
+    KeReleaseSpinLock(&Ioq->SpinLock, Irql);
+    PIRP Irp;
+    while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, 0)))
+        FspIoqPendingCompleteCanceledIrp(&Ioq->PendingIoCsq, Irp);
+    while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->ProcessIoCsq, 0)))
+        FspIoqProcessCompleteCanceledIrp(&Ioq->ProcessIoCsq, Irp);
+}
+
+BOOLEAN FspIoqStopped(FSP_IOQ *Ioq)
 {
     BOOLEAN Result;
     KIRQL Irql;
     KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
-    Result = 0 < Ioq->Enabled;
+    Result = Ioq->Stopped;
     KeReleaseSpinLock(&Ioq->SpinLock, Irql);
     return Result;
-}
-
-VOID FspIoqDisable(FSP_IOQ *Ioq)
-{
-    KIRQL Irql;
-    KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
-    Ioq->Enabled = 0;
-    KeSetEvent(&Ioq->PendingIrpEvent, 1, FALSE);
-    KeReleaseSpinLock(&Ioq->SpinLock, Irql);
 }
 
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp)
@@ -223,13 +230,4 @@ BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp)
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint)
 {
     return IoCsqRemoveNextIrp(&Ioq->ProcessIoCsq, (PVOID)IrpHint);
-}
-
-VOID FspIoqCancelAll(FSP_IOQ *Ioq)
-{
-    PIRP Irp;
-    while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, 0)))
-        FspIoqPendingCompleteCanceledIrp(&Ioq->PendingIoCsq, Irp);
-    while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->ProcessIoCsq, 0)))
-        FspIoqProcessCompleteCanceledIrp(&Ioq->ProcessIoCsq, Irp);
 }

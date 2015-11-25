@@ -156,19 +156,18 @@ FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 typedef struct
 {
     KSPIN_LOCK SpinLock;
-    int Enabled;
+    BOOLEAN Stopped;
     KEVENT PendingIrpEvent;
     LIST_ENTRY PendingIrpList, ProcessIrpList;
     IO_CSQ PendingIoCsq, ProcessIoCsq;
 } FSP_IOQ;
 VOID FspIoqInitialize(FSP_IOQ *Ioq);
-BOOLEAN FspIoqEnabled(FSP_IOQ *Ioq);
-VOID FspIoqDisable(FSP_IOQ *Ioq);
+VOID FspIoqStop(FSP_IOQ *Ioq);
+BOOLEAN FspIoqStopped(FSP_IOQ *Ioq);
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, ULONG millis);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
-VOID FspIoqCancelAll(FSP_IOQ *Ioq);
 
 /* device extensions */
 enum

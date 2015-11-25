@@ -151,10 +151,10 @@ static NTSTATUS FspFsvrtTransact(
         Response = (PVOID)((PUINT8)Response + Response->Size);
     }
 
-    /* wait for a pending IRP */
+    /* wait for an IRP to arrive */
     while (0 == (PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, (ULONG)-1L)))
     {
-        if (!FspIoqEnabled(&FsvrtDeviceExtension->Ioq))
+        if (FspIoqStopped(&FsvrtDeviceExtension->Ioq))
             return STATUS_CANCELLED;
     }
 
@@ -169,10 +169,15 @@ static NTSTATUS FspFsvrtTransact(
 
         if (!FspIoqStartProcessingIrp(&FsvrtDeviceExtension->Ioq, PendingIrp))
         {
+            /*
+             * This can only happen if the Ioq was stopped. Abandon everything
+             * and return STATUS_CANCELLED. Any IRP's in the Pending and Process
+             * queues of the Ioq will be cancelled during FspIoqStop(). We must
+             * also cancel the PendingIrp we have in our hands.
+             */
+            ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));
             FspCompleteRequest(PendingIrp, STATUS_CANCELLED);
-            if (!LoopedOnce)
-                return STATUS_CANCELLED;
-            break;
+            return STATUS_CANCELLED;
         }
 
         Request = PendingIrp->Tail.Overlay.DriverContext[0];
