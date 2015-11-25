@@ -48,10 +48,11 @@
  *           +---------------------+
  *
  *
- * Pending Queue Event Object
+ * Event Object
  *
- * Note that the Pending queue is controlled by a manual event object.
- * The event object remains signaled for as long as the queue is not empty.
+ * The FSP_IOQ includes a manual event object. The event object remains
+ * signaled when the FSP_IOQ object is disabled or when the Pending queue
+ * is not empty.
  */
 
 static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
@@ -68,7 +69,7 @@ static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertCo
 static VOID FspIoqPendingRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
-    if (RemoveEntryList(&Irp->Tail.Overlay.ListEntry))
+    if (RemoveEntryList(&Irp->Tail.Overlay.ListEntry) && 0 < Ioq->Enabled)
         /* list is empty; future threads should go to sleep */
         KeClearEvent(&Ioq->PendingIrpEvent);
 }
@@ -76,6 +77,8 @@ static VOID FspIoqPendingRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 static PIRP FspIoqPendingPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
+    if (!PeekContext && 0 >= Ioq->Enabled)
+        return 0;
     PLIST_ENTRY Head = &Ioq->PendingIrpList;
     PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
     return Head != Entry ? CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry) : 0;
@@ -115,6 +118,8 @@ static VOID FspIoqProcessRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 static PIRP FspIoqProcessPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
+    if (!PeekContext && 0 >= Ioq->Enabled)
+        return 0;
     PLIST_ENTRY Head = &Ioq->ProcessIrpList;
     PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
     for (; Head != Entry; Entry = Entry->Flink)
@@ -182,6 +187,7 @@ VOID FspIoqDisable(FSP_IOQ *Ioq)
     KIRQL Irql;
     KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
     Ioq->Enabled = 0;
+    KeSetEvent(&Ioq->PendingIrpEvent, 1, FALSE);
     KeReleaseSpinLock(&Ioq->SpinLock, Irql);
 }
 

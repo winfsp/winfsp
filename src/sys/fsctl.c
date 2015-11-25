@@ -152,7 +152,7 @@ static NTSTATUS FspFsvrtTransact(
     }
 
     /* wait for a pending IRP */
-    while (0 == (PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, 300)))
+    while (0 == (PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, (ULONG)-1L)))
     {
         if (!FspIoqEnabled(&FsvrtDeviceExtension->Ioq))
             return STATUS_CANCELLED;
