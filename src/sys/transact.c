@@ -36,7 +36,7 @@ static VOID FspTransactThread(PVOID StartContext)
         else if (STATUS_WAIT_1 != Result)
             continue; /* retry */
 
-        Irp = FspIoqNextPendingIrp(&TransactThread->TransactIoq, 0);
+        Irp = FspIoqNextPendingIrp(TransactThread->TransactIoq, 0);
         if (0 == Irp)
             continue; /* retry */
     }

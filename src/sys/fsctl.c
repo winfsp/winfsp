@@ -41,7 +41,7 @@ static NTSTATUS FspFsctlCreateVolume(
         !RtlValidRelativeSecurityDescriptor(SystemBuffer, InputBufferLength,
             OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION))
         return STATUS_INVALID_PARAMETER;
-    if (FSP_FSCTL_CREATE_BUFFER_SIZEMAX > OutputBufferLength)
+    if (FSP_FSCTL_CREATE_BUFFER_SIZE > OutputBufferLength)
         return STATUS_BUFFER_TOO_SMALL;
 
     NTSTATUS Result;
@@ -63,7 +63,7 @@ static NTSTATUS FspFsctlCreateVolume(
     UNICODE_STRING DeviceSddl;
     UNICODE_STRING DeviceName;
     RtlInitUnicodeString(&DeviceSddl, L"" FSP_FSVRT_DEVICE_SDDL);
-    RtlInitEmptyUnicodeString(&DeviceName, SystemBuffer, FSP_FSCTL_CREATE_BUFFER_SIZEMAX);
+    RtlInitEmptyUnicodeString(&DeviceName, SystemBuffer, FSP_FSCTL_CREATE_BUFFER_SIZE);
     Result = RtlUnicodeStringPrintf(&DeviceName,
         L"\\Device\\Volume{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
         Guid.Data1, Guid.Data2, Guid.Data3,
@@ -77,10 +77,17 @@ static NTSTATUS FspFsctlCreateVolume(
         &FsvrtDeviceObject);
     if (NT_SUCCESS(Result))
     {
-        FspDeviceExtension(FsvrtDeviceObject)->Kind = FspFsvrtDeviceExtensionKind;
+        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
+        FsvrtDeviceExtension->Base.Kind = FspFsvrtDeviceExtensionKind;
+        FspIoqInitialize(&FsvrtDeviceExtension->TransactIoq);
+        FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
+        Result = FspTransactThreadStart(&FsvrtDeviceExtension->TransactThread,
+            &FsvrtDeviceExtension->TransactIoq, &FsvrtDeviceExtension->Ioq);
         RtlCopyMemory(FspFsvrtDeviceExtension(FsvrtDeviceObject)->SecurityDescriptorBuf,
             SecurityDescriptor, InputBufferLength);
         Irp->IoStatus.Information = DeviceName.Length + 1;
+        if (!NT_SUCCESS(Result))
+            IoDeleteDevice(FsvrtDeviceObject);
     }
 
     /* free the temporary security descriptor */
@@ -108,6 +115,7 @@ static NTSTATUS FspFsvrtTransact(
 {
     NTSTATUS Result;
 
+    /* access check */
     Result = FspSecuritySubjectContextAccessCheck(
         FspFsvrtDeviceExtension(DeviceObject)->SecurityDescriptorBuf,
         FILE_WRITE_DATA, Irp->RequestorMode);

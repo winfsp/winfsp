@@ -29,6 +29,7 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_TRANSACT              \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'T', METHOD_BUFFERED, FILE_ANY_ACCESS)
 
-#define FSP_FSCTL_CREATE_BUFFER_SIZEMAX 64
+#define FSP_FSCTL_CREATE_BUFFER_SIZE    64
+#define FSP_FSCTL_TRANSACT_BUFFER_SIZE  4096
 
 #endif

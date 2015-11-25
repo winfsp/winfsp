@@ -191,7 +191,8 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-    FSP_IOQ Ioq;
+    FSP_IOQ TransactIoq, Ioq;
+    FSP_TRANSACT_THREAD TransactThread;
     UINT8 SecurityDescriptorBuf[];
 } FSP_FSVRT_DEVICE_EXTENSION;
 typedef struct
