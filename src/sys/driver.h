@@ -90,7 +90,11 @@
                 FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =\
                     FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);\
                 if (!FspIoqPostIrp(&FsvrtDeviceExtension->Ioq, Irp))\
-                     FspCompleteRequest(Irp, STATUS_ACCESS_DENIED);\
+                {                       \
+                    /* this can only happen if the Ioq was stopped */\
+                    ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));\
+                    FspCompleteRequest(Irp, STATUS_ACCESS_DENIED);\
+                }                       \
             }                           \
         }                               \
         else                            \
