@@ -154,6 +154,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h" />
+    <ClInclude Include="..\..\inc\winfsp\winfsp.h" />
     <ClInclude Include="..\..\src\sys\driver.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -85,5 +85,8 @@
     <ClInclude Include="..\..\inc\winfsp\fsctl.h">
       <Filter>Include\winfsp</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\inc\winfsp\winfsp.h">
+      <Filter>Include\winfsp</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

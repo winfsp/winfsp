@@ -59,4 +59,13 @@ typedef struct
 } FSP_TRANSACT_RSP;
 #pragma warning(pop)
 
+#if !defined(WINFSP_SYS_DRIVER_H_INTERNAL)
+NTSTATUS FspFsctlCreateVolume(PSECURITY_DESCRIPTOR SecurityDescriptor, PHANDLE *PHandle);
+NTSTATUS FspFsctlOpenVolume(PWSTR VolumeName);
+NTSTATUS FspFsctlDeleteVolume(HANDLE Handle);
+NTSTATUS FspFsctlTransact(HANDLE Handle,
+    const FSP_TRANSACT_RSP *Responses, size_t NumResponses,
+    const FSP_TRANSACT_REQ *Requests, size_t *NumRequests);
+#endif
+
 #endif
