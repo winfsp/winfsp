@@ -81,11 +81,11 @@ static NTSTATUS FspFsctlCreateVolume(
         FsvrtDeviceExtension->Base.Kind = FspFsvrtDeviceExtensionKind;
         FspIoqInitialize(&FsvrtDeviceExtension->TransactIoq);
         FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
-        Result = FspTransactThreadStart(&FsvrtDeviceExtension->TransactThread,
-            &FsvrtDeviceExtension->TransactIoq, &FsvrtDeviceExtension->Ioq);
         RtlCopyMemory(FspFsvrtDeviceExtension(FsvrtDeviceObject)->SecurityDescriptorBuf,
             SecurityDescriptor, InputBufferLength);
         Irp->IoStatus.Information = DeviceName.Length + 1;
+        Result = FspTransactThreadStart(&FsvrtDeviceExtension->TransactThread,
+            &FsvrtDeviceExtension->TransactIoq, &FsvrtDeviceExtension->Ioq);
         if (!NT_SUCCESS(Result))
             IoDeleteDevice(FsvrtDeviceObject);
     }
