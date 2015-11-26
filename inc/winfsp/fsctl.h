@@ -31,7 +31,6 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 
 #define FSP_FSCTL_CREATE_BUFFER_SIZE    128
 #define FSP_FSCTL_TRANSACT_BUFFER_SIZE  4096
-#define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  1536
 
 /* marshalling */
 #pragma warning(push)
@@ -62,6 +61,36 @@ typedef struct
     } Req;
 } FSP_TRANSACT_RSP;
 #pragma warning(pop)
+static inline FSP_TRANSACT_REQ *FspFsctlTransactProduceRequest(
+    FSP_TRANSACT_REQ *Request, SIZE_T RequestSize, PVOID RequestBufEnd)
+{
+    PVOID NextRequest = (PUINT8)Request + RequestSize;
+    return NextRequest <= RequestBufEnd ? NextRequest : 0;
+}
+static inline const FSP_TRANSACT_REQ *FspFsctlTransactConsumeRequest(
+    const FSP_TRANSACT_REQ *Request, PVOID RequestBufEnd)
+{
+    if ((PUINT8)Request + sizeof(Request->Size) > (PUINT8)RequestBufEnd ||
+        sizeof(FSP_TRANSACT_REQ) > Request->Size)
+        return 0;
+    PVOID NextRequest = (PUINT8)Request + Request->Size;
+    return NextRequest <= RequestBufEnd ? NextRequest : 0;
+}
+static inline FSP_TRANSACT_RSP *FspFsctlTransactProduceResponse(
+    FSP_TRANSACT_RSP *Response, SIZE_T ResponseSize, PVOID ResponseBufEnd)
+{
+    PVOID NextResponse = (PUINT8)Response + ResponseSize;
+    return NextResponse <= ResponseBufEnd ? NextResponse : 0;
+}
+static inline const FSP_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
+    const FSP_TRANSACT_RSP *Response, PVOID ResponseBufEnd)
+{
+    if ((PUINT8)Response + sizeof(Response->Size) > (PUINT8)ResponseBufEnd ||
+        sizeof(FSP_TRANSACT_RSP) > Response->Size)
+        return 0;
+    PVOID NextResponse = (PUINT8)Response + Response->Size;
+    return NextResponse <= ResponseBufEnd ? NextResponse : 0;
+}
 
 #if !defined(WINFSP_SYS_DRIVER_H_INTERNAL)
 NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDescriptor,

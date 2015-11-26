@@ -120,9 +120,9 @@ static NTSTATUS FspFsvrtTransact(
 
     NTSTATUS Result;
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
-    PUINT8 SystemBufferPtr, SystemBufferEnd;
-    FSP_TRANSACT_RSP *Response;
-    FSP_TRANSACT_REQ *Request;
+    PUINT8 SystemBufferEnd;
+    const FSP_TRANSACT_RSP *Response, *NextResponse;
+    FSP_TRANSACT_REQ *Request, *NextRequest, *PendingIrpRequest;
     PIRP ProcessIrp, PendingIrp;
 
     /* access check */
@@ -136,19 +136,18 @@ static NTSTATUS FspFsvrtTransact(
     SystemBufferEnd = (PUINT8)SystemBuffer + InputBufferLength;
     for (;;)
     {
-        if ((PUINT8)Response + sizeof(Response->Size) > SystemBufferEnd ||
-            sizeof(FSP_TRANSACT_RSP) > Response->Size ||
-            (PUINT8)Response + Response->Size > SystemBufferEnd)
+        NextResponse = FspFsctlTransactConsumeResponse(Response, SystemBufferEnd);
+        if (0 == NextResponse)
             break;
 
         ProcessIrp = FspIoqEndProcessingIrp(&FsvrtDeviceExtension->Ioq, Response->Hint);
         if (0 == ProcessIrp)
-            /* either IRP was canceled or a bogus IrpHint was provided */
+            /* either IRP was canceled or a bogus Hint was provided */
             continue;
 
         //FspDispatchProcessedIrp(ProcessIrp, Response);
 
-        Response = (PVOID)((PUINT8)Response + Response->Size);
+        Response = NextResponse;
     }
 
     /* wait for an IRP to arrive */
@@ -159,13 +158,20 @@ static NTSTATUS FspFsvrtTransact(
     }
 
     /* send any pending IRP's to the user-mode file system */
-    SystemBufferPtr = SystemBuffer;
+    Request = SystemBuffer;
     SystemBufferEnd = (PUINT8)SystemBuffer + OutputBufferLength;
-    ASSERT(SystemBufferPtr + FSP_FSCTL_TRANSACT_REQ_SIZEMAX + sizeof(Request->Size) <= SystemBufferEnd);
-    for (BOOLEAN LoopedOnce = FALSE;; LoopedOnce = TRUE)
+    for (;;)
     {
-        if (SystemBufferPtr + FSP_FSCTL_TRANSACT_REQ_SIZEMAX + sizeof(Request->Size) > SystemBufferEnd)
+        PendingIrpRequest = PendingIrp->Tail.Overlay.DriverContext[0];
+
+        NextRequest = FspFsctlTransactProduceRequest(
+            Request, PendingIrpRequest->Size, SystemBufferEnd);
+        ASSERT(0 != NextRequest || Request != SystemBuffer);
+        if (0 == NextRequest)
             break;
+
+        RtlCopyMemory(Request, PendingIrpRequest, PendingIrpRequest->Size);
+        Request = NextRequest;
 
         if (!FspIoqStartProcessingIrp(&FsvrtDeviceExtension->Ioq, PendingIrp))
         {
@@ -180,17 +186,12 @@ static NTSTATUS FspFsvrtTransact(
             return STATUS_CANCELLED;
         }
 
-        Request = PendingIrp->Tail.Overlay.DriverContext[0];
-        RtlCopyMemory(SystemBufferPtr, Request, Request->Size);
-        SystemBufferPtr += Request->Size;
-
         PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, 0);
         if (0 == PendingIrp)
             break;
+
     }
-    ASSERT(SystemBufferPtr + sizeof(Request->Size) <= SystemBufferEnd);
-    RtlZeroMemory(SystemBufferPtr, SystemBufferEnd - SystemBufferPtr);
-    Irp->IoStatus.Information = SystemBufferPtr - (PUINT8)SystemBuffer;
+    Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)SystemBuffer;
 
     return STATUS_SUCCESS;
 }
