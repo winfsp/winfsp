@@ -186,6 +186,10 @@ static NTSTATUS FspFsvrtTransact(
             return STATUS_CANCELLED;
         }
 
+        /* check that we have enough space before pulling the next pending IRP off the queue */
+        if ((PUINT8)Request + FSP_FSCTL_TRANSACT_REQ_SIZEMAX > SystemBufferEnd)
+            break;
+
         PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, 0);
         if (0 == PendingIrp)
             break;

@@ -30,7 +30,9 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'T', METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 #define FSP_FSCTL_CREATE_BUFFER_SIZE    128
-#define FSP_FSCTL_TRANSACT_BUFFER_SIZE  4096
+#define FSP_FSCTL_TRANSACT_BUFFER_SIZE  (16 * 1024)
+#define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  (sizeof(FSP_TRANSACT_REQ) + 1024 * sizeof(WCHAR))
+#define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  (sizeof(FSP_TRANSACT_RSP) + 1024 * sizeof(WCHAR))
 
 /* marshalling */
 #pragma warning(push)
