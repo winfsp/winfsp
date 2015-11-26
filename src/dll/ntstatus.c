@@ -8,5 +8,10 @@
 
 NTSTATUS FspNtStatusFromWin32(DWORD Error)
 {
-    return STATUS_ACCESS_DENIED;
+    switch (Error)
+    {
+    #include "ntstatus.i"
+    default:
+        return STATUS_ACCESS_DENIED;
+    }
 }
