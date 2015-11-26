@@ -61,11 +61,11 @@ typedef struct
 
 #if !defined(WINFSP_SYS_DRIVER_H_INTERNAL)
 NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDescriptor,
-    PHANDLE *PHandle);
+    PHANDLE *PVolumeHandle);
 NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
-    PHANDLE *PHandle);
-NTSTATUS FspFsctlDeleteVolume(HANDLE Handle);
-NTSTATUS FspFsctlTransact(HANDLE Handle,
+    PHANDLE *PVolumeHandle);
+NTSTATUS FspFsctlDeleteVolume(HANDLE VolumeHandle);
+NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     const FSP_TRANSACT_RSP *Responses, size_t NumResponses,
     const FSP_TRANSACT_REQ *Requests, size_t *NumRequests);
 #endif
