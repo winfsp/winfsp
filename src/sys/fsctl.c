@@ -140,7 +140,7 @@ static NTSTATUS FspFsvrtTransact(
         if (0 == NextResponse)
             break;
 
-        ProcessIrp = FspIoqEndProcessingIrp(&FsvrtDeviceExtension->Ioq, Response->Hint);
+        ProcessIrp = FspIoqEndProcessingIrp(&FsvrtDeviceExtension->Ioq, (UINT_PTR)Response->Hint);
         if (0 == ProcessIrp)
             /* either IRP was canceled or a bogus Hint was provided */
             continue;

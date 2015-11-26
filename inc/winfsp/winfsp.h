@@ -13,6 +13,12 @@
 #include <winternl.h>
 #include <ntstatus.h>
 
+#if defined(WINFSP_DLL_INTERNAL)
+#define FSP_API                         __declspec(dllexport)
+#else
+#define FSP_API                         __declspec(dllimport)
+#endif
+
 NTSTATUS FspNtStatusFromWin32(DWORD Error);
 
 #endif

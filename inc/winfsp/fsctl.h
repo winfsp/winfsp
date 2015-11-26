@@ -92,13 +92,13 @@ static inline const FSP_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
     return NextResponse <= ResponseBufEnd ? NextResponse : 0;
 }
 
-#if !defined(WINFSP_SYS_DRIVER_H_INTERNAL)
-NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDescriptor,
+#if !defined(WINFSP_SYS_INTERNAL)
+FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDescriptor,
     PHANDLE *PVolumeHandle);
-NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
+FSP_API NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
     PHANDLE *PVolumeHandle);
-NTSTATUS FspFsctlDeleteVolume(HANDLE VolumeHandle);
-NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
+FSP_API NTSTATUS FspFsctlDeleteVolume(HANDLE VolumeHandle);
+FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     FSP_TRANSACT_RSP *ResponseBuf, SIZE_T ResponseBufSize,
     FSP_TRANSACT_REQ *RequestBuf, SIZE_T *PRequestBufSize);
 #endif

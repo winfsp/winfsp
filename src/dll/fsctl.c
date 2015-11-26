@@ -16,7 +16,7 @@ static inline VOID GlobalDevicePath(PWCHAR DevicePathBuf, SIZE_T DevicePathSize,
         L'\\' == DevicePath[0] ? GLOBALROOT "%S" : GLOBALROOT "\\Device\\%S", DevicePath);
 }
 
-NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDescriptor,
+FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDescriptor,
     PHANDLE *PVolumeHandle)
 {
     NTSTATUS Result = STATUS_SUCCESS;
@@ -46,7 +46,7 @@ NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDes
     }
 
     DeviceHandle = CreateFileW(DevicePathBuf,
-        0, FILE_SHARE_WRITE | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
     if (INVALID_HANDLE_VALUE == DeviceHandle)
     {
         Result = FspNtStatusFromWin32(GetLastError());
@@ -70,7 +70,7 @@ exit:
     return Result;
 }
 
-NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
+FSP_API NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
     PHANDLE *PVolumeHandle)
 {
     NTSTATUS Result = STATUS_SUCCESS;
@@ -82,7 +82,7 @@ NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
     GlobalDevicePath(DevicePathBuf, sizeof DevicePathBuf, VolumePath);
 
     VolumeHandle = CreateFileW(DevicePathBuf,
-        0, FILE_SHARE_WRITE | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
     if (INVALID_HANDLE_VALUE == VolumeHandle)
     {
         Result = FspNtStatusFromWin32(GetLastError());
@@ -95,7 +95,7 @@ exit:
     return Result;
 }
 
-NTSTATUS FspFsctlDeleteVolume(HANDLE VolumeHandle)
+FSP_API NTSTATUS FspFsctlDeleteVolume(HANDLE VolumeHandle)
 {
     NTSTATUS Result = STATUS_SUCCESS;
     DWORD Bytes;
@@ -112,7 +112,7 @@ exit:
     return Result;
 }
 
-NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
+FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     FSP_TRANSACT_RSP *ResponseBuf, SIZE_T ResponseBufSize,
     FSP_TRANSACT_REQ *RequestBuf, SIZE_T *PRequestBufSize)
 {

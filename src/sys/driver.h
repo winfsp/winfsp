@@ -10,8 +10,6 @@
 #include <ntifs.h>
 #include <ntstrsafe.h>
 #include <wdmsec.h>
-
-#define WINFSP_SYS_DRIVER_H_INTERNAL
 #include <winfsp/fsctl.h>
 
 #define DRIVER_NAME                     "WinFsp"
