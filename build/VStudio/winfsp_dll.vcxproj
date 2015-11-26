@@ -164,6 +164,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\dll\fsctl.c" />
+    <ClCompile Include="..\..\src\dll\ntstatus.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h" />

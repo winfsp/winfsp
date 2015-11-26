@@ -17,6 +17,9 @@
     <ClCompile Include="..\..\src\dll\fsctl.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\dll\ntstatus.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h">

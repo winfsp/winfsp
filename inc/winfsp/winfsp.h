@@ -13,4 +13,6 @@
 #include <winternl.h>
 #include <ntstatus.h>
 
+NTSTATUS FspNtStatusFromWin32(DWORD Error);
+
 #endif

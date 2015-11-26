@@ -29,7 +29,7 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_TRANSACT              \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'T', METHOD_BUFFERED, FILE_ANY_ACCESS)
 
-#define FSP_FSCTL_CREATE_BUFFER_SIZE    64
+#define FSP_FSCTL_CREATE_BUFFER_SIZE    128
 #define FSP_FSCTL_TRANSACT_BUFFER_SIZE  4096
 #define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  1536
 
@@ -60,8 +60,10 @@ typedef struct
 #pragma warning(pop)
 
 #if !defined(WINFSP_SYS_DRIVER_H_INTERNAL)
-NTSTATUS FspFsctlCreateVolume(PSECURITY_DESCRIPTOR SecurityDescriptor, PHANDLE *PHandle);
-NTSTATUS FspFsctlOpenVolume(PWSTR VolumeName);
+NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDescriptor,
+    PHANDLE *PHandle);
+NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
+    PHANDLE *PHandle);
 NTSTATUS FspFsctlDeleteVolume(HANDLE Handle);
 NTSTATUS FspFsctlTransact(HANDLE Handle,
     const FSP_TRANSACT_RSP *Responses, size_t NumResponses,
