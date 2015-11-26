@@ -74,6 +74,7 @@ for pair in pairs:
     if not pair[1] in fixed:
         assert pair[1] not in errmap
         errmap[pair[1]] = pair[0]
+errmap.update(fixed)
 
 if "FspNtStatusFromWin32" == sys.argv[1]:
     for w, s in sorted(errmap.items()):
