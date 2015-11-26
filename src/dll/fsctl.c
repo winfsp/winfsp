@@ -10,6 +10,12 @@
 
 #define GLOBALROOT                      L"\\\\?\\GLOBALROOT"
 
+static inline VOID GlobalDevicePath(PWCHAR DevicePathBuf, size_t DevicePathLen, PWSTR DevicePath)
+{
+    StringCbPrintf(DevicePathBuf, DevicePathLen,
+        L'\\' == DevicePath[0] ? GLOBALROOT "%S" : GLOBALROOT "\\Device\\%S", DevicePath);
+}
+
 NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDescriptor,
     PHANDLE *PVolumeHandle)
 {
@@ -22,8 +28,7 @@ NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDes
 
     *PVolumeHandle = 0;
 
-    DevicePathBuf[0] = L'\0';
-    StringCbPrintf(DevicePathBuf, sizeof DevicePathBuf, GLOBALROOT "%S", DevicePath);
+    GlobalDevicePath(DevicePathBuf, sizeof DevicePathBuf, DevicePath);
 
     if (!MakeSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorLen))
     {
@@ -74,8 +79,7 @@ NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
 
     *PVolumeHandle = 0;
 
-    DevicePathBuf[0] = L'\0';
-    StringCbPrintf(DevicePathBuf, sizeof DevicePathBuf, GLOBALROOT "%S", VolumePath);
+    GlobalDevicePath(DevicePathBuf, sizeof DevicePathBuf, VolumePath);
 
     VolumeHandle = CreateFileW(DevicePathBuf,
         0, FILE_SHARE_WRITE | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
