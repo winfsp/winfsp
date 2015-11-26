@@ -10,9 +10,9 @@
 
 #define GLOBALROOT                      L"\\\\?\\GLOBALROOT"
 
-static inline VOID GlobalDevicePath(PWCHAR DevicePathBuf, size_t DevicePathLen, PWSTR DevicePath)
+static inline VOID GlobalDevicePath(PWCHAR DevicePathBuf, SIZE_T DevicePathSize, PWSTR DevicePath)
 {
-    StringCbPrintf(DevicePathBuf, DevicePathLen,
+    StringCbPrintf(DevicePathBuf, DevicePathSize,
         L'\\' == DevicePath[0] ? GLOBALROOT "%S" : GLOBALROOT "\\Device\\%S", DevicePath);
 }
 
@@ -23,22 +23,22 @@ NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDes
     WCHAR DevicePathBuf[(sizeof GLOBALROOT + FSP_FSCTL_CREATE_BUFFER_SIZE) / sizeof(WCHAR)];
     WCHAR VolumePathBuf[FSP_FSCTL_CREATE_BUFFER_SIZE / sizeof(WCHAR)];
     PSECURITY_DESCRIPTOR SecurityDescriptorBuf = 0;
-    DWORD SecurityDescriptorLen, Bytes;
+    DWORD SecurityDescriptorSize, Bytes;
     HANDLE DeviceHandle = INVALID_HANDLE_VALUE;
 
     *PVolumeHandle = 0;
 
     GlobalDevicePath(DevicePathBuf, sizeof DevicePathBuf, DevicePath);
 
-    if (!MakeSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorLen))
+    if (!MakeSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize))
     {
-        SecurityDescriptorBuf = malloc(SecurityDescriptorLen);
+        SecurityDescriptorBuf = malloc(SecurityDescriptorSize);
         if (0 == SecurityDescriptorBuf)
         {
             Result = STATUS_INSUFFICIENT_RESOURCES;
             goto exit;
         }
-        if (!MakeSelfRelativeSD(SecurityDescriptor, SecurityDescriptorBuf, &SecurityDescriptorLen))
+        if (!MakeSelfRelativeSD(SecurityDescriptor, SecurityDescriptorBuf, &SecurityDescriptorSize))
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
@@ -54,7 +54,7 @@ NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDes
     }
 
     if (!DeviceIoControl(DeviceHandle, FSP_FSCTL_CREATE,
-        SecurityDescriptorBuf, SecurityDescriptorLen, VolumePathBuf, sizeof VolumePathBuf,
+        SecurityDescriptorBuf, SecurityDescriptorSize, VolumePathBuf, sizeof VolumePathBuf,
         &Bytes, 0))
     {
         Result = FspNtStatusFromWin32(GetLastError());
@@ -113,8 +113,22 @@ exit:
 }
 
 NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
-    const FSP_TRANSACT_RSP *Responses, size_t NumResponses,
-    const FSP_TRANSACT_REQ *Requests, size_t *NumRequests)
+    FSP_TRANSACT_RSP *ResponseBuf, SIZE_T ResponseBufSize,
+    FSP_TRANSACT_REQ *RequestBuf, SIZE_T *PRequestBufSize)
 {
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Result = STATUS_SUCCESS;
+    DWORD Bytes;
+
+    if (!DeviceIoControl(VolumeHandle, FSP_FSCTL_TRANSACT,
+        ResponseBuf, (DWORD)ResponseBufSize, RequestBuf, (DWORD)*PRequestBufSize,
+        &Bytes, 0))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    *PRequestBufSize = Bytes;
+
+exit:
+    return Result;
 }

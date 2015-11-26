@@ -38,8 +38,8 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
 typedef struct
 {
-    ULONG Size;
-    UINT_PTR Hint;
+    UINT32 Size;
+    UINT64 Hint;
     UINT8 Kind;
     union
     {
@@ -48,9 +48,13 @@ typedef struct
 } FSP_TRANSACT_REQ;
 typedef struct
 {
-    ULONG Size;
-    UINT_PTR Hint;
-    IO_STATUS_BLOCK IoStatus;
+    UINT32 Size;
+    UINT64 Hint;
+    struct
+    {
+        UINT32 Status;
+        UINT64 Information;
+    } IoStatus;
     UINT8 Kind;
     union
     {
@@ -66,8 +70,8 @@ NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
     PHANDLE *PVolumeHandle);
 NTSTATUS FspFsctlDeleteVolume(HANDLE VolumeHandle);
 NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
-    const FSP_TRANSACT_RSP *Responses, size_t NumResponses,
-    const FSP_TRANSACT_REQ *Requests, size_t *NumRequests);
+    FSP_TRANSACT_RSP *ResponseBuf, SIZE_T ResponseBufSize,
+    FSP_TRANSACT_REQ *RequestBuf, SIZE_T *PRequestBufSize);
 #endif
 
 #endif
