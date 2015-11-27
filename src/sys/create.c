@@ -68,6 +68,7 @@ FspCreate(
 
     FSP_LEAVE_MJ(
         "FileObject=%p[%p:\"%wZ\"], "
+        "Flags=%x, "
         "DesiredAccess=%#lx, "
         "ShareAccess=%#x, "
         "Options=%#lx, "
@@ -75,6 +76,7 @@ FspCreate(
         "AllocationSize=%#lx:%#lx, "
         "Ea=%p, EaLength=%ld",
         IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName,
+        IrpSp->Flags,
         IrpSp->Parameters.Create.SecurityContext->DesiredAccess,
         IrpSp->Parameters.Create.ShareAccess,
         IrpSp->Parameters.Create.Options,

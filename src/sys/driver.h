@@ -70,15 +70,15 @@
     FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(                         \
-        FSP_DEBUGLOG_("%c%c, %s%s, IrpSp->Flags=%x, " fmt, " = %s[%lld]",\
-            FspDeviceExtension(DeviceObject)->Kind,\
+        FSP_DEBUGLOG_("%p, %c%c, %s%s, " fmt, " = %s[%lld]",\
+            Irp,                        \
+            FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
             Irp->RequestorMode == KernelMode ? 'K' : 'U',\
             IrpMajorFunctionSym(IrpSp->MajorFunction),\
             IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MajorFunction),\
-            IrpSp->Flags,               \
             __VA_ARGS__,                \
             NtStatusSym(Result),        \
-            !NT_SUCCESS(Result) ? 0 : Irp->IoStatus.Information);\
+            (LONGLONG)Irp->IoStatus.Information); \
         if (STATUS_PENDING == Result)   \
         {                               \
             if (0 == (IrpSp->Control & SL_PENDING_RETURNED))\

@@ -19,7 +19,10 @@ VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result)
     ASSERT(STATUS_PENDING != Result);
 
     if (0 != Irp->Tail.Overlay.DriverContext[0])
+    {
         ExFreePoolWithTag(Irp->Tail.Overlay.DriverContext[0], FSP_TAG);
+        Irp->Tail.Overlay.DriverContext[0] = 0;
+    }
 
     if (!NT_SUCCESS(Result))
         Irp->IoStatus.Information = 0;
