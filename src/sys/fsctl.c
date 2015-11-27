@@ -160,15 +160,15 @@ static NTSTATUS FspFsvrtTransact(
     /* send any pending IRP's to the user-mode file system */
     Request = SystemBuffer;
     SystemBufferEnd = (PUINT8)SystemBuffer + OutputBufferLength;
+    ASSERT((PUINT8)Request + FSP_FSCTL_TRANSACT_REQ_SIZEMAX <= SystemBufferEnd);
     for (;;)
     {
         PendingIrpRequest = PendingIrp->Tail.Overlay.DriverContext[0];
 
         NextRequest = FspFsctlTransactProduceRequest(
             Request, PendingIrpRequest->Size, SystemBufferEnd);
-        ASSERT(0 != NextRequest || Request != SystemBuffer);
-        if (0 == NextRequest)
-            break;
+            /* this should not fail as we have already checked that we have enough space */
+        ASSERT(0 != NextRequest);
 
         RtlCopyMemory(Request, PendingIrpRequest, PendingIrpRequest->Size);
         Request = NextRequest;
