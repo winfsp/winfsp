@@ -77,7 +77,7 @@
     <ClCompile Include="..\..\src\sys\ioq.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\iocompl.c">
+    <ClCompile Include="..\..\src\sys\ioc.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
