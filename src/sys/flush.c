@@ -9,10 +9,12 @@
 static NTSTATUS FspFsvolFlushBuffers(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspFlushBuffers;
+FSP_IOCOMPLETION_DISPATCH FspFlushBuffersComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolFlushBuffers)
 #pragma alloc_text(PAGE, FspFlushBuffers)
+#pragma alloc_text(PAGE, FspFlushBuffersComplete)
 #endif
 
 static NTSTATUS FspFsvolFlushBuffers(
@@ -39,4 +41,11 @@ FspFlushBuffers(
     }
 
     FSP_LEAVE_MJ("", 0);
+}
+
+VOID FspFlushBuffersComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
 }

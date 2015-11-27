@@ -12,12 +12,16 @@ static NTSTATUS FspFsvolSetSecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspQuerySecurity;
 DRIVER_DISPATCH FspSetSecurity;
+FSP_IOCOMPLETION_DISPATCH FspQuerySecurityComplete;
+FSP_IOCOMPLETION_DISPATCH FspSetSecurityComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQuerySecurity)
 #pragma alloc_text(PAGE, FspFsvolSetSecurity)
 #pragma alloc_text(PAGE, FspQuerySecurity)
 #pragma alloc_text(PAGE, FspSetSecurity)
+#pragma alloc_text(PAGE, FspQuerySecurityComplete)
+#pragma alloc_text(PAGE, FspSetSecurityComplete)
 #endif
 
 static NTSTATUS FspFsvolQuerySecurity(
@@ -70,4 +74,18 @@ FspSetSecurity(
     }
 
     FSP_LEAVE_MJ("", 0);
+}
+
+VOID FspQuerySecurityComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
+}
+
+VOID FspSetSecurityComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
 }

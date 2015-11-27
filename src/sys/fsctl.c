@@ -19,6 +19,7 @@ static NTSTATUS FspFsvrtFileSystemControl(
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspFileSystemControl;
+FSP_IOCOMPLETION_DISPATCH FspFileSystemControlComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlCreateVolume)
@@ -28,6 +29,7 @@ DRIVER_DISPATCH FspFileSystemControl;
 #pragma alloc_text(PAGE, FspFsvrtFileSystemControl)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControl)
 #pragma alloc_text(PAGE, FspFileSystemControl)
+#pragma alloc_text(PAGE, FspFileSystemControlComplete)
 #endif
 
 static NTSTATUS FspFsctlCreateVolume(
@@ -281,4 +283,11 @@ FspFileSystemControl(
         IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction ? ", " : "",
         IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction ?
             IoctlCodeSym(IrpSp->Parameters.FileSystemControl.FsControlCode) : "");
+}
+
+VOID FspFileSystemControlComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
 }

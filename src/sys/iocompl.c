@@ -6,7 +6,10 @@
 
 #include <sys/driver.h>
 
+VOID FspDispatchProcessedIrp(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response);
+
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspDispatchProcessedIrp)
 #endif
 
 VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result)
@@ -26,4 +29,14 @@ VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result)
 
 VOID FspDispatchProcessedIrp(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
+    PAGED_CODE();
+
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+
+    ASSERT(IRP_MJ_MAXIMUM_FUNCTION >= IrpSp->MajorFunction);
+    ASSERT(0 != FspIoCompletionFunction[IrpSp->MajorFunction]);
+
+    FspIoCompletionFunction[IrpSp->MajorFunction](Irp, Response);
 }
+
+FSP_IOCOMPLETION_DISPATCH *FspIoCompletionFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];

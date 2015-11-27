@@ -47,7 +47,6 @@ DriverEntry(
     /* setup the driver object */
     DriverObject->DriverUnload = FspUnload;
     DriverObject->MajorFunction[IRP_MJ_CREATE] = FspCreate;
-    //DriverObject->MajorFunction[IRP_MJ_CREATE_NAMED_PIPE] = IopInvalidDeviceRequest;
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = FspClose;
     DriverObject->MajorFunction[IRP_MJ_READ] = FspRead;
     DriverObject->MajorFunction[IRP_MJ_WRITE] = FspWrite;
@@ -61,19 +60,32 @@ DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_DIRECTORY_CONTROL] = FspDirectoryControl;
     DriverObject->MajorFunction[IRP_MJ_FILE_SYSTEM_CONTROL] = FspFileSystemControl;
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = FspDeviceControl;
-    //DriverObject->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = IopInvalidDeviceRequest;
     DriverObject->MajorFunction[IRP_MJ_SHUTDOWN] = FspShutdown;
     DriverObject->MajorFunction[IRP_MJ_LOCK_CONTROL] = FspLockControl;
     DriverObject->MajorFunction[IRP_MJ_CLEANUP] = FspCleanup;
-    //DriverObject->MajorFunction[IRP_MJ_CREATE_MAILSLOT] = IopInvalidDeviceRequest;
     DriverObject->MajorFunction[IRP_MJ_QUERY_SECURITY] = FspQuerySecurity;
     DriverObject->MajorFunction[IRP_MJ_SET_SECURITY] = FspSetSecurity;
-    //DriverObject->MajorFunction[IRP_MJ_POWER] = IopInvalidDeviceRequest;
-    //DriverObject->MajorFunction[IRP_MJ_SYSTEM_CONTROL] = IopInvalidDeviceRequest;
-    //DriverObject->MajorFunction[IRP_MJ_DEVICE_CHANGE] = IopInvalidDeviceRequest;
-    //DriverObject->MajorFunction[IRP_MJ_QUERY_QUOTA] = IopInvalidDeviceRequest;
-    //DriverObject->MajorFunction[IRP_MJ_SET_QUOTA] = IopInvalidDeviceRequest;
-    //DriverObject->MajorFunction[IRP_MJ_PNP] = IopInvalidDeviceRequest;
+
+    /* setup the I/O completion functions */
+    FspIoCompletionFunction[IRP_MJ_CREATE] = FspCreateComplete;
+    FspIoCompletionFunction[IRP_MJ_CLOSE] = FspCloseComplete;
+    FspIoCompletionFunction[IRP_MJ_READ] = FspReadComplete;
+    FspIoCompletionFunction[IRP_MJ_WRITE] = FspWriteComplete;
+    FspIoCompletionFunction[IRP_MJ_QUERY_INFORMATION] = FspQueryInformationComplete;
+    FspIoCompletionFunction[IRP_MJ_SET_INFORMATION] = FspSetInformationComplete;
+    FspIoCompletionFunction[IRP_MJ_QUERY_EA] = FspQueryEaComplete;
+    FspIoCompletionFunction[IRP_MJ_SET_EA] = FspSetEaComplete;
+    FspIoCompletionFunction[IRP_MJ_FLUSH_BUFFERS] = FspFlushBuffersComplete;
+    FspIoCompletionFunction[IRP_MJ_QUERY_VOLUME_INFORMATION] = FspQueryVolumeInformationComplete;
+    FspIoCompletionFunction[IRP_MJ_SET_VOLUME_INFORMATION] = FspSetVolumeInformationComplete;
+    FspIoCompletionFunction[IRP_MJ_DIRECTORY_CONTROL] = FspDirectoryControlComplete;
+    FspIoCompletionFunction[IRP_MJ_FILE_SYSTEM_CONTROL] = FspFileSystemControlComplete;
+    FspIoCompletionFunction[IRP_MJ_DEVICE_CONTROL] = FspDeviceControlComplete;
+    FspIoCompletionFunction[IRP_MJ_SHUTDOWN] = FspShutdownComplete;
+    FspIoCompletionFunction[IRP_MJ_LOCK_CONTROL] = FspLockControlComplete;
+    FspIoCompletionFunction[IRP_MJ_CLEANUP] = FspCleanupComplete;
+    FspIoCompletionFunction[IRP_MJ_QUERY_SECURITY] = FspQuerySecurityComplete;
+    FspIoCompletionFunction[IRP_MJ_SET_SECURITY] = FspSetSecurityComplete;
 
     /* setup fast I/O and resource acquisition */
     static FAST_IO_DISPATCH FspFastIoDispatch = { 0 };

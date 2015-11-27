@@ -145,6 +145,28 @@ DRIVER_DISPATCH FspSetVolumeInformation;
 DRIVER_DISPATCH FspShutdown;
 DRIVER_DISPATCH FspWrite;
 
+/* I/O completion functions */
+typedef VOID FSP_IOCOMPLETION_DISPATCH(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response);
+FSP_IOCOMPLETION_DISPATCH FspCleanupComplete;
+FSP_IOCOMPLETION_DISPATCH FspCloseComplete;
+FSP_IOCOMPLETION_DISPATCH FspCreateComplete;
+FSP_IOCOMPLETION_DISPATCH FspDeviceControlComplete;
+FSP_IOCOMPLETION_DISPATCH FspDirectoryControlComplete;
+FSP_IOCOMPLETION_DISPATCH FspFileSystemControlComplete;
+FSP_IOCOMPLETION_DISPATCH FspFlushBuffersComplete;
+FSP_IOCOMPLETION_DISPATCH FspLockControlComplete;
+FSP_IOCOMPLETION_DISPATCH FspQueryEaComplete;
+FSP_IOCOMPLETION_DISPATCH FspQueryInformationComplete;
+FSP_IOCOMPLETION_DISPATCH FspQuerySecurityComplete;
+FSP_IOCOMPLETION_DISPATCH FspQueryVolumeInformationComplete;
+FSP_IOCOMPLETION_DISPATCH FspReadComplete;
+FSP_IOCOMPLETION_DISPATCH FspSetEaComplete;
+FSP_IOCOMPLETION_DISPATCH FspSetInformationComplete;
+FSP_IOCOMPLETION_DISPATCH FspSetSecurityComplete;
+FSP_IOCOMPLETION_DISPATCH FspSetVolumeInformationComplete;
+FSP_IOCOMPLETION_DISPATCH FspShutdownComplete;
+FSP_IOCOMPLETION_DISPATCH FspWriteComplete;
+
 /* fast I/O */
 FAST_IO_CHECK_IF_POSSIBLE FspFastIoCheckIfPossible;
 
@@ -242,5 +264,6 @@ const char *IoctlCodeSym(ULONG ControlCode);
 /* extern */
 extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
+extern FSP_IOCOMPLETION_DISPATCH *FspIoCompletionFunction[];
 
 #endif

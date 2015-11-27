@@ -9,10 +9,12 @@
 static NTSTATUS FspFsvolDirectoryControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspDirectoryControl;
+FSP_IOCOMPLETION_DISPATCH FspDirectoryControlComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolDirectoryControl)
 #pragma alloc_text(PAGE, FspDirectoryControl)
+#pragma alloc_text(PAGE, FspDirectoryControlComplete)
 #endif
 
 static NTSTATUS FspFsvolDirectoryControl(
@@ -39,4 +41,11 @@ FspDirectoryControl(
     }
 
     FSP_LEAVE_MJ("", 0);
+}
+
+VOID FspDirectoryControlComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
 }

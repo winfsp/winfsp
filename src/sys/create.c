@@ -13,12 +13,14 @@ static NTSTATUS FspFsvrtCreate(
 static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspCreate;
+FSP_IOCOMPLETION_DISPATCH FspCreateComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlCreate)
 #pragma alloc_text(PAGE, FspFsvrtCreate)
 #pragma alloc_text(PAGE, FspFsvolCreate)
 #pragma alloc_text(PAGE, FspCreate)
+#pragma alloc_text(PAGE, FspCreateComplete)
 #endif
 
 static NTSTATUS FspFsctlCreate(
@@ -79,4 +81,11 @@ FspCreate(
         IrpSp->Parameters.Create.FileAttributes,
         Irp->Overlay.AllocationSize.HighPart, Irp->Overlay.AllocationSize.LowPart,
         Irp->AssociatedIrp.SystemBuffer, IrpSp->Parameters.Create.EaLength);
+}
+
+VOID FspCreateComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
 }

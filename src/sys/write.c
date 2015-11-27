@@ -9,10 +9,12 @@
 static NTSTATUS FspFsvolWrite(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspWrite;
+VOID FspWriteComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolWrite)
 #pragma alloc_text(PAGE, FspWrite)
+#pragma alloc_text(PAGE, FspWriteComplete)
 #endif
 
 static NTSTATUS FspFsvolWrite(
@@ -39,4 +41,11 @@ FspWrite(
     }
 
     FSP_LEAVE_MJ("", 0);
+}
+
+VOID FspWriteComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
 }

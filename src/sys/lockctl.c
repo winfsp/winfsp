@@ -9,10 +9,12 @@
 static NTSTATUS FspFsvolLockControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspLockControl;
+FSP_IOCOMPLETION_DISPATCH FspLockControlComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolLockControl)
 #pragma alloc_text(PAGE, FspLockControl)
+#pragma alloc_text(PAGE, FspLockControlComplete)
 #endif
 
 static NTSTATUS FspFsvolLockControl(
@@ -39,4 +41,11 @@ FspLockControl(
     }
 
     FSP_LEAVE_MJ("", 0);
+}
+
+VOID FspLockControlComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
 }

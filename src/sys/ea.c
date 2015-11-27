@@ -12,12 +12,16 @@ static NTSTATUS FspFsvolSetEa(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspQueryEa;
 DRIVER_DISPATCH FspSetEa;
+FSP_IOCOMPLETION_DISPATCH FspQueryEaComplete;
+FSP_IOCOMPLETION_DISPATCH FspSetEaComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQueryEa)
 #pragma alloc_text(PAGE, FspFsvolSetEa)
 #pragma alloc_text(PAGE, FspQueryEa)
 #pragma alloc_text(PAGE, FspSetEa)
+#pragma alloc_text(PAGE, FspQueryEaComplete)
+#pragma alloc_text(PAGE, FspSetEaComplete)
 #endif
 
 static NTSTATUS FspFsvolQueryEa(
@@ -70,4 +74,18 @@ FspSetEa(
     }
 
     FSP_LEAVE_MJ("", 0);
+}
+
+VOID FspQueryEaComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
+}
+
+VOID FspSetEaComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
 }

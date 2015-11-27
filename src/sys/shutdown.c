@@ -9,10 +9,12 @@
 static NTSTATUS FspFsvolShutdown(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspShutdown;
+FSP_IOCOMPLETION_DISPATCH FspShutdownComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolShutdown)
 #pragma alloc_text(PAGE, FspShutdown)
+#pragma alloc_text(PAGE, FspShutdownComplete)
 #endif
 
 static NTSTATUS FspFsvolShutdown(
@@ -39,4 +41,11 @@ FspShutdown(
     }
 
     FSP_LEAVE_MJ("", 0);
+}
+
+VOID FspShutdownComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
 }

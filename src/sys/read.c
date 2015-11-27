@@ -9,10 +9,12 @@
 static NTSTATUS FspFsvolRead(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspRead;
+FSP_IOCOMPLETION_DISPATCH FspReadComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolRead)
 #pragma alloc_text(PAGE, FspRead)
+#pragma alloc_text(PAGE, FspReadComplete)
 #endif
 
 static NTSTATUS FspFsvolRead(
@@ -39,4 +41,11 @@ FspRead(
     }
 
     FSP_LEAVE_MJ("", 0);
+}
+
+VOID FspReadComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
 }

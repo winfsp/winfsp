@@ -12,12 +12,16 @@ static NTSTATUS FspFsvolSetVolumeInformation(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 DRIVER_DISPATCH FspQueryVolumeInformation;
 DRIVER_DISPATCH FspSetVolumeInformation;
+FSP_IOCOMPLETION_DISPATCH FspQueryVolumeInformationComplete;
+FSP_IOCOMPLETION_DISPATCH FspSetVolumeInformationComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQueryVolumeInformation)
 #pragma alloc_text(PAGE, FspFsvolSetVolumeInformation)
 #pragma alloc_text(PAGE, FspQueryVolumeInformation)
 #pragma alloc_text(PAGE, FspSetVolumeInformation)
+#pragma alloc_text(PAGE, FspQueryVolumeInformationComplete)
+#pragma alloc_text(PAGE, FspSetVolumeInformationComplete)
 #endif
 
 static NTSTATUS FspFsvolQueryVolumeInformation(
@@ -70,4 +74,18 @@ FspSetVolumeInformation(
     }
 
     FSP_LEAVE_MJ("", 0);
+}
+
+VOID FspQueryVolumeInformationComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
+}
+
+VOID FspSetVolumeInformationComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    FspCompleteRequest(Irp, STATUS_SUCCESS);
 }
