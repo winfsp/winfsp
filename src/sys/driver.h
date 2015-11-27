@@ -35,6 +35,10 @@
         DRIVER_NAME "!" __FUNCTION__ "(" fmt ") = !AbnormalTermination\n" :\
         DRIVER_NAME "!" __FUNCTION__ "(" fmt ")" rfmt "\n",\
         __VA_ARGS__)
+#define FSP_DEBUGLOG_NOCRIT_(fmt, rfmt, ...)\
+    DbgPrint(                           \
+        DRIVER_NAME "!" __FUNCTION__ "(" fmt ")" rfmt "\n",\
+        __VA_ARGS__)
 #define FSP_DEBUGBRK_()                 \
     do                                  \
     {                                   \
@@ -43,6 +47,7 @@
     } while (0,0)
 #else
 #define FSP_DEBUGLOG_(fmt, rfmt, ...)   ((void)0)
+#define FSP_DEBUGLOG_NOCRIT_(fmt, rfmt, ...)((void)0)
 #define FSP_DEBUGBRK_()                 ((void)0)
 #endif
 #define FSP_ENTER_(...)                 \
@@ -59,6 +64,15 @@
     {                                   \
         __VA_ARGS__;                    \
         FsRtlExitFileSystem();          \
+    }
+#define FSP_ENTER_NOCRIT_(...)          \
+    FSP_DEBUGBRK_();                    \
+    {                                   \
+        __VA_ARGS__
+#define FSP_LEAVE_NOCRIT_(...)          \
+    goto fsp_leave_label;               \
+    fsp_leave_label:;                   \
+        __VA_ARGS__;                    \
     }
 #define FSP_ENTER(...)                  \
     NTSTATUS Result = STATUS_SUCCESS; FSP_ENTER_(__VA_ARGS__)
@@ -78,7 +92,7 @@
             IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MajorFunction),\
             __VA_ARGS__,                \
             NtStatusSym(Result),        \
-            (LONGLONG)Irp->IoStatus.Information); \
+            (LONGLONG)Irp->IoStatus.Information);\
         if (STATUS_PENDING == Result)   \
         {                               \
             if (0 == (IrpSp->Control & SL_PENDING_RETURNED))\
@@ -104,16 +118,18 @@
 #define FSP_ENTER_IOC(...)              \
     NTSTATUS Result = STATUS_SUCCESS;   \
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (VOID)IrpSp;\
-    FSP_ENTER_(__VA_ARGS__)
+    FSP_ENTER_NOCRIT_(__VA_ARGS__)
 #define FSP_LEAVE_IOC(fmt, ...)         \
-    FSP_LEAVE_(                         \
-        FSP_DEBUGLOG_("%p, %c%c, %s%s, " fmt, "",\
+    FSP_LEAVE_NOCRIT_(                  \
+        FSP_DEBUGLOG_NOCRIT_("%p, %c%c, %s%s, " fmt, " = %s[%lld]",\
             Irp,                        \
             FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
             Irp->RequestorMode == KernelMode ? 'K' : 'U',\
             IrpMajorFunctionSym(IrpSp->MajorFunction),\
             IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MajorFunction),\
-            __VA_ARGS__);               \
+            __VA_ARGS__,                \
+            NtStatusSym(Result),        \
+            (LONGLONG)Irp->IoStatus.Information);\
         FspCompleteRequest(Irp, Result);\
     )
 #define FSP_ENTER_BOOL(...)             \
