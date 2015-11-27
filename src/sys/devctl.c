@@ -45,7 +45,7 @@ FspDeviceControl(
 
 VOID FspDeviceControlComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
-    PAGED_CODE();
+    FSP_ENTER_IOC(PAGED_CODE());
 
-    FspCompleteRequest(Irp, STATUS_SUCCESS);
+    FSP_LEAVE_IOC("", 0);
 }

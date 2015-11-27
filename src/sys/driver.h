@@ -66,7 +66,7 @@
     FSP_LEAVE_(FSP_DEBUGLOG_(fmt, " = %s", __VA_ARGS__, NtStatusSym(Result))); return Result
 #define FSP_ENTER_MJ(...)               \
     NTSTATUS Result = STATUS_SUCCESS;   \
-    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);\
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (VOID)IrpSp;\
     FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(                         \
@@ -101,6 +101,21 @@
             FspCompleteRequest(Irp, Result);\
     );                                  \
     return Result
+#define FSP_ENTER_IOC(...)              \
+    NTSTATUS Result = STATUS_SUCCESS;   \
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (VOID)IrpSp;\
+    FSP_ENTER_(__VA_ARGS__)
+#define FSP_LEAVE_IOC(fmt, ...)         \
+    FSP_LEAVE_(                         \
+        FSP_DEBUGLOG_("%p, %c%c, %s%s, " fmt, "",\
+            Irp,                        \
+            FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
+            Irp->RequestorMode == KernelMode ? 'K' : 'U',\
+            IrpMajorFunctionSym(IrpSp->MajorFunction),\
+            IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MajorFunction),\
+            __VA_ARGS__);               \
+        FspCompleteRequest(Irp, Result);\
+    )
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_BOOL(fmt, ...)        \
