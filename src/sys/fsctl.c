@@ -113,7 +113,7 @@ static NTSTATUS FspFsvrtTransact(
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
-    if (sizeof(FSP_TRANSACT_RSP) > InputBufferLength || 0 == SystemBuffer)
+    if (sizeof(FSP_FSCTL_TRANSACT_RSP) > InputBufferLength || 0 == SystemBuffer)
         return STATUS_INVALID_PARAMETER;
     if (FSP_FSCTL_TRANSACT_BUFFER_SIZE > OutputBufferLength)
         return STATUS_BUFFER_TOO_SMALL;
@@ -121,8 +121,8 @@ static NTSTATUS FspFsvrtTransact(
     NTSTATUS Result;
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
     PUINT8 SystemBufferEnd;
-    const FSP_TRANSACT_RSP *Response, *NextResponse;
-    FSP_TRANSACT_REQ *Request, *NextRequest, *PendingIrpRequest;
+    const FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
+    FSP_FSCTL_TRANSACT_REQ *Request, *NextRequest, *PendingIrpRequest;
     PIRP ProcessIrp, PendingIrp;
 
     /* access check */

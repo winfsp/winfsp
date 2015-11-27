@@ -113,8 +113,8 @@ exit:
 }
 
 FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
-    FSP_TRANSACT_RSP *ResponseBuf, SIZE_T ResponseBufSize,
-    FSP_TRANSACT_REQ *RequestBuf, SIZE_T *PRequestBufSize)
+    FSP_FSCTL_TRANSACT_RSP *ResponseBuf, SIZE_T ResponseBufSize,
+    FSP_FSCTL_TRANSACT_REQ *RequestBuf, SIZE_T *PRequestBufSize)
 {
     NTSTATUS Result = STATUS_SUCCESS;
     DWORD Bytes;

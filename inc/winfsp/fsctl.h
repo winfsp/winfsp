@@ -36,9 +36,9 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_CREATE_BUFFER_SIZE    128
 #define FSP_FSCTL_TRANSACT_BUFFER_SIZE  (16 * 1024)
 #define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  \
-    FSP_FSCTL_ALIGN_UP(sizeof(FSP_TRANSACT_REQ) + 1024 * sizeof(WCHAR), FSP_FSCTL_DEFAULT_ALIGNMENT)
+    FSP_FSCTL_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_REQ) + 1024 * sizeof(WCHAR), FSP_FSCTL_DEFAULT_ALIGNMENT)
 #define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  \
-    FSP_FSCTL_ALIGN_UP(sizeof(FSP_TRANSACT_RSP) + 1024 * sizeof(WCHAR), FSP_FSCTL_DEFAULT_ALIGNMENT)
+    FSP_FSCTL_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_RSP) + 1024 * sizeof(WCHAR), FSP_FSCTL_DEFAULT_ALIGNMENT)
 
 /* marshalling */
 #pragma warning(push)
@@ -52,7 +52,7 @@ typedef struct
     {
         UINT8 Placeholder; // !!!: REMOVE
     } Req;
-} FSP_TRANSACT_REQ;
+} FSP_FSCTL_TRANSACT_REQ;
 typedef struct
 {
     UINT64 Hint;
@@ -67,34 +67,34 @@ typedef struct
     {
         UINT8 Placeholder; // !!!: REMOVE
     } Req;
-} FSP_TRANSACT_RSP;
+} FSP_FSCTL_TRANSACT_RSP;
 #pragma warning(pop)
-static inline FSP_TRANSACT_REQ *FspFsctlTransactProduceRequest(
-    FSP_TRANSACT_REQ *Request, SIZE_T RequestSize, PVOID RequestBufEnd)
+static inline FSP_FSCTL_TRANSACT_REQ *FspFsctlTransactProduceRequest(
+    FSP_FSCTL_TRANSACT_REQ *Request, SIZE_T RequestSize, PVOID RequestBufEnd)
 {
     PVOID NextRequest = (PUINT8)Request + FSP_FSCTL_ALIGN_UP(RequestSize, FSP_FSCTL_DEFAULT_ALIGNMENT);
     return NextRequest <= RequestBufEnd ? NextRequest : 0;
 }
-static inline const FSP_TRANSACT_REQ *FspFsctlTransactConsumeRequest(
-    const FSP_TRANSACT_REQ *Request, PVOID RequestBufEnd)
+static inline const FSP_FSCTL_TRANSACT_REQ *FspFsctlTransactConsumeRequest(
+    const FSP_FSCTL_TRANSACT_REQ *Request, PVOID RequestBufEnd)
 {
     if ((PUINT8)Request + sizeof(Request->Size) > (PUINT8)RequestBufEnd ||
-        sizeof(FSP_TRANSACT_REQ) > Request->Size)
+        sizeof(FSP_FSCTL_TRANSACT_REQ) > Request->Size)
         return 0;
     PVOID NextRequest = (PUINT8)Request + FSP_FSCTL_ALIGN_UP(Request->Size, FSP_FSCTL_DEFAULT_ALIGNMENT);
     return NextRequest <= RequestBufEnd ? NextRequest : 0;
 }
-static inline FSP_TRANSACT_RSP *FspFsctlTransactProduceResponse(
-    FSP_TRANSACT_RSP *Response, SIZE_T ResponseSize, PVOID ResponseBufEnd)
+static inline FSP_FSCTL_TRANSACT_RSP *FspFsctlTransactProduceResponse(
+    FSP_FSCTL_TRANSACT_RSP *Response, SIZE_T ResponseSize, PVOID ResponseBufEnd)
 {
     PVOID NextResponse = (PUINT8)Response + FSP_FSCTL_ALIGN_UP(ResponseSize, FSP_FSCTL_DEFAULT_ALIGNMENT);
     return NextResponse <= ResponseBufEnd ? NextResponse : 0;
 }
-static inline const FSP_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
-    const FSP_TRANSACT_RSP *Response, PVOID ResponseBufEnd)
+static inline const FSP_FSCTL_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
+    const FSP_FSCTL_TRANSACT_RSP *Response, PVOID ResponseBufEnd)
 {
     if ((PUINT8)Response + sizeof(Response->Size) > (PUINT8)ResponseBufEnd ||
-        sizeof(FSP_TRANSACT_RSP) > Response->Size)
+        sizeof(FSP_FSCTL_TRANSACT_RSP) > Response->Size)
         return 0;
     PVOID NextResponse = (PUINT8)Response + FSP_FSCTL_ALIGN_UP(Response->Size, FSP_FSCTL_DEFAULT_ALIGNMENT);
     return NextResponse <= ResponseBufEnd ? NextResponse : 0;
@@ -107,8 +107,8 @@ FSP_API NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
     PHANDLE *PVolumeHandle);
 FSP_API NTSTATUS FspFsctlDeleteVolume(HANDLE VolumeHandle);
 FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
-    FSP_TRANSACT_RSP *ResponseBuf, SIZE_T ResponseBufSize,
-    FSP_TRANSACT_REQ *RequestBuf, SIZE_T *PRequestBufSize);
+    FSP_FSCTL_TRANSACT_RSP *ResponseBuf, SIZE_T ResponseBufSize,
+    FSP_FSCTL_TRANSACT_REQ *RequestBuf, SIZE_T *PRequestBufSize);
 #endif
 
 #endif

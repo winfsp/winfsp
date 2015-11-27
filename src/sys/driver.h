@@ -220,6 +220,10 @@ FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
     return DeviceObject->DeviceExtension;
 }
 
+/* I/O completion */
+VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result);
+VOID FspDispatchProcessedIrp(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response);
+
 /* misc */
 VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result);
 NTSTATUS FspCreateGuid(GUID *Guid);
