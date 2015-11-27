@@ -19,6 +19,10 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_DISK_DEVICE_NAME      "WinFsp.Disk"
 #define FSP_FSCTL_NET_DEVICE_NAME       "WinFsp.Net"
 
+/* alignment macros */
+#define FSP_FSCTL_ALIGN_UP(x, s)        (((x) + ((s) - 1L)) & ~((s) - 1L))
+#define FSP_FSCTL_DEFAULT_ALIGNMENT     (sizeof(UINT64) * 2)
+
 /* fsctl device codes */
 #define FSP_FSCTL_CREATE                \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'C', METHOD_BUFFERED, FILE_ANY_ACCESS)
@@ -31,16 +35,18 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 
 #define FSP_FSCTL_CREATE_BUFFER_SIZE    128
 #define FSP_FSCTL_TRANSACT_BUFFER_SIZE  (16 * 1024)
-#define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  (sizeof(FSP_TRANSACT_REQ) + 1024 * sizeof(WCHAR))
-#define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  (sizeof(FSP_TRANSACT_RSP) + 1024 * sizeof(WCHAR))
+#define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  \
+    FSP_FSCTL_ALIGN_UP(sizeof(FSP_TRANSACT_REQ) + 1024 * sizeof(WCHAR), FSP_FSCTL_DEFAULT_ALIGNMENT)
+#define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  \
+    FSP_FSCTL_ALIGN_UP(sizeof(FSP_TRANSACT_RSP) + 1024 * sizeof(WCHAR), FSP_FSCTL_DEFAULT_ALIGNMENT)
 
 /* marshalling */
 #pragma warning(push)
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
 typedef struct
 {
-    UINT32 Size;
     UINT64 Hint;
+    UINT32 Size;
     UINT8 Kind;
     union
     {
@@ -49,8 +55,8 @@ typedef struct
 } FSP_TRANSACT_REQ;
 typedef struct
 {
-    UINT32 Size;
     UINT64 Hint;
+    UINT32 Size;
     struct
     {
         UINT32 Status;
@@ -66,7 +72,7 @@ typedef struct
 static inline FSP_TRANSACT_REQ *FspFsctlTransactProduceRequest(
     FSP_TRANSACT_REQ *Request, SIZE_T RequestSize, PVOID RequestBufEnd)
 {
-    PVOID NextRequest = (PUINT8)Request + RequestSize;
+    PVOID NextRequest = (PUINT8)Request + FSP_FSCTL_ALIGN_UP(RequestSize, FSP_FSCTL_DEFAULT_ALIGNMENT);
     return NextRequest <= RequestBufEnd ? NextRequest : 0;
 }
 static inline const FSP_TRANSACT_REQ *FspFsctlTransactConsumeRequest(
@@ -75,13 +81,13 @@ static inline const FSP_TRANSACT_REQ *FspFsctlTransactConsumeRequest(
     if ((PUINT8)Request + sizeof(Request->Size) > (PUINT8)RequestBufEnd ||
         sizeof(FSP_TRANSACT_REQ) > Request->Size)
         return 0;
-    PVOID NextRequest = (PUINT8)Request + Request->Size;
+    PVOID NextRequest = (PUINT8)Request + FSP_FSCTL_ALIGN_UP(Request->Size, FSP_FSCTL_DEFAULT_ALIGNMENT);
     return NextRequest <= RequestBufEnd ? NextRequest : 0;
 }
 static inline FSP_TRANSACT_RSP *FspFsctlTransactProduceResponse(
     FSP_TRANSACT_RSP *Response, SIZE_T ResponseSize, PVOID ResponseBufEnd)
 {
-    PVOID NextResponse = (PUINT8)Response + ResponseSize;
+    PVOID NextResponse = (PUINT8)Response + FSP_FSCTL_ALIGN_UP(ResponseSize, FSP_FSCTL_DEFAULT_ALIGNMENT);
     return NextResponse <= ResponseBufEnd ? NextResponse : 0;
 }
 static inline const FSP_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
@@ -90,7 +96,7 @@ static inline const FSP_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
     if ((PUINT8)Response + sizeof(Response->Size) > (PUINT8)ResponseBufEnd ||
         sizeof(FSP_TRANSACT_RSP) > Response->Size)
         return 0;
-    PVOID NextResponse = (PUINT8)Response + Response->Size;
+    PVOID NextResponse = (PUINT8)Response + FSP_FSCTL_ALIGN_UP(Response->Size, FSP_FSCTL_DEFAULT_ALIGNMENT);
     return NextResponse <= ResponseBufEnd ? NextResponse : 0;
 }
 
