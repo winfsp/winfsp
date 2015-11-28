@@ -23,7 +23,7 @@
 /* DEBUGLOG */
 #if DBG
 #define DEBUGLOG(fmt, ...)              \
-    DbgPrint(DRIVER_NAME "!" __FUNCTION__ ": " fmt "\n", __VA_ARGS__)
+    DbgPrint(DRIVER_NAME "!" __FUNCTION__ "[%d]: " fmt "\n", KeGetCurrentIrql(), __VA_ARGS__)
 #else
 #define DEBUGLOG(fmt, ...)              ((void)0)
 #endif
@@ -32,13 +32,13 @@
 #if DBG
 #define FSP_DEBUGLOG_(fmt, rfmt, ...)   \
     DbgPrint(AbnormalTermination() ?    \
-        DRIVER_NAME "!" __FUNCTION__ "(" fmt ") = !AbnormalTermination\n" :\
-        DRIVER_NAME "!" __FUNCTION__ "(" fmt ")" rfmt "\n",\
-        __VA_ARGS__)
+        DRIVER_NAME "!" __FUNCTION__ "[%d](" fmt ") = !AbnormalTermination\n" :\
+        DRIVER_NAME "!" __FUNCTION__ "[%d](" fmt ")" rfmt "\n",\
+        KeGetCurrentIrql(), __VA_ARGS__)
 #define FSP_DEBUGLOG_NOCRIT_(fmt, rfmt, ...)\
     DbgPrint(                           \
-        DRIVER_NAME "!" __FUNCTION__ "(" fmt ")" rfmt "\n",\
-        __VA_ARGS__)
+        DRIVER_NAME "!" __FUNCTION__ "[%d](" fmt ")" rfmt "\n",\
+        KeGetCurrentIrql(), __VA_ARGS__)
 #define FSP_DEBUGBRK_()                 \
     do                                  \
     {                                   \
