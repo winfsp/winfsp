@@ -85,7 +85,7 @@ static PIRP FspIoqPendingPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
 }
 
 _IRQL_raises_(DISPATCH_LEVEL)
-static VOID FspIoqPendingAcquireLock(PIO_CSQ IoCsq, PKIRQL PIrql)
+static VOID FspIoqPendingAcquireLock(PIO_CSQ IoCsq, _At_(*PIrql, _IRQL_saves_) PKIRQL PIrql)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
     KeAcquireSpinLock(&Ioq->SpinLock, PIrql);
@@ -136,7 +136,7 @@ static PIRP FspIoqProcessPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
 }
 
 _IRQL_raises_(DISPATCH_LEVEL)
-static VOID FspIoqProcessAcquireLock(PIO_CSQ IoCsq, PKIRQL PIrql)
+static VOID FspIoqProcessAcquireLock(PIO_CSQ IoCsq, _At_(*PIrql, _IRQL_saves_) PKIRQL PIrql)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
     KeAcquireSpinLock(&Ioq->SpinLock, PIrql);
