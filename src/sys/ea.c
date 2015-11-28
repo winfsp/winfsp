@@ -10,8 +10,8 @@ static NTSTATUS FspFsvolQueryEa(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolSetEa(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-DRIVER_DISPATCH FspQueryEa;
-DRIVER_DISPATCH FspSetEa;
+FSP_DRIVER_DISPATCH FspQueryEa;
+FSP_DRIVER_DISPATCH FspSetEa;
 FSP_IOCOMPLETION_DISPATCH FspQueryEaComplete;
 FSP_IOCOMPLETION_DISPATCH FspSetEaComplete;
 
@@ -27,19 +27,21 @@ FSP_IOCOMPLETION_DISPATCH FspSetEaComplete;
 static NTSTATUS FspFsvolQueryEa(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
 static NTSTATUS FspFsvolSetEa(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS
-FspQueryEa(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+NTSTATUS FspQueryEa(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
@@ -56,10 +58,8 @@ FspQueryEa(
     FSP_LEAVE_MJ("", 0);
 }
 
-NTSTATUS
-FspSetEa(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+NTSTATUS FspSetEa(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
@@ -76,14 +76,16 @@ FspSetEa(
     FSP_LEAVE_MJ("", 0);
 }
 
-VOID FspQueryEaComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+VOID FspQueryEaComplete(
+    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
     FSP_LEAVE_IOC("", 0);
 }
 
-VOID FspSetEaComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+VOID FspSetEaComplete(
+    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 

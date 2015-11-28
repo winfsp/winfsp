@@ -10,8 +10,8 @@ static NTSTATUS FspFsvolQueryVolumeInformation(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolSetVolumeInformation(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-DRIVER_DISPATCH FspQueryVolumeInformation;
-DRIVER_DISPATCH FspSetVolumeInformation;
+FSP_DRIVER_DISPATCH FspQueryVolumeInformation;
+FSP_DRIVER_DISPATCH FspSetVolumeInformation;
 FSP_IOCOMPLETION_DISPATCH FspQueryVolumeInformationComplete;
 FSP_IOCOMPLETION_DISPATCH FspSetVolumeInformationComplete;
 
@@ -27,19 +27,21 @@ FSP_IOCOMPLETION_DISPATCH FspSetVolumeInformationComplete;
 static NTSTATUS FspFsvolQueryVolumeInformation(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
 static NTSTATUS FspFsvolSetVolumeInformation(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS
-FspQueryVolumeInformation(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+NTSTATUS FspQueryVolumeInformation(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
@@ -56,10 +58,8 @@ FspQueryVolumeInformation(
     FSP_LEAVE_MJ("", 0);
 }
 
-NTSTATUS
-FspSetVolumeInformation(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+NTSTATUS FspSetVolumeInformation(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
@@ -76,14 +76,16 @@ FspSetVolumeInformation(
     FSP_LEAVE_MJ("", 0);
 }
 
-VOID FspQueryVolumeInformationComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+VOID FspQueryVolumeInformationComplete(
+    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
     FSP_LEAVE_IOC("", 0);
 }
 
-VOID FspSetVolumeInformationComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+VOID FspSetVolumeInformationComplete(
+    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 

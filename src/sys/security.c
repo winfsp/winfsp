@@ -10,8 +10,8 @@ static NTSTATUS FspFsvolQuerySecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolSetSecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-DRIVER_DISPATCH FspQuerySecurity;
-DRIVER_DISPATCH FspSetSecurity;
+FSP_DRIVER_DISPATCH FspQuerySecurity;
+FSP_DRIVER_DISPATCH FspSetSecurity;
 FSP_IOCOMPLETION_DISPATCH FspQuerySecurityComplete;
 FSP_IOCOMPLETION_DISPATCH FspSetSecurityComplete;
 
@@ -27,19 +27,21 @@ FSP_IOCOMPLETION_DISPATCH FspSetSecurityComplete;
 static NTSTATUS FspFsvolQuerySecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
 static NTSTATUS FspFsvolSetSecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS
-FspQuerySecurity(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+NTSTATUS FspQuerySecurity(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
@@ -56,10 +58,8 @@ FspQuerySecurity(
     FSP_LEAVE_MJ("", 0);
 }
 
-NTSTATUS
-FspSetSecurity(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+NTSTATUS FspSetSecurity(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
@@ -76,14 +76,16 @@ FspSetSecurity(
     FSP_LEAVE_MJ("", 0);
 }
 
-VOID FspQuerySecurityComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+VOID FspQuerySecurityComplete(
+    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
     FSP_LEAVE_IOC("", 0);
 }
 
-VOID FspSetSecurityComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+VOID FspSetSecurityComplete(
+    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 

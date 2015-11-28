@@ -12,7 +12,7 @@ static NTSTATUS FspFsvrtCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-DRIVER_DISPATCH FspCreate;
+FSP_DRIVER_DISPATCH FspCreate;
 FSP_IOCOMPLETION_DISPATCH FspCreateComplete;
 
 #ifdef ALLOC_PRAGMA
@@ -26,6 +26,8 @@ FSP_IOCOMPLETION_DISPATCH FspCreateComplete;
 static NTSTATUS FspFsctlCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     NTSTATUS Result = STATUS_SUCCESS;
     Irp->IoStatus.Information = FILE_OPENED;
     return Result;
@@ -34,6 +36,8 @@ static NTSTATUS FspFsctlCreate(
 static NTSTATUS FspFsvrtCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     NTSTATUS Result = STATUS_SUCCESS;
     Irp->IoStatus.Information = FILE_OPENED;
     return Result;
@@ -42,13 +46,13 @@ static NTSTATUS FspFsvrtCreate(
 static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS
-FspCreate(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+NTSTATUS FspCreate(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
@@ -85,7 +89,8 @@ FspCreate(
         Irp->AssociatedIrp.SystemBuffer, IrpSp->Parameters.Create.EaLength);
 }
 
-VOID FspCreateComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+VOID FspCreateComplete(
+    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 

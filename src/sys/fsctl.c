@@ -18,7 +18,7 @@ static NTSTATUS FspFsvrtFileSystemControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-DRIVER_DISPATCH FspFileSystemControl;
+FSP_DRIVER_DISPATCH FspFileSystemControl;
 FSP_IOCOMPLETION_DISPATCH FspFileSystemControlComplete;
 
 #ifdef ALLOC_PRAGMA
@@ -35,6 +35,8 @@ FSP_IOCOMPLETION_DISPATCH FspFileSystemControlComplete;
 static NTSTATUS FspFsctlCreateVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     /* check parameters */
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
@@ -96,6 +98,8 @@ static NTSTATUS FspFsctlCreateVolume(
 static NTSTATUS FspFsvrtDeleteVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     NTSTATUS Result;
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
 
@@ -111,6 +115,8 @@ static NTSTATUS FspFsvrtDeleteVolume(
 static NTSTATUS FspFsvrtTransact(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     /* check parameters */
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
@@ -205,6 +211,8 @@ static NTSTATUS FspFsvrtTransact(
 static NTSTATUS FspFsctlFileSystemControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
     switch (IrpSp->MinorFunction)
     {
@@ -222,6 +230,8 @@ static NTSTATUS FspFsctlFileSystemControl(
 static NTSTATUS FspFsvrtFileSystemControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
     switch (IrpSp->MinorFunction)
     {
@@ -243,6 +253,8 @@ static NTSTATUS FspFsvrtFileSystemControl(
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
     switch (IrpSp->MinorFunction)
     {
@@ -256,10 +268,8 @@ static NTSTATUS FspFsvolFileSystemControl(
     return Result;
 }
 
-NTSTATUS
-FspFileSystemControl(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+NTSTATUS FspFileSystemControl(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
@@ -285,7 +295,8 @@ FspFileSystemControl(
             IoctlCodeSym(IrpSp->Parameters.FileSystemControl.FsControlCode) : "");
 }
 
-VOID FspFileSystemControlComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+VOID FspFileSystemControlComplete(
+    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 

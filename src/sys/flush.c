@@ -8,7 +8,7 @@
 
 static NTSTATUS FspFsvolFlushBuffers(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-DRIVER_DISPATCH FspFlushBuffers;
+FSP_DRIVER_DISPATCH FspFlushBuffers;
 FSP_IOCOMPLETION_DISPATCH FspFlushBuffersComplete;
 
 #ifdef ALLOC_PRAGMA
@@ -20,13 +20,13 @@ FSP_IOCOMPLETION_DISPATCH FspFlushBuffersComplete;
 static NTSTATUS FspFsvolFlushBuffers(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS
-FspFlushBuffers(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+NTSTATUS FspFlushBuffers(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
@@ -43,7 +43,8 @@ FspFlushBuffers(
     FSP_LEAVE_MJ("", 0);
 }
 
-VOID FspFlushBuffersComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+VOID FspFlushBuffersComplete(
+    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 

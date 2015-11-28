@@ -156,28 +156,43 @@
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
 
 /* driver major functions */
-DRIVER_DISPATCH FspCleanup;
-DRIVER_DISPATCH FspClose;
-DRIVER_DISPATCH FspCreate;
-DRIVER_DISPATCH FspDeviceControl;
-DRIVER_DISPATCH FspDirectoryControl;
-DRIVER_DISPATCH FspFileSystemControl;
-DRIVER_DISPATCH FspFlushBuffers;
-DRIVER_DISPATCH FspLockControl;
-DRIVER_DISPATCH FspQueryEa;
-DRIVER_DISPATCH FspQueryInformation;
-DRIVER_DISPATCH FspQuerySecurity;
-DRIVER_DISPATCH FspQueryVolumeInformation;
-DRIVER_DISPATCH FspRead;
-DRIVER_DISPATCH FspSetEa;
-DRIVER_DISPATCH FspSetInformation;
-DRIVER_DISPATCH FspSetSecurity;
-DRIVER_DISPATCH FspSetVolumeInformation;
-DRIVER_DISPATCH FspShutdown;
-DRIVER_DISPATCH FspWrite;
+_Function_class_(DRIVER_DISPATCH)
+_IRQL_requires_max_(APC_LEVEL)
+    /* see https://msdn.microsoft.com/en-us/library/windows/hardware/ff540124(v=vs.85).aspx */
+_IRQL_requires_same_
+typedef
+NTSTATUS
+FSP_DRIVER_DISPATCH(
+    _In_ struct _DEVICE_OBJECT *DeviceObject,
+    _Inout_ struct _IRP *Irp);
+_Dispatch_type_(IRP_MJ_CLEANUP)         FSP_DRIVER_DISPATCH FspCleanup;
+_Dispatch_type_(IRP_MJ_CLOSE)           FSP_DRIVER_DISPATCH FspClose;
+_Dispatch_type_(IRP_MJ_CREATE)          FSP_DRIVER_DISPATCH FspCreate;
+_Dispatch_type_(IRP_MJ_DEVICE_CONTROL)  FSP_DRIVER_DISPATCH FspDeviceControl;
+_Dispatch_type_(IRP_MJ_DIRECTORY_CONTROL) FSP_DRIVER_DISPATCH FspDirectoryControl;
+_Dispatch_type_(IRP_MJ_FILE_SYSTEM_CONTROL) FSP_DRIVER_DISPATCH FspFileSystemControl;
+_Dispatch_type_(IRP_MJ_FLUSH_BUFFERS)   FSP_DRIVER_DISPATCH FspFlushBuffers;
+_Dispatch_type_(IRP_MJ_LOCK_CONTROL)    FSP_DRIVER_DISPATCH FspLockControl;
+_Dispatch_type_(IRP_MJ_QUERY_EA)        FSP_DRIVER_DISPATCH FspQueryEa;
+_Dispatch_type_(IRP_MJ_QUERY_INFORMATION) FSP_DRIVER_DISPATCH FspQueryInformation;
+_Dispatch_type_(IRP_MJ_QUERY_SECURITY)  FSP_DRIVER_DISPATCH FspQuerySecurity;
+_Dispatch_type_(IRP_MJ_QUERY_VOLUME_INFORMATION) FSP_DRIVER_DISPATCH FspQueryVolumeInformation;
+_Dispatch_type_(IRP_MJ_READ)            FSP_DRIVER_DISPATCH FspRead;
+_Dispatch_type_(IRP_MJ_SET_EA)          FSP_DRIVER_DISPATCH FspSetEa;
+_Dispatch_type_(IRP_MJ_SET_INFORMATION) FSP_DRIVER_DISPATCH FspSetInformation;
+_Dispatch_type_(IRP_MJ_SET_SECURITY)    FSP_DRIVER_DISPATCH FspSetSecurity;
+_Dispatch_type_(IRP_MJ_SET_VOLUME_INFORMATION) FSP_DRIVER_DISPATCH FspSetVolumeInformation;
+_Dispatch_type_(IRP_MJ_SHUTDOWN)        FSP_DRIVER_DISPATCH FspShutdown;
+_Dispatch_type_(IRP_MJ_WRITE)           FSP_DRIVER_DISPATCH FspWrite;
 
 /* I/O completion functions */
-typedef VOID FSP_IOCOMPLETION_DISPATCH(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response);
+_IRQL_requires_max_(APC_LEVEL)
+_IRQL_requires_same_
+typedef
+VOID
+FSP_IOCOMPLETION_DISPATCH(
+    _Inout_ PIRP Irp,
+    _In_ FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_IOCOMPLETION_DISPATCH FspCleanupComplete;
 FSP_IOCOMPLETION_DISPATCH FspCloseComplete;
 FSP_IOCOMPLETION_DISPATCH FspCreateComplete;

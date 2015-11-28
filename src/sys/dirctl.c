@@ -8,7 +8,7 @@
 
 static NTSTATUS FspFsvolDirectoryControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-DRIVER_DISPATCH FspDirectoryControl;
+FSP_DRIVER_DISPATCH FspDirectoryControl;
 FSP_IOCOMPLETION_DISPATCH FspDirectoryControlComplete;
 
 #ifdef ALLOC_PRAGMA
@@ -20,13 +20,13 @@ FSP_IOCOMPLETION_DISPATCH FspDirectoryControlComplete;
 static NTSTATUS FspFsvolDirectoryControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS
-FspDirectoryControl(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+NTSTATUS FspDirectoryControl(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
@@ -43,7 +43,8 @@ FspDirectoryControl(
     FSP_LEAVE_MJ("", 0);
 }
 
-VOID FspDirectoryControlComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+VOID FspDirectoryControlComplete(
+    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
