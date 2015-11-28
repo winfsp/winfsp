@@ -55,7 +55,7 @@ NTSTATUS FspQueryInformation(
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
 
-    FSP_LEAVE_MJ("", 0);
+    FSP_LEAVE_MJ("%s", "");
 }
 
 NTSTATUS FspSetInformation(
@@ -73,7 +73,7 @@ NTSTATUS FspSetInformation(
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
 
-    FSP_LEAVE_MJ("", 0);
+    FSP_LEAVE_MJ("%s", "");
 }
 
 VOID FspQueryInformationComplete(
@@ -81,7 +81,7 @@ VOID FspQueryInformationComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
-    FSP_LEAVE_IOC("", 0);
+    FSP_LEAVE_IOC("%s", "");
 }
 
 VOID FspSetInformationComplete(
@@ -89,5 +89,5 @@ VOID FspSetInformationComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
-    FSP_LEAVE_IOC("", 0);
+    FSP_LEAVE_IOC("%s", "");
 }

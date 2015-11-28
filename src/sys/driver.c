@@ -14,10 +14,8 @@ DRIVER_UNLOAD FspUnload;
 #pragma alloc_text(PAGE, FspUnload)
 #endif
 
-NTSTATUS
-DriverEntry(
-    _In_ PDRIVER_OBJECT DriverObject,
-    _In_ PUNICODE_STRING RegistryPath)
+NTSTATUS DriverEntry(
+    PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
     FSP_ENTER();
 
@@ -117,6 +115,7 @@ DriverEntry(
     FspFastIoDispatch.ReleaseForModWrite = FspReleaseForModWrite;
     FspFastIoDispatch.AcquireForCcFlush = FspAcquireForCcFlush;
     FspFastIoDispatch.ReleaseForCcFlush = FspReleaseForCcFlush;
+#pragma prefast(suppress:28175, "We are a filesystem: ok to touch FastIoDispatch")
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
     /* register our device objects as file systems */
@@ -127,9 +126,8 @@ DriverEntry(
         &DriverObject->DriverName, RegistryPath);
 }
 
-VOID
-FspUnload(
-    _In_ PDRIVER_OBJECT DriverObject)
+VOID FspUnload(
+    PDRIVER_OBJECT DriverObject)
 {
     FSP_ENTER_VOID(PAGED_CODE());
 

@@ -22,71 +22,65 @@ FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 #pragma alloc_text(PAGE, FspReleaseForCcFlush)
 #endif
 
-VOID
-FspAcquireFileForNtCreateSection(
-    _In_ PFILE_OBJECT FileObject)
+VOID FspAcquireFileForNtCreateSection(
+    PFILE_OBJECT FileObject)
 {
     FSP_ENTER_VOID(PAGED_CODE());
 
-    FSP_LEAVE_VOID("", 0);
+    FSP_LEAVE_VOID("%s", "");
 }
 
-VOID
-FspReleaseFileForNtCreateSection(
-    _In_ PFILE_OBJECT FileObject)
+VOID FspReleaseFileForNtCreateSection(
+    PFILE_OBJECT FileObject)
 {
     FSP_ENTER_VOID(PAGED_CODE());
 
-    FSP_LEAVE_VOID("", 0);
+    FSP_LEAVE_VOID("%s", "");
 }
 
-NTSTATUS
-FspAcquireForModWrite(
-    _In_ PFILE_OBJECT FileObject,
-    _In_ PLARGE_INTEGER EndingOffset,
-    _Out_ PERESOURCE *ResourceToRelease,
-    _In_ PDEVICE_OBJECT DeviceObject)
+NTSTATUS FspAcquireForModWrite(
+    PFILE_OBJECT FileObject,
+    PLARGE_INTEGER EndingOffset,
+    PERESOURCE *ResourceToRelease,
+    PDEVICE_OBJECT DeviceObject)
 {
     FSP_ENTER(PAGED_CODE());
 
     Result = STATUS_NOT_IMPLEMENTED;
 
-    FSP_LEAVE("", 0);
+    FSP_LEAVE("%s", "");
 }
 
-NTSTATUS
-FspReleaseForModWrite(
-    _In_ PFILE_OBJECT FileObject,
-    _In_ PERESOURCE ResourceToRelease,
-    _In_ PDEVICE_OBJECT DeviceObject)
+NTSTATUS FspReleaseForModWrite(
+    PFILE_OBJECT FileObject,
+    PERESOURCE ResourceToRelease,
+    PDEVICE_OBJECT DeviceObject)
 {
     FSP_ENTER(PAGED_CODE());
 
     Result = STATUS_NOT_IMPLEMENTED;
 
-    FSP_LEAVE("", 0);
+    FSP_LEAVE("%s", "");
 }
 
-NTSTATUS
-FspAcquireForCcFlush(
-    _In_ PFILE_OBJECT FileObject,
-    _In_ PDEVICE_OBJECT DeviceObject)
+NTSTATUS FspAcquireForCcFlush(
+    PFILE_OBJECT FileObject,
+    PDEVICE_OBJECT DeviceObject)
 {
     FSP_ENTER(PAGED_CODE());
 
     Result = STATUS_NOT_IMPLEMENTED;
 
-    FSP_LEAVE("", 0);
+    FSP_LEAVE("%s", "");
 }
 
-NTSTATUS
-FspReleaseForCcFlush(
-    _In_ PFILE_OBJECT FileObject,
-    _In_ PDEVICE_OBJECT DeviceObject)
+NTSTATUS FspReleaseForCcFlush(
+    PFILE_OBJECT FileObject,
+    PDEVICE_OBJECT DeviceObject)
 {
     FSP_ENTER(PAGED_CODE());
 
     Result = STATUS_NOT_IMPLEMENTED;
 
-    FSP_LEAVE("", 0);
+    FSP_LEAVE("%s", "");
 }
