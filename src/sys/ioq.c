@@ -84,13 +84,15 @@ static PIRP FspIoqPendingPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
     return Head != Entry ? CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry) : 0;
 }
 
-static VOID FspIoqPendingAcquireLock(PIO_CSQ IoCsq, PKIRQL Irql)
+_IRQL_raises_(DISPATCH_LEVEL)
+static VOID FspIoqPendingAcquireLock(PIO_CSQ IoCsq, PKIRQL PIrql)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
-    KeAcquireSpinLock(&Ioq->SpinLock, Irql);
+    KeAcquireSpinLock(&Ioq->SpinLock, PIrql);
 }
 
-static VOID FspIoqPendingReleaseLock(PIO_CSQ IoCsq, KIRQL Irql)
+_IRQL_requires_(DISPATCH_LEVEL)
+static VOID FspIoqPendingReleaseLock(PIO_CSQ IoCsq, _IRQL_restores_ KIRQL Irql)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
     KeReleaseSpinLock(&Ioq->SpinLock, Irql);
@@ -133,13 +135,15 @@ static PIRP FspIoqProcessPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
     return 0;
 }
 
-static VOID FspIoqProcessAcquireLock(PIO_CSQ IoCsq, PKIRQL Irql)
+_IRQL_raises_(DISPATCH_LEVEL)
+static VOID FspIoqProcessAcquireLock(PIO_CSQ IoCsq, PKIRQL PIrql)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
-    KeAcquireSpinLock(&Ioq->SpinLock, Irql);
+    KeAcquireSpinLock(&Ioq->SpinLock, PIrql);
 }
 
-static VOID FspIoqProcessReleaseLock(PIO_CSQ IoCsq, KIRQL Irql)
+_IRQL_requires_(DISPATCH_LEVEL)
+static VOID FspIoqProcessReleaseLock(PIO_CSQ IoCsq, _IRQL_restores_ KIRQL Irql)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
     KeReleaseSpinLock(&Ioq->SpinLock, Irql);
