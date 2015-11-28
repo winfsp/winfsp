@@ -19,7 +19,7 @@ static NTSTATUS FspFsvrtFileSystemControl(
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspFileSystemControl;
-FSP_IOPROC_DISPATCH FspFileSystemControlComplete;
+FSP_IOCMPL_DISPATCH FspFileSystemControlComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlCreateVolume)
@@ -153,7 +153,7 @@ static NTSTATUS FspFsvrtTransact(
             /* either IRP was canceled or a bogus Hint was provided */
             continue;
 
-        FspDispatchProcessedIrp(ProcessIrp, Response);
+        FspIopDispatchComplete(ProcessIrp, Response);
 
         Response = NextResponse;
     }
@@ -190,7 +190,7 @@ static NTSTATUS FspFsvrtTransact(
              * also cancel the PendingIrp we have in our hands.
              */
             ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));
-            FspCompleteRequest(PendingIrp, STATUS_CANCELLED);
+            FspIopCompleteRequest(PendingIrp, STATUS_CANCELLED);
             return STATUS_CANCELLED;
         }
 

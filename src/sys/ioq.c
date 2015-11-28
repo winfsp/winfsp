@@ -100,7 +100,7 @@ static VOID FspIoqPendingReleaseLock(PIO_CSQ IoCsq, _IRQL_restores_ KIRQL Irql)
 
 static VOID FspIoqPendingCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
-    FspCompleteRequest(Irp, STATUS_CANCELLED);
+    FspIopCompleteRequest(Irp, STATUS_CANCELLED);
 }
 
 static NTSTATUS FspIoqProcessInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
@@ -151,7 +151,7 @@ static VOID FspIoqProcessReleaseLock(PIO_CSQ IoCsq, _IRQL_restores_ KIRQL Irql)
 
 static VOID FspIoqProcessCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
-    FspCompleteRequest(Irp, STATUS_CANCELLED);
+    FspIopCompleteRequest(Irp, STATUS_CANCELLED);
 }
 
 VOID FspIoqInitialize(FSP_IOQ *Ioq)

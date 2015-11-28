@@ -107,12 +107,12 @@
                 {                       \
                     /* this can only happen if the Ioq was stopped */\
                     ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));\
-                    FspCompleteRequest(Irp, STATUS_ACCESS_DENIED);\
+                    FspIopCompleteRequest(Irp, STATUS_ACCESS_DENIED);\
                 }                       \
             }                           \
         }                               \
         else                            \
-            FspCompleteRequest(Irp, Result);\
+            FspIopCompleteRequest(Irp, Result);\
     );                                  \
     return Result
 #define FSP_ENTER_IOC(...)              \
@@ -130,7 +130,7 @@
             __VA_ARGS__,                \
             NtStatusSym(Result),        \
             (LONGLONG)Irp->IoStatus.Information);\
-        FspCompleteRequest(Irp, Result);\
+        FspIopCompleteRequest(Irp, Result);\
     )
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)
@@ -185,27 +185,27 @@ _Dispatch_type_(IRP_MJ_WRITE)           FSP_DRIVER_DISPATCH FspWrite;
 /* I/O process functions */
 _IRQL_requires_max_(APC_LEVEL)
 _IRQL_requires_same_
-typedef VOID FSP_IOPROC_DISPATCH(
+typedef VOID FSP_IOCMPL_DISPATCH(
     _Inout_ PIRP Irp, _In_ const FSP_FSCTL_TRANSACT_RSP *Response);
-FSP_IOPROC_DISPATCH FspCleanupComplete;
-FSP_IOPROC_DISPATCH FspCloseComplete;
-FSP_IOPROC_DISPATCH FspCreateComplete;
-FSP_IOPROC_DISPATCH FspDeviceControlComplete;
-FSP_IOPROC_DISPATCH FspDirectoryControlComplete;
-FSP_IOPROC_DISPATCH FspFileSystemControlComplete;
-FSP_IOPROC_DISPATCH FspFlushBuffersComplete;
-FSP_IOPROC_DISPATCH FspLockControlComplete;
-FSP_IOPROC_DISPATCH FspQueryEaComplete;
-FSP_IOPROC_DISPATCH FspQueryInformationComplete;
-FSP_IOPROC_DISPATCH FspQuerySecurityComplete;
-FSP_IOPROC_DISPATCH FspQueryVolumeInformationComplete;
-FSP_IOPROC_DISPATCH FspReadComplete;
-FSP_IOPROC_DISPATCH FspSetEaComplete;
-FSP_IOPROC_DISPATCH FspSetInformationComplete;
-FSP_IOPROC_DISPATCH FspSetSecurityComplete;
-FSP_IOPROC_DISPATCH FspSetVolumeInformationComplete;
-FSP_IOPROC_DISPATCH FspShutdownComplete;
-FSP_IOPROC_DISPATCH FspWriteComplete;
+FSP_IOCMPL_DISPATCH FspCleanupComplete;
+FSP_IOCMPL_DISPATCH FspCloseComplete;
+FSP_IOCMPL_DISPATCH FspCreateComplete;
+FSP_IOCMPL_DISPATCH FspDeviceControlComplete;
+FSP_IOCMPL_DISPATCH FspDirectoryControlComplete;
+FSP_IOCMPL_DISPATCH FspFileSystemControlComplete;
+FSP_IOCMPL_DISPATCH FspFlushBuffersComplete;
+FSP_IOCMPL_DISPATCH FspLockControlComplete;
+FSP_IOCMPL_DISPATCH FspQueryEaComplete;
+FSP_IOCMPL_DISPATCH FspQueryInformationComplete;
+FSP_IOCMPL_DISPATCH FspQuerySecurityComplete;
+FSP_IOCMPL_DISPATCH FspQueryVolumeInformationComplete;
+FSP_IOCMPL_DISPATCH FspReadComplete;
+FSP_IOCMPL_DISPATCH FspSetEaComplete;
+FSP_IOCMPL_DISPATCH FspSetInformationComplete;
+FSP_IOCMPL_DISPATCH FspSetSecurityComplete;
+FSP_IOCMPL_DISPATCH FspSetVolumeInformationComplete;
+FSP_IOCMPL_DISPATCH FspShutdownComplete;
+FSP_IOCMPL_DISPATCH FspWriteComplete;
 
 /* fast I/O */
 FAST_IO_CHECK_IF_POSSIBLE FspFastIoCheckIfPossible;
@@ -282,12 +282,11 @@ FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
     return DeviceObject->DeviceExtension;
 }
 
-/* I/O completion */
-VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result);
-VOID FspDispatchProcessedIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+/* I/O processing */
+VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result);
+VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 /* misc */
-VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result);
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspSecuritySubjectContextAccessCheck(
     PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode);
@@ -304,6 +303,6 @@ const char *IoctlCodeSym(ULONG ControlCode);
 /* extern */
 extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
-extern FSP_IOPROC_DISPATCH *FspIoProcessFunction[];
+extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
 
 #endif

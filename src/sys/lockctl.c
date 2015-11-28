@@ -9,7 +9,7 @@
 static NTSTATUS FspFsvolLockControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspLockControl;
-FSP_IOPROC_DISPATCH FspLockControlComplete;
+FSP_IOCMPL_DISPATCH FspLockControlComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolLockControl)

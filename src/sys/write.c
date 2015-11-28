@@ -9,7 +9,7 @@
 static NTSTATUS FspFsvolWrite(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspWrite;
-FSP_IOPROC_DISPATCH FspWriteComplete;
+FSP_IOCMPL_DISPATCH FspWriteComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolWrite)

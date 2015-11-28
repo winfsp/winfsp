@@ -6,13 +6,13 @@
 
 #include <sys/driver.h>
 
-VOID FspDispatchProcessedIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text(PAGE, FspDispatchProcessedIrp)
+#pragma alloc_text(PAGE, FspIopDispatchComplete)
 #endif
 
-VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result)
+VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result)
 {
     // !PAGED_CODE();
 
@@ -30,16 +30,16 @@ VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result)
     IoCompleteRequest(Irp, FSP_IO_INCREMENT);
 }
 
-VOID FspDispatchProcessedIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
 
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
 
     ASSERT(IRP_MJ_MAXIMUM_FUNCTION >= IrpSp->MajorFunction);
-    ASSERT(0 != FspIoProcessFunction[IrpSp->MajorFunction]);
+    ASSERT(0 != FspIopCompleteFunction[IrpSp->MajorFunction]);
 
-    FspIoProcessFunction[IrpSp->MajorFunction](Irp, Response);
+    FspIopCompleteFunction[IrpSp->MajorFunction](Irp, Response);
 }
 
-FSP_IOPROC_DISPATCH *FspIoProcessFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];
+FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];

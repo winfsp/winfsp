@@ -9,7 +9,7 @@
 static NTSTATUS FspFsvolShutdown(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspShutdown;
-FSP_IOPROC_DISPATCH FspShutdownComplete;
+FSP_IOCMPL_DISPATCH FspShutdownComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolShutdown)

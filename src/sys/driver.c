@@ -65,25 +65,25 @@ NTSTATUS DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_SET_SECURITY] = FspSetSecurity;
 
     /* setup the I/O completion functions */
-    FspIoProcessFunction[IRP_MJ_CREATE] = FspCreateComplete;
-    FspIoProcessFunction[IRP_MJ_CLOSE] = FspCloseComplete;
-    FspIoProcessFunction[IRP_MJ_READ] = FspReadComplete;
-    FspIoProcessFunction[IRP_MJ_WRITE] = FspWriteComplete;
-    FspIoProcessFunction[IRP_MJ_QUERY_INFORMATION] = FspQueryInformationComplete;
-    FspIoProcessFunction[IRP_MJ_SET_INFORMATION] = FspSetInformationComplete;
-    FspIoProcessFunction[IRP_MJ_QUERY_EA] = FspQueryEaComplete;
-    FspIoProcessFunction[IRP_MJ_SET_EA] = FspSetEaComplete;
-    FspIoProcessFunction[IRP_MJ_FLUSH_BUFFERS] = FspFlushBuffersComplete;
-    FspIoProcessFunction[IRP_MJ_QUERY_VOLUME_INFORMATION] = FspQueryVolumeInformationComplete;
-    FspIoProcessFunction[IRP_MJ_SET_VOLUME_INFORMATION] = FspSetVolumeInformationComplete;
-    FspIoProcessFunction[IRP_MJ_DIRECTORY_CONTROL] = FspDirectoryControlComplete;
-    FspIoProcessFunction[IRP_MJ_FILE_SYSTEM_CONTROL] = FspFileSystemControlComplete;
-    FspIoProcessFunction[IRP_MJ_DEVICE_CONTROL] = FspDeviceControlComplete;
-    FspIoProcessFunction[IRP_MJ_SHUTDOWN] = FspShutdownComplete;
-    FspIoProcessFunction[IRP_MJ_LOCK_CONTROL] = FspLockControlComplete;
-    FspIoProcessFunction[IRP_MJ_CLEANUP] = FspCleanupComplete;
-    FspIoProcessFunction[IRP_MJ_QUERY_SECURITY] = FspQuerySecurityComplete;
-    FspIoProcessFunction[IRP_MJ_SET_SECURITY] = FspSetSecurityComplete;
+    FspIopCompleteFunction[IRP_MJ_CREATE] = FspCreateComplete;
+    FspIopCompleteFunction[IRP_MJ_CLOSE] = FspCloseComplete;
+    FspIopCompleteFunction[IRP_MJ_READ] = FspReadComplete;
+    FspIopCompleteFunction[IRP_MJ_WRITE] = FspWriteComplete;
+    FspIopCompleteFunction[IRP_MJ_QUERY_INFORMATION] = FspQueryInformationComplete;
+    FspIopCompleteFunction[IRP_MJ_SET_INFORMATION] = FspSetInformationComplete;
+    FspIopCompleteFunction[IRP_MJ_QUERY_EA] = FspQueryEaComplete;
+    FspIopCompleteFunction[IRP_MJ_SET_EA] = FspSetEaComplete;
+    FspIopCompleteFunction[IRP_MJ_FLUSH_BUFFERS] = FspFlushBuffersComplete;
+    FspIopCompleteFunction[IRP_MJ_QUERY_VOLUME_INFORMATION] = FspQueryVolumeInformationComplete;
+    FspIopCompleteFunction[IRP_MJ_SET_VOLUME_INFORMATION] = FspSetVolumeInformationComplete;
+    FspIopCompleteFunction[IRP_MJ_DIRECTORY_CONTROL] = FspDirectoryControlComplete;
+    FspIopCompleteFunction[IRP_MJ_FILE_SYSTEM_CONTROL] = FspFileSystemControlComplete;
+    FspIopCompleteFunction[IRP_MJ_DEVICE_CONTROL] = FspDeviceControlComplete;
+    FspIopCompleteFunction[IRP_MJ_SHUTDOWN] = FspShutdownComplete;
+    FspIopCompleteFunction[IRP_MJ_LOCK_CONTROL] = FspLockControlComplete;
+    FspIopCompleteFunction[IRP_MJ_CLEANUP] = FspCleanupComplete;
+    FspIopCompleteFunction[IRP_MJ_QUERY_SECURITY] = FspQuerySecurityComplete;
+    FspIopCompleteFunction[IRP_MJ_SET_SECURITY] = FspSetSecurityComplete;
 
     /* setup fast I/O and resource acquisition */
     static FAST_IO_DISPATCH FspFastIoDispatch = { 0 };

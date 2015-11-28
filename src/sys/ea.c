@@ -12,8 +12,8 @@ static NTSTATUS FspFsvolSetEa(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspQueryEa;
 FSP_DRIVER_DISPATCH FspSetEa;
-FSP_IOPROC_DISPATCH FspQueryEaComplete;
-FSP_IOPROC_DISPATCH FspSetEaComplete;
+FSP_IOCMPL_DISPATCH FspQueryEaComplete;
+FSP_IOCMPL_DISPATCH FspSetEaComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQueryEa)

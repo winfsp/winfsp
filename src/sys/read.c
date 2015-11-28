@@ -9,7 +9,7 @@
 static NTSTATUS FspFsvolRead(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspRead;
-FSP_IOPROC_DISPATCH FspReadComplete;
+FSP_IOCMPL_DISPATCH FspReadComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolRead)
