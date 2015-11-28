@@ -8,6 +8,8 @@
 
 static NTSTATUS FspFsctlCreateVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsctlMountVolume(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvrtDeleteVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvrtTransact(
@@ -23,6 +25,7 @@ FSP_IOCMPL_DISPATCH FspFileSystemControlComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlCreateVolume)
+#pragma alloc_text(PAGE, FspFsctlMountVolume)
 #pragma alloc_text(PAGE, FspFsvrtDeleteVolume)
 #pragma alloc_text(PAGE, FspFsvrtTransact)
 #pragma alloc_text(PAGE, FspFsctlFileSystemControl)
@@ -91,6 +94,29 @@ static NTSTATUS FspFsctlCreateVolume(
 
     /* free the temporary security descriptor */
     ExFreePoolWithTag(SecurityDescriptor, FSP_TAG);
+
+    return Result;
+}
+
+static NTSTATUS FspFsctlMountVolume(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    PDEVICE_OBJECT RealDevice = IrpSp->Parameters.MountVolume.DeviceObject;
+
+    /* check the passed in volume object; it must be one of our own */
+    Result = FspHasDeviceObject(DeviceObject->DriverObject, RealDevice);
+    if (!NT_SUCCESS(Result))
+    {
+        if (STATUS_NO_SUCH_DEVICE == Result)
+            return STATUS_INVALID_PARAMETER;
+        else
+            return Result;
+    }
+    if (FILE_DEVICE_VIRTUAL_DISK != RealDevice->DeviceType)
+        return STATUS_INVALID_PARAMETER;
 
     return Result;
 }
@@ -224,6 +250,14 @@ static NTSTATUS FspFsctlFileSystemControl(
             Result = FspFsctlCreateVolume(DeviceObject, Irp, IrpSp);
             break;
         }
+        break;
+    case IRP_MN_MOUNT_VOLUME:
+        Result = FspFsctlMountVolume(DeviceObject, Irp, IrpSp);
+        break;
+#if 0
+    case IRP_MN_VERIFY_VOLUME:
+        break;
+#endif
     }
     return Result;
 }
@@ -260,10 +294,6 @@ static NTSTATUS FspFsvolFileSystemControl(
     switch (IrpSp->MinorFunction)
     {
     case IRP_MN_USER_FS_REQUEST:
-        break;
-    case IRP_MN_MOUNT_VOLUME:
-        break;
-    case IRP_MN_VERIFY_VOLUME:
         break;
     }
     return Result;
