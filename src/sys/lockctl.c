@@ -44,7 +44,7 @@ NTSTATUS FspLockControl(
 }
 
 VOID FspLockControlComplete(
-    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 

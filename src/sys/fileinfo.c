@@ -77,7 +77,7 @@ NTSTATUS FspSetInformation(
 }
 
 VOID FspQueryInformationComplete(
-    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
@@ -85,7 +85,7 @@ VOID FspQueryInformationComplete(
 }
 
 VOID FspSetInformationComplete(
-    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 

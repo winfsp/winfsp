@@ -9,7 +9,7 @@
 static NTSTATUS FspFsvolWrite(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspWrite;
-VOID FspWriteComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response);
+FSP_IOPROC_DISPATCH FspWriteComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolWrite)
@@ -44,7 +44,7 @@ NTSTATUS FspWrite(
 }
 
 VOID FspWriteComplete(
-    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 

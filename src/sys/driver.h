@@ -186,7 +186,7 @@ _Dispatch_type_(IRP_MJ_WRITE)           FSP_DRIVER_DISPATCH FspWrite;
 _IRQL_requires_max_(APC_LEVEL)
 _IRQL_requires_same_
 typedef VOID FSP_IOPROC_DISPATCH(
-    _Inout_ PIRP Irp, _In_ FSP_FSCTL_TRANSACT_RSP *Response);
+    _Inout_ PIRP Irp, _In_ const FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_IOPROC_DISPATCH FspCleanupComplete;
 FSP_IOPROC_DISPATCH FspCloseComplete;
 FSP_IOPROC_DISPATCH FspCreateComplete;
@@ -284,7 +284,7 @@ FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
 
 /* I/O completion */
 VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result);
-VOID FspDispatchProcessedIrp(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response);
+VOID FspDispatchProcessedIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 /* misc */
 VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result);

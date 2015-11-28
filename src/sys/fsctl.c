@@ -153,7 +153,7 @@ static NTSTATUS FspFsvrtTransact(
             /* either IRP was canceled or a bogus Hint was provided */
             continue;
 
-        //FspDispatchProcessedIrp(ProcessIrp, Response);
+        FspDispatchProcessedIrp(ProcessIrp, Response);
 
         Response = NextResponse;
     }
@@ -203,6 +203,7 @@ static NTSTATUS FspFsvrtTransact(
             break;
 
     }
+    RtlZeroMemory(Request, SystemBufferEnd - (PUINT8)Request);
     Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)SystemBuffer;
 
     return STATUS_SUCCESS;
@@ -296,7 +297,7 @@ NTSTATUS FspFileSystemControl(
 }
 
 VOID FspFileSystemControlComplete(
-    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 

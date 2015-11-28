@@ -77,7 +77,7 @@ NTSTATUS FspSetSecurity(
 }
 
 VOID FspQuerySecurityComplete(
-    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
@@ -85,7 +85,7 @@ VOID FspQuerySecurityComplete(
 }
 
 VOID FspSetSecurityComplete(
-    PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
 

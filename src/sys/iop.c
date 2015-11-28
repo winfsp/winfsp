@@ -6,7 +6,7 @@
 
 #include <sys/driver.h>
 
-VOID FspDispatchProcessedIrp(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response);
+VOID FspDispatchProcessedIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspDispatchProcessedIrp)
@@ -30,7 +30,7 @@ VOID FspCompleteRequest(PIRP Irp, NTSTATUS Result)
     IoCompleteRequest(Irp, FSP_IO_INCREMENT);
 }
 
-VOID FspDispatchProcessedIrp(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
+VOID FspDispatchProcessedIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
 
