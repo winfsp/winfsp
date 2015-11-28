@@ -182,7 +182,7 @@ _Dispatch_type_(IRP_MJ_SET_VOLUME_INFORMATION) FSP_DRIVER_DISPATCH FspSetVolumeI
 _Dispatch_type_(IRP_MJ_SHUTDOWN)        FSP_DRIVER_DISPATCH FspShutdown;
 _Dispatch_type_(IRP_MJ_WRITE)           FSP_DRIVER_DISPATCH FspWrite;
 
-/* I/O completion functions */
+/* I/O process functions */
 _IRQL_requires_max_(APC_LEVEL)
 _IRQL_requires_same_
 typedef VOID FSP_IOPROC_DISPATCH(

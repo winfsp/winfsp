@@ -115,13 +115,14 @@ NTSTATUS DriverEntry(
     FspFastIoDispatch.ReleaseForModWrite = FspReleaseForModWrite;
     FspFastIoDispatch.AcquireForCcFlush = FspAcquireForCcFlush;
     FspFastIoDispatch.ReleaseForCcFlush = FspReleaseForCcFlush;
-#pragma prefast(suppress:28175, "We are a filesystem: ok to touch FastIoDispatch")
+#pragma prefast(suppress:28175, "We are a filesystem: ok to access FastIoDispatch")
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
     /* register our device objects as file systems */
     IoRegisterFileSystem(FspFsctlDiskDeviceObject);
     IoRegisterFileSystem(FspFsctlNetDeviceObject);
 
+#pragma prefast(suppress:28175, "We are in DriverEntry: ok to access DriverName")
     FSP_LEAVE("DriverName=\"%wZ\", RegistryPath=\"%wZ\"",
         &DriverObject->DriverName, RegistryPath);
 }
@@ -142,6 +143,7 @@ VOID FspUnload(
         FspFsctlNetDeviceObject = 0;
     }
 
+#pragma prefast(suppress:28175, "We are in DriverUnload: ok to access DriverName")
     FSP_LEAVE_VOID("DriverName=\"%wZ\"",
         &DriverObject->DriverName);
 }
