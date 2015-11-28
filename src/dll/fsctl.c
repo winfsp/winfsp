@@ -30,6 +30,7 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR Sec
 
     GlobalDevicePath(DevicePathBuf, sizeof DevicePathBuf, DevicePath);
 
+    SecurityDescriptorSize = 0;
     if (!MakeSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize))
     {
         SecurityDescriptorBuf = malloc(SecurityDescriptorSize);
