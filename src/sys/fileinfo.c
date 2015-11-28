@@ -12,8 +12,8 @@ static NTSTATUS FspFsvolSetInformation(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspQueryInformation;
 FSP_DRIVER_DISPATCH FspSetInformation;
-FSP_IOCOMPLETION_DISPATCH FspQueryInformationComplete;
-FSP_IOCOMPLETION_DISPATCH FspSetInformationComplete;
+FSP_IOPROC_DISPATCH FspQueryInformationComplete;
+FSP_IOPROC_DISPATCH FspSetInformationComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQueryInformation)

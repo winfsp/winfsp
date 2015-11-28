@@ -9,7 +9,7 @@
 static NTSTATUS FspFsvolFlushBuffers(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspFlushBuffers;
-FSP_IOCOMPLETION_DISPATCH FspFlushBuffersComplete;
+FSP_IOPROC_DISPATCH FspFlushBuffersComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolFlushBuffers)

@@ -9,7 +9,7 @@
 static NTSTATUS FspFsvolDirectoryControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspDirectoryControl;
-FSP_IOCOMPLETION_DISPATCH FspDirectoryControlComplete;
+FSP_IOPROC_DISPATCH FspDirectoryControlComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolDirectoryControl)

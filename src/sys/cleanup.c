@@ -13,7 +13,7 @@ static NTSTATUS FspFsvrtCleanup(
 static NTSTATUS FspFsvolCleanup(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspCleanup;
-FSP_IOCOMPLETION_DISPATCH FspCleanupComplete;
+FSP_IOPROC_DISPATCH FspCleanupComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlCleanup)

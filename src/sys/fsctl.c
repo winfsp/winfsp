@@ -19,7 +19,7 @@ static NTSTATUS FspFsvrtFileSystemControl(
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspFileSystemControl;
-FSP_IOCOMPLETION_DISPATCH FspFileSystemControlComplete;
+FSP_IOPROC_DISPATCH FspFileSystemControlComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlCreateVolume)

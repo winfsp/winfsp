@@ -13,7 +13,7 @@ static NTSTATUS FspFsvrtClose(
 static NTSTATUS FspFsvolClose(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspClose;
-FSP_IOCOMPLETION_DISPATCH FspCloseComplete;
+FSP_IOPROC_DISPATCH FspCloseComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlClose)

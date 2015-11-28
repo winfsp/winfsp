@@ -1,5 +1,5 @@
 /**
- * @file sys/ioc.c
+ * @file sys/iop.c
  *
  * @copyright 2015 Bill Zissimopoulos
  */
@@ -37,9 +37,9 @@ VOID FspDispatchProcessedIrp(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
 
     ASSERT(IRP_MJ_MAXIMUM_FUNCTION >= IrpSp->MajorFunction);
-    ASSERT(0 != FspIoCompletionFunction[IrpSp->MajorFunction]);
+    ASSERT(0 != FspIoProcessFunction[IrpSp->MajorFunction]);
 
-    FspIoCompletionFunction[IrpSp->MajorFunction](Irp, Response);
+    FspIoProcessFunction[IrpSp->MajorFunction](Irp, Response);
 }
 
-FSP_IOCOMPLETION_DISPATCH *FspIoCompletionFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];
+FSP_IOPROC_DISPATCH *FspIoProcessFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];

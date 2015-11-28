@@ -13,7 +13,7 @@ static NTSTATUS FspFsvrtCreate(
 static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspCreate;
-FSP_IOCOMPLETION_DISPATCH FspCreateComplete;
+FSP_IOPROC_DISPATCH FspCreateComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlCreate)

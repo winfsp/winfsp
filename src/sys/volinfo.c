@@ -12,8 +12,8 @@ static NTSTATUS FspFsvolSetVolumeInformation(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspQueryVolumeInformation;
 FSP_DRIVER_DISPATCH FspSetVolumeInformation;
-FSP_IOCOMPLETION_DISPATCH FspQueryVolumeInformationComplete;
-FSP_IOCOMPLETION_DISPATCH FspSetVolumeInformationComplete;
+FSP_IOPROC_DISPATCH FspQueryVolumeInformationComplete;
+FSP_IOPROC_DISPATCH FspSetVolumeInformationComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQueryVolumeInformation)

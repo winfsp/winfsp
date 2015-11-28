@@ -160,11 +160,8 @@ _Function_class_(DRIVER_DISPATCH)
 _IRQL_requires_max_(APC_LEVEL)
     /* see https://msdn.microsoft.com/en-us/library/windows/hardware/ff540124(v=vs.85).aspx */
 _IRQL_requires_same_
-typedef
-NTSTATUS
-FSP_DRIVER_DISPATCH(
-    _In_ struct _DEVICE_OBJECT *DeviceObject,
-    _Inout_ struct _IRP *Irp);
+typedef NTSTATUS FSP_DRIVER_DISPATCH(
+    _In_ struct _DEVICE_OBJECT *DeviceObject, _Inout_ struct _IRP *Irp);
 _Dispatch_type_(IRP_MJ_CLEANUP)         FSP_DRIVER_DISPATCH FspCleanup;
 _Dispatch_type_(IRP_MJ_CLOSE)           FSP_DRIVER_DISPATCH FspClose;
 _Dispatch_type_(IRP_MJ_CREATE)          FSP_DRIVER_DISPATCH FspCreate;
@@ -188,30 +185,27 @@ _Dispatch_type_(IRP_MJ_WRITE)           FSP_DRIVER_DISPATCH FspWrite;
 /* I/O completion functions */
 _IRQL_requires_max_(APC_LEVEL)
 _IRQL_requires_same_
-typedef
-VOID
-FSP_IOCOMPLETION_DISPATCH(
-    _Inout_ PIRP Irp,
-    _In_ FSP_FSCTL_TRANSACT_RSP *Response);
-FSP_IOCOMPLETION_DISPATCH FspCleanupComplete;
-FSP_IOCOMPLETION_DISPATCH FspCloseComplete;
-FSP_IOCOMPLETION_DISPATCH FspCreateComplete;
-FSP_IOCOMPLETION_DISPATCH FspDeviceControlComplete;
-FSP_IOCOMPLETION_DISPATCH FspDirectoryControlComplete;
-FSP_IOCOMPLETION_DISPATCH FspFileSystemControlComplete;
-FSP_IOCOMPLETION_DISPATCH FspFlushBuffersComplete;
-FSP_IOCOMPLETION_DISPATCH FspLockControlComplete;
-FSP_IOCOMPLETION_DISPATCH FspQueryEaComplete;
-FSP_IOCOMPLETION_DISPATCH FspQueryInformationComplete;
-FSP_IOCOMPLETION_DISPATCH FspQuerySecurityComplete;
-FSP_IOCOMPLETION_DISPATCH FspQueryVolumeInformationComplete;
-FSP_IOCOMPLETION_DISPATCH FspReadComplete;
-FSP_IOCOMPLETION_DISPATCH FspSetEaComplete;
-FSP_IOCOMPLETION_DISPATCH FspSetInformationComplete;
-FSP_IOCOMPLETION_DISPATCH FspSetSecurityComplete;
-FSP_IOCOMPLETION_DISPATCH FspSetVolumeInformationComplete;
-FSP_IOCOMPLETION_DISPATCH FspShutdownComplete;
-FSP_IOCOMPLETION_DISPATCH FspWriteComplete;
+typedef VOID FSP_IOPROC_DISPATCH(
+    _Inout_ PIRP Irp, _In_ FSP_FSCTL_TRANSACT_RSP *Response);
+FSP_IOPROC_DISPATCH FspCleanupComplete;
+FSP_IOPROC_DISPATCH FspCloseComplete;
+FSP_IOPROC_DISPATCH FspCreateComplete;
+FSP_IOPROC_DISPATCH FspDeviceControlComplete;
+FSP_IOPROC_DISPATCH FspDirectoryControlComplete;
+FSP_IOPROC_DISPATCH FspFileSystemControlComplete;
+FSP_IOPROC_DISPATCH FspFlushBuffersComplete;
+FSP_IOPROC_DISPATCH FspLockControlComplete;
+FSP_IOPROC_DISPATCH FspQueryEaComplete;
+FSP_IOPROC_DISPATCH FspQueryInformationComplete;
+FSP_IOPROC_DISPATCH FspQuerySecurityComplete;
+FSP_IOPROC_DISPATCH FspQueryVolumeInformationComplete;
+FSP_IOPROC_DISPATCH FspReadComplete;
+FSP_IOPROC_DISPATCH FspSetEaComplete;
+FSP_IOPROC_DISPATCH FspSetInformationComplete;
+FSP_IOPROC_DISPATCH FspSetSecurityComplete;
+FSP_IOPROC_DISPATCH FspSetVolumeInformationComplete;
+FSP_IOPROC_DISPATCH FspShutdownComplete;
+FSP_IOPROC_DISPATCH FspWriteComplete;
 
 /* fast I/O */
 FAST_IO_CHECK_IF_POSSIBLE FspFastIoCheckIfPossible;
@@ -310,6 +304,6 @@ const char *IoctlCodeSym(ULONG ControlCode);
 /* extern */
 extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
-extern FSP_IOCOMPLETION_DISPATCH *FspIoCompletionFunction[];
+extern FSP_IOPROC_DISPATCH *FspIoProcessFunction[];
 
 #endif

@@ -12,8 +12,8 @@ static NTSTATUS FspFsvolSetSecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspQuerySecurity;
 FSP_DRIVER_DISPATCH FspSetSecurity;
-FSP_IOCOMPLETION_DISPATCH FspQuerySecurityComplete;
-FSP_IOCOMPLETION_DISPATCH FspSetSecurityComplete;
+FSP_IOPROC_DISPATCH FspQuerySecurityComplete;
+FSP_IOPROC_DISPATCH FspSetSecurityComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQuerySecurity)
