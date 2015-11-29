@@ -295,7 +295,7 @@ NTSTATUS FspCreateDeviceObjectList(
     PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeleteDeviceObjectList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
-NTSTATUS FspHasDeviceObject(
+NTSTATUS FspLookupDeviceObject(
     PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT DeviceObject);
 
 /* debug */

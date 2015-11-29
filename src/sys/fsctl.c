@@ -108,10 +108,10 @@ static NTSTATUS FspFsctlMountVolume(
     PAGED_CODE();
 
     NTSTATUS Result;
-    PDEVICE_OBJECT RealDevice = IrpSp->Parameters.MountVolume.DeviceObject;
+    PDEVICE_OBJECT RealDevice = IrpSp->Parameters.MountVolume.Vpb->RealDevice;
 
     /* check the passed in volume object; it must be one of our own */
-    Result = FspHasDeviceObject(DeviceObject->DriverObject, RealDevice);
+    Result = FspLookupDeviceObject(DeviceObject->DriverObject, RealDevice);
     if (!NT_SUCCESS(Result))
     {
         if (STATUS_NO_SUCH_DEVICE == Result)

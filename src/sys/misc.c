@@ -83,7 +83,7 @@ VOID FspDeleteDeviceObjectList(
     ExFreePoolWithTag(DeviceObjects, FSP_TAG);
 }
 
-NTSTATUS FspHasDeviceObject(
+NTSTATUS FspLookupDeviceObject(
     PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT DeviceObject)
 {
     NTSTATUS Result = STATUS_NO_SUCH_DEVICE;

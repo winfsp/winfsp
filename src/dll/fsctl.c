@@ -33,22 +33,20 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     GlobalDevicePath(DevicePathBuf, sizeof DevicePathBuf, DevicePath);
 
     SecurityDescriptorSize = 0;
-    if (!MakeSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize))
+    MakeSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize);
+    ParamsBuf = malloc(sizeof *ParamsBuf + SecurityDescriptorSize);
+    if (0 == ParamsBuf)
     {
-        ParamsBuf = malloc(sizeof *ParamsBuf + SecurityDescriptorSize);
-        if (0 == ParamsBuf)
-        {
-            Result = STATUS_INSUFFICIENT_RESOURCES;
-            goto exit;
-        }
-        SecurityDescriptorBuf = (PVOID)(ParamsBuf + 1);
-        if (!MakeSelfRelativeSD(SecurityDescriptor, SecurityDescriptorBuf, &SecurityDescriptorSize))
-        {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
-        }
-        *ParamsBuf = *Params;
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
     }
+    SecurityDescriptorBuf = (PVOID)(ParamsBuf + 1);
+    if (!MakeSelfRelativeSD(SecurityDescriptor, SecurityDescriptorBuf, &SecurityDescriptorSize))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+    *ParamsBuf = *Params;
 
     DeviceHandle = CreateFileW(DevicePathBuf,
         0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
