@@ -294,6 +294,7 @@ VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
 NTSTATUS FspDeviceOwned(
     PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT DeviceObject);
+VOID FspDeviceInitExtension(PDEVICE_OBJECT DeviceObject, UINT8 Kind);
 VOID FspDeviceDeleteObject(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDeleteObjects(PDRIVER_OBJECT DriverObject);
 

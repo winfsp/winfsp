@@ -101,9 +101,8 @@ static NTSTATUS FspFsctlCreateVolume(
         &FsvrtDeviceObject);
     if (NT_SUCCESS(Result))
     {
+        FspDeviceInitExtension(FsvrtDeviceObject, FspFsvrtDeviceExtensionKind);
         FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
-        FsvrtDeviceExtension->Base.Kind = FspFsvrtDeviceExtensionKind;
-        ExInitializeResourceLite(&FsvrtDeviceExtension->Base.Resource);
         FsvrtDeviceExtension->FsctlDeviceObject = DeviceObject;
         FsvrtDeviceExtension->VolumeParams = *Params;
         FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
@@ -161,9 +160,8 @@ static NTSTATUS FspFsctlMountVolume(
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
         FsvolDeviceObject->SectorSize =
             FspFsvrtDeviceExtension(FsvrtDeviceObject)->VolumeParams.SectorSize;
+        FspDeviceInitExtension(FsvolDeviceObject, FspFsvolDeviceExtensionKind);
         FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-        FsvolDeviceExtension->Base.Kind = FspFsvolDeviceExtensionKind;
-        ExInitializeResourceLite(&FsvolDeviceExtension->Base.Resource);
         FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
         ClearFlag(FsvolDeviceObject->Flags, DO_DEVICE_INITIALIZING);
         Vpb->DeviceObject = FsvolDeviceObject;

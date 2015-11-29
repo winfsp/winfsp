@@ -39,10 +39,8 @@ NTSTATUS DriverEntry(
         &FspFsctlNetDeviceObject);
     if (!NT_SUCCESS(Result))
         FSP_RETURN(IoDeleteDevice(FspFsctlDiskDeviceObject));
-    FspDeviceExtension(FspFsctlDiskDeviceObject)->Kind = FspFsctlDeviceExtensionKind;
-    ExInitializeResourceLite(&FspDeviceExtension(FspFsctlDiskDeviceObject)->Resource);
-    FspDeviceExtension(FspFsctlNetDeviceObject)->Kind = FspFsctlDeviceExtensionKind;
-    ExInitializeResourceLite(&FspDeviceExtension(FspFsctlNetDeviceObject)->Resource);
+    FspDeviceInitExtension(FspFsctlDiskDeviceObject, FspFsctlDeviceExtensionKind);
+    FspDeviceInitExtension(FspFsctlNetDeviceObject, FspFsctlDeviceExtensionKind);
 
     /* setup the driver object */
     DriverObject->DriverUnload = FspUnload;

@@ -12,6 +12,7 @@ VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
 NTSTATUS FspDeviceOwned(
     PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT DeviceObject);
+VOID FspDeviceInitExtension(PDEVICE_OBJECT DeviceObject, UINT8 Kind);
 static VOID FspFsctlDeviceDeleteObject(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsvrtDeviceDeleteObject(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsvolDeviceDeleteObject(PDEVICE_OBJECT DeviceObject);
@@ -22,6 +23,7 @@ VOID FspDeviceDeleteObjects(PDRIVER_OBJECT DriverObject);
 #pragma alloc_text(PAGE, FspDeviceCreateList)
 #pragma alloc_text(PAGE, FspDeviceDeleteList)
 #pragma alloc_text(PAGE, FspDeviceOwned)
+#pragma alloc_text(PAGE, FspDeviceInitExtension)
 #pragma alloc_text(PAGE, FspFsctlDeviceDeleteObject)
 #pragma alloc_text(PAGE, FspFsvrtDeviceDeleteObject)
 #pragma alloc_text(PAGE, FspFsvolDeviceDeleteObject)
@@ -89,6 +91,16 @@ NTSTATUS FspDeviceOwned(
     FspDeviceDeleteList(DeviceObjects, DeviceObjectCount);
 
     return Result;
+}
+
+VOID FspDeviceInitExtension(PDEVICE_OBJECT DeviceObject, UINT8 Kind)
+{
+    PAGED_CODE();
+
+    FSP_DEVICE_EXTENSION *DeviceExtension = FspDeviceExtension(DeviceObject);
+
+    DeviceExtension->Kind = Kind;
+    ExInitializeResourceLite(&DeviceExtension->Resource);
 }
 
 static VOID FspFsctlDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
