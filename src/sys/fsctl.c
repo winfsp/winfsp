@@ -93,6 +93,7 @@ static NTSTATUS FspFsctlCreateVolume(
         FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
         RtlCopyMemory(FspFsvrtDeviceExtension(FsvrtDeviceObject)->SecurityDescriptorBuf,
             SecurityDescriptorBuf, SecurityDescriptorSize);
+        ClearFlag(FsvrtDeviceObject->DO_DEVICE_INITIALIZING);
         Irp->IoStatus.Information = DeviceName.Length + 1;
     }
 
@@ -111,16 +112,16 @@ static NTSTATUS FspFsctlMountVolume(
     PDEVICE_OBJECT RealDevice = IrpSp->Parameters.MountVolume.Vpb->RealDevice;
 
     /* check the passed in volume object; it must be one of our own */
-    Result = FspLookupDeviceObject(DeviceObject->DriverObject, RealDevice);
+    Result = FspHasDeviceObject(DeviceObject->DriverObject, RealDevice);
     if (!NT_SUCCESS(Result))
     {
         if (STATUS_NO_SUCH_DEVICE == Result)
-            return STATUS_INVALID_PARAMETER;
+            return STATUS_UNRECOGNIZED_VOLUME;
         else
             return Result;
     }
     if (FILE_DEVICE_VIRTUAL_DISK != RealDevice->DeviceType)
-        return STATUS_INVALID_PARAMETER;
+        return STATUS_UNRECOGNIZED_VOLUME;
 
     return Result;
 }
