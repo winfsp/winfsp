@@ -48,7 +48,7 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     *ParamsBuf = *Params;
 
     DeviceHandle = CreateFileW(DevicePathBuf,
-        0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
     if (INVALID_HANDLE_VALUE == DeviceHandle)
     {
         Result = FspNtStatusFromWin32(GetLastError());
@@ -84,7 +84,7 @@ FSP_API NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
     GlobalDevicePath(DevicePathBuf, sizeof DevicePathBuf, VolumePath);
 
     VolumeHandle = CreateFileW(DevicePathBuf,
-        0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
     if (INVALID_HANDLE_VALUE == VolumeHandle)
     {
         Result = FspNtStatusFromWin32(GetLastError());

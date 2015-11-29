@@ -261,6 +261,7 @@ typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
     PDEVICE_OBJECT FsvrtDeviceObject;
+    PVPB SwapVpb;
 } FSP_FSVOL_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
@@ -270,16 +271,19 @@ FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
 static inline
 FSP_FSCTL_DEVICE_EXTENSION *FspFsctlDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
+    ASSERT(FspFsctlDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
     return DeviceObject->DeviceExtension;
 }
 static inline
 FSP_FSVRT_DEVICE_EXTENSION *FspFsvrtDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
+    ASSERT(FspFsvrtDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
     return DeviceObject->DeviceExtension;
 }
 static inline
 FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
+    ASSERT(FspFsvolDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
     return DeviceObject->DeviceExtension;
 }
 

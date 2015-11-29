@@ -93,7 +93,7 @@ static NTSTATUS FspFsctlCreateVolume(
         FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
         RtlCopyMemory(FspFsvrtDeviceExtension(FsvrtDeviceObject)->SecurityDescriptorBuf,
             SecurityDescriptorBuf, SecurityDescriptorSize);
-        ClearFlag(FsvrtDeviceObject->DO_DEVICE_INITIALIZING);
+        ClearFlag(FsvrtDeviceObject->Flags, DO_DEVICE_INITIALIZING);
         Irp->IoStatus.Information = DeviceName.Length + 1;
     }
 
@@ -109,10 +109,14 @@ static NTSTATUS FspFsctlMountVolume(
     PAGED_CODE();
 
     NTSTATUS Result;
-    PDEVICE_OBJECT RealDevice = IrpSp->Parameters.MountVolume.Vpb->RealDevice;
+    PVPB Vpb = IrpSp->Parameters.MountVolume.Vpb;
+    PVPB SwapVpb = 0;
+    PDEVICE_OBJECT FsvrtDeviceObject = Vpb->RealDevice;
+    PDEVICE_OBJECT FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
     /* check the passed in volume object; it must be one of our own */
-    Result = FspHasDeviceObject(DeviceObject->DriverObject, RealDevice);
+    Result = FspHasDeviceObject(DeviceObject->DriverObject, FsvrtDeviceObject);
     if (!NT_SUCCESS(Result))
     {
         if (STATUS_NO_SUCH_DEVICE == Result)
@@ -120,8 +124,37 @@ static NTSTATUS FspFsctlMountVolume(
         else
             return Result;
     }
-    if (FILE_DEVICE_VIRTUAL_DISK != RealDevice->DeviceType)
+    if (FILE_DEVICE_VIRTUAL_DISK != FsvrtDeviceObject->DeviceType)
         return STATUS_UNRECOGNIZED_VOLUME;
+
+    /* preallocate swap VPB */
+    SwapVpb = ExAllocatePoolWithTag(NonPagedPool, sizeof *SwapVpb, FSP_TAG);
+    if (0 == SwapVpb)
+        return STATUS_INSUFFICIENT_RESOURCES;
+    RtlZeroMemory(SwapVpb, sizeof *Vpb);
+
+    /* create the file system device object */
+    Result = IoCreateDevice(DeviceObject->DriverObject,
+        sizeof(FSP_FSVOL_DEVICE_EXTENSION), 0, DeviceObject->DeviceType,
+        0, FALSE,
+        &FsvolDeviceObject);
+    if (NT_SUCCESS(Result))
+    {
+        FsvolDeviceObject->SectorSize =
+            FspFsvrtDeviceExtension(FsvrtDeviceObject)->VolumeParams.SectorSize;
+        FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+        FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
+        FsvolDeviceExtension->SwapVpb = SwapVpb;
+        ClearFlag(FsvolDeviceObject->Flags, DO_DEVICE_INITIALIZING);
+        Vpb->VolumeLabelLength = 0;
+        Vpb->DeviceObject = FsvolDeviceObject;
+        Irp->IoStatus.Information = 0;
+        SwapVpb = 0;
+    }
+
+    /* free swap VPB if we failed */
+    if (0 != SwapVpb)
+        ExFreePoolWithTag(SwapVpb, FSP_TAG);
 
     return Result;
 }
