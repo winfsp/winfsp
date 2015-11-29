@@ -89,6 +89,7 @@ static NTSTATUS FspFsctlCreateVolume(
     {
         FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
         FsvrtDeviceExtension->Base.Kind = FspFsvrtDeviceExtensionKind;
+        FsvrtDeviceExtension->FsctlDeviceObject = DeviceObject;
         FsvrtDeviceExtension->VolumeParams = *Params;
         FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
         RtlCopyMemory(FspFsvrtDeviceExtension(FsvrtDeviceObject)->SecurityDescriptorBuf,
@@ -113,7 +114,6 @@ static NTSTATUS FspFsctlMountVolume(
     PVPB SwapVpb = 0;
     PDEVICE_OBJECT FsvrtDeviceObject = Vpb->RealDevice;
     PDEVICE_OBJECT FsvolDeviceObject;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
     /* check the passed in volume object; it must be one of our own */
     Result = FspDeviceOwned(DeviceObject->DriverObject, FsvrtDeviceObject);
@@ -134,6 +134,7 @@ static NTSTATUS FspFsctlMountVolume(
     RtlZeroMemory(SwapVpb, sizeof *Vpb);
 
     /* create the file system device object */
+    ExAcquireResourceExclusiveLite(&FspFsctlDeviceExtension(DeviceObject)->Resource, TRUE);
     Result = IoCreateDevice(DeviceObject->DriverObject,
         sizeof(FSP_FSVOL_DEVICE_EXTENSION), 0, DeviceObject->DeviceType,
         0, FALSE,
@@ -143,7 +144,8 @@ static NTSTATUS FspFsctlMountVolume(
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
         FsvolDeviceObject->SectorSize =
             FspFsvrtDeviceExtension(FsvrtDeviceObject)->VolumeParams.SectorSize;
-        FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+        FsvolDeviceExtension->Base.Kind = FspFsvolDeviceExtensionKind;
         FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
         FsvolDeviceExtension->SwapVpb = SwapVpb;
         ClearFlag(FsvolDeviceObject->Flags, DO_DEVICE_INITIALIZING);
@@ -152,6 +154,7 @@ static NTSTATUS FspFsctlMountVolume(
         Irp->IoStatus.Information = 0;
         SwapVpb = 0;
     }
+    ExReleaseResourceLite(&FspFsctlDeviceExtension(DeviceObject)->Resource);
 
     /* free swap VPB if we failed */
     if (0 != SwapVpb)

@@ -254,6 +254,7 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
+    PDEVICE_OBJECT FsctlDeviceObject;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     FSP_IOQ Ioq;
     UINT8 SecurityDescriptorBuf[];
