@@ -131,6 +131,7 @@ static NTSTATUS FspFsctlMountVolume(
     PAGED_CODE();
 
     NTSTATUS Result;
+    FSP_FSCTL_DEVICE_EXTENSION *FsctlDeviceExtension = FspFsctlDeviceExtension(DeviceObject);
     PVPB Vpb = IrpSp->Parameters.MountVolume.Vpb;
     PDEVICE_OBJECT FsvrtDeviceObject = Vpb->RealDevice;
     PDEVICE_OBJECT FsvolDeviceObject;
@@ -147,7 +148,7 @@ static NTSTATUS FspFsctlMountVolume(
     if (FILE_DEVICE_VIRTUAL_DISK != FsvrtDeviceObject->DeviceType)
         return STATUS_UNRECOGNIZED_VOLUME;
 
-    ExAcquireResourceExclusiveLite(&FspFsctlDeviceExtension(DeviceObject)->Resource, TRUE);
+    ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Resource, TRUE);
 
     /* create the file system device object */
     Result = IoCreateDevice(DeviceObject->DriverObject,
@@ -167,7 +168,7 @@ static NTSTATUS FspFsctlMountVolume(
         Irp->IoStatus.Information = 0;
     }
 
-    ExReleaseResourceLite(&FspFsctlDeviceExtension(DeviceObject)->Resource);
+    ExReleaseResourceLite(&FsctlDeviceExtension->Resource);
 
     return Result;
 }
@@ -178,7 +179,10 @@ static NTSTATUS FspFsvrtDeleteVolume(
     PAGED_CODE();
 
     NTSTATUS Result;
-    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
+        FspFsvrtDeviceExtension(DeviceObject);
+    FSP_FSCTL_DEVICE_EXTENSION *FsctlDeviceExtension =
+        FspFsctlDeviceExtension(FsvrtDeviceExtension->FsctlDeviceObject);
 
     /* access check */
     Result = FspSecuritySubjectContextAccessCheck(
@@ -186,7 +190,7 @@ static NTSTATUS FspFsvrtDeleteVolume(
     if (!NT_SUCCESS(Result))
         return Result;
 
-    ExAcquireResourceExclusiveLite(&FspFsctlDeviceExtension(DeviceObject)->Resource, TRUE);
+    ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Resource, TRUE);
 
     /* stop the I/O queue */
     FspIoqStop(&FsvrtDeviceExtension->Ioq);
@@ -219,7 +223,7 @@ static NTSTATUS FspFsvrtDeleteVolume(
     /* delete the virtual volume device */
     FspDeviceDeleteObject(DeviceObject);
 
-    ExReleaseResourceLite(&FspFsctlDeviceExtension(DeviceObject)->Resource);
+    ExReleaseResourceLite(&FsctlDeviceExtension->Resource);
 
     return STATUS_INVALID_DEVICE_REQUEST;
 }
