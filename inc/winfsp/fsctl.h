@@ -45,8 +45,14 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
 typedef struct
 {
+    UINT16 Version;
+    UINT16 SectorSize;
+} FSP_FSCTL_VOLUME_PARAMS;
+typedef struct
+{
+    UINT16 Version;
+    UINT16 Size;
     UINT64 Hint;
-    UINT32 Size;
     UINT8 Kind;
     union
     {
@@ -55,8 +61,9 @@ typedef struct
 } FSP_FSCTL_TRANSACT_REQ;
 typedef struct
 {
+    UINT16 Version;
+    UINT16 Size;
     UINT64 Hint;
-    UINT32 Size;
     struct
     {
         UINT32 Status;
@@ -101,7 +108,8 @@ static inline const FSP_FSCTL_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
 }
 
 #if !defined(WINFSP_SYS_INTERNAL)
-FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDescriptor,
+FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
+    const FSP_FSCTL_VOLUME_PARAMS *Params, PSECURITY_DESCRIPTOR SecurityDescriptor,
     PHANDLE *PVolumeHandle);
 FSP_API NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
     PHANDLE *PVolumeHandle);

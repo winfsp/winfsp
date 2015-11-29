@@ -44,8 +44,11 @@ static NTSTATUS FspFsctlCreateVolume(
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
-    if (0 == InputBufferLength || 0 == SystemBuffer ||
-        !RtlValidRelativeSecurityDescriptor(SystemBuffer, InputBufferLength,
+    const FSP_FSCTL_VOLUME_PARAMS *Params = SystemBuffer;
+    PSECURITY_DESCRIPTOR SecurityDescriptor = (PVOID)(Params + 1);
+    DWORD SecurityDescriptorSize = InputBufferLength - sizeof *Params;
+    if (sizeof *Params >= InputBufferLength || 0 == SystemBuffer ||
+        !RtlValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorSize,
             OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION))
         return STATUS_INVALID_PARAMETER;
     if (FSP_FSCTL_CREATE_BUFFER_SIZE > OutputBufferLength)
@@ -60,10 +63,10 @@ static NTSTATUS FspFsctlCreateVolume(
         return Result;
 
     /* copy the security descriptor from the system buffer to a temporary one */
-    PVOID SecurityDescriptor = ExAllocatePoolWithTag(PagedPool, InputBufferLength, FSP_TAG);
-    if (0 == SecurityDescriptor)
+    PVOID SecurityDescriptorBuf = ExAllocatePoolWithTag(PagedPool, SecurityDescriptorSize, FSP_TAG);
+    if (0 == SecurityDescriptorBuf)
         return STATUS_INSUFFICIENT_RESOURCES;
-    RtlCopyMemory(SecurityDescriptor, SystemBuffer, InputBufferLength);
+    RtlCopyMemory(SecurityDescriptorBuf, SecurityDescriptor, SecurityDescriptorSize);
 
     /* create the virtual volume device */
     PDEVICE_OBJECT FsvrtDeviceObject;
@@ -78,7 +81,7 @@ static NTSTATUS FspFsctlCreateVolume(
         Guid.Data4[4], Guid.Data4[5], Guid.Data4[6], Guid.Data4[7]);
     ASSERT(NT_SUCCESS(Result));
     Result = IoCreateDeviceSecure(DeviceObject->DriverObject,
-        sizeof(FSP_FSVRT_DEVICE_EXTENSION) + InputBufferLength, &DeviceName, FILE_DEVICE_VIRTUAL_DISK,
+        sizeof(FSP_FSVRT_DEVICE_EXTENSION) + SecurityDescriptorSize, &DeviceName, FILE_DEVICE_VIRTUAL_DISK,
         FILE_DEVICE_SECURE_OPEN, FALSE,
         &DeviceSddl, 0,
         &FsvrtDeviceObject);
@@ -86,14 +89,15 @@ static NTSTATUS FspFsctlCreateVolume(
     {
         FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
         FsvrtDeviceExtension->Base.Kind = FspFsvrtDeviceExtensionKind;
+        FsvrtDeviceExtension->VolumeParams = *Params;
         FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
         RtlCopyMemory(FspFsvrtDeviceExtension(FsvrtDeviceObject)->SecurityDescriptorBuf,
-            SecurityDescriptor, InputBufferLength);
+            SecurityDescriptorBuf, SecurityDescriptorSize);
         Irp->IoStatus.Information = DeviceName.Length + 1;
     }
 
     /* free the temporary security descriptor */
-    ExFreePoolWithTag(SecurityDescriptor, FSP_TAG);
+    ExFreePoolWithTag(SecurityDescriptorBuf, FSP_TAG);
 
     return Result;
 }

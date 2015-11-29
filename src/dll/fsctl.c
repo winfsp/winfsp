@@ -16,12 +16,14 @@ static inline VOID GlobalDevicePath(PWCHAR DevicePathBuf, SIZE_T DevicePathSize,
         L'\\' == DevicePath[0] ? GLOBALROOT "%S" : GLOBALROOT "\\Device\\%S", DevicePath);
 }
 
-FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR SecurityDescriptor,
+FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
+    const FSP_FSCTL_VOLUME_PARAMS *Params, PSECURITY_DESCRIPTOR SecurityDescriptor,
     PHANDLE *PVolumeHandle)
 {
     NTSTATUS Result = STATUS_SUCCESS;
     WCHAR DevicePathBuf[(sizeof GLOBALROOT + FSP_FSCTL_CREATE_BUFFER_SIZE) / sizeof(WCHAR)];
     WCHAR VolumePathBuf[FSP_FSCTL_CREATE_BUFFER_SIZE / sizeof(WCHAR)];
+    FSP_FSCTL_VOLUME_PARAMS *ParamsBuf;
     PSECURITY_DESCRIPTOR SecurityDescriptorBuf = 0;
     DWORD SecurityDescriptorSize, Bytes;
     HANDLE DeviceHandle = INVALID_HANDLE_VALUE;
@@ -33,17 +35,19 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR Sec
     SecurityDescriptorSize = 0;
     if (!MakeSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize))
     {
-        SecurityDescriptorBuf = malloc(SecurityDescriptorSize);
-        if (0 == SecurityDescriptorBuf)
+        ParamsBuf = malloc(sizeof *ParamsBuf + SecurityDescriptorSize);
+        if (0 == ParamsBuf)
         {
             Result = STATUS_INSUFFICIENT_RESOURCES;
             goto exit;
         }
+        SecurityDescriptorBuf = (PVOID)(ParamsBuf + 1);
         if (!MakeSelfRelativeSD(SecurityDescriptor, SecurityDescriptorBuf, &SecurityDescriptorSize))
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
         }
+        *ParamsBuf = *Params;
     }
 
     DeviceHandle = CreateFileW(DevicePathBuf,
@@ -55,7 +59,7 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath, PSECURITY_DESCRIPTOR Sec
     }
 
     if (!DeviceIoControl(DeviceHandle, FSP_FSCTL_CREATE,
-        SecurityDescriptorBuf, SecurityDescriptorSize, VolumePathBuf, sizeof VolumePathBuf,
+        ParamsBuf, sizeof *ParamsBuf + SecurityDescriptorSize, VolumePathBuf, sizeof VolumePathBuf,
         &Bytes, 0))
     {
         Result = FspNtStatusFromWin32(GetLastError());
