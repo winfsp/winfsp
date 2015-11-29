@@ -103,6 +103,7 @@ static NTSTATUS FspFsctlCreateVolume(
     {
         FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
         FsvrtDeviceExtension->Base.Kind = FspFsvrtDeviceExtensionKind;
+        ExInitializeResourceLite(&FsvrtDeviceExtension->Base.Resource);
         FsvrtDeviceExtension->FsctlDeviceObject = DeviceObject;
         FsvrtDeviceExtension->VolumeParams = *Params;
         FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
@@ -148,7 +149,7 @@ static NTSTATUS FspFsctlMountVolume(
     if (FILE_DEVICE_VIRTUAL_DISK != FsvrtDeviceObject->DeviceType)
         return STATUS_UNRECOGNIZED_VOLUME;
 
-    ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Resource, TRUE);
+    ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Base.Resource, TRUE);
 
     /* create the file system device object */
     Result = IoCreateDevice(DeviceObject->DriverObject,
@@ -162,13 +163,14 @@ static NTSTATUS FspFsctlMountVolume(
             FspFsvrtDeviceExtension(FsvrtDeviceObject)->VolumeParams.SectorSize;
         FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
         FsvolDeviceExtension->Base.Kind = FspFsvolDeviceExtensionKind;
+        ExInitializeResourceLite(&FsvolDeviceExtension->Base.Resource);
         FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
         ClearFlag(FsvolDeviceObject->Flags, DO_DEVICE_INITIALIZING);
         Vpb->DeviceObject = FsvolDeviceObject;
         Irp->IoStatus.Information = 0;
     }
 
-    ExReleaseResourceLite(&FsctlDeviceExtension->Resource);
+    ExReleaseResourceLite(&FsctlDeviceExtension->Base.Resource);
 
     return Result;
 }
@@ -190,7 +192,7 @@ static NTSTATUS FspFsvrtDeleteVolume(
     if (!NT_SUCCESS(Result))
         return Result;
 
-    ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Resource, TRUE);
+    ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Base.Resource, TRUE);
 
     /* stop the I/O queue */
     FspIoqStop(&FsvrtDeviceExtension->Ioq);
@@ -223,7 +225,7 @@ static NTSTATUS FspFsvrtDeleteVolume(
     /* delete the virtual volume device */
     FspDeviceDeleteObject(DeviceObject);
 
-    ExReleaseResourceLite(&FsctlDeviceExtension->Resource);
+    ExReleaseResourceLite(&FsctlDeviceExtension->Base.Resource);
 
     return STATUS_INVALID_DEVICE_REQUEST;
 }

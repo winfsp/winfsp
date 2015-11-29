@@ -245,11 +245,11 @@ enum
 typedef struct
 {
     UINT8 Kind;
+    ERESOURCE Resource;
 } FSP_DEVICE_EXTENSION;
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-    ERESOURCE Resource;
 } FSP_FSCTL_DEVICE_EXTENSION;
 typedef struct
 {

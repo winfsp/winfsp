@@ -94,8 +94,6 @@ NTSTATUS FspDeviceOwned(
 static VOID FspFsctlDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
-
-    ExDeleteResourceLite(&FspFsctlDeviceExtension(DeviceObject)->Resource);
 }
 
 static VOID FspFsvrtDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
@@ -132,6 +130,8 @@ VOID FspDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
         ASSERT(0);
         break;
     }
+
+    ExDeleteResourceLite(&FspDeviceExtension(DeviceObject)->Resource);
 
     IoDeleteDevice(DeviceObject);
 }
