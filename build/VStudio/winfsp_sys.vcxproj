@@ -139,6 +139,7 @@
     <ClCompile Include="..\..\src\sys\create.c" />
     <ClCompile Include="..\..\src\sys\debug.c" />
     <ClCompile Include="..\..\src\sys\devctl.c" />
+    <ClCompile Include="..\..\src\sys\device.c" />
     <ClCompile Include="..\..\src\sys\dirctl.c" />
     <ClCompile Include="..\..\src\sys\driver.c" />
     <ClCompile Include="..\..\src\sys\ea.c" />

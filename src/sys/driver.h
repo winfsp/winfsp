@@ -286,6 +286,14 @@ FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
     ASSERT(FspFsvolDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
     return DeviceObject->DeviceExtension;
 }
+NTSTATUS FspDeviceCreateList(
+    PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
+VOID FspDeviceDeleteList(
+    PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
+NTSTATUS FspDeviceOwned(
+    PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT DeviceObject);
+VOID FspDeviceDeleteObject(PDEVICE_OBJECT DeviceObject);
+VOID FspDeviceDeleteObjects(PDRIVER_OBJECT DriverObject);
 
 /* I/O processing */
 VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result);
@@ -295,12 +303,6 @@ VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspSecuritySubjectContextAccessCheck(
     PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode);
-NTSTATUS FspCreateDeviceObjectList(
-    PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
-VOID FspDeleteDeviceObjectList(
-    PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
-NTSTATUS FspHasDeviceObject(
-    PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT DeviceObject);
 
 /* debug */
 #if DBG

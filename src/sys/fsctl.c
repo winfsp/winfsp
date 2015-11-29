@@ -116,7 +116,7 @@ static NTSTATUS FspFsctlMountVolume(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
     /* check the passed in volume object; it must be one of our own */
-    Result = FspHasDeviceObject(DeviceObject->DriverObject, FsvrtDeviceObject);
+    Result = FspDeviceOwned(DeviceObject->DriverObject, FsvrtDeviceObject);
     if (!NT_SUCCESS(Result))
     {
         if (STATUS_NO_SUCH_DEVICE == Result)
