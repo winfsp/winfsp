@@ -257,13 +257,13 @@ typedef struct
     PDEVICE_OBJECT FsctlDeviceObject;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     FSP_IOQ Ioq;
+    PVPB SwapVpb;
     UINT8 SecurityDescriptorBuf[];
 } FSP_FSVRT_DEVICE_EXTENSION;
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
     PDEVICE_OBJECT FsvrtDeviceObject;
-    PVPB SwapVpb;
 } FSP_FSVOL_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)

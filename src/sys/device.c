@@ -103,17 +103,17 @@ static VOID FspFsvrtDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
 
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
+
+    if (0 != FsvrtDeviceExtension->SwapVpb)
+        ExFreePoolWithTag(FsvrtDeviceExtension->SwapVpb, FSP_TAG);
+
     IoDeleteDevice(DeviceObject);
 }
 
 static VOID FspFsvolDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
-
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-
-    if (0 != FsvolDeviceExtension->SwapVpb)
-        ExFreePoolWithTag(FsvolDeviceExtension->SwapVpb, FSP_TAG);
 
     IoDeleteDevice(DeviceObject);
 }

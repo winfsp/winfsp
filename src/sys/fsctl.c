@@ -55,18 +55,32 @@ static NTSTATUS FspFsctlCreateVolume(
         return STATUS_BUFFER_TOO_SMALL;
 
     NTSTATUS Result;
+    PVOID SecurityDescriptorBuf = 0;
+    PVPB SwapVpb = 0;
 
     /* create volume guid */
     GUID Guid;
     Result = FspCreateGuid(&Guid);
     if (!NT_SUCCESS(Result))
-        return Result;
+        goto exit;
 
     /* copy the security descriptor from the system buffer to a temporary one */
-    PVOID SecurityDescriptorBuf = ExAllocatePoolWithTag(PagedPool, SecurityDescriptorSize, FSP_TAG);
+    SecurityDescriptorBuf = ExAllocatePoolWithTag(PagedPool, SecurityDescriptorSize, FSP_TAG);
     if (0 == SecurityDescriptorBuf)
-        return STATUS_INSUFFICIENT_RESOURCES;
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
     RtlCopyMemory(SecurityDescriptorBuf, SecurityDescriptor, SecurityDescriptorSize);
+
+    /* preallocate swap VPB */
+    SwapVpb = ExAllocatePoolWithTag(NonPagedPool, sizeof *SwapVpb, FSP_TAG);
+    if (0 == SwapVpb)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+    RtlZeroMemory(SwapVpb, sizeof *SwapVpb);
 
     /* create the virtual volume device */
     PDEVICE_OBJECT FsvrtDeviceObject;
@@ -92,14 +106,21 @@ static NTSTATUS FspFsctlCreateVolume(
         FsvrtDeviceExtension->FsctlDeviceObject = DeviceObject;
         FsvrtDeviceExtension->VolumeParams = *Params;
         FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
+        FsvrtDeviceExtension->SwapVpb = SwapVpb;
         RtlCopyMemory(FspFsvrtDeviceExtension(FsvrtDeviceObject)->SecurityDescriptorBuf,
             SecurityDescriptorBuf, SecurityDescriptorSize);
         ClearFlag(FsvrtDeviceObject->Flags, DO_DEVICE_INITIALIZING);
         Irp->IoStatus.Information = DeviceName.Length + 1;
+        SwapVpb = 0;
     }
 
+exit:
     /* free the temporary security descriptor */
-    ExFreePoolWithTag(SecurityDescriptorBuf, FSP_TAG);
+    if (0 != SecurityDescriptorBuf)
+        ExFreePoolWithTag(SecurityDescriptorBuf, FSP_TAG);
+    /* free swap VPB if we failed */
+    if (0 != SwapVpb)
+        ExFreePoolWithTag(SwapVpb, FSP_TAG);
 
     return Result;
 }
@@ -111,7 +132,6 @@ static NTSTATUS FspFsctlMountVolume(
 
     NTSTATUS Result;
     PVPB Vpb = IrpSp->Parameters.MountVolume.Vpb;
-    PVPB SwapVpb = 0;
     PDEVICE_OBJECT FsvrtDeviceObject = Vpb->RealDevice;
     PDEVICE_OBJECT FsvolDeviceObject;
 
@@ -127,14 +147,9 @@ static NTSTATUS FspFsctlMountVolume(
     if (FILE_DEVICE_VIRTUAL_DISK != FsvrtDeviceObject->DeviceType)
         return STATUS_UNRECOGNIZED_VOLUME;
 
-    /* preallocate swap VPB */
-    SwapVpb = ExAllocatePoolWithTag(NonPagedPool, sizeof *SwapVpb, FSP_TAG);
-    if (0 == SwapVpb)
-        return STATUS_INSUFFICIENT_RESOURCES;
-    RtlZeroMemory(SwapVpb, sizeof *Vpb);
+    ExAcquireResourceExclusiveLite(&FspFsctlDeviceExtension(DeviceObject)->Resource, TRUE);
 
     /* create the file system device object */
-    ExAcquireResourceExclusiveLite(&FspFsctlDeviceExtension(DeviceObject)->Resource, TRUE);
     Result = IoCreateDevice(DeviceObject->DriverObject,
         sizeof(FSP_FSVOL_DEVICE_EXTENSION), 0, DeviceObject->DeviceType,
         0, FALSE,
@@ -147,18 +162,12 @@ static NTSTATUS FspFsctlMountVolume(
         FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
         FsvolDeviceExtension->Base.Kind = FspFsvolDeviceExtensionKind;
         FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
-        FsvolDeviceExtension->SwapVpb = SwapVpb;
         ClearFlag(FsvolDeviceObject->Flags, DO_DEVICE_INITIALIZING);
-        Vpb->VolumeLabelLength = 0;
         Vpb->DeviceObject = FsvolDeviceObject;
         Irp->IoStatus.Information = 0;
-        SwapVpb = 0;
     }
-    ExReleaseResourceLite(&FspFsctlDeviceExtension(DeviceObject)->Resource);
 
-    /* free swap VPB if we failed */
-    if (0 != SwapVpb)
-        ExFreePoolWithTag(SwapVpb, FSP_TAG);
+    ExReleaseResourceLite(&FspFsctlDeviceExtension(DeviceObject)->Resource);
 
     return Result;
 }
@@ -176,6 +185,41 @@ static NTSTATUS FspFsvrtDeleteVolume(
         FsvrtDeviceExtension->SecurityDescriptorBuf, FILE_WRITE_DATA, Irp->RequestorMode);
     if (!NT_SUCCESS(Result))
         return Result;
+
+    ExAcquireResourceExclusiveLite(&FspFsctlDeviceExtension(DeviceObject)->Resource, TRUE);
+
+    /* stop the I/O queue */
+    FspIoqStop(&FsvrtDeviceExtension->Ioq);
+
+    /* swap the preallocated VPB */
+    PVPB OldVpb;
+    KIRQL Irql;
+    IoAcquireVpbSpinLock(&Irql);
+    OldVpb = DeviceObject->Vpb;
+    if (0 != OldVpb)
+    {
+        DeviceObject->Vpb = FsvrtDeviceExtension->SwapVpb;
+        DeviceObject->Vpb->Size = sizeof *DeviceObject->Vpb;
+        DeviceObject->Vpb->Type = IO_TYPE_VPB;
+        DeviceObject->Vpb->Flags = FlagOn(OldVpb->Flags, VPB_REMOVE_PENDING);
+        DeviceObject->Vpb->RealDevice = OldVpb->RealDevice;
+        DeviceObject->Vpb->RealDevice->Vpb = DeviceObject->Vpb;
+        FsvrtDeviceExtension->SwapVpb = 0;
+    }
+    IoReleaseVpbSpinLock(Irql);
+
+    /* delete the file system device object */
+    if (0 != OldVpb && 0 != OldVpb->DeviceObject &&
+        FspDeviceOwned(DeviceObject->DriverObject, OldVpb->DeviceObject))
+    {
+        ASSERT(FspFsvolDeviceExtensionKind == FspDeviceExtension(OldVpb->DeviceObject)->Kind);
+        FspDeviceDeleteObject(OldVpb->DeviceObject);
+    }
+
+    /* delete the virtual volume device */
+    FspDeviceDeleteObject(DeviceObject);
+
+    ExReleaseResourceLite(&FspFsctlDeviceExtension(DeviceObject)->Resource);
 
     return STATUS_INVALID_DEVICE_REQUEST;
 }
