@@ -96,7 +96,6 @@ static VOID FspFsctlDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
     PAGED_CODE();
 
     ExDeleteResourceLite(&FspFsctlDeviceExtension(DeviceObject)->Resource);
-    IoDeleteDevice(DeviceObject);
 }
 
 static VOID FspFsvrtDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
@@ -107,15 +106,11 @@ static VOID FspFsvrtDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
 
     if (0 != FsvrtDeviceExtension->SwapVpb)
         ExFreePoolWithTag(FsvrtDeviceExtension->SwapVpb, FSP_TAG);
-
-    IoDeleteDevice(DeviceObject);
 }
 
 static VOID FspFsvolDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
-
-    IoDeleteDevice(DeviceObject);
 }
 
 VOID FspDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
@@ -133,7 +128,12 @@ VOID FspDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
     case FspFsctlDeviceExtensionKind:
         FspFsctlDeviceDeleteObject(DeviceObject);
         break;
+    default:
+        ASSERT(0);
+        break;
     }
+
+    IoDeleteDevice(DeviceObject);
 }
 
 VOID FspDeviceDeleteObjects(PDRIVER_OBJECT DriverObject)
