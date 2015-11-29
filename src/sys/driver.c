@@ -132,16 +132,9 @@ VOID FspUnload(
 {
     FSP_ENTER_VOID(PAGED_CODE());
 
-    if (0 != FspFsctlDiskDeviceObject)
-    {
-        IoDeleteDevice(FspFsctlDiskDeviceObject);
-        FspFsctlDiskDeviceObject = 0;
-    }
-    if (0 != FspFsctlNetDeviceObject)
-    {
-        IoDeleteDevice(FspFsctlNetDeviceObject);
-        FspFsctlNetDeviceObject = 0;
-    }
+    FspFsctlDiskDeviceObject = 0;
+    FspFsctlNetDeviceObject = 0;
+    FspDeviceDeleteObjects(DriverObject);
 
 #pragma prefast(suppress:28175, "We are in DriverUnload: ok to access DriverName")
     FSP_LEAVE_VOID("DriverName=\"%wZ\"",
