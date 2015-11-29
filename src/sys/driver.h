@@ -249,6 +249,7 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
+    ERESOURCE Resource;
 } FSP_FSCTL_DEVICE_EXTENSION;
 typedef struct
 {

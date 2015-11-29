@@ -140,6 +140,7 @@ static NTSTATUS FspFsctlMountVolume(
         &FsvolDeviceObject);
     if (NT_SUCCESS(Result))
     {
+#pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
         FsvolDeviceObject->SectorSize =
             FspFsvrtDeviceExtension(FsvrtDeviceObject)->VolumeParams.SectorSize;
         FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);

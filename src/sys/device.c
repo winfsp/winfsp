@@ -95,6 +95,7 @@ static VOID FspFsctlDeviceDeleteObject(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
 
+    ExDeleteResourceLite(&FspFsctlDeviceExtension(DeviceObject)->Resource);
     IoDeleteDevice(DeviceObject);
 }
 
