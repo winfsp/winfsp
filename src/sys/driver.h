@@ -80,13 +80,21 @@
     FSP_LEAVE_(FSP_DEBUGLOG_(fmt, " = %s", __VA_ARGS__, NtStatusSym(Result))); return Result
 #define FSP_ENTER_MJ(...)               \
     NTSTATUS Result = STATUS_SUCCESS;   \
-    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (VOID)IrpSp;\
-    FSP_ENTER_(__VA_ARGS__)
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);\
+    FSP_ENTER_(__VA_ARGS__);            \
+    do                                  \
+    {                                   \
+        if (!FspDeviceRetain(IrpSp->DeviceObject))\
+        {                               \
+            Result = STATUS_CANCELLED;  \
+            goto fsp_leave_label;       \
+        }                               \
+    } while (0,0)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(                         \
-        FSP_DEBUGLOG_("%p, %c%c, %s%s, " fmt, " = %s[%lld]",\
+        FSP_DEBUGLOG_("%p, %s%c, %s%s, " fmt, " = %s[%lld]",\
             Irp,                        \
-            FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
+            (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
             Irp->RequestorMode == KernelMode ? 'K' : 'U',\
             IrpMajorFunctionSym(IrpSp->MajorFunction),\
             IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MajorFunction),\
@@ -121,9 +129,9 @@
     FSP_ENTER_NOCRIT_(__VA_ARGS__)
 #define FSP_LEAVE_IOC(fmt, ...)         \
     FSP_LEAVE_NOCRIT_(                  \
-        FSP_DEBUGLOG_NOCRIT_("%p, %c%c, %s%s, " fmt, " = %s[%lld]",\
+        FSP_DEBUGLOG_NOCRIT_("%p, %s%c, %s%s, " fmt, " = %s[%lld]",\
             Irp,                        \
-            FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
+            (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
             Irp->RequestorMode == KernelMode ? 'K' : 'U',\
             IrpMajorFunctionSym(IrpSp->MajorFunction),\
             IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MajorFunction),\
@@ -235,17 +243,19 @@ PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, ULONG millis);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 
-/* device extensions */
+/* device management */
 enum
 {
-    FspFsctlDeviceExtensionKind = 'C',  /* file system control device (e.g. \Device\WinFsp.Disk) */
-    FspFsvrtDeviceExtensionKind = 'V',  /* virtual volume device (e.g. \Device\Volume{GUID}) */
-    FspFsvolDeviceExtensionKind = 'F',  /* file system volume device (unnamed) */
+    FspFsctlDeviceExtensionKind = '\0ltC',  /* file system control device (e.g. \Device\WinFsp.Disk) */
+    FspFsvrtDeviceExtensionKind = '\0trV',  /* virtual volume device (e.g. \Device\Volume{GUID}) */
+    FspFsvolDeviceExtensionKind = '\0loV',  /* file system volume device (unnamed) */
 };
 typedef struct
 {
-    UINT8 Kind;
+    KSPIN_LOCK SpinLock;
+    LONG RefCount;
     ERESOURCE Resource;
+    UINT32 Kind;
 } FSP_DEVICE_EXTENSION;
 typedef struct
 {
@@ -255,6 +265,7 @@ typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
     PDEVICE_OBJECT FsctlDeviceObject;
+    PDEVICE_OBJECT FsvolDeviceObject;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     FSP_IOQ Ioq;
     PVPB SwapVpb;
@@ -288,15 +299,22 @@ FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
     ASSERT(FspFsvolDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
     return DeviceObject->DeviceExtension;
 }
-NTSTATUS FspDeviceCreateList(
-    PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
+NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
+    PUNICODE_STRING DeviceName, DEVICE_TYPE DeviceType,
+    PUNICODE_STRING DeviceSddl, LPCGUID DeviceClassGuid,
+    PDEVICE_OBJECT *PDeviceObject);
+NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
+    DEVICE_TYPE DeviceType,
+    PDEVICE_OBJECT *PDeviceObject);
+VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
+BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
+VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
+NTSTATUS FspDeviceCopyList(
+    PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
-NTSTATUS FspDeviceOwned(
-    PDRIVER_OBJECT DriverObject, PDEVICE_OBJECT DeviceObject);
-VOID FspDeviceInitExtension(PDEVICE_OBJECT DeviceObject, UINT8 Kind);
-VOID FspDeviceDeleteObject(PDEVICE_OBJECT DeviceObject);
-VOID FspDeviceDeleteObjects(PDRIVER_OBJECT DriverObject);
+NTSTATUS FspDeviceOwned(PDEVICE_OBJECT DeviceObject);
+VOID FspDeviceDeleteAll(VOID);
 
 /* I/O processing */
 VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result);
@@ -317,6 +335,7 @@ const char *IoctlCodeSym(ULONG ControlCode);
 #endif
 
 /* extern */
+extern PDRIVER_OBJECT FspDriverObject;
 extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];

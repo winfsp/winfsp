@@ -24,10 +24,14 @@ VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result)
         Irp->Tail.Overlay.DriverContext[0] = 0;
     }
 
+    PDEVICE_OBJECT DeviceObject = IoGetCurrentIrpStackLocation(Irp)->DeviceObject;
+
     if (!NT_SUCCESS(Result))
         Irp->IoStatus.Information = 0;
     Irp->IoStatus.Status = Result;
     IoCompleteRequest(Irp, FSP_IO_INCREMENT);
+
+    FspDeviceRelease(DeviceObject);
 }
 
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)

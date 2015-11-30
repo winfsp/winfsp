@@ -19,28 +19,26 @@ NTSTATUS DriverEntry(
 {
     FSP_ENTER();
 
+    FspDriverObject = DriverObject;
+
     /* create the file system control device objects */
     UNICODE_STRING DeviceSddl;
     UNICODE_STRING DeviceName;
     RtlInitUnicodeString(&DeviceSddl, L"" FSP_FSCTL_DEVICE_SDDL);
     RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
-    Result = IoCreateDeviceSecure(DriverObject,
-        sizeof(FSP_FSCTL_DEVICE_EXTENSION), &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM,
-        FILE_DEVICE_SECURE_OPEN, FALSE,
+    Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
+        &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM,
         &DeviceSddl, &FspFsctlDeviceClassGuid,
         &FspFsctlDiskDeviceObject);
     if (!NT_SUCCESS(Result))
         FSP_RETURN();
     RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
-    Result = IoCreateDeviceSecure(DriverObject,
-        sizeof(FSP_FSCTL_DEVICE_EXTENSION), &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM,
-        FILE_DEVICE_SECURE_OPEN, FALSE,
+    Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
+        &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM,
         &DeviceSddl, &FspFsctlDeviceClassGuid,
         &FspFsctlNetDeviceObject);
     if (!NT_SUCCESS(Result))
-        FSP_RETURN(IoDeleteDevice(FspFsctlDiskDeviceObject));
-    FspDeviceInitExtension(FspFsctlDiskDeviceObject, FspFsctlDeviceExtensionKind);
-    FspDeviceInitExtension(FspFsctlNetDeviceObject, FspFsctlDeviceExtensionKind);
+        FSP_RETURN(FspDeviceDelete(FspFsctlDiskDeviceObject));
 
     /* setup the driver object */
     DriverObject->DriverUnload = FspUnload;
@@ -134,12 +132,15 @@ VOID FspUnload(
 
     FspFsctlDiskDeviceObject = 0;
     FspFsctlNetDeviceObject = 0;
-    FspDeviceDeleteObjects(DriverObject);
+    FspDeviceDeleteAll();
+
+    FspDriverObject = 0;
 
 #pragma prefast(suppress:28175, "We are in DriverUnload: ok to access DriverName")
     FSP_LEAVE_VOID("DriverName=\"%wZ\"",
         &DriverObject->DriverName);
 }
 
+PDRIVER_OBJECT FspDriverObject;
 PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 PDEVICE_OBJECT FspFsctlNetDeviceObject;

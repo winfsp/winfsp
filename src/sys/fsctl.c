@@ -56,31 +56,19 @@ static NTSTATUS FspFsctlCreateVolume(
 
     NTSTATUS Result;
     PVOID SecurityDescriptorBuf = 0;
-    PVPB SwapVpb = 0;
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension;
 
     /* create volume guid */
     GUID Guid;
     Result = FspCreateGuid(&Guid);
     if (!NT_SUCCESS(Result))
-        goto exit;
+        return Result;
 
     /* copy the security descriptor from the system buffer to a temporary one */
     SecurityDescriptorBuf = ExAllocatePoolWithTag(PagedPool, SecurityDescriptorSize, FSP_TAG);
     if (0 == SecurityDescriptorBuf)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
+        return STATUS_INSUFFICIENT_RESOURCES;
     RtlCopyMemory(SecurityDescriptorBuf, SecurityDescriptor, SecurityDescriptorSize);
-
-    /* preallocate swap VPB */
-    SwapVpb = ExAllocatePoolWithTag(NonPagedPool, sizeof *SwapVpb, FSP_TAG);
-    if (0 == SwapVpb)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
-    RtlZeroMemory(SwapVpb, sizeof *SwapVpb);
 
     /* create the virtual volume device */
     PDEVICE_OBJECT FsvrtDeviceObject;
@@ -94,33 +82,24 @@ static NTSTATUS FspFsctlCreateVolume(
         Guid.Data4[0], Guid.Data4[1], Guid.Data4[2], Guid.Data4[3],
         Guid.Data4[4], Guid.Data4[5], Guid.Data4[6], Guid.Data4[7]);
     ASSERT(NT_SUCCESS(Result));
-    Result = IoCreateDeviceSecure(DeviceObject->DriverObject,
-        sizeof(FSP_FSVRT_DEVICE_EXTENSION) + SecurityDescriptorSize, &DeviceName, FILE_DEVICE_VIRTUAL_DISK,
-        FILE_DEVICE_SECURE_OPEN, FALSE,
-        &DeviceSddl, 0,
+    Result = FspDeviceCreateSecure(FspFsvrtDeviceExtensionKind, SecurityDescriptorSize,
+        &DeviceName, FILE_DEVICE_VIRTUAL_DISK,
+        &DeviceSddl, &FspFsvrtDeviceClassGuid,
         &FsvrtDeviceObject);
     if (NT_SUCCESS(Result))
     {
-        FspDeviceInitExtension(FsvrtDeviceObject, FspFsvrtDeviceExtensionKind);
-        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
+        FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
         FsvrtDeviceExtension->FsctlDeviceObject = DeviceObject;
         FsvrtDeviceExtension->VolumeParams = *Params;
-        FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
-        FsvrtDeviceExtension->SwapVpb = SwapVpb;
-        RtlCopyMemory(FspFsvrtDeviceExtension(FsvrtDeviceObject)->SecurityDescriptorBuf,
+        RtlCopyMemory(FsvrtDeviceExtension->SecurityDescriptorBuf,
             SecurityDescriptorBuf, SecurityDescriptorSize);
         ClearFlag(FsvrtDeviceObject->Flags, DO_DEVICE_INITIALIZING);
         Irp->IoStatus.Information = DeviceName.Length + 1;
-        SwapVpb = 0;
     }
 
-exit:
     /* free the temporary security descriptor */
     if (0 != SecurityDescriptorBuf)
         ExFreePoolWithTag(SecurityDescriptorBuf, FSP_TAG);
-    /* free swap VPB if we failed */
-    if (0 != SwapVpb)
-        ExFreePoolWithTag(SwapVpb, FSP_TAG);
 
     return Result;
 }
@@ -132,12 +111,14 @@ static NTSTATUS FspFsctlMountVolume(
 
     NTSTATUS Result;
     FSP_FSCTL_DEVICE_EXTENSION *FsctlDeviceExtension = FspFsctlDeviceExtension(DeviceObject);
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
     PVPB Vpb = IrpSp->Parameters.MountVolume.Vpb;
     PDEVICE_OBJECT FsvrtDeviceObject = Vpb->RealDevice;
     PDEVICE_OBJECT FsvolDeviceObject;
 
     /* check the passed in volume object; it must be one of our own */
-    Result = FspDeviceOwned(DeviceObject->DriverObject, FsvrtDeviceObject);
+    Result = FspDeviceOwned(FsvrtDeviceObject);
     if (!NT_SUCCESS(Result))
     {
         if (STATUS_NO_SUCH_DEVICE == Result)
@@ -151,18 +132,17 @@ static NTSTATUS FspFsctlMountVolume(
     ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Base.Resource, TRUE);
 
     /* create the file system device object */
-    Result = IoCreateDevice(DeviceObject->DriverObject,
-        sizeof(FSP_FSVOL_DEVICE_EXTENSION), 0, DeviceObject->DeviceType,
-        0, FALSE,
+    Result = FspDeviceCreate(FspFsvolDeviceExtensionKind, 0,
+        DeviceObject->DeviceType,
         &FsvolDeviceObject);
     if (NT_SUCCESS(Result))
     {
+        FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
+        FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
-        FsvolDeviceObject->SectorSize =
-            FspFsvrtDeviceExtension(FsvrtDeviceObject)->VolumeParams.SectorSize;
-        FspDeviceInitExtension(FsvolDeviceObject, FspFsvolDeviceExtensionKind);
-        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+        FsvolDeviceObject->SectorSize = FsvrtDeviceExtension->VolumeParams.SectorSize;
         FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
+        FsvrtDeviceExtension->FsvolDeviceObject = FsvolDeviceObject;
         ClearFlag(FsvolDeviceObject->Flags, DO_DEVICE_INITIALIZING);
         Vpb->DeviceObject = FsvolDeviceObject;
         Irp->IoStatus.Information = 0;
@@ -183,6 +163,8 @@ static NTSTATUS FspFsvrtDeleteVolume(
         FspFsvrtDeviceExtension(DeviceObject);
     FSP_FSCTL_DEVICE_EXTENSION *FsctlDeviceExtension =
         FspFsctlDeviceExtension(FsvrtDeviceExtension->FsctlDeviceObject);
+    PVPB OldVpb;
+    KIRQL Irql;
 
     /* access check */
     Result = FspSecuritySubjectContextAccessCheck(
@@ -196,8 +178,8 @@ static NTSTATUS FspFsvrtDeleteVolume(
     FspIoqStop(&FsvrtDeviceExtension->Ioq);
 
     /* swap the preallocated VPB */
-    PVPB OldVpb;
-    KIRQL Irql;
+#pragma prefast(push)
+#pragma prefast(disable:28175, "We are a filesystem: ok to access Vpb")
     IoAcquireVpbSpinLock(&Irql);
     OldVpb = DeviceObject->Vpb;
     if (0 != OldVpb)
@@ -211,21 +193,17 @@ static NTSTATUS FspFsvrtDeleteVolume(
         FsvrtDeviceExtension->SwapVpb = 0;
     }
     IoReleaseVpbSpinLock(Irql);
+#pragma prefast(pop)
 
-    /* delete the file system device object */
-    if (0 != OldVpb && 0 != OldVpb->DeviceObject &&
-        FspDeviceOwned(DeviceObject->DriverObject, OldVpb->DeviceObject))
-    {
-        ASSERT(FspFsvolDeviceExtensionKind == FspDeviceExtension(OldVpb->DeviceObject)->Kind);
-        FspDeviceDeleteObject(OldVpb->DeviceObject);
-    }
-
-    /* delete the virtual volume device */
-    FspDeviceDeleteObject(DeviceObject);
+    /* release the file system device and virtual volume objects */
+    PDEVICE_OBJECT FsvolDeviceObject = FsvrtDeviceExtension->FsvolDeviceObject;
+    FsvrtDeviceExtension->FsvolDeviceObject = 0;
+    FspDeviceRelease(FsvolDeviceObject);
+    FspDeviceRelease(DeviceObject);
 
     ExReleaseResourceLite(&FsctlDeviceExtension->Base.Resource);
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFsvrtTransact(
