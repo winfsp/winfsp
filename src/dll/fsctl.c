@@ -23,11 +23,44 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     NTSTATUS Result = STATUS_SUCCESS;
     WCHAR DevicePathBuf[MAX_PATH];
     FSP_FSCTL_VOLUME_PARAMS *ParamsBuf;
+    HANDLE Token;
+    PVOID DaclBuf = 0;
+    SECURITY_DESCRIPTOR SecurityDescriptorStruct;
     PSECURITY_DESCRIPTOR SecurityDescriptorBuf = 0;
     DWORD SecurityDescriptorSize, Bytes;
     HANDLE DeviceHandle = INVALID_HANDLE_VALUE;
 
     VolumePathBuf[0] = L'\0';
+
+    if (0 == SecurityDescriptor)
+    {
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+        GetTokenInformation(Token, TokenDefaultDacl, 0, 0, &Bytes);
+        DaclBuf = malloc(Bytes);
+        if (0 == DaclBuf)
+        {
+            CloseHandle(Token);
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+            goto exit;
+        }
+        if (GetTokenInformation(Token, TokenDefaultDacl, DaclBuf, Bytes, &Bytes) &&
+            InitializeSecurityDescriptor(&SecurityDescriptorStruct, SECURITY_DESCRIPTOR_REVISION) &&
+            SetSecurityDescriptorDacl(&SecurityDescriptorStruct, TRUE, DaclBuf, FALSE))
+        {
+            SecurityDescriptor = &SecurityDescriptorStruct;
+            CloseHandle(Token);
+        }
+        else
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            CloseHandle(Token);
+            goto exit;
+        }
+    }
 
     SecurityDescriptorSize = GetSecurityDescriptorLength(SecurityDescriptor);
     ParamsBuf = malloc(sizeof *ParamsBuf + SecurityDescriptorSize);
@@ -65,6 +98,7 @@ exit:
     if (INVALID_HANDLE_VALUE != DeviceHandle)
         CloseHandle(DeviceHandle);
     free(SecurityDescriptorBuf);
+    free(DaclBuf);
     return Result;
 }
 
