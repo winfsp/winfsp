@@ -110,7 +110,7 @@ static inline const FSP_FSCTL_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
 #if !defined(WINFSP_SYS_INTERNAL)
 FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *Params, PSECURITY_DESCRIPTOR SecurityDescriptor,
-    PHANDLE *PVolumeHandle);
+    PWCHAR VolumePathBuf, SIZE_T VolumePathSize);
 FSP_API NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
     PHANDLE *PVolumeHandle);
 FSP_API NTSTATUS FspFsctlDeleteVolume(HANDLE VolumeHandle);

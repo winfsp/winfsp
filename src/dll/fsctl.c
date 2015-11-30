@@ -18,19 +18,16 @@ static inline VOID GlobalDevicePath(PWCHAR DevicePathBuf, SIZE_T DevicePathSize,
 
 FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *Params, PSECURITY_DESCRIPTOR SecurityDescriptor,
-    PHANDLE *PVolumeHandle)
+    PWCHAR VolumePathBuf, SIZE_T VolumePathSize)
 {
     NTSTATUS Result = STATUS_SUCCESS;
-    WCHAR DevicePathBuf[(sizeof GLOBALROOT + FSP_FSCTL_CREATE_BUFFER_SIZE) / sizeof(WCHAR)];
-    WCHAR VolumePathBuf[FSP_FSCTL_CREATE_BUFFER_SIZE / sizeof(WCHAR)];
+    WCHAR DevicePathBuf[MAX_PATH];
     FSP_FSCTL_VOLUME_PARAMS *ParamsBuf;
     PSECURITY_DESCRIPTOR SecurityDescriptorBuf = 0;
     DWORD SecurityDescriptorSize, Bytes;
     HANDLE DeviceHandle = INVALID_HANDLE_VALUE;
 
-    *PVolumeHandle = 0;
-
-    GlobalDevicePath(DevicePathBuf, sizeof DevicePathBuf, DevicePath);
+    VolumePathBuf[0] = L'\0';
 
     SecurityDescriptorSize = GetSecurityDescriptorLength(SecurityDescriptor);
     ParamsBuf = malloc(sizeof *ParamsBuf + SecurityDescriptorSize);
@@ -47,6 +44,7 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     }
     *ParamsBuf = *Params;
 
+    GlobalDevicePath(DevicePathBuf, sizeof DevicePathBuf, DevicePath);
     DeviceHandle = CreateFileW(DevicePathBuf,
         0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
     if (INVALID_HANDLE_VALUE == DeviceHandle)
@@ -56,14 +54,12 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     }
 
     if (!DeviceIoControl(DeviceHandle, FSP_FSCTL_CREATE,
-        ParamsBuf, sizeof *ParamsBuf + SecurityDescriptorSize, VolumePathBuf, sizeof VolumePathBuf,
+        ParamsBuf, sizeof *ParamsBuf + SecurityDescriptorSize, VolumePathBuf, (DWORD)VolumePathSize,
         &Bytes, 0))
     {
         Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
     }
-
-    Result = FspFsctlOpenVolume(VolumePathBuf, PVolumeHandle);
 
 exit:
     if (INVALID_HANDLE_VALUE != DeviceHandle)
@@ -76,7 +72,7 @@ FSP_API NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
     PHANDLE *PVolumeHandle)
 {
     NTSTATUS Result = STATUS_SUCCESS;
-    WCHAR DevicePathBuf[(sizeof GLOBALROOT + FSP_FSCTL_CREATE_BUFFER_SIZE) / sizeof(WCHAR)];
+    WCHAR DevicePathBuf[MAX_PATH];
     HANDLE VolumeHandle;
 
     *PVolumeHandle = 0;
