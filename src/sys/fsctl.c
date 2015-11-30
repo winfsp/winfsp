@@ -118,7 +118,8 @@ static NTSTATUS FspFsctlMountVolume(
         PVPB Vpb = IrpSp->Parameters.MountVolume.Vpb;
         PDEVICE_OBJECT FsvrtDeviceObject = Vpb->RealDevice;
         PDEVICE_OBJECT FsvolDeviceObject;
-        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension;
+        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
+            FspFsvrtDeviceExtension(FsvrtDeviceObject);
         FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
         /* check the passed in volume object; it must be one of our own */
@@ -129,7 +130,7 @@ static NTSTATUS FspFsctlMountVolume(
                 Result = STATUS_UNRECOGNIZED_VOLUME;
             goto exit;
         }
-        if (FspDeviceDeleted(FsvrtDeviceObject) ||
+        if (FspDeviceDeleted(FsvrtDeviceObject) || FsvrtDeviceExtension->Deleted ||
             FILE_DEVICE_VIRTUAL_DISK != FsvrtDeviceObject->DeviceType)
         {
             Result = STATUS_UNRECOGNIZED_VOLUME;
@@ -142,7 +143,6 @@ static NTSTATUS FspFsctlMountVolume(
             &FsvolDeviceObject);
         if (NT_SUCCESS(Result))
         {
-            FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
             FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
             FsvolDeviceObject->SectorSize = FsvrtDeviceExtension->VolumeParams.SectorSize;
@@ -185,6 +185,9 @@ static NTSTATUS FspFsvrtDeleteVolume(
             FsvrtDeviceExtension->SecurityDescriptorBuf, FILE_WRITE_DATA, Irp->RequestorMode);
         if (!NT_SUCCESS(Result))
             goto exit;
+
+        /* mark the virtual volume device as deleted */
+        FsvrtDeviceExtension->Deleted = TRUE;
 
         /* stop the I/O queue */
         FspIoqStop(&FsvrtDeviceExtension->Ioq);

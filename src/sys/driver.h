@@ -269,6 +269,7 @@ typedef struct
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     FSP_IOQ Ioq;
     PVPB SwapVpb;
+    BOOLEAN Deleted;
     UINT8 SecurityDescriptorBuf[];
 } FSP_FSVRT_DEVICE_EXTENSION;
 typedef struct
