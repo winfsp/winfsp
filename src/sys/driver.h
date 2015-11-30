@@ -314,7 +314,6 @@ NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
-NTSTATUS FspDeviceOwned(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDeleteAll(VOID);
 
 /* I/O processing */

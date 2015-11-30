@@ -177,6 +177,8 @@ static NTSTATUS FspFsctlMountVolume(
     ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Base.Resource, TRUE);
     try
     {
+        PDEVICE_OBJECT *DeviceObjects = 0;
+        ULONG DeviceObjectCount = 0;
         PVPB Vpb = IrpSp->Parameters.MountVolume.Vpb;
         PDEVICE_OBJECT FsvrtDeviceObject = Vpb->RealDevice;
         PDEVICE_OBJECT FsvolDeviceObject;
@@ -185,25 +187,27 @@ static NTSTATUS FspFsctlMountVolume(
         FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
         /* check the passed in volume object; it must be one of our own and not marked Deleted */
-        Result = FspDeviceOwned(FsvrtDeviceObject);
+        Result = FspDeviceCopyList(&DeviceObjects, &DeviceObjectCount);
+        if (NT_SUCCESS(Result))
+        {
+            Result = STATUS_UNRECOGNIZED_VOLUME;
+            for (ULONG i = 0; DeviceObjectCount > i; i++)
+                if (DeviceObjects[i] == FsvrtDeviceObject)
+                {
+                    if (FspDeviceRetain(FsvrtDeviceObject))
+                    {
+                        if (!FsvrtDeviceExtension->Deleted &&
+                            FILE_DEVICE_VIRTUAL_DISK == FsvrtDeviceObject->DeviceType)
+                            Result = STATUS_SUCCESS;
+                        else
+                            FspDeviceRelease(FsvrtDeviceObject);
+                    }
+                    break;
+                }
+            FspDeviceDeleteList(DeviceObjects, DeviceObjectCount);
+        }
         if (!NT_SUCCESS(Result))
-        {
-            if (STATUS_NO_SUCH_DEVICE == Result)
-                Result = STATUS_UNRECOGNIZED_VOLUME;
             goto exit;
-        }
-        if (!FspDeviceRetain(FsvrtDeviceObject))
-        {
-            Result = STATUS_UNRECOGNIZED_VOLUME;
-            goto exit;
-        }
-        if (FsvrtDeviceExtension->Deleted ||
-            FILE_DEVICE_VIRTUAL_DISK != FsvrtDeviceObject->DeviceType)
-        {
-            FspDeviceRelease(FsvrtDeviceObject);
-            Result = STATUS_UNRECOGNIZED_VOLUME;
-            goto exit;
-        }
 
         /* create the file system device object */
         Result = FspDeviceCreate(FspFsvolDeviceExtensionKind, 0,

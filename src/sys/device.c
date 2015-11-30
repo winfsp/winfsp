@@ -26,7 +26,6 @@ NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
-NTSTATUS FspDeviceOwned(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDeleteAll(VOID);
 
 #ifdef ALLOC_PRAGMA
@@ -41,7 +40,6 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceFini)
 #pragma alloc_text(PAGE, FspDeviceCopyList)
 #pragma alloc_text(PAGE, FspDeviceDeleteList)
-#pragma alloc_text(PAGE, FspDeviceOwned)
 #pragma alloc_text(PAGE, FspDeviceDeleteAll)
 #endif
 
@@ -149,7 +147,7 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
     }
 
     ExDeleteResourceLite(&DeviceExtension->Resource);
-    RtlZeroMemory(DeviceExtension, DeviceObject->Size - sizeof DEVICE_OBJECT);
+    RtlZeroMemory(DeviceExtension, DeviceObject->Size - sizeof(DEVICE_OBJECT));
 
     IoDeleteDevice(DeviceObject);
 }
@@ -277,30 +275,6 @@ VOID FspDeviceDeleteList(
         ObDereferenceObject(DeviceObjects[i]);
 
     ExFreePoolWithTag(DeviceObjects, FSP_TAG);
-}
-
-NTSTATUS FspDeviceOwned(PDEVICE_OBJECT DeviceObject)
-{
-    PAGED_CODE();
-
-    NTSTATUS Result = STATUS_NO_SUCH_DEVICE;
-    PDEVICE_OBJECT *DeviceObjects = 0;
-    ULONG DeviceObjectCount = 0;
-
-    Result = FspDeviceCopyList(&DeviceObjects, &DeviceObjectCount);
-    if (!NT_SUCCESS(Result))
-        return Result;
-
-    for (ULONG i = 0; DeviceObjectCount > i; i++)
-        if (DeviceObjects[i] == DeviceObject)
-        {
-            Result = STATUS_SUCCESS;
-            break;
-        }
-
-    FspDeviceDeleteList(DeviceObjects, DeviceObjectCount);
-
-    return Result;
 }
 
 VOID FspDeviceDeleteAll(VOID)
