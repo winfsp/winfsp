@@ -184,7 +184,7 @@ static NTSTATUS FspFsctlMountVolume(
             FspFsvrtDeviceExtension(FsvrtDeviceObject);
         FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
-        /* check the passed in volume object; it must be one of our own */
+        /* check the passed in volume object; it must be one of our own and not marked Deleted */
         Result = FspDeviceOwned(FsvrtDeviceObject);
         if (!NT_SUCCESS(Result))
         {
