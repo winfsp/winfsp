@@ -9,7 +9,7 @@ set TARGET=\\%TARGET_MACHINE%%TARGET_ACCOUNT%
 echo on
 cd %~dp0..
 mkdir %TARGET% 2>nul
-for f in (winfsp-%SUFFIX%.sys winfsp-%SUFFIX%.dll winfsp-tests-%SUFFIX%.exe mirror-%SUFFIX%.exe) do (
+for %%f in (winfsp-%SUFFIX%.sys winfsp-%SUFFIX%.dll winfsp-tests-%SUFFIX%.exe mirror-%SUFFIX%.exe) do (
 	copy build\VStudio\build\%CONFIG%\%%f %TARGET%
 )
 echo sc create WinFsp type=filesys binPath=%%~dp0%DRIVER% >%TARGET%sc-create.bat
