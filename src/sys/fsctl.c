@@ -180,7 +180,7 @@ static NTSTATUS FspFsctlMountVolume(
         PDEVICE_OBJECT *DeviceObjects = 0;
         ULONG DeviceObjectCount = 0;
         PVPB Vpb = IrpSp->Parameters.MountVolume.Vpb;
-        PDEVICE_OBJECT FsvrtDeviceObject = Vpb->RealDevice;
+        PDEVICE_OBJECT FsvrtDeviceObject = IrpSp->Parameters.MountVolume.DeviceObject;
         PDEVICE_OBJECT FsvolDeviceObject;
         FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
             FspFsvrtDeviceExtension(FsvrtDeviceObject);
