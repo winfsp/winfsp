@@ -7,11 +7,15 @@
 #include <sys/driver.h>
 
 NTSTATUS FspCreateGuid(GUID *Guid);
+BOOLEAN FspValidRelativeSecurityDescriptor(
+    PSECURITY_DESCRIPTOR SecurityDescriptor, ULONG SecurityDescriptorLength,
+    SECURITY_INFORMATION RequiredInformation);
 NTSTATUS FspSecuritySubjectContextAccessCheck(
     PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspCreateGuid)
+#pragma alloc_text(PAGE, FspValidRelativeSecurityDescriptor)
 #pragma alloc_text(PAGE, FspSecuritySubjectContextAccessCheck)
 #endif
 
@@ -26,6 +30,27 @@ NTSTATUS FspCreateGuid(GUID *Guid)
     {
         Result = ExUuidCreate(Guid);
     } while (!NT_SUCCESS(Result) && 0 < --Retries);
+
+    return Result;
+}
+
+BOOLEAN FspValidRelativeSecurityDescriptor(
+    PSECURITY_DESCRIPTOR SecurityDescriptor, ULONG SecurityDescriptorLength,
+    SECURITY_INFORMATION RequiredInformation)
+{
+    PAGED_CODE();
+
+    BOOLEAN Result;
+
+    try
+    {
+        Result = RtlValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorLength,
+            RequiredInformation);
+    }
+    except(EXCEPTION_EXECUTE_HANDLER)
+    {
+        Result = FALSE;
+    }
 
     return Result;
 }

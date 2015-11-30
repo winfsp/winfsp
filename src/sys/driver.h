@@ -322,6 +322,9 @@ VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 /* misc */
 NTSTATUS FspCreateGuid(GUID *Guid);
+BOOLEAN FspValidRelativeSecurityDescriptor(
+    PSECURITY_DESCRIPTOR SecurityDescriptor, ULONG SecurityDescriptorLength,
+    SECURITY_INFORMATION RequiredInformation);
 NTSTATUS FspSecuritySubjectContextAccessCheck(
     PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode);
 

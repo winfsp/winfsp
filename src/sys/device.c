@@ -147,7 +147,6 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
     }
 
     ExDeleteResourceLite(&DeviceExtension->Resource);
-    RtlZeroMemory(DeviceExtension, DeviceObject->Size - sizeof(DEVICE_OBJECT));
 
     IoDeleteDevice(DeviceObject);
 }

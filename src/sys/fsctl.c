@@ -110,7 +110,7 @@ static NTSTATUS FspFsctlCreateVolume(
     PSECURITY_DESCRIPTOR SecurityDescriptor = (PVOID)(Params + 1);
     DWORD SecurityDescriptorSize = InputBufferLength - sizeof *Params;
     if (sizeof *Params >= InputBufferLength || 0 == SystemBuffer ||
-        !RtlValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorSize,
+        !FspValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorSize,
             OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION))
         return STATUS_INVALID_PARAMETER;
     if (FSP_FSCTL_CREATE_BUFFER_SIZE > OutputBufferLength)
