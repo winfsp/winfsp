@@ -111,44 +111,54 @@ static NTSTATUS FspFsctlMountVolume(
 
     NTSTATUS Result;
     FSP_FSCTL_DEVICE_EXTENSION *FsctlDeviceExtension = FspFsctlDeviceExtension(DeviceObject);
-    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
-    PVPB Vpb = IrpSp->Parameters.MountVolume.Vpb;
-    PDEVICE_OBJECT FsvrtDeviceObject = Vpb->RealDevice;
-    PDEVICE_OBJECT FsvolDeviceObject;
-
-    /* check the passed in volume object; it must be one of our own */
-    Result = FspDeviceOwned(FsvrtDeviceObject);
-    if (!NT_SUCCESS(Result))
-    {
-        if (STATUS_NO_SUCH_DEVICE == Result)
-            return STATUS_UNRECOGNIZED_VOLUME;
-        else
-            return Result;
-    }
-    if (FILE_DEVICE_VIRTUAL_DISK != FsvrtDeviceObject->DeviceType)
-        return STATUS_UNRECOGNIZED_VOLUME;
 
     ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Base.Resource, TRUE);
-
-    /* create the file system device object */
-    Result = FspDeviceCreate(FspFsvolDeviceExtensionKind, 0,
-        DeviceObject->DeviceType,
-        &FsvolDeviceObject);
-    if (NT_SUCCESS(Result))
+    try
     {
-        FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
-        FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-#pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
-        FsvolDeviceObject->SectorSize = FsvrtDeviceExtension->VolumeParams.SectorSize;
-        FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
-        FsvrtDeviceExtension->FsvolDeviceObject = FsvolDeviceObject;
-        ClearFlag(FsvolDeviceObject->Flags, DO_DEVICE_INITIALIZING);
-        Vpb->DeviceObject = FsvolDeviceObject;
-        Irp->IoStatus.Information = 0;
-    }
+        PVPB Vpb = IrpSp->Parameters.MountVolume.Vpb;
+        PDEVICE_OBJECT FsvrtDeviceObject = Vpb->RealDevice;
+        PDEVICE_OBJECT FsvolDeviceObject;
+        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension;
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
-    ExReleaseResourceLite(&FsctlDeviceExtension->Base.Resource);
+        /* check the passed in volume object; it must be one of our own */
+        Result = FspDeviceOwned(FsvrtDeviceObject);
+        if (!NT_SUCCESS(Result))
+        {
+            if (STATUS_NO_SUCH_DEVICE == Result)
+                Result = STATUS_UNRECOGNIZED_VOLUME;
+            goto exit;
+        }
+        if (FspDeviceDeleted(FsvrtDeviceObject) ||
+            FILE_DEVICE_VIRTUAL_DISK != FsvrtDeviceObject->DeviceType)
+        {
+            Result = STATUS_UNRECOGNIZED_VOLUME;
+            goto exit;
+        }
+
+        /* create the file system device object */
+        Result = FspDeviceCreate(FspFsvolDeviceExtensionKind, 0,
+            DeviceObject->DeviceType,
+            &FsvolDeviceObject);
+        if (NT_SUCCESS(Result))
+        {
+            FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
+            FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+#pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
+            FsvolDeviceObject->SectorSize = FsvrtDeviceExtension->VolumeParams.SectorSize;
+            FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
+            FsvrtDeviceExtension->FsvolDeviceObject = FsvolDeviceObject;
+            ClearFlag(FsvolDeviceObject->Flags, DO_DEVICE_INITIALIZING);
+            Vpb->DeviceObject = FsvolDeviceObject;
+            Irp->IoStatus.Information = 0;
+        }
+
+    exit:;
+    }
+    finally
+    {
+        ExReleaseResourceLite(&FsctlDeviceExtension->Base.Resource);
+    }
 
     return Result;
 }
@@ -158,50 +168,61 @@ static NTSTATUS FspFsvrtDeleteVolume(
 {
     PAGED_CODE();
 
-    NTSTATUS Result;
-    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
-        FspFsvrtDeviceExtension(DeviceObject);
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
     FSP_FSCTL_DEVICE_EXTENSION *FsctlDeviceExtension =
         FspFsctlDeviceExtension(FsvrtDeviceExtension->FsctlDeviceObject);
-    PVPB OldVpb;
-    KIRQL Irql;
-
-    /* access check */
-    Result = FspSecuritySubjectContextAccessCheck(
-        FsvrtDeviceExtension->SecurityDescriptorBuf, FILE_WRITE_DATA, Irp->RequestorMode);
-    if (!NT_SUCCESS(Result))
-        return Result;
 
     ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Base.Resource, TRUE);
+    try
+    {
+        NTSTATUS Result;
+        PVPB OldVpb;
+        BOOLEAN FreeVpb = FALSE;
+        KIRQL Irql;
 
-    /* stop the I/O queue */
-    FspIoqStop(&FsvrtDeviceExtension->Ioq);
+        /* access check */
+        Result = FspSecuritySubjectContextAccessCheck(
+            FsvrtDeviceExtension->SecurityDescriptorBuf, FILE_WRITE_DATA, Irp->RequestorMode);
+        if (!NT_SUCCESS(Result))
+            goto exit;
 
-    /* swap the preallocated VPB */
+        /* stop the I/O queue */
+        FspIoqStop(&FsvrtDeviceExtension->Ioq);
+
+        /* swap the preallocated VPB */
 #pragma prefast(push)
 #pragma prefast(disable:28175, "We are a filesystem: ok to access Vpb")
-    IoAcquireVpbSpinLock(&Irql);
-    OldVpb = DeviceObject->Vpb;
-    if (0 != OldVpb)
-    {
-        DeviceObject->Vpb = FsvrtDeviceExtension->SwapVpb;
-        DeviceObject->Vpb->Size = sizeof *DeviceObject->Vpb;
-        DeviceObject->Vpb->Type = IO_TYPE_VPB;
-        DeviceObject->Vpb->Flags = FlagOn(OldVpb->Flags, VPB_REMOVE_PENDING);
-        DeviceObject->Vpb->RealDevice = OldVpb->RealDevice;
-        DeviceObject->Vpb->RealDevice->Vpb = DeviceObject->Vpb;
-        FsvrtDeviceExtension->SwapVpb = 0;
-    }
-    IoReleaseVpbSpinLock(Irql);
+        IoAcquireVpbSpinLock(&Irql);
+        OldVpb = DeviceObject->Vpb;
+        if (0 != OldVpb && 0 != FsvrtDeviceExtension->SwapVpb)
+        {
+            DeviceObject->Vpb = FsvrtDeviceExtension->SwapVpb;
+            DeviceObject->Vpb->Size = sizeof *DeviceObject->Vpb;
+            DeviceObject->Vpb->Type = IO_TYPE_VPB;
+            DeviceObject->Vpb->Flags = FlagOn(OldVpb->Flags, VPB_REMOVE_PENDING);
+            DeviceObject->Vpb->RealDevice = OldVpb->RealDevice;
+            DeviceObject->Vpb->RealDevice->Vpb = DeviceObject->Vpb;
+            FsvrtDeviceExtension->SwapVpb = 0;
+            FreeVpb = 0 == OldVpb->ReferenceCount;
+        }
+        IoReleaseVpbSpinLock(Irql);
+        if (FreeVpb)
+            ExFreePool(OldVpb);
 #pragma prefast(pop)
 
-    /* release the file system device and virtual volume objects */
-    PDEVICE_OBJECT FsvolDeviceObject = FsvrtDeviceExtension->FsvolDeviceObject;
-    FsvrtDeviceExtension->FsvolDeviceObject = 0;
-    FspDeviceRelease(FsvolDeviceObject);
-    FspDeviceRelease(DeviceObject);
+        /* release the file system device and virtual volume objects */
+        PDEVICE_OBJECT FsvolDeviceObject = FsvrtDeviceExtension->FsvolDeviceObject;
+        FsvrtDeviceExtension->FsvolDeviceObject = 0;
+        if (0 != FsvolDeviceObject)
+            FspDeviceRelease(FsvolDeviceObject);
+        FspDeviceRelease(DeviceObject);
 
-    ExReleaseResourceLite(&FsctlDeviceExtension->Base.Resource);
+    exit:;
+    }
+    finally
+    {
+        ExReleaseResourceLite(&FsctlDeviceExtension->Base.Resource);
+    }
 
     return STATUS_SUCCESS;
 }
