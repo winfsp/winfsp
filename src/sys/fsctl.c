@@ -6,6 +6,68 @@
 
 #include <sys/driver.h>
 
+/*
+ * Overview
+ *
+ * The fsctl module provides the IOCTL interface to interact with the
+ * user-mode file system. The user-mode file system can use the IOCTL's
+ * to create new volumes, delete them (while they are live!) and transact
+ * with them.
+ *
+ *
+ * Volume Creation
+ *
+ * The creation of a new volume is performed using an FSP_FSCTL_CREATE
+ * IOCTL code. Creation is simple: a new device \Device\Volume{GUID} is
+ * created and its path is returned to the user-mode file system. The
+ * user-mode file system also passes a security descriptor to associate
+ * with the new virtual volume device so that only the creating user-mode
+ * file system can control the new volume.
+ *
+ *
+ * Volume Deletion
+ *
+ * Deletion of an existing volume is performed using FSP_FSCTL_DELETE and
+ * is quite a bit more involved. We must protect against the following two
+ * eventualities: (1) that the volume is currently in use and cannot simply
+ * go away, and (2) that a simultaneous mount operation is taking place
+ * while we are deleting the volume.
+ *
+ * To protect against the first eventuality we maintain a reference count
+ * on all our device extensions. Every time an MJ function is entered,
+ * the reference count is incremented (FspDeviceRetain). Every time
+ * an IRP is completed, the reference count is decremented (FspDeviceRelease).
+ * When the reference count reaches 0 the device is deleted using
+ * IoDeleteDevice. This ensures that a device will not go away while an
+ * IRP is being pending/processed.
+ *
+ * To protect against the second eventuality we use the lock (ERESOURCE)
+ * on the root Fsctl device to wrap volume deletion and attempts from the
+ * system to mount the same volume. We also mark the virtual volume device
+ * as Deleted in case we attempt to delete it (FspDeviceRelease) but we
+ * cannot because it is currently in use.
+ *
+ * A sticky point is our use of the Windows VPB. It is not well documented
+ * how one should handle this structure during forcible dismount. The fastfat
+ * and cdfs samples use a technique where they keep a spare VPB and they swap
+ * it with the volume one during forcible dismount. We do something similar.
+ * The issue is what to do with the old VPB, because we can delete a volume
+ * that is not currently being used. We check the VPB's ReferenceCount and
+ * we free the VPB in this case.
+ *
+ *
+ * Volume Transact
+ *
+ * The user-mode file system's primary interaction with the kernel-mode driver
+ * is by using the FSP_FSCTL_TRANSACT IOCTL code. Every virtual volume device
+ * maintains an FSP_IOQ (refer to ioq.c for more). When an FSP_FSCTL_TRANSACT
+ * arrives it first processes any responses (FSP_FSCTL_TRANSACT_RSP) that the
+ * user-mode file system has sent to handle requests sent to it using a prior
+ * FSP_FSCTL_TRANSACT. It then proceeds to handle any pending IRP requests by
+ * sending the corresponding requests (FSP_FSCTL_TRANSACT_REQ) to the user-
+ * mode file system.
+ */
+
 static NTSTATUS FspFsctlCreateVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsctlMountVolume(
