@@ -192,9 +192,15 @@ static NTSTATUS FspFsctlMountVolume(
                 Result = STATUS_UNRECOGNIZED_VOLUME;
             goto exit;
         }
-        if (FspDeviceDeleted(FsvrtDeviceObject) || FsvrtDeviceExtension->Deleted ||
+        if (!FspDeviceRetain(FsvrtDeviceObject))
+        {
+            Result = STATUS_UNRECOGNIZED_VOLUME;
+            goto exit;
+        }
+        if (FsvrtDeviceExtension->Deleted ||
             FILE_DEVICE_VIRTUAL_DISK != FsvrtDeviceObject->DeviceType)
         {
+            FspDeviceRelease(FsvrtDeviceObject);
             Result = STATUS_UNRECOGNIZED_VOLUME;
             goto exit;
         }
@@ -214,6 +220,8 @@ static NTSTATUS FspFsctlMountVolume(
             Vpb->DeviceObject = FsvolDeviceObject;
             Irp->IoStatus.Information = 0;
         }
+
+        FspDeviceRelease(FsvrtDeviceObject);
 
     exit:;
     }

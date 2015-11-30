@@ -22,7 +22,6 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
-BOOLEAN FspDeviceDeleted(PDEVICE_OBJECT DeviceObject);
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
@@ -241,22 +240,6 @@ VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject)
 
     if (!Result)
         FspDeviceDelete(DeviceObject);
-}
-
-BOOLEAN FspDeviceDeleted(PDEVICE_OBJECT DeviceObject)
-{
-    // !PAGED_CODE();
-
-    BOOLEAN Result;
-    FSP_DEVICE_EXTENSION *DeviceExtension;
-    KIRQL Irql;
-
-    DeviceExtension = FspDeviceExtension(DeviceObject);
-    KeAcquireSpinLock(&DeviceExtension->SpinLock, &Irql);
-    Result = 0 == DeviceExtension->RefCount;
-    KeReleaseSpinLock(&DeviceExtension->SpinLock, Irql);
-
-    return Result;
 }
 
 NTSTATUS FspDeviceCopyList(
