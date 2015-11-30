@@ -112,7 +112,7 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *Params, PSECURITY_DESCRIPTOR SecurityDescriptor,
     PWCHAR VolumePathBuf, SIZE_T VolumePathSize);
 FSP_API NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
-    PHANDLE *PVolumeHandle);
+    PHANDLE PVolumeHandle);
 FSP_API NTSTATUS FspFsctlDeleteVolume(HANDLE VolumeHandle);
 FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     FSP_FSCTL_TRANSACT_RSP *ResponseBuf, SIZE_T ResponseBufSize,

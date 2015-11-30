@@ -5,24 +5,10 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="Include">
-      <UniqueIdentifier>{3370b3c4-4303-4098-a0cc-bc62c3e878dd}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Include\winfsp">
-      <UniqueIdentifier>{e2cf8fa1-6643-4c42-9377-465e2dd9dba3}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\tst\mirror\mirror.c">
       <Filter>Source</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\..\inc\winfsp\fsctl.h">
-      <Filter>Include\winfsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\inc\winfsp\winfsp.h">
-      <Filter>Include\winfsp</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

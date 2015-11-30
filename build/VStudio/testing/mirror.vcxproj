@@ -165,8 +165,9 @@
     <ClCompile Include="..\..\..\tst\mirror\mirror.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\inc\winfsp\fsctl.h" />
-    <ClInclude Include="..\..\..\inc\winfsp\winfsp.h" />
+    <ProjectReference Include="..\winfsp_dll.vcxproj">
+      <Project>{4a7c0b21-9e10-4c81-92de-1493efcf24eb}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

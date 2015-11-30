@@ -10,8 +10,16 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "testing", "testing", "{69439FD1-C07D-4BF1-98DC-3CCFECE53A49}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mirror", "testing\mirror.vcxproj", "{AA7190E8-877F-4827-8CDD-E0D85F83C8C1}"
+	ProjectSection(ProjectDependencies) = postProject
+		{4A7C0B21-9E10-4C81-92DE-1493EFCF24EB} = {4A7C0B21-9E10-4C81-92DE-1493EFCF24EB}
+		{C85C26BA-8C22-4D30-83DA-46C3548E6332} = {C85C26BA-8C22-4D30-83DA-46C3548E6332}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "winfsp-tests", "testing\winfsp-tests.vcxproj", "{262DF8CC-E7A8-4460-A22C-683CBA322C32}"
+	ProjectSection(ProjectDependencies) = postProject
+		{4A7C0B21-9E10-4C81-92DE-1493EFCF24EB} = {4A7C0B21-9E10-4C81-92DE-1493EFCF24EB}
+		{C85C26BA-8C22-4D30-83DA-46C3548E6332} = {C85C26BA-8C22-4D30-83DA-46C3548E6332}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

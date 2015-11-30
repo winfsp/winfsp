@@ -103,7 +103,7 @@ exit:
 }
 
 FSP_API NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
-    PHANDLE *PVolumeHandle)
+    PHANDLE PVolumeHandle)
 {
     NTSTATUS Result = STATUS_SUCCESS;
     WCHAR DevicePathBuf[MAX_PATH];
