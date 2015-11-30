@@ -7,9 +7,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "winfsp.dll", "winfsp_dll.vc
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "winfsp.sys", "winfsp_sys.vcxproj", "{C85C26BA-8C22-4D30-83DA-46C3548E6332}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{69439FD1-C07D-4BF1-98DC-3CCFECE53A49}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "testing", "testing", "{69439FD1-C07D-4BF1-98DC-3CCFECE53A49}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mirror", "samples\mirror.vcxproj", "{AA7190E8-877F-4827-8CDD-E0D85F83C8C1}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mirror", "testing\mirror.vcxproj", "{AA7190E8-877F-4827-8CDD-E0D85F83C8C1}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "winfsp-tests", "testing\winfsp-tests.vcxproj", "{262DF8CC-E7A8-4460-A22C-683CBA322C32}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -43,11 +45,20 @@ Global
 		{AA7190E8-877F-4827-8CDD-E0D85F83C8C1}.Release|x64.Build.0 = Release|x64
 		{AA7190E8-877F-4827-8CDD-E0D85F83C8C1}.Release|x86.ActiveCfg = Release|Win32
 		{AA7190E8-877F-4827-8CDD-E0D85F83C8C1}.Release|x86.Build.0 = Release|Win32
+		{262DF8CC-E7A8-4460-A22C-683CBA322C32}.Debug|x64.ActiveCfg = Debug|x64
+		{262DF8CC-E7A8-4460-A22C-683CBA322C32}.Debug|x64.Build.0 = Debug|x64
+		{262DF8CC-E7A8-4460-A22C-683CBA322C32}.Debug|x86.ActiveCfg = Debug|Win32
+		{262DF8CC-E7A8-4460-A22C-683CBA322C32}.Debug|x86.Build.0 = Debug|Win32
+		{262DF8CC-E7A8-4460-A22C-683CBA322C32}.Release|x64.ActiveCfg = Release|x64
+		{262DF8CC-E7A8-4460-A22C-683CBA322C32}.Release|x64.Build.0 = Release|x64
+		{262DF8CC-E7A8-4460-A22C-683CBA322C32}.Release|x86.ActiveCfg = Release|Win32
+		{262DF8CC-E7A8-4460-A22C-683CBA322C32}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{AA7190E8-877F-4827-8CDD-E0D85F83C8C1} = {69439FD1-C07D-4BF1-98DC-3CCFECE53A49}
+		{262DF8CC-E7A8-4460-A22C-683CBA322C32} = {69439FD1-C07D-4BF1-98DC-3CCFECE53A49}
 	EndGlobalSection
 EndGlobal
