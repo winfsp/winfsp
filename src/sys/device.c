@@ -213,7 +213,7 @@ BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject)
     DeviceExtension = FspDeviceExtension(DeviceObject);
     KeAcquireSpinLock(&DeviceExtension->SpinLock, &Irql);
     Result = 0 != DeviceExtension->RefCount;
-    if (!Result)
+    if (Result)
         DeviceExtension->RefCount++;
     KeReleaseSpinLock(&DeviceExtension->SpinLock, Irql);
 

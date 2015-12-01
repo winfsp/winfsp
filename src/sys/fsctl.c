@@ -108,8 +108,8 @@ static NTSTATUS FspFsctlCreateVolume(
     PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
     const FSP_FSCTL_VOLUME_PARAMS *Params = SystemBuffer;
     PSECURITY_DESCRIPTOR SecurityDescriptor = (PVOID)((PUINT8)Params + FSP_FSCTL_VOLUME_PARAMS_SIZE);
-    DWORD SecurityDescriptorSize = InputBufferLength - sizeof *Params;
-    if (sizeof *Params >= InputBufferLength || 0 == SystemBuffer ||
+    DWORD SecurityDescriptorSize = InputBufferLength - FSP_FSCTL_VOLUME_PARAMS_SIZE;
+    if (FSP_FSCTL_VOLUME_PARAMS_SIZE >= InputBufferLength || 0 == SystemBuffer ||
         !FspValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorSize,
             OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION))
         return STATUS_INVALID_PARAMETER;
@@ -475,11 +475,11 @@ NTSTATUS FspFileSystemControl(
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsctlFileSystemControl(DeviceObject, Irp, IrpSp));
+        FSP_RETURN(Result = FspFsvolFileSystemControl(DeviceObject, Irp, IrpSp));
     case FspFsvrtDeviceExtensionKind:
         FSP_RETURN(Result = FspFsvrtFileSystemControl(DeviceObject, Irp, IrpSp));
     case FspFsctlDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolFileSystemControl(DeviceObject, Irp, IrpSp));
+        FSP_RETURN(Result = FspFsctlFileSystemControl(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
