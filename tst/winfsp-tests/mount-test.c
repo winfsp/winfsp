@@ -2,15 +2,30 @@
 #include <winfsp/fsctl.h>
 #include <tlib/testsuite.h>
 
+void mount_invalid_test(void)
+{
+    NTSTATUS Result;
+    FSP_FSCTL_VOLUME_PARAMS Params = { 0 };
+    WCHAR VolumePath[MAX_PATH];
+    HANDLE VolumeHandle;
+
+    Params.SectorSize = 16384;
+    Result = FspFsctlCreateVolume(L"WinFsp.DoesNotExist", &Params, 0, VolumePath, sizeof VolumePath);
+    ASSERT(STATUS_NO_SUCH_DEVICE == Result);
+
+    Result = FspFsctlOpenVolume(L"\\Device\\Volume{31EF947D-B0F3-4A19-A4E7-BE0C1BE94886}.DoesNotExist", &VolumeHandle);
+    ASSERT(STATUS_NO_SUCH_DEVICE == Result);
+}
+
 void mount_dotest(PWSTR DeviceName)
 {
     NTSTATUS Result;
     BOOLEAN Success;
-    FSP_FSCTL_VOLUME_PARAMS Params;
+    FSP_FSCTL_VOLUME_PARAMS Params = { 0 };
     WCHAR VolumePath[MAX_PATH];
     HANDLE VolumeHandle;
 
-    Params.SectorSize = (UINT16)65536;
+    Params.SectorSize = 16384;
     Result = FspFsctlCreateVolume(DeviceName, &Params, 0, VolumePath, sizeof VolumePath);
     ASSERT(STATUS_SUCCESS == Result);
 
@@ -32,5 +47,6 @@ void mount_test(void)
 
 void mount_tests(void)
 {
+    TEST(mount_invalid_test);
     TEST(mount_test);
 }

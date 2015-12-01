@@ -7,13 +7,16 @@
 #include <winfsp/winfsp.h>
 #include <winfsp/fsctl.h>
 #include <strsafe.h>
+#if !defined(NDEBUG)
+#include <sddl.h>
+#endif
 
 #define GLOBALROOT                      L"\\\\?\\GLOBALROOT"
 
 static inline VOID GlobalDevicePath(PWCHAR DevicePathBuf, SIZE_T DevicePathSize, PWSTR DevicePath)
 {
-    StringCbPrintf(DevicePathBuf, DevicePathSize,
-        L'\\' == DevicePath[0] ? GLOBALROOT "%S" : GLOBALROOT "\\Device\\%S", DevicePath);
+    StringCbPrintfW(DevicePathBuf, DevicePathSize,
+        L'\\' == DevicePath[0] ? GLOBALROOT "%s" : GLOBALROOT "\\Device\\%s", DevicePath);
 }
 
 FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
@@ -21,13 +24,13 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     PWCHAR VolumePathBuf, SIZE_T VolumePathSize)
 {
     NTSTATUS Result = STATUS_SUCCESS;
-    WCHAR DevicePathBuf[MAX_PATH];
-    FSP_FSCTL_VOLUME_PARAMS *ParamsBuf;
-    HANDLE Token;
-    PVOID DaclBuf = 0;
+    FSP_FSCTL_VOLUME_PARAMS *ParamsBuf = 0;
+    HANDLE Token = 0;
+    PTOKEN_DEFAULT_DACL DefaultDacl = 0;
     SECURITY_DESCRIPTOR SecurityDescriptorStruct;
-    PSECURITY_DESCRIPTOR SecurityDescriptorBuf = 0;
+    PSECURITY_DESCRIPTOR SecurityDescriptorBuf;
     DWORD SecurityDescriptorSize, Bytes;
+    WCHAR DevicePathBuf[MAX_PATH];
     HANDLE DeviceHandle = INVALID_HANDLE_VALUE;
 
     VolumePathBuf[0] = L'\0';
@@ -39,30 +42,50 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
         }
-        GetTokenInformation(Token, TokenDefaultDacl, 0, 0, &Bytes);
-        DaclBuf = malloc(Bytes);
-        if (0 == DaclBuf)
+        Bytes = 0;
+        if (!GetTokenInformation(Token, TokenDefaultDacl, 0, 0, &Bytes) &&
+            ERROR_INSUFFICIENT_BUFFER != GetLastError())
         {
-            CloseHandle(Token);
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+        DefaultDacl = malloc(Bytes);
+        if (0 == DefaultDacl)
+        {
             Result = STATUS_INSUFFICIENT_RESOURCES;
             goto exit;
         }
-        if (GetTokenInformation(Token, TokenDefaultDacl, DaclBuf, Bytes, &Bytes) &&
-            InitializeSecurityDescriptor(&SecurityDescriptorStruct, SECURITY_DESCRIPTOR_REVISION) &&
-            SetSecurityDescriptorDacl(&SecurityDescriptorStruct, TRUE, DaclBuf, FALSE))
-        {
-            SecurityDescriptor = &SecurityDescriptorStruct;
-            CloseHandle(Token);
-        }
-        else
+        if (!GetTokenInformation(Token, TokenDefaultDacl, DefaultDacl, Bytes, &Bytes) ||
+            !InitializeSecurityDescriptor(&SecurityDescriptorStruct, SECURITY_DESCRIPTOR_REVISION) ||
+            !SetSecurityDescriptorDacl(&SecurityDescriptorStruct, TRUE, DefaultDacl->DefaultDacl, FALSE))
         {
             Result = FspNtStatusFromWin32(GetLastError());
-            CloseHandle(Token);
             goto exit;
         }
+        SecurityDescriptor = &SecurityDescriptorStruct;
+        CloseHandle(Token);
+        Token = 0;
     }
 
-    SecurityDescriptorSize = GetSecurityDescriptorLength(SecurityDescriptor);
+#if !defined(NDEBUG)
+    {
+        PWSTR Sddl;
+        if (ConvertSecurityDescriptorToStringSecurityDescriptorW(SecurityDescriptor,
+            SDDL_REVISION_1, DACL_SECURITY_INFORMATION, &Sddl, 0))
+        {
+            OutputDebugStringW(Sddl);
+            LocalFree(Sddl);
+        }
+    }
+#endif
+
+    SecurityDescriptorSize = 0;
+    if (!MakeSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize) &&
+        ERROR_INSUFFICIENT_BUFFER != GetLastError())
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
     ParamsBuf = malloc(sizeof *ParamsBuf + SecurityDescriptorSize);
     if (0 == ParamsBuf)
     {
@@ -83,6 +106,8 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     if (INVALID_HANDLE_VALUE == DeviceHandle)
     {
         Result = FspNtStatusFromWin32(GetLastError());
+        if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
+            Result = STATUS_NO_SUCH_DEVICE;
         goto exit;
     }
 
@@ -95,10 +120,15 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     }
 
 exit:
+
     if (INVALID_HANDLE_VALUE != DeviceHandle)
         CloseHandle(DeviceHandle);
-    free(SecurityDescriptorBuf);
-    free(DaclBuf);
+    if (0 != Token)
+        CloseHandle(Token);
+
+    free(ParamsBuf);
+    free(DefaultDacl);
+
     return Result;
 }
 
@@ -118,6 +148,8 @@ FSP_API NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
     if (INVALID_HANDLE_VALUE == VolumeHandle)
     {
         Result = FspNtStatusFromWin32(GetLastError());
+        if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
+            Result = STATUS_NO_SUCH_DEVICE;
         goto exit;
     }
 
