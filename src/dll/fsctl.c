@@ -86,13 +86,14 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
         Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
     }
-    ParamsBuf = malloc(sizeof *ParamsBuf + SecurityDescriptorSize);
+    ParamsBuf = malloc(FSP_FSCTL_VOLUME_PARAMS_SIZE + SecurityDescriptorSize);
     if (0 == ParamsBuf)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
         goto exit;
     }
-    SecurityDescriptorBuf = (PVOID)(ParamsBuf + 1);
+    memset(ParamsBuf, 0, FSP_FSCTL_VOLUME_PARAMS_SIZE);
+    SecurityDescriptorBuf = (PVOID)((PUINT8)ParamsBuf + FSP_FSCTL_VOLUME_PARAMS_SIZE);
     if (!MakeSelfRelativeSD(SecurityDescriptor, SecurityDescriptorBuf, &SecurityDescriptorSize))
     {
         Result = FspNtStatusFromWin32(GetLastError());

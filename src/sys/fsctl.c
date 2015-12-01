@@ -107,7 +107,7 @@ static NTSTATUS FspFsctlCreateVolume(
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
     const FSP_FSCTL_VOLUME_PARAMS *Params = SystemBuffer;
-    PSECURITY_DESCRIPTOR SecurityDescriptor = (PVOID)(Params + 1);
+    PSECURITY_DESCRIPTOR SecurityDescriptor = (PVOID)((PUINT8)Params + FSP_FSCTL_VOLUME_PARAMS_SIZE);
     DWORD SecurityDescriptorSize = InputBufferLength - sizeof *Params;
     if (sizeof *Params >= InputBufferLength || 0 == SystemBuffer ||
         !FspValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorSize,
