@@ -21,7 +21,8 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 
 /* alignment macros */
 #define FSP_FSCTL_ALIGN_UP(x, s)        (((x) + ((s) - 1L)) & ~((s) - 1L))
-#define FSP_FSCTL_DEFAULT_ALIGNMENT     (sizeof(UINT64) * 2)
+#define FSP_FSCTL_DEFAULT_ALIGNMENT     (16)
+#define FSP_FSCTL_DECLSPEC_ALIGN        __declspec(align(16))
 
 /* fsctl device codes */
 #define FSP_FSCTL_CREATE                \

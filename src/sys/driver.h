@@ -271,7 +271,7 @@ typedef struct
     FSP_IOQ Ioq;
     PVPB SwapVpb;
     BOOLEAN Deleted;
-    UINT8 SecurityDescriptorBuf[];
+    FSP_FSCTL_DECLSPEC_ALIGN UINT8 SecurityDescriptorBuf[];
 } FSP_FSVRT_DEVICE_EXTENSION;
 typedef struct
 {

@@ -47,7 +47,7 @@ BOOLEAN FspValidRelativeSecurityDescriptor(
         Result = RtlValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorLength,
             RequiredInformation);
     }
-    except(EXCEPTION_EXECUTE_HANDLER)
+    except (EXCEPTION_EXECUTE_HANDLER)
     {
         Result = FALSE;
     }
