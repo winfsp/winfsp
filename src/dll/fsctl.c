@@ -126,8 +126,8 @@ exit:
     if (0 != Token)
         CloseHandle(Token);
 
-    free(ParamsBuf);
     free(DefaultDacl);
+    free(ParamsBuf);
 
     return Result;
 }
