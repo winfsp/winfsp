@@ -11,6 +11,13 @@
 
 #define GLOBALROOT                      L"\\\\?\\GLOBALROOT"
 
+static inline PVOID Malloc(SIZE_T Size)
+{
+    PVOID P = malloc(Size);
+    if (0 != P)
+        SetLastError(ERROR_NO_SYSTEM_RESOURCES);
+    return P;
+}
 static inline VOID GlobalDevicePath(PWCHAR DevicePathBuf, SIZE_T DevicePathSize, PWSTR DevicePath)
 {
     StringCbPrintfW(DevicePathBuf, DevicePathSize,
@@ -21,15 +28,14 @@ static NTSTATUS CreateSelfRelativeSecurityDescriptor(PSECURITY_DESCRIPTOR Securi
     PSECURITY_DESCRIPTOR *PSelfRelativeSecurityDescriptor, PDWORD PSelfRelativeSecurityDescriptorSize)
 {
     NTSTATUS Result;
+    BOOLEAN Success;
     PSECURITY_DESCRIPTOR SelfRelativeSecurityDescriptor = 0;
     DWORD SelfRelativeSecurityDescriptorSize;
     SECURITY_DESCRIPTOR SecurityDescriptorStruct;
-    PTOKEN_OWNER Owner = 0;
-    PTOKEN_PRIMARY_GROUP PrimaryGroup = 0;
-    PTOKEN_DEFAULT_DACL DefaultDacl = 0;
-    DWORD OwnerSize = 0;
-    DWORD PrimaryGroupSize = 0;
-    DWORD DefaultDaclSize = 0;
+    PTOKEN_USER User = 0;
+    PACL Acl = 0;
+    DWORD UserSize = 0;
+    DWORD AclSize = 0;
     HANDLE Token = 0;
 
     *PSelfRelativeSecurityDescriptor = 0;
@@ -37,41 +43,20 @@ static NTSTATUS CreateSelfRelativeSecurityDescriptor(PSECURITY_DESCRIPTOR Securi
 
     if (0 == SecurityDescriptor)
     {
-        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token))
-        {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
-        }
-        if ((!GetTokenInformation(Token, TokenOwner, 0, 0, &OwnerSize) &&
-                ERROR_INSUFFICIENT_BUFFER != GetLastError()) ||
-            (!GetTokenInformation(Token, TokenPrimaryGroup, 0, 0, &PrimaryGroupSize) &&
-                ERROR_INSUFFICIENT_BUFFER != GetLastError()) ||
-            (!GetTokenInformation(Token, TokenDefaultDacl, 0, 0, &DefaultDaclSize) &&
-                ERROR_INSUFFICIENT_BUFFER != GetLastError()))
-        {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
-        }
-        Owner = malloc(OwnerSize);
-        PrimaryGroup = malloc(PrimaryGroupSize);
-        DefaultDacl = malloc(DefaultDaclSize);
-        if (0 == Owner || 0 == PrimaryGroup || 0 == DefaultDacl)
-        {
-            Result = STATUS_INSUFFICIENT_RESOURCES;
-            goto exit;
-        }
-        if (!GetTokenInformation(Token, TokenOwner, Owner, OwnerSize, &OwnerSize) ||
-            !GetTokenInformation(Token, TokenPrimaryGroup, PrimaryGroup, PrimaryGroupSize, &PrimaryGroupSize) ||
-            !GetTokenInformation(Token, TokenDefaultDacl, DefaultDacl, DefaultDaclSize, &DefaultDaclSize))
-        {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
-        }
-        if (!InitializeSecurityDescriptor(&SecurityDescriptorStruct, SECURITY_DESCRIPTOR_REVISION) ||
-            !SetSecurityDescriptorOwner(&SecurityDescriptorStruct, Owner->Owner, FALSE) ||
-            !SetSecurityDescriptorGroup(&SecurityDescriptorStruct, PrimaryGroup->PrimaryGroup, FALSE) ||
-            !SetSecurityDescriptorDacl(&SecurityDescriptorStruct, TRUE, DefaultDacl->DefaultDacl, FALSE) ||
-            !SetSecurityDescriptorControl(&SecurityDescriptorStruct, SE_DACL_PROTECTED, SE_DACL_PROTECTED))
+        Success =
+            OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token) &&
+            (GetTokenInformation(Token, TokenUser, 0, 0, &UserSize) ||
+                ERROR_INSUFFICIENT_BUFFER == GetLastError()) &&
+            (User = Malloc(UserSize)) &&
+            GetTokenInformation(Token, TokenUser, User, UserSize, &UserSize) &&
+            (AclSize = sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE) + GetLengthSid(User->User.Sid) - sizeof(DWORD)) &&
+            (Acl = Malloc(AclSize)) &&
+            InitializeAcl(Acl, AclSize, ACL_REVISION) &&
+            AddAccessAllowedAce(Acl, ACL_REVISION, GENERIC_ALL, User->User.Sid) &&
+            InitializeSecurityDescriptor(&SecurityDescriptorStruct, SECURITY_DESCRIPTOR_REVISION) &&
+            SetSecurityDescriptorDacl(&SecurityDescriptorStruct, TRUE, Acl, FALSE) &&
+            SetSecurityDescriptorControl(&SecurityDescriptorStruct, SE_DACL_PROTECTED, SE_DACL_PROTECTED);
+        if (!Success)
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
@@ -80,19 +65,12 @@ static NTSTATUS CreateSelfRelativeSecurityDescriptor(PSECURITY_DESCRIPTOR Securi
     }
 
     SelfRelativeSecurityDescriptorSize = 0;
-    if (!MakeSelfRelativeSD(SecurityDescriptor, 0, &SelfRelativeSecurityDescriptorSize) &&
-        ERROR_INSUFFICIENT_BUFFER != GetLastError())
-    {
-        Result = FspNtStatusFromWin32(GetLastError());
-        goto exit;
-    }
-    SelfRelativeSecurityDescriptor = malloc(SelfRelativeSecurityDescriptorSize);
-    if (0 == SelfRelativeSecurityDescriptor)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
-    if (!MakeSelfRelativeSD(SecurityDescriptor, SelfRelativeSecurityDescriptor, &SelfRelativeSecurityDescriptorSize))
+    Success =
+        (MakeSelfRelativeSD(SecurityDescriptor, 0, &SelfRelativeSecurityDescriptorSize) ||
+            ERROR_INSUFFICIENT_BUFFER == GetLastError()) &&
+        (SelfRelativeSecurityDescriptor = Malloc(SelfRelativeSecurityDescriptorSize)) &&
+        (MakeSelfRelativeSD(SecurityDescriptor, SelfRelativeSecurityDescriptor, &SelfRelativeSecurityDescriptorSize));
+    if (!Success)
     {
         Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
@@ -106,9 +84,8 @@ exit:
     if (0 != Token)
         CloseHandle(Token);
 
-    free(DefaultDacl);
-    free(PrimaryGroup);
-    free(Owner);
+    free(Acl);
+    free(User);
 
     if (STATUS_SUCCESS != Result)
         free(SelfRelativeSecurityDescriptor);
@@ -136,10 +113,10 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    ParamsBuf = malloc(FSP_FSCTL_VOLUME_PARAMS_SIZE + SelfRelativeSecurityDescriptorSize);
+    ParamsBuf = Malloc(FSP_FSCTL_VOLUME_PARAMS_SIZE + SelfRelativeSecurityDescriptorSize);
     if (0 == ParamsBuf)
     {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
+        Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
     }
     memset(ParamsBuf, 0, FSP_FSCTL_VOLUME_PARAMS_SIZE);
