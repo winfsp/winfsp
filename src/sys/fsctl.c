@@ -159,7 +159,7 @@ static NTSTATUS FspFsctlCreateVolume(
         RtlCopyMemory(FsvrtDeviceExtension->SecurityDescriptorBuf,
             SecurityDescriptorBuf, SecurityDescriptorSize);
         ClearFlag(FsvrtDeviceObject->Flags, DO_DEVICE_INITIALIZING);
-        Irp->IoStatus.Information = DeviceName.Length + 1;
+        Irp->IoStatus.Information = DeviceName.Length + sizeof(WCHAR);
     }
 
     /* free the temporary security descriptor */
@@ -246,6 +246,7 @@ static NTSTATUS FspFsvrtDeleteVolume(
 {
     PAGED_CODE();
 
+    NTSTATUS Result;
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
     FSP_FSCTL_DEVICE_EXTENSION *FsctlDeviceExtension =
         FspFsctlDeviceExtension(FsvrtDeviceExtension->FsctlDeviceObject);
@@ -253,7 +254,6 @@ static NTSTATUS FspFsvrtDeleteVolume(
     ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Base.Resource, TRUE);
     try
     {
-        NTSTATUS Result;
         PVPB OldVpb;
         BOOLEAN FreeVpb = FALSE;
         KIRQL Irql;
@@ -305,7 +305,7 @@ static NTSTATUS FspFsvrtDeleteVolume(
         ExReleaseResourceLite(&FsctlDeviceExtension->Base.Resource);
     }
 
-    return STATUS_SUCCESS;
+    return Result;
 }
 
 static NTSTATUS FspFsvrtTransact(

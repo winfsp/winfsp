@@ -145,6 +145,8 @@ FSP_API NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
 
     GlobalDevicePath(DevicePathBuf, sizeof DevicePathBuf, VolumePath);
 
+    DEBUGLOG("Device=\"%S\"", DevicePathBuf);
+
     VolumeHandle = CreateFileW(DevicePathBuf,
         0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
     if (INVALID_HANDLE_VALUE == VolumeHandle)
