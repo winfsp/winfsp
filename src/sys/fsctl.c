@@ -298,6 +298,8 @@ static NTSTATUS FspFsvrtDeleteVolume(
             FspDeviceRelease(FsvolDeviceObject);
         FspDeviceRelease(DeviceObject);
 
+        Result = STATUS_SUCCESS;
+
     exit:;
     }
     finally
