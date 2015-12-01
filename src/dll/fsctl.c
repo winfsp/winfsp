@@ -4,9 +4,7 @@
  * @copyright 2015 Bill Zissimopoulos
  */
 
-#include <winfsp/winfsp.h>
-#include <winfsp/fsctl.h>
-#include <strsafe.h>
+#include <dll/library.h>
 #if !defined(NDEBUG)
 #include <sddl.h>
 #endif
@@ -67,18 +65,6 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
         Token = 0;
     }
 
-#if !defined(NDEBUG)
-    {
-        PWSTR Sddl;
-        if (ConvertSecurityDescriptorToStringSecurityDescriptorW(SecurityDescriptor,
-            SDDL_REVISION_1, DACL_SECURITY_INFORMATION, &Sddl, 0))
-        {
-            OutputDebugStringW(Sddl);
-            LocalFree(Sddl);
-        }
-    }
-#endif
-
     SecurityDescriptorSize = 0;
     if (!MakeSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize) &&
         ERROR_INSUFFICIENT_BUFFER != GetLastError())
@@ -102,6 +88,20 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     *ParamsBuf = *Params;
 
     GlobalDevicePath(DevicePathBuf, sizeof DevicePathBuf, DevicePath);
+
+#if !defined(NDEBUG)
+    {
+        PSTR Sddl;
+        if (ConvertSecurityDescriptorToStringSecurityDescriptorA(SecurityDescriptorBuf,
+            SDDL_REVISION_1, DACL_SECURITY_INFORMATION, &Sddl, 0))
+        {
+            DEBUGLOG("Device=\"%S\", Sddl=\"%s\", SdSize=%lu",
+                DevicePathBuf, Sddl, SecurityDescriptorSize);
+            LocalFree(Sddl);
+        }
+    }
+#endif
+
     DeviceHandle = CreateFileW(DevicePathBuf,
         0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
     if (INVALID_HANDLE_VALUE == DeviceHandle)

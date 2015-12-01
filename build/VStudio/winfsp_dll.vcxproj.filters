@@ -20,6 +20,9 @@
     <ClCompile Include="..\..\src\dll\ntstatus.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\dll\debug.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h">
@@ -27,6 +30,9 @@
     </ClInclude>
     <ClInclude Include="..\..\inc\winfsp\winfsp.h">
       <Filter>Include\winfsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\dll\library.h">
+      <Filter>Source</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

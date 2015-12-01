@@ -4,7 +4,7 @@
  * @copyright 2015 Bill Zissimopoulos
  */
 
-#include <winfsp/winfsp.h>
+#include <dll/library.h>
 
 NTSTATUS FspNtStatusFromWin32(DWORD Error)
 {
