@@ -224,18 +224,20 @@ VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject)
 {
     // !PAGED_CODE();
 
-    BOOLEAN Result;
+    BOOLEAN Delete = FALSE;
     FSP_DEVICE_EXTENSION *DeviceExtension;
     KIRQL Irql;
 
     DeviceExtension = FspDeviceExtension(DeviceObject);
     KeAcquireSpinLock(&DeviceExtension->SpinLock, &Irql);
     if (0 != DeviceExtension->RefCount)
+    {
         DeviceExtension->RefCount--;
-    Result = 0 != DeviceExtension->RefCount;
+        Delete = 0 == DeviceExtension->RefCount;
+    }
     KeReleaseSpinLock(&DeviceExtension->SpinLock, Irql);
 
-    if (!Result)
+    if (Delete)
         FspDeviceDelete(DeviceObject);
 }
 
