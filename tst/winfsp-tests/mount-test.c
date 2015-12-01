@@ -10,6 +10,7 @@ void mount_invalid_test(void)
     HANDLE VolumeHandle;
 
     Params.SectorSize = 16384;
+    Params.SerialNumber = 0x12345678;
     Result = FspFsctlCreateVolume(L"WinFsp.DoesNotExist", &Params, 0, VolumePath, sizeof VolumePath);
     ASSERT(STATUS_NO_SUCH_DEVICE == Result);
 
@@ -26,6 +27,7 @@ void mount_dotest(PWSTR DeviceName)
     HANDLE VolumeHandle;
 
     Params.SectorSize = 16384;
+    Params.SerialNumber = 0x12345678;
     Result = FspFsctlCreateVolume(DeviceName, &Params, 0, VolumePath, sizeof VolumePath);
     ASSERT(STATUS_SUCCESS == Result);
 

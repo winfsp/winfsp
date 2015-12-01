@@ -106,17 +106,18 @@ static NTSTATUS FspFsctlCreateVolume(
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
-    const FSP_FSCTL_VOLUME_PARAMS *Params = SystemBuffer;
-    PSECURITY_DESCRIPTOR SecurityDescriptor = (PVOID)((PUINT8)Params + FSP_FSCTL_VOLUME_PARAMS_SIZE);
+    PSECURITY_DESCRIPTOR SecurityDescriptor =
+        (PVOID)((PUINT8)SystemBuffer + FSP_FSCTL_VOLUME_PARAMS_SIZE);
     DWORD SecurityDescriptorSize = InputBufferLength - FSP_FSCTL_VOLUME_PARAMS_SIZE;
     if (FSP_FSCTL_VOLUME_PARAMS_SIZE >= InputBufferLength || 0 == SystemBuffer ||
         !FspValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorSize,
-            OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION))
+            DACL_SECURITY_INFORMATION))
         return STATUS_INVALID_PARAMETER;
     if (FSP_FSCTL_CREATE_BUFFER_SIZE > OutputBufferLength)
         return STATUS_BUFFER_TOO_SMALL;
 
     NTSTATUS Result;
+    FSP_FSCTL_VOLUME_PARAMS Params = *(FSP_FSCTL_VOLUME_PARAMS *)SystemBuffer;
     PVOID SecurityDescriptorBuf = 0;
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension;
 
@@ -150,9 +151,11 @@ static NTSTATUS FspFsctlCreateVolume(
         &FsvrtDeviceObject);
     if (NT_SUCCESS(Result))
     {
+#pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
+        FsvrtDeviceObject->SectorSize = Params.SectorSize;
         FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
         FsvrtDeviceExtension->FsctlDeviceObject = DeviceObject;
-        FsvrtDeviceExtension->VolumeParams = *Params;
+        FsvrtDeviceExtension->VolumeParams = Params;
         RtlCopyMemory(FsvrtDeviceExtension->SecurityDescriptorBuf,
             SecurityDescriptorBuf, SecurityDescriptorSize);
         ClearFlag(FsvrtDeviceObject->Flags, DO_DEVICE_INITIALIZING);
@@ -215,13 +218,14 @@ static NTSTATUS FspFsctlMountVolume(
             &FsvolDeviceObject);
         if (NT_SUCCESS(Result))
         {
-            FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
             FsvolDeviceObject->SectorSize = FsvrtDeviceExtension->VolumeParams.SectorSize;
+            FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
             FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
             FsvrtDeviceExtension->FsvolDeviceObject = FsvolDeviceObject;
             ClearFlag(FsvolDeviceObject->Flags, DO_DEVICE_INITIALIZING);
             Vpb->DeviceObject = FsvolDeviceObject;
+            Vpb->SerialNumber = FsvrtDeviceExtension->VolumeParams.SerialNumber;
             Irp->IoStatus.Information = 0;
         }
 

@@ -113,7 +113,8 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     }
 
     if (!DeviceIoControl(DeviceHandle, FSP_FSCTL_CREATE,
-        ParamsBuf, sizeof *ParamsBuf + SecurityDescriptorSize, VolumePathBuf, (DWORD)VolumePathSize,
+        ParamsBuf, FSP_FSCTL_VOLUME_PARAMS_SIZE + SecurityDescriptorSize,
+        VolumePathBuf, (DWORD)VolumePathSize,
         &Bytes, 0))
     {
         Result = FspNtStatusFromWin32(GetLastError());

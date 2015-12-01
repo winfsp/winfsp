@@ -98,7 +98,7 @@
             (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
             Irp->RequestorMode == KernelMode ? 'K' : 'U',\
             IrpMajorFunctionSym(IrpSp->MajorFunction),\
-            IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MajorFunction),\
+            IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction),\
             __VA_ARGS__,                \
             NtStatusSym(Result),        \
             (LONGLONG)Irp->IoStatus.Information);\
@@ -135,7 +135,7 @@
             (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
             Irp->RequestorMode == KernelMode ? 'K' : 'U',\
             IrpMajorFunctionSym(IrpSp->MajorFunction),\
-            IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MajorFunction),\
+            IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction),\
             __VA_ARGS__,                \
             NtStatusSym(Result),        \
             (LONGLONG)Irp->IoStatus.Information);\
