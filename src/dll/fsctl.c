@@ -31,6 +31,8 @@ static NTSTATUS CreateSelfRelativeSecurityDescriptor(PSECURITY_DESCRIPTOR Securi
     BOOLEAN Success;
     PSECURITY_DESCRIPTOR SelfRelativeSecurityDescriptor = 0;
     DWORD SelfRelativeSecurityDescriptorSize;
+    SECURITY_DESCRIPTOR_CONTROL SecurityDescriptorControl;
+    DWORD SecurityDescriptorRevision;
     SECURITY_DESCRIPTOR SecurityDescriptorStruct;
     PTOKEN_USER User = 0;
     PACL Acl = 0;
@@ -64,12 +66,29 @@ static NTSTATUS CreateSelfRelativeSecurityDescriptor(PSECURITY_DESCRIPTOR Securi
         SecurityDescriptor = &SecurityDescriptorStruct;
     }
 
-    SelfRelativeSecurityDescriptorSize = 0;
-    Success =
-        (MakeSelfRelativeSD(SecurityDescriptor, 0, &SelfRelativeSecurityDescriptorSize) ||
-            ERROR_INSUFFICIENT_BUFFER == GetLastError()) &&
-        (SelfRelativeSecurityDescriptor = Malloc(SelfRelativeSecurityDescriptorSize)) &&
-        (MakeSelfRelativeSD(SecurityDescriptor, SelfRelativeSecurityDescriptor, &SelfRelativeSecurityDescriptorSize));
+    if (!GetSecurityDescriptorControl(SecurityDescriptor,
+        &SecurityDescriptorControl, &SecurityDescriptorRevision))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    if (SecurityDescriptorControl & SE_SELF_RELATIVE)
+    {
+        SelfRelativeSecurityDescriptorSize = GetSecurityDescriptorLength(SecurityDescriptor);
+        Success =
+            (SelfRelativeSecurityDescriptor = Malloc(SelfRelativeSecurityDescriptorSize)) &&
+            memcpy(SelfRelativeSecurityDescriptor, SecurityDescriptor, SelfRelativeSecurityDescriptorSize);
+    }
+    else
+    {
+        SelfRelativeSecurityDescriptorSize = 0;
+        Success =
+            (MakeSelfRelativeSD(SecurityDescriptor, 0, &SelfRelativeSecurityDescriptorSize) ||
+                ERROR_INSUFFICIENT_BUFFER == GetLastError()) &&
+            (SelfRelativeSecurityDescriptor = Malloc(SelfRelativeSecurityDescriptorSize)) &&
+            (MakeSelfRelativeSD(SecurityDescriptor, SelfRelativeSecurityDescriptor, &SelfRelativeSecurityDescriptorSize));
+    }
     if (!Success)
     {
         Result = FspNtStatusFromWin32(GetLastError());
