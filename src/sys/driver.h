@@ -33,7 +33,7 @@
 #if DBG
 #define FSP_DEBUGLOG_(fmt, rfmt, ...)   \
     DbgPrint(AbnormalTermination() ?    \
-        "[%d] " DRIVER_NAME "!" __FUNCTION__ "(" fmt ") = !AbnormalTermination\n" :\
+        "[%d] " DRIVER_NAME "!" __FUNCTION__ "(" fmt ") = *AbnormalTermination*\n" :\
         "[%d] " DRIVER_NAME "!" __FUNCTION__ "(" fmt ")" rfmt "\n",\
         KeGetCurrentIrql(), __VA_ARGS__)
 #define FSP_DEBUGLOG_NOCRIT_(fmt, rfmt, ...)\
@@ -43,7 +43,8 @@
 #define FSP_DEBUGBRK_()                 \
     do                                  \
     {                                   \
-        if (HasDbgBreakPoint(__FUNCTION__))\
+        static int fsp_bp_enabled = 1;  \
+        if (fsp_bp_enabled && HasDbgBreakPoint(__FUNCTION__))\
             try { DbgBreakPoint(); } except (EXCEPTION_EXECUTE_HANDLER) {}\
     } while (0,0)
 #else
