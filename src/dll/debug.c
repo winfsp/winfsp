@@ -7,8 +7,7 @@
 #include <dll/library.h>
 #include <stdarg.h>
 
-#if !defined(NDEBUG)
-VOID FspDebugLog(const char *format, ...)
+FSP_API VOID FspDebugLog(const char *format, ...)
 {
     char buf[512];
     va_list ap;
@@ -17,4 +16,3 @@ VOID FspDebugLog(const char *format, ...)
     va_end(ap);
     OutputDebugStringA(buf);
 }
-#endif

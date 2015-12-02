@@ -6,7 +6,7 @@
 
 #include <dll/library.h>
 
-NTSTATUS FspNtStatusFromWin32(DWORD Error)
+FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error)
 {
     switch (Error)
     {

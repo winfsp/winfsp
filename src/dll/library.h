@@ -22,9 +22,4 @@
 #define DEBUGLOG(fmt, ...)              ((void)0)
 #endif
 
-/* debug */
-#if !defined(NDEBUG)
-VOID FspDebugLog(const char *format, ...);
-#endif
-
 #endif

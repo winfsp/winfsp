@@ -19,6 +19,7 @@
 #define FSP_API                         __declspec(dllimport)
 #endif
 
-NTSTATUS FspNtStatusFromWin32(DWORD Error);
+FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error);
+FSP_API VOID FspDebugLog(const char *format, ...);
 
 #endif
