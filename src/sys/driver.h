@@ -261,6 +261,7 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
+    ULONG FsvrtDeviceObjectCount;
 } FSP_FSCTL_DEVICE_EXTENSION;
 typedef struct
 {
@@ -311,6 +312,8 @@ NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
+VOID FspFsctlDeviceVolumeCreated(PDEVICE_OBJECT DeviceObject);
+VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject);
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(

@@ -116,10 +116,6 @@ NTSTATUS DriverEntry(
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access FastIoDispatch")
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
-    /* register our device objects as file systems */
-    IoRegisterFileSystem(FspFsctlDiskDeviceObject);
-    IoRegisterFileSystem(FspFsctlNetDeviceObject);
-
 #pragma prefast(suppress:28175, "We are in DriverEntry: ok to access DriverName")
     FSP_LEAVE("DriverName=\"%wZ\", RegistryPath=\"%wZ\"",
         &DriverObject->DriverName, RegistryPath);

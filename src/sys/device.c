@@ -22,6 +22,8 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
+VOID FspFsctlDeviceVolumeCreated(PDEVICE_OBJECT DeviceObject);
+VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject);
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
@@ -38,6 +40,8 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvrtDeviceFini)
 #pragma alloc_text(PAGE, FspFsvolDeviceInit)
 #pragma alloc_text(PAGE, FspFsvolDeviceFini)
+#pragma alloc_text(PAGE, FspFsctlDeviceVolumeCreated)
+#pragma alloc_text(PAGE, FspFsctlDeviceVolumeDeleted)
 #pragma alloc_text(PAGE, FspDeviceCopyList)
 #pragma alloc_text(PAGE, FspDeviceDeleteList)
 #pragma alloc_text(PAGE, FspDeviceDeleteAll)
@@ -241,6 +245,30 @@ VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject)
         FspDeviceDelete(DeviceObject);
 }
 
+VOID FspFsctlDeviceVolumeCreated(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    ASSERT(FspFsctlDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind);
+    ASSERT(ExIsResourceAcquiredExclusiveLite(&FspDeviceExtension(DeviceObject)->Resource));
+
+    ULONG FsvrtDeviceObjectCount = FspFsctlDeviceExtension(DeviceObject)->FsvrtDeviceObjectCount++;
+    if (0 == FsvrtDeviceObjectCount)
+        IoRegisterFileSystem(DeviceObject);
+}
+
+VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    ASSERT(FspFsctlDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind);
+    ASSERT(ExIsResourceAcquiredExclusiveLite(&FspDeviceExtension(DeviceObject)->Resource));
+
+    ULONG FsvrtDeviceObjectCount = --FspFsctlDeviceExtension(DeviceObject)->FsvrtDeviceObjectCount;
+    if (0 == FsvrtDeviceObjectCount)
+        IoUnregisterFileSystem(DeviceObject);
+}
+
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount)
 {
@@ -250,7 +278,7 @@ NTSTATUS FspDeviceCopyList(
     ULONG DeviceObjectCount = 0;
 
     while (STATUS_BUFFER_TOO_SMALL == IoEnumerateDeviceObjectList(FspDriverObject,
-        DeviceObjects, DeviceObjectCount, &DeviceObjectCount))
+        DeviceObjects, sizeof *DeviceObjects * DeviceObjectCount, &DeviceObjectCount))
     {
         if (0 != DeviceObjects)
             ExFreePoolWithTag(DeviceObjects, FSP_TAG);

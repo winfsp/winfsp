@@ -133,7 +133,7 @@ static NTSTATUS FspFsctlCreateVolume(
         return STATUS_INSUFFICIENT_RESOURCES;
     RtlCopyMemory(SecurityDescriptorBuf, SecurityDescriptor, SecurityDescriptorSize);
 
-    /* create the virtual volume device */
+    /* prepare the device name and SDDL */
     PDEVICE_OBJECT FsvrtDeviceObject;
     UNICODE_STRING DeviceSddl;
     UNICODE_STRING DeviceName;
@@ -145,21 +145,33 @@ static NTSTATUS FspFsctlCreateVolume(
         Guid.Data4[0], Guid.Data4[1], Guid.Data4[2], Guid.Data4[3],
         Guid.Data4[4], Guid.Data4[5], Guid.Data4[6], Guid.Data4[7]);
     ASSERT(NT_SUCCESS(Result));
-    Result = FspDeviceCreateSecure(FspFsvrtDeviceExtensionKind, SecurityDescriptorSize,
-        &DeviceName, FILE_DEVICE_VIRTUAL_DISK,
-        &DeviceSddl, &FspFsvrtDeviceClassGuid,
-        &FsvrtDeviceObject);
-    if (NT_SUCCESS(Result))
+
+    /* create the virtual volume device */
+    FSP_FSCTL_DEVICE_EXTENSION *FsctlDeviceExtension = FspFsctlDeviceExtension(DeviceObject);
+    ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Base.Resource, TRUE);
+    try
     {
+        Result = FspDeviceCreateSecure(FspFsvrtDeviceExtensionKind, SecurityDescriptorSize,
+            &DeviceName, FILE_DEVICE_VIRTUAL_DISK,
+            &DeviceSddl, &FspFsvrtDeviceClassGuid,
+            &FsvrtDeviceObject);
+        if (NT_SUCCESS(Result))
+        {
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
-        FsvrtDeviceObject->SectorSize = Params.SectorSize;
-        FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
-        FsvrtDeviceExtension->FsctlDeviceObject = DeviceObject;
-        FsvrtDeviceExtension->VolumeParams = Params;
-        RtlCopyMemory(FsvrtDeviceExtension->SecurityDescriptorBuf,
-            SecurityDescriptorBuf, SecurityDescriptorSize);
-        ClearFlag(FsvrtDeviceObject->Flags, DO_DEVICE_INITIALIZING);
-        Irp->IoStatus.Information = DeviceName.Length + sizeof(WCHAR);
+            FsvrtDeviceObject->SectorSize = Params.SectorSize;
+            FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
+            FsvrtDeviceExtension->FsctlDeviceObject = DeviceObject;
+            FsvrtDeviceExtension->VolumeParams = Params;
+            RtlCopyMemory(FsvrtDeviceExtension->SecurityDescriptorBuf,
+                SecurityDescriptorBuf, SecurityDescriptorSize);
+            ClearFlag(FsvrtDeviceObject->Flags, DO_DEVICE_INITIALIZING);
+            Irp->IoStatus.Information = DeviceName.Length + sizeof(WCHAR);
+            FspFsctlDeviceVolumeCreated(DeviceObject);
+        }
+    }
+    finally
+    {
+        ExReleaseResourceLite(&FsctlDeviceExtension->Base.Resource);
     }
 
     /* free the temporary security descriptor */
@@ -292,11 +304,14 @@ static NTSTATUS FspFsvrtDeleteVolume(
 #pragma prefast(pop)
 
         /* release the file system device and virtual volume objects */
+        PDEVICE_OBJECT FsctlDeviceObject = FsvrtDeviceExtension->FsctlDeviceObject;
         PDEVICE_OBJECT FsvolDeviceObject = FsvrtDeviceExtension->FsvolDeviceObject;
         FsvrtDeviceExtension->FsvolDeviceObject = 0;
         if (0 != FsvolDeviceObject)
             FspDeviceRelease(FsvolDeviceObject);
         FspDeviceRelease(DeviceObject);
+
+        FspFsctlDeviceVolumeDeleted(FsctlDeviceObject);
 
         Result = STATUS_SUCCESS;
 
