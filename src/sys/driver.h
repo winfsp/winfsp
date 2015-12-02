@@ -117,7 +117,7 @@
                 {                       \
                     /* this can only happen if the Ioq was stopped */\
                     ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));\
-                    FspIopCompleteRequest(Irp, STATUS_ACCESS_DENIED);\
+                    FspIopCompleteRequest(Irp, Result = STATUS_CANCELLED);\
                 }                       \
             }                           \
         }                               \

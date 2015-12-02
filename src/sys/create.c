@@ -48,8 +48,56 @@ static NTSTATUS FspFsvolCreate(
 {
     PAGED_CODE();
 
-    /* !!!: DEVELOPMENT HACK! */
-    return STATUS_CANCELLED;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
+        FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
+
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    PFILE_OBJECT RelatedFileObject = FileObject->RelatedFileObject;
+    UNICODE_STRING FileName = FileObject->FileName;
+    ULONG Flags = IrpSp->Flags;
+    KPROCESSOR_MODE RequestorMode = FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
+    PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
+    ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
+    USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
+    ULONG CreateDisposition = IrpSp->Parameters.Create.Options >> 24;
+    ULONG CreateOptions = IrpSp->Parameters.Create.Options & 0xffffff;
+    USHORT FileAttributes = IrpSp->Parameters.Create.FileAttributes;
+    LARGE_INTEGER AllocationSize = Irp->Overlay.AllocationSize;
+    PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG EaLength = IrpSp->Parameters.Create.EaLength;
+    BOOLEAN HasTraversePrivilege = BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
+
+    /* cannot open the volume object */
+    if (0 == RelatedFileObject && 0 == FileName.Length)
+        return STATUS_ACCESS_DENIED; // need error code like UNIX EPERM (STATUS_NOT_SUPPORTED?)
+
+    /* cannot open paging file */
+    if (FlagOn(Flags, SL_OPEN_PAGING_FILE))
+        return STATUS_ACCESS_DENIED;
+
+    /* cannot open files by fileid */
+    if (FlagOn(CreateOptions, FILE_OPEN_BY_FILE_ID))
+        return STATUS_NOT_IMPLEMENTED;
+
+    /* do we support EA? */
+    if (0 != EaBuffer && !FsvrtDeviceExtension->VolumeParams.EaSupported)
+        return STATUS_EAS_NOT_SUPPORTED;
+
+    /* according to fastfat, filenames that begin with two backslashes are ok */
+    if (sizeof(WCHAR) * 2 <= FileName.Length &&
+        L'\\' == FileName.Buffer[1] && L'\\' == FileName.Buffer[0])
+    {
+        FileName.Length -= sizeof(WCHAR);
+        FileName.MaximumLength -= sizeof(WCHAR);
+        FileName.Buffer++;
+
+        if (sizeof(WCHAR) * 2 <= FileName.Length &&
+            L'\\' == FileName.Buffer[1] && L'\\' == FileName.Buffer[0])
+            return STATUS_OBJECT_NAME_INVALID;
+    }
+
+    return STATUS_PENDING;
 }
 
 NTSTATUS FspCreate(

@@ -52,6 +52,7 @@ typedef struct
     UINT16 Version;
     UINT16 SectorSize;
     UINT32 SerialNumber;
+    BOOLEAN EaSupported;
 } FSP_FSCTL_VOLUME_PARAMS;
 typedef struct
 {
