@@ -52,7 +52,7 @@ static NTSTATUS CreateSelfRelativeSecurityDescriptor(PSECURITY_DESCRIPTOR Securi
             (AclSize = sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE) + GetLengthSid(User->User.Sid) - sizeof(DWORD)) &&
             (Acl = Malloc(AclSize)) &&
             InitializeAcl(Acl, AclSize, ACL_REVISION) &&
-            AddAccessAllowedAce(Acl, ACL_REVISION, GENERIC_ALL, User->User.Sid) &&
+            AddAccessAllowedAce(Acl, ACL_REVISION, FILE_ALL_ACCESS, User->User.Sid) &&
             InitializeSecurityDescriptor(&SecurityDescriptorStruct, SECURITY_DESCRIPTOR_REVISION) &&
             SetSecurityDescriptorDacl(&SecurityDescriptorStruct, TRUE, Acl, FALSE) &&
             SetSecurityDescriptorControl(&SecurityDescriptorStruct, SE_DACL_PROTECTED, SE_DACL_PROTECTED);
