@@ -6,7 +6,8 @@
 
 #include <sys/driver.h>
 
-NTSTATUS FspIopCreateRequest(PIRP Irp, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest);
+NTSTATUS FspIopCreateRequest(
+    PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 #ifdef ALLOC_PRAGMA
@@ -14,20 +15,29 @@ VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 #pragma alloc_text(PAGE, FspIopDispatchComplete)
 #endif
 
-NTSTATUS FspIopCreateRequest(PIRP Irp, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest)
+NTSTATUS FspIopCreateRequest(
+    PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest)
 {
     PAGED_CODE();
 
     *PRequest = 0;
+
+    if (0 != FileName)
+        ExtraSize += FileName->Length + sizeof(WCHAR);
 
     FSP_FSCTL_TRANSACT_REQ *Request = ExAllocatePoolWithTag(PagedPool,
         sizeof *Request + ExtraSize, FSP_TAG);
     if (0 == Request)
         return STATUS_INSUFFICIENT_RESOURCES;
 
-    RtlZeroMemory(Request, sizeof *Request + ExtraSize);
+    RtlZeroMemory(Request, sizeof *Request);
     Request->Size = (UINT16)(sizeof *Request + ExtraSize);
     Request->Hint = (UINT_PTR)Irp;
+    if (0 != FileName)
+    {
+        memcpy(Request->FileName, FileName->Buffer, FileName->Length);
+        Request->FileName[FileName->Length / 2] = L'\0';
+    }
 
     Irp->Tail.Overlay.DriverContext[0] = Request;
     *PRequest = Request;

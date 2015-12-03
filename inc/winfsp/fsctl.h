@@ -52,7 +52,8 @@ typedef struct
     UINT16 Version;
     UINT16 SectorSize;
     UINT32 SerialNumber;
-    BOOLEAN EaSupported;
+    BOOLEAN EaSupported;                /* supports extended attributes (unimplemented; set to 0) */
+    BOOLEAN FileNameRequired;           /* FileName required for all operations (not just Create) */
 } FSP_FSCTL_VOLUME_PARAMS;
 typedef struct
 {
@@ -65,9 +66,9 @@ typedef struct
         struct
         {
             UINT8 Placeholder;
-            WCHAR FileName[];
         } Create;
     } Req;
+    WCHAR FileName[];
 } FSP_FSCTL_TRANSACT_REQ;
 typedef struct
 {

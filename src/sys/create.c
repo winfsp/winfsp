@@ -166,7 +166,7 @@ static NTSTATUS FspFsvolCreate(
      */
 
     /* create the user-mode file system request */
-    Result = FspIopCreateRequest(Irp, FsContext->FileName.Length, &Request);
+    Result = FspIopCreateRequest(Irp, &FsContext->FileName, 0, &Request);
     if (!NT_SUCCESS(Result))
     {
         FspFileContextDelete(FsContext);

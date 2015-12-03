@@ -36,7 +36,7 @@ NTSTATUS FspFileContextCreate(ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext)
     RtlZeroMemory(NonPaged, sizeof *NonPaged);
     ExInitializeFastMutex(&NonPaged->HeaderFastMutex);
 
-    RtlZeroMemory(FsContext, sizeof *FsContext + ExtraSize);
+    RtlZeroMemory(FsContext, sizeof *FsContext);
     FsRtlSetupAdvancedHeader(&FsContext->Header, &NonPaged->HeaderFastMutex);
     FsContext->NonPaged = NonPaged;
     RtlInitEmptyUnicodeString(&FsContext->FileName, FsContext->FileNameBuf, (USHORT)ExtraSize);
