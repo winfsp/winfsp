@@ -330,6 +330,8 @@ VOID FspDeviceDeleteAll(VOID);
 /* file objects */
 typedef struct
 {
+    ERESOURCE Resource;
+    ERESOURCE PagingIoResource;
     FAST_MUTEX HeaderFastMutex;
 } FSP_FILE_CONTEXT_NONPAGED;
 typedef struct

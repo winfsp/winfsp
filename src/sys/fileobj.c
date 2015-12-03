@@ -34,9 +34,16 @@ NTSTATUS FspFileContextCreate(ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext)
     }
 
     RtlZeroMemory(NonPaged, sizeof *NonPaged);
+    ExInitializeResourceLite(&NonPaged->Resource);
+    ExInitializeResourceLite(&NonPaged->PagingIoResource);
     ExInitializeFastMutex(&NonPaged->HeaderFastMutex);
 
     RtlZeroMemory(FsContext, sizeof *FsContext);
+    FsContext->Header.NodeTypeCode = 'F';
+    FsContext->Header.NodeByteSize = sizeof *FsContext;
+    FsContext->Header.IsFastIoPossible = FastIoIsQuestionable;
+    FsContext->Header.Resource = &NonPaged->Resource;
+    FsContext->Header.PagingIoResource = &NonPaged->PagingIoResource;
     FsRtlSetupAdvancedHeader(&FsContext->Header, &NonPaged->HeaderFastMutex);
     FsContext->NonPaged = NonPaged;
     RtlInitEmptyUnicodeString(&FsContext->FileName, FsContext->FileNameBuf, (USHORT)ExtraSize);
