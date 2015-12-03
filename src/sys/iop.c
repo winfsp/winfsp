@@ -35,7 +35,7 @@ NTSTATUS FspIopCreateRequest(
     Request->Hint = (UINT_PTR)Irp;
     if (0 != FileName)
     {
-        memcpy(Request->FileName, FileName->Buffer, FileName->Length);
+        RtlCopyMemory(Request->FileName, FileName->Buffer, FileName->Length);
         Request->FileName[FileName->Length / 2] = L'\0';
     }
 
