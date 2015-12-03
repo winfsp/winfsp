@@ -61,7 +61,7 @@ static NTSTATUS FspFsvolCreate(
     //PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
     //ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
     //USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
-    //ULONG CreateDisposition = IrpSp->Parameters.Create.Options >> 24;
+    //ULONG CreateDisposition = (IrpSp->Parameters.Create.Options >> 24) & 0xff;
     ULONG CreateOptions = IrpSp->Parameters.Create.Options & 0xffffff;
     //USHORT FileAttributes = IrpSp->Parameters.Create.FileAttributes;
     //LARGE_INTEGER AllocationSize = Irp->Overlay.AllocationSize;
