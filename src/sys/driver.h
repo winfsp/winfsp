@@ -192,7 +192,7 @@ _Dispatch_type_(IRP_MJ_SET_VOLUME_INFORMATION) FSP_DRIVER_DISPATCH FspSetVolumeI
 _Dispatch_type_(IRP_MJ_SHUTDOWN)        FSP_DRIVER_DISPATCH FspShutdown;
 _Dispatch_type_(IRP_MJ_WRITE)           FSP_DRIVER_DISPATCH FspWrite;
 
-/* I/O process functions */
+/* I/O processing functions */
 _IRQL_requires_max_(APC_LEVEL)
 _IRQL_requires_same_
 typedef VOID FSP_IOCMPL_DISPATCH(
@@ -244,6 +244,10 @@ BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, ULONG millis);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
+
+/* I/O processing */
+VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result);
+VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 /* device management */
 enum
@@ -321,9 +325,21 @@ VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
 VOID FspDeviceDeleteAll(VOID);
 
-/* I/O processing */
-VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result);
-VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+/* file objects */
+typedef struct
+{
+    FAST_MUTEX HeaderFastMutex;
+} FSP_FILE_CONTEXT_NONPAGED;
+typedef struct
+{
+    FSRTL_ADVANCED_FCB_HEADER Header;
+    FSP_FILE_CONTEXT_NONPAGED *NonPaged;
+    BOOLEAN HasTrailingBackslash;
+    UNICODE_STRING FileName;
+    WCHAR FileNameBuf[];
+} FSP_FILE_CONTEXT;
+NTSTATUS FspFileContextCreate(SIZE_T ExtraSize, FSP_FILE_CONTEXT **PContext);
+VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
 
 /* misc */
 NTSTATUS FspCreateGuid(GUID *Guid);

@@ -48,6 +48,7 @@ static NTSTATUS FspFsvolCreate(
 {
     PAGED_CODE();
 
+    NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
         FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
@@ -67,12 +68,14 @@ static NTSTATUS FspFsvolCreate(
     PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
     ULONG EaLength = IrpSp->Parameters.Create.EaLength;
     BOOLEAN HasTraversePrivilege = BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
+    BOOLEAN HasTrailingBackslash = FALSE;
+    FSP_FILE_CONTEXT *FsContext = 0;
 
     /* cannot open the volume object */
     if (0 == RelatedFileObject && 0 == FileName.Length)
-        return STATUS_ACCESS_DENIED; // need error code like UNIX EPERM (STATUS_NOT_SUPPORTED?)
+        return STATUS_ACCESS_DENIED; /* need error code like UNIX EPERM (STATUS_NOT_SUPPORTED?) */
 
-    /* cannot open paging file */
+    /* cannot open a paging file */
     if (FlagOn(Flags, SL_OPEN_PAGING_FILE))
         return STATUS_ACCESS_DENIED;
 
@@ -96,6 +99,66 @@ static NTSTATUS FspFsvolCreate(
             L'\\' == FileName.Buffer[1] && L'\\' == FileName.Buffer[0])
             return STATUS_OBJECT_NAME_INVALID;
     }
+
+    /* check for trailing backslash */
+    if (sizeof(WCHAR) * 2/* root can have trailing backslash */ <= FileName.Length &&
+        L'\\' == FileName.Buffer[FileName.Length / 2 - 1])
+    {
+        FileName.Length -= sizeof(WCHAR);
+        HasTrailingBackslash = TRUE;
+
+        if (sizeof(WCHAR) * 2 <= FileName.Length && L'\\' == FileName.Buffer[FileName.Length / 2 - 1])
+            return STATUS_OBJECT_NAME_INVALID;
+    }
+
+    /* is this a relative or absolute open? */
+    if (0 != RelatedFileObject)
+    {
+        /* must be a relative path */
+        if (sizeof(WCHAR) <= FileName.Length && L'\\' == FileName.Buffer[0])
+            return STATUS_OBJECT_NAME_INVALID;
+
+        FSP_FILE_CONTEXT *RelatedFsContext = RelatedFileObject->FsContext;
+        ASSERT(0 != RelatedFsContext);
+
+        /*
+         * There is no need to lock our accesses of RelatedFileObject->FsContext->FileName,
+         * because RelatedFileObject->FsContext->Filename is read-only (after creation) and
+         * because RelatedFileObject->FsContext is guaranteed to exist while RelatedFileObject
+         * exists.
+         */
+        Result = FspFileContextCreate(
+            RelatedFsContext->FileName.Length + sizeof(WCHAR)/* backslash */ + FileName.Length,
+            &FsContext);
+        if (!NT_SUCCESS(Result))
+            return Result;
+
+        Result = RtlAppendUnicodeStringToString(&FsContext->FileName, &RelatedFsContext->FileName);
+        ASSERT(NT_SUCCESS(Result));
+        if (HasTrailingBackslash)
+        {
+            Result = RtlAppendUnicodeToString(&FsContext->FileName, L"\\");
+            ASSERT(NT_SUCCESS(Result));
+        }
+        Result = RtlAppendUnicodeStringToString(&FsContext->FileName, &FileName);
+        ASSERT(NT_SUCCESS(Result));
+    }
+    else
+    {
+        /* absolute open */
+        Result = FspFileContextCreate(
+            FileName.Length,
+            &FsContext);
+        if (!NT_SUCCESS(Result))
+            return Result;
+
+        Result = RtlAppendUnicodeStringToString(&FsContext->FileName, &FileName);
+        ASSERT(NT_SUCCESS(Result));
+    }
+
+    /*
+     * From this point forward we MUST remember to delete the FsContext on error.
+     */
 
     return STATUS_PENDING;
 }

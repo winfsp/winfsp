@@ -62,7 +62,11 @@ typedef struct
     UINT8 Kind;
     union
     {
-        UINT8 Placeholder; // !!!: REMOVE
+        struct
+        {
+            UINT8 Placeholder;
+            WCHAR FileName[];
+        } Create;
     } Req;
 } FSP_FSCTL_TRANSACT_REQ;
 typedef struct
