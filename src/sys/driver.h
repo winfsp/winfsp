@@ -334,7 +334,6 @@ typedef struct
 {
     FSRTL_ADVANCED_FCB_HEADER Header;
     FSP_FILE_CONTEXT_NONPAGED *NonPaged;
-    BOOLEAN HasTrailingBackslash;
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
 } FSP_FILE_CONTEXT;

@@ -73,7 +73,7 @@ static NTSTATUS FspFsvolCreate(
 
     /* cannot open the volume object */
     if (0 == RelatedFileObject && 0 == FileName.Length)
-        return STATUS_ACCESS_DENIED; /* need error code like UNIX EPERM (STATUS_NOT_SUPPORTED?) */
+        return STATUS_ACCESS_DENIED; /* need error code like POSIX EPERM (STATUS_NOT_SUPPORTED?) */
 
     /* cannot open a paging file */
     if (FlagOn(Flags, SL_OPEN_PAGING_FILE))
@@ -101,7 +101,7 @@ static NTSTATUS FspFsvolCreate(
     }
 
     /* check for trailing backslash */
-    if (sizeof(WCHAR) * 2/* root can have trailing backslash */ <= FileName.Length &&
+    if (sizeof(WCHAR) * 2/* not empty or root */ <= FileName.Length &&
         L'\\' == FileName.Buffer[FileName.Length / 2 - 1])
     {
         FileName.Length -= sizeof(WCHAR);
@@ -127,34 +127,38 @@ static NTSTATUS FspFsvolCreate(
          * because RelatedFileObject->FsContext is guaranteed to exist while RelatedFileObject
          * exists.
          */
+        BOOLEAN AppendBackslash =
+            sizeof(WCHAR) * 2/* not empty or root */ <= RelatedFsContext->FileName.Length &&
+            sizeof(WCHAR) <= FileName.Length && L':' != FileName.Buffer[0];
         Result = FspFileContextCreate(
-            RelatedFsContext->FileName.Length + sizeof(WCHAR)/* backslash */ + FileName.Length,
+            RelatedFsContext->FileName.Length + AppendBackslash * sizeof(WCHAR) + FileName.Length,
             &FsContext);
         if (!NT_SUCCESS(Result))
             return Result;
 
         Result = RtlAppendUnicodeStringToString(&FsContext->FileName, &RelatedFsContext->FileName);
         ASSERT(NT_SUCCESS(Result));
-        if (HasTrailingBackslash)
+        if (AppendBackslash)
         {
             Result = RtlAppendUnicodeToString(&FsContext->FileName, L"\\");
             ASSERT(NT_SUCCESS(Result));
         }
-        Result = RtlAppendUnicodeStringToString(&FsContext->FileName, &FileName);
-        ASSERT(NT_SUCCESS(Result));
     }
     else
     {
-        /* absolute open */
+        /* must be an absolute path */
+        if (sizeof(WCHAR) <= FileName.Length && L'\\' != FileName.Buffer[0])
+            return STATUS_OBJECT_NAME_INVALID;
+
         Result = FspFileContextCreate(
             FileName.Length,
             &FsContext);
         if (!NT_SUCCESS(Result))
             return Result;
-
-        Result = RtlAppendUnicodeStringToString(&FsContext->FileName, &FileName);
-        ASSERT(NT_SUCCESS(Result));
     }
+
+    Result = RtlAppendUnicodeStringToString(&FsContext->FileName, &FileName);
+    ASSERT(NT_SUCCESS(Result));
 
     /*
      * From this point forward we MUST remember to delete the FsContext on error.
