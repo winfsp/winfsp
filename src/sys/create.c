@@ -70,6 +70,7 @@ static NTSTATUS FspFsvolCreate(
     BOOLEAN HasTraversePrivilege = BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
     BOOLEAN HasTrailingBackslash = FALSE;
     FSP_FILE_CONTEXT *FsContext = 0;
+    FSP_FSCTL_TRANSACT_REQ *Request;
 
     /* cannot open the volume object */
     if (0 == RelatedFileObject && 0 == FileName.Length)
@@ -163,6 +164,28 @@ static NTSTATUS FspFsvolCreate(
     /*
      * From this point forward we MUST remember to delete the FsContext on error.
      */
+
+    /* create the user-mode file system request */
+    Result = FspIopCreateRequest(Irp, FsContext->FileName.Length, &Request);
+    if (!NT_SUCCESS(Result))
+    {
+        FspFileContextDelete(FsContext);
+        return Result;
+    }
+
+    /* !!!: populate the request */
+
+    /*
+     * Post the IRP to our Ioq; we do this here instead of at FSP_LEAVE_MJ time,
+     * so that we can FspFileContextDelete() on failure.
+     */
+    if (!FspIoqPostIrp(&FsvrtDeviceExtension->Ioq, Irp))
+    {
+        /* this can only happen if the Ioq was stopped */
+        ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));
+        FspFileContextDelete(FsContext);
+        return STATUS_CANCELLED;
+    }
 
     return STATUS_PENDING;
 }

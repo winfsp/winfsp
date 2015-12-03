@@ -6,7 +6,7 @@
 
 #include <sys/driver.h>
 
-NTSTATUS FspFileContextCreate(SIZE_T ExtraSize, FSP_FILE_CONTEXT **PContext);
+NTSTATUS FspFileContextCreate(ULONG ExtraSize, FSP_FILE_CONTEXT **PContext);
 VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
 
 #ifdef ALLOC_PRAGMA
@@ -14,7 +14,7 @@ VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
 #pragma alloc_text(PAGE, FspFileContextDelete)
 #endif
 
-NTSTATUS FspFileContextCreate(SIZE_T ExtraSize, FSP_FILE_CONTEXT **PFsContext)
+NTSTATUS FspFileContextCreate(ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext)
 {
     PAGED_CODE();
 

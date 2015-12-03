@@ -246,6 +246,7 @@ BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 
 /* I/O processing */
+NTSTATUS FspIopCreateRequest(PIRP Irp, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest);
 VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
@@ -337,7 +338,7 @@ typedef struct
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
 } FSP_FILE_CONTEXT;
-NTSTATUS FspFileContextCreate(SIZE_T ExtraSize, FSP_FILE_CONTEXT **PContext);
+NTSTATUS FspFileContextCreate(ULONG ExtraSize, FSP_FILE_CONTEXT **PContext);
 VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
 
 /* misc */
