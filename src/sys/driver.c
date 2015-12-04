@@ -63,10 +63,10 @@ NTSTATUS DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_SET_SECURITY] = FspSetSecurity;
 
     /* setup the I/O preparation functions */
-    FspIopPrepareFunction[IRP_MJ_CREATE] = FspCreatePrepare;
+    FspIopPrepareFunction[IRP_MJ_CREATE] = FspFsvolCreatePrepare;
 
     /* setup the I/O completion functions */
-    FspIopCompleteFunction[IRP_MJ_CREATE] = FspCreateComplete;
+    FspIopCompleteFunction[IRP_MJ_CREATE] = FspFsvolCreateComplete;
     FspIopCompleteFunction[IRP_MJ_CLOSE] = FspCloseComplete;
     FspIopCompleteFunction[IRP_MJ_READ] = FspReadComplete;
     FspIopCompleteFunction[IRP_MJ_WRITE] = FspWriteComplete;

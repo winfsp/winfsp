@@ -12,17 +12,17 @@ static NTSTATUS FspFsvrtCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
+FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
 FSP_DRIVER_DISPATCH FspCreate;
-FSP_IOPREP_DISPATCH FspCreatePrepare;
-FSP_IOCMPL_DISPATCH FspCreateComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlCreate)
 #pragma alloc_text(PAGE, FspFsvrtCreate)
 #pragma alloc_text(PAGE, FspFsvolCreate)
+#pragma alloc_text(PAGE, FspFsvolCreatePrepare)
+#pragma alloc_text(PAGE, FspFsvolCreateComplete)
 #pragma alloc_text(PAGE, FspCreate)
-#pragma alloc_text(PAGE, FspCreatePrepare)
-#pragma alloc_text(PAGE, FspCreateComplete)
 #endif
 
 static NTSTATUS FspFsctlCreate(
@@ -277,7 +277,7 @@ static NTSTATUS FspFsvolCreate(
         {
             Result = ObOpenObjectByPointer(
                 SeQuerySubjectContextToken(&AccessState->SubjectSecurityContext),
-                OBJ_KERNEL_HANDLE, 0, TOKEN_QUERY, 0, KernelMode, &AccessToken);
+                OBJ_KERNEL_HANDLE, 0, 0, *SeTokenObjectType, KernelMode, &AccessToken);
             if (!NT_SUCCESS(Result))
             {
                 FspFileContextDelete(FsContext);
@@ -285,6 +285,7 @@ static NTSTATUS FspFsvolCreate(
             }
 
             /* send the kernel handle and change it into a process handle at prepare time */
+            Irp->Tail.Overlay.DriverContext[1] = AccessToken;
             Request->Req.Create.AccessToken = (UINT_PTR)AccessToken;
         }
 
@@ -309,6 +310,52 @@ static NTSTATUS FspFsvolCreate(
     }
 
     return STATUS_PENDING;
+}
+
+NTSTATUS FspFsvolCreatePrepare(
+    PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    FSP_ENTER_IOP(PAGED_CODE());
+
+    HANDLE KernelModeAccessToken = (HANDLE)Request->Req.Create.AccessToken;
+    HANDLE UserModeAccessToken;
+    PACCESS_TOKEN AccessToken;
+
+    if (0 == KernelModeAccessToken)
+        FSP_RETURN(Result = STATUS_SUCCESS);
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(IrpSp->DeviceObject);
+    ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
+
+    Request->Req.Create.AccessToken = 0;
+    Irp->Tail.Overlay.DriverContext[1] = 0;
+
+    Result = ObReferenceObjectByHandle(KernelModeAccessToken,
+        0, *SeTokenObjectType, KernelMode, &AccessToken, 0);
+    ObCloseHandle(KernelModeAccessToken, KernelMode);
+    if (!NT_SUCCESS(Result))
+        FSP_RETURN();
+
+    Result = ObOpenObjectByPointer(AccessToken,
+        0, 0, TOKEN_QUERY, *SeTokenObjectType, UserMode, &UserModeAccessToken);
+    ObDereferenceObject(AccessToken);
+    if (!NT_SUCCESS(Result))
+        FSP_RETURN();
+
+    Irp->Tail.Overlay.DriverContext[1] = UserModeAccessToken;
+    Request->Req.Create.AccessToken = (UINT_PTR)UserModeAccessToken;
+
+    FSP_LEAVE_IOP();
+}
+
+VOID FspFsvolCreateComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC(
+        "FileObject=%p[%p:\"%wZ\"]",
+        IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName);
 }
 
 NTSTATUS FspCreate(
@@ -347,22 +394,4 @@ NTSTATUS FspCreate(
         IrpSp->Parameters.Create.FileAttributes,
         Irp->Overlay.AllocationSize.HighPart, Irp->Overlay.AllocationSize.LowPart,
         Irp->AssociatedIrp.SystemBuffer, IrpSp->Parameters.Create.EaLength);
-}
-
-NTSTATUS FspCreatePrepare(
-    PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
-{
-    PAGED_CODE();
-
-    return STATUS_SUCCESS;
-}
-
-VOID FspCreateComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC(
-        "FileObject=%p[%p:\"%wZ\"]",
-        IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName);
 }

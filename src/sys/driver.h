@@ -127,6 +127,12 @@
             FspIopCompleteRequestEx(Irp, Result, fsp_device_release);\
     );                                  \
     return Result
+#define FSP_ENTER_IOP(...)              \
+    NTSTATUS Result = STATUS_SUCCESS;   \
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (VOID)IrpSp;\
+    FSP_ENTER_NOCRIT_(__VA_ARGS__)
+#define FSP_LEAVE_IOP()                 \
+    FSP_LEAVE_NOCRIT_(); return Result
 #define FSP_ENTER_IOC(...)              \
     NTSTATUS Result = STATUS_SUCCESS;   \
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (VOID)IrpSp;\
@@ -203,10 +209,10 @@ _IRQL_requires_max_(APC_LEVEL)
 _IRQL_requires_same_
 typedef VOID FSP_IOCMPL_DISPATCH(
     _Inout_ PIRP Irp, _In_ const FSP_FSCTL_TRANSACT_RSP *Response);
-FSP_IOPREP_DISPATCH FspCreatePrepare;
+FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspCleanupComplete;
 FSP_IOCMPL_DISPATCH FspCloseComplete;
-FSP_IOCMPL_DISPATCH FspCreateComplete;
+FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
 FSP_IOCMPL_DISPATCH FspDeviceControlComplete;
 FSP_IOCMPL_DISPATCH FspDirectoryControlComplete;
 FSP_IOCMPL_DISPATCH FspFileSystemControlComplete;

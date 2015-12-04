@@ -65,6 +65,20 @@ VOID FspIopCompleteRequestEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
         Irp->Tail.Overlay.DriverContext[0] = 0;
     }
 
+    if (0 != Irp->Tail.Overlay.DriverContext[1])
+    {
+#if DBG
+        NTSTATUS Result0;
+        Result0 = ObCloseHandle(Irp->Tail.Overlay.DriverContext[1], KernelMode);
+        if (!NT_SUCCESS(Result0))
+            DEBUGLOG("ObCloseHandle() = %s", NtStatusSym(Result0));
+#else
+        ObCloseHandle(Irp->Tail.Overlay.DriverContext[1], KernelMode);
+#endif
+
+        Irp->Tail.Overlay.DriverContext[1] = 0;
+    }
+
     PDEVICE_OBJECT DeviceObject = IoGetCurrentIrpStackLocation(Irp)->DeviceObject;
 
     if (!NT_SUCCESS(Result))
