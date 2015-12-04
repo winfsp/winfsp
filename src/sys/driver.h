@@ -83,6 +83,7 @@
 #define FSP_ENTER_MJ(...)               \
     NTSTATUS Result = STATUS_SUCCESS;   \
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);\
+    BOOLEAN fsp_device_release = FALSE; \
     FSP_ENTER_(__VA_ARGS__);            \
     do                                  \
     {                                   \
@@ -91,6 +92,7 @@
             Result = STATUS_CANCELLED;  \
             goto fsp_leave_label;       \
         }                               \
+        fsp_device_release = TRUE;      \
     } while (0,0)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(                         \
@@ -122,7 +124,7 @@
             }                           \
         }                               \
         else                            \
-            FspIopCompleteRequest(Irp, Result);\
+            FspIopCompleteRequestEx(Irp, Result, fsp_device_release);\
     );                                  \
     return Result
 #define FSP_ENTER_IOC(...)              \
@@ -248,7 +250,11 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 /* I/O processing */
 NTSTATUS FspIopCreateRequest(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest);
-VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result);
+VOID FspIopCompleteRequestEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease);
+static inline VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result)
+{
+    FspIopCompleteRequestEx(Irp, Result, TRUE);
+}
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 /* device management */

@@ -51,7 +51,7 @@ NTSTATUS FspIopCreateRequest(
     return STATUS_SUCCESS;
 }
 
-VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result)
+VOID FspIopCompleteRequestEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
 {
     // !PAGED_CODE();
 
@@ -70,7 +70,8 @@ VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result)
     Irp->IoStatus.Status = Result;
     IoCompleteRequest(Irp, FSP_IO_INCREMENT);
 
-    FspDeviceRelease(DeviceObject);
+    if (DeviceRelease)
+        FspDeviceRelease(DeviceObject);
 }
 
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
