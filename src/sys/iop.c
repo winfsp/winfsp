@@ -30,7 +30,7 @@ NTSTATUS FspIopCreateRequest(
     if (0 == Request)
         return STATUS_INSUFFICIENT_RESOURCES;
 
-    RtlZeroMemory(Request, sizeof *Request);
+    RtlZeroMemory(Request, sizeof *Request + ExtraSize);
     Request->Size = (UINT16)(sizeof *Request + ExtraSize);
     Request->Hint = (UINT_PTR)Irp;
     if (0 != FileName)

@@ -21,8 +21,8 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 
 /* alignment macros */
 #define FSP_FSCTL_ALIGN_UP(x, s)        (((x) + ((s) - 1L)) & ~((s) - 1L))
-#define FSP_FSCTL_DEFAULT_ALIGNMENT     (16)
-#define FSP_FSCTL_DECLSPEC_ALIGN        __declspec(align(16))
+#define FSP_FSCTL_DEFAULT_ALIGNMENT     (8)
+#define FSP_FSCTL_DECLSPEC_ALIGN        __declspec(align(8))
 
 /* fsctl device codes */
 #define FSP_FSCTL_CREATE                \
@@ -47,44 +47,97 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 /* marshalling */
 #pragma warning(push)
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
+enum
+{
+    FspFsctlTransactUnknownKind = 0,
+    FspFsctlTransactCreateKind = 'C',
+    FspFsctlTransactCloseKind = 'c',
+    FspFsctlTransactReadKind = 'R',
+    FspFsctlTransactWriteKind = 'W',
+    FspFsctlTransactQueryInformationKind = 'I',
+    FspFsctlTransactSetInformationKind = 'i',
+    FspFsctlTransactQueryEaKind = 'E',
+    FspFsctlTransactSetEaKind = 'e',
+    FspFsctlTransactFlushBuffersKind = 'F',
+    FspFsctlTransactQueryVolumeInformationKind = 'V',
+    FspFsctlTransactSetVolumeInformationKind = 'v',
+    FspFsctlTransactDirectoryControlKind = 'D',
+    FspFsctlTransactFileSystemControlKind = 'K',
+    FspFsctlTransactDeviceControlKind = 'k',
+    FspFsctlTransactShutdownKind = 'd',
+    FspFsctlTransactLockControlKind = 'L',
+    FspFsctlTransactCleanupKind = 'l',
+    FspFsctlTransactQuerySecurityKind = 'S',
+    FspFsctlTransactSetSecurityKind = 's',
+};
 typedef struct
 {
     UINT16 Version;
     UINT16 SectorSize;
     UINT32 SerialNumber;
-    BOOLEAN EaSupported;                /* supports extended attributes (unimplemented; set to 0) */
-    BOOLEAN FileNameRequired;           /* FileName required for all operations (not just Create) */
+    UINT32 EaSupported:1;               /* supports extended attributes (unimplemented; set to 0) */
+    UINT32 FileNameRequired:1;          /* FileName required for all operations (not just Create) */
+    UINT32 NoAccessCheck:1;             /* if set the user-mode flie system performs access checks */
 } FSP_FSCTL_VOLUME_PARAMS;
 typedef struct
 {
     UINT16 Version;
     UINT16 Size;
+    UINT32 Kind;
     UINT64 Hint;
-    UINT8 Kind;
     union
     {
         struct
         {
-            UINT8 Placeholder;
+            UINT32 CreateDisposition;   /* FILE_{SUPERSEDE,CREATE,OPEN,OPEN_IF,OVERWRITE,OVERWRITE_IF} */
+            UINT32 CreateOptions;       /* FILE_{DIRECTORY_FILE,NON_DIRECTORY_FILE,etc.} */
+            UINT32 FileAttributes;      /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
+            UINT64 AllocationSize;      /* initial allocation size */
+            UINT64 SecurityDescriptor;  /* (PSECURITY_DESCRIPTOR); security to apply to new files */
+            UINT64 EaBuffer;            /* (PVOID); reserved; not currently implemented */
+            UINT32 EaLength;            /* (PVOID); reserved; not currently implemented */
+            UINT64 AccessToken;         /* (HANDLE); request access token; sent if NoAccessCheck is 0 */
+            UINT32 DesiredAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
+            UINT32 ShareAccess;         /* FILE_SHARE_{READ,WRITE,DELETE} */
+            UINT32 UserMode:1;          /* request originated in user mode */
+            UINT32 HasTraversePrivilege:1;
+                                        /* requestor has TOKEN_HAS_TRAVERSE_PRIVILEGE */
+            UINT32 OpenTargetDirectory:1;
+                                        /* open target directory and report FILE_{EXISTS,DOES_NOT_EXIST} */
+            UINT32 CaseSensitive:1;     /* filename comparisons should be case-sensitive */
         } Create;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+        } Cleanup;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+        } Close;
     } Req;
-    WCHAR FileName[];
+    FSP_FSCTL_DECLSPEC_ALIGN WCHAR FileName[];
 } FSP_FSCTL_TRANSACT_REQ;
 typedef struct
 {
     UINT16 Version;
     UINT16 Size;
+    UINT32 Kind;
     UINT64 Hint;
     struct
     {
-        UINT32 Status;
         UINT64 Information;
+        UINT32 Status;
     } IoStatus;
-    UINT8 Kind;
     union
     {
-        UINT8 Placeholder; // !!!: REMOVE
-    } Req;
+        struct
+        {
+            UINT64 UserContext;         /* user context attached to an open file (unique file id) */
+            UINT64 UserContext2;        /* user context attached to a kernel file object */
+        } Create;
+    } Rsp;
 } FSP_FSCTL_TRANSACT_RSP;
 #pragma warning(pop)
 static inline FSP_FSCTL_TRANSACT_REQ *FspFsctlTransactProduceRequest(

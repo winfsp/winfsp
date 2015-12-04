@@ -57,17 +57,17 @@ static NTSTATUS FspFsvolCreate(
     PFILE_OBJECT RelatedFileObject = FileObject->RelatedFileObject;
     UNICODE_STRING FileName = FileObject->FileName;
     ULONG Flags = IrpSp->Flags;
-    //KPROCESSOR_MODE RequestorMode = FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
-    //PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
-    //ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
-    //USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
-    //ULONG CreateDisposition = (IrpSp->Parameters.Create.Options >> 24) & 0xff;
+    KPROCESSOR_MODE RequestorMode = FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
+    PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
+    ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
+    USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
+    ULONG CreateDisposition = (IrpSp->Parameters.Create.Options >> 24) & 0xff;
     ULONG CreateOptions = IrpSp->Parameters.Create.Options & 0xffffff;
-    //USHORT FileAttributes = IrpSp->Parameters.Create.FileAttributes;
-    //LARGE_INTEGER AllocationSize = Irp->Overlay.AllocationSize;
+    USHORT FileAttributes = IrpSp->Parameters.Create.FileAttributes;
+    LARGE_INTEGER AllocationSize = Irp->Overlay.AllocationSize;
     PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
     //ULONG EaLength = IrpSp->Parameters.Create.EaLength;
-    //BOOLEAN HasTraversePrivilege = BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
+    BOOLEAN HasTraversePrivilege = BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
     BOOLEAN HasTrailingBackslash = FALSE;
     FSP_FILE_CONTEXT *FsContext = 0;
     FSP_FSCTL_TRANSACT_REQ *Request;
@@ -173,7 +173,23 @@ static NTSTATUS FspFsvolCreate(
         return Result;
     }
 
-    /* !!!: populate the request */
+    /* populate the Create request */
+    Request->Kind = FspFsctlTransactCreateKind;
+    Request->Req.Create.CreateDisposition = CreateDisposition;
+    Request->Req.Create.CreateOptions = CreateOptions;
+    Request->Req.Create.FileAttributes = FileAttributes;
+    Request->Req.Create.AllocationSize = AllocationSize.QuadPart;
+    Request->Req.Create.SecurityDescriptor = 0;
+    Request->Req.Create.EaBuffer = 0;
+    Request->Req.Create.EaLength = 0;
+    Request->Req.Create.AccessToken = 0;
+    Request->Req.Create.DesiredAccess = DesiredAccess;
+    Request->Req.Create.ShareAccess = ShareAccess;
+    Request->Req.Create.DesiredAccess = DesiredAccess;
+    Request->Req.Create.UserMode = UserMode == RequestorMode;
+    Request->Req.Create.HasTraversePrivilege = HasTraversePrivilege;
+    Request->Req.Create.CaseSensitive = BooleanFlagOn(Flags, SL_CASE_SENSITIVE);
+    Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);
 
     /*
      * Post the IRP to our Ioq; we do this here instead of at FSP_LEAVE_MJ time,
