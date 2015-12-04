@@ -56,22 +56,22 @@ static NTSTATUS FspFsvolCreate(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PFILE_OBJECT RelatedFileObject = FileObject->RelatedFileObject;
     UNICODE_STRING FileName = FileObject->FileName;
-    ULONG Flags = IrpSp->Flags;
-    KPROCESSOR_MODE RequestorMode = FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
-    ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
-    PSECURITY_DESCRIPTOR SecurityDescriptor = AccessState->SecurityDescriptor;
-    ULONG SecurityDescriptorSize = 0;
-    USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     ULONG CreateDisposition = (IrpSp->Parameters.Create.Options >> 24) & 0xff;
     ULONG CreateOptions = IrpSp->Parameters.Create.Options & 0xffffff;
     USHORT FileAttributes = IrpSp->Parameters.Create.FileAttributes;
+    PSECURITY_DESCRIPTOR SecurityDescriptor = AccessState->SecurityDescriptor;
+    ULONG SecurityDescriptorSize = 0;
     LARGE_INTEGER AllocationSize = Irp->Overlay.AllocationSize;
+    ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
+    USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
     //ULONG EaLength = IrpSp->Parameters.Create.EaLength;
+    ULONG Flags = IrpSp->Flags;
+    KPROCESSOR_MODE RequestorMode = FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
+    BOOLEAN HasTraversePrivilege = BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
     BOOLEAN IsAbsoluteSecurityDescriptor = FALSE;
     BOOLEAN IsSelfRelativeSecurityDescriptor = FALSE;
-    BOOLEAN HasTraversePrivilege = BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
     BOOLEAN HasTrailingBackslash = FALSE;
     FSP_FILE_CONTEXT *FsContext = 0;
     FSP_FSCTL_TRANSACT_REQ *Request;
@@ -215,6 +215,20 @@ static NTSTATUS FspFsvolCreate(
     Request->Req.Create.HasTraversePrivilege = HasTraversePrivilege;
     Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);
     Request->Req.Create.CaseSensitive = BooleanFlagOn(Flags, SL_CASE_SENSITIVE);
+    if (IsAbsoluteSecurityDescriptor)
+    {
+        Result = RtlAbsoluteToSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize);
+        if (!NT_SUCCESS(Result))
+        {
+            FspFileContextDelete(FsContext);
+            if (STATUS_BAD_DESCRIPTOR_FORMAT == Result || STATUS_BUFFER_TOO_SMALL == Result)
+                return STATUS_INVALID_PARAMETER; /* should not happen */
+            return Result;
+        }
+    }
+    else
+        RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor,
+            SecurityDescriptor, SecurityDescriptorSize);
 
     /*
      * Post the IRP to our Ioq; we do this here instead of at FSP_LEAVE_MJ time,
