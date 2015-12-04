@@ -20,20 +20,22 @@ NTSTATUS FspIopCreateRequest(
 {
     PAGED_CODE();
 
+    FSP_FSCTL_TRANSACT_REQ *Request;
+
     *PRequest = 0;
 
     if (0 != FileName)
-        ExtraSize += FileName->Length + sizeof(WCHAR);
+        ExtraSize += FSP_FSCTL_DEFAULT_ALIGN_UP(FileName->Length + sizeof(WCHAR));
 
     if (FSP_FSCTL_TRANSACT_REQ_SIZEMAX < sizeof *Request + ExtraSize)
         return STATUS_INVALID_PARAMETER;
 
-    FSP_FSCTL_TRANSACT_REQ *Request = ExAllocatePoolWithTag(PagedPool,
+    Request = ExAllocatePoolWithTag(PagedPool,
         sizeof *Request + ExtraSize, FSP_TAG);
     if (0 == Request)
         return STATUS_INSUFFICIENT_RESOURCES;
 
-    RtlZeroMemory(Request, sizeof *Request);
+    RtlZeroMemory(Request, sizeof *Request + ExtraSize);
     Request->Size = (UINT16)(sizeof *Request + ExtraSize);
     Request->Hint = (UINT_PTR)Irp;
     if (0 != FileName)

@@ -60,7 +60,8 @@ static NTSTATUS FspFsvolCreate(
     KPROCESSOR_MODE RequestorMode = FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
     ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
-    //PSECURITY_DESCRIPTOR SecurityDescriptor = AccessState->SecurityDescriptor;
+    PSECURITY_DESCRIPTOR SecurityDescriptor = AccessState->SecurityDescriptor;
+    ULONG SecurityDescriptorSize = 0;
     USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     ULONG CreateDisposition = (IrpSp->Parameters.Create.Options >> 24) & 0xff;
     ULONG CreateOptions = IrpSp->Parameters.Create.Options & 0xffffff;
@@ -68,6 +69,8 @@ static NTSTATUS FspFsvolCreate(
     LARGE_INTEGER AllocationSize = Irp->Overlay.AllocationSize;
     PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
     //ULONG EaLength = IrpSp->Parameters.Create.EaLength;
+    BOOLEAN IsAbsoluteSecurityDescriptor = FALSE;
+    BOOLEAN IsSelfRelativeSecurityDescriptor = FALSE;
     BOOLEAN HasTraversePrivilege = BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
     BOOLEAN HasTrailingBackslash = FALSE;
     FSP_FILE_CONTEXT *FsContext = 0;
@@ -88,6 +91,26 @@ static NTSTATUS FspFsvolCreate(
     /* do we support EA? */
     if (0 != EaBuffer && !FsvrtDeviceExtension->VolumeParams.EaSupported)
         return STATUS_EAS_NOT_SUPPORTED;
+
+    /* check security descriptor validity */
+    if (0 != SecurityDescriptor)
+    {
+        IsAbsoluteSecurityDescriptor = RtlValidSecurityDescriptor(SecurityDescriptor);
+        if (IsAbsoluteSecurityDescriptor)
+        {
+            Result = RtlAbsoluteToSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize);
+            if (STATUS_BUFFER_TOO_SMALL != Result)
+                return STATUS_INVALID_PARAMETER;
+        }
+        else
+        {
+            SecurityDescriptorSize = RtlLengthSecurityDescriptor(SecurityDescriptor);
+            IsSelfRelativeSecurityDescriptor = RtlValidRelativeSecurityDescriptor(
+                SecurityDescriptor, SecurityDescriptorSize, 0);
+            if (!IsSelfRelativeSecurityDescriptor)
+                return STATUS_INVALID_PARAMETER;
+        }
+    }
 
     /* according to fastfat, filenames that begin with two backslashes are ok */
     if (sizeof(WCHAR) * 2 <= FileName.Length &&
@@ -167,7 +190,7 @@ static NTSTATUS FspFsvolCreate(
      */
 
     /* create the user-mode file system request */
-    Result = FspIopCreateRequest(Irp, &FsContext->FileName, 0, &Request);
+    Result = FspIopCreateRequest(Irp, &FsContext->FileName, SecurityDescriptorSize, &Request);
     if (!NT_SUCCESS(Result))
     {
         FspFileContextDelete(FsContext);
@@ -179,8 +202,9 @@ static NTSTATUS FspFsvolCreate(
     Request->Req.Create.CreateDisposition = CreateDisposition;
     Request->Req.Create.CreateOptions = CreateOptions;
     Request->Req.Create.FileAttributes = FileAttributes;
-    Request->Req.Create.SecurityDescriptor = 0;
-    Request->Req.Create.SecurityDescriptorSize = 0;
+    Request->Req.Create.SecurityDescriptor = 0 == SecurityDescriptor ? 0 :
+        FSP_FSCTL_DEFAULT_ALIGN_UP(FsContext->FileName.Length + sizeof(WCHAR));
+    Request->Req.Create.SecurityDescriptorSize = (UINT16)SecurityDescriptorSize;
     Request->Req.Create.AllocationSize = AllocationSize.QuadPart;
     Request->Req.Create.AccessToken = 0;
     Request->Req.Create.DesiredAccess = DesiredAccess;
