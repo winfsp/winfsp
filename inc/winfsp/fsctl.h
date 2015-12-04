@@ -75,7 +75,7 @@ typedef struct
     UINT32 SerialNumber;
     UINT32 EaSupported:1;               /* supports extended attributes (unimplemented; set to 0) */
     UINT32 FileNameRequired:1;          /* FileName required for all operations (not just Create) */
-    UINT32 NoAccessCheck:1;             /* if set the user-mode flie system performs access checks */
+    UINT32 NoSystemAccessCheck:1;       /* if set the user-mode flie system performs access checks */
 } FSP_FSCTL_VOLUME_PARAMS;
 typedef struct
 {

@@ -63,6 +63,7 @@ static NTSTATUS FspFsvolCreate(
     PSECURITY_DESCRIPTOR SecurityDescriptor = AccessState->SecurityDescriptor;
     ULONG SecurityDescriptorSize = 0;
     LARGE_INTEGER AllocationSize = Irp->Overlay.AllocationSize;
+    HANDLE AccessToken;
     ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
     USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
@@ -215,6 +216,8 @@ static NTSTATUS FspFsvolCreate(
     Request->Req.Create.HasTraversePrivilege = HasTraversePrivilege;
     Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);
     Request->Req.Create.CaseSensitive = BooleanFlagOn(Flags, SL_CASE_SENSITIVE);
+
+    /* copy the security descriptor into the request */
     if (IsAbsoluteSecurityDescriptor)
     {
         Result = RtlAbsoluteToSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize);
@@ -229,6 +232,22 @@ static NTSTATUS FspFsvolCreate(
     else
         RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor,
             SecurityDescriptor, SecurityDescriptorSize);
+
+    /* if the user-mode file system is doing access checks, send it the access token */
+    if (FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
+    {
+        Result = ObOpenObjectByPointer(
+            SeQuerySubjectContextToken(&AccessState->SubjectSecurityContext),
+            OBJ_KERNEL_HANDLE, 0, TOKEN_QUERY, 0, KernelMode, &AccessToken);
+        if (!NT_SUCCESS(Result))
+        {
+            FspFileContextDelete(FsContext);
+            return Result;
+        }
+
+        /* send the kernel handle and change it into a process handle at prepare time */
+        Request->Req.Create.AccessToken = (UINT_PTR)AccessToken;
+    }
 
     /*
      * Post the IRP to our Ioq; we do this here instead of at FSP_LEAVE_MJ time,
