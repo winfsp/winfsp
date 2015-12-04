@@ -204,6 +204,14 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
 static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+
+    /*
+     * Dereference the virtual volume device so that it can now go away.
+     */
+    if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
+        ObDereferenceObject(FsvolDeviceExtension->FsvrtDeviceObject);
 }
 
 BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject)

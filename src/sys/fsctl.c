@@ -230,6 +230,12 @@ static NTSTATUS FspFsctlMountVolume(
             &FsvolDeviceObject);
         if (NT_SUCCESS(Result))
         {
+            /*
+             * Reference the virtual volume device so that it will not go away while the
+             * file system device object is alive!
+             */
+            ObReferenceObject(FsvrtDeviceObject);
+
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
             FsvolDeviceObject->SectorSize = FsvrtDeviceExtension->VolumeParams.SectorSize;
             FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
