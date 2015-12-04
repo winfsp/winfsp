@@ -25,18 +25,22 @@ NTSTATUS FspIopCreateRequest(
     if (0 != FileName)
         ExtraSize += FileName->Length + sizeof(WCHAR);
 
+    if (FSP_FSCTL_TRANSACT_REQ_SIZEMAX < sizeof *Request + ExtraSize)
+        return STATUS_INVALID_PARAMETER;
+
     FSP_FSCTL_TRANSACT_REQ *Request = ExAllocatePoolWithTag(PagedPool,
         sizeof *Request + ExtraSize, FSP_TAG);
     if (0 == Request)
         return STATUS_INSUFFICIENT_RESOURCES;
 
-    RtlZeroMemory(Request, sizeof *Request + ExtraSize);
+    RtlZeroMemory(Request, sizeof *Request);
     Request->Size = (UINT16)(sizeof *Request + ExtraSize);
     Request->Hint = (UINT_PTR)Irp;
     if (0 != FileName)
     {
-        RtlCopyMemory(Request->FileName, FileName->Buffer, FileName->Length);
-        Request->FileName[FileName->Length / 2] = L'\0';
+        RtlCopyMemory(Request->Buffer, FileName->Buffer, FileName->Length);
+        Request->Buffer[FileName->Length] = '\0';
+        Request->Buffer[FileName->Length + 1] = '\0';
     }
 
     Irp->Tail.Overlay.DriverContext[0] = Request;

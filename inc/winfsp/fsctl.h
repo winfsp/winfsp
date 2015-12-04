@@ -38,11 +38,10 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_TRANSACT_BUFFER_SIZE  (16 * 1024)
 
 #define FSP_FSCTL_VOLUME_PARAMS_SIZE    \
-    FSP_FSCTL_ALIGN_UP(sizeof(FSP_FSCTL_VOLUME_PARAMS), FSP_FSCTL_DEFAULT_ALIGNMENT)
-#define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  \
-    FSP_FSCTL_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_REQ) + 1024 * sizeof(WCHAR), FSP_FSCTL_DEFAULT_ALIGNMENT)
-#define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  \
-    FSP_FSCTL_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_RSP) + 1024 * sizeof(WCHAR), FSP_FSCTL_DEFAULT_ALIGNMENT)
+    FSP_FSCTL_ALIGN_UP(sizeof(FSP_FSCTL_VOLUME_PARAMS),\
+        FSP_FSCTL_DEFAULT_ALIGNMENT)
+#define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  (4 * 1024)
+#define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  (4 * 1024)
 
 /* marshalling */
 #pragma warning(push)
@@ -92,18 +91,17 @@ typedef struct
             UINT32 CreateDisposition;   /* FILE_{SUPERSEDE,CREATE,OPEN,OPEN_IF,OVERWRITE,OVERWRITE_IF} */
             UINT32 CreateOptions;       /* FILE_{DIRECTORY_FILE,NON_DIRECTORY_FILE,etc.} */
             UINT32 FileAttributes;      /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
+            UINT16 SecurityDescriptor;  /* security descriptor for new files (offset within Buffer) */
+            UINT16 SecurityDescriptorSize;  /* security descriptor size */
             UINT64 AllocationSize;      /* initial allocation size */
-            UINT64 SecurityDescriptor;  /* (PSECURITY_DESCRIPTOR); security to apply to new files */
-            UINT64 EaBuffer;            /* (PVOID); reserved; not currently implemented */
-            UINT32 EaLength;            /* (PVOID); reserved; not currently implemented */
             UINT64 AccessToken;         /* (HANDLE); request access token; sent if NoAccessCheck is 0 */
             UINT32 DesiredAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             UINT32 ShareAccess;         /* FILE_SHARE_{READ,WRITE,DELETE} */
+            UINT16 Ea;                  /* reserved; not currently implemented */
+            UINT16 EaSize;              /* reserved; not currently implemented */
             UINT32 UserMode:1;          /* request originated in user mode */
-            UINT32 HasTraversePrivilege:1;
-                                        /* requestor has TOKEN_HAS_TRAVERSE_PRIVILEGE */
-            UINT32 OpenTargetDirectory:1;
-                                        /* open target directory and report FILE_{EXISTS,DOES_NOT_EXIST} */
+            UINT32 HasTraversePrivilege:1;  /* requestor has TOKEN_HAS_TRAVERSE_PRIVILEGE */
+            UINT32 OpenTargetDirectory:1;   /* open target dir and report FILE_{EXISTS,DOES_NOT_EXIST} */
             UINT32 CaseSensitive:1;     /* filename comparisons should be case-sensitive */
         } Create;
         struct
@@ -117,7 +115,7 @@ typedef struct
             UINT64 UserContext2;
         } Close;
     } Req;
-    FSP_FSCTL_DECLSPEC_ALIGN WCHAR FileName[];
+    FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_REQ;
 typedef struct
 {
@@ -138,6 +136,7 @@ typedef struct
             UINT64 UserContext2;        /* user context attached to a kernel file object */
         } Create;
     } Rsp;
+    FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_RSP;
 #pragma warning(pop)
 static inline FSP_FSCTL_TRANSACT_REQ *FspFsctlTransactProduceRequest(
