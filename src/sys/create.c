@@ -309,7 +309,7 @@ NTSTATUS FspFsvolCreatePrepare(
     PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
 
-    /* if we are doing access checks, nothing to do */
+    /* if the user-mode file system is not doing access checks, there is nothing else to do */
     if (!FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
     {
         ASSERT(0 == Request->Req.Create.AccessToken);
