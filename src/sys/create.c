@@ -258,7 +258,8 @@ static NTSTATUS FspFsvolCreate(
         /* copy the security descriptor into the request */
         if (IsAbsoluteSecurityDescriptor)
         {
-            Result = RtlAbsoluteToSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize);
+            Result = RtlAbsoluteToSelfRelativeSD(SecurityDescriptor,
+                Request->Buffer + Request->Req.Create.SecurityDescriptor, &SecurityDescriptorSize);
             if (!NT_SUCCESS(Result))
             {
                 FspFileContextDelete(FsContext);
@@ -267,7 +268,7 @@ static NTSTATUS FspFsvolCreate(
                 goto exit;
             }
         }
-        else
+        else if (IsSelfRelativeSecurityDescriptor)
             RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor,
                 SecurityDescriptor, SecurityDescriptorSize);
 
