@@ -197,8 +197,13 @@ _Dispatch_type_(IRP_MJ_WRITE)           FSP_DRIVER_DISPATCH FspWrite;
 /* I/O processing functions */
 _IRQL_requires_max_(APC_LEVEL)
 _IRQL_requires_same_
+typedef NTSTATUS FSP_IOPREP_DISPATCH(
+    _Inout_ PIRP Irp, _Inout_ FSP_FSCTL_TRANSACT_REQ *Request);
+_IRQL_requires_max_(APC_LEVEL)
+_IRQL_requires_same_
 typedef VOID FSP_IOCMPL_DISPATCH(
     _Inout_ PIRP Irp, _In_ const FSP_FSCTL_TRANSACT_RSP *Response);
+FSP_IOPREP_DISPATCH FspCreatePrepare;
 FSP_IOCMPL_DISPATCH FspCleanupComplete;
 FSP_IOCMPL_DISPATCH FspCloseComplete;
 FSP_IOCMPL_DISPATCH FspCreateComplete;
@@ -255,6 +260,7 @@ static inline VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result)
 {
     FspIopCompleteRequestEx(Irp, Result, TRUE);
 }
+NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 /* device management */
@@ -371,6 +377,7 @@ const char *IoctlCodeSym(ULONG ControlCode);
 extern PDRIVER_OBJECT FspDriverObject;
 extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
+extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
 
 #endif

@@ -378,6 +378,7 @@ static NTSTATUS FspFsvrtTransact(
     }
 
     /* wait for an IRP to arrive */
+retry:
     while (0 == (PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, (ULONG)-1L)))
     {
         if (FspIoqStopped(&FsvrtDeviceExtension->Ioq))
@@ -392,36 +393,46 @@ static NTSTATUS FspFsvrtTransact(
     {
         PendingIrpRequest = PendingIrp->Tail.Overlay.DriverContext[0];
 
-        NextRequest = FspFsctlTransactProduceRequest(
-            Request, PendingIrpRequest->Size, SystemBufferEnd);
-            /* this should not fail as we have already checked that we have enough space */
-        ASSERT(0 != NextRequest);
-
-        RtlCopyMemory(Request, PendingIrpRequest, PendingIrpRequest->Size);
-        Request = NextRequest;
-
-        if (!FspIoqStartProcessingIrp(&FsvrtDeviceExtension->Ioq, PendingIrp))
+        Result = FspIopDispatchPrepare(PendingIrp, PendingIrpRequest);
+        if (!NT_SUCCESS(Result))
+            FspIopCompleteRequest(PendingIrp, Result);
+        else
         {
-            /*
-             * This can only happen if the Ioq was stopped. Abandon everything
-             * and return STATUS_CANCELLED. Any IRP's in the Pending and Process
-             * queues of the Ioq will be cancelled during FspIoqStop(). We must
-             * also cancel the PendingIrp we have in our hands.
-             */
-            ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));
-            FspIopCompleteRequest(PendingIrp, STATUS_CANCELLED);
-            return STATUS_CANCELLED;
-        }
+            NextRequest = FspFsctlTransactProduceRequest(
+                Request, PendingIrpRequest->Size, SystemBufferEnd);
+                /* this should not fail as we have already checked that we have enough space */
+            ASSERT(0 != NextRequest);
 
-        /* check that we have enough space before pulling the next pending IRP off the queue */
-        if ((PUINT8)Request + FSP_FSCTL_TRANSACT_REQ_SIZEMAX > SystemBufferEnd)
-            break;
+            RtlCopyMemory(Request, PendingIrpRequest, PendingIrpRequest->Size);
+            Request = NextRequest;
+
+            if (!FspIoqStartProcessingIrp(&FsvrtDeviceExtension->Ioq, PendingIrp))
+            {
+                /*
+                 * This can only happen if the Ioq was stopped. Abandon everything
+                 * and return STATUS_CANCELLED. Any IRP's in the Pending and Process
+                 * queues of the Ioq will be cancelled during FspIoqStop(). We must
+                 * also cancel the PendingIrp we have in our hands.
+                 */
+                ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));
+                FspIopCompleteRequest(PendingIrp, STATUS_CANCELLED);
+                return STATUS_CANCELLED;
+            }
+
+            /* check that we have enough space before pulling the next pending IRP off the queue */
+            if ((PUINT8)Request + FSP_FSCTL_TRANSACT_REQ_SIZEMAX > SystemBufferEnd)
+                break;
+        }
 
         PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, 0);
         if (0 == PendingIrp)
             break;
 
     }
+
+    if (Request == SystemBuffer)
+        goto retry;
+
     RtlZeroMemory(Request, SystemBufferEnd - (PUINT8)Request);
     Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)SystemBuffer;
 
