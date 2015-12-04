@@ -272,22 +272,21 @@ static NTSTATUS FspFsvolCreate(
             RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor,
                 SecurityDescriptor, SecurityDescriptorSize);
 
+        /* open a kernel-mode access token handle for later access checks */
+        Result = ObOpenObjectByPointer(
+            SeQuerySubjectContextToken(&AccessState->SubjectSecurityContext),
+            OBJ_KERNEL_HANDLE, 0, 0, *SeTokenObjectType, KernelMode, &AccessToken);
+        if (!NT_SUCCESS(Result))
+        {
+            FspFileContextDelete(FsContext);
+            goto exit;
+        }
+        Irp->Tail.Overlay.DriverContext[1] = AccessToken;
+
         /* if the user-mode file system is doing access checks, send it the access token */
         if (FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
-        {
-            Result = ObOpenObjectByPointer(
-                SeQuerySubjectContextToken(&AccessState->SubjectSecurityContext),
-                OBJ_KERNEL_HANDLE, 0, 0, *SeTokenObjectType, KernelMode, &AccessToken);
-            if (!NT_SUCCESS(Result))
-            {
-                FspFileContextDelete(FsContext);
-                goto exit;
-            }
-
-            /* send the kernel handle and change it into a process handle at prepare time */
-            Irp->Tail.Overlay.DriverContext[1] = AccessToken;
+            /* send the kernel-mode handle and change it into a user-mode handle at prepare time */
             Request->Req.Create.AccessToken = (UINT_PTR)AccessToken;
-        }
 
         /*
          * Post the IRP to our Ioq; we do this here instead of at FSP_LEAVE_MJ time,
@@ -321,8 +320,14 @@ NTSTATUS FspFsvolCreatePrepare(
     HANDLE UserModeAccessToken;
     PACCESS_TOKEN AccessToken;
 
+    /* if we are doing access checks, there is nothing to prepare */
     if (0 == KernelModeAccessToken)
         FSP_RETURN(Result = STATUS_SUCCESS);
+
+    /*
+     * The user-mode file system is doing access checks. We must convert the kernel-mode
+     * access token handle to user-mode and send it to them.
+     */
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(IrpSp->DeviceObject);
     ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
@@ -330,18 +335,21 @@ NTSTATUS FspFsvolCreatePrepare(
     Request->Req.Create.AccessToken = 0;
     Irp->Tail.Overlay.DriverContext[1] = 0;
 
+    /* get a pointer to the access token */
     Result = ObReferenceObjectByHandle(KernelModeAccessToken,
         0, *SeTokenObjectType, KernelMode, &AccessToken, 0);
     ObCloseHandle(KernelModeAccessToken, KernelMode);
     if (!NT_SUCCESS(Result))
         FSP_RETURN();
 
+    /* get a user-mode handle to the access token */
     Result = ObOpenObjectByPointer(AccessToken,
         0, 0, TOKEN_QUERY, *SeTokenObjectType, UserMode, &UserModeAccessToken);
     ObDereferenceObject(AccessToken);
     if (!NT_SUCCESS(Result))
         FSP_RETURN();
 
+    /* send the user-mode handle to the user-mode file system */
     Irp->Tail.Overlay.DriverContext[1] = UserModeAccessToken;
     Request->Req.Create.AccessToken = (UINT_PTR)UserModeAccessToken;
 
