@@ -70,7 +70,6 @@ static NTSTATUS FspFsvolCreate(
         PSECURITY_DESCRIPTOR SecurityDescriptor = AccessState->SecurityDescriptor;
         ULONG SecurityDescriptorSize = 0;
         LARGE_INTEGER AllocationSize = Irp->Overlay.AllocationSize;
-        HANDLE AccessToken;
         ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
         USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
         PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
@@ -272,22 +271,6 @@ static NTSTATUS FspFsvolCreate(
             RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor,
                 SecurityDescriptor, SecurityDescriptorSize);
 
-        /* open a kernel-mode access token handle for later access checks */
-        Result = ObOpenObjectByPointer(
-            SeQuerySubjectContextToken(&AccessState->SubjectSecurityContext),
-            OBJ_KERNEL_HANDLE, 0, 0, *SeTokenObjectType, KernelMode, &AccessToken);
-        if (!NT_SUCCESS(Result))
-        {
-            FspFileContextDelete(FsContext);
-            goto exit;
-        }
-        Irp->Tail.Overlay.DriverContext[1] = AccessToken;
-
-        /* if the user-mode file system is doing access checks, send it the access token */
-        if (FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
-            /* send the kernel-mode handle and change it into a user-mode handle at prepare time */
-            Request->Req.Create.AccessToken = (UINT_PTR)AccessToken;
-
         /*
          * Post the IRP to our Ioq; we do this here instead of at FSP_LEAVE_MJ time,
          * so that we can FspFileContextDelete() on failure.
@@ -301,6 +284,8 @@ static NTSTATUS FspFsvolCreate(
             goto exit;
         }
 
+        Result = STATUS_PENDING;
+
     exit:;
     }
     finally
@@ -308,7 +293,7 @@ static NTSTATUS FspFsvolCreate(
         FspDeviceRelease(FsvrtDeviceObject);
     }
 
-    return STATUS_PENDING;
+    return Result;
 }
 
 NTSTATUS FspFsvolCreatePrepare(
@@ -316,36 +301,26 @@ NTSTATUS FspFsvolCreatePrepare(
 {
     FSP_ENTER_IOP(PAGED_CODE());
 
-    HANDLE KernelModeAccessToken = (HANDLE)Request->Req.Create.AccessToken;
-    HANDLE UserModeAccessToken;
-    PACCESS_TOKEN AccessToken;
-
-    /* if we are doing access checks, there is nothing to prepare */
-    if (0 == KernelModeAccessToken)
-        FSP_RETURN(Result = STATUS_SUCCESS);
-
-    /*
-     * The user-mode file system is doing access checks. We must convert the kernel-mode
-     * access token handle to user-mode and send it to them.
-     */
-
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(IrpSp->DeviceObject);
     ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
 
-    Request->Req.Create.AccessToken = 0;
-    Irp->Tail.Overlay.DriverContext[1] = 0;
+    /* it is not necessary to retain the FsvrtDeviceObject; our callers have already done so */
+    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
 
-    /* get a pointer to the access token */
-    Result = ObReferenceObjectByHandle(KernelModeAccessToken,
-        0, *SeTokenObjectType, KernelMode, &AccessToken, 0);
-    ObCloseHandle(KernelModeAccessToken, KernelMode);
-    if (!NT_SUCCESS(Result))
-        FSP_RETURN();
+    /* if we are doing access checks, nothing to do */
+    if (!FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
+    {
+        ASSERT(0 == Request->Req.Create.AccessToken);
+        FSP_RETURN(Result = STATUS_SUCCESS);
+    }
+
+    PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
+    HANDLE UserModeAccessToken;
 
     /* get a user-mode handle to the access token */
-    Result = ObOpenObjectByPointer(AccessToken,
+    Result = ObOpenObjectByPointer(SeQuerySubjectContextToken(&AccessState->SubjectSecurityContext),
         0, 0, TOKEN_QUERY, *SeTokenObjectType, UserMode, &UserModeAccessToken);
-    ObDereferenceObject(AccessToken);
     if (!NT_SUCCESS(Result))
         FSP_RETURN();
 
