@@ -362,8 +362,39 @@ VOID FspFsvolCreateComplete(
         FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
 
     /* are we doing access checks? */
-    if (FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
+    if (FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck &&
+        0 != Response->Rsp.Create.SecurityDescriptorSize)
     {
+        PSECURITY_DESCRIPTOR SecurityDescriptor =
+            (PVOID)(Response->Buffer + Response->Rsp.Create.SecurityDescriptor);
+        if ((PUINT8)SecurityDescriptor + Response->Rsp.Create.SecurityDescriptorSize >
+                (PUINT8)Response + Response->Size ||
+            !FspValidRelativeSecurityDescriptor(
+                SecurityDescriptor, Response->Rsp.Create.SecurityDescriptorSize, 0))
+        {
+            FspFsvolCreateClose(Irp, Response);
+            FSP_RETURN(Result = STATUS_ACCESS_DENIED);
+        }
+
+        ULONG Flags = IrpSp->Flags;
+        KPROCESSOR_MODE RequestorMode =
+            FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
+        PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
+        ACCESS_MASK GrantedAccess;
+        if (!SeAccessCheck(SecurityDescriptor,
+            &AccessState->SubjectSecurityContext,
+            FALSE,
+            AccessState->OriginalDesiredAccess,
+            AccessState->PreviouslyGrantedAccess,
+            0,
+            IoGetFileObjectGenericMapping(),
+            RequestorMode,
+            &GrantedAccess,
+            &Result))
+        {
+            FspFsvolCreateClose(Irp, Response);
+            FSP_RETURN();
+        }
     }
 
     /* record the user-mode file system contexts */
