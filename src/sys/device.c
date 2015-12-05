@@ -25,7 +25,7 @@ VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
 VOID FspFsctlDeviceVolumeCreated(PDEVICE_OBJECT DeviceObject);
 VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject);
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
-NTSTATUS FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
+PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     PBOOLEAN PInserted);
 VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     PBOOLEAN PDeleted);
@@ -321,7 +321,7 @@ PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
     return Result;
 }
 
-NTSTATUS FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
+PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     PBOOLEAN PInserted)
 {
     // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
@@ -329,17 +329,16 @@ NTSTATUS FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identif
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
 
-    NTSTATUS Result;
-    FSP_DEVICE_GENERIC_TABLE_ELEMENT Element = { 0 };
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT *Result, Element = { 0 };
     Element.Identifier = Identifier;
     Element.Context = Context;
 
     ExAcquireFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
-    Result = 0 != RtlInsertElementGenericTableAvl(&FsvolDeviceExtension->GenericTable,
-        &Element, sizeof Element, PInserted) ? STATUS_SUCCESS : STATUS_INSUFFICIENT_RESOURCES;
+    Result = RtlInsertElementGenericTableAvl(&FsvolDeviceExtension->GenericTable,
+        &Element, sizeof Element, PInserted);
     ExReleaseFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
 
-    return Result;
+    return 0 != Result ? Result->Context : 0;
 }
 
 VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
