@@ -364,6 +364,8 @@ typedef struct
     FSRTL_ADVANCED_FCB_HEADER Header;
     FSP_FILE_CONTEXT_NONPAGED *NonPaged;
     LONG OpenCount;
+    SHARE_ACCESS ShareAccess;
+        /* protected by containing fsvol lock */
     UINT64 UserContext;
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];

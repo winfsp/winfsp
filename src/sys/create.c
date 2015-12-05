@@ -73,7 +73,7 @@ static NTSTATUS FspFsvolCreate(
         PSECURITY_DESCRIPTOR SecurityDescriptor = AccessState->SecurityDescriptor;
         ULONG SecurityDescriptorSize = 0;
         LARGE_INTEGER AllocationSize = Irp->Overlay.AllocationSize;
-        ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
+        ACCESS_MASK DesiredAccess = AccessState->OriginalDesiredAccess;
         USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
         PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
         //ULONG EaLength = IrpSp->Parameters.Create.EaLength;
@@ -344,7 +344,23 @@ VOID FspFsvolCreateComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
+    PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
+        FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
+    PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
+    PSECURITY_DESCRIPTOR SecurityDescriptor =
+        (PVOID)(Response->Buffer + Response->Rsp.Create.SecurityDescriptor);
+    ULONG SecurityDescriptorSize = Response->Rsp.Create.SecurityDescriptorSize;
+    ACCESS_MASK DesiredAccess = AccessState->OriginalDesiredAccess;
+    USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
+    ULONG Flags = IrpSp->Flags;
+    KPROCESSOR_MODE RequestorMode =
+        FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
+    FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
+    ACCESS_MASK GrantedAccess;
+    BOOLEAN Inserted = FALSE;
 
     /* did the user-mode file system sent us a failure code? */
     if (!NT_SUCCESS(Response->IoStatus.Status))
@@ -356,35 +372,21 @@ VOID FspFsvolCreateComplete(
         FSP_RETURN();
     }
 
-    PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
-        FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
-
     /* are we doing access checks? */
     if (FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck &&
-        0 != Response->Rsp.Create.SecurityDescriptorSize)
+        0 != SecurityDescriptorSize)
     {
-        PSECURITY_DESCRIPTOR SecurityDescriptor =
-            (PVOID)(Response->Buffer + Response->Rsp.Create.SecurityDescriptor);
-        if ((PUINT8)SecurityDescriptor + Response->Rsp.Create.SecurityDescriptorSize >
-                (PUINT8)Response + Response->Size ||
-            !FspValidRelativeSecurityDescriptor(
-                SecurityDescriptor, Response->Rsp.Create.SecurityDescriptorSize, 0))
+        if ((PUINT8)SecurityDescriptor + SecurityDescriptorSize > (PUINT8)Response + Response->Size ||
+            !FspValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorSize, 0))
         {
             FspFsvolCreateClose(Irp, Response);
             FSP_RETURN(Result = STATUS_ACCESS_DENIED);
         }
 
-        ULONG Flags = IrpSp->Flags;
-        KPROCESSOR_MODE RequestorMode =
-            FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
-        PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
-        ACCESS_MASK GrantedAccess;
         if (!SeAccessCheck(SecurityDescriptor,
             &AccessState->SubjectSecurityContext,
             FALSE,
-            AccessState->OriginalDesiredAccess,
+            DesiredAccess,
             AccessState->PreviouslyGrantedAccess,
             0,
             IoGetFileObjectGenericMapping(),
@@ -398,19 +400,36 @@ VOID FspFsvolCreateComplete(
     }
 
     /* record the user-mode file system contexts */
-    FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
     FsContext->UserContext = Response->Rsp.Create.UserContext;
     FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.UserContext2;
 
-    /* insert the new FsContext into our generic table */
-    BOOLEAN Inserted;
+    /* following must be performed under the fsvol lock */
     ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->Base.Resource, TRUE);
     try
     {
+        /* insert the new FsContext into our generic table */
+        Result = STATUS_SUCCESS;
         FsContext = FspFsvolDeviceInsertContext(DeviceObject,
             FsContext->UserContext, FsContext, &Inserted);
-        if (0 != FsContext)
-            FspFileContextOpen(FsContext);
+        if (0 == FsContext)
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+        else
+        {
+            /* do the share access checks */
+            if (Inserted)
+            {
+                IoSetShareAccess(DesiredAccess, ShareAccess, FileObject,
+                    &FsContext->ShareAccess);
+                FspFileContextOpen(FsContext);
+            }
+            else
+            {
+                Result = IoCheckShareAccess(DesiredAccess, ShareAccess, FileObject,
+                    &FsContext->ShareAccess, TRUE);
+                if (NT_SUCCESS(Result))
+                    FspFileContextOpen(FsContext);
+            }
+        }
     }
     finally
     {
@@ -418,10 +437,11 @@ VOID FspFsvolCreateComplete(
     }
 
     /* did we fail to insert? */
-    if (0 == FsContext)
+    if (!NT_SUCCESS(Result))
     {
+        ASSERT(!Inserted);
         FspFsvolCreateClose(Irp, Response);
-        FSP_RETURN(Result = STATUS_INSUFFICIENT_RESOURCES);
+        FSP_RETURN();
     }
 
     /* does an FsContext with the same UserContext already exist? */
@@ -431,6 +451,7 @@ VOID FspFsvolCreateComplete(
         FileObject->FsContext = FsContext;
     }
 
+    /* SUCCESS! */
     Irp->IoStatus.Information = Response->IoStatus.Information;
     Result = Response->IoStatus.Status;
 
