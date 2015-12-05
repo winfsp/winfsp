@@ -303,6 +303,8 @@ typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
     PDEVICE_OBJECT FsvrtDeviceObject;
+    FAST_MUTEX GenericTableFastMutex;
+    RTL_AVL_TABLE GenericTable;
 } FSP_FSVOL_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
@@ -339,6 +341,10 @@ BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
 VOID FspFsctlDeviceVolumeCreated(PDEVICE_OBJECT DeviceObject);
 VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject);
+NTSTATUS FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
+    PBOOLEAN PInserted);
+VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
+    PBOOLEAN PDeleted);
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
