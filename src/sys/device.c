@@ -24,6 +24,7 @@ BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
 VOID FspFsctlDeviceVolumeCreated(PDEVICE_OBJECT DeviceObject);
 VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject);
+PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
 NTSTATUS FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     PBOOLEAN PInserted);
 VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
@@ -304,10 +305,26 @@ VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject)
         IoUnregisterFileSystem(DeviceObject);
 }
 
+PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier)
+{
+    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
+
+    PVOID Result;
+
+    ExAcquireFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
+    Result = RtlLookupElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Identifier);
+    ExReleaseFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
+
+    return Result;
+}
+
 NTSTATUS FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     PBOOLEAN PInserted)
 {
-    // !PAGED_CODE();
+    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
@@ -328,14 +345,15 @@ NTSTATUS FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identif
 VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     PBOOLEAN PDeleted)
 {
-    // !PAGED_CODE();
+    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
 
+    BOOLEAN Deleted;
+
     ExAcquireFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
-    BOOLEAN Deleted = RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable,
-        &Identifier);
+    Deleted = RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Identifier);
     ExReleaseFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
 
     if (0 != PDeleted)
@@ -345,7 +363,7 @@ VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
 static RTL_GENERIC_COMPARE_RESULTS NTAPI FspFsvolDeviceCompareElement(
     PRTL_AVL_TABLE Table, PVOID FirstElement, PVOID SecondElement)
 {
-    // !PAGED_CODE();
+    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
 
     if (FirstElement < SecondElement)
         return GenericLessThan;
@@ -359,16 +377,16 @@ static RTL_GENERIC_COMPARE_RESULTS NTAPI FspFsvolDeviceCompareElement(
 static PVOID NTAPI FspFsvolDeviceAllocateElement(
     PRTL_AVL_TABLE Table, CLONG ByteSize)
 {
-    // !PAGED_CODE();
+    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
 
-    /* allocate from non-paged pool because of fast mutex use in GenericTable */
+    /* allocate from non-paged pool because of fast mutex use */
     return ExAllocatePoolWithTag(NonPagedPool, ByteSize, FSP_TAG);
 }
 
 static VOID NTAPI FspFsvolDeviceFreeElement(
     PRTL_AVL_TABLE Table, PVOID Buffer)
 {
-    // !PAGED_CODE();
+    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
 
     ExFreePoolWithTag(Buffer, FSP_TAG);
 }

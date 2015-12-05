@@ -341,6 +341,7 @@ BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
 VOID FspFsctlDeviceVolumeCreated(PDEVICE_OBJECT DeviceObject);
 VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject);
+PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
 NTSTATUS FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     PBOOLEAN PInserted);
 VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
