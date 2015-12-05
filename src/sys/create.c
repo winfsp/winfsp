@@ -14,6 +14,8 @@ static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
+static VOID FspFsvolCreateClose(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_DRIVER_DISPATCH FspCreate;
 
 #ifdef ALLOC_PRAGMA
@@ -22,6 +24,7 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreate)
 #pragma alloc_text(PAGE, FspFsvolCreatePrepare)
 #pragma alloc_text(PAGE, FspFsvolCreateComplete)
+#pragma alloc_text(PAGE, FspFsvolCreateClose)
 #pragma alloc_text(PAGE, FspCreate)
 #endif
 
@@ -285,6 +288,8 @@ static NTSTATUS FspFsvolCreate(
             goto exit;
         }
 
+        FileObject->FsContext = FsContext;
+
         Result = STATUS_PENDING;
 
     exit:;
@@ -302,7 +307,8 @@ NTSTATUS FspFsvolCreatePrepare(
 {
     FSP_ENTER_IOP(PAGED_CODE());
 
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(IrpSp->DeviceObject);
+    PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
 
     /* it is not necessary to retain the FsvrtDeviceObject; our callers have already done so */
@@ -340,6 +346,12 @@ VOID FspFsvolCreateComplete(
     FSP_LEAVE_IOC(
         "FileObject=%p[%p:\"%wZ\"]",
         IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName);
+}
+
+static VOID FspFsvolCreateClose(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
 }
 
 NTSTATUS FspCreate(
