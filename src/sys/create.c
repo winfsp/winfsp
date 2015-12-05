@@ -73,7 +73,7 @@ static NTSTATUS FspFsvolCreate(
         PSECURITY_DESCRIPTOR SecurityDescriptor = AccessState->SecurityDescriptor;
         ULONG SecurityDescriptorSize = 0;
         LARGE_INTEGER AllocationSize = Irp->Overlay.AllocationSize;
-        ACCESS_MASK DesiredAccess = AccessState->OriginalDesiredAccess;
+        ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.DesiredAccess;
         USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
         PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
         //ULONG EaLength = IrpSp->Parameters.Create.EaLength;
@@ -353,7 +353,7 @@ VOID FspFsvolCreateComplete(
     PSECURITY_DESCRIPTOR SecurityDescriptor =
         (PVOID)(Response->Buffer + Response->Rsp.Create.SecurityDescriptor);
     ULONG SecurityDescriptorSize = Response->Rsp.Create.SecurityDescriptorSize;
-    ACCESS_MASK DesiredAccess = AccessState->OriginalDesiredAccess;
+    ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.DesiredAccess;
     USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     ULONG Flags = IrpSp->Flags;
     KPROCESSOR_MODE RequestorMode =
@@ -397,6 +397,9 @@ VOID FspFsvolCreateComplete(
             FspFsvolCreateClose(Irp, Response);
             FSP_RETURN();
         }
+
+        SetFlag(AccessState->PreviouslyGrantedAccess, GrantedAccess);
+        ClearFlag(AccessState->RemainingDesiredAccess, GrantedAccess);
     }
 
     /* record the user-mode file system contexts */
@@ -425,8 +428,8 @@ VOID FspFsvolCreateComplete(
                  * increment its open count. There is no need to acquire the
                  * FsContext's Resource (because it is newly created).
                  */
-                IoSetShareAccess(DesiredAccess, ShareAccess, FileObject,
-                    &FsContext->ShareAccess);
+                IoSetShareAccess(AccessState->PreviouslyGrantedAccess,
+                    ShareAccess, FileObject, &FsContext->ShareAccess);
                 FspFileContextOpen(FsContext);
                 Result = STATUS_SUCCESS;
             }
@@ -441,8 +444,8 @@ VOID FspFsvolCreateComplete(
                 if (FsContext->DeletePending)
                     Result = STATUS_DELETE_PENDING;
                 else
-                    Result = IoCheckShareAccess(DesiredAccess, ShareAccess, FileObject,
-                        &FsContext->ShareAccess, TRUE);
+                    Result = IoCheckShareAccess(AccessState->PreviouslyGrantedAccess,
+                        ShareAccess, FileObject, &FsContext->ShareAccess, TRUE);
                 if (NT_SUCCESS(Result))
                     FspFileContextOpen(FsContext);
                 ExReleaseResourceLite(FsContext->Header.Resource);
