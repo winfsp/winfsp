@@ -73,7 +73,7 @@ static NTSTATUS FspFsvolCreate(
         PSECURITY_DESCRIPTOR SecurityDescriptor = AccessState->SecurityDescriptor;
         ULONG SecurityDescriptorSize = 0;
         LARGE_INTEGER AllocationSize = Irp->Overlay.AllocationSize;
-        ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.DesiredAccess;
+        ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
         USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
         PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
         //ULONG EaLength = IrpSp->Parameters.Create.EaLength;
@@ -353,7 +353,7 @@ VOID FspFsvolCreateComplete(
     PSECURITY_DESCRIPTOR SecurityDescriptor =
         (PVOID)(Response->Buffer + Response->Rsp.Create.SecurityDescriptor);
     ULONG SecurityDescriptorSize = Response->Rsp.Create.SecurityDescriptorSize;
-    ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.DesiredAccess;
+    ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
     USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     ULONG Flags = IrpSp->Flags;
     KPROCESSOR_MODE RequestorMode =
