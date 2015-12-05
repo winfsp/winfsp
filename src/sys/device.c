@@ -47,9 +47,15 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvrtDeviceInit)
 #pragma alloc_text(PAGE, FspFsvrtDeviceFini)
 #pragma alloc_text(PAGE, FspFsvolDeviceInit)
-//! #pragma alloc_text(PAGE, FspFsvolDeviceFini)
+#pragma alloc_text(PAGE, FspFsvolDeviceFini)
 #pragma alloc_text(PAGE, FspFsctlDeviceVolumeCreated)
 #pragma alloc_text(PAGE, FspFsctlDeviceVolumeDeleted)
+#pragma alloc_text(PAGE, FspFsvolDeviceLookupContext)
+#pragma alloc_text(PAGE, FspFsvolDeviceInsertContext)
+#pragma alloc_text(PAGE, FspFsvolDeviceDeleteContext)
+#pragma alloc_text(PAGE, FspFsvolDeviceCompareElement)
+#pragma alloc_text(PAGE, FspFsvolDeviceAllocateElement)
+#pragma alloc_text(PAGE, FspFsvolDeviceFreeElement)
 #pragma alloc_text(PAGE, FspDeviceCopyList)
 #pragma alloc_text(PAGE, FspDeviceDeleteList)
 #pragma alloc_text(PAGE, FspDeviceDeleteAll)
@@ -214,26 +220,25 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
 
-    ExInitializeFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
-    RtlInitializeGenericTableAvl(&FsvolDeviceExtension->GenericTable, 0, 0, 0, 0);
+    RtlInitializeGenericTableAvl(&FsvolDeviceExtension->GenericTable,
+        FspFsvolDeviceCompareElement, FspFsvolDeviceAllocateElement, FspFsvolDeviceFreeElement, 0);
 
     return STATUS_SUCCESS;
 }
 
 static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
 {
-    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
+    PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
 
     /*
      * Enumerate and delete all entries in the GenericTable.
+     * There is no need to protect accesses to the table as we are in the device destructor.
      */
-    ExAcquireFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
     FSP_DEVICE_GENERIC_TABLE_ELEMENT *Element;
     while (0 != (Element = RtlGetElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, 0)))
         RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Element->Identifier);
-    ExReleaseFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
 
     /*
      * Dereference the virtual volume device so that it can now go away.
@@ -307,36 +312,34 @@ VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject)
 
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier)
 {
-    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
+    PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
+    ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Base.Resource));
 
-    PVOID Result;
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT *Result;
 
-    ExAcquireFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
     Result = RtlLookupElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Identifier);
-    ExReleaseFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
 
-    return Result;
+    return 0 != Result ? Result->Context : 0;
 }
 
 PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     PBOOLEAN PInserted)
 {
-    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
+    PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
+    ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Base.Resource));
 
     FSP_DEVICE_GENERIC_TABLE_ELEMENT *Result, Element = { 0 };
     Element.Identifier = Identifier;
     Element.Context = Context;
 
-    ExAcquireFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
     Result = RtlInsertElementGenericTableAvl(&FsvolDeviceExtension->GenericTable,
         &Element, sizeof Element, PInserted);
-    ExReleaseFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
 
     return 0 != Result ? Result->Context : 0;
 }
@@ -344,16 +347,15 @@ PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
 VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     PBOOLEAN PDeleted)
 {
-    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
+    PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
+    ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Base.Resource));
 
     BOOLEAN Deleted;
 
-    ExAcquireFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
     Deleted = RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Identifier);
-    ExReleaseFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
 
     if (0 != PDeleted)
         *PDeleted = Deleted;
@@ -362,7 +364,7 @@ VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
 static RTL_GENERIC_COMPARE_RESULTS NTAPI FspFsvolDeviceCompareElement(
     PRTL_AVL_TABLE Table, PVOID FirstElement, PVOID SecondElement)
 {
-    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
+    PAGED_CODE();
 
     if (FirstElement < SecondElement)
         return GenericLessThan;
@@ -376,16 +378,15 @@ static RTL_GENERIC_COMPARE_RESULTS NTAPI FspFsvolDeviceCompareElement(
 static PVOID NTAPI FspFsvolDeviceAllocateElement(
     PRTL_AVL_TABLE Table, CLONG ByteSize)
 {
-    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
+    PAGED_CODE();
 
-    /* allocate from non-paged pool because of fast mutex use */
-    return ExAllocatePoolWithTag(NonPagedPool, ByteSize, FSP_TAG);
+    return ExAllocatePoolWithTag(PagedPool, ByteSize, FSP_TAG);
 }
 
 static VOID NTAPI FspFsvolDeviceFreeElement(
     PRTL_AVL_TABLE Table, PVOID Buffer)
 {
-    // !PAGED_CODE(); /* because of fast mutex use in GenericTable */
+    PAGED_CODE();
 
     ExFreePoolWithTag(Buffer, FSP_TAG);
 }

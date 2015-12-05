@@ -304,7 +304,6 @@ typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
     PDEVICE_OBJECT FsvrtDeviceObject;
-    FAST_MUTEX GenericTableFastMutex;
     RTL_AVL_TABLE GenericTable;
 } FSP_FSVOL_DEVICE_EXTENSION;
 static inline
