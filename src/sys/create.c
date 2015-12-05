@@ -241,12 +241,14 @@ static NTSTATUS FspFsvolCreate(
 
         /* populate the Create request */
         Request->Kind = FspFsctlTransactCreateKind;
+        Request->FileName.Offset = 0;
+        Request->FileName.Size = FsContext->FileName.Length + sizeof(WCHAR);
         Request->Req.Create.CreateDisposition = CreateDisposition;
         Request->Req.Create.CreateOptions = CreateOptions;
         Request->Req.Create.FileAttributes = FileAttributes;
-        Request->Req.Create.SecurityDescriptor = 0 == SecurityDescriptor ? 0 :
-            FSP_FSCTL_DEFAULT_ALIGN_UP(FsContext->FileName.Length + sizeof(WCHAR));
-        Request->Req.Create.SecurityDescriptorSize = (UINT16)SecurityDescriptorSize;
+        Request->Req.Create.SecurityDescriptor.Offset = 0 == SecurityDescriptorSize ? 0 :
+            FSP_FSCTL_DEFAULT_ALIGN_UP(Request->FileName.Size);
+        Request->Req.Create.SecurityDescriptor.Size = (UINT16)SecurityDescriptorSize;
         Request->Req.Create.AllocationSize = AllocationSize.QuadPart;
         Request->Req.Create.AccessToken = 0;
         Request->Req.Create.DesiredAccess = DesiredAccess;
@@ -262,7 +264,7 @@ static NTSTATUS FspFsvolCreate(
         if (IsAbsoluteSecurityDescriptor)
         {
             Result = RtlAbsoluteToSelfRelativeSD(SecurityDescriptor,
-                Request->Buffer + Request->Req.Create.SecurityDescriptor, &SecurityDescriptorSize);
+                Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset, &SecurityDescriptorSize);
             if (!NT_SUCCESS(Result))
             {
                 FspFileContextDelete(FsContext);
@@ -272,7 +274,7 @@ static NTSTATUS FspFsvolCreate(
             }
         }
         else if (IsSelfRelativeSecurityDescriptor)
-            RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor,
+            RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset,
                 SecurityDescriptor, SecurityDescriptorSize);
 
         /*
@@ -351,8 +353,8 @@ VOID FspFsvolCreateComplete(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
     PSECURITY_DESCRIPTOR SecurityDescriptor =
-        (PVOID)(Response->Buffer + Response->Rsp.Create.SecurityDescriptor);
-    ULONG SecurityDescriptorSize = Response->Rsp.Create.SecurityDescriptorSize;
+        (PVOID)(Response->Buffer + Response->Rsp.Create.Buf.SecurityDescriptor.Offset);
+    ULONG SecurityDescriptorSize = Response->Rsp.Create.Buf.SecurityDescriptor.Size;
     ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
     USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     ULONG Flags = IrpSp->Flags;
@@ -367,6 +369,27 @@ VOID FspFsvolCreateComplete(
     {
         FspFileContextDelete(FileObject->FsContext);
         FileObject->FsContext = 0;
+
+        Irp->IoStatus.Information = Response->IoStatus.Information;
+        Result = Response->IoStatus.Status;
+        FSP_RETURN();
+    }
+
+    /* special case STATUS_REPARSE */
+    if (STATUS_REPARSE == Result)
+    {
+        if (IO_REPARSE != Response->IoStatus.Information &&
+            IO_REMOUNT != Response->IoStatus.Information)
+        {
+            FspFileContextDelete(FileObject->FsContext);
+            FileObject->FsContext = 0;
+            FSP_RETURN(Result = STATUS_ACCESS_DENIED);
+        }
+
+        if (IO_REPARSE != Response->IoStatus.Information)
+        {
+        }
+
         Irp->IoStatus.Information = Response->IoStatus.Information;
         Result = Response->IoStatus.Status;
         FSP_RETURN();

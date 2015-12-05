@@ -79,6 +79,11 @@ typedef struct
 } FSP_FSCTL_VOLUME_PARAMS;
 typedef struct
 {
+    UINT16 Offset;
+    UINT16 Size;
+} FSP_FSCTL_TRANSACT_BUF;
+typedef struct
+{
     UINT16 Version;
     UINT16 Size;
     UINT32 Kind;
@@ -90,8 +95,7 @@ typedef struct
             UINT32 CreateDisposition;   /* FILE_{SUPERSEDE,CREATE,OPEN,OPEN_IF,OVERWRITE,OVERWRITE_IF} */
             UINT32 CreateOptions;       /* FILE_{DIRECTORY_FILE,NON_DIRECTORY_FILE,etc.} */
             UINT32 FileAttributes;      /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
-            UINT16 SecurityDescriptor;  /* security descriptor for new files (offset within Buffer) */
-            UINT16 SecurityDescriptorSize;  /* security descriptor size */
+            FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;  /* security descriptor for new files */
             UINT64 AllocationSize;      /* initial allocation size */
             UINT64 AccessToken;         /* (HANDLE); request access token; sent if NoAccessCheck is 0 */
             UINT32 DesiredAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
@@ -114,6 +118,7 @@ typedef struct
             UINT64 UserContext2;
         } Close;
     } Req;
+    FSP_FSCTL_TRANSACT_BUF FileName;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_REQ;
 typedef struct
@@ -134,8 +139,11 @@ typedef struct
             UINT64 UserContext;         /* user context attached to an open file (unique file id) */
             UINT64 UserContext2;        /* user context attached to a kernel file object */
                                         /*     (only low 32 bits valid in 32-bit mode) */
-            UINT16 SecurityDescriptor;  /* security descriptor for existing files (offset within Buffer) */
-            UINT16 SecurityDescriptorSize;  /* security descriptor size */
+            union
+            {
+                FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;  /* security descriptor for existing files */
+                FSP_FSCTL_TRANSACT_BUF ReparseFileName;     /* file name to use for STATUS_REPARSE */
+            } Buf;
         } Create;
     } Rsp;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
