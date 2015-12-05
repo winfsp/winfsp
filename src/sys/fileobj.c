@@ -46,6 +46,7 @@ NTSTATUS FspFileContextCreate(ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext)
     FsContext->Header.PagingIoResource = &NonPaged->PagingIoResource;
     FsRtlSetupAdvancedHeader(&FsContext->Header, &NonPaged->HeaderFastMutex);
     FsContext->NonPaged = NonPaged;
+    FsContext->RefCount = 1;
     RtlInitEmptyUnicodeString(&FsContext->FileName, FsContext->FileNameBuf, (USHORT)ExtraSize);
 
     *PFsContext = FsContext;

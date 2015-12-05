@@ -363,9 +363,13 @@ typedef struct
 {
     FSRTL_ADVANCED_FCB_HEADER Header;
     FSP_FILE_CONTEXT_NONPAGED *NonPaged;
+    /* interlocked access */
+    LONG RefCount;
+    /* protected by Header.Resource */
     LONG OpenCount;
     SHARE_ACCESS ShareAccess;
-        /* protected by containing fsvol lock */
+    BOOLEAN DeletePending;
+    /* read-only after creation */
     UINT64 UserContext;
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
@@ -375,13 +379,26 @@ VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
 static inline
 VOID FspFileContextOpen(FSP_FILE_CONTEXT *Context)
 {
-    InterlockedIncrement(&Context->OpenCount);
+    ASSERT(0 == Context->OpenCount || ExIsResourceAcquiredExclusiveLite(Context->Header.Resource));
+    Context->OpenCount++;
 }
 static inline
 VOID FspFileContextClose(FSP_FILE_CONTEXT *Context)
 {
-    LONG Result = InterlockedDecrement(&Context->OpenCount);
-    if (0 == Result)
+    ASSERT(ExIsResourceAcquiredExclusiveLite(Context->Header.Resource));
+    ASSERT(0 < Context->OpenCount);
+    Context->OpenCount--;
+}
+static inline
+VOID FspFileContextRetain(FSP_FILE_CONTEXT *Context)
+{
+    InterlockedIncrement(&Context->RefCount);
+}
+static inline
+VOID FspFileContextRelease(FSP_FILE_CONTEXT *Context)
+{
+    LONG RefCount = InterlockedDecrement(&Context->RefCount);
+    if (0 == RefCount)
         FspFileContextDelete(Context);
 }
 

@@ -403,7 +403,7 @@ VOID FspFsvolCreateComplete(
     FsContext->UserContext = Response->Rsp.Create.UserContext;
     FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.UserContext2;
 
-    /* following must be performed under the fsvol lock */
+    /* lock the file system volume device while accessing its generic table */
     ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->Base.Resource, TRUE);
     try
     {
@@ -415,19 +415,34 @@ VOID FspFsvolCreateComplete(
             Result = STATUS_INSUFFICIENT_RESOURCES;
         else
         {
-            /* do the share access checks */
+            /* share access check */
             if (Inserted)
             {
+                /*
+                 * This is a newly created FsContext. Set its share access and
+                 * increment its open count. There is no need to acquire the
+                 * FsContext's Resource (because it is newly created).
+                 */
                 IoSetShareAccess(DesiredAccess, ShareAccess, FileObject,
                     &FsContext->ShareAccess);
                 FspFileContextOpen(FsContext);
             }
             else
             {
-                Result = IoCheckShareAccess(DesiredAccess, ShareAccess, FileObject,
-                    &FsContext->ShareAccess, TRUE);
+                /*
+                 * This is an existing FsContext. We must acquire its Resource and
+                 * check if there is a delete pending and the share access. Only if
+                 * both tests succeed we increment the open count and report success.
+                 */
+                ExAcquireResourceExclusiveLite(FsContext->Header.Resource, TRUE);
+                if (FsContext->DeletePending)
+                    Result = STATUS_DELETE_PENDING;
+                else
+                    Result = IoCheckShareAccess(DesiredAccess, ShareAccess, FileObject,
+                        &FsContext->ShareAccess, TRUE);
                 if (NT_SUCCESS(Result))
                     FspFileContextOpen(FsContext);
+                ExReleaseResourceLite(FsContext->Header.Resource);
             }
         }
     }
@@ -444,9 +459,10 @@ VOID FspFsvolCreateComplete(
         FSP_RETURN();
     }
 
-    /* does an FsContext with the same UserContext already exist? */
+    /* did an FsContext with the same UserContext already exist? */
     if (!Inserted)
     {
+        /* delete the newly created FsContext and use the existing one */
         FspFileContextDelete(FileObject->FsContext);
         FileObject->FsContext = FsContext;
     }
