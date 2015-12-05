@@ -344,7 +344,6 @@ VOID FspFsvolCreateComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
-    PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
 
     /* if the user-mode file system sent us a failure code, fail the request now */
@@ -352,35 +351,47 @@ VOID FspFsvolCreateComplete(
     {
         FspFileContextDelete(FileObject->FsContext);
         FileObject->FsContext = 0;
-        goto exit;
+        Irp->IoStatus.Information = Response->IoStatus.Information;
+        Result = Response->IoStatus.Status;
+        FSP_RETURN();
     }
 
     /* record the user-mode file system contexts */
     FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
-    BOOLEAN Inserted;
     FsContext->UserContext = Response->Rsp.Create.UserContext;
     FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.UserContext2;
 
     /* insert the new FsContext into our generic table */
-    FsContext = FspFsvolDeviceInsertContext(DeviceObject,
-        FsContext->UserContext, FsContext, &Inserted);
+    PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    BOOLEAN Inserted;
+    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->Base.Resource, TRUE);
+    try
+    {
+        FsContext = FspFsvolDeviceInsertContext(DeviceObject,
+            FsContext->UserContext, FsContext, &Inserted);
+        if (0 != FsContext)
+            FspFileContextOpen(FsContext);
+    }
+    finally
+    {
+        ExReleaseResourceLite(&FsvolDeviceExtension->Base.Resource);
+    }
+
+    /* did we fail to insert? */
     if (0 == FsContext)
     {
         FspFsvolCreateClose(Irp, Response);
-        FSP_RETURN(Result = STATUS_INSUFFICIENT_RESOURCES);
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        FSP_RETURN();
     }
 
-    /* if it was not inserted, an FsContext with the same UserContext already exists; reuse it */
+    /* does an FsContext with the same UserContext already exist? */
     if (!Inserted)
     {
         FspFileContextDelete(FileObject->FsContext);
-        FspFileContextOpen(FsContext);
         FileObject->FsContext = FsContext;
     }
-
-exit:
-    Irp->IoStatus.Information = Response->IoStatus.Information;
-    Result = Response->IoStatus.Status;
 
     FSP_LEAVE_IOC(
         "FileObject=%p[%p:\"%wZ\"]",
