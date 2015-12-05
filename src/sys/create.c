@@ -309,11 +309,8 @@ NTSTATUS FspFsvolCreatePrepare(
 
     PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
-
-    /* it is not necessary to retain the FsvrtDeviceObject; our callers have already done so */
-    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
-    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
+        FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
 
     /* if the user-mode file system is not doing access checks, there is nothing else to do */
     if (!FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
@@ -322,14 +319,18 @@ NTSTATUS FspFsvolCreatePrepare(
         FSP_RETURN(Result = STATUS_SUCCESS);
     }
 
+    /* get a user-mode handle to the access token */
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
     HANDLE UserModeAccessToken;
-
-    /* get a user-mode handle to the access token */
     Result = ObOpenObjectByPointer(SeQuerySubjectContextToken(&AccessState->SubjectSecurityContext),
         0, 0, TOKEN_QUERY, *SeTokenObjectType, UserMode, &UserModeAccessToken);
     if (!NT_SUCCESS(Result))
+    {
+        PFILE_OBJECT FileObject = IrpSp->FileObject;
+        FspFileContextDelete(FileObject->FsContext);
+        FileObject->FsContext = 0;
         FSP_RETURN();
+    }
 
     /* send the user-mode handle to the user-mode file system */
     Irp->Tail.Overlay.DriverContext[1] = UserModeAccessToken;
@@ -342,6 +343,44 @@ VOID FspFsvolCreateComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
+
+    PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+
+    /* if the user-mode file system sent us a failure code, fail the request now */
+    if (!NT_SUCCESS(Response->IoStatus.Status))
+    {
+        FspFileContextDelete(FileObject->FsContext);
+        FileObject->FsContext = 0;
+        goto exit;
+    }
+
+    /* record the user-mode file system contexts */
+    FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
+    BOOLEAN Inserted;
+    FsContext->UserContext = Response->Rsp.Create.UserContext;
+    FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.UserContext2;
+
+    /* insert the new FsContext into our generic table */
+    FsContext = FspFsvolDeviceInsertContext(DeviceObject,
+        FsContext->UserContext, FsContext, &Inserted);
+    if (0 == FsContext)
+    {
+        FspFsvolCreateClose(Irp, Response);
+        FSP_RETURN(Result = STATUS_INSUFFICIENT_RESOURCES);
+    }
+
+    /* if it was not inserted, an FsContext with the same UserContext already exists; reuse it */
+    if (!Inserted)
+    {
+        FspFileContextDelete(FileObject->FsContext);
+        FspFileContextOpen(FsContext);
+        FileObject->FsContext = FsContext;
+    }
+
+exit:
+    Irp->IoStatus.Information = Response->IoStatus.Information;
+    Result = Response->IoStatus.Status;
 
     FSP_LEAVE_IOC(
         "FileObject=%p[%p:\"%wZ\"]",

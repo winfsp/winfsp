@@ -262,7 +262,8 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 NTSTATUS FspIopCreateRequest(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest);
 VOID FspIopCompleteRequestEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease);
-static inline VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result)
+static inline
+VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result)
 {
     FspIopCompleteRequestEx(Irp, Result, TRUE);
 }
@@ -363,11 +364,25 @@ typedef struct
 {
     FSRTL_ADVANCED_FCB_HEADER Header;
     FSP_FILE_CONTEXT_NONPAGED *NonPaged;
+    LONG OpenCount;
+    UINT64 UserContext;
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
 } FSP_FILE_CONTEXT;
 NTSTATUS FspFileContextCreate(ULONG ExtraSize, FSP_FILE_CONTEXT **PContext);
 VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
+static inline
+VOID FspFileContextOpen(FSP_FILE_CONTEXT *Context)
+{
+    InterlockedIncrement(&Context->OpenCount);
+}
+static inline
+VOID FspFileContextClose(FSP_FILE_CONTEXT *Context)
+{
+    LONG Result = InterlockedDecrement(&Context->OpenCount);
+    if (0 == Result)
+        FspFileContextDelete(Context);
+}
 
 /* misc */
 NTSTATUS FspCreateGuid(GUID *Guid);

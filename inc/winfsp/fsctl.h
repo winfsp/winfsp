@@ -133,6 +133,7 @@ typedef struct
         {
             UINT64 UserContext;         /* user context attached to an open file (unique file id) */
             UINT64 UserContext2;        /* user context attached to a kernel file object */
+                                        /*     (only low 32 bits valid in 32-bit mode) */
             UINT16 SecurityDescriptor;  /* security descriptor for existing files (offset within Buffer) */
             UINT16 SecurityDescriptorSize;  /* security descriptor size */
         } Create;
