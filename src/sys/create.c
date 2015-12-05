@@ -352,9 +352,9 @@ VOID FspFsvolCreateComplete(
         FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
-    PSECURITY_DESCRIPTOR SecurityDescriptor =
-        (PVOID)(Response->Buffer + Response->Rsp.Create.Buf.SecurityDescriptor.Offset);
-    ULONG SecurityDescriptorSize = Response->Rsp.Create.Buf.SecurityDescriptor.Size;
+    PSECURITY_DESCRIPTOR SecurityDescriptor;
+    ULONG SecurityDescriptorSize;
+    UNICODE_STRING ReparseFileName;
     ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
     USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     ULONG Flags = IrpSp->Flags;
@@ -378,28 +378,63 @@ VOID FspFsvolCreateComplete(
     /* special case STATUS_REPARSE */
     if (STATUS_REPARSE == Result)
     {
-        if (IO_REPARSE != Response->IoStatus.Information &&
-            IO_REMOUNT != Response->IoStatus.Information)
-        {
-            FspFileContextDelete(FileObject->FsContext);
-            FileObject->FsContext = 0;
-            FSP_RETURN(Result = STATUS_ACCESS_DENIED);
-        }
+        ReparseFileName.Buffer =
+            (PVOID)(Response->Buffer + Response->Rsp.Create.Buf.ReparseFileName.Offset);
+        ReparseFileName.Length = ReparseFileName.MaximumLength =
+            Response->Rsp.Create.Buf.ReparseFileName.Size;
 
-        if (IO_REPARSE != Response->IoStatus.Information)
+        Result = STATUS_ACCESS_DENIED;
+        if (IO_REPARSE == Response->IoStatus.Information)
         {
+            if (0 == ReparseFileName.Length ||
+                (PUINT8)ReparseFileName.Buffer + ReparseFileName.Length >
+                (PUINT8)Response + Response->Size)
+                goto reparse_fail;
+
+            if (ReparseFileName.Length > FileObject->FileName.MaximumLength)
+            {
+                PVOID Buffer = ExAllocatePoolWithTag(NonPagedPool, ReparseFileName.Length, FSP_TAG);
+                if (0 == Buffer)
+                {
+                    Result = STATUS_INSUFFICIENT_RESOURCES;
+                    goto reparse_fail;
+                }
+                ExFreePool(FileObject->FileName.Buffer);
+                FileObject->FileName.Length = 0;
+                FileObject->FileName.MaximumLength = ReparseFileName.Length;
+                FileObject->FileName.Buffer = Buffer;
+                RtlCopyUnicodeString(&FileObject->FileName, &ReparseFileName);
+            }
         }
+        else
+        if (IO_REMOUNT == Response->IoStatus.Information)
+        {
+            if (0 != ReparseFileName.Length)
+                goto reparse_fail;
+        }
+        else
+            goto reparse_fail;
 
         Irp->IoStatus.Information = Response->IoStatus.Information;
         Result = Response->IoStatus.Status;
         FSP_RETURN();
+
+    reparse_fail:
+        FspFileContextDelete(FileObject->FsContext);
+        FileObject->FsContext = 0;
+        FSP_RETURN();
     }
+
+    SecurityDescriptor =
+        (PVOID)(Response->Buffer + Response->Rsp.Create.Buf.SecurityDescriptor.Offset);
+    SecurityDescriptorSize = Response->Rsp.Create.Buf.SecurityDescriptor.Size;
 
     /* are we doing access checks? */
     if (FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck &&
         0 != SecurityDescriptorSize)
     {
-        if ((PUINT8)SecurityDescriptor + SecurityDescriptorSize > (PUINT8)Response + Response->Size ||
+        if ((PUINT8)SecurityDescriptor + SecurityDescriptorSize >
+            (PUINT8)Response + Response->Size ||
             !FspValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorSize, 0))
         {
             FspFsvolCreateClose(Irp, Response);
