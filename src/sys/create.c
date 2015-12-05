@@ -403,12 +403,14 @@ VOID FspFsvolCreateComplete(
     FsContext->UserContext = Response->Rsp.Create.UserContext;
     FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.UserContext2;
 
-    /* lock the file system volume device while accessing its generic table */
+    /*
+     * The following must be done under the file system volume device Resource,
+     * because we are manipulating its GenericTable and accessing foreign FsContext's.
+     */
     ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->Base.Resource, TRUE);
     try
     {
-        /* insert the new FsContext into our generic table */
-        Result = STATUS_SUCCESS;
+        /* attempt to insert the newly created FsContext into our generic table */
         FsContext = FspFsvolDeviceInsertContext(DeviceObject,
             FsContext->UserContext, FsContext, &Inserted);
         if (0 == FsContext)
@@ -426,6 +428,7 @@ VOID FspFsvolCreateComplete(
                 IoSetShareAccess(DesiredAccess, ShareAccess, FileObject,
                     &FsContext->ShareAccess);
                 FspFileContextOpen(FsContext);
+                Result = STATUS_SUCCESS;
             }
             else
             {
