@@ -312,7 +312,7 @@ NTSTATUS FspFsvolCreatePrepare(
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
         FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
 
-    /* if the user-mode file system is not doing access checks, there is nothing else to do */
+    /* is the user-mode file system doing access checks? */
     if (!FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
     {
         ASSERT(0 == Request->Req.Create.AccessToken);
@@ -346,7 +346,7 @@ VOID FspFsvolCreateComplete(
 
     PFILE_OBJECT FileObject = IrpSp->FileObject;
 
-    /* if the user-mode file system sent us a failure code, fail the request now */
+    /* did the user-mode file system sent us a failure code? */
     if (!NT_SUCCESS(Response->IoStatus.Status))
     {
         FspFileContextDelete(FileObject->FsContext);
@@ -356,14 +356,22 @@ VOID FspFsvolCreateComplete(
         FSP_RETURN();
     }
 
+    PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
+        FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
+
+    /* are we doing access checks? */
+    if (FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
+    {
+    }
+
     /* record the user-mode file system contexts */
     FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
     FsContext->UserContext = Response->Rsp.Create.UserContext;
     FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.UserContext2;
 
     /* insert the new FsContext into our generic table */
-    PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     BOOLEAN Inserted;
     ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->Base.Resource, TRUE);
     try
@@ -382,8 +390,7 @@ VOID FspFsvolCreateComplete(
     if (0 == FsContext)
     {
         FspFsvolCreateClose(Irp, Response);
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        FSP_RETURN();
+        FSP_RETURN(Result = STATUS_INSUFFICIENT_RESOURCES);
     }
 
     /* does an FsContext with the same UserContext already exist? */
@@ -392,6 +399,9 @@ VOID FspFsvolCreateComplete(
         FspFileContextDelete(FileObject->FsContext);
         FileObject->FsContext = FsContext;
     }
+
+    Irp->IoStatus.Information = Response->IoStatus.Information;
+    Result = Response->IoStatus.Status;
 
     FSP_LEAVE_IOC(
         "FileObject=%p[%p:\"%wZ\"]",
