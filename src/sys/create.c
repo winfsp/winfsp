@@ -241,8 +241,6 @@ static NTSTATUS FspFsvolCreate(
 
         /* populate the Create request */
         Request->Kind = FspFsctlTransactCreateKind;
-        Request->FileName.Offset = 0;
-        Request->FileName.Size = FsContext->FileName.Length + sizeof(WCHAR);
         Request->Req.Create.CreateDisposition = CreateDisposition;
         Request->Req.Create.CreateOptions = CreateOptions;
         Request->Req.Create.FileAttributes = FileAttributes;
@@ -558,6 +556,66 @@ static VOID FspFsvolCreateClose(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
+
+    /*
+     * This routine handles the case where we must close an open file,
+     * because of a failure during Create completion. We simply create
+     * a CreateClose request and we post it to our Ioq.
+     *
+     * Ideally there would be no failure modes for this routine. Reality is
+     * different.
+     *
+     * The more serious (but perhaps non-existent in practice) failure is a
+     * memory allocation failure for the CreateClose request. In this case we
+     * will leak the user-mode file system handle!
+     *
+     * This routine may also fail if the Ioq was stopped, which means that
+     * the virtual volume device and the file system volume device are being
+     * deleted. Because it is assumed that only the user-mode file system would
+     * initiate a device deletion, this case is more benign (presumably the file
+     * system knows to close off all its handles when tearing down its devices).
+     */
+
+    NTSTATUS Result;
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
+        FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
+    BOOLEAN FileNameRequired = 0 != FsvrtDeviceExtension->VolumeParams.FileNameRequired;
+    FSP_FSCTL_TRANSACT_REQ *Request;
+
+    /* create the user-mode file system request */
+    Result = FspIopCreateRequest(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
+    if (!NT_SUCCESS(Result))
+    {
+        DEBUGLOG("FileObject=%p[%p:\"%wZ\"], UserContext=%llx, UserContext2=%p: "
+            "FspIopCreateRequest failed: the user-mode file system handle will be leaked!",
+            IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName,
+            FsContext->UserContext, FileObject->FsContext2);
+        goto exit;
+    }
+
+    /* populate the Create request */
+    Request->Kind = FspFsctlTransactCreateCloseKind;
+    Request->Req.Close.UserContext = FsContext->UserContext;
+    Request->Req.Close.UserContext2 = (UINT_PTR)FileObject->FsContext2;
+
+    /*
+     * Post the IRP to our Ioq.
+     */
+    if (!FspIoqPostIrp(&FsvrtDeviceExtension->Ioq, Irp))
+    {
+        /* this can only happen if the Ioq was stopped */
+        ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));
+        goto exit;
+    }
+
+exit:
+    FspFileContextDelete(FsContext);
+    FileObject->FsContext = 0;
 }
 
 NTSTATUS FspCreate(

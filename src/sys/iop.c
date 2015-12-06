@@ -45,6 +45,13 @@ NTSTATUS FspIopCreateRequest(
         RtlCopyMemory(Request->Buffer, FileName->Buffer, FileName->Length);
         Request->Buffer[FileName->Length] = '\0';
         Request->Buffer[FileName->Length + 1] = '\0';
+        Request->FileName.Offset = 0;
+        Request->FileName.Size = FileName->Length + sizeof(WCHAR);
+    }
+    else
+    {
+        Request->FileName.Offset = 0;
+        Request->FileName.Size = 0;
     }
 
     Irp->Tail.Overlay.DriverContext[0] = Request;

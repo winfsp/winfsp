@@ -49,7 +49,8 @@ enum
 {
     FspFsctlTransactUnknownKind = 0,
     FspFsctlTransactCreateKind = 'C',
-    FspFsctlTransactCloseKind = 'c',
+    FspFsctlTransactCreateCloseKind = 'c',
+    FspFsctlTransactCloseKind = 'z',
     FspFsctlTransactReadKind = 'R',
     FspFsctlTransactWriteKind = 'W',
     FspFsctlTransactQueryInformationKind = 'I',
@@ -64,7 +65,7 @@ enum
     FspFsctlTransactDeviceControlKind = 'k',
     FspFsctlTransactShutdownKind = 'd',
     FspFsctlTransactLockControlKind = 'L',
-    FspFsctlTransactCleanupKind = 'l',
+    FspFsctlTransactCleanupKind = 'Z',
     FspFsctlTransactQuerySecurityKind = 'S',
     FspFsctlTransactSetSecurityKind = 's',
 };
