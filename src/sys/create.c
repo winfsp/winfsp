@@ -368,6 +368,7 @@ VOID FspFsvolCreateComplete(
     ULONG SecurityDescriptorSize;
     UNICODE_STRING ReparseFileName;
     ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
+    PPRIVILEGE_SET Privileges = 0;
     USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     ULONG Flags = IrpSp->Flags;
     KPROCESSOR_MODE RequestorMode =
@@ -458,7 +459,7 @@ VOID FspFsvolCreateComplete(
             FALSE,
             DesiredAccess,
             AccessState->PreviouslyGrantedAccess,
-            0,
+            &Privileges,
             IoGetFileObjectGenericMapping(),
             RequestorMode,
             &GrantedAccess,
@@ -466,6 +467,17 @@ VOID FspFsvolCreateComplete(
         {
             FspFsvolCreateClose(Irp, Response);
             FSP_RETURN();
+        }
+
+        if (0 != Privileges)
+        {
+            Result = SeAppendPrivileges(AccessState, Privileges);
+            SeFreePrivileges(Privileges);
+            if (!NT_SUCCESS(Result))
+            {
+                FspFsvolCreateClose(Irp, Response);
+                FSP_RETURN();
+            }
         }
 
         SetFlag(AccessState->PreviouslyGrantedAccess, GrantedAccess);

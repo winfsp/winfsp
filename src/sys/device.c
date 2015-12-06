@@ -226,6 +226,8 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
 
+#if 0
+    /* FspFsvolDeviceFreeElement is now a no-op, so this is no longer necessary */
     /*
      * Enumerate and delete all entries in the GenericTable.
      * There is no need to protect accesses to the table as we are in the device destructor.
@@ -233,6 +235,7 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
     FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Element;
     while (0 != (Element = RtlGetElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, 0)))
         RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Element->Identifier);
+#endif
 
     /*
      * Dereference the virtual volume device so that it can now go away.
