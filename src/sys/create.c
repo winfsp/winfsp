@@ -346,6 +346,20 @@ VOID FspFsvolCreateComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
+    /*
+     * NOTE:
+     * In the following we may have to close the just opened file object. But we must
+     * never close a file we just created, because this will leave an orphan file on
+     * the disk.
+     *
+     * Files may have to be closed if a security access or share access check fails. In
+     * both those cases we were opening an existing file and so it is safe to close it.
+     *
+     * Because of how IRP_MJ_CREATE works in Windows, it is difficult to improve on this
+     * scheme without introducing a 2-phase Create protocol, which is undesirable as it
+     * means two trips into user-mode for a single Create request.
+     */
+
     PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
@@ -400,11 +414,11 @@ VOID FspFsvolCreateComplete(
                     goto reparse_fail;
                 }
                 ExFreePool(FileObject->FileName.Buffer);
-                FileObject->FileName.Length = 0;
                 FileObject->FileName.MaximumLength = ReparseFileName.Length;
                 FileObject->FileName.Buffer = Buffer;
-                RtlCopyUnicodeString(&FileObject->FileName, &ReparseFileName);
             }
+            FileObject->FileName.Length = 0;
+            RtlCopyUnicodeString(&FileObject->FileName, &ReparseFileName);
         }
         else
         if (IO_REMOUNT == Response->IoStatus.Information)
@@ -471,43 +485,43 @@ VOID FspFsvolCreateComplete(
     ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->Base.Resource, TRUE);
     try
     {
-        /* attempt to insert the newly created FsContext into our generic table */
+        /* insert the newly created FsContext into our generic table */
         FsContext = FspFsvolDeviceInsertContext(DeviceObject,
-            FsContext->UserContext, FsContext, &Inserted);
-        if (0 == FsContext)
-            Result = STATUS_INSUFFICIENT_RESOURCES;
+            FsContext->UserContext, FsContext, &FsContext->ElementStorage, &Inserted);
+        ASSERT(0 != FsContext);
+
+        /* share access check */
+        if (Inserted)
+        {
+            /*
+             * This is a newly created FsContext. Set its share access and
+             * increment its open count. There is no need to acquire the
+             * FsContext's Resource (because it is newly created).
+             */
+            IoSetShareAccess(AccessState->PreviouslyGrantedAccess,
+                ShareAccess, FileObject, &FsContext->ShareAccess);
+            FspFileContextOpen(FsContext);
+            Result = STATUS_SUCCESS;
+        }
         else
         {
-            /* share access check */
-            if (Inserted)
-            {
-                /*
-                 * This is a newly created FsContext. Set its share access and
-                 * increment its open count. There is no need to acquire the
-                 * FsContext's Resource (because it is newly created).
-                 */
-                IoSetShareAccess(AccessState->PreviouslyGrantedAccess,
-                    ShareAccess, FileObject, &FsContext->ShareAccess);
-                FspFileContextOpen(FsContext);
-                Result = STATUS_SUCCESS;
-            }
+            /*
+             * This is an existing FsContext. We must acquire its Resource and
+             * check if there is a delete pending and the share access. Only if
+             * both tests succeed we increment the open count and report success.
+             */
+            ExAcquireResourceExclusiveLite(FsContext->Header.Resource, TRUE);
+            if (FsContext->DeletePending)
+                Result = STATUS_DELETE_PENDING;
             else
+                Result = IoCheckShareAccess(AccessState->PreviouslyGrantedAccess,
+                    ShareAccess, FileObject, &FsContext->ShareAccess, TRUE);
+            if (NT_SUCCESS(Result))
             {
-                /*
-                 * This is an existing FsContext. We must acquire its Resource and
-                 * check if there is a delete pending and the share access. Only if
-                 * both tests succeed we increment the open count and report success.
-                 */
-                ExAcquireResourceExclusiveLite(FsContext->Header.Resource, TRUE);
-                if (FsContext->DeletePending)
-                    Result = STATUS_DELETE_PENDING;
-                else
-                    Result = IoCheckShareAccess(AccessState->PreviouslyGrantedAccess,
-                        ShareAccess, FileObject, &FsContext->ShareAccess, TRUE);
-                if (NT_SUCCESS(Result))
-                    FspFileContextOpen(FsContext);
-                ExReleaseResourceLite(FsContext->Header.Resource);
+                FspFileContextRetain(FsContext);
+                FspFileContextOpen(FsContext);
             }
+            ExReleaseResourceLite(FsContext->Header.Resource);
         }
     }
     finally
@@ -515,7 +529,7 @@ VOID FspFsvolCreateComplete(
         ExReleaseResourceLite(&FsvolDeviceExtension->Base.Resource);
     }
 
-    /* did we fail to insert? */
+    /* did we fail our share access checks? */
     if (!NT_SUCCESS(Result))
     {
         ASSERT(!Inserted);

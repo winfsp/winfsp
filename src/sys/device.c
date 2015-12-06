@@ -26,7 +26,7 @@ VOID FspFsctlDeviceVolumeCreated(PDEVICE_OBJECT DeviceObject);
 VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject);
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
 PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
-    PBOOLEAN PInserted);
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
 VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     PBOOLEAN PDeleted);
 static RTL_AVL_COMPARE_ROUTINE FspFsvolDeviceCompareElement;
@@ -60,12 +60,6 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspDeviceDeleteList)
 #pragma alloc_text(PAGE, FspDeviceDeleteAll)
 #endif
-
-typedef struct
-{
-    UINT64 Identifier;
-    PVOID Context;
-} FSP_DEVICE_GENERIC_TABLE_ELEMENT;
 
 NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
     PUNICODE_STRING DeviceName, DEVICE_TYPE DeviceType,
@@ -236,7 +230,7 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
      * Enumerate and delete all entries in the GenericTable.
      * There is no need to protect accesses to the table as we are in the device destructor.
      */
-    FSP_DEVICE_GENERIC_TABLE_ELEMENT *Element;
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Element;
     while (0 != (Element = RtlGetElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, 0)))
         RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Element->Identifier);
 
@@ -318,7 +312,7 @@ PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
     ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
     ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Base.Resource));
 
-    FSP_DEVICE_GENERIC_TABLE_ELEMENT *Result;
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Result;
 
     Result = RtlLookupElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Identifier);
 
@@ -326,7 +320,7 @@ PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
 }
 
 PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
-    PBOOLEAN PInserted)
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted)
 {
     PAGED_CODE();
 
@@ -334,12 +328,14 @@ PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
     ASSERT(FspFsvolDeviceExtensionKind == FsvolDeviceExtension->Base.Kind);
     ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Base.Resource));
 
-    FSP_DEVICE_GENERIC_TABLE_ELEMENT *Result, Element = { 0 };
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Result, Element = { 0 };
     Element.Identifier = Identifier;
     Element.Context = Context;
 
+    FsvolDeviceExtension->GenericTableElementStorage = ElementStorage;
     Result = RtlInsertElementGenericTableAvl(&FsvolDeviceExtension->GenericTable,
         &Element, sizeof Element, PInserted);
+    FsvolDeviceExtension->GenericTableElementStorage = 0;
 
     return 0 != Result ? Result->Context : 0;
 }
@@ -380,15 +376,18 @@ static PVOID NTAPI FspFsvolDeviceAllocateElement(
 {
     PAGED_CODE();
 
-    return ExAllocatePoolWithTag(PagedPool, ByteSize, FSP_TAG);
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        CONTAINING_RECORD(Table, FSP_FSVOL_DEVICE_EXTENSION, GenericTable);
+
+    ASSERT(sizeof(FSP_DEVICE_GENERIC_TABLE_ELEMENT) == ByteSize);
+
+    return FsvolDeviceExtension->GenericTableElementStorage;
 }
 
 static VOID NTAPI FspFsvolDeviceFreeElement(
     PRTL_AVL_TABLE Table, PVOID Buffer)
 {
     PAGED_CODE();
-
-    ExFreePoolWithTag(Buffer, FSP_TAG);
 }
 
 NTSTATUS FspDeviceCopyList(

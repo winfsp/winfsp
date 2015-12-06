@@ -305,7 +305,18 @@ typedef struct
     FSP_DEVICE_EXTENSION Base;
     PDEVICE_OBJECT FsvrtDeviceObject;
     RTL_AVL_TABLE GenericTable;
+    PVOID GenericTableElementStorage;
 } FSP_FSVOL_DEVICE_EXTENSION;
+typedef struct
+{
+    UINT64 Identifier;
+    PVOID Context;
+} FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA;
+typedef struct
+{
+    RTL_BALANCED_LINKS Header;
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA Data;
+} FSP_DEVICE_GENERIC_TABLE_ELEMENT;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
@@ -343,7 +354,7 @@ VOID FspFsctlDeviceVolumeCreated(PDEVICE_OBJECT DeviceObject);
 VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject);
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
 PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
-    PBOOLEAN PInserted);
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
 VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     PBOOLEAN PDeleted);
 NTSTATUS FspDeviceCopyList(
@@ -370,6 +381,7 @@ typedef struct
     SHARE_ACCESS ShareAccess;
     BOOLEAN DeletePending;
     /* read-only after creation */
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
     UINT64 UserContext;
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
