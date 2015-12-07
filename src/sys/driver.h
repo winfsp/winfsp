@@ -119,12 +119,12 @@
                 {                       \
                     /* this can only happen if the Ioq was stopped */\
                     ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));\
-                    FspIopCompleteRequest(Irp, Result = STATUS_CANCELLED);\
+                    FspIopCompleteIrp(Irp, Result = STATUS_CANCELLED);\
                 }                       \
             }                           \
         }                               \
         else                            \
-            FspIopCompleteRequestEx(Irp, Result, fsp_device_release);\
+            FspIopCompleteIrpEx(Irp, Result, fsp_device_release);\
     );                                  \
     return Result
 #define FSP_ENTER_IOP(...)              \
@@ -148,7 +148,7 @@
             __VA_ARGS__,                \
             NtStatusSym(Result),        \
             (LONGLONG)Irp->IoStatus.Information);\
-        FspIopCompleteRequest(Irp, Result);\
+        FspIopCompleteIrp(Irp, Result);\
     )
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)
@@ -261,11 +261,11 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 /* I/O processing */
 NTSTATUS FspIopCreateRequest(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest);
-VOID FspIopCompleteRequestEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease);
+VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease);
 static inline
-VOID FspIopCompleteRequest(PIRP Irp, NTSTATUS Result)
+VOID FspIopCompleteIrp(PIRP Irp, NTSTATUS Result)
 {
-    FspIopCompleteRequestEx(Irp, Result, TRUE);
+    FspIopCompleteIrpEx(Irp, Result, TRUE);
 }
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);

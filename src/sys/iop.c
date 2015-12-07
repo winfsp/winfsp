@@ -60,7 +60,7 @@ NTSTATUS FspIopCreateRequest(
     return STATUS_SUCCESS;
 }
 
-VOID FspIopCompleteRequestEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
+VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
 {
     // !PAGED_CODE();
 

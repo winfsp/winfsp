@@ -395,7 +395,7 @@ retry:
 
         Result = FspIopDispatchPrepare(PendingIrp, PendingIrpRequest);
         if (!NT_SUCCESS(Result))
-            FspIopCompleteRequest(PendingIrp, Result);
+            FspIopCompleteIrp(PendingIrp, Result);
         else
         {
             NextRequest = FspFsctlTransactProduceRequest(
@@ -415,7 +415,7 @@ retry:
                  * also cancel the PendingIrp we have in our hands.
                  */
                 ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));
-                FspIopCompleteRequest(PendingIrp, STATUS_CANCELLED);
+                FspIopCompleteIrp(PendingIrp, STATUS_CANCELLED);
                 return STATUS_CANCELLED;
             }
 
