@@ -346,7 +346,7 @@ NTSTATUS FspFsvolCreatePrepare(
     }
 
     /* send the user-mode handle to the user-mode file system */
-    Irp->Tail.Overlay.DriverContext[1] = UserModeAccessToken;
+    FspIrpContextHandle(Irp) = UserModeAccessToken;
     Request->Req.Create.AccessToken = (UINT_PTR)UserModeAccessToken;
 
     FSP_LEAVE_IOP();
@@ -388,8 +388,7 @@ VOID FspFsvolCreateComplete(
     ULONG Flags = IrpSp->Flags;
     KPROCESSOR_MODE RequestorMode =
         FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
-    BOOLEAN HasTrailingBackslash =
-        0 != ((FSP_FSCTL_TRANSACT_REQ *)Irp->Tail.Overlay.DriverContext[0])->Req.Create.HasTrailingBackslash;
+    BOOLEAN HasTrailingBackslash = 0 != FspIrpContextRequest(Irp)->Req.Create.HasTrailingBackslash;
     FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
     ACCESS_MASK GrantedAccess;
     BOOLEAN Inserted = FALSE;

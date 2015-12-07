@@ -58,7 +58,7 @@ NTSTATUS FspIopCreateRequest(
     }
 
     if (0 != Irp)
-        Irp->Tail.Overlay.DriverContext[0] = Request;
+        FspIrpContextRequest(Irp) = Request;
     *PRequest = Request;
 
     return STATUS_SUCCESS;
@@ -125,24 +125,24 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
     ASSERT(STATUS_PENDING != Result);
     ASSERT(0 == Irp->Tail.Overlay.DriverContext[3]);
 
-    if (0 != Irp->Tail.Overlay.DriverContext[0])
+    if (0 != FspIrpContextRequest(Irp))
     {
-        FspIopDeleteRequest(Irp->Tail.Overlay.DriverContext[0]);
-        Irp->Tail.Overlay.DriverContext[0] = 0;
+        FspIopDeleteRequest(FspIrpContextRequest(Irp));
+        FspIrpContextRequest(Irp) = 0;
     }
 
-    if (0 != Irp->Tail.Overlay.DriverContext[1])
+    if (0 != FspIrpContextHandle(Irp))
     {
 #if DBG
         NTSTATUS Result0;
-        Result0 = ObCloseHandle(Irp->Tail.Overlay.DriverContext[1], KernelMode);
+        Result0 = ObCloseHandle(FspIrpContextHandle(Irp), KernelMode);
         if (!NT_SUCCESS(Result0))
             DEBUGLOG("ObCloseHandle() = %s", NtStatusSym(Result0));
 #else
-        ObCloseHandle(Irp->Tail.Overlay.DriverContext[1], KernelMode);
+        ObCloseHandle(FspIrpContextHandle(Irp), KernelMode);
 #endif
 
-        Irp->Tail.Overlay.DriverContext[1] = 0;
+        FspIrpContextHandle(Irp) = 0;
     }
 
     PDEVICE_OBJECT DeviceObject = IoGetCurrentIrpStackLocation(Irp)->DeviceObject;

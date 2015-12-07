@@ -263,6 +263,10 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 /* I/O processing */
 #define FSP_FSCTL_WORK                  \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'W', METHOD_NEITHER, FILE_ANY_ACCESS)
+#define FspIrpContextRequest(Irp)       \
+    (*(FSP_FSCTL_TRANSACT_REQ **)&(Irp)->Tail.Overlay.DriverContext[0])
+#define FspIrpContextHandle(Irp)        \
+    (*(HANDLE *)&(Irp)->Tail.Overlay.DriverContext[1])
 NTSTATUS FspIopCreateRequest(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest);
 NTSTATUS FspIopPostWorkRequest(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_TRANSACT_REQ *Request);
