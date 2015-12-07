@@ -8,11 +8,14 @@
 
 NTSTATUS FspIopCreateRequest(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest);
+NTSTATUS FspIopPostWorkRequest(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_TRANSACT_REQ *Request);
+static IO_COMPLETION_ROUTINE FspIopPostWorkRequestCompletion;
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspIopCreateRequest)
+#pragma alloc_text(PAGE, FspIopPostWorkRequest)
 #pragma alloc_text(PAGE, FspIopDispatchPrepare)
 #pragma alloc_text(PAGE, FspIopDispatchComplete)
 #endif
@@ -54,10 +57,65 @@ NTSTATUS FspIopCreateRequest(
         Request->FileName.Size = 0;
     }
 
-    Irp->Tail.Overlay.DriverContext[0] = Request;
+    if (0 != Irp)
+        Irp->Tail.Overlay.DriverContext[0] = Request;
     *PRequest = Request;
 
     return STATUS_SUCCESS;
+}
+
+static inline
+VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    ExFreePoolWithTag(Request, FSP_TAG);
+}
+
+NTSTATUS FspIopPostWorkRequest(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    PAGED_CODE();
+
+    ASSERT(0 == Request->Hint);
+
+    NTSTATUS Result;
+    PIRP Irp = IoAllocateIrp(DeviceObject->StackSize, FALSE);
+    if (0 == Irp)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    PIO_STACK_LOCATION IrpSp = IoGetNextIrpStackLocation(Irp);
+    IrpSp->MajorFunction = IRP_MJ_INTERNAL_DEVICE_CONTROL;
+    IrpSp->Parameters.DeviceIoControl.IoControlCode = FSP_FSCTL_WORK;
+    IrpSp->Parameters.DeviceIoControl.InputBufferLength = Request->Size;
+    IrpSp->Parameters.DeviceIoControl.Type3InputBuffer = Request;
+
+    ASSERT(METHOD_NEITHER == (IrpSp->Parameters.DeviceIoControl.IoControlCode & 3));
+
+    IoSetCompletionRoutine(Irp, FspIopPostWorkRequestCompletion, 0, TRUE, TRUE, TRUE);
+
+    Result = IoCallDriver(DeviceObject, Irp);
+    if (STATUS_PENDING == Result)
+        return STATUS_SUCCESS;
+
+    /*
+     * If we did not receive STATUS_PENDING, we still own the Request and must delete it!
+     */
+
+exit:
+    FspIopDeleteRequest(Request);
+
+    return Result;
+}
+
+static NTSTATUS FspIopPostWorkRequestCompletion(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context)
+{
+    // !PAGED_CODE();
+
+    IoFreeIrp(Irp);
+
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
@@ -69,7 +127,7 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
 
     if (0 != Irp->Tail.Overlay.DriverContext[0])
     {
-        ExFreePoolWithTag(Irp->Tail.Overlay.DriverContext[0], FSP_TAG);
+        FspIopDeleteRequest(Irp->Tail.Overlay.DriverContext[0]);
         Irp->Tail.Overlay.DriverContext[0] = 0;
     }
 

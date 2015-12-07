@@ -56,6 +56,7 @@ NTSTATUS DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_DIRECTORY_CONTROL] = FspDirectoryControl;
     DriverObject->MajorFunction[IRP_MJ_FILE_SYSTEM_CONTROL] = FspFileSystemControl;
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = FspDeviceControl;
+    DriverObject->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = FspInternalDeviceControl;
     DriverObject->MajorFunction[IRP_MJ_SHUTDOWN] = FspShutdown;
     DriverObject->MajorFunction[IRP_MJ_LOCK_CONTROL] = FspLockControl;
     DriverObject->MajorFunction[IRP_MJ_CLEANUP] = FspCleanup;
@@ -80,6 +81,7 @@ NTSTATUS DriverEntry(
     FspIopCompleteFunction[IRP_MJ_DIRECTORY_CONTROL] = FspDirectoryControlComplete;
     FspIopCompleteFunction[IRP_MJ_FILE_SYSTEM_CONTROL] = FspFileSystemControlComplete;
     FspIopCompleteFunction[IRP_MJ_DEVICE_CONTROL] = FspDeviceControlComplete;
+    FspIopCompleteFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = FspFsvolInternalDeviceControlComplete;
     FspIopCompleteFunction[IRP_MJ_SHUTDOWN] = FspShutdownComplete;
     FspIopCompleteFunction[IRP_MJ_LOCK_CONTROL] = FspLockControlComplete;
     FspIopCompleteFunction[IRP_MJ_CLEANUP] = FspCleanupComplete;

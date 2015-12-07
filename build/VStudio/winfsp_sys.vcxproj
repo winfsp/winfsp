@@ -148,6 +148,7 @@
     <ClCompile Include="..\..\src\sys\fileobj.c" />
     <ClCompile Include="..\..\src\sys\flush.c" />
     <ClCompile Include="..\..\src\sys\fsctl.c" />
+    <ClCompile Include="..\..\src\sys\idevctl.c" />
     <ClCompile Include="..\..\src\sys\iop.c" />
     <ClCompile Include="..\..\src\sys\ioq.c" />
     <ClCompile Include="..\..\src\sys\lockctl.c" />

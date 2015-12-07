@@ -167,6 +167,7 @@ const char *IoctlCodeSym(ULONG ControlCode)
     SYM(FSP_FSCTL_CREATE)
     SYM(FSP_FSCTL_DELETE)
     SYM(FSP_FSCTL_TRANSACT)
+    SYM(FSP_FSCTL_WORK)
     default:
         return "IOCTL:Unknown";
     }

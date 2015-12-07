@@ -572,16 +572,16 @@ static VOID FspFsvolCreateClose(
     /*
      * This routine handles the case where we must close an open file,
      * because of a failure during Create completion. We simply create
-     * a CreateClose request and we post it to our Ioq.
+     * a CreateClose request and we post it as a work item.
      *
      * Ideally there would be no failure modes for this routine. Reality is
      * different.
      *
      * The more serious (but perhaps non-existent in practice) failure is a
-     * memory allocation failure for the CreateClose request. In this case we
-     * will leak the user-mode file system handle!
+     * memory allocation failure. In this case we will leak the user-mode
+     * file system handle!
      *
-     * This routine may also fail if the Ioq was stopped, which means that
+     * This routine may also fail if we cannot post a work item, which means that
      * the virtual volume device and the file system volume device are being
      * deleted. Because it is assumed that only the user-mode file system would
      * initiate a device deletion, this case is more benign (presumably the file
@@ -600,30 +600,29 @@ static VOID FspFsvolCreateClose(
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     /* create the user-mode file system request */
-    Result = FspIopCreateRequest(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
+    Result = FspIopCreateRequest(0, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
     if (!NT_SUCCESS(Result))
-    {
-        DEBUGLOG("FileObject=%p[%p:\"%wZ\"], UserContext=%llx, UserContext2=%p: "
-            "FspIopCreateRequest failed: the user-mode file system handle will be leaked!",
-            IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName,
-            FsContext->UserContext, FileObject->FsContext2);
-        goto exit;
-    }
+        goto leak_exit;
 
-    /* populate the Create request */
+    /* populate the CreateClose request */
     Request->Kind = FspFsctlTransactCreateCloseKind;
     Request->Req.Close.UserContext = FsContext->UserContext;
     Request->Req.Close.UserContext2 = (UINT_PTR)FileObject->FsContext2;
 
-    /*
-     * Post the IRP to our Ioq.
-     */
-    if (!FspIoqPostIrp(&FsvrtDeviceExtension->Ioq, Irp))
-    {
-        /* this can only happen if the Ioq was stopped */
-        ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));
-        goto exit;
-    }
+    /* post as a work request */
+    if (!FspIopPostWorkRequest(DeviceObject, Request))
+        /* no need to delete the request here as FspIopPostWorkRequest() will do so in all cases */
+        goto leak_exit;
+
+    goto exit;
+
+leak_exit:;
+#if DBG
+    DEBUGLOG("FileObject=%p[%p:\"%wZ\"], UserContext=%llx, UserContext2=%p: "
+        "error: the user-mode file system handle will be leaked!",
+        IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName,
+        FsContext->UserContext, FileObject->FsContext2);
+#endif
 
 exit:
     FspFileContextDelete(FsContext);

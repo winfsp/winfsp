@@ -187,6 +187,7 @@ _Dispatch_type_(IRP_MJ_DEVICE_CONTROL)  FSP_DRIVER_DISPATCH FspDeviceControl;
 _Dispatch_type_(IRP_MJ_DIRECTORY_CONTROL) FSP_DRIVER_DISPATCH FspDirectoryControl;
 _Dispatch_type_(IRP_MJ_FILE_SYSTEM_CONTROL) FSP_DRIVER_DISPATCH FspFileSystemControl;
 _Dispatch_type_(IRP_MJ_FLUSH_BUFFERS)   FSP_DRIVER_DISPATCH FspFlushBuffers;
+_Dispatch_type_(IRP_MJ_INTERNAL_DEVICE_CONTROL) FSP_DRIVER_DISPATCH FspInternalDeviceControl;
 _Dispatch_type_(IRP_MJ_LOCK_CONTROL)    FSP_DRIVER_DISPATCH FspLockControl;
 _Dispatch_type_(IRP_MJ_QUERY_EA)        FSP_DRIVER_DISPATCH FspQueryEa;
 _Dispatch_type_(IRP_MJ_QUERY_INFORMATION) FSP_DRIVER_DISPATCH FspQueryInformation;
@@ -217,6 +218,7 @@ FSP_IOCMPL_DISPATCH FspDeviceControlComplete;
 FSP_IOCMPL_DISPATCH FspDirectoryControlComplete;
 FSP_IOCMPL_DISPATCH FspFileSystemControlComplete;
 FSP_IOCMPL_DISPATCH FspFlushBuffersComplete;
+FSP_IOCMPL_DISPATCH FspFsvolInternalDeviceControlComplete;
 FSP_IOCMPL_DISPATCH FspLockControlComplete;
 FSP_IOCMPL_DISPATCH FspQueryEaComplete;
 FSP_IOCMPL_DISPATCH FspQueryInformationComplete;
@@ -259,8 +261,11 @@ BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 
 /* I/O processing */
+#define FSP_FSCTL_WORK                  \
+    CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'W', METHOD_NEITHER, FILE_ANY_ACCESS)
 NTSTATUS FspIopCreateRequest(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest);
+NTSTATUS FspIopPostWorkRequest(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease);
 static inline
 VOID FspIopCompleteIrp(PIRP Irp, NTSTATUS Result)
