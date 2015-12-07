@@ -104,9 +104,10 @@ typedef struct
             UINT16 Ea;                  /* reserved; not currently implemented */
             UINT16 EaSize;              /* reserved; not currently implemented */
             UINT32 UserMode:1;          /* request originated in user mode */
-            UINT32 HasTraversePrivilege:1; /* requestor has TOKEN_HAS_TRAVERSE_PRIVILEGE */
-            UINT32 OpenTargetDirectory:1; /* open target dir and report FILE_{EXISTS,DOES_NOT_EXIST} */
-            UINT32 CaseSensitive:1;     /* filename comparisons should be case-sensitive */
+            UINT32 HasTraversePrivilege:1;  /* requestor has TOKEN_HAS_TRAVERSE_PRIVILEGE */
+            UINT32 OpenTargetDirectory:1;   /* open target dir and report FILE_{EXISTS,DOES_NOT_EXIST} */
+            UINT32 HasTrailingBackslash:1;  /* original FileName (sent by CreateFile) has trailing backslash */
+            UINT32 CaseSensitive:1;         /* FileName comparisons should be case-sensitive */
         } Create;
         struct
         {
