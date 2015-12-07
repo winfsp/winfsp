@@ -116,7 +116,7 @@ static NTSTATUS FspFsvolCreate(
             goto exit;
         }
 
-        /* impossible create options set? */
+        /* impossible create options sent? */
         if (FlagOn(CreateOptions, FILE_NON_DIRECTORY_FILE) &&
             FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
         {
@@ -247,6 +247,10 @@ static NTSTATUS FspFsvolCreate(
             goto exit;
         }
 
+        /*
+         * The new request is associated with our IRP and will be deleted during its completion.
+         */
+
         /* populate the Create request */
         Request->Kind = FspFsctlTransactCreateKind;
         Request->Req.Create.CreateDisposition = CreateDisposition;
@@ -372,6 +376,8 @@ VOID FspFsvolCreateComplete(
         FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
+    ULONG CreateOptions = IrpSp->Parameters.Create.Options & 0xffffff;
+    UINT32 ResponseFileAttributes = Response->Rsp.Create.Opened.FileAttributes;
     PSECURITY_DESCRIPTOR SecurityDescriptor;
     ULONG SecurityDescriptorSize;
     UNICODE_STRING ReparseFileName;
@@ -490,6 +496,20 @@ VOID FspFsvolCreateComplete(
 
         SetFlag(AccessState->PreviouslyGrantedAccess, GrantedAccess);
         ClearFlag(AccessState->RemainingDesiredAccess, GrantedAccess);
+    }
+
+    /* were we asked to open a directory or non-directory? */
+    if (FlagOn(CreateOptions, FILE_DIRECTORY_FILE) &&
+        !FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+    {
+        FspFsvolCreateClose(Irp, Response);
+        FSP_RETURN(Result = STATUS_NOT_A_DIRECTORY);
+    }
+    if (FlagOn(CreateOptions, FILE_NON_DIRECTORY_FILE) &&
+        FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+    {
+        FspFsvolCreateClose(Irp, Response);
+        FSP_RETURN(Result = STATUS_FILE_IS_A_DIRECTORY);
     }
 
     /* record the user-mode file system contexts */
