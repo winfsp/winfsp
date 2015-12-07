@@ -96,7 +96,7 @@ typedef struct
             UINT32 CreateDisposition;   /* FILE_{SUPERSEDE,CREATE,OPEN,OPEN_IF,OVERWRITE,OVERWRITE_IF} */
             UINT32 CreateOptions;       /* FILE_{DIRECTORY_FILE,NON_DIRECTORY_FILE,etc.} */
             UINT32 FileAttributes;      /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
-            FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;  /* security descriptor for new files */
+            FSP_FSCTL_TRANSACT_BUF SecurityDescriptor; /* security descriptor for new files */
             UINT64 AllocationSize;      /* initial allocation size */
             UINT64 AccessToken;         /* (HANDLE); request access token; sent if NoAccessCheck is 0 */
             UINT32 DesiredAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
@@ -104,8 +104,8 @@ typedef struct
             UINT16 Ea;                  /* reserved; not currently implemented */
             UINT16 EaSize;              /* reserved; not currently implemented */
             UINT32 UserMode:1;          /* request originated in user mode */
-            UINT32 HasTraversePrivilege:1;  /* requestor has TOKEN_HAS_TRAVERSE_PRIVILEGE */
-            UINT32 OpenTargetDirectory:1;   /* open target dir and report FILE_{EXISTS,DOES_NOT_EXIST} */
+            UINT32 HasTraversePrivilege:1; /* requestor has TOKEN_HAS_TRAVERSE_PRIVILEGE */
+            UINT32 OpenTargetDirectory:1; /* open target dir and report FILE_{EXISTS,DOES_NOT_EXIST} */
             UINT32 CaseSensitive:1;     /* filename comparisons should be case-sensitive */
         } Create;
         struct
@@ -135,16 +135,21 @@ typedef struct
     } IoStatus;
     union
     {
-        struct
+        union
         {
-            UINT64 UserContext;         /* user context attached to an open file (unique file id) */
-            UINT64 UserContext2;        /* user context attached to a kernel file object */
-                                        /*     (only low 32 bits valid in 32-bit mode) */
-            union
+            /* IoStatus.Status == STATUS_SUCCESS */
+            struct
             {
-                FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;  /* security descriptor for existing files */
-                FSP_FSCTL_TRANSACT_BUF ReparseFileName;     /* file name to use for STATUS_REPARSE */
-            } Buf;
+                UINT64 UserContext;     /* open file user context (unique file id) */
+                UINT64 UserContext2;    /* kernel file object user context (only low 32 bits valid) */
+                UINT32 FileAttributes;  /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
+                FSP_FSCTL_TRANSACT_BUF SecurityDescriptor; /* security descriptor */
+            } Opened;
+            /* IoStatus.Status == STATUS_REPARSE */
+            struct
+            {
+                FSP_FSCTL_TRANSACT_BUF FileName; /* file name to use for STATUS_REPARSE */
+            } Reparse;
         } Create;
     } Rsp;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];

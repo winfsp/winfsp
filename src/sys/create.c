@@ -116,6 +116,14 @@ static NTSTATUS FspFsvolCreate(
             goto exit;
         }
 
+        /* impossible create options set? */
+        if (FlagOn(CreateOptions, FILE_NON_DIRECTORY_FILE) &&
+            FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
+        {
+            Result = STATUS_INVALID_PARAMETER;
+            goto exit;
+        }
+
         /* check security descriptor validity */
         if (0 != SecurityDescriptor)
         {
@@ -392,9 +400,9 @@ VOID FspFsvolCreateComplete(
     if (STATUS_REPARSE == Result)
     {
         ReparseFileName.Buffer =
-            (PVOID)(Response->Buffer + Response->Rsp.Create.Buf.ReparseFileName.Offset);
+            (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset);
         ReparseFileName.Length = ReparseFileName.MaximumLength =
-            Response->Rsp.Create.Buf.ReparseFileName.Size;
+            Response->Rsp.Create.Reparse.FileName.Size;
 
         Result = STATUS_ACCESS_DENIED;
         if (IO_REPARSE == Response->IoStatus.Information)
@@ -439,8 +447,8 @@ VOID FspFsvolCreateComplete(
     }
 
     SecurityDescriptor =
-        (PVOID)(Response->Buffer + Response->Rsp.Create.Buf.SecurityDescriptor.Offset);
-    SecurityDescriptorSize = Response->Rsp.Create.Buf.SecurityDescriptor.Size;
+        (PVOID)(Response->Buffer + Response->Rsp.Create.Opened.SecurityDescriptor.Offset);
+    SecurityDescriptorSize = Response->Rsp.Create.Opened.SecurityDescriptor.Size;
 
     /* are we doing access checks? */
     if (FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck &&
@@ -485,8 +493,8 @@ VOID FspFsvolCreateComplete(
     }
 
     /* record the user-mode file system contexts */
-    FsContext->UserContext = Response->Rsp.Create.UserContext;
-    FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.UserContext2;
+    FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
+    FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
 
     /*
      * The following must be done under the file system volume device Resource,
