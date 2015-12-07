@@ -116,7 +116,7 @@ static NTSTATUS FspFsvolCreate(
             goto exit;
         }
 
-        /* impossible create options sent? */
+        /* check create options */
         if (FlagOn(CreateOptions, FILE_NON_DIRECTORY_FILE) &&
             FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
         {
@@ -454,50 +454,87 @@ VOID FspFsvolCreateComplete(
         FSP_RETURN();
     }
 
-    SecurityDescriptor =
-        (PVOID)(Response->Buffer + Response->Rsp.Create.Opened.SecurityDescriptor.Offset);
-    SecurityDescriptorSize = Response->Rsp.Create.Opened.SecurityDescriptor.Size;
+    /* check for trailing backslash */
+    if (HasTrailingBackslash &&
+        !FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+    {
+        FspFsvolCreateClose(Irp, Response);
+        FSP_RETURN(Result = STATUS_OBJECT_NAME_INVALID);
+    }
 
     /* are we doing access checks? */
-    if (FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck &&
-        0 != SecurityDescriptorSize)
+    if (!FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
     {
-        if ((PUINT8)SecurityDescriptor + SecurityDescriptorSize >
-            (PUINT8)Response + Response->Size ||
-            !FspValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorSize, 0))
+        /* read-only attribute check */
+        if (FILE_CREATED != Response->IoStatus.Information &&
+            FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_READONLY))
         {
-            FspFsvolCreateClose(Irp, Response);
-            FSP_RETURN(Result = STATUS_ACCESS_DENIED);
+            /* from fastfat: allowed accesses when read-only */
+            ACCESS_MASK Allowed =
+                DELETE | READ_CONTROL | WRITE_OWNER | WRITE_DAC |
+                SYNCHRONIZE | ACCESS_SYSTEM_SECURITY |
+                FILE_READ_DATA | FILE_READ_EA | FILE_WRITE_EA |
+                FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES |
+                FILE_EXECUTE | FILE_TRAVERSE | FILE_LIST_DIRECTORY |
+                FILE_ADD_SUBDIRECTORY | FILE_ADD_FILE | FILE_DELETE_CHILD;
+
+            if (FlagOn(DesiredAccess, ~Allowed))
+            {
+                FspFsvolCreateClose(Irp, Response);
+                FSP_RETURN(Result = STATUS_ACCESS_DENIED);
+            }
+            else
+            if (FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE))
+            {
+                FspFsvolCreateClose(Irp, Response);
+                FSP_RETURN(Result = STATUS_CANNOT_DELETE);
+            }
         }
 
-        if (!SeAccessCheck(SecurityDescriptor,
-            &AccessState->SubjectSecurityContext,
-            FALSE,
-            DesiredAccess,
-            AccessState->PreviouslyGrantedAccess,
-            &Privileges,
-            IoGetFileObjectGenericMapping(),
-            RequestorMode,
-            &GrantedAccess,
-            &Result))
+        /* security descriptor check */
+        SecurityDescriptor =
+            (PVOID)(Response->Buffer + Response->Rsp.Create.Opened.SecurityDescriptor.Offset);
+        SecurityDescriptorSize = Response->Rsp.Create.Opened.SecurityDescriptor.Size;
+        if (0 != SecurityDescriptorSize)
         {
-            FspFsvolCreateClose(Irp, Response);
-            FSP_RETURN();
-        }
+            if ((PUINT8)SecurityDescriptor + SecurityDescriptorSize >
+                (PUINT8)Response + Response->Size ||
+                !FspValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorSize, 0))
+            {
+                FspFsvolCreateClose(Irp, Response);
+                FSP_RETURN(Result = STATUS_ACCESS_DENIED);
+            }
 
-        if (0 != Privileges)
-        {
-            Result = SeAppendPrivileges(AccessState, Privileges);
-            SeFreePrivileges(Privileges);
-            if (!NT_SUCCESS(Result))
+            /* access check */
+            if (!SeAccessCheck(SecurityDescriptor,
+                &AccessState->SubjectSecurityContext,
+                FALSE,
+                DesiredAccess,
+                AccessState->PreviouslyGrantedAccess,
+                &Privileges,
+                IoGetFileObjectGenericMapping(),
+                RequestorMode,
+                &GrantedAccess,
+                &Result))
             {
                 FspFsvolCreateClose(Irp, Response);
                 FSP_RETURN();
             }
-        }
 
-        SetFlag(AccessState->PreviouslyGrantedAccess, GrantedAccess);
-        ClearFlag(AccessState->RemainingDesiredAccess, GrantedAccess);
+            if (0 != Privileges)
+            {
+                Result = SeAppendPrivileges(AccessState, Privileges);
+                SeFreePrivileges(Privileges);
+                if (!NT_SUCCESS(Result))
+                {
+                    FspFsvolCreateClose(Irp, Response);
+                    FSP_RETURN();
+                }
+            }
+
+            SetFlag(AccessState->PreviouslyGrantedAccess, GrantedAccess);
+            ClearFlag(AccessState->RemainingDesiredAccess, GrantedAccess);
+        }
     }
 
     /* were we asked to open a directory or non-directory? */
@@ -512,12 +549,6 @@ VOID FspFsvolCreateComplete(
     {
         FspFsvolCreateClose(Irp, Response);
         FSP_RETURN(Result = STATUS_FILE_IS_A_DIRECTORY);
-    }
-    if (HasTrailingBackslash &&
-        !FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
-    {
-        FspFsvolCreateClose(Irp, Response);
-        FSP_RETURN(Result = STATUS_OBJECT_NAME_INVALID);
     }
 
     /* record the user-mode file system contexts */
