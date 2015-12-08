@@ -263,12 +263,18 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 /* I/O processing */
 #define FSP_FSCTL_WORK                  \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'W', METHOD_NEITHER, FILE_ANY_ACCESS)
-#define FspIrpContextRequest(Irp)       \
+#define FspIopRequest(Irp)              \
     (*(FSP_FSCTL_TRANSACT_REQ **)&(Irp)->Tail.Overlay.DriverContext[0])
+#define FspIopRequestContext(Request, I)\
+    (*FspIopRequestContextAddress(Request, I))
 #define FspIrpContextHandle(Irp)        \
     (*(HANDLE *)&(Irp)->Tail.Overlay.DriverContext[1])
-NTSTATUS FspIopCreateRequest(
-    PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest);
+#define FspIopCreateRequest(I, F, E, P) FspIopCreateRequestEx(I, F, E, 0, P)
+typedef VOID FSP_IOP_REQUEST_FINI(PVOID Context[3]);
+NTSTATUS FspIopCreateRequestEx(
+    PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
+    FSP_FSCTL_TRANSACT_REQ **PRequest);
+PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
 NTSTATUS FspIopPostWorkRequest(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease);
 static inline

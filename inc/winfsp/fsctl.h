@@ -36,11 +36,11 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'T', METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 #define FSP_FSCTL_CREATE_BUFFER_SIZE    128
-#define FSP_FSCTL_TRANSACT_BUFFER_SIZE  (16 * 1024)
+#define FSP_FSCTL_TRANSACT_BUFFER_SIZE  16384
 
 #define FSP_FSCTL_VOLUME_PARAMS_SIZE    FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(FSP_FSCTL_VOLUME_PARAMS))
-#define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  (4 * 1024)
-#define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  (4 * 1024)
+#define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  (4096 - 64) /* 64: size for internal request header */
+#define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  (4096 - 64) /* symmetry! */
 
 /* marshalling */
 #pragma warning(push)

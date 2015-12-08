@@ -391,7 +391,7 @@ retry:
     ASSERT((PUINT8)Request + FSP_FSCTL_TRANSACT_REQ_SIZEMAX <= SystemBufferEnd);
     for (;;)
     {
-        PendingIrpRequest = FspIrpContextRequest(PendingIrp);
+        PendingIrpRequest = FspIopRequest(PendingIrp);
 
         Result = FspIopDispatchPrepare(PendingIrp, PendingIrpRequest);
         if (!NT_SUCCESS(Result))

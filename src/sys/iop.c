@@ -6,25 +6,41 @@
 
 #include <sys/driver.h>
 
-NTSTATUS FspIopCreateRequest(
-    PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest);
+NTSTATUS FspIopCreateRequestEx(
+    PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
+    FSP_FSCTL_TRANSACT_REQ **PRequest);
+static VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
+PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
 NTSTATUS FspIopPostWorkRequest(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_TRANSACT_REQ *Request);
 static IO_COMPLETION_ROUTINE FspIopPostWorkRequestCompletion;
+VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text(PAGE, FspIopCreateRequest)
+#pragma alloc_text(PAGE, FspIopCreateRequestEx)
+#pragma alloc_text(PAGE, FspIopDeleteRequest)
+#pragma alloc_text(PAGE, FspIopRequestContextAddress)
 #pragma alloc_text(PAGE, FspIopPostWorkRequest)
+#pragma alloc_text(PAGE, FspIopCompleteIrpEx)
 #pragma alloc_text(PAGE, FspIopDispatchPrepare)
 #pragma alloc_text(PAGE, FspIopDispatchComplete)
 #endif
 
-NTSTATUS FspIopCreateRequest(
-    PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_FSCTL_TRANSACT_REQ **PRequest)
+typedef struct
+{
+    FSP_IOP_REQUEST_FINI *RequestFini;
+    PVOID Context[3];
+    __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 RequestBuf[];
+} FSP_FSCTL_TRANSACT_REQ_HEADER;
+
+NTSTATUS FspIopCreateRequestEx(
+    PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
+    FSP_FSCTL_TRANSACT_REQ **PRequest)
 {
     PAGED_CODE();
 
+    FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     *PRequest = 0;
@@ -35,39 +51,52 @@ NTSTATUS FspIopCreateRequest(
     if (FSP_FSCTL_TRANSACT_REQ_SIZEMAX < sizeof *Request + ExtraSize)
         return STATUS_INVALID_PARAMETER;
 
-    Request = ExAllocatePoolWithTag(PagedPool,
-        sizeof *Request + ExtraSize, FSP_TAG);
-    if (0 == Request)
+    RequestHeader = ExAllocatePoolWithTag(PagedPool,
+        sizeof *RequestHeader + sizeof *Request + ExtraSize, FSP_TAG);
+    if (0 == RequestHeader)
         return STATUS_INSUFFICIENT_RESOURCES;
 
-    RtlZeroMemory(Request, sizeof *Request + ExtraSize);
+    RtlZeroMemory(RequestHeader, sizeof *RequestHeader + sizeof *Request + ExtraSize);
+    RequestHeader->RequestFini = RequestFini;
+
+    Request = (PVOID)RequestHeader->RequestBuf;
     Request->Size = (UINT16)(sizeof *Request + ExtraSize);
     Request->Hint = (UINT_PTR)Irp;
     if (0 != FileName)
     {
         RtlCopyMemory(Request->Buffer, FileName->Buffer, FileName->Length);
-        Request->Buffer[FileName->Length] = '\0';
-        Request->Buffer[FileName->Length + 1] = '\0';
-        Request->FileName.Offset = 0;
+        //Request->Buffer[FileName->Length] = '\0';
+        //Request->Buffer[FileName->Length + 1] = '\0';
+        //Request->FileName.Offset = 0;
         Request->FileName.Size = FileName->Length + sizeof(WCHAR);
-    }
-    else
-    {
-        Request->FileName.Offset = 0;
-        Request->FileName.Size = 0;
     }
 
     if (0 != Irp)
-        FspIrpContextRequest(Irp) = Request;
+        FspIopRequest(Irp) = Request;
     *PRequest = Request;
 
     return STATUS_SUCCESS;
 }
 
-static inline
-VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request)
+static VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    ExFreePoolWithTag(Request, FSP_TAG);
+    PAGED_CODE();
+
+    FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
+
+    if (0 != RequestHeader->RequestFini)
+        RequestHeader->RequestFini(RequestHeader->Context);
+
+    ExFreePoolWithTag(RequestHeader, FSP_TAG);
+}
+
+PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I)
+{
+    PAGED_CODE();
+
+    FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
+
+    return &RequestHeader->Context[I];
 }
 
 NTSTATUS FspIopPostWorkRequest(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_TRANSACT_REQ *Request)
@@ -120,15 +149,15 @@ static NTSTATUS FspIopPostWorkRequestCompletion(
 
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
 {
-    // !PAGED_CODE();
+    PAGED_CODE();
 
     ASSERT(STATUS_PENDING != Result);
     ASSERT(0 == Irp->Tail.Overlay.DriverContext[3]);
 
-    if (0 != FspIrpContextRequest(Irp))
+    if (0 != FspIopRequest(Irp))
     {
-        FspIopDeleteRequest(FspIrpContextRequest(Irp));
-        FspIrpContextRequest(Irp) = 0;
+        FspIopDeleteRequest(FspIopRequest(Irp));
+        FspIopRequest(Irp) = 0;
     }
 
     if (0 != FspIrpContextHandle(Irp))

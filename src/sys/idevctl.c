@@ -42,7 +42,7 @@ static NTSTATUS FspFsvolInternalDeviceControl(
 
                 /* associate the passed Request with our Irp; acquire ownership of the Request */
                 Request->Hint = (UINT_PTR)Irp;
-                FspIrpContextRequest(Irp) = Request;
+                FspIopRequest(Irp) = Request;
 
                 if (!FspIoqPostIrp(&FsvrtDeviceExtension->Ioq, Irp))
                 {
@@ -51,7 +51,7 @@ static NTSTATUS FspFsvolInternalDeviceControl(
 
                     /* disocciate the Request from our Irp; release ownership back to caller */
                     Request->Hint = 0;
-                    FspIrpContextRequest(Irp) = 0;
+                    FspIopRequest(Irp) = 0;
 
                     Result = STATUS_CANCELLED;
                     goto exit;
