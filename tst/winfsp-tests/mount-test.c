@@ -80,6 +80,7 @@ void mount_volume_dotest(PWSTR DeviceName)
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumePath);
     Thread = (HANDLE)_beginthreadex(0, 0, mount_volume_dotest_thread, FilePath, 0, 0);
+    ASSERT(0 != Thread);
 
     Sleep(1000); /* give some time to the thread to execute */
 
