@@ -84,7 +84,7 @@ NTSTATUS DriverEntry(
     FspIopCompleteFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = FspFsvolInternalDeviceControlComplete;
     FspIopCompleteFunction[IRP_MJ_SHUTDOWN] = FspShutdownComplete;
     FspIopCompleteFunction[IRP_MJ_LOCK_CONTROL] = FspLockControlComplete;
-    FspIopCompleteFunction[IRP_MJ_CLEANUP] = FspCleanupComplete;
+    FspIopCompleteFunction[IRP_MJ_CLEANUP] = FspFsvolCleanupComplete;
     FspIopCompleteFunction[IRP_MJ_QUERY_SECURITY] = FspQuerySecurityComplete;
     FspIopCompleteFunction[IRP_MJ_SET_SECURITY] = FspSetSecurityComplete;
 

@@ -12,15 +12,15 @@ static NTSTATUS FspFsvrtCleanup(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolCleanup(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOCMPL_DISPATCH FspFsvolCleanupComplete;
 FSP_DRIVER_DISPATCH FspCleanup;
-FSP_IOCMPL_DISPATCH FspCleanupComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlCleanup)
 #pragma alloc_text(PAGE, FspFsvrtCleanup)
 #pragma alloc_text(PAGE, FspFsvolCleanup)
+#pragma alloc_text(PAGE, FspFsvolCleanupComplete)
 #pragma alloc_text(PAGE, FspCleanup)
-#pragma alloc_text(PAGE, FspCleanupComplete)
 #endif
 
 static NTSTATUS FspFsctlCleanup(
@@ -51,6 +51,14 @@ static NTSTATUS FspFsvolCleanup(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+VOID FspFsvolCleanupComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC("FileObject=%p", IrpSp->FileObject);
+}
+
 NTSTATUS FspCleanup(
     PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
@@ -71,12 +79,4 @@ NTSTATUS FspCleanup(
     }
 
     FSP_LEAVE_MJ("FileObject=%p", IrpSp->FileObject);
-}
-
-VOID FspCleanupComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC("FileObject=%p", IrpSp->FileObject);
 }
