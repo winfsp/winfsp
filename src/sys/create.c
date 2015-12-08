@@ -179,6 +179,11 @@ static NTSTATUS FspFsvolCreate(
                 goto exit;
             }
         }
+        if (HasTrailingBackslash && !FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
+        {
+            Result = STATUS_OBJECT_NAME_INVALID;
+            goto exit;
+        }
 
         /* is this a relative or absolute open? */
         if (0 != RelatedFileObject)
@@ -268,7 +273,6 @@ static NTSTATUS FspFsvolCreate(
         Request->Req.Create.UserMode = UserMode == RequestorMode;
         Request->Req.Create.HasTraversePrivilege = HasTraversePrivilege;
         Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);
-        Request->Req.Create.HasTrailingBackslash = HasTrailingBackslash;
         Request->Req.Create.CaseSensitive = BooleanFlagOn(Flags, SL_CASE_SENSITIVE);
 
         /* copy the security descriptor into the request */
@@ -389,7 +393,6 @@ VOID FspFsvolCreateComplete(
     ULONG Flags = IrpSp->Flags;
     KPROCESSOR_MODE RequestorMode =
         FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
-    BOOLEAN HasTrailingBackslash = 0 != FspIrpContextRequest(Irp)->Req.Create.HasTrailingBackslash;
     FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
     ACCESS_MASK GrantedAccess;
     BOOLEAN Inserted = FALSE;
@@ -458,14 +461,6 @@ VOID FspFsvolCreateComplete(
     /* record the user-mode file system contexts */
     FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
     FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
-
-    /* check for trailing backslash */
-    if (HasTrailingBackslash &&
-        !FileCreated && !FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
-    {
-        FspFsvolCreateClose(Irp, Response);
-        FSP_RETURN(Result = STATUS_OBJECT_NAME_INVALID);
-    }
 
     /* are we doing access checks? */
     if (!FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
