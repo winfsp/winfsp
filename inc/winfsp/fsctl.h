@@ -112,6 +112,7 @@ typedef struct
         {
             UINT64 UserContext;
             UINT64 UserContext2;
+            UINT32 Delete:1;            /* if set, the file or directory must be deleted */
         } Cleanup;
         struct
         {

@@ -388,7 +388,8 @@ typedef struct
     /* protected by Header.Resource */
     LONG OpenCount;
     SHARE_ACCESS ShareAccess;
-    BOOLEAN DeletePending;
+    BOOLEAN DeletePending;              /* FileDispositionInformation */
+    BOOLEAN DeleteOnClose;              /* FILE_DELETE_ON_CLOSE */
     /* read-only after creation */
     FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
     UINT64 UserContext;

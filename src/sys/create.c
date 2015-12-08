@@ -195,6 +195,15 @@ static NTSTATUS FspFsvolCreate(
                 goto exit;
             }
 
+            /* cannot FILE_DELETE_ON_CLOSE on the root directory */
+            if (sizeof(WCHAR) == RelatedFsContext->FileName.Length &&
+                0 == FileName.Length &&
+                FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE))
+            {
+                Result = STATUS_CANNOT_DELETE;
+                goto exit;
+            }
+
             FSP_FILE_CONTEXT *RelatedFsContext = RelatedFileObject->FsContext;
             ASSERT(0 != RelatedFsContext);
 
@@ -227,6 +236,14 @@ static NTSTATUS FspFsvolCreate(
             if (sizeof(WCHAR) <= FileName.Length && L'\\' != FileName.Buffer[0])
             {
                 Result = STATUS_OBJECT_NAME_INVALID;
+                goto exit;
+            }
+
+            /* cannot FILE_DELETE_ON_CLOSE on the root directory */
+            if (sizeof(WCHAR) == FileName.Length) &&
+                FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE))
+            {
+                Result = STATUS_CANNOT_DELETE;
                 goto exit;
             }
 
@@ -483,7 +500,8 @@ VOID FspFsvolCreateComplete(
                 FSP_RETURN(Result = STATUS_ACCESS_DENIED);
             }
             else
-            if (FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE))
+            if (!FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY) &&
+                FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE))
             {
                 FspFsvolCreateClose(Irp, Response);
                 FSP_RETURN(Result = STATUS_CANNOT_DELETE);
@@ -573,6 +591,8 @@ VOID FspFsvolCreateComplete(
             IoSetShareAccess(AccessState->PreviouslyGrantedAccess,
                 ShareAccess, FileObject, &FsContext->ShareAccess);
             FspFileContextOpen(FsContext);
+            if (FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE))
+                FsContext->DeleteOnClose = TRUE;
             Result = STATUS_SUCCESS;
         }
         else
@@ -592,6 +612,8 @@ VOID FspFsvolCreateComplete(
             {
                 FspFileContextRetain(FsContext);
                 FspFileContextOpen(FsContext);
+                if (FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE))
+                    FsContext->DeleteOnClose = TRUE;
             }
             ExReleaseResourceLite(FsContext->Header.Resource);
         }
