@@ -77,7 +77,7 @@ static VOID FspIoqPendingRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 static PIRP FspIoqPendingPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
-    if (!PeekContext && Ioq->Stopped)
+    if (PeekContext && Ioq->Stopped)
         return 0;
     PLIST_ENTRY Head = &Ioq->PendingIrpList;
     PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
@@ -120,7 +120,7 @@ static VOID FspIoqProcessRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 static PIRP FspIoqProcessPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
-    if (!PeekContext && Ioq->Stopped)
+    if (PeekContext && Ioq->Stopped)
         return 0;
     PLIST_ENTRY Head = &Ioq->ProcessIrpList;
     PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
@@ -233,5 +233,7 @@ BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp)
 
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint)
 {
+    if (0 == IrpHint)
+        return 0;
     return IoCsqRemoveNextIrp(&Ioq->ProcessIoCsq, (PVOID)IrpHint);
 }
