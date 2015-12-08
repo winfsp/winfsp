@@ -680,6 +680,8 @@ static VOID FspFsvolCreateClose(
         FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
+    UINT64 UserContext = FsContext->UserContext;
+    UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
     BOOLEAN FileNameRequired = 0 != FsvrtDeviceExtension->VolumeParams.FileNameRequired;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
@@ -690,8 +692,8 @@ static VOID FspFsvolCreateClose(
 
     /* populate the CreateCleanupClose request */
     Request->Kind = FspFsctlTransactCreateCleanupCloseKind;
-    Request->Req.Cleanup.UserContext = FsContext->UserContext;
-    Request->Req.Cleanup.UserContext2 = (UINT_PTR)FileObject->FsContext2;
+    Request->Req.Cleanup.UserContext = UserContext;
+    Request->Req.Cleanup.UserContext2 = UserContext2;
     Request->Req.Cleanup.Delete = FILE_CREATED == Response->IoStatus.Information;
 
     /* post as a work request */
@@ -706,7 +708,7 @@ leak_exit:;
     DEBUGLOG("FileObject=%p[%p:\"%wZ\"], UserContext=%llx, UserContext2=%p: "
         "error: the user-mode file system handle will be leaked!",
         IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName,
-        FsContext->UserContext, FileObject->FsContext2);
+        UserContext, UserContext2);
 #endif
 
 exit:

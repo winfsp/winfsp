@@ -60,6 +60,8 @@ static NTSTATUS FspFsvolClose(
             FspFsvrtDeviceExtension(FsvrtDeviceObject);
         PFILE_OBJECT FileObject = IrpSp->FileObject;
         FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
+        UINT64 UserContext = FsContext->UserContext;
+        UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
         BOOLEAN FileNameRequired = 0 != FsvrtDeviceExtension->VolumeParams.FileNameRequired;
         FSP_FSCTL_TRANSACT_REQ *Request;
 
@@ -69,11 +71,7 @@ static NTSTATUS FspFsvolClose(
         /* create the user-mode file system request */
         Result = FspIopCreateRequest(0, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
         if (!NT_SUCCESS(Result))
-        {
-            /* IRP_MJ_CLOSE cannot really fail :-\ */
-            Result = STATUS_SUCCESS;
-            goto exit;
-        }
+            goto leak_exit;
 
         /*
          * The new request is associated with our IRP and will be deleted during its completion.
@@ -81,19 +79,26 @@ static NTSTATUS FspFsvolClose(
 
         /* populate the Close request */
         Request->Kind = FspFsctlTransactCloseKind;
-        Request->Req.Close.UserContext = FsContext->UserContext;
-        Request->Req.Close.UserContext2 = (UINT_PTR)FileObject->FsContext2;
+        Request->Req.Close.UserContext = UserContext;
+        Request->Req.Close.UserContext2 = UserContext2;
 
         /* post as a work request; this allows us to complete our own IRP and return immediately! */
         if (!FspIopPostWorkRequest(DeviceObject, Request))
-        {
             /* no need to delete the request here as FspIopPostWorkRequest() will do so in all cases */
+            goto leak_exit;
 
-            /* IRP_MJ_CLOSE cannot really fail :-\ */
-            Result = STATUS_SUCCESS;
-            goto exit;
-        }
+        Result = STATUS_SUCCESS;
 
+        goto exit;
+
+    leak_exit:;
+#if DBG
+        DEBUGLOG("FileObject=%p[%p:\"%wZ\"], UserContext=%llx, UserContext2=%p: "
+            "error: the user-mode file system handle will be leaked!",
+            IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName,
+            UserContext, UserContext2);
+#endif
+        /* IRP_MJ_CLOSE cannot really fail :-\ */
         Result = STATUS_SUCCESS;
 
     exit:;
