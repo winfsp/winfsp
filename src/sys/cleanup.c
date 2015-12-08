@@ -59,6 +59,63 @@ static NTSTATUS FspFsvolCleanup(
         FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
             FspFsvrtDeviceExtension(FsvrtDeviceObject);
         PFILE_OBJECT FileObject = IrpSp->FileObject;
+        FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
+        BOOLEAN FileNameRequired = 0 != FsvrtDeviceExtension->VolumeParams.FileNameRequired;
+        BOOLEAN DeletePending;
+        LONG OpenCount;
+        FSP_FSCTL_TRANSACT_REQ *Request;
+
+        /* lock the FsContext */
+        ExAcquireResourceExclusiveLite(FsContext->Header.Resource, TRUE);
+
+        /* propagate the FsContext DeleteOnClose to DeletePending */
+        if (FsContext->DeleteOnClose)
+            FsContext->DeletePending = TRUE;
+        DeletePending = FsContext->DeletePending;
+
+        /* all handles on this FileObject are gone; decrement its FsContext->OpenCount */
+        OpenCount = FspFileContextClose(FsContext);
+
+        /* unlock the FsContext */
+        ExReleaseResourceLite(FsContext->Header.Resource);
+
+        /* is the FsContext going away as well? */
+        if (0 == OpenCount)
+        {
+            /*
+             * The following must be done under the file system volume device Resource,
+             * because we are manipulating its GenericTable.
+             */
+            ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->Base.Resource, TRUE);
+            try
+            {
+                /* remove the FsContext from the file system volume device generic table */
+                FspFsvolDeviceDeleteContext(DeviceObject, FsContext->UserContext, 0);
+            }
+            finally
+            {
+                ExReleaseResourceLite(&FsvolDeviceExtension->Base.Resource);
+            }
+        }
+
+        /* create the user-mode file system request */
+        Result = FspIopCreateRequest(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
+        if (!NT_SUCCESS(Result))
+        {
+            /* IRP_MJ_CLEANUP cannot really fail :-\ */
+            Result = STATUS_SUCCESS;
+            goto exit;
+        }
+
+        /*
+         * The new request is associated with our IRP and will be deleted during its completion.
+         */
+
+        /* populate the Cleanup request */
+        Request->Kind = FspFsctlTransactCleanupKind;
+        Request->Req.Cleanup.UserContext = FsContext->UserContext;
+        Request->Req.Cleanup.UserContext2 = (UINT_PTR)FileObject->FsContext2;
+        Request->Req.Cleanup.Delete = DeletePending && 0 == OpenCount;
 
         Result = STATUS_PENDING;
 

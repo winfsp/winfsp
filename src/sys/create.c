@@ -688,7 +688,7 @@ static VOID FspFsvolCreateClose(
     if (!NT_SUCCESS(Result))
         goto leak_exit;
 
-    /* populate the CreateClose request */
+    /* populate the CreateCleanupClose request */
     Request->Kind = FspFsctlTransactCreateCleanupCloseKind;
     Request->Req.Cleanup.UserContext = FsContext->UserContext;
     Request->Req.Cleanup.UserContext2 = (UINT_PTR)FileObject->FsContext2;

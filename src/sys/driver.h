@@ -405,11 +405,11 @@ VOID FspFileContextOpen(FSP_FILE_CONTEXT *Context)
     Context->OpenCount++;
 }
 static inline
-VOID FspFileContextClose(FSP_FILE_CONTEXT *Context)
+LONG FspFileContextClose(FSP_FILE_CONTEXT *Context)
 {
     ASSERT(ExIsResourceAcquiredExclusiveLite(Context->Header.Resource));
     ASSERT(0 < Context->OpenCount);
-    Context->OpenCount--;
+    return Context->OpenCount--;
 }
 static inline
 VOID FspFileContextRetain(FSP_FILE_CONTEXT *Context)
