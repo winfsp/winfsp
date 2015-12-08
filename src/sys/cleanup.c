@@ -48,7 +48,28 @@ static NTSTATUS FspFsvolCleanup(
 {
     PAGED_CODE();
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+
+    if (!FspDeviceRetain(FsvrtDeviceObject))
+        return STATUS_CANCELLED;
+    try
+    {
+        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
+            FspFsvrtDeviceExtension(FsvrtDeviceObject);
+        PFILE_OBJECT FileObject = IrpSp->FileObject;
+
+        Result = STATUS_PENDING;
+
+    exit:;
+    }
+    finally
+    {
+        FspDeviceRelease(FsvrtDeviceObject);
+    }
+
+    return Result;
 }
 
 VOID FspFsvolCleanupComplete(
