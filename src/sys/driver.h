@@ -212,7 +212,7 @@ typedef VOID FSP_IOCMPL_DISPATCH(
     _Inout_ PIRP Irp, _In_ const FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCleanupComplete;
-FSP_IOCMPL_DISPATCH FspCloseComplete;
+FSP_IOCMPL_DISPATCH FspFsvolCloseComplete;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
 FSP_IOCMPL_DISPATCH FspDeviceControlComplete;
 FSP_IOCMPL_DISPATCH FspDirectoryControlComplete;

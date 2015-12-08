@@ -12,15 +12,15 @@ static NTSTATUS FspFsvrtClose(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolClose(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOCMPL_DISPATCH FspFsvolCloseComplete;
 FSP_DRIVER_DISPATCH FspClose;
-FSP_IOCMPL_DISPATCH FspCloseComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlClose)
 #pragma alloc_text(PAGE, FspFsvrtClose)
 #pragma alloc_text(PAGE, FspFsvolClose)
+#pragma alloc_text(PAGE, FspFsvolCloseComplete)
 #pragma alloc_text(PAGE, FspClose)
-#pragma alloc_text(PAGE, FspCloseComplete)
 #endif
 
 static NTSTATUS FspFsctlClose(
@@ -51,6 +51,14 @@ static NTSTATUS FspFsvolClose(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+VOID FspFsvolCloseComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC("FileObject=%p", IrpSp->FileObject);
+}
+
 NTSTATUS FspClose(
     PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
@@ -71,12 +79,4 @@ NTSTATUS FspClose(
     }
 
     FSP_LEAVE_MJ("FileObject=%p", IrpSp->FileObject);
-}
-
-VOID FspCloseComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC("FileObject=%p", IrpSp->FileObject);
 }

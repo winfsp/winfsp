@@ -68,7 +68,7 @@ NTSTATUS DriverEntry(
 
     /* setup the I/O completion functions */
     FspIopCompleteFunction[IRP_MJ_CREATE] = FspFsvolCreateComplete;
-    FspIopCompleteFunction[IRP_MJ_CLOSE] = FspCloseComplete;
+    FspIopCompleteFunction[IRP_MJ_CLOSE] = FspFsvolCloseComplete;
     FspIopCompleteFunction[IRP_MJ_READ] = FspReadComplete;
     FspIopCompleteFunction[IRP_MJ_WRITE] = FspWriteComplete;
     FspIopCompleteFunction[IRP_MJ_QUERY_INFORMATION] = FspQueryInformationComplete;
