@@ -67,7 +67,7 @@ static NTSTATUS FspFsvolClose(
         FspFileContextRelease(FsContext);
 
         /* create the user-mode file system request */
-        Result = FspIopCreateRequest(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
+        Result = FspIopCreateRequest(0, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
         if (!NT_SUCCESS(Result))
         {
             /* IRP_MJ_CLOSE cannot really fail :-\ */
@@ -81,9 +81,8 @@ static NTSTATUS FspFsvolClose(
 
         /* populate the Close request */
         Request->Kind = FspFsctlTransactCloseKind;
-        Request->Req.Cleanup.UserContext = FsContext->UserContext;
-        Request->Req.Cleanup.UserContext2 = (UINT_PTR)FileObject->FsContext2;
-        Request->Req.Cleanup.Delete = DeletePending && 0 == OpenCount;
+        Request->Req.Close.UserContext = FsContext->UserContext;
+        Request->Req.Close.UserContext2 = (UINT_PTR)FileObject->FsContext2;
 
         /* post as a work request; this allows us to complete our own IRP and return immediately! */
         if (!FspIopPostWorkRequest(DeviceObject, Request))
