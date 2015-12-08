@@ -378,6 +378,7 @@ VOID FspFsvolCreateComplete(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
     ULONG CreateOptions = IrpSp->Parameters.Create.Options & 0xffffff;
+    BOOLEAN FileCreated = FILE_CREATED == Response->IoStatus.Information;
     UINT32 ResponseFileAttributes = Response->Rsp.Create.Opened.FileAttributes;
     PSECURITY_DESCRIPTOR SecurityDescriptor;
     ULONG SecurityDescriptorSize;
@@ -454,9 +455,13 @@ VOID FspFsvolCreateComplete(
         FSP_RETURN();
     }
 
+    /* record the user-mode file system contexts */
+    FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
+    FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
+
     /* check for trailing backslash */
     if (HasTrailingBackslash &&
-        !FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+        !FileCreated && !FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
     {
         FspFsvolCreateClose(Irp, Response);
         FSP_RETURN(Result = STATUS_OBJECT_NAME_INVALID);
@@ -466,8 +471,7 @@ VOID FspFsvolCreateComplete(
     if (!FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
     {
         /* read-only attribute check */
-        if (FILE_CREATED != Response->IoStatus.Information &&
-            FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_READONLY))
+        if (!FileCreated && FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_READONLY))
         {
             /* from fastfat: allowed accesses when read-only */
             ACCESS_MASK Allowed =
@@ -539,21 +543,17 @@ VOID FspFsvolCreateComplete(
 
     /* were we asked to open a directory or non-directory? */
     if (FlagOn(CreateOptions, FILE_DIRECTORY_FILE) &&
-        !FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+        !FileCreated && !FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
     {
         FspFsvolCreateClose(Irp, Response);
         FSP_RETURN(Result = STATUS_NOT_A_DIRECTORY);
     }
     if (FlagOn(CreateOptions, FILE_NON_DIRECTORY_FILE) &&
-        FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+        !FileCreated && FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
     {
         FspFsvolCreateClose(Irp, Response);
         FSP_RETURN(Result = STATUS_FILE_IS_A_DIRECTORY);
     }
-
-    /* record the user-mode file system contexts */
-    FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
-    FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
 
     /*
      * The following must be done under the file system volume device Resource,
