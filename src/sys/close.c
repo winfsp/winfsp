@@ -93,11 +93,12 @@ static NTSTATUS FspFsvolClose(
 
     leak_exit:;
 #if DBG
-        DEBUGLOG("FileObject=%p[%p:\"%wZ\"], UserContext=%llx, UserContext2=%p: "
+        DEBUGLOG("FileObject=%p[%p:\"%wZ\"], UserContext=%llx, UserContext2=%llx: "
             "error: the user-mode file system handle will be leaked!",
             IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName,
             UserContext, UserContext2);
 #endif
+
         /* IRP_MJ_CLOSE cannot really fail :-\ */
         Result = STATUS_SUCCESS;
 
