@@ -49,7 +49,7 @@ enum
 {
     FspFsctlTransactUnknownKind = 0,
     FspFsctlTransactCreateKind = 'C',
-    FspFsctlTransactCreateCloseKind = 'c',
+    FspFsctlTransactCreateCleanupCloseKind = 'c',
     FspFsctlTransactCloseKind = 'z',
     FspFsctlTransactReadKind = 'R',
     FspFsctlTransactWriteKind = 'W',

@@ -195,6 +195,9 @@ static NTSTATUS FspFsvolCreate(
                 goto exit;
             }
 
+            FSP_FILE_CONTEXT *RelatedFsContext = RelatedFileObject->FsContext;
+            ASSERT(0 != RelatedFsContext);
+
             /* cannot FILE_DELETE_ON_CLOSE on the root directory */
             if (sizeof(WCHAR) == RelatedFsContext->FileName.Length &&
                 0 == FileName.Length &&
@@ -203,9 +206,6 @@ static NTSTATUS FspFsvolCreate(
                 Result = STATUS_CANNOT_DELETE;
                 goto exit;
             }
-
-            FSP_FILE_CONTEXT *RelatedFsContext = RelatedFileObject->FsContext;
-            ASSERT(0 != RelatedFsContext);
 
             /*
              * There is no need to lock our accesses of RelatedFileObject->FsContext->FileName,
@@ -240,7 +240,7 @@ static NTSTATUS FspFsvolCreate(
             }
 
             /* cannot FILE_DELETE_ON_CLOSE on the root directory */
-            if (sizeof(WCHAR) == FileName.Length) &&
+            if (sizeof(WCHAR) == FileName.Length &&
                 FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE))
             {
                 Result = STATUS_CANNOT_DELETE;
@@ -689,9 +689,10 @@ static VOID FspFsvolCreateClose(
         goto leak_exit;
 
     /* populate the CreateClose request */
-    Request->Kind = FspFsctlTransactCreateCloseKind;
-    Request->Req.Close.UserContext = FsContext->UserContext;
-    Request->Req.Close.UserContext2 = (UINT_PTR)FileObject->FsContext2;
+    Request->Kind = FspFsctlTransactCreateCleanupCloseKind;
+    Request->Req.Cleanup.UserContext = FsContext->UserContext;
+    Request->Req.Cleanup.UserContext2 = (UINT_PTR)FileObject->FsContext2;
+    Request->Req.Cleanup.Delete = FILE_CREATED == Response->IoStatus.Information;
 
     /* post as a work request */
     if (!FspIopPostWorkRequest(DeviceObject, Request))
