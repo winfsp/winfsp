@@ -48,7 +48,63 @@ static NTSTATUS FspFsvolClose(
 {
     PAGED_CODE();
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+
+    if (!FspDeviceRetain(FsvrtDeviceObject))
+        return STATUS_CANCELLED;
+    try
+    {
+        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
+            FspFsvrtDeviceExtension(FsvrtDeviceObject);
+        PFILE_OBJECT FileObject = IrpSp->FileObject;
+        FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
+        BOOLEAN FileNameRequired = 0 != FsvrtDeviceExtension->VolumeParams.FileNameRequired;
+        FSP_FSCTL_TRANSACT_REQ *Request;
+
+        /* dereference the FsContext (and delete if no more references) */
+        FspFileContextRelease(FsContext);
+
+        /* create the user-mode file system request */
+        Result = FspIopCreateRequest(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
+        if (!NT_SUCCESS(Result))
+        {
+            /* IRP_MJ_CLOSE cannot really fail :-\ */
+            Result = STATUS_SUCCESS;
+            goto exit;
+        }
+
+        /*
+         * The new request is associated with our IRP and will be deleted during its completion.
+         */
+
+        /* populate the Close request */
+        Request->Kind = FspFsctlTransactCloseKind;
+        Request->Req.Cleanup.UserContext = FsContext->UserContext;
+        Request->Req.Cleanup.UserContext2 = (UINT_PTR)FileObject->FsContext2;
+        Request->Req.Cleanup.Delete = DeletePending && 0 == OpenCount;
+
+        /* post as a work request; this allows us to complete our own IRP and return immediately! */
+        if (!FspIopPostWorkRequest(DeviceObject, Request))
+        {
+            /* no need to delete the request here as FspIopPostWorkRequest() will do so in all cases */
+
+            /* IRP_MJ_CLOSE cannot really fail :-\ */
+            Result = STATUS_SUCCESS;
+            goto exit;
+        }
+
+        Result = STATUS_SUCCESS;
+
+    exit:;
+    }
+    finally
+    {
+        FspDeviceRelease(FsvrtDeviceObject);
+    }
+
+    return Result;
 }
 
 VOID FspFsvolCloseComplete(
