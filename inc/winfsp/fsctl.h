@@ -93,8 +93,7 @@ typedef struct
     {
         struct
         {
-            UINT32 CreateDisposition;   /* FILE_{SUPERSEDE,CREATE,OPEN,OPEN_IF,OVERWRITE,OVERWRITE_IF} */
-            UINT32 CreateOptions;       /* FILE_{DIRECTORY_FILE,NON_DIRECTORY_FILE,etc.} */
+            UINT32 CreateOptions;       /* Disposition: high 8 bits; Options: low 24 bits */
             UINT32 FileAttributes;      /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor; /* security descriptor for new files */
             UINT64 AllocationSize;      /* initial allocation size */

@@ -67,8 +67,7 @@ static NTSTATUS FspFsvolCreate(
         PFILE_OBJECT RelatedFileObject = FileObject->RelatedFileObject;
         UNICODE_STRING FileName = FileObject->FileName;
         PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
-        ULONG CreateDisposition = (IrpSp->Parameters.Create.Options >> 24) & 0xff;
-        ULONG CreateOptions = IrpSp->Parameters.Create.Options & 0xffffff;
+        ULONG CreateOptions = IrpSp->Parameters.Create.Options;
         USHORT FileAttributes = IrpSp->Parameters.Create.FileAttributes;
         PSECURITY_DESCRIPTOR SecurityDescriptor = AccessState->SecurityDescriptor;
         ULONG SecurityDescriptorSize = 0;
@@ -275,7 +274,6 @@ static NTSTATUS FspFsvolCreate(
 
         /* populate the Create request */
         Request->Kind = FspFsctlTransactCreateKind;
-        Request->Req.Create.CreateDisposition = CreateDisposition;
         Request->Req.Create.CreateOptions = CreateOptions;
         Request->Req.Create.FileAttributes = FileAttributes;
         Request->Req.Create.SecurityDescriptor.Offset = 0 == SecurityDescriptorSize ? 0 :
@@ -398,7 +396,7 @@ VOID FspFsvolCreateComplete(
         FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
-    ULONG CreateOptions = IrpSp->Parameters.Create.Options & 0xffffff;
+    ULONG CreateOptions = IrpSp->Parameters.Create.Options;
     BOOLEAN FileCreated = FILE_CREATED == Response->IoStatus.Information;
     UINT32 ResponseFileAttributes = Response->Rsp.Create.Opened.FileAttributes;
     PSECURITY_DESCRIPTOR SecurityDescriptor;
