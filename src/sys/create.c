@@ -14,7 +14,7 @@ static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
-static VOID FspFsvolCreateClose(
+static VOID FspFsvolCreateCleanupClose(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_DRIVER_DISPATCH FspCreate;
 
@@ -24,7 +24,7 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreate)
 #pragma alloc_text(PAGE, FspFsvolCreatePrepare)
 #pragma alloc_text(PAGE, FspFsvolCreateComplete)
-#pragma alloc_text(PAGE, FspFsvolCreateClose)
+#pragma alloc_text(PAGE, FspFsvolCreateCleanupClose)
 #pragma alloc_text(PAGE, FspCreate)
 #endif
 
@@ -496,14 +496,14 @@ VOID FspFsvolCreateComplete(
 
             if (FlagOn(DesiredAccess, ~Allowed))
             {
-                FspFsvolCreateClose(Irp, Response);
+                FspFsvolCreateCleanupClose(Irp, Response);
                 FSP_RETURN(Result = STATUS_ACCESS_DENIED);
             }
             else
             if (!FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY) &&
                 FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE))
             {
-                FspFsvolCreateClose(Irp, Response);
+                FspFsvolCreateCleanupClose(Irp, Response);
                 FSP_RETURN(Result = STATUS_CANNOT_DELETE);
             }
         }
@@ -518,7 +518,7 @@ VOID FspFsvolCreateComplete(
                 (PUINT8)Response + Response->Size ||
                 !FspValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorSize, 0))
             {
-                FspFsvolCreateClose(Irp, Response);
+                FspFsvolCreateCleanupClose(Irp, Response);
                 FSP_RETURN(Result = STATUS_ACCESS_DENIED);
             }
 
@@ -534,7 +534,7 @@ VOID FspFsvolCreateComplete(
                 &GrantedAccess,
                 &Result))
             {
-                FspFsvolCreateClose(Irp, Response);
+                FspFsvolCreateCleanupClose(Irp, Response);
                 FSP_RETURN();
             }
 
@@ -544,7 +544,7 @@ VOID FspFsvolCreateComplete(
                 SeFreePrivileges(Privileges);
                 if (!NT_SUCCESS(Result))
                 {
-                    FspFsvolCreateClose(Irp, Response);
+                    FspFsvolCreateCleanupClose(Irp, Response);
                     FSP_RETURN();
                 }
             }
@@ -558,13 +558,13 @@ VOID FspFsvolCreateComplete(
     if (FlagOn(CreateOptions, FILE_DIRECTORY_FILE) &&
         !FileCreated && !FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
     {
-        FspFsvolCreateClose(Irp, Response);
+        FspFsvolCreateCleanupClose(Irp, Response);
         FSP_RETURN(Result = STATUS_NOT_A_DIRECTORY);
     }
     if (FlagOn(CreateOptions, FILE_NON_DIRECTORY_FILE) &&
         !FileCreated && FlagOn(ResponseFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
     {
-        FspFsvolCreateClose(Irp, Response);
+        FspFsvolCreateCleanupClose(Irp, Response);
         FSP_RETURN(Result = STATUS_FILE_IS_A_DIRECTORY);
     }
 
@@ -627,7 +627,7 @@ VOID FspFsvolCreateComplete(
     if (!NT_SUCCESS(Result))
     {
         ASSERT(!Inserted);
-        FspFsvolCreateClose(Irp, Response);
+        FspFsvolCreateCleanupClose(Irp, Response);
         FSP_RETURN();
     }
 
@@ -648,7 +648,7 @@ VOID FspFsvolCreateComplete(
         IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName);
 }
 
-static VOID FspFsvolCreateClose(
+static VOID FspFsvolCreateCleanupClose(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
