@@ -59,6 +59,10 @@ VOID FspFileContextDelete(FSP_FILE_CONTEXT *FsContext)
     PAGED_CODE();
 
     FsRtlTeardownPerStreamContexts(&FsContext->Header);
+
+    ExDeleteResourceLite(&FsContext->NonPaged->PagingIoResource);
+    ExDeleteResourceLite(&FsContext->NonPaged->Resource);
     ExFreePoolWithTag(FsContext->NonPaged, FSP_TAG);
+
     ExFreePoolWithTag(FsContext, FSP_TAG);
 }
