@@ -1,5 +1,8 @@
 #include <tlib/testsuite.h>
 
+int WinFspDiskTests = 1;
+int WinFspNetTests = 0;
+
 int main(int argc, char *argv[])
 {
     TESTSUITE(mount_tests);

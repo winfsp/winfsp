@@ -4,6 +4,9 @@
 #include <process.h>
 #include <strsafe.h>
 
+extern int WinFspDiskTests;
+extern int WinFspNetTests;
+
 void mount_invalid_test(void)
 {
     NTSTATUS Result;
@@ -45,11 +48,13 @@ void mount_create_delete_dotest(PWSTR DeviceName)
 
 void mount_create_delete_test(void)
 {
-    mount_create_delete_dotest(L"WinFsp.Disk");
-    //mount_create_delete_dotest(L"WinFsp.Net");
+    if (WinFspDiskTests)
+        mount_create_delete_dotest(L"WinFsp.Disk");
+    if (WinFspNetTests)
+        mount_create_delete_dotest(L"WinFsp.Net");
 }
 
-static unsigned __stdcall mount_volume_dotest_thread(void *FilePath)
+static unsigned __stdcall mount_volume_cancel_dotest_thread(void *FilePath)
 {
     FspDebugLog(__FUNCTION__ ": \"%S\"\n", FilePath);
 
@@ -62,7 +67,7 @@ static unsigned __stdcall mount_volume_dotest_thread(void *FilePath)
     return 0;
 }
 
-void mount_volume_dotest(PWSTR DeviceName)
+void mount_volume_cancel_dotest(PWSTR DeviceName)
 {
     NTSTATUS Result;
     BOOL Success;
@@ -79,7 +84,7 @@ void mount_volume_dotest(PWSTR DeviceName)
     ASSERT(STATUS_SUCCESS == Result);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumePath);
-    Thread = (HANDLE)_beginthreadex(0, 0, mount_volume_dotest_thread, FilePath, 0, 0);
+    Thread = (HANDLE)_beginthreadex(0, 0, mount_volume_cancel_dotest_thread, FilePath, 0, 0);
     ASSERT(0 != Thread);
 
     Sleep(1000); /* give some time to the thread to execute */
@@ -100,15 +105,17 @@ void mount_volume_dotest(PWSTR DeviceName)
     ASSERT(ERROR_OPERATION_ABORTED == ExitCode);
 }
 
-void mount_volume_test(void)
+void mount_volume_cancel_test(void)
 {
-    mount_volume_dotest(L"WinFsp.Disk");
-    //mount_volume_dotest(L"WinFsp.Net");
+    if (WinFspDiskTests)
+        mount_volume_cancel_dotest(L"WinFsp.Disk");
+    if (WinFspNetTests)
+        mount_volume_cancel_dotest(L"WinFsp.Net");
 }
 
 void mount_tests(void)
 {
     TEST(mount_invalid_test);
     TEST(mount_create_delete_test);
-    TEST(mount_volume_test);
+    TEST(mount_volume_cancel_test);
 }
