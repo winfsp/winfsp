@@ -43,9 +43,10 @@
 #define FSP_DEBUGBRK_()                 \
     do                                  \
     {                                   \
-        static int fsp_bp_enabled = 1;  \
-        if (fsp_bp_enabled && HasDbgBreakPoint(__FUNCTION__))\
-            try { DbgBreakPoint(); } except (EXCEPTION_EXECUTE_HANDLER) {}\
+        extern int fsp_bp_global;       \
+        static int fsp_bp = 1;          \
+        if (fsp_bp && fsp_bp_global && !KD_DEBUGGER_NOT_PRESENT && HasDbgBreakPoint(__FUNCTION__))\
+            DbgBreakPoint();            \
     } while (0,0)
 #else
 #define FSP_DEBUGLOG_(fmt, rfmt, ...)   ((void)0)

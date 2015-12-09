@@ -10,6 +10,7 @@
 #define SYM(x)                          case x: return #x;
 #define SYMBRC(x)                       case x: return "[" #x "]";
 
+int fsp_bp_global = 1;
 static ANSI_STRING DbgBreakPointInc = RTL_CONSTANT_STRING("Fsp*");
 BOOLEAN HasDbgBreakPoint(const char *Function)
 {
