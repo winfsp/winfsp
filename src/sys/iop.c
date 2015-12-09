@@ -160,20 +160,7 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
         FspIopRequest(Irp) = 0;
     }
 
-    if (0 != FspIrpContextHandle(Irp))
-    {
-#if DBG
-        NTSTATUS Result0;
-        Result0 = ObCloseHandle(FspIrpContextHandle(Irp), KernelMode);
-        if (!NT_SUCCESS(Result0))
-            DEBUGLOG("ObCloseHandle() = %s", NtStatusSym(Result0));
-#else
-        ObCloseHandle(FspIrpContextHandle(Irp), KernelMode);
-#endif
-
-        FspIrpContextHandle(Irp) = 0;
-    }
-
+    /* get the device object out of the IRP before completion */
     PDEVICE_OBJECT DeviceObject = IoGetCurrentIrpStackLocation(Irp)->DeviceObject;
 
     if (!NT_SUCCESS(Result))

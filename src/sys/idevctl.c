@@ -44,12 +44,16 @@ static NTSTATUS FspFsvolInternalDeviceControl(
                 Request->Hint = (UINT_PTR)Irp;
                 FspIopRequest(Irp) = Request;
 
+                /*
+                 * Post the IRP to our Ioq; we do this here instead of at IRP_LEAVE_MJ time,
+                 * so that we can disassociate the Request on failure and release ownership
+                 * back to the caller.
+                 */
                 if (!FspIoqPostIrp(&FsvrtDeviceExtension->Ioq, Irp))
                 {
                     /* this can only happen if the Ioq was stopped */
                     ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));
 
-                    /* disocciate the Request from our Irp; release ownership back to caller */
                     Request->Hint = 0;
                     FspIopRequest(Irp) = 0;
 

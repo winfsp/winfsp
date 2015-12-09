@@ -267,8 +267,6 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
     (*(FSP_FSCTL_TRANSACT_REQ **)&(Irp)->Tail.Overlay.DriverContext[0])
 #define FspIopRequestContext(Request, I)\
     (*FspIopRequestContextAddress(Request, I))
-#define FspIrpContextHandle(Irp)        \
-    (*(HANDLE *)&(Irp)->Tail.Overlay.DriverContext[1])
 #define FspIopCreateRequest(I, F, E, P) FspIopCreateRequestEx(I, F, E, 0, P)
 typedef VOID FSP_IOP_REQUEST_FINI(PVOID Context[3]);
 NTSTATUS FspIopCreateRequestEx(
