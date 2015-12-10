@@ -32,9 +32,8 @@ FSP_DRIVER_DISPATCH FspCreate;
 
 enum
 {
-    ContextFileObject = 0,
-    ContextFsContext,
-    ContextAccessToken,
+    RequestFsContext = 0,
+    RequestAccessToken,
 };
 
 static NTSTATUS FspFsctlCreate(
@@ -276,10 +275,9 @@ static NTSTATUS FspFsvolCreate(
 
         /*
          * The new request is associated with our IRP and will be deleted during its completion.
-         * Go ahead and associate the FileObject and FsContext with the Request as well.
+         * Go ahead and associate our FsContext with the Request as well.
          */
-        FspIopRequestContext(Request, ContextFileObject) = FileObject;
-        FspIopRequestContext(Request, ContextFsContext) = FsContext;
+        FspIopRequestContext(Request, RequestFsContext) = FsContext;
 
         /* populate the Create request */
         Request->Kind = FspFsctlTransactCreateKind;
@@ -314,8 +312,6 @@ static NTSTATUS FspFsvolCreate(
         else if (IsSelfRelativeSecurityDescriptor)
             RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset,
                 SecurityDescriptor, SecurityDescriptorSize);
-
-        FileObject->FsContext = FsContext;
 
         Result = STATUS_PENDING;
 
@@ -355,7 +351,7 @@ NTSTATUS FspFsvolCreatePrepare(
         FSP_RETURN();
 
     /* send the user-mode handle to the user-mode file system */
-    FspIopRequestContext(Request, ContextAccessToken) = UserModeAccessToken;
+    FspIopRequestContext(Request, RequestAccessToken) = UserModeAccessToken;
     Request->Req.Create.AccessToken = (UINT_PTR)UserModeAccessToken;
 
     FSP_LEAVE_IOP();
@@ -382,8 +378,8 @@ VOID FspFsvolCreateComplete(
 
     PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
-        FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
+    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
     FSP_FSCTL_TRANSACT_REQ *Request = FspIopRequest(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
@@ -399,7 +395,7 @@ VOID FspFsvolCreateComplete(
     ULONG Flags = IrpSp->Flags;
     KPROCESSOR_MODE RequestorMode =
         FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
-    FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
+    FSP_FILE_CONTEXT *FsContext = FspIopRequestContext(Request, RequestFsContext);
     ACCESS_MASK GrantedAccess;
     BOOLEAN Inserted = FALSE;
 
@@ -452,10 +448,6 @@ VOID FspFsvolCreateComplete(
         Result = Response->IoStatus.Status;
         FSP_RETURN();
     }
-
-    /* record the user-mode file system contexts */
-    FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
-    FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
 
     /* are we doing access checks? */
     if (!FsvrtDeviceExtension->VolumeParams.NoSystemAccessCheck)
@@ -610,18 +602,24 @@ VOID FspFsvolCreateComplete(
     }
 
     /*
-     * Looks like SUCCESS! Disassociate our FileObject and FileObject->FsContext from the Request.
+     * Looks like SUCCESS!
      */
-    FspIopRequestContext(Request, ContextFileObject) = 0;
-    FspIopRequestContext(Request, ContextFsContext) = 0;
+
+     /* record the user-mode file system contexts */
+    FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
+    FileObject->FsContext = FsContext;
+    FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
 
     /* did an FsContext with the same UserContext already exist? */
     if (!Inserted)
-    {
-        /* delete the newly created FsContext and use the existing one */
-        FspFileContextRelease(FileObject->FsContext);
-        FileObject->FsContext = FsContext;
-    }
+        /* delete the newly created FsContext as it is not being used */
+        FspFileContextRelease(FspIopRequestContext(Request, RequestFsContext));
+
+    /* disassociate our FsContext from the Request */
+    FspIopRequestContext(Request, RequestFsContext) = 0;
+
+    /* finish seting up the FileObject */
+    FileObject->Vpb = FsvrtDeviceObject->Vpb;
 
     /* SUCCESS! */
     Irp->IoStatus.Information = Response->IoStatus.Information;
@@ -662,10 +660,10 @@ static VOID FspFsvolCreateCleanupClose(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
         FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
-    PFILE_OBJECT FileObject = IrpSp->FileObject;
-    FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
-    UINT64 UserContext = FsContext->UserContext;
-    UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
+    FSP_FSCTL_TRANSACT_REQ *OriginalRequest = FspIopRequest(Irp);
+    FSP_FILE_CONTEXT *FsContext = FspIopRequestContext(OriginalRequest, RequestFsContext);
+    UINT64 UserContext = Response->Rsp.Create.Opened.UserContext;
+    UINT64 UserContext2 = Response->Rsp.Create.Opened.UserContext2;
     BOOLEAN FileNameRequired = 0 != FsvrtDeviceExtension->VolumeParams.FileNameRequired;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
@@ -702,23 +700,18 @@ VOID FspFsvolCreateRequestFini(PVOID Context[3])
 {
     PAGED_CODE();
 
-    if (0 != Context[ContextFsContext])
-    {
-        PFILE_OBJECT FileObject = Context[ContextFileObject];
-        if (0 != FileObject && FileObject->FsContext == Context[ContextFsContext])
-            FileObject->FsContext = 0;
-        FspFileContextRelease(Context[ContextFsContext]);
-    }
+    if (0 != Context[RequestFsContext])
+        FspFileContextRelease(Context[RequestFsContext]);
 
-    if (0 != Context[ContextAccessToken])
+    if (0 != Context[RequestAccessToken])
     {
 #if DBG
         NTSTATUS Result0;
-        Result0 = ObCloseHandle(Context[ContextAccessToken], KernelMode);
+        Result0 = ObCloseHandle(Context[RequestAccessToken], KernelMode);
         if (!NT_SUCCESS(Result0))
             DEBUGLOG("ObCloseHandle() = %s", NtStatusSym(Result0));
 #else
-        ObCloseHandle(Context[ContextAccessToken], KernelMode);
+        ObCloseHandle(Context[RequestAccessToken], KernelMode);
 #endif
     }
 }
