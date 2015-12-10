@@ -20,16 +20,14 @@ NTSTATUS FspFileContextCreate(ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext)
 
     *PFsContext = 0;
 
-    FSP_FILE_CONTEXT_NONPAGED *NonPaged = ExAllocatePoolWithTag(NonPagedPool,
-        sizeof *NonPaged, FSP_TAG);
+    FSP_FILE_CONTEXT_NONPAGED *NonPaged = FspAllocNonPaged(sizeof *NonPaged);
     if (0 == NonPaged)
         return STATUS_INSUFFICIENT_RESOURCES;
 
-    FSP_FILE_CONTEXT *FsContext = ExAllocatePoolWithTag(PagedPool,
-        sizeof *FsContext + ExtraSize, FSP_TAG);
+    FSP_FILE_CONTEXT *FsContext = FspAlloc(sizeof *FsContext + ExtraSize);
     if (0 == FsContext)
     {
-        ExFreePoolWithTag(NonPaged, FSP_TAG);
+        FspFree(NonPaged);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -62,7 +60,7 @@ VOID FspFileContextDelete(FSP_FILE_CONTEXT *FsContext)
 
     ExDeleteResourceLite(&FsContext->NonPaged->PagingIoResource);
     ExDeleteResourceLite(&FsContext->NonPaged->Resource);
-    ExFreePoolWithTag(FsContext->NonPaged, FSP_TAG);
+    FspFree(FsContext->NonPaged);
 
-    ExFreePoolWithTag(FsContext, FSP_TAG);
+    FspFree(FsContext);
 }

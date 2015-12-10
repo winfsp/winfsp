@@ -51,8 +51,7 @@ NTSTATUS FspIopCreateRequestEx(
     if (FSP_FSCTL_TRANSACT_REQ_SIZEMAX < sizeof *Request + ExtraSize)
         return STATUS_INVALID_PARAMETER;
 
-    RequestHeader = ExAllocatePoolWithTag(PagedPool,
-        sizeof *RequestHeader + sizeof *Request + ExtraSize, FSP_TAG);
+    RequestHeader = FspAlloc(sizeof *RequestHeader + sizeof *Request + ExtraSize);
     if (0 == RequestHeader)
         return STATUS_INSUFFICIENT_RESOURCES;
 
@@ -87,7 +86,7 @@ static VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request)
     if (0 != RequestHeader->RequestFini)
         RequestHeader->RequestFini(RequestHeader->Context);
 
-    ExFreePoolWithTag(RequestHeader, FSP_TAG);
+    FspFree(RequestHeader);
 }
 
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I)

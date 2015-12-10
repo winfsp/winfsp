@@ -425,10 +425,10 @@ VOID FspFsvolCreateComplete(
 
             if (ReparseFileName.Length > FileObject->FileName.MaximumLength)
             {
-                PVOID Buffer = ExAllocatePoolWithTag(NonPagedPool, ReparseFileName.Length, FSP_TAG);
+                PVOID Buffer = FspAllocExternal(ReparseFileName.Length);
                 if (0 == Buffer)
                     FSP_RETURN(Result = STATUS_INSUFFICIENT_RESOURCES);
-                ExFreePool(FileObject->FileName.Buffer);
+                FspFreeExternal(FileObject->FileName.Buffer);
                 FileObject->FileName.MaximumLength = ReparseFileName.Length;
                 FileObject->FileName.Buffer = Buffer;
             }

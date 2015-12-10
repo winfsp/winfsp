@@ -128,7 +128,7 @@ static NTSTATUS FspFsctlCreateVolume(
         return Result;
 
     /* copy the security descriptor from the system buffer to a temporary one */
-    SecurityDescriptorBuf = ExAllocatePoolWithTag(PagedPool, SecurityDescriptorSize, FSP_TAG);
+    SecurityDescriptorBuf = FspAlloc(SecurityDescriptorSize);
     if (0 == SecurityDescriptorBuf)
         return STATUS_INSUFFICIENT_RESOURCES;
     RtlCopyMemory(SecurityDescriptorBuf, SecurityDescriptor, SecurityDescriptorSize);
@@ -176,7 +176,7 @@ static NTSTATUS FspFsctlCreateVolume(
 
     /* free the temporary security descriptor */
     if (0 != SecurityDescriptorBuf)
-        ExFreePoolWithTag(SecurityDescriptorBuf, FSP_TAG);
+        FspFree(SecurityDescriptorBuf);
 
     return Result;
 }
@@ -306,7 +306,7 @@ static NTSTATUS FspFsvrtDeleteVolume(
         }
         IoReleaseVpbSpinLock(Irql);
         if (FreeVpb)
-            ExFreePool(OldVpb);
+            FspFreeExternal(OldVpb);
 #pragma prefast(pop)
 
         /* release the file system device and virtual volume objects */

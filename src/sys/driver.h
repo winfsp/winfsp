@@ -167,7 +167,8 @@
     } while (0,0)
 
 /* misc macros */
-#define FSP_TAG                         ' psF'
+#define FSP_ALLOC_INTERNAL_TAG          'IpsF'
+#define FSP_ALLOC_EXTERNAL_TAG          'XpsF'
 #define FSP_IO_INCREMENT                IO_NETWORK_INCREMENT
 
 /* disable warnings */
@@ -430,6 +431,36 @@ VOID FspFileContextRelease(FSP_FILE_CONTEXT *Context)
 }
 
 /* misc */
+static inline
+PVOID FspAlloc(SIZE_T Size)
+{
+    return ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_INTERNAL_TAG);
+}
+static inline
+PVOID FspAllocNonPaged(SIZE_T Size)
+{
+    return ExAllocatePoolWithTag(NonPagedPool, Size, FSP_ALLOC_INTERNAL_TAG);
+}
+static inline
+VOID FspFree(PVOID Pointer)
+{
+    ExFreePoolWithTag(Pointer, FSP_ALLOC_INTERNAL_TAG);
+}
+static inline
+PVOID FspAllocExternal(SIZE_T Size)
+{
+    return ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_EXTERNAL_TAG);
+}
+static inline
+PVOID FspAllocNonPagedExternal(SIZE_T Size)
+{
+    return ExAllocatePoolWithTag(NonPagedPool, Size, FSP_ALLOC_EXTERNAL_TAG);
+}
+static inline
+VOID FspFreeExternal(PVOID Pointer)
+{
+    ExFreePool(Pointer);
+}
 NTSTATUS FspCreateGuid(GUID *Guid);
 BOOLEAN FspValidRelativeSecurityDescriptor(
     PSECURITY_DESCRIPTOR SecurityDescriptor, ULONG SecurityDescriptorLength,

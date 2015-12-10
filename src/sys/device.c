@@ -189,8 +189,7 @@ static NTSTATUS FspFsvrtDeviceInit(PDEVICE_OBJECT DeviceObject)
 
     FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
 
-    FsvrtDeviceExtension->SwapVpb = ExAllocatePoolWithTag(NonPagedPool,
-        sizeof *FsvrtDeviceExtension->SwapVpb, FSP_TAG);
+    FsvrtDeviceExtension->SwapVpb = FspAllocNonPagedExternal(sizeof *FsvrtDeviceExtension->SwapVpb);
     if (0 == FsvrtDeviceExtension->SwapVpb)
         return STATUS_INSUFFICIENT_RESOURCES;
     RtlZeroMemory(FsvrtDeviceExtension->SwapVpb, sizeof *FsvrtDeviceExtension->SwapVpb);
@@ -205,7 +204,7 @@ static VOID FspFsvrtDeviceFini(PDEVICE_OBJECT DeviceObject)
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
 
     if (0 != FsvrtDeviceExtension->SwapVpb)
-        ExFreePoolWithTag(FsvrtDeviceExtension->SwapVpb, FSP_TAG);
+        FspFreeExternal(FsvrtDeviceExtension->SwapVpb);
 }
 
 static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
@@ -405,9 +404,8 @@ NTSTATUS FspDeviceCopyList(
         DeviceObjects, sizeof *DeviceObjects * DeviceObjectCount, &DeviceObjectCount))
     {
         if (0 != DeviceObjects)
-            ExFreePoolWithTag(DeviceObjects, FSP_TAG);
-        DeviceObjects = ExAllocatePoolWithTag(NonPagedPool,
-            sizeof *DeviceObjects * DeviceObjectCount, FSP_TAG);
+            FspFree(DeviceObjects);
+        DeviceObjects = FspAllocNonPaged(sizeof *DeviceObjects * DeviceObjectCount);
         if (0 == DeviceObjects)
             return STATUS_INSUFFICIENT_RESOURCES;
         RtlZeroMemory(DeviceObjects, sizeof *DeviceObjects * DeviceObjectCount);
@@ -427,7 +425,7 @@ VOID FspDeviceDeleteList(
     for (ULONG i = 0; DeviceObjectCount > i; i++)
         ObDereferenceObject(DeviceObjects[i]);
 
-    ExFreePoolWithTag(DeviceObjects, FSP_TAG);
+    FspFree(DeviceObjects);
 }
 
 VOID FspDeviceDeleteAll(VOID)
