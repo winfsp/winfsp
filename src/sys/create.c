@@ -290,8 +290,8 @@ static NTSTATUS FspFsvolCreate(
         Request->Req.Create.AccessToken = 0;
         Request->Req.Create.DesiredAccess = DesiredAccess;
         Request->Req.Create.ShareAccess = ShareAccess;
-        Request->Req.Create.Ea = 0;
-        Request->Req.Create.EaSize = 0;
+        Request->Req.Create.Ea.Offset = 0;
+        Request->Req.Create.Ea.Size = 0;
         Request->Req.Create.UserMode = UserMode == RequestorMode;
         Request->Req.Create.HasTraversePrivilege = HasTraversePrivilege;
         Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);

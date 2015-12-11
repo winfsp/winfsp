@@ -100,8 +100,7 @@ typedef struct
             UINT64 AccessToken;         /* (HANDLE); request access token; sent if NoAccessCheck is 0 */
             UINT32 DesiredAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             UINT32 ShareAccess;         /* FILE_SHARE_{READ,WRITE,DELETE} */
-            UINT16 Ea;                  /* reserved; not currently implemented */
-            UINT16 EaSize;              /* reserved; not currently implemented */
+            FSP_FSCTL_TRANSACT_BUF Ea;  /* reserved; not currently implemented */
             UINT32 UserMode:1;          /* request originated in user mode */
             UINT32 HasTraversePrivilege:1;  /* requestor has TOKEN_HAS_TRAVERSE_PRIVILEGE */
             UINT32 OpenTargetDirectory:1;   /* open target dir and report FILE_{EXISTS,DOES_NOT_EXIST} */
