@@ -48,6 +48,10 @@ static NTSTATUS FspFsvolCleanup(
 {
     PAGED_CODE();
 
+    /* is this a valid FileObject? */
+    if (!FspFileContextIsValid(IrpSp->FileObject->FsContext))
+        return STATUS_SUCCESS;
+
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
@@ -92,7 +96,8 @@ static NTSTATUS FspFsvolCleanup(
 
     PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
     if (!FspDeviceRetain(FsvrtDeviceObject))
-        return STATUS_CANCELLED;
+        /* IRP_MJ_CLEANUP cannot really fail :-\ */
+        return STATUS_SUCCESS;
 
     try
     {

@@ -39,7 +39,7 @@ NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
     ExInitializeFastMutex(&NonPaged->HeaderFastMutex);
 
     RtlZeroMemory(FsContext, sizeof *FsContext + ExtraSize);
-    FsContext->Header.NodeTypeCode = 'F';
+    FsContext->Header.NodeTypeCode = FspFileContextFileKind;
     FsContext->Header.NodeByteSize = sizeof *FsContext;
     FsContext->Header.IsFastIoPossible = FastIoIsQuestionable;
     FsContext->Header.Resource = &NonPaged->Resource;

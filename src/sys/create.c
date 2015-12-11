@@ -61,6 +61,15 @@ static NTSTATUS FspFsvolCreate(
 {
     PAGED_CODE();
 
+    /* open the volume object? */
+    if (0 == IrpSp->FileObject->FileName.Length &&
+        (0 == IrpSp->FileObject->RelatedFileObject ||
+            0 == IrpSp->FileObject->RelatedFileObject->FsContext))
+    {
+        Irp->IoStatus.Information = FILE_OPENED;
+        return STATUS_SUCCESS;
+    }
+
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
 
@@ -94,13 +103,6 @@ static NTSTATUS FspFsvolCreate(
         BOOLEAN HasTrailingBackslash = FALSE;
         FSP_FILE_CONTEXT *FsContext = 0;
         FSP_FSCTL_TRANSACT_REQ *Request;
-
-        /* cannot open the volume object */
-        if (0 == RelatedFileObject && 0 == FileName.Length)
-        {
-            Result = STATUS_ACCESS_DENIED;
-            goto exit;
-        }
 
         /* cannot open a paging file */
         if (FlagOn(Flags, SL_OPEN_PAGING_FILE))
@@ -195,15 +197,21 @@ static NTSTATUS FspFsvolCreate(
         /* is this a relative or absolute open? */
         if (0 != RelatedFileObject)
         {
+            FSP_FILE_CONTEXT *RelatedFsContext = RelatedFileObject->FsContext;
+
+            /* is this a valid RelatedFileObject? */
+            if (!FspFileContextIsValid(RelatedFsContext))
+            {
+                Result = STATUS_OBJECT_PATH_NOT_FOUND;
+                goto exit;
+            }
+
             /* must be a relative path */
             if (sizeof(WCHAR) <= FileName.Length && L'\\' == FileName.Buffer[0])
             {
                 Result = STATUS_OBJECT_NAME_INVALID;
                 goto exit;
             }
-
-            FSP_FILE_CONTEXT *RelatedFsContext = RelatedFileObject->FsContext;
-            ASSERT(0 != RelatedFsContext);
 
             /* cannot FILE_DELETE_ON_CLOSE on the root directory */
             if (sizeof(WCHAR) == RelatedFsContext->FileName.Length &&
@@ -605,11 +613,6 @@ VOID FspFsvolCreateComplete(
      * Looks like SUCCESS!
      */
 
-     /* record the user-mode file system contexts */
-    FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
-    FileObject->FsContext = FsContext;
-    FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
-
     /* did an FsContext with the same UserContext already exist? */
     if (!Inserted)
         /* delete the newly created FsContext as it is not being used */
@@ -617,6 +620,11 @@ VOID FspFsvolCreateComplete(
 
     /* disassociate our FsContext from the Request */
     FspIopRequestContext(Request, RequestFsContext) = 0;
+
+    /* record the user-mode file system contexts */
+    FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
+    FileObject->FsContext = FsContext;
+    FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
 
     /* finish seting up the FileObject */
     FileObject->Vpb = FsvrtDeviceObject->Vpb;

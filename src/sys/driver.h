@@ -379,6 +379,14 @@ VOID FspDeviceDeleteList(
 VOID FspDeviceDeleteAll(VOID);
 
 /* file objects */
+#define FspFileContextKind(FsContext)   \
+    (((FSP_FILE_CONTEXT *)FsContext)->Header.NodeTypeCode)
+#define FspFileContextIsValid(FsContext)\
+    (0 != (FsContext) && FspFileContextFileKind == ((FSP_FILE_CONTEXT *)FsContext)->Header.NodeTypeCode)
+enum
+{
+    FspFileContextFileKind = 'BZ',
+};
 typedef struct
 {
     ERESOURCE Resource;
