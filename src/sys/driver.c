@@ -121,6 +121,20 @@ NTSTATUS DriverEntry(
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access FastIoDispatch")
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
+    /*
+     * Register our devices as file systems. We do this here to simplify file system
+     * registration/unregistration, although this makes our driver unloadable from the
+     * get go.
+     *
+     * Unfortunately a call to IoRegisterFileSystem(), even if followed by a call to
+     * IoUnregistreFileSystem(), makes the driver unloadable. We attempted to move
+     * the register/unregister calls to FspFsctlDeviceVolume{Created,Deleted}, but it
+     * did not make any difference with regards to making the driver unloadable. Hence
+     * we stick to the simpler scheme of doing registration here.
+     */
+    IoRegisterFileSystem(FspFsctlDiskDeviceObject);
+    IoRegisterFileSystem(FspFsctlNetDeviceObject);
+
 #pragma prefast(suppress:28175, "We are in DriverEntry: ok to access DriverName")
     FSP_LEAVE("DriverName=\"%wZ\", RegistryPath=\"%wZ\"",
         &DriverObject->DriverName, RegistryPath);

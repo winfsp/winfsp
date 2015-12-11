@@ -289,9 +289,13 @@ VOID FspFsctlDeviceVolumeCreated(PDEVICE_OBJECT DeviceObject)
     ASSERT(FspFsctlDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind);
     ASSERT(ExIsResourceAcquiredExclusiveLite(&FspDeviceExtension(DeviceObject)->Resource));
 
+#if 1
+    FspFsctlDeviceExtension(DeviceObject)->FsvrtDeviceObjectCount++;
+#else
     ULONG FsvrtDeviceObjectCount = FspFsctlDeviceExtension(DeviceObject)->FsvrtDeviceObjectCount++;
     if (0 == FsvrtDeviceObjectCount)
         IoRegisterFileSystem(DeviceObject);
+#endif
 }
 
 VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject)
@@ -301,9 +305,13 @@ VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject)
     ASSERT(FspFsctlDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind);
     ASSERT(ExIsResourceAcquiredExclusiveLite(&FspDeviceExtension(DeviceObject)->Resource));
 
+#if 1
+    --FspFsctlDeviceExtension(DeviceObject)->FsvrtDeviceObjectCount;
+#else
     ULONG FsvrtDeviceObjectCount = --FspFsctlDeviceExtension(DeviceObject)->FsvrtDeviceObjectCount;
     if (0 == FsvrtDeviceObjectCount)
         IoUnregisterFileSystem(DeviceObject);
+#endif
 }
 
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier)
