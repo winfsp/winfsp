@@ -398,11 +398,13 @@ typedef struct
     BOOLEAN DeleteOnClose;              /* FILE_DELETE_ON_CLOSE */
     /* read-only after creation */
     FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
+    PDEVICE_OBJECT FsvolDeviceObject;
     UINT64 UserContext;
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
 } FSP_FILE_CONTEXT;
-NTSTATUS FspFileContextCreate(ULONG ExtraSize, FSP_FILE_CONTEXT **PContext);
+NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
+    ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext);
 VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
 static inline
 VOID FspFileContextOpen(FSP_FILE_CONTEXT *Context)

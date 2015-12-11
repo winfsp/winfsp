@@ -6,7 +6,8 @@
 
 #include <sys/driver.h>
 
-NTSTATUS FspFileContextCreate(ULONG ExtraSize, FSP_FILE_CONTEXT **PContext);
+NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
+    ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext);
 VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
 
 #ifdef ALLOC_PRAGMA
@@ -14,7 +15,8 @@ VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
 #pragma alloc_text(PAGE, FspFileContextDelete)
 #endif
 
-NTSTATUS FspFileContextCreate(ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext)
+NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
+    ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext)
 {
     PAGED_CODE();
 
@@ -45,6 +47,8 @@ NTSTATUS FspFileContextCreate(ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext)
     FsRtlSetupAdvancedHeader(&FsContext->Header, &NonPaged->HeaderFastMutex);
     FsContext->NonPaged = NonPaged;
     FsContext->RefCount = 1;
+    FsContext->FsvolDeviceObject = DeviceObject;
+    FspDeviceRetain(FsContext->FsvolDeviceObject);
     RtlInitEmptyUnicodeString(&FsContext->FileName, FsContext->FileNameBuf, (USHORT)ExtraSize);
 
     *PFsContext = FsContext;
@@ -57,6 +61,8 @@ VOID FspFileContextDelete(FSP_FILE_CONTEXT *FsContext)
     PAGED_CODE();
 
     FsRtlTeardownPerStreamContexts(&FsContext->Header);
+
+    FspDeviceRelease(FsContext->FsvolDeviceObject);
 
     ExDeleteResourceLite(&FsContext->NonPaged->PagingIoResource);
     ExDeleteResourceLite(&FsContext->NonPaged->Resource);

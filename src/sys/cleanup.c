@@ -50,55 +50,55 @@ static NTSTATUS FspFsvolCleanup(
 
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
+    UINT64 UserContext = FsContext->UserContext;
+    UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
+    BOOLEAN DeletePending;
+    LONG OpenCount;
 
+    /* lock the FsContext */
+    ExAcquireResourceExclusiveLite(FsContext->Header.Resource, TRUE);
+
+    /* propagate the FsContext DeleteOnClose to DeletePending */
+    if (FsContext->DeleteOnClose)
+        FsContext->DeletePending = TRUE;
+    DeletePending = FsContext->DeletePending;
+
+    /* all handles on this FileObject are gone; decrement its FsContext->OpenCount */
+    OpenCount = FspFileContextClose(FsContext);
+
+    /* unlock the FsContext */
+    ExReleaseResourceLite(FsContext->Header.Resource);
+
+    /* is the FsContext going away as well? */
+    if (0 == OpenCount)
+    {
+        /*
+            * The following must be done under the file system volume device Resource,
+            * because we are manipulating its GenericTable.
+            */
+        ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->Base.Resource, TRUE);
+        try
+        {
+            /* remove the FsContext from the file system volume device generic table */
+            FspFsvolDeviceDeleteContext(DeviceObject, FsContext->UserContext, 0);
+        }
+        finally
+        {
+            ExReleaseResourceLite(&FsvolDeviceExtension->Base.Resource);
+        }
+    }
+
+    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
     if (!FspDeviceRetain(FsvrtDeviceObject))
         return STATUS_CANCELLED;
+
     try
     {
-        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
-            FspFsvrtDeviceExtension(FsvrtDeviceObject);
-        PFILE_OBJECT FileObject = IrpSp->FileObject;
-        FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
-        UINT64 UserContext = FsContext->UserContext;
-        UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
+        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
         BOOLEAN FileNameRequired = 0 != FsvrtDeviceExtension->VolumeParams.FileNameRequired;
-        BOOLEAN DeletePending;
-        LONG OpenCount;
         FSP_FSCTL_TRANSACT_REQ *Request;
-
-        /* lock the FsContext */
-        ExAcquireResourceExclusiveLite(FsContext->Header.Resource, TRUE);
-
-        /* propagate the FsContext DeleteOnClose to DeletePending */
-        if (FsContext->DeleteOnClose)
-            FsContext->DeletePending = TRUE;
-        DeletePending = FsContext->DeletePending;
-
-        /* all handles on this FileObject are gone; decrement its FsContext->OpenCount */
-        OpenCount = FspFileContextClose(FsContext);
-
-        /* unlock the FsContext */
-        ExReleaseResourceLite(FsContext->Header.Resource);
-
-        /* is the FsContext going away as well? */
-        if (0 == OpenCount)
-        {
-            /*
-             * The following must be done under the file system volume device Resource,
-             * because we are manipulating its GenericTable.
-             */
-            ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->Base.Resource, TRUE);
-            try
-            {
-                /* remove the FsContext from the file system volume device generic table */
-                FspFsvolDeviceDeleteContext(DeviceObject, FsContext->UserContext, 0);
-            }
-            finally
-            {
-                ExReleaseResourceLite(&FsvolDeviceExtension->Base.Resource);
-            }
-        }
 
         /* create the user-mode file system request */
         Result = FspIopCreateRequest(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);

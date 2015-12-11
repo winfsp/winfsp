@@ -63,14 +63,14 @@ static NTSTATUS FspFsvolCreate(
 
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
 
+    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
     if (!FspDeviceRetain(FsvrtDeviceObject))
         return STATUS_CANCELLED;
+
     try
     {
-        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
-            FspFsvrtDeviceExtension(FsvrtDeviceObject);
+        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
         PFILE_OBJECT FileObject = IrpSp->FileObject;
         PFILE_OBJECT RelatedFileObject = FileObject->RelatedFileObject;
         UNICODE_STRING FileName = FileObject->FileName;
@@ -223,7 +223,7 @@ static NTSTATUS FspFsvolCreate(
             BOOLEAN AppendBackslash =
                 sizeof(WCHAR) * 2/* not empty or root */ <= RelatedFsContext->FileName.Length &&
                 sizeof(WCHAR) <= FileName.Length && L':' != FileName.Buffer[0];
-            Result = FspFileContextCreate(
+            Result = FspFileContextCreate(DeviceObject,
                 RelatedFsContext->FileName.Length + AppendBackslash * sizeof(WCHAR) + FileName.Length,
                 &FsContext);
             if (!NT_SUCCESS(Result))
@@ -254,7 +254,7 @@ static NTSTATUS FspFsvolCreate(
                 goto exit;
             }
 
-            Result = FspFileContextCreate(
+            Result = FspFileContextCreate(DeviceObject,
                 FileName.Length,
                 &FsContext);
             if (!NT_SUCCESS(Result))

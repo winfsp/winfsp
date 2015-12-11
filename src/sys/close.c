@@ -50,23 +50,23 @@ static NTSTATUS FspFsvolClose(
 
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
+    UINT64 UserContext = FsContext->UserContext;
+    UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
 
+    /* dereference the FsContext (and delete if no more references) */
+    FspFileContextRelease(FsContext);
+
+    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
     if (!FspDeviceRetain(FsvrtDeviceObject))
         return STATUS_CANCELLED;
+
     try
     {
-        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
-            FspFsvrtDeviceExtension(FsvrtDeviceObject);
-        PFILE_OBJECT FileObject = IrpSp->FileObject;
-        FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
-        UINT64 UserContext = FsContext->UserContext;
-        UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
+        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
         BOOLEAN FileNameRequired = 0 != FsvrtDeviceExtension->VolumeParams.FileNameRequired;
         FSP_FSCTL_TRANSACT_REQ *Request;
-
-        /* dereference the FsContext (and delete if no more references) */
-        FspFileContextRelease(FsContext);
 
         /* create the user-mode file system request */
         Result = FspIopCreateRequest(0, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
