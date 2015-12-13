@@ -151,7 +151,6 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
     PAGED_CODE();
 
     ASSERT(STATUS_PENDING != Result);
-    ASSERT(0 == Irp->Tail.Overlay.DriverContext[3]);
 
     if (0 != FspIopRequest(Irp))
     {

@@ -79,9 +79,9 @@ static NTSTATUS FspFsvolCleanup(
     if (0 == OpenCount)
     {
         /*
-            * The following must be done under the file system volume device Resource,
-            * because we are manipulating its GenericTable.
-            */
+         * The following must be done under the file system volume device Resource,
+         * because we are manipulating its GenericTable.
+         */
         ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->Base.Resource, TRUE);
         try
         {

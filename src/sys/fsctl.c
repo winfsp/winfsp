@@ -113,7 +113,7 @@ static NTSTATUS FspFsctlCreateVolume(
         !FspValidRelativeSecurityDescriptor(SecurityDescriptor, SecurityDescriptorSize,
             DACL_SECURITY_INFORMATION))
         return STATUS_INVALID_PARAMETER;
-    if (FSP_FSCTL_CREATE_BUFFER_SIZE > OutputBufferLength)
+    if (FSP_FSCTL_CREATE_BUFFER_SIZEMIN > OutputBufferLength)
         return STATUS_BUFFER_TOO_SMALL;
 
     NTSTATUS Result;
@@ -138,7 +138,7 @@ static NTSTATUS FspFsctlCreateVolume(
     UNICODE_STRING DeviceSddl;
     UNICODE_STRING DeviceName;
     RtlInitUnicodeString(&DeviceSddl, L"" FSP_FSVRT_DEVICE_SDDL);
-    RtlInitEmptyUnicodeString(&DeviceName, SystemBuffer, FSP_FSCTL_CREATE_BUFFER_SIZE);
+    RtlInitEmptyUnicodeString(&DeviceName, SystemBuffer, FSP_FSCTL_CREATE_BUFFER_SIZEMIN);
     Result = RtlUnicodeStringPrintf(&DeviceName,
         L"\\Device\\Volume{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
         Guid.Data1, Guid.Data2, Guid.Data3,
@@ -340,16 +340,18 @@ static NTSTATUS FspFsvrtTransact(
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
-    if (sizeof(FSP_FSCTL_TRANSACT_RSP) > InputBufferLength || 0 == SystemBuffer)
+    if (0 == SystemBuffer ||
+        (0 != InputBufferLength &&
+            FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_RSP)) > InputBufferLength))
         return STATUS_INVALID_PARAMETER;
-    if (FSP_FSCTL_TRANSACT_BUFFER_SIZE > OutputBufferLength)
+    if (FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN > OutputBufferLength)
         return STATUS_BUFFER_TOO_SMALL;
 
     NTSTATUS Result;
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
     PUINT8 SystemBufferEnd;
-    const FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
-    FSP_FSCTL_TRANSACT_REQ *Request, *NextRequest, *PendingIrpRequest;
+    FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
+    FSP_FSCTL_TRANSACT_REQ *Request, *PendingIrpRequest;
     PIRP ProcessIrp, PendingIrp;
 
     /* access check */
@@ -388,7 +390,7 @@ retry:
     /* send any pending IRP's to the user-mode file system */
     Request = SystemBuffer;
     SystemBufferEnd = (PUINT8)SystemBuffer + OutputBufferLength;
-    ASSERT((PUINT8)Request + FSP_FSCTL_TRANSACT_REQ_SIZEMAX <= SystemBufferEnd);
+    ASSERT(FspFsctlTransactCanProduceRequest(Request, SystemBufferEnd));
     for (;;)
     {
         PendingIrpRequest = FspIopRequest(PendingIrp);
@@ -398,13 +400,8 @@ retry:
             FspIopCompleteIrp(PendingIrp, Result);
         else
         {
-            NextRequest = FspFsctlTransactProduceRequest(
-                Request, PendingIrpRequest->Size, SystemBufferEnd);
-                /* this should not fail as we have already checked that we have enough space */
-            ASSERT(0 != NextRequest);
-
             RtlCopyMemory(Request, PendingIrpRequest, PendingIrpRequest->Size);
-            Request = NextRequest;
+            Request = FspFsctlTransactProduceRequest(Request, PendingIrpRequest->Size);
 
             if (!FspIoqStartProcessingIrp(&FsvrtDeviceExtension->Ioq, PendingIrp))
             {
@@ -420,7 +417,7 @@ retry:
             }
 
             /* check that we have enough space before pulling the next pending IRP off the queue */
-            if ((PUINT8)Request + FSP_FSCTL_TRANSACT_REQ_SIZEMAX > SystemBufferEnd)
+            if (!FspFsctlTransactCanProduceRequest(Request, SystemBufferEnd))
                 break;
         }
 
@@ -433,7 +430,6 @@ retry:
     if (Request == SystemBuffer)
         goto retry;
 
-    RtlZeroMemory(Request, SystemBufferEnd - (PUINT8)Request);
     Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)SystemBuffer;
 
     return STATUS_SUCCESS;
