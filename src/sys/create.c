@@ -66,6 +66,10 @@ static NTSTATUS FspFsvolCreate(
         (0 == IrpSp->FileObject->RelatedFileObject ||
             0 == IrpSp->FileObject->RelatedFileObject->FsContext))
     {
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+        PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+
+        IrpSp->FileObject->Vpb = FsvrtDeviceObject->Vpb;
         Irp->IoStatus.Information = FILE_OPENED;
         return STATUS_SUCCESS;
     }

@@ -479,6 +479,17 @@ BOOLEAN FspValidRelativeSecurityDescriptor(
 NTSTATUS FspSecuritySubjectContextAccessCheck(
     PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode);
 
+/* delayed work queue */
+typedef struct
+{
+    KTIMER Timer;
+    KDPC Dpc;
+    WORK_QUEUE_ITEM WorkQueueItem;
+} FSP_WORK_ITEM_WITH_DELAY;
+VOID FspInitializeWorkItemWithDelay(FSP_WORK_ITEM_WITH_DELAY *WorkItem,
+    PWORKER_THREAD_ROUTINE Routine, PVOID Context);
+VOID FspQueueWorkItemWithDelay(FSP_WORK_ITEM_WITH_DELAY *WorkItem, LARGE_INTEGER Timeout);
+
 /* debug */
 #if DBG
 BOOLEAN HasDbgBreakPoint(const char *Function);

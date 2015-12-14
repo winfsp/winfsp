@@ -74,6 +74,7 @@ static NTSTATUS FspFsctlMountVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvrtDeleteVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static WORKER_THREAD_ROUTINE FspFsvrtDeleteVolumeDelayed;
 static NTSTATUS FspFsvrtTransact(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsctlFileSystemControl(
@@ -89,6 +90,7 @@ FSP_IOCMPL_DISPATCH FspFileSystemControlComplete;
 #pragma alloc_text(PAGE, FspFsctlCreateVolume)
 #pragma alloc_text(PAGE, FspFsctlMountVolume)
 #pragma alloc_text(PAGE, FspFsvrtDeleteVolume)
+#pragma alloc_text(PAGE, FspFsvrtDeleteVolumeDelayed)
 #pragma alloc_text(PAGE, FspFsvrtTransact)
 #pragma alloc_text(PAGE, FspFsctlFileSystemControl)
 #pragma alloc_text(PAGE, FspFsvrtFileSystemControl)
@@ -259,6 +261,13 @@ static NTSTATUS FspFsctlMountVolume(
     return Result;
 }
 
+typedef struct
+{
+    PDEVICE_OBJECT FsvolDeviceObject;
+    PVPB OldVpb;
+    FSP_WORK_ITEM_WITH_DELAY WorkItemWithDelay;
+} FSP_FSVRT_DELETE_VOLUME_WORK_ITEM;
+
 static NTSTATUS FspFsvrtDeleteVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -272,8 +281,13 @@ static NTSTATUS FspFsvrtDeleteVolume(
     ExAcquireResourceExclusiveLite(&FsctlDeviceExtension->Base.Resource, TRUE);
     try
     {
+        PDEVICE_OBJECT FsctlDeviceObject = FsvrtDeviceExtension->FsctlDeviceObject;
+        PDEVICE_OBJECT FsvolDeviceObject = FsvrtDeviceExtension->FsvolDeviceObject;
         PVPB OldVpb;
-        BOOLEAN FreeVpb = FALSE;
+        BOOLEAN DeleteVpb = FALSE;
+        BOOLEAN DeleteDelayed = FALSE;
+        LARGE_INTEGER DelayTimeout;
+        FSP_FSVRT_DELETE_VOLUME_WORK_ITEM *WorkItem = 0;
         KIRQL Irql;
 
         /* access check */
@@ -281,6 +295,14 @@ static NTSTATUS FspFsvrtDeleteVolume(
             FsvrtDeviceExtension->SecurityDescriptorBuf, FILE_WRITE_DATA, Irp->RequestorMode);
         if (!NT_SUCCESS(Result))
             goto exit;
+
+        /* pre-allocate a work item in case we need it for delayed delete */
+        WorkItem = FspAllocNonPaged(sizeof *WorkItem);
+        if (0 == WorkItem)
+        {
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+            goto exit;
+        }
 
         /* mark the virtual volume device as deleted */
         FsvrtDeviceExtension->Deleted = TRUE;
@@ -302,16 +324,21 @@ static NTSTATUS FspFsvrtDeleteVolume(
             DeviceObject->Vpb->RealDevice = OldVpb->RealDevice;
             DeviceObject->Vpb->RealDevice->Vpb = DeviceObject->Vpb;
             FsvrtDeviceExtension->SwapVpb = 0;
-            FreeVpb = 0 == OldVpb->ReferenceCount;
+            DeleteVpb = 0 == OldVpb->ReferenceCount;
+            DeleteDelayed = !DeleteVpb && 0 != FsvolDeviceObject;
+            if (DeleteDelayed)
+                /* keep VPB around for delayed delete */
+                OldVpb->ReferenceCount++;
         }
         IoReleaseVpbSpinLock(Irql);
-        if (FreeVpb)
+        if (DeleteDelayed)
+            /* keep fsvol around for delayed delete */
+            FspDeviceRetain(FsvolDeviceObject);
+        else if (DeleteVpb)
             FspFreeExternal(OldVpb);
 #pragma prefast(pop)
 
         /* release the file system device and virtual volume objects */
-        PDEVICE_OBJECT FsctlDeviceObject = FsvrtDeviceExtension->FsctlDeviceObject;
-        PDEVICE_OBJECT FsvolDeviceObject = FsvrtDeviceExtension->FsvolDeviceObject;
         FsvrtDeviceExtension->FsvolDeviceObject = 0;
         if (0 != FsvolDeviceObject)
             FspDeviceRelease(FsvolDeviceObject);
@@ -319,9 +346,23 @@ static NTSTATUS FspFsvrtDeleteVolume(
 
         FspFsctlDeviceVolumeDeleted(FsctlDeviceObject);
 
+        /* are we doing delayed delete of VPB and fsvol? */
+        if (DeleteDelayed)
+        {
+            DelayTimeout.QuadPart = 300/*ms*/ * -10000;
+            WorkItem->FsvolDeviceObject = FsvolDeviceObject;
+            WorkItem->OldVpb = OldVpb;
+            FspInitializeWorkItemWithDelay(&WorkItem->WorkItemWithDelay,
+                FspFsvrtDeleteVolumeDelayed, WorkItem);
+            FspQueueWorkItemWithDelay(&WorkItem->WorkItemWithDelay, DelayTimeout);
+            WorkItem = 0;
+        }
+
         Result = STATUS_SUCCESS;
 
-    exit:;
+    exit:
+        if (0 != WorkItem)
+            FspFree(WorkItem);
     }
     finally
     {
@@ -329,6 +370,34 @@ static NTSTATUS FspFsvrtDeleteVolume(
     }
 
     return Result;
+}
+
+static VOID FspFsvrtDeleteVolumeDelayed(PVOID Context)
+{
+    PAGED_CODE();
+
+    FSP_FSVRT_DELETE_VOLUME_WORK_ITEM *WorkItem = Context;
+    BOOLEAN DeleteVpb = FALSE;
+    LARGE_INTEGER DelayTimeout;
+    KIRQL Irql;
+
+    IoAcquireVpbSpinLock(&Irql);
+    ASSERT(0 != WorkItem->OldVpb->ReferenceCount);
+    DeleteVpb = 1 == WorkItem->OldVpb->ReferenceCount;
+    if (DeleteVpb)
+        WorkItem->OldVpb->ReferenceCount = 0;
+    IoReleaseVpbSpinLock(Irql);
+    if (DeleteVpb)
+    {
+        FspFreeExternal(WorkItem->OldVpb);
+        FspDeviceRelease(WorkItem->FsvolDeviceObject);
+        FspFree(WorkItem);
+    }
+    else
+    {
+        DelayTimeout.QuadPart = 300/*ms*/ * -10000;
+        FspQueueWorkItemWithDelay(&WorkItem->WorkItemWithDelay, DelayTimeout);
+    }
 }
 
 static NTSTATUS FspFsvrtTransact(
