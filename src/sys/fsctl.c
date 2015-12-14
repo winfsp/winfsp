@@ -353,6 +353,8 @@ static NTSTATUS FspFsvrtTransact(
     FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
     FSP_FSCTL_TRANSACT_REQ *Request, *PendingIrpRequest;
     PIRP ProcessIrp, PendingIrp;
+    ULONG TransactTimeout;
+    LARGE_INTEGER Timeout;
 
     /* access check */
     Result = FspSecuritySubjectContextAccessCheck(
@@ -380,11 +382,20 @@ static NTSTATUS FspFsvrtTransact(
     }
 
     /* wait for an IRP to arrive */
-retry:
-    while (0 == (PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, (ULONG)-1L)))
+    TransactTimeout = FsvrtDeviceExtension->VolumeParams.TransactTimeout;
+    if (FspFsctlTransactTimeoutMinimum > TransactTimeout || TransactTimeout > FspFsctlTransactTimeoutMaximum)
+        TransactTimeout = FspFsctlTransactTimeoutDefault;
+    KeQuerySystemTime(&Timeout);
+    Timeout.QuadPart += TransactTimeout * 10000; /* convert millis to nanos and add to absolute time */
+    while (0 == (PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, &Timeout)))
     {
         if (FspIoqStopped(&FsvrtDeviceExtension->Ioq))
             return STATUS_CANCELLED;
+    }
+    if (FspIoqTimeout == PendingIrp)
+    {
+        Irp->IoStatus.Information = 0;
+        return STATUS_SUCCESS;
     }
 
     /* send any pending IRP's to the user-mode file system */
@@ -426,10 +437,6 @@ retry:
             break;
 
     }
-
-    if (Request == SystemBuffer)
-        goto retry;
-
     Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)SystemBuffer;
 
     return STATUS_SUCCESS;

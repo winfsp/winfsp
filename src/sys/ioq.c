@@ -209,17 +209,17 @@ BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp)
     return NT_SUCCESS(Result);
 }
 
-PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, ULONG millis)
+PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout)
 {
-    if (0 != millis)
+    /* timeout of 0 normally means infinite wait; for us it means do not do any wait at all! */
+    if (0 != Timeout)
     {
         NTSTATUS Result;
-        LARGE_INTEGER Timeout;
-        Timeout.QuadPart = (LONGLONG)millis * 10000;
         Result = KeWaitForSingleObject(&Ioq->PendingIrpEvent, Executive, KernelMode, FALSE,
-            -1 == millis ? 0 : &Timeout);
-        if (STATUS_SUCCESS != Result)
-            return 0;
+            Timeout);
+        ASSERT(STATUS_SUCCESS == Result || STATUS_TIMEOUT == Result);
+        if (STATUS_TIMEOUT == Result)
+            return FspIoqTimeout;
     }
     return IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, (PVOID)1);
 }

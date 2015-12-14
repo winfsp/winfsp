@@ -70,11 +70,18 @@ enum
     FspFsctlTransactQuerySecurityKind = 'S',
     FspFsctlTransactSetSecurityKind = 's',
 };
+enum
+{
+    FspFsctlTransactTimeoutMinimum = 1000,
+    FspFsctlTransactTimeoutMaximum = 10000,
+    FspFsctlTransactTimeoutDefault = 1000,
+};
 typedef struct
 {
     UINT16 Version;
     UINT16 SectorSize;
     UINT32 SerialNumber;
+    UINT32 TransactTimeout;             /* milliseconds; values between 1000ms and 10000ms */
     UINT32 EaSupported:1;               /* supports extended attributes (unimplemented; set to 0) */
     UINT32 FileNameRequired:1;          /* FileName required for all operations (not just Create) */
     UINT32 NoSystemAccessCheck:1;       /* if set the user-mode flie system performs access checks */

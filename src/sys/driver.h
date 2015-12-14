@@ -246,6 +246,7 @@ FAST_IO_ACQUIRE_FOR_CCFLUSH FspAcquireForCcFlush;
 FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 
 /* I/O queue */
+#define FspIoqTimeout                   ((PIRP)1)
 typedef struct
 {
     KSPIN_LOCK SpinLock;
@@ -258,7 +259,7 @@ VOID FspIoqInitialize(FSP_IOQ *Ioq);
 VOID FspIoqStop(FSP_IOQ *Ioq);
 BOOLEAN FspIoqStopped(FSP_IOQ *Ioq);
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp);
-PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, ULONG millis);
+PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 

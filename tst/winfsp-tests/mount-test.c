@@ -194,13 +194,8 @@ void mount_volume_transact_dotest(PWSTR DeviceName)
     Response->Size = sizeof *Response;
     Response->Hint = Request->Hint;
     Response->Kind = Request->Kind;
-    Response->IoStatus.Status = STATUS_SUCCESS;
-    Response->IoStatus.Information = FILE_CREATED;
-    Response->Rsp.Create.Opened.UserContext = 41;
-    Response->Rsp.Create.Opened.UserContext2 = 42;
-    Response->Rsp.Create.Opened.FileAttributes = FILE_ATTRIBUTE_NORMAL;
-    Response->Rsp.Create.Opened.SecurityDescriptor.Offset = 0;
-    Response->Rsp.Create.Opened.SecurityDescriptor.Size = 0;
+    Response->IoStatus.Status = STATUS_ACCESS_DENIED;
+    Response->IoStatus.Information = 0;
 
     Response = FspFsctlTransactProduceResponse(Response, Response->Size);
     ASSERT(0 != Response);
@@ -224,7 +219,7 @@ void mount_volume_transact_dotest(PWSTR DeviceName)
     GetExitCodeThread(Thread, &ExitCode);
     CloseHandle(Thread);
 
-    ASSERT(0 == ExitCode);
+    ASSERT(ERROR_ACCESS_DENIED == ExitCode);
 }
 
 void mount_volume_transact_test(void)
