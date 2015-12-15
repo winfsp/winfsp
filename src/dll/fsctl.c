@@ -241,17 +241,24 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     PVOID RequestBuf, SIZE_T *PRequestBufSize)
 {
     NTSTATUS Result = STATUS_SUCCESS;
-    DWORD Bytes;
+    DWORD Bytes = 0;
+
+    if (0 != *PRequestBufSize)
+    {
+        Bytes = (DWORD)*PRequestBufSize;
+        *PRequestBufSize = 0;
+    }
 
     if (!DeviceIoControl(VolumeHandle, FSP_FSCTL_TRANSACT,
-        ResponseBuf, (DWORD)ResponseBufSize, RequestBuf, (DWORD)*PRequestBufSize,
+        ResponseBuf, (DWORD)ResponseBufSize, RequestBuf, Bytes,
         &Bytes, 0))
     {
         Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
     }
 
-    *PRequestBufSize = Bytes;
+    if (0 != *PRequestBufSize)
+        *PRequestBufSize = Bytes;
 
 exit:
     return Result;

@@ -23,6 +23,9 @@
     <ClCompile Include="..\..\src\dll\debug.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\dll\loop.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h">

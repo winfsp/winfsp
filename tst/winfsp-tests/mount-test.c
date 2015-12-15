@@ -1,5 +1,4 @@
 #include <winfsp/winfsp.h>
-#include <winfsp/fsctl.h>
 #include <tlib/testsuite.h>
 #include <process.h>
 #include <strsafe.h>

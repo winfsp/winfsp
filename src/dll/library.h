@@ -9,7 +9,6 @@
 
 #define WINFSP_DLL_INTERNAL
 #include <winfsp/winfsp.h>
-#include <winfsp/fsctl.h>
 #include <strsafe.h>
 
 #define LIBRARY_NAME                    "WinFsp"

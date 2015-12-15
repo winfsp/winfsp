@@ -173,6 +173,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\dll\debug.c" />
     <ClCompile Include="..\..\src\dll\fsctl.c" />
+    <ClCompile Include="..\..\src\dll\loop.c" />
     <ClCompile Include="..\..\src\dll\ntstatus.c" />
   </ItemGroup>
   <ItemGroup>
