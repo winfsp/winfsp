@@ -12,30 +12,57 @@ typedef struct _FSP_WORK_ITEM
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 RequestBuf[];
 } FSP_WORK_ITEM;
 
-FSP_API NTSTATUS FspFileSystemCreate(FSP_FILE_SYSTEM_PR *ProcessRequest,
+FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
+    const FSP_FSCTL_VOLUME_PARAMS *Params, FSP_FILE_SYSTEM_PROCESSREQ *ProcessRequest,
     FSP_FILE_SYSTEM **PFileSystem)
 {
-    FSP_FILE_SYSTEM *FileSystem;
+    NTSTATUS Result;
+    WCHAR VolumePathBuf[MAX_PATH];
+    HANDLE VolumeHandle = INVALID_HANDLE_VALUE;
+    FSP_FILE_SYSTEM *FileSystem = 0;
 
     *PFileSystem = 0;
 
     if (0 == ProcessRequest)
-        return STATUS_INVALID_PARAMETER;
+        ProcessRequest = FspProcessRequestDirect;
 
     FileSystem = malloc(sizeof *FileSystem);
     if (0 == FileSystem)
-        return STATUS_INSUFFICIENT_RESOURCES;
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    Result = FspFsctlCreateVolume(DevicePath, Params, 0, VolumePathBuf, sizeof VolumePathBuf);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = FspFsctlOpenVolume(VolumePathBuf, &VolumeHandle);
+    if (!NT_SUCCESS(Result))
+        goto exit;
 
     memset(FileSystem, 0, sizeof *FileSystem);
+    FileSystem->VolumeHandle = VolumeHandle;
     FileSystem->ProcessRequest = ProcessRequest;
-
     *PFileSystem = FileSystem;
 
-    return STATUS_SUCCESS;
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result))
+    {
+        if (INVALID_HANDLE_VALUE != VolumeHandle)
+            CloseHandle(VolumeHandle);
+        free(FileSystem);
+    }
+
+    return Result;
 }
 
 FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem)
 {
+    if (INVALID_HANDLE_VALUE != FileSystem->VolumeHandle)
+        CloseHandle(FileSystem->VolumeHandle);
     free(FileSystem);
 }
 

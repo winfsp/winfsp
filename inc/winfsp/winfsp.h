@@ -22,18 +22,21 @@
 #include <winfsp/fsctl.h>
 
 typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
-typedef NTSTATUS FSP_FILE_SYSTEM_PR(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
-typedef VOID FSP_FILE_SYSTEM_OP(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
+typedef NTSTATUS FSP_FILE_SYSTEM_PROCESSREQ(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
+typedef VOID FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
 typedef struct _FSP_FILE_SYSTEM
 {
+    /* private */
     UINT16 Version;
-    PVOID UserContext;
     HANDLE VolumeHandle;
-    FSP_FILE_SYSTEM_PR *ProcessRequest;
-    FSP_FILE_SYSTEM_OP *Operations[FspFsctlTransactKindCount];
+    FSP_FILE_SYSTEM_PROCESSREQ *ProcessRequest;
+    /* public */
+    PVOID UserContext;
+    FSP_FILE_SYSTEM_OPERATION *Operations[FspFsctlTransactKindCount];
 } FSP_FILE_SYSTEM;
 
-FSP_API NTSTATUS FspFileSystemCreate(FSP_FILE_SYSTEM_PR *ProcessRequest,
+FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
+    const FSP_FSCTL_VOLUME_PARAMS *Params, FSP_FILE_SYSTEM_PROCESSREQ *ProcessRequest,
     FSP_FILE_SYSTEM **PFileSystem);
 FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem);
 FSP_API NTSTATUS FspFileSystemLoop(FSP_FILE_SYSTEM *FileSystem);
