@@ -11,13 +11,6 @@
 
 #define GLOBALROOT                      L"\\\\?\\GLOBALROOT"
 
-static inline PVOID Malloc(SIZE_T Size)
-{
-    PVOID P = malloc(Size);
-    if (0 != P)
-        SetLastError(ERROR_NO_SYSTEM_RESOURCES);
-    return P;
-}
 static inline VOID GlobalDevicePath(PWCHAR DevicePathBuf, SIZE_T DevicePathSize, PWSTR DevicePath)
 {
     StringCbPrintfW(DevicePathBuf, DevicePathSize,
@@ -49,10 +42,10 @@ static NTSTATUS CreateSelfRelativeSecurityDescriptor(PSECURITY_DESCRIPTOR Securi
             OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token) &&
             (GetTokenInformation(Token, TokenUser, 0, 0, &UserSize) ||
                 ERROR_INSUFFICIENT_BUFFER == GetLastError()) &&
-            (User = Malloc(UserSize)) &&
+            (User = MemAllocSLE(UserSize)) &&
             GetTokenInformation(Token, TokenUser, User, UserSize, &UserSize) &&
             (AclSize = sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE) + GetLengthSid(User->User.Sid) - sizeof(DWORD)) &&
-            (Acl = Malloc(AclSize)) &&
+            (Acl = MemAllocSLE(AclSize)) &&
             InitializeAcl(Acl, AclSize, ACL_REVISION) &&
             AddAccessAllowedAce(Acl, ACL_REVISION, FILE_ALL_ACCESS, User->User.Sid) &&
             InitializeSecurityDescriptor(&SecurityDescriptorStruct, SECURITY_DESCRIPTOR_REVISION) &&
@@ -77,7 +70,7 @@ static NTSTATUS CreateSelfRelativeSecurityDescriptor(PSECURITY_DESCRIPTOR Securi
     {
         SelfRelativeSecurityDescriptorSize = GetSecurityDescriptorLength(SecurityDescriptor);
         Success =
-            (SelfRelativeSecurityDescriptor = Malloc(SelfRelativeSecurityDescriptorSize)) &&
+            (SelfRelativeSecurityDescriptor = MemAllocSLE(SelfRelativeSecurityDescriptorSize)) &&
             memcpy(SelfRelativeSecurityDescriptor, SecurityDescriptor, SelfRelativeSecurityDescriptorSize);
     }
     else
@@ -86,7 +79,7 @@ static NTSTATUS CreateSelfRelativeSecurityDescriptor(PSECURITY_DESCRIPTOR Securi
         Success =
             (MakeSelfRelativeSD(SecurityDescriptor, 0, &SelfRelativeSecurityDescriptorSize) ||
                 ERROR_INSUFFICIENT_BUFFER == GetLastError()) &&
-            (SelfRelativeSecurityDescriptor = Malloc(SelfRelativeSecurityDescriptorSize)) &&
+            (SelfRelativeSecurityDescriptor = MemAllocSLE(SelfRelativeSecurityDescriptorSize)) &&
             (MakeSelfRelativeSD(SecurityDescriptor, SelfRelativeSecurityDescriptor, &SelfRelativeSecurityDescriptorSize));
     }
     if (!Success)
@@ -103,11 +96,11 @@ exit:
     if (0 != Token)
         CloseHandle(Token);
 
-    free(Acl);
-    free(User);
+    MemFree(Acl);
+    MemFree(User);
 
     if (STATUS_SUCCESS != Result)
-        free(SelfRelativeSecurityDescriptor);
+        MemFree(SelfRelativeSecurityDescriptor);
 
     return Result;
 }
@@ -132,10 +125,10 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    ParamsBuf = Malloc(FSP_FSCTL_VOLUME_PARAMS_SIZE + SelfRelativeSecurityDescriptorSize);
+    ParamsBuf = MemAlloc(FSP_FSCTL_VOLUME_PARAMS_SIZE + SelfRelativeSecurityDescriptorSize);
     if (0 == ParamsBuf)
     {
-        Result = FspNtStatusFromWin32(GetLastError());
+        Result = STATUS_INSUFFICIENT_RESOURCES;
         goto exit;
     }
     memset(ParamsBuf, 0, FSP_FSCTL_VOLUME_PARAMS_SIZE);
@@ -184,8 +177,8 @@ exit:
     if (INVALID_HANDLE_VALUE != DeviceHandle)
         CloseHandle(DeviceHandle);
 
-    free(ParamsBuf);
-    free(SelfRelativeSecurityDescriptor);
+    MemFree(ParamsBuf);
+    MemFree(SelfRelativeSecurityDescriptor);
 
     return Result;
 }

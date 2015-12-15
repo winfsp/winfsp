@@ -26,7 +26,7 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     if (0 == ProcessRequest)
         ProcessRequest = FspProcessRequestDirect;
 
-    FileSystem = malloc(sizeof *FileSystem);
+    FileSystem = MemAlloc(sizeof *FileSystem);
     if (0 == FileSystem)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
@@ -53,7 +53,7 @@ exit:
     {
         if (INVALID_HANDLE_VALUE != VolumeHandle)
             CloseHandle(VolumeHandle);
-        free(FileSystem);
+        MemFree(FileSystem);
     }
 
     return Result;
@@ -63,7 +63,7 @@ FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem)
 {
     if (INVALID_HANDLE_VALUE != FileSystem->VolumeHandle)
         CloseHandle(FileSystem->VolumeHandle);
-    free(FileSystem);
+    MemFree(FileSystem);
 }
 
 FSP_API NTSTATUS FspFileSystemLoop(FSP_FILE_SYSTEM *FileSystem)
@@ -73,7 +73,7 @@ FSP_API NTSTATUS FspFileSystemLoop(FSP_FILE_SYSTEM *FileSystem)
     SIZE_T RequestBufSize;
     FSP_FSCTL_TRANSACT_REQ *Request, *NextRequest;
 
-    RequestBuf = malloc(FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN);
+    RequestBuf = MemAlloc(FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN);
     if (0 == RequestBuf)
         return STATUS_INSUFFICIENT_RESOURCES;
 
@@ -101,7 +101,7 @@ FSP_API NTSTATUS FspFileSystemLoop(FSP_FILE_SYSTEM *FileSystem)
     }
 
 exit:
-    free(RequestBuf);
+    MemFree(RequestBuf);
 
     return Result;
 }
@@ -122,7 +122,7 @@ static DWORD WINAPI FspProcessRequestInPoolWorker(PVOID Param)
     FSP_FSCTL_TRANSACT_REQ *Request = (PVOID)WorkItem->RequestBuf;
 
     WorkItem->FileSystem->Operations[Request->Kind](WorkItem->FileSystem, Request);
-    free(WorkItem);
+    MemFree(WorkItem);
 
     return 0;
 }
@@ -136,7 +136,7 @@ FSP_API NTSTATUS FspProcessRequestInPool(FSP_FILE_SYSTEM *FileSystem,
     FSP_WORK_ITEM *WorkItem;
     BOOLEAN Success;
 
-    WorkItem = malloc(sizeof *WorkItem + Request->Size);
+    WorkItem = MemAlloc(sizeof *WorkItem + Request->Size);
     if (0 == WorkItem)
         return STATUS_INSUFFICIENT_RESOURCES;
 
@@ -146,7 +146,7 @@ FSP_API NTSTATUS FspProcessRequestInPool(FSP_FILE_SYSTEM *FileSystem,
     Success = QueueUserWorkItem(FspProcessRequestInPoolWorker, WorkItem, WT_EXECUTEDEFAULT);
     if (!Success)
     {
-        free(WorkItem);
+        MemFree(WorkItem);
         return FspNtStatusFromWin32(GetLastError());
     }
 
