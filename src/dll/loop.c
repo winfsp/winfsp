@@ -146,8 +146,9 @@ FSP_API NTSTATUS FspProcessRequestInPool(FSP_FILE_SYSTEM *FileSystem,
     Success = QueueUserWorkItem(FspProcessRequestInPoolWorker, WorkItem, WT_EXECUTEDEFAULT);
     if (!Success)
     {
+        NTSTATUS Result0 = FspNtStatusFromWin32(GetLastError());
         MemFree(WorkItem);
-        return FspNtStatusFromWin32(GetLastError());
+        return Result0;
     }
 
     return STATUS_SUCCESS;
