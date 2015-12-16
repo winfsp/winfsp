@@ -163,7 +163,8 @@ FSP_API NTSTATUS FspProduceResponse(FSP_FILE_SYSTEM *FileSystem,
 FSP_API NTSTATUS FspProduceResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, NTSTATUS Result)
 {
-    FSP_FSCTL_TRANSACT_RSP Response = { 0 };
+    FSP_FSCTL_TRANSACT_RSP Response;
+    memset(&Response, 0, sizeof Response);
     Response.Size = sizeof Response;
     Response.Kind = Request->Kind;
     Response.Hint = Request->Hint;
