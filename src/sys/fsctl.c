@@ -119,9 +119,21 @@ static NTSTATUS FspFsctlCreateVolume(
         return STATUS_BUFFER_TOO_SMALL;
 
     NTSTATUS Result;
-    FSP_FSCTL_VOLUME_PARAMS Params = *(FSP_FSCTL_VOLUME_PARAMS *)SystemBuffer;
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams = *(FSP_FSCTL_VOLUME_PARAMS *)SystemBuffer;
     PVOID SecurityDescriptorBuf = 0;
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension;
+
+    /* check the passed in VolumeParams */
+    if (FspFsctlIrpTimeoutMinimum > VolumeParams.IrpTimeout ||
+        VolumeParams.IrpTimeout > FspFsctlIrpTimeoutMaximum)
+#if DBG
+        /* allow the debug timeout value on debug builds */
+        if (FspFsctlIrpTimeoutDebug != VolumeParams.IrpTimeout)
+#endif
+        VolumeParams.IrpTimeout = FspFsctlIrpTimeoutDefault;
+    if (FspFsctlTransactTimeoutMinimum > VolumeParams.TransactTimeout ||
+        VolumeParams.TransactTimeout > FspFsctlTransactTimeoutMaximum)
+        VolumeParams.TransactTimeout = FspFsctlTransactTimeoutDefault;
 
     /* create volume guid */
     GUID Guid;
@@ -160,10 +172,10 @@ static NTSTATUS FspFsctlCreateVolume(
         if (NT_SUCCESS(Result))
         {
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
-            FsvrtDeviceObject->SectorSize = Params.SectorSize;
+            FsvrtDeviceObject->SectorSize = VolumeParams.SectorSize;
             FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
             FsvrtDeviceExtension->FsctlDeviceObject = DeviceObject;
-            FsvrtDeviceExtension->VolumeParams = Params;
+            FsvrtDeviceExtension->VolumeParams = VolumeParams;
             RtlCopyMemory(FsvrtDeviceExtension->SecurityDescriptorBuf,
                 SecurityDescriptorBuf, SecurityDescriptorSize);
             ClearFlag(FsvrtDeviceObject->Flags, DO_DEVICE_INITIALIZING);
@@ -422,7 +434,6 @@ static NTSTATUS FspFsvrtTransact(
     FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
     FSP_FSCTL_TRANSACT_REQ *Request, *PendingIrpRequest;
     PIRP ProcessIrp, PendingIrp;
-    ULONG TransactTimeout;
     LARGE_INTEGER Timeout;
 
     /* access check */
@@ -451,11 +462,9 @@ static NTSTATUS FspFsvrtTransact(
     }
 
     /* wait for an IRP to arrive */
-    TransactTimeout = FsvrtDeviceExtension->VolumeParams.TransactTimeout;
-    if (FspFsctlTransactTimeoutMinimum > TransactTimeout || TransactTimeout > FspFsctlTransactTimeoutMaximum)
-        TransactTimeout = FspFsctlTransactTimeoutDefault;
     KeQuerySystemTime(&Timeout);
-    Timeout.QuadPart += TransactTimeout * 10000; /* convert millis to nanos and add to absolute time */
+    Timeout.QuadPart += FsvrtDeviceExtension->VolumeParams.TransactTimeout * 10000;
+        /* convert millis to nanos and add to absolute time */
     while (0 == (PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, &Timeout)))
     {
         if (FspIoqStopped(&FsvrtDeviceExtension->Ioq))

@@ -76,13 +76,18 @@ enum
     FspFsctlTransactTimeoutMinimum = 1000,
     FspFsctlTransactTimeoutMaximum = 10000,
     FspFsctlTransactTimeoutDefault = 1000,
+    FspFsctlIrpTimeoutMinimum = 60000,
+    FspFsctlIrpTimeoutMaximum = 600000,
+    FspFsctlIrpTimeoutDefault = 300000,
+    FspFsctlIrpTimeoutDebug = 42,       /* special value for IRP timeout testing; debug driver only */
 };
 typedef struct
 {
     UINT16 Version;
     UINT16 SectorSize;
     UINT32 SerialNumber;
-    UINT32 TransactTimeout;             /* milliseconds; values between 1000ms and 10000ms */
+    UINT32 TransactTimeout;             /* milliseconds; values between 1 sec and 10 sec */
+    UINT32 IrpTimeout;                  /* milliseconds; values between 1 min and 10 min */
     UINT32 EaSupported:1;               /* supports extended attributes (unimplemented; set to 0) */
     UINT32 FileNameRequired:1;          /* FileName required for all operations (not just Create) */
     UINT32 NoSystemAccessCheck:1;       /* if set the user-mode flie system performs access checks */
