@@ -246,7 +246,7 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     NTSTATUS Result = STATUS_SUCCESS;
     DWORD Bytes = 0;
 
-    if (0 != *PRequestBufSize)
+    if (0 != PRequestBufSize)
     {
         Bytes = (DWORD)*PRequestBufSize;
         *PRequestBufSize = 0;
@@ -260,7 +260,7 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
         goto exit;
     }
 
-    if (0 != *PRequestBufSize)
+    if (0 != PRequestBufSize)
         *PRequestBufSize = Bytes;
 
 exit:
