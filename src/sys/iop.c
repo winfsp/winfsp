@@ -71,7 +71,7 @@ NTSTATUS FspIopCreateRequestEx(
     }
 
     if (0 != Irp)
-        FspIopRequest(Irp) = Request;
+        FspIrpRequest(Irp) = Request;
     *PRequest = Request;
 
     return STATUS_SUCCESS;
@@ -152,10 +152,10 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
 
     ASSERT(STATUS_PENDING != Result);
 
-    if (0 != FspIopRequest(Irp))
+    if (0 != FspIrpRequest(Irp))
     {
-        FspIopDeleteRequest(FspIopRequest(Irp));
-        FspIopRequest(Irp) = 0;
+        FspIopDeleteRequest(FspIrpRequest(Irp));
+        FspIrpRequest(Irp) = 0;
     }
 
     /* get the device object out of the IRP before completion */

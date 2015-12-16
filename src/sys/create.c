@@ -392,7 +392,7 @@ VOID FspFsvolCreateComplete(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
-    FSP_FSCTL_TRANSACT_REQ *Request = FspIopRequest(Irp);
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
     ULONG CreateOptions = IrpSp->Parameters.Create.Options;
@@ -672,7 +672,7 @@ static VOID FspFsvolCreateCleanupClose(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =
         FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);
-    FSP_FSCTL_TRANSACT_REQ *OriginalRequest = FspIopRequest(Irp);
+    FSP_FSCTL_TRANSACT_REQ *OriginalRequest = FspIrpRequest(Irp);
     FSP_FILE_CONTEXT *FsContext = FspIopRequestContext(OriginalRequest, RequestFsContext);
     UINT64 UserContext = Response->Rsp.Create.Opened.UserContext;
     UINT64 UserContext2 = Response->Rsp.Create.Opened.UserContext2;

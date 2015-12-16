@@ -473,7 +473,7 @@ static NTSTATUS FspFsvrtTransact(
     ASSERT(FspFsctlTransactCanProduceRequest(Request, SystemBufferEnd));
     for (;;)
     {
-        PendingIrpRequest = FspIopRequest(PendingIrp);
+        PendingIrpRequest = FspIrpRequest(PendingIrp);
 
         Result = FspIopDispatchPrepare(PendingIrp, PendingIrpRequest);
         if (!NT_SUCCESS(Result))

@@ -245,6 +245,13 @@ FAST_IO_RELEASE_FOR_MOD_WRITE FspReleaseForModWrite;
 FAST_IO_ACQUIRE_FOR_CCFLUSH FspAcquireForCcFlush;
 FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 
+/* IRP context */
+#define FspIrpTimestamp(Irp)            \
+    (*(ULONGLONG *)&(Irp)->Tail.Overlay.DriverContext[0])
+    /* FspIrpTimestamp() uses up DriverContext[0] and [1] in 32-bit builds */
+#define FspIrpRequest(Irp)              \
+    (*(FSP_FSCTL_TRANSACT_REQ **)&(Irp)->Tail.Overlay.DriverContext[2])
+
 /* I/O queue */
 #define FspIoqTimeout                   ((PIRP)1)
 typedef struct
@@ -258,6 +265,7 @@ typedef struct
 VOID FspIoqInitialize(FSP_IOQ *Ioq);
 VOID FspIoqStop(FSP_IOQ *Ioq);
 BOOLEAN FspIoqStopped(FSP_IOQ *Ioq);
+VOID FspIoqRemoveExpired(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout);
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
@@ -266,8 +274,6 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 /* I/O processing */
 #define FSP_FSCTL_WORK                  \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'W', METHOD_NEITHER, FILE_ANY_ACCESS)
-#define FspIopRequest(Irp)              \
-    (*(FSP_FSCTL_TRANSACT_REQ **)&(Irp)->Tail.Overlay.DriverContext[0])
 #define FspIopRequestContext(Request, I)\
     (*FspIopRequestContextAddress(Request, I))
 #define FspIopCreateRequest(I, F, E, P) FspIopCreateRequestEx(I, F, E, 0, P)
