@@ -20,7 +20,7 @@ static inline VOID GlobalDevicePath(PWCHAR DevicePathBuf, SIZE_T DevicePathSize,
     if (RootSize + PathSize <= DevicePathSize)
     {
         memcpy(DevicePathBuf, DeviceRoot, RootSize);
-        memcpy(DevicePathBuf + RootSize, DevicePath, PathSize);
+        memcpy((PUINT8)DevicePathBuf + RootSize, DevicePath, PathSize);
     }
     else
         /* we should be doing assert(sizeof(WCHAR) <= DevicePathSize), but we don't have assert! */
