@@ -9,10 +9,12 @@
 
 FSP_API VOID FspDebugLog(const char *format, ...)
 {
-    char buf[512];
+    char buf[1024];
+        /* DbgPrint has a 512 byte limit, but wvsprintf is only safe with a 1024 byte buffer */
     va_list ap;
     va_start(ap, format);
-    StringCbVPrintfA(buf, sizeof buf, format, ap);
+    wvsprintfA(buf, format, ap);
     va_end(ap);
+    buf[sizeof buf - 1] = '\0';
     OutputDebugStringA(buf);
 }

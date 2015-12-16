@@ -13,8 +13,18 @@
 
 static inline VOID GlobalDevicePath(PWCHAR DevicePathBuf, SIZE_T DevicePathSize, PWSTR DevicePath)
 {
-    StringCbPrintfW(DevicePathBuf, DevicePathSize,
-        L'\\' == DevicePath[0] ? GLOBALROOT "%s" : GLOBALROOT "\\Device\\%s", DevicePath);
+    PWSTR DeviceRoot = L'\\' == DevicePath[0] ? GLOBALROOT : GLOBALROOT "\\Device\\";
+    SIZE_T RootSize = lstrlenW(DeviceRoot) * sizeof(WCHAR);
+    SIZE_T PathSize = lstrlenW(DevicePath) * sizeof(WCHAR) + sizeof(WCHAR);
+
+    if (RootSize + PathSize <= DevicePathSize)
+    {
+        memcpy(DevicePathBuf, DeviceRoot, RootSize);
+        memcpy(DevicePathBuf + RootSize, DevicePath, PathSize);
+    }
+    else
+        /* we should be doing assert(sizeof(WCHAR) <= DevicePathSize), but we don't have assert! */
+        DevicePathBuf[0] = L'\0';
 }
 
 static NTSTATUS CreateSelfRelativeSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor,
