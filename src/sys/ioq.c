@@ -238,7 +238,11 @@ VOID FspIoqRemoveExpired(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout)
 {
     FSP_IOQ_PEEK_CONTEXT PeekContext;
     PeekContext.IrpHint = 0;
-    PeekContext.ExpirationTime = KeQueryInterruptTime() - Timeout->QuadPart;
+    PeekContext.ExpirationTime = KeQueryInterruptTime();
+    if (PeekContext.ExpirationTime >= (ULONGLONG)Timeout->QuadPart)
+        PeekContext.ExpirationTime -= Timeout->QuadPart;
+    else
+        PeekContext.ExpirationTime = 0;
     PIRP Irp;
     while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, &PeekContext)))
         FspIoqPendingCompleteCanceledIrp(&Ioq->PendingIoCsq, Irp);

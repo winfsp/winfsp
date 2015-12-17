@@ -178,7 +178,7 @@ static NTSTATUS FspFsctlCreateVolume(
             FsvrtDeviceExtension->VolumeParams = VolumeParams;
             RtlCopyMemory(FsvrtDeviceExtension->SecurityDescriptorBuf,
                 SecurityDescriptorBuf, SecurityDescriptorSize);
-            ClearFlag(FsvrtDeviceObject->Flags, DO_DEVICE_INITIALIZING);
+            FspDeviceInitComplete(FsvrtDeviceObject);
             Irp->IoStatus.Information = DeviceName.Length + sizeof(WCHAR);
             FspFsctlDeviceVolumeCreated(DeviceObject);
         }
@@ -255,7 +255,7 @@ static NTSTATUS FspFsctlMountVolume(
             FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
             FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
             FsvrtDeviceExtension->FsvolDeviceObject = FsvolDeviceObject;
-            ClearFlag(FsvolDeviceObject->Flags, DO_DEVICE_INITIALIZING);
+            FspDeviceInitComplete(FsvolDeviceObject);
             Vpb->DeviceObject = FsvolDeviceObject;
             Vpb->SerialNumber = FsvrtDeviceExtension->VolumeParams.SerialNumber;
             Irp->IoStatus.Information = 0;

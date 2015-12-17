@@ -39,6 +39,8 @@ NTSTATUS DriverEntry(
         &FspFsctlNetDeviceObject);
     if (!NT_SUCCESS(Result))
         FSP_RETURN(FspDeviceDelete(FspFsctlDiskDeviceObject));
+    FspDeviceInitComplete(FspFsctlDiskDeviceObject);
+    FspDeviceInitComplete(FspFsctlNetDeviceObject);
 
     /* setup the driver object */
     DriverObject->DriverUnload = FspUnload;

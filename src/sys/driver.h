@@ -318,6 +318,9 @@ typedef struct
     PDEVICE_OBJECT FsvolDeviceObject;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     FSP_IOQ Ioq;
+    KSPIN_LOCK ExpirationLock;
+    WORK_QUEUE_ITEM ExpirationWorkItem;
+    BOOLEAN ExpirationInProgress;
     PVPB SwapVpb;
     BOOLEAN Deleted;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 SecurityDescriptorBuf[];
@@ -369,6 +372,7 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
 NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
     DEVICE_TYPE DeviceType,
     PDEVICE_OBJECT *PDeviceObject);
+VOID FspDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);

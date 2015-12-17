@@ -13,17 +13,23 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
 NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
     DEVICE_TYPE DeviceType,
     PDEVICE_OBJECT *PDeviceObject);
+VOID FspDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 static NTSTATUS FspFsctlDeviceInit(PDEVICE_OBJECT DeviceObject);
+static VOID FspFsctlDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsctlDeviceFini(PDEVICE_OBJECT DeviceObject);
 static NTSTATUS FspFsvrtDeviceInit(PDEVICE_OBJECT DeviceObject);
+static VOID FspFsvrtDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsvrtDeviceFini(PDEVICE_OBJECT DeviceObject);
 static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject);
+static VOID FspFsvolDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
 VOID FspFsctlDeviceVolumeCreated(PDEVICE_OBJECT DeviceObject);
 VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject);
+static IO_TIMER_ROUTINE FspFsvrtDeviceTimerRoutine;
+static WORKER_THREAD_ROUTINE FspFsvrtDeviceExpirationRoutine;
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
 PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     FSP_DEVICE_GENERIC_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
@@ -41,12 +47,16 @@ VOID FspDeviceDeleteAll(VOID);
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspDeviceCreateSecure)
 #pragma alloc_text(PAGE, FspDeviceCreate)
+#pragma alloc_text(PAGE, FspDeviceInitComplete)
 #pragma alloc_text(PAGE, FspDeviceDelete)
 #pragma alloc_text(PAGE, FspFsctlDeviceInit)
+#pragma alloc_text(PAGE, FspFsctlDeviceInitComplete)
 #pragma alloc_text(PAGE, FspFsctlDeviceFini)
 #pragma alloc_text(PAGE, FspFsvrtDeviceInit)
+#pragma alloc_text(PAGE, FspFsvrtDeviceInitComplete)
 #pragma alloc_text(PAGE, FspFsvrtDeviceFini)
 #pragma alloc_text(PAGE, FspFsvolDeviceInit)
+#pragma alloc_text(PAGE, FspFsvolDeviceInitComplete)
 #pragma alloc_text(PAGE, FspFsvolDeviceFini)
 #pragma alloc_text(PAGE, FspFsctlDeviceVolumeCreated)
 #pragma alloc_text(PAGE, FspFsctlDeviceVolumeDeleted)
@@ -142,6 +152,31 @@ NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
     return FspDeviceCreateSecure(Kind, ExtraSize, 0, DeviceType, 0, 0, PDeviceObject);
 }
 
+VOID FspDeviceInitComplete(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    FSP_DEVICE_EXTENSION *DeviceExtension = FspDeviceExtension(DeviceObject);
+
+    switch (DeviceExtension->Kind)
+    {
+    case FspFsvolDeviceExtensionKind:
+        FspFsvolDeviceInitComplete(DeviceObject);
+        break;
+    case FspFsvrtDeviceExtensionKind:
+        FspFsvrtDeviceInitComplete(DeviceObject);
+        break;
+    case FspFsctlDeviceExtensionKind:
+        FspFsctlDeviceInitComplete(DeviceObject);
+        break;
+    default:
+        ASSERT(0);
+        return;
+    }
+
+    ClearFlag(DeviceObject->Flags, DO_DEVICE_INITIALIZING);
+}
+
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
@@ -176,6 +211,11 @@ static NTSTATUS FspFsctlDeviceInit(PDEVICE_OBJECT DeviceObject)
     return STATUS_SUCCESS;
 }
 
+static VOID FspFsctlDeviceInitComplete(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+}
+
 static VOID FspFsctlDeviceFini(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
@@ -185,9 +225,18 @@ static NTSTATUS FspFsvrtDeviceInit(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
 
+    NTSTATUS Result;
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
 
+    /* initialize our timer routine */
+    Result = IoInitializeTimer(DeviceObject, FspFsvrtDeviceTimerRoutine, 0);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
     FspIoqInitialize(&FsvrtDeviceExtension->Ioq);
+    KeInitializeSpinLock(&FsvrtDeviceExtension->ExpirationLock);
+    ExInitializeWorkItem(&FsvrtDeviceExtension->ExpirationWorkItem,
+        FspFsvrtDeviceExpirationRoutine, DeviceObject);
 
     FsvrtDeviceExtension->SwapVpb = FspAllocNonPagedExternal(sizeof *FsvrtDeviceExtension->SwapVpb);
     if (0 == FsvrtDeviceExtension->SwapVpb)
@@ -197,11 +246,27 @@ static NTSTATUS FspFsvrtDeviceInit(PDEVICE_OBJECT DeviceObject)
     return STATUS_SUCCESS;
 }
 
+static VOID FspFsvrtDeviceInitComplete(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    IoStartTimer(DeviceObject);
+}
+
 static VOID FspFsvrtDeviceFini(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
 
     FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
+
+    /*
+     * First things first: stop our timer.
+     *
+     * Our IoTimer routine will NOT be called again after IoStopTimer() returns.
+     * However a work item may be in flight. For this reason our IoTimer routine
+     * does an ObReferenceObject() on our DeviceObject before queueing work items.
+     */
+    IoStopTimer(DeviceObject);
 
     if (0 != FsvrtDeviceExtension->SwapVpb)
         FspFreeExternal(FsvrtDeviceExtension->SwapVpb);
@@ -217,6 +282,11 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
         FspFsvolDeviceCompareElement, FspFsvolDeviceAllocateElement, FspFsvolDeviceFreeElement, 0);
 
     return STATUS_SUCCESS;
+}
+
+static VOID FspFsvolDeviceInitComplete(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
 }
 
 static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
@@ -312,6 +382,58 @@ VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject)
     if (0 == FsvrtDeviceObjectCount)
         IoUnregisterFileSystem(DeviceObject);
 #endif
+}
+
+static VOID FspFsvrtDeviceTimerRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
+{
+    // !PAGED_CODE();
+
+    /*
+     * This routine runs at DPC level. Reference our DeviceObject and queue a work item
+     * so that we can do our processing at Passive level. Only do so if the work item
+     * is not already in flight (otherwise we could requeue the same work item).
+     */
+
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+    
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
+
+    KeAcquireSpinLockAtDpcLevel(&FsvrtDeviceExtension->ExpirationLock);
+    if (!FsvrtDeviceExtension->ExpirationInProgress)
+    {
+        FsvrtDeviceExtension->ExpirationInProgress = TRUE;
+        ObReferenceObject(DeviceObject);
+        ExQueueWorkItem(&FsvrtDeviceExtension->ExpirationWorkItem, DelayedWorkQueue);
+    }
+    KeReleaseSpinLockFromDpcLevel(&FsvrtDeviceExtension->ExpirationLock);
+}
+
+static VOID FspFsvrtDeviceExpirationRoutine(PVOID Context)
+{
+    // !PAGED_CODE();
+
+    PDEVICE_OBJECT DeviceObject = Context;
+    if (FspDeviceRetain(DeviceObject))
+        try
+        {
+            FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
+            LARGE_INTEGER Timeout;
+            KIRQL Irql;
+
+            Timeout.QuadPart = FsvrtDeviceExtension->VolumeParams.IrpTimeout * 10000;
+                /* convert millis to nanos */
+            FspIoqRemoveExpired(&FsvrtDeviceExtension->Ioq, &Timeout);
+
+            KeAcquireSpinLock(&FsvrtDeviceExtension->ExpirationLock, &Irql);
+            FsvrtDeviceExtension->ExpirationInProgress = FALSE;
+            KeReleaseSpinLock(&FsvrtDeviceExtension->ExpirationLock, Irql);
+        }
+        finally
+        {
+            FspDeviceRelease(DeviceObject);
+        }
+
+    ObDereferenceObject(DeviceObject);
 }
 
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier)
