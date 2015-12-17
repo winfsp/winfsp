@@ -19,6 +19,9 @@
     <ClCompile Include="..\..\..\ext\tlib\testsuite.c">
       <Filter>Source\tlib</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\tst\winfsp-tests\timeout-test.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\ext\tlib\testsuite.h">
