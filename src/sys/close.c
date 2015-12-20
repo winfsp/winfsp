@@ -28,9 +28,8 @@ static NTSTATUS FspFsctlClose(
 {
     PAGED_CODE();
 
-    NTSTATUS Result = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
-    return Result;
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFsvrtClose(
@@ -38,9 +37,8 @@ static NTSTATUS FspFsvrtClose(
 {
     PAGED_CODE();
 
-    NTSTATUS Result = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
-    return Result;
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFsvolClose(
@@ -48,73 +46,7 @@ static NTSTATUS FspFsvolClose(
 {
     PAGED_CODE();
 
-    /* is this a valid FileObject? */
-    if (!FspFileContextIsValid(IrpSp->FileObject->FsContext))
-        return STATUS_SUCCESS;
-
-    NTSTATUS Result;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    PFILE_OBJECT FileObject = IrpSp->FileObject;
-    FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
-    UINT64 UserContext = FsContext->UserContext;
-    UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
-
-    /* dereference the FsContext (and delete if no more references) */
-    FspFileContextRelease(FsContext);
-
-    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
-    if (!FspDeviceRetain(FsvrtDeviceObject))
-        /* IRP_MJ_CLOSE cannot really fail :-\ */
-        return STATUS_SUCCESS;
-
-    try
-    {
-        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
-        BOOLEAN FileNameRequired = 0 != FsvrtDeviceExtension->VolumeParams.FileNameRequired;
-        FSP_FSCTL_TRANSACT_REQ *Request;
-
-        /* create the user-mode file system request */
-        Result = FspIopCreateRequest(0, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
-        if (!NT_SUCCESS(Result))
-            goto leak_exit;
-
-        /*
-         * The new request is associated with our IRP and will be deleted during its completion.
-         */
-
-        /* populate the Close request */
-        Request->Kind = FspFsctlTransactCloseKind;
-        Request->Req.Close.UserContext = UserContext;
-        Request->Req.Close.UserContext2 = UserContext2;
-
-        /* post as a work request; this allows us to complete our own IRP and return immediately! */
-        if (!FspIopPostWorkRequest(DeviceObject, Request))
-            /* no need to delete the request here as FspIopPostWorkRequest() will do so in all cases */
-            goto leak_exit;
-
-        Result = STATUS_SUCCESS;
-
-        goto exit;
-
-    leak_exit:;
-#if DBG
-        DEBUGLOG("FileObject=%p[%p:\"%wZ\"], UserContext=%llx, UserContext2=%llx: "
-            "error: the user-mode file system handle will be leaked!",
-            IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName,
-            UserContext, UserContext2);
-#endif
-
-        /* IRP_MJ_CLOSE cannot really fail :-\ */
-        Result = STATUS_SUCCESS;
-
-    exit:;
-    }
-    finally
-    {
-        FspDeviceRelease(FsvrtDeviceObject);
-    }
-
-    return Result;
+    return STATUS_INVALID_DEVICE_REQUEST;
 }
 
 VOID FspFsvolCloseComplete(
@@ -129,8 +61,6 @@ NTSTATUS FspClose(
     PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
-
-    ASSERT(IRP_MJ_CLOSE == IrpSp->MajorFunction);
 
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {

@@ -8,13 +8,13 @@
 
 static NTSTATUS FspFsvolRead(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOCMPL_DISPATCH FspFsvolReadComplete;
 FSP_DRIVER_DISPATCH FspRead;
-FSP_IOCMPL_DISPATCH FspReadComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolRead)
+#pragma alloc_text(PAGE, FspFsvolReadComplete)
 #pragma alloc_text(PAGE, FspRead)
-#pragma alloc_text(PAGE, FspReadComplete)
 #endif
 
 static NTSTATUS FspFsvolRead(
@@ -25,12 +25,18 @@ static NTSTATUS FspFsvolRead(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+VOID FspFsvolReadComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC("%s", "");
+}
+
 NTSTATUS FspRead(
     PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
-
-    ASSERT(IRP_MJ_READ == IrpSp->MajorFunction);
 
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
@@ -41,12 +47,4 @@ NTSTATUS FspRead(
     }
 
     FSP_LEAVE_MJ("%s", "");
-}
-
-VOID FspReadComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC("%s", "");
 }

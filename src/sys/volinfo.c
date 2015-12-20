@@ -8,20 +8,20 @@
 
 static NTSTATUS FspFsvolQueryVolumeInformation(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOCMPL_DISPATCH FspFsvolQueryVolumeInformationComplete;
 static NTSTATUS FspFsvolSetVolumeInformation(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOCMPL_DISPATCH FspFsvolSetVolumeInformationComplete;
 FSP_DRIVER_DISPATCH FspQueryVolumeInformation;
 FSP_DRIVER_DISPATCH FspSetVolumeInformation;
-FSP_IOCMPL_DISPATCH FspQueryVolumeInformationComplete;
-FSP_IOCMPL_DISPATCH FspSetVolumeInformationComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQueryVolumeInformation)
+#pragma alloc_text(PAGE, FspFsvolQueryVolumeInformationComplete)
 #pragma alloc_text(PAGE, FspFsvolSetVolumeInformation)
+#pragma alloc_text(PAGE, FspFsvolSetVolumeInformationComplete)
 #pragma alloc_text(PAGE, FspQueryVolumeInformation)
 #pragma alloc_text(PAGE, FspSetVolumeInformation)
-#pragma alloc_text(PAGE, FspQueryVolumeInformationComplete)
-#pragma alloc_text(PAGE, FspSetVolumeInformationComplete)
 #endif
 
 static NTSTATUS FspFsvolQueryVolumeInformation(
@@ -32,6 +32,14 @@ static NTSTATUS FspFsvolQueryVolumeInformation(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+VOID FspFsvolQueryVolumeInformationComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC("%s", "");
+}
+
 static NTSTATUS FspFsvolSetVolumeInformation(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -40,12 +48,18 @@ static NTSTATUS FspFsvolSetVolumeInformation(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+VOID FspFsvolSetVolumeInformationComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC("%s", "");
+}
+
 NTSTATUS FspQueryVolumeInformation(
     PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
-
-    ASSERT(IRP_MJ_QUERY_VOLUME_INFORMATION == IrpSp->MajorFunction);
 
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
@@ -63,8 +77,6 @@ NTSTATUS FspSetVolumeInformation(
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
-    ASSERT(IRP_MJ_SET_VOLUME_INFORMATION == IrpSp->MajorFunction);
-
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
@@ -74,20 +86,4 @@ NTSTATUS FspSetVolumeInformation(
     }
 
     FSP_LEAVE_MJ("%s", "");
-}
-
-VOID FspQueryVolumeInformationComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC("%s", "");
-}
-
-VOID FspSetVolumeInformationComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC("%s", "");
 }

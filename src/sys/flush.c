@@ -8,13 +8,13 @@
 
 static NTSTATUS FspFsvolFlushBuffers(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOCMPL_DISPATCH FspFsvolFlushBuffersComplete;
 FSP_DRIVER_DISPATCH FspFlushBuffers;
-FSP_IOCMPL_DISPATCH FspFlushBuffersComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolFlushBuffers)
+#pragma alloc_text(PAGE, FspFsvolFlushBuffersComplete)
 #pragma alloc_text(PAGE, FspFlushBuffers)
-#pragma alloc_text(PAGE, FspFlushBuffersComplete)
 #endif
 
 static NTSTATUS FspFsvolFlushBuffers(
@@ -25,12 +25,18 @@ static NTSTATUS FspFsvolFlushBuffers(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+VOID FspFsvolFlushBuffersComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC("%s", "");
+}
+
 NTSTATUS FspFlushBuffers(
     PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
-
-    ASSERT(IRP_MJ_FLUSH_BUFFERS == IrpSp->MajorFunction);
 
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
@@ -41,12 +47,4 @@ NTSTATUS FspFlushBuffers(
     }
 
     FSP_LEAVE_MJ("%s", "");
-}
-
-VOID FspFlushBuffersComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC("%s", "");
 }

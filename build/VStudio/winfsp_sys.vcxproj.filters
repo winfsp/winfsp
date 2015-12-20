@@ -14,16 +14,28 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\sys\cleanup.c">
+    <ClCompile Include="..\..\src\sys\driver.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\close.c">
+    <ClCompile Include="..\..\src\sys\debug.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\sys\device.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\sys\ioq.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\sys\iop.c">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\sys\create.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\debug.c">
+    <ClCompile Include="..\..\src\sys\cleanup.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\sys\close.c">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\sys\devctl.c">
@@ -32,13 +44,7 @@
     <ClCompile Include="..\..\src\sys\dirctl.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\driver.c">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\sys\ea.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\sys\fastio.c">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\sys\fileinfo.c">
@@ -47,16 +53,10 @@
     <ClCompile Include="..\..\src\sys\flush.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\fsctl.c">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\sys\lockctl.c">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\sys\read.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\sys\resource.c">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\sys\security.c">
@@ -71,22 +71,13 @@
     <ClCompile Include="..\..\src\sys\write.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\misc.c">
+    <ClCompile Include="..\..\src\sys\fastio.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\ioq.c">
+    <ClCompile Include="..\..\src\sys\fsctl.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\iop.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\sys\device.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\sys\fileobj.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\sys\idevctl.c">
+    <ClCompile Include="..\..\src\sys\util.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
@@ -95,9 +86,6 @@
       <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h">
-      <Filter>Include\winfsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\inc\winfsp\winfsp.h">
       <Filter>Include\winfsp</Filter>
     </ClInclude>
   </ItemGroup>

@@ -13,6 +13,10 @@
 #include <wdmsec.h>
 #include <winfsp/fsctl.h>
 
+/* disable warnings */
+#pragma warning(disable:4100)           /* unreferenced formal parameter */
+#pragma warning(disable:4200)           /* zero-sized array in struct/union */
+
 #define DRIVER_NAME                     "WinFsp"
 
 /* IoCreateDeviceSecure default SDDL's */
@@ -20,6 +24,11 @@
     /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ */
 #define FSP_FSVRT_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;WD)"
     /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ */
+
+/* misc macros */
+#define FSP_ALLOC_INTERNAL_TAG          'IpsF'
+#define FSP_ALLOC_EXTERNAL_TAG          'XpsF'
+#define FSP_IO_INCREMENT                IO_NETWORK_INCREMENT
 
 /* DEBUGLOG */
 #if DBG
@@ -111,15 +120,12 @@
             if (0 == (IrpSp->Control & SL_PENDING_RETURNED))\
             {                           \
                 /* if the IRP has not been marked pending already */\
-                ASSERT(FspFsvolDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind);\
                 FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =\
                     FspFsvolDeviceExtension(DeviceObject);\
-                FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension =\
-                    FspFsvrtDeviceExtension(FsvolDeviceExtension->FsvrtDeviceObject);\
-                if (!FspIoqPostIrp(&FsvrtDeviceExtension->Ioq, Irp))\
+                if (!FspIoqPostIrp(&FsvolDeviceExtension->Ioq, Irp))\
                 {                       \
                     /* this can only happen if the Ioq was stopped */\
-                    ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));\
+                    ASSERT(FspIoqStopped(&FsvolDeviceExtension->Ioq));\
                     FspIopCompleteIrp(Irp, Result = STATUS_CANCELLED);\
                 }                       \
             }                           \
@@ -166,15 +172,6 @@
         goto fsp_leave_label;           \
     } while (0,0)
 
-/* misc macros */
-#define FSP_ALLOC_INTERNAL_TAG          'IpsF'
-#define FSP_ALLOC_EXTERNAL_TAG          'XpsF'
-#define FSP_IO_INCREMENT                IO_NETWORK_INCREMENT
-
-/* disable warnings */
-#pragma warning(disable:4100)           /* unreferenced formal parameter */
-#pragma warning(disable:4200)           /* zero-sized array in struct/union */
-
 /* driver major functions */
 _Function_class_(DRIVER_DISPATCH)
 _IRQL_requires_max_(APC_LEVEL)
@@ -189,7 +186,6 @@ _Dispatch_type_(IRP_MJ_DEVICE_CONTROL)  FSP_DRIVER_DISPATCH FspDeviceControl;
 _Dispatch_type_(IRP_MJ_DIRECTORY_CONTROL) FSP_DRIVER_DISPATCH FspDirectoryControl;
 _Dispatch_type_(IRP_MJ_FILE_SYSTEM_CONTROL) FSP_DRIVER_DISPATCH FspFileSystemControl;
 _Dispatch_type_(IRP_MJ_FLUSH_BUFFERS)   FSP_DRIVER_DISPATCH FspFlushBuffers;
-_Dispatch_type_(IRP_MJ_INTERNAL_DEVICE_CONTROL) FSP_DRIVER_DISPATCH FspInternalDeviceControl;
 _Dispatch_type_(IRP_MJ_LOCK_CONTROL)    FSP_DRIVER_DISPATCH FspLockControl;
 _Dispatch_type_(IRP_MJ_QUERY_EA)        FSP_DRIVER_DISPATCH FspQueryEa;
 _Dispatch_type_(IRP_MJ_QUERY_INFORMATION) FSP_DRIVER_DISPATCH FspQueryInformation;
@@ -216,34 +212,77 @@ FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCleanupComplete;
 FSP_IOCMPL_DISPATCH FspFsvolCloseComplete;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
-FSP_IOCMPL_DISPATCH FspDeviceControlComplete;
-FSP_IOCMPL_DISPATCH FspDirectoryControlComplete;
-FSP_IOCMPL_DISPATCH FspFileSystemControlComplete;
-FSP_IOCMPL_DISPATCH FspFlushBuffersComplete;
-FSP_IOCMPL_DISPATCH FspFsvolInternalDeviceControlComplete;
-FSP_IOCMPL_DISPATCH FspLockControlComplete;
-FSP_IOCMPL_DISPATCH FspQueryEaComplete;
-FSP_IOCMPL_DISPATCH FspQueryInformationComplete;
-FSP_IOCMPL_DISPATCH FspQuerySecurityComplete;
-FSP_IOCMPL_DISPATCH FspQueryVolumeInformationComplete;
-FSP_IOCMPL_DISPATCH FspReadComplete;
-FSP_IOCMPL_DISPATCH FspSetEaComplete;
-FSP_IOCMPL_DISPATCH FspSetInformationComplete;
-FSP_IOCMPL_DISPATCH FspSetSecurityComplete;
-FSP_IOCMPL_DISPATCH FspSetVolumeInformationComplete;
-FSP_IOCMPL_DISPATCH FspShutdownComplete;
-FSP_IOCMPL_DISPATCH FspWriteComplete;
+FSP_IOCMPL_DISPATCH FspFsvolDeviceControlComplete;
+FSP_IOCMPL_DISPATCH FspFsvolDirectoryControlComplete;
+FSP_IOCMPL_DISPATCH FspFsvolFileSystemControlComplete;
+FSP_IOCMPL_DISPATCH FspFsvolFlushBuffersComplete;
+FSP_IOCMPL_DISPATCH FspFsvolLockControlComplete;
+FSP_IOCMPL_DISPATCH FspFsvolQueryEaComplete;
+FSP_IOCMPL_DISPATCH FspFsvolQueryInformationComplete;
+FSP_IOCMPL_DISPATCH FspFsvolQuerySecurityComplete;
+FSP_IOCMPL_DISPATCH FspFsvolQueryVolumeInformationComplete;
+FSP_IOCMPL_DISPATCH FspFsvolReadComplete;
+FSP_IOCMPL_DISPATCH FspFsvolSetEaComplete;
+FSP_IOCMPL_DISPATCH FspFsvolSetInformationComplete;
+FSP_IOCMPL_DISPATCH FspFsvolSetSecurityComplete;
+FSP_IOCMPL_DISPATCH FspFsvolSetVolumeInformationComplete;
+FSP_IOCMPL_DISPATCH FspFsvolShutdownComplete;
+FSP_IOCMPL_DISPATCH FspFsvolWriteComplete;
 
-/* fast I/O */
+/* fast I/O and resource acquisition */
 FAST_IO_CHECK_IF_POSSIBLE FspFastIoCheckIfPossible;
-
-/* resource acquisition */
 FAST_IO_ACQUIRE_FILE FspAcquireFileForNtCreateSection;
 FAST_IO_RELEASE_FILE FspReleaseFileForNtCreateSection;
 FAST_IO_ACQUIRE_FOR_MOD_WRITE FspAcquireForModWrite;
 FAST_IO_RELEASE_FOR_MOD_WRITE FspReleaseForModWrite;
 FAST_IO_ACQUIRE_FOR_CCFLUSH FspAcquireForCcFlush;
 FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
+
+/* memory allocation */
+static inline
+PVOID FspAlloc(SIZE_T Size)
+{
+    return ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_INTERNAL_TAG);
+}
+static inline
+PVOID FspAllocNonPaged(SIZE_T Size)
+{
+    return ExAllocatePoolWithTag(NonPagedPool, Size, FSP_ALLOC_INTERNAL_TAG);
+}
+static inline
+VOID FspFree(PVOID Pointer)
+{
+    ExFreePoolWithTag(Pointer, FSP_ALLOC_INTERNAL_TAG);
+}
+static inline
+PVOID FspAllocExternal(SIZE_T Size)
+{
+    return ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_EXTERNAL_TAG);
+}
+static inline
+PVOID FspAllocNonPagedExternal(SIZE_T Size)
+{
+    return ExAllocatePoolWithTag(NonPagedPool, Size, FSP_ALLOC_EXTERNAL_TAG);
+}
+static inline
+VOID FspFreeExternal(PVOID Pointer)
+{
+    ExFreePool(Pointer);
+}
+
+/* utility: GUIDs */
+NTSTATUS FspCreateGuid(GUID *Guid);
+
+/* utility: delayed work queue */
+typedef struct
+{
+    KTIMER Timer;
+    KDPC Dpc;
+    WORK_QUEUE_ITEM WorkQueueItem;
+} FSP_WORK_ITEM_WITH_DELAY;
+VOID FspInitializeWorkItemWithDelay(FSP_WORK_ITEM_WITH_DELAY *WorkItem,
+    PWORKER_THREAD_ROUTINE Routine, PVOID Context);
+VOID FspQueueWorkItemWithDelay(FSP_WORK_ITEM_WITH_DELAY *WorkItem, LARGE_INTEGER Timeout);
 
 /* IRP context */
 #define FspIrpTimestamp(Irp)            \
@@ -261,8 +300,9 @@ typedef struct
     KEVENT PendingIrpEvent;
     LIST_ENTRY PendingIrpList, ProcessIrpList;
     IO_CSQ PendingIoCsq, ProcessIoCsq;
+    VOID (*CompleteCanceledIrp)(PIRP Irp);
 } FSP_IOQ;
-VOID FspIoqInitialize(FSP_IOQ *Ioq);
+VOID FspIoqInitialize(FSP_IOQ *Ioq, VOID (*CompleteCanceledIrp)(PIRP Irp));
 VOID FspIoqStop(FSP_IOQ *Ioq);
 BOOLEAN FspIoqStopped(FSP_IOQ *Ioq);
 VOID FspIoqRemoveExpired(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout);
@@ -289,10 +329,21 @@ VOID FspIopCompleteIrp(PIRP Irp, NTSTATUS Result)
 {
     FspIopCompleteIrpEx(Irp, Result, TRUE);
 }
+VOID FspIopCompleteCanceledIrp(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 /* device management */
+typedef struct
+{
+    UINT64 Identifier;
+    PVOID Context;
+} FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA;
+typedef struct
+{
+    RTL_BALANCED_LINKS Header;
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA Data;
+} FSP_DEVICE_GENERIC_TABLE_ELEMENT;
 enum
 {
     FspFsctlDeviceExtensionKind = '\0ltC',  /* file system control device (e.g. \Device\WinFsp.Disk) */
@@ -304,59 +355,29 @@ typedef struct
     KSPIN_LOCK SpinLock;
     LONG RefCount;
     ERESOURCE Resource;
+    RTL_AVL_TABLE GenericTable;
+    PVOID GenericTableElementStorage;
     UINT32 Kind;
 } FSP_DEVICE_EXTENSION;
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-    ULONG FsvrtDeviceObjectCount;
-} FSP_FSCTL_DEVICE_EXTENSION;
-typedef struct
-{
-    FSP_DEVICE_EXTENSION Base;
     PDEVICE_OBJECT FsctlDeviceObject;
-    PDEVICE_OBJECT FsvolDeviceObject;
+    PDEVICE_OBJECT FsvrtDeviceObject;
+    HANDLE MupHandle;
+    BOOLEAN DeletePending;
+    FSP_WORK_ITEM_WITH_DELAY DeleteVolumeWorkItem;
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    PVPB SwapVpb;
     FSP_IOQ Ioq;
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;
     BOOLEAN ExpirationInProgress;
-    PVPB SwapVpb;
-    BOOLEAN Deleted;
-    FSP_FSCTL_DECLSPEC_ALIGN UINT8 SecurityDescriptorBuf[];
-} FSP_FSVRT_DEVICE_EXTENSION;
-typedef struct
-{
-    FSP_DEVICE_EXTENSION Base;
-    PDEVICE_OBJECT FsvrtDeviceObject;
-    RTL_AVL_TABLE GenericTable;
-    PVOID GenericTableElementStorage;
 } FSP_FSVOL_DEVICE_EXTENSION;
-typedef struct
-{
-    UINT64 Identifier;
-    PVOID Context;
-} FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA;
-typedef struct
-{
-    RTL_BALANCED_LINKS Header;
-    FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA Data;
-} FSP_DEVICE_GENERIC_TABLE_ELEMENT;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
-    return DeviceObject->DeviceExtension;
-}
-static inline
-FSP_FSCTL_DEVICE_EXTENSION *FspFsctlDeviceExtension(PDEVICE_OBJECT DeviceObject)
-{
-    ASSERT(FspFsctlDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
-    return DeviceObject->DeviceExtension;
-}
-static inline
-FSP_FSVRT_DEVICE_EXTENSION *FspFsvrtDeviceExtension(PDEVICE_OBJECT DeviceObject)
-{
-    ASSERT(FspFsvrtDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
     return DeviceObject->DeviceExtension;
 }
 static inline
@@ -376,12 +397,10 @@ VOID FspDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
-VOID FspFsctlDeviceVolumeCreated(PDEVICE_OBJECT DeviceObject);
-VOID FspFsctlDeviceVolumeDeleted(PDEVICE_OBJECT DeviceObject);
-PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
-PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
+PVOID FspDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
+PVOID FspDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     FSP_DEVICE_GENERIC_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
-VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
+VOID FspDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     PBOOLEAN PDeleted);
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
@@ -389,6 +408,23 @@ VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
 VOID FspDeviceDeleteAll(VOID);
 
+/* debug */
+#if DBG
+BOOLEAN HasDbgBreakPoint(const char *Function);
+const char *NtStatusSym(NTSTATUS Status);
+const char *IrpMajorFunctionSym(UCHAR MajorFunction);
+const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);
+const char *IoctlCodeSym(ULONG ControlCode);
+#endif
+
+/* extern */
+extern PDRIVER_OBJECT FspDriverObject;
+extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
+extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
+extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
+extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
+
+#if 0
 /* file objects */
 #define FspFileContextKind(FsContext)   \
     (((FSP_FILE_CONTEXT *)FsContext)->Header.NodeTypeCode)
@@ -451,69 +487,6 @@ VOID FspFileContextRelease(FSP_FILE_CONTEXT *Context)
         FspFileContextDelete(Context);
 }
 
-/* misc */
-static inline
-PVOID FspAlloc(SIZE_T Size)
-{
-    return ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_INTERNAL_TAG);
-}
-static inline
-PVOID FspAllocNonPaged(SIZE_T Size)
-{
-    return ExAllocatePoolWithTag(NonPagedPool, Size, FSP_ALLOC_INTERNAL_TAG);
-}
-static inline
-VOID FspFree(PVOID Pointer)
-{
-    ExFreePoolWithTag(Pointer, FSP_ALLOC_INTERNAL_TAG);
-}
-static inline
-PVOID FspAllocExternal(SIZE_T Size)
-{
-    return ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_EXTERNAL_TAG);
-}
-static inline
-PVOID FspAllocNonPagedExternal(SIZE_T Size)
-{
-    return ExAllocatePoolWithTag(NonPagedPool, Size, FSP_ALLOC_EXTERNAL_TAG);
-}
-static inline
-VOID FspFreeExternal(PVOID Pointer)
-{
-    ExFreePool(Pointer);
-}
-NTSTATUS FspCreateGuid(GUID *Guid);
-BOOLEAN FspValidRelativeSecurityDescriptor(
-    PSECURITY_DESCRIPTOR SecurityDescriptor, ULONG SecurityDescriptorLength,
-    SECURITY_INFORMATION RequiredInformation);
-NTSTATUS FspSecuritySubjectContextAccessCheck(
-    PSECURITY_DESCRIPTOR SecurityDescriptor, ACCESS_MASK DesiredAccess, KPROCESSOR_MODE AccessMode);
-
-/* delayed work queue */
-typedef struct
-{
-    KTIMER Timer;
-    KDPC Dpc;
-    WORK_QUEUE_ITEM WorkQueueItem;
-} FSP_WORK_ITEM_WITH_DELAY;
-VOID FspInitializeWorkItemWithDelay(FSP_WORK_ITEM_WITH_DELAY *WorkItem,
-    PWORKER_THREAD_ROUTINE Routine, PVOID Context);
-VOID FspQueueWorkItemWithDelay(FSP_WORK_ITEM_WITH_DELAY *WorkItem, LARGE_INTEGER Timeout);
-
-/* debug */
-#if DBG
-BOOLEAN HasDbgBreakPoint(const char *Function);
-const char *NtStatusSym(NTSTATUS Status);
-const char *IrpMajorFunctionSym(UCHAR MajorFunction);
-const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);
-const char *IoctlCodeSym(ULONG ControlCode);
 #endif
-
-/* extern */
-extern PDRIVER_OBJECT FspDriverObject;
-extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
-extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
-extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
-extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
 
 #endif

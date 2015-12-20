@@ -178,18 +178,6 @@
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="..\..\src\dll\debug.c" />
-    <ClCompile Include="..\..\src\dll\fsctl.c" />
-    <ClCompile Include="..\..\src\dll\library.c" />
-    <ClCompile Include="..\..\src\dll\loop.c" />
-    <ClCompile Include="..\..\src\dll\ntstatus.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\inc\winfsp\fsctl.h" />
-    <ClInclude Include="..\..\inc\winfsp\winfsp.h" />
-    <ClInclude Include="..\..\src\dll\library.h" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

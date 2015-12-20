@@ -28,18 +28,11 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 /* fsctl device codes */
 #define FSP_FSCTL_CREATE                \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'C', METHOD_BUFFERED, FILE_ANY_ACCESS)
-
-/* fsvrt device codes */
-#define FSP_FSCTL_DELETE                \
-    CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'D', METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSP_FSCTL_TRANSACT              \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'T', METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 #define FSP_FSCTL_CREATE_BUFFER_SIZEMIN 128
 #define FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN 16384 /* checked by driver! */
-#define FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMIN 16384 /* not checked by driver! */
-
-#define FSP_FSCTL_VOLUME_PARAMS_SIZE    FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(FSP_FSCTL_VOLUME_PARAMS))
 #define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  (4096 - 64) /* 64: size for internal request header */
 #define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  (4096 - 64) /* symmetry! */
 
@@ -50,7 +43,6 @@ enum
 {
     FspFsctlTransactUnknownKind = 0,
     FspFsctlTransactCreateKind,
-    FspFsctlTransactCreateCleanupCloseKind,
     FspFsctlTransactCloseKind,
     FspFsctlTransactReadKind,
     FspFsctlTransactWriteKind,
@@ -90,7 +82,6 @@ typedef struct
     UINT32 IrpTimeout;                  /* milliseconds; values between 1 min and 10 min */
     UINT32 EaSupported:1;               /* supports extended attributes (unimplemented; set to 0) */
     UINT32 FileNameRequired:1;          /* FileName required for all operations (not just Create) */
-    UINT32 NoSystemAccessCheck:1;       /* if set the user-mode flie system performs access checks */
 } FSP_FSCTL_VOLUME_PARAMS;
 typedef struct
 {
@@ -155,8 +146,6 @@ typedef struct
             {
                 UINT64 UserContext;     /* open file user context (unique file id) */
                 UINT64 UserContext2;    /* kernel file object user context (only low 32 bits valid) */
-                UINT32 FileAttributes;  /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
-                FSP_FSCTL_TRANSACT_BUF SecurityDescriptor; /* security descriptor */
             } Opened;
             /* IoStatus.Status == STATUS_REPARSE */
             struct
@@ -210,15 +199,6 @@ static inline FSP_FSCTL_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
 }
 
 #if !defined(WINFSP_SYS_INTERNAL)
-FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
-    const FSP_FSCTL_VOLUME_PARAMS *Params, PSECURITY_DESCRIPTOR SecurityDescriptor,
-    PWCHAR VolumePathBuf, SIZE_T VolumePathSize);
-FSP_API NTSTATUS FspFsctlOpenVolume(PWSTR VolumePath,
-    PHANDLE PVolumeHandle);
-FSP_API NTSTATUS FspFsctlDeleteVolume(HANDLE VolumeHandle);
-FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
-    PVOID ResponseBuf, SIZE_T ResponseBufSize,
-    PVOID RequestBuf, SIZE_T *PRequestBufSize);
 #endif
 
 #endif

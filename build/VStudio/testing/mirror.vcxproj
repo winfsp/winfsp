@@ -166,9 +166,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\tst\mirror\mirror.c" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\winfsp_dll.vcxproj">
       <Project>{4a7c0b21-9e10-4c81-92de-1493efcf24eb}</Project>
     </ProjectReference>

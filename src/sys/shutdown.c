@@ -9,12 +9,12 @@
 static NTSTATUS FspFsvolShutdown(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_DRIVER_DISPATCH FspShutdown;
-FSP_IOCMPL_DISPATCH FspShutdownComplete;
+FSP_IOCMPL_DISPATCH FspFsvolShutdownComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolShutdown)
+#pragma alloc_text(PAGE, FspFsvolShutdownComplete)
 #pragma alloc_text(PAGE, FspShutdown)
-#pragma alloc_text(PAGE, FspShutdownComplete)
 #endif
 
 static NTSTATUS FspFsvolShutdown(
@@ -25,12 +25,18 @@ static NTSTATUS FspFsvolShutdown(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+VOID FspFsvolShutdownComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC("%s", "");
+}
+
 NTSTATUS FspShutdown(
     PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
-
-    ASSERT(IRP_MJ_SHUTDOWN == IrpSp->MajorFunction);
 
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
@@ -41,12 +47,4 @@ NTSTATUS FspShutdown(
     }
 
     FSP_LEAVE_MJ("%s", "");
-}
-
-VOID FspShutdownComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC("%s", "");
 }

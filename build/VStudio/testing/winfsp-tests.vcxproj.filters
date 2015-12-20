@@ -10,17 +10,8 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\tst\winfsp-tests\winfsp-tests.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\tst\winfsp-tests\mount-test.c">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\ext\tlib\testsuite.c">
       <Filter>Source\tlib</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\tst\winfsp-tests\timeout-test.c">
-      <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

@@ -8,20 +8,20 @@
 
 static NTSTATUS FspFsvolQueryEa(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOCMPL_DISPATCH FspFsvolQueryEaComplete;
 static NTSTATUS FspFsvolSetEa(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOCMPL_DISPATCH FspFsvolSetEaComplete;
 FSP_DRIVER_DISPATCH FspQueryEa;
 FSP_DRIVER_DISPATCH FspSetEa;
-FSP_IOCMPL_DISPATCH FspQueryEaComplete;
-FSP_IOCMPL_DISPATCH FspSetEaComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQueryEa)
+#pragma alloc_text(PAGE, FspFsvolQueryEaComplete)
 #pragma alloc_text(PAGE, FspFsvolSetEa)
+#pragma alloc_text(PAGE, FspFsvolSetEaComplete)
 #pragma alloc_text(PAGE, FspQueryEa)
 #pragma alloc_text(PAGE, FspSetEa)
-#pragma alloc_text(PAGE, FspQueryEaComplete)
-#pragma alloc_text(PAGE, FspSetEaComplete)
 #endif
 
 static NTSTATUS FspFsvolQueryEa(
@@ -32,6 +32,14 @@ static NTSTATUS FspFsvolQueryEa(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+VOID FspFsvolQueryEaComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC("%s", "");
+}
+
 static NTSTATUS FspFsvolSetEa(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -40,12 +48,18 @@ static NTSTATUS FspFsvolSetEa(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+VOID FspFsvolSetEaComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC("%s", "");
+}
+
 NTSTATUS FspQueryEa(
     PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
-
-    ASSERT(IRP_MJ_QUERY_EA == IrpSp->MajorFunction);
 
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
@@ -63,8 +77,6 @@ NTSTATUS FspSetEa(
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
-    ASSERT(IRP_MJ_SET_EA == IrpSp->MajorFunction);
-
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
@@ -74,20 +86,4 @@ NTSTATUS FspSetEa(
     }
 
     FSP_LEAVE_MJ("%s", "");
-}
-
-VOID FspQueryEaComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC("%s", "");
-}
-
-VOID FspSetEaComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC("%s", "");
 }

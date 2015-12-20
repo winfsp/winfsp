@@ -157,24 +157,20 @@
     <ClCompile Include="..\..\src\sys\ea.c" />
     <ClCompile Include="..\..\src\sys\fastio.c" />
     <ClCompile Include="..\..\src\sys\fileinfo.c" />
-    <ClCompile Include="..\..\src\sys\fileobj.c" />
     <ClCompile Include="..\..\src\sys\flush.c" />
     <ClCompile Include="..\..\src\sys\fsctl.c" />
-    <ClCompile Include="..\..\src\sys\idevctl.c" />
     <ClCompile Include="..\..\src\sys\iop.c" />
     <ClCompile Include="..\..\src\sys\ioq.c" />
     <ClCompile Include="..\..\src\sys\lockctl.c" />
-    <ClCompile Include="..\..\src\sys\misc.c" />
     <ClCompile Include="..\..\src\sys\read.c" />
-    <ClCompile Include="..\..\src\sys\resource.c" />
     <ClCompile Include="..\..\src\sys\security.c" />
     <ClCompile Include="..\..\src\sys\shutdown.c" />
+    <ClCompile Include="..\..\src\sys\util.c" />
     <ClCompile Include="..\..\src\sys\volinfo.c" />
     <ClCompile Include="..\..\src\sys\write.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h" />
-    <ClInclude Include="..\..\inc\winfsp\winfsp.h" />
     <ClInclude Include="..\..\src\sys\driver.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

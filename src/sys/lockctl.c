@@ -8,13 +8,13 @@
 
 static NTSTATUS FspFsvolLockControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOCMPL_DISPATCH FspFsvolLockControlComplete;
 FSP_DRIVER_DISPATCH FspLockControl;
-FSP_IOCMPL_DISPATCH FspLockControlComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolLockControl)
+#pragma alloc_text(PAGE, FspFsvolLockControlComplete)
 #pragma alloc_text(PAGE, FspLockControl)
-#pragma alloc_text(PAGE, FspLockControlComplete)
 #endif
 
 static NTSTATUS FspFsvolLockControl(
@@ -25,12 +25,18 @@ static NTSTATUS FspFsvolLockControl(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+VOID FspFsvolLockControlComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC("%s", "");
+}
+
 NTSTATUS FspLockControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
-
-    ASSERT(IRP_MJ_LOCK_CONTROL == IrpSp->MajorFunction);
 
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
@@ -41,12 +47,4 @@ NTSTATUS FspLockControl(
     }
 
     FSP_LEAVE_MJ("%s", "");
-}
-
-VOID FspLockControlComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC("%s", "");
 }

@@ -113,10 +113,12 @@ NTSTATUS FspIopPostWorkRequest(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_TRANSACT_R
     }
 
     PIO_STACK_LOCATION IrpSp = IoGetNextIrpStackLocation(Irp);
-    IrpSp->MajorFunction = IRP_MJ_INTERNAL_DEVICE_CONTROL;
-    IrpSp->Parameters.DeviceIoControl.IoControlCode = FSP_FSCTL_WORK;
-    IrpSp->Parameters.DeviceIoControl.InputBufferLength = Request->Size;
-    IrpSp->Parameters.DeviceIoControl.Type3InputBuffer = Request;
+    Irp->RequestorMode = KernelMode;
+    IrpSp->MajorFunction = IRP_MJ_FILE_SYSTEM_CONTROL;
+    IrpSp->MinorFunction = IRP_MN_USER_FS_REQUEST;
+    IrpSp->Parameters.FileSystemControl.FsControlCode = FSP_FSCTL_WORK;
+    IrpSp->Parameters.FileSystemControl.InputBufferLength = Request->Size;
+    IrpSp->Parameters.FileSystemControl.Type3InputBuffer = Request;
 
     ASSERT(METHOD_NEITHER == (IrpSp->Parameters.DeviceIoControl.IoControlCode & 3));
 
@@ -168,6 +170,11 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
 
     if (DeviceRelease)
         FspDeviceRelease(DeviceObject);
+}
+
+VOID FspIopCompleteCanceledIrp(PIRP Irp)
+{
+    FspIopCompleteIrpEx(Irp, STATUS_CANCELLED, TRUE);
 }
 
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)

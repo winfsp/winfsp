@@ -120,7 +120,8 @@ static VOID FspIoqPendingReleaseLock(PIO_CSQ IoCsq, _IRQL_restores_ KIRQL Irql)
 
 static VOID FspIoqPendingCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
-    FspIopCompleteIrp(Irp, STATUS_CANCELLED);
+    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
+    Ioq->CompleteCanceledIrp(Irp);
 }
 
 static NTSTATUS FspIoqProcessInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
@@ -183,11 +184,14 @@ static VOID FspIoqProcessReleaseLock(PIO_CSQ IoCsq, _IRQL_restores_ KIRQL Irql)
 
 static VOID FspIoqProcessCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
-    FspIopCompleteIrp(Irp, STATUS_CANCELLED);
+    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
+    Ioq->CompleteCanceledIrp(Irp);
 }
 
-VOID FspIoqInitialize(FSP_IOQ *Ioq)
+VOID FspIoqInitialize(FSP_IOQ *Ioq, VOID (*CompleteCanceledIrp)(PIRP Irp))
 {
+    ASSERT(0 != CompleteCanceledIrp);
+
     RtlZeroMemory(Ioq, sizeof *Ioq);
     KeInitializeSpinLock(&Ioq->SpinLock);
     KeInitializeEvent(&Ioq->PendingIrpEvent, NotificationEvent, FALSE);
@@ -207,6 +211,7 @@ VOID FspIoqInitialize(FSP_IOQ *Ioq)
         FspIoqProcessAcquireLock,
         FspIoqProcessReleaseLock,
         FspIoqProcessCompleteCanceledIrp);
+    Ioq->CompleteCanceledIrp = CompleteCanceledIrp;
 }
 
 VOID FspIoqStop(FSP_IOQ *Ioq)
@@ -219,9 +224,9 @@ VOID FspIoqStop(FSP_IOQ *Ioq)
     KeReleaseSpinLock(&Ioq->SpinLock, Irql);
     PIRP Irp;
     while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, 0)))
-        FspIoqPendingCompleteCanceledIrp(&Ioq->PendingIoCsq, Irp);
+        Ioq->CompleteCanceledIrp(Irp);
     while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->ProcessIoCsq, 0)))
-        FspIoqProcessCompleteCanceledIrp(&Ioq->ProcessIoCsq, Irp);
+        Ioq->CompleteCanceledIrp(Irp);
 }
 
 BOOLEAN FspIoqStopped(FSP_IOQ *Ioq)
@@ -245,9 +250,9 @@ VOID FspIoqRemoveExpired(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout)
         PeekContext.ExpirationTime = 0;
     PIRP Irp;
     while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, &PeekContext)))
-        FspIoqPendingCompleteCanceledIrp(&Ioq->PendingIoCsq, Irp);
+        Ioq->CompleteCanceledIrp(Irp);
     while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->ProcessIoCsq, &PeekContext)))
-        FspIoqProcessCompleteCanceledIrp(&Ioq->ProcessIoCsq, Irp);
+        Ioq->CompleteCanceledIrp(Irp);
 }
 
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp)

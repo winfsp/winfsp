@@ -58,7 +58,6 @@ NTSTATUS DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_DIRECTORY_CONTROL] = FspDirectoryControl;
     DriverObject->MajorFunction[IRP_MJ_FILE_SYSTEM_CONTROL] = FspFileSystemControl;
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = FspDeviceControl;
-    DriverObject->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = FspInternalDeviceControl;
     DriverObject->MajorFunction[IRP_MJ_SHUTDOWN] = FspShutdown;
     DriverObject->MajorFunction[IRP_MJ_LOCK_CONTROL] = FspLockControl;
     DriverObject->MajorFunction[IRP_MJ_CLEANUP] = FspCleanup;
@@ -71,24 +70,23 @@ NTSTATUS DriverEntry(
     /* setup the I/O completion functions */
     FspIopCompleteFunction[IRP_MJ_CREATE] = FspFsvolCreateComplete;
     FspIopCompleteFunction[IRP_MJ_CLOSE] = FspFsvolCloseComplete;
-    FspIopCompleteFunction[IRP_MJ_READ] = FspReadComplete;
-    FspIopCompleteFunction[IRP_MJ_WRITE] = FspWriteComplete;
-    FspIopCompleteFunction[IRP_MJ_QUERY_INFORMATION] = FspQueryInformationComplete;
-    FspIopCompleteFunction[IRP_MJ_SET_INFORMATION] = FspSetInformationComplete;
-    FspIopCompleteFunction[IRP_MJ_QUERY_EA] = FspQueryEaComplete;
-    FspIopCompleteFunction[IRP_MJ_SET_EA] = FspSetEaComplete;
-    FspIopCompleteFunction[IRP_MJ_FLUSH_BUFFERS] = FspFlushBuffersComplete;
-    FspIopCompleteFunction[IRP_MJ_QUERY_VOLUME_INFORMATION] = FspQueryVolumeInformationComplete;
-    FspIopCompleteFunction[IRP_MJ_SET_VOLUME_INFORMATION] = FspSetVolumeInformationComplete;
-    FspIopCompleteFunction[IRP_MJ_DIRECTORY_CONTROL] = FspDirectoryControlComplete;
-    FspIopCompleteFunction[IRP_MJ_FILE_SYSTEM_CONTROL] = FspFileSystemControlComplete;
-    FspIopCompleteFunction[IRP_MJ_DEVICE_CONTROL] = FspDeviceControlComplete;
-    FspIopCompleteFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = FspFsvolInternalDeviceControlComplete;
-    FspIopCompleteFunction[IRP_MJ_SHUTDOWN] = FspShutdownComplete;
-    FspIopCompleteFunction[IRP_MJ_LOCK_CONTROL] = FspLockControlComplete;
+    FspIopCompleteFunction[IRP_MJ_READ] = FspFsvolReadComplete;
+    FspIopCompleteFunction[IRP_MJ_WRITE] = FspFsvolWriteComplete;
+    FspIopCompleteFunction[IRP_MJ_QUERY_INFORMATION] = FspFsvolQueryInformationComplete;
+    FspIopCompleteFunction[IRP_MJ_SET_INFORMATION] = FspFsvolSetInformationComplete;
+    FspIopCompleteFunction[IRP_MJ_QUERY_EA] = FspFsvolQueryEaComplete;
+    FspIopCompleteFunction[IRP_MJ_SET_EA] = FspFsvolSetEaComplete;
+    FspIopCompleteFunction[IRP_MJ_FLUSH_BUFFERS] = FspFsvolFlushBuffersComplete;
+    FspIopCompleteFunction[IRP_MJ_QUERY_VOLUME_INFORMATION] = FspFsvolQueryVolumeInformationComplete;
+    FspIopCompleteFunction[IRP_MJ_SET_VOLUME_INFORMATION] = FspFsvolSetVolumeInformationComplete;
+    FspIopCompleteFunction[IRP_MJ_DIRECTORY_CONTROL] = FspFsvolDirectoryControlComplete;
+    FspIopCompleteFunction[IRP_MJ_FILE_SYSTEM_CONTROL] = FspFsvolFileSystemControlComplete;
+    FspIopCompleteFunction[IRP_MJ_DEVICE_CONTROL] = FspFsvolDeviceControlComplete;
+    FspIopCompleteFunction[IRP_MJ_SHUTDOWN] = FspFsvolShutdownComplete;
+    FspIopCompleteFunction[IRP_MJ_LOCK_CONTROL] = FspFsvolLockControlComplete;
     FspIopCompleteFunction[IRP_MJ_CLEANUP] = FspFsvolCleanupComplete;
-    FspIopCompleteFunction[IRP_MJ_QUERY_SECURITY] = FspQuerySecurityComplete;
-    FspIopCompleteFunction[IRP_MJ_SET_SECURITY] = FspSetSecurityComplete;
+    FspIopCompleteFunction[IRP_MJ_QUERY_SECURITY] = FspFsvolQuerySecurityComplete;
+    FspIopCompleteFunction[IRP_MJ_SET_SECURITY] = FspFsvolSetSecurityComplete;
 
     /* setup fast I/O and resource acquisition */
     static FAST_IO_DISPATCH FspFastIoDispatch = { 0 };
@@ -124,18 +122,15 @@ NTSTATUS DriverEntry(
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
     /*
-     * Register our devices as file systems. We do this here to simplify file system
-     * registration/unregistration, although this makes our driver unloadable from the
-     * get go.
+     * Register our "disk" device as a file system. We do not register our "net" device
+     * as a file system, but we register with the MUP instead at a later time.
      *
-     * Unfortunately a call to IoRegisterFileSystem(), even if followed by a call to
-     * IoUnregistreFileSystem(), makes the driver unloadable. We attempted to move
-     * the register/unregister calls to FspFsctlDeviceVolume{Created,Deleted}, but it
-     * did not make any difference with regards to making the driver unloadable. Hence
-     * we stick to the simpler scheme of doing registration here.
+     * Please note that the call below makes our driver unloadable. In fact the driver
+     * remains unloadable even if we issue an IoUnregisterFileSystem() call immediately
+     * after our IoRegisterFileSystem() call! Some system component appears to keep an
+     * extra reference to our device somewhere.
      */
     IoRegisterFileSystem(FspFsctlDiskDeviceObject);
-    IoRegisterFileSystem(FspFsctlNetDeviceObject);
 
 #pragma prefast(suppress:28175, "We are in DriverEntry: ok to access DriverName")
     FSP_LEAVE("DriverName=\"%wZ\", RegistryPath=\"%wZ\"",

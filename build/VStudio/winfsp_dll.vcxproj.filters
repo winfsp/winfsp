@@ -13,32 +13,4 @@
       <UniqueIdentifier>{1d6501f4-cebd-4a00-a774-deb782b59fb5}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\..\src\dll\fsctl.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\dll\ntstatus.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\dll\debug.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\dll\loop.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\dll\library.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\inc\winfsp\fsctl.h">
-      <Filter>Include\winfsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\inc\winfsp\winfsp.h">
-      <Filter>Include\winfsp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\dll\library.h">
-      <Filter>Source</Filter>
-    </ClInclude>
-  </ItemGroup>
 </Project>

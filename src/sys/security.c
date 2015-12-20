@@ -8,20 +8,20 @@
 
 static NTSTATUS FspFsvolQuerySecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOCMPL_DISPATCH FspFsvolQuerySecurityComplete;
 static NTSTATUS FspFsvolSetSecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOCMPL_DISPATCH FspFsvolSetSecurityComplete;
 FSP_DRIVER_DISPATCH FspQuerySecurity;
 FSP_DRIVER_DISPATCH FspSetSecurity;
-FSP_IOCMPL_DISPATCH FspQuerySecurityComplete;
-FSP_IOCMPL_DISPATCH FspSetSecurityComplete;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQuerySecurity)
+#pragma alloc_text(PAGE, FspFsvolQuerySecurityComplete)
 #pragma alloc_text(PAGE, FspFsvolSetSecurity)
+#pragma alloc_text(PAGE, FspFsvolSetSecurityComplete)
 #pragma alloc_text(PAGE, FspQuerySecurity)
 #pragma alloc_text(PAGE, FspSetSecurity)
-#pragma alloc_text(PAGE, FspQuerySecurityComplete)
-#pragma alloc_text(PAGE, FspSetSecurityComplete)
 #endif
 
 static NTSTATUS FspFsvolQuerySecurity(
@@ -32,6 +32,14 @@ static NTSTATUS FspFsvolQuerySecurity(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+VOID FspFsvolQuerySecurityComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC("%s", "");
+}
+
 static NTSTATUS FspFsvolSetSecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -40,12 +48,18 @@ static NTSTATUS FspFsvolSetSecurity(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+VOID FspFsvolSetSecurityComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    FSP_ENTER_IOC(PAGED_CODE());
+
+    FSP_LEAVE_IOC("%s", "");
+}
+
 NTSTATUS FspQuerySecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     FSP_ENTER_MJ(PAGED_CODE());
-
-    ASSERT(IRP_MJ_QUERY_SECURITY == IrpSp->MajorFunction);
 
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
@@ -63,8 +77,6 @@ NTSTATUS FspSetSecurity(
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
-    ASSERT(IRP_MJ_SET_SECURITY == IrpSp->MajorFunction);
-
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
@@ -74,20 +86,4 @@ NTSTATUS FspSetSecurity(
     }
 
     FSP_LEAVE_MJ("%s", "");
-}
-
-VOID FspQuerySecurityComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC("%s", "");
-}
-
-VOID FspSetSecurityComplete(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    FSP_ENTER_IOC(PAGED_CODE());
-
-    FSP_LEAVE_IOC("%s", "");
 }
