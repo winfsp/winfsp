@@ -32,6 +32,14 @@ static NTSTATUS FspFsctlCreate(
 {
     PAGED_CODE();
 
+    FSP_FSCTL_FILE_CONTEXT2 *FsContext2;
+    FsContext2 = FspAlloc(sizeof *FsContext2);
+    if (0 == FsContext2)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    RtlZeroMemory(FsContext2, sizeof *FsContext2);
+    IrpSp->FileObject->FsContext2 = FsContext2;
+
     Irp->IoStatus.Information = FILE_OPENED;
     return STATUS_SUCCESS;
 }

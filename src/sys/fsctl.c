@@ -69,6 +69,7 @@ static NTSTATUS FspFsctlCreateVolume(
 {
     PAGED_CODE();
 
+#if 0
     /* check parameters */
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
@@ -189,6 +190,9 @@ static NTSTATUS FspFsctlCreateVolume(
     }
 
     return Result;
+#else
+    return STATUS_INVALID_DEVICE_REQUEST;
+#endif
 }
 
 static NTSTATUS FspFsctlMountVolume(
@@ -196,6 +200,7 @@ static NTSTATUS FspFsctlMountVolume(
 {
     PAGED_CODE();
 
+#if 0
     NTSTATUS Result;
 
     FSP_DEVICE_EXTENSION *DeviceExtension = FspDeviceExtension(DeviceObject);
@@ -237,6 +242,9 @@ static NTSTATUS FspFsctlMountVolume(
     }
 
     return Result;
+#else
+    return STATUS_INVALID_DEVICE_REQUEST;
+#endif
 }
 
 VOID FspFsctlDeleteVolume(
@@ -245,6 +253,7 @@ VOID FspFsctlDeleteVolume(
     /* performed during IRP_MJ_CLEANUP! */
     PAGED_CODE();
 
+#if 0
     PDEVICE_OBJECT FsvolDeviceObject = 0;
 
     FSP_DEVICE_EXTENSION *DeviceExtension = FspDeviceExtension(DeviceObject);
@@ -336,11 +345,14 @@ VOID FspFsctlDeleteVolume(
             FspDeviceRelease(FsvolDeviceObject);
         }
     }
+#endif
 }
 
 static VOID FspFsctlDeleteVolumeDelayed(PVOID Context)
 {
     PAGED_CODE();
+
+#if 0
 
     PDEVICE_OBJECT FsvolDeviceObject = Context;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
@@ -365,6 +377,7 @@ static VOID FspFsctlDeleteVolumeDelayed(PVOID Context)
         DelayTimeout.QuadPart = 300/*ms*/ * -10000;
         FspQueueWorkItemWithDelay(&FsvolDeviceExtension->DeleteVolumeWorkItem, DelayTimeout);
     }
+#endif
 }
 
 static NTSTATUS FspFsctlTransact(

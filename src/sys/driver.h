@@ -355,8 +355,6 @@ typedef struct
     KSPIN_LOCK SpinLock;
     LONG RefCount;
     ERESOURCE Resource;
-    RTL_AVL_TABLE GenericTable;
-    PVOID GenericTableElementStorage;
     UINT32 Kind;
 } FSP_DEVICE_EXTENSION;
 typedef struct
@@ -374,6 +372,8 @@ typedef struct
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;
     BOOLEAN ExpirationInProgress;
+    RTL_AVL_TABLE GenericTable;
+    PVOID GenericTableElementStorage;
 } FSP_FSVOL_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
@@ -397,16 +397,22 @@ VOID FspDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
-PVOID FspDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
-PVOID FspDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
+PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
+PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     FSP_DEVICE_GENERIC_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
-VOID FspDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
+VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     PBOOLEAN PDeleted);
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
 VOID FspDeviceDeleteAll(VOID);
+
+/* fsctl file objects */
+typedef struct
+{
+    PDEVICE_OBJECT FsvolDeviceObject;
+} FSP_FSCTL_FILE_CONTEXT2;
 
 /* debug */
 #if DBG

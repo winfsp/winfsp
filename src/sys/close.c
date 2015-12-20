@@ -28,6 +28,9 @@ static NTSTATUS FspFsctlClose(
 {
     PAGED_CODE();
 
+    FspFree(IrpSp->FileObject->FsContext2);
+    IrpSp->FileObject->FsContext2 = 0;
+
     Irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;
 }
