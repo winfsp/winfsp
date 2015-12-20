@@ -154,7 +154,6 @@ static NTSTATUS FspFsctlCreateVolume(
         FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
         FsvolDeviceExtension->FsctlDeviceObject = DeviceObject;
         FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
-        FsvolDeviceExtension->MupHandle = MupHandle;
         FsvolDeviceExtension->VolumeParams = VolumeParams;
         if (0 != FsvrtDeviceObject)
             FspDeviceInitComplete(FsvrtDeviceObject);
@@ -169,6 +168,7 @@ static NTSTATUS FspFsctlCreateVolume(
                 FspDeviceRelease(FsvolDeviceObject);
                 goto exit;
             }
+            FsvolDeviceExtension->MupHandle = MupHandle;
         }
 
         /* associate the new volume device with our file object */
