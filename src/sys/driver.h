@@ -411,6 +411,7 @@ VOID FspDeviceDeleteAll(VOID);
 /* fsctl file objects */
 typedef struct
 {
+    FAST_MUTEX FastMutex;
     PDEVICE_OBJECT FsvolDeviceObject;
 } FSP_FSCTL_FILE_CONTEXT2;
 
