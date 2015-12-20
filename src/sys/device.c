@@ -232,7 +232,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     if (!NT_SUCCESS(Result))
         return Result;
 
-    /* allocate a spare VPB in case we are mounted on an fsvrt */
+    /* allocate a spare VPB in case we are mounted on a virtual disk */
     if (FILE_DEVICE_DISK_FILE_SYSTEM == DeviceObject->DeviceType)
     {
         FsvolDeviceExtension->SwapVpb = FspAllocNonPagedExternal(sizeof *FsvolDeviceExtension->SwapVpb);
