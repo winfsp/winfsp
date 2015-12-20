@@ -80,6 +80,14 @@ static NTSTATUS FspFsctlCreateVolume(
 
     NTSTATUS Result;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams = *(FSP_FSCTL_VOLUME_PARAMS *)SystemBuffer;
+    GUID Guid;
+    UNICODE_STRING DeviceSddl;
+    UNICODE_STRING DeviceName;
+    FSP_FSCTL_FILE_CONTEXT2 *FsContext2;
+    HANDLE MupHandle = 0;
+    PDEVICE_OBJECT FsvrtDeviceObject = 0;
+    PDEVICE_OBJECT FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
     /* check the passed in VolumeParams */
     if (FspFsctlIrpTimeoutMinimum > VolumeParams.IrpTimeout ||
@@ -96,14 +104,11 @@ static NTSTATUS FspFsctlCreateVolume(
         VolumeParams.TransactTimeout = FspFsctlTransactTimeoutDefault;
 
     /* create volume guid */
-    GUID Guid;
     Result = FspCreateGuid(&Guid);
     if (!NT_SUCCESS(Result))
         return Result;
 
     /* prepare the device name and SDDL */
-    UNICODE_STRING DeviceSddl;
-    UNICODE_STRING DeviceName;
     RtlInitUnicodeString(&DeviceSddl, L"" FSP_FSVRT_DEVICE_SDDL);
     RtlInitEmptyUnicodeString(&DeviceName, SystemBuffer, FSP_FSCTL_CREATE_BUFFER_SIZEMIN);
     Result = RtlUnicodeStringPrintf(&DeviceName,
@@ -113,7 +118,7 @@ static NTSTATUS FspFsctlCreateVolume(
         Guid.Data4[4], Guid.Data4[5], Guid.Data4[6], Guid.Data4[7]);
     ASSERT(NT_SUCCESS(Result));
 
-    FSP_FSCTL_FILE_CONTEXT2 *FsContext2 = IrpSp->FileObject->FsContext2;
+    FsContext2 = IrpSp->FileObject->FsContext2;
     ExAcquireFastMutex(&FsContext2->FastMutex);
     try
     {
@@ -123,11 +128,6 @@ static NTSTATUS FspFsctlCreateVolume(
             Result = STATUS_ACCESS_DENIED;
             goto exit;
         }
-
-        HANDLE MupHandle = 0;
-        PDEVICE_OBJECT FsvrtDeviceObject = 0;
-        PDEVICE_OBJECT FsvolDeviceObject;
-        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
         /* create the volume (and virtual disk) device(s) */
         Result = FspDeviceCreate(FspFsvolDeviceExtensionKind, 0,
@@ -247,6 +247,7 @@ VOID FspFsctlDeleteVolume(
 
     FSP_FSCTL_FILE_CONTEXT2 *FsContext2 = IrpSp->FileObject->FsContext2;
     PDEVICE_OBJECT FsvolDeviceObject = 0;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
     /*
      * Check to see if we have a volume. There is no need to protect this
@@ -255,8 +256,7 @@ VOID FspFsctlDeleteVolume(
     FsvolDeviceObject = FsContext2->FsvolDeviceObject;
     if (0 == FsvolDeviceObject)
         return;
-
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
 
     /* mark the volume device as pending delete */
     FsvolDeviceExtension->DeletePending = TRUE;
@@ -372,17 +372,24 @@ static NTSTATUS FspFsctlTransact(
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
-    if (0 == SystemBuffer ||
-        (0 != InputBufferLength &&
-            FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_RSP)) > InputBufferLength))
+    if (0 != InputBufferLength &&
+        FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_RSP)) > InputBufferLength)
         return STATUS_INVALID_PARAMETER;
     if (FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN > OutputBufferLength)
         return STATUS_BUFFER_TOO_SMALL;
 
     NTSTATUS Result;
+    FSP_FSCTL_FILE_CONTEXT2 *FsContext2;
     PDEVICE_OBJECT FsvolDeviceObject = 0;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
+    PVOID MdlBuffer;
+    PUINT8 BufferEnd;
+    FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
+    FSP_FSCTL_TRANSACT_REQ *Request, *PendingIrpRequest;
+    PIRP ProcessIrp, PendingIrp;
+    LARGE_INTEGER Timeout;
 
-    FSP_FSCTL_FILE_CONTEXT2 *FsContext2 = IrpSp->FileObject->FsContext2;
+    FsContext2 = IrpSp->FileObject->FsContext2;
     ExAcquireFastMutex(&FsContext2->FastMutex);
     try
     {
@@ -408,16 +415,10 @@ static NTSTATUS FspFsctlTransact(
     if (!NT_SUCCESS(Result))
         return Result;
 
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    PVOID MdlBuffer;
-    PUINT8 BufferEnd;
-    FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
-    FSP_FSCTL_TRANSACT_REQ *Request, *PendingIrpRequest;
-    PIRP ProcessIrp, PendingIrp;
-    LARGE_INTEGER Timeout;
-
     try
     {
+        FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+
         /* process any user-mode file system responses */
         Response = SystemBuffer;
         BufferEnd = (PUINT8)SystemBuffer + InputBufferLength;
