@@ -354,7 +354,6 @@ typedef struct
 {
     KSPIN_LOCK SpinLock;
     LONG RefCount;
-    ERESOURCE Resource;
     UINT32 Kind;
 } FSP_DEVICE_EXTENSION;
 typedef struct
@@ -364,16 +363,17 @@ typedef struct
     PDEVICE_OBJECT FsvrtDeviceObject;
     HANDLE MupHandle;
     BOOLEAN DeletePending;
+    PVPB SwapVpb;
     FSP_WORK_ITEM_WITH_DELAY DeleteVolumeWorkItem;
     FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
-    PVPB SwapVpb;
     FSP_IOQ Ioq;
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;
     BOOLEAN ExpirationInProgress;
     RTL_AVL_TABLE GenericTable;
     PVOID GenericTableElementStorage;
+    ERESOURCE Resource;
 } FSP_FSVOL_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)

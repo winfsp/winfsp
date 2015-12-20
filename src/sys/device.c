@@ -100,7 +100,6 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
     DeviceExtension = FspDeviceExtension(DeviceObject);
     KeInitializeSpinLock(&DeviceExtension->SpinLock);
     DeviceExtension->RefCount = 1;
-    ExInitializeResourceLite(&DeviceExtension->Resource);
     DeviceExtension->Kind = Kind;
 
     switch (Kind)
@@ -115,10 +114,7 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
     }
 
     if (!NT_SUCCESS(Result))
-    {
-        ExDeleteResourceLite(&DeviceExtension->Resource);
         IoDeleteDevice(DeviceObject);
-    }
     else
         *PDeviceObject = DeviceObject;
 
@@ -177,7 +173,6 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
         return;
     }
 
-    ExDeleteResourceLite(&DeviceExtension->Resource);
     IoDeleteDevice(DeviceObject);
 }
 
@@ -247,6 +242,9 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     ExInitializeWorkItem(&FsvolDeviceExtension->ExpirationWorkItem,
         FspFsvolDeviceExpirationRoutine, DeviceObject);
 
+    /* initialize our resource */
+    ExInitializeResourceLite(&FsvolDeviceExtension->Resource);
+
     /* initialize our generic table */
     RtlInitializeGenericTableAvl(&FsvolDeviceExtension->GenericTable,
         FspFsvolDeviceCompareElement, FspFsvolDeviceAllocateElement, FspFsvolDeviceFreeElement, 0);
@@ -305,6 +303,9 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
     /* free the spare VPB if we still have it */
     if (0 != FsvolDeviceExtension->SwapVpb)
         FspFreeExternal(FsvolDeviceExtension->SwapVpb);
+
+    /* delete our resource */
+    ExDeleteResourceLite(&FsvolDeviceExtension->Resource);
 }
 
 static VOID FspFsvolDeviceTimerRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
@@ -364,7 +365,7 @@ PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Base.Resource));
+    ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Resource));
 
     FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Result;
 
@@ -379,7 +380,7 @@ PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Base.Resource));
+    ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Resource));
     ASSERT(0 != ElementStorage);
 
     FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Result, Element = { 0 };
@@ -402,7 +403,7 @@ VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Base.Resource));
+    ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Resource));
 
     BOOLEAN Deleted;
 
