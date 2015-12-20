@@ -73,7 +73,7 @@ static NTSTATUS FspFsctlCreateVolume(
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
-    if (sizeof(FSP_FSCTL_VOLUME_PARAMS) > InputBufferLength || 0 == SystemBuffer)
+    if (0 == SystemBuffer || sizeof(FSP_FSCTL_VOLUME_PARAMS) > InputBufferLength)
         return STATUS_INVALID_PARAMETER;
     if (FSP_FSCTL_CREATE_BUFFER_SIZEMIN > OutputBufferLength)
         return STATUS_BUFFER_TOO_SMALL;
@@ -368,7 +368,6 @@ static NTSTATUS FspFsctlTransact(
 {
     PAGED_CODE();
 
-#if 0
     /* check parameters */
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
@@ -381,99 +380,143 @@ static NTSTATUS FspFsctlTransact(
         return STATUS_BUFFER_TOO_SMALL;
 
     NTSTATUS Result;
-    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
-    PUINT8 SystemBufferEnd;
+    PDEVICE_OBJECT FsvolDeviceObject = 0;
+
+    FSP_FSCTL_FILE_CONTEXT2 *FsContext2 = IrpSp->FileObject->FsContext2;
+    ExAcquireFastMutex(&FsContext2->FastMutex);
+    try
+    {
+        /* check to see if we already have a volume */
+        FsvolDeviceObject = FsContext2->FsvolDeviceObject;
+        if (0 != FsvolDeviceObject)
+        {
+            BOOLEAN Success; (VOID)Success;
+
+            /* this must succeed because our volume device exists until IRP_MJ_CLEANUP */
+            Success = FspDeviceRetain(FsvolDeviceObject);
+            ASSERT(Success);
+
+            Result = STATUS_SUCCESS;
+        }
+        else
+            Result = STATUS_ACCESS_DENIED;
+    }
+    finally
+    {
+        ExReleaseFastMutex(&FsContext2->FastMutex);
+    }
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PVOID MdlBuffer;
+    PUINT8 BufferEnd;
     FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
     FSP_FSCTL_TRANSACT_REQ *Request, *PendingIrpRequest;
     PIRP ProcessIrp, PendingIrp;
     LARGE_INTEGER Timeout;
 
-    /* access check */
-    Result = FspSecuritySubjectContextAccessCheck(
-        FsvrtDeviceExtension->SecurityDescriptorBuf, FILE_WRITE_DATA, Irp->RequestorMode);
-    if (!NT_SUCCESS(Result))
-        return Result;
-
-    /* process any user-mode file system responses */
-    Response = SystemBuffer;
-    SystemBufferEnd = (PUINT8)SystemBuffer + InputBufferLength;
-    for (;;)
+    try
     {
-        NextResponse = FspFsctlTransactConsumeResponse(Response, SystemBufferEnd);
-        if (0 == NextResponse)
-            break;
-
-        ProcessIrp = FspIoqEndProcessingIrp(&FsvrtDeviceExtension->Ioq, (UINT_PTR)Response->Hint);
-        if (0 == ProcessIrp)
-            /* either IRP was canceled or a bogus Hint was provided */
-            continue;
-
-        FspIopDispatchComplete(ProcessIrp, Response);
-
-        Response = NextResponse;
-    }
-
-    /* wait for an IRP to arrive */
-    KeQuerySystemTime(&Timeout);
-    Timeout.QuadPart += FsvrtDeviceExtension->VolumeParams.TransactTimeout * 10000;
-        /* convert millis to nanos and add to absolute time */
-    while (0 == (PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, &Timeout)))
-    {
-        if (FspIoqStopped(&FsvrtDeviceExtension->Ioq))
-            return STATUS_CANCELLED;
-    }
-    if (FspIoqTimeout == PendingIrp)
-    {
-        Irp->IoStatus.Information = 0;
-        return STATUS_SUCCESS;
-    }
-
-    /* send any pending IRP's to the user-mode file system */
-    Request = SystemBuffer;
-    SystemBufferEnd = (PUINT8)SystemBuffer + OutputBufferLength;
-    ASSERT(FspFsctlTransactCanProduceRequest(Request, SystemBufferEnd));
-    for (;;)
-    {
-        PendingIrpRequest = FspIrpRequest(PendingIrp);
-
-        Result = FspIopDispatchPrepare(PendingIrp, PendingIrpRequest);
-        if (!NT_SUCCESS(Result))
-            FspIopCompleteIrp(PendingIrp, Result);
-        else
+        /* process any user-mode file system responses */
+        Response = SystemBuffer;
+        BufferEnd = (PUINT8)SystemBuffer + InputBufferLength;
+        for (;;)
         {
-            RtlCopyMemory(Request, PendingIrpRequest, PendingIrpRequest->Size);
-            Request = FspFsctlTransactProduceRequest(Request, PendingIrpRequest->Size);
-
-            if (!FspIoqStartProcessingIrp(&FsvrtDeviceExtension->Ioq, PendingIrp))
-            {
-                /*
-                 * This can only happen if the Ioq was stopped. Abandon everything
-                 * and return STATUS_CANCELLED. Any IRP's in the Pending and Process
-                 * queues of the Ioq will be cancelled during FspIoqStop(). We must
-                 * also cancel the PendingIrp we have in our hands.
-                 */
-                ASSERT(FspIoqStopped(&FsvrtDeviceExtension->Ioq));
-                FspIopCompleteIrp(PendingIrp, STATUS_CANCELLED);
-                return STATUS_CANCELLED;
-            }
-
-            /* check that we have enough space before pulling the next pending IRP off the queue */
-            if (!FspFsctlTransactCanProduceRequest(Request, SystemBufferEnd))
+            NextResponse = FspFsctlTransactConsumeResponse(Response, BufferEnd);
+            if (0 == NextResponse)
                 break;
+
+            ProcessIrp = FspIoqEndProcessingIrp(&FsvolDeviceExtension->Ioq, (UINT_PTR)Response->Hint);
+            if (0 == ProcessIrp)
+                /* either IRP was canceled or a bogus Hint was provided */
+                continue;
+
+            FspIopDispatchComplete(ProcessIrp, Response);
+
+            Response = NextResponse;
         }
 
-        PendingIrp = FspIoqNextPendingIrp(&FsvrtDeviceExtension->Ioq, 0);
-        if (0 == PendingIrp)
-            break;
+        /* try to get a pointer to the output buffer */
+        MdlBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
+        if (0 == MdlBuffer)
+        {
+            Irp->IoStatus.Information = 0;
+            Result = STATUS_SUCCESS;
+            goto exit;
+        }
 
+        /* wait for an IRP to arrive */
+        KeQuerySystemTime(&Timeout);
+        Timeout.QuadPart += FsvolDeviceExtension->VolumeParams.TransactTimeout * 10000;
+            /* convert millis to nanos and add to absolute time */
+        while (0 == (PendingIrp = FspIoqNextPendingIrp(&FsvolDeviceExtension->Ioq, &Timeout)))
+        {
+            if (FspIoqStopped(&FsvolDeviceExtension->Ioq))
+            {
+                Result = STATUS_CANCELLED;
+                goto exit;
+            }
+        }
+        if (FspIoqTimeout == PendingIrp)
+        {
+            Irp->IoStatus.Information = 0;
+            Result = STATUS_SUCCESS;
+            goto exit;
+        }
+
+        /* send any pending IRP's to the user-mode file system */
+        Request = MdlBuffer;
+        BufferEnd = (PUINT8)MdlBuffer + OutputBufferLength;
+        ASSERT(FspFsctlTransactCanProduceRequest(Request, BufferEnd));
+        for (;;)
+        {
+            PendingIrpRequest = FspIrpRequest(PendingIrp);
+
+            Result = FspIopDispatchPrepare(PendingIrp, PendingIrpRequest);
+            if (!NT_SUCCESS(Result))
+                FspIopCompleteIrp(PendingIrp, Result);
+            else
+            {
+                RtlCopyMemory(Request, PendingIrpRequest, PendingIrpRequest->Size);
+                Request = FspFsctlTransactProduceRequest(Request, PendingIrpRequest->Size);
+
+                if (!FspIoqStartProcessingIrp(&FsvolDeviceExtension->Ioq, PendingIrp))
+                {
+                    /*
+                     * This can only happen if the Ioq was stopped. Abandon everything
+                     * and return STATUS_CANCELLED. Any IRP's in the Pending and Process
+                     * queues of the Ioq will be cancelled during FspIoqStop(). We must
+                     * also cancel the PendingIrp we have in our hands.
+                     */
+                    ASSERT(FspIoqStopped(&FsvolDeviceExtension->Ioq));
+                    FspIopCompleteIrp(PendingIrp, STATUS_CANCELLED);
+                    Result = STATUS_CANCELLED;
+                    goto exit;
+                }
+
+                /* check that we have enough space before pulling the next pending IRP off the queue */
+                if (!FspFsctlTransactCanProduceRequest(Request, BufferEnd))
+                    break;
+            }
+
+            PendingIrp = FspIoqNextPendingIrp(&FsvolDeviceExtension->Ioq, 0);
+            if (0 == PendingIrp)
+                break;
+
+        }
+
+        Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)MdlBuffer;
+        Result = STATUS_SUCCESS;
+
+    exit:;
     }
-    Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)SystemBuffer;
+    finally
+    {
+        FspDeviceRelease(FsvolDeviceObject);
+    }
 
-    return STATUS_SUCCESS;
-
-#else
-    return STATUS_INVALID_DEVICE_REQUEST;
-#endif
+    return Result;
 }
 
 static NTSTATUS FspFsvolFileSystemControl(
