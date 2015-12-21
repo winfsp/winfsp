@@ -370,7 +370,6 @@ typedef struct
     BOOLEAN DeletePending;
     PVPB SwapVpb;
     FSP_WORK_ITEM_WITH_DELAY DeleteVolumeWorkItem;
-    FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     FSP_IOQ Ioq;
     KSPIN_LOCK ExpirationLock;
