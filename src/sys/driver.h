@@ -38,6 +38,20 @@
 #define DEBUGLOG(fmt, ...)              ((void)0)
 #endif
 
+/* DEBUGBREAK */
+#if DBG
+extern __declspec(selectany) int bpglobal = 1;
+#define DEBUGBREAK()                    \
+    do                                  \
+    {                                   \
+        static int bp = 1;          \
+        if (bp && bpglobal && !KD_DEBUGGER_NOT_PRESENT)\
+            DbgBreakPoint();            \
+    } while (0,0)
+#else
+#define DEBUGBREAK()                    do {} while (0,0)
+#endif
+
 /* FSP_ENTER/FSP_LEAVE */
 #if DBG
 #define FSP_DEBUGLOG_(fmt, rfmt, ...)   \
@@ -49,21 +63,12 @@
     DbgPrint(                           \
         "[%d] " DRIVER_NAME "!" __FUNCTION__ "(" fmt ")" rfmt "\n",\
         KeGetCurrentIrql(), __VA_ARGS__)
-#define FSP_DEBUGBRK_()                 \
-    do                                  \
-    {                                   \
-        extern int fsp_bp_global;       \
-        static int fsp_bp = 1;          \
-        if (fsp_bp && fsp_bp_global && !KD_DEBUGGER_NOT_PRESENT && HasDbgBreakPoint(__FUNCTION__))\
-            DbgBreakPoint();            \
-    } while (0,0)
 #else
 #define FSP_DEBUGLOG_(fmt, rfmt, ...)   ((void)0)
 #define FSP_DEBUGLOG_NOCRIT_(fmt, rfmt, ...)((void)0)
-#define FSP_DEBUGBRK_()                 ((void)0)
 #endif
 #define FSP_ENTER_(...)                 \
-    FSP_DEBUGBRK_();                    \
+    DEBUGBREAK();                       \
     FsRtlEnterFileSystem();             \
     try                                 \
     {                                   \
@@ -78,7 +83,7 @@
         FsRtlExitFileSystem();          \
     }
 #define FSP_ENTER_NOCRIT_(...)          \
-    FSP_DEBUGBRK_();                    \
+    DEBUGBREAK();                       \
     {                                   \
         __VA_ARGS__
 #define FSP_LEAVE_NOCRIT_(...)          \
@@ -417,7 +422,6 @@ typedef struct
 
 /* debug */
 #if DBG
-BOOLEAN HasDbgBreakPoint(const char *Function);
 const char *NtStatusSym(NTSTATUS Status);
 const char *IrpMajorFunctionSym(UCHAR MajorFunction);
 const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);

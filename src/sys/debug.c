@@ -10,18 +10,6 @@
 #define SYM(x)                          case x: return #x;
 #define SYMBRC(x)                       case x: return "[" #x "]";
 
-int fsp_bp_global = 1;
-static ANSI_STRING DbgBreakPointInc = RTL_CONSTANT_STRING("Fsp*");
-BOOLEAN HasDbgBreakPoint(const char *Function)
-{
-    /* poor man's breakpoints; work around 32 breakpoints kernel limit */
-    if (KeGetCurrentIrql() > APC_LEVEL) /* FsRtlIsDbcsInExpression restriction */
-        return TRUE;
-    ANSI_STRING Name;
-    RtlInitAnsiString(&Name, Function);
-    return FsRtlIsDbcsInExpression(&DbgBreakPointInc, &Name);
-}
-
 const char *NtStatusSym(NTSTATUS Status)
 {
     switch (Status)
