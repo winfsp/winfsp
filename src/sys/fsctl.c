@@ -375,7 +375,8 @@ static NTSTATUS FspFsctlTransact(
     if (0 != InputBufferLength &&
         FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_RSP)) > InputBufferLength)
         return STATUS_INVALID_PARAMETER;
-    if (FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN > OutputBufferLength)
+    if (0 != OutputBufferLength &&
+        FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN > OutputBufferLength)
         return STATUS_BUFFER_TOO_SMALL;
 
     NTSTATUS Result;
@@ -438,14 +439,15 @@ static NTSTATUS FspFsctlTransact(
             Response = NextResponse;
         }
 
-        /* try to get a pointer to the output buffer */
-        MdlBuffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
-        if (0 == MdlBuffer)
+        /* were we sent an output buffer? */
+        if (0 == Irp->MdlAddress)
         {
             Irp->IoStatus.Information = 0;
             Result = STATUS_SUCCESS;
             goto exit;
         }
+        MdlBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
+        ASSERT(0 != MdlBuffer);
 
         /* wait for an IRP to arrive */
         KeQuerySystemTime(&Timeout);
