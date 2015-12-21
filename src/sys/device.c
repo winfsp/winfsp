@@ -17,6 +17,8 @@ VOID FspDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
+static BOOLEAN FspDeviceRetainAtDpcLevel(PDEVICE_OBJECT DeviceObject);
+static VOID FspDeviceReleaseFromDpcLevel(PDEVICE_OBJECT DeviceObject);
 static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsvolDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject);
@@ -73,8 +75,6 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
         DeviceExtensionSize = sizeof(FSP_FSVOL_DEVICE_EXTENSION);
         break;
     case FspFsvrtDeviceExtensionKind:
-        DeviceExtensionSize = 0;
-        break;
     case FspFsctlDeviceExtensionKind:
         DeviceExtensionSize = 0;
         break;
@@ -108,7 +108,6 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
         Result = FspFsvolDeviceInit(DeviceObject);
         break;
     case FspFsvrtDeviceExtensionKind:
-        break;
     case FspFsctlDeviceExtensionKind:
         break;
     }
@@ -142,7 +141,6 @@ VOID FspDeviceInitComplete(PDEVICE_OBJECT DeviceObject)
         FspFsvolDeviceInitComplete(DeviceObject);
         break;
     case FspFsvrtDeviceExtensionKind:
-        break;
     case FspFsctlDeviceExtensionKind:
         break;
     default:
@@ -165,7 +163,6 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
         FspFsvolDeviceFini(DeviceObject);
         break;
     case FspFsvrtDeviceExtensionKind:
-        break;
     case FspFsctlDeviceExtensionKind:
         break;
     default:
@@ -213,6 +210,44 @@ VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject)
 
     if (Delete)
         FspDeviceDelete(DeviceObject);
+}
+
+_IRQL_requires_(DISPATCH_LEVEL)
+static BOOLEAN FspDeviceRetainAtDpcLevel(PDEVICE_OBJECT DeviceObject)
+{
+    // !PAGED_CODE();
+
+    BOOLEAN Result;
+    FSP_DEVICE_EXTENSION *DeviceExtension;
+
+    DeviceExtension = FspDeviceExtension(DeviceObject);
+    KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+    Result = 0 != DeviceExtension->RefCount;
+    if (Result)
+        DeviceExtension->RefCount++;
+    KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+    return Result;
+}
+
+_IRQL_requires_(DISPATCH_LEVEL)
+static VOID FspDeviceReleaseFromDpcLevel(PDEVICE_OBJECT DeviceObject)
+{
+    // !PAGED_CODE();
+
+    BOOLEAN Delete = FALSE;
+    FSP_DEVICE_EXTENSION *DeviceExtension;
+
+    DeviceExtension = FspDeviceExtension(DeviceObject);
+    KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+    if (0 != DeviceExtension->RefCount)
+    {
+        DeviceExtension->RefCount--;
+        Delete = 0 == DeviceExtension->RefCount;
+    }
+    KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+    ASSERT(!Delete);
 }
 
 static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
@@ -279,7 +314,7 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
      *
      * Our IoTimer routine will NOT be called again after IoStopTimer() returns.
      * However a work item may be in flight. For this reason our IoTimer routine
-     * does an ObReferenceObject() on our DeviceObject before queueing work items.
+     * retains our DeviceObject before queueing work items.
      */
     IoStopTimer(DeviceObject);
 
@@ -313,23 +348,30 @@ static VOID FspFsvolDeviceTimerRoutine(PDEVICE_OBJECT DeviceObject, PVOID Contex
     // !PAGED_CODE();
 
     /*
-     * This routine runs at DPC level. Reference our DeviceObject and queue a work item
+     * This routine runs at DPC level. Retain our DeviceObject and queue a work item
      * so that we can do our processing at Passive level. Only do so if the work item
      * is not already in flight (otherwise we could requeue the same work item).
      */
 
     ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
     
+    if (!FspDeviceRetainAtDpcLevel(DeviceObject))
+        return;
+
+    BOOLEAN ExpirationInProgress;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
 
     KeAcquireSpinLockAtDpcLevel(&FsvolDeviceExtension->ExpirationLock);
-    if (!FsvolDeviceExtension->ExpirationInProgress)
+    ExpirationInProgress = FsvolDeviceExtension->ExpirationInProgress;
+    if (!ExpirationInProgress)
     {
         FsvolDeviceExtension->ExpirationInProgress = TRUE;
-        ObReferenceObject(DeviceObject);
         ExQueueWorkItem(&FsvolDeviceExtension->ExpirationWorkItem, DelayedWorkQueue);
     }
     KeReleaseSpinLockFromDpcLevel(&FsvolDeviceExtension->ExpirationLock);
+
+    if (ExpirationInProgress)
+        FspDeviceReleaseFromDpcLevel(DeviceObject);
 }
 
 static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
@@ -337,27 +379,19 @@ static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
     // !PAGED_CODE();
 
     PDEVICE_OBJECT DeviceObject = Context;
-    if (FspDeviceRetain(DeviceObject))
-        try
-        {
-            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-            LARGE_INTEGER Timeout;
-            KIRQL Irql;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    LARGE_INTEGER Timeout;
+    KIRQL Irql;
 
-            Timeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000;
-                /* convert millis to nanos */
-            FspIoqRemoveExpired(&FsvolDeviceExtension->Ioq, &Timeout);
+    Timeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000;
+        /* convert millis to nanos */
+    FspIoqRemoveExpired(&FsvolDeviceExtension->Ioq, &Timeout);
 
-            KeAcquireSpinLock(&FsvolDeviceExtension->ExpirationLock, &Irql);
-            FsvolDeviceExtension->ExpirationInProgress = FALSE;
-            KeReleaseSpinLock(&FsvolDeviceExtension->ExpirationLock, Irql);
-        }
-        finally
-        {
-            FspDeviceRelease(DeviceObject);
-        }
+    KeAcquireSpinLock(&FsvolDeviceExtension->ExpirationLock, &Irql);
+    FsvolDeviceExtension->ExpirationInProgress = FALSE;
+    KeReleaseSpinLock(&FsvolDeviceExtension->ExpirationLock, Irql);
 
-    ObDereferenceObject(DeviceObject);
+    FspDeviceRelease(DeviceObject);
 }
 
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier)
