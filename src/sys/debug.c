@@ -14,7 +14,7 @@ const char *NtStatusSym(NTSTATUS Status)
 {
     switch (Status)
     {
-    /* cygwin: sed -n '/_WAIT_0/!s/^#define[ \t]*\(STATUS_[^ \t]*\).*NTSTATUS.*$/SYM(\1)/p' */
+    // cygwin: sed -n '/_WAIT_0/!s/^#define[ \t]*\(STATUS_[^ \t]*\).*NTSTATUS.*$/SYM(\1)/p'
     #include "ntstatus.i"
     default:
         return "NTSTATUS:Unknown";
@@ -156,6 +156,8 @@ const char *IoctlCodeSym(ULONG ControlCode)
     SYM(FSP_FSCTL_CREATE)
     SYM(FSP_FSCTL_TRANSACT)
     SYM(FSP_FSCTL_WORK)
+    // cygwin: sed -n '/[IF][OS]CTL.*CTL_CODE/s/^#define[ \t]*\([^ \t]*\).*/SYM(\1)/p'
+    #include "ioctl.i"
     default:
         return "IOCTL:Unknown";
     }
