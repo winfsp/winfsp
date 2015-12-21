@@ -19,6 +19,8 @@ static NTSTATUS FspFsctlTransact(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolWork(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolFileSystemControlComplete;
 FSP_DRIVER_DISPATCH FspFileSystemControl;
 
@@ -30,6 +32,7 @@ FSP_DRIVER_DISPATCH FspFileSystemControl;
 #pragma alloc_text(PAGE, FspFsctlDeleteVolumeDelayed)
 #pragma alloc_text(PAGE, FspFsctlTransact)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControl)
+#pragma alloc_text(PAGE, FspFsvolWork)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlComplete)
 #pragma alloc_text(PAGE, FspFileSystemControl)
 #endif
@@ -61,6 +64,7 @@ static NTSTATUS FspFsctlFileSystemControl(
         break;
 #endif
     }
+
     return Result;
 }
 
@@ -531,8 +535,54 @@ static NTSTATUS FspFsvolFileSystemControl(
     switch (IrpSp->MinorFunction)
     {
     case IRP_MN_USER_FS_REQUEST:
+        switch (IrpSp->Parameters.FileSystemControl.FsControlCode)
+        {
+        case FSP_FSCTL_WORK:
+            Result = FspFsvolWork(DeviceObject, Irp, IrpSp);
+            break;
+        }
         break;
     }
+
+    return Result;
+}
+
+static NTSTATUS FspFsvolWork(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    if (KernelMode != Irp->RequestorMode)
+        return STATUS_ACCESS_DENIED;
+
+    NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_FSCTL_TRANSACT_REQ *Request = IrpSp->Parameters.FileSystemControl.Type3InputBuffer;
+
+    ASSERT(0 == Request->Hint);
+
+    /* associate the passed Request with our Irp; acquire ownership of the Request */
+    Request->Hint = (UINT_PTR)Irp;
+    FspIrpRequest(Irp) = Request;
+
+    /*
+     * Post the IRP to our Ioq; we do this here instead of at IRP_LEAVE_MJ time,
+     * so that we can disassociate the Request on failure and release ownership
+     * back to the caller.
+     */
+    if (!FspIoqPostIrp(&FsvolDeviceExtension->Ioq, Irp))
+    {
+        /* this can only happen if the Ioq was stopped */
+        ASSERT(FspIoqStopped(&FsvolDeviceExtension->Ioq));
+
+        Request->Hint = 0;
+        FspIrpRequest(Irp) = 0;
+
+        Result = STATUS_CANCELLED;
+    }
+    else
+        Result = STATUS_PENDING;
+
     return Result;
 }
 
