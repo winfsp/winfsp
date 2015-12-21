@@ -24,6 +24,8 @@ static VOID FspFsvolDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject);
 static IO_TIMER_ROUTINE FspFsvolDeviceTimerRoutine;
 static WORKER_THREAD_ROUTINE FspFsvolDeviceExpirationRoutine;
+VOID FspFsvolDeviceLockContext(PDEVICE_OBJECT DeviceObject);
+VOID FspFsvolDeviceUnlockContext(PDEVICE_OBJECT DeviceObject);
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
 PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     FSP_DEVICE_GENERIC_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
@@ -46,6 +48,8 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceInit)
 #pragma alloc_text(PAGE, FspFsvolDeviceInitComplete)
 #pragma alloc_text(PAGE, FspFsvolDeviceFini)
+#pragma alloc_text(PAGE, FspFsvolDeviceLockContext)
+#pragma alloc_text(PAGE, FspFsvolDeviceUnlockContext)
 #pragma alloc_text(PAGE, FspFsvolDeviceLookupContext)
 #pragma alloc_text(PAGE, FspFsvolDeviceInsertContext)
 #pragma alloc_text(PAGE, FspFsvolDeviceDeleteContext)
@@ -277,10 +281,8 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     ExInitializeWorkItem(&FsvolDeviceExtension->ExpirationWorkItem,
         FspFsvolDeviceExpirationRoutine, DeviceObject);
 
-    /* initialize our resource */
-    ExInitializeResourceLite(&FsvolDeviceExtension->Resource);
-
     /* initialize our generic table */
+    ExInitializeFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
     RtlInitializeGenericTableAvl(&FsvolDeviceExtension->GenericTable,
         FspFsvolDeviceCompareElement, FspFsvolDeviceAllocateElement, FspFsvolDeviceFreeElement, 0);
 
@@ -338,9 +340,6 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
     /* free the spare VPB if we still have it */
     if (0 != FsvolDeviceExtension->SwapVpb)
         FspFreeExternal(FsvolDeviceExtension->SwapVpb);
-
-    /* delete our resource */
-    ExDeleteResourceLite(&FsvolDeviceExtension->Resource);
 }
 
 static VOID FspFsvolDeviceTimerRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
@@ -394,13 +393,23 @@ static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
     FspDeviceRelease(DeviceObject);
 }
 
+VOID FspFsvolDeviceLockContext(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    ExAcquireFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
+}
+
+VOID FspFsvolDeviceUnlockContext(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    ExReleaseFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
+}
+
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier)
 {
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Resource));
-
     FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Result;
 
     Result = RtlLookupElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Identifier);
@@ -414,10 +423,9 @@ PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Resource));
-    ASSERT(0 != ElementStorage);
-
     FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Result, Element = { 0 };
+
+    ASSERT(0 != ElementStorage);
     Element.Identifier = Identifier;
     Element.Context = Context;
 
@@ -437,8 +445,6 @@ VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    ASSERT(ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->Resource));
-
     BOOLEAN Deleted;
 
     Deleted = RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Identifier);
