@@ -30,7 +30,10 @@ VOID FspFsvolDeviceControlComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
-    FSP_LEAVE_IOC("%s", "");
+    FSP_LEAVE_IOC(
+        "%s, FileObject=%p",
+        IoctlCodeSym(IrpSp->Parameters.DeviceIoControl.IoControlCode),
+        IrpSp->FileObject);
 }
 
 NTSTATUS FspDeviceControl(
@@ -46,5 +49,8 @@ NTSTATUS FspDeviceControl(
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
 
-    FSP_LEAVE_MJ("%s", "");
+    FSP_LEAVE_MJ(
+        "%s, FileObject=%p",
+        IoctlCodeSym(IrpSp->Parameters.DeviceIoControl.IoControlCode),
+        IrpSp->FileObject);
 }

@@ -592,11 +592,11 @@ VOID FspFsvolFileSystemControlComplete(
     FSP_ENTER_IOC(PAGED_CODE());
 
     FSP_LEAVE_IOC(
-        "FileObject=%p%s%s",
-        IrpSp->FileObject,
-        IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction ? ", " : "",
+        "%s%sFileObject=%p",
         IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction ?
-            IoctlCodeSym(IrpSp->Parameters.FileSystemControl.FsControlCode) : "");
+            IoctlCodeSym(IrpSp->Parameters.FileSystemControl.FsControlCode) : "",
+        IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction ? ", " : "",
+        IrpSp->FileObject);
 }
 
 NTSTATUS FspFileSystemControl(
@@ -615,9 +615,9 @@ NTSTATUS FspFileSystemControl(
     }
 
     FSP_LEAVE_MJ(
-        "FileObject=%p%s%s",
-        IrpSp->FileObject,
-        IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction ? ", " : "",
+        "%s%sFileObject=%p",
         IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction ?
-            IoctlCodeSym(IrpSp->Parameters.FileSystemControl.FsControlCode) : "");
+            IoctlCodeSym(IrpSp->Parameters.FileSystemControl.FsControlCode) : "",
+        IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction ? ", " : "",
+        IrpSp->FileObject);
 }
