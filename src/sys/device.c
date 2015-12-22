@@ -17,14 +17,20 @@ VOID FspDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
+_IRQL_requires_(DISPATCH_LEVEL)
 static BOOLEAN FspDeviceRetainAtDpcLevel(PDEVICE_OBJECT DeviceObject);
+_IRQL_requires_(DISPATCH_LEVEL)
 static VOID FspDeviceReleaseFromDpcLevel(PDEVICE_OBJECT DeviceObject);
 static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsvolDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject);
 static IO_TIMER_ROUTINE FspFsvolDeviceTimerRoutine;
 static WORKER_THREAD_ROUTINE FspFsvolDeviceExpirationRoutine;
+_IRQL_raises_(APC_LEVEL)
+_IRQL_saves_global_(OldIrql, DeviceObject)
 VOID FspFsvolDeviceLockContext(PDEVICE_OBJECT DeviceObject);
+_IRQL_requires_(APC_LEVEL)
+_IRQL_restores_global_(OldIrql, DeviceObject)
 VOID FspFsvolDeviceUnlockContext(PDEVICE_OBJECT DeviceObject);
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
 PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
@@ -262,6 +268,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
 
     /* initialize our timer routine */
+#pragma prefast(suppress:28133, "We are a filesystem: we do not have AddDevice")
     Result = IoInitializeTimer(DeviceObject, FspFsvolDeviceTimerRoutine, 0);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -393,14 +400,22 @@ static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
     FspDeviceRelease(DeviceObject);
 }
 
+_IRQL_raises_(APC_LEVEL)
+_IRQL_saves_global_(OldIrql, DeviceObject)
 VOID FspFsvolDeviceLockContext(PDEVICE_OBJECT DeviceObject)
 {
+    PAGED_CODE();
+
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     ExAcquireFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
 }
 
+_IRQL_requires_(APC_LEVEL)
+_IRQL_restores_global_(OldIrql, DeviceObject)
 VOID FspFsvolDeviceUnlockContext(PDEVICE_OBJECT DeviceObject)
 {
+    PAGED_CODE();
+
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     ExReleaseFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
 }
