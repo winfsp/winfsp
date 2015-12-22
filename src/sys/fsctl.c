@@ -37,6 +37,19 @@ FSP_DRIVER_DISPATCH FspFileSystemControl;
 #pragma alloc_text(PAGE, FspFileSystemControl)
 #endif
 
+static inline PDEVICE_OBJECT FspFsvolDeviceObjectFromFileObject(PFILE_OBJECT FileObject)
+{
+    PDEVICE_OBJECT FsvolDeviceObject;
+    FSP_FSCTL_FILE_CONTEXT2 *FsContext2 = FileObject->FsContext2;
+
+    ExAcquireFastMutex(&FsContext2->FastMutex);
+    FsvolDeviceObject = FsContext2->FsvolDeviceObject;
+    ExReleaseFastMutex(&FsContext2->FastMutex);
+
+    /* no FspDeviceRetain on the volume device, because it exists until the FileObject IRP_MJ_CLEANUP */
+    return FsvolDeviceObject;
+}
+
 static NTSTATUS FspFsctlFileSystemControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -249,15 +262,10 @@ VOID FspFsctlDeleteVolume(
     /* performed during IRP_MJ_CLEANUP! */
     PAGED_CODE();
 
-    FSP_FSCTL_FILE_CONTEXT2 *FsContext2 = IrpSp->FileObject->FsContext2;
-    PDEVICE_OBJECT FsvolDeviceObject = 0;
+    PDEVICE_OBJECT FsvolDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
-    /*
-     * Check to see if we have a volume. There is no need to protect this
-     * access in FsContext2->FastMutex, because we are called during IRP_MJ_CLEANUP.
-     */
-    FsvolDeviceObject = FsContext2->FsvolDeviceObject;
+    FsvolDeviceObject = FspFsvolDeviceObjectFromFileObject(IrpSp->FileObject);
     if (0 == FsvolDeviceObject)
         return;
     FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
@@ -384,8 +392,7 @@ static NTSTATUS FspFsctlTransact(
         return STATUS_BUFFER_TOO_SMALL;
 
     NTSTATUS Result;
-    FSP_FSCTL_FILE_CONTEXT2 *FsContext2;
-    PDEVICE_OBJECT FsvolDeviceObject = 0;
+    PDEVICE_OBJECT FsvolDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
     PVOID MdlBuffer;
     PUINT8 BufferEnd;
@@ -394,25 +401,9 @@ static NTSTATUS FspFsctlTransact(
     PIRP ProcessIrp, PendingIrp;
     LARGE_INTEGER Timeout;
 
-    Result = STATUS_SUCCESS;
-    FsContext2 = IrpSp->FileObject->FsContext2;
-    ExAcquireFastMutex(&FsContext2->FastMutex);
-    try
-    {
-        /* check to see if we already have a volume */
-        FsvolDeviceObject = FsContext2->FsvolDeviceObject;
-        if (0 == FsvolDeviceObject)
-            Result = STATUS_ACCESS_DENIED;
-
-        /* no need to FspDeviceRetain our volume device, because it exists until IRP_MJ_CLEANUP */
-    }
-    finally
-    {
-        ExReleaseFastMutex(&FsContext2->FastMutex);
-    }
-    if (!NT_SUCCESS(Result))
-        return Result;
-
+    FsvolDeviceObject = FspFsvolDeviceObjectFromFileObject(IrpSp->FileObject);
+    if (0 == FsvolDeviceObject)
+        return STATUS_ACCESS_DENIED;
     FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
 
     /* process any user-mode file system responses */
