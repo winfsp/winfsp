@@ -266,7 +266,6 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
 
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    LARGE_INTEGER IrpTimeout;
 
     /* initialize our timer routine */
 #pragma prefast(suppress:28133, "We are a filesystem: we do not have AddDevice")
@@ -286,15 +285,6 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     /* initialize our delete lock */
     ExInitializeResourceLite(&FsvolDeviceExtension->DeleteResource);
 
-    /* setup our Ioq and expiration fields */
-    IrpTimeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000;
-        /* convert millis to nanos */
-    FspIoqInitialize(&FsvolDeviceExtension->Ioq,
-        &IrpTimeout, FsvolDeviceExtension->VolumeParams.IrpCapacity, FspIopCompleteCanceledIrp);
-    KeInitializeSpinLock(&FsvolDeviceExtension->ExpirationLock);
-    ExInitializeWorkItem(&FsvolDeviceExtension->ExpirationWorkItem,
-        FspFsvolDeviceExpirationRoutine, DeviceObject);
-
     /* initialize our generic table */
     ExInitializeFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
     RtlInitializeGenericTableAvl(&FsvolDeviceExtension->GenericTable,
@@ -312,6 +302,19 @@ static VOID FspFsvolDeviceInitComplete(PDEVICE_OBJECT DeviceObject)
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    LARGE_INTEGER IrpTimeout;
+
+    /*
+     * Setup our Ioq and expiration fields.
+     * We must do this in InitComplete because Ioq initialization depends on VolumeParams.
+     */
+    IrpTimeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000;
+        /* convert millis to nanos */
+    FspIoqInitialize(&FsvolDeviceExtension->Ioq,
+        &IrpTimeout, FsvolDeviceExtension->VolumeParams.IrpCapacity, FspIopCompleteCanceledIrp);
+    KeInitializeSpinLock(&FsvolDeviceExtension->ExpirationLock);
+    ExInitializeWorkItem(&FsvolDeviceExtension->ExpirationWorkItem,
+        FspFsvolDeviceExpirationRoutine, DeviceObject);
 
     /*
      * Reference the virtual volume device so that it will not go away while we are using it.
