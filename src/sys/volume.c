@@ -362,20 +362,31 @@ NTSTATUS FspVolumeRedirQueryPathEx(
     if (sizeof(QUERY_PATH_RESPONSE) > OutputBufferLength)
         return STATUS_BUFFER_TOO_SMALL;
 
+    NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     UNICODE_STRING Prefix;
 
-    RtlInitUnicodeString(&Prefix, FsvolDeviceExtension->VolumeParams.Prefix);
-    if (Prefix.Length <= QueryPathRequest->PathName.Length &&
-        RtlEqualMemory(Prefix.Buffer, QueryPathRequest->PathName.Buffer, Prefix.Length))
-    {
-        QueryPathResponse->LengthAccepted = Prefix.Length;
+    /* acquire our DeleteResource */
+    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->DeleteResource, TRUE);
 
-        Irp->IoStatus.Information = 0;
-        return STATUS_SUCCESS;
+    Result = STATUS_BAD_NETWORK_PATH;
+    if (!FspIoqStopped(&FsvolDeviceExtension->Ioq))
+    {
+        RtlInitUnicodeString(&Prefix, FsvolDeviceExtension->VolumeParams.Prefix);
+        if (Prefix.Length <= QueryPathRequest->PathName.Length &&
+            RtlEqualMemory(Prefix.Buffer, QueryPathRequest->PathName.Buffer, Prefix.Length))
+        {
+            QueryPathResponse->LengthAccepted = Prefix.Length;
+
+            Irp->IoStatus.Information = 0;
+            Result = STATUS_SUCCESS;
+        }
     }
-    else
-        return STATUS_BAD_NETWORK_NAME;
+
+    /* release the DeleteResource */
+    ExReleaseResourceLite(&FsvolDeviceExtension->DeleteResource);
+
+    return Result;
 }
 
 NTSTATUS FspVolumeGetName(
