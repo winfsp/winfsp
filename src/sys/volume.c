@@ -58,6 +58,9 @@ NTSTATUS FspVolumeCreate(
     ASSERT(0 == FileObject->RelatedFileObject);
     ASSERT(PREFIXW_SIZE <= FileObject->FileName.Length &&
         RtlEqualMemory(PREFIXW, FileObject->FileName.Buffer, PREFIXW_SIZE));
+    ASSERT(
+        FILE_DEVICE_DISK_FILE_SYSTEM == FsctlDeviceObject->DeviceType ||
+        FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType);
 
     /* check parameters */
     if (PREFIXW_SIZE + sizeof(FSP_FSCTL_VOLUME_PARAMS) * sizeof(WCHAR) > FileObject->FileName.Length)
@@ -73,6 +76,9 @@ NTSTATUS FspVolumeCreate(
     }
 
     /* check the VolumeParams */
+    if (FspFsctlTransactTimeoutMinimum > VolumeParams.TransactTimeout ||
+        VolumeParams.TransactTimeout > FspFsctlTransactTimeoutMaximum)
+        VolumeParams.TransactTimeout = FspFsctlTransactTimeoutDefault;
     if (FspFsctlIrpTimeoutMinimum > VolumeParams.IrpTimeout ||
         VolumeParams.IrpTimeout > FspFsctlIrpTimeoutMaximum)
     {
@@ -82,16 +88,18 @@ NTSTATUS FspVolumeCreate(
 #endif
         VolumeParams.IrpTimeout = FspFsctlIrpTimeoutDefault;
     }
-    if (FspFsctlTransactTimeoutMinimum > VolumeParams.TransactTimeout ||
-        VolumeParams.TransactTimeout > FspFsctlTransactTimeoutMaximum)
-        VolumeParams.TransactTimeout = FspFsctlTransactTimeoutDefault;
+    if (FspFsctlIrpCapacityMinimum > VolumeParams.IrpCapacity ||
+        VolumeParams.IrpCapacity > FspFsctlIrpCapacityMaximum)
+        VolumeParams.IrpCapacity = FspFsctlIrpCapacityDefault;
     VolumeParams.Prefix[sizeof VolumeParams.Prefix / 2 - 1] = L'\0';
     while (L'\0' != VolumeParams.Prefix[PrefixLength++])
         ;
     while (0 < PrefixLength && L'\\' == VolumeParams.Prefix[--PrefixLength])
         ;
     VolumeParams.Prefix[PrefixLength] = L'\0';
-    if (0 == PrefixLength)
+    if (FILE_DEVICE_DISK_FILE_SYSTEM == FsctlDeviceObject->DeviceType && 0 != PrefixLength)
+        return STATUS_INVALID_PARAMETER;
+    if (FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType && 0 == PrefixLength)
         return STATUS_INVALID_PARAMETER;
 
     /* create volume guid */
@@ -575,15 +583,10 @@ NTSTATUS FspVolumeWork(
      * so that we can disassociate the Request on failure and release ownership
      * back to the caller.
      */
-    if (!FspIoqPostIrp(&FsvolDeviceExtension->Ioq, Irp))
+    if (!FspIoqPostIrp(&FsvolDeviceExtension->Ioq, Irp, &Result))
     {
-        /* this can only happen if the Ioq was stopped */
-        ASSERT(FspIoqStopped(&FsvolDeviceExtension->Ioq));
-
         Request->Hint = 0;
         FspIrpRequest(Irp) = 0;
-
-        Result = STATUS_CANCELLED;
     }
     else
         Result = STATUS_PENDING;

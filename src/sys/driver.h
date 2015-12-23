@@ -127,12 +127,8 @@ extern __declspec(selectany) int bpglobal = 1;
                 /* if the IRP has not been marked pending already */\
                 FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =\
                     FspFsvolDeviceExtension(DeviceObject);\
-                if (!FspIoqPostIrp(&FsvolDeviceExtension->Ioq, Irp))\
-                {                       \
-                    /* this can only happen if the Ioq was stopped */\
-                    ASSERT(FspIoqStopped(&FsvolDeviceExtension->Ioq));\
-                    FspIopCompleteIrp(Irp, Result = STATUS_CANCELLED);\
-                }                       \
+                if (!FspIoqPostIrp(&FsvolDeviceExtension->Ioq, Irp, &Result))\
+                    FspIopCompleteIrp(Irp, Result);\
             }                           \
         }                               \
         else                            \
@@ -306,14 +302,15 @@ typedef struct
     LIST_ENTRY PendingIrpList, ProcessIrpList;
     IO_CSQ PendingIoCsq, ProcessIoCsq;
     LARGE_INTEGER IrpTimeout;
+    ULONG PendingIrpCapacity, PendingIrpCount;
     VOID (*CompleteCanceledIrp)(PIRP Irp);
 } FSP_IOQ;
 VOID FspIoqInitialize(FSP_IOQ *Ioq,
-    PLARGE_INTEGER IrpTimeout, VOID (*CompleteCanceledIrp)(PIRP Irp));
+    PLARGE_INTEGER IrpTimeout, ULONG IrpCapacity, VOID (*CompleteCanceledIrp)(PIRP Irp));
 VOID FspIoqStop(FSP_IOQ *Ioq);
 BOOLEAN FspIoqStopped(FSP_IOQ *Ioq);
 VOID FspIoqRemoveExpired(FSP_IOQ *Ioq);
-BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp);
+BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp, NTSTATUS *PResult);
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);

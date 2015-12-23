@@ -65,7 +65,10 @@ static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertCo
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
     if (Ioq->Stopped)
-        return STATUS_ACCESS_DENIED;
+        return STATUS_CANCELLED;
+    if (InsertContext && Ioq->PendingIrpCapacity <= Ioq->PendingIrpCount)
+        return STATUS_INSUFFICIENT_RESOURCES;
+    Ioq->PendingIrpCount++;
     InsertTailList(&Ioq->PendingIrpList, &Irp->Tail.Overlay.ListEntry);
     /* list is not empty; wake up any waiters */
     KeSetEvent(&Ioq->PendingIrpEvent, 1, FALSE);
@@ -75,6 +78,7 @@ static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertCo
 static VOID FspIoqPendingRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
+    Ioq->PendingIrpCount--;
     if (RemoveEntryList(&Irp->Tail.Overlay.ListEntry) && !Ioq->Stopped)
         /* list is empty; future threads should go to sleep */
         KeClearEvent(&Ioq->PendingIrpEvent);
@@ -128,7 +132,7 @@ static NTSTATUS FspIoqProcessInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertCo
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
     if (Ioq->Stopped)
-        return STATUS_ACCESS_DENIED;
+        return STATUS_CANCELLED;
     InsertTailList(&Ioq->ProcessIrpList, &Irp->Tail.Overlay.ListEntry);
     return STATUS_SUCCESS;
 }
@@ -189,7 +193,7 @@ static VOID FspIoqProcessCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
 }
 
 VOID FspIoqInitialize(FSP_IOQ *Ioq,
-    PLARGE_INTEGER IrpTimeout, VOID (*CompleteCanceledIrp)(PIRP Irp))
+    PLARGE_INTEGER IrpTimeout, ULONG IrpCapacity, VOID (*CompleteCanceledIrp)(PIRP Irp))
 {
     ASSERT(0 != CompleteCanceledIrp);
 
@@ -213,6 +217,7 @@ VOID FspIoqInitialize(FSP_IOQ *Ioq,
         FspIoqProcessReleaseLock,
         FspIoqProcessCompleteCanceledIrp);
     Ioq->IrpTimeout = *IrpTimeout;
+    Ioq->PendingIrpCapacity = IrpCapacity;
     Ioq->CompleteCanceledIrp = CompleteCanceledIrp;
 }
 
@@ -253,13 +258,16 @@ VOID FspIoqRemoveExpired(FSP_IOQ *Ioq)
         Ioq->CompleteCanceledIrp(Irp);
 }
 
-BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp)
+BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp, NTSTATUS *PResult)
 {
     NTSTATUS Result;
-    if (0 == FspIrpTimestamp(Irp))
-        FspIrpTimestamp(Irp) = KeQueryInterruptTime() + Ioq->IrpTimeout.QuadPart;
-    Result = IoCsqInsertIrpEx(&Ioq->PendingIoCsq, Irp, 0, 0);
-    return NT_SUCCESS(Result);
+    FspIrpTimestamp(Irp) = KeQueryInterruptTime() + Ioq->IrpTimeout.QuadPart;
+    Result = IoCsqInsertIrpEx(&Ioq->PendingIoCsq, Irp, 0, (PVOID)1);
+    if (NT_SUCCESS(Result))
+        return TRUE;
+    if (0 != PResult)
+        *PResult = Result;
+    return FALSE;
 }
 
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout)
@@ -283,8 +291,6 @@ PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout)
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp)
 {
     NTSTATUS Result;
-    if (0 == FspIrpTimestamp(Irp))
-        FspIrpTimestamp(Irp) = KeQueryInterruptTime() + Ioq->IrpTimeout.QuadPart;
     Result = IoCsqInsertIrpEx(&Ioq->ProcessIoCsq, Irp, 0, 0);
     return NT_SUCCESS(Result);
 }

@@ -289,7 +289,8 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     /* setup our Ioq and expiration fields */
     IrpTimeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000;
         /* convert millis to nanos */
-    FspIoqInitialize(&FsvolDeviceExtension->Ioq, &IrpTimeout, FspIopCompleteCanceledIrp);
+    FspIoqInitialize(&FsvolDeviceExtension->Ioq,
+        &IrpTimeout, FsvolDeviceExtension->VolumeParams.IrpCapacity, FspIopCompleteCanceledIrp);
     KeInitializeSpinLock(&FsvolDeviceExtension->ExpirationLock);
     ExInitializeWorkItem(&FsvolDeviceExtension->ExpirationWorkItem,
         FspFsvolDeviceExpirationRoutine, DeviceObject);
