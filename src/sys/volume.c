@@ -161,7 +161,59 @@ NTSTATUS FspVolumeMount(
 {
     PAGED_CODE();
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
+    ASSERT(IRP_MN_MOUNT_VOLUME == IrpSp->MinorFunction);
+
+    NTSTATUS Result;
+    PVPB Vpb = IrpSp->Parameters.MountVolume.Vpb;
+    PDEVICE_OBJECT FsvrtDeviceObject = IrpSp->Parameters.MountVolume.DeviceObject;
+    PDEVICE_OBJECT FsvolDeviceObject = 0;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = 0;
+    PDEVICE_OBJECT *DeviceObjects = 0;
+    ULONG DeviceObjectCount = 0;
+    KIRQL Irql;
+
+    /* check the passed in device object; it must be our own and not marked delete pending */
+    Result = FspDeviceCopyList(&DeviceObjects, &DeviceObjectCount);
+    if (NT_SUCCESS(Result))
+    {
+        Result = STATUS_UNRECOGNIZED_VOLUME;
+        for (ULONG i = 0; DeviceObjectCount > i; i++)
+            if (FspDeviceRetain(DeviceObjects[i]))
+            {
+                if (FspFsvolDeviceExtensionKind == FspDeviceExtension(DeviceObjects[i])->Kind)
+                {
+                    FsvolDeviceObject = DeviceObjects[i];
+                    FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+                    if (FsvolDeviceExtension->FsvrtDeviceObject == FsvrtDeviceObject &&
+                        !FsvolDeviceExtension->DeletePending)
+                    {
+                        Result = STATUS_SUCCESS;
+                        /* break out of the loop without FspDeviceRelease on the volume device! */
+                        break;
+                    }
+                }
+                FspDeviceRelease(DeviceObjects[i]);
+            }
+        FspDeviceDeleteList(DeviceObjects, DeviceObjectCount);
+    }
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    /*
+     * At this point the volume device object we are going to use in the VPB has been FspDeviceRetain'ed.
+     * We also increment the VPB's ReferenceCount so that we can do a delayed delete of the volume device
+     * later on.
+     */
+    ASSERT(0 != FsvolDeviceObject && 0 != FsvolDeviceExtension);
+    IoAcquireVpbSpinLock(&Irql);
+    Vpb->ReferenceCount++;
+    Vpb->DeviceObject = FsvolDeviceObject;
+    Vpb->SerialNumber = FsvolDeviceExtension->VolumeParams.SerialNumber;
+    IoReleaseVpbSpinLock(Irql);
+
+    Irp->IoStatus.Information = 0;
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS FspVolumeGetName(
@@ -219,58 +271,6 @@ NTSTATUS FspVolumeWork(
 }
 
 #if 0
-static NTSTATUS FspFsctlMountVolume(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
-{
-    PAGED_CODE();
-
-    NTSTATUS Result;
-    PVPB Vpb = IrpSp->Parameters.MountVolume.Vpb;
-    PDEVICE_OBJECT FsvrtDeviceObject = IrpSp->Parameters.MountVolume.DeviceObject;
-    PDEVICE_OBJECT FsvolDeviceObject = 0;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = 0;
-    PDEVICE_OBJECT *DeviceObjects = 0;
-    ULONG DeviceObjectCount = 0;
-    KIRQL Irql;
-
-    /* check the passed in device object; it must be our own and not marked delete pending */
-    Result = FspDeviceCopyList(&DeviceObjects, &DeviceObjectCount);
-    if (NT_SUCCESS(Result))
-    {
-        Result = STATUS_UNRECOGNIZED_VOLUME;
-        for (ULONG i = 0; DeviceObjectCount > i; i++)
-            if (FspDeviceRetain(DeviceObjects[i]))
-            {
-                if (FspFsvolDeviceExtensionKind == FspDeviceExtension(DeviceObjects[i])->Kind)
-                {
-                    FsvolDeviceObject = DeviceObjects[i];
-                    FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-                    if (FsvolDeviceExtension->FsvrtDeviceObject == FsvrtDeviceObject &&
-                        !FsvolDeviceExtension->DeletePending)
-                    {
-                        Result = STATUS_SUCCESS;
-                        break;
-                    }
-                }
-                FspDeviceRelease(DeviceObjects[i]);
-            }
-        FspDeviceDeleteList(DeviceObjects, DeviceObjectCount);
-    }
-    if (!NT_SUCCESS(Result))
-        return Result;
-
-    /* our volume device object has been FspDeviceRetain'ed */
-    ASSERT(0 != FsvolDeviceObject && 0 != FsvolDeviceExtension);
-    IoAcquireVpbSpinLock(&Irql);
-    Vpb->ReferenceCount++;
-    Vpb->DeviceObject = FsvolDeviceObject;
-    Vpb->SerialNumber = FsvolDeviceExtension->VolumeParams.SerialNumber;
-    IoReleaseVpbSpinLock(Irql);
-
-    Irp->IoStatus.Information = 0;
-    return STATUS_SUCCESS;
-}
-
 VOID FspFsctlDeleteVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
