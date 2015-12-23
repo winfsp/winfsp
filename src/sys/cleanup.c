@@ -28,7 +28,8 @@ static NTSTATUS FspFsctlCleanup(
 {
     PAGED_CODE();
 
-    FspVolumeDelete(DeviceObject, Irp, IrpSp);
+    if (0 != IrpSp->FileObject->FsContext2)
+        FspVolumeDelete(DeviceObject, Irp, IrpSp);
 
     Irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;

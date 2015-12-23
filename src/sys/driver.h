@@ -368,9 +368,9 @@ typedef struct
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     HANDLE MupHandle;
-    BOOLEAN DeletePending;
     PVPB SwapVpb;
     FSP_WORK_ITEM_WITH_DELAY DeleteVolumeWorkItem;
+    ERESOURCE DeleteResource;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     FSP_IOQ Ioq;
     KSPIN_LOCK ExpirationLock;

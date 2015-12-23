@@ -10,6 +10,7 @@ NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static WORKER_THREAD_ROUTINE FspVolumeDeleteDelayed;
 NTSTATUS FspVolumeMount(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetName(
@@ -24,6 +25,7 @@ NTSTATUS FspVolumeWork(
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspVolumeCreate)
 #pragma alloc_text(PAGE, FspVolumeDelete)
+#pragma alloc_text(PAGE, FspVolumeDeleteDelayed)
 #pragma alloc_text(PAGE, FspVolumeMount)
 #pragma alloc_text(PAGE, FspVolumeGetName)
 #pragma alloc_text(PAGE, FspVolumeTransact)
@@ -154,6 +156,119 @@ VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     PAGED_CODE();
+
+    ASSERT(IRP_MJ_CLEANUP == IrpSp->MajorFunction);
+    ASSERT(0 != IrpSp->FileObject->FsContext2);
+
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+
+    /* acquire our DeleteResource */
+    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->DeleteResource, TRUE);
+
+    /* stop the I/O queue */
+    FspIoqStop(&FsvolDeviceExtension->Ioq);
+
+    /* do we have a virtual disk device or a MUP handle? */
+    if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
+    {
+        PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+        PVPB OldVpb;
+        KIRQL Irql;
+        BOOLEAN DeleteVpb = FALSE;
+        BOOLEAN DeleteDly = FALSE;
+        LARGE_INTEGER DelayTimeout;
+
+        /* swap the virtual disk device VPB with the preallocated one */
+#pragma prefast(push)
+#pragma prefast(disable:28175, "We are a filesystem: ok to access Vpb")
+        IoAcquireVpbSpinLock(&Irql);
+        OldVpb = FsvrtDeviceObject->Vpb;
+        if (0 != OldVpb)
+        {
+            FsvrtDeviceObject->Vpb = FsvolDeviceExtension->SwapVpb;
+            FsvrtDeviceObject->Vpb->Size = sizeof *FsvrtDeviceObject->Vpb;
+            FsvrtDeviceObject->Vpb->Type = IO_TYPE_VPB;
+            FsvrtDeviceObject->Vpb->Flags = FlagOn(OldVpb->Flags, VPB_REMOVE_PENDING);
+            FsvrtDeviceObject->Vpb->RealDevice = OldVpb->RealDevice;
+            FsvrtDeviceObject->Vpb->RealDevice->Vpb = FsvrtDeviceObject->Vpb;
+            DeleteVpb = 0 == OldVpb->ReferenceCount;
+            DeleteDly = 2 <= OldVpb->ReferenceCount;
+        }
+        IoReleaseVpbSpinLock(Irql);
+        if (DeleteVpb)
+        {
+            /* no more references to the old VPB; delete now! */
+            FspFreeExternal(OldVpb);
+            FsvolDeviceExtension->SwapVpb = 0;
+        }
+        else if (!DeleteDly)
+        {
+            /* there is only the reference from FspVolumeMount */
+            FspFreeExternal(OldVpb);
+            FsvolDeviceExtension->SwapVpb = 0;
+            FspDeviceRelease(FsvolDeviceObject);
+        }
+        else
+            /* keep VPB around for delayed delete */
+            FsvolDeviceExtension->SwapVpb = OldVpb;
+#pragma prefast(pop)
+
+        /* release the virtual disk and volume device objects */
+        FspDeviceRelease(FsvrtDeviceObject);
+        FspDeviceRelease(FsvolDeviceObject);
+
+        /* are we doing delayed delete of VPB and volume device object? */
+        if (DeleteDly)
+        {
+            DelayTimeout.QuadPart = 300/*ms*/ * -10000;
+            FspInitializeWorkItemWithDelay(&FsvolDeviceExtension->DeleteVolumeWorkItem,
+                FspVolumeDeleteDelayed, FsvolDeviceObject);
+            FspQueueWorkItemWithDelay(&FsvolDeviceExtension->DeleteVolumeWorkItem, DelayTimeout);
+        }
+    }
+    else if (0 != FsvolDeviceExtension->MupHandle)
+    {
+        HANDLE MupHandle = FsvolDeviceExtension->MupHandle;
+
+        FsRtlDeregisterUncProvider(MupHandle);
+        FsvolDeviceExtension->MupHandle = 0;
+
+        /* release the volume device object */
+        FspDeviceRelease(FsvolDeviceObject);
+    }
+
+    /* release the DeleteResource */
+    ExReleaseResourceLite(&FsvolDeviceExtension->DeleteResource);
+}
+
+static VOID FspVolumeDeleteDelayed(PVOID Context)
+{
+    PAGED_CODE();
+
+    PDEVICE_OBJECT FsvolDeviceObject = Context;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    KIRQL Irql;
+    BOOLEAN DeleteVpb = FALSE;
+    LARGE_INTEGER DelayTimeout;
+
+    IoAcquireVpbSpinLock(&Irql);
+    ASSERT(0 != FsvolDeviceExtension->SwapVpb->ReferenceCount);
+    DeleteVpb = 1 == FsvolDeviceExtension->SwapVpb->ReferenceCount;
+    if (DeleteVpb)
+        FsvolDeviceExtension->SwapVpb->ReferenceCount = 0;
+    IoReleaseVpbSpinLock(Irql);
+    if (DeleteVpb)
+    {
+        FspFreeExternal(FsvolDeviceExtension->SwapVpb);
+        FsvolDeviceExtension->SwapVpb = 0;
+        FspDeviceRelease(FsvolDeviceObject);
+    }
+    else
+    {
+        DelayTimeout.QuadPart = 300/*ms*/ * -10000;
+        FspQueueWorkItemWithDelay(&FsvolDeviceExtension->DeleteVolumeWorkItem, DelayTimeout);
+    }
 }
 
 NTSTATUS FspVolumeMount(
@@ -185,12 +300,16 @@ NTSTATUS FspVolumeMount(
                 {
                     FsvolDeviceObject = DeviceObjects[i];
                     FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-                    if (FsvolDeviceExtension->FsvrtDeviceObject == FsvrtDeviceObject &&
-                        !FsvolDeviceExtension->DeletePending)
+                    if (FsvolDeviceExtension->FsvrtDeviceObject == FsvrtDeviceObject)
                     {
-                        Result = STATUS_SUCCESS;
-                        /* break out of the loop without FspDeviceRelease on the volume device! */
-                        break;
+                        ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->DeleteResource, TRUE);
+                        if (!FspIoqStopped(&FsvolDeviceExtension->Ioq))
+                        {
+                            Result = STATUS_SUCCESS;
+                            /* break out of the loop without FspDeviceRelease or DeleteResource release! */
+                            break;
+                        }
+                        ExReleaseResourceLite(&FsvolDeviceExtension->DeleteResource);
                     }
                 }
                 FspDeviceRelease(DeviceObjects[i]);
@@ -201,9 +320,11 @@ NTSTATUS FspVolumeMount(
         return Result;
 
     /*
-     * At this point the volume device object we are going to use in the VPB has been FspDeviceRetain'ed.
-     * We also increment the VPB's ReferenceCount so that we can do a delayed delete of the volume device
-     * later on.
+     * At this point the volume device object we are going to use in the VPB
+     * has been FspDeviceRetain'ed and the volume DeleteResource has been acquired.
+     * We will increment the VPB's ReferenceCount so that we can do a delayed delete
+     * of the volume device later on. Once done with the VPB we can release the
+     * DeleteResource. [The volume device remains FspDeviceRetain'ed!]
      */
     ASSERT(0 != FsvolDeviceObject && 0 != FsvolDeviceExtension);
     IoAcquireVpbSpinLock(&Irql);
@@ -211,6 +332,9 @@ NTSTATUS FspVolumeMount(
     Vpb->DeviceObject = FsvolDeviceObject;
     Vpb->SerialNumber = FsvolDeviceExtension->VolumeParams.SerialNumber;
     IoReleaseVpbSpinLock(Irql);
+
+    /* done with mounting; release the DeleteResource */
+    ExReleaseResourceLite(&FsvolDeviceExtension->DeleteResource);
 
     Irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;
@@ -271,125 +395,6 @@ NTSTATUS FspVolumeWork(
 }
 
 #if 0
-VOID FspFsctlDeleteVolume(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
-{
-    /* performed during IRP_MJ_CLEANUP! */
-    PAGED_CODE();
-
-    PDEVICE_OBJECT FsvolDeviceObject;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
-
-    FsvolDeviceObject = FspFsvolDeviceObjectFromFileObject(IrpSp->FileObject);
-    if (0 == FsvolDeviceObject)
-        return;
-    FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-
-    /* mark the volume device as pending delete */
-    FsvolDeviceExtension->DeletePending = TRUE;
-
-    /* stop the I/O queue */
-    FspIoqStop(&FsvolDeviceExtension->Ioq);
-
-    /* do we have a virtual disk device or a MUP handle? */
-    if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
-    {
-        PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
-        PVPB OldVpb;
-        KIRQL Irql;
-        BOOLEAN DeleteVpb = FALSE;
-        BOOLEAN DeleteDly = FALSE;
-        LARGE_INTEGER DelayTimeout;
-
-        /* swap the virtual disk device VPB with the preallocated one */
-#pragma prefast(push)
-#pragma prefast(disable:28175, "We are a filesystem: ok to access Vpb")
-        IoAcquireVpbSpinLock(&Irql);
-        OldVpb = FsvrtDeviceObject->Vpb;
-        if (0 != OldVpb)
-        {
-            FsvrtDeviceObject->Vpb = FsvolDeviceExtension->SwapVpb;
-            FsvrtDeviceObject->Vpb->Size = sizeof *FsvrtDeviceObject->Vpb;
-            FsvrtDeviceObject->Vpb->Type = IO_TYPE_VPB;
-            FsvrtDeviceObject->Vpb->Flags = FlagOn(OldVpb->Flags, VPB_REMOVE_PENDING);
-            FsvrtDeviceObject->Vpb->RealDevice = OldVpb->RealDevice;
-            FsvrtDeviceObject->Vpb->RealDevice->Vpb = FsvrtDeviceObject->Vpb;
-            DeleteVpb = 0 == OldVpb->ReferenceCount;
-            DeleteDly = 2 <= OldVpb->ReferenceCount;
-        }
-        IoReleaseVpbSpinLock(Irql);
-        if (DeleteVpb)
-        {
-            /* no more references to the old VPB; delete now! */
-            FspFreeExternal(OldVpb);
-            FsvolDeviceExtension->SwapVpb = 0;
-        }
-        else if (!DeleteDly)
-        {
-            /* there is only the reference from IRP_MN_MOUNT_VOLUME */
-            FspFreeExternal(OldVpb);
-            FsvolDeviceExtension->SwapVpb = 0;
-            FspDeviceRelease(FsvolDeviceObject);
-        }
-        else
-            /* keep VPB around for delayed delete */
-            FsvolDeviceExtension->SwapVpb = OldVpb;
-#pragma prefast(pop)
-
-        /* release the virtual disk and volume device objects */
-        FspDeviceRelease(FsvrtDeviceObject);
-        FspDeviceRelease(FsvolDeviceObject);
-
-        /* are we doing delayed delete of VPB and volume device object? */
-        if (DeleteDly)
-        {
-            DelayTimeout.QuadPart = 300/*ms*/ * -10000;
-            FspInitializeWorkItemWithDelay(&FsvolDeviceExtension->DeleteVolumeWorkItem,
-                FspFsctlDeleteVolumeDelayed, FsvolDeviceObject);
-            FspQueueWorkItemWithDelay(&FsvolDeviceExtension->DeleteVolumeWorkItem, DelayTimeout);
-        }
-    }
-    else if (0 != FsvolDeviceExtension->MupHandle)
-    {
-        HANDLE MupHandle = FsvolDeviceExtension->MupHandle;
-
-        FsRtlDeregisterUncProvider(MupHandle);
-        FsvolDeviceExtension->MupHandle = 0;
-
-        /* release the volume device object */
-        FspDeviceRelease(FsvolDeviceObject);
-    }
-}
-
-static VOID FspFsctlDeleteVolumeDelayed(PVOID Context)
-{
-    PAGED_CODE();
-
-    PDEVICE_OBJECT FsvolDeviceObject = Context;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    KIRQL Irql;
-    BOOLEAN DeleteVpb = FALSE;
-    LARGE_INTEGER DelayTimeout;
-
-    IoAcquireVpbSpinLock(&Irql);
-    ASSERT(0 != FsvolDeviceExtension->SwapVpb->ReferenceCount);
-    DeleteVpb = 1 == FsvolDeviceExtension->SwapVpb->ReferenceCount;
-    if (DeleteVpb)
-        FsvolDeviceExtension->SwapVpb->ReferenceCount = 0;
-    IoReleaseVpbSpinLock(Irql);
-    if (DeleteVpb)
-    {
-        FspFreeExternal(FsvolDeviceExtension->SwapVpb);
-        FsvolDeviceExtension->SwapVpb = 0;
-        FspDeviceRelease(FsvolDeviceObject);
-    }
-    else
-    {
-        DelayTimeout.QuadPart = 300/*ms*/ * -10000;
-        FspQueueWorkItemWithDelay(&FsvolDeviceExtension->DeleteVolumeWorkItem, DelayTimeout);
-    }
-}
-
 static NTSTATUS FspFsctlTransact(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {

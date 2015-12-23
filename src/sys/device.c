@@ -282,6 +282,9 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
         RtlZeroMemory(FsvolDeviceExtension->SwapVpb, sizeof *FsvolDeviceExtension->SwapVpb);
     }
 
+    /* initialize our delete lock */
+    ExInitializeResourceLite(&FsvolDeviceExtension->DeleteResource);
+
     /* setup our Ioq and expiration fields */
     FspIoqInitialize(&FsvolDeviceExtension->Ioq, FspIopCompleteCanceledIrp);
     KeInitializeSpinLock(&FsvolDeviceExtension->ExpirationLock);
@@ -347,6 +350,9 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
      */
     if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
         ObDereferenceObject(FsvolDeviceExtension->FsvrtDeviceObject);
+
+    /* finalize our delete lock */
+    ExDeleteResourceLite(&FsvolDeviceExtension->DeleteResource);
 
     /* free the spare VPB if we still have it */
     if (0 != FsvolDeviceExtension->SwapVpb)
