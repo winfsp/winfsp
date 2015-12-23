@@ -349,7 +349,7 @@ NTSTATUS FspVolumeRedirQueryPathEx(
     ASSERT(IOCTL_REDIR_QUERY_PATH_EX == IrpSp->Parameters.DeviceIoControl.IoControlCode);
 
     if (KernelMode != Irp->RequestorMode)
-        return STATUS_ACCESS_DENIED;
+        return STATUS_INVALID_DEVICE_REQUEST;
 
     /* check parameters */
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
@@ -536,7 +536,7 @@ NTSTATUS FspVolumeWork(
     ASSERT(FSP_FSCTL_TRANSACT == IrpSp->Parameters.FileSystemControl.FsControlCode);
 
     if (KernelMode != Irp->RequestorMode)
-        return STATUS_ACCESS_DENIED;
+        return STATUS_INVALID_DEVICE_REQUEST;
 
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
