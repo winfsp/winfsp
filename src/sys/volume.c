@@ -67,7 +67,8 @@ NTSTATUS FspVolumeCreate(
         return STATUS_INVALID_PARAMETER;
 
     /* copy the VolumeParams */
-    for (USHORT Index = 0, Length = FileObject->FileName.Length / 2; Length > Index; Index++)
+    for (USHORT Index = PREFIXW_SIZE / sizeof(WCHAR), Length = FileObject->FileName.Length / 2;
+        Length > Index; Index++)
     {
         WCHAR Value = FileObject->FileName.Buffer[Index];
         if (0xF000 != (Value & 0xFF00))

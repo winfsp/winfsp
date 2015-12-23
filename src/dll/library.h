@@ -26,14 +26,6 @@ static inline PVOID MemAlloc(SIZE_T Size)
     extern HANDLE ProcessHeap;
     return HeapAlloc(ProcessHeap, 0, Size);
 }
-static inline PVOID MemAllocSLE(SIZE_T Size)
-{
-    extern HANDLE ProcessHeap;
-    PVOID Pointer = HeapAlloc(ProcessHeap, 0, Size);
-    if (0 == Pointer)
-        SetLastError(ERROR_NO_SYSTEM_RESOURCES);
-    return Pointer;
-}
 static inline VOID MemFree(PVOID Pointer)
 {
     extern HANDLE ProcessHeap;
