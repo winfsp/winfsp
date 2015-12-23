@@ -13,12 +13,12 @@ VOID FspVolumeDelete(
 static WORKER_THREAD_ROUTINE FspVolumeDeleteDelayed;
 NTSTATUS FspVolumeMount(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeRedirQueryPathEx(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeTransact(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-NTSTATUS FspVolumeRedirQueryPathEx(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeWork(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 
@@ -340,6 +340,24 @@ NTSTATUS FspVolumeMount(
     return STATUS_SUCCESS;
 }
 
+NTSTATUS FspVolumeRedirQueryPathEx(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    ASSERT(IRP_MJ_DEVICE_CONTROL == IrpSp->MajorFunction);
+    ASSERT(IOCTL_REDIR_QUERY_PATH_EX == IrpSp->Parameters.DeviceIoControl.IoControlCode);
+
+    if (KernelMode != Irp->RequestorMode)
+        return STATUS_ACCESS_DENIED;
+
+    //NTSTATUS Result;
+    //FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    //FSP_FSCTL_TRANSACT_REQ *Request = IrpSp->Parameters.DeviceIoControl.Type3InputBuffer;
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -486,14 +504,6 @@ NTSTATUS FspVolumeTransact(
 
     Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)MdlBuffer;
     return STATUS_SUCCESS;
-}
-
-NTSTATUS FspVolumeRedirQueryPathEx(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
-{
-    PAGED_CODE();
-
-    return STATUS_INVALID_DEVICE_REQUEST;
 }
 
 NTSTATUS FspVolumeWork(
