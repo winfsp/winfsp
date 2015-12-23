@@ -501,20 +501,15 @@ NTSTATUS FspVolumeWork(
 {
     PAGED_CODE();
 
-    return STATUS_INVALID_DEVICE_REQUEST;
-}
-
-#if 0
-static NTSTATUS FspFsvolWork(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
-{
-    PAGED_CODE();
+    ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
+    ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
+    ASSERT(FSP_FSCTL_TRANSACT == IrpSp->Parameters.FileSystemControl.FsControlCode);
 
     if (KernelMode != Irp->RequestorMode)
         return STATUS_ACCESS_DENIED;
 
     NTSTATUS Result;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     FSP_FSCTL_TRANSACT_REQ *Request = IrpSp->Parameters.FileSystemControl.Type3InputBuffer;
 
     ASSERT(0 == Request->Hint);
@@ -543,4 +538,3 @@ static NTSTATUS FspFsvolWork(
 
     return Result;
 }
-#endif
