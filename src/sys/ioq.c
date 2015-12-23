@@ -188,7 +188,8 @@ static VOID FspIoqProcessCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
     Ioq->CompleteCanceledIrp(Irp);
 }
 
-VOID FspIoqInitialize(FSP_IOQ *Ioq, VOID (*CompleteCanceledIrp)(PIRP Irp))
+VOID FspIoqInitialize(FSP_IOQ *Ioq,
+    PLARGE_INTEGER IrpTimeout, VOID (*CompleteCanceledIrp)(PIRP Irp))
 {
     ASSERT(0 != CompleteCanceledIrp);
 
@@ -211,6 +212,7 @@ VOID FspIoqInitialize(FSP_IOQ *Ioq, VOID (*CompleteCanceledIrp)(PIRP Irp))
         FspIoqProcessAcquireLock,
         FspIoqProcessReleaseLock,
         FspIoqProcessCompleteCanceledIrp);
+    Ioq->IrpTimeout = *IrpTimeout;
     Ioq->CompleteCanceledIrp = CompleteCanceledIrp;
 }
 
@@ -239,15 +241,11 @@ BOOLEAN FspIoqStopped(FSP_IOQ *Ioq)
     return Result;
 }
 
-VOID FspIoqRemoveExpired(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout)
+VOID FspIoqRemoveExpired(FSP_IOQ *Ioq)
 {
     FSP_IOQ_PEEK_CONTEXT PeekContext;
     PeekContext.IrpHint = 0;
     PeekContext.ExpirationTime = KeQueryInterruptTime();
-    if (PeekContext.ExpirationTime >= (ULONGLONG)Timeout->QuadPart)
-        PeekContext.ExpirationTime -= Timeout->QuadPart;
-    else
-        PeekContext.ExpirationTime = 0;
     PIRP Irp;
     while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, &PeekContext)))
         Ioq->CompleteCanceledIrp(Irp);
@@ -258,7 +256,8 @@ VOID FspIoqRemoveExpired(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout)
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp)
 {
     NTSTATUS Result;
-    FspIrpTimestamp(Irp) = KeQueryInterruptTime();
+    if (0 == FspIrpTimestamp(Irp))
+        FspIrpTimestamp(Irp) = KeQueryInterruptTime() + Ioq->IrpTimeout.QuadPart;
     Result = IoCsqInsertIrpEx(&Ioq->PendingIoCsq, Irp, 0, 0);
     return NT_SUCCESS(Result);
 }
@@ -284,7 +283,8 @@ PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout)
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp)
 {
     NTSTATUS Result;
-    FspIrpTimestamp(Irp) = KeQueryInterruptTime();
+    if (0 == FspIrpTimestamp(Irp))
+        FspIrpTimestamp(Irp) = KeQueryInterruptTime() + Ioq->IrpTimeout.QuadPart;
     Result = IoCsqInsertIrpEx(&Ioq->ProcessIoCsq, Irp, 0, 0);
     return NT_SUCCESS(Result);
 }

@@ -266,6 +266,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
 
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    LARGE_INTEGER IrpTimeout;
 
     /* initialize our timer routine */
 #pragma prefast(suppress:28133, "We are a filesystem: we do not have AddDevice")
@@ -286,7 +287,9 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     ExInitializeResourceLite(&FsvolDeviceExtension->DeleteResource);
 
     /* setup our Ioq and expiration fields */
-    FspIoqInitialize(&FsvolDeviceExtension->Ioq, FspIopCompleteCanceledIrp);
+    IrpTimeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000;
+        /* convert millis to nanos */
+    FspIoqInitialize(&FsvolDeviceExtension->Ioq, &IrpTimeout, FspIopCompleteCanceledIrp);
     KeInitializeSpinLock(&FsvolDeviceExtension->ExpirationLock);
     ExInitializeWorkItem(&FsvolDeviceExtension->ExpirationWorkItem,
         FspFsvolDeviceExpirationRoutine, DeviceObject);
@@ -396,12 +399,9 @@ static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
 
     PDEVICE_OBJECT DeviceObject = Context;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    LARGE_INTEGER Timeout;
     KIRQL Irql;
 
-    Timeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000;
-        /* convert millis to nanos */
-    FspIoqRemoveExpired(&FsvolDeviceExtension->Ioq, &Timeout);
+    FspIoqRemoveExpired(&FsvolDeviceExtension->Ioq);
 
     KeAcquireSpinLock(&FsvolDeviceExtension->ExpirationLock, &Irql);
     FsvolDeviceExtension->ExpirationInProgress = FALSE;

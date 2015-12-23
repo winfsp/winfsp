@@ -305,12 +305,14 @@ typedef struct
     KEVENT PendingIrpEvent;
     LIST_ENTRY PendingIrpList, ProcessIrpList;
     IO_CSQ PendingIoCsq, ProcessIoCsq;
+    LARGE_INTEGER IrpTimeout;
     VOID (*CompleteCanceledIrp)(PIRP Irp);
 } FSP_IOQ;
-VOID FspIoqInitialize(FSP_IOQ *Ioq, VOID (*CompleteCanceledIrp)(PIRP Irp));
+VOID FspIoqInitialize(FSP_IOQ *Ioq,
+    PLARGE_INTEGER IrpTimeout, VOID (*CompleteCanceledIrp)(PIRP Irp));
 VOID FspIoqStop(FSP_IOQ *Ioq);
 BOOLEAN FspIoqStopped(FSP_IOQ *Ioq);
-VOID FspIoqRemoveExpired(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout);
+VOID FspIoqRemoveExpired(FSP_IOQ *Ioq);
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
