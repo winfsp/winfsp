@@ -32,10 +32,12 @@ static NTSTATUS FspFsctlFileSystemControl(
         switch (IrpSp->Parameters.FileSystemControl.FsControlCode)
         {
         case FSP_FSCTL_VOLUME_NAME:
-            Result = FspVolumeGetName(DeviceObject, Irp, IrpSp);
+            if (0 != IrpSp->FileObject->FsContext2)
+                Result = FspVolumeGetName(DeviceObject, Irp, IrpSp);
             break;
         case FSP_FSCTL_TRANSACT:
-            Result = FspVolumeTransact(DeviceObject, Irp, IrpSp);
+            if (0 != IrpSp->FileObject->FsContext2)
+                Result = FspVolumeTransact(DeviceObject, Irp, IrpSp);
             break;
         }
         break;

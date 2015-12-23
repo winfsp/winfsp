@@ -348,6 +348,7 @@ NTSTATUS FspVolumeGetName(
     ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
     ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
     ASSERT(FSP_FSCTL_VOLUME_NAME == IrpSp->Parameters.FileSystemControl.FsControlCode);
+    ASSERT(0 != IrpSp->FileObject->FsContext2);
 
     /* check parameters */
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
@@ -375,35 +376,16 @@ NTSTATUS FspVolumeTransact(
 {
     PAGED_CODE();
 
-    return STATUS_INVALID_DEVICE_REQUEST;
-}
-
-NTSTATUS FspVolumeRedirQueryPathEx(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
-{
-    PAGED_CODE();
-
-    return STATUS_INVALID_DEVICE_REQUEST;
-}
-
-NTSTATUS FspVolumeWork(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
-{
-    PAGED_CODE();
-
-    return STATUS_INVALID_DEVICE_REQUEST;
-}
-
-#if 0
-static NTSTATUS FspFsctlTransact(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
-{
-    PAGED_CODE();
+    ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
+    ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
+    ASSERT(FSP_FSCTL_TRANSACT == IrpSp->Parameters.FileSystemControl.FsControlCode);
+    ASSERT(0 != IrpSp->FileObject->FsContext2);
 
     /* check parameters */
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
+    PVOID MdlBuffer;
     if (0 != InputBufferLength &&
         FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_RSP)) > InputBufferLength)
         return STATUS_INVALID_PARAMETER;
@@ -412,19 +394,13 @@ static NTSTATUS FspFsctlTransact(
         return STATUS_BUFFER_TOO_SMALL;
 
     NTSTATUS Result;
-    PDEVICE_OBJECT FsvolDeviceObject;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
-    PVOID MdlBuffer;
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PUINT8 BufferEnd;
     FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
     FSP_FSCTL_TRANSACT_REQ *Request, *PendingIrpRequest;
     PIRP ProcessIrp, PendingIrp;
     LARGE_INTEGER Timeout;
-
-    FsvolDeviceObject = FspFsvolDeviceObjectFromFileObject(IrpSp->FileObject);
-    if (0 == FsvolDeviceObject)
-        return STATUS_ACCESS_DENIED;
-    FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
 
     /* process any user-mode file system responses */
     Response = SystemBuffer;
@@ -506,15 +482,29 @@ static NTSTATUS FspFsctlTransact(
         PendingIrp = FspIoqNextPendingIrp(&FsvolDeviceExtension->Ioq, 0);
         if (0 == PendingIrp)
             break;
-
     }
 
     Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)MdlBuffer;
-    Result = STATUS_SUCCESS;
-
-    return Result;
+    return STATUS_SUCCESS;
 }
 
+NTSTATUS FspVolumeRedirQueryPathEx(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+NTSTATUS FspVolumeWork(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+#if 0
 static NTSTATUS FspFsvolWork(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
