@@ -56,8 +56,8 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     if (INVALID_HANDLE_VALUE == VolumeHandle)
     {
         Result = FspNtStatusFromWin32(GetLastError());
-        if (STATUS_OBJECT_NAME_NOT_FOUND == Result ||
-            STATUS_OBJECT_PATH_NOT_FOUND == Result)
+        if (STATUS_OBJECT_PATH_NOT_FOUND == Result ||
+            STATUS_OBJECT_NAME_NOT_FOUND == Result)
             Result = STATUS_NO_SUCH_DEVICE;
         goto exit;
     }
