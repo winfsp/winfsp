@@ -21,6 +21,7 @@
 
 #include <winfsp/fsctl.h>
 
+#if 0
 typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
 typedef NTSTATUS FSP_FILE_SYSTEM_PROCESSREQ(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
 typedef VOID FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
@@ -49,6 +50,7 @@ FSP_API NTSTATUS FspProduceResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspProduceResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, NTSTATUS Result);
+#endif
 
 FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error);
 FSP_API VOID FspDebugLog(const char *format, ...);
