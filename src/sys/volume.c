@@ -127,9 +127,9 @@ NTSTATUS FspVolumeCreate(
     FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
     FsvolDeviceExtension->VolumeParams = VolumeParams;
     RtlCopyUnicodeString(&FsvolDeviceExtension->VolumeName, &VolumeName);
+    FspDeviceInitComplete(FsvolDeviceObject);
     if (0 != FsvrtDeviceObject)
         FspDeviceInitComplete(FsvrtDeviceObject);
-    FspDeviceInitComplete(FsvolDeviceObject);
 
     /* do we need to register with MUP? */
     if (0 == FsvrtDeviceObject)
@@ -161,7 +161,25 @@ NTSTATUS FspVolumeGetName(
 {
     PAGED_CODE();
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    /* check parameters */
+    ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+    PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
+    if (FSP_FSCTL_VOLUME_NAME_SIZEMAX > OutputBufferLength)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    UNICODE_STRING VolumeName;
+
+    ASSERT(FSP_FSCTL_VOLUME_NAME_SIZEMAX >=
+        FsvolDeviceExtension->VolumeName.MaximumLength + sizeof(WCHAR));
+
+    RtlInitEmptyUnicodeString(&VolumeName, SystemBuffer, FSP_FSCTL_VOLUME_NAME_SIZEMAX);
+    RtlCopyUnicodeString(&VolumeName, &FsvolDeviceExtension->VolumeName);
+    VolumeName.Buffer[VolumeName.Length] = L'\0';
+
+    Irp->IoStatus.Information = VolumeName.Length + sizeof(WCHAR);
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS FspVolumeMount(
@@ -197,19 +215,6 @@ NTSTATUS FspVolumeWork(
 }
 
 #if 0
-static inline PDEVICE_OBJECT FspFsvolDeviceObjectFromFileObject(PFILE_OBJECT FileObject)
-{
-    PDEVICE_OBJECT FsvolDeviceObject;
-    FSP_FSCTL_FILE_CONTEXT2 *FsContext2 = FileObject->FsContext2;
-
-    ExAcquireFastMutex(&FsContext2->FastMutex);
-    FsvolDeviceObject = FsContext2->FsvolDeviceObject;
-    ExReleaseFastMutex(&FsContext2->FastMutex);
-
-    /* no FspDeviceRetain on the volume device, because it exists until the FileObject IRP_MJ_CLEANUP */
-    return FsvolDeviceObject;
-}
-
 NTSTATUS FspFsctlCreateVolume(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
