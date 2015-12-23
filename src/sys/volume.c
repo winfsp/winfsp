@@ -10,9 +10,9 @@ NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-NTSTATUS FspVolumeGetName(
-    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeMount(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeTransact(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
@@ -24,8 +24,8 @@ NTSTATUS FspVolumeWork(
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspVolumeCreate)
 #pragma alloc_text(PAGE, FspVolumeDelete)
-#pragma alloc_text(PAGE, FspVolumeGetName)
 #pragma alloc_text(PAGE, FspVolumeMount)
+#pragma alloc_text(PAGE, FspVolumeGetName)
 #pragma alloc_text(PAGE, FspVolumeTransact)
 #pragma alloc_text(PAGE, FspVolumeRedirQueryPathEx)
 #pragma alloc_text(PAGE, FspVolumeWork)
@@ -156,6 +156,14 @@ VOID FspVolumeDelete(
     PAGED_CODE();
 }
 
+NTSTATUS FspVolumeMount(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -184,14 +192,6 @@ NTSTATUS FspVolumeGetName(
 
     Irp->IoStatus.Information = VolumeName.Length + sizeof(WCHAR);
     return STATUS_SUCCESS;
-}
-
-NTSTATUS FspVolumeMount(
-    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
-{
-    PAGED_CODE();
-
-    return STATUS_INVALID_DEVICE_REQUEST;
 }
 
 NTSTATUS FspVolumeTransact(
