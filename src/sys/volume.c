@@ -351,11 +351,31 @@ NTSTATUS FspVolumeRedirQueryPathEx(
     if (KernelMode != Irp->RequestorMode)
         return STATUS_ACCESS_DENIED;
 
-    //NTSTATUS Result;
-    //FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    //FSP_FSCTL_TRANSACT_REQ *Request = IrpSp->Parameters.DeviceIoControl.Type3InputBuffer;
+    /* check parameters */
+    ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
+    ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+    QUERY_PATH_REQUEST_EX *QueryPathRequest = IrpSp->Parameters.DeviceIoControl.Type3InputBuffer;
+    QUERY_PATH_RESPONSE *QueryPathResponse = Irp->UserBuffer;
+    if (sizeof(QUERY_PATH_REQUEST_EX) > InputBufferLength ||
+        0 == QueryPathRequest || 0 == QueryPathResponse)
+        return STATUS_INVALID_PARAMETER;
+    if (sizeof(QUERY_PATH_RESPONSE) > OutputBufferLength)
+        return STATUS_BUFFER_TOO_SMALL;
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    UNICODE_STRING Prefix;
+
+    RtlInitUnicodeString(&Prefix, FsvolDeviceExtension->VolumeParams.Prefix);
+    if (Prefix.Length <= QueryPathRequest->PathName.Length &&
+        RtlEqualMemory(Prefix.Buffer, QueryPathRequest->PathName.Buffer, Prefix.Length))
+    {
+        QueryPathResponse->LengthAccepted = Prefix.Length;
+
+        Irp->IoStatus.Information = 0;
+        return STATUS_SUCCESS;
+    }
+    else
+        return STATUS_BAD_NETWORK_NAME;
 }
 
 NTSTATUS FspVolumeGetName(

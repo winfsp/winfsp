@@ -85,6 +85,7 @@ typedef struct
     UINT32 IrpTimeout;                  /* milliseconds; values between 1 min and 10 min */
     UINT32 EaSupported:1;               /* supports extended attributes (unimplemented; set to 0) */
     UINT32 FileNameRequired:1;          /* FileName required for all operations (not just Create) */
+    WCHAR Prefix[64];                   /* UNC prefix to recognize (\\server\path format, 0-term) */
 } FSP_FSCTL_VOLUME_PARAMS;
 typedef struct
 {
