@@ -6,7 +6,7 @@ int WinFspNetTests = 0;
 int main(int argc, char *argv[])
 {
     TESTSUITE(mount_tests);
-    TESTSUITE(timeout_tests);
+    //TESTSUITE(timeout_tests);
 
     tlib_run_tests(argc, argv);
     return 0;
