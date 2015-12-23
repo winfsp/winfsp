@@ -44,6 +44,7 @@ NTSTATUS FspVolumeCreate(
     NTSTATUS Result;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
+    USHORT PrefixLength = 0;
     GUID Guid;
     UNICODE_STRING DeviceSddl;
     UNICODE_STRING VolumeName;
@@ -84,6 +85,14 @@ NTSTATUS FspVolumeCreate(
     if (FspFsctlTransactTimeoutMinimum > VolumeParams.TransactTimeout ||
         VolumeParams.TransactTimeout > FspFsctlTransactTimeoutMaximum)
         VolumeParams.TransactTimeout = FspFsctlTransactTimeoutDefault;
+    VolumeParams.Prefix[sizeof VolumeParams.Prefix / 2 - 1] = L'\0';
+    while (L'\0' != VolumeParams.Prefix[PrefixLength++])
+        ;
+    while (0 < PrefixLength && L'\\' == VolumeParams.Prefix[--PrefixLength])
+        ;
+    VolumeParams.Prefix[PrefixLength] = L'\0';
+    if (0 == PrefixLength)
+        return STATUS_INVALID_PARAMETER;
 
     /* create volume guid */
     Result = FspCreateGuid(&Guid);
@@ -374,7 +383,9 @@ NTSTATUS FspVolumeRedirQueryPathEx(
     {
         RtlInitUnicodeString(&Prefix, FsvolDeviceExtension->VolumeParams.Prefix);
         if (Prefix.Length <= QueryPathRequest->PathName.Length &&
-            RtlEqualMemory(Prefix.Buffer, QueryPathRequest->PathName.Buffer, Prefix.Length))
+            RtlEqualMemory(Prefix.Buffer, QueryPathRequest->PathName.Buffer, Prefix.Length) &&
+            (Prefix.Length == QueryPathRequest->PathName.Length ||
+                '\\' == QueryPathRequest->PathName.Buffer[Prefix.Length]))
         {
             QueryPathResponse->LengthAccepted = Prefix.Length;
 
