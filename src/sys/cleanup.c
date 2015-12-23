@@ -23,15 +23,12 @@ FSP_DRIVER_DISPATCH FspCleanup;
 #pragma alloc_text(PAGE, FspCleanup)
 #endif
 
-VOID FspFsctlDeleteVolume(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-
 static NTSTATUS FspFsctlCleanup(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     PAGED_CODE();
 
-    FspFsctlDeleteVolume(DeviceObject, Irp, IrpSp);
+    FspVolumeDelete(DeviceObject, Irp, IrpSp);
 
     Irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;

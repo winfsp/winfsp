@@ -293,6 +293,10 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     RtlInitializeGenericTableAvl(&FsvolDeviceExtension->GenericTable,
         FspFsvolDeviceCompareElement, FspFsvolDeviceAllocateElement, FspFsvolDeviceFreeElement, 0);
 
+    /* initialize the volume name buffer */
+    RtlInitEmptyUnicodeString(&FsvolDeviceExtension->VolumeName,
+        FsvolDeviceExtension->VolumeNameBuf, sizeof FsvolDeviceExtension->VolumeNameBuf);
+
     return STATUS_SUCCESS;
 }
 

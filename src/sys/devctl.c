@@ -8,14 +8,11 @@
 
 static NTSTATUS FspFsvolDeviceControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-static NTSTATUS FspFsvolRedirQueryPathEx(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolDeviceControlComplete;
 FSP_DRIVER_DISPATCH FspDeviceControl;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolDeviceControl)
-#pragma alloc_text(PAGE, FspFsvolRedirQueryPathEx)
 #pragma alloc_text(PAGE, FspFsvolDeviceControlComplete)
 #pragma alloc_text(PAGE, FspDeviceControl)
 #endif
@@ -29,19 +26,11 @@ static NTSTATUS FspFsvolDeviceControl(
     switch (IrpSp->Parameters.DeviceIoControl.IoControlCode)
     {
     case IOCTL_REDIR_QUERY_PATH_EX :
-        Result = FspFsvolRedirQueryPathEx(DeviceObject, Irp, IrpSp);
+        Result = FspVolumeRedirQueryPathEx(DeviceObject, Irp, IrpSp);
         break;
     }
 
     return Result;
-}
-
-static NTSTATUS FspFsvolRedirQueryPathEx(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
-{
-    PAGED_CODE();
-
-    return STATUS_INVALID_DEVICE_REQUEST;
 }
 
 VOID FspFsvolDeviceControlComplete(

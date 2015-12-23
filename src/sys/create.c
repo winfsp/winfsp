@@ -27,22 +27,28 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspCreate)
 #endif
 
+#define PREFIXW                         L"" FSP_FSCTL_VOLUME_PARAMS_PREFIX
+#define PREFIXW_SIZE                    (sizeof PREFIXW - sizeof(WCHAR))
+
 static NTSTATUS FspFsctlCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     PAGED_CODE();
 
-    FSP_FSCTL_FILE_CONTEXT2 *FsContext2;
-    FsContext2 = FspAllocNonPaged(sizeof *FsContext2);
-    if (0 == FsContext2)
-        return STATUS_INSUFFICIENT_RESOURCES;
+    NTSTATUS Result;
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
 
-    RtlZeroMemory(FsContext2, sizeof *FsContext2);
-    ExInitializeFastMutex(&FsContext2->FastMutex);
-    IrpSp->FileObject->FsContext2 = FsContext2;
+    if (0 == FileObject->RelatedFileObject &&
+        PREFIXW_SIZE <= FileObject->FileName.Length &&
+        RtlEqualMemory(PREFIXW, FileObject->FileName.Buffer, PREFIXW_SIZE))
+        Result = FspVolumeCreate(DeviceObject, Irp, IrpSp);
+    else
+    {
+        Result = STATUS_SUCCESS;
+        Irp->IoStatus.Information = FILE_OPENED;
+    }
 
-    Irp->IoStatus.Information = FILE_OPENED;
-    return STATUS_SUCCESS;
+    return Result;
 }
 
 static NTSTATUS FspFsvrtCreate(
