@@ -41,6 +41,14 @@ NTSTATUS FspVolumeCreate(
 {
     PAGED_CODE();
 
+    ASSERT(IRP_MJ_CREATE == IrpSp->MajorFunction);
+    ASSERT(0 == IrpSp->FileObject->RelatedFileObject);
+    ASSERT(PREFIXW_SIZE <= IrpSp->FileObject->FileName.Length &&
+        RtlEqualMemory(PREFIXW, IrpSp->FileObject->FileName.Buffer, PREFIXW_SIZE));
+    ASSERT(
+        FILE_DEVICE_DISK_FILE_SYSTEM == FsctlDeviceObject->DeviceType ||
+        FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType);
+
     NTSTATUS Result;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
@@ -54,23 +62,14 @@ NTSTATUS FspVolumeCreate(
     HANDLE MupHandle = 0;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
-    ASSERT(IRP_MJ_CREATE == IrpSp->MajorFunction);
-    ASSERT(0 == FileObject->RelatedFileObject);
-    ASSERT(PREFIXW_SIZE <= FileObject->FileName.Length &&
-        RtlEqualMemory(PREFIXW, FileObject->FileName.Buffer, PREFIXW_SIZE));
-    ASSERT(
-        FILE_DEVICE_DISK_FILE_SYSTEM == FsctlDeviceObject->DeviceType ||
-        FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType);
-
     /* check parameters */
     if (PREFIXW_SIZE + sizeof(FSP_FSCTL_VOLUME_PARAMS) * sizeof(WCHAR) > FileObject->FileName.Length)
         return STATUS_INVALID_PARAMETER;
 
     /* copy the VolumeParams */
-    for (USHORT Index = PREFIXW_SIZE / sizeof(WCHAR), Length = FileObject->FileName.Length / 2;
-        Length > Index; Index++)
+    for (USHORT Index = 0, Length = sizeof(FSP_FSCTL_VOLUME_PARAMS); Length > Index; Index++)
     {
-        WCHAR Value = FileObject->FileName.Buffer[Index];
+        WCHAR Value = FileObject->FileName.Buffer[PREFIXW_SIZE / sizeof(WCHAR) + Index];
         if (0xF000 != (Value & 0xFF00))
             return STATUS_INVALID_PARAMETER;
         ((PUINT8)&VolumeParams)[Index] = Value & 0xFF;
@@ -94,16 +93,17 @@ NTSTATUS FspVolumeCreate(
     if (FspFsctlIrpCapacityMinimum > VolumeParams.IrpCapacity ||
         VolumeParams.IrpCapacity > FspFsctlIrpCapacityMaximum)
         VolumeParams.IrpCapacity = FspFsctlIrpCapacityDefault;
-    VolumeParams.Prefix[sizeof VolumeParams.Prefix / 2 - 1] = L'\0';
-    while (L'\0' != VolumeParams.Prefix[PrefixLength++])
-        ;
-    while (0 < PrefixLength && L'\\' == VolumeParams.Prefix[--PrefixLength])
-        ;
-    VolumeParams.Prefix[PrefixLength] = L'\0';
-    if (FILE_DEVICE_DISK_FILE_SYSTEM == FsctlDeviceObject->DeviceType && 0 != PrefixLength)
-        return STATUS_INVALID_PARAMETER;
-    if (FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType && 0 == PrefixLength)
-        return STATUS_INVALID_PARAMETER;
+    if (FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType)
+    {
+        VolumeParams.Prefix[sizeof VolumeParams.Prefix / 2 - 1] = L'\0';
+        while (L'\0' != VolumeParams.Prefix[PrefixLength++])
+            ;
+        while (0 < PrefixLength && L'\\' == VolumeParams.Prefix[--PrefixLength])
+            ;
+        VolumeParams.Prefix[PrefixLength] = L'\0';
+        if (0 == PrefixLength)
+            return STATUS_INVALID_PARAMETER;
+    }
 
     /* create volume guid */
     Result = FspCreateGuid(&Guid);

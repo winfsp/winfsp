@@ -22,38 +22,58 @@ void mount_invalid_test(void)
     ASSERT(INVALID_HANDLE_VALUE == VolumeHandle);
 }
 
-#if 0
-void mount_create_delete_dotest(PWSTR DeviceName)
+void mount_open_device_dotest(PWSTR DeviceName)
+{
+    BOOL Success;
+    HANDLE DeviceHandle;
+    WCHAR DevicePath[MAX_PATH];
+
+    StringCbPrintfW(DevicePath, sizeof DevicePath, L"\\\\?\\GLOBALROOT\\Device\\%s", DeviceName);
+    DeviceHandle = CreateFileW(DevicePath,
+        0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != DeviceHandle);
+
+    Success = CloseHandle(DeviceHandle);
+    ASSERT(Success);
+}
+
+void mount_open_device_test(void)
+{
+    if (WinFspDiskTests)
+        mount_open_device_dotest(L"WinFsp.Disk");
+    if (WinFspNetTests)
+        mount_open_device_dotest(L"WinFsp.Net");
+}
+
+void mount_create_volume_dotest(PWSTR DeviceName)
 {
     NTSTATUS Result;
     BOOL Success;
-    FSP_FSCTL_VOLUME_PARAMS Params = { 0 };
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
     WCHAR VolumePath[MAX_PATH];
     HANDLE VolumeHandle;
 
-    Params.SectorSize = 16384;
-    Params.SerialNumber = 0x12345678;
-    Result = FspFsctlCreateVolume(DeviceName, &Params, 0, VolumePath, sizeof VolumePath);
+    VolumeParams.SectorSize = 16384;
+    VolumeParams.SerialNumber = 0x12345678;
+    Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
+        VolumePath, sizeof VolumePath, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
-
-    Result = FspFsctlOpenVolume(VolumePath, &VolumeHandle);
-    ASSERT(STATUS_SUCCESS == Result);
-
-    Result = FspFsctlDeleteVolume(VolumeHandle);
-    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumePath, 15));
+    ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
     Success = CloseHandle(VolumeHandle);
     ASSERT(Success);
 }
 
-void mount_create_delete_test(void)
+void mount_create_volume_test(void)
 {
     if (WinFspDiskTests)
-        mount_create_delete_dotest(L"WinFsp.Disk");
+        mount_create_volume_dotest(L"WinFsp.Disk");
     if (WinFspNetTests)
-        mount_create_delete_dotest(L"WinFsp.Net");
+        mount_create_volume_dotest(L"WinFsp.Net");
 }
 
+#if 0
 static unsigned __stdcall mount_volume_cancel_dotest_thread(void *FilePath)
 {
     FspDebugLog(__FUNCTION__ ": \"%S\"\n", FilePath);
@@ -234,8 +254,9 @@ void mount_volume_transact_test(void)
 void mount_tests(void)
 {
     TEST(mount_invalid_test);
+    TEST(mount_open_device_test);
+    TEST(mount_create_volume_test);
 #if 0
-    TEST(mount_create_delete_test);
     TEST(mount_volume_cancel_test);
     TEST(mount_volume_transact_test);
 #endif

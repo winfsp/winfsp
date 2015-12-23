@@ -86,7 +86,7 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
         break;
     case FspFsvrtDeviceExtensionKind:
     case FspFsctlDeviceExtensionKind:
-        DeviceExtensionSize = 0;
+        DeviceExtensionSize = sizeof(FSP_DEVICE_EXTENSION);
         break;
     default:
         ASSERT(0);
