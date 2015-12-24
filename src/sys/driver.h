@@ -448,6 +448,57 @@ NTSTATUS FspVolumeTransact(
 NTSTATUS FspVolumeWork(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 
+/* file objects */
+#define FspFileContextKind(FsContext)   \
+    (((FSP_FILE_CONTEXT *)FsContext)->Header.NodeTypeCode)
+#define FspFileContextIsValid(FsContext)\
+    (0 != (FsContext) && FspFileContextFileKind == ((FSP_FILE_CONTEXT *)FsContext)->Header.NodeTypeCode)
+enum
+{
+    FspFileContextFileKind = 'BZ',
+};
+typedef struct
+{
+    ERESOURCE Resource;
+    ERESOURCE PagingIoResource;
+    FAST_MUTEX HeaderFastMutex;
+} FSP_FILE_CONTEXT_NONPAGED;
+typedef struct
+{
+    FSRTL_ADVANCED_FCB_HEADER Header;
+    FSP_FILE_CONTEXT_NONPAGED *NonPaged;
+    /* interlocked access */
+    LONG RefCount;
+#if 0
+    /* protected by Header.Resource */
+    LONG OpenCount;
+    SHARE_ACCESS ShareAccess;
+    BOOLEAN DeletePending;              /* FileDispositionInformation */
+    BOOLEAN DeleteOnClose;              /* FILE_DELETE_ON_CLOSE */
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
+    PDEVICE_OBJECT FsvolDeviceObject;
+    UINT64 UserContext;
+#endif
+    /* read-only after creation */
+    UNICODE_STRING FileName;
+    WCHAR FileNameBuf[];
+} FSP_FILE_CONTEXT;
+NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
+    ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext);
+VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
+static inline
+VOID FspFileContextRetain(FSP_FILE_CONTEXT *Context)
+{
+    InterlockedIncrement(&Context->RefCount);
+}
+static inline
+VOID FspFileContextRelease(FSP_FILE_CONTEXT *Context)
+{
+    LONG RefCount = InterlockedDecrement(&Context->RefCount);
+    if (0 == RefCount)
+        FspFileContextDelete(Context);
+}
+
 /* debug */
 #if DBG
 const char *NtStatusSym(NTSTATUS Status);
@@ -464,21 +515,6 @@ extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
 
 #if 0
-/* file objects */
-#define FspFileContextKind(FsContext)   \
-    (((FSP_FILE_CONTEXT *)FsContext)->Header.NodeTypeCode)
-#define FspFileContextIsValid(FsContext)\
-    (0 != (FsContext) && FspFileContextFileKind == ((FSP_FILE_CONTEXT *)FsContext)->Header.NodeTypeCode)
-enum
-{
-    FspFileContextFileKind = 'BZ',
-};
-typedef struct
-{
-    ERESOURCE Resource;
-    ERESOURCE PagingIoResource;
-    FAST_MUTEX HeaderFastMutex;
-} FSP_FILE_CONTEXT_NONPAGED;
 typedef struct
 {
     FSRTL_ADVANCED_FCB_HEADER Header;
@@ -512,18 +548,6 @@ LONG FspFileContextClose(FSP_FILE_CONTEXT *Context)
     ASSERT(ExIsResourceAcquiredExclusiveLite(Context->Header.Resource));
     ASSERT(0 < Context->OpenCount);
     return --Context->OpenCount;
-}
-static inline
-VOID FspFileContextRetain(FSP_FILE_CONTEXT *Context)
-{
-    InterlockedIncrement(&Context->RefCount);
-}
-static inline
-VOID FspFileContextRelease(FSP_FILE_CONTEXT *Context)
-{
-    LONG RefCount = InterlockedDecrement(&Context->RefCount);
-    if (0 == RefCount)
-        FspFileContextDelete(Context);
 }
 
 #endif
