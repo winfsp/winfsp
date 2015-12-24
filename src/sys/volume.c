@@ -341,7 +341,7 @@ NTSTATUS FspVolumeMount(
     ULONG DeviceObjectCount = 0;
     KIRQL Irql;
 
-    /* check the passed in device object; it must be our own and not marked delete pending */
+    /* check the passed in device object; it must be our own and not stopped */
     Result = FspDeviceCopyList(&DeviceObjects, &DeviceObjectCount);
     if (NT_SUCCESS(Result))
     {
