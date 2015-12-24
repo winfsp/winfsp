@@ -274,6 +274,18 @@ VOID FspFreeExternal(PVOID Pointer)
 /* utility: GUIDs */
 NTSTATUS FspCreateGuid(GUID *Guid);
 
+/* utility: synchronous work queue */
+typedef struct
+{
+    KEVENT Event;
+    PWORKER_THREAD_ROUTINE Routine;
+    PVOID Context;
+    WORK_QUEUE_ITEM WorkQueueItem;
+} FSP_SYNCHRONOUS_WORK_ITEM;
+VOID FspInitializeSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem,
+    PWORKER_THREAD_ROUTINE Routine, PVOID Context);
+VOID FspExecuteSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem);
+
 /* utility: delayed work queue */
 typedef struct
 {
