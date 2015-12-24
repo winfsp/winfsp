@@ -288,9 +288,9 @@ static NTSTATUS FspFsvolCreate(
 NTSTATUS FspFsvolCreatePrepare(
     PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    FSP_ENTER_IOP(PAGED_CODE());
+    PAGED_CODE();
 
-    FSP_LEAVE_IOP();
+    return STATUS_SUCCESS;
 }
 
 VOID FspFsvolCreateComplete(

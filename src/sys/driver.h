@@ -135,12 +135,6 @@ extern __declspec(selectany) int bpglobal = 1;
             FspIopCompleteIrpEx(Irp, Result, fsp_device_release);\
     );                                  \
     return Result
-#define FSP_ENTER_IOP(...)              \
-    NTSTATUS Result = STATUS_SUCCESS;   \
-    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (VOID)IrpSp;\
-    FSP_ENTER_NOCRIT_(__VA_ARGS__)
-#define FSP_LEAVE_IOP()                 \
-    FSP_LEAVE_NOCRIT_(); return Result
 #define FSP_ENTER_IOC(...)              \
     NTSTATUS Result = STATUS_SUCCESS;   \
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (VOID)IrpSp;\

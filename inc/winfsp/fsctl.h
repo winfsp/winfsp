@@ -46,6 +46,7 @@ enum
 {
     FspFsctlTransactUnknownKind = 0,
     FspFsctlTransactCreateKind,
+    FspFsctlTransactCleanupKind,
     FspFsctlTransactCloseKind,
     FspFsctlTransactReadKind,
     FspFsctlTransactWriteKind,
@@ -61,7 +62,6 @@ enum
     FspFsctlTransactDeviceControlKind,
     FspFsctlTransactShutdownKind,
     FspFsctlTransactLockControlKind,
-    FspFsctlTransactCleanupKind,
     FspFsctlTransactQuerySecurityKind,
     FspFsctlTransactSetSecurityKind,
     FspFsctlTransactKindCount,
