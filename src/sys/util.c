@@ -7,15 +7,15 @@
 #include <sys/driver.h>
 
 NTSTATUS FspCreateGuid(GUID *Guid);
-VOID FspInitializeWorkItemWithDelay(FSP_WORK_ITEM_WITH_DELAY *WorkItem,
+VOID FspInitializeDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem,
     PWORKER_THREAD_ROUTINE Routine, PVOID Context);
-VOID FspQueueWorkItemWithDelay(FSP_WORK_ITEM_WITH_DELAY *WorkItem, LARGE_INTEGER Timeout);
-static KDEFERRED_ROUTINE FspQueueWorkItemWithDelayDPC;
+VOID FspQueueDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem, LARGE_INTEGER Delay);
+static KDEFERRED_ROUTINE FspQueueDelayedWorkItemDPC;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspCreateGuid)
-#pragma alloc_text(PAGE, FspInitializeWorkItemWithDelay)
-#pragma alloc_text(PAGE, FspQueueWorkItemWithDelay)
+#pragma alloc_text(PAGE, FspInitializeDelayedWorkItem)
+#pragma alloc_text(PAGE, FspQueueDelayedWorkItem)
 #endif
 
 NTSTATUS FspCreateGuid(GUID *Guid)
@@ -33,29 +33,29 @@ NTSTATUS FspCreateGuid(GUID *Guid)
     return Result;
 }
 
-VOID FspInitializeWorkItemWithDelay(FSP_WORK_ITEM_WITH_DELAY *WorkItem,
+VOID FspInitializeDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem,
     PWORKER_THREAD_ROUTINE Routine, PVOID Context)
 {
     PAGED_CODE();
 
-    KeInitializeTimer(&WorkItem->Timer);
-    KeInitializeDpc(&WorkItem->Dpc, FspQueueWorkItemWithDelayDPC, WorkItem);
-    ExInitializeWorkItem(&WorkItem->WorkQueueItem, Routine, Context);
+    KeInitializeTimer(&DelayedWorkItem->Timer);
+    KeInitializeDpc(&DelayedWorkItem->Dpc, FspQueueDelayedWorkItemDPC, DelayedWorkItem);
+    ExInitializeWorkItem(&DelayedWorkItem->WorkQueueItem, Routine, Context);
 }
 
-VOID FspQueueWorkItemWithDelay(FSP_WORK_ITEM_WITH_DELAY *WorkItem, LARGE_INTEGER Timeout)
+VOID FspQueueDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem, LARGE_INTEGER Delay)
 {
     PAGED_CODE();
 
-    KeSetTimer(&WorkItem->Timer, Timeout, &WorkItem->Dpc);
+    KeSetTimer(&DelayedWorkItem->Timer, Delay, &DelayedWorkItem->Dpc);
 }
 
-static VOID FspQueueWorkItemWithDelayDPC(PKDPC Dpc,
+static VOID FspQueueDelayedWorkItemDPC(PKDPC Dpc,
     PVOID DeferredContext, PVOID SystemArgument1, PVOID SystemArgument2)
 {
     // !PAGED_CODE();
 
-    FSP_WORK_ITEM_WITH_DELAY *WorkItem = DeferredContext;
+    FSP_DELAYED_WORK_ITEM *DelayedWorkItem = DeferredContext;
 
-    ExQueueWorkItem(&WorkItem->WorkQueueItem, DelayedWorkQueue);
+    ExQueueWorkItem(&DelayedWorkItem->WorkQueueItem, DelayedWorkQueue);
 }

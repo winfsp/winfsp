@@ -280,10 +280,10 @@ typedef struct
     KTIMER Timer;
     KDPC Dpc;
     WORK_QUEUE_ITEM WorkQueueItem;
-} FSP_WORK_ITEM_WITH_DELAY;
-VOID FspInitializeWorkItemWithDelay(FSP_WORK_ITEM_WITH_DELAY *WorkItem,
+} FSP_DELAYED_WORK_ITEM;
+VOID FspInitializeDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem,
     PWORKER_THREAD_ROUTINE Routine, PVOID Context);
-VOID FspQueueWorkItemWithDelay(FSP_WORK_ITEM_WITH_DELAY *WorkItem, LARGE_INTEGER Timeout);
+VOID FspQueueDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem, LARGE_INTEGER Delay);
 
 /* IRP context */
 #define FspIrpTimestamp(Irp)            \
@@ -368,7 +368,7 @@ typedef struct
     PDEVICE_OBJECT FsvrtDeviceObject;
     HANDLE MupHandle;
     PVPB SwapVpb;
-    FSP_WORK_ITEM_WITH_DELAY DeleteVolumeWorkItem;
+    FSP_DELAYED_WORK_ITEM DeleteVolumeDelayedWorkItem;
     ERESOURCE DeleteResource;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     FSP_IOQ Ioq;

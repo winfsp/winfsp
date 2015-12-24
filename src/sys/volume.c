@@ -197,7 +197,7 @@ VOID FspVolumeDelete(
         KIRQL Irql;
         BOOLEAN DeleteVpb = FALSE;
         BOOLEAN DeleteDly = FALSE;
-        LARGE_INTEGER DelayTimeout;
+        LARGE_INTEGER Delay;
 
         /* swap the virtual disk device VPB with the preallocated one */
 #pragma prefast(push)
@@ -241,10 +241,10 @@ VOID FspVolumeDelete(
         {
             /* VPB has extra references; we must do a delayed delete of the volume device */
             FsvolDeviceExtension->SwapVpb = OldVpb;
-            DelayTimeout.QuadPart = 300/*ms*/ * -10000;
-            FspInitializeWorkItemWithDelay(&FsvolDeviceExtension->DeleteVolumeWorkItem,
+            Delay.QuadPart = 300/*ms*/ * -10000;
+            FspInitializeDelayedWorkItem(&FsvolDeviceExtension->DeleteVolumeDelayedWorkItem,
                 FspVolumeDeleteDelayed, FsvolDeviceObject);
-            FspQueueWorkItemWithDelay(&FsvolDeviceExtension->DeleteVolumeWorkItem, DelayTimeout);
+            FspQueueDelayedWorkItem(&FsvolDeviceExtension->DeleteVolumeDelayedWorkItem, Delay);
         }
     }
     else if (0 != FsvolDeviceExtension->MupHandle)
@@ -270,7 +270,7 @@ static VOID FspVolumeDeleteDelayed(PVOID Context)
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     KIRQL Irql;
     BOOLEAN DeleteVpb = FALSE;
-    LARGE_INTEGER DelayTimeout;
+    LARGE_INTEGER Delay;
 
     IoAcquireVpbSpinLock(&Irql);
     ASSERT(0 != FsvolDeviceExtension->SwapVpb->ReferenceCount);
@@ -286,8 +286,8 @@ static VOID FspVolumeDeleteDelayed(PVOID Context)
     }
     else
     {
-        DelayTimeout.QuadPart = 300/*ms*/ * -10000;
-        FspQueueWorkItemWithDelay(&FsvolDeviceExtension->DeleteVolumeWorkItem, DelayTimeout);
+        Delay.QuadPart = 300/*ms*/ * -10000;
+        FspQueueDelayedWorkItem(&FsvolDeviceExtension->DeleteVolumeDelayedWorkItem, Delay);
     }
 }
 
