@@ -55,6 +55,7 @@ void mount_create_volume_dotest(PWSTR DeviceName)
 
     VolumeParams.SectorSize = 16384;
     VolumeParams.SerialNumber = 0x12345678;
+    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\\\winfsp-tests");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
         VolumePath, sizeof VolumePath, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);

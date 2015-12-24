@@ -59,7 +59,6 @@ NTSTATUS FspVolumeCreate(
     WCHAR VolumeNameBuf[FSP_DEVICE_VOLUME_NAME_LENMAX / sizeof(WCHAR)];
     PDEVICE_OBJECT FsvolDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
-    HANDLE MupHandle = 0;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
     /* check parameters */
@@ -96,9 +95,9 @@ NTSTATUS FspVolumeCreate(
     if (FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType)
     {
         VolumeParams.Prefix[sizeof VolumeParams.Prefix / 2 - 1] = L'\0';
-        while (L'\0' != VolumeParams.Prefix[PrefixLength++])
+        for (; L'\0' != VolumeParams.Prefix[PrefixLength]; PrefixLength++)
             ;
-        while (0 < PrefixLength && L'\\' == VolumeParams.Prefix[--PrefixLength])
+        for (; 0 < PrefixLength && L'\\' == VolumeParams.Prefix[PrefixLength - 1]; PrefixLength--)
             ;
         VolumeParams.Prefix[PrefixLength] = L'\0';
         if (0 == PrefixLength)
@@ -156,13 +155,13 @@ NTSTATUS FspVolumeCreate(
     /* do we need to register with MUP? */
     if (0 == FsvrtDeviceObject)
     {
-        Result = FsRtlRegisterUncProviderEx(&MupHandle, &VolumeName, FsvolDeviceObject, 0);
+        Result = FsRtlRegisterUncProviderEx(&FsvolDeviceExtension->MupHandle,
+            &FsvolDeviceExtension->VolumeName, FsvolDeviceObject, 0);
         if (!NT_SUCCESS(Result))
         {
             FspDeviceRelease(FsvolDeviceObject);
             return Result;
         }
-        FsvolDeviceExtension->MupHandle = MupHandle;
     }
 
     /* associate the new volume device with our file object */
