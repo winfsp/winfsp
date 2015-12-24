@@ -182,8 +182,9 @@ VOID FspVolumeDelete(
 
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    IrpSp->FileObject->FsContext2 = 0;
 
-    /* acquire our DeleteResource */
+    /* acquire the volume device DeleteResource */
     ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->DeleteResource, TRUE);
 
     /* stop the I/O queue */
@@ -216,6 +217,14 @@ VOID FspVolumeDelete(
             DeleteDly = 2 <= OldVpb->ReferenceCount;
         }
         IoReleaseVpbSpinLock(Irql);
+#pragma prefast(pop)
+
+        /*
+         * Release the virtual disk object. This is safe to do here because the volume device
+         * keeps an extra reference to the virtual disk object using ObReferenceObject.
+         */
+        FspDeviceRelease(FsvrtDeviceObject);
+
         if (DeleteVpb)
         {
             /* no more references to the old VPB; delete now! */
@@ -224,23 +233,15 @@ VOID FspVolumeDelete(
         }
         else if (!DeleteDly)
         {
-            /* there is only the reference from FspVolumeMount */
+            /* there is only the reference from FspVolumeMount; release it! */
             FspFreeExternal(OldVpb);
             FsvolDeviceExtension->SwapVpb = 0;
             FspDeviceRelease(FsvolDeviceObject);
         }
         else
-            /* keep VPB around for delayed delete */
-            FsvolDeviceExtension->SwapVpb = OldVpb;
-#pragma prefast(pop)
-
-        /* release the virtual disk and volume device objects */
-        FspDeviceRelease(FsvrtDeviceObject);
-        FspDeviceRelease(FsvolDeviceObject);
-
-        /* are we doing delayed delete of VPB and volume device object? */
-        if (DeleteDly)
         {
+            /* VPB has extra references; we must do a delayed delete of the volume device */
+            FsvolDeviceExtension->SwapVpb = OldVpb;
             DelayTimeout.QuadPart = 300/*ms*/ * -10000;
             FspInitializeWorkItemWithDelay(&FsvolDeviceExtension->DeleteVolumeWorkItem,
                 FspVolumeDeleteDelayed, FsvolDeviceObject);
@@ -253,13 +254,13 @@ VOID FspVolumeDelete(
 
         FsRtlDeregisterUncProvider(MupHandle);
         FsvolDeviceExtension->MupHandle = 0;
-
-        /* release the volume device object */
-        FspDeviceRelease(FsvolDeviceObject);
     }
 
-    /* release the DeleteResource */
+    /* release the volume device DeleteResource */
     ExReleaseResourceLite(&FsvolDeviceExtension->DeleteResource);
+
+    /* release the volume device object */
+    FspDeviceRelease(FsvolDeviceObject);
 }
 
 static VOID FspVolumeDeleteDelayed(PVOID Context)
