@@ -476,10 +476,10 @@ typedef struct
     BOOLEAN DeletePending;              /* FileDispositionInformation */
     BOOLEAN DeleteOnClose;              /* FILE_DELETE_ON_CLOSE */
     FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
-    PDEVICE_OBJECT FsvolDeviceObject;
     UINT64 UserContext;
 #endif
     /* read-only after creation */
+    PDEVICE_OBJECT FsvolDeviceObject;
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
 } FSP_FILE_CONTEXT;

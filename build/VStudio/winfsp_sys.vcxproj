@@ -156,6 +156,7 @@
     <ClCompile Include="..\..\src\sys\driver.c" />
     <ClCompile Include="..\..\src\sys\ea.c" />
     <ClCompile Include="..\..\src\sys\fastio.c" />
+    <ClCompile Include="..\..\src\sys\filectx.c" />
     <ClCompile Include="..\..\src\sys\fileinfo.c" />
     <ClCompile Include="..\..\src\sys\flush.c" />
     <ClCompile Include="..\..\src\sys\fsctl.c" />
