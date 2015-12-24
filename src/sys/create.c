@@ -290,6 +290,21 @@ NTSTATUS FspFsvolCreatePrepare(
 {
     PAGED_CODE();
 
+    NTSTATUS Result;
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
+    HANDLE UserModeAccessToken;
+
+    /* get a user-mode handle to the access token */
+    Result = ObOpenObjectByPointer(SeQuerySubjectContextToken(&AccessState->SubjectSecurityContext),
+        0, 0, TOKEN_QUERY, *SeTokenObjectType, UserMode, &UserModeAccessToken);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    /* send the user-mode handle to the user-mode file system */
+    FspIopRequestContext(Request, RequestAccessToken) = UserModeAccessToken;
+    Request->Req.Create.AccessToken = (UINT_PTR)UserModeAccessToken;
+
     return STATUS_SUCCESS;
 }
 
