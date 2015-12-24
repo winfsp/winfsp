@@ -105,7 +105,7 @@ static NTSTATUS FspFsvolCreate(
     BOOLEAN IsAbsoluteSecurityDescriptor = FALSE;
     BOOLEAN IsSelfRelativeSecurityDescriptor = FALSE;
     BOOLEAN HasTrailingBackslash = FALSE;
-    FSP_FILE_CONTEXT *FsContext = 0, *RelatedFsContext;
+    FSP_FILE_CONTEXT *FsContext, *RelatedFsContext;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     /* cannot open files by fileid */
@@ -312,6 +312,110 @@ VOID FspFsvolCreateComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
+
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->DeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    SHARE_ACCESS TemporaryShareAccess;
+    UNICODE_STRING ReparseFileName;
+    FSP_FSCTL_TRANSACT_REQ *Request;
+    FSP_FILE_CONTEXT *FsContext;
+    BOOLEAN Inserted;
+
+    /* did the user-mode file system sent us a failure code? */
+    if (!NT_SUCCESS(Response->IoStatus.Status))
+    {
+        Irp->IoStatus.Information = Response->IoStatus.Information;
+        Result = Response->IoStatus.Status;
+        FSP_RETURN();
+    }
+
+    /* special case STATUS_REPARSE */
+    if (STATUS_REPARSE == Result)
+    {
+        ReparseFileName.Buffer =
+            (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset);
+        ReparseFileName.Length = ReparseFileName.MaximumLength =
+            Response->Rsp.Create.Reparse.FileName.Size;
+
+        Result = STATUS_ACCESS_DENIED;
+        if (IO_REPARSE == Response->IoStatus.Information)
+        {
+            if (0 == ReparseFileName.Length ||
+                (PUINT8)ReparseFileName.Buffer + ReparseFileName.Length >
+                (PUINT8)Response + Response->Size)
+                FSP_RETURN();
+
+            if (ReparseFileName.Length > FileObject->FileName.MaximumLength)
+            {
+                PVOID Buffer = FspAllocExternal(ReparseFileName.Length);
+                if (0 == Buffer)
+                    FSP_RETURN(Result = STATUS_INSUFFICIENT_RESOURCES);
+                FspFreeExternal(FileObject->FileName.Buffer);
+                FileObject->FileName.MaximumLength = ReparseFileName.Length;
+                FileObject->FileName.Buffer = Buffer;
+            }
+            FileObject->FileName.Length = 0;
+            RtlCopyUnicodeString(&FileObject->FileName, &ReparseFileName);
+        }
+        else
+        if (IO_REMOUNT == Response->IoStatus.Information)
+        {
+            if (0 != ReparseFileName.Length)
+                FSP_RETURN();
+        }
+        else
+            FSP_RETURN();
+
+        Irp->IoStatus.Information = Response->IoStatus.Information;
+        Result = Response->IoStatus.Status;
+        FSP_RETURN();
+    }
+
+    /* get the FsContext from our Request and associate it with the Response UserContext */
+    Request = FspIrpRequest(Irp);
+    FsContext = FspIopRequestContext(Request, RequestFsContext);
+    FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
+
+    /*
+     * Attempt to insert our FsContext into the volume device's generic table.
+     * If an FsContext with the same UserContext already exists, then use that
+     * FsContext instead.
+     */
+    FspFsvolDeviceLockContext(FsvolDeviceObject);
+    FsContext = FspFsvolDeviceInsertContext(FsvolDeviceObject,
+        FsContext->UserContext, FsContext, &FsContext->ElementStorage, &Inserted);
+    ASSERT(0 != FsContext);
+    if (Inserted)
+        /* Our FsContext was inserted into the volume device's generic table.
+         * Disassociate it from the Request.
+         */
+        FspIopRequestContext(Request, RequestFsContext) = 0;
+    else
+        /*
+         * We are using a previously inserted FsContext. We must retain it.
+         * Our own FsContext is still associated with the Request and will be
+         * deleted during IRP completion.
+         */
+        FspFileContextRetain(FsContext);
+    FspFileContextOpen(FsContext);
+    FspFsvolDeviceUnlockContext(FsvolDeviceObject);
+
+    /* set up share access on FileObject; user-mode file system assumed to have done share check */
+    IoSetShareAccess(Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
+        FileObject, &TemporaryShareAccess);
+
+    /* finish seting up the FileObject */
+    if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
+        FileObject->Vpb = FsvolDeviceExtension->FsvrtDeviceObject->Vpb;
+    FileObject->SectionObjectPointer = &FsContext->NonPaged->SectionObjectPointers;
+    FileObject->PrivateCacheMap = 0;
+    FileObject->FsContext = FsContext;
+    FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
+
+    /* SUCCESS! */
+    Irp->IoStatus.Information = Response->IoStatus.Information;
+    Result = Response->IoStatus.Status;
 
     FSP_LEAVE_IOC(
         "FileObject=%p[%p:\"%wZ\"]",

@@ -456,6 +456,7 @@ typedef struct
     ERESOURCE Resource;
     ERESOURCE PagingIoResource;
     FAST_MUTEX HeaderFastMutex;
+    SECTION_OBJECT_POINTERS SectionObjectPointers;
 } FSP_FILE_CONTEXT_NONPAGED;
 typedef struct
 {
@@ -463,34 +464,38 @@ typedef struct
     FSP_FILE_CONTEXT_NONPAGED *NonPaged;
     /* interlocked access */
     LONG RefCount;
-#if 0
-    /* protected by Header.Resource */
     LONG OpenCount;
-    SHARE_ACCESS ShareAccess;
-    BOOLEAN DeletePending;              /* FileDispositionInformation */
-    BOOLEAN DeleteOnClose;              /* FILE_DELETE_ON_CLOSE */
-    FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
-    UINT64 UserContext;
-#endif
-    /* read-only after creation */
+    /* read-only after creation (and insertion in the GenericTable) */
     PDEVICE_OBJECT FsvolDeviceObject;
+    UINT64 UserContext;
+    FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
 } FSP_FILE_CONTEXT;
 NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext);
-VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
+VOID FspFileContextDelete(FSP_FILE_CONTEXT *FsContext);
 static inline
-VOID FspFileContextRetain(FSP_FILE_CONTEXT *Context)
+VOID FspFileContextRetain(FSP_FILE_CONTEXT *FsContext)
 {
-    InterlockedIncrement(&Context->RefCount);
+    InterlockedIncrement(&FsContext->RefCount);
 }
 static inline
-VOID FspFileContextRelease(FSP_FILE_CONTEXT *Context)
+VOID FspFileContextRelease(FSP_FILE_CONTEXT *FsContext)
 {
-    LONG RefCount = InterlockedDecrement(&Context->RefCount);
+    LONG RefCount = InterlockedDecrement(&FsContext->RefCount);
     if (0 == RefCount)
-        FspFileContextDelete(Context);
+        FspFileContextDelete(FsContext);
+}
+static inline
+VOID FspFileContextOpen(FSP_FILE_CONTEXT *FsContext)
+{
+    InterlockedIncrement(&FsContext->OpenCount);
+}
+static inline
+LONG FspFileContextClose(FSP_FILE_CONTEXT *FsContext)
+{
+    return InterlockedDecrement(&FsContext->OpenCount);
 }
 
 /* debug */
@@ -507,43 +512,5 @@ extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
 extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
-
-#if 0
-typedef struct
-{
-    FSRTL_ADVANCED_FCB_HEADER Header;
-    FSP_FILE_CONTEXT_NONPAGED *NonPaged;
-    /* interlocked access */
-    LONG RefCount;
-    /* protected by Header.Resource */
-    LONG OpenCount;
-    SHARE_ACCESS ShareAccess;
-    BOOLEAN DeletePending;              /* FileDispositionInformation */
-    BOOLEAN DeleteOnClose;              /* FILE_DELETE_ON_CLOSE */
-    /* read-only after creation */
-    FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
-    PDEVICE_OBJECT FsvolDeviceObject;
-    UINT64 UserContext;
-    UNICODE_STRING FileName;
-    WCHAR FileNameBuf[];
-} FSP_FILE_CONTEXT;
-NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
-    ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext);
-VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
-static inline
-VOID FspFileContextOpen(FSP_FILE_CONTEXT *Context)
-{
-    ASSERT(0 == Context->OpenCount || ExIsResourceAcquiredExclusiveLite(Context->Header.Resource));
-    Context->OpenCount++;
-}
-static inline
-LONG FspFileContextClose(FSP_FILE_CONTEXT *Context)
-{
-    ASSERT(ExIsResourceAcquiredExclusiveLite(Context->Header.Resource));
-    ASSERT(0 < Context->OpenCount);
-    return --Context->OpenCount;
-}
-
-#endif
 
 #endif

@@ -123,7 +123,6 @@ typedef struct
         {
             UINT64 UserContext;
             UINT64 UserContext2;
-            UINT32 Delete:1;            /* if set, the file or directory must be deleted */
         } Cleanup;
         struct
         {
@@ -154,6 +153,7 @@ typedef struct
             {
                 UINT64 UserContext;     /* open file user context (unique file id) */
                 UINT64 UserContext2;    /* kernel file object user context (only low 32 bits valid) */
+                UINT32 GrantedAccess;   /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             } Opened;
             /* IoStatus.Status == STATUS_REPARSE */
             struct
