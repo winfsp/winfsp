@@ -8,6 +8,7 @@
 
 NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static WORKER_THREAD_ROUTINE FspVolumeCreateRegisterMup;
 VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static WORKER_THREAD_ROUTINE FspVolumeDeleteDelayed;
@@ -24,6 +25,7 @@ NTSTATUS FspVolumeWork(
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspVolumeCreate)
+#pragma alloc_text(PAGE, FspVolumeCreateRegisterMup)
 #pragma alloc_text(PAGE, FspVolumeDelete)
 #pragma alloc_text(PAGE, FspVolumeDeleteDelayed)
 #pragma alloc_text(PAGE, FspVolumeMount)
@@ -35,6 +37,13 @@ NTSTATUS FspVolumeWork(
 
 #define PREFIXW                         L"" FSP_FSCTL_VOLUME_PARAMS_PREFIX
 #define PREFIXW_SIZE                    (sizeof PREFIXW - sizeof(WCHAR))
+
+typedef struct
+{
+    PDEVICE_OBJECT FsvolDeviceObject;
+    NTSTATUS Result;
+    FSP_SYNCHRONOUS_WORK_ITEM SynchronousWorkItem;
+} FSP_CREATE_VOLUME_REGISTER_MUP_WORK_ITEM;
 
 NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
@@ -60,6 +69,7 @@ NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsvolDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
+    FSP_CREATE_VOLUME_REGISTER_MUP_WORK_ITEM RegisterMupWorkItem;
 
     /* check parameters */
     if (PREFIXW_SIZE + sizeof(FSP_FSCTL_VOLUME_PARAMS) * sizeof(WCHAR) > FileObject->FileName.Length)
@@ -155,8 +165,19 @@ NTSTATUS FspVolumeCreate(
     /* do we need to register with MUP? */
     if (0 == FsvrtDeviceObject)
     {
-        Result = FsRtlRegisterUncProviderEx(&FsvolDeviceExtension->MupHandle,
-            &FsvolDeviceExtension->VolumeName, FsvolDeviceObject, 0);
+        /*
+         * Turns out we cannot call FsRtlRegisterUncProviderEx when the PreviousMode
+         * is UserMode! So we need to somehow switch to KernelMode prior to issuing
+         * the FsRtlRegisterUncProviderEx call. There seems to be no straightforward
+         * way to switch the PreviousMode (no ExSetPreviousMode). So we do it indirectly
+         * by executing a synchronous work item (FspExecuteSynchronousWorkItem).
+         */
+        RtlZeroMemory(&RegisterMupWorkItem, sizeof RegisterMupWorkItem);
+        RegisterMupWorkItem.FsvolDeviceObject = FsvolDeviceObject;
+        FspInitializeSynchronousWorkItem(&RegisterMupWorkItem.SynchronousWorkItem,
+            FspVolumeCreateRegisterMup, &RegisterMupWorkItem);
+        FspExecuteSynchronousWorkItem(&RegisterMupWorkItem.SynchronousWorkItem);
+        Result = RegisterMupWorkItem.Result;
         if (!NT_SUCCESS(Result))
         {
             FspDeviceRelease(FsvolDeviceObject);
@@ -169,6 +190,18 @@ NTSTATUS FspVolumeCreate(
 
     Irp->IoStatus.Information = FILE_OPENED;
     return STATUS_SUCCESS;
+}
+
+static VOID FspVolumeCreateRegisterMup(PVOID Context)
+{
+    PAGED_CODE();
+
+    FSP_CREATE_VOLUME_REGISTER_MUP_WORK_ITEM *RegisterMupWorkItem = Context;
+    PDEVICE_OBJECT FsvolDeviceObject = RegisterMupWorkItem->FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+
+    RegisterMupWorkItem->Result = FsRtlRegisterUncProviderEx(&FsvolDeviceExtension->MupHandle,
+        &FsvolDeviceExtension->VolumeName, FsvolDeviceObject, 0);
 }
 
 VOID FspVolumeDelete(

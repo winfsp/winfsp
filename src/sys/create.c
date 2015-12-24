@@ -65,7 +65,8 @@ static NTSTATUS FspFsvolCreate(
 {
     PAGED_CODE();
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    Irp->IoStatus.Information = FILE_OPENED;
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS FspFsvolCreatePrepare(

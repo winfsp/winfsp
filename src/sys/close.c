@@ -46,7 +46,8 @@ static NTSTATUS FspFsvolClose(
 {
     PAGED_CODE();
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    Irp->IoStatus.Information = 0;
+    return STATUS_SUCCESS;
 }
 
 VOID FspFsvolCloseComplete(
