@@ -284,7 +284,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     ExInitializeResourceLite(&FsvolDeviceExtension->DeleteResource);
     FsvolDeviceExtension->InitDoneDelRsc = 1;
 
-    /* setup our Ioq */
+    /* create our Ioq */
     IrpTimeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000;
         /* convert millis to nanos */
     Result = FspIoqCreate(
@@ -344,6 +344,7 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
     }
 #endif
 
+    /* delete the Ioq */
     if (FsvolDeviceExtension->InitDoneIoq)
         FspIoqDelete(FsvolDeviceExtension->Ioq);
 
