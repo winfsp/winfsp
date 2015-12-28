@@ -74,7 +74,6 @@ void mount_create_volume_test(void)
         mount_create_volume_dotest(L"WinFsp.Net");
 }
 
-#if 0
 static unsigned __stdcall mount_volume_cancel_dotest_thread(void *FilePath)
 {
     FspDebugLog(__FUNCTION__ ": \"%S\"\n", FilePath);
@@ -92,29 +91,27 @@ void mount_volume_cancel_dotest(PWSTR DeviceName)
 {
     NTSTATUS Result;
     BOOL Success;
-    FSP_FSCTL_VOLUME_PARAMS Params = { 0 };
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
     WCHAR VolumePath[MAX_PATH];
     WCHAR FilePath[MAX_PATH];
     HANDLE VolumeHandle;
     HANDLE Thread;
     DWORD ExitCode;
 
-    Params.SectorSize = 16384;
-    Params.SerialNumber = 0x12345678;
-    Result = FspFsctlCreateVolume(DeviceName, &Params, 0, VolumePath, sizeof VolumePath);
+    VolumeParams.SectorSize = 16384;
+    VolumeParams.SerialNumber = 0x12345678;
+    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\\\winfsp-tests");
+    Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
+        VolumePath, sizeof VolumePath, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumePath, 15));
+    ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumePath);
     Thread = (HANDLE)_beginthreadex(0, 0, mount_volume_cancel_dotest_thread, FilePath, 0, 0);
     ASSERT(0 != Thread);
 
     Sleep(1000); /* give some time to the thread to execute */
-
-    Result = FspFsctlOpenVolume(VolumePath, &VolumeHandle);
-    ASSERT(STATUS_SUCCESS == Result);
-
-    Result = FspFsctlDeleteVolume(VolumeHandle);
-    ASSERT(STATUS_SUCCESS == Result);
 
     Success = CloseHandle(VolumeHandle);
     ASSERT(Success);
@@ -134,6 +131,7 @@ void mount_volume_cancel_test(void)
         mount_volume_cancel_dotest(L"WinFsp.Net");
 }
 
+#if 0
 static unsigned __stdcall mount_volume_transact_dotest_thread(void *FilePath)
 {
     FspDebugLog(__FUNCTION__ ": \"%S\"\n", FilePath);
@@ -257,8 +255,8 @@ void mount_tests(void)
     TEST(mount_invalid_test);
     TEST(mount_open_device_test);
     TEST(mount_create_volume_test);
-#if 0
     TEST(mount_volume_cancel_test);
+#if 0
     TEST(mount_volume_transact_test);
 #endif
 }

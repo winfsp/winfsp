@@ -81,7 +81,7 @@ static NTSTATUS FspFsvolCreate(
     if ((0 == RelatedFileObject || RelatedFileObject->FsContext) && 0 == FileName.Length)
     {
         if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
-            IrpSp->FileObject->Vpb = FsvolDeviceExtension->FsvrtDeviceObject->Vpb;
+            FileObject->Vpb = FsvolDeviceExtension->FsvrtDeviceObject->Vpb;
 
         Irp->IoStatus.Information = FILE_OPENED;
         return STATUS_SUCCESS;
