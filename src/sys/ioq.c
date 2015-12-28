@@ -209,7 +209,9 @@ NTSTATUS FspIoqCreate(
 {
     ASSERT(0 != CompleteCanceledIrp);
 
-    ULONG BucketCount = IrpCapacity / 2;
+    *PIoq = 0;
+
+    ULONG BucketCount = IrpCapacity / 3;
     FSP_IOQ *Ioq = FspAllocNonPaged(
         sizeof *Ioq + sizeof Ioq->ProcessIrpDictBuckets[0] * BucketCount);
     if (0 == Ioq)
@@ -239,6 +241,8 @@ NTSTATUS FspIoqCreate(
     Ioq->IrpTimeout = *IrpTimeout;
     Ioq->PendingIrpCapacity = IrpCapacity;
     Ioq->CompleteCanceledIrp = CompleteCanceledIrp;
+
+    *PIoq = Ioq;
 
     return STATUS_SUCCESS;
 }

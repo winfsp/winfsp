@@ -300,10 +300,6 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
         FspFsvolDeviceCompareElement, FspFsvolDeviceAllocateElement, FspFsvolDeviceFreeElement, 0);
     FsvolDeviceExtension->InitDoneGenTab = 1;
 
-    /* initialize the volume name buffer */
-    RtlInitEmptyUnicodeString(&FsvolDeviceExtension->VolumeName,
-        FsvolDeviceExtension->VolumeNameBuf, sizeof FsvolDeviceExtension->VolumeNameBuf);
-
     /* initialize our timer routine and start our expiration timer */
 #pragma prefast(suppress:28133, "We are a filesystem: we do not have AddDevice")
     Result = IoInitializeTimer(DeviceObject, FspFsvolDeviceTimerRoutine, 0);

@@ -157,6 +157,8 @@ NTSTATUS FspVolumeCreate(
     FsvolDeviceExtension->FsctlDeviceObject = FsctlDeviceObject;
     FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
     FsvolDeviceExtension->VolumeParams = VolumeParams;
+    RtlInitEmptyUnicodeString(&FsvolDeviceExtension->VolumeName,
+        FsvolDeviceExtension->VolumeNameBuf, sizeof FsvolDeviceExtension->VolumeNameBuf);
     RtlCopyUnicodeString(&FsvolDeviceExtension->VolumeName, &VolumeName);
     Result = FspDeviceInitialize(FsvolDeviceObject);
     if (NT_SUCCESS(Result))
