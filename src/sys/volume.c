@@ -293,9 +293,7 @@ VOID FspVolumeDelete(
     }
     else if (0 != FsvolDeviceExtension->MupHandle)
     {
-        HANDLE MupHandle = FsvolDeviceExtension->MupHandle;
-
-        FsRtlDeregisterUncProvider(MupHandle);
+        FsRtlDeregisterUncProvider(FsvolDeviceExtension->MupHandle);
         FsvolDeviceExtension->MupHandle = 0;
     }
 
