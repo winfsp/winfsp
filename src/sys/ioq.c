@@ -211,9 +211,9 @@ NTSTATUS FspIoqCreate(
 
     *PIoq = 0;
 
-    ULONG BucketCount = IrpCapacity / 3;
-    FSP_IOQ *Ioq = FspAllocNonPaged(
-        sizeof *Ioq + sizeof Ioq->ProcessIrpDictBuckets[0] * BucketCount);
+    FSP_IOQ *Ioq;
+    ULONG BucketCount = (PAGE_SIZE - sizeof *Ioq) / sizeof Ioq->ProcessIrpDictBuckets[0];
+    Ioq = FspAllocNonPaged(PAGE_SIZE);
     if (0 == Ioq)
         return STATUS_INSUFFICIENT_RESOURCES;
 
