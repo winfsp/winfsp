@@ -158,9 +158,18 @@ NTSTATUS FspVolumeCreate(
     FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
     FsvolDeviceExtension->VolumeParams = VolumeParams;
     RtlCopyUnicodeString(&FsvolDeviceExtension->VolumeName, &VolumeName);
-    FspDeviceInitComplete(FsvolDeviceObject);
-    if (0 != FsvrtDeviceObject)
-        FspDeviceInitComplete(FsvrtDeviceObject);
+    Result = FspDeviceInitialize(FsvolDeviceObject);
+    if (NT_SUCCESS(Result))
+    {
+        if (0 != FsvrtDeviceObject)
+            Result = FspDeviceInitialize(FsvrtDeviceObject);
+    }
+    if (!NT_SUCCESS(Result))
+    {
+        if (0 != FsvrtDeviceObject)
+            FspDeviceRelease(FsvrtDeviceObject);
+        FspDeviceRelease(FsvolDeviceObject);
+    }
 
     /* do we need to register with MUP? */
     if (0 == FsvrtDeviceObject)
@@ -220,7 +229,7 @@ VOID FspVolumeDelete(
     ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->DeleteResource, TRUE);
 
     /* stop the I/O queue */
-    FspIoqStop(&FsvolDeviceExtension->Ioq);
+    FspIoqStop(FsvolDeviceExtension->Ioq);
 
     /* do we have a virtual disk device or a MUP handle? */
     if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
@@ -356,7 +365,7 @@ NTSTATUS FspVolumeMount(
                     if (FsvolDeviceExtension->FsvrtDeviceObject == FsvrtDeviceObject)
                     {
                         ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->DeleteResource, TRUE);
-                        if (!FspIoqStopped(&FsvolDeviceExtension->Ioq))
+                        if (!FspIoqStopped(FsvolDeviceExtension->Ioq))
                         {
                             Result = STATUS_SUCCESS;
                             /* break out of the loop without FspDeviceRelease or DeleteResource release! */
@@ -423,7 +432,7 @@ NTSTATUS FspVolumeRedirQueryPathEx(
     ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->DeleteResource, TRUE);
 
     Result = STATUS_BAD_NETWORK_PATH;
-    if (!FspIoqStopped(&FsvolDeviceExtension->Ioq))
+    if (!FspIoqStopped(FsvolDeviceExtension->Ioq))
     {
         RtlInitUnicodeString(&Prefix, FsvolDeviceExtension->VolumeParams.Prefix);
         if (Prefix.Length <= QueryPathRequest->PathName.Length &&
@@ -515,7 +524,7 @@ NTSTATUS FspVolumeTransact(
         if (0 == NextResponse)
             break;
 
-        ProcessIrp = FspIoqEndProcessingIrp(&FsvolDeviceExtension->Ioq, (UINT_PTR)Response->Hint);
+        ProcessIrp = FspIoqEndProcessingIrp(FsvolDeviceExtension->Ioq, (UINT_PTR)Response->Hint);
         if (0 == ProcessIrp)
             /* either IRP was canceled or a bogus Hint was provided */
             continue;
@@ -538,9 +547,9 @@ NTSTATUS FspVolumeTransact(
     KeQuerySystemTime(&Timeout);
     Timeout.QuadPart += FsvolDeviceExtension->VolumeParams.TransactTimeout * 10000;
         /* convert millis to nanos and add to absolute time */
-    while (0 == (PendingIrp = FspIoqNextPendingIrp(&FsvolDeviceExtension->Ioq, &Timeout)))
+    while (0 == (PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, &Timeout)))
     {
-        if (FspIoqStopped(&FsvolDeviceExtension->Ioq))
+        if (FspIoqStopped(FsvolDeviceExtension->Ioq))
             return STATUS_CANCELLED;
     }
     if (FspIoqTimeout == PendingIrp)
@@ -565,7 +574,7 @@ NTSTATUS FspVolumeTransact(
             RtlCopyMemory(Request, PendingIrpRequest, PendingIrpRequest->Size);
             Request = FspFsctlTransactProduceRequest(Request, PendingIrpRequest->Size);
 
-            if (!FspIoqStartProcessingIrp(&FsvolDeviceExtension->Ioq, PendingIrp))
+            if (!FspIoqStartProcessingIrp(FsvolDeviceExtension->Ioq, PendingIrp))
             {
                 /*
                  * This can only happen if the Ioq was stopped. Abandon everything
@@ -573,7 +582,7 @@ NTSTATUS FspVolumeTransact(
                  * queues of the Ioq will be cancelled during FspIoqStop(). We must
                  * also cancel the PendingIrp we have in our hands.
                  */
-                ASSERT(FspIoqStopped(&FsvolDeviceExtension->Ioq));
+                ASSERT(FspIoqStopped(FsvolDeviceExtension->Ioq));
                 FspIopCompleteIrp(PendingIrp, STATUS_CANCELLED);
                 return STATUS_CANCELLED;
             }
@@ -583,7 +592,7 @@ NTSTATUS FspVolumeTransact(
                 break;
         }
 
-        PendingIrp = FspIoqNextPendingIrp(&FsvolDeviceExtension->Ioq, 0);
+        PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, 0);
         if (0 == PendingIrp)
             break;
     }
@@ -619,7 +628,7 @@ NTSTATUS FspVolumeWork(
      * so that we can disassociate the Request on failure and release ownership
      * back to the caller.
      */
-    if (!FspIoqPostIrp(&FsvolDeviceExtension->Ioq, Irp, &Result))
+    if (!FspIoqPostIrp(FsvolDeviceExtension->Ioq, Irp, &Result))
     {
         Request->Hint = 0;
         FspIrpRequest(Irp) = 0;

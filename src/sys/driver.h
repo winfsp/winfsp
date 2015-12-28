@@ -127,7 +127,7 @@ extern __declspec(selectany) int bpglobal = 1;
                 /* if the IRP has not been marked pending already */\
                 FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =\
                     FspFsvolDeviceExtension(DeviceObject);\
-                if (!FspIoqPostIrp(&FsvolDeviceExtension->Ioq, Irp, &Result))\
+                if (!FspIoqPostIrp(FsvolDeviceExtension->Ioq, Irp, &Result))\
                     FspIopCompleteIrp(Irp, Result);\
             }                           \
         }                               \
@@ -291,12 +291,38 @@ VOID FspInitializeDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem,
     PWORKER_THREAD_ROUTINE Routine, PVOID Context);
 VOID FspQueueDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem, LARGE_INTEGER Delay);
 
+/* dictionary */
+typedef BOOLEAN FSP_DICT_EQUAL_FUNCTION(PVOID Key1, PVOID Key2);
+typedef ULONG FSP_DICT_HASH_FUNCTION(PVOID Key);
+typedef struct _FSP_DICT_ENTRY
+{
+    PVOID Key, Value;
+    struct _FSP_DICT_ENTRY *Next;
+} FSP_DICT_ENTRY;
+typedef struct _FSP_DICT
+{
+    FSP_DICT_EQUAL_FUNCTION *EqualFunction;
+    FSP_DICT_HASH_FUNCTION *HashFunction;
+    FSP_DICT_ENTRY **Buckets;
+    ULONG BucketCount;
+} FSP_DICT;
+VOID FspDictInitialize(FSP_DICT *Dict,
+    FSP_DICT_EQUAL_FUNCTION *EqualFunction, FSP_DICT_HASH_FUNCTION *HashFunction,
+    FSP_DICT_ENTRY **Buckets, ULONG BucketCount);
+FSP_DICT_ENTRY *FspDictGetEntry(FSP_DICT *Dict, PVOID Key);
+VOID FspDictSetEntry(FSP_DICT *Dict, FSP_DICT_ENTRY *Entry);
+FSP_DICT_ENTRY *FspDictRemoveEntry(FSP_DICT *Dict, PVOID Key);
+
 /* IRP context */
-#define FspIrpTimestamp(Irp)            \
-    (*(ULONGLONG *)&(Irp)->Tail.Overlay.DriverContext[0])
-    /* FspIrpTimestamp() uses up DriverContext[0] and [1] in 32-bit builds */
+typedef struct
+{
+    IO_CSQ_IRP_CONTEXT IoCsqIrpContext;
+    ULONGLONG ExpirationTime;
+} FSP_IRP_CONTEXT;
+#define FspIrpContext(Irp)              \
+    (*(FSP_IRP_CONTEXT **)&(Irp)->Tail.Overlay.DriverContext[0])
 #define FspIrpRequest(Irp)              \
-    (*(FSP_FSCTL_TRANSACT_REQ **)&(Irp)->Tail.Overlay.DriverContext[2])
+    (*(FSP_FSCTL_TRANSACT_REQ **)&(Irp)->Tail.Overlay.DriverContext[0])
 
 /* I/O queue */
 #define FspIoqTimeout                   ((PIRP)1)
@@ -307,12 +333,16 @@ typedef struct
     KEVENT PendingIrpEvent;
     LIST_ENTRY PendingIrpList, ProcessIrpList;
     IO_CSQ PendingIoCsq, ProcessIoCsq;
+    FSP_DICT ProcessIrpDict;
     LARGE_INTEGER IrpTimeout;
     ULONG PendingIrpCapacity, PendingIrpCount;
     VOID (*CompleteCanceledIrp)(PIRP Irp);
+    FSP_DICT_ENTRY *ProcessIrpDictBuckets[];
 } FSP_IOQ;
-VOID FspIoqInitialize(FSP_IOQ *Ioq,
-    PLARGE_INTEGER IrpTimeout, ULONG IrpCapacity, VOID (*CompleteCanceledIrp)(PIRP Irp));
+NTSTATUS FspIoqCreate(
+    ULONG IrpCapacity, PLARGE_INTEGER IrpTimeout, VOID (*CompleteCanceledIrp)(PIRP Irp),
+    FSP_IOQ **PIoq);
+VOID FspIoqDelete(FSP_IOQ *Ioq);
 VOID FspIoqStop(FSP_IOQ *Ioq);
 BOOLEAN FspIoqStopped(FSP_IOQ *Ioq);
 VOID FspIoqRemoveExpired(FSP_IOQ *Ioq);
@@ -370,6 +400,7 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
+    UINT32 InitDoneFsvrt:1, InitDoneDelRsc:1, InitDoneIoq:1, InitDoneGenTab:1, InitDoneTimer:1;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     HANDLE MupHandle;
@@ -377,7 +408,7 @@ typedef struct
     FSP_DELAYED_WORK_ITEM DeleteVolumeDelayedWorkItem;
     ERESOURCE DeleteResource;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
-    FSP_IOQ Ioq;
+    FSP_IOQ *Ioq;
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;
     BOOLEAN ExpirationInProgress;
@@ -405,7 +436,7 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
 NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
     DEVICE_TYPE DeviceType,
     PDEVICE_OBJECT *PDeviceObject);
-VOID FspDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
+NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);

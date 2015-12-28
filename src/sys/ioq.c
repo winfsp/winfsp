@@ -91,21 +91,19 @@ static PIRP FspIoqPendingPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
         return 0;
     PLIST_ENTRY Head = &Ioq->PendingIrpList;
     PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
+    if (Head == Entry)
+        return 0;
     if (!PeekContext)
-        return Head != Entry ? CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry) : 0;
+        return CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
     PVOID IrpHint = ((FSP_IOQ_PEEK_CONTEXT *)PeekContext)->IrpHint;
     if (0 == IrpHint)
     {
-        if (Head != Entry)
-        {
-            Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
-            if (FspIrpTimestamp(Irp) <= ((FSP_IOQ_PEEK_CONTEXT *)PeekContext)->ExpirationTime)
-                /* IRP has expired; return it */
-                return Irp;
-        }
-        return 0;
+        ULONGLONG ExpirationTime = ((FSP_IOQ_PEEK_CONTEXT *)PeekContext)->ExpirationTime;
+        return FspIrpContext(Irp)->ExpirationTime <= ExpirationTime ?
+            CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry) : 0;
     }
-    return Head != Entry ? CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry) : 0;
+    else
+        return CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
 }
 
 _IRQL_raises_(DISPATCH_LEVEL)
@@ -134,11 +132,19 @@ static NTSTATUS FspIoqProcessInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertCo
     if (Ioq->Stopped)
         return STATUS_CANCELLED;
     InsertTailList(&Ioq->ProcessIrpList, &Irp->Tail.Overlay.ListEntry);
+    ASSERT(0 == FspDictGetEntry(&Ioq->ProcessIrpDict, Irp));
+    FSP_DICT_ENTRY DictEntry = { 0 };
+    DictEntry.Key = Irp;
+    FspDictSetEntry(&Ioq->ProcessIrpDict, &DictEntry);
     return STATUS_SUCCESS;
 }
 
 static VOID FspIoqProcessRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
+    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
+    FSP_DICT_ENTRY *DictEntry; (VOID)DictEntry;
+    DictEntry = FspDictRemoveEntry(&Ioq->ProcessIrpDict, Irp);
+    ASSERT(0 == DictEntry);
     RemoveEntryList(&Irp->Tail.Overlay.ListEntry);
 }
 
@@ -149,27 +155,22 @@ static PIRP FspIoqProcessPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
         return 0;
     PLIST_ENTRY Head = &Ioq->ProcessIrpList;
     PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
+    if (Head == Entry)
+        return 0;
     if (!PeekContext)
-        return Head != Entry ? CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry) : 0;
+        return CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
     PVOID IrpHint = ((FSP_IOQ_PEEK_CONTEXT *)PeekContext)->IrpHint;
     if (0 == IrpHint)
     {
-        if (Head != Entry)
-        {
-            Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
-            if (FspIrpTimestamp(Irp) <= ((FSP_IOQ_PEEK_CONTEXT *)PeekContext)->ExpirationTime)
-                /* IRP has expired; return it */
-                return Irp;
-        }
-        return 0;
+        ULONGLONG ExpirationTime = ((FSP_IOQ_PEEK_CONTEXT *)PeekContext)->ExpirationTime;
+        return FspIrpContext(Irp)->ExpirationTime <= ExpirationTime ?
+            CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry) : 0;
     }
-    for (; Head != Entry; Entry = Entry->Flink)
+    else
     {
-        Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
-        if (Irp == IrpHint)
-            return Irp;
+        FSP_DICT_ENTRY *DictEntry = FspDictGetEntry(&Ioq->ProcessIrpDict, IrpHint);
+        return 0 != DictEntry ? (PIRP)IrpHint : 0;
     }
-    return 0;
 }
 
 _IRQL_raises_(DISPATCH_LEVEL)
@@ -192,10 +193,27 @@ static VOID FspIoqProcessCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
     Ioq->CompleteCanceledIrp(Irp);
 }
 
-VOID FspIoqInitialize(FSP_IOQ *Ioq,
-    PLARGE_INTEGER IrpTimeout, ULONG IrpCapacity, VOID (*CompleteCanceledIrp)(PIRP Irp))
+BOOLEAN FspIoqIrpEquals(PVOID Irp1, PVOID Irp2)
+{
+    return Irp1 == Irp2;
+}
+
+ULONG FspIoqIrpHash(PVOID Irp)
+{
+    return (ULONG)(UINT_PTR)Irp;
+}
+
+NTSTATUS FspIoqCreate(
+    ULONG IrpCapacity, PLARGE_INTEGER IrpTimeout, VOID (*CompleteCanceledIrp)(PIRP Irp),
+    FSP_IOQ **PIoq)
 {
     ASSERT(0 != CompleteCanceledIrp);
+
+    ULONG BucketCount = IrpCapacity / 2;
+    FSP_IOQ *Ioq = FspAllocNonPaged(
+        sizeof *Ioq + sizeof Ioq->ProcessIrpDictBuckets[0] * BucketCount);
+    if (0 == Ioq)
+        return STATUS_INSUFFICIENT_RESOURCES;
 
     RtlZeroMemory(Ioq, sizeof *Ioq);
     KeInitializeSpinLock(&Ioq->SpinLock);
@@ -216,9 +234,19 @@ VOID FspIoqInitialize(FSP_IOQ *Ioq,
         FspIoqProcessAcquireLock,
         FspIoqProcessReleaseLock,
         FspIoqProcessCompleteCanceledIrp);
+    FspDictInitialize(&Ioq->ProcessIrpDict,
+        FspIoqIrpEquals, FspIoqIrpHash, Ioq->ProcessIrpDictBuckets, BucketCount);
     Ioq->IrpTimeout = *IrpTimeout;
     Ioq->PendingIrpCapacity = IrpCapacity;
     Ioq->CompleteCanceledIrp = CompleteCanceledIrp;
+
+    return STATUS_SUCCESS;
+}
+
+VOID FspIoqDelete(FSP_IOQ *Ioq)
+{
+    FspIoqStop(Ioq);
+    FspFree(Ioq);
 }
 
 VOID FspIoqStop(FSP_IOQ *Ioq)
@@ -261,7 +289,7 @@ VOID FspIoqRemoveExpired(FSP_IOQ *Ioq)
 BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp, NTSTATUS *PResult)
 {
     NTSTATUS Result;
-    FspIrpTimestamp(Irp) = KeQueryInterruptTime() + Ioq->IrpTimeout.QuadPart;
+    FspIrpContext(Irp)->ExpirationTime = KeQueryInterruptTime() + Ioq->IrpTimeout.QuadPart;
     Result = IoCsqInsertIrpEx(&Ioq->PendingIoCsq, Irp, 0, (PVOID)1);
     if (NT_SUCCESS(Result))
         return TRUE;

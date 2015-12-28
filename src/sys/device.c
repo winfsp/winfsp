@@ -13,7 +13,7 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
 NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
     DEVICE_TYPE DeviceType,
     PDEVICE_OBJECT *PDeviceObject);
-VOID FspDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
+NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
@@ -22,7 +22,6 @@ static BOOLEAN FspDeviceRetainAtDpcLevel(PDEVICE_OBJECT DeviceObject);
 _IRQL_requires_(DISPATCH_LEVEL)
 static VOID FspDeviceReleaseFromDpcLevel(PDEVICE_OBJECT DeviceObject);
 static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject);
-static VOID FspFsvolDeviceInitComplete(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject);
 static IO_TIMER_ROUTINE FspFsvolDeviceTimerRoutine;
 static WORKER_THREAD_ROUTINE FspFsvolDeviceExpirationRoutine;
@@ -49,10 +48,9 @@ VOID FspDeviceDeleteAll(VOID);
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspDeviceCreateSecure)
 #pragma alloc_text(PAGE, FspDeviceCreate)
-#pragma alloc_text(PAGE, FspDeviceInitComplete)
+#pragma alloc_text(PAGE, FspDeviceInitialize)
 #pragma alloc_text(PAGE, FspDeviceDelete)
 #pragma alloc_text(PAGE, FspFsvolDeviceInit)
-#pragma alloc_text(PAGE, FspFsvolDeviceInitComplete)
 #pragma alloc_text(PAGE, FspFsvolDeviceFini)
 #pragma alloc_text(PAGE, FspFsvolDeviceLockContext)
 #pragma alloc_text(PAGE, FspFsvolDeviceUnlockContext)
@@ -78,6 +76,8 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
     ULONG DeviceExtensionSize;
     PDEVICE_OBJECT DeviceObject;
     FSP_DEVICE_EXTENSION *DeviceExtension;
+
+    *PDeviceObject = 0;
 
     switch (Kind)
     {
@@ -112,20 +112,7 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
     DeviceExtension->RefCount = 1;
     DeviceExtension->Kind = Kind;
 
-    switch (Kind)
-    {
-    case FspFsvolDeviceExtensionKind:
-        Result = FspFsvolDeviceInit(DeviceObject);
-        break;
-    case FspFsvrtDeviceExtensionKind:
-    case FspFsctlDeviceExtensionKind:
-        break;
-    }
-
-    if (!NT_SUCCESS(Result))
-        IoDeleteDevice(DeviceObject);
-    else
-        *PDeviceObject = DeviceObject;
+    *PDeviceObject = DeviceObject;
 
     return Result;
 }
@@ -139,26 +126,31 @@ NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
     return FspDeviceCreateSecure(Kind, ExtraSize, 0, DeviceType, 0, 0, PDeviceObject);
 }
 
-VOID FspDeviceInitComplete(PDEVICE_OBJECT DeviceObject)
+NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
 
+    NTSTATUS Result;
     FSP_DEVICE_EXTENSION *DeviceExtension = FspDeviceExtension(DeviceObject);
 
     switch (DeviceExtension->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FspFsvolDeviceInitComplete(DeviceObject);
+        Result = FspFsvolDeviceInit(DeviceObject);
         break;
     case FspFsvrtDeviceExtensionKind:
     case FspFsctlDeviceExtensionKind:
+        Result = STATUS_SUCCESS;
         break;
     default:
         ASSERT(0);
-        return;
+        return STATUS_INVALID_PARAMETER;
     }
 
-    ClearFlag(DeviceObject->Flags, DO_DEVICE_INITIALIZING);
+    if (NT_SUCCESS(Result))
+        ClearFlag(DeviceObject->Flags, DO_DEVICE_INITIALIZING);
+
+    return Result;
 }
 
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
@@ -266,64 +258,64 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
 
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    LARGE_INTEGER IrpTimeout;
 
-    /* initialize our timer routine */
-#pragma prefast(suppress:28133, "We are a filesystem: we do not have AddDevice")
-    Result = IoInitializeTimer(DeviceObject, FspFsvolDeviceTimerRoutine, 0);
-    if (!NT_SUCCESS(Result))
-        return Result;
+    /*
+     * Volume device initialization is a mess, because of the different ways of
+     * creating/initializing different resources. So we will use some bits just
+     * to track what has been initialized!
+     */
 
-    /* allocate a spare VPB in case we are mounted on a virtual disk */
-    if (FILE_DEVICE_DISK_FILE_SYSTEM == DeviceObject->DeviceType)
+    /* is there a virtual disk? */
+    if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
     {
+        /* allocate a spare VPB so that we can be mounted on the virtual disk */
         FsvolDeviceExtension->SwapVpb = FspAllocNonPagedExternal(sizeof *FsvolDeviceExtension->SwapVpb);
         if (0 == FsvolDeviceExtension->SwapVpb)
             return STATUS_INSUFFICIENT_RESOURCES;
         RtlZeroMemory(FsvolDeviceExtension->SwapVpb, sizeof *FsvolDeviceExtension->SwapVpb);
+
+        /* reference the virtual disk device so that it will not go away while we are using it */
+        ObReferenceObject(FsvolDeviceExtension->FsvrtDeviceObject);
+        FsvolDeviceExtension->InitDoneFsvrt = 1;
     }
 
     /* initialize our delete lock */
     ExInitializeResourceLite(&FsvolDeviceExtension->DeleteResource);
+    FsvolDeviceExtension->InitDoneDelRsc = 1;
+
+    /* setup our Ioq */
+    IrpTimeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000;
+        /* convert millis to nanos */
+    Result = FspIoqCreate(
+        FsvolDeviceExtension->VolumeParams.IrpCapacity, &IrpTimeout, FspIopCompleteCanceledIrp,
+        &FsvolDeviceExtension->Ioq);
+    if (!NT_SUCCESS(Result))
+        return Result;
+    FsvolDeviceExtension->InitDoneIoq = 1;
 
     /* initialize our generic table */
     ExInitializeFastMutex(&FsvolDeviceExtension->GenericTableFastMutex);
     RtlInitializeGenericTableAvl(&FsvolDeviceExtension->GenericTable,
         FspFsvolDeviceCompareElement, FspFsvolDeviceAllocateElement, FspFsvolDeviceFreeElement, 0);
+    FsvolDeviceExtension->InitDoneGenTab = 1;
 
     /* initialize the volume name buffer */
     RtlInitEmptyUnicodeString(&FsvolDeviceExtension->VolumeName,
         FsvolDeviceExtension->VolumeNameBuf, sizeof FsvolDeviceExtension->VolumeNameBuf);
 
-    return STATUS_SUCCESS;
-}
-
-static VOID FspFsvolDeviceInitComplete(PDEVICE_OBJECT DeviceObject)
-{
-    PAGED_CODE();
-
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    LARGE_INTEGER IrpTimeout;
-
-    /*
-     * Setup our Ioq and expiration fields.
-     * We must do this in InitComplete because Ioq initialization depends on VolumeParams.
-     */
-    IrpTimeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000;
-        /* convert millis to nanos */
-    FspIoqInitialize(&FsvolDeviceExtension->Ioq,
-        &IrpTimeout, FsvolDeviceExtension->VolumeParams.IrpCapacity, FspIopCompleteCanceledIrp);
+    /* initialize our timer routine and start our expiration timer */
+#pragma prefast(suppress:28133, "We are a filesystem: we do not have AddDevice")
+    Result = IoInitializeTimer(DeviceObject, FspFsvolDeviceTimerRoutine, 0);
+    if (!NT_SUCCESS(Result))
+        return Result;
     KeInitializeSpinLock(&FsvolDeviceExtension->ExpirationLock);
     ExInitializeWorkItem(&FsvolDeviceExtension->ExpirationWorkItem,
         FspFsvolDeviceExpirationRoutine, DeviceObject);
-
-    /*
-     * Reference the virtual volume device so that it will not go away while we are using it.
-     */
-    if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
-        ObReferenceObject(FsvolDeviceExtension->FsvrtDeviceObject);
-
-    /* start our expiration timer */
     IoStartTimer(DeviceObject);
+    FsvolDeviceExtension->InitDoneTimer = 1;
+
+    return STATUS_SUCCESS;
 }
 
 static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
@@ -339,7 +331,8 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
      * However a work item may be in flight. For this reason our IoTimer routine
      * retains our DeviceObject before queueing work items.
      */
-    IoStopTimer(DeviceObject);
+    if (FsvolDeviceExtension->InitDoneTimer)
+        IoStopTimer(DeviceObject);
 
 #if 0
     /* FspDeviceFreeElement is now a no-op, so this is no longer necessary */
@@ -347,23 +340,31 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
      * Enumerate and delete all entries in the GenericTable.
      * There is no need to protect accesses to the table as we are in the device destructor.
      */
-    FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Element;
-    while (0 != (Element = RtlGetElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, 0)))
-        RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Element->Identifier);
+    if (FsvolDeviceExtension->InitDoneGenTab)
+    {
+        FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Element;
+        while (0 != (Element = RtlGetElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, 0)))
+            RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Element->Identifier);
+    }
 #endif
 
-    /*
-     * Dereference the virtual volume device so that it can now go away.
-     */
-    if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
-        ObDereferenceObject(FsvolDeviceExtension->FsvrtDeviceObject);
+    if (FsvolDeviceExtension->InitDoneIoq)
+        FspIoqDelete(FsvolDeviceExtension->Ioq);
 
     /* finalize our delete lock */
-    ExDeleteResourceLite(&FsvolDeviceExtension->DeleteResource);
+    if (FsvolDeviceExtension->InitDoneDelRsc)
+        ExDeleteResourceLite(&FsvolDeviceExtension->DeleteResource);
 
-    /* free the spare VPB if we still have it */
-    if (0 != FsvolDeviceExtension->SwapVpb)
-        FspFreeExternal(FsvolDeviceExtension->SwapVpb);
+    /* is there a virtual disk? */
+    if (FsvolDeviceExtension->InitDoneFsvrt)
+    {
+        /* dereference the virtual volume device so that it can now go away */
+        ObDereferenceObject(FsvolDeviceExtension->FsvrtDeviceObject);
+
+        /* free the spare VPB if we still have it */
+        if (0 != FsvolDeviceExtension->SwapVpb)
+            FspFreeExternal(FsvolDeviceExtension->SwapVpb);
+    }
 }
 
 static VOID FspFsvolDeviceTimerRoutine(PDEVICE_OBJECT DeviceObject, PVOID Context)
@@ -405,7 +406,7 @@ static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     KIRQL Irql;
 
-    FspIoqRemoveExpired(&FsvolDeviceExtension->Ioq);
+    FspIoqRemoveExpired(FsvolDeviceExtension->Ioq);
 
     KeAcquireSpinLock(&FsvolDeviceExtension->ExpirationLock, &Irql);
     FsvolDeviceExtension->ExpirationInProgress = FALSE;
