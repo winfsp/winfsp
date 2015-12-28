@@ -29,7 +29,6 @@ VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 typedef struct
 {
-    FSP_IRP_CONTEXT IrpContext;
     FSP_IOP_REQUEST_FINI *RequestFini;
     PVOID Context[3];
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 RequestBuf[];

@@ -265,6 +265,40 @@ VOID FspFreeExternal(PVOID Pointer)
     ExFreePool(Pointer);
 }
 
+/* hash mix */
+/* Based on the MurmurHash3 fmix32/fmix64 function:
+ * See: https://code.google.com/p/smhasher/source/browse/trunk/MurmurHash3.cpp?r=152#68
+ */
+static inline
+UINT32 FspHashMix32(UINT32 h)
+{
+    h ^= h >> 16;
+    h *= 0x85ebca6b;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35;
+    h ^= h >> 16;
+    return h;
+}
+static inline
+UINT64 FspHashMix64(UINT64 k)
+{
+    k ^= k >> 33;
+    k *= 0xff51afd7ed558ccdULL;
+    k ^= k >> 33;
+    k *= 0xc4ceb9fe1a85ec53ULL;
+    k ^= k >> 33;
+    return k;
+}
+static inline
+ULONG FspHashMixPointer(PVOID Pointer)
+{
+#if _WIN64
+    return (ULONG)FspHashMix64((UINT64)Pointer);
+#else
+    return (ULONG)FspHashMix32((UINT32)Pointer);
+#endif
+}
+
 /* utility: GUIDs */
 NTSTATUS FspCreateGuid(GUID *Guid);
 
@@ -291,38 +325,13 @@ VOID FspInitializeDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem,
     PWORKER_THREAD_ROUTINE Routine, PVOID Context);
 VOID FspQueueDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem, LARGE_INTEGER Delay);
 
-/* dictionary */
-typedef BOOLEAN FSP_DICT_EQUAL_FUNCTION(PVOID Key1, PVOID Key2);
-typedef ULONG FSP_DICT_HASH_FUNCTION(PVOID Key);
-typedef struct _FSP_DICT_ENTRY
-{
-    PVOID Key, Value;
-    struct _FSP_DICT_ENTRY *Next;
-} FSP_DICT_ENTRY;
-typedef struct _FSP_DICT
-{
-    FSP_DICT_EQUAL_FUNCTION *EqualFunction;
-    FSP_DICT_HASH_FUNCTION *HashFunction;
-    FSP_DICT_ENTRY **Buckets;
-    ULONG BucketCount;
-} FSP_DICT;
-VOID FspDictInitialize(FSP_DICT *Dict,
-    FSP_DICT_EQUAL_FUNCTION *EqualFunction, FSP_DICT_HASH_FUNCTION *HashFunction,
-    FSP_DICT_ENTRY **Buckets, ULONG BucketCount);
-FSP_DICT_ENTRY *FspDictGetEntry(FSP_DICT *Dict, PVOID Key);
-VOID FspDictSetEntry(FSP_DICT *Dict, FSP_DICT_ENTRY *Entry);
-FSP_DICT_ENTRY *FspDictRemoveEntry(FSP_DICT *Dict, PVOID Key);
-
 /* IRP context */
-typedef struct
-{
-    IO_CSQ_IRP_CONTEXT IoCsqIrpContext;
-    ULONGLONG ExpirationTime;
-} FSP_IRP_CONTEXT;
-#define FspIrpContext(Irp)              \
-    (*(FSP_IRP_CONTEXT **)&(Irp)->Tail.Overlay.DriverContext[0])
+#define FspIrpTimestamp(Irp)            \
+    (*(ULONG *)&(Irp)->Tail.Overlay.DriverContext[0])
+#define FspIrpDictNext(Irp)             \
+    (*(PIRP *)&(Irp)->Tail.Overlay.DriverContext[1])
 #define FspIrpRequest(Irp)              \
-    (*(FSP_FSCTL_TRANSACT_REQ **)&(Irp)->Tail.Overlay.DriverContext[0])
+    (*(FSP_FSCTL_TRANSACT_REQ **)&(Irp)->Tail.Overlay.DriverContext[2])
 
 /* I/O queue */
 #define FspIoqTimeout                   ((PIRP)1)
@@ -333,11 +342,11 @@ typedef struct
     KEVENT PendingIrpEvent;
     LIST_ENTRY PendingIrpList, ProcessIrpList;
     IO_CSQ PendingIoCsq, ProcessIoCsq;
-    FSP_DICT ProcessIrpDict;
-    LARGE_INTEGER IrpTimeout;
+    ULONG IrpTimeout;
     ULONG PendingIrpCapacity, PendingIrpCount;
     VOID (*CompleteCanceledIrp)(PIRP Irp);
-    FSP_DICT_ENTRY *ProcessIrpDictBuckets[];
+    ULONG ProcessIrpBucketCount;
+    PVOID ProcessIrpBuckets[];
 } FSP_IOQ;
 NTSTATUS FspIoqCreate(
     ULONG IrpCapacity, PLARGE_INTEGER IrpTimeout, VOID (*CompleteCanceledIrp)(PIRP Irp),
