@@ -93,17 +93,17 @@ static PIRP FspIoqPendingPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
     PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
     if (Head == Entry)
         return 0;
+    Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
     if (!PeekContext)
-        return CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
+        return Irp;
     PVOID IrpHint = ((FSP_IOQ_PEEK_CONTEXT *)PeekContext)->IrpHint;
     if (0 == IrpHint)
     {
         ULONGLONG ExpirationTime = ((FSP_IOQ_PEEK_CONTEXT *)PeekContext)->ExpirationTime;
-        return FspIrpContext(Irp)->ExpirationTime <= ExpirationTime ?
-            CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry) : 0;
+        return FspIrpContext(Irp)->ExpirationTime <= ExpirationTime ? Irp : 0;
     }
     else
-        return CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
+        return Irp;
 }
 
 _IRQL_raises_(DISPATCH_LEVEL)
@@ -157,14 +157,14 @@ static PIRP FspIoqProcessPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
     PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
     if (Head == Entry)
         return 0;
+    Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
     if (!PeekContext)
-        return CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
+        return Irp;
     PVOID IrpHint = ((FSP_IOQ_PEEK_CONTEXT *)PeekContext)->IrpHint;
     if (0 == IrpHint)
     {
         ULONGLONG ExpirationTime = ((FSP_IOQ_PEEK_CONTEXT *)PeekContext)->ExpirationTime;
-        return FspIrpContext(Irp)->ExpirationTime <= ExpirationTime ?
-            CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry) : 0;
+        return FspIrpContext(Irp)->ExpirationTime <= ExpirationTime ? Irp : 0;
     }
     else
     {
