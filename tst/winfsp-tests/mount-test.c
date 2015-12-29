@@ -131,7 +131,6 @@ void mount_volume_cancel_test(void)
         mount_volume_cancel_dotest(L"WinFsp.Net");
 }
 
-#if 0
 static unsigned __stdcall mount_volume_transact_dotest_thread(void *FilePath)
 {
     FspDebugLog(__FUNCTION__ ": \"%S\"\n", FilePath);
@@ -149,17 +148,21 @@ void mount_volume_transact_dotest(PWSTR DeviceName)
 {
     NTSTATUS Result;
     BOOL Success;
-    FSP_FSCTL_VOLUME_PARAMS Params = { 0 };
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
     WCHAR VolumePath[MAX_PATH];
     WCHAR FilePath[MAX_PATH];
     HANDLE VolumeHandle;
     HANDLE Thread;
     DWORD ExitCode;
 
-    Params.SectorSize = 16384;
-    Params.SerialNumber = 0x12345678;
-    Result = FspFsctlCreateVolume(DeviceName, &Params, 0, VolumePath, sizeof VolumePath);
+    VolumeParams.SectorSize = 16384;
+    VolumeParams.SerialNumber = 0x12345678;
+    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\\\winfsp-tests");
+    Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
+        VolumePath, sizeof VolumePath, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumePath, 15));
+    ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumePath);
     Thread = (HANDLE)_beginthreadex(0, 0, mount_volume_transact_dotest_thread, FilePath, 0, 0);
@@ -167,11 +170,8 @@ void mount_volume_transact_dotest(PWSTR DeviceName)
 
     Sleep(1000); /* give some time to the thread to execute */
 
-    Result = FspFsctlOpenVolume(VolumePath, &VolumeHandle);
-    ASSERT(STATUS_SUCCESS == Result);
-
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 RequestBuf[FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN];
-    FSP_FSCTL_DECLSPEC_ALIGN UINT8 ResponseBuf[FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMIN];
+    FSP_FSCTL_DECLSPEC_ALIGN UINT8 ResponseBuf[FSP_FSCTL_TRANSACT_RSP_SIZEMAX];
     UINT8 *RequestBufEnd;
     UINT8 *ResponseBufEnd = ResponseBuf + sizeof ResponseBuf;
     SIZE_T RequestBufSize;
@@ -181,7 +181,7 @@ void mount_volume_transact_dotest(PWSTR DeviceName)
 
     ResponseBufSize = 0;
     RequestBufSize = sizeof RequestBuf;
-    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, RequestBuf, &RequestBufSize);
+    Result = FspFsctlTransact(VolumeHandle, 0, 0, RequestBuf, &RequestBufSize);
     ASSERT(STATUS_SUCCESS == Result);
 
     RequestBufEnd = RequestBuf + RequestBufSize;
@@ -224,11 +224,8 @@ void mount_volume_transact_dotest(PWSTR DeviceName)
     ASSERT(0 == NextRequest);
 
     ResponseBufSize = (PUINT8)Response - ResponseBuf;
-    RequestBufSize = sizeof RequestBuf;
-    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, RequestBuf, &RequestBufSize);
-    ASSERT(STATUS_SUCCESS == Result);
-
-    Result = FspFsctlDeleteVolume(VolumeHandle);
+    RequestBufSize = 0;
+    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, 0, &RequestBufSize);
     ASSERT(STATUS_SUCCESS == Result);
 
     Success = CloseHandle(VolumeHandle);
@@ -248,7 +245,6 @@ void mount_volume_transact_test(void)
     if (WinFspNetTests)
         mount_volume_transact_dotest(L"WinFsp.Net");
 }
-#endif
 
 void mount_tests(void)
 {
@@ -256,7 +252,5 @@ void mount_tests(void)
     TEST(mount_open_device_test);
     TEST(mount_create_volume_test);
     TEST(mount_volume_cancel_test);
-#if 0
     TEST(mount_volume_transact_test);
-#endif
 }
