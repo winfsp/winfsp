@@ -290,6 +290,7 @@ NTSTATUS FspFsvolCreatePrepare(
 {
     PAGED_CODE();
 
+#if 0
     NTSTATUS Result;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
@@ -304,6 +305,7 @@ NTSTATUS FspFsvolCreatePrepare(
     /* send the user-mode handle to the user-mode file system */
     FspIopRequestContext(Request, RequestAccessToken) = UserModeAccessToken;
     Request->Req.Create.AccessToken = (UINT_PTR)UserModeAccessToken;
+#endif
 
     return STATUS_SUCCESS;
 }
@@ -429,6 +431,7 @@ static VOID FspFsvolCreateRequestFini(PVOID Context[3])
     if (0 != Context[RequestFsContext])
         FspFileContextRelease(Context[RequestFsContext]);
 
+#if 0
     if (0 != Context[RequestAccessToken])
     {
 #if DBG
@@ -440,6 +443,7 @@ static VOID FspFsvolCreateRequestFini(PVOID Context[3])
         ObCloseHandle(Context[RequestAccessToken], KernelMode);
 #endif
     }
+#endif
 }
 
 NTSTATUS FspCreate(
