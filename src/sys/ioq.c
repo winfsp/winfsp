@@ -141,6 +141,7 @@ static NTSTATUS FspIoqProcessInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertCo
     for (PIRP IrpX = Ioq->ProcessIrpBuckets[Index]; IrpX; IrpX = FspIrpDictNext(IrpX))
         ASSERT(IrpX != Irp);
 #endif
+    ASSERT(0 == FspIrpDictNext(Irp));
     FspIrpDictNext(Irp) = Ioq->ProcessIrpBuckets[Index];
     Ioq->ProcessIrpBuckets[Index] = Irp;
     return STATUS_SUCCESS;
@@ -155,7 +156,8 @@ static VOID FspIoqProcessRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
         ASSERT(0 != *PIrp);
         if (*PIrp == Irp)
         {
-            *PIrp = FspIrpDictNext(*PIrp);
+            *PIrp = FspIrpDictNext(Irp);
+            FspIrpDictNext(Irp) = 0;
             break;
         }
     }
