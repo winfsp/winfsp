@@ -8,6 +8,7 @@
 #define WINFSP_DLL_LIBRARY_H_INCLUDED
 
 #define WINFSP_DLL_INTERNAL
+#define WINFSP_DLL_NODEFAULTLIB
 #include <winfsp/winfsp.h>
 #include <strsafe.h>
 
