@@ -325,7 +325,7 @@ VOID FspFsvolCreateComplete(
     /* did the user-mode file system sent us a failure code? */
     if (!NT_SUCCESS(Response->IoStatus.Status))
     {
-        Irp->IoStatus.Information = Response->IoStatus.Information;
+        Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
         Result = Response->IoStatus.Status;
         FSP_RETURN();
     }
@@ -367,7 +367,7 @@ VOID FspFsvolCreateComplete(
         else
             FSP_RETURN();
 
-        Irp->IoStatus.Information = Response->IoStatus.Information;
+        Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
         Result = Response->IoStatus.Status;
         FSP_RETURN();
     }
@@ -414,7 +414,7 @@ VOID FspFsvolCreateComplete(
     FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
 
     /* SUCCESS! */
-    Irp->IoStatus.Information = Response->IoStatus.Information;
+    Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
     Result = Response->IoStatus.Status;
 
     FSP_LEAVE_IOC(
