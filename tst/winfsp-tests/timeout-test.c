@@ -62,12 +62,9 @@ void timeout_pending_test(void)
         timeout_pending_dotest(L"WinFsp.Net");
 }
 
-#if 0
 static unsigned __stdcall timeout_transact_dotest_thread(void *FilePath)
 {
     FspDebugLog(__FUNCTION__ ": \"%S\"\n", FilePath);
-
-    Sleep(1000);
 
     HANDLE Handle;
     Handle = CreateFileW(FilePath,
@@ -82,35 +79,42 @@ void timeout_transact_dotest(PWSTR DeviceName)
 {
     NTSTATUS Result;
     BOOL Success;
-    FSP_FSCTL_VOLUME_PARAMS Params = { 0 };
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
     WCHAR VolumePath[MAX_PATH];
     WCHAR FilePath[MAX_PATH];
     HANDLE VolumeHandle;
     HANDLE Thread;
     DWORD ExitCode;
 
-    Params.SectorSize = 16384;
-    Params.SerialNumber = 0x12345678;
-    Params.TransactTimeout = 2000;
-    Params.IrpTimeout = FspFsctlIrpTimeoutDebug;
-    Result = FspFsctlCreateVolume(DeviceName, &Params, 0, VolumePath, sizeof VolumePath);
+    VolumeParams.TransactTimeout = 1000;
+    VolumeParams.SectorSize = 16384;
+    VolumeParams.SerialNumber = 0x12345678;
+    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\\\winfsp-tests");
+    Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
+        VolumePath, sizeof VolumePath, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumePath, 15));
+    ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumePath);
-    Thread = (HANDLE)_beginthreadex(0, 0, timeout_transact_dotest_thread, FilePath, 0, 0);
-    ASSERT(0 != Thread);
-
-    Result = FspFsctlOpenVolume(VolumePath, &VolumeHandle);
-    ASSERT(STATUS_SUCCESS == Result);
 
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 RequestBuf[FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN];
-    FSP_FSCTL_DECLSPEC_ALIGN UINT8 ResponseBuf[FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMIN];
+    FSP_FSCTL_DECLSPEC_ALIGN UINT8 ResponseBuf[FSP_FSCTL_TRANSACT_RSP_SIZEMAX];
     UINT8 *RequestBufEnd;
     UINT8 *ResponseBufEnd = ResponseBuf + sizeof ResponseBuf;
     SIZE_T RequestBufSize;
     SIZE_T ResponseBufSize;
     FSP_FSCTL_TRANSACT_REQ *Request = (PVOID)RequestBuf, *NextRequest;
     FSP_FSCTL_TRANSACT_RSP *Response = (PVOID)ResponseBuf;
+
+    ResponseBufSize = 0;
+    RequestBufSize = sizeof RequestBuf;
+    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, RequestBuf, &RequestBufSize);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(0 == RequestBufSize);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumePath);
+    Thread = (HANDLE)_beginthreadex(0, 0, timeout_transact_dotest_thread, FilePath, 0, 0);
+    ASSERT(0 != Thread);
 
     ResponseBufSize = 0;
     RequestBufSize = sizeof RequestBuf;
@@ -140,17 +144,20 @@ void timeout_transact_dotest(PWSTR DeviceName)
     ASSERT(!Request->Req.Create.OpenTargetDirectory);
     ASSERT(!Request->Req.Create.CaseSensitive);
 
+    ResponseBufSize = 0;
+    RequestBufSize = sizeof RequestBuf;
+    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, RequestBuf, &RequestBufSize);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(0 == RequestBufSize);
+
+    Success = CloseHandle(VolumeHandle);
+    ASSERT(Success);
+
     WaitForSingleObject(Thread, INFINITE);
     GetExitCodeThread(Thread, &ExitCode);
     CloseHandle(Thread);
 
     ASSERT(ERROR_OPERATION_ABORTED == ExitCode);
-
-    Result = FspFsctlDeleteVolume(VolumeHandle);
-    ASSERT(STATUS_SUCCESS == Result);
-
-    Success = CloseHandle(VolumeHandle);
-    ASSERT(Success);
 }
 
 void timeout_transact_test(void)
@@ -160,10 +167,9 @@ void timeout_transact_test(void)
     if (WinFspNetTests)
         timeout_transact_dotest(L"WinFsp.Net");
 }
-#endif
 
 void timeout_tests(void)
 {
     TEST(timeout_pending_test);
-    //TEST(timeout_transact_test);
+    TEST(timeout_transact_test);
 }
