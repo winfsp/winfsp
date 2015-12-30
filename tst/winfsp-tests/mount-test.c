@@ -55,7 +55,7 @@ void mount_create_volume_dotest(PWSTR DeviceName)
 
     VolumeParams.SectorSize = 16384;
     VolumeParams.SerialNumber = 0x12345678;
-    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\\\winfsp-tests");
+    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
         VolumePath, sizeof VolumePath, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
@@ -100,7 +100,7 @@ void mount_volume_cancel_dotest(PWSTR DeviceName)
 
     VolumeParams.SectorSize = 16384;
     VolumeParams.SerialNumber = 0x12345678;
-    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\\\winfsp-tests");
+    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
         VolumePath, sizeof VolumePath, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
@@ -144,7 +144,7 @@ static unsigned __stdcall mount_volume_transact_dotest_thread(void *FilePath)
     return 0;
 }
 
-void mount_volume_transact_dotest(PWSTR DeviceName)
+void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
 {
     NTSTATUS Result;
     BOOL Success;
@@ -155,9 +155,10 @@ void mount_volume_transact_dotest(PWSTR DeviceName)
     HANDLE Thread;
     DWORD ExitCode;
 
+    VolumeParams.TransactTimeout = 10000; /* allow for longer transact timeout to handle MUP redir */
     VolumeParams.SectorSize = 16384;
     VolumeParams.SerialNumber = 0x12345678;
-    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\\\winfsp-tests");
+    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
         VolumePath, sizeof VolumePath, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
@@ -165,6 +166,8 @@ void mount_volume_transact_dotest(PWSTR DeviceName)
     ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumePath);
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : VolumePath);
     Thread = (HANDLE)_beginthreadex(0, 0, mount_volume_transact_dotest_thread, FilePath, 0, 0);
     ASSERT(0 != Thread);
 
@@ -206,6 +209,9 @@ void mount_volume_transact_dotest(PWSTR DeviceName)
     ASSERT(Request->Req.Create.HasTraversePrivilege);
     ASSERT(!Request->Req.Create.OpenTargetDirectory);
     ASSERT(!Request->Req.Create.CaseSensitive);
+    ASSERT(0 == Request->FileName.Offset);
+    ASSERT((wcslen((PVOID)Request->Buffer) + 1) * sizeof(WCHAR) == Request->FileName.Size);
+    ASSERT(0 == wcscmp((PVOID)Request->Buffer, L"\\file0"));
 
     ASSERT(FspFsctlTransactCanProduceResponse(Response, ResponseBufEnd));
 
@@ -241,9 +247,12 @@ void mount_volume_transact_dotest(PWSTR DeviceName)
 void mount_volume_transact_test(void)
 {
     if (WinFspDiskTests)
-        mount_volume_transact_dotest(L"WinFsp.Disk");
+        mount_volume_transact_dotest(L"WinFsp.Disk", 0);
     if (WinFspNetTests)
-        mount_volume_transact_dotest(L"WinFsp.Net");
+    {
+        mount_volume_transact_dotest(L"WinFsp.Net", 0);
+        mount_volume_transact_dotest(L"WinFsp.Net", L"\\\\winfsp-tests\\share");
+    }
 }
 
 void mount_tests(void)

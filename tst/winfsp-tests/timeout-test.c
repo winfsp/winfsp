@@ -33,7 +33,7 @@ void timeout_pending_dotest(PWSTR DeviceName)
     VolumeParams.IrpTimeout = FspFsctlIrpTimeoutDebug;
     VolumeParams.SectorSize = 16384;
     VolumeParams.SerialNumber = 0x12345678;
-    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\\\winfsp-tests");
+    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
         VolumePath, sizeof VolumePath, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
@@ -89,7 +89,7 @@ void timeout_transact_dotest(PWSTR DeviceName)
     VolumeParams.TransactTimeout = 1000;
     VolumeParams.SectorSize = 16384;
     VolumeParams.SerialNumber = 0x12345678;
-    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\\\winfsp-tests");
+    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
         VolumePath, sizeof VolumePath, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);

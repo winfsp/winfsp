@@ -438,7 +438,7 @@ NTSTATUS FspVolumeRedirQueryPathEx(
         if (Prefix.Length <= QueryPathRequest->PathName.Length &&
             RtlEqualMemory(Prefix.Buffer, QueryPathRequest->PathName.Buffer, Prefix.Length) &&
             (Prefix.Length == QueryPathRequest->PathName.Length ||
-                '\\' == QueryPathRequest->PathName.Buffer[Prefix.Length]))
+                '\\' == QueryPathRequest->PathName.Buffer[Prefix.Length / 2]))
         {
             QueryPathResponse->LengthAccepted = Prefix.Length;
 
