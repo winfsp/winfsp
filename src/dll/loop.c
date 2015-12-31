@@ -6,63 +6,46 @@
 
 #include <dll/library.h>
 
-typedef struct _FSP_WORK_ITEM
+typedef struct _FSP_DISPATCHER_WORK_ITEM
 {
     FSP_FILE_SYSTEM *FileSystem;
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 RequestBuf[];
-} FSP_WORK_ITEM;
+} FSP_DISPATCHER_WORK_ITEM;
 
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
-    const FSP_FSCTL_VOLUME_PARAMS *Params, FSP_FILE_SYSTEM_PROCESSREQ *ProcessRequest,
+    const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
+    FSP_FILE_SYSTEM_DISPATCHER *Dispatcher,
     FSP_FILE_SYSTEM **PFileSystem)
 {
     NTSTATUS Result;
-    WCHAR VolumePathBuf[MAX_PATH];
-    HANDLE VolumeHandle = INVALID_HANDLE_VALUE;
-    FSP_FILE_SYSTEM *FileSystem = 0;
+    FSP_FILE_SYSTEM *FileSystem;
 
     *PFileSystem = 0;
 
-    if (0 == ProcessRequest)
-        ProcessRequest = FspProcessRequestDirect;
-
     FileSystem = MemAlloc(sizeof *FileSystem);
     if (0 == FileSystem)
+        return STATUS_INSUFFICIENT_RESOURCES;
+    memset(FileSystem, 0, sizeof *FileSystem);
+
+    Result = FspFsctlCreateVolume(DevicePath, VolumeParams,
+        FileSystem->VolumePath, sizeof FileSystem->VolumePath,
+        &FileSystem->VolumeHandle);
+    if (!NT_SUCCESS(Result))
     {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
+        MemFree(FileSystem);
+        return Result;
     }
 
-    Result = FspFsctlCreateVolume(DevicePath, Params, 0, VolumePathBuf, sizeof VolumePathBuf);
-    if (!NT_SUCCESS(Result))
-        goto exit;
+    FileSystem->Dispatcher = 0 != Dispatcher ? Dispatcher : FspFileSystemDirectDispatcher;
 
-    Result = FspFsctlOpenVolume(VolumePathBuf, &VolumeHandle);
-    if (!NT_SUCCESS(Result))
-        goto exit;
-
-    memset(FileSystem, 0, sizeof *FileSystem);
-    FileSystem->VolumeHandle = VolumeHandle;
-    FileSystem->ProcessRequest = ProcessRequest;
     *PFileSystem = FileSystem;
 
-    Result = STATUS_SUCCESS;
-
-exit:
-    if (!NT_SUCCESS(Result))
-    {
-        if (INVALID_HANDLE_VALUE != VolumeHandle)
-            CloseHandle(VolumeHandle);
-        MemFree(FileSystem);
-    }
-
-    return Result;
+    return STATUS_SUCCESS;
 }
 
 FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem)
 {
-    if (INVALID_HANDLE_VALUE != FileSystem->VolumeHandle)
-        CloseHandle(FileSystem->VolumeHandle);
+    CloseHandle(FileSystem->VolumeHandle);
     MemFree(FileSystem);
 }
 
@@ -92,7 +75,7 @@ FSP_API NTSTATUS FspFileSystemLoop(FSP_FILE_SYSTEM *FileSystem)
             if (0 == NextRequest)
                 break;
 
-            Result = FileSystem->ProcessRequest(FileSystem, Request);
+            Result = FileSystem->Dispatcher(FileSystem, Request);
             if (!NT_SUCCESS(Result))
                 goto exit;
 
@@ -106,19 +89,19 @@ exit:
     return Result;
 }
 
-FSP_API NTSTATUS FspProcessRequestDirect(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemDirectDispatcher(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
     if (FspFsctlTransactKindCount <= Request->Kind || 0 == FileSystem->Operations[Request->Kind])
-        return FspProduceResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
+        return FspSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
 
     FileSystem->Operations[Request->Kind](FileSystem, Request);
     return STATUS_SUCCESS;
 }
 
-static DWORD WINAPI FspProcessRequestInPoolWorker(PVOID Param)
+static DWORD WINAPI FspFileSystemPoolDispatcherWorker(PVOID Param)
 {
-    FSP_WORK_ITEM *WorkItem = Param;
+    FSP_DISPATCHER_WORK_ITEM *WorkItem = Param;
     FSP_FSCTL_TRANSACT_REQ *Request = (PVOID)WorkItem->RequestBuf;
 
     WorkItem->FileSystem->Operations[Request->Kind](WorkItem->FileSystem, Request);
@@ -127,23 +110,21 @@ static DWORD WINAPI FspProcessRequestInPoolWorker(PVOID Param)
     return 0;
 }
 
-FSP_API NTSTATUS FspProcessRequestInPool(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemPoolDispatcher(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
     if (FspFsctlTransactKindCount <= Request->Kind || 0 == FileSystem->Operations[Request->Kind])
-        return FspProduceResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
+        return FspSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
 
-    FSP_WORK_ITEM *WorkItem;
-    BOOLEAN Success;
-
-    WorkItem = MemAlloc(sizeof *WorkItem + Request->Size);
+    FSP_DISPATCHER_WORK_ITEM *WorkItem = MemAlloc(sizeof *WorkItem + Request->Size);
     if (0 == WorkItem)
         return STATUS_INSUFFICIENT_RESOURCES;
 
     WorkItem->FileSystem = FileSystem;
     memcpy(WorkItem->RequestBuf, Request, Request->Size);
 
-    Success = QueueUserWorkItem(FspProcessRequestInPoolWorker, WorkItem, WT_EXECUTEDEFAULT);
+    BOOLEAN Success = QueueUserWorkItem(
+        FspFileSystemPoolDispatcherWorker, WorkItem, WT_EXECUTEDEFAULT);
     if (!Success)
     {
         NTSTATUS Result0 = FspNtStatusFromWin32(GetLastError());
@@ -154,13 +135,13 @@ FSP_API NTSTATUS FspProcessRequestInPool(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-FSP_API NTSTATUS FspProduceResponse(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspSendResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP *Response)
 {
     return FspFsctlTransact(FileSystem->VolumeHandle, Response, Response->Size, 0, 0);
 }
 
-FSP_API NTSTATUS FspProduceResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, NTSTATUS Result)
 {
     FSP_FSCTL_TRANSACT_RSP Response;
@@ -169,5 +150,5 @@ FSP_API NTSTATUS FspProduceResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
     Response.Kind = Request->Kind;
     Response.Hint = Request->Hint;
     Response.IoStatus.Status = Result;
-    return FspProduceResponse(FileSystem, &Response);
+    return FspSendResponse(FileSystem, &Response);
 }

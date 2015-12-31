@@ -21,36 +21,34 @@
 
 #include <winfsp/fsctl.h>
 
-#if 0
 typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
-typedef NTSTATUS FSP_FILE_SYSTEM_PROCESSREQ(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
+typedef NTSTATUS FSP_FILE_SYSTEM_DISPATCHER(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
 typedef VOID FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
 typedef struct _FSP_FILE_SYSTEM
 {
-    /* private */
     UINT16 Version;
+    WCHAR VolumePath[FSP_FSCTL_VOLUME_NAME_SIZEMAX / sizeof(WCHAR)];
     HANDLE VolumeHandle;
-    FSP_FILE_SYSTEM_PROCESSREQ *ProcessRequest;
-    /* public */
     PVOID UserContext;
+    FSP_FILE_SYSTEM_DISPATCHER *Dispatcher;
     FSP_FILE_SYSTEM_OPERATION *Operations[FspFsctlTransactKindCount];
 } FSP_FILE_SYSTEM;
 
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
-    const FSP_FSCTL_VOLUME_PARAMS *Params, FSP_FILE_SYSTEM_PROCESSREQ *ProcessRequest,
+    const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
+    FSP_FILE_SYSTEM_DISPATCHER *Dispatcher,
     FSP_FILE_SYSTEM **PFileSystem);
 FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem);
 FSP_API NTSTATUS FspFileSystemLoop(FSP_FILE_SYSTEM *FileSystem);
+FSP_API NTSTATUS FspFileSystemDirectDispatcher(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request);
+FSP_API NTSTATUS FspFileSystemPoolDispatcher(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request);
 
-FSP_API NTSTATUS FspProcessRequestDirect(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
-FSP_API NTSTATUS FspProcessRequestInPool(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
-FSP_API NTSTATUS FspProduceResponse(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspSendResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP *Response);
-FSP_API NTSTATUS FspProduceResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, NTSTATUS Result);
-#endif
 
 FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error);
 FSP_API VOID FspDebugLog(const char *format, ...);
