@@ -30,8 +30,9 @@ typedef struct _FSP_FILE_SYSTEM
     WCHAR VolumePath[FSP_FSCTL_VOLUME_NAME_SIZEMAX / sizeof(WCHAR)];
     HANDLE VolumeHandle;
     PVOID UserContext;
-    FSP_FILE_SYSTEM_DISPATCHER *Dispatcher;
     NTSTATUS DispatcherResult;
+    FSP_FILE_SYSTEM_DISPATCHER *Dispatcher;
+    FSP_FILE_SYSTEM_DISPATCHER *EnterOperation, *LeaveOperation;
     FSP_FILE_SYSTEM_OPERATION *Operations[FspFsctlTransactKindCount];
 } FSP_FILE_SYSTEM;
 
@@ -59,6 +60,19 @@ static VOID FspFileSystemSetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
     if (NT_SUCCESS(DispatcherResult))
         return;
     InterlockedCompareExchange(&FileSystem->DispatcherResult, DispatcherResult, 0);
+}
+
+static VOID FspFileSystemEnterOperation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    if (0 != FileSystem->EnterOperation)
+        FileSystem->EnterOperation(FileSystem, Request);
+}
+static VOID FspFileSystemLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    if (0 != FileSystem->LeaveOperation)
+        FileSystem->LeaveOperation(FileSystem, Request);
 }
 
 FSP_API NTSTATUS FspSendResponse(FSP_FILE_SYSTEM *FileSystem,

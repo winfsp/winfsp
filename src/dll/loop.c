@@ -99,7 +99,11 @@ FSP_API VOID FspFileSystemDirectDispatcher(FSP_FILE_SYSTEM *FileSystem,
     if (FspFsctlTransactKindCount <= Request->Kind || 0 == FileSystem->Operations[Request->Kind])
         DispatcherResult = FspSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
     else
+    {
+        FspFileSystemEnterOperation(FileSystem, Request);
         DispatcherResult = FileSystem->Operations[Request->Kind](FileSystem, Request);
+        FspFileSystemLeaveOperation(FileSystem, Request);
+    }
 
     FspFileSystemSetDispatcherResult(FileSystem, DispatcherResult);
 }
@@ -108,12 +112,15 @@ static DWORD WINAPI FspFileSystemPoolDispatcherWorker(PVOID Param)
 {
     NTSTATUS DispatcherResult;
     FSP_DISPATCHER_WORK_ITEM *WorkItem = Param;
+    FSP_FILE_SYSTEM *FileSystem = WorkItem->FileSystem;
     FSP_FSCTL_TRANSACT_REQ *Request = (PVOID)WorkItem->RequestBuf;
 
-    DispatcherResult = WorkItem->FileSystem->Operations[Request->Kind](WorkItem->FileSystem, Request);
-    MemFree(WorkItem);
+    FspFileSystemEnterOperation(FileSystem, Request);
+    DispatcherResult = FileSystem->Operations[Request->Kind](FileSystem, Request);
+    FspFileSystemLeaveOperation(FileSystem, Request);
+    FspFileSystemSetDispatcherResult(FileSystem, DispatcherResult);
 
-    FspFileSystemSetDispatcherResult(WorkItem->FileSystem, DispatcherResult);
+    MemFree(WorkItem);
 
     return 0;
 }
