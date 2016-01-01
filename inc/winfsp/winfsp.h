@@ -37,10 +37,10 @@ typedef struct _FSP_FILE_SYSTEM
     FSP_FILE_SYSTEM_DISPATCHER *Dispatcher;
     FSP_FILE_SYSTEM_DISPATCHER *EnterOperation, *LeaveOperation;
     FSP_FILE_SYSTEM_OPERATION *Operations[FspFsctlTransactKindCount];
-    NTSTATUS (*AccessCheck)(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *,
-        PDWORD);
-    NTSTATUS (*QuerySecurity)(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *,
-        SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SIZE_T *);
+    NTSTATUS (*AccessCheck)(FSP_FILE_SYSTEM *,
+        FSP_FSCTL_TRANSACT_REQ *, DWORD, PDWORD);
+    NTSTATUS (*QuerySecurity)(FSP_FILE_SYSTEM *,
+        PWSTR, SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SIZE_T *);
 } FSP_FILE_SYSTEM;
 
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
@@ -86,6 +86,15 @@ FSP_API NTSTATUS FspSendResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, NTSTATUS Result);
+
+/*
+ * Access Checks
+ */
+FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
+FSP_API NTSTATUS FspOpenAccessToken(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, PHANDLE PAccessToken);
+FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, DWORD DesiredAccess, PDWORD PGrantedAccess);
 
 /*
  * Path Handling
