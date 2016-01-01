@@ -24,11 +24,14 @@
     <ClInclude Include="..\..\src\dll\library.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\dll\access.c" />
+    <ClCompile Include="..\..\src\dll\create.c" />
     <ClCompile Include="..\..\src\dll\debug.c" />
     <ClCompile Include="..\..\src\dll\fsctl.c" />
     <ClCompile Include="..\..\src\dll\library.c" />
     <ClCompile Include="..\..\src\dll\loop.c" />
     <ClCompile Include="..\..\src\dll\ntstatus.c" />
+    <ClCompile Include="..\..\src\dll\path.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\ntstatus.i" />

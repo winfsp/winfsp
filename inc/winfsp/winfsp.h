@@ -21,6 +21,9 @@
 
 #include <winfsp/fsctl.h>
 
+/*
+ * File System
+ */
 typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
 typedef VOID FSP_FILE_SYSTEM_DISPATCHER(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
 typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
@@ -34,6 +37,10 @@ typedef struct _FSP_FILE_SYSTEM
     FSP_FILE_SYSTEM_DISPATCHER *Dispatcher;
     FSP_FILE_SYSTEM_DISPATCHER *EnterOperation, *LeaveOperation;
     FSP_FILE_SYSTEM_OPERATION *Operations[FspFsctlTransactKindCount];
+    NTSTATUS (*AccessCheck)(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *,
+        PDWORD);
+    NTSTATUS (*QuerySecurity)(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *,
+        SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SIZE_T *);
 } FSP_FILE_SYSTEM;
 
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
@@ -80,6 +87,17 @@ FSP_API NTSTATUS FspSendResponse(FSP_FILE_SYSTEM *FileSystem,
 FSP_API NTSTATUS FspSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, NTSTATUS Result);
 
+/*
+ * Path Handling
+ */
+FSP_API VOID FspPathPrefix(PWSTR Path, PWSTR *PPrefix, PWSTR *PRemain);
+FSP_API VOID FspPathSuffix(PWSTR Path, PWSTR *PRemain, PWSTR *PSuffix);
+FSP_API VOID FspPathCombine(PWSTR Prefix, PWSTR Suffix);
+
+/*
+ * Utility
+ */
+FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
 FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error);
 FSP_API VOID FspDebugLog(const char *format, ...);
 

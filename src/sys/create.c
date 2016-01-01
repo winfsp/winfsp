@@ -256,7 +256,6 @@ static NTSTATUS FspFsvolCreate(
         FSP_FSCTL_DEFAULT_ALIGN_UP(Request->FileName.Size);
     Request->Req.Create.SecurityDescriptor.Size = (UINT16)SecurityDescriptorSize;
     Request->Req.Create.AllocationSize = AllocationSize.QuadPart;
-    Request->Req.Create.AccessToken = 0;
     Request->Req.Create.DesiredAccess = DesiredAccess;
     Request->Req.Create.ShareAccess = ShareAccess;
     Request->Req.Create.Ea.Offset = 0;
