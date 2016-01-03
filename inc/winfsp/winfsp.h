@@ -91,10 +91,9 @@ FSP_API NTSTATUS FspSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
  * Access Checks
  */
 FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
-FSP_API NTSTATUS FspOpenAccessToken(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, PHANDLE PAccessToken);
 FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, DWORD DesiredAccess, PDWORD PGrantedAccess);
+    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, DWORD DesiredAccess,
+    PDWORD PGrantedAccess);
 
 /*
  * Path Handling
@@ -106,7 +105,6 @@ FSP_API VOID FspPathCombine(PWSTR Prefix, PWSTR Suffix);
 /*
  * Utility
  */
-FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
 FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error);
 FSP_API VOID FspDebugLog(const char *format, ...);
 

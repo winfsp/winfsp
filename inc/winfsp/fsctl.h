@@ -74,7 +74,7 @@ enum
     FspFsctlIrpTimeoutMinimum = 60000,
     FspFsctlIrpTimeoutMaximum = 600000,
     FspFsctlIrpTimeoutDefault = 300000,
-    FspFsctlIrpTimeoutDebug = 42,       /* special value for IRP timeout testing; debug driver only */
+    FspFsctlIrpTimeoutDebug = 142,      /* special value for IRP timeout testing; debug driver only */
     FspFsctlIrpCapacityMinimum = 100,
     FspFsctlIrpCapacityMaximum = 1000,
     FspFsctlIrpCapacityDefault = 1000,
@@ -110,6 +110,7 @@ typedef struct
             UINT32 FileAttributes;      /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor; /* security descriptor for new files */
             UINT64 AllocationSize;      /* initial allocation size */
+            UINT64 AccessToken;         /* (HANDLE); request access token; sent if NoAccessCheck is 0 */
             UINT32 DesiredAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             UINT32 ShareAccess;         /* FILE_SHARE_{READ,WRITE,DELETE} */
             FSP_FSCTL_TRANSACT_BUF Ea;  /* reserved; not currently implemented */
@@ -213,8 +214,6 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
 FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     PVOID ResponseBuf, SIZE_T ResponseBufSize,
     PVOID RequestBuf, SIZE_T *PRequestBufSize);
-FSP_API NTSTATUS FspFsctlOpenAccessToken(HANDLE VolumeHandle,
-    UINT64 Hint, PHANDLE PAccessToken);
 #endif
 
 #endif

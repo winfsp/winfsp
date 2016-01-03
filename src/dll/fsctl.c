@@ -109,11 +109,3 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
 exit:
     return Result;
 }
-
-FSP_API NTSTATUS FspFsctlOpenAccessToken(HANDLE VolumeHandle,
-    UINT64 Hint, PHANDLE PAccessToken)
-{
-    *PAccessToken = 0;
-
-    return STATUS_NOT_IMPLEMENTED;
-}

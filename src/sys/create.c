@@ -34,6 +34,7 @@ enum
 {
     RequestFsContext = 0,
     RequestAccessToken,
+    RequestProcess,
 };
 
 static NTSTATUS FspFsctlCreate(
@@ -256,6 +257,7 @@ static NTSTATUS FspFsvolCreate(
         FSP_FSCTL_DEFAULT_ALIGN_UP(Request->FileName.Size);
     Request->Req.Create.SecurityDescriptor.Size = (UINT16)SecurityDescriptorSize;
     Request->Req.Create.AllocationSize = AllocationSize.QuadPart;
+    Request->Req.Create.AccessToken = 0;
     Request->Req.Create.DesiredAccess = DesiredAccess;
     Request->Req.Create.ShareAccess = ShareAccess;
     Request->Req.Create.Ea.Offset = 0;
@@ -289,11 +291,11 @@ NTSTATUS FspFsvolCreatePrepare(
 {
     PAGED_CODE();
 
-#if 0
     NTSTATUS Result;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
     HANDLE UserModeAccessToken;
+    PEPROCESS Process;
 
     /* get a user-mode handle to the access token */
     Result = ObOpenObjectByPointer(SeQuerySubjectContextToken(&AccessState->SubjectSecurityContext),
@@ -301,10 +303,14 @@ NTSTATUS FspFsvolCreatePrepare(
     if (!NT_SUCCESS(Result))
         return Result;
 
+    /* get a pointer to the current process so that we can close the access token later */
+    Process = PsGetCurrentProcess();
+    ObReferenceObject(Process);
+
     /* send the user-mode handle to the user-mode file system */
     FspIopRequestContext(Request, RequestAccessToken) = UserModeAccessToken;
+    FspIopRequestContext(Request, RequestProcess) = Process;
     Request->Req.Create.AccessToken = (UINT_PTR)UserModeAccessToken;
-#endif
 
     return STATUS_SUCCESS;
 }
@@ -428,21 +434,38 @@ static VOID FspFsvolCreateRequestFini(PVOID Context[3])
     PAGED_CODE();
 
     if (0 != Context[RequestFsContext])
+    {
         FspFileContextRelease(Context[RequestFsContext]);
+        Context[RequestFsContext] = 0;
+    }
 
-#if 0
     if (0 != Context[RequestAccessToken])
     {
+        PEPROCESS Process = Context[RequestProcess];
+        KAPC_STATE ApcState;
+        BOOLEAN Attach;
+
+        ASSERT(0 != Process);
+        Attach = Process != PsGetCurrentProcess();
+
+        if (Attach)
+            KeStackAttachProcess(Process, &ApcState);
 #if DBG
         NTSTATUS Result0;
-        Result0 = ObCloseHandle(Context[RequestAccessToken], KernelMode);
+        Result0 = ObCloseHandle(Context[RequestAccessToken], UserMode);
         if (!NT_SUCCESS(Result0))
             DEBUGLOG("ObCloseHandle() = %s", NtStatusSym(Result0));
 #else
-        ObCloseHandle(Context[RequestAccessToken], KernelMode);
+        ObCloseHandle(Context[RequestAccessToken], UserMode);
 #endif
+        if (Attach)
+            KeUnstackDetachProcess(&ApcState);
+
+        ObDereferenceObject(Process);
+
+        Context[RequestAccessToken] = 0;
+        Context[RequestProcess] = 0;
     }
-#endif
 }
 
 NTSTATUS FspCreate(

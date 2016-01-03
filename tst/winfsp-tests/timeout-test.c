@@ -19,6 +19,21 @@ static unsigned __stdcall timeout_pending_dotest_thread(void *FilePath)
     return 0;
 }
 
+static unsigned __stdcall timeout_pending_dotest_thread2(void *FilePath)
+{
+    FspDebugLog(__FUNCTION__ ": \"%S\"\n", FilePath);
+
+    Sleep(500);
+
+    HANDLE Handle;
+    Handle = CreateFileW(FilePath,
+        FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    if (INVALID_HANDLE_VALUE == Handle)
+        return GetLastError();
+    CloseHandle(Handle);
+    return 0;
+}
+
 void timeout_pending_dotest(PWSTR DeviceName)
 {
     NTSTATUS Result;
@@ -43,6 +58,57 @@ void timeout_pending_dotest(PWSTR DeviceName)
     StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumePath);
     Thread = (HANDLE)_beginthreadex(0, 0, timeout_pending_dotest_thread, FilePath, 0, 0);
     ASSERT(0 != Thread);
+
+    WaitForSingleObject(Thread, INFINITE);
+    GetExitCodeThread(Thread, &ExitCode);
+    CloseHandle(Thread);
+
+    ASSERT(ERROR_OPERATION_ABORTED == ExitCode);
+
+    Thread = (HANDLE)_beginthreadex(0, 0, timeout_pending_dotest_thread2, FilePath, 0, 0);
+    ASSERT(0 != Thread);
+
+    FSP_FSCTL_DECLSPEC_ALIGN UINT8 RequestBuf[FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN];
+    FSP_FSCTL_DECLSPEC_ALIGN UINT8 ResponseBuf[FSP_FSCTL_TRANSACT_RSP_SIZEMAX];
+    UINT8 *RequestBufEnd;
+    UINT8 *ResponseBufEnd = ResponseBuf + sizeof ResponseBuf;
+    SIZE_T RequestBufSize;
+    SIZE_T ResponseBufSize;
+    FSP_FSCTL_TRANSACT_REQ *Request = (PVOID)RequestBuf, *NextRequest;
+    FSP_FSCTL_TRANSACT_RSP *Response = (PVOID)ResponseBuf;
+
+    ResponseBufSize = 0;
+    RequestBufSize = sizeof RequestBuf;
+    Result = FspFsctlTransact(VolumeHandle, 0, 0, RequestBuf, &RequestBufSize);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    RequestBufEnd = RequestBuf + RequestBufSize;
+
+    NextRequest = FspFsctlTransactConsumeRequest(Request, RequestBufEnd);
+    ASSERT(0 != NextRequest);
+
+    ASSERT(0 == Request->Version);
+    ASSERT(FSP_FSCTL_TRANSACT_REQ_SIZEMAX >= Request->Size);
+    ASSERT(0 != Request->Hint);
+    ASSERT(FspFsctlTransactCreateKind == Request->Kind);
+    ASSERT(FILE_CREATE == ((Request->Req.Create.CreateOptions >> 24) & 0xff));
+    ASSERT(FILE_ATTRIBUTE_NORMAL == Request->Req.Create.FileAttributes);
+    ASSERT(0 == Request->Req.Create.SecurityDescriptor.Offset);
+    ASSERT(0 == Request->Req.Create.SecurityDescriptor.Size);
+    ASSERT(0 == Request->Req.Create.AllocationSize);
+    ASSERT(FILE_GENERIC_READ == Request->Req.Create.DesiredAccess);
+    ASSERT((FILE_SHARE_READ | FILE_SHARE_WRITE) == Request->Req.Create.ShareAccess);
+    ASSERT(0 == Request->Req.Create.Ea.Offset);
+    ASSERT(0 == Request->Req.Create.Ea.Size);
+    ASSERT(Request->Req.Create.UserMode);
+    ASSERT(Request->Req.Create.HasTraversePrivilege);
+    ASSERT(!Request->Req.Create.OpenTargetDirectory);
+    ASSERT(!Request->Req.Create.CaseSensitive);
+    ASSERT(0 == Request->FileName.Offset);
+    ASSERT((wcslen((PVOID)Request->Buffer) + 1) * sizeof(WCHAR) == Request->FileName.Size);
+    ASSERT(
+        0 == wcscmp((PVOID)Request->Buffer, L"\\file0") ||
+        0 == wcscmp((PVOID)Request->Buffer, FilePath + 1));
 
     WaitForSingleObject(Thread, INFINITE);
     GetExitCodeThread(Thread, &ExitCode);
