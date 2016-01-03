@@ -14,13 +14,16 @@ typedef struct _FSP_DISPATCHER_WORK_ITEM
 
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
-    FSP_FILE_SYSTEM_DISPATCHER *Dispatcher,
+    const FSP_FILE_SYSTEM_INTERFACE *Interface,
     FSP_FILE_SYSTEM **PFileSystem)
 {
     NTSTATUS Result;
     FSP_FILE_SYSTEM *FileSystem;
 
     *PFileSystem = 0;
+
+    if (0 == Interface)
+        return STATUS_INVALID_PARAMETER;
 
     FileSystem = MemAlloc(sizeof *FileSystem);
     if (0 == FileSystem)
@@ -36,7 +39,10 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
         return Result;
     }
 
-    FileSystem->Dispatcher = 0 != Dispatcher ? Dispatcher : FspFileSystemDirectDispatcher;
+    FileSystem->Dispatcher = FspFileSystemDirectDispatcher;
+    FileSystem->Operations[FspFsctlTransactCreateKind] = 0;
+    // !!!: ...
+    FileSystem->Interface = Interface;
 
     *PFileSystem = FileSystem;
 

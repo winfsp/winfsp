@@ -24,7 +24,7 @@ static NTSTATUS FspGetFileSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
 {
     for (;;)
     {
-        NTSTATUS Result = FileSystem->QuerySecurity(FileSystem,
+        NTSTATUS Result = FileSystem->Interface->QuerySecurity(FileSystem,
             FileName,
             OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
             *PSecurityDescriptor, PSecurityDescriptorSize);
@@ -42,10 +42,10 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, DWORD DesiredAccess,
     PDWORD PGrantedAccess)
 {
-    if (0 != FileSystem->AccessCheck)
-        return FileSystem->AccessCheck(FileSystem, Request, DesiredAccess, PGrantedAccess);
+    if (0 != FileSystem->Interface->AccessCheck)
+        return FileSystem->Interface->AccessCheck(FileSystem, Request, DesiredAccess, PGrantedAccess);
 
-    if (0 == FileSystem->QuerySecurity)
+    if (0 == FileSystem->Interface->QuerySecurity)
     {
         *PGrantedAccess = DesiredAccess;
         return STATUS_SUCCESS;

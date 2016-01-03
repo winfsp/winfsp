@@ -27,6 +27,13 @@
 typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
 typedef VOID FSP_FILE_SYSTEM_DISPATCHER(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
 typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
+typedef struct _FSP_FILE_SYSTEM_INTERFACE
+{
+    NTSTATUS (*AccessCheck)(FSP_FILE_SYSTEM *,
+        FSP_FSCTL_TRANSACT_REQ *, DWORD, PDWORD);
+    NTSTATUS (*QuerySecurity)(FSP_FILE_SYSTEM *,
+        PWSTR, SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SIZE_T *);
+} FSP_FILE_SYSTEM_INTERFACE;
 typedef struct _FSP_FILE_SYSTEM
 {
     UINT16 Version;
@@ -37,31 +44,41 @@ typedef struct _FSP_FILE_SYSTEM
     FSP_FILE_SYSTEM_DISPATCHER *Dispatcher;
     FSP_FILE_SYSTEM_DISPATCHER *EnterOperation, *LeaveOperation;
     FSP_FILE_SYSTEM_OPERATION *Operations[FspFsctlTransactKindCount];
-    NTSTATUS (*AccessCheck)(FSP_FILE_SYSTEM *,
-        FSP_FSCTL_TRANSACT_REQ *, DWORD, PDWORD);
-    NTSTATUS (*QuerySecurity)(FSP_FILE_SYSTEM *,
-        PWSTR, SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SIZE_T *);
+    const FSP_FILE_SYSTEM_INTERFACE *Interface;
 } FSP_FILE_SYSTEM;
 
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
-    FSP_FILE_SYSTEM_DISPATCHER *Dispatcher,
+    const FSP_FILE_SYSTEM_INTERFACE *Interface,
     FSP_FILE_SYSTEM **PFileSystem);
 FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem);
 FSP_API NTSTATUS FspFileSystemLoop(FSP_FILE_SYSTEM *FileSystem);
+
 FSP_API VOID FspFileSystemDirectDispatcher(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request);
 FSP_API VOID FspFileSystemPoolDispatcher(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request);
+static inline
+VOID FspFileSystemSetDispatcher(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FILE_SYSTEM_DISPATCHER *Dispatcher,
+    FSP_FILE_SYSTEM_DISPATCHER *EnterOperation,
+    FSP_FILE_SYSTEM_DISPATCHER *LeaveOperation)
+{
+    FileSystem->Dispatcher = Dispatcher;
+    FileSystem->EnterOperation = EnterOperation;
+    FileSystem->LeaveOperation = LeaveOperation;
+}
 
-static VOID FspFileSystemGetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
+static inline
+VOID FspFileSystemGetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS *PDispatcherResult)
 {
     /* 32-bit reads are atomic */
     *PDispatcherResult = FileSystem->DispatcherResult;
     MemoryBarrier();
 }
-static VOID FspFileSystemSetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
+static inline
+VOID FspFileSystemSetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS DispatcherResult)
 {
     if (NT_SUCCESS(DispatcherResult))
@@ -69,13 +86,15 @@ static VOID FspFileSystemSetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
     InterlockedCompareExchange(&FileSystem->DispatcherResult, DispatcherResult, 0);
 }
 
-static VOID FspFileSystemEnterOperation(FSP_FILE_SYSTEM *FileSystem,
+static inline
+VOID FspFileSystemEnterOperation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
     if (0 != FileSystem->EnterOperation)
         FileSystem->EnterOperation(FileSystem, Request);
 }
-static VOID FspFileSystemLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
+static inline
+VOID FspFileSystemLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
     if (0 != FileSystem->LeaveOperation)
