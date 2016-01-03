@@ -93,11 +93,9 @@ NTSTATUS FspVolumeCreate(
     if (FspFsctlIrpTimeoutMinimum > VolumeParams.IrpTimeout ||
         VolumeParams.IrpTimeout > FspFsctlIrpTimeoutMaximum)
     {
-#if DBG
-        /* allow the debug timeout value on debug builds */
+        /* special: allow the debug timeout value on all builds */
         if (FspFsctlIrpTimeoutDebug != VolumeParams.IrpTimeout)
-#endif
-        VolumeParams.IrpTimeout = FspFsctlIrpTimeoutDefault;
+            VolumeParams.IrpTimeout = FspFsctlIrpTimeoutDefault;
     }
     if (FspFsctlIrpCapacityMinimum > VolumeParams.IrpCapacity ||
         VolumeParams.IrpCapacity > FspFsctlIrpCapacityMaximum)
