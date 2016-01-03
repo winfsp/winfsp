@@ -25,6 +25,21 @@
  * File System
  */
 typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
+typedef struct _FSP_FILE_NODE
+{
+    PVOID UserContext;
+    DWORD Flags;
+    struct
+    {
+        ULONG OpenCount;
+        ULONG Readers;
+        ULONG Writers;
+        ULONG Deleters;
+        ULONG SharedRead;
+        ULONG SharedWrite;
+        ULONG SharedDelete;
+    } ShareAccess;
+} FSP_FILE_NODE;
 typedef VOID FSP_FILE_SYSTEM_DISPATCHER(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
 typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
 typedef struct _FSP_FILE_SYSTEM_INTERFACE
@@ -34,7 +49,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     NTSTATUS (*QuerySecurity)(FSP_FILE_SYSTEM *,
         PWSTR, SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SIZE_T *);
     NTSTATUS (*FileCreate)(FSP_FILE_SYSTEM *,
-        FSP_FSCTL_TRANSACT_REQ *, PVOID *File);
+        FSP_FSCTL_TRANSACT_REQ *, FSP_FILE_NODE **FileNode);
 } FSP_FILE_SYSTEM_INTERFACE;
 typedef struct _FSP_FILE_SYSTEM
 {
@@ -128,6 +143,8 @@ FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
 FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, DWORD DesiredAccess,
     PDWORD PGrantedAccess);
+FSP_API NTSTATUS FspShareCheck(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode);
 
 /*
  * Path Handling

@@ -117,3 +117,9 @@ exit:
 
     return Result;
 }
+
+FSP_API NTSTATUS FspShareCheck(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode)
+{
+    return STATUS_SUCCESS;
+}

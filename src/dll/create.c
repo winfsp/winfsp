@@ -14,7 +14,7 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
 
     NTSTATUS Result;
     DWORD GrantedAccess;
-    PVOID File;
+    FSP_FILE_NODE *FileNode;
     FSP_FSCTL_TRANSACT_RSP Response;
 
     Result = FspAccessCheck(FileSystem, Request, TRUE,
@@ -24,11 +24,13 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FileSystem->Interface->FileCreate(FileSystem, Request, &File);
+    Result = FileSystem->Interface->FileCreate(FileSystem, Request, &FileNode);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    /* !!!: set share access */
+    Result = FspShareCheck(FileSystem, Request, FileNode);
+    if (!NT_SUCCESS(Result))
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
     memset(&Response, 0, sizeof Response);
     Response.Size = sizeof Response;
@@ -36,7 +38,7 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     Response.Hint = Request->Hint;
     Response.IoStatus.Status = STATUS_SUCCESS;
     Response.IoStatus.Information = FILE_CREATED;
-    Response.Rsp.Create.Opened.UserContext = (UINT_PTR)File;
+    Response.Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
     Response.Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     return FspFileSystemSendResponse(FileSystem, &Response);
 }
