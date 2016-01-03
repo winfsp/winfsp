@@ -103,7 +103,8 @@ FSP_API VOID FspFileSystemDirectDispatcher(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS DispatcherResult;
 
     if (FspFsctlTransactKindCount <= Request->Kind || 0 == FileSystem->Operations[Request->Kind])
-        DispatcherResult = FspSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
+        DispatcherResult = FspFileSystemSendResponseWithStatus(FileSystem,
+            Request, STATUS_INVALID_DEVICE_REQUEST);
     else
     {
         FspFileSystemEnterOperation(FileSystem, Request);
@@ -137,7 +138,8 @@ FSP_API VOID FspFileSystemPoolDispatcher(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS DispatcherResult;
 
     if (FspFsctlTransactKindCount <= Request->Kind || 0 == FileSystem->Operations[Request->Kind])
-        DispatcherResult = FspSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
+        DispatcherResult = FspFileSystemSendResponseWithStatus(FileSystem,
+            Request, STATUS_INVALID_DEVICE_REQUEST);
     else
     {
         FSP_DISPATCHER_WORK_ITEM *WorkItem = MemAlloc(sizeof *WorkItem + Request->Size);
@@ -161,13 +163,13 @@ FSP_API VOID FspFileSystemPoolDispatcher(FSP_FILE_SYSTEM *FileSystem,
     FspFileSystemSetDispatcherResult(FileSystem, DispatcherResult);
 }
 
-FSP_API NTSTATUS FspSendResponse(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP *Response)
 {
     return FspFsctlTransact(FileSystem->VolumeHandle, Response, Response->Size, 0, 0);
 }
 
-FSP_API NTSTATUS FspSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, NTSTATUS Result)
 {
     FSP_FSCTL_TRANSACT_RSP Response;
@@ -176,5 +178,5 @@ FSP_API NTSTATUS FspSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
     Response.Kind = Request->Kind;
     Response.Hint = Request->Hint;
     Response.IoStatus.Status = Result;
-    return FspSendResponse(FileSystem, &Response);
+    return FspFileSystemSendResponse(FileSystem, &Response);
 }

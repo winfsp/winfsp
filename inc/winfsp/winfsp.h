@@ -68,6 +68,13 @@ VOID FspFileSystemSetDispatcher(FSP_FILE_SYSTEM *FileSystem,
     FileSystem->EnterOperation = EnterOperation;
     FileSystem->LeaveOperation = LeaveOperation;
 }
+static inline
+VOID FspFileSystemSetOperation(FSP_FILE_SYSTEM *FileSystem,
+    ULONG Index,
+    FSP_FILE_SYSTEM_OPERATION *Operation)
+{
+    FileSystem->Operations[Index] = Operation;
+}
 
 static inline
 VOID FspFileSystemGetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
@@ -101,9 +108,9 @@ VOID FspFileSystemLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
         FileSystem->LeaveOperation(FileSystem, Request);
 }
 
-FSP_API NTSTATUS FspSendResponse(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP *Response);
-FSP_API NTSTATUS FspSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, NTSTATUS Result);
 
 /*
