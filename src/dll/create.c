@@ -6,22 +6,27 @@
 
 #include <dll/library.h>
 
-#if 0
 static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
+    if (0 == FileSystem->Interface->FileCreate)
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_NOT_IMPLEMENTED);
+
     NTSTATUS Result;
     DWORD GrantedAccess;
     PVOID File;
     FSP_FSCTL_TRANSACT_RSP Response;
 
-    Result = FspAccessCheck(FileSystem, Request, TRUE, &GrantedAccess);
+    Result = FspAccessCheck(FileSystem, Request, TRUE,
+        (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) ?
+            FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE,
+        &GrantedAccess);
     if (!NT_SUCCESS(Result))
-        return FspSendResponseWithStatus(FileSystem, Request, Result);
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FileSystem->FileCreate(FileSystem, Request, &File);
+    Result = FileSystem->Interface->FileCreate(FileSystem, Request, &File);
     if (!NT_SUCCESS(Result))
-        return FspSendResponseWithStatus(FileSystem, Request, Result);
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
     /* !!!: set share access */
 
@@ -33,12 +38,14 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     Response.IoStatus.Information = FILE_CREATED;
     Response.Rsp.Create.Opened.UserContext = (UINT_PTR)File;
     Response.Rsp.Create.Opened.GrantedAccess = GrantedAccess;
-    return FspSendResponse(FileSystem, &Response);
+    return FspFileSystemSendResponse(FileSystem, &Response);
 }
 
 static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
+    return STATUS_NOT_IMPLEMENTED;
+#if 0
     NTSTATUS Result;
     DWORD GrantedAccess;
     PVOID File;
@@ -68,24 +75,25 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     Response.Rsp.Create.Opened.UserContext = (UINT_PTR)File;
     Response.Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     return FspSendResponse(FileSystem, &Response);
+#endif
 }
 
 static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    return STATUS_INVALID_PARAMETER;
+    return STATUS_NOT_IMPLEMENTED;
 }
 
 static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN Supersede)
 {
-    return STATUS_INVALID_PARAMETER;
+    return STATUS_NOT_IMPLEMENTED;
 }
 
 static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    return STATUS_INVALID_PARAMETER;
+    return STATUS_NOT_IMPLEMENTED;
 }
 
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
@@ -106,7 +114,6 @@ FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     case FILE_OVERWRITE_IF:
         return FspFileSystemOpCreate_FileOverwriteIf(FileSystem, Request);
     default:
-        return FspSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_PARAMETER);
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_PARAMETER);
     }
 }
-#endif

@@ -33,6 +33,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_TRANSACT_REQ *, DWORD, PDWORD);
     NTSTATUS (*QuerySecurity)(FSP_FILE_SYSTEM *,
         PWSTR, SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SIZE_T *);
+    NTSTATUS (*FileCreate)(FSP_FILE_SYSTEM *,
+        FSP_FSCTL_TRANSACT_REQ *, PVOID *File);
 } FSP_FILE_SYSTEM_INTERFACE;
 typedef struct _FSP_FILE_SYSTEM
 {
@@ -112,6 +114,12 @@ FSP_API NTSTATUS FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, NTSTATUS Result);
+
+/*
+ * File System Operations
+ */
+FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request);
 
 /*
  * Access Checks
