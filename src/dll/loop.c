@@ -12,6 +12,8 @@ typedef struct _FSP_DISPATCHER_WORK_ITEM
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 RequestBuf[];
 } FSP_DISPATCHER_WORK_ITEM;
 
+static FSP_FILE_SYSTEM_INTERFACE FspFileSystemNullInterface;
+
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
     const FSP_FILE_SYSTEM_INTERFACE *Interface,
@@ -23,7 +25,7 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     *PFileSystem = 0;
 
     if (0 == Interface)
-        return STATUS_INVALID_PARAMETER;
+        Interface = FspFileSystemNullInterface;
 
     FileSystem = MemAlloc(sizeof *FileSystem);
     if (0 == FileSystem)
