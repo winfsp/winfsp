@@ -45,9 +45,29 @@ static NTSTATUS FspFsvrtCleanup(
 }
 
 static NTSTATUS FspFsvolCleanup(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     PAGED_CODE();
+
+    /* is this a valid FileObject? */
+    if (!FspFileContextIsValid(IrpSp->FileObject->FsContext))
+        return STATUS_SUCCESS;
+
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
+    LONG OpenCount;
+
+    /* all handles on this FileObject are gone; close the FileObject */
+    OpenCount = FspFileContextClose(FsContext);
+
+    /* is the FsContext going away as well? */
+    if (0 == OpenCount)
+    {
+        /* remove the FsContext from the volume device generic table */
+        FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+        FspFsvolDeviceDeleteContext(FsvolDeviceObject, FsContext->UserContext, 0);
+        FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+    }
 
     Irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;

@@ -451,10 +451,10 @@ BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
 _IRQL_raises_(APC_LEVEL)
 _IRQL_saves_global_(OldIrql, DeviceObject)
-VOID FspFsvolDeviceLockContext(PDEVICE_OBJECT DeviceObject);
+VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
 _IRQL_requires_(APC_LEVEL)
 _IRQL_restores_global_(OldIrql, DeviceObject)
-VOID FspFsvolDeviceUnlockContext(PDEVICE_OBJECT DeviceObject);
+VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
 PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     FSP_DEVICE_GENERIC_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);

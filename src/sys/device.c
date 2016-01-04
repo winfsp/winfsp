@@ -27,10 +27,10 @@ static IO_TIMER_ROUTINE FspFsvolDeviceTimerRoutine;
 static WORKER_THREAD_ROUTINE FspFsvolDeviceExpirationRoutine;
 _IRQL_raises_(APC_LEVEL)
 _IRQL_saves_global_(OldIrql, DeviceObject)
-VOID FspFsvolDeviceLockContext(PDEVICE_OBJECT DeviceObject);
+VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
 _IRQL_requires_(APC_LEVEL)
 _IRQL_restores_global_(OldIrql, DeviceObject)
-VOID FspFsvolDeviceUnlockContext(PDEVICE_OBJECT DeviceObject);
+VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
 PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     FSP_DEVICE_GENERIC_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
@@ -52,8 +52,8 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspDeviceDelete)
 #pragma alloc_text(PAGE, FspFsvolDeviceInit)
 #pragma alloc_text(PAGE, FspFsvolDeviceFini)
-#pragma alloc_text(PAGE, FspFsvolDeviceLockContext)
-#pragma alloc_text(PAGE, FspFsvolDeviceUnlockContext)
+#pragma alloc_text(PAGE, FspFsvolDeviceLockContextTable)
+#pragma alloc_text(PAGE, FspFsvolDeviceUnlockContextTable)
 #pragma alloc_text(PAGE, FspFsvolDeviceLookupContext)
 #pragma alloc_text(PAGE, FspFsvolDeviceInsertContext)
 #pragma alloc_text(PAGE, FspFsvolDeviceDeleteContext)
@@ -414,7 +414,7 @@ static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
 
 _IRQL_raises_(APC_LEVEL)
 _IRQL_saves_global_(OldIrql, DeviceObject)
-VOID FspFsvolDeviceLockContext(PDEVICE_OBJECT DeviceObject)
+VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
 
@@ -424,7 +424,7 @@ VOID FspFsvolDeviceLockContext(PDEVICE_OBJECT DeviceObject)
 
 _IRQL_requires_(APC_LEVEL)
 _IRQL_restores_global_(OldIrql, DeviceObject)
-VOID FspFsvolDeviceUnlockContext(PDEVICE_OBJECT DeviceObject)
+VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
 

@@ -392,7 +392,7 @@ VOID FspFsvolCreateComplete(
      * If an FsContext with the same UserContext already exists, then use that
      * FsContext instead.
      */
-    FspFsvolDeviceLockContext(FsvolDeviceObject);
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
     FsContext = FspFsvolDeviceInsertContext(FsvolDeviceObject,
         FsContext->UserContext, FsContext, &FsContext->ElementStorage, &Inserted);
     ASSERT(0 != FsContext);
@@ -409,7 +409,7 @@ VOID FspFsvolCreateComplete(
          */
         FspFileContextRetain(FsContext);
     FspFileContextOpen(FsContext);
-    FspFsvolDeviceUnlockContext(FsvolDeviceObject);
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
     /* set up share access on FileObject; user-mode file system assumed to have done share check */
     IoSetShareAccess(Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
