@@ -195,7 +195,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
             (~DELETE | (Request->Req.Create.DesiredAccess & DELETE)) :
             (~FILE_WRITE_DATA | (Request->Req.Create.DesiredAccess & FILE_WRITE_DATA));
 
-    Result = FileSystem->Interface->FileOverwrite(FileSystem, Request, &FileNode);
+    Result = FileSystem->Interface->FileOverwrite(FileSystem, Request, Supersede, &FileNode);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
@@ -247,7 +247,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
 
     if (!Create)
     {
-        Result = FileSystem->Interface->FileOverwrite(FileSystem, Request, &FileNode);
+        Result = FileSystem->Interface->FileOverwrite(FileSystem, Request, FALSE, &FileNode);
         if (!NT_SUCCESS(Result))
         {
             if (STATUS_OBJECT_NAME_NOT_FOUND != Result)

@@ -25,7 +25,7 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     *PFileSystem = 0;
 
     if (0 == Interface)
-        Interface = FspFileSystemNullInterface;
+        Interface = &FspFileSystemNullInterface;
 
     FileSystem = MemAlloc(sizeof *FileSystem);
     if (0 == FileSystem)
