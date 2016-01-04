@@ -289,13 +289,62 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
     return FspFileSystemSendResponse(FileSystem, &Response);
 }
 
+static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    if (FspIsRootDirectory((PWSTR)Request->Buffer))
+        return STATUS_ACCESS_DENIED;
+
+    NTSTATUS Result;
+    DWORD GrantedAccess;
+    FSP_FILE_NODE *FileNode;
+    BOOLEAN FileExists;
+    FSP_FSCTL_TRANSACT_RSP Response;
+    PWSTR Path, Suffix;
+
+    FspPathSuffix((PWSTR)Request->Buffer, &Path, &Suffix);
+    Result = FspAccessCheck(FileSystem, Request, TRUE,
+        Request->Req.Create.DesiredAccess, &GrantedAccess);
+    FspPathCombine((PWSTR)Request->Buffer, Suffix);
+
+    if (!NT_SUCCESS(Result))
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+
+    Result = FileSystem->Interface->FileOpenTargetDirectory(FileSystem, Request,
+        &FileNode, &FileExists);
+    if (!NT_SUCCESS(Result))
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+
+    Result = FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
+    if (!NT_SUCCESS(Result))
+    {
+        if (0 != FileSystem->Interface->FileClose)
+            FileSystem->Interface->FileClose(FileSystem, Request, FileNode);
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+    }
+
+    memset(&Response, 0, sizeof Response);
+    Response.Size = sizeof Response;
+    Response.Kind = Request->Kind;
+    Response.Hint = Request->Hint;
+    Response.IoStatus.Status = STATUS_SUCCESS;
+    Response.IoStatus.Information = FileExists ? FILE_EXISTS : FILE_DOES_NOT_EXIST;
+    Response.Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
+    Response.Rsp.Create.Opened.GrantedAccess = GrantedAccess;
+    return FspFileSystemSendResponse(FileSystem, &Response);
+}
+
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
     if (0 == FileSystem->Interface->FileCreate ||
         0 == FileSystem->Interface->FileOpen ||
-        0 == FileSystem->Interface->FileOverwrite)
+        0 == FileSystem->Interface->FileOverwrite ||
+        0 == FileSystem->Interface->FileOpenTargetDirectory)
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
+
+    if (Request->Req.Create.OpenTargetDirectory)
+        return FspFileSystemOpCreate_FileOpenTargetDirectory(FileSystem, Request);
 
     switch ((Request->Req.Create.CreateOptions >> 24) & 0xff)
     {

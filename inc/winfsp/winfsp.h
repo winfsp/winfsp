@@ -56,6 +56,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode);
     NTSTATUS (*FileOverwrite)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode);
+    NTSTATUS (*FileOpenTargetDirectory)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode, PBOOLEAN PFileExists);
     NTSTATUS (*FileClose)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode);
 } FSP_FILE_SYSTEM_INTERFACE;
