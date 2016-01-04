@@ -25,9 +25,7 @@ static NTSTATUS FspGetFileSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
     for (;;)
     {
         NTSTATUS Result = FileSystem->Interface->GetSecurity(FileSystem,
-            FileName,
-            OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
-            *PSecurityDescriptor, PSecurityDescriptorSize);
+            FileName, *PSecurityDescriptor, PSecurityDescriptorSize);
         if (STATUS_BUFFER_OVERFLOW != Result)
             return Result;
 

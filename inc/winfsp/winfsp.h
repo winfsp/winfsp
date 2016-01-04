@@ -44,16 +44,22 @@ typedef VOID FSP_FILE_SYSTEM_DISPATCHER(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_RE
 typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
 typedef struct _FSP_FILE_SYSTEM_INTERFACE
 {
-    NTSTATUS (*AccessCheck)(FSP_FILE_SYSTEM *,
-        FSP_FSCTL_TRANSACT_REQ *, DWORD, PDWORD);
-    NTSTATUS (*GetSecurity)(FSP_FILE_SYSTEM *,
-        PWSTR, SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SIZE_T *);
-    NTSTATUS (*FileCreate)(FSP_FILE_SYSTEM *,
-        FSP_FSCTL_TRANSACT_REQ *, FSP_FILE_NODE **FileNode);
-    NTSTATUS (*FileOpen)(FSP_FILE_SYSTEM *,
-        FSP_FSCTL_TRANSACT_REQ *, FSP_FILE_NODE **FileNode);
-    NTSTATUS (*FileClose)(FSP_FILE_SYSTEM *,
-        FSP_FSCTL_TRANSACT_REQ *, FSP_FILE_NODE *FileNode);
+    NTSTATUS (*AccessCheck)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request, DWORD DesiredAccess, PDWORD PGrantedAccess);
+    NTSTATUS (*GetAttributes)(FSP_FILE_SYSTEM *FileSystem,
+        PWSTR FileName, PDWORD PAttributes);
+    NTSTATUS (*SetAttributes)(FSP_FILE_SYSTEM *FileSystem,
+        PWSTR FileName, DWORD Attributes);
+    NTSTATUS (*GetSecurity)(FSP_FILE_SYSTEM *FileSystem,
+        PWSTR FileName, PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
+    NTSTATUS (*SetSecurity)(FSP_FILE_SYSTEM *FileSystem,
+        PWSTR FileName, PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T SecurityDescriptorSize);
+    NTSTATUS (*FileCreate)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode);
+    NTSTATUS (*FileOpen)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode);
+    NTSTATUS (*FileClose)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode);
 } FSP_FILE_SYSTEM_INTERFACE;
 typedef struct _FSP_FILE_SYSTEM
 {
