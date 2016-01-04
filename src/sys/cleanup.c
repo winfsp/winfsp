@@ -53,8 +53,14 @@ static NTSTATUS FspFsvolCleanup(
     if (!FspFileContextIsValid(IrpSp->FileObject->FsContext))
         return STATUS_SUCCESS;
 
+    NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    BOOLEAN FileNameRequired = 0 != FsvolDeviceExtension->VolumeParams.FileNameRequired;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
+    UINT64 UserContext = FsContext->UserContext;
+    UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
+    FSP_FSCTL_TRANSACT_REQ *Request;
     LONG OpenCount;
 
     /* all handles on this FileObject are gone; close the FileObject */
@@ -69,8 +75,30 @@ static NTSTATUS FspFsvolCleanup(
         FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
     }
 
-    Irp->IoStatus.Information = 0;
-    return STATUS_SUCCESS;
+    /* create the user-mode file system request */
+    Result = FspIopCreateRequest(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
+    if (!NT_SUCCESS(Result))
+    {
+        /*
+         * This really should NOT, but can theoretically happen. One way around it would be to
+         * preallocate the Request at IRP_MJ_CREATE time. Unfortunately this becomes more
+         * complicated because of the FileNameRequired functionality.
+         */
+#if DBG
+        DEBUGLOG("FileObject=%p, UserContext=%llx, UserContext2=%llx: "
+            "error: the user-mode file system handle will be leaked!",
+            FileObject, UserContext, UserContext2);
+#endif
+        Irp->IoStatus.Information = 0;
+        return STATUS_SUCCESS;
+    }
+
+    /* populate the Cleanup request */
+    Request->Kind = FspFsctlTransactCleanupKind;
+    Request->Req.Cleanup.UserContext = UserContext;
+    Request->Req.Cleanup.UserContext2 = UserContext2;
+
+    return STATUS_PENDING;
 }
 
 VOID FspFsvolCleanupComplete(
