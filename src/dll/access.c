@@ -24,7 +24,7 @@ static NTSTATUS FspGetFileSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
 {
     for (;;)
     {
-        NTSTATUS Result = FileSystem->Interface->QuerySecurity(FileSystem,
+        NTSTATUS Result = FileSystem->Interface->GetSecurity(FileSystem,
             FileName,
             OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
             *PSecurityDescriptor, PSecurityDescriptorSize);
@@ -45,7 +45,7 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     if (0 != FileSystem->Interface->AccessCheck)
         return FileSystem->Interface->AccessCheck(FileSystem, Request, DesiredAccess, PGrantedAccess);
 
-    if (0 == FileSystem->Interface->QuerySecurity)
+    if (0 == FileSystem->Interface->GetSecurity)
     {
         *PGrantedAccess = DesiredAccess;
         return STATUS_SUCCESS;
