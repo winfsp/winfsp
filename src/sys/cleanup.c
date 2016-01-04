@@ -80,9 +80,9 @@ static NTSTATUS FspFsvolCleanup(
     if (!NT_SUCCESS(Result))
     {
         /*
-         * This really should NOT, but can theoretically happen. One way around it would be to
-         * preallocate the Request at IRP_MJ_CREATE time. Unfortunately this becomes more
-         * complicated because of the FileNameRequired functionality.
+         * This really should NOT fail, but can theoretically happen. One way around it would
+         * be to preallocate the Request at IRP_MJ_CREATE time. Unfortunately this becomes
+         * expensive (and complicated) because of the FileNameRequired functionality.
          */
 #if DBG
         DEBUGLOG("FileObject=%p, UserContext=%llx, UserContext2=%llx: "
