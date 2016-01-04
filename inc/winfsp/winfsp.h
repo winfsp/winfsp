@@ -46,14 +46,9 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
 {
     NTSTATUS (*AccessCheck)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, DWORD DesiredAccess, PDWORD PGrantedAccess);
-    NTSTATUS (*GetAttributes)(FSP_FILE_SYSTEM *FileSystem,
-        PWSTR FileName, PDWORD PAttributes);
-    NTSTATUS (*SetAttributes)(FSP_FILE_SYSTEM *FileSystem,
-        PWSTR FileName, DWORD Attributes);
     NTSTATUS (*GetSecurity)(FSP_FILE_SYSTEM *FileSystem,
-        PWSTR FileName, PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
-    NTSTATUS (*SetSecurity)(FSP_FILE_SYSTEM *FileSystem,
-        PWSTR FileName, PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T SecurityDescriptorSize);
+        PWSTR FileName, PDWORD PFileAttributes,
+        PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
     NTSTATUS (*FileCreate)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode);
     NTSTATUS (*FileOpen)(FSP_FILE_SYSTEM *FileSystem,

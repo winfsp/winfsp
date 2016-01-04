@@ -19,13 +19,14 @@ FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID)
     return &FspFileGenericMapping;
 }
 
-static NTSTATUS FspGetFileSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
-    PWSTR FileName, PSECURITY_DESCRIPTOR *PSecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
+static NTSTATUS FspGetSecurity(FSP_FILE_SYSTEM *FileSystem,
+    PWSTR FileName, PDWORD PFileAttributes,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
 {
     for (;;)
     {
         NTSTATUS Result = FileSystem->Interface->GetSecurity(FileSystem,
-            FileName, *PSecurityDescriptor, PSecurityDescriptorSize);
+            FileName, PFileAttributes, *PSecurityDescriptor, PSecurityDescriptorSize);
         if (STATUS_BUFFER_OVERFLOW != Result)
             return Result;
 
@@ -50,6 +51,7 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     }
 
     NTSTATUS Result;
+    DWORD FileAttributes;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     SIZE_T SecurityDescriptorSize;
     DWORD PrivilegeSetLength;
@@ -80,7 +82,7 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
             }
 
             Prefix = L'\0' == Prefix[0] ? L"\\" : (PWSTR)Request->Buffer;
-            Result = FspGetFileSecurityDescriptor(FileSystem, Prefix,
+            Result = FspGetSecurity(FileSystem, Prefix, &FileAttributes,
                 &SecurityDescriptor, &SecurityDescriptorSize);
 
             FspPathCombine((PWSTR)Request->Buffer, Path);
@@ -103,10 +105,25 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
         }
     }
 
-    Result = FspGetFileSecurityDescriptor(FileSystem, (PWSTR)Request->Buffer,
+    Result = FspGetSecurity(FileSystem, (PWSTR)Request->Buffer, &FileAttributes,
         &SecurityDescriptor, &SecurityDescriptorSize);
     if (!NT_SUCCESS(Result))
         goto exit;
+
+    if (0 != (FileAttributes && FILE_ATTRIBUTE_READONLY))
+    {
+        if (DesiredAccess &
+            (FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_ADD_SUBDIRECTORY | FILE_DELETE_CHILD))
+        {
+            Result = STATUS_ACCESS_DENIED;
+            goto exit;
+        }
+        if (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
+        {
+            Result = STATUS_CANNOT_DELETE;
+            goto exit;
+        }
+    }
 
     if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess,
         &FspFileGenericMapping, 0, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
