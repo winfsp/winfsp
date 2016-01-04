@@ -21,15 +21,11 @@ NTSTATUS FspCreateCheck(FSP_FILE_SYSTEM *FileSystem,
     PDWORD PGrantedAccess)
 {
     NTSTATUS Result;
-    PWSTR Path, Suffix;
 
-    FspPathSuffix((PWSTR)Request->Buffer, &Path, &Suffix);
-    Result = FspAccessCheck(FileSystem, Request, TRUE,
+    Result = FspAccessCheck(FileSystem, Request, TRUE, AllowTraverseCheck,
         (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) ?
             FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE,
         PGrantedAccess);
-    FspPathCombine((PWSTR)Request->Buffer, Suffix);
-
     if (NT_SUCCESS(Result))
         *PGrantedAccess = (MAXIMUM_ALLOWED & Request->Req.Create.DesiredAccess) ?
             FILE_ALL_ACCESS : Request->Req.Create.DesiredAccess;
@@ -71,7 +67,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     DWORD GrantedAccess;
     FSP_FILE_NODE *FileNode;
 
-    Result = FspAccessCheck(FileSystem, Request, TRUE,
+    Result = FspAccessCheck(FileSystem, Request, FALSE, TRUE,
         Request->Req.Create.DesiredAccess, &GrantedAccess);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
@@ -100,7 +96,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
     FSP_FILE_NODE *FileNode;
     BOOLEAN Create = FALSE;
 
-    Result = FspAccessCheck(FileSystem, Request, TRUE,
+    Result = FspAccessCheck(FileSystem, Request, FALSE, TRUE,
         Request->Req.Create.DesiredAccess, &GrantedAccess);
     if (!NT_SUCCESS(Result))
     {
@@ -159,7 +155,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     DWORD GrantedAccess;
     FSP_FILE_NODE *FileNode;
 
-    Result = FspAccessCheck(FileSystem, Request, TRUE,
+    Result = FspAccessCheck(FileSystem, Request, FALSE, TRUE,
         Request->Req.Create.DesiredAccess | (Supersede ? DELETE : FILE_WRITE_DATA),
         &GrantedAccess);
     if (!NT_SUCCESS(Result))
@@ -197,7 +193,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
     FSP_FILE_NODE *FileNode;
     BOOLEAN Create = FALSE;
 
-    Result = FspAccessCheck(FileSystem, Request, TRUE,
+    Result = FspAccessCheck(FileSystem, Request, FALSE, TRUE,
         Request->Req.Create.DesiredAccess | FILE_WRITE_DATA,
         &GrantedAccess);
     if (!NT_SUCCESS(Result))
@@ -259,17 +255,13 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     DWORD GrantedAccess;
     FSP_FILE_NODE *FileNode;
     BOOLEAN FileExists;
-    PWSTR Path, Suffix;
 
-    FspPathSuffix((PWSTR)Request->Buffer, &Path, &Suffix);
-    Result = FspAccessCheck(FileSystem, Request, TRUE,
+    Result = FspAccessCheck(FileSystem, Request, TRUE, TRUE,
         Request->Req.Create.DesiredAccess, &GrantedAccess);
-    FspPathCombine((PWSTR)Request->Buffer, Suffix);
-
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FileSystem->Interface->FileOpenTargetDirectory(FileSystem, Request,
+    Result = FileSystem->Interface->FileOpenParentDirectory(FileSystem, Request,
         &FileNode, &FileExists);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
@@ -292,7 +284,7 @@ FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     if (0 == FileSystem->Interface->FileCreate ||
         0 == FileSystem->Interface->FileOpen ||
         0 == FileSystem->Interface->FileOverwrite ||
-        0 == FileSystem->Interface->FileOpenTargetDirectory)
+        0 == FileSystem->Interface->FileOpenParentDirectory)
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
 
     if (Request->Req.Create.OpenTargetDirectory)

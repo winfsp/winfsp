@@ -45,8 +45,8 @@ typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT
 typedef struct _FSP_FILE_SYSTEM_INTERFACE
 {
     NTSTATUS (*AccessCheck)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, DWORD DesiredAccess,
-        PDWORD PGrantedAccess);
+        FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
+        DWORD DesiredAccess, PDWORD PGrantedAccess);
     NTSTATUS (*GetSecurity)(FSP_FILE_SYSTEM *FileSystem,
         PWSTR FileName, PDWORD PFileAttributes,
         PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
@@ -56,7 +56,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode);
     NTSTATUS (*FileOverwrite)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN Supersede, FSP_FILE_NODE **PFileNode);
-    NTSTATUS (*FileOpenTargetDirectory)(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*FileOpenParentDirectory)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode, PBOOLEAN PFileExists);
     NTSTATUS (*FileClose)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode);
@@ -154,8 +154,8 @@ FSP_API NTSTATUS FspFileSystemOpCreateSendSuccessResponse(FSP_FILE_SYSTEM *FileS
  */
 FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
 FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, DWORD DesiredAccess,
-    PDWORD PGrantedAccess);
+    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
+    DWORD DesiredAccess, PDWORD PGrantedAccess);
 FSP_API NTSTATUS FspShareCheck(FSP_FILE_SYSTEM *FileSystem,
     DWORD GrantedAccess, DWORD ShareAccess, FSP_FILE_NODE *FileNode);
 

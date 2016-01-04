@@ -38,12 +38,12 @@ static NTSTATUS FspGetSecurity(FSP_FILE_SYSTEM *FileSystem,
 }
 
 FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, DWORD DesiredAccess,
-    PDWORD PGrantedAccess)
+    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
+    DWORD DesiredAccess, PDWORD PGrantedAccess)
 {
     if (0 != FileSystem->Interface->AccessCheck)
         return FileSystem->Interface->AccessCheck(FileSystem,
-            Request, AllowTraverseCheck, DesiredAccess, PGrantedAccess);
+            Request, CheckParentDirectory, AllowTraverseCheck, DesiredAccess, PGrantedAccess);
 
     if (0 == FileSystem->Interface->GetSecurity)
     {
@@ -52,6 +52,7 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     }
 
     NTSTATUS Result;
+    PWSTR Parent, Suffix;
     DWORD FileAttributes;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     SIZE_T SecurityDescriptorSize;
@@ -59,6 +60,9 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     BOOL AccessStatus;
 
     *PGrantedAccess = 0;
+
+    if (CheckParentDirectory)
+        FspPathSuffix((PWSTR)Request->Buffer, &Parent, &Suffix);
 
     SecurityDescriptorSize = 1024;
     SecurityDescriptor = MemAlloc(SecurityDescriptorSize);
@@ -111,6 +115,12 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         goto exit;
 
+    if (CheckParentDirectory)
+    {
+        if (0 == (FileAttributes && FILE_ATTRIBUTE_DIRECTORY))
+            return STATUS_NOT_A_DIRECTORY;
+    }
+
     if (0 != (FileAttributes && FILE_ATTRIBUTE_READONLY))
     {
         if (DesiredAccess &
@@ -134,6 +144,9 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
 
 exit:
     MemFree(SecurityDescriptor);
+
+    if (CheckParentDirectory)
+        FspPathCombine((PWSTR)Request->Buffer, Suffix);
 
     return Result;
 }
