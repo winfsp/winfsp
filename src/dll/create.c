@@ -51,7 +51,7 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    FileNode->Flags = 0;
+    memset(&FileNode->Flags, 0, sizeof FileNode->Flags);
     memset(&FileNode->ShareAccess, 0, sizeof FileNode->ShareAccess);
 
     FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
@@ -129,7 +129,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-        FileNode->Flags = 0;
+        memset(&FileNode->Flags, 0, sizeof FileNode->Flags);
         memset(&FileNode->ShareAccess, 0, sizeof FileNode->ShareAccess);
     }
 
@@ -229,7 +229,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-        FileNode->Flags = 0;
+        memset(&FileNode->Flags, 0, sizeof FileNode->Flags);
         memset(&FileNode->ShareAccess, 0, sizeof FileNode->ShareAccess);
     }
 
@@ -322,6 +322,8 @@ FSP_API NTSTATUS FspFileSystemSendCreateResponse(FSP_FILE_SYSTEM *FileSystem,
     Response.IoStatus.Status = STATUS_SUCCESS;
     Response.IoStatus.Information = Information;
     Response.Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
+    Response.Rsp.Create.Opened.AllocationSize = FileNode->AllocationSize;
+    Response.Rsp.Create.Opened.FileSize = FileNode->FileSize;
     Response.Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     return FspFileSystemSendResponse(FileSystem, &Response);
 }

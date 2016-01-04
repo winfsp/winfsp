@@ -28,7 +28,13 @@ typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
 typedef struct _FSP_FILE_NODE
 {
     PVOID UserContext;
-    DWORD Flags;
+    UINT64 AllocationSize;
+    UINT64 FileSize;
+    struct
+    {
+        BOOLEAN DeleteOnClose:1;
+        BOOLEAN DeletePending:1;
+    } Flags;
     struct
     {
         ULONG OpenCount;

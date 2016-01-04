@@ -153,6 +153,8 @@ typedef struct
             {
                 UINT64 UserContext;     /* open file user context (unique file id) */
                 UINT64 UserContext2;    /* kernel file object user context (only low 32 bits valid) */
+                UINT64 AllocationSize;  /* file allocation size */
+                UINT64 FileSize;        /* file size */
                 UINT32 GrantedAccess;   /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             } Opened;
             /* IoStatus.Status == STATUS_REPARSE */

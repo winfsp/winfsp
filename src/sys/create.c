@@ -382,6 +382,9 @@ VOID FspFsvolCreateComplete(
     /* get the FsContext from our Request and associate it with the Response UserContext */
     Request = FspIrpRequest(Irp);
     FsContext = FspIopRequestContext(Request, RequestFsContext);
+    FsContext->Header.AllocationSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
+    FsContext->Header.FileSize.QuadPart = FsContext->Header.ValidDataLength.QuadPart =
+        Response->Rsp.Create.Opened.AllocationSize;
     FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
 
     /*
