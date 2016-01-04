@@ -99,25 +99,34 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
     {
         if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
-
         Create = TRUE;
+    }
+
+    if (!Create)
+    {
+        Result = FileSystem->Interface->FileOpen(FileSystem, Request, &FileNode);
+        {
+            if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
+                return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+            Create = TRUE;
+        }
+    }
+
+    if (Create)
+    {
         Result = FspAccessCheck(FileSystem, Request, FALSE,
             (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) ?
                 FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE,
             &GrantedAccess);
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
-    }
 
-    if (Create)
-    {
         Result = FileSystem->Interface->FileCreate(FileSystem, Request, &FileNode);
+        if (!NT_SUCCESS(Result))
+            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+
         memset(&FileNode->ShareAccess, 0, sizeof FileNode->ShareAccess);
     }
-    else
-        Result = FileSystem->Interface->FileOpen(FileSystem, Request, &FileNode);
-    if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
     Result = FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
     if (!NT_SUCCESS(Result))
