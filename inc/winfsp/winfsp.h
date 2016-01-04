@@ -45,7 +45,8 @@ typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT
 typedef struct _FSP_FILE_SYSTEM_INTERFACE
 {
     NTSTATUS (*AccessCheck)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request, DWORD DesiredAccess, PDWORD PGrantedAccess);
+        FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, DWORD DesiredAccess,
+        PDWORD PGrantedAccess);
     NTSTATUS (*GetSecurity)(FSP_FILE_SYSTEM *FileSystem,
         PWSTR FileName, PDWORD PFileAttributes,
         PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);

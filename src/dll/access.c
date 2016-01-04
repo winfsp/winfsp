@@ -42,7 +42,8 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     PDWORD PGrantedAccess)
 {
     if (0 != FileSystem->Interface->AccessCheck)
-        return FileSystem->Interface->AccessCheck(FileSystem, Request, DesiredAccess, PGrantedAccess);
+        return FileSystem->Interface->AccessCheck(FileSystem,
+            Request, AllowTraverseCheck, DesiredAccess, PGrantedAccess);
 
     if (0 == FileSystem->Interface->GetSecurity)
     {

@@ -40,7 +40,9 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
+    FileNode->Flags = 0;
     memset(&FileNode->ShareAccess, 0, sizeof FileNode->ShareAccess);
+
     FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
 
     memset(&Response, 0, sizeof Response);
@@ -129,6 +131,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
+        FileNode->Flags = 0;
         memset(&FileNode->ShareAccess, 0, sizeof FileNode->ShareAccess);
     }
 
