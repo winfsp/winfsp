@@ -88,7 +88,11 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
             FspPathCombine((PWSTR)Request->Buffer, Path);
 
             if (!NT_SUCCESS(Result))
+            {
+                if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
+                    Result = STATUS_OBJECT_PATH_NOT_FOUND;
                 goto exit;
+            }
 
             if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, FILE_TRAVERSE,
                 &FspFileGenericMapping, 0, &PrivilegeSetLength, &TraverseAccess, &AccessStatus))
