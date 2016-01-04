@@ -9,9 +9,6 @@
 static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    if (0 == FileSystem->Interface->FileCreate)
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_NOT_IMPLEMENTED);
-
     NTSTATUS Result;
     DWORD GrantedAccess;
     FSP_FILE_NODE *FileNode;
@@ -45,9 +42,6 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    if (0 == FileSystem->Interface->FileOpen)
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_NOT_IMPLEMENTED);
-
     NTSTATUS Result;
     DWORD GrantedAccess;
     FSP_FILE_NODE *FileNode;
@@ -84,9 +78,6 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    if (0 == FileSystem->Interface->FileOpen || 0 == FileSystem->Interface->FileCreate)
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_NOT_IMPLEMENTED);
-
     NTSTATUS Result;
     DWORD GrantedAccess;
     FSP_FILE_NODE *FileNode;
@@ -163,6 +154,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
+    if (0 == FileSystem->Interface->FileCreate || 0 == FileSystem->Interface->FileOpen)
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
+
     switch ((Request->Req.Create.CreateOptions >> 24) & 0xff)
     {
     case FILE_CREATE:
