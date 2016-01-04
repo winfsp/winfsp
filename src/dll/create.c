@@ -163,12 +163,14 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP Response;
 
     Result = FspAccessCheck(FileSystem, Request, TRUE,
-        Request->Req.Create.DesiredAccess | (Supersede ? DELETE : 0),
+        Request->Req.Create.DesiredAccess | (Supersede ? DELETE : FILE_WRITE_DATA),
         &GrantedAccess);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    GrantedAccess &= ~DELETE | (Request->Req.Create.DesiredAccess & DELETE);
+    GrantedAccess &= Supersede ?
+        (~DELETE | (Request->Req.Create.DesiredAccess & DELETE)) :
+        (~FILE_WRITE_DATA | (Request->Req.Create.DesiredAccess & FILE_WRITE_DATA));
 
     Result = FileSystem->Interface->FileOverwrite(FileSystem, Request, &FileNode);
     if (!NT_SUCCESS(Result))
@@ -196,7 +198,66 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Result;
+    DWORD GrantedAccess;
+    FSP_FILE_NODE *FileNode;
+    FSP_FSCTL_TRANSACT_RSP Response;
+    BOOLEAN Create = FALSE;
+
+    Result = FspAccessCheck(FileSystem, Request, TRUE,
+        Request->Req.Create.DesiredAccess | FILE_WRITE_DATA,
+        &GrantedAccess);
+    if (!NT_SUCCESS(Result))
+    {
+        if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
+            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        Create = TRUE;
+    }
+    else
+        GrantedAccess &= ~FILE_WRITE_DATA | (Request->Req.Create.DesiredAccess & FILE_WRITE_DATA);
+
+    if (!Create)
+    {
+        Result = FileSystem->Interface->FileOverwrite(FileSystem, Request, &FileNode);
+        if (!NT_SUCCESS(Result))
+        {
+            if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
+                return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+            Create = TRUE;
+        }
+    }
+
+    if (Create)
+    {
+        Result = FspCreateCheck(FileSystem, Request, FALSE, &GrantedAccess);
+        if (!NT_SUCCESS(Result))
+            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+
+        Result = FileSystem->Interface->FileCreate(FileSystem, Request, &FileNode);
+        if (!NT_SUCCESS(Result))
+            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+
+        FileNode->Flags = 0;
+        memset(&FileNode->ShareAccess, 0, sizeof FileNode->ShareAccess);
+    }
+
+    Result = FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
+    if (!NT_SUCCESS(Result))
+    {
+        if (0 != FileSystem->Interface->FileClose)
+            FileSystem->Interface->FileClose(FileSystem, Request, FileNode);
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+    }
+
+    memset(&Response, 0, sizeof Response);
+    Response.Size = sizeof Response;
+    Response.Kind = Request->Kind;
+    Response.Hint = Request->Hint;
+    Response.IoStatus.Status = STATUS_SUCCESS;
+    Response.IoStatus.Information = Create ? FILE_CREATED : FILE_OVERWRITTEN;
+    Response.Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
+    Response.Rsp.Create.Opened.GrantedAccess = GrantedAccess;
+    return FspFileSystemSendResponse(FileSystem, &Response);
 }
 
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
