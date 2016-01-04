@@ -121,5 +121,53 @@ exit:
 FSP_API NTSTATUS FspShareCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode)
 {
+    DWORD DesiredAccess = Request->Req.Create.DesiredAccess;
+    DWORD ShareAccess = Request->Req.Create.ShareAccess;
+    BOOLEAN ReadAccess, WriteAccess, DeleteAccess;
+    BOOLEAN SharedRead, SharedWrite, SharedDelete;
+    ULONG OpenCount;
+
+    ReadAccess = 0 != (DesiredAccess & (FILE_READ_DATA | FILE_EXECUTE));
+    WriteAccess = 0 != (DesiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA));
+    DeleteAccess = 0 != (DesiredAccess & DELETE);
+
+    if (ReadAccess || WriteAccess || DeleteAccess)
+    {
+        SharedRead = 0 != (ShareAccess & FILE_SHARE_READ);
+        SharedWrite = 0 != (ShareAccess & FILE_SHARE_WRITE);
+        SharedDelete = 0 != (ShareAccess & FILE_SHARE_DELETE);
+
+        OpenCount = FileNode->ShareAccess.OpenCount;
+
+        /*
+         * IF ReadAccess AND there are already some exclusive readers
+         * OR WriteAccess AND there are already some exclusive writers
+         * OR DeleteAccess AND there are already some exclusive deleters
+         * OR exclusive read requested AND there are already some readers
+         * OR exclusive write requested AND there are already some writers
+         * OR exclusive delete requested AND there are already some deleters
+         */
+        if (ReadAccess && (FileNode->ShareAccess.SharedRead < OpenCount))
+            return STATUS_SHARING_VIOLATION;
+        if (WriteAccess && (FileNode->ShareAccess.SharedWrite < OpenCount))
+            return STATUS_SHARING_VIOLATION;
+        if (DeleteAccess && (FileNode->ShareAccess.SharedDelete < OpenCount))
+            return STATUS_SHARING_VIOLATION;
+        if (!SharedRead && 0 != FileNode->ShareAccess.Readers)
+            return STATUS_SHARING_VIOLATION;
+        if (!SharedWrite && 0 != FileNode->ShareAccess.Writers)
+            return STATUS_SHARING_VIOLATION;
+        if (!SharedDelete && 0 != FileNode->ShareAccess.Deleters)
+            return STATUS_SHARING_VIOLATION;
+
+        FileNode->ShareAccess.OpenCount++;
+        FileNode->ShareAccess.Readers += ReadAccess;
+        FileNode->ShareAccess.Writers += WriteAccess;
+        FileNode->ShareAccess.Deleters += DeleteAccess;
+        FileNode->ShareAccess.SharedRead += SharedRead;
+        FileNode->ShareAccess.SharedWrite += SharedWrite;
+        FileNode->ShareAccess.SharedDelete += SharedDelete;
+    }
+
     return STATUS_SUCCESS;
 }
