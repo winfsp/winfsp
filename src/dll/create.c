@@ -121,7 +121,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
 
     if (Create)
     {
-        Result = FspCreateCheck(FileSystem, Request, TRUE, &GrantedAccess);
+        Result = FspCreateCheck(FileSystem, Request, FALSE, &GrantedAccess);
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
