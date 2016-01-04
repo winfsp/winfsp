@@ -157,7 +157,40 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN Supersede)
 {
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Result;
+    DWORD GrantedAccess;
+    FSP_FILE_NODE *FileNode;
+    FSP_FSCTL_TRANSACT_RSP Response;
+
+    Result = FspAccessCheck(FileSystem, Request, TRUE,
+        Request->Req.Create.DesiredAccess | (Supersede ? DELETE : 0),
+        &GrantedAccess);
+    if (!NT_SUCCESS(Result))
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+
+    GrantedAccess &= ~DELETE | (Request->Req.Create.DesiredAccess & DELETE);
+
+    Result = FileSystem->Interface->FileOverwrite(FileSystem, Request, &FileNode);
+    if (!NT_SUCCESS(Result))
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+
+    Result = FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
+    if (!NT_SUCCESS(Result))
+    {
+        if (0 != FileSystem->Interface->FileClose)
+            FileSystem->Interface->FileClose(FileSystem, Request, FileNode);
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+    }
+
+    memset(&Response, 0, sizeof Response);
+    Response.Size = sizeof Response;
+    Response.Kind = Request->Kind;
+    Response.Hint = Request->Hint;
+    Response.IoStatus.Status = STATUS_SUCCESS;
+    Response.IoStatus.Information = Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
+    Response.Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
+    Response.Rsp.Create.Opened.GrantedAccess = GrantedAccess;
+    return FspFileSystemSendResponse(FileSystem, &Response);
 }
 
 static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSystem,
@@ -169,7 +202,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    if (0 == FileSystem->Interface->FileCreate || 0 == FileSystem->Interface->FileOpen)
+    if (0 == FileSystem->Interface->FileCreate ||
+        0 == FileSystem->Interface->FileOpen ||
+        0 == FileSystem->Interface->FileOverwrite)
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
 
     switch ((Request->Req.Create.CreateOptions >> 24) & 0xff)
