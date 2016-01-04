@@ -105,6 +105,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
     if (!Create)
     {
         Result = FileSystem->Interface->FileOpen(FileSystem, Request, &FileNode);
+        if (!NT_SUCCESS(Result))
         {
             if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
                 return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
