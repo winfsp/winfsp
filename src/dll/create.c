@@ -6,6 +6,24 @@
 
 #include <dll/library.h>
 
+static inline
+NTSTATUS FspCreateCheck(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck,
+    PDWORD PGrantedAccess)
+{
+    NTSTATUS Result;
+    PWSTR Path, Suffix;
+
+    FspPathSuffix((PWSTR)Request->Buffer, &Path, &Suffix);
+    Result = FspAccessCheck(FileSystem, Request, TRUE,
+        (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) ?
+            FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE,
+        PGrantedAccess);
+    FspPathCombine((PWSTR)Request->Buffer, Suffix);
+
+    return Result;
+}
+
 static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
@@ -14,10 +32,7 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FILE_NODE *FileNode;
     FSP_FSCTL_TRANSACT_RSP Response;
 
-    Result = FspAccessCheck(FileSystem, Request, TRUE,
-        (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) ?
-            FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE,
-        &GrantedAccess);
+    Result = FspCreateCheck(FileSystem, Request, TRUE, &GrantedAccess);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
@@ -106,10 +121,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
 
     if (Create)
     {
-        Result = FspAccessCheck(FileSystem, Request, FALSE,
-            (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) ?
-                FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE,
-            &GrantedAccess);
+        Result = FspCreateCheck(FileSystem, Request, TRUE, &GrantedAccess);
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
