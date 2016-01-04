@@ -56,7 +56,7 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
 
     FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
 
-    return FspFileSystemOpCreateSendSuccessResponse(FileSystem, Request,
+    return FspFileSystemSendCreateResponse(FileSystem, Request,
         FILE_CREATED, FileNode, GrantedAccess);
 }
 
@@ -84,7 +84,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
 
-    return FspFileSystemOpCreateSendSuccessResponse(FileSystem, Request,
+    return FspFileSystemSendCreateResponse(FileSystem, Request,
         FILE_OPENED, FileNode, GrantedAccess);
 }
 
@@ -141,7 +141,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
 
-    return FspFileSystemOpCreateSendSuccessResponse(FileSystem, Request,
+    return FspFileSystemSendCreateResponse(FileSystem, Request,
         Create ? FILE_CREATED : FILE_OPENED, FileNode, GrantedAccess);
 }
 
@@ -178,7 +178,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
 
-    return FspFileSystemOpCreateSendSuccessResponse(FileSystem, Request,
+    return FspFileSystemSendCreateResponse(FileSystem, Request,
         Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN, FileNode, GrantedAccess);
 }
 
@@ -241,7 +241,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
 
-    return FspFileSystemOpCreateSendSuccessResponse(FileSystem, Request,
+    return FspFileSystemSendCreateResponse(FileSystem, Request,
         Create ? FILE_CREATED : FILE_OVERWRITTEN, FileNode, GrantedAccess);
 }
 
@@ -274,7 +274,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
 
-    return FspFileSystemOpCreateSendSuccessResponse(FileSystem, Request,
+    return FspFileSystemSendCreateResponse(FileSystem, Request,
         FileExists ? FILE_EXISTS : FILE_DOES_NOT_EXIST, FileNode, GrantedAccess);
 }
 
@@ -309,7 +309,7 @@ FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     }
 }
 
-FSP_API NTSTATUS FspFileSystemOpCreateSendSuccessResponse(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemSendCreateResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, UINT_PTR Information,
     FSP_FILE_NODE *FileNode, DWORD GrantedAccess)
 {

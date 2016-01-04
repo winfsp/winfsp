@@ -145,7 +145,7 @@ FSP_API NTSTATUS FspFileSystemSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem
  */
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request);
-FSP_API NTSTATUS FspFileSystemOpCreateSendSuccessResponse(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemSendCreateResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, UINT_PTR Information,
     FSP_FILE_NODE *FileNode, DWORD GrantedAccess);
 
