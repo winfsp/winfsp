@@ -120,6 +120,15 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
         if (0 == (FileAttributes && FILE_ATTRIBUTE_DIRECTORY))
             return STATUS_NOT_A_DIRECTORY;
     }
+    else
+    {
+        if ((Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) &&
+            0 == (FileAttributes && FILE_ATTRIBUTE_DIRECTORY))
+            return STATUS_NOT_A_DIRECTORY;
+        if ((Request->Req.Create.CreateOptions & FILE_NON_DIRECTORY_FILE) &&
+            0 != (FileAttributes && FILE_ATTRIBUTE_DIRECTORY))
+            return STATUS_NOT_A_DIRECTORY;
+    }
 
     if (0 != (FileAttributes && FILE_ATTRIBUTE_READONLY))
     {
