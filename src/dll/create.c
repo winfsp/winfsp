@@ -7,6 +7,15 @@
 #include <dll/library.h>
 
 static inline
+BOOLEAN FspIsRootDirectory(PWSTR FileName)
+{
+    for (PWSTR Pointer = FileName; *Pointer; Pointer++)
+        if (L'\\' != *Pointer)
+            return FALSE;
+    return TRUE;
+}
+
+static inline
 NTSTATUS FspCreateCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck,
     PDWORD PGrantedAccess)
@@ -31,6 +40,9 @@ NTSTATUS FspCreateCheck(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
+    if (FspIsRootDirectory((PWSTR)Request->Buffer))
+        return STATUS_ACCESS_DENIED;
+
     NTSTATUS Result;
     DWORD GrantedAccess;
     FSP_FILE_NODE *FileNode;
@@ -127,6 +139,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
 
     if (Create)
     {
+        if (FspIsRootDirectory((PWSTR)Request->Buffer))
+            return STATUS_ACCESS_DENIED;
+
         Result = FspCreateCheck(FileSystem, Request, FALSE, &GrantedAccess);
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
@@ -161,6 +176,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN Supersede)
 {
+    if (FspIsRootDirectory((PWSTR)Request->Buffer))
+        return STATUS_ACCESS_DENIED;
+
     NTSTATUS Result;
     DWORD GrantedAccess;
     FSP_FILE_NODE *FileNode;
@@ -172,9 +190,10 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    GrantedAccess &= Supersede ?
-        (~DELETE | (Request->Req.Create.DesiredAccess & DELETE)) :
-        (~FILE_WRITE_DATA | (Request->Req.Create.DesiredAccess & FILE_WRITE_DATA));
+    if (0 == (Request->Req.Create.DesiredAccess & MAXIMUM_ALLOWED))
+        GrantedAccess &= Supersede ?
+            (~DELETE | (Request->Req.Create.DesiredAccess & DELETE)) :
+            (~FILE_WRITE_DATA | (Request->Req.Create.DesiredAccess & FILE_WRITE_DATA));
 
     Result = FileSystem->Interface->FileOverwrite(FileSystem, Request, &FileNode);
     if (!NT_SUCCESS(Result))
@@ -202,6 +221,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
+    if (FspIsRootDirectory((PWSTR)Request->Buffer))
+        return STATUS_ACCESS_DENIED;
+
     NTSTATUS Result;
     DWORD GrantedAccess;
     FSP_FILE_NODE *FileNode;
@@ -218,7 +240,10 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
         Create = TRUE;
     }
     else
-        GrantedAccess &= ~FILE_WRITE_DATA | (Request->Req.Create.DesiredAccess & FILE_WRITE_DATA);
+    {
+        if (0 == (Request->Req.Create.DesiredAccess & MAXIMUM_ALLOWED))
+            GrantedAccess &= ~FILE_WRITE_DATA | (Request->Req.Create.DesiredAccess & FILE_WRITE_DATA);
+    }
 
     if (!Create)
     {
