@@ -21,6 +21,10 @@ NTSTATUS FspCreateCheck(FSP_FILE_SYSTEM *FileSystem,
         PGrantedAccess);
     FspPathCombine((PWSTR)Request->Buffer, Suffix);
 
+    if (NT_SUCCESS(Result))
+        *PGrantedAccess = (MAXIMUM_ALLOWED & Request->Req.Create.DesiredAccess) ?
+            FILE_ALL_ACCESS : Request->Req.Create.DesiredAccess;
+
     return Result;
 }
 
