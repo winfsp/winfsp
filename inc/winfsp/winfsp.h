@@ -50,6 +50,10 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         PWSTR, SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SIZE_T *);
     NTSTATUS (*FileCreate)(FSP_FILE_SYSTEM *,
         FSP_FSCTL_TRANSACT_REQ *, FSP_FILE_NODE **FileNode);
+    NTSTATUS (*FileOpen)(FSP_FILE_SYSTEM *,
+        FSP_FSCTL_TRANSACT_REQ *, FSP_FILE_NODE **FileNode);
+    NTSTATUS (*FileClose)(FSP_FILE_SYSTEM *,
+        FSP_FSCTL_TRANSACT_REQ *, FSP_FILE_NODE *FileNode);
 } FSP_FILE_SYSTEM_INTERFACE;
 typedef struct _FSP_FILE_SYSTEM
 {
@@ -144,7 +148,7 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, DWORD DesiredAccess,
     PDWORD PGrantedAccess);
 FSP_API NTSTATUS FspShareCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode);
+    DWORD GrantedAccess, DWORD ShareAccess, FSP_FILE_NODE *FileNode);
 
 /*
  * Path Handling

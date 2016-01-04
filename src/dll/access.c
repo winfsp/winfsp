@@ -119,17 +119,15 @@ exit:
 }
 
 FSP_API NTSTATUS FspShareCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode)
+    DWORD GrantedAccess, DWORD ShareAccess, FSP_FILE_NODE *FileNode)
 {
-    DWORD DesiredAccess = Request->Req.Create.DesiredAccess;
-    DWORD ShareAccess = Request->Req.Create.ShareAccess;
     BOOLEAN ReadAccess, WriteAccess, DeleteAccess;
     BOOLEAN SharedRead, SharedWrite, SharedDelete;
     ULONG OpenCount;
 
-    ReadAccess = 0 != (DesiredAccess & (FILE_READ_DATA | FILE_EXECUTE));
-    WriteAccess = 0 != (DesiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA));
-    DeleteAccess = 0 != (DesiredAccess & DELETE);
+    ReadAccess = 0 != (GrantedAccess & (FILE_READ_DATA | FILE_EXECUTE));
+    WriteAccess = 0 != (GrantedAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA));
+    DeleteAccess = 0 != (GrantedAccess & DELETE);
 
     if (ReadAccess || WriteAccess || DeleteAccess)
     {

@@ -28,9 +28,8 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FspShareCheck(FileSystem, Request, FileNode);
-    if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+    memset(&FileNode->ShareAccess, 0, sizeof FileNode->ShareAccess);
+    FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
 
     memset(&Response, 0, sizeof Response);
     Response.Size = sizeof Response;
@@ -46,26 +45,29 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    return STATUS_NOT_IMPLEMENTED;
-#if 0
+    if (0 == FileSystem->Interface->FileOpen)
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_NOT_IMPLEMENTED);
+
     NTSTATUS Result;
     DWORD GrantedAccess;
-    PVOID File;
+    FSP_FILE_NODE *FileNode;
     FSP_FSCTL_TRANSACT_RSP Response;
 
-    Result = FspAccessCheck(FileSystem, Request, FALSE, &GrantedAccess);
+    Result = FspAccessCheck(FileSystem, Request, TRUE,
+        Request->Req.Create.DesiredAccess, &GrantedAccess);
     if (!NT_SUCCESS(Result))
-        return FspSendResponseWithStatus(FileSystem, Request, Result);
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FileSystem->FileOpen(FileSystem, Request, &File);
+    Result = FileSystem->Interface->FileOpen(FileSystem, Request, &FileNode);
     if (!NT_SUCCESS(Result))
-        return FspSendResponseWithStatus(FileSystem, Request, Result);
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FspShareCheck(FileSystem, Request, GrantedAccess, File);
+    Result = FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
     if (!NT_SUCCESS(Result))
     {
-        FileSystem->FileCleanupClose(FileSystem, Request, File);
-        return FspSendResponseWithStatus(FileSystem, Request, Result);
+        if (0 != FileSystem->Interface->FileClose)
+            FileSystem->Interface->FileClose(FileSystem, Request, FileNode);
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
 
     memset(&Response, 0, sizeof Response);
@@ -73,11 +75,10 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     Response.Kind = Request->Kind;
     Response.Hint = Request->Hint;
     Response.IoStatus.Status = STATUS_SUCCESS;
-    Response.IoStatus.Information = FILE_CREATED;
-    Response.Rsp.Create.Opened.UserContext = (UINT_PTR)File;
+    Response.IoStatus.Information = FILE_OPENED;
+    Response.Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
     Response.Rsp.Create.Opened.GrantedAccess = GrantedAccess;
-    return FspSendResponse(FileSystem, &Response);
-#endif
+    return FspFileSystemSendResponse(FileSystem, &Response);
 }
 
 static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
