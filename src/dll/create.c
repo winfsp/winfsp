@@ -242,6 +242,9 @@ FSP_API VOID FspFileSystemPostCreateCheck(FSP_FILE_SYSTEM *FileSystem,
     memset(&FileNode->ShareAccess, 0, sizeof FileNode->ShareAccess);
 
     FspShareCheck(FileSystem, Request, GrantedAccess, FileNode);
+
+    if (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
+        FileNode->Flags.DeleteOnClose = TRUE;
 }
 
 FSP_API NTSTATUS FspFileSystemPreOpenCheck(FSP_FILE_SYSTEM *FileSystem,
@@ -254,7 +257,17 @@ FSP_API NTSTATUS FspFileSystemPreOpenCheck(FSP_FILE_SYSTEM *FileSystem,
 FSP_API NTSTATUS FspFileSystemPostOpenCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, DWORD GrantedAccess, FSP_FILE_NODE *FileNode)
 {
-    return FspShareCheck(FileSystem, Request, GrantedAccess, FileNode);
+    NTSTATUS Result;
+
+    if (FileNode->Flags.DeletePending)
+        return STATUS_DELETE_PENDING;
+
+    Result = FspShareCheck(FileSystem, Request, GrantedAccess, FileNode);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
+        FileNode->Flags.DeleteOnClose = TRUE;
 }
 
 FSP_API NTSTATUS FspFileSystemPreOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
@@ -280,7 +293,7 @@ FSP_API NTSTATUS FspFileSystemPreOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
 FSP_API NTSTATUS FspFileSystemPostOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, DWORD GrantedAccess, FSP_FILE_NODE *FileNode)
 {
-    return FspShareCheck(FileSystem, Request, GrantedAccess, FileNode);
+    return FspFileSystemPostOpenCheck(FileSystem, Request, GrantedAccess, FileNode);
 }
 
 static BOOLEAN FspIsRootDirectory(PWSTR FileName)
