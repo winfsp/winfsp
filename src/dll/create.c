@@ -548,7 +548,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     }
 
     Information = FILE_OPENED;
-    if (0 == FileSystem->Interface->GetSecurity)
+    if (0 != FileSystem->Interface->GetSecurity)
     {
         Result = FileSystem->Interface->GetSecurity(FileSystem, (PWSTR)Request->Buffer, 0, 0, 0);
         Information = NT_SUCCESS(Result) ? FILE_EXISTS : FILE_DOES_NOT_EXIST;
