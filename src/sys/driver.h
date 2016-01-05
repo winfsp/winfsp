@@ -347,6 +347,8 @@ VOID FspQueueDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem, LARGE_INTEG
 
 /* I/O queue */
 #define FspIoqTimeout                   ((PIRP)1)
+#define FspIoqPostIrp(Q, I, R)          FspIoqPostIrpEx(Q, I, TRUE, R)
+#define FspIoqPostIrpNoCap(Q, I, R)     FspIoqPostIrpEx(Q, I, FALSE, R)
 typedef struct
 {
     KSPIN_LOCK SpinLock;
@@ -367,7 +369,7 @@ VOID FspIoqDelete(FSP_IOQ *Ioq);
 VOID FspIoqStop(FSP_IOQ *Ioq);
 BOOLEAN FspIoqStopped(FSP_IOQ *Ioq);
 VOID FspIoqRemoveExpired(FSP_IOQ *Ioq);
-BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp, NTSTATUS *PResult);
+BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN CheckCapacity, NTSTATUS *PResult);
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);

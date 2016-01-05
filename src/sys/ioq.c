@@ -299,11 +299,11 @@ VOID FspIoqRemoveExpired(FSP_IOQ *Ioq)
         Ioq->CompleteCanceledIrp(Irp);
 }
 
-BOOLEAN FspIoqPostIrp(FSP_IOQ *Ioq, PIRP Irp, NTSTATUS *PResult)
+BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN CheckCapacity, NTSTATUS *PResult)
 {
     NTSTATUS Result;
     FspIrpTimestamp(Irp) = QueryInterruptTimeInSec() + Ioq->IrpTimeout;
-    Result = IoCsqInsertIrpEx(&Ioq->PendingIoCsq, Irp, 0, (PVOID)1);
+    Result = IoCsqInsertIrpEx(&Ioq->PendingIoCsq, Irp, 0, (PVOID)CheckCapacity);
     if (NT_SUCCESS(Result))
         return TRUE;
     if (0 != PResult)
