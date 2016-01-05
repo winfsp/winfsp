@@ -10,7 +10,7 @@ NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
     BOOLEAN MustSucceed,
     FSP_FSCTL_TRANSACT_REQ **PRequest);
-static VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
+VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
 NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllocateIrpMustSucceed);
@@ -129,7 +129,7 @@ NTSTATUS FspIopCreateRequestFunnel(
     return STATUS_SUCCESS;
 }
 
-static VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request)
+VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request)
 {
     PAGED_CODE();
 

@@ -152,11 +152,14 @@ extern __declspec(selectany) int bpglobal = 1;
             (LONGLONG)Irp->IoStatus.Information);\
         if (STATUS_PENDING == Result)   \
         {                               \
-            /* repost request! */       \
-            FSP_FSVOL_DEVICE_EXTENSION *fsp_leave_FsvolDeviceExtension =\
-                FspFsvolDeviceExtension(IrpSp->DeviceObject);\
-            if (!FspIoqPostIrp(fsp_leave_FsvolDeviceExtension->Ioq, Irp, &Result))\
-                FspIopCompleteIrp(Irp, Result);\
+            if (0 == (IrpSp->Control & SL_PENDING_RETURNED))\
+            {                           \
+                /* if the IRP has not been marked pending already */\
+                FSP_FSVOL_DEVICE_EXTENSION *fsp_leave_FsvolDeviceExtension =\
+                    FspFsvolDeviceExtension(IrpSp->DeviceObject);\
+                if (!FspIoqPostIrp(fsp_leave_FsvolDeviceExtension->Ioq, Irp, &Result))\
+                    FspIopCompleteIrp(Irp, Result);\
+            }                           \
         }                               \
         else                            \
             FspIopCompleteIrp(Irp, Result);\
@@ -389,6 +392,7 @@ NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
     BOOLEAN MustSucceed,
     FSP_FSCTL_TRANSACT_REQ **PRequest);
+VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
 NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllocateIrpMustSucceed);
