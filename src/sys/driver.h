@@ -125,9 +125,9 @@ extern __declspec(selectany) int bpglobal = 1;
             if (0 == (IrpSp->Control & SL_PENDING_RETURNED))\
             {                           \
                 /* if the IRP has not been marked pending already */\
-                FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =\
+                FSP_FSVOL_DEVICE_EXTENSION *fsp_leave_FsvolDeviceExtension =\
                     FspFsvolDeviceExtension(DeviceObject);\
-                if (!FspIoqPostIrp(FsvolDeviceExtension->Ioq, Irp, &Result))\
+                if (!FspIoqPostIrp(fsp_leave_FsvolDeviceExtension->Ioq, Irp, &Result))\
                     FspIopCompleteIrp(Irp, Result);\
             }                           \
         }                               \
@@ -150,7 +150,16 @@ extern __declspec(selectany) int bpglobal = 1;
             __VA_ARGS__,                \
             NtStatusSym(Result),        \
             (LONGLONG)Irp->IoStatus.Information);\
-        FspIopCompleteIrp(Irp, Result);\
+        if (STATUS_PENDING == Result)   \
+        {                               \
+            /* repost request! */       \
+            FSP_FSVOL_DEVICE_EXTENSION *fsp_leave_FsvolDeviceExtension =\
+                FspFsvolDeviceExtension(IrpSp->DeviceObject);\
+            if (!FspIoqPostIrp(fsp_leave_FsvolDeviceExtension->Ioq, Irp, &Result))\
+                FspIopCompleteIrp(Irp, Result);\
+        }                               \
+        else                            \
+            FspIopCompleteIrp(Irp, Result);\
     )
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)

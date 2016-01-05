@@ -581,7 +581,7 @@ NTSTATUS FspVolumeTransact(
                  * also cancel the PendingIrp we have in our hands.
                  */
                 ASSERT(FspIoqStopped(FsvolDeviceExtension->Ioq));
-                FspIopCompleteIrp(PendingIrp, STATUS_CANCELLED);
+                FspIopCompleteCanceledIrp(PendingIrp);
                 return STATUS_CANCELLED;
             }
 
