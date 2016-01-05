@@ -43,6 +43,8 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
 
     FileSystem->Dispatcher = FspFileSystemDirectDispatcher;
     FileSystem->Operations[FspFsctlTransactCreateKind] = FspFileSystemOpCreate;
+    FileSystem->Operations[FspFsctlTransactCleanupKind] = FspFileSystemOpCleanup;
+    FileSystem->Operations[FspFsctlTransactCloseKind] = FspFileSystemOpClose;
     // !!!: ...
     FileSystem->Interface = Interface;
 

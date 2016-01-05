@@ -25,6 +25,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\dll\access.c" />
+    <ClCompile Include="..\..\src\dll\cleanup.c" />
+    <ClCompile Include="..\..\src\dll\close.c" />
     <ClCompile Include="..\..\src\dll\create.c" />
     <ClCompile Include="..\..\src\dll\debug.c" />
     <ClCompile Include="..\..\src\dll\fsctl.c" />
