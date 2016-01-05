@@ -166,11 +166,19 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
             (~DELETE | (Request->Req.Create.DesiredAccess & DELETE)) :
             (~FILE_WRITE_DATA | (Request->Req.Create.DesiredAccess & FILE_WRITE_DATA));
 
-    Result = FileSystem->Interface->Overwrite(FileSystem, Request, Supersede, &FileNode);
+    Result = FileSystem->Interface->Open(FileSystem, Request, &FileNode);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
     Result = FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
+    if (!NT_SUCCESS(Result))
+    {
+        if (0 != FileSystem->Interface->Close)
+            FileSystem->Interface->Close(FileSystem, Request, FileNode);
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+    }
+
+    Result = FileSystem->Interface->Overwrite(FileSystem, Request, Supersede, FileNode);
     if (!NT_SUCCESS(Result))
     {
         if (0 != FileSystem->Interface->Close)
@@ -210,7 +218,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
 
     if (!Create)
     {
-        Result = FileSystem->Interface->Overwrite(FileSystem, Request, FALSE, &FileNode);
+        Result = FileSystem->Interface->Open(FileSystem, Request, &FileNode);
         if (!NT_SUCCESS(Result))
         {
             if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
@@ -239,6 +247,17 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
         if (0 != FileSystem->Interface->Close)
             FileSystem->Interface->Close(FileSystem, Request, FileNode);
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+    }
+
+    if (!Create)
+    {
+        Result = FileSystem->Interface->Overwrite(FileSystem, Request, FALSE, FileNode);
+        if (!NT_SUCCESS(Result))
+        {
+            if (0 != FileSystem->Interface->Close)
+                FileSystem->Interface->Close(FileSystem, Request, FileNode);
+            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        }
     }
 
     return FspFileSystemSendCreateResponse(FileSystem, Request,
