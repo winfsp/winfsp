@@ -53,7 +53,6 @@ static NTSTATUS FspFsvolCleanup(
     if (!FspFileContextIsValid(IrpSp->FileObject->FsContext))
         return STATUS_SUCCESS;
 
-    NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     BOOLEAN FileNameRequired = 0 != FsvolDeviceExtension->VolumeParams.FileNameRequired;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
@@ -76,8 +75,7 @@ static NTSTATUS FspFsvolCleanup(
     }
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLEANUP cannot fail */
-    Result = FspIopCreateRequestMustSucceed(Irp,
-        FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
+    FspIopCreateRequestMustSucceed(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
 
     /* populate the Cleanup request */
     Request->Kind = FspFsctlTransactCleanupKind;
