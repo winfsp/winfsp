@@ -62,39 +62,27 @@ static NTSTATUS FspFsvolClose(
     /* dereference the FsContext (and delete if no more references) */
     FspFileContextRelease(FsContext);
 
-    /* create the user-mode file system request */
-    Result = FspIopCreateRequest(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
-    if (!NT_SUCCESS(Result))
-    {
-        /*
-         * This really should NOT fail, but can theoretically happen. One way around it would
-         * be to preallocate the Request at IRP_MJ_CREATE time. Unfortunately this becomes
-         * expensive (and complicated) because of the FileNameRequired functionality.
-         */
-#if DBG
-        DEBUGLOG("FileObject=%p, UserContext=%llx, UserContext2=%llx: "
-            "error: the user-mode file system handle will be leaked!",
-            FileObject, UserContext, UserContext2);
-#endif
-        Irp->IoStatus.Information = 0;
-        return STATUS_SUCCESS;
-    }
+    /* create the user-mode file system request; MustSucceed because IRP_MJ_CLOSE cannot fail */
+    Result = FspIopCreateRequestMustSucceed(Irp,
+        FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
 
     /* populate the Close request */
     Request->Kind = FspFsctlTransactCloseKind;
     Request->Req.Close.UserContext = UserContext;
     Request->Req.Close.UserContext2 = UserContext2;
 
-    /* post as a work request; this allows us to complete our own IRP and return immediately! */
-    if (!FspIopPostWorkRequest(FsvolDeviceObject, Request))
-    {
-#if DBG
-        DEBUGLOG("FileObject=%p, UserContext=%llx, UserContext2=%llx: "
-            "error: the user-mode file system handle will be leaked!",
-            FileObject, UserContext, UserContext2);
-#endif
-    }
+    /*
+     * Post as a MustSucceed work request. This allows us to complete our own IRP
+     * and return immediately.
+     */
+    FspIopPostWorkRequestMustSucceed(FsvolDeviceObject, Request);
 
+    /*
+     * Note that it is still possible for this request to not be delivered,
+     * if the volume device Ioq is stopped. But such failures are benign
+     * from our perspective, because they mean that the file system is going
+     * away and should correctly tear things down.
+     */
     Irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;
 }

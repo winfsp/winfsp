@@ -363,21 +363,27 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 /* I/O processing */
 #define FSP_FSCTL_WORK                  \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'W', METHOD_NEITHER, FILE_ANY_ACCESS)
+#define FspIopCreateRequest(I, F, E, P) \
+    FspIopCreateRequestFunnel(I, F, E, 0, FALSE, P)
+#define FspIopCreateRequestMustSucceed(I, F, E, P)\
+    FspIopCreateRequestFunnel(I, F, E, 0, TRUE, P)
+#define FspIopCreateRequestEx(I, F, E, RF, P)\
+    FspIopCreateRequestFunnel(I, F, E, RF, FALSE, P)
 #define FspIopRequestContext(Request, I)\
     (*FspIopRequestContextAddress(Request, I))
-#define FspIopCreateRequest(I, F, E, P) FspIopCreateRequestEx(I, F, E, 0, P)
+#define FspIopPostWorkRequest(D, R)     FspIopPostWorkRequestFunnel(D, R, FALSE)
+#define FspIopPostWorkRequestMustSucceed(D, R)\
+    FspIopPostWorkRequestFunnel(D, R, TRUE)
+#define FspIopCompleteIrp(I, R)         FspIopCompleteIrpEx(I, R, TRUE)
 typedef VOID FSP_IOP_REQUEST_FINI(PVOID Context[3]);
-NTSTATUS FspIopCreateRequestEx(
+NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
+    BOOLEAN MustSucceed,
     FSP_FSCTL_TRANSACT_REQ **PRequest);
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
-NTSTATUS FspIopPostWorkRequest(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_TRANSACT_REQ *Request);
+NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
+    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllocateIrpMustSucceed);
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease);
-static inline
-VOID FspIopCompleteIrp(PIRP Irp, NTSTATUS Result)
-{
-    FspIopCompleteIrpEx(Irp, Result, TRUE);
-}
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);

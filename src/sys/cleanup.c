@@ -75,29 +75,21 @@ static NTSTATUS FspFsvolCleanup(
         FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
     }
 
-    /* create the user-mode file system request */
-    Result = FspIopCreateRequest(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
-    if (!NT_SUCCESS(Result))
-    {
-        /*
-         * This really should NOT fail, but can theoretically happen. One way around it would
-         * be to preallocate the Request at IRP_MJ_CREATE time. Unfortunately this becomes
-         * expensive (and complicated) because of the FileNameRequired functionality.
-         */
-#if DBG
-        DEBUGLOG("FileObject=%p, UserContext=%llx, UserContext2=%llx: "
-            "error: the user-mode file system handle will be leaked!",
-            FileObject, UserContext, UserContext2);
-#endif
-        Irp->IoStatus.Information = 0;
-        return STATUS_SUCCESS;
-    }
+    /* create the user-mode file system request; MustSucceed because IRP_MJ_CLEANUP cannot fail */
+    Result = FspIopCreateRequestMustSucceed(Irp,
+        FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
 
     /* populate the Cleanup request */
     Request->Kind = FspFsctlTransactCleanupKind;
     Request->Req.Cleanup.UserContext = UserContext;
     Request->Req.Cleanup.UserContext2 = UserContext2;
 
+    /*
+     * Note that it is still possible for this request to not be delivered,
+     * if the volume device Ioq is stopped. But such failures are benign
+     * from our perspective, because they mean that the file system is going
+     * away and should correctly tear things down.
+     */
     return STATUS_PENDING;
 }
 

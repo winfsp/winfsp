@@ -6,26 +6,72 @@
 
 #include <sys/driver.h>
 
-NTSTATUS FspIopCreateRequestEx(
+NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
+    BOOLEAN MustSucceed,
     FSP_FSCTL_TRANSACT_REQ **PRequest);
 static VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
-NTSTATUS FspIopPostWorkRequest(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_TRANSACT_REQ *Request);
+NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
+    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllocateIrpMustSucceed);
 static IO_COMPLETION_ROUTINE FspIopPostWorkRequestCompletion;
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease);
+VOID FspIopCompleteCanceledIrp(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text(PAGE, FspIopCreateRequestEx)
+#pragma alloc_text(PAGE, FspIopCreateRequestFunnel)
 #pragma alloc_text(PAGE, FspIopDeleteRequest)
 #pragma alloc_text(PAGE, FspIopRequestContextAddress)
-#pragma alloc_text(PAGE, FspIopPostWorkRequest)
+#pragma alloc_text(PAGE, FspIopPostWorkRequestFunnel)
 #pragma alloc_text(PAGE, FspIopCompleteIrpEx)
+#pragma alloc_text(PAGE, FspIopCompleteCanceledIrp)
 #pragma alloc_text(PAGE, FspIopDispatchPrepare)
 #pragma alloc_text(PAGE, FspIopDispatchComplete)
 #endif
+
+static const LONG Delays[] =
+{
+    -100,
+    -200,
+    -300,
+    -400,
+    -500,
+    -1000,
+};
+
+static PVOID FspAllocMustSucceed(SIZE_T Size)
+{
+    PVOID Result;
+    LARGE_INTEGER Delay;
+
+    for (ULONG i = 0, n = sizeof(Delays) / sizeof(Delays[0]);; i++)
+    {
+        Result = FspAlloc(Size);
+        if (0 != Result)
+            return Result;
+
+        Delay.QuadPart = n > i ? Delays[i] : Delays[n - 1];
+        KeDelayExecutionThread(KernelMode, FALSE, &Delay);
+    }
+}
+
+static PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
+{
+    PIRP Result;
+    LARGE_INTEGER Delay;
+
+    for (ULONG i = 0, n = sizeof(Delays) / sizeof(Delays[0]);; i++)
+    {
+        Result = IoAllocateIrp(StackSize, FALSE);
+        if (0 != Result)
+            return Result;
+
+        Delay.QuadPart = n > i ? Delays[i] : Delays[n - 1];
+        KeDelayExecutionThread(KernelMode, FALSE, &Delay);
+    }
+}
 
 typedef struct
 {
@@ -34,8 +80,9 @@ typedef struct
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 RequestBuf[];
 } FSP_FSCTL_TRANSACT_REQ_HEADER;
 
-NTSTATUS FspIopCreateRequestEx(
+NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
+    BOOLEAN MustSucceed,
     FSP_FSCTL_TRANSACT_REQ **PRequest)
 {
     PAGED_CODE();
@@ -51,9 +98,14 @@ NTSTATUS FspIopCreateRequestEx(
     if (FSP_FSCTL_TRANSACT_REQ_SIZEMAX < sizeof *Request + ExtraSize)
         return STATUS_INVALID_PARAMETER;
 
-    RequestHeader = FspAlloc(sizeof *RequestHeader + sizeof *Request + ExtraSize);
-    if (0 == RequestHeader)
-        return STATUS_INSUFFICIENT_RESOURCES;
+    if (MustSucceed)
+        RequestHeader = FspAllocMustSucceed(sizeof *RequestHeader + sizeof *Request + ExtraSize);
+    else
+    {
+        RequestHeader = FspAlloc(sizeof *RequestHeader + sizeof *Request + ExtraSize);
+        if (0 == RequestHeader)
+            return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     RtlZeroMemory(RequestHeader, sizeof *RequestHeader + sizeof *Request + ExtraSize);
     RequestHeader->RequestFini = RequestFini;
@@ -98,18 +150,26 @@ PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I)
     return &RequestHeader->Context[I];
 }
 
-NTSTATUS FspIopPostWorkRequest(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_TRANSACT_REQ *Request)
+NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
+    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllocateIrpMustSucceed)
 {
     PAGED_CODE();
 
     ASSERT(0 == Request->Hint);
 
     NTSTATUS Result;
-    PIRP Irp = IoAllocateIrp(DeviceObject->StackSize, FALSE);
-    if (0 == Irp)
+    PIRP Irp;
+
+    if (AllocateIrpMustSucceed)
+        Irp = FspAllocateIrpMustSucceed(DeviceObject->StackSize);
+    else
     {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
+        Irp = IoAllocateIrp(DeviceObject->StackSize, FALSE);
+        if (0 == Irp)
+        {
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+            goto exit;
+        }
     }
 
     PIO_STACK_LOCATION IrpSp = IoGetNextIrpStackLocation(Irp);
@@ -174,6 +234,8 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
 
 VOID FspIopCompleteCanceledIrp(PIRP Irp)
 {
+    PAGED_CODE();
+
     FspIopCompleteIrpEx(Irp, STATUS_CANCELLED, TRUE);
 }
 
