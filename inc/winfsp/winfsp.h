@@ -56,17 +56,17 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     NTSTATUS (*GetSecurity)(FSP_FILE_SYSTEM *FileSystem,
         PWSTR FileName, PDWORD PFileAttributes,
         PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
-    NTSTATUS (*FileCreate)(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*Create)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode);
-    NTSTATUS (*FileOpen)(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*Open)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode);
-    NTSTATUS (*FileOverwrite)(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*Overwrite)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN Supersede, FSP_FILE_NODE **PFileNode);
-    NTSTATUS (*FileOpenParentDirectory)(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*OpenParentDirectory)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode, PBOOLEAN PFileExists);
-    NTSTATUS (*FileCleanup)(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode);
-    NTSTATUS (*FileClose)(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*Close)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode);
 } FSP_FILE_SYSTEM_INTERFACE;
 typedef struct _FSP_FILE_SYSTEM

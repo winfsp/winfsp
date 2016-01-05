@@ -47,7 +47,7 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FileSystem->Interface->FileCreate(FileSystem, Request, &FileNode);
+    Result = FileSystem->Interface->Create(FileSystem, Request, &FileNode);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
@@ -72,15 +72,15 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FileSystem->Interface->FileOpen(FileSystem, Request, &FileNode);
+    Result = FileSystem->Interface->Open(FileSystem, Request, &FileNode);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
     Result = FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
     if (!NT_SUCCESS(Result))
     {
-        if (0 != FileSystem->Interface->FileClose)
-            FileSystem->Interface->FileClose(FileSystem, Request, FileNode);
+        if (0 != FileSystem->Interface->Close)
+            FileSystem->Interface->Close(FileSystem, Request, FileNode);
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
 
@@ -107,7 +107,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
 
     if (!Create)
     {
-        Result = FileSystem->Interface->FileOpen(FileSystem, Request, &FileNode);
+        Result = FileSystem->Interface->Open(FileSystem, Request, &FileNode);
         if (!NT_SUCCESS(Result))
         {
             if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
@@ -125,7 +125,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-        Result = FileSystem->Interface->FileCreate(FileSystem, Request, &FileNode);
+        Result = FileSystem->Interface->Create(FileSystem, Request, &FileNode);
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
@@ -136,8 +136,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
     Result = FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
     if (!NT_SUCCESS(Result))
     {
-        if (0 != FileSystem->Interface->FileClose)
-            FileSystem->Interface->FileClose(FileSystem, Request, FileNode);
+        if (0 != FileSystem->Interface->Close)
+            FileSystem->Interface->Close(FileSystem, Request, FileNode);
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
 
@@ -166,15 +166,15 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
             (~DELETE | (Request->Req.Create.DesiredAccess & DELETE)) :
             (~FILE_WRITE_DATA | (Request->Req.Create.DesiredAccess & FILE_WRITE_DATA));
 
-    Result = FileSystem->Interface->FileOverwrite(FileSystem, Request, Supersede, &FileNode);
+    Result = FileSystem->Interface->Overwrite(FileSystem, Request, Supersede, &FileNode);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
     Result = FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
     if (!NT_SUCCESS(Result))
     {
-        if (0 != FileSystem->Interface->FileClose)
-            FileSystem->Interface->FileClose(FileSystem, Request, FileNode);
+        if (0 != FileSystem->Interface->Close)
+            FileSystem->Interface->Close(FileSystem, Request, FileNode);
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
 
@@ -210,7 +210,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
 
     if (!Create)
     {
-        Result = FileSystem->Interface->FileOverwrite(FileSystem, Request, FALSE, &FileNode);
+        Result = FileSystem->Interface->Overwrite(FileSystem, Request, FALSE, &FileNode);
         if (!NT_SUCCESS(Result))
         {
             if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
@@ -225,7 +225,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-        Result = FileSystem->Interface->FileCreate(FileSystem, Request, &FileNode);
+        Result = FileSystem->Interface->Create(FileSystem, Request, &FileNode);
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
@@ -236,8 +236,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
     Result = FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
     if (!NT_SUCCESS(Result))
     {
-        if (0 != FileSystem->Interface->FileClose)
-            FileSystem->Interface->FileClose(FileSystem, Request, FileNode);
+        if (0 != FileSystem->Interface->Close)
+            FileSystem->Interface->Close(FileSystem, Request, FileNode);
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
 
@@ -261,7 +261,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FileSystem->Interface->FileOpenParentDirectory(FileSystem, Request,
+    Result = FileSystem->Interface->OpenParentDirectory(FileSystem, Request,
         &FileNode, &FileExists);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
@@ -269,8 +269,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     Result = FspShareCheck(FileSystem, GrantedAccess, Request->Req.Create.ShareAccess, FileNode);
     if (!NT_SUCCESS(Result))
     {
-        if (0 != FileSystem->Interface->FileClose)
-            FileSystem->Interface->FileClose(FileSystem, Request, FileNode);
+        if (0 != FileSystem->Interface->Close)
+            FileSystem->Interface->Close(FileSystem, Request, FileNode);
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
 
@@ -281,10 +281,10 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    if (0 == FileSystem->Interface->FileCreate ||
-        0 == FileSystem->Interface->FileOpen ||
-        0 == FileSystem->Interface->FileOverwrite ||
-        0 == FileSystem->Interface->FileOpenParentDirectory)
+    if (0 == FileSystem->Interface->Create ||
+        0 == FileSystem->Interface->Open ||
+        0 == FileSystem->Interface->Overwrite ||
+        0 == FileSystem->Interface->OpenParentDirectory)
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
 
     if (Request->Req.Create.OpenTargetDirectory)

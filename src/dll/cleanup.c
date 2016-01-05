@@ -9,12 +9,12 @@
 FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    if (0 == FileSystem->Interface->FileCleanup)
+    if (0 == FileSystem->Interface->Cleanup)
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
 
     FSP_FILE_NODE *FileNode = (PVOID)Request->Req.Close.UserContext;
 
-    FileSystem->Interface->FileCleanup(FileSystem, Request, FileNode);
+    FileSystem->Interface->Cleanup(FileSystem, Request, FileNode);
 
     return FspFileSystemSendCleanupResponse(FileSystem, Request);
 }

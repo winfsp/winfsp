@@ -9,12 +9,12 @@
 FSP_API NTSTATUS FspFileSystemOpClose(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    if (0 == FileSystem->Interface->FileClose)
+    if (0 == FileSystem->Interface->Close)
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
 
     FSP_FILE_NODE *FileNode = (PVOID)Request->Req.Close.UserContext;
 
-    FileSystem->Interface->FileClose(FileSystem, Request, FileNode);
+    FileSystem->Interface->Close(FileSystem, Request, FileNode);
 
     return FspFileSystemSendCloseResponse(FileSystem, Request);
 }
