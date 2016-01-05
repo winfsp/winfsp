@@ -44,6 +44,8 @@ NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
     FsContext->Header.IsFastIoPossible = FastIoIsQuestionable;
     FsContext->Header.Resource = &NonPaged->Resource;
     FsContext->Header.PagingIoResource = &NonPaged->PagingIoResource;
+    FsContext->Header.ValidDataLength.QuadPart = 0x7fffffffffffffffLL;
+        /* disable ValidDataLength functionality */
     FsRtlSetupAdvancedHeader(&FsContext->Header, &NonPaged->HeaderFastMutex);
     FsContext->NonPaged = NonPaged;
     FsContext->RefCount = 1;
