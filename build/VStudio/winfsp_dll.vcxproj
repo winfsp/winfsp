@@ -24,7 +24,6 @@
     <ClInclude Include="..\..\src\dll\library.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\dll\access.c" />
     <ClCompile Include="..\..\src\dll\cleanup.c" />
     <ClCompile Include="..\..\src\dll\close.c" />
     <ClCompile Include="..\..\src\dll\create.c" />
