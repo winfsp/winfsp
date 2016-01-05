@@ -166,7 +166,7 @@ exit:
     return Result;
 }
 
-FSP_API NTSTATUS FspShareCheck(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspShareAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, DWORD GrantedAccess, FSP_FILE_NODE *FileNode)
 {
     DWORD ShareAccess = Request->Req.Create.ShareAccess;
@@ -240,7 +240,7 @@ FSP_API VOID FspFileSystemPostCreateCheck(FSP_FILE_SYSTEM *FileSystem,
 {
     FspFileNodeLock(FileNode);
 
-    FspShareCheck(FileSystem, Request, GrantedAccess, FileNode);
+    FspShareAccessCheck(FileSystem, Request, GrantedAccess, FileNode);
 
     if (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
         FileNode->Flags.DeleteOnClose = TRUE;
@@ -270,7 +270,7 @@ FSP_API NTSTATUS FspFileSystemPostOpenCheck(FSP_FILE_SYSTEM *FileSystem,
         goto exit;
     }
 
-    Result = FspShareCheck(FileSystem, Request, GrantedAccess, FileNode);
+    Result = FspShareAccessCheck(FileSystem, Request, GrantedAccess, FileNode);
     if (!NT_SUCCESS(Result))
         goto exit;
 

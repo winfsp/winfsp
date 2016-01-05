@@ -6,6 +6,23 @@
 
 #include <dll/library.h>
 
+FSP_API VOID FspShareAccessRemove(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode)
+{
+    if (Request->Req.Cleanup.ReadAccess ||
+        Request->Req.Cleanup.WriteAccess ||
+        Request->Req.Cleanup.DeleteAccess)
+    {
+        FileNode->ShareAccess.OpenCount--;
+        FileNode->ShareAccess.Readers -= Request->Req.Cleanup.ReadAccess;
+        FileNode->ShareAccess.Writers -= Request->Req.Cleanup.WriteAccess;
+        FileNode->ShareAccess.Deleters -= Request->Req.Cleanup.DeleteAccess;
+        FileNode->ShareAccess.SharedRead -= Request->Req.Cleanup.SharedRead;
+        FileNode->ShareAccess.SharedWrite -= Request->Req.Cleanup.SharedWrite;
+        FileNode->ShareAccess.SharedDelete -= Request->Req.Cleanup.SharedDelete;
+    }
+}
+
 FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
@@ -17,6 +34,8 @@ FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
     LONG OpenCount;
 
     FspFileNodeLock(FileNode);
+
+    FspShareAccessRemove(FileSystem, Request, FileNode);
 
     /* propagate the DeleteOnClose flag to DeletePending */
     if (FileNode->Flags.DeleteOnClose)

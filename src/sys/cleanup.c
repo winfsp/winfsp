@@ -81,6 +81,12 @@ static NTSTATUS FspFsvolCleanup(
     Request->Kind = FspFsctlTransactCleanupKind;
     Request->Req.Cleanup.UserContext = UserContext;
     Request->Req.Cleanup.UserContext2 = UserContext2;
+    Request->Req.Cleanup.ReadAccess = !!FileObject->ReadAccess;
+    Request->Req.Cleanup.WriteAccess = !!FileObject->WriteAccess;
+    Request->Req.Cleanup.DeleteAccess = !!FileObject->DeleteAccess;
+    Request->Req.Cleanup.SharedRead = !!FileObject->SharedRead;
+    Request->Req.Cleanup.SharedWrite = !!FileObject->SharedWrite;
+    Request->Req.Cleanup.SharedDelete = !!FileObject->SharedDelete;
 
     /*
      * Note that it is still possible for this request to not be delivered,

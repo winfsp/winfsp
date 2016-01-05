@@ -189,8 +189,10 @@ FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
 FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
     DWORD DesiredAccess, PDWORD PGrantedAccess);
-FSP_API NTSTATUS FspShareCheck(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspShareAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, DWORD GrantedAccess, FSP_FILE_NODE *FileNode);
+FSP_API VOID FspShareAccessRemove(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode);
 FSP_API NTSTATUS FspFileSystemPreCreateCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, PDWORD PGrantedAccess);
 FSP_API VOID FspFileSystemPostCreateCheck(FSP_FILE_SYSTEM *FileSystem,
