@@ -60,8 +60,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode);
     NTSTATUS (*Open)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode);
-    NTSTATUS (*OpenParentDirectory)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode, PBOOLEAN PFileExists);
     NTSTATUS (*Overwrite)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN ReplaceFileAttributes, FSP_FILE_NODE *FileNode);
     NTSTATUS (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,

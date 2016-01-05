@@ -271,17 +271,19 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
         return STATUS_ACCESS_DENIED;
 
     NTSTATUS Result;
+    PWSTR Parent, Suffix;
     DWORD GrantedAccess;
     FSP_FILE_NODE *FileNode;
-    BOOLEAN FileExists;
+    UINT_PTR Information;
 
     Result = FspAccessCheck(FileSystem, Request, TRUE, TRUE,
         Request->Req.Create.DesiredAccess, &GrantedAccess);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FileSystem->Interface->OpenParentDirectory(FileSystem, Request,
-        &FileNode, &FileExists);
+    FspPathSuffix((PWSTR)Request->Buffer, &Parent, &Suffix);
+    Result = FileSystem->Interface->Open(FileSystem, Request, &FileNode);
+    FspPathCombine((PWSTR)Request->Buffer, Suffix);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
@@ -293,8 +295,15 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
 
+    Information = FILE_OPENED;
+    if (0 == FileSystem->Interface->GetSecurity)
+    {
+        Result = FileSystem->Interface->GetSecurity(FileSystem, (PWSTR)Request->Buffer, 0, 0, 0);
+        Information = NT_SUCCESS(Result) ? FILE_EXISTS : FILE_DOES_NOT_EXIST;
+    }
+
     return FspFileSystemSendCreateResponse(FileSystem, Request,
-        FileExists ? FILE_EXISTS : FILE_DOES_NOT_EXIST, FileNode, GrantedAccess);
+        Information, FileNode, GrantedAccess);
 }
 
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
@@ -302,8 +311,7 @@ FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
 {
     if (0 == FileSystem->Interface->Create ||
         0 == FileSystem->Interface->Open ||
-        0 == FileSystem->Interface->Overwrite ||
-        0 == FileSystem->Interface->OpenParentDirectory)
+        0 == FileSystem->Interface->Overwrite)
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
 
     if (Request->Req.Create.OpenTargetDirectory)

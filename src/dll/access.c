@@ -87,7 +87,7 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
             }
 
             Prefix = L'\0' == Prefix[0] ? L"\\" : (PWSTR)Request->Buffer;
-            Result = FspGetSecurity(FileSystem, Prefix, &FileAttributes,
+            Result = FspGetSecurity(FileSystem, Prefix, 0,
                 &SecurityDescriptor, &SecurityDescriptorSize);
 
             FspPathCombine((PWSTR)Request->Buffer, Path);
