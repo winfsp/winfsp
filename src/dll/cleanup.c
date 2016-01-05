@@ -13,8 +13,22 @@ FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
 
     FSP_FILE_NODE *FileNode = (PVOID)Request->Req.Close.UserContext;
+    BOOLEAN DeletePending;
+    LONG OpenCount;
 
-    FileSystem->Interface->Cleanup(FileSystem, Request, FileNode);
+    FspFileNodeLock(FileNode);
+
+    /* propagate the DeleteOnClose flag to DeletePending */
+    if (FileNode->Flags.DeleteOnClose)
+        FileNode->Flags.DeletePending = TRUE;
+    DeletePending = FileNode->Flags.DeletePending;
+
+    /* all handles on the kernel FILE_OBJECT gone; decrement the FileNode's OpenCount */
+    OpenCount = FspFileNodeClose(FileNode);
+
+    FspFileNodeUnlock(FileNode);
+
+    FileSystem->Interface->Cleanup(FileSystem, Request, FileNode, 0 == OpenCount && DeletePending);
 
     return FspFileSystemSendCleanupResponse(FileSystem, Request);
 }

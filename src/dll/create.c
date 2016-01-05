@@ -238,13 +238,16 @@ FSP_API NTSTATUS FspFileSystemPreCreateCheck(FSP_FILE_SYSTEM *FileSystem,
 FSP_API VOID FspFileSystemPostCreateCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, DWORD GrantedAccess, FSP_FILE_NODE *FileNode)
 {
-    memset(&FileNode->Flags, 0, sizeof FileNode->Flags);
-    memset(&FileNode->ShareAccess, 0, sizeof FileNode->ShareAccess);
+    FspFileNodeLock(FileNode);
 
     FspShareCheck(FileSystem, Request, GrantedAccess, FileNode);
 
     if (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
         FileNode->Flags.DeleteOnClose = TRUE;
+
+    FspFileNodeOpen(FileNode);
+
+    FspFileNodeUnlock(FileNode);
 }
 
 FSP_API NTSTATUS FspFileSystemPreOpenCheck(FSP_FILE_SYSTEM *FileSystem,
@@ -259,15 +262,27 @@ FSP_API NTSTATUS FspFileSystemPostOpenCheck(FSP_FILE_SYSTEM *FileSystem,
 {
     NTSTATUS Result;
 
+    FspFileNodeLock(FileNode);
+
     if (FileNode->Flags.DeletePending)
-        return STATUS_DELETE_PENDING;
+    {
+        Result = STATUS_DELETE_PENDING;
+        goto exit;
+    }
 
     Result = FspShareCheck(FileSystem, Request, GrantedAccess, FileNode);
     if (!NT_SUCCESS(Result))
-        return Result;
+        goto exit;
 
     if (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
         FileNode->Flags.DeleteOnClose = TRUE;
+
+    FspFileNodeOpen(FileNode);
+
+exit:
+    FspFileNodeUnlock(FileNode);
+
+    return Result;
 }
 
 FSP_API NTSTATUS FspFileSystemPreOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,

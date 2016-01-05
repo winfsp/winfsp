@@ -22,14 +22,17 @@
 #include <winfsp/fsctl.h>
 
 /*
- * File System
+ * File Nodes
  */
-typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
 typedef struct _FSP_FILE_NODE
 {
+    /* public */
     PVOID UserContext;
     UINT64 AllocationSize;
     UINT64 FileSize;
+    /* private */
+    CRITICAL_SECTION CriticalSection;
+    LONG OpenCount;
     struct
     {
         BOOLEAN DeleteOnClose:1;
@@ -46,6 +49,42 @@ typedef struct _FSP_FILE_NODE
         ULONG SharedDelete;
     } ShareAccess;
 } FSP_FILE_NODE;
+static inline
+VOID FspFileNodeInit(FSP_FILE_NODE *FileNode)
+{
+    memset(FileNode, 0, sizeof *FileNode);
+    InitializeCriticalSection(&FileNode->CriticalSection);
+}
+static inline
+VOID FspFileNodeFini(FSP_FILE_NODE *FileNode)
+{
+    DeleteCriticalSection(&FileNode->CriticalSection);
+}
+static inline
+VOID FspFileNodeLock(FSP_FILE_NODE *FileNode)
+{
+    EnterCriticalSection(&FileNode->CriticalSection);
+}
+static inline
+VOID FspFileNodeUnlock(FSP_FILE_NODE *FileNode)
+{
+    LeaveCriticalSection(&FileNode->CriticalSection);
+}
+static inline
+VOID FspFileNodeOpen(FSP_FILE_NODE *FileNode)
+{
+    InterlockedIncrement(&FileNode->OpenCount);
+}
+static inline
+LONG FspFileNodeClose(FSP_FILE_NODE *FileNode)
+{
+    return InterlockedDecrement(&FileNode->OpenCount);
+}
+
+/*
+ * File System
+ */
+typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
 typedef VOID FSP_FILE_SYSTEM_DISPATCHER(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
 typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
 typedef struct _FSP_FILE_SYSTEM_INTERFACE
@@ -59,9 +98,9 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE **PFileNode);
     NTSTATUS (*Overwrite)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN ReplaceFileAttributes, FSP_FILE_NODE *FileNode);
-    NTSTATUS (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode);
-    NTSTATUS (*Close)(FSP_FILE_SYSTEM *FileSystem,
+    VOID (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode, BOOLEAN Delete);
+    VOID (*Close)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode);
 } FSP_FILE_SYSTEM_INTERFACE;
 typedef struct _FSP_FILE_SYSTEM
