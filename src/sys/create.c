@@ -364,6 +364,21 @@ VOID FspFsvolCreateComplete(
             }
             FileObject->FileName.Length = 0;
             RtlCopyUnicodeString(&FileObject->FileName, &ReparseFileName);
+
+            /*
+             * The RelatedFileObject does not need to be changed according to:
+             * https://support.microsoft.com/en-us/kb/319447
+             *
+             * Quote:
+             *     The fact that the first create-file operation is performed
+             *     relative to another file object does not matter. Do not modify
+             *     the RelatedFileObject field of the FILE_OBJECT. To perform the
+             *     reparse operation, the IO Manager considers only the FileName
+             *     field and not the RelatedFileObject. Additionally, the IO Manager
+             *     frees the RelatedFileObject, as appropriate, when it handles the
+             *     STATUS_REPARSE status returned by the filter. Therefore, it is not
+             *     the responsibility of the filter to free that file object.
+             */
         }
         else
         if (IO_REMOUNT == Response->IoStatus.Information)
