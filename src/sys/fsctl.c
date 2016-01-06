@@ -61,6 +61,7 @@ static NTSTATUS FspFsvolFileSystemControl(
         switch (IrpSp->Parameters.FileSystemControl.FsControlCode)
         {
         case FSP_FSCTL_WORK:
+        case FSP_FSCTL_WORK_BEST_EFFORT:
             Result = FspVolumeWork(DeviceObject, Irp, IrpSp);
             break;
         }

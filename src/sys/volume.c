@@ -606,7 +606,9 @@ NTSTATUS FspVolumeWork(
 
     ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
     ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
-    ASSERT(FSP_FSCTL_TRANSACT == IrpSp->Parameters.FileSystemControl.FsControlCode);
+    ASSERT(
+        FSP_FSCTL_WORK == IrpSp->Parameters.FileSystemControl.FsControlCode ||
+        FSP_FSCTL_WORK_BEST_EFFORT == IrpSp->Parameters.FileSystemControl.FsControlCode);
 
     if (KernelMode != Irp->RequestorMode)
         return STATUS_INVALID_DEVICE_REQUEST;
@@ -614,6 +616,7 @@ NTSTATUS FspVolumeWork(
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     FSP_FSCTL_TRANSACT_REQ *Request = IrpSp->Parameters.FileSystemControl.Type3InputBuffer;
+    BOOLEAN BestEffort = FSP_FSCTL_WORK_BEST_EFFORT == IrpSp->Parameters.FileSystemControl.FsControlCode;
 
     ASSERT(0 == Request->Hint);
 
@@ -622,11 +625,11 @@ NTSTATUS FspVolumeWork(
     FspIrpRequest(Irp) = Request;
 
     /*
-     * Post the IRP to our Ioq; we do this here instead of at IRP_LEAVE_MJ time,
+     * Post the IRP to our Ioq; we do this here instead of at FSP_LEAVE_MJ time,
      * so that we can disassociate the Request on failure and release ownership
      * back to the caller.
      */
-    if (!FspIoqPostIrp(FsvolDeviceExtension->Ioq, Irp, &Result))
+    if (!FspIoqPostIrpEx(FsvolDeviceExtension->Ioq, Irp, !BestEffort, &Result))
     {
         Request->Hint = 0;
         FspIrpRequest(Irp) = 0;

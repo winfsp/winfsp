@@ -377,6 +377,8 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 /* I/O processing */
 #define FSP_FSCTL_WORK                  \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'W', METHOD_NEITHER, FILE_ANY_ACCESS)
+#define FSP_FSCTL_WORK_BEST_EFFORT      \
+    CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'w', METHOD_NEITHER, FILE_ANY_ACCESS)
 #define FspIopCreateRequest(I, F, E, P) \
     FspIopCreateRequestFunnel(I, F, E, 0, FALSE, P)
 #define FspIopCreateRequestMustSucceed(I, F, E, P)\
@@ -386,7 +388,7 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 #define FspIopRequestContext(Request, I)\
     (*FspIopRequestContextAddress(Request, I))
 #define FspIopPostWorkRequest(D, R)     FspIopPostWorkRequestFunnel(D, R, FALSE)
-#define FspIopPostWorkRequestMustSucceed(D, R)\
+#define FspIopPostWorkRequestBestEffort(D, R)\
     FspIopPostWorkRequestFunnel(D, R, TRUE)
 #define FspIopCompleteIrp(I, R)         FspIopCompleteIrpEx(I, R, TRUE)
 typedef VOID FSP_IOP_REQUEST_FINI(PVOID Context[3]);
@@ -397,7 +399,7 @@ NTSTATUS FspIopCreateRequestFunnel(
 VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
 NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
-    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllocateIrpMustSucceed);
+    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN BestEffort);
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease);
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);

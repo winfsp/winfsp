@@ -94,7 +94,11 @@ static NTSTATUS FspFsvolCleanup(
      * from our perspective, because they mean that the file system is going
      * away and should correctly tear things down.
      */
-    return STATUS_PENDING;
+
+    if (FspIoqPostIrpNoCap(FsvolDeviceExtension->Ioq, Irp, 0))
+        return STATUS_PENDING;
+    else
+        return STATUS_SUCCESS;
 }
 
 VOID FspFsvolCleanupComplete(

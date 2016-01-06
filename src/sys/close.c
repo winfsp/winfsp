@@ -62,7 +62,7 @@ static NTSTATUS FspFsvolClose(
     FspFileContextRelease(FsContext);
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLOSE cannot fail */
-    FspIopCreateRequestMustSucceed(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
+    FspIopCreateRequestMustSucceed(0, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
 
     /* populate the Close request */
     Request->Kind = FspFsctlTransactCloseKind;
@@ -70,10 +70,10 @@ static NTSTATUS FspFsvolClose(
     Request->Req.Close.UserContext2 = UserContext2;
 
     /*
-     * Post as a MustSucceed work request. This allows us to complete our own IRP
+     * Post as a BestEffort work request. This allows us to complete our own IRP
      * and return immediately.
      */
-    FspIopPostWorkRequestMustSucceed(FsvolDeviceObject, Request);
+    FspIopPostWorkRequestBestEffort(FsvolDeviceObject, Request);
 
     /*
      * Note that it is still possible for this request to not be delivered,
