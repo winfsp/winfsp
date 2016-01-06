@@ -151,7 +151,7 @@ PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I)
 }
 
 NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
-    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllocateIrpMustSucceed)
+    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN BestEffort)
 {
     PAGED_CODE();
 
@@ -160,7 +160,7 @@ NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
     NTSTATUS Result;
     PIRP Irp;
 
-    if (AllocateIrpMustSucceed)
+    if (BestEffort)
         Irp = FspAllocateIrpMustSucceed(DeviceObject->StackSize);
     else
     {
@@ -176,7 +176,8 @@ NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
     Irp->RequestorMode = KernelMode;
     IrpSp->MajorFunction = IRP_MJ_FILE_SYSTEM_CONTROL;
     IrpSp->MinorFunction = IRP_MN_USER_FS_REQUEST;
-    IrpSp->Parameters.FileSystemControl.FsControlCode = FSP_FSCTL_WORK;
+    IrpSp->Parameters.FileSystemControl.FsControlCode = BestEffort ?
+        FSP_FSCTL_WORK_BEST_EFFORT : FSP_FSCTL_WORK;
     IrpSp->Parameters.FileSystemControl.InputBufferLength = Request->Size;
     IrpSp->Parameters.FileSystemControl.Type3InputBuffer = Request;
 
