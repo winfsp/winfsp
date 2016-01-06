@@ -107,7 +107,11 @@ static PIRP FspIoqPendingPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
         return FspIrpTimestamp(Irp) <= ExpirationTime ? Irp : 0;
     }
     else
+    {
+        if (Irp == IrpHint)
+            return 0;
         return Irp;
+    }
 }
 
 _IRQL_raises_(DISPATCH_LEVEL)
@@ -311,7 +315,7 @@ BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN CheckCapacity, NTSTATUS 
     return FALSE;
 }
 
-PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout)
+PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout)
 {
     /* timeout of 0 normally means infinite wait; for us it means do not do any wait at all! */
     if (0 != Timeout)
@@ -324,7 +328,7 @@ PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout)
             return FspIoqTimeout;
     }
     FSP_IOQ_PEEK_CONTEXT PeekContext;
-    PeekContext.IrpHint = (PVOID)1;
+    PeekContext.IrpHint = 0 != BoundaryIrp ? BoundaryIrp : (PVOID)1;
     PeekContext.ExpirationTime = 0;
     return IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, &PeekContext);
 }

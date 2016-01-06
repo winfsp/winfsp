@@ -359,7 +359,7 @@ VOID FspIoqStop(FSP_IOQ *Ioq);
 BOOLEAN FspIoqStopped(FSP_IOQ *Ioq);
 VOID FspIoqRemoveExpired(FSP_IOQ *Ioq);
 BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN CheckCapacity, NTSTATUS *PResult);
-PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PLARGE_INTEGER Timeout);
+PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 

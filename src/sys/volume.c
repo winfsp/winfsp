@@ -510,7 +510,7 @@ NTSTATUS FspVolumeTransact(
     PUINT8 BufferEnd;
     FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
     FSP_FSCTL_TRANSACT_REQ *Request, *PendingIrpRequest;
-    PIRP ProcessIrp, PendingIrp;
+    PIRP ProcessIrp, PendingIrp, RepostedIrp = 0;
     LARGE_INTEGER Timeout;
 
     /* process any user-mode file system responses */
@@ -545,7 +545,7 @@ NTSTATUS FspVolumeTransact(
     KeQuerySystemTime(&Timeout);
     Timeout.QuadPart += FsvolDeviceExtension->VolumeParams.TransactTimeout * 10000;
         /* convert millis to nanos and add to absolute time */
-    while (0 == (PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, &Timeout)))
+    while (0 == (PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, 0, &Timeout)))
     {
         if (FspIoqStopped(FsvolDeviceExtension->Ioq))
             return STATUS_CANCELLED;
@@ -565,7 +565,16 @@ NTSTATUS FspVolumeTransact(
         PendingIrpRequest = FspIrpRequest(PendingIrp);
 
         Result = FspIopDispatchPrepare(PendingIrp, PendingIrpRequest);
-        if (!NT_SUCCESS(Result))
+        if (STATUS_PENDING == Result)
+        {
+            /*
+             * The IRP has been reposted to our Ioq. Remember the first such IRP,
+             * so that we know to break the loop if we see it again.
+             */
+            if (0 == RepostedIrp)
+                RepostedIrp = PendingIrp;
+        }
+        else if (!NT_SUCCESS(Result))
             FspIopCompleteIrp(PendingIrp, Result);
         else
         {
@@ -590,7 +599,8 @@ NTSTATUS FspVolumeTransact(
                 break;
         }
 
-        PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, 0);
+        /* get the next pending IRP, but do not go beyond the first reposted IRP! */
+        PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, RepostedIrp, 0);
         if (0 == PendingIrp)
             break;
     }
