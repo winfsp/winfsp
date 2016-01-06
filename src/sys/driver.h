@@ -150,18 +150,7 @@ extern __declspec(selectany) int bpglobal = 1;
             __VA_ARGS__,                \
             NtStatusSym(Result),        \
             (LONGLONG)Irp->IoStatus.Information);\
-        if (STATUS_PENDING == Result)   \
-        {                               \
-            if (0 == (IrpSp->Control & SL_PENDING_RETURNED))\
-            {                           \
-                /* if the IRP has not been marked pending already */\
-                FSP_FSVOL_DEVICE_EXTENSION *fsp_leave_FsvolDeviceExtension =\
-                    FspFsvolDeviceExtension(IrpSp->DeviceObject);\
-                if (!FspIoqPostIrp(fsp_leave_FsvolDeviceExtension->Ioq, Irp, &Result))\
-                    FspIopCompleteIrp(Irp, Result);\
-            }                           \
-        }                               \
-        else                            \
+        if (STATUS_PENDING != Result)   \
             FspIopCompleteIrp(Irp, Result);\
     )
 #define FSP_ENTER_BOOL(...)             \
