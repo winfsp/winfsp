@@ -60,19 +60,8 @@ static NTSTATUS FspFsvolCleanup(
     UINT64 UserContext = FsContext->UserContext;
     UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request;
-    LONG OpenCount;
 
-    /* all handles on this FileObject are gone; close the FileObject */
-    OpenCount = FspFileContextClose(FsContext);
-
-    /* is the FsContext going away as well? */
-    if (0 == OpenCount)
-    {
-        /* remove the FsContext from the volume device generic table */
-        FspFsvolDeviceLockContextTable(FsvolDeviceObject);
-        FspFsvolDeviceDeleteContext(FsvolDeviceObject, FsContext->UserContext, 0);
-        FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
-    }
+    FspFileContextClose(FsvolDeviceObject, FsContext);
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLEANUP cannot fail */
     FspIopCreateRequestMustSucceed(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);

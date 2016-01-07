@@ -527,10 +527,19 @@ typedef struct
 NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext);
 VOID FspFileContextDelete(FSP_FILE_CONTEXT *FsContext);
+FSP_FILE_CONTEXT *FspFileContextOpen(PDEVICE_OBJECT FsvolDeviceObject,
+    FSP_FILE_CONTEXT *FsContext);
+VOID FspFileContextClose(PDEVICE_OBJECT FsvolDeviceObject,
+    FSP_FILE_CONTEXT *FsContext);
 static inline
 VOID FspFileContextRetain(FSP_FILE_CONTEXT *FsContext)
 {
     InterlockedIncrement(&FsContext->RefCount);
+}
+static inline
+VOID FspFileContextRetain2(FSP_FILE_CONTEXT *FsContext)
+{
+    InterlockedAdd(&FsContext->RefCount, 2);
 }
 static inline
 VOID FspFileContextRelease(FSP_FILE_CONTEXT *FsContext)
@@ -540,14 +549,34 @@ VOID FspFileContextRelease(FSP_FILE_CONTEXT *FsContext)
         FspFileContextDelete(FsContext);
 }
 static inline
-VOID FspFileContextOpen(FSP_FILE_CONTEXT *FsContext)
+BOOLEAN FspFileContextLockShared(FSP_FILE_CONTEXT *FsContext, BOOLEAN Wait)
 {
-    InterlockedIncrement(&FsContext->OpenCount);
+    return ExAcquireResourceSharedLite(FsContext->Header.Resource, Wait);
 }
 static inline
-LONG FspFileContextClose(FSP_FILE_CONTEXT *FsContext)
+BOOLEAN FspFileContextLockExclusive(FSP_FILE_CONTEXT *FsContext, BOOLEAN Wait)
 {
-    return InterlockedDecrement(&FsContext->OpenCount);
+    return ExAcquireResourceExclusiveLite(FsContext->Header.Resource, Wait);
+}
+static inline
+VOID FspFileContextUnlock(FSP_FILE_CONTEXT *FsContext)
+{
+    ExReleaseResourceLite(FsContext->Header.Resource);
+}
+static inline
+BOOLEAN FspFileContextPgioLockShared(FSP_FILE_CONTEXT *FsContext, BOOLEAN Wait)
+{
+    return ExAcquireResourceSharedLite(FsContext->Header.PagingIoResource, Wait);
+}
+static inline
+BOOLEAN FspFileContextPgioLockExclusive(FSP_FILE_CONTEXT *FsContext, BOOLEAN Wait)
+{
+    return ExAcquireResourceExclusiveLite(FsContext->Header.PagingIoResource, Wait);
+}
+static inline
+VOID FspFileContextPgioUnlock(FSP_FILE_CONTEXT *FsContext)
+{
+    ExReleaseResourceLite(FsContext->Header.PagingIoResource);
 }
 
 /* debug */

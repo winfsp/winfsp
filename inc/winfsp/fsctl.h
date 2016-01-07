@@ -46,6 +46,7 @@ enum
 {
     FspFsctlTransactUnknownKind = 0,
     FspFsctlTransactCreateKind,
+    FspFsctlTransactCreate2Kind,
     FspFsctlTransactCleanupKind,
     FspFsctlTransactCloseKind,
     FspFsctlTransactReadKind,
@@ -123,12 +124,20 @@ typedef struct
         {
             UINT64 UserContext;
             UINT64 UserContext2;
-            UINT32 ReadAccess:1;            /* file was open for read access */
-            UINT32 WriteAccess:1;           /* file was open for write access */
-            UINT32 DeleteAccess:1;          /* file was open for delete access */
-            UINT32 SharedRead:1;            /* file was open for shared read access */
-            UINT32 SharedWrite:1;           /* file was open for shared write access */
-            UINT32 SharedDelete:1;          /* file was open for shared delete access */
+            UINT32 CloseStatus;         /* if non-0 close the file (and do NOT overwrite!) */
+            UINT32 FileAttributes;      /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
+            UINT32 Supersede:1;         /* 0: FILE_OVERWRITE operation, 1: FILE_SUPERSEDE operation */
+        } Create2;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+            UINT32 ReadAccess:1;        /* file was open for read access */
+            UINT32 WriteAccess:1;       /* file was open for write access */
+            UINT32 DeleteAccess:1;      /* file was open for delete access */
+            UINT32 SharedRead:1;        /* file was open for shared read access */
+            UINT32 SharedWrite:1;       /* file was open for shared write access */
+            UINT32 SharedDelete:1;      /* file was open for shared delete access */
         } Cleanup;
         struct
         {
@@ -169,6 +178,13 @@ typedef struct
                 FSP_FSCTL_TRANSACT_BUF FileName; /* file name to use for STATUS_REPARSE */
             } Reparse;
         } Create;
+        struct
+        {
+            UINT64 UserContext;         /* open file user context (unique file id) */
+            UINT64 UserContext2;        /* kernel file object user context (only low 32 bits valid) */
+            UINT64 AllocationSize;      /* file allocation size */
+            UINT64 FileSize;            /* file size */
+        } Create2;
     } Rsp;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_RSP;

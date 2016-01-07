@@ -72,3 +72,74 @@ VOID FspFileContextDelete(FSP_FILE_CONTEXT *FsContext)
 
     FspFree(FsContext);
 }
+
+FSP_FILE_CONTEXT *FspFileContextOpen(PDEVICE_OBJECT FsvolDeviceObject,
+    FSP_FILE_CONTEXT *FsContext)
+{
+    /*
+     * Attempt to insert our FsContext into the volume device's generic table.
+     * If an FsContext with the same UserContext already exists, then use that
+     * FsContext instead.
+     */
+
+    FSP_FILE_CONTEXT *OpenedFsContext;
+    BOOLEAN Inserted;
+
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+
+    OpenedFsContext = FspFsvolDeviceInsertContext(FsvolDeviceObject,
+        FsContext->UserContext, FsContext, &FsContext->ElementStorage, &Inserted);
+    ASSERT(0 != OpenedFsContext);
+
+    if (Inserted)
+    {
+        /*
+         * The new FsContext was inserted into the Context table.
+         * Retain it. There should be (at least) two references to this FsContext,
+         * one from our caller and one from the Context table.
+         */
+        ASSERT(OpenedFsContext == FsContext);
+
+        FspFileContextRetain(OpenedFsContext);
+    }
+    else
+    {
+        /*
+         * The new FsContext was NOT inserted into the Context table,
+         * instead a prior FsContext is being opened.
+         * Release the new FsContext since the caller will no longer reference it,
+         * and retain the prior FsContext TWICE, once for our caller and once for
+         * the Context table.
+         */
+        ASSERT(OpenedFsContext != FsContext);
+
+        FspFileContextRetain2(OpenedFsContext);
+    }
+
+    InterlockedIncrement(&OpenedFsContext->OpenCount);
+
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    if (!Inserted)
+        FspFileContextRelease(FsContext);
+
+    return OpenedFsContext;
+}
+
+VOID FspFileContextClose(PDEVICE_OBJECT FsvolDeviceObject,
+    FSP_FILE_CONTEXT *FsContext)
+{
+    /*
+     * Close the FsContext. If the OpenCount becomes zero remove it
+     * from the Context table.
+     */
+
+    if (0 == InterlockedDecrement(&FsContext->OpenCount))
+    {
+        FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+        FspFsvolDeviceDeleteContext(FsvolDeviceObject, FsContext->UserContext, 0);
+        FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+    }
+
+    FspFileContextRelease(FsContext);
+}

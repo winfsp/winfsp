@@ -292,27 +292,72 @@ NTSTATUS FspFsvolCreatePrepare(
     PAGED_CODE();
 
     NTSTATUS Result;
+    BOOLEAN Success;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
+    PACCESS_STATE AccessState;
     HANDLE UserModeAccessToken;
     PEPROCESS Process;
+    FSP_FILE_CONTEXT *FsContext;
 
-    /* get a user-mode handle to the access token */
-    Result = ObOpenObjectByPointer(SeQuerySubjectContextToken(&AccessState->SubjectSecurityContext),
-        0, 0, TOKEN_QUERY, *SeTokenObjectType, UserMode, &UserModeAccessToken);
-    if (!NT_SUCCESS(Result))
-        return Result;
+    if (FspFsctlTransactCreateKind == Request->Kind)
+    {
+        AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
 
-    /* get a pointer to the current process so that we can close the access token later */
-    Process = PsGetCurrentProcess();
-    ObReferenceObject(Process);
+        /* get a user-mode handle to the access token */
+        Result = ObOpenObjectByPointer(SeQuerySubjectContextToken(&AccessState->SubjectSecurityContext),
+            0, 0, TOKEN_QUERY, *SeTokenObjectType, UserMode, &UserModeAccessToken);
+        if (!NT_SUCCESS(Result))
+            return Result;
 
-    /* send the user-mode handle to the user-mode file system */
-    FspIopRequestContext(Request, RequestAccessToken) = UserModeAccessToken;
-    FspIopRequestContext(Request, RequestProcess) = Process;
-    Request->Req.Create.AccessToken = (UINT_PTR)UserModeAccessToken;
+        /* get a pointer to the current process so that we can close the access token later */
+        Process = PsGetCurrentProcess();
+        ObReferenceObject(Process);
 
-    return STATUS_SUCCESS;
+        /* send the user-mode handle to the user-mode file system */
+        FspIopRequestContext(Request, RequestAccessToken) = UserModeAccessToken;
+        FspIopRequestContext(Request, RequestProcess) = Process;
+        Request->Req.Create.AccessToken = (UINT_PTR)UserModeAccessToken;
+
+        return STATUS_SUCCESS;
+    }
+    else if (FspFsctlTransactCreate2Kind == Request->Kind)
+    {
+        FsContext = FspIopRequestContext(Request, RequestFsContext);
+
+        /* lock the FsContext for Paging IO */
+        Success = FspFileContextPgioLockExclusive(FsContext, FALSE);
+        if (!Success)
+        {
+            /* repost the IRP to retry later */
+            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+                FspFsvolDeviceExtension(IrpSp->DeviceObject);
+            if (FspIoqPostIrpNoCap(FsvolDeviceExtension->Ioq, Irp, &Result))
+                Result = STATUS_PENDING;
+            return Result;
+        }
+
+        /* see what the MM thinks about all this */
+        LARGE_INTEGER Zero = { 0 };
+        Success = MmCanFileBeTruncated(&FsContext->NonPaged->SectionObjectPointers, &Zero);
+        if (!Success)
+        {
+            /* cannot truncate; tell user mode that we are closing the file */
+            FspFileContextPgioUnlock(FsContext);
+            Request->Req.Create2.CloseStatus = (UINT32)STATUS_USER_MAPPED_FILE;
+            return STATUS_SUCCESS;
+        }
+
+        /* purge any caches on this file */
+        CcPurgeCacheSection(&FsContext->NonPaged->SectionObjectPointers, 0, 0, FALSE);
+
+        return STATUS_SUCCESS;
+    }
+    else
+    {
+        ASSERT(0);
+
+        return STATUS_INVALID_PARAMETER;
+    }
 }
 
 VOID FspFsvolCreateComplete(
@@ -325,121 +370,181 @@ VOID FspFsvolCreateComplete(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     SHARE_ACCESS TemporaryShareAccess;
     UNICODE_STRING ReparseFileName;
-    FSP_FSCTL_TRANSACT_REQ *Request;
-    FSP_FILE_CONTEXT *FsContext;
-    BOOLEAN Inserted;
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    FSP_FILE_CONTEXT *FsContext = FspIopRequestContext(Request, RequestFsContext);
 
-    /* did the user-mode file system sent us a failure code? */
-    if (!NT_SUCCESS(Response->IoStatus.Status))
+    if (FspFsctlTransactCreateKind == Request->Kind)
     {
-        Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
-        Result = Response->IoStatus.Status;
-        FSP_RETURN();
-    }
-
-    /* special case STATUS_REPARSE */
-    if (STATUS_REPARSE == Result)
-    {
-        ReparseFileName.Buffer =
-            (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset);
-        ReparseFileName.Length = ReparseFileName.MaximumLength =
-            Response->Rsp.Create.Reparse.FileName.Size;
-
-        Result = STATUS_ACCESS_DENIED;
-        if (IO_REPARSE == Response->IoStatus.Information)
+        /* did the user-mode file system sent us a failure code? */
+        if (!NT_SUCCESS(Response->IoStatus.Status))
         {
-            if (0 == ReparseFileName.Length ||
-                (PUINT8)ReparseFileName.Buffer + ReparseFileName.Length >
-                (PUINT8)Response + Response->Size)
+            Irp->IoStatus.Information = 0;
+            Result = Response->IoStatus.Status;
+            FSP_RETURN();
+        }
+
+        /* special case STATUS_REPARSE */
+        if (STATUS_REPARSE == Result)
+        {
+            ReparseFileName.Buffer =
+                (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset);
+            ReparseFileName.Length = ReparseFileName.MaximumLength =
+                Response->Rsp.Create.Reparse.FileName.Size;
+
+            Result = STATUS_ACCESS_DENIED;
+            if (IO_REPARSE == Response->IoStatus.Information)
+            {
+                if (0 == ReparseFileName.Length ||
+                    (PUINT8)ReparseFileName.Buffer + ReparseFileName.Length >
+                    (PUINT8)Response + Response->Size)
+                    FSP_RETURN();
+
+                if (ReparseFileName.Length > FileObject->FileName.MaximumLength)
+                {
+                    PVOID Buffer = FspAllocExternal(ReparseFileName.Length);
+                    if (0 == Buffer)
+                        FSP_RETURN(Result = STATUS_INSUFFICIENT_RESOURCES);
+                    FspFreeExternal(FileObject->FileName.Buffer);
+                    FileObject->FileName.MaximumLength = ReparseFileName.Length;
+                    FileObject->FileName.Buffer = Buffer;
+                }
+                FileObject->FileName.Length = 0;
+                RtlCopyUnicodeString(&FileObject->FileName, &ReparseFileName);
+
+                /*
+                 * The RelatedFileObject does not need to be changed according to:
+                 * https://support.microsoft.com/en-us/kb/319447
+                 *
+                 * Quote:
+                 *     The fact that the first create-file operation is performed
+                 *     relative to another file object does not matter. Do not modify
+                 *     the RelatedFileObject field of the FILE_OBJECT. To perform the
+                 *     reparse operation, the IO Manager considers only the FileName
+                 *     field and not the RelatedFileObject. Additionally, the IO Manager
+                 *     frees the RelatedFileObject, as appropriate, when it handles the
+                 *     STATUS_REPARSE status returned by the filter. Therefore, it is not
+                 *     the responsibility of the filter to free that file object.
+                 */
+            }
+            else
+            if (IO_REMOUNT == Response->IoStatus.Information)
+            {
+                if (0 != ReparseFileName.Length)
+                    FSP_RETURN();
+            }
+            else
                 FSP_RETURN();
 
-            if (ReparseFileName.Length > FileObject->FileName.MaximumLength)
-            {
-                PVOID Buffer = FspAllocExternal(ReparseFileName.Length);
-                if (0 == Buffer)
-                    FSP_RETURN(Result = STATUS_INSUFFICIENT_RESOURCES);
-                FspFreeExternal(FileObject->FileName.Buffer);
-                FileObject->FileName.MaximumLength = ReparseFileName.Length;
-                FileObject->FileName.Buffer = Buffer;
-            }
-            FileObject->FileName.Length = 0;
-            RtlCopyUnicodeString(&FileObject->FileName, &ReparseFileName);
+            Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
+            Result = Response->IoStatus.Status;
+            FSP_RETURN();
+        }
+
+        /* get the FsContext from our Request and associate it with the Response UserContext */
+        FsContext->Header.AllocationSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
+        FsContext->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
+        FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
+
+        /* open the FsContext */
+        FspIopRequestContext(Request, RequestFsContext) =
+            FspFileContextOpen(FsvolDeviceObject, FsContext);
+
+        /* set up share access on FileObject; user-mode file system assumed to have done share check */
+        IoSetShareAccess(Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
+            FileObject, &TemporaryShareAccess);
+
+        /* finish setting up the FileObject */
+        if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
+            FileObject->Vpb = FsvolDeviceExtension->FsvrtDeviceObject->Vpb;
+        FileObject->SectionObjectPointer = &FsContext->NonPaged->SectionObjectPointers;
+        FileObject->PrivateCacheMap = 0;
+        FileObject->FsContext = FsContext;
+        FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
+
+        if (FILE_SUPERSEDED == Response->IoStatus.Information ||
+            FILE_OVERWRITTEN == Response->IoStatus.Information)
+        {
+            /*
+             * Oh, noes! We have to go back to user mode to overwrite the file!
+             */
+
+            /* delete the old request */
+            FspIopRequestContext(Request, RequestFsContext) = 0;
+            FspIrpRequest(Irp) = 0;
+            FspIopDeleteRequest(Request);
+
+            /* create the Create2 request; MustSucceed because we must either overwrite or close */
+            FspIopCreateRequestMustSucceed(Irp,
+                FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FsContext->FileName : 0, 0,
+                &Request);
+
+            /* associate the FsContext with the Create2 request */
+            FspIopRequestContext(Request, RequestFsContext) = FsContext;
+
+            /* populate the Create2 request */
+            Request->Kind = FspFsctlTransactCreate2Kind;
+            Request->Req.Create2.UserContext = FsContext->UserContext;
+            Request->Req.Create2.UserContext2 = (UINT_PTR)FileObject->FsContext2;
+            Request->Req.Create2.FileAttributes = IrpSp->Parameters.Create.FileAttributes;
+            Request->Req.Create2.Supersede = FILE_SUPERSEDED == Response->IoStatus.Information;
+            Request->Req.Create2.CloseStatus = STATUS_SUCCESS;
 
             /*
-             * The RelatedFileObject does not need to be changed according to:
-             * https://support.microsoft.com/en-us/kb/319447
-             *
-             * Quote:
-             *     The fact that the first create-file operation is performed
-             *     relative to another file object does not matter. Do not modify
-             *     the RelatedFileObject field of the FILE_OBJECT. To perform the
-             *     reparse operation, the IO Manager considers only the FileName
-             *     field and not the RelatedFileObject. Additionally, the IO Manager
-             *     frees the RelatedFileObject, as appropriate, when it handles the
-             *     STATUS_REPARSE status returned by the filter. Therefore, it is not
-             *     the responsibility of the filter to free that file object.
+             * Note that it is still possible for this request to not be delivered,
+             * if the volume device Ioq is stopped. But such failures are benign
+             * from our perspective, because they mean that the file system is going
+             * away and should correctly tear things down.
              */
+
+            if (FspIoqPostIrpNoCap(FsvolDeviceExtension->Ioq, Irp, &Result))
+                Result = STATUS_PENDING;
         }
         else
-        if (IO_REMOUNT == Response->IoStatus.Information)
         {
-            if (0 != ReparseFileName.Length)
-                FSP_RETURN();
+            /* SUCCESS! */
+            Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
+            Result = STATUS_SUCCESS;
         }
-        else
-            FSP_RETURN();
-
-        Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
-        Result = Response->IoStatus.Status;
-        FSP_RETURN();
     }
-
-    /* get the FsContext from our Request and associate it with the Response UserContext */
-    Request = FspIrpRequest(Irp);
-    FsContext = FspIopRequestContext(Request, RequestFsContext);
-    FsContext->Header.AllocationSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
-    FsContext->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
-    FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
-
-    /*
-     * Attempt to insert our FsContext into the volume device's generic table.
-     * If an FsContext with the same UserContext already exists, then use that
-     * FsContext instead.
-     */
-    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
-    FsContext = FspFsvolDeviceInsertContext(FsvolDeviceObject,
-        FsContext->UserContext, FsContext, &FsContext->ElementStorage, &Inserted);
-    ASSERT(0 != FsContext);
-    if (Inserted)
-        /* Our FsContext was inserted into the volume device's generic table.
-         * Disassociate it from the Request.
-         */
-        FspIopRequestContext(Request, RequestFsContext) = 0;
-    else
+    else if (FspFsctlTransactCreate2Kind == Request->Kind)
+    {
         /*
-         * We are using a previously inserted FsContext. We must retain it.
-         * Our own FsContext is still associated with the Request and will be
-         * deleted during IRP completion.
+         * A Create2 request will either succeed or else fail and close the corresponding file.
+         * There is no need to reach out to user-mode again and ask them to close the file.
          */
-        FspFileContextRetain(FsContext);
-    FspFileContextOpen(FsContext);
-    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
-    /* set up share access on FileObject; user-mode file system assumed to have done share check */
-    IoSetShareAccess(Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
-        FileObject, &TemporaryShareAccess);
+        /* was this a close request? */
+        if (STATUS_SUCCESS != Request->Req.Create2.CloseStatus)
+        {
+            Irp->IoStatus.Information = 0;
+            Result = STATUS_SUCCESS != Request->Req.Create2.CloseStatus;
+            FSP_RETURN();
+        }
 
-    /* finish seting up the FileObject */
-    if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
-        FileObject->Vpb = FsvolDeviceExtension->FsvrtDeviceObject->Vpb;
-    FileObject->SectionObjectPointer = &FsContext->NonPaged->SectionObjectPointers;
-    FileObject->PrivateCacheMap = 0;
-    FileObject->FsContext = FsContext;
-    FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
+        /* did the user-mode file system sent us a failure code? */
+        if (!NT_SUCCESS(Response->IoStatus.Status))
+        {
+            FspFileContextPgioUnlock(FsContext);
+            FspFileContextClose(FsvolDeviceObject, FsContext);
 
-    /* SUCCESS! */
-    Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
-    Result = Response->IoStatus.Status;
+            Irp->IoStatus.Information = 0;
+            Result = Response->IoStatus.Status;
+            FSP_RETURN();
+        }
+
+        /* file was successfully overwritten/superseded */
+        FsContext->Header.AllocationSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
+        FsContext->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
+        CcSetFileSizes(FileObject, (PCC_FILE_SIZES)&FsContext->Header.AllocationSize);
+
+        FspFileContextPgioUnlock(FsContext);
+
+        /* SUCCESS! */
+        Irp->IoStatus.Information = Request->Req.Create2.Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
+        Result = STATUS_SUCCESS;
+    }
+    else
+        ASSERT(0);
 
     FSP_LEAVE_IOC(
         "FileObject=%p[%p:\"%wZ\"]",
