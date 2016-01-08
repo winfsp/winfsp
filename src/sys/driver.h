@@ -517,6 +517,8 @@ typedef struct
     /* interlocked access */
     LONG RefCount;
     LONG OpenCount;
+    /* locked access */
+    SHARE_ACCESS ShareAccess;
     /* read-only after creation (and insertion in the GenericTable) */
     PDEVICE_OBJECT FsvolDeviceObject;
     UINT64 UserContext;
@@ -527,19 +529,13 @@ typedef struct
 NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext);
 VOID FspFileContextDelete(FSP_FILE_CONTEXT *FsContext);
-FSP_FILE_CONTEXT *FspFileContextOpen(PDEVICE_OBJECT FsvolDeviceObject,
-    FSP_FILE_CONTEXT *FsContext);
-VOID FspFileContextClose(PDEVICE_OBJECT FsvolDeviceObject,
-    FSP_FILE_CONTEXT *FsContext);
+FSP_FILE_CONTEXT *FspFileContextOpen(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject,
+    DWORD GrantedAccess, DWORD ShareAccess, NTSTATUS *PResult);
+VOID FspFileContextClose(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject);
 static inline
 VOID FspFileContextRetain(FSP_FILE_CONTEXT *FsContext)
 {
     InterlockedIncrement(&FsContext->RefCount);
-}
-static inline
-VOID FspFileContextRetain2(FSP_FILE_CONTEXT *FsContext)
-{
-    InterlockedAdd(&FsContext->RefCount, 2);
 }
 static inline
 VOID FspFileContextRelease(FSP_FILE_CONTEXT *FsContext)

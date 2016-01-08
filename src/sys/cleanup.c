@@ -61,7 +61,7 @@ static NTSTATUS FspFsvolCleanup(
     UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
-    FspFileContextClose(FsvolDeviceObject, FsContext);
+    FspFileContextClose(FsContext, FileObject);
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLEANUP cannot fail */
     FspIopCreateRequestMustSucceed(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);

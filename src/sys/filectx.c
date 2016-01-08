@@ -73,8 +73,8 @@ VOID FspFileContextDelete(FSP_FILE_CONTEXT *FsContext)
     FspFree(FsContext);
 }
 
-FSP_FILE_CONTEXT *FspFileContextOpen(PDEVICE_OBJECT FsvolDeviceObject,
-    FSP_FILE_CONTEXT *FsContext)
+FSP_FILE_CONTEXT *FspFileContextOpen(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject,
+    DWORD GrantedAccess, DWORD ShareAccess, NTSTATUS *PResult)
 {
     /*
      * Attempt to insert our FsContext into the volume device's generic table.
@@ -82,6 +82,7 @@ FSP_FILE_CONTEXT *FspFileContextOpen(PDEVICE_OBJECT FsvolDeviceObject,
      * FsContext instead.
      */
 
+    PDEVICE_OBJECT FsvolDeviceObject = FsContext->FsvolDeviceObject;
     FSP_FILE_CONTEXT *OpenedFsContext;
     BOOLEAN Inserted;
 
@@ -94,29 +95,58 @@ FSP_FILE_CONTEXT *FspFileContextOpen(PDEVICE_OBJECT FsvolDeviceObject,
     if (Inserted)
     {
         /*
-         * The new FsContext was inserted into the Context table.
-         * Retain it. There should be (at least) two references to this FsContext,
-         * one from our caller and one from the Context table.
+         * The new FsContext was inserted into the Context table. Set its share access
+         * and retain and open it. There should be (at least) two references to this
+         * FsContext, one from our caller and one from the Context table.
          */
         ASSERT(OpenedFsContext == FsContext);
 
+        IoSetShareAccess(GrantedAccess, ShareAccess, FileObject, &FsContext->ShareAccess);
         FspFileContextRetain(OpenedFsContext);
+        OpenedFsContext->OpenCount++;
     }
     else
     {
         /*
-         * The new FsContext was NOT inserted into the Context table,
-         * instead a prior FsContext is being opened.
-         * Release the new FsContext since the caller will no longer reference it,
-         * and retain the prior FsContext TWICE, once for our caller and once for
-         * the Context table.
+         * The new FsContext was NOT inserted into the Context table. Instead we are
+         * opening a prior FsContext that we found in the table.
+         *
+         * First check and update the share access. If successful then retain the
+         * prior FsContext for our caller and release the original FsContext.
          */
         ASSERT(OpenedFsContext != FsContext);
 
-        FspFileContextRetain2(OpenedFsContext);
-    }
+        /*
+         * FastFat says to do the following on Vista and above.
+         *
+         * Quote:
+         *     Do an extra test for writeable user sections if the user did not allow
+         *     write sharing - this is neccessary since a section may exist with no handles
+         *     open to the file its based against.
+         */
+        NTSTATUS Result = STATUS_SUCCESS;
+        if (!FlagOn(ShareAccess, FILE_SHARE_WRITE) &&
+            FlagOn(GrantedAccess,
+                FILE_EXECUTE | FILE_READ_DATA | FILE_WRITE_DATA | FILE_APPEND_DATA | DELETE) &&
+            MmDoesFileHaveUserWritableReferences(&FsContext->NonPaged->SectionObjectPointers))
+            Result = STATUS_SHARING_VIOLATION;
 
-    InterlockedIncrement(&OpenedFsContext->OpenCount);
+        /* share access check */
+        if (NT_SUCCESS(Result))
+            Result = IoCheckShareAccess(GrantedAccess, ShareAccess, FileObject, &FsContext->ShareAccess, TRUE);
+        if (NT_SUCCESS(Result))
+        {
+            FspFileContextRetain(OpenedFsContext);
+            OpenedFsContext->OpenCount++;
+        }
+        else
+        {
+            if (0 != PResult)
+                *PResult = Result;
+
+            OpenedFsContext = 0;
+        }
+    }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
@@ -126,20 +156,24 @@ FSP_FILE_CONTEXT *FspFileContextOpen(PDEVICE_OBJECT FsvolDeviceObject,
     return OpenedFsContext;
 }
 
-VOID FspFileContextClose(PDEVICE_OBJECT FsvolDeviceObject,
-    FSP_FILE_CONTEXT *FsContext)
+VOID FspFileContextClose(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject)
 {
     /*
      * Close the FsContext. If the OpenCount becomes zero remove it
      * from the Context table.
      */
 
-    if (0 == InterlockedDecrement(&FsContext->OpenCount))
-    {
-        FspFsvolDeviceLockContextTable(FsvolDeviceObject);
-        FspFsvolDeviceDeleteContext(FsvolDeviceObject, FsContext->UserContext, 0);
-        FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
-    }
+    PDEVICE_OBJECT FsvolDeviceObject = FsContext->FsvolDeviceObject;
+    BOOLEAN Deleted = FALSE;
 
-    FspFileContextRelease(FsContext);
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+
+    IoRemoveShareAccess(FileObject, &FsContext->ShareAccess);
+    if (0 == --FsContext->OpenCount)
+        FspFsvolDeviceDeleteContext(FsvolDeviceObject, FsContext->UserContext, &Deleted);
+
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    if (Deleted)
+        FspFileContextRelease(FsContext);
 }

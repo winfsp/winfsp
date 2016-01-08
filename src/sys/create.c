@@ -14,6 +14,9 @@ static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
+static VOID FspFsvolCreatePostClose(
+    PDEVICE_OBJECT FsvolDeviceObject, PUNICODE_STRING FileName,
+    UINT64 UserContext, UINT64 UserContext2, NTSTATUS CloseStatus);
 static FSP_IOP_REQUEST_FINI FspFsvolCreateRequestFini;
 FSP_DRIVER_DISPATCH FspCreate;
 
@@ -23,6 +26,7 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreate)
 #pragma alloc_text(PAGE, FspFsvolCreatePrepare)
 #pragma alloc_text(PAGE, FspFsvolCreateComplete)
+#pragma alloc_text(PAGE, FspFsvolCreatePostClose)
 #pragma alloc_text(PAGE, FspFsvolCreateRequestFini)
 #pragma alloc_text(PAGE, FspCreate)
 #endif
@@ -368,10 +372,10 @@ VOID FspFsvolCreateComplete(
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->DeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
-    SHARE_ACCESS TemporaryShareAccess;
-    UNICODE_STRING ReparseFileName;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     FSP_FILE_CONTEXT *FsContext = FspIopRequestContext(Request, RequestFsContext);
+    UNICODE_STRING ReparseFileName;
+    BOOLEAN DeleteOnClose;
 
     if (FspFsctlTransactCreateKind == Request->Kind)
     {
@@ -445,15 +449,7 @@ VOID FspFsvolCreateComplete(
         FsContext->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
         FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
 
-        /* open the FsContext */
-        FspIopRequestContext(Request, RequestFsContext) =
-            FspFileContextOpen(FsvolDeviceObject, FsContext);
-
-        /* set up share access on FileObject; user-mode file system assumed to have done share check */
-        IoSetShareAccess(Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
-            FileObject, &TemporaryShareAccess);
-
-        /* finish setting up the FileObject */
+        /* set up the FileObject */
         if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
             FileObject->Vpb = FsvolDeviceExtension->FsvrtDeviceObject->Vpb;
         FileObject->SectionObjectPointer = &FsContext->NonPaged->SectionObjectPointers;
@@ -461,6 +457,59 @@ VOID FspFsvolCreateComplete(
         FileObject->FsContext = FsContext;
         FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
 
+        DeleteOnClose = BooleanFlagOn(Request->Req.Create.CreateOptions, FILE_DELETE_ON_CLOSE);
+
+        /* open the FsContext */
+        FsContext = FspFileContextOpen(FsContext, FileObject,
+            Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
+            &Result);
+        FspIopRequestContext(Request, RequestFsContext) = FsContext;
+        if (0 == FsContext)
+        {
+            /* unable to open the FsContext; post a close Create2 request */
+            FspFsvolCreatePostClose(FsvolDeviceObject,
+                FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FsContext->FileName : 0,
+                Response->Rsp.Create.Opened.UserContext,
+                Response->Rsp.Create.Opened.UserContext2,
+                Result);
+
+            FSP_RETURN();
+        }
+
+        if (FILE_OPENED == Response->IoStatus.Information)
+        {
+            /*
+             * FastFat quote:
+             *     If the user wants write access access to the file make sure there
+             *     is not a process mapping this file as an image.  Any attempt to
+             *     delete the file will be stopped in fileinfo.c
+             *
+             *     If the user wants to delete on close, we must check at this
+             *     point though.
+             */
+            if (FlagOn(Response->Rsp.Create.Opened.GrantedAccess, FILE_WRITE_DATA) ||
+                DeleteOnClose)
+            {
+                if (!MmFlushImageSection(&FsContext->NonPaged->SectionObjectPointers,
+                    MmFlushForWrite))
+                {
+                    Result = DeleteOnClose ? STATUS_CANNOT_DELETE : STATUS_SHARING_VIOLATION;
+
+                    FspFsvolCreatePostClose(FsvolDeviceObject,
+                        FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FsContext->FileName : 0,
+                        Response->Rsp.Create.Opened.UserContext,
+                        Response->Rsp.Create.Opened.UserContext2,
+                        Result);
+
+                    FSP_RETURN();
+                }
+            }
+
+            /* SUCCESS! */
+            Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
+            Result = STATUS_SUCCESS;
+        }
+        else
         if (FILE_SUPERSEDED == Response->IoStatus.Information ||
             FILE_OVERWRITTEN == Response->IoStatus.Information)
         {
@@ -525,7 +574,7 @@ VOID FspFsvolCreateComplete(
         if (!NT_SUCCESS(Response->IoStatus.Status))
         {
             FspFileContextPgioUnlock(FsContext);
-            FspFileContextClose(FsvolDeviceObject, FsContext);
+            FspFileContextClose(FsContext, FileObject);
 
             Irp->IoStatus.Information = 0;
             Result = Response->IoStatus.Status;
@@ -549,6 +598,39 @@ VOID FspFsvolCreateComplete(
     FSP_LEAVE_IOC(
         "FileObject=%p[%p:\"%wZ\"]",
         IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName);
+}
+
+static VOID FspFsvolCreatePostClose(
+    PDEVICE_OBJECT FsvolDeviceObject, PUNICODE_STRING FileName,
+    UINT64 UserContext, UINT64 UserContext2, NTSTATUS CloseStatus)
+{
+    PAGED_CODE();
+
+    ASSERT(STATUS_SUCCESS != CloseStatus);
+
+    FSP_FSCTL_TRANSACT_REQ *Request;
+
+    /* create the user-mode file system request; MustSucceed because we cannot fail */
+    FspIopCreateRequestMustSucceed(0, FileName, 0, &Request);
+
+    /* populate the Create2 request */
+    Request->Kind = FspFsctlTransactCreate2Kind;
+    Request->Req.Create2.UserContext = UserContext;
+    Request->Req.Create2.UserContext2 = UserContext2;
+    Request->Req.Create2.CloseStatus = CloseStatus;
+
+    /*
+     * Post as a BestEffort work request. This allows us to complete our own IRP
+     * and return immediately.
+     */
+    FspIopPostWorkRequestBestEffort(FsvolDeviceObject, Request);
+
+    /*
+     * Note that it is still possible for this request to not be delivered,
+     * if the volume device Ioq is stopped. But such failures are benign
+     * from our perspective, because they mean that the file system is going
+     * away and should correctly tear things down.
+     */
 }
 
 static VOID FspFsvolCreateRequestFini(PVOID Context[3])
