@@ -481,9 +481,11 @@ VOID FspFsvolCreateComplete(
         }
 
         if (OpenedFsContext != FsContext)
+        {
             FspFileContextRelease(FsContext);
-
-        FspIopRequestContext(Request, RequestFsContext) = FsContext = OpenedFsContext;
+            FsContext = OpenedFsContext;
+        }
+        FspIopRequestContext(Request, RequestFsContext) = FsContext;
 
         if (FILE_OPENED == Response->IoStatus.Information)
         {
