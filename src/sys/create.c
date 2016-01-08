@@ -86,6 +86,7 @@ static NTSTATUS FspFsvolCreate(
     if ((0 == RelatedFileObject || RelatedFileObject->FsContext) && 0 == FileName.Length)
     {
         if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
+#pragma prefast(disable:28175, "We are a filesystem: ok to access Vpb")
             FileObject->Vpb = FsvolDeviceExtension->FsvrtDeviceObject->Vpb;
 
         Irp->IoStatus.Information = FILE_OPENED;
@@ -242,7 +243,7 @@ static NTSTATUS FspFsvolCreate(
         FspFsvolCreateRequestFini, &Request);
     if (!NT_SUCCESS(Result))
     {
-        FspFileContextDelete(FsContext);
+        FspFileContextRelease(FsContext);
         return Result;
     }
 
@@ -374,6 +375,7 @@ VOID FspFsvolCreateComplete(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     FSP_FILE_CONTEXT *FsContext = FspIopRequestContext(Request, RequestFsContext);
+    FSP_FILE_CONTEXT *OpenedFsContext;
     UNICODE_STRING ReparseFileName;
     BOOLEAN DeleteOnClose;
 
@@ -451,6 +453,7 @@ VOID FspFsvolCreateComplete(
 
         /* set up the FileObject */
         if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
+#pragma prefast(disable:28175, "We are a filesystem: ok to access Vpb")
             FileObject->Vpb = FsvolDeviceExtension->FsvrtDeviceObject->Vpb;
         FileObject->SectionObjectPointer = &FsContext->NonPaged->SectionObjectPointers;
         FileObject->PrivateCacheMap = 0;
@@ -460,11 +463,10 @@ VOID FspFsvolCreateComplete(
         DeleteOnClose = BooleanFlagOn(Request->Req.Create.CreateOptions, FILE_DELETE_ON_CLOSE);
 
         /* open the FsContext */
-        FsContext = FspFileContextOpen(FsContext, FileObject,
+        OpenedFsContext = FspFileContextOpen(FsContext, FileObject,
             Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
             &Result);
-        FspIopRequestContext(Request, RequestFsContext) = FsContext;
-        if (0 == FsContext)
+        if (0 == OpenedFsContext)
         {
             /* unable to open the FsContext; post a close Create2 request */
             FspFsvolCreatePostClose(FsvolDeviceObject,
@@ -473,8 +475,15 @@ VOID FspFsvolCreateComplete(
                 Response->Rsp.Create.Opened.UserContext2,
                 Result);
 
+            FspFileContextRelease(FsContext);
+
             FSP_RETURN();
         }
+
+        if (OpenedFsContext != FsContext)
+            FspFileContextRelease(FsContext);
+
+        FspIopRequestContext(Request, RequestFsContext) = FsContext = OpenedFsContext;
 
         if (FILE_OPENED == Response->IoStatus.Information)
         {

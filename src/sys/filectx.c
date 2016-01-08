@@ -112,7 +112,7 @@ FSP_FILE_CONTEXT *FspFileContextOpen(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT F
          * opening a prior FsContext that we found in the table.
          *
          * First check and update the share access. If successful then retain the
-         * prior FsContext for our caller and release the original FsContext.
+         * prior FsContext for our caller.
          */
         ASSERT(OpenedFsContext != FsContext);
 
@@ -149,9 +149,6 @@ FSP_FILE_CONTEXT *FspFileContextOpen(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT F
     }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
-
-    if (!Inserted)
-        FspFileContextRelease(FsContext);
 
     return OpenedFsContext;
 }
