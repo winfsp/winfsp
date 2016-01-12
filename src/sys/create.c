@@ -335,7 +335,7 @@ NTSTATUS FspFsvolCreatePrepare(
             /* repost the IRP to retry later */
             FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
                 FspFsvolDeviceExtension(IrpSp->DeviceObject);
-            if (FspIoqPostIrpNoCap(FsvolDeviceExtension->Ioq, Irp, &Result))
+            if (FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, &Result))
                 Result = STATUS_PENDING;
             return Result;
         }
@@ -545,7 +545,7 @@ VOID FspFsvolCreateComplete(
              * away and should correctly tear things down.
              */
 
-            if (FspIoqPostIrpNoCap(FsvolDeviceExtension->Ioq, Irp, &Result))
+            if (FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, &Result))
                 Result = STATUS_PENDING;
         }
         else

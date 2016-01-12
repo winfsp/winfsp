@@ -65,6 +65,8 @@ void timeout_pending_dotest(PWSTR DeviceName)
 
     ASSERT(ERROR_OPERATION_ABORTED == ExitCode);
 
+#if 0
+    /* we no longer allow canceling IRP's after they started processing */
     Thread = (HANDLE)_beginthreadex(0, 0, timeout_pending_dotest_thread2, FilePath, 0, 0);
     ASSERT(0 != Thread);
 
@@ -115,6 +117,7 @@ void timeout_pending_dotest(PWSTR DeviceName)
     CloseHandle(Thread);
 
     ASSERT(ERROR_OPERATION_ABORTED == ExitCode);
+#endif
 
     Success = CloseHandle(VolumeHandle);
     ASSERT(Success);
