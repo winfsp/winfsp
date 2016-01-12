@@ -60,8 +60,9 @@ static NTSTATUS FspFsvolCleanup(
     UINT64 UserContext = FsContext->UserContext;
     UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request;
+    BOOLEAN DeletePending;
 
-    FspFileContextClose(FsContext, FileObject);
+    FspFileContextClose(FsContext, FileObject, &DeletePending);
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLEANUP cannot fail */
     FspIopCreateRequestMustSucceed(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
@@ -70,12 +71,7 @@ static NTSTATUS FspFsvolCleanup(
     Request->Kind = FspFsctlTransactCleanupKind;
     Request->Req.Cleanup.UserContext = UserContext;
     Request->Req.Cleanup.UserContext2 = UserContext2;
-    Request->Req.Cleanup.ReadAccess = !!FileObject->ReadAccess;
-    Request->Req.Cleanup.WriteAccess = !!FileObject->WriteAccess;
-    Request->Req.Cleanup.DeleteAccess = !!FileObject->DeleteAccess;
-    Request->Req.Cleanup.SharedRead = !!FileObject->SharedRead;
-    Request->Req.Cleanup.SharedWrite = !!FileObject->SharedWrite;
-    Request->Req.Cleanup.SharedDelete = !!FileObject->SharedDelete;
+    Request->Req.Cleanup.Delete = DeletePending;
 
     /*
      * Note that it is still possible for this request to not be delivered,

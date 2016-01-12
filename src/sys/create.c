@@ -359,7 +359,7 @@ NTSTATUS FspFsvolCreatePrepare(
             FspFileContextPgioUnlock(FsContext);
 
             FspFsvolCreatePostClose(FsContext, (UINT_PTR)FileObject->FsContext2);
-            FspFileContextClose(FsContext, FileObject);
+            FspFileContextClose(FsContext, FileObject, 0);
 
             return STATUS_USER_MAPPED_FILE;
         }
@@ -468,6 +468,7 @@ VOID FspFsvolCreateComplete(
         /* open the FsContext */
         OpenedFsContext = FspFileContextOpen(FsContext, FileObject,
             Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
+            DeleteOnClose,
             &Result);
         if (0 == OpenedFsContext)
         {
@@ -508,7 +509,7 @@ VOID FspFsvolCreateComplete(
                 {
                     FspFsvolCreatePostClose(FsContext,
                         Response->Rsp.Create.Opened.UserContext2);
-                    FspFileContextClose(FsContext, FileObject);
+                    FspFileContextClose(FsContext, FileObject, 0);
 
                     Result = DeleteOnClose ? STATUS_CANNOT_DELETE : STATUS_SHARING_VIOLATION;
                     FSP_RETURN();
@@ -576,7 +577,7 @@ VOID FspFsvolCreateComplete(
         {
             FspFileContextPgioUnlock(FsContext);
 
-            FspFileContextClose(FsContext, FileObject);
+            FspFileContextClose(FsContext, FileObject, 0);
 
             Irp->IoStatus.Information = 0;
             Result = Response->IoStatus.Status;
@@ -686,7 +687,7 @@ static VOID FspFsvolCreateOverwriteRequestFini(PVOID Context[3])
         if (0 != FileObject)
         {
             FspFsvolCreatePostClose(FsContext, (UINT_PTR)FileObject->FsContext2);
-            FspFileContextClose(FsContext, FileObject);
+            FspFileContextClose(FsContext, FileObject, 0);
         }
 
         FspFileContextRelease(FsContext);

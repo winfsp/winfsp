@@ -6,6 +6,7 @@
 
 #include <dll/library.h>
 
+#if 0
 FSP_API VOID FspShareAccessRemove(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode)
 {
@@ -65,3 +66,4 @@ FSP_API NTSTATUS FspFileSystemSendCleanupResponse(FSP_FILE_SYSTEM *FileSystem,
     Response.IoStatus.Information = 0;
     return FspFileSystemSendResponse(FileSystem, &Response);
 }
+#endif

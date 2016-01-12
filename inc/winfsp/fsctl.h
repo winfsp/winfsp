@@ -131,12 +131,7 @@ typedef struct
         {
             UINT64 UserContext;
             UINT64 UserContext2;
-            UINT32 ReadAccess:1;        /* file was open for read access */
-            UINT32 WriteAccess:1;       /* file was open for write access */
-            UINT32 DeleteAccess:1;      /* file was open for delete access */
-            UINT32 SharedRead:1;        /* file was open for shared read access */
-            UINT32 SharedWrite:1;       /* file was open for shared write access */
-            UINT32 SharedDelete:1;      /* file was open for shared delete access */
+            UINT32 Delete:1;            /* file must be deleted */
         } Cleanup;
         struct
         {

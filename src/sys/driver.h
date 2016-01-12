@@ -513,10 +513,15 @@ typedef struct
     FSP_FILE_CONTEXT_NONPAGED *NonPaged;
     /* interlocked access */
     LONG RefCount;
-    /* locked access */
+    /* locked access (ContextTable lock) */
     LONG OpenCount;
     SHARE_ACCESS ShareAccess;
-    /* read-only after creation (and insertion in the GenericTable) */
+    struct
+    {
+        UINT32 DeleteOnClose:1;
+        UINT32 DeletePending:1;
+    } Flags;
+    /* read-only after creation (and insertion in the ContextTable) */
     PDEVICE_OBJECT FsvolDeviceObject;
     UINT64 UserContext;
     FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
@@ -527,8 +532,9 @@ NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext);
 VOID FspFileContextDelete(FSP_FILE_CONTEXT *FsContext);
 FSP_FILE_CONTEXT *FspFileContextOpen(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject,
-    DWORD GrantedAccess, DWORD ShareAccess, NTSTATUS *PResult);
-VOID FspFileContextClose(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject);
+    DWORD GrantedAccess, DWORD ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
+VOID FspFileContextClose(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject,
+    PBOOLEAN PDeletePending);
 static inline
 VOID FspFileContextRetain(FSP_FILE_CONTEXT *FsContext)
 {

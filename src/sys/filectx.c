@@ -9,10 +9,16 @@
 NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext);
 VOID FspFileContextDelete(FSP_FILE_CONTEXT *Context);
+FSP_FILE_CONTEXT *FspFileContextOpen(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject,
+    DWORD GrantedAccess, DWORD ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
+VOID FspFileContextClose(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject,
+    PBOOLEAN PDeletePending);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFileContextCreate)
 #pragma alloc_text(PAGE, FspFileContextDelete)
+#pragma alloc_text(PAGE, FspFileContextOpen)
+#pragma alloc_text(PAGE, FspFileContextClose)
 #endif
 
 NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
@@ -74,7 +80,7 @@ VOID FspFileContextDelete(FSP_FILE_CONTEXT *FsContext)
 }
 
 FSP_FILE_CONTEXT *FspFileContextOpen(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject,
-    DWORD GrantedAccess, DWORD ShareAccess, NTSTATUS *PResult)
+    DWORD GrantedAccess, DWORD ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult)
 {
     /*
      * Attempt to insert our FsContext into the volume device's generic table.
@@ -82,9 +88,12 @@ FSP_FILE_CONTEXT *FspFileContextOpen(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT F
      * FsContext instead.
      */
 
+    PAGED_CODE();
+
     PDEVICE_OBJECT FsvolDeviceObject = FsContext->FsvolDeviceObject;
     FSP_FILE_CONTEXT *OpenedFsContext;
     BOOLEAN Inserted;
+    NTSTATUS Result;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
@@ -102,19 +111,20 @@ FSP_FILE_CONTEXT *FspFileContextOpen(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT F
         ASSERT(OpenedFsContext == FsContext);
 
         IoSetShareAccess(GrantedAccess, ShareAccess, FileObject, &FsContext->ShareAccess);
-        FspFileContextRetain(OpenedFsContext);
-        OpenedFsContext->OpenCount++;
     }
     else
     {
         /*
          * The new FsContext was NOT inserted into the Context table. Instead we are
          * opening a prior FsContext that we found in the table.
-         *
-         * First check and update the share access. If successful then retain the
-         * opened FsContext for our caller.
          */
         ASSERT(OpenedFsContext != FsContext);
+
+        if (OpenedFsContext->Flags.DeletePending)
+        {
+            Result = STATUS_DELETE_PENDING;
+            goto exit;
+        }
 
         /*
          * FastFat says to do the following on Vista and above.
@@ -124,22 +134,20 @@ FSP_FILE_CONTEXT *FspFileContextOpen(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT F
          *     write sharing - this is neccessary since a section may exist with no handles
          *     open to the file its based against.
          */
-        NTSTATUS Result = STATUS_SUCCESS;
         if (!FlagOn(ShareAccess, FILE_SHARE_WRITE) &&
             FlagOn(GrantedAccess,
                 FILE_EXECUTE | FILE_READ_DATA | FILE_WRITE_DATA | FILE_APPEND_DATA | DELETE) &&
             MmDoesFileHaveUserWritableReferences(&FsContext->NonPaged->SectionObjectPointers))
+        {
             Result = STATUS_SHARING_VIOLATION;
+            goto exit;
+        }
 
         /* share access check */
-        if (NT_SUCCESS(Result))
-            Result = IoCheckShareAccess(GrantedAccess, ShareAccess, FileObject, &FsContext->ShareAccess, TRUE);
-        if (NT_SUCCESS(Result))
-        {
-            FspFileContextRetain(OpenedFsContext);
-            OpenedFsContext->OpenCount++;
-        }
-        else
+        Result = IoCheckShareAccess(GrantedAccess, ShareAccess, FileObject, &FsContext->ShareAccess, TRUE);
+
+    exit:
+        if (!NT_SUCCESS(Result))
         {
             if (0 != PResult)
                 *PResult = Result;
@@ -148,22 +156,38 @@ FSP_FILE_CONTEXT *FspFileContextOpen(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT F
         }
     }
 
+    if (0 != OpenedFsContext)
+    {
+        FspFileContextRetain(OpenedFsContext);
+        OpenedFsContext->OpenCount++;
+
+        if (DeleteOnClose)
+            OpenedFsContext->Flags.DeleteOnClose = TRUE;
+    }
+
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
     return OpenedFsContext;
 }
 
-VOID FspFileContextClose(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject)
+VOID FspFileContextClose(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject,
+    PBOOLEAN PDeletePending)
 {
     /*
      * Close the FsContext. If the OpenCount becomes zero remove it
      * from the Context table.
      */
 
+    PAGED_CODE();
+
     PDEVICE_OBJECT FsvolDeviceObject = FsContext->FsvolDeviceObject;
-    BOOLEAN Deleted = FALSE;
+    BOOLEAN Deleted = FALSE, DeletePending;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+
+    if (FsContext->Flags.DeleteOnClose)
+        FsContext->Flags.DeletePending = TRUE;
+    DeletePending = 0 != FsContext->Flags.DeletePending;
 
     IoRemoveShareAccess(FileObject, &FsContext->ShareAccess);
     if (0 == --FsContext->OpenCount)
@@ -173,4 +197,7 @@ VOID FspFileContextClose(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject)
 
     if (Deleted)
         FspFileContextRelease(FsContext);
+
+    if (0 != PDeletePending)
+        *PDeletePending = Deleted && DeletePending;
 }
