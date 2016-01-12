@@ -46,7 +46,7 @@ enum
 {
     FspFsctlTransactUnknownKind = 0,
     FspFsctlTransactCreateKind,
-    FspFsctlTransactCreate2Kind,
+    FspFsctlTransactOverwriteKind,
     FspFsctlTransactCleanupKind,
     FspFsctlTransactCloseKind,
     FspFsctlTransactReadKind,
@@ -124,10 +124,9 @@ typedef struct
         {
             UINT64 UserContext;
             UINT64 UserContext2;
-            UINT32 CloseStatus;         /* if non-0 close the file (and do NOT overwrite!) */
             UINT32 FileAttributes;      /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
             UINT32 Supersede:1;         /* 0: FILE_OVERWRITE operation, 1: FILE_SUPERSEDE operation */
-        } Create2;
+        } Overwrite;
         struct
         {
             UINT64 UserContext;
@@ -167,7 +166,7 @@ typedef struct
             struct
             {
                 UINT64 UserContext;     /* open file user context (unique file id) */
-                UINT64 UserContext2;    /* kernel file object user context (only low 32 bits valid) */
+                UINT64 UserContext2;    /* kernel file object user context (stores as many bits as a pointer) */
                 UINT64 AllocationSize;  /* file allocation size */
                 UINT64 FileSize;        /* file size */
                 UINT32 GrantedAccess;   /* FILE_{READ_DATA,WRITE_DATA,etc.} */
@@ -180,11 +179,9 @@ typedef struct
         } Create;
         struct
         {
-            UINT64 UserContext;         /* open file user context (unique file id) */
-            UINT64 UserContext2;        /* kernel file object user context (only low 32 bits valid) */
             UINT64 AllocationSize;      /* file allocation size */
             UINT64 FileSize;            /* file size */
-        } Create2;
+        } Overwrite;
     } Rsp;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_RSP;

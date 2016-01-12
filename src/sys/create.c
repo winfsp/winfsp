@@ -15,8 +15,9 @@ static NTSTATUS FspFsvolCreate(
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
 static VOID FspFsvolCreatePostClose(
-    FSP_FILE_CONTEXT *FsContext, UINT64 UserContext2, NTSTATUS CloseStatus);
+    FSP_FILE_CONTEXT *FsContext, UINT64 UserContext2);
 static FSP_IOP_REQUEST_FINI FspFsvolCreateRequestFini;
+static FSP_IOP_REQUEST_FINI FspFsvolCreateOverwriteRequestFini;
 FSP_DRIVER_DISPATCH FspCreate;
 
 #ifdef ALLOC_PRAGMA
@@ -27,6 +28,7 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreateComplete)
 #pragma alloc_text(PAGE, FspFsvolCreatePostClose)
 #pragma alloc_text(PAGE, FspFsvolCreateRequestFini)
+#pragma alloc_text(PAGE, FspFsvolCreateOverwriteRequestFini)
 #pragma alloc_text(PAGE, FspCreate)
 #endif
 
@@ -35,9 +37,13 @@ FSP_DRIVER_DISPATCH FspCreate;
 
 enum
 {
-    RequestFsContext = 0,
-    RequestAccessToken,
-    RequestProcess,
+    /* CreateRequest */
+    RequestFsContext                    = 0,
+    RequestAccessToken                  = 1,
+    RequestProcess                      = 2,
+    /* OverwriteRequest */
+    //RequestFsContext                  = 0,
+    RequestFileObject                   = 1,
 };
 
 static NTSTATUS FspFsctlCreate(
@@ -302,6 +308,7 @@ NTSTATUS FspFsvolCreatePrepare(
     HANDLE UserModeAccessToken;
     PEPROCESS Process;
     FSP_FILE_CONTEXT *FsContext;
+    PFILE_OBJECT FileObject;
 
     if (FspFsctlTransactCreateKind == Request->Kind)
     {
@@ -324,9 +331,10 @@ NTSTATUS FspFsvolCreatePrepare(
 
         return STATUS_SUCCESS;
     }
-    else if (FspFsctlTransactCreate2Kind == Request->Kind)
+    else if (FspFsctlTransactOverwriteKind == Request->Kind)
     {
         FsContext = FspIopRequestContext(Request, RequestFsContext);
+        FileObject = FspIopRequestContext(Request, RequestFileObject);
 
         /* lock the FsContext for Paging IO */
         Success = FspFileContextPgioLockExclusive(FsContext, FALSE);
@@ -340,15 +348,19 @@ NTSTATUS FspFsvolCreatePrepare(
             return Result;
         }
 
+        FspIopRequestContext(Request, RequestFileObject) = 0;
+
         /* see what the MM thinks about all this */
         LARGE_INTEGER Zero = { 0 };
         Success = MmCanFileBeTruncated(&FsContext->NonPaged->SectionObjectPointers, &Zero);
         if (!Success)
         {
-            /* cannot truncate; tell user mode that we are closing the file */
             FspFileContextPgioUnlock(FsContext);
-            Request->Req.Create2.CloseStatus = (UINT32)STATUS_USER_MAPPED_FILE;
-            return STATUS_SUCCESS;
+
+            FspFileContextClose(FsContext, FileObject);
+            FspFsvolCreatePostClose(FsContext, (UINT_PTR)FileObject->FsContext2);
+
+            return STATUS_USER_MAPPED_FILE;
         }
 
         /* purge any caches on this file */
@@ -458,10 +470,9 @@ VOID FspFsvolCreateComplete(
             &Result);
         if (0 == OpenedFsContext)
         {
-            /* unable to open the FsContext; post a close Create2 request */
+            /* unable to open the FsContext; post a Close request */
             FspFsvolCreatePostClose(FsContext,
-                Response->Rsp.Create.Opened.UserContext2,
-                Result);
+                Response->Rsp.Create.Opened.UserContext2);
 
             FSP_RETURN();
         }
@@ -497,10 +508,8 @@ VOID FspFsvolCreateComplete(
                     Result = DeleteOnClose ? STATUS_CANNOT_DELETE : STATUS_SHARING_VIOLATION;
 
                     FspFileContextClose(FsContext, FileObject);
-
                     FspFsvolCreatePostClose(FsContext,
-                        Response->Rsp.Create.Opened.UserContext2,
-                        Result);
+                        Response->Rsp.Create.Opened.UserContext2);
 
                     FSP_RETURN();
                 }
@@ -523,26 +532,24 @@ VOID FspFsvolCreateComplete(
             FspIopDeleteRequest(Request);
 
             /* create the Create2 request; MustSucceed because we must either overwrite or close */
-            FspIopCreateRequestMustSucceed(Irp,
+            FspIopCreateRequestFunnel(Irp,
                 FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FsContext->FileName : 0, 0,
+                FspFsvolCreateOverwriteRequestFini, TRUE,
                 &Request);
 
             /* associate the FsContext with the Create2 request */
             FspIopRequestContext(Request, RequestFsContext) = FsContext;
 
             /* populate the Create2 request */
-            Request->Kind = FspFsctlTransactCreate2Kind;
-            Request->Req.Create2.UserContext = FsContext->UserContext;
-            Request->Req.Create2.UserContext2 = (UINT_PTR)FileObject->FsContext2;
-            Request->Req.Create2.FileAttributes = IrpSp->Parameters.Create.FileAttributes;
-            Request->Req.Create2.Supersede = FILE_SUPERSEDED == Response->IoStatus.Information;
-            Request->Req.Create2.CloseStatus = STATUS_SUCCESS;
+            Request->Kind = FspFsctlTransactOverwriteKind;
+            Request->Req.Overwrite.UserContext = FsContext->UserContext;
+            Request->Req.Overwrite.UserContext2 = (UINT_PTR)FileObject->FsContext2;
+            Request->Req.Overwrite.FileAttributes = IrpSp->Parameters.Create.FileAttributes;
+            Request->Req.Overwrite.Supersede = FILE_SUPERSEDED == Response->IoStatus.Information;
 
             /*
              * Note that it is still possible for this request to not be delivered,
-             * if the volume device Ioq is stopped. But such failures are benign
-             * from our perspective, because they mean that the file system is going
-             * away and should correctly tear things down.
+             * if the volume device Ioq is stopped or if the IRP is canceled.
              */
 
             if (FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, &Result))
@@ -555,25 +562,18 @@ VOID FspFsvolCreateComplete(
             Result = STATUS_SUCCESS;
         }
     }
-    else if (FspFsctlTransactCreate2Kind == Request->Kind)
+    else if (FspFsctlTransactOverwriteKind == Request->Kind)
     {
         /*
-         * A Create2 request will either succeed or else fail and close the corresponding file.
+         * An Overwrite request will either succeed or else fail and close the corresponding file.
          * There is no need to reach out to user-mode again and ask them to close the file.
          */
-
-        /* was this a close request? */
-        if (STATUS_SUCCESS != Request->Req.Create2.CloseStatus)
-        {
-            Irp->IoStatus.Information = 0;
-            Result = STATUS_SUCCESS != Request->Req.Create2.CloseStatus;
-            FSP_RETURN();
-        }
 
         /* did the user-mode file system sent us a failure code? */
         if (!NT_SUCCESS(Response->IoStatus.Status))
         {
             FspFileContextPgioUnlock(FsContext);
+
             FspFileContextClose(FsContext, FileObject);
 
             Irp->IoStatus.Information = 0;
@@ -588,11 +588,11 @@ VOID FspFsvolCreateComplete(
 
         FspFileContextPgioUnlock(FsContext);
 
-        /* disassociate the FsContext from the Create2 request */
+        /* disassociate the FsContext from the Overwrite request */
         FspIopRequestContext(Request, RequestFsContext) = 0;
 
         /* SUCCESS! */
-        Irp->IoStatus.Information = Request->Req.Create2.Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
+        Irp->IoStatus.Information = Request->Req.Overwrite.Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
         Result = STATUS_SUCCESS;
     }
     else
@@ -604,11 +604,9 @@ VOID FspFsvolCreateComplete(
 }
 
 static VOID FspFsvolCreatePostClose(
-    FSP_FILE_CONTEXT *FsContext, UINT64 UserContext2, NTSTATUS CloseStatus)
+    FSP_FILE_CONTEXT *FsContext, UINT64 UserContext2)
 {
     PAGED_CODE();
-
-    ASSERT(STATUS_SUCCESS != CloseStatus);
 
     PDEVICE_OBJECT FsvolDeviceObject = FsContext->FsvolDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
@@ -619,11 +617,10 @@ static VOID FspFsvolCreatePostClose(
         FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FsContext->FileName : 0,
         0, &Request);
 
-    /* populate the Create2 request */
-    Request->Kind = FspFsctlTransactCreate2Kind;
-    Request->Req.Create2.UserContext = FsContext->UserContext;
-    Request->Req.Create2.UserContext2 = UserContext2;
-    Request->Req.Create2.CloseStatus = CloseStatus;
+    /* populate the Close request */
+    Request->Kind = FspFsctlTransactCloseKind;
+    Request->Req.Close.UserContext = FsContext->UserContext;
+    Request->Req.Close.UserContext2 = UserContext2;
 
     /*
      * Post as a BestEffort work request. This allows us to complete our own IRP
@@ -675,6 +672,28 @@ static VOID FspFsvolCreateRequestFini(PVOID Context[3])
 
         Context[RequestAccessToken] = 0;
         Context[RequestProcess] = 0;
+    }
+}
+
+static VOID FspFsvolCreateOverwriteRequestFini(PVOID Context[3])
+{
+    PAGED_CODE();
+
+    if (0 != Context[RequestFsContext])
+    {
+        FSP_FILE_CONTEXT *FsContext = Context[RequestFsContext];
+        PFILE_OBJECT FileObject = Context[RequestFileObject];
+
+        if (0 != FileObject)
+        {
+            FspFsvolCreatePostClose(FsContext, (UINT_PTR)FileObject->FsContext2);
+            FspFileContextClose(FsContext, FileObject);
+        }
+
+        FspFileContextRelease(FsContext);
+
+        Context[RequestFileObject] = 0;
+        Context[RequestFsContext] = 0;
     }
 }
 
