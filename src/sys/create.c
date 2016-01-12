@@ -460,7 +460,7 @@ VOID FspFsvolCreateComplete(
 
         /* populate the FsContext fields from the Response */
         FsContext->Header.AllocationSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
-        FsContext->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
+        FsContext->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.FileSize;
         FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
 
         DeleteOnClose = BooleanFlagOn(Request->Req.Create.CreateOptions, FILE_DELETE_ON_CLOSE);
@@ -585,8 +585,8 @@ VOID FspFsvolCreateComplete(
         }
 
         /* file was successfully overwritten/superseded */
-        FsContext->Header.AllocationSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
-        FsContext->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
+        FsContext->Header.AllocationSize.QuadPart = Response->Rsp.Overwrite.AllocationSize;
+        FsContext->Header.FileSize.QuadPart = Response->Rsp.Overwrite.FileSize;
         CcSetFileSizes(FileObject, (PCC_FILE_SIZES)&FsContext->Header.AllocationSize);
 
         FspFileContextPgioUnlock(FsContext);
