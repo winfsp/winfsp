@@ -99,6 +99,7 @@ static NTSTATUS FspFsvolCreate(
     }
 
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
+    ULONG CreateDisposition = (IrpSp->Parameters.Create.Options >> 24) & 0xff;
     ULONG CreateOptions = IrpSp->Parameters.Create.Options;
     USHORT FileAttributes = IrpSp->Parameters.Create.FileAttributes;
     PSECURITY_DESCRIPTOR SecurityDescriptor = AccessState->SecurityDescriptor;
@@ -194,6 +195,14 @@ static NTSTATUS FspFsvolCreate(
         if (sizeof(WCHAR) <= FileName.Length && L'\\' == FileName.Buffer[0])
             return STATUS_OBJECT_NAME_INVALID;
 
+        /* not all operations allowed on the root directory */
+        if ((FILE_CREATE == CreateDisposition ||
+            FILE_OVERWRITE == CreateDisposition ||
+            FILE_SUPERSEDE == CreateDisposition ||
+            BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY)) &&
+            sizeof(WCHAR) == RelatedFsContext->FileName.Length && 0 == FileName.Length)
+            return STATUS_ACCESS_DENIED;
+
         /* cannot FILE_DELETE_ON_CLOSE on the root directory */
         if (FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE) &&
             sizeof(WCHAR) == RelatedFsContext->FileName.Length && 0 == FileName.Length)
@@ -227,6 +236,14 @@ static NTSTATUS FspFsvolCreate(
         /* must be an absolute path */
         if (sizeof(WCHAR) <= FileName.Length && L'\\' != FileName.Buffer[0])
             return STATUS_OBJECT_NAME_INVALID;
+
+        /* not all operations allowed on the root directory */
+        if ((FILE_CREATE == CreateDisposition ||
+            FILE_OVERWRITE == CreateDisposition ||
+            FILE_SUPERSEDE == CreateDisposition ||
+            BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY)) &&
+            sizeof(WCHAR) == FileName.Length)
+            return STATUS_ACCESS_DENIED;
 
         /* cannot FILE_DELETE_ON_CLOSE on the root directory */
         if (FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE) &&
