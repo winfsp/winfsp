@@ -166,60 +166,8 @@ exit:
     return Result;
 }
 
-FSP_API NTSTATUS FspShareAccessCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, DWORD GrantedAccess, FSP_FILE_NODE *FileNode)
-{
-    DWORD ShareAccess = Request->Req.Create.ShareAccess;
-    BOOLEAN ReadAccess, WriteAccess, DeleteAccess;
-    BOOLEAN SharedRead, SharedWrite, SharedDelete;
-    ULONG OpenCount;
-
-    ReadAccess = 0 != (GrantedAccess & (FILE_READ_DATA | FILE_EXECUTE));
-    WriteAccess = 0 != (GrantedAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA));
-    DeleteAccess = 0 != (GrantedAccess & DELETE);
-
-    if (ReadAccess || WriteAccess || DeleteAccess)
-    {
-        SharedRead = 0 != (ShareAccess & FILE_SHARE_READ);
-        SharedWrite = 0 != (ShareAccess & FILE_SHARE_WRITE);
-        SharedDelete = 0 != (ShareAccess & FILE_SHARE_DELETE);
-
-        OpenCount = FileNode->ShareAccess.OpenCount;
-
-        /*
-         * IF ReadAccess AND there are already some exclusive readers
-         * OR WriteAccess AND there are already some exclusive writers
-         * OR DeleteAccess AND there are already some exclusive deleters
-         * OR exclusive read requested AND there are already some readers
-         * OR exclusive write requested AND there are already some writers
-         * OR exclusive delete requested AND there are already some deleters
-         */
-        if (ReadAccess && (FileNode->ShareAccess.SharedRead < OpenCount))
-            return STATUS_SHARING_VIOLATION;
-        if (WriteAccess && (FileNode->ShareAccess.SharedWrite < OpenCount))
-            return STATUS_SHARING_VIOLATION;
-        if (DeleteAccess && (FileNode->ShareAccess.SharedDelete < OpenCount))
-            return STATUS_SHARING_VIOLATION;
-        if (!SharedRead && 0 != FileNode->ShareAccess.Readers)
-            return STATUS_SHARING_VIOLATION;
-        if (!SharedWrite && 0 != FileNode->ShareAccess.Writers)
-            return STATUS_SHARING_VIOLATION;
-        if (!SharedDelete && 0 != FileNode->ShareAccess.Deleters)
-            return STATUS_SHARING_VIOLATION;
-
-        FileNode->ShareAccess.OpenCount++;
-        FileNode->ShareAccess.Readers += ReadAccess;
-        FileNode->ShareAccess.Writers += WriteAccess;
-        FileNode->ShareAccess.Deleters += DeleteAccess;
-        FileNode->ShareAccess.SharedRead += SharedRead;
-        FileNode->ShareAccess.SharedWrite += SharedWrite;
-        FileNode->ShareAccess.SharedDelete += SharedDelete;
-    }
-
-    return STATUS_SUCCESS;
-}
-
-FSP_API NTSTATUS FspFileSystemPreCreateCheck(FSP_FILE_SYSTEM *FileSystem,
+static inline
+NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, PDWORD PGrantedAccess)
 {
     NTSTATUS Result;
@@ -235,57 +183,16 @@ FSP_API NTSTATUS FspFileSystemPreCreateCheck(FSP_FILE_SYSTEM *FileSystem,
     return Result;
 }
 
-FSP_API VOID FspFileSystemPostCreateCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, DWORD GrantedAccess, FSP_FILE_NODE *FileNode)
-{
-    FspFileNodeLock(FileNode);
-
-    FspShareAccessCheck(FileSystem, Request, GrantedAccess, FileNode);
-
-    if (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
-        FileNode->Flags.DeleteOnClose = TRUE;
-
-    FspFileNodeOpen(FileNode);
-
-    FspFileNodeUnlock(FileNode);
-}
-
-FSP_API NTSTATUS FspFileSystemPreOpenCheck(FSP_FILE_SYSTEM *FileSystem,
+static inline
+NTSTATUS FspFileSystemPreOpenCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, PDWORD PGrantedAccess)
 {
     return FspAccessCheck(FileSystem, Request, FALSE, AllowTraverseCheck,
         Request->Req.Create.DesiredAccess, PGrantedAccess);
 }
 
-FSP_API NTSTATUS FspFileSystemPostOpenCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, DWORD GrantedAccess, FSP_FILE_NODE *FileNode)
-{
-    NTSTATUS Result;
-
-    FspFileNodeLock(FileNode);
-
-    if (FileNode->Flags.DeletePending)
-    {
-        Result = STATUS_DELETE_PENDING;
-        goto exit;
-    }
-
-    Result = FspShareAccessCheck(FileSystem, Request, GrantedAccess, FileNode);
-    if (!NT_SUCCESS(Result))
-        goto exit;
-
-    if (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
-        FileNode->Flags.DeleteOnClose = TRUE;
-
-    FspFileNodeOpen(FileNode);
-
-exit:
-    FspFileNodeUnlock(FileNode);
-
-    return Result;
-}
-
-FSP_API NTSTATUS FspFileSystemPreOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
+static inline
+NTSTATUS FspFileSystemOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, PDWORD PGrantedAccess)
 {
     NTSTATUS Result;
@@ -305,12 +212,19 @@ FSP_API NTSTATUS FspFileSystemPreOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
     return Result;
 }
 
-FSP_API NTSTATUS FspFileSystemPostOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, DWORD GrantedAccess, FSP_FILE_NODE *FileNode)
+FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    return FspFileSystemPostOpenCheck(FileSystem, Request, GrantedAccess, FileNode);
+    return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+#if 0
 static BOOLEAN FspIsRootDirectory(PWSTR FileName)
 {
     for (PWSTR Pointer = FileName; *Pointer; Pointer++)
@@ -621,3 +535,4 @@ FSP_API NTSTATUS FspFileSystemSendCreateResponse(FSP_FILE_SYSTEM *FileSystem,
     Response.Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     return FspFileSystemSendResponse(FileSystem, &Response);
 }
+#endif

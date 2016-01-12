@@ -6,24 +6,13 @@
 
 #include <dll/library.h>
 
-#if 0
-FSP_API VOID FspShareAccessRemove(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FILE_NODE *FileNode)
+FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    if (Request->Req.Cleanup.ReadAccess ||
-        Request->Req.Cleanup.WriteAccess ||
-        Request->Req.Cleanup.DeleteAccess)
-    {
-        FileNode->ShareAccess.OpenCount--;
-        FileNode->ShareAccess.Readers -= Request->Req.Cleanup.ReadAccess;
-        FileNode->ShareAccess.Writers -= Request->Req.Cleanup.WriteAccess;
-        FileNode->ShareAccess.Deleters -= Request->Req.Cleanup.DeleteAccess;
-        FileNode->ShareAccess.SharedRead -= Request->Req.Cleanup.SharedRead;
-        FileNode->ShareAccess.SharedWrite -= Request->Req.Cleanup.SharedWrite;
-        FileNode->ShareAccess.SharedDelete -= Request->Req.Cleanup.SharedDelete;
-    }
+    return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+#if 0
 FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
