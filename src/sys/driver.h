@@ -513,8 +513,8 @@ typedef struct
     FSP_FILE_CONTEXT_NONPAGED *NonPaged;
     /* interlocked access */
     LONG RefCount;
-    LONG OpenCount;
     /* locked access */
+    LONG OpenCount;
     SHARE_ACCESS ShareAccess;
     /* read-only after creation (and insertion in the GenericTable) */
     PDEVICE_OBJECT FsvolDeviceObject;

@@ -348,6 +348,7 @@ NTSTATUS FspFsvolCreatePrepare(
             return Result;
         }
 
+        /* no longer post a Close if the IRP gets cancelled */
         FspIopRequestContext(Request, RequestFileObject) = 0;
 
         /* see what the MM thinks about all this */
@@ -357,8 +358,8 @@ NTSTATUS FspFsvolCreatePrepare(
         {
             FspFileContextPgioUnlock(FsContext);
 
-            FspFileContextClose(FsContext, FileObject);
             FspFsvolCreatePostClose(FsContext, (UINT_PTR)FileObject->FsContext2);
+            FspFileContextClose(FsContext, FileObject);
 
             return STATUS_USER_MAPPED_FILE;
         }
@@ -505,12 +506,11 @@ VOID FspFsvolCreateComplete(
                 if (!MmFlushImageSection(&FsContext->NonPaged->SectionObjectPointers,
                     MmFlushForWrite))
                 {
-                    Result = DeleteOnClose ? STATUS_CANNOT_DELETE : STATUS_SHARING_VIOLATION;
-
-                    FspFileContextClose(FsContext, FileObject);
                     FspFsvolCreatePostClose(FsContext,
                         Response->Rsp.Create.Opened.UserContext2);
+                    FspFileContextClose(FsContext, FileObject);
 
+                    Result = DeleteOnClose ? STATUS_CANNOT_DELETE : STATUS_SHARING_VIOLATION;
                     FSP_RETURN();
                 }
             }
@@ -531,16 +531,17 @@ VOID FspFsvolCreateComplete(
             FspIrpRequest(Irp) = 0;
             FspIopDeleteRequest(Request);
 
-            /* create the Create2 request; MustSucceed because we must either overwrite or close */
+            /* create the Overwrite request; MustSucceed because we must either overwrite or close */
             FspIopCreateRequestFunnel(Irp,
                 FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FsContext->FileName : 0, 0,
                 FspFsvolCreateOverwriteRequestFini, TRUE,
                 &Request);
 
-            /* associate the FsContext with the Create2 request */
+            /* associate the FsContext and FileObject with the Overwrite request */
             FspIopRequestContext(Request, RequestFsContext) = FsContext;
+            FspIopRequestContext(Request, RequestFileObject) = FileObject;
 
-            /* populate the Create2 request */
+            /* populate the Overwrite request */
             Request->Kind = FspFsctlTransactOverwriteKind;
             Request->Req.Overwrite.UserContext = FsContext->UserContext;
             Request->Req.Overwrite.UserContext2 = (UINT_PTR)FileObject->FsContext2;
@@ -548,10 +549,11 @@ VOID FspFsvolCreateComplete(
             Request->Req.Overwrite.Supersede = FILE_SUPERSEDED == Response->IoStatus.Information;
 
             /*
+             * Post it as BestEffort.
+             *
              * Note that it is still possible for this request to not be delivered,
              * if the volume device Ioq is stopped or if the IRP is canceled.
              */
-
             if (FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, &Result))
                 Result = STATUS_PENDING;
         }
@@ -587,9 +589,6 @@ VOID FspFsvolCreateComplete(
         CcSetFileSizes(FileObject, (PCC_FILE_SIZES)&FsContext->Header.AllocationSize);
 
         FspFileContextPgioUnlock(FsContext);
-
-        /* disassociate the FsContext from the Overwrite request */
-        FspIopRequestContext(Request, RequestFsContext) = 0;
 
         /* SUCCESS! */
         Irp->IoStatus.Information = Request->Req.Overwrite.Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
