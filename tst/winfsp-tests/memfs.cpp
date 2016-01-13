@@ -4,6 +4,7 @@
  * @copyright 2015 Bill Zissimopoulos
  */
 
+#undef _DEBUG
 #include "memfs.h"
 #include <map>
 
