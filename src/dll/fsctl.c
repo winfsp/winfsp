@@ -12,7 +12,7 @@
 
 FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
-    PWCHAR VolumePathBuf, SIZE_T VolumePathSize,
+    PWCHAR VolumeNameBuf, SIZE_T VolumeNameSize,
     PHANDLE PVolumeHandle)
 {
     NTSTATUS Result;
@@ -22,8 +22,8 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     HANDLE VolumeHandle = INVALID_HANDLE_VALUE;
     DWORD Bytes;
 
-    if (sizeof(WCHAR) <= VolumePathSize)
-        VolumePathBuf[0] = L'\0';
+    if (sizeof(WCHAR) <= VolumeNameSize)
+        VolumeNameBuf[0] = L'\0';
     *PVolumeHandle = INVALID_HANDLE_VALUE;
 
     /* check lengths; everything (including encoded volume params) must fit within MAX_PATH */
@@ -64,7 +64,7 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
 
     if (!DeviceIoControl(VolumeHandle, FSP_FSCTL_VOLUME_NAME,
         0, 0,
-        VolumePathBuf, (DWORD)VolumePathSize,
+        VolumeNameBuf, (DWORD)VolumeNameSize,
         &Bytes, 0))
     {
         Result = FspNtStatusFromWin32(GetLastError());

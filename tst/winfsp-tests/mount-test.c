@@ -10,15 +10,15 @@ void mount_invalid_test(void)
 {
     NTSTATUS Result;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
-    WCHAR VolumePath[MAX_PATH] = L"foo";
+    WCHAR VolumeName[MAX_PATH] = L"foo";
     HANDLE VolumeHandle;
 
     VolumeParams.SectorSize = 16384;
     VolumeParams.SerialNumber = 0x12345678;
     Result = FspFsctlCreateVolume(L"WinFsp.DoesNotExist", &VolumeParams,
-        VolumePath, sizeof VolumePath, &VolumeHandle);
+        VolumeName, sizeof VolumeName, &VolumeHandle);
     ASSERT(STATUS_NO_SUCH_DEVICE == Result);
-    ASSERT(L'\0' == VolumePath[0]);
+    ASSERT(L'\0' == VolumeName[0]);
     ASSERT(INVALID_HANDLE_VALUE == VolumeHandle);
 }
 
@@ -50,16 +50,16 @@ void mount_create_volume_dotest(PWSTR DeviceName)
     NTSTATUS Result;
     BOOL Success;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
-    WCHAR VolumePath[MAX_PATH];
+    WCHAR VolumeName[MAX_PATH];
     HANDLE VolumeHandle;
 
     VolumeParams.SectorSize = 16384;
     VolumeParams.SerialNumber = 0x12345678;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
-        VolumePath, sizeof VolumePath, &VolumeHandle);
+        VolumeName, sizeof VolumeName, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
-    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumePath, 15));
+    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumeName, 15));
     ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
     Success = CloseHandle(VolumeHandle);
@@ -92,7 +92,7 @@ void mount_volume_cancel_dotest(PWSTR DeviceName)
     NTSTATUS Result;
     BOOL Success;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
-    WCHAR VolumePath[MAX_PATH];
+    WCHAR VolumeName[MAX_PATH];
     WCHAR FilePath[MAX_PATH];
     HANDLE VolumeHandle;
     HANDLE Thread;
@@ -102,12 +102,12 @@ void mount_volume_cancel_dotest(PWSTR DeviceName)
     VolumeParams.SerialNumber = 0x12345678;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
-        VolumePath, sizeof VolumePath, &VolumeHandle);
+        VolumeName, sizeof VolumeName, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
-    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumePath, 15));
+    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumeName, 15));
     ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumePath);
+    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumeName);
     Thread = (HANDLE)_beginthreadex(0, 0, mount_volume_cancel_dotest_thread, FilePath, 0, 0);
     ASSERT(0 != Thread);
 
@@ -149,7 +149,7 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
     NTSTATUS Result;
     BOOL Success;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
-    WCHAR VolumePath[MAX_PATH];
+    WCHAR VolumeName[MAX_PATH];
     WCHAR FilePath[MAX_PATH];
     HANDLE VolumeHandle;
     HANDLE Thread;
@@ -160,14 +160,14 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
     VolumeParams.SerialNumber = 0x12345678;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
-        VolumePath, sizeof VolumePath, &VolumeHandle);
+        VolumeName, sizeof VolumeName, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
-    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumePath, 15));
+    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumeName, 15));
     ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumePath);
+    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumeName);
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
-        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : VolumePath);
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : VolumeName);
     Thread = (HANDLE)_beginthreadex(0, 0, mount_volume_transact_dotest_thread, FilePath, 0, 0);
     ASSERT(0 != Thread);
 

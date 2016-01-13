@@ -39,7 +39,7 @@ void timeout_pending_dotest(PWSTR DeviceName)
     NTSTATUS Result;
     BOOL Success;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
-    WCHAR VolumePath[MAX_PATH];
+    WCHAR VolumeName[MAX_PATH];
     WCHAR FilePath[MAX_PATH];
     HANDLE VolumeHandle;
     HANDLE Thread;
@@ -50,12 +50,12 @@ void timeout_pending_dotest(PWSTR DeviceName)
     VolumeParams.SerialNumber = 0x12345678;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
-        VolumePath, sizeof VolumePath, &VolumeHandle);
+        VolumeName, sizeof VolumeName, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
-    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumePath, 15));
+    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumeName, 15));
     ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumePath);
+    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumeName);
     Thread = (HANDLE)_beginthreadex(0, 0, timeout_pending_dotest_thread, FilePath, 0, 0);
     ASSERT(0 != Thread);
 
@@ -149,7 +149,7 @@ void timeout_transact_dotest(PWSTR DeviceName)
     NTSTATUS Result;
     BOOL Success;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
-    WCHAR VolumePath[MAX_PATH];
+    WCHAR VolumeName[MAX_PATH];
     WCHAR FilePath[MAX_PATH];
     HANDLE VolumeHandle;
     HANDLE Thread;
@@ -160,9 +160,9 @@ void timeout_transact_dotest(PWSTR DeviceName)
     VolumeParams.SerialNumber = 0x12345678;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
-        VolumePath, sizeof VolumePath, &VolumeHandle);
+        VolumeName, sizeof VolumeName, &VolumeHandle);
     ASSERT(STATUS_SUCCESS == Result);
-    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumePath, 15));
+    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumeName, 15));
     ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
 
@@ -181,7 +181,7 @@ void timeout_transact_dotest(PWSTR DeviceName)
     ASSERT(STATUS_SUCCESS == Result);
     ASSERT(0 == RequestBufSize);
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumePath);
+    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumeName);
     Thread = (HANDLE)_beginthreadex(0, 0, timeout_transact_dotest_thread, FilePath, 0, 0);
     ASSERT(0 != Thread);
 

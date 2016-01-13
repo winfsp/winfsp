@@ -71,7 +71,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
 typedef struct _FSP_FILE_SYSTEM
 {
     UINT16 Version;
-    WCHAR VolumePath[FSP_FSCTL_VOLUME_NAME_SIZEMAX / sizeof(WCHAR)];
+    WCHAR VolumeName[FSP_FSCTL_VOLUME_NAME_SIZEMAX / sizeof(WCHAR)];
     HANDLE VolumeHandle;
     PVOID UserContext;
     NTSTATUS DispatcherResult;

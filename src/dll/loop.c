@@ -33,7 +33,7 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     memset(FileSystem, 0, sizeof *FileSystem);
 
     Result = FspFsctlCreateVolume(DevicePath, VolumeParams,
-        FileSystem->VolumePath, sizeof FileSystem->VolumePath,
+        FileSystem->VolumeName, sizeof FileSystem->VolumeName,
         &FileSystem->VolumeHandle);
     if (!NT_SUCCESS(Result))
     {
