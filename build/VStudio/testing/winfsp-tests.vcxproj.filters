@@ -25,7 +25,7 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\path-test.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\tst\winfsp-tests\memfs.c">
+    <ClCompile Include="..\..\..\tst\winfsp-tests\memfs.cpp">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

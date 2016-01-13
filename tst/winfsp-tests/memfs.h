@@ -9,15 +9,26 @@
 
 #include <winfsp/winfsp.h>
 
-typedef struct _MEMFS
-{
-    FSP_FILE_SYSTEM *FileSystem;
-    ULONG MaxFileNodes;
-    ULONG MaxFileSize;
-} MEMFS;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-NTSTATUS MemfsCreate(PWSTR DevicePath, ULONG MaxFileNodes, ULONG MaxFileSize,
+typedef struct _MEMFS MEMFS;
+
+enum
+{
+    MemfsDisk                           = 0x00,
+    MemfsNet                            = 0x01,
+    MemfsSingleThread                   = 0x00,
+    MemfsThreadPool                     = 0x02,
+};
+
+NTSTATUS MemfsCreate(ULONG Flags, ULONG MaxFileNodes, ULONG MaxFileSize,
     MEMFS **PMemfs);
 VOID MemfsDelete(MEMFS *Memfs);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
