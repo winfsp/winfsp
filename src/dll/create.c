@@ -52,7 +52,7 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     DWORD FileAttributes;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     SIZE_T SecurityDescriptorSize;
-    DWORD PrivilegeSetLength;
+    DWORD PrivilegeSetLength = 0;
     DWORD TraverseAccess;
     BOOL AccessStatus;
 
