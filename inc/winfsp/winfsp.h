@@ -52,15 +52,15 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_TRANSACT_REQ *Request,
         PWSTR FileName, BOOLEAN CaseSensitive, DWORD CreateOptions,
         DWORD FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
-        FSP_FILE_NODE_INFO *Info);
+        FSP_FILE_NODE_INFO *NodeInfo);
     NTSTATUS (*Open)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
         PWSTR FileName, BOOLEAN CaseSensitive, DWORD CreateOptions,
-        FSP_FILE_NODE_INFO *Info);
+        FSP_FILE_NODE_INFO *NodeInfo);
     NTSTATUS (*Overwrite)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, DWORD FileAttributes, BOOLEAN ReplaceFileAttributes,
-        FSP_FILE_SIZE_INFO *Info);
+        FSP_FILE_SIZE_INFO *SizeInfo);
     VOID (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, BOOLEAN Delete);
