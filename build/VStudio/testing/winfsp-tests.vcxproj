@@ -176,6 +176,7 @@
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">TurnOffAllWarnings</WarningLevel>
     </ClCompile>
+    <ClCompile Include="..\..\..\tst\winfsp-tests\memfs.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\mount-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\path-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\timeout-test.c" />
@@ -183,6 +184,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\ext\tlib\testsuite.h" />
+    <ClInclude Include="..\..\..\tst\winfsp-tests\memfs.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\winfsp_dll.vcxproj">

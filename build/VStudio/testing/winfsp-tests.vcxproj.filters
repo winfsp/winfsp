@@ -25,10 +25,16 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\path-test.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\tst\winfsp-tests\memfs.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\ext\tlib\testsuite.h">
       <Filter>Source\tlib</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\tst\winfsp-tests\memfs.h">
+      <Filter>Source</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

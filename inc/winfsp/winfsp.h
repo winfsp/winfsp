@@ -178,4 +178,5 @@ FSP_API VOID FspPathCombine(PWSTR Prefix, PWSTR Suffix);
  */
 FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error);
 FSP_API VOID FspDebugLog(const char *format, ...);
+
 #endif
