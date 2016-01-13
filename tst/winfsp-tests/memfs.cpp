@@ -341,6 +341,8 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG MaxFileNodes, ULONG MaxFileSize,
     PWSTR DevicePath = (Flags & MemfsNet) ?
         L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME;
     MEMFS *Memfs;
+    MEMFS_FILE_NODE *RootNode;
+    BOOLEAN Inserted;
 
     *PMemfs = 0;
 
@@ -379,6 +381,27 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG MaxFileNodes, ULONG MaxFileSize,
             FspFileSystemPoolDispatcher,
             MemfsEnterOperation,
             MemfsLeaveOperation);
+
+    /*
+     * Create root directory.
+     */
+
+    Result = MemfsFileNodeCreate(L"", &RootNode);
+    if (!NT_SUCCESS(Result))
+    {
+        MemfsDelete(Memfs);
+        return Result;
+    }
+
+    RootNode->FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+
+    Result = MemfsFileNodeMapInsert(Memfs->FileNodeMap, RootNode, &Inserted);
+    if (!NT_SUCCESS(Result))
+    {
+        MemfsFileNodeDelete(RootNode);
+        MemfsDelete(Memfs);
+        return Result;
+    }
 
     *PMemfs = Memfs;
 
