@@ -9,19 +9,9 @@
 FSP_API NTSTATUS FspFileSystemOpClose(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
-}
-
-#if 0
-FSP_API NTSTATUS FspFileSystemOpClose(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
-{
-    if (0 == FileSystem->Interface->Close)
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
-
-    FSP_FILE_NODE *FileNode = (PVOID)Request->Req.Close.UserContext;
-
-    FileSystem->Interface->Close(FileSystem, Request, FileNode);
+    if (0 != FileSystem->Interface->Close)
+        FileSystem->Interface->Close(FileSystem, Request,
+            (PVOID)Request->Req.Close.UserContext);
 
     return FspFileSystemSendCloseResponse(FileSystem, Request);
 }
@@ -39,4 +29,3 @@ FSP_API NTSTATUS FspFileSystemSendCloseResponse(FSP_FILE_SYSTEM *FileSystem,
     Response.IoStatus.Information = 0;
     return FspFileSystemSendResponse(FileSystem, &Response);
 }
-#endif

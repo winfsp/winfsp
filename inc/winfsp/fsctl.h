@@ -162,6 +162,7 @@ typedef struct
             {
                 UINT64 UserContext;     /* open file user context (unique file id) */
                 UINT64 UserContext2;    /* kernel file object user context (stores as many bits as a pointer) */
+                UINT32 FileAttributes;  /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
                 UINT64 AllocationSize;  /* file allocation size */
                 UINT64 FileSize;        /* file size */
                 UINT32 GrantedAccess;   /* FILE_{READ_DATA,WRITE_DATA,etc.} */
