@@ -9,6 +9,10 @@
 
 #include <devioctl.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define FSP_FSCTL_DISK_DEVICE_NAME      "WinFsp.Disk"
 #define FSP_FSCTL_NET_DEVICE_NAME       "WinFsp.Net"
 
@@ -191,7 +195,7 @@ static inline FSP_FSCTL_TRANSACT_REQ *FspFsctlTransactProduceRequest(
     FSP_FSCTL_TRANSACT_REQ *Request, SIZE_T RequestSize)
 {
     PVOID NextRequest = (PUINT8)Request + FSP_FSCTL_DEFAULT_ALIGN_UP(RequestSize);
-    return NextRequest;
+    return (FSP_FSCTL_TRANSACT_REQ *)NextRequest;
 }
 static inline FSP_FSCTL_TRANSACT_REQ *FspFsctlTransactConsumeRequest(
     FSP_FSCTL_TRANSACT_REQ *Request, PVOID RequestBufEnd)
@@ -200,7 +204,7 @@ static inline FSP_FSCTL_TRANSACT_REQ *FspFsctlTransactConsumeRequest(
         sizeof(FSP_FSCTL_TRANSACT_REQ) > Request->Size)
         return 0;
     PVOID NextRequest = (PUINT8)Request + FSP_FSCTL_DEFAULT_ALIGN_UP(Request->Size);
-    return NextRequest <= RequestBufEnd ? NextRequest : 0;
+    return NextRequest <= RequestBufEnd ? (FSP_FSCTL_TRANSACT_REQ *)NextRequest : 0;
 }
 static inline BOOLEAN FspFsctlTransactCanProduceResponse(
     FSP_FSCTL_TRANSACT_RSP *Response, PVOID ResponseBufEnd)
@@ -211,7 +215,7 @@ static inline FSP_FSCTL_TRANSACT_RSP *FspFsctlTransactProduceResponse(
     FSP_FSCTL_TRANSACT_RSP *Response, SIZE_T ResponseSize)
 {
     PVOID NextResponse = (PUINT8)Response + FSP_FSCTL_DEFAULT_ALIGN_UP(ResponseSize);
-    return NextResponse;
+    return (FSP_FSCTL_TRANSACT_RSP *)NextResponse;
 }
 static inline FSP_FSCTL_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
     FSP_FSCTL_TRANSACT_RSP *Response, PVOID ResponseBufEnd)
@@ -220,7 +224,7 @@ static inline FSP_FSCTL_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
         sizeof(FSP_FSCTL_TRANSACT_RSP) > Response->Size)
         return 0;
     PVOID NextResponse = (PUINT8)Response + FSP_FSCTL_DEFAULT_ALIGN_UP(Response->Size);
-    return NextResponse <= ResponseBufEnd ? NextResponse : 0;
+    return NextResponse <= ResponseBufEnd ? (FSP_FSCTL_TRANSACT_RSP *)NextResponse : 0;
 }
 
 #if !defined(WINFSP_SYS_INTERNAL)
@@ -231,6 +235,10 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
 FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     PVOID ResponseBuf, SIZE_T ResponseBufSize,
     PVOID RequestBuf, SIZE_T *PRequestBufSize);
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif

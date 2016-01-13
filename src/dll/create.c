@@ -41,9 +41,9 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
     DWORD DesiredAccess, PDWORD PGrantedAccess)
 {
-    if (0 == FileSystem->Interface->GetSecurity)
+    if (!Request->Req.Create.UserMode || 0 == FileSystem->Interface->GetSecurity)
     {
-        *PGrantedAccess = DesiredAccess;
+        *PGrantedAccess = (MAXIMUM_ALLOWED & DesiredAccess) ? FILE_ALL_ACCESS : DesiredAccess;
         return STATUS_SUCCESS;
     }
 
@@ -223,7 +223,12 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FileSystem->Interface->Create(FileSystem, Request, &NodeInfo);
+    Result = FileSystem->Interface->Create(FileSystem, Request,
+        (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+        Request->Req.Create.FileAttributes,
+        (PSECURITY_DESCRIPTOR)(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset),
+        Request->Req.Create.AllocationSize,
+        &NodeInfo);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
@@ -242,7 +247,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FileSystem->Interface->Open(FileSystem, Request, &NodeInfo);
+    Result = FileSystem->Interface->Open(FileSystem, Request,
+        (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+        &NodeInfo);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
@@ -268,7 +275,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
 
     if (!Create)
     {
-        Result = FileSystem->Interface->Open(FileSystem, Request, &NodeInfo);
+        Result = FileSystem->Interface->Open(FileSystem, Request,
+            (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+            &NodeInfo);
         if (!NT_SUCCESS(Result))
         {
             if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
@@ -283,7 +292,12 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-        Result = FileSystem->Interface->Create(FileSystem, Request, &NodeInfo);
+        Result = FileSystem->Interface->Create(FileSystem, Request,
+            (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+            Request->Req.Create.FileAttributes,
+            (PSECURITY_DESCRIPTOR)(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset),
+            Request->Req.Create.AllocationSize,
+            &NodeInfo);
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
@@ -304,7 +318,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    Result = FileSystem->Interface->Open(FileSystem, Request, &NodeInfo);
+    Result = FileSystem->Interface->Open(FileSystem, Request,
+        (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+        &NodeInfo);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
@@ -330,7 +346,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
 
     if (!Create)
     {
-        Result = FileSystem->Interface->Open(FileSystem, Request, &NodeInfo);
+        Result = FileSystem->Interface->Open(FileSystem, Request,
+            (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+            &NodeInfo);
         if (!NT_SUCCESS(Result))
         {
             if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
@@ -345,7 +363,12 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-        Result = FileSystem->Interface->Create(FileSystem, Request, &NodeInfo);
+        Result = FileSystem->Interface->Create(FileSystem, Request,
+            (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+            Request->Req.Create.FileAttributes,
+            (PSECURITY_DESCRIPTOR)(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset),
+            Request->Req.Create.AllocationSize,
+            &NodeInfo);
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
@@ -369,7 +392,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
     FspPathSuffix((PWSTR)Request->Buffer, &Parent, &Suffix);
-    Result = FileSystem->Interface->Open(FileSystem, Request, &NodeInfo);
+    Result = FileSystem->Interface->Open(FileSystem, Request,
+        (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+        &NodeInfo);
     FspPathCombine((PWSTR)Request->Buffer, Suffix);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);

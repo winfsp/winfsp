@@ -21,6 +21,10 @@
 
 #include <winfsp/fsctl.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * File System
  */
@@ -46,9 +50,12 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
     NTSTATUS (*Create)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
+        PWSTR FileName, BOOLEAN CaseSensitive, DWORD CreateOptions,
+        DWORD FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
         FSP_FILE_NODE_INFO *Info);
     NTSTATUS (*Open)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
+        PWSTR FileName, BOOLEAN CaseSensitive, DWORD CreateOptions,
         FSP_FILE_NODE_INFO *Info);
     NTSTATUS (*Overwrite)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -178,5 +185,9 @@ FSP_API VOID FspPathCombine(PWSTR Prefix, PWSTR Suffix);
  */
 FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error);
 FSP_API VOID FspDebugLog(const char *format, ...);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
