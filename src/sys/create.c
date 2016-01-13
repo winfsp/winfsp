@@ -198,6 +198,7 @@ static NTSTATUS FspFsvolCreate(
         /* not all operations allowed on the root directory */
         if ((FILE_CREATE == CreateDisposition ||
             FILE_OVERWRITE == CreateDisposition ||
+            FILE_OVERWRITE_IF == CreateDisposition ||
             FILE_SUPERSEDE == CreateDisposition ||
             BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY)) &&
             sizeof(WCHAR) == RelatedFsContext->FileName.Length && 0 == FileName.Length)
@@ -240,6 +241,7 @@ static NTSTATUS FspFsvolCreate(
         /* not all operations allowed on the root directory */
         if ((FILE_CREATE == CreateDisposition ||
             FILE_OVERWRITE == CreateDisposition ||
+            FILE_OVERWRITE_IF == CreateDisposition ||
             FILE_SUPERSEDE == CreateDisposition ||
             BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY)) &&
             sizeof(WCHAR) == FileName.Length)
