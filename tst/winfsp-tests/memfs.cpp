@@ -419,3 +419,8 @@ VOID MemfsDelete(MEMFS *Memfs)
 
     free(Memfs);
 }
+
+FSP_FILE_SYSTEM *MemfsFileSystem(MEMFS *Memfs)
+{
+    return Memfs->FileSystem;
+}

@@ -176,6 +176,8 @@
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">TurnOffAllWarnings</WarningLevel>
     </ClCompile>
+    <ClCompile Include="..\..\..\tst\winfsp-tests\create-test.c" />
+    <ClCompile Include="..\..\..\tst\winfsp-tests\memfs-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\memfs.cpp" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\mount-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\path-test.c" />

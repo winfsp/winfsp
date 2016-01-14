@@ -26,6 +26,7 @@ enum
 NTSTATUS MemfsCreate(ULONG Flags, ULONG MaxFileNodes, ULONG MaxFileSize,
     MEMFS **PMemfs);
 VOID MemfsDelete(MEMFS *Memfs);
+FSP_FILE_SYSTEM *MemfsFileSystem(MEMFS *Memfs);
 
 #ifdef __cplusplus
 }
