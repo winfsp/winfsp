@@ -77,9 +77,13 @@ FSP_API NTSTATUS FspFileSystemLoop(FSP_FILE_SYSTEM *FileSystem)
         Result = FspFsctlTransact(FileSystem->VolumeHandle, 0, 0, RequestBuf, &RequestBufSize);
         if (!NT_SUCCESS(Result))
             goto exit;
-        RequestBufEnd = RequestBuf + RequestBufSize;
+
+        FspFileSystemGetDispatcherResult(FileSystem, &Result);
+        if (!NT_SUCCESS(Result))
+            goto exit;
 
         Request = (PVOID)RequestBuf;
+        RequestBufEnd = RequestBuf + RequestBufSize;
         for (;;)
         {
             NextRequest = FspFsctlTransactConsumeRequest(Request, RequestBufEnd);
