@@ -476,7 +476,7 @@ NTSTATUS FspVolumeGetName(
 
     RtlInitEmptyUnicodeString(&VolumeName, SystemBuffer, FSP_FSCTL_VOLUME_NAME_SIZEMAX);
     RtlCopyUnicodeString(&VolumeName, &FsvolDeviceExtension->VolumeName);
-    VolumeName.Buffer[VolumeName.Length] = L'\0';
+    VolumeName.Buffer[VolumeName.Length / sizeof(WCHAR)] = L'\0';
 
     Irp->IoStatus.Information = VolumeName.Length + sizeof(WCHAR);
     return STATUS_SUCCESS;
