@@ -5,6 +5,7 @@
  */
 
 #include <dll/library.h>
+#include <sddl.h>
 #include <stdarg.h>
 
 FSP_API VOID FspDebugLog(const char *format, ...)
@@ -17,4 +18,22 @@ FSP_API VOID FspDebugLog(const char *format, ...)
     va_end(ap);
     buf[sizeof buf - 1] = '\0';
     OutputDebugStringA(buf);
+}
+
+FSP_API VOID FspDebugLogSD(const char *format, PSECURITY_DESCRIPTOR SecurityDescriptor)
+{
+    char *Sddl;
+
+    if (0 == SecurityDescriptor)
+        FspDebugLog(format, "null security descriptor");
+    else if (ConvertSecurityDescriptorToStringSecurityDescriptorA(SecurityDescriptor, SDDL_REVISION_1,
+        OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION |
+        DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION,
+        &Sddl, 0))
+    {
+        FspDebugLog(format, Sddl);
+        LocalFree(Sddl);
+    }
+    else
+        FspDebugLog(format, "invalid security descriptor");
 }

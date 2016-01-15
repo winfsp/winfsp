@@ -18,8 +18,11 @@
 #if !defined(NDEBUG)
 #define DEBUGLOG(fmt, ...)              \
     FspDebugLog("[U] " LIBRARY_NAME "!" __FUNCTION__ ": " fmt "\n", __VA_ARGS__)
+#define DEBUGLOGSD(fmt, SD)             \
+    FspDebugLogSD("[U] " LIBRARY_NAME "!" __FUNCTION__ ": " fmt "\n", SD)
 #else
 #define DEBUGLOG(fmt, ...)              ((void)0)
+#define DEBUGLOGSD(fmt, SD)             ((void)0)
 #endif
 
 static inline PVOID MemAlloc(SIZE_T Size)
