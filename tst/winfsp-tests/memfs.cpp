@@ -158,20 +158,17 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
     if (0 != PFileAttributes)
         *PFileAttributes = FileNode->FileAttributes;
 
-    if (0 == SecurityDescriptor)
+    if (0 != PSecurityDescriptorSize)
     {
-        if (0 != PSecurityDescriptorSize)
-            *PSecurityDescriptorSize = FileNode->FileSecuritySize;
-    }
-    else
-    {
-        if (0 != PSecurityDescriptorSize)
+        if (FileNode->FileSecuritySize > *PSecurityDescriptorSize)
         {
-            if (0 < FileNode->FileSecuritySize &&
-                FileNode->FileSecuritySize <= *PSecurityDescriptorSize)
-                memcpy(SecurityDescriptor, FileNode->FileSecurity, FileNode->FileSecuritySize);
             *PSecurityDescriptorSize = FileNode->FileSecuritySize;
+            return STATUS_BUFFER_OVERFLOW;
         }
+
+        *PSecurityDescriptorSize = FileNode->FileSecuritySize;
+        if (0 != SecurityDescriptor)
+            memcpy(SecurityDescriptor, FileNode->FileSecurity, FileNode->FileSecuritySize);
     }
 
     return STATUS_SUCCESS;
@@ -211,11 +208,12 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     {
         FileNode->FileSecuritySize = GetSecurityDescriptorLength(SecurityDescriptor);
         FileNode->FileSecurity = (PSECURITY_DESCRIPTOR)malloc(FileNode->FileSecuritySize);
-        if (0 == FileNode->FileSecuritySize)
+        if (0 == FileNode->FileSecurity)
         {
             MemfsFileNodeDelete(FileNode);
             return STATUS_INSUFFICIENT_RESOURCES;
         }
+        memcpy(FileNode->FileSecurity, SecurityDescriptor, FileNode->FileSecuritySize);
     }
 
     FileNode->AllocationSize = FSP_FSCTL_ALIGN_UP((ULONG)AllocationSize, MEMFS_SECTOR_SIZE);
