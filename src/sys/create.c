@@ -323,7 +323,9 @@ NTSTATUS FspFsvolCreatePrepare(
     NTSTATUS Result;
     BOOLEAN Success;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    PACCESS_STATE AccessState;
+    PSECURITY_SUBJECT_CONTEXT SecuritySubjectContext;
+    SECURITY_QUALITY_OF_SERVICE SecurityQualityOfService;
+    SECURITY_CLIENT_CONTEXT SecurityClientContext;
     HANDLE UserModeAccessToken;
     PEPROCESS Process;
     FSP_FILE_CONTEXT *FsContext;
@@ -331,15 +333,31 @@ NTSTATUS FspFsvolCreatePrepare(
 
     if (FspFsctlTransactCreateKind == Request->Kind)
     {
-        AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
+        SecuritySubjectContext = &IrpSp->Parameters.Create.SecurityContext->
+            AccessState->SubjectSecurityContext;
 
-        /* get a user-mode handle to the access token */
-        Result = ObOpenObjectByPointer(SeQuerySubjectContextToken(&AccessState->SubjectSecurityContext),
-            0, 0, TOKEN_QUERY, *SeTokenObjectType, UserMode, &UserModeAccessToken);
+        /* duplicate the subject context access token into an impersonation token */
+        SecurityQualityOfService.Length = sizeof SecurityQualityOfService;
+        SecurityQualityOfService.ImpersonationLevel = SecurityIdentification;
+        SecurityQualityOfService.ContextTrackingMode = SECURITY_STATIC_TRACKING;
+        SecurityQualityOfService.EffectiveOnly = FALSE;
+        SeLockSubjectContext(SecuritySubjectContext);
+        Result = SeCreateClientSecurityFromSubjectContext(SecuritySubjectContext,
+            &SecurityQualityOfService, FALSE, &SecurityClientContext);
+        SeUnlockSubjectContext(SecuritySubjectContext);
         if (!NT_SUCCESS(Result))
             return Result;
 
-        /* get a pointer to the current process so that we can close the access token later */
+        ASSERT(TokenImpersonation == SeTokenType(SecurityClientContext.ClientToken));
+
+        /* get a user-mode handle to the impersonation token */
+        Result = ObOpenObjectByPointer(SecurityClientContext.ClientToken,
+            0, 0, TOKEN_QUERY, *SeTokenObjectType, UserMode, &UserModeAccessToken);
+        SeDeleteClientSecurity(&SecurityClientContext);
+        if (!NT_SUCCESS(Result))
+            return Result;
+
+        /* get a pointer to the current process so that we can close the impersonation token later */
         Process = PsGetCurrentProcess();
         ObReferenceObject(Process);
 
