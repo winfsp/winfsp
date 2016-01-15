@@ -151,9 +151,17 @@ FSP_API NTSTATUS FspFileSystemSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem
  * File System Operations
  */
 FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
-FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
-    DWORD DesiredAccess, PDWORD PGrantedAccess);
+FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
+    DWORD DesiredAccess, PDWORD PGrantedAccess,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor);
+FSP_API NTSTATUS FspAssignSecurity(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PSECURITY_DESCRIPTOR ParentDescriptor,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor);
+FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor,
+    NTSTATUS (*CreateFunc)());
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request);
 FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
@@ -172,6 +180,18 @@ FSP_API NTSTATUS FspFileSystemSendCleanupResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request);
 FSP_API NTSTATUS FspFileSystemSendCloseResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request);
+
+static inline
+NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
+    DWORD DesiredAccess, PDWORD PGrantedAccess)
+{
+    return FspAccessCheckEx(FileSystem, Request,
+        CheckParentDirectory, AllowTraverseCheck,
+        DesiredAccess, PGrantedAccess,
+        0);
+}
 
 /*
  * Path Handling

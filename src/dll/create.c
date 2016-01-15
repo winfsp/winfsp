@@ -37,11 +37,18 @@ static NTSTATUS FspGetSecurity(FSP_FILE_SYSTEM *FileSystem,
     }
 }
 
-FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
-    DWORD DesiredAccess, PDWORD PGrantedAccess)
+FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
+    DWORD DesiredAccess, PDWORD PGrantedAccess,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor)
 {
-    if (!Request->Req.Create.UserMode || 0 == FileSystem->Interface->GetSecurity)
+    *PGrantedAccess = 0;
+    if (0 != PSecurityDescriptor)
+        *PSecurityDescriptor = 0;
+
+    if (0 == FileSystem->Interface->GetSecurity ||
+        (!Request->Req.Create.UserMode && 0 == PSecurityDescriptor))
     {
         *PGrantedAccess = (MAXIMUM_ALLOWED & DesiredAccess) ? FILE_ALL_ACCESS : DesiredAccess;
         return STATUS_SUCCESS;
@@ -56,8 +63,6 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     DWORD TraverseAccess;
     BOOL AccessStatus;
 
-    *PGrantedAccess = 0;
-
     if (CheckParentDirectory)
         FspPathSuffix((PWSTR)Request->Buffer, &Parent, &Suffix);
 
@@ -69,7 +74,8 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
         goto exit;
     }
 
-    if (AllowTraverseCheck && !Request->Req.Create.HasTraversePrivilege)
+    if (Request->Req.Create.UserMode &&
+        AllowTraverseCheck && !Request->Req.Create.HasTraversePrivilege)
     {
         Remain = (PWSTR)Request->Buffer;
         for (;;)
@@ -99,7 +105,6 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
                 Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
             else
                 Result = FspNtStatusFromWin32(GetLastError());
-
             if (!NT_SUCCESS(Result))
                 goto exit;
         }
@@ -110,55 +115,65 @@ FSP_API NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess,
-        &FspFileGenericMapping, 0, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
-        Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
-    else
-        Result = FspNtStatusFromWin32(GetLastError());
-    if (!NT_SUCCESS(Result))
-        goto exit;
+    if (Request->Req.Create.UserMode)
+    {
+        if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess,
+            &FspFileGenericMapping, 0, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
+            Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
+        else
+            Result = FspNtStatusFromWin32(GetLastError());
+        if (!NT_SUCCESS(Result))
+            goto exit;
 
-    if (CheckParentDirectory)
-    {
-        if (0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+        if (CheckParentDirectory)
         {
-            Result = STATUS_NOT_A_DIRECTORY;
-            goto exit;
+            if (0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            {
+                Result = STATUS_NOT_A_DIRECTORY;
+                goto exit;
+            }
+        }
+        else
+        {
+            if ((Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) &&
+                0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            {
+                Result = STATUS_NOT_A_DIRECTORY;
+                goto exit;
+            }
+            if ((Request->Req.Create.CreateOptions & FILE_NON_DIRECTORY_FILE) &&
+                0 != (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            {
+                Result = STATUS_FILE_IS_A_DIRECTORY;
+                goto exit;
+            }
+        }
+
+        if (0 != (FileAttributes & FILE_ATTRIBUTE_READONLY))
+        {
+            if (DesiredAccess &
+                (FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_ADD_SUBDIRECTORY | FILE_DELETE_CHILD))
+            {
+                Result = STATUS_ACCESS_DENIED;
+                goto exit;
+            }
+            if (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
+            {
+                Result = STATUS_CANNOT_DELETE;
+                goto exit;
+            }
         }
     }
     else
-    {
-        if ((Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) &&
-            0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-        {
-            Result = STATUS_NOT_A_DIRECTORY;
-            goto exit;
-        }
-        if ((Request->Req.Create.CreateOptions & FILE_NON_DIRECTORY_FILE) &&
-            0 != (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-        {
-            Result = STATUS_FILE_IS_A_DIRECTORY;
-            goto exit;
-        }
-    }
+        *PGrantedAccess = (MAXIMUM_ALLOWED & DesiredAccess) ? FILE_ALL_ACCESS : DesiredAccess;
 
-    if (0 != (FileAttributes & FILE_ATTRIBUTE_READONLY))
-    {
-        if (DesiredAccess &
-            (FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_ADD_SUBDIRECTORY | FILE_DELETE_CHILD))
-        {
-            Result = STATUS_ACCESS_DENIED;
-            goto exit;
-        }
-        if (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
-        {
-            Result = STATUS_CANNOT_DELETE;
-            goto exit;
-        }
-    }
+    Result = STATUS_SUCCESS;
 
 exit:
-    MemFree(SecurityDescriptor);
+    if (0 != PSecurityDescriptor)
+        *PSecurityDescriptor = SecurityDescriptor;
+    else
+        MemFree(SecurityDescriptor);
 
     if (CheckParentDirectory)
         FspPathCombine((PWSTR)Request->Buffer, Suffix);
@@ -166,26 +181,64 @@ exit:
     return Result;
 }
 
+FSP_API NTSTATUS FspAssignSecurity(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PSECURITY_DESCRIPTOR ParentDescriptor,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor)
+{
+    *PSecurityDescriptor = 0;
+
+    if (!CreatePrivateObjectSecurity(
+        ParentDescriptor,
+        (PSECURITY_DESCRIPTOR)(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset),
+        PSecurityDescriptor,
+        0 != (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE),
+        (HANDLE)Request->Req.Create.AccessToken,
+        &FspFileGenericMapping))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return STATUS_SUCCESS;
+}
+
+FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor,
+    NTSTATUS(*CreateFunc)())
+{
+    if ((NTSTATUS (*)())FspAccessCheckEx == CreateFunc)
+        MemFree(SecurityDescriptor);
+    else if ((NTSTATUS (*)())FspAssignSecurity == CreateFunc)
+        DestroyPrivateObjectSecurity(SecurityDescriptor);
+}
+
 static inline
 NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, PDWORD PGrantedAccess)
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    BOOLEAN AllowTraverseCheck, PDWORD PGrantedAccess,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor)
 {
     NTSTATUS Result;
 
-    Result = FspAccessCheck(FileSystem, Request, TRUE, AllowTraverseCheck,
+    Result = FspAccessCheckEx(FileSystem, Request, TRUE, AllowTraverseCheck,
         (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) ?
             FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE,
-        PGrantedAccess);
+        PGrantedAccess, PSecurityDescriptor);
     if (NT_SUCCESS(Result))
+    {
         *PGrantedAccess = (MAXIMUM_ALLOWED & Request->Req.Create.DesiredAccess) ?
             FILE_ALL_ACCESS : Request->Req.Create.DesiredAccess;
+    }
+    else
+    {
+        if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
+            Result = STATUS_OBJECT_PATH_NOT_FOUND;
+    }
 
     return Result;
 }
 
 static inline
 NTSTATUS FspFileSystemOpenCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, PDWORD PGrantedAccess)
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    BOOLEAN AllowTraverseCheck, PDWORD PGrantedAccess)
 {
     return FspAccessCheck(FileSystem, Request, FALSE, AllowTraverseCheck,
         Request->Req.Create.DesiredAccess, PGrantedAccess);
@@ -193,7 +246,8 @@ NTSTATUS FspFileSystemOpenCheck(FSP_FILE_SYSTEM *FileSystem,
 
 static inline
 NTSTATUS FspFileSystemOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllowTraverseCheck, PDWORD PGrantedAccess)
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    BOOLEAN AllowTraverseCheck, PDWORD PGrantedAccess)
 {
     NTSTATUS Result;
     BOOLEAN Supersede = FILE_SUPERSEDE == ((Request->Req.Create.CreateOptions >> 24) & 0xff);
@@ -217,18 +271,23 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
 {
     NTSTATUS Result;
     DWORD GrantedAccess;
+    PSECURITY_DESCRIPTOR ParentDescriptor, ObjectDescriptor;
     FSP_FILE_NODE_INFO NodeInfo;
 
-    Result = FspFileSystemCreateCheck(FileSystem, Request, TRUE, &GrantedAccess);
+    Result = FspFileSystemCreateCheck(FileSystem, Request, TRUE, &GrantedAccess, &ParentDescriptor);
+    if (!NT_SUCCESS(Result))
+        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+
+    Result = FspAssignSecurity(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
+    FspDeleteSecurityDescriptor(ParentDescriptor, FspAccessCheckEx);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
     Result = FileSystem->Interface->Create(FileSystem, Request,
         (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
-        Request->Req.Create.FileAttributes,
-        (PSECURITY_DESCRIPTOR)(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset),
-        Request->Req.Create.AllocationSize,
+        Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
         &NodeInfo);
+    FspDeleteSecurityDescriptor(ParentDescriptor, FspAssignSecurity);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
@@ -262,6 +321,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
 {
     NTSTATUS Result;
     DWORD GrantedAccess;
+    PSECURITY_DESCRIPTOR ParentDescriptor, ObjectDescriptor;
     FSP_FILE_NODE_INFO NodeInfo;
     BOOLEAN Create = FALSE;
 
@@ -288,16 +348,20 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
 
     if (Create)
     {
-        Result = FspFileSystemCreateCheck(FileSystem, Request, FALSE, &GrantedAccess);
+        Result = FspFileSystemCreateCheck(FileSystem, Request, FALSE, &GrantedAccess, &ParentDescriptor);
+        if (!NT_SUCCESS(Result))
+            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+
+        Result = FspAssignSecurity(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
+        FspDeleteSecurityDescriptor(ParentDescriptor, FspAccessCheckEx);
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
         Result = FileSystem->Interface->Create(FileSystem, Request,
             (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
-            Request->Req.Create.FileAttributes,
-            (PSECURITY_DESCRIPTOR)(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset),
-            Request->Req.Create.AllocationSize,
+            Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
             &NodeInfo);
+        FspDeleteSecurityDescriptor(ParentDescriptor, FspAssignSecurity);
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
@@ -333,6 +397,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
 {
     NTSTATUS Result;
     DWORD GrantedAccess;
+    PSECURITY_DESCRIPTOR ParentDescriptor, ObjectDescriptor;
     FSP_FILE_NODE_INFO NodeInfo;
     BOOLEAN Create = FALSE;
 
@@ -359,16 +424,20 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
 
     if (Create)
     {
-        Result = FspFileSystemCreateCheck(FileSystem, Request, FALSE, &GrantedAccess);
+        Result = FspFileSystemCreateCheck(FileSystem, Request, FALSE, &GrantedAccess, &ParentDescriptor);
+        if (!NT_SUCCESS(Result))
+            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+
+        Result = FspAssignSecurity(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
+        FspDeleteSecurityDescriptor(ParentDescriptor, FspAccessCheckEx);
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
         Result = FileSystem->Interface->Create(FileSystem, Request,
             (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
-            Request->Req.Create.FileAttributes,
-            (PSECURITY_DESCRIPTOR)(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset),
-            Request->Req.Create.AllocationSize,
+            Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
             &NodeInfo);
+        FspDeleteSecurityDescriptor(ParentDescriptor, FspAssignSecurity);
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
     }
