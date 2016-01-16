@@ -639,7 +639,7 @@ NTSTATUS FspVolumeWork(
      * so that we can disassociate the Request on failure and release ownership
      * back to the caller.
      */
-    if (!FspIoqPostIrpEx(FsvolDeviceExtension->Ioq, Irp, !BestEffort, &Result))
+    if (!FspIoqPostIrpEx(FsvolDeviceExtension->Ioq, Irp, BestEffort, &Result))
     {
         Request->Hint = 0;
         FspIrpRequest(Irp) = 0;
