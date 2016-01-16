@@ -478,10 +478,13 @@ static RTL_GENERIC_COMPARE_RESULTS NTAPI FspFsvolDeviceCompareElement(
 {
     PAGED_CODE();
 
-    if (FirstElement < SecondElement)
+    UINT64 FirstIdentifier = *(PUINT64)FirstElement;
+    UINT64 SecondIdentifier = *(PUINT64)SecondElement;
+
+    if (FirstIdentifier < SecondIdentifier)
         return GenericLessThan;
     else
-    if (SecondElement < FirstElement)
+    if (SecondIdentifier < FirstIdentifier)
         return GenericGreaterThan;
     else
         return GenericEqual;
