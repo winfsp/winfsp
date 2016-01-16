@@ -58,6 +58,12 @@ void memfs_stop(void *data)
     MemfsDelete(Memfs);
 }
 
+PWSTR memfs_volumename(void *data)
+{
+    MEMFS *Memfs = ((struct memfs_data *)data)->Memfs;
+    return MemfsFileSystem(Memfs)->VolumeName;
+}
+
 void memfs_dotest(ULONG Flags)
 {
     void *memfs = memfs_start(Flags);
