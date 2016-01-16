@@ -26,9 +26,9 @@ NTSTATUS FspVolumeWork(
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspVolumeCreate)
 #pragma alloc_text(PAGE, FspVolumeCreateRegisterMup)
-#pragma alloc_text(PAGE, FspVolumeDelete)
-#pragma alloc_text(PAGE, FspVolumeDeleteDelayed)
-#pragma alloc_text(PAGE, FspVolumeMount)
+// ! #pragma alloc_text(PAGE, FspVolumeDelete)
+// ! #pragma alloc_text(PAGE, FspVolumeDeleteDelayed)
+// ! #pragma alloc_text(PAGE, FspVolumeMount)
 #pragma alloc_text(PAGE, FspVolumeGetName)
 #pragma alloc_text(PAGE, FspVolumeTransact)
 #pragma alloc_text(PAGE, FspVolumeRedirQueryPathEx)
@@ -216,7 +216,7 @@ static VOID FspVolumeCreateRegisterMup(PVOID Context)
 VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
-    PAGED_CODE();
+    // !PAGED_CODE();
 
     ASSERT(IRP_MJ_CLEANUP == IrpSp->MajorFunction);
     ASSERT(0 != IrpSp->FileObject->FsContext2);
@@ -304,7 +304,7 @@ VOID FspVolumeDelete(
 
 static VOID FspVolumeDeleteDelayed(PVOID Context)
 {
-    PAGED_CODE();
+    // !PAGED_CODE();
 
     PDEVICE_OBJECT FsvolDeviceObject = Context;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
@@ -334,7 +334,7 @@ static VOID FspVolumeDeleteDelayed(PVOID Context)
 NTSTATUS FspVolumeMount(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
-    PAGED_CODE();
+    // !PAGED_CODE();
 
     ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
     ASSERT(IRP_MN_MOUNT_VOLUME == IrpSp->MinorFunction);
