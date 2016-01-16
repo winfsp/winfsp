@@ -434,7 +434,7 @@ typedef struct
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;
     BOOLEAN ExpirationInProgress;
-    KGUARDED_MUTEX GenericTableMutex;
+    ERESOURCE GenericTableResource;
     RTL_AVL_TABLE GenericTable;
     PVOID GenericTableElementStorage;
     UNICODE_STRING VolumeName;

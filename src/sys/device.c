@@ -291,7 +291,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     FsvolDeviceExtension->InitDoneIoq = 1;
 
     /* initialize our generic table */
-    KeInitializeGuardedMutex(&FsvolDeviceExtension->GenericTableMutex);
+    ExInitializeResourceLite(&FsvolDeviceExtension->GenericTableResource);
     RtlInitializeGenericTableAvl(&FsvolDeviceExtension->GenericTable,
         FspFsvolDeviceCompareElement, FspFsvolDeviceAllocateElement, FspFsvolDeviceFreeElement, 0);
     FsvolDeviceExtension->InitDoneGenTab = 1;
@@ -326,23 +326,24 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
     if (FsvolDeviceExtension->InitDoneTimer)
         IoStopTimer(DeviceObject);
 
-#if 0
-    /* FspDeviceFreeElement is now a no-op, so this is no longer necessary */
-    /*
-     * Enumerate and delete all entries in the GenericTable.
-     * There is no need to protect accesses to the table as we are in the device destructor.
-     */
-    if (FsvolDeviceExtension->InitDoneGenTab)
-    {
-        FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Element;
-        while (0 != (Element = RtlGetElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, 0)))
-            RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Element->Identifier);
-    }
-#endif
-
     /* delete the Ioq */
     if (FsvolDeviceExtension->InitDoneIoq)
         FspIoqDelete(FsvolDeviceExtension->Ioq);
+
+    if (FsvolDeviceExtension->InitDoneGenTab)
+    {
+#if 0
+        /* FspDeviceFreeElement is now a no-op, so this is no longer necessary */
+        /*
+         * Enumerate and delete all entries in the GenericTable.
+         * There is no need to protect accesses to the table as we are in the device destructor.
+         */
+        FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Element;
+        while (0 != (Element = RtlGetElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, 0)))
+            RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Element->Identifier);
+#endif
+        ExDeleteResourceLite(&FsvolDeviceExtension->GenericTableResource);
+    }
 
     /* finalize our delete lock */
     if (FsvolDeviceExtension->InitDoneDelRsc)
@@ -413,7 +414,7 @@ VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject)
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    KeAcquireGuardedMutex(&FsvolDeviceExtension->GenericTableMutex);
+    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->GenericTableResource, TRUE);
 }
 
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject)
@@ -421,7 +422,7 @@ VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject)
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    KeReleaseGuardedMutex(&FsvolDeviceExtension->GenericTableMutex);
+    ExReleaseResourceLite(&FsvolDeviceExtension->GenericTableResource);
 }
 
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier)
