@@ -554,6 +554,7 @@ VOID FspFsvolCreateComplete(
             }
 
             /* SUCCESS! */
+            FspIopRequestContext(Request, RequestFsContext) = 0;
             Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
             Result = STATUS_SUCCESS;
         }
@@ -598,6 +599,7 @@ VOID FspFsvolCreateComplete(
         else
         {
             /* SUCCESS! */
+            FspIopRequestContext(Request, RequestFsContext) = 0;
             Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
             Result = STATUS_SUCCESS;
         }
@@ -629,6 +631,7 @@ VOID FspFsvolCreateComplete(
         FspFileContextPgioUnlock(FsContext);
 
         /* SUCCESS! */
+        FspIopRequestContext(Request, RequestFsContext) = 0;
         Irp->IoStatus.Information = Request->Req.Overwrite.Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
         Result = STATUS_SUCCESS;
     }
