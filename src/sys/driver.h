@@ -40,12 +40,12 @@
 
 /* DEBUGBREAK */
 #if DBG
-extern __declspec(selectany) int bpglobal = 1;
+extern __declspec(selectany) int fsp_bp = 1;
 #define DEBUGBREAK()                    \
     do                                  \
     {                                   \
         static int bp = 1;          \
-        if (bp && bpglobal && !KD_DEBUGGER_NOT_PRESENT)\
+        if (bp && fsp_bp && !KD_DEBUGGER_NOT_PRESENT)\
             DbgBreakPoint();            \
     } while (0,0)
 #else
