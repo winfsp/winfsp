@@ -19,7 +19,7 @@ typedef struct _MEMFS_FILE_NODE
     ULONG AllocationSize;
     ULONG FileSize;
     PVOID FileData;
-    ULONG OpenCount;
+    ULONG RefCount;
 } MEMFS_FILE_NODE;
 
 struct MEMFS_FILE_NODE_LESS
@@ -129,6 +129,8 @@ NTSTATUS MemfsFileNodeMapInsert(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NOD
     try
     {
         *PInserted = FileNodeMap->insert(MEMFS_FILE_NODE_MAP::value_type(FileNode->FileName, FileNode)).second;
+        if (*PInserted)
+            FileNode->RefCount++;
         return STATUS_SUCCESS;
     }
     catch (...)
@@ -138,9 +140,10 @@ NTSTATUS MemfsFileNodeMapInsert(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NOD
 }
 
 static inline
-VOID MemfsFileNodeMapRemove(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR FileName)
+VOID MemfsFileNodeMapRemove(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode)
 {
-    FileNodeMap->erase(FileName);
+    --FileNode->RefCount;
+    FileNodeMap->erase(FileNode->FileName);
 }
 
 static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
@@ -236,7 +239,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         return Result;
     }
 
-    FileNode->OpenCount++;
+    FileNode->RefCount++;
     NodeInfo->FileAttributes = FileNode->FileAttributes;
     NodeInfo->AllocationSize = FileNode->AllocationSize;
     NodeInfo->FileSize = FileNode->FileSize;
@@ -258,7 +261,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
         return !MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName) ?
             STATUS_OBJECT_PATH_NOT_FOUND : STATUS_OBJECT_NAME_NOT_FOUND;
 
-    FileNode->OpenCount++;
+    FileNode->RefCount++;
     NodeInfo->FileAttributes = FileNode->FileAttributes;
     NodeInfo->AllocationSize = FileNode->AllocationSize;
     NodeInfo->FileSize = FileNode->FileSize;
@@ -296,7 +299,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
     if (Delete)
-        MemfsFileNodeMapRemove(Memfs->FileNodeMap, FileNode->FileName);
+        MemfsFileNodeMapRemove(Memfs->FileNodeMap, FileNode);
 }
 
 static VOID Close(FSP_FILE_SYSTEM *FileSystem,
@@ -306,7 +309,7 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem,
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
-    if (0 == --FileNode->OpenCount)
+    if (0 == --FileNode->RefCount)
         MemfsFileNodeDelete(FileNode);
 }
 
