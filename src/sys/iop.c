@@ -240,7 +240,7 @@ VOID FspIopCompleteCanceledIrp(PIRP Irp)
 
 #if DBG
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    DEBUGLOG("IRP=%p, %s%c, %s%s\n",
+    DEBUGLOG("IRP=%p, %s%c, %s%s",
         Irp,
         (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,
         Irp->RequestorMode == KernelMode ? 'K' : 'U',
