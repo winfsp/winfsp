@@ -73,17 +73,14 @@ static NTSTATUS FspFsvolCleanup(
     Request->Req.Cleanup.UserContext2 = UserContext2;
     Request->Req.Cleanup.Delete = DeletePending;
 
+    return FSP_STATUS_IOQ_POST_BEST_EFFORT;
+
     /*
      * Note that it is still possible for this request to not be delivered,
      * if the volume device Ioq is stopped. But such failures are benign
      * from our perspective, because they mean that the file system is going
      * away and should correctly tear things down.
      */
-
-    if (FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, 0))
-        return STATUS_PENDING;
-    else
-        return STATUS_SUCCESS;
 }
 
 VOID FspFsvolCleanupComplete(

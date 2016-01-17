@@ -312,7 +312,7 @@ static NTSTATUS FspFsvolCreate(
         RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset,
             SecurityDescriptor, SecurityDescriptorSize);
 
-    return STATUS_PENDING;
+    return FSP_STATUS_IOQ_POST;
 }
 
 NTSTATUS FspFsvolCreatePrepare(
@@ -380,8 +380,7 @@ NTSTATUS FspFsvolCreatePrepare(
             /* repost the IRP to retry later */
             FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
                 FspFsvolDeviceExtension(IrpSp->DeviceObject);
-            if (FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, &Result))
-                Result = STATUS_PENDING;
+            FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, &Result);
             return Result;
         }
 
@@ -593,8 +592,7 @@ VOID FspFsvolCreateComplete(
              * Note that it is still possible for this request to not be delivered,
              * if the volume device Ioq is stopped or if the IRP is canceled.
              */
-            if (FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, &Result))
-                Result = STATUS_PENDING;
+            FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, &Result);
         }
         else
         {

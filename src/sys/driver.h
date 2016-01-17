@@ -25,6 +25,11 @@
 #define FSP_FSVRT_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;WD)"
     /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ */
 
+/* private NTSTATUS codes */
+#define FSP_STATUS_PRIVATE_BIT          (0x20000000)
+#define FSP_STATUS_IOQ_POST             (FSP_STATUS_PRIVATE_BIT | 0x0000)
+#define FSP_STATUS_IOQ_POST_BEST_EFFORT (FSP_STATUS_PRIVATE_BIT | 0x0001)
+
 /* misc macros */
 #define FSP_ALLOC_INTERNAL_TAG          'IpsF'
 #define FSP_ALLOC_EXTERNAL_TAG          'XpsF'
@@ -111,28 +116,33 @@ extern __declspec(selectany) int fsp_bp = 1;
     } while (0,0)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(                         \
-        FSP_DEBUGLOG_("%p, %s%c, %s%s, " fmt, " = %s[%lld]",\
-            Irp,                        \
-            (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
-            Irp->RequestorMode == KernelMode ? 'K' : 'U',\
-            IrpMajorFunctionSym(IrpSp->MajorFunction),\
-            IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction),\
-            __VA_ARGS__,                \
-            NtStatusSym(Result),        \
-            (LONGLONG)Irp->IoStatus.Information);\
-        if (STATUS_PENDING == Result)   \
+        if (STATUS_PENDING != Result)   \
         {                               \
-            if (0 == (IrpSp->Control & SL_PENDING_RETURNED))\
+            ASSERT(0 == (FSP_STATUS_PRIVATE_BIT & Result) ||\
+                FSP_STATUS_IOQ_POST == Result || FSP_STATUS_IOQ_POST_BEST_EFFORT == Result);\
+            FSP_DEBUGLOG_("%p, %s%c, %s%s, " fmt, " = %s[%lld]",\
+                Irp,                    \
+                (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
+                Irp->RequestorMode == KernelMode ? 'K' : 'U',\
+                IrpMajorFunctionSym(IrpSp->MajorFunction),\
+                IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction),\
+                __VA_ARGS__,            \
+                NtStatusSym(Result),    \
+                (LONGLONG)Irp->IoStatus.Information);\
+            if (FSP_STATUS_PRIVATE_BIT & Result)\
             {                           \
-                /* if the IRP has not been marked pending already */\
                 FSP_FSVOL_DEVICE_EXTENSION *fsp_leave_FsvolDeviceExtension =\
                     FspFsvolDeviceExtension(DeviceObject);\
-                if (!FspIoqPostIrp(fsp_leave_FsvolDeviceExtension->Ioq, Irp, &Result))\
+                if (!FspIoqPostIrpEx(fsp_leave_FsvolDeviceExtension->Ioq, Irp,\
+                    FSP_STATUS_IOQ_POST_BEST_EFFORT == Result, &Result))\
+                {\
+                    DEBUGLOG("FspIoqPostIrpEx = %s", NtStatusSym(Result));\
                     FspIopCompleteIrp(Irp, Result);\
+                }\
             }                           \
+            else                        \
+                FspIopCompleteIrpEx(Irp, Result, fsp_device_release);\
         }                               \
-        else                            \
-            FspIopCompleteIrpEx(Irp, Result, fsp_device_release);\
     );                                  \
     return Result
 #define FSP_ENTER_IOC(...)              \
@@ -141,17 +151,20 @@ extern __declspec(selectany) int fsp_bp = 1;
     FSP_ENTER_NOCRIT_(__VA_ARGS__)
 #define FSP_LEAVE_IOC(fmt, ...)         \
     FSP_LEAVE_NOCRIT_(                  \
-        FSP_DEBUGLOG_NOCRIT_("%p, %s%c, %s%s, " fmt, " = %s[%lld]",\
-            Irp,                        \
-            (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
-            Irp->RequestorMode == KernelMode ? 'K' : 'U',\
-            IrpMajorFunctionSym(IrpSp->MajorFunction),\
-            IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction),\
-            __VA_ARGS__,                \
-            NtStatusSym(Result),        \
-            (LONGLONG)Irp->IoStatus.Information);\
         if (STATUS_PENDING != Result)   \
+        {                               \
+            ASSERT(0 == (FSP_STATUS_PRIVATE_BIT & Result));\
+            FSP_DEBUGLOG_NOCRIT_("%p, %s%c, %s%s, " fmt, " = %s[%lld]",\
+                Irp,                    \
+                (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
+                Irp->RequestorMode == KernelMode ? 'K' : 'U',\
+                IrpMajorFunctionSym(IrpSp->MajorFunction),\
+                IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction),\
+                __VA_ARGS__,            \
+                NtStatusSym(Result),    \
+                (LONGLONG)Irp->IoStatus.Information);\
             FspIopCompleteIrp(Irp, Result);\
+        }                               \
     )
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)

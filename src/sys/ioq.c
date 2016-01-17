@@ -384,10 +384,17 @@ BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN BestEffort, NTSTATUS *PR
         QueryInterruptTimeInSec() + Ioq->IrpTimeout;
     Result = IoCsqInsertIrpEx(&Ioq->PendingIoCsq, Irp, 0, (PVOID)BestEffort);
     if (NT_SUCCESS(Result))
+    {
+        if (0 != PResult)
+            *PResult = STATUS_PENDING;
         return TRUE;
-    if (0 != PResult)
-        *PResult = Result;
-    return FALSE;
+    }
+    else
+    {
+        if (0 != PResult)
+            *PResult = Result;
+        return FALSE;
+    }
 }
 
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout)

@@ -16,12 +16,16 @@ const char *NtStatusSym(NTSTATUS Status)
     {
     // cygwin: sed -n '/_WAIT_0/!s/^#define[ \t]*\(STATUS_[^ \t]*\).*NTSTATUS.*$/SYM(\1)/p'
     #include "ntstatus.i"
+    case FSP_STATUS_IOQ_POST:
+        return "FSP_STATUS_IOQ_POST";
+    case FSP_STATUS_IOQ_POST_BEST_EFFORT:
+        return "FSP_STATUS_IOQ_POST_BEST_EFFORT";
     default:
         return "NTSTATUS:Unknown";
     }
 }
 
-const char *IrpMajorFunctionSym(UCHAR MajorFunction)
+const char *IrpMajorFunctionSym(UCHAR MajorFunction)    
 {
     switch (MajorFunction)
     {

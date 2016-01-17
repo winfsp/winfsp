@@ -644,8 +644,10 @@ NTSTATUS FspVolumeWork(
         Request->Hint = 0;
         FspIrpRequest(Irp) = 0;
     }
-    else
-        Result = STATUS_PENDING;
+
+    DEBUGLOG("%s = %s",
+        IoctlCodeSym(BestEffort ? FSP_FSCTL_WORK_BEST_EFFORT : FSP_FSCTL_WORK),
+        NtStatusSym(Result));
 
     return Result;
 }

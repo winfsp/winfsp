@@ -214,6 +214,7 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
     PAGED_CODE();
 
     ASSERT(STATUS_PENDING != Result);
+    ASSERT(0 == (FSP_STATUS_PRIVATE_BIT & Result));
 
     if (0 != FspIrpRequest(Irp))
     {
