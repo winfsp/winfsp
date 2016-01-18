@@ -47,22 +47,22 @@ static NTSTATUS FspFsvolClose(
     PAGED_CODE();
 
     /* is this a valid FileObject? */
-    if (!FspFileContextIsValid(IrpSp->FileObject->FsContext))
+    if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
         return STATUS_SUCCESS;
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     BOOLEAN FileNameRequired = 0 != FsvolDeviceExtension->VolumeParams.FileNameRequired;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
-    FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
-    UINT64 UserContext = FsContext->UserContext;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    UINT64 UserContext = FileNode->UserContext;
     UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
-    /* dereference the FsContext (and delete if no more references) */
-    FspFileContextRelease(FsContext);
+    /* dereference the FileNode (and delete if no more references) */
+    FspFileNodeRelease(FileNode);
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLOSE cannot fail */
-    FspIopCreateRequestMustSucceed(0, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
+    FspIopCreateRequestMustSucceed(0, FileNameRequired ? &FileNode->FileName : 0, 0, &Request);
 
     /* populate the Close request */
     Request->Kind = FspFsctlTransactCloseKind;

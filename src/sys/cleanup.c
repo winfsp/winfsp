@@ -50,22 +50,22 @@ static NTSTATUS FspFsvolCleanup(
     PAGED_CODE();
 
     /* is this a valid FileObject? */
-    if (!FspFileContextIsValid(IrpSp->FileObject->FsContext))
+    if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
         return STATUS_SUCCESS;
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     BOOLEAN FileNameRequired = 0 != FsvolDeviceExtension->VolumeParams.FileNameRequired;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
-    FSP_FILE_CONTEXT *FsContext = FileObject->FsContext;
-    UINT64 UserContext = FsContext->UserContext;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    UINT64 UserContext = FileNode->UserContext;
     UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request;
     BOOLEAN DeletePending;
 
-    FspFileContextClose(FsContext, FileObject, &DeletePending);
+    FspFileNodeClose(FileNode, FileObject, &DeletePending);
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLEANUP cannot fail */
-    FspIopCreateRequestMustSucceed(Irp, FileNameRequired ? &FsContext->FileName : 0, 0, &Request);
+    FspIopCreateRequestMustSucceed(Irp, FileNameRequired ? &FileNode->FileName : 0, 0, &Request);
 
     /* populate the Cleanup request */
     Request->Kind = FspFsctlTransactCleanupKind;

@@ -15,7 +15,7 @@ static NTSTATUS FspFsvolCreate(
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
 static VOID FspFsvolCreatePostClose(
-    FSP_FILE_CONTEXT *FsContext, UINT64 UserContext2);
+    FSP_FILE_NODE *FileNode, UINT64 UserContext2);
 static FSP_IOP_REQUEST_FINI FspFsvolCreateRequestFini;
 static FSP_IOP_REQUEST_FINI FspFsvolCreateOverwriteRequestFini;
 FSP_DRIVER_DISPATCH FspCreate;
@@ -38,11 +38,11 @@ FSP_DRIVER_DISPATCH FspCreate;
 enum
 {
     /* CreateRequest */
-    RequestFsContext                    = 0,
+    RequestFileNode                     = 0,
     RequestAccessToken                  = 1,
     RequestProcess                      = 2,
     /* OverwriteRequest */
-    //RequestFsContext                  = 0,
+    //RequestFileNode                   = 0,
     RequestFileObject                   = 1,
 };
 
@@ -117,7 +117,7 @@ static NTSTATUS FspFsvolCreate(
     BOOLEAN IsAbsoluteSecurityDescriptor = FALSE;
     BOOLEAN IsSelfRelativeSecurityDescriptor = FALSE;
     BOOLEAN HasTrailingBackslash = FALSE;
-    FSP_FILE_CONTEXT *FsContext, *RelatedFsContext;
+    FSP_FILE_NODE *FileNode, *RelatedFileNode;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     /* cannot open files by fileid */
@@ -185,10 +185,10 @@ static NTSTATUS FspFsvolCreate(
     /* is this a relative or absolute open? */
     if (0 != RelatedFileObject)
     {
-        RelatedFsContext = RelatedFileObject->FsContext;
+        RelatedFileNode = RelatedFileObject->FsContext;
 
         /* is this a valid RelatedFileObject? */
-        if (!FspFileContextIsValid(RelatedFsContext))
+        if (!FspFileNodeIsValid(RelatedFileNode))
             return STATUS_OBJECT_PATH_NOT_FOUND;
 
         /* must be a relative path */
@@ -201,34 +201,34 @@ static NTSTATUS FspFsvolCreate(
             FILE_OVERWRITE_IF == CreateDisposition ||
             FILE_SUPERSEDE == CreateDisposition ||
             BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY)) &&
-            sizeof(WCHAR) == RelatedFsContext->FileName.Length && 0 == FileName.Length)
+            sizeof(WCHAR) == RelatedFileNode->FileName.Length && 0 == FileName.Length)
             return STATUS_ACCESS_DENIED;
 
         /* cannot FILE_DELETE_ON_CLOSE on the root directory */
         if (FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE) &&
-            sizeof(WCHAR) == RelatedFsContext->FileName.Length && 0 == FileName.Length)
+            sizeof(WCHAR) == RelatedFileNode->FileName.Length && 0 == FileName.Length)
             return STATUS_CANNOT_DELETE;
 
         /*
-         * There is no need to lock our accesses of RelatedFileObject->FsContext->FileName,
-         * because RelatedFileObject->FsContext->Filename is read-only (after creation) and
-         * because RelatedFileObject->FsContext is guaranteed to exist while RelatedFileObject
+         * There is no need to lock our accesses of RelatedFileObject->FileNode->FileName,
+         * because RelatedFileObject->FileNode->Filename is read-only (after creation) and
+         * because RelatedFileObject->FileNode is guaranteed to exist while RelatedFileObject
          * exists.
          */
         BOOLEAN AppendBackslash =
-            sizeof(WCHAR) * 2/* not empty or root */ <= RelatedFsContext->FileName.Length &&
+            sizeof(WCHAR) * 2/* not empty or root */ <= RelatedFileNode->FileName.Length &&
             sizeof(WCHAR) <= FileName.Length && L':' != FileName.Buffer[0];
-        Result = FspFileContextCreate(FsvolDeviceObject,
-            RelatedFsContext->FileName.Length + AppendBackslash * sizeof(WCHAR) + FileName.Length,
-            &FsContext);
+        Result = FspFileNodeCreate(FsvolDeviceObject,
+            RelatedFileNode->FileName.Length + AppendBackslash * sizeof(WCHAR) + FileName.Length,
+            &FileNode);
         if (!NT_SUCCESS(Result))
             return Result;
 
-        Result = RtlAppendUnicodeStringToString(&FsContext->FileName, &RelatedFsContext->FileName);
+        Result = RtlAppendUnicodeStringToString(&FileNode->FileName, &RelatedFileNode->FileName);
         ASSERT(NT_SUCCESS(Result));
         if (AppendBackslash)
         {
-            Result = RtlAppendUnicodeToString(&FsContext->FileName, L"\\");
+            Result = RtlAppendUnicodeToString(&FileNode->FileName, L"\\");
             ASSERT(NT_SUCCESS(Result));
         }
     }
@@ -252,31 +252,31 @@ static NTSTATUS FspFsvolCreate(
             sizeof(WCHAR) == FileName.Length)
             return STATUS_CANNOT_DELETE;
 
-        Result = FspFileContextCreate(FsvolDeviceObject,
+        Result = FspFileNodeCreate(FsvolDeviceObject,
             FileName.Length,
-            &FsContext);
+            &FileNode);
         if (!NT_SUCCESS(Result))
             return Result;
     }
 
-    Result = RtlAppendUnicodeStringToString(&FsContext->FileName, &FileName);
+    Result = RtlAppendUnicodeStringToString(&FileNode->FileName, &FileName);
     ASSERT(NT_SUCCESS(Result));
 
     /* create the user-mode file system request */
-    Result = FspIopCreateRequestEx(Irp, &FsContext->FileName, SecurityDescriptorSize,
+    Result = FspIopCreateRequestEx(Irp, &FileNode->FileName, SecurityDescriptorSize,
         FspFsvolCreateRequestFini, &Request);
     if (!NT_SUCCESS(Result))
     {
-        FspFileContextRelease(FsContext);
+        FspFileNodeRelease(FileNode);
         return Result;
     }
 
     /*
-     * The new request is associated with our IRP. Go ahead and associate our FsContext
+     * The new request is associated with our IRP. Go ahead and associate our FileNode
      * with the Request as well. After this is done completing our IRP will automatically
      * delete the Request and any associated resources.
      */
-    FspIopRequestContext(Request, RequestFsContext) = FsContext;
+    FspIopRequestContext(Request, RequestFileNode) = FileNode;
 
     /* populate the Create request */
     Request->Kind = FspFsctlTransactCreateKind;
@@ -328,7 +328,7 @@ NTSTATUS FspFsvolCreatePrepare(
     SECURITY_CLIENT_CONTEXT SecurityClientContext;
     HANDLE UserModeAccessToken;
     PEPROCESS Process;
-    FSP_FILE_CONTEXT *FsContext;
+    FSP_FILE_NODE *FileNode;
     PFILE_OBJECT FileObject;
 
     if (FspFsctlTransactCreateKind == Request->Kind)
@@ -370,11 +370,11 @@ NTSTATUS FspFsvolCreatePrepare(
     }
     else if (FspFsctlTransactOverwriteKind == Request->Kind)
     {
-        FsContext = FspIopRequestContext(Request, RequestFsContext);
+        FileNode = FspIopRequestContext(Request, RequestFileNode);
         FileObject = FspIopRequestContext(Request, RequestFileObject);
 
-        /* lock the FsContext for Paging IO */
-        Success = FspFileContextPgioLockExclusive(FsContext, FALSE);
+        /* lock the FileNode for Paging IO */
+        Success = FspFileNodePgioLockExclusive(FileNode, FALSE);
         if (!Success)
         {
             /* repost the IRP to retry later */
@@ -389,19 +389,19 @@ NTSTATUS FspFsvolCreatePrepare(
 
         /* see what the MM thinks about all this */
         LARGE_INTEGER Zero = { 0 };
-        Success = MmCanFileBeTruncated(&FsContext->NonPaged->SectionObjectPointers, &Zero);
+        Success = MmCanFileBeTruncated(&FileNode->NonPaged->SectionObjectPointers, &Zero);
         if (!Success)
         {
-            FspFileContextPgioUnlock(FsContext);
+            FspFileNodePgioUnlock(FileNode);
 
-            FspFsvolCreatePostClose(FsContext, (UINT_PTR)FileObject->FsContext2);
-            FspFileContextClose(FsContext, FileObject, 0);
+            FspFsvolCreatePostClose(FileNode, (UINT_PTR)FileObject->FsContext2);
+            FspFileNodeClose(FileNode, FileObject, 0);
 
             return STATUS_USER_MAPPED_FILE;
         }
 
         /* purge any caches on this file */
-        CcPurgeCacheSection(&FsContext->NonPaged->SectionObjectPointers, 0, 0, FALSE);
+        CcPurgeCacheSection(&FileNode->NonPaged->SectionObjectPointers, 0, 0, FALSE);
 
         return STATUS_SUCCESS;
     }
@@ -422,8 +422,8 @@ VOID FspFsvolCreateComplete(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
-    FSP_FILE_CONTEXT *FsContext = FspIopRequestContext(Request, RequestFsContext);
-    FSP_FILE_CONTEXT *OpenedFsContext;
+    FSP_FILE_NODE *FileNode = FspIopRequestContext(Request, RequestFileNode);
+    FSP_FILE_NODE *OpenedFileNode;
     UNICODE_STRING ReparseFileName;
     BOOLEAN DeleteOnClose;
 
@@ -494,36 +494,36 @@ VOID FspFsvolCreateComplete(
             FSP_RETURN();
         }
 
-        /* populate the FsContext fields from the Response */
-        FsContext->Header.AllocationSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
-        FsContext->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.FileSize;
-        FsContext->UserContext = Response->Rsp.Create.Opened.UserContext;
+        /* populate the FileNode fields from the Response */
+        FileNode->Header.AllocationSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
+        FileNode->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.FileSize;
+        FileNode->UserContext = Response->Rsp.Create.Opened.UserContext;
 
         DeleteOnClose = BooleanFlagOn(Request->Req.Create.CreateOptions, FILE_DELETE_ON_CLOSE);
 
-        /* open the FsContext */
-        OpenedFsContext = FspFileContextOpen(FsContext, FileObject,
+        /* open the FileNode */
+        OpenedFileNode = FspFileNodeOpen(FileNode, FileObject,
             Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
             DeleteOnClose,
             &Result);
-        if (0 == OpenedFsContext)
+        if (0 == OpenedFileNode)
         {
-            /* unable to open the FsContext; post a Close request */
-            FspFsvolCreatePostClose(FsContext,
+            /* unable to open the FileNode; post a Close request */
+            FspFsvolCreatePostClose(FileNode,
                 Response->Rsp.Create.Opened.UserContext2);
 
             FSP_RETURN();
         }
 
-        FsContext = OpenedFsContext;
+        FileNode = OpenedFileNode;
 
         /* set up the FileObject */
         if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
 #pragma prefast(disable:28175, "We are a filesystem: ok to access Vpb")
             FileObject->Vpb = FsvolDeviceExtension->FsvrtDeviceObject->Vpb;
-        FileObject->SectionObjectPointer = &FsContext->NonPaged->SectionObjectPointers;
+        FileObject->SectionObjectPointer = &FileNode->NonPaged->SectionObjectPointers;
         FileObject->PrivateCacheMap = 0;
-        FileObject->FsContext = FsContext;
+        FileObject->FsContext = FileNode;
         FileObject->FsContext2 = (PVOID)(UINT_PTR)Response->Rsp.Create.Opened.UserContext2;
 
         if (FILE_OPENED == Response->IoStatus.Information)
@@ -540,12 +540,12 @@ VOID FspFsvolCreateComplete(
             if (FlagOn(Response->Rsp.Create.Opened.GrantedAccess, FILE_WRITE_DATA) ||
                 DeleteOnClose)
             {
-                if (!MmFlushImageSection(&FsContext->NonPaged->SectionObjectPointers,
+                if (!MmFlushImageSection(&FileNode->NonPaged->SectionObjectPointers,
                     MmFlushForWrite))
                 {
-                    FspFsvolCreatePostClose(FsContext,
+                    FspFsvolCreatePostClose(FileNode,
                         Response->Rsp.Create.Opened.UserContext2);
-                    FspFileContextClose(FsContext, FileObject, 0);
+                    FspFileNodeClose(FileNode, FileObject, 0);
 
                     Result = DeleteOnClose ? STATUS_CANNOT_DELETE : STATUS_SHARING_VIOLATION;
                     FSP_RETURN();
@@ -553,7 +553,7 @@ VOID FspFsvolCreateComplete(
             }
 
             /* SUCCESS! */
-            FspIopRequestContext(Request, RequestFsContext) = 0;
+            FspIopRequestContext(Request, RequestFileNode) = 0;
             Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
             Result = STATUS_SUCCESS;
         }
@@ -571,17 +571,17 @@ VOID FspFsvolCreateComplete(
 
             /* create the Overwrite request; MustSucceed because we must either overwrite or close */
             FspIopCreateRequestFunnel(Irp,
-                FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FsContext->FileName : 0, 0,
+                FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FileNode->FileName : 0, 0,
                 FspFsvolCreateOverwriteRequestFini, TRUE,
                 &Request);
 
-            /* associate the FsContext and FileObject with the Overwrite request */
-            FspIopRequestContext(Request, RequestFsContext) = FsContext;
+            /* associate the FileNode and FileObject with the Overwrite request */
+            FspIopRequestContext(Request, RequestFileNode) = FileNode;
             FspIopRequestContext(Request, RequestFileObject) = FileObject;
 
             /* populate the Overwrite request */
             Request->Kind = FspFsctlTransactOverwriteKind;
-            Request->Req.Overwrite.UserContext = FsContext->UserContext;
+            Request->Req.Overwrite.UserContext = FileNode->UserContext;
             Request->Req.Overwrite.UserContext2 = (UINT_PTR)FileObject->FsContext2;
             Request->Req.Overwrite.FileAttributes = IrpSp->Parameters.Create.FileAttributes;
             Request->Req.Overwrite.Supersede = FILE_SUPERSEDED == Response->IoStatus.Information;
@@ -597,7 +597,7 @@ VOID FspFsvolCreateComplete(
         else
         {
             /* SUCCESS! */
-            FspIopRequestContext(Request, RequestFsContext) = 0;
+            FspIopRequestContext(Request, RequestFileNode) = 0;
             Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
             Result = STATUS_SUCCESS;
         }
@@ -612,9 +612,9 @@ VOID FspFsvolCreateComplete(
         /* did the user-mode file system sent us a failure code? */
         if (!NT_SUCCESS(Response->IoStatus.Status))
         {
-            FspFileContextPgioUnlock(FsContext);
+            FspFileNodePgioUnlock(FileNode);
 
-            FspFileContextClose(FsContext, FileObject, 0);
+            FspFileNodeClose(FileNode, FileObject, 0);
 
             Irp->IoStatus.Information = 0;
             Result = Response->IoStatus.Status;
@@ -622,14 +622,14 @@ VOID FspFsvolCreateComplete(
         }
 
         /* file was successfully overwritten/superseded */
-        FsContext->Header.AllocationSize.QuadPart = Response->Rsp.Overwrite.AllocationSize;
-        FsContext->Header.FileSize.QuadPart = Response->Rsp.Overwrite.FileSize;
-        CcSetFileSizes(FileObject, (PCC_FILE_SIZES)&FsContext->Header.AllocationSize);
+        FileNode->Header.AllocationSize.QuadPart = Response->Rsp.Overwrite.AllocationSize;
+        FileNode->Header.FileSize.QuadPart = Response->Rsp.Overwrite.FileSize;
+        CcSetFileSizes(FileObject, (PCC_FILE_SIZES)&FileNode->Header.AllocationSize);
 
-        FspFileContextPgioUnlock(FsContext);
+        FspFileNodePgioUnlock(FileNode);
 
         /* SUCCESS! */
-        FspIopRequestContext(Request, RequestFsContext) = 0;
+        FspIopRequestContext(Request, RequestFileNode) = 0;
         Irp->IoStatus.Information = Request->Req.Overwrite.Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
         Result = STATUS_SUCCESS;
     }
@@ -642,22 +642,22 @@ VOID FspFsvolCreateComplete(
 }
 
 static VOID FspFsvolCreatePostClose(
-    FSP_FILE_CONTEXT *FsContext, UINT64 UserContext2)
+    FSP_FILE_NODE *FileNode, UINT64 UserContext2)
 {
     PAGED_CODE();
 
-    PDEVICE_OBJECT FsvolDeviceObject = FsContext->FsvolDeviceObject;
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     /* create the user-mode file system request; MustSucceed because we cannot fail */
     FspIopCreateRequestMustSucceed(0,
-        FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FsContext->FileName : 0,
+        FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FileNode->FileName : 0,
         0, &Request);
 
     /* populate the Close request */
     Request->Kind = FspFsctlTransactCloseKind;
-    Request->Req.Close.UserContext = FsContext->UserContext;
+    Request->Req.Close.UserContext = FileNode->UserContext;
     Request->Req.Close.UserContext2 = UserContext2;
 
     /*
@@ -678,10 +678,10 @@ static VOID FspFsvolCreateRequestFini(PVOID Context[3])
 {
     PAGED_CODE();
 
-    if (0 != Context[RequestFsContext])
+    if (0 != Context[RequestFileNode])
     {
-        FspFileContextRelease(Context[RequestFsContext]);
-        Context[RequestFsContext] = 0;
+        FspFileNodeRelease(Context[RequestFileNode]);
+        Context[RequestFileNode] = 0;
     }
 
     if (0 != Context[RequestAccessToken])
@@ -717,21 +717,21 @@ static VOID FspFsvolCreateOverwriteRequestFini(PVOID Context[3])
 {
     PAGED_CODE();
 
-    if (0 != Context[RequestFsContext])
+    if (0 != Context[RequestFileNode])
     {
-        FSP_FILE_CONTEXT *FsContext = Context[RequestFsContext];
+        FSP_FILE_NODE *FileNode = Context[RequestFileNode];
         PFILE_OBJECT FileObject = Context[RequestFileObject];
 
         if (0 != FileObject)
         {
-            FspFsvolCreatePostClose(FsContext, (UINT_PTR)FileObject->FsContext2);
-            FspFileContextClose(FsContext, FileObject, 0);
+            FspFsvolCreatePostClose(FileNode, (UINT_PTR)FileObject->FsContext2);
+            FspFileNodeClose(FileNode, FileObject, 0);
         }
 
-        FspFileContextRelease(FsContext);
+        FspFileNodeRelease(FileNode);
 
         Context[RequestFileObject] = 0;
-        Context[RequestFsContext] = 0;
+        Context[RequestFileNode] = 0;
     }
 }
 

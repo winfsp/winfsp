@@ -83,7 +83,7 @@
     <ClCompile Include="..\..\src\sys\volume.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\filectx.c">
+    <ClCompile Include="..\..\src\sys\node.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

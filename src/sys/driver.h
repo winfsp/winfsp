@@ -505,13 +505,13 @@ NTSTATUS FspVolumeWork(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 
 /* file objects */
-#define FspFileContextKind(FsContext)   \
-    (((FSP_FILE_CONTEXT *)FsContext)->Header.NodeTypeCode)
-#define FspFileContextIsValid(FsContext)\
-    (0 != (FsContext) && FspFileContextFileKind == ((FSP_FILE_CONTEXT *)FsContext)->Header.NodeTypeCode)
+#define FspFileNodeKind(FileNode)   \
+    (((FSP_FILE_NODE *)FileNode)->Header.NodeTypeCode)
+#define FspFileNodeIsValid(FileNode)\
+    (0 != (FileNode) && FspFileNodeFileKind == ((FSP_FILE_NODE *)FileNode)->Header.NodeTypeCode)
 enum
 {
-    FspFileContextFileKind = 'BZ',
+    FspFileNodeFileKind = 'BZ',
 };
 typedef struct
 {
@@ -519,11 +519,11 @@ typedef struct
     ERESOURCE PagingIoResource;
     FAST_MUTEX HeaderFastMutex;
     SECTION_OBJECT_POINTERS SectionObjectPointers;
-} FSP_FILE_CONTEXT_NONPAGED;
+} FSP_FILE_NODE_NONPAGED;
 typedef struct
 {
     FSRTL_ADVANCED_FCB_HEADER Header;
-    FSP_FILE_CONTEXT_NONPAGED *NonPaged;
+    FSP_FILE_NODE_NONPAGED *NonPaged;
     /* interlocked access */
     LONG RefCount;
     /* locked access (ContextTable lock) */
@@ -540,55 +540,55 @@ typedef struct
     FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
-} FSP_FILE_CONTEXT;
-NTSTATUS FspFileContextCreate(PDEVICE_OBJECT DeviceObject,
-    ULONG ExtraSize, FSP_FILE_CONTEXT **PFsContext);
-VOID FspFileContextDelete(FSP_FILE_CONTEXT *FsContext);
-FSP_FILE_CONTEXT *FspFileContextOpen(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject,
+} FSP_FILE_NODE;
+NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
+    ULONG ExtraSize, FSP_FILE_NODE **PFileNode);
+VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode);
+FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     DWORD GrantedAccess, DWORD ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
-VOID FspFileContextClose(FSP_FILE_CONTEXT *FsContext, PFILE_OBJECT FileObject,
+VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
 static inline
-VOID FspFileContextRetain(FSP_FILE_CONTEXT *FsContext)
+VOID FspFileNodeRetain(FSP_FILE_NODE *FileNode)
 {
-    InterlockedIncrement(&FsContext->RefCount);
+    InterlockedIncrement(&FileNode->RefCount);
 }
 static inline
-VOID FspFileContextRelease(FSP_FILE_CONTEXT *FsContext)
+VOID FspFileNodeRelease(FSP_FILE_NODE *FileNode)
 {
-    LONG RefCount = InterlockedDecrement(&FsContext->RefCount);
+    LONG RefCount = InterlockedDecrement(&FileNode->RefCount);
     if (0 == RefCount)
-        FspFileContextDelete(FsContext);
+        FspFileNodeDelete(FileNode);
 }
 static inline
-BOOLEAN FspFileContextLockShared(FSP_FILE_CONTEXT *FsContext, BOOLEAN Wait)
+BOOLEAN FspFileNodeLockShared(FSP_FILE_NODE *FileNode, BOOLEAN Wait)
 {
-    return ExAcquireResourceSharedLite(FsContext->Header.Resource, Wait);
+    return ExAcquireResourceSharedLite(FileNode->Header.Resource, Wait);
 }
 static inline
-BOOLEAN FspFileContextLockExclusive(FSP_FILE_CONTEXT *FsContext, BOOLEAN Wait)
+BOOLEAN FspFileNodeLockExclusive(FSP_FILE_NODE *FileNode, BOOLEAN Wait)
 {
-    return ExAcquireResourceExclusiveLite(FsContext->Header.Resource, Wait);
+    return ExAcquireResourceExclusiveLite(FileNode->Header.Resource, Wait);
 }
 static inline
-VOID FspFileContextUnlock(FSP_FILE_CONTEXT *FsContext)
+VOID FspFileNodeUnlock(FSP_FILE_NODE *FileNode)
 {
-    ExReleaseResourceLite(FsContext->Header.Resource);
+    ExReleaseResourceLite(FileNode->Header.Resource);
 }
 static inline
-BOOLEAN FspFileContextPgioLockShared(FSP_FILE_CONTEXT *FsContext, BOOLEAN Wait)
+BOOLEAN FspFileNodePgioLockShared(FSP_FILE_NODE *FileNode, BOOLEAN Wait)
 {
-    return ExAcquireResourceSharedLite(FsContext->Header.PagingIoResource, Wait);
+    return ExAcquireResourceSharedLite(FileNode->Header.PagingIoResource, Wait);
 }
 static inline
-BOOLEAN FspFileContextPgioLockExclusive(FSP_FILE_CONTEXT *FsContext, BOOLEAN Wait)
+BOOLEAN FspFileNodePgioLockExclusive(FSP_FILE_NODE *FileNode, BOOLEAN Wait)
 {
-    return ExAcquireResourceExclusiveLite(FsContext->Header.PagingIoResource, Wait);
+    return ExAcquireResourceExclusiveLite(FileNode->Header.PagingIoResource, Wait);
 }
 static inline
-VOID FspFileContextPgioUnlock(FSP_FILE_CONTEXT *FsContext)
+VOID FspFileNodePgioUnlock(FSP_FILE_NODE *FileNode)
 {
-    ExReleaseResourceLite(FsContext->Header.PagingIoResource);
+    ExReleaseResourceLite(FileNode->Header.PagingIoResource);
 }
 
 /* debug */
