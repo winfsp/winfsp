@@ -267,7 +267,7 @@ static NTSTATUS FspFsvolCreate(
         FspFsvolCreateRequestFini, &Request);
     if (!NT_SUCCESS(Result))
     {
-        FspFileNodeRelease(FileNode);
+        FspFileNodeDereference(FileNode);
         return Result;
     }
 
@@ -680,7 +680,7 @@ static VOID FspFsvolCreateRequestFini(PVOID Context[3])
 
     if (0 != Context[RequestFileNode])
     {
-        FspFileNodeRelease(Context[RequestFileNode]);
+        FspFileNodeDereference(Context[RequestFileNode]);
         Context[RequestFileNode] = 0;
     }
 
@@ -728,7 +728,7 @@ static VOID FspFsvolCreateOverwriteRequestFini(PVOID Context[3])
             FspFileNodeClose(FileNode, FileObject, 0);
         }
 
-        FspFileNodeRelease(FileNode);
+        FspFileNodeDereference(FileNode);
 
         Context[RequestFileObject] = 0;
         Context[RequestFileNode] = 0;

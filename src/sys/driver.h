@@ -103,16 +103,16 @@ extern __declspec(selectany) int fsp_bp = 1;
 #define FSP_ENTER_MJ(...)               \
     NTSTATUS Result = STATUS_SUCCESS;   \
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);\
-    BOOLEAN fsp_device_release = FALSE; \
+    BOOLEAN fsp_device_deref = FALSE; \
     FSP_ENTER_(__VA_ARGS__);            \
     do                                  \
     {                                   \
-        if (!FspDeviceRetain(IrpSp->DeviceObject))\
+        if (!FspDeviceReference(IrpSp->DeviceObject))\
         {                               \
             Result = STATUS_CANCELLED;  \
             goto fsp_leave_label;       \
         }                               \
-        fsp_device_release = TRUE;      \
+        fsp_device_deref = TRUE;      \
     } while (0,0)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(                         \
@@ -141,7 +141,7 @@ extern __declspec(selectany) int fsp_bp = 1;
                 }\
             }                           \
             else                        \
-                FspIopCompleteIrpEx(Irp, Result, fsp_device_release);\
+                FspIopCompleteIrpEx(Irp, Result, fsp_device_deref);\
         }                               \
     );                                  \
     return Result
@@ -403,7 +403,7 @@ VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
 NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN BestEffort);
-VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease);
+VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference);
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
@@ -473,8 +473,8 @@ NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
     PDEVICE_OBJECT *PDeviceObject);
 NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
-BOOLEAN FspDeviceRetain(PDEVICE_OBJECT DeviceObject);
-VOID FspDeviceRelease(PDEVICE_OBJECT DeviceObject);
+BOOLEAN FspDeviceReference(PDEVICE_OBJECT DeviceObject);
+VOID FspDeviceDereference(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
@@ -549,12 +549,12 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
 static inline
-VOID FspFileNodeRetain(FSP_FILE_NODE *FileNode)
+VOID FspFileNodeReference(FSP_FILE_NODE *FileNode)
 {
     InterlockedIncrement(&FileNode->RefCount);
 }
 static inline
-VOID FspFileNodeRelease(FSP_FILE_NODE *FileNode)
+VOID FspFileNodeDereference(FSP_FILE_NODE *FileNode)
 {
     LONG RefCount = InterlockedDecrement(&FileNode->RefCount);
     if (0 == RefCount)

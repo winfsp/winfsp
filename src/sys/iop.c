@@ -15,7 +15,7 @@ PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
 NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllocateIrpMustSucceed);
 static IO_COMPLETION_ROUTINE FspIopPostWorkRequestCompletion;
-VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease);
+VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference);
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
@@ -209,7 +209,7 @@ static NTSTATUS FspIopPostWorkRequestCompletion(
     return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
-VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
+VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference)
 {
     PAGED_CODE();
 
@@ -230,8 +230,8 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceRelease)
     Irp->IoStatus.Status = Result;
     IoCompleteRequest(Irp, FSP_IO_INCREMENT);
 
-    if (DeviceRelease)
-        FspDeviceRelease(DeviceObject);
+    if (DeviceDereference)
+        FspDeviceDereference(DeviceObject);
 }
 
 VOID FspIopCompleteCanceledIrp(PIRP Irp)

@@ -56,7 +56,7 @@ NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     FileNode->NonPaged = NonPaged;
     FileNode->RefCount = 1;
     FileNode->FsvolDeviceObject = DeviceObject;
-    FspDeviceRetain(FileNode->FsvolDeviceObject);
+    FspDeviceReference(FileNode->FsvolDeviceObject);
     RtlInitEmptyUnicodeString(&FileNode->FileName, FileNode->FileNameBuf, (USHORT)ExtraSize);
 
     *PFileNode = FileNode;
@@ -70,7 +70,7 @@ VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode)
 
     FsRtlTeardownPerStreamContexts(&FileNode->Header);
 
-    FspDeviceRelease(FileNode->FsvolDeviceObject);
+    FspDeviceDereference(FileNode->FsvolDeviceObject);
 
     ExDeleteResourceLite(&FileNode->NonPaged->PagingIoResource);
     ExDeleteResourceLite(&FileNode->NonPaged->Resource);
@@ -105,7 +105,7 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     {
         /*
          * The new FileNode was inserted into the Context table. Set its share access
-         * and retain and open it. There should be (at least) two references to this
+         * and reference and open it. There should be (at least) two references to this
          * FileNode, one from our caller and one from the Context table.
          */
         ASSERT(OpenedFileNode == FileNode);
@@ -160,7 +160,7 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 
     if (0 != OpenedFileNode)
     {
-        FspFileNodeRetain(OpenedFileNode);
+        FspFileNodeReference(OpenedFileNode);
         OpenedFileNode->OpenCount++;
 
         if (DeleteOnClose)
@@ -198,7 +198,7 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
     if (Deleted)
-        FspFileNodeRelease(FileNode);
+        FspFileNodeDereference(FileNode);
 
     if (0 != PDeletePending)
         *PDeletePending = Deleted && DeletePending;

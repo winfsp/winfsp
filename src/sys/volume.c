@@ -141,7 +141,7 @@ NTSTATUS FspVolumeCreate(
             &FsvrtDeviceObject);
         if (!NT_SUCCESS(Result))
         {
-            FspDeviceRelease(FsvolDeviceObject);
+            FspDeviceDereference(FsvolDeviceObject);
             return Result;
         }
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
@@ -167,8 +167,8 @@ NTSTATUS FspVolumeCreate(
     if (!NT_SUCCESS(Result))
     {
         if (0 != FsvrtDeviceObject)
-            FspDeviceRelease(FsvrtDeviceObject);
-        FspDeviceRelease(FsvolDeviceObject);
+            FspDeviceDereference(FsvrtDeviceObject);
+        FspDeviceDereference(FsvolDeviceObject);
     }
 
     /* do we need to register with MUP? */
@@ -189,7 +189,7 @@ NTSTATUS FspVolumeCreate(
         Result = RegisterMupWorkItem.Result;
         if (!NT_SUCCESS(Result))
         {
-            FspDeviceRelease(FsvolDeviceObject);
+            FspDeviceDereference(FsvolDeviceObject);
             return Result;
         }
     }
@@ -264,7 +264,7 @@ VOID FspVolumeDelete(
          * Release the virtual disk object. This is safe to do here because the volume device
          * keeps an extra reference to the virtual disk object using ObReferenceObject.
          */
-        FspDeviceRelease(FsvrtDeviceObject);
+        FspDeviceDereference(FsvrtDeviceObject);
 
         if (DeleteVpb)
         {
@@ -277,7 +277,7 @@ VOID FspVolumeDelete(
             /* there is only the reference from FspVolumeMount; release it! */
             FspFreeExternal(OldVpb);
             FsvolDeviceExtension->SwapVpb = 0;
-            FspDeviceRelease(FsvolDeviceObject);
+            FspDeviceDereference(FsvolDeviceObject);
         }
         else
         {
@@ -299,7 +299,7 @@ VOID FspVolumeDelete(
     ExReleaseResourceLite(&FsvolDeviceExtension->DeleteResource);
 
     /* release the volume device object */
-    FspDeviceRelease(FsvolDeviceObject);
+    FspDeviceDereference(FsvolDeviceObject);
 }
 
 static VOID FspVolumeDeleteDelayed(PVOID Context)
@@ -322,7 +322,7 @@ static VOID FspVolumeDeleteDelayed(PVOID Context)
     {
         FspFreeExternal(FsvolDeviceExtension->SwapVpb);
         FsvolDeviceExtension->SwapVpb = 0;
-        FspDeviceRelease(FsvolDeviceObject);
+        FspDeviceDereference(FsvolDeviceObject);
     }
     else
     {
@@ -354,7 +354,7 @@ NTSTATUS FspVolumeMount(
     {
         Result = STATUS_UNRECOGNIZED_VOLUME;
         for (ULONG i = 0; DeviceObjectCount > i; i++)
-            if (FspDeviceRetain(DeviceObjects[i]))
+            if (FspDeviceReference(DeviceObjects[i]))
             {
                 if (FspFsvolDeviceExtensionKind == FspDeviceExtension(DeviceObjects[i])->Kind)
                 {
@@ -366,13 +366,13 @@ NTSTATUS FspVolumeMount(
                         if (!FspIoqStopped(FsvolDeviceExtension->Ioq))
                         {
                             Result = STATUS_SUCCESS;
-                            /* break out of the loop without FspDeviceRelease or DeleteResource release! */
+                            /* break out of the loop without FspDeviceDereference or DeleteResource release! */
                             break;
                         }
                         ExReleaseResourceLite(&FsvolDeviceExtension->DeleteResource);
                     }
                 }
-                FspDeviceRelease(DeviceObjects[i]);
+                FspDeviceDereference(DeviceObjects[i]);
             }
         FspDeviceDeleteList(DeviceObjects, DeviceObjectCount);
     }
@@ -381,10 +381,10 @@ NTSTATUS FspVolumeMount(
 
     /*
      * At this point the volume device object we are going to use in the VPB
-     * has been FspDeviceRetain'ed and the volume DeleteResource has been acquired.
+     * has been FspDeviceReference'ed and the volume DeleteResource has been acquired.
      * We will increment the VPB's ReferenceCount so that we can do a delayed delete
      * of the volume device later on. Once done with the VPB we can release the
-     * DeleteResource. [The volume device remains FspDeviceRetain'ed!]
+     * DeleteResource. [The volume device remains FspDeviceReference'ed!]
      */
     ASSERT(0 != FsvolDeviceObject && 0 != FsvolDeviceExtension);
     IoAcquireVpbSpinLock(&Irql);

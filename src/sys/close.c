@@ -59,7 +59,7 @@ static NTSTATUS FspFsvolClose(
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     /* dereference the FileNode (and delete if no more references) */
-    FspFileNodeRelease(FileNode);
+    FspFileNodeDereference(FileNode);
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLOSE cannot fail */
     FspIopCreateRequestMustSucceed(0, FileNameRequired ? &FileNode->FileName : 0, 0, &Request);
