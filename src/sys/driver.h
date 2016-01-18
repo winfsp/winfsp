@@ -561,32 +561,52 @@ VOID FspFileNodeDereference(FSP_FILE_NODE *FileNode)
         FspFileNodeDelete(FileNode);
 }
 static inline
-BOOLEAN FspFileNodeLockShared(FSP_FILE_NODE *FileNode, BOOLEAN Wait)
+VOID FspFileNodeAcquireShared(FSP_FILE_NODE *FileNode)
 {
-    return ExAcquireResourceSharedLite(FileNode->Header.Resource, Wait);
+    ExAcquireResourceSharedLite(FileNode->Header.Resource, TRUE);
 }
 static inline
-BOOLEAN FspFileNodeLockExclusive(FSP_FILE_NODE *FileNode, BOOLEAN Wait)
+BOOLEAN FspFileNodeTryAcquireShared(FSP_FILE_NODE *FileNode)
 {
-    return ExAcquireResourceExclusiveLite(FileNode->Header.Resource, Wait);
+    return ExAcquireResourceSharedLite(FileNode->Header.Resource, FALSE);
 }
 static inline
-VOID FspFileNodeUnlock(FSP_FILE_NODE *FileNode)
+VOID FspFileNodeAcquireExclusive(FSP_FILE_NODE *FileNode)
+{
+    ExAcquireResourceExclusiveLite(FileNode->Header.Resource, TRUE);
+}
+static inline
+BOOLEAN FspFileNodeTryAcquireExclusive(FSP_FILE_NODE *FileNode)
+{
+    return ExAcquireResourceExclusiveLite(FileNode->Header.Resource, FALSE);
+}
+static inline
+VOID FspFileNodeRelease(FSP_FILE_NODE *FileNode)
 {
     ExReleaseResourceLite(FileNode->Header.Resource);
 }
 static inline
-BOOLEAN FspFileNodePgioLockShared(FSP_FILE_NODE *FileNode, BOOLEAN Wait)
+VOID FspFileNodePgioAcquireShared(FSP_FILE_NODE *FileNode)
 {
-    return ExAcquireResourceSharedLite(FileNode->Header.PagingIoResource, Wait);
+    ExAcquireResourceSharedLite(FileNode->Header.PagingIoResource, TRUE);
 }
 static inline
-BOOLEAN FspFileNodePgioLockExclusive(FSP_FILE_NODE *FileNode, BOOLEAN Wait)
+BOOLEAN FspFileNodePgioTryAcquireShared(FSP_FILE_NODE *FileNode)
 {
-    return ExAcquireResourceExclusiveLite(FileNode->Header.PagingIoResource, Wait);
+    return ExAcquireResourceSharedLite(FileNode->Header.PagingIoResource, FALSE);
 }
 static inline
-VOID FspFileNodePgioUnlock(FSP_FILE_NODE *FileNode)
+VOID FspFileNodePgioAcquireExclusive(FSP_FILE_NODE *FileNode)
+{
+    ExAcquireResourceExclusiveLite(FileNode->Header.PagingIoResource, TRUE);
+}
+static inline
+BOOLEAN FspFileNodePgioTryAcquireExclusive(FSP_FILE_NODE *FileNode)
+{
+    return ExAcquireResourceExclusiveLite(FileNode->Header.PagingIoResource, FALSE);
+}
+static inline
+VOID FspFileNodePgioRelease(FSP_FILE_NODE *FileNode)
 {
     ExReleaseResourceLite(FileNode->Header.PagingIoResource);
 }
