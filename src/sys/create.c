@@ -373,8 +373,8 @@ NTSTATUS FspFsvolCreatePrepare(
         FileNode = FspIopRequestContext(Request, RequestFileNode);
         FileObject = FspIopRequestContext(Request, RequestFileObject);
 
-        /* lock the FileNode for Paging IO */
-        Success = FspFileNodePgioTryAcquireExclusive(FileNode);
+        /* lock the FileNode for overwriting */
+        Success = FspFileNodeTryAcquireExclusive(FileNode, Both);
         if (!Success)
         {
             /* repost the IRP to retry later */
@@ -392,7 +392,7 @@ NTSTATUS FspFsvolCreatePrepare(
         Success = MmCanFileBeTruncated(&FileNode->NonPaged->SectionObjectPointers, &Zero);
         if (!Success)
         {
-            FspFileNodePgioRelease(FileNode);
+            FspFileNodeRelease(FileNode, Both);
 
             FspFsvolCreatePostClose(FileNode, (UINT_PTR)FileObject->FsContext2);
             FspFileNodeClose(FileNode, FileObject, 0);
@@ -612,7 +612,7 @@ VOID FspFsvolCreateComplete(
         /* did the user-mode file system sent us a failure code? */
         if (!NT_SUCCESS(Response->IoStatus.Status))
         {
-            FspFileNodePgioRelease(FileNode);
+            FspFileNodeRelease(FileNode, Both);
 
             FspFileNodeClose(FileNode, FileObject, 0);
 
@@ -626,7 +626,7 @@ VOID FspFsvolCreateComplete(
         FileNode->Header.FileSize.QuadPart = Response->Rsp.Overwrite.FileSize;
         CcSetFileSizes(FileObject, (PCC_FILE_SIZES)&FileNode->Header.AllocationSize);
 
-        FspFileNodePgioRelease(FileNode);
+        FspFileNodeRelease(FileNode, Both);
 
         /* SUCCESS! */
         FspIopRequestContext(Request, RequestFileNode) = 0;

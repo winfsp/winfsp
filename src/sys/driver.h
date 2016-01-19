@@ -505,13 +505,19 @@ NTSTATUS FspVolumeWork(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 
 /* file objects */
-#define FspFileNodeKind(FileNode)   \
+#define FspFileNodeKind(FileNode)       \
     (((FSP_FILE_NODE *)FileNode)->Header.NodeTypeCode)
-#define FspFileNodeIsValid(FileNode)\
+#define FspFileNodeIsValid(FileNode)    \
     (0 != (FileNode) && FspFileNodeFileKind == ((FSP_FILE_NODE *)FileNode)->Header.NodeTypeCode)
 enum
 {
-    FspFileNodeFileKind = 'BZ',
+    FspFileNodeFileKind                 = 'BZ',
+};
+enum
+{
+    FspFileNodeAcquireMain              = 1,
+    FspFileNodeAcquirePgio              = 2,
+    FspFileNodeAcquireBoth              = 3,
 };
 typedef struct
 {
@@ -544,10 +550,6 @@ typedef struct
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode);
 VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode);
-FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    DWORD GrantedAccess, DWORD ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
-VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    PBOOLEAN PDeletePending);
 static inline
 VOID FspFileNodeReference(FSP_FILE_NODE *FileNode)
 {
@@ -560,56 +562,20 @@ VOID FspFileNodeDereference(FSP_FILE_NODE *FileNode)
     if (0 == RefCount)
         FspFileNodeDelete(FileNode);
 }
-static inline
-VOID FspFileNodeAcquireShared(FSP_FILE_NODE *FileNode)
-{
-    ExAcquireResourceSharedLite(FileNode->Header.Resource, TRUE);
-}
-static inline
-BOOLEAN FspFileNodeTryAcquireShared(FSP_FILE_NODE *FileNode)
-{
-    return ExAcquireResourceSharedLite(FileNode->Header.Resource, FALSE);
-}
-static inline
-VOID FspFileNodeAcquireExclusive(FSP_FILE_NODE *FileNode)
-{
-    ExAcquireResourceExclusiveLite(FileNode->Header.Resource, TRUE);
-}
-static inline
-BOOLEAN FspFileNodeTryAcquireExclusive(FSP_FILE_NODE *FileNode)
-{
-    return ExAcquireResourceExclusiveLite(FileNode->Header.Resource, FALSE);
-}
-static inline
-VOID FspFileNodeRelease(FSP_FILE_NODE *FileNode)
-{
-    ExReleaseResourceLite(FileNode->Header.Resource);
-}
-static inline
-VOID FspFileNodePgioAcquireShared(FSP_FILE_NODE *FileNode)
-{
-    ExAcquireResourceSharedLite(FileNode->Header.PagingIoResource, TRUE);
-}
-static inline
-BOOLEAN FspFileNodePgioTryAcquireShared(FSP_FILE_NODE *FileNode)
-{
-    return ExAcquireResourceSharedLite(FileNode->Header.PagingIoResource, FALSE);
-}
-static inline
-VOID FspFileNodePgioAcquireExclusive(FSP_FILE_NODE *FileNode)
-{
-    ExAcquireResourceExclusiveLite(FileNode->Header.PagingIoResource, TRUE);
-}
-static inline
-BOOLEAN FspFileNodePgioTryAcquireExclusive(FSP_FILE_NODE *FileNode)
-{
-    return ExAcquireResourceExclusiveLite(FileNode->Header.PagingIoResource, FALSE);
-}
-static inline
-VOID FspFileNodePgioRelease(FSP_FILE_NODE *FileNode)
-{
-    ExReleaseResourceLite(FileNode->Header.PagingIoResource);
-}
+VOID FspFileNodeAcquireShared(FSP_FILE_NODE *FileNode, ULONG Flags);
+BOOLEAN FspFileNodeTryAcquireShared(FSP_FILE_NODE *FileNode, ULONG Flags);
+VOID FspFileNodeAcquireExclusive(FSP_FILE_NODE *FileNode, ULONG Flags);
+BOOLEAN FspFileNodeTryAcquireExclusive(FSP_FILE_NODE *FileNode, ULONG Flags);
+VOID FspFileNodeRelease(FSP_FILE_NODE *FileNode, ULONG Flags);
+FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+    DWORD GrantedAccess, DWORD ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
+VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+    PBOOLEAN PDeletePending);
+#define FspFileNodeAcquireShared(N,F)   FspFileNodeAcquireShared(N, FspFileNodeAcquire ## F)
+#define FspFileNodeTryAcquireShared(N,F)    FspFileNodeTryAcquireShared(N, FspFileNodeAcquire ## F)
+#define FspFileNodeAcquireExclusive(N,F)    FspFileNodeAcquireExclusive(N, FspFileNodeAcquire ## F)
+#define FspFileNodeTryAcquireExclusive(N,F) FspFileNodeTryAcquireExclusive(N, FspFileNodeAcquire ## F)
+#define FspFileNodeRelease(N,F)         FspFileNodeRelease(N, FspFileNodeAcquire ## F)
 
 /* debug */
 #if DBG
