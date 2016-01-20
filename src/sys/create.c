@@ -14,9 +14,9 @@ static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
-static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc);
-static NTSTATUS FspFsvolCreateTryFlushImage(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,
+static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,
     FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject);
+static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc);
 static FSP_IOP_REQUEST_FINI FspFsvolCreateRequestFini;
 static FSP_IOP_REQUEST_FINI FspFsvolCreateReservedRequestFini;
 static FSP_IOP_REQUEST_FINI FspFsvolCreateOverwriteRequestFini;
@@ -28,8 +28,8 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreate)
 #pragma alloc_text(PAGE, FspFsvolCreatePrepare)
 #pragma alloc_text(PAGE, FspFsvolCreateComplete)
+#pragma alloc_text(PAGE, FspFsvolCreateTryOpen)
 #pragma alloc_text(PAGE, FspFsvolCreatePostClose)
-#pragma alloc_text(PAGE, FspFsvolCreateTryFlushImage)
 #pragma alloc_text(PAGE, FspFsvolCreateRequestFini)
 #pragma alloc_text(PAGE, FspFsvolCreateReservedRequestFini)
 #pragma alloc_text(PAGE, FspFsvolCreateOverwriteRequestFini)
@@ -362,7 +362,7 @@ NTSTATUS FspFsvolCreatePrepare(
         FileNode = FileDesc->FileNode;
         FileObject = FspIopRequestContext(Request, RequestFileObject);
 
-        Result = FspFsvolCreateTryFlushImage(Irp, Request, FileNode, FileDesc, FileObject);
+        Result = FspFsvolCreateTryOpen(Irp, Request, FileNode, FileDesc, FileObject);
         if (STATUS_PENDING == Result)
             return Result;
         else
@@ -593,7 +593,7 @@ VOID FspFsvolCreateComplete(
             if (FlagOn(Response->Rsp.Create.Opened.GrantedAccess, FILE_WRITE_DATA) ||
                 DeleteOnClose)
             {
-                Result = FspFsvolCreateTryFlushImage(Irp, 0, FileNode, FileDesc, FileObject);
+                Result = FspFsvolCreateTryOpen(Irp, 0, FileNode, FileDesc, FileObject);
                 if (STATUS_PENDING == Result || !NT_SUCCESS(Result))
                     FSP_RETURN();
             }
@@ -686,40 +686,7 @@ VOID FspFsvolCreateComplete(
         IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName);
 }
 
-static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc)
-{
-    PAGED_CODE();
-
-    FSP_FILE_NODE *FileNode = FileDesc->FileNode;
-    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    FSP_FSCTL_TRANSACT_REQ *Request;
-
-    /* create the user-mode file system request; MustSucceed because we cannot fail */
-    FspIopCreateRequestMustSucceed(0,
-        FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FileNode->FileName : 0,
-        0, &Request);
-
-    /* populate the Close request */
-    Request->Kind = FspFsctlTransactCloseKind;
-    Request->Req.Close.UserContext = FileNode->UserContext;
-    Request->Req.Close.UserContext2 = FileDesc->UserContext2;
-
-    /*
-     * Post as a BestEffort work request. This allows us to complete our own IRP
-     * and return immediately.
-     */
-    FspIopPostWorkRequestBestEffort(FsvolDeviceObject, Request);
-
-    /*
-     * Note that it is still possible for this request to not be delivered,
-     * if the volume device Ioq is stopped. But such failures are benign
-     * from our perspective, because they mean that the file system is going
-     * away and should correctly tear things down.
-     */
-}
-
-static NTSTATUS FspFsvolCreateTryFlushImage(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,
+static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,
     FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject)
 {
     PAGED_CODE();
@@ -781,6 +748,39 @@ static NTSTATUS FspFsvolCreateTryFlushImage(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Re
     }
 
     return STATUS_SUCCESS;
+}
+
+static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc)
+{
+    PAGED_CODE();
+
+    FSP_FILE_NODE *FileNode = FileDesc->FileNode;
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    FSP_FSCTL_TRANSACT_REQ *Request;
+
+    /* create the user-mode file system request; MustSucceed because we cannot fail */
+    FspIopCreateRequestMustSucceed(0,
+        FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FileNode->FileName : 0,
+        0, &Request);
+
+    /* populate the Close request */
+    Request->Kind = FspFsctlTransactCloseKind;
+    Request->Req.Close.UserContext = FileNode->UserContext;
+    Request->Req.Close.UserContext2 = FileDesc->UserContext2;
+
+    /*
+     * Post as a BestEffort work request. This allows us to complete our own IRP
+     * and return immediately.
+     */
+    FspIopPostWorkRequestBestEffort(FsvolDeviceObject, Request);
+
+    /*
+     * Note that it is still possible for this request to not be delivered,
+     * if the volume device Ioq is stopped. But such failures are benign
+     * from our perspective, because they mean that the file system is going
+     * away and should correctly tear things down.
+     */
 }
 
 static VOID FspFsvolCreateRequestFini(PVOID Context[3])
