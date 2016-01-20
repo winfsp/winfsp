@@ -60,7 +60,9 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     DWORD FileAttributes;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     SIZE_T SecurityDescriptorSize;
-    DWORD PrivilegeSetLength = 0;
+    UINT8 PrivilegeSetBuf[sizeof(PRIVILEGE_SET) + 15 * sizeof(LUID_AND_ATTRIBUTES)];
+    PPRIVILEGE_SET PrivilegeSet = (PVOID)PrivilegeSetBuf;
+    DWORD PrivilegeSetLength = sizeof PrivilegeSetBuf;
     DWORD TraverseAccess;
     BOOL AccessStatus;
 
@@ -104,7 +106,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
             if (0 < SecurityDescriptorSize)
             {
                 if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, FILE_TRAVERSE,
-                    &FspFileGenericMapping, 0, &PrivilegeSetLength, &TraverseAccess, &AccessStatus))
+                    &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, &TraverseAccess, &AccessStatus))
                     Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
                 else
                     Result = FspNtStatusFromWin32(GetLastError());
@@ -124,7 +126,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
         if (0 < SecurityDescriptorSize)
         {
             if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess,
-                &FspFileGenericMapping, 0, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
+                &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
                 Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
             else
                 Result = FspNtStatusFromWin32(GetLastError());
