@@ -57,6 +57,8 @@ static NTSTATUS FspFsvolClose(
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
+    ASSERT(FileNode == FileDesc->FileNode);
+
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLOSE cannot fail */
     FspIopCreateRequestMustSucceed(0, FileNameRequired ? &FileNode->FileName : 0, 0, &Request);
     Request->Kind = FspFsctlTransactCloseKind;

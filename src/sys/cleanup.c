@@ -61,6 +61,8 @@ static NTSTATUS FspFsvolCleanup(
     FSP_FSCTL_TRANSACT_REQ *Request;
     BOOLEAN DeletePending;
 
+    ASSERT(FileNode == FileDesc->FileNode);
+
     FspFileNodeClose(FileNode, FileObject, &DeletePending);
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLEANUP cannot fail */
