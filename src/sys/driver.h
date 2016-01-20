@@ -547,6 +547,11 @@ typedef struct
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
 } FSP_FILE_NODE;
+typedef struct
+{
+    FSP_FILE_NODE *FileNode;
+    UINT64 UserContext2;
+} FSP_FILE_DESC;
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode);
 VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode);
@@ -571,6 +576,8 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     DWORD GrantedAccess, DWORD ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
+NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
+VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #define FspFileNodeAcquireShared(N,F)   FspFileNodeAcquireShared(N, FspFileNodeAcquire ## F)
 #define FspFileNodeTryAcquireShared(N,F)    FspFileNodeTryAcquireShared(N, FspFileNodeAcquire ## F)
 #define FspFileNodeAcquireExclusive(N,F)    FspFileNodeAcquireExclusive(N, FspFileNodeAcquire ## F)

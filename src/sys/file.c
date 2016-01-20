@@ -1,5 +1,5 @@
 /**
- * @file sys/node.c
+ * @file sys/file.c
  *
  * @copyright 2015 Bill Zissimopoulos
  */
@@ -25,6 +25,9 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
 
+NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
+VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFileNodeCreate)
 #pragma alloc_text(PAGE, FspFileNodeDelete)
@@ -35,6 +38,8 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 #pragma alloc_text(PAGE, FspFileNodeRelease)
 #pragma alloc_text(PAGE, FspFileNodeOpen)
 #pragma alloc_text(PAGE, FspFileNodeClose)
+#pragma alloc_text(PAGE, FspFileDescCreate)
+#pragma alloc_text(PAGE, FspFileDescDelete)
 #endif
 
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
@@ -305,4 +310,24 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 
     if (0 != PDeletePending)
         *PDeletePending = Deleted && DeletePending;
+}
+
+NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc)
+{
+    PAGED_CODE();
+
+    *PFileDesc = FspAlloc(sizeof(FSP_FILE_DESC));
+    if (0 == *PFileDesc)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    RtlZeroMemory(*PFileDesc, sizeof(FSP_FILE_DESC));
+
+    return STATUS_SUCCESS;
+}
+
+VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc)
+{
+    PAGED_CODE();
+
+    FspFree(FileDesc);
 }

@@ -160,6 +160,7 @@ const char *IoctlCodeSym(ULONG ControlCode)
     SYM(FSP_FSCTL_VOLUME_NAME)
     SYM(FSP_FSCTL_TRANSACT)
     SYM(FSP_FSCTL_WORK)
+    SYM(FSP_FSCTL_WORK_BEST_EFFORT)
     // cygwin: sed -n '/[IF][OS]CTL.*CTL_CODE/s/^#define[ \t]*\([^ \t]*\).*/SYM(\1)/p'
     #include "ioctl.i"
     default:

@@ -54,20 +54,17 @@ static NTSTATUS FspFsvolClose(
     BOOLEAN FileNameRequired = 0 != FsvolDeviceExtension->VolumeParams.FileNameRequired;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    UINT64 UserContext = FileNode->UserContext;
-    UINT64 UserContext2 = (UINT_PTR)FileObject->FsContext2;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request;
-
-    /* dereference the FileNode (and delete if no more references) */
-    FspFileNodeDereference(FileNode);
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLOSE cannot fail */
     FspIopCreateRequestMustSucceed(0, FileNameRequired ? &FileNode->FileName : 0, 0, &Request);
-
-    /* populate the Close request */
     Request->Kind = FspFsctlTransactCloseKind;
-    Request->Req.Close.UserContext = UserContext;
-    Request->Req.Close.UserContext2 = UserContext2;
+    Request->Req.Close.UserContext = FileNode->UserContext;
+    Request->Req.Close.UserContext2 = FileDesc->UserContext2;
+
+    FspFileNodeDereference(FileNode);
+    FspFileDescDelete(FileDesc);
 
     /*
      * Post as a BestEffort work request. This allows us to complete our own IRP

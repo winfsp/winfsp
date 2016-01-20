@@ -164,8 +164,8 @@ typedef struct
             /* IoStatus.Status == STATUS_SUCCESS */
             struct
             {
-                UINT64 UserContext;     /* open file user context (unique file id) */
-                UINT64 UserContext2;    /* kernel file object user context (stores as many bits as a pointer) */
+                UINT64 UserContext;     /* user context (unique file id) associated with file node */
+                UINT64 UserContext2;    /* user context associated with file descriptor (handle) */
                 UINT32 FileAttributes;  /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
                 UINT64 AllocationSize;  /* file allocation size */
                 UINT64 FileSize;        /* file size */
