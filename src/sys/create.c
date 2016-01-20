@@ -752,7 +752,7 @@ static VOID FspFsvolCreateOverwriteRequestFini(PVOID Context[3])
         FspFileDescDelete(FileDesc);
     }
 
-    Context[RequestFileDesc] = Context[RequestFileObject] = 0;
+    Context[RequestFileDesc] = Context[RequestFileObject] = Context[RequestStatus] = 0;
 }
 
 NTSTATUS FspCreate(
