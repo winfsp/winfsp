@@ -40,12 +40,13 @@ enum
     RequestFileDesc                     = 0,
     RequestAccessToken                  = 1,
     RequestProcess                      = 2,
+
     /* OverwriteRequest */
     //RequestFileDesc                   = 0,
     RequestFileObject                   = 1,
-    RequestStatus                       = 2,
+    RequestState                        = 2,
 
-    /* RequestFiniAction */
+    /* RequestState */
     RequestPending                      = 0,
     RequestProcessing                   = 1,
 };
@@ -410,7 +411,7 @@ NTSTATUS FspFsvolCreatePrepare(
             return STATUS_USER_MAPPED_FILE;
         }
 
-        FspIopRequestContext(Request, RequestStatus) = (PVOID)RequestProcessing;
+        FspIopRequestContext(Request, RequestState) = (PVOID)RequestProcessing;
 
         /* purge any caches on this file */
         CcPurgeCacheSection(&FileNode->NonPaged->SectionObjectPointers, 0, 0, FALSE);
@@ -596,7 +597,7 @@ VOID FspFsvolCreateComplete(
             /* associate the FileDesc and FileObject with the Overwrite request */
             FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
             FspIopRequestContext(Request, RequestFileObject) = FileObject;
-            FspIopRequestContext(Request, RequestStatus) = (PVOID)RequestPending;
+            FspIopRequestContext(Request, RequestState) = (PVOID)RequestPending;
 
             /* populate the Overwrite request */
             Request->Kind = FspFsctlTransactOverwriteKind;
@@ -736,15 +737,15 @@ static VOID FspFsvolCreateOverwriteRequestFini(PVOID Context[3])
 
     FSP_FILE_DESC *FileDesc = Context[RequestFileDesc];
     PFILE_OBJECT FileObject = Context[RequestFileObject];
-    ULONG Status = (ULONG)(UINT_PTR)Context[RequestStatus];
+    ULONG State = (ULONG)(UINT_PTR)Context[RequestState];
 
     if (0 != FileDesc)
     {
         ASSERT(0 != FileObject);
 
-        if (RequestPending == Status)
+        if (RequestPending == State)
             FspFsvolCreatePostClose(FileDesc);
-        else if (RequestProcessing == Status)
+        else if (RequestProcessing == State)
             FspFileNodeRelease(FileDesc->FileNode, Both);
 
         FspFileNodeClose(FileDesc->FileNode, FileObject, 0);
@@ -752,7 +753,7 @@ static VOID FspFsvolCreateOverwriteRequestFini(PVOID Context[3])
         FspFileDescDelete(FileDesc);
     }
 
-    Context[RequestFileDesc] = Context[RequestFileObject] = Context[RequestStatus] = 0;
+    Context[RequestFileDesc] = Context[RequestFileObject] = Context[RequestState] = 0;
 }
 
 NTSTATUS FspCreate(
