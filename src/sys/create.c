@@ -15,7 +15,10 @@ static NTSTATUS FspFsvolCreate(
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
 static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc);
+static NTSTATUS FspFsvolCreateTryFlushImage(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,
+    FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject);
 static FSP_IOP_REQUEST_FINI FspFsvolCreateRequestFini;
+static FSP_IOP_REQUEST_FINI FspFsvolCreateReservedRequestFini;
 static FSP_IOP_REQUEST_FINI FspFsvolCreateOverwriteRequestFini;
 FSP_DRIVER_DISPATCH FspCreate;
 
@@ -26,7 +29,9 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreatePrepare)
 #pragma alloc_text(PAGE, FspFsvolCreateComplete)
 #pragma alloc_text(PAGE, FspFsvolCreatePostClose)
+#pragma alloc_text(PAGE, FspFsvolCreateTryFlushImage)
 #pragma alloc_text(PAGE, FspFsvolCreateRequestFini)
+#pragma alloc_text(PAGE, FspFsvolCreateReservedRequestFini)
 #pragma alloc_text(PAGE, FspFsvolCreateOverwriteRequestFini)
 #pragma alloc_text(PAGE, FspCreate)
 #endif
@@ -41,7 +46,7 @@ enum
     RequestAccessToken                  = 1,
     RequestProcess                      = 2,
 
-    /* OverwriteRequest */
+    /* Reserved/OverwriteRequest */
     //RequestFileDesc                   = 0,
     RequestFileObject                   = 1,
     RequestState                        = 2,
@@ -347,7 +352,37 @@ NTSTATUS FspFsvolCreatePrepare(
     FSP_FILE_DESC *FileDesc;
     PFILE_OBJECT FileObject;
 
-    if (FspFsctlTransactCreateKind == Request->Kind)
+    if (FspFsctlTransactReservedKind == Request->Kind)
+    {
+        /*
+         * This branch is not taken during IRP preparation, but rather during IRP completion
+         * when FlushImageSection needs to be retried.
+         */
+        FileDesc = FspIopRequestContext(Request, RequestFileDesc);
+        FileNode = FileDesc->FileNode;
+        FileObject = FspIopRequestContext(Request, RequestFileObject);
+
+        Result = FspFsvolCreateTryFlushImage(Irp, Request, FileNode, FileDesc, FileObject);
+        if (STATUS_PENDING == Result)
+            return Result;
+        else
+        {
+            if (NT_SUCCESS(Result))
+            {
+                /* SUCCESS! */
+                FspIopRequestContext(Request, RequestFileDesc) = 0;
+                Irp->IoStatus.Information = FILE_OPENED;
+                Result = STATUS_SUCCESS;
+            }
+
+            DEBUGLOGIRP(Irp, Result);
+
+            FspIopCompleteIrp(Irp, Result);
+
+            return FSP_STATUS_COMPLETED;
+        }
+    }
+    else if (FspFsctlTransactCreateKind == Request->Kind)
     {
         SecuritySubjectContext = &IrpSp->Parameters.Create.SecurityContext->
             AccessState->SubjectSecurityContext;
@@ -558,15 +593,9 @@ VOID FspFsvolCreateComplete(
             if (FlagOn(Response->Rsp.Create.Opened.GrantedAccess, FILE_WRITE_DATA) ||
                 DeleteOnClose)
             {
-                if (!MmFlushImageSection(&FileNode->NonPaged->SectionObjectPointers,
-                    MmFlushForWrite))
-                {
-                    FspFsvolCreatePostClose(FileDesc);
-                    FspFileNodeClose(FileNode, FileObject, 0);
-
-                    Result = DeleteOnClose ? STATUS_CANNOT_DELETE : STATUS_SHARING_VIOLATION;
+                Result = FspFsvolCreateTryFlushImage(Irp, 0, FileNode, FileDesc, FileObject);
+                if (STATUS_PENDING == Result || !NT_SUCCESS(Result))
                     FSP_RETURN();
-                }
             }
 
             /* SUCCESS! */
@@ -690,6 +719,70 @@ static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc)
      */
 }
 
+static NTSTATUS FspFsvolCreateTryFlushImage(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,
+    FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject)
+{
+    PAGED_CODE();
+
+    ASSERT(0 == Request || FspFsctlTransactReservedKind == Request->Kind);
+
+    BOOLEAN Success;
+
+    Success = FspFileNodeTryAcquireExclusive(FileNode, Main);
+    if (!Success)
+    {
+        /* repost the IRP to retry later */
+        NTSTATUS Result;
+        PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+            FspFsvolDeviceExtension(IrpSp->DeviceObject);
+
+        if (0 == Request)
+        {
+            /* delete the old request */
+            Request = FspIrpRequest(Irp);
+            FspIrpRequest(Irp) = 0;
+            FspIopRequestContext(Request, RequestFileDesc) = 0;
+                /* disassociate the FileDesc from the old Request as we want to keep it around! */
+            FspIopDeleteRequest(Request);
+
+            /* create the special Reserved request */
+            FspIopCreateRequestFunnel(Irp, 0, 0,
+                FspFsvolCreateReservedRequestFini, TRUE,
+                &Request);
+
+            /* associate the FileDesc and FileObject with the Reserved request */
+            FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
+            FspIopRequestContext(Request, RequestFileObject) = FileObject;
+
+            Request->Kind = FspFsctlTransactReservedKind;
+        }
+
+        FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, &Result);
+
+        return Result;
+    }
+
+    Success = MmFlushImageSection(&FileNode->NonPaged->SectionObjectPointers,
+        MmFlushForWrite);
+    FspFileNodeRelease(FileNode, Main);
+    if (!Success)
+    {
+        PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+        BOOLEAN DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
+
+        if (0 == Request)
+        {
+            FspFsvolCreatePostClose(FileDesc);
+            FspFileNodeClose(FileNode, FileObject, 0);
+        }
+        
+        return DeleteOnClose ? STATUS_CANNOT_DELETE : STATUS_SHARING_VIOLATION;
+    }
+
+    return STATUS_SUCCESS;
+}
+
 static VOID FspFsvolCreateRequestFini(PVOID Context[3])
 {
     PAGED_CODE();
@@ -729,6 +822,26 @@ static VOID FspFsvolCreateRequestFini(PVOID Context[3])
     }
 
     Context[RequestFileDesc] = Context[RequestAccessToken] = Context[RequestProcess] = 0;
+}
+
+static VOID FspFsvolCreateReservedRequestFini(PVOID Context[3])
+{
+    PAGED_CODE();
+
+    FSP_FILE_DESC *FileDesc = Context[RequestFileDesc];
+    PFILE_OBJECT FileObject = Context[RequestFileObject];
+
+    if (0 != FileDesc)
+    {
+        ASSERT(0 != FileObject);
+
+        FspFsvolCreatePostClose(FileDesc);
+        FspFileNodeClose(FileDesc->FileNode, FileObject, 0);
+        FspFileNodeDereference(FileDesc->FileNode);
+        FspFileDescDelete(FileDesc);
+    }
+
+    Context[RequestFileDesc] = Context[RequestFileObject] = 0;
 }
 
 static VOID FspFsvolCreateOverwriteRequestFini(PVOID Context[3])

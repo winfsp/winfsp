@@ -29,6 +29,7 @@
 #define FSP_STATUS_PRIVATE_BIT          (0x20000000)
 #define FSP_STATUS_IOQ_POST             (FSP_STATUS_PRIVATE_BIT | 0x0000)
 #define FSP_STATUS_IOQ_POST_BEST_EFFORT (FSP_STATUS_PRIVATE_BIT | 0x0001)
+#define FSP_STATUS_COMPLETED            (FSP_STATUS_PRIVATE_BIT | 0x0002)
 
 /* misc macros */
 #define FSP_ALLOC_INTERNAL_TAG          'IpsF'
@@ -41,6 +42,13 @@
     DbgPrint("[%d] " DRIVER_NAME "!" __FUNCTION__ ": " fmt "\n", KeGetCurrentIrql(), __VA_ARGS__)
 #else
 #define DEBUGLOG(fmt, ...)              ((void)0)
+#endif
+
+/* DEBUGLOGIRP */
+#if DBG
+#define DEBUGLOGIRP(Irp, Result)        FspDebugLogIrp(Irp, Result)
+#else
+#define DEBUGLOGIRP(Irp, Result)        ((void)0)
 #endif
 
 /* DEBUGBREAK */
@@ -590,6 +598,19 @@ const char *NtStatusSym(NTSTATUS Status);
 const char *IrpMajorFunctionSym(UCHAR MajorFunction);
 const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);
 const char *IoctlCodeSym(ULONG ControlCode);
+static inline
+VOID FspDebugLogIrp(PIRP Irp, NTSTATUS Result)
+{
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    DEBUGLOG("IRP=%p, %s%c, %s%s, IoStatus=%s[%lld]",
+        Irp,
+        (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,
+        Irp->RequestorMode == KernelMode ? 'K' : 'U',
+        IrpMajorFunctionSym(IrpSp->MajorFunction),
+        IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction),
+        NtStatusSym(Result),
+        (LONGLONG)Irp->IoStatus.Information);
+}
 #endif
 
 /* extern */

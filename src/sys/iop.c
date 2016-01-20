@@ -238,15 +238,7 @@ VOID FspIopCompleteCanceledIrp(PIRP Irp)
 {
     PAGED_CODE();
 
-#if DBG
-    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    DEBUGLOG("IRP=%p, %s%c, %s%s",
-        Irp,
-        (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,
-        Irp->RequestorMode == KernelMode ? 'K' : 'U',
-        IrpMajorFunctionSym(IrpSp->MajorFunction),
-        IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction));
-#endif
+    DEBUGLOGIRP(Irp, STATUS_CANCELLED);
 
     FspIopCompleteIrpEx(Irp, STATUS_CANCELLED, TRUE);
 }

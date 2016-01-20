@@ -48,7 +48,7 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
 enum
 {
-    FspFsctlTransactUnknownKind = 0,
+    FspFsctlTransactReservedKind = 0,
     FspFsctlTransactCreateKind,
     FspFsctlTransactOverwriteKind,
     FspFsctlTransactCleanupKind,
