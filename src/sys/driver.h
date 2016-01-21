@@ -46,7 +46,7 @@
 
 /* DEBUGLOGIRP */
 #if DBG
-#define DEBUGLOGIRP(Irp, Result)        FspDebugLogIrp(Irp, Result)
+#define DEBUGLOGIRP(Irp, Result)        FspDebugLogIrp(__FUNCTION__, Irp, Result)
 #else
 #define DEBUGLOGIRP(Irp, Result)        ((void)0)
 #endif
@@ -599,10 +599,12 @@ const char *IrpMajorFunctionSym(UCHAR MajorFunction);
 const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);
 const char *IoctlCodeSym(ULONG ControlCode);
 static inline
-VOID FspDebugLogIrp(PIRP Irp, NTSTATUS Result)
+VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result)
 {
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    DEBUGLOG("IRP=%p, %s%c, %s%s, IoStatus=%s[%lld]",
+    DbgPrint("[%d] " DRIVER_NAME "!%s: IRP=%p, %s%c, %s%s, IoStatus=%s[%lld]\n",
+        KeGetCurrentIrql(),
+        func,
         Irp,
         (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,
         Irp->RequestorMode == KernelMode ? 'K' : 'U',
