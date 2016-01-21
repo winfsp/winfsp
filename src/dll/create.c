@@ -257,8 +257,19 @@ NTSTATUS FspFileSystemOpenCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     BOOLEAN AllowTraverseCheck, PDWORD PGrantedAccess)
 {
-    return FspAccessCheck(FileSystem, Request, FALSE, AllowTraverseCheck,
-        Request->Req.Create.DesiredAccess, PGrantedAccess);
+    NTSTATUS Result;
+
+    Result = FspAccessCheck(FileSystem, Request, FALSE, AllowTraverseCheck,
+        Request->Req.Create.DesiredAccess |
+            ((Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE) ? DELETE : 0),
+        PGrantedAccess);
+    if (NT_SUCCESS(Result))
+    {
+        if (0 == (Request->Req.Create.DesiredAccess & MAXIMUM_ALLOWED))
+            *PGrantedAccess &= ~DELETE | (Request->Req.Create.DesiredAccess & DELETE);
+    }
+
+    return Result;
 }
 
 static inline
@@ -270,14 +281,15 @@ NTSTATUS FspFileSystemOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
     BOOLEAN Supersede = FILE_SUPERSEDE == ((Request->Req.Create.CreateOptions >> 24) & 0xff);
 
     Result = FspAccessCheck(FileSystem, Request, FALSE, AllowTraverseCheck,
-        Request->Req.Create.DesiredAccess | (Supersede ? DELETE : FILE_WRITE_DATA),
+        Request->Req.Create.DesiredAccess |
+            (Supersede ? DELETE : FILE_WRITE_DATA) |
+            ((Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE) ? DELETE : 0),
         PGrantedAccess);
     if (NT_SUCCESS(Result))
     {
         if (0 == (Request->Req.Create.DesiredAccess & MAXIMUM_ALLOWED))
-            *PGrantedAccess &= Supersede ?
-                (~DELETE | (Request->Req.Create.DesiredAccess & DELETE)) :
-                (~FILE_WRITE_DATA | (Request->Req.Create.DesiredAccess & FILE_WRITE_DATA));
+            *PGrantedAccess &= ~(DELETE | FILE_WRITE_DATA) |
+                (Request->Req.Create.DesiredAccess & (DELETE | FILE_WRITE_DATA));
     }
 
     return Result;
