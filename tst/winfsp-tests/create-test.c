@@ -116,7 +116,11 @@ void create_sd_dotest(ULONG Flags, PWSTR Prefix)
     void *memfs = memfs_start(Flags);
 
     static PWSTR Sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;WD)";
-    PSECURITY_DESCRIPTOR SecurityDescriptor;
+    UINT8 AbsoluteSecurityDescriptorBuf[SECURITY_DESCRIPTOR_MIN_LENGTH];
+    PSECURITY_DESCRIPTOR SecurityDescriptor, AbsoluteSecurityDescriptor = AbsoluteSecurityDescriptorBuf;
+    PSID Owner;
+    PACL Dacl;
+    BOOL OwnerDefaulted, DaclDefaulted, DaclPresent;
     SECURITY_ATTRIBUTES SecurityAttributes = { 0 };
     HANDLE Handle;
     BOOLEAN Success;
@@ -127,6 +131,50 @@ void create_sd_dotest(ULONG Flags, PWSTR Prefix)
 
     SecurityAttributes.nLength = sizeof SecurityAttributes;
     SecurityAttributes.lpSecurityDescriptor = SecurityDescriptor;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &SecurityAttributes,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectory(FilePath, &SecurityAttributes);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Success = InitializeSecurityDescriptor(AbsoluteSecurityDescriptor, SECURITY_DESCRIPTOR_REVISION);
+    ASSERT(Success);
+    Success = GetSecurityDescriptorOwner(SecurityDescriptor, &Owner, &OwnerDefaulted);
+    ASSERT(Success);
+    Success = SetSecurityDescriptorOwner(AbsoluteSecurityDescriptor, Owner, OwnerDefaulted);
+    ASSERT(Success);
+    Success = GetSecurityDescriptorGroup(SecurityDescriptor, &Owner, &OwnerDefaulted);
+    ASSERT(Success);
+    Success = SetSecurityDescriptorGroup(AbsoluteSecurityDescriptor, Owner, OwnerDefaulted);
+    ASSERT(Success);
+    Success = GetSecurityDescriptorDacl(SecurityDescriptor, &DaclPresent, &Dacl, &DaclDefaulted);
+    ASSERT(Success);
+    Success = SetSecurityDescriptorDacl(AbsoluteSecurityDescriptor, DaclPresent, Dacl, DaclDefaulted);
+    ASSERT(Success);
+
+    SecurityAttributes.nLength = sizeof SecurityAttributes;
+    SecurityAttributes.lpSecurityDescriptor = AbsoluteSecurityDescriptor;
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
