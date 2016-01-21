@@ -1,5 +1,6 @@
 #include <winfsp/winfsp.h>
 #include <tlib/testsuite.h>
+#include <sddl.h>
 #include <strsafe.h>
 #include "memfs.h"
 
@@ -110,7 +111,64 @@ void create_test(void)
         create_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+void create_sd_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    static PWSTR Sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;WD)";
+    PSECURITY_DESCRIPTOR SecurityDescriptor;
+    SECURITY_ATTRIBUTES SecurityAttributes = { 0 };
+    HANDLE Handle;
+    BOOLEAN Success;
+    WCHAR FilePath[MAX_PATH];
+
+    Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(Sddl, SDDL_REVISION_1, &SecurityDescriptor, 0);
+    ASSERT(Success);
+
+    SecurityAttributes.nLength = sizeof SecurityAttributes;
+    SecurityAttributes.lpSecurityDescriptor = SecurityDescriptor;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &SecurityAttributes,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectory(FilePath, &SecurityAttributes);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    LocalFree(SecurityDescriptor);
+
+    memfs_stop(memfs);
+}
+
+void create_sd_test(void)
+{
+    if (WinFspDiskTests)
+        create_sd_dotest(MemfsDisk, 0);
+    if (0 && WinFspNetTests)
+        create_sd_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
 void create_tests(void)
 {
     TEST(create_test);
+    TEST(create_sd_test);
 }

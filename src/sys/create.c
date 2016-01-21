@@ -124,8 +124,6 @@ static NTSTATUS FspFsvolCreate(
         FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
     BOOLEAN HasTraversePrivilege =
         BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
-    BOOLEAN IsAbsoluteSecurityDescriptor = FALSE;
-    BOOLEAN IsSelfRelativeSecurityDescriptor = FALSE;
     BOOLEAN HasTrailingBackslash = FALSE;
     FSP_FILE_NODE *FileNode, *RelatedFileNode;
     FSP_FILE_DESC *FileDesc;
@@ -144,27 +142,16 @@ static NTSTATUS FspFsvolCreate(
         return STATUS_ACCESS_DENIED;
 
     /* check create options */
-    if (FlagOn(CreateOptions, FILE_NON_DIRECTORY_FILE) && FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
+    if (FlagOn(CreateOptions, FILE_NON_DIRECTORY_FILE) &&
+        FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
         return STATUS_INVALID_PARAMETER;
 
     /* check security descriptor validity */
     if (0 != SecurityDescriptor)
     {
-        IsAbsoluteSecurityDescriptor = RtlValidSecurityDescriptor(SecurityDescriptor);
-        if (IsAbsoluteSecurityDescriptor)
-        {
-            Result = RtlAbsoluteToSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize);
-            if (STATUS_BUFFER_TOO_SMALL != Result)
-                return STATUS_INVALID_PARAMETER;
-        }
-        else
-        {
-            SecurityDescriptorSize = RtlLengthSecurityDescriptor(SecurityDescriptor);
-            IsSelfRelativeSecurityDescriptor = RtlValidRelativeSecurityDescriptor(
-                SecurityDescriptor, SecurityDescriptorSize, 0);
-            if (!IsSelfRelativeSecurityDescriptor)
-                return STATUS_INVALID_PARAMETER;
-        }
+        if (!RtlValidSecurityDescriptor(SecurityDescriptor))
+            return STATUS_INVALID_PARAMETER;
+        SecurityDescriptorSize = RtlLengthSecurityDescriptor(SecurityDescriptor);
     }
 
     /* according to fastfat, filenames that begin with two backslashes are ok */
@@ -323,19 +310,8 @@ static NTSTATUS FspFsvolCreate(
     Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);
     Request->Req.Create.CaseSensitive = BooleanFlagOn(Flags, SL_CASE_SENSITIVE);
 
-    /* copy the security descriptor into the request */
-    if (IsAbsoluteSecurityDescriptor)
-    {
-        Result = RtlAbsoluteToSelfRelativeSD(SecurityDescriptor,
-            Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset, &SecurityDescriptorSize);
-        if (!NT_SUCCESS(Result))
-        {
-            if (STATUS_BAD_DESCRIPTOR_FORMAT == Result || STATUS_BUFFER_TOO_SMALL == Result)
-                Result = STATUS_INVALID_PARAMETER; /* should not happen */
-            return Result;
-        }
-    }
-    else if (IsSelfRelativeSecurityDescriptor)
+    /* copy the security descriptor (if any) into the request */
+    if (0 != SecurityDescriptorSize)
         RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset,
             SecurityDescriptor, SecurityDescriptorSize);
 
