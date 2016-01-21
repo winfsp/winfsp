@@ -549,7 +549,7 @@ VOID FspFsvolCreateComplete(
         FileNode->UserContext = Response->Rsp.Create.Opened.UserContext;
         FileDesc->UserContext2 = Response->Rsp.Create.Opened.UserContext2;
 
-        DeleteOnClose = BooleanFlagOn(Request->Req.Create.CreateOptions, FILE_DELETE_ON_CLOSE);
+        DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
 
         /* open the FileNode */
         OpenedFileNode = FspFileNodeOpen(FileNode, FileObject,
