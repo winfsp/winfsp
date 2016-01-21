@@ -107,7 +107,7 @@ void create_test(void)
 {
     if (WinFspDiskTests)
         create_dotest(MemfsDisk, 0);
-    if (0 && WinFspNetTests)
+    if (WinFspNetTests)
         create_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
@@ -211,7 +211,7 @@ void create_sd_test(void)
 {
     if (WinFspDiskTests)
         create_sd_dotest(MemfsDisk, 0);
-    if (0 && WinFspNetTests)
+    if (WinFspNetTests)
         create_sd_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
@@ -279,7 +279,7 @@ void create_share_test(void)
 {
     if (WinFspDiskTests)
         create_share_dotest(MemfsDisk, 0);
-    if (0 && WinFspNetTests)
+    if (WinFspNetTests)
         create_share_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 

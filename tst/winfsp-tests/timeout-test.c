@@ -34,7 +34,7 @@ static unsigned __stdcall timeout_pending_dotest_thread2(void *FilePath)
     return 0;
 }
 
-void timeout_pending_dotest(PWSTR DeviceName)
+void timeout_pending_dotest(PWSTR DeviceName, PWSTR Prefix)
 {
     NTSTATUS Result;
     BOOL Success;
@@ -45,6 +45,7 @@ void timeout_pending_dotest(PWSTR DeviceName)
     HANDLE Thread;
     DWORD ExitCode;
 
+    VolumeParams.TransactTimeout = 10000; /* allow for longer transact timeout to handle MUP redir */
     VolumeParams.IrpTimeout = FspFsctlIrpTimeoutDebug;
     VolumeParams.SectorSize = 16384;
     VolumeParams.SerialNumber = 0x12345678;
@@ -55,7 +56,8 @@ void timeout_pending_dotest(PWSTR DeviceName)
     ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumeName, 15));
     ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumeName);
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : VolumeName);
     Thread = (HANDLE)_beginthreadex(0, 0, timeout_pending_dotest_thread, FilePath, 0, 0);
     ASSERT(0 != Thread);
 
@@ -126,9 +128,9 @@ void timeout_pending_dotest(PWSTR DeviceName)
 void timeout_pending_test(void)
 {
     if (WinFspDiskTests)
-        timeout_pending_dotest(L"WinFsp.Disk");
+        timeout_pending_dotest(L"WinFsp.Disk", 0);
     if (WinFspNetTests)
-        timeout_pending_dotest(L"WinFsp.Net");
+        timeout_pending_dotest(L"WinFsp.Net", L"\\\\winfsp-tests\\share");
 }
 
 static unsigned __stdcall timeout_transact_dotest_thread(void *FilePath)
@@ -144,7 +146,7 @@ static unsigned __stdcall timeout_transact_dotest_thread(void *FilePath)
     return 0;
 }
 
-void timeout_transact_dotest(PWSTR DeviceName)
+void timeout_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
 {
     NTSTATUS Result;
     BOOL Success;
@@ -155,7 +157,7 @@ void timeout_transact_dotest(PWSTR DeviceName)
     HANDLE Thread;
     DWORD ExitCode;
 
-    VolumeParams.TransactTimeout = 1000;
+    VolumeParams.TransactTimeout = 0 != Prefix ? 1000 : 5000;
     VolumeParams.SectorSize = 16384;
     VolumeParams.SerialNumber = 0x12345678;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
@@ -181,7 +183,8 @@ void timeout_transact_dotest(PWSTR DeviceName)
     ASSERT(STATUS_SUCCESS == Result);
     ASSERT(0 == RequestBufSize);
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumeName);
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : VolumeName);
     Thread = (HANDLE)_beginthreadex(0, 0, timeout_transact_dotest_thread, FilePath, 0, 0);
     ASSERT(0 != Thread);
 
@@ -232,9 +235,9 @@ void timeout_transact_dotest(PWSTR DeviceName)
 void timeout_transact_test(void)
 {
     if (WinFspDiskTests)
-        timeout_transact_dotest(L"WinFsp.Disk");
+        timeout_transact_dotest(L"WinFsp.Disk", 0);
     if (WinFspNetTests)
-        timeout_transact_dotest(L"WinFsp.Net");
+        timeout_transact_dotest(L"WinFsp.Net", L"\\\\winfsp-tests\\share");
 }
 
 void timeout_tests(void)

@@ -451,6 +451,7 @@ typedef struct
     FSP_DELAYED_WORK_ITEM DeleteVolumeDelayedWorkItem;
     ERESOURCE DeleteResource;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    UNICODE_STRING VolumePrefix;
     FSP_IOQ *Ioq;
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;

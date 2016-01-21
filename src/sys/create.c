@@ -169,12 +169,13 @@ static NTSTATUS FspFsvolCreate(
 
     /* check for trailing backslash */
     if (sizeof(WCHAR) * 2/* not empty or root */ <= FileName.Length &&
-        L'\\' == FileName.Buffer[FileName.Length / 2 - 1])
+        L'\\' == FileName.Buffer[FileName.Length / sizeof(WCHAR) - 1])
     {
         FileName.Length -= sizeof(WCHAR);
         HasTrailingBackslash = TRUE;
 
-        if (sizeof(WCHAR) * 2 <= FileName.Length && L'\\' == FileName.Buffer[FileName.Length / 2 - 1])
+        if (sizeof(WCHAR) * 2 <= FileName.Length &&
+            L'\\' == FileName.Buffer[FileName.Length / sizeof(WCHAR) - 1])
             return STATUS_OBJECT_NAME_INVALID;
     }
     if (HasTrailingBackslash && !FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
@@ -259,6 +260,23 @@ static NTSTATUS FspFsvolCreate(
 
     Result = RtlAppendUnicodeStringToString(&FileNode->FileName, &FileName);
     ASSERT(NT_SUCCESS(Result));
+
+    /* check and remove any volume prefix */
+    if (0 < FsvolDeviceExtension->VolumePrefix.Length)
+    {
+        if (FileNode->FileName.Length <= FsvolDeviceExtension->VolumePrefix.Length ||
+            !RtlEqualMemory(FileNode->FileName.Buffer, FsvolDeviceExtension->VolumePrefix.Buffer,
+                FsvolDeviceExtension->VolumePrefix.Length) ||
+            '\\' != FileNode->FileName.Buffer[FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR)])
+        {
+            FspFileNodeDereference(FileNode);
+            return STATUS_OBJECT_PATH_NOT_FOUND;
+        }
+
+        FileNode->FileName.Length -= FsvolDeviceExtension->VolumePrefix.Length;
+        FileNode->FileName.MaximumLength -= FsvolDeviceExtension->VolumePrefix.Length;
+        FileNode->FileName.Buffer += FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR);
+    }
 
     Result = FspFileDescCreate(&FileDesc);
     if (!NT_SUCCESS(Result))

@@ -87,7 +87,7 @@ static unsigned __stdcall mount_volume_cancel_dotest_thread(void *FilePath)
     return 0;
 }
 
-void mount_volume_cancel_dotest(PWSTR DeviceName)
+void mount_volume_cancel_dotest(PWSTR DeviceName, PWSTR Prefix)
 {
     NTSTATUS Result;
     BOOL Success;
@@ -107,11 +107,12 @@ void mount_volume_cancel_dotest(PWSTR DeviceName)
     ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumeName, 15));
     ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"\\\\?\\GLOBALROOT%s\\file0", VolumeName);
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : VolumeName);
     Thread = (HANDLE)_beginthreadex(0, 0, mount_volume_cancel_dotest_thread, FilePath, 0, 0);
     ASSERT(0 != Thread);
 
-    Sleep(1000); /* give some time to the thread to execute */
+    Sleep(0 == Prefix ? 1000 : 5000); /* give some time to the thread to execute */
 
     Success = CloseHandle(VolumeHandle);
     ASSERT(Success);
@@ -126,9 +127,9 @@ void mount_volume_cancel_dotest(PWSTR DeviceName)
 void mount_volume_cancel_test(void)
 {
     if (WinFspDiskTests)
-        mount_volume_cancel_dotest(L"WinFsp.Disk");
+        mount_volume_cancel_dotest(L"WinFsp.Disk", 0);
     if (WinFspNetTests)
-        mount_volume_cancel_dotest(L"WinFsp.Net");
+        mount_volume_cancel_dotest(L"WinFsp.Net", L"\\\\winfsp-tests\\share");
 }
 
 static unsigned __stdcall mount_volume_transact_dotest_thread(void *FilePath)
@@ -210,9 +211,7 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
     ASSERT(!Request->Req.Create.CaseSensitive);
     ASSERT(0 == Request->FileName.Offset);
     ASSERT((wcslen((PVOID)Request->Buffer) + 1) * sizeof(WCHAR) == Request->FileName.Size);
-    ASSERT(
-        0 == wcscmp((PVOID)Request->Buffer, L"\\file0") ||
-        0 == wcscmp((PVOID)Request->Buffer, FilePath + 1));
+    ASSERT(0 == wcscmp((PVOID)Request->Buffer, L"\\file0"));
 
     ASSERT(FspFsctlTransactCanProduceResponse(Response, ResponseBufEnd));
 
@@ -250,10 +249,7 @@ void mount_volume_transact_test(void)
     if (WinFspDiskTests)
         mount_volume_transact_dotest(L"WinFsp.Disk", 0);
     if (WinFspNetTests)
-    {
-        mount_volume_transact_dotest(L"WinFsp.Net", 0);
         mount_volume_transact_dotest(L"WinFsp.Net", L"\\\\winfsp-tests\\share");
-    }
 }
 
 void mount_tests(void)

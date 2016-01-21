@@ -102,7 +102,7 @@ NTSTATUS FspVolumeCreate(
         VolumeParams.IrpCapacity = FspFsctlIrpCapacityDefault;
     if (FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType)
     {
-        VolumeParams.Prefix[sizeof VolumeParams.Prefix / 2 - 1] = L'\0';
+        VolumeParams.Prefix[sizeof VolumeParams.Prefix / sizeof(WCHAR) - 1] = L'\0';
         for (; L'\0' != VolumeParams.Prefix[PrefixLength]; PrefixLength++)
             ;
         for (; 0 < PrefixLength && L'\\' == VolumeParams.Prefix[PrefixLength - 1]; PrefixLength--)
@@ -155,6 +155,9 @@ NTSTATUS FspVolumeCreate(
     FsvolDeviceExtension->FsctlDeviceObject = FsctlDeviceObject;
     FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
     FsvolDeviceExtension->VolumeParams = VolumeParams;
+    if (FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType)
+        RtlInitUnicodeString(&FsvolDeviceExtension->VolumePrefix,
+            FsvolDeviceExtension->VolumeParams.Prefix);
     RtlInitEmptyUnicodeString(&FsvolDeviceExtension->VolumeName,
         FsvolDeviceExtension->VolumeNameBuf, sizeof FsvolDeviceExtension->VolumeNameBuf);
     RtlCopyUnicodeString(&FsvolDeviceExtension->VolumeName, &VolumeName);
@@ -424,7 +427,6 @@ NTSTATUS FspVolumeRedirQueryPathEx(
 
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    UNICODE_STRING Prefix;
 
     /* acquire our DeleteResource */
     ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->DeleteResource, TRUE);
@@ -432,13 +434,14 @@ NTSTATUS FspVolumeRedirQueryPathEx(
     Result = STATUS_BAD_NETWORK_PATH;
     if (!FspIoqStopped(FsvolDeviceExtension->Ioq))
     {
-        RtlInitUnicodeString(&Prefix, FsvolDeviceExtension->VolumeParams.Prefix);
-        if (Prefix.Length <= QueryPathRequest->PathName.Length &&
-            RtlEqualMemory(Prefix.Buffer, QueryPathRequest->PathName.Buffer, Prefix.Length) &&
-            (Prefix.Length == QueryPathRequest->PathName.Length ||
-                '\\' == QueryPathRequest->PathName.Buffer[Prefix.Length / 2]))
+        if (0 < FsvolDeviceExtension->VolumePrefix.Length &&
+            QueryPathRequest->PathName.Length >= FsvolDeviceExtension->VolumePrefix.Length &&
+            RtlEqualMemory(QueryPathRequest->PathName.Buffer,
+                FsvolDeviceExtension->VolumePrefix.Buffer, FsvolDeviceExtension->VolumePrefix.Length) &&
+            (QueryPathRequest->PathName.Length == FsvolDeviceExtension->VolumePrefix.Length ||
+                '\\' == QueryPathRequest->PathName.Buffer[FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR)]))
         {
-            QueryPathResponse->LengthAccepted = Prefix.Length;
+            QueryPathResponse->LengthAccepted = FsvolDeviceExtension->VolumePrefix.Length;
 
             Irp->IoStatus.Information = 0;
             Result = STATUS_SUCCESS;
