@@ -112,7 +112,7 @@ typedef struct
         struct
         {
             UINT32 CreateOptions;       /* Disposition: high 8 bits; Options: low 24 bits */
-            UINT32 FileAttributes;      /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
+            UINT32 FileAttributes;      /* file attributes for new files */
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor; /* security descriptor for new files */
             UINT64 AllocationSize;      /* initial allocation size */
             UINT64 AccessToken;         /* (HANDLE); request access token; sent if NoAccessCheck is 0 */
@@ -128,7 +128,7 @@ typedef struct
         {
             UINT64 UserContext;
             UINT64 UserContext2;
-            UINT32 FileAttributes;      /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
+            UINT32 FileAttributes;      /* file attributes for overwritten/superseded files */
             UINT32 Supersede:1;         /* 0: FILE_OVERWRITE operation, 1: FILE_SUPERSEDE operation */
         } Overwrite;
         struct
@@ -166,7 +166,7 @@ typedef struct
             {
                 UINT64 UserContext;     /* user context (unique file id) associated with file node */
                 UINT64 UserContext2;    /* user context associated with file descriptor (handle) */
-                UINT32 FileAttributes;  /* FILE_ATTRIBUTE_{NORMAL,DIRECTORY,etc.} */
+                UINT32 FileAttributes;  /* file attributes of opened file */
                 UINT64 AllocationSize;  /* file allocation size */
                 UINT64 FileSize;        /* file size */
                 UINT32 GrantedAccess;   /* FILE_{READ_DATA,WRITE_DATA,etc.} */

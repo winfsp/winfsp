@@ -290,6 +290,13 @@ static NTSTATUS FspFsvolCreate(
         return Result;
     }
 
+    /* fix FileAttributes */
+    ClearFlag(FileAttributes, FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_DIRECTORY);
+    if (CreateOptions & FILE_DIRECTORY_FILE)
+        SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
+    else
+        ClearFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
+
     /*
      * The new request is associated with our IRP. Go ahead and associate our FileNode/FileDesc
      * with the Request as well. After this is done completing our IRP will automatically
@@ -590,8 +597,9 @@ VOID FspFsvolCreateComplete(
              *     If the user wants to delete on close, we must check at this
              *     point though.
              */
-            if (FlagOn(Response->Rsp.Create.Opened.GrantedAccess, FILE_WRITE_DATA) ||
-                DeleteOnClose)
+            if (!FlagOn(Response->Rsp.Create.Opened.FileAttributes, FILE_ATTRIBUTE_DIRECTORY) &&
+                (FlagOn(Response->Rsp.Create.Opened.GrantedAccess, FILE_WRITE_DATA) ||
+                DeleteOnClose))
             {
                 Result = FspFsvolCreateTryOpen(Irp, 0, FileNode, FileDesc, FileObject);
                 if (STATUS_PENDING == Result || !NT_SUCCESS(Result))
@@ -610,6 +618,13 @@ VOID FspFsvolCreateComplete(
             /*
              * Oh, noes! We have to go back to user mode to overwrite the file!
              */
+
+            /* save the old Request FileAttributes and make them compatible with the open file */
+            UINT32 FileAttributes = Request->Req.Create.FileAttributes;
+            if (FlagOn(Response->Rsp.Create.Opened.FileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+                SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
+            else
+                ClearFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
 
             /* delete the old request */
             FspIrpRequest(Irp) = 0;
@@ -632,7 +647,7 @@ VOID FspFsvolCreateComplete(
             Request->Kind = FspFsctlTransactOverwriteKind;
             Request->Req.Overwrite.UserContext = FileNode->UserContext;
             Request->Req.Overwrite.UserContext2 = FileDesc->UserContext2;
-            Request->Req.Overwrite.FileAttributes = IrpSp->Parameters.Create.FileAttributes;
+            Request->Req.Overwrite.FileAttributes = FileAttributes;
             Request->Req.Overwrite.Supersede = FILE_SUPERSEDED == Response->IoStatus.Information;
 
             /*

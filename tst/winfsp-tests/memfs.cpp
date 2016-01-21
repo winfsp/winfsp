@@ -110,14 +110,23 @@ MEMFS_FILE_NODE *MemfsFileNodeMapGet(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR Fil
 }
 
 static inline
-MEMFS_FILE_NODE *MemfsFileNodeMapGetParent(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR FileName)
+MEMFS_FILE_NODE *MemfsFileNodeMapGetParent(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR FileName,
+    PNTSTATUS PResult)
 {
     PWSTR Remain, Suffix;
     FspPathSuffix(FileName, &Remain, &Suffix);
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->find(Remain);
     FspPathCombine(Remain, Suffix);
     if (iter == FileNodeMap->end())
+    {
+        *PResult = STATUS_OBJECT_PATH_NOT_FOUND;
         return 0;
+    }
+    if (0 == (iter->second->FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+        *PResult = STATUS_NOT_A_DIRECTORY;
+        return 0;
+    }
     return iter->second;
 }
 
@@ -152,11 +161,15 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode;
+    NTSTATUS Result;
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
     if (0 == FileNode)
-        return !MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName) ?
-            STATUS_OBJECT_PATH_NOT_FOUND : STATUS_OBJECT_NAME_NOT_FOUND;
+    {
+        Result = STATUS_OBJECT_NAME_NOT_FOUND;
+        MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result);
+        return Result;
+    }
 
     if (0 != PFileAttributes)
         *PFileAttributes = FileNode->FileAttributes;
@@ -188,12 +201,15 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
     BOOLEAN Inserted;
 
+    if (CreateOptions & FILE_DIRECTORY_FILE)
+        AllocationSize = 0;
+
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
     if (0 != FileNode)
         return STATUS_OBJECT_NAME_COLLISION;
 
-    if (!MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName))
-        return STATUS_OBJECT_PATH_NOT_FOUND;
+    if (!MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result))
+        return Result;
 
     if (MemfsFileNodeMapCount(Memfs->FileNodeMap) >= Memfs->MaxFileNodes)
         return STATUS_CANNOT_MAKE;
@@ -255,11 +271,15 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode;
+    NTSTATUS Result;
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
     if (0 == FileNode)
-        return !MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName) ?
-            STATUS_OBJECT_PATH_NOT_FOUND : STATUS_OBJECT_NAME_NOT_FOUND;
+    {
+        Result = STATUS_OBJECT_NAME_NOT_FOUND;
+        MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result);
+        return Result;
+    }
 
     FileNode->RefCount++;
     NodeInfo->FileAttributes = FileNode->FileAttributes;
