@@ -10,6 +10,12 @@
 
 #define MEMFS_SECTOR_SIZE               512
 
+static inline
+int MemfsFileNameCompare(PWSTR a, PWSTR b)
+{
+    return wcscmp(a, b);
+}
+
 typedef struct _MEMFS_FILE_NODE
 {
     WCHAR FileName[MAX_PATH];
@@ -26,7 +32,7 @@ struct MEMFS_FILE_NODE_LESS
 {
     bool operator()(PWSTR a, PWSTR b) const
     {
-        return 0 > wcscmp(a, b);
+        return 0 > MemfsFileNameCompare(a, b);
     }
 };
 typedef std::map<PWSTR, MEMFS_FILE_NODE *, MEMFS_FILE_NODE_LESS> MEMFS_FILE_NODE_MAP;
@@ -153,6 +159,20 @@ VOID MemfsFileNodeMapRemove(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *F
 {
     --FileNode->RefCount;
     FileNodeMap->erase(FileNode->FileName);
+}
+
+static inline
+BOOLEAN MemfsFileNodeMapHasChild(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode)
+{
+    BOOLEAN Result;
+    PWSTR Remain, Suffix;
+    MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->upper_bound(FileNode->FileName);
+    if (iter == FileNodeMap->end())
+        return FALSE;
+    FspPathSuffix(iter->second->FileName, &Remain, &Suffix);
+    Result = 0 == MemfsFileNameCompare(Remain, FileNode->FileName);
+    FspPathCombine(Remain, Suffix);
+    return Result;
 }
 
 static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
@@ -318,7 +338,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
-    if (Delete)
+    if (Delete && !MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
         MemfsFileNodeMapRemove(Memfs->FileNodeMap, FileNode);
 }
 
