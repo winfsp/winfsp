@@ -196,7 +196,7 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
     ASSERT(0 != Request->Hint);
     ASSERT(FspFsctlTransactCreateKind == Request->Kind);
     ASSERT(FILE_CREATE == ((Request->Req.Create.CreateOptions >> 24) & 0xff));
-    ASSERT(FILE_ATTRIBUTE_NORMAL == Request->Req.Create.FileAttributes);
+    ASSERT(0 == Request->Req.Create.FileAttributes);
     ASSERT(0 == Request->Req.Create.SecurityDescriptor.Offset);
     ASSERT(0 == Request->Req.Create.SecurityDescriptor.Size);
     ASSERT(0 == Request->Req.Create.AllocationSize);
