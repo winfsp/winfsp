@@ -215,8 +215,77 @@ void create_sd_test(void)
         create_sd_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+void create_share_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    HANDLE Handle1, Handle2;
+    WCHAR FilePath[MAX_PATH];
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle1 = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle1);
+    CloseHandle(Handle1);
+
+    {
+        /* share test */
+
+        Handle1 = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        Handle2 = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+
+        CloseHandle(Handle1);
+        CloseHandle(Handle2);
+
+        Handle1 = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        Handle2 = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+
+        CloseHandle(Handle1);
+
+        Handle1 = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        Handle2 = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+
+        CloseHandle(Handle1);
+    }
+
+    Handle1 = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle1);
+    CloseHandle(Handle1);
+
+    memfs_stop(memfs);
+}
+
+void create_share_test(void)
+{
+    if (WinFspDiskTests)
+        create_share_dotest(MemfsDisk, 0);
+    if (0 && WinFspNetTests)
+        create_share_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
 void create_tests(void)
 {
     TEST(create_test);
     TEST(create_sd_test);
+    TEST(create_share_test);
 }
