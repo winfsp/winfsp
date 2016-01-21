@@ -126,6 +126,41 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
     ASSERT(INVALID_HANDLE_VALUE == Handle);
     ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
 
+    if (0 == Prefix)
+    {
+        /* backslash at path end */
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0\\",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle);
+        ASSERT(ERROR_INVALID_NAME == GetLastError());
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\\\",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Success = CreateDirectory(FilePath, 0);
+        ASSERT(!Success);
+        ASSERT(ERROR_INVALID_NAME == GetLastError());
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Success = CreateDirectory(FilePath, 0);
+        ASSERT(Success);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        CloseHandle(Handle);
+    }
+
     memfs_stop(memfs);
 }
 
