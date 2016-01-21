@@ -15,6 +15,7 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
     void *memfs = memfs_start(Flags);
 
     HANDLE Handle;
+    BOOLEAN Success;
     WCHAR FilePath[MAX_PATH];
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
@@ -45,7 +46,6 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
     ASSERT(INVALID_HANDLE_VALUE == Handle);
     ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
 
-#if 0
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
@@ -62,6 +62,22 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
     CloseHandle(Handle);
+
+    {
+        /* attempt to DELETE_ON_CLOSE a non-empty directory! */
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        CloseHandle(Handle);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file2",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    }
 
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
@@ -82,7 +98,6 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE == Handle);
     ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
-#endif
 
     memfs_stop(memfs);
 }
