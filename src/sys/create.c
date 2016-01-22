@@ -134,7 +134,7 @@ static NTSTATUS FspFsvolCreate(
     if (FlagOn(CreateOptions, FILE_OPEN_BY_FILE_ID))
         return STATUS_NOT_IMPLEMENTED;
 
-    /* do we not support EA */
+    /* no EA support currently */
     if (0 != EaBuffer)
         return STATUS_EAS_NOT_SUPPORTED;
 
