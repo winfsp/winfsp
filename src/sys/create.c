@@ -98,7 +98,8 @@ static NTSTATUS FspFsvolCreate(
     UNICODE_STRING FileName = FileObject->FileName;
 
     /* open the volume object? */
-    if ((0 == RelatedFileObject || RelatedFileObject->FsContext) && 0 == FileName.Length)
+    if ((0 == RelatedFileObject || !FspFileNodeIsValid(RelatedFileObject->FsContext)) &&
+        0 == FileName.Length)
     {
         if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
 #pragma prefast(disable:28175, "We are a filesystem: ok to access Vpb")
@@ -262,7 +263,7 @@ static NTSTATUS FspFsvolCreate(
     ASSERT(NT_SUCCESS(Result));
 
     /* check and remove any volume prefix */
-    if (0 < FsvolDeviceExtension->VolumePrefix.Length)
+    if (0 == RelatedFileObject && 0 < FsvolDeviceExtension->VolumePrefix.Length)
     {
         if (FileNode->FileName.Length <= FsvolDeviceExtension->VolumePrefix.Length ||
             !RtlEqualMemory(FileNode->FileName.Buffer, FsvolDeviceExtension->VolumePrefix.Buffer,

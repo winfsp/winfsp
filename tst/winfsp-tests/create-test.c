@@ -172,6 +172,61 @@ void create_test(void)
         create_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+void create_related_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    HANDLE DirHandle, FileHandle;
+    NTSTATUS Result;
+    BOOLEAN Success;
+    WCHAR FilePath[MAX_PATH];
+    WCHAR UnicodePathBuf[MAX_PATH] = L"file2";
+    UNICODE_STRING UnicodePath;
+    OBJECT_ATTRIBUTES Obja;
+    IO_STATUS_BLOCK Iosb;
+    LARGE_INTEGER LargeZero = { 0 };
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectory(FilePath, 0);
+    ASSERT(Success);
+
+    DirHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != DirHandle);
+
+    UnicodePath.Length = (USHORT)wcslen(UnicodePathBuf) * sizeof(WCHAR);
+    UnicodePath.MaximumLength = sizeof UnicodePathBuf;
+    UnicodePath.Buffer = UnicodePathBuf;
+    InitializeObjectAttributes(&Obja, &UnicodePath, 0, DirHandle, 0);
+    Result = NtCreateFile(&FileHandle,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
+        &LargeZero, FILE_ATTRIBUTE_NORMAL, 0,
+        FILE_CREATE, FILE_DELETE_ON_CLOSE, 0, 0);
+    ASSERT(STATUS_SUCCESS == Result);
+    CloseHandle(FileHandle);
+
+    CloseHandle(DirHandle);
+
+    DirHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE == DirHandle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    memfs_stop(memfs);
+}
+
+void create_related_test(void)
+{
+    if (WinFspDiskTests)
+        create_related_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        create_related_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
 void create_sd_dotest(ULONG Flags, PWSTR Prefix)
 {
     void *memfs = memfs_start(Flags);
@@ -347,6 +402,7 @@ void create_share_test(void)
 void create_tests(void)
 {
     TEST(create_test);
+    TEST(create_related_test);
     TEST(create_sd_test);
     TEST(create_share_test);
 }
