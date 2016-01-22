@@ -8,6 +8,7 @@ void *memfs_start(ULONG Flags);
 void memfs_stop(void *data);
 PWSTR memfs_volumename(void *data);
 
+extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
@@ -126,7 +127,7 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
     ASSERT(INVALID_HANDLE_VALUE == Handle);
     ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
 
-    if (0 == Prefix)
+    if (-1 == Flags || 0 == Prefix)
     {
         /* backslash at path end */
 
@@ -166,6 +167,12 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
 
 void create_test(void)
 {
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        create_dotest(-1, DirBuf);
+    }
     if (WinFspDiskTests)
         create_dotest(MemfsDisk, 0);
     if (WinFspNetTests)
@@ -221,6 +228,12 @@ void create_related_dotest(ULONG Flags, PWSTR Prefix)
 
 void create_related_test(void)
 {
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        create_related_dotest(-1, DirBuf);
+    }
     if (WinFspDiskTests)
         create_related_dotest(MemfsDisk, 0);
     if (WinFspNetTests)
@@ -325,6 +338,12 @@ void create_sd_dotest(ULONG Flags, PWSTR Prefix)
 
 void create_sd_test(void)
 {
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        create_sd_dotest(-1, DirBuf);
+    }
     if (WinFspDiskTests)
         create_sd_dotest(MemfsDisk, 0);
     if (WinFspNetTests)
@@ -393,6 +412,12 @@ void create_share_dotest(ULONG Flags, PWSTR Prefix)
 
 void create_share_test(void)
 {
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        create_share_dotest(-1, DirBuf);
+    }
     if (WinFspDiskTests)
         create_share_dotest(MemfsDisk, 0);
     if (WinFspNetTests)

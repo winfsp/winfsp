@@ -20,6 +20,9 @@ static unsigned __stdcall memfs_thread(void *Memfs0)
 
 void *memfs_start(ULONG Flags)
 {
+    if (-1 == Flags)
+        return 0;
+
     struct memfs_data *data;
     MEMFS *Memfs;
     HANDLE Thread;
@@ -43,6 +46,9 @@ void *memfs_start(ULONG Flags)
 
 void memfs_stop(void *data)
 {
+    if (0 == data)
+        return;
+
     MEMFS *Memfs = ((struct memfs_data *)data)->Memfs;
     HANDLE Thread = ((struct memfs_data *)data)->Thread;
     DWORD ExitCode;
