@@ -289,7 +289,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     }
 
     FileNode->RefCount++;
-    memcpy(NodeInfo, &FileNode->NodeInfo, sizeof *NodeInfo);
+    *NodeInfo = FileNode->NodeInfo;
 
     return STATUS_SUCCESS;
 }
@@ -314,7 +314,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     FileNode->NodeInfo.LastAccessTime = MemfsGetSystemTime();
 
     FileNode->RefCount++;
-    memcpy(NodeInfo, &FileNode->NodeInfo, sizeof *NodeInfo);
+    *NodeInfo = FileNode->NodeInfo;
 
     return STATUS_SUCCESS;
 }
