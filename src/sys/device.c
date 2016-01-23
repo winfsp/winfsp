@@ -281,7 +281,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     FsvolDeviceExtension->InitDoneDelRsc = 1;
 
     /* create our Ioq */
-    IrpTimeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000;
+    IrpTimeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000ULL;
         /* convert millis to nanos */
     Result = FspIoqCreate(
         FsvolDeviceExtension->VolumeParams.IrpCapacity, &IrpTimeout, FspIopCompleteCanceledIrp,

@@ -372,6 +372,7 @@ NTSTATUS FspFsvolCreatePrepare(
             if (NT_SUCCESS(Result))
             {
                 /* SUCCESS! */
+                FspFileNodeSetFileInfo(FileNode, &FileDesc->State.FileInfo);
                 FspIopRequestContext(Request, RequestFileDesc) = 0;
                 Irp->IoStatus.Information = FILE_OPENED;
                 Result = STATUS_SUCCESS;
@@ -549,7 +550,9 @@ VOID FspFsvolCreateComplete(
         FileNode->Header.AllocationSize.QuadPart = Response->Rsp.Create.Opened.FileInfo.AllocationSize;
         FileNode->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.FileInfo.FileSize;
         FileNode->UserContext = Response->Rsp.Create.Opened.UserContext;
+        FileNode->IndexNumber = Response->Rsp.Create.Opened.FileInfo.IndexNumber;
         FileDesc->UserContext2 = Response->Rsp.Create.Opened.UserContext2;
+        FileDesc->State.FileInfo = Response->Rsp.Create.Opened.FileInfo;
 
         DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
 
@@ -602,6 +605,7 @@ VOID FspFsvolCreateComplete(
             }
 
             /* SUCCESS! */
+            FspFileNodeSetFileInfo(FileNode, &FileDesc->State.FileInfo);
             FspIopRequestContext(Request, RequestFileDesc) = 0;
             Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
             Result = STATUS_SUCCESS;
@@ -656,6 +660,7 @@ VOID FspFsvolCreateComplete(
         else
         {
             /* SUCCESS! */
+            FspFileNodeSetFileInfo(FileNode, &FileDesc->State.FileInfo);
             FspIopRequestContext(Request, RequestFileDesc) = 0;
             Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
             Result = STATUS_SUCCESS;
@@ -684,6 +689,7 @@ VOID FspFsvolCreateComplete(
         FspFileNodeRelease(FileNode, Both);
 
         /* SUCCESS! */
+        FspFileNodeSetFileInfo(FileNode, &Response->Rsp.Overwrite.FileInfo);
         FspIopRequestContext(Request, RequestFileDesc) = 0;
         Irp->IoStatus.Information = Request->Req.Overwrite.Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
         Result = STATUS_SUCCESS;

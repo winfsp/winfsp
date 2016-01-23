@@ -534,6 +534,15 @@ typedef struct
     ERESOURCE PagingIoResource;
     FAST_MUTEX HeaderFastMutex;
     SECTION_OBJECT_POINTERS SectionObjectPointers;
+    /* FileInfo */
+    KSPIN_LOCK InfoSpinLock;
+    UINT64 InfoExpirationTime;
+    UINT32 FileAttributes;
+    UINT32 ReparseTag;
+    UINT64 CreationTime;
+    UINT64 LastAccessTime;
+    UINT64 LastWriteTime;
+    UINT64 ChangeTime;
 } FSP_FILE_NODE_NONPAGED;
 typedef struct
 {
@@ -552,6 +561,7 @@ typedef struct
     /* read-only after creation (and insertion in the ContextTable) */
     PDEVICE_OBJECT FsvolDeviceObject;
     UINT64 UserContext;
+    UINT64 IndexNumber;
     FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
@@ -560,6 +570,10 @@ typedef struct
 {
     FSP_FILE_NODE *FileNode;
     UINT64 UserContext2;
+    union
+    {
+        FSP_FSCTL_FILE_INFO FileInfo;   /* create time only */
+    } State;
 } FSP_FILE_DESC;
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode);
@@ -585,6 +599,9 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
+VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
+BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
+VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, const FSP_FSCTL_FILE_INFO *FileInfo);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #define FspFileNodeAcquireShared(N,F)   FspFileNodeAcquireShared(N, FspFileNodeAcquire ## F)

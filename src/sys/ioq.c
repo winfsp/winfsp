@@ -111,7 +111,7 @@ static PIRP FspCsqRemoveNextIrp(PIO_CSQ Csq, PVOID PeekContext)
 #define FspCsqRemoveNextIrp(Q, C)       IoCsqRemoveNextIrp(Q, C)
 #endif
 
-#define InterruptTimeToSecFactor        10000000
+#define InterruptTimeToSecFactor        10000000ULL
 #define ConvertInterruptTimeToSec(Time) ((ULONG)((Time) / InterruptTimeToSecFactor))
 #define QueryInterruptTimeInSec()       ConvertInterruptTimeToSec(KeQueryInterruptTime())
 

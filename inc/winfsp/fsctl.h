@@ -106,6 +106,7 @@ typedef struct
     UINT32 TransactTimeout;             /* milliseconds; values between 1 sec and 10 sec */
     UINT32 IrpTimeout;                  /* milliseconds; values between 1 min and 10 min */
     UINT32 IrpCapacity;                 /* maximum number of pending IRP's */
+    UINT32 FileInfoTimeout;             /* milliseconds */
     UINT32 EaSupported:1;               /* supports extended attributes (unimplemented; set to 0) */
     UINT32 FileNameRequired:1;          /* FileName required for all operations (not just Create) */
     WCHAR Prefix[64];                   /* UNC prefix to recognize (\\server\path format, 0-term) */

@@ -24,7 +24,9 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
-
+VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
+BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
+VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, const FSP_FSCTL_FILE_INFO *FileInfo);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 
@@ -38,6 +40,9 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #pragma alloc_text(PAGE, FspFileNodeRelease)
 #pragma alloc_text(PAGE, FspFileNodeOpen)
 #pragma alloc_text(PAGE, FspFileNodeClose)
+#pragma alloc_text(PAGE, FspFileNodeGetFileInfo)
+#pragma alloc_text(PAGE, FspFileNodeTryGetFileInfo)
+#pragma alloc_text(PAGE, FspFileNodeSetFileInfo)
 #pragma alloc_text(PAGE, FspFileDescCreate)
 #pragma alloc_text(PAGE, FspFileDescDelete)
 #endif
@@ -64,6 +69,7 @@ NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ExInitializeResourceLite(&NonPaged->Resource);
     ExInitializeResourceLite(&NonPaged->PagingIoResource);
     ExInitializeFastMutex(&NonPaged->HeaderFastMutex);
+    KeInitializeSpinLock(&NonPaged->InfoSpinLock);
 
     RtlZeroMemory(FileNode, sizeof *FileNode + ExtraSize);
     FileNode->Header.NodeTypeCode = FspFileNodeFileKind;
@@ -310,6 +316,105 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 
     if (0 != PDeletePending)
         *PDeletePending = Deleted && DeletePending;
+}
+
+static VOID FspFileNodeGetFileInfoNp(FSP_FILE_NODE_NONPAGED *FileNodeNp, FSP_FSCTL_FILE_INFO *FileInfoNp)
+{
+    // !PAGED_CODE();
+
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&FileNodeNp->InfoSpinLock, &Irql);
+    FileInfoNp->FileAttributes = FileNodeNp->FileAttributes;
+    FileInfoNp->ReparseTag = FileNodeNp->ReparseTag;
+    FileInfoNp->CreationTime = FileNodeNp->CreationTime;
+    FileInfoNp->LastAccessTime = FileNodeNp->LastAccessTime;
+    FileInfoNp->LastWriteTime = FileNodeNp->LastWriteTime;
+    FileInfoNp->ChangeTime = FileNodeNp->ChangeTime;
+    KeReleaseSpinLock(&FileNodeNp->InfoSpinLock, Irql);
+}
+
+static BOOLEAN FspFileNodeTryGetFileInfoNp(FSP_FILE_NODE_NONPAGED *FileNodeNp,
+    FSP_FSCTL_FILE_INFO *FileInfoNp)
+{
+    // !PAGED_CODE();
+
+    KIRQL Irql;
+    BOOLEAN Result;
+
+    KeAcquireSpinLock(&FileNodeNp->InfoSpinLock, &Irql);
+    if (0 < FileNodeNp->InfoExpirationTime && FileNodeNp->InfoExpirationTime < KeQueryInterruptTime())
+    {
+        FileInfoNp->FileAttributes = FileNodeNp->FileAttributes;
+        FileInfoNp->ReparseTag = FileNodeNp->ReparseTag;
+        FileInfoNp->CreationTime = FileNodeNp->CreationTime;
+        FileInfoNp->LastAccessTime = FileNodeNp->LastAccessTime;
+        FileInfoNp->LastWriteTime = FileNodeNp->LastWriteTime;
+        FileInfoNp->ChangeTime = FileNodeNp->ChangeTime;
+        Result = TRUE;
+    }
+    else
+        Result = FALSE;
+    KeReleaseSpinLock(&FileNodeNp->InfoSpinLock, Irql);
+
+    return Result;
+}
+
+static VOID FspFileNodeSetFileInfoNp(FSP_FILE_NODE_NONPAGED *FileNodeNp,
+    const FSP_FSCTL_FILE_INFO *FileInfoNp, UINT64 FileInfoTimeout)
+{
+    // !PAGED_CODE();
+
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&FileNodeNp->InfoSpinLock, &Irql);
+    FileNodeNp->FileAttributes = FileInfoNp->FileAttributes;
+    FileNodeNp->ReparseTag = FileInfoNp->ReparseTag;
+    FileNodeNp->CreationTime = FileInfoNp->CreationTime;
+    FileNodeNp->LastAccessTime = FileInfoNp->LastAccessTime;
+    FileNodeNp->LastWriteTime = FileInfoNp->LastWriteTime;
+    FileNodeNp->ChangeTime = FileInfoNp->ChangeTime;
+    FileNodeNp->InfoExpirationTime = 0 != FileInfoTimeout ?
+        KeQueryInterruptTime() + FileInfoTimeout : 0;
+    KeReleaseSpinLock(&FileNodeNp->InfoSpinLock, Irql);
+}
+
+VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    PAGED_CODE();
+
+    FSP_FILE_NODE_NONPAGED *FileNodeNp = FileNode->NonPaged;
+    FSP_FSCTL_FILE_INFO FileInfoNp;
+
+    FspFileNodeGetFileInfoNp(FileNodeNp, &FileInfoNp);
+
+    *FileInfo = FileInfoNp;
+}
+
+BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    PAGED_CODE();
+
+    FSP_FILE_NODE_NONPAGED *FileNodeNp = FileNode->NonPaged;
+    FSP_FSCTL_FILE_INFO FileInfoNp;
+
+    if (!FspFileNodeTryGetFileInfoNp(FileNodeNp, &FileInfoNp))
+        return FALSE;
+
+    *FileInfo = FileInfoNp;
+    return TRUE;
+}
+
+VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, const FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    PAGED_CODE();
+
+    UINT64 FileInfoTimeout = FspFsvolDeviceExtension(FileNode->FsvolDeviceObject)->
+        VolumeParams.FileInfoTimeout * 10000ULL;
+    FSP_FILE_NODE_NONPAGED *FileNodeNp = FileNode->NonPaged;
+    FSP_FSCTL_FILE_INFO FileInfoNp = *FileInfo;
+
+    FspFileNodeSetFileInfoNp(FileNodeNp, &FileInfoNp, FileInfoTimeout);
 }
 
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc)
