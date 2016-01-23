@@ -37,7 +37,9 @@ VOID FspFsvolQueryInformationComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
-    FSP_LEAVE_IOC("%s", "");
+    FSP_LEAVE_IOC("%s, FileObject=%p",
+        FileInformationClassSym(IrpSp->Parameters.QueryFile.FileInformationClass),
+        IrpSp->FileObject);
 }
 
 static NTSTATUS FspFsvolSetInformation(
@@ -53,7 +55,9 @@ VOID FspFsvolSetInformationComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
-    FSP_LEAVE_IOC("%s", "");
+    FSP_LEAVE_IOC("%s, FileObject=%p",
+        FileInformationClassSym(IrpSp->Parameters.SetFile.FileInformationClass),
+        IrpSp->FileObject);
 }
 
 NTSTATUS FspQueryInformation(
@@ -69,7 +73,9 @@ NTSTATUS FspQueryInformation(
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
 
-    FSP_LEAVE_MJ("%s", "");
+    FSP_LEAVE_MJ("%s, FileObject=%p",
+        FileInformationClassSym(IrpSp->Parameters.QueryFile.FileInformationClass),
+        IrpSp->FileObject);
 }
 
 NTSTATUS FspSetInformation(
@@ -85,5 +91,7 @@ NTSTATUS FspSetInformation(
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
 
-    FSP_LEAVE_MJ("%s", "");
+    FSP_LEAVE_MJ("%s, FileObject=%p",
+        FileInformationClassSym(IrpSp->Parameters.SetFile.FileInformationClass),
+        IrpSp->FileObject);
 }
