@@ -35,8 +35,14 @@ typedef struct _FSP_FILE_NODE_INFO
 {
     PVOID FileNode;
     DWORD FileAttributes;
+    DWORD ReparseTag;
     UINT64 AllocationSize;
     UINT64 FileSize;
+    UINT64 CreationTime;
+    UINT64 LastAccessTime;
+    UINT64 LastWriteTime;
+    UINT64 ChangeTime;
+    UINT64 IndexNumber;
 } FSP_FILE_NODE_INFO;
 typedef struct _FSP_FILE_SIZE_INFO
 {

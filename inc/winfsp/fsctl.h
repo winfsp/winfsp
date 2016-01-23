@@ -164,12 +164,19 @@ typedef struct
             /* IoStatus.Status == STATUS_SUCCESS */
             struct
             {
-                UINT64 UserContext;     /* user context (unique file id) associated with file node */
+                UINT64 UserContext;     /* user context associated with file node */
                 UINT64 UserContext2;    /* user context associated with file descriptor (handle) */
                 UINT32 FileAttributes;  /* file attributes of opened file */
+                UINT32 ReparseTag;      /* reparse tag of opened file (FILE_ATTRIBUTE_REPARSE_POINT) */
                 UINT64 AllocationSize;  /* file allocation size */
                 UINT64 FileSize;        /* file size */
+                UINT64 CreationTime;
+                UINT64 LastAccessTime;
+                UINT64 LastWriteTime;
+                UINT64 ChangeTime;
+                UINT64 IndexNumber;     /* unique file id */
                 UINT32 GrantedAccess;   /* FILE_{READ_DATA,WRITE_DATA,etc.} */
+
             } Opened;
             /* IoStatus.Status == STATUS_REPARSE */
             struct

@@ -11,6 +11,14 @@
 #define MEMFS_SECTOR_SIZE               512
 
 static inline
+UINT64 MemfsGetSystemTime(VOID)
+{
+    FILETIME FileTime;
+    GetSystemTimeAsFileTime(&FileTime);
+    return ((PLARGE_INTEGER)&FileTime)->QuadPart;
+}
+
+static inline
 int MemfsFileNameCompare(PWSTR a, PWSTR b)
 {
     return wcscmp(a, b);
@@ -19,11 +27,9 @@ int MemfsFileNameCompare(PWSTR a, PWSTR b)
 typedef struct _MEMFS_FILE_NODE
 {
     WCHAR FileName[MAX_PATH];
-    DWORD FileAttributes;
+    FSP_FILE_NODE_INFO NodeInfo;
     SIZE_T FileSecuritySize;
     PVOID FileSecurity;
-    ULONG AllocationSize;
-    ULONG FileSize;
     PVOID FileData;
     ULONG RefCount;
 } MEMFS_FILE_NODE;
@@ -49,6 +55,7 @@ typedef struct _MEMFS
 static inline
 NTSTATUS MemfsFileNodeCreate(PWSTR FileName, MEMFS_FILE_NODE **PFileNode)
 {
+    static UINT64 IndexNumber = 1;
     MEMFS_FILE_NODE *FileNode;
 
     *PFileNode = 0;
@@ -62,6 +69,12 @@ NTSTATUS MemfsFileNodeCreate(PWSTR FileName, MEMFS_FILE_NODE **PFileNode)
 
     memset(FileNode, 0, sizeof *FileNode);
     wcscpy_s(FileNode->FileName, sizeof FileNode->FileName / sizeof(WCHAR), FileName);
+    FileNode->NodeInfo.FileNode = FileNode;
+    FileNode->NodeInfo.CreationTime =
+    FileNode->NodeInfo.LastAccessTime =
+    FileNode->NodeInfo.LastWriteTime =
+    FileNode->NodeInfo.ChangeTime = MemfsGetSystemTime();
+    FileNode->NodeInfo.IndexNumber = IndexNumber++;
 
     *PFileNode = FileNode;
 
@@ -128,7 +141,7 @@ MEMFS_FILE_NODE *MemfsFileNodeMapGetParent(MEMFS_FILE_NODE_MAP *FileNodeMap, PWS
         *PResult = STATUS_OBJECT_PATH_NOT_FOUND;
         return 0;
     }
-    if (0 == (iter->second->FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    if (0 == (iter->second->NodeInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
     {
         *PResult = STATUS_NOT_A_DIRECTORY;
         return 0;
@@ -192,7 +205,7 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
     }
 
     if (0 != PFileAttributes)
-        *PFileAttributes = FileNode->FileAttributes;
+        *PFileAttributes = FileNode->NodeInfo.FileAttributes;
 
     if (0 != PSecurityDescriptorSize)
     {
@@ -241,7 +254,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return Result;
 
-    FileNode->FileAttributes = FileAttributes;
+    FileNode->NodeInfo.FileAttributes = FileAttributes;
 
     if (0 != SecurityDescriptor)
     {
@@ -255,10 +268,10 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         memcpy(FileNode->FileSecurity, SecurityDescriptor, FileNode->FileSecuritySize);
     }
 
-    FileNode->AllocationSize = FSP_FSCTL_ALIGN_UP((ULONG)AllocationSize, MEMFS_SECTOR_SIZE);
-    if (0 != FileNode->AllocationSize)
+    FileNode->NodeInfo.AllocationSize = FSP_FSCTL_ALIGN_UP((ULONG)AllocationSize, MEMFS_SECTOR_SIZE);
+    if (0 != FileNode->NodeInfo.AllocationSize)
     {
-        FileNode->FileData = malloc(FileNode->AllocationSize);
+        FileNode->FileData = malloc(FileNode->NodeInfo.AllocationSize);
         if (0 == FileNode->FileData)
         {
             MemfsFileNodeDelete(FileNode);
@@ -276,10 +289,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     }
 
     FileNode->RefCount++;
-    NodeInfo->FileAttributes = FileNode->FileAttributes;
-    NodeInfo->AllocationSize = FileNode->AllocationSize;
-    NodeInfo->FileSize = FileNode->FileSize;
-    NodeInfo->FileNode = FileNode;
+    memcpy(NodeInfo, &FileNode->NodeInfo, sizeof *NodeInfo);
 
     return STATUS_SUCCESS;
 }
@@ -301,11 +311,10 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
         return Result;
     }
 
+    FileNode->NodeInfo.LastAccessTime = MemfsGetSystemTime();
+
     FileNode->RefCount++;
-    NodeInfo->FileAttributes = FileNode->FileAttributes;
-    NodeInfo->AllocationSize = FileNode->AllocationSize;
-    NodeInfo->FileSize = FileNode->FileSize;
-    NodeInfo->FileNode = FileNode;
+    memcpy(NodeInfo, &FileNode->NodeInfo, sizeof *NodeInfo);
 
     return STATUS_SUCCESS;
 }
@@ -319,14 +328,16 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
     if (ReplaceFileAttributes)
-        FileNode->FileAttributes = FileAttributes;
+        FileNode->NodeInfo.FileAttributes = FileAttributes;
     else
-        FileNode->FileAttributes |= FileAttributes;
+        FileNode->NodeInfo.FileAttributes |= FileAttributes;
 
-    FileNode->FileSize = 0;
+    FileNode->NodeInfo.FileSize = 0;
+    FileNode->NodeInfo.LastWriteTime =
+    FileNode->NodeInfo.LastAccessTime = MemfsGetSystemTime();
 
-    SizeInfo->AllocationSize = FileNode->AllocationSize;
-    SizeInfo->FileSize = FileNode->FileSize;
+    SizeInfo->AllocationSize = FileNode->NodeInfo.AllocationSize;
+    SizeInfo->FileSize = FileNode->NodeInfo.FileSize;
 
     return STATUS_SUCCESS;
 }
@@ -435,7 +446,7 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG MaxFileNodes, ULONG MaxFileSize,
         return Result;
     }
 
-    RootNode->FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+    RootNode->NodeInfo.FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
 
     Result = MemfsFileNodeMapInsert(Memfs->FileNodeMap, RootNode, &Inserted);
     if (!NT_SUCCESS(Result))

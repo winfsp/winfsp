@@ -574,8 +574,14 @@ FSP_API NTSTATUS FspFileSystemSendCreateResponse(FSP_FILE_SYSTEM *FileSystem,
     Response.IoStatus.Information = Information;
     Response.Rsp.Create.Opened.UserContext = (UINT_PTR)NodeInfo->FileNode;
     Response.Rsp.Create.Opened.FileAttributes = NodeInfo->FileAttributes;
+    Response.Rsp.Create.Opened.ReparseTag = NodeInfo->ReparseTag;
     Response.Rsp.Create.Opened.AllocationSize = NodeInfo->AllocationSize;
     Response.Rsp.Create.Opened.FileSize = NodeInfo->FileSize;
+    Response.Rsp.Create.Opened.CreationTime = NodeInfo->CreationTime;
+    Response.Rsp.Create.Opened.LastAccessTime = NodeInfo->LastAccessTime;
+    Response.Rsp.Create.Opened.LastWriteTime = NodeInfo->LastWriteTime;
+    Response.Rsp.Create.Opened.ChangeTime = NodeInfo->ChangeTime;
+    Response.Rsp.Create.Opened.IndexNumber = NodeInfo->IndexNumber;
     Response.Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     return FspFileSystemSendResponse(FileSystem, &Response);
 }
