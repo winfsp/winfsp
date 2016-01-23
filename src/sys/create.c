@@ -546,8 +546,8 @@ VOID FspFsvolCreateComplete(
         }
 
         /* populate the FileNode/FileDesc fields from the Response */
-        FileNode->Header.AllocationSize.QuadPart = Response->Rsp.Create.Opened.AllocationSize;
-        FileNode->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.FileSize;
+        FileNode->Header.AllocationSize.QuadPart = Response->Rsp.Create.Opened.FileInfo.AllocationSize;
+        FileNode->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.FileInfo.FileSize;
         FileNode->UserContext = Response->Rsp.Create.Opened.UserContext;
         FileDesc->UserContext2 = Response->Rsp.Create.Opened.UserContext2;
 
@@ -592,7 +592,7 @@ VOID FspFsvolCreateComplete(
              *     If the user wants to delete on close, we must check at this
              *     point though.
              */
-            if (!FlagOn(Response->Rsp.Create.Opened.FileAttributes, FILE_ATTRIBUTE_DIRECTORY) &&
+            if (!FlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes, FILE_ATTRIBUTE_DIRECTORY) &&
                 (FlagOn(Response->Rsp.Create.Opened.GrantedAccess, FILE_WRITE_DATA) ||
                 DeleteOnClose))
             {
@@ -616,7 +616,7 @@ VOID FspFsvolCreateComplete(
 
             /* save the old Request FileAttributes and make them compatible with the open file */
             UINT32 FileAttributes = Request->Req.Create.FileAttributes;
-            if (FlagOn(Response->Rsp.Create.Opened.FileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+            if (FlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes, FILE_ATTRIBUTE_DIRECTORY))
                 SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
             else
                 ClearFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
@@ -677,8 +677,8 @@ VOID FspFsvolCreateComplete(
         }
 
         /* file was successfully overwritten/superseded */
-        FileNode->Header.AllocationSize.QuadPart = Response->Rsp.Overwrite.AllocationSize;
-        FileNode->Header.FileSize.QuadPart = Response->Rsp.Overwrite.FileSize;
+        FileNode->Header.AllocationSize.QuadPart = Response->Rsp.Overwrite.FileInfo.AllocationSize;
+        FileNode->Header.FileSize.QuadPart = Response->Rsp.Overwrite.FileInfo.FileSize;
         CcSetFileSizes(FileObject, (PCC_FILE_SIZES)&FileNode->Header.AllocationSize);
 
         FspFileNodeRelease(FileNode, Both);

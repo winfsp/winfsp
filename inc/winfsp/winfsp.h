@@ -31,42 +31,24 @@ extern "C" {
 typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
 typedef VOID FSP_FILE_SYSTEM_DISPATCHER(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
 typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
-typedef struct _FSP_FILE_NODE_INFO
-{
-    PVOID FileNode;
-    DWORD FileAttributes;
-    DWORD ReparseTag;
-    UINT64 AllocationSize;
-    UINT64 FileSize;
-    UINT64 CreationTime;
-    UINT64 LastAccessTime;
-    UINT64 LastWriteTime;
-    UINT64 ChangeTime;
-    UINT64 IndexNumber;
-} FSP_FILE_NODE_INFO;
-typedef struct _FSP_FILE_SIZE_INFO
-{
-    UINT64 AllocationSize;
-    UINT64 FileSize;
-} FSP_FILE_SIZE_INFO;
 typedef struct _FSP_FILE_SYSTEM_INTERFACE
 {
     NTSTATUS (*GetSecurity)(FSP_FILE_SYSTEM *FileSystem,
-        PWSTR FileName, PDWORD PFileAttributes,
+        PWSTR FileName, PUINT32 PFileAttributes,
         PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
     NTSTATUS (*Create)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
-        PWSTR FileName, BOOLEAN CaseSensitive, DWORD CreateOptions,
-        DWORD FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
-        FSP_FILE_NODE_INFO *NodeInfo);
+        PWSTR FileName, BOOLEAN CaseSensitive, UINT32 CreateOptions,
+        UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
+        PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo);
     NTSTATUS (*Open)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
-        PWSTR FileName, BOOLEAN CaseSensitive, DWORD CreateOptions,
-        FSP_FILE_NODE_INFO *NodeInfo);
+        PWSTR FileName, BOOLEAN CaseSensitive, UINT32 CreateOptions,
+        PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo);
     NTSTATUS (*Overwrite)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
-        PVOID FileNode, DWORD FileAttributes, BOOLEAN ReplaceFileAttributes,
-        FSP_FILE_SIZE_INFO *SizeInfo);
+        PVOID FileNode, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
+        FSP_FSCTL_FILE_INFO *FileInfo);
     VOID (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, BOOLEAN Delete);
@@ -160,7 +142,7 @@ FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
 FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
-    DWORD DesiredAccess, PDWORD PGrantedAccess,
+    UINT32 DesiredAccess, PUINT32 PGrantedAccess,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor);
 FSP_API NTSTATUS FspAssignSecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
@@ -178,10 +160,10 @@ FSP_API NTSTATUS FspFileSystemOpClose(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request);
 FSP_API NTSTATUS FspFileSystemSendCreateResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, UINT_PTR Information,
-    const FSP_FILE_NODE_INFO *NodeInfo, DWORD GrantedAccess);
+    PVOID FileNode, UINT32 GrantedAccess, const FSP_FSCTL_FILE_INFO *FileInfo);
 FSP_API NTSTATUS FspFileSystemSendOverwriteResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
-    const FSP_FILE_SIZE_INFO *SizeInfo);
+    const FSP_FSCTL_FILE_INFO *FileInfo);
 FSP_API NTSTATUS FspFileSystemSendCleanupResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request);
 FSP_API NTSTATUS FspFileSystemSendCloseResponse(FSP_FILE_SYSTEM *FileSystem,
@@ -191,7 +173,7 @@ static inline
 NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
-    DWORD DesiredAccess, PDWORD PGrantedAccess)
+    UINT32 DesiredAccess, PUINT32 PGrantedAccess)
 {
     return FspAccessCheckEx(FileSystem, Request,
         CheckParentDirectory, AllowTraverseCheck,

@@ -43,6 +43,20 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  (4096 - 64) /* 64: size for internal request header */
 #define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  (4096 - 64) /* symmetry! */
 
+/* file metadata */
+typedef struct
+{
+    UINT32 FileAttributes;
+    UINT32 ReparseTag;
+    UINT64 AllocationSize;
+    UINT64 FileSize;
+    UINT64 CreationTime;
+    UINT64 LastAccessTime;
+    UINT64 LastWriteTime;
+    UINT64 ChangeTime;
+    UINT64 IndexNumber;
+} FSP_FSCTL_FILE_INFO;
+
 /* marshalling */
 #pragma warning(push)
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
@@ -166,17 +180,8 @@ typedef struct
             {
                 UINT64 UserContext;     /* user context associated with file node */
                 UINT64 UserContext2;    /* user context associated with file descriptor (handle) */
-                UINT32 FileAttributes;  /* file attributes of opened file */
-                UINT32 ReparseTag;      /* reparse tag of opened file (FILE_ATTRIBUTE_REPARSE_POINT) */
-                UINT64 AllocationSize;  /* file allocation size */
-                UINT64 FileSize;        /* file size */
-                UINT64 CreationTime;
-                UINT64 LastAccessTime;
-                UINT64 LastWriteTime;
-                UINT64 ChangeTime;
-                UINT64 IndexNumber;     /* unique file id */
                 UINT32 GrantedAccess;   /* FILE_{READ_DATA,WRITE_DATA,etc.} */
-
+                FSP_FSCTL_FILE_INFO FileInfo;
             } Opened;
             /* IoStatus.Status == STATUS_REPARSE */
             struct
@@ -186,8 +191,7 @@ typedef struct
         } Create;
         struct
         {
-            UINT64 AllocationSize;      /* file allocation size */
-            UINT64 FileSize;            /* file size */
+            FSP_FSCTL_FILE_INFO FileInfo;
         } Overwrite;
     } Rsp;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
