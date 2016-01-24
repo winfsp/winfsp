@@ -364,6 +364,18 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem,
         MemfsFileNodeDelete(FileNode);
 }
 
+static NTSTATUS GetInformation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0,
+    FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    *FileInfo = FileNode->FileInfo;
+
+    return STATUS_SUCCESS;
+}
+
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
     GetSecurity,
