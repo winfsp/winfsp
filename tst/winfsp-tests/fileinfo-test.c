@@ -26,8 +26,11 @@ void getinfo_dotest(ULONG Flags, PWSTR Prefix)
     PFILE_NAME_INFO PNameInfo = (PVOID)NameInfoBuf;
     BY_HANDLE_FILE_INFORMATION FileInfo;
     FILETIME FileTime;
+    LONGLONG TimeLo, TimeHi;
 
     GetSystemTimeAsFileTime(&FileTime);
+    TimeLo = ((PLARGE_INTEGER)&FileTime)->QuadPart;
+    TimeHi = TimeLo + 10000 * 10000/* 10 seconds */;
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
@@ -45,14 +48,18 @@ void getinfo_dotest(ULONG Flags, PWSTR Prefix)
     Success = GetFileInformationByHandleEx(Handle, FileBasicInfo, &BasicInfo, sizeof BasicInfo);
     ASSERT(Success);
     //ASSERT(FILE_ATTRIBUTE_ARCHIVE == BasicInfo.FileAttributes);
-    ASSERT(((PLARGE_INTEGER)&FileTime)->QuadPart <= BasicInfo.CreationTime.QuadPart &&
-        ((PLARGE_INTEGER)&FileTime)->QuadPart + 10000000 > BasicInfo.CreationTime.QuadPart);
-    ASSERT(((PLARGE_INTEGER)&FileTime)->QuadPart <= BasicInfo.LastAccessTime.QuadPart &&
-        ((PLARGE_INTEGER)&FileTime)->QuadPart + 10000000 > BasicInfo.LastAccessTime.QuadPart);
-    ASSERT(((PLARGE_INTEGER)&FileTime)->QuadPart <= BasicInfo.LastWriteTime.QuadPart &&
-        ((PLARGE_INTEGER)&FileTime)->QuadPart + 10000000 > BasicInfo.LastWriteTime.QuadPart);
-    ASSERT(((PLARGE_INTEGER)&FileTime)->QuadPart <= BasicInfo.ChangeTime.QuadPart &&
-        ((PLARGE_INTEGER)&FileTime)->QuadPart + 10000000 > BasicInfo.ChangeTime.QuadPart);
+    ASSERT(
+        TimeLo <= BasicInfo.CreationTime.QuadPart &&
+        TimeHi >  BasicInfo.CreationTime.QuadPart);
+    ASSERT(
+        TimeLo <= BasicInfo.LastAccessTime.QuadPart &&
+        TimeHi >  BasicInfo.LastAccessTime.QuadPart);
+    ASSERT(
+        TimeLo <= BasicInfo.LastWriteTime.QuadPart &&
+        TimeHi >  BasicInfo.LastWriteTime.QuadPart);
+    ASSERT(
+        TimeLo <= BasicInfo.ChangeTime.QuadPart &&
+        TimeHi >  BasicInfo.ChangeTime.QuadPart);
 
     Success = GetFileInformationByHandleEx(Handle, FileStandardInfo, &StandardInfo, sizeof StandardInfo);
     ASSERT(Success);
@@ -88,17 +95,22 @@ void getinfo_dotest(ULONG Flags, PWSTR Prefix)
     else
         ASSERT(0 == memcmp(FilePath + 1, PNameInfo->FileName, PNameInfo->FileNameLength));
 
+#if 0
     Success = GetFileInformationByHandle(Handle, &FileInfo);
     ASSERT(Success);
     //ASSERT(FILE_ATTRIBUTE_ARCHIVE == FileInfo.dwFileAttributes);
-    ASSERT(((PLARGE_INTEGER)&FileTime)->QuadPart <= ((PLARGE_INTEGER)&FileInfo.ftCreationTime)->QuadPart &&
-        ((PLARGE_INTEGER)&FileTime)->QuadPart + 10000000 > ((PLARGE_INTEGER)&FileInfo.ftCreationTime)->QuadPart);
-    ASSERT(((PLARGE_INTEGER)&FileTime)->QuadPart <= ((PLARGE_INTEGER)&FileInfo.ftLastAccessTime)->QuadPart &&
-        ((PLARGE_INTEGER)&FileTime)->QuadPart + 10000000 > ((PLARGE_INTEGER)&FileInfo.ftLastAccessTime)->QuadPart);
-    ASSERT(((PLARGE_INTEGER)&FileTime)->QuadPart <= ((PLARGE_INTEGER)&FileInfo.ftLastWriteTime)->QuadPart &&
-        ((PLARGE_INTEGER)&FileTime)->QuadPart + 10000000 > ((PLARGE_INTEGER)&FileInfo.ftLastWriteTime)->QuadPart);
+    ASSERT(
+        TimeLo <= ((PLARGE_INTEGER)&FileInfo.ftCreationTime)->QuadPart &&
+        TimeHi >  ((PLARGE_INTEGER)&FileInfo.ftCreationTime)->QuadPart);
+    ASSERT(
+        TimeLo <= ((PLARGE_INTEGER)&FileInfo.ftLastAccessTime)->QuadPart &&
+        TimeHi >  ((PLARGE_INTEGER)&FileInfo.ftLastAccessTime)->QuadPart);
+    ASSERT(
+        TimeLo <= ((PLARGE_INTEGER)&FileInfo.ftLastWriteTime)->QuadPart &&
+        TimeHi >  ((PLARGE_INTEGER)&FileInfo.ftLastWriteTime)->QuadPart);
     ASSERT(0 == FileInfo.nFileSizeLow && 0 == FileInfo.nFileSizeHigh);
     ASSERT(1 == FileInfo.nNumberOfLinks);
+#endif
 
     CloseHandle(Handle);
 
