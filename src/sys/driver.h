@@ -562,6 +562,7 @@ typedef struct
     PDEVICE_OBJECT FsvolDeviceObject;
     UINT64 UserContext;
     UINT64 IndexNumber;
+    BOOLEAN IsDirectory;
     FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];

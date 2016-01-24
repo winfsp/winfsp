@@ -574,7 +574,7 @@ FSP_API NTSTATUS FspFileSystemSendCreateResponse(FSP_FILE_SYSTEM *FileSystem,
 
     memset(&Response, 0, sizeof Response);
     Response.Size = sizeof Response;
-    Response.Kind = Request->Kind;
+    Response.Kind = FspFsctlTransactCreateKind;
     Response.Hint = Request->Hint;
     Response.IoStatus.Status = STATUS_SUCCESS;
     Response.IoStatus.Information = Information;
@@ -592,7 +592,7 @@ FSP_API NTSTATUS FspFileSystemSendOverwriteResponse(FSP_FILE_SYSTEM *FileSystem,
 
     memset(&Response, 0, sizeof Response);
     Response.Size = sizeof Response;
-    Response.Kind = Request->Kind;
+    Response.Kind = FspFsctlTransactOverwriteKind;
     Response.Hint = Request->Hint;
     Response.IoStatus.Status = STATUS_SUCCESS;
     Response.IoStatus.Information = 0;

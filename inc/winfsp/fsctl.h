@@ -157,6 +157,11 @@ typedef struct
             UINT64 UserContext;
             UINT64 UserContext2;
         } Close;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+        } QueryInformation;
     } Req;
     FSP_FSCTL_TRANSACT_BUF FileName;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
@@ -194,6 +199,10 @@ typedef struct
         {
             FSP_FSCTL_FILE_INFO FileInfo;
         } Overwrite;
+        struct
+        {
+            FSP_FSCTL_FILE_INFO FileInfo;
+        } QueryInformation;
     } Rsp;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_RSP;

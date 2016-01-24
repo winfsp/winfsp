@@ -551,6 +551,8 @@ VOID FspFsvolCreateComplete(
         FileNode->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.FileInfo.FileSize;
         FileNode->UserContext = Response->Rsp.Create.Opened.UserContext;
         FileNode->IndexNumber = Response->Rsp.Create.Opened.FileInfo.IndexNumber;
+        FileNode->IsDirectory = BooleanFlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes,
+            FILE_ATTRIBUTE_DIRECTORY);
         FileDesc->UserContext2 = Response->Rsp.Create.Opened.UserContext2;
         FileDesc->State.FileInfo = Response->Rsp.Create.Opened.FileInfo;
 

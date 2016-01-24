@@ -23,7 +23,7 @@ FSP_API NTSTATUS FspFileSystemSendCloseResponse(FSP_FILE_SYSTEM *FileSystem,
 
     memset(&Response, 0, sizeof Response);
     Response.Size = sizeof Response;
-    Response.Kind = Request->Kind;
+    Response.Kind = FspFsctlTransactCloseKind;
     Response.Hint = Request->Hint;
     Response.IoStatus.Status = STATUS_SUCCESS;
     Response.IoStatus.Information = 0;

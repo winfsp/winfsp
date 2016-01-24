@@ -225,7 +225,7 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference)
     /* get the device object out of the IRP before completion */
     PDEVICE_OBJECT DeviceObject = IoGetCurrentIrpStackLocation(Irp)->DeviceObject;
 
-    if (!NT_SUCCESS(Result))
+    if (STATUS_SUCCESS != Result && STATUS_BUFFER_OVERFLOW != Result)
         Irp->IoStatus.Information = 0;
     Irp->IoStatus.Status = Result;
     IoCompleteRequest(Irp, FSP_IO_INCREMENT);
