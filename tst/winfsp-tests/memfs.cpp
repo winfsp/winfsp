@@ -384,6 +384,7 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     Overwrite,
     Cleanup,
     Close,
+    GetInformation,
 };
 
 static VOID MemfsEnterOperation(FSP_FILE_SYSTEM *FileSystem, FSP_FSCTL_TRANSACT_REQ *Request)

@@ -295,19 +295,19 @@ static NTSTATUS FspFsvolQueryInformation(
 
     NTSTATUS Result;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
-    PUINT8 SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
-    PUINT8 SystemBufferEnd = (PUINT8)SystemBuffer + IrpSp->Parameters.QueryFile.Length;
+    PUINT8 Buffer = Irp->AssociatedIrp.SystemBuffer;
+    PUINT8 BufferEnd = Buffer + IrpSp->Parameters.QueryFile.Length;
 
     switch (IrpSp->Parameters.QueryFile.FileInformationClass)
     {
     case FileAllInformation:
-        Result = FspFsvolQueryAllInformation(FileObject, &SystemBuffer, SystemBufferEnd, 0);
+        Result = FspFsvolQueryAllInformation(FileObject, &Buffer, BufferEnd, 0);
         break;
     case FileAttributeTagInformation:
-        Result = FspFsvolQueryAttributeTagInformation(FileObject, &SystemBuffer, SystemBufferEnd, 0);
+        Result = FspFsvolQueryAttributeTagInformation(FileObject, &Buffer, BufferEnd, 0);
         break;
     case FileBasicInformation:
-        Result = FspFsvolQueryBasicInformation(FileObject, &SystemBuffer, SystemBufferEnd, 0);
+        Result = FspFsvolQueryBasicInformation(FileObject, &Buffer, BufferEnd, 0);
         break;
     case FileCompressionInformation:
         Result = STATUS_INVALID_PARAMETER;  /* no compression support */
@@ -319,19 +319,19 @@ static NTSTATUS FspFsvolQueryInformation(
         Result = STATUS_INVALID_PARAMETER;  /* no hard link support */
         break;
     case FileInternalInformation:
-        Result = FspFsvolQueryInternalInformation(FileObject, &SystemBuffer, SystemBufferEnd);
+        Result = FspFsvolQueryInternalInformation(FileObject, &Buffer, BufferEnd);
         break;
     case FileNameInformation:
-        Result = FspFsvolQueryNameInformation(FileObject, &SystemBuffer, SystemBufferEnd);
+        Result = FspFsvolQueryNameInformation(FileObject, &Buffer, BufferEnd);
         break;
     case FileNetworkOpenInformation:
-        Result = FspFsvolQueryNetworkOpenInformation(FileObject, &SystemBuffer, SystemBufferEnd, 0);
+        Result = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, 0);
         break;
     case FilePositionInformation:
-        Result = FspFsvolQueryPositionInformation(FileObject, &SystemBuffer, SystemBufferEnd);
+        Result = FspFsvolQueryPositionInformation(FileObject, &Buffer, BufferEnd);
         break;
     case FileStandardInformation:
-        Result = FspFsvolQueryStandardInformation(FileObject, &SystemBuffer, SystemBufferEnd);
+        Result = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd);
         break;
     case FileStreamInformation:
         Result = STATUS_INVALID_PARAMETER;  /* !!!: no stream support yet! */
@@ -343,7 +343,7 @@ static NTSTATUS FspFsvolQueryInformation(
 
     if (FSP_STATUS_IOQ_POST != Result)
     {
-        Irp->IoStatus.Information = (UINT_PTR)((PUINT8)SystemBufferEnd - (PUINT8)SystemBuffer);
+        Irp->IoStatus.Information = (UINT_PTR)(Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
         return Result;
     }
 
@@ -380,27 +380,27 @@ VOID FspFsvolQueryInformationComplete(
 
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    PUINT8 SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
-    PUINT8 SystemBufferEnd = (PUINT8)SystemBuffer + IrpSp->Parameters.QueryFile.Length;
+    PUINT8 Buffer = Irp->AssociatedIrp.SystemBuffer;
+    PUINT8 BufferEnd = Buffer + IrpSp->Parameters.QueryFile.Length;
 
     FspFileNodeSetFileInfo(FileNode, &Response->Rsp.QueryInformation.FileInfo);
 
     switch (IrpSp->Parameters.QueryFile.FileInformationClass)
     {
     case FileAllInformation:
-        Result = FspFsvolQueryAllInformation(FileObject, &SystemBuffer, SystemBufferEnd,
+        Result = FspFsvolQueryAllInformation(FileObject, &Buffer, BufferEnd,
             &Response->Rsp.QueryInformation.FileInfo);
         break;
     case FileAttributeTagInformation:
-        Result = FspFsvolQueryAttributeTagInformation(FileObject, &SystemBuffer, SystemBufferEnd,
+        Result = FspFsvolQueryAttributeTagInformation(FileObject, &Buffer, BufferEnd,
             &Response->Rsp.QueryInformation.FileInfo);
         break;
     case FileBasicInformation:
-        Result = FspFsvolQueryBasicInformation(FileObject, &SystemBuffer, SystemBufferEnd,
+        Result = FspFsvolQueryBasicInformation(FileObject, &Buffer, BufferEnd,
             &Response->Rsp.QueryInformation.FileInfo);
         break;
     case FileNetworkOpenInformation:
-        Result = FspFsvolQueryNetworkOpenInformation(FileObject, &SystemBuffer, SystemBufferEnd,
+        Result = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd,
             &Response->Rsp.QueryInformation.FileInfo);
         break;
     default:
@@ -411,7 +411,7 @@ VOID FspFsvolQueryInformationComplete(
 
     ASSERT(FSP_STATUS_IOQ_POST != Result);
 
-    Irp->IoStatus.Information = (UINT_PTR)((PUINT8)SystemBufferEnd - (PUINT8)SystemBuffer);
+    Irp->IoStatus.Information = (UINT_PTR)(Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
 
     FSP_LEAVE_IOC("%s, FileObject=%p",
         FileInformationClassSym(IrpSp->Parameters.QueryFile.FileInformationClass),
