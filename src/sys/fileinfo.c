@@ -108,7 +108,8 @@ static NTSTATUS FspFsvolQueryAttributeTagInformation(PFILE_OBJECT FileObject,
 
     PFILE_ATTRIBUTE_TAG_INFORMATION Info = (PFILE_ATTRIBUTE_TAG_INFORMATION)*PBuffer;
 
-    Info->FileAttributes = FileInfo->FileAttributes;
+    Info->FileAttributes = 0 != FileInfo->FileAttributes ?
+        FileInfo->FileAttributes : FILE_ATTRIBUTE_NORMAL;
     Info->ReparseTag = FileInfo->ReparseTag;
 
     *PBuffer += sizeof(FILE_ATTRIBUTE_TAG_INFORMATION);
@@ -132,7 +133,8 @@ static NTSTATUS FspFsvolQueryBasicInformation(PFILE_OBJECT FileObject,
     Info->LastAccessTime.QuadPart = FileInfo->LastAccessTime;
     Info->LastWriteTime.QuadPart = FileInfo->LastWriteTime;
     Info->ChangeTime.QuadPart = FileInfo->ChangeTime;
-    Info->FileAttributes = FileInfo->FileAttributes;
+    Info->FileAttributes = 0 != FileInfo->FileAttributes ?
+        FileInfo->FileAttributes : FILE_ATTRIBUTE_NORMAL;
 
     *PBuffer += sizeof(FILE_BASIC_INFORMATION);
 
@@ -226,7 +228,8 @@ static NTSTATUS FspFsvolQueryNetworkOpenInformation(PFILE_OBJECT FileObject,
     Info->LastAccessTime.QuadPart = FileInfo->LastAccessTime;
     Info->LastWriteTime.QuadPart = FileInfo->LastWriteTime;
     Info->ChangeTime.QuadPart = FileInfo->ChangeTime;
-    Info->FileAttributes = FileInfo->FileAttributes;
+    Info->FileAttributes = 0 != FileInfo->FileAttributes ?
+        FileInfo->FileAttributes : FILE_ATTRIBUTE_NORMAL;
 
     *PBuffer += sizeof(FILE_BASIC_INFORMATION);
 
