@@ -34,6 +34,9 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\memfs-test.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\tst\winfsp-tests\fileinfo-test.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\ext\tlib\testsuite.h">
