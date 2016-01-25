@@ -34,7 +34,7 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\memfs-test.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\tst\winfsp-tests\fileinfo-test.c">
+    <ClCompile Include="..\..\..\tst\winfsp-tests\info-test.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
