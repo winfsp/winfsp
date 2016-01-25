@@ -97,7 +97,6 @@ void getinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     else
         ASSERT(0 == memcmp(FilePath + 1, PNameInfo->FileName, PNameInfo->FileNameLength));
 
-#if 0
     Success = GetFileInformationByHandle(Handle, &FileInfo);
     ASSERT(Success);
     //ASSERT(FILE_ATTRIBUTE_ARCHIVE == FileInfo.dwFileAttributes);
@@ -113,7 +112,6 @@ void getinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         TimeHi >  ((PLARGE_INTEGER)&FileInfo.ftLastWriteTime)->QuadPart);
     ASSERT(0 == FileInfo.nFileSizeLow && 0 == FileInfo.nFileSizeHigh);
     ASSERT(1 == FileInfo.nNumberOfLinks);
-#endif
 
     CloseHandle(Handle);
 
