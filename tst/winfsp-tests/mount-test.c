@@ -14,7 +14,7 @@ void mount_invalid_test(void)
     HANDLE VolumeHandle;
 
     VolumeParams.SectorSize = 16384;
-    VolumeParams.SerialNumber = 0x12345678;
+    VolumeParams.VolumeSerialNumber = 0x12345678;
     Result = FspFsctlCreateVolume(L"WinFsp.DoesNotExist", &VolumeParams,
         VolumeName, sizeof VolumeName, &VolumeHandle);
     ASSERT(STATUS_NO_SUCH_DEVICE == Result);
@@ -54,7 +54,7 @@ void mount_create_volume_dotest(PWSTR DeviceName)
     HANDLE VolumeHandle;
 
     VolumeParams.SectorSize = 16384;
-    VolumeParams.SerialNumber = 0x12345678;
+    VolumeParams.VolumeSerialNumber = 0x12345678;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
         VolumeName, sizeof VolumeName, &VolumeHandle);
@@ -99,7 +99,7 @@ void mount_volume_cancel_dotest(PWSTR DeviceName, PWSTR Prefix)
     DWORD ExitCode;
 
     VolumeParams.SectorSize = 16384;
-    VolumeParams.SerialNumber = 0x12345678;
+    VolumeParams.VolumeSerialNumber = 0x12345678;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
         VolumeName, sizeof VolumeName, &VolumeHandle);
@@ -158,7 +158,7 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
 
     VolumeParams.TransactTimeout = 10000; /* allow for longer transact timeout to handle MUP redir */
     VolumeParams.SectorSize = 16384;
-    VolumeParams.SerialNumber = 0x12345678;
+    VolumeParams.VolumeSerialNumber = 0x12345678;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
         VolumeName, sizeof VolumeName, &VolumeHandle);

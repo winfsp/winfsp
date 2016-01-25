@@ -48,7 +48,7 @@ void timeout_pending_dotest(PWSTR DeviceName, PWSTR Prefix)
     VolumeParams.TransactTimeout = 10000; /* allow for longer transact timeout to handle MUP redir */
     VolumeParams.IrpTimeout = FspFsctlIrpTimeoutDebug;
     VolumeParams.SectorSize = 16384;
-    VolumeParams.SerialNumber = 0x12345678;
+    VolumeParams.VolumeSerialNumber = 0x12345678;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
         VolumeName, sizeof VolumeName, &VolumeHandle);
@@ -159,7 +159,7 @@ void timeout_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
 
     VolumeParams.TransactTimeout = 0 != Prefix ? 1000 : 5000;
     VolumeParams.SectorSize = 16384;
-    VolumeParams.SerialNumber = 0x12345678;
+    VolumeParams.VolumeSerialNumber = 0x12345678;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
     Result = FspFsctlCreateVolume(DeviceName, &VolumeParams,
         VolumeName, sizeof VolumeName, &VolumeHandle);

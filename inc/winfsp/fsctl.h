@@ -113,7 +113,7 @@ typedef struct
     UINT16 SectorSize;
     UINT16 SectorsPerAllocationUnit;
     UINT16 MaxComponentLength;          /* maximum file name component length (bytes) */
-    UINT32 SerialNumber;                /* volume serial number */
+    UINT32 VolumeSerialNumber;
     /* I/O timeouts, capacity, etc. */
     UINT32 TransactTimeout;             /* FSP_FSCTL_TRANSACT timeout (millis; 1 sec - 10 sec) */
     UINT32 IrpTimeout;                  /* pending IRP timeout (millis; 1 min - 10 min) */

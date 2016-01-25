@@ -455,7 +455,7 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
     memset(&VolumeParams, 0, sizeof VolumeParams);
     VolumeParams.SectorSize = MEMFS_SECTOR_SIZE;
     VolumeParams.SectorsPerAllocationUnit = MEMFS_SECTORS_PER_ALLOCATION_UNIT;
-    VolumeParams.SerialNumber = (UINT32)(MemfsGetSystemTime() / (10000 * 1000));
+    VolumeParams.VolumeSerialNumber = (UINT32)(MemfsGetSystemTime() / (10000 * 1000));
     VolumeParams.FileInfoTimeout = FileInfoTimeout;
     VolumeParams.CaseSensitiveSearch = 1;
     VolumeParams.CasePreservedNames = 1;

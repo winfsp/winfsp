@@ -397,7 +397,7 @@ NTSTATUS FspVolumeMount(
     IoAcquireVpbSpinLock(&Irql);
     Vpb->ReferenceCount++;
     Vpb->DeviceObject = FsvolDeviceObject;
-    Vpb->SerialNumber = FsvolDeviceExtension->VolumeParams.SerialNumber;
+    Vpb->SerialNumber = FsvolDeviceExtension->VolumeParams.VolumeSerialNumber;
     IoReleaseVpbSpinLock(Irql);
 
     /* done with mounting; release the DeleteResource */

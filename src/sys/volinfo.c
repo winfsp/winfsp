@@ -177,7 +177,7 @@ static NTSTATUS FspFsvolQueryFsVolumeInformation(
     ULONG CopyLength;
 
     Info->VolumeCreationTime.QuadPart = VolumeInfo->VolumeCreationTime;
-    Info->VolumeSerialNumber = FsvolDeviceExtension->VolumeParams.SerialNumber;
+    Info->VolumeSerialNumber = FsvolDeviceExtension->VolumeParams.VolumeSerialNumber;
     Info->VolumeLabelLength = VolumeInfo->VolumeLabelLength;
     Info->SupportsObjects = FALSE;
 
