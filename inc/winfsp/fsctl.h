@@ -203,6 +203,11 @@ typedef struct
         {
             FSP_FSCTL_FILE_INFO FileInfo;
         } QueryInformation;
+        struct
+        {
+            UINT64 TotalAllocationUnits;
+            UINT64 AvailableAllocationUnits;
+        } QueryVolumeInformation;
     } Rsp;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_RSP;

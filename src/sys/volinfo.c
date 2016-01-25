@@ -6,16 +6,33 @@
 
 #include <sys/driver.h>
 
+static NTSTATUS FspFsvolQueryVolumeAttributeInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd);
+static NTSTATUS FspFsvolQueryVolumeDeviceInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd);
+static NTSTATUS FspFsvolQueryVolumeFullSizeInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd,
+    const UINT64 *Sizes);
+static NTSTATUS FspFsvolQueryVolumeSizeInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd,
+    const UINT64 *Sizes);
+static NTSTATUS FspFsvolQueryVolumeFsVolumeInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd);
 static NTSTATUS FspFsvolQueryVolumeInformation(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolQueryVolumeInformationComplete;
 static NTSTATUS FspFsvolSetVolumeInformation(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolSetVolumeInformationComplete;
 FSP_DRIVER_DISPATCH FspQueryVolumeInformation;
 FSP_DRIVER_DISPATCH FspSetVolumeInformation;
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspFsvolQueryVolumeAttributeInformation)
+#pragma alloc_text(PAGE, FspFsvolQueryVolumeDeviceInformation)
+#pragma alloc_text(PAGE, FspFsvolQueryVolumeFullSizeInformation)
+#pragma alloc_text(PAGE, FspFsvolQueryVolumeSizeInformation)
+#pragma alloc_text(PAGE, FspFsvolQueryVolumeFsVolumeInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryVolumeInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryVolumeInformationComplete)
 #pragma alloc_text(PAGE, FspFsvolSetVolumeInformation)
@@ -24,12 +41,98 @@ FSP_DRIVER_DISPATCH FspSetVolumeInformation;
 #pragma alloc_text(PAGE, FspSetVolumeInformation)
 #endif
 
-static NTSTATUS FspFsvolQueryVolumeInformation(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+static NTSTATUS FspFsvolQueryVolumeAttributeInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd)
 {
     PAGED_CODE();
 
     return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS FspFsvolQueryVolumeDeviceInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd)
+{
+    PAGED_CODE();
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS FspFsvolQueryVolumeFullSizeInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd,
+    const UINT64 *Sizes)
+{
+    PAGED_CODE();
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS FspFsvolQueryVolumeSizeInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd,
+    const UINT64 *Sizes)
+{
+    PAGED_CODE();
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS FspFsvolQueryVolumeFsVolumeInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd)
+{
+    PAGED_CODE();
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS FspFsvolQueryVolumeInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    PUINT8 Buffer = Irp->AssociatedIrp.SystemBuffer;
+    PUINT8 BufferEnd = Buffer + IrpSp->Parameters.QueryFile.Length;
+
+    switch (IrpSp->Parameters.QueryVolume.FsInformationClass)
+    {
+    case FileFsAttributeInformation:
+        Result = FspFsvolQueryVolumeAttributeInformation(FsvolDeviceObject, &Buffer, BufferEnd);
+        break;
+    case FileFsDeviceInformation:
+        Result = FspFsvolQueryVolumeDeviceInformation(FsvolDeviceObject, &Buffer, BufferEnd);
+        break;
+    case FileFsFullSizeInformation:
+        Result = FspFsvolQueryVolumeFullSizeInformation(FsvolDeviceObject, &Buffer, BufferEnd, 0);
+        break;
+    case FileFsSizeInformation:
+        Result = FspFsvolQueryVolumeSizeInformation(FsvolDeviceObject, &Buffer, BufferEnd, 0);
+        break;
+    case FileFsVolumeInformation:
+        Result = FspFsvolQueryVolumeFsVolumeInformation(FsvolDeviceObject, &Buffer, BufferEnd);
+        break;
+    default:
+        Result = STATUS_INVALID_PARAMETER;
+        break;
+    }
+
+    if (FSP_STATUS_IOQ_POST != Result)
+    {
+        Irp->IoStatus.Information = (UINT_PTR)(Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
+        return Result;
+    }
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    BOOLEAN FileNameRequired = 0 != FsvolDeviceExtension->VolumeParams.FileNameRequired;
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FSCTL_TRANSACT_REQ *Request;
+
+    Result = FspIopCreateRequest(Irp, FileNameRequired ? &FileNode->FileName : 0, 0, &Request);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    Request->Kind = FspFsctlTransactQueryVolumeInformationKind;
+
+    return FSP_STATUS_IOQ_POST;
 }
 
 VOID FspFsvolQueryVolumeInformationComplete(
@@ -37,12 +140,46 @@ VOID FspFsvolQueryVolumeInformationComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
+    if (!NT_SUCCESS(Response->IoStatus.Status))
+    {
+        Irp->IoStatus.Information = Response->IoStatus.Information;
+        Result = Response->IoStatus.Status;
+        FSP_RETURN();
+    }
+
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->DeviceObject;
+    PUINT8 Buffer = Irp->AssociatedIrp.SystemBuffer;
+    PUINT8 BufferEnd = Buffer + IrpSp->Parameters.QueryFile.Length;
+
+    //FspVolumeSetSizeInfo(FsvolDeviceObject,
+    //    &Response->Rsp.QueryVolumeInformation.TotalAllocationUnits);
+
+    switch (IrpSp->Parameters.QueryVolume.FsInformationClass)
+    {
+    case FileFsFullSizeInformation:
+        Result = FspFsvolQueryVolumeFullSizeInformation(FsvolDeviceObject, &Buffer, BufferEnd,
+            &Response->Rsp.QueryVolumeInformation.TotalAllocationUnits);
+        break;
+    case FileFsSizeInformation:
+        Result = FspFsvolQueryVolumeSizeInformation(FsvolDeviceObject, &Buffer, BufferEnd,
+            &Response->Rsp.QueryVolumeInformation.TotalAllocationUnits);
+        break;
+    default:
+        ASSERT(0);
+        Result = STATUS_INVALID_PARAMETER;
+        break;
+    }
+
+    ASSERT(FSP_STATUS_IOQ_POST != Result);
+
+    Irp->IoStatus.Information = (UINT_PTR)(Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
+
     FSP_LEAVE_IOC("%s",
         FsInformationClassSym(IrpSp->Parameters.QueryVolume.FsInformationClass));
 }
 
 static NTSTATUS FspFsvolSetVolumeInformation(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     PAGED_CODE();
 
