@@ -35,6 +35,9 @@ VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
 static RTL_AVL_COMPARE_ROUTINE FspFsvolDeviceCompareElement;
 static RTL_AVL_ALLOCATE_ROUTINE FspFsvolDeviceAllocateElement;
 static RTL_AVL_FREE_ROUTINE FspFsvolDeviceFreeElement;
+VOID FspFsvolGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
+BOOLEAN FspFsvolTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
+VOID FspFsvolSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
@@ -307,6 +310,10 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     IoStartTimer(DeviceObject);
     FsvolDeviceExtension->InitDoneTimer = 1;
 
+    /* initialize the volume information */
+    KeInitializeSpinLock(&FsvolDeviceExtension->InfoSpinLock);
+    FsvolDeviceExtension->InitDoneInfo = 1;
+
     return STATUS_SUCCESS;
 }
 
@@ -507,6 +514,66 @@ static VOID NTAPI FspFsvolDeviceFreeElement(
     PRTL_AVL_TABLE Table, PVOID Buffer)
 {
     PAGED_CODE();
+}
+
+VOID FspFsvolGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+{
+    // !PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_FSCTL_VOLUME_INFO VolumeInfoNp;
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&FsvolDeviceExtension->InfoSpinLock, &Irql);
+    VolumeInfoNp = FsvolDeviceExtension->VolumeInfo;
+    KeReleaseSpinLock(&FsvolDeviceExtension->InfoSpinLock, Irql);
+
+    *VolumeInfo = VolumeInfoNp;
+}
+
+#pragma warning(push)
+#pragma warning(disable:4701) /* disable idiotic warning! */
+BOOLEAN FspFsvolTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+{
+    // !PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_FSCTL_VOLUME_INFO VolumeInfoNp;
+    KIRQL Irql;
+    BOOLEAN Result;
+
+    KeAcquireSpinLock(&FsvolDeviceExtension->InfoSpinLock, &Irql);
+    if (0 < FsvolDeviceExtension->InfoExpirationTime &&
+        KeQueryInterruptTime() < FsvolDeviceExtension->InfoExpirationTime)
+    {
+        VolumeInfoNp = FsvolDeviceExtension->VolumeInfo;
+        Result = TRUE;
+    }
+    else
+        Result = FALSE;
+    KeReleaseSpinLock(&FsvolDeviceExtension->InfoSpinLock, Irql);
+
+    if (Result)
+        *VolumeInfo = VolumeInfoNp;
+
+    return Result;
+}
+#pragma warning(pop)
+
+VOID FspFsvolSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+{
+    // !PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_FSCTL_VOLUME_INFO VolumeInfoNp = *VolumeInfo;
+    KIRQL Irql;
+    UINT64 FileInfoTimeout = FsvolDeviceExtension->VolumeParams.FileInfoTimeout * 10000ULL;
+
+    KeAcquireSpinLock(&FsvolDeviceExtension->InfoSpinLock, &Irql);
+    FsvolDeviceExtension->VolumeInfo = VolumeInfoNp;
+    FsvolDeviceExtension->InfoExpirationTime = 0 != FileInfoTimeout ?
+        KeQueryInterruptTime() + FileInfoTimeout : 0;
+    KeReleaseSpinLock(&FsvolDeviceExtension->InfoSpinLock, Irql);
 }
 
 NTSTATUS FspDeviceCopyList(

@@ -87,6 +87,10 @@ NTSTATUS FspVolumeCreate(
     /* check the VolumeParams */
     if (0 == VolumeParams.SectorSize)
         VolumeParams.SectorSize = 512;
+    if (0 == VolumeParams.SectorsPerAllocationUnit)
+        VolumeParams.SectorsPerAllocationUnit = 1;
+    if (0 == VolumeParams.MaxComponentLength)
+        VolumeParams.MaxComponentLength = 255;
     if (FspFsctlTransactTimeoutMinimum > VolumeParams.TransactTimeout ||
         VolumeParams.TransactTimeout > FspFsctlTransactTimeoutMaximum)
         VolumeParams.TransactTimeout = FspFsctlTransactTimeoutDefault;

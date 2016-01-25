@@ -443,7 +443,8 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-    UINT32 InitDoneFsvrt:1, InitDoneDelRsc:1, InitDoneIoq:1, InitDoneGenTab:1, InitDoneTimer:1;
+    UINT32 InitDoneFsvrt:1, InitDoneDelRsc:1, InitDoneIoq:1, InitDoneGenTab:1, InitDoneTimer:1,
+        InitDoneInfo:1;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     HANDLE MupHandle;
@@ -461,6 +462,9 @@ typedef struct
     PVOID GenericTableElementStorage;
     UNICODE_STRING VolumeName;
     WCHAR VolumeNameBuf[FSP_DEVICE_VOLUME_NAME_LENMAX / sizeof(WCHAR)];
+    KSPIN_LOCK InfoSpinLock;
+    UINT64 InfoExpirationTime;
+    FSP_FSCTL_VOLUME_INFO VolumeInfo;
 } FSP_FSVOL_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
@@ -491,6 +495,9 @@ PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
     FSP_DEVICE_GENERIC_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
 VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     PBOOLEAN PDeleted);
+VOID FspFsvolGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
+BOOLEAN FspFsvolTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
+VOID FspFsvolSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(

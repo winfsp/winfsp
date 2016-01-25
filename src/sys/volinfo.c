@@ -12,12 +12,13 @@ static NTSTATUS FspFsvolQueryVolumeDeviceInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd);
 static NTSTATUS FspFsvolQueryVolumeFullSizeInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd,
-    const UINT64 *Sizes);
+    const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 static NTSTATUS FspFsvolQueryVolumeSizeInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd,
-    const UINT64 *Sizes);
+    const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 static NTSTATUS FspFsvolQueryVolumeFsVolumeInformation(
-    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd);
+    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd,
+    const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 static NTSTATUS FspFsvolQueryVolumeInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolQueryVolumeInformationComplete;
@@ -59,7 +60,7 @@ static NTSTATUS FspFsvolQueryVolumeDeviceInformation(
 
 static NTSTATUS FspFsvolQueryVolumeFullSizeInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd,
-    const UINT64 *Sizes)
+    const FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
     PAGED_CODE();
 
@@ -68,7 +69,7 @@ static NTSTATUS FspFsvolQueryVolumeFullSizeInformation(
 
 static NTSTATUS FspFsvolQueryVolumeSizeInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd,
-    const UINT64 *Sizes)
+    const FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
     PAGED_CODE();
 
@@ -76,7 +77,8 @@ static NTSTATUS FspFsvolQueryVolumeSizeInformation(
 }
 
 static NTSTATUS FspFsvolQueryVolumeFsVolumeInformation(
-    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd)
+    PDEVICE_OBJECT FsvolDeviceObject, PUINT8 *PBuffer, PUINT8 BufferEnd,
+    const FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
     PAGED_CODE();
 
@@ -107,7 +109,7 @@ static NTSTATUS FspFsvolQueryVolumeInformation(
         Result = FspFsvolQueryVolumeSizeInformation(FsvolDeviceObject, &Buffer, BufferEnd, 0);
         break;
     case FileFsVolumeInformation:
-        Result = FspFsvolQueryVolumeFsVolumeInformation(FsvolDeviceObject, &Buffer, BufferEnd);
+        Result = FspFsvolQueryVolumeFsVolumeInformation(FsvolDeviceObject, &Buffer, BufferEnd, 0);
         break;
     default:
         Result = STATUS_INVALID_PARAMETER;
@@ -158,11 +160,15 @@ VOID FspFsvolQueryVolumeInformationComplete(
     {
     case FileFsFullSizeInformation:
         Result = FspFsvolQueryVolumeFullSizeInformation(FsvolDeviceObject, &Buffer, BufferEnd,
-            &Response->Rsp.QueryVolumeInformation.TotalAllocationUnits);
+            &Response->Rsp.QueryVolumeInformation.VolumeInfo);
         break;
     case FileFsSizeInformation:
         Result = FspFsvolQueryVolumeSizeInformation(FsvolDeviceObject, &Buffer, BufferEnd,
-            &Response->Rsp.QueryVolumeInformation.TotalAllocationUnits);
+            &Response->Rsp.QueryVolumeInformation.VolumeInfo);
+        break;
+    case FileFsVolumeInformation:
+        Result = FspFsvolQueryVolumeFsVolumeInformation(FsvolDeviceObject, &Buffer, BufferEnd,
+            &Response->Rsp.QueryVolumeInformation.VolumeInfo);
         break;
     default:
         ASSERT(0);

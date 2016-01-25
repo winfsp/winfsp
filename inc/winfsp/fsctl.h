@@ -43,7 +43,14 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  (4096 - 64) /* 64: size for internal request header */
 #define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  (4096 - 64) /* symmetry! */
 
-/* file metadata */
+/* volume/file metadata */
+typedef struct
+{
+    UINT64 TotalAllocationUnits;
+    UINT64 AvailableAllocationUnits;
+    UINT16 VolumeLabelLength;
+    WCHAR VolumeLabel[32];
+} FSP_FSCTL_VOLUME_INFO;
 typedef struct
 {
     UINT32 FileAttributes;
@@ -100,14 +107,28 @@ enum
 };
 typedef struct
 {
-    UINT16 Version;
+    UINT16 Version;                     /* set to 0 */
+    /* volume information */
     UINT16 SectorSize;
-    UINT32 SerialNumber;
-    UINT32 TransactTimeout;             /* milliseconds; values between 1 sec and 10 sec */
-    UINT32 IrpTimeout;                  /* milliseconds; values between 1 min and 10 min */
-    UINT32 IrpCapacity;                 /* maximum number of pending IRP's */
-    UINT32 FileInfoTimeout;             /* milliseconds */
-    UINT32 EaSupported:1;               /* supports extended attributes (unimplemented; set to 0) */
+    UINT16 SectorsPerAllocationUnit;
+    UINT16 MaxComponentLength;          /* maximum file name component length (bytes) */
+    UINT32 SerialNumber;                /* volume serial number */
+    /* I/O timeouts, capacity, etc. */
+    UINT32 TransactTimeout;             /* FSP_FSCTL_TRANSACT timeout (millis; 1 sec - 10 sec) */
+    UINT32 IrpTimeout;                  /* pending IRP timeout (millis; 1 min - 10 min) */
+    UINT32 IrpCapacity;                 /* maximum number of pending IRP's (100 - 1000)*/
+    UINT32 FileInfoTimeout;             /* FileInfo/VolumeInfo timeout (millis) */
+    /* FILE_FS_ATTRIBUTE_INFORMATION::FileSystemAttributes */
+    UINT32 CaseSensitiveSearch:1;       /* file system supports case-sensitive file names */
+    UINT32 CasePreservedNames:1;        /* file system preserves the case of file names */
+    UINT32 UnicodeOnDisk:1;             /* file system supports Unicode in file names */
+    UINT32 PersistentAcls:1;            /* file system preserves and enforces access control lists */
+    UINT32 ReparsePoints:1;             /* file system supports reparse points (!!!: unimplemented) */
+    UINT32 NamedStreams:1;              /* file system supports named streams (!!!: unimplemented) */
+    UINT32 HardLinks:1;                 /* unimplemented; set to 0 */
+    UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */
+    UINT32 ReadOnlyVolume:1;
+    /* other flags */
     UINT32 FileNameRequired:1;          /* FileName required for all operations (not just Create) */
     WCHAR Prefix[64];                   /* UNC prefix to recognize (\\server\path format, 0-term) */
 } FSP_FSCTL_VOLUME_PARAMS;
@@ -205,8 +226,7 @@ typedef struct
         } QueryInformation;
         struct
         {
-            UINT64 TotalAllocationUnits;
-            UINT64 AvailableAllocationUnits;
+            FSP_FSCTL_VOLUME_INFO VolumeInfo;
         } QueryVolumeInformation;
     } Rsp;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
