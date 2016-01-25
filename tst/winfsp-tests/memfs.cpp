@@ -9,6 +9,7 @@
 #include <map>
 
 #define MEMFS_SECTOR_SIZE               512
+#define MEMFS_SECTORS_PER_ALLOCATION_UNIT 1
 
 static inline
 UINT64 MemfsGetSystemTime(VOID)
@@ -191,7 +192,22 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
+    MEMFS_FILE_NODE *RootNode;
+    ULONG AllocationUnits = Memfs->MaxFileSize / (MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT);
+
+    RootNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, L"");
+    if (0 == RootNode)
+        return STATUS_DISK_CORRUPT_ERROR;
+
+    VolumeInfo->TotalAllocationUnits = Memfs->MaxFileNodes * AllocationUnits;
+    VolumeInfo->AvailableAllocationUnits =
+        (Memfs->MaxFileNodes - MemfsFileNodeMapCount(Memfs->FileNodeMap)) * AllocationUnits;
+    VolumeInfo->VolumeCreationTime = RootNode->FileInfo.CreationTime;
+    VolumeInfo->VolumeLabelLength = sizeof L"MEMFS" - sizeof(WCHAR);
+    memcpy(VolumeInfo->VolumeLabel, L"Memfs", VolumeInfo->VolumeLabelLength);
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
@@ -438,7 +454,13 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
 
     memset(&VolumeParams, 0, sizeof VolumeParams);
     VolumeParams.SectorSize = MEMFS_SECTOR_SIZE;
+    VolumeParams.SectorsPerAllocationUnit = MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+    VolumeParams.SerialNumber = (UINT32)(MemfsGetSystemTime() / (10000 * 1000));
     VolumeParams.FileInfoTimeout = FileInfoTimeout;
+    VolumeParams.CaseSensitiveSearch = 1;
+    VolumeParams.CasePreservedNames = 1;
+    VolumeParams.UnicodeOnDisk = 1;
+    VolumeParams.PersistentAcls = 1;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\memfs\\share");
 
     Result = FspFileSystemCreate(DevicePath, &VolumeParams, &MemfsInterface, &Memfs->FileSystem);
