@@ -187,6 +187,13 @@ BOOLEAN MemfsFileNodeMapHasChild(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NO
     return Result;
 }
 
+static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
 static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PUINT32 PFileAttributes,
     PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
@@ -364,7 +371,7 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem,
         MemfsFileNodeDelete(FileNode);
 }
 
-static NTSTATUS GetInformation(FSP_FILE_SYSTEM *FileSystem,
+static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0,
     FSP_FSCTL_FILE_INFO *FileInfo)
@@ -378,13 +385,14 @@ static NTSTATUS GetInformation(FSP_FILE_SYSTEM *FileSystem,
 
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
+    GetVolumeInfo,
     GetSecurity,
     Create,
     Open,
     Overwrite,
     Cleanup,
     Close,
-    GetInformation,
+    GetFileInfo,
 };
 
 static VOID MemfsEnterOperation(FSP_FILE_SYSTEM *FileSystem, FSP_FSCTL_TRANSACT_REQ *Request)

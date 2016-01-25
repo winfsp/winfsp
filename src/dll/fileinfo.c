@@ -1,5 +1,5 @@
 /**
- * @file dll/close.c
+ * @file dll/fileinfo.c
  *
  * @copyright 2015 Bill Zissimopoulos
  */
@@ -12,10 +12,10 @@ FSP_API NTSTATUS FspFileSystemOpQueryInformation(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
     FSP_FSCTL_FILE_INFO FileInfo;
 
-    if (0 == FileSystem->Interface->GetInformation)
+    if (0 == FileSystem->Interface->GetFileInfo)
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
 
-    Result = FileSystem->Interface->GetInformation(FileSystem, Request,
+    Result = FileSystem->Interface->GetFileInfo(FileSystem, Request,
         (PVOID)Request->Req.Close.UserContext, &FileInfo);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
@@ -30,7 +30,7 @@ FSP_API NTSTATUS FspFileSystemSendQueryInformationResponse(FSP_FILE_SYSTEM *File
 
     memset(&Response, 0, sizeof Response);
     Response.Size = sizeof Response;
-    Response.Kind = FspFsctlTransactCloseKind;
+    Response.Kind = FspFsctlTransactQueryInformationKind;
     Response.Hint = Request->Hint;
     Response.IoStatus.Status = STATUS_SUCCESS;
     Response.IoStatus.Information = 0;

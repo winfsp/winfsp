@@ -34,6 +34,7 @@
     <ClCompile Include="..\..\src\dll\loop.c" />
     <ClCompile Include="..\..\src\dll\ntstatus.c" />
     <ClCompile Include="..\..\src\dll\path.c" />
+    <ClCompile Include="..\..\src\dll\volinfo.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\ntstatus.i" />
