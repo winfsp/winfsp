@@ -48,9 +48,10 @@ void getinfo_dotest(ULONG Flags, PWSTR Prefix)
     Success = GetFileInformationByHandleEx(Handle, FileBasicInfo, &BasicInfo, sizeof BasicInfo);
     ASSERT(Success);
     //ASSERT(FILE_ATTRIBUTE_ARCHIVE == BasicInfo.FileAttributes);
-    ASSERT(
-        TimeLo <= BasicInfo.CreationTime.QuadPart &&
-        TimeHi >  BasicInfo.CreationTime.QuadPart);
+    if (-1 != Flags)
+        ASSERT(
+            TimeLo <= BasicInfo.CreationTime.QuadPart &&
+            TimeHi >  BasicInfo.CreationTime.QuadPart);
     ASSERT(
         TimeLo <= BasicInfo.LastAccessTime.QuadPart &&
         TimeHi >  BasicInfo.LastAccessTime.QuadPart);
@@ -99,9 +100,10 @@ void getinfo_dotest(ULONG Flags, PWSTR Prefix)
     Success = GetFileInformationByHandle(Handle, &FileInfo);
     ASSERT(Success);
     //ASSERT(FILE_ATTRIBUTE_ARCHIVE == FileInfo.dwFileAttributes);
-    ASSERT(
-        TimeLo <= ((PLARGE_INTEGER)&FileInfo.ftCreationTime)->QuadPart &&
-        TimeHi >  ((PLARGE_INTEGER)&FileInfo.ftCreationTime)->QuadPart);
+    if (-1 != Flags)
+        ASSERT(
+            TimeLo <= ((PLARGE_INTEGER)&FileInfo.ftCreationTime)->QuadPart &&
+            TimeHi >  ((PLARGE_INTEGER)&FileInfo.ftCreationTime)->QuadPart);
     ASSERT(
         TimeLo <= ((PLARGE_INTEGER)&FileInfo.ftLastAccessTime)->QuadPart &&
         TimeHi >  ((PLARGE_INTEGER)&FileInfo.ftLastAccessTime)->QuadPart);
