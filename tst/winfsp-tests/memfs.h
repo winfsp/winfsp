@@ -23,7 +23,8 @@ enum
     MemfsThreadPool                     = 0x02,
 };
 
-NTSTATUS MemfsCreate(ULONG Flags, ULONG MaxFileNodes, ULONG MaxFileSize,
+NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
+    ULONG MaxFileNodes, ULONG MaxFileSize,
     MEMFS **PMemfs);
 VOID MemfsDelete(MEMFS *Memfs);
 FSP_FILE_SYSTEM *MemfsFileSystem(MEMFS *Memfs);

@@ -4,6 +4,7 @@
 #include <strsafe.h>
 #include "memfs.h"
 
+void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout);
 void *memfs_start(ULONG Flags);
 void memfs_stop(void *data);
 PWSTR memfs_volumename(void *data);
@@ -12,9 +13,9 @@ extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
-void getinfo_dotest(ULONG Flags, PWSTR Prefix)
+void getinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
-    void *memfs = memfs_start(Flags);
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
     HANDLE Handle;
     BOOL Success;
@@ -125,12 +126,18 @@ void getinfo_test(void)
     {
         WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
         GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        getinfo_dotest(-1, DirBuf);
+        getinfo_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
-        getinfo_dotest(MemfsDisk, 0);
+    {
+        getinfo_dotest(MemfsDisk, 0, 0);
+        getinfo_dotest(MemfsDisk, 0, 1000);
+    }
     if (WinFspNetTests)
-        getinfo_dotest(MemfsNet, L"\\\\memfs\\share");
+    {
+        getinfo_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        getinfo_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
 }
 
 void getinfo_tests(void)

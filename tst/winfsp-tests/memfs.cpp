@@ -399,7 +399,8 @@ static VOID MemfsLeaveOperation(FSP_FILE_SYSTEM *FileSystem, FSP_FSCTL_TRANSACT_
     LeaveCriticalSection(&Memfs->Lock);
 }
 
-NTSTATUS MemfsCreate(ULONG Flags, ULONG MaxFileNodes, ULONG MaxFileSize,
+NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
+    ULONG MaxFileNodes, ULONG MaxFileSize,
     MEMFS **PMemfs)
 {
     NTSTATUS Result;
@@ -429,6 +430,7 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG MaxFileNodes, ULONG MaxFileSize,
 
     memset(&VolumeParams, 0, sizeof VolumeParams);
     VolumeParams.SectorSize = MEMFS_SECTOR_SIZE;
+    VolumeParams.FileInfoTimeout = FileInfoTimeout;
     wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\memfs\\share");
 
     Result = FspFileSystemCreate(DevicePath, &VolumeParams, &MemfsInterface, &Memfs->FileSystem);

@@ -343,7 +343,7 @@ static BOOLEAN FspFileNodeTryGetFileInfoNp(FSP_FILE_NODE_NONPAGED *FileNodeNp,
     BOOLEAN Result;
 
     KeAcquireSpinLock(&FileNodeNp->InfoSpinLock, &Irql);
-    if (0 < FileNodeNp->InfoExpirationTime && FileNodeNp->InfoExpirationTime < KeQueryInterruptTime())
+    if (0 < FileNodeNp->InfoExpirationTime && KeQueryInterruptTime() < FileNodeNp->InfoExpirationTime)
     {
         FileInfoNp->FileAttributes = FileNodeNp->FileAttributes;
         FileInfoNp->ReparseTag = FileNodeNp->ReparseTag;

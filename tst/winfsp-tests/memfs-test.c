@@ -18,7 +18,7 @@ static unsigned __stdcall memfs_thread(void *Memfs0)
     return FspFileSystemLoop(MemfsFileSystem(Memfs));
 }
 
-void *memfs_start(ULONG Flags)
+void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
 {
     if (-1 == Flags)
         return 0;
@@ -31,7 +31,7 @@ void *memfs_start(ULONG Flags)
     data = malloc(sizeof *data);
     ASSERT(0 != data);
 
-    Result = MemfsCreate(Flags, 1000, 65500, &Memfs);
+    Result = MemfsCreate(Flags, FileInfoTimeout, 1000, 65500, &Memfs);
     ASSERT(NT_SUCCESS(Result));
     ASSERT(0 != Memfs);
 
@@ -42,6 +42,11 @@ void *memfs_start(ULONG Flags)
     data->Thread = Thread;
 
     return data;
+}
+
+void *memfs_start(ULONG Flags)
+{
+    return memfs_start_ex(Flags, 0);
 }
 
 void memfs_stop(void *data)
