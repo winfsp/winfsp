@@ -239,4 +239,26 @@ const char *FileInformationClassSym(FILE_INFORMATION_CLASS FileInformationClass)
         return "FILE_INFORMATION_CLASS:Unknown";
     }
 }
+
+const char *FsInformationClassSym(FS_INFORMATION_CLASS FsInformationClass)
+{
+    switch (FsInformationClass)
+    {
+    SYM(FileFsVolumeInformation)
+    SYM(FileFsLabelInformation)
+    SYM(FileFsSizeInformation)
+    SYM(FileFsDeviceInformation)
+    SYM(FileFsAttributeInformation)
+    SYM(FileFsControlInformation)
+    SYM(FileFsFullSizeInformation)
+    SYM(FileFsObjectIdInformation)
+    SYM(FileFsDriverPathInformation)
+    SYM(FileFsVolumeFlagsInformation)
+    SYM(FileFsSectorSizeInformation)
+    SYM(FileFsDataCopyInformation)
+    SYM(FileFsMetadataSizeInformation)
+    default:
+        return "FS_INFORMATION_CLASS:Unknown";
+    }
+}
 #endif

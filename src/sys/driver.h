@@ -618,6 +618,7 @@ const char *IrpMajorFunctionSym(UCHAR MajorFunction);
 const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);
 const char *IoctlCodeSym(ULONG ControlCode);
 const char *FileInformationClassSym(FILE_INFORMATION_CLASS FileInformationClass);
+const char *FsInformationClassSym(FS_INFORMATION_CLASS FsInformationClass);
 static inline
 VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result)
 {

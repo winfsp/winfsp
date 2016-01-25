@@ -37,7 +37,8 @@ VOID FspFsvolQueryVolumeInformationComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
-    FSP_LEAVE_IOC("%s", "");
+    FSP_LEAVE_IOC("%s",
+        FsInformationClassSym(IrpSp->Parameters.QueryVolume.FsInformationClass));
 }
 
 static NTSTATUS FspFsvolSetVolumeInformation(
@@ -53,7 +54,8 @@ VOID FspFsvolSetVolumeInformationComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
-    FSP_LEAVE_IOC("%s", "");
+    FSP_LEAVE_IOC("%s",
+        FsInformationClassSym(IrpSp->Parameters.SetVolume.FsInformationClass));
 }
 
 NTSTATUS FspQueryVolumeInformation(
@@ -69,7 +71,8 @@ NTSTATUS FspQueryVolumeInformation(
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
 
-    FSP_LEAVE_MJ("%s", "");
+    FSP_LEAVE_MJ("%s",
+        FsInformationClassSym(IrpSp->Parameters.QueryVolume.FsInformationClass));
 }
 
 NTSTATUS FspSetVolumeInformation(
@@ -85,5 +88,6 @@ NTSTATUS FspSetVolumeInformation(
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
 
-    FSP_LEAVE_MJ("%s", "");
+    FSP_LEAVE_MJ("%s",
+        FsInformationClassSym(IrpSp->Parameters.SetVolume.FsInformationClass));
 }
