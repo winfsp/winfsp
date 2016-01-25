@@ -48,6 +48,7 @@ typedef struct
 {
     UINT64 TotalAllocationUnits;
     UINT64 AvailableAllocationUnits;
+    UINT64 VolumeCreationTime;
     UINT16 VolumeLabelLength;
     WCHAR VolumeLabel[32];
 } FSP_FSCTL_VOLUME_INFO;
