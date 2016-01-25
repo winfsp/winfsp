@@ -37,3 +37,20 @@ FSP_API VOID FspDebugLogSD(const char *format, PSECURITY_DESCRIPTOR SecurityDesc
     else
         FspDebugLog(format, "invalid security descriptor");
 }
+
+FSP_API VOID FspDebugLogFT(const char *format, PFILETIME FileTime)
+{
+    SYSTEMTIME SystemTime;
+    char buf[32];
+
+    if (FileTimeToSystemTime(FileTime, &SystemTime))
+    {
+        wsprintfA(buf, "%04hu-%02hu-%02huT%02hu:%02hu:%02hu.%03huZ",
+            SystemTime.wYear, SystemTime.wMonth, SystemTime.wDay,
+            SystemTime.wHour, SystemTime.wMinute, SystemTime.wSecond,
+            SystemTime.wMilliseconds);
+        FspDebugLog(format, buf);
+    }
+    else
+        FspDebugLog(format, "invalid file time");
+}
