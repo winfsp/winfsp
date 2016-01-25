@@ -15,6 +15,7 @@ FSP_API NTSTATUS FspFileSystemOpQueryInformation(FSP_FILE_SYSTEM *FileSystem,
     if (0 == FileSystem->Interface->GetFileInfo)
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
 
+    memset(&FileInfo, 0, sizeof FileInfo);
     Result = FileSystem->Interface->GetFileInfo(FileSystem, Request,
         (PVOID)Request->Req.Close.UserContext, &FileInfo);
     if (!NT_SUCCESS(Result))

@@ -201,20 +201,24 @@ void timeout_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
     ASSERT(0 == Request->Version);
     ASSERT(FSP_FSCTL_TRANSACT_REQ_SIZEMAX >= Request->Size);
     ASSERT(0 != Request->Hint);
-    ASSERT(FspFsctlTransactCreateKind == Request->Kind);
-    ASSERT(FILE_CREATE == ((Request->Req.Create.CreateOptions >> 24) & 0xff));
-    ASSERT(0 == Request->Req.Create.FileAttributes);
-    ASSERT(0 == Request->Req.Create.SecurityDescriptor.Offset);
-    ASSERT(0 == Request->Req.Create.SecurityDescriptor.Size);
-    ASSERT(0 == Request->Req.Create.AllocationSize);
-    ASSERT(FILE_GENERIC_READ == Request->Req.Create.DesiredAccess);
-    ASSERT((FILE_SHARE_READ | FILE_SHARE_WRITE) == Request->Req.Create.ShareAccess);
-    ASSERT(0 == Request->Req.Create.Ea.Offset);
-    ASSERT(0 == Request->Req.Create.Ea.Size);
-    ASSERT(Request->Req.Create.UserMode);
-    ASSERT(Request->Req.Create.HasTraversePrivilege);
-    ASSERT(!Request->Req.Create.OpenTargetDirectory);
-    ASSERT(!Request->Req.Create.CaseSensitive);
+    ASSERT(FspFsctlTransactCreateKind == Request->Kind ||
+        FspFsctlTransactQueryVolumeInformationKind == Request->Kind);
+    if (FspFsctlTransactCreateKind == Request->Kind)
+    {
+        ASSERT(FILE_CREATE == ((Request->Req.Create.CreateOptions >> 24) & 0xff));
+        ASSERT(0 == Request->Req.Create.FileAttributes);
+        ASSERT(0 == Request->Req.Create.SecurityDescriptor.Offset);
+        ASSERT(0 == Request->Req.Create.SecurityDescriptor.Size);
+        ASSERT(0 == Request->Req.Create.AllocationSize);
+        ASSERT(FILE_GENERIC_READ == Request->Req.Create.DesiredAccess);
+        ASSERT((FILE_SHARE_READ | FILE_SHARE_WRITE) == Request->Req.Create.ShareAccess);
+        ASSERT(0 == Request->Req.Create.Ea.Offset);
+        ASSERT(0 == Request->Req.Create.Ea.Size);
+        ASSERT(Request->Req.Create.UserMode);
+        ASSERT(Request->Req.Create.HasTraversePrivilege);
+        ASSERT(!Request->Req.Create.OpenTargetDirectory);
+        ASSERT(!Request->Req.Create.CaseSensitive);
+    }
 
     ResponseBufSize = 0;
     RequestBufSize = sizeof RequestBuf;

@@ -46,7 +46,7 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
 
 void *memfs_start(ULONG Flags)
 {
-    return memfs_start_ex(Flags, 0);
+    return memfs_start_ex(Flags, 1000);
 }
 
 void memfs_stop(void *data)

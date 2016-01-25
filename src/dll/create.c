@@ -313,6 +313,8 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
+    FileNode = 0;
+    memset(&FileInfo, 0, sizeof FileInfo);
     Result = FileSystem->Interface->Create(FileSystem, Request,
         (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
         Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
@@ -337,6 +339,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
+    FileNode = 0;
+    memset(&FileInfo, 0, sizeof FileInfo);
     Result = FileSystem->Interface->Open(FileSystem, Request,
         (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
         &FileNode, &FileInfo);
@@ -367,6 +371,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
 
     if (!Create)
     {
+        FileNode = 0;
+        memset(&FileInfo, 0, sizeof FileInfo);
         Result = FileSystem->Interface->Open(FileSystem, Request,
             (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
             &FileNode, &FileInfo);
@@ -389,6 +395,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
+        FileNode = 0;
+        memset(&FileInfo, 0, sizeof FileInfo);
         Result = FileSystem->Interface->Create(FileSystem, Request,
             (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
             Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
@@ -415,6 +423,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
+    FileNode = 0;
+    memset(&FileInfo, 0, sizeof FileInfo);
     Result = FileSystem->Interface->Open(FileSystem, Request,
         (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
         &FileNode, &FileInfo);
@@ -445,6 +455,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
 
     if (!Create)
     {
+        FileNode = 0;
+        memset(&FileInfo, 0, sizeof FileInfo);
         Result = FileSystem->Interface->Open(FileSystem, Request,
             (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
             &FileNode, &FileInfo);
@@ -467,6 +479,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
         if (!NT_SUCCESS(Result))
             return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
+        FileNode = 0;
+        memset(&FileInfo, 0, sizeof FileInfo);
         Result = FileSystem->Interface->Create(FileSystem, Request,
             (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
             Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
@@ -496,6 +510,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
     FspPathSuffix((PWSTR)Request->Buffer, &Parent, &Suffix);
+    FileNode = 0;
+    memset(&FileInfo, 0, sizeof FileInfo);
     Result = FileSystem->Interface->Open(FileSystem, Request,
         (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
         &FileNode, &FileInfo);
@@ -550,6 +566,7 @@ FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
     FSP_FSCTL_FILE_INFO FileInfo;
 
+    memset(&FileInfo, 0, sizeof FileInfo);
     Result = FileSystem->Interface->Overwrite(FileSystem, Request,
         (PVOID)Request->Req.Overwrite.UserContext,
         Request->Req.Overwrite.FileAttributes,

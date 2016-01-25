@@ -15,6 +15,7 @@ FSP_API NTSTATUS FspFileSystemOpQueryVolumeInformation(FSP_FILE_SYSTEM *FileSyst
     if (0 == FileSystem->Interface->GetVolumeInfo)
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
 
+    memset(&VolumeInfo, 0, sizeof VolumeInfo);
     Result = FileSystem->Interface->GetVolumeInfo(FileSystem, Request, &VolumeInfo);
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
