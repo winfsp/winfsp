@@ -567,7 +567,8 @@ static NTSTATUS FspFsvolSetInformation(
 
     ASSERT(FileNode == FileDesc->FileNode);
 
-    Result = FspIopCreateRequest(Irp, FileNameRequired ? &FileNode->FileName : 0, 0, &Request);
+    Result = FspIopCreateRequestEx(Irp, FileNameRequired ? &FileNode->FileName : 0, 0,
+        FspFsvolSetInformationRequestFini, &Request);
     if (!NT_SUCCESS(Result))
         return Result;
 
