@@ -7,21 +7,26 @@
 #include <sys/driver.h>
 
 static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd, const FSP_FSCTL_FILE_INFO *FileInfo);
+    PVOID *PBuffer, PVOID BufferEnd,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
 static NTSTATUS FspFsvolQueryAttributeTagInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd, const FSP_FSCTL_FILE_INFO *FileInfo);
+    PVOID *PBuffer, PVOID BufferEnd,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
 static NTSTATUS FspFsvolQueryBasicInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd, const FSP_FSCTL_FILE_INFO *FileInfo);
+    PVOID *PBuffer, PVOID BufferEnd,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
 static NTSTATUS FspFsvolQueryInternalInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd);
+    PVOID *PBuffer, PVOID BufferEnd);
 static NTSTATUS FspFsvolQueryNameInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd);
+    PVOID *PBuffer, PVOID BufferEnd);
 static NTSTATUS FspFsvolQueryNetworkOpenInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd, const FSP_FSCTL_FILE_INFO *FileInfo);
+    PVOID *PBuffer, PVOID BufferEnd,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
 static NTSTATUS FspFsvolQueryPositionInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd);
+    PVOID *PBuffer, PVOID BufferEnd);
 static NTSTATUS FspFsvolQueryStandardInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd);
+    PVOID *PBuffer, PVOID BufferEnd,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
 static NTSTATUS FspFsvolQueryInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolQueryInformationComplete;
@@ -74,86 +79,135 @@ FSP_DRIVER_DISPATCH FspSetInformation;
 #pragma alloc_text(PAGE, FspSetInformation)
 #endif
 
-#define GETFILEINFO()                   \
-    FSP_FSCTL_FILE_INFO FileInfoBuf;    \
-    if (0 == FileInfo)                  \
-    {                                   \
-        if (!FspFileNodeTryGetFileInfo((FSP_FILE_NODE *)FileObject->FsContext, &FileInfoBuf))\
-            return FSP_STATUS_IOQ_POST; \
-        FileInfo = &FileInfoBuf;        \
-    }
+enum
+{
+    RequestFileNode                     = 0,
+    RequestAcquireFlags                 = 1,
+};
 
 static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd, const FSP_FSCTL_FILE_INFO *FileInfo)
+    PVOID *PBuffer, PVOID BufferEnd,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
 
-    if (*PBuffer + sizeof(FILE_ALL_INFORMATION) > BufferEnd)
-        return STATUS_BUFFER_TOO_SMALL;
-
     PFILE_ALL_INFORMATION Info = (PFILE_ALL_INFORMATION)*PBuffer;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+    const FSP_FSCTL_FILE_INFO *FileInfo;
 
-    if (0 == FileInfo)
+    if (0 == Request)
     {
-        FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        if ((PVOID)(Info + 1) > BufferEnd)
+            return STATUS_BUFFER_TOO_SMALL;
 
-        FspFileNodeAcquireShared(FileNode, Main);
+        if (!FspFileNodeTryGetFileInfo(FileNode, &FileInfoBuf))
+            return FSP_STATUS_IOQ_POST;
+        FileInfo = &FileInfoBuf;
 
-        *PBuffer = (PVOID)&Info->PositionInformation;
-        FspFsvolQueryPositionInformation(FileObject, PBuffer, BufferEnd);
+        FspFileNodeAcquireShared(FileNode, Both);
+    }
+    else if (0 == Response)
+    {
+        FspFileNodeAcquireShared(FileNode, Both);
+        FspIopRequestContext(Request, RequestFileNode) = FileNode;
+        FspIopRequestContext(Request, RequestAcquireFlags) = (PVOID)FspFileNodeAcquireBoth;
 
-        *PBuffer = (PVOID)&Info->StandardInformation;
-        FspFsvolQueryStandardInformation(FileObject, PBuffer, BufferEnd);
+        return FSP_STATUS_IOQ_POST;
+    }
+    else
+    {
+        FspIopRequestContext(Request, RequestFileNode) = 0;
 
-        FspFileNodeRelease(FileNode, Main);
-
-        Info->EaInformation.EaSize = 0;
-
-        *PBuffer = (PVOID)&Info->InternalInformation;
-        FspFsvolQueryInternalInformation(FileObject, PBuffer, BufferEnd);
+        FileInfo = &Response->Rsp.QueryInformation.FileInfo;
     }
 
-    GETFILEINFO();
+    Info->StandardInformation.AllocationSize = FileNode->Header.AllocationSize;
+    Info->StandardInformation.EndOfFile = FileNode->Header.FileSize;
 
-    *PBuffer = (PVOID)&Info->BasicInformation;
-    FspFsvolQueryBasicInformation(FileObject, PBuffer, BufferEnd, FileInfo);
+    FspFileNodeRelease(FileNode, Pgio);
+
+    Info->StandardInformation.NumberOfLinks = 1;
+    Info->StandardInformation.DeletePending = FileObject->DeletePending;
+    Info->StandardInformation.Directory = FileNode->IsDirectory;
+
+    Info->PositionInformation.CurrentByteOffset = FileObject->CurrentByteOffset;
+
+    FspFileNodeRelease(FileNode, Main);
+
+    Info->BasicInformation.CreationTime.QuadPart = FileInfo->CreationTime;
+    Info->BasicInformation.LastAccessTime.QuadPart = FileInfo->LastAccessTime;
+    Info->BasicInformation.LastWriteTime.QuadPart = FileInfo->LastWriteTime;
+    Info->BasicInformation.ChangeTime.QuadPart = FileInfo->ChangeTime;
+    Info->BasicInformation.FileAttributes = 0 != FileInfo->FileAttributes ?
+        FileInfo->FileAttributes : FILE_ATTRIBUTE_NORMAL;
+
+    Info->EaInformation.EaSize = 0;
+
+    Info->InternalInformation.IndexNumber.QuadPart = FileNode->IndexNumber;
 
     *PBuffer = (PVOID)&Info->NameInformation;
     return FspFsvolQueryNameInformation(FileObject, PBuffer, BufferEnd);
 }
 
 static NTSTATUS FspFsvolQueryAttributeTagInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd, const FSP_FSCTL_FILE_INFO *FileInfo)
+    PVOID *PBuffer, PVOID BufferEnd,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
 
-    if (*PBuffer + sizeof(FILE_ATTRIBUTE_TAG_INFORMATION) > BufferEnd)
-        return STATUS_BUFFER_TOO_SMALL;
-
-    GETFILEINFO();
-
     PFILE_ATTRIBUTE_TAG_INFORMATION Info = (PFILE_ATTRIBUTE_TAG_INFORMATION)*PBuffer;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+    const FSP_FSCTL_FILE_INFO *FileInfo;
+
+    if (0 == Request)
+    {
+        if ((PVOID)(Info + 1) > (PVOID)BufferEnd)
+            return STATUS_BUFFER_TOO_SMALL;
+
+        if (!FspFileNodeTryGetFileInfo(FileNode, &FileInfoBuf))
+            return FSP_STATUS_IOQ_POST;
+        FileInfo = &FileInfoBuf;
+    }
+    else if (0 == Response)
+        return FSP_STATUS_IOQ_POST;
+    else
+        FileInfo = &Response->Rsp.QueryInformation.FileInfo;
 
     Info->FileAttributes = 0 != FileInfo->FileAttributes ?
         FileInfo->FileAttributes : FILE_ATTRIBUTE_NORMAL;
     Info->ReparseTag = FileInfo->ReparseTag;
 
-    *PBuffer += sizeof(FILE_ATTRIBUTE_TAG_INFORMATION);
+    *PBuffer = (PVOID)(Info + 1);
 
     return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFsvolQueryBasicInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd, const FSP_FSCTL_FILE_INFO *FileInfo)
+    PVOID *PBuffer, PVOID BufferEnd,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
 
-    if (*PBuffer + sizeof(FILE_BASIC_INFORMATION) > BufferEnd)
-        return STATUS_BUFFER_TOO_SMALL;
-
-    GETFILEINFO();
-
     PFILE_BASIC_INFORMATION Info = (PFILE_BASIC_INFORMATION)*PBuffer;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+    const FSP_FSCTL_FILE_INFO *FileInfo;
+
+    if (0 == Request)
+    {
+        if ((PVOID)(Info + 1) > (PVOID)BufferEnd)
+            return STATUS_BUFFER_TOO_SMALL;
+
+        if (!FspFileNodeTryGetFileInfo(FileNode, &FileInfoBuf))
+            return FSP_STATUS_IOQ_POST;
+        FileInfo = &FileInfoBuf;
+    }
+    else if (0 == Response)
+        return FSP_STATUS_IOQ_POST;
+    else
+        FileInfo = &Response->Rsp.QueryInformation.FileInfo;
 
     Info->CreationTime.QuadPart = FileInfo->CreationTime;
     Info->LastAccessTime.QuadPart = FileInfo->LastAccessTime;
@@ -162,60 +216,60 @@ static NTSTATUS FspFsvolQueryBasicInformation(PFILE_OBJECT FileObject,
     Info->FileAttributes = 0 != FileInfo->FileAttributes ?
         FileInfo->FileAttributes : FILE_ATTRIBUTE_NORMAL;
 
-    *PBuffer += sizeof(FILE_BASIC_INFORMATION);
+    *PBuffer = (PVOID)(Info + 1);
 
     return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFsvolQueryInternalInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd)
+    PVOID *PBuffer, PVOID BufferEnd)
 {
     PAGED_CODE();
 
-    if (*PBuffer + sizeof(FILE_INTERNAL_INFORMATION) > BufferEnd)
-        return STATUS_BUFFER_TOO_SMALL;
-
-    FSP_FILE_NODE *FileNode = FileObject->FsContext;
     PFILE_INTERNAL_INFORMATION Info = (PFILE_INTERNAL_INFORMATION)*PBuffer;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+
+    if ((PVOID)(Info + 1) > (PVOID)BufferEnd)
+        return STATUS_BUFFER_TOO_SMALL;
 
     Info->IndexNumber.QuadPart = FileNode->IndexNumber;
 
-    *PBuffer += sizeof(FILE_INTERNAL_INFORMATION);
+    *PBuffer = (PVOID)(Info + 1);
 
     return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFsvolQueryNameInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd)
+    PVOID *PBuffer, PVOID BufferEnd)
 {
     PAGED_CODE();
 
-    if (*PBuffer + sizeof(FILE_NAME_INFORMATION) > BufferEnd)
-        return STATUS_BUFFER_TOO_SMALL;
-
     NTSTATUS Result = STATUS_SUCCESS;
-    FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
     PFILE_NAME_INFORMATION Info = (PFILE_NAME_INFORMATION)*PBuffer;
     PUINT8 Buffer = (PUINT8)Info->FileName;
     ULONG CopyLength;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+
+    if ((PVOID)(Info + 1) > (PVOID)BufferEnd)
+        return STATUS_BUFFER_TOO_SMALL;
 
     Info->FileNameLength = FsvolDeviceExtension->VolumePrefix.Length + FileNode->FileName.Length;
 
     CopyLength = FsvolDeviceExtension->VolumePrefix.Length;
-    if (Buffer + CopyLength > BufferEnd)
+    if (Buffer + CopyLength > (PUINT8)BufferEnd)
     {
-        CopyLength = (ULONG)(BufferEnd - Buffer);
+        CopyLength = (ULONG)((PUINT8)BufferEnd - Buffer);
         Result = STATUS_BUFFER_OVERFLOW;
     }
     RtlCopyMemory(Buffer, FsvolDeviceExtension->VolumePrefix.Buffer, CopyLength);
     Buffer += CopyLength;
 
     CopyLength = FileNode->FileName.Length;
-    if (Buffer + CopyLength > BufferEnd)
+    if (Buffer + CopyLength > (PUINT8)BufferEnd)
     {
-        CopyLength = (ULONG)(BufferEnd - Buffer);
+        CopyLength = (ULONG)((PUINT8)BufferEnd - Buffer);
         Result = STATUS_BUFFER_OVERFLOW;
     }
     RtlCopyMemory(Buffer, FileNode->FileName.Buffer, CopyLength);
@@ -227,28 +281,46 @@ static NTSTATUS FspFsvolQueryNameInformation(PFILE_OBJECT FileObject,
 }
 
 static NTSTATUS FspFsvolQueryNetworkOpenInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd, const FSP_FSCTL_FILE_INFO *FileInfo)
+    PVOID *PBuffer, PVOID BufferEnd,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
 
-    if (*PBuffer + sizeof(FILE_NETWORK_OPEN_INFORMATION) > BufferEnd)
-        return STATUS_BUFFER_TOO_SMALL;
-
     PFILE_NETWORK_OPEN_INFORMATION Info = (PFILE_NETWORK_OPEN_INFORMATION)*PBuffer;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+    const FSP_FSCTL_FILE_INFO *FileInfo;
 
-    if (0 == FileInfo)
+    if (0 == Request)
     {
-        FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        if ((PVOID)(Info + 1) > BufferEnd)
+            return STATUS_BUFFER_TOO_SMALL;
 
-        FspFileNodeAcquireShared(FileNode, Main);
+        if (!FspFileNodeTryGetFileInfo(FileNode, &FileInfoBuf))
+            return FSP_STATUS_IOQ_POST;
+        FileInfo = &FileInfoBuf;
 
-        Info->AllocationSize = FileNode->Header.AllocationSize;
-        Info->EndOfFile = FileNode->Header.FileSize;
+        FspFileNodeAcquireShared(FileNode, Both);
+    }
+    else if (0 == Response)
+    {
+        FspFileNodeAcquireShared(FileNode, Both);
+        FspIopRequestContext(Request, RequestFileNode) = FileNode;
+        FspIopRequestContext(Request, RequestAcquireFlags) = (PVOID)FspFileNodeAcquireBoth;
 
-        FspFileNodeRelease(FileNode, Main);
+        return FSP_STATUS_IOQ_POST;
+    }
+    else
+    {
+        FspIopRequestContext(Request, RequestFileNode) = 0;
+
+        FileInfo = &Response->Rsp.QueryInformation.FileInfo;
     }
 
-    GETFILEINFO();
+    Info->AllocationSize = FileNode->Header.AllocationSize;
+    Info->EndOfFile = FileNode->Header.FileSize;
+
+    FspFileNodeRelease(FileNode, Both);
 
     Info->CreationTime.QuadPart = FileInfo->CreationTime;
     Info->LastAccessTime.QuadPart = FileInfo->LastAccessTime;
@@ -257,21 +329,21 @@ static NTSTATUS FspFsvolQueryNetworkOpenInformation(PFILE_OBJECT FileObject,
     Info->FileAttributes = 0 != FileInfo->FileAttributes ?
         FileInfo->FileAttributes : FILE_ATTRIBUTE_NORMAL;
 
-    *PBuffer += sizeof(FILE_BASIC_INFORMATION);
+    *PBuffer = (PVOID)(Info + 1);
 
     return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFsvolQueryPositionInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd)
+    PVOID *PBuffer, PVOID BufferEnd)
 {
     PAGED_CODE();
 
-    if (*PBuffer + sizeof(FILE_POSITION_INFORMATION) > BufferEnd)
-        return STATUS_BUFFER_TOO_SMALL;
-
-    FSP_FILE_NODE *FileNode = FileObject->FsContext;
     PFILE_POSITION_INFORMATION Info = (PFILE_POSITION_INFORMATION)*PBuffer;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+
+    if ((PVOID)(Info + 1) > (PVOID)BufferEnd)
+        return STATUS_BUFFER_TOO_SMALL;
 
     FspFileNodeAcquireShared(FileNode, Main);
 
@@ -279,33 +351,60 @@ static NTSTATUS FspFsvolQueryPositionInformation(PFILE_OBJECT FileObject,
 
     FspFileNodeRelease(FileNode, Main);
 
-    *PBuffer += sizeof(FILE_POSITION_INFORMATION);
+    *PBuffer = (PVOID)(Info + 1);
 
     return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFsvolQueryStandardInformation(PFILE_OBJECT FileObject,
-    PUINT8 *PBuffer, PUINT8 BufferEnd)
+    PVOID *PBuffer, PVOID BufferEnd,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
 
-    if (*PBuffer + sizeof(FILE_STANDARD_INFORMATION) > BufferEnd)
-        return STATUS_BUFFER_TOO_SMALL;
-
-    FSP_FILE_NODE *FileNode = FileObject->FsContext;
     PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)*PBuffer;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+    const FSP_FSCTL_FILE_INFO *FileInfo;
 
-    FspFileNodeAcquireShared(FileNode, Main);
+    if (0 == Request)
+    {
+        if ((PVOID)(Info + 1) > BufferEnd)
+            return STATUS_BUFFER_TOO_SMALL;
+
+        if (!FspFileNodeTryGetFileInfo(FileNode, &FileInfoBuf))
+            return FSP_STATUS_IOQ_POST;
+        FileInfo = &FileInfoBuf;
+
+        FspFileNodeAcquireShared(FileNode, Both);
+    }
+    else if (0 == Response)
+    {
+        FspFileNodeAcquireShared(FileNode, Both);
+        FspIopRequestContext(Request, RequestFileNode) = FileNode;
+        FspIopRequestContext(Request, RequestAcquireFlags) = (PVOID)FspFileNodeAcquireBoth;
+
+        return FSP_STATUS_IOQ_POST;
+    }
+    else
+    {
+        FspIopRequestContext(Request, RequestFileNode) = 0;
+
+        FileInfo = &Response->Rsp.QueryInformation.FileInfo;
+    }
 
     Info->AllocationSize = FileNode->Header.AllocationSize;
     Info->EndOfFile = FileNode->Header.FileSize;
+
+    FspFileNodeRelease(FileNode, Pgio);
+
     Info->NumberOfLinks = 1;
     Info->DeletePending = FileObject->DeletePending;
     Info->Directory = FileNode->IsDirectory;
 
     FspFileNodeRelease(FileNode, Main);
 
-    *PBuffer += sizeof(FILE_STANDARD_INFORMATION);
+    *PBuffer = (PVOID)(Info + 1);
 
     return STATUS_SUCCESS;
 }
@@ -320,20 +419,21 @@ static NTSTATUS FspFsvolQueryInformation(
         return STATUS_INVALID_DEVICE_REQUEST;
 
     NTSTATUS Result;
+    FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryFile.FileInformationClass;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
-    PUINT8 Buffer = Irp->AssociatedIrp.SystemBuffer;
-    PUINT8 BufferEnd = Buffer + IrpSp->Parameters.QueryFile.Length;
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    PVOID BufferEnd = (PUINT8)Buffer + IrpSp->Parameters.QueryFile.Length;
 
-    switch (IrpSp->Parameters.QueryFile.FileInformationClass)
+    switch (FileInformationClass)
     {
     case FileAllInformation:
-        Result = FspFsvolQueryAllInformation(FileObject, &Buffer, BufferEnd, 0);
+        Result = FspFsvolQueryAllInformation(FileObject, &Buffer, BufferEnd, 0, 0);
         break;
     case FileAttributeTagInformation:
-        Result = FspFsvolQueryAttributeTagInformation(FileObject, &Buffer, BufferEnd, 0);
+        Result = FspFsvolQueryAttributeTagInformation(FileObject, &Buffer, BufferEnd, 0, 0);
         break;
     case FileBasicInformation:
-        Result = FspFsvolQueryBasicInformation(FileObject, &Buffer, BufferEnd, 0);
+        Result = FspFsvolQueryBasicInformation(FileObject, &Buffer, BufferEnd, 0, 0);
         break;
     case FileCompressionInformation:
         Result = STATUS_INVALID_PARAMETER;  /* no compression support */
@@ -351,13 +451,13 @@ static NTSTATUS FspFsvolQueryInformation(
         Result = FspFsvolQueryNameInformation(FileObject, &Buffer, BufferEnd);
         break;
     case FileNetworkOpenInformation:
-        Result = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, 0);
+        Result = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, 0, 0);
         break;
     case FilePositionInformation:
         Result = FspFsvolQueryPositionInformation(FileObject, &Buffer, BufferEnd);
         break;
     case FileStandardInformation:
-        Result = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd);
+        Result = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd, 0, 0);
         break;
     case FileStreamInformation:
         Result = STATUS_INVALID_PARAMETER;  /* !!!: no stream support yet! */
@@ -369,7 +469,7 @@ static NTSTATUS FspFsvolQueryInformation(
 
     if (FSP_STATUS_IOQ_POST != Result)
     {
-        Irp->IoStatus.Information = (UINT_PTR)(Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
+        Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
         return Result;
     }
 
@@ -390,7 +490,30 @@ static NTSTATUS FspFsvolQueryInformation(
     Request->Req.QueryInformation.UserContext = FileNode->UserContext;
     Request->Req.QueryInformation.UserContext2 = FileDesc->UserContext2;
 
-    return FSP_STATUS_IOQ_POST;
+    switch (FileInformationClass)
+    {
+    case FileAllInformation:
+        Result = FspFsvolQueryAllInformation(FileObject, &Buffer, BufferEnd, Request, 0);
+        break;
+    case FileAttributeTagInformation:
+        Result = FspFsvolQueryAttributeTagInformation(FileObject, &Buffer, BufferEnd, Request, 0);
+        break;
+    case FileBasicInformation:
+        Result = FspFsvolQueryBasicInformation(FileObject, &Buffer, BufferEnd, Request, 0);
+        break;
+    case FileNetworkOpenInformation:
+        Result = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, Request, 0);
+        break;
+    case FileStandardInformation:
+        Result = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd, Request, 0);
+        break;
+    default:
+        ASSERT(0);
+        Result = STATUS_INVALID_PARAMETER;
+        break;
+    }
+
+    return Result;
 }
 
 VOID FspFsvolQueryInformationComplete(
@@ -405,30 +528,31 @@ VOID FspFsvolQueryInformationComplete(
         FSP_RETURN();
     }
 
+    FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryFile.FileInformationClass;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    PUINT8 Buffer = Irp->AssociatedIrp.SystemBuffer;
-    PUINT8 BufferEnd = Buffer + IrpSp->Parameters.QueryFile.Length;
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    PVOID BufferEnd = (PUINT8)Buffer + IrpSp->Parameters.QueryFile.Length;
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
 
     FspFileNodeSetFileInfo(FileNode, &Response->Rsp.QueryInformation.FileInfo);
 
-    switch (IrpSp->Parameters.QueryFile.FileInformationClass)
+    switch (FileInformationClass)
     {
     case FileAllInformation:
-        Result = FspFsvolQueryAllInformation(FileObject, &Buffer, BufferEnd,
-            &Response->Rsp.QueryInformation.FileInfo);
+        Result = FspFsvolQueryAllInformation(FileObject, &Buffer, BufferEnd, Request, Response);
         break;
     case FileAttributeTagInformation:
-        Result = FspFsvolQueryAttributeTagInformation(FileObject, &Buffer, BufferEnd,
-            &Response->Rsp.QueryInformation.FileInfo);
+        Result = FspFsvolQueryAttributeTagInformation(FileObject, &Buffer, BufferEnd, Request, Response);
         break;
     case FileBasicInformation:
-        Result = FspFsvolQueryBasicInformation(FileObject, &Buffer, BufferEnd,
-            &Response->Rsp.QueryInformation.FileInfo);
+        Result = FspFsvolQueryBasicInformation(FileObject, &Buffer, BufferEnd, Request, Response);
         break;
     case FileNetworkOpenInformation:
-        Result = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd,
-            &Response->Rsp.QueryInformation.FileInfo);
+        Result = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, Request, Response);
+        break;
+    case FileStandardInformation:
+        Result = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd, Request, Response);
         break;
     default:
         ASSERT(0);
@@ -438,18 +562,12 @@ VOID FspFsvolQueryInformationComplete(
 
     ASSERT(FSP_STATUS_IOQ_POST != Result);
 
-    Irp->IoStatus.Information = (UINT_PTR)(Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
+    Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
 
     FSP_LEAVE_IOC("%s, FileObject=%p",
         FileInformationClassSym(IrpSp->Parameters.QueryFile.FileInformationClass),
         IrpSp->FileObject);
 }
-
-enum
-{
-    RequestFileNode                     = 0,
-    RequestAcquireFlags                 = 1,
-};
 
 static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
     PVOID Buffer, ULONG Length,
