@@ -149,6 +149,13 @@ void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     DWORD MaxComponentLength;
     DWORD FileSystemFlags;
     WCHAR FileSystemNameBuf[MAX_PATH];
+    DWORD SectorsPerCluster;
+    DWORD BytesPerSector;
+    DWORD FreeClusters;
+    DWORD TotalClusters;
+    ULARGE_INTEGER CallerFreeBytes;
+    ULARGE_INTEGER TotalBytes;
+    ULARGE_INTEGER FreeBytes;
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
@@ -166,6 +173,12 @@ void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
             (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
         ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp"));
     }
+
+    Success = GetDiskFreeSpaceW(FilePath, &SectorsPerCluster, &BytesPerSector, &FreeClusters, &TotalClusters);
+    ASSERT(Success);
+
+    Success = GetDiskFreeSpaceExW(FilePath, &CallerFreeBytes, &TotalBytes, &FreeBytes);
+    ASSERT(Success);
 
     memfs_stop(memfs);
 }
