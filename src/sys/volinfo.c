@@ -123,10 +123,12 @@ static NTSTATUS FspFsvolQueryFsFullSizeInformation(
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_FS_FULL_SIZE_INFORMATION Info = (PFILE_FS_FULL_SIZE_INFORMATION)*PBuffer;
+    UINT64 AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+        FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
 
-    Info->TotalAllocationUnits.QuadPart = VolumeInfo->TotalAllocationUnits;
-    Info->CallerAvailableAllocationUnits.QuadPart = VolumeInfo->AvailableAllocationUnits;
-    Info->ActualAvailableAllocationUnits.QuadPart = VolumeInfo->AvailableAllocationUnits;
+    Info->TotalAllocationUnits.QuadPart = VolumeInfo->TotalSize / AllocationUnit;
+    Info->CallerAvailableAllocationUnits.QuadPart =
+    Info->ActualAvailableAllocationUnits.QuadPart = VolumeInfo->FreeSize / AllocationUnit;
     Info->SectorsPerAllocationUnit = FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
     Info->BytesPerSector = FsvolDeviceExtension->VolumeParams.SectorSize;
 
@@ -148,9 +150,11 @@ static NTSTATUS FspFsvolQueryFsSizeInformation(
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_FS_SIZE_INFORMATION Info = (PFILE_FS_SIZE_INFORMATION)*PBuffer;
+    UINT64 AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+        FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
 
-    Info->TotalAllocationUnits.QuadPart = VolumeInfo->TotalAllocationUnits;
-    Info->AvailableAllocationUnits.QuadPart = VolumeInfo->AvailableAllocationUnits;
+    Info->TotalAllocationUnits.QuadPart = VolumeInfo->TotalSize / AllocationUnit;
+    Info->AvailableAllocationUnits.QuadPart = VolumeInfo->FreeSize / AllocationUnit;
     Info->SectorsPerAllocationUnit = FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
     Info->BytesPerSector = FsvolDeviceExtension->VolumeParams.SectorSize;
 

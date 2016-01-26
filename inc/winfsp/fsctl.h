@@ -46,8 +46,8 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 /* volume/file metadata */
 typedef struct
 {
-    UINT64 TotalAllocationUnits;
-    UINT64 AvailableAllocationUnits;
+    UINT64 TotalSize;
+    UINT64 FreeSize;
     UINT64 VolumeCreationTime;
     UINT16 VolumeLabelLength;
     WCHAR VolumeLabel[32];

@@ -194,15 +194,14 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *RootNode;
-    ULONG AllocationUnits = Memfs->MaxFileSize / (MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT);
 
     RootNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, L"");
     if (0 == RootNode)
         return STATUS_DISK_CORRUPT_ERROR;
 
-    VolumeInfo->TotalAllocationUnits = Memfs->MaxFileNodes * AllocationUnits;
-    VolumeInfo->AvailableAllocationUnits =
-        (Memfs->MaxFileNodes - MemfsFileNodeMapCount(Memfs->FileNodeMap)) * AllocationUnits;
+    VolumeInfo->TotalSize = Memfs->MaxFileNodes * Memfs->MaxFileSize;
+    VolumeInfo->FreeSize =
+        (Memfs->MaxFileNodes - MemfsFileNodeMapCount(Memfs->FileNodeMap)) * Memfs->MaxFileSize;
     VolumeInfo->VolumeCreationTime = RootNode->FileInfo.CreationTime;
     VolumeInfo->VolumeLabelLength = sizeof L"MEMFS" - sizeof(WCHAR);
     memcpy(VolumeInfo->VolumeLabel, L"MEMFS", VolumeInfo->VolumeLabelLength);
