@@ -168,20 +168,6 @@ static NTSTATUS FspFsvolCreate(
                 return STATUS_OBJECT_NAME_INVALID;
     }
 
-    /* check for trailing backslash */
-    if (sizeof(WCHAR) * 2/* not empty or root */ <= FileName.Length &&
-        L'\\' == FileName.Buffer[FileName.Length / sizeof(WCHAR) - 1])
-    {
-        FileName.Length -= sizeof(WCHAR);
-        HasTrailingBackslash = TRUE;
-
-        if (sizeof(WCHAR) * 2 <= FileName.Length &&
-            L'\\' == FileName.Buffer[FileName.Length / sizeof(WCHAR) - 1])
-            return STATUS_OBJECT_NAME_INVALID;
-    }
-    if (HasTrailingBackslash && !FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
-        return STATUS_OBJECT_NAME_INVALID;
-
     /* is this a relative or absolute open? */
     if (0 != RelatedFileObject)
     {
@@ -277,6 +263,26 @@ static NTSTATUS FspFsvolCreate(
         FileNode->FileName.Length -= FsvolDeviceExtension->VolumePrefix.Length;
         FileNode->FileName.MaximumLength -= FsvolDeviceExtension->VolumePrefix.Length;
         FileNode->FileName.Buffer += FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR);
+    }
+
+    /* check for trailing backslash */
+    if (sizeof(WCHAR) * 2/* not empty or root */ <= FileNode->FileName.Length &&
+        L'\\' == FileNode->FileName.Buffer[FileNode->FileName.Length / sizeof(WCHAR) - 1])
+    {
+        FileNode->FileName.Length -= sizeof(WCHAR);
+        HasTrailingBackslash = TRUE;
+
+        if (sizeof(WCHAR) * 2 <= FileNode->FileName.Length &&
+            L'\\' == FileNode->FileName.Buffer[FileNode->FileName.Length / sizeof(WCHAR) - 1])
+        {
+            FspFileNodeDereference(FileNode);
+            return STATUS_OBJECT_NAME_INVALID;
+        }
+    }
+    if (HasTrailingBackslash && !FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
+    {
+        FspFileNodeDereference(FileNode);
+        return STATUS_OBJECT_NAME_INVALID;
     }
 
     Result = FspFileDescCreate(&FileDesc);
