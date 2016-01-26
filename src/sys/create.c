@@ -692,7 +692,8 @@ VOID FspFsvolCreateComplete(
         /* file was successfully overwritten/superseded */
         FileNode->Header.AllocationSize.QuadPart = Response->Rsp.Overwrite.FileInfo.AllocationSize;
         FileNode->Header.FileSize.QuadPart = Response->Rsp.Overwrite.FileInfo.FileSize;
-        CcSetFileSizes(FileObject, (PCC_FILE_SIZES)&FileNode->Header.AllocationSize);
+        FileNode->CcStatus = FspCcSetFileSizes(
+            FileObject, (PCC_FILE_SIZES)&FileNode->Header.AllocationSize);
 
         FspFileNodeRelease(FileNode, Both);
 

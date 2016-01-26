@@ -6,20 +6,14 @@
 
 #include <sys/driver.h>
 
-#undef FspFileNodeAcquireShared
-#undef FspFileNodeTryAcquireShared
-#undef FspFileNodeAcquireExclusive
-#undef FspFileNodeTryAcquireExclusive
-#undef FspFileNodeRelease
-
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode);
 VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode);
-VOID FspFileNodeAcquireShared(FSP_FILE_NODE *FileNode, ULONG Flags);
-BOOLEAN FspFileNodeTryAcquireShared(FSP_FILE_NODE *FileNode, ULONG Flags);
-VOID FspFileNodeAcquireExclusive(FSP_FILE_NODE *FileNode, ULONG Flags);
-BOOLEAN FspFileNodeTryAcquireExclusive(FSP_FILE_NODE *FileNode, ULONG Flags);
-VOID FspFileNodeRelease(FSP_FILE_NODE *FileNode, ULONG Flags);
+VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
+BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
+VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);
+BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);
+VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
 FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
@@ -33,11 +27,11 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFileNodeCreate)
 #pragma alloc_text(PAGE, FspFileNodeDelete)
-#pragma alloc_text(PAGE, FspFileNodeAcquireShared)
-#pragma alloc_text(PAGE, FspFileNodeTryAcquireShared)
-#pragma alloc_text(PAGE, FspFileNodeAcquireExclusive)
-#pragma alloc_text(PAGE, FspFileNodeTryAcquireExclusive)
-#pragma alloc_text(PAGE, FspFileNodeRelease)
+#pragma alloc_text(PAGE, FspFileNodeAcquireSharedF)
+#pragma alloc_text(PAGE, FspFileNodeTryAcquireSharedF)
+#pragma alloc_text(PAGE, FspFileNodeAcquireExclusiveF)
+#pragma alloc_text(PAGE, FspFileNodeTryAcquireExclusiveF)
+#pragma alloc_text(PAGE, FspFileNodeReleaseF)
 #pragma alloc_text(PAGE, FspFileNodeOpen)
 #pragma alloc_text(PAGE, FspFileNodeClose)
 #pragma alloc_text(PAGE, FspFileNodeGetFileInfo)
@@ -77,7 +71,7 @@ NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     FileNode->Header.IsFastIoPossible = FastIoIsQuestionable;
     FileNode->Header.Resource = &NonPaged->Resource;
     FileNode->Header.PagingIoResource = &NonPaged->PagingIoResource;
-    FileNode->Header.ValidDataLength.QuadPart = 0x7fffffffffffffffLL;
+    FileNode->Header.ValidDataLength.QuadPart = MAXLONGLONG;
         /* disable ValidDataLength functionality */
     FsRtlSetupAdvancedHeader(&FileNode->Header, &NonPaged->HeaderFastMutex);
     FileNode->NonPaged = NonPaged;
@@ -106,7 +100,7 @@ VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode)
     FspFree(FileNode);
 }
 
-VOID FspFileNodeAcquireShared(FSP_FILE_NODE *FileNode, ULONG Flags)
+VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
 
@@ -117,7 +111,7 @@ VOID FspFileNodeAcquireShared(FSP_FILE_NODE *FileNode, ULONG Flags)
         ExAcquireResourceSharedLite(FileNode->Header.PagingIoResource, TRUE);
 }
 
-BOOLEAN FspFileNodeTryAcquireShared(FSP_FILE_NODE *FileNode, ULONG Flags)
+BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
 
@@ -144,7 +138,7 @@ BOOLEAN FspFileNodeTryAcquireShared(FSP_FILE_NODE *FileNode, ULONG Flags)
     return Result;
 }
 
-VOID FspFileNodeAcquireExclusive(FSP_FILE_NODE *FileNode, ULONG Flags)
+VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
 
@@ -155,7 +149,7 @@ VOID FspFileNodeAcquireExclusive(FSP_FILE_NODE *FileNode, ULONG Flags)
         ExAcquireResourceExclusiveLite(FileNode->Header.PagingIoResource, TRUE);
 }
 
-BOOLEAN FspFileNodeTryAcquireExclusive(FSP_FILE_NODE *FileNode, ULONG Flags)
+BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
 
@@ -182,7 +176,7 @@ BOOLEAN FspFileNodeTryAcquireExclusive(FSP_FILE_NODE *FileNode, ULONG Flags)
     return Result;
 }
 
-VOID FspFileNodeRelease(FSP_FILE_NODE *FileNode, ULONG Flags)
+VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
 

@@ -40,6 +40,19 @@ NTSTATUS FspCreateGuid(GUID *Guid)
     return Result;
 }
 
+NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes)
+{
+    try
+    {
+        CcSetFileSizes(FileObject, FileSizes);
+        return STATUS_SUCCESS;
+    }
+    except(EXCEPTION_EXECUTE_HANDLER)
+    {
+        return GetExceptionCode();
+    }
+}
+
 VOID FspInitializeSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem,
     PWORKER_THREAD_ROUTINE Routine, PVOID Context)
 {

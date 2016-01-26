@@ -25,9 +25,28 @@ static NTSTATUS FspFsvolQueryStandardInformation(PFILE_OBJECT FileObject,
 static NTSTATUS FspFsvolQueryInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolQueryInformationComplete;
+static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
+    PVOID Buffer, ULONG Length,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
+static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
+    PVOID Buffer, ULONG Length,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
+static NTSTATUS FspFsvolSetDispositionInformation(PFILE_OBJECT FileObject,
+    PVOID Buffer, ULONG Length,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
+static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
+    PVOID Buffer, ULONG Length, BOOLEAN AdvanceOnly,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
+static NTSTATUS FspFsvolSetPositionInformation(PFILE_OBJECT FileObject,
+    PVOID Buffer, ULONG Length,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
+static NTSTATUS FspFsvolSetRenameInformation(PFILE_OBJECT FileObject,
+    PVOID Buffer, ULONG Length,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
 static NTSTATUS FspFsvolSetInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolSetInformationComplete;
+static FSP_IOP_REQUEST_FINI FspFsvolSetInformationRequestFini;
 FSP_DRIVER_DISPATCH FspQueryInformation;
 FSP_DRIVER_DISPATCH FspSetInformation;
 
@@ -42,8 +61,15 @@ FSP_DRIVER_DISPATCH FspSetInformation;
 #pragma alloc_text(PAGE, FspFsvolQueryStandardInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryInformationComplete)
+#pragma alloc_text(PAGE, FspFsvolSetAllocationInformation)
+#pragma alloc_text(PAGE, FspFsvolSetBasicInformation)
+#pragma alloc_text(PAGE, FspFsvolSetDispositionInformation)
+#pragma alloc_text(PAGE, FspFsvolSetEndOfFileInformation)
+#pragma alloc_text(PAGE, FspFsvolSetPositionInformation)
+#pragma alloc_text(PAGE, FspFsvolSetRenameInformation)
 #pragma alloc_text(PAGE, FspFsvolSetInformation)
 #pragma alloc_text(PAGE, FspFsvolSetInformationComplete)
+#pragma alloc_text(PAGE, FspFsvolSetInformationRequestFini)
 #pragma alloc_text(PAGE, FspQueryInformation)
 #pragma alloc_text(PAGE, FspSetInformation)
 #endif
@@ -418,12 +444,171 @@ VOID FspFsvolQueryInformationComplete(
         IrpSp->FileObject);
 }
 
+enum
+{
+    RequestFileNode                     = 0,
+    RequestAcquireFlags                 = 1,
+};
+
+static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
+    PVOID Buffer, ULONG Length,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    if (0 != Request)
+    {
+        if (sizeof(FILE_ALLOCATION_INFORMATION) > Length)
+            return STATUS_INVALID_PARAMETER;
+
+        PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)Buffer;
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        BOOLEAN Success;
+
+        Request->Req.SetInformation.Info.Allocation.AllocationSize = Info->AllocationSize.QuadPart;
+
+        FspFileNodeAcquireExclusive(FileNode, Both);
+
+        Success = MmCanFileBeTruncated(FileObject->SectionObjectPointer, &Info->AllocationSize);
+        if (!Success)
+        {
+            FspFileNodeRelease(FileNode, Both);
+
+            return STATUS_USER_MAPPED_FILE;
+        }
+
+        FspIopRequestContext(Request, RequestFileNode) = FileNode;
+        FspIopRequestContext(Request, RequestAcquireFlags) = (PVOID)FspFileNodeAcquireBoth;
+
+        return FSP_STATUS_IOQ_POST;
+    }
+    else
+    {
+        FspIopRequestContext(Request, RequestFileNode) = 0;
+        FspIopRequestContext(Request, RequestAcquireFlags) = 0;
+
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
+
+        FileNode->Header.AllocationSize.QuadPart = Response->Rsp.SetInformation.FileInfo.AllocationSize;
+        FileNode->Header.FileSize.QuadPart = Response->Rsp.SetInformation.FileInfo.FileSize;
+        FileNode->CcStatus = FspCcSetFileSizes(
+            FileObject, (PCC_FILE_SIZES)&FileNode->Header.AllocationSize);
+
+        FspFileNodeRelease(FileNode, Both);
+
+        return STATUS_SUCCESS;
+    }
+}
+
+static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
+    PVOID Buffer, ULONG Length,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS FspFsvolSetDispositionInformation(PFILE_OBJECT FileObject,
+    PVOID Buffer, ULONG Length,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
+    PVOID Buffer, ULONG Length, BOOLEAN AdvanceOnly,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS FspFsvolSetPositionInformation(PFILE_OBJECT FileObject,
+    PVOID Buffer, ULONG Length,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS FspFsvolSetRenameInformation(PFILE_OBJECT FileObject,
+    PVOID Buffer, ULONG Length,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
 static NTSTATUS FspFsvolSetInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     PAGED_CODE();
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    /* is this a valid FileObject? */
+    if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    BOOLEAN FileNameRequired = 0 != FsvolDeviceExtension->VolumeParams.FileNameRequired;
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
+    FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.SetFile.FileInformationClass;
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG Length = IrpSp->Parameters.QueryFile.Length;
+    FSP_FSCTL_TRANSACT_REQ *Request;
+
+    ASSERT(FileNode == FileDesc->FileNode);
+
+    Result = FspIopCreateRequest(Irp, FileNameRequired ? &FileNode->FileName : 0, 0, &Request);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    Request->Kind = FspFsctlTransactSetInformationKind;
+    Request->Req.SetInformation.UserContext = FileNode->UserContext;
+    Request->Req.SetInformation.UserContext2 = FileDesc->UserContext2;
+    Request->Req.SetInformation.FileInformationClass = FileInformationClass;
+
+    switch (FileInformationClass)
+    {
+    case FileAllocationInformation:
+        Result = FspFsvolSetAllocationInformation(FileObject, Buffer, Length, Request, 0);
+        break;
+    case FileBasicInformation:
+        Result = FspFsvolSetBasicInformation(FileObject, Buffer, Length, Request, 0);
+        break;
+    case FileDispositionInformation:
+        Result = FspFsvolSetDispositionInformation(FileObject, Buffer, Length, Request, 0);
+        break;
+    case FileEndOfFileInformation:
+        Result = FspFsvolSetEndOfFileInformation(FileObject, Buffer, Length,
+            IrpSp->Parameters.SetFile.AdvanceOnly, Request, 0);
+        break;
+    case FileLinkInformation:
+        Result = STATUS_INVALID_PARAMETER;  /* no hard link support */
+        break;
+    case FilePositionInformation:
+        Result = FspFsvolSetPositionInformation(FileObject, Buffer, Length, Request, 0);
+        break;
+    case FileRenameInformation:
+        Result = FspFsvolSetRenameInformation(FileObject, Buffer, Length, Request, 0);
+        break;
+    case FileValidDataLengthInformation:
+        Result = STATUS_INVALID_PARAMETER;  /* no ValidDataLength support */
+        break;
+    default:
+        Result = STATUS_INVALID_PARAMETER;
+        break;
+    }
+
+    return Result;
 }
 
 VOID FspFsvolSetInformationComplete(
@@ -431,9 +616,74 @@ VOID FspFsvolSetInformationComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
+    if (!NT_SUCCESS(Response->IoStatus.Status))
+    {
+        Irp->IoStatus.Information = Response->IoStatus.Information;
+        Result = Response->IoStatus.Status;
+        FSP_RETURN();
+    }
+
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.SetFile.FileInformationClass;
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG Length = IrpSp->Parameters.QueryFile.Length;
+
+    FspFileNodeSetFileInfo(FileNode, &Response->Rsp.SetInformation.FileInfo);
+
+    switch (FileInformationClass)
+    {
+    case FileAllocationInformation:
+        Result = FspFsvolSetAllocationInformation(FileObject, Buffer, Length, 0, Response);
+        break;
+    case FileBasicInformation:
+        Result = FspFsvolSetBasicInformation(FileObject, Buffer, Length, 0, Response);
+        break;
+    case FileDispositionInformation:
+        Result = FspFsvolSetDispositionInformation(FileObject, Buffer, Length, 0, Response);
+        break;
+    case FileEndOfFileInformation:
+        Result = FspFsvolSetEndOfFileInformation(FileObject, Buffer, Length,
+            IrpSp->Parameters.SetFile.AdvanceOnly, 0, Response);
+        break;
+    case FileLinkInformation:
+        Result = STATUS_INVALID_PARAMETER;  /* no hard link support */
+        break;
+    case FilePositionInformation:
+        Result = FspFsvolSetPositionInformation(FileObject, Buffer, Length, 0, Response);
+        break;
+    case FileRenameInformation:
+        Result = FspFsvolSetRenameInformation(FileObject, Buffer, Length, 0, Response);
+        break;
+    case FileValidDataLengthInformation:
+        Result = STATUS_INVALID_PARAMETER;  /* no ValidDataLength support */
+        break;
+    default:
+        ASSERT(0);
+        Result = STATUS_INVALID_PARAMETER;
+        break;
+    }
+
+    ASSERT(FSP_STATUS_IOQ_POST != Result);
+
+    Irp->IoStatus.Information = 0;
+
     FSP_LEAVE_IOC("%s, FileObject=%p",
         FileInformationClassSym(IrpSp->Parameters.SetFile.FileInformationClass),
         IrpSp->FileObject);
+}
+
+static VOID FspFsvolSetInformationRequestFini(PVOID Context[3])
+{
+    PAGED_CODE();
+
+    FSP_FILE_NODE *FileNode = Context[RequestFileNode];
+    ULONG AcquireFlags = (ULONG)(UINT_PTR)Context[RequestAcquireFlags];
+
+    if (0 != FileNode)
+        FspFileNodeReleaseF(FileNode, AcquireFlags);
+
+    Context[RequestFileNode] = Context[RequestAcquireFlags] = 0;
 }
 
 NTSTATUS FspQueryInformation(

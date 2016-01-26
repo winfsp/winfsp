@@ -184,6 +184,19 @@ typedef struct
             UINT64 UserContext;
             UINT64 UserContext2;
         } QueryInformation;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+            UINT32 FileInformationClass;
+            union
+            {
+                struct
+                {
+                    UINT64 AllocationSize;
+                } Allocation;
+            } Info;
+        } SetInformation;
     } Req;
     FSP_FSCTL_TRANSACT_BUF FileName;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
@@ -225,6 +238,10 @@ typedef struct
         {
             FSP_FSCTL_FILE_INFO FileInfo;
         } QueryInformation;
+        struct
+        {
+            FSP_FSCTL_FILE_INFO FileInfo;
+        } SetInformation;
         struct
         {
             FSP_FSCTL_VOLUME_INFO VolumeInfo;

@@ -321,8 +321,9 @@ ULONG FspHashMixPointer(PVOID Pointer)
 #endif
 }
 
-/* utility: GUIDs */
+/* utility */
 NTSTATUS FspCreateGuid(GUID *Guid);
+NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
 
 /* utility: synchronous work queue */
 typedef struct
@@ -565,6 +566,8 @@ typedef struct
         UINT32 DeleteOnClose:1;
         UINT32 DeletePending:1;
     } Flags;
+    /* locked under same rules as Header.AllocationSize/FileSize */
+    NTSTATUS CcStatus;
     /* read-only after creation (and insertion in the ContextTable) */
     PDEVICE_OBJECT FsvolDeviceObject;
     UINT64 UserContext;
@@ -598,11 +601,11 @@ VOID FspFileNodeDereference(FSP_FILE_NODE *FileNode)
     if (0 == RefCount)
         FspFileNodeDelete(FileNode);
 }
-VOID FspFileNodeAcquireShared(FSP_FILE_NODE *FileNode, ULONG Flags);
-BOOLEAN FspFileNodeTryAcquireShared(FSP_FILE_NODE *FileNode, ULONG Flags);
-VOID FspFileNodeAcquireExclusive(FSP_FILE_NODE *FileNode, ULONG Flags);
-BOOLEAN FspFileNodeTryAcquireExclusive(FSP_FILE_NODE *FileNode, ULONG Flags);
-VOID FspFileNodeRelease(FSP_FILE_NODE *FileNode, ULONG Flags);
+VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
+BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
+VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);
+BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);
+VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
 FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
@@ -612,11 +615,11 @@ BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, const FSP_FSCTL_FILE_INFO *FileInfo);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
-#define FspFileNodeAcquireShared(N,F)   FspFileNodeAcquireShared(N, FspFileNodeAcquire ## F)
-#define FspFileNodeTryAcquireShared(N,F)    FspFileNodeTryAcquireShared(N, FspFileNodeAcquire ## F)
-#define FspFileNodeAcquireExclusive(N,F)    FspFileNodeAcquireExclusive(N, FspFileNodeAcquire ## F)
-#define FspFileNodeTryAcquireExclusive(N,F) FspFileNodeTryAcquireExclusive(N, FspFileNodeAcquire ## F)
-#define FspFileNodeRelease(N,F)         FspFileNodeRelease(N, FspFileNodeAcquire ## F)
+#define FspFileNodeAcquireShared(N,F)   FspFileNodeAcquireSharedF(N, FspFileNodeAcquire ## F)
+#define FspFileNodeTryAcquireShared(N,F)    FspFileNodeTryAcquireSharedF(N, FspFileNodeAcquire ## F)
+#define FspFileNodeAcquireExclusive(N,F)    FspFileNodeAcquireExclusiveF(N, FspFileNodeAcquire ## F)
+#define FspFileNodeTryAcquireExclusive(N,F) FspFileNodeTryAcquireExclusiveF(N, FspFileNodeAcquire ## F)
+#define FspFileNodeRelease(N,F)         FspFileNodeReleaseF(N, FspFileNodeAcquire ## F)
 
 /* debug */
 #if DBG
