@@ -138,7 +138,56 @@ void getfileinfo_test(void)
     }
 }
 
+void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    BOOL Success;
+    WCHAR FilePath[MAX_PATH];
+    WCHAR VolumeLabelBuf[MAX_PATH];
+    DWORD VolumeSerialNumber;
+    DWORD MaxComponentLength;
+    DWORD FileSystemFlags;
+    WCHAR FileSystemNameBuf[MAX_PATH];
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = GetVolumeInformationW(FilePath,
+        VolumeLabelBuf, sizeof VolumeLabelBuf,
+        &VolumeSerialNumber, &MaxComponentLength, &FileSystemFlags,
+        FileSystemNameBuf, sizeof FileSystemNameBuf);
+    ASSERT(Success);
+    if (-1 != Flags)
+    {
+        ASSERT(0 == wcscmp(VolumeLabelBuf, L"MEMFS"));
+        ASSERT(255 == MaxComponentLength);
+        ASSERT(0 != (FileSystemFlags &
+            (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
+        ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp"));
+    }
+
+    memfs_stop(memfs);
+}
+
+void getvolinfo_test(void)
+{
+    if (NtfsTests)
+        getvolinfo_dotest(-1, L"C:", 0);
+    if (WinFspDiskTests)
+    {
+        getvolinfo_dotest(MemfsDisk, 0, 0);
+        getvolinfo_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        getvolinfo_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        getvolinfo_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 void info_tests(void)
 {
     TEST(getfileinfo_test);
+    TEST(getvolinfo_test);
 }

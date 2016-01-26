@@ -205,7 +205,7 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
         (Memfs->MaxFileNodes - MemfsFileNodeMapCount(Memfs->FileNodeMap)) * AllocationUnits;
     VolumeInfo->VolumeCreationTime = RootNode->FileInfo.CreationTime;
     VolumeInfo->VolumeLabelLength = sizeof L"MEMFS" - sizeof(WCHAR);
-    memcpy(VolumeInfo->VolumeLabel, L"Memfs", VolumeInfo->VolumeLabelLength);
+    memcpy(VolumeInfo->VolumeLabel, L"MEMFS", VolumeInfo->VolumeLabelLength);
 
     return STATUS_SUCCESS;
 }
@@ -217,6 +217,9 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode;
     NTSTATUS Result;
+
+    if (L'\\' == FileName[0] && L'\0' == FileName[1])
+        FileName = L"";
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
     if (0 == FileNode)
@@ -255,6 +258,9 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_FILE_NODE *FileNode;
     NTSTATUS Result;
     BOOLEAN Inserted;
+
+    if (L'\\' == FileName[0] && L'\0' == FileName[1])
+        FileName = L"";
 
     if (CreateOptions & FILE_DIRECTORY_FILE)
         AllocationSize = 0;
@@ -325,6 +331,9 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode;
     NTSTATUS Result;
+
+    if (L'\\' == FileName[0] && L'\0' == FileName[1])
+        FileName = L"";
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
     if (0 == FileNode)
