@@ -46,7 +46,7 @@ static NTSTATUS FspFsvolSetRenameInformation(PFILE_OBJECT FileObject,
 static NTSTATUS FspFsvolSetInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolSetInformationComplete;
-static FSP_IOP_REQUEST_FINI FspFsvolSetInformationRequestFini;
+static FSP_IOP_REQUEST_FINI FspFsvolInformationRequestFini;
 FSP_DRIVER_DISPATCH FspQueryInformation;
 FSP_DRIVER_DISPATCH FspSetInformation;
 
@@ -69,7 +69,7 @@ FSP_DRIVER_DISPATCH FspSetInformation;
 #pragma alloc_text(PAGE, FspFsvolSetRenameInformation)
 #pragma alloc_text(PAGE, FspFsvolSetInformation)
 #pragma alloc_text(PAGE, FspFsvolSetInformationComplete)
-#pragma alloc_text(PAGE, FspFsvolSetInformationRequestFini)
+#pragma alloc_text(PAGE, FspFsvolInformationRequestFini)
 #pragma alloc_text(PAGE, FspQueryInformation)
 #pragma alloc_text(PAGE, FspSetInformation)
 #endif
@@ -381,7 +381,8 @@ static NTSTATUS FspFsvolQueryInformation(
 
     ASSERT(FileNode == FileDesc->FileNode);
 
-    Result = FspIopCreateRequest(Irp, FileNameRequired ? &FileNode->FileName : 0, 0, &Request);
+    Result = FspIopCreateRequestEx(Irp, FileNameRequired ? &FileNode->FileName : 0, 0,
+        FspFsvolInformationRequestFini, &Request);
     if (!NT_SUCCESS(Result))
         return Result;
 
@@ -568,7 +569,7 @@ static NTSTATUS FspFsvolSetInformation(
     ASSERT(FileNode == FileDesc->FileNode);
 
     Result = FspIopCreateRequestEx(Irp, FileNameRequired ? &FileNode->FileName : 0, 0,
-        FspFsvolSetInformationRequestFini, &Request);
+        FspFsvolInformationRequestFini, &Request);
     if (!NT_SUCCESS(Result))
         return Result;
 
@@ -674,7 +675,7 @@ VOID FspFsvolSetInformationComplete(
         IrpSp->FileObject);
 }
 
-static VOID FspFsvolSetInformationRequestFini(PVOID Context[3])
+static VOID FspFsvolInformationRequestFini(PVOID Context[3])
 {
     PAGED_CODE();
 
