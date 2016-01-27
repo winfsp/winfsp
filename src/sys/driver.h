@@ -366,8 +366,8 @@ typedef struct
     KSPIN_LOCK SpinLock;
     BOOLEAN Stopped;
     KEVENT PendingIrpEvent;
-    LIST_ENTRY PendingIrpList, ProcessIrpList;
-    IO_CSQ PendingIoCsq, ProcessIoCsq;
+    LIST_ENTRY PendingIrpList, ProcessIrpList, RetryIrpList;
+    IO_CSQ PendingIoCsq, ProcessIoCsq, RetryIoCsq;
     ULONG IrpTimeout;
     ULONG PendingIrpCapacity, PendingIrpCount;
     VOID (*CompleteCanceledIrp)(PIRP Irp);
@@ -385,6 +385,8 @@ BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN BestEffort, NTSTATUS *PR
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
+BOOLEAN FspIoqRetryCompleteIrp(FSP_IOQ *Ioq, PIRP Irp);
+PIRP FspIoqNextCompletedIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp);
 
 /* I/O processing */
 #define FSP_FSCTL_WORK                  \
