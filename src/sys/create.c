@@ -690,7 +690,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     BOOLEAN Success;
 
-    Success = FspFileNodeTryAcquireExclusive(FileNode, Both);
+    Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Both);
     if (!Success)
     {
         /* repost the IRP to retry later */

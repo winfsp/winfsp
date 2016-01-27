@@ -261,4 +261,22 @@ const char *FsInformationClassSym(FS_INFORMATION_CLASS FsInformationClass)
         return "FS_INFORMATION_CLASS:Unknown";
     }
 }
+
+ULONG DebugRandom(VOID)
+{
+    static KSPIN_LOCK SpinLock = 0;
+    static ULONG Seed = 1;
+    KIRQL Irql;
+    ULONG Result;
+
+    KeAcquireSpinLock(&SpinLock, &Irql);
+
+    /* see ucrt sources */
+    Seed = Seed * 214013 + 2531011;
+    Result = (Seed >> 16) & 0x7fff;
+
+    KeReleaseSpinLock(&SpinLock, Irql);
+
+    return Result;
+}
 #endif

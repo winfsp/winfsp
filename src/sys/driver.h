@@ -56,12 +56,19 @@ extern __declspec(selectany) int fsp_bp = 1;
 #define DEBUGBREAK()                    \
     do                                  \
     {                                   \
-        static int bp = 1;          \
+        static int bp = 1;              \
         if (bp && fsp_bp && !KD_DEBUGGER_NOT_PRESENT)\
             DbgBreakPoint();            \
     } while (0,0)
 #else
 #define DEBUGBREAK()                    do {} while (0,0)
+#endif
+
+/* DEBUGRANDTEST */
+#if DBG
+#define DEBUGRANDTEST(Percent, Default) (DebugRandom() <= (Percent) * 0x7fff / 100 ? (Default) : !(Default))
+#else
+#define DEBUGRANDTEST(Percent, Default) (Default)
 #endif
 
 /* FSP_ENTER/FSP_LEAVE */
@@ -632,6 +639,7 @@ const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);
 const char *IoctlCodeSym(ULONG ControlCode);
 const char *FileInformationClassSym(FILE_INFORMATION_CLASS FileInformationClass);
 const char *FsInformationClassSym(FS_INFORMATION_CLASS FsInformationClass);
+ULONG DebugRandom(VOID);
 static inline
 VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result)
 {
