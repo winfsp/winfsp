@@ -521,6 +521,7 @@ NTSTATUS FspVolumeTransact(
     LARGE_INTEGER Timeout;
 
     /* process any user-mode file system responses */
+    RepostedIrp = 0;
     Response = SystemBuffer;
     BufferEnd = (PUINT8)SystemBuffer + InputBufferLength;
     for (;;)
@@ -534,13 +535,21 @@ NTSTATUS FspVolumeTransact(
             /* either IRP was canceled or a bogus Hint was provided */
             continue;
 
-        FspIopDispatchComplete(ProcessIrp, Response);
+        Result = FspIopDispatchComplete(ProcessIrp, Response);
+        if (STATUS_PENDING == Result)
+        {
+            /*
+             * The IRP has been reposted to our Ioq. Remember the first such IRP,
+             * so that we know to break the loop if we see it again.
+             */
+            if (0 == RepostedIrp)
+                RepostedIrp = ProcessIrp;
+        }
 
         Response = NextResponse;
     }
 
     /* process any retried IRP's */
-    RepostedIrp = 0;
     for (;;)
     {
         /* get the next retried IRP, but do not go beyond the first reposted IRP! */
