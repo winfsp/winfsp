@@ -228,7 +228,7 @@ typedef VOID FSP_IOCMPL_DISPATCH(
 _IRQL_requires_max_(APC_LEVEL)
 _IRQL_requires_same_
 typedef NTSTATUS FSP_IORETR_DISPATCH(
-    _Inout_ PIRP Irp, _Inout_ FSP_FSCTL_TRANSACT_REQ *Request);
+    _Inout_ PIRP Irp);
 FSP_IOCMPL_DISPATCH FspFsvolCleanupComplete;
 FSP_IOCMPL_DISPATCH FspFsvolCloseComplete;
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
@@ -423,7 +423,7 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference);
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
-NTSTATUS FspIopDispatchRetryComplete(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
+NTSTATUS FspIopDispatchRetryComplete(PIRP Irp);
 
 /* device management */
 #define FSP_DEVICE_VOLUME_NAME_LENMAX   (FSP_FSCTL_VOLUME_NAME_SIZEMAX - sizeof(WCHAR))

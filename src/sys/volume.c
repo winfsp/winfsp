@@ -548,7 +548,7 @@ NTSTATUS FspVolumeTransact(
         if (0 == RetriedIrp)
             break;
 
-        Result = FspIopDispatchRetryComplete(RetriedIrp, FspIrpRequest(RetriedIrp));
+        Result = FspIopDispatchRetryComplete(RetriedIrp);
         if (STATUS_PENDING == Result)
         {
             /*

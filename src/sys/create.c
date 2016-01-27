@@ -714,7 +714,7 @@ VOID FspFsvolCreateComplete(
 }
 
 NTSTATUS FspFsvolCreateRetryComplete(
-    PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
+    PIRP Irp)
 {
     PAGED_CODE();
 
