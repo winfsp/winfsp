@@ -11,6 +11,7 @@ NTSTATUS FspIopCreateRequestFunnel(
     BOOLEAN MustSucceed,
     FSP_FSCTL_TRANSACT_REQ **PRequest);
 VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
+VOID FspIopResetRequest(FSP_FSCTL_TRANSACT_REQ *Request, FSP_IOP_REQUEST_FINI *RequestFini);
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
 NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllocateIrpMustSucceed);
@@ -24,6 +25,7 @@ NTSTATUS FspIopDispatchRetryComplete(PIRP Irp);
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspIopCreateRequestFunnel)
 #pragma alloc_text(PAGE, FspIopDeleteRequest)
+#pragma alloc_text(PAGE, FspIopResetRequest)
 #pragma alloc_text(PAGE, FspIopRequestContextAddress)
 #pragma alloc_text(PAGE, FspIopPostWorkRequestFunnel)
 #pragma alloc_text(PAGE, FspIopCompleteIrpEx)
@@ -141,6 +143,19 @@ VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         RequestHeader->RequestFini(RequestHeader->Context);
 
     FspFree(RequestHeader);
+}
+
+VOID FspIopResetRequest(FSP_FSCTL_TRANSACT_REQ *Request, FSP_IOP_REQUEST_FINI *RequestFini)
+{
+    PAGED_CODE();
+
+    FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
+
+    if (0 != RequestHeader->RequestFini)
+        RequestHeader->RequestFini(RequestHeader->Context);
+
+    RtlZeroMemory(&RequestHeader->Context, sizeof RequestHeader->Context);
+    RequestHeader->RequestFini = RequestFini;
 }
 
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I)

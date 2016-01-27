@@ -415,6 +415,7 @@ NTSTATUS FspIopCreateRequestFunnel(
     BOOLEAN MustSucceed,
     FSP_FSCTL_TRANSACT_REQ **PRequest);
 VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
+VOID FspIopResetRequest(FSP_FSCTL_TRANSACT_REQ *Request, FSP_IOP_REQUEST_FINI *RequestFini);
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
 NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN BestEffort);
@@ -622,6 +623,8 @@ BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, const FSP_FSCTL_FILE_INFO *FileInfo);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
+VOID FspFileObjectSetSizes(PFILE_OBJECT FileObject,
+    UINT64 AllocationSize, UINT64 FileSize);
 #define FspFileNodeAcquireShared(N,F)   FspFileNodeAcquireSharedF(N, FspFileNodeAcquire ## F)
 #define FspFileNodeTryAcquireShared(N,F)    FspFileNodeTryAcquireSharedF(N, FspFileNodeAcquire ## F)
 #define FspFileNodeAcquireExclusive(N,F)    FspFileNodeAcquireExclusiveF(N, FspFileNodeAcquire ## F)

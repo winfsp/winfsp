@@ -23,6 +23,8 @@ BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, const FSP_FSCTL_FILE_INFO *FileInfo);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
+VOID FspFileObjectSetSizes(PFILE_OBJECT FileObject,
+    UINT64 AllocationSize, UINT64 FileSize);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFileNodeCreate)
@@ -39,6 +41,7 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #pragma alloc_text(PAGE, FspFileNodeSetFileInfo)
 #pragma alloc_text(PAGE, FspFileDescCreate)
 #pragma alloc_text(PAGE, FspFileDescDelete)
+#pragma alloc_text(PAGE, FspFileObjectSetSizes)
 #endif
 
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
@@ -429,4 +432,19 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc)
     PAGED_CODE();
 
     FspFree(FileDesc);
+}
+
+VOID FspFileObjectSetSizes(PFILE_OBJECT FileObject,
+    UINT64 AllocationSize, UINT64 FileSize)
+{
+    PAGED_CODE();
+
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+
+    ASSERT(ExIsResourceAcquiredExclusiveLite(FileNode->Header.PagingIoResource));
+
+    FileNode->Header.AllocationSize.QuadPart = AllocationSize;
+    FileNode->Header.FileSize.QuadPart = FileSize;
+    FileNode->CcStatus = FspCcSetFileSizes(
+        FileObject, (PCC_FILE_SIZES)&FileNode->Header.AllocationSize);
 }
