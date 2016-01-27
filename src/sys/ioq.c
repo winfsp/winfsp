@@ -518,7 +518,7 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint)
     return FspCsqRemoveNextIrp(&Ioq->ProcessIoCsq, &PeekContext);
 }
 
-BOOLEAN FspIoqRetryCompleteIrp(FSP_IOQ *Ioq, PIRP Irp)
+BOOLEAN FspIoqRetryCompleteIrp(FSP_IOQ *Ioq, PIRP Irp, NTSTATUS *PResult)
 {
     NTSTATUS Result;
 #if defined(FSP_IOQ_PROCESS_NO_CANCEL)
@@ -528,7 +528,18 @@ BOOLEAN FspIoqRetryCompleteIrp(FSP_IOQ *Ioq, PIRP Irp)
         FspIrpTimestamp(Irp) = QueryInterruptTimeInSec() + Ioq->IrpTimeout;
 #endif
     Result = FspCsqInsertIrpEx(&Ioq->RetriedIoCsq, Irp, 0, 0);
-    return NT_SUCCESS(Result);
+    if (NT_SUCCESS(Result))
+    {
+        if (0 != PResult)
+            *PResult = STATUS_PENDING;
+        return TRUE;
+    }
+    else
+    {
+        if (0 != PResult)
+            *PResult = Result;
+        return FALSE;
+    }
 }
 
 PIRP FspIoqNextCompleteIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp)
@@ -536,5 +547,5 @@ PIRP FspIoqNextCompleteIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp)
     FSP_IOQ_PEEK_CONTEXT PeekContext;
     PeekContext.IrpHint = 0 != BoundaryIrp ? BoundaryIrp : (PVOID)1;
     PeekContext.ExpirationTime = 0;
-    return IoCsqRemoveNextIrp(&Ioq->RetriedIoCsq, &PeekContext);
+    return FspCsqRemoveNextIrp(&Ioq->RetriedIoCsq, &PeekContext);
 }

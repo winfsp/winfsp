@@ -14,6 +14,7 @@ static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
+FSP_IORETR_DISPATCH FspFsvolCreateRetryComplete;
 static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,
     FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject);
 static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc);
@@ -28,6 +29,7 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreate)
 #pragma alloc_text(PAGE, FspFsvolCreatePrepare)
 #pragma alloc_text(PAGE, FspFsvolCreateComplete)
+#pragma alloc_text(PAGE, FspFsvolCreateRetryComplete)
 #pragma alloc_text(PAGE, FspFsvolCreateTryOpen)
 #pragma alloc_text(PAGE, FspFsvolCreatePostClose)
 #pragma alloc_text(PAGE, FspFsvolCreateRequestFini)
@@ -709,6 +711,14 @@ VOID FspFsvolCreateComplete(
     FSP_LEAVE_IOC(
         "FileObject=%p[%p:\"%wZ\"]",
         IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName);
+}
+
+NTSTATUS FspFsvolCreateRetryComplete(
+    PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    PAGED_CODE();
+
+    return STATUS_NOT_IMPLEMENTED;
 }
 
 static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,

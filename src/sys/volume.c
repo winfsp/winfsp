@@ -517,7 +517,7 @@ NTSTATUS FspVolumeTransact(
     PUINT8 BufferEnd;
     FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
     FSP_FSCTL_TRANSACT_REQ *Request, *PendingIrpRequest;
-    PIRP ProcessIrp, PendingIrp, RepostedIrp = 0;
+    PIRP ProcessIrp, PendingIrp, RetriedIrp, RepostedIrp;
     LARGE_INTEGER Timeout;
 
     /* process any user-mode file system responses */
@@ -537,6 +537,27 @@ NTSTATUS FspVolumeTransact(
         FspIopDispatchComplete(ProcessIrp, Response);
 
         Response = NextResponse;
+    }
+
+    /* process any retried IRP's */
+    RepostedIrp = 0;
+    for (;;)
+    {
+        /* get the next retried IRP, but do not go beyond the first reposted IRP! */
+        RetriedIrp = FspIoqNextCompleteIrp(FsvolDeviceExtension->Ioq, RepostedIrp);
+        if (0 == RetriedIrp)
+            break;
+
+        Result = FspIopDispatchRetryComplete(RetriedIrp, FspIrpRequest(RetriedIrp));
+        if (STATUS_PENDING == Result)
+        {
+            /*
+             * The IRP has been reposted to our Ioq. Remember the first such IRP,
+             * so that we know to break the loop if we see it again.
+             */
+            if (0 == RepostedIrp)
+                RepostedIrp = RetriedIrp;
+        }
     }
 
     /* were we sent an output buffer? */
@@ -564,6 +585,7 @@ NTSTATUS FspVolumeTransact(
     }
 
     /* send any pending IRP's to the user-mode file system */
+    RepostedIrp = 0;
     Request = MdlBuffer;
     BufferEnd = (PUINT8)MdlBuffer + OutputBufferLength;
     ASSERT(FspFsctlTransactCanProduceRequest(Request, BufferEnd));

@@ -19,6 +19,7 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference);
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+NTSTATUS FspIopDispatchRetryComplete(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspIopCreateRequestFunnel)
@@ -29,6 +30,7 @@ VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 #pragma alloc_text(PAGE, FspIopCompleteCanceledIrp)
 #pragma alloc_text(PAGE, FspIopDispatchPrepare)
 #pragma alloc_text(PAGE, FspIopDispatchComplete)
+#pragma alloc_text(PAGE, FspIopDispatchRetryComplete)
 #endif
 
 static const LONG Delays[] =
@@ -268,5 +270,19 @@ VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
     FspIopCompleteFunction[IrpSp->MajorFunction](Irp, Response);
 }
 
+NTSTATUS FspIopDispatchRetryComplete(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    PAGED_CODE();
+
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+
+    ASSERT(IRP_MJ_MAXIMUM_FUNCTION >= IrpSp->MajorFunction);
+    if (0 != FspIopRetryCompleteFunction[IrpSp->MajorFunction])
+        return FspIopRetryCompleteFunction[IrpSp->MajorFunction](Irp, Request);
+    else
+        return STATUS_SUCCESS;
+}
+
 FSP_IOPREP_DISPATCH *FspIopPrepareFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];
 FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];
+FSP_IORETR_DISPATCH *FspIopRetryCompleteFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];

@@ -225,10 +225,15 @@ _IRQL_requires_max_(APC_LEVEL)
 _IRQL_requires_same_
 typedef VOID FSP_IOCMPL_DISPATCH(
     _Inout_ PIRP Irp, _In_ const FSP_FSCTL_TRANSACT_RSP *Response);
-FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
+_IRQL_requires_max_(APC_LEVEL)
+_IRQL_requires_same_
+typedef NTSTATUS FSP_IORETR_DISPATCH(
+    _Inout_ PIRP Irp, _Inout_ FSP_FSCTL_TRANSACT_REQ *Request);
 FSP_IOCMPL_DISPATCH FspFsvolCleanupComplete;
 FSP_IOCMPL_DISPATCH FspFsvolCloseComplete;
+FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
+FSP_IORETR_DISPATCH FspFsvolCreateRetryComplete;
 FSP_IOCMPL_DISPATCH FspFsvolDeviceControlComplete;
 FSP_IOCMPL_DISPATCH FspFsvolDirectoryControlComplete;
 FSP_IOCMPL_DISPATCH FspFsvolFileSystemControlComplete;
@@ -385,7 +390,7 @@ BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN BestEffort, NTSTATUS *PR
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
-BOOLEAN FspIoqRetryCompleteIrp(FSP_IOQ *Ioq, PIRP Irp);
+BOOLEAN FspIoqRetryCompleteIrp(FSP_IOQ *Ioq, PIRP Irp, NTSTATUS *PResult);
 PIRP FspIoqNextCompleteIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp);
 
 /* I/O processing */
@@ -418,6 +423,7 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference);
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+NTSTATUS FspIopDispatchRetryComplete(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 
 /* device management */
 #define FSP_DEVICE_VOLUME_NAME_LENMAX   (FSP_FSCTL_VOLUME_NAME_SIZEMAX - sizeof(WCHAR))
@@ -654,5 +660,6 @@ extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
 extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
+extern FSP_IORETR_DISPATCH *FspIopRetryCompleteFunction[];
 
 #endif
