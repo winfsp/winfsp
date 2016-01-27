@@ -25,7 +25,7 @@ static NTSTATUS FspFsvolWrite(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-VOID FspFsvolWriteComplete(
+NTSTATUS FspFsvolWriteComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());

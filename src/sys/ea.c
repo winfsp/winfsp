@@ -32,7 +32,7 @@ static NTSTATUS FspFsvolQueryEa(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-VOID FspFsvolQueryEaComplete(
+NTSTATUS FspFsvolQueryEaComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
@@ -48,7 +48,7 @@ static NTSTATUS FspFsvolSetEa(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-VOID FspFsvolSetEaComplete(
+NTSTATUS FspFsvolSetEaComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());

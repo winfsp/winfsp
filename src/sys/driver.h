@@ -172,7 +172,8 @@ extern __declspec(selectany) int fsp_bp = 1;
                 (LONGLONG)Irp->IoStatus.Information);\
             FspIopCompleteIrp(Irp, Result);\
         }                               \
-    )
+    );                                  \
+    return Result
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)
 #define FSP_LEAVE_BOOL(fmt, ...)        \
@@ -222,7 +223,7 @@ typedef NTSTATUS FSP_IOPREP_DISPATCH(
     _Inout_ PIRP Irp, _Inout_ FSP_FSCTL_TRANSACT_REQ *Request);
 _IRQL_requires_max_(APC_LEVEL)
 _IRQL_requires_same_
-typedef VOID FSP_IOCMPL_DISPATCH(
+typedef NTSTATUS FSP_IOCMPL_DISPATCH(
     _Inout_ PIRP Irp, _In_ const FSP_FSCTL_TRANSACT_RSP *Response);
 _IRQL_requires_max_(APC_LEVEL)
 _IRQL_requires_same_
@@ -422,7 +423,7 @@ NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference);
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
-VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 NTSTATUS FspIopDispatchRetryComplete(PIRP Irp);
 
 /* device management */

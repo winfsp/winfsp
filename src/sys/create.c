@@ -15,9 +15,9 @@ static NTSTATUS FspFsvolCreate(
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
 FSP_IORETR_DISPATCH FspFsvolCreateRetryComplete;
-static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,
+static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp,
     FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject,
-    BOOLEAN FlushImage);
+    BOOLEAN FlushImage, BOOLEAN Retrying);
 static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc);
 static FSP_IOP_REQUEST_FINI FspFsvolCreateRequestFini;
 static FSP_IOP_REQUEST_FINI FspFsvolCreateTryOpenRequestFini;
@@ -442,7 +442,7 @@ NTSTATUS FspFsvolCreatePrepare(
     }
 }
 
-VOID FspFsvolCreateComplete(
+NTSTATUS FspFsvolCreateComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
@@ -580,7 +580,7 @@ VOID FspFsvolCreateComplete(
                 (FlagOn(Response->Rsp.Create.Opened.GrantedAccess, FILE_WRITE_DATA) ||
                 DeleteOnClose);
 
-            Result = FspFsvolCreateTryOpen(Irp, 0, FileNode, FileDesc, FileObject, FlushImage);
+            Result = FspFsvolCreateTryOpen(Irp, FileNode, FileDesc, FileObject, FlushImage, FALSE);
         }
         else
         if (FILE_SUPERSEDED == Response->IoStatus.Information ||
@@ -693,7 +693,7 @@ NTSTATUS FspFsvolCreateRetryComplete(
     FileObject = FspIopRequestContext(Request, RequestFileObject);
     FlushImage = 0 != FspIopRequestContext(Request, RequestState);
 
-    Result = FspFsvolCreateTryOpen(Irp, Request, FileNode, FileDesc, FileObject, FlushImage);
+    Result = FspFsvolCreateTryOpen(Irp, FileNode, FileDesc, FileObject, FlushImage, TRUE);
     if (STATUS_PENDING == Result)
         return Result;
     else
@@ -705,15 +705,16 @@ NTSTATUS FspFsvolCreateRetryComplete(
     }
 }
 
-static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,
+static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp,
     FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject,
-    BOOLEAN FlushImage)
+    BOOLEAN FlushImage, BOOLEAN Retrying)
 {
     PAGED_CODE();
 
-    ASSERT(0 == Request || FspFsctlTransactCreateKind == Request->Kind);
-
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     BOOLEAN Success;
+
+    ASSERT(FspFsctlTransactCreateKind == Request->Kind);
 
     Success = FspFileNodeTryAcquireExclusive(FileNode, Both);
     if (!Success)
@@ -724,7 +725,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,
         FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
             FspFsvolDeviceExtension(IrpSp->DeviceObject);
 
-        if (0 == Request)
+        if (!Retrying)
         {
             /* disassociate the FileDesc momentarily from the Request */
             Request = FspIrpRequest(Irp);

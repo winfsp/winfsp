@@ -25,7 +25,7 @@ static NTSTATUS FspFsvolFlushBuffers(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-VOID FspFsvolFlushBuffersComplete(
+NTSTATUS FspFsvolFlushBuffersComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());

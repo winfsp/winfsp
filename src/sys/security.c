@@ -32,7 +32,7 @@ static NTSTATUS FspFsvolQuerySecurity(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-VOID FspFsvolQuerySecurityComplete(
+NTSTATUS FspFsvolQuerySecurityComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
@@ -48,7 +48,7 @@ static NTSTATUS FspFsvolSetSecurity(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-VOID FspFsvolSetSecurityComplete(
+NTSTATUS FspFsvolSetSecurityComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());

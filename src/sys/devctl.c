@@ -33,7 +33,7 @@ static NTSTATUS FspFsvolDeviceControl(
     return Result;
 }
 
-VOID FspFsvolDeviceControlComplete(
+NTSTATUS FspFsvolDeviceControlComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());

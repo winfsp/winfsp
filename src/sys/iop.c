@@ -19,7 +19,7 @@ static IO_COMPLETION_ROUTINE FspIopPostWorkRequestCompletion;
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference);
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
-VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 NTSTATUS FspIopDispatchRetryComplete(PIRP Irp);
 
 #ifdef ALLOC_PRAGMA
@@ -273,7 +273,7 @@ NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
         return STATUS_SUCCESS;
 }
 
-VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
 
@@ -282,7 +282,7 @@ VOID FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
     ASSERT(IRP_MJ_MAXIMUM_FUNCTION >= IrpSp->MajorFunction);
     ASSERT(0 != FspIopCompleteFunction[IrpSp->MajorFunction]);
 
-    FspIopCompleteFunction[IrpSp->MajorFunction](Irp, Response);
+    return FspIopCompleteFunction[IrpSp->MajorFunction](Irp, Response);
 }
 
 NTSTATUS FspIopDispatchRetryComplete(PIRP Irp)

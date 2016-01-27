@@ -25,7 +25,7 @@ static NTSTATUS FspFsvolRead(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-VOID FspFsvolReadComplete(
+NTSTATUS FspFsvolReadComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());

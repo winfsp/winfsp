@@ -516,7 +516,7 @@ static NTSTATUS FspFsvolQueryInformation(
     return Result;
 }
 
-VOID FspFsvolQueryInformationComplete(
+NTSTATUS FspFsvolQueryInformationComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
@@ -731,7 +731,7 @@ static NTSTATUS FspFsvolSetInformation(
     return Result;
 }
 
-VOID FspFsvolSetInformationComplete(
+NTSTATUS FspFsvolSetInformationComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());

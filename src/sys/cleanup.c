@@ -82,7 +82,7 @@ static NTSTATUS FspFsvolCleanup(
      */
 }
 
-VOID FspFsvolCleanupComplete(
+NTSTATUS FspFsvolCleanupComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());

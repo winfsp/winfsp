@@ -251,7 +251,7 @@ static NTSTATUS FspFsvolQueryVolumeInformation(
     return FSP_STATUS_IOQ_POST;
 }
 
-VOID FspFsvolQueryVolumeInformationComplete(
+NTSTATUS FspFsvolQueryVolumeInformationComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
@@ -305,7 +305,7 @@ static NTSTATUS FspFsvolSetVolumeInformation(
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-VOID FspFsvolSetVolumeInformationComplete(
+NTSTATUS FspFsvolSetVolumeInformationComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());

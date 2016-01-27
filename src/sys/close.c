@@ -84,7 +84,7 @@ static NTSTATUS FspFsvolClose(
     return STATUS_SUCCESS;
 }
 
-VOID FspFsvolCloseComplete(
+NTSTATUS FspFsvolCloseComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());

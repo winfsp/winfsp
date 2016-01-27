@@ -59,7 +59,7 @@
  * FSP_IOQ_PROCESS_NO_CANCEL
  *
  * Define this macro to disallow cancelation (other than the FSP_IOQ being stopped)
- * after an IRP has enter the Processing phase.
+ * after an IRP has entered the Processing phase.
  *
  * Once a file-system operation has been started its effects cannot be ignored. Even
  * if the process that originated the operation decides to cancel it, we must correctly
@@ -329,11 +329,7 @@ static PIRP FspIoqRetriedPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
         }
     }
     else
-    {
-        if (Irp == IrpHint)
-            return 0;
         return Irp;
-    }
 }
 
 _IRQL_raises_(DISPATCH_LEVEL)

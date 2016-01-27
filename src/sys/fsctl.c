@@ -71,7 +71,7 @@ static NTSTATUS FspFsvolFileSystemControl(
     return Result;
 }
 
-VOID FspFsvolFileSystemControlComplete(
+NTSTATUS FspFsvolFileSystemControlComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
