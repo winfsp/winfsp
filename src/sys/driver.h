@@ -225,15 +225,10 @@ _IRQL_requires_max_(APC_LEVEL)
 _IRQL_requires_same_
 typedef NTSTATUS FSP_IOCMPL_DISPATCH(
     _Inout_ PIRP Irp, _In_ const FSP_FSCTL_TRANSACT_RSP *Response);
-_IRQL_requires_max_(APC_LEVEL)
-_IRQL_requires_same_
-typedef NTSTATUS FSP_IORETR_DISPATCH(
-    _Inout_ PIRP Irp);
 FSP_IOCMPL_DISPATCH FspFsvolCleanupComplete;
 FSP_IOCMPL_DISPATCH FspFsvolCloseComplete;
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
-FSP_IORETR_DISPATCH FspFsvolCreateRetryComplete;
 FSP_IOCMPL_DISPATCH FspFsvolDeviceControlComplete;
 FSP_IOCMPL_DISPATCH FspFsvolDirectoryControlComplete;
 FSP_IOCMPL_DISPATCH FspFsvolFileSystemControlComplete;
@@ -422,9 +417,10 @@ NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN BestEffort);
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference);
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
+BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response, NTSTATUS *PResult);
+FSP_FSCTL_TRANSACT_RSP *FspIopIrpResponse(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
-NTSTATUS FspIopDispatchRetryComplete(PIRP Irp);
 
 /* device management */
 #define FSP_DEVICE_VOLUME_NAME_LENMAX   (FSP_FSCTL_VOLUME_NAME_SIZEMAX - sizeof(WCHAR))
@@ -590,10 +586,6 @@ typedef struct
 {
     FSP_FILE_NODE *FileNode;
     UINT64 UserContext2;
-    union
-    {
-        FSP_FSCTL_FILE_INFO FileInfo;   /* create time only */
-    } State;
 } FSP_FILE_DESC;
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode);
@@ -663,6 +655,5 @@ extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
 extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
-extern FSP_IORETR_DISPATCH *FspIopRetryCompleteFunction[];
 
 #endif

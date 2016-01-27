@@ -18,9 +18,10 @@ NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
 static IO_COMPLETION_ROUTINE FspIopPostWorkRequestCompletion;
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference);
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
+BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response, NTSTATUS *PResult);
+FSP_FSCTL_TRANSACT_RSP *FspIopIrpResponse(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
-NTSTATUS FspIopDispatchRetryComplete(PIRP Irp);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspIopCreateRequestFunnel)
@@ -30,9 +31,10 @@ NTSTATUS FspIopDispatchRetryComplete(PIRP Irp);
 #pragma alloc_text(PAGE, FspIopPostWorkRequestFunnel)
 #pragma alloc_text(PAGE, FspIopCompleteIrpEx)
 #pragma alloc_text(PAGE, FspIopCompleteCanceledIrp)
+#pragma alloc_text(PAGE, FspIopRetryCompleteIrp)
+#pragma alloc_text(PAGE, FspIopIrpResponse)
 #pragma alloc_text(PAGE, FspIopDispatchPrepare)
 #pragma alloc_text(PAGE, FspIopDispatchComplete)
-#pragma alloc_text(PAGE, FspIopDispatchRetryComplete)
 #endif
 
 static const LONG Delays[] =
@@ -81,6 +83,7 @@ typedef struct
 {
     FSP_IOP_REQUEST_FINI *RequestFini;
     PVOID Context[3];
+    FSP_FSCTL_TRANSACT_RSP *Response;
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 RequestBuf[];
 } FSP_FSCTL_TRANSACT_REQ_HEADER;
 
@@ -141,6 +144,9 @@ VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request)
 
     if (0 != RequestHeader->RequestFini)
         RequestHeader->RequestFini(RequestHeader->Context);
+
+    if (0 != RequestHeader->Response)
+        FspFree(RequestHeader->Response);
 
     FspFree(RequestHeader);
 }
@@ -260,6 +266,39 @@ VOID FspIopCompleteCanceledIrp(PIRP Irp)
     FspIopCompleteIrpEx(Irp, STATUS_CANCELLED, TRUE);
 }
 
+BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response, NTSTATUS *PResult)
+{
+    PAGED_CODE();
+
+    PDEVICE_OBJECT DeviceObject = IoGetCurrentIrpStackLocation(Irp)->DeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
+
+    ASSERT(0 != Request);
+
+    if (0 != Response && RequestHeader->Response != Response)
+    {
+        if (0 != RequestHeader->Response)
+            FspFree(RequestHeader->Response);
+        RequestHeader->Response = FspAllocMustSucceed(Response->Size);
+        RtlCopyMemory(RequestHeader->Response, Response, Response->Size);
+        Response = RequestHeader->Response;
+    }
+
+    return FspIoqRetryCompleteIrp(FsvolDeviceExtension->Ioq, Irp, PResult);
+}
+
+FSP_FSCTL_TRANSACT_RSP *FspIopIrpResponse(PIRP Irp)
+{
+    PAGED_CODE();
+
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
+
+    return RequestHeader->Response;
+}
+
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
 {
     PAGED_CODE();
@@ -285,18 +324,5 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
     return FspIopCompleteFunction[IrpSp->MajorFunction](Irp, Response);
 }
 
-NTSTATUS FspIopDispatchRetryComplete(PIRP Irp)
-{
-    PAGED_CODE();
-
-    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-
-    ASSERT(IRP_MJ_MAXIMUM_FUNCTION >= IrpSp->MajorFunction);
-    ASSERT(0 != FspIopRetryCompleteFunction[IrpSp->MajorFunction]);
-
-    return FspIopRetryCompleteFunction[IrpSp->MajorFunction](Irp);
-}
-
 FSP_IOPREP_DISPATCH *FspIopPrepareFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];
 FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];
-FSP_IORETR_DISPATCH *FspIopRetryCompleteFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];

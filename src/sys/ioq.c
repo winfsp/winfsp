@@ -329,7 +329,11 @@ static PIRP FspIoqRetriedPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
         }
     }
     else
+    {
+        if (Irp == IrpHint)
+            return 0;
         return Irp;
+    }
 }
 
 _IRQL_raises_(DISPATCH_LEVEL)

@@ -14,10 +14,9 @@ static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
-FSP_IORETR_DISPATCH FspFsvolCreateRetryComplete;
-static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp,
+static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
     FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject,
-    BOOLEAN FlushImage, BOOLEAN Retrying);
+    BOOLEAN FlushImage);
 static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc);
 static FSP_IOP_REQUEST_FINI FspFsvolCreateRequestFini;
 static FSP_IOP_REQUEST_FINI FspFsvolCreateTryOpenRequestFini;
@@ -30,7 +29,6 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreate)
 #pragma alloc_text(PAGE, FspFsvolCreatePrepare)
 #pragma alloc_text(PAGE, FspFsvolCreateComplete)
-#pragma alloc_text(PAGE, FspFsvolCreateRetryComplete)
 #pragma alloc_text(PAGE, FspFsvolCreateTryOpen)
 #pragma alloc_text(PAGE, FspFsvolCreatePostClose)
 #pragma alloc_text(PAGE, FspFsvolCreateRequestFini)
@@ -532,7 +530,6 @@ NTSTATUS FspFsvolCreateComplete(
         FileNode->IsDirectory = BooleanFlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes,
             FILE_ATTRIBUTE_DIRECTORY);
         FileDesc->UserContext2 = Response->Rsp.Create.Opened.UserContext2;
-        FileDesc->State.FileInfo = Response->Rsp.Create.Opened.FileInfo;
 
         DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
 
@@ -580,7 +577,7 @@ NTSTATUS FspFsvolCreateComplete(
                 (FlagOn(Response->Rsp.Create.Opened.GrantedAccess, FILE_WRITE_DATA) ||
                 DeleteOnClose);
 
-            Result = FspFsvolCreateTryOpen(Irp, FileNode, FileDesc, FileObject, FlushImage, FALSE);
+            Result = FspFsvolCreateTryOpen(Irp, Response, FileNode, FileDesc, FileObject, FlushImage);
         }
         else
         if (FILE_SUPERSEDED == Response->IoStatus.Information ||
@@ -632,7 +629,7 @@ NTSTATUS FspFsvolCreateComplete(
         else
         {
             /* SUCCESS! */
-            FspFileNodeSetFileInfo(FileNode, &FileDesc->State.FileInfo);
+            FspFileNodeSetFileInfo(FileNode, &Response->Rsp.Create.Opened.FileInfo);
             FspIopRequestContext(Request, RequestFileDesc) = 0;
             Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
             Result = STATUS_SUCCESS;
@@ -666,6 +663,16 @@ NTSTATUS FspFsvolCreateComplete(
         Irp->IoStatus.Information = Request->Req.Overwrite.Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
         Result = STATUS_SUCCESS;
     }
+    else if (FspFsctlTransactReservedKind == Request->Kind)
+    {
+        /*
+         * A Reserved request is a special request used when retrying a file open.
+         */
+
+        BOOLEAN FlushImage = 0 != FspIopRequestContext(Request, RequestState);
+
+        Result = FspFsvolCreateTryOpen(Irp, Response, FileNode, FileDesc, FileObject, FlushImage);
+    }
     else
         ASSERT(0);
 
@@ -674,77 +681,43 @@ NTSTATUS FspFsvolCreateComplete(
         IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName);
 }
 
-NTSTATUS FspFsvolCreateRetryComplete(
-    PIRP Irp)
-{
-    PAGED_CODE();
-
-    NTSTATUS Result;
-    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
-    FSP_FILE_NODE *FileNode;
-    FSP_FILE_DESC *FileDesc;
-    PFILE_OBJECT FileObject;
-    BOOLEAN FlushImage;
-
-    ASSERT(FspFsctlTransactCreateKind == Request->Kind);
-
-    FileDesc = FspIopRequestContext(Request, RequestFileDesc);
-    FileNode = FileDesc->FileNode;
-    FileObject = FspIopRequestContext(Request, RequestFileObject);
-    FlushImage = 0 != FspIopRequestContext(Request, RequestState);
-
-    Result = FspFsvolCreateTryOpen(Irp, FileNode, FileDesc, FileObject, FlushImage, TRUE);
-    if (STATUS_PENDING == Result)
-        return Result;
-    else
-    {
-        DEBUGLOGIRP(Irp, Result);
-
-        FspIopCompleteIrp(Irp, Result);
-        return STATUS_SUCCESS;
-    }
-}
-
-static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp,
+static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
     FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject,
-    BOOLEAN FlushImage, BOOLEAN Retrying)
+    BOOLEAN FlushImage)
 {
     PAGED_CODE();
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     BOOLEAN Success;
 
-    ASSERT(FspFsctlTransactCreateKind == Request->Kind);
-
     Success = FspFileNodeTryAcquireExclusive(FileNode, Both);
     if (!Success)
     {
         /* repost the IRP to retry later */
         NTSTATUS Result;
-        PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-            FspFsvolDeviceExtension(IrpSp->DeviceObject);
 
-        if (!Retrying)
+        if (FspFsctlTransactCreateKind == Request->Kind)
         {
             /* disassociate the FileDesc momentarily from the Request */
             Request = FspIrpRequest(Irp);
             FspIopRequestContext(Request, RequestFileDesc) = 0;
 
             /* reset the Request and reassociate the FileDesc and FileObject with it */
+            Request->Kind = FspFsctlTransactReservedKind;
             FspIopResetRequest(Request, FspFsvolCreateTryOpenRequestFini);
             FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
             FspIopRequestContext(Request, RequestFileObject) = FileObject;
             FspIopRequestContext(Request, RequestState) = (PVOID)(UINT_PTR)FlushImage;
         }
 
-        FspIoqRetryCompleteIrp(FsvolDeviceExtension->Ioq, Irp, &Result);
+        FspIopRetryCompleteIrp(Irp, Response, &Result);
 
         return Result;
     }
 
     FspFileObjectSetSizes(FileObject,
-        FileDesc->State.FileInfo.AllocationSize, FileDesc->State.FileInfo.FileSize);
+        Response->Rsp.Create.Opened.FileInfo.AllocationSize,
+        Response->Rsp.Create.Opened.FileInfo.FileSize);
 
     if (FlushImage)
     {
@@ -769,7 +742,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp,
         FspFileNodeRelease(FileNode, Both);
 
     /* SUCCESS! */
-    FspFileNodeSetFileInfo(FileNode, &FileDesc->State.FileInfo);
+    FspFileNodeSetFileInfo(FileNode, &Response->Rsp.Create.Opened.FileInfo);
     FspIopRequestContext(Request, RequestFileDesc) = 0;
     Irp->IoStatus.Information = FILE_OPENED;
     return STATUS_SUCCESS;
