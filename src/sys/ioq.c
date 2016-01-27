@@ -288,26 +288,26 @@ static VOID FspIoqProcessCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
     Ioq->CompleteCanceledIrp(Irp);
 }
 
-static NTSTATUS FspIoqRetryInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
+static NTSTATUS FspIoqRetriedInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
 {
-    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, RetryIoCsq);
+    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, RetriedIoCsq);
     if (Ioq->Stopped)
         return STATUS_CANCELLED;
-    InsertTailList(&Ioq->RetryIrpList, &Irp->Tail.Overlay.ListEntry);
+    InsertTailList(&Ioq->RetriedIrpList, &Irp->Tail.Overlay.ListEntry);
     return STATUS_SUCCESS;
 }
 
-static VOID FspIoqRetryRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
+static VOID FspIoqRetriedRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
     RemoveEntryList(&Irp->Tail.Overlay.ListEntry);
 }
 
-static PIRP FspIoqRetryPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
+static PIRP FspIoqRetriedPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
 {
-    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, RetryIoCsq);
+    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, RetriedIoCsq);
     if (PeekContext && Ioq->Stopped)
         return 0;
-    PLIST_ENTRY Head = &Ioq->RetryIrpList;
+    PLIST_ENTRY Head = &Ioq->RetriedIrpList;
     PLIST_ENTRY Entry = 0 == Irp ? Head->Flink : Irp->Tail.Overlay.ListEntry.Flink;
     if (Head == Entry)
         return 0;
@@ -337,22 +337,22 @@ static PIRP FspIoqRetryPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
 }
 
 _IRQL_raises_(DISPATCH_LEVEL)
-static VOID FspIoqRetryAcquireLock(PIO_CSQ IoCsq, _At_(*PIrql, _IRQL_saves_) PKIRQL PIrql)
+static VOID FspIoqRetriedAcquireLock(PIO_CSQ IoCsq, _At_(*PIrql, _IRQL_saves_) PKIRQL PIrql)
 {
-    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, RetryIoCsq);
+    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, RetriedIoCsq);
     KeAcquireSpinLock(&Ioq->SpinLock, PIrql);
 }
 
 _IRQL_requires_(DISPATCH_LEVEL)
-static VOID FspIoqRetryReleaseLock(PIO_CSQ IoCsq, _IRQL_restores_ KIRQL Irql)
+static VOID FspIoqRetriedReleaseLock(PIO_CSQ IoCsq, _IRQL_restores_ KIRQL Irql)
 {
-    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, RetryIoCsq);
+    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, RetriedIoCsq);
     KeReleaseSpinLock(&Ioq->SpinLock, Irql);
 }
 
-static VOID FspIoqRetryCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
+static VOID FspIoqRetriedCompleteCanceledIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
-    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, RetryIoCsq);
+    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, RetriedIoCsq);
     Ioq->CompleteCanceledIrp(Irp);
 }
 
@@ -375,7 +375,7 @@ NTSTATUS FspIoqCreate(
     KeInitializeEvent(&Ioq->PendingIrpEvent, NotificationEvent, FALSE);
     InitializeListHead(&Ioq->PendingIrpList);
     InitializeListHead(&Ioq->ProcessIrpList);
-    InitializeListHead(&Ioq->RetryIrpList);
+    InitializeListHead(&Ioq->RetriedIrpList);
     IoCsqInitializeEx(&Ioq->PendingIoCsq,
         FspIoqPendingInsertIrpEx,
         FspIoqPendingRemoveIrp,
@@ -390,13 +390,13 @@ NTSTATUS FspIoqCreate(
         FspIoqProcessAcquireLock,
         FspIoqProcessReleaseLock,
         FspIoqProcessCompleteCanceledIrp);
-    IoCsqInitializeEx(&Ioq->RetryIoCsq,
-        FspIoqRetryInsertIrpEx,
-        FspIoqRetryRemoveIrp,
-        FspIoqRetryPeekNextIrp,
-        FspIoqRetryAcquireLock,
-        FspIoqRetryReleaseLock,
-        FspIoqRetryCompleteCanceledIrp);
+    IoCsqInitializeEx(&Ioq->RetriedIoCsq,
+        FspIoqRetriedInsertIrpEx,
+        FspIoqRetriedRemoveIrp,
+        FspIoqRetriedPeekNextIrp,
+        FspIoqRetriedAcquireLock,
+        FspIoqRetriedReleaseLock,
+        FspIoqRetriedCompleteCanceledIrp);
     Ioq->IrpTimeout = ConvertInterruptTimeToSec(IrpTimeout->QuadPart + InterruptTimeToSecFactor - 1);
         /* convert to seconds (and round up) */
     Ioq->PendingIrpCapacity = IrpCapacity;
@@ -427,7 +427,7 @@ VOID FspIoqStop(FSP_IOQ *Ioq)
         Ioq->CompleteCanceledIrp(Irp);
     while (0 != (Irp = FspCsqRemoveNextIrp(&Ioq->ProcessIoCsq, 0)))
         Ioq->CompleteCanceledIrp(Irp);
-    while (0 != (Irp = FspCsqRemoveNextIrp(&Ioq->RetryIoCsq, 0)))
+    while (0 != (Irp = FspCsqRemoveNextIrp(&Ioq->RetriedIoCsq, 0)))
         Ioq->CompleteCanceledIrp(Irp);
 }
 
@@ -527,14 +527,14 @@ BOOLEAN FspIoqRetryCompleteIrp(FSP_IOQ *Ioq, PIRP Irp)
     if (FspIrpTimestampInfinity != FspIrpTimestamp(Irp))
         FspIrpTimestamp(Irp) = QueryInterruptTimeInSec() + Ioq->IrpTimeout;
 #endif
-    Result = FspCsqInsertIrpEx(&Ioq->RetryIoCsq, Irp, 0, 0);
+    Result = FspCsqInsertIrpEx(&Ioq->RetriedIoCsq, Irp, 0, 0);
     return NT_SUCCESS(Result);
 }
 
-PIRP FspIoqNextCompletedIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp)
+PIRP FspIoqNextCompleteIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp)
 {
     FSP_IOQ_PEEK_CONTEXT PeekContext;
     PeekContext.IrpHint = 0 != BoundaryIrp ? BoundaryIrp : (PVOID)1;
     PeekContext.ExpirationTime = 0;
-    return IoCsqRemoveNextIrp(&Ioq->RetryIoCsq, &PeekContext);
+    return IoCsqRemoveNextIrp(&Ioq->RetriedIoCsq, &PeekContext);
 }
