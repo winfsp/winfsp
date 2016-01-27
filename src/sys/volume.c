@@ -594,9 +594,7 @@ NTSTATUS FspVolumeTransact(
         PendingIrpRequest = FspIrpRequest(PendingIrp);
 
         Result = FspIopDispatchPrepare(PendingIrp, PendingIrpRequest);
-        if (FSP_STATUS_COMPLETED == Result)
-            ;
-        else if (STATUS_PENDING == Result)
+        if (STATUS_PENDING == Result)
         {
             /*
              * The IRP has been reposted to our Ioq. Remember the first such IRP,

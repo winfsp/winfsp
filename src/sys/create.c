@@ -362,38 +362,7 @@ NTSTATUS FspFsvolCreatePrepare(
     FSP_FILE_DESC *FileDesc;
     PFILE_OBJECT FileObject;
 
-    if (FspFsctlTransactReservedKind == Request->Kind)
-    {
-        /*
-         * This branch is not taken during IRP preparation, but rather during IRP completion
-         * when FlushImageSection needs to be retried.
-         */
-        FileDesc = FspIopRequestContext(Request, RequestFileDesc);
-        FileNode = FileDesc->FileNode;
-        FileObject = FspIopRequestContext(Request, RequestFileObject);
-
-        Result = FspFsvolCreateTryOpen(Irp, Request, FileNode, FileDesc, FileObject);
-        if (STATUS_PENDING == Result)
-            return Result;
-        else
-        {
-            if (NT_SUCCESS(Result))
-            {
-                /* SUCCESS! */
-                FspFileNodeSetFileInfo(FileNode, &FileDesc->State.FileInfo);
-                FspIopRequestContext(Request, RequestFileDesc) = 0;
-                Irp->IoStatus.Information = FILE_OPENED;
-                Result = STATUS_SUCCESS;
-            }
-
-            DEBUGLOGIRP(Irp, Result);
-
-            FspIopCompleteIrp(Irp, Result);
-
-            return FSP_STATUS_COMPLETED;
-        }
-    }
-    else if (FspFsctlTransactCreateKind == Request->Kind)
+    if (FspFsctlTransactCreateKind == Request->Kind)
     {
         SecuritySubjectContext = &IrpSp->Parameters.Create.SecurityContext->
             AccessState->SubjectSecurityContext;
@@ -718,7 +687,38 @@ NTSTATUS FspFsvolCreateRetryComplete(
 {
     PAGED_CODE();
 
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Result;
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    FSP_FILE_NODE *FileNode;
+    FSP_FILE_DESC *FileDesc;
+    PFILE_OBJECT FileObject;
+
+    ASSERT(FspFsctlTransactReservedKind == Request->Kind);
+
+    FileDesc = FspIopRequestContext(Request, RequestFileDesc);
+    FileNode = FileDesc->FileNode;
+    FileObject = FspIopRequestContext(Request, RequestFileObject);
+
+    Result = FspFsvolCreateTryOpen(Irp, Request, FileNode, FileDesc, FileObject);
+    if (STATUS_PENDING == Result)
+        return Result;
+    else
+    {
+        if (NT_SUCCESS(Result))
+        {
+            /* SUCCESS! */
+            FspFileNodeSetFileInfo(FileNode, &FileDesc->State.FileInfo);
+            FspIopRequestContext(Request, RequestFileDesc) = 0;
+            Irp->IoStatus.Information = FILE_OPENED;
+            Result = STATUS_SUCCESS;
+        }
+
+        DEBUGLOGIRP(Irp, Result);
+
+        FspIopCompleteIrp(Irp, Result);
+
+        return STATUS_SUCCESS;
+    }
 }
 
 static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,
@@ -760,7 +760,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request,
             Request->Kind = FspFsctlTransactReservedKind;
         }
 
-        FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, &Result);
+        FspIoqRetryCompleteIrp(FsvolDeviceExtension->Ioq, Irp, &Result);
 
         return Result;
     }
