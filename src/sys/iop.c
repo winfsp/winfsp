@@ -18,6 +18,7 @@ NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
 static IO_COMPLETION_ROUTINE FspIopPostWorkRequestCompletion;
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference);
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
+BOOLEAN FspIopRetryPrepareIrp(PIRP Irp, NTSTATUS *PResult);
 BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response, NTSTATUS *PResult);
 FSP_FSCTL_TRANSACT_RSP *FspIopIrpResponse(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
@@ -31,6 +32,7 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
 #pragma alloc_text(PAGE, FspIopPostWorkRequestFunnel)
 #pragma alloc_text(PAGE, FspIopCompleteIrpEx)
 #pragma alloc_text(PAGE, FspIopCompleteCanceledIrp)
+#pragma alloc_text(PAGE, FspIopRetryPrepareIrp)
 #pragma alloc_text(PAGE, FspIopRetryCompleteIrp)
 #pragma alloc_text(PAGE, FspIopIrpResponse)
 #pragma alloc_text(PAGE, FspIopDispatchPrepare)
@@ -264,6 +266,16 @@ VOID FspIopCompleteCanceledIrp(PIRP Irp)
     DEBUGLOGIRP(Irp, STATUS_CANCELLED);
 
     FspIopCompleteIrpEx(Irp, STATUS_CANCELLED, TRUE);
+}
+
+BOOLEAN FspIopRetryPrepareIrp(PIRP Irp, NTSTATUS *PResult)
+{
+    PAGED_CODE();
+
+    PDEVICE_OBJECT DeviceObject = IoGetCurrentIrpStackLocation(Irp)->DeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+
+    return FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, PResult);
 }
 
 BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response, NTSTATUS *PResult)

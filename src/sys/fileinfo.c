@@ -562,6 +562,7 @@ NTSTATUS FspFsvolQueryInformationComplete(
 
     ASSERT(FSP_STATUS_IOQ_POST != Result);
 
+    if (STATUS_PENDING != Result)
     Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
 
     FSP_LEAVE_IOC("%s, FileObject=%p",

@@ -405,13 +405,10 @@ NTSTATUS FspFsvolCreatePrepare(
         FileObject = FspIopRequestContext(Request, RequestFileObject);
 
         /* lock the FileNode for overwriting */
-        Success = FspFileNodeTryAcquireExclusive(FileNode, Both);
+        Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Both);
         if (!Success)
         {
-            /* repost the IRP to retry later */
-            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-                FspFsvolDeviceExtension(IrpSp->DeviceObject);
-            FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, &Result);
+            FspIopRetryPrepareIrp(Irp, &Result);
             return Result;
         }
 
