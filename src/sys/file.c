@@ -13,7 +13,9 @@ VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);
 BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);
+VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
+VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
@@ -33,7 +35,9 @@ VOID FspFileObjectSetSizes(PFILE_OBJECT FileObject,
 #pragma alloc_text(PAGE, FspFileNodeTryAcquireSharedF)
 #pragma alloc_text(PAGE, FspFileNodeAcquireExclusiveF)
 #pragma alloc_text(PAGE, FspFileNodeTryAcquireExclusiveF)
+#pragma alloc_text(PAGE, FspFileNodeSetOwnerF)
 #pragma alloc_text(PAGE, FspFileNodeReleaseF)
+#pragma alloc_text(PAGE, FspFileNodeReleaseOwnerF)
 #pragma alloc_text(PAGE, FspFileNodeOpen)
 #pragma alloc_text(PAGE, FspFileNodeClose)
 #pragma alloc_text(PAGE, FspFileNodeGetFileInfo)
@@ -179,6 +183,19 @@ BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags)
     return Result;
 }
 
+VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
+{
+    PAGED_CODE();
+
+    Owner = (PVOID)((UINT_PTR)Owner | 3);
+
+    if (Flags & FspFileNodeAcquireMain)
+        ExSetResourceOwnerPointer(FileNode->Header.Resource, Owner);
+
+    if (Flags & FspFileNodeAcquirePgio)
+        ExSetResourceOwnerPointer(FileNode->Header.PagingIoResource, Owner);
+}
+
 VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
@@ -188,6 +205,29 @@ VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags)
 
     if (Flags & FspFileNodeAcquireMain)
         ExReleaseResourceLite(FileNode->Header.Resource);
+}
+
+VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
+{
+    PAGED_CODE();
+
+    Owner = (PVOID)((UINT_PTR)Owner | 3);
+
+    if (Flags & FspFileNodeAcquirePgio)
+    {
+        if (ExIsResourceAcquiredLite(FileNode->Header.PagingIoResource))
+            ExReleaseResourceLite(FileNode->Header.PagingIoResource);
+        else
+            ExReleaseResourceForThreadLite(FileNode->Header.PagingIoResource, (ERESOURCE_THREAD)Owner);
+    }
+
+    if (Flags & FspFileNodeAcquireMain)
+    {
+        if (ExIsResourceAcquiredLite(FileNode->Header.Resource))
+            ExReleaseResourceLite(FileNode->Header.Resource);
+        else
+            ExReleaseResourceForThreadLite(FileNode->Header.Resource, (ERESOURCE_THREAD)Owner);
+    }
 }
 
 FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,

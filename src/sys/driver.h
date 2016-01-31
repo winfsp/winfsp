@@ -547,7 +547,7 @@ enum
 {
     FspFileNodeAcquireMain              = 1,
     FspFileNodeAcquirePgio              = 2,
-    FspFileNodeAcquireBoth              = 3,
+    FspFileNodeAcquireFull              = 3,
 };
 typedef struct
 {
@@ -614,7 +614,9 @@ VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);
 BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);
+VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
+VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
@@ -630,7 +632,9 @@ VOID FspFileObjectSetSizes(PFILE_OBJECT FileObject,
 #define FspFileNodeTryAcquireShared(N,F)    FspFileNodeTryAcquireSharedF(N, FspFileNodeAcquire ## F)
 #define FspFileNodeAcquireExclusive(N,F)    FspFileNodeAcquireExclusiveF(N, FspFileNodeAcquire ## F)
 #define FspFileNodeTryAcquireExclusive(N,F) FspFileNodeTryAcquireExclusiveF(N, FspFileNodeAcquire ## F)
+#define FspFileNodeSetOwner(N,F,P)      FspFileNodeSetOwnerF(N, FspFileNodeAcquire ## F, P)
 #define FspFileNodeRelease(N,F)         FspFileNodeReleaseF(N, FspFileNodeAcquire ## F)
+#define FspFileNodeReleaseOwner(N,F,P)  FspFileNodeReleaseOwnerF(N, FspFileNodeAcquire ## F, P)
 
 /* debug */
 #if DBG

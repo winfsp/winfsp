@@ -105,13 +105,13 @@ static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
             return FSP_STATUS_IOQ_POST;
         FileInfo = &FileInfoBuf;
 
-        FspFileNodeAcquireShared(FileNode, Both);
+        FspFileNodeAcquireShared(FileNode, Full);
     }
     else if (0 == Response)
     {
-        FspFileNodeAcquireShared(FileNode, Both);
+        FspFileNodeAcquireShared(FileNode, Full);
         FspIopRequestContext(Request, RequestFileNode) = FileNode;
-        FspIopRequestContext(Request, RequestAcquireFlags) = (PVOID)FspFileNodeAcquireBoth;
+        FspIopRequestContext(Request, RequestAcquireFlags) = (PVOID)FspFileNodeAcquireFull;
 
         return FSP_STATUS_IOQ_POST;
     }
@@ -300,13 +300,13 @@ static NTSTATUS FspFsvolQueryNetworkOpenInformation(PFILE_OBJECT FileObject,
             return FSP_STATUS_IOQ_POST;
         FileInfo = &FileInfoBuf;
 
-        FspFileNodeAcquireShared(FileNode, Both);
+        FspFileNodeAcquireShared(FileNode, Full);
     }
     else if (0 == Response)
     {
-        FspFileNodeAcquireShared(FileNode, Both);
+        FspFileNodeAcquireShared(FileNode, Full);
         FspIopRequestContext(Request, RequestFileNode) = FileNode;
-        FspIopRequestContext(Request, RequestAcquireFlags) = (PVOID)FspFileNodeAcquireBoth;
+        FspIopRequestContext(Request, RequestAcquireFlags) = (PVOID)FspFileNodeAcquireFull;
 
         return FSP_STATUS_IOQ_POST;
     }
@@ -320,7 +320,7 @@ static NTSTATUS FspFsvolQueryNetworkOpenInformation(PFILE_OBJECT FileObject,
     Info->AllocationSize = FileNode->Header.AllocationSize;
     Info->EndOfFile = FileNode->Header.FileSize;
 
-    FspFileNodeRelease(FileNode, Both);
+    FspFileNodeRelease(FileNode, Full);
 
     Info->CreationTime.QuadPart = FileInfo->CreationTime;
     Info->LastAccessTime.QuadPart = FileInfo->LastAccessTime;
@@ -376,13 +376,13 @@ static NTSTATUS FspFsvolQueryStandardInformation(PFILE_OBJECT FileObject,
             return FSP_STATUS_IOQ_POST;
         FileInfo = &FileInfoBuf;
 
-        FspFileNodeAcquireShared(FileNode, Both);
+        FspFileNodeAcquireShared(FileNode, Full);
     }
     else if (0 == Response)
     {
-        FspFileNodeAcquireShared(FileNode, Both);
+        FspFileNodeAcquireShared(FileNode, Full);
         FspIopRequestContext(Request, RequestFileNode) = FileNode;
-        FspIopRequestContext(Request, RequestAcquireFlags) = (PVOID)FspFileNodeAcquireBoth;
+        FspIopRequestContext(Request, RequestAcquireFlags) = (PVOID)FspFileNodeAcquireFull;
 
         return FSP_STATUS_IOQ_POST;
     }
@@ -587,18 +587,18 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
 
         Request->Req.SetInformation.Info.Allocation.AllocationSize = Info->AllocationSize.QuadPart;
 
-        FspFileNodeAcquireExclusive(FileNode, Both);
+        FspFileNodeAcquireExclusive(FileNode, Full);
 
         Success = MmCanFileBeTruncated(FileObject->SectionObjectPointer, &Info->AllocationSize);
         if (!Success)
         {
-            FspFileNodeRelease(FileNode, Both);
+            FspFileNodeRelease(FileNode, Full);
 
             return STATUS_USER_MAPPED_FILE;
         }
 
         FspIopRequestContext(Request, RequestFileNode) = FileNode;
-        FspIopRequestContext(Request, RequestAcquireFlags) = (PVOID)FspFileNodeAcquireBoth;
+        FspIopRequestContext(Request, RequestAcquireFlags) = (PVOID)FspFileNodeAcquireFull;
 
         return FSP_STATUS_IOQ_POST;
     }
@@ -614,7 +614,7 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
         FileNode->CcStatus = FspCcSetFileSizes(
             FileObject, (PCC_FILE_SIZES)&FileNode->Header.AllocationSize);
 
-        FspFileNodeRelease(FileNode, Both);
+        FspFileNodeRelease(FileNode, Full);
 
         return STATUS_SUCCESS;
     }

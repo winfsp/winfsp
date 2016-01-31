@@ -405,7 +405,7 @@ NTSTATUS FspFsvolCreatePrepare(
         FileObject = FspIopRequestContext(Request, RequestFileObject);
 
         /* lock the FileNode for overwriting */
-        Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Both);
+        Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Full);
         if (!Success)
         {
             FspIopRetryPrepareIrp(Irp, &Result);
@@ -417,7 +417,7 @@ NTSTATUS FspFsvolCreatePrepare(
         Success = MmCanFileBeTruncated(&FileNode->NonPaged->SectionObjectPointers, &Zero);
         if (!Success)
         {
-            FspFileNodeRelease(FileNode, Both);
+            FspFileNodeRelease(FileNode, Full);
 
             return STATUS_USER_MAPPED_FILE;
         }
@@ -652,7 +652,7 @@ NTSTATUS FspFsvolCreateComplete(
             Response->Rsp.Overwrite.FileInfo.AllocationSize,
             Response->Rsp.Overwrite.FileInfo.FileSize);
 
-        FspFileNodeRelease(FileNode, Both);
+        FspFileNodeRelease(FileNode, Full);
 
         /* SUCCESS! */
         FspFileNodeSetFileInfo(FileNode, &Response->Rsp.Overwrite.FileInfo);
@@ -687,7 +687,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     BOOLEAN Success;
 
-    Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Both);
+    Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Full);
     if (!Success)
     {
         /* repost the IRP to retry later */
@@ -720,7 +720,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     {
         Success = MmFlushImageSection(&FileNode->NonPaged->SectionObjectPointers,
             MmFlushForWrite);
-        FspFileNodeRelease(FileNode, Both);
+        FspFileNodeRelease(FileNode, Full);
         if (!Success)
         {
             PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
@@ -736,7 +736,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
         }
     }
     else
-        FspFileNodeRelease(FileNode, Both);
+        FspFileNodeRelease(FileNode, Full);
 
     /* SUCCESS! */
     FspFileNodeSetFileInfo(FileNode, &Response->Rsp.Create.Opened.FileInfo);
@@ -854,7 +854,7 @@ static VOID FspFsvolCreateOverwriteRequestFini(PVOID Context[3])
         if (RequestPending == State)
             FspFsvolCreatePostClose(FileDesc);
         else if (RequestProcessing == State)
-            FspFileNodeRelease(FileDesc->FileNode, Both);
+            FspFileNodeRelease(FileDesc->FileNode, Full);
 
         FspFileNodeClose(FileDesc->FileNode, FileObject, 0);
         FspFileNodeDereference(FileDesc->FileNode);
