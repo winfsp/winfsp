@@ -520,8 +520,6 @@ NTSTATUS FspFsvolCreateComplete(
         }
 
         /* populate the FileNode/FileDesc fields from the Response */
-        FileNode->Header.AllocationSize.QuadPart = Response->Rsp.Create.Opened.FileInfo.AllocationSize;
-        FileNode->Header.FileSize.QuadPart = Response->Rsp.Create.Opened.FileInfo.FileSize;
         FileNode->UserContext = Response->Rsp.Create.Opened.UserContext;
         FileNode->IndexNumber = Response->Rsp.Create.Opened.FileInfo.IndexNumber;
         FileNode->IsDirectory = BooleanFlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes,
@@ -558,7 +556,8 @@ NTSTATUS FspFsvolCreateComplete(
         FileObject->FsContext = FileNode;
         FileObject->FsContext2 = FileDesc;
 
-        if (FILE_OPENED == Response->IoStatus.Information)
+        if (FILE_SUPERSEDED != Response->IoStatus.Information &&
+            FILE_OVERWRITTEN != Response->IoStatus.Information)
         {
             /*
              * FastFat quote:
@@ -577,8 +576,6 @@ NTSTATUS FspFsvolCreateComplete(
             Result = FspFsvolCreateTryOpen(Irp, Response, FileNode, FileDesc, FileObject, FlushImage);
         }
         else
-        if (FILE_SUPERSEDED == Response->IoStatus.Information ||
-            FILE_OVERWRITTEN == Response->IoStatus.Information)
         {
             /*
              * Oh, noes! We have to go back to user mode to overwrite the file!
@@ -623,14 +620,16 @@ NTSTATUS FspFsvolCreateComplete(
              */
             FspIoqPostIrpBestEffort(FsvolDeviceExtension->Ioq, Irp, &Result);
         }
-        else
-        {
-            /* SUCCESS! */
-            FspFileNodeSetFileInfo(FileNode, &Response->Rsp.Create.Opened.FileInfo);
-            FspIopRequestContext(Request, RequestFileDesc) = 0;
-            Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
-            Result = STATUS_SUCCESS;
-        }
+    }
+    else if (FspFsctlTransactReservedKind == Request->Kind)
+    {
+        /*
+         * A Reserved request is a special request used when retrying a file open.
+         */
+
+        BOOLEAN FlushImage = 0 != FspIopRequestContext(Request, RequestState);
+
+        Result = FspFsvolCreateTryOpen(Irp, Response, FileNode, FileDesc, FileObject, FlushImage);
     }
     else if (FspFsctlTransactOverwriteKind == Request->Kind)
     {
@@ -648,27 +647,13 @@ NTSTATUS FspFsvolCreateComplete(
         }
 
         /* file was successfully overwritten/superseded */
-        FspFileObjectSetSizes(FileObject,
-            Response->Rsp.Overwrite.FileInfo.AllocationSize,
-            Response->Rsp.Overwrite.FileInfo.FileSize);
-
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Overwrite.FileInfo);
         FspFileNodeRelease(FileNode, Full);
 
         /* SUCCESS! */
-        FspFileNodeSetFileInfo(FileNode, &Response->Rsp.Overwrite.FileInfo);
         FspIopRequestContext(Request, RequestFileDesc) = 0;
         Irp->IoStatus.Information = Request->Req.Overwrite.Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
         Result = STATUS_SUCCESS;
-    }
-    else if (FspFsctlTransactReservedKind == Request->Kind)
-    {
-        /*
-         * A Reserved request is a special request used when retrying a file open.
-         */
-
-        BOOLEAN FlushImage = 0 != FspIopRequestContext(Request, RequestState);
-
-        Result = FspFsvolCreateTryOpen(Irp, Response, FileNode, FileDesc, FileObject, FlushImage);
     }
     else
         ASSERT(0);
@@ -712,9 +697,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
         return Result;
     }
 
-    FspFileObjectSetSizes(FileObject,
-        Response->Rsp.Create.Opened.FileInfo.AllocationSize,
-        Response->Rsp.Create.Opened.FileInfo.FileSize);
+    FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Create.Opened.FileInfo);
 
     if (FlushImage)
     {
@@ -739,9 +722,8 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
         FspFileNodeRelease(FileNode, Full);
 
     /* SUCCESS! */
-    FspFileNodeSetFileInfo(FileNode, &Response->Rsp.Create.Opened.FileInfo);
     FspIopRequestContext(Request, RequestFileDesc) = 0;
-    Irp->IoStatus.Information = FILE_OPENED;
+    Irp->IoStatus.Information = Response->IoStatus.Information;
     return STATUS_SUCCESS;
 }
 
