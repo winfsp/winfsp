@@ -145,7 +145,7 @@ VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request)
     FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
 
     if (0 != RequestHeader->RequestFini)
-        RequestHeader->RequestFini(RequestHeader->Context);
+        RequestHeader->RequestFini(Request, RequestHeader->Context);
 
     if (0 != RequestHeader->Response)
         FspFree(RequestHeader->Response);
@@ -160,7 +160,7 @@ VOID FspIopResetRequest(FSP_FSCTL_TRANSACT_REQ *Request, FSP_IOP_REQUEST_FINI *R
     FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
 
     if (0 != RequestHeader->RequestFini)
-        RequestHeader->RequestFini(RequestHeader->Context);
+        RequestHeader->RequestFini(Request, RequestHeader->Context);
 
     RtlZeroMemory(&RequestHeader->Context, sizeof RequestHeader->Context);
     RequestHeader->RequestFini = RequestFini;

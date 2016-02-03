@@ -422,10 +422,11 @@ NTSTATUS FspFsvolCreatePrepare(
             return STATUS_USER_MAPPED_FILE;
         }
 
-        FspIopRequestContext(Request, RequestState) = (PVOID)RequestProcessing;
-
         /* purge any caches on this file */
         CcPurgeCacheSection(&FileNode->NonPaged->SectionObjectPointers, 0, 0, FALSE);
+
+        FspFileNodeSetOwner(FileNode, Full, Request);
+        FspIopRequestContext(Request, RequestState) = (PVOID)RequestProcessing;
 
         return STATUS_SUCCESS;
     }
@@ -648,7 +649,7 @@ NTSTATUS FspFsvolCreateComplete(
 
         /* file was successfully overwritten/superseded */
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Overwrite.FileInfo);
-        FspFileNodeRelease(FileNode, Full);
+        FspFileNodeReleaseOwner(FileNode, Full, Request);
 
         /* SUCCESS! */
         FspIopRequestContext(Request, RequestFileDesc) = 0;
@@ -760,7 +761,7 @@ static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc)
      */
 }
 
-static VOID FspFsvolCreateRequestFini(PVOID Context[3])
+static VOID FspFsvolCreateRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[3])
 {
     PAGED_CODE();
 
@@ -797,11 +798,9 @@ static VOID FspFsvolCreateRequestFini(PVOID Context[3])
 
         ObDereferenceObject(Process);
     }
-
-    Context[RequestFileDesc] = Context[RequestAccessToken] = Context[RequestProcess] = 0;
 }
 
-static VOID FspFsvolCreateTryOpenRequestFini(PVOID Context[3])
+static VOID FspFsvolCreateTryOpenRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[3])
 {
     PAGED_CODE();
 
@@ -817,11 +816,9 @@ static VOID FspFsvolCreateTryOpenRequestFini(PVOID Context[3])
         FspFileNodeDereference(FileDesc->FileNode);
         FspFileDescDelete(FileDesc);
     }
-
-    Context[RequestFileDesc] = Context[RequestFileObject] = Context[RequestState] = 0;
 }
 
-static VOID FspFsvolCreateOverwriteRequestFini(PVOID Context[3])
+static VOID FspFsvolCreateOverwriteRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[3])
 {
     PAGED_CODE();
 
@@ -836,14 +833,12 @@ static VOID FspFsvolCreateOverwriteRequestFini(PVOID Context[3])
         if (RequestPending == State)
             FspFsvolCreatePostClose(FileDesc);
         else if (RequestProcessing == State)
-            FspFileNodeRelease(FileDesc->FileNode, Full);
+            FspFileNodeReleaseOwner(FileDesc->FileNode, Full, Request);
 
         FspFileNodeClose(FileDesc->FileNode, FileObject, 0);
         FspFileNodeDereference(FileDesc->FileNode);
         FspFileDescDelete(FileDesc);
     }
-
-    Context[RequestFileDesc] = Context[RequestFileObject] = Context[RequestState] = 0;
 }
 
 NTSTATUS FspCreate(
