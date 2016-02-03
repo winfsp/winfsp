@@ -673,7 +673,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     BOOLEAN Success;
 
-    Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Full);
+    Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Main);
     if (!Success)
     {
         /* repost the IRP to retry later */
@@ -704,7 +704,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     {
         Success = MmFlushImageSection(&FileNode->NonPaged->SectionObjectPointers,
             MmFlushForWrite);
-        FspFileNodeRelease(FileNode, Full);
+        FspFileNodeRelease(FileNode, Main);
         if (!Success)
         {
             PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
@@ -720,7 +720,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
         }
     }
     else
-        FspFileNodeRelease(FileNode, Full);
+        FspFileNodeRelease(FileNode, Main);
 
     /* SUCCESS! */
     FspIopRequestContext(Request, RequestFileDesc) = 0;
