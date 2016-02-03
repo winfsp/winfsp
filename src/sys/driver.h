@@ -574,6 +574,7 @@ typedef struct
     UINT64 LastAccessTime;
     UINT64 LastWriteTime;
     UINT64 ChangeTime;
+    ULONG InfoChangeNumber;
     NTSTATUS CcStatus;
     /* read-only after creation (and insertion in the ContextTable) */
     PDEVICE_OBJECT FsvolDeviceObject;
@@ -620,6 +621,8 @@ VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileIn
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo);
+BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
+    const FSP_FSCTL_FILE_INFO *FileInfo, ULONG InfoChangeNumber);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #define FspFileNodeAcquireShared(N,F)   FspFileNodeAcquireSharedF(N, FspFileNodeAcquire ## F)

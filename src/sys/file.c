@@ -24,6 +24,8 @@ VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileIn
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo);
+BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
+    const FSP_FSCTL_FILE_INFO *FileInfo, ULONG InfoChangeNumber);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 
@@ -42,6 +44,7 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #pragma alloc_text(PAGE, FspFileNodeGetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeTryGetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeSetFileInfo)
+#pragma alloc_text(PAGE, FspFileNodeTrySetFileInfo)
 #pragma alloc_text(PAGE, FspFileDescCreate)
 #pragma alloc_text(PAGE, FspFileDescDelete)
 #endif
@@ -412,10 +415,23 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     FileNode->ChangeTime = FileInfo->ChangeTime;
     FileNode->InfoExpirationTime = 0 != FileInfoTimeout ?
         KeQueryInterruptTime() + FileInfoTimeout : 0;
+    FileNode->InfoChangeNumber++;
 
     if (0 != CcFileObject)
         FileNode->CcStatus = FspCcSetFileSizes(
             CcFileObject, (PCC_FILE_SIZES)&FileNode->Header.AllocationSize);
+}
+
+BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
+    const FSP_FSCTL_FILE_INFO *FileInfo, ULONG InfoChangeNumber)
+{
+    PAGED_CODE();
+
+    if (FileNode->InfoChangeNumber != InfoChangeNumber)
+        return FALSE;
+
+    FspFileNodeSetFileInfo(FileNode, CcFileObject, FileInfo);
+    return TRUE;
 }
 
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc)
