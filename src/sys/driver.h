@@ -412,7 +412,7 @@ PIRP FspIoqNextCompleteIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp);
 #define FspIopPostWorkRequestBestEffort(D, R)\
     FspIopPostWorkRequestFunnel(D, R, TRUE)
 #define FspIopCompleteIrp(I, R)         FspIopCompleteIrpEx(I, R, TRUE)
-typedef VOID FSP_IOP_REQUEST_FINI(PVOID Context[3]);
+typedef VOID FSP_IOP_REQUEST_FINI(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[3]);
 NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
     BOOLEAN MustSucceed,
