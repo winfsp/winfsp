@@ -17,7 +17,7 @@ VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    UINT32 GrantedAccess, UINT32 ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
+    UINT32 GrantedAccess, UINT32 ShareAccess, NTSTATUS *PResult);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
@@ -228,7 +228,7 @@ VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
 }
 
 FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    UINT32 GrantedAccess, UINT32 ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult)
+    UINT32 GrantedAccess, UINT32 ShareAccess, NTSTATUS *PResult)
 {
     /*
      * Attempt to insert our FileNode into the volume device's generic table.
@@ -240,7 +240,7 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     FSP_FILE_NODE *OpenedFileNode;
-    BOOLEAN Inserted;
+    BOOLEAN Inserted, DeletePending;
     NTSTATUS Result;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
@@ -269,7 +269,9 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
          */
         ASSERT(OpenedFileNode != FileNode);
 
-        if (OpenedFileNode->Flags.DeletePending)
+        DeletePending = 0 != OpenedFileNode->DeletePending;
+        MemoryBarrier();
+        if (DeletePending)
         {
             Result = STATUS_DELETE_PENDING;
             goto exit;
@@ -310,9 +312,6 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     {
         FspFileNodeReference(OpenedFileNode);
         OpenedFileNode->OpenCount++;
-
-        if (DeleteOnClose)
-            OpenedFileNode->Flags.DeleteOnClose = TRUE;
     }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
@@ -331,13 +330,15 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PAGED_CODE();
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     BOOLEAN Deleted = FALSE, DeletePending;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
-    if (FileNode->Flags.DeleteOnClose)
-        FileNode->Flags.DeletePending = TRUE;
-    DeletePending = 0 != FileNode->Flags.DeletePending;
+    if (FileDesc->DeleteOnClose)
+        FileNode->DeletePending = TRUE;
+    DeletePending = 0 != FileNode->DeletePending;
+    MemoryBarrier();
 
     IoRemoveShareAccess(FileObject, &FileNode->ShareAccess);
     if (0 == --FileNode->OpenCount)

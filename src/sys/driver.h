@@ -562,14 +562,10 @@ typedef struct
     FSP_FILE_NODE_NONPAGED *NonPaged;
     /* interlocked access */
     LONG RefCount;
+    UINT32 DeletePending;
     /* locked access (ContextTable lock) */
     LONG OpenCount;
     SHARE_ACCESS ShareAccess;
-    struct
-    {
-        UINT32 DeleteOnClose:1;
-        UINT32 DeletePending:1;
-    } Flags;
     /* locked under Header.Resource */
     UINT64 InfoExpirationTime;
     UINT32 FileAttributes;
@@ -592,6 +588,7 @@ typedef struct
 {
     FSP_FILE_NODE *FileNode;
     UINT64 UserContext2;
+    BOOLEAN DeleteOnClose;
 } FSP_FILE_DESC;
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode);
@@ -616,7 +613,7 @@ VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    UINT32 GrantedAccess, UINT32 ShareAccess, BOOLEAN DeleteOnClose, NTSTATUS *PResult);
+    UINT32 GrantedAccess, UINT32 ShareAccess, NTSTATUS *PResult);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);

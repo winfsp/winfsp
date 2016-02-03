@@ -451,7 +451,6 @@ NTSTATUS FspFsvolCreateComplete(
     FSP_FILE_NODE *FileNode = FileDesc->FileNode;
     FSP_FILE_NODE *OpenedFileNode;
     UNICODE_STRING ReparseFileName;
-    BOOLEAN DeleteOnClose;
 
     if (FspFsctlTransactCreateKind == Request->Kind)
     {
@@ -526,13 +525,11 @@ NTSTATUS FspFsvolCreateComplete(
         FileNode->IsDirectory = BooleanFlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes,
             FILE_ATTRIBUTE_DIRECTORY);
         FileDesc->UserContext2 = Response->Rsp.Create.Opened.UserContext2;
-
-        DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
+        FileDesc->DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
 
         /* open the FileNode */
         OpenedFileNode = FspFileNodeOpen(FileNode, FileObject,
             Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
-            DeleteOnClose,
             &Result);
         if (0 == OpenedFileNode)
         {
@@ -572,7 +569,7 @@ NTSTATUS FspFsvolCreateComplete(
             BOOLEAN FlushImage =
                 !FlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes, FILE_ATTRIBUTE_DIRECTORY) &&
                 (FlagOn(Response->Rsp.Create.Opened.GrantedAccess, FILE_WRITE_DATA) ||
-                DeleteOnClose);
+                BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE));
 
             Result = FspFsvolCreateTryOpen(Irp, Response, FileNode, FileDesc, FileObject, FlushImage);
         }
