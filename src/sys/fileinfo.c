@@ -597,6 +597,13 @@ static NTSTATUS FspFsvolSetDispositionInformation(PFILE_OBJECT FileObject,
     if (0 == Response)
     {
         PFILE_DISPOSITION_INFORMATION Info = (PFILE_DISPOSITION_INFORMATION)Buffer;
+        BOOLEAN Success;
+
+        /* make sure no process is mapping the file as an image */
+        Success = MmFlushImageSection(FileObject->SectionObjectPointer,
+            MmFlushForDelete);
+        if (!Success)
+            return STATUS_CANNOT_DELETE;
 
         Request->Req.SetInformation.Info.Disposition.Delete = Info->DeleteFile;
 
