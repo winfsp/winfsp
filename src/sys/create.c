@@ -307,8 +307,6 @@ static NTSTATUS FspFsvolCreate(
     ClearFlag(FileAttributes, FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_DIRECTORY);
     if (CreateOptions & FILE_DIRECTORY_FILE)
         SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
-    else
-        ClearFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
 
     /*
      * The new request is associated with our IRP. Go ahead and associate our FileNode/FileDesc
@@ -567,7 +565,7 @@ NTSTATUS FspFsvolCreateComplete(
              *     point though.
              */
             BOOLEAN FlushImage =
-                !FlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes, FILE_ATTRIBUTE_DIRECTORY) &&
+                !FileNode->IsDirectory &&
                 (FlagOn(Response->Rsp.Create.Opened.GrantedAccess, FILE_WRITE_DATA) ||
                 BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE));
 
@@ -579,12 +577,11 @@ NTSTATUS FspFsvolCreateComplete(
              * Oh, noes! We have to go back to user mode to overwrite the file!
              */
 
-            /* save the old Request FileAttributes and make them compatible with the open file */
-            UINT32 FileAttributes = Request->Req.Create.FileAttributes;
-            if (FlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+            USHORT FileAttributes = IrpSp->Parameters.Create.FileAttributes;
+
+            ClearFlag(FileAttributes, FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_DIRECTORY);
+            if (FileNode->IsDirectory)
                 SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
-            else
-                ClearFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
 
             /* delete the old request */
             FspIrpRequest(Irp) = 0;
