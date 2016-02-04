@@ -195,6 +195,27 @@ typedef struct
                 {
                     UINT64 AllocationSize;
                 } Allocation;
+                struct
+                {
+                    UINT32 FileAttributes;
+                    UINT64 CreationTime;
+                    UINT64 LastAccessTime;
+                    UINT64 LastWriteTime;
+                } Basic;
+                struct
+                {
+                    UINT32 Delete:1;
+                } Disposition;
+                struct
+                {
+                    UINT64 FileSize;
+                    UINT32 AdvanceOnly:1;
+                } EndOfFile;
+                struct
+                {
+                    FSP_FSCTL_TRANSACT_BUF NewFileName;
+                    UINT32 ReplaceIfExists:1;
+                } Rename;
             } Info;
         } SetInformation;
     } Req;
