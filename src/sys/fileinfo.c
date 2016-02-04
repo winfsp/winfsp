@@ -358,15 +358,18 @@ static NTSTATUS FspFsvolQueryInformation(
         return Result;
     case FileInternalInformation:
         Result = FspFsvolQueryInternalInformation(FileObject, &Buffer, BufferEnd);
+        Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
         return Result;
     case FileNameInformation:
         Result = FspFsvolQueryNameInformation(FileObject, &Buffer, BufferEnd);
+        Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
         return Result;
     case FileNetworkOpenInformation:
         Result = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, 0);
         break;
     case FilePositionInformation:
         Result = FspFsvolQueryPositionInformation(FileObject, &Buffer, BufferEnd);
+        Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
         return Result;
     case FileStandardInformation:
         Result = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd, 0);
