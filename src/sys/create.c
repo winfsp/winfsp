@@ -116,7 +116,8 @@ static NTSTATUS FspFsvolCreate(
     USHORT FileAttributes = IrpSp->Parameters.Create.FileAttributes;
     PSECURITY_DESCRIPTOR SecurityDescriptor = AccessState->SecurityDescriptor;
     ULONG SecurityDescriptorSize = 0;
-    LARGE_INTEGER AllocationSize = Irp->Overlay.AllocationSize;
+    UINT64 AllocationSize = Irp->Overlay.AllocationSize.QuadPart;
+    UINT64 AllocationUnit;
     ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
     USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
@@ -155,6 +156,11 @@ static NTSTATUS FspFsvolCreate(
             return STATUS_INVALID_PARAMETER;
         SecurityDescriptorSize = RtlLengthSecurityDescriptor(SecurityDescriptor);
     }
+
+    /* align allocation size */
+    AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+        FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+    AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
     /* according to fastfat, filenames that begin with two backslashes are ok */
     if (sizeof(WCHAR) * 2 <= FileName.Length &&
@@ -323,7 +329,7 @@ static NTSTATUS FspFsvolCreate(
     Request->Req.Create.SecurityDescriptor.Offset = 0 == SecurityDescriptorSize ? 0 :
         FSP_FSCTL_DEFAULT_ALIGN_UP(Request->FileName.Size);
     Request->Req.Create.SecurityDescriptor.Size = (UINT16)SecurityDescriptorSize;
-    Request->Req.Create.AllocationSize = AllocationSize.QuadPart;
+    Request->Req.Create.AllocationSize = AllocationSize;
     Request->Req.Create.AccessToken = 0;
     Request->Req.Create.DesiredAccess = DesiredAccess;
     Request->Req.Create.ShareAccess = ShareAccess;

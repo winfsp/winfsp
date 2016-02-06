@@ -531,9 +531,17 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
         return STATUS_SUCCESS;
 
     PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)Buffer;
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileObject->DeviceObject);
+    UINT64 AllocationSize = Info->AllocationSize.QuadPart;
+    UINT64 AllocationUnit;
     BOOLEAN Success;
 
-    Request->Req.SetInformation.Info.Allocation.AllocationSize = Info->AllocationSize.QuadPart;
+    AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+        FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+    AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
+    Request->Req.SetInformation.Info.Allocation.AllocationSize = AllocationSize;
 
     Success = MmCanFileBeTruncated(FileObject->SectionObjectPointer, &Info->AllocationSize);
     if (!Success)
@@ -599,11 +607,14 @@ static NTSTATUS FspFsvolSetDispositionInformation(PFILE_OBJECT FileObject,
         PFILE_DISPOSITION_INFORMATION Info = (PFILE_DISPOSITION_INFORMATION)Buffer;
         BOOLEAN Success;
 
-        /* make sure no process is mapping the file as an image */
-        Success = MmFlushImageSection(FileObject->SectionObjectPointer,
-            MmFlushForDelete);
-        if (!Success)
-            return STATUS_CANNOT_DELETE;
+        if (Info->DeleteFile)
+        {
+            /* make sure no process is mapping the file as an image */
+            Success = MmFlushImageSection(FileObject->SectionObjectPointer,
+                MmFlushForDelete);
+            if (!Success)
+                return STATUS_CANNOT_DELETE;
+        }
 
         Request->Req.SetInformation.Info.Disposition.Delete = Info->DeleteFile;
 
@@ -802,20 +813,21 @@ NTSTATUS FspFsvolSetInformationComplete(
     ULONG Length = IrpSp->Parameters.SetFile.Length;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
 
-    FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
-
     switch (FileInformationClass)
     {
     case FileAllocationInformation:
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
         Result = FspFsvolSetAllocationInformation(FileObject, Buffer, Length, Request, Response);
         break;
     case FileBasicInformation:
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
         Result = FspFsvolSetBasicInformation(FileObject, Buffer, Length, Request, Response);
         break;
     case FileDispositionInformation:
         Result = FspFsvolSetDispositionInformation(FileObject, Buffer, Length, Request, Response);
         break;
     case FileEndOfFileInformation:
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
         Result = FspFsvolSetEndOfFileInformation(FileObject, Buffer, Length,
             IrpSp->Parameters.SetFile.AdvanceOnly, Request, Response);
         break;

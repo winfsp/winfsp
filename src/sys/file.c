@@ -401,10 +401,18 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
 {
     PAGED_CODE();
 
-    UINT64 FileInfoTimeout = FspFsvolDeviceExtension(FileNode->FsvolDeviceObject)->
-        VolumeParams.FileInfoTimeout * 10000ULL;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+    UINT64 FileInfoTimeout = FsvolDeviceExtension->VolumeParams.FileInfoTimeout * 10000ULL;
+    UINT64 AllocationSize = FileInfo->AllocationSize > FileInfo->FileSize ?
+        FileInfo->AllocationSize : FileInfo->FileSize;
+    UINT64 AllocationUnit;
 
-    FileNode->Header.AllocationSize.QuadPart = FileInfo->AllocationSize;
+    AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+        FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+    AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
+
+    FileNode->Header.AllocationSize.QuadPart = AllocationSize;
     FileNode->Header.FileSize.QuadPart = FileInfo->FileSize;
 
     FileNode->FileAttributes = FileInfo->FileAttributes;

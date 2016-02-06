@@ -295,7 +295,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         memcpy(FileNode->FileSecurity, SecurityDescriptor, FileNode->FileSecuritySize);
     }
 
-    FileNode->FileInfo.AllocationSize = FSP_FSCTL_ALIGN_UP((ULONG)AllocationSize, MEMFS_SECTOR_SIZE);
+    FileNode->FileInfo.AllocationSize = AllocationSize;
     if (0 != FileNode->FileInfo.AllocationSize)
     {
         FileNode->FileData = malloc(FileNode->FileInfo.AllocationSize);
@@ -407,6 +407,96 @@ static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0, UINT32 FileAttributes,
+    UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
+    FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    if (INVALID_FILE_ATTRIBUTES != FileAttributes)
+        FileNode->FileInfo.FileAttributes = FileAttributes;
+    if (0 != CreationTime)
+        FileNode->FileInfo.CreationTime = CreationTime;
+    if (0 != LastAccessTime)
+        FileNode->FileInfo.CreationTime = LastAccessTime;
+    if (0 != LastWriteTime)
+        FileNode->FileInfo.CreationTime = LastWriteTime;
+
+    *FileInfo = FileNode->FileInfo;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0, UINT64 AllocationSize,
+    FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    PVOID FileData;
+
+    FileData = realloc(FileNode->FileData, AllocationSize);
+    if (0 == FileData)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    FileNode->FileData = FileData;
+
+    FileNode->FileInfo.AllocationSize = AllocationSize;
+    if (FileNode->FileInfo.FileSize > AllocationSize)
+        FileNode->FileInfo.FileSize = AllocationSize;
+
+    *FileInfo = FileNode->FileInfo;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0, UINT64 FileSize, BOOLEAN AdvanceOnly,
+    FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    if (FileNode->FileInfo.AllocationSize < FileSize)
+    {
+        UINT64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+        UINT64 AllocationSize = (FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
+
+        NTSTATUS Result = SetAllocationSize(FileSystem, Request, FileNode, AllocationSize, FileInfo);
+        if (!NT_SUCCESS(Result))
+            return Result;
+    }
+
+    FileNode->FileInfo.FileSize = FileSize;
+
+    *FileInfo = FileNode->FileInfo;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0)
+{
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    if (MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
+        return STATUS_DIRECTORY_NOT_EMPTY;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode,
+    PWSTR ExistingFileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
     GetVolumeInfo,
@@ -417,6 +507,11 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     Cleanup,
     Close,
     GetFileInfo,
+    SetBasicInfo,
+    SetAllocationSize,
+    SetFileSize,
+    CanDelete,
+    Rename,
 };
 
 static VOID MemfsEnterOperation(FSP_FILE_SYSTEM *FileSystem, FSP_FSCTL_TRANSACT_REQ *Request)
@@ -439,6 +534,7 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     PWSTR DevicePath = (Flags & MemfsNet) ?
         L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME;
+    UINT64 AllocationUnit;
     MEMFS *Memfs;
     MEMFS_FILE_NODE *RootNode;
     BOOLEAN Inserted;
@@ -451,7 +547,8 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
 
     memset(Memfs, 0, sizeof *Memfs);
     Memfs->MaxFileNodes = MaxFileNodes;
-    Memfs->MaxFileSize = FSP_FSCTL_ALIGN_UP(MaxFileSize, MEMFS_SECTOR_SIZE);
+    AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+    Memfs->MaxFileSize = (ULONG)((MaxFileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit);
 
     Result = MemfsFileNodeMapCreate(&Memfs->FileNodeMap);
     if (!NT_SUCCESS(Result))

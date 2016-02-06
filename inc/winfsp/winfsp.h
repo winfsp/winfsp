@@ -62,6 +62,26 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,
         FSP_FSCTL_FILE_INFO *FileInfo);
+    NTSTATUS (*SetBasicInfo)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request,
+        PVOID FileNode, UINT32 FileAttributes,
+        UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
+        FSP_FSCTL_FILE_INFO *FileInfo);
+    NTSTATUS (*SetAllocationSize)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request,
+        PVOID FileNode, UINT64 AllocationSize,
+        FSP_FSCTL_FILE_INFO *FileInfo);
+    NTSTATUS (*SetFileSize)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request,
+        PVOID FileNode, UINT64 FileSize, BOOLEAN AdvanceOnly,
+        FSP_FSCTL_FILE_INFO *FileInfo);
+    NTSTATUS (*CanDelete)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request,
+        PVOID FileNode);
+    NTSTATUS (*Rename)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request,
+        PVOID FileNode,
+        PWSTR ExistingFileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists);
 } FSP_FILE_SYSTEM_INTERFACE;
 typedef struct _FSP_FILE_SYSTEM
 {
@@ -167,6 +187,8 @@ FSP_API NTSTATUS FspFileSystemOpClose(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request);
 FSP_API NTSTATUS FspFileSystemOpQueryInformation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request);
+FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request);
 FSP_API NTSTATUS FspFileSystemOpQueryVolumeInformation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request);
 FSP_API NTSTATUS FspFileSystemSendCreateResponse(FSP_FILE_SYSTEM *FileSystem,
@@ -180,6 +202,8 @@ FSP_API NTSTATUS FspFileSystemSendCleanupResponse(FSP_FILE_SYSTEM *FileSystem,
 FSP_API NTSTATUS FspFileSystemSendCloseResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request);
 FSP_API NTSTATUS FspFileSystemSendQueryInformationResponse(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_FILE_INFO *FileInfo);
+FSP_API NTSTATUS FspFileSystemSendSetInformationResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_FILE_INFO *FileInfo);
 FSP_API NTSTATUS FspFileSystemSendQueryVolumeInformationResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
