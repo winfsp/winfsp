@@ -464,7 +464,7 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-    UINT32 InitDoneFsvrt:1, InitDoneDelRsc:1, InitDoneIoq:1, InitDoneGenTab:1, InitDoneTimer:1,
+    UINT32 InitDoneFsvrt:1, InitDoneDelRsc:1, InitDoneIoq:1, InitDoneCtxTab:1, InitDoneTimer:1,
         InitDoneInfo:1;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
@@ -478,9 +478,9 @@ typedef struct
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;
     BOOLEAN ExpirationInProgress;
-    ERESOURCE GenericTableResource;
-    RTL_AVL_TABLE GenericTable;
-    PVOID GenericTableElementStorage;
+    ERESOURCE ContextTableResource;
+    RTL_AVL_TABLE ContextTable;
+    PVOID ContextTableElementStorage;
     UNICODE_STRING VolumeName;
     WCHAR VolumeNameBuf[FSP_DEVICE_VOLUME_NAME_LENMAX / sizeof(WCHAR)];
     KSPIN_LOCK InfoSpinLock;

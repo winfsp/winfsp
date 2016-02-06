@@ -294,10 +294,10 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     FsvolDeviceExtension->InitDoneIoq = 1;
 
     /* initialize our generic table */
-    ExInitializeResourceLite(&FsvolDeviceExtension->GenericTableResource);
-    RtlInitializeGenericTableAvl(&FsvolDeviceExtension->GenericTable,
+    ExInitializeResourceLite(&FsvolDeviceExtension->ContextTableResource);
+    RtlInitializeGenericTableAvl(&FsvolDeviceExtension->ContextTable,
         FspFsvolDeviceCompareElement, FspFsvolDeviceAllocateElement, FspFsvolDeviceFreeElement, 0);
-    FsvolDeviceExtension->InitDoneGenTab = 1;
+    FsvolDeviceExtension->InitDoneCtxTab = 1;
 
     /* initialize our timer routine and start our expiration timer */
 #pragma prefast(suppress:28133, "We are a filesystem: we do not have AddDevice")
@@ -337,19 +337,19 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
     if (FsvolDeviceExtension->InitDoneIoq)
         FspIoqDelete(FsvolDeviceExtension->Ioq);
 
-    if (FsvolDeviceExtension->InitDoneGenTab)
+    if (FsvolDeviceExtension->InitDoneCtxTab)
     {
 #if 0
         /* FspDeviceFreeElement is now a no-op, so this is no longer necessary */
         /*
-         * Enumerate and delete all entries in the GenericTable.
+         * Enumerate and delete all entries in the ContextTable.
          * There is no need to protect accesses to the table as we are in the device destructor.
          */
         FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Element;
-        while (0 != (Element = RtlGetElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, 0)))
-            RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Element->Identifier);
+        while (0 != (Element = RtlGetElementGenericTableAvl(&FsvolDeviceExtension->ContextTable, 0)))
+            RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->ContextTable, &Element->Identifier);
 #endif
-        ExDeleteResourceLite(&FsvolDeviceExtension->GenericTableResource);
+        ExDeleteResourceLite(&FsvolDeviceExtension->ContextTableResource);
     }
 
     /* finalize our delete lock */
@@ -421,7 +421,7 @@ VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject)
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->GenericTableResource, TRUE);
+    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->ContextTableResource, TRUE);
 }
 
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject)
@@ -429,7 +429,7 @@ VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject)
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    ExReleaseResourceLite(&FsvolDeviceExtension->GenericTableResource);
+    ExReleaseResourceLite(&FsvolDeviceExtension->ContextTableResource);
 }
 
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier)
@@ -439,7 +439,7 @@ PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Result;
 
-    Result = RtlLookupElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Identifier);
+    Result = RtlLookupElementGenericTableAvl(&FsvolDeviceExtension->ContextTable, &Identifier);
 
     return 0 != Result ? Result->Context : 0;
 }
@@ -456,10 +456,10 @@ PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
     Element.Identifier = Identifier;
     Element.Context = Context;
 
-    FsvolDeviceExtension->GenericTableElementStorage = ElementStorage;
-    Result = RtlInsertElementGenericTableAvl(&FsvolDeviceExtension->GenericTable,
+    FsvolDeviceExtension->ContextTableElementStorage = ElementStorage;
+    Result = RtlInsertElementGenericTableAvl(&FsvolDeviceExtension->ContextTable,
         &Element, sizeof Element, PInserted);
-    FsvolDeviceExtension->GenericTableElementStorage = 0;
+    FsvolDeviceExtension->ContextTableElementStorage = 0;
 
     ASSERT(0 != Result);
 
@@ -474,7 +474,7 @@ VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     BOOLEAN Deleted;
 
-    Deleted = RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->GenericTable, &Identifier);
+    Deleted = RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->ContextTable, &Identifier);
 
     if (0 != PDeleted)
         *PDeleted = Deleted;
@@ -503,11 +503,11 @@ static PVOID NTAPI FspFsvolDeviceAllocateElement(
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-        CONTAINING_RECORD(Table, FSP_FSVOL_DEVICE_EXTENSION, GenericTable);
+        CONTAINING_RECORD(Table, FSP_FSVOL_DEVICE_EXTENSION, ContextTable);
 
     ASSERT(sizeof(FSP_DEVICE_GENERIC_TABLE_ELEMENT) == ByteSize);
 
-    return FsvolDeviceExtension->GenericTableElementStorage;
+    return FsvolDeviceExtension->ContextTableElementStorage;
 }
 
 static VOID NTAPI FspFsvolDeviceFreeElement(
