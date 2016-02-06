@@ -443,12 +443,12 @@ typedef struct
 {
     UINT64 Identifier;
     PVOID Context;
-} FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA;
+} FSP_DEVICE_CONTEXT_TABLE_ELEMENT_DATA;
 typedef struct
 {
     RTL_BALANCED_LINKS Header;
-    FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA Data;
-} FSP_DEVICE_GENERIC_TABLE_ELEMENT;
+    FSP_DEVICE_CONTEXT_TABLE_ELEMENT_DATA Data;
+} FSP_DEVICE_CONTEXT_TABLE_ELEMENT;
 enum
 {
     FspFsctlDeviceExtensionKind = '\0ltC',  /* file system control device (e.g. \Device\WinFsp.Disk) */
@@ -513,7 +513,7 @@ VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
 PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
-    FSP_DEVICE_GENERIC_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
+    FSP_DEVICE_CONTEXT_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
 VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     PBOOLEAN PDeleted);
 VOID FspFsvolGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
@@ -588,7 +588,7 @@ typedef struct
     UINT64 UserContext;
     UINT64 IndexNumber;
     BOOLEAN IsDirectory;
-    FSP_DEVICE_GENERIC_TABLE_ELEMENT ElementStorage;
+    FSP_DEVICE_CONTEXT_TABLE_ELEMENT ElementStorage;
     UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
 } FSP_FILE_NODE;
