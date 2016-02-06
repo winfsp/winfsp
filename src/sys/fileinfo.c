@@ -523,29 +523,32 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
     {
         if (sizeof(FILE_ALLOCATION_INFORMATION) > Length)
             return STATUS_INVALID_PARAMETER;
-
-        return STATUS_SUCCESS;
     }
+    else if (0 == Response)
+    {
+        PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)Buffer;
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+            FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+        UINT64 AllocationSize = Info->AllocationSize.QuadPart;
+        UINT64 AllocationUnit;
+        BOOLEAN Success;
 
-    if (0 != Response)
-        return STATUS_SUCCESS;
+        AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+            FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+        AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
+        Request->Req.SetInformation.Info.Allocation.AllocationSize = AllocationSize;
 
-    PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)Buffer;
+        Success = MmCanFileBeTruncated(FileObject->SectionObjectPointer, &Info->AllocationSize);
+        if (!Success)
+            return STATUS_USER_MAPPED_FILE;
+    }
+    else
+    {
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-        FspFsvolDeviceExtension(FileObject->DeviceObject);
-    UINT64 AllocationSize = Info->AllocationSize.QuadPart;
-    UINT64 AllocationUnit;
-    BOOLEAN Success;
-
-    AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
-        FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
-    AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
-    Request->Req.SetInformation.Info.Allocation.AllocationSize = AllocationSize;
-
-    Success = MmCanFileBeTruncated(FileObject->SectionObjectPointer, &Info->AllocationSize);
-    if (!Success)
-        return STATUS_USER_MAPPED_FILE;
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
+    }
 
     return STATUS_SUCCESS;
 }
@@ -560,30 +563,33 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
     {
         if (sizeof(FILE_BASIC_INFORMATION) > Length)
             return STATUS_INVALID_PARAMETER;
-
-        return STATUS_SUCCESS;
     }
+    else if (0 == Response)
+    {
+        PFILE_BASIC_INFORMATION Info = (PFILE_BASIC_INFORMATION)Buffer;
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        UINT32 FileAttributes = Info->FileAttributes;
 
-    if (0 != Response)
-        return STATUS_SUCCESS;
+        if (0 == FileAttributes)
+            FileAttributes = ((UINT32)-1);
+        else
+        {
+            ClearFlag(FileAttributes, FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_DIRECTORY);
+            if (FileNode->IsDirectory)
+                SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
+        }
 
-    PFILE_BASIC_INFORMATION Info = (PFILE_BASIC_INFORMATION)Buffer;
-    FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    UINT32 FileAttributes = Info->FileAttributes;
-
-    if (0 == FileAttributes)
-        FileAttributes = ((UINT32)-1);
+        Request->Req.SetInformation.Info.Basic.FileAttributes = FileAttributes;
+        Request->Req.SetInformation.Info.Basic.CreationTime = Info->CreationTime.QuadPart;
+        Request->Req.SetInformation.Info.Basic.LastAccessTime = Info->LastAccessTime.QuadPart;
+        Request->Req.SetInformation.Info.Basic.LastWriteTime = Info->LastWriteTime.QuadPart;
+    }
     else
     {
-        ClearFlag(FileAttributes, FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_DIRECTORY);
-        if (FileNode->IsDirectory)
-            SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
-    }
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
-    Request->Req.SetInformation.Info.Basic.FileAttributes = Info->FileAttributes;
-    Request->Req.SetInformation.Info.Basic.CreationTime = Info->CreationTime.QuadPart;
-    Request->Req.SetInformation.Info.Basic.LastAccessTime = Info->LastAccessTime.QuadPart;
-    Request->Req.SetInformation.Info.Basic.LastWriteTime = Info->LastWriteTime.QuadPart;
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
+    }
 
     return STATUS_SUCCESS;
 }
@@ -598,11 +604,8 @@ static NTSTATUS FspFsvolSetDispositionInformation(PFILE_OBJECT FileObject,
     {
         if (sizeof(FILE_DISPOSITION_INFORMATION) > Length)
             return STATUS_INVALID_PARAMETER;
-
-        return STATUS_SUCCESS;
     }
-
-    if (0 == Response)
+    else if (0 == Response)
     {
         PFILE_DISPOSITION_INFORMATION Info = (PFILE_DISPOSITION_INFORMATION)Buffer;
         BOOLEAN Success;
@@ -617,8 +620,6 @@ static NTSTATUS FspFsvolSetDispositionInformation(PFILE_OBJECT FileObject,
         }
 
         Request->Req.SetInformation.Info.Disposition.Delete = Info->DeleteFile;
-
-        return STATUS_SUCCESS;
     }
     else
     {
@@ -627,9 +628,9 @@ static NTSTATUS FspFsvolSetDispositionInformation(PFILE_OBJECT FileObject,
 
         FileNode->DeletePending = Info->DeleteFile;
         FileObject->DeletePending = Info->DeleteFile;
-
-        return STATUS_SUCCESS;
     }
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
@@ -642,23 +643,26 @@ static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
     {
         if (sizeof(FILE_END_OF_FILE_INFORMATION) > Length)
             return STATUS_INVALID_PARAMETER;
-
-        return STATUS_SUCCESS;
     }
+    else if (0 == Response)
+    {
+        PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)Buffer;
+        BOOLEAN Success;
 
-    if (0 != Response)
-        return STATUS_SUCCESS;
+        Request->Req.SetInformation.Info.EndOfFile.FileSize = Info->EndOfFile.QuadPart;
+        Request->Req.SetInformation.Info.EndOfFile.AdvanceOnly = AdvanceOnly;
 
-    PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)Buffer;
-    BOOLEAN Success;
+        // !!!: REVISIT after better understanding relationship between AllocationSize and FileSize
+        Success = MmCanFileBeTruncated(FileObject->SectionObjectPointer, &Info->EndOfFile);
+        if (!Success)
+            return STATUS_USER_MAPPED_FILE;
+    }
+    else
+    {
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
-    Request->Req.SetInformation.Info.EndOfFile.FileSize = Info->EndOfFile.QuadPart;
-    Request->Req.SetInformation.Info.EndOfFile.AdvanceOnly = AdvanceOnly;
-
-    // !!!: REVISIT after better understanding relationship between AllocationSize and FileSize
-    Success = MmCanFileBeTruncated(FileObject->SectionObjectPointer, &Info->EndOfFile);
-    if (!Success)
-        return STATUS_USER_MAPPED_FILE;
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
+    }
 
     return STATUS_SUCCESS;
 }
@@ -816,18 +820,15 @@ NTSTATUS FspFsvolSetInformationComplete(
     switch (FileInformationClass)
     {
     case FileAllocationInformation:
-        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
         Result = FspFsvolSetAllocationInformation(FileObject, Buffer, Length, Request, Response);
         break;
     case FileBasicInformation:
-        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
         Result = FspFsvolSetBasicInformation(FileObject, Buffer, Length, Request, Response);
         break;
     case FileDispositionInformation:
         Result = FspFsvolSetDispositionInformation(FileObject, Buffer, Length, Request, Response);
         break;
     case FileEndOfFileInformation:
-        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
         Result = FspFsvolSetEndOfFileInformation(FileObject, Buffer, Length,
             IrpSp->Parameters.SetFile.AdvanceOnly, Request, Response);
         break;

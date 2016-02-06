@@ -420,9 +420,9 @@ NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     if (0 != CreationTime)
         FileNode->FileInfo.CreationTime = CreationTime;
     if (0 != LastAccessTime)
-        FileNode->FileInfo.CreationTime = LastAccessTime;
+        FileNode->FileInfo.LastAccessTime = LastAccessTime;
     if (0 != LastWriteTime)
-        FileNode->FileInfo.CreationTime = LastWriteTime;
+        FileNode->FileInfo.LastWriteTime = LastWriteTime;
 
     *FileInfo = FileNode->FileInfo;
 
@@ -437,15 +437,18 @@ NTSTATUS SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     PVOID FileData;
 
-    FileData = realloc(FileNode->FileData, AllocationSize);
-    if (0 == FileData)
-        return STATUS_INSUFFICIENT_RESOURCES;
+    if (FileNode->FileInfo.AllocationSize != AllocationSize)
+    {
+        FileData = realloc(FileNode->FileData, AllocationSize);
+        if (0 == FileData)
+            return STATUS_INSUFFICIENT_RESOURCES;
 
-    FileNode->FileData = FileData;
+        FileNode->FileData = FileData;
 
-    FileNode->FileInfo.AllocationSize = AllocationSize;
-    if (FileNode->FileInfo.FileSize > AllocationSize)
-        FileNode->FileInfo.FileSize = AllocationSize;
+        FileNode->FileInfo.AllocationSize = AllocationSize;
+        if (FileNode->FileInfo.FileSize > AllocationSize)
+            FileNode->FileInfo.FileSize = AllocationSize;
+    }
 
     *FileInfo = FileNode->FileInfo;
 
@@ -459,17 +462,20 @@ NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
-    if (FileNode->FileInfo.AllocationSize < FileSize)
+    if (FileNode->FileInfo.FileSize != FileSize)
     {
-        UINT64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
-        UINT64 AllocationSize = (FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
+        if (FileNode->FileInfo.AllocationSize < FileSize)
+        {
+            UINT64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+            UINT64 AllocationSize = (FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
-        NTSTATUS Result = SetAllocationSize(FileSystem, Request, FileNode, AllocationSize, FileInfo);
-        if (!NT_SUCCESS(Result))
-            return Result;
+            NTSTATUS Result = SetAllocationSize(FileSystem, Request, FileNode, AllocationSize, FileInfo);
+            if (!NT_SUCCESS(Result))
+                return Result;
+        }
+
+        FileNode->FileInfo.FileSize = FileSize;
     }
-
-    FileNode->FileInfo.FileSize = FileSize;
 
     *FileInfo = FileNode->FileInfo;
 
