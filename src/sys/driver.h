@@ -35,6 +35,13 @@
 #define FSP_ALLOC_EXTERNAL_TAG          'XpsF'
 #define FSP_IO_INCREMENT                IO_NETWORK_INCREMENT
 
+/* DbgPrint */
+#if DBG
+extern __declspec(selectany) int fsp_dp = 1;
+#define DbgPrint(...)                   ((void)(fsp_dp ? DbgPrint(__VA_ARGS__) : 0))
+#else
+#endif
+
 /* DEBUGLOG */
 #if DBG
 #define DEBUGLOG(fmt, ...)              \
