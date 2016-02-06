@@ -138,6 +138,89 @@ void getfileinfo_test(void)
     }
 }
 
+void setfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR FilePath[MAX_PATH];
+    BY_HANDLE_FILE_INFORMATION FileInfo0, FileInfo;
+    FILETIME FileTime;
+    DWORD Offset;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Success = GetFileInformationByHandle(Handle, &FileInfo0);
+    ASSERT(Success);
+    //ASSERT(FILE_ATTRIBUTE_ARCHIVE == FileInfo0.dwFileAttributes);
+
+    Success = SetFileAttributesW(FilePath, FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_HIDDEN);
+    ASSERT(Success);
+
+    Success = GetFileInformationByHandle(Handle, &FileInfo);
+    ASSERT(Success);
+    ASSERT(FILE_ATTRIBUTE_HIDDEN == FileInfo.dwFileAttributes);
+
+    *(PUINT64)&FileTime = 0x4200000042ULL;
+    Success = SetFileTime(Handle, 0, &FileTime, &FileTime);
+    ASSERT(Success);
+
+    Success = GetFileInformationByHandle(Handle, &FileInfo);
+    ASSERT(Success);
+    ASSERT(*(PUINT64)&FileInfo0.ftCreationTime == *(PUINT64)&FileInfo.ftCreationTime);
+    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftLastAccessTime);
+    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftLastWriteTime);
+
+    Success = SetFileTime(Handle, &FileTime, 0, 0);
+    ASSERT(Success);
+
+    Success = GetFileInformationByHandle(Handle, &FileInfo);
+    ASSERT(Success);
+    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftCreationTime);
+
+    Offset = SetFilePointer(Handle, 42, 0, 0);
+    ASSERT(42 == Offset);
+
+    Success = SetEndOfFile(Handle);
+    ASSERT(Success);
+
+    Success = GetFileInformationByHandle(Handle, &FileInfo);
+    ASSERT(Success);
+    ASSERT(42 == FileInfo.nFileSizeLow);
+    ASSERT(0 == FileInfo.nFileSizeHigh);
+
+    CloseHandle(Handle);
+
+    memfs_stop(memfs);
+}
+
+void setfileinfo_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        setfileinfo_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        setfileinfo_dotest(MemfsDisk, 0, 0);
+        setfileinfo_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        setfileinfo_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        setfileinfo_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -202,5 +285,6 @@ void getvolinfo_test(void)
 void info_tests(void)
 {
     TEST(getfileinfo_test);
+    TEST(setfileinfo_test);
     TEST(getvolinfo_test);
 }
