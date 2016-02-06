@@ -35,6 +35,15 @@ VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
 static RTL_AVL_COMPARE_ROUTINE FspFsvolDeviceCompareContext;
 static RTL_AVL_ALLOCATE_ROUTINE FspFsvolDeviceAllocateContext;
 static RTL_AVL_FREE_ROUTINE FspFsvolDeviceFreeContext;
+PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
+PVOID FspFsvolDeviceLookupChildContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
+PVOID FspFsvolDeviceInsertContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName, PVOID Context,
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
+VOID FspFsvolDeviceDeleteContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
+    PBOOLEAN PDeleted);
+static RTL_AVL_COMPARE_ROUTINE FspFsvolDeviceCompareContextByName;
+static RTL_AVL_ALLOCATE_ROUTINE FspFsvolDeviceAllocateContextByName;
+static RTL_AVL_FREE_ROUTINE FspFsvolDeviceFreeContextByName;
 VOID FspFsvolGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 BOOLEAN FspFsvolTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
@@ -59,6 +68,13 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceCompareContext)
 #pragma alloc_text(PAGE, FspFsvolDeviceAllocateContext)
 #pragma alloc_text(PAGE, FspFsvolDeviceFreeContext)
+#pragma alloc_text(PAGE, FspFsvolDeviceLookupContextByName)
+#pragma alloc_text(PAGE, FspFsvolDeviceLookupChildContextByName)
+#pragma alloc_text(PAGE, FspFsvolDeviceInsertContextByName)
+#pragma alloc_text(PAGE, FspFsvolDeviceDeleteContextByName)
+#pragma alloc_text(PAGE, FspFsvolDeviceCompareContextByName)
+#pragma alloc_text(PAGE, FspFsvolDeviceAllocateContextByName)
+#pragma alloc_text(PAGE, FspFsvolDeviceFreeContextByName)
 #pragma alloc_text(PAGE, FspDeviceCopyList)
 #pragma alloc_text(PAGE, FspDeviceDeleteList)
 #pragma alloc_text(PAGE, FspDeviceDeleteAll)
@@ -293,10 +309,19 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
         return Result;
     FsvolDeviceExtension->InitDoneIoq = 1;
 
-    /* initialize our generic table */
+    /* initialize our context table */
+    ExInitializeResourceLite(&FsvolDeviceExtension->FileRenameResource);
     ExInitializeResourceLite(&FsvolDeviceExtension->ContextTableResource);
     RtlInitializeGenericTableAvl(&FsvolDeviceExtension->ContextTable,
-        FspFsvolDeviceCompareContext, FspFsvolDeviceAllocateContext, FspFsvolDeviceFreeContext, 0);
+        FspFsvolDeviceCompareContext,
+        FspFsvolDeviceAllocateContext,
+        FspFsvolDeviceFreeContext,
+        0);
+    RtlInitializeGenericTableAvl(&FsvolDeviceExtension->ContextByNameTable,
+        FspFsvolDeviceCompareContextByName,
+        FspFsvolDeviceAllocateContextByName,
+        FspFsvolDeviceFreeContextByName,
+        0);
     FsvolDeviceExtension->InitDoneCtxTab = 1;
 
     /* initialize our timer routine and start our expiration timer */
@@ -339,17 +364,13 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
 
     if (FsvolDeviceExtension->InitDoneCtxTab)
     {
-#if 0
-        /* FspDeviceFreeElement is now a no-op, so this is no longer necessary */
         /*
-         * Enumerate and delete all entries in the ContextTable.
-         * There is no need to protect accesses to the table as we are in the device destructor.
+         * FspDeviceFreeContext/FspDeviceFreeContextByName is a no-op, so it is not necessary
+         * to enumerate and delete all entries in the ContextTable.
          */
-        FSP_DEVICE_GENERIC_TABLE_ELEMENT_DATA *Element;
-        while (0 != (Element = RtlGetElementGenericTableAvl(&FsvolDeviceExtension->ContextTable, 0)))
-            RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->ContextTable, &Element->Identifier);
-#endif
+
         ExDeleteResourceLite(&FsvolDeviceExtension->ContextTableResource);
+        ExDeleteResourceLite(&FsvolDeviceExtension->FileRenameResource);
     }
 
     /* finalize our delete lock */
@@ -511,6 +532,123 @@ static PVOID NTAPI FspFsvolDeviceAllocateContext(
 }
 
 static VOID NTAPI FspFsvolDeviceFreeContext(
+    PRTL_AVL_TABLE Table, PVOID Buffer)
+{
+    PAGED_CODE();
+}
+
+PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT_DATA *Result;
+
+    Result = RtlLookupElementGenericTableAvl(&FsvolDeviceExtension->ContextByNameTable, &FileName);
+
+    return 0 != Result ? Result->Context : 0;
+}
+
+PVOID FspFsvolDeviceLookupChildContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    BOOLEAN CaseInsensitive = 0 == FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT_DATA *Result;
+    PVOID RestartKey;
+
+    Result = RtlLookupFirstMatchingElementGenericTableAvl(&FsvolDeviceExtension->ContextByNameTable,
+        &FileName, &RestartKey);
+    if (0 == Result)
+        return 0;
+
+    Result = RtlEnumerateGenericTableWithoutSplayingAvl(&FsvolDeviceExtension->ContextByNameTable,
+        &RestartKey);
+    if (0 == Result)
+        return 0;
+
+    if (RtlPrefixUnicodeString(FileName, Result->FileName, CaseInsensitive) &&
+        FileName->Length < Result->FileName->Length &&
+        '\\' == Result->FileName->Buffer[FileName->Length / sizeof(WCHAR)])
+        return Result->Context;
+    else
+        return 0;
+}
+
+PVOID FspFsvolDeviceInsertContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName, PVOID Context,
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT_DATA *Result, Element = { 0 };
+
+    ASSERT(0 != ElementStorage);
+    Element.FileName = FileName;
+    Element.Context = Context;
+
+    FsvolDeviceExtension->ContextByNameTableElementStorage = ElementStorage;
+    Result = RtlInsertElementGenericTableAvl(&FsvolDeviceExtension->ContextByNameTable,
+        &Element, sizeof Element, PInserted);
+    FsvolDeviceExtension->ContextByNameTableElementStorage = 0;
+
+    ASSERT(0 != Result);
+
+    return Result->Context;
+}
+
+VOID FspFsvolDeviceDeleteContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
+    PBOOLEAN PDeleted)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    BOOLEAN Deleted;
+
+    Deleted = RtlDeleteElementGenericTableAvl(&FsvolDeviceExtension->ContextByNameTable, &FileName);
+
+    if (0 != PDeleted)
+        *PDeleted = Deleted;
+}
+
+static RTL_GENERIC_COMPARE_RESULTS NTAPI FspFsvolDeviceCompareContextByName(
+    PRTL_AVL_TABLE Table, PVOID FirstElement, PVOID SecondElement)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        CONTAINING_RECORD(Table, FSP_FSVOL_DEVICE_EXTENSION, ContextByNameTable);
+    BOOLEAN CaseInsensitive = 0 == FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
+    PUNICODE_STRING FirstFileName = *(PUNICODE_STRING *)FirstElement;
+    PUNICODE_STRING SecondFileName = *(PUNICODE_STRING *)SecondElement;
+    LONG ComparisonResult;
+
+    ComparisonResult = RtlCompareUnicodeString(FirstFileName, SecondFileName, CaseInsensitive);
+
+    if (0 > ComparisonResult)
+        return GenericLessThan;
+    else
+    if (0 < ComparisonResult)
+        return GenericGreaterThan;
+    else
+        return GenericEqual;
+}
+
+static PVOID NTAPI FspFsvolDeviceAllocateContextByName(
+    PRTL_AVL_TABLE Table, CLONG ByteSize)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        CONTAINING_RECORD(Table, FSP_FSVOL_DEVICE_EXTENSION, ContextByNameTable);
+
+    ASSERT(sizeof(FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT) == ByteSize);
+
+    return FsvolDeviceExtension->ContextByNameTableElementStorage;
+}
+
+static VOID NTAPI FspFsvolDeviceFreeContextByName(
     PRTL_AVL_TABLE Table, PVOID Buffer)
 {
     PAGED_CODE();

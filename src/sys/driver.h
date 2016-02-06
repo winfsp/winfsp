@@ -449,6 +449,16 @@ typedef struct
     RTL_BALANCED_LINKS Header;
     FSP_DEVICE_CONTEXT_TABLE_ELEMENT_DATA Data;
 } FSP_DEVICE_CONTEXT_TABLE_ELEMENT;
+typedef struct
+{
+    PUNICODE_STRING FileName;
+    PVOID Context;
+} FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT_DATA;
+typedef struct
+{
+    RTL_BALANCED_LINKS Header;
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT_DATA Data;
+} FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT;
 enum
 {
     FspFsctlDeviceExtensionKind = '\0ltC',  /* file system control device (e.g. \Device\WinFsp.Disk) */
@@ -478,9 +488,12 @@ typedef struct
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;
     BOOLEAN ExpirationInProgress;
+    ERESOURCE FileRenameResource;
     ERESOURCE ContextTableResource;
     RTL_AVL_TABLE ContextTable;
     PVOID ContextTableElementStorage;
+    RTL_AVL_TABLE ContextByNameTable;
+    PVOID ContextByNameTableElementStorage;
     UNICODE_STRING VolumeName;
     WCHAR VolumeNameBuf[FSP_DEVICE_VOLUME_NAME_LENMAX / sizeof(WCHAR)];
     KSPIN_LOCK InfoSpinLock;
@@ -515,6 +528,12 @@ PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
 PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
     FSP_DEVICE_CONTEXT_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
 VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
+    PBOOLEAN PDeleted);
+PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
+PVOID FspFsvolDeviceLookupChildContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
+PVOID FspFsvolDeviceInsertContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName, PVOID Context,
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
+VOID FspFsvolDeviceDeleteContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
     PBOOLEAN PDeleted);
 VOID FspFsvolGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 BOOLEAN FspFsvolTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
@@ -570,9 +589,13 @@ typedef struct
     /* interlocked access */
     LONG RefCount;
     UINT32 DeletePending;
-    /* locked access (ContextTable lock) */
+    /* locked under FSP_FSVOL_DEVICE_EXTENSION::ContextTableResource */
     LONG OpenCount;
     SHARE_ACCESS ShareAccess;
+    FSP_DEVICE_CONTEXT_TABLE_ELEMENT ContextElementStorage;
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT ContextByNameElementStorage;
+    /* locked under FSP_FSVOL_DEVICE_EXTENSION::FileRenameResource */
+    UNICODE_STRING FileName;
     /* locked under Header.Resource */
     UINT64 InfoExpirationTime;
     UINT32 FileAttributes;
@@ -588,8 +611,6 @@ typedef struct
     UINT64 UserContext;
     UINT64 IndexNumber;
     BOOLEAN IsDirectory;
-    FSP_DEVICE_CONTEXT_TABLE_ELEMENT ElementStorage;
-    UNICODE_STRING FileName;
     WCHAR FileNameBuf[];
 } FSP_FILE_NODE;
 typedef struct

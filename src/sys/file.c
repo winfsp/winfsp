@@ -249,7 +249,7 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
     OpenedFileNode = FspFsvolDeviceInsertContext(FsvolDeviceObject,
-        FileNode->UserContext, FileNode, &FileNode->ElementStorage, &Inserted);
+        FileNode->UserContext, FileNode, &FileNode->ContextElementStorage, &Inserted);
     ASSERT(0 != OpenedFileNode);
 
     if (Inserted)
