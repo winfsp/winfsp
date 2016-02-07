@@ -84,7 +84,7 @@ static PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
 typedef struct
 {
     FSP_IOP_REQUEST_FINI *RequestFini;
-    PVOID Context[3];
+    PVOID Context[4];
     FSP_FSCTL_TRANSACT_RSP *Response;
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 RequestBuf[];
 } FSP_FSCTL_TRANSACT_REQ_HEADER;

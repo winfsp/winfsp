@@ -851,7 +851,7 @@ NTSTATUS FspFsvolSetInformationComplete(
         IrpSp->FileObject);
 }
 
-static VOID FspFsvolInformationRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[3])
+static VOID FspFsvolInformationRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4])
 {
     PAGED_CODE();
 

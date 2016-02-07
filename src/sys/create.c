@@ -12,6 +12,8 @@ static NTSTATUS FspFsvrtCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolCreateNoLock(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
 static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
@@ -27,6 +29,7 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsctlCreate)
 #pragma alloc_text(PAGE, FspFsvrtCreate)
 #pragma alloc_text(PAGE, FspFsvolCreate)
+#pragma alloc_text(PAGE, FspFsvolCreateNoLock)
 #pragma alloc_text(PAGE, FspFsvolCreatePrepare)
 #pragma alloc_text(PAGE, FspFsvolCreateComplete)
 #pragma alloc_text(PAGE, FspFsvolCreateTryOpen)
@@ -43,14 +46,16 @@ FSP_DRIVER_DISPATCH FspCreate;
 enum
 {
     /* Create */
-    RequestFileDesc                     = 0,
-    RequestAccessToken                  = 1,
-    RequestProcess                      = 2,
+    RequestDeviceObject                 = 0,
+    RequestFileDesc                     = 1,
+    RequestAccessToken                  = 2,
+    RequestProcess                      = 3,
 
     /* TryOpen/Overwrite */
-    //RequestFileDesc                   = 0,
-    RequestFileObject                   = 1,
-    RequestState                        = 2,
+    //RequestDeviceObject               = 0,
+    //RequestFileDesc                   = 1,
+    RequestFileObject                   = 2,
+    RequestState                        = 3,
 
     /* RequestState */
     RequestPending                      = 0,
@@ -88,6 +93,27 @@ static NTSTATUS FspFsvrtCreate(
 }
 
 static NTSTATUS FspFsvolCreate(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result = STATUS_SUCCESS;
+
+    FspFsvolDeviceFileRenameAcquireShared(FsvolDeviceObject);
+    try
+    {
+        Result = FspFsvolCreateNoLock(FsvolDeviceObject, Irp, IrpSp);
+    }
+    finally
+    {
+        if (FSP_STATUS_IOQ_POST != Result)
+            FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
+    }
+
+    return Result;
+}
+
+static NTSTATUS FspFsvolCreateNoLock(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     PAGED_CODE();
@@ -180,6 +206,11 @@ static NTSTATUS FspFsvolCreate(
     {
         RelatedFileNode = RelatedFileObject->FsContext;
 
+        /*
+         * Accesses of RelatedFileNode->FileName are protected
+         * by FSP_FSVOL_DEVICE_EXTENSION::FileRenameResource.
+         */
+
         /* is this a valid RelatedFileObject? */
         if (!FspFileNodeIsValid(RelatedFileNode))
             return STATUS_OBJECT_PATH_NOT_FOUND;
@@ -202,12 +233,6 @@ static NTSTATUS FspFsvolCreate(
             sizeof(WCHAR) == RelatedFileNode->FileName.Length && 0 == FileName.Length)
             return STATUS_CANNOT_DELETE;
 
-        /*
-         * There is no need to lock our accesses of RelatedFileObject->FileNode->FileName,
-         * because RelatedFileObject->FileNode->Filename is read-only (after creation) and
-         * because RelatedFileObject->FileNode is guaranteed to exist while RelatedFileObject
-         * exists.
-         */
         BOOLEAN AppendBackslash =
             sizeof(WCHAR) * 2/* not empty or root */ <= RelatedFileNode->FileName.Length &&
             sizeof(WCHAR) <= FileName.Length && L':' != FileName.Buffer[0];
@@ -320,6 +345,8 @@ static NTSTATUS FspFsvolCreate(
      * delete the Request and any associated resources.
      */
     FileDesc->FileNode = FileNode;
+    FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, Request);
+    FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
     FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
 
     /* populate the Create request */
@@ -589,25 +616,20 @@ NTSTATUS FspFsvolCreateComplete(
             if (FileNode->IsDirectory)
                 SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
 
-            /* delete the old request */
-            FspIrpRequest(Irp) = 0;
+            /* disassociate the FileDesc momentarily from the Request */
+            FspIopRequestContext(Request, RequestDeviceObject) = 0;
             FspIopRequestContext(Request, RequestFileDesc) = 0;
-                /* disassociate the FileDesc from the old Request as we want to keep it around! */
-            FspIopDeleteRequest(Request);
 
-            /* create the Overwrite request; MustSucceed because we must either overwrite or close */
-            FspIopCreateRequestFunnel(Irp,
-                FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FileNode->FileName : 0, 0,
-                FspFsvolCreateOverwriteRequestFini, TRUE,
-                &Request);
-
-            /* associate the FileDesc and FileObject with the Overwrite request */
+            /* reset the request */
+            Request->Kind = FspFsctlTransactOverwriteKind;
+            RtlZeroMemory(&Request->Req.Create, sizeof Request->Req.Create);
+            FspIopResetRequest(Request, FspFsvolCreateOverwriteRequestFini);
+            FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
             FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
             FspIopRequestContext(Request, RequestFileObject) = FileObject;
             FspIopRequestContext(Request, RequestState) = (PVOID)RequestPending;
 
             /* populate the Overwrite request */
-            Request->Kind = FspFsctlTransactOverwriteKind;
             Request->Req.Overwrite.UserContext = FileNode->UserContext;
             Request->Req.Overwrite.UserContext2 = FileDesc->UserContext2;
             Request->Req.Overwrite.FileAttributes = FileAttributes;
@@ -681,13 +703,17 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
 
         if (FspFsctlTransactCreateKind == Request->Kind)
         {
+            PDEVICE_OBJECT FsvolDeviceObject = FspIopRequestContext(Request, RequestDeviceObject);
+
             /* disassociate the FileDesc momentarily from the Request */
             Request = FspIrpRequest(Irp);
+            FspIopRequestContext(Request, RequestDeviceObject) = 0;
             FspIopRequestContext(Request, RequestFileDesc) = 0;
 
             /* reset the Request and reassociate the FileDesc and FileObject with it */
             Request->Kind = FspFsctlTransactReservedKind;
             FspIopResetRequest(Request, FspFsvolCreateTryOpenRequestFini);
+            FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
             FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
             FspIopRequestContext(Request, RequestFileObject) = FileObject;
             FspIopRequestContext(Request, RequestState) = (PVOID)(UINT_PTR)FlushImage;
@@ -761,10 +787,11 @@ static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc)
      */
 }
 
-static VOID FspFsvolCreateRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[3])
+static VOID FspFsvolCreateRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4])
 {
     PAGED_CODE();
 
+    PDEVICE_OBJECT FsvolDeviceObject = Context[RequestDeviceObject];
     FSP_FILE_DESC *FileDesc = Context[RequestFileDesc];
     HANDLE AccessToken = Context[RequestAccessToken];
     PEPROCESS Process = Context[RequestProcess];
@@ -798,12 +825,16 @@ static VOID FspFsvolCreateRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Con
 
         ObDereferenceObject(Process);
     }
+
+    if (0 != FsvolDeviceObject)
+        FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject, Request);
 }
 
-static VOID FspFsvolCreateTryOpenRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[3])
+static VOID FspFsvolCreateTryOpenRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4])
 {
     PAGED_CODE();
 
+    PDEVICE_OBJECT FsvolDeviceObject = Context[RequestDeviceObject];
     FSP_FILE_DESC *FileDesc = Context[RequestFileDesc];
     PFILE_OBJECT FileObject = Context[RequestFileObject];
 
@@ -816,12 +847,16 @@ static VOID FspFsvolCreateTryOpenRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PV
         FspFileNodeDereference(FileDesc->FileNode);
         FspFileDescDelete(FileDesc);
     }
+
+    if (0 != FsvolDeviceObject)
+        FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject, Request);
 }
 
-static VOID FspFsvolCreateOverwriteRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[3])
+static VOID FspFsvolCreateOverwriteRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4])
 {
     PAGED_CODE();
 
+    PDEVICE_OBJECT FsvolDeviceObject = Context[RequestDeviceObject];
     FSP_FILE_DESC *FileDesc = Context[RequestFileDesc];
     PFILE_OBJECT FileObject = Context[RequestFileObject];
     ULONG State = (ULONG)(UINT_PTR)Context[RequestState];
@@ -839,6 +874,9 @@ static VOID FspFsvolCreateOverwriteRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, 
         FspFileNodeDereference(FileDesc->FileNode);
         FspFileDescDelete(FileDesc);
     }
+
+    if (0 != FsvolDeviceObject)
+        FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject, Request);
 }
 
 NTSTATUS FspCreate(

@@ -419,7 +419,7 @@ PIRP FspIoqNextCompleteIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp);
 #define FspIopPostWorkRequestBestEffort(D, R)\
     FspIopPostWorkRequestFunnel(D, R, TRUE)
 #define FspIopCompleteIrp(I, R)         FspIopCompleteIrpEx(I, R, TRUE)
-typedef VOID FSP_IOP_REQUEST_FINI(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[3]);
+typedef VOID FSP_IOP_REQUEST_FINI(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4]);
 NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
     BOOLEAN MustSucceed,
@@ -522,6 +522,11 @@ NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceReference(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDereference(PDEVICE_OBJECT DeviceObject);
+VOID FspFsvolDeviceFileRenameAcquireShared(PDEVICE_OBJECT DeviceObject);
+VOID FspFsvolDeviceFileRenameAcquireExclusive(PDEVICE_OBJECT DeviceObject);
+VOID FspFsvolDeviceFileRenameSetOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
+VOID FspFsvolDeviceFileRenameRelease(PDEVICE_OBJECT DeviceObject);
+VOID FspFsvolDeviceFileRenameReleaseOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
 VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
 PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
