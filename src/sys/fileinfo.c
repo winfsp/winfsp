@@ -82,6 +82,8 @@ enum
 {
     RequestFileNode                     = 0,
     RequestInfoChangeNumber             = 1,
+    RequestAllInformationResult         = 2,
+    RequestAllInformationBuffer         = 3,
 };
 
 static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
@@ -98,7 +100,8 @@ static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
         if ((PVOID)(Info + 1) > BufferEnd)
             return STATUS_BUFFER_TOO_SMALL;
 
-        return STATUS_SUCCESS;
+        *PBuffer = (PVOID)&Info->NameInformation;
+        return FspFsvolQueryNameInformation(FileObject, PBuffer, BufferEnd);
     }
 
     Info->BasicInformation.CreationTime.QuadPart = FileInfo->CreationTime;
@@ -120,8 +123,7 @@ static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
 
     Info->PositionInformation.CurrentByteOffset = FileObject->CurrentByteOffset;
 
-    *PBuffer = (PVOID)&Info->NameInformation;
-    return FspFsvolQueryNameInformation(FileObject, PBuffer, BufferEnd);
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFsvolQueryAttributeTagInformation(PFILE_OBJECT FileObject,
@@ -205,11 +207,13 @@ static NTSTATUS FspFsvolQueryNameInformation(PFILE_OBJECT FileObject,
     PUINT8 Buffer = (PUINT8)Info->FileName;
     ULONG CopyLength;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
 
     if ((PVOID)(Info + 1) > BufferEnd)
         return STATUS_BUFFER_TOO_SMALL;
+
+    FspFsvolDeviceFileRenameAcquireShared(FsvolDeviceObject);
 
     Info->FileNameLength = FsvolDeviceExtension->VolumePrefix.Length + FileNode->FileName.Length;
 
@@ -230,6 +234,8 @@ static NTSTATUS FspFsvolQueryNameInformation(PFILE_OBJECT FileObject,
     }
     RtlCopyMemory(Buffer, FileNode->FileName.Buffer, CopyLength);
     Buffer += CopyLength;
+
+    FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
 
     *PBuffer = Buffer;
 
@@ -333,6 +339,8 @@ static NTSTATUS FspFsvolQueryInformation(
     PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
     PVOID BufferEnd = (PUINT8)Buffer + IrpSp->Parameters.QueryFile.Length;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
+    NTSTATUS AllInformationResult = STATUS_INVALID_PARAMETER;
+    PVOID AllInformationBuffer = 0;
 
     ASSERT(FileNode == FileDesc->FileNode);
 
@@ -340,6 +348,11 @@ static NTSTATUS FspFsvolQueryInformation(
     {
     case FileAllInformation:
         Result = FspFsvolQueryAllInformation(FileObject, &Buffer, BufferEnd, 0);
+        AllInformationResult = Result;
+        AllInformationBuffer = Buffer;
+        if (STATUS_BUFFER_OVERFLOW == Result)
+            Result = STATUS_SUCCESS;
+        Buffer = Irp->AssociatedIrp.SystemBuffer;
         break;
     case FileAttributeTagInformation:
         Result = FspFsvolQueryAttributeTagInformation(FileObject, &Buffer, BufferEnd, 0);
@@ -393,6 +406,9 @@ static NTSTATUS FspFsvolQueryInformation(
         {
         case FileAllInformation:
             Result = FspFsvolQueryAllInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
+            ASSERT(NT_SUCCESS(Result));
+            Result = AllInformationResult;
+            Buffer = AllInformationBuffer;
             break;
         case FileAttributeTagInformation:
             Result = FspFsvolQueryAttributeTagInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
@@ -436,6 +452,8 @@ static NTSTATUS FspFsvolQueryInformation(
 
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestFileNode) = FileNode;
+    FspIopRequestContext(Request, RequestAllInformationResult) = (PVOID)(ULONG)AllInformationResult;
+    FspIopRequestContext(Request, RequestAllInformationBuffer) = AllInformationBuffer;
 
     return FSP_STATUS_IOQ_POST;
 }
@@ -487,6 +505,9 @@ NTSTATUS FspFsvolQueryInformationComplete(
     {
     case FileAllInformation:
         Result = FspFsvolQueryAllInformation(FileObject, &Buffer, BufferEnd, FileInfo);
+        ASSERT(NT_SUCCESS(Result));
+        Result = (NTSTATUS)(UINT_PTR)FspIopRequestContext(Request, RequestAllInformationResult);
+        Buffer = FspIopRequestContext(Request, RequestAllInformationBuffer);
         break;
     case FileAttributeTagInformation:
         Result = FspFsvolQueryAttributeTagInformation(FileObject, &Buffer, BufferEnd, FileInfo);
