@@ -261,6 +261,9 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
          */
         ASSERT(OpenedFileNode == FileNode);
 
+        FspFsvolDeviceInsertContextByName(FsvolDeviceObject,
+            &FileNode->FileName, FileNode, &FileNode->ContextByNameElementStorage, 0);
+
         IoSetShareAccess(GrantedAccess, ShareAccess, FileObject,
             &OpenedFileNode->ShareAccess);
     }
@@ -345,7 +348,11 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 
     IoRemoveShareAccess(FileObject, &FileNode->ShareAccess);
     if (0 == --FileNode->OpenCount)
+    {
         FspFsvolDeviceDeleteContext(FsvolDeviceObject, FileNode->UserContext, &Deleted);
+        if (Deleted)
+            FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName, 0);
+    }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
