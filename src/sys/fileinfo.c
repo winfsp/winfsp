@@ -478,6 +478,7 @@ NTSTATUS FspFsvolQueryInformationComplete(
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     FSP_FSCTL_FILE_INFO FileInfoBuf;
     const FSP_FSCTL_FILE_INFO *FileInfo;
+    BOOLEAN Success;
 
     if (0 != FspIopRequestContext(Request, RequestFileNode))
     {
@@ -487,8 +488,13 @@ NTSTATUS FspFsvolQueryInformationComplete(
         FspFileNodeReleaseOwner(FileNode, Full, Request);
     }
 
-    if (!FspFileNodeTryAcquireExclusive(FileNode, Main))
+    Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Main);
+    if (!Success)
+    {
         FspIopRetryCompleteIrp(Irp, Response, &Result);
+
+        return Result;
+    }
 
     if (!FspFileNodeTrySetFileInfo(FileNode, FileObject, &Response->Rsp.QueryInformation.FileInfo,
         (ULONG)(UINT_PTR)FspIopRequestContext(Request, RequestInfoChangeNumber)))
