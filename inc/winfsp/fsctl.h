@@ -259,7 +259,7 @@ typedef struct
         } QueryInformation;
         struct
         {
-            FSP_FSCTL_FILE_INFO FileInfo;
+            FSP_FSCTL_FILE_INFO FileInfo;       /* valid: File{Allocation,Basic,EndOfFile}Information */
         } SetInformation;
         struct
         {
