@@ -600,7 +600,6 @@ typedef struct
     /* locked under FSP_FSVOL_DEVICE_EXTENSION::ContextTableResource */
     LONG OpenCount;
     SHARE_ACCESS ShareAccess;
-    FSP_DEVICE_CONTEXT_TABLE_ELEMENT ContextElementStorage;
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT ContextByNameElementStorage;
     /* locked under FSP_FSVOL_DEVICE_EXTENSION::FileRenameResource */
     UNICODE_STRING FileName;

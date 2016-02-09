@@ -264,8 +264,8 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
-    OpenedFileNode = FspFsvolDeviceInsertContext(FsvolDeviceObject,
-        FileNode->UserContext, FileNode, &FileNode->ContextElementStorage, &Inserted);
+    OpenedFileNode = FspFsvolDeviceInsertContextByName(FsvolDeviceObject,
+        &FileNode->FileName, FileNode, &FileNode->ContextByNameElementStorage, &Inserted);
     ASSERT(0 != OpenedFileNode);
 
     if (Inserted)
@@ -276,9 +276,6 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
          * FileNode, one from our caller and one from the Context table.
          */
         ASSERT(OpenedFileNode == FileNode);
-
-        FspFsvolDeviceInsertContextByName(FsvolDeviceObject,
-            &FileNode->FileName, FileNode, &FileNode->ContextByNameElementStorage, 0);
 
         IoSetShareAccess(GrantedAccess, ShareAccess, FileObject,
             &OpenedFileNode->ShareAccess);
@@ -364,11 +361,7 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 
     IoRemoveShareAccess(FileObject, &FileNode->ShareAccess);
     if (0 == --FileNode->OpenCount)
-    {
-        FspFsvolDeviceDeleteContext(FsvolDeviceObject, FileNode->UserContext, &Deleted);
-        if (Deleted)
-            FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName, 0);
-    }
+        FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName, &Deleted);
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
