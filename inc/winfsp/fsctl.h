@@ -129,8 +129,6 @@ typedef struct
     UINT32 HardLinks:1;                 /* unimplemented; set to 0 */
     UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */
     UINT32 ReadOnlyVolume:1;
-    /* other flags */
-    UINT32 FileNameRequired:1;          /* FileName required for all operations (not just Create) */
     WCHAR Prefix[64];                   /* UNC prefix to recognize (\\server\path format, 0-term) */
 } FSP_FSCTL_VOLUME_PARAMS;
 typedef struct

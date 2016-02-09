@@ -445,12 +445,9 @@ static NTSTATUS FspFsvolQueryInformation(
 
     FspFileNodeAcquireShared(FileNode, Pgio);
 
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    BOOLEAN FileNameRequired = 0 != FsvolDeviceExtension->VolumeParams.FileNameRequired;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
-    Result = FspIopCreateRequestEx(Irp, FileNameRequired ? &FileNode->FileName : 0, 0,
-        FspFsvolQueryInformationRequestFini, &Request);
+    Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolQueryInformationRequestFini, &Request);
     if (!NT_SUCCESS(Result))
     {
         FspFileNodeRelease(FileNode, Full);
@@ -996,16 +993,13 @@ static NTSTATUS FspFsvolSetInformation(
     if (!NT_SUCCESS(Result))
         return Result;
 
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    BOOLEAN FileNameRequired = 0 != FsvolDeviceExtension->VolumeParams.FileNameRequired;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     ASSERT(FileNode == FileDesc->FileNode);
 
-    Result = FspIopCreateRequestEx(Irp, FileNameRequired ? &FileNode->FileName : 0, 0,
-        FspFsvolSetInformationRequestFini, &Request);
+    Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolSetInformationRequestFini, &Request);
     if (!NT_SUCCESS(Result))
         return Result;
 

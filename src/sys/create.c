@@ -770,13 +770,10 @@ static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc)
 
     FSP_FILE_NODE *FileNode = FileDesc->FileNode;
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     /* create the user-mode file system request; MustSucceed because we cannot fail */
-    FspIopCreateRequestMustSucceed(0,
-        FsvolDeviceExtension->VolumeParams.FileNameRequired ? &FileNode->FileName : 0,
-        0, &Request);
+    FspIopCreateRequestMustSucceed(0, 0, 0, &Request);
 
     /* populate the Close request */
     Request->Kind = FspFsctlTransactCloseKind;

@@ -236,13 +236,9 @@ static NTSTATUS FspFsvolQueryVolumeInformation(
         return Result;
     }
 
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    BOOLEAN FileNameRequired = 0 != FsvolDeviceExtension->VolumeParams.FileNameRequired;
-    PFILE_OBJECT FileObject = IrpSp->FileObject;
-    FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
-    Result = FspIopCreateRequest(Irp, FileNameRequired ? &FileNode->FileName : 0, 0, &Request);
+    Result = FspIopCreateRequest(Irp, 0, 0, &Request);
     if (!NT_SUCCESS(Result))
         return Result;
 

@@ -50,8 +50,6 @@ static NTSTATUS FspFsvolClose(
     if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
         return STATUS_SUCCESS;
 
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    BOOLEAN FileNameRequired = 0 != FsvolDeviceExtension->VolumeParams.FileNameRequired;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
@@ -60,7 +58,7 @@ static NTSTATUS FspFsvolClose(
     ASSERT(FileNode == FileDesc->FileNode);
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLOSE cannot fail */
-    FspIopCreateRequestMustSucceed(0, FileNameRequired ? &FileNode->FileName : 0, 0, &Request);
+    FspIopCreateRequestMustSucceed(0, 0, 0, &Request);
     Request->Kind = FspFsctlTransactCloseKind;
     Request->Req.Close.UserContext = FileNode->UserContext;
     Request->Req.Close.UserContext2 = FileDesc->UserContext2;
