@@ -336,6 +336,9 @@ ULONG FspHashMixPointer(PVOID Pointer)
 }
 
 /* utility */
+PVOID FspAllocMustSucceed(SIZE_T Size);
+PVOID FspAllocateIrpMustSucceed(CCHAR StackSize);
+VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
 
@@ -601,6 +604,7 @@ typedef struct
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT ContextByNameElementStorage;
     /* locked under FSP_FSVOL_DEVICE_EXTENSION::FileRenameResource */
     UNICODE_STRING FileName;
+    PWSTR ExternalFileName;
     /* locked under Header.Resource */
     UINT64 InfoExpirationTime;
     UINT32 FileAttributes;
@@ -616,6 +620,7 @@ typedef struct
     UINT64 UserContext;
     UINT64 IndexNumber;
     BOOLEAN IsDirectory;
+    BOOLEAN IsRootDirectory;
     WCHAR FileNameBuf[];
 } FSP_FILE_NODE;
 typedef struct
@@ -639,6 +644,7 @@ VOID FspFileNodeDereference(FSP_FILE_NODE *FileNode)
     if (0 == RefCount)
         FspFileNodeDelete(FileNode);
 }
+VOID FspFileNodeSetExternalFileName(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);

@@ -550,11 +550,21 @@ NTSTATUS FspFsvolCreateComplete(
             FSP_RETURN();
         }
 
+        /* fix FileNode->FileName if we were doing SL_OPEN_TARGET_DIRECTORY */
+        if (Request->Req.Create.OpenTargetDirectory)
+        {
+            UNICODE_STRING Suffix;
+
+            FspUnicodePathSuffix(&FileNode->FileName, &FileNode->FileName, &Suffix);
+        }
+
         /* populate the FileNode/FileDesc fields from the Response */
         FileNode->UserContext = Response->Rsp.Create.Opened.UserContext;
         FileNode->IndexNumber = Response->Rsp.Create.Opened.FileInfo.IndexNumber;
         FileNode->IsDirectory = BooleanFlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes,
             FILE_ATTRIBUTE_DIRECTORY);
+        FileNode->IsRootDirectory = FileNode->IsDirectory &&
+            sizeof(WCHAR) == FileNode->FileName.Length && L'\\' == FileNode->FileName.Buffer[0];
         FileDesc->UserContext2 = Response->Rsp.Create.Opened.UserContext2;
         FileDesc->DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
 

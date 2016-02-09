@@ -39,48 +39,6 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
 #pragma alloc_text(PAGE, FspIopDispatchComplete)
 #endif
 
-static const LONG Delays[] =
-{
-    -100,
-    -200,
-    -300,
-    -400,
-    -500,
-    -1000,
-};
-
-static PVOID FspAllocMustSucceed(SIZE_T Size)
-{
-    PVOID Result;
-    LARGE_INTEGER Delay;
-
-    for (ULONG i = 0, n = sizeof(Delays) / sizeof(Delays[0]);; i++)
-    {
-        Result = FspAlloc(Size);
-        if (0 != Result)
-            return Result;
-
-        Delay.QuadPart = n > i ? Delays[i] : Delays[n - 1];
-        KeDelayExecutionThread(KernelMode, FALSE, &Delay);
-    }
-}
-
-static PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
-{
-    PIRP Result;
-    LARGE_INTEGER Delay;
-
-    for (ULONG i = 0, n = sizeof(Delays) / sizeof(Delays[0]);; i++)
-    {
-        Result = IoAllocateIrp(StackSize, FALSE);
-        if (0 != Result)
-            return Result;
-
-        Delay.QuadPart = n > i ? Delays[i] : Delays[n - 1];
-        KeDelayExecutionThread(KernelMode, FALSE, &Delay);
-    }
-}
-
 typedef struct
 {
     FSP_IOP_REQUEST_FINI *RequestFini;

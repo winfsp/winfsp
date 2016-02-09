@@ -6,6 +6,7 @@
 
 #include <sys/driver.h>
 
+VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
 VOID FspInitializeSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem,
     PWORKER_THREAD_ROUTINE Routine, PVOID Context);
@@ -17,6 +18,7 @@ VOID FspQueueDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem, LARGE_INTEG
 static KDEFERRED_ROUTINE FspQueueDelayedWorkItemDPC;
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspUnicodePathSuffix)
 #pragma alloc_text(PAGE, FspCreateGuid)
 #pragma alloc_text(PAGE, FspInitializeSynchronousWorkItem)
 #pragma alloc_text(PAGE, FspExecuteSynchronousWorkItem)
@@ -24,6 +26,78 @@ static KDEFERRED_ROUTINE FspQueueDelayedWorkItemDPC;
 #pragma alloc_text(PAGE, FspInitializeDelayedWorkItem)
 #pragma alloc_text(PAGE, FspQueueDelayedWorkItem)
 #endif
+
+static const LONG Delays[] =
+{
+    -100,
+    -200,
+    -300,
+    -400,
+    -500,
+    -1000,
+};
+
+PVOID FspAllocMustSucceed(SIZE_T Size)
+{
+    PVOID Result;
+    LARGE_INTEGER Delay;
+
+    for (ULONG i = 0, n = sizeof(Delays) / sizeof(Delays[0]);; i++)
+    {
+        Result = FspAlloc(Size);
+        if (0 != Result)
+            return Result;
+
+        Delay.QuadPart = n > i ? Delays[i] : Delays[n - 1];
+        KeDelayExecutionThread(KernelMode, FALSE, &Delay);
+    }
+}
+
+PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
+{
+    PIRP Result;
+    LARGE_INTEGER Delay;
+
+    for (ULONG i = 0, n = sizeof(Delays) / sizeof(Delays[0]);; i++)
+    {
+        Result = IoAllocateIrp(StackSize, FALSE);
+        if (0 != Result)
+            return Result;
+
+        Delay.QuadPart = n > i ? Delays[i] : Delays[n - 1];
+        KeDelayExecutionThread(KernelMode, FALSE, &Delay);
+    }
+}
+
+VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix)
+{
+    PAGED_CODE();
+
+    PWSTR PathBgn, PathEnd, PathPtr, RemainEnd, SuffixBgn;
+
+    PathBgn = Path->Buffer;
+    PathEnd = (PWSTR)((PUINT8)PathBgn + Path->Length);
+    PathPtr = PathBgn;
+
+    RemainEnd = PathEnd;
+    SuffixBgn = PathEnd;
+
+    while (PathEnd > PathPtr)
+        if (L'\\' == *PathPtr)
+        {
+            RemainEnd = PathPtr++;
+            for (; L'\\' == *PathPtr; PathPtr++)
+                ;
+            SuffixBgn = PathPtr;
+        }
+        else
+            PathPtr++;
+
+    Remain->Length = Remain->MaximumLength = (USHORT)((PUINT8)RemainEnd - (PUINT8)PathBgn);
+    Remain->Buffer = PathBgn;
+    Suffix->Length = Suffix->MaximumLength = (USHORT)((PUINT8)PathEnd - (PUINT8)SuffixBgn);
+    Suffix->Buffer = SuffixBgn;
+}
 
 NTSTATUS FspCreateGuid(GUID *Guid)
 {

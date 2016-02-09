@@ -9,6 +9,7 @@
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode);
 VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode);
+VOID FspFileNodeSetExternalFileName(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);
@@ -32,6 +33,7 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFileNodeCreate)
 #pragma alloc_text(PAGE, FspFileNodeDelete)
+#pragma alloc_text(PAGE, FspFileNodeSetExternalFileName)
 #pragma alloc_text(PAGE, FspFileNodeAcquireSharedF)
 #pragma alloc_text(PAGE, FspFileNodeTryAcquireSharedF)
 #pragma alloc_text(PAGE, FspFileNodeAcquireExclusiveF)
@@ -100,11 +102,25 @@ VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode)
 
     FspDeviceDereference(FileNode->FsvolDeviceObject);
 
+    if (0 != FileNode->ExternalFileName)
+        FspFree(FileNode->ExternalFileName);
+
     ExDeleteResourceLite(&FileNode->NonPaged->PagingIoResource);
     ExDeleteResourceLite(&FileNode->NonPaged->Resource);
     FspFree(FileNode->NonPaged);
 
     FspFree(FileNode);
+}
+
+VOID FspFileNodeSetExternalFileName(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
+{
+    PAGED_CODE();
+
+    if (0 != FileNode->ExternalFileName)
+        FspFree(FileNode->ExternalFileName);
+
+    FileNode->FileName = *NewFileName;
+    FileNode->ExternalFileName = NewFileName->Buffer;
 }
 
 VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
