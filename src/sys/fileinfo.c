@@ -772,7 +772,7 @@ static NTSTATUS FspFsvolSetDispositionInformationSuccess(
     FspIopRequestContext(Request, RequestFileNode) = 0;
     FspIopRequestContext(Request, RequestDeviceObject) = 0;
     FspFileNodeReleaseOwner(FileNode, Full, Request);
-    FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
+    FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject, Request);
 
     Irp->IoStatus.Information = 0;
 
@@ -935,7 +935,7 @@ static NTSTATUS FspFsvolSetRenameInformationSuccess(
     FspIopRequestContext(Request, RequestFileNode) = 0;
     FspIopRequestContext(Request, RequestDeviceObject) = 0;
     FspFileNodeReleaseOwner(FileNode, Full, Request);
-    FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
+    FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject, Request);
 
     Irp->IoStatus.Information = 0;
 

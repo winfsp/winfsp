@@ -79,7 +79,7 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
         if (0 != FileSystem->Interface->CanDelete)
             if (Request->Req.SetInformation.Info.Disposition.Delete)
                 Result = FileSystem->Interface->CanDelete(FileSystem, Request,
-                    (PVOID)Request->Req.Close.UserContext);
+                    (PVOID)Request->Req.SetInformation.UserContext);
             else
                 Result = STATUS_SUCCESS;
         break;
