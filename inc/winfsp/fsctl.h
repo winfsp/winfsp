@@ -217,7 +217,7 @@ typedef struct
             } Info;
         } SetInformation;
     } Req;
-    FSP_FSCTL_TRANSACT_BUF FileName;
+    FSP_FSCTL_TRANSACT_BUF FileName;    /* {Create,Overwrite,Cleanup,SetInformation/{Disposition,Rename}} */
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_REQ;
 typedef struct
