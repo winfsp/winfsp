@@ -884,21 +884,13 @@ NTSTATUS FspFsvolSetRenameInformationSuccess(
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     UNICODE_STRING NewFileName;
-    BOOLEAN Deleted, Inserted;
 
     NewFileName.Length = NewFileName.MaximumLength =
         Request->Req.SetInformation.Info.Rename.NewFileName.Size - sizeof(WCHAR);
     NewFileName.Buffer = FspAllocMustSucceed(NewFileName.Length);
     RtlCopyMemory(NewFileName.Buffer, Request->Buffer + Request->FileName.Size, NewFileName.Length);
 
-    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
-    FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName, &Deleted);
-    ASSERT(Deleted);
-    FspFileNodeSetExternalFileName(FileNode, &NewFileName);
-    FspFsvolDeviceInsertContextByName(FsvolDeviceObject, &FileNode->FileName, FileNode,
-        &FileNode->ContextByNameElementStorage, &Inserted);
-    ASSERT(Inserted);
-    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+    FspFileNodeRename(FileNode, &NewFileName);
 
     FspIopRequestContext(Request, RequestFileNode) = 0;
     FspIopRequestContext(Request, RequestDeviceObject) = 0;
