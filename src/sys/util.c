@@ -95,6 +95,8 @@ VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE
 
     Remain->Length = Remain->MaximumLength = (USHORT)((PUINT8)RemainEnd - (PUINT8)PathBgn);
     Remain->Buffer = PathBgn;
+    if (0 == Remain->Length && PathBgn < PathEnd && L'\\' == *PathBgn)
+        Remain->Length = Remain->MaximumLength = sizeof(WCHAR);
     Suffix->Length = Suffix->MaximumLength = (USHORT)((PUINT8)PathEnd - (PUINT8)SuffixBgn);
     Suffix->Buffer = SuffixBgn;
 }

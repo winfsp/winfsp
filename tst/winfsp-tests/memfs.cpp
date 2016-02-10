@@ -502,10 +502,45 @@ NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
 
 NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
-    PVOID FileNode,
-    PWSTR ExistingFileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
+    PVOID FileNode0,
+    PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    MEMFS_FILE_NODE *NewFileNode;
+    BOOLEAN Inserted;
+    NTSTATUS Result;
+
+    assert(0 == FileName || 0 == wcscmp(FileNode->FileName, FileName));
+
+    if (MAX_PATH <= wcslen(NewFileName))
+        return STATUS_OBJECT_NAME_INVALID;
+
+    NewFileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, NewFileName);
+    if (0 != NewFileNode)
+    {
+        if (NewFileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            return STATUS_ACCESS_DENIED;
+
+        if (ReplaceIfExists)
+            return STATUS_OBJECT_NAME_COLLISION;
+
+        NewFileNode->RefCount++;
+        MemfsFileNodeMapRemove(Memfs->FileNodeMap, NewFileNode);
+        if (0 == --NewFileNode->RefCount)
+            MemfsFileNodeDelete(NewFileNode);
+    }
+
+    MemfsFileNodeMapRemove(Memfs->FileNodeMap, FileNode);
+    wcscpy_s(FileNode->FileName, sizeof FileNode->FileName / sizeof(WCHAR), NewFileName);
+    Result = MemfsFileNodeMapInsert(Memfs->FileNodeMap, FileNode, &Inserted);
+    if (!NT_SUCCESS(Result))
+    {
+        FspDebugLog(__FUNCTION__ ": cannot insert into FileNodeMap; aborting\n");
+        abort();
+    }
+
+    return STATUS_SUCCESS;
 }
 
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =

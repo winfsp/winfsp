@@ -795,7 +795,10 @@ static NTSTATUS FspFsvolSetRenameInformation(
     FSP_FILE_NODE *TargetFileNode = 0 != TargetFileObject ?
         TargetFileObject->FsContext : 0;
     FSP_FSCTL_TRANSACT_REQ *Request;
+    UNICODE_STRING Remain, Suffix;
     UNICODE_STRING NewFileName;
+    PUINT8 NewFileNameBuffer;
+    BOOLEAN AppendBackslash;
 
     ASSERT(FileNode == FileDesc->FileNode);
 
@@ -818,49 +821,41 @@ static NTSTATUS FspFsvolSetRenameInformation(
     FspFsvolDeviceFileRenameAcquireExclusive(FsvolDeviceObject);
     FspFileNodeAcquireExclusive(FileNode, Full);
 
-    if (L'\\' == Info->FileName[0])
-    {
-        Result = FspIopCreateRequestEx(Irp, &FileNode->FileName,
-            Info->FileNameLength + sizeof(WCHAR),
-            FspFsvolSetInformationRequestFini, &Request);
-        if (!NT_SUCCESS(Result))
-            goto unlock_exit;
-
-        Request->Req.SetInformation.Info.Rename.NewFileName.Size =
-            (UINT16)(Info->FileNameLength + sizeof(WCHAR));
-
-        RtlCopyMemory(Request->Buffer + Request->FileName.Size,
-            Info->FileName, Info->FileNameLength);
-    }
+    if (0 != TargetFileNode)
+        Remain = TargetFileNode->FileName;
     else
-    {
-        UNICODE_STRING Remain, Suffix;
-
         FspUnicodePathSuffix(&FileNode->FileName, &Remain, &Suffix);
 
-        Result = FspIopCreateRequestEx(Irp, &FileNode->FileName,
-            Remain.Length + sizeof(WCHAR) + Info->FileNameLength + sizeof(WCHAR),
-            FspFsvolSetInformationRequestFini, &Request);
-        if (!NT_SUCCESS(Result))
-            goto unlock_exit;
+    Suffix.Length = Suffix.MaximumLength = (USHORT)Info->FileNameLength;
+    Suffix.Buffer = Info->FileName;
+    if (L'\\' == Suffix.Buffer[0])
+        FspUnicodePathSuffix(&Suffix, &NewFileName, &Suffix);
 
-        Request->Req.SetInformation.Info.Rename.NewFileName.Size =
-            (UINT16)(Remain.Length + sizeof(WCHAR) + Info->FileNameLength + sizeof(WCHAR));
+    AppendBackslash = sizeof(WCHAR) < Remain.Length;
+    NewFileName.Length = NewFileName.MaximumLength =
+        Remain.Length + AppendBackslash * sizeof(WCHAR) + Suffix.Length;
 
-        RtlCopyMemory(Request->Buffer + Request->FileName.Size,
-            Remain.Buffer, Remain.Length);
-        *(PWSTR)(Request->Buffer + Request->FileName.Size + Remain.Length) = L'\\';
-        RtlCopyMemory(Request->Buffer + Request->FileName.Size + Remain.Length + sizeof(WCHAR),
-            Info->FileName, Info->FileNameLength);
-    }
+    Result = FspIopCreateRequestEx(Irp, &FileNode->FileName,
+        NewFileName.Length + sizeof(WCHAR),
+        FspFsvolSetInformationRequestFini, &Request);
+    if (!NT_SUCCESS(Result))
+        goto unlock_exit;
 
-    *(PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Size) = L'\0';
+    NewFileNameBuffer = Request->Buffer + Request->FileName.Size;
+    NewFileName.Buffer = (PVOID)NewFileNameBuffer;
+
+    RtlCopyMemory(NewFileNameBuffer, Remain.Buffer, Remain.Length);
+    *(PWSTR)(NewFileNameBuffer + Remain.Length) = L'\\';
+    RtlCopyMemory(NewFileNameBuffer + Remain.Length + AppendBackslash * sizeof(WCHAR),
+        Suffix.Buffer, Suffix.Length);
+    *(PWSTR)(NewFileNameBuffer + NewFileName.Length) = L'\0';
 
     Request->Kind = FspFsctlTransactSetInformationKind;
     Request->Req.SetInformation.UserContext = FileNode->UserContext;
     Request->Req.SetInformation.UserContext2 = FileDesc->UserContext2;
     Request->Req.SetInformation.FileInformationClass = FileRenameInformation;
     Request->Req.SetInformation.Info.Rename.NewFileName.Offset = Request->FileName.Size;
+    Request->Req.SetInformation.Info.Rename.NewFileName.Size = NewFileName.Length + sizeof(WCHAR);
     Request->Req.SetInformation.Info.Rename.ReplaceIfExists = ReplaceIfExists;
 
     FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, Request);
@@ -878,10 +873,6 @@ static NTSTATUS FspFsvolSetRenameInformation(
      * -   A directory cannot be renamed if it or any of its subdirectories contains a file
      *     that has open handles (except in the batch-oplock case described earlier).
      */
-
-    NewFileName.Length = NewFileName.MaximumLength =
-        Request->Req.SetInformation.Info.Rename.NewFileName.Size - sizeof(WCHAR);
-    NewFileName.Buffer = (PVOID)(Request->Buffer + Request->FileName.Size);
 
     Result = STATUS_SUCCESS;
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);

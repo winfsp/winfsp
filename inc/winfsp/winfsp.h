@@ -81,7 +81,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     NTSTATUS (*Rename)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,
-        PWSTR ExistingFileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists);
+        PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists);
 } FSP_FILE_SYSTEM_INTERFACE;
 typedef struct _FSP_FILE_SYSTEM
 {
