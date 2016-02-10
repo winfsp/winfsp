@@ -54,7 +54,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_FILE_INFO *FileInfo);
     VOID (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
-        PVOID FileNode, BOOLEAN Delete);
+        PVOID FileNode, PWSTR FileName, BOOLEAN Delete);
     VOID (*Close)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode);
@@ -77,7 +77,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_FILE_INFO *FileInfo);
     NTSTATUS (*CanDelete)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
-        PVOID FileNode);
+        PVOID FileNode, PWSTR FileName);
     NTSTATUS (*Rename)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,

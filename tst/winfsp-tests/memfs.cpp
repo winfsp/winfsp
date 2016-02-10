@@ -7,6 +7,7 @@
 #undef _DEBUG
 #include "memfs.h"
 #include <map>
+#include <cassert>
 
 #define MEMFS_SECTOR_SIZE               512
 #define MEMFS_SECTORS_PER_ALLOCATION_UNIT 1
@@ -375,10 +376,12 @@ NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
 
 static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
-    PVOID FileNode0, BOOLEAN Delete)
+    PVOID FileNode0, PWSTR FileName, BOOLEAN Delete)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    assert(0 == FileName || 0 == wcscmp(FileNode->FileName, FileName));
 
     if (Delete && !MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
         MemfsFileNodeMapRemove(Memfs->FileNodeMap, FileNode);
@@ -484,10 +487,12 @@ NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
 
 NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
-    PVOID FileNode0)
+    PVOID FileNode0, PWSTR FileName)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    assert(0 == FileName || 0 == wcscmp(FileNode->FileName, FileName));
 
     if (MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
         return STATUS_DIRECTORY_NOT_EMPTY;

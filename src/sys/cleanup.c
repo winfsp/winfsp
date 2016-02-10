@@ -64,12 +64,12 @@ static NTSTATUS FspFsvolCleanup(
     FspFileNodeClose(FileNode, FileObject, &DeletePending);
 
     /*
-     * The FileNode is no longer in the Context table, therefore we do not
-     * need to protect its FileName against renames!
+     * If DeletePending is TRUE, the FileNode is no longer in the Context table,
+     * therefore we do not need to protect its FileName against renames!
      */
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLEANUP cannot fail */
-    FspIopCreateRequestMustSucceed(Irp, &FileNode->FileName, 0, &Request);
+    FspIopCreateRequestMustSucceed(Irp, DeletePending ? &FileNode->FileName : 0, 0, &Request);
     Request->Kind = FspFsctlTransactCleanupKind;
     Request->Req.Cleanup.UserContext = FileNode->UserContext;
     Request->Req.Cleanup.UserContext2 = FileDesc->UserContext2;

@@ -1,6 +1,6 @@
 #include <tlib/testsuite.h>
 
-int NtfsTests = 1;
+int NtfsTests = 0;
 int WinFspDiskTests = 1;
 int WinFspNetTests = 1;
 
