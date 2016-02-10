@@ -6,6 +6,7 @@
 
 #include <sys/driver.h>
 
+BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
 VOID FspInitializeSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem,
@@ -18,6 +19,7 @@ VOID FspQueueDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem, LARGE_INTEG
 static KDEFERRED_ROUTINE FspQueueDelayedWorkItemDPC;
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspUnicodePathIsValid)
 #pragma alloc_text(PAGE, FspUnicodePathSuffix)
 #pragma alloc_text(PAGE, FspCreateGuid)
 #pragma alloc_text(PAGE, FspInitializeSynchronousWorkItem)
@@ -69,6 +71,31 @@ PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
     }
 }
 
+BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams)
+{
+    PAGED_CODE();
+
+    PWSTR PathBgn, PathEnd, PathPtr;
+
+    PathBgn = Path->Buffer;
+    PathEnd = (PWSTR)((PUINT8)PathBgn + Path->Length);
+    PathPtr = PathBgn;
+
+    while (PathEnd > PathPtr)
+        if (L'\\' == *PathPtr)
+        {
+            PathPtr++;
+            if (PathEnd > PathPtr && L'\\' == *PathPtr)
+                return FALSE;
+        }
+        else if (!AllowStreams && L':' == *PathPtr)
+            return FALSE;
+        else
+            PathPtr++;
+
+    return TRUE;
+}
+
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix)
 {
     PAGED_CODE();
@@ -86,7 +113,7 @@ VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE
         if (L'\\' == *PathPtr)
         {
             RemainEnd = PathPtr++;
-            for (; L'\\' == *PathPtr; PathPtr++)
+            for (; PathEnd > PathPtr && L'\\' == *PathPtr; PathPtr++)
                 ;
             SuffixBgn = PathPtr;
         }

@@ -338,6 +338,7 @@ ULONG FspHashMixPointer(PVOID Pointer)
 /* utility */
 PVOID FspAllocMustSucceed(SIZE_T Size);
 PVOID FspAllocateIrpMustSucceed(CCHAR StackSize);
+BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
