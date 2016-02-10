@@ -153,7 +153,6 @@ static NTSTATUS FspFsvolCreateNoLock(
         FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
     BOOLEAN HasTraversePrivilege =
         BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
-    BOOLEAN HasTrailingBackslash = FALSE;
     FSP_FILE_NODE *FileNode, *RelatedFileNode;
     FSP_FILE_DESC *FileDesc;
     FSP_FSCTL_TRANSACT_REQ *Request;
@@ -195,11 +194,11 @@ static NTSTATUS FspFsvolCreateNoLock(
         FileName.Length -= sizeof(WCHAR);
         FileName.MaximumLength -= sizeof(WCHAR);
         FileName.Buffer++;
-
-        if (sizeof(WCHAR) * 2 <= FileName.Length &&
-            L'\\' == FileName.Buffer[1] && L'\\' == FileName.Buffer[0])
-                return STATUS_OBJECT_NAME_INVALID;
     }
+
+    /* check filename validity */
+    if (!FspUnicodePathIsValid(&FileName, 0 != FsvolDeviceExtension->VolumeParams.NamedStreams))
+        return STATUS_OBJECT_NAME_INVALID;
 
     /* is this a relative or absolute open? */
     if (0 != RelatedFileObject)
@@ -218,20 +217,6 @@ static NTSTATUS FspFsvolCreateNoLock(
         /* must be a relative path */
         if (sizeof(WCHAR) <= FileName.Length && L'\\' == FileName.Buffer[0])
             return STATUS_OBJECT_NAME_INVALID;
-
-        /* not all operations allowed on the root directory */
-        if ((FILE_CREATE == CreateDisposition ||
-            FILE_OVERWRITE == CreateDisposition ||
-            FILE_OVERWRITE_IF == CreateDisposition ||
-            FILE_SUPERSEDE == CreateDisposition ||
-            BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY)) &&
-            sizeof(WCHAR) == RelatedFileNode->FileName.Length && 0 == FileName.Length)
-            return STATUS_ACCESS_DENIED;
-
-        /* cannot FILE_DELETE_ON_CLOSE on the root directory */
-        if (FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE) &&
-            sizeof(WCHAR) == RelatedFileNode->FileName.Length && 0 == FileName.Length)
-            return STATUS_CANNOT_DELETE;
 
         BOOLEAN AppendBackslash =
             sizeof(WCHAR) * 2/* not empty or root */ <= RelatedFileNode->FileName.Length &&
@@ -255,20 +240,6 @@ static NTSTATUS FspFsvolCreateNoLock(
         /* must be an absolute path */
         if (sizeof(WCHAR) <= FileName.Length && L'\\' != FileName.Buffer[0])
             return STATUS_OBJECT_NAME_INVALID;
-
-        /* not all operations allowed on the root directory */
-        if ((FILE_CREATE == CreateDisposition ||
-            FILE_OVERWRITE == CreateDisposition ||
-            FILE_OVERWRITE_IF == CreateDisposition ||
-            FILE_SUPERSEDE == CreateDisposition ||
-            BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY)) &&
-            sizeof(WCHAR) == FileName.Length)
-            return STATUS_ACCESS_DENIED;
-
-        /* cannot FILE_DELETE_ON_CLOSE on the root directory */
-        if (FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE) &&
-            sizeof(WCHAR) == FileName.Length)
-            return STATUS_CANNOT_DELETE;
 
         Result = FspFileNodeCreate(FsvolDeviceObject,
             FileName.Length,
@@ -297,24 +268,39 @@ static NTSTATUS FspFsvolCreateNoLock(
         FileNode->FileName.Buffer += FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR);
     }
 
+    ASSERT(sizeof(WCHAR) <= FileNode->FileName.Length && L'\\' == FileNode->FileName.Buffer[0]);
+
     /* check for trailing backslash */
     if (sizeof(WCHAR) * 2/* not empty or root */ <= FileNode->FileName.Length &&
         L'\\' == FileNode->FileName.Buffer[FileNode->FileName.Length / sizeof(WCHAR) - 1])
     {
-        FileNode->FileName.Length -= sizeof(WCHAR);
-        HasTrailingBackslash = TRUE;
-
-        if (sizeof(WCHAR) * 2 <= FileNode->FileName.Length &&
-            L'\\' == FileNode->FileName.Buffer[FileNode->FileName.Length / sizeof(WCHAR) - 1])
+        if (!FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
         {
             FspFileNodeDereference(FileNode);
             return STATUS_OBJECT_NAME_INVALID;
         }
+
+        FileNode->FileName.Length -= sizeof(WCHAR);
     }
-    if (HasTrailingBackslash && !FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
+
+    /* not all operations allowed on the root directory */
+    if (sizeof(WCHAR) == FileNode->FileName.Length &&
+        (FILE_CREATE == CreateDisposition ||
+        FILE_OVERWRITE == CreateDisposition ||
+        FILE_OVERWRITE_IF == CreateDisposition ||
+        FILE_SUPERSEDE == CreateDisposition ||
+        BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY)))
     {
         FspFileNodeDereference(FileNode);
-        return STATUS_OBJECT_NAME_INVALID;
+        return STATUS_ACCESS_DENIED;
+    }
+
+    /* cannot FILE_DELETE_ON_CLOSE on the root directory */
+    if (sizeof(WCHAR) == FileNode->FileName.Length &&
+        FlagOn(CreateOptions, FILE_DELETE_ON_CLOSE))
+    {
+        FspFileNodeDereference(FileNode);
+        return STATUS_CANNOT_DELETE;
     }
 
     Result = FspFileDescCreate(&FileDesc);
