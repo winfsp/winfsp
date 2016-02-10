@@ -286,6 +286,118 @@ void delete_test(void)
     }
 }
 
+void rename_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR Dir1Path[MAX_PATH];
+    WCHAR Dir2Path[MAX_PATH];
+    WCHAR File0Path[MAX_PATH];
+    WCHAR File1Path[MAX_PATH];
+    WCHAR File2Path[MAX_PATH];
+
+    StringCbPrintfW(Dir1Path, sizeof Dir1Path, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(Dir2Path, sizeof Dir2Path, L"%s%s\\dir2",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File0Path, sizeof File0Path, L"%s%s\\dir1\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File1Path, sizeof File1Path, L"%s%s\\dir1\\file1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File2Path, sizeof File2Path, L"%s%s\\dir2\\file2",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(Dir1Path, 0);
+    ASSERT(Success);
+
+    Success = CreateDirectoryW(Dir2Path, 0);
+    ASSERT(Success);
+
+    Handle = CreateFileW(File0Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Success = MoveFileExW(File0Path, File1Path, 0);
+    ASSERT(Success);
+
+    Handle = CreateFileW(File0Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Success = MoveFileExW(File0Path, File1Path, 0);
+    ASSERT(!Success);
+    ASSERT(ERROR_ALREADY_EXISTS == GetLastError());
+
+    Success = MoveFileExW(File0Path, File1Path, MOVEFILE_REPLACE_EXISTING);
+    ASSERT(Success);
+
+    Success = MoveFileExW(File1Path, File2Path, 0);
+    ASSERT(Success);
+
+    /* cannot replace existing directory regardless of MOVEFILE_REPLACE_EXISTING */
+    Success = MoveFileExW(Dir2Path, Dir1Path, MOVEFILE_REPLACE_EXISTING);
+    ASSERT(!Success);
+    ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+    Success = RemoveDirectoryW(Dir1Path);
+    ASSERT(Success);
+
+    Success = MoveFileExW(Dir2Path, Dir1Path, 0);
+    ASSERT(Success);
+
+    Success = MoveFileExW(Dir1Path, Dir2Path, 0);
+    ASSERT(Success);
+
+    Handle = CreateFileW(File2Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Success = MoveFileExW(Dir2Path, Dir1Path, 0);
+    ASSERT(!Success);
+    ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+    CloseHandle(Handle);
+
+    Success = DeleteFileW(File2Path);
+    ASSERT(Success);
+
+    Success = RemoveDirectoryW(Dir2Path);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+void rename_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        rename_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        rename_dotest(MemfsDisk, 0, 0);
+        rename_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        rename_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        rename_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -352,5 +464,6 @@ void info_tests(void)
     TEST(getfileinfo_test);
     TEST(setfileinfo_test);
     TEST(delete_test);
+    TEST(rename_test);
     TEST(getvolinfo_test);
 }
