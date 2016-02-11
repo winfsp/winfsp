@@ -6,13 +6,15 @@
 
 #include <dll/library.h>
 
-FSP_API VOID FspPathPrefix(PWSTR Path, PWSTR *PPrefix, PWSTR *PRemain)
+FSP_API VOID FspPathPrefix(PWSTR Path, PWSTR *PPrefix, PWSTR *PRemain, PWSTR Root)
 {
     PWSTR Pointer;
 
     for (Pointer = Path; *Pointer; Pointer++)
         if (L'\\' == *Pointer)
         {
+            if (0 != Root && Path == Pointer)
+                Path = Root;
             *Pointer++ = L'\0';
             for (; L'\\' == *Pointer; Pointer++)
                 ;
@@ -23,7 +25,7 @@ FSP_API VOID FspPathPrefix(PWSTR Path, PWSTR *PPrefix, PWSTR *PRemain)
     *PRemain = Pointer;
 }
 
-FSP_API VOID FspPathSuffix(PWSTR Path, PWSTR *PRemain, PWSTR *PSuffix)
+FSP_API VOID FspPathSuffix(PWSTR Path, PWSTR *PRemain, PWSTR *PSuffix, PWSTR Root)
 {
     PWSTR Pointer, RemainEnd, Suffix = 0;
 
@@ -41,6 +43,8 @@ FSP_API VOID FspPathSuffix(PWSTR Path, PWSTR *PRemain, PWSTR *PSuffix)
     *PRemain = Path;
     if (Path < Suffix)
     {
+        if (0 != Root && Path == RemainEnd && L'\\' == *Path)
+            *PRemain = Root;
         *RemainEnd = L'\0';
         *PSuffix = Suffix;
     }

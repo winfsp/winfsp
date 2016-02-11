@@ -223,8 +223,8 @@ NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
 /*
  * Path Handling
  */
-FSP_API VOID FspPathPrefix(PWSTR Path, PWSTR *PPrefix, PWSTR *PRemain);
-FSP_API VOID FspPathSuffix(PWSTR Path, PWSTR *PRemain, PWSTR *PSuffix);
+FSP_API VOID FspPathPrefix(PWSTR Path, PWSTR *PPrefix, PWSTR *PRemain, PWSTR Root);
+FSP_API VOID FspPathSuffix(PWSTR Path, PWSTR *PRemain, PWSTR *PSuffix, PWSTR Root);
 FSP_API VOID FspPathCombine(PWSTR Prefix, PWSTR Suffix);
 
 /*

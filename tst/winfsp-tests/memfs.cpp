@@ -133,10 +133,11 @@ static inline
 MEMFS_FILE_NODE *MemfsFileNodeMapGetParent(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR FileName,
     PNTSTATUS PResult)
 {
+    WCHAR Root[2] = L"\\";
     PWSTR Remain, Suffix;
-    FspPathSuffix(FileName, &Remain, &Suffix);
+    FspPathSuffix(FileName, &Remain, &Suffix, Root);
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->find(Remain);
-    FspPathCombine(Remain, Suffix);
+    FspPathCombine(FileName, Suffix);
     if (iter == FileNodeMap->end())
     {
         *PResult = STATUS_OBJECT_PATH_NOT_FOUND;
@@ -179,13 +180,14 @@ static inline
 BOOLEAN MemfsFileNodeMapHasChild(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode)
 {
     BOOLEAN Result;
+    WCHAR Root[2] = L"\\";
     PWSTR Remain, Suffix;
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->upper_bound(FileNode->FileName);
     if (iter == FileNodeMap->end())
         return FALSE;
-    FspPathSuffix(iter->second->FileName, &Remain, &Suffix);
+    FspPathSuffix(iter->second->FileName, &Remain, &Suffix, Root);
     Result = 0 == MemfsFileNameCompare(Remain, FileNode->FileName);
-    FspPathCombine(Remain, Suffix);
+    FspPathCombine(iter->second->FileName, Suffix);
     return Result;
 }
 
@@ -196,7 +198,7 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *RootNode;
 
-    RootNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, L"");
+    RootNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, L"\\");
     if (0 == RootNode)
         return STATUS_DISK_CORRUPT_ERROR;
 
@@ -217,9 +219,6 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode;
     NTSTATUS Result;
-
-    if (L'\\' == FileName[0] && L'\0' == FileName[1])
-        FileName = L"";
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
     if (0 == FileNode)
@@ -258,9 +257,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_FILE_NODE *FileNode;
     NTSTATUS Result;
     BOOLEAN Inserted;
-
-    if (L'\\' == FileName[0] && L'\0' == FileName[1])
-        FileName = L"";
 
     if (CreateOptions & FILE_DIRECTORY_FILE)
         AllocationSize = 0;
@@ -331,9 +327,6 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode;
     NTSTATUS Result;
-
-    if (L'\\' == FileName[0] && L'\0' == FileName[1])
-        FileName = L"";
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
     if (0 == FileNode)
@@ -635,7 +628,7 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
      * Create root directory.
      */
 
-    Result = MemfsFileNodeCreate(L"", &RootNode);
+    Result = MemfsFileNodeCreate(L"\\", &RootNode);
     if (!NT_SUCCESS(Result))
     {
         MemfsDelete(Memfs);

@@ -19,16 +19,17 @@ void path_prefix_test(void)
         L"foo\\\\\\bar\\\\baz",
         L"foo\\\\\\bar\\\\baz\\",
         L"foo\\\\\\bar\\\\baz\\\\",
+        L"foo",
     };
     PWSTR opaths[] =
     {
         L"", L"",
-        L"", L"",
-        L"", L"",
-        L"", L"a",
-        L"", L"a",
-        L"", L"a\\",
-        L"", L"a\\\\",
+        L"ROOT", L"",
+        L"ROOT", L"",
+        L"ROOT", L"a",
+        L"ROOT", L"a",
+        L"ROOT", L"a\\",
+        L"ROOT", L"a\\\\",
         L"a", L"",
         L"a", L"",
         L"a", L"b",
@@ -36,6 +37,7 @@ void path_prefix_test(void)
         L"foo", L"bar\\\\baz",
         L"foo", L"bar\\\\baz\\",
         L"foo", L"bar\\\\baz\\\\",
+        L"foo", L"",
     };
 
     for (size_t i = 0; sizeof ipaths / sizeof ipaths[0] > i; i++)
@@ -43,10 +45,10 @@ void path_prefix_test(void)
         PWSTR Prefix, Remain;
         WCHAR buf[32];
         wcscpy_s(buf, 32, ipaths[i]);
-        FspPathPrefix(buf, &Prefix, &Remain);
+        FspPathPrefix(buf, &Prefix, &Remain, L"ROOT");
         ASSERT(0 == wcscmp(opaths[2 * i + 0], Prefix));
         ASSERT(0 == wcscmp(opaths[2 * i + 1], Remain));
-        FspPathCombine(Prefix, Remain);
+        FspPathCombine(buf, Remain);
         ASSERT(0 == wcscmp(ipaths[i], buf));
     }
 }
@@ -69,14 +71,15 @@ void path_suffix_test(void)
         L"foo\\\\\\bar\\\\baz",
         L"foo\\\\\\bar\\\\baz\\",
         L"foo\\\\\\bar\\\\baz\\\\",
+        L"foo",
     };
     PWSTR opaths[] =
     {
         L"", L"",
-        L"", L"",
-        L"", L"",
-        L"", L"a",
-        L"", L"a",
+        L"ROOT", L"",
+        L"ROOT", L"",
+        L"ROOT", L"a",
+        L"ROOT", L"a",
         L"\\\\a", L"",
         L"\\\\a", L"",
         L"a", L"",
@@ -86,6 +89,7 @@ void path_suffix_test(void)
         L"foo\\\\\\bar", L"baz",
         L"foo\\\\\\bar\\\\baz", L"",
         L"foo\\\\\\bar\\\\baz", L"",
+        L"foo", L"",
     };
 
     for (size_t i = 0; sizeof ipaths / sizeof ipaths[0] > i; i++)
@@ -93,10 +97,10 @@ void path_suffix_test(void)
         PWSTR Remain, Suffix;
         WCHAR buf[32];
         wcscpy_s(buf, 32, ipaths[i]);
-        FspPathSuffix(buf, &Remain, &Suffix);
+        FspPathSuffix(buf, &Remain, &Suffix, L"ROOT");
         ASSERT(0 == wcscmp(opaths[2 * i + 0], Remain));
         ASSERT(0 == wcscmp(opaths[2 * i + 1], Suffix));
-        FspPathCombine(Remain, Suffix);
+        FspPathCombine(buf, Suffix);
         ASSERT(0 == wcscmp(ipaths[i], buf));
     }
 }

@@ -56,7 +56,8 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     }
 
     NTSTATUS Result;
-    PWSTR Parent, Suffix, Prefix, Remain;
+    WCHAR Root[2] = L"\\", TraverseCheckRoot[2] = L"\\";
+    PWSTR FileName, Suffix, Prefix, Remain;
     UINT32 FileAttributes;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     SIZE_T SecurityDescriptorSize;
@@ -67,7 +68,9 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     BOOL AccessStatus;
 
     if (CheckParentDirectory)
-        FspPathSuffix((PWSTR)Request->Buffer, &Parent, &Suffix);
+        FspPathSuffix((PWSTR)Request->Buffer, &FileName, &Suffix, Root);
+    else
+        FileName = (PWSTR)Request->Buffer;
 
     SecurityDescriptorSize = 1024;
     SecurityDescriptor = MemAlloc(SecurityDescriptorSize);
@@ -80,21 +83,20 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     if (Request->Req.Create.UserMode &&
         AllowTraverseCheck && !Request->Req.Create.HasTraversePrivilege)
     {
-        Remain = (PWSTR)Request->Buffer;
+        Remain = (PWSTR)FileName;
         for (;;)
         {
-            FspPathPrefix(Remain, &Prefix, &Remain);
+            FspPathPrefix(Remain, &Prefix, &Remain, TraverseCheckRoot);
             if (L'\0' == Remain[0])
             {
-                FspPathCombine((PWSTR)Request->Buffer, Remain);
+                FspPathCombine(FileName, Remain);
                 break;
             }
 
-            Prefix = L'\0' == Prefix[0] ? L"\\" : (PWSTR)Request->Buffer;
             Result = FspGetSecurity(FileSystem, Prefix, 0,
                 &SecurityDescriptor, &SecurityDescriptorSize);
 
-            FspPathCombine((PWSTR)Request->Buffer, Remain);
+            FspPathCombine(FileName, Remain);
 
             if (!NT_SUCCESS(Result))
             {
@@ -116,7 +118,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
         }
     }
 
-    Result = FspGetSecurity(FileSystem, (PWSTR)Request->Buffer, &FileAttributes,
+    Result = FspGetSecurity(FileSystem, FileName, &FileAttributes,
         &SecurityDescriptor, &SecurityDescriptorSize);
     if (!NT_SUCCESS(Result))
         goto exit;
@@ -498,6 +500,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     FSP_FSCTL_TRANSACT_REQ *Request)
 {
     NTSTATUS Result;
+    WCHAR Root[2] = L"\\";
     PWSTR Parent, Suffix;
     UINT32 GrantedAccess;
     PVOID FileNode;
@@ -509,11 +512,11 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     if (!NT_SUCCESS(Result))
         return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
 
-    FspPathSuffix((PWSTR)Request->Buffer, &Parent, &Suffix);
     FileNode = 0;
     memset(&FileInfo, 0, sizeof FileInfo);
+    FspPathSuffix((PWSTR)Request->Buffer, &Parent, &Suffix, Root);
     Result = FileSystem->Interface->Open(FileSystem, Request,
-        (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+        Parent, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
         &FileNode, &FileInfo);
     FspPathCombine((PWSTR)Request->Buffer, Suffix);
     if (!NT_SUCCESS(Result))
