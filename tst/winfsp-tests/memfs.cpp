@@ -512,11 +512,11 @@ NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     NewFileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, NewFileName);
     if (0 != NewFileNode)
     {
+        if (!ReplaceIfExists)
+            return STATUS_OBJECT_NAME_COLLISION;
+
         if (NewFileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
             return STATUS_ACCESS_DENIED;
-
-        if (ReplaceIfExists)
-            return STATUS_OBJECT_NAME_COLLISION;
 
         NewFileNode->RefCount++;
         MemfsFileNodeMapRemove(Memfs->FileNodeMap, NewFileNode);
