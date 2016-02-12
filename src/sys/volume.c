@@ -500,6 +500,7 @@ NTSTATUS FspVolumeTransact(
     ASSERT(0 != IrpSp->FileObject->FsContext2);
 
     /* check parameters */
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
@@ -511,8 +512,10 @@ NTSTATUS FspVolumeTransact(
         FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN > OutputBufferLength)
         return STATUS_BUFFER_TOO_SMALL;
 
+    if (!FspDeviceReference(FsvolDeviceObject))
+        return STATUS_CANCELLED;
+
     NTSTATUS Result;
-    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PUINT8 BufferEnd;
     FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
@@ -534,6 +537,9 @@ NTSTATUS FspVolumeTransact(
         if (0 == ProcessIrp)
             /* either IRP was canceled or a bogus Hint was provided */
             continue;
+
+        ASSERT((UINT_PTR)ProcessIrp == (UINT_PTR)Response->Hint);
+        ASSERT(FspIrpRequest(ProcessIrp)->Hint == Response->Hint);
 
         Result = FspIopDispatchComplete(ProcessIrp, Response);
         if (STATUS_PENDING == Result)
@@ -574,7 +580,8 @@ NTSTATUS FspVolumeTransact(
     if (0 == Irp->MdlAddress)
     {
         Irp->IoStatus.Information = 0;
-        return STATUS_SUCCESS;
+        Result = STATUS_SUCCESS;
+        goto exit;
     }
     MdlBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
     ASSERT(0 != MdlBuffer);
@@ -586,12 +593,16 @@ NTSTATUS FspVolumeTransact(
     while (0 == (PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, 0, &Timeout)))
     {
         if (FspIoqStopped(FsvolDeviceExtension->Ioq))
-            return STATUS_CANCELLED;
+        {
+            Result = STATUS_CANCELLED;
+            goto exit;
+        }
     }
     if (FspIoqTimeout == PendingIrp)
     {
         Irp->IoStatus.Information = 0;
-        return STATUS_SUCCESS;
+        Result = STATUS_SUCCESS;
+        goto exit;
     }
 
     /* send any pending IRP's to the user-mode file system */
@@ -630,7 +641,8 @@ NTSTATUS FspVolumeTransact(
                  */
                 ASSERT(FspIoqStopped(FsvolDeviceExtension->Ioq));
                 FspIopCompleteCanceledIrp(PendingIrp);
-                return STATUS_CANCELLED;
+                Result = STATUS_CANCELLED;
+                goto exit;
             }
 
             /* check that we have enough space before pulling the next pending IRP off the queue */
@@ -645,7 +657,11 @@ NTSTATUS FspVolumeTransact(
     }
 
     Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)MdlBuffer;
-    return STATUS_SUCCESS;
+    Result = STATUS_SUCCESS;
+
+exit:
+    FspDeviceDereference(FsvolDeviceObject);
+    return Result;
 }
 
 NTSTATUS FspVolumeWork(
