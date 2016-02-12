@@ -197,6 +197,11 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
         return;
     }
 
+#if DBG
+    RtlFillMemory(&DeviceExtension->Kind,
+        (PUINT8)DeviceObject + DeviceObject->Size - (PUINT8)&DeviceExtension->Kind, 0xBD);
+#endif
+
     IoDeleteDevice(DeviceObject);
 }
 
