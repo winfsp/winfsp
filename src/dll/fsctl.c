@@ -52,7 +52,7 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     *DevicePathPtr = L'\0';
 
     VolumeHandle = CreateFileW(DevicePathBuf,
-        0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+        0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
     if (INVALID_HANDLE_VALUE == VolumeHandle)
     {
         Result = FspNtStatusFromWin32(GetLastError());
