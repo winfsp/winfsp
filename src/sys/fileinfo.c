@@ -385,6 +385,7 @@ static NTSTATUS FspFsvolQueryInformation(
         Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
         return Result;
     case FileNameInformation:
+    case FileNormalizedNameInformation:
         Result = FspFsvolQueryNameInformation(FileObject, &Buffer, BufferEnd);
         Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
         return Result;
