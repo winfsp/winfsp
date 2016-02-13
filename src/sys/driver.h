@@ -270,36 +270,12 @@ FAST_IO_ACQUIRE_FOR_CCFLUSH FspAcquireForCcFlush;
 FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 
 /* memory allocation */
-static inline
-PVOID FspAlloc(SIZE_T Size)
-{
-    return ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_INTERNAL_TAG);
-}
-static inline
-PVOID FspAllocNonPaged(SIZE_T Size)
-{
-    return ExAllocatePoolWithTag(NonPagedPool, Size, FSP_ALLOC_INTERNAL_TAG);
-}
-static inline
-VOID FspFree(PVOID Pointer)
-{
-    ExFreePoolWithTag(Pointer, FSP_ALLOC_INTERNAL_TAG);
-}
-static inline
-PVOID FspAllocExternal(SIZE_T Size)
-{
-    return ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_EXTERNAL_TAG);
-}
-static inline
-PVOID FspAllocNonPagedExternal(SIZE_T Size)
-{
-    return ExAllocatePoolWithTag(NonPagedPool, Size, FSP_ALLOC_EXTERNAL_TAG);
-}
-static inline
-VOID FspFreeExternal(PVOID Pointer)
-{
-    ExFreePool(Pointer);
-}
+#define FspAlloc(Size)                  ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_INTERNAL_TAG)
+#define FspAllocNonPaged(Size)          ExAllocatePoolWithTag(NonPagedPool, Size, FSP_ALLOC_INTERNAL_TAG)
+#define FspFree(Pointer)                ExFreePoolWithTag(Pointer, FSP_ALLOC_INTERNAL_TAG)
+#define FspAllocExternal(Size)          ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_EXTERNAL_TAG)
+#define FspAllocNonPagedExternal(Size)  ExAllocatePoolWithTag(NonPagedPool, Size, FSP_ALLOC_EXTERNAL_TAG)
+#define FspFreeExternal(Pointer)        ExFreePool(Pointer)
 
 /* hash mix */
 /* Based on the MurmurHash3 fmix32/fmix64 function:
