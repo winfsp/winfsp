@@ -515,7 +515,8 @@ PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier
 VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
     PBOOLEAN PDeleted);
 PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
-PVOID FspFsvolDeviceLookupChildContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
+PVOID FspFsvolDeviceLookupDescendantContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
+    BOOLEAN ChildOnly);
 PVOID FspFsvolDeviceInsertContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName, PVOID Context,
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
 VOID FspFsvolDeviceDeleteContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
