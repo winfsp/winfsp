@@ -477,17 +477,20 @@ BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN BestEffort, NTSTATUS *PR
     }
 }
 
-PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout)
+PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout,
+    PIRP CancellableIrp)
 {
     /* timeout of 0 normally means infinite wait; for us it means do not do any wait at all! */
     if (0 != Timeout)
     {
         NTSTATUS Result;
-        Result = KeWaitForSingleObject(&Ioq->PendingIrpEvent, Executive, KernelMode, FALSE,
-            Timeout);
-        ASSERT(STATUS_SUCCESS == Result || STATUS_TIMEOUT == Result);
+        Result = FsRtlCancellableWaitForSingleObject(&Ioq->PendingIrpEvent, Timeout,
+            CancellableIrp);
         if (STATUS_TIMEOUT == Result)
             return FspIoqTimeout;
+        if (STATUS_CANCELLED == Result || STATUS_THREAD_IS_TERMINATING == Result)
+            return FspIoqCancelled;
+        ASSERT(STATUS_SUCCESS == Result);
     }
     FSP_IOQ_PEEK_CONTEXT PeekContext;
     PeekContext.IrpHint = 0 != BoundaryIrp ? BoundaryIrp : (PVOID)1;

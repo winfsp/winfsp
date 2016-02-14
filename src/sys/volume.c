@@ -590,7 +590,7 @@ NTSTATUS FspVolumeTransact(
     KeQuerySystemTime(&Timeout);
     Timeout.QuadPart += FsvolDeviceExtension->VolumeParams.TransactTimeout * 10000ULL;
         /* convert millis to nanos and add to absolute time */
-    while (0 == (PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, 0, &Timeout)))
+    while (0 == (PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, 0, &Timeout, Irp)))
     {
         if (FspIoqStopped(FsvolDeviceExtension->Ioq))
         {
@@ -598,10 +598,10 @@ NTSTATUS FspVolumeTransact(
             goto exit;
         }
     }
-    if (FspIoqTimeout == PendingIrp)
+    if (FspIoqTimeout == PendingIrp || FspIoqCancelled == PendingIrp)
     {
         Irp->IoStatus.Information = 0;
-        Result = STATUS_SUCCESS;
+        Result = FspIoqTimeout == PendingIrp ? STATUS_SUCCESS : STATUS_CANCELLED;
         goto exit;
     }
 
@@ -651,7 +651,7 @@ NTSTATUS FspVolumeTransact(
         }
 
         /* get the next pending IRP, but do not go beyond the first reposted IRP! */
-        PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, RepostedIrp, 0);
+        PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, RepostedIrp, 0, Irp);
         if (0 == PendingIrp)
             break;
     }
