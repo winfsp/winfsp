@@ -419,8 +419,8 @@ NTSTATUS FspVolumeRedirQueryPathEx(
         return STATUS_INVALID_DEVICE_REQUEST;
 
     /* check parameters */
-    ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
-    ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+    ULONG InputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+    ULONG OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
     QUERY_PATH_REQUEST_EX *QueryPathRequest = IrpSp->Parameters.DeviceIoControl.Type3InputBuffer;
     QUERY_PATH_RESPONSE *QueryPathResponse = Irp->UserBuffer;
     if (sizeof(QUERY_PATH_REQUEST_EX) > InputBufferLength ||
@@ -499,6 +499,9 @@ NTSTATUS FspVolumeTransact(
     ASSERT(
         FSP_FSCTL_TRANSACT == IrpSp->Parameters.FileSystemControl.FsControlCode ||
         FSP_FSCTL_TRANSACT_BATCH == IrpSp->Parameters.FileSystemControl.FsControlCode);
+    ASSERT(
+        METHOD_BUFFERED == (IrpSp->Parameters.FileSystemControl.FsControlCode & 3) ||
+        METHOD_OUT_DIRECT == (IrpSp->Parameters.FileSystemControl.FsControlCode & 3));
     ASSERT(0 != IrpSp->FileObject->FsContext2);
 
     /* check parameters */
@@ -506,8 +509,8 @@ NTSTATUS FspVolumeTransact(
     ULONG ControlCode = IrpSp->Parameters.FileSystemControl.FsControlCode;
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
-    PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
-    PVOID MdlBuffer;
+    PVOID InputBuffer = Irp->AssociatedIrp.SystemBuffer;
+    PVOID OutputBuffer;
     if (0 != InputBufferLength &&
         FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_RSP)) > InputBufferLength)
         return STATUS_INVALID_PARAMETER;
@@ -531,8 +534,8 @@ NTSTATUS FspVolumeTransact(
 
     /* process any user-mode file system responses */
     RepostedIrp = 0;
-    Response = SystemBuffer;
-    BufferEnd = (PUINT8)SystemBuffer + InputBufferLength;
+    Response = InputBuffer;
+    BufferEnd = (PUINT8)InputBuffer + InputBufferLength;
     for (;;)
     {
         NextResponse = FspFsctlTransactConsumeResponse(Response, BufferEnd);
@@ -583,14 +586,33 @@ NTSTATUS FspVolumeTransact(
     }
 
     /* were we sent an output buffer? */
-    if (0 == Irp->MdlAddress)
+    switch (ControlCode & 3)
     {
+    case METHOD_OUT_DIRECT:
+        if (0 == Irp->MdlAddress)
+        {
+            Irp->IoStatus.Information = 0;
+            Result = STATUS_SUCCESS;
+            goto exit;
+        }
+        OutputBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
+        break;
+    case METHOD_BUFFERED:
+        if (0 == OutputBufferLength)
+        {
+            Irp->IoStatus.Information = 0;
+            Result = STATUS_SUCCESS;
+            goto exit;
+        }
+        OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
+        break;
+    default:
+        ASSERT(0);
         Irp->IoStatus.Information = 0;
-        Result = STATUS_SUCCESS;
+        Result = STATUS_INVALID_PARAMETER;
         goto exit;
     }
-    MdlBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
-    ASSERT(0 != MdlBuffer);
+    ASSERT(0 != OutputBuffer);
 
     /* wait for an IRP to arrive */
     KeQuerySystemTime(&Timeout);
@@ -613,8 +635,8 @@ NTSTATUS FspVolumeTransact(
 
     /* send any pending IRP's to the user-mode file system */
     RepostedIrp = 0;
-    Request = MdlBuffer;
-    BufferEnd = (PUINT8)MdlBuffer + OutputBufferLength;
+    Request = OutputBuffer;
+    BufferEnd = (PUINT8)OutputBuffer + OutputBufferLength;
     ASSERT(FspFsctlTransactCanProduceRequest(Request, BufferEnd));
     for (;;)
     {
@@ -666,7 +688,7 @@ NTSTATUS FspVolumeTransact(
             break;
     }
 
-    Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)MdlBuffer;
+    Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)OutputBuffer;
     Result = STATUS_SUCCESS;
 
 exit:
