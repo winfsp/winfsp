@@ -513,9 +513,9 @@ NTSTATUS FspVolumeTransact(
         return STATUS_INVALID_PARAMETER;
     if (0 != OutputBufferLength &&
         ((FSP_FSCTL_TRANSACT == ControlCode &&
-            FSP_FSCTL_TRANSACT_REQ_SIZEMAX > OutputBufferLength) ||
+            FSP_FSCTL_TRANSACT_BUFFER_SIZEMIN > OutputBufferLength) ||
         (FSP_FSCTL_TRANSACT_BATCH == ControlCode &&
-            FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN > OutputBufferLength)))
+            FSP_FSCTL_TRANSACT_BATCH_BUFFER_SIZEMIN > OutputBufferLength)))
         return STATUS_BUFFER_TOO_SMALL;
 
     if (!FspDeviceReference(FsvolDeviceObject))

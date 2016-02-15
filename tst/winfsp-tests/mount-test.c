@@ -173,7 +173,7 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
 
     Sleep(1000); /* give some time to the thread to execute */
 
-    FSP_FSCTL_DECLSPEC_ALIGN UINT8 RequestBuf[FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN];
+    FSP_FSCTL_DECLSPEC_ALIGN UINT8 RequestBuf[FSP_FSCTL_TRANSACT_BATCH_BUFFER_SIZEMIN];
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 ResponseBuf[FSP_FSCTL_TRANSACT_RSP_SIZEMAX];
     UINT8 *RequestBufEnd;
     UINT8 *ResponseBufEnd = ResponseBuf + sizeof ResponseBuf;

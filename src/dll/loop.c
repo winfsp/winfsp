@@ -70,13 +70,13 @@ FSP_API NTSTATUS FspFileSystemLoop(FSP_FILE_SYSTEM *FileSystem)
     SIZE_T RequestBufSize;
     FSP_FSCTL_TRANSACT_REQ *Request, *NextRequest;
 
-    RequestBuf = MemAlloc(FSP_FSCTL_TRANSACT_REQ_SIZEMAX);
+    RequestBuf = MemAlloc(FSP_FSCTL_TRANSACT_BUFFER_SIZEMIN);
     if (0 == RequestBuf)
         return STATUS_INSUFFICIENT_RESOURCES;
 
     for (;;)
     {
-        RequestBufSize = FSP_FSCTL_TRANSACT_REQ_SIZEMAX;
+        RequestBufSize = FSP_FSCTL_TRANSACT_BUFFER_SIZEMIN;
         Result = FspFsctlTransact(FileSystem->VolumeHandle, 0, 0, RequestBuf, &RequestBufSize, FALSE);
         if (!NT_SUCCESS(Result))
             goto exit;

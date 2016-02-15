@@ -41,9 +41,10 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 
 #define FSP_FSCTL_VOLUME_NAME_SIZEMAX   128
 
-#define FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN 16384 /* checked by driver! */
 #define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  (4096 - 64) /* 64: size for internal request header */
 #define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  (4096 - 64) /* symmetry! */
+#define FSP_FSCTL_TRANSACT_BATCH_BUFFER_SIZEMIN 16384
+#define FSP_FSCTL_TRANSACT_BUFFER_SIZEMIN       FSP_FSCTL_TRANSACT_REQ_SIZEMAX
 
 /* volume/file metadata */
 typedef struct
