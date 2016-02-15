@@ -184,7 +184,7 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
 
     ResponseBufSize = 0;
     RequestBufSize = sizeof RequestBuf;
-    Result = FspFsctlTransact(VolumeHandle, 0, 0, RequestBuf, &RequestBufSize);
+    Result = FspFsctlTransact(VolumeHandle, 0, 0, RequestBuf, &RequestBufSize, TRUE);
     ASSERT(STATUS_SUCCESS == Result);
 
     RequestBufEnd = RequestBuf + RequestBufSize;
@@ -235,7 +235,7 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
 
     ResponseBufSize = (PUINT8)Response - ResponseBuf;
     RequestBufSize = 0;
-    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, 0, &RequestBufSize);
+    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, 0, &RequestBufSize, TRUE);
     ASSERT(STATUS_SUCCESS == Result);
 
     Success = CloseHandle(VolumeHandle);

@@ -70,14 +70,14 @@ FSP_API NTSTATUS FspFileSystemLoop(FSP_FILE_SYSTEM *FileSystem)
     SIZE_T RequestBufSize;
     FSP_FSCTL_TRANSACT_REQ *Request, *NextRequest;
 
-    RequestBuf = MemAlloc(FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN);
+    RequestBuf = MemAlloc(FSP_FSCTL_TRANSACT_REQ_SIZEMAX);
     if (0 == RequestBuf)
         return STATUS_INSUFFICIENT_RESOURCES;
 
     for (;;)
     {
-        RequestBufSize = FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN;
-        Result = FspFsctlTransact(FileSystem->VolumeHandle, 0, 0, RequestBuf, &RequestBufSize);
+        RequestBufSize = FSP_FSCTL_TRANSACT_REQ_SIZEMAX;
+        Result = FspFsctlTransact(FileSystem->VolumeHandle, 0, 0, RequestBuf, &RequestBufSize, FALSE);
         if (!NT_SUCCESS(Result))
             goto exit;
 
@@ -178,7 +178,7 @@ FSP_API VOID FspFileSystemPoolDispatcher(FSP_FILE_SYSTEM *FileSystem,
 FSP_API NTSTATUS FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP *Response)
 {
-    return FspFsctlTransact(FileSystem->VolumeHandle, Response, Response->Size, 0, 0);
+    return FspFsctlTransact(FileSystem->VolumeHandle, Response, Response->Size, 0, 0, FALSE);
 }
 
 FSP_API NTSTATUS FspFileSystemSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,

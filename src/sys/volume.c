@@ -496,11 +496,14 @@ NTSTATUS FspVolumeTransact(
 
     ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
     ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
-    ASSERT(FSP_FSCTL_TRANSACT == IrpSp->Parameters.FileSystemControl.FsControlCode);
+    ASSERT(
+        FSP_FSCTL_TRANSACT == IrpSp->Parameters.FileSystemControl.FsControlCode ||
+        FSP_FSCTL_TRANSACT_BATCH == IrpSp->Parameters.FileSystemControl.FsControlCode);
     ASSERT(0 != IrpSp->FileObject->FsContext2);
 
     /* check parameters */
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+    ULONG ControlCode = IrpSp->Parameters.FileSystemControl.FsControlCode;
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
@@ -509,7 +512,10 @@ NTSTATUS FspVolumeTransact(
         FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_RSP)) > InputBufferLength)
         return STATUS_INVALID_PARAMETER;
     if (0 != OutputBufferLength &&
-        FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN > OutputBufferLength)
+        ((FSP_FSCTL_TRANSACT == ControlCode &&
+            FSP_FSCTL_TRANSACT_REQ_SIZEMAX > OutputBufferLength) ||
+        (FSP_FSCTL_TRANSACT_BATCH == ControlCode &&
+            FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMIN > OutputBufferLength)))
         return STATUS_BUFFER_TOO_SMALL;
 
     if (!FspDeviceReference(FsvolDeviceObject))
@@ -644,6 +650,10 @@ NTSTATUS FspVolumeTransact(
                 Result = STATUS_CANCELLED;
                 goto exit;
             }
+
+            /* are we doing single request or batch mode? */
+            if (FSP_FSCTL_TRANSACT == ControlCode)
+                break;
 
             /* check that we have enough space before pulling the next pending IRP off the queue */
             if (!FspFsctlTransactCanProduceRequest(Request, BufferEnd))

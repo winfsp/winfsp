@@ -179,7 +179,7 @@ void timeout_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
 
     ResponseBufSize = 0;
     RequestBufSize = sizeof RequestBuf;
-    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, RequestBuf, &RequestBufSize);
+    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, RequestBuf, &RequestBufSize, TRUE);
     ASSERT(STATUS_SUCCESS == Result);
     ASSERT(0 == RequestBufSize);
 
@@ -190,7 +190,7 @@ void timeout_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
 
     ResponseBufSize = 0;
     RequestBufSize = sizeof RequestBuf;
-    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, RequestBuf, &RequestBufSize);
+    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, RequestBuf, &RequestBufSize, TRUE);
     ASSERT(STATUS_SUCCESS == Result);
 
     RequestBufEnd = RequestBuf + RequestBufSize;
@@ -222,7 +222,7 @@ void timeout_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
 
     ResponseBufSize = 0;
     RequestBufSize = sizeof RequestBuf;
-    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, RequestBuf, &RequestBufSize);
+    Result = FspFsctlTransact(VolumeHandle, ResponseBuf, ResponseBufSize, RequestBuf, &RequestBufSize, TRUE);
     ASSERT(STATUS_SUCCESS == Result);
     ASSERT(0 == RequestBufSize);
 

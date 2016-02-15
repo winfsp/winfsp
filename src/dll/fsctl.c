@@ -84,7 +84,8 @@ exit:
 
 FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     PVOID ResponseBuf, SIZE_T ResponseBufSize,
-    PVOID RequestBuf, SIZE_T *PRequestBufSize)
+    PVOID RequestBuf, SIZE_T *PRequestBufSize,
+    BOOLEAN Batch)
 {
     NTSTATUS Result = STATUS_SUCCESS;
     DWORD Bytes = 0;
@@ -95,7 +96,8 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
         *PRequestBufSize = 0;
     }
 
-    if (!DeviceIoControl(VolumeHandle, FSP_FSCTL_TRANSACT,
+    if (!DeviceIoControl(VolumeHandle,
+        Batch ? FSP_FSCTL_TRANSACT_BATCH : FSP_FSCTL_TRANSACT,
         ResponseBuf, (DWORD)ResponseBufSize, RequestBuf, Bytes,
         &Bytes, 0))
     {
