@@ -510,7 +510,7 @@ NTSTATUS FspVolumeTransact(
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID InputBuffer = Irp->AssociatedIrp.SystemBuffer;
-    PVOID OutputBuffer;
+    PVOID OutputBuffer = 0;
     if (0 != InputBufferLength &&
         FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_RSP)) > InputBufferLength)
         return STATUS_INVALID_PARAMETER;
@@ -589,30 +589,23 @@ NTSTATUS FspVolumeTransact(
     switch (ControlCode & 3)
     {
     case METHOD_OUT_DIRECT:
-        if (0 == Irp->MdlAddress)
-        {
-            Irp->IoStatus.Information = 0;
-            Result = STATUS_SUCCESS;
-            goto exit;
-        }
-        OutputBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
+        if (0 != Irp->MdlAddress)
+            OutputBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
         break;
     case METHOD_BUFFERED:
-        if (0 == OutputBufferLength)
-        {
-            Irp->IoStatus.Information = 0;
-            Result = STATUS_SUCCESS;
-            goto exit;
-        }
-        OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
+        if (0 != OutputBufferLength)
+            OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
         break;
     default:
         ASSERT(0);
+        break;
+    }
+    if (0 == OutputBuffer)
+    {
         Irp->IoStatus.Information = 0;
-        Result = STATUS_INVALID_PARAMETER;
+        Result = STATUS_SUCCESS;
         goto exit;
     }
-    ASSERT(0 != OutputBuffer);
 
     /* wait for an IRP to arrive */
     KeQuerySystemTime(&Timeout);
