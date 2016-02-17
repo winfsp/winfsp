@@ -331,6 +331,8 @@ static NTSTATUS FspFsvolSetFsLabelInformation(
 static NTSTATUS FspFsvolSetVolumeInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     NTSTATUS Result;
     FS_INFORMATION_CLASS FsInformationClass = IrpSp->Parameters.SetVolume.FsInformationClass;
     PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
