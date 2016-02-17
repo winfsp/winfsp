@@ -51,6 +51,8 @@ typedef struct _MEMFS
     MEMFS_FILE_NODE_MAP *FileNodeMap;
     ULONG MaxFileNodes;
     ULONG MaxFileSize;
+    UINT16 VolumeLabelLength;
+    WCHAR VolumeLabel[32];
     CRITICAL_SECTION Lock;
 } MEMFS;
 
@@ -196,17 +198,33 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
-    MEMFS_FILE_NODE *RootNode;
-
-    RootNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, L"\\");
-    if (0 == RootNode)
-        return STATUS_DISK_CORRUPT_ERROR;
 
     VolumeInfo->TotalSize = Memfs->MaxFileNodes * Memfs->MaxFileSize;
     VolumeInfo->FreeSize =
         (Memfs->MaxFileNodes - MemfsFileNodeMapCount(Memfs->FileNodeMap)) * Memfs->MaxFileSize;
-    VolumeInfo->VolumeLabelLength = sizeof L"MEMFS" - sizeof(WCHAR);
-    memcpy(VolumeInfo->VolumeLabel, L"MEMFS", VolumeInfo->VolumeLabelLength);
+    VolumeInfo->VolumeLabelLength = Memfs->VolumeLabelLength;
+    memcpy(VolumeInfo->VolumeLabel, Memfs->VolumeLabel, Memfs->VolumeLabelLength);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS SetVolumeLabel(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PWSTR VolumeLabel,
+    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+{
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
+
+    Memfs->VolumeLabelLength = (UINT16)(wcslen(VolumeLabel) * sizeof(WCHAR));
+    if (Memfs->VolumeLabelLength > sizeof Memfs->VolumeLabel)
+        Memfs->VolumeLabelLength = sizeof Memfs->VolumeLabel;
+    memcpy(Memfs->VolumeLabel, VolumeLabel, Memfs->VolumeLabelLength);
+
+    VolumeInfo->TotalSize = Memfs->MaxFileNodes * Memfs->MaxFileSize;
+    VolumeInfo->FreeSize =
+        (Memfs->MaxFileNodes - MemfsFileNodeMapCount(Memfs->FileNodeMap)) * Memfs->MaxFileSize;
+    VolumeInfo->VolumeLabelLength = Memfs->VolumeLabelLength;
+    memcpy(VolumeInfo->VolumeLabel, Memfs->VolumeLabel, Memfs->VolumeLabelLength);
 
     return STATUS_SUCCESS;
 }
@@ -538,6 +556,7 @@ NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
     GetVolumeInfo,
+    SetVolumeLabel,
     GetSecurity,
     Create,
     Open,
@@ -616,7 +635,10 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
         free(Memfs);
         return Result;
     }
+
     Memfs->FileSystem->UserContext = Memfs;
+    Memfs->VolumeLabelLength = sizeof L"MEMFS" - sizeof(WCHAR);
+    memcpy(Memfs->VolumeLabel, L"MEMFS", Memfs->VolumeLabelLength);
 
     InitializeCriticalSection(&Memfs->Lock);
 

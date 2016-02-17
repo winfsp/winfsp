@@ -459,6 +459,98 @@ void getvolinfo_test(void)
     }
 }
 
+void setvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    if (-1 == Flags)
+        return;/* avoid accidentally changing the volume label on our NTFS disk */
+    if (0 != Prefix)
+        return;/* cannot do SetVolumeLabel on a network share! */
+
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    BOOL Success;
+    WCHAR FilePath[MAX_PATH];
+    WCHAR VolumeLabelBuf[MAX_PATH];
+    DWORD VolumeSerialNumber;
+    DWORD MaxComponentLength;
+    DWORD FileSystemFlags;
+    WCHAR FileSystemNameBuf[MAX_PATH];
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = SetVolumeLabelW(FilePath, L"12345678901234567890123456789012");
+    ASSERT(Success);
+
+    Success = GetVolumeInformationW(FilePath,
+        VolumeLabelBuf, sizeof VolumeLabelBuf,
+        &VolumeSerialNumber, &MaxComponentLength, &FileSystemFlags,
+        FileSystemNameBuf, sizeof FileSystemNameBuf);
+    ASSERT(Success);
+    if (-1 != Flags)
+    {
+        ASSERT(0 == wcscmp(VolumeLabelBuf, L"12345678901234567890123456789012"));
+        ASSERT(255 == MaxComponentLength);
+        ASSERT(0 != (FileSystemFlags &
+            (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
+        ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp"));
+    }
+
+    Success = SetVolumeLabelW(FilePath, L"TestLabel");
+    ASSERT(Success);
+
+    Success = GetVolumeInformationW(FilePath,
+        VolumeLabelBuf, sizeof VolumeLabelBuf,
+        &VolumeSerialNumber, &MaxComponentLength, &FileSystemFlags,
+        FileSystemNameBuf, sizeof FileSystemNameBuf);
+    ASSERT(Success);
+    if (-1 != Flags)
+    {
+        ASSERT(0 == wcscmp(VolumeLabelBuf, L"TestLabel"));
+        ASSERT(255 == MaxComponentLength);
+        ASSERT(0 != (FileSystemFlags &
+            (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
+        ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp"));
+    }
+
+    Success = SetVolumeLabelW(FilePath, L"123456789012345678901234567890123");
+    ASSERT(Success);
+
+    Success = GetVolumeInformationW(FilePath,
+        VolumeLabelBuf, sizeof VolumeLabelBuf,
+        &VolumeSerialNumber, &MaxComponentLength, &FileSystemFlags,
+        FileSystemNameBuf, sizeof FileSystemNameBuf);
+    ASSERT(Success);
+    if (-1 != Flags)
+    {
+        ASSERT(0 == wcscmp(VolumeLabelBuf, L"12345678901234567890123456789012"));
+        ASSERT(255 == MaxComponentLength);
+        ASSERT(0 != (FileSystemFlags &
+            (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
+        ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp"));
+    }
+
+    memfs_stop(memfs);
+}
+
+void setvolinfo_test(void)
+{
+#if 0
+    if (NtfsTests)
+        setvolinfo_dotest(-1, L"C:", 0);
+#endif
+    if (WinFspDiskTests)
+    {
+        setvolinfo_dotest(MemfsDisk, 0, 0);
+        setvolinfo_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        setvolinfo_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        setvolinfo_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 void info_tests(void)
 {
     TEST(getfileinfo_test);
@@ -466,4 +558,5 @@ void info_tests(void)
     TEST(delete_test);
     TEST(rename_test);
     TEST(getvolinfo_test);
+    TEST(setvolinfo_test);
 }

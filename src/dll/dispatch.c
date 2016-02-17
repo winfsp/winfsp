@@ -47,6 +47,7 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     FileSystem->Operations[FspFsctlTransactQueryInformationKind] = FspFileSystemOpQueryInformation;
     FileSystem->Operations[FspFsctlTransactSetInformationKind] = FspFileSystemOpSetInformation;
     FileSystem->Operations[FspFsctlTransactQueryVolumeInformationKind] = FspFileSystemOpQueryVolumeInformation;
+    FileSystem->Operations[FspFsctlTransactSetVolumeInformationKind] = FspFileSystemOpSetVolumeInformation;
     // !!!: ...
     FileSystem->Interface = Interface;
 

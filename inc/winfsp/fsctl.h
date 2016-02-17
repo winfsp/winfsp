@@ -219,6 +219,17 @@ typedef struct
                 } Rename;
             } Info;
         } SetInformation;
+        struct
+        {
+            UINT32 FsInformationClass;
+            union
+            {
+                struct
+                {
+                    FSP_FSCTL_TRANSACT_BUF VolumeLabel;
+                } Label;
+            } Info;
+        } SetVolumeInformation;
     } Req;
     FSP_FSCTL_TRANSACT_BUF FileName;    /* {Create,Cleanup,SetInformation/{Disposition,Rename}} */
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
@@ -268,6 +279,10 @@ typedef struct
         {
             FSP_FSCTL_VOLUME_INFO VolumeInfo;
         } QueryVolumeInformation;
+        struct
+        {
+            FSP_FSCTL_VOLUME_INFO VolumeInfo;
+        } SetVolumeInformation;
     } Rsp;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_RSP;

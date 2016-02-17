@@ -22,6 +22,9 @@ static NTSTATUS FspFsvolQueryFsVolumeInformation(
 static NTSTATUS FspFsvolQueryVolumeInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolQueryVolumeInformationComplete;
+static NTSTATUS FspFsvolSetFsLabelInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PVOID Buffer, ULONG Length, PULONG PRequestExtraSize,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
 static NTSTATUS FspFsvolSetVolumeInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolSetVolumeInformationComplete;
@@ -36,6 +39,7 @@ FSP_DRIVER_DISPATCH FspSetVolumeInformation;
 #pragma alloc_text(PAGE, FspFsvolQueryFsVolumeInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryVolumeInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryVolumeInformationComplete)
+#pragma alloc_text(PAGE, FspFsvolSetFsLabelInformation)
 #pragma alloc_text(PAGE, FspFsvolSetVolumeInformation)
 #pragma alloc_text(PAGE, FspFsvolSetVolumeInformationComplete)
 #pragma alloc_text(PAGE, FspQueryVolumeInformation)
@@ -293,18 +297,115 @@ NTSTATUS FspFsvolQueryVolumeInformationComplete(
         FsInformationClassSym(IrpSp->Parameters.QueryVolume.FsInformationClass));
 }
 
-static NTSTATUS FspFsvolSetVolumeInformation(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+static NTSTATUS FspFsvolSetFsLabelInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PVOID Buffer, ULONG Length, PULONG PRequestExtraSize,
+    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    if (0 == Request)
+    {
+        if (sizeof(FILE_FS_LABEL_INFORMATION) > Length)
+            return STATUS_INVALID_PARAMETER;
+
+        PFILE_FS_LABEL_INFORMATION Info = (PFILE_FS_LABEL_INFORMATION)Buffer;
+
+        *PRequestExtraSize = Info->VolumeLabelLength + sizeof(WCHAR);
+    }
+    else if (0 == Response)
+    {
+        PFILE_FS_LABEL_INFORMATION Info = (PFILE_FS_LABEL_INFORMATION)Buffer;
+
+        Request->Req.SetVolumeInformation.Info.Label.VolumeLabel.Offset = 0;
+        Request->Req.SetVolumeInformation.Info.Label.VolumeLabel.Size =
+            (UINT16)(Info->VolumeLabelLength + sizeof(WCHAR));
+        RtlCopyMemory(Request->Buffer, Info->VolumeLabel, Info->VolumeLabelLength);
+        ((PWSTR)Request->Buffer)[Info->VolumeLabelLength / sizeof(WCHAR)] = L'\0';
+    }
+    else
+        FspFsvolSetVolumeInfo(FsvolDeviceObject, &Response->Rsp.SetVolumeInformation.VolumeInfo);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS FspFsvolSetVolumeInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    NTSTATUS Result;
+    FS_INFORMATION_CLASS FsInformationClass = IrpSp->Parameters.SetVolume.FsInformationClass;
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG Length = IrpSp->Parameters.SetVolume.Length;
+    ULONG RequestExtraSize = 0;
+
+    switch (FsInformationClass)
+    {
+    case FileFsLabelInformation:
+        Result = FspFsvolSetFsLabelInformation(FsvolDeviceObject, Buffer, Length, &RequestExtraSize, 0, 0);
+        break;
+    default:
+        Result = STATUS_INVALID_PARAMETER;
+        break;
+    }
+
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    FSP_FSCTL_TRANSACT_REQ *Request;
+
+    Result = FspIopCreateRequest(Irp, 0, RequestExtraSize, &Request);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    Request->Kind = FspFsctlTransactSetVolumeInformationKind;
+    Request->Req.SetVolumeInformation.FsInformationClass = FsInformationClass;
+
+    switch (FsInformationClass)
+    {
+    case FileFsLabelInformation:
+        Result = FspFsvolSetFsLabelInformation(FsvolDeviceObject, Buffer, Length, 0, Request, 0);
+        break;
+    default:
+        ASSERT(0);
+        Result = STATUS_INVALID_PARAMETER;
+        break;
+    }
+
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    return FSP_STATUS_IOQ_POST;
 }
 
 NTSTATUS FspFsvolSetVolumeInformationComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
+
+    if (!NT_SUCCESS(Response->IoStatus.Status))
+    {
+        Irp->IoStatus.Information = 0;
+        Result = Response->IoStatus.Status;
+        FSP_RETURN();
+    }
+
+    FS_INFORMATION_CLASS FsInformationClass = IrpSp->Parameters.SetVolume.FsInformationClass;
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->DeviceObject;
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG Length = IrpSp->Parameters.SetFile.Length;
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+
+    switch (FsInformationClass)
+    {
+    case FileFsLabelInformation:
+        Result = FspFsvolSetFsLabelInformation(FsvolDeviceObject, Buffer, Length, 0, Request, Response);
+        break;
+    default:
+        ASSERT(0);
+        Result = STATUS_INVALID_PARAMETER;
+        break;
+    }
+
+    Irp->IoStatus.Information = 0;
 
     FSP_LEAVE_IOC("%s",
         FsInformationClassSym(IrpSp->Parameters.SetVolume.FsInformationClass));
