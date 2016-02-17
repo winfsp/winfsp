@@ -205,7 +205,6 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     VolumeInfo->TotalSize = Memfs->MaxFileNodes * Memfs->MaxFileSize;
     VolumeInfo->FreeSize =
         (Memfs->MaxFileNodes - MemfsFileNodeMapCount(Memfs->FileNodeMap)) * Memfs->MaxFileSize;
-    VolumeInfo->VolumeCreationTime = RootNode->FileInfo.CreationTime;
     VolumeInfo->VolumeLabelLength = sizeof L"MEMFS" - sizeof(WCHAR);
     memcpy(VolumeInfo->VolumeLabel, L"MEMFS", VolumeInfo->VolumeLabelLength);
 
@@ -601,6 +600,7 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
     memset(&VolumeParams, 0, sizeof VolumeParams);
     VolumeParams.SectorSize = MEMFS_SECTOR_SIZE;
     VolumeParams.SectorsPerAllocationUnit = MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+    VolumeParams.VolumeCreationTime = MemfsGetSystemTime();
     VolumeParams.VolumeSerialNumber = (UINT32)(MemfsGetSystemTime() / (10000 * 1000));
     VolumeParams.FileInfoTimeout = FileInfoTimeout;
     VolumeParams.CaseSensitiveSearch = 1;

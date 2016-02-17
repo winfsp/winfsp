@@ -48,28 +48,6 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_TRANSACT_BATCH_BUFFER_SIZEMIN 16384
 #define FSP_FSCTL_TRANSACT_BUFFER_SIZEMIN       FSP_FSCTL_TRANSACT_REQ_SIZEMAX
 
-/* volume/file metadata */
-typedef struct
-{
-    UINT64 TotalSize;
-    UINT64 FreeSize;
-    UINT64 VolumeCreationTime;
-    UINT16 VolumeLabelLength;
-    WCHAR VolumeLabel[32];
-} FSP_FSCTL_VOLUME_INFO;
-typedef struct
-{
-    UINT32 FileAttributes;
-    UINT32 ReparseTag;
-    UINT64 AllocationSize;
-    UINT64 FileSize;
-    UINT64 CreationTime;
-    UINT64 LastAccessTime;
-    UINT64 LastWriteTime;
-    UINT64 ChangeTime;
-    UINT64 IndexNumber;
-} FSP_FSCTL_FILE_INFO;
-
 /* marshalling */
 #pragma warning(push)
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
@@ -106,7 +84,7 @@ enum
     FspFsctlIrpTimeoutMinimum = 60000,
     FspFsctlIrpTimeoutMaximum = 600000,
     FspFsctlIrpTimeoutDefault = 300000,
-    FspFsctlIrpTimeoutDebug = 142,      /* special value for IRP timeout testing; debug driver only */
+    FspFsctlIrpTimeoutDebug = 142,      /* special value for IRP timeout testing */
     FspFsctlIrpCapacityMinimum = 100,
     FspFsctlIrpCapacityMaximum = 1000,
     FspFsctlIrpCapacityDefault = 1000,
@@ -118,6 +96,7 @@ typedef struct
     UINT16 SectorSize;
     UINT16 SectorsPerAllocationUnit;
     UINT16 MaxComponentLength;          /* maximum file name component length (bytes) */
+    UINT64 VolumeCreationTime;
     UINT32 VolumeSerialNumber;
     /* I/O timeouts, capacity, etc. */
     UINT32 TransactTimeout;             /* FSP_FSCTL_TRANSACT timeout (millis; 1 sec - 10 sec) */
@@ -136,6 +115,25 @@ typedef struct
     UINT32 ReadOnlyVolume:1;
     WCHAR Prefix[64];                   /* UNC prefix to recognize (\\server\path format, 0-term) */
 } FSP_FSCTL_VOLUME_PARAMS;
+typedef struct
+{
+    UINT64 TotalSize;
+    UINT64 FreeSize;
+    UINT16 VolumeLabelLength;
+    WCHAR VolumeLabel[32];
+} FSP_FSCTL_VOLUME_INFO;
+typedef struct
+{
+    UINT32 FileAttributes;
+    UINT32 ReparseTag;
+    UINT64 AllocationSize;
+    UINT64 FileSize;
+    UINT64 CreationTime;
+    UINT64 LastAccessTime;
+    UINT64 LastWriteTime;
+    UINT64 ChangeTime;
+    UINT64 IndexNumber;
+} FSP_FSCTL_FILE_INFO;
 typedef struct
 {
     UINT16 Offset;
