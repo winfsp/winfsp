@@ -545,6 +545,8 @@ NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeTransact(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeStop(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeWork(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 

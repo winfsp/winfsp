@@ -98,10 +98,6 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
         if (!NT_SUCCESS(Result))
             goto exit;
 
-        FspFileSystemGetDispatcherResult(FileSystem, &Result);
-        if (!NT_SUCCESS(Result))
-            goto exit;
-
         memset(Response, 0, sizeof *Response);
         if (0 == RequestSize)
             continue;
@@ -123,10 +119,6 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
         }
         else
             Response->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
-
-        FspFileSystemGetDispatcherResult(FileSystem, &Result);
-        if (!NT_SUCCESS(Result))
-            goto exit;
     }
 
 exit:
@@ -134,6 +126,8 @@ exit:
     MemFree(Request);
 
     FspFileSystemSetDispatcherResult(FileSystem, Result);
+
+    FspFsctlStop(FileSystem->VolumeHandle);
 
     if (0 != DispatcherThread)
     {
@@ -177,7 +171,7 @@ FSP_API VOID FspFileSystemStopDispatcher(FSP_FILE_SYSTEM *FileSystem)
     if (0 == FileSystem->DispatcherThread)
         return;
 
-    FspFileSystemSetDispatcherResult(FileSystem, STATUS_CANCELLED);
+    FspFsctlStop(FileSystem->VolumeHandle);
 
     WaitForSingleObject(FileSystem->DispatcherThread, INFINITE);
     CloseHandle(FileSystem->DispatcherThread);

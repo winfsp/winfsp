@@ -40,6 +40,10 @@ static NTSTATUS FspFsctlFileSystemControl(
             if (0 != IrpSp->FileObject->FsContext2)
                 Result = FspVolumeTransact(DeviceObject, Irp, IrpSp);
             break;
+        case FSP_FSCTL_STOP:
+            if (0 != IrpSp->FileObject->FsContext2)
+                Result = FspVolumeStop(DeviceObject, Irp, IrpSp);
+            break;
         }
         break;
     case IRP_MN_MOUNT_VOLUME:

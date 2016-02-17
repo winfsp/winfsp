@@ -38,6 +38,8 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'T', METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSP_FSCTL_TRANSACT_BATCH        \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 't', METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
+#define FSP_FSCTL_STOP                  \
+    CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'S', METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 #define FSP_FSCTL_VOLUME_NAME_SIZEMAX   128
 
@@ -322,6 +324,7 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     PVOID ResponseBuf, SIZE_T ResponseBufSize,
     PVOID RequestBuf, SIZE_T *PRequestBufSize,
     BOOLEAN Batch);
+FSP_API NTSTATUS FspFsctlStop(HANDLE VolumeHandle);
 #endif
 
 #ifdef __cplusplus

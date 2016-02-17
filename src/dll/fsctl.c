@@ -111,3 +111,11 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
 exit:
     return Result;
 }
+
+FSP_API NTSTATUS FspFsctlStop(HANDLE VolumeHandle)
+{
+    if (!DeviceIoControl(VolumeHandle, FSP_FSCTL_STOP, 0, 0, 0, 0, 0, 0))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return STATUS_SUCCESS;
+}
