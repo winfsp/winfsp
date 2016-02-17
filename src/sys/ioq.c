@@ -48,11 +48,65 @@
  *           +---------------------+
  *
  *
- * Event Object
+ * Pending Queue Synchronization
  *
- * The FSP_IOQ includes a manual event object. The event object becomes
- * signaled when the FSP_IOQ object is stopped or for as long as the Pending
- * queue is not empty.
+ * The FSP_IOQ object controls access to the pending IRP queue and blocks
+ * threads waiting for pending IRP's as long as the queue is empty (and
+ * not stopped). Currently it uses an auto-reset event (SynchronizationEvent)
+ * for this purpose. Let's discuss why.
+ *
+ * The obvious synchronization object to use to control access to a queue
+ * is a semaphore which counts how many items there are in a queue. When the
+ * semaphore count reaches 0 the queue is empty and the thread that wants to
+ * dequeue an item has to wait.
+ *
+ * Unfortunately we cannot use a semaphore in the obvious manner in the FSP_IOQ
+ * implementation. The issue is that an FSP_IOQ allows IRP's to be removed from
+ * the pending queue when they are cancelled. This means that the semaphore
+ * count and the queue count would get out of synch after an IRP cancelation.
+ * Furthermore when trying to dequeue a pending IRP we do so under conditions
+ * which may result in not dequeueing an IRP even if it is present in the queue,
+ * which further complicates efforts to keep the semaphore count in synch with
+ * the actual queue count.
+ *
+ * The original solution to these problems was to use a manual-reset event
+ * (NotificationEvent). This event would change to reflect the value of the
+ * condition: "pending IRP queue not empty or stopped". The event would be
+ * signaled when the condition was TRUE and non-signaled when FALSE. Because
+ * this was a manual-reset event, the WaitForSingleObject call on this event
+ * would not change its signaled state, the signaled state would only be
+ * changed during queue manipulation (under the queue lock).
+ *
+ * This scheme works, but has an important problem. A manual-reset event wakes
+ * up all threads that are waiting on it! Imagine a situation where many
+ * threads are blocked waiting for an IRP to arrive. When an IRP finally arrives
+ * ALL threads wake up and try to grab it, but only one succeeds! Waking up all
+ * threads is a waste of resources and decreases performance; this is called
+ * the "thundering herd" problem.
+ *
+ * For this reason we decided to use an auto-reset event (SynchronizationEvent)
+ * to guard the condition: "pending IRP queue not empty or stopped". An auto-reset
+ * event has the benefit that it wakes up a single thread when it is signaled.
+ * There are two problems with the auto-reset event. One is the "lost wake-up"
+ * problem, where we try to SetEvent when the event is already signaled, thus
+ * potentially "losing" a wakeup. The second problem is similar to the issue
+ * we were facing with the semaphore earlier, that the WaitForSingleObject call
+ * also changes the state of the event (as it did earlier with the semaphore's
+ * count), which is problematic because some times we may not remove an IRP that
+ * is in the queue because of other conditions not holding TRUE.
+ *
+ * To deal with the first problem we build a simple abstraction around the auto-
+ * reset event in function FspIoqPendingResetSynch. This function checks the
+ * condition "pending IRP queue not empty or stopped" (under lock) and either
+ * sets the event if the condition is TRUE or clears it if FALSE. This works
+ * because if two insertions arrive at the same time (thus calling SetEvent twice
+ * in succession), the first thread that removes an IRP will check the queue
+ * condition and properly re-set the event's state, thus allowing another thread
+ * to come in and dequeue another IRP.
+ *
+ * To deal with the second problem we simply call FspIoqPendingResetSynch after
+ * a WaitForSingleObject call if the IRP dequeueing fails; this ensures that the
+ * event is in the correst state.
  */
 
 /*
@@ -121,6 +175,20 @@ typedef struct
     ULONG ExpirationTime;
 } FSP_IOQ_PEEK_CONTEXT;
 
+static inline VOID FspIoqPendingResetSynch(FSP_IOQ *Ioq)
+{
+    /*
+     * Examine the actual condition of the pending queue and
+     * set the PendingIrpEvent accordingly.
+     */
+    if (0 != Ioq->PendingIrpCount || Ioq->Stopped)
+        /* list is not empty or is stopped; wake up a waiter */
+        KeSetEvent(&Ioq->PendingIrpEvent, 1, FALSE);
+    else
+        /* list is empty and not stopped; future threads should go to sleep */
+        KeClearEvent(&Ioq->PendingIrpEvent);
+}
+
 static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
@@ -130,8 +198,8 @@ static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertCo
         return STATUS_INSUFFICIENT_RESOURCES;
     Ioq->PendingIrpCount++;
     InsertTailList(&Ioq->PendingIrpList, &Irp->Tail.Overlay.ListEntry);
-    /* list is not empty; wake up any waiters */
     KeSetEvent(&Ioq->PendingIrpEvent, 1, FALSE);
+        /* equivalent to FspIoqPendingResetSynch(Ioq) */
     return STATUS_SUCCESS;
 }
 
@@ -139,9 +207,8 @@ static VOID FspIoqPendingRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
     Ioq->PendingIrpCount--;
-    if (RemoveEntryList(&Irp->Tail.Overlay.ListEntry) && !Ioq->Stopped)
-        /* list is empty; future threads should go to sleep */
-        KeClearEvent(&Ioq->PendingIrpEvent);
+    RemoveEntryList(&Irp->Tail.Overlay.ListEntry);
+    FspIoqPendingResetSynch(Ioq);
 }
 
 static PIRP FspIoqPendingPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
@@ -372,7 +439,7 @@ NTSTATUS FspIoqCreate(
     RtlZeroMemory(Ioq, PAGE_SIZE);
 
     KeInitializeSpinLock(&Ioq->SpinLock);
-    KeInitializeEvent(&Ioq->PendingIrpEvent, NotificationEvent, FALSE);
+    KeInitializeEvent(&Ioq->PendingIrpEvent, SynchronizationEvent, FALSE);
     InitializeListHead(&Ioq->PendingIrpList);
     InitializeListHead(&Ioq->ProcessIrpList);
     InitializeListHead(&Ioq->RetriedIrpList);
@@ -421,6 +488,7 @@ VOID FspIoqStop(FSP_IOQ *Ioq)
     Ioq->Stopped = TRUE;
     /* we are being stopped, permanently wake up waiters */
     KeSetEvent(&Ioq->PendingIrpEvent, 1, FALSE);
+        /* equivalent to FspIoqPendingResetSynch(Ioq) */
     KeReleaseSpinLock(&Ioq->SpinLock, Irql);
     PIRP Irp;
     while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, 0)))
@@ -481,6 +549,10 @@ PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout
     PIRP CancellableIrp)
 {
     /* timeout of 0 normally means infinite wait; for us it means do not do any wait at all! */
+    FSP_IOQ_PEEK_CONTEXT PeekContext;
+    PIRP PendingIrp;
+    PeekContext.IrpHint = 0 != BoundaryIrp ? BoundaryIrp : (PVOID)1;
+    PeekContext.ExpirationTime = 0;
     if (0 != Timeout)
     {
         NTSTATUS Result;
@@ -491,11 +563,24 @@ PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout
         if (STATUS_CANCELLED == Result || STATUS_THREAD_IS_TERMINATING == Result)
             return FspIoqCancelled;
         ASSERT(STATUS_SUCCESS == Result);
+        PendingIrp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, &PeekContext);
+        if (0 == PendingIrp)
+        {
+            /*
+             * The WaitForSingleObject call above has reset our PendingIrpEvent,
+             * but we did not receive an IRP. For this reason we have to reset
+             * our synchronization based on the actual condition of the pending
+             * queue.
+             */
+            KIRQL Irql;
+            KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
+            FspIoqPendingResetSynch(Ioq);
+            KeReleaseSpinLock(&Ioq->SpinLock, Irql);
+        }
     }
-    FSP_IOQ_PEEK_CONTEXT PeekContext;
-    PeekContext.IrpHint = 0 != BoundaryIrp ? BoundaryIrp : (PVOID)1;
-    PeekContext.ExpirationTime = 0;
-    return IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, &PeekContext);
+    else
+        PendingIrp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, &PeekContext);
+    return PendingIrp;
 }
 
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp)
