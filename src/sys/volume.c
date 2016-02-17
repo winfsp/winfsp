@@ -544,8 +544,12 @@ NTSTATUS FspVolumeTransact(
 
         ProcessIrp = FspIoqEndProcessingIrp(FsvolDeviceExtension->Ioq, (UINT_PTR)Response->Hint);
         if (0 == ProcessIrp)
+        {
             /* either IRP was canceled or a bogus Hint was provided */
+            DEBUGLOG("BOGUS(Kind=%d, Hint=%p)", Response->Kind, (PVOID)Response->Hint);
+            Response = NextResponse;
             continue;
+        }
 
         ASSERT((UINT_PTR)ProcessIrp == (UINT_PTR)Response->Hint);
         ASSERT(FspIrpRequest(ProcessIrp)->Hint == Response->Hint);
@@ -725,8 +729,9 @@ NTSTATUS FspVolumeWork(
         FspIrpRequest(Irp) = 0;
     }
 
-    DEBUGLOG("%s = %s",
+    DEBUGLOG("%s(Irp=%p) = %s",
         IoctlCodeSym(BestEffort ? FSP_FSCTL_WORK_BEST_EFFORT : FSP_FSCTL_WORK),
+        Irp, /* referencing pointer value, which is safe despite FspIoqPostIrpEx above! */
         NtStatusSym(Result));
 
     return Result;
