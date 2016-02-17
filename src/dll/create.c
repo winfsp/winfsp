@@ -19,7 +19,7 @@ FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID)
     return &FspFileGenericMapping;
 }
 
-static NTSTATUS FspGetSecurity(FSP_FILE_SYSTEM *FileSystem,
+static NTSTATUS FspGetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PUINT32 PFileAttributes,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
 {
@@ -93,7 +93,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
                 break;
             }
 
-            Result = FspGetSecurity(FileSystem, Prefix, 0,
+            Result = FspGetSecurityByName(FileSystem, Prefix, 0,
                 &SecurityDescriptor, &SecurityDescriptorSize);
 
             FspPathCombine(FileName, Remain);
@@ -118,7 +118,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
         }
     }
 
-    Result = FspGetSecurity(FileSystem, FileName, &FileAttributes,
+    Result = FspGetSecurityByName(FileSystem, FileName, &FileAttributes,
         &SecurityDescriptor, &SecurityDescriptorSize);
     if (!NT_SUCCESS(Result))
         goto exit;

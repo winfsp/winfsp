@@ -230,6 +230,17 @@ typedef struct
                 } Label;
             } Info;
         } SetVolumeInformation;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+        } QuerySecurity;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+            FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;
+        } SetSecurity;
     } Req;
     FSP_FSCTL_TRANSACT_BUF FileName;    /* {Create,Cleanup,SetInformation/{Disposition,Rename}} */
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
@@ -283,6 +294,10 @@ typedef struct
         {
             FSP_FSCTL_VOLUME_INFO VolumeInfo;
         } SetVolumeInformation;
+        struct
+        {
+            FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;
+        } QuerySecurity;
     } Rsp;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_RSP;

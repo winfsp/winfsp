@@ -34,6 +34,7 @@
     <ClCompile Include="..\..\src\dll\dispatch.c" />
     <ClCompile Include="..\..\src\dll\ntstatus.c" />
     <ClCompile Include="..\..\src\dll\path.c" />
+    <ClCompile Include="..\..\src\dll\security.c" />
     <ClCompile Include="..\..\src\dll\volinfo.c" />
   </ItemGroup>
   <ItemGroup>

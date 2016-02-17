@@ -58,6 +58,9 @@
     <ClCompile Include="..\..\src\dll\dispatch.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\dll\security.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\ntstatus.i">
