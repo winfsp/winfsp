@@ -19,14 +19,14 @@ enum
 {
     MemfsDisk                           = 0x00,
     MemfsNet                            = 0x01,
-    MemfsSingleThread                   = 0x00,
-    MemfsThreadPool                     = 0x02,
 };
 
 NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
     ULONG MaxFileNodes, ULONG MaxFileSize,
     MEMFS **PMemfs);
 VOID MemfsDelete(MEMFS *Memfs);
+NTSTATUS MemfsStart(MEMFS *Memfs);
+VOID MemfsStop(MEMFS *Memfs);
 FSP_FILE_SYSTEM *MemfsFileSystem(MEMFS *Memfs);
 
 #ifdef __cplusplus

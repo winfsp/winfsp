@@ -219,7 +219,7 @@ FSP_API NTSTATUS FspAssignSecurity(FSP_FILE_SYSTEM *FileSystem,
         &FspFileGenericMapping))
         return FspNtStatusFromWin32(GetLastError());
 
-    DEBUGLOGSD("SDDL=%s", *PSecurityDescriptor);
+    //DEBUGLOGSD("SDDL=%s", *PSecurityDescriptor);
 
     return STATUS_SUCCESS;
 }
@@ -298,7 +298,7 @@ NTSTATUS FspFileSystemOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
     UINT32 GrantedAccess;
@@ -308,12 +308,12 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
 
     Result = FspFileSystemCreateCheck(FileSystem, Request, TRUE, &GrantedAccess, &ParentDescriptor);
     if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        return Result;
 
     Result = FspAssignSecurity(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
     FspDeleteSecurityDescriptor(ParentDescriptor, FspAccessCheckEx);
     if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        return Result;
 
     FileNode = 0;
     memset(&FileInfo, 0, sizeof FileInfo);
@@ -323,14 +323,17 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
         &FileNode, &FileInfo);
     FspDeleteSecurityDescriptor(ObjectDescriptor, FspAssignSecurity);
     if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        return Result;
 
-    return FspFileSystemSendCreateResponse(FileSystem, Request,
-        FILE_CREATED, FileNode, GrantedAccess, &FileInfo);
+    Response->IoStatus.Information = FILE_CREATED;
+    Response->Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
+    Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
+    memcpy(&Response->Rsp.Create.Opened.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
     UINT32 GrantedAccess;
@@ -339,7 +342,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
 
     Result = FspFileSystemOpenCheck(FileSystem, Request, TRUE, &GrantedAccess);
     if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        return Result;
 
     FileNode = 0;
     memset(&FileInfo, 0, sizeof FileInfo);
@@ -347,14 +350,17 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
         (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
         &FileNode, &FileInfo);
     if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        return Result;
 
-    return FspFileSystemSendCreateResponse(FileSystem, Request,
-        FILE_OPENED, FileNode, GrantedAccess, &FileInfo);
+    Response->IoStatus.Information = FILE_OPENED;
+    Response->Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
+    Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
+    memcpy(&Response->Rsp.Create.Opened.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
     UINT32 GrantedAccess;
@@ -367,7 +373,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
     {
         if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
-            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+            return Result;
         Create = TRUE;
     }
 
@@ -381,7 +387,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         if (!NT_SUCCESS(Result))
         {
             if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
-                return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+                return Result;
             Create = TRUE;
         }
     }
@@ -390,12 +396,12 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
     {
         Result = FspFileSystemCreateCheck(FileSystem, Request, FALSE, &GrantedAccess, &ParentDescriptor);
         if (!NT_SUCCESS(Result))
-            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+            return Result;
 
         Result = FspAssignSecurity(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
         FspDeleteSecurityDescriptor(ParentDescriptor, FspAccessCheckEx);
         if (!NT_SUCCESS(Result))
-            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+            return Result;
 
         FileNode = 0;
         memset(&FileInfo, 0, sizeof FileInfo);
@@ -405,15 +411,18 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
             &FileNode, &FileInfo);
         FspDeleteSecurityDescriptor(ObjectDescriptor, FspAssignSecurity);
         if (!NT_SUCCESS(Result))
-            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+            return Result;
     }
 
-    return FspFileSystemSendCreateResponse(FileSystem, Request,
-        Create ? FILE_CREATED : FILE_OPENED, FileNode, GrantedAccess, &FileInfo);
+    Response->IoStatus.Information = Create ? FILE_CREATED : FILE_OPENED;
+    Response->Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
+    Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
+    memcpy(&Response->Rsp.Create.Opened.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
     UINT32 GrantedAccess;
@@ -423,7 +432,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
 
     Result = FspFileSystemOverwriteCheck(FileSystem, Request, TRUE, &GrantedAccess);
     if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        return Result;
 
     FileNode = 0;
     memset(&FileInfo, 0, sizeof FileInfo);
@@ -431,14 +440,17 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
         (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
         &FileNode, &FileInfo);
     if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        return Result;
 
-    return FspFileSystemSendCreateResponse(FileSystem, Request,
-        Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN, FileNode, GrantedAccess, &FileInfo);
+    Response->IoStatus.Information = Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
+    Response->Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
+    Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
+    memcpy(&Response->Rsp.Create.Opened.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
     UINT32 GrantedAccess;
@@ -451,7 +463,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
     if (!NT_SUCCESS(Result))
     {
         if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
-            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+            return Result;
         Create = TRUE;
     }
 
@@ -465,7 +477,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
         if (!NT_SUCCESS(Result))
         {
             if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
-                return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+                return Result;
             Create = TRUE;
         }
     }
@@ -474,12 +486,12 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
     {
         Result = FspFileSystemCreateCheck(FileSystem, Request, FALSE, &GrantedAccess, &ParentDescriptor);
         if (!NT_SUCCESS(Result))
-            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+            return Result;
 
         Result = FspAssignSecurity(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
         FspDeleteSecurityDescriptor(ParentDescriptor, FspAccessCheckEx);
         if (!NT_SUCCESS(Result))
-            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+            return Result;
 
         FileNode = 0;
         memset(&FileInfo, 0, sizeof FileInfo);
@@ -489,15 +501,18 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
             &FileNode, &FileInfo);
         FspDeleteSecurityDescriptor(ObjectDescriptor, FspAssignSecurity);
         if (!NT_SUCCESS(Result))
-            return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+            return Result;
     }
 
-    return FspFileSystemSendCreateResponse(FileSystem, Request,
-        Create ? FILE_CREATED : FILE_OVERWRITTEN, FileNode, GrantedAccess, &FileInfo);
+    Response->IoStatus.Information = Create ? FILE_CREATED : FILE_OVERWRITTEN;
+    Response->Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
+    Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
+    memcpy(&Response->Rsp.Create.Opened.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
     WCHAR Root[2] = L"\\";
@@ -510,7 +525,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     Result = FspAccessCheck(FileSystem, Request, TRUE, TRUE,
         Request->Req.Create.DesiredAccess, &GrantedAccess);
     if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        return Result;
 
     FileNode = 0;
     memset(&FileInfo, 0, sizeof FileInfo);
@@ -520,7 +535,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
         &FileNode, &FileInfo);
     FspPathCombine((PWSTR)Request->Buffer, Suffix);
     if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        return Result;
 
     Information = FILE_OPENED;
     if (0 != FileSystem->Interface->GetSecurity)
@@ -529,45 +544,50 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
         Information = NT_SUCCESS(Result) ? FILE_EXISTS : FILE_DOES_NOT_EXIST;
     }
 
-    return FspFileSystemSendCreateResponse(FileSystem, Request,
-        Information, FileNode, GrantedAccess, &FileInfo);
+    Response->IoStatus.Information = Information;
+    Response->Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
+    Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
+    memcpy(&Response->Rsp.Create.Opened.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
 }
 
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     if (0 == FileSystem->Interface->Create ||
         0 == FileSystem->Interface->Open ||
         0 == FileSystem->Interface->Overwrite)
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
+        return STATUS_INVALID_DEVICE_REQUEST;
 
     if (Request->Req.Create.OpenTargetDirectory)
-        return FspFileSystemOpCreate_FileOpenTargetDirectory(FileSystem, Request);
+        return FspFileSystemOpCreate_FileOpenTargetDirectory(FileSystem, Request, Response);
 
     switch ((Request->Req.Create.CreateOptions >> 24) & 0xff)
     {
     case FILE_CREATE:
-        return FspFileSystemOpCreate_FileCreate(FileSystem, Request);
+        return FspFileSystemOpCreate_FileCreate(FileSystem, Request, Response);
     case FILE_OPEN:
-        return FspFileSystemOpCreate_FileOpen(FileSystem, Request);
+        return FspFileSystemOpCreate_FileOpen(FileSystem, Request, Response);
     case FILE_OPEN_IF:
-        return FspFileSystemOpCreate_FileOpenIf(FileSystem, Request);
+        return FspFileSystemOpCreate_FileOpenIf(FileSystem, Request, Response);
     case FILE_OVERWRITE:
-        return FspFileSystemOpCreate_FileOverwrite(FileSystem, Request);
     case FILE_SUPERSEDE:
-        return FspFileSystemOpCreate_FileOverwrite(FileSystem, Request);
+        return FspFileSystemOpCreate_FileOverwrite(FileSystem, Request, Response);
     case FILE_OVERWRITE_IF:
-        return FspFileSystemOpCreate_FileOverwriteIf(FileSystem, Request);
+        return FspFileSystemOpCreate_FileOverwriteIf(FileSystem, Request, Response);
     default:
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_PARAMETER);
+        return STATUS_INVALID_PARAMETER;
     }
 }
 
 FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
     FSP_FSCTL_FILE_INFO FileInfo;
+
+    if (0 == FileSystem->Interface->Overwrite)
+        return STATUS_INVALID_DEVICE_REQUEST;
 
     memset(&FileInfo, 0, sizeof FileInfo);
     Result = FileSystem->Interface->Overwrite(FileSystem, Request,
@@ -580,42 +600,9 @@ FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
         if (0 != FileSystem->Interface->Close)
             FileSystem->Interface->Close(FileSystem, Request,
                 (PVOID)Request->Req.Overwrite.UserContext);
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        return Result;
     }
 
-    return FspFileSystemSendOverwriteResponse(FileSystem, Request, &FileInfo);
-}
-
-FSP_API NTSTATUS FspFileSystemSendCreateResponse(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, UINT_PTR Information,
-    PVOID FileNode, UINT32 GrantedAccess, const FSP_FSCTL_FILE_INFO *FileInfo)
-{
-    FSP_FSCTL_TRANSACT_RSP Response;
-
-    memset(&Response, 0, sizeof Response);
-    Response.Size = sizeof Response;
-    Response.Kind = FspFsctlTransactCreateKind;
-    Response.Hint = Request->Hint;
-    Response.IoStatus.Status = STATUS_SUCCESS;
-    Response.IoStatus.Information = Information;
-    Response.Rsp.Create.Opened.UserContext = (UINT_PTR)FileNode;
-    Response.Rsp.Create.Opened.GrantedAccess = GrantedAccess;
-    memcpy(&Response.Rsp.Create.Opened.FileInfo, FileInfo, sizeof *FileInfo);
-    return FspFileSystemSendResponse(FileSystem, &Response);
-}
-
-FSP_API NTSTATUS FspFileSystemSendOverwriteResponse(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    const FSP_FSCTL_FILE_INFO *FileInfo)
-{
-    FSP_FSCTL_TRANSACT_RSP Response;
-
-    memset(&Response, 0, sizeof Response);
-    Response.Size = sizeof Response;
-    Response.Kind = FspFsctlTransactOverwriteKind;
-    Response.Hint = Request->Hint;
-    Response.IoStatus.Status = STATUS_SUCCESS;
-    Response.IoStatus.Information = 0;
-    memcpy(&Response.Rsp.Overwrite.FileInfo, FileInfo, sizeof *FileInfo);
-    return FspFileSystemSendResponse(FileSystem, &Response);
+    memcpy(&Response->Rsp.Overwrite.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
 }

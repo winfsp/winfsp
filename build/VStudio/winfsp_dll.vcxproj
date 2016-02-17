@@ -31,7 +31,7 @@
     <ClCompile Include="..\..\src\dll\fileinfo.c" />
     <ClCompile Include="..\..\src\dll\fsctl.c" />
     <ClCompile Include="..\..\src\dll\library.c" />
-    <ClCompile Include="..\..\src\dll\loop.c" />
+    <ClCompile Include="..\..\src\dll\dispatch.c" />
     <ClCompile Include="..\..\src\dll\ntstatus.c" />
     <ClCompile Include="..\..\src\dll\path.c" />
     <ClCompile Include="..\..\src\dll\volinfo.c" />

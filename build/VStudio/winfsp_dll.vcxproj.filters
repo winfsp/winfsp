@@ -37,9 +37,6 @@
     <ClCompile Include="..\..\src\dll\fsctl.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\dll\loop.c">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\dll\create.c">
       <Filter>Source</Filter>
     </ClCompile>
@@ -56,6 +53,9 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\dll\volinfo.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\dll\dispatch.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

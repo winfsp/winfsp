@@ -553,13 +553,15 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     Rename,
 };
 
-static VOID MemfsEnterOperation(FSP_FILE_SYSTEM *FileSystem, FSP_FSCTL_TRANSACT_REQ *Request)
+static VOID MemfsEnterOperation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     EnterCriticalSection(&Memfs->Lock);
 }
 
-static VOID MemfsLeaveOperation(FSP_FILE_SYSTEM *FileSystem, FSP_FSCTL_TRANSACT_REQ *Request)
+static VOID MemfsLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     LeaveCriticalSection(&Memfs->Lock);
@@ -618,11 +620,9 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
 
     InitializeCriticalSection(&Memfs->Lock);
 
-    if (Flags & MemfsThreadPool)
-        FspFileSystemSetDispatcher(Memfs->FileSystem,
-            FspFileSystemPoolDispatcher,
-            MemfsEnterOperation,
-            MemfsLeaveOperation);
+    FspFileSystemSetOperationGuard(Memfs->FileSystem,
+        MemfsEnterOperation,
+        MemfsLeaveOperation);
 
     /*
      * Create root directory.
@@ -659,6 +659,16 @@ VOID MemfsDelete(MEMFS *Memfs)
     MemfsFileNodeMapDelete(Memfs->FileNodeMap);
 
     free(Memfs);
+}
+
+NTSTATUS MemfsStart(MEMFS *Memfs)
+{
+    return FspFileSystemStartDispatcher(Memfs->FileSystem, 0);
+}
+
+VOID MemfsStop(MEMFS *Memfs)
+{
+    FspFileSystemStopDispatcher(Memfs->FileSystem);
 }
 
 FSP_FILE_SYSTEM *MemfsFileSystem(MEMFS *Memfs)

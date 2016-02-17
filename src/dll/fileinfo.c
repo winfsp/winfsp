@@ -7,25 +7,26 @@
 #include <dll/library.h>
 
 FSP_API NTSTATUS FspFileSystemOpQueryInformation(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
     FSP_FSCTL_FILE_INFO FileInfo;
 
     if (0 == FileSystem->Interface->GetFileInfo)
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, STATUS_INVALID_DEVICE_REQUEST);
+        return STATUS_INVALID_DEVICE_REQUEST;
 
     memset(&FileInfo, 0, sizeof FileInfo);
     Result = FileSystem->Interface->GetFileInfo(FileSystem, Request,
         (PVOID)Request->Req.QueryInformation.UserContext, &FileInfo);
     if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        return Result;
 
-    return FspFileSystemSendQueryInformationResponse(FileSystem, Request, &FileInfo);
+    memcpy(&Response->Rsp.QueryInformation.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
 }
 
 FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
     FSP_FSCTL_FILE_INFO FileInfo;
@@ -95,37 +96,8 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
     }
 
     if (!NT_SUCCESS(Result))
-        return FspFileSystemSendResponseWithStatus(FileSystem, Request, Result);
+        return Result;
 
-    return FspFileSystemSendSetInformationResponse(FileSystem, Request, &FileInfo);
-}
-
-FSP_API NTSTATUS FspFileSystemSendQueryInformationResponse(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_FILE_INFO *FileInfo)
-{
-    FSP_FSCTL_TRANSACT_RSP Response;
-
-    memset(&Response, 0, sizeof Response);
-    Response.Size = sizeof Response;
-    Response.Kind = FspFsctlTransactQueryInformationKind;
-    Response.Hint = Request->Hint;
-    Response.IoStatus.Status = STATUS_SUCCESS;
-    Response.IoStatus.Information = 0;
-    Response.Rsp.QueryInformation.FileInfo = *FileInfo;
-    return FspFileSystemSendResponse(FileSystem, &Response);
-}
-
-FSP_API NTSTATUS FspFileSystemSendSetInformationResponse(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_FILE_INFO *FileInfo)
-{
-    FSP_FSCTL_TRANSACT_RSP Response;
-
-    memset(&Response, 0, sizeof Response);
-    Response.Size = sizeof Response;
-    Response.Kind = FspFsctlTransactSetInformationKind;
-    Response.Hint = Request->Hint;
-    Response.IoStatus.Status = STATUS_SUCCESS;
-    Response.IoStatus.Information = 0;
-    Response.Rsp.SetInformation.FileInfo = *FileInfo;
-    return FspFileSystemSendResponse(FileSystem, &Response);
+    memcpy(&Response->Rsp.SetInformation.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
 }

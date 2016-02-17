@@ -29,8 +29,10 @@ extern "C" {
  * File System
  */
 typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
-typedef VOID FSP_FILE_SYSTEM_DISPATCHER(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
-typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *, FSP_FSCTL_TRANSACT_REQ *);
+typedef VOID FSP_FILE_SYSTEM_OPERATION_GUARD(FSP_FILE_SYSTEM *,
+    FSP_FSCTL_TRANSACT_REQ *, FSP_FSCTL_TRANSACT_RSP *);
+typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *,
+    FSP_FSCTL_TRANSACT_REQ *, FSP_FSCTL_TRANSACT_RSP *);
 typedef struct _FSP_FILE_SYSTEM_INTERFACE
 {
     NTSTATUS (*GetVolumeInfo)(FSP_FILE_SYSTEM *FileSystem,
@@ -89,31 +91,39 @@ typedef struct _FSP_FILE_SYSTEM
     WCHAR VolumeName[FSP_FSCTL_VOLUME_NAME_SIZEMAX / sizeof(WCHAR)];
     HANDLE VolumeHandle;
     PVOID UserContext;
-    NTSTATUS DispatcherResult;
-    FSP_FILE_SYSTEM_DISPATCHER *Dispatcher;
-    FSP_FILE_SYSTEM_DISPATCHER *EnterOperation, *LeaveOperation;
+    FSP_FILE_SYSTEM_OPERATION_GUARD *EnterOperation, *LeaveOperation;
     FSP_FILE_SYSTEM_OPERATION *Operations[FspFsctlTransactKindCount];
     const FSP_FILE_SYSTEM_INTERFACE *Interface;
+    HANDLE DispatcherThread;
+    ULONG DispatcherThreadCount;
+    NTSTATUS DispatcherResult;
 } FSP_FILE_SYSTEM;
-
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
     const FSP_FILE_SYSTEM_INTERFACE *Interface,
     FSP_FILE_SYSTEM **PFileSystem);
 FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem);
-FSP_API NTSTATUS FspFileSystemLoop(FSP_FILE_SYSTEM *FileSystem);
-
-FSP_API VOID FspFileSystemDirectDispatcher(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
-FSP_API VOID FspFileSystemPoolDispatcher(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
+FSP_API NTSTATUS FspFileSystemStartDispatcher(FSP_FILE_SYSTEM *FileSystem, ULONG ThreadCount);
+FSP_API VOID FspFileSystemStopDispatcher(FSP_FILE_SYSTEM *FileSystem);
 static inline
-VOID FspFileSystemSetDispatcher(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FILE_SYSTEM_DISPATCHER *Dispatcher,
-    FSP_FILE_SYSTEM_DISPATCHER *EnterOperation,
-    FSP_FILE_SYSTEM_DISPATCHER *LeaveOperation)
+VOID FspFileSystemEnterOperation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
-    FileSystem->Dispatcher = Dispatcher;
+    if (0 != FileSystem->EnterOperation)
+        FileSystem->EnterOperation(FileSystem, Request, Response);
+}
+static inline
+VOID FspFileSystemLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    if (0 != FileSystem->LeaveOperation)
+        FileSystem->LeaveOperation(FileSystem, Request, Response);
+}
+static inline
+VOID FspFileSystemSetOperationGuard(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FILE_SYSTEM_OPERATION_GUARD *EnterOperation,
+    FSP_FILE_SYSTEM_OPERATION_GUARD *LeaveOperation)
+{
     FileSystem->EnterOperation = EnterOperation;
     FileSystem->LeaveOperation = LeaveOperation;
 }
@@ -124,7 +134,6 @@ VOID FspFileSystemSetOperation(FSP_FILE_SYSTEM *FileSystem,
 {
     FileSystem->Operations[Index] = Operation;
 }
-
 static inline
 VOID FspFileSystemGetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS *PDispatcherResult)
@@ -142,26 +151,6 @@ VOID FspFileSystemSetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
     InterlockedCompareExchange(&FileSystem->DispatcherResult, DispatcherResult, 0);
 }
 
-static inline
-VOID FspFileSystemEnterOperation(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
-{
-    if (0 != FileSystem->EnterOperation)
-        FileSystem->EnterOperation(FileSystem, Request);
-}
-static inline
-VOID FspFileSystemLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request)
-{
-    if (0 != FileSystem->LeaveOperation)
-        FileSystem->LeaveOperation(FileSystem, Request);
-}
-
-FSP_API NTSTATUS FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_RSP *Response);
-FSP_API NTSTATUS FspFileSystemSendResponseWithStatus(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, NTSTATUS Result);
-
 /*
  * File System Operations
  */
@@ -178,36 +167,19 @@ FSP_API NTSTATUS FspAssignSecurity(FSP_FILE_SYSTEM *FileSystem,
 FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor,
     NTSTATUS (*CreateFunc)());
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpClose(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpQueryInformation(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpQueryVolumeInformation(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
-FSP_API NTSTATUS FspFileSystemSendCreateResponse(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, UINT_PTR Information,
-    PVOID FileNode, UINT32 GrantedAccess, const FSP_FSCTL_FILE_INFO *FileInfo);
-FSP_API NTSTATUS FspFileSystemSendOverwriteResponse(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    const FSP_FSCTL_FILE_INFO *FileInfo);
-FSP_API NTSTATUS FspFileSystemSendCleanupResponse(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
-FSP_API NTSTATUS FspFileSystemSendCloseResponse(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request);
-FSP_API NTSTATUS FspFileSystemSendQueryInformationResponse(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_FILE_INFO *FileInfo);
-FSP_API NTSTATUS FspFileSystemSendSetInformationResponse(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_FILE_INFO *FileInfo);
-FSP_API NTSTATUS FspFileSystemSendQueryVolumeInformationResponse(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
-
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 static inline
 NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,

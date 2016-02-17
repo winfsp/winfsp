@@ -6,42 +6,22 @@
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
-struct memfs_data
-{
-    MEMFS *Memfs;
-    HANDLE Thread;
-};
-
-static unsigned __stdcall memfs_thread(void *Memfs0)
-{
-    MEMFS *Memfs = Memfs0;
-    return FspFileSystemLoop(MemfsFileSystem(Memfs));
-}
-
 void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
 {
     if (-1 == Flags)
         return 0;
 
-    struct memfs_data *data;
     MEMFS *Memfs;
-    HANDLE Thread;
     NTSTATUS Result;
-
-    data = malloc(sizeof *data);
-    ASSERT(0 != data);
 
     Result = MemfsCreate(Flags, FileInfoTimeout, 1000, 65500, &Memfs);
     ASSERT(NT_SUCCESS(Result));
     ASSERT(0 != Memfs);
 
-    Thread = (HANDLE)_beginthreadex(0, 0, memfs_thread, Memfs, 0, 0);
-    ASSERT(0 != Thread);
+    Result = MemfsStart(Memfs);
+    ASSERT(NT_SUCCESS(Result));
 
-    data->Memfs = Memfs;
-    data->Thread = Thread;
-
-    return data;
+    return Memfs;
 }
 
 void *memfs_start(ULONG Flags)
@@ -54,24 +34,16 @@ void memfs_stop(void *data)
     if (0 == data)
         return;
 
-    MEMFS *Memfs = ((struct memfs_data *)data)->Memfs;
-    HANDLE Thread = ((struct memfs_data *)data)->Thread;
-    DWORD ExitCode;
+    MEMFS *Memfs = data;
 
-    FspFileSystemSetDispatcherResult(MemfsFileSystem(Memfs), STATUS_CANCELLED);
-
-    WaitForSingleObject(Thread, INFINITE);
-    GetExitCodeThread(Thread, &ExitCode);
-    CloseHandle(Thread);
-
-    ASSERT(STATUS_CANCELLED == ExitCode);
+    MemfsStop(Memfs);
 
     MemfsDelete(Memfs);
 }
 
 PWSTR memfs_volumename(void *data)
 {
-    MEMFS *Memfs = ((struct memfs_data *)data)->Memfs;
+    MEMFS *Memfs = data;
     return MemfsFileSystem(Memfs)->VolumeName;
 }
 
