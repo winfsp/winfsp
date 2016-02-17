@@ -1,237 +1,10 @@
 /**
- * @file dll/create.c
+ * @file dll/fsop.c
  *
  * @copyright 2015 Bill Zissimopoulos
  */
 
 #include <dll/library.h>
-
-static GENERIC_MAPPING FspFileGenericMapping =
-{
-    .GenericRead = FILE_GENERIC_READ,
-    .GenericWrite = FILE_GENERIC_WRITE,
-    .GenericExecute = FILE_GENERIC_EXECUTE,
-    .GenericAll = FILE_ALL_ACCESS,
-};
-
-FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID)
-{
-    return &FspFileGenericMapping;
-}
-
-static NTSTATUS FspGetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
-    PWSTR FileName, PUINT32 PFileAttributes,
-    PSECURITY_DESCRIPTOR *PSecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
-{
-    for (;;)
-    {
-        NTSTATUS Result = FileSystem->Interface->GetSecurityByName(FileSystem,
-            FileName, PFileAttributes, *PSecurityDescriptor, PSecurityDescriptorSize);
-        if (STATUS_BUFFER_OVERFLOW != Result)
-            return Result;
-
-        MemFree(*PSecurityDescriptor);
-        *PSecurityDescriptor = MemAlloc(*PSecurityDescriptorSize);
-        if (0 == *PSecurityDescriptor)
-            return STATUS_INSUFFICIENT_RESOURCES;
-    }
-}
-
-FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
-    UINT32 DesiredAccess, PUINT32 PGrantedAccess,
-    PSECURITY_DESCRIPTOR *PSecurityDescriptor)
-{
-    *PGrantedAccess = 0;
-    if (0 != PSecurityDescriptor)
-        *PSecurityDescriptor = 0;
-
-    if (0 == FileSystem->Interface->GetSecurityByName ||
-        (!Request->Req.Create.UserMode && 0 == PSecurityDescriptor))
-    {
-        *PGrantedAccess = (MAXIMUM_ALLOWED & DesiredAccess) ?
-            FspFileGenericMapping.GenericAll : DesiredAccess;
-        return STATUS_SUCCESS;
-    }
-
-    NTSTATUS Result;
-    WCHAR Root[2] = L"\\", TraverseCheckRoot[2] = L"\\";
-    PWSTR FileName, Suffix, Prefix, Remain;
-    UINT32 FileAttributes;
-    PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
-    SIZE_T SecurityDescriptorSize;
-    UINT8 PrivilegeSetBuf[sizeof(PRIVILEGE_SET) + 15 * sizeof(LUID_AND_ATTRIBUTES)];
-    PPRIVILEGE_SET PrivilegeSet = (PVOID)PrivilegeSetBuf;
-    DWORD PrivilegeSetLength = sizeof PrivilegeSetBuf;
-    UINT32 TraverseAccess;
-    BOOL AccessStatus;
-
-    if (CheckParentDirectory)
-        FspPathSuffix((PWSTR)Request->Buffer, &FileName, &Suffix, Root);
-    else
-        FileName = (PWSTR)Request->Buffer;
-
-    SecurityDescriptorSize = 1024;
-    SecurityDescriptor = MemAlloc(SecurityDescriptorSize);
-    if (0 == SecurityDescriptor)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
-
-    if (Request->Req.Create.UserMode &&
-        AllowTraverseCheck && !Request->Req.Create.HasTraversePrivilege)
-    {
-        Remain = (PWSTR)FileName;
-        for (;;)
-        {
-            FspPathPrefix(Remain, &Prefix, &Remain, TraverseCheckRoot);
-            if (L'\0' == Remain[0])
-            {
-                FspPathCombine(FileName, Remain);
-                break;
-            }
-
-            Result = FspGetSecurityByName(FileSystem, Prefix, 0,
-                &SecurityDescriptor, &SecurityDescriptorSize);
-
-            FspPathCombine(FileName, Remain);
-
-            if (!NT_SUCCESS(Result))
-            {
-                if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
-                    Result = STATUS_OBJECT_PATH_NOT_FOUND;
-                goto exit;
-            }
-
-            if (0 < SecurityDescriptorSize)
-            {
-                if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, FILE_TRAVERSE,
-                    &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, &TraverseAccess, &AccessStatus))
-                    Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
-                else
-                    Result = FspNtStatusFromWin32(GetLastError());
-                if (!NT_SUCCESS(Result))
-                    goto exit;
-            }
-        }
-    }
-
-    Result = FspGetSecurityByName(FileSystem, FileName, &FileAttributes,
-        &SecurityDescriptor, &SecurityDescriptorSize);
-    if (!NT_SUCCESS(Result))
-        goto exit;
-
-    if (Request->Req.Create.UserMode)
-    {
-        if (0 < SecurityDescriptorSize)
-        {
-            if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess,
-                &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
-                Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
-            else
-                Result = FspNtStatusFromWin32(GetLastError());
-            if (!NT_SUCCESS(Result))
-                goto exit;
-        }
-
-        if (CheckParentDirectory)
-        {
-            if (0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-            {
-                Result = STATUS_NOT_A_DIRECTORY;
-                goto exit;
-            }
-        }
-        else
-        {
-            if ((Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) &&
-                0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-            {
-                Result = STATUS_NOT_A_DIRECTORY;
-                goto exit;
-            }
-            if ((Request->Req.Create.CreateOptions & FILE_NON_DIRECTORY_FILE) &&
-                0 != (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-            {
-                Result = STATUS_FILE_IS_A_DIRECTORY;
-                goto exit;
-            }
-        }
-
-        if (0 != (FileAttributes & FILE_ATTRIBUTE_READONLY))
-        {
-            if (DesiredAccess &
-                (FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_ADD_SUBDIRECTORY | FILE_DELETE_CHILD))
-            {
-                Result = STATUS_ACCESS_DENIED;
-                goto exit;
-            }
-            if (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
-            {
-                Result = STATUS_CANNOT_DELETE;
-                goto exit;
-            }
-        }
-
-        if (0 == SecurityDescriptorSize)
-            *PGrantedAccess = (MAXIMUM_ALLOWED & DesiredAccess) ?
-                FspFileGenericMapping.GenericAll : DesiredAccess;
-    }
-    else
-        *PGrantedAccess = (MAXIMUM_ALLOWED & DesiredAccess) ?
-            FspFileGenericMapping.GenericAll : DesiredAccess;
-
-    Result = STATUS_SUCCESS;
-
-exit:
-    if (0 != PSecurityDescriptor && 0 < SecurityDescriptorSize && NT_SUCCESS(Result))
-        *PSecurityDescriptor = SecurityDescriptor;
-    else
-        MemFree(SecurityDescriptor);
-
-    if (CheckParentDirectory)
-    {
-        FspPathCombine((PWSTR)Request->Buffer, Suffix);
-
-        if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
-            Result = STATUS_OBJECT_PATH_NOT_FOUND;
-    }
-
-    return Result;
-}
-
-FSP_API NTSTATUS FspAssignSecurity(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    PSECURITY_DESCRIPTOR ParentDescriptor,
-    PSECURITY_DESCRIPTOR *PSecurityDescriptor)
-{
-    *PSecurityDescriptor = 0;
-
-    if (!CreatePrivateObjectSecurity(
-        ParentDescriptor,
-        0 != Request->Req.Create.SecurityDescriptor.Offset ?
-            (PSECURITY_DESCRIPTOR)(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset) : 0,
-        PSecurityDescriptor,
-        0 != (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE),
-        (HANDLE)Request->Req.Create.AccessToken,
-        &FspFileGenericMapping))
-        return FspNtStatusFromWin32(GetLastError());
-
-    //DEBUGLOGSD("SDDL=%s", *PSecurityDescriptor);
-
-    return STATUS_SUCCESS;
-}
-
-FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor,
-    NTSTATUS(*CreateFunc)())
-{
-    if ((NTSTATUS (*)())FspAccessCheckEx == CreateFunc)
-        MemFree(SecurityDescriptor);
-    else if ((NTSTATUS (*)())FspAssignSecurity == CreateFunc)
-        DestroyPrivateObjectSecurity(&SecurityDescriptor);
-}
 
 static inline
 NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
@@ -248,7 +21,7 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
     if (NT_SUCCESS(Result))
     {
         *PGrantedAccess = (MAXIMUM_ALLOWED & Request->Req.Create.DesiredAccess) ?
-            FspFileGenericMapping.GenericAll : Request->Req.Create.DesiredAccess;
+            FspGetFileGenericMapping()->GenericAll : Request->Req.Create.DesiredAccess;
     }
 
     return Result;
@@ -605,4 +378,188 @@ FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
 
     memcpy(&Response->Rsp.Overwrite.FileInfo, &FileInfo, sizeof FileInfo);
     return STATUS_SUCCESS;
+}
+
+FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    if (0 != FileSystem->Interface->Cleanup)
+        FileSystem->Interface->Cleanup(FileSystem, Request,
+            (PVOID)Request->Req.Cleanup.UserContext,
+            0 != Request->FileName.Size ? (PWSTR)Request->Buffer : 0,
+            0 != Request->Req.Cleanup.Delete);
+
+    return STATUS_SUCCESS;
+}
+
+FSP_API NTSTATUS FspFileSystemOpClose(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    if (0 != FileSystem->Interface->Close)
+        FileSystem->Interface->Close(FileSystem, Request,
+            (PVOID)Request->Req.Close.UserContext);
+
+    return STATUS_SUCCESS;
+}
+
+FSP_API NTSTATUS FspFileSystemOpQueryInformation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+    FSP_FSCTL_FILE_INFO FileInfo;
+
+    if (0 == FileSystem->Interface->GetFileInfo)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    memset(&FileInfo, 0, sizeof FileInfo);
+    Result = FileSystem->Interface->GetFileInfo(FileSystem, Request,
+        (PVOID)Request->Req.QueryInformation.UserContext, &FileInfo);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    memcpy(&Response->Rsp.QueryInformation.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
+}
+
+FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+    FSP_FSCTL_FILE_INFO FileInfo;
+
+    Result = STATUS_INVALID_DEVICE_REQUEST;
+    memset(&FileInfo, 0, sizeof FileInfo);
+    switch (Request->Req.SetInformation.FileInformationClass)
+    {
+    case 4/*FileBasicInformation*/:
+        if (0 != FileSystem->Interface->SetBasicInfo)
+            Result = FileSystem->Interface->SetBasicInfo(FileSystem, Request,
+                (PVOID)Request->Req.SetInformation.UserContext,
+                Request->Req.SetInformation.Info.Basic.FileAttributes,
+                Request->Req.SetInformation.Info.Basic.CreationTime,
+                Request->Req.SetInformation.Info.Basic.LastAccessTime,
+                Request->Req.SetInformation.Info.Basic.LastWriteTime,
+                &FileInfo);
+        break;
+    case 19/*FileAllocationInformation*/:
+        if (0 != FileSystem->Interface->SetAllocationSize)
+            Result = FileSystem->Interface->SetAllocationSize(FileSystem, Request,
+                (PVOID)Request->Req.SetInformation.UserContext,
+                Request->Req.SetInformation.Info.Allocation.AllocationSize,
+                &FileInfo);
+        else
+        if (0 != FileSystem->Interface->GetFileInfo &&
+            0 != FileSystem->Interface->SetFileSize)
+        {
+            Result = FileSystem->Interface->GetFileInfo(FileSystem, Request,
+                (PVOID)Request->Req.SetInformation.UserContext, &FileInfo);
+            if (NT_SUCCESS(Result) &&
+                Request->Req.SetInformation.Info.Allocation.AllocationSize < FileInfo.FileSize)
+            {
+                Result = FileSystem->Interface->SetFileSize(FileSystem, Request,
+                    (PVOID)Request->Req.SetInformation.UserContext,
+                    Request->Req.SetInformation.Info.Allocation.AllocationSize,
+                    FALSE,
+                    &FileInfo);
+            }
+        }
+        break;
+    case 20/*FileEndOfFileInformation*/:
+        if (0 != FileSystem->Interface->SetFileSize)
+            Result = FileSystem->Interface->SetFileSize(FileSystem, Request,
+                (PVOID)Request->Req.SetInformation.UserContext,
+                Request->Req.SetInformation.Info.EndOfFile.FileSize,
+                Request->Req.SetInformation.Info.EndOfFile.AdvanceOnly,
+                &FileInfo);
+        break;
+    case 13/*FileDispositionInformation*/:
+        if (0 != FileSystem->Interface->CanDelete)
+            if (Request->Req.SetInformation.Info.Disposition.Delete)
+                Result = FileSystem->Interface->CanDelete(FileSystem, Request,
+                    (PVOID)Request->Req.SetInformation.UserContext,
+                    (PWSTR)Request->Buffer);
+            else
+                Result = STATUS_SUCCESS;
+        break;
+    case 10/*FileRenameInformation*/:
+        if (0 != FileSystem->Interface->Rename)
+            Result = FileSystem->Interface->Rename(FileSystem, Request,
+                (PVOID)Request->Req.SetInformation.UserContext,
+                (PWSTR)Request->Buffer,
+                (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset),
+                Request->Req.SetInformation.Info.Rename.ReplaceIfExists);
+        break;
+    }
+
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    memcpy(&Response->Rsp.SetInformation.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
+}
+
+FSP_API NTSTATUS FspFileSystemOpQueryVolumeInformation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+    FSP_FSCTL_VOLUME_INFO VolumeInfo;
+
+    if (0 == FileSystem->Interface->GetVolumeInfo)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    memset(&VolumeInfo, 0, sizeof VolumeInfo);
+    Result = FileSystem->Interface->GetVolumeInfo(FileSystem, Request, &VolumeInfo);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    memcpy(&Response->Rsp.QueryVolumeInformation.VolumeInfo, &VolumeInfo, sizeof VolumeInfo);
+    return STATUS_SUCCESS;
+}
+
+FSP_API NTSTATUS FspFileSystemOpSetVolumeInformation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+    FSP_FSCTL_VOLUME_INFO VolumeInfo;
+
+    Result = STATUS_INVALID_DEVICE_REQUEST;
+    memset(&VolumeInfo, 0, sizeof VolumeInfo);
+    switch (Request->Req.SetVolumeInformation.FsInformationClass)
+    {
+    case 2/*FileFsLabelInformation*/:
+        if (0 != FileSystem->Interface->SetVolumeLabel)
+            Result = FileSystem->Interface->SetVolumeLabel(FileSystem, Request,
+                (PWSTR)Request->Buffer,
+                &VolumeInfo);
+    }
+
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    memcpy(&Response->Rsp.SetVolumeInformation.VolumeInfo, &VolumeInfo, sizeof VolumeInfo);
+    return STATUS_SUCCESS;
+}
+
+FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+
+    if (0 == FileSystem->Interface->GetSecurity)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    (VOID)Result;
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+FSP_API NTSTATUS FspFileSystemOpSetSecurity(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+
+    if (0 == FileSystem->Interface->SetSecurity)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    (VOID)Result;
+    return STATUS_INVALID_DEVICE_REQUEST;
 }

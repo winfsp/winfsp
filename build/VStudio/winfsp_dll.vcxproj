@@ -24,18 +24,14 @@
     <ClInclude Include="..\..\src\dll\library.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\dll\cleanup.c" />
-    <ClCompile Include="..\..\src\dll\close.c" />
-    <ClCompile Include="..\..\src\dll\create.c" />
+    <ClCompile Include="..\..\src\dll\access.c" />
     <ClCompile Include="..\..\src\dll\debug.c" />
-    <ClCompile Include="..\..\src\dll\fileinfo.c" />
     <ClCompile Include="..\..\src\dll\fsctl.c" />
+    <ClCompile Include="..\..\src\dll\fsop.c" />
     <ClCompile Include="..\..\src\dll\library.c" />
     <ClCompile Include="..\..\src\dll\dispatch.c" />
     <ClCompile Include="..\..\src\dll\ntstatus.c" />
     <ClCompile Include="..\..\src\dll\path.c" />
-    <ClCompile Include="..\..\src\dll\security.c" />
-    <ClCompile Include="..\..\src\dll\volinfo.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\ntstatus.i" />

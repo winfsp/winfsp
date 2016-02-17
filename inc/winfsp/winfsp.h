@@ -166,18 +166,6 @@ VOID FspFileSystemSetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
 /*
  * File System Operations
  */
-FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
-FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
-    UINT32 DesiredAccess, PUINT32 PGrantedAccess,
-    PSECURITY_DESCRIPTOR *PSecurityDescriptor);
-FSP_API NTSTATUS FspAssignSecurity(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    PSECURITY_DESCRIPTOR ParentDescriptor,
-    PSECURITY_DESCRIPTOR *PSecurityDescriptor);
-FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor,
-    NTSTATUS (*CreateFunc)());
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
@@ -198,6 +186,22 @@ FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpSetSecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+
+/*
+ * Access
+ */
+FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
+FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
+    UINT32 DesiredAccess, PUINT32 PGrantedAccess,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor);
+FSP_API NTSTATUS FspAssignSecurity(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PSECURITY_DESCRIPTOR ParentDescriptor,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor);
+FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor,
+    NTSTATUS (*CreateFunc)());
 static inline
 NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,

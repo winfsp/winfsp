@@ -37,28 +37,16 @@
     <ClCompile Include="..\..\src\dll\fsctl.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\dll\create.c">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\dll\path.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\dll\close.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\dll\cleanup.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\dll\fileinfo.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\dll\volinfo.c">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\dll\dispatch.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\dll\security.c">
+    <ClCompile Include="..\..\src\dll\access.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\dll\fsop.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
