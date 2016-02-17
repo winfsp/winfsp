@@ -25,7 +25,7 @@ static NTSTATUS FspGetSecurity(FSP_FILE_SYSTEM *FileSystem,
 {
     for (;;)
     {
-        NTSTATUS Result = FileSystem->Interface->GetSecurity(FileSystem,
+        NTSTATUS Result = FileSystem->Interface->GetSecurityByName(FileSystem,
             FileName, PFileAttributes, *PSecurityDescriptor, PSecurityDescriptorSize);
         if (STATUS_BUFFER_OVERFLOW != Result)
             return Result;
@@ -47,7 +47,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     if (0 != PSecurityDescriptor)
         *PSecurityDescriptor = 0;
 
-    if (0 == FileSystem->Interface->GetSecurity ||
+    if (0 == FileSystem->Interface->GetSecurityByName ||
         (!Request->Req.Create.UserMode && 0 == PSecurityDescriptor))
     {
         *PGrantedAccess = (MAXIMUM_ALLOWED & DesiredAccess) ?
@@ -538,9 +538,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
         return Result;
 
     Information = FILE_OPENED;
-    if (0 != FileSystem->Interface->GetSecurity)
+    if (0 != FileSystem->Interface->GetSecurityByName)
     {
-        Result = FileSystem->Interface->GetSecurity(FileSystem, (PWSTR)Request->Buffer, 0, 0, 0);
+        Result = FileSystem->Interface->GetSecurityByName(FileSystem, (PWSTR)Request->Buffer, 0, 0, 0);
         Information = NT_SUCCESS(Result) ? FILE_EXISTS : FILE_DOES_NOT_EXIST;
     }
 

@@ -42,7 +42,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_TRANSACT_REQ *Request,
         PWSTR VolumeLabel,
         FSP_FSCTL_VOLUME_INFO *VolumeInfo);
-    NTSTATUS (*GetSecurity)(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*GetSecurityByName)(FSP_FILE_SYSTEM *FileSystem,
         PWSTR FileName, PUINT32 PFileAttributes,
         PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
     NTSTATUS (*Create)(FSP_FILE_SYSTEM *FileSystem,

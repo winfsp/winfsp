@@ -37,7 +37,8 @@ NTSTATUS FspFsvolQuerySecurityComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
-    FSP_LEAVE_IOC("%s", "");
+    FSP_LEAVE_IOC("FileObject=%p, SecurityInformation=%x",
+        IrpSp->FileObject, IrpSp->Parameters.QuerySecurity.SecurityInformation);
 }
 
 static NTSTATUS FspFsvolSetSecurity(
@@ -53,7 +54,8 @@ NTSTATUS FspFsvolSetSecurityComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
-    FSP_LEAVE_IOC("%s", "");
+    FSP_LEAVE_IOC("FileObject=%p, SecurityInformation=%x",
+        IrpSp->FileObject, IrpSp->Parameters.SetSecurity.SecurityInformation);
 }
 
 NTSTATUS FspQuerySecurity(
@@ -69,7 +71,8 @@ NTSTATUS FspQuerySecurity(
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
 
-    FSP_LEAVE_MJ("%s", "");
+    FSP_LEAVE_MJ("FileObject=%p, SecurityInformation=%x",
+        IrpSp->FileObject, IrpSp->Parameters.QuerySecurity.SecurityInformation);
 }
 
 NTSTATUS FspSetSecurity(
@@ -85,5 +88,6 @@ NTSTATUS FspSetSecurity(
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
 
-    FSP_LEAVE_MJ("%s", "");
+    FSP_LEAVE_MJ("FileObject=%p, SecurityInformation=%x",
+        IrpSp->FileObject, IrpSp->Parameters.SetSecurity.SecurityInformation);
 }

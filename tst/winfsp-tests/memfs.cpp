@@ -229,7 +229,7 @@ static NTSTATUS SetVolumeLabel(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
+static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PUINT32 PFileAttributes,
     PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
 {
@@ -557,7 +557,7 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
     GetVolumeInfo,
     SetVolumeLabel,
-    GetSecurity,
+    GetSecurityByName,
     Create,
     Open,
     Overwrite,
