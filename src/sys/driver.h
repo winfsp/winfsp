@@ -400,8 +400,7 @@ NTSTATUS MetaCacheCreate(
     ULONG MetaCapacity, ULONG ItemSizeMax, PLARGE_INTEGER MetaTimeout,
     FSP_META_CACHE **PMetaCache);
 VOID MetaCacheDelete(FSP_META_CACHE *MetaCache);
-VOID MetaCacheInvalidateAll(FSP_META_CACHE *MetaCache);
-VOID MetaCacheInvalidateExpired(FSP_META_CACHE *MetaCache);
+VOID MetaCacheInvalidateExpired(FSP_META_CACHE *MetaCache, UINT64 ExpirationTime);
 PVOID MetaCacheReferenceItemBuffer(FSP_META_CACHE *MetaCache, UINT64 ItemIndex, PULONG PSize);
 VOID MetaCacheDereferenceItemBuffer(PVOID Buffer);
 UINT64 MetaCacheAddItem(FSP_META_CACHE *MetaCache, PVOID Buffer, ULONG Size);

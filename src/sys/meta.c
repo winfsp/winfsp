@@ -62,11 +62,11 @@ NTSTATUS MetaCacheCreate(
 
 VOID MetaCacheDelete(FSP_META_CACHE *MetaCache)
 {
-    MetaCacheInvalidateAll(MetaCache);
+    MetaCacheInvalidateExpired(MetaCache, (UINT64)-1LL);
     FspFree(MetaCache);
 }
 
-static VOID MetaCacheInvalidateItems(FSP_META_CACHE *MetaCache, UINT64 ExpirationTime)
+VOID MetaCacheInvalidateExpired(FSP_META_CACHE *MetaCache, UINT64 ExpirationTime)
 {
     FSP_META_CACHE_ITEM *Item;
     PLIST_ENTRY Head, Entry;
@@ -105,16 +105,6 @@ static VOID MetaCacheInvalidateItems(FSP_META_CACHE *MetaCache, UINT64 Expiratio
 
         MetaCacheDereferenceItem(Item);
     }
-}
-
-VOID MetaCacheInvalidateAll(FSP_META_CACHE *MetaCache)
-{
-    MetaCacheInvalidateItems(MetaCache, (UINT64)-1LL);
-}
-
-VOID MetaCacheInvalidateExpired(FSP_META_CACHE *MetaCache)
-{
-    MetaCacheInvalidateItems(MetaCache, KeQueryInterruptTime());
 }
 
 PVOID MetaCacheReferenceItemBuffer(FSP_META_CACHE *MetaCache, UINT64 ItemIndex, PULONG PSize)
