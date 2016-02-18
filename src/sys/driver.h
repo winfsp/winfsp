@@ -396,15 +396,15 @@ typedef struct
     ULONG ItemBucketCount;
     PVOID ItemBuckets[];
 } FSP_META_CACHE;
-NTSTATUS MetaCacheCreate(
+NTSTATUS FspMetaCacheCreate(
     ULONG MetaCapacity, ULONG ItemSizeMax, PLARGE_INTEGER MetaTimeout,
     FSP_META_CACHE **PMetaCache);
-VOID MetaCacheDelete(FSP_META_CACHE *MetaCache);
-VOID MetaCacheInvalidateExpired(FSP_META_CACHE *MetaCache, UINT64 ExpirationTime);
-PVOID MetaCacheReferenceItemBuffer(FSP_META_CACHE *MetaCache, UINT64 ItemIndex, PULONG PSize);
-VOID MetaCacheDereferenceItemBuffer(PVOID Buffer);
-UINT64 MetaCacheAddItem(FSP_META_CACHE *MetaCache, PVOID Buffer, ULONG Size);
-VOID MetaCacheInvalidateItem(FSP_META_CACHE *MetaCache, UINT64 ItemIndex);
+VOID FspMetaCacheDelete(FSP_META_CACHE *MetaCache);
+VOID FspMetaCacheInvalidateExpired(FSP_META_CACHE *MetaCache, UINT64 ExpirationTime);
+PVOID FspMetaCacheReferenceItemBuffer(FSP_META_CACHE *MetaCache, UINT64 ItemIndex, PULONG PSize);
+VOID FspMetaCacheDereferenceItemBuffer(PVOID Buffer);
+UINT64 FspMetaCacheAddItem(FSP_META_CACHE *MetaCache, PVOID Buffer, ULONG Size);
+VOID FspMetaCacheInvalidateItem(FSP_META_CACHE *MetaCache, UINT64 ItemIndex);
 
 /* I/O processing */
 #define FSP_FSCTL_WORK                  \
@@ -443,6 +443,11 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
 
 /* device management */
 #define FSP_DEVICE_VOLUME_NAME_LENMAX   (FSP_FSCTL_VOLUME_NAME_SIZEMAX - sizeof(WCHAR))
+enum
+{
+    FspFsvolDeviceSecurityCacheCapacity = 100,
+    FspFsvolDeviceSecurityCacheItemSizeMax = 4096,
+};
 typedef struct
 {
     UINT64 Identifier;
@@ -478,8 +483,8 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-    UINT32 InitDoneFsvrt:1, InitDoneDelRsc:1, InitDoneIoq:1, InitDoneCtxTab:1, InitDoneTimer:1,
-        InitDoneInfo:1;
+    UINT32 InitDoneFsvrt:1, InitDoneDelRsc:1, InitDoneIoq:1, InitDoneSec:1, InitDoneCtxTab:1,
+        InitDoneTimer:1, InitDoneInfo:1;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     HANDLE MupHandle;
@@ -489,6 +494,7 @@ typedef struct
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     UNICODE_STRING VolumePrefix;
     FSP_IOQ *Ioq;
+    FSP_META_CACHE *SecurityCache;
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;
     BOOLEAN ExpirationInProgress;

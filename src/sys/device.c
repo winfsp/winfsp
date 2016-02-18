@@ -290,6 +290,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     LARGE_INTEGER IrpTimeout;
+    LARGE_INTEGER MetaTimeout;
 
     /*
      * Volume device initialization is a mess, because of the different ways of
@@ -324,6 +325,16 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     if (!NT_SUCCESS(Result))
         return Result;
     FsvolDeviceExtension->InitDoneIoq = 1;
+
+    /* create our security meta cache */
+    MetaTimeout.QuadPart = FsvolDeviceExtension->VolumeParams.FileInfoTimeout * 10000ULL;
+        /* convert millis to nanos */
+    Result = FspMetaCacheCreate(
+        FspFsvolDeviceSecurityCacheCapacity, FspFsvolDeviceSecurityCacheItemSizeMax, &MetaTimeout,
+        &FsvolDeviceExtension->SecurityCache);
+    if (!NT_SUCCESS(Result))
+        return Result;
+    FsvolDeviceExtension->InitDoneSec = 1;
 
     /* initialize our context table */
     ExInitializeResourceLite(&FsvolDeviceExtension->FileRenameResource);
@@ -373,6 +384,10 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
      */
     if (FsvolDeviceExtension->InitDoneTimer)
         IoStopTimer(DeviceObject);
+
+    /* delete the security meta cache */
+    if (FsvolDeviceExtension->InitDoneSec)
+        FspMetaCacheDelete(FsvolDeviceExtension->SecurityCache);
 
     /* delete the Ioq */
     if (FsvolDeviceExtension->InitDoneIoq)
@@ -446,6 +461,7 @@ static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
     KIRQL Irql;
 
     InterruptTime = KeQueryInterruptTime();
+    FspMetaCacheInvalidateExpired(FsvolDeviceExtension->SecurityCache, InterruptTime);
     FspIoqRemoveExpired(FsvolDeviceExtension->Ioq, InterruptTime);
 
     KeAcquireSpinLock(&FsvolDeviceExtension->ExpirationLock, &Irql);

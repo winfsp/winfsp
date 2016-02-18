@@ -102,7 +102,7 @@ typedef struct
     UINT32 TransactTimeout;             /* FSP_FSCTL_TRANSACT timeout (millis; 1 sec - 10 sec) */
     UINT32 IrpTimeout;                  /* pending IRP timeout (millis; 1 min - 10 min) */
     UINT32 IrpCapacity;                 /* maximum number of pending IRP's (100 - 1000)*/
-    UINT32 FileInfoTimeout;             /* FileInfo/VolumeInfo timeout (millis) */
+    UINT32 FileInfoTimeout;             /* FileInfo/Security/VolumeInfo timeout (millis) */
     /* FILE_FS_ATTRIBUTE_INFORMATION::FileSystemAttributes */
     UINT32 CaseSensitiveSearch:1;       /* file system supports case-sensitive file names */
     UINT32 CasePreservedNames:1;        /* file system preserves the case of file names */
