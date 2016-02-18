@@ -501,8 +501,7 @@ NTSTATUS FspFsvolQueryInformationComplete(
     if (!Success)
     {
         FspIopRetryCompleteIrp(Irp, Response, &Result);
-
-        return Result;
+        FSP_RETURN();
     }
 
     if (!FspFileNodeTrySetFileInfo(FileNode, FileObject, &Response->Rsp.QueryInformation.FileInfo,

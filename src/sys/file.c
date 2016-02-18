@@ -27,6 +27,10 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, ULONG InfoChangeNumber);
+BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
+VOID FspFileNodeSetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
+BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
+    ULONG SecurityChangeNumber);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 
@@ -47,6 +51,9 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #pragma alloc_text(PAGE, FspFileNodeTryGetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeSetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeTrySetFileInfo)
+#pragma alloc_text(PAGE, FspFileNodeReferenceSecurity)
+#pragma alloc_text(PAGE, FspFileNodeSetSecurity)
+#pragma alloc_text(PAGE, FspFileNodeTrySetSecurity)
 #pragma alloc_text(PAGE, FspFileDescCreate)
 #pragma alloc_text(PAGE, FspFileDescDelete)
 #endif
@@ -468,6 +475,40 @@ BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileOb
         return FALSE;
 
     FspFileNodeSetFileInfo(FileNode, CcFileObject, FileInfo);
+    return TRUE;
+}
+
+BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+
+    return FspMetaCacheReferenceItemBuffer(FsvolDeviceExtension->SecurityCache,
+        FileNode->Security, PBuffer, PSize);
+}
+
+VOID FspFileNodeSetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+
+    FspMetaCacheInvalidateItem(FsvolDeviceExtension->SecurityCache, FileNode->Security);
+    FileNode->Security = FspMetaCacheAddItem(FsvolDeviceExtension->SecurityCache, Buffer, Size);
+}
+
+BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
+    ULONG SecurityChangeNumber)
+{
+    PAGED_CODE();
+
+    if (FileNode->SecurityChangeNumber != SecurityChangeNumber)
+        return FALSE;
+
+    FspFileNodeSetSecurity(FileNode, Buffer, Size);
     return TRUE;
 }
 

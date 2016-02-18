@@ -9,6 +9,10 @@
 BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
+NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
+NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, PULONG PLength,
+    PSECURITY_DESCRIPTOR ObjectsSecurityDescriptor);
 VOID FspInitializeSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem,
     PWORKER_THREAD_ROUTINE Routine, PVOID Context);
 VOID FspExecuteSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem);
@@ -22,6 +26,8 @@ static KDEFERRED_ROUTINE FspQueueDelayedWorkItemDPC;
 #pragma alloc_text(PAGE, FspUnicodePathIsValid)
 #pragma alloc_text(PAGE, FspUnicodePathSuffix)
 #pragma alloc_text(PAGE, FspCreateGuid)
+#pragma alloc_text(PAGE, FspCcSetFileSizes)
+#pragma alloc_text(PAGE, FspQuerySecurityDescriptorInfo)
 #pragma alloc_text(PAGE, FspInitializeSynchronousWorkItem)
 #pragma alloc_text(PAGE, FspExecuteSynchronousWorkItem)
 #pragma alloc_text(PAGE, FspExecuteSynchronousWorkItemRoutine)
@@ -41,6 +47,8 @@ static const LONG Delays[] =
 
 PVOID FspAllocMustSucceed(SIZE_T Size)
 {
+    // !PAGED_CODE();
+
     PVOID Result;
     LARGE_INTEGER Delay;
 
@@ -57,6 +65,8 @@ PVOID FspAllocMustSucceed(SIZE_T Size)
 
 PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
 {
+    // !PAGED_CODE();
+
     PIRP Result;
     LARGE_INTEGER Delay;
 
@@ -145,6 +155,8 @@ NTSTATUS FspCreateGuid(GUID *Guid)
 
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes)
 {
+    PAGED_CODE();
+
     try
     {
         CcSetFileSizes(FileObject, FileSizes);
@@ -154,6 +166,27 @@ NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes)
     {
         return GetExceptionCode();
     }
+}
+
+NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, PULONG PLength,
+    PSECURITY_DESCRIPTOR ObjectsSecurityDescriptor)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    try
+    {
+        Result = SeQuerySecurityDescriptorInfo(&SecurityInformation,
+            SecurityDescriptor, PLength, &ObjectsSecurityDescriptor);
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Result = STATUS_INVALID_USER_BUFFER;
+    }
+
+    return STATUS_BUFFER_TOO_SMALL == Result ? STATUS_BUFFER_OVERFLOW : Result;
 }
 
 VOID FspInitializeSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem,

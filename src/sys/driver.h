@@ -203,6 +203,9 @@ extern __declspec(selectany) int fsp_bp = 1;
         goto fsp_leave_label;           \
     } while (0,0)
 
+/* missing typedef */
+typedef const void *PCVOID;
+
 /* driver major functions */
 _Function_class_(DRIVER_DISPATCH)
 _IRQL_requires_max_(APC_LEVEL)
@@ -318,6 +321,9 @@ BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
+NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, PULONG PLength,
+    PSECURITY_DESCRIPTOR ObjectsSecurityDescriptor);
 
 /* utility: synchronous work queue */
 typedef struct
@@ -401,9 +407,10 @@ NTSTATUS FspMetaCacheCreate(
     FSP_META_CACHE **PMetaCache);
 VOID FspMetaCacheDelete(FSP_META_CACHE *MetaCache);
 VOID FspMetaCacheInvalidateExpired(FSP_META_CACHE *MetaCache, UINT64 ExpirationTime);
-PVOID FspMetaCacheReferenceItemBuffer(FSP_META_CACHE *MetaCache, UINT64 ItemIndex, PULONG PSize);
-VOID FspMetaCacheDereferenceItemBuffer(PVOID Buffer);
-UINT64 FspMetaCacheAddItem(FSP_META_CACHE *MetaCache, PVOID Buffer, ULONG Size);
+BOOLEAN FspMetaCacheReferenceItemBuffer(FSP_META_CACHE *MetaCache, UINT64 ItemIndex,
+    PCVOID *PBuffer, PULONG PSize);
+VOID FspMetaCacheDereferenceItemBuffer(PCVOID Buffer);
+UINT64 FspMetaCacheAddItem(FSP_META_CACHE *MetaCache, PCVOID Buffer, ULONG Size);
 VOID FspMetaCacheInvalidateItem(FSP_META_CACHE *MetaCache, UINT64 ItemIndex);
 
 /* I/O processing */
@@ -624,6 +631,8 @@ typedef struct
     UINT64 ChangeTime;
     ULONG InfoChangeNumber;
     NTSTATUS CcStatus;
+    UINT64 Security;
+    ULONG SecurityChangeNumber;
     /* read-only after creation (and insertion in the ContextTable) */
     PDEVICE_OBJECT FsvolDeviceObject;
     UINT64 UserContext;
@@ -671,6 +680,10 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, ULONG InfoChangeNumber);
+BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
+VOID FspFileNodeSetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
+BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
+    ULONG SecurityChangeNumber);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #define FspFileNodeAcquireShared(N,F)   FspFileNodeAcquireSharedF(N, FspFileNodeAcquire ## F)
@@ -680,6 +693,7 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #define FspFileNodeSetOwner(N,F,P)      FspFileNodeSetOwnerF(N, FspFileNodeAcquire ## F, P)
 #define FspFileNodeRelease(N,F)         FspFileNodeReleaseF(N, FspFileNodeAcquire ## F)
 #define FspFileNodeReleaseOwner(N,F,P)  FspFileNodeReleaseOwnerF(N, FspFileNodeAcquire ## F, P)
+#define FspFileNodeDereferenceSecurity(P)   FspMetaCacheDereferenceItemBuffer(P)
 
 /* debug */
 #if DBG

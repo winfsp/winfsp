@@ -148,12 +148,14 @@ VOID FspMetaCacheInvalidateExpired(FSP_META_CACHE *MetaCache, UINT64 ExpirationT
     }
 }
 
-PVOID FspMetaCacheReferenceItemBuffer(FSP_META_CACHE *MetaCache, UINT64 ItemIndex, PULONG PSize)
+BOOLEAN FspMetaCacheReferenceItemBuffer(FSP_META_CACHE *MetaCache, UINT64 ItemIndex,
+    PCVOID *PBuffer, PULONG PSize)
 {
+    *PBuffer = 0;
     if (0 != PSize)
         *PSize = 0;
     if (0 == MetaCache || 0 == ItemIndex)
-        return 0;
+        return FALSE;
     FSP_META_CACHE_ITEM *Item = 0;
     FSP_META_CACHE_ITEM_BUFFER *ItemBuffer;
     KIRQL Irql;
@@ -162,23 +164,24 @@ PVOID FspMetaCacheReferenceItemBuffer(FSP_META_CACHE *MetaCache, UINT64 ItemInde
     if (0 == Item)
     {
         KeReleaseSpinLock(&MetaCache->SpinLock, Irql);
-        return 0;
+        return FALSE;
     }
     InterlockedIncrement(&Item->RefCount);
     KeReleaseSpinLock(&MetaCache->SpinLock, Irql);
     ItemBuffer = Item->ItemBuffer;
+    *PBuffer = ItemBuffer->Buffer;
     if (0 != PSize)
         *PSize = ItemBuffer->Size;
-    return ItemBuffer->Buffer;
+    return TRUE;
 }
 
-VOID FspMetaCacheDereferenceItemBuffer(PVOID Buffer)
+VOID FspMetaCacheDereferenceItemBuffer(PCVOID Buffer)
 {
     FSP_META_CACHE_ITEM_BUFFER *ItemBuffer = (PVOID)((PUINT8)Buffer - sizeof *ItemBuffer);
     FspMetaCacheDereferenceItem(ItemBuffer->Item);
 }
 
-UINT64 FspMetaCacheAddItem(FSP_META_CACHE *MetaCache, PVOID Buffer, ULONG Size)
+UINT64 FspMetaCacheAddItem(FSP_META_CACHE *MetaCache, PCVOID Buffer, ULONG Size)
 {
     if (0 == MetaCache)
         return 0;
