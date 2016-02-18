@@ -384,6 +384,29 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 BOOLEAN FspIoqRetryCompleteIrp(FSP_IOQ *Ioq, PIRP Irp, NTSTATUS *PResult);
 PIRP FspIoqNextCompleteIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp);
 
+/* meta cache */
+typedef struct
+{
+    KSPIN_LOCK SpinLock;
+    UINT64 MetaTimeout;
+    ULONG MetaCapacity, ItemCount;
+    ULONG ItemSizeMax;
+    UINT64 ItemIndex;
+    LIST_ENTRY ItemList;
+    ULONG ItemBucketCount;
+    PVOID ItemBuckets[];
+} FSP_META_CACHE;
+NTSTATUS MetaCacheCreate(
+    ULONG MetaCapacity, ULONG ItemSizeMax, PLARGE_INTEGER MetaTimeout,
+    FSP_META_CACHE **PMetaCache);
+VOID MetaCacheDelete(FSP_META_CACHE *MetaCache);
+VOID MetaCacheInvalidateAll(FSP_META_CACHE *MetaCache);
+VOID MetaCacheInvalidateExpired(FSP_META_CACHE *MetaCache);
+PVOID MetaCacheReferenceItemBuffer(FSP_META_CACHE *MetaCache, UINT64 ItemIndex, PULONG PSize);
+VOID MetaCacheDereferenceItemBuffer(PVOID Buffer);
+UINT64 MetaCacheAddItem(FSP_META_CACHE *MetaCache, PVOID Buffer, ULONG Size);
+VOID MetaCacheInvalidateItem(FSP_META_CACHE *MetaCache, UINT64 ItemIndex);
+
 /* I/O processing */
 #define FSP_FSCTL_WORK                  \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'W', METHOD_NEITHER, FILE_ANY_ACCESS)

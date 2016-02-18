@@ -86,6 +86,9 @@
     <ClCompile Include="..\..\src\sys\file.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\sys\meta.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\sys\driver.h">

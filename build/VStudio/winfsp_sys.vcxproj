@@ -163,6 +163,7 @@
     <ClCompile Include="..\..\src\sys\iop.c" />
     <ClCompile Include="..\..\src\sys\ioq.c" />
     <ClCompile Include="..\..\src\sys\lockctl.c" />
+    <ClCompile Include="..\..\src\sys\meta.c" />
     <ClCompile Include="..\..\src\sys\read.c" />
     <ClCompile Include="..\..\src\sys\security.c" />
     <ClCompile Include="..\..\src\sys\shutdown.c" />
