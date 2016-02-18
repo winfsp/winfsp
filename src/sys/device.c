@@ -442,9 +442,11 @@ static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
 
     PDEVICE_OBJECT DeviceObject = Context;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    UINT64 InterruptTime;
     KIRQL Irql;
 
-    FspIoqRemoveExpired(FsvolDeviceExtension->Ioq);
+    InterruptTime = KeQueryInterruptTime();
+    FspIoqRemoveExpired(FsvolDeviceExtension->Ioq, InterruptTime);
 
     KeAcquireSpinLock(&FsvolDeviceExtension->ExpirationLock, &Irql);
     FsvolDeviceExtension->ExpirationInProgress = FALSE;

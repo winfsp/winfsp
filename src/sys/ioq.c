@@ -509,11 +509,11 @@ BOOLEAN FspIoqStopped(FSP_IOQ *Ioq)
     return Result;
 }
 
-VOID FspIoqRemoveExpired(FSP_IOQ *Ioq)
+VOID FspIoqRemoveExpired(FSP_IOQ *Ioq, UINT64 InterruptTime)
 {
     FSP_IOQ_PEEK_CONTEXT PeekContext;
     PeekContext.IrpHint = 0;
-    PeekContext.ExpirationTime = QueryInterruptTimeInSec();
+    PeekContext.ExpirationTime = ConvertInterruptTimeToSec(InterruptTime);
     PIRP Irp;
     while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, &PeekContext)))
         Ioq->CompleteCanceledIrp(Irp);

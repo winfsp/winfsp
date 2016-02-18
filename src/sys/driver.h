@@ -375,7 +375,7 @@ NTSTATUS FspIoqCreate(
 VOID FspIoqDelete(FSP_IOQ *Ioq);
 VOID FspIoqStop(FSP_IOQ *Ioq);
 BOOLEAN FspIoqStopped(FSP_IOQ *Ioq);
-VOID FspIoqRemoveExpired(FSP_IOQ *Ioq);
+VOID FspIoqRemoveExpired(FSP_IOQ *Ioq, UINT64 InterruptTime);
 BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN BestEffort, NTSTATUS *PResult);
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout,
     PIRP CancellableIrp);
