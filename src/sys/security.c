@@ -114,7 +114,7 @@ NTSTATUS FspFsvolQuerySecurityComplete(
     {
         /* check that the security descriptor we got back is valid */
         if (Response->Buffer + Response->Rsp.QuerySecurity.SecurityDescriptor.Size >
-            (PUINT8)Response + Response->Size ||
+                (PUINT8)Response + Response->Size ||
             !RtlValidRelativeSecurityDescriptor((PVOID)Response->Buffer,
                 Response->Rsp.QuerySecurity.SecurityDescriptor.Size, 0))
         {
@@ -163,13 +163,90 @@ static NTSTATUS FspFsvolSetSecurity(
 {
     PAGED_CODE();
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    /* is this a valid FileObject? */
+    if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    NTSTATUS Result;
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
+    SECURITY_INFORMATION SecurityInformation = IrpSp->Parameters.SetSecurity.SecurityInformation;
+    PSECURITY_DESCRIPTOR SecurityDescriptor = IrpSp->Parameters.SetSecurity.SecurityDescriptor;
+    ULONG SecurityDescriptorSize = 0;
+
+    ASSERT(FileNode == FileDesc->FileNode);
+
+#if 0
+    /* captured security descriptor is always valid */
+    if (0 == SecurityDescriptor || !RtlValidSecurityDescriptor(SecurityDescriptor))
+        return STATUS_INVALID_PARAMETER;
+#endif
+    SecurityDescriptorSize = RtlLengthSecurityDescriptor(SecurityDescriptor);
+
+    FspFileNodeAcquireExclusive(FileNode, Full);
+
+    FSP_FSCTL_TRANSACT_REQ *Request;
+
+    Result = FspIopCreateRequestEx(Irp, 0, SecurityDescriptorSize, FspFsvolSecurityRequestFini,
+        &Request);
+    if (!NT_SUCCESS(Result))
+    {
+        FspFileNodeRelease(FileNode, Full);
+        return Result;
+    }
+
+    Request->Kind = FspFsctlTransactSetSecurityKind;
+    Request->Req.SetSecurity.UserContext = FileNode->UserContext;
+    Request->Req.SetSecurity.UserContext2 = FileDesc->UserContext2;
+    Request->Req.SetSecurity.SecurityInformation = SecurityInformation;
+    Request->Req.SetSecurity.SecurityDescriptor.Offset = 0;
+    Request->Req.SetSecurity.SecurityDescriptor.Size = (UINT16)SecurityDescriptorSize;
+    RtlCopyMemory(Request->Buffer, SecurityDescriptor, SecurityDescriptorSize);
+
+    FspFileNodeSetOwner(FileNode, Full, Request);
+    FspIopRequestContext(Request, RequestFileNode) = FileNode;
+
+    return FSP_STATUS_IOQ_POST;
 }
 
 NTSTATUS FspFsvolSetSecurityComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
+
+    if (!NT_SUCCESS(Response->IoStatus.Status))
+    {
+        Irp->IoStatus.Information = 0;
+        Result = Response->IoStatus.Status;
+        FSP_RETURN();
+    }
+
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+
+    /* if the security descriptor that we got back is valid */
+    if (0 < Response->Rsp.SetSecurity.SecurityDescriptor.Size &&
+        Response->Buffer + Response->Rsp.SetSecurity.SecurityDescriptor.Size <=
+        (PUINT8)Response + Response->Size &&
+        RtlValidRelativeSecurityDescriptor((PVOID)Response->Buffer,
+            Response->Rsp.SetSecurity.SecurityDescriptor.Size, 0))
+    {
+        /* update the cached security */
+        FspFileNodeSetSecurity(FileNode,
+            Response->Buffer, Response->Rsp.SetSecurity.SecurityDescriptor.Size);
+    }
+    else
+    {
+        /* invalidate the cached security */
+        FspFileNodeSetSecurity(FileNode, 0, 0);
+    }
+
+    FspIopRequestContext(Request, RequestFileNode) = 0;
+    FspFileNodeReleaseOwner(FileNode, Full, Request);
+
+    Irp->IoStatus.Information = 0;
 
     FSP_LEAVE_IOC("FileObject=%p, SecurityInformation=%x",
         IrpSp->FileObject, IrpSp->Parameters.SetSecurity.SecurityInformation);

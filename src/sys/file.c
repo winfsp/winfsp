@@ -497,7 +497,8 @@ VOID FspFileNodeSetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size)
         FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
 
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->SecurityCache, FileNode->Security);
-    FileNode->Security = FspMetaCacheAddItem(FsvolDeviceExtension->SecurityCache, Buffer, Size);
+    FileNode->Security = 0 != Buffer ?
+        FspMetaCacheAddItem(FsvolDeviceExtension->SecurityCache, Buffer, Size) : 0;
 }
 
 BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,

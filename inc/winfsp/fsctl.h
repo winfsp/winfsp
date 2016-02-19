@@ -239,6 +239,7 @@ typedef struct
         {
             UINT64 UserContext;
             UINT64 UserContext2;
+            UINT32 SecurityInformation;
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;
         } SetSecurity;
     } Req;
@@ -298,6 +299,10 @@ typedef struct
         {
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;
         } QuerySecurity;
+        struct
+        {
+            FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;  /* Size==0 means no security descriptor returned */
+        } SetSecurity;
     } Rsp;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_RSP;

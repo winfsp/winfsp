@@ -177,8 +177,11 @@ static NTSTATUS FspFsvolCreateNoLock(
     /* check security descriptor validity */
     if (0 != SecurityDescriptor)
     {
+#if 0
+        /* captured security descriptor is always valid */
         if (!RtlValidSecurityDescriptor(SecurityDescriptor))
             return STATUS_INVALID_PARAMETER;
+#endif
         SecurityDescriptorSize = RtlLengthSecurityDescriptor(SecurityDescriptor);
     }
 
