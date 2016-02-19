@@ -12,6 +12,7 @@ int main(int argc, char *argv[])
     TESTSUITE(memfs_tests);
     TESTSUITE(create_tests);
     TESTSUITE(info_tests);
+    TESTSUITE(security_tests);
 
     tlib_run_tests(argc, argv);
     return 0;
