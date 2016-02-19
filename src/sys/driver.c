@@ -86,6 +86,7 @@ NTSTATUS DriverEntry(
     FspIopCompleteFunction[IRP_MJ_LOCK_CONTROL] = FspFsvolLockControlComplete;
     FspIopCompleteFunction[IRP_MJ_CLEANUP] = FspFsvolCleanupComplete;
     FspIopCompleteFunction[IRP_MJ_QUERY_SECURITY] = FspFsvolQuerySecurityComplete;
+    FspIopPrepareFunction[IRP_MJ_SET_SECURITY] = FspFsvolSetSecurityPrepare;
     FspIopCompleteFunction[IRP_MJ_SET_SECURITY] = FspFsvolSetSecurityComplete;
 
     /* setup fast I/O and resource acquisition */

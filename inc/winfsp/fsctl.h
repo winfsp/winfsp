@@ -153,7 +153,7 @@ typedef struct
             UINT32 FileAttributes;      /* file attributes for new files */
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor; /* security descriptor for new files */
             UINT64 AllocationSize;      /* initial allocation size */
-            UINT64 AccessToken;         /* (HANDLE); request access token; sent if NoAccessCheck is 0 */
+            UINT64 AccessToken;         /* request access token (HANDLE) */
             UINT32 DesiredAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             UINT32 ShareAccess;         /* FILE_SHARE_{READ,WRITE,DELETE} */
             FSP_FSCTL_TRANSACT_BUF Ea;  /* reserved; not currently implemented */
@@ -240,6 +240,7 @@ typedef struct
             UINT64 UserContext;
             UINT64 UserContext2;
             UINT32 SecurityInformation;
+            UINT64 AccessToken;         /* request access token (HANDLE) */
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;
         } SetSecurity;
     } Req;

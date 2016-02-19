@@ -95,7 +95,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     NTSTATUS (*SetSecurity)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,
-        PSECURITY_DESCRIPTOR SecurityDescriptor);
+        SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR SecurityDescriptor);
 } FSP_FILE_SYSTEM_INTERFACE;
 typedef struct _FSP_FILE_SYSTEM
 {
@@ -196,9 +196,13 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
     UINT32 DesiredAccess, PUINT32 PGrantedAccess,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor);
-FSP_API NTSTATUS FspAssignSecurity(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspCreateSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PSECURITY_DESCRIPTOR ParentDescriptor,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor);
+FSP_API NTSTATUS FspSetSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PSECURITY_DESCRIPTOR InputDescriptor,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor);
 FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor,
     NTSTATUS (*CreateFunc)());

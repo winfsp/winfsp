@@ -83,7 +83,7 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return Result;
 
-    Result = FspAssignSecurity(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
+    Result = FspCreateSecurityDescriptor(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
     FspDeleteSecurityDescriptor(ParentDescriptor, FspAccessCheckEx);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -94,7 +94,7 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
         (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
         Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
         &FileNode, &FileInfo);
-    FspDeleteSecurityDescriptor(ObjectDescriptor, FspAssignSecurity);
+    FspDeleteSecurityDescriptor(ObjectDescriptor, FspCreateSecurityDescriptor);
     if (!NT_SUCCESS(Result))
         return Result;
 
@@ -171,7 +171,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         if (!NT_SUCCESS(Result))
             return Result;
 
-        Result = FspAssignSecurity(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
+        Result = FspCreateSecurityDescriptor(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
         FspDeleteSecurityDescriptor(ParentDescriptor, FspAccessCheckEx);
         if (!NT_SUCCESS(Result))
             return Result;
@@ -182,7 +182,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
             (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
             Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
             &FileNode, &FileInfo);
-        FspDeleteSecurityDescriptor(ObjectDescriptor, FspAssignSecurity);
+        FspDeleteSecurityDescriptor(ObjectDescriptor, FspCreateSecurityDescriptor);
         if (!NT_SUCCESS(Result))
             return Result;
     }
@@ -261,7 +261,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
         if (!NT_SUCCESS(Result))
             return Result;
 
-        Result = FspAssignSecurity(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
+        Result = FspCreateSecurityDescriptor(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
         FspDeleteSecurityDescriptor(ParentDescriptor, FspAccessCheckEx);
         if (!NT_SUCCESS(Result))
             return Result;
@@ -272,7 +272,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
             (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
             Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
             &FileNode, &FileInfo);
-        FspDeleteSecurityDescriptor(ObjectDescriptor, FspAssignSecurity);
+        FspDeleteSecurityDescriptor(ObjectDescriptor, FspCreateSecurityDescriptor);
         if (!NT_SUCCESS(Result))
             return Result;
     }
@@ -544,22 +544,32 @@ FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
+    SIZE_T SecurityDescriptorSize;
 
     if (0 == FileSystem->Interface->GetSecurity)
         return STATUS_INVALID_DEVICE_REQUEST;
 
-    (VOID)Result;
-    return STATUS_INVALID_DEVICE_REQUEST;
+    SecurityDescriptorSize = FSP_FSCTL_TRANSACT_RSP_SIZEMAX - sizeof *Response;
+    Result = FileSystem->Interface->GetSecurity(FileSystem, Request,
+        (PVOID)Request->Req.QuerySecurity.UserContext,
+        Response->Buffer, &SecurityDescriptorSize);
+    if (!NT_SUCCESS(Result))
+        return STATUS_BUFFER_OVERFLOW != Result ? Result : STATUS_INVALID_SECURITY_DESCR;
+
+    Response->Size = (UINT16)(sizeof *Response + SecurityDescriptorSize);
+    Response->Rsp.QuerySecurity.SecurityDescriptor.Offset = 0;
+    Response->Rsp.QuerySecurity.SecurityDescriptor.Size = (UINT16)SecurityDescriptorSize;
+    return STATUS_SUCCESS;
 }
 
 FSP_API NTSTATUS FspFileSystemOpSetSecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
-    NTSTATUS Result;
-
     if (0 == FileSystem->Interface->SetSecurity)
         return STATUS_INVALID_DEVICE_REQUEST;
 
-    (VOID)Result;
-    return STATUS_INVALID_DEVICE_REQUEST;
+    return FileSystem->Interface->SetSecurity(FileSystem, Request,
+        (PVOID)Request->Req.SetSecurity.UserContext,
+        Request->Req.SetSecurity.SecurityInformation,
+        (PSECURITY_DESCRIPTOR)Request->Buffer);
 }

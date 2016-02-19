@@ -553,6 +553,57 @@ NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    if (FileNode->FileSecuritySize > *PSecurityDescriptorSize)
+    {
+        *PSecurityDescriptorSize = FileNode->FileSecuritySize;
+        return STATUS_BUFFER_OVERFLOW;
+    }
+
+    *PSecurityDescriptorSize = FileNode->FileSecuritySize;
+    if (0 != SecurityDescriptor)
+        memcpy(SecurityDescriptor, FileNode->FileSecurity, FileNode->FileSecuritySize);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0,
+    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR SecurityDescriptor)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    PSECURITY_DESCRIPTOR NewSecurityDescriptor, FileSecurity;
+    SIZE_T FileSecuritySize;
+    NTSTATUS Result;
+
+    Result = FspSetSecurityDescriptor(FileSystem, Request, FileNode->FileSecurity,
+        &NewSecurityDescriptor);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    FileSecuritySize = GetSecurityDescriptorLength(NewSecurityDescriptor);
+    FileSecurity = (PSECURITY_DESCRIPTOR)malloc(FileSecuritySize);
+    if (0 == FileSecurity)
+    {
+        FspDeleteSecurityDescriptor(NewSecurityDescriptor, (NTSTATUS (*)())FspSetSecurityDescriptor);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    memcpy(FileSecurity, SecurityDescriptor, FileSecuritySize);
+    FspDeleteSecurityDescriptor(NewSecurityDescriptor, (NTSTATUS (*)())FspSetSecurityDescriptor);
+
+    FileNode->FileSecuritySize = FileSecuritySize;
+    FileNode->FileSecurity = FileSecurity;
+
+    return STATUS_SUCCESS;
+}
+
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
     GetVolumeInfo,
@@ -569,6 +620,8 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     SetFileSize,
     CanDelete,
     Rename,
+    GetSecurity,
+    SetSecurity,
 };
 
 static VOID MemfsEnterOperation(FSP_FILE_SYSTEM *FileSystem,

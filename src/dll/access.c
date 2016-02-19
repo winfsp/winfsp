@@ -47,6 +47,9 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     if (0 != PSecurityDescriptor)
         *PSecurityDescriptor = 0;
 
+    if (FspFsctlTransactCreateKind != Request->Kind)
+        return STATUS_INVALID_PARAMETER;
+
     if (0 == FileSystem->Interface->GetSecurityByName ||
         (!Request->Req.Create.UserMode && 0 == PSecurityDescriptor))
     {
@@ -202,12 +205,15 @@ exit:
     return Result;
 }
 
-FSP_API NTSTATUS FspAssignSecurity(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspCreateSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PSECURITY_DESCRIPTOR ParentDescriptor,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor)
 {
     *PSecurityDescriptor = 0;
+
+    if (FspFsctlTransactCreateKind != Request->Kind)
+        return STATUS_INVALID_PARAMETER;
 
     if (!CreatePrivateObjectSecurity(
         ParentDescriptor,
@@ -224,11 +230,75 @@ FSP_API NTSTATUS FspAssignSecurity(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+FSP_API NTSTATUS FspSetSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PSECURITY_DESCRIPTOR InputDescriptor,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor)
+{
+    *PSecurityDescriptor = 0;
+
+    if (FspFsctlTransactSetSecurityKind != Request->Kind)
+        return STATUS_INVALID_PARAMETER;
+
+    if (0 == InputDescriptor)
+        return STATUS_NO_SECURITY_ON_OBJECT;
+
+    /*
+     * SetPrivateObjectSecurity is a broken API. It assumes that the passed
+     * descriptor resides on memory allocated by CreatePrivateObjectSecurity
+     * or SetPrivateObjectSecurity and frees the descriptor on success.
+     *
+     * In our case the security descriptor comes from the user mode file system,
+     * which may conjure it any way it sees fit. So we have to somehow make a copy
+     * of the InputDescriptor and place it in memory that SetPrivateObjectSecurity
+     * can then free. To complicate matters there is no API that can be used for
+     * this purpose. What a PITA!
+     */
+    /* !!!: HACK! HACK! HACK!
+     *
+     * Turns out that SetPrivateObjectSecurity and friends really use RtlProcessHeap
+     * internally, which is just another name for GetProcessHeap().
+     *
+     * I wish there was a cleaner way to do this!
+     */
+
+    HANDLE ProcessHeap = GetProcessHeap();
+    DWORD InputDescriptorSize = GetSecurityDescriptorLength(InputDescriptor);
+    PSECURITY_DESCRIPTOR CopiedDescriptor;
+
+    CopiedDescriptor = HeapAlloc(ProcessHeap, 0, InputDescriptorSize);
+    if (0 == CopiedDescriptor)
+        return STATUS_INSUFFICIENT_RESOURCES;
+    memcpy(CopiedDescriptor, InputDescriptor, InputDescriptorSize);
+    InputDescriptor = CopiedDescriptor;
+
+    if (!SetPrivateObjectSecurity(
+        Request->Req.SetSecurity.SecurityInformation,
+        (PVOID)Request->Buffer,
+        &InputDescriptor,
+        &FspFileGenericMapping,
+        (HANDLE)Request->Req.SetSecurity.AccessToken))
+    {
+        HeapFree(ProcessHeap, 0, CopiedDescriptor);
+        return FspNtStatusFromWin32(GetLastError());
+    }
+
+    /* CopiedDescriptor has been freed by SetPrivateObjectSecurity! */
+
+    *PSecurityDescriptor = InputDescriptor;
+
+    DEBUGLOGSD("SDDL=%s", *PSecurityDescriptor);
+
+    return STATUS_SUCCESS;
+}
+
 FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor,
-    NTSTATUS(*CreateFunc)())
+    NTSTATUS (*CreateFunc)())
 {
     if ((NTSTATUS (*)())FspAccessCheckEx == CreateFunc)
         MemFree(SecurityDescriptor);
-    else if ((NTSTATUS (*)())FspAssignSecurity == CreateFunc)
+    else
+    if ((NTSTATUS (*)())FspCreateSecurityDescriptor == CreateFunc ||
+        (NTSTATUS (*)())FspSetSecurityDescriptor == CreateFunc)
         DestroyPrivateObjectSecurity(&SecurityDescriptor);
 }

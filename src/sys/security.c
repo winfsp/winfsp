@@ -9,19 +9,23 @@
 static NTSTATUS FspFsvolQuerySecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolQuerySecurityComplete;
+static FSP_IOP_REQUEST_FINI FspFsvolQuerySecurityRequestFini;
 static NTSTATUS FspFsvolSetSecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+FSP_IOPREP_DISPATCH FspFsvolSetSecurityPrepare;
 FSP_IOCMPL_DISPATCH FspFsvolSetSecurityComplete;
-static FSP_IOP_REQUEST_FINI FspFsvolSecurityRequestFini;
+static FSP_IOP_REQUEST_FINI FspFsvolSetSecurityRequestFini;
 FSP_DRIVER_DISPATCH FspQuerySecurity;
 FSP_DRIVER_DISPATCH FspSetSecurity;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQuerySecurity)
 #pragma alloc_text(PAGE, FspFsvolQuerySecurityComplete)
+#pragma alloc_text(PAGE, FspFsvolQuerySecurityRequestFini)
 #pragma alloc_text(PAGE, FspFsvolSetSecurity)
+#pragma alloc_text(PAGE, FspFsvolSetSecurityPrepare)
 #pragma alloc_text(PAGE, FspFsvolSetSecurityComplete)
-#pragma alloc_text(PAGE, FspFsvolSecurityRequestFini)
+#pragma alloc_text(PAGE, FspFsvolSetSecurityRequestFini)
 #pragma alloc_text(PAGE, FspQuerySecurity)
 #pragma alloc_text(PAGE, FspSetSecurity)
 #endif
@@ -34,6 +38,8 @@ enum
 
     /* SetSecurity */
     //RequestFileNode                   = 0,
+    RequestAccessToken                  = 2,
+    RequestProcess                      = 3,
 };
 
 static NTSTATUS FspFsvolQuerySecurity(
@@ -72,7 +78,7 @@ static NTSTATUS FspFsvolQuerySecurity(
 
     FSP_FSCTL_TRANSACT_REQ *Request;
 
-    Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolSecurityRequestFini, &Request);
+    Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolQuerySecurityRequestFini, &Request);
     if (!NT_SUCCESS(Result))
     {
         FspFileNodeRelease(FileNode, Full);
@@ -158,6 +164,16 @@ NTSTATUS FspFsvolQuerySecurityComplete(
         IrpSp->FileObject, IrpSp->Parameters.QuerySecurity.SecurityInformation);
 }
 
+static VOID FspFsvolQuerySecurityRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4])
+{
+    PAGED_CODE();
+
+    FSP_FILE_NODE *FileNode = Context[RequestFileNode];
+
+    if (0 != FileNode)
+        FspFileNodeReleaseOwner(FileNode, Full, Request);
+}
+
 static NTSTATUS FspFsvolSetSecurity(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -188,7 +204,7 @@ static NTSTATUS FspFsvolSetSecurity(
 
     FSP_FSCTL_TRANSACT_REQ *Request;
 
-    Result = FspIopCreateRequestEx(Irp, 0, SecurityDescriptorSize, FspFsvolSecurityRequestFini,
+    Result = FspIopCreateRequestEx(Irp, 0, SecurityDescriptorSize, FspFsvolSetSecurityRequestFini,
         &Request);
     if (!NT_SUCCESS(Result))
     {
@@ -208,6 +224,53 @@ static NTSTATUS FspFsvolSetSecurity(
     FspIopRequestContext(Request, RequestFileNode) = FileNode;
 
     return FSP_STATUS_IOQ_POST;
+}
+
+NTSTATUS FspFsvolSetSecurityPrepare(
+    PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    SECURITY_SUBJECT_CONTEXT SecuritySubjectContext;
+    SECURITY_QUALITY_OF_SERVICE SecurityQualityOfService;
+    SECURITY_CLIENT_CONTEXT SecurityClientContext;
+    HANDLE UserModeAccessToken;
+    PEPROCESS Process;
+
+    /* duplicate the subject context access token into an impersonation token */
+    SecurityQualityOfService.Length = sizeof SecurityQualityOfService;
+    SecurityQualityOfService.ImpersonationLevel = SecurityIdentification;
+    SecurityQualityOfService.ContextTrackingMode = SECURITY_STATIC_TRACKING;
+    SecurityQualityOfService.EffectiveOnly = FALSE;
+    SeCaptureSubjectContext(&SecuritySubjectContext);
+    SeLockSubjectContext(&SecuritySubjectContext);
+    Result = SeCreateClientSecurityFromSubjectContext(&SecuritySubjectContext,
+        &SecurityQualityOfService, FALSE, &SecurityClientContext);
+    SeUnlockSubjectContext(&SecuritySubjectContext);
+    SeReleaseSubjectContext(&SecuritySubjectContext);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    ASSERT(TokenImpersonation == SeTokenType(SecurityClientContext.ClientToken));
+
+    /* get a user-mode handle to the impersonation token */
+    Result = ObOpenObjectByPointer(SecurityClientContext.ClientToken,
+        0, 0, TOKEN_QUERY, *SeTokenObjectType, UserMode, &UserModeAccessToken);
+    SeDeleteClientSecurity(&SecurityClientContext);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    /* get a pointer to the current process so that we can close the impersonation token later */
+    Process = PsGetCurrentProcess();
+    ObReferenceObject(Process);
+
+    /* send the user-mode handle to the user-mode file system */
+    FspIopRequestContext(Request, RequestAccessToken) = UserModeAccessToken;
+    FspIopRequestContext(Request, RequestProcess) = Process;
+    Request->Req.SetSecurity.AccessToken = (UINT_PTR)UserModeAccessToken;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS FspFsvolSetSecurityComplete(
@@ -252,14 +315,40 @@ NTSTATUS FspFsvolSetSecurityComplete(
         IrpSp->FileObject, IrpSp->Parameters.SetSecurity.SecurityInformation);
 }
 
-static VOID FspFsvolSecurityRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4])
+static VOID FspFsvolSetSecurityRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4])
 {
     PAGED_CODE();
 
     FSP_FILE_NODE *FileNode = Context[RequestFileNode];
+    HANDLE AccessToken = Context[RequestAccessToken];
+    PEPROCESS Process = Context[RequestProcess];
 
     if (0 != FileNode)
         FspFileNodeReleaseOwner(FileNode, Full, Request);
+
+    if (0 != AccessToken)
+    {
+        KAPC_STATE ApcState;
+        BOOLEAN Attach;
+
+        ASSERT(0 != Process);
+        Attach = Process != PsGetCurrentProcess();
+
+        if (Attach)
+            KeStackAttachProcess(Process, &ApcState);
+#if DBG
+        NTSTATUS Result0;
+        Result0 = ObCloseHandle(AccessToken, UserMode);
+        if (!NT_SUCCESS(Result0))
+            DEBUGLOG("ObCloseHandle() = %s", NtStatusSym(Result0));
+#else
+        ObCloseHandle(AccessToken, UserMode);
+#endif
+        if (Attach)
+            KeUnstackDetachProcess(&ApcState);
+
+        ObDereferenceObject(Process);
+    }
 }
 
 NTSTATUS FspQuerySecurity(
