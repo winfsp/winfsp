@@ -112,6 +112,17 @@ NTSTATUS FspFsvolQuerySecurityComplete(
 
     if (0 != FspIopRequestContext(Request, RequestFileNode))
     {
+        /* check that the security descriptor we got back is valid */
+        if (Response->Buffer + Response->Rsp.QuerySecurity.SecurityDescriptor.Size >
+            (PUINT8)Response + Response->Size ||
+            !RtlValidRelativeSecurityDescriptor((PVOID)Response->Buffer,
+                Response->Rsp.QuerySecurity.SecurityDescriptor.Size, 0))
+        {
+            Irp->IoStatus.Information = 0;
+            Result = STATUS_INVALID_SECURITY_DESCR;
+            FSP_RETURN();
+        }
+
         FspIopRequestContext(Request, RequestSecurityChangeNumber) = (PVOID)FileNode->SecurityChangeNumber;
         FspIopRequestContext(Request, RequestFileNode) = 0;
 
