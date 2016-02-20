@@ -598,6 +598,7 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     memcpy(FileSecurity, SecurityDescriptor, FileSecuritySize);
     FspDeleteSecurityDescriptor(NewSecurityDescriptor, (NTSTATUS (*)())FspSetSecurityDescriptor);
 
+    free(FileNode->FileSecurity);
     FileNode->FileSecuritySize = FileSecuritySize;
     FileNode->FileSecurity = FileSecurity;
 

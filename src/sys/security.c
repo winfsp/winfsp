@@ -310,6 +310,7 @@ NTSTATUS FspFsvolSetSecurityComplete(
     FspFileNodeReleaseOwner(FileNode, Full, Request);
 
     Irp->IoStatus.Information = 0;
+    Result = STATUS_SUCCESS;
 
     FSP_LEAVE_IOC("FileObject=%p, SecurityInformation=%x",
         IrpSp->FileObject, IrpSp->Parameters.SetSecurity.SecurityInformation);
