@@ -105,7 +105,12 @@ VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode)
 {
     PAGED_CODE();
 
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+
     FsRtlTeardownPerStreamContexts(&FileNode->Header);
+
+    FspMetaCacheInvalidateItem(FsvolDeviceExtension->SecurityCache, FileNode->Security);
 
     FspDeviceDereference(FileNode->FsvolDeviceObject);
 
@@ -499,6 +504,7 @@ VOID FspFileNodeSetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size)
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->SecurityCache, FileNode->Security);
     FileNode->Security = 0 != Buffer ?
         FspMetaCacheAddItem(FsvolDeviceExtension->SecurityCache, Buffer, Size) : 0;
+    FileNode->SecurityChangeNumber++;
 }
 
 BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,

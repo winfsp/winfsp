@@ -292,7 +292,7 @@ NTSTATUS FspFsvolSetSecurityComplete(
     /* if the security descriptor that we got back is valid */
     if (0 < Response->Rsp.SetSecurity.SecurityDescriptor.Size &&
         Response->Buffer + Response->Rsp.SetSecurity.SecurityDescriptor.Size <=
-        (PUINT8)Response + Response->Size &&
+            (PUINT8)Response + Response->Size &&
         RtlValidRelativeSecurityDescriptor((PVOID)Response->Buffer,
             Response->Rsp.SetSecurity.SecurityDescriptor.Size, 0))
     {
