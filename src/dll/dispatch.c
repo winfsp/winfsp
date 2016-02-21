@@ -68,7 +68,7 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
 {
     FSP_FILE_SYSTEM *FileSystem = FileSystem0;
     NTSTATUS Result;
-    SIZE_T RequestSize;
+    SIZE_T RequestSize, ResponseSize;
     FSP_FSCTL_TRANSACT_REQ *Request = 0;
     FSP_FSCTL_TRANSACT_RSP *Response = 0;
     HANDLE DispatcherThread = 0;
@@ -122,6 +122,21 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
         }
         else
             Response->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
+
+        ResponseSize = FSP_FSCTL_DEFAULT_ALIGN_UP(Response->Size);
+        if (FSP_FSCTL_TRANSACT_RSP_SIZEMAX < ResponseSize/* should NOT happen */)
+        {
+            memset(Response, 0, sizeof *Response);
+            Response->Size = sizeof *Response;
+            Response->Kind = Request->Kind;
+            Response->Hint = Request->Hint;
+            Response->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
+        }
+        else
+        {
+            memset((PUINT8)Response + Response->Size, 0, ResponseSize - Response->Size);
+            Response->Size = (UINT16)ResponseSize;
+        }
     }
 
 exit:
