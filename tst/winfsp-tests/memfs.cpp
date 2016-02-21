@@ -595,7 +595,7 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
         FspDeleteSecurityDescriptor(NewSecurityDescriptor, (NTSTATUS (*)())FspSetSecurityDescriptor);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
-    memcpy(FileSecurity, SecurityDescriptor, FileSecuritySize);
+    memcpy(FileSecurity, NewSecurityDescriptor, FileSecuritySize);
     FspDeleteSecurityDescriptor(NewSecurityDescriptor, (NTSTATUS (*)())FspSetSecurityDescriptor);
 
     free(FileNode->FileSecurity);
