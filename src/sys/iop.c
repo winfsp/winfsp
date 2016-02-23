@@ -8,8 +8,7 @@
 
 NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
-    BOOLEAN MustSucceed,
-    FSP_FSCTL_TRANSACT_REQ **PRequest);
+    ULONG Flags, FSP_FSCTL_TRANSACT_REQ **PRequest);
 VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopResetRequest(FSP_FSCTL_TRANSACT_REQ *Request, FSP_IOP_REQUEST_FINI *RequestFini);
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
@@ -49,8 +48,7 @@ typedef struct
 
 NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
-    BOOLEAN MustSucceed,
-    FSP_FSCTL_TRANSACT_REQ **PRequest)
+    ULONG Flags, FSP_FSCTL_TRANSACT_REQ **PRequest)
 {
     PAGED_CODE();
 
@@ -65,11 +63,17 @@ NTSTATUS FspIopCreateRequestFunnel(
     if (FSP_FSCTL_TRANSACT_REQ_SIZEMAX < sizeof *Request + ExtraSize)
         return STATUS_INVALID_PARAMETER;
 
-    if (MustSucceed)
-        RequestHeader = FspAllocMustSucceed(sizeof *RequestHeader + sizeof *Request + ExtraSize);
+    if (FlagOn(Flags, FspIopRequestMustSucceed))
+        RequestHeader = FspAllocatePoolMustSucceed(
+            FlagOn(Flags, FspIopRequestNonPaged) ? NonPagedPool : PagedPool,
+            sizeof *RequestHeader + sizeof *Request + ExtraSize,
+            FSP_ALLOC_INTERNAL_TAG);
     else
     {
-        RequestHeader = FspAlloc(sizeof *RequestHeader + sizeof *Request + ExtraSize);
+        RequestHeader = ExAllocatePoolWithTag(
+            FlagOn(Flags, FspIopRequestNonPaged) ? NonPagedPool : PagedPool,
+            sizeof *RequestHeader + sizeof *Request + ExtraSize,
+            FSP_ALLOC_INTERNAL_TAG);
         if (0 == RequestHeader)
             return STATUS_INSUFFICIENT_RESOURCES;
     }

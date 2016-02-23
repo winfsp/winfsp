@@ -276,6 +276,7 @@ FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 /* memory allocation */
 #define FspAlloc(Size)                  ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_INTERNAL_TAG)
 #define FspAllocNonPaged(Size)          ExAllocatePoolWithTag(NonPagedPool, Size, FSP_ALLOC_INTERNAL_TAG)
+#define FspAllocMustSucceed(Size)       FspAllocatePoolMustSucceed(PagedPool, Size, FSP_ALLOC_INTERNAL_TAG)
 #define FspFree(Pointer)                ExFreePoolWithTag(Pointer, FSP_ALLOC_INTERNAL_TAG)
 #define FspAllocExternal(Size)          ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_EXTERNAL_TAG)
 #define FspAllocNonPagedExternal(Size)  ExAllocatePoolWithTag(NonPagedPool, Size, FSP_ALLOC_EXTERNAL_TAG)
@@ -316,7 +317,7 @@ ULONG FspHashMixPointer(PVOID Pointer)
 }
 
 /* utility */
-PVOID FspAllocMustSucceed(SIZE_T Size);
+PVOID FspAllocatePoolMustSucceed(POOL_TYPE PoolType, SIZE_T Size, ULONG Tag);
 PVOID FspAllocateIrpMustSucceed(CCHAR StackSize);
 BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
@@ -419,12 +420,17 @@ VOID FspMetaCacheInvalidateItem(FSP_META_CACHE *MetaCache, UINT64 ItemIndex);
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'W', METHOD_NEITHER, FILE_ANY_ACCESS)
 #define FSP_FSCTL_WORK_BEST_EFFORT      \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'w', METHOD_NEITHER, FILE_ANY_ACCESS)
+enum
+{
+    FspIopRequestMustSucceed            = 0x01,
+    FspIopRequestNonPaged               = 0x02,
+};
 #define FspIopCreateRequest(I, F, E, P) \
-    FspIopCreateRequestFunnel(I, F, E, 0, FALSE, P)
+    FspIopCreateRequestFunnel(I, F, E, 0, 0, P)
 #define FspIopCreateRequestMustSucceed(I, F, E, P)\
-    FspIopCreateRequestFunnel(I, F, E, 0, TRUE, P)
+    FspIopCreateRequestFunnel(I, F, E, 0, FspIopRequestMustSucceed, P)
 #define FspIopCreateRequestEx(I, F, E, RF, P)\
-    FspIopCreateRequestFunnel(I, F, E, RF, FALSE, P)
+    FspIopCreateRequestFunnel(I, F, E, RF, 0, P)
 #define FspIopRequestContext(Request, I)\
     (*FspIopRequestContextAddress(Request, I))
 #define FspIopPostWorkRequest(D, R)     FspIopPostWorkRequestFunnel(D, R, FALSE)
@@ -434,8 +440,7 @@ VOID FspMetaCacheInvalidateItem(FSP_META_CACHE *MetaCache, UINT64 ItemIndex);
 typedef VOID FSP_IOP_REQUEST_FINI(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4]);
 NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
-    BOOLEAN MustSucceed,
-    FSP_FSCTL_TRANSACT_REQ **PRequest);
+    ULONG Flags, FSP_FSCTL_TRANSACT_REQ **PRequest);
 VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopResetRequest(FSP_FSCTL_TRANSACT_REQ *Request, FSP_IOP_REQUEST_FINI *RequestFini);
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);

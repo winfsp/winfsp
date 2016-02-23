@@ -45,7 +45,7 @@ static const LONG Delays[] =
     -1000,
 };
 
-PVOID FspAllocMustSucceed(SIZE_T Size)
+PVOID FspAllocatePoolMustSucceed(POOL_TYPE PoolType, SIZE_T Size, ULONG Tag)
 {
     // !PAGED_CODE();
 
@@ -54,7 +54,7 @@ PVOID FspAllocMustSucceed(SIZE_T Size)
 
     for (ULONG i = 0, n = sizeof(Delays) / sizeof(Delays[0]);; i++)
     {
-        Result = FspAlloc(Size);
+        Result = ExAllocatePoolWithTag(PoolType, Size, Tag);
         if (0 != Result)
             return Result;
 
