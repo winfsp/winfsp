@@ -71,9 +71,6 @@
     <ClCompile Include="..\..\src\sys\write.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\sys\fastio.c">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\sys\fsctl.c">
       <Filter>Source</Filter>
     </ClCompile>
@@ -90,6 +87,9 @@
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\sys\wq.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\sys\callbacks.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

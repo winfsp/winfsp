@@ -264,7 +264,7 @@ FSP_IOCMPL_DISPATCH FspFsvolSetVolumeInformationComplete;
 FSP_IOCMPL_DISPATCH FspFsvolShutdownComplete;
 FSP_IOCMPL_DISPATCH FspFsvolWriteComplete;
 
-/* fast I/O and resource acquisition */
+/* fast I/O and resource acquisition callbacks */
 FAST_IO_CHECK_IF_POSSIBLE FspFastIoCheckIfPossible;
 FAST_IO_ACQUIRE_FILE FspAcquireFileForNtCreateSection;
 FAST_IO_RELEASE_FILE FspReleaseFileForNtCreateSection;
@@ -272,6 +272,16 @@ FAST_IO_ACQUIRE_FOR_MOD_WRITE FspAcquireForModWrite;
 FAST_IO_RELEASE_FOR_MOD_WRITE FspReleaseForModWrite;
 FAST_IO_ACQUIRE_FOR_CCFLUSH FspAcquireForCcFlush;
 FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
+BOOLEAN FspAcquireForLazyWrite(
+    PVOID Context,
+    BOOLEAN Wait);
+VOID FspReleaseFromLazyWrite(
+    PVOID Context);
+BOOLEAN FspAcquireForReadAhead(
+    PVOID Context,
+    BOOLEAN Wait);
+VOID FspReleaseFromReadAhead(
+    PVOID Context);
 
 /* memory allocation */
 #define FspAlloc(Size)                  ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_INTERNAL_TAG)

@@ -1,5 +1,6 @@
 /**
- * @file sys/fastio.c
+ * @file sys/callbacks.c
+ * Fast I/O and resource acquisition callbacks.
  *
  * @copyright 2015 Bill Zissimopoulos
  */
@@ -13,6 +14,16 @@ FAST_IO_ACQUIRE_FOR_MOD_WRITE FspAcquireForModWrite;
 FAST_IO_RELEASE_FOR_MOD_WRITE FspReleaseForModWrite;
 FAST_IO_ACQUIRE_FOR_CCFLUSH FspAcquireForCcFlush;
 FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
+BOOLEAN FspAcquireForLazyWrite(
+    PVOID Context,
+    BOOLEAN Wait);
+VOID FspReleaseFromLazyWrite(
+    PVOID Context);
+BOOLEAN FspAcquireForReadAhead(
+    PVOID Context,
+    BOOLEAN Wait);
+VOID FspReleaseFromReadAhead(
+    PVOID Context);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFastIoCheckIfPossible)
@@ -22,6 +33,10 @@ FAST_IO_RELEASE_FOR_CCFLUSH FspReleaseForCcFlush;
 #pragma alloc_text(PAGE, FspReleaseForModWrite)
 #pragma alloc_text(PAGE, FspAcquireForCcFlush)
 #pragma alloc_text(PAGE, FspReleaseForCcFlush)
+#pragma alloc_text(PAGE, FspAcquireForLazyWrite)
+#pragma alloc_text(PAGE, FspReleaseFromLazyWrite)
+#pragma alloc_text(PAGE, FspAcquireForReadAhead)
+#pragma alloc_text(PAGE, FspReleaseFromReadAhead)
 #endif
 
 BOOLEAN FspFastIoCheckIfPossible(
@@ -38,7 +53,7 @@ BOOLEAN FspFastIoCheckIfPossible(
 
     Result = FALSE;
 
-    FSP_LEAVE_BOOL("%s", "");
+    FSP_LEAVE_BOOL("FileObject=%p", FileObject);
 }
 
 VOID FspAcquireFileForNtCreateSection(
@@ -46,7 +61,7 @@ VOID FspAcquireFileForNtCreateSection(
 {
     FSP_ENTER_VOID(PAGED_CODE());
 
-    FSP_LEAVE_VOID("%s", "");
+    FSP_LEAVE_VOID("FileObject=%p", FileObject);
 }
 
 VOID FspReleaseFileForNtCreateSection(
@@ -54,7 +69,7 @@ VOID FspReleaseFileForNtCreateSection(
 {
     FSP_ENTER_VOID(PAGED_CODE());
 
-    FSP_LEAVE_VOID("%s", "");
+    FSP_LEAVE_VOID("FileObject=%p", FileObject);
 }
 
 NTSTATUS FspAcquireForModWrite(
@@ -67,7 +82,7 @@ NTSTATUS FspAcquireForModWrite(
 
     Result = STATUS_NOT_IMPLEMENTED;
 
-    FSP_LEAVE("%s", "");
+    FSP_LEAVE("FileObject=%p", FileObject);
 }
 
 NTSTATUS FspReleaseForModWrite(
@@ -79,7 +94,7 @@ NTSTATUS FspReleaseForModWrite(
 
     Result = STATUS_NOT_IMPLEMENTED;
 
-    FSP_LEAVE("%s", "");
+    FSP_LEAVE("FileObject=%p", FileObject);
 }
 
 NTSTATUS FspAcquireForCcFlush(
@@ -90,7 +105,7 @@ NTSTATUS FspAcquireForCcFlush(
 
     Result = STATUS_NOT_IMPLEMENTED;
 
-    FSP_LEAVE("%s", "");
+    FSP_LEAVE("FileObject=%p", FileObject);
 }
 
 NTSTATUS FspReleaseForCcFlush(
@@ -101,5 +116,43 @@ NTSTATUS FspReleaseForCcFlush(
 
     Result = STATUS_NOT_IMPLEMENTED;
 
-    FSP_LEAVE("%s", "");
+    FSP_LEAVE("FileObject=%p", FileObject);
+}
+
+BOOLEAN FspAcquireForLazyWrite(
+    PVOID Context,
+    BOOLEAN Wait)
+{
+    FSP_ENTER_BOOL(PAGED_CODE());
+
+    Result = FALSE;
+
+    FSP_LEAVE_BOOL("Context=%p, Wait=%d", Context, Wait);
+}
+
+VOID FspReleaseFromLazyWrite(
+    PVOID Context)
+{
+    FSP_ENTER_VOID(PAGED_CODE());
+
+    FSP_LEAVE_VOID("Context=%p", Context);
+}
+
+BOOLEAN FspAcquireForReadAhead(
+    PVOID Context,
+    BOOLEAN Wait)
+{
+    FSP_ENTER_BOOL(PAGED_CODE());
+
+    Result = FALSE;
+
+    FSP_LEAVE_BOOL("Context=%p, Wait=%d", Context, Wait);
+}
+
+VOID FspReleaseFromReadAhead(
+    PVOID Context)
+{
+    FSP_ENTER_VOID(PAGED_CODE());
+
+    FSP_LEAVE_VOID("Context=%p", Context);
 }
