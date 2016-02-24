@@ -47,6 +47,13 @@ static NTSTATUS FspFsvolWrite(
         goto exit;
     }
 
+    /* only regular files can be written */
+    if (((FSP_FILE_NODE *)IrpSp->FileObject->FsContext)->IsDirectory)
+    {
+        Result = STATUS_INVALID_PARAMETER;
+        goto exit;
+    }
+
     /* do we have anything to write? */
     if (0 == IrpSp->Parameters.Write.Length)
     {
