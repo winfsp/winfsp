@@ -9,7 +9,10 @@
 BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
+NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,
+    KPROCESSOR_MODE RequestorMode, LOCK_OPERATION Operation, PMDL *PMdl);
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
+NTSTATUS FspCcMdlWriteComplete(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, PMDL MdlChain);
 NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
     PSECURITY_DESCRIPTOR SecurityDescriptor, PULONG PLength,
     PSECURITY_DESCRIPTOR ObjectsSecurityDescriptor);
@@ -26,7 +29,9 @@ static KDEFERRED_ROUTINE FspQueueDelayedWorkItemDPC;
 #pragma alloc_text(PAGE, FspUnicodePathIsValid)
 #pragma alloc_text(PAGE, FspUnicodePathSuffix)
 #pragma alloc_text(PAGE, FspCreateGuid)
+#pragma alloc_text(PAGE, FspLockUserBuffer)
 #pragma alloc_text(PAGE, FspCcSetFileSizes)
+#pragma alloc_text(PAGE, FspCcMdlWriteComplete)
 #pragma alloc_text(PAGE, FspQuerySecurityDescriptorInfo)
 #pragma alloc_text(PAGE, FspInitializeSynchronousWorkItem)
 #pragma alloc_text(PAGE, FspExecuteSynchronousWorkItem)
@@ -153,6 +158,31 @@ NTSTATUS FspCreateGuid(GUID *Guid)
     return Result;
 }
 
+NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,
+    KPROCESSOR_MODE RequestorMode, LOCK_OPERATION Operation, PMDL *PMdl)
+{
+    PAGED_CODE();
+
+    *PMdl = 0;
+
+    PMDL Mdl = IoAllocateMdl(UserBuffer, Length, FALSE, FALSE, 0);
+    if (0 == Mdl)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    try
+    {
+        MmProbeAndLockPages(Mdl, RequestorMode, Operation);
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        IoFreeMdl(Mdl);
+        return GetExceptionCode();
+    }
+
+    *PMdl = Mdl;
+    return STATUS_SUCCESS;
+}
+
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes)
 {
     PAGED_CODE();
@@ -162,8 +192,24 @@ NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes)
         CcSetFileSizes(FileObject, FileSizes);
         return STATUS_SUCCESS;
     }
-    except(EXCEPTION_EXECUTE_HANDLER)
+    except (EXCEPTION_EXECUTE_HANDLER)
     {
+        return GetExceptionCode();
+    }
+}
+
+NTSTATUS FspCcMdlWriteComplete(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, PMDL MdlChain)
+{
+    PAGED_CODE();
+
+    try
+    {
+        CcMdlWriteComplete(FileObject, FileOffset, MdlChain);
+        return STATUS_SUCCESS;
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        CcMdlWriteAbort(FileObject, MdlChain);
         return GetExceptionCode();
     }
 }
@@ -200,16 +246,18 @@ VOID FspInitializeSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWork
     ExInitializeWorkItem(&SynchronousWorkItem->WorkQueueItem,
         FspExecuteSynchronousWorkItemRoutine, SynchronousWorkItem);
 }
+
 VOID FspExecuteSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem)
 {
     PAGED_CODE();
 
-    ExQueueWorkItem(&SynchronousWorkItem->WorkQueueItem, DelayedWorkQueue);
+    ExQueueWorkItem(&SynchronousWorkItem->WorkQueueItem, CriticalWorkQueue);
 
     NTSTATUS Result;
     Result = KeWaitForSingleObject(&SynchronousWorkItem->Event, Executive, KernelMode, FALSE, 0);
     ASSERT(STATUS_SUCCESS == Result);
 }
+
 static VOID FspExecuteSynchronousWorkItemRoutine(PVOID Context)
 {
     PAGED_CODE();

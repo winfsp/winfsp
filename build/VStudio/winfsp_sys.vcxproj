@@ -170,6 +170,7 @@
     <ClCompile Include="..\..\src\sys\util.c" />
     <ClCompile Include="..\..\src\sys\volinfo.c" />
     <ClCompile Include="..\..\src\sys\volume.c" />
+    <ClCompile Include="..\..\src\sys\wq.c" />
     <ClCompile Include="..\..\src\sys\write.c" />
   </ItemGroup>
   <ItemGroup>

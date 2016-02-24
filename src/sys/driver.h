@@ -322,10 +322,15 @@ PVOID FspAllocateIrpMustSucceed(CCHAR StackSize);
 BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
+NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,
+    KPROCESSOR_MODE RequestorMode, LOCK_OPERATION Operation, PMDL *PMdl);
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
+NTSTATUS FspCcMdlWriteComplete(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, PMDL MdlChain);
 NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
     PSECURITY_DESCRIPTOR SecurityDescriptor, PULONG PLength,
     PSECURITY_DESCRIPTOR ObjectsSecurityDescriptor);
+#define FspSetTopLevelIrp(Irp)          (IoGetTopLevelIrp() ? FALSE : (IoSetTopLevelIrp(Irp), TRUE))
+#define FspResetTopLevelIrp(TopLevel)   ((TopLevel) ? IoSetTopLevelIrp(0) : (void)0)
 
 /* utility: synchronous work queue */
 typedef struct
@@ -431,6 +436,8 @@ enum
     FspIopCreateRequestFunnel(I, F, E, 0, FspIopRequestMustSucceed, P)
 #define FspIopCreateRequestEx(I, F, E, RF, P)\
     FspIopCreateRequestFunnel(I, F, E, RF, 0, P)
+#define FspIopCreateRequestWorkItem(I, E, RF, P)\
+    FspIopCreateRequestFunnel(I, 0, E, RF, FspIopRequestNonPaged, P)
 #define FspIopRequestContext(Request, I)\
     (*FspIopRequestContextAddress(Request, I))
 #define FspIopPostWorkRequest(D, R)     FspIopPostWorkRequestFunnel(D, R, FALSE)
@@ -453,6 +460,24 @@ BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
 FSP_FSCTL_TRANSACT_RSP *FspIopIrpResponse(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+
+/* work queue processing */
+enum
+{
+    FspWqRequestIrpAndFlags             = 0,
+    FspWqRequestWorkRoutine             = 1,
+};
+typedef NTSTATUS FSP_WQ_REQUEST_WORK(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    BOOLEAN CanWait);
+NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
+    FSP_WQ_REQUEST_WORK *WorkRoutine, FSP_IOP_REQUEST_FINI *RequestFini,
+    BOOLEAN CreateAndPost);
+VOID FspWqPostIrpWorkItem(PIRP Irp);
+#define FspWqCreateIrpWorkItem(I, RW, RF)\
+    FspWqCreateAndPostIrpWorkItem(I, RW, RF, FALSE)
+#define FspWqRepostIrpWorkItem(I, RW, RF)\
+    FspWqCreateAndPostIrpWorkItem(I, RW, RF, TRUE)
 
 /* device management */
 #define FSP_DEVICE_VOLUME_NAME_LENMAX   (FSP_FSCTL_VOLUME_NAME_SIZEMAX - sizeof(WCHAR))
