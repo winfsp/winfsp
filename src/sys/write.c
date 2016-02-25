@@ -71,7 +71,7 @@ static NTSTATUS FspFsvolWrite(
             goto exit;
     }
 
-    if (!FlagOn(Irp->Flags, IRP_NOCACHE))
+    if (!FlagOn(Irp->Flags, IRP_PAGING_IO | IRP_NOCACHE))
         Result = FspFsvolWriteCached(FsvolDeviceObject, Irp, IrpSp, IoIsOperationSynchronous(Irp));
     else
         Result = FspFsvolWriteNonCached(FsvolDeviceObject, Irp, IrpSp);
