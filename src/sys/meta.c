@@ -86,7 +86,7 @@ static inline FSP_META_CACHE_ITEM *FspMetaCacheRemoveExpiredItemAtDpcLevel(FSP_M
     if (Head == Entry)
         return 0;
     FSP_META_CACHE_ITEM *Item = CONTAINING_RECORD(Entry, FSP_META_CACHE_ITEM, ListEntry);
-    if (Item->ExpirationTime > ExpirationTime)
+    if (!FspExpirationTimeValid2(Item->ExpirationTime, ExpirationTime))
         return 0;
     ULONG HashIndex = Item->ItemIndex % MetaCache->ItemBucketCount;
     for (FSP_META_CACHE_ITEM **P = (PVOID)&MetaCache->ItemBuckets[HashIndex]; *P; P = &(*P)->DictNext)
@@ -203,7 +203,7 @@ UINT64 FspMetaCacheAddItem(FSP_META_CACHE *MetaCache, PCVOID Buffer, ULONG Size)
     RtlZeroMemory(Item, sizeof *Item);
     RtlZeroMemory(ItemBuffer, sizeof *ItemBuffer);
     Item->ItemBuffer = ItemBuffer;
-    Item->ExpirationTime = KeQueryInterruptTime() + MetaCache->MetaTimeout;
+    Item->ExpirationTime = FspExpirationTimeFromTimeout(MetaCache->MetaTimeout);
     Item->RefCount = 1;
     ItemBuffer->Item = Item;
     ItemBuffer->Size = Size;

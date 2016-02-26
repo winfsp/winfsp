@@ -327,7 +327,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     FsvolDeviceExtension->InitDoneIoq = 1;
 
     /* create our security meta cache */
-    MetaTimeout.QuadPart = FsvolDeviceExtension->VolumeParams.FileInfoTimeout * 10000ULL;
+    MetaTimeout.QuadPart = FspTimeoutFromMillis(FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
         /* convert millis to nanos */
     Result = FspMetaCacheCreate(
         FspFsvolDeviceSecurityCacheCapacity, FspFsvolDeviceSecurityCacheItemSizeMax, &MetaTimeout,
@@ -761,8 +761,7 @@ BOOLEAN FspFsvolTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_I
     BOOLEAN Result;
 
     KeAcquireSpinLock(&FsvolDeviceExtension->InfoSpinLock, &Irql);
-    if (0 < FsvolDeviceExtension->InfoExpirationTime &&
-        KeQueryInterruptTime() < FsvolDeviceExtension->InfoExpirationTime)
+    if (FspExpirationTimeValid(FsvolDeviceExtension->InfoExpirationTime))
     {
         VolumeInfoNp = FsvolDeviceExtension->VolumeInfo;
         Result = TRUE;
@@ -785,12 +784,11 @@ VOID FspFsvolSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_I
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     FSP_FSCTL_VOLUME_INFO VolumeInfoNp = *VolumeInfo;
     KIRQL Irql;
-    UINT64 FileInfoTimeout = FsvolDeviceExtension->VolumeParams.FileInfoTimeout * 10000ULL;
 
     KeAcquireSpinLock(&FsvolDeviceExtension->InfoSpinLock, &Irql);
     FsvolDeviceExtension->VolumeInfo = VolumeInfoNp;
-    FsvolDeviceExtension->InfoExpirationTime = 0 != FileInfoTimeout ?
-        KeQueryInterruptTime() + FileInfoTimeout : 0;
+    FsvolDeviceExtension->InfoExpirationTime = FspExpirationTimeFromMillis(
+        FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
     KeReleaseSpinLock(&FsvolDeviceExtension->InfoSpinLock, Irql);
 }
 

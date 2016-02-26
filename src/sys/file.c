@@ -10,9 +10,9 @@ NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode);
 VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode);
 VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
-BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
+BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLEAN Wait);
 VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);
-BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);
+BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLEAN Wait);
 VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
@@ -135,7 +135,7 @@ VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
         ExAcquireResourceSharedLite(FileNode->Header.PagingIoResource, TRUE);
 }
 
-BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
+BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLEAN Wait)
 {
     PAGED_CODE();
 
@@ -143,14 +143,14 @@ BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
 
     if (Flags & FspFileNodeAcquireMain)
     {
-        Result = ExAcquireResourceSharedLite(FileNode->Header.Resource, FALSE);
+        Result = ExAcquireResourceSharedLite(FileNode->Header.Resource, Wait);
         if (!Result)
             return FALSE;
     }
 
     if (Flags & FspFileNodeAcquirePgio)
     {
-        Result = ExAcquireResourceSharedLite(FileNode->Header.PagingIoResource, FALSE);
+        Result = ExAcquireResourceSharedLite(FileNode->Header.PagingIoResource, Wait);
         if (!Result)
         {
             if (Flags & FspFileNodeAcquireMain)
@@ -173,7 +173,7 @@ VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags)
         ExAcquireResourceExclusiveLite(FileNode->Header.PagingIoResource, TRUE);
 }
 
-BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags)
+BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLEAN Wait)
 {
     PAGED_CODE();
 
@@ -181,14 +181,14 @@ BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags)
 
     if (Flags & FspFileNodeAcquireMain)
     {
-        Result = ExAcquireResourceExclusiveLite(FileNode->Header.Resource, FALSE);
+        Result = ExAcquireResourceExclusiveLite(FileNode->Header.Resource, Wait);
         if (!Result)
             return FALSE;
     }
 
     if (Flags & FspFileNodeAcquirePgio)
     {
-        Result = ExAcquireResourceExclusiveLite(FileNode->Header.PagingIoResource, FALSE);
+        Result = ExAcquireResourceExclusiveLite(FileNode->Header.PagingIoResource, Wait);
         if (!Result)
         {
             if (Flags & FspFileNodeAcquireMain)
@@ -418,7 +418,7 @@ BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *
 
     BOOLEAN Result;
 
-    if (0 < FileNode->InfoExpirationTime && KeQueryInterruptTime() < FileNode->InfoExpirationTime)
+    if (FspExpirationTimeValid(FileNode->InfoExpirationTime))
     {
         FileInfo->AllocationSize = FileNode->Header.AllocationSize.QuadPart;
         FileInfo->FileSize = FileNode->Header.FileSize.QuadPart;
@@ -444,7 +444,6 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
         FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
-    UINT64 FileInfoTimeout = FsvolDeviceExtension->VolumeParams.FileInfoTimeout * 10000ULL;
     UINT64 AllocationSize = FileInfo->AllocationSize > FileInfo->FileSize ?
         FileInfo->AllocationSize : FileInfo->FileSize;
     UINT64 AllocationUnit;
@@ -462,8 +461,8 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     FileNode->LastAccessTime = FileInfo->LastAccessTime;
     FileNode->LastWriteTime = FileInfo->LastWriteTime;
     FileNode->ChangeTime = FileInfo->ChangeTime;
-    FileNode->InfoExpirationTime = 0 != FileInfoTimeout ?
-        KeQueryInterruptTime() + FileInfoTimeout : 0;
+    FileNode->InfoExpirationTime = FspExpirationTimeFromMillis(
+        FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
     FileNode->InfoChangeNumber++;
 
     if (0 != CcFileObject)
