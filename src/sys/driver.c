@@ -71,6 +71,7 @@ NTSTATUS DriverEntry(
     FspIopCompleteFunction[IRP_MJ_CREATE] = FspFsvolCreateComplete;
     FspIopCompleteFunction[IRP_MJ_CLOSE] = FspFsvolCloseComplete;
     FspIopCompleteFunction[IRP_MJ_READ] = FspFsvolReadComplete;
+    FspIopPrepareFunction[IRP_MJ_WRITE] = FspFsvolWritePrepare;
     FspIopCompleteFunction[IRP_MJ_WRITE] = FspFsvolWriteComplete;
     FspIopCompleteFunction[IRP_MJ_QUERY_INFORMATION] = FspFsvolQueryInformationComplete;
     FspIopCompleteFunction[IRP_MJ_SET_INFORMATION] = FspFsvolSetInformationComplete;
@@ -90,7 +91,6 @@ NTSTATUS DriverEntry(
     FspIopCompleteFunction[IRP_MJ_SET_SECURITY] = FspFsvolSetSecurityComplete;
 
     /* setup fast I/O and resource acquisition */
-    static FAST_IO_DISPATCH FspFastIoDispatch = { 0 };
     FspFastIoDispatch.SizeOfFastIoDispatch = sizeof FspFastIoDispatch;
     FspFastIoDispatch.FastIoCheckIfPossible = FspFastIoCheckIfPossible;
     FspFastIoDispatch.FastIoRead = FsRtlCopyRead;
@@ -119,6 +119,10 @@ NTSTATUS DriverEntry(
     FspFastIoDispatch.ReleaseForModWrite = FspReleaseForModWrite;
     FspFastIoDispatch.AcquireForCcFlush = FspAcquireForCcFlush;
     FspFastIoDispatch.ReleaseForCcFlush = FspReleaseForCcFlush;
+    FspCacheManagerCallbacks.AcquireForLazyWrite = FspAcquireForLazyWrite;
+    FspCacheManagerCallbacks.ReleaseFromLazyWrite = FspReleaseFromLazyWrite;
+    FspCacheManagerCallbacks.AcquireForReadAhead = FspAcquireForReadAhead;
+    FspCacheManagerCallbacks.ReleaseFromReadAhead = FspReleaseFromReadAhead;
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access FastIoDispatch")
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
@@ -157,3 +161,5 @@ VOID FspUnload(
 PDRIVER_OBJECT FspDriverObject;
 PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 PDEVICE_OBJECT FspFsctlNetDeviceObject;
+FAST_IO_DISPATCH FspFastIoDispatch;
+CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;

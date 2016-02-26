@@ -799,6 +799,8 @@ VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result)
 extern PDRIVER_OBJECT FspDriverObject;
 extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
+extern FAST_IO_DISPATCH FspFastIoDispatch;
+extern CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
 
