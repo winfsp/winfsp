@@ -124,16 +124,26 @@ extern __declspec(selectany) int fsp_bp = 1;
 #define FSP_ENTER_MJ(...)               \
     NTSTATUS Result = STATUS_SUCCESS;   \
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);\
-    BOOLEAN fsp_device_deref = FALSE; \
+    BOOLEAN fsp_device_deref = FALSE;   \
+    PIRP fsp_top_level_irp = IoGetTopLevelIrp();\
     FSP_ENTER_(__VA_ARGS__);            \
     do                                  \
     {                                   \
+        if (0 != fsp_top_level_irp)     \
+        {                               \
+            if (FSRTL_MAX_TOP_LEVEL_IRP_FLAG < (UINT_PTR)fsp_top_level_irp &&\
+                IO_TYPE_IRP == fsp_top_level_irp->Type)\
+                FspIrpSetTopFlags(Irp, FspIrpFlags(fsp_top_level_irp));\
+            else                        \
+                FspIrpSetTopFlags(Irp, FspFileNodeAcquireFull);\
+        }                               \
+        IoSetTopLevelIrp(Irp);          \
         if (!FspDeviceReference(IrpSp->DeviceObject))\
         {                               \
             Result = STATUS_CANCELLED;  \
             goto fsp_leave_label;       \
         }                               \
-        fsp_device_deref = TRUE;      \
+        fsp_device_deref = TRUE;        \
     } while (0,0)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(                         \
@@ -164,6 +174,7 @@ extern __declspec(selectany) int fsp_bp = 1;
             else                        \
                 FspIopCompleteIrpEx(Irp, Result, fsp_device_deref);\
         }                               \
+        IoSetTopLevelIrp(fsp_top_level_irp);\
     );                                  \
     return Result
 #define FSP_ENTER_IOC(...)              \
@@ -404,8 +415,42 @@ VOID FspQueueDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem, LARGE_INTEG
     (*(ULONG *)&(Irp)->Tail.Overlay.DriverContext[0])
 #define FspIrpDictNext(Irp)             \
     (*(PIRP *)&(Irp)->Tail.Overlay.DriverContext[1])
-#define FspIrpRequest(Irp)              \
-    (*(FSP_FSCTL_TRANSACT_REQ **)&(Irp)->Tail.Overlay.DriverContext[2])
+static inline
+FSP_FSCTL_TRANSACT_REQ *FspIrpRequest(PIRP Irp)
+{
+    return (PVOID)((UINT_PTR)Irp->Tail.Overlay.DriverContext[2] & ~0xf);
+}
+static inline
+VOID FspIrpSetRequest(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    ASSERT(0 == ((UINT_PTR)Request & 0xf));
+    ULONG Flags = (ULONG)((UINT_PTR)Irp->Tail.Overlay.DriverContext[2] & 0xf);
+    Irp->Tail.Overlay.DriverContext[2] = (PVOID)((UINT_PTR)Request | Flags);
+}
+static inline
+ULONG FspIrpFlags(PIRP Irp)
+{
+    return (ULONG)((UINT_PTR)Irp->Tail.Overlay.DriverContext[2] & 3);
+}
+static inline
+VOID FspIrpSetFlags(PIRP Irp, ULONG Flags)
+{
+    ASSERT(3 > Flags);
+    FSP_FSCTL_TRANSACT_REQ *Request = (PVOID)((UINT_PTR)Irp->Tail.Overlay.DriverContext[2] & ~3);
+    Irp->Tail.Overlay.DriverContext[2] = (PVOID)((UINT_PTR)Request | Flags);
+}
+static inline
+ULONG FspIrpTopFlags(PIRP Irp)
+{
+    return (ULONG)((UINT_PTR)Irp->Tail.Overlay.DriverContext[2] & 0xc) >> 2;
+}
+static inline
+VOID FspIrpSetTopFlags(PIRP Irp, ULONG Flags)
+{
+    ASSERT(3 > Flags);
+    FSP_FSCTL_TRANSACT_REQ *Request = (PVOID)((UINT_PTR)Irp->Tail.Overlay.DriverContext[2] & ~0xc);
+    Irp->Tail.Overlay.DriverContext[2] = (PVOID)((UINT_PTR)Request | (Flags << 2));
+}
 
 /* I/O queue */
 #define FspIoqTimeout                   ((PIRP)1)

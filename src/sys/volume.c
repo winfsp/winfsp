@@ -534,6 +534,7 @@ NTSTATUS FspVolumeTransact(
     FSP_FSCTL_TRANSACT_REQ *Request, *PendingIrpRequest;
     PIRP ProcessIrp, PendingIrp, RetriedIrp, RepostedIrp;
     LARGE_INTEGER Timeout;
+    PIRP TopLevelIrp = IoGetTopLevelIrp();
 
     /* process any user-mode file system responses */
     RepostedIrp = 0;
@@ -557,6 +558,7 @@ NTSTATUS FspVolumeTransact(
         ASSERT((UINT_PTR)ProcessIrp == (UINT_PTR)Response->Hint);
         ASSERT(FspIrpRequest(ProcessIrp)->Hint == Response->Hint);
 
+        IoSetTopLevelIrp(ProcessIrp);
         Result = FspIopDispatchComplete(ProcessIrp, Response);
         if (STATUS_PENDING == Result)
         {
@@ -579,6 +581,7 @@ NTSTATUS FspVolumeTransact(
         if (0 == RetriedIrp)
             break;
 
+        IoSetTopLevelIrp(RetriedIrp);
         Response = FspIopIrpResponse(RetriedIrp);
         Result = FspIopDispatchComplete(RetriedIrp, Response);
         if (STATUS_PENDING == Result)
@@ -642,6 +645,7 @@ NTSTATUS FspVolumeTransact(
     {
         PendingIrpRequest = FspIrpRequest(PendingIrp);
 
+        IoSetTopLevelIrp(PendingIrp);
         Result = FspIopDispatchPrepare(PendingIrp, PendingIrpRequest);
         if (STATUS_PENDING == Result)
         {
@@ -692,6 +696,7 @@ NTSTATUS FspVolumeTransact(
     Result = STATUS_SUCCESS;
 
 exit:
+    IoSetTopLevelIrp(TopLevelIrp);
     FspDeviceDereference(FsvolDeviceObject);
     return Result;
 }
@@ -737,7 +742,7 @@ NTSTATUS FspVolumeWork(
 
     /* associate the passed Request with our Irp; acquire ownership of the Request */
     Request->Hint = (UINT_PTR)Irp;
-    FspIrpRequest(Irp) = Request;
+    FspIrpSetRequest(Irp, Request);
 
     /*
      * Post the IRP to our Ioq; we do this here instead of at FSP_LEAVE_MJ time,
@@ -747,7 +752,7 @@ NTSTATUS FspVolumeWork(
     if (!FspIoqPostIrpEx(FsvolDeviceExtension->Ioq, Irp, BestEffort, &Result))
     {
         Request->Hint = 0;
-        FspIrpRequest(Irp) = 0;
+        FspIrpSetRequest(Irp, 0);
     }
 
     DEBUGLOG("%s(Irp=%p) = %s",

@@ -58,6 +58,18 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #pragma alloc_text(PAGE, FspFileDescDelete)
 #endif
 
+#define FSP_FILE_NODE_GET_FLAGS()       \
+    PIRP Irp = IoGetTopLevelIrp();      \
+    BOOLEAN IrpValid = FSRTL_MAX_TOP_LEVEL_IRP_FLAG < (UINT_PTR)Irp && IO_TYPE_IRP == Irp->Type;\
+    if (IrpValid)                       \
+        Flags &= ~FspIrpTopFlags(Irp);
+#define FSP_FILE_NODE_SET_FLAGS()       \
+    if (IrpValid)                       \
+        FspIrpSetFlags(Irp, FspIrpFlags(Irp) | Flags);
+#define FSP_FILE_NODE_CLR_FLAGS()       \
+    if (IrpValid)                       \
+        FspIrpSetFlags(Irp, FspIrpFlags(Irp) & (~Flags & 3));
+
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode)
 {
@@ -128,18 +140,24 @@ VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
 
+    FSP_FILE_NODE_GET_FLAGS();
+
     if (Flags & FspFileNodeAcquireMain)
         ExAcquireResourceSharedLite(FileNode->Header.Resource, TRUE);
 
     if (Flags & FspFileNodeAcquirePgio)
         ExAcquireResourceSharedLite(FileNode->Header.PagingIoResource, TRUE);
+
+    FSP_FILE_NODE_SET_FLAGS();
 }
 
 BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLEAN Wait)
 {
     PAGED_CODE();
 
-    BOOLEAN Result = FALSE;
+    FSP_FILE_NODE_GET_FLAGS();
+
+    BOOLEAN Result = TRUE;
 
     if (Flags & FspFileNodeAcquireMain)
     {
@@ -159,6 +177,9 @@ BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLE
         }
     }
 
+    if (Result)
+        FSP_FILE_NODE_SET_FLAGS();
+
     return Result;
 }
 
@@ -166,18 +187,24 @@ VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
 
+    FSP_FILE_NODE_GET_FLAGS();
+
     if (Flags & FspFileNodeAcquireMain)
         ExAcquireResourceExclusiveLite(FileNode->Header.Resource, TRUE);
 
     if (Flags & FspFileNodeAcquirePgio)
         ExAcquireResourceExclusiveLite(FileNode->Header.PagingIoResource, TRUE);
+
+    FSP_FILE_NODE_SET_FLAGS();
 }
 
 BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLEAN Wait)
 {
     PAGED_CODE();
 
-    BOOLEAN Result = FALSE;
+    FSP_FILE_NODE_GET_FLAGS();
+
+    BOOLEAN Result = TRUE;
 
     if (Flags & FspFileNodeAcquireMain)
     {
@@ -197,12 +224,17 @@ BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags, BO
         }
     }
 
+    if (Result)
+        FSP_FILE_NODE_SET_FLAGS();
+
     return Result;
 }
 
 VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
 {
     PAGED_CODE();
+
+    FSP_FILE_NODE_GET_FLAGS();
 
     Owner = (PVOID)((UINT_PTR)Owner | 3);
 
@@ -217,16 +249,22 @@ VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
 
+    FSP_FILE_NODE_GET_FLAGS();
+
     if (Flags & FspFileNodeAcquirePgio)
         ExReleaseResourceLite(FileNode->Header.PagingIoResource);
 
     if (Flags & FspFileNodeAcquireMain)
         ExReleaseResourceLite(FileNode->Header.Resource);
+
+    FSP_FILE_NODE_CLR_FLAGS();
 }
 
 VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
 {
     PAGED_CODE();
+
+    FSP_FILE_NODE_GET_FLAGS();
 
     Owner = (PVOID)((UINT_PTR)Owner | 3);
 
@@ -245,6 +283,8 @@ VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
         else
             ExReleaseResourceForThreadLite(FileNode->Header.Resource, (ERESOURCE_THREAD)Owner);
     }
+
+    FSP_FILE_NODE_CLR_FLAGS();
 }
 
 FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,

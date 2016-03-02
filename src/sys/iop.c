@@ -38,6 +38,13 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
 #pragma alloc_text(PAGE, FspIopDispatchComplete)
 #endif
 
+/* Requests (and RequestHeaders) must be 16-byte aligned, because we use the low 4 bits for flags */
+#if 16 != MEMORY_ALLOCATION_ALIGNMENT
+#define REQ_HEADER_ALIGNMASK            15
+#else
+#define REQ_HEADER_ALIGNMASK            0
+#endif
+
 typedef struct
 {
     FSP_IOP_REQUEST_FINI *RequestFini;
@@ -66,17 +73,21 @@ NTSTATUS FspIopCreateRequestFunnel(
     if (FlagOn(Flags, FspIopRequestMustSucceed))
         RequestHeader = FspAllocatePoolMustSucceed(
             FlagOn(Flags, FspIopRequestNonPaged) ? NonPagedPool : PagedPool,
-            sizeof *RequestHeader + sizeof *Request + ExtraSize,
+            sizeof *RequestHeader + sizeof *Request + ExtraSize + REQ_HEADER_ALIGNMASK,
             FSP_ALLOC_INTERNAL_TAG);
     else
     {
         RequestHeader = ExAllocatePoolWithTag(
             FlagOn(Flags, FspIopRequestNonPaged) ? NonPagedPool : PagedPool,
-            sizeof *RequestHeader + sizeof *Request + ExtraSize,
+            sizeof *RequestHeader + sizeof *Request + ExtraSize + REQ_HEADER_ALIGNMASK,
             FSP_ALLOC_INTERNAL_TAG);
         if (0 == RequestHeader)
             return STATUS_INSUFFICIENT_RESOURCES;
     }
+
+#if 0 != REQ_HEADER_ALIGNMASK
+    RequestHeader = (PVOID)(((UINT_PTR)RequestHeader + REQ_HEADER_ALIGNMASK) & REQ_HEADER_ALIGNMASK);
+#endif
 
     RtlZeroMemory(RequestHeader, sizeof *RequestHeader + sizeof *Request + ExtraSize);
     RequestHeader->RequestFini = RequestFini;
@@ -94,7 +105,7 @@ NTSTATUS FspIopCreateRequestFunnel(
     }
 
     if (0 != Irp)
-        FspIrpRequest(Irp) = Request;
+        FspIrpSetRequest(Irp, Request);
     *PRequest = Request;
 
     return STATUS_SUCCESS;
@@ -206,7 +217,7 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference)
     if (0 != FspIrpRequest(Irp))
     {
         FspIopDeleteRequest(FspIrpRequest(Irp));
-        FspIrpRequest(Irp) = 0;
+        FspIrpSetRequest(Irp, 0);
     }
 
     /* get the device object out of the IRP before completion */
@@ -227,7 +238,12 @@ VOID FspIopCompleteCanceledIrp(PIRP Irp)
 
     DEBUGLOGIRP(Irp, STATUS_CANCELLED);
 
+    PIRP TopLevelIrp = IoGetTopLevelIrp();
+    IoSetTopLevelIrp(Irp);
+
     FspIopCompleteIrpEx(Irp, STATUS_CANCELLED, TRUE);
+
+    IoSetTopLevelIrp(TopLevelIrp);
 }
 
 BOOLEAN FspIopRetryPrepareIrp(PIRP Irp, NTSTATUS *PResult)
