@@ -60,7 +60,8 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 
 #define FSP_FILE_NODE_GET_FLAGS()       \
     PIRP Irp = IoGetTopLevelIrp();      \
-    BOOLEAN IrpValid = FSRTL_MAX_TOP_LEVEL_IRP_FLAG < (UINT_PTR)Irp && IO_TYPE_IRP == Irp->Type;\
+    BOOLEAN IrpValid = FSRTL_MAX_TOP_LEVEL_IRP_FLAG < (UINT_PTR)Irp &&\
+        IO_TYPE_IRP == Irp->Type;\
     if (IrpValid)                       \
         Flags &= ~FspIrpTopFlags(Irp);
 #define FSP_FILE_NODE_SET_FLAGS()       \
