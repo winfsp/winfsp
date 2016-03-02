@@ -16,16 +16,29 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
 
     if (0 == RequestWorkItem)
     {
-        NTSTATUS Result = FspIopCreateRequestWorkItem(Irp, sizeof(WORK_QUEUE_ITEM),
+        NTSTATUS Result;
+
+        /* probe and lock the user buffer (if not an MDL request) */
+        PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+        if (0 == Irp->MdlAddress &&
+            (IRP_MJ_READ == IrpSp->MajorFunction || IRP_MJ_WRITE == IrpSp->MajorFunction) &&
+            !FlagOn(IrpSp->MinorFunction, IRP_MN_MDL))
+        {
+            Result = FspLockUserBuffer(Irp->UserBuffer, IrpSp->Parameters.Write.Length,
+                Irp->RequestorMode,
+                IRP_MJ_READ == IrpSp->MajorFunction ? IoWriteAccess : IoReadAccess,
+                &Irp->MdlAddress);
+            if (!NT_SUCCESS(Result))
+                return Result;
+        }
+
+        Result = FspIopCreateRequestWorkItem(Irp, sizeof(WORK_QUEUE_ITEM),
             RequestFini, &RequestWorkItem);
         if (!NT_SUCCESS(Result))
             return Result;
 
         ASSERT(sizeof(FSP_WQ_REQUEST_WORK *) == sizeof(PVOID));
 
-        PIRP TopLevelIrp = IoGetTopLevelIrp();
-        FspIopRequestContext(RequestWorkItem, FspWqRequestIrpAndFlags) =
-            (PVOID)((UINT_PTR)Irp | (0 == TopLevelIrp || Irp == TopLevelIrp));
         FspIopRequestContext(RequestWorkItem, FspWqRequestWorkRoutine) =
             (PVOID)(UINT_PTR)WorkRoutine;
         ExInitializeWorkItem((PWORK_QUEUE_ITEM)&RequestWorkItem->Buffer, FspWqWorkRoutine, Irp);
@@ -55,13 +68,11 @@ static VOID FspWqWorkRoutine(PVOID Context)
     PIRP Irp = Context;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
     FSP_FSCTL_TRANSACT_REQ *RequestWorkItem = FspIrpRequest(Irp);
-    BOOLEAN TopLevel = (BOOLEAN)
-        ((UINT_PTR)FspIopRequestContext(RequestWorkItem, FspWqRequestIrpAndFlags) & 1);
     FSP_WQ_REQUEST_WORK *WorkRoutine = (FSP_WQ_REQUEST_WORK *)(UINT_PTR)
         FspIopRequestContext(RequestWorkItem, FspWqRequestWorkRoutine);
     NTSTATUS Result;
 
-    IoSetTopLevelIrp(TopLevel ? Irp : (PIRP)FSRTL_FSP_TOP_LEVEL_IRP);
+    IoSetTopLevelIrp(Irp);
 
     Result = WorkRoutine(IrpSp->DeviceObject, Irp, IrpSp, FALSE);
     if (STATUS_PENDING != Result)
