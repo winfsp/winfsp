@@ -61,6 +61,10 @@ VOID FspAcquireFileForNtCreateSection(
 {
     FSP_ENTER_VOID(PAGED_CODE());
 
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+
+    FspFileNodeAcquireExclusive(FileNode, Full);
+
     FSP_LEAVE_VOID("FileObject=%p", FileObject);
 }
 
@@ -68,6 +72,10 @@ VOID FspReleaseFileForNtCreateSection(
     PFILE_OBJECT FileObject)
 {
     FSP_ENTER_VOID(PAGED_CODE());
+
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+
+    FspFileNodeRelease(FileNode, Full);
 
     FSP_LEAVE_VOID("FileObject=%p", FileObject);
 }
@@ -80,7 +88,10 @@ NTSTATUS FspAcquireForModWrite(
 {
     FSP_ENTER(PAGED_CODE());
 
-    Result = STATUS_NOT_IMPLEMENTED;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+
+    FspFileNodeAcquireExclusive(FileNode, Full);
+    *ResourceToRelease = 0;
 
     FSP_LEAVE("FileObject=%p", FileObject);
 }
@@ -92,7 +103,9 @@ NTSTATUS FspReleaseForModWrite(
 {
     FSP_ENTER(PAGED_CODE());
 
-    Result = STATUS_NOT_IMPLEMENTED;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+
+    FspFileNodeRelease(FileNode, Full);
 
     FSP_LEAVE("FileObject=%p", FileObject);
 }
@@ -103,7 +116,9 @@ NTSTATUS FspAcquireForCcFlush(
 {
     FSP_ENTER(PAGED_CODE());
 
-    Result = STATUS_NOT_IMPLEMENTED;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+
+    FspFileNodeAcquireExclusive(FileNode, Full);
 
     FSP_LEAVE("FileObject=%p", FileObject);
 }
@@ -114,7 +129,9 @@ NTSTATUS FspReleaseForCcFlush(
 {
     FSP_ENTER(PAGED_CODE());
 
-    Result = STATUS_NOT_IMPLEMENTED;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+
+    FspFileNodeRelease(FileNode, Full);
 
     FSP_LEAVE("FileObject=%p", FileObject);
 }
@@ -125,7 +142,9 @@ BOOLEAN FspAcquireForLazyWrite(
 {
     FSP_ENTER_BOOL(PAGED_CODE());
 
-    Result = FALSE;
+    FSP_FILE_NODE *FileNode = Context;
+
+    FspFileNodeAcquireExclusive(FileNode, Full);
 
     FSP_LEAVE_BOOL("Context=%p, Wait=%d", Context, Wait);
 }
@@ -134,6 +153,10 @@ VOID FspReleaseFromLazyWrite(
     PVOID Context)
 {
     FSP_ENTER_VOID(PAGED_CODE());
+
+    FSP_FILE_NODE *FileNode = Context;
+
+    FspFileNodeRelease(FileNode, Full);
 
     FSP_LEAVE_VOID("Context=%p", Context);
 }
@@ -144,7 +167,9 @@ BOOLEAN FspAcquireForReadAhead(
 {
     FSP_ENTER_BOOL(PAGED_CODE());
 
-    Result = FALSE;
+    FSP_FILE_NODE *FileNode = Context;
+
+    FspFileNodeAcquireShared(FileNode, Full);
 
     FSP_LEAVE_BOOL("Context=%p, Wait=%d", Context, Wait);
 }
@@ -153,6 +178,10 @@ VOID FspReleaseFromReadAhead(
     PVOID Context)
 {
     FSP_ENTER_VOID(PAGED_CODE());
+
+    FSP_FILE_NODE *FileNode = Context;
+
+    FspFileNodeRelease(FileNode, Full);
 
     FSP_LEAVE_VOID("Context=%p", Context);
 }

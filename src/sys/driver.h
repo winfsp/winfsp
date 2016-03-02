@@ -273,6 +273,7 @@ FSP_IOPREP_DISPATCH FspFsvolSetSecurityPrepare;
 FSP_IOCMPL_DISPATCH FspFsvolSetSecurityComplete;
 FSP_IOCMPL_DISPATCH FspFsvolSetVolumeInformationComplete;
 FSP_IOCMPL_DISPATCH FspFsvolShutdownComplete;
+FSP_IOPREP_DISPATCH FspFsvolWritePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolWriteComplete;
 
 /* fast I/O and resource acquisition callbacks */
@@ -378,13 +379,18 @@ VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,
     KPROCESSOR_MODE RequestorMode, LOCK_OPERATION Operation, PMDL *PMdl);
+NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress);
+NTSTATUS FspCcInitializeCacheMap(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes,
+    BOOLEAN PinAccess, PCACHE_MANAGER_CALLBACKS Callbacks, PVOID CallbackContext);
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
+NTSTATUS FspCcCopyWrite(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG Length,
+    BOOLEAN Wait, PVOID Buffer);
+NTSTATUS FspCcPrepareMdlWrite(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG Length,
+    PMDL *PMdlChain, PIO_STATUS_BLOCK IoStatus);
 NTSTATUS FspCcMdlWriteComplete(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, PMDL MdlChain);
 NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
     PSECURITY_DESCRIPTOR SecurityDescriptor, PULONG PLength,
     PSECURITY_DESCRIPTOR ObjectsSecurityDescriptor);
-#define FspSetTopLevelIrp(Irp)          (IoGetTopLevelIrp() ? FALSE : (IoSetTopLevelIrp(Irp), TRUE))
-#define FspResetTopLevelIrp(TopLevel)   ((TopLevel) ? IoSetTopLevelIrp(0) : (void)0)
 
 /* utility: synchronous work queue */
 typedef struct
@@ -408,6 +414,19 @@ typedef struct
 VOID FspInitializeDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem,
     PWORKER_THREAD_ROUTINE Routine, PVOID Context);
 VOID FspQueueDelayedWorkItem(FSP_DELAYED_WORK_ITEM *DelayedWorkItem, LARGE_INTEGER Delay);
+
+/* utility: safe MDL */
+typedef struct
+{
+    PMDL Mdl;
+    PVOID Buffer;
+    PMDL UserMdl;
+    LOCK_OPERATION Operation;
+} FSP_SAFE_MDL;
+BOOLEAN FspSafeMdlCheck(PMDL Mdl);
+NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL **PSafeMdl);
+VOID FspSafeMdlCopyBack(FSP_SAFE_MDL *SafeMdl);
+VOID FspSafeMdlDelete(FSP_SAFE_MDL *SafeMdl);
 
 /* IRP context */
 #define FspIrpTimestampInfinity         ((ULONG)-1L)

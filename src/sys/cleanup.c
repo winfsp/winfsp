@@ -61,7 +61,9 @@ static NTSTATUS FspFsvolCleanup(
 
     ASSERT(FileNode == FileDesc->FileNode);
 
+    /* !!!: REVISIT! */
     FspFileNodeClose(FileNode, FileObject, &DeletePending);
+    CcUninitializeCacheMap(FileObject, 0, 0);
 
     /*
      * If DeletePending is TRUE, the FileNode is no longer in the Context table,

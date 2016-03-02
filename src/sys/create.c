@@ -583,6 +583,10 @@ NTSTATUS FspFsvolCreateComplete(
         FileObject->PrivateCacheMap = 0;
         FileObject->FsContext = FileNode;
         FileObject->FsContext2 = FileDesc;
+        if (FspTimeoutInfinity32 == FsvolDeviceExtension->VolumeParams.FileInfoTimeout &&
+            !FlagOn(IrpSp->Parameters.Create.Options, FILE_NO_INTERMEDIATE_BUFFERING))
+            /* enable caching! */
+            SetFlag(FileObject->Flags, FO_CACHE_SUPPORTED);
 
         if (FILE_SUPERSEDED != Response->IoStatus.Information &&
             FILE_OVERWRITTEN != Response->IoStatus.Information)

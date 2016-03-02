@@ -184,6 +184,22 @@ typedef struct
         {
             UINT64 UserContext;
             UINT64 UserContext2;
+        } Read;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+            UINT64 Address;
+            UINT64 Offset;
+            UINT32 Length;
+            UINT32 Key;
+            UINT32 Append:1;            /* append to end of file */
+            UINT32 PagingIo:1;          /* write's beyond EOF are NOP's (file size remains same) */
+        } Write;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
         } QueryInformation;
         struct
         {
@@ -280,6 +296,10 @@ typedef struct
         {
             FSP_FSCTL_FILE_INFO FileInfo;
         } Overwrite;
+        struct
+        {
+            FSP_FSCTL_FILE_INFO FileInfo;
+        } Write;
         struct
         {
             FSP_FSCTL_FILE_INFO FileInfo;

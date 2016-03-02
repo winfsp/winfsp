@@ -93,8 +93,8 @@ NTSTATUS DriverEntry(
     /* setup fast I/O and resource acquisition */
     FspFastIoDispatch.SizeOfFastIoDispatch = sizeof FspFastIoDispatch;
     FspFastIoDispatch.FastIoCheckIfPossible = FspFastIoCheckIfPossible;
-    FspFastIoDispatch.FastIoRead = FsRtlCopyRead;
-    FspFastIoDispatch.FastIoWrite = FsRtlCopyWrite;
+    //FspFastIoDispatch.FastIoRead = 0;
+    //FspFastIoDispatch.FastIoWrite = 0;
     //FspFastIoDispatch.FastIoQueryBasicInfo = 0;
     //FspFastIoDispatch.FastIoQueryStandardInfo = 0;
     //FspFastIoDispatch.FastIoLock = 0;
@@ -107,10 +107,10 @@ NTSTATUS DriverEntry(
     //FspFastIoDispatch.FastIoDetachDevice = 0;
     //FspFastIoDispatch.FastIoQueryNetworkOpenInfo = 0;
     FspFastIoDispatch.AcquireForModWrite = FspAcquireForModWrite;
-    FspFastIoDispatch.MdlRead = FsRtlMdlReadDev;
-    FspFastIoDispatch.MdlReadComplete = FsRtlMdlReadCompleteDev;
-    FspFastIoDispatch.PrepareMdlWrite = FsRtlPrepareMdlWriteDev;
-    FspFastIoDispatch.MdlWriteComplete = FsRtlMdlWriteCompleteDev;
+    //FspFastIoDispatch.MdlRead = 0;
+    //FspFastIoDispatch.MdlReadComplete = 0;
+    //FspFastIoDispatch.PrepareMdlWrite = 0;
+    //FspFastIoDispatch.MdlWriteComplete = 0;
     //FspFastIoDispatch.FastIoReadCompressed = 0;
     //FspFastIoDispatch.FastIoWriteCompressed = 0;
     //FspFastIoDispatch.MdlReadCompleteCompressed = 0;
