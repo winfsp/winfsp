@@ -552,8 +552,7 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
 /* work queue processing */
 enum
 {
-    FspWqRequestIrpAndFlags             = 0,
-    FspWqRequestWorkRoutine             = 1,
+    FspWqRequestWorkRoutine             = 3,
 };
 typedef NTSTATUS FSP_WQ_REQUEST_WORK(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
