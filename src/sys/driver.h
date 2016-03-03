@@ -454,7 +454,7 @@ ULONG FspIrpFlags(PIRP Irp)
 static inline
 VOID FspIrpSetFlags(PIRP Irp, ULONG Flags)
 {
-    ASSERT(3 > Flags);
+    ASSERT(3 >= Flags);
     FSP_FSCTL_TRANSACT_REQ *Request = (PVOID)((UINT_PTR)Irp->Tail.Overlay.DriverContext[2] & ~3);
     Irp->Tail.Overlay.DriverContext[2] = (PVOID)((UINT_PTR)Request | Flags);
 }
@@ -466,7 +466,7 @@ ULONG FspIrpTopFlags(PIRP Irp)
 static inline
 VOID FspIrpSetTopFlags(PIRP Irp, ULONG Flags)
 {
-    ASSERT(3 > Flags);
+    ASSERT(3 >= Flags);
     FSP_FSCTL_TRANSACT_REQ *Request = (PVOID)((UINT_PTR)Irp->Tail.Overlay.DriverContext[2] & ~0xc);
     Irp->Tail.Overlay.DriverContext[2] = (PVOID)((UINT_PTR)Request | (Flags << 2));
 }
