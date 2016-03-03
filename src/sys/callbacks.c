@@ -24,6 +24,7 @@ BOOLEAN FspAcquireForReadAhead(
     BOOLEAN Wait);
 VOID FspReleaseFromReadAhead(
     PVOID Context);
+VOID FspPropagateTopFlags(PIRP Irp, PIRP TopLevelFlags);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFastIoCheckIfPossible)
@@ -37,6 +38,7 @@ VOID FspReleaseFromReadAhead(
 #pragma alloc_text(PAGE, FspReleaseFromLazyWrite)
 #pragma alloc_text(PAGE, FspAcquireForReadAhead)
 #pragma alloc_text(PAGE, FspReleaseFromReadAhead)
+#pragma alloc_text(PAGE, FspPropagateTopFlags)
 #endif
 
 BOOLEAN FspFastIoCheckIfPossible(
@@ -184,4 +186,28 @@ VOID FspReleaseFromReadAhead(
     FspFileNodeRelease(FileNode, Full);
 
     FSP_LEAVE_VOID("Context=%p", Context);
+}
+
+VOID FspPropagateTopFlags(PIRP Irp, PIRP TopLevelIrp)
+{
+    /*
+     * We place FspPropagateTopFlags in this file, because the top flags
+     * are related to the resources acquired in FspAcquire*.
+     */
+
+    PAGED_CODE();
+
+    if (FSRTL_MAX_TOP_LEVEL_IRP_FLAG >= (UINT_PTR)TopLevelIrp)
+        FspIrpSetTopFlags(Irp, FspFileNodeAcquireFull);
+    else if (IO_TYPE_IRP == TopLevelIrp->Type)
+    {
+        PFILE_OBJECT FileObject = IoGetCurrentIrpStackLocation(Irp)->FileObject;
+        PFILE_OBJECT TopLevelFileObject = IoGetCurrentIrpStackLocation(TopLevelIrp)->FileObject;
+        if (0 != FileObject && 0 != TopLevelFileObject &&
+            FileObject->FsContext == TopLevelFileObject->FsContext &&
+            FspFileNodeIsValid(FileObject->FsContext))
+        {
+            FspIrpSetTopFlags(Irp, FspIrpFlags(TopLevelIrp));
+        }
+    }
 }

@@ -130,19 +130,7 @@ extern __declspec(selectany) int fsp_bp = 1;
     do                                  \
     {                                   \
         if (0 != fsp_top_level_irp)     \
-        {                               \
-            if (FSRTL_MAX_TOP_LEVEL_IRP_FLAG >= (UINT_PTR)fsp_top_level_irp)\
-                FspIrpSetTopFlags(Irp, FspFileNodeAcquireFull);\
-            else if (IO_TYPE_IRP == fsp_top_level_irp->Type &&\
-                0 != IrpSp->FileObject && FspFileNodeIsValid(IrpSp->FileObject->FsContext))\
-            {                           \
-                PIO_STACK_LOCATION fsp_top_level_irpsp =\
-                    IoGetCurrentIrpStackLocation(fsp_top_level_irp);\
-                if (0 != fsp_top_level_irpsp->FileObject &&\
-                    IrpSp->FileObject->FsContext == fsp_top_level_irpsp->FileObject->FsContext)\
-                    FspIrpSetTopFlags(Irp, FspIrpFlags(fsp_top_level_irp));\
-            }                           \
-        }                               \
+            FspPropagateTopFlags(Irp, fsp_top_level_irp);\
         IoSetTopLevelIrp(Irp);          \
         if (!FspDeviceReference(IrpSp->DeviceObject))\
         {                               \
@@ -300,6 +288,7 @@ BOOLEAN FspAcquireForReadAhead(
     BOOLEAN Wait);
 VOID FspReleaseFromReadAhead(
     PVOID Context);
+VOID FspPropagateTopFlags(PIRP Irp, PIRP TopLevelIrp);
 
 /* memory allocation */
 #define FspAlloc(Size)                  ExAllocatePoolWithTag(PagedPool, Size, FSP_ALLOC_INTERNAL_TAG)
