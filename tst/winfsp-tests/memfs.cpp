@@ -470,7 +470,7 @@ NTSTATUS SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
 
 NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
-    PVOID FileNode0, UINT64 FileSize, BOOLEAN AdvanceOnly,
+    PVOID FileNode0, UINT64 FileSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;

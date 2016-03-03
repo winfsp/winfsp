@@ -79,7 +79,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_FILE_INFO *FileInfo);
     NTSTATUS (*SetFileSize)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
-        PVOID FileNode, UINT64 FileSize, BOOLEAN AdvanceOnly,
+        PVOID FileNode, UINT64 FileSize,
         FSP_FSCTL_FILE_INFO *FileInfo);
     NTSTATUS (*CanDelete)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,

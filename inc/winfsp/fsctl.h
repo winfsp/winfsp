@@ -226,7 +226,6 @@ typedef struct
                 struct
                 {
                     UINT64 FileSize;
-                    UINT32 AdvanceOnly:1;
                 } EndOfFile;
                 struct
                 {

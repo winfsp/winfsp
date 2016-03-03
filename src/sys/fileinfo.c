@@ -38,7 +38,7 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
     PVOID Buffer, ULONG Length,
     FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
 static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
-    PVOID Buffer, ULONG Length, BOOLEAN AdvanceOnly,
+    PVOID Buffer, ULONG Length,
     FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response);
 static NTSTATUS FspFsvolSetPositionInformation(PFILE_OBJECT FileObject,
     PVOID Buffer, ULONG Length);
@@ -640,7 +640,7 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
 }
 
 static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
-    PVOID Buffer, ULONG Length, BOOLEAN AdvanceOnly,
+    PVOID Buffer, ULONG Length,
     FSP_FSCTL_TRANSACT_REQ *Request, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
@@ -656,9 +656,7 @@ static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
         BOOLEAN Success;
 
         Request->Req.SetInformation.Info.EndOfFile.FileSize = Info->EndOfFile.QuadPart;
-        Request->Req.SetInformation.Info.EndOfFile.AdvanceOnly = AdvanceOnly;
 
-        // !!!: REVISIT after better understanding relationship between AllocationSize and FileSize
         Success = MmCanFileBeTruncated(FileObject->SectionObjectPointer, &Info->EndOfFile);
         if (!Success)
             return STATUS_USER_MAPPED_FILE;
@@ -964,8 +962,11 @@ static NTSTATUS FspFsvolSetInformation(
         Result = FspFsvolSetBasicInformation(FileObject, Buffer, Length, 0, 0);
         break;
     case FileEndOfFileInformation:
-        Result = FspFsvolSetEndOfFileInformation(FileObject, Buffer, Length,
-            IrpSp->Parameters.SetFile.AdvanceOnly, 0, 0);
+        if (IrpSp->Parameters.SetFile.AdvanceOnly)
+            /* we do not support ValidDataLength currently! */
+            Result = STATUS_INVALID_PARAMETER;
+        else
+            Result = FspFsvolSetEndOfFileInformation(FileObject, Buffer, Length, 0, 0);
         break;
     case FileLinkInformation:
         Result = STATUS_INVALID_PARAMETER;  /* no hard link support */
@@ -1012,8 +1013,7 @@ static NTSTATUS FspFsvolSetInformation(
         Result = FspFsvolSetBasicInformation(FileObject, Buffer, Length, Request, 0);
         break;
     case FileEndOfFileInformation:
-        Result = FspFsvolSetEndOfFileInformation(FileObject, Buffer, Length,
-            IrpSp->Parameters.SetFile.AdvanceOnly, Request, 0);
+        Result = FspFsvolSetEndOfFileInformation(FileObject, Buffer, Length, Request, 0);
         break;
     default:
         ASSERT(0);
@@ -1062,8 +1062,7 @@ NTSTATUS FspFsvolSetInformationComplete(
         Result = FspFsvolSetBasicInformation(FileObject, Buffer, Length, Request, Response);
         break;
     case FileEndOfFileInformation:
-        Result = FspFsvolSetEndOfFileInformation(FileObject, Buffer, Length,
-            IrpSp->Parameters.SetFile.AdvanceOnly, Request, Response);
+        Result = FspFsvolSetEndOfFileInformation(FileObject, Buffer, Length, Request, Response);
         break;
     default:
         ASSERT(0);

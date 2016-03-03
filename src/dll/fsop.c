@@ -459,7 +459,6 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
                 Result = FileSystem->Interface->SetFileSize(FileSystem, Request,
                     (PVOID)Request->Req.SetInformation.UserContext,
                     Request->Req.SetInformation.Info.Allocation.AllocationSize,
-                    FALSE,
                     &FileInfo);
             }
         }
@@ -469,7 +468,6 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
             Result = FileSystem->Interface->SetFileSize(FileSystem, Request,
                 (PVOID)Request->Req.SetInformation.UserContext,
                 Request->Req.SetInformation.Info.EndOfFile.FileSize,
-                Request->Req.SetInformation.Info.EndOfFile.AdvanceOnly,
                 &FileInfo);
         break;
     case 13/*FileDispositionInformation*/:
