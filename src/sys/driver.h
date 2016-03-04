@@ -73,7 +73,9 @@ extern __declspec(selectany) int fsp_bp = 1;
 
 /* DEBUGRANDTEST */
 #if DBG
-#define DEBUGRANDTEST(Percent, Default) (DebugRandom() <= (Percent) * 0x7fff / 100 ? (Default) : !(Default))
+extern __declspec(selectany) int fsp_dt = 1;
+#define DEBUGRANDTEST(Percent, Default) \
+    (!fsp_dt || DebugRandom() <= (Percent) * 0x7fff / 100 ? (Default) : !(Default))
 #else
 #define DEBUGRANDTEST(Percent, Default) (Default)
 #endif
