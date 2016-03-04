@@ -752,7 +752,7 @@ typedef struct
     LONG OpenCount;
     SHARE_ACCESS ShareAccess;
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT ContextByNameElementStorage;
-    /* locked under FSP_FSVOL_DEVICE_EXTENSION::FileRenameResource */
+    /* locked under FSP_FSVOL_DEVICE_EXTENSION::FileRenameResource or Header.Resource */
     UNICODE_STRING FileName;
     PWSTR ExternalFileName;
     /* locked under Header.Resource */

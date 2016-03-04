@@ -30,8 +30,7 @@ FSP_DRIVER_DISPATCH FspCleanup;
 enum
 {
     /* Cleanup */
-    RequestDeviceObject                 = 0,
-    RequestIrp                          = 1,
+    RequestIrp                          = 0,
 };
 
 typedef struct
@@ -81,10 +80,7 @@ static NTSTATUS FspFsvolCleanup(
 
     FspFileNodeCleanup(FileNode, FileObject, &DeletePending);
     if (DeletePending)
-    {
-        FspFsvolDeviceFileRenameAcquireShared(FsvolDeviceObject);
         FspFileNodeAcquireExclusive(FileNode, Full);
-    }
     else
         FspFileNodeAcquireShared(FileNode, Full);
 
@@ -96,11 +92,6 @@ static NTSTATUS FspFsvolCleanup(
     Request->Req.Cleanup.UserContext2 = FileDesc->UserContext2;
     Request->Req.Cleanup.Delete = DeletePending;
 
-    if (DeletePending)
-    {
-        FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, Request);
-        FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
-    }
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;
 
@@ -134,7 +125,6 @@ static VOID FspFsvolCleanupRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Co
 
     PAGED_CODE();
 
-    PDEVICE_OBJECT FsvolDeviceObject = Context[RequestDeviceObject];
     PIRP Irp = Context[RequestIrp];
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
@@ -165,8 +155,6 @@ static VOID FspFsvolCleanupRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Co
 
     if (DeletePending)
     {
-        ASSERT(0 != FsvolDeviceObject);
-
         /* FileNode is Exclusive Full; release Pgio */
         FspFileNodeReleaseOwner(FileNode, Pgio, Request);
 
@@ -174,8 +162,6 @@ static VOID FspFsvolCleanupRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Co
     }
     else
     {
-        ASSERT(0 == FsvolDeviceObject);
-
         /* FileNode is Shared Full; reacquire as Exclusive Main for CcUnitializeCacheMap */
         FspFileNodeReleaseOwner(FileNode, Full, Request);
 
@@ -208,9 +194,6 @@ static VOID FspFsvolCleanupRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Co
 
     /* this works correctly even if owner is current thread */
     FspFileNodeReleaseOwner(FileNode, Main, Request);
-
-    if (DeletePending)
-        FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject, Request);
 }
 
 static VOID FspFsvolCleanupUninitialize(PVOID Context)

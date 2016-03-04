@@ -224,7 +224,7 @@ static NTSTATUS FspFsvolQueryNameInformation(PFILE_OBJECT FileObject,
     if ((PVOID)(Info + 1) > BufferEnd)
         return STATUS_BUFFER_TOO_SMALL;
 
-    FspFsvolDeviceFileRenameAcquireShared(FsvolDeviceObject);
+    FspFileNodeAcquireShared(FileNode, Main);
 
     Info->FileNameLength = FsvolDeviceExtension->VolumePrefix.Length + FileNode->FileName.Length;
 
@@ -246,7 +246,7 @@ static NTSTATUS FspFsvolQueryNameInformation(PFILE_OBJECT FileObject,
     RtlCopyMemory(Buffer, FileNode->FileName.Buffer, CopyLength);
     Buffer += CopyLength;
 
-    FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
+    FspFileNodeRelease(FileNode, Main);
 
     *PBuffer = Buffer;
 
@@ -715,7 +715,6 @@ static NTSTATUS FspFsvolSetDispositionInformation(
         /* cannot delete root directory */
         return STATUS_CANNOT_DELETE;
 
-    FspFsvolDeviceFileRenameAcquireShared(FsvolDeviceObject);
     FspFileNodeAcquireExclusive(FileNode, Full);
 
     if (Info->DeleteFile)
@@ -740,16 +739,13 @@ static NTSTATUS FspFsvolSetDispositionInformation(
     Request->Req.SetInformation.FileInformationClass = FileDispositionInformation;
     Request->Req.SetInformation.Info.Disposition.Delete = Info->DeleteFile;
 
-    FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, Request);
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestFileNode) = FileNode;
-    FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
 
     return FSP_STATUS_IOQ_POST;
 
 unlock_exit:
     FspFileNodeRelease(FileNode, Full);
-    FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
 
     return Result;
 }
@@ -760,7 +756,6 @@ static NTSTATUS FspFsvolSetDispositionInformationSuccess(
     PAGED_CODE();
 
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->DeviceObject;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PFILE_DISPOSITION_INFORMATION Info = (PFILE_DISPOSITION_INFORMATION)Irp->AssociatedIrp.SystemBuffer;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
@@ -770,9 +765,7 @@ static NTSTATUS FspFsvolSetDispositionInformationSuccess(
     FileObject->DeletePending = Info->DeleteFile;
 
     FspIopRequestContext(Request, RequestFileNode) = 0;
-    FspIopRequestContext(Request, RequestDeviceObject) = 0;
     FspFileNodeReleaseOwner(FileNode, Full, Request);
-    FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject, Request);
 
     Irp->IoStatus.Information = 0;
 
