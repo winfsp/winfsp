@@ -18,8 +18,10 @@ VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess, NTSTATUS *PResult);
-VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
+VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+    PBOOLEAN PDeletedFromContextTable);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
@@ -45,6 +47,7 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #pragma alloc_text(PAGE, FspFileNodeReleaseF)
 #pragma alloc_text(PAGE, FspFileNodeReleaseOwnerF)
 #pragma alloc_text(PAGE, FspFileNodeOpen)
+#pragma alloc_text(PAGE, FspFileNodeCleanup)
 #pragma alloc_text(PAGE, FspFileNodeClose)
 #pragma alloc_text(PAGE, FspFileNodeRename)
 #pragma alloc_text(PAGE, FspFileNodeGetFileInfo)
@@ -380,8 +383,38 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     return OpenedFileNode;
 }
 
-VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending)
+{
+    /*
+     * Determine whether a FileNode should be deleted. Note that when
+     * FileNode->DeletePending is set, the OpenCount cannot be changed
+     * because FspFileNodeOpen() will return STATUS_DELETE_PENDING.
+     */
+
+    PAGED_CODE();
+
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
+    BOOLEAN DeletePending, SingleOpen;
+
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+
+    if (FileDesc->DeleteOnClose)
+        FileNode->DeletePending = TRUE;
+    DeletePending = 0 != FileNode->DeletePending;
+    MemoryBarrier();
+
+    SingleOpen = 1 == FileNode->OpenCount;
+
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    if (0 != PDeletePending)
+        *PDeletePending = SingleOpen && DeletePending;
+}
+
+VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+    PBOOLEAN PDeletedFromContextTable)
 {
     /*
      * Close the FileNode. If the OpenCount becomes zero remove it
@@ -391,15 +424,9 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PAGED_CODE();
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
-    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
-    BOOLEAN Deleted = FALSE, DeletePending;
+    BOOLEAN Deleted = FALSE;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
-
-    if (FileDesc->DeleteOnClose)
-        FileNode->DeletePending = TRUE;
-    DeletePending = 0 != FileNode->DeletePending;
-    MemoryBarrier();
 
     IoRemoveShareAccess(FileObject, &FileNode->ShareAccess);
     if (0 == --FileNode->OpenCount)
@@ -410,8 +437,8 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     if (Deleted)
         FspFileNodeDereference(FileNode);
 
-    if (0 != PDeletePending)
-        *PDeletePending = Deleted && DeletePending;
+    if (0 != PDeletedFromContextTable)
+        *PDeletedFromContextTable = Deleted;
 }
 
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)

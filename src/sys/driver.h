@@ -538,6 +538,8 @@ enum
     FspIopCreateRequestFunnel(I, F, E, 0, FspIopRequestMustSucceed, P)
 #define FspIopCreateRequestEx(I, F, E, RF, P)\
     FspIopCreateRequestFunnel(I, F, E, RF, 0, P)
+#define FspIopCreateRequestMustSucceedEx(I, F, E, RF, P)\
+    FspIopCreateRequestFunnel(I, F, E, RF, FspIopRequestMustSucceed, P)
 #define FspIopCreateRequestWorkItem(I, E, RF, P)\
     FspIopCreateRequestFunnel(I, 0, E, RF, FspIopRequestNonPaged, P)
 #define FspIopRequestContext(Request, I)\
@@ -765,6 +767,7 @@ typedef struct
     NTSTATUS CcStatus;
     UINT64 Security;
     ULONG SecurityChangeNumber;
+    BOOLEAN TruncateOnClose;
     /* read-only after creation (and insertion in the ContextTable) */
     PDEVICE_OBJECT FsvolDeviceObject;
     UINT64 UserContext;
@@ -803,8 +806,10 @@ VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess, NTSTATUS *PResult);
-VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
+VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+    PBOOLEAN PDeletedFromContextTable);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);

@@ -593,6 +593,7 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
         FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
+        FileNode->TruncateOnClose = TRUE;
     }
 
     return STATUS_SUCCESS;
@@ -666,6 +667,7 @@ static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
         FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
+        FileNode->TruncateOnClose = TRUE;
     }
 
     return STATUS_SUCCESS;
