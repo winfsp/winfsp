@@ -78,7 +78,7 @@ PVOID FspAllocatePoolMustSucceed(POOL_TYPE PoolType, SIZE_T Size, ULONG Tag)
 
     for (ULONG i = 0, n = sizeof(Delays) / sizeof(Delays[0]);; i++)
     {
-        Result = DEBUGRANDTEST(95, TRUE) ? ExAllocatePoolWithTag(PoolType, Size, Tag) : 0;
+        Result = DEBUGTEST(95, TRUE) ? ExAllocatePoolWithTag(PoolType, Size, Tag) : 0;
         if (0 != Result)
             return Result;
 
@@ -96,7 +96,7 @@ PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
 
     for (ULONG i = 0, n = sizeof(Delays) / sizeof(Delays[0]);; i++)
     {
-        Result = DEBUGRANDTEST(95, TRUE) ? IoAllocateIrp(StackSize, FALSE) : 0;
+        Result = DEBUGTEST(95, TRUE) ? IoAllocateIrp(StackSize, FALSE) : 0;
         if (0 != Result)
             return Result;
 

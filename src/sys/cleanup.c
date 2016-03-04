@@ -165,7 +165,7 @@ static VOID FspFsvolCleanupRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Co
         /* FileNode is Shared Full; reacquire as Exclusive Main for CcUnitializeCacheMap */
         FspFileNodeReleaseOwner(FileNode, Full, Request);
 
-        Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Main);
+        Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Main);
         if (!Success)
         {
             /* oh, maaan! we now have to do delayed uninitialize! */

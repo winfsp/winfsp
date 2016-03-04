@@ -111,7 +111,7 @@ static NTSTATUS FspFsvolWriteCached(
     ASSERT(FileNode == FileDesc->FileNode);
 
     /* should we defer the write? */
-    Success = DEBUGRANDTEST(90, TRUE) && CcCanIWrite(FileObject, WriteLength, CanWait, Retrying);
+    Success = DEBUGTEST(90, TRUE) && CcCanIWrite(FileObject, WriteLength, CanWait, Retrying);
     if (!Success)
     {
         Result = FspWqCreateIrpWorkItem(Irp, FspFsvolWriteCached, 0);
@@ -127,7 +127,7 @@ static NTSTATUS FspFsvolWriteCached(
     }
 
     /* try to acquire the FileNode Main exclusive */
-    Success = DEBUGRANDTEST(90, TRUE) &&
+    Success = DEBUGTEST(90, TRUE) &&
         FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireMain, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteCached, 0);
@@ -320,7 +320,7 @@ NTSTATUS FspFsvolWritePrepare(
     PEPROCESS Process;
     BOOLEAN Success;
 
-    Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Full);
+    Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Full);
     if (!Success)
     {
         FspIopRetryPrepareIrp(Irp, &Result);

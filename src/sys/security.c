@@ -135,7 +135,7 @@ NTSTATUS FspFsvolQuerySecurityComplete(
         FspFileNodeReleaseOwner(FileNode, Full, Request);
     }
 
-    Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Main);
+    Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Main);
     if (!Success)
     {
         FspIopRetryCompleteIrp(Irp, Response, &Result);

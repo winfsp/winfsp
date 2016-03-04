@@ -425,7 +425,7 @@ NTSTATUS FspFsvolCreatePrepare(
         FileObject = FspIopRequestContext(Request, RequestFileObject);
 
         /* lock the FileNode for overwriting */
-        Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Full);
+        Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Full);
         if (!Success)
         {
             FspIopRetryPrepareIrp(Irp, &Result);
@@ -698,7 +698,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     BOOLEAN Success;
 
-    Success = DEBUGRANDTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Main);
+    Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Main);
     if (!Success)
     {
         /* repost the IRP to retry later */

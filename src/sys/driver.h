@@ -71,13 +71,13 @@ extern __declspec(selectany) int fsp_bp = 1;
 #define DEBUGBREAK()                    do {} while (0,0)
 #endif
 
-/* DEBUGRANDTEST */
+/* DEBUGTEST */
 #if DBG
 extern __declspec(selectany) int fsp_dt = 1;
-#define DEBUGRANDTEST(Percent, Default) \
+#define DEBUGTEST(Percent, Default)     \
     (!fsp_dt || DebugRandom() <= (Percent) * 0x7fff / 100 ? (Default) : !(Default))
 #else
-#define DEBUGRANDTEST(Percent, Default) (Default)
+#define DEBUGTEST(Percent, Default)     (Default)
 #endif
 
 /* FSP_ENTER/FSP_LEAVE */
