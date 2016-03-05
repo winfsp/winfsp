@@ -402,6 +402,65 @@ FSP_API NTSTATUS FspFileSystemOpClose(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+FSP_API NTSTATUS FspFileSystemOpRead(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+    ULONG BytesTransferred;
+    FSP_FSCTL_FILE_INFO FileInfo;
+
+    if (0 == FileSystem->Interface->Read)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    Result = FileSystem->Interface->Read(FileSystem, Request,
+        (PVOID)Request->Req.Read.UserContext,
+        (PVOID)Request->Req.Read.Address,
+        Request->Req.Read.Offset,
+        Request->Req.Read.Length,
+        &BytesTransferred,
+        &FileInfo);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (STATUS_PENDING != Result)
+    {
+        Response->IoStatus.Information = BytesTransferred;
+        memcpy(&Response->Rsp.Read.FileInfo, &FileInfo, sizeof FileInfo);
+    }
+
+    return Result;
+}
+
+FSP_API NTSTATUS FspFileSystemOpWrite(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+    ULONG BytesTransferred;
+    FSP_FSCTL_FILE_INFO FileInfo;
+
+    if (0 == FileSystem->Interface->Write)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    Result = FileSystem->Interface->Write(FileSystem, Request,
+        (PVOID)Request->Req.Write.UserContext,
+        (PVOID)Request->Req.Write.Address,
+        Request->Req.Write.Offset,
+        Request->Req.Write.Length,
+        Request->Req.Write.Constrained,
+        &BytesTransferred,
+        &FileInfo);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (STATUS_PENDING != Result)
+    {
+        Response->IoStatus.Information = BytesTransferred;
+        memcpy(&Response->Rsp.Read.FileInfo, &FileInfo, sizeof FileInfo);
+    }
+
+    return Result;
+}
+
 FSP_API NTSTATUS FspFileSystemOpQueryInformation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {

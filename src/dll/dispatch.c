@@ -44,11 +44,13 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     FileSystem->Operations[FspFsctlTransactOverwriteKind] = FspFileSystemOpOverwrite;
     FileSystem->Operations[FspFsctlTransactCleanupKind] = FspFileSystemOpCleanup;
     FileSystem->Operations[FspFsctlTransactCloseKind] = FspFileSystemOpClose;
+    FileSystem->Operations[FspFsctlTransactReadKind] = FspFileSystemOpRead;
+    FileSystem->Operations[FspFsctlTransactWriteKind] = FspFileSystemOpWrite;
+    // !!!: ...
     FileSystem->Operations[FspFsctlTransactQueryInformationKind] = FspFileSystemOpQueryInformation;
     FileSystem->Operations[FspFsctlTransactSetInformationKind] = FspFileSystemOpSetInformation;
     FileSystem->Operations[FspFsctlTransactQueryVolumeInformationKind] = FspFileSystemOpQueryVolumeInformation;
     FileSystem->Operations[FspFsctlTransactSetVolumeInformationKind] = FspFileSystemOpSetVolumeInformation;
-    // !!!: ...
     FileSystem->Operations[FspFsctlTransactQuerySecurityKind] = FspFileSystemOpQuerySecurity;
     FileSystem->Operations[FspFsctlTransactSetSecurityKind] = FspFileSystemOpSetSecurity;
     FileSystem->Interface = Interface;
@@ -132,6 +134,8 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
             Response->Hint = Request->Hint;
             Response->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
         }
+        else if (STATUS_PENDING == Response->IoStatus.Status)
+            memset(Response, 0, sizeof *Response);
         else
         {
             memset((PUINT8)Response + Response->Size, 0, ResponseSize - Response->Size);
@@ -193,4 +197,15 @@ FSP_API VOID FspFileSystemStopDispatcher(FSP_FILE_SYSTEM *FileSystem)
 
     WaitForSingleObject(FileSystem->DispatcherThread, INFINITE);
     CloseHandle(FileSystem->DispatcherThread);
+}
+
+FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+
+    Result = FspFsctlTransact(FileSystem->VolumeHandle,
+        Response, Response->Size, 0, 0, FALSE);
+    if (!NT_SUCCESS(Result))
+        FspFsctlStop(FileSystem->VolumeHandle);
 }

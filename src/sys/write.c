@@ -271,8 +271,7 @@ static NTSTATUS FspFsvolWriteNonCached(
     Request->Req.Write.Offset = WriteOffset.QuadPart;
     Request->Req.Write.Length = WriteLength;
     Request->Req.Write.Key = WriteKey;
-    Request->Req.Write.Append = WriteToEndOfFile;
-    Request->Req.Write.PagingIo = PagingIo;
+    Request->Req.Write.Constrained = PagingIo;
 
     return FSP_STATUS_IOQ_POST;
 }
