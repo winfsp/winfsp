@@ -251,38 +251,10 @@ static NTSTATUS FspFsvolWriteNonCached(
     if (PagingIo && WriteToEndOfFile)
         return STATUS_INVALID_PARAMETER;
 
-    /* if non-cached I/O check the offset/length alignment */
-    /*
-     * We are going to avoid doing this test, because we don't really need to restrict
-     * ourselves for non-cached I/O, but also because we do not always know the correct
-     * file size for our alignment test. The file size is needed, because the alignment
-     * test is:
-     *
-     *     if WriteOffset is sector aligned
-     *     and (WriteLength is sector aligned or WriteOffset + WriteLength >= FileSize)
-     *
-     * This means that the user-mode file system must be able to deal with variable size
-     * I/O, but this was the case anyway because of the following part of the test:
-     *
-     *     WriteOffset + WriteLength >= FileSize
-     *
-     * In any case the user-mode file system can enforce this rule if it wants!
-     */
-#if 0
-    if (!PagingIo)
-    {
-        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-            FspFsvolDeviceExtension(FsvolDeviceObject);
-        if (0 != WriteOffset.QuadPart % FsvolDeviceExtension->VolumeParams.SectorSize ||
-            0 != WriteLength % FsvolDeviceExtension->VolumeParams.SectorSize)
-            return STATUS_NOT_IMPLEMENTED; /* FastFat does this! */
-    }
-#endif
-
     /* probe and lock the user buffer */
     if (0 == Irp->MdlAddress)
     {
-        Result = FspLockUserBuffer(Irp->UserBuffer, IrpSp->Parameters.Write.Length,
+        Result = FspLockUserBuffer(Irp->UserBuffer, WriteLength,
             Irp->RequestorMode, IoReadAccess, &Irp->MdlAddress);
         if (!NT_SUCCESS(Result))
             return Result;
@@ -382,7 +354,7 @@ NTSTATUS FspFsvolWritePrepare(
 
     Request->Req.Write.Address = (UINT64)(UINT_PTR)Address;
 
-    FspFileNodeSetOwner(FileNode, Pgio, Request);
+    FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;
     FspIopRequestContext(Request, RequestSafeMdl) = SafeMdl;
     FspIopRequestContext(Request, RequestAddress) = Address;

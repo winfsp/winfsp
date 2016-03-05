@@ -262,6 +262,7 @@ FSP_IOCMPL_DISPATCH FspFsvolQueryEaComplete;
 FSP_IOCMPL_DISPATCH FspFsvolQueryInformationComplete;
 FSP_IOCMPL_DISPATCH FspFsvolQuerySecurityComplete;
 FSP_IOCMPL_DISPATCH FspFsvolQueryVolumeInformationComplete;
+FSP_IOPREP_DISPATCH FspFsvolReadPrepare;
 FSP_IOCMPL_DISPATCH FspFsvolReadComplete;
 FSP_IOCMPL_DISPATCH FspFsvolSetEaComplete;
 FSP_IOCMPL_DISPATCH FspFsvolSetInformationComplete;

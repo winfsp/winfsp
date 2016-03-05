@@ -184,6 +184,10 @@ typedef struct
         {
             UINT64 UserContext;
             UINT64 UserContext2;
+            UINT64 Address;
+            UINT64 Offset;
+            UINT32 Length;
+            UINT32 Key;
         } Read;
         struct
         {
