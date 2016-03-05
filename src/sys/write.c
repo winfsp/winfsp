@@ -368,6 +368,13 @@ NTSTATUS FspFsvolWriteComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
+    if (!NT_SUCCESS(Response->IoStatus.Status))
+    {
+        Irp->IoStatus.Information = 0;
+        Result = Response->IoStatus.Status;
+        FSP_RETURN();
+    }
+
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
@@ -376,13 +383,6 @@ NTSTATUS FspFsvolWriteComplete(
         FILE_WRITE_TO_END_OF_FILE == WriteOffset.LowPart && -1L == WriteOffset.HighPart;
     BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
     BOOLEAN SynchronousIo = BooleanFlagOn(FileObject->Flags, FO_SYNCHRONOUS_IO);
-
-    if (!NT_SUCCESS(Response->IoStatus.Status))
-    {
-        Irp->IoStatus.Information = 0;
-        Result = Response->IoStatus.Status;
-        FSP_RETURN();
-    }
 
     if (!PagingIo)
     {
@@ -396,8 +396,7 @@ NTSTATUS FspFsvolWriteComplete(
                 WriteOffset.QuadPart + Response->IoStatus.Information;
     }
 
-    FspFileNodeReleaseOwner(FileNode, Full, Request);
-        /* will also clear FspIrpFlags() */
+    FspIopResetRequest(Request, 0);
 
     Irp->IoStatus.Information = Response->IoStatus.Information;
     Result = STATUS_SUCCESS;
@@ -440,7 +439,7 @@ static VOID FspFsvolWriteNonCachedRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
     if (0 != SafeMdl)
         FspSafeMdlDelete(SafeMdl);
 
-    if (0 != Irp && 0 != FspIrpFlags(Irp))
+    if (0 != Irp)
     {
         PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
         FSP_FILE_NODE *FileNode = IrpSp->FileObject->FsContext;
