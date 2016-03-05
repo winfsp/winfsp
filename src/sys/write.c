@@ -188,7 +188,7 @@ static NTSTATUS FspFsvolWriteCached(
             return STATUS_INSUFFICIENT_RESOURCES;
         }
 
-        Result = FspCcCopyWrite(FileObject, &WriteOffset, WriteLength, CanWait || Retrying, Buffer);
+        Result = FspCcCopyWrite(FileObject, &WriteOffset, WriteLength, CanWait, Buffer);
         if (STATUS_PENDING == Result)
         {
             FspFileNodeRelease(FileNode, Main);
@@ -201,8 +201,8 @@ static NTSTATUS FspFsvolWriteCached(
     {
         ASSERT(0 == Irp->MdlAddress);
 
-        Result = FspCcPrepareMdlWrite(FileObject, &WriteOffset, WriteLength,
-            &Irp->MdlAddress, &Irp->IoStatus);
+        Result = FspCcPrepareMdlWrite(FileObject, &WriteOffset, WriteLength, &Irp->MdlAddress,
+            &Irp->IoStatus);
         if (!NT_SUCCESS(Result))
         {
             FspFileNodeRelease(FileNode, Main);

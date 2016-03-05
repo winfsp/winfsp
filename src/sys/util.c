@@ -15,8 +15,13 @@ NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress);
 NTSTATUS FspCcInitializeCacheMap(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes,
     BOOLEAN PinAccess, PCACHE_MANAGER_CALLBACKS Callbacks, PVOID CallbackContext);
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
+NTSTATUS FspCcCopyRead(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG Length,
+    BOOLEAN Wait, PVOID Buffer, PIO_STATUS_BLOCK IoStatus);
 NTSTATUS FspCcCopyWrite(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG Length,
     BOOLEAN Wait, PVOID Buffer);
+NTSTATUS FspCcMdlRead(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG Length,
+    PMDL *PMdlChain, PIO_STATUS_BLOCK IoStatus);
+NTSTATUS FspCcMdlReadComplete(PFILE_OBJECT FileObject, PMDL MdlChain);
 NTSTATUS FspCcPrepareMdlWrite(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG Length,
     PMDL *PMdlChain, PIO_STATUS_BLOCK IoStatus);
 NTSTATUS FspCcMdlWriteComplete(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, PMDL MdlChain);
@@ -44,7 +49,10 @@ VOID FspSafeMdlDelete(FSP_SAFE_MDL *SafeMdl);
 #pragma alloc_text(PAGE, FspMapLockedPagesInUserMode)
 #pragma alloc_text(PAGE, FspCcInitializeCacheMap)
 #pragma alloc_text(PAGE, FspCcSetFileSizes)
+#pragma alloc_text(PAGE, FspCcCopyRead)
 #pragma alloc_text(PAGE, FspCcCopyWrite)
+#pragma alloc_text(PAGE, FspCcMdlRead)
+#pragma alloc_text(PAGE, FspCcMdlReadComplete)
 #pragma alloc_text(PAGE, FspCcPrepareMdlWrite)
 #pragma alloc_text(PAGE, FspCcMdlWriteComplete)
 #pragma alloc_text(PAGE, FspQuerySecurityDescriptorInfo)
@@ -249,6 +257,32 @@ NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes)
     }
 }
 
+NTSTATUS FspCcCopyRead(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG Length,
+    BOOLEAN Wait, PVOID Buffer, PIO_STATUS_BLOCK IoStatus)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    try
+    {
+        BOOLEAN Success = CcCopyRead(FileObject, FileOffset, Length, Wait, Buffer, IoStatus);
+        Result = Success ? STATUS_SUCCESS : STATUS_PENDING;
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Result = GetExceptionCode();
+    }
+
+    if (!NT_SUCCESS(Result))
+    {
+        IoStatus->Information = 0;
+        IoStatus->Status = Result;
+    }
+
+    return Result;
+}
+
 NTSTATUS FspCcCopyWrite(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG Length,
     BOOLEAN Wait, PVOID Buffer)
 {
@@ -258,6 +292,55 @@ NTSTATUS FspCcCopyWrite(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULON
     {
         BOOLEAN Success = CcCopyWrite(FileObject, FileOffset, Length, Wait, Buffer);
         return Success ? STATUS_SUCCESS : STATUS_PENDING;
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return GetExceptionCode();
+    }
+}
+
+NTSTATUS FspCcMdlRead(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG Length,
+    PMDL *PMdlChain, PIO_STATUS_BLOCK IoStatus)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    *PMdlChain = 0;
+
+    try
+    {
+        CcMdlRead(FileObject, FileOffset, Length, PMdlChain, IoStatus);
+        Result = IoStatus->Status;
+    }
+    except(EXCEPTION_EXECUTE_HANDLER)
+    {
+        Result = GetExceptionCode();
+    }
+
+    if (!NT_SUCCESS(Result))
+    {
+        if (0 != *PMdlChain)
+        {
+            CcMdlReadComplete(FileObject, *PMdlChain);
+            *PMdlChain = 0;
+        }
+
+        IoStatus->Information = 0;
+        IoStatus->Status = Result;
+    }
+
+    return Result;
+}
+
+NTSTATUS FspCcMdlReadComplete(PFILE_OBJECT FileObject, PMDL MdlChain)
+{
+    PAGED_CODE();
+
+    try
+    {
+        CcMdlReadComplete(FileObject, MdlChain);
+        return STATUS_SUCCESS;
     }
     except (EXCEPTION_EXECUTE_HANDLER)
     {
