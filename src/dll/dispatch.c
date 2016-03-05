@@ -207,5 +207,9 @@ FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
     Result = FspFsctlTransact(FileSystem->VolumeHandle,
         Response, Response->Size, 0, 0, FALSE);
     if (!NT_SUCCESS(Result))
+    {
+        FspFileSystemSetDispatcherResult(FileSystem, Result);
+
         FspFsctlStop(FileSystem->VolumeHandle);
+    }
 }
