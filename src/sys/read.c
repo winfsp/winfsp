@@ -277,7 +277,9 @@ NTSTATUS FspFsvolReadComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
     LARGE_INTEGER ReadOffset = IrpSp->Parameters.Read.ByteOffset;
     BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
     BOOLEAN SynchronousIo = BooleanFlagOn(FileObject->Flags, FO_SYNCHRONOUS_IO);
@@ -296,6 +298,9 @@ NTSTATUS FspFsvolReadComplete(
             FileObject->CurrentByteOffset.QuadPart =
                 ReadOffset.QuadPart + Response->IoStatus.Information;
     }
+
+    FspFileNodeReleaseOwner(FileNode, Full, Request);
+        /* will also clear FspIrpFlags() */
 
     Irp->IoStatus.Information = Response->IoStatus.Information;
     Result = STATUS_SUCCESS;
@@ -338,7 +343,7 @@ static VOID FspFsvolReadNonCachedRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PV
     if (0 != SafeMdl)
         FspSafeMdlDelete(SafeMdl);
 
-    if (0 != Irp)
+    if (0 != Irp && 0 != FspIrpFlags(Irp))
     {
         PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
         FSP_FILE_NODE *FileNode = IrpSp->FileObject->FsContext;

@@ -368,6 +368,7 @@ NTSTATUS FspFsvolWriteComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     LARGE_INTEGER WriteOffset = IrpSp->Parameters.Write.ByteOffset;
@@ -394,6 +395,9 @@ NTSTATUS FspFsvolWriteComplete(
                 Response->Rsp.Write.FileInfo.FileSize :
                 WriteOffset.QuadPart + Response->IoStatus.Information;
     }
+
+    FspFileNodeReleaseOwner(FileNode, Full, Request);
+        /* will also clear FspIrpFlags() */
 
     Irp->IoStatus.Information = Response->IoStatus.Information;
     Result = STATUS_SUCCESS;
@@ -436,7 +440,7 @@ static VOID FspFsvolWriteNonCachedRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
     if (0 != SafeMdl)
         FspSafeMdlDelete(SafeMdl);
 
-    if (0 != Irp)
+    if (0 != Irp && 0 != FspIrpFlags(Irp))
     {
         PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
         FSP_FILE_NODE *FileNode = IrpSp->FileObject->FsContext;
