@@ -193,6 +193,11 @@ BOOLEAN MemfsFileNodeMapHasChild(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NO
     return Result;
 }
 
+static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0, UINT64 FileSize,
+    FSP_FSCTL_FILE_INFO *FileInfo);
+
 static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
@@ -481,7 +486,7 @@ static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
+static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, UINT32 FileAttributes,
     UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
@@ -503,7 +508,7 @@ NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
+static NTSTATUS SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, UINT64 AllocationSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
@@ -533,7 +538,7 @@ NTSTATUS SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
+static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, UINT64 FileSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
@@ -563,7 +568,7 @@ NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
+static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, PWSTR FileName)
 {
@@ -578,7 +583,7 @@ NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
+static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0,
     PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)

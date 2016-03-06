@@ -13,6 +13,7 @@ int main(int argc, char *argv[])
     TESTSUITE(create_tests);
     TESTSUITE(info_tests);
     TESTSUITE(security_tests);
+    TESTSUITE(rdwr_tests);
 
     tlib_run_tests(argc, argv);
     return 0;
