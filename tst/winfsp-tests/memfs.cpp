@@ -408,6 +408,67 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem,
         MemfsFileNodeDelete(FileNode);
 }
 
+static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0, PVOID Buffer, UINT64 Offset, ULONG Length,
+    PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    UINT64 EndOffset;
+
+    if (Offset >= FileNode->FileInfo.FileSize)
+        return STATUS_END_OF_FILE;
+
+    EndOffset = Offset + Length;
+    if (EndOffset > FileNode->FileInfo.FileSize)
+        EndOffset = FileNode->FileInfo.FileSize;
+
+    memcpy(Buffer, (PUINT8)FileNode->FileData + Offset, EndOffset - Offset);
+
+    *PBytesTransferred = (ULONG)(EndOffset - Offset);
+    *FileInfo = FileNode->FileInfo;
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0, PVOID Buffer, UINT64 Offset, ULONG Length, BOOLEAN Constrained,
+    PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    UINT64 EndOffset;
+
+    if ((UINT64)-1LL == Offset)
+        Offset = FileNode->FileInfo.FileSize;
+
+    if (Constrained)
+    {
+        if (Offset >= FileNode->FileInfo.FileSize)
+        {
+            *PBytesTransferred = 0;
+            return STATUS_SUCCESS;
+        }
+
+        EndOffset = Offset + Length;
+        if (EndOffset > FileNode->FileInfo.FileSize)
+            EndOffset = FileNode->FileInfo.FileSize;
+    }
+    else
+    {
+        EndOffset = Offset + Length;
+        if (EndOffset > FileNode->FileInfo.FileSize)
+            SetFileSize(FileSystem, Request, FileNode, EndOffset, FileInfo);
+    }
+
+    memcpy((PUINT8)FileNode->FileData + Offset, Buffer, EndOffset - Offset);
+
+    *PBytesTransferred = (ULONG)(EndOffset - Offset);
+    *FileInfo = FileNode->FileInfo;
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0,
@@ -447,11 +508,15 @@ NTSTATUS SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0, UINT64 AllocationSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     PVOID FileData;
 
     if (FileNode->FileInfo.AllocationSize != AllocationSize)
     {
+        if (AllocationSize > Memfs->MaxFileSize)
+            return STATUS_DISK_FULL;
+
         FileData = realloc(FileNode->FileData, AllocationSize);
         if (0 == FileData)
             return STATUS_INSUFFICIENT_RESOURCES;
@@ -487,6 +552,9 @@ NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
                 return Result;
         }
 
+        if (FileNode->FileInfo.FileSize < FileSize)
+            memset((PUINT8)FileNode->FileData + FileNode->FileInfo.FileSize, 0,
+                FileSize - FileNode->FileInfo.FileSize);
         FileNode->FileInfo.FileSize = FileSize;
     }
 
@@ -615,6 +683,8 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     Overwrite,
     Cleanup,
     Close,
+    Read,
+    Write,
     GetFileInfo,
     SetBasicInfo,
     SetAllocationSize,
