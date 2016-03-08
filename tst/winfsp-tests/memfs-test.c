@@ -14,7 +14,7 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
     MEMFS *Memfs;
     NTSTATUS Result;
 
-    Result = MemfsCreate(Flags, FileInfoTimeout, 1000, 65500, &Memfs);
+    Result = MemfsCreate(Flags, FileInfoTimeout, 1024, 1024 * 1024, &Memfs);
     ASSERT(NT_SUCCESS(Result));
     ASSERT(0 != Memfs);
 

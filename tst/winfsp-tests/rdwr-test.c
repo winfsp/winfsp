@@ -20,27 +20,35 @@ void rdwr_noncached_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG Fil
     HANDLE Handle;
     BOOL Success;
     WCHAR FilePath[MAX_PATH];
+    SYSTEM_INFO SystemInfo;
     DWORD SectorsPerCluster;
     DWORD BytesPerSector;
     DWORD FreeClusters;
     DWORD TotalClusters;
-    PVOID Buffer[2];
+    PVOID AllocBuffer[2], Buffer[2];
+    ULONG AllocBufferSize;
     DWORD BytesTransferred;
     DWORD FilePointer;
+
+    GetSystemInfo(&SystemInfo);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
         VolPrefix ? L"" : L"\\\\?\\GLOBALROOT", VolPrefix ? VolPrefix : memfs_volumename(memfs));
 
     Success = GetDiskFreeSpaceW(FilePath, &SectorsPerCluster, &BytesPerSector, &FreeClusters, &TotalClusters);
     ASSERT(Success);
+    AllocBufferSize = 16 * SystemInfo.dwPageSize;
 
-    Buffer[0] = _aligned_malloc(BytesPerSector, BytesPerSector);
-    Buffer[1] = _aligned_malloc(BytesPerSector, BytesPerSector);
-    ASSERT(0 != Buffer[0] && 0 != Buffer[1]);
+    AllocBuffer[0] = _aligned_malloc(AllocBufferSize, SystemInfo.dwPageSize);
+    AllocBuffer[1] = _aligned_malloc(AllocBufferSize, SystemInfo.dwPageSize);
+    ASSERT(0 != AllocBuffer[0] && 0 != AllocBuffer[1]);
 
     srand((unsigned)time(0));
-    for (PUINT8 Bgn = Buffer[0], End = Bgn + BytesPerSector; End > Bgn; Bgn++)
+    for (PUINT8 Bgn = AllocBuffer[0], End = Bgn + AllocBufferSize; End > Bgn; Bgn++)
         *Bgn = rand();
+
+    Buffer[0] = (PVOID)((PUINT8)AllocBuffer[0] + BytesPerSector);
+    Buffer[1] = (PVOID)((PUINT8)AllocBuffer[1] + BytesPerSector);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
@@ -55,54 +63,107 @@ void rdwr_noncached_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG Fil
     Success = WriteFile(Handle, Buffer[0], BytesPerSector, &BytesTransferred, 0);
     ASSERT(Success);
     ASSERT(BytesPerSector == BytesTransferred);
-    FilePointer = SetFilePointer(Handle, 0, 0, FILE_CURRENT);
-    ASSERT(BytesTransferred == FilePointer);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
 
     FilePointer = SetFilePointer(Handle, 2 * BytesPerSector, 0, FILE_BEGIN);
     ASSERT(2 * BytesPerSector == FilePointer);
     Success = WriteFile(Handle, Buffer[0], BytesPerSector, &BytesTransferred, 0);
     ASSERT(Success);
     ASSERT(BytesPerSector == BytesTransferred);
-    FilePointer = SetFilePointer(Handle, 0, 0, FILE_CURRENT);
-    ASSERT(2 * BytesPerSector + BytesTransferred == FilePointer);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
 
     FilePointer = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
     ASSERT(0 == FilePointer);
+    memset(AllocBuffer[1], 0, AllocBufferSize);
     Success = ReadFile(Handle, Buffer[1], BytesPerSector, &BytesTransferred, 0);
     ASSERT(Success);
     ASSERT(BytesPerSector == BytesTransferred);
-    FilePointer = SetFilePointer(Handle, 0, 0, FILE_CURRENT);
-    ASSERT(BytesTransferred == FilePointer);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+    ASSERT(0 == memcmp(Buffer[0], Buffer[1], BytesTransferred));
 
     FilePointer = SetFilePointer(Handle, 2 * BytesPerSector, 0, FILE_BEGIN);
     ASSERT(2 * BytesPerSector == FilePointer);
+    memset(AllocBuffer[1], 0, AllocBufferSize);
     Success = ReadFile(Handle, Buffer[1], BytesPerSector, &BytesTransferred, 0);
     ASSERT(Success);
     ASSERT(BytesPerSector == BytesTransferred);
-    FilePointer = SetFilePointer(Handle, 0, 0, FILE_CURRENT);
-    ASSERT(2 * BytesPerSector + BytesTransferred == FilePointer);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+    ASSERT(0 == memcmp(Buffer[0], Buffer[1], BytesTransferred));
 
     FilePointer = SetFilePointer(Handle, 2 * BytesPerSector, 0, FILE_BEGIN);
     ASSERT(2 * BytesPerSector == FilePointer);
+    memset(AllocBuffer[1], 0, AllocBufferSize);
     Success = ReadFile(Handle, Buffer[1], 2 * BytesPerSector, &BytesTransferred, 0);
     ASSERT(Success);
     ASSERT(BytesPerSector == BytesTransferred);
-    FilePointer = SetFilePointer(Handle, 0, 0, FILE_CURRENT);
-    ASSERT(2 * BytesPerSector + BytesTransferred == FilePointer);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+    ASSERT(0 == memcmp(Buffer[0], Buffer[1], BytesTransferred));
 
     FilePointer = SetFilePointer(Handle, 3 * BytesPerSector, 0, FILE_BEGIN);
     ASSERT(3 * BytesPerSector == FilePointer);
+    memset(AllocBuffer[1], 0, AllocBufferSize);
     Success = ReadFile(Handle, Buffer[1], BytesPerSector, &BytesTransferred, 0);
     ASSERT(Success);
     ASSERT(0 == BytesTransferred);
-    FilePointer = SetFilePointer(Handle, 0, 0, FILE_CURRENT);
-    ASSERT(3 * BytesPerSector + BytesTransferred == FilePointer);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+    ASSERT(0 == memcmp(Buffer[0], Buffer[1], BytesTransferred));
+
+    FilePointer = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
+    ASSERT(0 == FilePointer);
+    Success = WriteFile(Handle, Buffer[0], 2 * SystemInfo.dwPageSize, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(2 * SystemInfo.dwPageSize == BytesTransferred);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+
+    FilePointer = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
+    ASSERT(0 == FilePointer);
+    memset(AllocBuffer[1], 0, AllocBufferSize);
+    Success = ReadFile(Handle, Buffer[1], 2 * SystemInfo.dwPageSize, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(2 * SystemInfo.dwPageSize == BytesTransferred);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+    ASSERT(0 == memcmp(Buffer[0], Buffer[1], BytesTransferred));
+
+    Buffer[0] = AllocBuffer[0];
+    Buffer[1] = AllocBuffer[0];
+
+    FilePointer = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
+    ASSERT(0 == FilePointer);
+    Success = WriteFile(Handle, Buffer[0], 2 * SystemInfo.dwPageSize, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(2 * SystemInfo.dwPageSize == BytesTransferred);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+
+    FilePointer = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
+    ASSERT(0 == FilePointer);
+    memset(AllocBuffer[1], 0, AllocBufferSize);
+    Success = ReadFile(Handle, Buffer[1], 2 * SystemInfo.dwPageSize, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(2 * SystemInfo.dwPageSize == BytesTransferred);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+    ASSERT(0 == memcmp(Buffer[0], Buffer[1], BytesTransferred));
+
+    FilePointer = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
+    ASSERT(0 == FilePointer);
+    Success = WriteFile(Handle, Buffer[0], 2 * SystemInfo.dwPageSize + BytesPerSector, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(2 * SystemInfo.dwPageSize + BytesPerSector == BytesTransferred);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+
+    FilePointer = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
+    ASSERT(0 == FilePointer);
+    memset(AllocBuffer[1], 0, AllocBufferSize);
+    Success = ReadFile(Handle, Buffer[1], 2 * SystemInfo.dwPageSize + BytesPerSector, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(2 * SystemInfo.dwPageSize + BytesPerSector == BytesTransferred);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+    ASSERT(0 == memcmp(Buffer[0], Buffer[1], BytesTransferred));
 
     Success = CloseHandle(Handle);
     ASSERT(Success);
 
-    free(Buffer[0]);
-    free(Buffer[1]);
+    _aligned_free(AllocBuffer[0]);
+    _aligned_free(AllocBuffer[1]);
 
     memfs_stop(memfs);
 }

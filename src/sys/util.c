@@ -504,6 +504,7 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
     ULONG BufferPageCount;
 
     ASSERT(0 != PageCount);
+    ASSERT(FlagOn(UserMdl->MdlFlags, MDL_PAGES_LOCKED));
 
     *PSafeMdl = 0;
 
