@@ -455,7 +455,7 @@ FSP_API NTSTATUS FspFileSystemOpWrite(FSP_FILE_SYSTEM *FileSystem,
     if (STATUS_PENDING != Result)
     {
         Response->IoStatus.Information = BytesTransferred;
-        memcpy(&Response->Rsp.Read.FileInfo, &FileInfo, sizeof FileInfo);
+        memcpy(&Response->Rsp.Write.FileInfo, &FileInfo, sizeof FileInfo);
     }
 
     return Result;

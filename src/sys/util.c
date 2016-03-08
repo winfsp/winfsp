@@ -522,6 +522,7 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
         Result = STATUS_INSUFFICIENT_RESOURCES;
         goto exit;
     }
+    SafeMdl->Mdl->MdlFlags |= MDL_PAGES_LOCKED;
     UserPfnArray = MmGetMdlPfnArray(UserMdl);
     SafePfnArray = MmGetMdlPfnArray(SafeMdl->Mdl);
     RtlCopyMemory(SafePfnArray, UserPfnArray, PageCount * sizeof(PFN_NUMBER));

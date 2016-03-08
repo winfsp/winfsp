@@ -197,7 +197,7 @@ static NTSTATUS FspFsvolReadNonCached(
     if (0 == Irp->MdlAddress)
     {
         Result = FspLockUserBuffer(Irp->UserBuffer, ReadLength,
-            Irp->RequestorMode, IoReadAccess, &Irp->MdlAddress);
+            Irp->RequestorMode, IoWriteAccess, &Irp->MdlAddress);
         if (!NT_SUCCESS(Result))
             return Result;
     }
