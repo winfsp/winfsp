@@ -514,6 +514,7 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
         goto exit;
     }
     RtlZeroMemory(SafeMdl, sizeof *SafeMdl);
+    SafeMdl->Operation = Operation;
 
     SafeMdl->Mdl = IoAllocateMdl(VirtualAddress, ByteCount, FALSE, FALSE, 0);
     if (0 == SafeMdl->Mdl)
@@ -542,7 +543,7 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
     if (1 == PageCount)
     {
         ByteOffsetBgn0 = BYTE_OFFSET(VirtualAddress);
-        ByteOffsetEnd0 = BYTE_OFFSET(ByteCount + (PAGE_SIZE - 1));
+        ByteOffsetEnd0 = BYTE_OFFSET((PUINT8)VirtualAddress + ByteCount - 1) + 1;
         ByteOffsetEnd1 = 0;
         Buffer0 = 0 != ByteOffsetBgn0 || PAGE_SIZE != ByteOffsetEnd0;
         Buffer1 = FALSE;
@@ -551,7 +552,7 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
     {
         ByteOffsetBgn0 = BYTE_OFFSET(VirtualAddress);
         ByteOffsetEnd0 = PAGE_SIZE;
-        ByteOffsetEnd1 = BYTE_OFFSET((PUINT8)VirtualAddress + ByteCount + (PAGE_SIZE - 1));
+        ByteOffsetEnd1 = BYTE_OFFSET((PUINT8)VirtualAddress + ByteCount - 1) + 1;
         Buffer0 = 0 != ByteOffsetBgn0;
         Buffer1 = PAGE_SIZE != ByteOffsetEnd1;
     }
@@ -575,16 +576,16 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
 
         MmBuildMdlForNonPagedPool(TempMdl);
 
-        TempPfnArray = MmGetMdlPfnArray(SafeMdl);
+        TempPfnArray = MmGetMdlPfnArray(TempMdl);
         if (IoReadAccess == Operation)
         {
             if (Buffer0)
             {
                 RtlZeroMemory((PUINT8)SafeMdl->Buffer, ByteOffsetBgn0);
                 RtlCopyMemory((PUINT8)SafeMdl->Buffer + ByteOffsetBgn0,
-                    (PUINT8)VirtualAddress + ByteOffsetBgn0, ByteOffsetEnd0 - ByteOffsetBgn0);
+                    (PUINT8)VirtualAddress, ByteOffsetEnd0 - ByteOffsetBgn0);
                 RtlZeroMemory((PUINT8)SafeMdl->Buffer + ByteOffsetEnd0, PAGE_SIZE - ByteOffsetEnd0);
-                UserPfnArray[0] = TempPfnArray[0];
+                SafePfnArray[0] = TempPfnArray[0];
             }
             if (Buffer1)
             {
@@ -592,16 +593,16 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
                     (PUINT8)VirtualAddress + (PageCount - 1) * PAGE_SIZE, ByteOffsetEnd1);
                 RtlZeroMemory((PUINT8)SafeMdl->Buffer + (BufferPageCount - 1) * PAGE_SIZE + ByteOffsetEnd1,
                     PAGE_SIZE - ByteOffsetEnd1);
-                UserPfnArray[PageCount - 1] = TempPfnArray[BufferPageCount - 1];
+                SafePfnArray[PageCount - 1] = TempPfnArray[BufferPageCount - 1];
             }
         }
         else
         {
             RtlZeroMemory((PUINT8)SafeMdl->Buffer, PAGE_SIZE * BufferPageCount);
             if (Buffer0)
-                UserPfnArray[0] = TempPfnArray[0];
+                SafePfnArray[0] = TempPfnArray[0];
             if (Buffer1)
-                UserPfnArray[PageCount - 1] = TempPfnArray[BufferPageCount - 1];
+                SafePfnArray[PageCount - 1] = TempPfnArray[BufferPageCount - 1];
         }
 
         IoFreeMdl(TempMdl);
@@ -656,7 +657,7 @@ VOID FspSafeMdlCopyBack(FSP_SAFE_MDL *SafeMdl)
     if (1 == PageCount)
     {
         ByteOffsetBgn0 = BYTE_OFFSET(VirtualAddress);
-        ByteOffsetEnd0 = BYTE_OFFSET(ByteCount + (PAGE_SIZE - 1));
+        ByteOffsetEnd0 = BYTE_OFFSET((PUINT8)VirtualAddress + ByteCount - 1) + 1;
         ByteOffsetEnd1 = 0;
         Buffer0 = 0 != ByteOffsetBgn0 || PAGE_SIZE != ByteOffsetEnd0;
         Buffer1 = FALSE;
@@ -665,7 +666,7 @@ VOID FspSafeMdlCopyBack(FSP_SAFE_MDL *SafeMdl)
     {
         ByteOffsetBgn0 = BYTE_OFFSET(VirtualAddress);
         ByteOffsetEnd0 = PAGE_SIZE;
-        ByteOffsetEnd1 = BYTE_OFFSET((PUINT8)VirtualAddress + ByteCount + (PAGE_SIZE - 1));
+        ByteOffsetEnd1 = BYTE_OFFSET((PUINT8)VirtualAddress + ByteCount - 1) + 1;
         Buffer0 = 0 != ByteOffsetBgn0;
         Buffer1 = PAGE_SIZE != ByteOffsetEnd1;
     }
@@ -674,7 +675,7 @@ VOID FspSafeMdlCopyBack(FSP_SAFE_MDL *SafeMdl)
     if (0 < BufferPageCount)
     {
         if (Buffer0)
-            RtlCopyMemory((PUINT8)VirtualAddress + ByteOffsetBgn0,
+            RtlCopyMemory((PUINT8)VirtualAddress,
                 (PUINT8)SafeMdl->Buffer + ByteOffsetBgn0, ByteOffsetEnd0 - ByteOffsetBgn0);
         if (Buffer1)
             RtlCopyMemory((PUINT8)VirtualAddress + (PageCount - 1) * PAGE_SIZE,

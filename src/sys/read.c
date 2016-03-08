@@ -288,6 +288,7 @@ NTSTATUS FspFsvolReadComplete(
     }
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    FSP_SAFE_MDL *SafeMdl = FspIopRequestContext(Request, RequestSafeMdl);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     LARGE_INTEGER ReadOffset = IrpSp->Parameters.Read.ByteOffset;
@@ -295,6 +296,8 @@ NTSTATUS FspFsvolReadComplete(
     BOOLEAN SynchronousIo = BooleanFlagOn(FileObject->Flags, FO_SYNCHRONOUS_IO);
     ULONG InfoChangeNumber;
     BOOLEAN Success;
+
+    FspSafeMdlCopyBack(SafeMdl);
 
     if (!PagingIo)
     {

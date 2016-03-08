@@ -34,8 +34,8 @@ void rdwr_noncached_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG Fil
     Success = GetDiskFreeSpaceW(FilePath, &SectorsPerCluster, &BytesPerSector, &FreeClusters, &TotalClusters);
     ASSERT(Success);
 
-    Buffer[0] = malloc(BytesPerSector);
-    Buffer[1] = malloc(BytesPerSector);
+    Buffer[0] = _aligned_malloc(BytesPerSector, BytesPerSector);
+    Buffer[1] = _aligned_malloc(BytesPerSector, BytesPerSector);
     ASSERT(0 != Buffer[0] && 0 != Buffer[1]);
 
     srand((unsigned)time(0));
