@@ -112,11 +112,20 @@ static NTSTATUS FspFsvolReadCached(
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolReadCached, 0);
 
+    /* trim ReadLength; the cache manager does not tolerate reads beyond file size */
+    ASSERT(FspTimeoutInfinity32 == FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
+    FspFileNodeGetFileInfo(FileNode, &FileInfo);
+    if ((UINT64)ReadOffset.QuadPart >= FileInfo.FileSize)
+    {
+        FspFileNodeRelease(FileNode, Main);
+        return STATUS_END_OF_FILE;
+    }
+    if (ReadLength > (ULONG)(FileInfo.FileSize - ReadOffset.QuadPart))
+        ReadLength = (ULONG)(FileInfo.FileSize - ReadOffset.QuadPart);
+
     /* initialize cache if not already initialized! */
     if (0 == FileObject->PrivateCacheMap)
     {
-        ASSERT(FspTimeoutInfinity32 == FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
-        FspFileNodeGetFileInfo(FileNode, &FileInfo);
         FileSizes.AllocationSize.QuadPart = FileInfo.AllocationSize;
         FileSizes.FileSize.QuadPart = FileInfo.FileSize;
         FileSizes.ValidDataLength.QuadPart = MAXLONGLONG;
