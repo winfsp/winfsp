@@ -297,7 +297,8 @@ NTSTATUS FspFsvolReadComplete(
     ULONG InfoChangeNumber;
     BOOLEAN Success;
 
-    FspSafeMdlCopyBack(SafeMdl);
+    if (0 != SafeMdl)
+        FspSafeMdlCopyBack(SafeMdl);
 
     if (!PagingIo)
     {

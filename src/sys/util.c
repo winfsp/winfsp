@@ -592,7 +592,7 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
             if (Buffer1)
             {
                 RtlCopyMemory((PUINT8)SafeMdl->Buffer + (BufferPageCount - 1) * PAGE_SIZE,
-                    (PUINT8)VirtualAddress + (PageCount - 1) * PAGE_SIZE, ByteOffsetEnd1);
+                    PAGE_ALIGN((PUINT8)VirtualAddress + (PageCount - 1) * PAGE_SIZE), ByteOffsetEnd1);
                 RtlZeroMemory((PUINT8)SafeMdl->Buffer + (BufferPageCount - 1) * PAGE_SIZE + ByteOffsetEnd1,
                     PAGE_SIZE - ByteOffsetEnd1);
                 SafePfnArray[PageCount - 1] = TempPfnArray[BufferPageCount - 1];
@@ -680,7 +680,7 @@ VOID FspSafeMdlCopyBack(FSP_SAFE_MDL *SafeMdl)
             RtlCopyMemory((PUINT8)VirtualAddress,
                 (PUINT8)SafeMdl->Buffer + ByteOffsetBgn0, ByteOffsetEnd0 - ByteOffsetBgn0);
         if (Buffer1)
-            RtlCopyMemory((PUINT8)VirtualAddress + (PageCount - 1) * PAGE_SIZE,
+            RtlCopyMemory(PAGE_ALIGN((PUINT8)VirtualAddress + (PageCount - 1) * PAGE_SIZE),
                 (PUINT8)SafeMdl->Buffer + (BufferPageCount - 1) * PAGE_SIZE, ByteOffsetEnd1);
     }
 }
