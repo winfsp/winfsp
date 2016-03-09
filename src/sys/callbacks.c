@@ -198,7 +198,11 @@ VOID FspPropagateTopFlags(PIRP Irp, PIRP TopLevelIrp)
     PAGED_CODE();
 
     if (FSRTL_MAX_TOP_LEVEL_IRP_FLAG >= (UINT_PTR)TopLevelIrp)
+    {
+        DEBUGBREAK_EX(iorecu);
+
         FspIrpSetTopFlags(Irp, FspFileNodeAcquireFull);
+    }
     else if (IO_TYPE_IRP == TopLevelIrp->Type)
     {
         PFILE_OBJECT FileObject = IoGetCurrentIrpStackLocation(Irp)->FileObject;
@@ -207,6 +211,8 @@ VOID FspPropagateTopFlags(PIRP Irp, PIRP TopLevelIrp)
             FileObject->FsContext == TopLevelFileObject->FsContext &&
             FspFileNodeIsValid(FileObject->FsContext))
         {
+            DEBUGBREAK_EX(iorecu);
+
             FspIrpSetTopFlags(Irp, FspIrpFlags(TopLevelIrp));
         }
     }

@@ -59,7 +59,12 @@ extern __declspec(selectany) int fsp_dp = 1;
 
 /* DEBUGBREAK */
 #if DBG
-extern __declspec(selectany) int fsp_bp = 1;
+extern __declspec(selectany) int fsp_bp = 1;        /* generic breakpoint switch */
+extern __declspec(selectany) int fsp_bp_ioentr = 1; /* I/O entry breakpoint switch */
+extern __declspec(selectany) int fsp_bp_ioprep = 1; /* I/O prepare breakpoint switch */
+extern __declspec(selectany) int fsp_bp_iocmpl = 1; /* I/O complete breakpoint switch */
+extern __declspec(selectany) int fsp_bp_iocall = 1; /* I/O callback breakpoint switch */
+extern __declspec(selectany) int fsp_bp_iorecu = 1; /* I/O recursive breakpoint switch */
 #define DEBUGBREAK()                    \
     do                                  \
     {                                   \
@@ -67,8 +72,16 @@ extern __declspec(selectany) int fsp_bp = 1;
         if (bp && fsp_bp && !KD_DEBUGGER_NOT_PRESENT)\
             DbgBreakPoint();            \
     } while (0,0)
+#define DEBUGBREAK_EX(category)         \
+    do                                  \
+    {                                   \
+        static int bp = 1;              \
+        if (bp && fsp_bp && fsp_bp_ ## category && !KD_DEBUGGER_NOT_PRESENT)\
+            DbgBreakPoint();            \
+    } while (0,0)
 #else
 #define DEBUGBREAK()                    do {} while (0,0)
+#define DEBUGBREAK_EX(category)         do {} while (0,0)
 #endif
 
 /* DEBUGTEST */
@@ -95,8 +108,8 @@ extern __declspec(selectany) int fsp_dt = 1;
 #define FSP_DEBUGLOG_(fmt, rfmt, ...)   ((void)0)
 #define FSP_DEBUGLOG_NOCRIT_(fmt, rfmt, ...)((void)0)
 #endif
-#define FSP_ENTER_(...)                 \
-    DEBUGBREAK();                       \
+#define FSP_ENTER_(bpcat, ...)          \
+    DEBUGBREAK_EX(bpcat);               \
     FsRtlEnterFileSystem();             \
     try                                 \
     {                                   \
@@ -110,8 +123,8 @@ extern __declspec(selectany) int fsp_dt = 1;
         __VA_ARGS__;                    \
         FsRtlExitFileSystem();          \
     }
-#define FSP_ENTER_NOCRIT_(...)          \
-    DEBUGBREAK();                       \
+#define FSP_ENTER_NOCRIT_(bpcat, ...)   \
+    DEBUGBREAK_EX(bpcat);               \
     {                                   \
         __VA_ARGS__
 #define FSP_LEAVE_NOCRIT_(...)          \
@@ -120,7 +133,7 @@ extern __declspec(selectany) int fsp_dt = 1;
         __VA_ARGS__;                    \
     }
 #define FSP_ENTER(...)                  \
-    NTSTATUS Result = STATUS_SUCCESS; FSP_ENTER_(__VA_ARGS__)
+    NTSTATUS Result = STATUS_SUCCESS; FSP_ENTER_(iocall, __VA_ARGS__)
 #define FSP_LEAVE(fmt, ...)             \
     FSP_LEAVE_(FSP_DEBUGLOG_(fmt, " = %s", __VA_ARGS__, NtStatusSym(Result))); return Result
 #define FSP_ENTER_MJ(...)               \
@@ -128,7 +141,7 @@ extern __declspec(selectany) int fsp_dt = 1;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);\
     BOOLEAN fsp_device_deref = FALSE;   \
     PIRP fsp_top_level_irp = IoGetTopLevelIrp();\
-    FSP_ENTER_(__VA_ARGS__);            \
+    FSP_ENTER_(ioentr, __VA_ARGS__);    \
     do                                  \
     {                                   \
         if (0 != fsp_top_level_irp)     \
@@ -176,7 +189,7 @@ extern __declspec(selectany) int fsp_dt = 1;
 #define FSP_ENTER_IOC(...)              \
     NTSTATUS Result = STATUS_SUCCESS;   \
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (VOID)IrpSp;\
-    FSP_ENTER_NOCRIT_(__VA_ARGS__)
+    FSP_ENTER_NOCRIT_(iocmpl, __VA_ARGS__)
 #define FSP_LEAVE_IOC(fmt, ...)         \
     FSP_LEAVE_NOCRIT_(                  \
         if (STATUS_PENDING != Result)   \
@@ -196,11 +209,11 @@ extern __declspec(selectany) int fsp_dt = 1;
     );                                  \
     return Result
 #define FSP_ENTER_BOOL(...)             \
-    BOOLEAN Result = TRUE; FSP_ENTER_(__VA_ARGS__)
+    BOOLEAN Result = TRUE; FSP_ENTER_(iocall, __VA_ARGS__)
 #define FSP_LEAVE_BOOL(fmt, ...)        \
     FSP_LEAVE_(FSP_DEBUGLOG_(fmt, " = %s", __VA_ARGS__, Result ? "TRUE" : "FALSE")); return Result
 #define FSP_ENTER_VOID(...)             \
-    FSP_ENTER_(__VA_ARGS__)
+    FSP_ENTER_(iocall, __VA_ARGS__)
 #define FSP_LEAVE_VOID(fmt, ...)        \
     FSP_LEAVE_(FSP_DEBUGLOG_(fmt, "", __VA_ARGS__))
 #define FSP_RETURN(...)                 \
