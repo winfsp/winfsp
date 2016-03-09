@@ -13,10 +13,11 @@ extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
-void rdwr_noncached_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileInfoTimeout)
+void rdwr_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileInfoTimeout, BOOLEAN NonCached)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
+    DWORD NonCachedFlag = NonCached ? FILE_FLAG_NO_BUFFERING : 0;
     HANDLE Handle;
     BOOL Success;
     WCHAR FilePath[MAX_PATH];
@@ -55,7 +56,7 @@ void rdwr_noncached_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG Fil
 
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING | FILE_FLAG_DELETE_ON_CLOSE, 0);
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | NonCachedFlag | FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
     FilePointer = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
@@ -174,24 +175,25 @@ void rdwr_noncached_test(void)
     {
         WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
         GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_noncached_dotest(-1, L"C:", DirBuf, 0);
+        rdwr_dotest(-1, L"C:", DirBuf, 0, TRUE);
     }
     if (WinFspDiskTests)
     {
-        rdwr_noncached_dotest(MemfsDisk, 0, 0, 1000);
-        rdwr_noncached_dotest(MemfsDisk, 0, 0, INFINITE);
+        rdwr_dotest(MemfsDisk, 0, 0, 1000, TRUE);
+        rdwr_dotest(MemfsDisk, 0, 0, INFINITE, TRUE);
     }
     if (WinFspNetTests)
     {
-        rdwr_noncached_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000);
-        rdwr_noncached_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE);
+        rdwr_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, TRUE);
+        rdwr_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, TRUE);
     }
 }
 
-void rdwr_noncached_overlapped_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileInfoTimeout)
+void rdwr_overlapped_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileInfoTimeout, BOOLEAN NonCached)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
+    DWORD NonCachedFlag = NonCached ? FILE_FLAG_NO_BUFFERING : 0;
     HANDLE Handle;
     BOOL Success;
     WCHAR FilePath[MAX_PATH];
@@ -235,7 +237,7 @@ void rdwr_noncached_overlapped_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
         CREATE_NEW,
-        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING | FILE_FLAG_DELETE_ON_CLOSE,
+        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED | NonCachedFlag | FILE_FLAG_DELETE_ON_CLOSE,
         0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
@@ -361,17 +363,17 @@ void rdwr_noncached_overlapped_test(void)
     {
         WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
         GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_noncached_overlapped_dotest(-1, L"C:", DirBuf, 0);
+        rdwr_overlapped_dotest(-1, L"C:", DirBuf, 0, TRUE);
     }
     if (WinFspDiskTests)
     {
-        rdwr_noncached_overlapped_dotest(MemfsDisk, 0, 0, 1000);
-        rdwr_noncached_overlapped_dotest(MemfsDisk, 0, 0, INFINITE);
+        rdwr_overlapped_dotest(MemfsDisk, 0, 0, 1000, TRUE);
+        rdwr_overlapped_dotest(MemfsDisk, 0, 0, INFINITE, TRUE);
     }
     if (WinFspNetTests)
     {
-        rdwr_noncached_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000);
-        rdwr_noncached_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE);
+        rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, TRUE);
+        rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, TRUE);
     }
 }
 
