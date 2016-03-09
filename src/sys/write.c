@@ -90,10 +90,8 @@ static NTSTATUS FspFsvolWriteCached(
 
     NTSTATUS Result;
     BOOLEAN Retrying = 0 != FspIrpRequest(Irp);
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     LARGE_INTEGER WriteOffset = IrpSp->Parameters.Write.ByteOffset;
     ULONG WriteLength = IrpSp->Parameters.Write.Length;
 #if 0
@@ -107,8 +105,6 @@ static NTSTATUS FspFsvolWriteCached(
     CC_FILE_SIZES FileSizes;
     UINT64 WriteEndOffset;
     BOOLEAN Success;
-
-    ASSERT(FileNode == FileDesc->FileNode);
 
     /* should we defer the write? */
     Success = DEBUGTEST(90, TRUE) && CcCanIWrite(FileObject, WriteLength, CanWait, Retrying);
@@ -133,7 +129,8 @@ static NTSTATUS FspFsvolWriteCached(
         return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteCached, 0);
 
     /* compute new file size and allocation size */
-    ASSERT(FspTimeoutInfinity32 == FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
+    ASSERT(FspTimeoutInfinity32 ==
+        FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.FileInfoTimeout);
     FspFileNodeGetFileInfo(FileNode, &FileInfo);
     FileSizes.AllocationSize.QuadPart = FileInfo.AllocationSize;
     FileSizes.FileSize.QuadPart = FileInfo.FileSize;
@@ -146,6 +143,8 @@ static NTSTATUS FspFsvolWriteCached(
         FileSizes.FileSize.QuadPart = WriteEndOffset;
         if (FileSizes.FileSize.QuadPart > FileSizes.AllocationSize.QuadPart)
         {
+            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+                FspFsvolDeviceExtension(FsvolDeviceObject);
             UINT64 AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
                 FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
             FileSizes.AllocationSize.QuadPart = (FileSizes.FileSize.QuadPart + AllocationUnit - 1)

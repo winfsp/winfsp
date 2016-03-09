@@ -89,10 +89,8 @@ static NTSTATUS FspFsvolReadCached(
     PAGED_CODE();
 
     NTSTATUS Result;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     LARGE_INTEGER ReadOffset = IrpSp->Parameters.Read.ByteOffset;
     ULONG ReadLength = IrpSp->Parameters.Read.Length;
 #if 0
@@ -104,8 +102,6 @@ static NTSTATUS FspFsvolReadCached(
     CC_FILE_SIZES FileSizes;
     BOOLEAN Success;
 
-    ASSERT(FileNode == FileDesc->FileNode);
-
     /* try to acquire the FileNode Main shared */
     Success = DEBUGTEST(90, TRUE) &&
         FspFileNodeTryAcquireSharedF(FileNode, FspFileNodeAcquireMain, CanWait);
@@ -113,7 +109,8 @@ static NTSTATUS FspFsvolReadCached(
         return FspWqRepostIrpWorkItem(Irp, FspFsvolReadCached, 0);
 
     /* trim ReadLength; the cache manager does not tolerate reads beyond file size */
-    ASSERT(FspTimeoutInfinity32 == FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
+    ASSERT(FspTimeoutInfinity32 ==
+        FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.FileInfoTimeout);
     FspFileNodeGetFileInfo(FileNode, &FileInfo);
     if ((UINT64)ReadOffset.QuadPart >= FileInfo.FileSize)
     {
