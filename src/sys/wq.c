@@ -74,7 +74,7 @@ static VOID FspWqWorkRoutine(PVOID Context)
 
     IoSetTopLevelIrp(Irp);
 
-    Result = WorkRoutine(IrpSp->DeviceObject, Irp, IrpSp, FALSE);
+    Result = WorkRoutine(IrpSp->DeviceObject, Irp, IrpSp, TRUE);
     if (STATUS_PENDING != Result)
     {
         DEBUGLOGIRP(Irp, Result);

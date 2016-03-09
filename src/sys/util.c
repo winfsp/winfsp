@@ -272,10 +272,6 @@ NTSTATUS FspCcCopyRead(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG
     except (EXCEPTION_EXECUTE_HANDLER)
     {
         Result = GetExceptionCode();
-    }
-
-    if (!NT_SUCCESS(Result))
-    {
         IoStatus->Information = 0;
         IoStatus->Status = Result;
     }
