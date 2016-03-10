@@ -61,6 +61,10 @@ BOOLEAN FspFastIoCheckIfPossible(
 VOID FspAcquireFileForNtCreateSection(
     PFILE_OBJECT FileObject)
 {
+    /* Callers:
+     *     CcWriteBehind
+     */
+
     FSP_ENTER_VOID(PAGED_CODE());
 
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
@@ -73,6 +77,10 @@ VOID FspAcquireFileForNtCreateSection(
 VOID FspReleaseFileForNtCreateSection(
     PFILE_OBJECT FileObject)
 {
+    /* Callers:
+     *     CcWriteBehind
+     */
+
     FSP_ENTER_VOID(PAGED_CODE());
 
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
@@ -155,6 +163,10 @@ BOOLEAN FspAcquireForLazyWrite(
     PVOID Context,
     BOOLEAN Wait)
 {
+    /* Callers:
+     *     CcWriteBehind
+     */
+
     FSP_ENTER_BOOL(PAGED_CODE());
 
     FSP_FILE_NODE *FileNode = Context;
@@ -170,6 +182,10 @@ BOOLEAN FspAcquireForLazyWrite(
 VOID FspReleaseFromLazyWrite(
     PVOID Context)
 {
+    /* Callers:
+     *     CcWriteBehind
+     */
+
     FSP_ENTER_VOID(PAGED_CODE());
 
     FSP_FILE_NODE *FileNode = Context;
