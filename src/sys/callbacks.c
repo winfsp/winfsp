@@ -92,8 +92,10 @@ NTSTATUS FspAcquireForModWrite(
 
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
+    ASSERT((PIRP)FSRTL_MOD_WRITE_TOP_LEVEL_IRP == IoGetTopLevelIrp());
     FspFileNodeAcquireExclusive(FileNode, Full);
-    *ResourceToRelease = 0;
+    *ResourceToRelease = FileNode->Header.PagingIoResource;
+        /* ignored by us, but ModWriter expects it; any (non-NULL) resource will do */
 
     FSP_LEAVE("FileObject=%p", FileObject);
 }
@@ -108,6 +110,7 @@ NTSTATUS FspReleaseForModWrite(
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
     FspFileNodeRelease(FileNode, Full);
+    ASSERT((PIRP)FSRTL_MOD_WRITE_TOP_LEVEL_IRP == IoGetTopLevelIrp());
 
     FSP_LEAVE("FileObject=%p", FileObject);
 }
@@ -119,8 +122,13 @@ NTSTATUS FspAcquireForCcFlush(
     FSP_ENTER(PAGED_CODE());
 
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    PIRP TopLevelIrp = IoGetTopLevelIrp();
 
+    ASSERT(0 == TopLevelIrp ||
+        (PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG < TopLevelIrp);
     FspFileNodeAcquireExclusive(FileNode, Full);
+    if (0 == TopLevelIrp)
+        IoSetTopLevelIrp((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP);
 
     FSP_LEAVE("FileObject=%p", FileObject);
 }
@@ -132,7 +140,12 @@ NTSTATUS FspReleaseForCcFlush(
     FSP_ENTER(PAGED_CODE());
 
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    PIRP TopLevelIrp = IoGetTopLevelIrp();
 
+    ASSERT((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == TopLevelIrp ||
+        (PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG < TopLevelIrp);
+    if ((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == TopLevelIrp)
+        IoSetTopLevelIrp(0);
     FspFileNodeRelease(FileNode, Full);
 
     FSP_LEAVE("FileObject=%p", FileObject);
@@ -146,7 +159,10 @@ BOOLEAN FspAcquireForLazyWrite(
 
     FSP_FILE_NODE *FileNode = Context;
 
-    FspFileNodeAcquireExclusive(FileNode, Full);
+    ASSERT(0 == IoGetTopLevelIrp());
+    Result = FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, Wait);
+    if (Result)
+        IoSetTopLevelIrp((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP);
 
     FSP_LEAVE_BOOL("Context=%p, Wait=%d", Context, Wait);
 }
@@ -158,6 +174,8 @@ VOID FspReleaseFromLazyWrite(
 
     FSP_FILE_NODE *FileNode = Context;
 
+    ASSERT((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == IoGetTopLevelIrp());
+    IoSetTopLevelIrp(0);
     FspFileNodeRelease(FileNode, Full);
 
     FSP_LEAVE_VOID("Context=%p", Context);
@@ -171,7 +189,10 @@ BOOLEAN FspAcquireForReadAhead(
 
     FSP_FILE_NODE *FileNode = Context;
 
-    FspFileNodeAcquireShared(FileNode, Full);
+    ASSERT(0 == IoGetTopLevelIrp());
+    Result = FspFileNodeTryAcquireSharedF(FileNode, FspFileNodeAcquireFull, Wait);
+    if (Result)
+        IoSetTopLevelIrp((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP);
 
     FSP_LEAVE_BOOL("Context=%p, Wait=%d", Context, Wait);
 }
@@ -183,6 +204,8 @@ VOID FspReleaseFromReadAhead(
 
     FSP_FILE_NODE *FileNode = Context;
 
+    ASSERT((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == IoGetTopLevelIrp());
+    IoSetTopLevelIrp(0);
     FspFileNodeRelease(FileNode, Full);
 
     FSP_LEAVE_VOID("Context=%p", Context);
@@ -197,7 +220,9 @@ VOID FspPropagateTopFlags(PIRP Irp, PIRP TopLevelIrp)
 
     PAGED_CODE();
 
-    if (FSRTL_MAX_TOP_LEVEL_IRP_FLAG >= (UINT_PTR)TopLevelIrp)
+    ASSERT(0 != Irp && 0 != TopLevelIrp);
+
+    if ((PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG >= TopLevelIrp)
     {
         DEBUGBREAK_EX(iorecu);
 
