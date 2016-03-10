@@ -250,6 +250,10 @@ static NTSTATUS FspFsvolWriteNonCached(
     if (PagingIo && WriteToEndOfFile)
         return STATUS_INVALID_PARAMETER;
 
+    /* stop CcWriteBehind from calling me! */
+    if (FspIoqStopped(FspFsvolDeviceExtension(FsvolDeviceObject)->Ioq))
+        return FspFsvolDeviceStoppedStatus(FsvolDeviceObject);
+
     /* probe and lock the user buffer */
     if (0 == Irp->MdlAddress)
     {

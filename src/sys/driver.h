@@ -147,7 +147,7 @@ extern __declspec(selectany) int fsp_dt = 1;
         if (0 != fsp_top_level_irp)     \
             FspPropagateTopFlags(Irp, fsp_top_level_irp);\
         IoSetTopLevelIrp(Irp);          \
-        if (!FspDeviceReference(IrpSp->DeviceObject))\
+        if (!FspDeviceReference(DeviceObject))\
         {                               \
             Result = STATUS_CANCELLED;  \
             goto fsp_leave_label;       \
@@ -175,10 +175,10 @@ extern __declspec(selectany) int fsp_dt = 1;
                     FspFsvolDeviceExtension(DeviceObject);\
                 if (!FspIoqPostIrpEx(fsp_leave_FsvolDeviceExtension->Ioq, Irp,\
                     FSP_STATUS_IOQ_POST_BEST_EFFORT == Result, &Result))\
-                {\
+                {                       \
                     DEBUGLOG("FspIoqPostIrpEx = %s", NtStatusSym(Result));\
                     FspIopCompleteIrp(Irp, Result);\
-                }\
+                }                       \
             }                           \
             else                        \
                 FspIopCompleteIrpEx(Irp, Result, fsp_device_deref);\
@@ -721,6 +721,10 @@ NTSTATUS FspDeviceCopyList(
 VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
 VOID FspDeviceDeleteAll(VOID);
+#define FspFsvolDeviceStoppedStatus(DeviceObject)\
+    STATUS_VOLUME_DISMOUNTED
+    //(FILE_DEVICE_DISK_FILE_SYSTEM == (DeviceObject)->DeviceType ?\
+    //    STATUS_VOLUME_DISMOUNTED : STATUS_DEVICE_NOT_CONNECTED)
 
 /* volume management */
 NTSTATUS FspVolumeCreate(
