@@ -793,6 +793,7 @@ typedef struct
     UINT64 Security;
     ULONG SecurityChangeNumber;
     BOOLEAN TruncateOnClose;
+    PVOID LazyWriteThread;
     /* read-only after creation (and insertion in the ContextTable) */
     PDEVICE_OBJECT FsvolDeviceObject;
     UINT64 UserContext;

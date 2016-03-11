@@ -174,7 +174,10 @@ BOOLEAN FspAcquireForLazyWrite(
     ASSERT(0 == IoGetTopLevelIrp());
     Result = FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, Wait);
     if (Result)
+    {
+        FileNode->LazyWriteThread = PsGetCurrentThread();
         IoSetTopLevelIrp((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP);
+    }
 
     FSP_LEAVE_BOOL("Context=%p, Wait=%d", Context, Wait);
 }
@@ -192,6 +195,7 @@ VOID FspReleaseFromLazyWrite(
 
     ASSERT((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == IoGetTopLevelIrp());
     IoSetTopLevelIrp(0);
+    FileNode->LazyWriteThread = 0;
     FspFileNodeRelease(FileNode, Full);
 
     FSP_LEAVE_VOID("Context=%p", Context);

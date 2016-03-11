@@ -446,7 +446,7 @@ FSP_API NTSTATUS FspFileSystemOpWrite(FSP_FILE_SYSTEM *FileSystem,
         (PVOID)Request->Req.Write.Address,
         Request->Req.Write.Offset,
         Request->Req.Write.Length,
-        Request->Req.Write.Constrained,
+        (UINT64)-1LL == Request->Req.Write.Offset,
         &BytesTransferred,
         &FileInfo);
     if (!NT_SUCCESS(Result))

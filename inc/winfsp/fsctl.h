@@ -197,7 +197,6 @@ typedef struct
             UINT64 Offset;
             UINT32 Length;
             UINT32 Key;
-            UINT32 Constrained:1;       /* write's beyond EOF are NOP's (file size remains same) */
         } Write;
         struct
         {

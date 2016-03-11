@@ -88,6 +88,9 @@ static NTSTATUS FspFsvolWriteCached(
 {
     PAGED_CODE();
 
+    /* assert: must be top-level IRP */
+    ASSERT(0 == FspIrpTopFlags(Irp));
+
     NTSTATUS Result;
     BOOLEAN Retrying = 0 != FspIrpRequest(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
@@ -104,6 +107,7 @@ static NTSTATUS FspFsvolWriteCached(
     FSP_FSCTL_FILE_INFO FileInfo;
     CC_FILE_SIZES FileSizes;
     UINT64 WriteEndOffset;
+    BOOLEAN ExtendingFile;
     BOOLEAN Success;
 
     /* should we defer the write? */
@@ -132,22 +136,19 @@ static NTSTATUS FspFsvolWriteCached(
     ASSERT(FspTimeoutInfinity32 ==
         FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.FileInfoTimeout);
     FspFileNodeGetFileInfo(FileNode, &FileInfo);
-    FileSizes.AllocationSize.QuadPart = FileInfo.AllocationSize;
-    FileSizes.FileSize.QuadPart = FileInfo.FileSize;
-    FileSizes.ValidDataLength.QuadPart = MAXLONGLONG;
     WriteEndOffset = WriteToEndOfFile ?
         FileInfo.FileSize + WriteLength : WriteOffset.QuadPart + WriteLength;
-    if (FileInfo.FileSize < WriteEndOffset)
+    ExtendingFile = FileInfo.FileSize < WriteEndOffset;
+    if (ExtendingFile)
     {
-        /* file is being extended */
-        FileSizes.FileSize.QuadPart = WriteEndOffset;
-        if (FileSizes.FileSize.QuadPart > FileSizes.AllocationSize.QuadPart)
+        FileInfo.FileSize = WriteEndOffset;
+        if (FileInfo.FileSize > FileInfo.AllocationSize)
         {
             FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
                 FspFsvolDeviceExtension(FsvolDeviceObject);
             UINT64 AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
                 FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
-            FileSizes.AllocationSize.QuadPart = (FileSizes.FileSize.QuadPart + AllocationUnit - 1)
+            FileInfo.AllocationSize = (FileInfo.FileSize + AllocationUnit - 1)
                 / AllocationUnit * AllocationUnit;
         }
     }
@@ -155,6 +156,10 @@ static NTSTATUS FspFsvolWriteCached(
     /* initialize cache if not already initialized! */
     if (0 == FileObject->PrivateCacheMap)
     {
+        FileSizes.AllocationSize.QuadPart = FileInfo.AllocationSize;
+        FileSizes.FileSize.QuadPart = FileInfo.FileSize;
+        FileSizes.ValidDataLength.QuadPart = MAXLONGLONG;
+
         Result = FspCcInitializeCacheMap(FileObject, &FileSizes, FALSE,
             &FspCacheManagerCallbacks, FileNode);
         if (!NT_SUCCESS(Result))
@@ -163,8 +168,12 @@ static NTSTATUS FspFsvolWriteCached(
             return Result;
         }
     }
-    else if (FileInfo.FileSize < WriteEndOffset)
+    else if (ExtendingFile)
     {
+        FileSizes.AllocationSize.QuadPart = FileInfo.AllocationSize;
+        FileSizes.FileSize.QuadPart = FileInfo.FileSize;
+        FileSizes.ValidDataLength.QuadPart = MAXLONGLONG;
+
         /* file is being extended */
         Result = FspCcSetFileSizes(FileObject, &FileSizes);
         if (!NT_SUCCESS(Result))
@@ -188,6 +197,11 @@ static NTSTATUS FspFsvolWriteCached(
         }
 
         Result = FspCcCopyWrite(FileObject, &WriteOffset, WriteLength, CanWait, Buffer);
+        if (!NT_SUCCESS(Result))
+        {
+            FspFileNodeRelease(FileNode, Main);
+            return Result;
+        }
         if (STATUS_PENDING == Result)
         {
             FspFileNodeRelease(FileNode, Main);
@@ -213,6 +227,9 @@ static NTSTATUS FspFsvolWriteCached(
     if (SynchronousIo)
         FileObject->CurrentByteOffset.QuadPart = WriteEndOffset;
 
+    if (ExtendingFile)
+        FspFileNodeSetFileInfo(FileNode, 0, &FileInfo);
+
     FspFileNodeRelease(FileNode, Main);
 
     return STATUS_SUCCESS;
@@ -228,6 +245,9 @@ static NTSTATUS FspFsvolWriteNonCached(
 {
     PAGED_CODE();
 
+    /* assert: either a top-level IRP or Paging I/O */
+    ASSERT(0 == FspIrpTopFlags(Irp) || FlagOn(Irp->Flags, IRP_PAGING_IO));
+
     NTSTATUS Result;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
@@ -238,6 +258,7 @@ static NTSTATUS FspFsvolWriteNonCached(
     BOOLEAN WriteToEndOfFile =
         FILE_WRITE_TO_END_OF_FILE == WriteOffset.LowPart && -1L == WriteOffset.HighPart;
     BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
+    FSP_FSCTL_FILE_INFO FileInfo;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     ASSERT(FileNode == FileDesc->FileNode);
@@ -253,6 +274,23 @@ static NTSTATUS FspFsvolWriteNonCached(
     /* stop CcWriteBehind from calling me! */
     if (FspIoqStopped(FspFsvolDeviceExtension(FsvolDeviceObject)->Ioq))
         return FspFsvolDeviceStoppedStatus(FsvolDeviceObject);
+
+    /* if we are called by the lazy writer we must constrain writes */
+    if (FlagOn(FspIrpTopFlags(Irp), FspFileNodeAcquireMain) &&  /* if TopLevelIrp has acquired Main */
+        FileNode->LazyWriteThread == PsGetCurrentThread())      /* and this is a lazy writer thread */
+    {
+        ASSERT(PagingIo);
+        ASSERT(FspTimeoutInfinity32 ==
+            FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.FileInfoTimeout);
+
+        FspFileNodeGetFileInfo(FileNode, &FileInfo);
+
+        if ((UINT64)WriteOffset.QuadPart >= FileInfo.FileSize)
+            return STATUS_SUCCESS;
+
+        if (WriteLength > (ULONG)(FileInfo.FileSize - WriteOffset.QuadPart))
+            WriteLength = (ULONG)(FileInfo.FileSize - WriteOffset.QuadPart);
+    }
 
     /* probe and lock the user buffer */
     if (0 == Irp->MdlAddress)
@@ -274,7 +312,6 @@ static NTSTATUS FspFsvolWriteNonCached(
     Request->Req.Write.Offset = WriteOffset.QuadPart;
     Request->Req.Write.Length = WriteLength;
     Request->Req.Write.Key = WriteKey;
-    Request->Req.Write.Constrained = PagingIo;
 
     return FSP_STATUS_IOQ_POST;
 }
@@ -386,19 +423,25 @@ NTSTATUS FspFsvolWriteComplete(
     BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
     BOOLEAN SynchronousIo = BooleanFlagOn(FileObject->Flags, FO_SYNCHRONOUS_IO);
 
-    if (!PagingIo)
+    /* if we are top-level */
+    if (0 == FspIrpTopFlags(Irp))
     {
         /* update file info */
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Write.FileInfo);
 
         /* update the current file offset if synchronous I/O (and not paging I/O) */
-        if (SynchronousIo)
+        if (SynchronousIo && !PagingIo)
             FileObject->CurrentByteOffset.QuadPart = WriteToEndOfFile ?
                 Response->Rsp.Write.FileInfo.FileSize :
                 WriteOffset.QuadPart + Response->IoStatus.Information;
-    }
 
-    FspIopResetRequest(Request, 0);
+        FspIopResetRequest(Request, 0);
+    }
+    else
+    {
+        ASSERT(PagingIo);
+        FspIopResetRequest(Request, 0);
+    }
 
     Irp->IoStatus.Information = Response->IoStatus.Information;
     Result = STATUS_SUCCESS;

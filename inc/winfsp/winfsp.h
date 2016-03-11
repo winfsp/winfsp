@@ -70,7 +70,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo);
     NTSTATUS (*Write)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
-        PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length, BOOLEAN Constrained,
+        PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length, BOOLEAN WriteToEndOfFile,
         PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo);
     NTSTATUS (*GetFileInfo)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
