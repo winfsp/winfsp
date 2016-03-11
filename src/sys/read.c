@@ -139,6 +139,10 @@ static NTSTATUS FspFsvolReadCached(
         }
     }
 
+    /*
+     * From this point forward we must jump to the CLEANUP label on failure.
+     */
+
     /* are we using the copy or MDL interface? */
     if (!FlagOn(IrpSp->MinorFunction, IRP_MN_MDL))
     {
@@ -148,22 +152,14 @@ static NTSTATUS FspFsvolReadCached(
             Irp->UserBuffer : MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
         if (0 == Buffer)
         {
-            FspFileNodeRelease(FileNode, Main);
-            return STATUS_INSUFFICIENT_RESOURCES;
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+            goto cleanup;
         }
 
         Result = FspCcCopyRead(FileObject, &ReadOffset, ReadLength, CanWait, Buffer,
             &Irp->IoStatus);
-        if (!NT_SUCCESS(Result))
-        {
-            FspFileNodeRelease(FileNode, Main);
-            return Result;
-        }
-        if (STATUS_PENDING == Result)
-        {
-            FspFileNodeRelease(FileNode, Main);
-            return FspWqRepostIrpWorkItem(Irp, FspFsvolReadCached, 0);
-        }
+        if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
+            goto cleanup;
     }
     else
     {
@@ -172,10 +168,8 @@ static NTSTATUS FspFsvolReadCached(
         Result = FspCcMdlRead(FileObject, &ReadOffset, ReadLength, &Irp->MdlAddress,
             &Irp->IoStatus);
         if (!NT_SUCCESS(Result))
-        {
-            FspFileNodeRelease(FileNode, Main);
-            return Result;
-        }
+            goto cleanup;
+        ASSERT(STATUS_PENDING != Result);
     }
 
     /* update the current file offset if synchronous I/O */
@@ -185,6 +179,14 @@ static NTSTATUS FspFsvolReadCached(
     FspFileNodeRelease(FileNode, Main);
 
     return STATUS_SUCCESS;
+
+cleanup:
+    FspFileNodeRelease(FileNode, Main);
+
+    if (STATUS_PENDING == Result)
+        return FspWqRepostIrpWorkItem(Irp, FspFsvolReadCached, 0);
+
+    return Result;
 }
 
 static NTSTATUS FspFsvolReadNonCached(

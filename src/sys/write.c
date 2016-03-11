@@ -106,6 +106,7 @@ static NTSTATUS FspFsvolWriteCached(
     BOOLEAN SynchronousIo = BooleanFlagOn(FileObject->Flags, FO_SYNCHRONOUS_IO);
     FSP_FSCTL_FILE_INFO FileInfo;
     CC_FILE_SIZES FileSizes;
+    UINT64 OriginalFileSize;
     UINT64 WriteEndOffset;
     BOOLEAN ExtendingFile;
     BOOLEAN Success;
@@ -136,6 +137,7 @@ static NTSTATUS FspFsvolWriteCached(
     ASSERT(FspTimeoutInfinity32 ==
         FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.FileInfoTimeout);
     FspFileNodeGetFileInfo(FileNode, &FileInfo);
+    OriginalFileSize = FileInfo.FileSize;
     WriteEndOffset = WriteToEndOfFile ?
         FileInfo.FileSize + WriteLength : WriteOffset.QuadPart + WriteLength;
     ExtendingFile = FileInfo.FileSize < WriteEndOffset;
@@ -183,6 +185,10 @@ static NTSTATUS FspFsvolWriteCached(
         }
     }
 
+    /*
+     * From this point forward we must jump to the CLEANUP label on failure.
+     */
+
     /* are we using the copy or MDL interface? */
     if (!FlagOn(IrpSp->MinorFunction, IRP_MN_MDL))
     {
@@ -192,21 +198,13 @@ static NTSTATUS FspFsvolWriteCached(
             Irp->UserBuffer : MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
         if (0 == Buffer)
         {
-            FspFileNodeRelease(FileNode, Main);
-            return STATUS_INSUFFICIENT_RESOURCES;
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+            goto cleanup;
         }
 
         Result = FspCcCopyWrite(FileObject, &WriteOffset, WriteLength, CanWait, Buffer);
-        if (!NT_SUCCESS(Result))
-        {
-            FspFileNodeRelease(FileNode, Main);
-            return Result;
-        }
-        if (STATUS_PENDING == Result)
-        {
-            FspFileNodeRelease(FileNode, Main);
-            return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteCached, 0);
-        }
+        if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
+            goto cleanup;
 
         Irp->IoStatus.Information = WriteLength;
     }
@@ -217,10 +215,8 @@ static NTSTATUS FspFsvolWriteCached(
         Result = FspCcPrepareMdlWrite(FileObject, &WriteOffset, WriteLength, &Irp->MdlAddress,
             &Irp->IoStatus);
         if (!NT_SUCCESS(Result))
-        {
-            FspFileNodeRelease(FileNode, Main);
-            return Result;
-        }
+            goto cleanup;
+        ASSERT(STATUS_PENDING != Result);
     }
 
     /* update the current file offset if synchronous I/O */
@@ -233,6 +229,16 @@ static NTSTATUS FspFsvolWriteCached(
     FspFileNodeRelease(FileNode, Main);
 
     return STATUS_SUCCESS;
+
+cleanup:
+    CcGetFileSizePointer(FileObject)->QuadPart = OriginalFileSize;
+
+    FspFileNodeRelease(FileNode, Main);
+
+    if (STATUS_PENDING == Result)
+        return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteCached, 0);
+
+    return Result;
 }
 
 static VOID FspFsvolWriteCachedDeferred(PVOID Context1, PVOID Context2)
