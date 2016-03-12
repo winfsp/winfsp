@@ -415,10 +415,52 @@ void rdwr_cached_overlapped_test(void)
     }
 }
 
+void rdwr_writethru_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        rdwr_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_WRITE_THROUGH);
+    }
+    if (WinFspDiskTests)
+    {
+        rdwr_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_WRITE_THROUGH);
+        rdwr_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_WRITE_THROUGH);
+    }
+    if (WinFspNetTests)
+    {
+        rdwr_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_WRITE_THROUGH);
+        rdwr_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_WRITE_THROUGH);
+    }
+}
+
+void rdwr_writethru_overlapped_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        rdwr_overlapped_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_WRITE_THROUGH);
+    }
+    if (WinFspDiskTests)
+    {
+        rdwr_overlapped_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_WRITE_THROUGH);
+        rdwr_overlapped_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_WRITE_THROUGH);
+    }
+    if (WinFspNetTests)
+    {
+        rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_WRITE_THROUGH);
+        rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_WRITE_THROUGH);
+    }
+}
+
 void rdwr_tests(void)
 {
     TEST(rdwr_noncached_test);
     TEST(rdwr_noncached_overlapped_test);
     TEST(rdwr_cached_test);
     TEST(rdwr_cached_overlapped_test);
+    TEST(rdwr_writethru_test);
+    TEST(rdwr_writethru_overlapped_test);
 }
