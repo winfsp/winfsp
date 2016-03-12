@@ -60,12 +60,12 @@ extern __declspec(selectany) int fsp_dp = 1;
 /* DEBUGBREAK */
 #if DBG
 extern __declspec(selectany) int fsp_bp = 1;        /* generic breakpoint switch */
+extern __declspec(selectany) int fsp_bp_crit = 1;   /* critical error breakpoint */
 extern __declspec(selectany) int fsp_bp_ioentr = 1; /* I/O entry breakpoint switch */
 extern __declspec(selectany) int fsp_bp_ioprep = 1; /* I/O prepare breakpoint switch */
 extern __declspec(selectany) int fsp_bp_iocmpl = 1; /* I/O complete breakpoint switch */
 extern __declspec(selectany) int fsp_bp_iocall = 1; /* I/O callback breakpoint switch */
 extern __declspec(selectany) int fsp_bp_iorecu = 1; /* I/O recursive breakpoint switch */
-extern __declspec(selectany) int fsp_bp_crit = 1;   /* critical error breakpoint */
 #define DEBUGBREAK()                    \
     do                                  \
     {                                   \
