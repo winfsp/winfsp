@@ -13,11 +13,10 @@ extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
-static void rdwr_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileInfoTimeout, BOOLEAN NonCached)
+static void rdwr_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileInfoTimeout, DWORD CreateFlags)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
-    DWORD NonCachedFlag = NonCached ? FILE_FLAG_NO_BUFFERING : 0;
     HANDLE Handle;
     BOOL Success;
     WCHAR FilePath[MAX_PATH];
@@ -56,7 +55,7 @@ static void rdwr_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileIn
 
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | NonCachedFlag | FILE_FLAG_DELETE_ON_CLOSE, 0);
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | CreateFlags | FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
     FilePointer = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
@@ -169,11 +168,10 @@ static void rdwr_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileIn
     memfs_stop(memfs);
 }
 
-static void rdwr_overlapped_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileInfoTimeout, BOOLEAN NonCached)
+static void rdwr_overlapped_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileInfoTimeout, DWORD CreateFlags)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
-    DWORD NonCachedFlag = NonCached ? FILE_FLAG_NO_BUFFERING : 0;
     HANDLE Handle;
     BOOL Success;
     WCHAR FilePath[MAX_PATH];
@@ -217,7 +215,7 @@ static void rdwr_overlapped_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, U
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
         CREATE_NEW,
-        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED | NonCachedFlag | FILE_FLAG_DELETE_ON_CLOSE,
+        FILE_ATTRIBUTE_NORMAL | CreateFlags | FILE_FLAG_OVERLAPPED | FILE_FLAG_DELETE_ON_CLOSE,
         0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
@@ -343,17 +341,17 @@ void rdwr_noncached_test(void)
     {
         WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
         GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_dotest(-1, L"C:", DirBuf, 0, TRUE);
+        rdwr_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING);
     }
     if (WinFspDiskTests)
     {
-        rdwr_dotest(MemfsDisk, 0, 0, 1000, TRUE);
-        rdwr_dotest(MemfsDisk, 0, 0, INFINITE, TRUE);
+        rdwr_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_NO_BUFFERING);
+        rdwr_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_NO_BUFFERING);
     }
     if (WinFspNetTests)
     {
-        rdwr_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, TRUE);
-        rdwr_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, TRUE);
+        rdwr_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_NO_BUFFERING);
+        rdwr_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_NO_BUFFERING);
     }
 }
 
@@ -363,17 +361,17 @@ void rdwr_noncached_overlapped_test(void)
     {
         WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
         GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_overlapped_dotest(-1, L"C:", DirBuf, 0, TRUE);
+        rdwr_overlapped_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING);
     }
     if (WinFspDiskTests)
     {
-        rdwr_overlapped_dotest(MemfsDisk, 0, 0, 1000, TRUE);
-        rdwr_overlapped_dotest(MemfsDisk, 0, 0, INFINITE, TRUE);
+        rdwr_overlapped_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_NO_BUFFERING);
+        rdwr_overlapped_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_NO_BUFFERING);
     }
     if (WinFspNetTests)
     {
-        rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, TRUE);
-        rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, TRUE);
+        rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_NO_BUFFERING);
+        rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_NO_BUFFERING);
     }
 }
 
@@ -383,17 +381,17 @@ void rdwr_cached_test(void)
     {
         WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
         GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_dotest(-1, L"C:", DirBuf, 0, FALSE);
+        rdwr_dotest(-1, L"C:", DirBuf, 0, 0);
     }
     if (WinFspDiskTests)
     {
-        rdwr_dotest(MemfsDisk, 0, 0, 1000, FALSE);
-        rdwr_dotest(MemfsDisk, 0, 0, INFINITE, FALSE);
+        rdwr_dotest(MemfsDisk, 0, 0, 1000, 0);
+        rdwr_dotest(MemfsDisk, 0, 0, INFINITE, 0);
     }
     if (WinFspNetTests)
     {
-        rdwr_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FALSE);
-        rdwr_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FALSE);
+        rdwr_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, 0);
+        rdwr_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, 0);
     }
 }
 
@@ -403,17 +401,17 @@ void rdwr_cached_overlapped_test(void)
     {
         WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
         GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_overlapped_dotest(-1, L"C:", DirBuf, 0, FALSE);
+        rdwr_overlapped_dotest(-1, L"C:", DirBuf, 0, 0);
     }
     if (WinFspDiskTests)
     {
-        rdwr_overlapped_dotest(MemfsDisk, 0, 0, 1000, FALSE);
-        rdwr_overlapped_dotest(MemfsDisk, 0, 0, INFINITE, FALSE);
+        rdwr_overlapped_dotest(MemfsDisk, 0, 0, 1000, 0);
+        rdwr_overlapped_dotest(MemfsDisk, 0, 0, INFINITE, 0);
     }
     if (WinFspNetTests)
     {
-        rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FALSE);
-        rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FALSE);
+        rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, 0);
+        rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, 0);
     }
 }
 
