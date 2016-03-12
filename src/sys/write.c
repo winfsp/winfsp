@@ -231,7 +231,9 @@ static NTSTATUS FspFsvolWriteCached(
     return STATUS_SUCCESS;
 
 cleanup:
-    CcGetFileSizePointer(FileObject)->QuadPart = OriginalFileSize;
+    /* pull back the cache file size if we extended it */
+    if (ExtendingFile)
+        CcGetFileSizePointer(FileObject)->QuadPart = OriginalFileSize;
 
     FspFileNodeRelease(FileNode, Main);
 

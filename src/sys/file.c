@@ -534,8 +534,12 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     FileNode->InfoChangeNumber++;
 
     if (0 != CcFileObject)
-        FileNode->CcStatus = FspCcSetFileSizes(
+    {
+        NTSTATUS Result = FspCcSetFileSizes(
             CcFileObject, (PCC_FILE_SIZES)&FileNode->Header.AllocationSize);
+        if (!NT_SUCCESS(Result))
+            CcUninitializeCacheMap(CcFileObject, 0, 0);
+    }
 }
 
 BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,

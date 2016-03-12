@@ -789,7 +789,6 @@ typedef struct
     UINT64 LastWriteTime;
     UINT64 ChangeTime;
     ULONG InfoChangeNumber;
-    NTSTATUS CcStatus;
     UINT64 Security;
     ULONG SecurityChangeNumber;
     BOOLEAN TruncateOnClose;
