@@ -538,7 +538,11 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
         NTSTATUS Result = FspCcSetFileSizes(
             CcFileObject, (PCC_FILE_SIZES)&FileNode->Header.AllocationSize);
         if (!NT_SUCCESS(Result))
+        {
+            DEBUGLOG("FspCcSetFileSizes error: %s", NtStatusSym(Result));
+            DEBUGBREAK_EX(crit);
             CcUninitializeCacheMap(CcFileObject, 0, 0);
+        }
     }
 }
 
