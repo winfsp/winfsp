@@ -162,7 +162,7 @@ extern __declspec(selectany) int fsp_dt = 1;
                 FSP_STATUS_IOQ_POST == Result || FSP_STATUS_IOQ_POST_BEST_EFFORT == Result);\
             FSP_DEBUGLOG_("%p, %s%c, %s%s, " fmt, " = %s[%lld]",\
                 Irp,                    \
-                (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
+                DeviceExtensionKindSym(FspDeviceExtension(IrpSp->DeviceObject)->Kind),\
                 Irp->RequestorMode == KernelMode ? 'K' : 'U',\
                 IrpMajorFunctionSym(IrpSp->MajorFunction),\
                 IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction),\
@@ -197,7 +197,7 @@ extern __declspec(selectany) int fsp_dt = 1;
             ASSERT(0 == (FSP_STATUS_PRIVATE_BIT & Result));\
             FSP_DEBUGLOG_NOCRIT_("%p, %s%c, %s%s, " fmt, " = %s[%lld]",\
                 Irp,                    \
-                (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,\
+                DeviceExtensionKindSym(FspDeviceExtension(IrpSp->DeviceObject)->Kind),\
                 Irp->RequestorMode == KernelMode ? 'K' : 'U',\
                 IrpMajorFunctionSym(IrpSp->MajorFunction),\
                 IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction),\
@@ -866,6 +866,7 @@ const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);
 const char *IoctlCodeSym(ULONG ControlCode);
 const char *FileInformationClassSym(FILE_INFORMATION_CLASS FileInformationClass);
 const char *FsInformationClassSym(FS_INFORMATION_CLASS FsInformationClass);
+const char *DeviceExtensionKindSym(UINT32 Kind);
 ULONG DebugRandom(VOID);
 static inline
 VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result)
@@ -875,7 +876,7 @@ VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result)
         KeGetCurrentIrql(),
         func,
         Irp,
-        (const char *)&FspDeviceExtension(IrpSp->DeviceObject)->Kind,
+        DeviceExtensionKindSym(FspDeviceExtension(IrpSp->DeviceObject)->Kind),
         Irp->RequestorMode == KernelMode ? 'K' : 'U',
         IrpMajorFunctionSym(IrpSp->MajorFunction),
         IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction),

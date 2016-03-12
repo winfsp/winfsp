@@ -264,6 +264,21 @@ const char *FsInformationClassSym(FS_INFORMATION_CLASS FsInformationClass)
     }
 }
 
+const char *DeviceExtensionKindSym(UINT32 Kind)
+{
+    switch (Kind)
+    {
+    case FspFsctlDeviceExtensionKind:
+        return "Ctl";
+    case FspFsvrtDeviceExtensionKind:
+        return "Vrt";
+    case FspFsvolDeviceExtensionKind:
+        return "Vol";
+    default:
+        return "***";
+    }
+}
+
 ULONG DebugRandom(VOID)
 {
     static KSPIN_LOCK SpinLock = 0;
