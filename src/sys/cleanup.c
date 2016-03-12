@@ -162,7 +162,7 @@ static VOID FspFsvolCleanupRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Co
     }
     else
     {
-        /* FileNode is Shared Full; reacquire as Exclusive Main for CcUnitializeCacheMap */
+        /* FileNode is Shared Full; reacquire as Exclusive Main for CcUninitializeCacheMap */
         FspFileNodeReleaseOwner(FileNode, Full, Request);
 
         Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Main);
