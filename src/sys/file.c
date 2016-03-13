@@ -64,15 +64,19 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #define FSP_FILE_NODE_GET_FLAGS()       \
     PIRP Irp = IoGetTopLevelIrp();      \
     BOOLEAN IrpValid = (PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG < Irp &&\
-        IO_TYPE_IRP == Irp->Type;\
+        IO_TYPE_IRP == Irp->Type;       \
     if (IrpValid)                       \
-        Flags &= ~FspIrpTopFlags(Irp);
+        Flags &= ~FspIrpTopFlags(Irp)
+#define FSP_FILE_NODE_ASSERT_FLAGS_CLR()\
+    ASSERT(IrpValid ? (0 == (FspIrpFlags(Irp) & Flags)) : TRUE)
+#define FSP_FILE_NODE_ASSERT_FLAGS_SET()\
+    ASSERT(IrpValid ? (Flags == (FspIrpFlags(Irp) & Flags)) : TRUE)
 #define FSP_FILE_NODE_SET_FLAGS()       \
     if (IrpValid)                       \
-        FspIrpSetFlags(Irp, FspIrpFlags(Irp) | Flags);
+        FspIrpSetFlags(Irp, FspIrpFlags(Irp) | Flags)
 #define FSP_FILE_NODE_CLR_FLAGS()       \
     if (IrpValid)                       \
-        FspIrpSetFlags(Irp, FspIrpFlags(Irp) & (~Flags & 3));
+        FspIrpSetFlags(Irp, FspIrpFlags(Irp) & (~Flags & 3))
 
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode)
@@ -145,6 +149,7 @@ VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
     PAGED_CODE();
 
     FSP_FILE_NODE_GET_FLAGS();
+    FSP_FILE_NODE_ASSERT_FLAGS_CLR();
 
     if (Flags & FspFileNodeAcquireMain)
         ExAcquireResourceSharedLite(FileNode->Header.Resource, TRUE);
@@ -160,6 +165,7 @@ BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLE
     PAGED_CODE();
 
     FSP_FILE_NODE_GET_FLAGS();
+    FSP_FILE_NODE_ASSERT_FLAGS_CLR();
 
     BOOLEAN Result = TRUE;
 
@@ -192,6 +198,7 @@ VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags)
     PAGED_CODE();
 
     FSP_FILE_NODE_GET_FLAGS();
+    FSP_FILE_NODE_ASSERT_FLAGS_CLR();
 
     if (Flags & FspFileNodeAcquireMain)
         ExAcquireResourceExclusiveLite(FileNode->Header.Resource, TRUE);
@@ -207,6 +214,7 @@ BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags, BO
     PAGED_CODE();
 
     FSP_FILE_NODE_GET_FLAGS();
+    FSP_FILE_NODE_ASSERT_FLAGS_CLR();
 
     BOOLEAN Result = TRUE;
 
@@ -254,6 +262,7 @@ VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags)
     PAGED_CODE();
 
     FSP_FILE_NODE_GET_FLAGS();
+    FSP_FILE_NODE_ASSERT_FLAGS_SET();
 
     if (Flags & FspFileNodeAcquirePgio)
         ExReleaseResourceLite(FileNode->Header.PagingIoResource);
@@ -269,6 +278,7 @@ VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
     PAGED_CODE();
 
     FSP_FILE_NODE_GET_FLAGS();
+    FSP_FILE_NODE_ASSERT_FLAGS_SET();
 
     Owner = (PVOID)((UINT_PTR)Owner | 3);
 

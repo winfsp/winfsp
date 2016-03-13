@@ -131,12 +131,23 @@ NTSTATUS FspAcquireForCcFlush(
 
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     PIRP TopLevelIrp = IoGetTopLevelIrp();
+    ULONG TopFlags;
 
     ASSERT(0 == TopLevelIrp ||
         (PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG < TopLevelIrp);
-    FspFileNodeAcquireExclusive(FileNode, Full);
     if (0 == TopLevelIrp)
+    {
+        FspFileNodeAcquireExclusive(FileNode, Full);
         IoSetTopLevelIrp((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP);
+    }
+    else
+    {
+        TopFlags = FspIrpTopFlags(TopLevelIrp);
+        FspIrpSetTopFlags(TopLevelIrp, FspIrpFlags(TopLevelIrp));
+        FspFileNodeAcquireExclusive(FileNode, Full);
+        ASSERT(0 == FileNode->Tls.TopFlags);
+        FileNode->Tls.TopFlags = TopFlags;
+    }
 
     FSP_LEAVE("FileObject=%p", FileObject);
 }
@@ -149,12 +160,22 @@ NTSTATUS FspReleaseForCcFlush(
 
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     PIRP TopLevelIrp = IoGetTopLevelIrp();
+    ULONG TopFlags;
 
     ASSERT((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == TopLevelIrp ||
         (PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG < TopLevelIrp);
     if ((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == TopLevelIrp)
+    {
         IoSetTopLevelIrp(0);
-    FspFileNodeRelease(FileNode, Full);
+        FspFileNodeRelease(FileNode, Full);
+    }
+    else
+    {
+        TopFlags = FileNode->Tls.TopFlags;
+        FileNode->Tls.TopFlags = 0;
+        FspFileNodeRelease(FileNode, Full);
+        FspIrpSetTopFlags(TopLevelIrp, TopFlags);
+    }
 
     FSP_LEAVE("FileObject=%p", FileObject);
 }
@@ -175,7 +196,8 @@ BOOLEAN FspAcquireForLazyWrite(
     Result = FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, Wait);
     if (Result)
     {
-        FileNode->LazyWriteThread = PsGetCurrentThread();
+        ASSERT(0 == FileNode->Tls.LazyWriteThread);
+        FileNode->Tls.LazyWriteThread = PsGetCurrentThread();
         IoSetTopLevelIrp((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP);
     }
 
@@ -194,8 +216,9 @@ VOID FspReleaseFromLazyWrite(
     FSP_FILE_NODE *FileNode = Context;
 
     ASSERT((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == IoGetTopLevelIrp());
+    ASSERT(PsGetCurrentThread() == FileNode->Tls.LazyWriteThread);
     IoSetTopLevelIrp(0);
-    FileNode->LazyWriteThread = 0;
+    FileNode->Tls.LazyWriteThread = 0;
     FspFileNodeRelease(FileNode, Full);
 
     FSP_LEAVE_VOID("Context=%p", Context);

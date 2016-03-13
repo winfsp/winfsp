@@ -285,7 +285,7 @@ static NTSTATUS FspFsvolWriteNonCached(
 
     /* if we are called by the lazy writer we must constrain writes */
     if (FlagOn(FspIrpTopFlags(Irp), FspFileNodeAcquireMain) &&  /* if TopLevelIrp has acquired Main */
-        FileNode->LazyWriteThread == PsGetCurrentThread())      /* and this is a lazy writer thread */
+        FileNode->Tls.LazyWriteThread == PsGetCurrentThread())  /* and this is a lazy writer thread */
     {
         ASSERT(PagingIo);
         ASSERT(FspTimeoutInfinity32 ==
