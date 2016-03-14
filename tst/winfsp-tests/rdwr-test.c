@@ -55,7 +55,7 @@ static void rdwr_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileIn
 
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | CreateFlags | FILE_FLAG_DELETE_ON_CLOSE, 0);
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | CreateFlags, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
     FilePointer = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
@@ -162,6 +162,29 @@ static void rdwr_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileIn
     Success = CloseHandle(Handle);
     ASSERT(Success);
 
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | CreateFlags | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    FilePointer = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
+    ASSERT(0 == FilePointer);
+    memset(AllocBuffer[1], 0, AllocBufferSize);
+    Success = ReadFile(Handle, Buffer[1], 2 * SystemInfo.dwPageSize + BytesPerSector, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(2 * SystemInfo.dwPageSize + BytesPerSector == BytesTransferred);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+    ASSERT(0 == memcmp(Buffer[0], Buffer[1], BytesTransferred));
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
     _aligned_free(AllocBuffer[0]);
     _aligned_free(AllocBuffer[1]);
 
@@ -215,7 +238,7 @@ static void rdwr_overlapped_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, U
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
         CREATE_NEW,
-        FILE_ATTRIBUTE_NORMAL | CreateFlags | FILE_FLAG_OVERLAPPED | FILE_FLAG_DELETE_ON_CLOSE,
+        FILE_ATTRIBUTE_NORMAL | CreateFlags | FILE_FLAG_OVERLAPPED,
         0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
@@ -325,6 +348,31 @@ static void rdwr_overlapped_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, U
 
     Success = CloseHandle(Handle);
     ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL | CreateFlags | FILE_FLAG_OVERLAPPED | FILE_FLAG_DELETE_ON_CLOSE,
+        0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Overlapped.Offset = 0;
+    memset(AllocBuffer[1], 0, AllocBufferSize);
+    Success = ReadFile(Handle, Buffer[1], 2 * SystemInfo.dwPageSize + BytesPerSector, &BytesTransferred, &Overlapped);
+    ASSERT(Success || ERROR_IO_PENDING == GetLastError());
+    Success = GetOverlappedResult(Handle, &Overlapped, &BytesTransferred, TRUE);
+    ASSERT(Success);
+    ASSERT(2 * SystemInfo.dwPageSize + BytesPerSector == BytesTransferred);
+    ASSERT(0 == memcmp(Buffer[0], Buffer[1], BytesTransferred));
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
 
     Success = CloseHandle(Overlapped.hEvent);
     ASSERT(Success);
