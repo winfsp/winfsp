@@ -40,9 +40,9 @@ VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
 static RTL_AVL_COMPARE_ROUTINE FspFsvolDeviceCompareContext;
 static RTL_AVL_ALLOCATE_ROUTINE FspFsvolDeviceAllocateContext;
 static RTL_AVL_FREE_ROUTINE FspFsvolDeviceFreeContext;
+PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
+    BOOLEAN SubpathOnly, PVOID *PRestartKey);
 PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
-PVOID FspFsvolDeviceLookupDescendantContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
-    BOOLEAN ChildOnly);
 PVOID FspFsvolDeviceInsertContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName, PVOID Context,
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
 VOID FspFsvolDeviceDeleteContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
@@ -79,8 +79,8 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceCompareContext)
 #pragma alloc_text(PAGE, FspFsvolDeviceAllocateContext)
 #pragma alloc_text(PAGE, FspFsvolDeviceFreeContext)
+#pragma alloc_text(PAGE, FspFsvolDeviceEnumerateContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceLookupContextByName)
-#pragma alloc_text(PAGE, FspFsvolDeviceLookupDescendantContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceInsertContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceDeleteContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceCompareContextByName)
@@ -623,6 +623,31 @@ static VOID NTAPI FspFsvolDeviceFreeContext(
     PAGED_CODE();
 }
 
+PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
+    BOOLEAN SubpathOnly, PVOID *PRestartKey)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    BOOLEAN CaseInsensitive = 0 == FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT_DATA *Result;
+    ULONG DeleteCount = 0;
+
+    if (0 != *PRestartKey)
+        SubpathOnly = FALSE;
+
+    Result = RtlEnumerateGenericTableLikeADirectory(&FsvolDeviceExtension->ContextByNameTable,
+        0, 0, SubpathOnly, PRestartKey, &DeleteCount, &FileName);
+    
+    if (0 != Result &&
+        RtlPrefixUnicodeString(FileName, Result->FileName, CaseInsensitive) &&
+        FileName->Length < Result->FileName->Length &&
+        '\\' == Result->FileName->Buffer[FileName->Length / sizeof(WCHAR)])
+        return Result->Context;
+    else
+        return 0;
+}
+
 PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName)
 {
     PAGED_CODE();
@@ -633,27 +658,6 @@ PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_ST
     Result = RtlLookupElementGenericTableAvl(&FsvolDeviceExtension->ContextByNameTable, &FileName);
 
     return 0 != Result ? Result->Context : 0;
-}
-
-PVOID FspFsvolDeviceLookupDescendantContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
-    BOOLEAN ChildOnly)
-{
-    PAGED_CODE();
-
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    BOOLEAN CaseInsensitive = 0 == FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
-    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT_DATA *Result;
-    PVOID RestartKey = 0;
-    ULONG DeleteCount = 0;
-
-    Result = RtlEnumerateGenericTableLikeADirectory(&FsvolDeviceExtension->ContextByNameTable,
-        0, 0, ChildOnly, &RestartKey, &DeleteCount, &FileName);
-    if (0 == Result ||
-        !RtlPrefixUnicodeString(FileName, Result->FileName, CaseInsensitive) ||
-        (FileName->Length < Result->FileName->Length &&
-            '\\' != Result->FileName->Buffer[FileName->Length / sizeof(WCHAR)]))
-        return 0;
-    return Result->Context;
 }
 
 PVOID FspFsvolDeviceInsertContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName, PVOID Context,

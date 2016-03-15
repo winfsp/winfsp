@@ -742,7 +742,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
             if (0 == Request)
             {
                 FspFsvolCreatePostClose(FileDesc);
-                FspFileNodeClose(FileNode, FileObject, 0);
+                FspFileNodeClose(FileNode, FileObject);
             }
         
             return DeleteOnClose ? STATUS_CANNOT_DELETE : STATUS_SHARING_VIOLATION;
@@ -843,7 +843,7 @@ static VOID FspFsvolCreateTryOpenRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PV
         ASSERT(0 != FileObject);
 
         FspFsvolCreatePostClose(FileDesc);
-        FspFileNodeClose(FileDesc->FileNode, FileObject, 0);
+        FspFileNodeClose(FileDesc->FileNode, FileObject);
         FspFileNodeDereference(FileDesc->FileNode);
         FspFileDescDelete(FileDesc);
     }
@@ -870,7 +870,7 @@ static VOID FspFsvolCreateOverwriteRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, 
         else if (RequestProcessing == State)
             FspFileNodeReleaseOwner(FileDesc->FileNode, Full, Request);
 
-        FspFileNodeClose(FileDesc->FileNode, FileObject, 0);
+        FspFileNodeClose(FileDesc->FileNode, FileObject);
         FspFileNodeDereference(FileDesc->FileNode);
         FspFileDescDelete(FileDesc);
     }

@@ -879,10 +879,10 @@ static NTSTATUS FspFsvolSetRenameInformation(
 
     Result = STATUS_SUCCESS;
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
-    if (1 < FileNode->OpenCount ||
+    if (1 < FileNode->HandleCount ||
         (FileNode->IsDirectory &&
-            0 != FspFsvolDeviceLookupDescendantContextByName(FsvolDeviceObject, &FileNode->FileName, TRUE)) ||
-        0 != FspFsvolDeviceLookupDescendantContextByName(FsvolDeviceObject, &NewFileName, FALSE))
+            FspFileNodeHasOpenHandles(FsvolDeviceObject, &FileNode->FileName, TRUE)) ||
+        FspFileNodeHasOpenHandles(FsvolDeviceObject, &NewFileName, FALSE))
         Result = STATUS_ACCESS_DENIED;
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
     if (!NT_SUCCESS(Result))

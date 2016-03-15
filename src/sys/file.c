@@ -20,9 +20,11 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess, NTSTATUS *PResult);
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
-VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    PBOOLEAN PDeletedFromContextTable);
+VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
+VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
+BOOLEAN FspFileNodeHasOpenHandles(PDEVICE_OBJECT FsvolDeviceObject,
+    PUNICODE_STRING FileName, BOOLEAN SubpathOnly);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
@@ -48,8 +50,10 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #pragma alloc_text(PAGE, FspFileNodeReleaseOwnerF)
 #pragma alloc_text(PAGE, FspFileNodeOpen)
 #pragma alloc_text(PAGE, FspFileNodeCleanup)
+#pragma alloc_text(PAGE, FspFileNodeCleanupComplete)
 #pragma alloc_text(PAGE, FspFileNodeClose)
 #pragma alloc_text(PAGE, FspFileNodeRename)
+#pragma alloc_text(PAGE, FspFileNodeHasOpenHandles)
 #pragma alloc_text(PAGE, FspFileNodeGetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeTryGetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeSetFileInfo)
@@ -308,6 +312,8 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
      * Attempt to insert our FileNode into the volume device's generic table.
      * If an FileNode with the same UserContext already exists, then use that
      * FileNode instead.
+     *
+     * There is no FileNode that can be acquired when calling this function.
      */
 
     PAGED_CODE();
@@ -386,6 +392,7 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     {
         FspFileNodeReference(OpenedFileNode);
         OpenedFileNode->OpenCount++;
+        OpenedFileNode->HandleCount++;
     }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
@@ -397,16 +404,18 @@ VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending)
 {
     /*
-     * Determine whether a FileNode should be deleted. Note that when
-     * FileNode->DeletePending is set, the OpenCount cannot be changed
-     * because FspFileNodeOpen() will return STATUS_DELETE_PENDING.
+     * Determine whether a FileNode should be deleted. Note that when FileNode->DeletePending
+     * is set, the OpenCount/HandleCount cannot be increased because FspFileNodeOpen() will
+     * return STATUS_DELETE_PENDING.
+     *
+     * The FileNode must be acquired exclusive (Main) when calling this function.
      */
 
     PAGED_CODE();
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
-    BOOLEAN DeletePending, SingleOpen;
+    BOOLEAN DeletePending, SingleHandle;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
@@ -415,40 +424,91 @@ VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     DeletePending = 0 != FileNode->DeletePending;
     MemoryBarrier();
 
-    SingleOpen = 1 == FileNode->OpenCount;
+    SingleHandle = 1 == FileNode->HandleCount;
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
     if (0 != PDeletePending)
-        *PDeletePending = SingleOpen && DeletePending;
+        *PDeletePending = SingleHandle && DeletePending;
 }
 
-VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    PBOOLEAN PDeletedFromContextTable)
+VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
 {
     /*
-     * Close the FileNode. If the OpenCount becomes zero remove it
-     * from the Context table.
+     * Complete the cleanup of a FileNode. Remove its share access and
+     * finalize its cache.
+     *
+     * NOTE: If the FileNode is not being deleted (!FileNode->DeletePending)
+     * the FileNode REMAINS in the Context table until Close time!
+     * This is so that if there are mapped views or write behind's pending
+     * when a file gets reopened the FileNode will be correctly reused.
+     *
+     * The FileNode must be acquired exclusive (Main) when calling this function.
      */
 
     PAGED_CODE();
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
-    BOOLEAN Deleted = FALSE;
+    LARGE_INTEGER TruncateSize = { 0 }, *PTruncateSize = 0;
+    BOOLEAN DeletePending;
+    BOOLEAN DeletedFromContextTable = FALSE;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
     IoRemoveShareAccess(FileObject, &FileNode->ShareAccess);
-    if (0 == --FileNode->OpenCount)
-        FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName, &Deleted);
+
+    if (0 == --FileNode->HandleCount)
+    {
+        DeletePending = 0 != FileNode->DeletePending;
+        MemoryBarrier();
+
+        if (DeletePending)
+        {
+            PTruncateSize = &TruncateSize;
+
+            if (0 == --FileNode->OpenCount)
+                FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName,
+                    &DeletedFromContextTable);
+        }
+        else if (FileNode->TruncateOnClose && FlagOn(FileObject->Flags, FO_CACHE_SUPPORTED))
+        {
+            TruncateSize = FileNode->Header.FileSize;
+            PTruncateSize = &TruncateSize;
+        }
+    }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
-    if (Deleted)
-        FspFileNodeDereference(FileNode);
+    CcUninitializeCacheMap(FileObject, PTruncateSize, 0);
 
-    if (0 != PDeletedFromContextTable)
-        *PDeletedFromContextTable = Deleted;
+    if (DeletedFromContextTable)
+        FspFileNodeDereference(FileNode);
+}
+
+VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
+{
+    /*
+     * Close the FileNode. If the OpenCount becomes zero remove it
+     * from the Context table.
+     *
+     * The FileNode may or may not be acquired when calling this function.
+     */
+
+    PAGED_CODE();
+
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    BOOLEAN DeletedFromContextTable = FALSE;
+
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+
+    if (0 < FileNode->OpenCount && 0 == --FileNode->OpenCount)
+        FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName,
+            &DeletedFromContextTable);
+
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    if (DeletedFromContextTable)
+        FspFileNodeDereference(FileNode);
 }
 
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
@@ -473,6 +533,29 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
     ASSERT(Inserted);
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+}
+
+BOOLEAN FspFileNodeHasOpenHandles(PDEVICE_OBJECT FsvolDeviceObject,
+    PUNICODE_STRING FileName, BOOLEAN SubpathOnly)
+{
+    /*
+     * The ContextByNameTable must be already locked.
+     */
+
+    PAGED_CODE();
+
+    FSP_FILE_NODE *FileNode;
+    PVOID RestartKey = 0;
+
+    for (;;)
+    {
+        FileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject, FileName, SubpathOnly,
+            &RestartKey);
+        if (0 == FileNode)
+            return FALSE;
+        if (0 < FileNode->HandleCount)
+            return TRUE;
+    }
 }
 
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo)
