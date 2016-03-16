@@ -573,20 +573,33 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
     {
         PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)Buffer;
         FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        FSP_FSCTL_FILE_INFO FileInfo;
         FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
             FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
-        UINT64 AllocationSize = Info->AllocationSize.QuadPart;
+        LARGE_INTEGER AllocationSize = Info->AllocationSize;
         UINT64 AllocationUnit;
         BOOLEAN Success;
 
         AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
             FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
-        AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
-        Request->Req.SetInformation.Info.Allocation.AllocationSize = AllocationSize;
+        AllocationSize.QuadPart = (AllocationSize.QuadPart + AllocationUnit - 1) /
+            AllocationUnit * AllocationUnit;
+        Request->Req.SetInformation.Info.Allocation.AllocationSize = AllocationSize.QuadPart;
 
-        Success = MmCanFileBeTruncated(FileObject->SectionObjectPointer, &Info->AllocationSize);
-        if (!Success)
-            return STATUS_USER_MAPPED_FILE;
+        /*
+         * Even when the FileInfo is expired, this is the best guess for a file size
+         * without asking the user-mode file system.
+         */
+        FspFileNodeGetFileInfo(FileNode, &FileInfo);
+
+        /* are we truncating? */
+        if ((UINT64)AllocationSize.QuadPart < FileInfo.FileSize)
+        {
+            /* see what the MM thinks about all this */
+            Success = MmCanFileBeTruncated(FileObject->SectionObjectPointer, &AllocationSize);
+            if (!Success)
+                return STATUS_USER_MAPPED_FILE;
+        }
     }
     else
     {
@@ -654,13 +667,26 @@ static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
     else if (0 == Response)
     {
         PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)Buffer;
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        FSP_FSCTL_FILE_INFO FileInfo;
         BOOLEAN Success;
 
         Request->Req.SetInformation.Info.EndOfFile.FileSize = Info->EndOfFile.QuadPart;
 
-        Success = MmCanFileBeTruncated(FileObject->SectionObjectPointer, &Info->EndOfFile);
-        if (!Success)
-            return STATUS_USER_MAPPED_FILE;
+        /*
+         * Even when the FileInfo is expired, this is the best guess for a file size
+         * without asking the user-mode file system.
+         */
+        FspFileNodeGetFileInfo(FileNode, &FileInfo);
+
+        /* are we truncating? */
+        if ((UINT64)Info->EndOfFile.QuadPart < FileInfo.FileSize)
+        {
+            /* see what the MM thinks about all this */
+            Success = MmCanFileBeTruncated(FileObject->SectionObjectPointer, &Info->EndOfFile);
+            if (!Success)
+                return STATUS_USER_MAPPED_FILE;
+        }
     }
     else
     {

@@ -472,6 +472,10 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
         }
         else if (FileNode->TruncateOnClose && FlagOn(FileObject->Flags, FO_CACHE_SUPPORTED))
         {
+            /*
+             * Even when the FileInfo is expired, this is the best guess for a file size
+             * without asking the user-mode file system.
+             */
             TruncateSize = FileNode->Header.FileSize;
             PTruncateSize = &TruncateSize;
         }
