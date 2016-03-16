@@ -708,15 +708,18 @@ void rdwr_mmap_test(void)
     }
     if (WinFspDiskTests)
     {
-        rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, 0, FALSE);
-        rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_NO_BUFFERING, FALSE);
-        rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_WRITE_THROUGH, FALSE);
+        /*
+         * WinFsp does not currently provide coherency between mmap'ed I/O and ReadFile/WriteFile
+         * in the following circumstances:
+         *   - FileInfoTimeout != INFINITE
+         *   - CreateFlags & FILE_FLAG_NO_BUFFERING
+         */
+
         rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, 0, TRUE);
         rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_NO_BUFFERING, TRUE);
         rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_WRITE_THROUGH, TRUE);
 
         rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, 0, FALSE);
-        rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_NO_BUFFERING, FALSE);
         rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_WRITE_THROUGH, FALSE);
         rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, 0, TRUE);
         rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_NO_BUFFERING, TRUE);
@@ -724,15 +727,18 @@ void rdwr_mmap_test(void)
     }
     if (WinFspNetTests)
     {
-        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, 0, FALSE);
-        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_NO_BUFFERING, FALSE);
-        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_WRITE_THROUGH, FALSE);
+        /*
+         * WinFsp does not currently provide coherency between mmap'ed I/O and ReadFile/WriteFile
+         * in the following circumstances:
+         *   - FileInfoTimeout != INFINITE
+         *   - CreateFlags & FILE_FLAG_NO_BUFFERING
+         */
+
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, 0, TRUE);
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_NO_BUFFERING, TRUE);
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_WRITE_THROUGH, TRUE);
 
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, 0, FALSE);
-        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_NO_BUFFERING, FALSE);
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_WRITE_THROUGH, FALSE);
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, 0, TRUE);
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_NO_BUFFERING, TRUE);
