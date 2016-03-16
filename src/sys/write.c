@@ -106,7 +106,7 @@ static NTSTATUS FspFsvolWriteCached(
     BOOLEAN SynchronousIo = BooleanFlagOn(FileObject->Flags, FO_SYNCHRONOUS_IO);
     FSP_FSCTL_FILE_INFO FileInfo;
     CC_FILE_SIZES FileSizes;
-    UINT64 OriginalFileSize;
+    FILE_END_OF_FILE_INFORMATION EndOfFileInformation;
     UINT64 WriteEndOffset;
     BOOLEAN ExtendingFile;
     BOOLEAN Success;
@@ -133,26 +133,18 @@ static NTSTATUS FspFsvolWriteCached(
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteCached, 0);
 
-    /* compute new file size and allocation size */
+    /* compute new file size */
     ASSERT(FspTimeoutInfinity32 ==
         FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.FileInfoTimeout);
     FspFileNodeGetFileInfo(FileNode, &FileInfo);
-    OriginalFileSize = FileInfo.FileSize;
     WriteEndOffset = WriteToEndOfFile ?
         FileInfo.FileSize + WriteLength : WriteOffset.QuadPart + WriteLength;
     ExtendingFile = FileInfo.FileSize < WriteEndOffset;
-    if (ExtendingFile)
+    if (ExtendingFile && !CanWait)
     {
-        FileInfo.FileSize = WriteEndOffset;
-        if (FileInfo.FileSize > FileInfo.AllocationSize)
-        {
-            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-                FspFsvolDeviceExtension(FsvolDeviceObject);
-            UINT64 AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
-                FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
-            FileInfo.AllocationSize = (FileInfo.FileSize + AllocationUnit - 1)
-                / AllocationUnit * AllocationUnit;
-        }
+        /* need CanWait==TRUE for FspSendSetInformationIrp */
+        FspFileNodeRelease(FileNode, Main);
+        return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteCached, 0);
     }
 
     /* initialize cache if not already initialized! */
@@ -170,14 +162,15 @@ static NTSTATUS FspFsvolWriteCached(
             return Result;
         }
     }
-    else if (ExtendingFile)
-    {
-        FileSizes.AllocationSize.QuadPart = FileInfo.AllocationSize;
-        FileSizes.FileSize.QuadPart = FileInfo.FileSize;
-        FileSizes.ValidDataLength.QuadPart = MAXLONGLONG;
 
-        /* file is being extended */
-        Result = FspCcSetFileSizes(FileObject, &FileSizes);
+    /* are we extending the file? */
+    if (ExtendingFile)
+    {
+        ASSERT(CanWait);
+
+        EndOfFileInformation.EndOfFile.QuadPart = WriteEndOffset;
+        Result = FspSendSetInformationIrp(FileObject, FileEndOfFileInformation,
+            &EndOfFileInformation, sizeof EndOfFileInformation);
         if (!NT_SUCCESS(Result))
         {
             FspFileNodeRelease(FileNode, Main);
@@ -223,18 +216,11 @@ static NTSTATUS FspFsvolWriteCached(
     if (SynchronousIo)
         FileObject->CurrentByteOffset.QuadPart = WriteEndOffset;
 
-    if (ExtendingFile)
-        FspFileNodeSetFileInfo(FileNode, 0, &FileInfo);
-
     FspFileNodeRelease(FileNode, Main);
 
     return STATUS_SUCCESS;
 
 cleanup:
-    /* pull back the cache file size if we extended it */
-    if (ExtendingFile)
-        CcGetFileSizePointer(FileObject)->QuadPart = OriginalFileSize;
-
     FspFileNodeRelease(FileNode, Main);
 
     if (STATUS_PENDING == Result)

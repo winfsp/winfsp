@@ -9,6 +9,10 @@
 BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
+NTSTATUS FspSendSetInformationIrp(PFILE_OBJECT FileObject,
+    FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
+static NTSTATUS FspSendSetInformationIrpCompletion(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context0);
 NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,
     KPROCESSOR_MODE RequestorMode, LOCK_OPERATION Operation, PMDL *PMdl);
 NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress);
@@ -45,6 +49,7 @@ VOID FspSafeMdlDelete(FSP_SAFE_MDL *SafeMdl);
 #pragma alloc_text(PAGE, FspUnicodePathIsValid)
 #pragma alloc_text(PAGE, FspUnicodePathSuffix)
 #pragma alloc_text(PAGE, FspCreateGuid)
+#pragma alloc_text(PAGE, FspSendSetInformationIrp)
 #pragma alloc_text(PAGE, FspLockUserBuffer)
 #pragma alloc_text(PAGE, FspMapLockedPagesInUserMode)
 #pragma alloc_text(PAGE, FspCcInitializeCacheMap)
@@ -183,6 +188,66 @@ NTSTATUS FspCreateGuid(GUID *Guid)
     } while (!NT_SUCCESS(Result) && 0 < --Retries);
 
     return Result;
+}
+
+typedef struct
+{
+    IO_STATUS_BLOCK IoStatus;
+    KEVENT Event;
+} FSP_SEND_SET_INFORMATION_IRP_CONTEXT;
+
+NTSTATUS FspSendSetInformationIrp(PFILE_OBJECT FileObject,
+    FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length)
+{
+    PAGED_CODE();
+
+    ASSERT(
+        FileAllocationInformation == FileInformationClass ||
+        FileEndOfFileInformation == FileInformationClass);
+
+    NTSTATUS Result;
+    PDEVICE_OBJECT DeviceObject;
+    PIRP Irp;
+    PIO_STACK_LOCATION IrpSp;
+    FSP_SEND_SET_INFORMATION_IRP_CONTEXT Context;
+
+    DeviceObject = IoGetRelatedDeviceObject(FileObject);
+
+    Irp = IoAllocateIrp(DeviceObject->StackSize, FALSE);
+    if (0 == Irp)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    IrpSp = IoGetNextIrpStackLocation(Irp);
+    Irp->RequestorMode = KernelMode;
+    Irp->AssociatedIrp.SystemBuffer = FileInformation;
+    IrpSp->MajorFunction = IRP_MJ_SET_INFORMATION;
+    IrpSp->FileObject = FileObject;
+    IrpSp->Parameters.SetFile.FileInformationClass = FileInformationClass;
+    IrpSp->Parameters.SetFile.Length = FileInformationClass;
+
+    IoSetCompletionRoutine(Irp, FspSendSetInformationIrpCompletion, &Context, TRUE, TRUE, TRUE);
+
+    KeInitializeEvent(&Context.Event, NotificationEvent, FALSE);
+    Result = IoCallDriver(DeviceObject, Irp);
+    if (STATUS_PENDING == Result)
+        KeWaitForSingleObject(&Context.Event, Executive, KernelMode, FALSE, 0);
+
+    return NT_SUCCESS(Result) ? Context.IoStatus.Status : Result;
+}
+
+static NTSTATUS FspSendSetInformationIrpCompletion(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context0)
+{
+    // !PAGED_CODE();
+
+    FSP_SEND_SET_INFORMATION_IRP_CONTEXT *Context = Context0;
+
+    Context->IoStatus = Irp->IoStatus;
+    KeSetEvent(&Context->Event, 1, FALSE);
+
+    IoFreeIrp(Irp);
+
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,
