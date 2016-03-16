@@ -9,7 +9,7 @@
 BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
-NTSTATUS FspSendSetInformationIrp(PFILE_OBJECT FileObject,
+NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
 static NTSTATUS FspSendSetInformationIrpCompletion(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context0);
@@ -196,7 +196,7 @@ typedef struct
     KEVENT Event;
 } FSP_SEND_SET_INFORMATION_IRP_CONTEXT;
 
-NTSTATUS FspSendSetInformationIrp(PFILE_OBJECT FileObject,
+NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length)
 {
     PAGED_CODE();
@@ -206,12 +206,12 @@ NTSTATUS FspSendSetInformationIrp(PFILE_OBJECT FileObject,
         FileEndOfFileInformation == FileInformationClass);
 
     NTSTATUS Result;
-    PDEVICE_OBJECT DeviceObject;
     PIRP Irp;
     PIO_STACK_LOCATION IrpSp;
     FSP_SEND_SET_INFORMATION_IRP_CONTEXT Context;
 
-    DeviceObject = IoGetRelatedDeviceObject(FileObject);
+    if (0 == DeviceObject)
+        DeviceObject = IoGetRelatedDeviceObject(FileObject);
 
     Irp = IoAllocateIrp(DeviceObject->StackSize, FALSE);
     if (0 == Irp)

@@ -169,8 +169,8 @@ static NTSTATUS FspFsvolWriteCached(
         ASSERT(CanWait);
 
         EndOfFileInformation.EndOfFile.QuadPart = WriteEndOffset;
-        Result = FspSendSetInformationIrp(FileObject, FileEndOfFileInformation,
-            &EndOfFileInformation, sizeof EndOfFileInformation);
+        Result = FspSendSetInformationIrp(FsvolDeviceObject/* bypass filters */, FileObject,
+            FileEndOfFileInformation, &EndOfFileInformation, sizeof EndOfFileInformation);
         if (!NT_SUCCESS(Result))
         {
             FspFileNodeRelease(FileNode, Main);

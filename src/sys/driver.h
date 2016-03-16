@@ -389,7 +389,7 @@ PVOID FspAllocateIrpMustSucceed(CCHAR StackSize);
 BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
-NTSTATUS FspSendSetInformationIrp(PFILE_OBJECT FileObject,
+NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
 NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,
     KPROCESSOR_MODE RequestorMode, LOCK_OPERATION Operation, PMDL *PMdl);
