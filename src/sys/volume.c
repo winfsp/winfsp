@@ -619,7 +619,9 @@ NTSTATUS FspVolumeTransact(
 
     /* wait for an IRP to arrive */
     KeQuerySystemTime(&Timeout);
-    Timeout.QuadPart += FsvolDeviceExtension->VolumeParams.TransactTimeout * 10000ULL;
+    Timeout.QuadPart += 0 == RepostedIrp ?
+        FsvolDeviceExtension->VolumeParams.TransactTimeout * 10000ULL :
+        FspVolumeTransactEarlyTimeout;
         /* convert millis to nanos and add to absolute time */
     while (0 == (PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, 0, &Timeout, Irp)))
     {

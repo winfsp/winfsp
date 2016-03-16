@@ -730,6 +730,7 @@ VOID FspDeviceDeleteAll(VOID);
     //    STATUS_VOLUME_DISMOUNTED : STATUS_DEVICE_NOT_CONNECTED)
 
 /* volume management */
+#define FspVolumeTransactEarlyTimeout   (1 * 10000ULL)
 NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 VOID FspVolumeDelete(
