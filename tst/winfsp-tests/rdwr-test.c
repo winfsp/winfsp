@@ -383,6 +383,196 @@ static void rdwr_overlapped_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, U
     memfs_stop(memfs);
 }
 
+static void rdwr_mmap_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileInfoTimeout, DWORD CreateFlags,
+    BOOLEAN EarlyClose)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle, Mapping;
+    PUINT8 MappedView;
+    BOOL Success;
+    WCHAR FilePath[MAX_PATH];
+    SYSTEM_INFO SystemInfo;
+    DWORD SectorsPerCluster;
+    DWORD BytesPerSector;
+    DWORD FreeClusters;
+    DWORD TotalClusters;
+    PUINT8 Buffer[2];
+    DWORD BytesTransferred;
+    DWORD FilePointer;
+    unsigned seed = (unsigned)time(0);
+
+    GetSystemInfo(&SystemInfo);
+
+    DWORD FileSize0 = 2 * SystemInfo.dwAllocationGranularity;
+    DWORD FileSize1 = 100;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        VolPrefix ? L"" : L"\\\\?\\GLOBALROOT", VolPrefix ? VolPrefix : memfs_volumename(memfs));
+
+    Success = GetDiskFreeSpaceW(FilePath, &SectorsPerCluster, &BytesPerSector, &FreeClusters, &TotalClusters);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Buffer[0] = _aligned_malloc(BytesPerSector, BytesPerSector);
+    Buffer[1] = _aligned_malloc(BytesPerSector, BytesPerSector);
+    ASSERT(0 != Buffer[0] && 0 != Buffer[1]);
+
+    for (PUINT8 Bgn = Buffer[0], End = Bgn + BytesPerSector; End > Bgn; Bgn++)
+        *Bgn = (Bgn - Buffer[0]) & 0xff;
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | CreateFlags, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Mapping = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+        0, FileSize0 + FileSize1, 0);
+    ASSERT(0 != Mapping);
+
+    if (EarlyClose)
+    {
+        Success = CloseHandle(Handle);
+        ASSERT(Success);
+    }
+
+    MappedView = MapViewOfFile(Mapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    ASSERT(0 != MappedView);
+
+    srand(seed);
+    for (PUINT8 Bgn = MappedView + FileSize1 / 2, End = Bgn + FileSize0; End > Bgn; Bgn++)
+        *Bgn = rand() & 0xff;
+
+    Success = UnmapViewOfFile(MappedView);
+    ASSERT(Success);
+
+    MappedView = MapViewOfFile(Mapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    ASSERT(0 != MappedView);
+
+    srand(seed);
+    for (PUINT8 Bgn = MappedView + FileSize1 / 2, End = Bgn + FileSize0; End > Bgn; Bgn++)
+        ASSERT(*Bgn == (rand() & 0xff));
+
+    Success = UnmapViewOfFile(MappedView);
+    ASSERT(Success);
+
+    Success = CloseHandle(Mapping);
+    ASSERT(Success);
+
+    if (!EarlyClose)
+    {
+        Success = CloseHandle(Handle);
+        ASSERT(Success);
+    }
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | CreateFlags, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Mapping = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+        0, FileSize0 + FileSize1, 0);
+    ASSERT(0 != Mapping);
+
+    if (EarlyClose)
+    {
+        Success = CloseHandle(Handle);
+        ASSERT(Success);
+    }
+
+    MappedView = MapViewOfFile(Mapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    ASSERT(0 != MappedView);
+
+    srand(seed);
+    for (PUINT8 Bgn = MappedView + FileSize1 / 2, End = Bgn + FileSize0; End > Bgn; Bgn++)
+        ASSERT(*Bgn == (rand() & 0xff));
+
+    if (!EarlyClose)
+    {
+        FilePointer = SetFilePointer(Handle, FileSize0 / 2, 0, FILE_BEGIN);
+        ASSERT(FileSize0 / 2 == FilePointer);
+        Success = WriteFile(Handle, Buffer[0], BytesPerSector, &BytesTransferred, 0);
+        ASSERT(Success);
+        ASSERT(BytesPerSector == BytesTransferred);
+        ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+    }
+
+    Success = UnmapViewOfFile(MappedView);
+    ASSERT(Success);
+
+    Success = CloseHandle(Mapping);
+    ASSERT(Success);
+
+    if (!EarlyClose)
+    {
+        Success = CloseHandle(Handle);
+        ASSERT(Success);
+    }
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | CreateFlags, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Mapping = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+        0, FileSize0 + FileSize1, 0);
+    ASSERT(0 != Mapping);
+
+    if (EarlyClose)
+    {
+        Success = CloseHandle(Handle);
+        ASSERT(Success);
+    }
+
+    MappedView = MapViewOfFile(Mapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    ASSERT(0 != MappedView);
+
+    if (!EarlyClose)
+    {
+        FilePointer = SetFilePointer(Handle, FileSize0 / 2, 0, FILE_BEGIN);
+        ASSERT(FileSize0 / 2 == FilePointer);
+        memset(Buffer[1], 0, BytesPerSector);
+        Success = ReadFile(Handle, Buffer[1], BytesPerSector, &BytesTransferred, 0);
+        ASSERT(Success);
+        ASSERT(BytesPerSector == BytesTransferred);
+        ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle, 0, 0, FILE_CURRENT));
+        ASSERT(0 == memcmp(Buffer[0], Buffer[1], BytesTransferred));
+    }
+
+    srand(seed);
+    for (PUINT8 Bgn = MappedView + FileSize1 / 2, End = MappedView + FileSize0 / 2; End > Bgn; Bgn++)
+        ASSERT(*Bgn == (rand() & 0xff));
+    if (!EarlyClose)
+        ASSERT(0 == memcmp(Buffer[0], MappedView + FileSize0 / 2, BytesPerSector));
+    for (size_t i = 0; BytesPerSector > i; i++)
+        rand();
+    for (PUINT8 Bgn = MappedView + FileSize0 / 2 + BytesPerSector, End = MappedView + FileSize1 / 2 + FileSize0;
+        End > Bgn; Bgn++)
+        ASSERT(*Bgn == (rand() & 0xff));
+
+    Success = UnmapViewOfFile(MappedView);
+    ASSERT(Success);
+
+    Success = CloseHandle(Mapping);
+    ASSERT(Success);
+
+    if (!EarlyClose)
+    {
+        Success = CloseHandle(Handle);
+        ASSERT(Success);
+    }
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    _aligned_free(Buffer[0]);
+    _aligned_free(Buffer[1]);
+
+    memfs_stop(memfs);
+}
+
 void rdwr_noncached_test(void)
 {
     if (NtfsTests)
@@ -503,6 +693,53 @@ void rdwr_writethru_overlapped_test(void)
     }
 }
 
+void rdwr_mmap_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        rdwr_mmap_dotest(-1, L"C:", DirBuf, 0, 0, FALSE);
+        rdwr_mmap_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING, FALSE);
+        rdwr_mmap_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_WRITE_THROUGH, FALSE);
+        rdwr_mmap_dotest(-1, L"C:", DirBuf, 0, 0, TRUE);
+        rdwr_mmap_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING, TRUE);
+        rdwr_mmap_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_WRITE_THROUGH, TRUE);
+    }
+    if (WinFspDiskTests)
+    {
+        rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, 0, FALSE);
+        rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_NO_BUFFERING, FALSE);
+        rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_WRITE_THROUGH, FALSE);
+        rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, 0, TRUE);
+        rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_NO_BUFFERING, TRUE);
+        rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_WRITE_THROUGH, TRUE);
+
+        rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, 0, FALSE);
+        rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_NO_BUFFERING, FALSE);
+        rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_WRITE_THROUGH, FALSE);
+        rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, 0, TRUE);
+        rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_NO_BUFFERING, TRUE);
+        rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_WRITE_THROUGH, TRUE);
+    }
+    if (WinFspNetTests)
+    {
+        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, 0, FALSE);
+        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_NO_BUFFERING, FALSE);
+        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_WRITE_THROUGH, FALSE);
+        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, 0, TRUE);
+        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_NO_BUFFERING, TRUE);
+        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_WRITE_THROUGH, TRUE);
+
+        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, 0, FALSE);
+        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_NO_BUFFERING, FALSE);
+        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_WRITE_THROUGH, FALSE);
+        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, 0, TRUE);
+        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_NO_BUFFERING, TRUE);
+        rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_WRITE_THROUGH, TRUE);
+    }
+}
+
 void rdwr_tests(void)
 {
     TEST(rdwr_noncached_test);
@@ -511,4 +748,5 @@ void rdwr_tests(void)
     TEST(rdwr_cached_overlapped_test);
     TEST(rdwr_writethru_test);
     TEST(rdwr_writethru_overlapped_test);
+    TEST(rdwr_mmap_test);
 }
