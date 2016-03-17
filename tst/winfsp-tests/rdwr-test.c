@@ -665,6 +665,57 @@ static void rdwr_mixed_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG 
     Success = DeleteFileW(FilePath);
     ASSERT(Success);
 
+    Handle0 = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle0);
+
+    FilePointer = SetFilePointer(Handle0, 0, 0, FILE_BEGIN);
+    ASSERT(0 == FilePointer);
+    Success = WriteFile(Handle0, Buffer[0], BytesPerSector, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(BytesPerSector == BytesTransferred);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle0, 0, 0, FILE_CURRENT));
+
+    FilePointer = SetFilePointer(Handle0, 2 * BytesPerSector, 0, FILE_BEGIN);
+    ASSERT(2 * BytesPerSector == FilePointer);
+    Success = WriteFile(Handle0, Buffer[0], BytesPerSector, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(BytesPerSector == BytesTransferred);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle0, 0, 0, FILE_CURRENT));
+
+    FilePointer = SetFilePointer(Handle0, 0, 0, FILE_BEGIN);
+    ASSERT(0 == FilePointer);
+    memset(AllocBuffer[1], 0, AllocBufferSize);
+    Success = ReadFile(Handle0, Buffer[1], BytesPerSector, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(BytesPerSector == BytesTransferred);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle0, 0, 0, FILE_CURRENT));
+    ASSERT(0 == memcmp(Buffer[0], Buffer[1], BytesTransferred));
+
+    Success = CloseHandle(Handle0);
+    ASSERT(Success);
+
+    Handle1 = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle0);
+
+    FilePointer = SetFilePointer(Handle1, 0, 0, FILE_BEGIN);
+    ASSERT(0 == FilePointer);
+    memset(AllocBuffer[1], 0, AllocBufferSize);
+    Success = ReadFile(Handle1, Buffer[1], BytesPerSector, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(BytesPerSector == BytesTransferred);
+    ASSERT(FilePointer + BytesTransferred == SetFilePointer(Handle1, 0, 0, FILE_CURRENT));
+    ASSERT(0 == memcmp(Buffer[0], Buffer[1], BytesTransferred));
+
+    Success = CloseHandle(Handle1);
+    ASSERT(Success);
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
     _aligned_free(AllocBuffer[0]);
     _aligned_free(AllocBuffer[1]);
 
