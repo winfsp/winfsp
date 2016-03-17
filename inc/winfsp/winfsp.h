@@ -1,7 +1,7 @@
 /**
  * @file winfsp/winfsp.h
  *
- * @copyright 2015 Bill Zissimopoulos
+ * @copyright 2015-2016 Bill Zissimopoulos
  */
 
 #ifndef WINFSP_WINFSP_H_INCLUDED

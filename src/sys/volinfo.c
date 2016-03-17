@@ -1,7 +1,7 @@
 /**
  * @file sys/volinfo.c
  *
- * @copyright 2015 Bill Zissimopoulos
+ * @copyright 2015-2016 Bill Zissimopoulos
  */
 
 #include <sys/driver.h>

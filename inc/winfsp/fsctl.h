@@ -1,7 +1,7 @@
 /**
  * @file winfsp/fsctl.h
  *
- * @copyright 2015 Bill Zissimopoulos
+ * @copyright 2015-2016 Bill Zissimopoulos
  */
 
 #ifndef WINFSP_FSCTL_H_INCLUDED

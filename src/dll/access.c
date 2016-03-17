@@ -1,7 +1,7 @@
 /**
  * @file dll/access.c
  *
- * @copyright 2015 Bill Zissimopoulos
+ * @copyright 2015-2016 Bill Zissimopoulos
  */
 
 #include <dll/library.h>

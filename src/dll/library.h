@@ -1,7 +1,7 @@
 /**
  * @file dll/library.h
  *
- * @copyright 2015 Bill Zissimopoulos
+ * @copyright 2015-2016 Bill Zissimopoulos
  */
 
 #ifndef WINFSP_DLL_LIBRARY_H_INCLUDED
