@@ -545,7 +545,7 @@ NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     LARGE_INTEGER FlushOffset;
     PLARGE_INTEGER PFlushOffset = &FlushOffset;
     FSP_FSCTL_FILE_INFO FileInfo;
-    IO_STATUS_BLOCK IoStatus = { 0 };
+    IO_STATUS_BLOCK IoStatus = { STATUS_SUCCESS };
 
     FlushOffset.QuadPart = FlushOffset64;
     if (FILE_WRITE_TO_END_OF_FILE == FlushOffset.LowPart && -1L == FlushOffset.HighPart)
@@ -556,29 +556,38 @@ NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
             PFlushOffset = 0; /* we don't know how big the file is, so flush it all! */
     }
 
-    if (0 != FspMvCcCoherencyFlushAndPurgeCache)
+    /* it is unclear if the Cc* calls below can raise or not; wrap them just in case */
+    try
     {
-        /* if we are on Win7+ use CcCoherencyFlushAndPurgeCache */
-        FspMvCcCoherencyFlushAndPurgeCache(
-            &FileNode->NonPaged->SectionObjectPointers, PFlushOffset, FlushLength, &IoStatus,
-            FlushAndPurge ? 0 : CC_FLUSH_AND_PURGE_NO_PURGE);
+        if (0 != FspMvCcCoherencyFlushAndPurgeCache)
+        {
+            /* if we are on Win7+ use CcCoherencyFlushAndPurgeCache */
+            FspMvCcCoherencyFlushAndPurgeCache(
+                &FileNode->NonPaged->SectionObjectPointers, PFlushOffset, FlushLength, &IoStatus,
+                FlushAndPurge ? 0 : CC_FLUSH_AND_PURGE_NO_PURGE);
 
-        return STATUS_CACHE_PAGE_LOCKED == IoStatus.Status ?
-            STATUS_SUCCESS/* liar! */:
-            IoStatus.Status;
+            if (STATUS_CACHE_PAGE_LOCKED == IoStatus.Status)
+                IoStatus.Status = STATUS_SUCCESS;
+        }
+        else
+        {
+            /* do it the old-fashioned way; non-cached and mmap'ed I/O are non-coherent */
+            CcFlushCache(&FileNode->NonPaged->SectionObjectPointers, PFlushOffset, FlushLength, &IoStatus);
+            if (NT_SUCCESS(IoStatus.Status))
+            {
+                if (FlushAndPurge)
+                    CcPurgeCacheSection(&FileNode->NonPaged->SectionObjectPointers, PFlushOffset, FlushLength, FALSE);
+
+                IoStatus.Status = STATUS_SUCCESS;
+            }
+        }
     }
-    else
+    except (EXCEPTION_EXECUTE_HANDLER)
     {
-        /* do it the old-fashioned way; non-cached and mmap'ed I/O are non-coherent */
-        CcFlushCache(&FileNode->NonPaged->SectionObjectPointers, PFlushOffset, FlushLength, &IoStatus);
-        if (!NT_SUCCESS(IoStatus.Status))
-            return IoStatus.Status;
-
-        if (FlushAndPurge)
-            CcPurgeCacheSection(&FileNode->NonPaged->SectionObjectPointers, PFlushOffset, FlushLength, FALSE);
-
-        return STATUS_SUCCESS;
+        IoStatus.Status = GetExceptionCode();
     }
+
+    return IoStatus.Status;
 }
 
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
