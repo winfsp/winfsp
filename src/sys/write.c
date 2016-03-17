@@ -335,28 +335,15 @@ NTSTATUS FspFsvolWritePrepare(
     /* if this is a non-cached transfer on a cached file then flush and purge the file */
     if (!PagingIo && 0 != FileObject->SectionObjectPointer->DataSectionObject)
     {
-        LARGE_INTEGER FlushOffset = IrpSp->Parameters.Write.ByteOffset;
-        PLARGE_INTEGER PFlushOffset = &FlushOffset;
-        ULONG FlushLength = IrpSp->Parameters.Write.Length;
-        FSP_FSCTL_FILE_INFO FileInfo;
-        IO_STATUS_BLOCK IoStatus = { 0 };
-
-        if (FILE_WRITE_TO_END_OF_FILE == FlushOffset.LowPart && -1L == FlushOffset.HighPart)
-        {
-            if (FspFileNodeTryGetFileInfo(FileNode, &FileInfo))
-                FlushOffset.QuadPart = FileInfo.FileSize;
-            else
-                PFlushOffset = 0; /* we don't know how big the file is, so flush it all! */
-        }
-
-        CcFlushCache(FileObject->SectionObjectPointer, PFlushOffset, FlushLength, &IoStatus);
-        if (!NT_SUCCESS(IoStatus.Status))
+        Result = FspFileNodeFlushAndPurgeCache(FileNode,
+            IrpSp->Parameters.Write.ByteOffset.QuadPart,
+            IrpSp->Parameters.Write.Length,
+            TRUE);
+        if (!NT_SUCCESS(Result))
         {
             FspFileNodeRelease(FileNode, Full);
-            return IoStatus.Status;
+            return Result;
         }
-
-        CcPurgeCacheSection(FileObject->SectionObjectPointer, PFlushOffset, FlushLength, FALSE);
     }
 
     /* create a "safe" MDL if necessary */

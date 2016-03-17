@@ -13,6 +13,7 @@ VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLEAN Wait);
 VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);
 BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLEAN Wait);
+VOID FspFileNodeConvertExclusiveToSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
@@ -22,6 +23,8 @@ VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
+NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
+    UINT64 FlushOffset64, ULONG FlushLength, BOOLEAN FlushAndPurge);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 BOOLEAN FspFileNodeHasOpenHandles(PDEVICE_OBJECT FsvolDeviceObject,
     PUNICODE_STRING FileName, BOOLEAN SubpathOnly);
@@ -45,6 +48,7 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #pragma alloc_text(PAGE, FspFileNodeTryAcquireSharedF)
 #pragma alloc_text(PAGE, FspFileNodeAcquireExclusiveF)
 #pragma alloc_text(PAGE, FspFileNodeTryAcquireExclusiveF)
+#pragma alloc_text(PAGE, FspFileNodeConvertExclusiveToSharedF)
 #pragma alloc_text(PAGE, FspFileNodeSetOwnerF)
 #pragma alloc_text(PAGE, FspFileNodeReleaseF)
 #pragma alloc_text(PAGE, FspFileNodeReleaseOwnerF)
@@ -52,6 +56,7 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #pragma alloc_text(PAGE, FspFileNodeCleanup)
 #pragma alloc_text(PAGE, FspFileNodeCleanupComplete)
 #pragma alloc_text(PAGE, FspFileNodeClose)
+#pragma alloc_text(PAGE, FspFileNodeFlushAndPurgeCache)
 #pragma alloc_text(PAGE, FspFileNodeRename)
 #pragma alloc_text(PAGE, FspFileNodeHasOpenHandles)
 #pragma alloc_text(PAGE, FspFileNodeGetFileInfo)
@@ -244,6 +249,19 @@ BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags, BO
         FSP_FILE_NODE_SET_FLAGS();
 
     return Result;
+}
+
+VOID FspFileNodeConvertExclusiveToSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
+{
+    PAGED_CODE();
+
+    FSP_FILE_NODE_GET_FLAGS();
+
+    if (Flags & FspFileNodeAcquirePgio)
+        ExConvertExclusiveToSharedLite(FileNode->Header.PagingIoResource);
+
+    if (Flags & FspFileNodeAcquireMain)
+        ExConvertExclusiveToSharedLite(FileNode->Header.Resource);
 }
 
 VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
@@ -513,6 +531,54 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
 
     if (DeletedFromContextTable)
         FspFileNodeDereference(FileNode);
+}
+
+NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
+    UINT64 FlushOffset64, ULONG FlushLength, BOOLEAN FlushAndPurge)
+{
+    /*
+     * The FileNode must be acquired exclusive (Full) when calling this function.
+     */
+
+    PAGED_CODE();
+
+    LARGE_INTEGER FlushOffset;
+    PLARGE_INTEGER PFlushOffset = &FlushOffset;
+    FSP_FSCTL_FILE_INFO FileInfo;
+    IO_STATUS_BLOCK IoStatus = { 0 };
+
+    FlushOffset.QuadPart = FlushOffset64;
+    if (FILE_WRITE_TO_END_OF_FILE == FlushOffset.LowPart && -1L == FlushOffset.HighPart)
+    {
+        if (FspFileNodeTryGetFileInfo(FileNode, &FileInfo))
+            FlushOffset.QuadPart = FileInfo.FileSize;
+        else
+            PFlushOffset = 0; /* we don't know how big the file is, so flush it all! */
+    }
+
+    if (0 != FspMvCcCoherencyFlushAndPurgeCache)
+    {
+        /* if we are on Win7+ use CcCoherencyFlushAndPurgeCache */
+        FspMvCcCoherencyFlushAndPurgeCache(
+            &FileNode->NonPaged->SectionObjectPointers, PFlushOffset, FlushLength, &IoStatus,
+            FlushAndPurge ? 0 : CC_FLUSH_AND_PURGE_NO_PURGE);
+
+        return STATUS_CACHE_PAGE_LOCKED == IoStatus.Status ?
+            STATUS_SUCCESS/* liar! */:
+            IoStatus.Status;
+    }
+    else
+    {
+        /* do it the old-fashioned way; non-cached and mmap'ed I/O are non-coherent */
+        CcFlushCache(&FileNode->NonPaged->SectionObjectPointers, PFlushOffset, FlushLength, &IoStatus);
+        if (!NT_SUCCESS(IoStatus.Status))
+            return IoStatus.Status;
+
+        if (FlushAndPurge)
+            CcPurgeCacheSection(&FileNode->NonPaged->SectionObjectPointers, PFlushOffset, FlushLength, FALSE);
+
+        return STATUS_SUCCESS;
+    }
 }
 
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)

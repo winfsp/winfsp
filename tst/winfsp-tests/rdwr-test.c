@@ -2,6 +2,7 @@
 #include <tlib/testsuite.h>
 #include <strsafe.h>
 #include <time.h>
+#include <VersionHelpers.h>
 #include "memfs.h"
 
 void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout);
@@ -710,16 +711,27 @@ void rdwr_mmap_test(void)
     {
         /*
          * WinFsp does not currently provide coherency between mmap'ed I/O and ReadFile/WriteFile
-         * in the following circumstances:
+         * before Windows 7 in the following cases:
          *   - FileInfoTimeout != INFINITE
          *   - CreateFlags & FILE_FLAG_NO_BUFFERING
+         *
+         * In Windows 7 and above the new DDI CcCoherencyFlushAndPurgeCache allows us to provide
+         * coherency in those cases.
          */
 
+        if (IsWindows7OrGreater())
+        {
+            rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, 0, FALSE);
+            rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_NO_BUFFERING, FALSE);
+            rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_WRITE_THROUGH, FALSE);
+        }
         rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, 0, TRUE);
         rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_NO_BUFFERING, TRUE);
         rdwr_mmap_dotest(MemfsDisk, 0, 0, 1000, FILE_FLAG_WRITE_THROUGH, TRUE);
 
         rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, 0, FALSE);
+        if (IsWindows7OrGreater())
+            rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_NO_BUFFERING, FALSE);
         rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_WRITE_THROUGH, FALSE);
         rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, 0, TRUE);
         rdwr_mmap_dotest(MemfsDisk, 0, 0, INFINITE, FILE_FLAG_NO_BUFFERING, TRUE);
@@ -729,16 +741,27 @@ void rdwr_mmap_test(void)
     {
         /*
          * WinFsp does not currently provide coherency between mmap'ed I/O and ReadFile/WriteFile
-         * in the following circumstances:
+         * before Windows 7 in the following cases:
          *   - FileInfoTimeout != INFINITE
          *   - CreateFlags & FILE_FLAG_NO_BUFFERING
+         *
+         * In Windows 7 and above the new DDI CcCoherencyFlushAndPurgeCache allows us to provide
+         * coherency in those cases.
          */
 
+        if (IsWindows7OrGreater())
+        {
+            rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, 0, FALSE);
+            rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_NO_BUFFERING, FALSE);
+            rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_WRITE_THROUGH, FALSE);
+        }
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, 0, TRUE);
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_NO_BUFFERING, TRUE);
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, FILE_FLAG_WRITE_THROUGH, TRUE);
 
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, 0, FALSE);
+        if (IsWindows7OrGreater())
+            rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_NO_BUFFERING, FALSE);
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_WRITE_THROUGH, FALSE);
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, 0, TRUE);
         rdwr_mmap_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, FILE_FLAG_NO_BUFFERING, TRUE);

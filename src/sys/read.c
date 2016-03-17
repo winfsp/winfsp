@@ -252,16 +252,40 @@ NTSTATUS FspFsvolReadPrepare(
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
     FSP_SAFE_MDL *SafeMdl = 0;
     PVOID Address;
     PEPROCESS Process;
+    BOOLEAN FlushCache;
     BOOLEAN Success;
 
-    Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireShared(FileNode, Full);
+    FlushCache = !PagingIo && 0 != FileObject->SectionObjectPointer->DataSectionObject;
+        /* !!!: DataSectionObject accessed outside a lock. Hmmm! */
+
+    if (FlushCache)
+        Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Full);
+    else
+        Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireShared(FileNode, Full);
     if (!Success)
     {
         FspIopRetryPrepareIrp(Irp, &Result);
         return Result;
+    }
+
+    /* if this is a non-cached transfer on a cached file then flush the file */
+    if (FlushCache)
+    {
+        Result = FspFileNodeFlushAndPurgeCache(FileNode,
+            IrpSp->Parameters.Read.ByteOffset.QuadPart,
+            IrpSp->Parameters.Read.Length,
+            FALSE);
+        if (!NT_SUCCESS(Result))
+        {
+            FspFileNodeRelease(FileNode, Full);
+            return Result;
+        }
+
+        FspFileNodeConvertExclusiveToShared(FileNode, Full);
     }
 
     /* create a "safe" MDL if necessary */

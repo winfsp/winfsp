@@ -7,10 +7,12 @@
 #include <sys/driver.h>
 
 DRIVER_INITIALIZE DriverEntry;
+static VOID FspDriverMultiVersionInitialize(VOID);
 DRIVER_UNLOAD FspUnload;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(INIT, DriverEntry)
+#pragma alloc_text(INIT, FspDriverMultiVersionInitialize)
 #pragma alloc_text(PAGE, FspUnload)
 #endif
 
@@ -18,6 +20,8 @@ NTSTATUS DriverEntry(
     PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
     FSP_ENTER();
+
+    FspDriverMultiVersionInitialize();
 
     FspDriverObject = DriverObject;
 
@@ -143,6 +147,18 @@ NTSTATUS DriverEntry(
         &DriverObject->DriverName, RegistryPath);
 }
 
+static VOID FspDriverMultiVersionInitialize(VOID)
+{
+    UNICODE_STRING Name;
+
+    if (RtlIsNtDdiVersionAvailable(NTDDI_WIN7))
+    {
+        RtlInitUnicodeString(&Name, L"CcCoherencyFlushAndPurgeCache");
+        FspMvCcCoherencyFlushAndPurgeCache =
+            (FSP_MV_CcCoherencyFlushAndPurgeCache *)(UINT_PTR)MmGetSystemRoutineAddress(&Name);
+    }
+}
+
 VOID FspUnload(
     PDRIVER_OBJECT DriverObject)
 {
@@ -164,3 +180,5 @@ PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 PDEVICE_OBJECT FspFsctlNetDeviceObject;
 FAST_IO_DISPATCH FspFastIoDispatch;
 CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
+
+FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
