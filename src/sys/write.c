@@ -13,7 +13,8 @@ static NTSTATUS FspFsvolWriteCached(
     BOOLEAN CanWait);
 static VOID FspFsvolWriteCachedDeferred(PVOID Context1, PVOID Context2);
 static NTSTATUS FspFsvolWriteNonCached(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    BOOLEAN CanWait);
 FSP_IOPREP_DISPATCH FspFsvolWritePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolWriteComplete;
 static FSP_IOP_REQUEST_FINI FspFsvolWriteNonCachedRequestFini;
@@ -77,7 +78,7 @@ static NTSTATUS FspFsvolWrite(
         !FlagOn(Irp->Flags, IRP_PAGING_IO | IRP_NOCACHE))
         Result = FspFsvolWriteCached(FsvolDeviceObject, Irp, IrpSp, IoIsOperationSynchronous(Irp));
     else
-        Result = FspFsvolWriteNonCached(FsvolDeviceObject, Irp, IrpSp);
+        Result = FspFsvolWriteNonCached(FsvolDeviceObject, Irp, IrpSp, IoIsOperationSynchronous(Irp));
 
     return Result;
 }
@@ -235,7 +236,8 @@ static VOID FspFsvolWriteCachedDeferred(PVOID Context1, PVOID Context2)
 }
 
 static NTSTATUS FspFsvolWriteNonCached(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    BOOLEAN CanWait)
 {
     PAGED_CODE();
 
@@ -254,6 +256,7 @@ static NTSTATUS FspFsvolWriteNonCached(
     BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
     FSP_FSCTL_FILE_INFO FileInfo;
     FSP_FSCTL_TRANSACT_REQ *Request;
+    BOOLEAN Success;
 
     ASSERT(FileNode == FileDesc->FileNode);
 
@@ -295,46 +298,21 @@ static NTSTATUS FspFsvolWriteNonCached(
             return Result;
     }
 
-    /* create request */
-    Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolWriteNonCachedRequestFini, &Request);
-    if (!NT_SUCCESS(Result))
-        return Result;
-
-    Request->Kind = FspFsctlTransactWriteKind;
-    Request->Req.Write.UserContext = FileNode->UserContext;
-    Request->Req.Write.UserContext2 = FileDesc->UserContext2;
-    Request->Req.Write.Offset = WriteOffset.QuadPart;
-    Request->Req.Write.Length = WriteLength;
-    Request->Req.Write.Key = WriteKey;
-
-    return FSP_STATUS_IOQ_POST;
-}
-
-NTSTATUS FspFsvolWritePrepare(
-    PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
-{
-    PAGED_CODE();
-
-    NTSTATUS Result;
-    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    PFILE_OBJECT FileObject = IrpSp->FileObject;
-    FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
-    FSP_SAFE_MDL *SafeMdl = 0;
-    PVOID Address;
-    PEPROCESS Process;
-    BOOLEAN Success;
-
-    Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Full);
+    /* acquire FileNode exclusive Full */
+    Success = DEBUGTEST(90, TRUE) &&
+        FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, CanWait);
     if (!Success)
-    {
-        FspIopRetryPrepareIrp(Irp, &Result);
-        return Result;
-    }
+        return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteNonCached, 0);
 
     /* if this is a non-cached transfer on a cached file then flush and purge the file */
     if (!PagingIo && 0 != FileObject->SectionObjectPointer->DataSectionObject)
     {
+        if (!CanWait)
+        {
+            FspFileNodeRelease(FileNode, Full);
+            return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteNonCached, 0);
+        }
+
         Result = FspFileNodeFlushAndPurgeCache(FileNode,
             IrpSp->Parameters.Write.ByteOffset.QuadPart,
             IrpSp->Parameters.Write.Length,
@@ -346,15 +324,43 @@ NTSTATUS FspFsvolWritePrepare(
         }
     }
 
+    /* create request */
+    Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolWriteNonCachedRequestFini, &Request);
+    if (!NT_SUCCESS(Result))
+    {
+        FspFileNodeRelease(FileNode, Full);
+        return Result;
+    }
+
+    Request->Kind = FspFsctlTransactWriteKind;
+    Request->Req.Write.UserContext = FileNode->UserContext;
+    Request->Req.Write.UserContext2 = FileDesc->UserContext2;
+    Request->Req.Write.Offset = WriteOffset.QuadPart;
+    Request->Req.Write.Length = WriteLength;
+    Request->Req.Write.Key = WriteKey;
+
+    FspFileNodeSetOwner(FileNode, Full, Request);
+    FspIopRequestContext(Request, RequestIrp) = Irp;
+
+    return FSP_STATUS_IOQ_POST;
+}
+
+NTSTATUS FspFsvolWritePrepare(
+    PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    FSP_SAFE_MDL *SafeMdl = 0;
+    PVOID Address;
+    PEPROCESS Process;
+
     /* create a "safe" MDL if necessary */
     if (!FspSafeMdlCheck(Irp->MdlAddress))
     {
         Result = FspSafeMdlCreate(Irp->MdlAddress, IoReadAccess, &SafeMdl);
         if (!NT_SUCCESS(Result))
-        {
-            FspFileNodeRelease(FileNode, Full);
-            return STATUS_INSUFFICIENT_RESOURCES;
-        }
+            return Result;
     }
 
     /* map the MDL into user-mode */
@@ -364,7 +370,6 @@ NTSTATUS FspFsvolWritePrepare(
         if (0 != SafeMdl)
             FspSafeMdlDelete(SafeMdl);
 
-        FspFileNodeRelease(FileNode, Full);
         return Result;
     }
 
@@ -374,8 +379,6 @@ NTSTATUS FspFsvolWritePrepare(
 
     Request->Req.Write.Address = (UINT64)(UINT_PTR)Address;
 
-    FspFileNodeSetOwner(FileNode, Full, Request);
-    FspIopRequestContext(Request, RequestIrp) = Irp;
     FspIopRequestContext(Request, RequestSafeMdl) = SafeMdl;
     FspIopRequestContext(Request, RequestAddress) = Address;
     FspIopRequestContext(Request, RequestProcess) = Process;

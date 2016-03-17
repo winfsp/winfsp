@@ -12,7 +12,8 @@ static NTSTATUS FspFsvolReadCached(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
     BOOLEAN CanWait);
 static NTSTATUS FspFsvolReadNonCached(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    BOOLEAN CanWait);
 FSP_IOPREP_DISPATCH FspFsvolReadPrepare;
 FSP_IOCMPL_DISPATCH FspFsvolReadComplete;
 static FSP_IOP_REQUEST_FINI FspFsvolReadNonCachedRequestFini;
@@ -77,7 +78,7 @@ static NTSTATUS FspFsvolRead(
         !FlagOn(Irp->Flags, IRP_PAGING_IO | IRP_NOCACHE))
         Result = FspFsvolReadCached(FsvolDeviceObject, Irp, IrpSp, IoIsOperationSynchronous(Irp));
     else
-        Result = FspFsvolReadNonCached(FsvolDeviceObject, Irp, IrpSp);
+        Result = FspFsvolReadNonCached(FsvolDeviceObject, Irp, IrpSp, IoIsOperationSynchronous(Irp));
 
     return Result;
 }
@@ -190,7 +191,8 @@ cleanup:
 }
 
 static NTSTATUS FspFsvolReadNonCached(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    BOOLEAN CanWait)
 {
     PAGED_CODE();
 
@@ -204,8 +206,10 @@ static NTSTATUS FspFsvolReadNonCached(
     LARGE_INTEGER ReadOffset = IrpSp->Parameters.Read.ByteOffset;
     ULONG ReadLength = IrpSp->Parameters.Read.Length;
     ULONG ReadKey = IrpSp->Parameters.Read.Key;
+    BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
     FSP_FSCTL_FILE_INFO FileInfo;
     FSP_FSCTL_TRANSACT_REQ *Request;
+    BOOLEAN Success;
 
     ASSERT(FileNode == FileDesc->FileNode);
 
@@ -228,10 +232,42 @@ static NTSTATUS FspFsvolReadNonCached(
             return Result;
     }
 
+    /* acquire FileNode exclusive Full */
+    Success = DEBUGTEST(90, TRUE) &&
+        FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, CanWait);
+    if (!Success)
+        return FspWqRepostIrpWorkItem(Irp, FspFsvolReadNonCached, 0);
+
+    /* if this is a non-cached transfer on a cached file then flush the file */
+    if (!PagingIo && 0 != FileObject->SectionObjectPointer->DataSectionObject)
+    {
+        if (!CanWait)
+        {
+            FspFileNodeRelease(FileNode, Full);
+            return FspWqRepostIrpWorkItem(Irp, FspFsvolReadNonCached, 0);
+        }
+
+        Result = FspFileNodeFlushAndPurgeCache(FileNode,
+            IrpSp->Parameters.Read.ByteOffset.QuadPart,
+            IrpSp->Parameters.Read.Length,
+            FALSE);
+        if (!NT_SUCCESS(Result))
+        {
+            FspFileNodeRelease(FileNode, Full);
+            return Result;
+        }
+    }
+
+    /* convert FileNode to shared */
+    FspFileNodeConvertExclusiveToShared(FileNode, Full);
+
     /* create request */
     Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolReadNonCachedRequestFini, &Request);
     if (!NT_SUCCESS(Result))
+    {
+        FspFileNodeRelease(FileNode, Full);
         return Result;
+    }
 
     Request->Kind = FspFsctlTransactReadKind;
     Request->Req.Read.UserContext = FileNode->UserContext;
@@ -239,6 +275,9 @@ static NTSTATUS FspFsvolReadNonCached(
     Request->Req.Read.Offset = ReadOffset.QuadPart;
     Request->Req.Read.Length = ReadLength;
     Request->Req.Read.Key = ReadKey;
+
+    FspFileNodeSetOwner(FileNode, Full, Request);
+    FspIopRequestContext(Request, RequestIrp) = Irp;
 
     return FSP_STATUS_IOQ_POST;
 }
@@ -249,54 +288,16 @@ NTSTATUS FspFsvolReadPrepare(
     PAGED_CODE();
 
     NTSTATUS Result;
-    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    PFILE_OBJECT FileObject = IrpSp->FileObject;
-    FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
     FSP_SAFE_MDL *SafeMdl = 0;
     PVOID Address;
     PEPROCESS Process;
-    BOOLEAN FlushCache;
-    BOOLEAN Success;
-
-    FlushCache = !PagingIo && 0 != FileObject->SectionObjectPointer->DataSectionObject;
-        /* !!!: DataSectionObject accessed outside a lock. Hmmm! */
-
-    if (FlushCache)
-        Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Full);
-    else
-        Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireShared(FileNode, Full);
-    if (!Success)
-    {
-        FspIopRetryPrepareIrp(Irp, &Result);
-        return Result;
-    }
-
-    /* if this is a non-cached transfer on a cached file then flush the file */
-    if (FlushCache)
-    {
-        Result = FspFileNodeFlushAndPurgeCache(FileNode,
-            IrpSp->Parameters.Read.ByteOffset.QuadPart,
-            IrpSp->Parameters.Read.Length,
-            FALSE);
-        if (!NT_SUCCESS(Result))
-        {
-            FspFileNodeRelease(FileNode, Full);
-            return Result;
-        }
-
-        FspFileNodeConvertExclusiveToShared(FileNode, Full);
-    }
 
     /* create a "safe" MDL if necessary */
     if (!FspSafeMdlCheck(Irp->MdlAddress))
     {
         Result = FspSafeMdlCreate(Irp->MdlAddress, IoWriteAccess, &SafeMdl);
         if (!NT_SUCCESS(Result))
-        {
-            FspFileNodeRelease(FileNode, Full);
-            return STATUS_INSUFFICIENT_RESOURCES;
-        }
+            return Result;
     }
 
     /* map the MDL into user-mode */
@@ -306,7 +307,6 @@ NTSTATUS FspFsvolReadPrepare(
         if (0 != SafeMdl)
             FspSafeMdlDelete(SafeMdl);
 
-        FspFileNodeRelease(FileNode, Full);
         return Result;
     }
 
@@ -316,8 +316,6 @@ NTSTATUS FspFsvolReadPrepare(
 
     Request->Req.Read.Address = (UINT64)(UINT_PTR)Address;
 
-    FspFileNodeSetOwner(FileNode, Full, Request);
-    FspIopRequestContext(Request, RequestIrp) = Irp;
     FspIopRequestContext(Request, RequestSafeMdl) = SafeMdl;
     FspIopRequestContext(Request, RequestAddress) = Address;
     FspIopRequestContext(Request, RequestProcess) = Process;

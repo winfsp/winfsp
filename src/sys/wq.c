@@ -67,6 +67,7 @@ static VOID FspWqWorkRoutine(PVOID Context)
 {
     PIRP Irp = Context;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
     FSP_FSCTL_TRANSACT_REQ *RequestWorkItem = FspIrpRequest(Irp);
     FSP_WQ_REQUEST_WORK *WorkRoutine = (FSP_WQ_REQUEST_WORK *)(UINT_PTR)
         FspIopRequestContext(RequestWorkItem, FspWqRequestWorkRoutine);
@@ -74,11 +75,27 @@ static VOID FspWqWorkRoutine(PVOID Context)
 
     IoSetTopLevelIrp(Irp);
 
-    Result = WorkRoutine(IrpSp->DeviceObject, Irp, IrpSp, TRUE);
+    Result = WorkRoutine(DeviceObject, Irp, IrpSp, TRUE);
     if (STATUS_PENDING != Result)
     {
+        ASSERT(0 == (FSP_STATUS_PRIVATE_BIT & Result) ||
+            FSP_STATUS_IOQ_POST == Result || FSP_STATUS_IOQ_POST_BEST_EFFORT == Result);
+
         DEBUGLOGIRP(Irp, Result);
-        FspIopCompleteIrp(Irp, Result);
+
+        if (FSP_STATUS_PRIVATE_BIT & Result)
+        {
+            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+                FspFsvolDeviceExtension(DeviceObject);
+            if (!FspIoqPostIrpEx(FsvolDeviceExtension->Ioq, Irp,
+                FSP_STATUS_IOQ_POST_BEST_EFFORT == Result, &Result))
+            {
+                DEBUGLOG("FspIoqPostIrpEx = %s", NtStatusSym(Result));
+                FspIopCompleteIrp(Irp, Result);
+            }
+        }
+        else
+            FspIopCompleteIrp(Irp, Result);
     }
 
     IoSetTopLevelIrp(0);
