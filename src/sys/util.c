@@ -14,8 +14,7 @@ NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT File
 static NTSTATUS FspSendSetInformationIrpCompletion(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context0);
 NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
-NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,
-    KPROCESSOR_MODE RequestorMode, LOCK_OPERATION Operation, PMDL *PMdl);
+NTSTATUS FspLockUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress);
 NTSTATUS FspCcInitializeCacheMap(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes,
     BOOLEAN PinAccess, PCACHE_MANAGER_CALLBACKS Callbacks, PVOID CallbackContext);
@@ -285,20 +284,20 @@ NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,
-    KPROCESSOR_MODE RequestorMode, LOCK_OPERATION Operation, PMDL *PMdl)
+NTSTATUS FspLockUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation)
 {
     PAGED_CODE();
 
-    *PMdl = 0;
+    if (0 == Length || 0 != Irp->MdlAddress)
+        return STATUS_SUCCESS;
 
-    PMDL Mdl = IoAllocateMdl(UserBuffer, Length, FALSE, FALSE, 0);
+    PMDL Mdl = IoAllocateMdl(Irp->UserBuffer, Length, FALSE, FALSE, 0);
     if (0 == Mdl)
         return STATUS_INSUFFICIENT_RESOURCES;
 
     try
     {
-        MmProbeAndLockPages(Mdl, RequestorMode, Operation);
+        MmProbeAndLockPages(Mdl, Irp->RequestorMode, Operation);
     }
     except (EXCEPTION_EXECUTE_HANDLER)
     {
@@ -306,7 +305,8 @@ NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,
         return GetExceptionCode();
     }
 
-    *PMdl = Mdl;
+    Irp->MdlAddress = Mdl;
+
     return STATUS_SUCCESS;
 }
 

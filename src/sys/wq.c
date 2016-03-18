@@ -20,14 +20,13 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
 
         /* probe and lock the user buffer (if not an MDL request) */
         PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-        if (0 == Irp->MdlAddress &&
-            (IRP_MJ_READ == IrpSp->MajorFunction || IRP_MJ_WRITE == IrpSp->MajorFunction) &&
+        if ((IRP_MJ_READ == IrpSp->MajorFunction || IRP_MJ_WRITE == IrpSp->MajorFunction) &&
             !FlagOn(IrpSp->MinorFunction, IRP_MN_MDL))
         {
-            Result = FspLockUserBuffer(Irp->UserBuffer, IrpSp->Parameters.Write.Length,
-                Irp->RequestorMode,
-                IRP_MJ_READ == IrpSp->MajorFunction ? IoWriteAccess : IoReadAccess,
-                &Irp->MdlAddress);
+            if (IRP_MJ_READ == IrpSp->MajorFunction)
+                Result = FspLockUserBuffer(Irp, IrpSp->Parameters.Read.Length, IoWriteAccess);
+            else
+                Result = FspLockUserBuffer(Irp, IrpSp->Parameters.Write.Length, IoReadAccess);
             if (!NT_SUCCESS(Result))
                 return Result;
         }

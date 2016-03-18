@@ -224,13 +224,9 @@ static NTSTATUS FspFsvolReadNonCached(
         return STATUS_END_OF_FILE;
 
     /* probe and lock the user buffer */
-    if (0 == Irp->MdlAddress)
-    {
-        Result = FspLockUserBuffer(Irp->UserBuffer, ReadLength,
-            Irp->RequestorMode, IoWriteAccess, &Irp->MdlAddress);
-        if (!NT_SUCCESS(Result))
-            return Result;
-    }
+    Result = FspLockUserBuffer(Irp, ReadLength, IoWriteAccess);
+    if (!NT_SUCCESS(Result))
+        return Result;
 
     /* acquire FileNode exclusive Full */
     Success = DEBUGTEST(90, TRUE) &&
