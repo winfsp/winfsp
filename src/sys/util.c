@@ -271,7 +271,9 @@ NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation)
         except (EXCEPTION_EXECUTE_HANDLER)
         {
             FspFree(SystemBuffer);
-            return STATUS_INVALID_USER_BUFFER;
+
+            NTSTATUS Result = GetExceptionCode();
+            return FsRtlIsNtstatusExpected(Result) ? STATUS_INVALID_USER_BUFFER : Result;
         }
     }
     else
@@ -302,7 +304,9 @@ NTSTATUS FspLockUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation)
     except (EXCEPTION_EXECUTE_HANDLER)
     {
         IoFreeMdl(Mdl);
-        return GetExceptionCode();
+
+        NTSTATUS Result = GetExceptionCode();
+        return FsRtlIsNtstatusExpected(Result) ? STATUS_INVALID_USER_BUFFER : Result;
     }
 
     Irp->MdlAddress = Mdl;
@@ -509,7 +513,8 @@ NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation
     }
     except (EXCEPTION_EXECUTE_HANDLER)
     {
-        Result = STATUS_INVALID_USER_BUFFER;
+        Result = GetExceptionCode();
+        Result = FsRtlIsNtstatusExpected(Result) ? STATUS_INVALID_USER_BUFFER : Result;
     }
 
     return STATUS_BUFFER_TOO_SMALL == Result ? STATUS_BUFFER_OVERFLOW : Result;
