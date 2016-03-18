@@ -573,12 +573,24 @@ enum
     FspIopPostWorkRequestFunnel(D, R, TRUE)
 #define FspIopCompleteIrp(I, R)         FspIopCompleteIrpEx(I, R, TRUE)
 typedef VOID FSP_IOP_REQUEST_FINI(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4]);
+typedef struct
+{
+    FSP_IOP_REQUEST_FINI *RequestFini;
+    PVOID Context[4];
+    FSP_FSCTL_TRANSACT_RSP *Response;
+    __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 RequestBuf[];
+} FSP_FSCTL_TRANSACT_REQ_HEADER;
+static inline
+PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I)
+{
+    FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
+    return &RequestHeader->Context[I];
+}
 NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
     ULONG Flags, FSP_FSCTL_TRANSACT_REQ **PRequest);
 VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopResetRequest(FSP_FSCTL_TRANSACT_REQ *Request, FSP_IOP_REQUEST_FINI *RequestFini);
-PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
 NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN BestEffort);
 VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference);

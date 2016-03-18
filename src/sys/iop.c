@@ -11,7 +11,6 @@ NTSTATUS FspIopCreateRequestFunnel(
     ULONG Flags, FSP_FSCTL_TRANSACT_REQ **PRequest);
 VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopResetRequest(FSP_FSCTL_TRANSACT_REQ *Request, FSP_IOP_REQUEST_FINI *RequestFini);
-PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I);
 NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
     FSP_FSCTL_TRANSACT_REQ *Request, BOOLEAN AllocateIrpMustSucceed);
 static IO_COMPLETION_ROUTINE FspIopPostWorkRequestCompletion;
@@ -27,7 +26,6 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
 #pragma alloc_text(PAGE, FspIopCreateRequestFunnel)
 #pragma alloc_text(PAGE, FspIopDeleteRequest)
 #pragma alloc_text(PAGE, FspIopResetRequest)
-#pragma alloc_text(PAGE, FspIopRequestContextAddress)
 #pragma alloc_text(PAGE, FspIopPostWorkRequestFunnel)
 #pragma alloc_text(PAGE, FspIopCompleteIrpEx)
 #pragma alloc_text(PAGE, FspIopCompleteCanceledIrp)
@@ -44,14 +42,6 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
 #else
 #define REQ_HEADER_ALIGNMASK            0
 #endif
-
-typedef struct
-{
-    FSP_IOP_REQUEST_FINI *RequestFini;
-    PVOID Context[4];
-    FSP_FSCTL_TRANSACT_RSP *Response;
-    __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 RequestBuf[];
-} FSP_FSCTL_TRANSACT_REQ_HEADER;
 
 NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
@@ -137,15 +127,6 @@ VOID FspIopResetRequest(FSP_FSCTL_TRANSACT_REQ *Request, FSP_IOP_REQUEST_FINI *R
 
     RtlZeroMemory(&RequestHeader->Context, sizeof RequestHeader->Context);
     RequestHeader->RequestFini = RequestFini;
-}
-
-PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I)
-{
-    PAGED_CODE();
-
-    FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
-
-    return &RequestHeader->Context[I];
 }
 
 NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
