@@ -59,6 +59,7 @@ static NTSTATUS FspFsvolQuerySecurity(
     PVOID Buffer = Irp->UserBuffer;
     ULONG Length = IrpSp->Parameters.QuerySecurity.Length;
     PVOID SecurityBuffer;
+    FSP_FSCTL_TRANSACT_REQ *Request;
 
     ASSERT(FileNode == FileDesc->FileNode);
 
@@ -76,7 +77,12 @@ static NTSTATUS FspFsvolQuerySecurity(
 
     FspFileNodeAcquireShared(FileNode, Pgio);
 
-    FSP_FSCTL_TRANSACT_REQ *Request;
+    Result = FspBufferUserBuffer(Irp, Length, IoWriteAccess);
+    if (!NT_SUCCESS(Result))
+    {
+        FspFileNodeRelease(FileNode, Full);
+        return Result;
+    }
 
     Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolQuerySecurityRequestFini, &Request);
     if (!NT_SUCCESS(Result))
@@ -110,7 +116,7 @@ NTSTATUS FspFsvolQuerySecurityComplete(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     SECURITY_INFORMATION SecurityInformation = IrpSp->Parameters.QuerySecurity.SecurityInformation;
-    PVOID Buffer = Irp->UserBuffer;
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
     ULONG Length = IrpSp->Parameters.QuerySecurity.Length;
     PVOID SecurityBuffer = 0;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);

@@ -13,6 +13,7 @@ NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT File
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
 static NTSTATUS FspSendSetInformationIrpCompletion(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context0);
+NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,
     KPROCESSOR_MODE RequestorMode, LOCK_OPERATION Operation, PMDL *PMdl);
 NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress);
@@ -50,6 +51,7 @@ VOID FspSafeMdlDelete(FSP_SAFE_MDL *SafeMdl);
 #pragma alloc_text(PAGE, FspUnicodePathSuffix)
 #pragma alloc_text(PAGE, FspCreateGuid)
 #pragma alloc_text(PAGE, FspSendSetInformationIrp)
+#pragma alloc_text(PAGE, FspBufferUserBuffer)
 #pragma alloc_text(PAGE, FspLockUserBuffer)
 #pragma alloc_text(PAGE, FspMapLockedPagesInUserMode)
 #pragma alloc_text(PAGE, FspCcInitializeCacheMap)
@@ -248,6 +250,39 @@ static NTSTATUS FspSendSetInformationIrpCompletion(
     IoFreeIrp(Irp);
 
     return STATUS_MORE_PROCESSING_REQUIRED;
+}
+
+NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation)
+{
+    PAGED_CODE();
+
+    if (0 == Length || 0 != Irp->AssociatedIrp.SystemBuffer)
+        return STATUS_SUCCESS;
+
+    PVOID SystemBuffer = FspAllocNonPagedExternal(Length);
+    if (0 == SystemBuffer)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    if (IoReadAccess == Operation)
+    {
+        try
+        {
+            RtlCopyMemory(SystemBuffer, Irp->UserBuffer, Length);
+        }
+        except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            FspFree(SystemBuffer);
+            return STATUS_INVALID_USER_BUFFER;
+        }
+    }
+    else
+        RtlZeroMemory(SystemBuffer, Length);
+
+    Irp->AssociatedIrp.SystemBuffer = SystemBuffer;
+    Irp->Flags |= (IoReadAccess == Operation ? 0 : IRP_INPUT_OPERATION) |
+        IRP_BUFFERED_IO | IRP_DEALLOCATE_BUFFER;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,

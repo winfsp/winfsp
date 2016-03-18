@@ -391,6 +391,7 @@ VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
+NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspLockUserBuffer(PVOID UserBuffer, ULONG Length,
     KPROCESSOR_MODE RequestorMode, LOCK_OPERATION Operation, PMDL *PMdl);
 NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress);
