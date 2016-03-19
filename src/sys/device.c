@@ -290,7 +290,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     LARGE_INTEGER IrpTimeout;
-    LARGE_INTEGER MetaTimeout;
+    LARGE_INTEGER SecurityTimeout, DirInfoTimeout;
 
     /*
      * Volume device initialization is a mess, because of the different ways of
@@ -327,14 +327,24 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     FsvolDeviceExtension->InitDoneIoq = 1;
 
     /* create our security meta cache */
-    MetaTimeout.QuadPart = FspTimeoutFromMillis(FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
+    SecurityTimeout.QuadPart = FspTimeoutFromMillis(FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
         /* convert millis to nanos */
     Result = FspMetaCacheCreate(
-        FspFsvolDeviceSecurityCacheCapacity, FspFsvolDeviceSecurityCacheItemSizeMax, &MetaTimeout,
+        FspFsvolDeviceSecurityCacheCapacity, FspFsvolDeviceSecurityCacheItemSizeMax, &SecurityTimeout,
         &FsvolDeviceExtension->SecurityCache);
     if (!NT_SUCCESS(Result))
         return Result;
     FsvolDeviceExtension->InitDoneSec = 1;
+
+    /* create our directory meta cache */
+    DirInfoTimeout.QuadPart = FspTimeoutFromMillis(FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
+        /* convert millis to nanos */
+    Result = FspMetaCacheCreate(
+        FspFsvolDeviceDirInfoCacheCapacity, FspFsvolDeviceDirInfoCacheItemSizeMax, &DirInfoTimeout,
+        &FsvolDeviceExtension->DirInfoCache);
+    if (!NT_SUCCESS(Result))
+        return Result;
+    FsvolDeviceExtension->InitDoneDir = 1;
 
     /* initialize our context table */
     ExInitializeResourceLite(&FsvolDeviceExtension->FileRenameResource);
@@ -384,6 +394,10 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
      */
     if (FsvolDeviceExtension->InitDoneTimer)
         IoStopTimer(DeviceObject);
+
+    /* delete the directory meta cache */
+    if (FsvolDeviceExtension->InitDoneDir)
+        FspMetaCacheDelete(FsvolDeviceExtension->DirInfoCache);
 
     /* delete the security meta cache */
     if (FsvolDeviceExtension->InitDoneSec)
@@ -462,6 +476,7 @@ static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
 
     InterruptTime = KeQueryInterruptTime();
     FspMetaCacheInvalidateExpired(FsvolDeviceExtension->SecurityCache, InterruptTime);
+    FspMetaCacheInvalidateExpired(FsvolDeviceExtension->DirInfoCache, InterruptTime);
     FspIoqRemoveExpired(FsvolDeviceExtension->Ioq, InterruptTime);
 
     KeAcquireSpinLock(&FsvolDeviceExtension->ExpirationLock, &Irql);

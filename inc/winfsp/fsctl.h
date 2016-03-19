@@ -67,7 +67,7 @@ enum
     FspFsctlTransactFlushBuffersKind,
     FspFsctlTransactQueryVolumeInformationKind,
     FspFsctlTransactSetVolumeInformationKind,
-    FspFsctlTransactDirectoryControlKind,
+    FspFsctlTransactQueryDirectoryKind,
     FspFsctlTransactFileSystemControlKind,
     FspFsctlTransactDeviceControlKind,
     FspFsctlTransactShutdownKind,
@@ -134,6 +134,13 @@ typedef struct
     UINT64 ChangeTime;
     UINT64 IndexNumber;
 } FSP_FSCTL_FILE_INFO;
+typedef struct
+{
+    UINT16 Size;
+    FSP_FSCTL_FILE_INFO FileInfo;
+    UINT64 NextOffset;
+    WCHAR FileNameBuf[];
+} FSP_FSCTL_DIR_INFO;
 typedef struct
 {
     UINT16 Offset;
@@ -251,6 +258,14 @@ typedef struct
         {
             UINT64 UserContext;
             UINT64 UserContext2;
+            UINT64 Address;
+            UINT64 Offset;
+            UINT32 Length;
+        } QueryDirectory;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
         } QuerySecurity;
         struct
         {
@@ -261,7 +276,7 @@ typedef struct
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;
         } SetSecurity;
     } Req;
-    FSP_FSCTL_TRANSACT_BUF FileName;    /* {Create,Cleanup,SetInformation/{Disposition,Rename}} */
+    FSP_FSCTL_TRANSACT_BUF FileName;    /* {Create,Cleanup,SetInformation/{...},QueryDirectory} */
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_REQ;
 typedef struct

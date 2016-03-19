@@ -268,6 +268,7 @@ FSP_IOCMPL_DISPATCH FspFsvolCloseComplete;
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
 FSP_IOCMPL_DISPATCH FspFsvolDeviceControlComplete;
+FSP_IOPREP_DISPATCH FspFsvolDirectoryControlPrepare;
 FSP_IOCMPL_DISPATCH FspFsvolDirectoryControlComplete;
 FSP_IOCMPL_DISPATCH FspFsvolFileSystemControlComplete;
 FSP_IOCMPL_DISPATCH FspFsvolFlushBuffersComplete;
@@ -624,6 +625,8 @@ enum
 {
     FspFsvolDeviceSecurityCacheCapacity = 100,
     FspFsvolDeviceSecurityCacheItemSizeMax = 4096,
+    FspFsvolDeviceDirInfoCacheCapacity = 100,
+    FspFsvolDeviceDirInfoCacheItemSizeMax = 16384,
 };
 typedef struct
 {
@@ -660,8 +663,8 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-    UINT32 InitDoneFsvrt:1, InitDoneDelRsc:1, InitDoneIoq:1, InitDoneSec:1, InitDoneCtxTab:1,
-        InitDoneTimer:1, InitDoneInfo:1;
+    UINT32 InitDoneFsvrt:1, InitDoneDelRsc:1, InitDoneIoq:1, InitDoneSec:1, InitDoneDir:1,
+        InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     HANDLE MupHandle;
@@ -672,6 +675,7 @@ typedef struct
     UNICODE_STRING VolumePrefix;
     FSP_IOQ *Ioq;
     FSP_META_CACHE *SecurityCache;
+    FSP_META_CACHE *DirInfoCache;
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;
     BOOLEAN ExpirationInProgress;
@@ -781,6 +785,8 @@ typedef struct
     ERESOURCE PagingIoResource;
     FAST_MUTEX HeaderFastMutex;
     SECTION_OBJECT_POINTERS SectionObjectPointers;
+    KSPIN_LOCK DirInfoSpinLock;
+    UINT64 DirInfo;                     /* allows to invalidate DirInfo w/o resources acquired */
 } FSP_FILE_NODE_NONPAGED;
 typedef struct
 {
@@ -808,6 +814,7 @@ typedef struct
     ULONG InfoChangeNumber;
     UINT64 Security;
     ULONG SecurityChangeNumber;
+    ULONG DirInfoChangeNumber;
     BOOLEAN TruncateOnClose;
     union
     {
@@ -827,6 +834,8 @@ typedef struct
     FSP_FILE_NODE *FileNode;
     UINT64 UserContext2;
     BOOLEAN DeleteOnClose;
+    UNICODE_STRING QueryFileName;
+    UINT64 QueryOffset;
 } FSP_FILE_DESC;
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode);
@@ -872,8 +881,15 @@ BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, P
 VOID FspFileNodeSetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG SecurityChangeNumber);
+BOOLEAN FspFileNodeReferenceDirInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
+VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
+BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
+    ULONG DirInfoChangeNumber);
+VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
+NTSTATUS FspFileDescResetQueryFileName(FSP_FILE_DESC *FileDesc,
+    PUNICODE_STRING FileName, BOOLEAN Reset);
 #define FspFileNodeAcquireShared(N,F)   FspFileNodeAcquireSharedF(N, FspFileNodeAcquire ## F)
 #define FspFileNodeTryAcquireShared(N,F)    FspFileNodeTryAcquireSharedF(N, FspFileNodeAcquire ## F, FALSE)
 #define FspFileNodeAcquireExclusive(N,F)    FspFileNodeAcquireExclusiveF(N, FspFileNodeAcquire ## F)
@@ -883,6 +899,7 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #define FspFileNodeRelease(N,F)         FspFileNodeReleaseF(N, FspFileNodeAcquire ## F)
 #define FspFileNodeReleaseOwner(N,F,P)  FspFileNodeReleaseOwnerF(N, FspFileNodeAcquire ## F, P)
 #define FspFileNodeDereferenceSecurity(P)   FspMetaCacheDereferenceItemBuffer(P)
+#define FspFileNodeDereferenceDirInfo(P)    FspMetaCacheDereferenceItemBuffer(P)
 
 /* debug */
 #if DBG
@@ -919,6 +936,7 @@ extern FAST_IO_DISPATCH FspFastIoDispatch;
 extern CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
+extern WCHAR FspFileDescQueryFileNameMatchAll[];
 
 /* multiversion support */
 typedef

@@ -17,9 +17,9 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
     if (0 == RequestWorkItem)
     {
         NTSTATUS Result;
-
-        /* probe and lock the user buffer (if not an MDL request) */
         PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+
+        /* lock/buffer the user buffer */
         if ((IRP_MJ_READ == IrpSp->MajorFunction || IRP_MJ_WRITE == IrpSp->MajorFunction) &&
             !FlagOn(IrpSp->MinorFunction, IRP_MN_MDL))
         {
@@ -27,6 +27,13 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
                 Result = FspLockUserBuffer(Irp, IrpSp->Parameters.Read.Length, IoWriteAccess);
             else
                 Result = FspLockUserBuffer(Irp, IrpSp->Parameters.Write.Length, IoReadAccess);
+            if (!NT_SUCCESS(Result))
+                return Result;
+        }
+        else if (IRP_MJ_DIRECTORY_CONTROL == IrpSp->MajorFunction &&
+            IRP_MN_QUERY_DIRECTORY == IrpSp->MinorFunction)
+        {
+            Result = FspBufferUserBuffer(Irp, IrpSp->Parameters.QueryDirectory.Length, IoWriteAccess);
             if (!NT_SUCCESS(Result))
                 return Result;
         }

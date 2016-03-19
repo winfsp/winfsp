@@ -123,6 +123,9 @@ BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams)
 {
     PAGED_CODE();
 
+    if (0 != Path->Length % sizeof(WCHAR))
+        return FALSE;
+
     PWSTR PathBgn, PathEnd, PathPtr;
 
     PathBgn = Path->Buffer;

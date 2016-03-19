@@ -38,8 +38,15 @@ BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, P
 VOID FspFileNodeSetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG SecurityChangeNumber);
+BOOLEAN FspFileNodeReferenceDirInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
+VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
+BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
+    ULONG DirInfoChangeNumber);
+VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
+NTSTATUS FspFileDescResetQueryFileName(FSP_FILE_DESC *FileDesc,
+    PUNICODE_STRING FileName, BOOLEAN Reset);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFileNodeCreate)
@@ -66,8 +73,13 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 #pragma alloc_text(PAGE, FspFileNodeReferenceSecurity)
 #pragma alloc_text(PAGE, FspFileNodeSetSecurity)
 #pragma alloc_text(PAGE, FspFileNodeTrySetSecurity)
+// !#pragma alloc_text(PAGE, FspFileNodeReferenceDirInfo)
+// !#pragma alloc_text(PAGE, FspFileNodeSetDirInfo)
+// !#pragma alloc_text(PAGE, FspFileNodeTrySetDirInfo)
+// !#pragma alloc_text(PAGE, FspFileNodeInvalidateParentDirInfo)
 #pragma alloc_text(PAGE, FspFileDescCreate)
 #pragma alloc_text(PAGE, FspFileDescDelete)
+#pragma alloc_text(PAGE, FspFileDescResetQueryFileName)
 #endif
 
 #define FSP_FILE_NODE_GET_FLAGS()       \
@@ -109,6 +121,7 @@ NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ExInitializeResourceLite(&NonPaged->Resource);
     ExInitializeResourceLite(&NonPaged->PagingIoResource);
     ExInitializeFastMutex(&NonPaged->HeaderFastMutex);
+    KeInitializeSpinLock(&NonPaged->DirInfoSpinLock);
 
     RtlZeroMemory(FileNode, sizeof *FileNode + ExtraSize);
     FileNode->Header.NodeTypeCode = FspFileNodeFileKind;
@@ -139,6 +152,7 @@ VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode)
 
     FsRtlTeardownPerStreamContexts(&FileNode->Header);
 
+    FspMetaCacheInvalidateItem(FsvolDeviceExtension->DirInfoCache, FileNode->NonPaged->DirInfo);
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->SecurityCache, FileNode->Security);
 
     FspDeviceDereference(FileNode->FsvolDeviceObject);
@@ -766,6 +780,88 @@ BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG 
     return TRUE;
 }
 
+BOOLEAN FspFileNodeReferenceDirInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize)
+{
+    // !PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+    FSP_FILE_NODE_NONPAGED *NonPaged = FileNode->NonPaged;
+    UINT64 DirInfo;
+
+    /* no need to acquire the DirInfoSpinLock as the FileNode is acquired */
+    DirInfo = NonPaged->DirInfo;
+
+    return FspMetaCacheReferenceItemBuffer(FsvolDeviceExtension->DirInfoCache,
+        DirInfo, PBuffer, PSize);
+}
+
+VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size)
+{
+    // !PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+    FSP_FILE_NODE_NONPAGED *NonPaged = FileNode->NonPaged;
+    KIRQL Irql;
+    UINT64 DirInfo;
+
+    /* no need to acquire the DirInfoSpinLock as the FileNode is acquired */
+    DirInfo = NonPaged->DirInfo;
+
+    FspMetaCacheInvalidateItem(FsvolDeviceExtension->DirInfoCache, DirInfo);
+    DirInfo = 0 != Buffer ?
+        FspMetaCacheAddItem(FsvolDeviceExtension->DirInfoCache, Buffer, Size) : 0;
+    FileNode->DirInfoChangeNumber++;
+
+    /* acquire the DirInfoSpinLock to protect against concurrent FspFileNodeInvalidateParentDirInfo*/
+    KeAcquireSpinLock(&NonPaged->DirInfoSpinLock, &Irql);
+    NonPaged->DirInfo = DirInfo;
+    KeReleaseSpinLock(&NonPaged->DirInfoSpinLock, Irql);
+}
+
+BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
+    ULONG DirInfoChangeNumber)
+{
+    // !PAGED_CODE();
+
+    if (FileNode->DirInfoChangeNumber != DirInfoChangeNumber)
+        return FALSE;
+
+    FspFileNodeSetDirInfo(FileNode, Buffer, Size);
+    return TRUE;
+}
+
+VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode)
+{
+    // !PAGED_CODE();
+
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    UNICODE_STRING Parent, Suffix;
+    FSP_FILE_NODE_NONPAGED *NonPaged;
+    KIRQL Irql;
+    UINT64 DirInfo;
+
+    FspUnicodePathSuffix(&FileNode->FileName, &Parent, &Suffix);
+
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+    FileNode = FspFsvolDeviceLookupContextByName(FsvolDeviceObject, &Parent);
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    if (0 == FileNode)
+        return;
+
+    NonPaged = FileNode->NonPaged;
+
+    /* acquire the DirInfoSpinLock to protect against concurrent FspFileNodeSetDirInfo*/
+    KeAcquireSpinLock(&NonPaged->DirInfoSpinLock, &Irql);
+    DirInfo = NonPaged->DirInfo;
+    KeReleaseSpinLock(&NonPaged->DirInfoSpinLock, Irql);
+
+    FspMetaCacheInvalidateItem(FsvolDeviceExtension->DirInfoCache, DirInfo);
+}
+
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc)
 {
     PAGED_CODE();
@@ -783,5 +879,70 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc)
 {
     PAGED_CODE();
 
+    if (0 != FileDesc->QueryFileName.Buffer &&
+        FspFileDescQueryFileNameMatchAll != FileDesc->QueryFileName.Buffer)
+    {
+        PDEVICE_OBJECT FsvolDeviceObject = FileDesc->FileNode->FsvolDeviceObject;
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+            FspFsvolDeviceExtension(FsvolDeviceObject);
+
+        if (FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
+            FspFree(FileDesc->QueryFileName.Buffer);
+        else
+            RtlFreeUnicodeString(&FileDesc->QueryFileName);
+    }
+
     FspFree(FileDesc);
 }
+
+NTSTATUS FspFileDescResetQueryFileName(FSP_FILE_DESC *FileDesc,
+    PUNICODE_STRING FileName, BOOLEAN Reset)
+{
+    PAGED_CODE();
+
+    if (Reset || 0 == FileDesc->QueryFileName.Buffer)
+    {
+        PDEVICE_OBJECT FsvolDeviceObject = FileDesc->FileNode->FsvolDeviceObject;
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+            FspFsvolDeviceExtension(FsvolDeviceObject);
+        UNICODE_STRING QueryFileName;
+
+        if (0 == FileName || (sizeof(WCHAR) == FileName->Length && L'*' == FileName->Buffer[0]))
+        {
+            QueryFileName.Length = QueryFileName.MaximumLength = sizeof(WCHAR); /* L"*" */
+            QueryFileName.Buffer = FspFileDescQueryFileNameMatchAll;
+        }
+        else
+        {
+            if (FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
+            {
+                QueryFileName.Length = QueryFileName.MaximumLength = FileName->Length;
+                QueryFileName.Buffer = FspAlloc(FileName->Length);
+                if (0 == QueryFileName.Buffer)
+                    return STATUS_INSUFFICIENT_RESOURCES;
+                RtlCopyMemory(QueryFileName.Buffer, FileName->Buffer, FileName->Length);
+            }
+            else
+            {
+                NTSTATUS Result = RtlUpcaseUnicodeString(&QueryFileName, FileName, TRUE);
+                if (NT_SUCCESS(Result))
+                    return Result;
+            }
+        }
+
+        if (0 != FileDesc->QueryFileName.Buffer &&
+            FspFileDescQueryFileNameMatchAll != FileDesc->QueryFileName.Buffer)
+        {
+            if (FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
+                FspFree(FileDesc->QueryFileName.Buffer);
+            else
+                RtlFreeUnicodeString(&FileDesc->QueryFileName);
+        }
+
+        FileDesc->QueryFileName = QueryFileName;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+WCHAR FspFileDescQueryFileNameMatchAll[] = L"*";
