@@ -45,7 +45,7 @@ BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG S
 VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
-NTSTATUS FspFileDescResetQueryFileName(FSP_FILE_DESC *FileDesc,
+NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
     PUNICODE_STRING FileName, BOOLEAN Reset);
 
 #ifdef ALLOC_PRAGMA
@@ -79,7 +79,7 @@ NTSTATUS FspFileDescResetQueryFileName(FSP_FILE_DESC *FileDesc,
 // !#pragma alloc_text(PAGE, FspFileNodeInvalidateParentDirInfo)
 #pragma alloc_text(PAGE, FspFileDescCreate)
 #pragma alloc_text(PAGE, FspFileDescDelete)
-#pragma alloc_text(PAGE, FspFileDescResetQueryFileName)
+#pragma alloc_text(PAGE, FspFileDescResetDirectoryPattern)
 #endif
 
 #define FSP_FILE_NODE_GET_FLAGS()       \
@@ -879,70 +879,70 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc)
 {
     PAGED_CODE();
 
-    if (0 != FileDesc->QueryFileName.Buffer &&
-        FspFileDescQueryFileNameMatchAll != FileDesc->QueryFileName.Buffer)
+    if (0 != FileDesc->DirectoryPattern.Buffer &&
+        FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
     {
         PDEVICE_OBJECT FsvolDeviceObject = FileDesc->FileNode->FsvolDeviceObject;
         FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
             FspFsvolDeviceExtension(FsvolDeviceObject);
 
         if (FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
-            FspFree(FileDesc->QueryFileName.Buffer);
+            FspFree(FileDesc->DirectoryPattern.Buffer);
         else
-            RtlFreeUnicodeString(&FileDesc->QueryFileName);
+            RtlFreeUnicodeString(&FileDesc->DirectoryPattern);
     }
 
     FspFree(FileDesc);
 }
 
-NTSTATUS FspFileDescResetQueryFileName(FSP_FILE_DESC *FileDesc,
+NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
     PUNICODE_STRING FileName, BOOLEAN Reset)
 {
     PAGED_CODE();
 
-    if (Reset || 0 == FileDesc->QueryFileName.Buffer)
+    if (Reset || 0 == FileDesc->DirectoryPattern.Buffer)
     {
         PDEVICE_OBJECT FsvolDeviceObject = FileDesc->FileNode->FsvolDeviceObject;
         FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
             FspFsvolDeviceExtension(FsvolDeviceObject);
-        UNICODE_STRING QueryFileName;
+        UNICODE_STRING DirectoryPattern;
 
         if (0 == FileName || (sizeof(WCHAR) == FileName->Length && L'*' == FileName->Buffer[0]))
         {
-            QueryFileName.Length = QueryFileName.MaximumLength = sizeof(WCHAR); /* L"*" */
-            QueryFileName.Buffer = FspFileDescQueryFileNameMatchAll;
+            DirectoryPattern.Length = DirectoryPattern.MaximumLength = sizeof(WCHAR); /* L"*" */
+            DirectoryPattern.Buffer = FspFileDescDirectoryPatternMatchAll;
         }
         else
         {
             if (FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
             {
-                QueryFileName.Length = QueryFileName.MaximumLength = FileName->Length;
-                QueryFileName.Buffer = FspAlloc(FileName->Length);
-                if (0 == QueryFileName.Buffer)
+                DirectoryPattern.Length = DirectoryPattern.MaximumLength = FileName->Length;
+                DirectoryPattern.Buffer = FspAlloc(FileName->Length);
+                if (0 == DirectoryPattern.Buffer)
                     return STATUS_INSUFFICIENT_RESOURCES;
-                RtlCopyMemory(QueryFileName.Buffer, FileName->Buffer, FileName->Length);
+                RtlCopyMemory(DirectoryPattern.Buffer, FileName->Buffer, FileName->Length);
             }
             else
             {
-                NTSTATUS Result = RtlUpcaseUnicodeString(&QueryFileName, FileName, TRUE);
+                NTSTATUS Result = RtlUpcaseUnicodeString(&DirectoryPattern, FileName, TRUE);
                 if (NT_SUCCESS(Result))
                     return Result;
             }
         }
 
-        if (0 != FileDesc->QueryFileName.Buffer &&
-            FspFileDescQueryFileNameMatchAll != FileDesc->QueryFileName.Buffer)
+        if (0 != FileDesc->DirectoryPattern.Buffer &&
+            FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
         {
             if (FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
-                FspFree(FileDesc->QueryFileName.Buffer);
+                FspFree(FileDesc->DirectoryPattern.Buffer);
             else
-                RtlFreeUnicodeString(&FileDesc->QueryFileName);
+                RtlFreeUnicodeString(&FileDesc->DirectoryPattern);
         }
 
-        FileDesc->QueryFileName = QueryFileName;
+        FileDesc->DirectoryPattern = DirectoryPattern;
     }
 
     return STATUS_SUCCESS;
 }
 
-WCHAR FspFileDescQueryFileNameMatchAll[] = L"*";
+WCHAR FspFileDescDirectoryPatternMatchAll[] = L"*";

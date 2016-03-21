@@ -626,7 +626,7 @@ enum
     FspFsvolDeviceSecurityCacheCapacity = 100,
     FspFsvolDeviceSecurityCacheItemSizeMax = 4096,
     FspFsvolDeviceDirInfoCacheCapacity = 100,
-    FspFsvolDeviceDirInfoCacheItemSizeMax = 16384,
+    FspFsvolDeviceDirInfoCacheItemSizeMax = FSP_FSCTL_ALIGN_UP(16384, PAGE_SIZE),
 };
 typedef struct
 {
@@ -834,8 +834,9 @@ typedef struct
     FSP_FILE_NODE *FileNode;
     UINT64 UserContext2;
     BOOLEAN DeleteOnClose;
-    UNICODE_STRING QueryFileName;
-    UINT64 QueryOffset;
+    UNICODE_STRING DirectoryPattern;
+    UINT64 DirectoryOffset;
+    ULONG DirInfoCacheHint;
 } FSP_FILE_DESC;
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode);
@@ -888,7 +889,7 @@ BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG S
 VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
-NTSTATUS FspFileDescResetQueryFileName(FSP_FILE_DESC *FileDesc,
+NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
     PUNICODE_STRING FileName, BOOLEAN Reset);
 #define FspFileNodeAcquireShared(N,F)   FspFileNodeAcquireSharedF(N, FspFileNodeAcquire ## F)
 #define FspFileNodeTryAcquireShared(N,F)    FspFileNodeTryAcquireSharedF(N, FspFileNodeAcquire ## F, FALSE)
@@ -936,7 +937,7 @@ extern FAST_IO_DISPATCH FspFastIoDispatch;
 extern CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
-extern WCHAR FspFileDescQueryFileNameMatchAll[];
+extern WCHAR FspFileDescDirectoryPatternMatchAll[];
 
 /* multiversion support */
 typedef

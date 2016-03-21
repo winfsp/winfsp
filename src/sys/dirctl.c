@@ -13,7 +13,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     BOOLEAN CanWait);
 static NTSTATUS FspFsvolQueryDirectoryCopy(
     FILE_INFORMATION_CLASS FileInformationClass, BOOLEAN ReturnSingleEntry,
-    PUNICODE_STRING QueryFileName, BOOLEAN CaseInsensitive,
+    PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
     PVOID DestBuf, PULONG PDestLen,
     FSP_FSCTL_DIR_INFO *DirInfo, ULONG DirInfoSize);
 static NTSTATUS FspFsvolNotifyChangeDirectory(
@@ -118,10 +118,10 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolQueryDirectoryRetry, 0);
 
-    InitialQuery = 0 == FileDesc->QueryFileName.Buffer;
+    InitialQuery = 0 == FileDesc->DirectoryPattern.Buffer;
 
-    /* set the QueryFileName in the FileDesc */
-    Result = FspFileDescResetQueryFileName(FileDesc, FileName, RestartScan);
+    /* set the DirectoryPattern in the FileDesc */
+    Result = FspFileDescResetDirectoryPattern(FileDesc, FileName, RestartScan);
     if (!NT_SUCCESS(Result))
     {
         FspFileNodeRelease(FileNode, Full);
@@ -130,9 +130,9 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
 
     /* determine where to (re)start */
     if (IndexSpecified)
-        FileDesc->QueryOffset = (UINT64)IrpSp->Parameters.QueryDirectory.FileIndex << 32;
+        FileDesc->DirectoryOffset = (UINT64)IrpSp->Parameters.QueryDirectory.FileIndex << 32;
     else if (RestartScan)
-        FileDesc->QueryOffset = 0;
+        FileDesc->DirectoryOffset = 0;
 
     FspFileNodeConvertExclusiveToShared(FileNode, Full);
 
@@ -145,7 +145,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
         BOOLEAN CaseInsensitive = 0 == FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
 
         Result = FspFsvolQueryDirectoryCopy(FileInformationClass, ReturnSingleEntry,
-            &FileDesc->QueryFileName, CaseInsensitive,
+            &FileDesc->DirectoryPattern, CaseInsensitive,
             Buffer, &Length, DirInfoBuffer, DirInfoSize);
         FspFileNodeDereferenceDirInfo(DirInfoBuffer);
 
@@ -184,7 +184,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
 
 static NTSTATUS FspFsvolQueryDirectoryCopy(
     FILE_INFORMATION_CLASS FileInformationClass, BOOLEAN ReturnSingleEntry,
-    PUNICODE_STRING QueryFileName, BOOLEAN CaseInsensitive,
+    PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
     PVOID DestBuf, PULONG PDestLen,
     FSP_FSCTL_DIR_INFO *DirInfo, ULONG DirInfoSize)
 {
@@ -204,7 +204,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
 
     PAGED_CODE();
 
-    BOOLEAN MatchAll = FspFileDescQueryFileNameMatchAll == QueryFileName->Buffer;
+    BOOLEAN MatchAll = FspFileDescDirectoryPatternMatchAll == DirectoryPattern->Buffer;
     PVOID PrevDestBuf = 0;
     PUINT8 DestBufBgn = (PUINT8)DestBuf;
     PUINT8 DestBufEnd = (PUINT8)DestBuf + *PDestLen;
@@ -250,7 +250,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
             FileName.Length = FileName.MaximumLength = (USHORT)FileNameLen;
             FileName.Buffer = DirInfo->FileNameBuf;
 
-            if (MatchAll || FsRtlIsNameInExpression(QueryFileName, &FileName, CaseInsensitive, 0))
+            if (MatchAll || FsRtlIsNameInExpression(DirectoryPattern, &FileName, CaseInsensitive, 0))
             {
                 if ((PUINT8)DestBuf + FSP_FSCTL_ALIGN_UP(BaseInfoLen + FileNameLen, sizeof(LONGLONG)) >
                     DestBufEnd)
