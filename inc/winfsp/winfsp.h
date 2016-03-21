@@ -208,6 +208,12 @@ FSP_API NTSTATUS FspFileSystemOpSetSecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 
 /*
+ * File System Operations Helpers
+ */
+FSP_API BOOLEAN FspFileSystemAddDirInfo(FSP_FSCTL_DIR_INFO *DirInfo,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
+
+/*
  * Access
  */
 FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);

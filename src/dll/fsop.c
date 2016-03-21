@@ -600,7 +600,25 @@ FSP_API NTSTATUS FspFileSystemOpSetVolumeInformation(FSP_FILE_SYSTEM *FileSystem
 FSP_API NTSTATUS FspFileSystemOpQueryDirectory(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    NTSTATUS Result;
+    ULONG BytesTransferred;
+
+    if (0 == FileSystem->Interface->ReadDirectory)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    Result = FileSystem->Interface->ReadDirectory(FileSystem, Request,
+        (PVOID)Request->Req.QueryDirectory.UserContext,
+        (PVOID)Request->Req.QueryDirectory.Address,
+        Request->Req.QueryDirectory.Offset,
+        Request->Req.QueryDirectory.Length,
+        &BytesTransferred);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (STATUS_PENDING != Result)
+        Response->IoStatus.Information = BytesTransferred;
+
+    return Result;
 }
 
 FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
@@ -635,4 +653,33 @@ FSP_API NTSTATUS FspFileSystemOpSetSecurity(FSP_FILE_SYSTEM *FileSystem,
         (PVOID)Request->Req.SetSecurity.UserContext,
         Request->Req.SetSecurity.SecurityInformation,
         (PSECURITY_DESCRIPTOR)Request->Buffer);
+}
+
+FSP_API BOOLEAN FspFileSystemAddDirInfo(FSP_FSCTL_DIR_INFO *DirInfo,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+{
+    static UINT8 Zero[sizeof DirInfo->Size] = { 0 };
+    PVOID BufferEnd = (PUINT8)Buffer + Length;
+    PVOID SrcBuffer;
+    ULONG SrcLength;
+
+    if (0 != DirInfo)
+    {
+        SrcBuffer = DirInfo;
+        SrcLength = sizeof DirInfo->Size;
+    }
+    else
+    {
+        SrcBuffer = &Zero;
+        SrcLength = sizeof Zero;
+    }
+
+    Buffer = (PVOID)((PUINT8)Buffer + *PBytesTransferred);
+    if ((PUINT8)Buffer + SrcLength > (PUINT8)BufferEnd)
+        return FALSE;
+
+    memcpy(Buffer, SrcBuffer, SrcLength);
+    *PBytesTransferred += SrcLength;
+
+    return TRUE;
 }
