@@ -121,6 +121,8 @@ PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
 
 BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams)
 {
+    /* this does NOT check if the Path contains invalid file name chars (*, ?, etc.) */
+
     PAGED_CODE();
 
     if (0 != Path->Length % sizeof(WCHAR))

@@ -836,6 +836,7 @@ typedef struct
     BOOLEAN DeleteOnClose;
     UNICODE_STRING DirectoryPattern;
     UINT64 DirectoryOffset;
+    UINT64 DirInfo;
     ULONG DirInfoCacheHint;
 } FSP_FILE_DESC;
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
