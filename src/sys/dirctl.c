@@ -70,19 +70,29 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
     FSP_FSCTL_DIR_INFO **PDirInfo, ULONG DirInfoSize,
     PVOID DestBuf, PULONG PDestLen)
 {
-#define FILL_INFO(Info, DirInfo)\
-    Info->NextEntryOffset = 0;\
-    Info->FileIndex = FILE_INDEX_FROM_OFFSET(DirInfo->NextOffset);\
-    Info->CreationTime.QuadPart = DirInfo->FileInfo.CreationTime;\
-    Info->LastAccessTime.QuadPart = DirInfo->FileInfo.LastAccessTime;\
-    Info->LastWriteTime.QuadPart = DirInfo->FileInfo.LastWriteTime;\
-    Info->ChangeTime.QuadPart = DirInfo->FileInfo.ChangeTime;\
-    Info->EndOfFile.QuadPart = DirInfo->FileInfo.FileSize;\
-    Info->AllocationSize.QuadPart = DirInfo->FileInfo.AllocationSize;\
-    Info->FileAttributes = 0 != DirInfo->FileInfo.FileAttributes ?\
-        DirInfo->FileInfo.FileAttributes : FILE_ATTRIBUTE_NORMAL;\
-    Info->FileNameLength = FileName.Length;\
-    RtlCopyMemory(Info->FileName, DirInfo->FileNameBuf, FileName.Length)
+#define FILL_INFO_BASE(TYPE, ...)\
+    do\
+    {\
+        TYPE InfoStruct = { 0 }, *Info = &InfoStruct;\
+        Info->NextEntryOffset = 0;\
+        Info->FileIndex = FILE_INDEX_FROM_OFFSET(DirInfo->NextOffset);\
+        Info->FileNameLength = FileName.Length;\
+        RtlCopyMemory(Info->FileName, DirInfo->FileNameBuf, FileName.Length);\
+        __VA_ARGS__\
+        *(TYPE *)DestBuf = *Info;\
+    } while (0,0)
+#define FILL_INFO(TYPE, ...)\
+    FILL_INFO_BASE(TYPE,\
+        Info->CreationTime.QuadPart = DirInfo->FileInfo.CreationTime;\
+        Info->LastAccessTime.QuadPart = DirInfo->FileInfo.LastAccessTime;\
+        Info->LastWriteTime.QuadPart = DirInfo->FileInfo.LastWriteTime;\
+        Info->ChangeTime.QuadPart = DirInfo->FileInfo.ChangeTime;\
+        Info->EndOfFile.QuadPart = DirInfo->FileInfo.FileSize;\
+        Info->AllocationSize.QuadPart = DirInfo->FileInfo.AllocationSize;\
+        Info->FileAttributes = 0 != DirInfo->FileInfo.FileAttributes ?\
+            DirInfo->FileInfo.FileAttributes : FILE_ATTRIBUTE_NORMAL;\
+        __VA_ARGS__\
+        )
 
     PAGED_CODE();
 
@@ -160,59 +170,36 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                 switch (FileInformationClass)
                 {
                 case FileDirectoryInformation:
-                    {
-                        FILE_DIRECTORY_INFORMATION *Info = DestBuf;
-
-                        FILL_INFO(Info, DirInfo);
-                    }
+                    FILL_INFO(FILE_DIRECTORY_INFORMATION,);
                     break;
                 case FileFullDirectoryInformation:
-                    {
-                        FILE_FULL_DIR_INFORMATION *Info = DestBuf;
-
-                        FILL_INFO(Info, DirInfo);
+                    FILL_INFO(FILE_FULL_DIR_INFORMATION,
                         Info->EaSize = 0;
-                    }
+                    );
                     break;
                 case FileIdFullDirectoryInformation:
-                    {
-                        FILE_ID_FULL_DIR_INFORMATION *Info = DestBuf;
-
-                        FILL_INFO(Info, DirInfo);
+                    FILL_INFO(FILE_ID_FULL_DIR_INFORMATION,
                         Info->EaSize = 0;
                         Info->FileId.QuadPart = DirInfo->FileInfo.IndexNumber;
-                    }
+                    );
                     break;
                 case FileNamesInformation:
-                    {
-                        FILE_NAMES_INFORMATION *Info = DestBuf;
-
-                        Info->NextEntryOffset = 0;
-                        Info->FileIndex = FILE_INDEX_FROM_OFFSET(DirInfo->NextOffset);
-                        Info->FileNameLength = FileName.Length;
-                        RtlCopyMemory(Info->FileName, DirInfo->FileNameBuf, FileName.Length);
-                    }
+                    FILL_INFO_BASE(FILE_NAMES_INFORMATION,);
                     break;
                 case FileBothDirectoryInformation:
-                    {
-                        FILE_BOTH_DIR_INFORMATION *Info = DestBuf;
-
-                        FILL_INFO(Info, DirInfo);
+                    FILL_INFO(FILE_BOTH_DIR_INFORMATION,
                         Info->EaSize = 0;
                         Info->ShortNameLength = 0;
                         RtlZeroMemory(Info->ShortName, sizeof Info->ShortName);
-                    }
+                    );
                     break;
                 case FileIdBothDirectoryInformation:
-                    {
-                        FILE_ID_BOTH_DIR_INFORMATION *Info = DestBuf;
-
-                        FILL_INFO(Info, DirInfo);
+                    FILL_INFO(FILE_ID_BOTH_DIR_INFORMATION,
                         Info->EaSize = 0;
                         Info->ShortNameLength = 0;
                         RtlZeroMemory(Info->ShortName, sizeof Info->ShortName);
                         Info->FileId.QuadPart = DirInfo->FileInfo.IndexNumber;
-                    }
+                    );
                     break;
                 default:
                     ASSERT(0);
@@ -249,6 +236,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
 
     return STATUS_SUCCESS;
 #undef FILL_INFO
+#undef FILL_INFO_BASE
 }
 
 static NTSTATUS FspFsvolQueryDirectoryCopyCache(
