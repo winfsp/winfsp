@@ -73,13 +73,12 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
 #define FILL_INFO_BASE(TYPE, ...)\
     do\
     {\
-        TYPE InfoStruct = { 0 }, *Info = &InfoStruct;\
+        TYPE *Info = DestBuf;\
         Info->NextEntryOffset = 0;\
         Info->FileIndex = FILE_INDEX_FROM_OFFSET(DirInfo->NextOffset);\
         Info->FileNameLength = FileName.Length;\
         RtlCopyMemory(Info->FileName, DirInfo->FileNameBuf, FileName.Length);\
         __VA_ARGS__\
-        *(TYPE *)DestBuf = *Info;\
     } while (0,0)
 #define FILL_INFO(TYPE, ...)\
     FILL_INFO_BASE(TYPE,\
