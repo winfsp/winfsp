@@ -73,12 +73,14 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
 #define FILL_INFO_BASE(TYPE, ...)\
     do\
     {\
-        TYPE *Info = DestBuf;\
+        TYPE InfoStruct = { 0 }, *Info = &InfoStruct;\
         Info->NextEntryOffset = 0;\
         Info->FileIndex = FILE_INDEX_FROM_OFFSET(DirInfo->NextOffset);\
         Info->FileNameLength = FileName.Length;\
-        RtlCopyMemory(Info->FileName, DirInfo->FileNameBuf, FileName.Length);\
         __VA_ARGS__\
+        Info = DestBuf;\
+        *Info = InfoStruct;\
+        RtlCopyMemory(Info->FileName, DirInfo->FileNameBuf, FileName.Length);\
     } while (0,0)
 #define FILL_INFO(TYPE, ...)\
     FILL_INFO_BASE(TYPE,\
@@ -301,7 +303,10 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     UINT64 DirectoryOffset = FileDesc->DirectoryOffset;
 
     ASSERT(DirInfo == DestBuf);
-    ASSERT(sizeof(FSP_FSCTL_DIR_INFO) >= FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName));
+    static_assert(
+        FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) >=
+        FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName),
+        "FSP_FSCTL_DIR_INFO must be bigger than FILE_ID_BOTH_DIR_INFORMATION");
 
     Result = FspFsvolQueryDirectoryCopy(DirectoryPattern, CaseInsensitive, &DirectoryOffset,
         FileInformationClass, ReturnSingleEntry,

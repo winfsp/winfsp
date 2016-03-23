@@ -139,6 +139,8 @@ typedef struct
     UINT16 Size;
     FSP_FSCTL_FILE_INFO FileInfo;
     UINT64 NextOffset;
+    /* padding to make struct as big as FILE_ID_BOTH_DIR_INFORMATION; allows for in-place copying */
+    UINT8 Padding[24];
     WCHAR FileNameBuf[];
 } FSP_FSCTL_DIR_INFO;
 typedef struct
