@@ -314,7 +314,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     UINT64 DirectoryOffset = FileDesc->DirectoryOffset;
 
     ASSERT(DirInfo == DestBuf);
-    ASSERT(sizeof(FSP_FSCTL_DIR_INFO) > sizeof(FILE_ID_BOTH_DIR_INFORMATION));
+    ASSERT(sizeof(FSP_FSCTL_DIR_INFO) >= FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName));
 
     Result = FspFsvolQueryDirectoryCopy(DirectoryPattern, CaseInsensitive, &DirectoryOffset,
         FileInformationClass, ReturnSingleEntry,
@@ -572,10 +572,11 @@ NTSTATUS FspFsvolDirectoryControlComplete(
     BOOLEAN Success;
 
     ASSERT(FileNode == FileDesc->FileNode);
+    ASSERT(Request->Req.QueryDirectory.Offset == FileDesc->DirectoryOffset);
 
     if (0 == Response->IoStatus.Information)
     {
-        Result = 0 == Request->Req.QueryDirectory.Offset ?
+        Result = 0 == FileDesc->DirectoryOffset ?
             STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES;
         FSP_RETURN();
     }
@@ -598,12 +599,12 @@ NTSTATUS FspFsvolDirectoryControlComplete(
         FSP_RETURN();
     }
 
-    Success = 0 == Request->Req.QueryDirectory.Offset &&
+    if (0 == FileDesc->DirectoryOffset &&
         FspFileNodeTrySetDirInfo(FileNode,
             Irp->AssociatedIrp.SystemBuffer,
             (ULONG)Irp->IoStatus.Information,
-            DirInfoChangeNumber);
-    if (Success && FspFileNodeReferenceDirInfo(FileNode, &DirInfoBuffer, &DirInfoSize))
+            DirInfoChangeNumber) &&
+        FspFileNodeReferenceDirInfo(FileNode, &DirInfoBuffer, &DirInfoSize))
     {
         Result = FspFsvolQueryDirectoryCopyCache(FileDesc,
             TRUE,
