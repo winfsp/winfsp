@@ -26,6 +26,12 @@ int MemfsFileNameCompare(PWSTR a, PWSTR b)
     return wcscmp(a, b);
 }
 
+static inline
+BOOLEAN MemfsFileNameHasPrefix(PWSTR a, PWSTR b)
+{
+    return 0 == wcsncmp(a, b, wcslen(b));
+}
+
 typedef struct _MEMFS_FILE_NODE
 {
     WCHAR FileName[MAX_PATH];
@@ -191,6 +197,26 @@ BOOLEAN MemfsFileNodeMapHasChild(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NO
     Result = 0 == MemfsFileNameCompare(Remain, FileNode->FileName);
     FspPathCombine(iter->second->FileName, Suffix);
     return Result;
+}
+
+static inline
+VOID MemfsFileNodeEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode,
+    BOOLEAN (*EnumFn)(MEMFS_FILE_NODE *, PVOID), PVOID Context)
+{
+    WCHAR Root[2] = L"\\";
+    PWSTR Remain, Suffix;
+    MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->upper_bound(FileNode->FileName);
+    for (; FileNodeMap->end() != iter; ++iter)
+    {
+        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName))
+            break;
+        FspPathSuffix(iter->second->FileName, &Remain, &Suffix, Root);
+        if (0 == MemfsFileNameCompare(Remain, FileNode->FileName))
+        {
+            if (!EnumFn(iter->second, Context))
+                break;
+        }
+    }
 }
 
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
@@ -662,6 +688,46 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+typedef struct _MEMFS_READ_DIRECTORY_CONTEXT
+{
+    PVOID Buffer;
+    UINT64 Offset;
+    ULONG Length;
+    PULONG PBytesTransferred;
+} MEMFS_READ_DIRECTORY_CONTEXT;
+
+static BOOLEAN ReadDirectoryEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
+{
+    MEMFS_READ_DIRECTORY_CONTEXT *Context = (MEMFS_READ_DIRECTORY_CONTEXT *)Context0;
+    UINT8 DirInfoBuf[sizeof(FSP_FSCTL_DIR_INFO) + sizeof FileNode->FileName];
+    FSP_FSCTL_DIR_INFO *DirInfo = (FSP_FSCTL_DIR_INFO *)DirInfoBuf;
+
+    if (0 == *Context->PBytesTransferred && Context->Offset != FileNode->FileInfo.IndexNumber)
+        return TRUE;
+
+    return FspFileSystemAddDirInfo(DirInfo,
+        Context->Buffer, Context->Length, Context->PBytesTransferred);
+}
+
+static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0, PVOID Buffer, UINT64 Offset, ULONG Length,
+    PULONG PBytesTransferred)
+{
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    MEMFS_READ_DIRECTORY_CONTEXT Context;
+
+    Context.Buffer = Buffer;
+    Context.Offset = Offset;
+    Context.Length = Length;
+    Context.PBytesTransferred = PBytesTransferred;
+
+    MemfsFileNodeEnumerateChildren(Memfs->FileNodeMap, FileNode, ReadDirectoryEnumFn, &Context);
+
+    return STATUS_SUCCESS;
+}
+
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
     GetVolumeInfo,
@@ -682,6 +748,7 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     Rename,
     GetSecurity,
     SetSecurity,
+    ReadDirectory,
 };
 
 static VOID MemfsEnterOperation(FSP_FILE_SYSTEM *FileSystem,

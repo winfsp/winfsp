@@ -412,6 +412,7 @@ FSP_API NTSTATUS FspFileSystemOpRead(FSP_FILE_SYSTEM *FileSystem,
     if (0 == FileSystem->Interface->Read)
         return STATUS_INVALID_DEVICE_REQUEST;
 
+    BytesTransferred = 0;
     Result = FileSystem->Interface->Read(FileSystem, Request,
         (PVOID)Request->Req.Read.UserContext,
         (PVOID)Request->Req.Read.Address,
@@ -441,6 +442,7 @@ FSP_API NTSTATUS FspFileSystemOpWrite(FSP_FILE_SYSTEM *FileSystem,
     if (0 == FileSystem->Interface->Write)
         return STATUS_INVALID_DEVICE_REQUEST;
 
+    BytesTransferred = 0;
     Result = FileSystem->Interface->Write(FileSystem, Request,
         (PVOID)Request->Req.Write.UserContext,
         (PVOID)Request->Req.Write.Address,
@@ -606,6 +608,7 @@ FSP_API NTSTATUS FspFileSystemOpQueryDirectory(FSP_FILE_SYSTEM *FileSystem,
     if (0 == FileSystem->Interface->ReadDirectory)
         return STATUS_INVALID_DEVICE_REQUEST;
 
+    BytesTransferred = 0;
     Result = FileSystem->Interface->ReadDirectory(FileSystem, Request,
         (PVOID)Request->Req.QueryDirectory.UserContext,
         (PVOID)Request->Req.QueryDirectory.Address,
