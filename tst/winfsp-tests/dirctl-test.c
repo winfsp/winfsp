@@ -62,6 +62,15 @@ void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         unsigned long ul;
         wchar_t *endp;
 
+        if (2 > FileCount)
+        {
+            FileCount++;
+            ASSERT(0 != (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
+            ASSERT(FileCount == wcslen(FindData.cFileName));
+            ASSERT(0 == wcsncmp(FindData.cFileName, L"..", FileCount));
+            continue;
+        }
+
         ASSERT(0 == (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
         ASSERT(0 == wcsncmp(FindData.cFileName, L"file", 4));
         ul = wcstoul(FindData.cFileName + 4, &endp, 10);
@@ -73,7 +82,7 @@ void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     } while (FindNextFileW(Handle, &FindData));
     ASSERT(ERROR_NO_MORE_FILES == GetLastError());
 
-    ASSERT(100 == FileCount);
+    ASSERT(102 == FileCount);
     ASSERT(101 * 100 / 2 == FileTotal);
 
     Success = FindClose(Handle);
