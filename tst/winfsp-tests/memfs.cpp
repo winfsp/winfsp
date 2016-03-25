@@ -707,7 +707,7 @@ static BOOLEAN ReadDirectoryEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
         return TRUE;
 
     memset(DirInfo->Padding, 0, sizeof DirInfo->Padding);
-    DirInfo->Size = sizeof(FSP_FSCTL_DIR_INFO) + wcslen(FileNode->FileName) * sizeof(WCHAR);
+    DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + wcslen(FileNode->FileName) * sizeof(WCHAR));
     DirInfo->FileInfo = FileNode->FileInfo;
     DirInfo->NextOffset = FileNode->FileInfo.IndexNumber;
     memcpy(DirInfo->FileNameBuf, FileNode->FileName, DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));

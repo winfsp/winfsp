@@ -110,8 +110,8 @@ void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     } while (FindNextFileW(Handle, &FindData));
     ASSERT(ERROR_NO_MORE_FILES == GetLastError());
 
-    ASSERT(100 == FileCount);
-    ASSERT(101 * 100 / 2 == FileTotal);
+    ASSERT(10 == FileCount);
+    ASSERT(11 * 10 / 2 == FileTotal);
 
     Success = FindClose(Handle);
     ASSERT(Success);
