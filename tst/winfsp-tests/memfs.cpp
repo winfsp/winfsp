@@ -206,12 +206,15 @@ BOOLEAN MemfsFileNodeEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_F
     WCHAR Root[2] = L"\\";
     PWSTR Remain, Suffix;
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->upper_bound(FileNode->FileName);
+    BOOLEAN Equal;
     for (; FileNodeMap->end() != iter; ++iter)
     {
         if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName))
             break;
         FspPathSuffix(iter->second->FileName, &Remain, &Suffix, Root);
-        if (0 == MemfsFileNameCompare(Remain, FileNode->FileName))
+        Equal = 0 == MemfsFileNameCompare(Remain, FileNode->FileName);
+        FspPathCombine(iter->second->FileName, Suffix);
+        if (Equal)
         {
             if (!EnumFn(iter->second, Context))
                 return FALSE;
@@ -697,22 +700,39 @@ typedef struct _MEMFS_READ_DIRECTORY_CONTEXT
     PULONG PBytesTransferred;
 } MEMFS_READ_DIRECTORY_CONTEXT;
 
+static BOOLEAN AddDirInfo(MEMFS_FILE_NODE *FileNode, PWSTR FileName,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+{
+    UINT8 DirInfoBuf[sizeof(FSP_FSCTL_DIR_INFO) + sizeof FileNode->FileName];
+    FSP_FSCTL_DIR_INFO *DirInfo = (FSP_FSCTL_DIR_INFO *)DirInfoBuf;
+    WCHAR Root[2] = L"\\";
+    PWSTR Remain, Suffix;
+
+    if (0 == FileName)
+    {
+        FspPathSuffix(FileNode->FileName, &Remain, &Suffix, Root);
+        FileName = Suffix;
+        FspPathCombine(FileNode->FileName, Suffix);
+    }
+
+    memset(DirInfo->Padding, 0, sizeof DirInfo->Padding);
+    DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    DirInfo->FileInfo = FileNode->FileInfo;
+    DirInfo->NextOffset = FileNode->FileInfo.IndexNumber;
+    memcpy(DirInfo->FileNameBuf, FileName, DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
+
+    return FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred);
+}
+
 static BOOLEAN ReadDirectoryEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
 {
     MEMFS_READ_DIRECTORY_CONTEXT *Context = (MEMFS_READ_DIRECTORY_CONTEXT *)Context0;
-    UINT8 DirInfoBuf[sizeof(FSP_FSCTL_DIR_INFO) + sizeof FileNode->FileName];
-    FSP_FSCTL_DIR_INFO *DirInfo = (FSP_FSCTL_DIR_INFO *)DirInfoBuf;
 
-    if (0 == *Context->PBytesTransferred && Context->Offset != FileNode->FileInfo.IndexNumber)
+    if (0 == *Context->PBytesTransferred &&
+        0 != Context->Offset && Context->Offset != FileNode->FileInfo.IndexNumber)
         return TRUE;
 
-    memset(DirInfo->Padding, 0, sizeof DirInfo->Padding);
-    DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + wcslen(FileNode->FileName) * sizeof(WCHAR));
-    DirInfo->FileInfo = FileNode->FileInfo;
-    DirInfo->NextOffset = FileNode->FileInfo.IndexNumber;
-    memcpy(DirInfo->FileNameBuf, FileNode->FileName, DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
-
-    return FspFileSystemAddDirInfo(DirInfo,
+    return AddDirInfo(FileNode, 0,
         Context->Buffer, Context->Length, Context->PBytesTransferred);
 }
 
@@ -731,19 +751,17 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     if (0 == ParentNode)
         return Result;
 
+    if (0 == Offset)
+        if (!AddDirInfo(FileNode, L".", Buffer, Length, PBytesTransferred))
+            return STATUS_SUCCESS;
+    if (0 == Offset || FileNode->FileInfo.IndexNumber == Offset)
+        if (!AddDirInfo(ParentNode, L"..", Buffer, Length, PBytesTransferred))
+            return STATUS_SUCCESS;
+
     Context.Buffer = Buffer;
     Context.Offset = Offset;
     Context.Length = Length;
     Context.PBytesTransferred = PBytesTransferred;
-
-    if (0 == Offset)
-        /* "." */
-        if (!ReadDirectoryEnumFn(FileNode, &Context))
-            return STATUS_SUCCESS;
-    if (0 == Offset || FileNode->FileInfo.IndexNumber == Offset)
-        /* ".." */
-        if (!ReadDirectoryEnumFn(ParentNode, &Context))
-            return STATUS_SUCCESS;
 
     if (MemfsFileNodeEnumerateChildren(Memfs->FileNodeMap, FileNode, ReadDirectoryEnumFn, &Context))
         FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);

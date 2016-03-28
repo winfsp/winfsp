@@ -664,25 +664,27 @@ FSP_API BOOLEAN FspFileSystemAddDirInfo(FSP_FSCTL_DIR_INFO *DirInfo,
     static UINT8 Zero[sizeof DirInfo->Size] = { 0 };
     PVOID BufferEnd = (PUINT8)Buffer + Length;
     PVOID SrcBuffer;
-    ULONG SrcLength;
+    ULONG SrcLength, DstLength;
 
     if (0 != DirInfo)
     {
         SrcBuffer = DirInfo;
-        SrcLength = sizeof DirInfo->Size;
+        SrcLength = DirInfo->Size;
+        DstLength = FSP_FSCTL_DEFAULT_ALIGN_UP(SrcLength);
     }
     else
     {
         SrcBuffer = &Zero;
         SrcLength = sizeof Zero;
+        DstLength = SrcLength;
     }
 
     Buffer = (PVOID)((PUINT8)Buffer + *PBytesTransferred);
-    if ((PUINT8)Buffer + SrcLength > (PUINT8)BufferEnd)
+    if ((PUINT8)Buffer + DstLength > (PUINT8)BufferEnd)
         return FALSE;
 
     memcpy(Buffer, SrcBuffer, SrcLength);
-    *PBytesTransferred += SrcLength;
+    *PBytesTransferred += DstLength;
 
     return TRUE;
 }
