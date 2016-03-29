@@ -698,6 +698,7 @@ typedef struct _MEMFS_READ_DIRECTORY_CONTEXT
     UINT64 Offset;
     ULONG Length;
     PULONG PBytesTransferred;
+    BOOLEAN OffsetFound;
 } MEMFS_READ_DIRECTORY_CONTEXT;
 
 static BOOLEAN AddDirInfo(MEMFS_FILE_NODE *FileNode, PWSTR FileName,
@@ -728,9 +729,11 @@ static BOOLEAN ReadDirectoryEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
 {
     MEMFS_READ_DIRECTORY_CONTEXT *Context = (MEMFS_READ_DIRECTORY_CONTEXT *)Context0;
 
-    if (0 == *Context->PBytesTransferred &&
-        0 != Context->Offset && Context->Offset != FileNode->FileInfo.IndexNumber)
+    if (0 != Context->Offset && !Context->OffsetFound)
+    {
+        Context->OffsetFound = FileNode->FileInfo.IndexNumber == Context->Offset;
         return TRUE;
+    }
 
     return AddDirInfo(FileNode, 0,
         Context->Buffer, Context->Length, Context->PBytesTransferred);
@@ -762,6 +765,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     Context.Offset = Offset;
     Context.Length = Length;
     Context.PBytesTransferred = PBytesTransferred;
+    Context.OffsetFound = FALSE;
 
     if (MemfsFileNodeEnumerateChildren(Memfs->FileNodeMap, FileNode, ReadDirectoryEnumFn, &Context))
         FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
