@@ -99,6 +99,17 @@ VOID MemfsFileNodeDelete(MEMFS_FILE_NODE *FileNode)
 }
 
 static inline
+VOID MemfsFileNodeMapDump(MEMFS_FILE_NODE_MAP *FileNodeMap)
+{
+    for (MEMFS_FILE_NODE_MAP::iterator p = FileNodeMap->begin(), q = FileNodeMap->end(); p != q; ++p)
+        FspDebugLog("%c %04lx %6lu %S\n",
+            FILE_ATTRIBUTE_DIRECTORY & p->second->FileInfo.FileAttributes ? 'd' : 'f',
+            (ULONG)p->second->FileInfo.FileAttributes,
+            (ULONG)p->second->FileInfo.FileSize,
+            p->second->FileName);
+}
+
+static inline
 NTSTATUS MemfsFileNodeMapCreate(MEMFS_FILE_NODE_MAP **PFileNodeMap)
 {
     *PFileNodeMap = 0;
@@ -200,7 +211,7 @@ BOOLEAN MemfsFileNodeMapHasChild(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NO
 }
 
 static inline
-BOOLEAN MemfsFileNodeEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode,
+BOOLEAN MemfsFileNodeMapEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode,
     BOOLEAN (*EnumFn)(MEMFS_FILE_NODE *, PVOID), PVOID Context)
 {
     WCHAR Root[2] = L"\\";
@@ -771,7 +782,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
             return STATUS_SUCCESS;
     }
 
-    if (MemfsFileNodeEnumerateChildren(Memfs->FileNodeMap, FileNode, ReadDirectoryEnumFn, &Context))
+    if (MemfsFileNodeMapEnumerateChildren(Memfs->FileNodeMap, FileNode, ReadDirectoryEnumFn, &Context))
         FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
 
     return STATUS_SUCCESS;
