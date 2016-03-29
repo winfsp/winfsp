@@ -303,7 +303,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     BOOLEAN CaseInsensitive = 0 == FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
     PUNICODE_STRING DirectoryPattern = &FileDesc->DirectoryPattern;
-    UINT64 DirectoryOffset = FileDesc->DirectoryOffset;
+    UINT64 DirectoryOffset = 0;
 
     ASSERT(DirInfo == DestBuf);
     static_assert(
@@ -333,9 +333,9 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
-    BOOLEAN RestartScan = BooleanFlagOn(Irp->Flags, SL_RESTART_SCAN);
-    BOOLEAN IndexSpecified = BooleanFlagOn(Irp->Flags, SL_INDEX_SPECIFIED);
-    BOOLEAN ReturnSingleEntry = BooleanFlagOn(Irp->Flags, SL_RETURN_SINGLE_ENTRY);
+    BOOLEAN RestartScan = BooleanFlagOn(IrpSp->Flags, SL_RESTART_SCAN);
+    BOOLEAN IndexSpecified = BooleanFlagOn(IrpSp->Flags, SL_INDEX_SPECIFIED);
+    BOOLEAN ReturnSingleEntry = BooleanFlagOn(IrpSp->Flags, SL_RETURN_SINGLE_ENTRY);
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryDirectory.FileInformationClass;
     PUNICODE_STRING FileName = IrpSp->Parameters.QueryDirectory.FileName;
     ULONG FileIndex = IrpSp->Parameters.QueryDirectory.FileIndex;
@@ -557,7 +557,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
-    BOOLEAN ReturnSingleEntry = BooleanFlagOn(Irp->Flags, SL_RETURN_SINGLE_ENTRY);
+    BOOLEAN ReturnSingleEntry = BooleanFlagOn(IrpSp->Flags, SL_RETURN_SINGLE_ENTRY);
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryDirectory.FileInformationClass;
     PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
     ULONG Length = IrpSp->Parameters.QueryDirectory.Length;
