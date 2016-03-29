@@ -172,7 +172,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                 }
 
                 if (0 != PrevDestBuf)
-                    *(PULONG)PrevDestBuf = (ULONG)((PUINT8)DestBuf - DestBufBgn);
+                    *(PULONG)PrevDestBuf = (ULONG)((PUINT8)DestBuf - (PUINT8)PrevDestBuf);
                 PrevDestBuf = DestBuf;
 
                 *PDirectoryOffset = DirInfo->NextOffset;
