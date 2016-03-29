@@ -137,11 +137,10 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
 
     try
     {
-        for (;;)
+        for (;
+            (PUINT8)DirInfo + sizeof(DirInfo->Size) <= DirInfoEnd;
+            DirInfo = (PVOID)((PUINT8)DirInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfoSize)))
         {
-            if ((PUINT8)DirInfo + sizeof(DirInfo->Size) > DirInfoEnd)
-                break;
-
             DirInfoSize = DirInfo->Size;
 
             if (sizeof(FSP_FSCTL_DIR_INFO) > DirInfoSize)
@@ -154,7 +153,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
             if (0 != DirectoryOffset && !DirectoryOffsetFound)
             {
                 DirectoryOffsetFound = DirInfo->NextOffset == DirectoryOffset;
-                goto NextDirInfo;
+                continue;
             }
 
             FileName.Length =
@@ -217,7 +216,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     break;
                 default:
                     ASSERT(0);
-                    return STATUS_INVALID_INFO_CLASS;
+                    break;
                 }
 
                 if (ReturnSingleEntry)
@@ -226,9 +225,8 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                 DestBuf = (PVOID)((PUINT8)DestBuf +
                     FSP_FSCTL_ALIGN_UP(BaseInfoLen + FileName.Length, sizeof(LONGLONG)));
             }
-
-        NextDirInfo:
-            DirInfo = (PVOID)((PUINT8)DirInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfoSize));
+            else
+                *PDirectoryOffset = DirInfo->NextOffset;
         }
     }
     except (EXCEPTION_EXECUTE_HANDLER)
