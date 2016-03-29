@@ -7,7 +7,8 @@
 #include <sys/driver.h>
 
 static NTSTATUS FspFsvolQueryDirectoryCopy(
-    PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive, PUINT64 PDirectoryOffset,
+    PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
+    UINT64 DirectoryOffset, PUINT64 PDirectoryOffset,
     FILE_INFORMATION_CLASS FileInformationClass, BOOLEAN ReturnSingleEntry,
     FSP_FSCTL_DIR_INFO **PDirInfo, ULONG DirInfoSize,
     PVOID DestBuf, PULONG PDestLen);
@@ -65,7 +66,8 @@ enum
 };
 
 static NTSTATUS FspFsvolQueryDirectoryCopy(
-    PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive, PUINT64 PDirectoryOffset,
+    PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
+    UINT64 DirectoryOffset, PUINT64 PDirectoryOffset,
     FILE_INFORMATION_CLASS FileInformationClass, BOOLEAN ReturnSingleEntry,
     FSP_FSCTL_DIR_INFO **PDirInfo, ULONG DirInfoSize,
     PVOID DestBuf, PULONG PDestLen)
@@ -98,7 +100,6 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
     PAGED_CODE();
 
     BOOLEAN MatchAll = FspFileDescDirectoryPatternMatchAll == DirectoryPattern->Buffer;
-    UINT64 DirectoryOffset = *PDirectoryOffset;
     BOOLEAN DirectoryOffsetFound = FALSE;
     FSP_FSCTL_DIR_INFO *DirInfo = *PDirInfo;
     PUINT8 DirInfoEnd = (PUINT8)DirInfo + DirInfoSize;
@@ -144,8 +145,11 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
             DirInfoSize = DirInfo->Size;
 
             if (sizeof(FSP_FSCTL_DIR_INFO) > DirInfoSize)
-                return 0 != *PDestLen ? STATUS_SUCCESS :
-                    (0 == DirectoryOffset ? STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES);
+            {
+                if (0 == *PDestLen)
+                    return STATUS_NO_MORE_FILES;
+                break;
+            }
 
             if (0 != DirectoryOffset && !DirectoryOffsetFound)
             {
@@ -162,13 +166,12 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                 if ((PUINT8)DestBuf +
                     FSP_FSCTL_ALIGN_UP(BaseInfoLen + FileName.Length, sizeof(LONGLONG)) > DestBufEnd)
                 {
-                    if (DestBufBgn != DestBuf)
-                        break;
-                    else
+                    if (0 == *PDestLen)
                     {
                         *PDestLen = BaseInfoLen + FileName.Length;
                         return STATUS_BUFFER_OVERFLOW;
                     }
+                    break;
                 }
 
                 if (0 != PrevDestBuf)
@@ -239,6 +242,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
     *PDirInfo = DirInfo;
 
     return STATUS_SUCCESS;
+
 #undef FILL_INFO
 #undef FILL_INFO_BASE
 }
@@ -265,15 +269,15 @@ static NTSTATUS FspFsvolQueryDirectoryCopyCache(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     BOOLEAN CaseInsensitive = 0 == FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
     PUNICODE_STRING DirectoryPattern = &FileDesc->DirectoryPattern;
-    UINT64 DirectoryOffset = 0 == FileDesc->DirInfoCacheHint ?
-        FileDesc->DirectoryOffset : 0;
+    UINT64 DirectoryOffset = FileDesc->DirectoryOffset;
     PUINT8 DirInfoBgn = (PUINT8)DirInfo;
     PUINT8 DirInfoEnd = (PUINT8)DirInfo + DirInfoSize;
 
     DirInfo = (PVOID)(DirInfoBgn + FileDesc->DirInfoCacheHint);
     DirInfoSize = (ULONG)(DirInfoEnd - (PUINT8)DirInfo);
 
-    Result = FspFsvolQueryDirectoryCopy(DirectoryPattern, CaseInsensitive, &DirectoryOffset,
+    Result = FspFsvolQueryDirectoryCopy(DirectoryPattern, CaseInsensitive,
+        0 != FileDesc->DirInfoCacheHint ? 0 : DirectoryOffset, &DirectoryOffset,
         FileInformationClass, ReturnSingleEntry,
         &DirInfo, DirInfoSize,
         DestBuf, PDestLen);
@@ -283,6 +287,8 @@ static NTSTATUS FspFsvolQueryDirectoryCopyCache(
         FileDesc->DirectoryOffset = DirectoryOffset;
         FileDesc->DirInfoCacheHint = (ULONG)((PUINT8)DirInfo - DirInfoBgn);
     }
+    else if (STATUS_NO_MORE_FILES == Result && 0 == FileDesc->DirectoryOffset)
+        Result = STATUS_NO_SUCH_FILE;
 
     return Result;
 }
@@ -303,7 +309,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     BOOLEAN CaseInsensitive = 0 == FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
     PUNICODE_STRING DirectoryPattern = &FileDesc->DirectoryPattern;
-    UINT64 DirectoryOffset = 0;
+    UINT64 DirectoryOffset = FileDesc->DirectoryOffset;
 
     ASSERT(DirInfo == DestBuf);
     static_assert(
@@ -311,13 +317,16 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
         FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName),
         "FSP_FSCTL_DIR_INFO must be bigger than FILE_ID_BOTH_DIR_INFORMATION");
 
-    Result = FspFsvolQueryDirectoryCopy(DirectoryPattern, CaseInsensitive, &DirectoryOffset,
+    Result = FspFsvolQueryDirectoryCopy(DirectoryPattern, CaseInsensitive,
+        0, &DirectoryOffset,
         FileInformationClass, ReturnSingleEntry,
         &DirInfo, DirInfoSize,
         DestBuf, PDestLen);
 
     if (NT_SUCCESS(Result))
         FileDesc->DirectoryOffset = DirectoryOffset;
+    else if (STATUS_NO_MORE_FILES == Result && 0 == FileDesc->DirectoryOffset)
+        Result = STATUS_NO_SUCH_FILE;
 
     return Result;
 }
@@ -444,6 +453,8 @@ static NTSTATUS FspFsvolQueryDirectory(
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryDirectory.FileInformationClass;
     PUNICODE_STRING FileName = IrpSp->Parameters.QueryDirectory.FileName;
+    ULONG Length = IrpSp->Parameters.QueryDirectory.Length;
+    ULONG BaseInfoLen;
 
     /* only directory files can be queried */
     if (!FileNode->IsDirectory)
@@ -457,15 +468,28 @@ static NTSTATUS FspFsvolQueryDirectory(
     switch (FileInformationClass)
     {
     case FileDirectoryInformation:
+        BaseInfoLen = FIELD_OFFSET(FILE_DIRECTORY_INFORMATION, FileName);
+        break;
     case FileFullDirectoryInformation:
+        BaseInfoLen = FIELD_OFFSET(FILE_FULL_DIR_INFORMATION, FileName);
+        break;
     case FileIdFullDirectoryInformation:
+        BaseInfoLen = FIELD_OFFSET(FILE_ID_FULL_DIR_INFORMATION, FileName);
+        break;
     case FileNamesInformation:
+        BaseInfoLen = FIELD_OFFSET(FILE_NAMES_INFORMATION, FileName);
+        break;
     case FileBothDirectoryInformation:
+        BaseInfoLen = FIELD_OFFSET(FILE_BOTH_DIR_INFORMATION, FileName);
+        break;
     case FileIdBothDirectoryInformation:
+        BaseInfoLen = FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName);
         break;
     default:
         return STATUS_INVALID_INFO_CLASS;
     }
+    if (BaseInfoLen >= Length)
+        return STATUS_BUFFER_TOO_SMALL;
 
     Result = FspFsvolQueryDirectoryRetry(FsvolDeviceObject, Irp, IrpSp, IoIsOperationSynchronous(Irp));
 
