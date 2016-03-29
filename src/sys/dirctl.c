@@ -100,7 +100,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
     PAGED_CODE();
 
     BOOLEAN MatchAll = FspFileDescDirectoryPatternMatchAll == DirectoryPattern->Buffer;
-    BOOLEAN DirectoryOffsetFound = FALSE;
+    BOOLEAN Loop = TRUE, DirectoryOffsetFound = FALSE;
     FSP_FSCTL_DIR_INFO *DirInfo = *PDirInfo;
     PUINT8 DirInfoEnd = (PUINT8)DirInfo + DirInfoSize;
     PUINT8 DestBufBgn = (PUINT8)DestBuf;
@@ -138,7 +138,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
     try
     {
         for (;
-            (PUINT8)DirInfo + sizeof(DirInfo->Size) <= DirInfoEnd;
+            Loop && (PUINT8)DirInfo + sizeof(DirInfo->Size) <= DirInfoEnd;
             DirInfo = (PVOID)((PUINT8)DirInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfoSize)))
         {
             DirInfoSize = DirInfo->Size;
@@ -219,11 +219,12 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     break;
                 }
 
-                if (ReturnSingleEntry)
-                    break;
-
                 DestBuf = (PVOID)((PUINT8)DestBuf +
                     FSP_FSCTL_ALIGN_UP(BaseInfoLen + FileName.Length, sizeof(LONGLONG)));
+
+                if (ReturnSingleEntry)
+                    /* cannot just break, *PDirInfo must be advanced */
+                    Loop = FALSE;
             }
             else
                 *PDirectoryOffset = DirInfo->NextOffset;
