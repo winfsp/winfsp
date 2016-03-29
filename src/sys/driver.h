@@ -835,6 +835,7 @@ typedef struct
     UINT64 UserContext2;
     BOOLEAN CaseSensitive;
     BOOLEAN DeleteOnClose;
+    BOOLEAN DirectoryHasSuchFile;
     UNICODE_STRING DirectoryPattern;
     UINT64 DirectoryOffset;
     UINT64 DirInfo;

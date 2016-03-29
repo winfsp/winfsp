@@ -280,10 +280,12 @@ static NTSTATUS FspFsvolQueryDirectoryCopyCache(
 
     if (NT_SUCCESS(Result))
     {
+        if (0 != *PDestLen)
+            FileDesc->DirectoryHasSuchFile = TRUE;
         FileDesc->DirectoryOffset = DirectoryOffset;
         FileDesc->DirInfoCacheHint = (ULONG)((PUINT8)DirInfo - DirInfoBgn);
     }
-    else if (STATUS_NO_MORE_FILES == Result && 0 == FileDesc->DirectoryOffset)
+    else if (STATUS_NO_MORE_FILES == Result && !FileDesc->DirectoryHasSuchFile)
         Result = STATUS_NO_SUCH_FILE;
 
     return Result;
@@ -317,8 +319,12 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
         DestBuf, PDestLen);
 
     if (NT_SUCCESS(Result))
+    {
+        if (0 != *PDestLen)
+            FileDesc->DirectoryHasSuchFile = TRUE;
         FileDesc->DirectoryOffset = DirectoryOffset;
-    else if (STATUS_NO_MORE_FILES == Result && 0 == FileDesc->DirectoryOffset)
+    }
+    else if (STATUS_NO_MORE_FILES == Result && !FileDesc->DirectoryHasSuchFile)
         Result = STATUS_NO_SUCH_FILE;
 
     return Result;
@@ -368,9 +374,15 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
 
     /* determine where to (re)start */
     if (IndexSpecified)
+    {
+        FileDesc->DirectoryHasSuchFile = FALSE;
         FileDesc->DirectoryOffset = OFFSET_FROM_FILE_INDEX(FileIndex);
+    }
     else if (RestartScan)
+    {
+        FileDesc->DirectoryHasSuchFile = FALSE;
         FileDesc->DirectoryOffset = 0;
+    }
 
     /* see if the required information is still in the cache and valid! */
     if (FspFileNodeReferenceDirInfo(FileNode, &DirInfoBuffer, &DirInfoSize))
@@ -588,7 +600,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
 
     if (0 == Response->IoStatus.Information)
     {
-        Result = 0 == FileDesc->DirectoryOffset ?
+        Result = !FileDesc->DirectoryHasSuchFile ?
             STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES;
         FSP_RETURN();
     }
