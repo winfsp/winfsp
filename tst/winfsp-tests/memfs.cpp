@@ -149,11 +149,13 @@ MEMFS_FILE_NODE *MemfsFileNodeMapGet(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR Fil
 }
 
 static inline
-MEMFS_FILE_NODE *MemfsFileNodeMapGetParent(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR FileName,
+MEMFS_FILE_NODE *MemfsFileNodeMapGetParent(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR FileName0,
     PNTSTATUS PResult)
 {
     WCHAR Root[2] = L"\\";
     PWSTR Remain, Suffix;
+    WCHAR FileName[MAX_PATH];
+    wcscpy_s(FileName, sizeof FileName / sizeof(WCHAR), FileName0);
     FspPathSuffix(FileName, &Remain, &Suffix, Root);
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->find(Remain);
     FspPathCombine(FileName, Suffix);
