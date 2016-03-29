@@ -604,7 +604,8 @@ NTSTATUS FspFsvolDirectoryControlComplete(
         DirInfoChangeNumber =
             (ULONG)(UINT_PTR)FspIopRequestContext(Request, RequestDirInfoChangeNumber);
 
-    Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Main);
+    /* acquire FileNode exclusive Full (because we may need to go back to user-mode) */
+    Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Full);
     if (!Success)
     {
         FspIopRetryCompleteIrp(Irp, Response, &Result);
@@ -634,9 +635,35 @@ NTSTATUS FspFsvolDirectoryControlComplete(
             DirInfoBuffer, DirInfoSize, Buffer, &Length);
     }
 
-    FspFileNodeRelease(FileNode, Main);
+    if (NT_SUCCESS(Result) && 0 == Length)
+    {
+        /*
+         * Looks like we have to go back to user-mode!
+         */
 
-    Irp->IoStatus.Information = Length;
+        PDEVICE_OBJECT FsvolDeviceObject = IrpSp->DeviceObject;
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+            FspFsvolDeviceExtension(FsvolDeviceObject);
+
+        FspFileNodeConvertExclusiveToShared(FileNode, Full);
+
+        Request->Kind = FspFsctlTransactQueryDirectoryKind;
+        FspIopResetRequest(Request, FspFsvolQueryDirectoryRequestFini);
+
+        Request->Req.QueryDirectory.Address = 0;
+        Request->Req.QueryDirectory.Offset = FileDesc->DirectoryOffset;
+
+        FspFileNodeSetOwner(FileNode, Full, Request);
+        FspIopRequestContext(Request, RequestFileNode) = FileNode;
+
+        FspIoqPostIrp(FsvolDeviceExtension->Ioq, Irp, &Result);
+    }
+    else
+    {
+        FspFileNodeRelease(FileNode, Full);
+
+        Irp->IoStatus.Information = Length;
+    }
 
     FSP_LEAVE_IOC("%s%sFileObject=%p",
         IRP_MN_QUERY_DIRECTORY == IrpSp->MinorFunction ?
