@@ -64,8 +64,10 @@ static NTSTATUS FspFsvolClose(
     Request->Req.Close.UserContext2 = FileDesc->UserContext2;
 
     FspFileNodeClose(FileNode, FileObject);
-    FspFileNodeDereference(FileNode);
+
+    /* delete the FileDesc and deref the FileNode; order is important (FileDesc has FileNode ref) */
     FspFileDescDelete(FileDesc);
+    FspFileNodeDereference(FileNode);
 
     /*
      * Post as a BestEffort work request. This allows us to complete our own IRP

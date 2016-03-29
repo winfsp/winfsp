@@ -334,6 +334,9 @@ static NTSTATUS FspFsvolCreateNoLock(
      * delete the Request and any associated resources.
      */
     FileDesc->FileNode = FileNode;
+    FileDesc->CaseSensitive =
+        0 != FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch ||
+        BooleanFlagOn(Flags, SL_CASE_SENSITIVE);
     FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, Request);
     FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
     FspIopRequestContext(Request, RequestFileDesc) = FileDesc;

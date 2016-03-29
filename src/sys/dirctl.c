@@ -265,9 +265,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopyCache(
     FileDesc->DirInfo = FileNode->NonPaged->DirInfo;
 
     NTSTATUS Result;
-    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    BOOLEAN CaseInsensitive = 0 == FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
+    BOOLEAN CaseInsensitive = !FileDesc->CaseSensitive;
     PUNICODE_STRING DirectoryPattern = &FileDesc->DirectoryPattern;
     UINT64 DirectoryOffset = FileDesc->DirectoryOffset;
     PUINT8 DirInfoBgn = (PUINT8)DirInfo;
@@ -304,10 +302,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     PAGED_CODE();
 
     NTSTATUS Result;
-    FSP_FILE_NODE *FileNode = FileDesc->FileNode;
-    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    BOOLEAN CaseInsensitive = 0 == FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
+    BOOLEAN CaseInsensitive = !FileDesc->CaseSensitive;
     PUNICODE_STRING DirectoryPattern = &FileDesc->DirectoryPattern;
     UINT64 DirectoryOffset = FileDesc->DirectoryOffset;
 

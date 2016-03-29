@@ -833,6 +833,7 @@ typedef struct
 {
     FSP_FILE_NODE *FileNode;
     UINT64 UserContext2;
+    BOOLEAN CaseSensitive;
     BOOLEAN DeleteOnClose;
     UNICODE_STRING DirectoryPattern;
     UINT64 DirectoryOffset;

@@ -882,11 +882,7 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc)
     if (0 != FileDesc->DirectoryPattern.Buffer &&
         FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
     {
-        PDEVICE_OBJECT FsvolDeviceObject = FileDesc->FileNode->FsvolDeviceObject;
-        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-            FspFsvolDeviceExtension(FsvolDeviceObject);
-
-        if (FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
+        if (FileDesc->CaseSensitive)
             FspFree(FileDesc->DirectoryPattern.Buffer);
         else
             RtlFreeUnicodeString(&FileDesc->DirectoryPattern);
@@ -902,9 +898,6 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
 
     if (Reset || 0 == FileDesc->DirectoryPattern.Buffer)
     {
-        PDEVICE_OBJECT FsvolDeviceObject = FileDesc->FileNode->FsvolDeviceObject;
-        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-            FspFsvolDeviceExtension(FsvolDeviceObject);
         UNICODE_STRING DirectoryPattern;
 
         if (0 == FileName || (sizeof(WCHAR) == FileName->Length && L'*' == FileName->Buffer[0]))
@@ -914,7 +907,7 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
         }
         else
         {
-            if (FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
+            if (FileDesc->CaseSensitive)
             {
                 DirectoryPattern.Length = DirectoryPattern.MaximumLength = FileName->Length;
                 DirectoryPattern.Buffer = FspAlloc(FileName->Length);
@@ -925,7 +918,7 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
             else
             {
                 NTSTATUS Result = RtlUpcaseUnicodeString(&DirectoryPattern, FileName, TRUE);
-                if (NT_SUCCESS(Result))
+                if (!NT_SUCCESS(Result))
                     return Result;
             }
         }
@@ -933,7 +926,7 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
         if (0 != FileDesc->DirectoryPattern.Buffer &&
             FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
         {
-            if (FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
+            if (FileDesc->CaseSensitive)
                 FspFree(FileDesc->DirectoryPattern.Buffer);
             else
                 RtlFreeUnicodeString(&FileDesc->DirectoryPattern);
