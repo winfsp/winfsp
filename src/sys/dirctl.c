@@ -49,8 +49,8 @@ FSP_DRIVER_DISPATCH FspDirectoryControl;
 #pragma alloc_text(PAGE, FspDirectoryControl)
 #endif
 
-#define FILE_INDEX_FROM_OFFSET(v)       ((ULONG)((v) >> 32))
-#define OFFSET_FROM_FILE_INDEX(v)       ((UINT64)(v) << 32)
+#define FILE_INDEX_FROM_OFFSET(v)       ((ULONG)(v))
+#define OFFSET_FROM_FILE_INDEX(v)       ((UINT64)(v))
 
 enum
 {
@@ -140,7 +140,10 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
         {
             if ((PUINT8)DirInfo + sizeof(DirInfo->Size) > DirInfoEnd)
                 break;
-            if (sizeof(FSP_FSCTL_DIR_INFO) > DirInfo->Size)
+
+            DirInfoSize = DirInfo->Size;
+
+            if (sizeof(FSP_FSCTL_DIR_INFO) > DirInfoSize)
                 return 0 != *PDestLen ? STATUS_SUCCESS :
                     (0 == DirectoryOffset ? STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES);
 
@@ -151,7 +154,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
             }
 
             FileName.Length =
-            FileName.MaximumLength = (USHORT)(DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
+            FileName.MaximumLength = (USHORT)(DirInfoSize - sizeof(FSP_FSCTL_DIR_INFO));
             FileName.Buffer = DirInfo->FileNameBuf;
 
             if (MatchAll || FsRtlIsNameInExpression(DirectoryPattern, &FileName, CaseInsensitive, 0))
@@ -167,6 +170,13 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                         return STATUS_BUFFER_OVERFLOW;
                     }
                 }
+
+                if (0 != PrevDestBuf)
+                    *(PULONG)PrevDestBuf = (ULONG)((PUINT8)DestBuf - DestBufBgn);
+                PrevDestBuf = DestBuf;
+
+                *PDirectoryOffset = DirInfo->NextOffset;
+                *PDestLen = (ULONG)((PUINT8)DestBuf + BaseInfoLen + FileName.Length - DestBufBgn);
 
                 switch (FileInformationClass)
                 {
@@ -207,13 +217,6 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     return STATUS_INVALID_INFO_CLASS;
                 }
 
-                if (0 != PrevDestBuf)
-                    *(PULONG)PrevDestBuf = (ULONG)((PUINT8)DestBuf - DestBufBgn);
-                PrevDestBuf = DestBuf;
-
-                *PDirectoryOffset = DirInfo->NextOffset;
-                *PDestLen = (ULONG)((PUINT8)DestBuf + BaseInfoLen + FileName.Length - DestBufBgn);
-
                 if (ReturnSingleEntry)
                     break;
 
@@ -222,7 +225,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
             }
 
         NextDirInfo:
-            DirInfo = (PVOID)((PUINT8)DirInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size));
+            DirInfo = (PVOID)((PUINT8)DirInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfoSize));
         }
     }
     except (EXCEPTION_EXECUTE_HANDLER)
@@ -399,8 +402,8 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
         FsvolDeviceExtension->VolumeParams.MaxComponentLength * sizeof(WCHAR))
         SystemBufferLength = sizeof(FSP_FSCTL_DIR_INFO) +
             FsvolDeviceExtension->VolumeParams.MaxComponentLength * sizeof(WCHAR);
-    SystemBufferLength = FSP_FSCTL_ALIGN_UP(SystemBufferLength, PAGE_SIZE);
-    Result = FspBufferUserBuffer(Irp, Length, IoWriteAccess);
+    Result = FspBufferUserBuffer(Irp,
+        FSP_FSCTL_ALIGN_UP(SystemBufferLength, PAGE_SIZE), IoWriteAccess);
     if (!NT_SUCCESS(Result))
     {
         FspFileNodeRelease(FileNode, Full);
@@ -594,7 +597,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
     if (0 == FileDesc->DirectoryOffset &&
         FspFileNodeTrySetDirInfo(FileNode,
             Irp->AssociatedIrp.SystemBuffer,
-            (ULONG)Irp->IoStatus.Information,
+            (ULONG)Response->IoStatus.Information,
             DirInfoChangeNumber) &&
         FspFileNodeReferenceDirInfo(FileNode, &DirInfoBuffer, &DirInfoSize))
     {
@@ -608,7 +611,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
     else
     {
         DirInfoBuffer = Irp->AssociatedIrp.SystemBuffer;
-        DirInfoSize = (ULONG)Irp->IoStatus.Information;
+        DirInfoSize = (ULONG)Response->IoStatus.Information;
         Result = FspFsvolQueryDirectoryCopyInPlace(FileDesc,
             FileInformationClass, ReturnSingleEntry,
             DirInfoBuffer, DirInfoSize, Buffer, &Length);
