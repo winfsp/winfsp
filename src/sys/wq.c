@@ -30,13 +30,6 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
             if (!NT_SUCCESS(Result))
                 return Result;
         }
-        else if (IRP_MJ_DIRECTORY_CONTROL == IrpSp->MajorFunction &&
-            IRP_MN_QUERY_DIRECTORY == IrpSp->MinorFunction)
-        {
-            Result = FspBufferUserBuffer(Irp, IrpSp->Parameters.QueryDirectory.Length, IoWriteAccess);
-            if (!NT_SUCCESS(Result))
-                return Result;
-        }
 
         Result = FspIopCreateRequestWorkItem(Irp, sizeof(WORK_QUEUE_ITEM),
             RequestFini, &RequestWorkItem);
@@ -55,6 +48,18 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
 
     FspWqPostIrpWorkItem(Irp);
     return STATUS_PENDING;
+}
+
+VOID FspWqDeleteIrpWorkItem(PIRP Irp)
+{
+    FSP_FSCTL_TRANSACT_REQ *RequestWorkItem = FspIrpRequest(Irp);
+
+    ASSERT(RequestWorkItem->Kind == FspFsctlTransactReservedKind);
+    ASSERT(RequestWorkItem->Size == sizeof *RequestWorkItem + sizeof(WORK_QUEUE_ITEM));
+    ASSERT(RequestWorkItem->Hint == (UINT_PTR)Irp);
+
+    FspIopDeleteRequest(RequestWorkItem);
+    FspIrpSetRequest(Irp, 0);
 }
 
 VOID FspWqPostIrpWorkItem(PIRP Irp)

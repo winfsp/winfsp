@@ -613,6 +613,7 @@ typedef NTSTATUS FSP_WQ_REQUEST_WORK(
 NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
     FSP_WQ_REQUEST_WORK *WorkRoutine, FSP_IOP_REQUEST_FINI *RequestFini,
     BOOLEAN CreateAndPost);
+VOID FspWqDeleteIrpWorkItem(PIRP Irp);
 VOID FspWqPostIrpWorkItem(PIRP Irp);
 #define FspWqCreateIrpWorkItem(I, RW, RF)\
     FspWqCreateAndPostIrpWorkItem(I, RW, RF, FALSE)
