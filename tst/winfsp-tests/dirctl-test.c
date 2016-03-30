@@ -13,7 +13,7 @@ extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
-void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG SleepTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
@@ -79,6 +79,9 @@ void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 
         FileCount++;
         FileTotal += ul;
+
+        if (0 < SleepTimeout && 5 == FileCount)
+            Sleep(SleepTimeout);
     } while (FindNextFileW(Handle, &FindData));
     ASSERT(ERROR_NO_MORE_FILES == GetLastError());
 
@@ -107,6 +110,9 @@ void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 
         FileCount++;
         FileTotal += ul;
+
+        if (0 < SleepTimeout && 5 == FileCount)
+            Sleep(SleepTimeout);
     } while (FindNextFileW(Handle, &FindData));
     ASSERT(ERROR_NO_MORE_FILES == GetLastError());
 
@@ -136,6 +142,9 @@ void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 
         FileCount++;
         FileTotal += ul;
+
+        if (0 < SleepTimeout && 5 == FileCount)
+            Sleep(SleepTimeout);
     } while (FindNextFileW(Handle, &FindData));
     ASSERT(ERROR_NO_MORE_FILES == GetLastError());
 
@@ -190,21 +199,34 @@ void querydir_test(void)
     {
         WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
         GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        querydir_dotest(-1, DirBuf, 0);
+        querydir_dotest(-1, DirBuf, 0, 0);
     }
     if (WinFspDiskTests)
     {
-        querydir_dotest(MemfsDisk, 0, 0);
-        querydir_dotest(MemfsDisk, 0, 1000);
+        querydir_dotest(MemfsDisk, 0, 0, 0);
+        querydir_dotest(MemfsDisk, 0, 1000, 0);
     }
     if (WinFspNetTests)
     {
-        querydir_dotest(MemfsNet, L"\\\\memfs\\share", 0);
-        querydir_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+        querydir_dotest(MemfsNet, L"\\\\memfs\\share", 0, 0);
+        querydir_dotest(MemfsNet, L"\\\\memfs\\share", 1000, 0);
+    }
+}
+
+void querydir_expire_cache_test(void)
+{
+    if (WinFspDiskTests)
+    {
+        querydir_dotest(MemfsDisk, 0, 500, 750);
+    }
+    if (WinFspNetTests)
+    {
+        querydir_dotest(MemfsNet, L"\\\\memfs\\share", 500, 750);
     }
 }
 
 void dirctl_tests(void)
 {
     TEST(querydir_test);
+    TEST(querydir_expire_cache_test);
 }
