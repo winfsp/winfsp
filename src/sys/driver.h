@@ -411,6 +411,40 @@ NTSTATUS FspCcMdlWriteComplete(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffse
 NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
     PSECURITY_DESCRIPTOR SecurityDescriptor, PULONG PLength,
     PSECURITY_DESCRIPTOR ObjectsSecurityDescriptor);
+NTSTATUS FspNotifyInitializeSync(PNOTIFY_SYNC *NotifySync);
+NTSTATUS FspNotifyFullChangeDirectory(
+    PNOTIFY_SYNC NotifySync,
+    PLIST_ENTRY NotifyList,
+    PVOID FsContext,
+    PSTRING FullDirectoryName,
+    BOOLEAN WatchTree,
+    BOOLEAN IgnoreBuffer,
+    ULONG CompletionFilter,
+    PIRP NotifyIrp,
+    PCHECK_FOR_TRAVERSE_ACCESS TraverseCallback,
+    PSECURITY_SUBJECT_CONTEXT SubjectContext);
+NTSTATUS FspNotifyFullReportChange(
+    PNOTIFY_SYNC NotifySync,
+    PLIST_ENTRY NotifyList,
+    PSTRING FullTargetName,
+    USHORT TargetNameOffset,
+    PSTRING StreamName,
+    PSTRING NormalizedParentName,
+    ULONG FilterMatch,
+    ULONG Action,
+    PVOID TargetContext);
+#define FspNotifyUninitializeSync(NS)\
+    FsRtlNotifyUninitializeSync(NS)
+#define FspNotifyCleanupAll(NS, NL)\
+    FsRtlNotifyCleanupAll(NS, NL)
+#define FspNotifyChangeDirectory(NS, NL, FC, FN, WT, CF, I)\
+    FspNotifyFullChangeDirectory(NS, NL, FC, (PSTRING)FN, WT, FALSE, CF, I, 0, 0)
+#define FspNotifyCleanup(NS, NL, FC)\
+    FsRtlNotifyCleanup(NS, NL, FC)
+#define FspNotifyDeletePending(NS, NL, FC)\
+    FspNotifyFullChangeDirectory(NS, NL, FC, 0, 0, FALSE, 0, 0, 0, 0)
+#define FspNotifyReportChange(NS, NL, FN, FO, SN, F, A)\
+    FspNotifyFullReportChange(NS, NL, (PSTRING)FN, FO, (PSTRING)SN, 0, F, A, 0)
 
 /* utility: synchronous work queue */
 typedef struct
@@ -665,7 +699,7 @@ typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
     UINT32 InitDoneFsvrt:1, InitDoneDelRsc:1, InitDoneIoq:1, InitDoneSec:1, InitDoneDir:1,
-        InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1;
+        InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1, InitDoneNotify:1;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     HANDLE MupHandle;
@@ -691,6 +725,8 @@ typedef struct
     KSPIN_LOCK InfoSpinLock;
     UINT64 InfoExpirationTime;
     FSP_FSCTL_VOLUME_INFO VolumeInfo;
+    PNOTIFY_SYNC NotifySync;
+    LIST_ENTRY NotifyList;
 } FSP_FSVOL_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
@@ -733,9 +769,9 @@ PVOID FspFsvolDeviceInsertContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_ST
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
 VOID FspFsvolDeviceDeleteContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
     PBOOLEAN PDeleted);
-VOID FspFsvolGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
-BOOLEAN FspFsvolTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
-VOID FspFsvolSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
+VOID FspFsvolDeviceGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
+BOOLEAN FspFsvolDeviceTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
+VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
@@ -835,6 +871,7 @@ typedef struct
     FSP_FILE_NODE *FileNode;
     UINT64 UserContext2;
     BOOLEAN CaseSensitive;
+    BOOLEAN HasTraversePrivilege;
     BOOLEAN DeleteOnClose;
     BOOLEAN DirectoryHasSuchFile;
     UNICODE_STRING DirectoryPattern;
@@ -890,7 +927,8 @@ BOOLEAN FspFileNodeReferenceDirInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PU
 VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG DirInfoChangeNumber);
-VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode);
+VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
+    ULONG Filter, ULONG Action);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,

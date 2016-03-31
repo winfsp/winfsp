@@ -73,6 +73,20 @@ static NTSTATUS FspFsvolCleanup(
 
     FspFileNodeCleanup(FileNode, FileObject, &DeletePending);
 
+    /* if this is a directory inform the FSRTL Notify mechanism */
+    if (FileNode->IsDirectory)
+    {
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+            FspFsvolDeviceExtension(FsvolDeviceObject);
+
+        if (DeletePending)
+            FspNotifyDeletePending(
+                FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList, FileNode);
+
+        FspNotifyCleanup(
+            FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList, FileDesc);
+    }
+
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLEANUP cannot fail */
     FspIopCreateRequestMustSucceedEx(Irp, DeletePending ? &FileNode->FileName : 0, 0,
         FspFsvolCleanupRequestFini, &Request);

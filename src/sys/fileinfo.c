@@ -790,6 +790,17 @@ static NTSTATUS FspFsvolSetDispositionInformationSuccess(
     FileNode->DeletePending = Info->DeleteFile;
     FileObject->DeletePending = Info->DeleteFile;
 
+    /* fastfat does this, although it seems unnecessary */
+#if 1
+    if (FileNode->IsDirectory && Info->DeleteFile)
+    {
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+            FspFsvolDeviceExtension(IrpSp->DeviceObject);
+        FspNotifyDeletePending(
+            FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList, FileNode);
+    }
+#endif
+
     FspIopRequestContext(Request, RequestFileNode) = 0;
     FspFileNodeReleaseOwner(FileNode, Full, Request);
 

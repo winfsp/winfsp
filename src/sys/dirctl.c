@@ -571,7 +571,52 @@ static NTSTATUS FspFsvolNotifyChangeDirectory(
 {
     PAGED_CODE();
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    /* is this a valid FileObject? */
+    if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
+    ULONG CompletionFilter = IrpSp->Parameters.NotifyDirectory.CompletionFilter;
+    BOOLEAN WatchTree = BooleanFlagOn(IrpSp->Flags, SL_WATCH_TREE);
+    BOOLEAN DeletePending;
+
+    ASSERT(FileNode == FileDesc->FileNode);
+
+    /* only directory files can be watched */
+    if (!FileNode->IsDirectory)
+        return STATUS_INVALID_PARAMETER;
+
+    /* only processes with traverse privilege can watch trees! */
+    if (WatchTree && !FileDesc->HasTraversePrivilege)
+        return STATUS_ACCESS_DENIED;
+
+    /* stop now if the directory is pending deletion */
+    DeletePending = 0 != FileNode->DeletePending;
+    MemoryBarrier();
+    if (DeletePending)
+        return STATUS_DELETE_PENDING;
+
+    FspFileNodeAcquireExclusive(FileNode, Main);
+
+    Result = FspNotifyChangeDirectory(
+        FsvolDeviceExtension->NotifySync,
+        &FsvolDeviceExtension->NotifyList,
+        FileDesc,
+        &FileNode->FileName,
+        WatchTree,
+        CompletionFilter,
+        Irp);
+
+    FspFileNodeRelease(FileNode, Main);
+
+    if (NT_SUCCESS(Result))
+        Result = STATUS_PENDING;
+
+    return Result;
 }
 
 static NTSTATUS FspFsvolDirectoryControl(

@@ -42,7 +42,9 @@ BOOLEAN FspFileNodeReferenceDirInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PU
 VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG DirInfoChangeNumber);
-VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode);
+static VOID FspFileNodeInvalidateDirInfo(FSP_FILE_NODE *FileNode);
+VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
+    ULONG Filter, ULONG Action);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
@@ -76,7 +78,8 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
 // !#pragma alloc_text(PAGE, FspFileNodeReferenceDirInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeSetDirInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeTrySetDirInfo)
-// !#pragma alloc_text(PAGE, FspFileNodeInvalidateParentDirInfo)
+// !#pragma alloc_text(PAGE, FspFileNodeInvalidateDirInfo)
+#pragma alloc_text(PAGE, FspFileNodeNotifyChange)
 #pragma alloc_text(PAGE, FspFileDescCreate)
 #pragma alloc_text(PAGE, FspFileDescDelete)
 #pragma alloc_text(PAGE, FspFileDescResetDirectoryPattern)
@@ -814,7 +817,7 @@ VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size)
         FspMetaCacheAddItem(FsvolDeviceExtension->DirInfoCache, Buffer, Size) : 0;
     FileNode->DirInfoChangeNumber++;
 
-    /* acquire the DirInfoSpinLock to protect against concurrent FspFileNodeInvalidateParentDirInfo*/
+    /* acquire the DirInfoSpinLock to protect against concurrent FspFileNodeInvalidateDirInfo */
     KeAcquireSpinLock(&NonPaged->DirInfoSpinLock, &Irql);
     NonPaged->DirInfo = DirInfo;
     KeReleaseSpinLock(&NonPaged->DirInfoSpinLock, Irql);
@@ -832,34 +835,62 @@ BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG S
     return TRUE;
 }
 
-VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode)
+static VOID FspFileNodeInvalidateDirInfo(FSP_FILE_NODE *FileNode)
 {
     // !PAGED_CODE();
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    UNICODE_STRING Parent, Suffix;
-    FSP_FILE_NODE_NONPAGED *NonPaged;
+    FSP_FILE_NODE_NONPAGED *NonPaged = FileNode->NonPaged;
     KIRQL Irql;
     UINT64 DirInfo;
 
-    FspUnicodePathSuffix(&FileNode->FileName, &Parent, &Suffix);
-
-    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
-    FileNode = FspFsvolDeviceLookupContextByName(FsvolDeviceObject, &Parent);
-    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
-
-    if (0 == FileNode)
-        return;
-
-    NonPaged = FileNode->NonPaged;
-
-    /* acquire the DirInfoSpinLock to protect against concurrent FspFileNodeSetDirInfo*/
+    /* acquire the DirInfoSpinLock to protect against concurrent FspFileNodeSetDirInfo */
     KeAcquireSpinLock(&NonPaged->DirInfoSpinLock, &Irql);
     DirInfo = NonPaged->DirInfo;
     KeReleaseSpinLock(&NonPaged->DirInfoSpinLock, Irql);
 
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->DirInfoCache, DirInfo);
+}
+
+VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
+    ULONG Filter, ULONG Action)
+{
+    PAGED_CODE();
+
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    UNICODE_STRING Parent, Suffix;
+    FSP_FILE_NODE *ParentNode;
+
+    FspUnicodePathSuffix(&FileNode->FileName, &Parent, &Suffix);
+
+    switch (Action)
+    {
+    case FILE_ACTION_ADDED:
+    case FILE_ACTION_REMOVED:
+    case FILE_ACTION_MODIFIED:
+    case FILE_ACTION_RENAMED_OLD_NAME:
+    case FILE_ACTION_RENAMED_NEW_NAME:
+        FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+        ParentNode = FspFsvolDeviceLookupContextByName(FsvolDeviceObject, &Parent);
+        if (0 != ParentNode)
+            FspFileNodeReference(ParentNode);
+        FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+        if (0 != ParentNode)
+        {
+            FspFileNodeInvalidateDirInfo(ParentNode);
+            FspFileNodeReference(ParentNode);
+        }
+        break;
+    }
+
+    FspNotifyReportChange(
+        FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList,
+        &FileNode->FileName,
+        (USHORT)((PUINT8)Suffix.Buffer - (PUINT8)FileNode->FileName.Buffer),
+        0, Filter, Action);
 }
 
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc)

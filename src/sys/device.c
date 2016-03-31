@@ -50,9 +50,9 @@ VOID FspFsvolDeviceDeleteContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STR
 static RTL_AVL_COMPARE_ROUTINE FspFsvolDeviceCompareContextByName;
 static RTL_AVL_ALLOCATE_ROUTINE FspFsvolDeviceAllocateContextByName;
 static RTL_AVL_FREE_ROUTINE FspFsvolDeviceFreeContextByName;
-VOID FspFsvolGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
-BOOLEAN FspFsvolTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
-VOID FspFsvolSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
+VOID FspFsvolDeviceGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
+BOOLEAN FspFsvolDeviceTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
+VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
@@ -346,6 +346,13 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
         return Result;
     FsvolDeviceExtension->InitDoneDir = 1;
 
+    /* initialize the FSRTL Notify mechanism */
+    Result = FspNotifyInitializeSync(&FsvolDeviceExtension->NotifySync);
+    if (!NT_SUCCESS(Result))
+        return Result;
+    InitializeListHead(&FsvolDeviceExtension->NotifyList);
+    FsvolDeviceExtension->InitDoneNotify = 1;
+
     /* initialize our context table */
     ExInitializeResourceLite(&FsvolDeviceExtension->FileRenameResource);
     ExInitializeResourceLite(&FsvolDeviceExtension->ContextTableResource);
@@ -394,6 +401,14 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
      */
     if (FsvolDeviceExtension->InitDoneTimer)
         IoStopTimer(DeviceObject);
+
+    /* uninitialize the FSRTL Notify mechanism */
+    if (FsvolDeviceExtension->InitDoneNotify)
+    {
+        FspNotifyCleanupAll(
+            FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList);
+        FspNotifyUninitializeSync(&FsvolDeviceExtension->NotifySync);
+    }
 
     /* delete the directory meta cache */
     if (FsvolDeviceExtension->InitDoneDir)
@@ -753,7 +768,7 @@ static VOID NTAPI FspFsvolDeviceFreeContextByName(
     PAGED_CODE();
 }
 
-VOID FspFsvolGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+VOID FspFsvolDeviceGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
     // !PAGED_CODE();
 
@@ -770,7 +785,7 @@ VOID FspFsvolGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *V
 
 #pragma warning(push)
 #pragma warning(disable:4701) /* disable idiotic warning! */
-BOOLEAN FspFsvolTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+BOOLEAN FspFsvolDeviceTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
     // !PAGED_CODE();
 
@@ -796,7 +811,7 @@ BOOLEAN FspFsvolTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_I
 }
 #pragma warning(pop)
 
-VOID FspFsvolSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
     // !PAGED_CODE();
 

@@ -50,7 +50,7 @@ FSP_DRIVER_DISPATCH FspSetVolumeInformation;
     FSP_FSCTL_VOLUME_INFO VolumeInfoBuf;\
     if (0 == VolumeInfo)                \
     {                                   \
-        if (!FspFsvolTryGetVolumeInfo(FsvolDeviceObject, &VolumeInfoBuf))\
+        if (!FspFsvolDeviceTryGetVolumeInfo(FsvolDeviceObject, &VolumeInfoBuf))\
             return FSP_STATUS_IOQ_POST; \
         VolumeInfo = &VolumeInfoBuf;    \
     }
@@ -267,7 +267,7 @@ NTSTATUS FspFsvolQueryVolumeInformationComplete(
     PUINT8 Buffer = Irp->AssociatedIrp.SystemBuffer;
     PUINT8 BufferEnd = Buffer + IrpSp->Parameters.QueryFile.Length;
 
-    FspFsvolSetVolumeInfo(FsvolDeviceObject, &Response->Rsp.QueryVolumeInformation.VolumeInfo);
+    FspFsvolDeviceSetVolumeInfo(FsvolDeviceObject, &Response->Rsp.QueryVolumeInformation.VolumeInfo);
 
     switch (IrpSp->Parameters.QueryVolume.FsInformationClass)
     {
@@ -323,7 +323,7 @@ static NTSTATUS FspFsvolSetFsLabelInformation(
         ((PWSTR)Request->Buffer)[Info->VolumeLabelLength / sizeof(WCHAR)] = L'\0';
     }
     else
-        FspFsvolSetVolumeInfo(FsvolDeviceObject, &Response->Rsp.SetVolumeInformation.VolumeInfo);
+        FspFsvolDeviceSetVolumeInfo(FsvolDeviceObject, &Response->Rsp.SetVolumeInformation.VolumeInfo);
 
     return STATUS_SUCCESS;
 }

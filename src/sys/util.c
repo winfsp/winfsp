@@ -32,6 +32,28 @@ NTSTATUS FspCcMdlWriteComplete(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffse
 NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
     PSECURITY_DESCRIPTOR SecurityDescriptor, PULONG PLength,
     PSECURITY_DESCRIPTOR ObjectsSecurityDescriptor);
+NTSTATUS FspNotifyInitializeSync(PNOTIFY_SYNC *NotifySync);
+NTSTATUS FspNotifyFullChangeDirectory(
+    PNOTIFY_SYNC NotifySync,
+    PLIST_ENTRY NotifyList,
+    PVOID FsContext,
+    PSTRING FullDirectoryName,
+    BOOLEAN WatchTree,
+    BOOLEAN IgnoreBuffer,
+    ULONG CompletionFilter,
+    PIRP NotifyIrp,
+    PCHECK_FOR_TRAVERSE_ACCESS TraverseCallback,
+    PSECURITY_SUBJECT_CONTEXT SubjectContext);
+NTSTATUS FspNotifyFullReportChange(
+    PNOTIFY_SYNC NotifySync,
+    PLIST_ENTRY NotifyList,
+    PSTRING FullTargetName,
+    USHORT TargetNameOffset,
+    PSTRING StreamName,
+    PSTRING NormalizedParentName,
+    ULONG FilterMatch,
+    ULONG Action,
+    PVOID TargetContext);
 VOID FspInitializeSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem,
     PWORKER_THREAD_ROUTINE Routine, PVOID Context);
 VOID FspExecuteSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem);
@@ -62,6 +84,9 @@ VOID FspSafeMdlDelete(FSP_SAFE_MDL *SafeMdl);
 #pragma alloc_text(PAGE, FspCcPrepareMdlWrite)
 #pragma alloc_text(PAGE, FspCcMdlWriteComplete)
 #pragma alloc_text(PAGE, FspQuerySecurityDescriptorInfo)
+#pragma alloc_text(PAGE, FspNotifyInitializeSync)
+#pragma alloc_text(PAGE, FspNotifyFullChangeDirectory)
+#pragma alloc_text(PAGE, FspNotifyFullReportChange)
 #pragma alloc_text(PAGE, FspInitializeSynchronousWorkItem)
 #pragma alloc_text(PAGE, FspExecuteSynchronousWorkItem)
 #pragma alloc_text(PAGE, FspExecuteSynchronousWorkItemRoutine)
@@ -523,6 +548,101 @@ NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation
     }
 
     return STATUS_BUFFER_TOO_SMALL == Result ? STATUS_BUFFER_OVERFLOW : Result;
+}
+
+NTSTATUS FspNotifyInitializeSync(PNOTIFY_SYNC *NotifySync)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    try
+    {
+        FsRtlNotifyInitializeSync(NotifySync);
+        Result = STATUS_SUCCESS;
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Result = GetExceptionCode();
+    }
+
+    return Result;
+}
+
+NTSTATUS FspNotifyFullChangeDirectory(
+    PNOTIFY_SYNC NotifySync,
+    PLIST_ENTRY NotifyList,
+    PVOID FsContext,
+    PSTRING FullDirectoryName,
+    BOOLEAN WatchTree,
+    BOOLEAN IgnoreBuffer,
+    ULONG CompletionFilter,
+    PIRP NotifyIrp,
+    PCHECK_FOR_TRAVERSE_ACCESS TraverseCallback,
+    PSECURITY_SUBJECT_CONTEXT SubjectContext)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    try
+    {
+        FsRtlNotifyFullChangeDirectory(
+            NotifySync,
+            NotifyList,
+            FsContext,
+            FullDirectoryName,
+            WatchTree,
+            IgnoreBuffer,
+            CompletionFilter,
+            NotifyIrp,
+            TraverseCallback,
+            SubjectContext);
+        Result = STATUS_SUCCESS;
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Result = GetExceptionCode();
+    }
+
+    return Result;
+}
+
+NTSTATUS FspNotifyFullReportChange(
+    PNOTIFY_SYNC NotifySync,
+    PLIST_ENTRY NotifyList,
+    PSTRING FullTargetName,
+    USHORT TargetNameOffset,
+    PSTRING StreamName,
+    PSTRING NormalizedParentName,
+    ULONG FilterMatch,
+    ULONG Action,
+    PVOID TargetContext)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    try
+    {
+        FspNotifyFullReportChange(
+            NotifySync,
+            NotifyList,
+            FullTargetName,
+            TargetNameOffset,
+            StreamName,
+            NormalizedParentName,
+            FilterMatch,
+            Action,
+            TargetContext);
+        Result = STATUS_SUCCESS;
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Result = GetExceptionCode();
+    }
+
+    return Result;
 }
 
 VOID FspInitializeSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem,
