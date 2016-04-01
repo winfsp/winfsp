@@ -607,6 +607,8 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
 
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
         FileNode->TruncateOnClose = TRUE;
+
+        FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED);
     }
 
     return STATUS_SUCCESS;
@@ -646,8 +648,19 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
     else
     {
         FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        ULONG NotifyFilter = 0;
 
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
+
+        if ((UINT32)-1 != Request->Req.SetInformation.Info.Basic.FileAttributes)
+            NotifyFilter |= FILE_NOTIFY_CHANGE_ATTRIBUTES;
+        if (0 != Request->Req.SetInformation.Info.Basic.CreationTime)
+            NotifyFilter |= FILE_NOTIFY_CHANGE_CREATION;
+        if (0 != Request->Req.SetInformation.Info.Basic.LastAccessTime)
+            NotifyFilter |= FILE_NOTIFY_CHANGE_LAST_ACCESS;
+        if (0 != Request->Req.SetInformation.Info.Basic.LastWriteTime)
+            NotifyFilter |= FILE_NOTIFY_CHANGE_LAST_WRITE;
+        FspFileNodeNotifyChange(FileNode, NotifyFilter, FILE_ACTION_MODIFIED);
     }
 
     return STATUS_SUCCESS;
@@ -694,6 +707,8 @@ static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
 
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
         FileNode->TruncateOnClose = TRUE;
+
+        FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED);
     }
 
     return STATUS_SUCCESS;
@@ -946,12 +961,22 @@ static NTSTATUS FspFsvolSetRenameInformationSuccess(
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     UNICODE_STRING NewFileName;
 
+    /* fastfat has some really arcane rules on rename notifications; simplify! */
+    FspFileNodeNotifyChange(FileNode,
+        FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
+        FILE_ACTION_RENAMED_OLD_NAME);
+
     NewFileName.Length = NewFileName.MaximumLength =
         Request->Req.SetInformation.Info.Rename.NewFileName.Size - sizeof(WCHAR);
     NewFileName.Buffer = FspAllocMustSucceed(NewFileName.Length);
     RtlCopyMemory(NewFileName.Buffer, Request->Buffer + Request->FileName.Size, NewFileName.Length);
 
     FspFileNodeRename(FileNode, &NewFileName);
+
+    /* fastfat has some really arcane rules on rename notifications; simplify! */
+    FspFileNodeNotifyChange(FileNode,
+        FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
+        FILE_ACTION_RENAMED_NEW_NAME);
 
     FspIopRequestContext(Request, RequestFileNode) = 0;
     FspIopRequestContext(Request, RequestDeviceObject) = 0;

@@ -856,6 +856,8 @@ static VOID FspFileNodeInvalidateDirInfo(FSP_FILE_NODE *FileNode)
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
     ULONG Filter, ULONG Action)
 {
+    /* FileNode must be acquired (exclusive or shared) Main */
+
     PAGED_CODE();
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
@@ -869,7 +871,7 @@ VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
     {
     case FILE_ACTION_ADDED:
     case FILE_ACTION_REMOVED:
-    case FILE_ACTION_MODIFIED:
+    //case FILE_ACTION_MODIFIED:
     case FILE_ACTION_RENAMED_OLD_NAME:
     case FILE_ACTION_RENAMED_NEW_NAME:
         FspFsvolDeviceLockContextTable(FsvolDeviceObject);
@@ -881,7 +883,7 @@ VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
         if (0 != ParentNode)
         {
             FspFileNodeInvalidateDirInfo(ParentNode);
-            FspFileNodeReference(ParentNode);
+            FspFileNodeDereference(ParentNode);
         }
         break;
     }

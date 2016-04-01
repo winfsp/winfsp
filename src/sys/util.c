@@ -625,7 +625,7 @@ NTSTATUS FspNotifyFullReportChange(
 
     try
     {
-        FspNotifyFullReportChange(
+        FsRtlNotifyFullReportChange(
             NotifySync,
             NotifyList,
             FullTargetName,

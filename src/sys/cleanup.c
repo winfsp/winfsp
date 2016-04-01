@@ -115,6 +115,15 @@ NTSTATUS FspFsvolCleanupComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+
+    if (Request->Req.Cleanup.Delete)
+        FspFileNodeNotifyChange(FileNode,
+            FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
+            FILE_ACTION_REMOVED);
+
     FSP_LEAVE_IOC("FileObject=%p", IrpSp->FileObject);
 }
 

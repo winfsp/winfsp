@@ -678,6 +678,10 @@ NTSTATUS FspFsvolCreateComplete(
 
         /* file was successfully overwritten/superseded */
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Overwrite.FileInfo);
+        FspFileNodeNotifyChange(FileNode,
+            FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE,
+            FILE_ACTION_MODIFIED);
+
         FspFileNodeReleaseOwner(FileNode, Full, Request);
 
         /* SUCCESS! */
@@ -737,9 +741,10 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     {
         Success = MmFlushImageSection(&FileNode->NonPaged->SectionObjectPointers,
             MmFlushForWrite);
-        FspFileNodeRelease(FileNode, Main);
         if (!Success)
         {
+            FspFileNodeRelease(FileNode, Main);
+
             PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
             BOOLEAN DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
 
@@ -752,8 +757,13 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
             return DeleteOnClose ? STATUS_CANNOT_DELETE : STATUS_SHARING_VIOLATION;
         }
     }
-    else
-        FspFileNodeRelease(FileNode, Main);
+
+    if (FILE_CREATED == Response->IoStatus.Information)
+        FspFileNodeNotifyChange(FileNode,
+            FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
+            FILE_ACTION_ADDED);
+
+    FspFileNodeRelease(FileNode, Main);
 
     /* SUCCESS! */
     FspIopRequestContext(Request, RequestFileDesc) = 0;
