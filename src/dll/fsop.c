@@ -532,6 +532,16 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
                 &FileInfo);
         break;
     case 13/*FileDispositionInformation*/:
+        if (0 != FileSystem->Interface->GetFileInfo)
+        {
+            Result = FileSystem->Interface->GetFileInfo(FileSystem, Request,
+                (PVOID)Request->Req.SetInformation.UserContext, &FileInfo);
+            if (NT_SUCCESS(Result) && 0 != (FileInfo.FileAttributes & FILE_ATTRIBUTE_READONLY))
+            {
+                Result = STATUS_CANNOT_DELETE;
+                break;
+            }
+        }
         if (0 != FileSystem->Interface->CanDelete)
             if (Request->Req.SetInformation.Info.Disposition.Delete)
                 Result = FileSystem->Interface->CanDelete(FileSystem, Request,

@@ -221,7 +221,7 @@ void setfileinfo_test(void)
     }
 }
 
-void delete_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+static void delete_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
@@ -286,7 +286,57 @@ void delete_test(void)
     }
 }
 
-void rename_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+static void delete_access_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR FilePath[MAX_PATH];
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_READONLY, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(!Success);
+    ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+    Success = SetFileAttributesW(FilePath, FILE_ATTRIBUTE_NORMAL);
+    ASSERT(Success);
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+void delete_access_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        delete_access_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        delete_access_dotest(MemfsDisk, 0, 0);
+        delete_access_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        delete_access_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        delete_access_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
+static void rename_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
@@ -556,6 +606,7 @@ void info_tests(void)
     TEST(getfileinfo_test);
     TEST(setfileinfo_test);
     TEST(delete_test);
+    TEST(delete_access_test);
     TEST(rename_test);
     TEST(getvolinfo_test);
     TEST(setvolinfo_test);
