@@ -247,6 +247,11 @@ typedef struct
         } SetInformation;
         struct
         {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+        } FlushBuffers;
+        struct
+        {
             UINT32 FsInformationClass;
             union
             {

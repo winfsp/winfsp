@@ -46,14 +46,15 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     FileSystem->Operations[FspFsctlTransactCloseKind] = FspFileSystemOpClose;
     FileSystem->Operations[FspFsctlTransactReadKind] = FspFileSystemOpRead;
     FileSystem->Operations[FspFsctlTransactWriteKind] = FspFileSystemOpWrite;
-    // !!!: ...
     FileSystem->Operations[FspFsctlTransactQueryInformationKind] = FspFileSystemOpQueryInformation;
     FileSystem->Operations[FspFsctlTransactSetInformationKind] = FspFileSystemOpSetInformation;
+    FileSystem->Operations[FspFsctlTransactFlushBuffersKind] = FspFileSystemOpFlushBuffers;
     FileSystem->Operations[FspFsctlTransactQueryVolumeInformationKind] = FspFileSystemOpQueryVolumeInformation;
     FileSystem->Operations[FspFsctlTransactSetVolumeInformationKind] = FspFileSystemOpSetVolumeInformation;
     FileSystem->Operations[FspFsctlTransactQueryDirectoryKind] = FspFileSystemOpQueryDirectory;
     FileSystem->Operations[FspFsctlTransactQuerySecurityKind] = FspFileSystemOpQuerySecurity;
     FileSystem->Operations[FspFsctlTransactSetSecurityKind] = FspFileSystemOpSetSecurity;
+    // !!!: ...
     FileSystem->Interface = Interface;
 
     *PFileSystem = FileSystem;

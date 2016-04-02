@@ -463,6 +463,16 @@ FSP_API NTSTATUS FspFileSystemOpWrite(FSP_FILE_SYSTEM *FileSystem,
     return Result;
 }
 
+FSP_API NTSTATUS FspFileSystemOpFlushBuffers(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    if (0 == FileSystem->Interface->Flush)
+        return STATUS_SUCCESS; /* liar! */
+
+    return FileSystem->Interface->Flush(FileSystem, Request,
+        (PVOID)Request->Req.FlushBuffers.UserContext);
+}
+
 FSP_API NTSTATUS FspFileSystemOpQueryInformation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {

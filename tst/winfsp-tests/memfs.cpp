@@ -501,6 +501,14 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode)
+{
+    /* nothing to do, since we do not cache anything */
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0,
@@ -802,6 +810,7 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     Close,
     Read,
     Write,
+    Flush,
     GetFileInfo,
     SetBasicInfo,
     SetAllocationSize,

@@ -29,6 +29,8 @@ NTSTATUS FspCcMdlReadComplete(PFILE_OBJECT FileObject, PMDL MdlChain);
 NTSTATUS FspCcPrepareMdlWrite(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG Length,
     PMDL *PMdlChain, PIO_STATUS_BLOCK IoStatus);
 NTSTATUS FspCcMdlWriteComplete(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, PMDL MdlChain);
+NTSTATUS FspCcFlushCache(PSECTION_OBJECT_POINTERS SectionObjectPointer,
+    PLARGE_INTEGER FileOffset, ULONG Length, PIO_STATUS_BLOCK IoStatus);
 NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
     PSECURITY_DESCRIPTOR SecurityDescriptor, PULONG PLength,
     PSECURITY_DESCRIPTOR ObjectsSecurityDescriptor);
@@ -83,6 +85,7 @@ VOID FspSafeMdlDelete(FSP_SAFE_MDL *SafeMdl);
 #pragma alloc_text(PAGE, FspCcMdlReadComplete)
 #pragma alloc_text(PAGE, FspCcPrepareMdlWrite)
 #pragma alloc_text(PAGE, FspCcMdlWriteComplete)
+#pragma alloc_text(PAGE, FspCcFlushCache)
 #pragma alloc_text(PAGE, FspQuerySecurityDescriptorInfo)
 #pragma alloc_text(PAGE, FspNotifyInitializeSync)
 #pragma alloc_text(PAGE, FspNotifyFullChangeDirectory)
@@ -526,6 +529,29 @@ NTSTATUS FspCcMdlWriteComplete(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffse
         CcMdlWriteAbort(FileObject, MdlChain);
         return GetExceptionCode();
     }
+}
+
+NTSTATUS FspCcFlushCache(PSECTION_OBJECT_POINTERS SectionObjectPointer,
+    PLARGE_INTEGER FileOffset, ULONG Length, PIO_STATUS_BLOCK IoStatus)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    try
+    {
+        CcFlushCache(SectionObjectPointer, FileOffset, Length, IoStatus);
+        Result = IoStatus->Status;
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Result = GetExceptionCode();
+
+        IoStatus->Information = 0;
+        IoStatus->Status = Result;
+    }
+
+    return Result;
 }
 
 NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
