@@ -1,5 +1,6 @@
 #include <winfsp/winfsp.h>
 #include <tlib/testsuite.h>
+#include <process.h>
 #include <sddl.h>
 #include <strsafe.h>
 #include "memfs.h"
@@ -13,7 +14,7 @@ extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
-void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG SleepTimeout)
+static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG SleepTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
@@ -225,8 +226,109 @@ void querydir_expire_cache_test(void)
     }
 }
 
+static unsigned __stdcall dirnotify_dotest_thread(void *FilePath)
+{
+    FspDebugLog(__FUNCTION__ ": \"%S\"\n", FilePath);
+
+    HANDLE Handle;
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, 0, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    if (INVALID_HANDLE_VALUE == Handle)
+        return GetLastError();
+    CloseHandle(Handle);
+    return 0;
+}
+
+static void dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG SleepTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    WCHAR FilePath[MAX_PATH];
+    HANDLE Handle;
+    BOOL Success;
+    HANDLE Thread;
+    DWORD ExitCode;
+    DWORD BytesTransferred;
+    PFILE_NOTIFY_INFORMATION NotifyInfo;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    NotifyInfo = malloc(4096);
+    ASSERT(0 != NotifyInfo);
+
+    Handle = CreateFileW(FilePath,
+        FILE_LIST_DIRECTORY, FILE_SHARE_READ, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Thread = (HANDLE)_beginthreadex(0, 0, dirnotify_dotest_thread, FilePath, 0, 0);
+    ASSERT(0 != Thread);
+
+    Success = ReadDirectoryChangesW(Handle,
+        NotifyInfo, 4096, TRUE, FILE_NOTIFY_CHANGE_FILE_NAME, &BytesTransferred, 0, 0);
+    ASSERT(Success);
+    ASSERT(0 < BytesTransferred);
+
+    ASSERT(FILE_ACTION_ADDED == NotifyInfo->Action);
+    ASSERT(wcslen(L"file0") * sizeof(WCHAR) == NotifyInfo->FileNameLength);
+    ASSERT(0 == memcmp(L"file0", NotifyInfo->FileName, NotifyInfo->FileNameLength));
+
+    if (0 == NotifyInfo->NextEntryOffset)
+    {
+        Success = ReadDirectoryChangesW(Handle,
+            NotifyInfo, 4096, TRUE, FILE_NOTIFY_CHANGE_FILE_NAME, &BytesTransferred, 0, 0);
+        ASSERT(Success);
+        ASSERT(0 < BytesTransferred);
+    }
+    else
+        NotifyInfo = (PVOID)((PUINT8)NotifyInfo + NotifyInfo->NextEntryOffset);
+
+    ASSERT(FILE_ACTION_REMOVED == NotifyInfo->Action);
+    ASSERT(wcslen(L"file0") * sizeof(WCHAR) == NotifyInfo->FileNameLength);
+    ASSERT(0 == memcmp(L"file0", NotifyInfo->FileName, NotifyInfo->FileNameLength));
+
+    ASSERT(0 == NotifyInfo->NextEntryOffset);
+
+    WaitForSingleObject(Thread, INFINITE);
+    GetExitCodeThread(Thread, &ExitCode);
+    CloseHandle(Thread);
+    ASSERT(0 == ExitCode);
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    free(NotifyInfo);
+
+    memfs_stop(memfs);
+}
+
+void dirnotify_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        dirnotify_dotest(-1, DirBuf, 0, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        dirnotify_dotest(MemfsDisk, 0, 0, 0);
+        dirnotify_dotest(MemfsDisk, 0, 1000, 0);
+    }
+    if (WinFspNetTests)
+    {
+        dirnotify_dotest(MemfsNet, L"\\\\memfs\\share", 0, 0);
+        dirnotify_dotest(MemfsNet, L"\\\\memfs\\share", 1000, 0);
+    }
+}
+
 void dirctl_tests(void)
 {
     TEST(querydir_test);
     TEST(querydir_expire_cache_test);
+    TEST(dirnotify_test);
 }
