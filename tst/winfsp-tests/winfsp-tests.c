@@ -14,6 +14,7 @@ int main(int argc, char *argv[])
     TESTSUITE(info_tests);
     TESTSUITE(security_tests);
     TESTSUITE(rdwr_tests);
+    TESTSUITE(flush_tests);
     TESTSUITE(dirctl_tests);
 
     tlib_run_tests(argc, argv);
