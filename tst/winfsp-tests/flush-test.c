@@ -160,9 +160,12 @@ static void flush_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileI
         StringCbPrintfW(VolumePath, sizeof VolumePath, L"%s",
             VolPrefix ? VolPrefix : memfs_volumename(memfs));
 
-        VolumeHandle = CreateFileW(FilePath, GENERIC_WRITE, 0, 0, OPEN_EXISTING, 0, 0);
+        VolumeHandle = CreateFileW(VolumePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
         if (INVALID_HANDLE_VALUE != VolumeHandle)
         {
+            FspDebugLog(__FUNCTION__ ": VolumeHandle=%p\n", VolumeHandle);
+
             Success = FlushFileBuffers(VolumeHandle);
             ASSERT(Success);
 
