@@ -246,14 +246,6 @@ void flush_test(void)
 
 void flush_volume_test(void)
 {
-    if (NtfsTests)
-    {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        flush_dotest(-1, L"C:", DirBuf, 0, 0, TRUE);
-        flush_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_WRITE_THROUGH, TRUE);
-        flush_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING, TRUE);
-    }
     if (WinFspDiskTests)
     {
          flush_dotest(MemfsDisk, 0, 0, INFINITE, 0, TRUE);
