@@ -37,6 +37,7 @@ static NTSTATUS FspFsvolFlushBuffers(
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     FSP_FILE_NODE **FileNodes;
     ULONG FileNodeCount, Index;
+    PIRP TopLevelIrp;
     IO_STATUS_BLOCK IoStatus;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
@@ -49,6 +50,10 @@ static NTSTATUS FspFsvolFlushBuffers(
         Result = FspFileNodeCopyList(FsvolDeviceObject, &FileNodes, &FileNodeCount);
         if (!NT_SUCCESS(Result))
             return Result;
+
+        /* reset the top-level IRP to avoid deadlock on the FileNodes' resources */
+        TopLevelIrp = IoGetTopLevelIrp();
+        IoSetTopLevelIrp(0);
 
         /*
          * Enumerate in reverse order so that files are flushed before containing directories.
@@ -64,6 +69,8 @@ static NTSTATUS FspFsvolFlushBuffers(
                 if (!NT_SUCCESS(Result) && NT_SUCCESS(FlushResult))
                     FlushResult = Result;
             }
+
+        IoSetTopLevelIrp(TopLevelIrp);
 
         FspFileNodeDeleteList(FileNodes, FileNodeCount);
 
