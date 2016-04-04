@@ -6,6 +6,9 @@
 
 #include <sys/driver.h>
 
+NTSTATUS FspFileNodeCopyList(PDEVICE_OBJECT DeviceObject,
+    FSP_FILE_NODE ***PFileNodes, PULONG PFileNodeCount);
+VOID FspFileNodeDeleteList(FSP_FILE_NODE **FileNodes, ULONG FileNodeCount);
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode);
 VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode);
@@ -51,6 +54,8 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
     PUNICODE_STRING FileName, BOOLEAN Reset);
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspFileNodeCopyList)
+#pragma alloc_text(PAGE, FspFileNodeDeleteList)
 #pragma alloc_text(PAGE, FspFileNodeCreate)
 #pragma alloc_text(PAGE, FspFileNodeDelete)
 #pragma alloc_text(PAGE, FspFileNodeAcquireSharedF)
@@ -101,6 +106,38 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
 #define FSP_FILE_NODE_CLR_FLAGS()       \
     if (IrpValid)                       \
         FspIrpSetFlags(Irp, FspIrpFlags(Irp) & (~Flags & 3))
+
+NTSTATUS FspFileNodeCopyList(PDEVICE_OBJECT DeviceObject,
+    FSP_FILE_NODE ***PFileNodes, PULONG PFileNodeCount)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    ULONG Index;
+
+    FspFsvolDeviceLockContextTable(DeviceObject);
+    Result = FspFsvolDeviceCopyContextByNameList(DeviceObject, PFileNodes, PFileNodeCount);
+    if (NT_SUCCESS(Result))
+    {
+        for (Index = 0; *PFileNodeCount > Index; Index++)
+            FspFileNodeReference((*PFileNodes)[Index]);
+    }
+    FspFsvolDeviceUnlockContextTable(DeviceObject);
+
+    return Result;
+}
+
+VOID FspFileNodeDeleteList(FSP_FILE_NODE **FileNodes, ULONG FileNodeCount)
+{
+    PAGED_CODE();
+
+    ULONG Index;
+
+    for (Index = 0; FileNodeCount > Index; Index++)
+        FspFileNodeDereference(FileNodes[Index]);
+
+    FspFsvolDeviceDeleteContextByNameList(FileNodes, FileNodeCount);
+}
 
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ULONG ExtraSize, FSP_FILE_NODE **PFileNode)

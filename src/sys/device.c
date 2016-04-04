@@ -40,6 +40,9 @@ VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
 static RTL_AVL_COMPARE_ROUTINE FspFsvolDeviceCompareContext;
 static RTL_AVL_ALLOCATE_ROUTINE FspFsvolDeviceAllocateContext;
 static RTL_AVL_FREE_ROUTINE FspFsvolDeviceFreeContext;
+NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
+    PVOID **PContexts, PULONG PContextCount);
+VOID FspFsvolDeviceDeleteContextByNameList(PVOID *Contexts, ULONG ContextCount);
 PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
     BOOLEAN SubpathOnly, PVOID *PRestartKey);
 PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
@@ -79,6 +82,8 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceCompareContext)
 #pragma alloc_text(PAGE, FspFsvolDeviceAllocateContext)
 #pragma alloc_text(PAGE, FspFsvolDeviceFreeContext)
+#pragma alloc_text(PAGE, FspFsvolDeviceCopyContextByNameList)
+#pragma alloc_text(PAGE, FspFsvolDeviceDeleteContextByNameList)
 #pragma alloc_text(PAGE, FspFsvolDeviceEnumerateContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceLookupContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceInsertContextByName)
@@ -653,6 +658,45 @@ static VOID NTAPI FspFsvolDeviceFreeContext(
     PAGED_CODE();
 }
 
+NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
+    PVOID **PContexts, PULONG PContextCount)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT_DATA *Data;
+    PVOID *Contexts;
+    ULONG ContextCount, Index;
+
+    *PContexts = 0;
+    *PContextCount = 0;
+
+    ContextCount = RtlNumberGenericTableElementsAvl(&FsvolDeviceExtension->ContextByNameTable);
+    Contexts = FspAlloc(sizeof(PVOID) * ContextCount);
+    if (0 == Contexts)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    Index = 0;
+    Data = RtlEnumerateGenericTableAvl(&FsvolDeviceExtension->ContextByNameTable, TRUE);
+    while (Index < ContextCount && 0 != Data)
+    {
+        Contexts[Index++] = Data->Context;
+        Data = RtlEnumerateGenericTableAvl(&FsvolDeviceExtension->ContextByNameTable, FALSE);
+    }
+
+    *PContexts = Contexts;
+    *PContextCount = Index;
+
+    return STATUS_SUCCESS;
+}
+
+VOID FspFsvolDeviceDeleteContextByNameList(PVOID *Contexts, ULONG ContextCount)
+{
+    PAGED_CODE();
+
+    FspFree(Contexts);
+}
+
 PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
     BOOLEAN SubpathOnly, PVOID *PRestartKey)
 {
@@ -668,7 +712,7 @@ PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE
 
     Result = RtlEnumerateGenericTableLikeADirectory(&FsvolDeviceExtension->ContextByNameTable,
         0, 0, SubpathOnly, PRestartKey, &DeleteCount, &FileName);
-    
+
     if (0 != Result &&
         RtlPrefixUnicodeString(FileName, Result->FileName, CaseInsensitive) &&
         FileName->Length < Result->FileName->Length &&
