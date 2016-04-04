@@ -219,12 +219,21 @@ VOID FspIopCompleteCanceledIrp(PIRP Irp)
 
     DEBUGLOGIRP(Irp, STATUS_CANCELLED);
 
+    /*
+     * An IRP cancel may happen at any time including when APC's are still enabled.
+     * For this reason we execute FsRtlEnterFileSystem/FsRtlExitFileSystem here.
+     * This will protect ERESOURCE operations during Request finalizations.
+     */
+    FsRtlEnterFileSystem();
+
     PIRP TopLevelIrp = IoGetTopLevelIrp();
     IoSetTopLevelIrp(Irp);
 
     FspIopCompleteIrpEx(Irp, STATUS_CANCELLED, TRUE);
 
     IoSetTopLevelIrp(TopLevelIrp);
+
+    FsRtlExitFileSystem();
 }
 
 BOOLEAN FspIopRetryPrepareIrp(PIRP Irp, NTSTATUS *PResult)
