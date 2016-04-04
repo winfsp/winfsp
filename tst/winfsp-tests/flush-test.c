@@ -157,8 +157,8 @@ static void flush_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileI
         WCHAR VolumePath[MAX_PATH];
         HANDLE VolumeHandle;
 
-        StringCbPrintfW(VolumePath, sizeof VolumePath, L"%s",
-            VolPrefix ? VolPrefix : memfs_volumename(memfs));
+        StringCbPrintfW(VolumePath, sizeof VolumePath, L"%s%s",
+            VolPrefix ? L"" : L"\\\\?\\GLOBALROOT", VolPrefix ? VolPrefix : memfs_volumename(memfs));
 
         VolumeHandle = CreateFileW(VolumePath,
             GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
