@@ -48,8 +48,7 @@ BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG S
 static VOID FspFileNodeInvalidateDirInfo(FSP_FILE_NODE *FileNode);
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
     ULONG Filter, ULONG Action);
-NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp,
-    PBOOLEAN PIrpRelinquished);
+NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
 static NTSTATUS FspFileNodeCompleteLockIrp(PVOID Context, PIRP Irp);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
@@ -88,6 +87,7 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
 // !#pragma alloc_text(PAGE, FspFileNodeTrySetDirInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeInvalidateDirInfo)
 #pragma alloc_text(PAGE, FspFileNodeNotifyChange)
+#pragma alloc_text(PAGE, FspFileNodeProcessLockIrp)
 #pragma alloc_text(PAGE, FspFileNodeCompleteLockIrp)
 #pragma alloc_text(PAGE, FspFileDescCreate)
 #pragma alloc_text(PAGE, FspFileDescDelete)
@@ -940,29 +940,26 @@ VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
         0, Filter, Action);
 }
 
-NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp,
-    PBOOLEAN PIrpRelinquished)
+NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp)
 {
     PAGED_CODE();
 
-    NTSTATUS Result;
-
-    FspFileNodeAcquireShared(FileNode, Main);
-    FspFileNodeSetOwner(FileNode, Main, Irp);
+    IoMarkIrpPending(Irp);
+    FspFileNodeSetOwnerF(FileNode, FspIrpFlags(Irp), Irp);
 
     try
     {
-        Result = FsRtlProcessFileLock(&FileNode->FileLock, Irp, FileNode);
-        *PIrpRelinquished = TRUE;
+        FsRtlProcessFileLock(&FileNode->FileLock, Irp, FileNode);
     }
     except (EXCEPTION_EXECUTE_HANDLER)
     {
-        FspFileNodeReleaseOwner(FileNode, Main, Irp);
-        Result = GetExceptionCode();
-        *PIrpRelinquished = FALSE;
+        Irp->IoStatus.Status = GetExceptionCode();
+        Irp->IoStatus.Information = 0;
+
+        FspFileNodeCompleteLockIrp(FileNode, Irp);
     }
 
-    return Result;
+    return STATUS_PENDING;
 }
 
 static NTSTATUS FspFileNodeCompleteLockIrp(PVOID Context, PIRP Irp)
@@ -972,7 +969,7 @@ static NTSTATUS FspFileNodeCompleteLockIrp(PVOID Context, PIRP Irp)
     FSP_FILE_NODE *FileNode = Context;
     NTSTATUS Result = Irp->IoStatus.Status;
 
-    FspFileNodeReleaseOwner(FileNode, Main, Irp);
+    FspFileNodeReleaseOwnerF(FileNode, FspIrpFlags(Irp), Irp);
 
     DEBUGLOGIRP(Irp, Result);
 

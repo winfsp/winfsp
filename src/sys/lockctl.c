@@ -6,21 +6,46 @@
 
 #include <sys/driver.h>
 
+static NTSTATUS FspFsvolLockControlRetry(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    BOOLEAN CanWait);
 static NTSTATUS FspFsvolLockControl(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
-    PBOOLEAN PIrpRelinquished);
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolLockControlComplete;
 FSP_DRIVER_DISPATCH FspLockControl;
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspFsvolLockControlRetry)
 #pragma alloc_text(PAGE, FspFsvolLockControl)
 #pragma alloc_text(PAGE, FspFsvolLockControlComplete)
 #pragma alloc_text(PAGE, FspLockControl)
 #endif
 
+static NTSTATUS FspFsvolLockControlRetry(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    BOOLEAN CanWait)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    BOOLEAN Success;
+
+    /* try to acquire the FileNode shared Main */
+    Success = DEBUGTEST(90, TRUE) &&
+        FspFileNodeTryAcquireSharedF(FileNode, FspFileNodeAcquireMain, CanWait);
+    if (!Success)
+        return FspWqRepostIrpWorkItem(Irp, FspFsvolLockControlRetry, 0);
+
+    /* let the FSRTL package handle this one! */
+    Result = FspFileNodeProcessLockIrp(FileNode, Irp);
+
+    return Result;
+}
+
 static NTSTATUS FspFsvolLockControl(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
-    PBOOLEAN PIrpRelinquished)
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     PAGED_CODE();
 
@@ -36,8 +61,7 @@ static NTSTATUS FspFsvolLockControl(
     if (FileNode->IsDirectory)
         return STATUS_INVALID_PARAMETER;
 
-    /* let the FSRTL package handle this one! */
-    Result = FspFileNodeProcessLockIrp(FileNode, Irp, PIrpRelinquished);
+    Result = FspFsvolLockControlRetry(FsvolDeviceObject, Irp, IrpSp, IoIsOperationSynchronous(Irp));
 
     return Result;
 }
@@ -59,20 +83,17 @@ NTSTATUS FspFsvolLockControlComplete(
 NTSTATUS FspLockControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    BOOLEAN IrpRelinquished = FALSE;
-
     FSP_ENTER_MJ(PAGED_CODE());
 
     switch (FspDeviceExtension(DeviceObject)->Kind)
     {
     case FspFsvolDeviceExtensionKind:
-        FSP_RETURN(Result = FspFsvolLockControl(DeviceObject, Irp, IrpSp, &IrpRelinquished));
+        FSP_RETURN(Result = FspFsvolLockControl(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
 
-    FSP_LEAVE_MJ_COND(!IrpRelinquished && STATUS_PENDING != Result,
-        "FileObject=%p, "
+    FSP_LEAVE_MJ("FileObject=%p, "
         "Key=%#lx, ByteOffset=%#lx:%#lx, Length=%ld",
         IrpSp->FileObject,
         IrpSp->Parameters.LockControl.Key,
