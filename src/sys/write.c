@@ -98,10 +98,6 @@ static NTSTATUS FspFsvolWriteCached(
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     LARGE_INTEGER WriteOffset = IrpSp->Parameters.Write.ByteOffset;
     ULONG WriteLength = IrpSp->Parameters.Write.Length;
-#if 0
-    /* !!!: lock support! */
-    ULONG WriteKey = IrpSp->Parameters.Write.Key;
-#endif
     BOOLEAN WriteToEndOfFile =
         FILE_WRITE_TO_END_OF_FILE == WriteOffset.LowPart && -1L == WriteOffset.HighPart;
     BOOLEAN SynchronousIo = BooleanFlagOn(FileObject->Flags, FO_SYNCHRONOUS_IO);
@@ -133,6 +129,13 @@ static NTSTATUS FspFsvolWriteCached(
         FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireMain, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteCached, 0);
+
+    /* check the file locks */
+    if (!FsRtlCheckLockForWriteAccess(&FileNode->FileLock, Irp))
+    {
+        FspFileNodeRelease(FileNode, Main);
+        return STATUS_FILE_LOCK_CONFLICT;
+    }
 
     /* compute new file size */
     ASSERT(FspTimeoutInfinity32 ==
@@ -299,6 +302,13 @@ static NTSTATUS FspFsvolWriteNonCached(
         FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteNonCached, 0);
+
+    /* check the file locks */
+    if (!PagingIo && !FsRtlCheckLockForWriteAccess(&FileNode->FileLock, Irp))
+    {
+        FspFileNodeRelease(FileNode, Full);
+        return STATUS_FILE_LOCK_CONFLICT;
+    }
 
     /* if this is a non-cached transfer on a cached file then flush and purge the file */
     if (!PagingIo && 0 != FileObject->SectionObjectPointer->DataSectionObject)

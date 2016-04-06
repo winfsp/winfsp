@@ -97,10 +97,6 @@ static NTSTATUS FspFsvolReadCached(
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     LARGE_INTEGER ReadOffset = IrpSp->Parameters.Read.ByteOffset;
     ULONG ReadLength = IrpSp->Parameters.Read.Length;
-#if 0
-    /* !!!: lock support! */
-    ULONG ReadKey = IrpSp->Parameters.Read.Key;
-#endif
     BOOLEAN SynchronousIo = BooleanFlagOn(FileObject->Flags, FO_SYNCHRONOUS_IO);
     FSP_FSCTL_FILE_INFO FileInfo;
     CC_FILE_SIZES FileSizes;
@@ -111,6 +107,13 @@ static NTSTATUS FspFsvolReadCached(
         FspFileNodeTryAcquireSharedF(FileNode, FspFileNodeAcquireMain, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolReadCached, 0);
+
+    /* check the file locks */
+    if (!FsRtlCheckLockForReadAccess(&FileNode->FileLock, Irp))
+    {
+        FspFileNodeRelease(FileNode, Main);
+        return STATUS_FILE_LOCK_CONFLICT;
+    }
 
     /* trim ReadLength; the cache manager does not tolerate reads beyond file size */
     ASSERT(FspTimeoutInfinity32 ==
@@ -233,6 +236,13 @@ static NTSTATUS FspFsvolReadNonCached(
         FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolReadNonCached, 0);
+
+    /* check the file locks */
+    if (!PagingIo && !FsRtlCheckLockForReadAccess(&FileNode->FileLock, Irp))
+    {
+        FspFileNodeRelease(FileNode, Full);
+        return STATUS_FILE_LOCK_CONFLICT;
+    }
 
     /* if this is a non-cached transfer on a cached file then flush the file */
     if (!PagingIo && 0 != FileObject->SectionObjectPointer->DataSectionObject)
