@@ -95,7 +95,10 @@ NTSTATUS FspIopCreateRequestFunnel(
     }
 
     if (0 != Irp)
+    {
+        ASSERT(0 == FspIrpRequest(Irp));
         FspIrpSetRequest(Irp, Request);
+    }
     *PRequest = Request;
 
     return STATUS_SUCCESS;

@@ -320,6 +320,9 @@ static NTSTATUS FspFsvolWriteNonCached(
         }
     }
 
+    /* delete any work item if present! */
+    FspIrpDeleteRequest(Irp);
+
     /* create request */
     Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolWriteNonCachedRequestFini, &Request);
     if (!NT_SUCCESS(Result))

@@ -424,7 +424,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     /* if we have been retried reset our work item now! */
     if (0 != Request)
     {
-        FspWqDeleteIrpWorkItem(Irp);
+        FspIrpDeleteRequest(Irp);
         Request = 0;
     }
 

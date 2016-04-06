@@ -643,6 +643,16 @@ BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
 FSP_FSCTL_TRANSACT_RSP *FspIopIrpResponse(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+static inline
+VOID FspIrpDeleteRequest(PIRP Irp)
+{
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    if (0 != Request)
+    {
+        FspIopDeleteRequest(Request);
+        FspIrpSetRequest(Irp, 0);
+    }
+}
 
 /* work queue processing */
 enum
@@ -655,7 +665,6 @@ typedef NTSTATUS FSP_WQ_REQUEST_WORK(
 NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
     FSP_WQ_REQUEST_WORK *WorkRoutine, FSP_IOP_REQUEST_FINI *RequestFini,
     BOOLEAN CreateAndPost);
-VOID FspWqDeleteIrpWorkItem(PIRP Irp);
 VOID FspWqPostIrpWorkItem(PIRP Irp);
 #define FspWqCreateIrpWorkItem(I, RW, RF)\
     FspWqCreateAndPostIrpWorkItem(I, RW, RF, FALSE)

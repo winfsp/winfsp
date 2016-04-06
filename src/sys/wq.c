@@ -50,18 +50,6 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
     return STATUS_PENDING;
 }
 
-VOID FspWqDeleteIrpWorkItem(PIRP Irp)
-{
-    FSP_FSCTL_TRANSACT_REQ *RequestWorkItem = FspIrpRequest(Irp);
-
-    ASSERT(RequestWorkItem->Kind == FspFsctlTransactReservedKind);
-    ASSERT(RequestWorkItem->Size == sizeof *RequestWorkItem + sizeof(WORK_QUEUE_ITEM));
-    ASSERT(RequestWorkItem->Hint == (UINT_PTR)Irp);
-
-    FspIopDeleteRequest(RequestWorkItem);
-    FspIrpSetRequest(Irp, 0);
-}
-
 VOID FspWqPostIrpWorkItem(PIRP Irp)
 {
     FSP_FSCTL_TRANSACT_REQ *RequestWorkItem = FspIrpRequest(Irp);

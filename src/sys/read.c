@@ -257,6 +257,9 @@ static NTSTATUS FspFsvolReadNonCached(
     /* convert FileNode to shared */
     FspFileNodeConvertExclusiveToShared(FileNode, Full);
 
+    /* delete any work item if present! */
+    FspIrpDeleteRequest(Irp);
+
     /* create request */
     Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolReadNonCachedRequestFini, &Request);
     if (!NT_SUCCESS(Result))
