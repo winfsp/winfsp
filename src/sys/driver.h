@@ -484,6 +484,12 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
 VOID FspSafeMdlCopyBack(FSP_SAFE_MDL *SafeMdl);
 VOID FspSafeMdlDelete(FSP_SAFE_MDL *SafeMdl);
 
+/* utility: hook IRP completion */
+NTSTATUS FspIrpHook(PIRP Irp, PIO_COMPLETION_ROUTINE CompletionRoutine, PVOID OwnContext);
+VOID FspIrpHookReset(PIRP Irp);
+PVOID FspIrpHookContext(PVOID Context);
+NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
+
 /* IRP context */
 #define FspIrpTimestampInfinity         ((ULONG)-1L)
 #define FspIrpTimestamp(Irp)            \

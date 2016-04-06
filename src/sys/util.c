@@ -68,6 +68,10 @@ BOOLEAN FspSafeMdlCheck(PMDL Mdl);
 NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL **PSafeMdl);
 VOID FspSafeMdlCopyBack(FSP_SAFE_MDL *SafeMdl);
 VOID FspSafeMdlDelete(FSP_SAFE_MDL *SafeMdl);
+NTSTATUS FspIrpHook(PIRP Irp, PIO_COMPLETION_ROUTINE CompletionRoutine, PVOID OwnContext);
+VOID FspIrpHookReset(PIRP Irp);
+PVOID FspIrpHookContext(PVOID Context);
+NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspUnicodePathIsValid)
@@ -99,6 +103,10 @@ VOID FspSafeMdlDelete(FSP_SAFE_MDL *SafeMdl);
 #pragma alloc_text(PAGE, FspSafeMdlCreate)
 #pragma alloc_text(PAGE, FspSafeMdlCopyBack)
 #pragma alloc_text(PAGE, FspSafeMdlDelete)
+#pragma alloc_text(PAGE, FspIrpHook)
+#pragma alloc_text(PAGE, FspIrpHookReset)
+// !#pragma alloc_text(PAGE, FspIrpHookContext)
+// !#pragma alloc_text(PAGE, FspIrpHookNext)
 #endif
 
 static const LONG Delays[] =
@@ -956,4 +964,99 @@ VOID FspSafeMdlDelete(FSP_SAFE_MDL *SafeMdl)
     if (0 != SafeMdl->Mdl)
         IoFreeMdl(SafeMdl->Mdl);
     FspFree(SafeMdl);
+}
+
+typedef struct
+{
+    PIO_COMPLETION_ROUTINE CompletionRoutine;
+    PVOID Context;
+    ULONG Control;
+    PVOID OwnContext;
+} FSP_IRP_HOOK_CONTEXT;
+
+NTSTATUS FspIrpHook(PIRP Irp, PIO_COMPLETION_ROUTINE CompletionRoutine, PVOID OwnContext)
+{
+    PAGED_CODE();
+
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    FSP_IRP_HOOK_CONTEXT *HookContext = 0;
+
+    if (0 != IrpSp->CompletionRoutine || 0 != OwnContext)
+    {
+        HookContext = FspAllocNonPaged(sizeof *HookContext);
+        if (0 == HookContext)
+            return STATUS_INSUFFICIENT_RESOURCES;
+
+        HookContext->CompletionRoutine = IrpSp->CompletionRoutine;
+        HookContext->Context = IrpSp->Context;
+        HookContext->Control = FlagOn(IrpSp->Control,
+            SL_INVOKE_ON_SUCCESS | SL_INVOKE_ON_ERROR | SL_INVOKE_ON_CANCEL);
+        HookContext->OwnContext = OwnContext;
+    }
+
+    IrpSp->CompletionRoutine = CompletionRoutine;
+    IrpSp->Context = HookContext;
+    SetFlag(IrpSp->Control, SL_INVOKE_ON_SUCCESS | SL_INVOKE_ON_ERROR | SL_INVOKE_ON_CANCEL);
+
+    return STATUS_SUCCESS;
+}
+
+VOID FspIrpHookReset(PIRP Irp)
+{
+    PAGED_CODE();
+
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    FSP_IRP_HOOK_CONTEXT *HookContext = IrpSp->Context;
+
+    if (0 != HookContext)
+    {
+        IrpSp->CompletionRoutine = HookContext->CompletionRoutine;
+        IrpSp->Context = HookContext->Context;
+        ClearFlag(IrpSp->Control, SL_INVOKE_ON_SUCCESS | SL_INVOKE_ON_ERROR | SL_INVOKE_ON_CANCEL);
+        SetFlag(IrpSp->Control, HookContext->Control);
+
+        FspFree(HookContext);
+    }
+    else
+    {
+        IrpSp->CompletionRoutine = 0;
+        IrpSp->Context = 0;
+        ClearFlag(IrpSp->Control, SL_INVOKE_ON_SUCCESS | SL_INVOKE_ON_ERROR | SL_INVOKE_ON_CANCEL);
+    }
+}
+
+PVOID FspIrpHookContext(PVOID Context)
+{
+    // !PAGED_CODE();
+
+    FSP_IRP_HOOK_CONTEXT *HookContext = Context;
+    return 0 != HookContext ? HookContext->OwnContext : 0;
+}
+
+NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context)
+{
+    // !PAGED_CODE();
+
+    FSP_IRP_HOOK_CONTEXT *HookContext = Context;
+    NTSTATUS Result;
+
+    if (0 != HookContext && 0 != HookContext->CompletionRoutine && (
+        (NT_SUCCESS(Irp->IoStatus.Status) && FlagOn(HookContext->Control, SL_INVOKE_ON_SUCCESS)) ||
+        (!NT_SUCCESS(Irp->IoStatus.Status) && FlagOn(HookContext->Control, SL_INVOKE_ON_ERROR)) ||
+        (Irp->Cancel && FlagOn(HookContext->Control, SL_INVOKE_ON_CANCEL))))
+    {
+        Result = HookContext->CompletionRoutine(DeviceObject, Irp, HookContext->Context);
+    }
+    else
+    {
+        if (Irp->PendingReturned && Irp->CurrentLocation <= Irp->StackCount)
+            IoMarkIrpPending(Irp);
+
+        Result = STATUS_SUCCESS;
+    }
+
+    if (0 != HookContext)
+        FspFree(HookContext);
+
+    return Result;
 }

@@ -29,6 +29,8 @@ static NTSTATUS FspFsvolQueryDirectory(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolNotifyChangeDirectory(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static IO_COMPLETION_ROUTINE FspFsvolNotifyChangeDirectoryCompletion;
+static WORKER_THREAD_ROUTINE FspFsvolNotifyChangeDirectoryCompletionWork;
 static NTSTATUS FspFsvolDirectoryControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOPREP_DISPATCH FspFsvolDirectoryControlPrepare;
@@ -43,6 +45,8 @@ FSP_DRIVER_DISPATCH FspDirectoryControl;
 #pragma alloc_text(PAGE, FspFsvolQueryDirectoryRetry)
 #pragma alloc_text(PAGE, FspFsvolQueryDirectory)
 #pragma alloc_text(PAGE, FspFsvolNotifyChangeDirectory)
+// !#pragma alloc_text(PAGE, FspFsvolNotifyChangeDirectoryCompletion)
+#pragma alloc_text(PAGE, FspFsvolNotifyChangeDirectoryCompletionWork)
 #pragma alloc_text(PAGE, FspFsvolDirectoryControl)
 #pragma alloc_text(PAGE, FspFsvolDirectoryControlPrepare)
 #pragma alloc_text(PAGE, FspFsvolDirectoryControlComplete)
@@ -566,6 +570,12 @@ static NTSTATUS FspFsvolQueryDirectory(
     return Result;
 }
 
+typedef struct
+{
+    PDEVICE_OBJECT FsvolDeviceObject;
+    WORK_QUEUE_ITEM WorkItem;
+} FSP_FSVOL_NOTIFY_CHANGE_DIRECTORY_COMPLETION_CONTEXT;
+
 static NTSTATUS FspFsvolNotifyChangeDirectory(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -583,6 +593,7 @@ static NTSTATUS FspFsvolNotifyChangeDirectory(
     ULONG CompletionFilter = IrpSp->Parameters.NotifyDirectory.CompletionFilter;
     BOOLEAN WatchTree = BooleanFlagOn(IrpSp->Flags, SL_WATCH_TREE);
     BOOLEAN DeletePending;
+    FSP_FSVOL_NOTIFY_CHANGE_DIRECTORY_COMPLETION_CONTEXT *CompletionContext;
 
     ASSERT(FileNode == FileDesc->FileNode);
 
@@ -600,6 +611,27 @@ static NTSTATUS FspFsvolNotifyChangeDirectory(
     if (DeletePending)
         return STATUS_DELETE_PENDING;
 
+    /*
+     * This IRP will be completed by the FSRTL package and therefore
+     * we will have no chance to do our normal IRP completion processing.
+     * Hook the IRP completion and perform the IRP completion processing
+     * there.
+     */
+
+    CompletionContext = FspAllocNonPaged(sizeof *CompletionContext);
+    if (0 == CompletionContext)
+        return STATUS_INSUFFICIENT_RESOURCES;
+    CompletionContext->FsvolDeviceObject = FsvolDeviceObject;
+    ExInitializeWorkItem(&CompletionContext->WorkItem,
+        FspFsvolNotifyChangeDirectoryCompletionWork, CompletionContext);
+
+    Result = FspIrpHook(Irp, FspFsvolNotifyChangeDirectoryCompletion, CompletionContext);
+    if (!NT_SUCCESS(Result))
+    {
+        FspFree(CompletionContext);
+        return Result;
+    }
+
     FspFileNodeAcquireExclusive(FileNode, Main);
 
     Result = FspNotifyChangeDirectory(
@@ -613,10 +645,35 @@ static NTSTATUS FspFsvolNotifyChangeDirectory(
 
     FspFileNodeRelease(FileNode, Main);
 
-    if (NT_SUCCESS(Result))
-        Result = STATUS_PENDING;
+    if (!NT_SUCCESS(Result))
+    {
+        FspIrpHookReset(Irp);
+        FspFree(CompletionContext);
+        return Result;
+    }
 
-    return Result;
+    return STATUS_PENDING;
+}
+
+static NTSTATUS FspFsvolNotifyChangeDirectoryCompletion(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context)
+{
+    // !PAGED_CODE();
+
+    FSP_FSVOL_NOTIFY_CHANGE_DIRECTORY_COMPLETION_CONTEXT *CompletionContext =
+        FspIrpHookContext(Context);
+    ExQueueWorkItem(&CompletionContext->WorkItem, DelayedWorkQueue);
+
+    return FspIrpHookNext(DeviceObject, Irp, Context);
+}
+
+static VOID FspFsvolNotifyChangeDirectoryCompletionWork(PVOID Context)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_NOTIFY_CHANGE_DIRECTORY_COMPLETION_CONTEXT *CompletionContext = Context;
+    FspDeviceDereference(CompletionContext->FsvolDeviceObject);
+    FspFree(CompletionContext);
 }
 
 static NTSTATUS FspFsvolDirectoryControl(
