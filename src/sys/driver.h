@@ -155,9 +155,9 @@ extern __declspec(selectany) int fsp_dt = 1;
         }                               \
         fsp_device_deref = TRUE;        \
     } while (0,0)
-#define FSP_LEAVE_MJ(fmt, ...)          \
+#define FSP_LEAVE_MJ_COND(COND, fmt, ...)\
     FSP_LEAVE_(                         \
-        if (STATUS_PENDING != Result)   \
+        if (COND)                       \
         {                               \
             ASSERT(0 == (FSP_STATUS_PRIVATE_BIT & Result) ||\
                 FSP_STATUS_IOQ_POST == Result || FSP_STATUS_IOQ_POST_BEST_EFFORT == Result);\
@@ -187,6 +187,8 @@ extern __declspec(selectany) int fsp_dt = 1;
         IoSetTopLevelIrp(fsp_top_level_irp);\
     );                                  \
     return Result
+#define FSP_LEAVE_MJ(fmt, ...)          \
+    FSP_LEAVE_MJ_COND(STATUS_PENDING != Result, fmt, __VA_ARGS__)
 #define FSP_ENTER_IOC(...)              \
     NTSTATUS Result = STATUS_SUCCESS;   \
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp); (VOID)IrpSp;\
@@ -873,6 +875,7 @@ typedef struct
     ULONG SecurityChangeNumber;
     ULONG DirInfoChangeNumber;
     BOOLEAN TruncateOnClose;
+    FILE_LOCK FileLock;
     union
     {
         PVOID LazyWriteThread;
@@ -951,6 +954,8 @@ VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG DirInfoChangeNumber);
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action);
+NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp,
+    PBOOLEAN PIrpRelinquished);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,

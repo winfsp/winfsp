@@ -48,6 +48,9 @@ BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG S
 static VOID FspFileNodeInvalidateDirInfo(FSP_FILE_NODE *FileNode);
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
     ULONG Filter, ULONG Action);
+NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp,
+    PBOOLEAN PIrpRelinquished);
+static NTSTATUS FspFileNodeCompleteLockIrp(PVOID Context, PIRP Irp);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
@@ -85,6 +88,7 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
 // !#pragma alloc_text(PAGE, FspFileNodeTrySetDirInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeInvalidateDirInfo)
 #pragma alloc_text(PAGE, FspFileNodeNotifyChange)
+#pragma alloc_text(PAGE, FspFileNodeCompleteLockIrp)
 #pragma alloc_text(PAGE, FspFileDescCreate)
 #pragma alloc_text(PAGE, FspFileDescDelete)
 #pragma alloc_text(PAGE, FspFileDescResetDirectoryPattern)
@@ -178,6 +182,8 @@ NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     FspDeviceReference(FileNode->FsvolDeviceObject);
     RtlInitEmptyUnicodeString(&FileNode->FileName, FileNode->FileNameBuf, (USHORT)ExtraSize);
 
+    FsRtlInitializeFileLock(&FileNode->FileLock, FspFileNodeCompleteLockIrp, 0);
+
     *PFileNode = FileNode;
 
     return STATUS_SUCCESS;
@@ -189,6 +195,8 @@ VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode)
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
         FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+
+    FsRtlUninitializeFileLock(&FileNode->FileLock);
 
     FsRtlTeardownPerStreamContexts(&FileNode->Header);
 
@@ -930,6 +938,47 @@ VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
         &FileNode->FileName,
         (USHORT)((PUINT8)Suffix.Buffer - (PUINT8)FileNode->FileName.Buffer),
         0, Filter, Action);
+}
+
+NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp,
+    PBOOLEAN PIrpRelinquished)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    FspFileNodeAcquireShared(FileNode, Main);
+    FspFileNodeSetOwner(FileNode, Main, Irp);
+
+    try
+    {
+        Result = FsRtlProcessFileLock(&FileNode->FileLock, Irp, FileNode);
+        *PIrpRelinquished = TRUE;
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        FspFileNodeReleaseOwner(FileNode, Main, Irp);
+        Result = GetExceptionCode();
+        *PIrpRelinquished = FALSE;
+    }
+
+    return Result;
+}
+
+static NTSTATUS FspFileNodeCompleteLockIrp(PVOID Context, PIRP Irp)
+{
+    PAGED_CODE();
+
+    FSP_FILE_NODE *FileNode = Context;
+    NTSTATUS Result = Irp->IoStatus.Status;
+
+    FspFileNodeReleaseOwner(FileNode, Main, Irp);
+
+    DEBUGLOGIRP(Irp, Result);
+
+    FspIopCompleteIrp(Irp, Result);
+
+    return Result;
 }
 
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc)
