@@ -72,12 +72,12 @@ NTSTATUS FspFsvolLockControlComplete(
     FSP_ENTER_IOC(PAGED_CODE());
 
     FSP_LEAVE_IOC("FileObject=%p, "
-        "Key=%#lx, ByteOffset=%#lx:%#lx, Length=%ld",
+        "Key=%#lx, ByteOffset=%#lx:%#lx, Length=%lld",
         IrpSp->FileObject,
         IrpSp->Parameters.LockControl.Key,
         IrpSp->Parameters.LockControl.ByteOffset.HighPart,
         IrpSp->Parameters.LockControl.ByteOffset.LowPart,
-        IrpSp->Parameters.LockControl.Length);
+        IrpSp->Parameters.LockControl.Length->QuadPart);
 }
 
 NTSTATUS FspLockControl(
@@ -94,10 +94,10 @@ NTSTATUS FspLockControl(
     }
 
     FSP_LEAVE_MJ("FileObject=%p, "
-        "Key=%#lx, ByteOffset=%#lx:%#lx, Length=%ld",
+        "Key=%#lx, ByteOffset=%#lx:%#lx, Length=%lld",
         IrpSp->FileObject,
         IrpSp->Parameters.LockControl.Key,
         IrpSp->Parameters.LockControl.ByteOffset.HighPart,
         IrpSp->Parameters.LockControl.ByteOffset.LowPart,
-        IrpSp->Parameters.LockControl.Length);
+        IrpSp->Parameters.LockControl.Length->QuadPart);
 }
