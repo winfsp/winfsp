@@ -275,6 +275,8 @@ static void lock_overlapped_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, U
     Overlapped.Offset = BytesPerSector + BytesPerSector / 2;
     Success = LockFileEx(Handle, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0,
         BytesPerSector, 0, &Overlapped);
+    ASSERT(Success || ERROR_IO_PENDING == GetLastError() || ERROR_LOCK_VIOLATION == GetLastError());
+    Success = GetOverlappedResult(Handle, &Overlapped, &BytesTransferred, TRUE);
     ASSERT(!Success && ERROR_LOCK_VIOLATION == GetLastError());
 
     Overlapped.Offset = 0;
