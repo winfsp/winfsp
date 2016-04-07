@@ -6,14 +6,26 @@
 
 #include <sys/driver.h>
 
+/*
+ * Define the following macro to include FspUnload.
+ *
+ * Note that this driver is no longer unloadable.
+ * See the comments in DriverEntry as to why!
+ */
+//#define FSP_UNLOAD
+
 DRIVER_INITIALIZE DriverEntry;
 static VOID FspDriverMultiVersionInitialize(VOID);
+#if defined(FSP_UNLOAD)
 DRIVER_UNLOAD FspUnload;
+#endif
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(INIT, DriverEntry)
 #pragma alloc_text(INIT, FspDriverMultiVersionInitialize)
+#if defined(FSP_UNLOAD)
 #pragma alloc_text(PAGE, FspUnload)
+#endif
 #endif
 
 NTSTATUS DriverEntry(
@@ -49,7 +61,9 @@ NTSTATUS DriverEntry(
     ASSERT(STATUS_SUCCESS == Result);
 
     /* setup the driver object */
+#if defined(FSP_UNLOAD)
     DriverObject->DriverUnload = FspUnload;
+#endif
     DriverObject->MajorFunction[IRP_MJ_CREATE] = FspCreate;
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = FspClose;
     DriverObject->MajorFunction[IRP_MJ_READ] = FspRead;
@@ -160,6 +174,7 @@ static VOID FspDriverMultiVersionInitialize(VOID)
     }
 }
 
+#if defined(FSP_UNLOAD)
 VOID FspUnload(
     PDRIVER_OBJECT DriverObject)
 {
@@ -175,6 +190,7 @@ VOID FspUnload(
     FSP_LEAVE_VOID("DriverName=\"%wZ\"",
         &DriverObject->DriverName);
 }
+#endif
 
 PDRIVER_OBJECT FspDriverObject;
 PDEVICE_OBJECT FspFsctlDiskDeviceObject;
