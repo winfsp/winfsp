@@ -184,6 +184,7 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\dirctl-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\flush-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\info-test.c" />
+    <ClCompile Include="..\..\..\tst\winfsp-tests\lock-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\memfs-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\memfs.cpp" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\mount-test.c" />
