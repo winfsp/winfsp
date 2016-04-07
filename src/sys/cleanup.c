@@ -87,6 +87,9 @@ static NTSTATUS FspFsvolCleanup(
             FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList, FileDesc);
     }
 
+    /* remove any locks for this file object */
+    FspFileNodeUnlockAll(FileNode, FileObject, IoGetRequestorProcess(Irp));
+
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLEANUP cannot fail */
     FspIopCreateRequestMustSucceedEx(Irp, DeletePending ? &FileNode->FileName : 0, 0,
         FspFsvolCleanupRequestFini, &Request);
