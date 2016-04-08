@@ -68,4 +68,31 @@ void *memset(void *dst, int val, size_t siz)
 }
 #endif
 
+static FORCEINLINE
+VOID InsertTailList(PLIST_ENTRY ListHead, PLIST_ENTRY Entry)
+{
+    PLIST_ENTRY Blink;
+
+    Blink = ListHead->Blink;
+    Entry->Flink = ListHead;
+    Entry->Blink = Blink;
+    Blink->Flink = Entry;
+    ListHead->Blink = Entry;
+}
+static FORCEINLINE
+BOOLEAN RemoveEntryList(PLIST_ENTRY Entry)
+{
+    PLIST_ENTRY Blink;
+    PLIST_ENTRY Flink;
+
+    Flink = Entry->Flink;
+    Blink = Entry->Blink;
+    Blink->Flink = Flink;
+    Flink->Blink = Blink;
+    return Flink == Blink;
+}
+
+VOID FspFileSystemInitialize(VOID);
+VOID FspFileSystemFinalize(VOID);
+
 #endif

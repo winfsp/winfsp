@@ -13,6 +13,62 @@ enum
 
 static FSP_FILE_SYSTEM_INTERFACE FspFileSystemNullInterface;
 
+static CRITICAL_SECTION FspFileSystemMountListGuard;
+static LIST_ENTRY FspFileSystemMountList = { &FspFileSystemMountList, &FspFileSystemMountList };
+
+VOID FspFileSystemInitialize(VOID)
+{
+    /*
+     * This function is called during DLL_PROCESS_ATTACH. We must therefore keep initialization
+     * tasks to a minimum.
+     *
+     * Initialization of synchronization objects is allowed! See:
+     *     https://msdn.microsoft.com/en-us/library/windows/desktop/dn633971(v=vs.85).aspx
+     */
+
+    InitializeCriticalSection(&FspFileSystemMountListGuard);
+}
+
+VOID FspFileSystemFinalize(VOID)
+{
+    /*
+     * This function is called during DLL_PROCESS_DETACH. We must therefore keep finalization
+     * tasks to a minimum.
+     *
+     * Very few things can be safely done during DLL_PROCESS_DETACH. See:
+     *     https://msdn.microsoft.com/en-us/library/windows/desktop/dn633971(v=vs.85).aspx
+     *     https://blogs.msdn.microsoft.com/oldnewthing/20070503-00/?p=27003/
+     *     https://blogs.msdn.microsoft.com/oldnewthing/20100122-00/?p=15193/
+     *
+     * We enter our FspFileSystemMountListGuard critical section here and then attempt to cleanup
+     * our mount points using DefineDosDeviceW. On Vista and later orphaned critical sections
+     * become "electrified", so our process will be forcefully terminated if one of its threads
+     * was already modifying the list when the ExitProcess happened. This is a good thing!
+     *
+     * The use of DefineDosDeviceW is rather suspect and probably unsafe. DefineDosDeviceW reaches
+     * out to CSRSS, which is probably not the safest thing to do when in DllMain! There is also
+     * some evidence that it may attempt to load DLL's under some circumstances, which is a
+     * definite no-no as we are under the loader lock!
+     */
+
+    FSP_FILE_SYSTEM *FileSystem;
+    PLIST_ENTRY MountEntry;
+
+    EnterCriticalSection(&FspFileSystemMountListGuard);
+
+    for (MountEntry = FspFileSystemMountList.Flink;
+        &FspFileSystemMountList != MountEntry;
+        MountEntry = MountEntry->Flink)
+    {
+        FileSystem = CONTAINING_RECORD(MountEntry, FSP_FILE_SYSTEM, MountEntry);
+
+        DefineDosDeviceW(DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
+            FileSystem->MountPoint, FileSystem->VolumeName);
+    }
+
+    LeaveCriticalSection(&FspFileSystemMountListGuard);
+}
+
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
     const FSP_FILE_SYSTEM_INTERFACE *Interface,
@@ -74,6 +130,8 @@ FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR M
     if (0 != FileSystem->MountPoint)
         return STATUS_INVALID_PARAMETER;
 
+    NTSTATUS Result;
+
     if (0 == MountPoint)
     {
         DWORD Drives;
@@ -94,17 +152,14 @@ FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR M
                     MountPoint[0] = Drive;
                     if (DefineDosDeviceW(DDD_RAW_TARGET_PATH, MountPoint, FileSystem->VolumeName))
                     {
-                        FileSystem->MountPoint = MountPoint;
-                        return STATUS_SUCCESS;
+                        Result = STATUS_SUCCESS;
+                        goto exit;
                     }
                 }
-
-            SetLastError(ERROR_FILE_NOT_FOUND);
+            Result = STATUS_NO_SUCH_DEVICE;
         }
-
-        MemFree(MountPoint);
-
-        return FspNtStatusFromWin32(GetLastError());
+        else
+            Result = FspNtStatusFromWin32(GetLastError());
     }
     else
     {
@@ -122,21 +177,34 @@ FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR M
         MountPoint = P;
 
         if (DefineDosDeviceW(DDD_RAW_TARGET_PATH, MountPoint, FileSystem->VolumeName))
-        {
-            FileSystem->MountPoint = MountPoint;
-            return STATUS_SUCCESS;
-        }
+            Result = STATUS_SUCCESS;
+        else
+            Result = FspNtStatusFromWin32(GetLastError());
+    }
 
+exit:
+    if (NT_SUCCESS(Result))
+    {
+        FileSystem->MountPoint = MountPoint;
+
+        EnterCriticalSection(&FspFileSystemMountListGuard);
+        InsertTailList(&FspFileSystemMountList, &FileSystem->MountEntry);
+        LeaveCriticalSection(&FspFileSystemMountListGuard);
+    }
+    else
         MemFree(MountPoint);
 
-        return FspNtStatusFromWin32(GetLastError());
-    }
+    return Result;
 }
 
 FSP_API VOID FspFileSystemRemoveMountPoint(FSP_FILE_SYSTEM *FileSystem)
 {
     if (0 == FileSystem->MountPoint)
         return;
+
+    EnterCriticalSection(&FspFileSystemMountListGuard);
+    RemoveEntryList(&FileSystem->MountEntry);
+    LeaveCriticalSection(&FspFileSystemMountListGuard);
 
     DefineDosDeviceW(DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
         FileSystem->MountPoint, FileSystem->VolumeName);

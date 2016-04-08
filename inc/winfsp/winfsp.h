@@ -125,6 +125,7 @@ typedef struct _FSP_FILE_SYSTEM
     ULONG DispatcherThreadCount;
     NTSTATUS DispatcherResult;
     PWSTR MountPoint;
+    LIST_ENTRY MountEntry;
 } FSP_FILE_SYSTEM;
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
