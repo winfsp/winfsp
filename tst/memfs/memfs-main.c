@@ -1,5 +1,5 @@
 /**
- * @file mirror.c
+ * @file memfs-main.c
  *
  * @copyright 2015-2016 Bill Zissimopoulos
  */

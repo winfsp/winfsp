@@ -7,7 +7,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\tst\mirror\mirror.c">
+    <ClCompile Include="..\..\..\tst\memfs\memfs-main.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
