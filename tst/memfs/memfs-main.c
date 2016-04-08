@@ -68,11 +68,15 @@ int wmain(int argc, wchar_t **argv)
     Result = MemfsStart(Memfs);
     if (!NT_SUCCESS(Result))
         fail("error: cannot start MEMFS");
+    Result = FspFileSystemSetMountPoint(MemfsFileSystem(Memfs), MountPoint);
+    if (!NT_SUCCESS(Result))
+        fail("error: cannot mount MEMFS");
 
     SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
     if (WAIT_OBJECT_0 != WaitForSingleObject(MainEvent, INFINITE))
         fail("error: cannot wait on MainEvent");
 
+    FspFileSystemRemoveMountPoint(MemfsFileSystem(Memfs));
     MemfsStop(Memfs);
     MemfsDelete(Memfs);
 
