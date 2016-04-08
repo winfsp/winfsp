@@ -173,6 +173,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\tst\memfs\memfs-main.c" />
+    <ClCompile Include="..\..\..\tst\memfs\memfs.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\tst\memfs\memfs.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

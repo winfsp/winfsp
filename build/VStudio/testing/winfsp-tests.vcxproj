@@ -101,7 +101,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>__func__=__FUNCTION__;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src;..\..\..\inc;..\..\..\ext</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\tst\memfs;..\..\..\src;..\..\..\inc;..\..\..\ext</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -118,7 +118,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>__func__=__FUNCTION__;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src;..\..\..\inc;..\..\..\ext</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\tst\memfs;..\..\..\src;..\..\..\inc;..\..\..\ext</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -137,7 +137,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>__func__=__FUNCTION__;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src;..\..\..\inc;..\..\..\ext</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\tst\memfs;..\..\..\src;..\..\..\inc;..\..\..\ext</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -158,7 +158,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>__func__=__FUNCTION__;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\src;..\..\..\inc;..\..\..\ext</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\tst\memfs;..\..\..\src;..\..\..\inc;..\..\..\ext</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -180,13 +180,13 @@
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">TurnOffAllWarnings</WarningLevel>
     </ClCompile>
+    <ClCompile Include="..\..\..\tst\memfs\memfs.cpp" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\create-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\dirctl-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\flush-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\info-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\lock-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\memfs-test.c" />
-    <ClCompile Include="..\..\..\tst\winfsp-tests\memfs.cpp" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\mount-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\path-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\rdwr-test.c" />
@@ -196,7 +196,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\ext\tlib\testsuite.h" />
-    <ClInclude Include="..\..\..\tst\winfsp-tests\memfs.h" />
+    <ClInclude Include="..\..\..\tst\memfs\memfs.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\winfsp_dll.vcxproj">

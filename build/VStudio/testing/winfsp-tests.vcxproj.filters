@@ -25,9 +25,6 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\path-test.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\tst\winfsp-tests\memfs.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\tst\winfsp-tests\create-test.c">
       <Filter>Source</Filter>
     </ClCompile>
@@ -52,12 +49,15 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\lock-test.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\tst\memfs\memfs.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\ext\tlib\testsuite.h">
       <Filter>Source\tlib</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\tst\winfsp-tests\memfs.h">
+    <ClInclude Include="..\..\..\tst\memfs\memfs.h">
       <Filter>Source</Filter>
     </ClInclude>
   </ItemGroup>
