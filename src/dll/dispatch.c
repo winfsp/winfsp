@@ -64,8 +64,85 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
 
 FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem)
 {
+    FspFileSystemRemoveMountPoint(FileSystem);
     CloseHandle(FileSystem->VolumeHandle);
     MemFree(FileSystem);
+}
+
+FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint)
+{
+    if (0 != FileSystem->MountPoint)
+        return STATUS_INVALID_PARAMETER;
+
+    if (0 == MountPoint)
+    {
+        DWORD Drives;
+        WCHAR Drive;
+
+        MountPoint = MemAlloc(3 * sizeof(WCHAR));
+        if (0 == MountPoint)
+            return STATUS_INSUFFICIENT_RESOURCES;
+        MountPoint[1] = L':';
+        MountPoint[1] = L'\0';
+
+        Drives = GetLogicalDrives();
+        if (0 != Drives)
+        {
+            for (Drive = 'Z'; 'D' <= Drive; Drive--)
+                if (0 == (Drives & (1 << (Drive - 'A'))))
+                {
+                    MountPoint[0] = Drive;
+                    if (DefineDosDeviceW(DDD_RAW_TARGET_PATH, MountPoint, FileSystem->VolumeName))
+                    {
+                        FileSystem->MountPoint = MountPoint;
+                        return STATUS_SUCCESS;
+                    }
+                }
+
+            SetLastError(ERROR_FILE_NOT_FOUND);
+        }
+
+        MemFree(MountPoint);
+
+        return FspNtStatusFromWin32(GetLastError());
+    }
+    else
+    {
+        PWSTR P;
+        ULONG L;
+
+        for (P = MountPoint; *P; P++)
+            ;
+        L = (ULONG)((P - MountPoint + 1) * sizeof(WCHAR));
+
+        P = MemAlloc(L);
+        if (0 == P)
+            return STATUS_INSUFFICIENT_RESOURCES;
+        memcpy(P, MountPoint, L);
+        MountPoint = P;
+
+        if (DefineDosDeviceW(DDD_RAW_TARGET_PATH, MountPoint, FileSystem->VolumeName))
+        {
+            FileSystem->MountPoint = MountPoint;
+            return STATUS_SUCCESS;
+        }
+
+        MemFree(MountPoint);
+
+        return FspNtStatusFromWin32(GetLastError());
+    }
+}
+
+FSP_API VOID FspFileSystemRemoveMountPoint(FSP_FILE_SYSTEM *FileSystem)
+{
+    if (0 == FileSystem->MountPoint)
+        return;
+
+    DefineDosDeviceW(DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
+        FileSystem->MountPoint, FileSystem->VolumeName);
+
+    MemFree(FileSystem->MountPoint);
+    FileSystem->MountPoint = 0;
 }
 
 static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)

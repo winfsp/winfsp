@@ -124,12 +124,15 @@ typedef struct _FSP_FILE_SYSTEM
     HANDLE DispatcherThread;
     ULONG DispatcherThreadCount;
     NTSTATUS DispatcherResult;
+    PWSTR MountPoint;
 } FSP_FILE_SYSTEM;
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
     const FSP_FILE_SYSTEM_INTERFACE *Interface,
     FSP_FILE_SYSTEM **PFileSystem);
 FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem);
+FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint);
+FSP_API VOID FspFileSystemRemoveMountPoint(FSP_FILE_SYSTEM *FileSystem);
 FSP_API NTSTATUS FspFileSystemStartDispatcher(FSP_FILE_SYSTEM *FileSystem, ULONG ThreadCount);
 FSP_API VOID FspFileSystemStopDispatcher(FSP_FILE_SYSTEM *FileSystem);
 FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
