@@ -133,11 +133,11 @@ NTSTATUS FspAcquireForCcFlush(
     PIRP TopLevelIrp = IoGetTopLevelIrp();
     ULONG TopFlags;
 
-    ASSERT(0 == TopLevelIrp ||
-        (PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG < TopLevelIrp);
-    if (0 == TopLevelIrp)
+    if ((PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG >= TopLevelIrp)
     {
         FspFileNodeAcquireExclusive(FileNode, Full);
+        ASSERT(0 == FileNode->Tls.CcFlush.TopLevelIrp);
+        FileNode->Tls.CcFlush.TopLevelIrp = TopLevelIrp;
         IoSetTopLevelIrp((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP);
     }
     else
@@ -145,8 +145,8 @@ NTSTATUS FspAcquireForCcFlush(
         TopFlags = FspIrpTopFlags(TopLevelIrp);
         FspIrpSetTopFlags(TopLevelIrp, FspIrpFlags(TopLevelIrp));
         FspFileNodeAcquireExclusive(FileNode, Full);
-        ASSERT(0 == FileNode->Tls.TopFlags);
-        FileNode->Tls.TopFlags = TopFlags;
+        ASSERT(0 == FileNode->Tls.CcFlush.TopFlags);
+        FileNode->Tls.CcFlush.TopFlags = TopFlags;
     }
 
     FSP_LEAVE("FileObject=%p", FileObject);
@@ -166,13 +166,14 @@ NTSTATUS FspReleaseForCcFlush(
         (PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG < TopLevelIrp);
     if ((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == TopLevelIrp)
     {
-        IoSetTopLevelIrp(0);
+        IoSetTopLevelIrp(FileNode->Tls.CcFlush.TopLevelIrp);
+        FileNode->Tls.CcFlush.TopLevelIrp = 0;
         FspFileNodeRelease(FileNode, Full);
     }
     else
     {
-        TopFlags = FileNode->Tls.TopFlags;
-        FileNode->Tls.TopFlags = 0;
+        TopFlags = FileNode->Tls.CcFlush.TopFlags;
+        FileNode->Tls.CcFlush.TopFlags = 0;
         FspFileNodeRelease(FileNode, Full);
         FspIrpSetTopFlags(TopLevelIrp, TopFlags);
     }

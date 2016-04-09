@@ -874,10 +874,14 @@ typedef struct
     ULONG DirInfoChangeNumber;
     BOOLEAN TruncateOnClose;
     FILE_LOCK FileLock;
-    union
+    struct
     {
         PVOID LazyWriteThread;
-        UINT32 TopFlags;
+        union
+        {
+            PIRP TopLevelIrp;
+            UINT32 TopFlags;
+        } CcFlush;
     } Tls;
     /* read-only after creation (and insertion in the ContextTable) */
     PDEVICE_OBJECT FsvolDeviceObject;
