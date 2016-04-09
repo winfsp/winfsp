@@ -6,6 +6,7 @@
 
 #undef _DEBUG
 #include "memfs.h"
+#include <sddl.h>
 #include <map>
 #include <cassert>
 
@@ -836,9 +837,13 @@ static VOID MemfsLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
     LeaveCriticalSection(&Memfs->Lock);
 }
 
-NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
-    ULONG MaxFileNodes, ULONG MaxFileSize,
+NTSTATUS MemfsCreate(
+    ULONG Flags,
+    ULONG FileInfoTimeout,
+    ULONG MaxFileNodes,
+    ULONG MaxFileSize,
     PWSTR VolumePrefix,
+    PWSTR RootSddl,
     MEMFS **PMemfs)
 {
     NTSTATUS Result;
@@ -848,13 +853,24 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
     UINT64 AllocationUnit;
     MEMFS *Memfs;
     MEMFS_FILE_NODE *RootNode;
+    PSECURITY_DESCRIPTOR RootSecurity;
+    ULONG RootSecuritySize;
     BOOLEAN Inserted;
 
     *PMemfs = 0;
 
+    if (0 == RootSddl)
+        RootSddl = L"O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;WD)";
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(RootSddl, SDDL_REVISION_1,
+        &RootSecurity, &RootSecuritySize))
+        return FspNtStatusFromWin32(GetLastError());
+
     Memfs = (MEMFS *)malloc(sizeof *Memfs);
     if (0 == Memfs)
+    {
+        LocalFree(RootSecurity);
         return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     memset(Memfs, 0, sizeof *Memfs);
     Memfs->MaxFileNodes = MaxFileNodes;
@@ -865,6 +881,7 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
     if (!NT_SUCCESS(Result))
     {
         free(Memfs);
+        LocalFree(RootSecurity);
         return Result;
     }
 
@@ -886,6 +903,7 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
     {
         MemfsFileNodeMapDelete(Memfs->FileNodeMap);
         free(Memfs);
+        LocalFree(RootSecurity);
         return Result;
     }
 
@@ -907,18 +925,33 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
     if (!NT_SUCCESS(Result))
     {
         MemfsDelete(Memfs);
+        LocalFree(RootSecurity);
         return Result;
     }
 
     RootNode->FileInfo.FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+
+    RootNode->FileSecurity = malloc(RootSecuritySize);
+    if (0 == RootNode->FileSecurity)
+    {
+        MemfsFileNodeDelete(RootNode);
+        MemfsDelete(Memfs);
+        LocalFree(RootSecurity);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RootNode->FileSecuritySize = RootSecuritySize;
+    memcpy(RootNode->FileSecurity, RootSecurity, RootSecuritySize);
 
     Result = MemfsFileNodeMapInsert(Memfs->FileNodeMap, RootNode, &Inserted);
     if (!NT_SUCCESS(Result))
     {
         MemfsFileNodeDelete(RootNode);
         MemfsDelete(Memfs);
+        LocalFree(RootSecurity);
         return Result;
     }
+
+    LocalFree(RootSecurity);
 
     *PMemfs = Memfs;
 

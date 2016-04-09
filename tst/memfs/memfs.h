@@ -21,9 +21,13 @@ enum
     MemfsNet                            = 0x01,
 };
 
-NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
-    ULONG MaxFileNodes, ULONG MaxFileSize,
+NTSTATUS MemfsCreate(
+    ULONG Flags,
+    ULONG FileInfoTimeout,
+    ULONG MaxFileNodes,
+    ULONG MaxFileSize,
     PWSTR VolumePrefix,
+    PWSTR RootSddl,
     MEMFS **PMemfs);
 VOID MemfsDelete(MEMFS *Memfs);
 NTSTATUS MemfsStart(MEMFS *Memfs);

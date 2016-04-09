@@ -55,6 +55,7 @@ static void usage(void)
         "    -t FileInfoTimeout\n"
         "    -n MaxFileNodes\n"
         "    -s MaxFileSize\n"
+        "    -S RootSddl"
         "    -u \\\\Volume\\Prefix\n"
         "    -m MountPoint\n";
 
@@ -99,6 +100,7 @@ int wmain(int argc, wchar_t **argv)
     ULONG MaxFileSize = 1024 * 1024;
     PWSTR MountPoint = 0;
     PWSTR VolumePrefix = 0;
+    PWSTR RootSddl = 0;
 
     for (argp = argv + 1; 0 != argp[0]; argp++)
     {
@@ -111,6 +113,9 @@ int wmain(int argc, wchar_t **argv)
             break;
         case L'n':
             MaxFileNodes = argtol(++argp, MaxFileNodes);
+            break;
+        case L'S':
+            RootSddl = argtos(++argp);
             break;
         case L's':
             MaxFileSize = argtol(++argp, MaxFileSize);
@@ -135,7 +140,8 @@ int wmain(int argc, wchar_t **argv)
     if (0 == MainEvent)
         fail("error: cannot create MainEvent");
 
-    Result = MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, &Memfs);
+    Result = MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, RootSddl,
+        &Memfs);
     if (!NT_SUCCESS(Result))
         fail("error: cannot create MEMFS");
     Result = MemfsStart(Memfs);
@@ -146,8 +152,9 @@ int wmain(int argc, wchar_t **argv)
         fail("error: cannot mount MEMFS");
     MountPoint = FspFileSystemMountPoint(MemfsFileSystem(Memfs));
 
-    warn("%s -t %ld -n %ld -s %ld%s%S -m %S",
+    warn("%s -t %ld -n %ld -s %ld%s%S%s%S -m %S",
         PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize,
+        RootSddl ? " -S " : "", RootSddl ? RootSddl : L"",
         VolumePrefix ? " -u " : "", VolumePrefix ? VolumePrefix : L"",
         MountPoint);
     SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
