@@ -9,21 +9,43 @@
 
 #define PROGNAME                        "memfs"
 
-static void warn(const char *message)
+static void vwarn(const char *format, va_list ap)
 {
+    char buf[1024];
+        /* wvsprintf is only safe with a 1024 byte buffer */
     DWORD BytesTransferred;
 
+    wvsprintfA(buf, format, ap);
+    buf[sizeof buf - 1] = '\0';
+
     WriteFile(GetStdHandle(STD_ERROR_HANDLE),
-        message, (DWORD)strlen(message),
+        "memfs: ", 7,
+        &BytesTransferred, 0);
+    WriteFile(GetStdHandle(STD_ERROR_HANDLE),
+        buf, (DWORD)strlen(buf),
         &BytesTransferred, 0);
     WriteFile(GetStdHandle(STD_ERROR_HANDLE),
         "\n", 1,
         &BytesTransferred, 0);
 }
 
-static void fail(const char *message)
+static void warn(const char *format, ...)
 {
-    warn(message);
+    va_list ap;
+
+    va_start(ap, format);
+    vwarn(format, ap);
+    va_end(ap);
+}
+
+static void fail(const char *format, ...)
+{
+    va_list ap;
+
+    va_start(ap, format);
+    vwarn(format, ap);
+    va_end(ap);
+
     exit(1);
 }
 
@@ -37,8 +59,19 @@ static void usage(void)
         "    -n MaxFileNodes\n"
         "    -s MaxFileSize\n";
 
-    warn(usage);
+    warn("%s", usage);
     exit(2);
+}
+
+static inline
+ULONG argul(wchar_t **argp, ULONG deflt)
+{
+    if (0 == argp[0])
+        usage();
+
+    wchar_t *endp;
+    ULONG ul = wcstoul(argp[0], &endp, 10);
+    return 0 != ul ? ul : deflt;
 }
 
 static HANDLE MainEvent;
@@ -51,12 +84,54 @@ static BOOL WINAPI ConsoleCtrlHandler(DWORD CtrlType)
 
 int wmain(int argc, wchar_t **argv)
 {
+    wchar_t **argp;
     NTSTATUS Result;
     MEMFS *Memfs;
     ULONG Flags = MemfsDisk;
     ULONG FileInfoTimeout = INFINITE;
     ULONG MaxFileNodes = 1024;
     ULONG MaxFileSize = 1024 * 1024;
+    PWSTR MountPoint = 0;
+
+    for (argp = argv + 1; 0 != argp[0]; argp++)
+    {
+        if (L'-' != argp[0][0])
+            break;
+        switch (argp[0][1])
+        {
+        case L'n':
+            MaxFileNodes = argul(++argp, MaxFileNodes);
+            break;
+        case L's':
+            MaxFileSize = argul(++argp, MaxFileSize);
+            break;
+        case L't':
+            FileInfoTimeout = argul(++argp, FileInfoTimeout);
+            break;
+        default:
+            usage();
+            break;
+        }
+    }
+
+    MountPoint = *argp++;
+    if (0 == MountPoint || 0 != argp[0])
+        usage();
+
+    for (int i = 1; argc > i; i++)
+    {
+        if (L'-' != argv[i][0])
+            break;
+        switch (argv[i][1])
+        {
+        case L'n':
+            break;
+        case L's':
+            break;
+        case L't':
+            break;
+        }
+    }
 
     MainEvent = CreateEvent(0, TRUE, FALSE, 0);
     if (0 == MainEvent)
@@ -79,6 +154,10 @@ int wmain(int argc, wchar_t **argv)
     FspFileSystemRemoveMountPoint(MemfsFileSystem(Memfs));
     MemfsStop(Memfs);
     MemfsDelete(Memfs);
+
+    /* the OS will handle this! */
+    // CloseHandle(MainEvent);
+    // MainEvent = 0;
 
     return 0;
 }
