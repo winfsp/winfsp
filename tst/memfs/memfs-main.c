@@ -114,7 +114,7 @@ int wmain(int argc, wchar_t **argv)
         case L't':
             FileInfoTimeout = argtol(++argp, FileInfoTimeout);
             break;
-        case L'v':
+        case L'u':
             VolumePrefix = argtos(++argp);
             Flags = MemfsNet;
             break;
@@ -142,8 +142,10 @@ int wmain(int argc, wchar_t **argv)
     if (!NT_SUCCESS(Result))
         fail("error: cannot mount MEMFS");
 
-    warn("%s -t %ld -n %ld -s %ld -v %s %s",
-        PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, MountPoint);
+    warn("%s -t %ld -n %ld -s %ld%s%S %S",
+        PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize,
+        VolumePrefix ? " -u " : "", VolumePrefix ? VolumePrefix : L"",
+        MountPoint);
     SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
     if (WAIT_OBJECT_0 != WaitForSingleObject(MainEvent, INFINITE))
         fail("error: cannot wait on MainEvent");
