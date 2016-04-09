@@ -49,13 +49,14 @@ static void fail(const char *format, ...)
 static void usage(void)
 {
     static char usage[] = ""
-        "usage: %s OPTIONS MountPoint\n"
+        "usage: %s OPTIONS\n"
         "\n"
         "options:\n"
         "    -t FileInfoTimeout\n"
         "    -n MaxFileNodes\n"
         "    -s MaxFileSize\n"
-        "    -u \\\\Volume\\Prefix\n";
+        "    -u \\\\Volume\\Prefix\n"
+        "    -m MountPoint\n";
 
     warn(usage, PROGNAME);
     exit(2);
@@ -105,6 +106,9 @@ int wmain(int argc, wchar_t **argv)
             break;
         switch (argp[0][1])
         {
+        case L'm':
+            MountPoint = argtos(++argp);
+            break;
         case L'n':
             MaxFileNodes = argtol(++argp, MaxFileNodes);
             break;
@@ -124,8 +128,7 @@ int wmain(int argc, wchar_t **argv)
         }
     }
 
-    MountPoint = *argp++;
-    if (0 == MountPoint || 0 != argp[0])
+    if (0 != argp[0])
         usage();
 
     MainEvent = CreateEvent(0, TRUE, FALSE, 0);
@@ -141,8 +144,9 @@ int wmain(int argc, wchar_t **argv)
     Result = FspFileSystemSetMountPoint(MemfsFileSystem(Memfs), MountPoint);
     if (!NT_SUCCESS(Result))
         fail("error: cannot mount MEMFS");
+    MountPoint = FspFileSystemMountPoint(MemfsFileSystem(Memfs));
 
-    warn("%s -t %ld -n %ld -s %ld%s%S %S",
+    warn("%s -t %ld -n %ld -s %ld%s%S -m %S",
         PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize,
         VolumePrefix ? " -u " : "", VolumePrefix ? VolumePrefix : L"",
         MountPoint);
