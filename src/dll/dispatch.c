@@ -141,7 +141,7 @@ FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR M
         if (0 == MountPoint)
             return STATUS_INSUFFICIENT_RESOURCES;
         MountPoint[1] = L':';
-        MountPoint[1] = L'\0';
+        MountPoint[2] = L'\0';
 
         Drives = GetLogicalDrives();
         if (0 != Drives)
