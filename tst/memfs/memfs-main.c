@@ -52,12 +52,12 @@ static void usage(void)
         "usage: %s OPTIONS\n"
         "\n"
         "options:\n"
-        "    -t FileInfoTimeout\n"
+        "    -t FileInfoTimeout  (millis)\n"
         "    -n MaxFileNodes\n"
-        "    -s MaxFileSize\n"
-        "    -S RootSddl"
+        "    -s MaxFileSize      (bytes)\n"
+        "    -S RootSddl         (file rights: FA, etc; NO generic rights: GA, etc.)\n"
         "    -u \\\\Volume\\Prefix\n"
-        "    -m MountPoint\n";
+        "    -m MountPoint       (X:)\n";
 
     warn(usage, PROGNAME);
     exit(2);
@@ -108,6 +108,9 @@ int wmain(int argc, wchar_t **argv)
             break;
         switch (argp[0][1])
         {
+        case L'?':
+            usage();
+            break;
         case L'm':
             MountPoint = argtos(++argp);
             break;
