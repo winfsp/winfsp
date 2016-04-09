@@ -52,14 +52,14 @@ static void fail(const char *format, ...)
 static void usage(void)
 {
     static char usage[] = ""
-        "usage: " PROGNAME " OPTIONS MountPoint\n"
+        "usage: %s OPTIONS MountPoint\n"
         "\n"
         "options:\n"
         "    -t FileInfoTimeout\n"
         "    -n MaxFileNodes\n"
         "    -s MaxFileSize\n";
 
-    warn("%s", usage);
+    warn(usage, PROGNAME);
     exit(2);
 }
 
@@ -117,21 +117,6 @@ int wmain(int argc, wchar_t **argv)
     MountPoint = *argp++;
     if (0 == MountPoint || 0 != argp[0])
         usage();
-
-    for (int i = 1; argc > i; i++)
-    {
-        if (L'-' != argv[i][0])
-            break;
-        switch (argv[i][1])
-        {
-        case L'n':
-            break;
-        case L's':
-            break;
-        case L't':
-            break;
-        }
-    }
 
     MainEvent = CreateEvent(0, TRUE, FALSE, 0);
     if (0 == MainEvent)
