@@ -19,9 +19,6 @@ static void vwarn(const char *format, va_list ap)
     buf[sizeof buf - 1] = '\0';
 
     WriteFile(GetStdHandle(STD_ERROR_HANDLE),
-        "memfs: ", 7,
-        &BytesTransferred, 0);
-    WriteFile(GetStdHandle(STD_ERROR_HANDLE),
         buf, (DWORD)strlen(buf),
         &BytesTransferred, 0);
     WriteFile(GetStdHandle(STD_ERROR_HANDLE),
@@ -64,13 +61,13 @@ static void usage(void)
 }
 
 static inline
-ULONG argul(wchar_t **argp, ULONG deflt)
+ULONG argtol(wchar_t **argp, ULONG deflt)
 {
     if (0 == argp[0])
         usage();
 
     wchar_t *endp;
-    ULONG ul = wcstoul(argp[0], &endp, 10);
+    ULONG ul = wcstol(argp[0], &endp, 10);
     return 0 != ul ? ul : deflt;
 }
 
@@ -100,13 +97,13 @@ int wmain(int argc, wchar_t **argv)
         switch (argp[0][1])
         {
         case L'n':
-            MaxFileNodes = argul(++argp, MaxFileNodes);
+            MaxFileNodes = argtol(++argp, MaxFileNodes);
             break;
         case L's':
-            MaxFileSize = argul(++argp, MaxFileSize);
+            MaxFileSize = argtol(++argp, MaxFileSize);
             break;
         case L't':
-            FileInfoTimeout = argul(++argp, FileInfoTimeout);
+            FileInfoTimeout = argtol(++argp, FileInfoTimeout);
             break;
         default:
             usage();
@@ -132,6 +129,8 @@ int wmain(int argc, wchar_t **argv)
     if (!NT_SUCCESS(Result))
         fail("error: cannot mount MEMFS");
 
+    warn("%s -t %ld -n %ld -s %ld %s",
+        PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize, MountPoint);
     SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
     if (WAIT_OBJECT_0 != WaitForSingleObject(MainEvent, INFINITE))
         fail("error: cannot wait on MainEvent");
