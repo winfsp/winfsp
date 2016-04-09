@@ -23,6 +23,7 @@ enum
 
 NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
     ULONG MaxFileNodes, ULONG MaxFileSize,
+    PWSTR VolumePrefix,
     MEMFS **PMemfs);
 VOID MemfsDelete(MEMFS *Memfs);
 NTSTATUS MemfsStart(MEMFS *Memfs);

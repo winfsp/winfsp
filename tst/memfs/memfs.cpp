@@ -838,6 +838,7 @@ static VOID MemfsLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
 
 NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
     ULONG MaxFileNodes, ULONG MaxFileSize,
+    PWSTR VolumePrefix,
     MEMFS **PMemfs)
 {
     NTSTATUS Result;
@@ -877,7 +878,8 @@ NTSTATUS MemfsCreate(ULONG Flags, ULONG FileInfoTimeout,
     VolumeParams.CasePreservedNames = 1;
     VolumeParams.UnicodeOnDisk = 1;
     VolumeParams.PersistentAcls = 1;
-    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\memfs\\share");
+    if (0 != VolumePrefix)
+        wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
 
     Result = FspFileSystemCreate(DevicePath, &VolumeParams, &MemfsInterface, &Memfs->FileSystem);
     if (!NT_SUCCESS(Result))

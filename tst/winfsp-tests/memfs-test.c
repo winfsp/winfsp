@@ -14,7 +14,8 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
     MEMFS *Memfs;
     NTSTATUS Result;
 
-    Result = MemfsCreate(Flags, FileInfoTimeout, 1024, 1024 * 1024, &Memfs);
+    Result = MemfsCreate(Flags, FileInfoTimeout, 1024, 1024 * 1024,
+        MemfsNet == Flags ? L"\\memfs\\share" : 0, &Memfs);
     ASSERT(NT_SUCCESS(Result));
     ASSERT(0 != Memfs);
 

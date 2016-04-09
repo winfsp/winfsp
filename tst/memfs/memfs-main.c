@@ -54,14 +54,14 @@ static void usage(void)
         "options:\n"
         "    -t FileInfoTimeout\n"
         "    -n MaxFileNodes\n"
-        "    -s MaxFileSize\n";
+        "    -s MaxFileSize\n"
+        "    -u \\\\Volume\\Prefix\n";
 
     warn(usage, PROGNAME);
     exit(2);
 }
 
-static inline
-ULONG argtol(wchar_t **argp, ULONG deflt)
+static ULONG argtol(wchar_t **argp, ULONG deflt)
 {
     if (0 == argp[0])
         usage();
@@ -69,6 +69,14 @@ ULONG argtol(wchar_t **argp, ULONG deflt)
     wchar_t *endp;
     ULONG ul = wcstol(argp[0], &endp, 10);
     return 0 != ul ? ul : deflt;
+}
+
+static wchar_t *argtos(wchar_t **argp)
+{
+    if (0 == argp[0])
+        usage();
+
+    return argp[0];
 }
 
 static HANDLE MainEvent;
@@ -89,6 +97,7 @@ int wmain(int argc, wchar_t **argv)
     ULONG MaxFileNodes = 1024;
     ULONG MaxFileSize = 1024 * 1024;
     PWSTR MountPoint = 0;
+    PWSTR VolumePrefix = 0;
 
     for (argp = argv + 1; 0 != argp[0]; argp++)
     {
@@ -105,6 +114,10 @@ int wmain(int argc, wchar_t **argv)
         case L't':
             FileInfoTimeout = argtol(++argp, FileInfoTimeout);
             break;
+        case L'v':
+            VolumePrefix = argtos(++argp);
+            Flags = MemfsNet;
+            break;
         default:
             usage();
             break;
@@ -119,7 +132,7 @@ int wmain(int argc, wchar_t **argv)
     if (0 == MainEvent)
         fail("error: cannot create MainEvent");
 
-    Result = MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, &Memfs);
+    Result = MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, &Memfs);
     if (!NT_SUCCESS(Result))
         fail("error: cannot create MEMFS");
     Result = MemfsStart(Memfs);
@@ -129,8 +142,8 @@ int wmain(int argc, wchar_t **argv)
     if (!NT_SUCCESS(Result))
         fail("error: cannot mount MEMFS");
 
-    warn("%s -t %ld -n %ld -s %ld %s",
-        PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize, MountPoint);
+    warn("%s -t %ld -n %ld -s %ld -v %s %s",
+        PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, MountPoint);
     SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
     if (WAIT_OBJECT_0 != WaitForSingleObject(MainEvent, INFINITE))
         fail("error: cannot wait on MainEvent");
