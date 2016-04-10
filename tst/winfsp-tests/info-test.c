@@ -572,54 +572,55 @@ void setvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Success = SetVolumeLabelW(FilePath, L"12345678901234567890123456789012");
-    ASSERT(Success);
-
-    Success = GetVolumeInformationW(FilePath,
-        VolumeLabelBuf, sizeof VolumeLabelBuf,
-        &VolumeSerialNumber, &MaxComponentLength, &FileSystemFlags,
-        FileSystemNameBuf, sizeof FileSystemNameBuf);
-    ASSERT(Success);
-    if (-1 != Flags)
+    if (Success)
     {
-        ASSERT(0 == wcscmp(VolumeLabelBuf, L"12345678901234567890123456789012"));
-        ASSERT(255 == MaxComponentLength);
-        ASSERT(0 != (FileSystemFlags &
-            (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
-        ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp"));
-    }
+        Success = GetVolumeInformationW(FilePath,
+            VolumeLabelBuf, sizeof VolumeLabelBuf,
+            &VolumeSerialNumber, &MaxComponentLength, &FileSystemFlags,
+            FileSystemNameBuf, sizeof FileSystemNameBuf);
+        ASSERT(Success);
+        if (-1 != Flags)
+        {
+            ASSERT(0 == wcscmp(VolumeLabelBuf, L"12345678901234567890123456789012"));
+            ASSERT(255 == MaxComponentLength);
+            ASSERT(0 != (FileSystemFlags &
+                (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
+            ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp"));
+        }
 
-    Success = SetVolumeLabelW(FilePath, L"TestLabel");
-    ASSERT(Success);
+        Success = SetVolumeLabelW(FilePath, L"TestLabel");
+        ASSERT(Success);
 
-    Success = GetVolumeInformationW(FilePath,
-        VolumeLabelBuf, sizeof VolumeLabelBuf,
-        &VolumeSerialNumber, &MaxComponentLength, &FileSystemFlags,
-        FileSystemNameBuf, sizeof FileSystemNameBuf);
-    ASSERT(Success);
-    if (-1 != Flags)
-    {
-        ASSERT(0 == wcscmp(VolumeLabelBuf, L"TestLabel"));
-        ASSERT(255 == MaxComponentLength);
-        ASSERT(0 != (FileSystemFlags &
-            (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
-        ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp"));
-    }
+        Success = GetVolumeInformationW(FilePath,
+            VolumeLabelBuf, sizeof VolumeLabelBuf,
+            &VolumeSerialNumber, &MaxComponentLength, &FileSystemFlags,
+            FileSystemNameBuf, sizeof FileSystemNameBuf);
+        ASSERT(Success);
+        if (-1 != Flags)
+        {
+            ASSERT(0 == wcscmp(VolumeLabelBuf, L"TestLabel"));
+            ASSERT(255 == MaxComponentLength);
+            ASSERT(0 != (FileSystemFlags &
+                (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
+            ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp"));
+        }
 
-    Success = SetVolumeLabelW(FilePath, L"123456789012345678901234567890123");
-    ASSERT(Success);
+        Success = SetVolumeLabelW(FilePath, L"123456789012345678901234567890123");
+        ASSERT(Success);
 
-    Success = GetVolumeInformationW(FilePath,
-        VolumeLabelBuf, sizeof VolumeLabelBuf,
-        &VolumeSerialNumber, &MaxComponentLength, &FileSystemFlags,
-        FileSystemNameBuf, sizeof FileSystemNameBuf);
-    ASSERT(Success);
-    if (-1 != Flags)
-    {
-        ASSERT(0 == wcscmp(VolumeLabelBuf, L"12345678901234567890123456789012"));
-        ASSERT(255 == MaxComponentLength);
-        ASSERT(0 != (FileSystemFlags &
-            (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
-        ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp"));
+        Success = GetVolumeInformationW(FilePath,
+            VolumeLabelBuf, sizeof VolumeLabelBuf,
+            &VolumeSerialNumber, &MaxComponentLength, &FileSystemFlags,
+            FileSystemNameBuf, sizeof FileSystemNameBuf);
+        ASSERT(Success);
+        if (-1 != Flags)
+        {
+            ASSERT(0 == wcscmp(VolumeLabelBuf, L"12345678901234567890123456789012"));
+            ASSERT(255 == MaxComponentLength);
+            ASSERT(0 != (FileSystemFlags &
+                (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
+            ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp"));
+        }
     }
 
     memfs_stop(memfs);
