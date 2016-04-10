@@ -757,11 +757,11 @@ FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
     return DeviceObject->DeviceExtension;
 }
 NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
-    PUNICODE_STRING DeviceName, DEVICE_TYPE DeviceType,
+    PUNICODE_STRING DeviceName, DEVICE_TYPE DeviceType, ULONG DeviceCharacteristics,
     PUNICODE_STRING DeviceSddl, LPCGUID DeviceClassGuid,
     PDEVICE_OBJECT *PDeviceObject);
 NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
-    DEVICE_TYPE DeviceType,
+    DEVICE_TYPE DeviceType, ULONG DeviceCharacteristics,
     PDEVICE_OBJECT *PDeviceObject);
 NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);

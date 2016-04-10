@@ -43,14 +43,14 @@ NTSTATUS DriverEntry(
     RtlInitUnicodeString(&DeviceSddl, L"" FSP_FSCTL_DEVICE_SDDL);
     RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
     Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
-        &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM,
+        &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
         &DeviceSddl, &FspFsctlDeviceClassGuid,
         &FspFsctlDiskDeviceObject);
     if (!NT_SUCCESS(Result))
         FSP_RETURN();
     RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
     Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
-        &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM,
+        &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
         &DeviceSddl, &FspFsctlDeviceClassGuid,
         &FspFsctlNetDeviceObject);
     if (!NT_SUCCESS(Result))

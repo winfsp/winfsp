@@ -7,11 +7,11 @@
 #include <sys/driver.h>
 
 NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
-    PUNICODE_STRING DeviceName, DEVICE_TYPE DeviceType,
+    PUNICODE_STRING DeviceName, DEVICE_TYPE DeviceType, ULONG DeviceCharacteristics,
     PUNICODE_STRING DeviceSddl, LPCGUID DeviceClassGuid,
     PDEVICE_OBJECT *PDeviceObject);
 NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
-    DEVICE_TYPE DeviceType,
+    DEVICE_TYPE DeviceType, ULONG DeviceCharacteristics,
     PDEVICE_OBJECT *PDeviceObject);
 NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
@@ -97,7 +97,7 @@ VOID FspDeviceDeleteAll(VOID);
 #endif
 
 NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
-    PUNICODE_STRING DeviceName, DEVICE_TYPE DeviceType,
+    PUNICODE_STRING DeviceName, DEVICE_TYPE DeviceType, ULONG DeviceCharacteristics,
     PUNICODE_STRING DeviceSddl, LPCGUID DeviceClassGuid,
     PDEVICE_OBJECT *PDeviceObject)
 {
@@ -127,13 +127,13 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
     if (0 != DeviceSddl)
         Result = IoCreateDeviceSecure(FspDriverObject,
             DeviceExtensionSize + ExtraSize, DeviceName, DeviceType,
-            FILE_DEVICE_SECURE_OPEN, FALSE,
+            DeviceCharacteristics, FALSE,
             DeviceSddl, DeviceClassGuid,
             &DeviceObject);
     else
         Result = IoCreateDevice(FspDriverObject,
             DeviceExtensionSize + ExtraSize, DeviceName, DeviceType,
-            0, FALSE,
+            DeviceCharacteristics, FALSE,
             &DeviceObject);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -149,12 +149,13 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
 }
 
 NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
-    DEVICE_TYPE DeviceType,
+    DEVICE_TYPE DeviceType, ULONG DeviceCharacteristics,
     PDEVICE_OBJECT *PDeviceObject)
 {
     PAGED_CODE();
 
-    return FspDeviceCreateSecure(Kind, ExtraSize, 0, DeviceType, 0, 0, PDeviceObject);
+    return FspDeviceCreateSecure(Kind, ExtraSize, 0, DeviceType, DeviceCharacteristics,
+        0, 0, PDeviceObject);
 }
 
 NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject)

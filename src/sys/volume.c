@@ -136,14 +136,14 @@ NTSTATUS FspVolumeCreate(
 
     /* create the volume (and virtual disk) device(s) */
     Result = FspDeviceCreate(FspFsvolDeviceExtensionKind, 0,
-        FsctlDeviceObject->DeviceType,
+        FsctlDeviceObject->DeviceType, 0,
         &FsvolDeviceObject);
     if (!NT_SUCCESS(Result))
         return Result;
     if (FILE_DEVICE_DISK_FILE_SYSTEM == FsctlDeviceObject->DeviceType)
     {
         Result = FspDeviceCreateSecure(FspFsvrtDeviceExtensionKind, 0,
-            &VolumeName, FILE_DEVICE_VIRTUAL_DISK,
+            &VolumeName, FILE_DEVICE_VIRTUAL_DISK, 0,
             &DeviceSddl, &FspFsvrtDeviceClassGuid,
             &FsvrtDeviceObject);
         if (!NT_SUCCESS(Result))
