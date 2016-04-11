@@ -115,7 +115,20 @@ NTSTATUS FspVolumeCreate(
         for (; 0 < PrefixLength && L'\\' == VolumeParams.Prefix[PrefixLength - 1]; PrefixLength--)
             ;
         VolumeParams.Prefix[PrefixLength] = L'\0';
+
+        /* volume prefix cannot be the empty string */
         if (0 == PrefixLength)
+            return STATUS_INVALID_PARAMETER;
+
+        /* volume prefix must start with exactly one backslash */
+        if (L'\\' != VolumeParams.Prefix[0] || L'\\' == VolumeParams.Prefix[1])
+            return STATUS_INVALID_PARAMETER;
+
+        /* volume prefix must have at least one other backslash */
+        USHORT I;
+        for (I = 1; L'\0' != VolumeParams.Prefix[I] && L'\\' != VolumeParams.Prefix[I]; I++)
+            ;
+        if (I == PrefixLength)
             return STATUS_INVALID_PARAMETER;
     }
 
