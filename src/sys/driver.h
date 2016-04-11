@@ -35,63 +35,84 @@
 #define FSP_ALLOC_EXTERNAL_TAG          'XpsF'
 #define FSP_IO_INCREMENT                IO_NETWORK_INCREMENT
 
+/* debug */
+#if DBG
+enum
+{
+    fsp_debug_bp_generic                = 0x00000001,   /* generic breakpoint switch */
+    fsp_debug_bp_drvrld                 = 0x00000002,   /* DriverEntry/Unload breakpoint switch */
+    fsp_debug_bp_ioentr                 = 0x00000004,   /* I/O entry breakpoint switch */
+    fsp_debug_bp_ioprep                 = 0x00000008,   /* I/O prepare breakpoint switch */
+    fsp_debug_bp_iocmpl                 = 0x00000010,   /* I/O complete breakpoint switch */
+    fsp_debug_bp_iocall                 = 0x00000020,   /* I/O callback breakpoint switch */
+    fsp_debug_bp_iorecu                 = 0x00000040,   /* I/O recursive breakpoint switch */
+    fsp_debug_dt                        = 0x01000000,   /* DEBUGTEST switch */
+    fsp_debug_dp                        = 0x10000000,   /* DbgPrint switch */
+};
+extern __declspec(selectany) int fsp_debug =
+    fsp_debug_bp_drvrld | fsp_debug_dt;
+const char *NtStatusSym(NTSTATUS Status);
+const char *IrpMajorFunctionSym(UCHAR MajorFunction);
+const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);
+const char *IoctlCodeSym(ULONG ControlCode);
+const char *FileInformationClassSym(FILE_INFORMATION_CLASS FileInformationClass);
+const char *FsInformationClassSym(FS_INFORMATION_CLASS FsInformationClass);
+const char *DeviceExtensionKindSym(UINT32 Kind);
+ULONG DebugRandom(VOID);
+VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result);
+#endif
+
 /* DbgPrint */
 #if DBG
-extern __declspec(selectany) int fsp_dp = 1;
-#define DbgPrint(...)                   ((void)(fsp_dp ? DbgPrint(__VA_ARGS__) : 0))
-#else
+#define DbgPrint(...)                   \
+    ((void)((fsp_debug & fsp_debug_dp) ? DbgPrint(__VA_ARGS__) : 0))
 #endif
 
 /* DEBUGLOG */
 #if DBG
 #define DEBUGLOG(fmt, ...)              \
     DbgPrint("[%d] " DRIVER_NAME "!" __FUNCTION__ ": " fmt "\n", KeGetCurrentIrql(), __VA_ARGS__)
-#else
-#define DEBUGLOG(fmt, ...)              ((void)0)
-#endif
-
-/* DEBUGLOGIRP */
-#if DBG
 #define DEBUGLOGIRP(Irp, Result)        FspDebugLogIrp(__FUNCTION__, Irp, Result)
 #else
+#define DEBUGLOG(fmt, ...)              ((void)0)
 #define DEBUGLOGIRP(Irp, Result)        ((void)0)
 #endif
 
 /* DEBUGBREAK */
 #if DBG
-extern __declspec(selectany) int fsp_bp = 1;        /* generic breakpoint switch */
-extern __declspec(selectany) int fsp_bp_crit = 1;   /* critical error breakpoint */
-extern __declspec(selectany) int fsp_bp_ioentr = 1; /* I/O entry breakpoint switch */
-extern __declspec(selectany) int fsp_bp_ioprep = 1; /* I/O prepare breakpoint switch */
-extern __declspec(selectany) int fsp_bp_iocmpl = 1; /* I/O complete breakpoint switch */
-extern __declspec(selectany) int fsp_bp_iocall = 1; /* I/O callback breakpoint switch */
-extern __declspec(selectany) int fsp_bp_iorecu = 1; /* I/O recursive breakpoint switch */
+#define DEBUGBREAK_CRIT()               \
+    do                                  \
+    {                                   \
+        static int bp = 1;              \
+        if (bp && !KD_DEBUGGER_NOT_PRESENT)\
+            DbgBreakPoint();            \
+    } while (0,0)
 #define DEBUGBREAK()                    \
     do                                  \
     {                                   \
         static int bp = 1;              \
-        if (bp && fsp_bp && !KD_DEBUGGER_NOT_PRESENT)\
+        if (bp && (fsp_debug & fsp_debug_bp_generic) && !KD_DEBUGGER_NOT_PRESENT)\
             DbgBreakPoint();            \
     } while (0,0)
 #define DEBUGBREAK_EX(category)         \
     do                                  \
     {                                   \
         static int bp = 1;              \
-        if (bp && fsp_bp && fsp_bp_ ## category && !KD_DEBUGGER_NOT_PRESENT)\
+        if (bp && (fsp_debug & fsp_debug_bp_ ## category) && !KD_DEBUGGER_NOT_PRESENT)\
             DbgBreakPoint();            \
     } while (0,0)
 #else
+#define DEBUGBREAK_CRIT()               do {} while (0,0)
 #define DEBUGBREAK()                    do {} while (0,0)
 #define DEBUGBREAK_EX(category)         do {} while (0,0)
 #endif
 
 /* DEBUGTEST */
 #if DBG
-extern __declspec(selectany) int fsp_dt = 1;
-#define DEBUGTEST(Percent, Default)     \
-    (!fsp_dt || DebugRandom() <= (Percent) * 0x7fff / 100 ? (Default) : !(Default))
+#define DEBUGTEST(Percent)              \
+    (0 == (fsp_debug & fsp_debug_dt) || DebugRandom() <= (Percent) * 0x7fff / 100)
 #else
-#define DEBUGTEST(Percent, Default)     (Default)
+#define DEBUGTEST(Percent)              (TRUE)
 #endif
 
 /* FSP_ENTER/FSP_LEAVE */
@@ -136,6 +157,10 @@ extern __declspec(selectany) int fsp_dt = 1;
 #define FSP_ENTER(...)                  \
     NTSTATUS Result = STATUS_SUCCESS; FSP_ENTER_(iocall, __VA_ARGS__)
 #define FSP_LEAVE(fmt, ...)             \
+    FSP_LEAVE_(FSP_DEBUGLOG_(fmt, " = %s", __VA_ARGS__, NtStatusSym(Result))); return Result
+#define FSP_ENTER_DRV(...)              \
+    NTSTATUS Result = STATUS_SUCCESS; FSP_ENTER_(drvrld, __VA_ARGS__)
+#define FSP_LEAVE_DRV(fmt, ...)         \
     FSP_LEAVE_(FSP_DEBUGLOG_(fmt, " = %s", __VA_ARGS__, NtStatusSym(Result))); return Result
 #define FSP_ENTER_MJ(...)               \
     NTSTATUS Result = STATUS_SUCCESS;   \
@@ -973,43 +998,6 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
 #define FspFileNodeDereferenceDirInfo(P)    FspMetaCacheDereferenceItemBuffer(P)
 #define FspFileNodeUnlockAll(N,F,P)     FsRtlFastUnlockAll(&(N)->FileLock, F, P, N)
 
-/* debug */
-#if DBG
-const char *NtStatusSym(NTSTATUS Status);
-const char *IrpMajorFunctionSym(UCHAR MajorFunction);
-const char *IrpMinorFunctionSym(UCHAR MajorFunction, UCHAR MinorFunction);
-const char *IoctlCodeSym(ULONG ControlCode);
-const char *FileInformationClassSym(FILE_INFORMATION_CLASS FileInformationClass);
-const char *FsInformationClassSym(FS_INFORMATION_CLASS FsInformationClass);
-const char *DeviceExtensionKindSym(UINT32 Kind);
-ULONG DebugRandom(VOID);
-static inline
-VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result)
-{
-    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    DbgPrint("[%d] " DRIVER_NAME "!%s: IRP=%p, %s%c, %s%s, IoStatus=%s[%lld]\n",
-        KeGetCurrentIrql(),
-        func,
-        Irp,
-        DeviceExtensionKindSym(FspDeviceExtension(IrpSp->DeviceObject)->Kind),
-        Irp->RequestorMode == KernelMode ? 'K' : 'U',
-        IrpMajorFunctionSym(IrpSp->MajorFunction),
-        IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction),
-        NtStatusSym(Result),
-        (LONGLONG)Irp->IoStatus.Information);
-}
-#endif
-
-/* extern */
-extern PDRIVER_OBJECT FspDriverObject;
-extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
-extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
-extern FAST_IO_DISPATCH FspFastIoDispatch;
-extern CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
-extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
-extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
-extern WCHAR FspFileDescDirectoryPatternMatchAll[];
-
 /* multiversion support */
 typedef
 NTKERNELAPI
@@ -1021,6 +1009,16 @@ FSP_MV_CcCoherencyFlushAndPurgeCache(
     _Out_ PIO_STATUS_BLOCK IoStatus,
     _In_opt_ ULONG Flags
     );
+
+/* extern */
+extern PDRIVER_OBJECT FspDriverObject;
+extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
+extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
+extern FAST_IO_DISPATCH FspFastIoDispatch;
+extern CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
+extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
+extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
+extern WCHAR FspFileDescDirectoryPatternMatchAll[];
 extern FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
 
 #endif

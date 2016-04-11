@@ -296,4 +296,19 @@ ULONG DebugRandom(VOID)
 
     return Result;
 }
+
+VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result)
+{
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    DbgPrint("[%d] " DRIVER_NAME "!%s: IRP=%p, %s%c, %s%s, IoStatus=%s[%lld]\n",
+        KeGetCurrentIrql(),
+        func,
+        Irp,
+        DeviceExtensionKindSym(FspDeviceExtension(IrpSp->DeviceObject)->Kind),
+        Irp->RequestorMode == KernelMode ? 'K' : 'U',
+        IrpMajorFunctionSym(IrpSp->MajorFunction),
+        IrpMinorFunctionSym(IrpSp->MajorFunction, IrpSp->MinorFunction),
+        NtStatusSym(Result),
+        (LONGLONG)Irp->IoStatus.Information);
+}
 #endif

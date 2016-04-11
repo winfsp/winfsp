@@ -31,7 +31,7 @@ DRIVER_UNLOAD FspUnload;
 NTSTATUS DriverEntry(
     PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
-    FSP_ENTER();
+    FSP_ENTER_DRV();
 
     FspDriverMultiVersionInitialize();
 
@@ -158,7 +158,7 @@ NTSTATUS DriverEntry(
     IoRegisterFileSystem(FspFsctlDiskDeviceObject);
 
 #pragma prefast(suppress:28175, "We are in DriverEntry: ok to access DriverName")
-    FSP_LEAVE("DriverName=\"%wZ\", RegistryPath=\"%wZ\"",
+    FSP_LEAVE_DRV("DriverName=\"%wZ\", RegistryPath=\"%wZ\"",
         &DriverObject->DriverName, RegistryPath);
 }
 

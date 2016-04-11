@@ -33,7 +33,7 @@ static NTSTATUS FspFsvolLockControlRetry(
     BOOLEAN Success;
 
     /* try to acquire the FileNode shared Main */
-    Success = DEBUGTEST(90, TRUE) &&
+    Success = DEBUGTEST(90) &&
         FspFileNodeTryAcquireSharedF(FileNode, FspFileNodeAcquireMain, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolLockControlRetry, 0);

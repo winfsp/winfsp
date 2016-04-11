@@ -103,7 +103,7 @@ static NTSTATUS FspFsvolReadCached(
     BOOLEAN Success;
 
     /* try to acquire the FileNode Main shared */
-    Success = DEBUGTEST(90, TRUE) &&
+    Success = DEBUGTEST(90) &&
         FspFileNodeTryAcquireSharedF(FileNode, FspFileNodeAcquireMain, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolReadCached, 0);
@@ -232,7 +232,7 @@ static NTSTATUS FspFsvolReadNonCached(
         return Result;
 
     /* acquire FileNode exclusive Full */
-    Success = DEBUGTEST(90, TRUE) &&
+    Success = DEBUGTEST(90) &&
         FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolReadNonCached, 0);
@@ -371,7 +371,7 @@ NTSTATUS FspFsvolReadComplete(
             InfoChangeNumber =
                 (ULONG)(UINT_PTR)FspIopRequestContext(Request, RequestInfoChangeNumber);
 
-        Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Main);
+        Success = DEBUGTEST(90) && FspFileNodeTryAcquireExclusive(FileNode, Main);
         if (!Success)
         {
             FspIopRetryCompleteIrp(Irp, Response, &Result);

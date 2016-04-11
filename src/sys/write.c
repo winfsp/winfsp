@@ -109,7 +109,7 @@ static NTSTATUS FspFsvolWriteCached(
     BOOLEAN Success;
 
     /* should we defer the write? */
-    Success = DEBUGTEST(90, TRUE) && CcCanIWrite(FileObject, WriteLength, CanWait, Retrying);
+    Success = DEBUGTEST(90) && CcCanIWrite(FileObject, WriteLength, CanWait, Retrying);
     if (!Success)
     {
         Result = FspWqCreateIrpWorkItem(Irp, FspFsvolWriteCached, 0);
@@ -125,7 +125,7 @@ static NTSTATUS FspFsvolWriteCached(
     }
 
     /* try to acquire the FileNode Main exclusive */
-    Success = DEBUGTEST(90, TRUE) &&
+    Success = DEBUGTEST(90) &&
         FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireMain, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteCached, 0);
@@ -298,7 +298,7 @@ static NTSTATUS FspFsvolWriteNonCached(
         return Result;
 
     /* acquire FileNode exclusive Full */
-    Success = DEBUGTEST(90, TRUE) &&
+    Success = DEBUGTEST(90) &&
         FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteNonCached, 0);

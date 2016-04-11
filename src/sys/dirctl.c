@@ -395,7 +395,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
         (ULONG)(UINT_PTR)FspIopRequestContext(Request, RequestSystemBufferLength) : 0;
 
     /* try to acquire the FileNode exclusive; Full because we may need to send a Request */
-    Success = DEBUGTEST(90, TRUE) &&
+    Success = DEBUGTEST(90) &&
         FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, CanWait);
     if (!Success)
     {
@@ -798,7 +798,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
             (ULONG)(UINT_PTR)FspIopRequestContext(Request, RequestDirInfoChangeNumber);
 
     /* acquire FileNode exclusive Full (because we may need to go back to user-mode) */
-    Success = DEBUGTEST(90, TRUE) && FspFileNodeTryAcquireExclusive(FileNode, Full);
+    Success = DEBUGTEST(90) && FspFileNodeTryAcquireExclusive(FileNode, Full);
     if (!Success)
     {
         FspIopRetryCompleteIrp(Irp, Response, &Result);

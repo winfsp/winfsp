@@ -774,7 +774,7 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
         if (!NT_SUCCESS(Result))
         {
             DEBUGLOG("FspCcSetFileSizes error: %s", NtStatusSym(Result));
-            DEBUGBREAK_EX(crit);
+            DEBUGBREAK_CRIT();
             CcUninitializeCacheMap(CcFileObject, 0, 0);
         }
     }
