@@ -52,12 +52,12 @@ static void usage(void)
         "usage: %s OPTIONS\n"
         "\n"
         "options:\n"
-        "    -t FileInfoTimeout  (millis)\n"
+        "    -t FileInfoTimeout  [millis]\n"
         "    -n MaxFileNodes\n"
-        "    -s MaxFileSize      (bytes)\n"
-        "    -S RootSddl         (file rights: FA, etc; NO generic rights: GA, etc.)\n"
-        "    -u \\\\Volume\\Prefix\n"
-        "    -m MountPoint       (X:)\n";
+        "    -s MaxFileSize      [bytes]\n"
+        "    -S RootSddl         [file rights: FA, etc; NO generic rights: GA, etc.]\n"
+        "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
+        "    -m MountPoint       [X:]\n";
 
     warn(usage, PROGNAME);
     exit(2);
@@ -97,7 +97,7 @@ int wmain(int argc, wchar_t **argv)
     ULONG Flags = MemfsDisk;
     ULONG FileInfoTimeout = INFINITE;
     ULONG MaxFileNodes = 1024;
-    ULONG MaxFileSize = 1024 * 1024;
+    ULONG MaxFileSize = 16 * 1024 * 1024;
     PWSTR MountPoint = 0;
     PWSTR VolumePrefix = 0;
     PWSTR RootSddl = 0;
