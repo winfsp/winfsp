@@ -56,6 +56,7 @@ static RTL_AVL_FREE_ROUTINE FspFsvolDeviceFreeContextByName;
 VOID FspFsvolDeviceGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 BOOLEAN FspFsvolDeviceTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
+VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject);
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
@@ -868,6 +869,18 @@ VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VO
     FsvolDeviceExtension->VolumeInfo = VolumeInfoNp;
     FsvolDeviceExtension->InfoExpirationTime = FspExpirationTimeFromMillis(
         FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
+    KeReleaseSpinLock(&FsvolDeviceExtension->InfoSpinLock, Irql);
+}
+
+VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject)
+{
+    // !PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&FsvolDeviceExtension->InfoSpinLock, &Irql);
+    FsvolDeviceExtension->InfoExpirationTime = 0;
     KeReleaseSpinLock(&FsvolDeviceExtension->InfoSpinLock, Irql);
 }
 

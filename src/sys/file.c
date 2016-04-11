@@ -919,6 +919,8 @@ VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
     //case FILE_ACTION_MODIFIED:
     case FILE_ACTION_RENAMED_OLD_NAME:
     case FILE_ACTION_RENAMED_NEW_NAME:
+        FspFsvolDeviceInvalidateVolumeInfo(FsvolDeviceObject);
+
         FspFsvolDeviceLockContextTable(FsvolDeviceObject);
         ParentNode = FspFsvolDeviceLookupContextByName(FsvolDeviceObject, &Parent);
         if (0 != ParentNode)

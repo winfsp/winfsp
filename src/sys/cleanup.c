@@ -122,10 +122,14 @@ NTSTATUS FspFsvolCleanupComplete(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
+    /* if the file is being deleted do a change notification */
     if (Request->Req.Cleanup.Delete)
         FspFileNodeNotifyChange(FileNode,
             FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
             FILE_ACTION_REMOVED);
+    /* if the file is being resized invalidate the volume info */
+    else if (FileNode->TruncateOnClose)
+        FspFsvolDeviceInvalidateVolumeInfo(IrpSp->DeviceObject);
 
     FSP_LEAVE_IOC("FileObject=%p", IrpSp->FileObject);
 }
