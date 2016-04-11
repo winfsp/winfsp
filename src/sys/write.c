@@ -23,7 +23,6 @@ FSP_DRIVER_DISPATCH FspWrite;
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolWrite)
 #pragma alloc_text(PAGE, FspFsvolWriteCached)
-#pragma alloc_text(PAGE, FspFsvolWriteCachedDeferred)
 #pragma alloc_text(PAGE, FspFsvolWriteNonCached)
 #pragma alloc_text(PAGE, FspFsvolWritePrepare)
 #pragma alloc_text(PAGE, FspFsvolWriteComplete)
@@ -235,6 +234,8 @@ cleanup:
 
 static VOID FspFsvolWriteCachedDeferred(PVOID Context1, PVOID Context2)
 {
+    // !PAGED_CODE();
+
     FspWqPostIrpWorkItem(Context1);
 }
 

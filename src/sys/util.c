@@ -793,6 +793,7 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
         Result = STATUS_INSUFFICIENT_RESOURCES;
         goto exit;
     }
+#pragma prefast(suppress:28145, "We are a filesystem: ok to access MdlFlags")
     SafeMdl->Mdl->MdlFlags |= MDL_PAGES_LOCKED;
     UserPfnArray = MmGetMdlPfnArray(UserMdl);
     SafePfnArray = MmGetMdlPfnArray(SafeMdl->Mdl);
