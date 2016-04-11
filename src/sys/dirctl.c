@@ -632,6 +632,17 @@ static NTSTATUS FspFsvolNotifyChangeDirectory(
         return Result;
     }
 
+    /*
+     * It is possible for FspNotifyChangeDirectory to complete the IRP immediately.
+     * In this case trying to access the IRP (to get its IrpFlags) in FspFileNodeRelease
+     * can lead to a bugcheck. For this reason we set the TopLevelIrp to NULL here.
+     *
+     * IRP_MN_NOTIFY_CHANGE_DIRECTORY does not need the TopLevelIrp functionality,
+     * because it cannot be used recursively (I believe -- famous last words).
+     */
+    PIRP TopLevelIrp = IoGetTopLevelIrp();
+    IoSetTopLevelIrp(0);
+
     FspFileNodeAcquireExclusive(FileNode, Main);
 
     Result = FspNotifyChangeDirectory(
@@ -647,6 +658,9 @@ static NTSTATUS FspFsvolNotifyChangeDirectory(
 
     if (!NT_SUCCESS(Result))
     {
+        /* set back the top level IRP just in case! */
+        IoSetTopLevelIrp(TopLevelIrp);
+
         FspIrpHookReset(Irp);
         FspFree(CompletionContext);
         return Result;
