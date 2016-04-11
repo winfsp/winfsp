@@ -115,9 +115,10 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
 typedef struct _FSP_FILE_SYSTEM
 {
     UINT16 Version;
+    PVOID UserContext;
+    WCHAR VolumePrefix[sizeof(((FSP_FSCTL_VOLUME_PARAMS *)0)->Prefix) / sizeof(WCHAR)];
     WCHAR VolumeName[FSP_FSCTL_VOLUME_NAME_SIZEMAX / sizeof(WCHAR)];
     HANDLE VolumeHandle;
-    PVOID UserContext;
     FSP_FILE_SYSTEM_OPERATION_GUARD *EnterOperation, *LeaveOperation;
     FSP_FILE_SYSTEM_OPERATION *Operations[FspFsctlTransactKindCount];
     const FSP_FILE_SYSTEM_INTERFACE *Interface;
