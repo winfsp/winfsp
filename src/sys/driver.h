@@ -571,7 +571,7 @@ typedef struct
     LIST_ENTRY PendingIrpList, ProcessIrpList, RetriedIrpList;
     IO_CSQ PendingIoCsq, ProcessIoCsq, RetriedIoCsq;
     ULONG IrpTimeout;
-    ULONG PendingIrpCapacity, PendingIrpCount;
+    ULONG PendingIrpCapacity, PendingIrpCount, ProcessIrpCount, RetriedIrpCount;
     VOID (*CompleteCanceledIrp)(PIRP Irp);
     ULONG ProcessIrpBucketCount;
     PVOID ProcessIrpBuckets[];
@@ -586,10 +586,13 @@ VOID FspIoqRemoveExpired(FSP_IOQ *Ioq, UINT64 InterruptTime);
 BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN BestEffort, NTSTATUS *PResult);
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout,
     PIRP CancellableIrp);
+ULONG FspIoqPendingIrpCount(FSP_IOQ *Ioq);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
+ULONG FspIoqProcessIrpCount(FSP_IOQ *Ioq);
 BOOLEAN FspIoqRetryCompleteIrp(FSP_IOQ *Ioq, PIRP Irp, NTSTATUS *PResult);
 PIRP FspIoqNextCompleteIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp);
+ULONG FspIoqRetriedIrpCount(FSP_IOQ *Ioq);
 
 /* meta cache */
 typedef struct

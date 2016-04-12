@@ -270,6 +270,7 @@ static NTSTATUS FspIoqProcessInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertCo
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, ProcessIoCsq);
     if (Ioq->Stopped)
         return STATUS_CANCELLED;
+    Ioq->ProcessIrpCount++;
     InsertTailList(&Ioq->ProcessIrpList, &Irp->Tail.Overlay.ListEntry);
     ULONG Index = FspHashMixPointer(Irp) % Ioq->ProcessIrpBucketCount;
 #if DBG
@@ -296,6 +297,7 @@ static VOID FspIoqProcessRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
             break;
         }
     }
+    Ioq->ProcessIrpCount--;
     RemoveEntryList(&Irp->Tail.Overlay.ListEntry);
 }
 
@@ -360,12 +362,15 @@ static NTSTATUS FspIoqRetriedInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertCo
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, RetriedIoCsq);
     if (Ioq->Stopped)
         return STATUS_CANCELLED;
+    Ioq->RetriedIrpCount++;
     InsertTailList(&Ioq->RetriedIrpList, &Irp->Tail.Overlay.ListEntry);
     return STATUS_SUCCESS;
 }
 
 static VOID FspIoqRetriedRemoveIrp(PIO_CSQ IoCsq, PIRP Irp)
 {
+    FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, RetriedIoCsq);
+    Ioq->RetriedIrpCount--;
     RemoveEntryList(&Irp->Tail.Overlay.ListEntry);
 }
 
@@ -583,6 +588,16 @@ PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout
     return PendingIrp;
 }
 
+ULONG FspIoqPendingIrpCount(FSP_IOQ *Ioq)
+{
+    ULONG Result;
+    KIRQL Irql;
+    KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
+    Result = Ioq->PendingIrpCount;
+    KeReleaseSpinLock(&Ioq->SpinLock, Irql);
+    return Result;
+}
+
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp)
 {
     NTSTATUS Result;
@@ -604,6 +619,16 @@ PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint)
     PeekContext.IrpHint = (PVOID)IrpHint;
     PeekContext.ExpirationTime = 0;
     return FspCsqRemoveNextIrp(&Ioq->ProcessIoCsq, &PeekContext);
+}
+
+ULONG FspIoqProcessIrpCount(FSP_IOQ *Ioq)
+{
+    ULONG Result;
+    KIRQL Irql;
+    KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
+    Result = Ioq->ProcessIrpCount;
+    KeReleaseSpinLock(&Ioq->SpinLock, Irql);
+    return Result;
 }
 
 BOOLEAN FspIoqRetryCompleteIrp(FSP_IOQ *Ioq, PIRP Irp, NTSTATUS *PResult)
@@ -636,4 +661,14 @@ PIRP FspIoqNextCompleteIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp)
     PeekContext.IrpHint = 0 != BoundaryIrp ? BoundaryIrp : (PVOID)1;
     PeekContext.ExpirationTime = 0;
     return FspCsqRemoveNextIrp(&Ioq->RetriedIoCsq, &PeekContext);
+}
+
+ULONG FspIoqRetriedIrpCount(FSP_IOQ *Ioq)
+{
+    ULONG Result;
+    KIRQL Irql;
+    KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
+    Result = Ioq->RetriedIrpCount;
+    KeReleaseSpinLock(&Ioq->SpinLock, Irql);
+    return Result;
 }

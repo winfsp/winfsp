@@ -546,6 +546,7 @@ NTSTATUS FspVolumeTransact(
     FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
     FSP_FSCTL_TRANSACT_REQ *Request, *PendingIrpRequest;
     PIRP ProcessIrp, PendingIrp, RetriedIrp, RepostedIrp;
+    ULONG LoopCount;
     LARGE_INTEGER Timeout;
     PIRP TopLevelIrp = IoGetTopLevelIrp();
 
@@ -587,7 +588,8 @@ NTSTATUS FspVolumeTransact(
     }
 
     /* process any retried IRP's */
-    for (;;)
+    LoopCount = FspIoqRetriedIrpCount(FsvolDeviceExtension->Ioq);
+    while (0 < LoopCount--) /* upper bound on loop guarantees forward progress! */
     {
         /* get the next retried IRP, but do not go beyond the first reposted IRP! */
         RetriedIrp = FspIoqNextCompleteIrp(FsvolDeviceExtension->Ioq, RepostedIrp);
@@ -656,6 +658,7 @@ NTSTATUS FspVolumeTransact(
     Request = OutputBuffer;
     BufferEnd = (PUINT8)OutputBuffer + OutputBufferLength;
     ASSERT(FspFsctlTransactCanProduceRequest(Request, BufferEnd));
+    LoopCount = FspIoqPendingIrpCount(FsvolDeviceExtension->Ioq);
     for (;;)
     {
         PendingIrpRequest = FspIrpRequest(PendingIrp);
@@ -700,6 +703,9 @@ NTSTATUS FspVolumeTransact(
             if (!FspFsctlTransactCanProduceRequest(Request, BufferEnd))
                 break;
         }
+        
+        if (0 >= LoopCount--) /* upper bound on loop guarantees forward progress! */
+            break;
 
         /* get the next pending IRP, but do not go beyond the first reposted IRP! */
         PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, RepostedIrp, 0, Irp);
