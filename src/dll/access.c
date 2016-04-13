@@ -287,7 +287,7 @@ FSP_API NTSTATUS FspSetSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
 
     *PSecurityDescriptor = InputDescriptor;
 
-    DEBUGLOGSD("SDDL=%s", *PSecurityDescriptor);
+    //DEBUGLOGSD("SDDL=%s", *PSecurityDescriptor);
 
     return STATUS_SUCCESS;
 }
