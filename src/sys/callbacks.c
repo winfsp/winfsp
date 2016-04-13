@@ -99,11 +99,20 @@ NTSTATUS FspAcquireForModWrite(
     FSP_ENTER(PAGED_CODE());
 
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    BOOLEAN Success;
 
     ASSERT((PIRP)FSRTL_MOD_WRITE_TOP_LEVEL_IRP == IoGetTopLevelIrp());
-    FspFileNodeAcquireExclusive(FileNode, Full);
-    *ResourceToRelease = FileNode->Header.PagingIoResource;
-        /* ignored by us, but ModWriter expects it; any (non-NULL) resource will do */
+    Success = FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, FALSE);
+    if (Success)
+    {
+        *ResourceToRelease = FileNode->Header.PagingIoResource;
+        Result = STATUS_SUCCESS;
+    }
+    else
+    {
+        *ResourceToRelease = 0;
+        Result = STATUS_CANT_WAIT;
+    }
 
     FSP_LEAVE("FileObject=%p", FileObject);
 }
