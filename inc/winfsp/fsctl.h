@@ -323,10 +323,6 @@ typedef struct
         struct
         {
             FSP_FSCTL_FILE_INFO FileInfo;
-        } Read;
-        struct
-        {
-            FSP_FSCTL_FILE_INFO FileInfo;
         } Write;
         struct
         {

@@ -258,7 +258,6 @@ static NTSTATUS FspFsvolWriteNonCached(
     BOOLEAN WriteToEndOfFile =
         FILE_WRITE_TO_END_OF_FILE == WriteOffset.LowPart && -1L == WriteOffset.HighPart;
     BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
-    FSP_FSCTL_FILE_INFO FileInfo;
     FSP_FSCTL_TRANSACT_REQ *Request;
     BOOLEAN Success;
 
@@ -275,13 +274,6 @@ static NTSTATUS FspFsvolWriteNonCached(
     /* stop CcWriteBehind from calling me! */
     if (FspIoqStopped(FspFsvolDeviceExtension(FsvolDeviceObject)->Ioq))
         return FspFsvolDeviceStoppedStatus(FsvolDeviceObject);
-
-    /* if this is a Paging I/O see if we can optimize it away! */
-    if (PagingIo &&                                             /* if this is Paging I/O             */
-        FlagOn(FspIrpTopFlags(Irp), FspFileNodeAcquireMain) &&  /* and TopLevelIrp has acquired Main */
-        FspFileNodeTryGetFileInfo(FileNode, &FileInfo) &&       /* and the cached FileSize is valid  */
-        (UINT64)WriteOffset.QuadPart >= FileInfo.FileSize)      /* and the WriteOffset is past EOF   */
-        return STATUS_SUCCESS;
 
     /* probe and lock the user buffer */
     Result = FspLockUserBuffer(Irp, WriteLength, IoReadAccess);

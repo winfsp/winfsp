@@ -460,7 +460,7 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, PVOID Buffer, UINT64 Offset, ULONG Length,
-    PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
+    PULONG PBytesTransferred)
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     UINT64 EndOffset;
@@ -475,7 +475,6 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     memcpy(Buffer, (PUINT8)FileNode->FileData + Offset, EndOffset - Offset);
 
     *PBytesTransferred = (ULONG)(EndOffset - Offset);
-    *FileInfo = FileNode->FileInfo;
 
     return STATUS_SUCCESS;
 }

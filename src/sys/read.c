@@ -36,9 +36,6 @@ enum
     RequestSafeMdl                      = 1,
     RequestAddress                      = 2,
     RequestProcess                      = 3,
-
-    /* ReadNonCachedComplete retry */
-    RequestInfoChangeNumber             = 0,
 };
 
 static NTSTATUS FspFsvolRead(
@@ -210,7 +207,6 @@ static NTSTATUS FspFsvolReadNonCached(
     ULONG ReadLength = IrpSp->Parameters.Read.Length;
     ULONG ReadKey = IrpSp->Parameters.Read.Key;
     BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
-    FSP_FSCTL_FILE_INFO FileInfo;
     FSP_FSCTL_TRANSACT_REQ *Request;
     BOOLEAN Success;
 
@@ -219,13 +215,6 @@ static NTSTATUS FspFsvolReadNonCached(
     /* no MDL requests on the non-cached path */
     if (FlagOn(IrpSp->MinorFunction, IRP_MN_MDL))
         return STATUS_INVALID_PARAMETER;
-
-    /* if this is a Paging I/O see if we can optimize it away! */
-    if (PagingIo &&                                             /* if this is Paging I/O             */
-        FlagOn(FspIrpTopFlags(Irp), FspFileNodeAcquireMain) &&  /* and TopLevelIrp has acquired Main */
-        FspFileNodeTryGetFileInfo(FileNode, &FileInfo) &&       /* and the cached FileSize is valid  */
-        (UINT64)ReadOffset.QuadPart >= FileInfo.FileSize)       /* and the ReadOffset is past EOF    */
-        return STATUS_END_OF_FILE;
 
     /* probe and lock the user buffer */
     Result = FspLockUserBuffer(Irp, ReadLength, IoWriteAccess);
@@ -348,12 +337,9 @@ NTSTATUS FspFsvolReadComplete(
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     FSP_SAFE_MDL *SafeMdl = FspIopRequestContext(Request, RequestSafeMdl);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
-    FSP_FILE_NODE *FileNode = FileObject->FsContext;
     LARGE_INTEGER ReadOffset = IrpSp->Parameters.Read.ByteOffset;
     BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
     BOOLEAN SynchronousIo = BooleanFlagOn(FileObject->Flags, FO_SYNCHRONOUS_IO);
-    ULONG InfoChangeNumber;
-    BOOLEAN Success;
 
     if (0 != SafeMdl)
         FspSafeMdlCopyBack(SafeMdl);
@@ -361,34 +347,12 @@ NTSTATUS FspFsvolReadComplete(
     /* if we are top-level */
     if (0 == FspIrpTopFlags(Irp))
     {
-        if (FspFsctlTransactReadKind == Request->Kind)
-        {
-            InfoChangeNumber = FileNode->InfoChangeNumber;
-            Request->Kind = FspFsctlTransactReservedKind;
-            FspIopResetRequest(Request, 0);
-            FspIopRequestContext(Request, RequestInfoChangeNumber) = (PVOID)InfoChangeNumber;
-        }
-        else
-            InfoChangeNumber =
-                (ULONG)(UINT_PTR)FspIopRequestContext(Request, RequestInfoChangeNumber);
-
-        Success = DEBUGTEST(90) && FspFileNodeTryAcquireExclusive(FileNode, Main);
-        if (!Success)
-        {
-            FspIopRetryCompleteIrp(Irp, Response, &Result);
-            FSP_RETURN();
-        }
-
-        /* update file info */
-        FspFileNodeTrySetFileInfo(FileNode, FileObject, &Response->Rsp.Read.FileInfo,
-            InfoChangeNumber);
-
         /* update the current file offset if synchronous I/O (and not paging I/O) */
         if (SynchronousIo && !PagingIo)
             FileObject->CurrentByteOffset.QuadPart =
                 ReadOffset.QuadPart + Response->IoStatus.Information;
 
-        FspFileNodeRelease(FileNode, Main);
+        FspIopResetRequest(Request, 0);
     }
     else
     {

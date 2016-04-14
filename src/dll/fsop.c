@@ -407,7 +407,6 @@ FSP_API NTSTATUS FspFileSystemOpRead(FSP_FILE_SYSTEM *FileSystem,
 {
     NTSTATUS Result;
     ULONG BytesTransferred;
-    FSP_FSCTL_FILE_INFO FileInfo;
 
     if (0 == FileSystem->Interface->Read)
         return STATUS_INVALID_DEVICE_REQUEST;
@@ -418,16 +417,12 @@ FSP_API NTSTATUS FspFileSystemOpRead(FSP_FILE_SYSTEM *FileSystem,
         (PVOID)Request->Req.Read.Address,
         Request->Req.Read.Offset,
         Request->Req.Read.Length,
-        &BytesTransferred,
-        &FileInfo);
+        &BytesTransferred);
     if (!NT_SUCCESS(Result))
         return Result;
 
     if (STATUS_PENDING != Result)
-    {
         Response->IoStatus.Information = BytesTransferred;
-        memcpy(&Response->Rsp.Read.FileInfo, &FileInfo, sizeof FileInfo);
-    }
 
     return Result;
 }
