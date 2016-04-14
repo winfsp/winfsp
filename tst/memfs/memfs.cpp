@@ -248,9 +248,9 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
 
-    VolumeInfo->TotalSize = Memfs->MaxFileNodes * Memfs->MaxFileSize;
-    VolumeInfo->FreeSize =
-        (Memfs->MaxFileNodes - MemfsFileNodeMapCount(Memfs->FileNodeMap)) * Memfs->MaxFileSize;
+    VolumeInfo->TotalSize = Memfs->MaxFileNodes * (UINT64)Memfs->MaxFileSize;
+    VolumeInfo->FreeSize = (Memfs->MaxFileNodes - MemfsFileNodeMapCount(Memfs->FileNodeMap)) *
+        (UINT64)Memfs->MaxFileSize;
     VolumeInfo->VolumeLabelLength = Memfs->VolumeLabelLength;
     memcpy(VolumeInfo->VolumeLabel, Memfs->VolumeLabel, Memfs->VolumeLabelLength);
 
