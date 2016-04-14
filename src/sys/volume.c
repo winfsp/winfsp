@@ -156,7 +156,7 @@ NTSTATUS FspVolumeCreate(
     if (FILE_DEVICE_DISK_FILE_SYSTEM == FsctlDeviceObject->DeviceType)
     {
         Result = FspDeviceCreateSecure(FspFsvrtDeviceExtensionKind, 0,
-            &VolumeName, FILE_DEVICE_VIRTUAL_DISK, 0,
+            &VolumeName, FILE_DEVICE_DISK, 0,
             &DeviceSddl, &FspFsvrtDeviceClassGuid,
             &FsvrtDeviceObject);
         if (!NT_SUCCESS(Result))
