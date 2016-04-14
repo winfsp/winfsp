@@ -1,0 +1,86 @@
+= WinFsp - Windows File System Proxy
+
+This documents presents the design of WinFsp, the Windows File System Proxy. WinFsp is a set of software components for Windows computers that allows the creation of user mode file systems. In this sense it is similar to FUSE (Filesystem in Userspace), which provides the same functionality on UNIX-like computers.
+
+== Overview
+
+Developing file systems is in general a challenging proposition. Not only it requires the correct and efficient design and implementation of a software component that manages files, but to also present an interface to it that adheres to historical standards and expectations that are times difficult to get right or perhaps even ill-conceived (atime in POSIX).
+
+Developing file systems in Windows is an order of magnitude more difficult. Not only the operating system imposes some very hard (and often-times conflicting) limitations on what a file system driver can do, it is not well-documented and requires a lot of trial and error and long debugging sessions to get right. On top of this kernel mode API's and Driver entry points are heavily overloaded and can be invoked in "unexpected" ways and the system can crash or deadlock for a variety of reasons (including ones that are clearly the result of bad design and you can only avoid them if you follow the "magic incantation" that is not documented anywhere (hello FastIo AcquireForModWrite)).
+
+To compound all this there is a single book that describes how to write file systems for Windows and it was publised in 1997! While the book is invaluable, it is out of date and contains many errors and omissions. Still if you are thinking about writing file systems get a copy of "Windows NT File System Internals: A Developer's Guide" by Rajeev Nagar (and be prepared to not understand anything). Also study the Microsoft FastFat source!
+
+WinFsp attempts to ease the task of writing a new file system for Windows in the same way that FUSE has done so for UNIX. File system writers only need to understand the general semantics of a file in Windows and the simple WinFsp interface. They do not need to understand the intricacies of kernel-mode file system programming or the myriad of details surrounding access control, file sharing, conflicts between open and delete/rename, etc. In this sense WinFsp may save 6-12 months of development cost (and pain) for a file system writer. It also allows developers who have no inclication to understand kernel mode programming to write their own file systems.
+
+Some of the benefits and features of using WinFsp are listed below:
+
+* Allows for easy development of file systems in user mode. There are no restrictions on what a process can do in order to implement a file system (other than respond in a timely manner to file system requests).
+* Support for disk and network based file systems.
+* Support for NTFS level security and access control.
+* Support for cached files and the NT cache manager.
+* Correct NT semantics with respect to file sharing, file deletion and renaming.
+
+== WinFsp Components and NTOS
+
+WinFsp consists of a kernel mode FSD (File System Driver) and a user mode DLL (Dynamic Link Library). The FSD interfaces with NTOS (the Windows kernel) and handles all interactions necessary to present itself as a file system driver to NTOS. The DLL interfaces with the FSD and presents an easy to use API for creating user mode file systems.
+
+When a familiar Windows file API call such as CreateFile, ReadFile, WriteFile, etc. is invoked by an application, NTOS packages the call into an IRP (I/O Request Packet) that is used to describe and track the call. NTOS forwards this call to the appropriate system component or driver. When the WinFsp FSD receives such an IRP it processes it and determines whether any further processing is required by the user mode file system. If that is the case it posts the IRP to a special queue from which the user mode file system can pull it and process it further. When the user mode file system finishes its processing it returns the IRP back to the queue, where the FSD picks it up, does any post processing and then "completes" it. Completing an IRP tells NTOS that the IRP processing is now finished, any associated side effects have taken place and any results have been computed and can be delivered to the original API caller.
+
+As mentioned NTOS must determine the appropriate system component or driver to forward an IRP to. For this purpose NTOS maintains a special namespace called the Object Manager Namespace. The Object Manager Namespace is a hierarchical namespace that can be used to store path -> object associations. There also exist special container objects which can contain other objects (directories) and pointer objects that can point to other objects (symbolic links). In this respect the Object Manager Namespace is similar to the file system namespace. On the other hand files in a file system are not objects within the Object Manager Namespace (at least not directly).
+
+A special type of object within the Object Manager Namespace is the Device Object. Device Objects have the important ability to implement their own namespace, which basically allows NTOS to provide file system like functionality on top of the Object Manager Namespace. This works roughly as follows: when an application opens a file name X:\Path\File, NTOS looks up the X: name in a special directory within the Object Manager Namespace. Under normal circumstances the X: name will point to a symbolic link which will likely point to a Device Object with path \Device\Volume\{GUID} (or \Device\HarddiskVolumeX). NTOS will open the device at \Device\Volume\{GUID} and will then send it a "CREATE" IRP with a file name of "\Path\File". It is now the responsibility of the device driver behind the \Device\Volume\{GUID} Device Object to handle the IRP and "open" the file.
+
+Finally note that not all kernel objects have names and in fact unnamed Device Objects are important in the implementation of NTOS file systems.
+
+== WinFsp Device Namespace
+
+When the WinFsp FSD starts up it registers two devices:
+
+* \Device\WinFsp.Disk
+* \Device\WinFsp.Net
+
+The first device (WinFsp.Disk) is used to create disk-like file systems (i.e. file systems that present themselves to Windows as disk based file systems). The second device (WinFsp.Net) is used to create network-like file systems (i.e. file systems that present themselves to Windows as network based file systems). Devices of this kind are called _Fsctl_ by WinFsp internally.
+
+These devices can be considered as "constructor" or "factory" devices, because they can be used to create additional devices that act as file systems. There are some differences in behavior when opening the Disk vs Net devices, so we will describe them separately below.
+
+Upon opening the WinFsp.Disk device with the right parameters the following actions will be performed:
+
+* An unnamed "Volume Device Object" will be created. This device will act as "the file system", which means that NTOS will send it file system related IRP's. Devices of this kind are called _Fsvol_ by WinFsp internally.
+
+* A named "Virtual Volume Device Object" will be created. This device will have a \Device\Volume\{GUID} name and will act as the "disk" on which the file system is housed. Devices of this kind are called _Fsvrt_ by WinFsp internally. The _Fsvrt_ device contains a special structure called a VPB (Volume Parameter Block) which points to the _Fsvol_ device. This architectural requirement is mandated by NTOS.
+
+* A Windows API HANDLE will be created. This HANDLE can be used to interact with the newly created _Fsvol_ device using the DeviceIoControl API. Closing the HANDLE will delete the created _Fsvol_ and _Fsvrt_ devices.
+
+Upon opening the WinFsp.Net device the actions performed are similar with one important exception:
+
+* The _Fsvol_ device will be created.
+
+* The _Fsvol_ device will be registered with the MUP (Multiple UNC Provider). This system component is responsible for handling UNC paths (\\Server\Share\Path). No _Fsvrt_ device will be created in this case. However a \Device\Volume\{GUID} symbolic link pointing to the MUP device will be created.
+
+* A Windows API handle will be created. As before the HANDLE can be used to interact with the _Fsvol_ device via the DeviceIoControl API. Closing the HANDLE will unregister the _Fsvol_ device from the MUP (and delete the corresponding symbolic link) and then delete the _Fsvol_ device.
+
+It is important to note here that when a process terminates under NTOS (normally or otherwise), NTOS will close all its handles including any WinFsp handles. This ensures that the _Fsvol_ and _Fsvrt_ devices will get deleted even if the user-mode file system suddenly crashes.
+
+== I/O Queues
+
+As mentioned, IRP's are the primary means that NTOS uses to describe and track I/O. The WinFsp FSD receives IRP's on its _Fsctl_, _Fsvrt_ and _Fsvol_ devices. IRP's sent to _Fsctl_ devices (WinFsp.Disk, WinFsp.Net), have to do with creating and managing volume (file system) devices and are handled within WinFsp. IRP's sent to _Fsvrt_ devices (virtual volume devices) are mostly ignored as WinFsp does not implement a real disk device (it is a file system driver, not a disk driver). Finally IRP's sent to _Fsvol_ devices (volume devices) are the ones used to implement file API's such as CreateFile, ReadFile, WriteFile.
+
+When an IRP arrives at an _Fsvol_ device, the FSD performs preprocessing such as checking parameters, allocating memory, preparing buffers, etc. In some case the FSD can complete the IRP without any help from the user-mode file system (consider for example a ReadFile on a file that has been already cached). In other cases the FSD needs to forward the request to the user mode file system (consider for example that when opening a file the user mode file system must be contacted to perform access checks and allocate resources).
+
+The I/O queue (internal name +FSP_IOQ+) is the main WinFsp mechanism for handling this situation. An I/O queue consists in reality of two queues and one table:
+
+* The _Pending_ queue where newly arrived IRP's are placed and marked pending.
+
+* The _Process_ table where IRP's are placed after they have been retrieved by the user-mode file system. This structure is a dictionary (hash table) keyed by the integer value of the IRP pointer. This allows IRP's to be completed by the user mode file system in any order.
+
+* The _Retried_ queue where IRP's are placed whenever their completion needs to be retried (a rare circumstance).
+
+Let us now follow the life time of an IRP from the moment it arrives at the _Fsvol_ device up to the moment it is completed. Suppose an IRP_MJ_READ IRP arrives and the FSD determines that it needs to post it to the user mode file system for further processing (for example, it is a non-overlapped non-cached ReadFile from a user mode application). In order to do so the FSD may have to do preparatory tasks such as prepare buffers for zero copy (in the case of IRP_MJ_READ) or capture process security state or copy buffers, etc. (in other cases). This processing happens in the thread and process context that the IRP_MJ_READ was received (for example the thread and process context of the application that performed the ReadFile). The FSD then posts the IRP to the _Pending_ queue of the corresponding _Fsvol_ device and returns. However NTOS does not immediately return to the application as the ReadFile call is not completed yet, instead it waits on an event for the IRP to complete (recall that the ReadFile was non-overlapped).
+
+The user mode file system has a thread pool where each thread attempts to get the next IRP from the _Pending_ queue by executing a special DeviceIoControl (+FSP_FSCTL_TRANSACT+). This DeviceIoControl blocks the user mode file system thread (with a timeout) until there is an IRP available. The +FSP_FSCTL_TRANSACT+ operation combines a send of any IRP responses that the user mode file system has already processed and a receive of any new IRP's that require processing. Upon receipt of the +FSP_FSCTL_TRANSACT+ code the FSD pulls the next IRP from the _Pending_ queue and then enters the Prepare_ phase for the IRP. In this phase tasks that must be performed in the context of the user mode file system process are performed (for example, in the case of an IRP_MJ_READ IRP the read buffers are mapped into the address space of the user mode file system to allow for zero copy). Once the _Prepare_ phase is complete the IRP is placed into the _Process_ table and the user mode version of the IRP called a "Request" (type +FSP_FSCTL_TRANSACT_REQ+) is marshalled to the file system process. The Request includes a "Hint" that enables the FSD to quickly locate the IRP corresponding to the Request once user mode processing is complete.
+
+The user mode file system now processes the newly arrived Read Request. Assuming that the Read succeeds, the file system places the results of the Read operation into the passed buffer (which recall is mapped in the address spaces of both the calling application and the file system process) and eventually performs another +FSP_FSCTL_TRANSACT+ with the response (type +FSP_FSCTL_TRANSACT_RSP+). This Response also include the Request Hint.
+
+Upon receipt of the +FSP_FSCTL_TRANSACT+ operation the FSD uses the Hint to locate (and remove) the corresponding IRP in the _Process_ table. The IRP now enters the _Complete_ phase. In this phase the effects of tasks performed in the _Prepare_ phase are reversed (for example, in the case of an IRP_MJ_READ IRP the read buffers are unmapped from the address space of the user mode file system process). The _Complete_ phase usually results in IRP completion, which signals to NTOS that it is now free to complete the original ReadFile call.
+
+In some rare cases (e.g. because of pending internal locks) the IRP cannot exit the _Complete_ phase immediately. In this case the IRP is entered to the _Retried_ queue to retry IRP completion at a later +FSP_FSCTL_TRANSACT+ time. Note that the _Prepare_, _Complete_ and _Retried_ phases always execute in the context of the user-mode file system process.
