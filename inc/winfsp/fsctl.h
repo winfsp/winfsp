@@ -206,6 +206,7 @@ typedef struct
             UINT64 Offset;
             UINT32 Length;
             UINT32 Key;
+            UINT32 ConstrainedIo:1;
         } Write;
         struct
         {

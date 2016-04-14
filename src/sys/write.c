@@ -276,22 +276,12 @@ static NTSTATUS FspFsvolWriteNonCached(
     if (FspIoqStopped(FspFsvolDeviceExtension(FsvolDeviceObject)->Ioq))
         return FspFsvolDeviceStoppedStatus(FsvolDeviceObject);
 
-    /* if we are called by the lazy writer we must constrain writes */
-    if (FlagOn(FspIrpTopFlags(Irp), FspFileNodeAcquireMain) &&  /* if TopLevelIrp has acquired Main */
-        FileNode->Tls.LazyWriteThread == PsGetCurrentThread())  /* and this is a lazy writer thread */
-    {
-        ASSERT(PagingIo);
-        ASSERT(FspTimeoutInfinity32 ==
-            FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.FileInfoTimeout);
-
-        FspFileNodeGetFileInfo(FileNode, &FileInfo);
-
-        if ((UINT64)WriteOffset.QuadPart >= FileInfo.FileSize)
-            return STATUS_SUCCESS;
-
-        if (WriteLength > (ULONG)(FileInfo.FileSize - WriteOffset.QuadPart))
-            WriteLength = (ULONG)(FileInfo.FileSize - WriteOffset.QuadPart);
-    }
+    /* if this is a Paging I/O see if we can optimize it away! */
+    if (PagingIo &&                                             /* if this is Paging I/O             */
+        FlagOn(FspIrpTopFlags(Irp), FspFileNodeAcquireMain) &&  /* and TopLevelIrp has acquired Main */
+        FspFileNodeTryGetFileInfo(FileNode, &FileInfo) &&       /* and the cached FileSize is valid  */
+        (UINT64)WriteOffset.QuadPart >= FileInfo.FileSize)      /* and the WriteOffset is past EOF   */
+        return STATUS_SUCCESS;
 
     /* probe and lock the user buffer */
     Result = FspLockUserBuffer(Irp, WriteLength, IoReadAccess);
@@ -348,6 +338,7 @@ static NTSTATUS FspFsvolWriteNonCached(
     Request->Req.Write.Offset = WriteOffset.QuadPart;
     Request->Req.Write.Length = WriteLength;
     Request->Req.Write.Key = WriteKey;
+    Request->Req.Write.ConstrainedIo = !!PagingIo;
 
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;

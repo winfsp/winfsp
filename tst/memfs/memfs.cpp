@@ -482,17 +482,29 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
 
 static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
-    PVOID FileNode0, PVOID Buffer, UINT64 Offset, ULONG Length, BOOLEAN WriteToEndOfFile,
+    PVOID FileNode0, PVOID Buffer, UINT64 Offset, ULONG Length,
+    BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
     PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     UINT64 EndOffset;
 
-    if (WriteToEndOfFile)
-        Offset = FileNode->FileInfo.FileSize;
-    EndOffset = Offset + Length;
-    if (EndOffset > FileNode->FileInfo.FileSize)
-        SetFileSize(FileSystem, Request, FileNode, EndOffset, FileInfo);
+    if (ConstrainedIo)
+    {
+        if (Offset >= FileNode->FileInfo.FileSize)
+            return STATUS_SUCCESS;
+        EndOffset = Offset + Length;
+        if (EndOffset > FileNode->FileInfo.FileSize)
+            EndOffset = FileNode->FileInfo.FileSize;
+    }
+    else
+    {
+        if (WriteToEndOfFile)
+            Offset = FileNode->FileInfo.FileSize;
+        EndOffset = Offset + Length;
+        if (EndOffset > FileNode->FileInfo.FileSize)
+            SetFileSize(FileSystem, Request, FileNode, EndOffset, FileInfo);
+    }
 
     memcpy((PUINT8)FileNode->FileData + Offset, Buffer, EndOffset - Offset);
 

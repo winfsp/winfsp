@@ -220,10 +220,11 @@ static NTSTATUS FspFsvolReadNonCached(
     if (FlagOn(IrpSp->MinorFunction, IRP_MN_MDL))
         return STATUS_INVALID_PARAMETER;
 
-    /* if this is a recursive read (cache) see if we can optimize it away! */
-    if (FlagOn(FspIrpTopFlags(Irp), FspFileNodeAcquireMain) &&  /* if TopLevelIrp has acquired Main */
-        FspFileNodeTryGetFileInfo(FileNode, &FileInfo) &&       /* and the cached FileSize is valid */
-        (UINT64)ReadOffset.QuadPart >= FileInfo.FileSize)       /* and the ReadOffset is past EOF   */
+    /* if this is a Paging I/O see if we can optimize it away! */
+    if (PagingIo &&                                             /* if this is Paging I/O             */
+        FlagOn(FspIrpTopFlags(Irp), FspFileNodeAcquireMain) &&  /* and TopLevelIrp has acquired Main */
+        FspFileNodeTryGetFileInfo(FileNode, &FileInfo) &&       /* and the cached FileSize is valid  */
+        (UINT64)ReadOffset.QuadPart >= FileInfo.FileSize)       /* and the ReadOffset is past EOF    */
         return STATUS_END_OF_FILE;
 
     /* probe and lock the user buffer */

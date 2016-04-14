@@ -449,6 +449,7 @@ FSP_API NTSTATUS FspFileSystemOpWrite(FSP_FILE_SYSTEM *FileSystem,
         Request->Req.Write.Offset,
         Request->Req.Write.Length,
         (UINT64)-1LL == Request->Req.Write.Offset,
+        0 != Request->Req.Write.ConstrainedIo,
         &BytesTransferred,
         &FileInfo);
     if (!NT_SUCCESS(Result))
