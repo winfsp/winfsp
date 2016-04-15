@@ -17,7 +17,7 @@ Some of the benefits and features of using WinFsp are listed below:
 * Allows for easy development of file systems in user mode. There are no restrictions on what a process can do in order to implement a file system (other than respond in a timely manner to file system requests).
 * Support for disk and network based file systems.
 * Support for NTFS level security and access control.
-* Support for cached files and the NT cache manager.
+* Support for memory mapped files, cached files and the NT cache manager.
 * Support for file change notifications.
 * Support for file locking.
 * Correct NT semantics with respect to file sharing, file deletion and renaming.
