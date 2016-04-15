@@ -710,7 +710,7 @@ VOID FspFileSystemSetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
 }
 
 /*
- * File System Operations
+ * Operations
  */
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
@@ -742,13 +742,35 @@ FSP_API NTSTATUS FspFileSystemOpSetSecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 
 /*
- * File System Operations Helpers
+ * Helpers
+ */
+/**
+ * Add directory information to a buffer.
+ *
+ * This is a helper for implementing the ReadDirectory operation.
+ *
+ * @param DirInfo
+ *     The directory information to add. A value of NULL acts as an EOF marker for a ReadDirectory
+ *     operation.
+ * @param Buffer
+ *     Pointer to a buffer that will receive the results of the read operation. This should contain
+ *     the same value passed to the ReadDirectory Buffer parameter.
+ * @param Length
+ *     Length of data to read. This should contain the same value passed to the ReadDirectory
+ *     Length parameter.
+ * @param PBytesTransferred [out]
+ *     Pointer to a memory location that will receive the actual number of bytes read. This should
+ *     contain the same value passed to the ReadDirectory PBytesTransferred parameter.
+ *     FspFileSystemAddDirInfo uses the value pointed by this parameter to track how much of the
+ *     buffer has been used so far.
+ * @return
+ *     TRUE if the directory information was added, FALSE if there was not enough space to add it.
  */
 FSP_API BOOLEAN FspFileSystemAddDirInfo(FSP_FSCTL_DIR_INFO *DirInfo,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
 
 /*
- * Access
+ * Security
  */
 FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
 FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
