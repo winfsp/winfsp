@@ -106,8 +106,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param FileName
      *     The name of the file or directory to be created.
      * @param CaseSensitive
-     *     Whether to treat the FileName as case-sensitive or case-insensitive. Case-insensitive
-     *     file systems always treat FileName as case-insensitive regardless of this parameter.
+     *     Whether to treat the FileName as case-sensitive or case-insensitive. Case-sensitive
+     *     file systems always treat FileName as case-sensitive regardless of this parameter.
      * @param CreateOptions
      *     Create options for this request. This parameter has the same meaning as the
      *     CreateOptions parameter of the NtCreateFile API. User mode file systems should typically
@@ -150,8 +150,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param FileName
      *     The name of the file or directory to be opened.
      * @param CaseSensitive
-     *     Whether to treat the FileName as case-sensitive or case-insensitive. Case-insensitive
-     *     file systems always treat FileName as case-insensitive regardless of this parameter.
+     *     Whether to treat the FileName as case-sensitive or case-insensitive. Case-sensitive
+     *     file systems always treat FileName as case-sensitive regardless of this parameter.
      * @param CreateOptions
      *     Create options for this request. This parameter has the same meaning as the
      *     CreateOptions parameter of the NtCreateFile API. User mode file systems typically
@@ -765,6 +765,8 @@ FSP_API NTSTATUS FspFileSystemOpSetSecurity(FSP_FILE_SYSTEM *FileSystem,
  *     buffer has been used so far.
  * @return
  *     TRUE if the directory information was added, FALSE if there was not enough space to add it.
+ * @see
+ *     ReadDirectory
  */
 FSP_API BOOLEAN FspFileSystemAddDirInfo(FSP_FSCTL_DIR_INFO *DirInfo,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
