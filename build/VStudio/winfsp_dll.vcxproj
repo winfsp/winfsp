@@ -24,12 +24,12 @@
     <ClInclude Include="..\..\src\dll\library.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\dll\access.c" />
+    <ClCompile Include="..\..\src\dll\security.c" />
     <ClCompile Include="..\..\src\dll\debug.c" />
     <ClCompile Include="..\..\src\dll\fsctl.c" />
     <ClCompile Include="..\..\src\dll\fsop.c" />
     <ClCompile Include="..\..\src\dll\library.c" />
-    <ClCompile Include="..\..\src\dll\dispatch.c" />
+    <ClCompile Include="..\..\src\dll\fs.c" />
     <ClCompile Include="..\..\src\dll\ntstatus.c" />
     <ClCompile Include="..\..\src\dll\path.c" />
   </ItemGroup>

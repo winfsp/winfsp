@@ -1,5 +1,5 @@
 /**
- * @file dll/access.c
+ * @file dll/security.c
  *
  * @copyright 2015-2016 Bill Zissimopoulos
  */

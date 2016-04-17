@@ -40,13 +40,13 @@
     <ClCompile Include="..\..\src\dll\path.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\dll\dispatch.c">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\dll\access.c">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\dll\fsop.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\dll\fs.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\dll\security.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
