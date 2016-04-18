@@ -171,11 +171,11 @@ NTSTATUS FspReleaseForCcFlush(
     PIRP TopLevelIrp = IoGetTopLevelIrp();
     ULONG TopFlags;
 
-    ASSERT((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == TopLevelIrp ||
-        (PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG < TopLevelIrp);
-    if ((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == TopLevelIrp)
+    if ((PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG >= TopLevelIrp)
     {
-        IoSetTopLevelIrp(FileNode->Tls.CcFlush.TopLevelIrp);
+        ASSERT(0 == TopLevelIrp || (PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == TopLevelIrp);
+        if ((PIRP)FSRTL_CACHE_TOP_LEVEL_IRP == TopLevelIrp)
+            IoSetTopLevelIrp(FileNode->Tls.CcFlush.TopLevelIrp);
         FileNode->Tls.CcFlush.TopLevelIrp = 0;
         FspFileNodeRelease(FileNode, Full);
     }
