@@ -551,7 +551,6 @@ typedef struct _FSP_FILE_SYSTEM
 {
     UINT16 Version;
     PVOID UserContext;
-    WCHAR VolumePrefix[sizeof(((FSP_FSCTL_VOLUME_PARAMS *)0)->Prefix) / sizeof(WCHAR)];
     WCHAR VolumeName[FSP_FSCTL_VOLUME_NAME_SIZEMAX / sizeof(WCHAR)];
     HANDLE VolumeHandle;
     FSP_FILE_SYSTEM_OPERATION_GUARD *EnterOperation, *LeaveOperation;

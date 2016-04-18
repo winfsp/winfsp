@@ -700,7 +700,6 @@ VOID FspWqPostIrpWorkItem(PIRP Irp);
     FspWqCreateAndPostIrpWorkItem(I, RW, RF, TRUE)
 
 /* device management */
-#define FSP_DEVICE_VOLUME_NAME_LENMAX   (FSP_FSCTL_VOLUME_NAME_SIZEMAX - sizeof(WCHAR))
 enum
 {
     FspFsvolDeviceSecurityCacheCapacity = 100,
@@ -766,7 +765,7 @@ typedef struct
     RTL_AVL_TABLE ContextByNameTable;
     PVOID ContextByNameTableElementStorage;
     UNICODE_STRING VolumeName;
-    WCHAR VolumeNameBuf[FSP_DEVICE_VOLUME_NAME_LENMAX / sizeof(WCHAR)];
+    WCHAR VolumeNameBuf[FSP_FSCTL_VOLUME_NAME_SIZE / sizeof(WCHAR)];
     KSPIN_LOCK InfoSpinLock;
     UINT64 InfoExpirationTime;
     FSP_FSCTL_VOLUME_INFO VolumeInfo;

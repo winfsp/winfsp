@@ -41,7 +41,9 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_STOP                  \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'S', METHOD_BUFFERED, FILE_ANY_ACCESS)
 
-#define FSP_FSCTL_VOLUME_NAME_SIZEMAX   128
+#define FSP_FSCTL_VOLUME_NAME_SIZE      (64 * sizeof(WCHAR))
+#define FSP_FSCTL_VOLUME_PREFIX_SIZE    (64 * sizeof(WCHAR))
+#define FSP_FSCTL_VOLUME_NAME_SIZEMAX   (FSP_FSCTL_VOLUME_NAME_SIZE + FSP_FSCTL_VOLUME_PREFIX_SIZE)
 
 #define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  (4096 - 64) /* 64: size for internal request header */
 #define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  (4096 - 64) /* symmetry! */
@@ -113,7 +115,7 @@ typedef struct
     UINT32 HardLinks:1;                 /* unimplemented; set to 0 */
     UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */
     UINT32 ReadOnlyVolume:1;
-    WCHAR Prefix[64];                   /* UNC prefix to recognize (\\server\path format, 0-term) */
+    WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */
 } FSP_FSCTL_VOLUME_PARAMS;
 typedef struct
 {

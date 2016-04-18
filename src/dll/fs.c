@@ -16,29 +16,6 @@ static FSP_FILE_SYSTEM_INTERFACE FspFileSystemNullInterface;
 static CRITICAL_SECTION FspFileSystemMountListGuard;
 static LIST_ENTRY FspFileSystemMountList = { &FspFileSystemMountList, &FspFileSystemMountList };
 
-static inline
-BOOL FspFileSystemDefineDosDevice(DWORD Flags, PWSTR MountPoint, FSP_FILE_SYSTEM *FileSystem)
-{
-    WCHAR TargetBuf[(
-        sizeof(((FSP_FILE_SYSTEM *)0)->VolumePrefix) +
-        sizeof(((FSP_FILE_SYSTEM *)0)->VolumeName)) / sizeof(WCHAR)];
-    PWSTR P;
-    ULONG L0, L1;
-
-    for (P = FileSystem->VolumeName; *P; P++)
-        ;
-    L0 = (ULONG)(P - FileSystem->VolumeName);
-    memcpy(TargetBuf, FileSystem->VolumeName, L0 * sizeof(WCHAR));
-
-    for (P = FileSystem->VolumePrefix; *P; P++)
-        ;
-    L1 = (ULONG)(P - FileSystem->VolumePrefix);
-    memcpy(TargetBuf + L0, FileSystem->VolumePrefix, L1 * sizeof(WCHAR));
-    TargetBuf[L0 + L1] = L'\0';
-
-    return DefineDosDeviceW(Flags, MountPoint, TargetBuf);
-}
-
 VOID FspFileSystemInitialize(VOID)
 {
     /*
@@ -85,9 +62,9 @@ VOID FspFileSystemFinalize(VOID)
     {
         FileSystem = CONTAINING_RECORD(MountEntry, FSP_FILE_SYSTEM, MountEntry);
 
-        FspFileSystemDefineDosDevice(
+        DefineDosDeviceW(
             DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
-            FileSystem->MountPoint, FileSystem);
+            FileSystem->MountPoint, FileSystem->VolumeName);
     }
 
     LeaveCriticalSection(&FspFileSystemMountListGuard);
@@ -100,7 +77,6 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
 {
     NTSTATUS Result;
     FSP_FILE_SYSTEM *FileSystem;
-    ULONG PrefixLength;
 
     *PFileSystem = 0;
 
@@ -120,14 +96,6 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
         MemFree(FileSystem);
         return Result;
     }
-
-    memcpy(FileSystem->VolumePrefix, VolumeParams->Prefix, sizeof VolumeParams->Prefix);
-    FileSystem->VolumePrefix[sizeof FileSystem->VolumePrefix / sizeof(WCHAR) - 1] = L'\0';
-    for (PrefixLength = 0; L'\0' != FileSystem->VolumePrefix[PrefixLength]; PrefixLength++)
-        ;
-    for (; 0 < PrefixLength && L'\\' == FileSystem->VolumePrefix[PrefixLength - 1]; PrefixLength--)
-        ;
-    FileSystem->VolumePrefix[PrefixLength] = L'\0';
 
     FileSystem->Operations[FspFsctlTransactCreateKind] = FspFileSystemOpCreate;
     FileSystem->Operations[FspFsctlTransactOverwriteKind] = FspFileSystemOpOverwrite;
@@ -183,7 +151,7 @@ FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR M
                 if (0 == (Drives & (1 << (Drive - 'A'))))
                 {
                     MountPoint[0] = Drive;
-                    if (FspFileSystemDefineDosDevice(DDD_RAW_TARGET_PATH, MountPoint, FileSystem))
+                    if (DefineDosDeviceW(DDD_RAW_TARGET_PATH, MountPoint, FileSystem->VolumeName))
                     {
                         Result = STATUS_SUCCESS;
                         goto exit;
@@ -209,7 +177,7 @@ FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR M
         memcpy(P, MountPoint, L);
         MountPoint = P;
 
-        if (FspFileSystemDefineDosDevice(DDD_RAW_TARGET_PATH, MountPoint, FileSystem))
+        if (DefineDosDeviceW(DDD_RAW_TARGET_PATH, MountPoint, FileSystem->VolumeName))
             Result = STATUS_SUCCESS;
         else
             Result = FspNtStatusFromWin32(GetLastError());
@@ -239,8 +207,8 @@ FSP_API VOID FspFileSystemRemoveMountPoint(FSP_FILE_SYSTEM *FileSystem)
     RemoveEntryList(&FileSystem->MountEntry);
     LeaveCriticalSection(&FspFileSystemMountListGuard);
 
-    FspFileSystemDefineDosDevice(DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
-        FileSystem->MountPoint, FileSystem);
+    DefineDosDeviceW(DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
+        FileSystem->MountPoint, FileSystem->VolumeName);
 
     MemFree(FileSystem->MountPoint);
     FileSystem->MountPoint = 0;

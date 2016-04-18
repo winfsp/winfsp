@@ -68,7 +68,7 @@ NTSTATUS FspVolumeCreate(
     GUID Guid;
     UNICODE_STRING DeviceSddl;
     UNICODE_STRING VolumeName;
-    WCHAR VolumeNameBuf[FSP_DEVICE_VOLUME_NAME_LENMAX / sizeof(WCHAR)];
+    WCHAR VolumeNameBuf[FSP_FSCTL_VOLUME_NAME_SIZE / sizeof(WCHAR)];
     PDEVICE_OBJECT FsvolDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
@@ -146,6 +146,7 @@ NTSTATUS FspVolumeCreate(
         Guid.Data4[0], Guid.Data4[1], Guid.Data4[2], Guid.Data4[3],
         Guid.Data4[4], Guid.Data4[5], Guid.Data4[6], Guid.Data4[7]);
     ASSERT(NT_SUCCESS(Result));
+    VolumeName.MaximumLength = VolumeName.Length;
 
     /* create the volume (and virtual disk) device(s) */
     Result = FspDeviceCreate(FspFsvolDeviceExtensionKind, 0,
@@ -495,10 +496,14 @@ NTSTATUS FspVolumeGetName(
     UNICODE_STRING VolumeName;
 
     ASSERT(FSP_FSCTL_VOLUME_NAME_SIZEMAX >=
-        FsvolDeviceExtension->VolumeName.MaximumLength + sizeof(WCHAR));
+        FsvolDeviceExtension->VolumeName.MaximumLength +
+        FsvolDeviceExtension->VolumePrefix.MaximumLength +
+        sizeof(WCHAR));
 
     RtlInitEmptyUnicodeString(&VolumeName, SystemBuffer, FSP_FSCTL_VOLUME_NAME_SIZEMAX);
     RtlCopyUnicodeString(&VolumeName, &FsvolDeviceExtension->VolumeName);
+    if (FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType)
+        RtlAppendUnicodeStringToString(&VolumeName, &FsvolDeviceExtension->VolumePrefix);
     VolumeName.Buffer[VolumeName.Length / sizeof(WCHAR)] = L'\0';
 
     Irp->IoStatus.Information = VolumeName.Length + sizeof(WCHAR);
