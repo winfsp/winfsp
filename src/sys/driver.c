@@ -36,6 +36,7 @@ NTSTATUS DriverEntry(
     FspDriverMultiVersionInitialize();
 
     FspDriverObject = DriverObject;
+    ExInitializeResourceLite(&FspDeviceGlobalResource);
 
     /* create the file system control device objects */
     UNICODE_STRING DeviceSddl;
@@ -182,8 +183,9 @@ VOID FspUnload(
 
     FspFsctlDiskDeviceObject = 0;
     FspFsctlNetDeviceObject = 0;
-    FspDeviceDeleteAll();
+    //FspDeviceDeleteAll();
 
+    ExDeleteResourceLite(&FspDeviceGlobalResource);
     FspDriverObject = 0;
 
 #pragma prefast(suppress:28175, "We are in DriverUnload: ok to access DriverName")

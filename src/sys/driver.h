@@ -742,14 +742,13 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-    UINT32 InitDoneFsvrt:1, InitDoneDelRsc:1, InitDoneIoq:1, InitDoneSec:1, InitDoneDir:1,
+    UINT32 InitDoneFsvrt:1, InitDoneIoq:1, InitDoneSec:1, InitDoneDir:1,
         InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1, InitDoneNotify:1;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     HANDLE MupHandle;
     PVPB SwapVpb;
     FSP_DELAYED_WORK_ITEM DeleteVolumeDelayedWorkItem;
-    ERESOURCE DeleteResource;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     UNICODE_STRING VolumePrefix;
     FSP_IOQ *Ioq;
@@ -825,6 +824,18 @@ NTSTATUS FspDeviceCopyList(
 VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
 VOID FspDeviceDeleteAll(VOID);
+static inline
+VOID FspDeviceGlobalLock(VOID)
+{
+    extern ERESOURCE FspDeviceGlobalResource;
+    ExAcquireResourceExclusiveLite(&FspDeviceGlobalResource, TRUE);
+}
+static inline
+VOID FspDeviceGlobalUnlock(VOID)
+{
+    extern ERESOURCE FspDeviceGlobalResource;
+    ExReleaseResourceLite(&FspDeviceGlobalResource);
+}
 #define FspFsvolDeviceStoppedStatus(DeviceObject)\
     STATUS_VOLUME_DISMOUNTED
     //(FILE_DEVICE_DISK_FILE_SYSTEM == (DeviceObject)->DeviceType ?\
@@ -1021,6 +1032,7 @@ extern FAST_IO_DISPATCH FspFastIoDispatch;
 extern CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
+extern ERESOURCE FspDeviceGlobalResource;
 extern WCHAR FspFileDescDirectoryPatternMatchAll[];
 extern FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
 

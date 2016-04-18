@@ -320,10 +320,6 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
         FsvolDeviceExtension->InitDoneFsvrt = 1;
     }
 
-    /* initialize our delete lock */
-    ExInitializeResourceLite(&FsvolDeviceExtension->DeleteResource);
-    FsvolDeviceExtension->InitDoneDelRsc = 1;
-
     /* create our Ioq */
     IrpTimeout.QuadPart = FsvolDeviceExtension->VolumeParams.IrpTimeout * 10000ULL;
         /* convert millis to nanos */
@@ -440,10 +436,6 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
         ExDeleteResourceLite(&FsvolDeviceExtension->ContextTableResource);
         ExDeleteResourceLite(&FsvolDeviceExtension->FileRenameResource);
     }
-
-    /* finalize our delete lock */
-    if (FsvolDeviceExtension->InitDoneDelRsc)
-        ExDeleteResourceLite(&FsvolDeviceExtension->DeleteResource);
 
     /* is there a virtual disk? */
     if (FsvolDeviceExtension->InitDoneFsvrt)
@@ -938,3 +930,5 @@ VOID FspDeviceDeleteAll(VOID)
 
     FspDeviceDeleteList(DeviceObjects, DeviceObjectCount);
 }
+
+ERESOURCE FspDeviceGlobalResource;

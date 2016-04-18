@@ -8,11 +8,17 @@
 
 NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspVolumeCreateNoLock(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static WORKER_THREAD_ROUTINE FspVolumeCreateRegisterMup;
 VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static VOID FspVolumeDeleteNoLock(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static WORKER_THREAD_ROUTINE FspVolumeDeleteDelayed;
 NTSTATUS FspVolumeMount(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspVolumeMountNoLock(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeRedirQueryPathEx(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
@@ -27,14 +33,17 @@ NTSTATUS FspVolumeWork(
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspVolumeCreate)
+#pragma alloc_text(PAGE, FspVolumeCreateNoLock)
 #pragma alloc_text(PAGE, FspVolumeCreateRegisterMup)
 // ! #pragma alloc_text(PAGE, FspVolumeDelete)
+// ! #pragma alloc_text(PAGE, FspVolumeDeleteNoLock)
 // ! #pragma alloc_text(PAGE, FspVolumeDeleteDelayed)
 // ! #pragma alloc_text(PAGE, FspVolumeMount)
+// ! #pragma alloc_text(PAGE, FspVolumeMountNoLock)
+#pragma alloc_text(PAGE, FspVolumeRedirQueryPathEx)
 #pragma alloc_text(PAGE, FspVolumeGetName)
 #pragma alloc_text(PAGE, FspVolumeTransact)
 #pragma alloc_text(PAGE, FspVolumeStop)
-#pragma alloc_text(PAGE, FspVolumeRedirQueryPathEx)
 #pragma alloc_text(PAGE, FspVolumeWork)
 #endif
 
@@ -49,6 +58,16 @@ typedef struct
 } FSP_CREATE_VOLUME_REGISTER_MUP_WORK_ITEM;
 
 NTSTATUS FspVolumeCreate(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    NTSTATUS Result;
+    FspDeviceGlobalLock();
+    Result = FspVolumeCreateNoLock(FsctlDeviceObject, Irp, IrpSp);
+    FspDeviceGlobalUnlock();
+    return Result;
+}
+
+static NTSTATUS FspVolumeCreateNoLock(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     PAGED_CODE();
@@ -240,6 +259,14 @@ static VOID FspVolumeCreateRegisterMup(PVOID Context)
 VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    FspDeviceGlobalLock();
+    FspVolumeDeleteNoLock(FsctlDeviceObject, Irp, IrpSp);
+    FspDeviceGlobalUnlock();
+}
+
+static VOID FspVolumeDeleteNoLock(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
     // !PAGED_CODE();
 
     ASSERT(IRP_MJ_CLEANUP == IrpSp->MajorFunction);
@@ -248,9 +275,6 @@ VOID FspVolumeDelete(
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     IrpSp->FileObject->FsContext2 = 0;
-
-    /* acquire the volume device DeleteResource */
-    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->DeleteResource, TRUE);
 
     /* stop the I/O queue */
     FspIoqStop(FsvolDeviceExtension->Ioq);
@@ -319,9 +343,6 @@ VOID FspVolumeDelete(
         FsvolDeviceExtension->MupHandle = 0;
     }
 
-    /* release the volume device DeleteResource */
-    ExReleaseResourceLite(&FsvolDeviceExtension->DeleteResource);
-
     /* release the volume device object */
     FspDeviceDereference(FsvolDeviceObject);
 }
@@ -344,9 +365,11 @@ static VOID FspVolumeDeleteDelayed(PVOID Context)
     IoReleaseVpbSpinLock(Irql);
     if (DeleteVpb)
     {
+        FspDeviceGlobalLock();
         FspFreeExternal(FsvolDeviceExtension->SwapVpb);
         FsvolDeviceExtension->SwapVpb = 0;
         FspDeviceDereference(FsvolDeviceObject);
+        FspDeviceGlobalUnlock();
     }
     else
     {
@@ -356,6 +379,16 @@ static VOID FspVolumeDeleteDelayed(PVOID Context)
 }
 
 NTSTATUS FspVolumeMount(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    NTSTATUS Result;
+    FspDeviceGlobalLock();
+    Result = FspVolumeMountNoLock(FsctlDeviceObject, Irp, IrpSp);
+    FspDeviceGlobalUnlock();
+    return Result;
+}
+
+static NTSTATUS FspVolumeMountNoLock(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     // !PAGED_CODE();
@@ -386,14 +419,12 @@ NTSTATUS FspVolumeMount(
                     FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
                     if (FsvolDeviceExtension->FsvrtDeviceObject == FsvrtDeviceObject)
                     {
-                        ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->DeleteResource, TRUE);
                         if (!FspIoqStopped(FsvolDeviceExtension->Ioq))
                         {
                             Result = STATUS_SUCCESS;
-                            /* break out of the loop without FspDeviceDereference or DeleteResource release! */
+                            /* break out of the loop without FspDeviceDereference */
                             break;
                         }
-                        ExReleaseResourceLite(&FsvolDeviceExtension->DeleteResource);
                     }
                 }
                 FspDeviceDereference(DeviceObjects[i]);
@@ -405,10 +436,10 @@ NTSTATUS FspVolumeMount(
 
     /*
      * At this point the volume device object we are going to use in the VPB
-     * has been FspDeviceReference'ed and the volume DeleteResource has been acquired.
+     * has been FspDeviceReference'd.
+     *
      * We will increment the VPB's ReferenceCount so that we can do a delayed delete
-     * of the volume device later on. Once done with the VPB we can release the
-     * DeleteResource. [The volume device remains FspDeviceReference'ed!]
+     * of the volume device later on.
      */
     ASSERT(0 != FsvolDeviceObject && 0 != FsvolDeviceExtension);
     IoAcquireVpbSpinLock(&Irql);
@@ -416,9 +447,6 @@ NTSTATUS FspVolumeMount(
     Vpb->DeviceObject = FsvolDeviceObject;
     Vpb->SerialNumber = FsvolDeviceExtension->VolumeParams.VolumeSerialNumber;
     IoReleaseVpbSpinLock(Irql);
-
-    /* done with mounting; release the DeleteResource */
-    ExReleaseResourceLite(&FsvolDeviceExtension->DeleteResource);
 
     Irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;
@@ -449,9 +477,6 @@ NTSTATUS FspVolumeRedirQueryPathEx(
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
 
-    /* acquire our DeleteResource */
-    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->DeleteResource, TRUE);
-
     Result = STATUS_BAD_NETWORK_PATH;
     if (!FspIoqStopped(FsvolDeviceExtension->Ioq))
     {
@@ -468,9 +493,6 @@ NTSTATUS FspVolumeRedirQueryPathEx(
             Result = STATUS_SUCCESS;
         }
     }
-
-    /* release the DeleteResource */
-    ExReleaseResourceLite(&FsvolDeviceExtension->DeleteResource);
 
     return Result;
 }
