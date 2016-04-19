@@ -95,4 +95,7 @@ BOOLEAN RemoveEntryList(PLIST_ENTRY Entry)
 VOID FspFileSystemInitialize(VOID);
 VOID FspFileSystemFinalize(VOID);
 
+NTSTATUS FspNpRegister(VOID);
+NTSTATUS FspNpUnregister(VOID);
+
 #endif

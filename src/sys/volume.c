@@ -24,6 +24,10 @@ NTSTATUS FspVolumeRedirQueryPathEx(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeGetNameList(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspVolumeGetNameListNoLock(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeTransact(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeStop(
@@ -42,6 +46,8 @@ NTSTATUS FspVolumeWork(
 // ! #pragma alloc_text(PAGE, FspVolumeMountNoLock)
 #pragma alloc_text(PAGE, FspVolumeRedirQueryPathEx)
 #pragma alloc_text(PAGE, FspVolumeGetName)
+#pragma alloc_text(PAGE, FspVolumeGetNameList)
+#pragma alloc_text(PAGE, FspVolumeGetNameListNoLock)
 #pragma alloc_text(PAGE, FspVolumeTransact)
 #pragma alloc_text(PAGE, FspVolumeStop)
 #pragma alloc_text(PAGE, FspVolumeWork)
@@ -60,6 +66,8 @@ typedef struct
 NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    PAGED_CODE();
+
     NTSTATUS Result;
     FspDeviceGlobalLock();
     Result = FspVolumeCreateNoLock(FsctlDeviceObject, Irp, IrpSp);
@@ -259,6 +267,8 @@ static VOID FspVolumeCreateRegisterMup(PVOID Context)
 VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    // !PAGED_CODE();
+
     FspDeviceGlobalLock();
     FspVolumeDeleteNoLock(FsctlDeviceObject, Irp, IrpSp);
     FspDeviceGlobalUnlock();
@@ -381,6 +391,8 @@ static VOID FspVolumeDeleteDelayed(PVOID Context)
 NTSTATUS FspVolumeMount(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
+    // !PAGED_CODE();
+
     NTSTATUS Result;
     FspDeviceGlobalLock();
     Result = FspVolumeMountNoLock(FsctlDeviceObject, Irp, IrpSp);
@@ -530,6 +542,85 @@ NTSTATUS FspVolumeGetName(
 
     Irp->IoStatus.Information = VolumeName.Length + sizeof(WCHAR);
     return STATUS_SUCCESS;
+}
+
+NTSTATUS FspVolumeGetNameList(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    FspDeviceGlobalLock();
+    Result = FspVolumeGetNameListNoLock(FsctlDeviceObject, Irp, IrpSp);
+    FspDeviceGlobalUnlock();
+    return Result;
+}
+
+static NTSTATUS FspVolumeGetNameListNoLock(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
+    ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
+    ASSERT(FSP_FSCTL_VOLUME_LIST == IrpSp->Parameters.FileSystemControl.FsControlCode);
+
+    NTSTATUS Result;
+    ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+    PVOID SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
+    PDEVICE_OBJECT *DeviceObjects = 0;
+    ULONG DeviceObjectCount = 0;
+    PDEVICE_OBJECT FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
+    UNICODE_STRING VolumeList;
+    USHORT Length;
+
+    if (65535/*USHRT_MAX*/ < OutputBufferLength)
+        return STATUS_INVALID_PARAMETER;
+
+    Result = FspDeviceCopyList(&DeviceObjects, &DeviceObjectCount);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    Result = STATUS_SUCCESS;
+    RtlInitEmptyUnicodeString(&VolumeList, SystemBuffer, (USHORT)OutputBufferLength);
+    for (ULONG i = 0; NT_SUCCESS(Result) && DeviceObjectCount > i; i++)
+        if (FspDeviceReference(DeviceObjects[i]))
+        {
+            if (FspFsvolDeviceExtensionKind == FspDeviceExtension(DeviceObjects[i])->Kind)
+            {
+                FsvolDeviceObject = DeviceObjects[i];
+                FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+                if (FsvolDeviceExtension->FsctlDeviceObject == FsctlDeviceObject &&
+                    !FspIoqStopped(FsvolDeviceExtension->Ioq))
+                {
+                    Length =
+                        FsvolDeviceExtension->VolumeName.Length +
+                        FsvolDeviceExtension->VolumePrefix.Length +
+                        sizeof(WCHAR);
+
+                    if (VolumeList.Length + Length <= VolumeList.MaximumLength)
+                    {
+                        RtlAppendUnicodeStringToString(&VolumeList, &FsvolDeviceExtension->VolumeName);
+                        if (FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType)
+                            RtlAppendUnicodeStringToString(&VolumeList, &FsvolDeviceExtension->VolumePrefix);
+                        VolumeList.Buffer[VolumeList.Length / sizeof(WCHAR)] = L'\0';
+                        VolumeList.Length += sizeof(WCHAR);
+                    }
+                    else
+                    {
+                        VolumeList.Length = 0;
+                        Result = STATUS_BUFFER_TOO_SMALL;
+                    }
+                }
+            }
+            FspDeviceDereference(DeviceObjects[i]);
+        }
+
+    FspDeviceDeleteList(DeviceObjects, DeviceObjectCount);
+
+    Irp->IoStatus.Information = VolumeList.Length;
+    return Result;
 }
 
 NTSTATUS FspVolumeTransact(

@@ -853,6 +853,8 @@ NTSTATUS FspVolumeRedirQueryPathEx(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeGetNameList(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeTransact(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeStop(

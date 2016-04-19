@@ -1,0 +1,5 @@
+EXPORTS
+    DllRegisterServer   PRIVATE
+    DllUnregisterServer PRIVATE
+    NPGetCaps           PRIVATE
+    NPGetConnection     PRIVATE

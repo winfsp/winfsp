@@ -34,6 +34,8 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 /* fsctl device codes */
 #define FSP_FSCTL_VOLUME_NAME           \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'N', METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define FSP_FSCTL_VOLUME_LIST           \
+    CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'L', METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSP_FSCTL_TRANSACT              \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'T', METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSP_FSCTL_TRANSACT_BATCH        \
@@ -405,6 +407,8 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     PVOID RequestBuf, SIZE_T *PRequestBufSize,
     BOOLEAN Batch);
 FSP_API NTSTATUS FspFsctlStop(HANDLE VolumeHandle);
+FSP_API NTSTATUS FspFsctlGetVolumeList(PWSTR DevicePath,
+    PWCHAR VolumeListBuf, PSIZE_T PVolumeListSize);
 #endif
 
 #ifdef __cplusplus

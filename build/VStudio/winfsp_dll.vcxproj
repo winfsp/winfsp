@@ -24,6 +24,7 @@
     <ClInclude Include="..\..\src\dll\library.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\dll\np.c" />
     <ClCompile Include="..\..\src\dll\security.c" />
     <ClCompile Include="..\..\src\dll\debug.c" />
     <ClCompile Include="..\..\src\dll\fsctl.c" />
@@ -34,6 +35,7 @@
     <ClCompile Include="..\..\src\dll\path.c" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\src\dll\library.def" />
     <None Include="..\..\src\dll\ntstatus.i" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -133,6 +135,7 @@
       <GenerateMapFile>true</GenerateMapFile>
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -156,6 +159,7 @@
       <GenerateMapFile>true</GenerateMapFile>
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -182,6 +186,7 @@
       <GenerateMapFile>true</GenerateMapFile>
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -208,6 +213,7 @@
       <GenerateMapFile>true</GenerateMapFile>
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -35,6 +35,9 @@ static NTSTATUS FspFsctlFileSystemControl(
             if (0 != IrpSp->FileObject->FsContext2)
                 Result = FspVolumeGetName(DeviceObject, Irp, IrpSp);
             break;
+        case FSP_FSCTL_VOLUME_LIST:
+            Result = FspVolumeGetNameList(DeviceObject, Irp, IrpSp);
+            break;
         case FSP_FSCTL_TRANSACT:
         case FSP_FSCTL_TRANSACT_BATCH:
             if (0 != IrpSp->FileObject->FsContext2)
