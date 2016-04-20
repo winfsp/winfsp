@@ -70,7 +70,7 @@ static ULONG argtol(wchar_t **argp, ULONG deflt)
 
     wchar_t *endp;
     ULONG ul = wcstol(argp[0], &endp, 10);
-    return 0 != ul ? ul : deflt;
+    return L'\0' != argp[0][0] && L'\0' == *endp ? ul : deflt;
 }
 
 static wchar_t *argtos(wchar_t **argp)
