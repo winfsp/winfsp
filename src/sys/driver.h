@@ -709,16 +709,6 @@ enum
 };
 typedef struct
 {
-    UINT64 Identifier;
-    PVOID Context;
-} FSP_DEVICE_CONTEXT_TABLE_ELEMENT_DATA;
-typedef struct
-{
-    RTL_BALANCED_LINKS Header;
-    FSP_DEVICE_CONTEXT_TABLE_ELEMENT_DATA Data;
-} FSP_DEVICE_CONTEXT_TABLE_ELEMENT;
-typedef struct
-{
     PUNICODE_STRING FileName;
     PVOID Context;
 } FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT_DATA;
@@ -759,8 +749,6 @@ typedef struct
     BOOLEAN ExpirationInProgress;
     ERESOURCE FileRenameResource;
     ERESOURCE ContextTableResource;
-    RTL_AVL_TABLE ContextTable;
-    PVOID ContextTableElementStorage;
     RTL_AVL_TABLE ContextByNameTable;
     PVOID ContextByNameTableElementStorage;
     UNICODE_STRING VolumeName;
@@ -800,11 +788,6 @@ VOID FspFsvolDeviceFileRenameRelease(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameReleaseOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
 VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
-PVOID FspFsvolDeviceLookupContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier);
-PVOID FspFsvolDeviceInsertContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier, PVOID Context,
-    FSP_DEVICE_CONTEXT_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
-VOID FspFsvolDeviceDeleteContext(PDEVICE_OBJECT DeviceObject, UINT64 Identifier,
-    PBOOLEAN PDeleted);
 NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
     PVOID **PContexts, PULONG PContextCount);
 VOID FspFsvolDeviceDeleteContextByNameList(PVOID *Contexts, ULONG ContextCount);
