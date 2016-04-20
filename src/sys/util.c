@@ -738,24 +738,11 @@ static VOID FspQueueDelayedWorkItemDPC(PKDPC Dpc,
     ExQueueWorkItem(&DelayedWorkItem->WorkQueueItem, DelayedWorkQueue);
 }
 
-static inline PVOID FspGetMdlAddress(PMDL Mdl)
-{
-    PVOID VirtualAddress = MmGetMdlVirtualAddress(Mdl);
-
-    if (0 == VirtualAddress)
-        VirtualAddress = MmGetSystemAddressForMdlSafe(Mdl, NormalPagePriority);
-
-    return VirtualAddress;
-}
-
 BOOLEAN FspSafeMdlCheck(PMDL Mdl)
 {
     PAGED_CODE();
 
-    PVOID VirtualAddress = FspGetMdlAddress(Mdl);
-    ULONG ByteCount = MmGetMdlByteCount(Mdl);
-
-    return 0 == BYTE_OFFSET(VirtualAddress) && 0 == BYTE_OFFSET(ByteCount);
+    return 0 == MmGetMdlByteOffset(Mdl) && 0 == BYTE_OFFSET(MmGetMdlByteCount(Mdl));
 }
 
 NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL **PSafeMdl)
@@ -763,7 +750,7 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
     PAGED_CODE();
 
     NTSTATUS Result;
-    PVOID VirtualAddress = FspGetMdlAddress(UserMdl);
+    PVOID VirtualAddress = MmGetSystemAddressForMdlSafe(UserMdl, NormalPagePriority);
     ULONG ByteCount = MmGetMdlByteCount(UserMdl);
     ULONG PageCount = ADDRESS_AND_SIZE_TO_SPAN_PAGES(VirtualAddress, ByteCount);
     FSP_SAFE_MDL *SafeMdl;
@@ -906,7 +893,7 @@ VOID FspSafeMdlCopyBack(FSP_SAFE_MDL *SafeMdl)
     if (IoReadAccess == SafeMdl->Operation)
         return;
 
-    PVOID VirtualAddress = FspGetMdlAddress(SafeMdl->UserMdl);
+    PVOID VirtualAddress = MmGetSystemAddressForMdlSafe(SafeMdl->UserMdl, NormalPagePriority);
     ULONG ByteCount = MmGetMdlByteCount(SafeMdl->UserMdl);
     ULONG PageCount = ADDRESS_AND_SIZE_TO_SPAN_PAGES(VirtualAddress, ByteCount);
     ULONG ByteOffsetBgn0, ByteOffsetEnd0, ByteOffsetEnd1;
