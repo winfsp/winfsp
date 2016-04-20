@@ -729,7 +729,7 @@ NTSTATUS FspFsvolDirectoryControlPrepare(
     MmBuildMdlForNonPagedPool(Mdl);
 
     /* map the MDL into user-mode */
-    Result = FspMapLockedPagesInUserMode(Mdl, &Address);
+    Result = FspMapLockedPagesInUserMode(Mdl, &Address, 0);
     if (!NT_SUCCESS(Result))
     {
         if (0 != Mdl)

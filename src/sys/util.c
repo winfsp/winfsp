@@ -15,7 +15,7 @@ static NTSTATUS FspSendSetInformationIrpCompletion(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context0);
 NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspLockUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
-NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress);
+NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress, ULONG ExtraPriorityFlags);
 NTSTATUS FspCcInitializeCacheMap(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes,
     BOOLEAN PinAccess, PCACHE_MANAGER_CALLBACKS Callbacks, PVOID CallbackContext);
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
@@ -355,13 +355,14 @@ NTSTATUS FspLockUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress)
+NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress, ULONG ExtraPriorityFlags)
 {
     PAGED_CODE();
 
     try
     {
-        *PAddress = MmMapLockedPagesSpecifyCache(Mdl, UserMode, MmCached, 0, FALSE, NormalPagePriority);
+        *PAddress = MmMapLockedPagesSpecifyCache(Mdl, UserMode, MmCached, 0, FALSE,
+            NormalPagePriority | ExtraPriorityFlags);
         return 0 != *PAddress ? STATUS_SUCCESS : STATUS_INSUFFICIENT_RESOURCES;
     }
     except (EXCEPTION_EXECUTE_HANDLER)

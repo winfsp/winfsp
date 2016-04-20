@@ -419,7 +419,7 @@ NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT File
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
 NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspLockUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
-NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress);
+NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress, ULONG ExtraPriorityFlags);
 NTSTATUS FspCcInitializeCacheMap(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes,
     BOOLEAN PinAccess, PCACHE_MANAGER_CALLBACKS Callbacks, PVOID CallbackContext);
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
@@ -1037,5 +1037,6 @@ extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
 extern ERESOURCE FspDeviceGlobalResource;
 extern WCHAR FspFileDescDirectoryPatternMatchAll[];
 extern FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
+extern ULONG FspMvMdlMappingNoWrite;
 
 #endif

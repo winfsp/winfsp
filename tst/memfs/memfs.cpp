@@ -10,6 +10,14 @@
 #include <map>
 #include <cassert>
 
+/*
+ * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
+ * a check for the Write buffer to ensure that it is read-only.
+ */
+#if !defined(NDEBUG)
+#define DEBUG_BUFFER_CHECK
+#endif
+
 #define MEMFS_SECTOR_SIZE               512
 #define MEMFS_SECTORS_PER_ALLOCATION_UNIT 1
 
@@ -501,6 +509,21 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
     PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
 {
+#if defined(DEBUG_BUFFER_CHECK)
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    for (PUINT8 P = (PUINT8)Buffer, EndP = P + Length; EndP > P; P += SystemInfo.dwPageSize)
+        __try
+        {
+            *P = *P | 0;
+            assert(0);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            /* ignore! */
+        }
+#endif
+
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     UINT64 EndOffset;
 

@@ -357,7 +357,8 @@ NTSTATUS FspFsvolWritePrepare(
     }
 
     /* map the MDL into user-mode */
-    Result = FspMapLockedPagesInUserMode(0 != SafeMdl ? SafeMdl->Mdl : Irp->MdlAddress, &Address);
+    Result = FspMapLockedPagesInUserMode(
+        0 != SafeMdl ? SafeMdl->Mdl : Irp->MdlAddress, &Address, FspMvMdlMappingNoWrite);
     if (!NT_SUCCESS(Result))
     {
         if (0 != SafeMdl)

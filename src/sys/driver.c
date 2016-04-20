@@ -165,14 +165,17 @@ NTSTATUS DriverEntry(
 
 static VOID FspDriverMultiVersionInitialize(VOID)
 {
-    UNICODE_STRING Name;
-
     if (RtlIsNtDdiVersionAvailable(NTDDI_WIN7))
     {
+        UNICODE_STRING Name;
+
         RtlInitUnicodeString(&Name, L"CcCoherencyFlushAndPurgeCache");
         FspMvCcCoherencyFlushAndPurgeCache =
             (FSP_MV_CcCoherencyFlushAndPurgeCache *)(UINT_PTR)MmGetSystemRoutineAddress(&Name);
     }
+
+    if (RtlIsNtDdiVersionAvailable(NTDDI_WIN8))
+        FspMvMdlMappingNoWrite = MdlMappingNoWrite;
 }
 
 #if defined(FSP_UNLOAD)
@@ -201,3 +204,4 @@ FAST_IO_DISPATCH FspFastIoDispatch;
 CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 
 FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
+ULONG FspMvMdlMappingNoWrite = 0;
