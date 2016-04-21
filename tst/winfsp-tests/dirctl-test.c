@@ -52,6 +52,9 @@ static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, UL
         ASSERT(Success);
     }
 
+    DWORD times[2];
+    times[0] = GetTickCount();
+
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir5\\*",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
     Handle = FindFirstFileW(FilePath, &FindData);
@@ -160,6 +163,10 @@ static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, UL
     Handle = FindFirstFileW(FilePath, &FindData);
     ASSERT(INVALID_HANDLE_VALUE == Handle);
     ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    times[1] = GetTickCount();
+    FspDebugLog(__FUNCTION__ "(Flags=%lx, Prefix=\"%S\", FileInfoTimeout=%ld, SleepTimeout=%ld): %ldms\n",
+        Flags, Prefix, FileInfoTimeout, SleepTimeout, times[1] - times[0]);
 
     for (int j = 1; 100 >= j; j++)
     {

@@ -88,7 +88,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
         Info->FileNameLength = FileName.Length;\
         __VA_ARGS__\
         Info = DestBuf;\
-        *Info = InfoStruct;\
+        RtlCopyMemory(Info, &InfoStruct, FIELD_OFFSET(TYPE, FileName));\
         RtlCopyMemory(Info->FileName, DirInfo->FileNameBuf, FileName.Length);\
     } while (0,0)
 #define FILL_INFO(TYPE, ...)\
@@ -367,6 +367,55 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
     BOOLEAN CanWait)
 {
+    /*
+     * The SystemBufferLength contains the length of the SystemBuffer that we
+     * are going to allocate (in FspFsvolQueryDirectoryBufferUserBuffer). This
+     * buffer is going to be used as the IRP SystemBuffer and it will also be
+     * mapped into the user mode file system process (in
+     * FspFsvolDirectoryControlPrepare) so that the file system can fill in the
+     * buffer.
+     *
+     * The SystemBufferLength is not the actual length that we are going to use
+     * when completing the IRP. This will be computed at IRP completion time
+     * (using FspFsvolQueryDirectoryCopy). Instead the SystemBufferLength is
+     * the size that we want the user mode file system to see and it may be
+     * different from the requested length for the following reasons:
+     *
+     *   - If the FileInfoTimeout is non-zero, then the directory maintains a
+     *     DirInfo meta cache that can be used to fulfill IRP requests without
+     *     reaching out to user mode. In this case we want the SystemBufferLength
+     *     to be FspFsvolDeviceDirInfoCacheItemSizeMax so that we read up to the
+     *     cache size maximum.
+     *
+     *   - If the requested DirectoryPattern (stored in FileDesc) is not the "*"
+     *     (MatchAll) pattern, then we want to read as many entries as possible
+     *     from the user mode file system to avoid multiple roundtrips to user
+     *     mode when doing file name matching. In this case we set again the
+     *     SystemBufferLength to be FspFsvolDeviceDirInfoCacheItemSizeMax. This
+     *     is an important optimization and without it QueryDirectory is *very*
+     *     slow without the DirInfo meta cache (i.e. when FileInfoTimeout is 0).
+     *
+     *   - If the requsted DirectoryPattern is the MatchAll pattern then we set
+     *     the SystemBufferLength to the requested (IRP) length as it is actually
+     *     counter-productive to try to read more than we need.
+     *
+     * Note that we have made the decision not to forward the directory pattern
+     * to user mode and instead do all pattern matching in kernel mode. The
+     * primary reason for this decision was considerations about the DirInfo meta
+     * cache. If it is determined that this was a bad decision in the future,
+     * we can always start sending the directory pattern to user mode under some
+     * circumstances (e.g. when doing non-cached reads).
+     */
+#define GetSystemBufferLengthMaybeCached()\
+    (0 != FsvolDeviceExtension->VolumeParams.FileInfoTimeout && 0 == FileDesc->DirectoryOffset) ||\
+    FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer ?\
+        FspFsvolDeviceDirInfoCacheItemSizeMax : Length
+#define GetSystemBufferLengthNonCached()\
+    FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer ?\
+        FspFsvolDeviceDirInfoCacheItemSizeMax : Length
+#define GetSystemBufferLengthBestGuess()\
+    FspFsvolDeviceDirInfoCacheItemSizeMax
+
     PAGED_CODE();
 
     NTSTATUS Result;
@@ -400,8 +449,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     if (!Success)
     {
         if (0 == SystemBufferLength)
-            SystemBufferLength = 0 != FsvolDeviceExtension->VolumeParams.FileInfoTimeout ?
-                FspFsvolDeviceDirInfoCacheItemSizeMax : Length; /* best guess! */
+            SystemBufferLength = GetSystemBufferLengthBestGuess();
 
         Result = FspFsvolQueryDirectoryBufferUserBuffer(
             FsvolDeviceExtension, Irp, &SystemBufferLength);
@@ -452,7 +500,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     if (FspFileNodeReferenceDirInfo(FileNode, &DirInfoBuffer, &DirInfoSize))
     {
         if (0 == SystemBufferLength)
-            SystemBufferLength = Length;
+            SystemBufferLength = GetSystemBufferLengthNonCached();
 
         Result = FspFsvolQueryDirectoryCopyCache(FileDesc,
             IndexSpecified || RestartScan,
@@ -471,8 +519,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     else
     {
         if (0 == SystemBufferLength)
-            SystemBufferLength = 0 != FsvolDeviceExtension->VolumeParams.FileInfoTimeout ?
-                FspFsvolDeviceDirInfoCacheItemSizeMax : Length;
+            SystemBufferLength = GetSystemBufferLengthMaybeCached();
     }
 
     FspFileNodeConvertExclusiveToShared(FileNode, Full);
@@ -504,6 +551,10 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     FspIopRequestContext(Request, RequestFileNode) = FileNode;
 
     return FSP_STATUS_IOQ_POST;
+
+#undef GetSystemBufferLengthBestGuess
+#undef GetSystemBufferLengthNonCached
+#undef GetSystemBufferLengthMaybeCached
 }
 
 static NTSTATUS FspFsvolQueryDirectory(
