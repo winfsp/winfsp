@@ -273,6 +273,7 @@ typedef struct
             UINT64 Address;
             UINT64 Offset;
             UINT32 Length;
+            FSP_FSCTL_TRANSACT_BUF Pattern;
         } QueryDirectory;
         struct
         {

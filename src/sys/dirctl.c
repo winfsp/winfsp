@@ -398,13 +398,6 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
      *   - If the requsted DirectoryPattern is the MatchAll pattern then we set
      *     the SystemBufferLength to the requested (IRP) length as it is actually
      *     counter-productive to try to read more than we need.
-     *
-     * Note that we have made the decision not to forward the directory pattern
-     * to user mode and instead do all pattern matching in kernel mode. The
-     * primary reason for this decision was considerations about the DirInfo meta
-     * cache. If it is determined that this was a bad decision in the future,
-     * we can always start sending the directory pattern to user mode under some
-     * circumstances (e.g. when doing non-cached reads).
      */
 #define GetSystemBufferLengthMaybeCached()\
     (0 != FsvolDeviceExtension->VolumeParams.FileInfoTimeout && 0 == FileDesc->DirectoryOffset) ||\
@@ -534,7 +527,10 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     }
 
     /* create request */
-    Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolQueryDirectoryRequestFini, &Request);
+    Result = FspIopCreateRequestEx(Irp, 0,
+        FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer ?
+            FileDesc->DirectoryPattern.Length + sizeof(WCHAR) : 0,
+        FspFsvolQueryDirectoryRequestFini, &Request);
     if (!NT_SUCCESS(Result))
     {
         FspFileNodeRelease(FileNode, Full);
@@ -546,6 +542,17 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     Request->Req.QueryDirectory.UserContext2 = FileDesc->UserContext2;
     Request->Req.QueryDirectory.Offset = FileDesc->DirectoryOffset;
     Request->Req.QueryDirectory.Length = SystemBufferLength;
+
+    if (FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
+    {
+        Request->Req.QueryDirectory.Pattern.Offset = Request->FileName.Size;
+        Request->Req.QueryDirectory.Pattern.Size =
+            FileDesc->DirectoryPattern.Length + sizeof(WCHAR);
+        RtlCopyMemory(Request->Buffer + Request->FileName.Size,
+            FileDesc->DirectoryPattern.Buffer, FileDesc->DirectoryPattern.Length);
+        *(PWSTR)(Request->Buffer + Request->FileName.Size + FileDesc->DirectoryPattern.Length) =
+            L'\0';
+    }
 
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestFileNode) = FileNode;

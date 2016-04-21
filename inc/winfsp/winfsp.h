@@ -534,6 +534,10 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     two entries returned by ReadDirectory should always be the "." and ".." entries.
      * @param Length
      *     Length of data to read.
+     * @param Pattern
+     *     The pattern to match against files in this directory. Can be NULL. The file system
+     *     can choose to ignore this parameter as the FSD will always perform its own pattern
+     *     matching on the returned results.
      * @param PBytesTransferred [out]
      *     Pointer to a memory location that will receive the actual number of bytes read.
      * @return
@@ -545,6 +549,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     NTSTATUS (*ReadDirectory)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
+        PWSTR Pattern,
         PULONG PBytesTransferred);
 } FSP_FILE_SYSTEM_INTERFACE;
 typedef struct _FSP_FILE_SYSTEM
