@@ -426,8 +426,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * Determine whether a file or directory can be deleted.
      *
      * This function tests whether a file or directory can be safely deleted. This function does
-     * need to perform access checks, but may performs tasks such as check for empty directories,
-     * etc.
+     * not need to perform access checks, but may performs tasks such as check for empty
+     * directories, etc.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
