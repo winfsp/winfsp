@@ -1,5 +1,15 @@
 /**
  * @file winfsp/winfsp.h
+ * WinFsp user mode API.
+ *
+ * A user mode file system is a program that uses the WinFsp API to expose a file system to
+ * Windows. The user mode file system must implement the operations in FSP_FILE_SYSTEM_INTERFACE,
+ * create a file system object using FspFileSystemCreate and start its dispatcher using
+ * FspFileSystemStartDispatcher. At that point it will start receing file system requests on the
+ * FSP_FILE_SYSTEM_INTERFACE operations.
+ *
+ * In order to use the WinFsp API the user mode file system must include &lt;winfsp/winfsp.h&gt;
+ * and link with the winfsp_x64.dll (or winfsp_x86.dll) library.
  *
  * @copyright 2015-2016 Bill Zissimopoulos
  */
@@ -35,6 +45,10 @@ typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *,
     FSP_FSCTL_TRANSACT_REQ *, FSP_FSCTL_TRANSACT_RSP *);
 /**
  * @class FSP_FILE_SYSTEM
+ * File system interface.
+ *
+ * The operations in this interface must be implemented by the user mode
+ * file system.
  */
 typedef struct _FSP_FILE_SYSTEM_INTERFACE
 {
