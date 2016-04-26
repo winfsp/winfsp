@@ -29,6 +29,10 @@ The project source code is organized as follows:
 * tst/memfs: contains the source code to an example file system written in C++ (memfs).
 * tst/winfsp-tests: contains the WinFsp test suite.
 
+## Building
+
+In order to build WinFsp you will need Windows 10 and Visual Studio 2015. You will also need the Windows Driver Kit (WDK) 10.
+
 ## License
 
 WinFsp is available under the [AGPLv3](http://www.gnu.org/licenses/agpl-3.0.html) license. If you find the constraints of the AGPLv3 too onerous, a commercial license is also available. Please contact Bill Zissimopoulos <billziss at navimatics.com> for more details.
