@@ -311,7 +311,7 @@ typedef struct
     UINT64 Hint;
     struct
     {
-        UINT64 Information;
+        UINT32 Information;
         UINT32 Status;
     } IoStatus;
     union

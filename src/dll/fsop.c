@@ -304,7 +304,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     UINT32 GrantedAccess;
     PVOID FileNode;
     FSP_FSCTL_FILE_INFO FileInfo;
-    UINT_PTR Information;
+    UINT32 Information;
 
     Result = FspAccessCheck(FileSystem, Request, TRUE, TRUE,
         Request->Req.Create.DesiredAccess, &GrantedAccess);

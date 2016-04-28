@@ -693,7 +693,7 @@ NTSTATUS FspVolumeTransact(
         if (0 == ProcessIrp)
         {
             /* either IRP was canceled or a bogus Hint was provided */
-            DEBUGLOG("BOGUS(Kind=%d, Hint=%p)", Response->Kind, (PVOID)Response->Hint);
+            DEBUGLOG("BOGUS(Kind=%d, Hint=%p)", Response->Kind, (PVOID)(UINT_PTR)Response->Hint);
             Response = NextResponse;
             continue;
         }

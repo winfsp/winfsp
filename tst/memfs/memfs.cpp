@@ -396,7 +396,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     FileNode->FileInfo.AllocationSize = AllocationSize;
     if (0 != FileNode->FileInfo.AllocationSize)
     {
-        FileNode->FileData = malloc(FileNode->FileInfo.AllocationSize);
+        FileNode->FileData = malloc((size_t)FileNode->FileInfo.AllocationSize);
         if (0 == FileNode->FileData)
         {
             MemfsFileNodeDelete(FileNode);
@@ -507,7 +507,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     if (EndOffset > FileNode->FileInfo.FileSize)
         EndOffset = FileNode->FileInfo.FileSize;
 
-    memcpy(Buffer, (PUINT8)FileNode->FileData + Offset, EndOffset - Offset);
+    memcpy(Buffer, (PUINT8)FileNode->FileData + Offset, (size_t)(EndOffset - Offset));
 
     *PBytesTransferred = (ULONG)(EndOffset - Offset);
 
@@ -555,7 +555,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
             SetFileSize(FileSystem, Request, FileNode, EndOffset, FileInfo);
     }
 
-    memcpy((PUINT8)FileNode->FileData + Offset, Buffer, EndOffset - Offset);
+    memcpy((PUINT8)FileNode->FileData + Offset, Buffer, (size_t)(EndOffset - Offset));
 
     *PBytesTransferred = (ULONG)(EndOffset - Offset);
     *FileInfo = FileNode->FileInfo;
@@ -619,7 +619,7 @@ static NTSTATUS SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
         if (AllocationSize > Memfs->MaxFileSize)
             return STATUS_DISK_FULL;
 
-        FileData = realloc(FileNode->FileData, AllocationSize);
+        FileData = realloc(FileNode->FileData, (size_t)AllocationSize);
         if (0 == FileData)
             return STATUS_INSUFFICIENT_RESOURCES;
 
@@ -656,7 +656,7 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
 
         if (FileNode->FileInfo.FileSize < FileSize)
             memset((PUINT8)FileNode->FileData + FileNode->FileInfo.FileSize, 0,
-                FileSize - FileNode->FileInfo.FileSize);
+                (size_t)(FileSize - FileNode->FileInfo.FileSize));
         FileNode->FileInfo.FileSize = FileSize;
     }
 
