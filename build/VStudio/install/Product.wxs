@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-    <Product Id="*" Name="WinFsp" Language="1033" Version="0.9.0" Manufacturer="Navimatics Corporation" UpgradeCode="82f812d9-4083-4ef1-8bc8-0f1eda05b46b">
-        <Package InstallerVersion="200" Compressed="yes" InstallScope="perUser" InstallPrivileges="elevated" />
+    <Product Id="*" Name="WinFsp" Language="1033" Version="0.9.0" Manufacturer="Navimatics Corporation" UpgradeCode="82F812D9-4083-4EF1-8BC8-0F1EDA05B46B">
+        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
         <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
         <Media Id="1" Cabinet="WinFsp.cab" EmbedCab="yes" />
         <Directory Id="TARGETDIR" Name="SourceDir">
@@ -14,48 +14,50 @@
             </Directory>
         </Directory>
         <DirectoryRef Id="BINDIR" FileSource="..\build\Release">
-            <Component Id="C.winfsp-x64.sys">
-                <File Source="winfsp-x64.sys" KeyPath="yes" />
+            <Component Id="C.winfsp_x64.sys">
+                <File Name="winfsp-x64.sys" KeyPath="yes" />
             </Component>
-            <Component Id="C.winfsp-x86.sys">
-                <File Source="winfsp-x86.sys" KeyPath="yes" />
+            <Component Id="C.winfsp_x86.sys">
+                <File Name="winfsp-x86.sys" KeyPath="yes" />
             </Component>
-            <Component Id="C.winfsp-x64.dll">
-                <File Source="winfsp-x64.dll" KeyPath="yes" />
+            <Component Id="C.winfsp_x64.dll">
+                <File Name="winfsp-x64.dll" KeyPath="yes" />
             </Component>
-            <Component Id="C.winfsp-x86.dll">
-                <File Source="winfsp-x86.dll" KeyPath="yes" />
-            </Component>
-        </DirectoryRef>
-        <DirectoryRef Id="INCDIR" FileSource="..\..\inc">
-            <Component Id="C.fsctl.h" Directory="winfsp">
-                <File Source="fsctl.h" KeyPath="yes" />
-            </Component>
-            <Component Id="C.winfsp.h" Directory="winfsp">
-                <File Source="winfsp.h" KeyPath="yes" />
+            <Component Id="C.winfsp_x86.dll">
+                <File Name="winfsp-x86.dll" KeyPath="yes" />
             </Component>
         </DirectoryRef>
-        <DirectoryRef Id="LIBDIR" FileSource="..\..\Release">
-            <Component Id="C.fsctl.h" Directory="winfsp">
-                <File Source="fsctl.h" KeyPath="yes" />
+        <DirectoryRef Id="INCDIR" FileSource="..\..\..\inc">
+            <Directory Id="INCDIR.winfsp" Name="winfsp">
+                <Component Id="C.fsctl.h">
+                    <File Name="fsctl.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.winfsp.h">
+                    <File Name="winfsp.h" KeyPath="yes" />
+                </Component>
+            </Directory>
+        </DirectoryRef>
+        <DirectoryRef Id="LIBDIR" FileSource="..\build\Release">
+            <Component Id="C.winfsp_x64.lib">
+                <File Name="winfsp-x64.lib" KeyPath="yes" />
             </Component>
-            <Component Id="C.winfsp.h" Directory="winfsp">
-                <File Source="winfsp.h" KeyPath="yes" />
+            <Component Id="C.winfsp_x86.lib">
+                <File Name="winfsp-x86.lib" KeyPath="yes" />
             </Component>
         </DirectoryRef>
         <ComponentGroup Id="C.WinFsp.bin">
-            <ComponentRef Id="C.winfsp-x64.sys" />
-            <ComponentRef Id="C.winfsp-x86.sys" />
-            <ComponentRef Id="C.winfsp-x64.dll" />
-            <ComponentRef Id="C.winfsp-x86.dll" />
+            <ComponentRef Id="C.winfsp_x64.sys" />
+            <ComponentRef Id="C.winfsp_x86.sys" />
+            <ComponentRef Id="C.winfsp_x64.dll" />
+            <ComponentRef Id="C.winfsp_x86.dll" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.inc">
             <ComponentRef Id="C.fsctl.h" />
             <ComponentRef Id="C.winfsp.h" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.lib">
-            <ComponentRef Id="C.winfsp-x64.lib" />
-            <ComponentRef Id="C.winfsp-x86.lib" />
+            <ComponentRef Id="C.winfsp_x64.lib" />
+            <ComponentRef Id="C.winfsp_x86.lib" />
         </ComponentGroup>
         <Feature Id="F.User" Level="1" Title="User">
             <ComponentGroupRef Id="C.WinFsp.bin" />
