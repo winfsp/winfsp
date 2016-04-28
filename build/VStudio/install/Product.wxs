@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Id="*" Name="WinFsp" Language="1033" Version="0.9.0" Manufacturer="Navimatics Corporation" UpgradeCode="82f812d9-4083-4ef1-8bc8-0f1eda05b46b">
+        <Package InstallerVersion="200" Compressed="yes" InstallScope="perUser" InstallPrivileges="elevated" />
+        <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+        <Media Id="1" Cabinet="WinFsp.cab" EmbedCab="yes" />
+        <Feature Id="F.User" Level="1" Title="User">
+            <ComponentRef Id="C.WinFsp.x64" />
+            <ComponentRef Id="C.WinFsp.x86" />
+        </Feature>
+        <Feature Id="F.Developer" Level="1" Title="Developer">
+            <ComponentRef Id="C.WinFsp.x64" />
+            <ComponentRef Id="C.WinFsp.x86" />
+            <ComponentRef Id="C.WinFsp.inc" />
+        </Feature>
+        <UI />
+    </Product>
+    <Fragment>
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFilesFolder">
+                <Directory Id="INSTALLDIR" Name="WinFsp">
+                    <Directory Id="BINDIR" Name="bin" />
+                    <Directory Id="INCDIR" Name="inc" />
+                </Directory>
+            </Directory>
+        </Directory>
+    </Fragment>
+    <Fragment>
+        <Component Id="C.WinFsp.x64" Directory="BINDIR">
+            <File Name="winfsp-x64.dll" />
+            <File Name="winfsp-x64.sys" />
+        </Component>
+        <Component Id="C.WinFsp.x86" Directory="BINDIR">
+            <File Name="winfsp-x86.dll" />
+            <File Name="winfsp-x86.sys" />
+        </Component>
+        <Component Id="C.WinFsp.inc" Directory="INCDIR">
+            <File Name="winfsp.h" />
+            <File Name="fsctl.h" />
+        </Component>
+    </Fragment>
+</Wix>
