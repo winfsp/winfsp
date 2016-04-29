@@ -1,8 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-    <Product Id="*" Name="$(var.MyProductName)" Manufacturer="$(var.MyCompanyName)" Version="$(var.MyVersion)" Language="1033" UpgradeCode="82F812D9-4083-4EF1-8BC8-0F1EDA05B46B">
-        <Package Description="$(var.MyProductName) - $(var.MyDescription)" InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
-        <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <Product
+        Id="*"
+        Name="$(var.MyProductName)"
+        Manufacturer="$(var.MyCompanyName)"
+        Version="$(var.MyVersion)"
+        Language="1033"
+        UpgradeCode="82F812D9-4083-4EF1-8BC8-0F1EDA05B46B">
+        <Package
+            Description="$(var.MyProductName) - $(var.MyDescription)"
+            InstallerVersion="200"
+            Compressed="yes"
+            InstallScope="perMachine" />
+        <MajorUpgrade
+            DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
         <Media Id="1" Cabinet="WinFsp.cab" EmbedCab="yes" />
         <Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="ProgramFilesFolder">
@@ -86,15 +97,60 @@
             <ComponentRef Id="C.memfs.cpp" />
             <ComponentRef Id="C.memfs_main.c" />
         </ComponentGroup>
-        <Feature Id="F.User" Level="1" Title="User">
-            <ComponentGroupRef Id="C.WinFsp.bin" />
+        <Feature
+            Id="F.Main"
+            Level="1"
+            Title="$(var.MyProductName) $(var.MyVersion)"
+            Description="$(var.MyDescription)"
+            Display="expand"
+            ConfigurableDirectory="INSTALLDIR"
+            AllowAdvertise="no"
+            InstallDefault="local"
+            Absent="disallow">
+            <!-- dummy component to eliminate "installed to run from network" option -->
+            <Component
+                Id="C.Dummy"
+                Guid="{10EF63D3-A790-475C-B978-A22A6A16FE00}"
+                Directory="INSTALLDIR"
+                KeyPath="yes" />
+            <Feature
+                Id="F.User"
+                Level="1"
+                Title="Core"
+                Description="The core $(var.MyProductName) files."
+                AllowAdvertise="no"
+                InstallDefault="local"
+                Absent="disallow">
+                <ComponentGroupRef Id="C.WinFsp.bin" />
+            </Feature>
+            <Feature
+                Id="F.Developer"
+                Level="1000"
+                Title="Developer"
+                Description="Additional files needed for development."
+                AllowAdvertise="no"
+                InstallDefault="local"
+                Absent="allow">
+                <ComponentGroupRef Id="C.WinFsp.inc" />
+                <ComponentGroupRef Id="C.WinFsp.lib" />
+                <ComponentGroupRef Id="C.WinFsp.smp" />
+            </Feature>
         </Feature>
-        <Feature Id="F.Developer" Level="1" Title="Developer">
-            <ComponentGroupRef Id="C.WinFsp.bin" />
-            <ComponentGroupRef Id="C.WinFsp.inc" />
-            <ComponentGroupRef Id="C.WinFsp.lib" />
-            <ComponentGroupRef Id="C.WinFsp.smp" />
-        </Feature>
-        <UI />
+        <UI Id="FeatureTree">
+            <UIRef Id="WixUI_FeatureTree" />
+            <!-- skip the license agreement dialog; higher Order takes priority (weird) -->
+            <Publish
+                Dialog="WelcomeDlg"
+                Control="Next"
+                Event="NewDialog"
+                Value="CustomizeDlg"
+                Order="10">NOT Installed</Publish>
+            <Publish
+                Dialog="CustomizeDlg"
+                Control="Back"
+                Event="NewDialog"
+                Value="WelcomeDlg"
+                Order="10">NOT Installed</Publish>
+        </UI>
     </Product>
 </Wix>
