@@ -10,10 +10,11 @@
                     <Directory Id="BINDIR" Name="bin" />
                     <Directory Id="INCDIR" Name="inc" />
                     <Directory Id="LIBDIR" Name="lib" />
+                    <Directory Id="SMPDIR" Name="samples" />
                 </Directory>
             </Directory>
         </Directory>
-        <DirectoryRef Id="BINDIR" FileSource="..\build\Release">
+        <DirectoryRef Id="BINDIR" FileSource="..\build\$(var.Configuration)">
             <Component Id="C.winfsp_x64.sys">
                 <File Name="winfsp-x64.sys" KeyPath="yes" />
             </Component>
@@ -26,6 +27,12 @@
             <Component Id="C.winfsp_x86.dll">
                 <File Name="winfsp-x86.dll" KeyPath="yes" />
             </Component>
+            <Component Id="C.memfs_x64.exe">
+                <File Name="memfs-x64.exe" KeyPath="yes" />
+            </Component>
+            <Component Id="C.memfs_x86.exe">
+                <File Name="memfs-x86.exe" KeyPath="yes" />
+            </Component>
         </DirectoryRef>
         <DirectoryRef Id="INCDIR" FileSource="..\..\..\inc">
             <Directory Id="INCDIR.winfsp" Name="winfsp">
@@ -37,7 +44,7 @@
                 </Component>
             </Directory>
         </DirectoryRef>
-        <DirectoryRef Id="LIBDIR" FileSource="..\build\Release">
+        <DirectoryRef Id="LIBDIR" FileSource="..\build\$(var.Configuration)">
             <Component Id="C.winfsp_x64.lib">
                 <File Name="winfsp-x64.lib" KeyPath="yes" />
             </Component>
@@ -45,11 +52,26 @@
                 <File Name="winfsp-x86.lib" KeyPath="yes" />
             </Component>
         </DirectoryRef>
+        <DirectoryRef Id="SMPDIR" FileSource="..\..\..\tst">
+            <Directory Id="SMPDIR.memfs" Name="memfs">
+                <Component Id="C.memfs.h">
+                    <File Name="memfs.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.memfs.cpp">
+                    <File Name="memfs.cpp" KeyPath="yes" />
+                </Component>
+                <Component Id="C.memfs_main.c">
+                    <File Name="memfs-main.c" KeyPath="yes" />
+                </Component>
+            </Directory>
+        </DirectoryRef>
         <ComponentGroup Id="C.WinFsp.bin">
             <ComponentRef Id="C.winfsp_x64.sys" />
             <ComponentRef Id="C.winfsp_x86.sys" />
             <ComponentRef Id="C.winfsp_x64.dll" />
             <ComponentRef Id="C.winfsp_x86.dll" />
+            <ComponentRef Id="C.memfs_x64.exe" />
+            <ComponentRef Id="C.memfs_x86.exe" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.inc">
             <ComponentRef Id="C.fsctl.h" />
@@ -59,6 +81,11 @@
             <ComponentRef Id="C.winfsp_x64.lib" />
             <ComponentRef Id="C.winfsp_x86.lib" />
         </ComponentGroup>
+        <ComponentGroup Id="C.WinFsp.smp">
+            <ComponentRef Id="C.memfs.h" />
+            <ComponentRef Id="C.memfs.cpp" />
+            <ComponentRef Id="C.memfs_main.c" />
+        </ComponentGroup>
         <Feature Id="F.User" Level="1" Title="User">
             <ComponentGroupRef Id="C.WinFsp.bin" />
         </Feature>
@@ -66,6 +93,7 @@
             <ComponentGroupRef Id="C.WinFsp.bin" />
             <ComponentGroupRef Id="C.WinFsp.inc" />
             <ComponentGroupRef Id="C.WinFsp.lib" />
+            <ComponentGroupRef Id="C.WinFsp.smp" />
         </Feature>
         <UI />
     </Product>
