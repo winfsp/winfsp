@@ -15,6 +15,15 @@
         <MajorUpgrade
             DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
         <Media Id="1" Cabinet="WinFsp.cab" EmbedCab="yes" />
+        <Property Id="P.RegistryKey">Software\$(var.MyProductName)</Property>
+        <Property Id="INSTALLDIR">
+            <RegistrySearch
+                Id="R.INSTALLDIR"
+                Root="HKLM"
+                Key="[P.RegistryKey]"
+                Name="InstallDir"
+                Type="raw" />
+        </Property>
         <Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="ProgramFilesFolder">
                 <Directory Id="INSTALLDIR" Name="WinFsp">
@@ -25,6 +34,16 @@
                 </Directory>
             </Directory>
         </Directory>
+        <DirectoryRef Id="INSTALLDIR">
+            <Component Id="C.INSTALLDIR">
+                <RegistryValue
+                    Root="HKLM"
+                    Key="[P.RegistryKey]"
+                    Name="InstallDir"
+                    Type="string"
+                    Value="[INSTALLDIR]" />
+            </Component>
+        </DirectoryRef>
         <DirectoryRef Id="BINDIR" FileSource="..\build\$(var.Configuration)">
             <Component Id="C.winfsp_x64.sys">
                 <File Name="winfsp-x64.sys" KeyPath="yes" />
@@ -107,12 +126,7 @@
             AllowAdvertise="no"
             InstallDefault="local"
             Absent="disallow">
-            <!-- dummy component to eliminate "installed to run from network" option -->
-            <Component
-                Id="C.Dummy"
-                Guid="{10EF63D3-A790-475C-B978-A22A6A16FE00}"
-                Directory="INSTALLDIR"
-                KeyPath="yes" />
+            <ComponentRef Id="C.INSTALLDIR" />
             <Feature
                 Id="F.User"
                 Level="1"
