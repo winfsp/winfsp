@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
     <Product Id="*" Name="WinFsp" Language="1033" Version="0.9.0" Manufacturer="Navimatics Corporation" UpgradeCode="82F812D9-4083-4EF1-8BC8-0F1EDA05B46B">
-        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" Description="WinFsp - Windows File System Proxy" />
         <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
         <Media Id="1" Cabinet="WinFsp.cab" EmbedCab="yes" />
         <Directory Id="TARGETDIR" Name="SourceDir">
