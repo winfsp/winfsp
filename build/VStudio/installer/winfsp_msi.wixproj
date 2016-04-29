@@ -13,16 +13,16 @@
     <Name>winfsp.msi</Name>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
-    <OutputPath>..\build\$(Configuration)\</OutputPath>
-    <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
+    <OutputPath>$(SolutionDir)build\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>$(SolutionDir)build\$(Name).build\$(Configuration)\$(Platform)\</IntermediateOutputPath>
     <DefineConstants>Debug</DefineConstants>
     <SuppressAllWarnings>False</SuppressAllWarnings>
     <Pedantic>True</Pedantic>
     <SuppressPdbOutput>True</SuppressPdbOutput>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
-    <OutputPath>..\build\$(Configuration)\</OutputPath>
-    <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
+    <OutputPath>$(SolutionDir)build\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>$(SolutionDir)build\$(Name).build\$(Configuration)\$(Platform)\</IntermediateOutputPath>
     <SuppressAllWarnings>False</SuppressAllWarnings>
     <Pedantic>True</Pedantic>
     <SuppressPdbOutput>True</SuppressPdbOutput>
