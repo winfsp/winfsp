@@ -166,5 +166,59 @@
                 Value="WelcomeDlg"
                 Order="10">NOT Installed</Publish>
         </UI>
+        <!--
+            Use a bunch of custom actions to register our FSD/DLL.
+            Turns out that Wix cannot be used to register legacy drivers or
+            Network Provider DLL's.
+        -->
+        <CustomAction
+            Id="A.WinFsp.x64.Register"
+            Execute="deferred"
+            Impersonate="no"
+            Directory="BINDIR"
+            ExeCommand="&quot;[WindowsFolder]System32\regsvr32.exe&quot; winfsp-x64.dll"
+            Return="check" />
+        <CustomAction
+            Id="A.WinFsp.x64.Unregister"
+            Execute="deferred"
+            Impersonate="no"
+            Directory="BINDIR"
+            ExeCommand="&quot;[WindowsFolder]System32\regsvr32.exe&quot; /u winfsp-x64.dll"
+            Return="ignore" />
+        <CustomAction
+            Id="A.WinFsp.x86.Register"
+            Execute="deferred"
+            Impersonate="no"
+            Directory="BINDIR"
+            ExeCommand="&quot;[WindowsFolder]System32\regsvr32.exe&quot; winfsp-x86.dll"
+            Return="check" />
+        <CustomAction
+            Id="A.WinFsp.x86.Unregister"
+            Execute="deferred"
+            Impersonate="no"
+            Directory="BINDIR"
+            ExeCommand="&quot;[WindowsFolder]System32\regsvr32.exe&quot; /u winfsp-x86.dll"
+            Return="ignore" />
+        <InstallExecuteSequence>
+            <!--
+                We want to register our FSD/DLL in all cases except on Uninstall.
+                The Uninstall condition can be identified as follows:
+                    REMOVE ~= "ALL"
+
+                See http://stackoverflow.com/a/321874
+            -->
+            <Custom Action="A.WinFsp.x64.Register" After="InstallFiles">
+                VersionNT64 AND NOT (REMOVE ~= "ALL")
+            </Custom>
+            <Custom Action="A.WinFsp.x64.Unregister" Before="RemoveFiles">
+                VersionNT64 AND (REMOVE ~= "ALL")
+            </Custom>
+            <Custom Action="A.WinFsp.x86.Register" After="InstallFiles">
+                NOT VersionNT64 AND NOT (REMOVE ~= "ALL")
+            </Custom>
+            <Custom Action="A.WinFsp.x86.Unregister" Before="RemoveFiles">
+                NOT VersionNT64 AND (REMOVE ~= "ALL")
+            </Custom>
+        </InstallExecuteSequence>
     </Product>
 </Wix>
