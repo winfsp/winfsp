@@ -20,6 +20,7 @@
     <SuppressAllWarnings>False</SuppressAllWarnings>
     <Pedantic>True</Pedantic>
     <SuppressPdbOutput>True</SuppressPdbOutput>
+    <SuppressIces>ICE30</SuppressIces>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
     <OutputPath>$(SolutionDir)build\$(Configuration)\</OutputPath>
@@ -28,6 +29,7 @@
     <SuppressAllWarnings>False</SuppressAllWarnings>
     <Pedantic>True</Pedantic>
     <SuppressPdbOutput>True</SuppressPdbOutput>
+    <SuppressIces>ICE30</SuppressIces>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Product.wxs" />

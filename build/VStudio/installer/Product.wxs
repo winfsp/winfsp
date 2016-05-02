@@ -7,6 +7,7 @@
         Version="$(var.MyVersion)"
         Language="1033"
         UpgradeCode="82F812D9-4083-4EF1-8BC8-0F1EDA05B46B">
+
         <Package
             Description="$(var.MyProductName) - $(var.MyDescription)"
             InstallerVersion="200"
@@ -15,6 +16,7 @@
         <MajorUpgrade
             DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
         <Media Id="1" Cabinet="WinFsp.cab" EmbedCab="yes" />
+
         <Property Id="P.RegistryKey">Software\$(var.MyProductName)</Property>
         <Property Id="INSTALLDIR">
             <RegistrySearch
@@ -24,6 +26,7 @@
                 Name="InstallDir"
                 Type="raw" />
         </Property>
+
         <Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="ProgramFilesFolder">
                 <Directory Id="INSTALLDIR" Name="WinFsp">
@@ -34,6 +37,7 @@
                 </Directory>
             </Directory>
         </Directory>
+
         <DirectoryRef Id="INSTALLDIR">
             <Component Id="C.INSTALLDIR">
                 <RegistryValue
@@ -51,12 +55,27 @@
             <Component Id="C.winfsp_x86.sys">
                 <File Name="winfsp-x86.sys" KeyPath="yes" />
             </Component>
-            <Component Id="C.winfsp_x64.dll">
-                <File Name="winfsp-x64.dll" KeyPath="yes" />
+
+            <!-- On Win64 register winfsp-x64.dll -->
+            <Component Id="C.winfsp_x64.dll.selfreg" Guid="F0A67746-1A9C-4976-8EC0-882E9407FA6D">
+                <File Id="FILE.winfsp_x64.dll.selfreg" Name="winfsp-x64.dll" KeyPath="yes" SelfRegCost="1" />
+                <Condition>VersionNT64</Condition>
             </Component>
-            <Component Id="C.winfsp_x86.dll">
+            <Component Id="C.winfsp_x86.dll" Guid="950492FB-12F7-4E27-9124-8325A2BC9927">
                 <File Name="winfsp-x86.dll" KeyPath="yes" />
+                <Condition>VersionNT64</Condition>
             </Component>
+
+            <!-- On Win32 register winfsp-x86.dll -->
+            <Component Id="C.winfsp_x64.dll" Guid="4D6E7A8E-0CA6-49BE-B312-1EDADE725756">
+                <File Name="winfsp-x64.dll" KeyPath="yes" />
+                <Condition>NOT VersionNT64</Condition>
+            </Component>
+            <Component Id="C.winfsp_x86.dll.selfreg" Guid="F0DEF7A6-AF55-419F-A58A-DF4018C6FA73">
+                <File Id="FILE.winfsp_x86.dll.selfreg" Name="winfsp-x86.dll" KeyPath="yes" SelfRegCost="1" />
+                <Condition>NOT VersionNT64</Condition>
+            </Component>
+
             <Component Id="C.memfs_x64.exe">
                 <File Name="memfs-x64.exe" KeyPath="yes" />
             </Component>
@@ -95,11 +114,14 @@
                 </Component>
             </Directory>
         </DirectoryRef>
+
         <ComponentGroup Id="C.WinFsp.bin">
             <ComponentRef Id="C.winfsp_x64.sys" />
             <ComponentRef Id="C.winfsp_x86.sys" />
-            <ComponentRef Id="C.winfsp_x64.dll" />
+            <ComponentRef Id="C.winfsp_x64.dll.selfreg" />
             <ComponentRef Id="C.winfsp_x86.dll" />
+            <ComponentRef Id="C.winfsp_x64.dll" />
+            <ComponentRef Id="C.winfsp_x86.dll.selfreg" />
             <ComponentRef Id="C.memfs_x64.exe" />
             <ComponentRef Id="C.memfs_x86.exe" />
         </ComponentGroup>
@@ -116,6 +138,7 @@
             <ComponentRef Id="C.memfs.cpp" />
             <ComponentRef Id="C.memfs_main.c" />
         </ComponentGroup>
+
         <Feature
             Id="F.Main"
             Level="1"
@@ -150,6 +173,7 @@
                 <ComponentGroupRef Id="C.WinFsp.smp" />
             </Feature>
         </Feature>
+
         <UI Id="FeatureTree">
             <UIRef Id="WixUI_FeatureTree" />
             <!-- skip the license agreement dialog; higher Order takes priority (weird) -->
@@ -166,59 +190,5 @@
                 Value="WelcomeDlg"
                 Order="10">NOT Installed</Publish>
         </UI>
-        <!--
-            Use a bunch of custom actions to register our FSD/DLL.
-            Turns out that Wix cannot be used to register legacy drivers or
-            Network Provider DLL's.
-        -->
-        <CustomAction
-            Id="A.WinFsp.x64.Register"
-            Execute="deferred"
-            Impersonate="no"
-            Directory="BINDIR"
-            ExeCommand="&quot;[WindowsFolder]System32\regsvr32.exe&quot; winfsp-x64.dll"
-            Return="check" />
-        <CustomAction
-            Id="A.WinFsp.x64.Unregister"
-            Execute="deferred"
-            Impersonate="no"
-            Directory="BINDIR"
-            ExeCommand="&quot;[WindowsFolder]System32\regsvr32.exe&quot; /u winfsp-x64.dll"
-            Return="ignore" />
-        <CustomAction
-            Id="A.WinFsp.x86.Register"
-            Execute="deferred"
-            Impersonate="no"
-            Directory="BINDIR"
-            ExeCommand="&quot;[WindowsFolder]System32\regsvr32.exe&quot; winfsp-x86.dll"
-            Return="check" />
-        <CustomAction
-            Id="A.WinFsp.x86.Unregister"
-            Execute="deferred"
-            Impersonate="no"
-            Directory="BINDIR"
-            ExeCommand="&quot;[WindowsFolder]System32\regsvr32.exe&quot; /u winfsp-x86.dll"
-            Return="ignore" />
-        <InstallExecuteSequence>
-            <!--
-                We want to register our FSD/DLL in all cases except on Uninstall.
-                The Uninstall condition can be identified as follows:
-                    REMOVE ~= "ALL"
-
-                See http://stackoverflow.com/a/321874
-            -->
-            <Custom Action="A.WinFsp.x64.Register" After="InstallFiles">
-                VersionNT64 AND NOT (REMOVE ~= "ALL")
-            </Custom>
-            <Custom Action="A.WinFsp.x64.Unregister" Before="RemoveFiles">
-                VersionNT64 AND (REMOVE ~= "ALL")
-            </Custom>
-            <Custom Action="A.WinFsp.x86.Register" After="InstallFiles">
-                NOT VersionNT64 AND NOT (REMOVE ~= "ALL")
-            </Custom>
-            <Custom Action="A.WinFsp.x86.Unregister" Before="RemoveFiles">
-                NOT VersionNT64 AND (REMOVE ~= "ALL")
-            </Custom>
-        </InstallExecuteSequence>
     </Product>
 </Wix>
