@@ -444,7 +444,7 @@ NTSTATUS FspFileSystemRegister(VOID)
 exit:
     MemFree(VersionInfo);
     if (0 != SvcHandle)
-        CloseServiceHandle(ScmHandle);
+        CloseServiceHandle(SvcHandle);
     if (0 != ScmHandle)
         CloseServiceHandle(ScmHandle);
 
@@ -491,7 +491,7 @@ NTSTATUS FspFileSystemUnregister(VOID)
 
 exit:
     if (0 != SvcHandle)
-        CloseServiceHandle(ScmHandle);
+        CloseServiceHandle(SvcHandle);
     if (0 != ScmHandle)
         CloseServiceHandle(ScmHandle);
 
