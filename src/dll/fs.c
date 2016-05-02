@@ -372,3 +372,128 @@ FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
         FspFsctlStop(FileSystem->VolumeHandle);
     }
 }
+
+NTSTATUS FspFileSystemRegister(VOID)
+{
+    extern HINSTANCE DllInstance;
+    PWSTR DriverName = L"" FSP_FSCTL_DRIVER_NAME;
+    WCHAR DriverPath[MAX_PATH];
+    DWORD Size;
+    SC_HANDLE ScmHandle = 0;
+    SC_HANDLE SvcHandle = 0;
+    PVOID VersionInfo = 0;
+    SERVICE_DESCRIPTION ServiceDescription;
+    DWORD LastError;
+    NTSTATUS Result;
+
+    if (0 == GetModuleFileNameW(DllInstance, DriverPath, MAX_PATH))
+        return FspNtStatusFromWin32(GetLastError());
+
+    Size = lstrlenW(DriverPath);
+    if (4 < Size &&
+        (L'.' == DriverPath[Size - 4]) &&
+        (L'D' == DriverPath[Size - 3] || L'd' == DriverPath[Size - 3]) &&
+        (L'L' == DriverPath[Size - 2] || L'l' == DriverPath[Size - 2]) &&
+        (L'L' == DriverPath[Size - 1] || L'l' == DriverPath[Size - 1]) &&
+        (L'\0' == DriverPath[Size]))
+    {
+        DriverPath[Size - 3] = L's';
+        DriverPath[Size - 2] = L'y';
+        DriverPath[Size - 1] = L's';
+    }
+    else
+        /* should not happen! */
+        return STATUS_NO_SUCH_DEVICE;
+
+    ScmHandle = OpenSCManagerW(0, 0, SC_MANAGER_CREATE_SERVICE);
+    if (0 == ScmHandle)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    SvcHandle = CreateServiceW(ScmHandle, DriverName, DriverName,
+        SERVICE_CHANGE_CONFIG,
+        SERVICE_FILE_SYSTEM_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, DriverPath,
+        0, 0, 0, 0, 0);
+    if (0 == SvcHandle)
+    {
+        LastError = GetLastError();
+        if (ERROR_SERVICE_EXISTS != LastError && ERROR_DUPLICATE_SERVICE_NAME != LastError)
+            Result = FspNtStatusFromWin32(LastError);
+        else
+            Result = STATUS_SUCCESS;
+        goto exit;
+    }
+
+    Size = GetFileVersionInfoSizeW(DriverPath, &Size/*dummy*/);
+    if (0 < Size)
+    {
+        VersionInfo = MemAlloc(Size);
+        if (0 != VersionInfo &&
+            GetFileVersionInfoW(DriverPath, 0, Size, VersionInfo) &&
+            VerQueryValueW(VersionInfo, L"\\StringFileInfo\\040904b0\\FileDescription",
+                &ServiceDescription.lpDescription, &Size))
+        {
+            ChangeServiceConfig2W(SvcHandle, SERVICE_CONFIG_DESCRIPTION, &ServiceDescription);
+        }
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    MemFree(VersionInfo);
+    if (0 != SvcHandle)
+        CloseServiceHandle(ScmHandle);
+    if (0 != ScmHandle)
+        CloseServiceHandle(ScmHandle);
+
+    return Result;
+}
+
+NTSTATUS FspFileSystemUnregister(VOID)
+{
+    PWSTR DriverName = L"" FSP_FSCTL_DRIVER_NAME;
+    SC_HANDLE ScmHandle = 0;
+    SC_HANDLE SvcHandle = 0;
+    DWORD LastError;
+    NTSTATUS Result;
+
+    ScmHandle = OpenSCManagerW(0, 0, 0);
+    if (0 == ScmHandle)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    SvcHandle = OpenServiceW(ScmHandle, DriverName, DELETE);
+    if (0 == SvcHandle)
+    {
+        LastError = GetLastError();
+        if (ERROR_SERVICE_DOES_NOT_EXIST != LastError)
+            Result = FspNtStatusFromWin32(LastError);
+        else
+            Result = STATUS_SUCCESS;
+        goto exit;
+    }
+
+    if (!DeleteService(SvcHandle))
+    {
+        LastError = GetLastError();
+        if (ERROR_SERVICE_MARKED_FOR_DELETE != LastError)
+            Result = FspNtStatusFromWin32(LastError);
+        else
+            Result = STATUS_SUCCESS;
+        goto exit;
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (0 != SvcHandle)
+        CloseServiceHandle(ScmHandle);
+    if (0 != ScmHandle)
+        CloseServiceHandle(ScmHandle);
+
+    return Result;
+}

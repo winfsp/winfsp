@@ -28,7 +28,7 @@
 #pragma warning(disable:4100)           /* unreferenced formal parameter */
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
 
-#define DRIVER_NAME                     "WinFsp"
+#define DRIVER_NAME                     FSP_FSCTL_DRIVER_NAME
 
 /* IoCreateDeviceSecure default SDDL's */
 #define FSP_FSCTL_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;WD)"

@@ -24,6 +24,7 @@
 extern "C" {
 #endif
 
+#define FSP_FSCTL_DRIVER_NAME           "WinFsp"
 #define FSP_FSCTL_DISK_DEVICE_NAME      "WinFsp.Disk"
 #define FSP_FSCTL_NET_DEVICE_NAME       "WinFsp.Net"
 
