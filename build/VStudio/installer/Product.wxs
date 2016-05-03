@@ -190,5 +190,24 @@
                 Value="WelcomeDlg"
                 Order="10">NOT Installed</Publish>
         </UI>
+
+        <Binary Id="CustomActions" SourceFile="..\build\$(var.Configuration)\CustomActions.dll" />
+        <CustomAction
+            Id="Params.ServiceRunning"
+            Property="ServiceRunning"
+            Value="$(var.MyProductName)" />
+        <CustomAction
+            Id="Action.ServiceRunning"
+            BinaryKey="CustomActions"
+            DllEntry="ServiceRunning"
+            Execute="immediate"
+            Return="ignore" />
+        <InstallExecuteSequence>
+            <Custom Action="Params.ServiceRunning" Before="Action.ServiceRunning">REMOVE ~= "ALL"</Custom>
+            <Custom Action="Action.ServiceRunning" After="RemoveFiles">REMOVE ~= "ALL"</Custom>
+            <ScheduleReboot After="Action.ServiceRunning">
+                <![CDATA[(REMOVE ~= "ALL") AND (0 <> ServiceRunning)]]>
+            </ScheduleReboot>
+        </InstallExecuteSequence>
     </Product>
 </Wix>
