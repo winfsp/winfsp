@@ -383,7 +383,6 @@ NTSTATUS FspFileSystemRegister(VOID)
     SC_HANDLE SvcHandle = 0;
     PVOID VersionInfo = 0;
     SERVICE_DESCRIPTION ServiceDescription;
-    DWORD LastError;
     NTSTATUS Result;
 
     if (0 == GetModuleFileNameW(DllInstance, DriverPath, MAX_PATH))
@@ -412,17 +411,21 @@ NTSTATUS FspFileSystemRegister(VOID)
         goto exit;
     }
 
+    SvcHandle = OpenServiceW(ScmHandle, DriverName, DELETE);
+    if (0 != SvcHandle)
+    {
+        DeleteService(SvcHandle);
+        CloseServiceHandle(SvcHandle);
+        SvcHandle = 0;
+    }
+
     SvcHandle = CreateServiceW(ScmHandle, DriverName, DriverName,
         SERVICE_CHANGE_CONFIG,
         SERVICE_FILE_SYSTEM_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, DriverPath,
         0, 0, 0, 0, 0);
     if (0 == SvcHandle)
     {
-        LastError = GetLastError();
-        if (ERROR_SERVICE_EXISTS != LastError && ERROR_DUPLICATE_SERVICE_NAME != LastError)
-            Result = FspNtStatusFromWin32(LastError);
-        else
-            Result = STATUS_SUCCESS;
+        Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
     }
 
