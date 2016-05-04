@@ -411,18 +411,16 @@ NTSTATUS FspFileSystemRegister(VOID)
         goto exit;
     }
 
-    SvcHandle = OpenServiceW(ScmHandle, DriverName, DELETE);
+    SvcHandle = OpenServiceW(ScmHandle, DriverName, SERVICE_CHANGE_CONFIG);
     if (0 != SvcHandle)
-    {
-        DeleteService(SvcHandle);
-        CloseServiceHandle(SvcHandle);
-        SvcHandle = 0;
-    }
-
-    SvcHandle = CreateServiceW(ScmHandle, DriverName, DriverName,
-        SERVICE_CHANGE_CONFIG,
-        SERVICE_FILE_SYSTEM_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, DriverPath,
-        0, 0, 0, 0, 0);
+        ChangeServiceConfigW(SvcHandle,
+            SERVICE_FILE_SYSTEM_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, DriverPath,
+            0, 0, 0, 0, 0, DriverName);
+    else
+        SvcHandle = CreateServiceW(ScmHandle, DriverName, DriverName,
+            SERVICE_CHANGE_CONFIG,
+            SERVICE_FILE_SYSTEM_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, DriverPath,
+            0, 0, 0, 0, 0);
     if (0 == SvcHandle)
     {
         Result = FspNtStatusFromWin32(GetLastError());
