@@ -21,6 +21,68 @@
 #define PREFIXW                         L"" FSP_FSCTL_VOLUME_PARAMS_PREFIX
 #define PREFIXW_SIZE                    (sizeof PREFIXW - sizeof(WCHAR))
 
+NTSTATUS FspFsctlStartService(VOID)
+{
+    PWSTR DriverName = L"" FSP_FSCTL_DRIVER_NAME;
+    SC_HANDLE ScmHandle = 0;
+    SC_HANDLE SvcHandle = 0;
+    SERVICE_STATUS ServiceStatus;
+    DWORD LastError;
+    NTSTATUS Result;
+
+    ScmHandle = OpenSCManagerW(0, 0, 0);
+    if (0 == ScmHandle)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    SvcHandle = OpenServiceW(ScmHandle, DriverName, SERVICE_QUERY_STATUS | SERVICE_START);
+    if (0 == SvcHandle)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    if (!StartServiceW(SvcHandle, 0, 0))
+    {
+        LastError = GetLastError();
+        if (ERROR_SERVICE_ALREADY_RUNNING != LastError)
+            Result = FspNtStatusFromWin32(LastError);
+        else
+            Result = STATUS_SUCCESS;
+        goto exit;
+    }
+
+    /* Poll until the service is running! Yes, that's the best we can do! */
+    Result = STATUS_DRIVER_UNABLE_TO_LOAD;
+    for (DWORD Timeout = 500, N = 20, I = 0; N > I; I++)
+        /* wait up to 500ms * 20 = 10000ms = 10s */
+    {
+        if (!QueryServiceStatus(SvcHandle, &ServiceStatus))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+
+        if (SERVICE_RUNNING == ServiceStatus.dwCurrentState)
+        {
+            Result = STATUS_SUCCESS;
+            break;
+        }
+
+        Sleep(Timeout);
+    }
+
+exit:
+    if (0 != SvcHandle)
+        CloseServiceHandle(SvcHandle);
+    if (0 != ScmHandle)
+        CloseServiceHandle(ScmHandle);
+
+    return Result;
+}
+
 FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
     PWCHAR VolumeNameBuf, SIZE_T VolumeNameSize,
@@ -61,6 +123,10 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
         *DevicePathPtr = Value;
     }
     *DevicePathPtr = L'\0';
+
+    Result = FspFsctlStartService();
+    if (!NT_SUCCESS(Result))
+        return Result;
 
     VolumeHandle = CreateFileW(DevicePathBuf,
         0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
