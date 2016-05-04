@@ -14,6 +14,10 @@
             Compressed="yes"
             InstallScope="perMachine" />
         <MajorUpgrade
+            Disallow="yes"
+            AllowDowngrades="no"
+            AllowSameVersionUpgrades="no"
+            DisallowUpgradeErrorMessage="An older version of [ProductName] is already installed. You must uninstall it before you can install this version."
             DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
         <Media Id="1" Cabinet="WinFsp.cab" EmbedCab="yes" />
 
