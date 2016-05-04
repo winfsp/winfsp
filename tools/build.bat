@@ -21,3 +21,8 @@ for %%f in (build\%Configuration%\winfsp-x64.sys build\%Configuration%\winfsp-x8
 )
 
 devenv winfsp.sln /build "Installer.%Configuration%|x86"
+
+for %%f in (build\%Configuration%\winfsp-*.msi) do (
+	signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha1 /t http://timestamp.digicert.com %%f
+	REM signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha256 /tr http://timestamp.digicert.com /td sha256 %%f
+)
