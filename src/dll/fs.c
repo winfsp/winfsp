@@ -16,6 +16,7 @@
  */
 
 #include <dll/library.h>
+#include <aclapi.h>
 
 enum
 {
@@ -373,6 +374,119 @@ FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
     }
 }
 
+static NTSTATUS FspFileSystemFixServiceSecurity(HANDLE SvcHandle)
+{
+    /*
+     * This function adds an ACE that allows Everyone to start a service.
+     */
+
+    PSID WorldSid = 0;
+    PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
+    PSECURITY_DESCRIPTOR NewSecurityDescriptor = 0;
+    EXPLICIT_ACCESSW AccessEntry;
+    ACCESS_MASK AccessRights;
+    PACL Dacl;
+    BOOL DaclPresent, DaclDefaulted;
+    DWORD Size;
+    DWORD LastError;
+    NTSTATUS Result;
+
+    /* get the Everyone (World) SID */
+    Size = SECURITY_MAX_SID_SIZE;
+    WorldSid = MemAlloc(Size);
+    if (0 == WorldSid)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+    if (!CreateWellKnownSid(WinWorldSid, 0, WorldSid, &Size))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    /* get the service security descriptor DACL */
+    Size = 0;
+    if (!QueryServiceObjectSecurity(SvcHandle, DACL_SECURITY_INFORMATION, SecurityDescriptor, Size, &Size))
+    {
+        LastError = GetLastError();
+        if (ERROR_INSUFFICIENT_BUFFER != LastError)
+        {
+            Result = FspNtStatusFromWin32(LastError);
+            goto exit;
+        }
+    }
+    SecurityDescriptor = MemAlloc(Size);
+    if (0 == SecurityDescriptor)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+    if (!QueryServiceObjectSecurity(SvcHandle, DACL_SECURITY_INFORMATION, SecurityDescriptor, Size, &Size))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    /* extract the DACL */
+    if (!GetSecurityDescriptorDacl(SecurityDescriptor, &DaclPresent, &Dacl, &DaclDefaulted))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    /* prepare an EXPLICIT_ACCESS for the SERVICE_START right for Everyone */
+    AccessEntry.grfAccessPermissions = SERVICE_START;
+    AccessEntry.grfAccessMode = GRANT_ACCESS;
+    AccessEntry.grfInheritance = NO_INHERITANCE;
+    AccessEntry.Trustee.pMultipleTrustee = 0;
+    AccessEntry.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
+    AccessEntry.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+    AccessEntry.Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
+    AccessEntry.Trustee.ptstrName = WorldSid;
+
+    /* get the effective rights for Everyone */
+    AccessRights = 0;
+    if (DaclPresent && 0 != Dacl)
+    {
+        LastError = GetEffectiveRightsFromAclW(Dacl, &AccessEntry.Trustee, &AccessRights);
+        if (0 != LastError)
+        {
+            Result = FspNtStatusFromWin32(LastError);
+            goto exit;
+        }
+    }
+
+    /* do we have the required access rights? */
+    if (AccessEntry.grfAccessPermissions != (AccessRights & AccessEntry.grfAccessPermissions))
+    {
+        /* create a new security descriptor with the new access */
+        LastError = BuildSecurityDescriptorW(0, 0, 1, &AccessEntry, 0, 0, SecurityDescriptor,
+            &Size, &NewSecurityDescriptor);
+        if (0 != LastError)
+        {
+            Result = FspNtStatusFromWin32(LastError);
+            goto exit;
+        }
+
+        /* set the new service security descriptor DACL */
+        if (!SetServiceObjectSecurity(SvcHandle, DACL_SECURITY_INFORMATION, NewSecurityDescriptor))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    LocalFree(NewSecurityDescriptor);
+    MemFree(SecurityDescriptor);
+    MemFree(WorldSid);
+
+    return Result;
+}
+
 NTSTATUS FspFileSystemRegister(VOID)
 {
     extern HINSTANCE DllInstance;
@@ -411,20 +525,28 @@ NTSTATUS FspFileSystemRegister(VOID)
         goto exit;
     }
 
-    SvcHandle = OpenServiceW(ScmHandle, DriverName, SERVICE_CHANGE_CONFIG);
+    SvcHandle = OpenServiceW(ScmHandle, DriverName, SERVICE_CHANGE_CONFIG | READ_CONTROL | WRITE_DAC);
     if (0 != SvcHandle)
-        ChangeServiceConfigW(SvcHandle,
+    {
+        if (!ChangeServiceConfigW(SvcHandle,
             SERVICE_FILE_SYSTEM_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, DriverPath,
-            0, 0, 0, 0, 0, DriverName);
+            0, 0, 0, 0, 0, DriverName))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+    }
     else
+    {
         SvcHandle = CreateServiceW(ScmHandle, DriverName, DriverName,
-            SERVICE_CHANGE_CONFIG,
+            SERVICE_CHANGE_CONFIG | READ_CONTROL | WRITE_DAC,
             SERVICE_FILE_SYSTEM_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, DriverPath,
             0, 0, 0, 0, 0);
-    if (0 == SvcHandle)
-    {
-        Result = FspNtStatusFromWin32(GetLastError());
-        goto exit;
+        if (0 == SvcHandle)
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
     }
 
     Size = GetFileVersionInfoSizeW(DriverPath, &Size/*dummy*/);
@@ -439,6 +561,10 @@ NTSTATUS FspFileSystemRegister(VOID)
             ChangeServiceConfig2W(SvcHandle, SERVICE_CONFIG_DESCRIPTION, &ServiceDescription);
         }
     }
+
+    Result = FspFileSystemFixServiceSecurity(SvcHandle);
+    if (!NT_SUCCESS(Result))
+        goto exit;
 
     Result = STATUS_SUCCESS;
 
