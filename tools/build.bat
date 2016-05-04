@@ -1,6 +1,7 @@
 @echo off
 
 set Configuration=Release
+set MsiName="WinFsp - Windows File System Proxy"
 set CrossCert="%~dp0DigiCert High Assurance EV Root CA.crt"
 set Issuer="DigiCert"
 set Subject="Navimatics Corporation"
@@ -23,6 +24,6 @@ for %%f in (build\%Configuration%\winfsp-x64.sys build\%Configuration%\winfsp-x8
 devenv winfsp.sln /build "Installer.%Configuration%|x86"
 
 for %%f in (build\%Configuration%\winfsp-*.msi) do (
-	signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha1 /t http://timestamp.digicert.com %%f
-	REM signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha256 /tr http://timestamp.digicert.com /td sha256 %%f
+	signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha1 /t http://timestamp.digicert.com /d %MsiName% %%f
+	REM signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d %MsiName% %%f
 )
