@@ -122,8 +122,6 @@
             <ComponentRef Id="C.winfsp_x86.dll" />
             <ComponentRef Id="C.winfsp_x64.dll" />
             <ComponentRef Id="C.winfsp_x86.dll.selfreg" />
-            <ComponentRef Id="C.memfs_x64.exe" />
-            <ComponentRef Id="C.memfs_x86.exe" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.inc">
             <ComponentRef Id="C.fsctl.h" />
@@ -134,6 +132,8 @@
             <ComponentRef Id="C.winfsp_x86.lib" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.smp">
+            <ComponentRef Id="C.memfs_x64.exe" />
+            <ComponentRef Id="C.memfs_x86.exe" />
             <ComponentRef Id="C.memfs.h" />
             <ComponentRef Id="C.memfs.cpp" />
             <ComponentRef Id="C.memfs_main.c" />
