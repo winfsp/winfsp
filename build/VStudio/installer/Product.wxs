@@ -202,10 +202,16 @@
             DllEntry="ServiceRunning"
             Execute="immediate"
             Return="ignore" />
+        <CustomAction
+            Id="Action.ServiceRunning.Error"
+            Error="The $(var.MyProductName) service appears to be running. If you just uninstalled $(var.MyProductName) please restart your computer. If you are running a development version of $(var.MyProductName) please remove it before proceeding." />
         <InstallExecuteSequence>
-            <Custom Action="Params.ServiceRunning" Before="Action.ServiceRunning">REMOVE ~= "ALL"</Custom>
-            <Custom Action="Action.ServiceRunning" After="RemoveFiles">REMOVE ~= "ALL"</Custom>
-            <ScheduleReboot After="Action.ServiceRunning">
+            <Custom Action="Params.ServiceRunning" Before="Action.ServiceRunning" />
+            <Custom Action="Action.ServiceRunning" Before="LaunchConditions" />
+            <Custom Action="Action.ServiceRunning.Error" After="Action.ServiceRunning">
+                <![CDATA[NOT Installed AND (0 <> ServiceRunning)]]>
+            </Custom>
+            <ScheduleReboot After="RemoveFiles">
                 <![CDATA[(REMOVE ~= "ALL") AND (0 <> ServiceRunning)]]>
             </ScheduleReboot>
         </InstallExecuteSequence>
