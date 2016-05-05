@@ -51,18 +51,15 @@ HRESULT WINAPI DllRegisterServer(VOID)
 {
     NTSTATUS Result;
 
-    Result = FspFileSystemRegister();
-    FspDebugLog("FspFileSystemRegister = %lx\n", Result);
+    Result = FspFsctlRegister();
+    FspDebugLog("FspFsctlRegister = %lx\n", Result);
     if (!NT_SUCCESS(Result))
         goto exit;
 
     Result = FspNpRegister();
     FspDebugLog("FspNpRegister = %lx\n", Result);
     if (!NT_SUCCESS(Result))
-    {
-        FspFileSystemUnregister();
         goto exit;
-    }
 
 exit:
     return NT_SUCCESS(Result) ? S_OK : 0x80040201/*SELFREG_E_CLASS*/;
@@ -77,10 +74,11 @@ HRESULT WINAPI DllUnregisterServer(VOID)
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Result = FspFileSystemUnregister();
-    FspDebugLog("FspFileSystemUnregister = %lx\n", Result);
+    Result = FspFsctlUnregister();
+    FspDebugLog("FspFsctlUnregister = %lx\n", Result);
     if (!NT_SUCCESS(Result))
     {
+        /* roll back network provider unregistration if possible */
         FspNpRegister();
         goto exit;
     }
