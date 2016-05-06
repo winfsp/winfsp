@@ -467,7 +467,11 @@ NTSTATUS FspFsctlUnregister(VOID)
     DWORD LastError;
     NTSTATUS Result;
 
-    ScmHandle = OpenSCManagerW(0, 0, 0);
+    ScmHandle = OpenSCManagerW(0, 0, SC_MANAGER_CREATE_SERVICE);
+        /*
+         * The SC_MANAGER_CREATE_SERVICE access right is not strictly needed here,
+         * but we use it to enforce admin rights.
+         */
     if (0 == ScmHandle)
     {
         Result = FspNtStatusFromWin32(GetLastError());

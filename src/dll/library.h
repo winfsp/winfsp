@@ -114,4 +114,7 @@ NTSTATUS FspFsctlUnregister(VOID);
 NTSTATUS FspNpRegister(VOID);
 NTSTATUS FspNpUnregister(VOID);
 
+NTSTATUS FspEventLogRegister(VOID);
+NTSTATUS FspEventLogUnregister(VOID);
+
 #endif

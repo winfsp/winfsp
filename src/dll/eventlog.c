@@ -19,6 +19,8 @@
 #include <stdarg.h>
 #include "eventlog/eventlog.h"
 
+#define FSP_EVENTLOG_NAME               LIBRARY_NAME
+
 static HANDLE FspEventLogHandle;
 static INIT_ONCE FspEventLogInitOnce = INIT_ONCE_STATIC_INIT;
 static BOOL WINAPI FspEventLogRegisterEventSource(
@@ -68,6 +70,54 @@ FSP_API VOID FspEventLogV(ULONG Type, PWSTR Format, va_list ap)
 static BOOL WINAPI FspEventLogRegisterEventSource(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
-    FspEventLogHandle = RegisterEventSourceW(0, L"" LIBRARY_NAME);
+    FspEventLogHandle = RegisterEventSourceW(0, L"" FSP_EVENTLOG_NAME);
     return TRUE;
+}
+
+NTSTATUS FspEventLogRegister(VOID)
+{
+    extern HINSTANCE DllInstance;
+    WCHAR Path[MAX_PATH];
+    DWORD RegResult, DwordValue;
+    HKEY RegKey;
+
+    if (0 == GetModuleFileNameW(DllInstance, Path, MAX_PATH))
+        return FspNtStatusFromWin32(GetLastError());
+
+    RegResult = RegCreateKeyExW(
+        HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services\\EventLog\\System\\" FSP_EVENTLOG_NAME,
+        0, 0, 0, KEY_ALL_ACCESS, 0, &RegKey, 0);
+    if (ERROR_SUCCESS != RegResult)
+        return FspNtStatusFromWin32(RegResult);
+
+    RegResult = RegSetValueExW(RegKey,
+        L"EventMessageFile", 0, REG_SZ, (PVOID)Path, (lstrlenW(Path) + 1) * sizeof(WCHAR));
+    if (ERROR_SUCCESS != RegResult)
+        goto close_and_exit;
+
+    DwordValue = EVENTLOG_INFORMATION_TYPE | EVENTLOG_WARNING_TYPE | EVENTLOG_ERROR_TYPE;
+    RegResult = RegSetValueExW(RegKey,
+        L"TypesSupported", 0, REG_DWORD, (PVOID)&DwordValue, sizeof DwordValue);
+    if (ERROR_SUCCESS != RegResult)
+        goto close_and_exit;
+
+    RegCloseKey(RegKey);
+
+    return STATUS_SUCCESS;
+
+close_and_exit:
+    RegCloseKey(RegKey);
+    return FspNtStatusFromWin32(RegResult);
+}
+
+NTSTATUS FspEventLogUnregister(VOID)
+{
+    DWORD RegResult;
+
+    RegResult = RegDeleteTreeW(
+        HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services\\EventLog\\System\\" FSP_EVENTLOG_NAME);
+    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
+        return FspNtStatusFromWin32(RegResult);
+
+    return STATUS_SUCCESS;
 }
