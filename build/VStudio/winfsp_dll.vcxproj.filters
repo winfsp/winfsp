@@ -71,5 +71,8 @@
     <ResourceCompile Include="..\..\src\dll\version.rc">
       <Filter>Source</Filter>
     </ResourceCompile>
+    <ResourceCompile Include="..\..\src\dll\eventlog\eventlog.rc">
+      <Filter>Source</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

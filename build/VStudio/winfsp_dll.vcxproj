@@ -42,6 +42,7 @@
     <None Include="..\..\src\dll\ntstatus.i" />
   </ItemGroup>
   <ItemGroup>
+    <ResourceCompile Include="..\..\src\dll\eventlog\eventlog.rc" />
     <ResourceCompile Include="..\..\src\dll\version.rc">
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_UNICODE;UNICODE;%(PreprocessorDefinitions);MyProductName=$(MyProductName);MyDescription=$(MyDescription);MyCompanyName=$(MyCompanyName);MyCopyright=$(MyCopyright);MyVersion=$(MyVersion);MyVersionWithCommas=$(MyVersionWithCommas)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_UNICODE;UNICODE;%(PreprocessorDefinitions);MyProductName=$(MyProductName);MyDescription=$(MyDescription);MyCompanyName=$(MyCompanyName);MyCopyright=$(MyCopyright);MyVersion=$(MyVersion);MyVersionWithCommas=$(MyVersionWithCommas)</PreprocessorDefinitions>
