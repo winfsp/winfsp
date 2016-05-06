@@ -25,6 +25,7 @@
     <ClInclude Include="..\..\src\dll\library.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\dll\eventlog.c" />
     <ClCompile Include="..\..\src\dll\np.c" />
     <ClCompile Include="..\..\src\dll\security.c" />
     <ClCompile Include="..\..\src\dll\debug.c" />
@@ -34,6 +35,7 @@
     <ClCompile Include="..\..\src\dll\fs.c" />
     <ClCompile Include="..\..\src\dll\ntstatus.c" />
     <ClCompile Include="..\..\src\dll\path.c" />
+    <ClCompile Include="..\..\src\dll\service.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\library.def" />

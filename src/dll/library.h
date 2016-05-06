@@ -103,6 +103,8 @@ BOOLEAN RemoveEntryList(PLIST_ENTRY Entry)
     return Flink == Blink;
 }
 
+VOID FspNtStatusInitialize(VOID);
+
 VOID FspFileSystemInitialize(VOID);
 VOID FspFileSystemFinalize(VOID);
 

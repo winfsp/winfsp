@@ -29,6 +29,7 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
         ProcessHeap = GetProcessHeap();
         if (0 == ProcessHeap)
             return FALSE;
+        FspNtStatusInitialize();
         FspFileSystemInitialize();
         break;
     case DLL_PROCESS_DETACH:

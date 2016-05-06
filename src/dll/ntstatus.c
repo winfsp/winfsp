@@ -17,6 +17,25 @@
 
 #include <dll/library.h>
 
+static ULONG (WINAPI *FspRtlNtStatusToDosError)(NTSTATUS Status);
+
+VOID FspNtStatusInitialize(VOID)
+{
+    /*
+     * This function is called during DLL_PROCESS_ATTACH. We must therefore keep initialization
+     * tasks to a minimum.
+     *
+     * GetModuleHandle/GetProcAddress is allowed (because they are kernel32 API's)! See:
+     *     https://msdn.microsoft.com/en-us/library/windows/desktop/dn633971(v=vs.85).aspx
+     */
+
+    HANDLE Handle;
+
+    Handle = GetModuleHandleW(L"ntdll.dll");
+    if (0 != Handle)
+        FspRtlNtStatusToDosError = (PVOID)GetProcAddress(Handle, "RtlNtStatusToDosError");
+}
+
 FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error)
 {
     switch (Error)
@@ -25,4 +44,12 @@ FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error)
     default:
         return STATUS_ACCESS_DENIED;
     }
+}
+
+FSP_API DWORD FspWin32FromNtStatus(NTSTATUS Status)
+{
+    if (0 == FspRtlNtStatusToDosError)
+        return ERROR_MR_MID_NOT_FOUND;
+
+    return FspRtlNtStatusToDosError(Status);
 }

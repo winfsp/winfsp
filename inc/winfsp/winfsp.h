@@ -839,9 +839,51 @@ FSP_API VOID FspPathSuffix(PWSTR Path, PWSTR *PRemain, PWSTR *PSuffix, PWSTR Roo
 FSP_API VOID FspPathCombine(PWSTR Prefix, PWSTR Suffix);
 
 /*
+ * Service Framework
+ */
+typedef struct _FSP_SERVICE FSP_SERVICE;
+typedef NTSTATUS FSP_SERVICE_START(FSP_SERVICE *, ULONG, PWSTR *);
+typedef NTSTATUS FSP_SERVICE_STOP(FSP_SERVICE *);
+typedef NTSTATUS FSP_SERVICE_CONTROL(FSP_SERVICE *, ULONG, ULONG, PVOID);
+#pragma warning(push)
+#pragma warning(disable:4200)           /* zero-sized array in struct/union */
+typedef struct _FSP_SERVICE
+{
+    UINT16 Version;
+    PVOID UserContext;
+    FSP_SERVICE_START *OnStart;
+    FSP_SERVICE_STOP *OnStop;
+    FSP_SERVICE_CONTROL *OnControl;
+    ULONG AcceptControl;
+    ULONG ExitCode;
+    SERVICE_STATUS_HANDLE StatusHandle;
+    CRITICAL_SECTION ServiceStatusGuard;
+    SERVICE_STATUS ServiceStatus;
+    BOOLEAN AllowInteractive;
+    HANDLE InteractiveEvent;
+    WCHAR ServiceName[];
+} FSP_SERVICE;
+#pragma warning(pop)
+FSP_API NTSTATUS FspServiceCreate(PWSTR ServiceName,
+    FSP_SERVICE_START *OnStart,
+    FSP_SERVICE_STOP *OnStop,
+    FSP_SERVICE_CONTROL *OnControl,
+    FSP_SERVICE **PService);
+FSP_API VOID FspServiceDelete(FSP_SERVICE *Service);
+FSP_API VOID FspServiceAllowInteractive(FSP_SERVICE *Service);
+FSP_API VOID FspServiceAcceptControl(FSP_SERVICE *Service, ULONG Control);
+FSP_API VOID FspServiceRequestTime(FSP_SERVICE *Service, ULONG Time);
+FSP_API VOID FspServiceSetExitCode(FSP_SERVICE *Service, ULONG ExitCode);
+FSP_API NTSTATUS FspServiceRun(FSP_SERVICE *Service);
+FSP_API VOID FspServiceStop(FSP_SERVICE *Service);
+
+/*
  * Utility
  */
 FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error);
+FSP_API DWORD FspWin32FromNtStatus(NTSTATUS Status);
+FSP_API VOID FspEventLog(ULONG Type, PWSTR Format, ...);
+FSP_API VOID FspEventLogV(ULONG Type, PWSTR Format, va_list ap);
 FSP_API VOID FspDebugLog(const char *format, ...);
 FSP_API VOID FspDebugLogSD(const char *format, PSECURITY_DESCRIPTOR SecurityDescriptor);
 FSP_API VOID FspDebugLogFT(const char *format, PFILETIME FileTime);
