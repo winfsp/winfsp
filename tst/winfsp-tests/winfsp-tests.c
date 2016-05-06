@@ -6,6 +6,7 @@ int WinFspNetTests = 1;
 
 int main(int argc, char *argv[])
 {
+    TESTSUITE(eventlog_tests);
     TESTSUITE(path_tests);
     TESTSUITE(mount_tests);
     TESTSUITE(timeout_tests);
