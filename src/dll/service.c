@@ -17,9 +17,6 @@
 
 #include <dll/library.h>
 
-// !!!: NOTIMPLEMENTED
-#define FspEventLog(Type, Message, ...)
-
 enum
 {
     SetStatus_ServiceType               = 0x0001,
@@ -252,6 +249,9 @@ FSP_API VOID FspServiceStop(FSP_SERVICE *Service)
         ServiceStatus.dwWin32ExitCode = Service->ExitCode;
         FspServiceSetStatus(Service,
             SetStatus_CurrentState | SetStatus_Win32ExitCode, &ServiceStatus);
+
+        FspEventLog(EVENTLOG_INFORMATION_TYPE,
+            L"The service %s has been stopped.", Service->ServiceName);
     }
     else
     {
@@ -259,6 +259,9 @@ FSP_API VOID FspServiceStop(FSP_SERVICE *Service)
         FspServiceSetStatus(Service,
             SetStatus_CurrentState | SetStatus_CheckPoint | SetStatus_WaitHint,
             &ServiceStatus);
+
+        FspEventLog(EVENTLOG_ERROR_TYPE,
+            L"The service %s has failed to stop (Status=%lx).", Service->ServiceName, Result);
     }
 }
 
@@ -309,6 +312,9 @@ static VOID FspServiceMain(FSP_SERVICE *Service, DWORD Argc, PWSTR *Argv)
         ServiceStatus.dwControlsAccepted = Service->AcceptControl;
         FspServiceSetStatus(Service,
             SetStatus_CurrentState | SetStatus_ControlsAccepted, &ServiceStatus);
+
+        FspEventLog(EVENTLOG_INFORMATION_TYPE,
+            L"The service %s has been started.", Service->ServiceName);
     }
     else
     {
@@ -316,6 +322,9 @@ static VOID FspServiceMain(FSP_SERVICE *Service, DWORD Argc, PWSTR *Argv)
         ServiceStatus.dwWin32ExitCode = FspWin32FromNtStatus(Result);
         FspServiceSetStatus(Service,
             SetStatus_CurrentState | SetStatus_Win32ExitCode, &ServiceStatus);
+
+        FspEventLog(EVENTLOG_ERROR_TYPE,
+            L"The service %s has failed to start (Status=%lx).", Service->ServiceName, Result);
     }
 }
 
