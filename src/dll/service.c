@@ -81,17 +81,9 @@ FSP_API NTSTATUS FspServiceCreate(PWSTR ServiceName,
     Service->OnStart = OnStart;
     Service->OnStop = OnStop;
     Service->OnControl = OnControl;
-
     Service->AcceptControl = OnStop ? SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN : 0;
 
     InitializeCriticalSection(&Service->ServiceStatusGuard);
-    Service->ServiceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
-    Service->ServiceStatus.dwCurrentState = SERVICE_STOPPED;
-    Service->ServiceStatus.dwControlsAccepted = 0;
-    Service->ServiceStatus.dwWin32ExitCode = NO_ERROR;
-    Service->ServiceStatus.dwServiceSpecificExitCode = 0;
-    Service->ServiceStatus.dwCheckPoint = 0;
-    Service->ServiceStatus.dwWaitHint = 0;
 
     *PService = Service;
 
@@ -185,6 +177,15 @@ FSP_API NTSTATUS FspServiceRun(FSP_SERVICE *Service)
 {
     SERVICE_TABLE_ENTRYW ServiceTable[2];
 
+    Service->ExitCode = NO_ERROR;
+    Service->ServiceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
+    Service->ServiceStatus.dwCurrentState = SERVICE_STOPPED;
+    Service->ServiceStatus.dwControlsAccepted = 0;
+    Service->ServiceStatus.dwWin32ExitCode = NO_ERROR;
+    Service->ServiceStatus.dwServiceSpecificExitCode = 0;
+    Service->ServiceStatus.dwCheckPoint = 0;
+    Service->ServiceStatus.dwWaitHint = 0;
+
     ServiceTable[0].lpServiceName = Service->ServiceName;
     ServiceTable[0].lpServiceProc = FspServiceEntry;
     ServiceTable[1].lpServiceName = 0;
@@ -203,10 +204,16 @@ FSP_API NTSTATUS FspServiceRun(FSP_SERVICE *Service)
 
         /* enter INTERACTIVE (DEBUG) mode! */
 
-        Service->InteractiveEvent = CreateEventW(0, TRUE, FALSE, 0);
         if (0 == Service->InteractiveEvent)
-            return FspNtStatusFromWin32(GetLastError());
+        {
+            Service->InteractiveEvent = CreateEventW(0, TRUE, FALSE, 0);
+            if (0 == Service->InteractiveEvent)
+                return FspNtStatusFromWin32(GetLastError());
+        }
+        else
+            ResetEvent(Service->InteractiveEvent);
 
+        /* create a thread to mimic what StartServiceCtrlDispatcherW does */
         Thread = CreateThread(0, 0, FspServiceInteractiveThread, Service, 0, 0);
         if (0 == Thread)
             return FspNtStatusFromWin32(GetLastError());
