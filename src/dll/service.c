@@ -202,7 +202,7 @@ FSP_API NTSTATUS FspServiceRun(FSP_SERVICE *Service)
         if (!Service->AllowInteractive || ERROR_FAILED_SERVICE_CONTROLLER_CONNECT != LastError)
             return FspNtStatusFromWin32(LastError);
 
-        /* enter INTERACTIVE (DEBUG) mode! */
+        /* enter INTERACTIVE mode! */
 
         if (0 == Service->InteractiveEvent)
         {
