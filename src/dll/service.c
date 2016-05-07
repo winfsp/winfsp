@@ -92,8 +92,8 @@ FSP_API NTSTATUS FspServiceCreate(PWSTR ServiceName,
 
 FSP_API VOID FspServiceDelete(FSP_SERVICE *Service)
 {
-    if (0 != Service->InteractiveEvent)
-        CloseHandle(Service->InteractiveEvent);
+    if (0 != Service->ConsoleModeEvent)
+        CloseHandle(Service->ConsoleModeEvent);
 
     DeleteCriticalSection(&Service->ServiceStatusGuard);
     MemFree(Service);
@@ -137,10 +137,10 @@ static VOID FspServiceSetStatus(FSP_SERVICE *Service, ULONG Flags, SERVICE_STATU
             FspEventLog(EVENTLOG_ERROR_TYPE,
                 L"" __FUNCTION__ ": error = %ld", GetLastError());
     }
-    else if (0 != Service->InteractiveEvent &&
+    else if (0 != Service->ConsoleModeEvent &&
         SERVICE_STOPPED == Service->ServiceStatus.dwCurrentState)
     {
-        SetEvent(Service->InteractiveEvent);
+        SetEvent(Service->ConsoleModeEvent);
     }
 
     LeaveCriticalSection(&Service->ServiceStatusGuard);
@@ -148,9 +148,9 @@ static VOID FspServiceSetStatus(FSP_SERVICE *Service, ULONG Flags, SERVICE_STATU
 #undef XCHG
 }
 
-FSP_API VOID FspServiceAllowInteractive(FSP_SERVICE *Service)
+FSP_API VOID FspServiceAllowConsoleMode(FSP_SERVICE *Service)
 {
-    Service->AllowInteractive = TRUE;
+    Service->AllowConsoleMode = TRUE;
 }
 
 FSP_API VOID FspServiceAcceptControl(FSP_SERVICE *Service, ULONG Control)
@@ -199,19 +199,19 @@ FSP_API NTSTATUS FspServiceRun(FSP_SERVICE *Service)
         DWORD LastError;
 
         LastError = GetLastError();
-        if (!Service->AllowInteractive || ERROR_FAILED_SERVICE_CONTROLLER_CONNECT != LastError)
+        if (!Service->AllowConsoleMode || ERROR_FAILED_SERVICE_CONTROLLER_CONNECT != LastError)
             return FspNtStatusFromWin32(LastError);
 
-        /* enter INTERACTIVE mode! */
+        /* enter console mode! */
 
-        if (0 == Service->InteractiveEvent)
+        if (0 == Service->ConsoleModeEvent)
         {
-            Service->InteractiveEvent = CreateEventW(0, TRUE, FALSE, 0);
-            if (0 == Service->InteractiveEvent)
+            Service->ConsoleModeEvent = CreateEventW(0, TRUE, FALSE, 0);
+            if (0 == Service->ConsoleModeEvent)
                 return FspNtStatusFromWin32(GetLastError());
         }
         else
-            ResetEvent(Service->InteractiveEvent);
+            ResetEvent(Service->ConsoleModeEvent);
 
         /* create a thread to mimic what StartServiceCtrlDispatcherW does */
         Thread = CreateThread(0, 0, FspServiceInteractiveThread, Service, 0, 0);
@@ -225,7 +225,7 @@ FSP_API NTSTATUS FspServiceRun(FSP_SERVICE *Service)
         if (!SetConsoleCtrlHandler(FspServiceConsoleCtrlHandler, TRUE))
             return FspNtStatusFromWin32(GetLastError());
 
-        WaitResult = WaitForSingleObject(Service->InteractiveEvent, INFINITE);
+        WaitResult = WaitForSingleObject(Service->ConsoleModeEvent, INFINITE);
         if (WAIT_OBJECT_0 != WaitResult)
             return FspNtStatusFromWin32(GetLastError());
     }

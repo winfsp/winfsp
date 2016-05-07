@@ -859,8 +859,8 @@ typedef struct _FSP_SERVICE
     SERVICE_STATUS_HANDLE StatusHandle;
     CRITICAL_SECTION ServiceStatusGuard;
     SERVICE_STATUS ServiceStatus;
-    BOOLEAN AllowInteractive;
-    HANDLE InteractiveEvent;
+    BOOLEAN AllowConsoleMode;
+    HANDLE ConsoleModeEvent;
     WCHAR ServiceName[];
 } FSP_SERVICE;
 #pragma warning(pop)
@@ -870,7 +870,7 @@ FSP_API NTSTATUS FspServiceCreate(PWSTR ServiceName,
     FSP_SERVICE_CONTROL *OnControl,
     FSP_SERVICE **PService);
 FSP_API VOID FspServiceDelete(FSP_SERVICE *Service);
-FSP_API VOID FspServiceAllowInteractive(FSP_SERVICE *Service);
+FSP_API VOID FspServiceAllowConsoleMode(FSP_SERVICE *Service);
 FSP_API VOID FspServiceAcceptControl(FSP_SERVICE *Service, ULONG Control);
 FSP_API VOID FspServiceRequestTime(FSP_SERVICE *Service, ULONG Time);
 FSP_API VOID FspServiceSetExitCode(FSP_SERVICE *Service, ULONG ExitCode);
