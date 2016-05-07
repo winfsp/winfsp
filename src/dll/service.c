@@ -432,3 +432,64 @@ static BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType)
         return TRUE;
     }
 }
+
+FSP_API BOOLEAN FspServiceIsInteractive(VOID)
+{
+    /*
+     * Modeled after System.Environment.UserInteractive.
+     * See http://referencesource.microsoft.com/#mscorlib/system/environment.cs,947ad026e7cb830c
+     */
+    static HWINSTA ProcessWindowStation;
+    static BOOLEAN IsInteractive;
+    HWINSTA CurrentWindowStation;
+    USEROBJECTFLAGS Flags;
+
+    CurrentWindowStation = GetProcessWindowStation();
+    if (0 != CurrentWindowStation && ProcessWindowStation != CurrentWindowStation)
+    {
+        if (GetUserObjectInformationW(CurrentWindowStation, UOI_FLAGS, &Flags, sizeof Flags, 0))
+            IsInteractive = 0 != (Flags.dwFlags & WSF_VISIBLE);
+        ProcessWindowStation = CurrentWindowStation;
+    }
+    return IsInteractive;
+}
+
+FSP_API VOID FspServiceLog(ULONG Type, PWSTR Format, ...)
+{
+    va_list ap;
+
+    va_start(ap, Format);
+    FspServiceLogV(Type, Format, ap);
+    va_end(ap);
+}
+
+FSP_API VOID FspServiceLogV(ULONG Type, PWSTR Format, va_list ap)
+{
+    if (FspServiceIsInteractive())
+    {
+        WCHAR BufW[1024];
+            /* wvsprintfW is only safe with a 1024 WCHAR buffer */
+        PSTR BufA;
+        DWORD Length;
+
+        wvsprintfW(BufW, Format, ap);
+        BufW[(sizeof BufW / sizeof BufW[0]) - 1] = L'\0';
+
+        Length = lstrlenW(BufW);
+        BufA = MemAlloc(Length * 3);
+        if (0 != BufA)
+        {
+            Length = WideCharToMultiByte(CP_UTF8, 0, BufW, Length, BufA, sizeof BufA, 0, 0);
+            if (0 < Length)
+            {
+                if (Length > sizeof BufA - 1)
+                    Length = sizeof BufA - 1;
+                BufA[Length++] = '\n';
+                WriteFile(GetStdHandle(STD_ERROR_HANDLE), BufA, Length, &Length, 0);
+            }
+            MemFree(BufA);
+        }
+    }
+    else
+        FspEventLogV(Type, Format, ap);
+}
