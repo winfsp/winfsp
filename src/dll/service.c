@@ -134,7 +134,7 @@ static VOID FspServiceSetStatus(FSP_SERVICE *Service, ULONG Flags, SERVICE_STATU
     if (0 != Service->StatusHandle)
     {
         if (!SetServiceStatus(Service->StatusHandle, &Service->ServiceStatus))
-            FspEventLog(EVENTLOG_ERROR_TYPE,
+            FspServiceLog(EVENTLOG_ERROR_TYPE,
                 L"" __FUNCTION__ ": error = %ld", GetLastError());
     }
     else if (0 != Service->ConsoleModeEvent &&
@@ -257,7 +257,7 @@ FSP_API VOID FspServiceStop(FSP_SERVICE *Service)
         FspServiceSetStatus(Service,
             SetStatus_CurrentState | SetStatus_Win32ExitCode, &ServiceStatus);
 
-        FspEventLog(EVENTLOG_INFORMATION_TYPE,
+        FspServiceLog(EVENTLOG_INFORMATION_TYPE,
             L"The service %s has been stopped.", Service->ServiceName);
     }
     else
@@ -267,7 +267,7 @@ FSP_API VOID FspServiceStop(FSP_SERVICE *Service)
             SetStatus_CurrentState | SetStatus_CheckPoint | SetStatus_WaitHint,
             &ServiceStatus);
 
-        FspEventLog(EVENTLOG_ERROR_TYPE,
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
             L"The service %s has failed to stop (Status=%lx).", Service->ServiceName, Result);
     }
 }
@@ -279,7 +279,7 @@ static VOID WINAPI FspServiceEntry(DWORD Argc, PWSTR *Argv)
     Service = FspServiceFromTable();
     if (0 == Service)
     {
-        FspEventLog(EVENTLOG_ERROR_TYPE,
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
             L"" __FUNCTION__ ": internal error: FspServiceFromTable = 0");
         return;
     }
@@ -288,7 +288,7 @@ static VOID WINAPI FspServiceEntry(DWORD Argc, PWSTR *Argv)
         FspServiceCtrlHandler, Service);
     if (0 == Service->StatusHandle)
     {
-        FspEventLog(EVENTLOG_ERROR_TYPE,
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
             L"" __FUNCTION__ ": RegisterServiceCtrlHandlerW = %ld", GetLastError());
         return;
     }
@@ -320,7 +320,7 @@ static VOID FspServiceMain(FSP_SERVICE *Service, DWORD Argc, PWSTR *Argv)
         FspServiceSetStatus(Service,
             SetStatus_CurrentState | SetStatus_ControlsAccepted, &ServiceStatus);
 
-        FspEventLog(EVENTLOG_INFORMATION_TYPE,
+        FspServiceLog(EVENTLOG_INFORMATION_TYPE,
             L"The service %s has been started.", Service->ServiceName);
     }
     else
@@ -330,7 +330,7 @@ static VOID FspServiceMain(FSP_SERVICE *Service, DWORD Argc, PWSTR *Argv)
         FspServiceSetStatus(Service,
             SetStatus_CurrentState | SetStatus_Win32ExitCode, &ServiceStatus);
 
-        FspEventLog(EVENTLOG_ERROR_TYPE,
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
             L"The service %s has failed to start (Status=%lx).", Service->ServiceName, Result);
     }
 }
@@ -389,7 +389,7 @@ static DWORD WINAPI FspServiceInteractiveThread(PVOID Context)
     Service = FspServiceFromTable();
     if (0 == Service)
     {
-        FspEventLog(EVENTLOG_ERROR_TYPE,
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
             L"" __FUNCTION__ ": internal error: FspServiceFromTable = 0");
         return FALSE;
     }
@@ -417,7 +417,7 @@ static BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType)
     Service = FspServiceFromTable();
     if (0 == Service)
     {
-        FspEventLog(EVENTLOG_ERROR_TYPE,
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
             L"" __FUNCTION__ ": internal error: FspServiceFromTable = 0");
         return FALSE;
     }
