@@ -875,7 +875,7 @@ FSP_API VOID FspServiceAcceptControl(FSP_SERVICE *Service, ULONG Control);
 FSP_API VOID FspServiceRequestTime(FSP_SERVICE *Service, ULONG Time);
 FSP_API VOID FspServiceSetExitCode(FSP_SERVICE *Service, ULONG ExitCode);
 FSP_API ULONG FspServiceGetExitCode(FSP_SERVICE *Service);
-FSP_API NTSTATUS FspServiceRun(FSP_SERVICE *Service);
+FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service);
 FSP_API VOID FspServiceStop(FSP_SERVICE *Service);
 FSP_API BOOLEAN FspServiceIsInteractive(VOID);
 FSP_API VOID FspServiceLog(ULONG Type, PWSTR Format, ...);

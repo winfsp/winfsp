@@ -178,7 +178,7 @@ FSP_API ULONG FspServiceGetExitCode(FSP_SERVICE *Service)
     return Service->ServiceStatus.dwWin32ExitCode;
 }
 
-FSP_API NTSTATUS FspServiceRun(FSP_SERVICE *Service)
+FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
 {
     SERVICE_TABLE_ENTRYW ServiceTable[2];
 

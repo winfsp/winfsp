@@ -161,7 +161,7 @@ int wmain(int argc, wchar_t **argv)
         fatal(L"cannot create service (Status=%lx)", Result);
 
     FspServiceAllowConsoleMode(Service);
-    Result = FspServiceRun(Service);
+    Result = FspServiceLoop(Service);
     ExitCode = FspServiceGetExitCode(Service);
     FspServiceDelete(Service);
 
