@@ -59,6 +59,36 @@ static inline FSP_SERVICE *FspServiceFromTable(VOID)
     return Service;
 }
 
+FSP_API ULONG FspServiceRun(PWSTR ServiceName,
+    FSP_SERVICE_START *OnStart,
+    FSP_SERVICE_STOP *OnStop,
+    FSP_SERVICE_CONTROL *OnControl)
+{
+    FSP_SERVICE *Service;
+    NTSTATUS Result;
+    ULONG ExitCode;
+
+    Result = FspServiceCreate(ServiceName, OnStart, OnStop, OnControl, &Service);
+    if (!NT_SUCCESS(Result))
+    {
+        FspServiceLog(EVENTLOG_ERROR_TYPE, L"cannot create service (Status=%lx)", Result);
+        return FspWin32FromNtStatus(Result);
+    }
+
+    FspServiceAllowConsoleMode(Service);
+    Result = FspServiceLoop(Service);
+    ExitCode = FspServiceGetExitCode(Service);
+    FspServiceDelete(Service);
+
+    if (!NT_SUCCESS(Result))
+    {
+        FspServiceLog(EVENTLOG_ERROR_TYPE, L"cannot run service (Status=%lx)", Result);
+        return FspWin32FromNtStatus(Result);
+    }
+
+    return ExitCode;
+}
+
 FSP_API NTSTATUS FspServiceCreate(PWSTR ServiceName,
     FSP_SERVICE_START *OnStart,
     FSP_SERVICE_STOP *OnStop,

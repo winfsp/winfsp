@@ -24,8 +24,6 @@
 #define warn(format, ...)               FspServiceLog(EVENTLOG_WARNING_TYPE, format, __VA_ARGS__)
 #define fail(format, ...)               FspServiceLog(EVENTLOG_ERROR_TYPE, format, __VA_ARGS__)
 
-#define fatal(format, ...)              (fail(format, __VA_ARGS__), exit(ERROR_GEN_FAILURE))
-
 #define argtos(v)                       if (arge > ++argp) v = *argp; else goto usage
 #define argtol(v)                       if (arge > ++argp) v = wcstol_deflt(*argp, v); else goto usage
 
@@ -108,16 +106,16 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
     MountPoint = FspFileSystemMountPoint(MemfsFileSystem(Memfs));
 
-    Service->UserContext = Memfs;
-    Result = STATUS_SUCCESS;
-
-exit:
     info(L"%s -t %ld -n %ld -s %ld%s%s%s%s -m %s",
         L"" PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize,
         RootSddl ? L" -S " : L"", RootSddl ? RootSddl : L"",
         VolumePrefix ? L" -u " : L"", VolumePrefix ? VolumePrefix : L"",
         MountPoint);
 
+    Service->UserContext = Memfs;
+    Result = STATUS_SUCCESS;
+
+exit:
     if (!NT_SUCCESS(Result) && 0 != Memfs)
         MemfsDelete(Memfs);
 
@@ -152,21 +150,5 @@ NTSTATUS SvcStop(FSP_SERVICE *Service)
 
 int wmain(int argc, wchar_t **argv)
 {
-    FSP_SERVICE *Service;
-    NTSTATUS Result;
-    ULONG ExitCode;
-
-    Result = FspServiceCreate(L"" PROGNAME, SvcStart, SvcStop, 0, &Service);
-    if (!NT_SUCCESS(Result))
-        fatal(L"cannot create service (Status=%lx)", Result);
-
-    FspServiceAllowConsoleMode(Service);
-    Result = FspServiceLoop(Service);
-    ExitCode = FspServiceGetExitCode(Service);
-    FspServiceDelete(Service);
-
-    if (!NT_SUCCESS(Result))
-        fatal(L"cannot run service (Status=%lx)", Result);
-
-    return ExitCode;
+    return FspServiceRun(L"" PROGNAME, SvcStart, SvcStop, 0);
 }

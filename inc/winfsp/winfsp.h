@@ -864,6 +864,10 @@ typedef struct _FSP_SERVICE
     WCHAR ServiceName[];
 } FSP_SERVICE;
 #pragma warning(pop)
+FSP_API ULONG FspServiceRun(PWSTR ServiceName,
+    FSP_SERVICE_START *OnStart,
+    FSP_SERVICE_STOP *OnStop,
+    FSP_SERVICE_CONTROL *OnControl);
 FSP_API NTSTATUS FspServiceCreate(PWSTR ServiceName,
     FSP_SERVICE_START *OnStart,
     FSP_SERVICE_STOP *OnStop,
