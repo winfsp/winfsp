@@ -22,6 +22,8 @@ HANDLE ProcessHeap;
 
 BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
 {
+    BOOLEAN Dynamic;
+
     switch (Reason)
     {
     case DLL_PROCESS_ATTACH:
@@ -29,11 +31,36 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
         ProcessHeap = GetProcessHeap();
         if (0 == ProcessHeap)
             return FALSE;
-        FspNtStatusInitialize();
-        FspFileSystemInitialize();
+
+        /*
+         * These functions are called during DLL_PROCESS_ATTACH. We must therefore keep
+         * initialization tasks to a minimum.
+         *
+         * See the DLL best practices document:
+         *     https://msdn.microsoft.com/en-us/library/windows/desktop/dn633971(v=vs.85).aspx
+         */
+        Dynamic = 0 == Reserved;
+        FspNtStatusInitialize(Dynamic);
+        FspEventLogInitialize(Dynamic);
+        FspFileSystemInitialize(Dynamic);
+        FspServiceInitialize(Dynamic);
         break;
+
     case DLL_PROCESS_DETACH:
-        FspFileSystemFinalize();
+        /*
+         * These functions are called during DLL_PROCESS_DETACH. We must therefore keep
+         * finalization tasks to a minimum.
+         *
+         * See the following documents:
+         *     https://msdn.microsoft.com/en-us/library/windows/desktop/dn633971(v=vs.85).aspx
+         *     https://blogs.msdn.microsoft.com/oldnewthing/20070503-00/?p=27003/
+         *     https://blogs.msdn.microsoft.com/oldnewthing/20100122-00/?p=15193/
+         */
+        Dynamic = 0 == Reserved;
+        FspServiceFinalize(Dynamic);
+        FspFileSystemFinalize(Dynamic);
+        FspEventLogFinalize(Dynamic);
+        FspNtStatusFinalize(Dynamic);
         break;
     }
 

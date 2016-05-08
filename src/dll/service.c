@@ -46,6 +46,14 @@ static DWORD WINAPI FspServiceStopRoutine(PVOID Context);
 static DWORD WINAPI FspServiceInteractiveThread(PVOID Context);
 static BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType);
 
+VOID FspServiceInitialize(BOOLEAN Dynamic)
+{
+}
+
+VOID FspServiceFinalize(BOOLEAN Dynamic)
+{
+}
+
 static inline FSP_SERVICE *FspServiceFromTable(VOID)
 {
     FSP_SERVICE *Service = 0;

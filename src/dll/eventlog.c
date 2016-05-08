@@ -26,6 +26,24 @@ static INIT_ONCE FspEventLogInitOnce = INIT_ONCE_STATIC_INIT;
 static BOOL WINAPI FspEventLogRegisterEventSource(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context);
 
+VOID FspEventLogInitialize(BOOLEAN Dynamic)
+{
+}
+
+VOID FspEventLogFinalize(BOOLEAN Dynamic)
+{
+    /*
+     * This function is called during DLL_PROCESS_DETACH. We must therefore keep
+     * finalization tasks to a minimum.
+     *
+     * We must deregister our event source (if any). We only do so if the library
+     * is being explicitly unloaded (rather than the process exiting).
+     */
+
+    if (Dynamic && 0 != FspEventLogHandle)
+        DeregisterEventSource(FspEventLogHandle);
+}
+
 FSP_API VOID FspEventLog(ULONG Type, PWSTR Format, ...)
 {
     va_list ap;

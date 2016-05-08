@@ -27,11 +27,11 @@ static FSP_FILE_SYSTEM_INTERFACE FspFileSystemNullInterface;
 static CRITICAL_SECTION FspFileSystemMountListGuard;
 static LIST_ENTRY FspFileSystemMountList = { &FspFileSystemMountList, &FspFileSystemMountList };
 
-VOID FspFileSystemInitialize(VOID)
+VOID FspFileSystemInitialize(BOOLEAN Dynamic)
 {
     /*
-     * This function is called during DLL_PROCESS_ATTACH. We must therefore keep initialization
-     * tasks to a minimum.
+     * This function is called during DLL_PROCESS_ATTACH. We must therefore keep
+     * initialization tasks to a minimum.
      *
      * Initialization of synchronization objects is allowed! See:
      *     https://msdn.microsoft.com/en-us/library/windows/desktop/dn633971(v=vs.85).aspx
@@ -40,16 +40,11 @@ VOID FspFileSystemInitialize(VOID)
     InitializeCriticalSection(&FspFileSystemMountListGuard);
 }
 
-VOID FspFileSystemFinalize(VOID)
+VOID FspFileSystemFinalize(BOOLEAN Dynamic)
 {
     /*
-     * This function is called during DLL_PROCESS_DETACH. We must therefore keep finalization
-     * tasks to a minimum.
-     *
-     * Very few things can be safely done during DLL_PROCESS_DETACH. See:
-     *     https://msdn.microsoft.com/en-us/library/windows/desktop/dn633971(v=vs.85).aspx
-     *     https://blogs.msdn.microsoft.com/oldnewthing/20070503-00/?p=27003/
-     *     https://blogs.msdn.microsoft.com/oldnewthing/20100122-00/?p=15193/
+     * This function is called during DLL_PROCESS_DETACH. We must therefore keep
+     * finalization tasks to a minimum.
      *
      * We enter our FspFileSystemMountListGuard critical section here and then attempt to cleanup
      * our mount points using DefineDosDeviceW. On Vista and later orphaned critical sections
@@ -60,6 +55,9 @@ VOID FspFileSystemFinalize(VOID)
      * out to CSRSS, which is probably not the safest thing to do when in DllMain! There is also
      * some evidence that it may attempt to load DLL's under some circumstances, which is a
      * definite no-no as we are under the loader lock!
+     *
+     * We only delete the criticaly section when being dynamically unloaded. On process exit the
+     * OS will clean it up for us.
      */
 
     FSP_FILE_SYSTEM *FileSystem;
@@ -79,6 +77,9 @@ VOID FspFileSystemFinalize(VOID)
     }
 
     LeaveCriticalSection(&FspFileSystemMountListGuard);
+
+    if (Dynamic)
+        DeleteCriticalSection(&FspFileSystemMountListGuard);
 }
 
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,

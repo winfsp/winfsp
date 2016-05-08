@@ -103,17 +103,19 @@ BOOLEAN RemoveEntryList(PLIST_ENTRY Entry)
     return Flink == Blink;
 }
 
-VOID FspNtStatusInitialize(VOID);
-
-VOID FspFileSystemInitialize(VOID);
-VOID FspFileSystemFinalize(VOID);
+VOID FspNtStatusInitialize(BOOLEAN Dynamic);
+VOID FspNtStatusFinalize(BOOLEAN Dynamic);
+VOID FspEventLogInitialize(BOOLEAN Dynamic);
+VOID FspEventLogFinalize(BOOLEAN Dynamic);
+VOID FspFileSystemInitialize(BOOLEAN Dynamic);
+VOID FspFileSystemFinalize(BOOLEAN Dynamic);
+VOID FspServiceInitialize(BOOLEAN Dynamic);
+VOID FspServiceFinalize(BOOLEAN Dynamic);
 
 NTSTATUS FspFsctlRegister(VOID);
 NTSTATUS FspFsctlUnregister(VOID);
-
 NTSTATUS FspNpRegister(VOID);
 NTSTATUS FspNpUnregister(VOID);
-
 NTSTATUS FspEventLogRegister(VOID);
 NTSTATUS FspEventLogUnregister(VOID);
 

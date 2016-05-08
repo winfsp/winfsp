@@ -19,11 +19,11 @@
 
 static ULONG (WINAPI *FspRtlNtStatusToDosError)(NTSTATUS Status);
 
-VOID FspNtStatusInitialize(VOID)
+VOID FspNtStatusInitialize(BOOLEAN Dynamic)
 {
     /*
-     * This function is called during DLL_PROCESS_ATTACH. We must therefore keep initialization
-     * tasks to a minimum.
+     * This function is called during DLL_PROCESS_ATTACH. We must therefore keep
+     * initialization tasks to a minimum.
      *
      * GetModuleHandle/GetProcAddress is allowed (because they are kernel32 API's)! See:
      *     https://msdn.microsoft.com/en-us/library/windows/desktop/dn633971(v=vs.85).aspx
@@ -34,6 +34,10 @@ VOID FspNtStatusInitialize(VOID)
     Handle = GetModuleHandleW(L"ntdll.dll");
     if (0 != Handle)
         FspRtlNtStatusToDosError = (PVOID)GetProcAddress(Handle, "RtlNtStatusToDosError");
+}
+
+VOID FspNtStatusFinalize(BOOLEAN Dynamic)
+{
 }
 
 FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error)
