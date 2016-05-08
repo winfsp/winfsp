@@ -20,46 +20,111 @@
 
 #define PROGNAME                        "memfs"
 
-static void vwarn(const char *format, va_list ap)
+#define info(format, ...)               FspServiceLog(EVENTLOG_INFORMATION_TYPE, format, __VA_ARGS__)
+#define warn(format, ...)               FspServiceLog(EVENTLOG_WARNING_TYPE, format, __VA_ARGS__)
+#define fail(format, ...)               FspServiceLog(EVENTLOG_ERROR_TYPE, format, __VA_ARGS__)
+
+#define fatal(format, ...)              (fail(format, __VA_ARGS__), exit(ERROR_GEN_FAILURE))
+
+#define argtos(v)                       if (arge > ++argp) v = *argp; else goto usage
+#define argtol(v)                       if (arge > ++argp) v = wcstol_deflt(*argp, v); else goto usage
+
+static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
 {
-    char buf[1024];
-        /* wvsprintf is only safe with a 1024 byte buffer */
-    DWORD BytesTransferred;
-
-    wvsprintfA(buf, format, ap);
-    buf[sizeof buf - 1] = '\0';
-
-    WriteFile(GetStdHandle(STD_ERROR_HANDLE),
-        buf, (DWORD)strlen(buf),
-        &BytesTransferred, 0);
-    WriteFile(GetStdHandle(STD_ERROR_HANDLE),
-        "\n", 1,
-        &BytesTransferred, 0);
+    wchar_t *endp;
+    ULONG ul = wcstol(w, &endp, 10);
+    return L'\0' != w[0] && L'\0' == *endp ? ul : deflt;
 }
 
-static void warn(const char *format, ...)
+NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
-    va_list ap;
+    wchar_t **argp, **arge;
+    ULONG Flags = MemfsDisk;
+    ULONG FileInfoTimeout = INFINITE;
+    ULONG MaxFileNodes = 1024;
+    ULONG MaxFileSize = 16 * 1024 * 1024;
+    PWSTR MountPoint = 0;
+    PWSTR VolumePrefix = 0;
+    PWSTR RootSddl = 0;
+    MEMFS *Memfs;
+    NTSTATUS Result;
 
-    va_start(ap, format);
-    vwarn(format, ap);
-    va_end(ap);
-}
+    for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
+    {
+        if (L'-' != argp[0][0])
+            break;
+        switch (argp[0][1])
+        {
+        case L'?':
+            goto usage;
+        case L'm':
+            argtos(MountPoint);
+            break;
+        case L'n':
+            argtol(MaxFileNodes);
+            break;
+        case L'S':
+            argtos(RootSddl);
+            break;
+        case L's':
+            argtol(MaxFileSize);
+            break;
+        case L't':
+            argtol(FileInfoTimeout);
+            break;
+        case L'u':
+            argtos(VolumePrefix);
+            Flags = MemfsNet;
+            break;
+        default:
+            goto usage;
+        }
+    }
 
-static void fail(const char *format, ...)
-{
-    va_list ap;
+    if (arge > argp)
+        goto usage;
 
-    va_start(ap, format);
-    vwarn(format, ap);
-    va_end(ap);
+    Result = MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, RootSddl,
+        &Memfs);
+    if (!NT_SUCCESS(Result))
+    {
+        fail(L"cannot create MEMFS");
+        goto exit;
+    }
 
-    exit(1);
-}
+    Result = FspFileSystemSetMountPoint(MemfsFileSystem(Memfs), MountPoint);
+    if (!NT_SUCCESS(Result))
+    {
+        fail(L"cannot mount MEMFS");
+        goto exit;
+    }
 
-static void usage(void)
-{
-    static char usage[] = ""
+    Result = MemfsStart(Memfs);
+    if (!NT_SUCCESS(Result))
+    {
+        fail(L"cannot start MEMFS");
+        goto exit;
+    }
+
+    MountPoint = FspFileSystemMountPoint(MemfsFileSystem(Memfs));
+
+    Service->UserContext = Memfs;
+    Result = STATUS_SUCCESS;
+
+exit:
+    info(L"%s -t %ld -n %ld -s %ld%s%s%s%s -m %s",
+        L"" PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize,
+        RootSddl ? L" -S " : L"", RootSddl ? RootSddl : L"",
+        VolumePrefix ? L" -u " : L"", VolumePrefix ? VolumePrefix : L"",
+        MountPoint);
+
+    if (!NT_SUCCESS(Result) && 0 != Memfs)
+        MemfsDelete(Memfs);
+
+    return Result;
+
+usage:
+    static wchar_t usage[] = L""
         "usage: %s OPTIONS\n"
         "\n"
         "options:\n"
@@ -70,118 +135,38 @@ static void usage(void)
         "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
         "    -m MountPoint       [X:]\n";
 
-    warn(usage, PROGNAME);
-    exit(2);
+    fail(usage, L"" PROGNAME);
+
+    return STATUS_UNSUCCESSFUL;
 }
 
-static ULONG argtol(wchar_t **argp, ULONG deflt)
+NTSTATUS SvcStop(FSP_SERVICE *Service)
 {
-    if (0 == argp[0])
-        usage();
+    MEMFS *Memfs = Service->UserContext;
 
-    wchar_t *endp;
-    ULONG ul = wcstol(argp[0], &endp, 10);
-    return L'\0' != argp[0][0] && L'\0' == *endp ? ul : deflt;
-}
+    MemfsStop(Memfs);
+    MemfsDelete(Memfs);
 
-static wchar_t *argtos(wchar_t **argp)
-{
-    if (0 == argp[0])
-        usage();
-
-    return argp[0];
-}
-
-static HANDLE MainEvent;
-
-static BOOL WINAPI ConsoleCtrlHandler(DWORD CtrlType)
-{
-    SetEvent(MainEvent);
-    return TRUE;
+    return STATUS_SUCCESS;
 }
 
 int wmain(int argc, wchar_t **argv)
 {
-    wchar_t **argp;
+    FSP_SERVICE *Service;
     NTSTATUS Result;
-    MEMFS *Memfs;
-    ULONG Flags = MemfsDisk;
-    ULONG FileInfoTimeout = INFINITE;
-    ULONG MaxFileNodes = 1024;
-    ULONG MaxFileSize = 16 * 1024 * 1024;
-    PWSTR MountPoint = 0;
-    PWSTR VolumePrefix = 0;
-    PWSTR RootSddl = 0;
+    ULONG ExitCode;
 
-    for (argp = argv + 1; 0 != argp[0]; argp++)
-    {
-        if (L'-' != argp[0][0])
-            break;
-        switch (argp[0][1])
-        {
-        case L'?':
-            usage();
-            break;
-        case L'm':
-            MountPoint = argtos(++argp);
-            break;
-        case L'n':
-            MaxFileNodes = argtol(++argp, MaxFileNodes);
-            break;
-        case L'S':
-            RootSddl = argtos(++argp);
-            break;
-        case L's':
-            MaxFileSize = argtol(++argp, MaxFileSize);
-            break;
-        case L't':
-            FileInfoTimeout = argtol(++argp, FileInfoTimeout);
-            break;
-        case L'u':
-            VolumePrefix = argtos(++argp);
-            Flags = MemfsNet;
-            break;
-        default:
-            usage();
-            break;
-        }
-    }
-
-    if (0 != argp[0])
-        usage();
-
-    MainEvent = CreateEvent(0, TRUE, FALSE, 0);
-    if (0 == MainEvent)
-        fail("error: cannot create MainEvent");
-
-    Result = MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, RootSddl,
-        &Memfs);
+    Result = FspServiceCreate(L"" PROGNAME, SvcStart, SvcStop, 0, &Service);
     if (!NT_SUCCESS(Result))
-        fail("error: cannot create MEMFS");
-    Result = MemfsStart(Memfs);
+        fatal(L"cannot create service (Status=%lx)", Result);
+
+    FspServiceAllowConsoleMode(Service);
+    Result = FspServiceRun(Service);
+    ExitCode = FspServiceGetExitCode(Service);
+    FspServiceDelete(Service);
+
     if (!NT_SUCCESS(Result))
-        fail("error: cannot start MEMFS");
-    Result = FspFileSystemSetMountPoint(MemfsFileSystem(Memfs), MountPoint);
-    if (!NT_SUCCESS(Result))
-        fail("error: cannot mount MEMFS");
-    MountPoint = FspFileSystemMountPoint(MemfsFileSystem(Memfs));
+        fatal(L"cannot run service (Status=%lx)", Result);
 
-    warn("%s -t %ld -n %ld -s %ld%s%S%s%S -m %S",
-        PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize,
-        RootSddl ? " -S " : "", RootSddl ? RootSddl : L"",
-        VolumePrefix ? " -u " : "", VolumePrefix ? VolumePrefix : L"",
-        MountPoint);
-    SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
-    if (WAIT_OBJECT_0 != WaitForSingleObject(MainEvent, INFINITE))
-        fail("error: cannot wait on MainEvent");
-
-    FspFileSystemRemoveMountPoint(MemfsFileSystem(Memfs));
-    MemfsStop(Memfs);
-    MemfsDelete(Memfs);
-
-    /* the OS will handle this! */
-    // CloseHandle(MainEvent);
-    // MainEvent = 0;
-
-    return 0;
+    return ExitCode;
 }

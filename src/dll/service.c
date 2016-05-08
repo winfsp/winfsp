@@ -173,6 +173,11 @@ FSP_API VOID FspServiceSetExitCode(FSP_SERVICE *Service, ULONG ExitCode)
     Service->ExitCode = ExitCode;
 }
 
+FSP_API ULONG FspServiceGetExitCode(FSP_SERVICE *Service)
+{
+    return Service->ServiceStatus.dwWin32ExitCode;
+}
+
 FSP_API NTSTATUS FspServiceRun(FSP_SERVICE *Service)
 {
     SERVICE_TABLE_ENTRYW ServiceTable[2];
@@ -301,13 +306,10 @@ static VOID FspServiceMain(FSP_SERVICE *Service, DWORD Argc, PWSTR *Argv)
     SERVICE_STATUS ServiceStatus;
     NTSTATUS Result;
 
-    ServiceStatus.dwCurrentState = SERVICE_START_PENDING;
+    ServiceStatus.dwCurrentState = SERVICE_RUNNING;
     ServiceStatus.dwControlsAccepted = 0;
-    ServiceStatus.dwCheckPoint = 0;
-    ServiceStatus.dwWaitHint = 0;
     FspServiceSetStatus(Service,
-        SetStatus_CurrentState | SetStatus_ControlsAccepted | SetStatus_CheckPoint | SetStatus_WaitHint,
-        &ServiceStatus);
+        SetStatus_CurrentState | SetStatus_ControlsAccepted, &ServiceStatus);
 
     Result = STATUS_SUCCESS;
     if (0 != Service->OnStart)
