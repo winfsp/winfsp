@@ -44,7 +44,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     PWSTR MountPoint = 0;
     PWSTR VolumePrefix = 0;
     PWSTR RootSddl = 0;
-    MEMFS *Memfs;
+    MEMFS *Memfs = 0;
     NTSTATUS Result;
 
     for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)

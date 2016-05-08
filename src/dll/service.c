@@ -26,6 +26,7 @@ enum
     SetStatus_ServiceSpecificExitCode   = 0x0010,
     SetStatus_CheckPoint                = 0x0020,
     SetStatus_WaitHint                  = 0x0040,
+    AddStatus_CheckPoint                = 0x0080,
     GetStatus_ServiceType               = 0x0100,
     GetStatus_CurrentState              = 0x0200,
     GetStatus_ControlsAccepted          = 0x0400,
@@ -50,11 +51,8 @@ static inline FSP_SERVICE *FspServiceFromTable(VOID)
     FSP_SERVICE *Service = 0;
 
     if (0 != FspServiceTable)
-    {
         Service = (PVOID)((PUINT8)FspServiceTable[0].lpServiceName -
             FIELD_OFFSET(FSP_SERVICE, ServiceName));
-        FspServiceTable = 0;
-    }
 
     return Service;
 }
@@ -71,7 +69,8 @@ FSP_API ULONG FspServiceRun(PWSTR ServiceName,
     Result = FspServiceCreate(ServiceName, OnStart, OnStop, OnControl, &Service);
     if (!NT_SUCCESS(Result))
     {
-        FspServiceLog(EVENTLOG_ERROR_TYPE, L"cannot create service (Status=%lx)", Result);
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
+            L"The service %s cannot be created (Status=%lx).", Service->ServiceName, Result);
         return FspWin32FromNtStatus(Result);
     }
 
@@ -82,7 +81,8 @@ FSP_API ULONG FspServiceRun(PWSTR ServiceName,
 
     if (!NT_SUCCESS(Result))
     {
-        FspServiceLog(EVENTLOG_ERROR_TYPE, L"cannot run service (Status=%lx)", Result);
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
+            L"The service %s has failed to run (Status=%lx).", Service->ServiceName, Result);
         return FspWin32FromNtStatus(Result);
     }
 
@@ -147,25 +147,22 @@ static VOID FspServiceSetStatus(FSP_SERVICE *Service, ULONG Flags, SERVICE_STATU
     XCHG(ControlsAccepted);
     XCHG(Win32ExitCode);
     //XCHG(ServiceSpecificExitCode);
-    if (Flags & SetStatus_CheckPoint)
+    if (Flags & AddStatus_CheckPoint)
     {
         DWORD Temp = ServiceStatus->dwCheckPoint;
         if (Flags & GetStatus_CheckPoint)
             ServiceStatus->dwCheckPoint = Service->ServiceStatus.dwCheckPoint;
-
-        /* treat CheckPoint specially! */
-        if (0 == Temp)
-            Service->ServiceStatus.dwCheckPoint = 0;
-        else
-            Service->ServiceStatus.dwCheckPoint += Temp;
+        Service->ServiceStatus.dwCheckPoint += Temp;
     }
+    else
+        XCHG(CheckPoint);
     XCHG(WaitHint);
 
     if (0 != Service->StatusHandle)
     {
         if (!SetServiceStatus(Service->StatusHandle, &Service->ServiceStatus))
             FspServiceLog(EVENTLOG_ERROR_TYPE,
-                L"" __FUNCTION__ ": error = %ld", GetLastError());
+                L"" __FUNCTION__ ": SetServiceStatus = %ld", GetLastError());
     }
     else if (0 != Service->ConsoleModeEvent &&
         SERVICE_STOPPED == Service->ServiceStatus.dwCurrentState)
@@ -195,7 +192,7 @@ FSP_API VOID FspServiceRequestTime(FSP_SERVICE *Service, ULONG Time)
     ServiceStatus.dwCheckPoint = +1;
     ServiceStatus.dwWaitHint = Time;
     FspServiceSetStatus(Service,
-        SetStatus_CheckPoint | SetStatus_WaitHint, &ServiceStatus);
+        AddStatus_CheckPoint | SetStatus_WaitHint, &ServiceStatus);
 }
 
 FSP_API VOID FspServiceSetExitCode(FSP_SERVICE *Service, ULONG ExitCode)
@@ -210,6 +207,7 @@ FSP_API ULONG FspServiceGetExitCode(FSP_SERVICE *Service)
 
 FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
 {
+    NTSTATUS Result;
     SERVICE_TABLE_ENTRYW ServiceTable[2];
 
     Service->ExitCode = NO_ERROR;
@@ -235,7 +233,10 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
 
         LastError = GetLastError();
         if (!Service->AllowConsoleMode || ERROR_FAILED_SERVICE_CONTROLLER_CONNECT != LastError)
-            return FspNtStatusFromWin32(LastError);
+        {
+            Result = FspNtStatusFromWin32(LastError);
+            goto exit;
+        }
 
         /* enter console mode! */
 
@@ -243,7 +244,10 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
         {
             Service->ConsoleModeEvent = CreateEventW(0, TRUE, FALSE, 0);
             if (0 == Service->ConsoleModeEvent)
-                return FspNtStatusFromWin32(GetLastError());
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
         }
         else
             ResetEvent(Service->ConsoleModeEvent);
@@ -251,21 +255,38 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
         /* create a thread to mimic what StartServiceCtrlDispatcherW does */
         Thread = CreateThread(0, 0, FspServiceInteractiveThread, Service, 0, 0);
         if (0 == Thread)
-            return FspNtStatusFromWin32(GetLastError());
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
         WaitResult = WaitForSingleObject(Thread, INFINITE);
         CloseHandle(Thread);
         if (WAIT_OBJECT_0 != WaitResult)
-            return FspNtStatusFromWin32(GetLastError());
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
 
         if (!SetConsoleCtrlHandler(FspServiceConsoleCtrlHandler, TRUE))
-            return FspNtStatusFromWin32(GetLastError());
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
 
         WaitResult = WaitForSingleObject(Service->ConsoleModeEvent, INFINITE);
         if (WAIT_OBJECT_0 != WaitResult)
-            return FspNtStatusFromWin32(GetLastError());
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
     }
 
-    return STATUS_SUCCESS;
+    Result = STATUS_SUCCESS;
+
+exit:
+    FspServiceTable = 0;
+
+    return Result;
 }
 
 FSP_API VOID FspServiceStop(FSP_SERVICE *Service)
@@ -508,14 +529,13 @@ FSP_API VOID FspServiceLogV(ULONG Type, PWSTR Format, va_list ap)
         BufW[(sizeof BufW / sizeof BufW[0]) - 1] = L'\0';
 
         Length = lstrlenW(BufW);
-        BufA = MemAlloc(Length * 3);
+        BufA = MemAlloc(Length * 3 + 1/* '\n' */);
         if (0 != BufA)
         {
-            Length = WideCharToMultiByte(CP_UTF8, 0, BufW, Length, BufA, sizeof BufA, 0, 0);
+            Length = WideCharToMultiByte(CP_UTF8, 0, BufW, Length, BufA, Length * 3 + 1/* '\n' */,
+                0, 0);
             if (0 < Length)
             {
-                if (Length > sizeof BufA - 1)
-                    Length = sizeof BufA - 1;
                 BufA[Length++] = '\n';
                 WriteFile(GetStdHandle(STD_ERROR_HANDLE), BufA, Length, &Length, 0);
             }
