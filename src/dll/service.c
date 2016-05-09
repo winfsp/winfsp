@@ -37,14 +37,19 @@ enum
 };
 
 static SERVICE_TABLE_ENTRYW *FspServiceTable;
+static HANDLE FspServiceConsoleModeEvent;
+
 static VOID FspServiceSetStatus(FSP_SERVICE *Service, ULONG Flags, SERVICE_STATUS *ServiceStatus);
 static VOID WINAPI FspServiceEntry(DWORD Argc, PWSTR *Argv);
 static VOID FspServiceMain(FSP_SERVICE *Service, DWORD Argc, PWSTR *Argv);
 static DWORD WINAPI FspServiceCtrlHandler(
     DWORD Control, DWORD EventType, PVOID EventData, PVOID Context);
-static DWORD WINAPI FspServiceStopRoutine(PVOID Context);
-static DWORD WINAPI FspServiceInteractiveThread(PVOID Context);
+static DWORD WINAPI FspServiceConsoleModeThread(PVOID Context);
 static BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType);
+
+#define FspServiceFromTable()           (0 != FspServiceTable ?\
+    (FSP_SERVICE *)((PUINT8)FspServiceTable[0].lpServiceName - FIELD_OFFSET(FSP_SERVICE, ServiceName)) :\
+    0)
 
 VOID FspServiceInitialize(BOOLEAN Dynamic)
 {
@@ -52,17 +57,15 @@ VOID FspServiceInitialize(BOOLEAN Dynamic)
 
 VOID FspServiceFinalize(BOOLEAN Dynamic)
 {
-}
-
-static inline FSP_SERVICE *FspServiceFromTable(VOID)
-{
-    FSP_SERVICE *Service = 0;
-
-    if (0 != FspServiceTable)
-        Service = (PVOID)((PUINT8)FspServiceTable[0].lpServiceName -
-            FIELD_OFFSET(FSP_SERVICE, ServiceName));
-
-    return Service;
+    /*
+     * This function is called during DLL_PROCESS_DETACH. We must therefore keep
+     * finalization tasks to a minimum.
+     *
+     * We must close our console mode event handle. We only do so when we are
+     * explicitly unloaded. If the process is exiting the OS will clean up for us.
+     */
+    if (Dynamic && 0 != FspServiceConsoleModeEvent)
+        CloseHandle(FspServiceConsoleModeEvent);
 }
 
 FSP_API ULONG FspServiceRun(PWSTR ServiceName,
@@ -130,9 +133,6 @@ FSP_API NTSTATUS FspServiceCreate(PWSTR ServiceName,
 
 FSP_API VOID FspServiceDelete(FSP_SERVICE *Service)
 {
-    if (0 != Service->ConsoleModeEvent)
-        CloseHandle(Service->ConsoleModeEvent);
-
     DeleteCriticalSection(&Service->ServiceStatusGuard);
     MemFree(Service);
 }
@@ -172,10 +172,10 @@ static VOID FspServiceSetStatus(FSP_SERVICE *Service, ULONG Flags, SERVICE_STATU
             FspServiceLog(EVENTLOG_ERROR_TYPE,
                 L"" __FUNCTION__ ": SetServiceStatus = %ld", GetLastError());
     }
-    else if (0 != Service->ConsoleModeEvent &&
+    else if (0 != FspServiceConsoleModeEvent &&
         SERVICE_STOPPED == Service->ServiceStatus.dwCurrentState)
     {
-        SetEvent(Service->ConsoleModeEvent);
+        SetEvent(FspServiceConsoleModeEvent);
     }
 
     LeaveCriticalSection(&Service->ServiceStatusGuard);
@@ -248,20 +248,20 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
 
         /* enter console mode! */
 
-        if (0 == Service->ConsoleModeEvent)
+        if (0 == FspServiceConsoleModeEvent)
         {
-            Service->ConsoleModeEvent = CreateEventW(0, TRUE, FALSE, 0);
-            if (0 == Service->ConsoleModeEvent)
+            FspServiceConsoleModeEvent = CreateEventW(0, TRUE, FALSE, 0);
+            if (0 == FspServiceConsoleModeEvent)
             {
                 Result = FspNtStatusFromWin32(GetLastError());
                 goto exit;
             }
         }
         else
-            ResetEvent(Service->ConsoleModeEvent);
+            ResetEvent(FspServiceConsoleModeEvent);
 
         /* create a thread to mimic what StartServiceCtrlDispatcherW does */
-        Thread = CreateThread(0, 0, FspServiceInteractiveThread, Service, 0, 0);
+        Thread = CreateThread(0, 0, FspServiceConsoleModeThread, Service, 0, 0);
         if (0 == Thread)
         {
             Result = FspNtStatusFromWin32(GetLastError());
@@ -281,12 +281,15 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
             goto exit;
         }
 
-        WaitResult = WaitForSingleObject(Service->ConsoleModeEvent, INFINITE);
+        WaitResult = WaitForSingleObject(FspServiceConsoleModeEvent, INFINITE);
+        SetConsoleCtrlHandler(FspServiceConsoleCtrlHandler, FALSE);
         if (WAIT_OBJECT_0 != WaitResult)
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
         }
+
+        FspServiceCtrlHandler(SERVICE_CONTROL_STOP, 0, 0, Service);
     }
 
     Result = STATUS_SUCCESS;
@@ -301,6 +304,11 @@ FSP_API VOID FspServiceStop(FSP_SERVICE *Service)
 {
     SERVICE_STATUS ServiceStatus;
     NTSTATUS Result;
+
+    EnterCriticalSection(&Service->ServiceStatusGuard);
+
+    if (SERVICE_STOPPED == Service->ServiceStatus.dwCurrentState)
+        goto exit;
 
     ServiceStatus.dwCurrentState = SERVICE_STOP_PENDING;
     ServiceStatus.dwCheckPoint = 0;
@@ -334,6 +342,9 @@ FSP_API VOID FspServiceStop(FSP_SERVICE *Service)
         FspServiceLog(EVENTLOG_ERROR_TYPE,
             L"The service %s has failed to stop (Status=%lx).", Service->ServiceName, Result);
     }
+
+exit:
+    LeaveCriticalSection(&Service->ServiceStatusGuard);
 }
 
 static VOID WINAPI FspServiceEntry(DWORD Argc, PWSTR *Argv)
@@ -413,8 +424,7 @@ static DWORD WINAPI FspServiceCtrlHandler(
         /* fall through */
 
     case SERVICE_CONTROL_STOP:
-        if (!QueueUserWorkItem(FspServiceStopRoutine, Service, WT_EXECUTEDEFAULT))
-            FspServiceStopRoutine(Service);
+        FspServiceStop(Service);
         return NO_ERROR;
 
     case SERVICE_CONTROL_PAUSE:
@@ -432,15 +442,7 @@ static DWORD WINAPI FspServiceCtrlHandler(
     }
 }
 
-static DWORD WINAPI FspServiceStopRoutine(PVOID Context)
-{
-    FSP_SERVICE *Service = Context;
-
-    FspServiceStop(Service);
-    return 0;
-}
-
-static DWORD WINAPI FspServiceInteractiveThread(PVOID Context)
+static DWORD WINAPI FspServiceConsoleModeThread(PVOID Context)
 {
     FSP_SERVICE *Service;
     PWSTR Args[2] = { 0, 0 };
@@ -473,23 +475,28 @@ static DWORD WINAPI FspServiceInteractiveThread(PVOID Context)
 
 static BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType)
 {
-    FSP_SERVICE *Service;
-
-    Service = FspServiceFromTable();
-    if (0 == Service)
-    {
-        FspServiceLog(EVENTLOG_ERROR_TYPE,
-            L"" __FUNCTION__ ": internal error: FspServiceFromTable = 0");
-        return FALSE;
-    }
+    if (0 != FspServiceConsoleModeEvent)
+        SetEvent(FspServiceConsoleModeEvent);
 
     switch (CtrlType)
     {
-    case CTRL_SHUTDOWN_EVENT:
-        FspServiceCtrlHandler(SERVICE_CONTROL_SHUTDOWN, 0, 0, Service);
-        return TRUE;
     default:
-        FspServiceCtrlHandler(SERVICE_CONTROL_STOP, 0, 0, Service);
+    case CTRL_C_EVENT:
+    case CTRL_BREAK_EVENT:
+        return TRUE;
+    case CTRL_CLOSE_EVENT:
+    case CTRL_LOGOFF_EVENT:
+    case CTRL_SHUTDOWN_EVENT:
+        /*
+         * Returning from these events will kill the process. OTOH if we do not return timely
+         * the OS will kill us within 5-20 seconds. Our strategy is to wait some time (30 sec)
+         * to give the process some time to cleanup itself.
+         *
+         * We only do so if we have a Close event or we are interactive. If we are running as
+         * a service the OS will not kill us after delivering a Logoff or Shutdown event.
+         */
+        if (CTRL_CLOSE_EVENT == CtrlType || FspServiceIsInteractive())
+            Sleep(30000);
         return TRUE;
     }
 }

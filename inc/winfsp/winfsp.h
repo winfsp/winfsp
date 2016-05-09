@@ -860,7 +860,6 @@ typedef struct _FSP_SERVICE
     CRITICAL_SECTION ServiceStatusGuard;
     SERVICE_STATUS ServiceStatus;
     BOOLEAN AllowConsoleMode;
-    HANDLE ConsoleModeEvent;
     WCHAR ServiceName[];
 } FSP_SERVICE;
 #pragma warning(pop)
