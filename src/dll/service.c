@@ -236,6 +236,8 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
     if (!StartServiceCtrlDispatcherW(ServiceTable))
     {
         HANDLE Thread;
+        PWSTR *Argv;
+        DWORD Argc;
         DWORD WaitResult;
         DWORD LastError;
 
@@ -246,8 +248,9 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
             goto exit;
         }
 
-        /* enter console mode! */
+        /* ENTER CONSOLE MODE! */
 
+        /* create/reset the console mode event */
         if (0 == FspServiceConsoleModeEvent)
         {
             FspServiceConsoleModeEvent = CreateEventW(0, TRUE, FALSE, 0);
@@ -260,13 +263,25 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
         else
             ResetEvent(FspServiceConsoleModeEvent);
 
-        /* create a thread to mimic what StartServiceCtrlDispatcherW does */
-        Thread = CreateThread(0, 0, FspServiceConsoleModeThread, Service, 0, 0);
-        if (0 == Thread)
+        /* prepare the command line arguments */
+        Argv = CommandLineToArgvW(GetCommandLineW(), &Argc);
+        if (0 == Argv)
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
         }
+        Argv[0] = Service->ServiceName;
+
+        /* create a thread to mimic what StartServiceCtrlDispatcherW does; it takes ownership of Argv */
+        Thread = CreateThread(0, 0, FspServiceConsoleModeThread, Argv, 0, 0);
+        if (0 == Thread)
+        {
+            LocalFree(Argv);
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+
+        /* wait for the console mode startup thread to terminate */
         WaitResult = WaitForSingleObject(Thread, INFINITE);
         CloseHandle(Thread);
         if (WAIT_OBJECT_0 != WaitResult)
@@ -275,12 +290,14 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
             goto exit;
         }
 
+        /* set up our console control handler */
         if (!SetConsoleCtrlHandler(FspServiceConsoleCtrlHandler, TRUE))
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
         }
 
+        /* wait until we get signaled by the console control handler */
         WaitResult = WaitForSingleObject(FspServiceConsoleModeEvent, INFINITE);
         SetConsoleCtrlHandler(FspServiceConsoleCtrlHandler, FALSE);
         if (WAIT_OBJECT_0 != WaitResult)
@@ -445,30 +462,20 @@ static DWORD WINAPI FspServiceCtrlHandler(
 static DWORD WINAPI FspServiceConsoleModeThread(PVOID Context)
 {
     FSP_SERVICE *Service;
-    PWSTR Args[2] = { 0, 0 };
-    PWSTR *Argv;
+    PWSTR *Argv = Context;
     DWORD Argc;
+
+    for (Argc = 0; 0 != *Argv; Argc++)
+        ;
 
     Service = FspServiceFromTable();
     if (0 == Service)
-    {
         FspServiceLog(EVENTLOG_ERROR_TYPE,
             L"" __FUNCTION__ ": internal error: FspServiceFromTable = 0");
-        return FALSE;
-    }
+    else
+        FspServiceMain(Service, Argc, Argv);
 
-    Argv = CommandLineToArgvW(GetCommandLineW(), &Argc);
-    if (0 == Argv)
-    {
-        Argv = Args;
-        Argc = 1;
-    }
-    Argv[0] = Service->ServiceName;
-
-    FspServiceMain(Service, Argc, Argv);
-
-    if (Args != Argv)
-        LocalFree(Argv);
+    LocalFree(Argv);
 
     return 0;
 }
