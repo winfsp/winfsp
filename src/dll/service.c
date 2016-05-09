@@ -448,12 +448,20 @@ static DWORD WINAPI FspServiceCtrlHandler(
     switch (Control)
     {
     case SERVICE_CONTROL_SHUTDOWN:
+        /*
+         * Shutdown simply falls through to Stop. If specific Shutdown handling is needed
+         * we need to enable this. We also need to arrange for console mode to have two
+         * events: one to signal Stop and another to signal Shutdown. We currently use a
+         * single event for both console mode controls.
+         */
+#if 0
         Result = STATUS_NOT_IMPLEMENTED;
         if (0 != Service->OnControl)
             Result = Service->OnControl(Service, Control, EventType, EventData);
         if (STATUS_NOT_IMPLEMENTED != Result)
             return FspWin32FromNtStatus(Result);
         /* fall through */
+#endif
 
     case SERVICE_CONTROL_STOP:
         FspServiceStop(Service);
