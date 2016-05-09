@@ -38,6 +38,7 @@ enum
 
 static SERVICE_TABLE_ENTRYW *FspServiceTable;
 static HANDLE FspServiceConsoleModeEvent;
+static UINT32 FspServiceConsoleCtrlHandlerDisabled;
 
 static VOID FspServiceSetStatus(FSP_SERVICE *Service, ULONG Flags, SERVICE_STATUS *ServiceStatus);
 static VOID WINAPI FspServiceEntry(DWORD Argc, PWSTR *Argv);
@@ -250,35 +251,45 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
 
         /* ENTER CONSOLE MODE! */
 
-        /* create/reset the console mode event */
+        /* create/reset the console mode event and console control handler */
         if (0 == FspServiceConsoleModeEvent)
         {
             FspServiceConsoleModeEvent = CreateEventW(0, TRUE, FALSE, 0);
             if (0 == FspServiceConsoleModeEvent)
             {
                 Result = FspNtStatusFromWin32(GetLastError());
-                goto exit;
+                goto console_mode_exit;
+            }
+
+            if (!SetConsoleCtrlHandler(FspServiceConsoleCtrlHandler, TRUE))
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto console_mode_exit;
             }
         }
         else
+        {
             ResetEvent(FspServiceConsoleModeEvent);
+            FspServiceConsoleCtrlHandlerDisabled = 0;
+            MemoryBarrier();
+        }
 
         /* prepare the command line arguments */
         Argv = CommandLineToArgvW(GetCommandLineW(), &Argc);
         if (0 == Argv)
         {
             Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
+            goto console_mode_exit;
         }
         Argv[0] = Service->ServiceName;
 
-        /* create a thread to mimic what StartServiceCtrlDispatcherW does; it takes ownership of Argv */
-        Thread = CreateThread(0, 0, FspServiceConsoleModeThread, Argv, 0, 0);
+        /* create the console mode startup thread (mimic StartServiceCtrlDispatcherW) */
+        Thread = CreateThread(0, 0, FspServiceConsoleModeThread, Argv/* give ownership */, 0, 0);
         if (0 == Thread)
         {
             LocalFree(Argv);
             Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
+            goto console_mode_exit;
         }
 
         /* wait for the console mode startup thread to terminate */
@@ -287,32 +298,30 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
         if (WAIT_OBJECT_0 != WaitResult)
         {
             Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
+            goto console_mode_exit;
         }
 
-        /* quick check to see if service already stopped */
-        WaitResult = WaitForSingleObject(FspServiceConsoleModeEvent, 0);
+        /* wait until signaled by the console control handler */
+        WaitResult = WaitForSingleObject(FspServiceConsoleModeEvent, INFINITE);
         if (WAIT_OBJECT_0 != WaitResult)
         {
-            /* set up our console control handler */
-            if (!SetConsoleCtrlHandler(FspServiceConsoleCtrlHandler, TRUE))
-            {
-                Result = FspNtStatusFromWin32(GetLastError());
-                goto exit;
-            }
-
-            /* wait until we get signaled by the console control handler */
-            WaitResult = WaitForSingleObject(FspServiceConsoleModeEvent, INFINITE);
-            SetConsoleCtrlHandler(FspServiceConsoleCtrlHandler, FALSE);
-            if (WAIT_OBJECT_0 != WaitResult)
-            {
-                Result = FspNtStatusFromWin32(GetLastError());
-                goto exit;
-            }
-
-            if (Service->AcceptControl & SERVICE_ACCEPT_STOP)
-                FspServiceCtrlHandler(SERVICE_CONTROL_STOP, 0, 0, Service);
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto console_mode_exit;
         }
+
+        if (Service->AcceptControl & SERVICE_ACCEPT_STOP)
+            FspServiceCtrlHandler(SERVICE_CONTROL_STOP, 0, 0, Service);
+
+    console_mode_exit:
+        /*
+         * Turns out that if we are sleeping/waiting in the FspServiceConsoleCtrlHandler
+         * we cannot call SetConsoleCtrlHandler, because we will deadlock. So we cannot
+         * really cleanup our console control handler upon return from this function.
+         *
+         * What we do instead is disable our handler by setting a variable.
+         */
+        FspServiceConsoleCtrlHandlerDisabled = 1;
+        MemoryBarrier();
     }
 
     Result = STATUS_SUCCESS;
@@ -488,6 +497,11 @@ static DWORD WINAPI FspServiceConsoleModeThread(PVOID Context)
 
 static BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType)
 {
+    UINT32 Disabled = FspServiceConsoleCtrlHandlerDisabled;
+    MemoryBarrier();
+    if (Disabled)
+        return FALSE;
+
     switch (CtrlType)
     {
     default:
