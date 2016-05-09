@@ -306,7 +306,8 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
             goto exit;
         }
 
-        FspServiceCtrlHandler(SERVICE_CONTROL_STOP, 0, 0, Service);
+        if (Service->AcceptControl & SERVICE_ACCEPT_STOP)
+            FspServiceCtrlHandler(SERVICE_CONTROL_STOP, 0, 0, Service);
     }
 
     Result = STATUS_SUCCESS;
