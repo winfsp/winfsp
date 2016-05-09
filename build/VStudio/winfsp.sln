@@ -32,6 +32,14 @@ Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "winfsp_msi", "installer\win
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CustomActions", "installer\CustomActions\CustomActions.vcxproj", "{95C223E6-B5F1-4FD0-9376-41CDBC824445}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "launcher", "launcher", "{FD28A504-431E-49B9-BB8C-DCA0E7019F66}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "launcher", "launcher\launcher.vcxproj", "{A5EFD487-0140-4184-8C54-FFAEC2F85E35}"
+	ProjectSection(ProjectDependencies) = postProject
+		{4A7C0B21-9E10-4C81-92DE-1493EFCF24EB} = {4A7C0B21-9E10-4C81-92DE-1493EFCF24EB}
+		{C85C26BA-8C22-4D30-83DA-46C3548E6332} = {C85C26BA-8C22-4D30-83DA-46C3548E6332}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -116,6 +124,22 @@ Global
 		{95C223E6-B5F1-4FD0-9376-41CDBC824445}.Installer.Release|x86.Build.0 = Release|Win32
 		{95C223E6-B5F1-4FD0-9376-41CDBC824445}.Release|x64.ActiveCfg = Release|Win32
 		{95C223E6-B5F1-4FD0-9376-41CDBC824445}.Release|x86.ActiveCfg = Release|Win32
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Debug|x64.ActiveCfg = Debug|x64
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Debug|x64.Build.0 = Debug|x64
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Debug|x86.ActiveCfg = Debug|Win32
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Debug|x86.Build.0 = Debug|Win32
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Installer.Debug|x64.ActiveCfg = Debug|x64
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Installer.Debug|x64.Build.0 = Debug|x64
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Installer.Debug|x86.ActiveCfg = Debug|Win32
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Installer.Debug|x86.Build.0 = Debug|Win32
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Installer.Release|x64.ActiveCfg = Release|x64
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Installer.Release|x64.Build.0 = Release|x64
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Installer.Release|x86.ActiveCfg = Release|Win32
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Installer.Release|x86.Build.0 = Release|Win32
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Release|x64.ActiveCfg = Release|x64
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Release|x64.Build.0 = Release|x64
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Release|x86.ActiveCfg = Release|Win32
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -125,5 +149,6 @@ Global
 		{AA7190E8-877F-4827-8CDD-E0D85F83C8C1} = {69439FD1-C07D-4BF1-98DC-3CCFECE53A49}
 		{D53AAC39-4C57-4CA5-A4F3-C2B24888C594} = {B464EF06-42AE-4674-81BB-FDDE80204822}
 		{95C223E6-B5F1-4FD0-9376-41CDBC824445} = {B464EF06-42AE-4674-81BB-FDDE80204822}
+		{A5EFD487-0140-4184-8C54-FFAEC2F85E35} = {FD28A504-431E-49B9-BB8C-DCA0E7019F66}
 	EndGlobalSection
 EndGlobal
