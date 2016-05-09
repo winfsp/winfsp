@@ -482,17 +482,15 @@ static DWORD WINAPI FspServiceConsoleModeThread(PVOID Context)
 
 static BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType)
 {
-    if (0 != FspServiceConsoleModeEvent)
-        SetEvent(FspServiceConsoleModeEvent);
-
     switch (CtrlType)
     {
     default:
     case CTRL_C_EVENT:
     case CTRL_BREAK_EVENT:
+        if (0 != FspServiceConsoleModeEvent)
+            SetEvent(FspServiceConsoleModeEvent);
         return TRUE;
     case CTRL_CLOSE_EVENT:
-    case CTRL_LOGOFF_EVENT:
     case CTRL_SHUTDOWN_EVENT:
         /*
          * Returning from these events will kill the process. OTOH if we do not return timely
@@ -500,10 +498,15 @@ static BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType)
          * to give the process some time to cleanup itself.
          *
          * We only do so if we have a Close event or we are interactive. If we are running as
-         * a service the OS will not kill us after delivering a Logoff or Shutdown event.
+         * a service the OS will not kill us after delivering a Shutdown (or Logoff) event.
          */
+        if (0 != FspServiceConsoleModeEvent)
+            SetEvent(FspServiceConsoleModeEvent);
         if (CTRL_CLOSE_EVENT == CtrlType || FspServiceIsInteractive())
             Sleep(30000);
+        return TRUE;
+    case CTRL_LOGOFF_EVENT:
+        /* services should ignore this! */
         return TRUE;
     }
 }
