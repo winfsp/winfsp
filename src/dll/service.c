@@ -290,24 +290,29 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
             goto exit;
         }
 
-        /* set up our console control handler */
-        if (!SetConsoleCtrlHandler(FspServiceConsoleCtrlHandler, TRUE))
-        {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
-        }
-
-        /* wait until we get signaled by the console control handler */
-        WaitResult = WaitForSingleObject(FspServiceConsoleModeEvent, INFINITE);
-        SetConsoleCtrlHandler(FspServiceConsoleCtrlHandler, FALSE);
+        /* quick check to see if service already stopped */
+        WaitResult = WaitForSingleObject(FspServiceConsoleModeEvent, 0);
         if (WAIT_OBJECT_0 != WaitResult)
         {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
-        }
+            /* set up our console control handler */
+            if (!SetConsoleCtrlHandler(FspServiceConsoleCtrlHandler, TRUE))
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
 
-        if (Service->AcceptControl & SERVICE_ACCEPT_STOP)
-            FspServiceCtrlHandler(SERVICE_CONTROL_STOP, 0, 0, Service);
+            /* wait until we get signaled by the console control handler */
+            WaitResult = WaitForSingleObject(FspServiceConsoleModeEvent, INFINITE);
+            SetConsoleCtrlHandler(FspServiceConsoleCtrlHandler, FALSE);
+            if (WAIT_OBJECT_0 != WaitResult)
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+
+            if (Service->AcceptControl & SERVICE_ACCEPT_STOP)
+                FspServiceCtrlHandler(SERVICE_CONTROL_STOP, 0, 0, Service);
+        }
     }
 
     Result = STATUS_SUCCESS;
@@ -466,7 +471,7 @@ static DWORD WINAPI FspServiceConsoleModeThread(PVOID Context)
     PWSTR *Argv = Context;
     DWORD Argc;
 
-    for (Argc = 0; 0 != *Argv; Argc++)
+    for (Argc = 0; 0 != *Argv; Argv++, Argc++)
         ;
 
     Service = FspServiceFromTable();
