@@ -488,7 +488,7 @@ static DWORD WINAPI FspServiceConsoleModeThread(PVOID Context)
     PWSTR *Argv = Context;
     DWORD Argc;
 
-    for (Argc = 0; 0 != *Argv; Argv++, Argc++)
+    for (Argc = 0; 0 != Argv[Argc]; Argc++)
         ;
 
     Service = FspServiceFromTable();
