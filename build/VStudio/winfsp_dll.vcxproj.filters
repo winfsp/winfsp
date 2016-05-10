@@ -12,6 +12,9 @@
     <Filter Include="Include\winfsp">
       <UniqueIdentifier>{1d6501f4-cebd-4a00-a774-deb782b59fb5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Include\shared">
+      <UniqueIdentifier>{c7b83307-0aa0-4593-b2d4-26ff2f1edfc6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h">
@@ -22,6 +25,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\dll\library.h">
       <Filter>Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\shared\minimal.h">
+      <Filter>Include\shared</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

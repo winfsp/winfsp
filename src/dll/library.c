@@ -67,13 +67,11 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
     return TRUE;
 }
 
-/* see comments in library.h */
-#if defined(WINFSP_DLL_NODEFAULTLIB)
+/* see comments in shared/minimal.h */
 BOOL WINAPI _DllMainCRTStartup(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
 {
     return DllMain(Instance, Reason, Reserved);
 }
-#endif
 
 HRESULT WINAPI DllRegisterServer(VOID)
 {
