@@ -5,10 +5,21 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
+    <Filter Include="Include">
+      <UniqueIdentifier>{11e7c0f2-7782-43ee-84fa-9e56efbe39de}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Include\shared">
+      <UniqueIdentifier>{d83ea433-d9f7-494c-90b9-3a8997483cd9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\launcher\launcher.c">
       <Filter>Source</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\src\shared\minimal.h">
+      <Filter>Include\shared</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
