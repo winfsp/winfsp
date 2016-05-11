@@ -126,6 +126,7 @@ FSP_API NTSTATUS FspServiceCreate(PWSTR ServiceName,
     Service->AcceptControl = OnStop ? SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN : 0;
 
     InitializeCriticalSection(&Service->ServiceStatusGuard);
+    InitializeCriticalSection(&Service->ServiceStopGuard);
 
     *PService = Service;
 
@@ -134,6 +135,7 @@ FSP_API NTSTATUS FspServiceCreate(PWSTR ServiceName,
 
 FSP_API VOID FspServiceDelete(FSP_SERVICE *Service)
 {
+    DeleteCriticalSection(&Service->ServiceStopGuard);
     DeleteCriticalSection(&Service->ServiceStatusGuard);
     MemFree(Service);
 }
@@ -335,11 +337,16 @@ exit:
 FSP_API VOID FspServiceStop(FSP_SERVICE *Service)
 {
     SERVICE_STATUS ServiceStatus;
+    BOOLEAN Stopped;
     NTSTATUS Result;
 
-    EnterCriticalSection(&Service->ServiceStatusGuard);
+    if (!TryEnterCriticalSection(&Service->ServiceStopGuard))
+        return; /* the service is already being stopped! */
 
-    if (SERVICE_STOPPED == Service->ServiceStatus.dwCurrentState)
+    EnterCriticalSection(&Service->ServiceStatusGuard);
+    Stopped = SERVICE_STOPPED == Service->ServiceStatus.dwCurrentState;
+    LeaveCriticalSection(&Service->ServiceStatusGuard);
+    if (Stopped)
         goto exit;
 
     ServiceStatus.dwCurrentState = SERVICE_STOP_PENDING;
@@ -376,7 +383,7 @@ FSP_API VOID FspServiceStop(FSP_SERVICE *Service)
     }
 
 exit:
-    LeaveCriticalSection(&Service->ServiceStatusGuard);
+    LeaveCriticalSection(&Service->ServiceStopGuard);
 }
 
 static VOID WINAPI FspServiceEntry(DWORD Argc, PWSTR *Argv)

@@ -857,8 +857,9 @@ typedef struct _FSP_SERVICE
     ULONG AcceptControl;
     ULONG ExitCode;
     SERVICE_STATUS_HANDLE StatusHandle;
-    CRITICAL_SECTION ServiceStatusGuard;
     SERVICE_STATUS ServiceStatus;
+    CRITICAL_SECTION ServiceStatusGuard;
+    CRITICAL_SECTION ServiceStopGuard;
     BOOLEAN AllowConsoleMode;
     WCHAR ServiceName[];
 } FSP_SERVICE;
