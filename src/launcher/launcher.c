@@ -1,5 +1,5 @@
 /**
- * @file launcher.c
+ * @file launcher/launcher.c
  *
  * @copyright 2015-2016 Bill Zissimopoulos
  */
