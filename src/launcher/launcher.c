@@ -15,9 +15,7 @@
  * software.
  */
 
-#include <winfsp/winfsp.h>
-#include <shared/minimal.h>
-#include <sddl.h>
+#include <launcher/launcher.h>
 
 #define PROGNAME                        "WinFsp-Launcher"
 #define REGKEY                          "SYSTEM\\CurrentControlSet\\Services\\" PROGNAME "\\Services"
@@ -282,16 +280,169 @@ VOID SvcInstanceStop(PWSTR InstanceName)
     LeaveCriticalSection(&SvcInstanceLock);
 }
 
+static HANDLE SvcThread, SvcEvent;
+static HANDLE SvcPipe = INVALID_HANDLE_VALUE;
+static OVERLAPPED SvcOverlapped;
+
+static DWORD WINAPI SvcPipeServer(PVOID Context);
+
 static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
     InitializeCriticalSection(&SvcInstanceLock);
+
+    SvcEvent = CreateEventW(0, TRUE, FALSE, 0);
+    if (0 == SvcEvent)
+        goto fail;
+
+    SvcOverlapped.hEvent = CreateEventW(0, TRUE, FALSE, 0);
+    if (0 == SvcOverlapped.hEvent)
+        goto fail;
+
+    SvcPipe = CreateNamedPipeW(L"" PIPE_NAME,
+        PIPE_ACCESS_DUPLEX |
+            FILE_FLAG_FIRST_PIPE_INSTANCE | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_OVERLAPPED,
+        PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+        1, PIPE_SRVBUF_SIZE, PIPE_CLIBUF_SIZE, 0, 0);
+    if (INVALID_HANDLE_VALUE == SvcPipe)
+        goto fail;
+
+    SvcThread = CreateThread(0, 0, SvcPipeServer, Service, 0, 0);
+    if (0 == SvcThread)
+        goto fail;
+
     return STATUS_SUCCESS;
+
+fail:
+    DWORD LastError = GetLastError();
+
+    if (0 != SvcThread)
+        CloseHandle(SvcThread);
+
+    if (INVALID_HANDLE_VALUE != SvcPipe)
+        CloseHandle(SvcPipe);
+
+    if (0 != SvcOverlapped.hEvent)
+        CloseHandle(SvcOverlapped.hEvent);
+
+    if (0 != SvcEvent)
+        CloseHandle(SvcEvent);
+
+    DeleteCriticalSection(&SvcInstanceLock);
+
+    return FspNtStatusFromWin32(LastError);
 }
 
 static NTSTATUS SvcStop(FSP_SERVICE *Service)
 {
+    SetEvent(SvcEvent);
+    FspServiceRequestTime(Service, 4500);   /* just under 5 sec */
+    WaitForSingleObject(SvcThread, 4500);
+
+    if (0 != SvcThread)
+        CloseHandle(SvcThread);
+
+    if (INVALID_HANDLE_VALUE != SvcPipe)
+        CloseHandle(SvcPipe);
+
+    if (0 != SvcOverlapped.hEvent)
+        CloseHandle(SvcOverlapped.hEvent);
+
+    if (0 != SvcEvent)
+        CloseHandle(SvcEvent);
+
     DeleteCriticalSection(&SvcInstanceLock);
+
     return STATUS_SUCCESS;
+}
+
+static inline DWORD SvcPipeWaitResult(BOOL Success, HANDLE StopEvent,
+    HANDLE Handle, OVERLAPPED *Overlapped, PDWORD PBytesTransferred)
+{
+    HANDLE WaitObjects[2];
+    DWORD WaitResult;
+
+    if (!Success && ERROR_IO_PENDING != GetLastError())
+        return GetLastError();
+
+    WaitObjects[0] = StopEvent;
+    WaitObjects[1] = Overlapped->hEvent;
+    WaitResult = WaitForMultipleObjects(2, WaitObjects, FALSE, INFINITE);
+    if (WAIT_OBJECT_0 == WaitResult)
+        return -1; /* special: stop thread */
+    else if (WAIT_OBJECT_0 + 1 == WaitResult)
+    {
+        if (!GetOverlappedResult(Handle, Overlapped, PBytesTransferred, TRUE))
+            return GetLastError();
+        return 0;
+    }
+    else
+        return GetLastError();
+}
+
+static DWORD WINAPI SvcPipeServer(PVOID Context)
+{
+    FSP_SERVICE *Service = Context;
+    PWSTR PipeBuf = 0;
+    DWORD LastError, BytesTransferred;
+
+    PipeBuf = MemAlloc(PIPE_SRVBUF_SIZE);
+    if (0 == PipeBuf)
+    {
+        FspServiceSetExitCode(Service, ERROR_NO_SYSTEM_RESOURCES);
+        goto exit;
+    }
+
+    for (;;)
+    {
+        LastError = SvcPipeWaitResult(
+            ConnectNamedPipe(SvcPipe, &SvcOverlapped),
+            SvcEvent, SvcPipe, &SvcOverlapped, &BytesTransferred);
+        if (-1 == LastError)
+            break;
+        else if (ERROR_PIPE_CONNECTED != LastError && ERROR_NO_DATA != LastError)
+        {
+            FspServiceLog(EVENTLOG_WARNING_TYPE,
+                L"Error in service main loop (ConnectNamedPipe = %ld). Continuing...", LastError);
+            continue;
+        }
+
+        LastError = SvcPipeWaitResult(
+            ReadFile(SvcPipe, PipeBuf, PIPE_SRVBUF_SIZE, &BytesTransferred, &SvcOverlapped),
+            SvcEvent, SvcPipe, &SvcOverlapped, &BytesTransferred);
+        if (-1 == LastError)
+            break;
+        else if (0 != LastError)
+        {
+            DisconnectNamedPipe(SvcPipe);
+            FspServiceLog(EVENTLOG_WARNING_TYPE,
+                L"Error in service main loop (ReadFile = %ld). Continuing...", LastError);
+            continue;
+        }
+
+        /* handle PipeBuf */
+
+        LastError = SvcPipeWaitResult(
+            WriteFile(SvcPipe, PipeBuf, PIPE_SRVBUF_SIZE, &BytesTransferred, &SvcOverlapped),
+            SvcEvent, SvcPipe, &SvcOverlapped, &BytesTransferred);
+        if (-1 == LastError)
+            break;
+        else if (0 != LastError)
+        {
+            DisconnectNamedPipe(SvcPipe);
+            FspServiceLog(EVENTLOG_WARNING_TYPE,
+                L"Error in service main loop (WriteFile = %ld). Continuing...", LastError);
+            continue;
+        }
+
+        DisconnectNamedPipe(SvcPipe);
+    }
+
+exit:
+    MemFree(PipeBuf);
+
+    FspServiceStop(Service);
+
+    return 0;
 }
 
 int wmain(int argc, wchar_t **argv)
