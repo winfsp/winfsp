@@ -285,6 +285,7 @@ static HANDLE SvcPipe = INVALID_HANDLE_VALUE;
 static OVERLAPPED SvcOverlapped;
 
 static DWORD WINAPI SvcPipeServer(PVOID Context);
+static VOID SvcPipeTransact(PWSTR PipeBuf, PULONG PSize);
 
 static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
@@ -381,6 +382,10 @@ static inline DWORD SvcPipeWaitResult(BOOL Success, HANDLE StopEvent,
 
 static DWORD WINAPI SvcPipeServer(PVOID Context)
 {
+    static PWSTR LoopErrorMessage =
+        L"Error in service main loop (%s = %ld). Exiting...";
+    static PWSTR LoopWarningMessage =
+        L"Error in service main loop (%s = %ld). Continuing...";
     FSP_SERVICE *Service = Context;
     PWSTR PipeBuf = 0;
     DWORD LastError, BytesTransferred;
@@ -401,8 +406,8 @@ static DWORD WINAPI SvcPipeServer(PVOID Context)
             break;
         else if (ERROR_PIPE_CONNECTED != LastError && ERROR_NO_DATA != LastError)
         {
-            FspServiceLog(EVENTLOG_WARNING_TYPE,
-                L"Error in service main loop (ConnectNamedPipe = %ld). Continuing...", LastError);
+            FspServiceLog(EVENTLOG_WARNING_TYPE, LoopWarningMessage,
+                L"ConnectNamedPipe", LastError);
             continue;
         }
 
@@ -411,26 +416,46 @@ static DWORD WINAPI SvcPipeServer(PVOID Context)
             SvcEvent, SvcPipe, &SvcOverlapped, &BytesTransferred);
         if (-1 == LastError)
             break;
-        else if (0 != LastError)
+        else if (0 != LastError || sizeof(WCHAR) <= BytesTransferred)
         {
             DisconnectNamedPipe(SvcPipe);
-            FspServiceLog(EVENTLOG_WARNING_TYPE,
-                L"Error in service main loop (ReadFile = %ld). Continuing...", LastError);
+            if (0 != LastError)
+                FspServiceLog(EVENTLOG_WARNING_TYPE, LoopWarningMessage,
+                    L"ReadFile", LastError);
             continue;
         }
 
-        /* handle PipeBuf */
+        if (!ImpersonateNamedPipeClient(SvcPipe))
+        {
+            LastError = GetLastError();
+            DisconnectNamedPipe(SvcPipe);
+            FspServiceLog(EVENTLOG_WARNING_TYPE, LoopWarningMessage,
+                L"ImpersonateNamedPipeClient", LastError);
+            continue;
+        }
+
+        SvcPipeTransact(PipeBuf, &BytesTransferred);
+
+        if (!RevertToSelf())
+        {
+            LastError = GetLastError();
+            DisconnectNamedPipe(SvcPipe);
+            FspServiceLog(EVENTLOG_ERROR_TYPE, LoopErrorMessage,
+                L"RevertToSelf", LastError);
+            FspServiceSetExitCode(Service, LastError);
+            break;
+        }
 
         LastError = SvcPipeWaitResult(
-            WriteFile(SvcPipe, PipeBuf, PIPE_SRVBUF_SIZE, &BytesTransferred, &SvcOverlapped),
+            WriteFile(SvcPipe, PipeBuf, BytesTransferred, &BytesTransferred, &SvcOverlapped),
             SvcEvent, SvcPipe, &SvcOverlapped, &BytesTransferred);
         if (-1 == LastError)
             break;
         else if (0 != LastError)
         {
             DisconnectNamedPipe(SvcPipe);
-            FspServiceLog(EVENTLOG_WARNING_TYPE,
-                L"Error in service main loop (WriteFile = %ld). Continuing...", LastError);
+            FspServiceLog(EVENTLOG_WARNING_TYPE, LoopWarningMessage,
+                L"WriteFile", LastError);
             continue;
         }
 
@@ -443,6 +468,75 @@ exit:
     FspServiceStop(Service);
 
     return 0;
+}
+
+static inline PWSTR SvcPipeTransactGetPart(PWSTR *PP, PWSTR PipeBufEnd)
+{
+    PWSTR PipeBufBeg = *PP, P;
+
+    for (P = PipeBufBeg; PipeBufEnd > P && *P; P++)
+        ;
+
+    if (PipeBufEnd > P)
+    {
+        *PP = P + 1;
+        return PipeBufBeg;
+    }
+    else
+    {
+        *PP = P;
+        return 0;
+    }
+}
+
+static VOID SvcPipeTransact(PWSTR PipeBuf, PULONG PSize)
+{
+    if (sizeof(WCHAR) > *PSize)
+        return;
+
+    PWSTR P = PipeBuf, PipeBufEnd = PipeBuf + *PSize / sizeof(WCHAR);
+    PWSTR ClassName, InstanceName;
+    ULONG Argc; PWSTR Argv[10];
+    NTSTATUS Result;
+
+    *PSize = 0;
+
+    switch (*P++)
+    {
+    case LauncherSvcInstanceStart:
+        ClassName = SvcPipeTransactGetPart(&P, PipeBufEnd);
+        InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
+        for (Argc = 0; 10 > Argc; Argc++)
+            if (0 == (Argv[Argc] = SvcPipeTransactGetPart(&P, PipeBufEnd)))
+                break;
+
+        Result = STATUS_UNSUCCESSFUL;
+        if (0 != ClassName && 0 != InstanceName)
+            Result = SvcInstanceStart(ClassName, InstanceName, Argc, Argv);
+
+        *PipeBuf = NT_SUCCESS(Result) ? L'+' : L'-';
+        *PSize = 1;
+        break;
+
+    case LauncherSvcInstanceStop:
+        InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
+        if (0 != InstanceName)
+            SvcInstanceStop(InstanceName);
+
+        *PipeBuf = L'+';
+        *PSize = 1;
+        break;
+
+    case LauncherSvcInstanceList:
+        break;
+
+    case LauncherSvcInstanceInfo:
+        InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
+        break;
+
+    default:
+        break;
+    }
 }
 
 int wmain(int argc, wchar_t **argv)

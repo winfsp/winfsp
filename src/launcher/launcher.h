@@ -25,5 +25,12 @@
 #define PIPE_SRVBUF_SIZE                1024
 #define PIPE_CLIBUF_SIZE                1024
 
+enum
+{
+    LauncherSvcInstanceStart            = 'S',
+    LauncherSvcInstanceStop             = 'T',
+    LauncherSvcInstanceList             = 'L',
+    LauncherSvcInstanceInfo             = 'I',
+};
 
 #endif
