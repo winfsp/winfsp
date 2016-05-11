@@ -312,8 +312,10 @@ NTSTATUS SvcInstanceGetInfo(PWSTR InstanceName, PWSTR Buffer, PULONG PSize)
 {
     SVC_INSTANCE *SvcInstance;
     ULONG ClassNameSize, InstanceNameSize, CommandLineSize;
+    NTSTATUS Result;
 
     EnterCriticalSection(&SvcInstanceLock);
+
     SvcInstance = SvcInstanceFromName(InstanceName);
     if (0 != SvcInstance)
     {
@@ -336,6 +338,7 @@ NTSTATUS SvcInstanceGetInfo(PWSTR InstanceName, PWSTR Buffer, PULONG PSize)
     }
     else
         Result = STATUS_OBJECT_NAME_NOT_FOUND;
+
     LeaveCriticalSection(&SvcInstanceLock);
 
     return Result;
@@ -364,7 +367,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         PIPE_ACCESS_DUPLEX |
             FILE_FLAG_FIRST_PIPE_INSTANCE | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_OVERLAPPED,
         PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-        1, PIPE_SRVBUF_SIZE, PIPE_CLIBUF_SIZE, 0, 0);
+        1, PIPE_BUFFER_SIZE, PIPE_BUFFER_SIZE, 0, 0);
     if (INVALID_HANDLE_VALUE == SvcPipe)
         goto fail;
 
@@ -451,7 +454,7 @@ static DWORD WINAPI SvcPipeServer(PVOID Context)
     PWSTR PipeBuf = 0;
     DWORD LastError, BytesTransferred;
 
-    PipeBuf = MemAlloc(PIPE_SRVBUF_SIZE);
+    PipeBuf = MemAlloc(PIPE_BUFFER_SIZE);
     if (0 == PipeBuf)
     {
         FspServiceSetExitCode(Service, ERROR_NO_SYSTEM_RESOURCES);
@@ -473,7 +476,7 @@ static DWORD WINAPI SvcPipeServer(PVOID Context)
         }
 
         LastError = SvcPipeWaitResult(
-            ReadFile(SvcPipe, PipeBuf, PIPE_SRVBUF_SIZE, &BytesTransferred, &SvcOverlapped),
+            ReadFile(SvcPipe, PipeBuf, PIPE_BUFFER_SIZE, &BytesTransferred, &SvcOverlapped),
             SvcEvent, SvcPipe, &SvcOverlapped, &BytesTransferred);
         if (-1 == LastError)
             break;
@@ -594,7 +597,7 @@ static VOID SvcPipeTransact(PWSTR PipeBuf, PULONG PSize)
         break;
 
     case LauncherSvcInstanceList:
-        *PSize = PIPE_SRVBUF_SIZE - 1;
+        *PSize = PIPE_BUFFER_SIZE - 1;
         SvcInstanceGetNameList(PipeBuf + 1, PSize);
 
         *PipeBuf = L'$';
@@ -607,7 +610,7 @@ static VOID SvcPipeTransact(PWSTR PipeBuf, PULONG PSize)
         Result = STATUS_UNSUCCESSFUL;
         if (0 != InstanceName)
         {
-            *PSize = PIPE_SRVBUF_SIZE - 1;
+            *PSize = PIPE_BUFFER_SIZE - 1;
             Result = SvcInstanceGetInfo(InstanceName, PipeBuf + 1, PSize);
         }
 
