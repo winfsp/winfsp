@@ -280,6 +280,67 @@ VOID SvcInstanceStop(PWSTR InstanceName)
     LeaveCriticalSection(&SvcInstanceLock);
 }
 
+VOID SvcInstanceGetNameList(PWSTR Buffer, PULONG PSize)
+{
+    SVC_INSTANCE *SvcInstance;
+    PLIST_ENTRY ListEntry;
+    PWSTR BufferBeg = Buffer, BufferEnd = Buffer + *PSize / sizeof(WCHAR);
+    ULONG InstanceNameSize;
+
+    EnterCriticalSection(&SvcInstanceLock);
+
+    for (ListEntry = SvcInstanceList.Flink;
+        &SvcInstanceList != ListEntry;
+        ListEntry = ListEntry->Flink)
+    {
+        SvcInstance = CONTAINING_RECORD(ListEntry, SVC_INSTANCE, ListEntry);
+
+        InstanceNameSize = lstrlenW(SvcInstance->InstanceName) + 1;
+        if (BufferEnd < Buffer + InstanceNameSize)
+            break;
+
+        memcpy(Buffer, SvcInstance->InstanceName, InstanceNameSize * sizeof(WCHAR));
+        Buffer += InstanceNameSize;
+    }
+
+    LeaveCriticalSection(&SvcInstanceLock);
+
+    *PSize = (ULONG)(Buffer - BufferBeg);
+}
+
+NTSTATUS SvcInstanceGetInfo(PWSTR InstanceName, PWSTR Buffer, PULONG PSize)
+{
+    SVC_INSTANCE *SvcInstance;
+    ULONG ClassNameSize, InstanceNameSize, CommandLineSize;
+
+    EnterCriticalSection(&SvcInstanceLock);
+    SvcInstance = SvcInstanceFromName(InstanceName);
+    if (0 != SvcInstance)
+    {
+        ClassNameSize = lstrlenW(SvcInstance->ClassName) + 1;
+        InstanceNameSize = lstrlenW(SvcInstance->InstanceName) + 1;
+        CommandLineSize = lstrlenW(SvcInstance->CommandLine) + 1;
+
+        if (*PSize < (ClassNameSize + InstanceNameSize + CommandLineSize) * sizeof(WCHAR))
+        {
+            memcpy(Buffer, SvcInstance->ClassName,
+                ClassNameSize * sizeof(WCHAR));
+            memcpy(Buffer + ClassNameSize, SvcInstance->InstanceName,
+                InstanceNameSize * sizeof(WCHAR));
+            memcpy(Buffer + ClassNameSize + InstanceNameSize, SvcInstance->CommandLine,
+                CommandLineSize * sizeof(WCHAR));
+            Result = STATUS_SUCCESS;
+        }
+        else
+            Result = STATUS_BUFFER_TOO_SMALL;
+    }
+    else
+        Result = STATUS_OBJECT_NAME_NOT_FOUND;
+    LeaveCriticalSection(&SvcInstanceLock);
+
+    return Result;
+}
+
 static HANDLE SvcThread, SvcEvent;
 static HANDLE SvcPipe = INVALID_HANDLE_VALUE;
 static OVERLAPPED SvcOverlapped;
@@ -514,8 +575,13 @@ static VOID SvcPipeTransact(PWSTR PipeBuf, PULONG PSize)
         if (0 != ClassName && 0 != InstanceName)
             Result = SvcInstanceStart(ClassName, InstanceName, Argc, Argv);
 
-        *PipeBuf = NT_SUCCESS(Result) ? L'+' : L'-';
-        *PSize = 1;
+        if (NT_SUCCESS(Result))
+        {
+            *PipeBuf = L'$';
+            *PSize = 1;
+        }
+        else
+            *PSize = wsprintfW(PipeBuf, L"!%08lx", FspNtStatusFromWin32(Result));
         break;
 
     case LauncherSvcInstanceStop:
@@ -523,15 +589,35 @@ static VOID SvcPipeTransact(PWSTR PipeBuf, PULONG PSize)
         if (0 != InstanceName)
             SvcInstanceStop(InstanceName);
 
-        *PipeBuf = L'+';
+        *PipeBuf = L'$';
         *PSize = 1;
         break;
 
     case LauncherSvcInstanceList:
+        *PSize = PIPE_SRVBUF_SIZE - 1;
+        SvcInstanceGetNameList(PipeBuf + 1, PSize);
+
+        *PipeBuf = L'$';
+        *PSize++;
         break;
 
     case LauncherSvcInstanceInfo:
         InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
+
+        Result = STATUS_UNSUCCESSFUL;
+        if (0 != InstanceName)
+        {
+            *PSize = PIPE_SRVBUF_SIZE - 1;
+            Result = SvcInstanceGetInfo(InstanceName, PipeBuf + 1, PSize);
+        }
+
+        if (NT_SUCCESS(Result))
+        {
+            *PipeBuf = L'$';
+            *PSize++;
+        }
+        else
+            *PSize = wsprintfW(PipeBuf, L"!%08lx", FspNtStatusFromWin32(Result));
         break;
 
     default:
