@@ -161,9 +161,10 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
 {
     SVC_INSTANCE *SvcInstance = 0;
     HKEY RegKey = 0;
-    DWORD RegResult, RegSize, SecurityLen;
+    DWORD RegResult, RegSize;
     DWORD ClassNameSize, InstanceNameSize;
-    WCHAR Executable[MAX_PATH], CommandLine[512], Security[512] = L"O:SYG:SY";
+    WCHAR Executable[MAX_PATH], CommandLine[512], SecurityBuf[512] = L"O:SYG:SY";
+    PWSTR Security;
     PSECURITY_DESCRIPTOR SecurityDescriptor;
     STARTUPINFOW StartupInfo;
     PROCESS_INFORMATION ProcessInfo;
@@ -206,10 +207,10 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
-    SecurityLen = lstrlenW(Security);
-    RegSize = sizeof Security - SecurityLen * sizeof(WCHAR);
+    Security = SecurityBuf + lstrlenW(SecurityBuf);
+    RegSize = (DWORD)(sizeof SecurityBuf - (Security - SecurityBuf) * sizeof(WCHAR));
     RegResult = RegGetValueW(RegKey, ClassName, L"Security", RRF_RT_REG_SZ, 0,
-        Security + SecurityLen, &RegSize);
+        Security, &RegSize);
     if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
     {
         Result = FspNtStatusFromWin32(RegResult);
@@ -220,7 +221,12 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     RegKey = 0;
 
     if (L'\0' == Security)
+    {
+        Security = SecurityBuf;
         lstrcpyW(Security, L"" SVC_INSTANCE_DEFAULT_SDDL);
+    }
+    else if (L'D' == Security[0] && L':' == Security[1])
+        Security = SecurityBuf;
 
     if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(Security, SDDL_REVISION_1,
         &SecurityDescriptor, 0))

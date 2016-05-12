@@ -26,14 +26,26 @@
 #define PIPE_BUFFER_SIZE                2048
 #define PIPE_DEFAULT_TIMEOUT            3000
 
-#define SVC_INSTANCE_DEFAULT_SDDL       "O:SYG:SYD:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;WD)"
+/* RP:SERVICE_START, WP:SERVICE_STOP, SC:SERVICE_QUERY_STATUS */
+/*
+ * The default service instance SDDL gives full access to LocalSystem and Administrators.
+ * The only possible service instance rights are as follows:
+ *     RP   SERVICE_START
+ *     WP   SERVICE_STOP
+ *     SC   SERVICE_QUERY_STATUS
+ *
+ * To create a service that can be started, stopped or queried by everyone, you can set
+ * the following SDDL:
+ *     D:P(A;;RPWPSC;;;WD)
+ */
+#define SVC_INSTANCE_DEFAULT_SDDL       "O:SYG:SYD:P(A;;RPWPSC;;;SY)(A;;RPWPSC;;;BA)"
 
 enum
 {
-    LauncherSvcInstanceStart            = 'S',
-    LauncherSvcInstanceStop             = 'T',
-    LauncherSvcInstanceList             = 'L',
-    LauncherSvcInstanceInfo             = 'I',
+    LauncherSvcInstanceStart            = 'S',  /* requires: SERVICE_START */
+    LauncherSvcInstanceStop             = 'T',  /* requires: SERVICE_STOP */
+    LauncherSvcInstanceList             = 'L',  /* requires: none*/
+    LauncherSvcInstanceInfo             = 'I',  /* requires: SERVICE_QUERY_STATUS */
 };
 
 #endif
