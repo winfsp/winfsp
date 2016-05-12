@@ -22,6 +22,7 @@
 #include <shared/minimal.h>
 
 #define PIPE_NAME                       "\\\\.\\pipe\\WinFsp.{14E7137D-22B4-437A-B0C1-D21D1BDF3767}"
+#define PIPE_SDDL                       "O:SYG:SYD:P(A;;GA;;;WD)"
 #define PIPE_BUFFER_SIZE                2048
 #define PIPE_DEFAULT_TIMEOUT            3000
 

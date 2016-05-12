@@ -16,6 +16,7 @@
  */
 
 #include <launcher/launcher.h>
+#include <sddl.h>
 
 #define PROGNAME                        "WinFsp-Launcher"
 #define REGKEY                          "SYSTEM\\CurrentControlSet\\Services\\" PROGNAME "\\Services"
@@ -356,7 +357,15 @@ static VOID SvcPipeTransact(PWSTR PipeBuf, PULONG PSize);
 
 static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
+    SECURITY_ATTRIBUTES SecurityAttributes = { 0 };
+
     InitializeCriticalSection(&SvcInstanceLock);
+
+    SecurityAttributes.nLength = sizeof SecurityAttributes;
+    SecurityAttributes.bInheritHandle = FALSE;
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(L"" PIPE_SDDL, SDDL_REVISION_1,
+        &SecurityAttributes.lpSecurityDescriptor, 0))
+        goto fail;
 
     SvcEvent = CreateEventW(0, TRUE, FALSE, 0);
     if (0 == SvcEvent)
@@ -378,6 +387,8 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     if (0 == SvcThread)
         goto fail;
 
+    LocalFree(SecurityAttributes.lpSecurityDescriptor);
+
     return STATUS_SUCCESS;
 
 fail:
@@ -394,6 +405,8 @@ fail:
 
     if (0 != SvcEvent)
         CloseHandle(SvcEvent);
+
+    LocalFree(SecurityAttributes.lpSecurityDescriptor);
 
     DeleteCriticalSection(&SvcInstanceLock);
 
