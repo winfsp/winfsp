@@ -126,14 +126,51 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
     return STATUS_SUCCESS;
 }
 
-NTSTATUS SvcInstanceCreate(PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv,
+static NTSTATUS SvcInstanceAccessCheck(HANDLE ClientToken, ULONG DesiredAccess, PWSTR Security)
+{
+    static GENERIC_MAPPING GenericMapping =
+    {
+        .GenericRead = FILE_GENERIC_READ,
+        .GenericWrite = FILE_GENERIC_WRITE,
+        .GenericExecute = FILE_GENERIC_EXECUTE,
+        .GenericAll = FILE_ALL_ACCESS,
+    };
+    PSECURITY_DESCRIPTOR SecurityDescriptor;
+    UINT8 PrivilegeSetBuf[sizeof(PRIVILEGE_SET) + 15 * sizeof(LUID_AND_ATTRIBUTES)];
+    PPRIVILEGE_SET PrivilegeSet = (PVOID)PrivilegeSetBuf;
+    DWORD PrivilegeSetLength = sizeof PrivilegeSetBuf;
+    ULONG GrantedAccess;
+    BOOL AccessStatus;
+    NTSTATUS Result;
+
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(Security, SDDL_REVISION_1,
+        &SecurityDescriptor, 0))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    if (AccessCheck(SecurityDescriptor, ClientToken, DesiredAccess,
+        &GenericMapping, PrivilegeSet, &PrivilegeSetLength, &GrantedAccess, &AccessStatus))
+        Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
+    else
+        Result = FspNtStatusFromWin32(GetLastError());
+
+exit:
+    LocalFree(SecurityDescriptor);
+
+    return Result;
+}
+
+NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
+    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv,
     SVC_INSTANCE **PSvcInstance)
 {
     SVC_INSTANCE *SvcInstance = 0;
     HKEY RegKey = 0;
-    DWORD RegResult, RegSize;
+    DWORD RegResult, RegSize, SecurityLen;
     DWORD ClassNameSize, InstanceNameSize;
-    WCHAR Executable[MAX_PATH], CommandLine[512];
+    WCHAR Executable[MAX_PATH], CommandLine[512], Security[512] = L"O:SYG:SY";
     STARTUPINFOW StartupInfo;
     PROCESS_INFORMATION ProcessInfo;
     NTSTATUS Result;
@@ -158,7 +195,7 @@ NTSTATUS SvcInstanceCreate(PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWST
     RegSize = sizeof Executable;
     Executable[0] = L'\0';
     RegResult = RegGetValueW(RegKey, ClassName, L"Executable", RRF_RT_REG_SZ, 0,
-        &Executable, &RegSize);
+        Executable, &RegSize);
     if (ERROR_SUCCESS != RegResult)
     {
         Result = FspNtStatusFromWin32(RegResult);
@@ -168,7 +205,17 @@ NTSTATUS SvcInstanceCreate(PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWST
     RegSize = sizeof CommandLine;
     CommandLine[0] = L'\0';
     RegResult = RegGetValueW(RegKey, ClassName, L"CommandLine", RRF_RT_REG_SZ, 0,
-        &CommandLine, &RegSize);
+        CommandLine, &RegSize);
+    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
+    {
+        Result = FspNtStatusFromWin32(RegResult);
+        goto exit;
+    }
+
+    SecurityLen = lstrlenW(Security);
+    RegSize = sizeof Security - SecurityLen * sizeof(WCHAR);
+    RegResult = RegGetValueW(RegKey, ClassName, L"Security", RRF_RT_REG_SZ, 0,
+        Security + SecurityLen, &RegSize);
     if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
     {
         Result = FspNtStatusFromWin32(RegResult);
@@ -177,6 +224,13 @@ NTSTATUS SvcInstanceCreate(PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWST
 
     RegCloseKey(RegKey);
     RegKey = 0;
+
+    if (L'\0' != Security)
+    {
+        Result = SvcInstanceAccessCheck(ClientToken, FILE_EXECUTE, Security);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
 
     ClassNameSize = (lstrlenW(ClassName) + 1) * sizeof(WCHAR);
     InstanceNameSize = (lstrlenW(InstanceName) + 1) * sizeof(WCHAR);
@@ -266,11 +320,12 @@ static VOID CALLBACK SvcInstanceTerminated(PVOID Context, BOOLEAN Fired)
     SvcInstanceDelete(SvcInstance);
 }
 
-NTSTATUS SvcInstanceStart(PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv)
+NTSTATUS SvcInstanceStart(HANDLE ClientToken,
+    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv)
 {
     SVC_INSTANCE *SvcInstance;
 
-    return SvcInstanceCreate(ClassName, InstanceName, Argc, Argv, &SvcInstance);
+    return SvcInstanceCreate(ClientToken, ClassName, InstanceName, Argc, Argv, &SvcInstance);
 }
 
 VOID SvcInstanceStop(PWSTR InstanceName)
@@ -353,7 +408,7 @@ static HANDLE SvcPipe = INVALID_HANDLE_VALUE;
 static OVERLAPPED SvcOverlapped;
 
 static DWORD WINAPI SvcPipeServer(PVOID Context);
-static VOID SvcPipeTransact(PWSTR PipeBuf, PULONG PSize);
+static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize);
 
 static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
@@ -468,6 +523,7 @@ static DWORD WINAPI SvcPipeServer(PVOID Context)
         L"Error in service main loop (%s = %ld). Continuing...";
     FSP_SERVICE *Service = Context;
     PWSTR PipeBuf = 0;
+    HANDLE ClientToken;
     DWORD LastError, BytesTransferred;
 
     PipeBuf = MemAlloc(PIPE_BUFFER_SIZE);
@@ -505,26 +561,33 @@ static DWORD WINAPI SvcPipeServer(PVOID Context)
             continue;
         }
 
-        if (!ImpersonateNamedPipeClient(SvcPipe))
+        ClientToken = 0;
+        if (!ImpersonateNamedPipeClient(SvcPipe) ||
+            !OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, FALSE, &ClientToken) ||
+            !RevertToSelf())
         {
             LastError = GetLastError();
-            DisconnectNamedPipe(SvcPipe);
-            FspServiceLog(EVENTLOG_WARNING_TYPE, LoopWarningMessage,
-                L"ImpersonateNamedPipeClient", LastError);
-            continue;
+            if (0 == ClientToken)
+            {
+                CloseHandle(ClientToken);
+                DisconnectNamedPipe(SvcPipe);
+                FspServiceLog(EVENTLOG_WARNING_TYPE, LoopWarningMessage,
+                    L"ImpersonateNamedPipeClient||OpenThreadToken", LastError);
+                continue;
+            }
+            else
+            {
+                CloseHandle(ClientToken);
+                DisconnectNamedPipe(SvcPipe);
+                FspServiceLog(EVENTLOG_ERROR_TYPE, LoopErrorMessage,
+                    L"RevertToSelf", LastError);
+                break;
+            }
         }
 
-        SvcPipeTransact(PipeBuf, &BytesTransferred);
+        SvcPipeTransact(ClientToken, PipeBuf, &BytesTransferred);
 
-        if (!RevertToSelf())
-        {
-            LastError = GetLastError();
-            DisconnectNamedPipe(SvcPipe);
-            FspServiceLog(EVENTLOG_ERROR_TYPE, LoopErrorMessage,
-                L"RevertToSelf", LastError);
-            FspServiceSetExitCode(Service, LastError);
-            break;
-        }
+        CloseHandle(ClientToken);
 
         LastError = SvcPipeWaitResult(
             WriteFile(SvcPipe, PipeBuf, BytesTransferred, &BytesTransferred, &SvcOverlapped),
@@ -569,7 +632,7 @@ static inline PWSTR SvcPipeTransactGetPart(PWSTR *PP, PWSTR PipeBufEnd)
     }
 }
 
-static VOID SvcPipeTransact(PWSTR PipeBuf, PULONG PSize)
+static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
 {
     if (sizeof(WCHAR) > *PSize)
         return;
@@ -592,7 +655,7 @@ static VOID SvcPipeTransact(PWSTR PipeBuf, PULONG PSize)
 
         Result = STATUS_UNSUCCESSFUL;
         if (0 != ClassName && 0 != InstanceName)
-            Result = SvcInstanceStart(ClassName, InstanceName, Argc, Argv);
+            Result = SvcInstanceStart(ClientToken, ClassName, InstanceName, Argc, Argv);
 
         if (NT_SUCCESS(Result))
         {
