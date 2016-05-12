@@ -20,8 +20,6 @@
 #define PROGNAME                        "WinFsp-Launcher"
 #define REGKEY                          "SYSTEM\\CurrentControlSet\\Services\\" PROGNAME "\\Services"
 
-HANDLE ProcessHeap;
-
 typedef struct
 {
     PWSTR ClassName;
@@ -367,7 +365,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         PIPE_ACCESS_DUPLEX |
             FILE_FLAG_FIRST_PIPE_INSTANCE | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_OVERLAPPED,
         PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-        1, PIPE_BUFFER_SIZE, PIPE_BUFFER_SIZE, 0, 0);
+        1, PIPE_BUFFER_SIZE, PIPE_BUFFER_SIZE, PIPE_DEFAULT_TIMEOUT, 0);
     if (INVALID_HANDLE_VALUE == SvcPipe)
         goto fail;
 
@@ -630,13 +628,17 @@ static VOID SvcPipeTransact(PWSTR PipeBuf, PULONG PSize)
 
 int wmain(int argc, wchar_t **argv)
 {
-    ProcessHeap = GetProcessHeap();
-    if (0 == ProcessHeap)
-        return GetLastError();
     return FspServiceRun(L"" PROGNAME, SvcStart, SvcStop, 0);
 }
 
-int wmainCRTStartup(void)
+void wmainCRTStartup(void)
 {
-    return wmain(0, 0);
+    extern HANDLE ProcessHeap;
+    ProcessHeap = GetProcessHeap();
+    if (0 == ProcessHeap)
+        ExitProcess(GetLastError());
+
+    ExitProcess(wmain(0, 0));
 }
+
+HANDLE ProcessHeap;
