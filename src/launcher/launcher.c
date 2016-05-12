@@ -155,6 +155,7 @@ NTSTATUS SvcInstanceCreate(PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWST
     }
 
     RegSize = sizeof Executable;
+    Executable[0] = L'\0';
     RegResult = RegGetValueW(RegKey, ClassName, L"Executable", RRF_RT_REG_SZ, 0,
         &Executable, &RegSize);
     if (ERROR_SUCCESS != RegResult)
@@ -164,9 +165,10 @@ NTSTATUS SvcInstanceCreate(PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWST
     }
 
     RegSize = sizeof CommandLine;
+    CommandLine[0] = L'\0';
     RegResult = RegGetValueW(RegKey, ClassName, L"CommandLine", RRF_RT_REG_SZ, 0,
         &CommandLine, &RegSize);
-    if (ERROR_SUCCESS != RegResult)
+    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
     {
         Result = FspNtStatusFromWin32(RegResult);
         goto exit;
@@ -191,13 +193,16 @@ NTSTATUS SvcInstanceCreate(PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWST
     SvcInstance->ClassName = SvcInstance->Buffer;
     SvcInstance->InstanceName = SvcInstance->Buffer + ClassNameSize / sizeof(WCHAR);
 
-    Result = SvcInstanceReplaceArguments(CommandLine, Argc, Argv, &SvcInstance->CommandLine);
-    if (!NT_SUCCESS(Result))
-        goto exit;
+    if (L'\0' != CommandLine)
+    {
+        Result = SvcInstanceReplaceArguments(CommandLine, Argc, Argv, &SvcInstance->CommandLine);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
 
     memset(&StartupInfo, 0, sizeof StartupInfo);
     StartupInfo.cb = sizeof StartupInfo;
-    if (!CreateProcessW(0, SvcInstance->CommandLine, 0, 0, FALSE, CREATE_NEW_PROCESS_GROUP, 0, 0,
+    if (!CreateProcessW(Executable, SvcInstance->CommandLine, 0, 0, FALSE, CREATE_NEW_PROCESS_GROUP, 0, 0,
         &StartupInfo, &ProcessInfo))
     {
         Result = FspNtStatusFromWin32(GetLastError());
