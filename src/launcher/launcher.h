@@ -22,19 +22,25 @@
 #include <shared/minimal.h>
 
 #define PIPE_NAME                       "\\\\.\\pipe\\WinFsp.{14E7137D-22B4-437A-B0C1-D21D1BDF3767}"
-#define PIPE_SDDL                       "O:SYG:SYD:P(A;;GA;;;WD)"
 #define PIPE_BUFFER_SIZE                2048
 #define PIPE_DEFAULT_TIMEOUT            3000
 
-/* RP:SERVICE_START, WP:SERVICE_STOP, SC:SERVICE_QUERY_STATUS */
 /*
+ * The launcher named pipe SDDL gives full access to LocalSystem and Administrators.
+ * It also gives generic read access and FILE_WRITE_DATA (SC) to Everyone. Note that
+ * we cannot give generic write access or equivalently FILE_GENERIC_WRITE (FW) because
+ * we would also grant the FILE_CREATE_PIPE_INSTANCE right.
+ */
+#define PIPE_SDDL                       "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRSC;;;WD)"
+
+ /*
  * The default service instance SDDL gives full access to LocalSystem and Administrators.
  * The only possible service instance rights are as follows:
  *     RP   SERVICE_START
  *     WP   SERVICE_STOP
  *     SC   SERVICE_QUERY_STATUS
  *
- * To create a service that can be started, stopped or queried by everyone, you can set
+ * To create a service that can be started, stopped or queried by Everyone, you can set
  * the following SDDL:
  *     D:P(A;;RPWPSC;;;WD)
  */

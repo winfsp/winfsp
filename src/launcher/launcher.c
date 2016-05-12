@@ -221,11 +221,8 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     RegKey = 0;
 
     if (L'\0' == Security)
-    {
-        Security = SecurityBuf;
         lstrcpyW(Security, L"" SVC_INSTANCE_DEFAULT_SDDL);
-    }
-    else if (L'D' == Security[0] && L':' == Security[1])
+    if (L'D' == Security[0] && L':' == Security[1])
         Security = SecurityBuf;
 
     if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(Security, SDDL_REVISION_1,
