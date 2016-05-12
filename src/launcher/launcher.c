@@ -26,6 +26,7 @@ typedef struct
     PWSTR ClassName;
     PWSTR InstanceName;
     PWSTR CommandLine;
+    PSECURITY_DESCRIPTOR SecurityDescriptor;
     DWORD ProcessId;
     HANDLE Process;
     HANDLE ProcessWait;
@@ -126,16 +127,18 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS SvcInstanceAccessCheck(HANDLE ClientToken, ULONG DesiredAccess, PWSTR Security)
+static NTSTATUS SvcInstanceAccessCheck(HANDLE ClientToken, ULONG DesiredAccess,
+    PSECURITY_DESCRIPTOR SecurityDescriptor)
 {
     static GENERIC_MAPPING GenericMapping =
     {
-        .GenericRead = FILE_GENERIC_READ,
-        .GenericWrite = FILE_GENERIC_WRITE,
-        .GenericExecute = FILE_GENERIC_EXECUTE,
-        .GenericAll = FILE_ALL_ACCESS,
+        .GenericRead = STANDARD_RIGHTS_READ | SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS |
+            SERVICE_INTERROGATE | SERVICE_ENUMERATE_DEPENDENTS,
+        .GenericWrite = STANDARD_RIGHTS_WRITE | SERVICE_CHANGE_CONFIG,
+        .GenericExecute = STANDARD_RIGHTS_EXECUTE | SERVICE_START | SERVICE_STOP |
+            SERVICE_PAUSE_CONTINUE | SERVICE_USER_DEFINED_CONTROL,
+        .GenericAll = SERVICE_ALL_ACCESS,
     };
-    PSECURITY_DESCRIPTOR SecurityDescriptor;
     UINT8 PrivilegeSetBuf[sizeof(PRIVILEGE_SET) + 15 * sizeof(LUID_AND_ATTRIBUTES)];
     PPRIVILEGE_SET PrivilegeSet = (PVOID)PrivilegeSetBuf;
     DWORD PrivilegeSetLength = sizeof PrivilegeSetBuf;
@@ -143,21 +146,11 @@ static NTSTATUS SvcInstanceAccessCheck(HANDLE ClientToken, ULONG DesiredAccess, 
     BOOL AccessStatus;
     NTSTATUS Result;
 
-    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(Security, SDDL_REVISION_1,
-        &SecurityDescriptor, 0))
-    {
-        Result = FspNtStatusFromWin32(GetLastError());
-        goto exit;
-    }
-
     if (AccessCheck(SecurityDescriptor, ClientToken, DesiredAccess,
         &GenericMapping, PrivilegeSet, &PrivilegeSetLength, &GrantedAccess, &AccessStatus))
         Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
     else
         Result = FspNtStatusFromWin32(GetLastError());
-
-exit:
-    LocalFree(SecurityDescriptor);
 
     return Result;
 }
@@ -171,6 +164,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     DWORD RegResult, RegSize, SecurityLen;
     DWORD ClassNameSize, InstanceNameSize;
     WCHAR Executable[MAX_PATH], CommandLine[512], Security[512] = L"O:SYG:SY";
+    PSECURITY_DESCRIPTOR SecurityDescriptor;
     STARTUPINFOW StartupInfo;
     PROCESS_INFORMATION ProcessInfo;
     NTSTATUS Result;
@@ -225,12 +219,19 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     RegCloseKey(RegKey);
     RegKey = 0;
 
-    if (L'\0' != Security)
+    if (L'\0' == Security)
+        lstrcpyW(Security, L"" SVC_INSTANCE_DEFAULT_SDDL);
+
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(Security, SDDL_REVISION_1,
+        &SecurityDescriptor, 0))
     {
-        Result = SvcInstanceAccessCheck(ClientToken, FILE_EXECUTE, Security);
-        if (!NT_SUCCESS(Result))
-            goto exit;
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
     }
+
+    Result = SvcInstanceAccessCheck(ClientToken, SERVICE_START, SecurityDescriptor);
+    if (!NT_SUCCESS(Result))
+        goto exit;
 
     ClassNameSize = (lstrlenW(ClassName) + 1) * sizeof(WCHAR);
     InstanceNameSize = (lstrlenW(InstanceName) + 1) * sizeof(WCHAR);
@@ -247,6 +248,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     memcpy(SvcInstance->Buffer + ClassNameSize / sizeof(WCHAR), InstanceName, InstanceNameSize);
     SvcInstance->ClassName = SvcInstance->Buffer;
     SvcInstance->InstanceName = SvcInstance->Buffer + ClassNameSize / sizeof(WCHAR);
+    SvcInstance->SecurityDescriptor = SecurityDescriptor;
 
     if (L'\0' != CommandLine)
     {
@@ -287,6 +289,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
 exit:
     if (!NT_SUCCESS(Result))
     {
+        LocalFree(SecurityDescriptor);
         MemFree(SvcInstance->CommandLine);
         MemFree(SvcInstance);
     }
@@ -309,6 +312,7 @@ VOID SvcInstanceDelete(SVC_INSTANCE *SvcInstance)
         UnregisterWaitEx(SvcInstance->ProcessWait, 0);
     if (0 != SvcInstance->Process)
         CloseHandle(SvcInstance->Process);
+    LocalFree(SvcInstance->SecurityDescriptor);
     MemFree(SvcInstance->CommandLine);
     MemFree(SvcInstance);
 }
@@ -328,18 +332,39 @@ NTSTATUS SvcInstanceStart(HANDLE ClientToken,
     return SvcInstanceCreate(ClientToken, ClassName, InstanceName, Argc, Argv, &SvcInstance);
 }
 
-VOID SvcInstanceStop(PWSTR InstanceName)
+NTSTATUS SvcInstanceStop(HANDLE ClientToken, PWSTR InstanceName)
 {
     SVC_INSTANCE *SvcInstance;
+    NTSTATUS Result;
 
     EnterCriticalSection(&SvcInstanceLock);
+
     SvcInstance = SvcInstanceFromName(InstanceName);
-    if (0 != SvcInstance)
-        GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, SvcInstance->ProcessId);
+    if (0 == SvcInstance)
+    {
+        Result = STATUS_OBJECT_NAME_NOT_FOUND;
+        goto exit;
+    }
+
+    Result = SvcInstanceAccessCheck(ClientToken, SERVICE_STOP, SvcInstance->SecurityDescriptor);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    if (!GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, SvcInstance->ProcessId))
+    {
+        Result = FspNtStatusFromWin32(Result);
+        goto exit;
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
     LeaveCriticalSection(&SvcInstanceLock);
+
+    return Result;
 }
 
-VOID SvcInstanceGetNameList(PWSTR Buffer, PULONG PSize)
+NTSTATUS SvcInstanceGetNameList(HANDLE ClientToken, PWSTR Buffer, PULONG PSize)
 {
     SVC_INSTANCE *SvcInstance;
     PLIST_ENTRY ListEntry;
@@ -365,9 +390,11 @@ VOID SvcInstanceGetNameList(PWSTR Buffer, PULONG PSize)
     LeaveCriticalSection(&SvcInstanceLock);
 
     *PSize = (ULONG)(Buffer - BufferBeg);
+
+    return STATUS_SUCCESS;
 }
 
-NTSTATUS SvcInstanceGetInfo(PWSTR InstanceName, PWSTR Buffer, PULONG PSize)
+NTSTATUS SvcInstanceGetInfo(HANDLE ClientToken, PWSTR InstanceName, PWSTR Buffer, PULONG PSize)
 {
     SVC_INSTANCE *SvcInstance;
     ULONG ClassNameSize, InstanceNameSize, CommandLineSize;
@@ -376,28 +403,36 @@ NTSTATUS SvcInstanceGetInfo(PWSTR InstanceName, PWSTR Buffer, PULONG PSize)
     EnterCriticalSection(&SvcInstanceLock);
 
     SvcInstance = SvcInstanceFromName(InstanceName);
-    if (0 != SvcInstance)
+    if (0 == SvcInstance)
     {
-        ClassNameSize = lstrlenW(SvcInstance->ClassName) + 1;
-        InstanceNameSize = lstrlenW(SvcInstance->InstanceName) + 1;
-        CommandLineSize = lstrlenW(SvcInstance->CommandLine) + 1;
-
-        if (*PSize < (ClassNameSize + InstanceNameSize + CommandLineSize) * sizeof(WCHAR))
-        {
-            memcpy(Buffer, SvcInstance->ClassName,
-                ClassNameSize * sizeof(WCHAR));
-            memcpy(Buffer + ClassNameSize, SvcInstance->InstanceName,
-                InstanceNameSize * sizeof(WCHAR));
-            memcpy(Buffer + ClassNameSize + InstanceNameSize, SvcInstance->CommandLine,
-                CommandLineSize * sizeof(WCHAR));
-            Result = STATUS_SUCCESS;
-        }
-        else
-            Result = STATUS_BUFFER_TOO_SMALL;
-    }
-    else
         Result = STATUS_OBJECT_NAME_NOT_FOUND;
+        goto exit;
+    }
 
+    Result = SvcInstanceAccessCheck(ClientToken, SERVICE_QUERY_STATUS, SvcInstance->SecurityDescriptor);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    ClassNameSize = lstrlenW(SvcInstance->ClassName) + 1;
+    InstanceNameSize = lstrlenW(SvcInstance->InstanceName) + 1;
+    CommandLineSize = lstrlenW(SvcInstance->CommandLine) + 1;
+
+    if (*PSize < (ClassNameSize + InstanceNameSize + CommandLineSize) * sizeof(WCHAR))
+    {
+        Result = STATUS_BUFFER_TOO_SMALL;
+        goto exit;
+    }
+
+    memcpy(Buffer, SvcInstance->ClassName,
+        ClassNameSize * sizeof(WCHAR));
+    memcpy(Buffer + ClassNameSize, SvcInstance->InstanceName,
+        InstanceNameSize * sizeof(WCHAR));
+    memcpy(Buffer + ClassNameSize + InstanceNameSize, SvcInstance->CommandLine,
+        CommandLineSize * sizeof(WCHAR));
+
+    Result = STATUS_SUCCESS;
+
+exit:
     LeaveCriticalSection(&SvcInstanceLock);
 
     return Result;
@@ -632,6 +667,17 @@ static inline PWSTR SvcPipeTransactGetPart(PWSTR *PP, PWSTR PipeBufEnd)
     }
 }
 
+static inline VOID SvcPipeTransactResult(NTSTATUS Result, PWSTR PipeBuf, PULONG PSize)
+{
+    if (NT_SUCCESS(Result))
+    {
+        *PipeBuf = L'$';
+        *PSize++;
+    }
+    else
+        *PSize = wsprintfW(PipeBuf, L"!%08lx", FspNtStatusFromWin32(Result));
+}
+
 static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
 {
     if (sizeof(WCHAR) > *PSize)
@@ -657,30 +703,22 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         if (0 != ClassName && 0 != InstanceName)
             Result = SvcInstanceStart(ClientToken, ClassName, InstanceName, Argc, Argv);
 
-        if (NT_SUCCESS(Result))
-        {
-            *PipeBuf = L'$';
-            *PSize = 1;
-        }
-        else
-            *PSize = wsprintfW(PipeBuf, L"!%08lx", FspNtStatusFromWin32(Result));
+        SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
 
     case LauncherSvcInstanceStop:
         InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
         if (0 != InstanceName)
-            SvcInstanceStop(InstanceName);
+            Result = SvcInstanceStop(ClientToken, InstanceName);
 
-        *PipeBuf = L'$';
-        *PSize = 1;
+        SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
 
     case LauncherSvcInstanceList:
         *PSize = PIPE_BUFFER_SIZE - 1;
-        SvcInstanceGetNameList(PipeBuf + 1, PSize);
+        Result = SvcInstanceGetNameList(ClientToken, PipeBuf + 1, PSize);
 
-        *PipeBuf = L'$';
-        *PSize++;
+        SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
 
     case LauncherSvcInstanceInfo:
@@ -690,16 +728,10 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         if (0 != InstanceName)
         {
             *PSize = PIPE_BUFFER_SIZE - 1;
-            Result = SvcInstanceGetInfo(InstanceName, PipeBuf + 1, PSize);
+            Result = SvcInstanceGetInfo(ClientToken, InstanceName, PipeBuf + 1, PSize);
         }
 
-        if (NT_SUCCESS(Result))
-        {
-            *PipeBuf = L'$';
-            *PSize++;
-        }
-        else
-            *PSize = wsprintfW(PipeBuf, L"!%08lx", FspNtStatusFromWin32(Result));
+        SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
 
     default:

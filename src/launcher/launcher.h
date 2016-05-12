@@ -26,6 +26,8 @@
 #define PIPE_BUFFER_SIZE                2048
 #define PIPE_DEFAULT_TIMEOUT            3000
 
+#define SVC_INSTANCE_DEFAULT_SDDL       "O:SYG:SYD:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;WD)"
+
 enum
 {
     LauncherSvcInstanceStart            = 'S',
