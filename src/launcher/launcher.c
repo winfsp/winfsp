@@ -85,6 +85,7 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
     PWSTR *PNewString)
 {
     PWSTR NewString = 0, P, Q;
+    PWSTR EmptyArg = L"";
     ULONG Length;
 
     *PNewString = 0;
@@ -96,8 +97,13 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
         {
         case L'%':
             P++;
-            if (L'0' <= *P && *P <= '9' && Argc > (ULONG)(*P - L'0'))
-                Length += SvcInstanceArgumentLength(Argv[*P - L'0']);
+            if (L'0' <= *P && *P <= '9')
+            {
+                if (Argc > (ULONG)(*P - L'0'))
+                    Length += SvcInstanceArgumentLength(Argv[*P - L'0']);
+                else
+                    Length += SvcInstanceArgumentLength(EmptyArg);
+            }
             else
                 Length++;
             break;
@@ -117,8 +123,13 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
         {
         case L'%':
             P++;
-            if (L'0' <= *P && *P <= '9' && Argc > (ULONG)(*P - L'0'))
-                Q = SvcInstanceArgumentCopy(Q, Argv[*P - L'0']);
+            if (L'0' <= *P && *P <= '9')
+            {
+                if (Argc > (ULONG)(*P - L'0'))
+                    Q = SvcInstanceArgumentCopy(Q, Argv[*P - L'0']);
+                else
+                    Q = SvcInstanceArgumentCopy(Q, EmptyArg);
+            }
             else
                 *Q++ = *P;
             break;
