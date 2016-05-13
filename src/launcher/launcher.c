@@ -424,7 +424,7 @@ NTSTATUS SvcInstanceGetInfo(HANDLE ClientToken,
     memcpy(P, SvcInstance->InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
     memcpy(P, SvcInstance->CommandLine, CommandLineSize * sizeof(WCHAR)); P += CommandLineSize;
 
-    *PSize = (ULONG)(P - Buffer);
+    *PSize = (ULONG)(P - Buffer) * sizeof(WCHAR);
 
     Result = STATUS_SUCCESS;
 
@@ -462,7 +462,7 @@ NTSTATUS SvcInstanceGetNameList(HANDLE ClientToken,
 
     LeaveCriticalSection(&SvcInstanceLock);
 
-    *PSize = (ULONG)(P - Buffer);
+    *PSize = (ULONG)(P - Buffer) * sizeof(WCHAR);
 
     return STATUS_SUCCESS;
 }
