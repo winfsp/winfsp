@@ -74,7 +74,7 @@ static int call_pipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
         warn("KO launcher: empty buffer");
     else if (L'$' == PipeBuf[0])
     {
-        if (1 == BytesTransferred)
+        if (sizeof(WCHAR) == BytesTransferred)
             info("OK");
         else
         {

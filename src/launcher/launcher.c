@@ -382,8 +382,6 @@ NTSTATUS SvcInstanceGetInfo(HANDLE ClientToken,
     ULONG ClassNameSize, InstanceNameSize, CommandLineSize;
     NTSTATUS Result;
 
-    *PSize = 0;
-
     EnterCriticalSection(&SvcInstanceLock);
 
     SvcInstance = SvcInstanceLookup(ClassName, InstanceName);
@@ -695,10 +693,10 @@ static inline VOID SvcPipeTransactResult(NTSTATUS Result, PWSTR PipeBuf, PULONG 
     if (NT_SUCCESS(Result))
     {
         *PipeBuf = L'$';
-        (*PSize)++;
+        *PSize += sizeof(WCHAR);
     }
     else
-        *PSize = wsprintfW(PipeBuf, L"!%08lx", FspNtStatusFromWin32(Result));
+        *PSize = (wsprintfW(PipeBuf, L"!%ld", FspWin32FromNtStatus(Result)) + 1) * sizeof(WCHAR);
 }
 
 static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
@@ -734,7 +732,7 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
 
         Result = STATUS_INVALID_PARAMETER;
-        if (0 != InstanceName)
+        if (0 != ClassName && 0 != InstanceName)
             Result = SvcInstanceStop(ClientToken, ClassName, InstanceName);
 
         SvcPipeTransactResult(Result, PipeBuf, PSize);
@@ -745,7 +743,7 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
 
         Result = STATUS_INVALID_PARAMETER;
-        if (0 != InstanceName)
+        if (0 != ClassName && 0 != InstanceName)
         {
             *PSize = PIPE_BUFFER_SIZE - 1;
             Result = SvcInstanceGetInfo(ClientToken, ClassName, InstanceName, PipeBuf + 1, PSize);
