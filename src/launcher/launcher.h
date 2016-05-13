@@ -48,7 +48,7 @@
  * the following SDDL:
  *     D:P(A;;RPWPLC;;;WD)
  */
-#define SVC_INSTANCE_DEFAULT_SDDL       "O:SYG:SYD:P(A;;RPWPSC;;;SY)(A;;RPWPSC;;;BA)"
+#define SVC_INSTANCE_DEFAULT_SDDL       "D:P(A;;RPWPLC;;;SY)(A;;RPWPLC;;;BA)"
 
 enum
 {

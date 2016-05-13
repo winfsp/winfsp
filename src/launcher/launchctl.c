@@ -210,7 +210,7 @@ int wmain(int argc, wchar_t **argv)
 
     if (0 == lstrcmpW(L"start", argv[0]))
     {
-        if (3 > argc || argc > 11)
+        if (3 > argc || argc > 12)
             usage();
 
         return start(PipeBuf, PIPE_BUFFER_SIZE, argv[1], argv[2], argc - 3, argv + 3);

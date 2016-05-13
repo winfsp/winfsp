@@ -84,13 +84,13 @@ static PWSTR SvcInstanceArgumentCopy(PWSTR Dest, PWSTR Arg)
 static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Argv,
     PWSTR *PNewString)
 {
-    PWSTR NewString = 0;
+    PWSTR NewString = 0, P, Q;
     ULONG Length;
 
     *PNewString = 0;
 
     Length = 0;
-    for (PWSTR P = String; *P; P++)
+    for (P = String; *P; P++)
     {
         switch (*P)
         {
@@ -98,6 +98,8 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
             P++;
             if (L'1' <= *P && *P <= '9' && Argc > (ULONG)(*P - L'1'))
                 Length += SvcInstanceArgumentLength(Argv[*P - L'1']);
+            else
+                Length++;
             break;
         default:
             Length++;
@@ -109,8 +111,7 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
     if (0 == NewString)
         return STATUS_INSUFFICIENT_RESOURCES;
 
-    *PNewString = NewString;
-    for (PWSTR P = String, Q = NewString; *P; P++)
+    for (P = String, Q = NewString; *P; P++)
     {
         switch (*P)
         {
@@ -118,12 +119,17 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
             P++;
             if (L'1' <= *P && *P <= '9' && Argc > (ULONG)(*P - L'1'))
                 Q = SvcInstanceArgumentCopy(Q, Argv[*P - L'1']);
+            else
+                *Q++ = *P;
             break;
         default:
-            Q++;
+            *Q++ = *P;
             break;
         }
     }
+    *Q = L'\0';
+
+    *PNewString = NewString;
 
     return STATUS_SUCCESS;
 }
@@ -221,7 +227,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     RegCloseKey(RegKey);
     RegKey = 0;
 
-    if (L'\0' == Security)
+    if (L'\0' == Security[0])
         lstrcpyW(Security, L"" SVC_INSTANCE_DEFAULT_SDDL);
     if (L'D' == Security[0] && L':' == Security[1])
         Security = SecurityBuf;
@@ -233,7 +239,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
-    FspDebugLogSD(__FUNCTION__ ": SDDL = %s", SecurityDescriptor);
+    FspDebugLogSD(__FUNCTION__ ": SDDL = %s\n", SecurityDescriptor);
 
     Result = SvcInstanceAccessCheck(ClientToken, SERVICE_START, SecurityDescriptor);
     if (!NT_SUCCESS(Result))
@@ -256,7 +262,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     SvcInstance->InstanceName = SvcInstance->Buffer + ClassNameSize / sizeof(WCHAR);
     SvcInstance->SecurityDescriptor = SecurityDescriptor;
 
-    if (L'\0' != CommandLine)
+    if (L'\0' != CommandLine[0])
     {
         Result = SvcInstanceReplaceArguments(CommandLine, Argc, Argv, &SvcInstance->CommandLine);
         if (!NT_SUCCESS(Result))
@@ -472,7 +478,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         &SecurityAttributes.lpSecurityDescriptor, 0))
         goto fail;
 
-    FspDebugLogSD(__FUNCTION__ ": SDDL = %s", SecurityAttributes.lpSecurityDescriptor);
+    FspDebugLogSD(__FUNCTION__ ": SDDL = %s\n", SecurityAttributes.lpSecurityDescriptor);
 
     SvcEvent = CreateEventW(0, TRUE, FALSE, 0);
     if (0 == SvcEvent)
