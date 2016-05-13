@@ -18,7 +18,7 @@
 #include <launcher/launcher.h>
 #include <sddl.h>
 
-#define PROGNAME                        "WinFsp-Launcher"
+#define PROGNAME                        "WinFsp.Launcher"
 #define REGKEY                          "SYSTEM\\CurrentControlSet\\Services\\" PROGNAME "\\Services"
 
 typedef struct
@@ -39,7 +39,7 @@ static LIST_ENTRY SvcInstanceList = { &SvcInstanceList, &SvcInstanceList };
 
 static VOID CALLBACK SvcInstanceTerminated(PVOID Context, BOOLEAN Fired);
 
-static SVC_INSTANCE *SvcInstanceFromName(PWSTR InstanceName)
+static SVC_INSTANCE *SvcInstanceLookup(PWSTR ClassName, PWSTR InstanceName)
 {
     SVC_INSTANCE *SvcInstance;
     PLIST_ENTRY ListEntry;
@@ -50,7 +50,8 @@ static SVC_INSTANCE *SvcInstanceFromName(PWSTR InstanceName)
     {
         SvcInstance = CONTAINING_RECORD(ListEntry, SVC_INSTANCE, ListEntry);
 
-        if (0 == lstrcmpW(InstanceName, SvcInstance->InstanceName))
+        if (0 == lstrcmpW(ClassName, SvcInstance->ClassName) &&
+            0 == lstrcmpW(InstanceName, SvcInstance->InstanceName))
             return SvcInstance;
     }
 
@@ -174,7 +175,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
 
     EnterCriticalSection(&SvcInstanceLock);
 
-    if (0 != SvcInstanceFromName(InstanceName))
+    if (0 != SvcInstanceLookup(ClassName, InstanceName))
     {
         Result = STATUS_OBJECT_NAME_COLLISION;
         goto exit;
@@ -295,8 +296,11 @@ exit:
     if (!NT_SUCCESS(Result))
     {
         LocalFree(SecurityDescriptor);
-        MemFree(SvcInstance->CommandLine);
-        MemFree(SvcInstance);
+        if (0 != SvcInstance)
+        {
+            MemFree(SvcInstance->CommandLine);
+            MemFree(SvcInstance);
+        }
     }
 
     if (0 != RegKey)
@@ -337,14 +341,15 @@ NTSTATUS SvcInstanceStart(HANDLE ClientToken,
     return SvcInstanceCreate(ClientToken, ClassName, InstanceName, Argc, Argv, &SvcInstance);
 }
 
-NTSTATUS SvcInstanceStop(HANDLE ClientToken, PWSTR InstanceName)
+NTSTATUS SvcInstanceStop(HANDLE ClientToken,
+    PWSTR ClassName, PWSTR InstanceName)
 {
     SVC_INSTANCE *SvcInstance;
     NTSTATUS Result;
 
     EnterCriticalSection(&SvcInstanceLock);
 
-    SvcInstance = SvcInstanceFromName(InstanceName);
+    SvcInstance = SvcInstanceLookup(ClassName, InstanceName);
     if (0 == SvcInstance)
     {
         Result = STATUS_OBJECT_NAME_NOT_FOUND;
@@ -369,12 +374,13 @@ exit:
     return Result;
 }
 
-NTSTATUS SvcInstanceGetNameList(HANDLE ClientToken, PWSTR Buffer, PULONG PSize)
+NTSTATUS SvcInstanceGetNameList(HANDLE ClientToken,
+    PWSTR Buffer, PULONG PSize)
 {
     SVC_INSTANCE *SvcInstance;
     PLIST_ENTRY ListEntry;
-    PWSTR BufferBeg = Buffer, BufferEnd = Buffer + *PSize / sizeof(WCHAR);
-    ULONG InstanceNameSize;
+    PWSTR P = Buffer, BufferEnd = P + *PSize / sizeof(WCHAR);
+    ULONG ClassNameSize, InstanceNameSize;
 
     EnterCriticalSection(&SvcInstanceLock);
 
@@ -384,22 +390,26 @@ NTSTATUS SvcInstanceGetNameList(HANDLE ClientToken, PWSTR Buffer, PULONG PSize)
     {
         SvcInstance = CONTAINING_RECORD(ListEntry, SVC_INSTANCE, ListEntry);
 
+        ClassNameSize = lstrlenW(SvcInstance->ClassName) + 1;
         InstanceNameSize = lstrlenW(SvcInstance->InstanceName) + 1;
-        if (BufferEnd < Buffer + InstanceNameSize)
+
+        if (BufferEnd < P + ClassNameSize + InstanceNameSize)
             break;
 
-        memcpy(Buffer, SvcInstance->InstanceName, InstanceNameSize * sizeof(WCHAR));
-        Buffer += InstanceNameSize;
+        memcpy(P, SvcInstance->ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
+        *Buffer++ = L' ';
+        memcpy(P, SvcInstance->InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
     }
 
     LeaveCriticalSection(&SvcInstanceLock);
 
-    *PSize = (ULONG)(Buffer - BufferBeg);
+    *PSize = (ULONG)(P - Buffer);
 
     return STATUS_SUCCESS;
 }
 
-NTSTATUS SvcInstanceGetInfo(HANDLE ClientToken, PWSTR InstanceName, PWSTR Buffer, PULONG PSize)
+NTSTATUS SvcInstanceGetInfo(HANDLE ClientToken,
+    PWSTR ClassName, PWSTR InstanceName, PWSTR Buffer, PULONG PSize)
 {
     SVC_INSTANCE *SvcInstance;
     ULONG ClassNameSize, InstanceNameSize, CommandLineSize;
@@ -407,7 +417,7 @@ NTSTATUS SvcInstanceGetInfo(HANDLE ClientToken, PWSTR InstanceName, PWSTR Buffer
 
     EnterCriticalSection(&SvcInstanceLock);
 
-    SvcInstance = SvcInstanceFromName(InstanceName);
+    SvcInstance = SvcInstanceLookup(ClassName, InstanceName);
     if (0 == SvcInstance)
     {
         Result = STATUS_OBJECT_NAME_NOT_FOUND;
@@ -476,7 +486,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         PIPE_ACCESS_DUPLEX |
             FILE_FLAG_FIRST_PIPE_INSTANCE | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_OVERLAPPED,
         PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-        1, PIPE_BUFFER_SIZE, PIPE_BUFFER_SIZE, PIPE_DEFAULT_TIMEOUT, 0);
+        1, PIPE_BUFFER_SIZE, PIPE_BUFFER_SIZE, PIPE_DEFAULT_TIMEOUT, &SecurityAttributes);
     if (INVALID_HANDLE_VALUE == SvcPipe)
         goto fail;
 
@@ -582,7 +592,8 @@ static DWORD WINAPI SvcPipeServer(PVOID Context)
             SvcEvent, SvcPipe, &SvcOverlapped, &BytesTransferred);
         if (-1 == LastError)
             break;
-        else if (ERROR_PIPE_CONNECTED != LastError && ERROR_NO_DATA != LastError)
+        else if (0 != LastError &&
+            ERROR_PIPE_CONNECTED != LastError && ERROR_NO_DATA != LastError)
         {
             FspServiceLog(EVENTLOG_WARNING_TYPE, LoopWarningMessage,
                 L"ConnectNamedPipe", LastError);
@@ -594,7 +605,7 @@ static DWORD WINAPI SvcPipeServer(PVOID Context)
             SvcEvent, SvcPipe, &SvcOverlapped, &BytesTransferred);
         if (-1 == LastError)
             break;
-        else if (0 != LastError || sizeof(WCHAR) <= BytesTransferred)
+        else if (0 != LastError || sizeof(WCHAR) > BytesTransferred)
         {
             DisconnectNamedPipe(SvcPipe);
             if (0 != LastError)
@@ -679,7 +690,7 @@ static inline VOID SvcPipeTransactResult(NTSTATUS Result, PWSTR PipeBuf, PULONG 
     if (NT_SUCCESS(Result))
     {
         *PipeBuf = L'$';
-        *PSize++;
+        (*PSize)++;
     }
     else
         *PSize = wsprintfW(PipeBuf, L"!%08lx", FspNtStatusFromWin32(Result));
@@ -706,7 +717,7 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
             if (0 == (Argv[Argc] = SvcPipeTransactGetPart(&P, PipeBufEnd)))
                 break;
 
-        Result = STATUS_UNSUCCESSFUL;
+        Result = STATUS_INVALID_PARAMETER;
         if (0 != ClassName && 0 != InstanceName)
             Result = SvcInstanceStart(ClientToken, ClassName, InstanceName, Argc, Argv);
 
@@ -714,9 +725,12 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         break;
 
     case LauncherSvcInstanceStop:
+        ClassName = SvcPipeTransactGetPart(&P, PipeBufEnd);
         InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
+
+        Result = STATUS_INVALID_PARAMETER;
         if (0 != InstanceName)
-            Result = SvcInstanceStop(ClientToken, InstanceName);
+            Result = SvcInstanceStop(ClientToken, ClassName, InstanceName);
 
         SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
@@ -729,19 +743,21 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         break;
 
     case LauncherSvcInstanceInfo:
+        ClassName = SvcPipeTransactGetPart(&P, PipeBufEnd);
         InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
 
-        Result = STATUS_UNSUCCESSFUL;
+        Result = STATUS_INVALID_PARAMETER;
         if (0 != InstanceName)
         {
             *PSize = PIPE_BUFFER_SIZE - 1;
-            Result = SvcInstanceGetInfo(ClientToken, InstanceName, PipeBuf + 1, PSize);
+            Result = SvcInstanceGetInfo(ClientToken, ClassName, InstanceName, PipeBuf + 1, PSize);
         }
 
         SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
 
     default:
+        SvcPipeTransactResult(STATUS_INVALID_PARAMETER, PipeBuf, PSize);
         break;
     }
 }

@@ -54,9 +54,9 @@ static void usage(void)
         "\n"
         "commands:\n"
         "    start ClassName InstanceName Args...\n"
-        "    stop InstanceName\n"
+        "    stop ClassName InstanceName\n"
         "    list\n"
-        "    info\n",
+        "    info ClassName InstanceName\n",
         PROGNAME);
 }
 
@@ -105,8 +105,8 @@ int start(PWSTR PipeBuf, ULONG PipeBufSize,
     ClassNameSize = lstrlenW(ClassName) + 1;
     InstanceNameSize = lstrlenW(InstanceName) + 1;
     ArgvSize = 0;
-    for (DWORD Argi = Argc; Argc > Argi; Argi++)
-        ArgvSize += lstrlenW(Argv[Argi]);
+    for (DWORD Argi = 0; Argc > Argi; Argi++)
+        ArgvSize += lstrlenW(Argv[Argi]) + 1;
 
     if (PipeBufSize < (1 + ClassNameSize + InstanceNameSize + ArgvSize) * sizeof(WCHAR))
         return ERROR_INVALID_PARAMETER;
@@ -115,9 +115,9 @@ int start(PWSTR PipeBuf, ULONG PipeBufSize,
     *P++ = LauncherSvcInstanceStart;
     memcpy(P, ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
     memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
-    for (DWORD Argi = Argc; Argc > Argi; Argi++)
+    for (DWORD Argi = 0; Argc > Argi; Argi++)
     {
-        ArgvSize = lstrlenW(Argv[Argi]);
+        ArgvSize = lstrlenW(Argv[Argi]) + 1;
         memcpy(P, Argv[Argi], ArgvSize * sizeof(WCHAR)); P += ArgvSize;
     }
 
@@ -135,20 +135,22 @@ int start(PWSTR PipeBuf, ULONG PipeBufSize,
 }
 
 int stop(PWSTR PipeBuf, ULONG PipeBufSize,
-    PWSTR InstanceName)
+    PWSTR ClassName, PWSTR InstanceName)
 {
     PWSTR P;
-    DWORD InstanceNameSize;
+    DWORD ClassNameSize, InstanceNameSize;
     DWORD LastError, BytesTransferred;
 
+    ClassNameSize = lstrlenW(ClassName) + 1;
     InstanceNameSize = lstrlenW(InstanceName) + 1;
 
-    if (PipeBufSize < (1 + InstanceNameSize) * sizeof(WCHAR))
+    if (PipeBufSize < (1 + ClassNameSize + InstanceNameSize) * sizeof(WCHAR))
         return ERROR_INVALID_PARAMETER;
 
     P = PipeBuf;
     *P++ = LauncherSvcInstanceStop;
-    memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR));
+    memcpy(P, ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
+    memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
 
     if (CallNamedPipeW(L"" PIPE_NAME,
         PipeBuf, (DWORD)((P - PipeBuf) * sizeof(WCHAR)), PipeBuf, PipeBufSize,
@@ -188,20 +190,22 @@ int list(PWSTR PipeBuf, ULONG PipeBufSize)
 }
 
 int info(PWSTR PipeBuf, ULONG PipeBufSize,
-    PWSTR InstanceName)
+    PWSTR ClassName, PWSTR InstanceName)
 {
     PWSTR P;
-    DWORD InstanceNameSize;
+    DWORD ClassNameSize, InstanceNameSize;
     DWORD LastError, BytesTransferred;
 
+    ClassNameSize = lstrlenW(ClassName) + 1;
     InstanceNameSize = lstrlenW(InstanceName) + 1;
 
-    if (PipeBufSize < (1 + InstanceNameSize) * sizeof(WCHAR))
+    if (PipeBufSize < (1 + ClassNameSize + InstanceNameSize) * sizeof(WCHAR))
         return ERROR_INVALID_PARAMETER;
 
     P = PipeBuf;
     *P++ = LauncherSvcInstanceInfo;
-    memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR));
+    memcpy(P, ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
+    memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
 
     if (CallNamedPipeW(L"" PIPE_NAME,
         PipeBuf, (DWORD)((P - PipeBuf) * sizeof(WCHAR)), PipeBuf, PipeBufSize,
@@ -231,7 +235,7 @@ int wmain(int argc, wchar_t **argv)
     if (0 == argc)
         usage();
 
-    if (0 == lstrcmp(L"start", argv[0]))
+    if (0 == lstrcmpW(L"start", argv[0]))
     {
         if (3 > argc || argc > 12)
             usage();
@@ -239,26 +243,28 @@ int wmain(int argc, wchar_t **argv)
         return start(PipeBuf, PIPE_BUFFER_SIZE, argv[1], argv[2], argc - 3, argv + 3);
     }
     else
-    if (0 == lstrcmp(L"stop", argv[0]))
+    if (0 == lstrcmpW(L"stop", argv[0]))
     {
-        if (2 != argc)
+        if (3 != argc)
             usage();
 
-        return stop(PipeBuf, PIPE_BUFFER_SIZE, argv[1]);
+        return stop(PipeBuf, PIPE_BUFFER_SIZE, argv[1], argv[2]);
     }
-    if (0 == lstrcmp(L"list", argv[0]))
+    else
+    if (0 == lstrcmpW(L"list", argv[0]))
     {
         if (1 != argc)
             usage();
 
         return list(PipeBuf, PIPE_BUFFER_SIZE);
     }
-    if (0 == lstrcmp(L"info", argv[0]))
+    else
+    if (0 == lstrcmpW(L"info", argv[0]))
     {
-        if (2 != argc)
+        if (3 != argc)
             usage();
 
-        return info(PipeBuf, PIPE_BUFFER_SIZE, argv[1]);
+        return info(PipeBuf, PIPE_BUFFER_SIZE, argv[1], argv[2]);
     }
     else
         usage();

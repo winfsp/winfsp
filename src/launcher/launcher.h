@@ -27,11 +27,15 @@
 
 /*
  * The launcher named pipe SDDL gives full access to LocalSystem and Administrators.
- * It also gives generic read access and FILE_WRITE_DATA (DC) to Everyone. Note that
- * we cannot give generic write access or equivalently FILE_GENERIC_WRITE (FW) because
- * we would also grant the FILE_CREATE_PIPE_INSTANCE right.
+ * It also gives GENERIC_READ and GENERIC_WRITE access to Everyone. This includes the
+ * FILE_CREATE_PIPE_INSTANCE right which should not normally be granted to any process
+ * that is not the pipe server. The reason that the GENERIC_WRITE is required is to allow
+ * clients to use CallNamedPipeW which opens the pipe handle using CreateFileW and the
+ * GENERIC_READ | GENERIC_WRITE access right. The reason that it should be safe to grant
+ * the FILE_CREATE_PIPE_INSTANCE right is that the server creates the named pipe with
+ * MaxInstances == 1 (and therefore no client can create additional instances).
  */
-#define PIPE_SDDL                       "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRDC;;;WD)"
+#define PIPE_SDDL                       "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;WD)"
 
  /*
  * The default service instance SDDL gives full access to LocalSystem and Administrators.
