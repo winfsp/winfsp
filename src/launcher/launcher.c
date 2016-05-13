@@ -96,8 +96,8 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
         {
         case L'%':
             P++;
-            if (L'1' <= *P && *P <= '9' && Argc > (ULONG)(*P - L'1'))
-                Length += SvcInstanceArgumentLength(Argv[*P - L'1']);
+            if (L'0' <= *P && *P <= '9' && Argc > (ULONG)(*P - L'0'))
+                Length += SvcInstanceArgumentLength(Argv[*P - L'0']);
             else
                 Length++;
             break;
@@ -117,8 +117,8 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
         {
         case L'%':
             P++;
-            if (L'1' <= *P && *P <= '9' && Argc > (ULONG)(*P - L'1'))
-                Q = SvcInstanceArgumentCopy(Q, Argv[*P - L'1']);
+            if (L'0' <= *P && *P <= '9' && Argc > (ULONG)(*P - L'0'))
+                Q = SvcInstanceArgumentCopy(Q, Argv[*P - L'0']);
             else
                 *Q++ = *P;
             break;
@@ -163,21 +163,29 @@ static NTSTATUS SvcInstanceAccessCheck(HANDLE ClientToken, ULONG DesiredAccess,
 }
 
 NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
-    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv,
+    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv0,
     SVC_INSTANCE **PSvcInstance)
 {
     SVC_INSTANCE *SvcInstance = 0;
     HKEY RegKey = 0;
     DWORD RegResult, RegSize;
     DWORD ClassNameSize, InstanceNameSize;
-    WCHAR Executable[MAX_PATH], CommandLine[512], SecurityBuf[512] = L"O:SYG:SY";
-    PWSTR Security;
+    WCHAR Executable[MAX_PATH], CommandLineBuf[512] = L"%0 ", SecurityBuf[512] = L"O:SYG:SY";
+    PWSTR CommandLine, Security;
     PSECURITY_DESCRIPTOR SecurityDescriptor;
+    PWSTR Argv[10];
     STARTUPINFOW StartupInfo;
     PROCESS_INFORMATION ProcessInfo;
     NTSTATUS Result;
 
     *PSvcInstance = 0;
+
+    if (Argc > sizeof Argv / sizeof Argv[0] - 1)
+        Argc = sizeof Argv / sizeof Argv[0] - 1;
+    for (ULONG Argi = 0; Argc > Argi; Argi++)
+        Argv[Argi + 1] = Argv0[Argi];
+    Argv[0] = 0;
+    Argc++;
 
     EnterCriticalSection(&SvcInstanceLock);
 
@@ -203,9 +211,10 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         Result = FspNtStatusFromWin32(RegResult);
         goto exit;
     }
+    Argv[0] = Executable;
 
-    RegSize = sizeof CommandLine;
-    CommandLine[0] = L'\0';
+    CommandLine = CommandLineBuf + lstrlenW(CommandLineBuf);
+    RegSize = (DWORD)(sizeof CommandLineBuf - (CommandLine - CommandLineBuf) * sizeof(WCHAR));
     RegResult = RegGetValueW(RegKey, ClassName, L"CommandLine", RRF_RT_REG_SZ, 0,
         CommandLine, &RegSize);
     if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
@@ -213,6 +222,9 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         Result = FspNtStatusFromWin32(RegResult);
         goto exit;
     }
+    if (ERROR_FILE_NOT_FOUND == RegResult)
+        CommandLine[-1] = L'\0';
+    CommandLine = CommandLineBuf;
 
     Security = SecurityBuf + lstrlenW(SecurityBuf);
     RegSize = (DWORD)(sizeof SecurityBuf - (Security - SecurityBuf) * sizeof(WCHAR));
@@ -262,12 +274,9 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     SvcInstance->InstanceName = SvcInstance->Buffer + ClassNameSize / sizeof(WCHAR);
     SvcInstance->SecurityDescriptor = SecurityDescriptor;
 
-    if (L'\0' != CommandLine[0])
-    {
-        Result = SvcInstanceReplaceArguments(CommandLine, Argc, Argv, &SvcInstance->CommandLine);
-        if (!NT_SUCCESS(Result))
-            goto exit;
-    }
+    Result = SvcInstanceReplaceArguments(CommandLine, Argc, Argv, &SvcInstance->CommandLine);
+    if (!NT_SUCCESS(Result))
+        goto exit;
 
     memset(&StartupInfo, 0, sizeof StartupInfo);
     StartupInfo.cb = sizeof StartupInfo;
