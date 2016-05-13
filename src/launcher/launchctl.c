@@ -19,9 +19,11 @@
 
 #define PROGNAME                        "launchctl"
 
+#define info(format, ...)               osprintf(GetStdHandle(STD_OUTPUT_HANDLE), format, __VA_ARGS__)
+#define warn(format, ...)               osprintf(GetStdHandle(STD_ERROR_HANDLE), format, __VA_ARGS__)
 #define fatal(ExitCode, format, ...)    (warn(format, __VA_ARGS__), ExitProcess(ExitCode))
 
-static void vwarn(const char *format, va_list ap)
+static void vosprintf(HANDLE h, const char *format, va_list ap)
 {
     char buf[1024];
         /* wvsprintf is only safe with a 1024 byte buffer */
@@ -34,16 +36,15 @@ static void vwarn(const char *format, va_list ap)
     len = lstrlenA(buf);
     buf[len++] = '\n';
 
-    WriteFile(GetStdHandle(STD_ERROR_HANDLE),
-        buf, (DWORD)len, &BytesTransferred, 0);
+    WriteFile(h, buf, (DWORD)len, &BytesTransferred, 0);
 }
 
-static void warn(const char *format, ...)
+static void osprintf(HANDLE h, const char *format, ...)
 {
     va_list ap;
 
     va_start(ap, format);
-    vwarn(format, ap);
+    vosprintf(h, format, ap);
     va_end(ap);
 }
 
@@ -60,39 +61,49 @@ static void usage(void)
         PROGNAME);
 }
 
-static void report(PWSTR PipeBuf, ULONG PipeBufSize)
+static int callpipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
 {
-    if (0 == PipeBufSize)
-        warn("KO received empty buffer from launcher");
+    DWORD LastError, BytesTransferred;
+
+    LastError = CallNamedPipeW(L"" PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
+        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT) ? 0 : GetLastError();
+
+    if (0 != LastError)
+        warn("KO CallNamedPipeW = %ld", LastError);
+    else if (0 == BytesTransferred)
+        warn("KO launcher: empty buffer");
     else if (L'$' == PipeBuf[0])
     {
-        if (1 == PipeBufSize)
-            warn("OK");
+        if (1 == BytesTransferred)
+            info("OK");
         else
         {
-            for (PWSTR P = PipeBuf, PipeBufEnd = P + PipeBufSize / sizeof(WCHAR); PipeBufEnd > P; P++)
+            for (PWSTR P = PipeBuf, PipeBufEnd = P + BytesTransferred / sizeof(WCHAR);
+                PipeBufEnd > P; P++)
                 if (L'\0' == *P)
                     *P = L'\n';
 
-            if (PipeBufSize < PIPE_BUFFER_SIZE)
-                PipeBuf[PipeBufSize / sizeof(WCHAR)] = L'\0';
+            if (BytesTransferred < RecvSize)
+                PipeBuf[BytesTransferred / sizeof(WCHAR)] = L'\0';
             else
-                PipeBuf[PIPE_BUFFER_SIZE / sizeof(WCHAR) - 1] = L'\0';
+                PipeBuf[RecvSize / sizeof(WCHAR) - 1] = L'\0';
 
-            warn("OK\n%S", PipeBuf + 1);
+            info("OK\n%S", PipeBuf + 1);
         }
     }
     else if (L'!' == PipeBuf[0])
     {
-        if (PipeBufSize < PIPE_BUFFER_SIZE)
-            PipeBuf[PipeBufSize / sizeof(WCHAR)] = L'\0';
+        if (BytesTransferred < RecvSize)
+            PipeBuf[BytesTransferred / sizeof(WCHAR)] = L'\0';
         else
-            PipeBuf[PIPE_BUFFER_SIZE / sizeof(WCHAR) - 1] = L'\0';
+            PipeBuf[RecvSize / sizeof(WCHAR) - 1] = L'\0';
 
-        warn("KO %S", PipeBuf + 1);
+        info("KO launcher: error %S", PipeBuf + 1);
     }
     else 
-        warn("KO received corrupted buffer from launcher", 0);
+        warn("KO launcher: corrupted buffer", 0);
+
+    return LastError;
 }
 
 int start(PWSTR PipeBuf, ULONG PipeBufSize,
@@ -100,7 +111,6 @@ int start(PWSTR PipeBuf, ULONG PipeBufSize,
 {
     PWSTR P;
     DWORD ClassNameSize, InstanceNameSize, ArgvSize;
-    DWORD LastError, BytesTransferred;
 
     ClassNameSize = lstrlenW(ClassName) + 1;
     InstanceNameSize = lstrlenW(InstanceName) + 1;
@@ -121,17 +131,7 @@ int start(PWSTR PipeBuf, ULONG PipeBufSize,
         memcpy(P, Argv[Argi], ArgvSize * sizeof(WCHAR)); P += ArgvSize;
     }
 
-    if (CallNamedPipeW(L"" PIPE_NAME,
-        PipeBuf, (DWORD)((P - PipeBuf) * sizeof(WCHAR)), PipeBuf, PipeBufSize,
-        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT))
-    {
-        LastError = 0;
-        report(PipeBuf, BytesTransferred);
-    }
-    else
-        LastError = GetLastError();
-
-    return LastError;
+    return callpipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
 }
 
 int stop(PWSTR PipeBuf, ULONG PipeBufSize,
@@ -139,7 +139,6 @@ int stop(PWSTR PipeBuf, ULONG PipeBufSize,
 {
     PWSTR P;
     DWORD ClassNameSize, InstanceNameSize;
-    DWORD LastError, BytesTransferred;
 
     ClassNameSize = lstrlenW(ClassName) + 1;
     InstanceNameSize = lstrlenW(InstanceName) + 1;
@@ -152,23 +151,12 @@ int stop(PWSTR PipeBuf, ULONG PipeBufSize,
     memcpy(P, ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
     memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
 
-    if (CallNamedPipeW(L"" PIPE_NAME,
-        PipeBuf, (DWORD)((P - PipeBuf) * sizeof(WCHAR)), PipeBuf, PipeBufSize,
-        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT))
-    {
-        LastError = 0;
-        report(PipeBuf, BytesTransferred);
-    }
-    else
-        LastError = GetLastError();
-
-    return LastError;
+    return callpipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
 }
 
 int list(PWSTR PipeBuf, ULONG PipeBufSize)
 {
     PWSTR P;
-    DWORD LastError, BytesTransferred;
 
     if (PipeBufSize < 1 * sizeof(WCHAR))
         return ERROR_INVALID_PARAMETER;
@@ -176,25 +164,14 @@ int list(PWSTR PipeBuf, ULONG PipeBufSize)
     P = PipeBuf;
     *P++ = LauncherSvcInstanceList;
 
-    if (CallNamedPipeW(L"" PIPE_NAME,
-        PipeBuf, (DWORD)((P - PipeBuf) * sizeof(WCHAR)), PipeBuf, PipeBufSize,
-        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT))
-    {
-        LastError = 0;
-        report(PipeBuf, BytesTransferred);
-    }
-    else
-        LastError = GetLastError();
-
-    return LastError;
+    return callpipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
 }
 
-int info(PWSTR PipeBuf, ULONG PipeBufSize,
+int getinfo(PWSTR PipeBuf, ULONG PipeBufSize,
     PWSTR ClassName, PWSTR InstanceName)
 {
     PWSTR P;
     DWORD ClassNameSize, InstanceNameSize;
-    DWORD LastError, BytesTransferred;
 
     ClassNameSize = lstrlenW(ClassName) + 1;
     InstanceNameSize = lstrlenW(InstanceName) + 1;
@@ -207,17 +184,7 @@ int info(PWSTR PipeBuf, ULONG PipeBufSize,
     memcpy(P, ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
     memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
 
-    if (CallNamedPipeW(L"" PIPE_NAME,
-        PipeBuf, (DWORD)((P - PipeBuf) * sizeof(WCHAR)), PipeBuf, PipeBufSize,
-        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT))
-    {
-        LastError = 0;
-        report(PipeBuf, BytesTransferred);
-    }
-    else
-        LastError = GetLastError();
-
-    return LastError;
+    return callpipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
 }
 
 int wmain(int argc, wchar_t **argv)
@@ -264,7 +231,7 @@ int wmain(int argc, wchar_t **argv)
         if (3 != argc)
             usage();
 
-        return info(PipeBuf, PIPE_BUFFER_SIZE, argv[1], argv[2]);
+        return getinfo(PipeBuf, PIPE_BUFFER_SIZE, argv[1], argv[2]);
     }
     else
         usage();
