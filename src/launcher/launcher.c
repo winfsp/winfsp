@@ -378,8 +378,11 @@ NTSTATUS SvcInstanceGetInfo(HANDLE ClientToken,
     PWSTR ClassName, PWSTR InstanceName, PWSTR Buffer, PULONG PSize)
 {
     SVC_INSTANCE *SvcInstance;
+    PWSTR P = Buffer;
     ULONG ClassNameSize, InstanceNameSize, CommandLineSize;
     NTSTATUS Result;
+
+    *PSize = 0;
 
     EnterCriticalSection(&SvcInstanceLock);
 
@@ -404,12 +407,11 @@ NTSTATUS SvcInstanceGetInfo(HANDLE ClientToken,
         goto exit;
     }
 
-    memcpy(Buffer, SvcInstance->ClassName,
-        ClassNameSize * sizeof(WCHAR));
-    memcpy(Buffer + ClassNameSize, SvcInstance->InstanceName,
-        InstanceNameSize * sizeof(WCHAR));
-    memcpy(Buffer + ClassNameSize + InstanceNameSize, SvcInstance->CommandLine,
-        CommandLineSize * sizeof(WCHAR));
+    memcpy(P, SvcInstance->ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
+    memcpy(P, SvcInstance->InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
+    memcpy(P, SvcInstance->CommandLine, CommandLineSize * sizeof(WCHAR)); P += CommandLineSize;
+
+    *PSize = (ULONG)(P - Buffer);
 
     Result = STATUS_SUCCESS;
 
@@ -441,8 +443,9 @@ NTSTATUS SvcInstanceGetNameList(HANDLE ClientToken,
         if (BufferEnd < P + ClassNameSize + InstanceNameSize)
             break;
 
+        ClassNameSize--;
         memcpy(P, SvcInstance->ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
-        *Buffer++ = L' ';
+        *Buffer++ = L'\1';
         memcpy(P, SvcInstance->InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
     }
 

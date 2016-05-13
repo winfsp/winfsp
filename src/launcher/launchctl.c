@@ -80,8 +80,15 @@ static int call_pipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
         {
             for (PWSTR P = PipeBuf, PipeBufEnd = P + BytesTransferred / sizeof(WCHAR);
                 PipeBufEnd > P; P++)
-                if (L'\0' == *P)
+                switch (*P)
+                {
+                case L'\0':
                     *P = L'\n';
+                    break;
+                case L'\1':
+                    *P = L' ';
+                    break;
+                }
 
             if (BytesTransferred < RecvSize)
                 PipeBuf[BytesTransferred / sizeof(WCHAR)] = L'\0';
