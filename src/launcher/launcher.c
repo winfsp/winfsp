@@ -443,9 +443,7 @@ NTSTATUS SvcInstanceGetNameList(HANDLE ClientToken,
         if (BufferEnd < P + ClassNameSize + InstanceNameSize)
             break;
 
-        ClassNameSize--;
         memcpy(P, SvcInstance->ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
-        *Buffer++ = L'\1';
         memcpy(P, SvcInstance->InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
     }
 

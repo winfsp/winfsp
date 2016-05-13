@@ -78,16 +78,15 @@ static int call_pipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
             info("OK");
         else
         {
+            ULONG Count = 0;
+
             for (PWSTR P = PipeBuf, PipeBufEnd = P + BytesTransferred / sizeof(WCHAR);
                 PipeBufEnd > P; P++)
-                switch (*P)
+                if (L'\0' == *P)
                 {
-                case L'\0':
-                    *P = L'\n';
-                    break;
-                case L'\1':
-                    *P = L' ';
-                    break;
+                    /* print a newline every 2 nulls; this works for both list and info */
+                    *P = 1 == Count % 2 ? L'\n' : L' ';
+                    Count++;
                 }
 
             if (BytesTransferred < RecvSize)
