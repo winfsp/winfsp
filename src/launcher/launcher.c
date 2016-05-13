@@ -374,40 +374,6 @@ exit:
     return Result;
 }
 
-NTSTATUS SvcInstanceGetNameList(HANDLE ClientToken,
-    PWSTR Buffer, PULONG PSize)
-{
-    SVC_INSTANCE *SvcInstance;
-    PLIST_ENTRY ListEntry;
-    PWSTR P = Buffer, BufferEnd = P + *PSize / sizeof(WCHAR);
-    ULONG ClassNameSize, InstanceNameSize;
-
-    EnterCriticalSection(&SvcInstanceLock);
-
-    for (ListEntry = SvcInstanceList.Flink;
-        &SvcInstanceList != ListEntry;
-        ListEntry = ListEntry->Flink)
-    {
-        SvcInstance = CONTAINING_RECORD(ListEntry, SVC_INSTANCE, ListEntry);
-
-        ClassNameSize = lstrlenW(SvcInstance->ClassName) + 1;
-        InstanceNameSize = lstrlenW(SvcInstance->InstanceName) + 1;
-
-        if (BufferEnd < P + ClassNameSize + InstanceNameSize)
-            break;
-
-        memcpy(P, SvcInstance->ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
-        *Buffer++ = L' ';
-        memcpy(P, SvcInstance->InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
-    }
-
-    LeaveCriticalSection(&SvcInstanceLock);
-
-    *PSize = (ULONG)(P - Buffer);
-
-    return STATUS_SUCCESS;
-}
-
 NTSTATUS SvcInstanceGetInfo(HANDLE ClientToken,
     PWSTR ClassName, PWSTR InstanceName, PWSTR Buffer, PULONG PSize)
 {
@@ -451,6 +417,40 @@ exit:
     LeaveCriticalSection(&SvcInstanceLock);
 
     return Result;
+}
+
+NTSTATUS SvcInstanceGetNameList(HANDLE ClientToken,
+    PWSTR Buffer, PULONG PSize)
+{
+    SVC_INSTANCE *SvcInstance;
+    PLIST_ENTRY ListEntry;
+    PWSTR P = Buffer, BufferEnd = P + *PSize / sizeof(WCHAR);
+    ULONG ClassNameSize, InstanceNameSize;
+
+    EnterCriticalSection(&SvcInstanceLock);
+
+    for (ListEntry = SvcInstanceList.Flink;
+        &SvcInstanceList != ListEntry;
+        ListEntry = ListEntry->Flink)
+    {
+        SvcInstance = CONTAINING_RECORD(ListEntry, SVC_INSTANCE, ListEntry);
+
+        ClassNameSize = lstrlenW(SvcInstance->ClassName) + 1;
+        InstanceNameSize = lstrlenW(SvcInstance->InstanceName) + 1;
+
+        if (BufferEnd < P + ClassNameSize + InstanceNameSize)
+            break;
+
+        memcpy(P, SvcInstance->ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
+        *Buffer++ = L' ';
+        memcpy(P, SvcInstance->InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
+    }
+
+    LeaveCriticalSection(&SvcInstanceLock);
+
+    *PSize = (ULONG)(P - Buffer);
+
+    return STATUS_SUCCESS;
 }
 
 static HANDLE SvcThread, SvcEvent;
@@ -735,13 +735,6 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
 
-    case LauncherSvcInstanceList:
-        *PSize = PIPE_BUFFER_SIZE - 1;
-        Result = SvcInstanceGetNameList(ClientToken, PipeBuf + 1, PSize);
-
-        SvcPipeTransactResult(Result, PipeBuf, PSize);
-        break;
-
     case LauncherSvcInstanceInfo:
         ClassName = SvcPipeTransactGetPart(&P, PipeBufEnd);
         InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
@@ -752,6 +745,13 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
             *PSize = PIPE_BUFFER_SIZE - 1;
             Result = SvcInstanceGetInfo(ClientToken, ClassName, InstanceName, PipeBuf + 1, PSize);
         }
+
+        SvcPipeTransactResult(Result, PipeBuf, PSize);
+        break;
+
+    case LauncherSvcInstanceList:
+        *PSize = PIPE_BUFFER_SIZE - 1;
+        Result = SvcInstanceGetNameList(ClientToken, PipeBuf + 1, PSize);
 
         SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;

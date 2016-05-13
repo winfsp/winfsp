@@ -61,7 +61,7 @@ static void usage(void)
         PROGNAME);
 }
 
-static int callpipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
+static int call_pipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
 {
     DWORD LastError, BytesTransferred;
 
@@ -131,7 +131,7 @@ int start(PWSTR PipeBuf, ULONG PipeBufSize,
         memcpy(P, Argv[Argi], ArgvSize * sizeof(WCHAR)); P += ArgvSize;
     }
 
-    return callpipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
+    return call_pipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
 }
 
 int stop(PWSTR PipeBuf, ULONG PipeBufSize,
@@ -151,20 +151,7 @@ int stop(PWSTR PipeBuf, ULONG PipeBufSize,
     memcpy(P, ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
     memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
 
-    return callpipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
-}
-
-int list(PWSTR PipeBuf, ULONG PipeBufSize)
-{
-    PWSTR P;
-
-    if (PipeBufSize < 1 * sizeof(WCHAR))
-        return ERROR_INVALID_PARAMETER;
-
-    P = PipeBuf;
-    *P++ = LauncherSvcInstanceList;
-
-    return callpipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
+    return call_pipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
 }
 
 int getinfo(PWSTR PipeBuf, ULONG PipeBufSize,
@@ -184,7 +171,20 @@ int getinfo(PWSTR PipeBuf, ULONG PipeBufSize,
     memcpy(P, ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
     memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
 
-    return callpipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
+    return call_pipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
+}
+
+int list(PWSTR PipeBuf, ULONG PipeBufSize)
+{
+    PWSTR P;
+
+    if (PipeBufSize < 1 * sizeof(WCHAR))
+        return ERROR_INVALID_PARAMETER;
+
+    P = PipeBuf;
+    *P++ = LauncherSvcInstanceList;
+
+    return call_pipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
 }
 
 int wmain(int argc, wchar_t **argv)
@@ -218,20 +218,20 @@ int wmain(int argc, wchar_t **argv)
         return stop(PipeBuf, PIPE_BUFFER_SIZE, argv[1], argv[2]);
     }
     else
-    if (0 == lstrcmpW(L"list", argv[0]))
-    {
-        if (1 != argc)
-            usage();
-
-        return list(PipeBuf, PIPE_BUFFER_SIZE);
-    }
-    else
     if (0 == lstrcmpW(L"info", argv[0]))
     {
         if (3 != argc)
             usage();
 
         return getinfo(PipeBuf, PIPE_BUFFER_SIZE, argv[1], argv[2]);
+    }
+    else
+    if (0 == lstrcmpW(L"list", argv[0]))
+    {
+        if (1 != argc)
+            usage();
+
+        return list(PipeBuf, PIPE_BUFFER_SIZE);
     }
     else
         usage();
