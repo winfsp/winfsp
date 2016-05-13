@@ -96,8 +96,8 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
         {
         case L'%':
             P++;
-            if (L'0' <= *P && *P <= '9' && Argc > (ULONG)(*P - L'0'))
-                Length += SvcInstanceArgumentLength(Argv[*P - L'0']);
+            if (L'1' <= *P && *P <= '9' && Argc > (ULONG)(*P - L'1'))
+                Length += SvcInstanceArgumentLength(Argv[*P - L'1']);
             break;
         default:
             Length++;
@@ -116,8 +116,8 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
         {
         case L'%':
             P++;
-            if (L'0' <= *P && *P <= '9' && Argc > (ULONG)(*P - L'0'))
-                Q = SvcInstanceArgumentCopy(Q, Argv[*P - L'0']);
+            if (L'1' <= *P && *P <= '9' && Argc > (ULONG)(*P - L'1'))
+                Q = SvcInstanceArgumentCopy(Q, Argv[*P - L'1']);
             break;
         default:
             Q++;
@@ -708,7 +708,7 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
 
     PWSTR P = PipeBuf, PipeBufEnd = PipeBuf + *PSize / sizeof(WCHAR);
     PWSTR ClassName, InstanceName;
-    ULONG Argc; PWSTR Argv[10];
+    ULONG Argc; PWSTR Argv[9];
     NTSTATUS Result;
 
     *PSize = 0;
@@ -718,7 +718,7 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
     case LauncherSvcInstanceStart:
         ClassName = SvcPipeTransactGetPart(&P, PipeBufEnd);
         InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
-        for (Argc = 0; 10 > Argc; Argc++)
+        for (Argc = 0; sizeof Argv / sizeof Argv[0] > Argc; Argc++)
             if (0 == (Argv[Argc] = SvcPipeTransactGetPart(&P, PipeBufEnd)))
                 break;
 
