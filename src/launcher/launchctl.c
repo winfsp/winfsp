@@ -19,11 +19,11 @@
 
 #define PROGNAME                        "launchctl"
 
-#define info(format, ...)               osprintf(GetStdHandle(STD_OUTPUT_HANDLE), format, __VA_ARGS__)
-#define warn(format, ...)               osprintf(GetStdHandle(STD_ERROR_HANDLE), format, __VA_ARGS__)
+#define info(format, ...)               log(GetStdHandle(STD_OUTPUT_HANDLE), format, __VA_ARGS__)
+#define warn(format, ...)               log(GetStdHandle(STD_ERROR_HANDLE), format, __VA_ARGS__)
 #define fatal(ExitCode, format, ...)    (warn(format, __VA_ARGS__), ExitProcess(ExitCode))
 
-static void vosprintf(HANDLE h, const char *format, va_list ap)
+static void vlog(HANDLE h, const char *format, va_list ap)
 {
     char buf[1024];
         /* wvsprintf is only safe with a 1024 byte buffer */
@@ -39,12 +39,12 @@ static void vosprintf(HANDLE h, const char *format, va_list ap)
     WriteFile(h, buf, (DWORD)len, &BytesTransferred, 0);
 }
 
-static void osprintf(HANDLE h, const char *format, ...)
+static void log(HANDLE h, const char *format, ...)
 {
     va_list ap;
 
     va_start(ap, format);
-    vosprintf(h, format, ap);
+    vlog(h, format, ap);
     va_end(ap);
 }
 
