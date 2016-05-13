@@ -455,6 +455,7 @@ NTSTATUS SvcInstanceGetNameList(HANDLE ClientToken,
 }
 
 static HANDLE SvcThread, SvcEvent;
+static DWORD SvcThreadId;
 static HANDLE SvcPipe = INVALID_HANDLE_VALUE;
 static OVERLAPPED SvcOverlapped;
 
@@ -491,7 +492,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     if (INVALID_HANDLE_VALUE == SvcPipe)
         goto fail;
 
-    SvcThread = CreateThread(0, 0, SvcPipeServer, Service, 0, 0);
+    SvcThread = CreateThread(0, 0, SvcPipeServer, Service, 0, &SvcThreadId);
     if (0 == SvcThread)
         goto fail;
 
@@ -523,9 +524,12 @@ fail:
 
 static NTSTATUS SvcStop(FSP_SERVICE *Service)
 {
-    SetEvent(SvcEvent);
-    FspServiceRequestTime(Service, 4500);   /* just under 5 sec */
-    WaitForSingleObject(SvcThread, 4500);
+    if (GetCurrentThreadId() != SvcThreadId)
+    {
+        SetEvent(SvcEvent);
+        FspServiceRequestTime(Service, 4500);   /* just under 5 sec */
+        WaitForSingleObject(SvcThread, 4500);
+    }
 
     if (0 != SvcThread)
         CloseHandle(SvcThread);
