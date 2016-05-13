@@ -27,22 +27,22 @@
 
 /*
  * The launcher named pipe SDDL gives full access to LocalSystem and Administrators.
- * It also gives generic read access and FILE_WRITE_DATA (SC) to Everyone. Note that
+ * It also gives generic read access and FILE_WRITE_DATA (DC) to Everyone. Note that
  * we cannot give generic write access or equivalently FILE_GENERIC_WRITE (FW) because
  * we would also grant the FILE_CREATE_PIPE_INSTANCE right.
  */
-#define PIPE_SDDL                       "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRSC;;;WD)"
+#define PIPE_SDDL                       "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRDC;;;WD)"
 
  /*
  * The default service instance SDDL gives full access to LocalSystem and Administrators.
  * The only possible service instance rights are as follows:
  *     RP   SERVICE_START
  *     WP   SERVICE_STOP
- *     SC   SERVICE_QUERY_STATUS
+ *     LC   SERVICE_QUERY_STATUS
  *
  * To create a service that can be started, stopped or queried by Everyone, you can set
  * the following SDDL:
- *     D:P(A;;RPWPSC;;;WD)
+ *     D:P(A;;RPWPLC;;;WD)
  */
 #define SVC_INSTANCE_DEFAULT_SDDL       "O:SYG:SYD:P(A;;RPWPSC;;;SY)(A;;RPWPSC;;;BA)"
 

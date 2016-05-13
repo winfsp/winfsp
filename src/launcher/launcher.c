@@ -232,6 +232,8 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
+    FspDebugLogSD(__FUNCTION__ ": SDDL = %s", SecurityDescriptor);
+
     Result = SvcInstanceAccessCheck(ClientToken, SERVICE_START, SecurityDescriptor);
     if (!NT_SUCCESS(Result))
         goto exit;
@@ -459,6 +461,8 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(L"" PIPE_SDDL, SDDL_REVISION_1,
         &SecurityAttributes.lpSecurityDescriptor, 0))
         goto fail;
+
+    FspDebugLogSD(__FUNCTION__ ": SDDL = %s", SecurityAttributes.lpSecurityDescriptor);
 
     SvcEvent = CreateEventW(0, TRUE, FALSE, 0);
     if (0 == SvcEvent)
