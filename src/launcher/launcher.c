@@ -388,7 +388,7 @@ NTSTATUS SvcInstanceStop(HANDLE ClientToken,
 
     if (!GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, SvcInstance->ProcessId))
     {
-        Result = FspNtStatusFromWin32(Result);
+        Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
     }
 
