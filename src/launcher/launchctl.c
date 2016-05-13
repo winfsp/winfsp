@@ -56,8 +56,8 @@ static void usage(void)
         "commands:\n"
         "    start ClassName InstanceName Args...\n"
         "    stop ClassName InstanceName\n"
-        "    list\n"
-        "    info ClassName InstanceName\n",
+        "    info ClassName InstanceName\n"
+        "    list\n",
         PROGNAME);
 }
 
