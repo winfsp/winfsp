@@ -18,8 +18,7 @@
 #include <dll/library.h>
 #include <npapi.h>
 
-#define FSP_NP_NAME                     "WinFsp.Np"
-#define FSP_NP_DESC                     "File System Proxy"
+#define FSP_NP_NAME                     LIBRARY_NAME ".Np"
 #define FSP_NP_TYPE                     ' spF'  /* pick a value hopefully not in use */
 
 DWORD APIENTRY NPGetCaps(DWORD Index)
@@ -221,8 +220,29 @@ NTSTATUS FspNpRegister(VOID)
     if (ERROR_SUCCESS != RegResult)
         return FspNtStatusFromWin32(RegResult);
 
-    RegResult = RegSetValueExW(RegKey,
-        L"Name", 0, REG_SZ, (PVOID) L"" FSP_NP_DESC, sizeof L"" FSP_NP_DESC);
+    RegResult = ERROR_RESOURCE_NAME_NOT_FOUND; /* not a real resource error! */
+    {
+        PVOID VersionInfo = 0;
+        DWORD Size;
+        PWSTR Description;
+
+        Size = GetFileVersionInfoSizeW(ProviderPath, &Size/*dummy*/);
+        if (0 < Size)
+        {
+            VersionInfo = MemAlloc(Size);
+            if (0 != VersionInfo &&
+                GetFileVersionInfoW(ProviderPath, 0, Size, VersionInfo) &&
+                VerQueryValueW(VersionInfo, L"\\StringFileInfo\\040904b0\\FileDescription",
+                    &Description, &Size))
+            {
+                Size = Size * 2 + sizeof(WCHAR);
+                RegResult = RegSetValueExW(RegKey,
+                    L"Name", 0, REG_SZ, (PVOID)Description, Size);
+            }
+
+            MemFree(VersionInfo);
+        }
+    }
     if (ERROR_SUCCESS != RegResult)
         goto close_and_exit;
 
