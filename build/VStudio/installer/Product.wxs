@@ -275,7 +275,7 @@
                 Id="F.Developer"
                 Level="1000"
                 Title="Developer"
-                Description="Additional files needed for development."
+                Description="Additional files needed for development. Please note that the memfs sample requires the VC++ 2015 redistributable to be installed."
                 AllowAdvertise="no"
                 InstallDefault="local"
                 Absent="allow">
