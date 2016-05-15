@@ -19,11 +19,11 @@
 
 #define PROGNAME                        "launchctl"
 
-#define info(format, ...)               log(GetStdHandle(STD_OUTPUT_HANDLE), format, __VA_ARGS__)
-#define warn(format, ...)               log(GetStdHandle(STD_ERROR_HANDLE), format, __VA_ARGS__)
+#define info(format, ...)               printlog(GetStdHandle(STD_OUTPUT_HANDLE), format, __VA_ARGS__)
+#define warn(format, ...)               printlog(GetStdHandle(STD_ERROR_HANDLE), format, __VA_ARGS__)
 #define fatal(ExitCode, format, ...)    (warn(format, __VA_ARGS__), ExitProcess(ExitCode))
 
-static void vlog(HANDLE h, const char *format, va_list ap)
+static void vprintlog(HANDLE h, const char *format, va_list ap)
 {
     char buf[1024];
         /* wvsprintf is only safe with a 1024 byte buffer */
@@ -39,12 +39,12 @@ static void vlog(HANDLE h, const char *format, va_list ap)
     WriteFile(h, buf, (DWORD)len, &BytesTransferred, 0);
 }
 
-static void log(HANDLE h, const char *format, ...)
+static void printlog(HANDLE h, const char *format, ...)
 {
     va_list ap;
 
     va_start(ap, format);
-    vlog(h, format, ap);
+    vprintlog(h, format, ap);
     va_end(ap);
 }
 

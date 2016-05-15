@@ -239,7 +239,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     HKEY RegKey = 0;
     DWORD RegResult, RegSize;
     DWORD ClassNameSize, InstanceNameSize;
-    WCHAR Executable[MAX_PATH], CommandLineBuf[512] = L"%0 ", SecurityBuf[512] = L"O:SYG:SY";
+    WCHAR Executable[MAX_PATH], CommandLineBuf[512], SecurityBuf[512];
     PWSTR CommandLine, Security;
     DWORD JobControl;
     PSECURITY_DESCRIPTOR SecurityDescriptor;
@@ -250,10 +250,12 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
 
     *PSvcInstance = 0;
 
+    lstrcpyW(CommandLineBuf, L"%0 ");
+    lstrcpyW(SecurityBuf, L"O:SYG:SY");
+
     if (Argc > sizeof Argv / sizeof Argv[0] - 1)
         Argc = sizeof Argv / sizeof Argv[0] - 1;
-    for (ULONG Argi = 0; Argc > Argi; Argi++)
-        Argv[Argi + 1] = Argv0[Argi];
+    memcpy(Argv + 1, Argv0, Argc * sizeof(PWSTR));
     Argv[0] = 0;
     Argc++;
 
