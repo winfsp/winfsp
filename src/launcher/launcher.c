@@ -628,8 +628,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION LimitInfo;
 
         memset(&LimitInfo, 0, sizeof LimitInfo);
-        LimitInfo.BasicLimitInformation.LimitFlags =
-            JOB_OBJECT_LIMIT_BREAKAWAY_OK | JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        LimitInfo.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
         if (!SetInformationJobObject(SvcJob, JobObjectExtendedLimitInformation,
             &LimitInfo, sizeof LimitInfo))
         {
