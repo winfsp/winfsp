@@ -241,6 +241,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     DWORD ClassNameSize, InstanceNameSize;
     WCHAR Executable[MAX_PATH], CommandLineBuf[512] = L"%0 ", SecurityBuf[512] = L"O:SYG:SY";
     PWSTR CommandLine, Security;
+    DWORD JobControl;
     PSECURITY_DESCRIPTOR SecurityDescriptor;
     PWSTR Argv[10];
     STARTUPINFOW StartupInfo;
@@ -308,6 +309,16 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
+    RegSize = sizeof JobControl;
+    JobControl = 1; /* default is YES! */
+    RegResult = RegGetValueW(RegKey, ClassName, L"JobControl", RRF_RT_REG_DWORD, 0,
+        &JobControl, &RegSize);
+    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
+    {
+        Result = FspNtStatusFromWin32(RegResult);
+        goto exit;
+    }
+
     RegCloseKey(RegKey);
     RegKey = 0;
 
@@ -352,7 +363,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
 
     StartupInfo.cb = sizeof StartupInfo;
     if (!CreateProcessW(Executable, SvcInstance->CommandLine, 0, 0, FALSE,
-        CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED, 0, 0, &StartupInfo, &ProcessInfo))
+        CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP, 0, 0, &StartupInfo, &ProcessInfo))
     {
         Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
@@ -368,7 +379,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
-    if (0 != Job)
+    if (0 != Job && JobControl)
     {
         if (!AssignProcessToJobObject(Job, SvcInstance->Process))
             FspServiceLog(EVENTLOG_WARNING_TYPE,
@@ -474,7 +485,7 @@ NTSTATUS SvcInstanceStop(HANDLE ClientToken,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    KillProcess(SvcInstance->ProcessId, SvcInstance->Process, STOP_TIMEOUT);
+    KillProcess(SvcInstance->ProcessId, SvcInstance->Process, KILL_TIMEOUT);
 
     Result = STATUS_SUCCESS;
 
@@ -575,7 +586,7 @@ NTSTATUS SvcInstanceStopAndWaitAll(VOID)
     {
         SvcInstance = CONTAINING_RECORD(ListEntry, SVC_INSTANCE, ListEntry);
 
-        KillProcess(SvcInstance->ProcessId, SvcInstance->Process, STOP_TIMEOUT);
+        KillProcess(SvcInstance->ProcessId, SvcInstance->Process, KILL_TIMEOUT);
     }
 
     LeaveCriticalSection(&SvcInstanceLock);
