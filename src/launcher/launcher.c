@@ -23,6 +23,63 @@
 
 typedef struct
 {
+    HANDLE Process;
+    HANDLE ProcessWait;
+} KILL_PROCESS_DATA;
+
+static VOID CALLBACK KillProcessWait(PVOID Context, BOOLEAN Timeout);
+
+VOID KillProcess(ULONG ProcessId, HANDLE Process, ULONG Timeout)
+{
+    if (GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, ProcessId))
+    {
+        /*
+         * If GenerateConsoleCtrlEvent succeeds, but the child process does not exit
+         * timely we will terminate it with extreme prejudice. This is done by calling
+         * RegisterWaitForSingleObject with timeout on a duplicated process handle.
+         *
+         * If GenerateConsoleCtrlEvent succeeds, but we are not able to successfully call
+         * RegisterWaitForSingleObject, we do NOT terminate the child process forcibly.
+         * This is by design as it is not the child process's fault and the child process
+         * should (we hope in this case) respond to the console control event timely.
+         */
+
+        KILL_PROCESS_DATA *KillProcessData;
+
+        KillProcessData = MemAlloc(sizeof *KillProcessData);
+        if (0 != KillProcessData)
+        {
+            if (DuplicateHandle(GetCurrentProcess(), Process, GetCurrentProcess(), &KillProcessData->Process,
+                0, FALSE, DUPLICATE_SAME_ACCESS))
+            {
+                if (RegisterWaitForSingleObject(&KillProcessData->ProcessWait, KillProcessData->Process,
+                    KillProcessWait, KillProcessData, Timeout, WT_EXECUTEONLYONCE))
+                    KillProcessData = 0;
+                else
+                    CloseHandle(KillProcessData->Process);
+            }
+
+            MemFree(KillProcessData);
+        }
+    }
+    else
+        TerminateProcess(Process, 0);
+}
+
+static VOID CALLBACK KillProcessWait(PVOID Context, BOOLEAN Timeout)
+{
+    KILL_PROCESS_DATA *KillProcessData = Context;
+
+    if (Timeout)
+        TerminateProcess(KillProcessData->Process, 0);
+
+    UnregisterWaitEx(KillProcessData->ProcessWait, 0);
+    CloseHandle(KillProcessData->Process);
+    MemFree(KillProcessData);
+}
+
+typedef struct
+{
     PWSTR ClassName;
     PWSTR InstanceName;
     PWSTR CommandLine;
@@ -35,9 +92,10 @@ typedef struct
 } SVC_INSTANCE;
 
 static CRITICAL_SECTION SvcInstanceLock;
+static HANDLE SvcInstanceEvent;
 static LIST_ENTRY SvcInstanceList = { &SvcInstanceList, &SvcInstanceList };
 
-static VOID CALLBACK SvcInstanceTerminated(PVOID Context, BOOLEAN Fired);
+static VOID CALLBACK SvcInstanceTerminated(PVOID Context, BOOLEAN Timeout);
 
 static SVC_INSTANCE *SvcInstanceLookup(PWSTR ClassName, PWSTR InstanceName)
 {
@@ -174,7 +232,7 @@ static NTSTATUS SvcInstanceAccessCheck(HANDLE ClientToken, ULONG DesiredAccess,
 }
 
 NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
-    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv0,
+    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv0, HANDLE Job,
     SVC_INSTANCE **PSvcInstance)
 {
     SVC_INSTANCE *SvcInstance = 0;
@@ -197,6 +255,9 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         Argv[Argi + 1] = Argv0[Argi];
     Argv[0] = 0;
     Argc++;
+
+    memset(&StartupInfo, 0, sizeof StartupInfo);
+    memset(&ProcessInfo, 0, sizeof ProcessInfo);
 
     EnterCriticalSection(&SvcInstanceLock);
 
@@ -289,30 +350,41 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    memset(&StartupInfo, 0, sizeof StartupInfo);
     StartupInfo.cb = sizeof StartupInfo;
-    if (!CreateProcessW(Executable, SvcInstance->CommandLine, 0, 0, FALSE, CREATE_NEW_PROCESS_GROUP, 0, 0,
-        &StartupInfo, &ProcessInfo))
+    if (!CreateProcessW(Executable, SvcInstance->CommandLine, 0, 0, FALSE,
+        CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED, 0, 0, &StartupInfo, &ProcessInfo))
     {
         Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
     }
 
-    CloseHandle(ProcessInfo.hThread);
     SvcInstance->ProcessId = ProcessInfo.dwProcessId;
     SvcInstance->Process = ProcessInfo.hProcess;
 
     if (!RegisterWaitForSingleObject(&SvcInstance->ProcessWait, SvcInstance->Process,
         SvcInstanceTerminated, SvcInstance, INFINITE, WT_EXECUTEONLYONCE))
     {
-        /* we have no way when the new process will terminate so go ahead and close its handle */
-        FspServiceLog(EVENTLOG_WARNING_TYPE,
-            L"RegisterWaitForSingleObject = %ld", GetLastError());
-        CloseHandle(SvcInstance->Process);
-        SvcInstance->Process = 0;
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
     }
 
+    if (0 != Job)
+    {
+        if (!AssignProcessToJobObject(Job, SvcInstance->Process))
+            FspServiceLog(EVENTLOG_WARNING_TYPE,
+                L"Ignorning error: AssignProcessToJobObject = %ld", GetLastError());
+    }
+
+    /*
+     * ONCE THE PROCESS IS RESUMED NO MORE FAILURES ALLOWED!
+     */
+
+    ResumeThread(ProcessInfo.hThread);
+    CloseHandle(ProcessInfo.hThread);
+    ProcessInfo.hThread = 0;
+
     InsertTailList(&SvcInstanceList, &SvcInstance->ListEntry);
+    ResetEvent(SvcInstanceEvent);
 
     *PSvcInstance = SvcInstance;
 
@@ -322,8 +394,21 @@ exit:
     if (!NT_SUCCESS(Result))
     {
         LocalFree(SecurityDescriptor);
+
+        if (0 != ProcessInfo.hThread)
+            CloseHandle(ProcessInfo.hThread);
+
         if (0 != SvcInstance)
         {
+            if (0 != SvcInstance->ProcessWait)
+                UnregisterWaitEx(SvcInstance->ProcessWait, 0);
+
+            if (0 != SvcInstance->Process)
+            {
+                TerminateProcess(SvcInstance->Process, 0);
+                CloseHandle(SvcInstance->Process);
+            }
+
             MemFree(SvcInstance->CommandLine);
             MemFree(SvcInstance);
         }
@@ -340,19 +425,22 @@ exit:
 VOID SvcInstanceDelete(SVC_INSTANCE *SvcInstance)
 {
     EnterCriticalSection(&SvcInstanceLock);
-    RemoveEntryList(&SvcInstance->ListEntry);
+    if (RemoveEntryList(&SvcInstance->ListEntry))
+        SetEvent(SvcInstanceEvent);
     LeaveCriticalSection(&SvcInstanceLock);
 
     if (0 != SvcInstance->ProcessWait)
         UnregisterWaitEx(SvcInstance->ProcessWait, 0);
     if (0 != SvcInstance->Process)
         CloseHandle(SvcInstance->Process);
+
     LocalFree(SvcInstance->SecurityDescriptor);
+
     MemFree(SvcInstance->CommandLine);
     MemFree(SvcInstance);
 }
 
-static VOID CALLBACK SvcInstanceTerminated(PVOID Context, BOOLEAN Fired)
+static VOID CALLBACK SvcInstanceTerminated(PVOID Context, BOOLEAN Timeout)
 {
     SVC_INSTANCE *SvcInstance = Context;
 
@@ -360,11 +448,11 @@ static VOID CALLBACK SvcInstanceTerminated(PVOID Context, BOOLEAN Fired)
 }
 
 NTSTATUS SvcInstanceStart(HANDLE ClientToken,
-    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv)
+    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv, HANDLE Job)
 {
     SVC_INSTANCE *SvcInstance;
 
-    return SvcInstanceCreate(ClientToken, ClassName, InstanceName, Argc, Argv, &SvcInstance);
+    return SvcInstanceCreate(ClientToken, ClassName, InstanceName, Argc, Argv, Job, &SvcInstance);
 }
 
 NTSTATUS SvcInstanceStop(HANDLE ClientToken,
@@ -386,11 +474,7 @@ NTSTATUS SvcInstanceStop(HANDLE ClientToken,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    if (!GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, SvcInstance->ProcessId))
-    {
-        Result = FspNtStatusFromWin32(GetLastError());
-        goto exit;
-    }
+    KillProcess(SvcInstance->ProcessId, SvcInstance->Process, STOP_TIMEOUT);
 
     Result = STATUS_SUCCESS;
 
@@ -478,7 +562,30 @@ NTSTATUS SvcInstanceGetNameList(HANDLE ClientToken,
     return STATUS_SUCCESS;
 }
 
-static HANDLE SvcThread, SvcEvent;
+NTSTATUS SvcInstanceStopAndWaitAll(VOID)
+{
+    SVC_INSTANCE *SvcInstance;
+    PLIST_ENTRY ListEntry;
+
+    EnterCriticalSection(&SvcInstanceLock);
+
+    for (ListEntry = SvcInstanceList.Flink;
+        &SvcInstanceList != ListEntry;
+        ListEntry = ListEntry->Flink)
+    {
+        SvcInstance = CONTAINING_RECORD(ListEntry, SVC_INSTANCE, ListEntry);
+
+        KillProcess(SvcInstance->ProcessId, SvcInstance->Process, STOP_TIMEOUT);
+    }
+
+    LeaveCriticalSection(&SvcInstanceLock);
+
+    WaitForSingleObject(SvcInstanceEvent, STOP_TIMEOUT);
+
+    return STATUS_SUCCESS;
+}
+
+static HANDLE SvcJob, SvcThread, SvcEvent;
 static DWORD SvcThreadId;
 static HANDLE SvcPipe = INVALID_HANDLE_VALUE;
 static OVERLAPPED SvcOverlapped;
@@ -499,6 +606,26 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         goto fail;
 
     FspDebugLogSD(__FUNCTION__ ": SDDL = %s\n", SecurityAttributes.lpSecurityDescriptor);
+
+    SvcInstanceEvent = CreateEventW(0, TRUE, TRUE, 0);
+    if (0 == SvcInstanceEvent)
+        goto fail;
+
+    SvcJob = CreateJobObjectW(0, 0);
+    if (0 != SvcJob)
+    {
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION LimitInfo;
+
+        memset(&LimitInfo, 0, sizeof LimitInfo);
+        LimitInfo.BasicLimitInformation.LimitFlags =
+            JOB_OBJECT_LIMIT_BREAKAWAY_OK | JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        if (!SetInformationJobObject(SvcJob, JobObjectExtendedLimitInformation,
+            &LimitInfo, sizeof LimitInfo))
+        {
+            CloseHandle(SvcJob);
+            SvcJob = 0;
+        }
+    }
 
     SvcEvent = CreateEventW(0, TRUE, FALSE, 0);
     if (0 == SvcEvent)
@@ -527,6 +654,10 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 fail:
     DWORD LastError = GetLastError();
 
+    /*
+     * The OS will cleanup for us. So there is no need to explicitly release these resources.
+     */
+#if 0
     if (0 != SvcThread)
         CloseHandle(SvcThread);
 
@@ -539,9 +670,16 @@ fail:
     if (0 != SvcEvent)
         CloseHandle(SvcEvent);
 
+    if (0 != SvcJob)
+        CloseHandle(SvcJob);
+
+    if (0 != SvcInstanceEvent)
+        CloseHandle(SvcInstanceEvent);
+
     LocalFree(SecurityAttributes.lpSecurityDescriptor);
 
     DeleteCriticalSection(&SvcInstanceLock);
+#endif
 
     return FspNtStatusFromWin32(LastError);
 }
@@ -551,10 +689,18 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
     if (GetCurrentThreadId() != SvcThreadId)
     {
         SetEvent(SvcEvent);
-        FspServiceRequestTime(Service, 4500);   /* just under 5 sec */
-        WaitForSingleObject(SvcThread, 4500);
+        FspServiceRequestTime(Service, STOP_TIMEOUT);
+        WaitForSingleObject(SvcThread, STOP_TIMEOUT);
     }
 
+    /*
+     * The OS will cleanup for us. So there is no need to explicitly release these resources.
+     *
+     * This also protects us from scenarios where not all child processes terminate timely
+     * and KillProcess decides to terminate them forcibly, thus creating racing conditions
+     * with SvcInstanceTerminated.
+     */
+#if 0
     if (0 != SvcThread)
         CloseHandle(SvcThread);
 
@@ -567,7 +713,14 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
     if (0 != SvcEvent)
         CloseHandle(SvcEvent);
 
+    if (0 != SvcJob)
+        CloseHandle(SvcJob);
+
+    if (0 != SvcInstanceEvent)
+        CloseHandle(SvcInstanceEvent);
+
     DeleteCriticalSection(&SvcInstanceLock);
+#endif
 
     return STATUS_SUCCESS;
 }
@@ -690,6 +843,8 @@ static DWORD WINAPI SvcPipeServer(PVOID Context)
 exit:
     MemFree(PipeBuf);
 
+    SvcInstanceStopAndWaitAll();
+
     FspServiceStop(Service);
 
     return 0;
@@ -748,7 +903,7 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
 
         Result = STATUS_INVALID_PARAMETER;
         if (0 != ClassName && 0 != InstanceName)
-            Result = SvcInstanceStart(ClientToken, ClassName, InstanceName, Argc, Argv);
+            Result = SvcInstanceStart(ClientToken, ClassName, InstanceName, Argc, Argv, SvcJob);
 
         SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
