@@ -21,6 +21,8 @@
             DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
         <Media Id="1" Cabinet="WinFsp.cab" EmbedCab="yes" />
 
+        <Property Id="P.LauncherName">$(var.MyProductName).Launcher</Property>
+        <Property Id="P.LauncherRegistryKey">SYSTEM\\CurrentControlSet\\Services\\$(var.MyProductName).Launcher\\Services</Property>
         <Property Id="P.RegistryKey">Software\$(var.MyProductName)</Property>
         <Property Id="INSTALLDIR">
             <RegistrySearch
@@ -80,11 +82,110 @@
                 <Condition>NOT VersionNT64</Condition>
             </Component>
 
+            <!-- On Win64 ServiceInstall launcher-x64.exe -->
+            <Component Id="C.launcher_x64.exe.svcinst">
+                <File Id="launcher_x64.exe.svcinst" Name="launcher-x64.exe" KeyPath="yes" />
+                <ServiceInstall
+                    Id="launcher_x64.exe.svcinst"
+                    Name="[P.LauncherName]"
+                    Description="$(var.MyDescription)"
+                    Type="ownProcess"
+                    Start="auto"
+                    ErrorControl="ignore" />
+                <ServiceControl
+                    Id="launcher_x64.exe.svcinst"
+                    Name="[P.LauncherName]"
+                    Start="install"
+                    Stop="both"
+                    Remove="uninstall" />
+                <Condition>VersionNT64</Condition>
+            </Component>
+            <Component Id="C.launcher_x86.exe">
+                <File Name="launcher-x86.exe" KeyPath="yes" />
+                <Condition>VersionNT64</Condition>
+            </Component>
+
+            <!-- On Win32 ServiceInstall launcher-x86.exe -->
+            <Component Id="C.launcher_x64.exe" Guid="88CDBE92-8B67-485A-838F-FA4AD37F306F">
+                <File Name="launcher-x64.exe" KeyPath="yes" />
+                <Condition>NOT VersionNT64</Condition>
+            </Component>
+            <Component Id="C.launcher_x86.exe.svcinst" Guid="E995D906-0273-4758-9B26-99A3A8CD143A">
+                <File Id="launcher_x86.exe.svcinst" Name="launcher-x86.exe" KeyPath="yes" />
+                <ServiceInstall
+                    Id="launcher_x86.exe.svcinst"
+                    Name="[P.LauncherName]"
+                    Description="$(var.MyDescription)"
+                    Type="ownProcess"
+                    Start="auto"
+                    ErrorControl="ignore" />
+                <ServiceControl
+                    Id="launcher_x86.exe.svcinst"
+                    Name="[P.LauncherName]"
+                    Start="install"
+                    Stop="both"
+                    Remove="uninstall" />
+                <Condition>NOT VersionNT64</Condition>
+            </Component>
+
+            <Component Id="C.launchctl_x64.exe" Guid="2753623B-66F1-4514-B9C7-F879178DFF49">
+                <File Name="launchctl-x64.exe" KeyPath="yes" />
+            </Component>
+            <Component Id="C.launchctl_x86.exe" Guid="EBDEC4FB-07BB-47CA-BFFF-EB854CA2D22D">
+                <File Name="launchctl-x86.exe" KeyPath="yes" />
+            </Component>
+
             <Component Id="C.memfs_x64.exe">
                 <File Name="memfs-x64.exe" KeyPath="yes" />
+                <RegistryKey
+                    Root="HKLM"
+                    Key="[P.LauncherRegistryKey]">
+                    <RegistryKey
+                        Key="memfs64">
+                        <RegistryValue
+                            Type="string"
+                            Name="Executable"
+                            Value="[BINDIR]memfs-x64.exe" />
+                        <RegistryValue
+                            Type="string"
+                            Name="CommandLine"
+                            Value="-u %1 -m %2" />
+                        <RegistryValue
+                            Type="string"
+                            Name="Security"
+                            Value="D:P(A;;RPWPLC;;;WD)" />
+                        <RegistryValue
+                            Type="integer"
+                            Name="JobControl"
+                            Value="1" />
+                    </RegistryKey>
+                </RegistryKey>
             </Component>
             <Component Id="C.memfs_x86.exe">
                 <File Name="memfs-x86.exe" KeyPath="yes" />
+                <RegistryKey
+                    Root="HKLM"
+                    Key="[P.LauncherRegistryKey]">
+                    <RegistryKey
+                        Key="memfs32">
+                        <RegistryValue
+                            Type="string"
+                            Name="Executable"
+                            Value="[BINDIR]memfs-x86.exe" />
+                        <RegistryValue
+                            Type="string"
+                            Name="CommandLine"
+                            Value="-u %1 -m %2" />
+                        <RegistryValue
+                            Type="string"
+                            Name="Security"
+                            Value="D:P(A;;RPWPLC;;;WD)" />
+                        <RegistryValue
+                            Type="integer"
+                            Name="JobControl"
+                            Value="1" />
+                    </RegistryKey>
+                </RegistryKey>
             </Component>
         </DirectoryRef>
         <DirectoryRef Id="INCDIR" FileSource="..\..\..\inc">
@@ -126,6 +227,12 @@
             <ComponentRef Id="C.winfsp_x86.dll" />
             <ComponentRef Id="C.winfsp_x64.dll" />
             <ComponentRef Id="C.winfsp_x86.dll.selfreg" />
+            <ComponentRef Id="C.launcher_x64.exe.svcinst" />
+            <ComponentRef Id="C.launcher_x86.exe" />
+            <ComponentRef Id="C.launcher_x64.exe" />
+            <ComponentRef Id="C.launcher_x86.exe.svcinst" />
+            <ComponentRef Id="C.launchctl_x64.exe" />
+            <ComponentRef Id="C.launchctl_x86.exe" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.inc">
             <ComponentRef Id="C.fsctl.h" />
