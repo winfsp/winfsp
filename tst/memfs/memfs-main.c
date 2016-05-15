@@ -90,7 +90,8 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         goto exit;
     }
 
-    Result = FspFileSystemSetMountPoint(MemfsFileSystem(Memfs), MountPoint);
+    Result = FspFileSystemSetMountPoint(MemfsFileSystem(Memfs),
+        MountPoint && MountPoint[0] ? MountPoint : 0);
     if (!NT_SUCCESS(Result))
     {
         fail(L"cannot mount MEMFS");
