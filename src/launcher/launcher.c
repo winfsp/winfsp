@@ -951,6 +951,13 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
 
+#if !defined(NDEBUG)
+    case LauncherQuit:
+        SetEvent(SvcEvent);
+
+        SvcPipeTransactResult(STATUS_SUCCESS, PipeBuf, PSize);
+        break;
+#endif
     default:
         SvcPipeTransactResult(STATUS_INVALID_PARAMETER, PipeBuf, PSize);
         break;

@@ -193,6 +193,21 @@ int list(PWSTR PipeBuf, ULONG PipeBufSize)
     return call_pipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
 }
 
+int quit(PWSTR PipeBuf, ULONG PipeBufSize)
+{
+    /* works only against DEBUG version of launcher */
+
+    PWSTR P;
+
+    if (PipeBufSize < 1 * sizeof(WCHAR))
+        return ERROR_INVALID_PARAMETER;
+
+    P = PipeBuf;
+    *P++ = LauncherQuit;
+
+    return call_pipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
+}
+
 int wmain(int argc, wchar_t **argv)
 {
     PWSTR PipeBuf = 0;
@@ -238,6 +253,15 @@ int wmain(int argc, wchar_t **argv)
             usage();
 
         return list(PipeBuf, PIPE_BUFFER_SIZE);
+    }
+    else
+    if (0 == lstrcmpW(L"quit", argv[0]))
+    {
+        if (1 != argc)
+            usage();
+
+        /* works only against DEBUG version of launcher */
+        return quit(PipeBuf, PIPE_BUFFER_SIZE);
     }
     else
         usage();

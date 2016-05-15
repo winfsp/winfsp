@@ -57,8 +57,9 @@ enum
 {
     LauncherSvcInstanceStart            = 'S',  /* requires: SERVICE_START */
     LauncherSvcInstanceStop             = 'T',  /* requires: SERVICE_STOP */
-    LauncherSvcInstanceList             = 'L',  /* requires: none*/
     LauncherSvcInstanceInfo             = 'I',  /* requires: SERVICE_QUERY_STATUS */
+    LauncherSvcInstanceList             = 'L',  /* requires: none*/
+    LauncherQuit                        = 'Q',  /* DEBUG version only */
 };
 
 #endif
