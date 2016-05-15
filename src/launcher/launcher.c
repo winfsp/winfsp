@@ -608,6 +608,13 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
     SECURITY_ATTRIBUTES SecurityAttributes = { 0 };
 
+    /*
+     * Allocate a console in case we are running as a service without one.
+     * This will ensure that we can send console control events to service instances.
+     */
+    if (AllocConsole())
+        ShowWindow(GetConsoleWindow(), SW_HIDE);
+
     InitializeCriticalSection(&SvcInstanceLock);
 
     SecurityAttributes.nLength = sizeof SecurityAttributes;
