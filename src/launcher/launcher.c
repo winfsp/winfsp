@@ -242,7 +242,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     WCHAR Executable[MAX_PATH], CommandLineBuf[512], SecurityBuf[512];
     PWSTR CommandLine, Security;
     DWORD JobControl;
-    PSECURITY_DESCRIPTOR SecurityDescriptor;
+    PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     PWSTR Argv[10];
     STARTUPINFOW StartupInfo;
     PROCESS_INFORMATION ProcessInfo;
