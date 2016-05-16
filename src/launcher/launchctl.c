@@ -65,14 +65,14 @@ static int call_pipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
 {
     DWORD LastError, BytesTransferred;
 
-    LastError = CallNamedPipeW(L"" PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
+    LastError = CallNamedPipeW(L"" LAUNCHER_PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
         &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT) ? 0 : GetLastError();
 
     if (0 != LastError)
         warn("KO CallNamedPipeW = %ld", LastError);
-    else if (0 == BytesTransferred)
+    else if (sizeof(WCHAR) > BytesTransferred)
         warn("KO launcher: empty buffer");
-    else if (L'$' == PipeBuf[0])
+    else if (LauncherSuccess == PipeBuf[0])
     {
         if (sizeof(WCHAR) == BytesTransferred)
             info("OK");
@@ -97,7 +97,7 @@ static int call_pipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
             info("OK\n%S", PipeBuf + 1);
         }
     }
-    else if (L'!' == PipeBuf[0])
+    else if (LauncherFailure == PipeBuf[0])
     {
         if (BytesTransferred < RecvSize)
             PipeBuf[BytesTransferred / sizeof(WCHAR)] = L'\0';
@@ -213,7 +213,7 @@ int wmain(int argc, wchar_t **argv)
     PWSTR PipeBuf = 0;
 
     /* allocate our PipeBuf early on; freed on process exit by the system */
-    PipeBuf = MemAlloc(PIPE_BUFFER_SIZE);
+    PipeBuf = MemAlloc(LAUNCHER_PIPE_BUFFER_SIZE);
     if (0 == PipeBuf)
         return ERROR_NO_SYSTEM_RESOURCES;
 
@@ -228,7 +228,7 @@ int wmain(int argc, wchar_t **argv)
         if (3 > argc || argc > 12)
             usage();
 
-        return start(PipeBuf, PIPE_BUFFER_SIZE, argv[1], argv[2], argc - 3, argv + 3);
+        return start(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2], argc - 3, argv + 3);
     }
     else
     if (0 == lstrcmpW(L"stop", argv[0]))
@@ -236,7 +236,7 @@ int wmain(int argc, wchar_t **argv)
         if (3 != argc)
             usage();
 
-        return stop(PipeBuf, PIPE_BUFFER_SIZE, argv[1], argv[2]);
+        return stop(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2]);
     }
     else
     if (0 == lstrcmpW(L"info", argv[0]))
@@ -244,7 +244,7 @@ int wmain(int argc, wchar_t **argv)
         if (3 != argc)
             usage();
 
-        return getinfo(PipeBuf, PIPE_BUFFER_SIZE, argv[1], argv[2]);
+        return getinfo(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2]);
     }
     else
     if (0 == lstrcmpW(L"list", argv[0]))
@@ -252,7 +252,7 @@ int wmain(int argc, wchar_t **argv)
         if (1 != argc)
             usage();
 
-        return list(PipeBuf, PIPE_BUFFER_SIZE);
+        return list(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE);
     }
     else
     if (0 == lstrcmpW(L"quit", argv[0]))
@@ -261,7 +261,7 @@ int wmain(int argc, wchar_t **argv)
             usage();
 
         /* works only against DEBUG version of launcher */
-        return quit(PipeBuf, PIPE_BUFFER_SIZE);
+        return quit(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE);
     }
     else
         usage();

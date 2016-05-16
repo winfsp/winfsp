@@ -82,6 +82,9 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     if (arge > argp)
         goto usage;
 
+    if (MemfsDisk == Flags && 0 == MountPoint)
+        goto usage;
+
     Result = MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, RootSddl,
         &Memfs);
     if (!NT_SUCCESS(Result))
@@ -90,12 +93,15 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         goto exit;
     }
 
-    Result = FspFileSystemSetMountPoint(MemfsFileSystem(Memfs),
-        MountPoint && MountPoint[0] ? MountPoint : 0);
-    if (!NT_SUCCESS(Result))
+    if (0 != MountPoint && L'\0' != MountPoint[0])
     {
-        fail(L"cannot mount MEMFS");
-        goto exit;
+        Result = FspFileSystemSetMountPoint(MemfsFileSystem(Memfs),
+            L'*' == MountPoint[0] && L'\0' == MountPoint[1] ? 0 : MountPoint);
+        if (!NT_SUCCESS(Result))
+        {
+            fail(L"cannot mount MEMFS");
+            goto exit;
+        }
     }
 
     Result = MemfsStart(Memfs);
@@ -107,11 +113,11 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
     MountPoint = FspFileSystemMountPoint(MemfsFileSystem(Memfs));
 
-    info(L"%s -t %ld -n %ld -s %ld%s%s%s%s -m %s",
+    info(L"%s -t %ld -n %ld -s %ld%s%s%s%s%s%s",
         L"" PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize,
         RootSddl ? L" -S " : L"", RootSddl ? RootSddl : L"",
         VolumePrefix ? L" -u " : L"", VolumePrefix ? VolumePrefix : L"",
-        MountPoint);
+        MountPoint ? L" -m " : L"", MountPoint ? MountPoint : L"");
 
     Service->UserContext = Memfs;
     Result = STATUS_SUCCESS;
@@ -132,7 +138,7 @@ usage:
         "    -s MaxFileSize      [bytes]\n"
         "    -S RootSddl         [file rights: FA, etc; NO generic rights: GA, etc.]\n"
         "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
-        "    -m MountPoint       [X:]\n";
+        "    -m MountPoint       [X:|* (required if no UNC prefix)]\n";
 
     fail(usage, L"" PROGNAME);
 

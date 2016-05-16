@@ -3,3 +3,6 @@ EXPORTS
     DllUnregisterServer PRIVATE
     NPGetCaps           PRIVATE
     NPGetConnection     PRIVATE
+    NPAddConnection     PRIVATE
+    NPAddConnection3    PRIVATE
+    NPCancelConnection  PRIVATE

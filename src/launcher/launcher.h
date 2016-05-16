@@ -21,12 +21,12 @@
 #include <winfsp/winfsp.h>
 #include <shared/minimal.h>
 
-#define STOP_TIMEOUT                    5500
-#define KILL_TIMEOUT                    5000
+#define LAUNCHER_STOP_TIMEOUT           5500
+#define LAUNCHER_KILL_TIMEOUT           5000
 
-#define PIPE_NAME                       "\\\\.\\pipe\\WinFsp.{14E7137D-22B4-437A-B0C1-D21D1BDF3767}"
-#define PIPE_BUFFER_SIZE                2048
-#define PIPE_DEFAULT_TIMEOUT            3000
+#define LAUNCHER_PIPE_NAME              "\\\\.\\pipe\\WinFsp.{14E7137D-22B4-437A-B0C1-D21D1BDF3767}"
+#define LAUNCHER_PIPE_BUFFER_SIZE       2048
+#define LAUNCHER_PIPE_DEFAULT_TIMEOUT   3000
 
 /*
  * The launcher named pipe SDDL gives full access to LocalSystem and Administrators.
@@ -38,7 +38,7 @@
  * the FILE_CREATE_PIPE_INSTANCE right is that the server creates the named pipe with
  * MaxInstances == 1 (and therefore no client can create additional instances).
  */
-#define PIPE_SDDL                       "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;WD)"
+#define LAUNCHER_PIPE_SDDL              "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;WD)"
 
  /*
  * The default service instance SDDL gives full access to LocalSystem and Administrators.
@@ -60,6 +60,9 @@ enum
     LauncherSvcInstanceInfo             = 'I',  /* requires: SERVICE_QUERY_STATUS */
     LauncherSvcInstanceList             = 'L',  /* requires: none*/
     LauncherQuit                        = 'Q',  /* DEBUG version only */
+
+    LauncherSuccess                     = '$',
+    LauncherFailure                     = '!',
 };
 
 #endif

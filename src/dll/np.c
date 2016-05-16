@@ -16,6 +16,7 @@
  */
 
 #include <dll/library.h>
+#include <launcher/launcher.h>
 #include <npapi.h>
 
 #define FSP_NP_NAME                     LIBRARY_NAME ".Np"
@@ -33,14 +34,17 @@ DWORD APIENTRY NPGetCaps(DWORD Index)
         return 0;
     case WNNC_CONNECTION:
         /*
-         * WNNC_CON_ADDCONECTION
+         * WNNC_CON_ADDCONNECTION
          * WNNC_CON_CANCELCONNECTION
          * WNNC_CON_GETCONNECTIONS
-         * WNNC_CON_ADDCONECTION3
+         * WNNC_CON_ADDCONNECTION3
          * WNNC_CON_GETPERFORMANCE
          * WNNC_CON_DEFER
          */
-        return WNNC_CON_GETCONNECTIONS;
+        return
+            WNNC_CON_GETCONNECTIONS |
+            WNNC_CON_ADDCONNECTION | WNNC_CON_ADDCONNECTION3 |
+            WNNC_CON_CANCELCONNECTION;
     case WNNC_DIALOG:
         /*
          * WNNC_DLG_DEVICEMODE
@@ -75,6 +79,88 @@ DWORD APIENTRY NPGetCaps(DWORD Index)
     }
 }
 
+static inline BOOLEAN FspNpCheckLocalName(PWSTR LocalName)
+{
+    return 0 != LocalName &&
+        (
+            (L'A' <= LocalName[0] && LocalName[0] <= L'Z') ||
+            (L'a' <= LocalName[0] && LocalName[0] <= L'z')
+        ) &&
+        L':' == LocalName[1] || L'\0' == LocalName[2];
+}
+
+static inline BOOLEAN FspNpCheckRemoteName(PWSTR RemoteName)
+{
+    return 0 != RemoteName && L'\\' == RemoteName[0] && L'\\' == RemoteName[1] &&
+        sizeof(((FSP_FSCTL_VOLUME_PARAMS *)0)->Prefix) / sizeof(WCHAR) >= lstrlenW(RemoteName);
+}
+
+static inline BOOLEAN FspNpParseRemoteName(PWSTR RemoteName,
+    PWSTR *PClassName, PULONG PClassNameLen,
+    PWSTR *PInstanceName, PULONG PInstanceNameLen)
+{
+    PWSTR ClassName, InstanceName, P;
+    ULONG ClassNameLen, InstanceNameLen;
+
+    ClassName = RemoteName + 2; /* skip \\ */
+    for (P = ClassName; *P; P++)
+        if (L'\\' == *P)
+            break;
+    if (ClassName == P || L'\\' != *P)
+        return FALSE;
+    ClassNameLen = (ULONG)(P - ClassName);
+
+    InstanceName = P + 1;
+    for (P = InstanceName; *P; P++)
+        ;
+    for (;;)
+    {
+        if (InstanceName == P)
+            return FALSE;
+        if (L'\\' != P[-1])
+            break;
+        P--;
+    }
+    InstanceNameLen = (ULONG)(P - InstanceName);
+
+    *PClassName = ClassName; *PClassNameLen = ClassNameLen;
+    *PInstanceName = InstanceName; *PInstanceNameLen = InstanceNameLen;
+    
+    return TRUE;
+}
+
+static inline DWORD FspNpCallLauncherPipe(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
+{
+    DWORD NpResult;
+    DWORD LastError, BytesTransferred;
+
+    LastError = CallNamedPipeW(L"" LAUNCHER_PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
+        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT) ? 0 : GetLastError();
+
+    if (0 != LastError)
+        NpResult = WN_NO_NETWORK;
+    else if (sizeof(WCHAR) > BytesTransferred)
+        NpResult = WN_NO_NETWORK;
+    else if (LauncherSuccess == PipeBuf[0])
+        NpResult = WN_SUCCESS;
+    else if (LauncherFailure == PipeBuf[0])
+    {
+        if (BytesTransferred < RecvSize)
+            PipeBuf[BytesTransferred / sizeof(WCHAR)] = L'\0';
+        else
+            PipeBuf[RecvSize / sizeof(WCHAR) - 1] = L'\0';
+
+        if (0 == lstrcmpW(L"183"/*ERROR_ALREADY_EXISTS*/, PipeBuf + 1))
+            NpResult = WN_ALREADY_CONNECTED;
+        else
+            NpResult = WN_NO_NETWORK;
+    }
+    else 
+        NpResult = WN_NO_NETWORK;
+
+    return NpResult;
+}
+
 static NTSTATUS FspNpGetVolumeList(
     PWCHAR *PVolumeListBuf, PSIZE_T PVolumeListSize)
 {
@@ -107,7 +193,8 @@ static NTSTATUS FspNpGetVolumeList(
     }
 }
 
-DWORD APIENTRY NPGetConnection(LPWSTR lpLocalName, LPWSTR lpRemoteName, LPDWORD lpnBufferLen)
+DWORD APIENTRY NPGetConnection(
+    LPWSTR lpLocalName, LPWSTR lpRemoteName, LPDWORD lpnBufferLen)
 {
     DWORD NpResult;
     NTSTATUS Result;
@@ -117,15 +204,10 @@ DWORD APIENTRY NPGetConnection(LPWSTR lpLocalName, LPWSTR lpRemoteName, LPDWORD 
     SIZE_T VolumeListSize, VolumeNameSize;
     ULONG Backslashes;
 
-    if (0 == lpLocalName ||
-        !(
-            (L'A' <= lpLocalName[0] && lpLocalName[0] <= L'Z') ||
-            (L'a' <= lpLocalName[0] && lpLocalName[0] <= L'z')
-        ) ||
-        L':' != lpLocalName[1])
+    if (!FspNpCheckLocalName(lpLocalName))
         return WN_BAD_LOCALNAME;
 
-    LocalNameBuf[0] = lpLocalName[0];
+    LocalNameBuf[0] = lpLocalName[0] & ~0x20; /* convert to uppercase */
     LocalNameBuf[1] = L':';
     LocalNameBuf[2] = L'\0';
 
@@ -184,6 +266,111 @@ DWORD APIENTRY NPGetConnection(LPWSTR lpLocalName, LPWSTR lpRemoteName, LPDWORD 
     }
 
     MemFree(VolumeListBuf);
+
+    return NpResult;
+}
+
+DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, LPWSTR lpUserName)
+{
+    return NPAddConnection3(0, lpNetResource, lpPassword, lpUserName, 0);
+}
+
+DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
+    LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, LPWSTR lpUserName, DWORD dwFlags)
+{
+    DWORD NpResult;
+    DWORD dwType = lpNetResource->dwType;
+    LPWSTR lpRemoteName = lpNetResource->lpRemoteName;
+    LPWSTR lpLocalName = lpNetResource->lpLocalName;
+    WCHAR LocalNameBuf[3];
+    PWSTR ClassName, InstanceName, RemoteName, P;
+    ULONG ClassNameLen, InstanceNameLen;
+    PWSTR PipeBuf = 0;
+
+    if (dwType & RESOURCETYPE_PRINT)
+        return WN_BAD_VALUE;
+
+    if (!FspNpCheckRemoteName(lpRemoteName))
+        return WN_BAD_NETNAME;
+
+    if (!FspNpParseRemoteName(lpRemoteName,
+        &ClassName, &ClassNameLen, &InstanceName, &InstanceNameLen))
+        return WN_BAD_NETNAME;
+    RemoteName = lpRemoteName + 1;
+
+    LocalNameBuf[0] = L'\0';
+    if (0 != lpLocalName && L'\0' != lpLocalName[0])
+    {
+        if (!FspNpCheckLocalName(lpLocalName))
+            return WN_BAD_LOCALNAME;
+
+        LocalNameBuf[0] = lpLocalName[0] & ~0x20; /* convert to uppercase */
+        LocalNameBuf[1] = L':';
+        LocalNameBuf[2] = L'\0';
+
+        if (GetLogicalDrives() & (1 << (LocalNameBuf[0] - 'A')))
+            return WN_ALREADY_CONNECTED;
+    }
+
+    PipeBuf = MemAlloc(LAUNCHER_PIPE_BUFFER_SIZE);
+    if (0 == PipeBuf)
+        return WN_OUT_OF_MEMORY;
+
+    P = PipeBuf;
+    *P++ = LauncherSvcInstanceStart;
+    memcpy(P, ClassName, ClassNameLen * sizeof(WCHAR)); P += ClassNameLen; *P++ = L'\0';
+    memcpy(P, InstanceName, InstanceNameLen * sizeof(WCHAR)); P += InstanceNameLen; *P++ = L'\0';
+    lstrcpyW(P, RemoteName); P += lstrlenW(RemoteName) + 1;
+    lstrcpyW(P, LocalNameBuf); P += lstrlenW(LocalNameBuf) + 1;
+
+    NpResult = FspNpCallLauncherPipe(
+        PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), LAUNCHER_PIPE_BUFFER_SIZE);
+
+    MemFree(PipeBuf);
+
+    return NpResult;
+}
+
+DWORD APIENTRY NPCancelConnection(LPWSTR lpName, BOOL fForce)
+{
+    DWORD NpResult;
+    WCHAR RemoteNameBuf[sizeof(((FSP_FSCTL_VOLUME_PARAMS *)0)->Prefix) / sizeof(WCHAR)];
+    DWORD RemoteNameSize;
+    PWSTR ClassName, InstanceName, RemoteName, P;
+    ULONG ClassNameLen, InstanceNameLen;
+    PWSTR PipeBuf = 0;
+
+    if (FspNpCheckLocalName(lpName))
+    {
+        RemoteNameSize = sizeof RemoteNameBuf / sizeof(WCHAR);
+        NpResult = NPGetConnection(lpName, RemoteNameBuf, &RemoteNameSize);
+        if (WN_SUCCESS != NpResult)
+            return NpResult;
+
+        RemoteName = RemoteNameBuf;
+    }
+    else if (FspNpCheckRemoteName(lpName))
+        RemoteName = lpName;
+    else
+        return WN_BAD_NETNAME;
+
+    if (!FspNpParseRemoteName(RemoteName,
+        &ClassName, &ClassNameLen, &InstanceName, &InstanceNameLen))
+        return WN_BAD_NETNAME;
+
+    PipeBuf = MemAlloc(LAUNCHER_PIPE_BUFFER_SIZE);
+    if (0 == PipeBuf)
+        return WN_OUT_OF_MEMORY;
+
+    P = PipeBuf;
+    *P++ = LauncherSvcInstanceStop;
+    memcpy(P, ClassName, ClassNameLen * sizeof(WCHAR)); P += ClassNameLen; *P++ = L'\0';
+    memcpy(P, InstanceName, InstanceNameLen * sizeof(WCHAR)); P += InstanceNameLen; *P++ = L'\0';
+
+    NpResult = FspNpCallLauncherPipe(
+        PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), LAUNCHER_PIPE_BUFFER_SIZE);
+
+    MemFree(PipeBuf);
 
     return NpResult;
 }
