@@ -6,3 +6,6 @@ EXPORTS
     NPAddConnection     PRIVATE
     NPAddConnection3    PRIVATE
     NPCancelConnection  PRIVATE
+    NPOpenEnum          PRIVATE
+    NPEnumResource      PRIVATE
+    NPCloseEnum         PRIVATE

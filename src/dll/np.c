@@ -62,7 +62,7 @@ DWORD APIENTRY NPGetCaps(DWORD Index)
          * WNNC_ENUM_LOCAL
          * WNNC_ENUM_CONTEXT
          */
-        return 0;
+        return WNNC_ENUM_LOCAL | WNNC_ENUM_CONTEXT;
     case WNNC_NET_TYPE:
         return FSP_NP_TYPE;
     case WNNC_SPEC_VERSION:
@@ -193,6 +193,35 @@ static NTSTATUS FspNpGetVolumeList(
         if (STATUS_BUFFER_TOO_SMALL != Result)
             return Result;
     }
+}
+
+static WCHAR FspNpGetDriveLetter(PDWORD PLogicalDrives, PWSTR VolumeName)
+{
+    WCHAR VolumeNameBuf[MAX_PATH];
+    WCHAR LocalNameBuf[3];
+    WCHAR Drive;
+
+    if (0 == *PLogicalDrives)
+        return 0;
+
+    LocalNameBuf[1] = L':';
+    LocalNameBuf[2] = L'\0';
+
+    for (Drive = 'Z'; 'A' <= Drive; Drive--)
+        if (0 != (*PLogicalDrives & (1 << (Drive - 'A'))))
+        {
+            LocalNameBuf[0] = Drive;
+            if (QueryDosDeviceW(LocalNameBuf, VolumeNameBuf, sizeof VolumeNameBuf / sizeof(WCHAR)))
+            {
+                if (0 == lstrcmpW(VolumeNameBuf, VolumeName))
+                {
+                    *PLogicalDrives &= ~(1 << (Drive - 'A'));
+                    return Drive;
+                }
+            }
+        }
+
+    return 0;
 }
 
 DWORD APIENTRY NPGetConnection(
@@ -421,6 +450,195 @@ DWORD APIENTRY NPCancelConnection(LPWSTR lpName, BOOL fForce)
     MemFree(PipeBuf);
 
     return NpResult;
+}
+
+typedef struct
+{
+    DWORD Signature;                    /* cheap and cheerful! */
+    DWORD dwScope;
+    PWCHAR VolumeListBuf, VolumeListBufEnd, VolumeName;
+    DWORD LogicalDrives;
+} FSP_NP_ENUM;
+
+static inline BOOLEAN FspNpValidateEnum(FSP_NP_ENUM *Enum)
+{
+#if 0
+    extern HANDLE ProcessHeap;
+    return
+        0 != Enum &&
+        HeapValidate(ProcessHeap, 0, Enum) &&
+        'munE' == Enum->Signature;
+#else
+    return
+        0 != Enum &&
+        'munE' == Enum->Signature;
+#endif
+}
+
+DWORD APIENTRY NPOpenEnum(
+    DWORD dwScope, DWORD dwType, DWORD dwUsage, LPNETRESOURCEW lpNetResource, LPHANDLE lphEnum)
+{
+    NTSTATUS Result;
+    FSP_NP_ENUM *Enum = 0;
+    SIZE_T VolumeListSize;
+
+    switch (dwScope)
+    {
+    case RESOURCE_CONNECTED:
+    case RESOURCE_CONTEXT:
+        /* ignore lpNetResource; according to documentation it should be NULL */
+        break;
+    default:
+        return WN_NOT_SUPPORTED;
+    }
+
+    if (dwType & RESOURCETYPE_PRINT)
+        return WN_BAD_VALUE;
+
+    Enum = MemAlloc(sizeof *Enum);
+    if (0 == Enum)
+        return WN_OUT_OF_MEMORY;
+
+    Result = FspNpGetVolumeList(&Enum->VolumeListBuf, &VolumeListSize);
+    if (!NT_SUCCESS(Result))
+    {
+        MemFree(Enum);
+        return WN_OUT_OF_MEMORY;
+    }
+
+    Enum->Signature = 'munE';
+    Enum->dwScope = dwScope;
+    Enum->VolumeListBufEnd = (PVOID)((PUINT8)Enum->VolumeListBuf + VolumeListSize);
+    Enum->VolumeName = Enum->VolumeListBuf;
+    Enum->LogicalDrives = GetLogicalDrives();
+
+    *lphEnum = Enum;
+
+    return WN_SUCCESS;
+}
+
+DWORD APIENTRY NPEnumResource(
+    HANDLE hEnum, LPDWORD lpcCount, LPVOID lpBuffer, LPDWORD lpBufferSize)
+{
+    FSP_NP_ENUM *Enum = hEnum;
+    DWORD NpResult;
+    LPNETRESOURCEW Resource;            /* grows upwards */
+    PWCHAR Strings;                     /* grows downwards */
+    DWORD Count;
+    PWCHAR P, VolumePrefix;
+    ULONG Backslashes;
+    WCHAR Drive;
+
+    if (!FspNpValidateEnum(Enum))
+        return WN_BAD_HANDLE;
+
+    if (0 == lpcCount || 0 == lpBuffer || 0 == lpBufferSize)
+        return WN_BAD_VALUE;
+
+    Resource = lpBuffer;
+    Strings = (PVOID)((PUINT8)lpBuffer + (*lpBufferSize & ~1/* WCHAR alignment */));
+    Count = 0;
+    while (*lpcCount > Count)
+    {
+        for (P = Enum->VolumeName; Enum->VolumeListBufEnd > P; P++)
+        {
+            if (L'\0' == *P)
+            {
+                /*
+                 * Extract the VolumePrefix from the VolumeName.
+                 *
+                 * The VolumeName will have the following syntax:
+                 *     \Device\Volume{GUID}\Server\Share
+                 *
+                 * We want to extract the \Server\Share part. We will simply count backslashes and
+                 * stop at the third one.
+                 */
+
+                for (Backslashes = 0, VolumePrefix = Enum->VolumeName; VolumePrefix < P; VolumePrefix++)
+                    if (L'\\' == *VolumePrefix)
+                        if (3 == ++Backslashes)
+                            break;
+
+                if (3 == Backslashes)
+                {
+                    Drive = FspNpGetDriveLetter(&Enum->LogicalDrives, Enum->VolumeName);
+
+                    Strings -= (Drive ? 3 : 0) + 2/* backslash + term-0 */ + lstrlenW(VolumePrefix);
+
+                    if ((PVOID)(Resource + 1) > (PVOID)Strings)
+                    {
+                        if (0 == Count)
+                        {
+                            *lpBufferSize =
+                                (DWORD)((PUINT8)Resource - (PUINT8)lpBuffer) +
+                                (DWORD)((PUINT8)lpBuffer + *lpBufferSize - (PUINT8)Strings);
+                            NpResult = WN_MORE_DATA;
+                        }
+                        else
+                        {
+                            *lpcCount = Count;
+                            NpResult = WN_SUCCESS;
+                        }
+
+                        goto exit;
+                    }
+
+                    if (Drive)
+                    {
+                        Strings[0] = Drive;
+                        Strings[1] = L':';
+                        Strings[2] = L'\0';
+
+                        Strings[3] = L'\\';
+                        lstrcpyW(Strings + 4, VolumePrefix);
+                    }
+                    else
+                    {
+                        Strings[1] = L'\\';
+                        lstrcpyW(Strings + 1, VolumePrefix);
+                    }
+
+                    Resource->dwScope = Enum->dwScope;
+                    Resource->dwType = RESOURCETYPE_DISK;
+                    Resource->dwDisplayType = RESOURCEDISPLAYTYPE_SHARE;
+                    Resource->dwUsage = 0;
+                    Resource->lpLocalName = Drive ? Strings : 0;
+                    Resource->lpRemoteName = Drive ? Strings + 3 : Strings;
+                    Resource->lpComment = 0;
+                    Resource->lpProvider = 0;
+                    Resource++;
+
+                    Count++;
+                }
+
+                Enum->VolumeName = P + 1;
+            }
+        }
+    }
+
+    if (0 == Count)
+        NpResult = WN_NO_MORE_ENTRIES;
+    else
+    {
+        *lpcCount = Count;
+        NpResult = WN_SUCCESS;
+    }
+
+exit:
+    return NpResult;
+}
+
+DWORD APIENTRY NPCloseEnum(HANDLE hEnum)
+{
+    FSP_NP_ENUM *Enum = hEnum;
+
+    if (!FspNpValidateEnum(Enum))
+        return WN_BAD_HANDLE;
+
+    MemFree(Enum->VolumeListBuf);
+    MemFree(Enum);
+
+    return WN_SUCCESS;
 }
 
 NTSTATUS FspNpRegister(VOID)
