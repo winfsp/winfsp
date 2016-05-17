@@ -607,7 +607,7 @@ DWORD APIENTRY NPEnumResource(
                 Resource->dwScope = Enum->dwScope;
                 Resource->dwType = RESOURCETYPE_DISK;
                 Resource->dwDisplayType = RESOURCEDISPLAYTYPE_SHARE;
-                Resource->dwUsage = 0;
+                Resource->dwUsage = RESOURCEUSAGE_CONNECTABLE;
                 Resource->lpLocalName = Drive ? Strings : 0;
                 Resource->lpRemoteName = Drive ? Strings + 3 : Strings;
                 Resource->lpComment = 0;
