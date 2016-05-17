@@ -1,12 +1,6 @@
 /**
  * @file winfsp/winfsp.h
- * WinFsp user mode API.
- *
- * A user mode file system is a program that uses the WinFsp API to expose a file system to
- * Windows. The user mode file system must implement the operations in FSP_FILE_SYSTEM_INTERFACE,
- * create a file system object using FspFileSystemCreate and start its dispatcher using
- * FspFileSystemStartDispatcher. At that point it will start receing file system requests on the
- * FSP_FILE_SYSTEM_INTERFACE operations.
+ * WinFsp User Mode API.
  *
  * In order to use the WinFsp API the user mode file system must include &lt;winfsp/winfsp.h&gt;
  * and link with the winfsp_x64.dll (or winfsp_x86.dll) library.
@@ -46,8 +40,14 @@
 extern "C" {
 #endif
 
-/*
- * File System
+/**
+ * @group File System
+ *
+ * A user mode file system is a program that uses the WinFsp API to expose a file system to
+ * Windows. The user mode file system must implement the operations in FSP_FILE_SYSTEM_INTERFACE,
+ * create a file system object using FspFileSystemCreate and start its dispatcher using
+ * FspFileSystemStartDispatcher. At that point it will start receing file system requests on the
+ * FSP_FILE_SYSTEM_INTERFACE operations.
  */
 typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
 typedef VOID FSP_FILE_SYSTEM_OPERATION_GUARD(FSP_FILE_SYSTEM *,
@@ -838,8 +838,12 @@ FSP_API VOID FspPathPrefix(PWSTR Path, PWSTR *PPrefix, PWSTR *PRemain, PWSTR Roo
 FSP_API VOID FspPathSuffix(PWSTR Path, PWSTR *PRemain, PWSTR *PSuffix, PWSTR Root);
 FSP_API VOID FspPathCombine(PWSTR Prefix, PWSTR Suffix);
 
-/*
- * Service Framework
+/**
+ * @group Service Framework
+ *
+ * User mode file systems typically are run as Windows services. WinFsp provides an API to make
+ * the creation of Windows services easier. This API is provided for convenience and is not
+ * necessary to expose a user mode file system to Windows.
  */
 typedef struct _FSP_SERVICE FSP_SERVICE;
 typedef NTSTATUS FSP_SERVICE_START(FSP_SERVICE *, ULONG, PWSTR *);
@@ -864,24 +868,159 @@ typedef struct _FSP_SERVICE
     WCHAR ServiceName[];
 } FSP_SERVICE;
 #pragma warning(pop)
+/**
+ * Run a service.
+ *
+ * This function wraps calls to FspServiceCreate, FspServiceLoop and FspServiceDelete to create,
+ * run and delete a service. It is intended to be used from a service's main/wmain function.
+ *
+ * This function runs a service with console mode allowed.
+ *
+ * @param ServiceName
+ *     The name of the service.
+ * @param OnStart
+ *     Function to call when the service starts.
+ * @param OnStop
+ *     Function to call when the service stops.
+ * @param OnControl
+ *     Function to call when the service receives a service control code.
+ * @return
+ *     Service process exit code.
+ */
 FSP_API ULONG FspServiceRun(PWSTR ServiceName,
     FSP_SERVICE_START *OnStart,
     FSP_SERVICE_STOP *OnStop,
     FSP_SERVICE_CONTROL *OnControl);
+/**
+ * Create a service object.
+ *
+ * @param ServiceName
+ *     The name of the service.
+ * @param OnStart
+ *     Function to call when the service starts.
+ * @param OnStop
+ *     Function to call when the service stops.
+ * @param OnControl
+ *     Function to call when the service receives a service control code.
+ * @param PService [out]
+ *     Pointer that will receive the service object created on successful return from this
+ *     call.
+ * @return
+ *     STATUS_SUCCESS on error code.
+ */
 FSP_API NTSTATUS FspServiceCreate(PWSTR ServiceName,
     FSP_SERVICE_START *OnStart,
     FSP_SERVICE_STOP *OnStop,
     FSP_SERVICE_CONTROL *OnControl,
     FSP_SERVICE **PService);
+/**
+ * Delete a service object.
+ *
+ * @param Service
+ *     The service object.
+ */
 FSP_API VOID FspServiceDelete(FSP_SERVICE *Service);
+/**
+ * Allow a service to run in console mode.
+ *
+ * A service that is run in console mode runs with a console attached and outside the control of
+ * the Service Control Manager. This is useful for debugging and testing a service during
+ * development.
+ *
+ * User mode file systems that wish to use the WinFsp Launcher functionality must also use this
+ * call. The WinFsp Launcher is a Windows service that can be configured to launch and manage
+ * multiple instances of a user mode file system.
+ *
+ * @param Service
+ *     The service object.
+ */
 FSP_API VOID FspServiceAllowConsoleMode(FSP_SERVICE *Service);
+/**
+ * Configure the control codes that a service accepts.
+ *
+ * This API should be used prior to Start operations.
+ *
+ * @param Service
+ *     The service object.
+ * @param Control
+ *     The control codes to accept. Note that the SERVICE_ACCEPT_PAUSE_CONTINUE code is silently
+ *     ignored.
+ */
 FSP_API VOID FspServiceAcceptControl(FSP_SERVICE *Service, ULONG Control);
+/**
+ * Request additional time from the Service Control Manager.
+ *
+ * This API should be used during Start and Stop operations only.
+ *
+ * @param Service
+ *     The service object.
+ * @param Time
+ *     Additional time (in milliseconds).
+ */
 FSP_API VOID FspServiceRequestTime(FSP_SERVICE *Service, ULONG Time);
+/**
+ * Set the service process exit code.
+ *
+ * @param Service
+ *     The service object.
+ * @param ExitCode
+ *     Service process exit code.
+ */
 FSP_API VOID FspServiceSetExitCode(FSP_SERVICE *Service, ULONG ExitCode);
+/**
+ * Get the service process exit code.
+ *
+ * @param Service
+ *     The service object.
+ * @return
+ *     Service process exit code.
+ */
 FSP_API ULONG FspServiceGetExitCode(FSP_SERVICE *Service);
+/**
+ * Run a service main loop.
+ *
+ * This function starts and runs a service. It executes the Windows StartServiceCtrlDispatcher API
+ * to connect the service process to the Service Control Manager. If the Service Control Manager is
+ * not available (and console mode is allowed) it will enter console mode.
+ *
+ * @param Service
+ *     The service object.
+ * @return
+ *     STATUS_SUCCESS on error code.
+ */
 FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service);
+/**
+ * Stops a running service.
+ *
+ * Stopping a service usually happens when the Service Control Manager instructs the service to
+ * stop. In some situations (e.g. fatal errors) the service may wish to stop itself. It can do so
+ * in a clean manner by calling this function.
+ *
+ * @param Service
+ *     The service object.
+ * @return
+ *     STATUS_SUCCESS on error code.
+ */
 FSP_API VOID FspServiceStop(FSP_SERVICE *Service);
+/**
+ * Determine if the current process is running in user interactive mode.
+ *
+ * @return
+ *     TRUE if the process is running in running user interactive mode.
+ */
 FSP_API BOOLEAN FspServiceIsInteractive(VOID);
+/**
+ * Log a service message.
+ *
+ * This function can be used to log an arbitrary message to the Windows Event Log or to the current
+ * console if running in user interactive mode.
+ *
+ * @param Type
+ *     One of EVENTLOG_INFORMATION_TYPE, EVENTLOG_WARNING_TYPE, EVENTLOG_ERROR_TYPE.
+ * @param Format
+ *     Format specification. This function uses the Windows wsprintf API for formatting. Refer to
+ *     that API's documentation for details on the format specification.
+ */
 FSP_API VOID FspServiceLog(ULONG Type, PWSTR Format, ...);
 FSP_API VOID FspServiceLogV(ULONG Type, PWSTR Format, va_list ap);
 
