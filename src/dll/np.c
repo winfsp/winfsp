@@ -524,6 +524,7 @@ DWORD APIENTRY NPEnumResource(
     DWORD NpResult;
     LPNETRESOURCEW Resource;            /* grows upwards */
     PWCHAR Strings;                     /* grows downwards */
+    PWCHAR ProviderName = 0;
     DWORD Count;
     PWCHAR P, VolumePrefix;
     ULONG Backslashes;
@@ -538,81 +539,85 @@ DWORD APIENTRY NPEnumResource(
     Resource = lpBuffer;
     Strings = (PVOID)((PUINT8)lpBuffer + (*lpBufferSize & ~1/* WCHAR alignment */));
     Count = 0;
-    while (*lpcCount > Count)
+    for (P = Enum->VolumeName; *lpcCount > Count && Enum->VolumeListBufEnd > P; P++)
     {
-        for (P = Enum->VolumeName; Enum->VolumeListBufEnd > P; P++)
+        if (L'\0' == *P)
         {
-            if (L'\0' == *P)
+            /*
+             * Extract the VolumePrefix from the VolumeName.
+             *
+             * The VolumeName will have the following syntax:
+             *     \Device\Volume{GUID}\Server\Share
+             *
+             * We want to extract the \Server\Share part. We will simply count backslashes and
+             * stop at the third one.
+             */
+
+            for (Backslashes = 0, VolumePrefix = Enum->VolumeName; VolumePrefix < P; VolumePrefix++)
+                if (L'\\' == *VolumePrefix)
+                    if (3 == ++Backslashes)
+                        break;
+
+            if (3 == Backslashes)
             {
-                /*
-                 * Extract the VolumePrefix from the VolumeName.
-                 *
-                 * The VolumeName will have the following syntax:
-                 *     \Device\Volume{GUID}\Server\Share
-                 *
-                 * We want to extract the \Server\Share part. We will simply count backslashes and
-                 * stop at the third one.
-                 */
+                Drive = FspNpGetDriveLetter(&Enum->LogicalDrives, Enum->VolumeName);
 
-                for (Backslashes = 0, VolumePrefix = Enum->VolumeName; VolumePrefix < P; VolumePrefix++)
-                    if (L'\\' == *VolumePrefix)
-                        if (3 == ++Backslashes)
-                            break;
+                Strings -= (Drive ? 3 : 0) + 2/* backslash + term-0 */ + lstrlenW(VolumePrefix) +
+                    (0 == ProviderName ? lstrlenW(L"" FSP_NP_NAME) + 1 : 0);
 
-                if (3 == Backslashes)
+                if ((PVOID)(Resource + 1) > (PVOID)Strings)
                 {
-                    Drive = FspNpGetDriveLetter(&Enum->LogicalDrives, Enum->VolumeName);
-
-                    Strings -= (Drive ? 3 : 0) + 2/* backslash + term-0 */ + lstrlenW(VolumePrefix);
-
-                    if ((PVOID)(Resource + 1) > (PVOID)Strings)
+                    if (0 == Count)
                     {
-                        if (0 == Count)
-                        {
-                            *lpBufferSize =
-                                (DWORD)((PUINT8)Resource - (PUINT8)lpBuffer) +
-                                (DWORD)((PUINT8)lpBuffer + *lpBufferSize - (PUINT8)Strings);
-                            NpResult = WN_MORE_DATA;
-                        }
-                        else
-                        {
-                            *lpcCount = Count;
-                            NpResult = WN_SUCCESS;
-                        }
-
-                        goto exit;
-                    }
-
-                    if (Drive)
-                    {
-                        Strings[0] = Drive;
-                        Strings[1] = L':';
-                        Strings[2] = L'\0';
-
-                        Strings[3] = L'\\';
-                        lstrcpyW(Strings + 4, VolumePrefix);
+                        *lpBufferSize =
+                            (DWORD)((PUINT8)(Resource + 1) - (PUINT8)lpBuffer) +
+                            (DWORD)((PUINT8)lpBuffer + *lpBufferSize - (PUINT8)Strings);
+                        NpResult = WN_MORE_DATA;
                     }
                     else
                     {
-                        Strings[1] = L'\\';
-                        lstrcpyW(Strings + 1, VolumePrefix);
+                        *lpcCount = Count;
+                        NpResult = WN_SUCCESS;
                     }
 
-                    Resource->dwScope = Enum->dwScope;
-                    Resource->dwType = RESOURCETYPE_DISK;
-                    Resource->dwDisplayType = RESOURCEDISPLAYTYPE_SHARE;
-                    Resource->dwUsage = 0;
-                    Resource->lpLocalName = Drive ? Strings : 0;
-                    Resource->lpRemoteName = Drive ? Strings + 3 : Strings;
-                    Resource->lpComment = 0;
-                    Resource->lpProvider = 0;
-                    Resource++;
-
-                    Count++;
+                    goto exit;
                 }
 
-                Enum->VolumeName = P + 1;
+                if (0 == ProviderName)
+                {
+                    ProviderName = Strings + (Drive ? 3 : 0) + 2/* backslash + term-0 */ + lstrlenW(VolumePrefix);
+                    lstrcpyW(ProviderName, L"" FSP_NP_NAME);
+                }
+
+                if (Drive)
+                {
+                    Strings[0] = Drive;
+                    Strings[1] = L':';
+                    Strings[2] = L'\0';
+
+                    Strings[3] = L'\\';
+                    lstrcpyW(Strings + 4, VolumePrefix);
+                }
+                else
+                {
+                    Strings[0] = L'\\';
+                    lstrcpyW(Strings + 1, VolumePrefix);
+                }
+
+                Resource->dwScope = Enum->dwScope;
+                Resource->dwType = RESOURCETYPE_DISK;
+                Resource->dwDisplayType = RESOURCEDISPLAYTYPE_SHARE;
+                Resource->dwUsage = 0;
+                Resource->lpLocalName = Drive ? Strings : 0;
+                Resource->lpRemoteName = Drive ? Strings + 3 : Strings;
+                Resource->lpComment = 0;
+                Resource->lpProvider = ProviderName;
+                Resource++;
+
+                Count++;
             }
+
+            Enum->VolumeName = P + 1;
         }
     }
 
