@@ -145,14 +145,16 @@ static inline DWORD FspNpCallLauncherPipe(PWSTR PipeBuf, ULONG SendSize, ULONG R
         NpResult = WN_SUCCESS;
     else if (LauncherFailure == PipeBuf[0])
     {
-        if (BytesTransferred < RecvSize)
-            PipeBuf[BytesTransferred / sizeof(WCHAR)] = L'\0';
-        else
-            PipeBuf[RecvSize / sizeof(WCHAR) - 1] = L'\0';
+        NpResult = 0;
+        for (PWSTR P = PipeBuf + 1, EndP = PipeBuf + BytesTransferred / sizeof(WCHAR); EndP > P; P++)
+        {
+            if (L'0' > *P || *P > L'9')
+                break;
 
-        if (0 == lstrcmpW(L"183"/*ERROR_ALREADY_EXISTS*/, PipeBuf + 1))
-            NpResult = WN_ALREADY_CONNECTED;
-        else
+            NpResult = 10 * NpResult + (*P - L'0');
+        }
+
+        if (0 == NpResult)
             NpResult = WN_NO_NETWORK;
     }
     else 
@@ -325,6 +327,41 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
 
     NpResult = FspNpCallLauncherPipe(
         PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), LAUNCHER_PIPE_BUFFER_SIZE);
+    switch (NpResult)
+    {
+    case WN_SUCCESS:
+        break;
+    case ERROR_ALREADY_EXISTS:
+        /*
+         * The file system is already running! If we are being asked for a drive mapping,
+         * see if it is the one we already have to decide on the error code to return.
+         */
+        if (L'\0' != LocalNameBuf[0])
+        {
+            WCHAR ExpectRemoteNameBuf[sizeof(((FSP_FSCTL_VOLUME_PARAMS *)0)->Prefix) / sizeof(WCHAR)];
+            WCHAR RemoteNameBuf[sizeof(((FSP_FSCTL_VOLUME_PARAMS *)0)->Prefix) / sizeof(WCHAR)];
+            DWORD RemoteNameSize;
+
+            P = ExpectRemoteNameBuf;
+            *P++ = L'\\'; *P++ = L'\\';
+            memcpy(P, ClassName, ClassNameLen * sizeof(WCHAR)); P += ClassNameLen; *P++ = L'\\';
+            memcpy(P, InstanceName, InstanceNameLen * sizeof(WCHAR)); P += InstanceNameLen; *P++ = L'\0';
+
+            RemoteNameSize = sizeof RemoteNameBuf / sizeof(WCHAR);
+            NpResult = NPGetConnection(LocalNameBuf, RemoteNameBuf, &RemoteNameSize);
+            if (WN_SUCCESS == NpResult)
+                NpResult = 0 == lstrcmpW(ExpectRemoteNameBuf, RemoteNameBuf) ? WN_SUCCESS : WN_NO_NETWORK;
+            else
+                NpResult = WN_NO_NETWORK;
+        }
+        else
+            /* we are not being asked for a drive mapping, so whatever we have is good! */
+            NpResult = WN_SUCCESS;
+        break;
+    default:
+        NpResult = WN_NO_NETWORK;
+        break;
+    }
 
     MemFree(PipeBuf);
 
@@ -369,6 +406,17 @@ DWORD APIENTRY NPCancelConnection(LPWSTR lpName, BOOL fForce)
 
     NpResult = FspNpCallLauncherPipe(
         PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), LAUNCHER_PIPE_BUFFER_SIZE);
+    switch (NpResult)
+    {
+    case WN_SUCCESS:
+        break;
+    case ERROR_FILE_NOT_FOUND:
+        NpResult = WN_NOT_CONNECTED;
+        break;
+    default:
+        NpResult = WN_NO_NETWORK;
+        break;
+    }
 
     MemFree(PipeBuf);
 
