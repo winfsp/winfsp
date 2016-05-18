@@ -63,13 +63,15 @@ static void usage(void)
 
 static int call_pipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
 {
+    NTSTATUS Result;
     DWORD LastError, BytesTransferred;
 
-    LastError = CallNamedPipeW(L"" LAUNCHER_PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
-        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT) ? 0 : GetLastError();
+    Result = FspCallNamedPipeSecurely(L"" LAUNCHER_PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
+        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, LAUNCHER_PIPE_OWNER);
+    LastError = FspWin32FromNtStatus(Result);
 
     if (0 != LastError)
-        warn("KO CallNamedPipeW = %ld", LastError);
+        warn("KO CallNamedPipe = %ld", LastError);
     else if (sizeof(WCHAR) > BytesTransferred)
         warn("KO launcher: empty buffer");
     else if (LauncherSuccess == PipeBuf[0])

@@ -29,16 +29,13 @@
 #define LAUNCHER_PIPE_DEFAULT_TIMEOUT   3000
 
 /*
- * The launcher named pipe SDDL gives full access to LocalSystem and Administrators.
- * It also gives GENERIC_READ and GENERIC_WRITE access to Everyone. This includes the
- * FILE_CREATE_PIPE_INSTANCE right which should not normally be granted to any process
- * that is not the pipe server. The reason that the GENERIC_WRITE is required is to allow
- * clients to use CallNamedPipeW which opens the pipe handle using CreateFileW and the
- * GENERIC_READ | GENERIC_WRITE access right. The reason that it should be safe to grant
- * the FILE_CREATE_PIPE_INSTANCE right is that the server creates the named pipe with
- * MaxInstances == 1 (and therefore no client can create additional instances).
+ * The launcher named pipe SDDL gives full access to LocalSystem and Administrators and
+ * GENERIC_READ and FILE_WRITE_DATA access to Everyone. We are careful not to give the
+ * FILE_CREATE_PIPE_INSTANCE right to Everyone to disallow the creation of additional
+ * pipe instances.
  */
-#define LAUNCHER_PIPE_SDDL              "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;WD)"
+#define LAUNCHER_PIPE_SDDL              "O:SYG:SYD:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRDCCR;;;WD)"
+#define LAUNCHER_PIPE_OWNER             ((PSID)WinLocalSystemSid)
 
  /*
  * The default service instance SDDL gives full access to LocalSystem and Administrators.

@@ -1034,6 +1034,10 @@ FSP_API VOID FspEventLogV(ULONG Type, PWSTR Format, va_list ap);
 FSP_API VOID FspDebugLog(const char *format, ...);
 FSP_API VOID FspDebugLogSD(const char *format, PSECURITY_DESCRIPTOR SecurityDescriptor);
 FSP_API VOID FspDebugLogFT(const char *format, PFILETIME FileTime);
+FSP_API NTSTATUS FspCallNamedPipeSecurely(PWSTR PipeName,
+    PVOID InBuffer, ULONG InBufferSize, PVOID OutBuffer, ULONG OutBufferSize,
+    PULONG PBytesTransferred, ULONG Timeout,
+    PSID Sid);
 
 #ifdef __cplusplus
 }

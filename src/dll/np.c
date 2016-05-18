@@ -17,10 +17,116 @@
 
 #include <dll/library.h>
 #include <launcher/launcher.h>
+#include <aclapi.h>
 #include <npapi.h>
 
 #define FSP_NP_NAME                     LIBRARY_NAME ".Np"
 #define FSP_NP_TYPE                     ' spF'  /* pick a value hopefully not in use */
+
+FSP_API NTSTATUS FspCallNamedPipeSecurely(PWSTR PipeName,
+    PVOID InBuffer, ULONG InBufferSize, PVOID OutBuffer, ULONG OutBufferSize,
+    PULONG PBytesTransferred, ULONG Timeout,
+    PSID Sid)
+{
+    NTSTATUS Result;
+    HANDLE Pipe = INVALID_HANDLE_VALUE;
+    DWORD PipeMode;
+
+    Pipe = CreateFileW(PipeName,
+        GENERIC_READ | FILE_WRITE_DATA | FILE_WRITE_ATTRIBUTES,
+        FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, 0);
+    if (INVALID_HANDLE_VALUE == Pipe)
+    {
+        if (ERROR_PIPE_BUSY != GetLastError())
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+
+        WaitNamedPipeW(PipeName, Timeout);
+
+        Pipe = CreateFileW(PipeName,
+            GENERIC_READ | FILE_WRITE_DATA | FILE_WRITE_ATTRIBUTES,
+            FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+            SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, 0);
+        if (INVALID_HANDLE_VALUE == Pipe)
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+    }
+
+    if (0 != Sid)
+    {
+        PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
+        PSID OwnerSid, WellKnownSid = 0;
+        DWORD SidSize, LastError;
+
+        /* if it is a small number treat it like a well known SID */
+        if (1024 > (INT_PTR)Sid)
+        {
+            SidSize = SECURITY_MAX_SID_SIZE;
+            WellKnownSid = MemAlloc(SidSize);
+            if (0 == WellKnownSid)
+            {
+                Result = STATUS_INSUFFICIENT_RESOURCES;
+                goto sid_exit;
+            }
+
+            if (!CreateWellKnownSid((INT_PTR)Sid, 0, WellKnownSid, &SidSize))
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto sid_exit;
+            }
+        }
+
+        LastError = GetSecurityInfo(Pipe, SE_FILE_OBJECT,
+            OWNER_SECURITY_INFORMATION, &OwnerSid, 0, 0, 0, &SecurityDescriptor);
+        if (0 != LastError)
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto sid_exit;
+        }
+
+        if (!EqualSid(OwnerSid, WellKnownSid ? WellKnownSid : Sid))
+        {
+            Result = STATUS_ACCESS_DENIED;
+            goto sid_exit;
+        }
+
+        Result = STATUS_SUCCESS;
+
+    sid_exit:
+        MemFree(WellKnownSid);
+        LocalFree(SecurityDescriptor);
+
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
+
+    PipeMode = PIPE_READMODE_MESSAGE | PIPE_WAIT;
+    if (!SetNamedPipeHandleState(Pipe, &PipeMode, 0, 0))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    if (!TransactNamedPipe(Pipe, InBuffer, InBufferSize, OutBuffer, OutBufferSize,
+        PBytesTransferred, 0))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (INVALID_HANDLE_VALUE != Pipe)
+        CloseHandle(Pipe);
+
+    return Result;
+}
 
 DWORD APIENTRY NPGetCaps(DWORD Index)
 {
@@ -132,12 +238,13 @@ static inline BOOLEAN FspNpParseRemoteName(PWSTR RemoteName,
 static inline DWORD FspNpCallLauncherPipe(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
 {
     DWORD NpResult;
-    DWORD LastError, BytesTransferred;
+    NTSTATUS Result;
+    DWORD BytesTransferred;
 
-    LastError = CallNamedPipeW(L"" LAUNCHER_PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
-        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT) ? 0 : GetLastError();
+    Result = FspCallNamedPipeSecurely(L"" LAUNCHER_PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
+        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, LAUNCHER_PIPE_OWNER);
 
-    if (0 != LastError)
+    if (!NT_SUCCESS(Result))
         NpResult = WN_NO_NETWORK;
     else if (sizeof(WCHAR) > BytesTransferred)
         NpResult = WN_NO_NETWORK;
