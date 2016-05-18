@@ -1,0 +1,47 @@
+= WinFsp Service Architecture
+
+This document discusses an architecture for writing user mode file systems as Windows services.
+
+== Overview
+
+There are a variety of reasons that user mode file systems should be written as Windows services. Chief among those are that a Windows service runs independently from user sessions. Therefore a user mode file system can provide its services to all processes in the system rather than those of the current user session. Furthermore a Windows service (usually) runs under an account with elevated privileges, which may be a requirement for some user mode file systems.
+
+The Windows Service Control Manager provides a clean protocol for installing, configuring and controlling services. Unfortunately it also has a major deficiency in that it only allows a single instance of a particular service to be launched. The technique usually employed to work around this deficiency is to create multiple named instances of the same service (e.g. ServiceName #1, ServiceName #2). This technique assumes that there is a finite and well known set of instances, which may not always be the case.
+
+Consider, for example, a network file system NETFS which can be used to provide a network based file system. NETFS connects to a particular server and uses its proprietary protocol to access files on that server, which it then presents to Windows as native files. Clearly there may be a very large number of NETFS servers, which makes the idea of creating separate named service instances for each server unworkable. One alternative for the NETFS developer is to create a service that manages multiple NETFS instances. Another one is to use the WinFsp service architecture described in this document.
+
+== WinFsp Launcher
+
+In order to overcome the issue with launching multiple instances of a particular service, WinFsp provides a generic launcher named WinFsp.Launcher. The WinFsp.Launcher is itself a Windows service that can be used to launch and control other services, provided that they fulfill the following requirements:
+
+* That they are marked as console executables.
+* That they can be parameterized using the command line.
+* That they respond to the CTRL-BREAK console control event and terminate timely.
+
+Services that wish to be controlled by the WinFsp.Launcher must add themselves under the following registry key:
+
+    HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WinFsp.Launcher\Services
+
+For example, the MEMFS sample adds the following registry entries under this key:
+
+    [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WinFsp.Launcher\Services\memfs32]
+    "Executable"="C:\\Program Files (x86)\\WinFsp\\bin\\memfs-x86.exe"
+    "CommandLine"="-u %1 -m %2"
+    "Security"="D:P(A;;RPWPLC;;;WD)"
+    "JobControl"=dword:00000001
+
+    [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WinFsp.Launcher\Services\memfs64]
+    "Executable"="C:\\Program Files (x86)\\WinFsp\\bin\\memfs-x64.exe"
+    "CommandLine"="-u %1 -m %2"
+    "Security"="D:P(A;;RPWPLC;;;WD)"
+    "JobControl"=dword:00000001
+
+When the WinFsp.Launcher starts up it creates a named pipe that applications can use to start, stop, get information about and list service instances. A small command line utility (`launchctl`) can be used to issue those commands. The CallNamedPipeW API can be used as well.
+
+One final note regarding security. Notice the `Security` registry value in the example above. This registry value uses SDDL syntax to instruct WinFsp.Launcher to allow Everyone (`WD`) to start (`RP`), stop (`WP`) and get information (`LC`) about the service instance. If the `Security` registry value is missing the default is to allow only LocalSystem and Administrators to control the service instance.
+
+== WinFsp Network Provider
+
+WinFsp includes a Network Provider that integrates with Windows and can be used to start and stop user mode file systems from the Windows shell. To achieve this the Network Provider (implemented as part of the WinFsp DLL) works closely with the WinFsp.Launcher service.
+
+For example, if a user uses the Windows Explorer to map `\\memfs64\share` to the `Z:` drive, the Network Provider will instruct the WinFsp.Launcher to start an instance of the memfs64 service with command line `-u \\memfs64\share -m Z:`. When the user disconnects the `Z:` drive, the Network Provider will instruct the WinFsp.Launcher to stop the previously started instance of the memfs64 service.
