@@ -36,7 +36,7 @@ for %%f in (build\%Configuration%\winfsp-*.msi) do (
 	REM if errorlevel 1 set /a signfail=signfail+1
 )
 
-if not %signfail%==0 echo SIGNING FAILED!
+if not %signfail%==0 echo SIGNING FAILED! The product has been successfully built, but not signed.
 
 exit /b 0
 
