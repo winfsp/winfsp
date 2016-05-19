@@ -1,5 +1,7 @@
 @echo off
 
+setlocal
+
 set Configuration=Release
 set MsiName="WinFsp - Windows File System Proxy"
 set CrossCert="%~dp0DigiCert High Assurance EV Root CA.crt"
