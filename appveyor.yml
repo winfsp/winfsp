@@ -1,0 +1,24 @@
+version: '{build}'
+
+branches:
+  only:
+  - master
+
+skip_non_tags: true
+
+environment:
+  CONFIGURATION: Release
+
+install:
+- bcdedit /set testsigning off
+- ps: Restart-Computer -Force
+- ps: Start-Sleep -s 10
+
+build_script:
+- tools\build.bat %CONFIGURATION%
+
+test_script:
+- for %%f in ("build\VStudio\build\%CONFIGURATION%\winfsp-*.msi") do start /wait msiexec /i %%f /qn INSTALLLEVEL=1000
+- bcdedit
+- build\VStudio\build\%CONFIGURATION%\winfsp-tests-x64.exe
+- build\VStudio\build\%CONFIGURATION%\winfsp-tests-x86.exe
