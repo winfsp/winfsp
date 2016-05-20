@@ -1,5 +1,7 @@
 @echo off
 
+setlocal
+
 set DebugWorkspace=winfsp
 set DebugPort=50000
 set DebugKey=win8.debug.net.key
