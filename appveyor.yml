@@ -10,15 +10,17 @@ environment:
   CONFIGURATION: Release
 
 install:
-- bcdedit /set testsigning off
+- appveyor AddMessage "Set testsigning on and reboot" -Category Information
+- bcdedit /set testsigning on
 - ps: Restart-Computer -Force
 - ps: Start-Sleep -s 10
 
 build_script:
+- appveyor AddMessage "Reboot complete" -Category Information
+- bcdedit | find /i "testsigning"
 - tools\build.bat %CONFIGURATION%
 
 test_script:
 - for %%f in ("build\VStudio\build\%CONFIGURATION%\winfsp-*.msi") do start /wait msiexec /i %%f /qn INSTALLLEVEL=1000
-- bcdedit
-- build\VStudio\build\%CONFIGURATION%\winfsp-tests-x64.exe
-- build\VStudio\build\%CONFIGURATION%\winfsp-tests-x86.exe
+- build\VStudio\build\%CONFIGURATION%\winfsp-tests-x64.exe -lock*
+- build\VStudio\build\%CONFIGURATION%\winfsp-tests-x86.exe -lock*
