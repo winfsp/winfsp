@@ -4,8 +4,6 @@ branches:
   only:
   - master
 
-skip_non_tags: true
-
 environment:
   CONFIGURATION: Release
 
