@@ -212,7 +212,11 @@ static NTSTATUS FspFsctlStartService(VOID)
     SvcHandle = OpenServiceW(ScmHandle, DriverName, SERVICE_QUERY_STATUS | SERVICE_START);
     if (0 == SvcHandle)
     {
-        Result = FspNtStatusFromWin32(GetLastError());
+        LastError = GetLastError();
+        if (ERROR_SERVICE_DOES_NOT_EXIST != LastError)
+            Result = FspNtStatusFromWin32(LastError);
+        else
+            Result = STATUS_NO_SUCH_DEVICE;
         goto exit;
     }
 
