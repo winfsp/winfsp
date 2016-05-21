@@ -8,18 +8,18 @@ environment:
   CONFIGURATION: Release
 
 install:
-- git submodule update --init
-- appveyor AddMessage "Set testsigning on and reboot" -Category Information
+- git submodule update --init --recursive
+- appveyor AddMessage "Change boot configuration and reboot" -Category Information
 - bcdedit /set testsigning on
 - ps: Restart-Computer -Force
 - ps: Start-Sleep -s 10
 
 build_script:
 - appveyor AddMessage "Reboot complete" -Category Information
-- bcdedit | find /i "testsigning"
+- bcdedit | findstr /i "testsigning"
 - tools\build.bat %CONFIGURATION%
-- cd ext\test && nmake /f Nmakefile
 
 test_script:
 - for %%f in ("build\VStudio\build\%CONFIGURATION%\winfsp-*.msi") do start /wait msiexec /i %%f /qn INSTALLLEVEL=1000
+- tools\nmake-test.bat %CONFIGURATION%
 - tools\run-tests.bat %CONFIGURATION%

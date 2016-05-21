@@ -8,9 +8,9 @@ set CrossCert="%~dp0DigiCert High Assurance EV Root CA.crt"
 set Issuer="DigiCert"
 set Subject="Navimatics Corporation"
 
-call "%VS140COMNTOOLS%\..\..\VC\vcvarsall.bat"
-
 if not X%1==X set Configuration=%1
+
+call "%VS140COMNTOOLS%\..\..\VC\vcvarsall.bat" x64
 
 cd %~dp0..\build\VStudio
 if exist build\ del /s/q build >nul
