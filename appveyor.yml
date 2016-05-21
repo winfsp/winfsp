@@ -8,6 +8,7 @@ environment:
   CONFIGURATION: Release
 
 install:
+- git submodule update --init
 - appveyor AddMessage "Set testsigning on and reboot" -Category Information
 - bcdedit /set testsigning on
 - ps: Restart-Computer -Force
