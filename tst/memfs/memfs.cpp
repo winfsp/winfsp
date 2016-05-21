@@ -443,15 +443,14 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
      *
      * To properly implement this we should maintain some state of whether
      * we modified the file or not. Alternatively we could have the driver
-     * report to us at Cleanup time whether the file was modified (FO_FILE_MODIFIED).
+     * report to us at Cleanup time whether the file was modified. [The
+     * driver does not currently maintain the FO_FILE_MODIFIED bit however.]
      *
      * TBD.
      */
     if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
         Request->Req.Create.DesiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA))
         FileNode->FileInfo.FileAttributes |= FILE_ATTRIBUTE_ARCHIVE;
-
-    FileNode->FileInfo.LastAccessTime = MemfsGetSystemTime();
 
     FileNode->RefCount++;
     *PFileNode = FileNode;
