@@ -29,7 +29,7 @@ for %%f in (winfsp-tests-x64 winfsp-tests-x86 :winfstest) do (
         echo === Failed %%f
 
         if defined APPVEYOR (
-            appveyor UpdateTest "%%f" -FileName None -Framework None -Outcome Passed -Duration 0
+            appveyor UpdateTest "%%f" -FileName None -Framework None -Outcome Failed -Duration 0
         )
     ) else (
         set /a testpass=testpass+1
@@ -37,7 +37,7 @@ for %%f in (winfsp-tests-x64 winfsp-tests-x86 :winfstest) do (
         echo === Passed %%f
 
         if defined APPVEYOR (
-            appveyor UpdateTest "%%f" -FileName None -Framework None -Outcome Failed -Duration 0
+            appveyor UpdateTest "%%f" -FileName None -Framework None -Outcome Passed -Duration 0
         )
     )
     echo:
