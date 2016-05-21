@@ -20,11 +20,4 @@ build_script:
 
 test_script:
 - for %%f in ("build\VStudio\build\%CONFIGURATION%\winfsp-*.msi") do start /wait msiexec /i %%f /qn INSTALLLEVEL=1000
--
-- appveyor AddTest winfsp-tests-x64 -Outcome Running
-- build\VStudio\build\%CONFIGURATION%\winfsp-tests-x64.exe
-- appveyor UpdateTest winfsp-tests-x64 -Outcome Passed
--
-- appveyor AddTest winfsp-tests-x86 -Outcome Running
-- build\VStudio\build\%CONFIGURATION%\winfsp-tests-x86.exe
-- appveyor UpdateTest winfsp-tests-x86 -Outcome Passed
+- tools\run-tests.bat %CONFIGURATION%
