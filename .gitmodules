@@ -1,0 +1,3 @@
+[submodule "ext/test"]
+	path = ext/test
+	url = https://bitbucket.org/billziss/secfs.test.git
