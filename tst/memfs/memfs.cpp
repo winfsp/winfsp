@@ -379,7 +379,8 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return Result;
 
-    FileNode->FileInfo.FileAttributes = FileAttributes;
+    FileNode->FileInfo.FileAttributes = (FileAttributes & FILE_ATTRIBUTE_DIRECTORY) ?
+        FileAttributes : FileAttributes | FILE_ATTRIBUTE_ARCHIVE;
 
     if (0 != SecurityDescriptor)
     {
@@ -437,6 +438,19 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
         return Result;
     }
 
+    /*
+     * NTFS and FastFat do this at Cleanup time, but we are going to cheat.
+     *
+     * To properly implement this we should maintain some state of whether
+     * we modified the file or not. Alternatively we could have the driver
+     * report to us at Cleanup time whether the file was modified (FO_FILE_MODIFIED).
+     *
+     * TBD.
+     */
+    if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+        Request->Req.Create.DesiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA))
+        FileNode->FileInfo.FileAttributes |= FILE_ATTRIBUTE_ARCHIVE;
+
     FileNode->FileInfo.LastAccessTime = MemfsGetSystemTime();
 
     FileNode->RefCount++;
@@ -455,9 +469,9 @@ NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
     if (ReplaceFileAttributes)
-        FileNode->FileInfo.FileAttributes = FileAttributes;
+        FileNode->FileInfo.FileAttributes = FileAttributes | FILE_ATTRIBUTE_ARCHIVE;
     else
-        FileNode->FileInfo.FileAttributes |= FileAttributes;
+        FileNode->FileInfo.FileAttributes |= FileAttributes | FILE_ATTRIBUTE_ARCHIVE;
 
     FileNode->FileInfo.FileSize = 0;
     FileNode->FileInfo.LastWriteTime =
