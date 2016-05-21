@@ -634,7 +634,7 @@ static NTSTATUS SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
             return STATUS_DISK_FULL;
 
         FileData = realloc(FileNode->FileData, (size_t)AllocationSize);
-        if (0 == FileData)
+        if (0 == FileData && 0 != AllocationSize)
             return STATUS_INSUFFICIENT_RESOURCES;
 
         FileNode->FileData = FileData;
