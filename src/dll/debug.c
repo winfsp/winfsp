@@ -162,13 +162,13 @@ static const char *FspDebugLogVolumeInfoString(FSP_FSCTL_VOLUME_INFO *VolumeInfo
 
 static VOID FspDebugLogRequestVoid(FSP_FSCTL_TRANSACT_REQ *Request, const char *Name)
 {
-    FspDebugLog("%S[TID=%ld]: %p: >>%s\n",
+    FspDebugLog("%S[TID=%04lx]: %p: >>%s\n",
         FspDiagIdent(), GetCurrentThreadId(), Request->Hint, Name);
 }
 
 static VOID FspDebugLogResponseStatus(FSP_FSCTL_TRANSACT_RSP *Response, const char *Name)
 {
-    FspDebugLog("%S[TID=%ld]: %p: <<%s IoStatus=%lx[%ld]\n",
+    FspDebugLog("%S[TID=%04lx]: %p: <<%s IoStatus=%lx[%ld]\n",
         FspDiagIdent(), GetCurrentThreadId(), Response->Hint, Name,
         Response->IoStatus.Status, Response->IoStatus.Information);
 }
@@ -192,7 +192,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION |
                 DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION,
                 &Sddl, 0);
-        FspDebugLog("%S[TID=%ld]: %p: >>Create [%c%c%c%c] \"%S\", "
+        FspDebugLog("%S[TID=%04lx]: %p: >>Create [%c%c%c%c] \"%S\", "
             "%s, CreateOptions=%lx, FileAttributes=%lx, Security=%s%s%s, "
             "AllocationSize=%lx:%lx, AccessToken=%lx, DesiredAccess=%lx, ShareAccess=%lx\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
@@ -214,7 +214,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         LocalFree(Sddl);
         break;
     case FspFsctlTransactOverwriteKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>Overwrite%s %s%S%s%s, "
+        FspDebugLog("%S[TID=%04lx]: %p: >>Overwrite%s %s%S%s%s, "
             "FileAttributes=%lx\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->Req.Overwrite.Supersede ? " [Supersede]" : "",
@@ -227,7 +227,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             Request->Req.Overwrite.FileAttributes);
         break;
     case FspFsctlTransactCleanupKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>Cleanup%s %s%S%s%s\n",
+        FspDebugLog("%S[TID=%04lx]: %p: >>Cleanup%s %s%S%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->Req.Cleanup.Delete ? " [Delete]" : "",
             Request->FileName.Size ? "\"" : "",
@@ -238,7 +238,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 UserContextBuf));
         break;
     case FspFsctlTransactCloseKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>Close %s%S%s%s\n",
+        FspDebugLog("%S[TID=%04lx]: %p: >>Close %s%S%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
@@ -248,7 +248,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 UserContextBuf));
         break;
     case FspFsctlTransactReadKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>Read %s%S%s%s, "
+        FspDebugLog("%S[TID=%04lx]: %p: >>Read %s%S%s%s, "
             "Address=%p, Offset=%lx:%lx, Length=%ld, Key=%lx\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
@@ -263,7 +263,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             Request->Req.Read.Key);
         break;
     case FspFsctlTransactWriteKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>Write%s %s%S%s%s, "
+        FspDebugLog("%S[TID=%04lx]: %p: >>Write%s %s%S%s%s, "
             "Address=%p, Offset=%lx:%lx, Length=%ld, Key=%lx\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->Req.Write.ConstrainedIo ? " [C]" : "",
@@ -279,7 +279,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             Request->Req.Write.Key);
         break;
     case FspFsctlTransactQueryInformationKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>QueryInformation %s%S%s%s\n",
+        FspDebugLog("%S[TID=%04lx]: %p: >>QueryInformation %s%S%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
@@ -292,7 +292,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         switch (Request->Req.SetInformation.FileInformationClass)
         {
         case 4/*FileBasicInformation*/:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [Basic] %s%S%s%s, "
+            FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [Basic] %s%S%s%s, "
                 "FileAttributes=%lx, CreationTime=%s, LastAccessTime=%s, LastWriteTime=%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
@@ -310,7 +310,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                     LastWriteTimeBuf));
             break;
         case 19/*FileAllocationInformation*/:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [Allocation] %s%S%s%s, "
+            FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [Allocation] %s%S%s%s, "
                 "AllocationSize=%lx:%lx\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
@@ -322,7 +322,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 MAKE_UINT32_PAIR(Request->Req.SetInformation.Info.Allocation.AllocationSize));
             break;
         case 20/*FileEndOfFileInformation*/:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [EndOfFile] %s%S%s%s, "
+            FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [EndOfFile] %s%S%s%s, "
                 "FileSize = %lx:%lx\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
@@ -334,7 +334,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 MAKE_UINT32_PAIR(Request->Req.SetInformation.Info.EndOfFile.FileSize));
             break;
         case 13/*FileDispositionInformation*/:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [Disposition] %s%S%s%s, "
+            FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [Disposition] %s%S%s%s, "
                 "%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
@@ -346,7 +346,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 Request->Req.SetInformation.Info.Disposition.Delete ? "Delete" : "Undelete");
             break;
         case 10/*FileRenameInformation*/:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [Rename] %s%S%s%s, "
+            FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [Rename] %s%S%s%s, "
                 "NewFileName=\"%S\"%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
@@ -359,7 +359,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 Request->Req.SetInformation.Info.Rename.ReplaceIfExists ? " ReplaceIfExists" : "");
             break;
         default:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [INVALID] %s%S%s%s\n",
+            FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [INVALID] %s%S%s%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
@@ -376,7 +376,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         FspDebugLogRequestVoid(Request, "SETEA");
         break;
     case FspFsctlTransactFlushBuffersKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>FlushBuffers %s%S%s%s\n",
+        FspDebugLog("%S[TID=%04lx]: %p: >>FlushBuffers %s%S%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
@@ -392,19 +392,19 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         switch (Request->Req.SetVolumeInformation.FsInformationClass)
         {
         case 2/*FileFsLabelInformation*/:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetVolumeInformation [FsLabel] "
+            FspDebugLog("%S[TID=%04lx]: %p: >>SetVolumeInformation [FsLabel] "
                 "Label=\"%S\"\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 (PWSTR)Request->Buffer);
             break;
         default:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetVolumeInformation [INVALID]\n",
+            FspDebugLog("%S[TID=%04lx]: %p: >>SetVolumeInformation [INVALID]\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint);
             break;
         }
         break;
     case FspFsctlTransactQueryDirectoryKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>QueryDirectory %s%S%s%s, "
+        FspDebugLog("%S[TID=%04lx]: %p: >>QueryDirectory %s%S%s%s, "
             "Address=%p, Offset=%lx:%lx, Length=%ld, Pattern=%s%S%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
@@ -434,7 +434,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         FspDebugLogRequestVoid(Request, "LOCKCONTROL");
         break;
     case FspFsctlTransactQuerySecurityKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>QuerySecurity %s%S%s%s\n",
+        FspDebugLog("%S[TID=%04lx]: %p: >>QuerySecurity %s%S%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
@@ -451,7 +451,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION |
                 DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION,
                 &Sddl, 0);
-        FspDebugLog("%S[TID=%ld]: %p: >>SetSecurity %s%S%s%s, "
+        FspDebugLog("%S[TID=%04lx]: %p: >>SetSecurity %s%S%s%s, "
             "SecurityInformation=%lx, AccessToken=%lx, Security=%s%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
@@ -491,13 +491,13 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         if (!NT_SUCCESS(Response->IoStatus.Status))
             FspDebugLogResponseStatus(Response, "Create");
         else if (STATUS_REPARSE == Response->IoStatus.Status)
-            FspDebugLog("%S[TID=%ld]: %p: <<Create IoStatus=%lx[%ld] "
+            FspDebugLog("%S[TID=%04lx]: %p: <<Create IoStatus=%lx[%ld] "
                 "Reparse.FileName=\"%S\"\n",
                 FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
                 (PWSTR)(Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset));
         else
-            FspDebugLog("%S[TID=%ld]: %p: <<Create IoStatus=%lx[%ld] "
+            FspDebugLog("%S[TID=%04lx]: %p: <<Create IoStatus=%lx[%ld] "
                 "UserContext=%s, GrantedAccess=%lx, FileInfo=%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
@@ -511,7 +511,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         if (!NT_SUCCESS(Response->IoStatus.Status))
             FspDebugLogResponseStatus(Response, "Overwrite");
         else
-            FspDebugLog("%S[TID=%ld]: %p: <<Overwrite IoStatus=%lx[%ld] "
+            FspDebugLog("%S[TID=%04lx]: %p: <<Overwrite IoStatus=%lx[%ld] "
                 "FileInfo=%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
@@ -530,7 +530,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         if (!NT_SUCCESS(Response->IoStatus.Status))
             FspDebugLogResponseStatus(Response, "Write");
         else
-            FspDebugLog("%S[TID=%ld]: %p: <<Write IoStatus=%lx[%ld] "
+            FspDebugLog("%S[TID=%04lx]: %p: <<Write IoStatus=%lx[%ld] "
                 "FileInfo=%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
@@ -540,7 +540,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         if (!NT_SUCCESS(Response->IoStatus.Status))
             FspDebugLogResponseStatus(Response, "QueryInformation");
         else
-            FspDebugLog("%S[TID=%ld]: %p: <<QueryInformation IoStatus=%lx[%ld] "
+            FspDebugLog("%S[TID=%04lx]: %p: <<QueryInformation IoStatus=%lx[%ld] "
                 "FileInfo=%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
@@ -550,7 +550,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         if (!NT_SUCCESS(Response->IoStatus.Status))
             FspDebugLogResponseStatus(Response, "SetInformation");
         else
-            FspDebugLog("%S[TID=%ld]: %p: <<SetInformation IoStatus=%lx[%ld] "
+            FspDebugLog("%S[TID=%04lx]: %p: <<SetInformation IoStatus=%lx[%ld] "
                 "FileInfo=%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
@@ -569,7 +569,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         if (!NT_SUCCESS(Response->IoStatus.Status))
             FspDebugLogResponseStatus(Response, "QueryVolumeInformation");
         else
-            FspDebugLog("%S[TID=%ld]: %p: <<QueryVolumeInformation IoStatus=%lx[%ld] "
+            FspDebugLog("%S[TID=%04lx]: %p: <<QueryVolumeInformation IoStatus=%lx[%ld] "
                 "VolumeInfo=%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
@@ -579,7 +579,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         if (!NT_SUCCESS(Response->IoStatus.Status))
             FspDebugLogResponseStatus(Response, "SetVolumeInformation");
         else
-            FspDebugLog("%S[TID=%ld]: %p: <<SetVolumeInformation IoStatus=%lx[%ld] "
+            FspDebugLog("%S[TID=%04lx]: %p: <<SetVolumeInformation IoStatus=%lx[%ld] "
                 "VolumeInfo=%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
@@ -612,7 +612,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
                     OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION |
                     DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION,
                     &Sddl, 0);
-            FspDebugLog("%S[TID=%ld]: %p: <<QuerySecurity IoStatus=%lx[%ld] "
+            FspDebugLog("%S[TID=%04lx]: %p: <<QuerySecurity IoStatus=%lx[%ld] "
                 "Security=%s%s%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
@@ -634,7 +634,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
                     OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION |
                     DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION,
                     &Sddl, 0);
-            FspDebugLog("%S[TID=%ld]: %p: <<SetSecurity IoStatus=%lx[%ld] "
+            FspDebugLog("%S[TID=%04lx]: %p: <<SetSecurity IoStatus=%lx[%ld] "
                 "Security=%s%s%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
