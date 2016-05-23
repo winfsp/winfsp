@@ -30,13 +30,14 @@
 static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
 {
     wchar_t *endp;
-    ULONG ul = wcstol(w, &endp, 10);
+    ULONG ul = wcstol(w, &endp, 0);
     return L'\0' != w[0] && L'\0' == *endp ? ul : deflt;
 }
 
 NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
     wchar_t **argp, **arge;
+    ULONG DebugFlags = 0;
     ULONG Flags = MemfsDisk;
     ULONG FileInfoTimeout = INFINITE;
     ULONG MaxFileNodes = 1024;
@@ -55,6 +56,9 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         {
         case L'?':
             goto usage;
+        case L'd':
+            argtol(DebugFlags);
+            break;
         case L'm':
             argtos(MountPoint);
             break;
@@ -92,6 +96,8 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         fail(L"cannot create MEMFS");
         goto exit;
     }
+
+    FspFileSystemSetDebugLog(MemfsFileSystem(Memfs), DebugFlags);
 
     if (0 != MountPoint && L'\0' != MountPoint[0])
     {
@@ -133,6 +139,7 @@ usage:
         "usage: %s OPTIONS\n"
         "\n"
         "options:\n"
+        "    -d DebugFlags       [-1: enable all debug logs]\n"
         "    -t FileInfoTimeout  [millis]\n"
         "    -n MaxFileNodes\n"
         "    -s MaxFileSize      [bytes]\n"
