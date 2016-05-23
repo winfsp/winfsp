@@ -19,7 +19,7 @@
 #include <aclapi.h>
 
 static INIT_ONCE FspDiagIdentInitOnce = INIT_ONCE_STATIC_INIT;
-static WCHAR FspDiagIdentBuf[16] = L"UNKNOWN";
+static WCHAR FspDiagIdentBuf[20] = L"UNKNOWN";
 
 static BOOL WINAPI FspDiagIdentInit(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)

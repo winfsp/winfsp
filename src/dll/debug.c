@@ -69,7 +69,7 @@ FSP_API VOID FspDebugLogFT(const char *format, PFILETIME FileTime)
 
 #define MAKE_UINT32_PAIR(v)             (((v) >> 32) & 0xffffffff), ((v) & 0xffffffff)
 
-static inline const char *FspDebugLogDispositionString(UINT32 CreateOptions)
+static const char *FspDebugLogDispositionString(UINT32 CreateOptions)
 {
     switch ((CreateOptions >> 24) & 0xff)
     {
@@ -88,6 +88,13 @@ static inline const char *FspDebugLogDispositionString(UINT32 CreateOptions)
     default:
         return "INVALID";
     }
+}
+
+static const char *FspDebugLogUserContextString(UINT64 UserContext, UINT64 UserContext2, char *Buf)
+{
+    wsprintfA(Buf, 0 == UserContext2 ? "%p" : "%p:%p", UserContext, UserContext2);
+
+    return Buf;
 }
 
 static const char *FspDebugLogFileTimeString(UINT64 FileTime, char *Buf)
@@ -153,13 +160,13 @@ static const char *FspDebugLogVolumeInfoString(FSP_FSCTL_VOLUME_INFO *VolumeInfo
     return Buf;
 }
 
-static inline VOID FspDebugLogRequestVoid(FSP_FSCTL_TRANSACT_REQ *Request, const char *Name)
+static VOID FspDebugLogRequestVoid(FSP_FSCTL_TRANSACT_REQ *Request, const char *Name)
 {
     FspDebugLog("%S[TID=%ld]: %p: >>%s\n",
         FspDiagIdent(), GetCurrentThreadId(), Request->Hint, Name);
 }
 
-static inline VOID FspDebugLogResponseStatus(FSP_FSCTL_TRANSACT_RSP *Response, const char *Name)
+static VOID FspDebugLogResponseStatus(FSP_FSCTL_TRANSACT_RSP *Response, const char *Name)
 {
     FspDebugLog("%S[TID=%ld]: %p: <<%s IoStatus=%lx[%ld]\n",
         FspDiagIdent(), GetCurrentThreadId(), Response->Hint, Name,
@@ -168,6 +175,7 @@ static inline VOID FspDebugLogResponseStatus(FSP_FSCTL_TRANSACT_RSP *Response, c
 
 FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
 {
+    char UserContextBuf[40];
     char CreationTimeBuf[32], LastAccessTimeBuf[32], LastWriteTimeBuf[32];
     char *Sddl = 0;
 
@@ -206,86 +214,93 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         LocalFree(Sddl);
         break;
     case FspFsctlTransactOverwriteKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>Overwrite%s %s%S%s%p, %p, "
+        FspDebugLog("%S[TID=%ld]: %p: >>Overwrite%s %s%S%s%s, "
             "FileAttributes=%lx\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->Req.Overwrite.Supersede ? " [Supersede]" : "",
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
-            (PVOID)Request->Req.Overwrite.UserContext,
-            (PVOID)Request->Req.Overwrite.UserContext2,
+            FspDebugLogUserContextString(
+                Request->Req.Overwrite.UserContext, Request->Req.Overwrite.UserContext2,
+                UserContextBuf),
             Request->Req.Overwrite.FileAttributes);
         break;
     case FspFsctlTransactCleanupKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>Cleanup%s %s%S%s%p, %p\n",
+        FspDebugLog("%S[TID=%ld]: %p: >>Cleanup%s %s%S%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->Req.Cleanup.Delete ? " [Delete]" : "",
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
-            (PVOID)Request->Req.Cleanup.UserContext,
-            (PVOID)Request->Req.Cleanup.UserContext2);
+            FspDebugLogUserContextString(
+                Request->Req.Cleanup.UserContext, Request->Req.Cleanup.UserContext2,
+                UserContextBuf));
         break;
     case FspFsctlTransactCloseKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>Close %s%S%s%p, %p\n",
+        FspDebugLog("%S[TID=%ld]: %p: >>Close %s%S%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
-            (PVOID)Request->Req.Close.UserContext,
-            (PVOID)Request->Req.Close.UserContext2);
+            FspDebugLogUserContextString(
+                Request->Req.Close.UserContext, Request->Req.Close.UserContext2,
+                UserContextBuf));
         break;
     case FspFsctlTransactReadKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>Read %s%S%s%p, %p, "
+        FspDebugLog("%S[TID=%ld]: %p: >>Read %s%S%s%s, "
             "Address=%p, Offset=%lx:%lx, Length=%ld, Key=%lx\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
-            (PVOID)Request->Req.Read.UserContext,
-            (PVOID)Request->Req.Read.UserContext2,
+            FspDebugLogUserContextString(
+                Request->Req.Read.UserContext, Request->Req.Read.UserContext2,
+                UserContextBuf),
             Request->Req.Read.Address,
             MAKE_UINT32_PAIR(Request->Req.Read.Offset),
             Request->Req.Read.Length,
             Request->Req.Read.Key);
         break;
     case FspFsctlTransactWriteKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>Write%s %s%S%s%p, %p, "
+        FspDebugLog("%S[TID=%ld]: %p: >>Write%s %s%S%s%s, "
             "Address=%p, Offset=%lx:%lx, Length=%ld, Key=%lx\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->Req.Write.ConstrainedIo ? " [C]" : "",
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
-            (PVOID)Request->Req.Write.UserContext,
-            (PVOID)Request->Req.Write.UserContext2,
+            FspDebugLogUserContextString(
+                Request->Req.Write.UserContext, Request->Req.Write.UserContext2,
+                UserContextBuf),
             Request->Req.Write.Address,
             MAKE_UINT32_PAIR(Request->Req.Write.Offset),
             Request->Req.Write.Length,
             Request->Req.Write.Key);
         break;
     case FspFsctlTransactQueryInformationKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>QueryInformation %s%S%s%p, %p\n",
+        FspDebugLog("%S[TID=%ld]: %p: >>QueryInformation %s%S%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
-            (PVOID)Request->Req.QueryInformation.UserContext,
-            (PVOID)Request->Req.QueryInformation.UserContext2);
+            FspDebugLogUserContextString(
+                Request->Req.QueryInformation.UserContext, Request->Req.QueryInformation.UserContext2,
+                UserContextBuf));
         break;
     case FspFsctlTransactSetInformationKind:
         switch (Request->Req.SetInformation.FileInformationClass)
         {
         case 4/*FileBasicInformation*/:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [Basic] %s%S%s%p, %p, "
+            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [Basic] %s%S%s%s, "
                 "FileAttributes=%lx, CreationTime=%s, LastAccessTime=%s, LastWriteTime=%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
-                (PVOID)Request->Req.SetInformation.UserContext,
-                (PVOID)Request->Req.SetInformation.UserContext2,
+                FspDebugLogUserContextString(
+                    Request->Req.SetInformation.UserContext, Request->Req.SetInformation.UserContext2,
+                    UserContextBuf),
                 Request->Req.SetInformation.Info.Basic.FileAttributes,
                 FspDebugLogFileTimeString(Request->Req.SetInformation.Info.Basic.CreationTime,
                     CreationTimeBuf),
@@ -295,58 +310,63 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                     LastWriteTimeBuf));
             break;
         case 19/*FileAllocationInformation*/:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [Allocation] %s%S%s%p, %p, "
+            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [Allocation] %s%S%s%s, "
                 "AllocationSize=%lx:%lx\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
-                (PVOID)Request->Req.SetInformation.UserContext,
-                (PVOID)Request->Req.SetInformation.UserContext2,
+                FspDebugLogUserContextString(
+                    Request->Req.SetInformation.UserContext, Request->Req.SetInformation.UserContext2,
+                    UserContextBuf),
                 MAKE_UINT32_PAIR(Request->Req.SetInformation.Info.Allocation.AllocationSize));
             break;
         case 20/*FileEndOfFileInformation*/:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [EndOfFile] %s%S%s%p, %p, "
+            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [EndOfFile] %s%S%s%s, "
                 "FileSize = %lx:%lx\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
-                (PVOID)Request->Req.SetInformation.UserContext,
-                (PVOID)Request->Req.SetInformation.UserContext2,
+                FspDebugLogUserContextString(
+                    Request->Req.SetInformation.UserContext, Request->Req.SetInformation.UserContext2,
+                    UserContextBuf),
                 MAKE_UINT32_PAIR(Request->Req.SetInformation.Info.EndOfFile.FileSize));
             break;
         case 13/*FileDispositionInformation*/:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [Disposition] %s%S%s%p, %p, "
+            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [Disposition] %s%S%s%s, "
                 "%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
-                (PVOID)Request->Req.SetInformation.UserContext,
-                (PVOID)Request->Req.SetInformation.UserContext2,
+                FspDebugLogUserContextString(
+                    Request->Req.SetInformation.UserContext, Request->Req.SetInformation.UserContext2,
+                    UserContextBuf),
                 Request->Req.SetInformation.Info.Disposition.Delete ? "Delete" : "Undelete");
             break;
         case 10/*FileRenameInformation*/:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [Rename] %s%S%s%p, %p, "
+            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [Rename] %s%S%s%s, "
                 "NewFileName=\"%S\"%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
-                (PVOID)Request->Req.SetInformation.UserContext,
-                (PVOID)Request->Req.SetInformation.UserContext2,
+                FspDebugLogUserContextString(
+                    Request->Req.SetInformation.UserContext, Request->Req.SetInformation.UserContext2,
+                    UserContextBuf),
                 (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset),
                 Request->Req.SetInformation.Info.Rename.ReplaceIfExists ? " ReplaceIfExists" : "");
             break;
         default:
-            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [INVALID] %s%S%s%p, %p\n",
+            FspDebugLog("%S[TID=%ld]: %p: >>SetInformation [INVALID] %s%S%s%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
-                (PVOID)Request->Req.SetInformation.UserContext,
-                (PVOID)Request->Req.SetInformation.UserContext2);
+                FspDebugLogUserContextString(
+                    Request->Req.SetInformation.UserContext, Request->Req.SetInformation.UserContext2,
+                    UserContextBuf));
         }
         break;
     case FspFsctlTransactQueryEaKind:
@@ -356,13 +376,14 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         FspDebugLogRequestVoid(Request, "SETEA");
         break;
     case FspFsctlTransactFlushBuffersKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>FlushBuffers %s%S%s%p, %p\n",
+        FspDebugLog("%S[TID=%ld]: %p: >>FlushBuffers %s%S%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
-            (PVOID)Request->Req.FlushBuffers.UserContext,
-            (PVOID)Request->Req.FlushBuffers.UserContext2);
+            FspDebugLogUserContextString(
+                Request->Req.FlushBuffers.UserContext, Request->Req.FlushBuffers.UserContext2,
+                UserContextBuf));
         break;
     case FspFsctlTransactQueryVolumeInformationKind:
         FspDebugLogRequestVoid(Request, "QueryVolumeInformation");
@@ -383,14 +404,15 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         }
         break;
     case FspFsctlTransactQueryDirectoryKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>QueryDirectory %s%S%s%p, %p, "
+        FspDebugLog("%S[TID=%ld]: %p: >>QueryDirectory %s%S%s%s, "
             "Address=%p, Offset=%lx:%lx, Length=%ld, Pattern=%s%S%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
-            (PVOID)Request->Req.QueryDirectory.UserContext,
-            (PVOID)Request->Req.QueryDirectory.UserContext2,
+            FspDebugLogUserContextString(
+                Request->Req.QueryDirectory.UserContext, Request->Req.QueryDirectory.UserContext2,
+                UserContextBuf),
             Request->Req.QueryDirectory.Address,
             MAKE_UINT32_PAIR(Request->Req.QueryDirectory.Offset),
             Request->Req.QueryDirectory.Length,
@@ -412,13 +434,14 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         FspDebugLogRequestVoid(Request, "LOCKCONTROL");
         break;
     case FspFsctlTransactQuerySecurityKind:
-        FspDebugLog("%S[TID=%ld]: %p: >>QuerySecurity %s%S%s%p, %p\n",
+        FspDebugLog("%S[TID=%ld]: %p: >>QuerySecurity %s%S%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
-            (PVOID)Request->Req.QuerySecurity.UserContext,
-            (PVOID)Request->Req.QuerySecurity.UserContext2);
+            FspDebugLogUserContextString(
+                Request->Req.QuerySecurity.UserContext, Request->Req.QuerySecurity.UserContext2,
+                UserContextBuf));
         break;
     case FspFsctlTransactSetSecurityKind:
         if (0 != Request->Req.SetSecurity.SecurityDescriptor.Size)
@@ -428,14 +451,15 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION |
                 DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION,
                 &Sddl, 0);
-        FspDebugLog("%S[TID=%ld]: %p: >>SetSecurity %s%S%s%p, %p, "
+        FspDebugLog("%S[TID=%ld]: %p: >>SetSecurity %s%S%s%s, "
             "SecurityInformation=%lx, AccessToken=%lx, Security=%s%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
-            (PVOID)Request->Req.SetSecurity.UserContext,
-            (PVOID)Request->Req.SetSecurity.UserContext2,
+            FspDebugLogUserContextString(
+                Request->Req.SetSecurity.UserContext, Request->Req.SetSecurity.UserContext2,
+                UserContextBuf),
             Request->Req.SetSecurity.SecurityInformation,
             Request->Req.SetSecurity.AccessToken,
             Sddl ? "\"" : "",
@@ -454,6 +478,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
     if (STATUS_PENDING == Response->IoStatus.Status)
         return;
 
+    char UserContextBuf[40];
     char InfoBuf[256];
     char *Sddl = 0;
 
@@ -473,11 +498,12 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
                 (PWSTR)(Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset));
         else
             FspDebugLog("%S[TID=%ld]: %p: <<Create IoStatus=%lx[%ld] "
-                "%p, %p, GrantedAccess=%lx, FileInfo=%s\n",
+                "UserContext=%s, GrantedAccess=%lx, FileInfo=%s\n",
                 FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
-                (PVOID)Response->Rsp.Create.Opened.UserContext,
-                (PVOID)Response->Rsp.Create.Opened.UserContext2,
+                FspDebugLogUserContextString(
+                    Response->Rsp.Create.Opened.UserContext, Response->Rsp.Create.Opened.UserContext2,
+                    UserContextBuf),
                 Response->Rsp.Create.Opened.GrantedAccess,
                 FspDebugLogFileInfoString(&Response->Rsp.Create.Opened.FileInfo, InfoBuf));
         break;
