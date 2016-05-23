@@ -192,7 +192,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION |
                 DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION,
                 &Sddl, 0);
-        FspDebugLog("%S[TID=%ld]: %p: >>Create[%c%c%c%c] \"%S\", "
+        FspDebugLog("%S[TID=%ld]: %p: >>Create [%c%c%c%c] \"%S\", "
             "%s, CreateOptions=%lx, FileAttributes=%lx, Security=%s%s%s, "
             "AllocationSize=%lx:%lx, AccessToken=%lx, DesiredAccess=%lx, ShareAccess=%lx\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
