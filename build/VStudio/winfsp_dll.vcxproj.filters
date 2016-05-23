@@ -64,6 +64,9 @@
     <ClCompile Include="..\..\src\dll\eventlog.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\dll\util.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\ntstatus.i">

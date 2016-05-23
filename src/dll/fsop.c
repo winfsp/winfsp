@@ -617,6 +617,7 @@ FSP_API NTSTATUS FspFileSystemOpSetVolumeInformation(FSP_FILE_SYSTEM *FileSystem
             Result = FileSystem->Interface->SetVolumeLabel(FileSystem, Request,
                 (PWSTR)Request->Buffer,
                 &VolumeInfo);
+        break;
     }
 
     if (!NT_SUCCESS(Result))

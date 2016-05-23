@@ -267,10 +267,12 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
         if (0 == RequestSize)
             continue;
 
-#if 0
-        FspDebugLog("FspFileSystemDispatcherThread: TID=%ld, Request={Kind=%d, Hint=%p}\n",
-            GetCurrentThreadId(), Request->Kind, (PVOID)Request->Hint);
-#endif
+        if (FileSystem->DebugLog)
+        {
+            if (FspFsctlTransactKindCount <= Request->Kind ||
+                (FileSystem->DebugLog & (1 << Request->Kind)))
+                FspDebugLogRequest(Request);
+        }
 
         Response->Size = sizeof *Response;
         Response->Kind = Request->Kind;
@@ -284,6 +286,13 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
         }
         else
             Response->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
+
+        if (FileSystem->DebugLog)
+        {
+            if (FspFsctlTransactKindCount <= Response->Kind ||
+                (FileSystem->DebugLog & (1 << Response->Kind)))
+                FspDebugLogResponse(Response);
+        }
 
         ResponseSize = FSP_FSCTL_DEFAULT_ALIGN_UP(Response->Size);
         if (FSP_FSCTL_TRANSACT_RSP_SIZEMAX < ResponseSize/* should NOT happen */)
@@ -363,6 +372,13 @@ FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
+
+    if (FileSystem->DebugLog)
+    {
+        if (FspFsctlTransactKindCount <= Response->Kind ||
+            (FileSystem->DebugLog & (1 << Response->Kind)))
+            FspDebugLogResponse(Response);
+    }
 
     Result = FspFsctlTransact(FileSystem->VolumeHandle,
         Response, Response->Size, 0, 0, FALSE);

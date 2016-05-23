@@ -37,6 +37,7 @@
     <ClCompile Include="..\..\src\dll\ntstatus.c" />
     <ClCompile Include="..\..\src\dll\path.c" />
     <ClCompile Include="..\..\src\dll\service.c" />
+    <ClCompile Include="..\..\src\dll\util.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\library.def" />

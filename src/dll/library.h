@@ -52,4 +52,6 @@ NTSTATUS FspNpUnregister(VOID);
 NTSTATUS FspEventLogRegister(VOID);
 NTSTATUS FspEventLogUnregister(VOID);
 
+PWSTR FspDiagIdent(VOID);
+
 #endif

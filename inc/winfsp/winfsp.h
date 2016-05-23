@@ -591,6 +591,7 @@ typedef struct _FSP_FILE_SYSTEM
     NTSTATUS DispatcherResult;
     PWSTR MountPoint;
     LIST_ENTRY MountEntry;
+    UINT32 DebugLog;
 } FSP_FILE_SYSTEM;
 /**
  * Create a file system object.
@@ -736,6 +737,12 @@ VOID FspFileSystemSetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
     if (NT_SUCCESS(DispatcherResult))
         return;
     InterlockedCompareExchange(&FileSystem->DispatcherResult, DispatcherResult, 0);
+}
+static inline
+VOID FspFileSystemSetDebugLog(FSP_FILE_SYSTEM *FileSystem,
+    UINT32 DebugLog)
+{
+    FileSystem->DebugLog = DebugLog;
 }
 
 /*
@@ -1034,6 +1041,8 @@ FSP_API VOID FspEventLogV(ULONG Type, PWSTR Format, va_list ap);
 FSP_API VOID FspDebugLog(const char *format, ...);
 FSP_API VOID FspDebugLogSD(const char *format, PSECURITY_DESCRIPTOR SecurityDescriptor);
 FSP_API VOID FspDebugLogFT(const char *format, PFILETIME FileTime);
+FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request);
+FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspCallNamedPipeSecurely(PWSTR PipeName,
     PVOID InBuffer, ULONG InBufferSize, PVOID OutBuffer, ULONG OutBufferSize,
     PULONG PBytesTransferred, ULONG Timeout,
