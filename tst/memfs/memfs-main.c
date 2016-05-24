@@ -76,7 +76,8 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
             break;
         case L'u':
             argtos(VolumePrefix);
-            Flags = MemfsNet;
+            if (0 != VolumePrefix && L'\0' != VolumePrefix[0])
+                Flags = MemfsNet;
             break;
         default:
             goto usage;
@@ -122,7 +123,8 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     info(L"%s -t %ld -n %ld -s %ld%s%s%s%s%s%s",
         L"" PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize,
         RootSddl ? L" -S " : L"", RootSddl ? RootSddl : L"",
-        VolumePrefix ? L" -u " : L"", VolumePrefix ? VolumePrefix : L"",
+        0 != VolumePrefix && L'\0' != VolumePrefix[0] ? L" -u " : L"",
+            0 != VolumePrefix && L'\0' != VolumePrefix[0] ? VolumePrefix : L"",
         MountPoint ? L" -m " : L"", MountPoint ? MountPoint : L"");
 
     Service->UserContext = Memfs;
