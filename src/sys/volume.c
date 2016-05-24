@@ -188,7 +188,8 @@ static NTSTATUS FspVolumeCreateNoLock(
 
     /* create the volume (and virtual disk) device(s) */
     Result = FspDeviceCreate(FspFsvolDeviceExtensionKind, 0,
-        FsctlDeviceObject->DeviceType, 0,
+        FsctlDeviceObject->DeviceType,
+        FILE_DEVICE_DISK_FILE_SYSTEM == FsctlDeviceObject->DeviceType ? 0 : FILE_REMOTE_DEVICE,
         &FsvolDeviceObject);
     if (!NT_SUCCESS(Result))
         return Result;

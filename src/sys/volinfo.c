@@ -117,7 +117,15 @@ static NTSTATUS FspFsvolQueryFsDeviceInformation(
 
     PFILE_FS_DEVICE_INFORMATION Info = (PFILE_FS_DEVICE_INFORMATION)*PBuffer;
 
-    Info->DeviceType = FsvolDeviceObject->DeviceType;
+    /*
+     * The following value MUST be FILE_DEVICE_DISK or GetFileType fails,
+     * which has all sorts of interesting consequences (like cmd.exe failing
+     * to redirect to a file when under a network file system).
+     *
+     * See also (which explicitly says to use FILE_DEVICE_DISK for our case):
+     * https://msdn.microsoft.com/en-us/library/cc232109.aspx
+     */
+    Info->DeviceType = FILE_DEVICE_DISK;
     Info->Characteristics = FsvolDeviceObject->Characteristics;
 
     *PBuffer += sizeof(FILE_FS_DEVICE_INFORMATION);

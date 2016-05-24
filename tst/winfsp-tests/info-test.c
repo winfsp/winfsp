@@ -508,6 +508,7 @@ void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     ULARGE_INTEGER CallerFreeBytes;
     ULARGE_INTEGER TotalBytes;
     ULARGE_INTEGER FreeBytes;
+    HANDLE Handle;
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
@@ -531,6 +532,21 @@ void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 
     Success = GetDiskFreeSpaceExW(FilePath, &CallerFreeBytes, &TotalBytes, &FreeBytes);
     ASSERT(Success);
+
+#if 0
+    UINT DriveType = GetDriveTypeW(FilePath);
+    ASSERT(
+        ((0 == Prefix || L'\\' != Prefix[0]) && DRIVE_FIXED == DriveType) ||
+        ((0 != Prefix && L'\\' == Prefix[0]) && DRIVE_REMOTE == DriveType));
+#endif
+
+    Handle = CreateFileW(FilePath,
+        0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    DWORD FileType = GetFileType(Handle);
+    ASSERT(FILE_TYPE_DISK == FileType);
+    CloseHandle(Handle);
 
     memfs_stop(memfs);
 }
