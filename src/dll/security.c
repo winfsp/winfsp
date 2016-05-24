@@ -61,6 +61,10 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     if (FspFsctlTransactCreateKind != Request->Kind)
         return STATUS_INVALID_PARAMETER;
 
+    if (CheckParentDirectory &&
+        L'\\' == ((PWSTR)Request->Buffer)[0] && L'\0' == ((PWSTR)Request->Buffer)[1])
+        return STATUS_INVALID_PARAMETER;
+
     if (0 == FileSystem->Interface->GetSecurityByName ||
         (!Request->Req.Create.UserMode && 0 == PSecurityDescriptor))
     {
@@ -78,7 +82,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     UINT8 PrivilegeSetBuf[sizeof(PRIVILEGE_SET) + 15 * sizeof(LUID_AND_ATTRIBUTES)];
     PPRIVILEGE_SET PrivilegeSet = (PVOID)PrivilegeSetBuf;
     DWORD PrivilegeSetLength = sizeof PrivilegeSetBuf;
-    UINT32 TraverseAccess;
+    UINT32 TraverseAccess, ParentAccess, DesiredAccess2;
     BOOL AccessStatus;
 
     if (CheckParentDirectory)
@@ -147,7 +151,54 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
             else
                 Result = FspNtStatusFromWin32(GetLastError());
             if (!NT_SUCCESS(Result))
-                goto exit;
+            {
+                /*
+                 * If the desired access includes the DELETE or FILE_READ_ATTRIBUTES
+                 * (or MAXIMUM_ALLOWED) rights we must still check with our parent to
+                 * see if it gives us access (through the FILE_DELETE_CHILD and
+                 * FILE_LIST_DIRECTORY rights).
+                 *
+                 * Does the Windows security model suck? Ermmmm...
+                 */
+                if (STATUS_ACCESS_DENIED != Result ||
+                    0 == ((MAXIMUM_ALLOWED | DELETE | FILE_READ_ATTRIBUTES) & DesiredAccess))
+                    goto exit;
+
+                Result = FspAccessCheck(FileSystem, Request, TRUE, FALSE,
+                    (MAXIMUM_ALLOWED & DesiredAccess) ? (FILE_DELETE_CHILD | FILE_LIST_DIRECTORY) :
+                    (
+                        ((DELETE & DesiredAccess) ? FILE_DELETE_CHILD : 0) |
+                        ((FILE_READ_ATTRIBUTES & DesiredAccess) ? FILE_LIST_DIRECTORY : 0)
+                    ),
+                    &ParentAccess);
+                if (!NT_SUCCESS(Result))
+                {
+                    /* any failure just becomes ACCESS DENIED at this point */
+                    Result = STATUS_ACCESS_DENIED;
+                    goto exit;
+                }
+
+                /* redo the access check but remove the DELETE and/or FILE_READ_ATTRIBUTES rights */
+                DesiredAccess2 = DesiredAccess & ~(
+                    ((FILE_DELETE_CHILD & ParentAccess) ? DELETE : 0) |
+                    ((FILE_LIST_DIRECTORY & ParentAccess) ? FILE_READ_ATTRIBUTES : 0));
+                if (0 != DesiredAccess2)
+                {
+                    if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess2,
+                        &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
+                        Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
+                    else
+                        /* any failure just becomes ACCESS DENIED at this point */
+                        Result = STATUS_ACCESS_DENIED;
+                    if (!NT_SUCCESS(Result))
+                        goto exit;
+                }
+
+                if (FILE_DELETE_CHILD & ParentAccess)
+                    *PGrantedAccess |= DELETE;
+                if (FILE_LIST_DIRECTORY & ParentAccess)
+                    *PGrantedAccess |= FILE_READ_ATTRIBUTES;
+            }
         }
 
         if (CheckParentDirectory)
@@ -192,6 +243,11 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
         if (0 == SecurityDescriptorSize)
             *PGrantedAccess = (MAXIMUM_ALLOWED & DesiredAccess) ?
                 FspFileGenericMapping.GenericAll : DesiredAccess;
+
+        if (0 != (FileAttributes & FILE_ATTRIBUTE_READONLY) &&
+            0 != (MAXIMUM_ALLOWED & DesiredAccess))
+            *PGrantedAccess &= ~(FILE_WRITE_DATA | FILE_APPEND_DATA |
+                FILE_ADD_SUBDIRECTORY | FILE_DELETE_CHILD);
     }
     else
         *PGrantedAccess = (MAXIMUM_ALLOWED & DesiredAccess) ?

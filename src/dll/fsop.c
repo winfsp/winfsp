@@ -25,6 +25,15 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
 {
     NTSTATUS Result;
 
+    /*
+     * CreateCheck consists of checking the parent directory for the
+     * FILE_ADD_SUBDIRECTORY or FILE_ADD_FILE rights (depending on whether
+     * we are creating a file or directory).
+     *
+     * If the access check succeeds and MAXIMUM_ALLOWED has been requested
+     * then we go ahead and grant all access to the creator.
+     */
+
     Result = FspAccessCheckEx(FileSystem, Request, TRUE, AllowTraverseCheck,
         (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) ?
             FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE,
@@ -44,6 +53,16 @@ NTSTATUS FspFileSystemOpenCheck(FSP_FILE_SYSTEM *FileSystem,
     BOOLEAN AllowTraverseCheck, PUINT32 PGrantedAccess)
 {
     NTSTATUS Result;
+
+    /*
+     * OpenCheck consists of checking the file for the desired access,
+     * unless FILE_DELETE_ON_CLOSE is requested in which case we also
+     * check for DELETE access.
+     *
+     * If the access check succeeds and MAXIMUM_ALLOWED was not requested
+     * then we reset the DELETE access based on whether it was actually
+     * requested in DesiredAccess.
+     */
 
     Result = FspAccessCheck(FileSystem, Request, FALSE, AllowTraverseCheck,
         Request->Req.Create.DesiredAccess |
@@ -65,6 +84,17 @@ NTSTATUS FspFileSystemOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
 {
     NTSTATUS Result;
     BOOLEAN Supersede = FILE_SUPERSEDE == ((Request->Req.Create.CreateOptions >> 24) & 0xff);
+
+    /*
+     * OverwriteCheck consists of checking the file for the desired access,
+     * unless FILE_DELETE_ON_CLOSE is requested in which case we also
+     * check for DELETE access. Furthermore we grant DELETE or FILE_WRITE_DATA
+     * access based on whether this is a Supersede or Overwrite operation.
+     *
+     * If the access check succeeds and MAXIMUM_ALLOWED was not requested
+     * then we reset the DELETE and FILE_WRITE_DATA accesses based on whether
+     * they were actually requested in DesiredAccess.
+     */
 
     Result = FspAccessCheck(FileSystem, Request, FALSE, AllowTraverseCheck,
         Request->Req.Create.DesiredAccess |

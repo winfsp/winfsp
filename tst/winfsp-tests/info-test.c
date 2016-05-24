@@ -313,14 +313,11 @@ static void delete_access_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeou
     Success = DeleteFileW(FilePath);
     ASSERT(Success);
 
-    /* enable this test when we have proper FILE_DELETE_CHILD support on the parent directory! */
-#if 0
-    static PWSTR Sddl0 = L"D:P(D;;GA;;;SY)(D;;GA;;;BA)(D;;GA;;;WD)";
-    static PWSTR Sddl1 = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;WD)";
+    static PWSTR Sddl = L"D:P(D;;GA;;;SY)(D;;GA;;;BA)(D;;GA;;;WD)";
     PSECURITY_DESCRIPTOR SecurityDescriptor;
     SECURITY_ATTRIBUTES SecurityAttributes = { 0 };
 
-    Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(Sddl0, SDDL_REVISION_1, &SecurityDescriptor, 0);
+    Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(Sddl, SDDL_REVISION_1, &SecurityDescriptor, 0);
     ASSERT(Success);
 
     SecurityAttributes.nLength = sizeof SecurityAttributes;
@@ -332,28 +329,10 @@ static void delete_access_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeou
     ASSERT(INVALID_HANDLE_VALUE != Handle);
     CloseHandle(Handle);
 
-    LocalFree(SecurityDescriptor);
-
-    Success = DeleteFileW(FilePath);
-    ASSERT(!Success);
-    ASSERT(ERROR_ACCESS_DENIED == GetLastError());
-
-    Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(Sddl1, SDDL_REVISION_1, &SecurityDescriptor, 0);
-    ASSERT(Success);
-
-    Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE | WRITE_DAC, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        OPEN_EXISTING, 0, 0);
-    ASSERT(INVALID_HANDLE_VALUE != Handle);
-    Success = SetKernelObjectSecurity(Handle, DACL_SECURITY_INFORMATION, SecurityDescriptor);
-    ASSERT(Success);
-    CloseHandle(Handle);
-
-    LocalFree(SecurityDescriptor);
-
     Success = DeleteFileW(FilePath);
     ASSERT(Success);
-#endif
+
+    LocalFree(SecurityDescriptor);
 
     memfs_stop(memfs);
 }
