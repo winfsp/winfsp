@@ -44,6 +44,7 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
         FspEventLogInitialize(Dynamic);
         FspFileSystemInitialize(Dynamic);
         FspServiceInitialize(Dynamic);
+        fsp_fuse_initialize(Dynamic);
         break;
 
     case DLL_PROCESS_DETACH:
@@ -57,10 +58,15 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
          *     https://blogs.msdn.microsoft.com/oldnewthing/20100122-00/?p=15193/
          */
         Dynamic = 0 == Reserved;
+        fsp_fuse_finalize(Dynamic);
         FspServiceFinalize(Dynamic);
         FspFileSystemFinalize(Dynamic);
         FspEventLogFinalize(Dynamic);
         FspNtStatusFinalize(Dynamic);
+        break;
+
+    case DLL_THREAD_DETACH:
+        fsp_fuse_finalize_thread();
         break;
     }
 

@@ -44,6 +44,9 @@ VOID FspFileSystemInitialize(BOOLEAN Dynamic);
 VOID FspFileSystemFinalize(BOOLEAN Dynamic);
 VOID FspServiceInitialize(BOOLEAN Dynamic);
 VOID FspServiceFinalize(BOOLEAN Dynamic);
+VOID fsp_fuse_initialize(BOOLEAN Dynamic);
+VOID fsp_fuse_finalize(BOOLEAN Dynamic);
+VOID fsp_fuse_finalize_thread(VOID);
 
 NTSTATUS FspFsctlRegister(VOID);
 NTSTATUS FspFsctlUnregister(VOID);

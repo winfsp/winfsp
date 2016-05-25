@@ -21,6 +21,80 @@
 #define STR(x)                          STR_(x)
 #define STR_(x)                         #x
 
+struct fuse_chan
+{
+    PWSTR MountPoint;
+    UINT8 Buffer[];
+};
+
+struct fuse
+{
+    HANDLE LoopEvent;
+    FSP_FILE_SYSTEM *FileSystem;
+    const struct fuse_operations *Ops;
+    size_t OpSize;
+    void *Data;
+    int Environment;
+    CRITICAL_SECTION Lock;
+};
+
+static DWORD fsp_fuse_tlskey = TLS_OUT_OF_INDEXES;
+static INIT_ONCE fsp_fuse_initonce_v = INIT_ONCE_STATIC_INIT;
+
+VOID fsp_fuse_initialize(BOOLEAN Dynamic)
+{
+}
+
+VOID fsp_fuse_finalize(BOOLEAN Dynamic)
+{
+    /*
+     * This function is called during DLL_PROCESS_DETACH. We must therefore keep
+     * finalization tasks to a minimum.
+     *
+     * We must free our TLS key (if any). We only do so if the library
+     * is being explicitly unloaded (rather than the process exiting).
+     */
+
+    if (Dynamic && TLS_OUT_OF_INDEXES != fsp_fuse_tlskey)
+    {
+        /* !!!:
+         * We should also free all thread local contexts, which means putting them in a list,
+         * protected with a critical section, etc. Arghhh!
+         *
+         * I am too lazy and I am not going to do that, unless people start using this
+         * DLL dynamically (LoadLibrary/FreeLibrary).
+         */
+        TlsFree(fsp_fuse_tlskey);
+    }
+}
+
+VOID fsp_fuse_finalize_thread(VOID)
+{
+    struct fuse_context *context;
+
+    if (TLS_OUT_OF_INDEXES != fsp_fuse_tlskey)
+    {
+        context = TlsGetValue(fsp_fuse_tlskey);
+        if (0 != context)
+        {
+            MemFree(context);
+            TlsSetValue(fsp_fuse_tlskey, 0);
+        }
+    }
+}
+
+static BOOL WINAPI fsp_fuse_initonce_f(
+    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
+{
+    fsp_fuse_tlskey = TlsAlloc();
+    return TRUE;
+}
+
+static inline VOID fsp_fuse_initonce(VOID)
+{
+    InitOnceExecuteOnce(&fsp_fuse_initonce_v, fsp_fuse_initonce_f, 0, 0);
+}
+
 FSP_FUSE_API int fsp_fuse_version(void)
 {
     return FUSE_VERSION;
@@ -33,16 +107,37 @@ FSP_FUSE_API const char *fsp_fuse_pkgversion(void)
 
 FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(const char *mountpoint, struct fuse_args *args)
 {
-    return 0;
+    struct fuse_chan *ch;
+    int Size;
+
+    Size = MultiByteToWideChar(CP_UTF8, 0, mountpoint, -1, 0, 0);
+    if (0 == Size)
+        return 0;
+
+    ch = MemAlloc(sizeof *ch + Size);
+    if (0 == ch)
+        return 0;
+
+    ch->MountPoint = (PVOID)ch->Buffer;
+    Size = MultiByteToWideChar(CP_UTF8, 0, mountpoint, -1, ch->MountPoint, Size);
+    if (0 == Size)
+    {
+        MemFree(ch);
+        return 0;
+    }
+
+    return ch;
 }
 
 FSP_FUSE_API void fsp_fuse_unmount(const char *mountpoint, struct fuse_chan *ch)
 {
+    MemFree(ch);
 }
 
 FSP_FUSE_API int fsp_fuse_parse_cmdline(struct fuse_args *args, char **mountpoint,
     int *multithreaded, int *foreground)
 {
+    // !!!: NEEDIMPL
     return 0;
 }
 
@@ -50,6 +145,7 @@ FSP_FUSE_API int fsp_fuse_main_real(int argc, char *argv[],
     const struct fuse_operations *ops, size_t opsize, void *data,
     int environment)
 {
+    // !!!: NEEDIMPL
     return 0;
 }
 
@@ -57,28 +153,122 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fuse_chan *ch, struct fuse_args *a
     const struct fuse_operations *ops, size_t opsize, void *data,
     int environment)
 {
+    struct fuse *f = 0;
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    NTSTATUS Result;
+
+    f = MemAlloc(sizeof *f);
+    if (0 == f)
+        goto fail;
+    memset(f, 0, sizeof *f);
+
+    f->LoopEvent = CreateEvent(0, TRUE, FALSE, 0);
+    if (0 == f->LoopEvent)
+        goto fail;
+
+    memset(&VolumeParams, 0, sizeof VolumeParams);
+#if 0
+    /* initialize VolumeParams from command line args */
+    VolumeParams.SectorSize = FSP_FUSE_SECTOR_SIZE;
+    VolumeParams.SectorsPerAllocationUnit = FSP_FUSE_SECTORS_PER_ALLOCATION_UNIT;
+    VolumeParams.VolumeCreationTime = MemfsGetSystemTime();
+    VolumeParams.VolumeSerialNumber = (UINT32)(MemfsGetSystemTime() / (10000 * 1000));
+    VolumeParams.FileInfoTimeout = FileInfoTimeout;
+    VolumeParams.CaseSensitiveSearch = 1;
+    VolumeParams.CasePreservedNames = 1;
+    VolumeParams.UnicodeOnDisk = 1;
+    VolumeParams.PersistentAcls = 1;
+    if (0 != VolumePrefix)
+        wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
+#endif
+
+    Result = FspFileSystemCreate(L"" FSP_FSCTL_NET_DEVICE_NAME, &VolumeParams, 0, &f->FileSystem);
+    if (!NT_SUCCESS(Result))
+        goto fail;
+
+    Result = FspFileSystemSetMountPoint(f->FileSystem, ch->MountPoint);
+    if (!NT_SUCCESS(Result))
+        goto fail;
+
+    f->Ops = ops;
+    f->OpSize = opsize;
+    f->Data = data;
+    f->Environment = environment;
+
+    InitializeCriticalSection(&f->Lock);
+
+    return f;
+
+fail:
+    if (0 != f)
+    {
+        if (0 != f->FileSystem)
+            FspFileSystemDelete(f->FileSystem);
+
+        if (0 != f->LoopEvent)
+            CloseHandle(f->LoopEvent);
+
+        MemFree(f);
+    }
+
     return 0;
 }
 
 FSP_FUSE_API void fsp_fuse_destroy(struct fuse *f)
 {
+    DeleteCriticalSection(&f->Lock);
+
+    FspFileSystemDelete(f->FileSystem);
+
+    CloseHandle(f->LoopEvent);
+
+    MemFree(f);
 }
 
 FSP_FUSE_API int fsp_fuse_loop(struct fuse *f)
 {
+    NTSTATUS Result;
+
+    Result = FspFileSystemStartDispatcher(f->FileSystem, 0);
+    if (!NT_SUCCESS(Result))
+        return -1;
+
+    WaitForSingleObject(f->LoopEvent, INFINITE);
+
+    FspFileSystemStopDispatcher(f->FileSystem);
+
     return 0;
 }
 
 FSP_FUSE_API int fsp_fuse_loop_mt(struct fuse *f)
 {
-    return 0;
+    return fsp_fuse_loop(f);
 }
 
 FSP_FUSE_API void fsp_fuse_exit(struct fuse *f)
 {
+    SetEvent(f->LoopEvent);
 }
 
 FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(void)
 {
-    return 0;
+    struct fuse_context *context;
+
+    fsp_fuse_initonce();
+    if (TLS_OUT_OF_INDEXES == fsp_fuse_tlskey)
+        return 0;
+
+    context = TlsGetValue(fsp_fuse_tlskey);
+    if (0 == context)
+    {
+        context = MemAlloc(sizeof *context);
+        if (0 == context)
+            return 0;
+
+        memset(context, 0, sizeof *context);
+
+        TlsSetValue(fsp_fuse_tlskey, context);
+    }
+
+    return context;
 }

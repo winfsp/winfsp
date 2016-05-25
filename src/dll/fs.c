@@ -366,6 +366,7 @@ FSP_API VOID FspFileSystemStopDispatcher(FSP_FILE_SYSTEM *FileSystem)
 
     WaitForSingleObject(FileSystem->DispatcherThread, INFINITE);
     CloseHandle(FileSystem->DispatcherThread);
+    FileSystem->DispatcherThread = 0;
 }
 
 FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
