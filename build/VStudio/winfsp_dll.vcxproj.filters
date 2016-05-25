@@ -15,6 +15,12 @@
     <Filter Include="Include\shared">
       <UniqueIdentifier>{c7b83307-0aa0-4593-b2d4-26ff2f1edfc6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Include\fuse">
+      <UniqueIdentifier>{0e7ab1b1-bfca-4439-accb-45a909be9cad}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\fuse">
+      <UniqueIdentifier>{518cce17-85cd-489c-b4be-920a84c1d73c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h">
@@ -28,6 +34,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\shared\minimal.h">
       <Filter>Include\shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\inc\fuse\fuse.h">
+      <Filter>Include\fuse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\inc\fuse\fuse_common.h">
+      <Filter>Include\fuse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\inc\fuse\fuse_opt.h">
+      <Filter>Include\fuse</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -66,6 +81,12 @@
     </ClCompile>
     <ClCompile Include="..\..\src\dll\util.c">
       <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\dll\fuse\fuse.c">
+      <Filter>Source\fuse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\dll\fuse\fuse_opt.c">
+      <Filter>Source\fuse</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
