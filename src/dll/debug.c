@@ -208,7 +208,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             Sddl ? Sddl : "NULL",
             Sddl ? "\"" : "",
             MAKE_UINT32_PAIR(Request->Req.Create.AllocationSize),
-            Request->Req.Create.AccessToken,
+            (PVOID)Request->Req.Create.AccessToken,
             Request->Req.Create.DesiredAccess,
             Request->Req.Create.ShareAccess);
         LocalFree(Sddl);
@@ -356,7 +356,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                     Request->Req.SetInformation.UserContext, Request->Req.SetInformation.UserContext2,
                     UserContextBuf),
                 (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset),
-                Request->Req.SetInformation.Info.Rename.AccessToken);
+                (PVOID)Request->Req.SetInformation.Info.Rename.AccessToken);
             break;
         default:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [INVALID] %s%S%s%s\n",
@@ -461,7 +461,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 Request->Req.SetSecurity.UserContext, Request->Req.SetSecurity.UserContext2,
                 UserContextBuf),
             Request->Req.SetSecurity.SecurityInformation,
-            Request->Req.SetSecurity.AccessToken,
+            (PVOID)Request->Req.SetSecurity.AccessToken,
             Sddl ? "\"" : "",
             Sddl ? Sddl : "NULL",
             Sddl ? "\"" : "");
