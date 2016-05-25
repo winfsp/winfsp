@@ -194,7 +194,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 &Sddl, 0);
         FspDebugLog("%S[TID=%04lx]: %p: >>Create [%c%c%c%c] \"%S\", "
             "%s, CreateOptions=%lx, FileAttributes=%lx, Security=%s%s%s, "
-            "AllocationSize=%lx:%lx, AccessToken=%lx, DesiredAccess=%lx, ShareAccess=%lx\n",
+            "AllocationSize=%lx:%lx, AccessToken=%p, DesiredAccess=%lx, ShareAccess=%lx\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->Req.Create.UserMode ? 'U' : 'K',
             Request->Req.Create.HasTraversePrivilege ? 'T' : '-',
@@ -347,7 +347,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             break;
         case 10/*FileRenameInformation*/:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [Rename] %s%S%s%s, "
-                "NewFileName=\"%S\"%s\n",
+                "NewFileName=\"%S\", AccessToken=%p\n",
                 FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
@@ -356,7 +356,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                     Request->Req.SetInformation.UserContext, Request->Req.SetInformation.UserContext2,
                     UserContextBuf),
                 (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset),
-                Request->Req.SetInformation.Info.Rename.ReplaceIfExists ? " ReplaceIfExists" : "");
+                Request->Req.SetInformation.Info.Rename.AccessToken);
             break;
         default:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [INVALID] %s%S%s%s\n",
@@ -452,7 +452,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION,
                 &Sddl, 0);
         FspDebugLog("%S[TID=%04lx]: %p: >>SetSecurity %s%S%s%s, "
-            "SecurityInformation=%lx, AccessToken=%lx, Security=%s%s%s\n",
+            "SecurityInformation=%lx, AccessToken=%p, Security=%s%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",

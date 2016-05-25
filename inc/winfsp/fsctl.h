@@ -258,7 +258,7 @@ typedef struct
                 struct
                 {
                     FSP_FSCTL_TRANSACT_BUF NewFileName;
-                    UINT32 ReplaceIfExists:1;
+                    UINT64 AccessToken; /* request access token (HANDLE) */
                 } Rename;
             } Info;
         } SetInformation;

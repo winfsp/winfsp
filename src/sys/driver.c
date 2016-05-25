@@ -105,6 +105,7 @@ NTSTATUS DriverEntry(
     FspIopPrepareFunction[IRP_MJ_WRITE] = FspFsvolWritePrepare;
     FspIopCompleteFunction[IRP_MJ_WRITE] = FspFsvolWriteComplete;
     FspIopCompleteFunction[IRP_MJ_QUERY_INFORMATION] = FspFsvolQueryInformationComplete;
+    FspIopPrepareFunction[IRP_MJ_SET_INFORMATION] = FspFsvolSetInformationPrepare;
     FspIopCompleteFunction[IRP_MJ_SET_INFORMATION] = FspFsvolSetInformationComplete;
     FspIopCompleteFunction[IRP_MJ_QUERY_EA] = FspFsvolQueryEaComplete;
     FspIopCompleteFunction[IRP_MJ_SET_EA] = FspFsvolSetEaComplete;

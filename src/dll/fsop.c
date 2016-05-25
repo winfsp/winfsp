@@ -111,6 +111,56 @@ NTSTATUS FspFileSystemOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
     return Result;
 }
 
+static inline
+NTSTATUS FspFileSystemRenameCheck(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    NTSTATUS Result;
+    FSP_FSCTL_TRANSACT_REQ *CreateRequest = 0;
+    UINT32 GrantedAccess;
+
+    /*
+     * RenameCheck consists of checking the new file name for DELETE access.
+     *
+     * The following assumptions are being made here for a file that is going
+     * to be replaced:
+     * -   The new file is in the same directory as the old one. In that case
+     *     there is no need for traverse access checks as they have been already
+     *     performed (if necessary) when opening the file under the existing file
+     *     name.
+     * -   The new file is in a different directory than the old one. In that case
+     *     NTOS called us with SL_OPEN_TARGET_DIRECTORY and we performed any
+     *     necessary traverse access checks at that time.
+     *
+     * FspAccessCheckEx only works on Create requests, so we have to build
+     * a fake one just for that purpose. Sigh!
+     */
+
+    CreateRequest = MemAlloc(sizeof *CreateRequest +
+        Request->Req.SetInformation.Info.Rename.NewFileName.Size);
+    if (0 == CreateRequest)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    memset(CreateRequest, 0, sizeof *CreateRequest);
+    CreateRequest->Size = sizeof CreateRequest +
+        Request->Req.SetInformation.Info.Rename.NewFileName.Size;
+    CreateRequest->Kind = FspFsctlTransactCreateKind;
+    CreateRequest->Req.Create.CreateOptions = FILE_DELETE_ON_CLOSE; /* force read-only check! */
+    CreateRequest->Req.Create.AccessToken = Request->Req.SetInformation.Info.Rename.AccessToken;
+    CreateRequest->Req.Create.UserMode = TRUE;
+    CreateRequest->FileName.Offset = 0;
+    CreateRequest->FileName.Size = Request->Req.SetInformation.Info.Rename.NewFileName.Size;
+    memcpy(CreateRequest->Buffer,
+        Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset,
+        Request->Req.SetInformation.Info.Rename.NewFileName.Size);
+
+    Result = FspAccessCheck(FileSystem, CreateRequest, FALSE, FALSE, DELETE, &GrantedAccess);
+
+    MemFree(CreateRequest);
+
+    return Result;
+}
+
 static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
@@ -599,11 +649,21 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
         break;
     case 10/*FileRenameInformation*/:
         if (0 != FileSystem->Interface->Rename)
+        {
+            if (0 != Request->Req.SetInformation.Info.Rename.AccessToken)
+            {
+                Result = FspFileSystemRenameCheck(FileSystem, Request);
+                if (!NT_SUCCESS(Result) &&
+                    STATUS_OBJECT_PATH_NOT_FOUND != Result &&
+                    STATUS_OBJECT_NAME_NOT_FOUND != Result)
+                    break;
+            }
             Result = FileSystem->Interface->Rename(FileSystem, Request,
                 (PVOID)Request->Req.SetInformation.UserContext,
                 (PWSTR)Request->Buffer,
                 (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset),
-                Request->Req.SetInformation.Info.Rename.ReplaceIfExists);
+                0 != Request->Req.SetInformation.Info.Rename.AccessToken);
+        }
         break;
     }
 
