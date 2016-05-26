@@ -29,8 +29,8 @@ struct fuse_chan
 
 struct fuse
 {
-    HANDLE LoopEvent;
     FSP_FILE_SYSTEM *FileSystem;
+    FSP_SERVICE *Service;
     const struct fuse_operations *Ops;
     size_t OpSize;
     void *Data;
@@ -107,26 +107,30 @@ FSP_FUSE_API const char *fsp_fuse_pkgversion(void)
 
 FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(const char *mountpoint, struct fuse_args *args)
 {
-    struct fuse_chan *ch;
+    struct fuse_chan *ch = 0;
     int Size;
 
     Size = MultiByteToWideChar(CP_UTF8, 0, mountpoint, -1, 0, 0);
     if (0 == Size)
-        return 0;
+        goto fail;
 
     ch = MemAlloc(sizeof *ch + Size);
     if (0 == ch)
-        return 0;
+        goto fail;
 
     ch->MountPoint = (PVOID)ch->Buffer;
     Size = MultiByteToWideChar(CP_UTF8, 0, mountpoint, -1, ch->MountPoint, Size);
     if (0 == Size)
-    {
-        MemFree(ch);
-        return 0;
-    }
+        goto fail;
 
     return ch;
+
+fail:
+    FspServiceLog(EVENTLOG_ERROR_TYPE, L"Invalid mount point.");
+
+    MemFree(ch);
+
+    return 0;
 }
 
 FSP_FUSE_API void fsp_fuse_unmount(const char *mountpoint, struct fuse_chan *ch)
@@ -149,22 +153,30 @@ FSP_FUSE_API int fsp_fuse_main_real(int argc, char *argv[],
     return 0;
 }
 
+static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
+{
+    struct fuse *f = Service->UserContext;
+
+    return FspFileSystemStartDispatcher(f->FileSystem, 0);
+}
+
+static NTSTATUS fsp_fuse_svcstop(FSP_SERVICE *Service)
+{
+    struct fuse *f = Service->UserContext;
+
+    FspFileSystemStopDispatcher(f->FileSystem);
+
+    return STATUS_SUCCESS;
+}
+
 FSP_FUSE_API struct fuse *fsp_fuse_new(struct fuse_chan *ch, struct fuse_args *args,
     const struct fuse_operations *ops, size_t opsize, void *data,
     int environment)
 {
     struct fuse *f = 0;
+    PWSTR ServiceName = FspDiagIdent();
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     NTSTATUS Result;
-
-    f = MemAlloc(sizeof *f);
-    if (0 == f)
-        goto fail;
-    memset(f, 0, sizeof *f);
-
-    f->LoopEvent = CreateEvent(0, TRUE, FALSE, 0);
-    if (0 == f->LoopEvent)
-        goto fail;
 
     memset(&VolumeParams, 0, sizeof VolumeParams);
 #if 0
@@ -181,6 +193,17 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fuse_chan *ch, struct fuse_args *a
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
 #endif
+
+    f = MemAlloc(sizeof *f);
+    if (0 == f)
+        goto fail;
+    memset(f, 0, sizeof *f);
+
+    Result = FspServiceCreate(ServiceName, fsp_fuse_svcstart, fsp_fuse_svcstop, 0, &f->Service);
+    if (!NT_SUCCESS(Result))
+        goto fail;
+    FspServiceAllowConsoleMode(f->Service);
+    f->Service->UserContext = f;
 
     Result = FspFileSystemCreate(L"" FSP_FSCTL_NET_DEVICE_NAME, &VolumeParams, 0, &f->FileSystem);
     if (!NT_SUCCESS(Result))
@@ -200,13 +223,15 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fuse_chan *ch, struct fuse_args *a
     return f;
 
 fail:
+    FspServiceLog(EVENTLOG_ERROR_TYPE, L"Unable to create FUSE file system.");
+
     if (0 != f)
     {
         if (0 != f->FileSystem)
             FspFileSystemDelete(f->FileSystem);
 
-        if (0 != f->LoopEvent)
-            CloseHandle(f->LoopEvent);
+        if (0 != f->Service)
+            FspServiceDelete(f->Service);
 
         MemFree(f);
     }
@@ -220,7 +245,7 @@ FSP_FUSE_API void fsp_fuse_destroy(struct fuse *f)
 
     FspFileSystemDelete(f->FileSystem);
 
-    CloseHandle(f->LoopEvent);
+    FspServiceDelete(f->Service);
 
     MemFree(f);
 }
@@ -228,16 +253,25 @@ FSP_FUSE_API void fsp_fuse_destroy(struct fuse *f)
 FSP_FUSE_API int fsp_fuse_loop(struct fuse *f)
 {
     NTSTATUS Result;
+    ULONG ExitCode;
 
-    Result = FspFileSystemStartDispatcher(f->FileSystem, 0);
+    Result = FspServiceLoop(f->Service);
+    ExitCode = FspServiceGetExitCode(f->Service);
+
     if (!NT_SUCCESS(Result))
-        return -1;
+        goto fail;
 
-    WaitForSingleObject(f->LoopEvent, INFINITE);
-
-    FspFileSystemStopDispatcher(f->FileSystem);
+    if (0 != ExitCode)
+        FspServiceLog(EVENTLOG_WARNING_TYPE,
+            L"The service %s has exited (ExitCode=%ld).", f->Service->ServiceName, ExitCode);
 
     return 0;
+
+fail:
+    FspServiceLog(EVENTLOG_ERROR_TYPE,
+        L"The service %s has failed to run (Status=%lx).", f->Service->ServiceName, Result);
+
+    return -1;
 }
 
 FSP_FUSE_API int fsp_fuse_loop_mt(struct fuse *f)
@@ -247,7 +281,7 @@ FSP_FUSE_API int fsp_fuse_loop_mt(struct fuse *f)
 
 FSP_FUSE_API void fsp_fuse_exit(struct fuse *f)
 {
-    SetEvent(f->LoopEvent);
+    FspServiceStop(f->Service);
 }
 
 FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(void)
