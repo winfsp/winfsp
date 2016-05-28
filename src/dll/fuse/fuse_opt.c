@@ -319,7 +319,10 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
     if (0 == proc)
         proc = fsp_fuse_opt_proc0;
 
-    for (int argi = 0; args->argc > argi; argi++)
+    if (-1 == fsp_fuse_opt_add_arg(&outargs, args->argv[0], FSP_FUSE_MEMFN_A))
+        return -1;
+
+    for (int argi = 1; args->argc > argi; argi++)
     {
         arg = args->argv[argi];
         if ('-' == arg[0] && !dashdash)
@@ -350,6 +353,8 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
             case '-':
                 if ('\0' == arg[2])
                 {
+                    if (-1 == fsp_fuse_opt_add_arg(&outargs, arg, FSP_FUSE_MEMFN_A))
+                        return -1;
                     dashdash = 1;
                     break;
                 }
