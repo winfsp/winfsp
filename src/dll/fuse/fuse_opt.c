@@ -140,31 +140,56 @@ static const struct fuse_opt *fsp_fuse_opt_find(
 static int fsp_fuse_opt_call_proc(void *data,
     fuse_opt_proc_t proc,
     const char *arg, int key,
+    int is_opt,
     struct fuse_args *outargs,
     FSP_FUSE_MEMFN_P)
 {
-    // !!!: NEEDIMPL
     switch (key)
     {
+    default:
+        if (0 != proc)
+        {
+            int result = proc(data, arg, key, outargs);
+            if (-1 == result || 0 == result)
+                return result;
+        }
+        /* fall through */
     case FUSE_OPT_KEY_KEEP:
-        return 1;
+        if (is_opt)
+        {
+            if (3 <= outargs->argc &&
+                '-' == outargs->argv[1][0] && 'o' == outargs->argv[1][1] &&
+                '\0' == outargs->argv[1][2])
+            {
+                return fsp_fuse_opt_add_opt(&outargs->argv[2], arg, FSP_FUSE_MEMFN_A);
+            }
+            else
+            {
+                if (-1 == fsp_fuse_opt_insert_arg(outargs, 1, "-o", FSP_FUSE_MEMFN_A))
+                    return -1;
+                return fsp_fuse_opt_insert_arg(outargs, 2, arg, FSP_FUSE_MEMFN_A);
+            }
+        }
+        else
+            return fsp_fuse_opt_add_arg(outargs, arg, FSP_FUSE_MEMFN_A);
+        return 0;
     case FUSE_OPT_KEY_DISCARD:
         return 0;
-    default:
-        return proc(data, arg, key, outargs);
     }
 }
 
 static int fsp_fuse_opt_process_arg(void *data,
     const struct fuse_opt *opt, fuse_opt_proc_t proc,
     const char *spec, const char *arg, const char *argend,
+    int is_opt,
     struct fuse_args *outargs,
     FSP_FUSE_MEMFN_P)
 {
 #define VAR(data, opt, type)            *(type *)((char *)(data) + (opt)->offset)
 
     if (-1L == opt->offset)
-        return fsp_fuse_opt_call_proc(data, proc, arg, opt->value, outargs, FSP_FUSE_MEMFN_A);
+        return fsp_fuse_opt_call_proc(data, proc, arg, opt->value, is_opt, outargs,
+            FSP_FUSE_MEMFN_A);
     else
     {
         int h, j, l, t, z;
@@ -259,6 +284,7 @@ static int fsp_fuse_opt_process_arg(void *data,
 static int fsp_fuse_opt_parse_arg(void *data,
     const struct fuse_opt opts[], fuse_opt_proc_t proc,
     const char *arg0, const char *argend0, const char *arg1,
+    int is_opt,
     struct fuse_args *outargs,
     FSP_FUSE_MEMFN_P)
 {
@@ -281,7 +307,7 @@ static int fsp_fuse_opt_parse_arg(void *data,
             arg = arg1, argend = 0;
         }
 
-        if (-1 == fsp_fuse_opt_process_arg(data, opt, proc, spec, arg, argend, outargs,
+        if (-1 == fsp_fuse_opt_process_arg(data, opt, proc, spec, arg, argend, is_opt, outargs,
             FSP_FUSE_MEMFN_A))
             return -1;
         processed++;
@@ -293,7 +319,8 @@ static int fsp_fuse_opt_parse_arg(void *data,
     if (0 != processed)
         return 0;
 
-    return fsp_fuse_opt_call_proc(data, proc, arg, FUSE_OPT_KEY_OPT, outargs, FSP_FUSE_MEMFN_A);
+    return fsp_fuse_opt_call_proc(data, proc, arg, FUSE_OPT_KEY_OPT, is_opt, outargs,
+        FSP_FUSE_MEMFN_A);
 }
 
 static int fsp_fuse_opt_proc0(void *data, const char *arg, int key,
@@ -343,7 +370,7 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
                     if ('\0' == *argend || ',' == *argend)
                     {
                         if (-1 == fsp_fuse_opt_parse_arg(data, opts, proc,
-                            arg, argend, 0, &outargs, FSP_FUSE_MEMFN_A))
+                            arg, argend, 0, 1, &outargs, FSP_FUSE_MEMFN_A))
                             goto fail;
                     }
                     else if ('\\' == *argend && '\0' != argend[1])
@@ -361,13 +388,13 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
                 /* fall through */
             default:
                 if (-1 == fsp_fuse_opt_parse_arg(data, opts, proc,
-                    arg, 0, args->argv[argi + 1], &outargs, FSP_FUSE_MEMFN_A))
+                    arg, 0, args->argv[argi + 1], 0, &outargs, FSP_FUSE_MEMFN_A))
                     goto fail;
                 break;
             }
         }
         else
-            if (-1 == fsp_fuse_opt_call_proc(data, proc, arg, FUSE_OPT_KEY_NONOPT, &outargs,
+            if (-1 == fsp_fuse_opt_call_proc(data, proc, arg, FUSE_OPT_KEY_NONOPT, 0, &outargs,
                 FSP_FUSE_MEMFN_A))
                 goto fail;
     }
