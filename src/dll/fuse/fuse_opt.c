@@ -399,6 +399,16 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
                 goto fail;
     }
 
+    /* if "--" is the last argument, remove it (fuse_opt compatibility) */
+    if (0 < outargs.argc &&
+        '-' == outargs.argv[outargs.argc - 1][0] &&
+        '-' == outargs.argv[outargs.argc - 1][1] &&
+        '\0' == outargs.argv[outargs.argc - 1][2])
+    {
+        memfree(outargs.argv[--outargs.argc]);
+        outargs.argv[outargs.argc] = 0;
+    }
+
     return 0;
 
 fail:
