@@ -431,7 +431,7 @@ FSP_FUSE_API int fsp_fuse_opt_insert_arg(struct fuse_args *args, int pos, const 
 
     if (0 == args)
         return -1;
-    if (!args->allocated && 0 != args->argv)
+    if (0 != args->argv && !args->allocated)
         return -1;
     if (0 > pos || pos > args->argc)
         return -1;
@@ -448,14 +448,15 @@ FSP_FUSE_API int fsp_fuse_opt_insert_arg(struct fuse_args *args, int pos, const 
     }
 
     memcpy(argv[pos], arg, argsize);
-    memcpy(argv, args->argv, pos);
-    memcpy(argv + pos + 1, args->argv + pos, args->argc - pos);
+    memcpy(argv, args->argv, sizeof(char *) * pos);
+    memcpy(argv + pos + 1, args->argv + pos, sizeof(char *) * (args->argc - pos));
 
     memfree(args->argv);
 
     args->argc++;
     args->argv = argv;
     argv[args->argc] = 0;
+    args->allocated = 1;
 
     return 0;
 }

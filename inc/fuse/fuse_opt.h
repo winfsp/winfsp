@@ -23,6 +23,10 @@
 #ifndef FUSE_OPT_H_
 #define FUSE_OPT_H_
 
+#if !defined(WINFSP_DLL_INTERNAL)
+#include <stdlib.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
