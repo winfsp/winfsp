@@ -495,15 +495,16 @@ static int fsp_fuse_opt_add_opt_internal(char **opts, const char *opt, int escap
     newopts = memalloc(optsize + optlen + 1);
     if (0 == newopts)
         return -1;
-    memfree(*opts);
-    *opts = newopts;
 
     if (0 != optsize)
     {
         memcpy(newopts, *opts, optsize - 1);
         newopts[optsize - 1] = ',';
-        newopts += optsize;
     }
+
+    memfree(*opts);
+    *opts = newopts;
+    newopts += optsize;
 
     for (p = opt; *p; p++, newopts++)
     {
@@ -511,6 +512,7 @@ static int fsp_fuse_opt_add_opt_internal(char **opts, const char *opt, int escap
             *newopts++ = '\\';
         *newopts = *p;
     }
+    *newopts = '\0';
 
     return 0;
 }
