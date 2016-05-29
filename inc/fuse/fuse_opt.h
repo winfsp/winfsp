@@ -47,7 +47,7 @@ extern "C" {
 #define FSP_FUSE_MEMFN_V                malloc, free
 #endif
 
-#define FUSE_OPT_KEY(templ, key)        { templ, -1U, key }
+#define FUSE_OPT_KEY(templ, key)        { templ, -1, key }
 #define FUSE_OPT_END                    { NULL, 0, 0 }
 
 #define FUSE_OPT_KEY_OPT                -1
