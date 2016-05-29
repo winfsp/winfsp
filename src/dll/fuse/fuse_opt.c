@@ -283,36 +283,34 @@ static int fsp_fuse_opt_process_arg(void *data,
 
 static int fsp_fuse_opt_parse_arg(void *data,
     const struct fuse_opt opts[], fuse_opt_proc_t proc,
-    const char *arg0, const char *argend0, const char *arg1,
+    const char *arg, const char *argend, const char *nextarg,
     int is_opt,
     struct fuse_args *outargs,
     FSP_FUSE_MEMFN_P)
 {
     const struct fuse_opt *opt;
-    const char *spec, *arg, *argend;
+    const char *spec, *argl, *argendl;
     int processed = 0;
 
-    arg = arg0, argend = argend0;
+    argl = arg;
     opt = opts;
-    while (0 != (opt = fsp_fuse_opt_find(opt, &spec, &arg, argend)))
+    while (0 != (opt = fsp_fuse_opt_find(opt, &spec, &argl, argend)))
     {
-        if (fsp_fuse_opt_match_exact == arg)
+        if (fsp_fuse_opt_match_exact == argl)
+            argl = arg, argendl = argend;
+        else if (fsp_fuse_opt_match_next == argl)
         {
-            arg = 0, argend = 0;
-        }
-        else if (fsp_fuse_opt_match_next == arg)
-        {
-            if (0 == arg1)
+            if (0 == nextarg)
                 return -1; /* missing argument for option */
-            arg = arg1, argend = 0;
+            argl = nextarg, argendl = 0;
         }
 
-        if (-1 == fsp_fuse_opt_process_arg(data, opt, proc, spec, arg, argend, is_opt, outargs,
+        if (-1 == fsp_fuse_opt_process_arg(data, opt, proc, spec, argl, argendl, is_opt, outargs,
             FSP_FUSE_MEMFN_A))
             return -1;
         processed++;
 
-        arg = arg0, argend = argend0;
+        argl = arg;
         opt++;
     }
 
