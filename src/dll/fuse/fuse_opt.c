@@ -194,7 +194,7 @@ static int fsp_fuse_opt_call_proc(void *data,
                 goto exit;
         }
 
-        result = fsp_fuse_opt_add_opt_escaped(&outargs->argv[2], arg, FSP_FUSE_MEMFN_A);
+        result = fsp_fuse_opt_add_opt(&outargs->argv[2], arg, FSP_FUSE_MEMFN_A);
         if (-1 == result)
             goto exit;
     }
@@ -415,8 +415,6 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
 
                         arg = '\0' == *argend ? argend : argend + 1;
                     }
-                    else if ('\\' == *argend && '\0' != argend[1])
-                        argend++;
                 }
                 break;
             case '-':
