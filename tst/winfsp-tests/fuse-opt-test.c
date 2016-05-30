@@ -9,7 +9,7 @@ struct data
     int a, b, c, d, e, f, g, h;
     int i, j, k, l, m, n, o, p;
     char *q, *r, *s, *t;
-    int u, v;
+    int u, v, V;
     char *w;
     short x;
     long y;
@@ -141,6 +141,10 @@ static int fuse_opt_parse_test_proc(void *data0, const char *arg, int key,
         ASSERT(0 == strcmp("-v86", arg));
         data->v = 'V';
         return 1;
+    case 'V':
+        ASSERT(0 == strcmp("-V118", arg));
+        data->V = 'v';
+        return 1;
     case 'w':
         ASSERT(0);
         return -1;
@@ -185,6 +189,7 @@ void fuse_opt_parse_test(void)
 
         { "-u ", offsetof(struct data, u), 'u' },
         FUSE_OPT_KEY("-v ", 'v'),
+        FUSE_OPT_KEY("-V ", 'V'),
 
         { "-w %s", offsetof(struct data, w), 'w' },
 
@@ -223,6 +228,7 @@ void fuse_opt_parse_test(void)
         "-otlong=TtTtTtTt",
         "-u85",
         "-v", "86",
+        "-V118",
         "-wWwWw",
         "-x=65537",
         "-y=0x100000001",
@@ -251,6 +257,7 @@ void fuse_opt_parse_test(void)
         "-j=74",
         "--llong=76",
         "-v86",
+        "-V118",
         "--keep",
         "--arg-keep",
         "--",
@@ -292,6 +299,7 @@ void fuse_opt_parse_test(void)
     ASSERT(0 == strcmp("TtTtTtTt", data.t));
     ASSERT('u' == data.u);
     ASSERT('V' == data.v);
+    ASSERT('v' == data.V);
     ASSERT(0 == strcmp("WwWw", data.w));
     ASSERT(1 == data.x);
     ASSERT((long)0x100000001 == data.y);
