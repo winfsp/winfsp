@@ -68,7 +68,7 @@ static long long strtoint(const char *p, const char *endp, int base, int is_sign
         {
             c |= 0x20;
             if ('a' <= c && c <= maxalp)
-                v = base * v + (c - 'a');
+                v = base * v + (c - 'a') + 10;
             else
                 break;
         }

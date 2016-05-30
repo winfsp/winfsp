@@ -14,6 +14,7 @@ struct data
     short x;
     long y;
     long long z;
+    int dec, neg, hex, oct;
     int arg_discard, arg_keep;
     int opt_discard, opt_keep;
     int nonopt_discard, nonopt_keep;
@@ -191,6 +192,11 @@ void fuse_opt_parse_test(void)
         { "-y=%li", offsetof(struct data, y), 'y' },
         { "-z=%lli", offsetof(struct data, z), 'z' },
 
+        { "--dec=%d", offsetof(struct data, dec), 'dec' },
+        { "--neg=%d", offsetof(struct data, neg), 'neg' },
+        { "--hex=%x", offsetof(struct data, hex), 'hex' },
+        { "--oct=%o", offsetof(struct data, oct), 'oct' },
+
         FUSE_OPT_KEY("--discard", FUSE_OPT_KEY_DISCARD),
         FUSE_OPT_KEY("--keep", FUSE_OPT_KEY_KEEP),
 
@@ -221,6 +227,10 @@ void fuse_opt_parse_test(void)
         "-x=65537",
         "-y=0x100000001",
         "-z=0x100000001",
+        "--dec=+1234567890",
+        "--neg=-1234567890",
+        "--hex=ABCDEF",
+        "--oct=12345670",
         "--discard",
         "--keep",
         "--arg-discard",
@@ -286,6 +296,10 @@ void fuse_opt_parse_test(void)
     ASSERT(1 == data.x);
     ASSERT((long)0x100000001 == data.y);
     ASSERT((long long)0x100000001 == data.z);
+    ASSERT(+1234567890 == data.dec);
+    ASSERT(-1234567890 == data.neg);
+    ASSERT(0xABCDEF == data.hex);
+    ASSERT(012345670 == data.oct);
     ASSERT(1 == data.arg_discard);
     ASSERT(1 == data.arg_keep);
     ASSERT(1 == data.opt_discard);
