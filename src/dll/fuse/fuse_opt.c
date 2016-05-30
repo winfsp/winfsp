@@ -58,7 +58,7 @@ static long long strtoint(const char *p, const char *endp, int base, int is_sign
     maxdig = 10 < base ? '9' : (base - 1) + '0';
     maxalp = 10 < base ? (base - 1 - 10) + 'a' : 0;
 
-    for (v = 0; endp > p; p++)
+    for (v = 0; *p && endp != p; p++)
     {
         int c = *p;
 
@@ -86,7 +86,7 @@ static void fsp_fuse_opt_match_templ(
     *pspec = 0;
 
     for (p = templ, q = *parg;; p++, q++)
-        if ('\0' == *q || (0 != argend && q >= argend))
+        if ('\0' == *q || q == argend)
         {
             if ('\0' == *p)
                 *parg = fsp_fuse_opt_match_exact;
@@ -139,48 +139,71 @@ static const struct fuse_opt *fsp_fuse_opt_find(
 
 static int fsp_fuse_opt_call_proc(void *data,
     fuse_opt_proc_t proc,
-    const char *arg, int key,
-    int is_opt,
+    const char *arg, const char *argend,
+    int key, int is_opt,
     struct fuse_args *outargs,
     FSP_FUSE_MEMFN_P)
 {
-    switch (key)
+    int result;
+
+    if (FUSE_OPT_KEY_DISCARD == key)
+        return 0;
+
+    if (0 != argend)
     {
-    default:
-        if (0 != proc)
+        char *argcopy = memalloc(argend - arg + 1);
+        if (0 == argcopy)
+            return -1;
+        memcpy(argcopy, arg, argend - arg);
+        argcopy[argend - arg] = '\0';
+        arg = argcopy;
+    }
+
+    if (FUSE_OPT_KEY_KEEP != key && 0 != proc)
+    {
+        result = proc(data, arg, key, outargs);
+        if (-1 == result || 0 == result)
+            goto exit;
+    }
+
+    if (is_opt)
+    {
+        if (3 <= outargs->argc &&
+            '-' == outargs->argv[1][0] && 'o' == outargs->argv[1][1] &&
+            '\0' == outargs->argv[1][2])
         {
-            int result = proc(data, arg, key, outargs);
-            if (-1 == result || 0 == result)
-                return result;
-        }
-        /* fall through */
-    case FUSE_OPT_KEY_KEEP:
-        if (is_opt)
-        {
-            if (3 <= outargs->argc &&
-                '-' == outargs->argv[1][0] && 'o' == outargs->argv[1][1] &&
-                '\0' == outargs->argv[1][2])
-            {
-                return fsp_fuse_opt_add_opt(&outargs->argv[2], arg, FSP_FUSE_MEMFN_A);
-            }
-            else
-            {
-                if (-1 == fsp_fuse_opt_insert_arg(outargs, 1, "-o", FSP_FUSE_MEMFN_A))
-                    return -1;
-                return fsp_fuse_opt_insert_arg(outargs, 2, arg, FSP_FUSE_MEMFN_A);
-            }
+            result = fsp_fuse_opt_add_opt(&outargs->argv[2], arg, FSP_FUSE_MEMFN_A);
+            if (-1 == result)
+                goto exit;
         }
         else
-            return fsp_fuse_opt_add_arg(outargs, arg, FSP_FUSE_MEMFN_A);
-        return 0;
-    case FUSE_OPT_KEY_DISCARD:
-        return 0;
+        {
+            result = fsp_fuse_opt_insert_arg(outargs, 1, "-o", FSP_FUSE_MEMFN_A);
+            if (-1 == result)
+                goto exit;
+            result = fsp_fuse_opt_insert_arg(outargs, 2, arg, FSP_FUSE_MEMFN_A);
+            if (-1 == result)
+                goto exit;
+        }
     }
+    else
+    {
+        result = fsp_fuse_opt_add_arg(outargs, arg, FSP_FUSE_MEMFN_A);
+        if (-1 == result)
+            goto exit;
+    }
+
+exit:
+    if (0 != argend)
+        memfree((void *)arg); /* argcopy */
+
+    return 0;
 }
 
 static int fsp_fuse_opt_process_arg(void *data,
     const struct fuse_opt *opt, fuse_opt_proc_t proc,
-    const char *spec, const char *arg, const char *argend,
+    const char *spec,
+    const char *arg, const char *argend, const char *argl,
     int is_opt,
     struct fuse_args *outargs,
     FSP_FUSE_MEMFN_P)
@@ -188,13 +211,14 @@ static int fsp_fuse_opt_process_arg(void *data,
 #define VAR(data, opt, type)            *(type *)((char *)(data) + (opt)->offset)
 
     if (-1L == opt->offset)
-        return fsp_fuse_opt_call_proc(data, proc, arg, opt->value, is_opt, outargs,
+        return fsp_fuse_opt_call_proc(data, proc, arg, argend, opt->value, is_opt, outargs,
             FSP_FUSE_MEMFN_A);
     else
     {
         int h, j, l, t, z;
         long long llv;
         char *s;
+        int len;
 
         if (0 == spec || '\0' == spec[0])
         {
@@ -233,19 +257,19 @@ static int fsp_fuse_opt_process_arg(void *data,
                 z++;
                 break;
             case 'd':
-                llv = strtoint(arg, argend, 10, 1);
+                llv = strtoint(argl, argend, 10, 1);
                 goto ivar;
             case 'i':
-                llv = strtoint(arg, argend, 0, 1);
+                llv = strtoint(argl, argend, 0, 1);
                 goto ivar;
             case 'o':
-                llv = strtoint(arg, argend, 8, 0);
+                llv = strtoint(argl, argend, 8, 0);
                 goto ivar;
             case 'u':
-                llv = strtoint(arg, argend, 10, 0);
+                llv = strtoint(argl, argend, 10, 0);
                 goto ivar;
             case 'x': case 'X':
-                llv = strtoint(arg, argend, 16, 0);
+                llv = strtoint(argl, argend, 16, 0);
             ivar:
                 if (z)
                     VAR(data, opt, size_t) = (size_t)llv;
@@ -265,10 +289,15 @@ static int fsp_fuse_opt_process_arg(void *data,
                     VAR(data, opt, int) = (int)llv;
                 return 0;
             case 's': case 'c':
-                s = memalloc(argend - arg);
+                if (arg <= argl && argl < argend)
+                    len = (int)(argend - argl);
+                else
+                    len = lstrlenA(argl);
+                s = memalloc(len + 1);
                 if (0 == s)
                     return -1;
-                memcpy(s, arg, argend - arg);
+                memcpy(s, arg, len);
+                s[len] = '\0';
                 VAR(data, opt, const char *) = (const char *)s;
                 return 0;
             case 'a': case 'e': case 'E': case 'f': case 'g':
@@ -289,7 +318,7 @@ static int fsp_fuse_opt_parse_arg(void *data,
     FSP_FUSE_MEMFN_P)
 {
     const struct fuse_opt *opt;
-    const char *spec, *argl, *argendl;
+    const char *spec, *argl;
     int processed = 0;
 
     argl = arg;
@@ -297,16 +326,16 @@ static int fsp_fuse_opt_parse_arg(void *data,
     while (0 != (opt = fsp_fuse_opt_find(opt, &spec, &argl, argend)))
     {
         if (fsp_fuse_opt_match_exact == argl)
-            argl = arg, argendl = argend;
+            argl = arg;
         else if (fsp_fuse_opt_match_next == argl)
         {
             if (0 == nextarg)
                 return -1; /* missing argument for option */
-            argl = nextarg, argendl = 0;
+            argl = nextarg;
         }
 
-        if (-1 == fsp_fuse_opt_process_arg(data, opt, proc, spec, argl, argendl, is_opt, outargs,
-            FSP_FUSE_MEMFN_A))
+        if (-1 == fsp_fuse_opt_process_arg(data, opt, proc, spec, arg, argend, argl,
+            is_opt, outargs, FSP_FUSE_MEMFN_A))
             return -1;
         processed++;
 
@@ -317,7 +346,7 @@ static int fsp_fuse_opt_parse_arg(void *data,
     if (0 != processed)
         return 0;
 
-    return fsp_fuse_opt_call_proc(data, proc, arg, FUSE_OPT_KEY_OPT, is_opt, outargs,
+    return fsp_fuse_opt_call_proc(data, proc, arg, argend, FUSE_OPT_KEY_OPT, is_opt, outargs,
         FSP_FUSE_MEMFN_A);
 }
 
@@ -392,7 +421,7 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
             }
         }
         else
-            if (-1 == fsp_fuse_opt_call_proc(data, proc, arg, FUSE_OPT_KEY_NONOPT, 0, &outargs,
+            if (-1 == fsp_fuse_opt_call_proc(data, proc, arg, 0, FUSE_OPT_KEY_NONOPT, 0, &outargs,
                 FSP_FUSE_MEMFN_A))
                 goto fail;
     }
