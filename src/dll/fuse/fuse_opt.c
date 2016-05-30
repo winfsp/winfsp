@@ -23,9 +23,16 @@
 #define fsp_fuse_opt_match_exact        ((const char *)1)   /* exact option match */
 #define fsp_fuse_opt_match_next         ((const char *)2)   /* option match, value is next arg */
 
-static long long strtoint(const char *p, const char *endp, int base, int is_signed)
+#if 1
+typedef long int strtoint_result_t;
+#else
+/* cannot use long long in 32-bit builds because we are missing symbol __allmul */
+typedef long long int strtoint_result_t;
+#endif
+
+static strtoint_result_t strtoint(const char *p, const char *endp, int base, int is_signed)
 {
-    long long v;
+    strtoint_result_t v;
     int maxdig, maxalp, sign = +1;
 
     if (is_signed)

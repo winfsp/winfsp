@@ -67,7 +67,8 @@ FSP_API VOID FspDebugLogFT(const char *format, PFILETIME FileTime)
         FspDebugLog(format, "invalid file time");
 }
 
-#define MAKE_UINT32_PAIR(v)             (((v) >> 32) & 0xffffffff), ((v) & 0xffffffff)
+#define MAKE_UINT32_PAIR(v)             \
+    ((PLARGE_INTEGER)&(v))->HighPart, ((PLARGE_INTEGER)&(v))->LowPart
 
 static const char *FspDebugLogDispositionString(UINT32 CreateOptions)
 {

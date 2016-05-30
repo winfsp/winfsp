@@ -48,12 +48,12 @@ void *memset(void *dst, int val, size_t siz)
     return dst;
 }
 
-static inline PVOID MemAlloc(SIZE_T Size)
+static inline void *MemAlloc(size_t Size)
 {
     extern HANDLE ProcessHeap;
     return HeapAlloc(ProcessHeap, 0, Size);
 }
-static inline VOID MemFree(PVOID Pointer)
+static inline void MemFree(void *Pointer)
 {
     extern HANDLE ProcessHeap;
     if (0 != Pointer)

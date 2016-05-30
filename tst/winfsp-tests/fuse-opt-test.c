@@ -303,7 +303,7 @@ void fuse_opt_parse_test(void)
     ASSERT(0 == strcmp("WwWw", data.w));
     ASSERT(1 == data.x);
     ASSERT((long)040000000001 == data.y);
-    ASSERT((long long)0x100000001 == data.z);
+    ASSERT(((long long)0x100000001 & 0xffffffff)== data.z);
     ASSERT(+1234567890 == data.dec);
     ASSERT(-1234567890 == data.neg);
     ASSERT(0xABCDEF == data.hex);
@@ -316,7 +316,7 @@ void fuse_opt_parse_test(void)
     ASSERT(1 == data.nonopt_keep);
 
     ASSERT(args.argc == sizeof outargv / sizeof outargv[0] - 1);
-    for (size_t i = 0; args.argc > i; i++)
+    for (int i = 0; args.argc > i; i++)
         ASSERT(0 == strcmp(args.argv[i], outargv[i]));
     ASSERT(0 == args.argv[args.argc]);
     ASSERT(args.allocated);
