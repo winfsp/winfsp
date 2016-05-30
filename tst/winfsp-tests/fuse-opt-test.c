@@ -231,7 +231,7 @@ void fuse_opt_parse_test(void)
         "-V118",
         "-wWwWw",
         "-x=65537",
-        "-y=0x100000001",
+        "-y=040000000001",
         "-z=0x100000001",
         "--dec=+1234567890",
         "--neg=-1234567890",
@@ -302,7 +302,7 @@ void fuse_opt_parse_test(void)
     ASSERT('v' == data.V);
     ASSERT(0 == strcmp("WwWw", data.w));
     ASSERT(1 == data.x);
-    ASSERT((long)0x100000001 == data.y);
+    ASSERT((long)040000000001 == data.y);
     ASSERT((long long)0x100000001 == data.z);
     ASSERT(+1234567890 == data.dec);
     ASSERT(-1234567890 == data.neg);
