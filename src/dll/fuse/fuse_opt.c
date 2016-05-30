@@ -168,23 +168,21 @@ static int fsp_fuse_opt_call_proc(void *data,
 
     if (is_opt)
     {
-        if (3 <= outargs->argc &&
+        if (!(3 <= outargs->argc &&
             '-' == outargs->argv[1][0] && 'o' == outargs->argv[1][1] &&
-            '\0' == outargs->argv[1][2])
-        {
-            result = fsp_fuse_opt_add_opt(&outargs->argv[2], arg, FSP_FUSE_MEMFN_A);
-            if (-1 == result)
-                goto exit;
-        }
-        else
+            '\0' == outargs->argv[1][2]))
         {
             result = fsp_fuse_opt_insert_arg(outargs, 1, "-o", FSP_FUSE_MEMFN_A);
             if (-1 == result)
                 goto exit;
-            result = fsp_fuse_opt_insert_arg(outargs, 2, arg, FSP_FUSE_MEMFN_A);
+            result = fsp_fuse_opt_insert_arg(outargs, 2, "", FSP_FUSE_MEMFN_A);
             if (-1 == result)
                 goto exit;
         }
+
+        result = fsp_fuse_opt_add_opt_escaped(&outargs->argv[2], arg, FSP_FUSE_MEMFN_A);
+        if (-1 == result)
+            goto exit;
     }
     else
     {
@@ -296,7 +294,7 @@ static int fsp_fuse_opt_process_arg(void *data,
                 s = memalloc(len + 1);
                 if (0 == s)
                     return -1;
-                memcpy(s, arg, len);
+                memcpy(s, argl, len);
                 s[len] = '\0';
                 VAR(data, opt, const char *) = (const char *)s;
                 return 0;
@@ -392,13 +390,15 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
                 }
                 else
                     arg += 2;
-                for (argend = arg;; argend++)
+                for (argend = arg; *arg; argend++)
                 {
                     if ('\0' == *argend || ',' == *argend)
                     {
                         if (-1 == fsp_fuse_opt_parse_arg(data, opts, proc,
                             arg, argend, 0, 1, &outargs, FSP_FUSE_MEMFN_A))
                             goto fail;
+
+                        arg = '\0' == *argend ? argend : argend + 1;
                     }
                     else if ('\\' == *argend && '\0' != argend[1])
                         argend++;
@@ -514,7 +514,7 @@ static int fsp_fuse_opt_add_opt_internal(char **opts, const char *opt, int escap
     char *newopts;
     const char *p;
 
-    optsize = 0 != *opts ? lstrlenA(*opts) + 1 : 0;
+    optsize = 0 != *opts && '\0' != (*opts)[0] ? lstrlenA(*opts) + 1 : 0;
     for (p = opt, optlen = 0; *p; p++, optlen++)
         if (escaped && (',' == *p || '\\' == *p))
             optlen++;
