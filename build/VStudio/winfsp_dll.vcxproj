@@ -23,6 +23,7 @@
     <ClInclude Include="..\..\inc\fuse\fuse.h" />
     <ClInclude Include="..\..\inc\fuse\fuse_common.h" />
     <ClInclude Include="..\..\inc\fuse\fuse_opt.h" />
+    <ClInclude Include="..\..\inc\fuse\winfsp_fuse.h" />
     <ClInclude Include="..\..\inc\winfsp\fsctl.h" />
     <ClInclude Include="..\..\inc\winfsp\winfsp.h" />
     <ClInclude Include="..\..\src\dll\library.h" />

@@ -144,12 +144,11 @@ static const struct fuse_opt *fsp_fuse_opt_find(
     return 0;
 }
 
-static int fsp_fuse_opt_call_proc(void *data,
-    fuse_opt_proc_t proc,
+static int fsp_fuse_opt_call_proc(struct fsp_fuse_env *env,
+    void *data, fuse_opt_proc_t proc,
     const char *arg, const char *argend, const char *argl,
     int key, int is_opt,
-    struct fuse_args *outargs,
-    FSP_FUSE_MEMFN_P)
+    struct fuse_args *outargs)
 {
     int result, len0, len1;
     char *fullarg = 0;
@@ -169,7 +168,7 @@ static int fsp_fuse_opt_call_proc(void *data,
         else
             len1 = 0;
 
-        fullarg = memalloc(len0 + len1 + 1);
+        fullarg = env->memalloc(len0 + len1 + 1);
         if (0 == fullarg)
             return -1;
 
@@ -193,45 +192,44 @@ static int fsp_fuse_opt_call_proc(void *data,
             '-' == outargs->argv[1][0] && 'o' == outargs->argv[1][1] &&
             '\0' == outargs->argv[1][2]))
         {
-            result = fsp_fuse_opt_insert_arg(outargs, 1, "-o", FSP_FUSE_MEMFN_A);
+            result = fsp_fuse_opt_insert_arg(env, outargs, 1, "-o");
             if (-1 == result)
                 goto exit;
-            result = fsp_fuse_opt_insert_arg(outargs, 2, "", FSP_FUSE_MEMFN_A);
+            result = fsp_fuse_opt_insert_arg(env, outargs, 2, "");
             if (-1 == result)
                 goto exit;
         }
 
-        result = fsp_fuse_opt_add_opt(&outargs->argv[2], arg, FSP_FUSE_MEMFN_A);
+        result = fsp_fuse_opt_add_opt(env, &outargs->argv[2], arg);
         if (-1 == result)
             goto exit;
     }
     else
     {
-        result = fsp_fuse_opt_add_arg(outargs, arg, FSP_FUSE_MEMFN_A);
+        result = fsp_fuse_opt_add_arg(env, outargs, arg);
         if (-1 == result)
             goto exit;
     }
 
 exit:
     if (0 != fullarg)
-        memfree(fullarg);
+        env->memfree(fullarg);
 
     return 0;
 }
 
-static int fsp_fuse_opt_process_arg(void *data,
-    const struct fuse_opt *opt, fuse_opt_proc_t proc,
+static int fsp_fuse_opt_process_arg(struct fsp_fuse_env *env,
+    void *data, const struct fuse_opt *opt, fuse_opt_proc_t proc,
     const char *spec,
     const char *arg, const char *argend, const char *argl,
     int is_opt,
-    struct fuse_args *outargs,
-    FSP_FUSE_MEMFN_P)
+    struct fuse_args *outargs)
 {
 #define VAR(data, opt, type)            *(type *)((char *)(data) + (opt)->offset)
 
     if (-1L == opt->offset)
-        return fsp_fuse_opt_call_proc(data, proc, arg, argend, argl, opt->value, is_opt, outargs,
-            FSP_FUSE_MEMFN_A);
+        return fsp_fuse_opt_call_proc(env,
+            data, proc, arg, argend, argl, opt->value, is_opt, outargs);
     else
     {
         int h, j, l, t, z;
@@ -312,7 +310,7 @@ static int fsp_fuse_opt_process_arg(void *data,
                     len = (int)(argend - argl);
                 else
                     len = lstrlenA(argl);
-                s = memalloc(len + 1);
+                s = env->memalloc(len + 1);
                 if (0 == s)
                     return -1;
                 memcpy(s, argl, len);
@@ -329,12 +327,11 @@ static int fsp_fuse_opt_process_arg(void *data,
 #undef VAR
 }
 
-static int fsp_fuse_opt_parse_arg(void *data,
-    const struct fuse_opt opts[], fuse_opt_proc_t proc,
+static int fsp_fuse_opt_parse_arg(struct fsp_fuse_env *env,
+    void *data, const struct fuse_opt opts[], fuse_opt_proc_t proc,
     const char *arg, const char *argend, const char *nextarg, int *pconsumed_nextarg,
     int is_opt,
-    struct fuse_args *outargs,
-    FSP_FUSE_MEMFN_P)
+    struct fuse_args *outargs)
 {
     const struct fuse_opt *opt;
     const char *spec, *argl;
@@ -354,8 +351,8 @@ static int fsp_fuse_opt_parse_arg(void *data,
             *pconsumed_nextarg = 1;
         }
 
-        if (-1 == fsp_fuse_opt_process_arg(data, opt, proc, spec, arg, argend, argl,
-            is_opt, outargs, FSP_FUSE_MEMFN_A))
+        if (-1 == fsp_fuse_opt_process_arg(env,
+            data, opt, proc, spec, arg, argend, argl, is_opt, outargs))
             return -1;
         processed++;
 
@@ -366,8 +363,8 @@ static int fsp_fuse_opt_parse_arg(void *data,
     if (0 != processed)
         return 0;
 
-    return fsp_fuse_opt_call_proc(data, proc, arg, argend, arg, FUSE_OPT_KEY_OPT, is_opt, outargs,
-        FSP_FUSE_MEMFN_A);
+    return fsp_fuse_opt_call_proc(env,
+        data, proc, arg, argend, arg, FUSE_OPT_KEY_OPT, is_opt, outargs);
 }
 
 static int fsp_fuse_opt_proc0(void *data, const char *arg, int key,
@@ -376,9 +373,9 @@ static int fsp_fuse_opt_proc0(void *data, const char *arg, int key,
     return 1;
 }
 
-FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
-    const struct fuse_opt opts[], fuse_opt_proc_t proc,
-    FSP_FUSE_MEMFN_P)
+FSP_FUSE_API int fsp_fuse_opt_parse(struct fsp_fuse_env *env,
+    struct fuse_args *args,
+    void *data, const struct fuse_opt opts[], fuse_opt_proc_t proc)
 {
     static struct fuse_args args0 = FUSE_ARGS_INIT(0, 0);
     static struct fuse_opt opts0[1] = { FUSE_OPT_END };
@@ -393,7 +390,7 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
     if (0 == proc)
         proc = fsp_fuse_opt_proc0;
 
-    if (-1 == fsp_fuse_opt_add_arg(&outargs, args->argv[0], FSP_FUSE_MEMFN_A))
+    if (-1 == fsp_fuse_opt_add_arg(env, &outargs, args->argv[0]))
         return -1;
 
     for (int argi = 1; args->argc > argi; argi++)
@@ -416,8 +413,8 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
                 {
                     if ('\0' == *argend || ',' == *argend)
                     {
-                        if (-1 == fsp_fuse_opt_parse_arg(data, opts, proc,
-                            arg, argend, 0, 0, 1, &outargs, FSP_FUSE_MEMFN_A))
+                        if (-1 == fsp_fuse_opt_parse_arg(env,
+                            data, opts, proc, arg, argend, 0, 0, 1, &outargs))
                             goto fail;
 
                         arg = '\0' == *argend ? argend : argend + 1;
@@ -427,7 +424,7 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
             case '-':
                 if ('\0' == arg[2])
                 {
-                    if (-1 == fsp_fuse_opt_add_arg(&outargs, arg, FSP_FUSE_MEMFN_A))
+                    if (-1 == fsp_fuse_opt_add_arg(env, &outargs, arg))
                         return -1;
                     dashdash = 1;
                     break;
@@ -435,9 +432,8 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
                 /* fall through */
             default:
                 consumed_nextarg = 0;
-                if (-1 == fsp_fuse_opt_parse_arg(data, opts, proc,
-                    arg, 0, args->argv[argi + 1], &consumed_nextarg,
-                    0, &outargs, FSP_FUSE_MEMFN_A))
+                if (-1 == fsp_fuse_opt_parse_arg(env,
+                    data, opts, proc, arg, 0, args->argv[argi + 1], &consumed_nextarg, 0, &outargs))
                     goto fail;
                 if (consumed_nextarg)
                     argi++;
@@ -445,8 +441,8 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
             }
         }
         else
-            if (-1 == fsp_fuse_opt_call_proc(data, proc, arg, 0, arg, FUSE_OPT_KEY_NONOPT, 0, &outargs,
-                FSP_FUSE_MEMFN_A))
+            if (-1 == fsp_fuse_opt_call_proc(env,
+                data, proc, arg, 0, arg, FUSE_OPT_KEY_NONOPT, 0, &outargs))
                 goto fail;
     }
 
@@ -456,29 +452,29 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
         '-' == outargs.argv[outargs.argc - 1][1] &&
         '\0' == outargs.argv[outargs.argc - 1][2])
     {
-        memfree(outargs.argv[--outargs.argc]);
+        env->memfree(outargs.argv[--outargs.argc]);
         outargs.argv[outargs.argc] = 0;
     }
 
-    fsp_fuse_opt_free_args(args, FSP_FUSE_MEMFN_A);
+    fsp_fuse_opt_free_args(env, args);
     memcpy(args, &outargs, sizeof outargs);
 
     return 0;
 
 fail:
-    fsp_fuse_opt_free_args(&outargs, FSP_FUSE_MEMFN_A);
+    fsp_fuse_opt_free_args(env, &outargs);
 
     return -1;
 }
 
-FSP_FUSE_API int fsp_fuse_opt_add_arg(struct fuse_args *args, const char *arg,
-    FSP_FUSE_MEMFN_P)
+FSP_FUSE_API int fsp_fuse_opt_add_arg(struct fsp_fuse_env *env,
+    struct fuse_args *args, const char *arg)
 {
-    return fsp_fuse_opt_insert_arg(args, args->argc, arg, FSP_FUSE_MEMFN_A);
+    return fsp_fuse_opt_insert_arg(env, args, args->argc, arg);
 }
 
-FSP_FUSE_API int fsp_fuse_opt_insert_arg(struct fuse_args *args, int pos, const char *arg,
-    FSP_FUSE_MEMFN_P)
+FSP_FUSE_API int fsp_fuse_opt_insert_arg(struct fsp_fuse_env *env,
+    struct fuse_args *args, int pos, const char *arg)
 {
     char **argv;
     int argsize;
@@ -490,14 +486,14 @@ FSP_FUSE_API int fsp_fuse_opt_insert_arg(struct fuse_args *args, int pos, const 
     if (0 > pos || pos > args->argc)
         return -1;
 
-    argv = memalloc((args->argc + 2) * sizeof(char *));
+    argv = env->memalloc((args->argc + 2) * sizeof(char *));
     if (0 == argv)
         return -1;
     argsize = lstrlenA(arg) + 1;
-    argv[pos] = memalloc(argsize);
+    argv[pos] = env->memalloc(argsize);
     if (0 == argv[pos])
     {
-        memfree(argv);
+        env->memfree(argv);
         return -1;
     }
 
@@ -505,7 +501,7 @@ FSP_FUSE_API int fsp_fuse_opt_insert_arg(struct fuse_args *args, int pos, const 
     memcpy(argv, args->argv, sizeof(char *) * pos);
     memcpy(argv + pos + 1, args->argv + pos, sizeof(char *) * (args->argc - pos));
 
-    memfree(args->argv);
+    env->memfree(args->argv);
 
     args->argc++;
     args->argv = argv;
@@ -515,8 +511,8 @@ FSP_FUSE_API int fsp_fuse_opt_insert_arg(struct fuse_args *args, int pos, const 
     return 0;
 }
 
-FSP_FUSE_API void fsp_fuse_opt_free_args(struct fuse_args *args,
-    FSP_FUSE_MEMFN_P)
+FSP_FUSE_API void fsp_fuse_opt_free_args(struct fsp_fuse_env *env,
+    struct fuse_args *args)
 {
     if (0 == args)
         return;
@@ -524,9 +520,9 @@ FSP_FUSE_API void fsp_fuse_opt_free_args(struct fuse_args *args,
     if (args->allocated && 0 != args->argv)
     {
         for (int argi = 0; args->argc > argi; argi++)
-            memfree(args->argv[argi]);
+            env->memfree(args->argv[argi]);
 
-        memfree(args->argv);
+        env->memfree(args->argv);
     }
 
     args->argc = 0;
@@ -534,8 +530,8 @@ FSP_FUSE_API void fsp_fuse_opt_free_args(struct fuse_args *args,
     args->allocated = 0;
 }
 
-static int fsp_fuse_opt_add_opt_internal(char **opts, const char *opt, int escaped,
-    FSP_FUSE_MEMFN_P)
+static int fsp_fuse_opt_add_opt_internal(struct fsp_fuse_env *env,
+    char **opts, const char *opt, int escaped)
 {
     size_t optsize, optlen;
     char *newopts;
@@ -546,7 +542,7 @@ static int fsp_fuse_opt_add_opt_internal(char **opts, const char *opt, int escap
         if (escaped && (',' == *p || '\\' == *p))
             optlen++;
 
-    newopts = memalloc(optsize + optlen + 1);
+    newopts = env->memalloc(optsize + optlen + 1);
     if (0 == newopts)
         return -1;
 
@@ -556,7 +552,7 @@ static int fsp_fuse_opt_add_opt_internal(char **opts, const char *opt, int escap
         newopts[optsize - 1] = ',';
     }
 
-    memfree(*opts);
+    env->memfree(*opts);
     *opts = newopts;
     newopts += optsize;
 
@@ -571,22 +567,20 @@ static int fsp_fuse_opt_add_opt_internal(char **opts, const char *opt, int escap
     return 0;
 }
 
-FSP_FUSE_API int fsp_fuse_opt_add_opt(char **opts, const char *opt,
-    FSP_FUSE_MEMFN_P)
+FSP_FUSE_API int fsp_fuse_opt_add_opt(struct fsp_fuse_env *env,
+    char **opts, const char *opt)
 {
-    return fsp_fuse_opt_add_opt_internal(opts, opt, 0,
-        FSP_FUSE_MEMFN_A);
+    return fsp_fuse_opt_add_opt_internal(env, opts, opt, 0);
 }
 
-FSP_FUSE_API int fsp_fuse_opt_add_opt_escaped(char **opts, const char *opt,
-    FSP_FUSE_MEMFN_P)
+FSP_FUSE_API int fsp_fuse_opt_add_opt_escaped(struct fsp_fuse_env *env,
+    char **opts, const char *opt)
 {
-    return fsp_fuse_opt_add_opt_internal(opts, opt, 1,
-        FSP_FUSE_MEMFN_A);
+    return fsp_fuse_opt_add_opt_internal(env, opts, opt, 1);
 }
 
-FSP_FUSE_API int fsp_fuse_opt_match(const struct fuse_opt opts[], const char *arg,
-    FSP_FUSE_MEMFN_P)
+FSP_FUSE_API int fsp_fuse_opt_match(struct fsp_fuse_env *env,
+    const struct fuse_opt opts[], const char *arg)
 {
     if (0 == opts)
         return 0;

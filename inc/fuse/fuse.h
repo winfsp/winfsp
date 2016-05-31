@@ -102,61 +102,64 @@ struct fuse_context
 #define fuse_main(argc, argv, ops, data)\
     fuse_main_real(argc, argv, ops, sizeof *(ops), data)
 
-FSP_FUSE_API int fsp_fuse_main_real(int argc, char *argv[],
-    const struct fuse_operations *ops, size_t opsize, void *data,
-    int environment);
-FSP_FUSE_API int fsp_fuse_is_lib_option(const char *opt,
-    FSP_FUSE_MEMFN_P);
-FSP_FUSE_API struct fuse *fsp_fuse_new(struct fuse_chan *ch, struct fuse_args *args,
-    const struct fuse_operations *ops, size_t opsize, void *data,
-    int environment);
-FSP_FUSE_API void fsp_fuse_destroy(struct fuse *f);
-FSP_FUSE_API int fsp_fuse_loop(struct fuse *f);
-FSP_FUSE_API int fsp_fuse_loop_mt(struct fuse *f);
-FSP_FUSE_API void fsp_fuse_exit(struct fuse *f);
-FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(void);
+FSP_FUSE_API int fsp_fuse_main_real(struct fsp_fuse_env *env,
+    int argc, char *argv[],
+    const struct fuse_operations *ops, size_t opsize, void *data);
+FSP_FUSE_API int fsp_fuse_is_lib_option(struct fsp_fuse_env *env,
+    const char *opt);
+FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
+    struct fuse_chan *ch, struct fuse_args *args,
+    const struct fuse_operations *ops, size_t opsize, void *data);
+FSP_FUSE_API void fsp_fuse_destroy(struct fsp_fuse_env *env,
+    struct fuse *f);
+FSP_FUSE_API int fsp_fuse_loop(struct fsp_fuse_env *env,
+    struct fuse *f);
+FSP_FUSE_API int fsp_fuse_loop_mt(struct fsp_fuse_env *env,
+    struct fuse *f);
+FSP_FUSE_API void fsp_fuse_exit(struct fsp_fuse_env *env,
+    struct fuse *f);
+FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env);
 
 static inline int fuse_main_real(int argc, char *argv[],
     const struct fuse_operations *ops, size_t opsize, void *data)
 {
-    return fsp_fuse_main_real(argc, argv, ops, opsize, data, FSP_FUSE_ENVIRONMENT);
+    return fsp_fuse_main_real(fsp_fuse_env(), argc, argv, ops, opsize, data);
 }
 
 static inline int fuse_is_lib_option(const char *opt)
 {
-    return fsp_fuse_is_lib_option(opt,
-        FSP_FUSE_MEMFN_V);
+    return fsp_fuse_is_lib_option(fsp_fuse_env(), opt);
 }
 
 static inline struct fuse *fuse_new(struct fuse_chan *ch, struct fuse_args *args,
     const struct fuse_operations *ops, size_t opsize, void *data)
 {
-    return fsp_fuse_new(ch, args, ops, opsize, data, FSP_FUSE_ENVIRONMENT);
+    return fsp_fuse_new(fsp_fuse_env(), ch, args, ops, opsize, data);
 }
 
 static inline void fuse_destroy(struct fuse *f)
 {
-    fsp_fuse_destroy(f);
+    fsp_fuse_destroy(fsp_fuse_env(), f);
 }
 
 static inline int fuse_loop(struct fuse *f)
 {
-    return fuse_loop(f);
+    return fsp_fuse_loop(fsp_fuse_env(), f);
 }
 
 static inline int fuse_loop_mt(struct fuse *f)
 {
-    return fsp_fuse_loop_mt(f);
+    return fsp_fuse_loop_mt(fsp_fuse_env(), f);
 }
 
 static inline void fuse_exit(struct fuse *f)
 {
-    fsp_fuse_exit(f);
+    fsp_fuse_exit(fsp_fuse_env(), f);
 }
 
 static inline struct fuse_context *fuse_get_context(void)
 {
-    return fsp_fuse_get_context();
+    return fsp_fuse_get_context(fsp_fuse_env());
 }
 
 static inline int fuse_getgroups(int size, fuse_gid_t list[])

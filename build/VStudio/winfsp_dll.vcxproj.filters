@@ -44,6 +44,9 @@
     <ClInclude Include="..\..\inc\fuse\fuse_opt.h">
       <Filter>Include\fuse</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\inc\fuse\winfsp_fuse.h">
+      <Filter>Include\fuse</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\dll\library.c">
@@ -96,9 +99,6 @@
     <None Include="..\..\src\dll\library.def">
       <Filter>Source</Filter>
     </None>
-    <None Include="..\..\src\dll\fuse\fuse.pc">
-      <Filter>Source\fuse</Filter>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\..\src\dll\version.rc">
@@ -107,5 +107,8 @@
     <ResourceCompile Include="..\..\src\dll\eventlog\eventlog.rc">
       <Filter>Source</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\src\dll\fuse\fuse.pc" />
   </ItemGroup>
 </Project>

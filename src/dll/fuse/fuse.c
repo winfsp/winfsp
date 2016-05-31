@@ -92,12 +92,13 @@ static inline VOID fsp_fuse_initonce(VOID)
     InitOnceExecuteOnce(&fsp_fuse_initonce_v, fsp_fuse_initonce_f, 0, 0);
 }
 
-FSP_FUSE_API int fsp_fuse_version(void)
+FSP_FUSE_API int fsp_fuse_version(struct fsp_fuse_env *env)
 {
     return FUSE_VERSION;
 }
 
-FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(const char *mountpoint, struct fuse_args *args)
+FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(struct fsp_fuse_env *env,
+    const char *mountpoint, struct fuse_args *args)
 {
     struct fuse_chan *ch = 0;
     int Size;
@@ -125,29 +126,30 @@ fail:
     return 0;
 }
 
-FSP_FUSE_API void fsp_fuse_unmount(const char *mountpoint, struct fuse_chan *ch)
+FSP_FUSE_API void fsp_fuse_unmount(struct fsp_fuse_env *env,
+    const char *mountpoint, struct fuse_chan *ch)
 {
     MemFree(ch);
 }
 
-FSP_FUSE_API int fsp_fuse_parse_cmdline(struct fuse_args *args, char **mountpoint,
-    int *multithreaded, int *foreground,
-    FSP_FUSE_MEMFN_P)
+FSP_FUSE_API int fsp_fuse_parse_cmdline(struct fsp_fuse_env *env,
+    struct fuse_args *args, char **mountpoint,
+    int *multithreaded, int *foreground)
 {
     // !!!: NEEDIMPL
     return 0;
 }
 
-FSP_FUSE_API int fsp_fuse_main_real(int argc, char *argv[],
-    const struct fuse_operations *ops, size_t opsize, void *data,
-    int environment)
+FSP_FUSE_API int fsp_fuse_main_real(struct fsp_fuse_env *env,
+    int argc, char *argv[],
+    const struct fuse_operations *ops, size_t opsize, void *data)
 {
     // !!!: NEEDIMPL
     return 0;
 }
 
-FSP_FUSE_API int fsp_fuse_is_lib_option(const char *opt,
-    FSP_FUSE_MEMFN_P)
+FSP_FUSE_API int fsp_fuse_is_lib_option(struct fsp_fuse_env *env,
+    const char *opt)
 {
     // !!!: NEEDIMPL
     return 0;
@@ -169,9 +171,9 @@ static NTSTATUS fsp_fuse_svcstop(FSP_SERVICE *Service)
     return STATUS_SUCCESS;
 }
 
-FSP_FUSE_API struct fuse *fsp_fuse_new(struct fuse_chan *ch, struct fuse_args *args,
-    const struct fuse_operations *ops, size_t opsize, void *data,
-    int environment)
+FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
+    struct fuse_chan *ch, struct fuse_args *args,
+    const struct fuse_operations *ops, size_t opsize, void *data)
 {
     struct fuse *f = 0;
     PWSTR ServiceName = FspDiagIdent();
@@ -216,7 +218,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fuse_chan *ch, struct fuse_args *a
     f->Ops = ops;
     f->OpSize = opsize;
     f->Data = data;
-    f->Environment = environment;
+    f->Environment = env->environment;
 
     InitializeCriticalSection(&f->Lock);
 
@@ -239,7 +241,8 @@ fail:
     return 0;
 }
 
-FSP_FUSE_API void fsp_fuse_destroy(struct fuse *f)
+FSP_FUSE_API void fsp_fuse_destroy(struct fsp_fuse_env *env,
+    struct fuse *f)
 {
     DeleteCriticalSection(&f->Lock);
 
@@ -250,7 +253,8 @@ FSP_FUSE_API void fsp_fuse_destroy(struct fuse *f)
     MemFree(f);
 }
 
-FSP_FUSE_API int fsp_fuse_loop(struct fuse *f)
+FSP_FUSE_API int fsp_fuse_loop(struct fsp_fuse_env *env,
+    struct fuse *f)
 {
     NTSTATUS Result;
     ULONG ExitCode;
@@ -274,17 +278,19 @@ fail:
     return -1;
 }
 
-FSP_FUSE_API int fsp_fuse_loop_mt(struct fuse *f)
+FSP_FUSE_API int fsp_fuse_loop_mt(struct fsp_fuse_env *env,
+    struct fuse *f)
 {
-    return fsp_fuse_loop(f);
+    return fsp_fuse_loop(env, f);
 }
 
-FSP_FUSE_API void fsp_fuse_exit(struct fuse *f)
+FSP_FUSE_API void fsp_fuse_exit(struct fsp_fuse_env *env,
+    struct fuse *f)
 {
     FspServiceStop(f->Service);
 }
 
-FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(void)
+FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env)
 {
     struct fuse_context *context;
 

@@ -207,6 +207,9 @@
                 <Component Id="C.fuse_opt.h">
                     <File Name="fuse_opt.h" KeyPath="yes" />
                 </Component>
+                <Component Id="C.winfsp_fuse.h">
+                    <File Name="winfsp_fuse.h" KeyPath="yes" />
+                </Component>
             </Directory>
         </DirectoryRef>
         <DirectoryRef Id="LIBDIR" FileSource="..\build\$(var.Configuration)">
@@ -271,6 +274,7 @@
             <ComponentRef Id="C.fuse.h" />
             <ComponentRef Id="C.fuse_common.h" />
             <ComponentRef Id="C.fuse_opt.h" />
+            <ComponentRef Id="C.winfsp_fuse.h" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.lib">
             <ComponentRef Id="C.winfsp_x64.lib" />

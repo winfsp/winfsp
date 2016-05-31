@@ -23,30 +23,10 @@
 #ifndef FUSE_OPT_H_
 #define FUSE_OPT_H_
 
-#if !defined(WINFSP_DLL_INTERNAL)
-#include <stdlib.h>
-#endif
+#include "winfsp_fuse.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#if !defined(FSP_FUSE_API)
-#if defined(WINFSP_DLL_INTERNAL)
-#define FSP_FUSE_API                    __declspec(dllexport)
-#else
-#define FSP_FUSE_API                    __declspec(dllimport)
-#endif
-#endif
-
-#if !defined(FSP_FUSE_MEMFN_P)
-#define FSP_FUSE_MEMFN_P                void *(*memalloc)(size_t), void (*memfree)(void *)
-#define FSP_FUSE_MEMFN_A                memalloc, memfree
-#if defined(WINFSP_DLL_INTERNAL)
-#define FSP_FUSE_MEMFN_V                MemAlloc, MemFree
-#else
-#define FSP_FUSE_MEMFN_V                malloc, free
-#endif
 #endif
 
 #define FUSE_OPT_KEY(templ, key)        { templ, -1, key }
@@ -76,63 +56,56 @@ struct fuse_args
 typedef int (*fuse_opt_proc_t)(void *data, const char *arg, int key,
     struct fuse_args *outargs);
 
-FSP_FUSE_API int fsp_fuse_opt_parse(struct fuse_args *args, void *data,
-    const struct fuse_opt opts[], fuse_opt_proc_t proc,
-    FSP_FUSE_MEMFN_P);
-FSP_FUSE_API int fsp_fuse_opt_add_arg(struct fuse_args *args, const char *arg,
-    FSP_FUSE_MEMFN_P);
-FSP_FUSE_API int fsp_fuse_opt_insert_arg(struct fuse_args *args, int pos, const char *arg,
-    FSP_FUSE_MEMFN_P);
-FSP_FUSE_API void fsp_fuse_opt_free_args(struct fuse_args *args,
-    FSP_FUSE_MEMFN_P);
-FSP_FUSE_API int fsp_fuse_opt_add_opt(char **opts, const char *opt,
-    FSP_FUSE_MEMFN_P);
-FSP_FUSE_API int fsp_fuse_opt_add_opt_escaped(char **opts, const char *opt,
-    FSP_FUSE_MEMFN_P);
-FSP_FUSE_API int fsp_fuse_opt_match(const struct fuse_opt opts[], const char *opt,
-    FSP_FUSE_MEMFN_P);
+FSP_FUSE_API int fsp_fuse_opt_parse(struct fsp_fuse_env *env,
+    struct fuse_args *args, void *data,
+    const struct fuse_opt opts[], fuse_opt_proc_t proc);
+FSP_FUSE_API int fsp_fuse_opt_add_arg(struct fsp_fuse_env *env,
+    struct fuse_args *args, const char *arg);
+FSP_FUSE_API int fsp_fuse_opt_insert_arg(struct fsp_fuse_env *env,
+    struct fuse_args *args, int pos, const char *arg);
+FSP_FUSE_API void fsp_fuse_opt_free_args(struct fsp_fuse_env *env,
+    struct fuse_args *args);
+FSP_FUSE_API int fsp_fuse_opt_add_opt(struct fsp_fuse_env *env,
+    char **opts, const char *opt);
+FSP_FUSE_API int fsp_fuse_opt_add_opt_escaped(struct fsp_fuse_env *env,
+    char **opts, const char *opt);
+FSP_FUSE_API int fsp_fuse_opt_match(struct fsp_fuse_env *env,
+    const struct fuse_opt opts[], const char *opt);
 
 static inline int fuse_opt_parse(struct fuse_args *args, void *data,
     const struct fuse_opt opts[], fuse_opt_proc_t proc)
 {
-    return fsp_fuse_opt_parse(args, data, opts, proc,
-        FSP_FUSE_MEMFN_V);
+    return fsp_fuse_opt_parse(fsp_fuse_env(), args, data, opts, proc);
 }
 
 static inline int fuse_opt_add_arg(struct fuse_args *args, const char *arg)
 {
-    return fsp_fuse_opt_add_arg(args, arg,
-        FSP_FUSE_MEMFN_V);
+    return fsp_fuse_opt_add_arg(fsp_fuse_env(), args, arg);
 }
 
 static inline int fuse_opt_insert_arg(struct fuse_args *args, int pos, const char *arg)
 {
-    return fsp_fuse_opt_insert_arg(args, pos, arg,
-        FSP_FUSE_MEMFN_V);
+    return fsp_fuse_opt_insert_arg(fsp_fuse_env(), args, pos, arg);
 }
 
 static inline void fuse_opt_free_args(struct fuse_args *args)
 {
-    fsp_fuse_opt_free_args(args,
-        FSP_FUSE_MEMFN_V);
+    fsp_fuse_opt_free_args(fsp_fuse_env(), args);
 }
 
 static inline int fuse_opt_add_opt(char **opts, const char *opt)
 {
-    return fsp_fuse_opt_add_opt(opts, opt,
-        FSP_FUSE_MEMFN_V);
+    return fsp_fuse_opt_add_opt(fsp_fuse_env(), opts, opt);
 }
 
 static inline int fuse_opt_add_opt_escaped(char **opts, const char *opt)
 {
-    return fsp_fuse_opt_add_opt_escaped(opts, opt,
-        FSP_FUSE_MEMFN_V);
+    return fsp_fuse_opt_add_opt_escaped(fsp_fuse_env(), opts, opt);
 }
 
 static inline int fuse_opt_match(const struct fuse_opt opts[], const char *opt)
 {
-    return fsp_fuse_opt_match(opts, opt,
-        FSP_FUSE_MEMFN_V);
+    return fsp_fuse_opt_match(fsp_fuse_env(), opts, opt);
 }
 
 #ifdef __cplusplus
