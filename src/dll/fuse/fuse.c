@@ -18,9 +18,6 @@
 #include <dll/library.h>
 #include <fuse/fuse.h>
 
-#define STR(x)                          STR_(x)
-#define STR_(x)                         #x
-
 struct fuse_chan
 {
     PWSTR MountPoint;
@@ -100,11 +97,6 @@ FSP_FUSE_API int fsp_fuse_version(void)
     return FUSE_VERSION;
 }
 
-FSP_FUSE_API const char *fsp_fuse_pkgversion(void)
-{
-    return STR(FUSE_VERSION);
-}
-
 FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(const char *mountpoint, struct fuse_args *args)
 {
     struct fuse_chan *ch = 0;
@@ -139,7 +131,8 @@ FSP_FUSE_API void fsp_fuse_unmount(const char *mountpoint, struct fuse_chan *ch)
 }
 
 FSP_FUSE_API int fsp_fuse_parse_cmdline(struct fuse_args *args, char **mountpoint,
-    int *multithreaded, int *foreground)
+    int *multithreaded, int *foreground,
+    FSP_FUSE_MEMFN_P)
 {
     // !!!: NEEDIMPL
     return 0;
@@ -148,6 +141,13 @@ FSP_FUSE_API int fsp_fuse_parse_cmdline(struct fuse_args *args, char **mountpoin
 FSP_FUSE_API int fsp_fuse_main_real(int argc, char *argv[],
     const struct fuse_operations *ops, size_t opsize, void *data,
     int environment)
+{
+    // !!!: NEEDIMPL
+    return 0;
+}
+
+FSP_FUSE_API int fsp_fuse_is_lib_option(const char *opt,
+    FSP_FUSE_MEMFN_P)
 {
     // !!!: NEEDIMPL
     return 0;

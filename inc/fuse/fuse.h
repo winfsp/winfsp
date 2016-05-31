@@ -31,35 +31,30 @@ extern "C" {
 
 struct fuse;
 
-enum fuse_readdir_flags
-{
-    FUSE_READDIR_PLUS = (1 << 0),
-};
-
-enum fuse_fill_dir_flags
-{
-    FUSE_FILL_DIR_PLUS = (1 << 1),
-};
-
 typedef int (*fuse_fill_dir_t)(void *buf, const char *name,
-    const struct fuse_stat *stbuf, fuse_off_t off, enum fuse_fill_dir_flags flags);
+    const struct fuse_stat *stbuf, fuse_off_t off);
+typedef struct fuse_dirhandle *fuse_dirh_t;
+typedef int (*fuse_dirfil_t)(fuse_dirh_t h, const char *name,
+    int type, fuse_ino_t ino);
 
 struct fuse_operations
 {
-    unsigned int flag_nopath:1;
+    unsigned int flag_nullpath_ok:1;
     unsigned int flag_reserved:31;
     int (*getattr)(const char *path, struct fuse_stat *stbuf);
+    int (*getdir)(const char *path, fuse_dirh_t h, fuse_dirfil_t filler);
     int (*readlink)(const char *path, char *buf, size_t size);
     int (*mknod)(const char *path, fuse_mode_t mode, fuse_dev_t dev);
     int (*mkdir)(const char *path, fuse_mode_t mode);
     int (*unlink)(const char *path);
     int (*rmdir)(const char *path);
     int (*symlink)(const char *dstpath, const char *srcpath);
-    int (*rename)(const char *oldpath, const char *newpath, unsigned int flags);
+    int (*rename)(const char *oldpath, const char *newpath);
     int (*link)(const char *srcpath, const char *dstpath);
     int (*chmod)(const char *path, fuse_mode_t mode);
     int (*chown)(const char *path, fuse_uid_t uid, fuse_gid_t gid);
     int (*truncate)(const char *path, fuse_off_t size);
+    int (*utime)(const char *path, struct utimbuf *timbuf);
     int (*open)(const char *path, struct fuse_file_info *fi);
     int (*read)(const char *path, char *buf, size_t size, fuse_off_t off,
         struct fuse_file_info *fi);
@@ -76,7 +71,7 @@ struct fuse_operations
     int (*removexattr)(const char *path, const char *name);
     int (*opendir)(const char *path, struct fuse_file_info *fi);
     int (*readdir)(const char *path, void *buf, fuse_fill_dir_t filler, fuse_off_t off,
-        struct fuse_file_info *fi, enum fuse_readdir_flags flags);
+        struct fuse_file_info *fi);
     int (*releasedir)(const char *path, struct fuse_file_info *fi);
     int (*fsyncdir)(const char *path, int datasync, struct fuse_file_info *fi);
     void *(*init)(struct fuse_conn_info *conn);
@@ -92,13 +87,6 @@ struct fuse_operations
         unsigned int flags, void *data);
     int (*poll)(const char *path, struct fuse_file_info *fi,
         struct fuse_pollhandle *ph, unsigned *reventsp);
-    int (*write_buf)(const char *path, struct fuse_bufvec *buf, fuse_off_t off,
-        struct fuse_file_info *fi);
-    int (*read_buf)(const char *path, struct fuse_bufvec **bufp,
-        size_t size, fuse_off_t off, struct fuse_file_info *fi);
-    int (*flock)(const char *path, struct fuse_file_info *, int op);
-    int (*fallocate)(const char *path, int mode, fuse_off_t off, fuse_off_t len,
-        struct fuse_file_info *fi);
 };
 
 struct fuse_context
@@ -117,6 +105,8 @@ struct fuse_context
 FSP_FUSE_API int fsp_fuse_main_real(int argc, char *argv[],
     const struct fuse_operations *ops, size_t opsize, void *data,
     int environment);
+FSP_FUSE_API int fsp_fuse_is_lib_option(const char *opt,
+    FSP_FUSE_MEMFN_P);
 FSP_FUSE_API struct fuse *fsp_fuse_new(struct fuse_chan *ch, struct fuse_args *args,
     const struct fuse_operations *ops, size_t opsize, void *data,
     int environment);
@@ -130,6 +120,12 @@ static inline int fuse_main_real(int argc, char *argv[],
     const struct fuse_operations *ops, size_t opsize, void *data)
 {
     return fsp_fuse_main_real(argc, argv, ops, opsize, data, FSP_FUSE_ENVIRONMENT);
+}
+
+static inline int fuse_is_lib_option(const char *opt)
+{
+    return fsp_fuse_is_lib_option(opt,
+        FSP_FUSE_MEMFN_V);
 }
 
 static inline struct fuse *fuse_new(struct fuse_chan *ch, struct fuse_args *args,
@@ -167,11 +163,24 @@ static inline int fuse_getgroups(int size, fuse_gid_t list[])
 {
     (void)size;
     (void)list;
-    return 0;
+    return -ENOSYS;
 }
 
 static inline int fuse_interrupted(void)
 {
+    return 0;
+}
+
+static inline int fuse_invalidate(struct fuse *f, const char *path)
+{
+    (void)f;
+    (void)path;
+    return -EINVAL;
+}
+
+static inline int fuse_notify_poll(struct fuse_pollhandle *ph)
+{
+    (void)ph;
     return 0;
 }
 

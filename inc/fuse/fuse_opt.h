@@ -39,12 +39,14 @@ extern "C" {
 #endif
 #endif
 
+#if !defined(FSP_FUSE_MEMFN_P)
 #define FSP_FUSE_MEMFN_P                void *(*memalloc)(size_t), void (*memfree)(void *)
 #define FSP_FUSE_MEMFN_A                memalloc, memfree
 #if defined(WINFSP_DLL_INTERNAL)
 #define FSP_FUSE_MEMFN_V                MemAlloc, MemFree
 #else
 #define FSP_FUSE_MEMFN_V                malloc, free
+#endif
 #endif
 
 #define FUSE_OPT_KEY(templ, key)        { templ, -1, key }

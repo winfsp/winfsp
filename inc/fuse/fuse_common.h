@@ -38,10 +38,32 @@ extern "C" {
 #endif
 #endif
 
+#if !defined(FSP_FUSE_MEMFN_P)
+#define FSP_FUSE_MEMFN_P                void *(*memalloc)(size_t), void (*memfree)(void *)
+#define FSP_FUSE_MEMFN_A                memalloc, memfree
+#if defined(WINFSP_DLL_INTERNAL)
+#define FSP_FUSE_MEMFN_V                MemAlloc, MemFree
+#else
+#define FSP_FUSE_MEMFN_V                malloc, free
+#endif
+#endif
+
 #define FUSE_MAJOR_VERSION              2
-#define FUSE_MINOR_VERSION              9
+#define FUSE_MINOR_VERSION              8
 #define FUSE_MAKE_VERSION(maj, min)     ((maj) * 10 + (min))
 #define FUSE_VERSION                    FUSE_MAKE_VERSION(FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION)
+
+#define FUSE_CAP_ASYNC_READ             (1 << 0)
+#define FUSE_CAP_POSIX_LOCKS            (1 << 1)
+#define FUSE_CAP_ATOMIC_O_TRUNC         (1 << 3)
+#define FUSE_CAP_EXPORT_SUPPORT         (1 << 4)
+#define FUSE_CAP_BIG_WRITES             (1 << 5)
+#define FUSE_CAP_DONT_MASK              (1 << 6)
+
+#define FUSE_IOCTL_COMPAT               (1 << 0)
+#define FUSE_IOCTL_UNRESTRICTED         (1 << 1)
+#define FUSE_IOCTL_RETRY                (1 << 2)
+#define FUSE_IOCTL_MAX_IOV              256
 
 /*
  * FUSE uses a number of types (notably: struct stat) that are OS specific.
@@ -113,9 +135,11 @@ struct fuse_statvfs
 
 #elif defined(__CYGWIN__)
 
+#include <errno.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
+#include <utime.h>
 
 #define fuse_uid_t                      uid_t
 #define fuse_gid_t                      gid_t
@@ -146,16 +170,15 @@ struct fuse_statvfs
 struct fuse_file_info
 {
     int flags;
-    unsigned int writepage:1;
+    unsigned long fh_old;
+    int writepage;
     unsigned int direct_io:1;
     unsigned int keep_cache:1;
     unsigned int flush:1;
     unsigned int nonseekable:1;
-    unsigned int flock_release:1;
-    unsigned int padding:27;
+    unsigned int padding:28;
     uint64_t fh;
     uint64_t lock_owner;
-    uint32_t poll_events;
 };
 
 struct fuse_conn_info
@@ -167,10 +190,7 @@ struct fuse_conn_info
     unsigned max_readahead;
     unsigned capable;
     unsigned want;
-    unsigned max_background;
-    unsigned congestion_threshold;
-    unsigned time_gran;
-    unsigned reserved[22];
+    unsigned reserved[25];
 };
 
 struct fuse_session;
@@ -178,20 +198,15 @@ struct fuse_chan;
 struct fuse_pollhandle;
 
 FSP_FUSE_API int fsp_fuse_version(void);
-FSP_FUSE_API const char *fsp_fuse_pkgversion(void);
 FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(const char *mountpoint, struct fuse_args *args);
 FSP_FUSE_API void fsp_fuse_unmount(const char *mountpoint, struct fuse_chan *ch);
 FSP_FUSE_API int fsp_fuse_parse_cmdline(struct fuse_args *args, char **mountpoint,
-    int *multithreaded, int *foreground);
+    int *multithreaded, int *foreground,
+    FSP_FUSE_MEMFN_P);
 
 static inline int fuse_version(void)
 {
     return fsp_fuse_version();
-}
-
-static inline const char *fuse_pkgversion(void)
-{
-    return fsp_fuse_pkgversion();
 }
 
 static inline struct fuse_chan *fuse_mount(const char *mountpoint, struct fuse_args *args)
@@ -207,7 +222,8 @@ static inline void fuse_unmount(const char *mountpoint, struct fuse_chan *ch)
 static inline int fuse_parse_cmdline(struct fuse_args *args, char **mountpoint,
     int *multithreaded, int *foreground)
 {
-    return fsp_fuse_parse_cmdline(args, mountpoint, multithreaded, foreground);
+    return fsp_fuse_parse_cmdline(args, mountpoint, multithreaded, foreground,
+        FSP_FUSE_MEMFN_V);
 }
 
 static inline void fuse_pollhandle_destroy(struct fuse_pollhandle *ph)

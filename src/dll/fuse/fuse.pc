@@ -1,6 +1,6 @@
 prefix=${pcfiledir}/..
 incdir=${prefix}/inc/fuse
-implib=${prefix}/lib/winfsp-${arch}.lib
+implib=${prefix}/bin/winfsp-${arch}.dll
 
 Name: fuse
 Description: WinFsp FUSE compatible API
