@@ -23,11 +23,11 @@
 #define fsp_fuse_opt_match_exact        ((const char *)1)   /* exact option match */
 #define fsp_fuse_opt_match_next         ((const char *)2)   /* option match, value is next arg */
 
-#if 1
-typedef long int strtoint_result_t;
+#if defined(_WIN64)
+typedef long long strtoint_result_t;
 #else
 /* cannot use long long in 32-bit builds because we are missing symbol __allmul */
-typedef long long int strtoint_result_t;
+typedef long strtoint_result_t;
 #endif
 
 static strtoint_result_t strtoint(const char *p, const char *endp, int base, int is_signed)
@@ -299,7 +299,17 @@ static int fsp_fuse_opt_process_arg(struct fsp_fuse_env *env,
                 else if (2 <= h)
                     VAR(data, opt, char) = (char)llv;
                 else if (1 == l)
+                {
+#if defined(_WIN64)
+                    /* long is 8 bytes long in Cygwin64 and 4 bytes long in Win64 */
+                    if ('C' == env->environment)
+                        VAR(data, opt, long long) = (long long)llv;
+                    else
+                        VAR(data, opt, long) = (long)llv;
+#else
                     VAR(data, opt, long) = (long)llv;
+#endif
+                }
                 else if (2 <= l)
                     VAR(data, opt, long long) = (long long)llv;
                 else

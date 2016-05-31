@@ -138,6 +138,11 @@ struct fuse_statvfs
 
 #define FSP_FUSE_ENV_INIT               { 'C', malloc, free }
 
+/*
+ * Note that long is 8 bytes long in Cygwin64 and 4 bytes long in Win64.
+ * For this reason we avoid using long anywhere in these headers.
+ */
+
 #else
 #error unsupported environment
 #endif
