@@ -95,7 +95,7 @@ typedef int32_t fuse_blkcnt_t;
 struct fuse_timespec
 {
     time_t tv_sec;
-    long tv_nsec;
+    int tv_nsec;
 };
 
 struct fuse_stat
@@ -118,17 +118,17 @@ struct fuse_stat
 
 struct fuse_statvfs
 {
-    unsigned long f_bsize;
-    unsigned long f_frsize;
+    unsigned int f_bsize;
+    unsigned int f_frsize;
     fuse_fsblkcnt_t f_blocks;
     fuse_fsblkcnt_t f_bfree;
     fuse_fsblkcnt_t f_bavail;
     fuse_fsfilcnt_t f_files;
     fuse_fsfilcnt_t f_ffree;
     fuse_fsfilcnt_t f_favail;
-    unsigned long f_fsid;
-    unsigned long f_flag;
-    unsigned long f_namemax;
+    unsigned int f_fsid;
+    unsigned int f_flag;
+    unsigned int f_namemax;
 };
 
 #define FSP_FUSE_ENVIRONMENT            'W'
@@ -170,7 +170,7 @@ struct fuse_statvfs
 struct fuse_file_info
 {
     int flags;
-    unsigned long fh_old;
+    unsigned int fh_old;
     int writepage;
     unsigned int direct_io:1;
     unsigned int keep_cache:1;

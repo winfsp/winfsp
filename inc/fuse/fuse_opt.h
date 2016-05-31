@@ -62,7 +62,7 @@ extern "C" {
 struct fuse_opt
 {
 	const char *templ;
-	unsigned long offset;
+	unsigned int offset;
 	int value;
 };
 
