@@ -19,6 +19,11 @@
 #include <fuse/fuse_opt.h>
 #include <stdint.h>
 
+/*
+ * Define the following symbol to support escaped commas (',') during fuse_opt_parse.
+ */
+#define FSP_FUSE_OPT_PARSE_ESCAPED_COMMAS
+
 #define fsp_fuse_opt_match_none         ((const char *)0)   /* no option match */
 #define fsp_fuse_opt_match_exact        ((const char *)1)   /* exact option match */
 #define fsp_fuse_opt_match_next         ((const char *)2)   /* option match, value is next arg */
@@ -30,7 +35,7 @@ typedef long long strtoint_result_t;
 typedef long strtoint_result_t;
 #endif
 
-static strtoint_result_t strtoint(const char *p, const char *endp, int base, int is_signed)
+static strtoint_result_t strtoint(const char *p, int base, int is_signed)
 {
     strtoint_result_t v;
     int maxdig, maxalp, sign = +1;
@@ -65,7 +70,7 @@ static strtoint_result_t strtoint(const char *p, const char *endp, int base, int
     maxdig = 10 < base ? '9' : (base - 1) + '0';
     maxalp = 10 < base ? (base - 1 - 10) + 'a' : 0;
 
-    for (v = 0; *p && endp != p; p++)
+    for (v = 0; *p; p++)
     {
         int c = *p;
 
@@ -86,14 +91,14 @@ static strtoint_result_t strtoint(const char *p, const char *endp, int base, int
 
 static void fsp_fuse_opt_match_templ(
     const char *templ, const char **pspec,
-    const char **parg, const char *argend)
+    const char **parg)
 {
     const char *p, *q;
 
     *pspec = 0;
 
     for (p = templ, q = *parg;; p++, q++)
-        if ('\0' == *q || q == argend)
+        if ('\0' == *q)
         {
             if ('\0' == *p)
                 *parg = fsp_fuse_opt_match_exact;
@@ -125,7 +130,7 @@ static void fsp_fuse_opt_match_templ(
 
 static const struct fuse_opt *fsp_fuse_opt_find(
     const struct fuse_opt opts[], const char **pspec,
-    const char **parg, const char *argend)
+    const char **parg)
 {
     const struct fuse_opt *opt;
     const char *arg;
@@ -133,7 +138,7 @@ static const struct fuse_opt *fsp_fuse_opt_find(
     for (opt = opts; 0 != opt->templ; opt++)
     {
         arg = *parg;
-        fsp_fuse_opt_match_templ(opt->templ, pspec, &arg, argend);
+        fsp_fuse_opt_match_templ(opt->templ, pspec, &arg);
         if (fsp_fuse_opt_match_none != arg)
         {
             *parg = arg;
@@ -146,7 +151,7 @@ static const struct fuse_opt *fsp_fuse_opt_find(
 
 static int fsp_fuse_opt_call_proc(struct fsp_fuse_env *env,
     void *data, fuse_opt_proc_t proc,
-    const char *arg, const char *argend, const char *argl,
+    const char *arg, const char *argl,
     int key, int is_opt,
     struct fuse_args *outargs)
 {
@@ -156,17 +161,11 @@ static int fsp_fuse_opt_call_proc(struct fsp_fuse_env *env,
     if (FUSE_OPT_KEY_DISCARD == key)
         return 0;
 
-    if (0 != argend)
-        len0 = (int)(argend - arg);
-    else
-        len0 = lstrlenA(arg);
+    len0 = lstrlenA(arg);
 
-    if (0 != argend || (0 != argl && !(arg <= argl && argl < arg + len0)))
+    if (0 != argl && !(arg <= argl && argl < arg + len0))
     {
-        if (0 != argl && !(arg <= argl && argl < arg + len0))
-            len1 = lstrlenA(argl);
-        else
-            len1 = 0;
+        len1 = lstrlenA(argl);
 
         fullarg = env->memalloc(len0 + len1 + 1);
         if (0 == fullarg)
@@ -200,7 +199,11 @@ static int fsp_fuse_opt_call_proc(struct fsp_fuse_env *env,
                 goto exit;
         }
 
+#if defined(FSP_FUSE_OPT_PARSE_ESCAPED_COMMAS)
+        result = fsp_fuse_opt_add_opt_escaped(env, &outargs->argv[2], arg);
+#else
         result = fsp_fuse_opt_add_opt(env, &outargs->argv[2], arg);
+#endif
         if (-1 == result)
             goto exit;
     }
@@ -221,7 +224,7 @@ exit:
 static int fsp_fuse_opt_process_arg(struct fsp_fuse_env *env,
     void *data, const struct fuse_opt *opt, fuse_opt_proc_t proc,
     const char *spec,
-    const char *arg, const char *argend, const char *argl,
+    const char *arg, const char *argl,
     int is_opt,
     struct fuse_args *outargs)
 {
@@ -229,7 +232,7 @@ static int fsp_fuse_opt_process_arg(struct fsp_fuse_env *env,
 
     if (-1L == opt->offset)
         return fsp_fuse_opt_call_proc(env,
-            data, proc, arg, argend, argl, opt->value, is_opt, outargs);
+            data, proc, arg, argl, opt->value, is_opt, outargs);
     else
     {
         int h, j, l, t, z;
@@ -274,19 +277,19 @@ static int fsp_fuse_opt_process_arg(struct fsp_fuse_env *env,
                 z++;
                 break;
             case 'd':
-                llv = strtoint(argl, argend, 10, 1);
+                llv = strtoint(argl, 10, 1);
                 goto ivar;
             case 'i':
-                llv = strtoint(argl, argend, 0, 1);
+                llv = strtoint(argl, 0, 1);
                 goto ivar;
             case 'o':
-                llv = strtoint(argl, argend, 8, 0);
+                llv = strtoint(argl, 8, 0);
                 goto ivar;
             case 'u':
-                llv = strtoint(argl, argend, 10, 0);
+                llv = strtoint(argl, 10, 0);
                 goto ivar;
             case 'x': case 'X':
-                llv = strtoint(argl, argend, 16, 0);
+                llv = strtoint(argl, 16, 0);
             ivar:
                 if (z)
                     VAR(data, opt, size_t) = (size_t)llv;
@@ -316,10 +319,7 @@ static int fsp_fuse_opt_process_arg(struct fsp_fuse_env *env,
                     VAR(data, opt, int) = (int)llv;
                 return 0;
             case 's': case 'c':
-                if (arg <= argl && argl < argend)
-                    len = (int)(argend - argl);
-                else
-                    len = lstrlenA(argl);
+                len = lstrlenA(argl);
                 s = env->memalloc(len + 1);
                 if (0 == s)
                     return -1;
@@ -339,7 +339,7 @@ static int fsp_fuse_opt_process_arg(struct fsp_fuse_env *env,
 
 static int fsp_fuse_opt_parse_arg(struct fsp_fuse_env *env,
     void *data, const struct fuse_opt opts[], fuse_opt_proc_t proc,
-    const char *arg, const char *argend, const char *nextarg, int *pconsumed_nextarg,
+    const char *arg, const char *nextarg, int *pconsumed_nextarg,
     int is_opt,
     struct fuse_args *outargs)
 {
@@ -349,7 +349,7 @@ static int fsp_fuse_opt_parse_arg(struct fsp_fuse_env *env,
 
     argl = arg;
     opt = opts;
-    while (0 != (opt = fsp_fuse_opt_find(opt, &spec, &argl, argend)))
+    while (0 != (opt = fsp_fuse_opt_find(opt, &spec, &argl)))
     {
         if (fsp_fuse_opt_match_exact == argl)
             argl = arg;
@@ -362,7 +362,7 @@ static int fsp_fuse_opt_parse_arg(struct fsp_fuse_env *env,
         }
 
         if (-1 == fsp_fuse_opt_process_arg(env,
-            data, opt, proc, spec, arg, argend, argl, is_opt, outargs))
+            data, opt, proc, spec, arg, argl, is_opt, outargs))
             return -1;
         processed++;
 
@@ -374,7 +374,7 @@ static int fsp_fuse_opt_parse_arg(struct fsp_fuse_env *env,
         return 0;
 
     return fsp_fuse_opt_call_proc(env,
-        data, proc, arg, argend, arg, FUSE_OPT_KEY_OPT, is_opt, outargs);
+        data, proc, arg, arg, FUSE_OPT_KEY_OPT, is_opt, outargs);
 }
 
 static int fsp_fuse_opt_proc0(void *data, const char *arg, int key,
@@ -390,7 +390,8 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fsp_fuse_env *env,
     static struct fuse_args args0 = FUSE_ARGS_INIT(0, 0);
     static struct fuse_opt opts0[1] = { FUSE_OPT_END };
     struct fuse_args outargs = FUSE_ARGS_INIT(0, 0);
-    const char *arg, *argend;
+    const char *arg;
+    char *argcopy, *argend;
     int dashdash = 0, consumed_nextarg;
 
     if (0 == args)
@@ -419,17 +420,40 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fsp_fuse_env *env,
                 }
                 else
                     arg += 2;
-                for (argend = arg; *arg; argend++)
+                argcopy = env->memalloc(lstrlenA(arg) + 1);
+                if (0 == argcopy)
+                    goto fail;
+                argend = argcopy;
+                for (;;)
                 {
-                    if ('\0' == *argend || ',' == *argend)
+#if defined(FSP_FUSE_OPT_PARSE_ESCAPED_COMMAS)
+                    if ('\\' == *arg)
                     {
-                        if (-1 == fsp_fuse_opt_parse_arg(env,
-                            data, opts, proc, arg, argend, 0, 0, 1, &outargs))
-                            goto fail;
-
-                        arg = '\0' == *argend ? argend : argend + 1;
+                        arg++;
+                        *argend++ = *arg++;
+                        continue;
                     }
+#endif
+                    if ('\0' == *arg || ',' == *arg)
+                    {
+                        *argend = '\0';
+                        if (-1 == fsp_fuse_opt_parse_arg(env,
+                            data, opts, proc, argcopy, 0, 0, 1, &outargs))
+                        {
+                            env->memfree(argcopy);
+                            goto fail;
+                        }
+
+                        if ('\0' == *arg)
+                            break;
+
+                        arg++;
+                        argend = argcopy;
+                    }
+                    else
+                        *argend++ = *arg++;
                 }
+                env->memfree(argcopy);
                 break;
             case '-':
                 if ('\0' == arg[2])
@@ -443,7 +467,7 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fsp_fuse_env *env,
             default:
                 consumed_nextarg = 0;
                 if (-1 == fsp_fuse_opt_parse_arg(env,
-                    data, opts, proc, arg, 0, args->argv[argi + 1], &consumed_nextarg, 0, &outargs))
+                    data, opts, proc, arg, args->argv[argi + 1], &consumed_nextarg, 0, &outargs))
                     goto fail;
                 if (consumed_nextarg)
                     argi++;
@@ -452,7 +476,7 @@ FSP_FUSE_API int fsp_fuse_opt_parse(struct fsp_fuse_env *env,
         }
         else
             if (-1 == fsp_fuse_opt_call_proc(env,
-                data, proc, arg, 0, arg, FUSE_OPT_KEY_NONOPT, 0, &outargs))
+                data, proc, arg, arg, FUSE_OPT_KEY_NONOPT, 0, &outargs))
                 goto fail;
     }
 
@@ -596,5 +620,5 @@ FSP_FUSE_API int fsp_fuse_opt_match(struct fsp_fuse_env *env,
         return 0;
 
     const char *spec;
-    return fsp_fuse_opt_find(opts, &spec, &arg, 0) ? 1 : 0;
+    return fsp_fuse_opt_find(opts, &spec, &arg) ? 1 : 0;
 }

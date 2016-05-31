@@ -15,6 +15,7 @@ struct data
     long y;
     long long z;
     int dec, neg, hex, oct;
+    char *esc; int ESC;
     int arg_discard, arg_keep;
     int opt_discard, opt_keep;
     int nonopt_discard, nonopt_keep;
@@ -157,6 +158,10 @@ static int fuse_opt_parse_test_proc(void *data0, const char *arg, int key,
     case 'z':
         ASSERT(0);
         return -1;
+    case 'ESC':
+        ASSERT(0 == strcmp("ESC=\\FOO,BAR\\", arg));
+        data->ESC = 1;
+        return 1;
     }
 }
 
@@ -202,6 +207,9 @@ void fuse_opt_parse_test(void)
         { "--hex=%x", offsetof(struct data, hex), 'hex' },
         { "--oct=%o", offsetof(struct data, oct), 'oct' },
 
+        { "esc=%s", offsetof(struct data, esc), 'esc' },
+        FUSE_OPT_KEY("ESC=", 'ESC'),
+
         FUSE_OPT_KEY("--discard", FUSE_OPT_KEY_DISCARD),
         FUSE_OPT_KEY("--keep", FUSE_OPT_KEY_KEEP),
 
@@ -237,6 +245,7 @@ void fuse_opt_parse_test(void)
         "--neg=-1234567890",
         "--hex=ABCDEF",
         "--oct=12345670",
+        "-oesc=\\\\foo\\,bar\\\\,ESC=\\\\FOO\\,BAR\\\\",
         "--discard",
         "--keep",
         "--arg-discard",
@@ -251,7 +260,7 @@ void fuse_opt_parse_test(void)
     static char *outargv[] =
     {
         "exec",
-        "-o", "f,hlong,n=78,plong=80,opt-keep",
+        "-o", "f,hlong,n=78,plong=80,ESC=\\\\FOO\\,BAR\\\\,opt-keep",
         "-b",
         "--dlong",
         "-j=74",
@@ -312,6 +321,8 @@ void fuse_opt_parse_test(void)
     ASSERT(-1234567890 == data.neg);
     ASSERT(0xABCDEF == data.hex);
     ASSERT(012345670 == data.oct);
+    ASSERT(0 == strcmp("\\foo,bar\\", data.esc));
+    ASSERT(1 == data.ESC);
     ASSERT(1 == data.arg_discard);
     ASSERT(1 == data.arg_keep);
     ASSERT(1 == data.opt_discard);
@@ -332,6 +343,7 @@ void fuse_opt_parse_test(void)
     free(data.s);
     free(data.t);
     free(data.w);
+    free(data.esc);
 }
 
 void fuse_opt_tests(void)
