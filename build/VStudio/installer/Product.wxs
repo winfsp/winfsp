@@ -197,6 +197,17 @@
                     <File Name="winfsp.h" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="INCDIR.fuse" Name="fuse">
+                <Component Id="C.fuse.h">
+                    <File Name="fuse.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.fuse_common.h">
+                    <File Name="fuse_common.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.fuse_opt.h">
+                    <File Name="fuse_opt.h" KeyPath="yes" />
+                </Component>
+            </Directory>
         </DirectoryRef>
         <DirectoryRef Id="LIBDIR" FileSource="..\build\$(var.Configuration)">
             <Component Id="C.winfsp_x64.lib">
@@ -204,6 +215,26 @@
             </Component>
             <Component Id="C.winfsp_x86.lib">
                 <File Name="winfsp-x86.lib" KeyPath="yes" />
+            </Component>
+
+            <!-- On Win64 copy fuse-x64.pc -->
+            <Component Id="C.fuse_x64.pc" Guid="407395D2-D076-411E-B1D0-D97E21E11A3C">
+                <File
+                    Id="FILE.fuse_x64.pc"
+                    Name="fuse.pc"
+                    Source="..\build\$(var.Configuration)\fuse-x64.pc"
+                    KeyPath="yes" />
+                <Condition>VersionNT64</Condition>
+            </Component>
+
+            <!-- On Win32 copy fuse-x86.pc -->
+            <Component Id="C.fuse_x86.pc" Guid="0568EBCB-782E-4C17-9B64-BAFCC43F64ED">
+                <File
+                    Id="FILE.fuse_x86.pc"
+                    Name="fuse.pc"
+                    Source="..\build\$(var.Configuration)\fuse-x86.pc"
+                    KeyPath="yes" />
+                <Condition>NOT VersionNT64</Condition>
             </Component>
         </DirectoryRef>
         <DirectoryRef Id="SMPDIR" FileSource="..\..\..\tst">
@@ -237,10 +268,15 @@
         <ComponentGroup Id="C.WinFsp.inc">
             <ComponentRef Id="C.fsctl.h" />
             <ComponentRef Id="C.winfsp.h" />
+            <ComponentRef Id="C.fuse.h" />
+            <ComponentRef Id="C.fuse_common.h" />
+            <ComponentRef Id="C.fuse_opt.h" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.lib">
             <ComponentRef Id="C.winfsp_x64.lib" />
             <ComponentRef Id="C.winfsp_x86.lib" />
+            <ComponentRef Id="C.fuse_x64.pc" />
+            <ComponentRef Id="C.fuse_x86.pc" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.smp">
             <ComponentRef Id="C.memfs_x64.exe" />

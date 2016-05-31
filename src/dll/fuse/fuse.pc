@@ -1,0 +1,10 @@
+prefix=${pcfiledir}/..
+incdir=${prefix}/inc/fuse
+implib=${prefix}/lib/winfsp-${arch}.lib
+
+Name: fuse
+Description: WinFsp FUSE compatible API
+Version: 2.9
+URL: http://www.secfs.net/winfsp/
+Libs: "${implib}"
+Cflags: -I"${incdir}"

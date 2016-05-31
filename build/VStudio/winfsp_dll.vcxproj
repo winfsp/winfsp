@@ -45,6 +45,29 @@
     <ClCompile Include="..\..\src\dll\util.c" />
   </ItemGroup>
   <ItemGroup>
+    <CustomBuild Include="..\..\src\dll\fuse\fuse.pc">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse-$(PlatformTarget).pc
+copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(PlatformTarget).pc &gt;nul</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Writing fuse-$(PlatformTarget).pc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)fuse-$(PlatformTarget).pc</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkObjects>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse-$(PlatformTarget).pc
+copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(PlatformTarget).pc &gt;nul</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Writing fuse-$(PlatformTarget).pc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)fuse-$(PlatformTarget).pc</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkObjects>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse-$(PlatformTarget).pc
+copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(PlatformTarget).pc &gt;nul</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Writing fuse-$(PlatformTarget).pc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)fuse-$(PlatformTarget).pc</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse-$(PlatformTarget).pc
+copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(PlatformTarget).pc &gt;nul</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Writing fuse-$(PlatformTarget).pc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)fuse-$(PlatformTarget).pc</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+    </CustomBuild>
     <None Include="..\..\src\dll\library.def" />
     <None Include="..\..\src\dll\ntstatus.i" />
   </ItemGroup>

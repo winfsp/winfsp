@@ -96,6 +96,9 @@
     <None Include="..\..\src\dll\library.def">
       <Filter>Source</Filter>
     </None>
+    <None Include="..\..\src\dll\fuse\fuse.pc">
+      <Filter>Source\fuse</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\..\src\dll\version.rc">

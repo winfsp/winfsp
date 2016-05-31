@@ -38,16 +38,16 @@ extern "C" {
 #endif
 #endif
 
-#define FUSE_MAJOR_VERSION              3
-#define FUSE_MINOR_VERSION              0
+#define FUSE_MAJOR_VERSION              2
+#define FUSE_MINOR_VERSION              9
 #define FUSE_MAKE_VERSION(maj, min)     ((maj) * 10 + (min))
 #define FUSE_VERSION                    FUSE_MAKE_VERSION(FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION)
 
 /*
  * FUSE uses a number of types (notably: struct stat) that are OS specific.
- * Furthermore there are even multiple definitions of the same type even
- * within the same OS. This is certainly true on Windows as well, where
- * these types are not even native.
+ * Furthermore there are sometimes multiple definitions of the same type even
+ * within the same OS. This is certainly true on Windows, where these types
+ * are not even native.
  *
  * For this reason we will define our own fuse_* types which represent the
  * types as the WinFsp DLL expects to see them. When the file is included
@@ -113,7 +113,29 @@ struct fuse_statvfs
 
 #elif defined(__CYGWIN__)
 
-#error unsupported environment
+#include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <sys/types.h>
+
+#define fuse_uid_t                      uid_t
+#define fuse_gid_t                      gid_t
+#define fuse_pid_t                      pid_t
+
+#define fuse_dev_t                      dev_t
+#define fuse_ino_t                      ino_t
+#define fuse_mode_t                     mode_t
+#define fuse_nlink_t                    nlink_t
+#define fuse_off_t                      off_t
+
+#define fuse_fsblkcnt_t                 fsblkcnt_t
+#define fuse_fsfilcnt_t                 fsfilcnt_t
+#define fuse_blksize_t                  blksize_t
+#define fuse_blkcnt_t                   blkcnt_t
+
+#define fuse_timespec                   timespec
+
+#define fuse_stat                       stat
+#define fuse_statvfs                    statvfs
 
 #define FSP_FUSE_ENVIRONMENT            'C'
 
@@ -190,20 +212,24 @@ static inline int fuse_parse_cmdline(struct fuse_args *args, char **mountpoint,
 
 static inline void fuse_pollhandle_destroy(struct fuse_pollhandle *ph)
 {
+    (void)ph;
 }
 
 static inline int fuse_daemonize(int foreground)
 {
+    (void)foreground;
     return 0;
 }
 
 static inline int fuse_set_signal_handlers(struct fuse_session *se)
 {
+    (void)se;
     return 0;
 }
 
 static inline void fuse_remove_signal_handlers(struct fuse_session *se)
 {
+    (void)se;
 }
 
 #ifdef __cplusplus

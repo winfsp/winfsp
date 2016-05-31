@@ -165,6 +165,8 @@ static inline struct fuse_context *fuse_get_context(void)
 
 static inline int fuse_getgroups(int size, fuse_gid_t list[])
 {
+    (void)size;
+    (void)list;
     return 0;
 }
 
@@ -175,15 +177,18 @@ static inline int fuse_interrupted(void)
 
 static inline int fuse_start_cleanup_thread(struct fuse *fuse)
 {
+    (void)fuse;
     return 0;
 }
 
 static inline void fuse_stop_cleanup_thread(struct fuse *fuse)
 {
+    (void)fuse;
 }
 
 static inline int fuse_clean_cache(struct fuse *fuse)
 {
+    (void)fuse;
     return 60;
 }
 
