@@ -47,6 +47,9 @@
     <ClInclude Include="..\..\inc\fuse\winfsp_fuse.h">
       <Filter>Include\fuse</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\dll\fuse\library.h">
+      <Filter>Source\fuse</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\dll\library.c">
@@ -92,6 +95,9 @@
       <Filter>Source\fuse</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\dll\fuse\fuse_main.c">
+      <Filter>Source\fuse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\dll\fuse\fuseop.c">
       <Filter>Source\fuse</Filter>
     </ClCompile>
   </ItemGroup>

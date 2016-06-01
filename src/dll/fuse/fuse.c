@@ -15,7 +15,7 @@
  * software.
  */
 
-#include <dll/library.h>
+#include <dll/fuse/library.h>
 #include <fuse/fuse.h>
 
 #define FSP_FUSE_CORE_OPT(n, f, v)      { n, offsetof(struct fsp_fuse_core_opt_data, f), v }
@@ -284,6 +284,12 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     struct fuse_chan *ch, struct fuse_args *args,
     const struct fuse_operations *ops, size_t opsize, void *data)
 {
+    static FSP_FILE_SYSTEM_INTERFACE intf =
+    {
+        0,
+        0,
+        fsp_fuse_op_get_security_by_name,
+    };
     struct fsp_fuse_core_opt_data opt_data;
     struct fuse *f = 0;
     PWSTR ServiceName = FspDiagIdent();
@@ -330,13 +336,43 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     FspServiceAllowConsoleMode(f->Service);
     f->Service->UserContext = f;
 
-    Result = FspFileSystemCreate(L"" FSP_FSCTL_NET_DEVICE_NAME, &opt_data.VolumeParams, 0,
+    Result = FspFileSystemCreate(L"" FSP_FSCTL_NET_DEVICE_NAME, &opt_data.VolumeParams, &intf,
         &f->FileSystem);
     if (!NT_SUCCESS(Result))
     {
         ErrorMessage = L": cannot create " LIBRARY_NAME " file system object.";
         goto fail;
     }
+
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactCreateKind,
+        fsp_fuse_op_create);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactOverwriteKind,
+        fsp_fuse_op_overwrite);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactCleanupKind,
+        fsp_fuse_op_cleanup);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactCloseKind,
+        fsp_fuse_op_close);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactReadKind,
+        fsp_fuse_op_read);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactWriteKind,
+        fsp_fuse_op_write);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactQueryInformationKind,
+        fsp_fuse_op_query_information);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactSetInformationKind,
+        fsp_fuse_op_set_information);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactFlushBuffersKind,
+        fsp_fuse_op_flush_buffers);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactQueryVolumeInformationKind,
+        fsp_fuse_op_query_volume_information);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactSetVolumeInformationKind,
+        fsp_fuse_op_set_volume_information);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactQueryDirectoryKind,
+        fsp_fuse_op_query_directory);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactQuerySecurityKind,
+        fsp_fuse_op_query_security);
+    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactSetSecurityKind,
+        fsp_fuse_op_set_security);
+    //FspFileSystemSetOperationGuard(f->FileSystem, 0, 0);
 
     if (opt_data.debug)
         FspFileSystemSetDebugLog(f->FileSystem, -1);

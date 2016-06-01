@@ -15,7 +15,7 @@
  * software.
  */
 
-#include <dll/library.h>
+#include <dll/fuse/library.h>
 #include <fuse/fuse_opt.h>
 #include <stdint.h>
 

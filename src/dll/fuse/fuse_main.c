@@ -15,7 +15,7 @@
  * software.
  */
 
-#include <dll/library.h>
+#include <dll/fuse/library.h>
 #include <fuse/fuse.h>
 
 #define FSP_FUSE_MAIN_OPT(n, f, v)      { n, offsetof(struct fsp_fuse_main_opt_data, f), v }
