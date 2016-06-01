@@ -45,6 +45,18 @@ static struct fuse_opt fsp_fuse_main_opts[] =
 static int fsp_fuse_main_opt_proc(void *opt_data0, const char *arg, int key,
     struct fuse_args *outargs)
 {
+    static PWSTR HeaderHelp = L""
+        "\n"
+        "    -o opt,[opt...]        mount options\n"
+        "    -h   --help            print help\n"
+        "    -V   --version         print version\n"
+        "\n";
+    static PWSTR MainHelp = L""
+        "FUSE options:\n"
+        "    -d   -o debug          enable debug output (implies -f)\n"
+        "    -f                     foreground operation\n"
+        "    -s                     disable multi-threaded operation\n"
+        "\n";
     struct fsp_fuse_main_opt_data *opt_data = opt_data0;
 
     switch (key)
@@ -54,25 +66,14 @@ static int fsp_fuse_main_opt_proc(void *opt_data0, const char *arg, int key,
     case 'h':
         FspServiceLog(EVENTLOG_ERROR_TYPE, L""
             "usage: %s mountpoint [options]\n"
-            "\n"
-            "    -o opt,[opt...]        mount options\n"
-            "    -h   --help            print help\n"
-            "    -V   --version         print version\n"
-            "\n"
-            "FUSE options:\n"
-            "    -d   -o debug          enable debug output (implies -f)\n"
-            "    -f                     foreground operation\n"
-            "    -s                     disable multi-threaded operation\n"
-            "\n",
-            FspDiagIdent());
+            "%s"
+            "%s",
+            FspDiagIdent(), HeaderHelp, MainHelp);
         return 1;
     case 'H':
         FspServiceLog(EVENTLOG_ERROR_TYPE, L""
-            "FUSE options:\n"
-            "    -d   -o debug          enable debug output (implies -f)\n"
-            "    -f                     foreground operation\n"
-            "    -s                     disable multi-threaded operation\n"
-            "\n");
+            "%s",
+            MainHelp);
         fsp_fuse_opt_add_arg(opt_data->env, outargs, "-h");
         return 0;
     case FUSE_OPT_KEY_NONOPT:
