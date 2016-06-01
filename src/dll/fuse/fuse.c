@@ -18,6 +18,28 @@
 #include <dll/library.h>
 #include <fuse/fuse.h>
 
+#define FSP_FUSE_CORE_OPT(n, f, v)      { n, offsetof(struct fsp_fuse_core_opt_data, f), v }
+
+struct fsp_fuse_core_opt_data
+{
+    struct fsp_fuse_env *env;
+    int debug;
+    int help;
+};
+
+static struct fuse_opt fsp_fuse_core_opts[] =
+{
+    FSP_FUSE_CORE_OPT("-d", debug, 1),
+    FSP_FUSE_CORE_OPT("debug", debug, 1),
+    FUSE_OPT_KEY("-d", FUSE_OPT_KEY_KEEP),
+    FUSE_OPT_KEY("debug", FUSE_OPT_KEY_KEEP),
+    FUSE_OPT_KEY("-h", 'h'),
+    FUSE_OPT_KEY("--help", 'h'),
+    FUSE_OPT_KEY("-V", 'V'),
+    FUSE_OPT_KEY("--version", 'V'),
+    FUSE_OPT_END,
+};
+
 struct fuse_chan
 {
     PWSTR MountPoint;
@@ -103,11 +125,14 @@ FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(struct fsp_fuse_env *env,
     struct fuse_chan *ch = 0;
     int Size;
 
+    if (0 == mountpoint)
+        mountpoint = "";
+
     Size = MultiByteToWideChar(CP_UTF8, 0, mountpoint, -1, 0, 0);
     if (0 == Size)
         goto fail;
 
-    ch = MemAlloc(sizeof *ch + Size);
+    ch = MemAlloc(sizeof *ch + Size * sizeof(WCHAR));
     if (0 == ch)
         goto fail;
 
@@ -119,8 +144,6 @@ FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(struct fsp_fuse_env *env,
     return ch;
 
 fail:
-    FspServiceLog(EVENTLOG_ERROR_TYPE, L"Invalid mount point.");
-
     MemFree(ch);
 
     return 0;
@@ -135,8 +158,34 @@ FSP_FUSE_API void fsp_fuse_unmount(struct fsp_fuse_env *env,
 FSP_FUSE_API int fsp_fuse_is_lib_option(struct fsp_fuse_env *env,
     const char *opt)
 {
-    // !!!: NEEDIMPL
-    return 0;
+    return fsp_fuse_opt_match(env, fsp_fuse_core_opts, opt);
+}
+
+static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
+    struct fuse_args *outargs)
+{
+    struct fsp_fuse_core_opt_data *opt_data = opt_data0;
+
+    switch (key)
+    {
+    default:
+        return 1;
+    case 'h':
+#if 0
+        FspServiceLog(EVENTLOG_ERROR_TYPE, L""
+            "Core options:\n"
+            "    -d   -o debug          enable debug output (implies -f)\n"
+            "\n");
+#endif
+        opt_data->help = 1;
+        return 1;
+    case 'V':
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
+            L"" LIBRARY_NAME "-FUSE version %d.%d",
+            FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION);
+        opt_data->help = 1;
+        return 1;
+    }
 }
 
 static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
@@ -159,10 +208,20 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     struct fuse_chan *ch, struct fuse_args *args,
     const struct fuse_operations *ops, size_t opsize, void *data)
 {
+    struct fsp_fuse_core_opt_data opt_data;
     struct fuse *f = 0;
     PWSTR ServiceName = FspDiagIdent();
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    PWSTR ErrorMessage = L".";
     NTSTATUS Result;
+
+    memset(&opt_data, 0, sizeof opt_data);
+    opt_data.env = env;
+
+    if (-1 == fsp_fuse_opt_parse(env, args, &opt_data, fsp_fuse_core_opts, fsp_fuse_core_opt_proc))
+        return 0;
+    if (opt_data.help)
+        return 0;
 
     memset(&VolumeParams, 0, sizeof VolumeParams);
 #if 0
@@ -193,11 +252,21 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
 
     Result = FspFileSystemCreate(L"" FSP_FSCTL_NET_DEVICE_NAME, &VolumeParams, 0, &f->FileSystem);
     if (!NT_SUCCESS(Result))
+    {
+        ErrorMessage = L": cannot create " LIBRARY_NAME " file system object.";
         goto fail;
+    }
 
-    Result = FspFileSystemSetMountPoint(f->FileSystem, ch->MountPoint);
-    if (!NT_SUCCESS(Result))
-        goto fail;
+    if (L'\0' != ch->MountPoint)
+    {
+        Result = FspFileSystemSetMountPoint(f->FileSystem,
+            L'*' == ch->MountPoint[0] && L'\0' == ch->MountPoint[1] ? 0 : ch->MountPoint);
+        if (!NT_SUCCESS(Result))
+        {
+            ErrorMessage = L": cannot set mount point.";
+            goto fail;
+        }
+    }
 
     f->Ops = ops;
     f->OpSize = opsize;
@@ -209,7 +278,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     return f;
 
 fail:
-    FspServiceLog(EVENTLOG_ERROR_TYPE, L"Unable to create FUSE file system.");
+    FspServiceLog(EVENTLOG_ERROR_TYPE, L"Unable to create FUSE file system%s");
 
     if (0 != f)
     {

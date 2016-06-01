@@ -18,9 +18,9 @@
 #include <dll/library.h>
 #include <fuse/fuse.h>
 
-#define FSP_FUSE_DEFAULT_OPT(n, f, v)   { n, offsetof(struct fsp_fuse_default_opt_data, f), v }
+#define FSP_FUSE_MAIN_OPT(n, f, v)      { n, offsetof(struct fsp_fuse_main_opt_data, f), v }
 
-struct fsp_fuse_default_opt_data
+struct fsp_fuse_main_opt_data
 {
     struct fsp_fuse_env *env;
     char *mountpoint;
@@ -28,10 +28,24 @@ struct fsp_fuse_default_opt_data
     int foreground;
 };
 
-static int fsp_fuse_default_opt_proc(void *data0, const char *arg, int key,
+static struct fuse_opt fsp_fuse_main_opts[] =
+{
+    FSP_FUSE_MAIN_OPT("-d", foreground, 1),
+    FSP_FUSE_MAIN_OPT("debug", foreground, 1),
+    FSP_FUSE_MAIN_OPT("-f", foreground, 1),
+    FSP_FUSE_MAIN_OPT("-s", singlethread, 1),
+    FUSE_OPT_KEY("-d", FUSE_OPT_KEY_KEEP),
+    FUSE_OPT_KEY("debug", FUSE_OPT_KEY_KEEP),
+    FUSE_OPT_KEY("-h", 'h'),
+    FUSE_OPT_KEY("--help", 'h'),
+    FUSE_OPT_KEY("-ho", 'H'),
+    FUSE_OPT_END,
+};
+
+static int fsp_fuse_main_opt_proc(void *opt_data0, const char *arg, int key,
     struct fuse_args *outargs)
 {
-    struct fsp_fuse_default_opt_data *data = data0;
+    struct fsp_fuse_main_opt_data *opt_data = opt_data0;
 
     switch (key)
     {
@@ -41,35 +55,38 @@ static int fsp_fuse_default_opt_proc(void *data0, const char *arg, int key,
         FspServiceLog(EVENTLOG_ERROR_TYPE, L""
             "usage: %s mountpoint [options]\n"
             "\n"
-            "    -o opt,[opt...]         mount options\n"
-            "    -h  --help              print help\n"
-            "    -V  --version           print version\n"
+            "    -o opt,[opt...]        mount options\n"
+            "    -h   --help            print help\n"
+            "    -V   --version         print version\n"
             "\n"
             "FUSE options:\n"
-            "    -d  -o debug            enable debug output (implies -f)\n"
-            "    -f                      foreground operation\n"
-            "    -s                      disable multi-threaded operation\n"
+            "    -d   -o debug          enable debug output (implies -f)\n"
+            "    -f                     foreground operation\n"
+            "    -s                     disable multi-threaded operation\n"
             "\n",
             FspDiagIdent());
-        fsp_fuse_opt_add_arg(data->env, outargs, "-h");
-        return 0;
-    case 'V':
-        FspServiceLog(EVENTLOG_ERROR_TYPE,
-            L"WinFsp-FUSE v%d.%d",
-            FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION);
         return 1;
+    case 'H':
+        FspServiceLog(EVENTLOG_ERROR_TYPE, L""
+            "FUSE options:\n"
+            "    -d   -o debug          enable debug output (implies -f)\n"
+            "    -f                     foreground operation\n"
+            "    -s                     disable multi-threaded operation\n"
+            "\n");
+        fsp_fuse_opt_add_arg(opt_data->env, outargs, "-h");
+        return 0;
     case FUSE_OPT_KEY_NONOPT:
-        if (0 == data->mountpoint)
+        if (0 == opt_data->mountpoint)
         {
             size_t size = lstrlenA(arg) + 1;
-            data->mountpoint = data->env->memalloc(size);
-            if (0 == data->mountpoint)
+            opt_data->mountpoint = opt_data->env->memalloc(size);
+            if (0 == opt_data->mountpoint)
                 return -1;
-            memcpy(data->mountpoint, arg, size);
+            memcpy(opt_data->mountpoint, arg, size);
         }
         else
             FspServiceLog(EVENTLOG_ERROR_TYPE,
-                L"invalid argument \"%S\"", arg);
+                L"Invalid argument \"%S\"", arg);
         return 1;
     }
 }
@@ -78,39 +95,24 @@ FSP_FUSE_API int fsp_fuse_parse_cmdline(struct fsp_fuse_env *env,
     struct fuse_args *args,
     char **mountpoint, int *multithreaded, int *foreground)
 {
-    static struct fuse_opt opts[] =
-    {
-        FSP_FUSE_DEFAULT_OPT("-d", foreground, 1),
-        FSP_FUSE_DEFAULT_OPT("debug", foreground, 1),
-        FSP_FUSE_DEFAULT_OPT("-f", foreground, 1),
-        FSP_FUSE_DEFAULT_OPT("-s", singlethread, 1),
-        FUSE_OPT_KEY("-d", FUSE_OPT_KEY_KEEP),
-        FUSE_OPT_KEY("debug", FUSE_OPT_KEY_KEEP),
-        FUSE_OPT_KEY("-h", 'h'),
-        FUSE_OPT_KEY("--help", 'h'),
-        FUSE_OPT_KEY("--ho", 'h'),
-        FUSE_OPT_KEY("-V", 'V'),
-        FUSE_OPT_KEY("--version", 'V'),
-        FUSE_OPT_END,
-    };
-    struct fsp_fuse_default_opt_data data;
+    struct fsp_fuse_main_opt_data opt_data;
 
-    memset(&data, 0, sizeof data);
-    data.env = env;
+    memset(&opt_data, 0, sizeof opt_data);
+    opt_data.env = env;
 
-    if (-1 == fsp_fuse_opt_parse(env, args, &data, opts, fsp_fuse_default_opt_proc))
+    if (-1 == fsp_fuse_opt_parse(env, args, &opt_data, fsp_fuse_main_opts, fsp_fuse_main_opt_proc))
         return -1;
 
     if (0 != mountpoint)
-        *mountpoint = data.mountpoint;
+        *mountpoint = opt_data.mountpoint;
     else
         env->memfree(mountpoint);
 
     if (0 != multithreaded)
-        *multithreaded = !data.singlethread;
+        *multithreaded = !opt_data.singlethread;
 
     if (0 != foreground)
-        *foreground = data.foreground;
+        *foreground = opt_data.foreground;
 
     return 0;
 }
@@ -161,11 +163,11 @@ exit:
     if (signal_handlers)
         env->remove_signal_handlers(f/* !!!: REVISIT */);
 
-    if (0 != ch)
-        fsp_fuse_unmount(env, mountpoint, ch);
-
     if (0 != f)
         fsp_fuse_destroy(env, f);
+
+    if (0 != ch)
+        fsp_fuse_unmount(env, mountpoint, ch);
 
     env->memfree(mountpoint);
 
