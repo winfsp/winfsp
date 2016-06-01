@@ -732,7 +732,7 @@ NTSTATUS FspNpRegister(VOID)
     {
         if (L',' == *P || '\0' == *P)
         {
-            if (CSTR_EQUAL == CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE,
+            if (CSTR_EQUAL == CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE,
                 Part, (int)(P - Part),
                 L"" FSP_NP_NAME, (int)(sizeof L"" FSP_NP_NAME - sizeof(WCHAR)) / sizeof(WCHAR)))
             {
@@ -795,7 +795,7 @@ NTSTATUS FspNpUnregister(VOID)
     {
         if (L',' == *P || '\0' == *P)
         {
-            if (CSTR_EQUAL == CompareStringW(LOCALE_SYSTEM_DEFAULT, NORM_IGNORECASE,
+            if (CSTR_EQUAL == CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE,
                 Part, (int)(P - Part),
                 L"" FSP_NP_NAME, (int)(sizeof L"" FSP_NP_NAME - sizeof(WCHAR)) / sizeof(WCHAR)))
             {

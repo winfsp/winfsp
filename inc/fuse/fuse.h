@@ -187,23 +187,6 @@ static inline int fuse_notify_poll(struct fuse_pollhandle *ph)
     return 0;
 }
 
-static inline int fuse_start_cleanup_thread(struct fuse *fuse)
-{
-    (void)fuse;
-    return 0;
-}
-
-static inline void fuse_stop_cleanup_thread(struct fuse *fuse)
-{
-    (void)fuse;
-}
-
-static inline int fuse_clean_cache(struct fuse *fuse)
-{
-    (void)fuse;
-    return 60;
-}
-
 static inline struct fuse_session *fuse_get_session(struct fuse *f)
 {
     return (void *)f;

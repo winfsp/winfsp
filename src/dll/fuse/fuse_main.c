@@ -30,15 +30,17 @@ struct fsp_fuse_main_opt_data
 
 static struct fuse_opt fsp_fuse_main_opts[] =
 {
-    FSP_FUSE_MAIN_OPT("-d", foreground, 1),
-    FSP_FUSE_MAIN_OPT("debug", foreground, 1),
-    FSP_FUSE_MAIN_OPT("-f", foreground, 1),
-    FSP_FUSE_MAIN_OPT("-s", singlethread, 1),
-    FUSE_OPT_KEY("-d", FUSE_OPT_KEY_KEEP),
-    FUSE_OPT_KEY("debug", FUSE_OPT_KEY_KEEP),
     FUSE_OPT_KEY("-h", 'h'),
     FUSE_OPT_KEY("--help", 'h'),
     FUSE_OPT_KEY("-ho", 'H'),
+    FUSE_OPT_KEY("-d", FUSE_OPT_KEY_KEEP),
+    FUSE_OPT_KEY("debug", FUSE_OPT_KEY_KEEP),
+    FSP_FUSE_MAIN_OPT("-d", foreground, 1),
+    FSP_FUSE_MAIN_OPT("debug", foreground, 1),
+
+    FSP_FUSE_MAIN_OPT("-f", foreground, 1),
+    FSP_FUSE_MAIN_OPT("-s", singlethread, 1),
+
     FUSE_OPT_END,
 };
 
