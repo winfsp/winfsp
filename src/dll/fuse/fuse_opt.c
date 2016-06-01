@@ -620,5 +620,5 @@ FSP_FUSE_API int fsp_fuse_opt_match(struct fsp_fuse_env *env,
         return 0;
 
     const char *spec;
-    return fsp_fuse_opt_find(opts, &spec, &arg) ? 1 : 0;
+    return !!fsp_fuse_opt_find(opts, &spec, &arg);
 }
