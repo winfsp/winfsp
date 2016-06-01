@@ -119,35 +119,58 @@ FSP_FUSE_API int fsp_fuse_main_real(struct fsp_fuse_env *env,
     int argc, char *argv[],
     const struct fuse_operations *ops, size_t opsize, void *data)
 {
-    struct fuse *f;
+    struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     char *mountpoint = 0;
     int multithreaded = 0;
+    int foreground = 0;
+    struct fuse_chan *ch = 0;
+    struct fuse *f = 0;
+    int signal_handlers = 0;
     int result;
 
-    f = fsp_fuse_setup(env, argc, argv, ops, opsize, &mountpoint, &multithreaded, data);
+    result = fsp_fuse_parse_cmdline(env, &args, &mountpoint, &multithreaded, &foreground);
+    if (-1 == result)
+        goto exit;
+
+    ch = fsp_fuse_mount(env, mountpoint, &args);
+    if (0 == ch)
+    {
+        result = -1;
+        goto exit;
+    }
+
+    f = fsp_fuse_new(env, ch, &args, ops, opsize, data);
     if (0 == f)
-        return 1;
+    {
+        result = -1;
+        goto exit;
+    }
+
+    result = env->daemonize(foreground);
+    if (-1 == result)
+        goto exit;
+
+    result = env->set_signal_handlers(f/* !!!: REVISIT */);
+    if (-1 == result)
+        goto exit;
+    signal_handlers = 1;
 
     result = multithreaded ? fsp_fuse_loop_mt(env, f) : fsp_fuse_loop(env, f);
 
-    fsp_fuse_teardown(env, f, mountpoint);
+exit:
+    if (signal_handlers)
+        env->remove_signal_handlers(f/* !!!: REVISIT */);
+
+    if (0 != ch)
+        fsp_fuse_unmount(env, mountpoint, ch);
+
+    if (0 != f)
+        fsp_fuse_destroy(env, f);
+
+    env->memfree(mountpoint);
+
+    fsp_fuse_opt_free_args(env, &args);
 
     /* main() style return: 0 success, 1 error */
     return !!result;
-}
-
-FSP_FUSE_API struct fuse *fsp_fuse_setup(struct fsp_fuse_env *env,
-    int argc, char *argv[],
-    const struct fuse_operations *ops, size_t opsize,
-    char **mountpoint, int *multithreaded,
-    void *data)
-{
-    // !!!: NEEDIMPL
-    return 0;
-}
-
-FSP_FUSE_API void fsp_fuse_teardown(struct fsp_fuse_env *env,
-    struct fuse *f, char *mountpoint)
-{
-    // !!!: NEEDIMPL
 }
