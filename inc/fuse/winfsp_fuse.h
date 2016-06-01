@@ -46,7 +46,7 @@ extern "C" {
  * understanding of the types and ours.
  */
 
-#if defined(_MSC_VER)
+#if defined(_WIN64) || defined(_WIN32)
 
 typedef uint32_t fuse_uid_t;
 typedef uint32_t fuse_gid_t;
@@ -103,9 +103,23 @@ struct fuse_statvfs
 };
 
 #if defined(WINFSP_DLL_INTERNAL)
-#define FSP_FUSE_ENV_INIT               { 'W', MemAlloc, MemFree }
+#define FSP_FUSE_ENV_INIT               \
+    {                                   \
+        'W',                            \
+        MemAlloc, MemFree,              \
+        fsp_fuse_daemonize,             \
+        fsp_fuse_set_signal_handlers,   \
+        fsp_fuse_remove_signal_handlers,\
+    }
 #else
-#define FSP_FUSE_ENV_INIT               { 'W', malloc, free }
+#define FSP_FUSE_ENV_INIT               \
+    {                                   \
+        'W',                            \
+        malloc, free,                   \
+        fsp_fuse_daemonize,             \
+        fsp_fuse_set_signal_handlers,   \
+        fsp_fuse_remove_signal_handlers,\
+    }
 #endif
 
 #elif defined(__CYGWIN__)
@@ -136,7 +150,14 @@ struct fuse_statvfs
 #define fuse_stat                       stat
 #define fuse_statvfs                    statvfs
 
-#define FSP_FUSE_ENV_INIT               { 'C', malloc, free }
+#define FSP_FUSE_ENV_INIT               \
+    {                                   \
+        'C',                            \
+        malloc, free,                   \
+        fsp_fuse_daemonize,             \
+        fsp_fuse_set_signal_handlers,   \
+        fsp_fuse_remove_signal_handlers,\
+    }
 
 /*
  * Note that long is 8 bytes long in Cygwin64 and 4 bytes long in Win64.
@@ -152,7 +173,40 @@ struct fsp_fuse_env
     unsigned environment;
     void *(*memalloc)(size_t);
     void (*memfree)(void *);
+    int (*daemonize)(int);
+    int (*set_signal_handlers)(void *);
+    void (*remove_signal_handlers)(void *);
 };
+
+static inline int fsp_fuse_daemonize(int foreground)
+{
+#if defined(_WIN64) || defined(_WIN32)
+    (void)foreground;
+    return 0;
+#elif defined(__CYGWIN__)
+    int daemon(int nochdir, int noclose);
+    int chdir(const char *path);
+    if (!foreground)
+    {
+        if (-1 == daemon(0, 0))
+            return -1;
+    }
+    else
+        chdir("/");
+    return 0;
+#endif
+}
+
+static inline int fsp_fuse_set_signal_handlers(void *se)
+{
+    (void)se;
+    return 0;
+}
+
+static inline void fsp_fuse_remove_signal_handlers(void *se)
+{
+    (void)se;
+}
 
 static inline struct fsp_fuse_env *fsp_fuse_env(void)
 {

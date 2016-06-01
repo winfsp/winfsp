@@ -83,8 +83,8 @@ FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(struct fsp_fuse_env *env,
 FSP_FUSE_API void fsp_fuse_unmount(struct fsp_fuse_env *env,
     const char *mountpoint, struct fuse_chan *ch);
 FSP_FUSE_API int fsp_fuse_parse_cmdline(struct fsp_fuse_env *env,
-    struct fuse_args *args, char **mountpoint,
-    int *multithreaded, int *foreground);
+    struct fuse_args *args,
+    char **mountpoint, int *multithreaded, int *foreground);
 
 static inline int fuse_version(void)
 {
@@ -101,8 +101,8 @@ static inline void fuse_unmount(const char *mountpoint, struct fuse_chan *ch)
     fsp_fuse_unmount(fsp_fuse_env(), mountpoint, ch);
 }
 
-static inline int fuse_parse_cmdline(struct fuse_args *args, char **mountpoint,
-    int *multithreaded, int *foreground)
+static inline int fuse_parse_cmdline(struct fuse_args *args,
+    char **mountpoint, int *multithreaded, int *foreground)
 {
     return fsp_fuse_parse_cmdline(fsp_fuse_env(), args, mountpoint, multithreaded, foreground);
 }
@@ -114,19 +114,17 @@ static inline void fuse_pollhandle_destroy(struct fuse_pollhandle *ph)
 
 static inline int fuse_daemonize(int foreground)
 {
-    (void)foreground;
-    return 0;
+    return fsp_fuse_daemonize(foreground);
 }
 
 static inline int fuse_set_signal_handlers(struct fuse_session *se)
 {
-    (void)se;
-    return 0;
+    return fsp_fuse_set_signal_handlers(se);
 }
 
 static inline void fuse_remove_signal_handlers(struct fuse_session *se)
 {
-    (void)se;
+    fsp_fuse_remove_signal_handlers(se);
 }
 
 #ifdef __cplusplus

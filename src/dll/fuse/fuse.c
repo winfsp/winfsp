@@ -132,22 +132,6 @@ FSP_FUSE_API void fsp_fuse_unmount(struct fsp_fuse_env *env,
     MemFree(ch);
 }
 
-FSP_FUSE_API int fsp_fuse_parse_cmdline(struct fsp_fuse_env *env,
-    struct fuse_args *args, char **mountpoint,
-    int *multithreaded, int *foreground)
-{
-    // !!!: NEEDIMPL
-    return 0;
-}
-
-FSP_FUSE_API int fsp_fuse_main_real(struct fsp_fuse_env *env,
-    int argc, char *argv[],
-    const struct fuse_operations *ops, size_t opsize, void *data)
-{
-    // !!!: NEEDIMPL
-    return 0;
-}
-
 FSP_FUSE_API int fsp_fuse_is_lib_option(struct fsp_fuse_env *env,
     const char *opt)
 {

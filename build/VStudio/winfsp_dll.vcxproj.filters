@@ -91,6 +91,9 @@
     <ClCompile Include="..\..\src\dll\fuse\fuse_opt.c">
       <Filter>Source\fuse</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\dll\fuse\fuse_main.c">
+      <Filter>Source\fuse</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\ntstatus.i">

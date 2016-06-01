@@ -105,6 +105,13 @@ struct fuse_context
 FSP_FUSE_API int fsp_fuse_main_real(struct fsp_fuse_env *env,
     int argc, char *argv[],
     const struct fuse_operations *ops, size_t opsize, void *data);
+FSP_FUSE_API struct fuse *fsp_fuse_setup(struct fsp_fuse_env *env,
+    int argc, char *argv[],
+    const struct fuse_operations *ops, size_t opsize,
+    char **mountpoint, int *multithreaded,
+    void *data);
+FSP_FUSE_API void fsp_fuse_teardown(struct fsp_fuse_env *env,
+    struct fuse *f, char *mountpoint);
 FSP_FUSE_API int fsp_fuse_is_lib_option(struct fsp_fuse_env *env,
     const char *opt);
 FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
@@ -124,6 +131,20 @@ static inline int fuse_main_real(int argc, char *argv[],
     const struct fuse_operations *ops, size_t opsize, void *data)
 {
     return fsp_fuse_main_real(fsp_fuse_env(), argc, argv, ops, opsize, data);
+}
+
+static inline struct fuse *fuse_setup(int argc, char *argv[],
+    const struct fuse_operations *ops, size_t opsize,
+    char **mountpoint, int *multithreaded,
+    void *data)
+{
+    return fsp_fuse_setup(fsp_fuse_env(),
+        argc, argv, ops, opsize, mountpoint, multithreaded, data);
+}
+
+static inline void fuse_teardown(struct fuse *f, char *mountpoint)
+{
+    fsp_fuse_teardown(fsp_fuse_env(), f, mountpoint);
 }
 
 static inline int fuse_is_lib_option(const char *opt)
