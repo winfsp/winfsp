@@ -244,42 +244,31 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     f->fsinit = TRUE;
     if (0 != f->ops.statfs)
     {
-        union
-        {
-            struct cyg_statvfs cygbuf;
-            struct fuse_statvfs fspbuf;
-        } buf;
-        struct fuse_statvfs fspbuf;
+        struct fuse_statvfs stbuf;
         int err;
 
-        err = f->ops.statfs("/", (void *)&buf);
+        err = f->ops.statfs("/", &stbuf);
         if (0 != err)
             goto fail;
-        fsp_fuse_get_statvfs_buf(f->env, &buf, &fspbuf);
 
         if (0 == f->VolumeParams.SectorSize)
-            f->VolumeParams.SectorSize = (UINT16)fspbuf.f_bsize;
+            f->VolumeParams.SectorSize = (UINT16)stbuf.f_bsize;
         if (0 == f->VolumeParams.MaxComponentLength)
-            f->VolumeParams.MaxComponentLength = (UINT16)fspbuf.f_namemax;
+            f->VolumeParams.MaxComponentLength = (UINT16)stbuf.f_namemax;
     }
     if (0 != f->ops.getattr)
     {
-        union
-        {
-            struct cyg_stat cygbuf;
-            struct fuse_stat fspbuf;
-        } buf;
-        struct fuse_stat fspbuf;
+        struct fuse_stat stbuf;
         int err;
 
-        err = f->ops.getattr("/", (void *)&buf);
+        err = f->ops.getattr("/", (void *)&stbuf);
         if (0 != err)
             goto fail;
-        fsp_fuse_get_stat_buf(f->env, &buf, &fspbuf);
 
         if (0 == f->VolumeParams.VolumeCreationTime)
             f->VolumeParams.VolumeCreationTime =
-                Int32x32To64(fspbuf.st_birthtim.tv_sec, 10000000) + 116444736000000000;
+                Int32x32To64(stbuf.st_birthtim.tv_sec, 10000000) + 116444736000000000 +
+                stbuf.st_birthtim.tv_nsec / 100;
     }
 
     /* the FSD does not currently limit these VolumeParams fields; do so here! */

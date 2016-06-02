@@ -54,7 +54,7 @@ struct fuse_operations
     int (*chmod)(const char *path, fuse_mode_t mode);
     int (*chown)(const char *path, fuse_uid_t uid, fuse_gid_t gid);
     int (*truncate)(const char *path, fuse_off_t size);
-    int (*utime)(const char *path, struct utimbuf *timbuf);
+    int (*utime)(const char *path, struct fuse_utimbuf *timbuf);
     int (*open)(const char *path, struct fuse_file_info *fi);
     int (*read)(const char *path, char *buf, size_t size, fuse_off_t off,
         struct fuse_file_info *fi);
@@ -81,7 +81,7 @@ struct fuse_operations
     int (*ftruncate)(const char *path, fuse_off_t off, struct fuse_file_info *fi);
     int (*fgetattr)(const char *path, struct fuse_stat *stbuf, struct fuse_file_info *fi);
     int (*lock)(const char *path, struct fuse_file_info *fi, int cmd, struct flock *lock);
-    int (*utimens)(const char *path, const struct timespec tv[2]);
+    int (*utimens)(const char *path, const struct fuse_timespec tv[2]);
     int (*bmap)(const char *path, size_t blocksize, uint64_t *idx);
     int (*ioctl)(const char *path, int cmd, void *arg, struct fuse_file_info *fi,
         unsigned int flags, void *data);

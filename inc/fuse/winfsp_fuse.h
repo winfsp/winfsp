@@ -41,9 +41,9 @@ extern "C" {
  * are not even native.
  *
  * For this reason we will define our own fuse_* types which represent the
- * types as the WinFsp DLL expects to see them. When the file is included
- * by FUSE clients in different environments we will translate between their
- * understanding of the types and ours.
+ * types as the WinFsp DLL expects to see them. We will define these types
+ * to be compatible with the equivalent Cygwin types as we want WinFsp-FUSE
+ * to be usable from Cygwin.
  */
 
 #if defined(_WIN64) || defined(_WIN32)
@@ -52,22 +52,45 @@ typedef uint32_t fuse_uid_t;
 typedef uint32_t fuse_gid_t;
 typedef int32_t fuse_pid_t;
 
-typedef uint64_t fuse_dev_t;
+typedef uint32_t fuse_dev_t;
 typedef uint64_t fuse_ino_t;
 typedef uint32_t fuse_mode_t;
-typedef uint32_t fuse_nlink_t;
+typedef uint16_t fuse_nlink_t;
 typedef int64_t fuse_off_t;
 
+#if defined(_WIN64)
 typedef uint64_t fuse_fsblkcnt_t;
 typedef uint64_t fuse_fsfilcnt_t;
-typedef int64_t fuse_blksize_t;
+#else
+typedef uint32_t fuse_fsblkcnt_t;
+typedef uint32_t fuse_fsfilcnt_t;
+#endif
+typedef int32_t fuse_blksize_t;
 typedef int64_t fuse_blkcnt_t;
 
+#if defined(_WIN64)
+struct fuse_utimbuf
+{
+    int64_t actime;
+    int64_t modtime;
+};
 struct fuse_timespec
 {
-    time_t tv_sec;
-    int tv_nsec;
+    int64_t tv_sec;
+    int64_t tv_nsec;
 };
+#else
+struct fuse_utimbuf
+{
+    int32_t actime;
+    int32_t modtime;
+};
+struct fuse_timespec
+{
+    int32_t tv_sec;
+    int32_t tv_nsec;
+};
+#endif
 
 struct fuse_stat
 {
@@ -87,6 +110,7 @@ struct fuse_stat
     struct fuse_timespec st_birthtim;
 };
 
+#if defined(_WIN64)
 struct fuse_statvfs
 {
     uint64_t f_bsize;
@@ -101,6 +125,22 @@ struct fuse_statvfs
     uint64_t f_flag;
     uint64_t f_namemax;
 };
+#else
+struct fuse_statvfs
+{
+    uint32_t f_bsize;
+    uint32_t f_frsize;
+    fuse_fsblkcnt_t f_blocks;
+    fuse_fsblkcnt_t f_bfree;
+    fuse_fsblkcnt_t f_bavail;
+    fuse_fsfilcnt_t f_files;
+    fuse_fsfilcnt_t f_ffree;
+    fuse_fsfilcnt_t f_favail;
+    uint32_t f_fsid;
+    uint32_t f_flag;
+    uint32_t f_namemax;
+};
+#endif
 
 #if defined(WINFSP_DLL_INTERNAL)
 #define FSP_FUSE_ENV_INIT               \
@@ -145,6 +185,7 @@ struct fuse_statvfs
 #define fuse_blksize_t                  blksize_t
 #define fuse_blkcnt_t                   blkcnt_t
 
+#define fuse_utimbuf                    utimbuf
 #define fuse_timespec                   timespec
 
 #define fuse_stat                       stat
