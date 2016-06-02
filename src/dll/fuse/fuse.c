@@ -23,14 +23,17 @@ struct fsp_fuse_core_opt_data
 {
     struct fsp_fuse_env *env;
     int help, debug;
-    int hard_remove, use_ino, readdir_ino, direct_io,
-        kernel_cache, auto_cache, set_umask, umask,
-        set_uid, uid, set_gid, gid,
+    int hard_remove,
+        use_ino, readdir_ino,
+        set_umask, umask,
+        set_uid, uid,
+        set_gid, gid,
         set_attr_timeout, attr_timeout;
     FILETIME VolumeCreationTime;
     int set_FileInfoTimeout;
     int CaseInsensitiveSearch, PersistentAcls,
-        ReparsePoints, NamedStreams, ReadOnlyVolume;
+        ReparsePoints, NamedStreams,
+        ReadOnlyVolume;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
 };
 
@@ -48,10 +51,10 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("hard_remove", hard_remove, 1),
     FSP_FUSE_CORE_OPT("use_ino", use_ino, 1),
     FSP_FUSE_CORE_OPT("readdir_ino", readdir_ino, 1),
-    FSP_FUSE_CORE_OPT("direct_io", direct_io, 1),
-    FSP_FUSE_CORE_OPT("kernel_cache", kernel_cache, 1),
-    FSP_FUSE_CORE_OPT("auto_cache", auto_cache, 1),
-    FSP_FUSE_CORE_OPT("noauto_cache", auto_cache, 0),
+    FUSE_OPT_KEY("direct_io", FUSE_OPT_KEY_DISCARD),
+    FUSE_OPT_KEY("kernel_cache", FUSE_OPT_KEY_DISCARD),
+    FUSE_OPT_KEY("auto_cache", FUSE_OPT_KEY_DISCARD),
+    FUSE_OPT_KEY("noauto_cache", FUSE_OPT_KEY_DISCARD),
     FSP_FUSE_CORE_OPT("umask=", set_umask, 1),
     FSP_FUSE_CORE_OPT("umask=%o", umask, 0),
     FSP_FUSE_CORE_OPT("uid=", set_uid, 1),
@@ -354,8 +357,8 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
             goto fail;
         fsp_fuse_op_get_statvfs_buf(env->environment, &buf, &fspbuf);
 
-        opt_data.VolumeParams.SectorSize = (UINT16)f_bsize;
-        opt_data.VolumeParams.MaxComponentLength = (UINT16)f_namemax;
+        opt_data.VolumeParams.SectorSize = (UINT16)fspbuf.f_bsize;
+        opt_data.VolumeParams.MaxComponentLength = (UINT16)fspbuf.f_namemax;
     }
 
     /* !!!: the FSD does not currently limit the VolumeParams fields! */
