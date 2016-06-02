@@ -170,7 +170,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <SDLCheck>
       </SDLCheck>
       <AdditionalIncludeDirectories>..\..\src;..\..\inc</AdditionalIncludeDirectories>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
@@ -180,7 +180,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <ProgramDatabaseFile>$(OutDir)$(TargetFileName).pdb</ProgramDatabaseFile>
       <GenerateMapFile>true</GenerateMapFile>
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
-      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
       <AdditionalDependencies>%(AdditionalDependencies);version.lib</AdditionalDependencies>
     </Link>
@@ -195,7 +195,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <SDLCheck>
       </SDLCheck>
       <AdditionalIncludeDirectories>..\..\src;..\..\inc</AdditionalIncludeDirectories>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
@@ -222,7 +222,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <SDLCheck>
       </SDLCheck>
       <AdditionalIncludeDirectories>..\..\src;..\..\inc</AdditionalIncludeDirectories>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
     <Link>
@@ -233,7 +233,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <ProgramDatabaseFile>$(OutDir)$(TargetFileName).pdb</ProgramDatabaseFile>
       <GenerateMapFile>true</GenerateMapFile>
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
-      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
       <AdditionalDependencies>%(AdditionalDependencies);version.lib</AdditionalDependencies>
     </Link>
@@ -250,7 +250,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <SDLCheck>
       </SDLCheck>
       <AdditionalIncludeDirectories>..\..\src;..\..\inc</AdditionalIncludeDirectories>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
     <Link>

@@ -24,8 +24,25 @@
  * For this to work the following project settings must be set:
  * - "C/C++ > General > SDL checks" must be empty (not "Yes" or "No").
  * - "C/C++ > Code Generation > Basic Runtime Checks" must be set to "Default"
+ * - "C/C++ > Code Generation > Runtime Library" must be set to "Multi-threaded (/MT)".
  * - "C/C++ > Code Generation > Security Check" must be disabled (/GS-).
  * - "Linker > Input > Ignore All Default Libraries" must be "Yes".
+ *
+ *
+ * Update:
+ *
+ * It is possible to have the "Linker > Input > Ignore All Default Libraries"
+ * setting to "No" and still eliminate most dependencies on the MSVCRT libraries.
+ * For example, the WinFsp DLL does this on 32-bit builds (only) to include the
+ * __allmul symbol that is used when doing int64_t multiplications.
+ *
+ * The following project setting must be changed:
+ * - "Linker > Input > Ignore All Default Libraries" must be "No".
+ *
+ * Extreme care must be taken to ensure that the linker does not pull in symbols
+ * that are not required (or worse create a half-baked CRT). For example, the WinFsp
+ * DLL ensures this by setting the "Linker > Input > Ignore All Default Libraries"
+ * to "Yes" on 64-bit builds and "No" on 32-bit builds.
  */
 
 #undef RtlFillMemory
