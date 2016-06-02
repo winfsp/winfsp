@@ -402,7 +402,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
     case 'h':
         FspServiceLog(EVENTLOG_ERROR_TYPE, L""
             FSP_FUSE_LIBRARY_NAME " options:\n"
-            "    -o SectorSize=N        sector size for Windows (512-4096, deflt: 4096)\n"
+            "    -o SectorSize=N        sector size for Windows (512-4096, deflt: 512)\n"
             "    -o SectorsPerAllocationUnit=N  allocation unit size (deflt: 1*SectorSize)\n"
             "    -o MaxComponentLength=N    max file name component length (deflt: 255)\n"
             "    -o VolumeCreationTime=T    volume creation time (FILETIME hex format)\n"
