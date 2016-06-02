@@ -22,6 +22,8 @@
 #include <fuse/fuse.h>
 #include <fuse/fuse_opt.h>
 
+#define FSP_FUSE_LIBRARY_NAME           LIBRARY_NAME "-FUSE"
+
 #if defined(_WIN64)
 struct cyg_timespec
 {
@@ -86,11 +88,11 @@ struct cyg_statvfs
 };
 #endif
 
-static inline void fsp_fuse_op_get_stat_buf(
-    int environment,
+static inline void fsp_fuse_get_stat_buf(
+    struct fsp_fuse_env *env,
     const void *buf, struct fuse_stat *fspbuf)
 {
-    switch (environment)
+    switch (env->environment)
     {
     case 'C':
         {
@@ -121,11 +123,11 @@ static inline void fsp_fuse_op_get_stat_buf(
     }
 }
 
-static inline void fsp_fuse_op_get_statvfs_buf(
-    int environment,
+static inline void fsp_fuse_get_statvfs_buf(
+    struct fsp_fuse_env *env,
     const void *buf, struct fuse_statvfs *fspbuf)
 {
-    switch (environment)
+    switch (env->environment)
     {
     case 'C':
         {
@@ -148,6 +150,19 @@ static inline void fsp_fuse_op_get_statvfs_buf(
         break;
     }
 }
+
+struct fuse
+{
+    struct fsp_fuse_env *env;
+    struct fuse_operations ops;
+    void *data;
+    UINT32 DebugLog;
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    PWSTR MountPoint;
+    FSP_SERVICE *Service;
+    FSP_FILE_SYSTEM *FileSystem;
+    BOOLEAN fsinit;
+};
 
 NTSTATUS fsp_fuse_op_get_security_by_name(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PUINT32 PFileAttributes,
