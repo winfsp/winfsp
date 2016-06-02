@@ -51,14 +51,12 @@ static int fsp_fuse_main_opt_proc(void *opt_data0, const char *arg, int key,
         "\n"
         "    -o opt,[opt...]        mount options\n"
         "    -h   --help            print help\n"
-        "    -V   --version         print version\n"
-        "\n";
+        "    -V   --version         print version\n";
     static PWSTR MainHelp = L""
         "FUSE options:\n"
         "    -d   -o debug          enable debug output (implies -f)\n"
         "    -f                     foreground operation\n"
-        "    -s                     disable multi-threaded operation\n"
-        "\n";
+        "    -s                     disable multi-threaded operation\n";
     struct fsp_fuse_main_opt_data *opt_data = opt_data0;
 
     switch (key)
@@ -69,6 +67,7 @@ static int fsp_fuse_main_opt_proc(void *opt_data0, const char *arg, int key,
         FspServiceLog(EVENTLOG_ERROR_TYPE, L""
             "usage: %s mountpoint [options]\n"
             "%s"
+            "\n"
             "%s",
             FspDiagIdent(), HeaderHelp, MainHelp);
         return 1;

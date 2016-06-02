@@ -258,8 +258,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o ReparsePoints           file system supports reparse points\n"
             "    -o NamedStreams            file system supports named streams\n"
             "    -o ReadOnlyVolume          file system is read only\n"
-            "    --UNC=U --VolumePrefix=U   UNC prefix (\\Server\\Share)\n"
-            "\n");
+            "    --UNC=U --VolumePrefix=U   UNC prefix (\\Server\\Share)\n");
         opt_data->help = 1;
         return 1;
     case 'V':
