@@ -30,7 +30,7 @@ struct fsp_fuse_core_opt_data
         set_attr_timeout, attr_timeout;
     FILETIME VolumeCreationTime;
     int set_FileInfoTimeout;
-    int CaseSensitiveSearch, CasePreservedNames, UnicodeOnDisk, PersistentAcls,
+    int CaseInsensitiveSearch, PersistentAcls,
         ReparsePoints, NamedStreams, ReadOnlyVolume;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
 };
@@ -81,9 +81,7 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("IrpCapacity=%u", VolumeParams.IrpCapacity, 0),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=", set_FileInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=%d", VolumeParams.FileInfoTimeout, 0),
-    FSP_FUSE_CORE_OPT("CaseSensitiveSearch", CaseSensitiveSearch, 1),
-    FSP_FUSE_CORE_OPT("CasePreservedNames", CasePreservedNames, 1),
-    FSP_FUSE_CORE_OPT("UnicodeOnDisk", UnicodeOnDisk, 1),
+    FSP_FUSE_CORE_OPT("CaseInsensitiveSearch", CaseInsensitiveSearch, 1),
     FSP_FUSE_CORE_OPT("PersistentAcls", PersistentAcls, 1),
     FSP_FUSE_CORE_OPT("ReparsePoints", ReparsePoints, 1),
     FSP_FUSE_CORE_OPT("NamedStreams", NamedStreams, 1),
@@ -251,13 +249,11 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o VolumeCreationTime=T    volume creation time (FILETIME hex format)\n"
             "    -o VolumeSerialNumber=N    32-bit wide\n"
             "    -o FileInfoTimeout=N       FileInfo/Security/VolumeInfo timeout (millisec)\n"
-            "    -o CaseSensitiveSearch     file system supports case-sensitive file names\n"
-            "    -o CasePreservedNames      file system preserves the case of file names\n"
-            "    -o UnicodeOnDisk           file system supports Unicode in file names\n"
+            "    -o CaseInsensitiveSearch   file system supports case-insensitive file names\n"
             "    -o PersistentAcls          file system preserves and enforces ACL's\n"
-            "    -o ReparsePoints           file system supports reparse points\n"
-            "    -o NamedStreams            file system supports named streams\n"
-            "    -o ReadOnlyVolume          file system is read only\n"
+            //"    -o ReparsePoints           file system supports reparse points\n"
+            //"    -o NamedStreams            file system supports named streams\n"
+            //"    -o ReadOnlyVolume          file system is read only\n"
             "    --UNC=U --VolumePrefix=U   UNC prefix (\\Server\\Share)\n");
         opt_data->help = 1;
         return 1;
@@ -316,9 +312,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
             ((PLARGE_INTEGER)&opt_data.VolumeParams.VolumeCreationTime)->LowPart;
     if (!opt_data.set_FileInfoTimeout && opt_data.set_attr_timeout)
         opt_data.VolumeParams.FileInfoTimeout = opt_data.set_attr_timeout * 1000;
-    opt_data.VolumeParams.CaseSensitiveSearch = !!opt_data.CaseSensitiveSearch;
-    opt_data.VolumeParams.CasePreservedNames = !!opt_data.CasePreservedNames;
-    opt_data.VolumeParams.UnicodeOnDisk = !!opt_data.UnicodeOnDisk;
+    opt_data.VolumeParams.CaseSensitiveSearch = !opt_data.CaseInsensitiveSearch;
     opt_data.VolumeParams.PersistentAcls = !!opt_data.PersistentAcls;
     opt_data.VolumeParams.ReparsePoints = !!opt_data.ReparsePoints;
     opt_data.VolumeParams.NamedStreams = !!opt_data.NamedStreams;
