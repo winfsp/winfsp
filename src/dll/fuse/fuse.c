@@ -35,7 +35,6 @@ struct fsp_fuse_core_opt_data
         set_uid, uid,
         set_gid, gid,
         set_attr_timeout, attr_timeout;
-    FILETIME VolumeCreationTime;
     int set_FileInfoTimeout;
     int CaseInsensitiveSearch, PersistentAcls,
         ReparsePoints, NamedStreams,
@@ -80,9 +79,7 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("SectorSize=%hu", VolumeParams.SectorSize, 4096),
     FSP_FUSE_CORE_OPT("SectorsPerAllocationUnit=%hu", VolumeParams.SectorsPerAllocationUnit, 1),
     FSP_FUSE_CORE_OPT("MaxComponentLength=%hu", VolumeParams.MaxComponentLength, 0),
-    FSP_FUSE_CORE_OPT("VolumeCreationTime=%llx", VolumeCreationTime, 0),
-    FSP_FUSE_CORE_OPT("VolumeCreationTimeLo=%x", VolumeCreationTime.dwLowDateTime, 0),
-    FSP_FUSE_CORE_OPT("VolumeCreationTimeHi=%x", VolumeCreationTime.dwHighDateTime, 0),
+    FSP_FUSE_CORE_OPT("VolumeCreationTime=%lli", VolumeParams.VolumeCreationTime, 0),
     FSP_FUSE_CORE_OPT("VolumeSerialNumber=%lx", VolumeParams.VolumeSerialNumber, 0),
     FSP_FUSE_CORE_OPT("TransactTimeout=%u", VolumeParams.TransactTimeout, 0),
     FSP_FUSE_CORE_OPT("IrpTimeout=%u", VolumeParams.IrpTimeout, 0),
@@ -281,7 +278,8 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         fsp_fuse_get_stat_buf(f->env, &buf, &fspbuf);
 
         if (0 == f->VolumeParams.VolumeCreationTime)
-            f->VolumeParams.VolumeCreationTime = 0;
+            f->VolumeParams.VolumeCreationTime =
+                Int32x32To64(fspbuf.st_birthtim.tv_sec, 10000000) + 116444736000000000;
     }
 
     /* the FSD does not currently limit these VolumeParams fields; do so here! */
@@ -467,7 +465,6 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     if (opt_data.help)
         return 0;
 
-    opt_data.VolumeParams.VolumeCreationTime = *(PUINT64)&opt_data.VolumeCreationTime;
     if (!opt_data.set_FileInfoTimeout && opt_data.set_attr_timeout)
         opt_data.VolumeParams.FileInfoTimeout = opt_data.set_attr_timeout * 1000;
     opt_data.VolumeParams.CaseSensitiveSearch = !opt_data.CaseInsensitiveSearch;

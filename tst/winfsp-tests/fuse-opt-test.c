@@ -312,11 +312,7 @@ void fuse_opt_parse_test(void)
     ASSERT(0 == strcmp("WwWw", data.w));
     ASSERT(1 == data.x);
     ASSERT((long)040000000001 == data.y);
-#if defined(_WIN64)
     ASSERT((long long)0x100000001 == data.z);
-#else
-    ASSERT(((long long)0x100000001 & 0xffffffff) == data.z);
-#endif
     ASSERT(+1234567890 == data.dec);
     ASSERT(-1234567890 == data.neg);
     ASSERT(0xABCDEF == data.hex);
