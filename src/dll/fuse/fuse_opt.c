@@ -16,8 +16,6 @@
  */
 
 #include <dll/fuse/library.h>
-#include <fuse/fuse_opt.h>
-#include <stdint.h>
 
 /*
  * Define the following symbol to support escaped commas (',') during fuse_opt_parse.

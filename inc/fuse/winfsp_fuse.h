@@ -60,8 +60,8 @@ typedef int64_t fuse_off_t;
 
 typedef uint64_t fuse_fsblkcnt_t;
 typedef uint64_t fuse_fsfilcnt_t;
-typedef int32_t fuse_blksize_t;
-typedef int32_t fuse_blkcnt_t;
+typedef int64_t fuse_blksize_t;
+typedef int64_t fuse_blkcnt_t;
 
 struct fuse_timespec
 {
@@ -89,17 +89,17 @@ struct fuse_stat
 
 struct fuse_statvfs
 {
-    unsigned int f_bsize;
-    unsigned int f_frsize;
+    uint64_t f_bsize;
+    uint64_t f_frsize;
     fuse_fsblkcnt_t f_blocks;
     fuse_fsblkcnt_t f_bfree;
     fuse_fsblkcnt_t f_bavail;
     fuse_fsfilcnt_t f_files;
     fuse_fsfilcnt_t f_ffree;
     fuse_fsfilcnt_t f_favail;
-    unsigned int f_fsid;
-    unsigned int f_flag;
-    unsigned int f_namemax;
+    uint64_t f_fsid;
+    uint64_t f_flag;
+    uint64_t f_namemax;
 };
 
 #if defined(WINFSP_DLL_INTERNAL)

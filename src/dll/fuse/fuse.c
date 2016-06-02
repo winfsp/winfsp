@@ -16,7 +16,6 @@
  */
 
 #include <dll/fuse/library.h>
-#include <fuse/fuse.h>
 
 #define FSP_FUSE_CORE_OPT(n, f, v)      { n, offsetof(struct fsp_fuse_core_opt_data, f), v }
 
@@ -104,10 +103,9 @@ struct fuse
 {
     FSP_FILE_SYSTEM *FileSystem;
     FSP_SERVICE *Service;
-    const struct fuse_operations *Ops;
-    size_t OpSize;
-    void *Data;
-    int Environment;
+    struct fuse_operations ops;
+    void *data;
+    int environment;
     CRITICAL_SECTION Lock;
 };
 
@@ -286,10 +284,13 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         fsp_fuse_op_get_security_by_name,
     };
     struct fsp_fuse_core_opt_data opt_data;
+    struct fuse_conn_info conn;
+    struct fuse_context *context;
     struct fuse *f = 0;
     PWSTR ServiceName = FspDiagIdent();
     PWSTR ErrorMessage = L".";
     NTSTATUS Result;
+    BOOLEAN FsInit = FALSE;
 
     memset(&opt_data, 0, sizeof opt_data);
     opt_data.env = env;
@@ -317,6 +318,47 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.ReparsePoints = !!opt_data.ReparsePoints;
     opt_data.VolumeParams.NamedStreams = !!opt_data.NamedStreams;
     opt_data.VolumeParams.ReadOnlyVolume = !!opt_data.ReadOnlyVolume;
+
+    context = fsp_fuse_get_context(env);
+    if (0 == context)
+        goto fail;
+    context->private_data = data;
+
+    memset(&conn, 0, sizeof conn);
+    conn.proto_major = 7;               /* pretend that we are FUSE kernel protocol 7.12 */
+    conn.proto_minor = 12;              /*     which was current at the time of FUSE 2.8 */
+    conn.async_read = 1;
+    conn.max_write = UINT_MAX;
+    conn.capable =
+        FUSE_CAP_ASYNC_READ |
+        //FUSE_CAP_POSIX_LOCKS |        /* WinFsp handles locking in the FSD currently */
+        //FUSE_CAP_ATOMIC_O_TRUNC |     /* due to Windows/WinFsp design, no support */
+        //FUSE_CAP_EXPORT_SUPPORT |     /* not needed in Windows/WinFsp */
+        FUSE_CAP_BIG_WRITES |
+        FUSE_CAP_DONT_MASK;
+    if (0 != ops->init)
+        context->private_data = ops->init(&conn);
+    FsInit = TRUE;
+    if (0 != ops->statfs)
+    {
+        union
+        {
+            struct cyg_statvfs cygbuf;
+            struct fuse_statvfs fspbuf;
+        } buf;
+        struct fuse_statvfs fspbuf;
+        int err;
+
+        err = ops->statfs("/", (void *)&buf);
+        if (0 != err)
+            goto fail;
+        fsp_fuse_op_get_statvfs_buf(env->environment, &buf, &fspbuf);
+
+        opt_data.VolumeParams.SectorSize = (UINT16)f_bsize;
+        opt_data.VolumeParams.MaxComponentLength = (UINT16)f_namemax;
+    }
+
+    /* !!!: the FSD does not currently limit the VolumeParams fields! */
 
     f = MemAlloc(sizeof *f);
     if (0 == f)
@@ -381,12 +423,12 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         }
     }
 
-    f->Ops = ops;
-    f->OpSize = opsize;
-    f->Data = data;
-    f->Environment = env->environment;
-
+    memcpy(&f->ops, ops, opsize);
+    f->data = context->private_data;
+    f->environment = env->environment;
     InitializeCriticalSection(&f->Lock);
+
+    context->fuse = f;
 
     return f;
 
@@ -402,6 +444,12 @@ fail:
             FspServiceDelete(f->Service);
 
         MemFree(f);
+    }
+
+    if (FsInit)
+    {
+        if (0 != ops->destroy)
+            ops->destroy(context->private_data);
     }
 
     return 0;
