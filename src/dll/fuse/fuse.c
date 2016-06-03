@@ -225,7 +225,7 @@ static NTSTATUS fsp_fuse_preflight(struct fuse *f)
             ) &&
             L':' == f->MountPoint[1] || L'\0' == f->MountPoint[2])
         {
-            if (GetLogicalDrives() & (1 << (f->MountPoint[0] - 'A')))
+            if (GetLogicalDrives() & (1 << ((f->MountPoint[0] & ~0x20) - 'a')))
                 return STATUS_OBJECT_NAME_COLLISION;
         }
         else
