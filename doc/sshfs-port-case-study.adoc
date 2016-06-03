@@ -1,0 +1,103 @@
+= SSHFS Port Case Study
+
+This document is a case study in porting SSHFS to Windows and WinFsp. At the time of this writing WinFsp has a native API, but no FUSE compatible API. The main purpose of this case study is to develop a FUSE compatible API for WinFsp.
+
+== Step 1: Gather Information about SSHFS
+
+The SSHFS project is one of the early FUSE projects. The project was originally written by Miklos Szeredi who is also the author of FUSE. SSHFS provides a file system interface on top of SFTP (Secure File Transfer Protocol).
+
+The project's website is at https://github.com/libfuse/sshfs. A quick perusal of the source code shows that this is a POSIX program, the file `configure.ac` further shows that it depends on GLib and FUSE.
+
+Luckily Cygwin on Windows provides a POSIX interface and it also includes GLib and pkg-config. We are missing FUSE of course. Let's try it anyway:
+
+----
+billziss@windows:~/Projects/ext$ git clone https://github.com/libfuse/sshfs.git
+Cloning into 'sshfs'...
+[snip]
+billziss@windows:~/Projects/ext$ cd sshfs/
+billziss@windows:~/Projects/ext/sshfs [master]$ autoreconf -i
+[snip]
+billziss@windows:~/Projects/ext/sshfs [master]$ ./configure
+[snip]
+configure: error: Package requirements (fuse >= 2.3 glib-2.0 gthread-2.0) were not met:
+
+No package 'fuse' found
+----
+
+As expected we get an error because there is no package named FUSE. So let's create one.
+
+== Step 2: Create a FUSE Compatible Package
+
+After a few days of development there exists now an initial FUSE implementation within WinFsp. Most of the FUSE API's from the header files `fuse.h`, `fuse_common.h` and `fuse_opt.h` have been implemented. However none of the `fuse_operations` currently work as the necessary work to translate WinFsp requests to FUSE requests has not happened yet.
+
+=== Challenges
+
+- The FUSE API is old and somewhat hairy. There are multiple versions of it and choosing the right one was not easy. In the end version 2.8 of the API was chosen for implementation.
+
+- The FUSE API uses a number of OS specific types (notably `struct stat`). Sometimes these types have multiple definitions even within the same OS (e.g. `struct stat` and `struct stat64`). For this reason it was decided to define our own `fuse_*` types (e.g. `struct fuse_stat`) instead of relying on the ones that come with MSVC. Care was taken to ensure that these types remain compatible with Cygwin as it is one of our primary target environments.
+
+- The WinFsp DLL does *not* use the MSVCRT and uses its own memory allocator (`HeapAlloc`, `HeapFree`). Even if it used the MSVCRT `malloc`, it does not have access to the Cygwin `malloc`. The FUSE API has a few cases where users are expected to use `free` to deallocate memory (e.g. `fuse_opt_add_opt`). But which `free` is that for a Cygwin program? The Cygwin `free`, the MSVCRT `free` or our own `MemFree`?
++
+To solve this problem we use the following pattern: every FUSE API is implemented as a `static inline` function that calls a WinFsp-FUSE API and passes it an extra argument that describes the environment:
++
+----
+static inline int fuse_opt_add_opt(char **opts, const char *opt)
+{
+    return fsp_fuse_opt_add_opt(fsp_fuse_env(), opts, opt);
+}
+----
++
+The `fsp_fuse_env` function is another `static inline` function that simply "captures" the current environment (things like the environment's `malloc` and `free`).
++
+----
+...
+#elif defined(__CYGWIN__)
+...
+#define FSP_FUSE_ENV_INIT               \
+    {                                   \
+        'C',                            \
+        malloc, free,                   \
+        fsp_fuse_daemonize,             \
+        fsp_fuse_set_signal_handlers,   \
+        fsp_fuse_remove_signal_handlers,\
+    }
+...
+#else
+...
+
+static inline struct fsp_fuse_env *fsp_fuse_env(void)
+{
+    static struct fsp_fuse_env env = FSP_FUSE_ENV_INIT;
+    return &env;
+}
+----
+
+- The implementation of `fuse_opt` proved an unexpected challenge. The function `fuse_opt_parse` is very flexible, but it also has a lot of quirks. It took a lot of trial and error to arrive at a clean reimplementation.
+
+=== Things that worked rather nicely
+
+- The pattern `fuse_new` / `fuse_loop` / `fuse_destroy` fits nicely to the WinFsp service model: `FspServiceCreate` / `FspServiceLoop` / `FspServiceDelete`. This means that every (high-level)  FUSE file system can rather easily be converted into a Windows service if desired.
+
+=== Integrating with Cygwin
+
+It remains to show how to use the WinFsp-FUSE implementation from Cygwin and SSHFS. SSHFS uses `pkg-config` for its build configuration. `Pkg-config` requires a `fuse.pc` file:
+
+----
+arch=x64
+prefix=${pcfiledir}/..
+incdir=${prefix}/inc/fuse
+implib=${prefix}/bin/winfsp-${arch}.dll
+
+Name: fuse
+Description: WinFsp FUSE compatible API
+Version: 2.8
+URL: http://www.secfs.net/winfsp/
+Libs: "${implib}"
+Cflags: -I"${incdir}"
+----
+
+The WinFsp installer has been modified to place this file within its installation directory. It remains to point `pkg-config` to the appropriate location (using `PKG_CONFIG_PATH`) and the SSHFS configuration process can now find the FUSE package.
+
+=== SSHFS-Win
+
+The sshfs-win open-source project (work in progress) can be found here: https://bitbucket.org/billziss/sshfs-win
