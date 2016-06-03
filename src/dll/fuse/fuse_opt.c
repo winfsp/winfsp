@@ -102,7 +102,14 @@ static void fsp_fuse_opt_match_templ(
         else if ('=' == *p)
         {
             if (*q == *p)
-                *pspec = p + 1, *parg = q + 1;
+            {
+                p++, q++;
+                if ('%' == *p || '\0' == *p)
+                    *pspec = p, *parg = q;
+                else
+                    *parg = 0 == lstrcmpA(q, p) ?
+                        fsp_fuse_opt_match_exact : fsp_fuse_opt_match_none;
+            }
             else
                 *parg = fsp_fuse_opt_match_none;
             break;

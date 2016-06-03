@@ -15,6 +15,7 @@ struct data
     long y;
     long long z;
     int dec, neg, hex, oct;
+    int sel;
     char *esc; int ESC;
     int arg_discard, arg_keep;
     int opt_discard, opt_keep;
@@ -207,6 +208,10 @@ void fuse_opt_parse_test(void)
         { "--hex=%x", offsetof(struct data, hex), 'hex' },
         { "--oct=%o", offsetof(struct data, oct), 'oct' },
 
+        { "--sel=fortyone", offsetof(struct data, sel), 141 },
+        { "--sel=fortytwo", offsetof(struct data, sel), 142 },
+        { "--sel=fortythree", offsetof(struct data, sel), 143 },
+
         { "esc=%s", offsetof(struct data, esc), 'esc' },
         FUSE_OPT_KEY("ESC=", 'ESC'),
 
@@ -245,6 +250,7 @@ void fuse_opt_parse_test(void)
         "--neg=-1234567890",
         "--hex=ABCDEF",
         "--oct=12345670",
+        "--sel=fortytwo",
         "-oesc=\\\\foo\\,bar\\\\,ESC=\\\\FOO\\,BAR\\\\",
         "--discard",
         "--keep",
@@ -317,6 +323,7 @@ void fuse_opt_parse_test(void)
     ASSERT(-1234567890 == data.neg);
     ASSERT(0xABCDEF == data.hex);
     ASSERT(012345670 == data.oct);
+    ASSERT(142 == data.sel);
     ASSERT(0 == strcmp("\\foo,bar\\", data.esc));
     ASSERT(1 == data.ESC);
     ASSERT(1 == data.arg_discard);
