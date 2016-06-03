@@ -537,7 +537,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         switch (Result)
         {
         case STATUS_ACCESS_DENIED:
-            ErrorMessage = L": Access denied.";
+            ErrorMessage = L": access denied.";
             break;
 
         case STATUS_NO_SUCH_DEVICE:
