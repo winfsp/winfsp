@@ -1,9 +1,5 @@
 version: '{build}'
 
-branches:
-  only:
-  - master
-
 environment:
   CONFIGURATION: Release
 
