@@ -193,6 +193,23 @@ exit:
     return Result;
 }
 
+FSP_API NTSTATUS FspFsctlPreflight(PWSTR DevicePath)
+{
+    NTSTATUS Result;
+    SIZE_T VolumeListSize;
+
+    Result = FspFsctlStartService();
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    VolumeListSize = 0;
+    Result = FspFsctlGetVolumeList(DevicePath, 0, &VolumeListSize);
+    if (!NT_SUCCESS(Result) && STATUS_BUFFER_TOO_SMALL != Result)
+        return Result;
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS FspFsctlStartService(VOID)
 {
     PWSTR DriverName = L"" FSP_FSCTL_DRIVER_NAME;

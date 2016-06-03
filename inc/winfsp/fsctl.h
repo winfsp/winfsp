@@ -422,6 +422,7 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
 FSP_API NTSTATUS FspFsctlStop(HANDLE VolumeHandle);
 FSP_API NTSTATUS FspFsctlGetVolumeList(PWSTR DevicePath,
     PWCHAR VolumeListBuf, PSIZE_T PVolumeListSize);
+FSP_API NTSTATUS FspFsctlPreflight(PWSTR DevicePath);
 #endif
 
 #ifdef __cplusplus

@@ -17,6 +17,9 @@
 
 #include <dll/fuse/library.h>
 
+#define FSP_FUSE_SECTORSIZE_MIN         512
+#define FSP_FUSE_SECTORSIZE_MAX         4096
+
 struct fuse_chan
 {
     PWSTR MountPoint;
@@ -205,6 +208,36 @@ FSP_FUSE_API int fsp_fuse_is_lib_option(struct fsp_fuse_env *env,
 
 static void fsp_fuse_cleanup(struct fuse *f);
 
+static NTSTATUS fsp_fuse_preflight(struct fuse *f)
+{
+    NTSTATUS Result;
+
+    Result = FspFsctlPreflight(f->VolumeParams.Prefix[0] ?
+        L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (L'\0' != f->MountPoint)
+    {
+        if ((
+                (L'A' <= f->MountPoint[0] && f->MountPoint[0] <= L'Z') ||
+                (L'a' <= f->MountPoint[0] && f->MountPoint[0] <= L'z')
+            ) &&
+            L':' == f->MountPoint[1] || L'\0' == f->MountPoint[2])
+        {
+            if (GetLogicalDrives() & (1 << (f->MountPoint[0] - 'A')))
+                return STATUS_OBJECT_NAME_COLLISION;
+        }
+        else
+        if (L'*' == f->MountPoint[0] && L'\0' == f->MountPoint[1])
+            ;
+        else
+            return STATUS_OBJECT_NAME_INVALID;
+    }
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
     static FSP_FILE_SYSTEM_INTERFACE intf =
@@ -247,10 +280,13 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         struct fuse_statvfs stbuf;
         int err;
 
+        memset(&stbuf, 0, sizeof stbuf);
         err = f->ops.statfs("/", &stbuf);
         if (0 != err)
             goto fail;
 
+        if (stbuf.f_bsize > FSP_FUSE_SECTORSIZE_MAX)
+            stbuf.f_bsize = FSP_FUSE_SECTORSIZE_MAX;
         if (0 == f->VolumeParams.SectorSize)
             f->VolumeParams.SectorSize = (UINT16)stbuf.f_bsize;
         if (0 == f->VolumeParams.MaxComponentLength)
@@ -261,21 +297,30 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         struct fuse_stat stbuf;
         int err;
 
+        memset(&stbuf, 0, sizeof stbuf);
         err = f->ops.getattr("/", (void *)&stbuf);
         if (0 != err)
             goto fail;
 
         if (0 == f->VolumeParams.VolumeCreationTime)
-            f->VolumeParams.VolumeCreationTime =
-                Int32x32To64(stbuf.st_birthtim.tv_sec, 10000000) + 116444736000000000 +
-                stbuf.st_birthtim.tv_nsec / 100;
+        {
+            if (0 != stbuf.st_birthtim.tv_sec)
+                f->VolumeParams.VolumeCreationTime =
+                    Int32x32To64(stbuf.st_birthtim.tv_sec, 10000000) + 116444736000000000 +
+                    stbuf.st_birthtim.tv_nsec / 100;
+            else
+            if (0 != stbuf.st_ctim.tv_sec)
+                f->VolumeParams.VolumeCreationTime =
+                    Int32x32To64(stbuf.st_ctim.tv_sec, 10000000) + 116444736000000000 +
+                    stbuf.st_ctim.tv_nsec / 100;
+        }
     }
 
     /* the FSD does not currently limit these VolumeParams fields; do so here! */
-    if (f->VolumeParams.SectorSize < 512)
-        f->VolumeParams.SectorSize = 512;
-    if (f->VolumeParams.SectorSize < 4096)
-        f->VolumeParams.SectorSize = 4096;
+    if (f->VolumeParams.SectorSize < FSP_FUSE_SECTORSIZE_MIN)
+        f->VolumeParams.SectorSize = FSP_FUSE_SECTORSIZE_MIN;
+    if (f->VolumeParams.SectorSize > FSP_FUSE_SECTORSIZE_MAX)
+        f->VolumeParams.SectorSize = FSP_FUSE_SECTORSIZE_MAX;
     if (f->VolumeParams.MaxComponentLength > 255)
         f->VolumeParams.MaxComponentLength = 255;
 
@@ -441,6 +486,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     struct fuse *f = 0;
     struct fsp_fuse_core_opt_data opt_data;
     ULONG Size;
+    PWSTR ErrorMessage = L".";
     NTSTATUS Result;
 
     if (opsize > sizeof(struct fuse_operations))
@@ -485,11 +531,41 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     FspServiceAllowConsoleMode(f->Service);
     f->Service->UserContext = f;
 
+    Result = fsp_fuse_preflight(f);
+    if (!NT_SUCCESS(Result))
+    {
+        switch (Result)
+        {
+        case STATUS_ACCESS_DENIED:
+            ErrorMessage = L": Access denied.";
+            break;
+
+        case STATUS_NO_SUCH_DEVICE:
+            ErrorMessage = L": FSD not found.";
+            break;
+
+        case STATUS_OBJECT_NAME_INVALID:
+            ErrorMessage = L": invalid mount point.";
+            break;
+
+        case STATUS_OBJECT_NAME_COLLISION:
+            ErrorMessage = L": mount point in use.";
+            break;
+
+        default:
+            ErrorMessage = L": unspecified error.";
+            break;
+        }
+
+        goto fail;
+    }
+
     return f;
 
 fail:
     FspServiceLog(EVENTLOG_ERROR_TYPE,
-        L"Cannot create " FSP_FUSE_LIBRARY_NAME " file system.");
+        L"Cannot create " FSP_FUSE_LIBRARY_NAME " file system%s",
+        ErrorMessage);
 
     if (0 != f)
         fsp_fuse_destroy(env, f);
@@ -500,8 +576,7 @@ fail:
 FSP_FUSE_API void fsp_fuse_destroy(struct fsp_fuse_env *env,
     struct fuse *f)
 {
-    if (0 != f->FileSystem)
-        FspFileSystemDelete(f->FileSystem);
+    fsp_fuse_cleanup(f);
 
     if (0 != f->Service)
         FspServiceDelete(f->Service);
