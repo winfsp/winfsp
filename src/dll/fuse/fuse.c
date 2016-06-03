@@ -285,10 +285,10 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         if (0 != err)
             goto fail;
 
-        if (stbuf.f_bsize > FSP_FUSE_SECTORSIZE_MAX)
-            stbuf.f_bsize = FSP_FUSE_SECTORSIZE_MAX;
+        if (stbuf.f_frsize > FSP_FUSE_SECTORSIZE_MAX)
+            stbuf.f_frsize = FSP_FUSE_SECTORSIZE_MAX;
         if (0 == f->VolumeParams.SectorSize)
-            f->VolumeParams.SectorSize = (UINT16)stbuf.f_bsize;
+            f->VolumeParams.SectorSize = (UINT16)stbuf.f_frsize;
         if (0 == f->VolumeParams.MaxComponentLength)
             f->VolumeParams.MaxComponentLength = (UINT16)stbuf.f_namemax;
     }
