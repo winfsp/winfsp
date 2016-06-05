@@ -7,6 +7,7 @@ int WinFspNetTests = 1;
 int main(int argc, char *argv[])
 {
     TESTSUITE(fuse_opt_tests);
+    TESTSUITE(posix_tests);
     TESTSUITE(eventlog_tests);
     TESTSUITE(path_tests);
     TESTSUITE(mount_tests);

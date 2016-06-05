@@ -38,6 +38,8 @@
 
 VOID FspNtStatusInitialize(BOOLEAN Dynamic);
 VOID FspNtStatusFinalize(BOOLEAN Dynamic);
+VOID FspPosixInitialize(BOOLEAN Dynamic);
+VOID FspPosixFinalize(BOOLEAN Dynamic);
 VOID FspEventLogInitialize(BOOLEAN Dynamic);
 VOID FspEventLogFinalize(BOOLEAN Dynamic);
 VOID FspFileSystemInitialize(BOOLEAN Dynamic);

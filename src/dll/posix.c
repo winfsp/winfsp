@@ -160,6 +160,8 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
      */
     else if (0x30000 <= Uid && Uid < 0x40000)
     {
+        InitOnceExecuteOnce(&FspPosixInitOnceV, FspPosixInitOnceF, 0, 0);
+
         if (5 == FspAccountDomainSid->IdentifierAuthority.Value[5] &&
             4 == FspAccountDomainSid->SubAuthorityCount)
         {
@@ -173,6 +175,8 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
     }
     else if (0x100000 <= Uid && Uid < 0x200000)
     {
+        InitOnceExecuteOnce(&FspPosixInitOnceV, FspPosixInitOnceF, 0, 0);
+
         if (5 == FspPrimaryDomainSid->IdentifierAuthority.Value[5] &&
             4 == FspPrimaryDomainSid->SubAuthorityCount)
         {
@@ -194,21 +198,21 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
      *     S-1-16-RID                          <=> uid/gid: 0x60000 + RID
      */
     else if (0x60000 <= Uid && Uid < 0x70000)
-        *PSid = FspPosixCreateSid(5, 2, 16, Uid - 0x60000);
+        *PSid = FspPosixCreateSid(16, 1, Uid - 0x60000);
 
     /* [IDMAP]
      * Other well-known SIDs:
      *     S-1-X-Y                             <=> uid/gid: 0x10000 + 0x100 * X + Y
      */
     else if (0x10000 <= Uid && Uid < 0x11000)
-        *PSid = FspPosixCreateSid(5, 2, (Uid - 0x10000) >> 8, (Uid - 0x10000) & 0xff);
+        *PSid = FspPosixCreateSid((Uid - 0x10000) >> 8, 1, (Uid - 0x10000) & 0xff);
 
     /* [IDMAP]
      * Other well-known SIDs in the NT_AUTHORITY domain (S-1-5-X-RID):
      *     S-1-5-X-RID                         <=> uid/gid: 0x1000 * X + RID
      */
     else if (0x1000 <= Uid && Uid < 0x100000)
-        *PSid = FspPosixCreateSid(5, 5, Uid >> 12, Uid & 0xfff);
+        *PSid = FspPosixCreateSid(5, 2, Uid >> 12, Uid & 0xfff);
 
     if (0 == *PSid)
         return STATUS_NONE_MAPPED;
@@ -356,10 +360,12 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     UINT32 Uid, UINT32 Gid, UINT32 Mode,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor)
 {
+    return STATUS_NOT_IMPLEMENTED;
 }
 
 FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
     PSECURITY_DESCRIPTOR SecurityDescriptor,
     PUINT32 PUid, PUINT32 PGid, PUINT32 PMode)
 {
+    return STATUS_NOT_IMPLEMENTED;
 }

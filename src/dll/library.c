@@ -41,6 +41,7 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
          */
         Dynamic = 0 == Reserved;
         FspNtStatusInitialize(Dynamic);
+        FspPosixInitialize(Dynamic);
         FspEventLogInitialize(Dynamic);
         FspFileSystemInitialize(Dynamic);
         FspServiceInitialize(Dynamic);
@@ -62,6 +63,7 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
         FspServiceFinalize(Dynamic);
         FspFileSystemFinalize(Dynamic);
         FspEventLogFinalize(Dynamic);
+        FspPosixFinalize(Dynamic);
         FspNtStatusFinalize(Dynamic);
         break;
 
