@@ -7,10 +7,10 @@
  *
  * [PERM]
  *     https://technet.microsoft.com/en-us/library/bb463216.aspx
- * [IDMAP]
- *     https://cygwin.com/cygwin-ug-net/ntsec.html
  * [WKSID]
  *     https://support.microsoft.com/en-us/kb/243330
+ * [IDMAP]
+ *     https://cygwin.com/cygwin-ug-net/ntsec.html
  * [NAME]
  *     https://www.cygwin.com/cygwin-ug-net/using-specialnames.html
  *
@@ -255,7 +255,7 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
          * LogonSid is converted to the fixed uid 0xffe == 4094 and named
          * "OtherSession".
          */
-        else if (3 <= Count && 5 == SubAuthority0)
+        else if (2 <= Count && 5 == SubAuthority0)
         {
             /*
              * Actually we do not support Logon SID's for translation.
@@ -273,7 +273,7 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
          * Accounts from a trusted domain of the machine's primary domain:
          *     S-1-5-21-X-Y-Z-RID                  <=> uid/gid: trustPosixOffset(domain) + RID
          */
-        else if (3 <= Count && 21 == SubAuthority0)
+        else if (5 <= Count && 21 == SubAuthority0)
         {
             InitOnceExecuteOnce(&FspPosixInitOnceV, FspPosixInitOnceF, 0, 0);
 
@@ -300,7 +300,7 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
          * Other well-known SIDs in the NT_AUTHORITY domain (S-1-5-X-RID):
          *     S-1-5-X-RID                         <=> uid/gid: 0x1000 * X + RID
          */
-        else if (3 == Count)
+        else if (2 == Count)
         {
             *PUid = 0x1000 * SubAuthority0 + Rid;
         }
