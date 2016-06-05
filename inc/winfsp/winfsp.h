@@ -839,6 +839,19 @@ NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
 }
 
 /*
+ * POSIX Interop
+ */
+FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid);
+FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid);
+FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)());
+FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
+    UINT32 Uid, UINT32 Gid, UINT32 Mode,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor);
+FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    PUINT32 PUid, PUINT32 PGid, PUINT32 PMode);
+
+/*
  * Path Handling
  */
 FSP_API VOID FspPathPrefix(PWSTR Path, PWSTR *PPrefix, PWSTR *PRemain, PWSTR Root);

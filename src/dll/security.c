@@ -362,7 +362,8 @@ FSP_API NTSTATUS FspSetSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
 FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor,
     NTSTATUS (*CreateFunc)())
 {
-    if ((NTSTATUS (*)())FspAccessCheckEx == CreateFunc)
+    if ((NTSTATUS (*)())FspAccessCheckEx == CreateFunc ||
+        (NTSTATUS (*)())FspPosixMapPermissionsToSecurityDescriptor == CreateFunc)
         MemFree(SecurityDescriptor);
     else
     if ((NTSTATUS (*)())FspCreateSecurityDescriptor == CreateFunc ||
