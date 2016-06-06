@@ -5,13 +5,13 @@
  * This file provides routines for Windows/POSIX interoperability. It is based
  * on "Services for UNIX" and Cygwin. See the following documents:
  *
- * [PERM]
+ * [PERMS]
  *     https://technet.microsoft.com/en-us/library/bb463216.aspx
  * [WKSID]
  *     https://support.microsoft.com/en-us/kb/243330
  * [IDMAP]
  *     https://cygwin.com/cygwin-ug-net/ntsec.html
- * [NAME]
+ * [SNAME]
  *     https://www.cygwin.com/cygwin-ug-net/using-specialnames.html
  *
  * @copyright 2015-2016 Bill Zissimopoulos
@@ -29,6 +29,7 @@
  */
 
 #include <dll/library.h>
+#include <aclapi.h>
 #define _NTDEF_
 #include <ntsecapi.h>
 
@@ -356,11 +357,158 @@ FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)())
         MemFree(Sid);
 }
 
+#define FspPosixDefaultPerm             \
+    (SYNCHRONIZE | READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_READ_EA)
+#define FspPosixOwnerDefaultPerm        \
+    (FspPosixDefaultPerm | DELETE | WRITE_DAC | WRITE_OWNER | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA)
+
+static inline ACCESS_MASK FspPosixMapPermissionToAccessMask(UINT32 Mode, UINT32 Perm)
+{
+    /* if only directory bit is set out of directory/sticky bit then DeleteChild */
+    ACCESS_MASK DeleteChild = 0040000 == (Mode & 0041000) ? FILE_DELETE_CHILD : 0;
+
+    return
+        ((Perm & 4) ? FILE_READ_DATA : 0) |
+        ((Perm & 2) ? FILE_WRITE_ATTRIBUTES | FILE_WRITE_DATA | FILE_APPEND_DATA | DeleteChild : 0) |
+        ((Perm & 1) ? FILE_EXECUTE : 0);
+}
+
 FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     UINT32 Uid, UINT32 Gid, UINT32 Mode,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor)
 {
-    return STATUS_NOT_IMPLEMENTED;
+    PSID OwnerSid = 0, GroupSid = 0, WorldSid = 0;
+    UINT32 OwnerPerm, OwnerDeny, GroupPerm, GroupDeny, WorldPerm;
+    PACL Acl = 0;
+    SECURITY_DESCRIPTOR SecurityDescriptor;
+    PSECURITY_DESCRIPTOR RelativeSecurityDescriptor = 0;
+    ULONG Size;
+    NTSTATUS Result;
+
+    *PSecurityDescriptor = 0;
+
+    Result = FspPosixMapUidToSid(Uid, OwnerSid);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = FspPosixMapUidToSid(Gid, GroupSid);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = FspPosixMapUidToSid(0x10100, WorldSid);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    OwnerPerm = (Mode & 0700) >> 6;
+    GroupPerm = (Mode & 0070) >> 3;
+    WorldPerm = (Mode & 0007);
+
+    OwnerDeny = (OwnerPerm ^ GroupPerm) & GroupPerm;
+    OwnerDeny |= (OwnerPerm ^ WorldPerm) & WorldPerm;
+    GroupDeny = (GroupPerm ^ WorldPerm) & WorldPerm;
+
+    Size = sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE) * 3 +
+        sizeof(ACCESS_DENIED_ACE) * (!!OwnerDeny + !!GroupDeny);
+    Size += GetLengthSid(OwnerSid) - sizeof(DWORD);
+    Size += GetLengthSid(GroupSid) - sizeof(DWORD);
+    Size += GetLengthSid(WorldSid) - sizeof(DWORD);
+    if (OwnerDeny)
+        Size += GetLengthSid(OwnerSid) - sizeof(DWORD);
+    if (GroupDeny)
+        Size += GetLengthSid(GroupSid) - sizeof(DWORD);
+    Size += sizeof(DWORD) - 1;
+    Size &= ~sizeof(DWORD);
+
+    Acl = MemAlloc(Size);
+    if (0 == Acl)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    if (!InitializeAcl(Acl, Size, ACL_REVISION))
+        goto lasterror;
+
+    if (!AddAccessAllowedAce(Acl, ACL_REVISION,
+        FspPosixOwnerDefaultPerm | FspPosixMapPermissionToAccessMask(Mode & ~001000, OwnerPerm),
+        OwnerSid))
+        goto lasterror;
+    if (OwnerDeny)
+    {
+        if (!AddAccessDeniedAce(Acl, ACL_REVISION,
+            FspPosixMapPermissionToAccessMask(Mode & ~001000, OwnerDeny),
+            OwnerSid))
+            goto lasterror;
+    }
+
+    if (!AddAccessAllowedAce(Acl, ACL_REVISION,
+        FspPosixDefaultPerm | FspPosixMapPermissionToAccessMask(Mode, GroupPerm),
+        GroupSid))
+        goto lasterror;
+    if (GroupDeny)
+    {
+        if (!AddAccessDeniedAce(Acl, ACL_REVISION,
+            FspPosixMapPermissionToAccessMask(Mode, GroupDeny),
+            GroupSid))
+            goto lasterror;
+    }
+
+    if (!AddAccessAllowedAce(Acl, ACL_REVISION,
+        FspPosixDefaultPerm | FspPosixMapPermissionToAccessMask(Mode, WorldPerm),
+        WorldSid))
+        goto lasterror;
+
+    if (!InitializeSecurityDescriptor(&SecurityDescriptor, SECURITY_DESCRIPTOR_REVISION))
+        goto lasterror;
+
+    if (!SetSecurityDescriptorControl(&SecurityDescriptor, SE_DACL_PROTECTED, SE_DACL_PROTECTED))
+        goto lasterror;
+    if (!SetSecurityDescriptorOwner(&SecurityDescriptor, OwnerSid, FALSE))
+        goto lasterror;
+    if (!SetSecurityDescriptorGroup(&SecurityDescriptor, GroupSid, FALSE))
+        goto lasterror;
+    if (!SetSecurityDescriptorDacl(&SecurityDescriptor, TRUE, Acl, FALSE))
+        goto lasterror;
+
+    Size = 0;
+    if (!MakeSelfRelativeSD(&SecurityDescriptor, 0, &Size) &&
+        ERROR_INSUFFICIENT_BUFFER != GetLastError())
+        goto lasterror;
+
+    RelativeSecurityDescriptor = MemAlloc(Size);
+    if (0 == RelativeSecurityDescriptor)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    if (!MakeSelfRelativeSD(&SecurityDescriptor, RelativeSecurityDescriptor, &Size))
+        goto lasterror;
+
+    *PSecurityDescriptor = RelativeSecurityDescriptor;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result))
+        MemFree(RelativeSecurityDescriptor);
+
+    MemFree(Acl);
+
+    if (0 != WorldSid)
+        FspDeleteSid(WorldSid, FspPosixMapUidToSid);
+
+    if (0 != GroupSid)
+        FspDeleteSid(GroupSid, FspPosixMapUidToSid);
+
+    if (0 != OwnerSid)
+        FspDeleteSid(OwnerSid, FspPosixMapUidToSid);
+
+    return Result;
+
+lasterror:
+    Result = FspNtStatusFromWin32(GetLastError());
+    goto exit;
 }
 
 FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
