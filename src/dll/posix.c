@@ -364,7 +364,18 @@ FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)())
 
 static inline ACCESS_MASK FspPosixMapPermissionToAccessMask(UINT32 Mode, UINT32 Perm)
 {
-    /* if only directory bit is set out of directory/sticky bit then DeleteChild */
+    /*
+     * We use only the 0040000 (directory) and 0001000 (sticky) bits from Mode.
+     * If this is a directory and it does not have the sticky bit set (and the
+     * write permission is enabled) we add FILE_DELETE_CHILD access.
+     *
+     * When calling this function for computing the Owner access mask, we always
+     * pass Mode & ~0001000 to remove the sticky bit and thus add FILE_DELETE_CHILD
+     * access if it is a directory. For Group and World permissions we do not
+     * remove the sticky bit as we do not want FILE_DELETE_CHILD access in these
+     * cases.
+     */
+
     ACCESS_MASK DeleteChild = 0040000 == (Mode & 0041000) ? FILE_DELETE_CHILD : 0;
 
     return
