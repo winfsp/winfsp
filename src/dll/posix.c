@@ -357,8 +357,15 @@ FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)())
         MemFree(Sid);
 }
 
+/* [PERMS]
+ * By default, all access-allowed ACEs will contain the following Windows access rights.
+ */
 #define FspPosixDefaultPerm             \
     (SYNCHRONIZE | READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_READ_EA)
+/* [PERMS]
+ * There are some additional Windows access rights that are always set in the
+ * access-allowed ACE for the file's owner.
+ */
 #define FspPosixOwnerDefaultPerm        \
     (FspPosixDefaultPerm | DELETE | WRITE_DAC | WRITE_OWNER | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA)
 
@@ -377,6 +384,31 @@ static inline ACCESS_MASK FspPosixMapPermissionToAccessMask(UINT32 Mode, UINT32 
      */
 
     ACCESS_MASK DeleteChild = 0040000 == (Mode & 0041000) ? FILE_DELETE_CHILD : 0;
+
+    /* [PERMS]
+     * Additionally, if the UNIX read permission bit is set, then the Windows
+     * File_Read access right is added to the ACE. When enabled on directories,
+     * this allows them to be searched. When enabled on files, it allows the data
+     * to be viewed. If the UNIX execute permission bit is set, then the Windows
+     * File_Execute access right is added to the ACE. On directories this enables
+     * the directory to be traversed. On files it allows the file to be executed.
+     *
+     * If the UNIX write permission bit is set then the following Windows access
+     * rights are added: Write_Data, Write_Attributes, Append_Data, Delete_Child.
+     *
+     * Notice how Windows has four separate access rights to UNIX's single "write"
+     * permission. In UNIX, the write permission bit on a directory permits both
+     * the creation and removal of new files or sub-directories in the directory.
+     * On Windows, the Write_Data access right controls the creation of new
+     * sub-files and the Delete_Child access right controls the deletion. The
+     * Delete_Child access right is not always present in all ACEs. In the case
+     * where the UNIX sticky-bit is enabled, the Delete_Child bit will be set only
+     * in the file owner ACE and no other ACEs. This will permit only the directory
+     * owner to remove any files or sub-directories from this directory regardless
+     * of the ownership on these sub-files. Other users will be allowed to delete
+     * files or sub-directories only if they are granted the Delete access right
+     * in an ACE of the file or sub-directory itself.
+     */
 
     return
         ((Perm & 4) ? FILE_READ_DATA : 0) |
@@ -414,6 +446,32 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     GroupPerm = (Mode & 0070) >> 3;
     WorldPerm = (Mode & 0007);
 
+    /* [PERMS]
+     * What about the case where both owner and group are the same SID and
+     * a chmod(1) request is made where the owner and the group permission
+     * bits are different?. In this case, the most restrictive permissions
+     * are chosen and assigned to both ACEs.
+     */
+    if (EqualSid(OwnerSid, GroupSid))
+        OwnerPerm = GroupPerm = OwnerPerm & GroupPerm;
+
+    /* [PERMS]
+     * There are situations where one or two access-denied ACEs must be added
+     * to the DACL. If you recall, the UNIX file access algorithm makes a
+     * distinction between owner, group and other such that each is unique
+     * and the ID used in an access request can only match one of them.
+     * However, the Windows file access algorithm makes no such distinction
+     * while scanning the DACL. If the ID in the request is granted permission
+     * in any of the access-allowed ACEs then the request is permitted. This
+     * is a problem when the owner permissions are specified to be more
+     * restrictive than say the group or the other permissions (eg. when a
+     * "chmod 577 foobar" is executed) So, to support UNIX semantics we must
+     * examine the permissions granted to Everyone and if they are more
+     * permissive than those in the group permissions then a special
+     * access-denied ACE must be created for the group. And similarly, if
+     * either the group or other permissions are more permissive than the
+     * owner permissions, then an access-denied ACE must be created for the owner.
+     */
     OwnerDeny = (OwnerPerm ^ GroupPerm) & GroupPerm;
     OwnerDeny |= (OwnerPerm ^ WorldPerm) & WorldPerm;
     GroupDeny = (GroupPerm ^ WorldPerm) & WorldPerm;
@@ -522,9 +580,189 @@ lasterror:
     goto exit;
 }
 
+static inline UINT32 FspPosixMapAccessMaskToPermission(ACCESS_MASK AccessMask)
+{
+    /* [PERMS]
+     * Once all the granted Windows access right bits have been collected,
+     * then the UNIX permission bits are assembled. For each class, if the
+     * Read_Data bit is granted, then the corresponding "r" permission bit
+     * is set. If both the Write_Data and Append_Data access rights are
+     * granted then the "w" permission bit is set. And finally, if the
+     * Execute access right is granted, then the "x" permission bit is set.
+     */
+
+    return
+        ((AccessMask & FILE_READ_DATA) ? 4 : 0) |
+        ((FILE_WRITE_DATA | FILE_APPEND_DATA) ==
+            (AccessMask & (FILE_WRITE_DATA | FILE_APPEND_DATA)) ? 2 : 0) |
+        ((AccessMask & FILE_EXECUTE) ? 1 : 0);
+}
+
 FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
     PSECURITY_DESCRIPTOR SecurityDescriptor,
     PUINT32 PUid, PUINT32 PGid, PUINT32 PMode)
 {
-    return STATUS_NOT_IMPLEMENTED;
+    PSID OwnerSid = 0, GroupSid = 0, WorldSid = 0, AuthUsersSid = 0;
+    BOOL Defaulted, DaclPresent;
+    PACL Acl = 0;
+    ACL_SIZE_INFORMATION AclSizeInfo;
+    PACE_HEADER Ace;
+    PSID AceSid;
+    DWORD AceAccessMask;
+    DWORD OwnerAllow, OwnerDeny, GroupAllow, GroupDeny, WorldAllow, WorldDeny;
+    UINT32 Uid, Gid, Mode;
+    NTSTATUS Result;
+
+    *PUid = 0;
+    *PGid = 0;
+    *PMode = 0;
+
+    if (!GetSecurityDescriptorOwner(SecurityDescriptor, &OwnerSid, &Defaulted))
+        goto lasterror;
+    if (!GetSecurityDescriptorGroup(SecurityDescriptor, &GroupSid, &Defaulted))
+        goto lasterror;
+    if (!GetSecurityDescriptorDacl(SecurityDescriptor, &DaclPresent, &Acl, &Defaulted))
+        goto lasterror;
+
+    Result = FspPosixMapSidToUid(OwnerSid, &Uid);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = FspPosixMapSidToUid(GroupSid, &Gid);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    if (0 != Acl)
+    {
+        Result = FspPosixMapUidToSid(0x10100, WorldSid);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        Result = FspPosixMapUidToSid(11, AuthUsersSid);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        OwnerAllow = OwnerDeny = GroupAllow = GroupDeny = WorldAllow = WorldDeny = 0;
+
+        if (!GetAclInformation(Acl, &AclSizeInfo, sizeof AclSizeInfo, AclSizeInformation))
+            goto lasterror;
+
+        /* [PERMS]
+         * For each of the ACEs in the file's DACL
+         */
+        for (ULONG Index = 0; AclSizeInfo.AceCount > Index; Index++)
+        {
+            if (!GetAce(Acl, Index, &Ace))
+                goto lasterror;
+
+            /* [PERMS]
+             * Ignore the ACE if it is not an access-denied or access-allowed type.
+             */
+            if (ACCESS_ALLOWED_ACE_TYPE == Ace->AceType)
+            {
+                AceSid = &((PACCESS_ALLOWED_ACE)Ace)->SidStart;
+                AceAccessMask = ((PACCESS_ALLOWED_ACE)Ace)->Mask;
+            }
+            else if (ACCESS_DENIED_ACE_TYPE == Ace->AceType)
+            {
+                AceSid = &((PACCESS_DENIED_ACE)Ace)->SidStart;
+                AceAccessMask = ((PACCESS_DENIED_ACE)Ace)->Mask;
+            }
+            else
+                continue;
+
+            /* [PERMS]
+             * If the ACE contains the Authenticated Users SID or the World SID then
+             * add the allowed or denied access right bits into the "owner", "group"
+             * and "other" collections.
+             */
+            if (EqualSid(WorldSid, AceSid) || EqualSid(AuthUsersSid, AceSid))
+            {
+                /* [PERMS]
+                 * If this is an access-denied ACE, then add each access right to the set
+                 * of denied rights in each collection but only if the access right is not
+                 * already present in the set of granted rights in that collection. Similarly
+                 * If this is an access-allowed ACE, then add each access right to the set
+                 * of granted rights in each collection but only if the access right is not
+                 * already present in the set of denied rights in that collection.
+                 */
+                if (ACCESS_ALLOWED_ACE_TYPE == Ace->AceType)
+                {
+                    WorldAllow |= AceAccessMask & WorldDeny;
+                    GroupAllow |= AceAccessMask & GroupDeny;
+                    OwnerAllow |= AceAccessMask & OwnerDeny;
+                }
+                else //if (ACCESS_DENIED_ACE_TYPE == Ace->AceType)
+                {
+                    WorldDeny |= AceAccessMask & WorldAllow;
+                    GroupDeny |= AceAccessMask & GroupAllow;
+                    OwnerDeny |= AceAccessMask & OwnerAllow;
+                }
+            }
+            else
+            {
+                /* [PERMS]
+                 * Note that if the file owner and file group SIDs are the same,
+                 * then the access rights are saved in both the "owner" and "group"
+                 * collections.
+                 */
+
+                /* [PERMS]
+                 * If the ACE contains the file's group SID, then save the access rights
+                 * in the "group" collection as appropriate in the corresponding set of
+                 * granted or denied rights (as described above).
+                 */
+                if (EqualSid(GroupSid, AceSid))
+                {
+                    if (ACCESS_ALLOWED_ACE_TYPE == Ace->AceType)
+                        GroupAllow |= AceAccessMask & GroupDeny;
+                    else //if (ACCESS_DENIED_ACE_TYPE == Ace->AceType)
+                        GroupDeny |= AceAccessMask & GroupAllow;
+                }
+
+                /* [PERMS]
+                 * If the ACE contains the file's owner SID, then save the access rights
+                 * in the "owner" collection as appropriate in the corresponding set of
+                 * granted or denied rights (as described above).
+                 */
+                if (EqualSid(OwnerSid, AceSid))
+                {
+                    if (ACCESS_ALLOWED_ACE_TYPE == Ace->AceType)
+                        OwnerAllow |= AceAccessMask & OwnerDeny;
+                    else //if (ACCESS_DENIED_ACE_TYPE == Ace->AceType)
+                        OwnerDeny |= AceAccessMask & OwnerAllow;
+                }
+            }
+        }
+
+        Mode =
+            (FspPosixMapAccessMaskToPermission(OwnerAllow) << 6) |
+            (FspPosixMapAccessMaskToPermission(GroupAllow) << 3) |
+            (FspPosixMapAccessMaskToPermission(WorldAllow));
+        if (0 != (OwnerAllow & FILE_DELETE_CHILD) &&
+            0 == (GroupAllow & FILE_DELETE_CHILD) &&
+            0 == (WorldAllow & FILE_DELETE_CHILD))
+            Mode |= 0001000; /* sticky bit */
+    }
+    else
+        Mode = 0777;
+
+    *PUid = Uid;
+    *PGid = Gid;
+    *PMode = Mode;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (0 != AuthUsersSid)
+        FspDeleteSid(AuthUsersSid, FspPosixMapUidToSid);
+
+    if (0 != WorldSid)
+        FspDeleteSid(WorldSid, FspPosixMapUidToSid);
+
+    return Result;
+
+lasterror:
+    Result = FspNtStatusFromWin32(GetLastError());
+    goto exit;
 }
