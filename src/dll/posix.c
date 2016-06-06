@@ -163,7 +163,8 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
     {
         InitOnceExecuteOnce(&FspPosixInitOnceV, FspPosixInitOnceF, 0, 0);
 
-        if (5 == FspAccountDomainSid->IdentifierAuthority.Value[5] &&
+        if (0 != FspAccountDomainSid &&
+            5 == FspAccountDomainSid->IdentifierAuthority.Value[5] &&
             4 == FspAccountDomainSid->SubAuthorityCount)
         {
             *PSid = FspPosixCreateSid(5, 5,
@@ -178,7 +179,8 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
     {
         InitOnceExecuteOnce(&FspPosixInitOnceV, FspPosixInitOnceF, 0, 0);
 
-        if (5 == FspPrimaryDomainSid->IdentifierAuthority.Value[5] &&
+        if (0 != FspPrimaryDomainSid &&
+            5 == FspPrimaryDomainSid->IdentifierAuthority.Value[5] &&
             4 == FspPrimaryDomainSid->SubAuthorityCount)
         {
             *PSid = FspPosixCreateSid(5, 5,
