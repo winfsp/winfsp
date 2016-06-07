@@ -147,7 +147,50 @@ void posix_map_sid_test(void)
     LocalFree(map[sizeof map / sizeof map[0] - 1].SidStr);
 }
 
+void posix_map_sd_test(void)
+{
+    struct
+    {
+        PWSTR Sddl;
+        UINT32 Uid, Gid, Mode;
+    } map[] =
+    {
+        { L"O:SYG:BAD:P(A;;0x1f0199;;;SY)(A;;0x120088;;;BA)(A;;0x120088;;;WD)", 18, 544, 00400 },
+    };
+    NTSTATUS Result;
+    BOOL Success;
+    PSECURITY_DESCRIPTOR SecurityDescriptor;
+    PWSTR Sddl;
+    UINT32 Uid, Gid, Mode;
+
+    for (size_t i = 0; sizeof map / sizeof map[0] > i; i++)
+    {
+        Result = FspPosixMapPermissionsToSecurityDescriptor(
+            map[i].Uid, map[i].Gid, map[i].Mode, &SecurityDescriptor);
+        ASSERT(NT_SUCCESS(Result));
+
+        Success = ConvertSecurityDescriptorToStringSecurityDescriptorW(
+            SecurityDescriptor, SDDL_REVISION_1,
+            OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+            &Sddl, 0);
+        ASSERT(Success);
+        ASSERT(0 == wcscmp(map[i].Sddl, Sddl));
+        LocalFree(Sddl);
+
+        Result = FspPosixMapSecurityDescriptorToPermissions(
+            SecurityDescriptor, &Uid, &Gid, &Mode);
+        ASSERT(NT_SUCCESS(Result));
+        ASSERT(map[i].Uid == Uid);
+        ASSERT(map[i].Gid == Gid);
+        ASSERT((map[i].Mode & 01777) == Mode);
+
+        FspDeleteSecurityDescriptor(SecurityDescriptor,
+            FspPosixMapPermissionsToSecurityDescriptor);
+    }
+}
+
 void posix_tests(void)
 {
     TEST(posix_map_sid_test);
+    TEST(posix_map_sd_test);
 }

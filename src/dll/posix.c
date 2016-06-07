@@ -432,15 +432,15 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
 
     *PSecurityDescriptor = 0;
 
-    Result = FspPosixMapUidToSid(Uid, OwnerSid);
+    Result = FspPosixMapUidToSid(Uid, &OwnerSid);
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Result = FspPosixMapUidToSid(Gid, GroupSid);
+    Result = FspPosixMapUidToSid(Gid, &GroupSid);
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Result = FspPosixMapUidToSid(0x10100, WorldSid);
+    Result = FspPosixMapUidToSid(0x10100, &WorldSid);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -488,7 +488,7 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     if (GroupDeny)
         Size += GetLengthSid(GroupSid) - sizeof(DWORD);
     Size += sizeof(DWORD) - 1;
-    Size &= ~sizeof(DWORD);
+    Size &= ~(sizeof(DWORD) - 1);
 
     Acl = MemAlloc(Size);
     if (0 == Acl)
@@ -636,11 +636,11 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
 
     if (0 != Acl)
     {
-        Result = FspPosixMapUidToSid(0x10100, WorldSid);
+        Result = FspPosixMapUidToSid(0x10100, &WorldSid);
         if (!NT_SUCCESS(Result))
             goto exit;
 
-        Result = FspPosixMapUidToSid(11, AuthUsersSid);
+        Result = FspPosixMapUidToSid(11, &AuthUsersSid);
         if (!NT_SUCCESS(Result))
             goto exit;
 
@@ -690,15 +690,15 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
                  */
                 if (ACCESS_ALLOWED_ACE_TYPE == Ace->AceType)
                 {
-                    WorldAllow |= AceAccessMask & WorldDeny;
-                    GroupAllow |= AceAccessMask & GroupDeny;
-                    OwnerAllow |= AceAccessMask & OwnerDeny;
+                    WorldAllow |= AceAccessMask & ~WorldDeny;
+                    GroupAllow |= AceAccessMask & ~GroupDeny;
+                    OwnerAllow |= AceAccessMask & ~OwnerDeny;
                 }
                 else //if (ACCESS_DENIED_ACE_TYPE == Ace->AceType)
                 {
-                    WorldDeny |= AceAccessMask & WorldAllow;
-                    GroupDeny |= AceAccessMask & GroupAllow;
-                    OwnerDeny |= AceAccessMask & OwnerAllow;
+                    WorldDeny |= AceAccessMask & ~WorldAllow;
+                    GroupDeny |= AceAccessMask & ~GroupAllow;
+                    OwnerDeny |= AceAccessMask & ~OwnerAllow;
                 }
             }
             else
@@ -717,9 +717,9 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
                 if (EqualSid(GroupSid, AceSid))
                 {
                     if (ACCESS_ALLOWED_ACE_TYPE == Ace->AceType)
-                        GroupAllow |= AceAccessMask & GroupDeny;
+                        GroupAllow |= AceAccessMask & ~GroupDeny;
                     else //if (ACCESS_DENIED_ACE_TYPE == Ace->AceType)
-                        GroupDeny |= AceAccessMask & GroupAllow;
+                        GroupDeny |= AceAccessMask & ~GroupAllow;
                 }
 
                 /* [PERMS]
@@ -730,9 +730,9 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
                 if (EqualSid(OwnerSid, AceSid))
                 {
                     if (ACCESS_ALLOWED_ACE_TYPE == Ace->AceType)
-                        OwnerAllow |= AceAccessMask & OwnerDeny;
+                        OwnerAllow |= AceAccessMask & ~OwnerDeny;
                     else //if (ACCESS_DENIED_ACE_TYPE == Ace->AceType)
-                        OwnerDeny |= AceAccessMask & OwnerAllow;
+                        OwnerDeny |= AceAccessMask & ~OwnerAllow;
                 }
             }
         }
