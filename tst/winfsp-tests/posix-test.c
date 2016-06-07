@@ -158,6 +158,10 @@ void posix_map_sd_test(void)
         { L"O:SYG:BAD:P(A;;0x1f0199;;;SY)(A;;0x120088;;;BA)(A;;0x120088;;;WD)", 18, 544, 00400 },
         { L"O:SYG:BAD:P(A;;0x1f0198;;;SY)(D;;CC;;;SY)(A;;FR;;;BA)(A;;0x120088;;;WD)", 18, 544, 00040 },
         { L"O:SYG:BAD:P(A;;0x1f0198;;;SY)(D;;CC;;;SY)(A;;0x120088;;;BA)(D;;CC;;;BA)(A;;FR;;;WD)", 18, 544, 00004 },
+
+        { L"O:SYG:BAD:P(A;;0x1f019e;;;SY)(A;;0x120088;;;BA)(A;;0x120088;;;WD)", 18, 544, 00200 },
+        { L"O:SYG:BAD:P(A;;0x1f0198;;;SY)(D;;DCLC;;;SY)(A;;0x12018e;;;BA)(A;;0x120088;;;WD)", 18, 544, 00020 },
+        { L"O:SYG:BAD:P(A;;0x1f0198;;;SY)(D;;DCLC;;;SY)(A;;0x120088;;;BA)(D;;DCLCCR;;;BA)(A;;0x12018e;;;WD)", 18, 544, 00002 },
     };
     NTSTATUS Result;
     BOOL Success;

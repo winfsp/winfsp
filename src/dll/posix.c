@@ -507,7 +507,7 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     if (OwnerDeny)
     {
         if (!AddAccessDeniedAce(Acl, ACL_REVISION,
-            FspPosixMapPermissionToAccessMask(Mode & ~001000, OwnerDeny),
+            ~FILE_WRITE_ATTRIBUTES & FspPosixMapPermissionToAccessMask(Mode & ~001000, OwnerDeny),
             OwnerSid))
             goto lasterror;
     }
