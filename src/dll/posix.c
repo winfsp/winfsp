@@ -770,3 +770,135 @@ lasterror:
     Result = FspNtStatusFromWin32(GetLastError());
     goto exit;
 }
+
+/*
+ * Services for Macintosh and Cygwin compatible filename transformation:
+ * Transform characters invalid for Windows filenames to the Unicode
+ * private use area in the U+F0XX range.
+ *
+ * The invalid maps are produced by the following Python script:
+ *     reserved = ['<', '>', ':', '"', '/', '|', '?', '*']
+ *     l = [str(int(0 < i < 32 or chr(i) in reserved)) for i in xrange(0, 128)]
+ *     print "0x%08x" % int("".join(l[0:32]), 2)
+ *     print "0x%08x" % int("".join(l[32:64]), 2)
+ *     print "0x%08x" % int("".join(l[64:96]), 2)
+ *     print "0x%08x" % int("".join(l[96:128]), 2)
+ */
+static UINT32 FspPosixInvalidPathChars[4] =
+{
+    0x7fffffff,
+    0x2021002b,
+    0x00000000,
+    0x00000008,
+};
+
+FSP_API NTSTATUS FspPosixMapWindowsToPosixPath(PWSTR WindowsPath, const char **PPosixPath)
+{
+    NTSTATUS Result;
+    ULONG Size;
+    char *PosixPath = 0, *p, *q;
+
+    *PPosixPath = 0;
+
+    Size = WideCharToMultiByte(CP_UTF8, 0, WindowsPath, -1, 0, 0, 0, 0);
+    if (0 == Size)
+        goto lasterror;
+
+    PosixPath = MemAlloc(Size);
+    if (0 == PosixPath)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    Size = WideCharToMultiByte(CP_UTF8, 0, WindowsPath, -1, PosixPath, Size, 0, 0);
+    if (0 == Size)
+        goto lasterror;
+
+    for (p = PosixPath, q = p; *p; p++)
+    {
+        char c = *p;
+
+        if ('\\' == c)
+            *q++ = '/';
+        /* encode characters in the Unicode private use area: U+F0XX -> XX */
+        else if (0xef == c && 0x80 == (0xfc & p[1]) && 0x80 == (0xc0 & p[2]))
+        {
+            c = ((p[1] & 0x3) << 6) | (p[2] & 0x3f);
+            if (128 > c && (FspPosixInvalidPathChars[c >> 5] & (0x80000000 >> (c & 0x1f))))
+                *q++ = c;
+            else
+                *q++ = *p++, *q++ = *p++, *q++ = *p;
+        }
+        else
+            *q++ = c;
+    }
+    *q = '\0';
+
+    *PPosixPath = PosixPath;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result))
+        MemFree(PosixPath);
+
+    return Result;
+
+lasterror:
+    Result = FspNtStatusFromWin32(GetLastError());
+    goto exit;
+}
+
+FSP_API NTSTATUS FspPosixMapPosixToWindowsPath(const char *PosixPath, PWSTR *PWindowsPath)
+{
+    NTSTATUS Result;
+    ULONG Size;
+    PWSTR WindowsPath = 0, p;
+
+    *PWindowsPath = 0;
+
+    Size = MultiByteToWideChar(CP_UTF8, 0, PosixPath, -1, 0, 0);
+    if (0 == Size)
+        goto lasterror;
+
+    WindowsPath = MemAlloc(Size);
+    if (0 == PosixPath)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    Size = MultiByteToWideChar(CP_UTF8, 0, PosixPath, -1, WindowsPath, Size);
+    if (0 == Size)
+        goto lasterror;
+
+    for (p = WindowsPath; *p; p++)
+    {
+        WCHAR c = *p;
+
+        if (L'/' == c)
+            *p = L'\\';
+        else if (128 > c && (FspPosixInvalidPathChars[c >> 5] & (0x80000000 >> (c & 0x1f))))
+            *p |= 0xf000;
+    }
+
+    *PWindowsPath = WindowsPath;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result))
+        MemFree(WindowsPath);
+
+    return Result;
+
+lasterror:
+    Result = FspNtStatusFromWin32(GetLastError());
+    goto exit;
+}
+
+FSP_API VOID FspPosixDeletePath(void *Path)
+{
+    MemFree(Path);
+}

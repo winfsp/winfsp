@@ -850,6 +850,9 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
 FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
     PSECURITY_DESCRIPTOR SecurityDescriptor,
     PUINT32 PUid, PUINT32 PGid, PUINT32 PMode);
+FSP_API NTSTATUS FspPosixMapWindowsToPosixPath(PWSTR WindowsPath, const char **PPosixPath);
+FSP_API NTSTATUS FspPosixMapPosixToWindowsPath(const char *PosixPath, PWSTR *PWindowsPath);
+FSP_API VOID FspPosixDeletePath(void *Path);
 
 /*
  * Path Handling
