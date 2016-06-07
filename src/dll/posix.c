@@ -777,7 +777,7 @@ lasterror:
  * private use area in the U+F0XX range.
  *
  * The invalid maps are produced by the following Python script:
- *     reserved = ['<', '>', ':', '"', '/', '|', '?', '*']
+ *     reserved = ['<', '>', ':', '"', '\\', '|', '?', '*']
  *     l = [str(int(0 < i < 32 or chr(i) in reserved)) for i in xrange(0, 128)]
  *     print "0x%08x" % int("".join(l[0:32]), 2)
  *     print "0x%08x" % int("".join(l[32:64]), 2)
@@ -787,12 +787,12 @@ lasterror:
 static UINT32 FspPosixInvalidPathChars[4] =
 {
     0x7fffffff,
-    0x2021002b,
-    0x00000000,
+    0x2020002b,
+    0x00000008,
     0x00000008,
 };
 
-FSP_API NTSTATUS FspPosixMapWindowsToPosixPath(PWSTR WindowsPath, const char **PPosixPath)
+FSP_API NTSTATUS FspPosixMapWindowsToPosixPath(PWSTR WindowsPath, char **PPosixPath)
 {
     NTSTATUS Result;
     ULONG Size;
@@ -817,7 +817,7 @@ FSP_API NTSTATUS FspPosixMapWindowsToPosixPath(PWSTR WindowsPath, const char **P
 
     for (p = PosixPath, q = p; *p; p++)
     {
-        char c = *p;
+        unsigned char c = *p;
 
         if ('\\' == c)
             *q++ = '/';
@@ -826,7 +826,7 @@ FSP_API NTSTATUS FspPosixMapWindowsToPosixPath(PWSTR WindowsPath, const char **P
         {
             c = ((p[1] & 0x3) << 6) | (p[2] & 0x3f);
             if (128 > c && (FspPosixInvalidPathChars[c >> 5] & (0x80000000 >> (c & 0x1f))))
-                *q++ = c;
+                *q++ = c, p += 2;
             else
                 *q++ = *p++, *q++ = *p++, *q++ = *p;
         }
@@ -862,7 +862,7 @@ FSP_API NTSTATUS FspPosixMapPosixToWindowsPath(const char *PosixPath, PWSTR *PWi
     if (0 == Size)
         goto lasterror;
 
-    WindowsPath = MemAlloc(Size);
+    WindowsPath = MemAlloc(Size * sizeof(WCHAR));
     if (0 == PosixPath)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;

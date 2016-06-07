@@ -213,8 +213,39 @@ void posix_map_sd_test(void)
     }
 }
 
+void posix_map_path_test(void)
+{
+    struct
+    {
+        PWSTR WindowsPath;
+        const char *PosixPath;
+    } map[] =
+    {
+        { L"\\foo\\bar", "/foo/bar" },
+        { L"\\foo\xf03c\xf03e\xf03a\xf02f\xf05c\xf022\xf07c\xf03f\xf02a\\bar", "/foo<>:\xef\x80\xaf\\\"|?*/bar" },
+    };
+    NTSTATUS Result;
+    PWSTR WindowsPath;
+    char *PosixPath;
+
+    for (size_t i = 0; sizeof map / sizeof map[0] > i; i++)
+    {
+        Result = FspPosixMapWindowsToPosixPath(map[i].WindowsPath, &PosixPath);
+        ASSERT(NT_SUCCESS(Result));
+        ASSERT(0 == strcmp(map[i].PosixPath, PosixPath));
+
+        Result = FspPosixMapPosixToWindowsPath(map[i].PosixPath, &WindowsPath);
+        ASSERT(NT_SUCCESS(Result));
+        ASSERT(0 == wcscmp(map[i].WindowsPath, WindowsPath));
+
+        FspPosixDeletePath(WindowsPath);
+        FspPosixDeletePath(PosixPath);
+    }
+}
+
 void posix_tests(void)
 {
     TEST(posix_map_sid_test);
     TEST(posix_map_sd_test);
+    TEST(posix_map_path_test);
 }
