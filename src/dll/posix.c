@@ -742,8 +742,10 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
             (FspPosixMapAccessMaskToPermission(GroupAllow) << 3) |
             (FspPosixMapAccessMaskToPermission(WorldAllow));
         if (0 != (OwnerAllow & FILE_DELETE_CHILD) &&
-            0 == (GroupAllow & FILE_DELETE_CHILD) &&
-            0 == (WorldAllow & FILE_DELETE_CHILD))
+            (
+                (0 == (GroupAllow & FILE_DELETE_CHILD) && 0 != (Mode & 0000020)) ||
+                (0 == (WorldAllow & FILE_DELETE_CHILD) && 0 != (Mode & 0000002))
+            ))
             Mode |= 0001000; /* sticky bit */
     }
     else
