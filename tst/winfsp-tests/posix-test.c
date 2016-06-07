@@ -155,6 +155,8 @@ void posix_map_sd_test(void)
         UINT32 Uid, Gid, Mode;
     } map[] =
     {
+        { L"O:SYG:BAD:P(A;;0x1f0198;;;SY)(A;;0x120088;;;BA)(A;;0x120088;;;WD)", 18, 544, 00000 },
+
         { L"O:SYG:BAD:P(A;;0x1f0199;;;SY)(A;;0x120088;;;BA)(A;;0x120088;;;WD)", 18, 544, 00400 },
         { L"O:SYG:BAD:P(A;;0x1f0198;;;SY)(D;;CC;;;SY)(A;;FR;;;BA)(A;;0x120088;;;WD)", 18, 544, 00040 },
         { L"O:SYG:BAD:P(A;;0x1f0198;;;SY)(D;;CC;;;SY)(A;;0x120088;;;BA)(D;;CC;;;BA)(A;;FR;;;WD)", 18, 544, 00004 },
@@ -166,6 +168,9 @@ void posix_map_sd_test(void)
         { L"O:SYG:BAD:P(A;;0x1f01b8;;;SY)(A;;0x120088;;;BA)(A;;0x120088;;;WD)", 18, 544, 00100 },
         { L"O:SYG:BAD:P(A;;0x1f0198;;;SY)(D;;WP;;;SY)(A;;0x1200a8;;;BA)(A;;0x120088;;;WD)", 18, 544, 00010 },
         { L"O:SYG:BAD:P(A;;0x1f0198;;;SY)(D;;WP;;;SY)(A;;0x120088;;;BA)(D;;WP;;;BA)(A;;0x1200a8;;;WD)", 18, 544, 00001 },
+
+        { L"O:SYG:BAD:P(A;;0x1f01b9;;;SY)(D;;DCLC;;;SY)(A;;0x1201af;;;BA)(A;;0x1200a9;;;WD)", 18, 544, 00575 },
+        { L"O:SYG:BAD:P(A;;0x1f01bf;;;SY)(A;;0x1200a9;;;BA)(D;;DCLCCR;;;BA)(A;;0x1201af;;;WD)", 18, 544, 00757 },
     };
     NTSTATUS Result;
     BOOL Success;
