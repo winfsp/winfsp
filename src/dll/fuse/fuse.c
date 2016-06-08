@@ -251,7 +251,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     struct fuse_conn_info conn;
     NTSTATUS Result;
 
-    context = fsp_fuse_get_context(f->env);
+    context = fsp_fuse_get_context(0);
     if (0 == context)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
@@ -259,6 +259,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     }
     context->fuse = f;
     context->private_data = f->data;
+    context->uid = context->gid = -1;
 
     memset(&conn, 0, sizeof conn);
     conn.proto_major = 7;               /* pretend that we are FUSE kernel protocol 7.12 */
@@ -376,7 +377,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         fsp_fuse_op_query_security);
     FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactSetSecurityKind,
         fsp_fuse_op_set_security);
-    //FspFileSystemSetOperationGuard(f->FileSystem, 0, 0);
+    FspFileSystemSetOperationGuard(f->FileSystem, fsp_fuse_op_enter, fsp_fuse_op_leave);
     
     FspFileSystemSetDebugLog(f->FileSystem, f->DebugLog);
 
@@ -623,7 +624,7 @@ FSP_FUSE_API void fsp_fuse_exit(struct fsp_fuse_env *env,
     FspServiceStop(f->Service);
 }
 
-FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env)
+FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *reserved)
 {
     struct fuse_context *context;
 
@@ -639,6 +640,7 @@ FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env)
             return 0;
 
         memset(context, 0, sizeof *context);
+        context->pid = -1;
 
         TlsSetValue(fsp_fuse_tlskey, context);
     }
