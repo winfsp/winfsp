@@ -46,7 +46,8 @@ FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error)
     {
     #include "ntstatus.i"
     default:
-        return STATUS_ACCESS_DENIED;
+        /* use FACILITY_NTWIN32 if able, else STATUS_ACCESS_DENIED */
+        return 0xffff >= Error ? (0x80070000 | Error) : STATUS_ACCESS_DENIED;
     }
 }
 
