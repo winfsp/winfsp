@@ -645,3 +645,26 @@ FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env)
 
     return context;
 }
+
+FSP_FUSE_API NTSTATUS fsp_fuse_ntstatus_from_errno(struct fsp_fuse_env *env,
+    int err)
+{
+    if ('C' == env->environment)
+        switch (err)
+        {
+        #undef FSP_FUSE_ERRNO
+        #define FSP_FUSE_ERRNO 67
+        #include "errno.i"
+        default:
+            return STATUS_ACCESS_DENIED;
+        }
+    else
+        switch (err)
+        {
+        #undef FSP_FUSE_ERRNO
+        #define FSP_FUSE_ERRNO 87
+        #include "errno.i"
+        default:
+            return STATUS_ACCESS_DENIED;
+        }
+}

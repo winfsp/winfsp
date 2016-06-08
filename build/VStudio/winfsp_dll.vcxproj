@@ -74,7 +74,6 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
     </CustomBuild>
     <None Include="..\..\src\dll\library.def" />
-    <None Include="..\..\src\dll\ntstatus.i" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\..\src\dll\eventlog\eventlog.rc" />
