@@ -101,3 +101,38 @@ The WinFsp installer has been modified to place this file within its installatio
 === SSHFS-Win
 
 The sshfs-win open-source project (work in progress) can be found here: https://bitbucket.org/billziss/sshfs-win
+
+== Step 3: Mapping Windows to POSIX
+
+It would seem that we are now ready to start implementing the `fuse_operations`. However there is another matter that we need to attend to first and that is mapping the Windows file system view of the world to the POSIX one and vice-versa.
+
+=== Mapping Paths
+
+The Windows and POSIX file systems both use paths to address files. The path conventions are different, so we need a technique to convert between the two. This goes beyond a simple translation of the backslash character (`\`) to slash (`/`), because several characters are reserved and cannot be used in a Windows file path, but are legal when used in a POSIX path.
+
+The reserved Windows characters are:
+
+----
+<   >   :   "   /   \   |   ?   *
+any character between 0 and 31
+----
+
+POSIX only has two reserved characters: slash (`/`) and `NUL`.
+
+So how do we map between the two? Luckily this problem has been solved before by "Services for Macintosh" (SFM), "Services for UNIX" (SFU) and Gygwin. The solution involves the use of the Unicode "private use area". When mapping a POSIX path to Windows, if we encounter any of the Windows reserved characters we simply map it to the Unicode range U+F000 - U+F0FF. The reverse mapping from Windows to POSIX is obvious.
+
+=== Mapping Security
+
+Mapping Windows security to POSIX (and vice-versa) is a much more interesting (and difficult) problem. We have the following requirements:
+
+- We need a method to map a Windows SID (Security Identifier) to a POSIX uid/gid.
+- We need a method to map a Windows ACL (Access Control List) to a POSIX permission set.
+- We want any mapping method we come up with to be bijective (to the extent that it is possible).
+
+Luckily "Services for UNIX" (and Cygwin) come to the rescue again. The following Cygwin document describes in great detail a method to map a Windows SID to a POSIX uid/gid that is compatible with SFU: https://cygwin.com/cygwin-ug-net/ntsec.html. A different document from SFU describes how to map a Windows ACL to POSIX permissions: https://technet.microsoft.com/en-us/library/bb463216.aspx.
+
+The mappings provided are not perfect, but they come pretty close. They are also proven as they have been used in SFU and Cygwin for years.
+
+=== WinFsp Implementation
+
+A WinFsp implementation of the above mappings can be found in the file `src/dll/posix.c`.
