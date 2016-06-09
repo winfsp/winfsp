@@ -118,12 +118,23 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
+    HANDLE Token;
 
     Result = FspFileSystemOpEnter(FileSystem, Request, Response);
     if (!NT_SUCCESS(Result))
         return Result;
 
-    return fsp_fuse_op_set_context(FileSystem, 0);
+    if (FspFsctlTransactCreateKind == Request->Kind)
+        Token = (HANDLE)Request->Req.Create.AccessToken;
+    else if (FspFsctlTransactSetInformationKind == Request->Kind &&
+        10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass)
+        Token = (HANDLE)Request->Req.SetInformation.Info.Rename.AccessToken;
+    else if (FspFsctlTransactSetSecurityKind == Request->Kind)
+        Token = (HANDLE)Request->Req.SetSecurity.AccessToken;
+    else
+        Token = 0;
+
+    return fsp_fuse_op_set_context(FileSystem, Token);
 }
 
 NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
@@ -133,8 +144,8 @@ NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
 
     context = fsp_fuse_get_context(0);
     context->fuse = 0;
-    context->uid = 0;
-    context->gid = 0;
+    context->uid = -1;
+    context->gid = -1;
 
     FspFileSystemOpLeave(FileSystem, Request, Response);
 
