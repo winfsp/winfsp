@@ -1,5 +1,6 @@
 #if FSP_FUSE_ERRNO == 87 /* Windows */
 
+case 0: return STATUS_SUCCESS;
 case 1: return STATUS_ACCESS_DENIED;
 case 2: return STATUS_OBJECT_NAME_NOT_FOUND;
 case 3: return STATUS_PROCEDURE_NOT_FOUND;
@@ -56,6 +57,7 @@ case 138: return STATUS_TRANSACTION_TIMED_OUT;
 
 #elif FSP_FUSE_ERRNO == 67 /* Cygwin */
 
+case 0: return STATUS_SUCCESS;
 case 1: return STATUS_ACCESS_DENIED;
 case 2: return STATUS_OBJECT_NAME_NOT_FOUND;
 case 3: return STATUS_PROCEDURE_NOT_FOUND;
