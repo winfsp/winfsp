@@ -97,11 +97,11 @@
     <ClCompile Include="..\..\src\dll\fuse\fuse_main.c">
       <Filter>Source\fuse</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\dll\fuse\fuseop.c">
-      <Filter>Source\fuse</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\dll\posix.c">
       <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\dll\fuse\fuseintf.c">
+      <Filter>Source\fuse</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

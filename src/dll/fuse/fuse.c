@@ -240,12 +240,6 @@ static NTSTATUS fsp_fuse_preflight(struct fuse *f)
 
 static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
-    static FSP_FILE_SYSTEM_INTERFACE intf =
-    {
-        0,
-        0,
-        fsp_fuse_op_get_security_by_name,
-    };
     struct fuse *f = Service->UserContext;
     struct fuse_context *context;
     struct fuse_conn_info conn;
@@ -339,7 +333,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     Result = FspFileSystemCreate(
         f->VolumeParams.Prefix[0] ?
             L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME,
-        &f->VolumeParams, &intf,
+        &f->VolumeParams, &fsp_fuse_intf,
         &f->FileSystem);
     if (!NT_SUCCESS(Result))
     {
@@ -347,38 +341,8 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
             L"Cannot create " FSP_FUSE_LIBRARY_NAME " file system.");
         goto fail;
     }
-    f->FileSystem->UserContext = f;
 
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactCreateKind,
-        fsp_fuse_op_create);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactOverwriteKind,
-        fsp_fuse_op_overwrite);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactCleanupKind,
-        fsp_fuse_op_cleanup);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactCloseKind,
-        fsp_fuse_op_close);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactReadKind,
-        fsp_fuse_op_read);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactWriteKind,
-        fsp_fuse_op_write);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactQueryInformationKind,
-        fsp_fuse_op_query_information);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactSetInformationKind,
-        fsp_fuse_op_set_information);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactFlushBuffersKind,
-        fsp_fuse_op_flush_buffers);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactQueryVolumeInformationKind,
-        fsp_fuse_op_query_volume_information);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactSetVolumeInformationKind,
-        fsp_fuse_op_set_volume_information);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactQueryDirectoryKind,
-        fsp_fuse_op_query_directory);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactQuerySecurityKind,
-        fsp_fuse_op_query_security);
-    FspFileSystemSetOperation(f->FileSystem, FspFsctlTransactSetSecurityKind,
-        fsp_fuse_op_set_security);
-    FspFileSystemSetOperationGuard(f->FileSystem, fsp_fuse_op_enter, fsp_fuse_op_leave);
-    
+    f->FileSystem->UserContext = f;
     FspFileSystemSetDebugLog(f->FileSystem, f->DebugLog);
 
     if (L'\0' != f->MountPoint)

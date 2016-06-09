@@ -1,5 +1,5 @@
 /**
- * @file dll/fuse/fuseop.c
+ * @file dll/fuse/fuseintf.c
  *
  * @copyright 2015-2016 Bill Zissimopoulos
  */
@@ -17,7 +17,7 @@
 
 #include <dll/fuse/library.h>
 
-static NTSTATUS fsp_fuse_op_set_context(FSP_FILE_SYSTEM *FileSystem, HANDLE Token)
+static NTSTATUS fsp_fuse_intf_set_context(FSP_FILE_SYSTEM *FileSystem, HANDLE Token)
 {
     struct fuse_context *context;
     UINT32 Uid = -1, Gid = -1;
@@ -114,23 +114,22 @@ exit:
     return Result;
 }
 
-VOID fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
+    return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-VOID fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_SetVolumeLabel(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PWSTR VolumeLabel,
+    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
-    struct fuse_context *context;
-
-    context = fsp_fuse_get_context(0);
-    context->fuse = 0;
-    context->uid = -1;
-    context->gid = -1;
+    return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_get_security_by_name(FSP_FILE_SYSTEM *FileSystem,
+NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PUINT32 PFileAttributes,
     PSECURITY_DESCRIPTOR SecurityDescriptorBuf, SIZE_T *PSecurityDescriptorSize)
 {
@@ -195,86 +194,160 @@ exit:
     return Result;
 }
 
-NTSTATUS fsp_fuse_op_create(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PWSTR FileName, BOOLEAN CaseSensitive, UINT32 CreateOptions,
+    UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
+    PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_overwrite(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PWSTR FileName, BOOLEAN CaseSensitive, UINT32 CreateOptions,
+    PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_cleanup(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_close(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode, PWSTR FileName, BOOLEAN Delete)
+{
+}
+
+VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode)
+{
+}
+
+NTSTATUS fsp_fuse_intf_Read(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
+    PULONG PBytesTransferred)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_read(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
+    BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
+    PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_write(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_flush_buffers(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_query_information(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode, UINT32 FileAttributes,
+    UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_set_information(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode, UINT64 AllocationSize,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_query_volume_information(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode, UINT64 FileSize,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_set_volume_information(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode, PWSTR FileName)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_query_directory(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode,
+    PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_query_security(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_GetSecurity(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS fsp_fuse_op_set_security(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS fsp_fuse_intf_SetSecurity(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode,
+    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR SecurityDescriptor)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 }
+
+NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
+    PWSTR Pattern,
+    PULONG PBytesTransferred)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
+{
+    fsp_fuse_intf_GetVolumeInfo,
+    fsp_fuse_intf_SetVolumeLabel,
+    fsp_fuse_intf_GetSecurityByName,
+    fsp_fuse_intf_Create,
+    fsp_fuse_intf_Open,
+    fsp_fuse_intf_Overwrite,
+    fsp_fuse_intf_Cleanup,
+    fsp_fuse_intf_Close,
+    fsp_fuse_intf_Read,
+    fsp_fuse_intf_Write,
+    fsp_fuse_intf_Flush,
+    fsp_fuse_intf_GetFileInfo,
+    fsp_fuse_intf_SetBasicInfo,
+    fsp_fuse_intf_SetAllocationSize,
+    fsp_fuse_intf_SetFileSize,
+    fsp_fuse_intf_CanDelete,
+    fsp_fuse_intf_Rename,
+    fsp_fuse_intf_GetSecurity,
+    fsp_fuse_intf_SetSecurity,
+    fsp_fuse_intf_ReadDirectory,
+};
