@@ -22,8 +22,10 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
 {
     struct fuse_context *context;
     struct fsp_fuse_context_header *context_header;
+    char *PosixPath = 0;
     UINT32 Uid = -1, Gid = -1;
-    HANDLE Token;
+    PWSTR FileName = 0;
+    HANDLE Token = 0;
     union
     {
         TOKEN_USER V;
@@ -40,14 +42,25 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
 
     if (FspFsctlTransactCreateKind == Request->Kind)
+    {
+        FileName = (PWSTR)Request->Buffer;
         Token = (HANDLE)Request->Req.Create.AccessToken;
+    }
     else if (FspFsctlTransactSetInformationKind == Request->Kind &&
         10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass)
+    {
+        FileName = (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset);
         Token = (HANDLE)Request->Req.SetInformation.Info.Rename.AccessToken;
+    }
     else if (FspFsctlTransactSetSecurityKind == Request->Kind)
         Token = (HANDLE)Request->Req.SetSecurity.AccessToken;
-    else
-        Token = 0;
+
+    if (0 != FileName)
+    {
+        Result = FspPosixMapWindowsToPosixPath(FileName, &PosixPath);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
 
     if (0 != Token)
     {
@@ -111,6 +124,10 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
         goto exit;
     }
 
+    Result = FspFileSystemOpEnter(FileSystem, Request, Response);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
     context->fuse = FileSystem->UserContext;
     context->uid = Uid;
     context->gid = Gid;
@@ -118,8 +135,9 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     context_header = (PVOID)((PUINT8)context - sizeof *context_header);
     context_header->Request = Request;
     context_header->Response = Response;
+    context_header->PosixPath = PosixPath;
 
-    Result = FspFileSystemOpEnter(FileSystem, Request, Response);
+    Result = STATUS_SUCCESS;
 
 exit:
     if (UserInfo != &UserInfoBuf.V)
@@ -127,6 +145,9 @@ exit:
 
     if (GroupInfo != &GroupInfoBuf.V)
         MemFree(GroupInfo);
+
+    if (!NT_SUCCESS(Result) && 0 != PosixPath)
+        FspPosixDeletePath(PosixPath);
 
     return Result;
 }
@@ -143,8 +164,11 @@ NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
     context->gid = -1;
 
     context_header = (PVOID)((PUINT8)context - sizeof *context_header);
+    if (0 != context_header->PosixPath)
+        FspPosixDeletePath(context_header->PosixPath);
     context_header->Request = 0;
     context_header->Response = 0;
+    context_header->PosixPath = 0;
 
     FspFileSystemOpLeave(FileSystem, Request, Response);
 
