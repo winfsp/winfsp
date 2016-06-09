@@ -377,6 +377,7 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
 
     filedesc->PosixPath = contexthdr->PosixPath;
+    filedesc->IsDirectory = !!(FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_DIRECTORY);
     filedesc->OpenFlags = fi.flags;
     filedesc->FileHandle = fi.fh;
     contexthdr->PosixPath = 0;
@@ -409,6 +410,27 @@ static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode)
 {
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc = (PVOID)(UINT_PTR)Request->Req.Close.UserContext2;
+    struct fuse_file_info fi;
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    if (filedesc->IsDirectory)
+    {
+        if (0 != f->ops.releasedir)
+            f->ops.releasedir(filedesc->PosixPath, &fi);
+    }
+    else
+    {
+        if (0 != f->ops.release)
+            f->ops.release(filedesc->PosixPath, &fi);
+    }
+
+    MemFree(filedesc->PosixPath);
+    MemFree(filedesc);
 }
 
 static NTSTATUS fsp_fuse_intf_Read(FSP_FILE_SYSTEM *FileSystem,

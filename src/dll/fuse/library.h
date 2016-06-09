@@ -48,6 +48,7 @@ struct fsp_fuse_context_header
 struct fsp_fuse_file_desc
 {
     char *PosixPath;
+    BOOLEAN IsDirectory;
     int OpenFlags;
     UINT64 FileHandle;
 };
