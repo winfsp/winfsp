@@ -16,6 +16,7 @@
  */
 
 #include <dll/fuse/library.h>
+#include <fcntl.h>
 
 NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
@@ -307,20 +308,40 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
 {
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_context_header *contexthdr = fsp_fuse_context_header();
-    struct fsp_fuse_file_desc *filedesc;
+    UINT32 Uid, Gid, Mode;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+    struct fsp_fuse_file_desc *filedesc = 0;
     struct fuse_file_info fi;
     int err;
     NTSTATUS Result;
 
+    Result = fsp_fuse_intf_GetFileInfoByPath(FileSystem, contexthdr->PosixPath,
+        &Uid, &Gid, &Mode, &FileInfoBuf);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
     filedesc = MemAlloc(sizeof *filedesc);
     if (0 == filedesc)
-        return STATUS_INSUFFICIENT_RESOURCES;
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
 
     memset(&fi, 0, sizeof fi);
-    fi.flags = 0;
+    switch (Request->Req.Create.DesiredAccess & (FILE_READ_DATA | FILE_WRITE_DATA))
+    {
+    case FILE_READ_DATA:
+        fi.flags = _O_RDONLY;
+        break;
+    case FILE_WRITE_DATA:
+        fi.flags = _O_WRONLY;
+        break;
+    case FILE_READ_DATA | FILE_WRITE_DATA:
+        fi.flags = _O_RDWR;
+        break;
+    }
 
-#if 0
-    if (contexthdr->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+    if (FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
     {
         if (0 != f->ops.opendir)
         {
@@ -340,7 +361,8 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
         else
             Result = STATUS_INVALID_DEVICE_REQUEST;
     }
-#endif
+    if (!NT_SUCCESS(Result))
+        goto exit;
 
     /*
      * Ignore fuse_file_info::direct_io, fuse_file_info::keep_cache
@@ -351,17 +373,19 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
      * Ignore fuse_file_info::nonseekable.
      */
 
-    if (NT_SUCCESS(Result))
-    {
-        *PFileNode = 0;
-        //memcpy(FileInfo, &contexthdr->FileInfo, sizeof *FileInfo);
+    *PFileNode = 0;
+    memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
 
-        filedesc->PosixPath = contexthdr->PosixPath;
-        filedesc->FileHandle = fi.fh;
-        contexthdr->PosixPath = 0;
-        contexthdr->Response->Rsp.Create.Opened.UserContext2 = (UINT64)(UINT_PTR)filedesc;
-    }
-    else
+    filedesc->PosixPath = contexthdr->PosixPath;
+    filedesc->OpenFlags = fi.flags;
+    filedesc->FileHandle = fi.fh;
+    contexthdr->PosixPath = 0;
+    contexthdr->Response->Rsp.Create.Opened.UserContext2 = (UINT64)(UINT_PTR)filedesc;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result))
         MemFree(filedesc);
 
     return Result;
