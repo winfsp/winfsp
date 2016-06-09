@@ -125,6 +125,11 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     FileSystem->Operations[FspFsctlTransactSetSecurityKind] = FspFileSystemOpSetSecurity;
     FileSystem->Interface = Interface;
 
+    FileSystem->OpGuardStrategy = FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE;
+    InitializeSRWLock(&FileSystem->OpGuardLock);
+    FileSystem->EnterOperation = FspFileSystemOpEnter;
+    FileSystem->LeaveOperation = FspFileSystemOpLeave;
+
     *PFileSystem = FileSystem;
 
     return STATUS_SUCCESS;

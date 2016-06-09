@@ -587,11 +587,13 @@ FSP_FUSE_API void fsp_fuse_destroy(struct fsp_fuse_env *env,
     MemFree(f);
 }
 
-FSP_FUSE_API int fsp_fuse_loop(struct fsp_fuse_env *env,
-    struct fuse *f)
+static int fsp_fuse_loop_internal(struct fsp_fuse_env *env,
+    struct fuse *f, FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY GuardStrategy)
 {
     NTSTATUS Result;
     ULONG ExitCode;
+
+    FspFileSystemSetOperationGuardStrategy(f->FileSystem, GuardStrategy);
 
     Result = FspServiceLoop(f->Service);
     ExitCode = FspServiceGetExitCode(f->Service);
@@ -612,10 +614,18 @@ fail:
     return -1;
 }
 
+FSP_FUSE_API int fsp_fuse_loop(struct fsp_fuse_env *env,
+    struct fuse *f)
+{
+    return fsp_fuse_loop_internal(env, f,
+        FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE);
+}
+
 FSP_FUSE_API int fsp_fuse_loop_mt(struct fsp_fuse_env *env,
     struct fuse *f)
 {
-    return fsp_fuse_loop(env, f);
+    return fsp_fuse_loop_internal(env, f,
+        FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE);
 }
 
 FSP_FUSE_API void fsp_fuse_exit(struct fsp_fuse_env *env,

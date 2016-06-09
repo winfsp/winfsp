@@ -577,6 +577,11 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         PWSTR Pattern,
         PULONG PBytesTransferred);
 } FSP_FILE_SYSTEM_INTERFACE;
+typedef enum
+{
+    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE = 0,
+    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE,
+} FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY;
 typedef struct _FSP_FILE_SYSTEM
 {
     UINT16 Version;
@@ -592,6 +597,8 @@ typedef struct _FSP_FILE_SYSTEM
     PWSTR MountPoint;
     LIST_ENTRY MountEntry;
     UINT32 DebugLog;
+    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
+    SRWLOCK OpGuardLock;
 } FSP_FILE_SYSTEM;
 /**
  * Create a file system object.
@@ -716,6 +723,12 @@ VOID FspFileSystemSetOperationGuard(FSP_FILE_SYSTEM *FileSystem,
     FileSystem->LeaveOperation = LeaveOperation;
 }
 static inline
+VOID FspFileSystemSetOperationGuardStrategy(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY GuardStrategy)
+{
+    FileSystem->OpGuardStrategy = GuardStrategy;
+}
+static inline
 VOID FspFileSystemSetOperation(FSP_FILE_SYSTEM *FileSystem,
     ULONG Index,
     FSP_FILE_SYSTEM_OPERATION *Operation)
@@ -748,6 +761,10 @@ VOID FspFileSystemSetDebugLog(FSP_FILE_SYSTEM *FileSystem,
 /*
  * Operations
  */
+FSP_API VOID FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+FSP_API VOID FspFileSystemOpLeave(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,

@@ -17,6 +17,92 @@
 
 #include <dll/library.h>
 
+/*
+ * The FspFileSystemOpEnter/FspFileSystemOpLeave functions guard against
+ * concurrent accesses. Two concurrency models are provided:
+ *
+ * 1. A fine-grained concurrency model where file system NAMESPACE accesses
+ * are guarded using an exclusive-shared (read-write) lock. File I/O is not
+ * guarded and concurrent reads/writes/etc. are possible. [Note that the FSD
+ * will still apply an exclusive-shared lock PER INDIVIDUAL FILE, but it will
+ * not limit I/O operations for different files.]
+ *
+ * The fine-grained concurrency model applies the exclusive-shared lock as
+ * follows:
+ *     - EXCL: SetVolumeLabel, Create, Cleanup(Delete), SetInformation(Rename)
+ *     - SHRD: GetVolumeInfo, Open, SetInformation(Disposition), ReadDirectory
+ *     - NONE: all other operations
+ *
+ * 2. A coarse-grained concurrency model where all file system accesses are
+ * guarded by a mutually exclusive lock.
+ */
+
+FSP_API VOID FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    switch (FileSystem->OpGuardStrategy)
+    {
+    case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE:
+        if ((FspFsctlTransactCreateKind == Request->Kind &&
+                FILE_OPEN != ((Request->Req.Create.CreateOptions >> 24) & 0xff)) ||
+            (FspFsctlTransactCleanupKind == Request->Kind &&
+                Request->Req.Cleanup.Delete) ||
+            (FspFsctlTransactSetInformationKind == Request->Kind &&
+                10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass) ||
+            FspFsctlTransactSetVolumeInformationKind == Request->Kind)
+        {
+            AcquireSRWLockExclusive(&FileSystem->OpGuardLock);
+        }
+        else
+        if (FspFsctlTransactCreateKind == Request->Kind ||
+            (FspFsctlTransactSetInformationKind == Request->Kind &&
+                13/*FileDispositionInformation*/ == Request->Req.SetInformation.FileInformationClass) ||
+            FspFsctlTransactQueryDirectoryKind == Request->Kind ||
+            FspFsctlTransactQueryVolumeInformationKind == Request->Kind)
+        {
+            AcquireSRWLockShared(&FileSystem->OpGuardLock);
+        }
+        break;
+
+    case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE:
+        AcquireSRWLockExclusive(&FileSystem->OpGuardLock);
+        break;
+    }
+}
+
+FSP_API VOID FspFileSystemOpLeave(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    switch (FileSystem->OpGuardStrategy)
+    {
+    case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE:
+        if ((FspFsctlTransactCreateKind == Request->Kind &&
+                FILE_OPEN != ((Request->Req.Create.CreateOptions >> 24) & 0xff)) ||
+            (FspFsctlTransactCleanupKind == Request->Kind &&
+                Request->Req.Cleanup.Delete) ||
+            (FspFsctlTransactSetInformationKind == Request->Kind &&
+                10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass) ||
+            FspFsctlTransactSetVolumeInformationKind == Request->Kind)
+        {
+            ReleaseSRWLockExclusive(&FileSystem->OpGuardLock);
+        }
+        else
+        if (FspFsctlTransactCreateKind == Request->Kind ||
+            (FspFsctlTransactSetInformationKind == Request->Kind &&
+                13/*FileDispositionInformation*/ == Request->Req.SetInformation.FileInformationClass) ||
+            FspFsctlTransactQueryDirectoryKind == Request->Kind ||
+            FspFsctlTransactQueryVolumeInformationKind == Request->Kind)
+        {
+            ReleaseSRWLockShared(&FileSystem->OpGuardLock);
+        }
+        break;
+
+    case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE:
+        ReleaseSRWLockExclusive(&FileSystem->OpGuardLock);
+        break;
+    }
+}
+
 static inline
 NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,

@@ -79,7 +79,6 @@ typedef struct _MEMFS
     ULONG MaxFileSize;
     UINT16 VolumeLabelLength;
     WCHAR VolumeLabel[32];
-    CRITICAL_SECTION Lock;
 } MEMFS;
 
 static inline
@@ -962,20 +961,6 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     ReadDirectory,
 };
 
-static VOID MemfsEnterOperation(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
-    EnterCriticalSection(&Memfs->Lock);
-}
-
-static VOID MemfsLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
-{
-    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
-    LeaveCriticalSection(&Memfs->Lock);
-}
-
 NTSTATUS MemfsCreate(
     ULONG Flags,
     ULONG FileInfoTimeout,
@@ -1050,11 +1035,10 @@ NTSTATUS MemfsCreate(
     Memfs->VolumeLabelLength = sizeof L"MEMFS" - sizeof(WCHAR);
     memcpy(Memfs->VolumeLabel, L"MEMFS", Memfs->VolumeLabelLength);
 
-    InitializeCriticalSection(&Memfs->Lock);
-
-    FspFileSystemSetOperationGuard(Memfs->FileSystem,
-        MemfsEnterOperation,
-        MemfsLeaveOperation);
+#if 0
+    FspFileSystemSetOperationGuardStrategy(Memfs->FileSystem,
+        FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE);
+#endif
 
     /*
      * Create root directory.
@@ -1099,8 +1083,6 @@ NTSTATUS MemfsCreate(
 
 VOID MemfsDelete(MEMFS *Memfs)
 {
-    DeleteCriticalSection(&Memfs->Lock);
-
     FspFileSystemDelete(Memfs->FileSystem);
 
     MemfsFileNodeMapDelete(Memfs->FileNodeMap);
