@@ -141,7 +141,10 @@ VOID fsp_fuse_finalize_thread(VOID)
         context = TlsGetValue(fsp_fuse_tlskey);
         if (0 != context)
         {
-            MemFree(context);
+            struct fsp_fuse_context_header *context_header =
+                (PVOID)((PUINT8)context - sizeof *context_header);
+
+            MemFree(context_header);
             TlsSetValue(fsp_fuse_tlskey, 0);
         }
     }
@@ -610,11 +613,14 @@ FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *rese
     context = TlsGetValue(fsp_fuse_tlskey);
     if (0 == context)
     {
-        context = MemAlloc(sizeof *context);
-        if (0 == context)
+        struct fsp_fuse_context_header *context_header;
+
+        context_header = MemAlloc(sizeof *context_header + sizeof *context);
+        if (0 == context_header)
             return 0;
 
-        memset(context, 0, sizeof *context);
+        memset(context_header, 0, sizeof *context_header + sizeof *context);
+        context = (PVOID)context_header->ContextBuf;
         context->pid = -1;
 
         TlsSetValue(fsp_fuse_tlskey, context);
