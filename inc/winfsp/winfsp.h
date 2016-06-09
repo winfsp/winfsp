@@ -50,7 +50,7 @@ extern "C" {
  * FSP_FILE_SYSTEM_INTERFACE operations.
  */
 typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
-typedef VOID FSP_FILE_SYSTEM_OPERATION_GUARD(FSP_FILE_SYSTEM *,
+typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION_GUARD(FSP_FILE_SYSTEM *,
     FSP_FSCTL_TRANSACT_REQ *, FSP_FSCTL_TRANSACT_RSP *);
 typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *,
     FSP_FSCTL_TRANSACT_REQ *, FSP_FSCTL_TRANSACT_RSP *);
@@ -701,18 +701,22 @@ PWSTR FspFileSystemMountPoint(FSP_FILE_SYSTEM *FileSystem)
     return FileSystem->MountPoint;
 }
 static inline
-VOID FspFileSystemEnterOperation(FSP_FILE_SYSTEM *FileSystem,
+NTSTATUS FspFileSystemEnterOperation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
-    if (0 != FileSystem->EnterOperation)
-        FileSystem->EnterOperation(FileSystem, Request, Response);
+    if (0 == FileSystem->EnterOperation)
+        return STATUS_SUCCESS;
+
+    return FileSystem->EnterOperation(FileSystem, Request, Response);
 }
 static inline
-VOID FspFileSystemLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
+NTSTATUS FspFileSystemLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
-    if (0 != FileSystem->LeaveOperation)
-        FileSystem->LeaveOperation(FileSystem, Request, Response);
+    if (0 == FileSystem->LeaveOperation)
+        return STATUS_SUCCESS;
+
+    return FileSystem->LeaveOperation(FileSystem, Request, Response);
 }
 static inline
 VOID FspFileSystemSetOperationGuard(FSP_FILE_SYSTEM *FileSystem,
@@ -761,9 +765,9 @@ VOID FspFileSystemSetDebugLog(FSP_FILE_SYSTEM *FileSystem,
 /*
  * Operations
  */
-FSP_API VOID FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
-FSP_API VOID FspFileSystemOpLeave(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemOpLeave(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);

@@ -37,7 +37,7 @@
  * guarded by a mutually exclusive lock.
  */
 
-FSP_API VOID FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     switch (FileSystem->OpGuardStrategy)
@@ -68,9 +68,11 @@ FSP_API VOID FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
         AcquireSRWLockExclusive(&FileSystem->OpGuardLock);
         break;
     }
+
+    return STATUS_SUCCESS;
 }
 
-FSP_API VOID FspFileSystemOpLeave(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemOpLeave(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     switch (FileSystem->OpGuardStrategy)
@@ -101,6 +103,8 @@ FSP_API VOID FspFileSystemOpLeave(FSP_FILE_SYSTEM *FileSystem,
         ReleaseSRWLockExclusive(&FileSystem->OpGuardLock);
         break;
     }
+
+    return STATUS_SUCCESS;
 }
 
 static inline

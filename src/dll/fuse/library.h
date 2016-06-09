@@ -37,6 +37,11 @@ struct fuse
     BOOLEAN fsinit;
 };
 
+NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+
 extern FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf;
 
 #endif

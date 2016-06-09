@@ -283,10 +283,14 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
         Response->Hint = Request->Hint;
         if (FspFsctlTransactKindCount > Request->Kind && 0 != FileSystem->Operations[Request->Kind])
         {
-            FspFileSystemEnterOperation(FileSystem, Request, Response);
             Response->IoStatus.Status =
-                FileSystem->Operations[Request->Kind](FileSystem, Request, Response);
-            FspFileSystemLeaveOperation(FileSystem, Request, Response);
+                FspFileSystemEnterOperation(FileSystem, Request, Response);
+            if (NT_SUCCESS(Response->IoStatus.Status))
+            {
+                Response->IoStatus.Status =
+                    FileSystem->Operations[Request->Kind](FileSystem, Request, Response);
+                FspFileSystemLeaveOperation(FileSystem, Request, Response);
+            }
         }
         else
             Response->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;

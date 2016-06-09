@@ -17,7 +17,7 @@
 
 #include <dll/fuse/library.h>
 
-static NTSTATUS fsp_fuse_intf_set_context(FSP_FILE_SYSTEM *FileSystem, HANDLE Token)
+static NTSTATUS fsp_fuse_op_set_context(FSP_FILE_SYSTEM *FileSystem, HANDLE Token)
 {
     struct fuse_context *context;
     UINT32 Uid = -1, Gid = -1;
@@ -114,6 +114,33 @@ exit:
     return Result;
 }
 
+NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+
+    Result = FspFileSystemOpEnter(FileSystem, Request, Response);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    return fsp_fuse_op_set_context(FileSystem, 0);
+}
+
+NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    struct fuse_context *context;
+
+    context = fsp_fuse_get_context(0);
+    context->fuse = 0;
+    context->uid = 0;
+    context->gid = 0;
+
+    FspFileSystemOpLeave(FileSystem, Request, Response);
+
+    return STATUS_SUCCESS;
+}
+
 NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
@@ -208,6 +235,18 @@ NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, BOOLEAN CaseSensitive, UINT32 CreateOptions,
     PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
+#if 0
+    struct fuse *f = FileSystem->UserContext;
+    struct fuse_file_info fi;
+    char *PosixPath = 0;
+    int err;
+    NTSTATUS Result;
+
+    if (0 == f->ops.open)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    err = f->ops.open(PosixPath, &fi);
+#endif
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 

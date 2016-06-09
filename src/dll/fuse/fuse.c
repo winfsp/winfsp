@@ -343,6 +343,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     }
 
     f->FileSystem->UserContext = f;
+    FspFileSystemSetOperationGuard(f->FileSystem, fsp_fuse_op_enter, fsp_fuse_op_leave);
     FspFileSystemSetDebugLog(f->FileSystem, f->DebugLog);
 
     if (L'\0' != f->MountPoint)
