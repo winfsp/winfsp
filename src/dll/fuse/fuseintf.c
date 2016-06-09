@@ -21,7 +21,7 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     struct fuse_context *context;
-    struct fsp_fuse_context_header *context_header;
+    struct fsp_fuse_context_header *contexthdr;
     char *PosixPath = 0;
     UINT32 Uid = -1, Gid = -1;
     PWSTR FileName = 0;
@@ -129,13 +129,14 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
         goto exit;
 
     context->fuse = FileSystem->UserContext;
+    context->private_data = context->fuse->data;
     context->uid = Uid;
     context->gid = Gid;
 
-    context_header = (PVOID)((PUINT8)context - sizeof *context_header);
-    context_header->Request = Request;
-    context_header->Response = Response;
-    context_header->PosixPath = PosixPath;
+    contexthdr = (PVOID)((PUINT8)context - sizeof *contexthdr);
+    contexthdr->Request = Request;
+    contexthdr->Response = Response;
+    contexthdr->PosixPath = PosixPath;
 
     Result = STATUS_SUCCESS;
 
@@ -156,19 +157,18 @@ NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     struct fuse_context *context;
-    struct fsp_fuse_context_header *context_header;
+    struct fsp_fuse_context_header *contexthdr;
 
     context = fsp_fuse_get_context(0);
     context->fuse = 0;
+    context->private_data = 0;
     context->uid = -1;
     context->gid = -1;
 
-    context_header = (PVOID)((PUINT8)context - sizeof *context_header);
-    if (0 != context_header->PosixPath)
-        FspPosixDeletePath(context_header->PosixPath);
-    context_header->Request = 0;
-    context_header->Response = 0;
-    context_header->PosixPath = 0;
+    contexthdr = (PVOID)((PUINT8)context - sizeof *contexthdr);
+    if (0 != contexthdr->PosixPath)
+        FspPosixDeletePath(contexthdr->PosixPath);
+    memset(contexthdr, 0, sizeof *contexthdr);
 
     FspFileSystemOpLeave(FileSystem, Request, Response);
 
@@ -190,41 +190,74 @@ static NTSTATUS fsp_fuse_intf_SetVolumeLabel(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+static NTSTATUS fsp_fuse_intf_GetFileInfoByPath(FSP_FILE_SYSTEM *FileSystem,
+    const char *PosixPath,
+    PUINT32 PUid, PUINT32 PGid, PUINT32 PMode,
+    FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    struct fuse *f = FileSystem->UserContext;
+    UINT64 AllocationUnit;
+    struct fuse_stat stbuf;
+    int err;
+
+    if (0 == f->ops.getattr)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    memset(&stbuf, 0, sizeof stbuf);
+    err = f->ops.getattr(PosixPath, (void *)&stbuf);
+    if (0 != err)
+        return fsp_fuse_ntstatus_from_errno(f->env, err);
+
+    *PUid = stbuf.st_uid;
+    *PGid = stbuf.st_gid;
+    *PMode = stbuf.st_mode;
+
+    AllocationUnit = f->VolumeParams.SectorSize * f->VolumeParams.SectorsPerAllocationUnit;
+    FileInfo->FileAttributes = (stbuf.st_mode & 0040000) ? FILE_ATTRIBUTE_DIRECTORY : 0;
+    FileInfo->ReparseTag = 0;
+    FileInfo->AllocationSize =
+        (stbuf.st_size + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
+    FileInfo->FileSize = stbuf.st_size;
+    FileInfo->CreationTime =
+        Int32x32To64(stbuf.st_birthtim.tv_sec, 10000000) + 116444736000000000 +
+        stbuf.st_birthtim.tv_nsec / 100;
+    FileInfo->LastAccessTime =
+        Int32x32To64(stbuf.st_atim.tv_sec, 10000000) + 116444736000000000 +
+        stbuf.st_atim.tv_nsec / 100;
+    FileInfo->LastWriteTime =
+        Int32x32To64(stbuf.st_mtim.tv_sec, 10000000) + 116444736000000000 +
+        stbuf.st_mtim.tv_nsec / 100;
+    FileInfo->ChangeTime =
+        Int32x32To64(stbuf.st_ctim.tv_sec, 10000000) + 116444736000000000 +
+        stbuf.st_ctim.tv_nsec / 100;
+    FileInfo->IndexNumber = stbuf.st_ino;
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PUINT32 PFileAttributes,
     PSECURITY_DESCRIPTOR SecurityDescriptorBuf, SIZE_T *PSecurityDescriptorSize)
 {
     struct fuse *f = FileSystem->UserContext;
     char *PosixPath = 0;
+    UINT32 Uid, Gid, Mode;
+    FSP_FSCTL_FILE_INFO FileInfo;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     SIZE_T SecurityDescriptorSize;
-    struct fuse_stat stbuf;
-    int err;
     NTSTATUS Result;
-
-    if (0 == f->ops.getattr)
-        return STATUS_INVALID_DEVICE_REQUEST;
 
     Result = FspPosixMapWindowsToPosixPath(FileName, &PosixPath);
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    memset(&stbuf, 0, sizeof stbuf);
-    err = f->ops.getattr(PosixPath, (void *)&stbuf);
-    if (0 != err)
-    {
-        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+    Result = fsp_fuse_intf_GetFileInfoByPath(FileSystem, PosixPath, &Uid, &Gid, &Mode, &FileInfo);
+    if (!NT_SUCCESS(Result))
         goto exit;
-    }
-
-    if (0 != PFileAttributes)
-        *PFileAttributes = (stbuf.st_mode & 0040000) ?
-            FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
 
     if (0 != PSecurityDescriptorSize)
     {
-        Result = FspPosixMapPermissionsToSecurityDescriptor(
-            stbuf.st_uid, stbuf.st_gid, stbuf.st_mode, &SecurityDescriptor);
+        Result = FspPosixMapPermissionsToSecurityDescriptor(Uid, Gid, Mode, &SecurityDescriptor);
         if (!NT_SUCCESS(Result))
             goto exit;
 
@@ -241,6 +274,9 @@ static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
         if (0 != SecurityDescriptorBuf)
             memcpy(SecurityDescriptorBuf, SecurityDescriptor, SecurityDescriptorSize);
     }
+
+    if (0 != PFileAttributes)
+        *PFileAttributes = FileInfo.FileAttributes;
 
     Result = STATUS_SUCCESS;
 
@@ -269,7 +305,66 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, BOOLEAN CaseSensitive, UINT32 CreateOptions,
     PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_context_header *contexthdr = fsp_fuse_context_header();
+    struct fsp_fuse_file_desc *filedesc;
+    struct fuse_file_info fi;
+    int err;
+    NTSTATUS Result;
+
+    filedesc = MemAlloc(sizeof *filedesc);
+    if (0 == filedesc)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = 0;
+
+#if 0
+    if (contexthdr->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+    {
+        if (0 != f->ops.opendir)
+        {
+            err = f->ops.opendir(contexthdr->PosixPath, &fi);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+        else
+            Result = STATUS_SUCCESS;
+    }
+    else
+    {
+        if (0 != f->ops.open)
+        {
+            err = f->ops.open(contexthdr->PosixPath, &fi);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+        else
+            Result = STATUS_INVALID_DEVICE_REQUEST;
+    }
+#endif
+
+    /*
+     * Ignore fuse_file_info::direct_io, fuse_file_info::keep_cache
+     * WinFsp does not currently support disabling the cache manager
+     * for an individual file although it should not be hard to add
+     * if required.
+     *
+     * Ignore fuse_file_info::nonseekable.
+     */
+
+    if (NT_SUCCESS(Result))
+    {
+        *PFileNode = 0;
+        //memcpy(FileInfo, &contexthdr->FileInfo, sizeof *FileInfo);
+
+        filedesc->PosixPath = contexthdr->PosixPath;
+        filedesc->FileHandle = fi.fh;
+        contexthdr->PosixPath = 0;
+        contexthdr->Response->Rsp.Create.Opened.UserContext2 = (UINT64)(UINT_PTR)filedesc;
+    }
+    else
+        MemFree(filedesc);
+
+    return Result;
 }
 
 static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,

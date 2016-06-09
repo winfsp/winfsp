@@ -45,6 +45,19 @@ struct fsp_fuse_context_header
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 ContextBuf[];
 };
 
+struct fsp_fuse_file_desc
+{
+    char *PosixPath;
+    UINT64 FileHandle;
+};
+
+static inline
+struct fsp_fuse_context_header *fsp_fuse_context_header(VOID)
+{
+    struct fuse_context *context = fsp_fuse_get_context(0);
+    return (PVOID)((PUINT8)context - sizeof(struct fsp_fuse_context_header));
+}
+
 NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,

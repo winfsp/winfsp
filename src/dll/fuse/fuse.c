@@ -141,10 +141,10 @@ VOID fsp_fuse_finalize_thread(VOID)
         context = TlsGetValue(fsp_fuse_tlskey);
         if (0 != context)
         {
-            struct fsp_fuse_context_header *context_header =
-                (PVOID)((PUINT8)context - sizeof *context_header);
+            struct fsp_fuse_context_header *contexthdr =
+                (PVOID)((PUINT8)context - sizeof *contexthdr);
 
-            MemFree(context_header);
+            MemFree(contexthdr);
             TlsSetValue(fsp_fuse_tlskey, 0);
         }
     }
@@ -256,7 +256,8 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     }
     context->fuse = f;
     context->private_data = f->data;
-    context->uid = context->gid = -1;
+    context->uid = -1;
+    context->gid = -1;
 
     memset(&conn, 0, sizeof conn);
     conn.proto_major = 7;               /* pretend that we are FUSE kernel protocol 7.12 */
@@ -613,14 +614,14 @@ FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *rese
     context = TlsGetValue(fsp_fuse_tlskey);
     if (0 == context)
     {
-        struct fsp_fuse_context_header *context_header;
+        struct fsp_fuse_context_header *contexthdr;
 
-        context_header = MemAlloc(sizeof *context_header + sizeof *context);
-        if (0 == context_header)
+        contexthdr = MemAlloc(sizeof *contexthdr + sizeof *context);
+        if (0 == contexthdr)
             return 0;
 
-        memset(context_header, 0, sizeof *context_header + sizeof *context);
-        context = (PVOID)context_header->ContextBuf;
+        memset(contexthdr, 0, sizeof *contexthdr + sizeof *context);
+        context = (PVOID)contexthdr->ContextBuf;
         context->pid = -1;
 
         TlsSetValue(fsp_fuse_tlskey, context);
