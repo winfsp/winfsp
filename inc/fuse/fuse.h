@@ -39,8 +39,6 @@ typedef int (*fuse_dirfil_t)(fuse_dirh_t h, const char *name,
 
 struct fuse_operations
 {
-    unsigned int flag_nullpath_ok:1;
-    unsigned int flag_reserved:31;
     int (*getattr)(const char *path, struct fuse_stat *stbuf);
     int (*getdir)(const char *path, fuse_dirh_t h, fuse_dirfil_t filler);
     int (*readlink)(const char *path, char *buf, size_t size);
@@ -83,6 +81,8 @@ struct fuse_operations
     int (*lock)(const char *path, struct fuse_file_info *fi, int cmd, struct flock *lock);
     int (*utimens)(const char *path, const struct fuse_timespec tv[2]);
     int (*bmap)(const char *path, size_t blocksize, uint64_t *idx);
+    unsigned int flag_nullpath_ok:1;
+    unsigned int flag_reserved:31;
     int (*ioctl)(const char *path, int cmd, void *arg, struct fuse_file_info *fi,
         unsigned int flags, void *data);
     int (*poll)(const char *path, struct fuse_file_info *fi,
