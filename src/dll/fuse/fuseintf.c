@@ -225,38 +225,19 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoEx(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
-{
-    return STATUS_INVALID_DEVICE_REQUEST;
-}
-
-static NTSTATUS fsp_fuse_intf_SetVolumeLabel(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    PWSTR VolumeLabel,
-    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
-{
-    return STATUS_INVALID_DEVICE_REQUEST;
-}
-
-static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
-    PWSTR FileName, PUINT32 PFileAttributes,
+static NTSTATUS fsp_fuse_intf_GetSecurityEx(FSP_FILE_SYSTEM *FileSystem,
+    const char *PosixPath, struct fuse_file_info *fi,
+    PUINT32 PFileAttributes,
     PSECURITY_DESCRIPTOR SecurityDescriptorBuf, SIZE_T *PSecurityDescriptorSize)
 {
     struct fuse *f = FileSystem->UserContext;
-    char *PosixPath = 0;
     UINT32 Uid, Gid, Mode;
     FSP_FSCTL_FILE_INFO FileInfo;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     SIZE_T SecurityDescriptorSize;
     NTSTATUS Result;
 
-    Result = FspPosixMapWindowsToPosixPath(FileName, &PosixPath);
-    if (!NT_SUCCESS(Result))
-        goto exit;
-
-    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, 0, &Uid, &Gid, &Mode, &FileInfo);
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, fi, &Uid, &Gid, &Mode, &FileInfo);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -290,6 +271,44 @@ exit:
         FspDeleteSecurityDescriptor(SecurityDescriptor,
             FspPosixMapPermissionsToSecurityDescriptor);
 
+    return Result;
+}
+
+static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS fsp_fuse_intf_SetVolumeLabel(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PWSTR VolumeLabel,
+    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
+    PWSTR FileName, PUINT32 PFileAttributes,
+    PSECURITY_DESCRIPTOR SecurityDescriptorBuf, SIZE_T *PSecurityDescriptorSize)
+{
+    struct fuse *f = FileSystem->UserContext;
+    char *PosixPath = 0;
+    NTSTATUS Result;
+
+    Result = FspPosixMapWindowsToPosixPath(FileName, &PosixPath);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = fsp_fuse_intf_GetSecurityEx(FileSystem, PosixPath, 0,
+        PFileAttributes, SecurityDescriptorBuf, PSecurityDescriptorSize);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = STATUS_SUCCESS;
+
+exit:
     if (0 != PosixPath)
         FspPosixDeletePath(PosixPath);
 
@@ -701,9 +720,20 @@ static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS fsp_fuse_intf_GetSecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode,
-    PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
+    PSECURITY_DESCRIPTOR SecurityDescriptorBuf, SIZE_T *PSecurityDescriptorSize)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.QuerySecurity.UserContext2;
+    struct fuse_file_info fi;
+    UINT32 FileAttributes;
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    return fsp_fuse_intf_GetSecurityEx(FileSystem, filedesc->PosixPath, &fi,
+        &FileAttributes, SecurityDescriptorBuf, PSecurityDescriptorSize);
 }
 
 static NTSTATUS fsp_fuse_intf_SetSecurity(FSP_FILE_SYSTEM *FileSystem,
