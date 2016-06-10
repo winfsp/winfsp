@@ -176,23 +176,8 @@ NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
-{
-    return STATUS_INVALID_DEVICE_REQUEST;
-}
-
-static NTSTATUS fsp_fuse_intf_SetVolumeLabel(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    PWSTR VolumeLabel,
-    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
-{
-    return STATUS_INVALID_DEVICE_REQUEST;
-}
-
-static NTSTATUS fsp_fuse_intf_GetFileInfoByPath(FSP_FILE_SYSTEM *FileSystem,
-    const char *PosixPath,
+static NTSTATUS fsp_fuse_intf_GetFileInfoEx(FSP_FILE_SYSTEM *FileSystem,
+    const char *PosixPath, struct fuse_file_info *fi,
     PUINT32 PUid, PUINT32 PGid, PUINT32 PMode,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
@@ -201,11 +186,15 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoByPath(FSP_FILE_SYSTEM *FileSystem,
     struct fuse_stat stbuf;
     int err;
 
-    if (0 == f->ops.getattr)
+    memset(&stbuf, 0, sizeof stbuf);
+
+    if (0 != fi && 0 != f->ops.fgetattr)
+        err = f->ops.fgetattr(PosixPath, (void *)&stbuf, fi);
+    else if (0 == f->ops.getattr)
+        err = f->ops.getattr(PosixPath, (void *)&stbuf);
+    else
         return STATUS_INVALID_DEVICE_REQUEST;
 
-    memset(&stbuf, 0, sizeof stbuf);
-    err = f->ops.getattr(PosixPath, (void *)&stbuf);
     if (0 != err)
         return fsp_fuse_ntstatus_from_errno(f->env, err);
 
@@ -236,6 +225,21 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoByPath(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS fsp_fuse_intf_SetVolumeLabel(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PWSTR VolumeLabel,
+    FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
 static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PUINT32 PFileAttributes,
     PSECURITY_DESCRIPTOR SecurityDescriptorBuf, SIZE_T *PSecurityDescriptorSize)
@@ -252,7 +256,7 @@ static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Result = fsp_fuse_intf_GetFileInfoByPath(FileSystem, PosixPath, &Uid, &Gid, &Mode, &FileInfo);
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, 0, &Uid, &Gid, &Mode, &FileInfo);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -399,7 +403,7 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
      * Ignore fuse_file_info::nonseekable.
      */
 
-    Result = fsp_fuse_intf_GetFileInfoByPath(FileSystem, contexthdr->PosixPath,
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, contexthdr->PosixPath, &fi,
         &Uid, &Gid, &Mode, &FileInfoBuf);
     if (!NT_SUCCESS(Result))
         goto exit;
@@ -453,7 +457,7 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     int err;
     NTSTATUS Result;
 
-    Result = fsp_fuse_intf_GetFileInfoByPath(FileSystem, contexthdr->PosixPath,
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, contexthdr->PosixPath, 0,
         &Uid, &Gid, &Mode, &FileInfoBuf);
     if (!NT_SUCCESS(Result))
         goto exit;
@@ -633,7 +637,17 @@ static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc = (PVOID)(UINT_PTR)Request->Req.Close.UserContext2;
+    UINT32 Uid, Gid, Mode;
+    struct fuse_file_info fi;
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+        &Uid, &Gid, &Mode, FileInfo);
 }
 
 static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
