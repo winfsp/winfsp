@@ -718,13 +718,15 @@ struct fuse_dirhandle
 {
     FSP_FILE_SYSTEM *FileSystem;
     char *PosixPath, *PosixName;
+    PVOID OriginalBuffer;
+    ULONG OriginalLength;
     PVOID Buffer;
     ULONG Length;
     ULONG BytesTransferred;
 };
 
-int fsp_fuse_intf_AddDirInfoCommon(void *buf, const char *name,
-    const struct fuse_stat *stbuf, fuse_off_t off, BOOLEAN GrowBuffer)
+int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
+    const struct fuse_stat *stbuf, fuse_off_t off)
 {
     struct fuse_dirhandle *dh = buf;
     UINT32 Uid, Gid, Mode;
@@ -789,7 +791,33 @@ int fsp_fuse_intf_AddDirInfoCommon(void *buf, const char *name,
     DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + Size);
     DirInfo->NextOffset = off;
 
-    if (GrowBuffer)
+	/*
+	 * FUSE readdir documentation quote:
+     *
+	 * The filesystem may choose between two modes of operation:
+	 *
+	 * 1) The readdir implementation ignores the offset parameter, and
+	 * passes zero to the filler function's offset.  The filler
+	 * function will not return '1' (unless an error happens), so the
+	 * whole directory is read in a single readdir operation.  This
+	 * works just like the old getdir() method.
+	 *
+	 * 2) The readdir implementation keeps track of the offsets of the
+	 * directory entries.  It uses the offset parameter and always
+	 * passes non-zero offset to the filler function.  When the buffer
+	 * is full (or an error happens) the filler function will return
+	 * '1'.
+	 */
+
+    if (0 != off)
+    {
+        if (0 == dh->Buffer)
+        {
+            dh->Buffer = dh->OriginalBuffer;
+            dh->Length = dh->OriginalLength;
+        }
+    }
+    else if (dh->OriginalBuffer != dh->Buffer)
     {
         DirInfo->NextOffset = dh->BytesTransferred + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size);
 
@@ -816,16 +844,10 @@ int fsp_fuse_intf_AddDirInfoCommon(void *buf, const char *name,
     return ! FspFileSystemAddDirInfo(DirInfo, dh->Buffer, dh->Length, &dh->BytesTransferred);
 }
 
-int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
-    const struct fuse_stat *stbuf, fuse_off_t off)
-{
-    return fsp_fuse_intf_AddDirInfoCommon(buf, name, stbuf, off, TRUE);
-}
-
 int fsp_fuse_intf_AddDirInfoOld(fuse_dirh_t dh, const char *name,
     int type, fuse_ino_t ino)
 {
-    return fsp_fuse_intf_AddDirInfoCommon(dh, name, 0, 0, TRUE) ? -ENOMEM : 0;
+    return fsp_fuse_intf_AddDirInfo(dh, name, 0, 0) ? -ENOMEM : 0;
 }
 
 static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
@@ -863,6 +885,9 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
             dh.PosixPath[Size++] = '/';
         dh.PosixName = dh.PosixPath + Size;
 
+        dh.OriginalBuffer = Buffer;
+        dh.OriginalLength = Length;
+
         if (0 != f->ops.readdir)
         {
             memset(&fi, 0, sizeof fi);
@@ -885,8 +910,25 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
 
         if (NT_SUCCESS(Result))
         {
+            if (dh.OriginalBuffer == dh.Buffer)
+            {
+                *PBytesTransferred = dh.BytesTransferred;
+                return STATUS_SUCCESS;
+            }
+
+            if (0 == dh.Buffer)
+            {
+                *PBytesTransferred = dh.BytesTransferred;
+
+                /* EOF */
+                FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
+
+                return STATUS_SUCCESS;
+            }
+
             filedesc->DirBuffer = dh.Buffer;
             filedesc->DirBufferSize = dh.BytesTransferred;
+            /* fall through! */
         }
         else
         {
