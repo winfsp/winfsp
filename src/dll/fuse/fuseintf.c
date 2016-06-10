@@ -542,6 +542,37 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode, PWSTR FileName, BOOLEAN Delete)
 {
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc = (PVOID)(UINT_PTR)Request->Req.Close.UserContext2;
+
+    /*
+     * In Windows a DeleteFile/RemoveDirectory is the sequence of the following:
+     *     Create(FILE_OPEN)
+     *     SetInformation(Disposition)
+     *     Cleanup
+     *     Close
+     *
+     * The FSD maintains a count of how many handles are currently open for a file. When the
+     * last handle is closed *and* the disposition flag is set the FSD sends us a Cleanup with
+     * the Delete flag set.
+     *
+     * Notice that when we receive a Cleanup with Delete set there can be no open handles other
+     * than ours. [Even if there is a concurrent Open of this file, the FSD will fail it with
+     * STATUS_DELETE_PENDING.] This means that we do not need to worry about the hard_remove
+     * FUSE option and can safely remove the file at this time.
+     */
+
+    if (Delete)
+        if (filedesc->IsDirectory)
+        {
+            if (0 != f->ops.rmdir)
+                f->ops.rmdir(filedesc->PosixPath);
+        }
+        else
+        {
+            if (0 != f->ops.unlink)
+                f->ops.rmdir(filedesc->PosixPath);
+        }
 }
 
 static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
@@ -563,6 +594,8 @@ static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
     }
     else
     {
+        if (0 != f->ops.flush)
+            f->ops.flush(filedesc->PosixPath, &fi);
         if (0 != f->ops.release)
             f->ops.release(filedesc->PosixPath, &fi);
     }
