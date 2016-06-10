@@ -298,7 +298,145 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
     PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fuse_context *context = fsp_fuse_get_context(0);
+    struct fsp_fuse_context_header *contexthdr =
+        (PVOID)((PUINT8)context - sizeof *contexthdr);
+    UINT32 Uid, Gid, Mode;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+    struct fsp_fuse_file_desc *filedesc = 0;
+    struct fuse_file_info fi;
+    BOOLEAN Opened = FALSE;
+    int err;
+    NTSTATUS Result;
+
+    filedesc = MemAlloc(sizeof *filedesc);
+    if (0 == filedesc)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    Uid = context->uid;
+    Gid = context->gid;
+    Mode = 0777;
+    if (0 != SecurityDescriptor)
+    {
+        Result = FspPosixMapSecurityDescriptorToPermissions(SecurityDescriptor,
+            &Uid, &Gid, &Mode);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
+    Mode &= ~context->umask;
+
+    memset(&fi, 0, sizeof fi);
+
+    if (CreateOptions & FILE_DIRECTORY_FILE)
+    {
+        if (0 != f->ops.mkdir)
+        {
+            err = f->ops.mkdir(contexthdr->PosixPath, Mode);
+            if (0 != err)
+            {
+                Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+                goto exit;
+            }
+
+            if (0 != f->ops.opendir)
+            {
+                err = f->ops.opendir(contexthdr->PosixPath, &fi);
+                Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+            }
+        }
+        else
+            Result = STATUS_SUCCESS;
+    }
+    else
+    {
+        if (0 != f->ops.create)
+        {
+            err = f->ops.create(contexthdr->PosixPath, Mode, &fi);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+        else if (0 != f->ops.mknod && 0 != f->ops.open)
+        {
+            err = f->ops.mknod(contexthdr->PosixPath, Mode, 0);
+            if (0 != err)
+            {
+                Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+                goto exit;
+            }
+
+            fi.flags = O_RDWR;
+            err = f->ops.open(contexthdr->PosixPath, &fi);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+        else
+            Result = STATUS_INVALID_DEVICE_REQUEST;
+    }
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Opened = TRUE;
+
+    if (Uid != context->uid || Gid != context->gid)
+        if (0 != f->ops.chown)
+        {
+            err = f->ops.chown(contexthdr->PosixPath, Uid, Gid);
+            if (0 != err)
+            {
+                Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+                goto exit;
+            }
+        }
+
+    /*
+     * Ignore fuse_file_info::direct_io, fuse_file_info::keep_cache
+     * WinFsp does not currently support disabling the cache manager
+     * for an individual file although it should not be hard to add
+     * if required.
+     *
+     * Ignore fuse_file_info::nonseekable.
+     */
+
+    Result = fsp_fuse_intf_GetFileInfoByPath(FileSystem, contexthdr->PosixPath,
+        &Uid, &Gid, &Mode, &FileInfoBuf);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    *PFileNode = 0;
+    memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
+
+    filedesc->PosixPath = contexthdr->PosixPath;
+    filedesc->IsDirectory = !!(FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+    filedesc->OpenFlags = fi.flags;
+    filedesc->FileHandle = fi.fh;
+    contexthdr->PosixPath = 0;
+    contexthdr->Response->Rsp.Create.Opened.UserContext2 = (UINT64)(UINT_PTR)filedesc;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result))
+    {
+        if (Opened)
+        {
+            if (CreateOptions & FILE_DIRECTORY_FILE)
+            {
+                if (0 != f->ops.releasedir)
+                    f->ops.releasedir(filedesc->PosixPath, &fi);
+            }
+            else
+            {
+                if (0 != f->ops.release)
+                    f->ops.release(filedesc->PosixPath, &fi);
+            }
+        }
+
+        MemFree(filedesc);
+    }
+
+    return Result;
 }
 
 static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
