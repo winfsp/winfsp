@@ -415,6 +415,8 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     filedesc->IsDirectory = !!(FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_DIRECTORY);
     filedesc->OpenFlags = fi.flags;
     filedesc->FileHandle = fi.fh;
+    filedesc->DirBuffer = 0;
+    filedesc->DirBufferSize = 0;
     contexthdr->PosixPath = 0;
     contexthdr->Response->Rsp.Create.Opened.UserContext2 = (UINT64)(UINT_PTR)filedesc;
 
@@ -522,6 +524,8 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     filedesc->IsDirectory = !!(FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_DIRECTORY);
     filedesc->OpenFlags = fi.flags;
     filedesc->FileHandle = fi.fh;
+    filedesc->DirBuffer = 0;
+    filedesc->DirBufferSize = 0;
     contexthdr->PosixPath = 0;
     contexthdr->Response->Rsp.Create.Opened.UserContext2 = (UINT64)(UINT_PTR)filedesc;
 
@@ -547,7 +551,8 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode, PWSTR FileName, BOOLEAN Delete)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc = (PVOID)(UINT_PTR)Request->Req.Close.UserContext2;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.Cleanup.UserContext2;
 
     /*
      * In Windows a DeleteFile/RemoveDirectory is the sequence of the following:
@@ -584,7 +589,8 @@ static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc = (PVOID)(UINT_PTR)Request->Req.Close.UserContext2;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.Close.UserContext2;
     struct fuse_file_info fi;
 
     memset(&fi, 0, sizeof fi);
@@ -604,6 +610,7 @@ static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
             f->ops.release(filedesc->PosixPath, &fi);
     }
 
+    MemFree(filedesc->DirBuffer);
     MemFree(filedesc->PosixPath);
     MemFree(filedesc);
 }
@@ -638,7 +645,8 @@ static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc = (PVOID)(UINT_PTR)Request->Req.Close.UserContext2;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.QueryInformation.UserContext2;
     UINT32 Uid, Gid, Mode;
     struct fuse_file_info fi;
 
@@ -712,11 +720,11 @@ struct fuse_dirhandle
     char *PosixPath, *PosixName;
     PVOID Buffer;
     ULONG Length;
-    PULONG PBytesTransferred;
+    ULONG BytesTransferred;
 };
 
-int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
-    const struct fuse_stat *stbuf, fuse_off_t off)
+int fsp_fuse_intf_AddDirInfoCommon(void *buf, const char *name,
+    const struct fuse_stat *stbuf, fuse_off_t off, BOOLEAN GrowBuffer)
 {
     struct fuse_dirhandle *dh = buf;
     UINT32 Uid, Gid, Mode;
@@ -781,13 +789,43 @@ int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
     DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + Size);
     DirInfo->NextOffset = off;
 
-    return ! FspFileSystemAddDirInfo(DirInfo, dh->Buffer, dh->Length, dh->PBytesTransferred);
+    if (GrowBuffer)
+    {
+        DirInfo->NextOffset = dh->BytesTransferred + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size);
+
+        if (0 != dh->Buffer &&
+            FspFileSystemAddDirInfo(DirInfo, dh->Buffer, dh->Length, &dh->BytesTransferred))
+            return 0;
+
+        if (0 == dh->Length)
+            dh->Length = 8 * 1024; /* initial alloc: 16 == 8 * 2; see below */
+        else if (dh->Length >= 2 * 1024 * 1024)
+            return 1;
+
+        PVOID Buffer = MemAlloc(dh->Length * 2);
+        if (0 == Buffer)
+            return 1;
+
+        memcpy(Buffer, dh->Buffer, dh->BytesTransferred);
+        MemFree(dh->Buffer);
+
+        dh->Buffer = Buffer;
+        dh->Length *= 2;
+    }
+
+    return ! FspFileSystemAddDirInfo(DirInfo, dh->Buffer, dh->Length, &dh->BytesTransferred);
+}
+
+int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
+    const struct fuse_stat *stbuf, fuse_off_t off)
+{
+    return fsp_fuse_intf_AddDirInfoCommon(buf, name, stbuf, off, TRUE);
 }
 
 int fsp_fuse_intf_AddDirInfoOld(fuse_dirh_t dh, const char *name,
     int type, fuse_ino_t ino)
 {
-    return fsp_fuse_intf_AddDirInfo(dh, name, 0, 0) ? -ENOMEM : 0;
+    return fsp_fuse_intf_AddDirInfoCommon(dh, name, 0, 0, TRUE) ? -ENOMEM : 0;
 }
 
 static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
@@ -797,55 +835,83 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     PULONG PBytesTransferred)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc = (PVOID)(UINT_PTR)Request->Req.Close.UserContext2;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.QueryDirectory.UserContext2;
+    struct fuse_file_info fi;
     struct fuse_dirhandle dh;
+    FSP_FSCTL_DIR_INFO *DirInfo;
+    PUINT8 DirInfoEnd;
     ULONG Size;
     int err;
     NTSTATUS Result;
 
-    memset(&dh, 0, sizeof dh);
-
-    Size = lstrlenA(filedesc->PosixPath);
-    dh.PosixPath = MemAlloc(Size + 1 + 255 + 1);
-    if (0 == dh.PosixPath)
+    if (0 == filedesc->DirBuffer)
     {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
+        memset(&dh, 0, sizeof dh);
+
+        Size = lstrlenA(filedesc->PosixPath);
+        dh.PosixPath = MemAlloc(Size + 1 + 255 + 1);
+        if (0 == dh.PosixPath)
+        {
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+            goto exit;
+        }
+
+        memcpy(dh.PosixPath, filedesc->PosixPath, Size);
+        if (1 < Size)
+            /* if not root */
+            dh.PosixPath[Size++] = '/';
+        dh.PosixName = dh.PosixPath + Size;
+
+        if (0 != f->ops.readdir)
+        {
+            memset(&fi, 0, sizeof fi);
+            fi.flags = filedesc->OpenFlags;
+            fi.fh = filedesc->FileHandle;
+
+            err = f->ops.readdir(filedesc->PosixPath, &dh, fsp_fuse_intf_AddDirInfo, 0, &fi);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+        else if (0 != f->ops.getdir)
+        {
+            err = f->ops.getdir(filedesc->PosixPath, &dh, fsp_fuse_intf_AddDirInfoOld);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+        else
+            Result = STATUS_INVALID_DEVICE_REQUEST;
+
+    exit:
+        MemFree(dh.PosixPath);
+
+        if (NT_SUCCESS(Result))
+        {
+            filedesc->DirBuffer = dh.Buffer;
+            filedesc->DirBufferSize = dh.BytesTransferred;
+        }
+        else
+        {
+            MemFree(dh.Buffer);
+            return Result;
+        }
     }
 
-    memcpy(dh.PosixPath, filedesc->PosixPath, Size);
-    if (1 < Size)
-        /* if not root */
-        dh.PosixPath[Size++] = '/';
-    dh.PosixName = dh.PosixPath + Size;
-
-    dh.Buffer = Buffer;
-    dh.Length = Length;
-    dh.PBytesTransferred = PBytesTransferred;
-
-    if (0 != f->ops.readdir)
+    DirInfo = (PVOID)((PUINT8)filedesc->DirBuffer + Offset);
+    DirInfoEnd = (PUINT8)filedesc->DirBuffer + filedesc->DirBufferSize;
+    for (;
+        (PUINT8)DirInfo + sizeof(DirInfo->Size) <= DirInfoEnd;
+        DirInfo = (PVOID)((PUINT8)DirInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size)))
     {
-        struct fuse_file_info fi;
+        if (sizeof(FSP_FSCTL_DIR_INFO) > DirInfo->Size)
+            break;
 
-        memset(&fi, 0, sizeof fi);
-        fi.flags = filedesc->OpenFlags;
-        fi.fh = filedesc->FileHandle;
-
-        err = f->ops.readdir(filedesc->PosixPath, &dh, fsp_fuse_intf_AddDirInfo, Offset, &fi);
-        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        if (!FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred))
+            break;
     }
-    else if (0 != f->ops.getdir)
-    {
-        err = f->ops.getdir(filedesc->PosixPath, &dh, fsp_fuse_intf_AddDirInfoOld);
-        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-    }
-    else
-        Result = STATUS_INVALID_DEVICE_REQUEST;
 
-exit:
-    MemFree(dh.PosixPath);
+    if ((PUINT8)DirInfo + sizeof(DirInfo->Size) > DirInfoEnd)
+        FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
 
-    return Result;
+    return STATUS_SUCCESS;
 }
 
 FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =

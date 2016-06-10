@@ -51,6 +51,8 @@ struct fsp_fuse_file_desc
     BOOLEAN IsDirectory;
     int OpenFlags;
     UINT64 FileHandle;
+    PVOID DirBuffer;
+    ULONG DirBufferSize;
 };
 
 static inline
