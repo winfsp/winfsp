@@ -1,5 +1,5 @@
 /**
- * @file dll/fuse/fuseintf.c
+ * @file dll/fuse/fuse_intf.c
  *
  * @copyright 2015-2016 Bill Zissimopoulos
  */

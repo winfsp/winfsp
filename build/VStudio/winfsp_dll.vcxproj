@@ -33,7 +33,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\dll\eventlog.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse.c" />
-    <ClCompile Include="..\..\src\dll\fuse\fuseintf.c" />
+    <ClCompile Include="..\..\src\dll\fuse\fuse_intf.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse_main.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse_opt.c" />
     <ClCompile Include="..\..\src\dll\np.c" />

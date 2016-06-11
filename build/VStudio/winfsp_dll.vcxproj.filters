@@ -100,7 +100,7 @@
     <ClCompile Include="..\..\src\dll\posix.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\dll\fuse\fuseintf.c">
+    <ClCompile Include="..\..\src\dll\fuse\fuse_intf.c">
       <Filter>Source\fuse</Filter>
     </ClCompile>
   </ItemGroup>
