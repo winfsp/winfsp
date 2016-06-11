@@ -728,7 +728,78 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.SetInformation.UserContext2;
+    UINT32 Uid, Gid, Mode;
+    struct fuse_file_info fi;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+    struct fuse_timespec tv[2];
+    struct fuse_utimbuf timbuf;
+    int err;
+    NTSTATUS Result;
+
+    if (0 == f->ops.utimens && 0 == f->ops.utime)
+        return STATUS_SUCCESS; /* liar! */
+
+    /* no way to set FileAttributes, CreationTime! */
+    if (0 == LastAccessTime && 0 == LastWriteTime)
+        return STATUS_SUCCESS;
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+        &Uid, &Gid, &Mode, &FileInfoBuf);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (0 != LastAccessTime)
+        FileInfoBuf.LastAccessTime = LastAccessTime;
+    if (0 != LastWriteTime)
+        FileInfoBuf.LastWriteTime = LastWriteTime;
+
+    /* UNIX epoch in 100-ns intervals */
+    LastAccessTime = FileInfoBuf.LastAccessTime - 116444736000000000;
+    LastWriteTime = FileInfoBuf.LastWriteTime - 116444736000000000;
+
+    if (0 == f->ops.utimens)
+    {
+#if defined(_WIN64)
+        tv[0].tv_sec = (int64_t)(LastAccessTime / 10000000);
+        tv[0].tv_nsec = (int64_t)(LastAccessTime % 10000000) * 100;
+        tv[1].tv_sec = (int64_t)(LastWriteTime / 10000000);
+        tv[1].tv_nsec = (int64_t)(LastWriteTime % 10000000) * 100;
+#else
+        tv[0].tv_sec = (int32_t)(LastAccessTime / 10000000);
+        tv[0].tv_nsec = (int32_t)(LastAccessTime % 10000000) * 100;
+        tv[1].tv_sec = (int32_t)(LastWriteTime / 10000000);
+        tv[1].tv_nsec = (int32_t)(LastWriteTime % 10000000) * 100;
+#endif
+
+        err = f->ops.utimens(filedesc->PosixPath, tv);
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+    }
+    else
+    {
+#if defined(_WIN64)
+        timbuf.actime = (int64_t)(LastAccessTime / 10000000);
+        timbuf.modtime = (int64_t)(LastWriteTime / 10000000);
+#else
+        timbuf.actime = (int32_t)(LastAccessTime / 10000000);
+        timbuf.modtime = (int32_t)(LastWriteTime / 10000000);
+#endif
+
+        err = f->ops.utime(filedesc->PosixPath, &timbuf);
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+    }
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS fsp_fuse_intf_SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
