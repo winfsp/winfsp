@@ -781,7 +781,39 @@ static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.FlushBuffers.UserContext2;
+    struct fuse_file_info fi;
+    int err;
+    NTSTATUS Result;
+
+    if (0 == filedesc)
+        return STATUS_SUCCESS; /* FUSE cannot flush volumes */
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    Result = STATUS_SUCCESS; /* just say success, if fs does not support fsync */
+    if (filedesc->IsDirectory)
+    {
+        if (0 != f->ops.fsyncdir)
+        {
+            err = f->ops.fsyncdir(filedesc->PosixPath, 0, &fi);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, bytes);
+        }
+    }
+    else
+    {
+        if (0 != f->ops.fsync)
+        {
+            err = f->ops.fsync(filedesc->PosixPath, 0, &fi);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, bytes);
+        }
+    }
+
+    return Result;
 }
 
 static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
