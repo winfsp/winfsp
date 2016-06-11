@@ -752,11 +752,11 @@ static int fsp_fuse_intf_CanDeleteAddDirInfo(void *buf, const char *name,
 {
     struct fuse_dirhandle *dh = buf;
 
-    if ('.' == name[0] && '\0' == name[1])
+    if ('.' == name[0] && ('\0' == name[1] || ('.' == name[1] && '\0' == name[2])))
+    {
+        dh->DotFiles = TRUE;
         return 0;
-    else
-    if ('.' == name[0] && '.' == name[1] && '\0' == name[2])
-        return 0;
+    }
     else
     {
         dh->HasChild = TRUE;
@@ -779,17 +779,27 @@ static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
         (PVOID)(UINT_PTR)Request->Req.SetInformation.UserContext2;
     struct fuse_file_info fi;
     struct fuse_dirhandle dh;
+    int err;
 
     if (filedesc->IsDirectory)
     {
+        /* check that directory is empty! */
+
         memset(&dh, 0, sizeof dh);
 
         if (0 != f->ops.readdir)
-            f->ops.readdir(filedesc->PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfo, 0, &fi);
+            err = f->ops.readdir(filedesc->PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfo, 0, &fi);
         else if (0 != f->ops.getdir)
-            f->ops.getdir(filedesc->PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfoOld);
+            err = f->ops.getdir(filedesc->PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfoOld);
+        else
+            err = 0;
 
-        return dh.HasChild ? STATUS_DIRECTORY_NOT_EMPTY : STATUS_SUCCESS;
+        if (dh.HasChild)
+            return STATUS_DIRECTORY_NOT_EMPTY;
+        else if (dh.DotFiles)
+            return STATUS_SUCCESS;
+        else
+            return fsp_fuse_ntstatus_from_errno(f->env, err);
     }
 
     return STATUS_SUCCESS;

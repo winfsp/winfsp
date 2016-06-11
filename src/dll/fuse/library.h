@@ -64,7 +64,7 @@ struct fuse_dirhandle
     PVOID Buffer;
     ULONG Length;
     ULONG BytesTransferred;
-    BOOLEAN HasChild;
+    BOOLEAN DotFiles, HasChild;
 };
 
 static inline
