@@ -801,7 +801,7 @@ static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
         if (0 != f->ops.fsyncdir)
         {
             err = f->ops.fsyncdir(filedesc->PosixPath, 0, &fi);
-            Result = fsp_fuse_ntstatus_from_errno(f->env, bytes);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
     }
     else
@@ -809,7 +809,7 @@ static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
         if (0 != f->ops.fsync)
         {
             err = f->ops.fsync(filedesc->PosixPath, 0, &fi);
-            Result = fsp_fuse_ntstatus_from_errno(f->env, bytes);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
     }
 
