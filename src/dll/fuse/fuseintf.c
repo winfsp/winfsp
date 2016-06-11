@@ -802,12 +802,71 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS fsp_fuse_intf_SetFileSizeCommon(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode, UINT64 NewFileSize, BOOLEAN OnlyIfTruncate,
+    FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.SetInformation.UserContext2;
+    UINT32 Uid, Gid, Mode;
+    struct fuse_file_info fi;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+    UINT64 AllocationUnit;
+    int err;
+    NTSTATUS Result;
+
+    if (0 == f->ops.ftruncate && 0 == f->ops.truncate)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+        &Uid, &Gid, &Mode, &FileInfoBuf);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (!OnlyIfTruncate || FileInfoBuf.FileSize > NewFileSize)
+    {
+        /*
+         * OnlyIfTruncate explanation:
+         * FUSE 2.8 does not support allocation size. However if the new AllocationSize
+         * is less than the current FileSize we must truncate the file.
+         */
+        if (0 == f->ops.ftruncate)
+        {
+            err = f->ops.ftruncate(filedesc->PosixPath, NewFileSize, &fi);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+        else
+        {
+            err = f->ops.truncate(filedesc->PosixPath, NewFileSize);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+        if (!NT_SUCCESS(Result))
+            return Result;
+
+        AllocationUnit = f->VolumeParams.SectorSize * f->VolumeParams.SectorsPerAllocationUnit;
+        FileInfo->AllocationSize =
+            (NewFileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
+        FileInfoBuf.FileSize = NewFileSize;
+    }
+
+    memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS fsp_fuse_intf_SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode, UINT64 AllocationSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    return fsp_fuse_intf_SetFileSizeCommon(FileSystem, Request, FileNode, AllocationSize, TRUE,
+        FileInfo);
 }
 
 static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
@@ -815,7 +874,8 @@ static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode, UINT64 FileSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    return fsp_fuse_intf_SetFileSizeCommon(FileSystem, Request, FileNode, FileSize, FALSE,
+        FileInfo);
 }
 
 static int fsp_fuse_intf_CanDeleteAddDirInfo(void *buf, const char *name,
