@@ -766,12 +766,12 @@ static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return Result;
 
-success:
     AllocationUnit = f->VolumeParams.SectorSize * f->VolumeParams.SectorsPerAllocationUnit;
     FileInfoBuf.FileSize = Offset + bytes;
     FileInfo->AllocationSize =
         (FileInfoBuf.FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
+success:
     memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
 
     return STATUS_SUCCESS;
