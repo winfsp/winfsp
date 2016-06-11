@@ -16,7 +16,6 @@
  */
 
 #include <dll/fuse/library.h>
-#include <fcntl.h>
 
 NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
@@ -411,7 +410,7 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
                 goto exit;
             }
 
-            fi.flags = O_RDWR;
+            fi.flags = 2/*O_RDWR*/;
             err = f->ops.open(contexthdr->PosixPath, &fi);
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
@@ -515,13 +514,13 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     switch (Request->Req.Create.DesiredAccess & (FILE_READ_DATA | FILE_WRITE_DATA))
     {
     case FILE_READ_DATA:
-        fi.flags = _O_RDONLY;
+        fi.flags = 0/*O_RDONLY*/;
         break;
     case FILE_WRITE_DATA:
-        fi.flags = _O_WRONLY;
+        fi.flags = 1/*O_WRONLY*/;
         break;
     case FILE_READ_DATA | FILE_WRITE_DATA:
-        fi.flags = _O_RDWR;
+        fi.flags = 2/*O_RDWR*/;
         break;
     }
 
