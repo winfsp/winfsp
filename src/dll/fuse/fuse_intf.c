@@ -1334,6 +1334,7 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     if (0 == filedesc->DirBuffer)
     {
         memset(&dh, 0, sizeof dh);
+        dh.FileSystem = FileSystem;
 
         Size = lstrlenA(filedesc->PosixPath);
         dh.PosixPath = MemAlloc(Size + 1 + 255 + 1);
@@ -1347,6 +1348,7 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         if (1 < Size)
             /* if not root */
             dh.PosixPath[Size++] = '/';
+        dh.PosixPath[Size] = '\0';
         dh.PosixName = dh.PosixPath + Size;
 
         dh.OriginalBuffer = Buffer;
