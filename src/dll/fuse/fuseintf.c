@@ -579,7 +579,31 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.Overwrite.UserContext2;
+    struct fuse_file_info fi;
+    int err;
+    NTSTATUS Result;
+
+    if (0 != f->ops.ftruncate)
+    {
+        memset(&fi, 0, sizeof fi);
+        fi.flags = filedesc->OpenFlags;
+        fi.fh = filedesc->FileHandle;
+
+        err = f->ops.ftruncate(filedesc->PosixPath, 0, &fi);
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+    }
+    else if (0 != f->ops.truncate)
+    {
+        err = f->ops.truncate(filedesc->PosixPath, 0);
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+    }
+    else
+        Result = STATUS_INVALID_DEVICE_REQUEST;
+
+    return Result;
 }
 
 static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
