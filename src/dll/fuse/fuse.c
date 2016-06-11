@@ -282,7 +282,10 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         memset(&stbuf, 0, sizeof stbuf);
         err = f->ops.statfs("/", &stbuf);
         if (0 != err)
+        {
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
             goto fail;
+        }
 
         if (stbuf.f_frsize > FSP_FUSE_SECTORSIZE_MAX)
             stbuf.f_frsize = FSP_FUSE_SECTORSIZE_MAX;
@@ -299,7 +302,10 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         memset(&stbuf, 0, sizeof stbuf);
         err = f->ops.getattr("/", (void *)&stbuf);
         if (0 != err)
+        {
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
             goto fail;
+        }
 
         if (0 == f->VolumeParams.VolumeCreationTime)
         {
@@ -348,6 +354,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
     f->FileSystem->UserContext = f;
     FspFileSystemSetOperationGuard(f->FileSystem, fsp_fuse_op_enter, fsp_fuse_op_leave);
+    FspFileSystemSetOperationGuardStrategy(f->FileSystem, f->OpGuardStrategy);
     FspFileSystemSetDebugLog(f->FileSystem, f->DebugLog);
 
     if (L'\0' != f->MountPoint)
@@ -562,7 +569,7 @@ static int fsp_fuse_loop_internal(struct fsp_fuse_env *env,
     NTSTATUS Result;
     ULONG ExitCode;
 
-    FspFileSystemSetOperationGuardStrategy(f->FileSystem, GuardStrategy);
+    f->OpGuardStrategy = GuardStrategy;
 
     Result = FspServiceLoop(f->Service);
     ExitCode = FspServiceGetExitCode(f->Service);

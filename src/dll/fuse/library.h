@@ -30,6 +30,7 @@ struct fuse
     struct fuse_operations ops;
     void *data;
     UINT32 DebugLog;
+    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     PWSTR MountPoint;
     FSP_SERVICE *Service;
