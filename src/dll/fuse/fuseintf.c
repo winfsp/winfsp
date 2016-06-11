@@ -739,9 +739,77 @@ static NTSTATUS fsp_fuse_intf_GetSecurity(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS fsp_fuse_intf_SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode,
-    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR SecurityDescriptor)
+    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR Ignored)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.SetSecurity.UserContext2;
+    struct fuse_file_info fi;
+    UINT32 Uid, Gid, Mode, NewUid, NewGid, NewMode;
+    FSP_FSCTL_FILE_INFO FileInfo;
+    PSECURITY_DESCRIPTOR SecurityDescriptor, NewSecurityDescriptor;
+    int err;
+    NTSTATUS Result;
+
+    if (0 == f->ops.chmod)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi, &Uid, &Gid, &Mode,
+        &FileInfo);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = FspPosixMapPermissionsToSecurityDescriptor(Uid, Gid, Mode, &SecurityDescriptor);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = FspSetSecurityDescriptor(FileSystem, Request, SecurityDescriptor,
+        &NewSecurityDescriptor);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = FspPosixMapSecurityDescriptorToPermissions(NewSecurityDescriptor,
+        &NewUid, &NewGid, &NewMode);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    if (NewMode != Mode)
+    {
+        err = f->ops.chmod(filedesc->PosixPath, NewMode);
+        if (0 != err)
+        {
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+            goto exit;
+        }
+    }
+
+    if (NewUid != Uid || NewGid != Gid)
+        if (0 != f->ops.chown)
+        {
+            err = f->ops.chown(filedesc->PosixPath, NewUid, NewGid);
+            if (0 != err)
+            {
+                Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+                goto exit;
+            }
+        }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (0 != NewSecurityDescriptor)
+        FspDeleteSecurityDescriptor(SecurityDescriptor,
+            FspSetSecurityDescriptor);
+
+    if (0 != SecurityDescriptor)
+        FspDeleteSecurityDescriptor(SecurityDescriptor,
+            FspPosixMapPermissionsToSecurityDescriptor);
+
+    return Result;
 }
 
 struct fuse_dirhandle
