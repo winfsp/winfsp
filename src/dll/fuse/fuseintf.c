@@ -303,7 +303,11 @@ static NTSTATUS fsp_fuse_intf_SetVolumeLabel(FSP_FILE_SYSTEM *FileSystem,
     PWSTR VolumeLabel,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    /*
+     * Implemented: there is no volume label concept in FUSE.
+     * Perhaps we can emulate it with a xattr on "/" one day.
+     */
+    return STATUS_INVALID_PARAMETER;
 }
 
 static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
