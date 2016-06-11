@@ -800,7 +800,33 @@ static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode,
     PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_context_header *contexthdr = fsp_fuse_context_header();
+    UINT32 Uid, Gid, Mode;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.SetInformation.UserContext2;
+    int err;
+    NTSTATUS Result;
+
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, contexthdr->PosixPath, 0,
+        &Uid, &Gid, &Mode, &FileInfoBuf);
+    if (!NT_SUCCESS(Result) &&
+        STATUS_OBJECT_NAME_NOT_FOUND != Result &&
+        STATUS_OBJECT_PATH_NOT_FOUND != Result)
+        return Result;
+
+    if (NT_SUCCESS(Result))
+    {
+        if (!ReplaceIfExists)
+            return STATUS_OBJECT_NAME_COLLISION;
+
+        if (FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            return STATUS_ACCESS_DENIED;
+    }
+
+    err = f->ops.rename(filedesc->PosixPath, contexthdr->PosixPath);
+    return fsp_fuse_ntstatus_from_errno(f->env, err);
 }
 
 static NTSTATUS fsp_fuse_intf_GetSecurity(FSP_FILE_SYSTEM *FileSystem,
