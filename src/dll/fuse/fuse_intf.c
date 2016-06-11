@@ -187,7 +187,7 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoEx(FSP_FILE_SYSTEM *FileSystem,
 
     memset(&stbuf, 0, sizeof stbuf);
 
-    if (0 != fi && 0 != f->ops.fgetattr)
+    if (0 != f->ops.fgetattr && 0 != fi && -1 != fi->fh)
         err = f->ops.fgetattr(PosixPath, (void *)&stbuf, fi);
     else if (0 != f->ops.getattr)
         err = f->ops.getattr(PosixPath, (void *)&stbuf);
@@ -391,9 +391,14 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
                 err = f->ops.opendir(contexthdr->PosixPath, &fi);
                 Result = fsp_fuse_ntstatus_from_errno(f->env, err);
             }
+            else
+            {
+                fi.fh = -1;
+                Result = STATUS_SUCCESS;
+            }
         }
         else
-            Result = STATUS_SUCCESS;
+            Result = STATUS_INVALID_DEVICE_REQUEST;
     }
     else
     {
@@ -534,7 +539,10 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
         else
+        {
+            fi.fh = -1;
             Result = STATUS_SUCCESS;
+        }
     }
     else
     {
