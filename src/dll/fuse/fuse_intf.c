@@ -718,7 +718,63 @@ static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
     BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
     PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.Write.UserContext2;
+    UINT32 Uid, Gid, Mode;
+    struct fuse_file_info fi;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+    UINT64 EndOffset, AllocationUnit;
+    int bytes;
+    NTSTATUS Result;
+
+    if (0 == f->ops.write)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+        &Uid, &Gid, &Mode, &FileInfoBuf);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (ConstrainedIo)
+    {
+        if (Offset >= FileInfoBuf.FileSize)
+            goto success;
+        EndOffset = Offset + Length;
+        if (EndOffset > FileInfoBuf.FileSize)
+            EndOffset = FileInfoBuf.FileSize;
+    }
+    else
+    {
+        if (WriteToEndOfFile)
+            Offset = FileInfoBuf.FileSize;
+        EndOffset = Offset + Length;
+    }
+
+    bytes = f->ops.write(filedesc->PosixPath, Buffer, (size_t)(EndOffset - Offset), Offset, &fi);
+    if (0 <= bytes)
+    {
+        *PBytesTransferred = bytes;
+        Result = STATUS_SUCCESS;
+    }
+    else
+        Result = fsp_fuse_ntstatus_from_errno(f->env, bytes);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+success:
+    AllocationUnit = f->VolumeParams.SectorSize * f->VolumeParams.SectorsPerAllocationUnit;
+    FileInfoBuf.FileSize = Offset + bytes;
+    FileInfo->AllocationSize =
+        (FileInfoBuf.FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
+
+    memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
