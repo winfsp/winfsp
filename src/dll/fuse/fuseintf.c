@@ -684,7 +684,32 @@ static NTSTATUS fsp_fuse_intf_Read(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
     PULONG PBytesTransferred)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.Read.UserContext2;
+    struct fuse_file_info fi;
+    int bytes;
+    NTSTATUS Result;
+
+    if (0 == f->ops.read)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    bytes = f->ops.read(filedesc->PosixPath, Buffer, Length, Offset, &fi);
+    if (0 < bytes)
+    {
+        *PBytesTransferred = bytes;
+        Result = STATUS_SUCCESS;
+    }
+    else if (0 == bytes)
+        Result = STATUS_END_OF_FILE;
+    else
+        Result = fsp_fuse_ntstatus_from_errno(f->env, bytes);
+
+    return Result;
 }
 
 static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
