@@ -190,7 +190,7 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoEx(FSP_FILE_SYSTEM *FileSystem,
 
     if (0 != fi && 0 != f->ops.fgetattr)
         err = f->ops.fgetattr(PosixPath, (void *)&stbuf, fi);
-    else if (0 == f->ops.getattr)
+    else if (0 != f->ops.getattr)
         err = f->ops.getattr(PosixPath, (void *)&stbuf);
     else
         return STATUS_INVALID_DEVICE_REQUEST;
@@ -278,7 +278,24 @@ static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fuse_statvfs stbuf;
+    int err;
+
+    if (0 == f->ops.statfs)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    memset(&stbuf, 0, sizeof stbuf);
+    err = f->ops.statfs("/", &stbuf);
+    if (0 != err)
+        return fsp_fuse_ntstatus_from_errno(f->env, err);
+
+    VolumeInfo->TotalSize = (UINT64)stbuf.f_blocks * (UINT64)stbuf.f_frsize;
+    VolumeInfo->FreeSize = (UINT64)stbuf.f_bfree * (UINT64)stbuf.f_frsize;
+    VolumeInfo->VolumeLabelLength = 0;
+    VolumeInfo->VolumeLabel[0] = L'\0';
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS fsp_fuse_intf_SetVolumeLabel(FSP_FILE_SYSTEM *FileSystem,
