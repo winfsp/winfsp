@@ -326,6 +326,8 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         f->VolumeParams.SectorSize = FSP_FUSE_SECTORSIZE_MIN;
     if (f->VolumeParams.SectorSize > FSP_FUSE_SECTORSIZE_MAX)
         f->VolumeParams.SectorSize = FSP_FUSE_SECTORSIZE_MAX;
+    if (f->VolumeParams.SectorsPerAllocationUnit == 0)
+        f->VolumeParams.SectorsPerAllocationUnit = 1;
     if (f->VolumeParams.MaxComponentLength > 255)
         f->VolumeParams.MaxComponentLength = 255;
 
@@ -640,6 +642,9 @@ FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *rese
 FSP_FUSE_API NTSTATUS fsp_fuse_ntstatus_from_errno(struct fsp_fuse_env *env,
     int err)
 {
+    if (0 > err)
+        err = -err;
+
     if ('C' == env->environment)
         switch (err)
         {

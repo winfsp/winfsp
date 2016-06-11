@@ -201,7 +201,8 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoEx(FSP_FILE_SYSTEM *FileSystem,
     *PGid = stbuf.st_gid;
     *PMode = stbuf.st_mode;
 
-    AllocationUnit = f->VolumeParams.SectorSize * f->VolumeParams.SectorsPerAllocationUnit;
+    AllocationUnit = (UINT64)f->VolumeParams.SectorSize *
+        (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
     FileInfo->FileAttributes = (stbuf.st_mode & 0040000) ? FILE_ATTRIBUTE_DIRECTORY : 0;
     FileInfo->ReparseTag = 0;
     FileInfo->AllocationSize =
@@ -513,6 +514,7 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     memset(&fi, 0, sizeof fi);
     switch (Request->Req.Create.DesiredAccess & (FILE_READ_DATA | FILE_WRITE_DATA))
     {
+    default:
     case FILE_READ_DATA:
         fi.flags = 0/*O_RDONLY*/;
         break;
@@ -765,7 +767,8 @@ static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return Result;
 
-    AllocationUnit = f->VolumeParams.SectorSize * f->VolumeParams.SectorsPerAllocationUnit;
+    AllocationUnit = (UINT64)f->VolumeParams.SectorSize *
+        (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
     FileInfoBuf.FileSize = Offset + bytes;
     FileInfo->AllocationSize =
         (FileInfoBuf.FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
@@ -961,7 +964,8 @@ static NTSTATUS fsp_fuse_intf_SetFileSizeCommon(FSP_FILE_SYSTEM *FileSystem,
         if (!NT_SUCCESS(Result))
             return Result;
 
-        AllocationUnit = f->VolumeParams.SectorSize * f->VolumeParams.SectorsPerAllocationUnit;
+        AllocationUnit = (UINT64)f->VolumeParams.SectorSize *
+            (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
         FileInfo->AllocationSize =
             (NewFileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
         FileInfoBuf.FileSize = NewFileSize;
