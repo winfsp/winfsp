@@ -55,6 +55,18 @@ struct fsp_fuse_file_desc
     ULONG DirBufferSize;
 };
 
+struct fuse_dirhandle
+{
+    FSP_FILE_SYSTEM *FileSystem;
+    char *PosixPath, *PosixName;
+    PVOID OriginalBuffer;
+    ULONG OriginalLength;
+    PVOID Buffer;
+    ULONG Length;
+    ULONG BytesTransferred;
+    BOOLEAN HasChild;
+};
+
 static inline
 struct fsp_fuse_context_header *fsp_fuse_context_header(VOID)
 {

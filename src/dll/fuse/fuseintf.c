@@ -743,11 +743,52 @@ static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+static int fsp_fuse_intf_CanDeleteAddDirInfo(void *buf, const char *name,
+    const struct fuse_stat *stbuf, fuse_off_t off)
+{
+    struct fuse_dirhandle *dh = buf;
+
+    if ('.' == name[0] && '\0' == name[1])
+        return 0;
+    else
+    if ('.' == name[0] && '.' == name[1] && '\0' == name[2])
+        return 0;
+    else
+    {
+        dh->HasChild = TRUE;
+        return 1;
+    }
+}
+
+static int fsp_fuse_intf_CanDeleteAddDirInfoOld(fuse_dirh_t dh, const char *name,
+    int type, fuse_ino_t ino)
+{
+    return fsp_fuse_intf_CanDeleteAddDirInfo(dh, name, 0, 0) ? -ENOMEM : 0;
+}
+
 static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode, PWSTR FileName)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.SetInformation.UserContext2;
+    struct fuse_file_info fi;
+    struct fuse_dirhandle dh;
+
+    if (filedesc->IsDirectory)
+    {
+        memset(&dh, 0, sizeof dh);
+
+        if (0 != f->ops.readdir)
+            f->ops.readdir(filedesc->PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfo, 0, &fi);
+        else if (0 != f->ops.getdir)
+            f->ops.getdir(filedesc->PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfoOld);
+
+        return dh.HasChild ? STATUS_DIRECTORY_NOT_EMPTY : STATUS_SUCCESS;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
@@ -852,17 +893,6 @@ exit:
 
     return Result;
 }
-
-struct fuse_dirhandle
-{
-    FSP_FILE_SYSTEM *FileSystem;
-    char *PosixPath, *PosixName;
-    PVOID OriginalBuffer;
-    ULONG OriginalLength;
-    PVOID Buffer;
-    ULONG Length;
-    ULONG BytesTransferred;
-};
 
 int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
     const struct fuse_stat *stbuf, fuse_off_t off)
@@ -1033,7 +1063,7 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
             fi.flags = filedesc->OpenFlags;
             fi.fh = filedesc->FileHandle;
 
-            err = f->ops.readdir(filedesc->PosixPath, &dh, fsp_fuse_intf_AddDirInfo, 0, &fi);
+            err = f->ops.readdir(filedesc->PosixPath, &dh, fsp_fuse_intf_AddDirInfo, Offset, &fi);
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
         else if (0 != f->ops.getdir)
