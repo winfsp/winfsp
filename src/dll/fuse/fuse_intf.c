@@ -374,6 +374,10 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     Mode &= ~context->umask;
 
     memset(&fi, 0, sizeof fi);
+    if ('C' == f->env->environment) /* Cygwin */
+        fi.flags = 0x0200 | 2 /*O_CREAT|O_RDWR*/;
+    else
+        fi.flags = 0x0100 | 2 /*O_CREAT|O_RDWR*/;
 
     if (CreateOptions & FILE_DIRECTORY_FILE)
     {
@@ -416,7 +420,6 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
                 goto exit;
             }
 
-            fi.flags = 2/*O_RDWR*/;
             err = f->ops.open(contexthdr->PosixPath, &fi);
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
@@ -595,6 +598,7 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc =
         (PVOID)(UINT_PTR)Request->Req.Overwrite.UserContext2;
+    UINT32 Uid, Gid, Mode;
     struct fuse_file_info fi;
     int err;
     NTSTATUS Result;
@@ -615,8 +619,11 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
     }
     else
         Result = STATUS_INVALID_DEVICE_REQUEST;
+    if (!NT_SUCCESS(Result))
+        return Result;
 
-    return Result;
+    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+        &Uid, &Gid, &Mode, FileInfo);
 }
 
 static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
@@ -765,20 +772,15 @@ static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
     }
 
     bytes = f->ops.write(filedesc->PosixPath, Buffer, (size_t)(EndOffset - Offset), Offset, &fi);
-    if (0 <= bytes)
-    {
-        *PBytesTransferred = bytes;
-        Result = STATUS_SUCCESS;
-    }
-    else
-        Result = fsp_fuse_ntstatus_from_errno(f->env, bytes);
-    if (!NT_SUCCESS(Result))
-        return Result;
+    if (0 > bytes)
+        return fsp_fuse_ntstatus_from_errno(f->env, bytes);
+
+    *PBytesTransferred = bytes;
 
     AllocationUnit = (UINT64)f->VolumeParams.SectorSize *
         (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
     FileInfoBuf.FileSize = Offset + bytes;
-    FileInfo->AllocationSize =
+    FileInfoBuf.AllocationSize =
         (FileInfoBuf.FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
 success:
