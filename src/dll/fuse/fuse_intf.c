@@ -1193,108 +1193,29 @@ int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
     const struct fuse_stat *stbuf, fuse_off_t off)
 {
     struct fuse_dirhandle *dh = buf;
-    UINT32 Uid, Gid, Mode;
-    union
+    struct fsp_fuse_dirinfo *di;
+    ULONG len, xfersize;
+
+    len = lstrlenA(name);
+    if (len > 255)
+        len = 255;
+
+    di = (PVOID)((PUINT8)dh->Buffer + dh->BytesTransferred);
+    xfersize = FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(struct fsp_fuse_dirinfo) + len + 1);
+
+    if ((PUINT8)di + xfersize > (PUINT8)dh->Buffer + dh->Length)
     {
-        FSP_FSCTL_DIR_INFO V;
-        UINT8 B[sizeof(FSP_FSCTL_DIR_INFO) + 255 * sizeof(WCHAR)];
-    } DirInfoBuf;
-    FSP_FSCTL_DIR_INFO *DirInfo = &DirInfoBuf.V;
-    char *PosixPathEnd = 0, SavedPathChar;
-    PWSTR FileName = 0;
-    ULONG Size;
-    NTSTATUS Result;
+        PVOID Buffer;
+        ULONG Length = dh->Length;
 
-    if ('.' == name[0] && '\0' == name[1])
-    {
-        PosixPathEnd = 1 < dh->PosixName - dh->PosixPath ? dh->PosixName - 1 : dh->PosixName;
-        SavedPathChar = *PosixPathEnd;
-        *PosixPathEnd = '\0';
-    }
-    else
-    if ('.' == name[0] && '.' == name[1] && '\0' == name[2])
-    {
-        PosixPathEnd = 1 < dh->PosixName - dh->PosixPath ? dh->PosixName - 2 : dh->PosixName;
-        while (dh->PosixPath < PosixPathEnd && '/' != *PosixPathEnd)
-            PosixPathEnd--;
-        if (dh->PosixPath == PosixPathEnd)
-            PosixPathEnd++;
-        SavedPathChar = *PosixPathEnd;
-        *PosixPathEnd = '\0';
-    }
-    else
-    {
-        Size = lstrlenA(name);
-        if (Size > 255)
-            Size = 255;
-        memcpy(dh->PosixName, name, Size);
-        dh->PosixName[Size] = '\0';
-    }
-
-    Result = fsp_fuse_intf_GetFileInfoEx(dh->FileSystem, dh->PosixPath, 0,
-        &Uid, &Gid, &Mode, &DirInfo->FileInfo);
-    if (!NT_SUCCESS(Result))
-        return 1;
-
-    if (0 != PosixPathEnd)
-        *PosixPathEnd = SavedPathChar;
-
-    Result = FspPosixMapPosixToWindowsPath(name, &FileName);
-    if (!NT_SUCCESS(Result))
-        return 1;
-
-    Size = lstrlenW(FileName);
-    if (Size > 255)
-        Size = 255;
-    Size *= sizeof(WCHAR);
-    memcpy(DirInfo->FileNameBuf, FileName, Size);
-
-    FspPosixDeletePath(FileName);
-
-    memset(DirInfo->Padding, 0, sizeof DirInfo->Padding);
-    DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + Size);
-    DirInfo->NextOffset = off;
-
-	/*
-	 * FUSE readdir documentation quote:
-     *
-	 * The filesystem may choose between two modes of operation:
-	 *
-	 * 1) The readdir implementation ignores the offset parameter, and
-	 * passes zero to the filler function's offset.  The filler
-	 * function will not return '1' (unless an error happens), so the
-	 * whole directory is read in a single readdir operation.  This
-	 * works just like the old getdir() method.
-	 *
-	 * 2) The readdir implementation keeps track of the offsets of the
-	 * directory entries.  It uses the offset parameter and always
-	 * passes non-zero offset to the filler function.  When the buffer
-	 * is full (or an error happens) the filler function will return
-	 * '1'.
-	 */
-
-    if (0 != off)
-    {
-        if (0 == dh->Buffer)
-        {
-            dh->Buffer = dh->OriginalBuffer;
-            dh->Length = dh->OriginalLength;
-        }
-    }
-    else if (dh->OriginalBuffer != dh->Buffer)
-    {
-        DirInfo->NextOffset = dh->BytesTransferred + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size);
-
-        if (0 != dh->Buffer &&
-            FspFileSystemAddDirInfo(DirInfo, dh->Buffer, dh->Length, &dh->BytesTransferred))
-            return 0;
-
-        if (0 == dh->Length)
-            dh->Length = 8 * 1024; /* initial alloc: 16 == 8 * 2; see below */
-        else if (dh->Length >= 2 * 1024 * 1024)
+        if (0 == Length)
+            Length = 16 * 1024;
+        else if (Length < 16 * 1024 * 1024)
+            Length *= 2;
+        else
             return 1;
 
-        PVOID Buffer = MemAlloc(dh->Length * 2);
+        Buffer = MemAlloc(Length);
         if (0 == Buffer)
             return 1;
 
@@ -1302,10 +1223,21 @@ int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
         MemFree(dh->Buffer);
 
         dh->Buffer = Buffer;
-        dh->Length *= 2;
+        dh->Length = Length;
+
+        di = (PVOID)((PUINT8)dh->Buffer + dh->BytesTransferred);
     }
 
-    return ! FspFileSystemAddDirInfo(DirInfo, dh->Buffer, dh->Length, &dh->BytesTransferred);
+    dh->BytesTransferred += xfersize;
+    dh->NonZeroOffset = dh->NonZeroOffset || 0 != off;
+
+    di->Size = (UINT16)(sizeof(struct fsp_fuse_dirinfo) + len + 1);
+    di->FileInfoValid = FALSE;
+    di->NextOffset = 0 != off ? off : dh->BytesTransferred;
+    memcpy(di->PosixNameBuf, name, len);
+    di->PosixNameBuf[len] = '\0';
+
+    return 0;
 }
 
 int fsp_fuse_intf_AddDirInfoOld(fuse_dirh_t dh, const char *name,
@@ -1325,35 +1257,25 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         (PVOID)(UINT_PTR)Request->Req.QueryDirectory.UserContext2;
     struct fuse_file_info fi;
     struct fuse_dirhandle dh;
-    FSP_FSCTL_DIR_INFO *DirInfo;
-    PUINT8 DirInfoEnd;
+    struct fsp_fuse_dirinfo *di;
+    PUINT8 diend;
+    union
+    {
+        FSP_FSCTL_DIR_INFO V;
+        UINT8 B[sizeof(FSP_FSCTL_DIR_INFO) + 255 * sizeof(WCHAR)];
+    } DirInfoBuf;
+    FSP_FSCTL_DIR_INFO *DirInfo = &DirInfoBuf.V;
+    UINT32 Uid, Gid, Mode;
+    char *PosixPath = 0, *PosixName, *PosixPathEnd, SavedPathChar;
+    PWSTR FileName = 0;
     ULONG Size;
     int err;
     NTSTATUS Result;
 
+    memset(&dh, 0, sizeof dh);
+
     if (0 == filedesc->DirBuffer)
     {
-        memset(&dh, 0, sizeof dh);
-        dh.FileSystem = FileSystem;
-
-        Size = lstrlenA(filedesc->PosixPath);
-        dh.PosixPath = MemAlloc(Size + 1 + 255 + 1);
-        if (0 == dh.PosixPath)
-        {
-            Result = STATUS_INSUFFICIENT_RESOURCES;
-            goto exit;
-        }
-
-        memcpy(dh.PosixPath, filedesc->PosixPath, Size);
-        if (1 < Size)
-            /* if not root */
-            dh.PosixPath[Size++] = '/';
-        dh.PosixPath[Size] = '\0';
-        dh.PosixName = dh.PosixPath + Size;
-
-        dh.OriginalBuffer = Buffer;
-        dh.OriginalLength = Length;
-
         if (0 != f->ops.readdir)
         {
             memset(&fi, 0, sizeof fi);
@@ -1371,55 +1293,133 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         else
             Result = STATUS_INVALID_DEVICE_REQUEST;
 
-    exit:
-        MemFree(dh.PosixPath);
+        if (!NT_SUCCESS(Result))
+            goto exit;
 
-        if (NT_SUCCESS(Result))
+        if (0 == dh.BytesTransferred)
         {
-            if (dh.OriginalBuffer == dh.Buffer)
-            {
-                *PBytesTransferred = dh.BytesTransferred;
-                return STATUS_SUCCESS;
-            }
-
-            if (0 == dh.Buffer)
-            {
-                *PBytesTransferred = dh.BytesTransferred;
-
-                /* EOF */
-                FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
-
-                return STATUS_SUCCESS;
-            }
-
-            filedesc->DirBuffer = dh.Buffer;
-            filedesc->DirBufferSize = dh.BytesTransferred;
-            /* fall through! */
+            /* EOF */
+            *PBytesTransferred = 0;
+            FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
+            goto success;
+        }
+        else if (dh.NonZeroOffset)
+        {
+            di = (PVOID)((PUINT8)dh.Buffer + 0);
+            diend = (PUINT8)dh.Buffer + dh.BytesTransferred;
         }
         else
         {
-            MemFree(dh.Buffer);
-            return Result;
+            di = (PVOID)((PUINT8)dh.Buffer + Offset);
+            diend = (PUINT8)dh.Buffer + dh.BytesTransferred;
+            filedesc->DirBuffer = dh.Buffer;
+            filedesc->DirBufferSize = dh.BytesTransferred;
+            dh.Buffer = 0;
         }
     }
-
-    DirInfo = (PVOID)((PUINT8)filedesc->DirBuffer + Offset);
-    DirInfoEnd = (PUINT8)filedesc->DirBuffer + filedesc->DirBufferSize;
-    for (;
-        (PUINT8)DirInfo + sizeof(DirInfo->Size) <= DirInfoEnd;
-        DirInfo = (PVOID)((PUINT8)DirInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size)))
+    else
     {
-        if (sizeof(FSP_FSCTL_DIR_INFO) > DirInfo->Size)
+        di = (PVOID)((PUINT8)filedesc->DirBuffer + Offset);
+        diend = (PUINT8)filedesc->DirBuffer + filedesc->DirBufferSize;
+    }
+
+    for (;
+        (PUINT8)di + sizeof(di->Size) <= diend;
+        di = (PVOID)((PUINT8)di + FSP_FSCTL_DEFAULT_ALIGN_UP(di->Size)))
+    {
+        if (sizeof(struct fsp_fuse_dirinfo) > di->Size)
             break;
+
+        if (!di->FileInfoValid)
+        {
+            if (0 == PosixPath)
+            {
+                Size = lstrlenA(filedesc->PosixPath);
+                PosixPath = MemAlloc(Size + 1 + 255 + 1);
+                if (0 == PosixPath)
+                {
+                    Result = STATUS_INSUFFICIENT_RESOURCES;
+                    goto exit;
+                }
+
+                memcpy(PosixPath, filedesc->PosixPath, Size);
+                if (1 < Size)
+                    /* if not root */
+                    PosixPath[Size++] = '/';
+                PosixPath[Size] = '\0';
+                PosixName = PosixPath + Size;
+            }
+
+            if ('.' == di->PosixNameBuf[0] && '\0' == di->PosixNameBuf[1])
+            {
+                PosixPathEnd = 1 < PosixName - PosixPath ? PosixName - 1 : PosixName;
+                SavedPathChar = *PosixPathEnd;
+                *PosixPathEnd = '\0';
+            }
+            else
+            if ('.' == di->PosixNameBuf[0] && '.' == di->PosixNameBuf[1] && '\0' == di->PosixNameBuf[2])
+            {
+                PosixPathEnd = 1 < PosixName - PosixPath ? PosixName - 2 : PosixName;
+                while (PosixPath < PosixPathEnd && '/' != *PosixPathEnd)
+                    PosixPathEnd--;
+                if (PosixPath == PosixPathEnd)
+                    PosixPathEnd++;
+                SavedPathChar = *PosixPathEnd;
+                *PosixPathEnd = '\0';
+            }
+            else
+            {
+                PosixPathEnd = 0;
+                Size = lstrlenA(di->PosixNameBuf);
+                if (Size > 255)
+                    Size = 255;
+                memcpy(PosixName, di->PosixNameBuf, Size);
+                PosixName[Size] = '\0';
+            }
+
+            Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, 0,
+                &Uid, &Gid, &Mode, &di->FileInfo);
+            if (!NT_SUCCESS(Result))
+                goto exit;
+
+            if (0 != PosixPathEnd)
+                *PosixPathEnd = SavedPathChar;
+
+            di->FileInfoValid = TRUE;
+        }
+        memcpy(&DirInfo->FileInfo, &di->FileInfo, sizeof di->FileInfo);
+
+        Result = FspPosixMapPosixToWindowsPath(di->PosixNameBuf, &FileName);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        Size = lstrlenW(FileName);
+        if (Size > 255)
+            Size = 255;
+        Size *= sizeof(WCHAR);
+        memcpy(DirInfo->FileNameBuf, FileName, Size);
+
+        FspPosixDeletePath(FileName);
+
+        memset(DirInfo->Padding, 0, sizeof DirInfo->Padding);
+        DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + Size);
+        DirInfo->NextOffset = di->NextOffset;
 
         if (!FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred))
             break;
     }
 
-    if ((PUINT8)DirInfo + sizeof(DirInfo->Size) > DirInfoEnd)
+    if ((PUINT8)di + sizeof(di->Size) > diend)
         FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
 
-    return STATUS_SUCCESS;
+success:
+    Result = STATUS_SUCCESS;
+
+exit:
+    MemFree(PosixPath);
+    MemFree(dh.Buffer);
+
+    return Result;
 }
 
 FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =

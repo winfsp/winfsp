@@ -58,14 +58,20 @@ struct fsp_fuse_file_desc
 
 struct fuse_dirhandle
 {
-    FSP_FILE_SYSTEM *FileSystem;
-    char *PosixPath, *PosixName;
-    PVOID OriginalBuffer;
-    ULONG OriginalLength;
     PVOID Buffer;
     ULONG Length;
     ULONG BytesTransferred;
+    BOOLEAN NonZeroOffset;
     BOOLEAN DotFiles, HasChild;
+};
+
+struct fsp_fuse_dirinfo
+{
+    UINT16 Size;
+    FSP_FSCTL_FILE_INFO FileInfo;
+    BOOLEAN FileInfoValid;
+    UINT64 NextOffset;
+    char PosixNameBuf[];                /* includes term-0 (unlike FSP_FSCTL_DIR_INFO) */
 };
 
 static inline
