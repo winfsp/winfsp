@@ -85,7 +85,7 @@ FSP_FUSE_API void fsp_fuse_unmount(struct fsp_fuse_env *env,
 FSP_FUSE_API int fsp_fuse_parse_cmdline(struct fsp_fuse_env *env,
     struct fuse_args *args,
     char **mountpoint, int *multithreaded, int *foreground);
-FSP_FUSE_API long fsp_fuse_ntstatus_from_errno(struct fsp_fuse_env *env,
+FSP_FUSE_API int32_t fsp_fuse_ntstatus_from_errno(struct fsp_fuse_env *env,
     int err);
 
 static inline int fuse_version(void)

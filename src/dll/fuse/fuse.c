@@ -639,7 +639,7 @@ FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *rese
     return context;
 }
 
-FSP_FUSE_API NTSTATUS fsp_fuse_ntstatus_from_errno(struct fsp_fuse_env *env,
+FSP_FUSE_API int32_t fsp_fuse_ntstatus_from_errno(struct fsp_fuse_env *env,
     int err)
 {
     if (0 > err)
