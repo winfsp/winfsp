@@ -205,9 +205,9 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoEx(FSP_FILE_SYSTEM *FileSystem,
         (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
     FileInfo->FileAttributes = (stbuf.st_mode & 0040000) ? FILE_ATTRIBUTE_DIRECTORY : 0;
     FileInfo->ReparseTag = 0;
-    FileInfo->AllocationSize =
-        (stbuf.st_size + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
     FileInfo->FileSize = stbuf.st_size;
+    FileInfo->AllocationSize =
+        (FileInfo->FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
     FileInfo->CreationTime =
         Int32x32To64(stbuf.st_birthtim.tv_sec, 10000000) + 116444736000000000 +
         stbuf.st_birthtim.tv_nsec / 100;
@@ -961,7 +961,7 @@ static NTSTATUS fsp_fuse_intf_SetFileSizeCommon(FSP_FILE_SYSTEM *FileSystem,
          * FUSE 2.8 does not support allocation size. However if the new AllocationSize
          * is less than the current FileSize we must truncate the file.
          */
-        if (0 == f->ops.ftruncate)
+        if (0 != f->ops.ftruncate)
         {
             err = f->ops.ftruncate(filedesc->PosixPath, NewFileSize, &fi);
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
@@ -976,9 +976,9 @@ static NTSTATUS fsp_fuse_intf_SetFileSizeCommon(FSP_FILE_SYSTEM *FileSystem,
 
         AllocationUnit = (UINT64)f->VolumeParams.SectorSize *
             (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
-        FileInfo->AllocationSize =
-            (NewFileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
         FileInfoBuf.FileSize = NewFileSize;
+        FileInfoBuf.AllocationSize =
+            (FileInfoBuf.FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
     }
 
     memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
