@@ -24,7 +24,8 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     struct fsp_fuse_context_header *contexthdr;
     char *PosixPath = 0;
     UINT32 Uid = -1, Gid = -1;
-    PWSTR FileName = 0;
+    PWSTR FileName = 0, Suffix;
+    WCHAR Root[2] = L"\\";
     HANDLE Token = 0;
     union
     {
@@ -43,7 +44,10 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
 
     if (FspFsctlTransactCreateKind == Request->Kind)
     {
-        FileName = (PWSTR)Request->Buffer;
+        if (Request->Req.Create.OpenTargetDirectory)
+            FspPathSuffix((PWSTR)Request->Buffer, &FileName, &Suffix, Root);
+        else
+            FileName = (PWSTR)Request->Buffer;
         Token = (HANDLE)Request->Req.Create.AccessToken;
     }
     else if (FspFsctlTransactSetInformationKind == Request->Kind &&
@@ -58,6 +62,8 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     if (0 != FileName)
     {
         Result = FspPosixMapWindowsToPosixPath(FileName, &PosixPath);
+        if (FspFsctlTransactCreateKind == Request->Kind && Request->Req.Create.OpenTargetDirectory)
+            FspPathCombine((PWSTR)Request->Buffer, Suffix);
         if (!NT_SUCCESS(Result))
             goto exit;
     }
