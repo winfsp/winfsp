@@ -889,7 +889,7 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     LastAccessTime = FileInfoBuf.LastAccessTime - 116444736000000000;
     LastWriteTime = FileInfoBuf.LastWriteTime - 116444736000000000;
 
-    if (0 == f->ops.utimens)
+    if (0 != f->ops.utimens)
     {
 #if defined(_WIN64)
         tv[0].tv_sec = (int64_t)(LastAccessTime / 10000000);
