@@ -660,7 +660,7 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
         else
         {
             if (0 != f->ops.unlink)
-                f->ops.rmdir(filedesc->PosixPath);
+                f->ops.unlink(filedesc->PosixPath);
         }
 }
 
