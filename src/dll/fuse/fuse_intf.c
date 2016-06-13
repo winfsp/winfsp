@@ -1187,7 +1187,7 @@ static NTSTATUS fsp_fuse_intf_SetSecurity(FSP_FILE_SYSTEM *FileSystem,
 
 exit:
     if (0 != NewSecurityDescriptor)
-        FspDeleteSecurityDescriptor(SecurityDescriptor,
+        FspDeleteSecurityDescriptor(NewSecurityDescriptor,
             FspSetSecurityDescriptor);
 
     if (0 != SecurityDescriptor)
