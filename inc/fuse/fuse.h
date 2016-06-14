@@ -78,7 +78,7 @@ struct fuse_operations
     int (*create)(const char *path, fuse_mode_t mode, struct fuse_file_info *fi);
     int (*ftruncate)(const char *path, fuse_off_t off, struct fuse_file_info *fi);
     int (*fgetattr)(const char *path, struct fuse_stat *stbuf, struct fuse_file_info *fi);
-    int (*lock)(const char *path, struct fuse_file_info *fi, int cmd, struct flock *lock);
+    int (*lock)(const char *path, struct fuse_file_info *fi, int cmd, struct fuse_flock *lock);
     int (*utimens)(const char *path, const struct fuse_timespec tv[2]);
     int (*bmap)(const char *path, size_t blocksize, uint64_t *idx);
     unsigned int flag_nullpath_ok:1;

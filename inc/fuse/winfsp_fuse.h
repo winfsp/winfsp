@@ -142,6 +142,15 @@ struct fuse_statvfs
 };
 #endif
 
+struct fuse_flock
+{
+    int16_t l_type;
+    int16_t l_whence;
+    fuse_off_t l_start;
+    fuse_off_t l_len;
+    fuse_pid_t l_pid;
+};
+
 #if defined(WINFSP_DLL_INTERNAL)
 #define FSP_FUSE_ENV_INIT               \
     {                                   \
@@ -190,6 +199,7 @@ struct fuse_statvfs
 
 #define fuse_stat                       stat
 #define fuse_statvfs                    statvfs
+#define fuse_flock                      flock
 
 #define FSP_FUSE_ENV_INIT               \
     {                                   \
