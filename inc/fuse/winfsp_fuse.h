@@ -173,6 +173,8 @@ struct fuse_flock
 #elif defined(__CYGWIN__)
 
 #include <fcntl.h>
+#include <pthread.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
@@ -229,14 +231,27 @@ struct fsp_fuse_env
 FSP_FUSE_API void fsp_fuse_signal_handler(int sig);
 FSP_FUSE_API void fsp_fuse_set_signal_arg(void *se);
 
+#if defined(_WIN64) || defined(_WIN32)
+
 static inline int fsp_fuse_daemonize(int foreground)
 {
-#if defined(_WIN64) || defined(_WIN32)
     (void)foreground;
     return 0;
+}
+
+static inline int fsp_fuse_set_signal_handlers(void *se)
+{
+    (void)se;
+    return 0;
+}
+
 #elif defined(__CYGWIN__)
+
+static inline int fsp_fuse_daemonize(int foreground)
+{
     int daemon(int nochdir, int noclose);
     int chdir(const char *path);
+
     if (!foreground)
     {
         if (-1 == daemon(0, 0))
@@ -244,38 +259,86 @@ static inline int fsp_fuse_daemonize(int foreground)
     }
     else
         chdir("/");
+
     return 0;
-#endif
+}
+
+static inline void *fsp_fuse_signal_thread(void *psigmask)
+{
+    int sig;
+
+    if (0 == sigwait(psigmask, &sig))
+        fsp_fuse_signal_handler(sig);
+
+    return 0;
 }
 
 static inline int fsp_fuse_set_signal_handlers(void *se)
 {
-#if defined(_WIN64) || defined(_WIN32)
-    (void)se;
-    return 0;
-#elif defined(__CYGWIN__)
-
 #define FSP_FUSE_SET_SIGNAL_HANDLER(sig, newha)\
-    newsa.sa_handler = se ? (newha) : SIG_DFL;\
-    if (-1 == sigaction((sig), 0, &oldsa) ||\
-        (oldsa.sa_handler == (se ? SIG_DFL : (newha)) && -1 == sigaction((sig), &newsa, 0)))\
-        return -1;
+    if (-1 != sigaction((sig), 0, &oldsa) &&\
+        oldsa.sa_handler == (se ? SIG_DFL : (newha)))\
+    {\
+        newsa.sa_handler = se ? (newha) : SIG_DFL;\
+        sigaction((sig), &newsa, 0);\
+    }
+#define FSP_FUSE_SIGADDSET(sig)\
+    if (-1 != sigaction((sig), 0, &oldsa) &&\
+        oldsa.sa_handler == SIG_DFL)\
+        sigaddset(&sigmask, (sig));
 
+    static sigset_t sigmask;
+    static pthread_t sigthr;
     struct sigaction oldsa, newsa = { 0 };
 
-    FSP_FUSE_SET_SIGNAL_HANDLER(SIGHUP, fsp_fuse_signal_handler);
-    FSP_FUSE_SET_SIGNAL_HANDLER(SIGINT, fsp_fuse_signal_handler);
-    FSP_FUSE_SET_SIGNAL_HANDLER(SIGTERM, fsp_fuse_signal_handler);
-    FSP_FUSE_SET_SIGNAL_HANDLER(SIGTERM, SIG_IGN);
+    if (0 != se)
+    {
+        if (0 == sigthr)
+        {
+            FSP_FUSE_SET_SIGNAL_HANDLER(SIGPIPE, SIG_IGN);
 
-    fsp_fuse_set_signal_arg(se);
+            sigemptyset(&sigmask);
+            FSP_FUSE_SIGADDSET(SIGHUP);
+            FSP_FUSE_SIGADDSET(SIGINT);
+            FSP_FUSE_SIGADDSET(SIGTERM);
+            if (0 != pthread_sigmask(SIG_BLOCK, &sigmask, 0))
+                return -1;
+
+            fsp_fuse_set_signal_arg(se);
+
+            if (0 != pthread_create(&sigthr, 0, fsp_fuse_signal_thread, &sigmask))
+            {
+                fsp_fuse_set_signal_arg(0);
+                return -1;
+            }
+        }
+    }
+    else
+    {
+        if (0 != sigthr)
+        {
+            pthread_cancel(sigthr);
+            pthread_join(sigthr, 0);
+            sigthr = 0;
+
+            fsp_fuse_set_signal_arg(0);
+
+            if (0 != pthread_sigmask(SIG_UNBLOCK, &sigmask, 0))
+                return -1;
+            sigemptyset(&sigmask);
+
+            FSP_FUSE_SET_SIGNAL_HANDLER(SIGPIPE, SIG_IGN);
+        }
+    }
 
     return 0;
 
+#undef FSP_FUSE_SIGADDSET
 #undef FSP_FUSE_SET_SIGNAL_HANDLER
+}
 
 #endif
-}
+
 
 static inline struct fsp_fuse_env *fsp_fuse_env(void)
 {

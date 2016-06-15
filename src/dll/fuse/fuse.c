@@ -664,15 +664,15 @@ FSP_FUSE_API int32_t fsp_fuse_ntstatus_from_errno(struct fsp_fuse_env *env,
 
 /* Cygwin signal support */
 
-static struct fuse *fsp_fuse_signal_arg;
+static FSP_SERVICE *fsp_fuse_signal_svc;
 
 FSP_FUSE_API void fsp_fuse_signal_handler(int sig)
 {
-    if (0 != fsp_fuse_signal_arg && 0 != fsp_fuse_signal_arg->Service)
-        FspServiceStop(fsp_fuse_signal_arg->Service);
+    if (0 != fsp_fuse_signal_svc)
+        FspServiceStop(fsp_fuse_signal_svc);
 }
 
 FSP_FUSE_API void fsp_fuse_set_signal_arg(void *se)
 {
-    fsp_fuse_signal_arg = se;
+    fsp_fuse_signal_svc = 0 != se ? ((struct fuse *)se)->Service : 0;
 }
