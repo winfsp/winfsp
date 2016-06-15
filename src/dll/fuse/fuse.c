@@ -661,3 +661,18 @@ FSP_FUSE_API int32_t fsp_fuse_ntstatus_from_errno(struct fsp_fuse_env *env,
             return STATUS_ACCESS_DENIED;
         }
 }
+
+/* Cygwin signal support */
+
+static struct fuse *fsp_fuse_signal_arg;
+
+FSP_FUSE_API void fsp_fuse_signal_handler(int sig)
+{
+    if (0 != fsp_fuse_signal_arg && 0 != fsp_fuse_signal_arg->Service)
+        FspServiceStop(fsp_fuse_signal_arg->Service);
+}
+
+FSP_FUSE_API void fsp_fuse_set_signal_arg(void *se)
+{
+    fsp_fuse_signal_arg = se;
+}

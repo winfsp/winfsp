@@ -126,7 +126,8 @@ static inline int fuse_set_signal_handlers(struct fuse_session *se)
 
 static inline void fuse_remove_signal_handlers(struct fuse_session *se)
 {
-    fsp_fuse_remove_signal_handlers(se);
+    (void)se;
+    fsp_fuse_set_signal_handlers(0);
 }
 
 #ifdef __cplusplus

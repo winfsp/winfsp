@@ -19,6 +19,7 @@
 #ifndef FUSE_WINFSP_FUSE_H_INCLUDED
 #define FUSE_WINFSP_FUSE_H_INCLUDED
 
+#include <errno.h>
 #include <stdint.h>
 #if !defined(WINFSP_DLL_INTERNAL)
 #include <stdlib.h>
@@ -158,7 +159,6 @@ struct fuse_flock
         MemAlloc, MemFree,              \
         fsp_fuse_daemonize,             \
         fsp_fuse_set_signal_handlers,   \
-        fsp_fuse_remove_signal_handlers,\
     }
 #else
 #define FSP_FUSE_ENV_INIT               \
@@ -167,13 +167,12 @@ struct fuse_flock
         malloc, free,                   \
         fsp_fuse_daemonize,             \
         fsp_fuse_set_signal_handlers,   \
-        fsp_fuse_remove_signal_handlers,\
     }
 #endif
 
 #elif defined(__CYGWIN__)
 
-#include <errno.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
@@ -207,7 +206,6 @@ struct fuse_flock
         malloc, free,                   \
         fsp_fuse_daemonize,             \
         fsp_fuse_set_signal_handlers,   \
-        fsp_fuse_remove_signal_handlers,\
     }
 
 /*
@@ -226,8 +224,10 @@ struct fsp_fuse_env
     void (*memfree)(void *);
     int (*daemonize)(int);
     int (*set_signal_handlers)(void *);
-    void (*remove_signal_handlers)(void *);
 };
+
+FSP_FUSE_API void fsp_fuse_signal_handler(int sig);
+FSP_FUSE_API void fsp_fuse_set_signal_arg(void *se);
 
 static inline int fsp_fuse_daemonize(int foreground)
 {
@@ -250,13 +250,31 @@ static inline int fsp_fuse_daemonize(int foreground)
 
 static inline int fsp_fuse_set_signal_handlers(void *se)
 {
+#if defined(_WIN64) || defined(_WIN32)
     (void)se;
     return 0;
-}
+#elif defined(__CYGWIN__)
 
-static inline void fsp_fuse_remove_signal_handlers(void *se)
-{
-    (void)se;
+#define FSP_FUSE_SET_SIGNAL_HANDLER(sig, newha)\
+    newsa.sa_handler = se ? (newha) : SIG_DFL;\
+    if (-1 == sigaction((sig), 0, &oldsa) ||\
+        (oldsa.sa_handler == (se ? SIG_DFL : (newha)) && -1 == sigaction((sig), &newsa, 0)))\
+        return -1;
+
+    struct sigaction oldsa, newsa = { 0 };
+
+    FSP_FUSE_SET_SIGNAL_HANDLER(SIGHUP, fsp_fuse_signal_handler);
+    FSP_FUSE_SET_SIGNAL_HANDLER(SIGINT, fsp_fuse_signal_handler);
+    FSP_FUSE_SET_SIGNAL_HANDLER(SIGTERM, fsp_fuse_signal_handler);
+    FSP_FUSE_SET_SIGNAL_HANDLER(SIGTERM, SIG_IGN);
+
+    fsp_fuse_set_signal_arg(se);
+
+    return 0;
+
+#undef FSP_FUSE_SET_SIGNAL_HANDLER
+
+#endif
 }
 
 static inline struct fsp_fuse_env *fsp_fuse_env(void)

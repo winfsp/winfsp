@@ -153,7 +153,7 @@ FSP_FUSE_API int fsp_fuse_main_real(struct fsp_fuse_env *env,
     if (-1 == result)
         goto exit;
 
-    result = env->set_signal_handlers(f/* !!!: REVISIT */);
+    result = env->set_signal_handlers(f);
     if (-1 == result)
         goto exit;
     signal_handlers = 1;
@@ -162,7 +162,7 @@ FSP_FUSE_API int fsp_fuse_main_real(struct fsp_fuse_env *env,
 
 exit:
     if (signal_handlers)
-        env->remove_signal_handlers(f/* !!!: REVISIT */);
+        env->set_signal_handlers(0);
 
     if (0 != f)
         fsp_fuse_destroy(env, f);
