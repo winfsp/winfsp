@@ -24,20 +24,16 @@ enum
 
 static FSP_FILE_SYSTEM_INTERFACE FspFileSystemNullInterface;
 
+static INIT_ONCE FspFileSystemInitOnce = INIT_ONCE_STATIC_INIT;
+static BOOLEAN FspFileSystemInitialized;
 static CRITICAL_SECTION FspFileSystemMountListGuard;
 static LIST_ENTRY FspFileSystemMountList = { &FspFileSystemMountList, &FspFileSystemMountList };
 
-VOID FspFileSystemInitialize(BOOLEAN Dynamic)
+static BOOL WINAPI FspFileSystemInitialize(
+    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
-    /*
-     * This function is called during DLL_PROCESS_ATTACH. We must therefore keep
-     * initialization tasks to a minimum.
-     *
-     * Initialization of synchronization objects is allowed! See:
-     *     https://msdn.microsoft.com/en-us/library/windows/desktop/dn633971(v=vs.85).aspx
-     */
-
     InitializeCriticalSection(&FspFileSystemMountListGuard);
+    return FspFileSystemInitialized = TRUE;
 }
 
 VOID FspFileSystemFinalize(BOOLEAN Dynamic)
@@ -59,6 +55,9 @@ VOID FspFileSystemFinalize(BOOLEAN Dynamic)
      * We only delete the criticaly section when being dynamically unloaded. On process exit the
      * OS will clean it up for us.
      */
+
+    if (!FspFileSystemInitialized)
+        return;
 
     FSP_FILE_SYSTEM *FileSystem;
     PLIST_ENTRY MountEntry;
@@ -94,6 +93,10 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
 
     if (0 == Interface)
         Interface = &FspFileSystemNullInterface;
+
+    InitOnceExecuteOnce(&FspFileSystemInitOnce, FspFileSystemInitialize, 0, 0);
+    if (!FspFileSystemInitialized)
+        return STATUS_INSUFFICIENT_RESOURCES;
 
     FileSystem = MemAlloc(sizeof *FileSystem);
     if (0 == FileSystem)

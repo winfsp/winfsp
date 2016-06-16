@@ -35,28 +35,10 @@
 
 static PISID FspPosixCreateSid(BYTE Authority, ULONG Count, ...);
 
-static INIT_ONCE FspPosixInitOnceV = INIT_ONCE_STATIC_INIT;
+static INIT_ONCE FspPosixInitOnce = INIT_ONCE_STATIC_INIT;
 static PISID FspAccountDomainSid, FspPrimaryDomainSid;
 
-VOID FspPosixInitialize(BOOLEAN Dynamic)
-{
-}
-
-VOID FspPosixFinalize(BOOLEAN Dynamic)
-{
-    /*
-     * This function is called during DLL_PROCESS_DETACH. We must therefore keep
-     * finalization tasks to a minimum.
-     */
-
-    if (Dynamic)
-    {
-        MemFree(FspAccountDomainSid);
-        MemFree(FspPrimaryDomainSid);
-    }
-}
-
-static BOOL WINAPI FspPosixInitOnceF(
+static BOOL WINAPI FspPosixInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
     static LSA_OBJECT_ATTRIBUTES Obja;
@@ -104,6 +86,20 @@ exit:
         LsaClose(PolicyHandle);
 
     return TRUE;
+}
+
+VOID FspPosixFinalize(BOOLEAN Dynamic)
+{
+    /*
+     * This function is called during DLL_PROCESS_DETACH. We must therefore keep
+     * finalization tasks to a minimum.
+     */
+
+    if (Dynamic)
+    {
+        MemFree(FspAccountDomainSid);
+        MemFree(FspPrimaryDomainSid);
+    }
 }
 
 FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
@@ -161,7 +157,7 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
      */
     else if (0x30000 <= Uid && Uid < 0x40000)
     {
-        InitOnceExecuteOnce(&FspPosixInitOnceV, FspPosixInitOnceF, 0, 0);
+        InitOnceExecuteOnce(&FspPosixInitOnce, FspPosixInitialize, 0, 0);
 
         if (0 != FspAccountDomainSid &&
             5 == FspAccountDomainSid->IdentifierAuthority.Value[5] &&
@@ -177,7 +173,7 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
     }
     else if (0x100000 <= Uid && Uid < 0x200000)
     {
-        InitOnceExecuteOnce(&FspPosixInitOnceV, FspPosixInitOnceF, 0, 0);
+        InitOnceExecuteOnce(&FspPosixInitOnce, FspPosixInitialize, 0, 0);
 
         if (0 != FspPrimaryDomainSid &&
             5 == FspPrimaryDomainSid->IdentifierAuthority.Value[5] &&
@@ -278,7 +274,7 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
          */
         else if (5 <= Count && 21 == SubAuthority0)
         {
-            InitOnceExecuteOnce(&FspPosixInitOnceV, FspPosixInitOnceF, 0, 0);
+            InitOnceExecuteOnce(&FspPosixInitOnce, FspPosixInitialize, 0, 0);
 
             /*
              * The order is important! A server that is also a domain controller

@@ -21,13 +21,14 @@
 
 #define FSP_EVENTLOG_NAME               LIBRARY_NAME
 
-static HANDLE FspEventLogHandle;
 static INIT_ONCE FspEventLogInitOnce = INIT_ONCE_STATIC_INIT;
-static BOOL WINAPI FspEventLogRegisterEventSource(
-    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context);
+static HANDLE FspEventLogHandle;
 
-VOID FspEventLogInitialize(BOOLEAN Dynamic)
+static BOOL WINAPI FspEventLogInitialize(
+    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
+    FspEventLogHandle = RegisterEventSourceW(0, L"" FSP_EVENTLOG_NAME);
+    return TRUE;
 }
 
 VOID FspEventLogFinalize(BOOLEAN Dynamic)
@@ -55,7 +56,7 @@ FSP_API VOID FspEventLog(ULONG Type, PWSTR Format, ...)
 
 FSP_API VOID FspEventLogV(ULONG Type, PWSTR Format, va_list ap)
 {
-    InitOnceExecuteOnce(&FspEventLogInitOnce, FspEventLogRegisterEventSource, 0, 0);
+    InitOnceExecuteOnce(&FspEventLogInitOnce, FspEventLogInitialize, 0, 0);
     if (0 == FspEventLogHandle)
         return;
 
@@ -83,13 +84,6 @@ FSP_API VOID FspEventLogV(ULONG Type, PWSTR Format, va_list ap)
     }
 
     ReportEventW(FspEventLogHandle, (WORD)Type, 0, EventId, 0, 1, 0, Strings, 0);
-}
-
-static BOOL WINAPI FspEventLogRegisterEventSource(
-    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
-{
-    FspEventLogHandle = RegisterEventSourceW(0, L"" FSP_EVENTLOG_NAME);
-    return TRUE;
 }
 
 NTSTATUS FspEventLogRegister(VOID)

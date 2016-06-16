@@ -464,10 +464,9 @@ typedef struct
 static inline BOOLEAN FspNpValidateEnum(FSP_NP_ENUM *Enum)
 {
 #if 0
-    extern HANDLE ProcessHeap;
     return
         0 != Enum &&
-        HeapValidate(ProcessHeap, 0, Enum) &&
+        HeapValidate(GetProcessHeap(), 0, Enum) &&
         'munE' == Enum->Signature;
 #else
     return

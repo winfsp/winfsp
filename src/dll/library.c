@@ -18,7 +18,6 @@
 #include <dll/library.h>
 
 HINSTANCE DllInstance;
-HANDLE ProcessHeap;
 
 BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
 {
@@ -28,24 +27,6 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
     {
     case DLL_PROCESS_ATTACH:
         DllInstance = Instance;
-        ProcessHeap = GetProcessHeap();
-        if (0 == ProcessHeap)
-            return FALSE;
-
-        /*
-         * These functions are called during DLL_PROCESS_ATTACH. We must therefore keep
-         * initialization tasks to a minimum.
-         *
-         * See the DLL best practices document:
-         *     https://msdn.microsoft.com/en-us/library/windows/desktop/dn633971(v=vs.85).aspx
-         */
-        Dynamic = 0 == Reserved;
-        FspNtStatusInitialize(Dynamic);
-        FspPosixInitialize(Dynamic);
-        FspEventLogInitialize(Dynamic);
-        FspFileSystemInitialize(Dynamic);
-        FspServiceInitialize(Dynamic);
-        fsp_fuse_initialize(Dynamic);
         break;
 
     case DLL_PROCESS_DETACH:
@@ -64,7 +45,6 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
         FspFileSystemFinalize(Dynamic);
         FspEventLogFinalize(Dynamic);
         FspPosixFinalize(Dynamic);
-        FspNtStatusFinalize(Dynamic);
         break;
 
     case DLL_THREAD_DETACH:

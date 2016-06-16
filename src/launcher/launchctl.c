@@ -276,16 +276,9 @@ void wmainCRTStartup(void)
     DWORD Argc;
     PWSTR *Argv;
 
-    extern HANDLE ProcessHeap;
-    ProcessHeap = GetProcessHeap();
-    if (0 == ProcessHeap)
-        ExitProcess(GetLastError());
-
     Argv = CommandLineToArgvW(GetCommandLineW(), &Argc);
     if (0 == Argv)
         ExitProcess(GetLastError());
 
     ExitProcess(wmain(Argc, Argv));
 }
-
-HANDLE ProcessHeap;

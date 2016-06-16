@@ -36,17 +36,10 @@
 #define DEBUGLOGSD(fmt, SD)             ((void)0)
 #endif
 
-VOID FspNtStatusInitialize(BOOLEAN Dynamic);
-VOID FspNtStatusFinalize(BOOLEAN Dynamic);
-VOID FspPosixInitialize(BOOLEAN Dynamic);
 VOID FspPosixFinalize(BOOLEAN Dynamic);
-VOID FspEventLogInitialize(BOOLEAN Dynamic);
 VOID FspEventLogFinalize(BOOLEAN Dynamic);
-VOID FspFileSystemInitialize(BOOLEAN Dynamic);
 VOID FspFileSystemFinalize(BOOLEAN Dynamic);
-VOID FspServiceInitialize(BOOLEAN Dynamic);
 VOID FspServiceFinalize(BOOLEAN Dynamic);
-VOID fsp_fuse_initialize(BOOLEAN Dynamic);
 VOID fsp_fuse_finalize(BOOLEAN Dynamic);
 VOID fsp_fuse_finalize_thread(VOID);
 

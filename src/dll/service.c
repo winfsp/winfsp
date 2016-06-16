@@ -52,10 +52,6 @@ BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType);
     (FSP_SERVICE *)((PUINT8)FspServiceTable[0].lpServiceName - FIELD_OFFSET(FSP_SERVICE, ServiceName)) :\
     0)
 
-VOID FspServiceInitialize(BOOLEAN Dynamic)
-{
-}
-
 VOID FspServiceFinalize(BOOLEAN Dynamic)
 {
     /*

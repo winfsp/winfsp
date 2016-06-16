@@ -67,14 +67,12 @@ void *memset(void *dst, int val, size_t siz)
 
 static inline void *MemAlloc(size_t Size)
 {
-    extern HANDLE ProcessHeap;
-    return HeapAlloc(ProcessHeap, 0, Size);
+    return HeapAlloc(GetProcessHeap(), 0, Size);
 }
 static inline void MemFree(void *Pointer)
 {
-    extern HANDLE ProcessHeap;
     if (0 != Pointer)
-        HeapFree(ProcessHeap, 0, Pointer);
+        HeapFree(GetProcessHeap(), 0, Pointer);
 }
 
 static FORCEINLINE

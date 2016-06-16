@@ -981,12 +981,5 @@ int wmain(int argc, wchar_t **argv)
 
 void wmainCRTStartup(void)
 {
-    extern HANDLE ProcessHeap;
-    ProcessHeap = GetProcessHeap();
-    if (0 == ProcessHeap)
-        ExitProcess(GetLastError());
-
     ExitProcess(wmain(0, 0));
 }
-
-HANDLE ProcessHeap;

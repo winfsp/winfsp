@@ -21,7 +21,7 @@
 static INIT_ONCE FspDiagIdentInitOnce = INIT_ONCE_STATIC_INIT;
 static WCHAR FspDiagIdentBuf[20] = L"UNKNOWN";
 
-static BOOL WINAPI FspDiagIdentInit(
+static BOOL WINAPI FspDiagIdentInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
     WCHAR ModuleFileName[MAX_PATH];
@@ -55,7 +55,7 @@ PWSTR FspDiagIdent(VOID)
 {
     /* internal only: get a diagnostic identifier (eventlog, debug) */
 
-    InitOnceExecuteOnce(&FspDiagIdentInitOnce, FspDiagIdentInit, 0, 0);
+    InitOnceExecuteOnce(&FspDiagIdentInitOnce, FspDiagIdentInitialize, 0, 0);
     return FspDiagIdentBuf;
 }
 

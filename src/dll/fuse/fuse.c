@@ -100,8 +100,8 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FUSE_OPT_END,
 };
 
+static INIT_ONCE fsp_fuse_initonce = INIT_ONCE_STATIC_INIT;
 static DWORD fsp_fuse_tlskey = TLS_OUT_OF_INDEXES;
-static INIT_ONCE fsp_fuse_initonce_v = INIT_ONCE_STATIC_INIT;
 
 struct fsp_fuse_obj_hdr
 {
@@ -129,8 +129,11 @@ static inline void fsp_fuse_obj_free(void *obj)
     hdr->dtor(hdr);
 }
 
-VOID fsp_fuse_initialize(BOOLEAN Dynamic)
+static BOOL WINAPI fsp_fuse_initialize(
+    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
+    fsp_fuse_tlskey = TlsAlloc();
+    return TRUE;
 }
 
 VOID fsp_fuse_finalize(BOOLEAN Dynamic)
@@ -169,18 +172,6 @@ VOID fsp_fuse_finalize_thread(VOID)
             TlsSetValue(fsp_fuse_tlskey, 0);
         }
     }
-}
-
-static BOOL WINAPI fsp_fuse_initonce_f(
-    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
-{
-    fsp_fuse_tlskey = TlsAlloc();
-    return TRUE;
-}
-
-static inline VOID fsp_fuse_initonce(VOID)
-{
-    InitOnceExecuteOnce(&fsp_fuse_initonce_v, fsp_fuse_initonce_f, 0, 0);
 }
 
 FSP_FUSE_API int fsp_fuse_version(struct fsp_fuse_env *env)
@@ -606,7 +597,7 @@ FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env)
 {
     struct fuse_context *context;
 
-    fsp_fuse_initonce();
+    InitOnceExecuteOnce(&fsp_fuse_initonce, fsp_fuse_initialize, 0, 0);
     if (TLS_OUT_OF_INDEXES == fsp_fuse_tlskey)
         return 0;
 
