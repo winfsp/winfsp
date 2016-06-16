@@ -103,6 +103,32 @@ static struct fuse_opt fsp_fuse_core_opts[] =
 static DWORD fsp_fuse_tlskey = TLS_OUT_OF_INDEXES;
 static INIT_ONCE fsp_fuse_initonce_v = INIT_ONCE_STATIC_INIT;
 
+struct fsp_fuse_obj_hdr
+{
+    void (*dtor)(void *);
+    __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 ObjectBuf[];
+};
+
+static inline void *fsp_fuse_obj_alloc(struct fsp_fuse_env *env, size_t size)
+{
+    struct fsp_fuse_obj_hdr *hdr;
+
+    hdr = env->memalloc(sizeof(struct fsp_fuse_obj_hdr) + size);
+    if (0 == hdr)
+        return 0;
+
+    hdr->dtor = env->memfree;
+    memset(hdr->ObjectBuf, 0, size);
+    return hdr->ObjectBuf;
+}
+
+static inline void fsp_fuse_obj_free(void *obj)
+{
+    struct fsp_fuse_obj_hdr *hdr = (PVOID)((PUINT8)obj - sizeof(struct fsp_fuse_obj_hdr));
+
+    hdr->dtor(hdr);
+}
+
 VOID fsp_fuse_initialize(BOOLEAN Dynamic)
 {
 }
@@ -139,10 +165,7 @@ VOID fsp_fuse_finalize_thread(VOID)
         context = TlsGetValue(fsp_fuse_tlskey);
         if (0 != context)
         {
-            struct fsp_fuse_context_header *contexthdr =
-                (PVOID)((PUINT8)context - sizeof *contexthdr);
-
-            MemFree(contexthdr);
+            fsp_fuse_obj_free(FSP_FUSE_HDR_FROM_CONTEXT(context));
             TlsSetValue(fsp_fuse_tlskey, 0);
         }
     }
@@ -178,7 +201,7 @@ FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(struct fsp_fuse_env *env,
     if (0 == Size)
         goto fail;
 
-    ch = MemAlloc(sizeof *ch + Size * sizeof(WCHAR));
+    ch = fsp_fuse_obj_alloc(env, sizeof *ch + Size * sizeof(WCHAR));
     if (0 == ch)
         goto fail;
 
@@ -190,7 +213,7 @@ FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(struct fsp_fuse_env *env,
     return ch;
 
 fail:
-    MemFree(ch);
+    fsp_fuse_obj_free(ch);
 
     return 0;
 }
@@ -198,7 +221,7 @@ fail:
 FSP_FUSE_API void fsp_fuse_unmount(struct fsp_fuse_env *env,
     const char *mountpoint, struct fuse_chan *ch)
 {
-    MemFree(ch);
+    fsp_fuse_obj_free(ch);
 }
 
 FSP_FUSE_API int fsp_fuse_is_lib_option(struct fsp_fuse_env *env,
@@ -246,7 +269,9 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     struct fuse_conn_info conn;
     NTSTATUS Result;
 
-    context = fsp_fuse_get_context(0);
+    f->Service = Service;
+
+    context = fsp_fuse_get_context(f->env);
     if (0 == context)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
@@ -410,6 +435,8 @@ static void fsp_fuse_cleanup(struct fuse *f)
             f->ops.destroy(f->data);
         f->fsinit = FALSE;
     }
+
+    f->Service = 0;
 }
 
 static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
@@ -484,10 +511,9 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.NamedStreams = !!opt_data.NamedStreams;
     opt_data.VolumeParams.ReadOnlyVolume = !!opt_data.ReadOnlyVolume;
 
-    f = MemAlloc(sizeof *f);
+    f = fsp_fuse_obj_alloc(env, sizeof *f);
     if (0 == f)
         goto fail;
-    memset(f, 0, sizeof *f);
 
     f->env = env;
     memcpy(&f->ops, ops, opsize);
@@ -496,16 +522,10 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     memcpy(&f->VolumeParams, &opt_data.VolumeParams, sizeof opt_data.VolumeParams);
 
     Size = (lstrlenW(ch->MountPoint) + 1) * sizeof(WCHAR);
-    f->MountPoint = MemAlloc(Size);
+    f->MountPoint = fsp_fuse_obj_alloc(env, Size);
     if (0 == f->MountPoint)
         goto fail;
     memcpy(f->MountPoint, ch->MountPoint, Size);
-
-    Result = FspServiceCreate(FspDiagIdent(), fsp_fuse_svcstart, fsp_fuse_svcstop, 0, &f->Service);
-    if (!NT_SUCCESS(Result))
-        goto fail;
-    FspServiceAllowConsoleMode(f->Service);
-    f->Service->UserContext = f;
 
     Result = fsp_fuse_preflight(f);
     if (!NT_SUCCESS(Result))
@@ -554,62 +574,35 @@ FSP_FUSE_API void fsp_fuse_destroy(struct fsp_fuse_env *env,
 {
     fsp_fuse_cleanup(f);
 
-    if (0 != f->Service)
-        FspServiceDelete(f->Service);
+    fsp_fuse_obj_free(f->MountPoint);
 
-    MemFree(f->MountPoint);
-
-    MemFree(f);
-}
-
-static int fsp_fuse_loop_internal(struct fsp_fuse_env *env,
-    struct fuse *f, FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY GuardStrategy)
-{
-    NTSTATUS Result;
-    ULONG ExitCode;
-
-    f->OpGuardStrategy = GuardStrategy;
-
-    Result = FspServiceLoop(f->Service);
-    ExitCode = FspServiceGetExitCode(f->Service);
-
-    if (!NT_SUCCESS(Result))
-        goto fail;
-
-    if (0 != ExitCode)
-        FspServiceLog(EVENTLOG_WARNING_TYPE,
-            L"The service %s has exited (ExitCode=%ld).", f->Service->ServiceName, ExitCode);
-
-    return 0;
-
-fail:
-    FspServiceLog(EVENTLOG_ERROR_TYPE,
-        L"The service %s has failed to run (Status=%lx).", f->Service->ServiceName, Result);
-
-    return -1;
+    fsp_fuse_obj_free(f);
 }
 
 FSP_FUSE_API int fsp_fuse_loop(struct fsp_fuse_env *env,
     struct fuse *f)
 {
-    return fsp_fuse_loop_internal(env, f,
-        FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE);
+    f->OpGuardStrategy = FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE;
+    return 0 == FspServiceRunEx(FspDiagIdent(), fsp_fuse_svcstart, fsp_fuse_svcstop, 0, f) ?
+        0 : -1;
 }
 
 FSP_FUSE_API int fsp_fuse_loop_mt(struct fsp_fuse_env *env,
     struct fuse *f)
 {
-    return fsp_fuse_loop_internal(env, f,
-        FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE);
+    f->OpGuardStrategy = FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE;
+    return 0 == FspServiceRunEx(FspDiagIdent(), fsp_fuse_svcstart, fsp_fuse_svcstop, 0, f) ?
+        0 : -1;
 }
 
 FSP_FUSE_API void fsp_fuse_exit(struct fsp_fuse_env *env,
     struct fuse *f)
 {
-    FspServiceStop(f->Service);
+    if (0 != f->Service)
+        FspServiceStop(f->Service);
 }
 
-FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *reserved)
+FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env)
 {
     struct fuse_context *context;
 
@@ -622,12 +615,12 @@ FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *rese
     {
         struct fsp_fuse_context_header *contexthdr;
 
-        contexthdr = MemAlloc(sizeof *contexthdr + sizeof *context);
+        contexthdr = fsp_fuse_obj_alloc(env,
+            sizeof(struct fsp_fuse_context_header) + sizeof(struct fuse_context));
         if (0 == contexthdr)
             return 0;
 
-        memset(contexthdr, 0, sizeof *contexthdr + sizeof *context);
-        context = (PVOID)contexthdr->ContextBuf;
+        context = FSP_FUSE_CONTEXT_FROM_HDR(contexthdr);
         context->pid = -1;
 
         TlsSetValue(fsp_fuse_tlskey, context);
@@ -664,15 +657,7 @@ FSP_FUSE_API int32_t fsp_fuse_ntstatus_from_errno(struct fsp_fuse_env *env,
 
 /* Cygwin signal support */
 
-static FSP_SERVICE *fsp_fuse_signal_svc;
-
 FSP_FUSE_API void fsp_fuse_signal_handler(int sig)
 {
-    if (0 != fsp_fuse_signal_svc)
-        FspServiceStop(fsp_fuse_signal_svc);
-}
-
-FSP_FUSE_API void fsp_fuse_set_signal_arg(void *se)
-{
-    fsp_fuse_signal_svc = 0 != se ? ((struct fuse *)se)->Service : 0;
+    FspServiceConsoleCtrlHandler(CTRL_BREAK_EVENT);
 }

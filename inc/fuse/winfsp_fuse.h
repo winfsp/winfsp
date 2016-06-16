@@ -229,7 +229,6 @@ struct fsp_fuse_env
 };
 
 FSP_FUSE_API void fsp_fuse_signal_handler(int sig);
-FSP_FUSE_API void fsp_fuse_set_signal_arg(void *se);
 
 #if defined(_WIN64) || defined(_WIN32)
 
@@ -304,13 +303,8 @@ static inline int fsp_fuse_set_signal_handlers(void *se)
             if (0 != pthread_sigmask(SIG_BLOCK, &sigmask, 0))
                 return -1;
 
-            fsp_fuse_set_signal_arg(se);
-
             if (0 != pthread_create(&sigthr, 0, fsp_fuse_signal_thread, &sigmask))
-            {
-                fsp_fuse_set_signal_arg(0);
                 return -1;
-            }
         }
     }
     else
@@ -320,8 +314,6 @@ static inline int fsp_fuse_set_signal_handlers(void *se)
             pthread_cancel(sigthr);
             pthread_join(sigthr, 0);
             sigthr = 0;
-
-            fsp_fuse_set_signal_arg(0);
 
             if (0 != pthread_sigmask(SIG_UNBLOCK, &sigmask, 0))
                 return -1;

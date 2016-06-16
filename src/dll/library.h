@@ -59,4 +59,6 @@ NTSTATUS FspEventLogUnregister(VOID);
 
 PWSTR FspDiagIdent(VOID);
 
+BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType);
+
 #endif

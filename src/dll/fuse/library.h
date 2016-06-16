@@ -24,6 +24,11 @@
 
 #define FSP_FUSE_LIBRARY_NAME           LIBRARY_NAME "-FUSE"
 
+#define FSP_FUSE_HDR_FROM_CONTEXT(c)    \
+    (struct fsp_fuse_context_header *)((PUINT8)(c) - sizeof(struct fsp_fuse_context_header))
+#define FSP_FUSE_CONTEXT_FROM_HDR(h)    \
+    (struct fuse_context *)((PUINT8)(h) + sizeof(struct fsp_fuse_context_header))
+
 struct fuse
 {
     struct fsp_fuse_env *env;
@@ -33,9 +38,9 @@ struct fuse
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     PWSTR MountPoint;
-    FSP_SERVICE *Service;
     FSP_FILE_SYSTEM *FileSystem;
     BOOLEAN fsinit;
+    FSP_SERVICE *Service; /* weak */
 };
 
 struct fsp_fuse_context_header
@@ -73,13 +78,6 @@ struct fsp_fuse_dirinfo
     UINT64 NextOffset;
     char PosixNameBuf[];                /* includes term-0 (unlike FSP_FSCTL_DIR_INFO) */
 };
-
-static inline
-struct fsp_fuse_context_header *fsp_fuse_context_header(VOID)
-{
-    struct fuse_context *context = fsp_fuse_get_context(0);
-    return (PVOID)((PUINT8)context - sizeof(struct fsp_fuse_context_header));
-}
 
 NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);

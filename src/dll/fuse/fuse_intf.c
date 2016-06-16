@@ -20,6 +20,7 @@
 NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
+    struct fuse *f = FileSystem->UserContext;
     struct fuse_context *context;
     struct fsp_fuse_context_header *contexthdr;
     char *PosixPath = 0;
@@ -123,7 +124,7 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
             goto exit;
     }
 
-    context = fsp_fuse_get_context(0);
+    context = fsp_fuse_get_context(f->env);
     if (0 == context)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
@@ -134,12 +135,12 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    context->fuse = FileSystem->UserContext;
-    context->private_data = context->fuse->data;
+    context->fuse = f;
+    context->private_data = f->data;
     context->uid = Uid;
     context->gid = Gid;
 
-    contexthdr = (PVOID)((PUINT8)context - sizeof *contexthdr);
+    contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
     contexthdr->Request = Request;
     contexthdr->Response = Response;
     contexthdr->PosixPath = PosixPath;
@@ -162,18 +163,19 @@ exit:
 NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
+    struct fuse *f = FileSystem->UserContext;
     struct fuse_context *context;
     struct fsp_fuse_context_header *contexthdr;
 
     FspFileSystemOpLeave(FileSystem, Request, Response);
 
-    context = fsp_fuse_get_context(0);
+    context = fsp_fuse_get_context(f->env);
     context->fuse = 0;
     context->private_data = 0;
     context->uid = -1;
     context->gid = -1;
 
-    contexthdr = (PVOID)((PUINT8)context - sizeof *contexthdr);
+    contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
     if (0 != contexthdr->PosixPath)
         FspPosixDeletePath(contexthdr->PosixPath);
     memset(contexthdr, 0, sizeof *contexthdr);
@@ -349,9 +351,8 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fuse_context *context = fsp_fuse_get_context(0);
-    struct fsp_fuse_context_header *contexthdr =
-        (PVOID)((PUINT8)context - sizeof *contexthdr);
+    struct fuse_context *context = fsp_fuse_get_context(f->env);
+    struct fsp_fuse_context_header *contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
     UINT32 Uid, Gid, Mode;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
     struct fsp_fuse_file_desc *filedesc = 0;
@@ -505,7 +506,8 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_context_header *contexthdr = fsp_fuse_context_header();
+    struct fuse_context *context = fsp_fuse_get_context(f->env);
+    struct fsp_fuse_context_header *contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
     UINT32 Uid, Gid, Mode;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
     struct fsp_fuse_file_desc *filedesc = 0;
@@ -1074,7 +1076,8 @@ static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_context_header *contexthdr = fsp_fuse_context_header();
+    struct fuse_context *context = fsp_fuse_get_context(f->env);
+    struct fsp_fuse_context_header *contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
     UINT32 Uid, Gid, Mode;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
     struct fsp_fuse_file_desc *filedesc =

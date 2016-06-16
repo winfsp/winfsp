@@ -46,7 +46,7 @@ static VOID FspServiceMain(FSP_SERVICE *Service, DWORD Argc, PWSTR *Argv);
 static DWORD WINAPI FspServiceCtrlHandler(
     DWORD Control, DWORD EventType, PVOID EventData, PVOID Context);
 static DWORD WINAPI FspServiceConsoleModeThread(PVOID Context);
-static BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType);
+BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType);
 
 #define FspServiceFromTable()           (0 != FspServiceTable ?\
     (FSP_SERVICE *)((PUINT8)FspServiceTable[0].lpServiceName - FIELD_OFFSET(FSP_SERVICE, ServiceName)) :\
@@ -69,10 +69,11 @@ VOID FspServiceFinalize(BOOLEAN Dynamic)
         CloseHandle(FspServiceConsoleModeEvent);
 }
 
-FSP_API ULONG FspServiceRun(PWSTR ServiceName,
+FSP_API ULONG FspServiceRunEx(PWSTR ServiceName,
     FSP_SERVICE_START *OnStart,
     FSP_SERVICE_STOP *OnStop,
-    FSP_SERVICE_CONTROL *OnControl)
+    FSP_SERVICE_CONTROL *OnControl,
+    PVOID UserContext)
 {
     FSP_SERVICE *Service;
     NTSTATUS Result;
@@ -85,6 +86,7 @@ FSP_API ULONG FspServiceRun(PWSTR ServiceName,
             L"The service %s cannot be created (Status=%lx).", Service->ServiceName, Result);
         return FspWin32FromNtStatus(Result);
     }
+    Service->UserContext = UserContext;
 
     FspServiceAllowConsoleMode(Service);
     Result = FspServiceLoop(Service);
@@ -510,7 +512,8 @@ static DWORD WINAPI FspServiceConsoleModeThread(PVOID Context)
     return 0;
 }
 
-static BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType)
+/* expose FspServiceConsoleCtrlHandler so it can be used from fsp_fuse_signal_handler */
+BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType)
 {
     UINT32 Disabled = FspServiceConsoleCtrlHandlerDisabled;
     MemoryBarrier();

@@ -931,10 +931,19 @@ typedef struct _FSP_SERVICE
  * @return
  *     Service process exit code.
  */
-FSP_API ULONG FspServiceRun(PWSTR ServiceName,
+FSP_API ULONG FspServiceRunEx(PWSTR ServiceName,
     FSP_SERVICE_START *OnStart,
     FSP_SERVICE_STOP *OnStop,
-    FSP_SERVICE_CONTROL *OnControl);
+    FSP_SERVICE_CONTROL *OnControl,
+    PVOID UserContext);
+static inline
+ULONG FspServiceRun(PWSTR ServiceName,
+    FSP_SERVICE_START *OnStart,
+    FSP_SERVICE_STOP *OnStop,
+    FSP_SERVICE_CONTROL *OnControl)
+{
+    return FspServiceRunEx(ServiceName, OnStart, OnStop, OnControl, 0);
+}
 /**
  * Create a service object.
  *
