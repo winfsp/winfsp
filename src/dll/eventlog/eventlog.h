@@ -39,7 +39,7 @@
 //
 // MessageText:
 //
-// %1
+// %1: %2
 //
 #define FSP_EVENTLOG_INFORMATION         0x60000001L
 
@@ -48,7 +48,7 @@
 //
 // MessageText:
 //
-// %1
+// %1: %2
 //
 #define FSP_EVENTLOG_WARNING             0xA0000001L
 
@@ -57,7 +57,7 @@
 //
 // MessageText:
 //
-// %1
+// %1: %2
 //
 #define FSP_EVENTLOG_ERROR               0xE0000001L
 

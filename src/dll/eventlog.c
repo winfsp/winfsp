@@ -28,6 +28,8 @@ static BOOL WINAPI FspEventLogInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
     FspEventLogHandle = RegisterEventSourceW(0, L"" FSP_EVENTLOG_NAME);
+    if (0 == FspEventLogHandle)
+        FspEventLogHandle = RegisterEventSourceW(0, FspDiagIdent());
     return TRUE;
 }
 
@@ -60,13 +62,15 @@ FSP_API VOID FspEventLogV(ULONG Type, PWSTR Format, va_list ap)
     if (0 == FspEventLogHandle)
         return;
 
-    WCHAR Buf[1024], *Strings[1];
+    WCHAR Buf[1024], *Strings[2];
         /* wvsprintfW is only safe with a 1024 WCHAR buffer */
     DWORD EventId;
 
+    Strings[0] = FspDiagIdent();
+
     wvsprintfW(Buf, Format, ap);
     Buf[(sizeof Buf / sizeof Buf[0]) - 1] = L'\0';
-    Strings[0] = Buf;
+    Strings[1] = Buf;
 
     switch (Type)
     {
@@ -83,7 +87,7 @@ FSP_API VOID FspEventLogV(ULONG Type, PWSTR Format, va_list ap)
         break;
     }
 
-    ReportEventW(FspEventLogHandle, (WORD)Type, 0, EventId, 0, 1, 0, Strings, 0);
+    ReportEventW(FspEventLogHandle, (WORD)Type, 0, EventId, 0, 2, 0, Strings, 0);
 }
 
 NTSTATUS FspEventLogRegister(VOID)
@@ -97,7 +101,7 @@ NTSTATUS FspEventLogRegister(VOID)
         return FspNtStatusFromWin32(GetLastError());
 
     RegResult = RegCreateKeyExW(
-        HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services\\EventLog\\System\\" FSP_EVENTLOG_NAME,
+        HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\" FSP_EVENTLOG_NAME,
         0, 0, 0, KEY_ALL_ACCESS, 0, &RegKey, 0);
     if (ERROR_SUCCESS != RegResult)
         return FspNtStatusFromWin32(RegResult);
@@ -127,7 +131,7 @@ NTSTATUS FspEventLogUnregister(VOID)
     DWORD RegResult;
 
     RegResult = RegDeleteTreeW(
-        HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services\\EventLog\\System\\" FSP_EVENTLOG_NAME);
+        HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\" FSP_EVENTLOG_NAME);
     if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
         return FspNtStatusFromWin32(RegResult);
 
