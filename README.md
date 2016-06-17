@@ -23,8 +23,11 @@ The project source code is organized as follows:
 * build/VStudio: contains the WinFsp solution and project files.
 * doc: contains the WinFsp license, contributor agreement and additional documentation. The WinFsp design document can be found here.
 * ext/tlib: contains a small test library originally from the secfs (Secure Cloud File System) project.
-* inc/winfsp: contains public include files to be used when developing a user mode file system.
+* ext/test: submodule pointing to the secfs.test project, which contains a number of tools for testing Windows and POSIX file systems.
+* inc/winfsp: contains public headers for the WinFsp API.
+* inc/fuse: contains public headers for the FUSE compatibility layer.
 * src/dll: contains the source code to the WinFsp DLL.
+* src/dll/fuse: contains the source code to the FUSE compatibility layer.
 * src/sys: contains the source code to the WinFsp FSD.
 * tst/memfs: contains the source code to an example file system written in C++ (memfs).
 * tst/winfsp-tests: contains the WinFsp test suite.
