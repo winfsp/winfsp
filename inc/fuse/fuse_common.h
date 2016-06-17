@@ -88,43 +88,43 @@ FSP_FUSE_API int fsp_fuse_parse_cmdline(struct fsp_fuse_env *env,
 FSP_FUSE_API int32_t fsp_fuse_ntstatus_from_errno(struct fsp_fuse_env *env,
     int err);
 
-static inline int fuse_version(void)
+FSP_FUSE_SYM int fuse_version(void)
 {
     return fsp_fuse_version(fsp_fuse_env());
 }
 
-static inline struct fuse_chan *fuse_mount(const char *mountpoint, struct fuse_args *args)
+FSP_FUSE_SYM struct fuse_chan *fuse_mount(const char *mountpoint, struct fuse_args *args)
 {
     return fsp_fuse_mount(fsp_fuse_env(), mountpoint, args);
 }
 
-static inline void fuse_unmount(const char *mountpoint, struct fuse_chan *ch)
+FSP_FUSE_SYM void fuse_unmount(const char *mountpoint, struct fuse_chan *ch)
 {
     fsp_fuse_unmount(fsp_fuse_env(), mountpoint, ch);
 }
 
-static inline int fuse_parse_cmdline(struct fuse_args *args,
+FSP_FUSE_SYM int fuse_parse_cmdline(struct fuse_args *args,
     char **mountpoint, int *multithreaded, int *foreground)
 {
     return fsp_fuse_parse_cmdline(fsp_fuse_env(), args, mountpoint, multithreaded, foreground);
 }
 
-static inline void fuse_pollhandle_destroy(struct fuse_pollhandle *ph)
+FSP_FUSE_SYM void fuse_pollhandle_destroy(struct fuse_pollhandle *ph)
 {
     (void)ph;
 }
 
-static inline int fuse_daemonize(int foreground)
+FSP_FUSE_SYM int fuse_daemonize(int foreground)
 {
     return fsp_fuse_daemonize(foreground);
 }
 
-static inline int fuse_set_signal_handlers(struct fuse_session *se)
+FSP_FUSE_SYM int fuse_set_signal_handlers(struct fuse_session *se)
 {
     return fsp_fuse_set_signal_handlers(se);
 }
 
-static inline void fuse_remove_signal_handlers(struct fuse_session *se)
+FSP_FUSE_SYM void fuse_remove_signal_handlers(struct fuse_session *se)
 {
     (void)se;
     fsp_fuse_set_signal_handlers(0);

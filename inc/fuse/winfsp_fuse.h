@@ -35,6 +35,10 @@ extern "C" {
 #define FSP_FUSE_API                    __declspec(dllimport)
 #endif
 
+#if !defined(FSP_FUSE_SYM)
+#define FSP_FUSE_SYM                    static inline
+#endif
+
 /*
  * FUSE uses a number of types (notably: struct stat) that are OS specific.
  * Furthermore there are sometimes multiple definitions of the same type even

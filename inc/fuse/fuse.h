@@ -120,74 +120,74 @@ FSP_FUSE_API void fsp_fuse_exit(struct fsp_fuse_env *env,
     struct fuse *f);
 FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env);
 
-static inline int fuse_main_real(int argc, char *argv[],
+FSP_FUSE_SYM int fuse_main_real(int argc, char *argv[],
     const struct fuse_operations *ops, size_t opsize, void *data)
 {
     return fsp_fuse_main_real(fsp_fuse_env(), argc, argv, ops, opsize, data);
 }
 
-static inline int fuse_is_lib_option(const char *opt)
+FSP_FUSE_SYM int fuse_is_lib_option(const char *opt)
 {
     return fsp_fuse_is_lib_option(fsp_fuse_env(), opt);
 }
 
-static inline struct fuse *fuse_new(struct fuse_chan *ch, struct fuse_args *args,
+FSP_FUSE_SYM struct fuse *fuse_new(struct fuse_chan *ch, struct fuse_args *args,
     const struct fuse_operations *ops, size_t opsize, void *data)
 {
     return fsp_fuse_new(fsp_fuse_env(), ch, args, ops, opsize, data);
 }
 
-static inline void fuse_destroy(struct fuse *f)
+FSP_FUSE_SYM void fuse_destroy(struct fuse *f)
 {
     fsp_fuse_destroy(fsp_fuse_env(), f);
 }
 
-static inline int fuse_loop(struct fuse *f)
+FSP_FUSE_SYM int fuse_loop(struct fuse *f)
 {
     return fsp_fuse_loop(fsp_fuse_env(), f);
 }
 
-static inline int fuse_loop_mt(struct fuse *f)
+FSP_FUSE_SYM int fuse_loop_mt(struct fuse *f)
 {
     return fsp_fuse_loop_mt(fsp_fuse_env(), f);
 }
 
-static inline void fuse_exit(struct fuse *f)
+FSP_FUSE_SYM void fuse_exit(struct fuse *f)
 {
     fsp_fuse_exit(fsp_fuse_env(), f);
 }
 
-static inline struct fuse_context *fuse_get_context(void)
+FSP_FUSE_SYM struct fuse_context *fuse_get_context(void)
 {
     return fsp_fuse_get_context(fsp_fuse_env());
 }
 
-static inline int fuse_getgroups(int size, fuse_gid_t list[])
+FSP_FUSE_SYM int fuse_getgroups(int size, fuse_gid_t list[])
 {
     (void)size;
     (void)list;
     return -ENOSYS;
 }
 
-static inline int fuse_interrupted(void)
+FSP_FUSE_SYM int fuse_interrupted(void)
 {
     return 0;
 }
 
-static inline int fuse_invalidate(struct fuse *f, const char *path)
+FSP_FUSE_SYM int fuse_invalidate(struct fuse *f, const char *path)
 {
     (void)f;
     (void)path;
     return -EINVAL;
 }
 
-static inline int fuse_notify_poll(struct fuse_pollhandle *ph)
+FSP_FUSE_SYM int fuse_notify_poll(struct fuse_pollhandle *ph)
 {
     (void)ph;
     return 0;
 }
 
-static inline struct fuse_session *fuse_get_session(struct fuse *f)
+FSP_FUSE_SYM struct fuse_session *fuse_get_session(struct fuse *f)
 {
     return (void *)f;
 }
