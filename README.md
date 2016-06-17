@@ -27,7 +27,7 @@ The project source code is organized as follows:
 * inc/winfsp: contains public headers for the WinFsp API.
 * inc/fuse: contains public headers for the FUSE compatibility layer.
 * src/dll: contains the source code to the WinFsp DLL.
-* src/dll/launcher: contains the source code to the launcher service and the launchctl utility.
+* src/launcher: contains the source code to the launcher service and the launchctl utility.
 * src/dll/fuse: contains the source code to the FUSE compatibility layer.
 * src/sys: contains the source code to the WinFsp FSD.
 * tst/memfs: contains the source code to an example file system written in C++ (memfs).
