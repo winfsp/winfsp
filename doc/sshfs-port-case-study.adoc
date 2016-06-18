@@ -136,3 +136,82 @@ The mappings provided are not perfect, but they come pretty close. They are also
 === WinFsp Implementation
 
 A WinFsp implementation of the above mappings can be found in the file `src/dll/posix.c`.
+
+== Step 4: Implementing FUSE Core
+
+We are now finally ready to implement the `fuse_operations`. This actually proves to be a straightforward mapping of the WinFSP `FSP_FILE_SYSTEM_INTERACE` to `fuse_operations`:
+
+GetVolumeInfo:: Mapped to `statfs`. Volume labels are not supported by FUSE (see below).
+
+SetVolumeLabel:: No equivalent on FUSE, so simply return `STATUS_INVALID_PARAMETER`. One thought is to map this call into a `setxattr("sys.VolumeLabel")` (or similar) call on the root directory (`/`).
+
+GetSecurityByName:: Mapped to `fgetattr`/`getattr`. The returned `stat` information is translated into a Windows security descriptor using `FspPosixMapPermissionsToSecurityDescriptor`.
+
+Create:: This is used to create a new file or directory. If a file is created this is mapped to `create` or `mknod`;`open`. If a directory is created this is mapped to `mkdir`;`opendir` calls (the reason is that on Windows a directory remains open after being created). In some circumstances a `chown` may be issued as well. After the file or directory has been created a `fgetattr`/`getattr` is issued to get `stat` information to return to the FSD.
+
+Open:: This is used to open a new file or directory. First a `fgetattr`/`getattr` is issued. If the file is not a directory it is followed by `open`. If the file is a directory it is followed by `opendir`.
+
+Overwrite:: This is used to overwrite a file when one of the `FILE_OVERWRITE`, `FILE_SUPERSEDE` or `FILE_OVERWRITE_IF` flags has been set. Mapped to `ftruncate`/`truncate`.
+
+Cleanup:: Mapped to `unlink` when deleting a file and `rmdir` when deleting a directory.
+
+Close:: Mapped to `flush`;`release` when closing a file and `releasedir` when closing a directory.
+
+Read:: Mapped to `read`.
+
+Write:: Mapped to `fgetattr`/`getattr` and `write`.
+
+Flush:: Mapped to `fsync` or `fsyncdir`.
+
+GetFileInfo:: Mapped to `fgetattr`/`getattr`.
+
+SetBasicInfo:: Mapped to `utimens`/`utime`.
+
+SetAllocationSize:: Mapped to `fgetattr`/`getattr` followed by `ftruncate`/`truncate`. Note that this call and `SetFileSize` may be consolidated soon in the WinFsp API.
+
+SetFileSize:: Mapped to `fgetattr`/`getattr` followed by `ftruncate`/`truncate`. Note that this call and `SetAllocationSize` may be consolidated soon in the WinFsp API.
+
+CanDelete:: For directories only: mapped to a `getdir`/`readdir` call to determine if they are empty and can therefore be deleted.
+
+Rename:: Mapped to `fgetattr`/`getattr` on the destination file name and `rename`.
+
+GetSecurity:: Mapped to `fgetattr`/`getattr`. The returned `stat` information is translated into a Windows security descriptor using `FspPosixMapPermissionsToSecurityDescriptor`.
+
+SetSecurity:: Mapped to `fgetattr`/`getattr` followed by `chmod` and/or `chown`.
+
+ReadDirectory:: Mapped to `getdir`/`readdir`. Note that because of how the Windows directory enumeration API's work there is a further `fgetattr`/`getattr` per file returned!
+
+=== Some Additional Challenges
+
+Let us now discuss a couple of final challenges in getting a proper FUSE port working under Cygwin: the implementation of `fuse_set_signal_handlers`/`fuse_remove_signal_handlers` and `fuse_daemonize`.
+
+Let us start with `fuse_set_signal_handlers`/`fuse_remove_signal_handlers`. Cygwin supports POSIX signals and we can simply set up signal handlers similar to what libfuse does. However this simple approach does not work within WinFsp, because it uses native API's that Cygwin cannot interrupt with its signal mechanism. For example, the `fuse_loop` FUSE call eventually results in a `WaitForSingleObject` API call that Cygwin cannot interrupt. Even trying with an alertable `WaitForSingleObjectEx` did not work as unfortunately Cygwin does not issue a `QueueUserAPC` when issuing a signal. So we need an alternative mechanism to support signals.
+
+The alternative is to use `sigwait` in a separate thread. `Fsp_fuse_signal_handler` is a WinFsp API that knows how to interrupt that `WaitForSingleObject` (actually it just signals the waited event).
+
+----
+static inline void *fsp_fuse_signal_thread(void *psigmask)
+{
+    int sig;
+
+    if (0 == sigwait(psigmask, &sig))
+        fsp_fuse_signal_handler(sig);
+
+    return 0;
+}
+----
+
+Let us now move to `fuse_daemonize`. This FUSE call allows a FUSE file system to become a (UNIX) daemon. This is achieved by using the POSIX fork call, which unfortunately has many limitations in Cygwin. One such limitation (and the one that bit us in WinFsp) is that it does not know how to clone Windows heaps (`HeapAlloc`/`HeapFree`).
+
+Recall that WinFsp uses its own memory allocator (just a thin wrapper around `HeapAlloc`/`HeapFree`). This means that any allocations made prior to the fork() call are doomed after a fork(); with good luck the pointers will point to invalid memory and one will get an Access Violation; with bad luck the pointers will point to valid memory that contains bad data and the program may stumble for a while, just enough to hide the actual cause of the problem.
+
+Luckily there is a rather straightforward work-around: "do not allocate any non-Cygwin resources prior to fork". This is actually possible within WinFsp, because we are already capturing the Cygwin environment and its `malloc`/`free` (see `fsp_fuse_env` in "Step 2"). It is also possible, because the typical FUSE program structure looks like this:
+
+----
+fuse_new
+fuse_daemonize          // do not allocate any non-Cygwin resources prior to this
+fuse_loop/fuse_loop_mt  // safe to allocate non-Cygwin resources
+fuse_destroy
+----
+
+With this change `fuse_daemonize` works and allows me to declare the Cygwin portion of the SSHFS port complete!
