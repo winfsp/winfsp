@@ -1,4 +1,4 @@
-Version = $(shell cat version)
+Version = $(shell sed -n '/^VERSION=/s/VERSION=\(.*\)/\1/p' fuse.cygport)
 #Debug = -g
 
 cygfuse-$(Version).dll libfuse-$(Version).dll.a fuse.pc: cygfuse.cpp fuse.pc.in
