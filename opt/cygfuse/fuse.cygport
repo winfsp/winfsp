@@ -1,0 +1,36 @@
+NAME="fuse"
+VERSION="$(cat version)"
+RELEASE=1
+CATEGORY="Utils"
+SUMMARY="WinFsp-FUSE compatibility layer"
+DESCRIPTION="WinFsp-FUSE enables FUSE file systems to be run on Cygwin."
+HOMEPAGE="http://www.secfs.net/winfsp/"
+
+SRC_URI="https://github.com/billziss-gh/winfsp/archive/master.tar.gz"
+SRC_DIR=winfsp-master
+
+src_compile()
+{
+    lndirs
+    cd ${B}/opt/cygfuse
+    make
+}
+
+src_install()
+{
+    cd ${B}/inc/fuse
+    includeinto fuse
+    doinclude fuse.h
+    doinclude fuse_common.h
+    doinclude fuse_opt.h
+    doinclude winfsp_fuse.h
+
+    cd ${B}/opt/cygfuse
+    dobin cygfuse-${VERSION}.dll
+    dolib libfuse-${VERSION}.a
+
+    insinto /usr/lib/pkgconfig
+    doins fuse.pc
+}
+
+RESTRICT=postinst-doc
