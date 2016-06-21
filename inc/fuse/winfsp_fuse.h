@@ -29,14 +29,28 @@
 extern "C" {
 #endif
 
+#if !defined(FSP_FUSE_API)
 #if defined(WINFSP_DLL_INTERNAL)
 #define FSP_FUSE_API                    __declspec(dllexport)
 #else
 #define FSP_FUSE_API                    __declspec(dllimport)
 #endif
+#endif
+
+#if !defined(FSP_FUSE_API_NAME)
+#define FSP_FUSE_API_NAME(n)            (n)
+#endif
+
+#if !defined(FSP_FUSE_API_CALL)
+#define FSP_FUSE_API_CALL(n)            (n)
+#endif
 
 #if !defined(FSP_FUSE_SYM)
-#define FSP_FUSE_SYM                    static inline
+#if !defined(CYGFUSE)
+#define FSP_FUSE_SYM(proto, ...)        static inline proto { __VA_ARGS__ }
+#else
+#define FSP_FUSE_SYM(proto, ...)        proto;
+#endif
 #endif
 
 /*
@@ -232,7 +246,7 @@ struct fsp_fuse_env
     int (*set_signal_handlers)(void *);
 };
 
-FSP_FUSE_API void fsp_fuse_signal_handler(int sig);
+FSP_FUSE_API void FSP_FUSE_API_NAME(fsp_fuse_signal_handler)(int sig);
 
 #if defined(_WIN64) || defined(_WIN32)
 
@@ -270,8 +284,8 @@ static inline void *fsp_fuse_signal_thread(void *psigmask)
 {
     int sig;
 
-    if (0 == sigwait(psigmask, &sig))
-        fsp_fuse_signal_handler(sig);
+    if (0 == sigwait((sigset_t *)psigmask, &sig))
+        FSP_FUSE_API_CALL(fsp_fuse_signal_handler)(sig);
 
     return 0;
 }

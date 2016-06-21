@@ -1,0 +1,9 @@
+prefix=/usr/local
+incdir=${prefix}/include/fuse
+
+Name: fuse
+Description: WinFsp FUSE compatible API
+Version: 2.8
+URL: http://www.secfs.net/winfsp/
+Libs: -lfuse
+Cflags: -I"${incdir}" -DCYGFUSE
