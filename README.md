@@ -20,18 +20,19 @@ WinFsp consists of a kernel mode FSD (File System Driver) and a user mode DLL (D
 
 The project source code is organized as follows:
 
-* build/VStudio: contains the WinFsp solution and project files.
-* doc: contains the WinFsp license, contributor agreement and additional documentation. The WinFsp design document can be found here.
-* ext/tlib: contains a small test library originally from the secfs (Secure Cloud File System) project.
-* ext/test: submodule pointing to the secfs.test project, which contains a number of tools for testing Windows and POSIX file systems.
-* inc/winfsp: contains public headers for the WinFsp API.
-* inc/fuse: contains public headers for the FUSE compatibility layer.
-* src/dll: contains the source code to the WinFsp DLL.
-* src/dll/fuse: contains the source code to the FUSE compatibility layer.
-* src/launcher: contains the source code to the launcher service and the launchctl utility.
-* src/sys: contains the source code to the WinFsp FSD.
-* tst/memfs: contains the source code to an example file system written in C++ (memfs).
-* tst/winfsp-tests: contains the WinFsp test suite.
+* build/VStudio: WinFsp solution and project files.
+* doc: WinFsp license, contributor agreement and additional documentation. The WinFsp design documents can be found here.
+* ext/tlib: A small test library originally from the secfs (Secure Cloud File System) project.
+* ext/test: Submodule pointing to the secfs.test project, which contains a number of tools for testing Windows and POSIX file systems.
+* inc/winfsp: Public headers for the WinFsp API.
+* inc/fuse: Public headers for the FUSE compatibility layer.
+* src/dll: Source code to the WinFsp DLL.
+* src/dll/fuse: Source code to the FUSE compatibility layer.
+* src/launcher: Source code to the launcher service and the launchctl utility.
+* src/sys: Source code to the WinFsp FSD.
+* opt/cygfuse: Source code for the Cygwin FUSE package.
+* tst/memfs: Source code to an example file system written in C++ (memfs).
+* tst/winfsp-tests: WinFsp test suite.
 
 ## Building
 
