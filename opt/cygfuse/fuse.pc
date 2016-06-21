@@ -1,4 +1,4 @@
-prefix=/usr/local
+prefix=/usr
 incdir=${prefix}/include/fuse
 
 Name: fuse
