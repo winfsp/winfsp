@@ -16,6 +16,8 @@
  */
 
 #include <windows.h>
+#undef _WIN32
+#undef _WIN64
 
 static HANDLE cygfuse_init_winfsp();
 static HANDLE cygfuse_init_fail(int err);
