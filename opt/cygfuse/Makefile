@@ -1,8 +1,8 @@
 Version = $(shell sed -n '/^VERSION=/s/VERSION=\(.*\)/\1/p' fuse.cygport)
 #Debug = -g
 
-cygfuse-$(Version).dll libfuse-$(Version).dll.a fuse.pc: cygfuse.cpp fuse.pc.in
-	g++ $(Debug) -shared -o cygfuse-$(Version).dll -Wl,--out-implib=libfuse-$(Version).dll.a -I../../inc/fuse cygfuse.cpp
+cygfuse-$(Version).dll libfuse-$(Version).dll.a fuse.pc: cygfuse.c fuse.pc.in
+	gcc $(Debug) -shared -o cygfuse-$(Version).dll -Wl,--out-implib=libfuse-$(Version).dll.a -I../../inc/fuse cygfuse.c
 	[ -n "$(Debug)" ] || strip cygfuse-$(Version).dll
 	sed "s/@Version@/$(Version)/g" fuse.pc.in > fuse.pc
 
