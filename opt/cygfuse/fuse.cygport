@@ -28,9 +28,7 @@ src_install()
     cd ${B}/opt/cygfuse
     dobin cygfuse-${VERSION}.dll
     dolib libfuse-${VERSION}.dll.a
-
-    insinto /usr/lib/pkgconfig
-    doins fuse.pc
+    dopkgconfig fuse.pc
 }
 
 RESTRICT="strip postinst-doc"
