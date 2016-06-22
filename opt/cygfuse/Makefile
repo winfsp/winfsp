@@ -8,3 +8,13 @@ cygfuse-$(Version).dll libfuse-$(Version).dll.a fuse.pc: cygfuse.cpp fuse.pc.in
 
 cygfuse-test.exe: cygfuse-test.c cygfuse-$(Version).dll libfuse-$(Version).dll.a
 	gcc $(Debug) -o cygfuse-test.exe -I../../inc/fuse -DCYGFUSE cygfuse-test.c -L$(PWD) -lfuse-$(Version)
+
+cygport:
+	git clean -dfx
+	(\
+		cd `git rev-parse --show-toplevel` &&\
+		Stash=`git stash create` &&\
+		git archive --prefix=winfsp-work/ --format=tar.gz $${Stash:-HEAD}\
+			> opt/cygfuse/winfsp-work.tar.gz\
+	)
+	CYGPORT_SRC_URI=winfsp-work.tar.gz CYGPORT_SRC_DIR=winfsp-work cygport fuse.cygport download prep compile install package
