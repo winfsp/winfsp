@@ -576,7 +576,21 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
         PWSTR Pattern,
         PULONG PBytesTransferred);
+
+    /*
+     * This ensures that this interface will always contain 64 function pointers.
+     * Please update when changing the interface as it is important for future compatibility.
+     */
+    NTSTATUS (*Reserved[44])();
 } FSP_FILE_SYSTEM_INTERFACE;
+#if defined(WINFSP_DLL_INTERNAL)
+/*
+ * Static_assert is a C++11 feature, but seems to work with C on MSVC 2015.
+ * Use it to verify that FSP_FILE_SYSTEM_INTERFACE has the right size.
+ */
+static_assert(sizeof(FSP_FILE_SYSTEM_INTERFACE) == 64 * sizeof(NTSTATUS (*)()),
+    "FSP_FILE_SYSTEM_INTERFACE must have 64 entries.");
+#endif
 typedef enum
 {
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE = 0,
