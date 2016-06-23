@@ -595,7 +595,7 @@ typedef struct _FSP_FILE_SYSTEM
     ULONG DispatcherThreadCount;
     NTSTATUS DispatcherResult;
     PWSTR MountPoint;
-    LIST_ENTRY MountEntry;
+    HANDLE MountHandle;
     UINT32 DebugLog;
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     SRWLOCK OpGuardLock;

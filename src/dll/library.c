@@ -42,7 +42,6 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
         Dynamic = 0 == Reserved;
         fsp_fuse_finalize(Dynamic);
         FspServiceFinalize(Dynamic);
-        FspFileSystemFinalize(Dynamic);
         FspEventLogFinalize(Dynamic);
         FspPosixFinalize(Dynamic);
         break;

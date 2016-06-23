@@ -25,60 +25,34 @@ enum
 static FSP_FILE_SYSTEM_INTERFACE FspFileSystemNullInterface;
 
 static INIT_ONCE FspFileSystemInitOnce = INIT_ONCE_STATIC_INIT;
-static BOOLEAN FspFileSystemInitialized;
-static CRITICAL_SECTION FspFileSystemMountListGuard;
-static LIST_ENTRY FspFileSystemMountList = { &FspFileSystemMountList, &FspFileSystemMountList };
+static NTSTATUS (NTAPI *FspNtOpenSymbolicLinkObject)(
+    PHANDLE LinkHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
+static NTSTATUS (NTAPI *FspNtMakeTemporaryObject)(
+    HANDLE Handle);
+static NTSTATUS (NTAPI *FspNtClose)(
+    HANDLE Handle);
 
 static BOOL WINAPI FspFileSystemInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
-    InitializeCriticalSection(&FspFileSystemMountListGuard);
-    return FspFileSystemInitialized = TRUE;
-}
+    HANDLE Handle;
 
-VOID FspFileSystemFinalize(BOOLEAN Dynamic)
-{
-    /*
-     * This function is called during DLL_PROCESS_DETACH. We must therefore keep
-     * finalization tasks to a minimum.
-     *
-     * We enter our FspFileSystemMountListGuard critical section here and then attempt to cleanup
-     * our mount points using DefineDosDeviceW. On Vista and later orphaned critical sections
-     * become "electrified", so our process will be forcefully terminated if one of its threads
-     * was already modifying the list when the ExitProcess happened. This is a good thing!
-     *
-     * The use of DefineDosDeviceW is rather suspect and probably unsafe. DefineDosDeviceW reaches
-     * out to CSRSS, which is probably not the safest thing to do when in DllMain! There is also
-     * some evidence that it may attempt to load DLL's under some circumstances, which is a
-     * definite no-no as we are under the loader lock!
-     *
-     * We only delete the criticaly section when being dynamically unloaded. On process exit the
-     * OS will clean it up for us.
-     */
-
-    if (!FspFileSystemInitialized)
-        return;
-
-    FSP_FILE_SYSTEM *FileSystem;
-    PLIST_ENTRY MountEntry;
-
-    EnterCriticalSection(&FspFileSystemMountListGuard);
-
-    for (MountEntry = FspFileSystemMountList.Flink;
-        &FspFileSystemMountList != MountEntry;
-        MountEntry = MountEntry->Flink)
+    Handle = GetModuleHandleW(L"ntdll.dll");
+    if (0 != Handle)
     {
-        FileSystem = CONTAINING_RECORD(MountEntry, FSP_FILE_SYSTEM, MountEntry);
+        FspNtOpenSymbolicLinkObject = (PVOID)GetProcAddress(Handle, "NtOpenSymbolicLinkObject");
+        FspNtMakeTemporaryObject = (PVOID)GetProcAddress(Handle, "NtMakeTemporaryObject");
+        FspNtClose = (PVOID)GetProcAddress(Handle, "NtClose");
 
-        DefineDosDeviceW(
-            DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
-            FileSystem->MountPoint, FileSystem->VolumeName);
+        if (0 == FspNtOpenSymbolicLinkObject || 0 == FspNtMakeTemporaryObject || 0 == FspNtClose)
+        {
+            FspNtOpenSymbolicLinkObject = 0;
+            FspNtMakeTemporaryObject = 0;
+            FspNtClose = 0;
+        }
     }
 
-    LeaveCriticalSection(&FspFileSystemMountListGuard);
-
-    if (Dynamic)
-        DeleteCriticalSection(&FspFileSystemMountListGuard);
+    return TRUE;
 }
 
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
@@ -95,8 +69,6 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
         Interface = &FspFileSystemNullInterface;
 
     InitOnceExecuteOnce(&FspFileSystemInitOnce, FspFileSystemInitialize, 0, 0);
-    if (!FspFileSystemInitialized)
-        return STATUS_INSUFFICIENT_RESOURCES;
 
     FileSystem = MemAlloc(sizeof *FileSystem);
     if (0 == FileSystem)
@@ -151,6 +123,7 @@ FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR M
         return STATUS_INVALID_PARAMETER;
 
     NTSTATUS Result;
+    HANDLE MountHandle = 0;
 
     if (0 == MountPoint)
     {
@@ -203,13 +176,41 @@ FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR M
     }
 
 exit:
+    if (NT_SUCCESS(Result) && 0 != FspNtOpenSymbolicLinkObject)
+    {
+        WCHAR SymlinkBuf[6];
+        UNICODE_STRING Symlink;
+        OBJECT_ATTRIBUTES Obja;
+
+        memcpy(SymlinkBuf, L"\\??\\X:", sizeof SymlinkBuf);
+        SymlinkBuf[4] = MountPoint[0];
+        Symlink.Length = Symlink.MaximumLength = sizeof SymlinkBuf;
+        Symlink.Buffer = SymlinkBuf;
+
+        memset(&Obja, 0, sizeof Obja);
+        Obja.Length = sizeof Obja;
+        Obja.ObjectName = &Symlink;
+        Obja.Attributes = OBJ_CASE_INSENSITIVE;
+
+        Result = FspNtOpenSymbolicLinkObject(&MountHandle, DELETE, &Obja);
+        if (NT_SUCCESS(Result))
+        {
+            Result = FspNtMakeTemporaryObject(MountHandle);
+            if (!NT_SUCCESS(Result))
+            {
+                FspNtClose(MountHandle);
+                MountHandle = 0;
+            }
+        }
+
+        /* this path always considered successful regardless if we made symlink temporary */
+        Result = STATUS_SUCCESS;
+    }
+
     if (NT_SUCCESS(Result))
     {
         FileSystem->MountPoint = MountPoint;
-
-        EnterCriticalSection(&FspFileSystemMountListGuard);
-        InsertTailList(&FspFileSystemMountList, &FileSystem->MountEntry);
-        LeaveCriticalSection(&FspFileSystemMountListGuard);
+        FileSystem->MountHandle = MountHandle;
     }
     else
         MemFree(MountPoint);
@@ -222,15 +223,16 @@ FSP_API VOID FspFileSystemRemoveMountPoint(FSP_FILE_SYSTEM *FileSystem)
     if (0 == FileSystem->MountPoint)
         return;
 
-    EnterCriticalSection(&FspFileSystemMountListGuard);
-    RemoveEntryList(&FileSystem->MountEntry);
-    LeaveCriticalSection(&FspFileSystemMountListGuard);
-
     DefineDosDeviceW(DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
         FileSystem->MountPoint, FileSystem->VolumeName);
-
     MemFree(FileSystem->MountPoint);
     FileSystem->MountPoint = 0;
+
+    if (0 != FileSystem->MountHandle)
+    {
+        FspNtClose(FileSystem->MountHandle);
+        FileSystem->MountHandle = 0;
+    }
 }
 
 static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
