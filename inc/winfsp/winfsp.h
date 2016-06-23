@@ -402,41 +402,35 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
-     * Set file allocation size.
+     * Set file/allocation size.
+     *
+     * This function is used to change a file's sizes. Windows file systems maintain two kinds
+     * of sizes: the file size is where the End Of File (EOF) is, and the allocation size is the
+     * actual size that a file takes up on the "disk".
+     *
+     * The rules regarding file/allocation size are:
+     * <ul>
+     * <li>Allocation size must always be aligned to the allocation unit boundary. The allocation
+     * unit is the product <code>(UINT64)SectorSize * (UINT64)SectorsPerAllocationUnit</code> from
+     * the FSP_FSCTL_VOLUME_PARAMS structure. The FSD will always send properly aligned allocation
+     * sizes when setting the allocation size.</li>
+     * <li>Allocation size is always greater or equal to the file size.</li>
+     * <li>A file size of more than the current allocation size will also extend the allocation
+     * size to the next allocation unit boundary.</li>
+     * <li>An allocation size of less than the current file size should also truncate the current
+     * file size.</li>
+     * </ul>
      *
      * @param FileSystem
      *     The file system on which this request is posted.
      * @param Request
      *     The request posted by the kernel mode FSD.
      * @param FileNode
-     *     The file node of the file to set the allocation size for.
-     * @param AllocationSize
-     *     Allocation size to apply to the file. Allocation size is always greater than file size.
-     *     An allocation size of less than the current file size should also truncate the current
-     *     file size.
-     * @param FileInfo [out]
-     *     Pointer to a structure that will receive the file information on successful return
-     *     from this call. This information includes file attributes, file times, etc.
-     * @return
-     *     STATUS_SUCCESS on error code.
-     */
-    NTSTATUS (*SetAllocationSize)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
-        PVOID FileNode, UINT64 AllocationSize,
-        FSP_FSCTL_FILE_INFO *FileInfo);
-    /**
-     * Set file size.
-     *
-     * @param FileSystem
-     *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
-     * @param FileNode
-     *     The file node of the file to set the size for.
-     * @param FileSize
-     *     FileSize size to apply to the file. Allocation size is always greater than file size.
-     *     A file size of more than the current allocation size will also extend the allocation
-     *     size to the next allocation unit boundary.
+     *     The file node of the file to set the file/allocation size for.
+     * @param NewSize
+     *     New file/allocation size to apply to the file.
+     * @param SetAllocationSize
+     *     If TRUE, then the allocation size is being set. if FALSE, then the file size is being set.
      * @param FileInfo [out]
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
@@ -445,7 +439,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      */
     NTSTATUS (*SetFileSize)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
-        PVOID FileNode, UINT64 FileSize,
+        PVOID FileNode, UINT64 NewSize, BOOLEAN SetAllocationSize,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Determine whether a file or directory can be deleted.
@@ -453,6 +447,12 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * This function tests whether a file or directory can be safely deleted. This function does
      * not need to perform access checks, but may performs tasks such as check for empty
      * directories, etc.
+     *
+     * This function should <b>NEVER</b> delete the file or directory in question. Deletion should
+     * happen during Cleanup with Delete==TRUE.
+     *
+     * This function gets called when Win32 API's such as DeleteFile or RemoveDirectory are used.
+     * It does not get called when a file or directory is opened with FILE_DELETE_ON_CLOSE.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
@@ -581,7 +581,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * This ensures that this interface will always contain 64 function pointers.
      * Please update when changing the interface as it is important for future compatibility.
      */
-    NTSTATUS (*Reserved[44])();
+    NTSTATUS (*Reserved[45])();
 } FSP_FILE_SYSTEM_INTERFACE;
 #if defined(WINFSP_DLL_INTERNAL)
 /*

@@ -935,9 +935,9 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS fsp_fuse_intf_SetFileSizeCommon(FSP_FILE_SYSTEM *FileSystem,
+static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
-    PVOID FileNode, UINT64 NewFileSize, BOOLEAN OnlyIfTruncate,
+    PVOID FileNode, UINT64 NewSize, BOOLEAN SetAllocationSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
@@ -962,21 +962,21 @@ static NTSTATUS fsp_fuse_intf_SetFileSizeCommon(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return Result;
 
-    if (!OnlyIfTruncate || FileInfoBuf.FileSize > NewFileSize)
+    if (!SetAllocationSize || FileInfoBuf.FileSize > NewSize)
     {
         /*
-         * OnlyIfTruncate explanation:
+         * "FileInfoBuf.FileSize > NewSize" explanation:
          * FUSE 2.8 does not support allocation size. However if the new AllocationSize
          * is less than the current FileSize we must truncate the file.
          */
         if (0 != f->ops.ftruncate)
         {
-            err = f->ops.ftruncate(filedesc->PosixPath, NewFileSize, &fi);
+            err = f->ops.ftruncate(filedesc->PosixPath, NewSize, &fi);
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
         else
         {
-            err = f->ops.truncate(filedesc->PosixPath, NewFileSize);
+            err = f->ops.truncate(filedesc->PosixPath, NewSize);
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
         if (!NT_SUCCESS(Result))
@@ -984,7 +984,7 @@ static NTSTATUS fsp_fuse_intf_SetFileSizeCommon(FSP_FILE_SYSTEM *FileSystem,
 
         AllocationUnit = (UINT64)f->VolumeParams.SectorSize *
             (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
-        FileInfoBuf.FileSize = NewFileSize;
+        FileInfoBuf.FileSize = NewSize;
         FileInfoBuf.AllocationSize =
             (FileInfoBuf.FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
     }
@@ -992,24 +992,6 @@ static NTSTATUS fsp_fuse_intf_SetFileSizeCommon(FSP_FILE_SYSTEM *FileSystem,
     memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
 
     return STATUS_SUCCESS;
-}
-
-static NTSTATUS fsp_fuse_intf_SetAllocationSize(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    PVOID FileNode, UINT64 AllocationSize,
-    FSP_FSCTL_FILE_INFO *FileInfo)
-{
-    return fsp_fuse_intf_SetFileSizeCommon(FileSystem, Request, FileNode, AllocationSize, TRUE,
-        FileInfo);
-}
-
-static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    PVOID FileNode, UINT64 FileSize,
-    FSP_FSCTL_FILE_INFO *FileInfo)
-{
-    return fsp_fuse_intf_SetFileSizeCommon(FileSystem, Request, FileNode, FileSize, FALSE,
-        FileInfo);
 }
 
 static int fsp_fuse_intf_CanDeleteAddDirInfo(void *buf, const char *name,
@@ -1448,7 +1430,6 @@ FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
     fsp_fuse_intf_Flush,
     fsp_fuse_intf_GetFileInfo,
     fsp_fuse_intf_SetBasicInfo,
-    fsp_fuse_intf_SetAllocationSize,
     fsp_fuse_intf_SetFileSize,
     fsp_fuse_intf_CanDelete,
     fsp_fuse_intf_Rename,

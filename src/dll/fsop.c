@@ -690,32 +690,17 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
                 &FileInfo);
         break;
     case 19/*FileAllocationInformation*/:
-        if (0 != FileSystem->Interface->SetAllocationSize)
-            Result = FileSystem->Interface->SetAllocationSize(FileSystem, Request,
+        if (0 != FileSystem->Interface->SetFileSize)
+            Result = FileSystem->Interface->SetFileSize(FileSystem, Request,
                 (PVOID)Request->Req.SetInformation.UserContext,
-                Request->Req.SetInformation.Info.Allocation.AllocationSize,
+                Request->Req.SetInformation.Info.Allocation.AllocationSize, TRUE,
                 &FileInfo);
-        else
-        if (0 != FileSystem->Interface->GetFileInfo &&
-            0 != FileSystem->Interface->SetFileSize)
-        {
-            Result = FileSystem->Interface->GetFileInfo(FileSystem, Request,
-                (PVOID)Request->Req.SetInformation.UserContext, &FileInfo);
-            if (NT_SUCCESS(Result) &&
-                Request->Req.SetInformation.Info.Allocation.AllocationSize < FileInfo.FileSize)
-            {
-                Result = FileSystem->Interface->SetFileSize(FileSystem, Request,
-                    (PVOID)Request->Req.SetInformation.UserContext,
-                    Request->Req.SetInformation.Info.Allocation.AllocationSize,
-                    &FileInfo);
-            }
-        }
         break;
     case 20/*FileEndOfFileInformation*/:
         if (0 != FileSystem->Interface->SetFileSize)
             Result = FileSystem->Interface->SetFileSize(FileSystem, Request,
                 (PVOID)Request->Req.SetInformation.UserContext,
-                Request->Req.SetInformation.Info.EndOfFile.FileSize,
+                Request->Req.SetInformation.Info.EndOfFile.FileSize, FALSE,
                 &FileInfo);
         break;
     case 13/*FileDispositionInformation*/:
