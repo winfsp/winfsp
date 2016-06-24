@@ -325,7 +325,7 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
          */
         *PUid = 0x60000 + Rid;
     }
-    else
+    else if (0 != Authority)
     {
         /* [IDMAP]
          * Other well-known SIDs:
