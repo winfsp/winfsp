@@ -36,7 +36,22 @@
 static PISID FspPosixCreateSid(BYTE Authority, ULONG Count, ...);
 
 static INIT_ONCE FspPosixInitOnce = INIT_ONCE_STATIC_INIT;
+union
+{
+    SID V;
+    UINT8 B[sizeof(SID) - sizeof(DWORD) + (1 * sizeof(DWORD))];
+} FspNullSidBuf =
+{
+    /* S-1-0-0 */
+    .V.Revision = SID_REVISION,
+    .V.SubAuthorityCount = 1,
+    .V.IdentifierAuthority.Value[5] = 0,
+    .V.SubAuthority[0] = 0,
+};
 static PISID FspAccountDomainSid, FspPrimaryDomainSid;
+
+#define FspNullSid                      (&FspNullSidBuf.V)
+#define FspNullUid                      -1
 
 static BOOL WINAPI FspPosixInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
@@ -104,6 +119,8 @@ VOID FspPosixFinalize(BOOLEAN Dynamic)
 
 FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
 {
+    InitOnceExecuteOnce(&FspPosixInitOnce, FspPosixInitialize, 0, 0);
+
     *PSid = 0;
 
     /*
@@ -157,8 +174,6 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
      */
     else if (0x30000 <= Uid && Uid < 0x40000)
     {
-        InitOnceExecuteOnce(&FspPosixInitOnce, FspPosixInitialize, 0, 0);
-
         if (0 != FspAccountDomainSid &&
             5 == FspAccountDomainSid->IdentifierAuthority.Value[5] &&
             4 == FspAccountDomainSid->SubAuthorityCount)
@@ -173,8 +188,6 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
     }
     else if (0x100000 <= Uid && Uid < 0x200000)
     {
-        InitOnceExecuteOnce(&FspPosixInitOnce, FspPosixInitialize, 0, 0);
-
         if (0 != FspPrimaryDomainSid &&
             5 == FspPrimaryDomainSid->IdentifierAuthority.Value[5] &&
             4 == FspPrimaryDomainSid->SubAuthorityCount)
@@ -214,13 +227,15 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
         *PSid = FspPosixCreateSid(5, 2, Uid >> 12, Uid & 0xfff);
 
     if (0 == *PSid)
-        return STATUS_NONE_MAPPED;
+        *PSid = FspNullSid;
 
     return STATUS_SUCCESS;
 }
 
 FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
 {
+    InitOnceExecuteOnce(&FspPosixInitOnce, FspPosixInitialize, 0, 0);
+
     BYTE Authority;
     BYTE Count;
     UINT32 SubAuthority0, Rid;
@@ -274,8 +289,6 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
          */
         else if (5 <= Count && 21 == SubAuthority0)
         {
-            InitOnceExecuteOnce(&FspPosixInitOnce, FspPosixInitialize, 0, 0);
-
             /*
              * The order is important! A server that is also a domain controller
              * has PrimaryDomainSid == AccountDomainSid.
@@ -322,7 +335,7 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
     }
 
     if (-1 == *PUid)
-        return STATUS_NONE_MAPPED;
+        *PUid = FspNullUid;
 
     return STATUS_SUCCESS;
 }
@@ -351,7 +364,9 @@ static PISID FspPosixCreateSid(BYTE Authority, ULONG Count, ...)
 
 FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)())
 {
-    if ((NTSTATUS (*)())FspPosixMapUidToSid == CreateFunc)
+    if (FspNullSid == Sid)
+        ;
+    else if ((NTSTATUS (*)())FspPosixMapUidToSid == CreateFunc)
         MemFree(Sid);
 }
 
