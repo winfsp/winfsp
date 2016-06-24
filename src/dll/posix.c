@@ -40,18 +40,18 @@ union
 {
     SID V;
     UINT8 B[sizeof(SID) - sizeof(DWORD) + (1 * sizeof(DWORD))];
-} FspNullSidBuf =
+} FspUnmappedSidBuf =
 {
-    /* S-1-0-0 */
+    /* S-1-5-7 (Anonymous) */
     .V.Revision = SID_REVISION,
     .V.SubAuthorityCount = 1,
-    .V.IdentifierAuthority.Value[5] = 0,
-    .V.SubAuthority[0] = 0,
+    .V.IdentifierAuthority.Value[5] = 5,
+    .V.SubAuthority[0] = 7,
 };
 static PISID FspAccountDomainSid, FspPrimaryDomainSid;
 
-#define FspNullSid                      (&FspNullSidBuf.V)
-#define FspNullUid                      -1
+#define FspUnmappedSid                  (&FspUnmappedSidBuf.V)
+#define FspUnmappedUid                  (7)
 
 static BOOL WINAPI FspPosixInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
@@ -227,7 +227,7 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
         *PSid = FspPosixCreateSid(5, 2, Uid >> 12, Uid & 0xfff);
 
     if (0 == *PSid)
-        *PSid = FspNullSid;
+        *PSid = FspUnmappedSid;
 
     return STATUS_SUCCESS;
 }
@@ -325,7 +325,7 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
          */
         *PUid = 0x60000 + Rid;
     }
-    else if (0 != Authority)
+    else
     {
         /* [IDMAP]
          * Other well-known SIDs:
@@ -335,7 +335,7 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
     }
 
     if (-1 == *PUid)
-        *PUid = FspNullUid;
+        *PUid = FspUnmappedUid;
 
     return STATUS_SUCCESS;
 }
@@ -364,7 +364,7 @@ static PISID FspPosixCreateSid(BYTE Authority, ULONG Count, ...)
 
 FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)())
 {
-    if (FspNullSid == Sid)
+    if (FspUnmappedSid == Sid)
         ;
     else if ((NTSTATUS (*)())FspPosixMapUidToSid == CreateFunc)
         MemFree(Sid);
