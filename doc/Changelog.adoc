@@ -1,0 +1,15 @@
+= Changelog
+
+v0.13::
+
+This release includes a Cygwin package, an API change and some other minor changes:
+
+- New Cygwin package includes `cygfuse-2.8.dll` and `libfuse-2.8.dll.a` for easy use in the Cygwin environment. This is currently offered as a separate download.
+- Minor but breaking API change: `SetFileSize`/`SetAllocationSize` have been consolidated. Please refer to the documentation for a description of the changes.
+- File system drive symbolic links (`DefineDosDeviceW`) now automatically cleaned up even if user mode file system crashes or is terminated forcefully.
+- WinFsp-FUSE now maps unmapped UID's to the Anonymous SID (S-1-5-7). See: https://cygwin.com/ml/cygwin/2016-06/msg00359.html
+
+
+v0.12::
+
+Prior changes are not recorded in this Changelog.
