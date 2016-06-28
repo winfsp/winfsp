@@ -225,6 +225,13 @@ static WCHAR FspNpGetDriveLetter(PDWORD PLogicalDrives, PWSTR VolumeName)
     return 0;
 }
 
+static DWORD FspNpGetCredentials(HWND hwndOwner,
+    PWSTR UserName, ULONG UserNameSize,
+    PWSTR Password, ULONG PasswordSize)
+{
+    return WN_ACCESS_DENIED;
+}
+
 DWORD APIENTRY NPGetConnection(
     LPWSTR lpLocalName, LPWSTR lpRemoteName, LPDWORD lpnBufferLen)
 {
@@ -303,12 +310,6 @@ DWORD APIENTRY NPGetConnection(
 }
 
 DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, LPWSTR lpUserName)
-{
-    return NPAddConnection3(0, lpNetResource, lpPassword, lpUserName, 0);
-}
-
-DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
-    LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, LPWSTR lpUserName, DWORD dwFlags)
 {
     DWORD NpResult;
     DWORD dwType = lpNetResource->dwType;
@@ -394,6 +395,41 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
     }
 
     MemFree(PipeBuf);
+
+    return NpResult;
+}
+
+DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
+    LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, LPWSTR lpUserName, DWORD dwFlags)
+{
+    DWORD NpResult;
+    WCHAR UserName[256], Password[256];
+
+    /* CONNECT_PROMPT is only valid if CONNECT_INTERACTIVE is also set */
+    if (CONNECT_PROMPT == (dwFlags & (CONNECT_INTERACTIVE | CONNECT_PROMPT)))
+        return WN_BAD_VALUE;
+
+    /* if not CONNECT_PROMPT go ahead and attempt to NPAddConnection once */
+    if (0 == (dwFlags & CONNECT_PROMPT))
+    {
+        NpResult = NPAddConnection(lpNetResource, lpPassword, lpUserName);
+        if (WN_ACCESS_DENIED != NpResult || 0 == (dwFlags & CONNECT_INTERACTIVE))
+            return WN_ACCESS_DENIED;
+    }
+
+    /* if CONNECT_INTERACTIVE keep asking the user for valid credentials or cancel */
+    UserName[0] = Password[0] = L'\0';
+    while (WN_ACCESS_DENIED == NpResult)
+    {
+        NpResult = FspNpGetCredentials(hwndOwner,
+            UserName, sizeof UserName, Password, sizeof Password);
+        if (0 != NpResult)
+            break;
+
+        NpResult = NPAddConnection(lpNetResource, Password, UserName);
+    }
+
+    SecureZeroMemory(Password, sizeof Password);
 
     return NpResult;
 }
