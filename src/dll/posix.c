@@ -42,16 +42,16 @@ union
     UINT8 B[sizeof(SID) - sizeof(DWORD) + (1 * sizeof(DWORD))];
 } FspUnmappedSidBuf =
 {
-    /* S-1-5-7 (Anonymous) */
+    /* S-1-0-65534 */
     .V.Revision = SID_REVISION,
     .V.SubAuthorityCount = 1,
-    .V.IdentifierAuthority.Value[5] = 5,
-    .V.SubAuthority[0] = 7,
+    .V.IdentifierAuthority.Value[5] = 0,
+    .V.SubAuthority[0] = 65534,
 };
 static PISID FspAccountDomainSid, FspPrimaryDomainSid;
 
 #define FspUnmappedSid                  (&FspUnmappedSidBuf.V)
-#define FspUnmappedUid                  (7)
+#define FspUnmappedUid                  (65534)
 
 static BOOL WINAPI FspPosixInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
@@ -223,7 +223,7 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
      * Other well-known SIDs in the NT_AUTHORITY domain (S-1-5-X-RID):
      *     S-1-5-X-RID                         <=> uid/gid: 0x1000 * X + RID
      */
-    else if (0x1000 <= Uid && Uid < 0x100000)
+    else if (FspUnmappedUid != Uid && 0x1000 <= Uid && Uid < 0x100000)
         *PSid = FspPosixCreateSid(5, 2, Uid >> 12, Uid & 0xfff);
 
     if (0 == *PSid)
@@ -325,7 +325,9 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
          */
         *PUid = 0x60000 + Rid;
     }
-    else
+    else if (
+        FspUnmappedSid->IdentifierAuthority.Value[5] != Authority ||
+        FspUnmappedSid->SubAuthority[0] != Rid)
     {
         /* [IDMAP]
          * Other well-known SIDs:

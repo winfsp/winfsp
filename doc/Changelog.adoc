@@ -1,6 +1,11 @@
 = Changelog
 
 
+v0.14::
+
+- WinFsp-FUSE now uses the S-1-0-65534 <-> 65534 mapping for unmapped SID/UID's. The Anonymous SID mapping from the previous release had security issues.
+
+
 v0.13::
 
 This release includes a Cygwin package, an API change and some other minor changes:
