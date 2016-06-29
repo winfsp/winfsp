@@ -30,7 +30,7 @@
 #define LAUNCHER_PIPE_BUFFER_SIZE       4096
 #define LAUNCHER_PIPE_DEFAULT_TIMEOUT   3000
 
-#define LAUNCHER_START_WITH_SECRET_TIMEOUT 30000
+#define LAUNCHER_START_WITH_SECRET_TIMEOUT 15000
 
 /*
  * The launcher named pipe SDDL gives full access to LocalSystem and Administrators and

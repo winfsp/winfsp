@@ -285,7 +285,7 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR Executable, PWSTR CommandLine,
     PPROCESS_INFORMATION ProcessInfo)
 {
     STARTUPINFOEXW StartupInfoEx;
-    HANDLE ChildHandles[2] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE };
+    HANDLE ChildHandles[3] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE, 0/* DO NOT CLOSE!*/ };
     HANDLE ParentHandles[2] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE };
     SECURITY_ATTRIBUTES PipeAttributes = { sizeof(SECURITY_ATTRIBUTES), 0, TRUE };
     PPROC_THREAD_ATTRIBUTE_LIST AttrList = 0;
@@ -320,6 +320,8 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR Executable, PWSTR CommandLine,
             goto exit;
         }
 
+        ChildHandles[2] = GetStdHandle(STD_ERROR_HANDLE);
+
         Size = 0;
         if (!InitializeProcThreadAttributeList(0, 1, 0, &Size) &&
             ERROR_INSUFFICIENT_BUFFER != GetLastError())
@@ -349,15 +351,16 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR Executable, PWSTR CommandLine,
             goto exit;
         }
 
+        StartupInfoEx.StartupInfo.cb = sizeof StartupInfoEx;
         StartupInfoEx.lpAttributeList = AttrList;
         StartupInfoEx.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
         StartupInfoEx.StartupInfo.hStdInput = ChildHandles[0];
         StartupInfoEx.StartupInfo.hStdOutput = ChildHandles[1];
-        StartupInfoEx.StartupInfo.hStdError = INVALID_HANDLE_VALUE;
+        StartupInfoEx.StartupInfo.hStdError = ChildHandles[2];
 
         if (!CreateProcessW(Executable, CommandLine, 0, 0, TRUE,
             CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP | EXTENDED_STARTUPINFO_PRESENT, 0, 0,
-            (PVOID)&StartupInfoEx, ProcessInfo))
+            &StartupInfoEx.StartupInfo, ProcessInfo))
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
@@ -382,7 +385,7 @@ exit:
         if (INVALID_HANDLE_VALUE != ParentHandles[0])
             CloseHandle(ParentHandles[0]);
         if (INVALID_HANDLE_VALUE != ParentHandles[0])
-            CloseHandle(ParentHandles[0]);
+            CloseHandle(ParentHandles[1]);
     }
     else if (0 != StdioHandles)
     {
@@ -550,7 +553,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Result = SvcInstanceCreateProcess(Executable, CommandLine,
+    Result = SvcInstanceCreateProcess(Executable, SvcInstance->CommandLine,
         RedirectStdio ? SvcInstance->StdioHandles : 0, &ProcessInfo);
     if (!NT_SUCCESS(Result))
         goto exit;
@@ -696,6 +699,9 @@ NTSTATUS SvcInstanceStart(HANDLE ClientToken,
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
         }
+
+        CloseHandle(SvcInstance->StdioHandles[0]);
+        SvcInstance->StdioHandles[0] = INVALID_HANDLE_VALUE;
 
         memset(&Overlapped, 0, sizeof Overlapped);
         if (!ReadFile(SvcInstance->StdioHandles[1], RspBuf, sizeof RspBuf, 0, &Overlapped) &&
