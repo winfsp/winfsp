@@ -18,6 +18,7 @@
 #include <dll/library.h>
 #include <launcher/launcher.h>
 #include <npapi.h>
+#include <wincred.h>
 
 #define FSP_NP_NAME                     LIBRARY_NAME ".Np"
 #define FSP_NP_TYPE                     ' spF'  /* pick a value hopefully not in use */
@@ -403,7 +404,7 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
     LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, LPWSTR lpUserName, DWORD dwFlags)
 {
     DWORD NpResult;
-    WCHAR UserName[256], Password[256];
+    WCHAR UserName[CREDUI_MAX_USERNAME_LENGTH], Password[CREDUI_MAX_PASSWORD_LENGTH];
 
     /* CONNECT_PROMPT is only valid if CONNECT_INTERACTIVE is also set */
     if (CONNECT_PROMPT == (dwFlags & (CONNECT_INTERACTIVE | CONNECT_PROMPT)))

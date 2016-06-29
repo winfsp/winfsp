@@ -115,7 +115,8 @@ static int call_pipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
 }
 
 int start(PWSTR PipeBuf, ULONG PipeBufSize,
-    PWSTR ClassName, PWSTR InstanceName, DWORD Argc, PWSTR *Argv)
+    PWSTR ClassName, PWSTR InstanceName, DWORD Argc, PWSTR *Argv,
+    BOOLEAN HasSecret)
 {
     PWSTR P;
     DWORD ClassNameSize, InstanceNameSize, ArgvSize;
@@ -130,7 +131,7 @@ int start(PWSTR PipeBuf, ULONG PipeBufSize,
         return ERROR_INVALID_PARAMETER;
 
     P = PipeBuf;
-    *P++ = LauncherSvcInstanceStart;
+    *P++ = HasSecret ? LauncherSvcInstanceStartWithSecret : LauncherSvcInstanceStart;
     memcpy(P, ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
     memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
     for (DWORD Argi = 0; Argc > Argi; Argi++)
@@ -230,7 +231,17 @@ int wmain(int argc, wchar_t **argv)
         if (3 > argc || argc > 12)
             usage();
 
-        return start(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2], argc - 3, argv + 3);
+        return start(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2], argc - 3, argv + 3,
+            FALSE);
+    }
+    else
+    if (0 == lstrcmpW(L"startWithSecret", argv[0]))
+    {
+        if (3 > argc || argc > 12)
+            usage();
+
+        return start(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2], argc - 3, argv + 3,
+            TRUE);
     }
     else
     if (0 == lstrcmpW(L"stop", argv[0]))

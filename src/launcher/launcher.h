@@ -28,7 +28,9 @@
 #define LAUNCHER_PIPE_BUFFER_SIZE       2048
 #define LAUNCHER_PIPE_DEFAULT_TIMEOUT   3000
 
-/*
+#define LAUNCHER_START_WITH_SECRET_TIMEOUT 30000
+
+ /*
  * The launcher named pipe SDDL gives full access to LocalSystem and Administrators and
  * GENERIC_READ and FILE_WRITE_DATA access to Everyone. We are careful not to give the
  * FILE_CREATE_PIPE_INSTANCE right to Everyone to disallow the creation of additional
@@ -53,6 +55,7 @@
 enum
 {
     LauncherSvcInstanceStart            = 'S',  /* requires: SERVICE_START */
+    LauncherSvcInstanceStartWithSecret  = 'X',  /* requires: SERVICE_START */
     LauncherSvcInstanceStop             = 'T',  /* requires: SERVICE_STOP */
     LauncherSvcInstanceInfo             = 'I',  /* requires: SERVICE_QUERY_STATUS */
     LauncherSvcInstanceList             = 'L',  /* requires: none*/
