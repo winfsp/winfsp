@@ -23,6 +23,13 @@
 #define FSP_NP_NAME                     LIBRARY_NAME ".Np"
 #define FSP_NP_TYPE                     ' spF'  /* pick a value hopefully not in use */
 
+enum
+{
+    FSP_NP_CREDENTIALS_NONE             = 0,
+    FSP_NP_CREDENTIALS_PASSWORD         = 1,
+    FSP_NP_CREDENTIALS_USERPASS         = 3,
+};
+
 DWORD APIENTRY NPGetCaps(DWORD Index)
 {
     switch (Index)
@@ -102,6 +109,9 @@ static inline BOOLEAN FspNpParseRemoteName(PWSTR RemoteName,
 {
     PWSTR ClassName, InstanceName, P;
     ULONG ClassNameLen, InstanceNameLen;
+
+    if (!FspNpCheckRemoteName(RemoteName))
+        return FALSE;
 
     ClassName = RemoteName + 2; /* skip \\ */
     for (P = ClassName; *P; P++)
@@ -226,11 +236,143 @@ static WCHAR FspNpGetDriveLetter(PDWORD PLogicalDrives, PWSTR VolumeName)
     return 0;
 }
 
-static DWORD FspNpGetCredentials(HWND hwndOwner,
+static DWORD FspNpGetCredentialsKind(PWSTR RemoteName, PDWORD PCredentialsKind)
+{
+    HKEY RegKey = 0;
+    DWORD NpResult, RegSize;
+    DWORD Credentials;
+    PWSTR ClassName, InstanceName;
+    ULONG ClassNameLen, InstanceNameLen;
+    WCHAR ClassNameBuf[sizeof(((FSP_FSCTL_VOLUME_PARAMS *)0)->Prefix) / sizeof(WCHAR)];
+
+    *PCredentialsKind = FSP_NP_CREDENTIALS_NONE;
+
+    if (!FspNpParseRemoteName(RemoteName,
+        &ClassName, &ClassNameLen, &InstanceName, &InstanceNameLen))
+        return WN_BAD_NETNAME;
+
+    if (ClassNameLen > sizeof ClassNameBuf / sizeof ClassNameBuf[0] - 1)
+        ClassNameLen = sizeof ClassNameBuf / sizeof ClassNameBuf[0] - 1;
+    memcpy(ClassNameBuf, ClassName, ClassNameLen);
+    ClassNameBuf[ClassNameLen] = '\0';
+
+    NpResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" LAUNCHER_REGKEY, 0, KEY_READ, &RegKey);
+    if (ERROR_SUCCESS != NpResult)
+        goto exit;
+
+    RegSize = sizeof Credentials;
+    Credentials = 0; /* default is NO credentials */
+    NpResult = RegGetValueW(RegKey, ClassNameBuf, L"Credentials", RRF_RT_REG_DWORD, 0,
+        &Credentials, &RegSize);
+    if (ERROR_SUCCESS != NpResult && ERROR_FILE_NOT_FOUND != NpResult)
+        goto exit;
+
+    switch (Credentials)
+    {
+    case FSP_NP_CREDENTIALS_NONE:
+    case FSP_NP_CREDENTIALS_PASSWORD:
+    case FSP_NP_CREDENTIALS_USERPASS:
+        *PCredentialsKind = Credentials;
+        break;
+    }
+
+    NpResult = ERROR_SUCCESS;
+
+exit:
+    if (0 != RegKey)
+        RegCloseKey(RegKey);
+
+    return NpResult;
+}
+
+static DWORD FspNpGetCredentials(
+    HWND hwndOwner, PWSTR Caption, DWORD NpResult, PBOOL PSave,
     PWSTR UserName, ULONG UserNameSize,
     PWSTR Password, ULONG PasswordSize)
 {
-    return WN_ACCESS_DENIED;
+    WCHAR Domain[CREDUI_MAX_DOMAIN_TARGET_LENGTH];
+    CREDUI_INFOW UiInfo;
+    ULONG AuthPackage = 0;
+    PVOID InAuthBuf = 0, OutAuthBuf = 0;
+    ULONG InAuthSize, OutAuthSize, DomainSize;
+
+    if (!CredPackAuthenticationBufferW(
+            CRED_PACK_GENERIC_CREDENTIALS, UserName, Password, 0, &InAuthSize) &&
+        ERROR_INSUFFICIENT_BUFFER != GetLastError())
+    {
+        NpResult = GetLastError();
+        goto exit;
+    }
+
+    InAuthBuf = MemAlloc(InAuthSize);
+    if (0 == InAuthBuf)
+    {
+        NpResult = ERROR_NO_SYSTEM_RESOURCES;
+        goto exit;
+    }
+
+    if (!CredPackAuthenticationBufferW(
+        CRED_PACK_GENERIC_CREDENTIALS, UserName, Password, InAuthBuf, &InAuthSize))
+    {
+        NpResult = GetLastError();
+        goto exit;
+    }
+
+    memset(&UiInfo, 0, sizeof UiInfo);
+    UiInfo.cbSize = sizeof UiInfo;
+    UiInfo.hwndParent = hwndOwner;
+    UiInfo.pszCaptionText = Caption;
+    UiInfo.pszMessageText = L"Enter credentials to unlock this file system.";
+
+    NpResult = CredUIPromptForWindowsCredentialsW(&UiInfo, NpResult,
+        &AuthPackage, InAuthBuf, InAuthSize, &OutAuthBuf, &OutAuthSize, PSave,
+        CREDUIWIN_GENERIC | CREDUIWIN_CHECKBOX);
+    if (ERROR_SUCCESS != NpResult)
+        goto exit;
+
+    DomainSize = sizeof Domain / sizeof Domain[0];
+    if (!CredUnPackAuthenticationBufferW(0, OutAuthBuf, OutAuthSize,
+        UserName, &UserNameSize, Domain, &DomainSize, Password, &PasswordSize))
+    {
+        NpResult = GetLastError();
+        goto exit;
+    }
+
+    NpResult = ERROR_SUCCESS;
+
+exit:
+    if (0 != OutAuthBuf)
+    {
+        SecureZeroMemory(OutAuthBuf, OutAuthSize);
+        CoTaskMemFree(OutAuthBuf);
+    }
+
+    if (0 != InAuthBuf)
+    {
+        SecureZeroMemory(InAuthBuf, InAuthSize);
+        MemFree(InAuthBuf);
+    }
+
+    return NpResult;
+}
+
+static inline DWORD FspNpSaveCredentials(
+    PWSTR RemoteName, PWSTR UserName, PWSTR Password)
+{
+    CREDENTIALW Credential;
+
+    memset(&Credential, 0, sizeof Credential);
+    Credential.Type = CRED_TYPE_GENERIC;
+    Credential.Persist = CRED_PERSIST_LOCAL_MACHINE;
+    Credential.TargetName = RemoteName;
+    Credential.UserName = UserName;
+    Credential.CredentialBlobSize = (lstrlenW(Password) + 1) * sizeof(WCHAR);
+    Credential.CredentialBlob = (PVOID)Password;
+
+    if (!CredWriteW(&Credential, 0))
+        return GetLastError();
+
+    return ERROR_SUCCESS;
 }
 
 DWORD APIENTRY NPGetConnection(
@@ -319,13 +461,12 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
     WCHAR LocalNameBuf[3];
     PWSTR ClassName, InstanceName, RemoteName, P;
     ULONG ClassNameLen, InstanceNameLen;
+    DWORD CredentialsKind;
+    PCREDENTIALW Credential = 0;
     PWSTR PipeBuf = 0;
 
     if (dwType & RESOURCETYPE_PRINT)
         return WN_BAD_VALUE;
-
-    if (!FspNpCheckRemoteName(lpRemoteName))
-        return WN_BAD_NETNAME;
 
     if (!FspNpParseRemoteName(lpRemoteName,
         &ClassName, &ClassNameLen, &InstanceName, &InstanceNameLen))
@@ -346,22 +487,73 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
             return WN_ALREADY_CONNECTED;
     }
 
+    FspNpGetCredentialsKind(lpRemoteName, &CredentialsKind);
+
+    /* if we need credentials and none were passed check with the credential manager */
+    if (FSP_NP_CREDENTIALS_NONE != CredentialsKind && 0 == lpPassword &&
+        CredReadW(lpRemoteName, CRED_TYPE_GENERIC, 0, &Credential))
+    {
+        if (sizeof(WCHAR) <= Credential->CredentialBlobSize &&
+            L'\0' == ((PWSTR)(Credential->CredentialBlob))
+                [(Credential->CredentialBlobSize / sizeof(WCHAR)) - 1])
+        {
+            lpUserName = Credential->UserName;
+            lpPassword = (PVOID)Credential->CredentialBlob;
+        }
+    }
+
+    /* if we need credentials and we don't have any return ACCESS DENIED */
+    if (FSP_NP_CREDENTIALS_NONE != CredentialsKind)
+    {
+        int Length;
+        if (0 == lpPassword ||
+            (0 == (Length = lstrlenW(lpPassword))) || CREDUI_MAX_PASSWORD_LENGTH <= Length)
+        {
+            NpResult = WN_ACCESS_DENIED;
+            goto exit;
+        }
+    }
+    if (FSP_NP_CREDENTIALS_USERPASS == CredentialsKind)
+    {
+        int Length;
+        if (0 == lpUserName ||
+            (0 == (Length = lstrlenW(lpUserName))) || CREDUI_MAX_USERNAME_LENGTH <= Length)
+        {
+            NpResult = WN_ACCESS_DENIED;
+            goto exit;
+        }
+    }
+
     PipeBuf = MemAlloc(LAUNCHER_PIPE_BUFFER_SIZE);
     if (0 == PipeBuf)
-        return WN_OUT_OF_MEMORY;
+    {
+        NpResult = WN_OUT_OF_MEMORY;
+        goto exit;
+    }
 
+    /* we do not explicitly check, but assumption is it all fits in LAUNCHER_PIPE_BUFFER_SIZE */
     P = PipeBuf;
-    *P++ = LauncherSvcInstanceStart;
+    *P++ = FSP_NP_CREDENTIALS_NONE != CredentialsKind ?
+        LauncherSvcInstanceStartWithSecret : LauncherSvcInstanceStart;
     memcpy(P, ClassName, ClassNameLen * sizeof(WCHAR)); P += ClassNameLen; *P++ = L'\0';
     memcpy(P, InstanceName, InstanceNameLen * sizeof(WCHAR)); P += InstanceNameLen; *P++ = L'\0';
     lstrcpyW(P, RemoteName); P += lstrlenW(RemoteName) + 1;
     lstrcpyW(P, LocalNameBuf); P += lstrlenW(LocalNameBuf) + 1;
+    if (FSP_NP_CREDENTIALS_USERPASS == CredentialsKind)
+    {
+        lstrcpyW(P, lpUserName); P += lstrlenW(lpUserName) + 1;
+    }
+    if (FSP_NP_CREDENTIALS_NONE != CredentialsKind)
+    {
+        lstrcpyW(P, lpPassword); P += lstrlenW(lpPassword) + 1;
+    }
 
     NpResult = FspNpCallLauncherPipe(
         PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), LAUNCHER_PIPE_BUFFER_SIZE);
     switch (NpResult)
     {
     case WN_SUCCESS:
+    case WN_ACCESS_DENIED:
         break;
     case ERROR_ALREADY_EXISTS:
         /*
@@ -395,6 +587,10 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
         break;
     }
 
+exit:
+    if (0 != Credential)
+        CredFree(Credential);
+
     MemFree(PipeBuf);
 
     return NpResult;
@@ -403,8 +599,10 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
 DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
     LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, LPWSTR lpUserName, DWORD dwFlags)
 {
-    DWORD NpResult;
+    DWORD NpResult = WN_SUCCESS;
+    PWSTR RemoteName = lpNetResource->lpRemoteName;
     WCHAR UserName[CREDUI_MAX_USERNAME_LENGTH], Password[CREDUI_MAX_PASSWORD_LENGTH];
+    BOOL Save = TRUE;
 
     /* CONNECT_PROMPT is only valid if CONNECT_INTERACTIVE is also set */
     if (CONNECT_PROMPT == (dwFlags & (CONNECT_INTERACTIVE | CONNECT_PROMPT)))
@@ -415,20 +613,25 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
     {
         NpResult = NPAddConnection(lpNetResource, lpPassword, lpUserName);
         if (WN_ACCESS_DENIED != NpResult || 0 == (dwFlags & CONNECT_INTERACTIVE))
-            return WN_ACCESS_DENIED;
+            return NpResult;
     }
 
     /* if CONNECT_INTERACTIVE keep asking the user for valid credentials or cancel */
     UserName[0] = Password[0] = L'\0';
-    while (WN_ACCESS_DENIED == NpResult)
+    do
     {
-        NpResult = FspNpGetCredentials(hwndOwner,
-            UserName, sizeof UserName, Password, sizeof Password);
-        if (0 != NpResult)
+        NpResult = FspNpGetCredentials(
+            hwndOwner, RemoteName, NpResult, &Save,
+            UserName, sizeof UserName / sizeof UserName[0],
+            Password, sizeof Password / sizeof Password[0]);
+        if (WN_SUCCESS != NpResult)
             break;
 
         NpResult = NPAddConnection(lpNetResource, Password, UserName);
-    }
+    } while (WN_ACCESS_DENIED == NpResult);
+
+    if (WN_SUCCESS == NpResult && Save)
+        FspNpSaveCredentials(RemoteName, UserName, Password);
 
     SecureZeroMemory(Password, sizeof Password);
 

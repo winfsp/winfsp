@@ -182,7 +182,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);version.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);credui.lib;version.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -207,7 +207,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);version.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);credui.lib;version.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -235,7 +235,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);version.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);credui.lib;version.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -263,7 +263,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);version.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);credui.lib;version.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

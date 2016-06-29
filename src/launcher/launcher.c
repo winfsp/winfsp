@@ -19,7 +19,7 @@
 #include <sddl.h>
 
 #define PROGNAME                        "WinFsp.Launcher"
-#define REGKEY                          "SYSTEM\\CurrentControlSet\\Services\\" PROGNAME "\\Services"
+#define REGKEY                          LAUNCHER_REGKEY
 
 BOOL CreateOverlappedPipe(
     PHANDLE PReadPipe, PHANDLE PWritePipe, PSECURITY_ATTRIBUTES SecurityAttributes, DWORD Size,
