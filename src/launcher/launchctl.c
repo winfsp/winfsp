@@ -54,9 +54,10 @@ static void usage(void)
         "usage: %s COMMAND ARGS\n"
         "\n"
         "commands:\n"
-        "    start ClassName InstanceName Args...\n"
-        "    stop ClassName InstanceName\n"
-        "    info ClassName InstanceName\n"
+        "    start               ClassName InstanceName Args...\n"
+        "    startWithSecret     ClassName InstanceName Args... Secret\n"
+        "    stop                ClassName InstanceName\n"
+        "    info                ClassName InstanceName\n"
         "    list\n",
         PROGNAME);
 }
@@ -237,7 +238,7 @@ int wmain(int argc, wchar_t **argv)
     else
     if (0 == lstrcmpW(L"startWithSecret", argv[0]))
     {
-        if (3 > argc || argc > 12)
+        if (4 > argc || argc > 13)
             usage();
 
         return start(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2], argc - 3, argv + 3,

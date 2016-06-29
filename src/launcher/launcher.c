@@ -648,7 +648,9 @@ NTSTATUS SvcInstanceStart(HANDLE ClientToken,
     SVC_INSTANCE *SvcInstance;
     NTSTATUS Result;
 
-    HasSecret = HasSecret && 0 < Argc && L'\0' != Argv[Argc - 1][0];
+    if (HasSecret && (0 == Argc || L'\0' == Argv[Argc - 1][0]))
+        return STATUS_INVALID_PARAMETER;
+    HasSecret = !!HasSecret;
 
     Result = SvcInstanceCreate(ClientToken, ClassName, InstanceName,
         Argc - HasSecret, Argv, Job, HasSecret,
@@ -667,13 +669,12 @@ NTSTATUS SvcInstanceStart(HANDLE ClientToken,
         OVERLAPPED Overlapped;
 
         if (0 == (BytesTransferred =
-            WideCharToMultiByte(CP_UTF8, 0, Secret, -1, ReqBuf, sizeof ReqBuf, 0, 0)))
+            WideCharToMultiByte(CP_UTF8, 0, Secret, lstrlenW(Secret), ReqBuf, sizeof ReqBuf, 0, 0)))
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
         }
 
-        /* also send the term-0 */
         if (!WriteFile(SvcInstance->StdioHandles[0], ReqBuf, BytesTransferred, &BytesTransferred, 0))
         {
             Result = FspNtStatusFromWin32(GetLastError());
