@@ -504,7 +504,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
-    FspDebugLogSD(__FUNCTION__ ": SDDL = %s\n", SecurityDescriptor);
+    //FspDebugLogSD(__FUNCTION__ ": SDDL = %s\n", SecurityDescriptor);
 
     Result = SvcInstanceAccessCheck(ClientToken, SERVICE_START, SecurityDescriptor);
     if (!NT_SUCCESS(Result))
@@ -661,11 +661,20 @@ NTSTATUS SvcInstanceStart(HANDLE ClientToken,
     else
     {
         PWSTR Secret = Argv[Argc - 1];
+        UINT8 ReqBuf[256];
         UINT8 RspBuf[2];
         DWORD BytesTransferred;
         OVERLAPPED Overlapped;
 
-        if (!WriteFile(SvcInstance->StdioHandles[0], Secret, lstrlenW(Secret), &BytesTransferred, 0))
+        if (0 == (BytesTransferred =
+            WideCharToMultiByte(CP_UTF8, 0, Secret, -1, ReqBuf, sizeof ReqBuf, 0, 0)))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+
+        /* also send the term-0 */
+        if (!WriteFile(SvcInstance->StdioHandles[0], ReqBuf, BytesTransferred, &BytesTransferred, 0))
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
@@ -870,7 +879,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         &SecurityAttributes.lpSecurityDescriptor, 0))
         goto fail;
 
-    FspDebugLogSD(__FUNCTION__ ": SDDL = %s\n", SecurityAttributes.lpSecurityDescriptor);
+    //FspDebugLogSD(__FUNCTION__ ": SDDL = %s\n", SecurityAttributes.lpSecurityDescriptor);
 
     SvcInstanceEvent = CreateEventW(0, TRUE, TRUE, 0);
     if (0 == SvcInstanceEvent)
