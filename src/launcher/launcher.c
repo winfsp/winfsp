@@ -411,7 +411,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     DWORD ClassNameSize, InstanceNameSize;
     WCHAR Executable[MAX_PATH], CommandLineBuf[512], SecurityBuf[512];
     PWSTR CommandLine, Security;
-    DWORD JobControl;
+    DWORD JobControl, Credentials;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     PWSTR Argv[10];
     PROCESS_INFORMATION ProcessInfo;
@@ -442,6 +442,22 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     if (ERROR_SUCCESS != RegResult)
     {
         Result = FspNtStatusFromWin32(RegResult);
+        goto exit;
+    }
+
+    RegSize = sizeof Credentials;
+    Credentials = 0;
+    RegResult = RegGetValueW(RegKey, ClassName, L"Credentials", RRF_RT_REG_DWORD, 0,
+        &Credentials, &RegSize);
+    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
+    {
+        Result = FspNtStatusFromWin32(RegResult);
+        goto exit;
+    }
+    if ((!RedirectStdio && 0 != Credentials) ||
+        ( RedirectStdio && 0 == Credentials))
+    {
+        Result = STATUS_DEVICE_CONFIGURATION_ERROR;
         goto exit;
     }
 
