@@ -3,6 +3,7 @@
 
 v0.14::
 
+- WinFsp now supports services that require username/password to be unlocked (e.g. sshfs/secfs).
 - WinFsp-FUSE now uses the S-1-0-65534 <-> 65534 mapping for unmapped SID/UID's. The Anonymous SID mapping from the previous release had security issues.
 
 
