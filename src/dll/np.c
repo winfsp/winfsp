@@ -253,7 +253,7 @@ static DWORD FspNpGetCredentialsKind(PWSTR RemoteName, PDWORD PCredentialsKind)
 
     if (ClassNameLen > sizeof ClassNameBuf / sizeof ClassNameBuf[0] - 1)
         ClassNameLen = sizeof ClassNameBuf / sizeof ClassNameBuf[0] - 1;
-    memcpy(ClassNameBuf, ClassName, ClassNameLen);
+    memcpy(ClassNameBuf, ClassName, ClassNameLen * sizeof(WCHAR));
     ClassNameBuf[ClassNameLen] = '\0';
 
     NpResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" LAUNCHER_REGKEY, 0, KEY_READ, &RegKey);
@@ -296,6 +296,7 @@ static DWORD FspNpGetCredentials(
     PVOID InAuthBuf = 0, OutAuthBuf = 0;
     ULONG InAuthSize, OutAuthSize, DomainSize;
 
+    InAuthSize = 0;
     if (!CredPackAuthenticationBufferW(
             CRED_PACK_GENERIC_CREDENTIALS, UserName, Password, 0, &InAuthSize) &&
         ERROR_INSUFFICIENT_BUFFER != GetLastError())
@@ -599,7 +600,7 @@ exit:
 DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
     LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, LPWSTR lpUserName, DWORD dwFlags)
 {
-    DWORD NpResult = WN_SUCCESS;
+    DWORD NpResult;
     PWSTR RemoteName = lpNetResource->lpRemoteName;
     WCHAR UserName[CREDUI_MAX_USERNAME_LENGTH], Password[CREDUI_MAX_PASSWORD_LENGTH];
     BOOL Save = TRUE;
@@ -617,6 +618,7 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
     }
 
     /* if CONNECT_INTERACTIVE keep asking the user for valid credentials or cancel */
+    NpResult = WN_SUCCESS;
     UserName[0] = Password[0] = L'\0';
     do
     {
