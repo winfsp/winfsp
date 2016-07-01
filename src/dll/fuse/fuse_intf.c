@@ -205,6 +205,13 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoEx(FSP_FILE_SYSTEM *FileSystem,
     if (0 != err)
         return fsp_fuse_ntstatus_from_errno(f->env, err);
 
+    if (f->set_umask)
+        stbuf.st_mode = (stbuf.st_mode & 0170000) | (0777 & ~f->umask);
+    if (f->set_uid)
+        stbuf.st_uid = f->uid;
+    if (f->set_gid)
+        stbuf.st_gid = f->gid;
+
     *PUid = stbuf.st_uid;
     *PGid = stbuf.st_gid;
     *PMode = stbuf.st_mode;

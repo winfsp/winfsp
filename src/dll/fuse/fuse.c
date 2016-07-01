@@ -463,9 +463,9 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
         return 1;
     case 'U':
         if ('U' == arg[2])
-            arg += sizeof "--UNC" - 1;
+            arg += sizeof "--UNC=" - 1;
         else if ('V' == arg[2])
-            arg += sizeof "--VolumePrefix" - 1;
+            arg += sizeof "--VolumePrefix=" - 1;
         if (0 == MultiByteToWideChar(CP_UTF8, 0, arg, -1,
             opt_data->VolumeParams.Prefix, sizeof opt_data->VolumeParams.Prefix / sizeof(WCHAR)))
             return -1;
@@ -507,6 +507,9 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         goto fail;
 
     f->env = env;
+    f->set_umask = opt_data.set_umask; f->umask = opt_data.umask;
+    f->set_uid = opt_data.set_uid; f->uid = opt_data.uid;
+    f->set_gid = opt_data.set_gid; f->gid = opt_data.gid;
     memcpy(&f->ops, ops, opsize);
     f->data = data;
     f->DebugLog = opt_data.debug ? -1 : 0;
