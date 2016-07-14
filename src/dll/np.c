@@ -24,9 +24,15 @@
 #define FSP_NP_TYPE                     ' spF'  /* pick a value hopefully not in use */
 
 /*
+ * Define the following macro to use CredUIPromptForWindowsCredentials.
+ * Otherwise CredUIPromptForCredentials will be used.
+ */
+#define FSP_NP_CREDUI_PROMPT_NEW
+
+/*
  * Define the following macro to include support for the credential manager.
  */
-//#define FSP_NP_CREDENTIAL_MANAGER
+#define FSP_NP_CREDENTIAL_MANAGER
 
 enum
 {
@@ -143,6 +149,27 @@ static inline BOOLEAN FspNpParseRemoteName(PWSTR RemoteName,
     *PInstanceName = InstanceName; *PInstanceNameLen = InstanceNameLen;
     
     return TRUE;
+}
+
+static inline BOOLEAN FspNpParseUserName(PWSTR RemoteName,
+    PWSTR UserName, ULONG UserNameSize/* in chars */)
+{
+    PWSTR ClassName, InstanceName, P;
+    ULONG ClassNameLen, InstanceNameLen;
+
+    if (FspNpParseRemoteName(RemoteName,
+        &ClassName, &ClassNameLen, &InstanceName, &InstanceNameLen))
+    {
+        for (P = InstanceName; *P; P++)
+            if ('@' == *P && P - InstanceName < UserNameSize)
+            {
+                memcpy(UserName, InstanceName, (P - InstanceName) * sizeof(WCHAR));
+                UserName[P - InstanceName] = L'\0';
+                return TRUE;
+            }
+    }
+
+    return FALSE;
 }
 
 static inline DWORD FspNpCallLauncherPipe(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
@@ -291,16 +318,37 @@ exit:
 }
 
 static DWORD FspNpGetCredentials(
-    HWND hwndOwner, PWSTR Caption, DWORD PrevNpResult, PBOOL PSave,
-    PWSTR UserName, ULONG UserNameSize,
-    PWSTR Password, ULONG PasswordSize)
+    HWND hwndOwner, PWSTR Caption, DWORD PrevNpResult,
+    DWORD CredentialsKind,
+    PBOOL PSave,
+    PWSTR UserName, ULONG UserNameSize/* in chars */,
+    PWSTR Password, ULONG PasswordSize/* in chars */)
 {
-    WCHAR Domain[CREDUI_MAX_DOMAIN_TARGET_LENGTH];
+    DWORD NpResult;
     CREDUI_INFOW UiInfo;
+
+    memset(&UiInfo, 0, sizeof UiInfo);
+    UiInfo.cbSize = sizeof UiInfo;
+    UiInfo.hwndParent = hwndOwner;
+    UiInfo.pszCaptionText = Caption;
+    UiInfo.pszMessageText = L"Enter credentials to unlock this file system.";
+
+#if !defined(FSP_NP_CREDUI_PROMPT_NEW)
+    NpResult = CredUIPromptForCredentialsW(&UiInfo, L"NONE", 0, 0,
+        UserName, UserNameSize,
+        Password, PasswordSize,
+        PSave,
+        CREDUI_FLAGS_GENERIC_CREDENTIALS |
+        CREDUI_FLAGS_DO_NOT_PERSIST |
+        CREDUI_FLAGS_ALWAYS_SHOW_UI |
+        (0 != PrevNpResult ? CREDUI_FLAGS_INCORRECT_PASSWORD : 0) |
+        (0 != PSave ? CREDUI_FLAGS_SHOW_SAVE_CHECK_BOX : 0) |
+        (FSP_NP_CREDENTIALS_PASSWORD == CredentialsKind ? 0/*CREDUI_FLAGS_KEEP_USERNAME*/ : 0));
+#else
+    WCHAR Domain[CREDUI_MAX_DOMAIN_TARGET_LENGTH + 1];
     ULONG AuthPackage = 0;
     PVOID InAuthBuf = 0, OutAuthBuf = 0;
     ULONG InAuthSize, OutAuthSize, DomainSize;
-    DWORD NpResult;
 
     InAuthSize = 0;
     if (!CredPackAuthenticationBufferW(
@@ -324,12 +372,6 @@ static DWORD FspNpGetCredentials(
         NpResult = GetLastError();
         goto exit;
     }
-
-    memset(&UiInfo, 0, sizeof UiInfo);
-    UiInfo.cbSize = sizeof UiInfo;
-    UiInfo.hwndParent = hwndOwner;
-    UiInfo.pszCaptionText = Caption;
-    UiInfo.pszMessageText = L"Enter credentials to unlock this file system.";
 
     NpResult = CredUIPromptForWindowsCredentialsW(&UiInfo, PrevNpResult,
         &AuthPackage, InAuthBuf, InAuthSize, &OutAuthBuf, &OutAuthSize, PSave,
@@ -359,6 +401,7 @@ exit:
         SecureZeroMemory(InAuthBuf, InAuthSize);
         MemFree(InAuthBuf);
     }
+#endif
 
     return NpResult;
 }
@@ -499,7 +542,7 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
     {
         int Length;
         if (0 == lpPassword ||
-            (0 == (Length = lstrlenW(lpPassword))) || CREDUI_MAX_PASSWORD_LENGTH <= Length)
+            (0 == (Length = lstrlenW(lpPassword))) || CREDUI_MAX_PASSWORD_LENGTH < Length)
         {
             NpResult = WN_ACCESS_DENIED;
             goto exit;
@@ -509,7 +552,7 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
     {
         int Length;
         if (0 == lpUserName ||
-            (0 == (Length = lstrlenW(lpUserName))) || CREDUI_MAX_USERNAME_LENGTH <= Length)
+            (0 == (Length = lstrlenW(lpUserName))) || CREDUI_MAX_USERNAME_LENGTH < Length)
         {
             NpResult = WN_ACCESS_DENIED;
             goto exit;
@@ -595,12 +638,13 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
 {
     DWORD NpResult;
     PWSTR RemoteName = lpNetResource->lpRemoteName;
-    WCHAR UserName[CREDUI_MAX_USERNAME_LENGTH], Password[CREDUI_MAX_PASSWORD_LENGTH];
+    DWORD CredentialsKind;
+    WCHAR UserName[CREDUI_MAX_USERNAME_LENGTH + 1], Password[CREDUI_MAX_PASSWORD_LENGTH + 1];
 #if defined(FSP_NP_CREDENTIAL_MANAGER)
-    BOOL Save = FALSE;
+    BOOL Save = TRUE;
 #endif
 
-    //dwFlags |= CONNECT_INTERACTIVE; /* TESTING ONLY! */
+    //dwFlags |= CONNECT_INTERACTIVE | CONNECT_PROMPT; /* TESTING ONLY! */
 
     /* CONNECT_PROMPT is only valid if CONNECT_INTERACTIVE is also set */
     if (CONNECT_PROMPT == (dwFlags & (CONNECT_INTERACTIVE | CONNECT_PROMPT)))
@@ -614,13 +658,21 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
             return NpResult;
     }
 
+    FspNpGetCredentialsKind(RemoteName, &CredentialsKind);
+    if (FSP_NP_CREDENTIALS_NONE == CredentialsKind)
+        return WN_CANCEL;
+
     /* if CONNECT_INTERACTIVE keep asking the user for valid credentials or cancel */
     NpResult = WN_SUCCESS;
-    UserName[0] = Password[0] = L'\0';
+    lstrcpyW(UserName, L"UNSPECIFIED");
+    Password[0] = L'\0';
+    if (FSP_NP_CREDENTIALS_PASSWORD == CredentialsKind)
+        FspNpParseUserName(RemoteName, UserName, sizeof UserName / sizeof UserName[0]);
     do
     {
         NpResult = FspNpGetCredentials(
             hwndOwner, RemoteName, NpResult,
+            CredentialsKind,
 #if defined(FSP_NP_CREDENTIAL_MANAGER)
             &Save,
 #else
