@@ -45,13 +45,14 @@
         </Directory>
 
         <DirectoryRef Id="INSTALLDIR">
-            <Component Id="C.INSTALLDIR">
+            <Component Id="C.INSTALLDIR" Guid="{F876F26E-5016-4AC6-93B3-653C0312A6CE}">
                 <RegistryValue
                     Root="HKLM"
                     Key="[P.RegistryKey]"
                     Name="InstallDir"
                     Type="string"
-                    Value="[INSTALLDIR]" />
+                    Value="[INSTALLDIR]"
+                    KeyPath="yes" />
             </Component>
         </DirectoryRef>
         <DirectoryRef Id="BINDIR" FileSource="..\build\$(var.Configuration)">
