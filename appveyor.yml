@@ -6,18 +6,18 @@ environment:
 install:
 - git submodule update --init --recursive
 - appveyor AddMessage "Change boot configuration and reboot" -Category Information
-- bcdedit /set testsigning on
 - verifier /standard /driver winfsp-x64.sys
+- bcdedit /set testsigning on
 - ps: Restart-Computer -Force
 - ps: Start-Sleep -s 10
 
 build_script:
 - appveyor AddMessage "Reboot complete" -Category Information
 - bcdedit | findstr /i "testsigning"
-- verifier /querysettings
 - tools\build.bat %CONFIGURATION%
 
 test_script:
 - for %%f in ("build\VStudio\build\%CONFIGURATION%\winfsp-*.msi") do start /wait msiexec /i %%f /qn INSTALLLEVEL=1000
 - tools\nmake-ext-test.bat %CONFIGURATION%
 - tools\run-tests.bat %CONFIGURATION%
+- verifier /query
