@@ -3,8 +3,8 @@
 
 v0.14::
 
-- WinFsp now supports services that require username/password to be unlocked (e.g. sshfs/secfs).
-- WinFsp-FUSE now uses the S-1-0-65534 <-> 65534 mapping for unmapped SID/UID's. The Anonymous SID mapping from the previous release had security issues.
+- WinFsp now supports file systems that require username/password to be unlocked (e.g. sshfs/secfs). Such file systems must add a DWORD registry value with name "Credentials" and value 1 under their WinFsp.Launcher service entry. The WinFsp network provider will then prompt for credentials using the `CredUIPromptForWindowsCredentials`. Credentials can optionally be saved with the Windows Credential Manager.
+- WinFsp-FUSE now uses the S-1-0-65534 <--> 65534 mapping for unmapped SID/UID's. The Anonymous SID mapping from the previous release had security issues.
 
 
 v0.13::
