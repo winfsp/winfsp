@@ -244,6 +244,7 @@ struct fsp_fuse_env
     void (*memfree)(void *);
     int (*daemonize)(int);
     int (*set_signal_handlers)(void *);
+    void (*reserved[4])();
 };
 
 FSP_FUSE_API void FSP_FUSE_API_NAME(fsp_fuse_signal_handler)(int sig);
