@@ -7,12 +7,14 @@ install:
 - git submodule update --init --recursive
 - appveyor AddMessage "Change boot configuration and reboot" -Category Information
 - bcdedit /set testsigning on
+- verifier /standard /driver winfsp-x64.sys
 - ps: Restart-Computer -Force
 - ps: Start-Sleep -s 10
 
 build_script:
 - appveyor AddMessage "Reboot complete" -Category Information
 - bcdedit | findstr /i "testsigning"
+- verifier /querysettings
 - tools\build.bat %CONFIGURATION%
 
 test_script:
