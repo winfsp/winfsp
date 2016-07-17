@@ -326,6 +326,8 @@
             </Feature>
         </Feature>
 
+        <WixVariable Id="WixUIBannerBmp" Value="wixbanner.bmp" />
+        <WixVariable Id="WixUIDialogBmp" Value="wixdialog.bmp" />
         <UI Id="FeatureTree">
             <UIRef Id="WixUI_FeatureTree" />
             <!-- skip the license agreement dialog; higher Order takes priority (weird) -->
