@@ -1,5 +1,7 @@
 # WinFsp - Windows File System Proxy
 
+![WinFsp Demo](http://www.secfs.net/winfsp/files/cap.gif)
+
 WinFsp is a set of software components for Windows computers that allows the creation of user mode file systems. In this sense it is similar to FUSE (Filesystem in Userspace), which provides the same functionality on UNIX-like computers.
 
 Some of the benefits and features of using WinFsp are listed below:
