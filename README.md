@@ -59,7 +59,7 @@ I am looking for help in the following areas:
 
 * If you have a file system that runs on FUSE please consider porting it to WinFsp. WinFsp has a native API, but it also has a FUSE (high-level) API.
 * If you are working with a language other than C/C++ (e.g. Delphi, C#, etc.) and you are interested in porting/wrapping WinFsp I would love to hear from you.
-* There are a number of outstanding issues listed in the [BitBucket repository](https://bitbucket.org/billziss/winfsp). Many of these require knowledge of Windows kernel-mode and an understanding of the internals of WinFsp so they are not for the faint of heart. If you decide to tackle any of those please coordinate with me as I am actively working on that issue list.
+* There are a number of outstanding issues listed in the [BitBucket repository](https://bitbucket.org/billziss/winfsp/issues?status=new&status=open). Many of these require knowledge of Windows kernel-mode and an understanding of the internals of WinFsp so they are not for the faint of heart. If you decide to tackle any of those please coordinate with me as I am actively working on that issue list.
 
 In all cases I can provide ideas and/or support.
 
