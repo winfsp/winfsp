@@ -36,9 +36,32 @@ The project source code is organized as follows:
 * tst/memfs: Source code to an example file system written in C++ (memfs).
 * tst/winfsp-tests: WinFsp test suite.
 
-## Building
+## Building and Running
 
-In order to build WinFsp you will need Windows 10 and Visual Studio 2015. You will also need the Windows Driver Kit (WDK) 10.
+In order to build WinFsp you will need the following:
+
+* Windows 10
+* Visual Studio 2015
+* Windows Driver Kit (WDK) 10
+* [Wix toolset](http://wixtoolset.org)
+
+If you build the driver yourself it will not be signed and Windows will refuse to load it unless you enable "testsigning". You can enable "testsigning" using the command `bcdedit.exe -set testsigning`. For more information see this [document](http://www.secfs.net/winfsp/develop/debug/).
+
+WinFsp is designed to run on Vista and above. It has been tested on the following platforms so far:
+
+* Windows 8 Pro
+* Windows 10 Pro
+* Windows Server 2012
+
+## How to Help
+
+I am looking for help in the following areas:
+
+* If you have a file system that runs on FUSE please consider porting it to WinFsp. WinFsp has a native API, but it also has a FUSE (high-level) API.
+* If you are working with a language other than C/C++ (e.g. Delphi, C#, etc.) and you are interested in porting/wrapping WinFsp I would love to hear from you.
+* There are a number of outstanding issues listed in the [BitBucket repository](https://bitbucket.org/billziss/winfsp). Many of these require knowledge of Windows kernel-mode and an understanding of the internals of WinFsp so they are not for the faint of heart. If you decide to tackle any of those please coordinate with me as I am actively working on that issue list.
+
+In all cases I can provide ideas and/or support.
 
 ## License
 
