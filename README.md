@@ -63,6 +63,13 @@ I am looking for help in the following areas:
 
 In all cases I can provide ideas and/or support.
 
+## Where to Discuss
+
+If you wish to discuss WinFsp there are now two options:
+
+- [WinFsp Google Group](https://groups.google.com/forum/#!forum/winfsp)
+- [Author's Twitter](https://twitter.com/BZissimopoulos)
+
 ## License
 
 WinFsp is available under the [AGPLv3](http://www.gnu.org/licenses/agpl-3.0.html) license. If you find the constraints of the AGPLv3 too onerous, a commercial license is also available. Please contact Bill Zissimopoulos <billziss at navimatics.com> for more details.
