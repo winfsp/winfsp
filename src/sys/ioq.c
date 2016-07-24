@@ -20,6 +20,11 @@
 /*
  * Overview
  *
+ * [NOTE: this comment no longer describes accurately an FSP_IOQ. The main
+ * difference is that an FSP_IOQ now has a third queue which is used to
+ * retry IRP completions. However the main ideas below are still valid, so
+ * I am leaving the rest of the comment intact.]
+ *
  * An FSP_IOQ encapsulates the main FSP mechanism for handling IRP's.
  * It has two queues: a "Pending" queue for managing newly arrived IRP's
  * and a "Processing" queue for managing IRP's currently being processed
