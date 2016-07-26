@@ -335,9 +335,12 @@ static NTSTATUS FspFsvolCreateNoLock(
     }
 
     /* fix FileAttributes */
-    ClearFlag(FileAttributes, FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_DIRECTORY);
+    ClearFlag(FileAttributes,
+        FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT);
     if (CreateOptions & FILE_DIRECTORY_FILE)
         SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
+    if (CreateOptions & FILE_OPEN_REPARSE_POINT)
+        SetFlag(FileAttributes, FILE_ATTRIBUTE_REPARSE_POINT);
 
     /*
      * The new request is associated with our IRP. Go ahead and associate our FileNode/FileDesc
@@ -486,6 +489,7 @@ NTSTATUS FspFsvolCreateComplete(
     FSP_FILE_NODE *FileNode = FileDesc->FileNode;
     FSP_FILE_NODE *OpenedFileNode;
     UNICODE_STRING ReparseFileName;
+    PREPARSE_DATA_BUFFER ReparseData;
 
     if (FspFsctlTransactCreateKind == Request->Kind)
     {
@@ -498,20 +502,25 @@ NTSTATUS FspFsvolCreateComplete(
         }
 
         /* special case STATUS_REPARSE */
-        if (STATUS_REPARSE == Result)
+        if (STATUS_REPARSE == Response->IoStatus.Status)
         {
-            ReparseFileName.Buffer =
-                (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset);
-            ReparseFileName.Length = ReparseFileName.MaximumLength =
-                Response->Rsp.Create.Reparse.FileName.Size;
-
-            Result = STATUS_ACCESS_DENIED;
-            if (IO_REPARSE == Response->IoStatus.Information)
+            if (IO_REMOUNT == Response->IoStatus.Information)
             {
-                if (0 == ReparseFileName.Length ||
-                    (PUINT8)ReparseFileName.Buffer + ReparseFileName.Length >
-                    (PUINT8)Response + Response->Size)
-                    FSP_RETURN();
+                Irp->IoStatus.Information = IO_REMOUNT;
+                Result = STATUS_REPARSE;
+                FSP_RETURN();
+            }
+            else if (IO_REPARSE == Response->IoStatus.Information)
+            {
+                ReparseFileName.Buffer =
+                    (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset);
+                ReparseFileName.Length = ReparseFileName.MaximumLength =
+                    Response->Rsp.Create.Reparse.FileName.Size;
+
+                if ((PUINT8)ReparseFileName.Buffer + ReparseFileName.Length >
+                    (PUINT8)Response + Response->Size ||
+                    0 == ReparseFileName.Length)
+                    FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
 
                 if (ReparseFileName.Length > FileObject->FileName.MaximumLength)
                 {
@@ -539,19 +548,43 @@ NTSTATUS FspFsvolCreateComplete(
                  *     STATUS_REPARSE status returned by the filter. Therefore, it is not
                  *     the responsibility of the filter to free that file object.
                  */
-            }
-            else
-            if (IO_REMOUNT == Response->IoStatus.Information)
-            {
-                if (0 != ReparseFileName.Length)
-                    FSP_RETURN();
-            }
-            else
-                FSP_RETURN();
 
-            Irp->IoStatus.Information = (ULONG_PTR)Response->IoStatus.Information;
-            Result = Response->IoStatus.Status;
-            FSP_RETURN();
+                Irp->IoStatus.Information = IO_REPARSE;
+                Result = STATUS_REPARSE;
+                FSP_RETURN();
+            }
+            else
+            {
+                ReparseData = (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.Data.Offset);
+
+                if ((PUINT8)ReparseData + Response->Rsp.Create.Reparse.Data.Size >
+                    (PUINT8)Response + Response->Size)
+                {
+                    Result = STATUS_IO_REPARSE_DATA_INVALID;
+                    FSP_RETURN();
+                }
+
+                Result = FsRtlValidateReparsePointBuffer(Response->Rsp.Create.Reparse.Data.Size,
+                    ReparseData);
+                if (!NT_SUCCESS(Result))
+                    FSP_RETURN();
+
+                ASSERT(0 == Irp->Tail.Overlay.AuxiliaryBuffer);
+                Irp->Tail.Overlay.AuxiliaryBuffer = FspAllocNonPagedExternal(
+                    Response->Rsp.Create.Reparse.Data.Size);
+                if (0 == Irp->Tail.Overlay.AuxiliaryBuffer)
+                {
+                    Result = STATUS_INSUFFICIENT_RESOURCES;
+                    FSP_RETURN();
+                }
+
+                RtlCopyMemory(Irp->Tail.Overlay.AuxiliaryBuffer, ReparseData,
+                    Response->Rsp.Create.Reparse.Data.Size);
+
+                Irp->IoStatus.Information = ReparseData->ReparseTag;
+                Result = STATUS_REPARSE;
+                FSP_RETURN();
+            }
         }
 
         /* fix FileNode->FileName if we were doing SL_OPEN_TARGET_DIRECTORY */

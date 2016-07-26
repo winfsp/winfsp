@@ -59,6 +59,8 @@ typedef struct _MEMFS_FILE_NODE
     SIZE_T FileSecuritySize;
     PVOID FileSecurity;
     PVOID FileData;
+    SIZE_T ReparseDataSize;
+    PVOID ReparseData;
     ULONG RefCount;
 } MEMFS_FILE_NODE;
 
@@ -358,7 +360,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
     BOOLEAN Inserted;
 
-    if (CreateOptions & FILE_DIRECTORY_FILE)
+    if (CreateOptions & (FILE_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT))
         AllocationSize = 0;
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
@@ -930,6 +932,33 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
+    PWSTR FileName, BOOLEAN OpenReparsePoint,
+    PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
+{
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0,
+    PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0,
+    PWSTR FileName, PVOID Buffer, SIZE_T Size)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
     GetVolumeInfo,
@@ -951,6 +980,9 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     GetSecurity,
     SetSecurity,
     ReadDirectory,
+    ResolveReparsePoints,
+    GetReparsePoint,
+    SetReparsePoint,
 };
 
 NTSTATUS MemfsCreate(

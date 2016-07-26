@@ -124,7 +124,9 @@ typedef struct
     UINT32 CasePreservedNames:1;        /* file system preserves the case of file names */
     UINT32 UnicodeOnDisk:1;             /* file system supports Unicode in file names */
     UINT32 PersistentAcls:1;            /* file system preserves and enforces access control lists */
-    UINT32 ReparsePoints:1;             /* file system supports reparse points (!!!: unimplemented) */
+    UINT32 ReparsePoints:1;             /* file system supports reparse points */
+    UINT32 ReparsePointPrivilegeCheck:1;/* file system perform reparse point privilege checks */
+    UINT32 SymbolicLinksOnly:1;         /* file system supports only symbolic link reparse points */
     UINT32 NamedStreams:1;              /* file system supports named streams (!!!: unimplemented) */
     UINT32 HardLinks:1;                 /* unimplemented; set to 0 */
     UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */
@@ -291,6 +293,13 @@ typedef struct
         {
             UINT64 UserContext;
             UINT64 UserContext2;
+            UINT32 FsControlCode;
+            FSP_FSCTL_TRANSACT_BUF Buffer;
+        } FileSystemControl;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
         } QuerySecurity;
         struct
         {
@@ -328,9 +337,10 @@ typedef struct
                 FSP_FSCTL_FILE_INFO FileInfo;
             } Opened;
             /* IoStatus.Status == STATUS_REPARSE */
-            struct
+            union
             {
-                FSP_FSCTL_TRANSACT_BUF FileName; /* file name to use for STATUS_REPARSE */
+                FSP_FSCTL_TRANSACT_BUF FileName;    /* IoStatus.Information == IO_REPARSE (== 0) */
+                FSP_FSCTL_TRANSACT_BUF Data;        /* IoStatus.Information >  IO_REMOUNT (== 1) */
             } Reparse;
         } Create;
         struct
@@ -357,6 +367,10 @@ typedef struct
         {
             FSP_FSCTL_VOLUME_INFO VolumeInfo;
         } SetVolumeInformation;
+        struct
+        {
+            FSP_FSCTL_TRANSACT_BUF Buffer;
+        } FileSystemControl;
         struct
         {
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;

@@ -111,15 +111,44 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
                 break;
             }
 
-            Result = FspGetSecurityByName(FileSystem, Prefix, 0,
+            Result = FspGetSecurityByName(FileSystem, Prefix, &FileAttributes,
                 &SecurityDescriptor, &SecurityDescriptorSize);
 
             FspPathCombine(FileName, Remain);
 
-            if (!NT_SUCCESS(Result))
+            if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
             {
                 if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
                     Result = STATUS_OBJECT_PATH_NOT_FOUND;
+                goto exit;
+            }
+
+            /*
+             * We check to see if this is a reparse point and then immediately return
+             * STATUS_REPARSE. We do this check BEFORE the directory check, because
+             * contrary to NTFS we want to allow non-directory symlinks to directories.
+             *
+             * Note that this effectively turns off traverse checking a path comprised of
+             * reparse points even when the originating process does not have the Traverse
+             * privilege. [I am not sure what NTFS does in this case, but POSIX symlinks
+             * behave similarly.] We will still traverse check the reparsed path when
+             * the FSD sends it back to us though!
+             *
+             * Now if the reparse points are not symlinks (or symlink-like) things
+             * get even more complicated. Argh! Windows!
+             */
+            if (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+            {
+                Result = STATUS_REPARSE;
+                goto exit;
+            }
+
+            /*
+             * Check if this is a directory, otherwise the path is invalid.
+             */
+            if (0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            {
+                Result = STATUS_OBJECT_PATH_NOT_FOUND; /* use STATUS_OBJECT_PATH_INVALID? */
                 goto exit;
             }
 
@@ -138,93 +167,115 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
 
     Result = FspGetSecurityByName(FileSystem, FileName, &FileAttributes,
         &SecurityDescriptor, &SecurityDescriptorSize);
-    if (!NT_SUCCESS(Result))
+    if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
         goto exit;
+
+    if (Request->Req.Create.UserMode && 0 < SecurityDescriptorSize)
+    {
+        if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess,
+            &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
+            Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
+        else
+            Result = FspNtStatusFromWin32(GetLastError());
+        if (!NT_SUCCESS(Result))
+        {
+            /*
+             * If the desired access includes the DELETE or FILE_READ_ATTRIBUTES
+             * (or MAXIMUM_ALLOWED) rights we must still check with our parent to
+             * see if it gives us access (through the FILE_DELETE_CHILD and
+             * FILE_LIST_DIRECTORY rights).
+             *
+             * Does the Windows security model suck? Ermmmm...
+             */
+            if (STATUS_ACCESS_DENIED != Result ||
+                0 == ((MAXIMUM_ALLOWED | DELETE | FILE_READ_ATTRIBUTES) & DesiredAccess))
+                goto exit;
+
+            Result = FspAccessCheck(FileSystem, Request, TRUE, FALSE,
+                (MAXIMUM_ALLOWED & DesiredAccess) ? (FILE_DELETE_CHILD | FILE_LIST_DIRECTORY) :
+                (
+                    ((DELETE & DesiredAccess) ? FILE_DELETE_CHILD : 0) |
+                    ((FILE_READ_ATTRIBUTES & DesiredAccess) ? FILE_LIST_DIRECTORY : 0)
+                ),
+                &ParentAccess);
+            if (!NT_SUCCESS(Result))
+            {
+                /* any failure just becomes ACCESS DENIED at this point */
+                Result = STATUS_ACCESS_DENIED;
+                goto exit;
+            }
+
+            /* redo the access check but remove the DELETE and/or FILE_READ_ATTRIBUTES rights */
+            DesiredAccess2 = DesiredAccess & ~(
+                ((FILE_DELETE_CHILD & ParentAccess) ? DELETE : 0) |
+                ((FILE_LIST_DIRECTORY & ParentAccess) ? FILE_READ_ATTRIBUTES : 0));
+            if (0 != DesiredAccess2)
+            {
+                if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess2,
+                    &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
+                    Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
+                else
+                    /* any failure just becomes ACCESS DENIED at this point */
+                    Result = STATUS_ACCESS_DENIED;
+                if (!NT_SUCCESS(Result))
+                    goto exit;
+            }
+
+            if (FILE_DELETE_CHILD & ParentAccess)
+                *PGrantedAccess |= DELETE;
+            if (FILE_LIST_DIRECTORY & ParentAccess)
+                *PGrantedAccess |= FILE_READ_ATTRIBUTES;
+        }
+    }
+
+    if (CheckParentDirectory)
+    {
+        /*
+         * We check to see if this is a reparse point and then immediately return
+         * STATUS_REPARSE. We do this check BEFORE the directory check, because
+         * contrary to NTFS we want to allow non-directory symlinks to directories.
+         */
+        if (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+        {
+            Result = STATUS_REPARSE;
+            goto exit;
+        }
+
+        if (0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+        {
+            Result = STATUS_NOT_A_DIRECTORY;
+            goto exit;
+        }
+    }
+    else
+    {
+        /*
+         * We check to see if this is a reparse point and FILE_OPEN_REPARSE_POINT
+         * was not specified, in which case we return STATUS_REPARSE.
+         */
+        if (0 != (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) &&
+            0 == (Request->Req.Create.CreateOptions & FILE_OPEN_REPARSE_POINT))
+        {
+            Result = STATUS_REPARSE;
+            goto exit;
+        }
+
+        if ((Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) &&
+            0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+        {
+            Result = STATUS_NOT_A_DIRECTORY;
+            goto exit;
+        }
+        if ((Request->Req.Create.CreateOptions & FILE_NON_DIRECTORY_FILE) &&
+            0 != (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+        {
+            Result = STATUS_FILE_IS_A_DIRECTORY;
+            goto exit;
+        }
+    }
 
     if (Request->Req.Create.UserMode)
     {
-        if (0 < SecurityDescriptorSize)
-        {
-            if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess,
-                &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
-                Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
-            else
-                Result = FspNtStatusFromWin32(GetLastError());
-            if (!NT_SUCCESS(Result))
-            {
-                /*
-                 * If the desired access includes the DELETE or FILE_READ_ATTRIBUTES
-                 * (or MAXIMUM_ALLOWED) rights we must still check with our parent to
-                 * see if it gives us access (through the FILE_DELETE_CHILD and
-                 * FILE_LIST_DIRECTORY rights).
-                 *
-                 * Does the Windows security model suck? Ermmmm...
-                 */
-                if (STATUS_ACCESS_DENIED != Result ||
-                    0 == ((MAXIMUM_ALLOWED | DELETE | FILE_READ_ATTRIBUTES) & DesiredAccess))
-                    goto exit;
-
-                Result = FspAccessCheck(FileSystem, Request, TRUE, FALSE,
-                    (MAXIMUM_ALLOWED & DesiredAccess) ? (FILE_DELETE_CHILD | FILE_LIST_DIRECTORY) :
-                    (
-                        ((DELETE & DesiredAccess) ? FILE_DELETE_CHILD : 0) |
-                        ((FILE_READ_ATTRIBUTES & DesiredAccess) ? FILE_LIST_DIRECTORY : 0)
-                    ),
-                    &ParentAccess);
-                if (!NT_SUCCESS(Result))
-                {
-                    /* any failure just becomes ACCESS DENIED at this point */
-                    Result = STATUS_ACCESS_DENIED;
-                    goto exit;
-                }
-
-                /* redo the access check but remove the DELETE and/or FILE_READ_ATTRIBUTES rights */
-                DesiredAccess2 = DesiredAccess & ~(
-                    ((FILE_DELETE_CHILD & ParentAccess) ? DELETE : 0) |
-                    ((FILE_LIST_DIRECTORY & ParentAccess) ? FILE_READ_ATTRIBUTES : 0));
-                if (0 != DesiredAccess2)
-                {
-                    if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess2,
-                        &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
-                        Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
-                    else
-                        /* any failure just becomes ACCESS DENIED at this point */
-                        Result = STATUS_ACCESS_DENIED;
-                    if (!NT_SUCCESS(Result))
-                        goto exit;
-                }
-
-                if (FILE_DELETE_CHILD & ParentAccess)
-                    *PGrantedAccess |= DELETE;
-                if (FILE_LIST_DIRECTORY & ParentAccess)
-                    *PGrantedAccess |= FILE_READ_ATTRIBUTES;
-            }
-        }
-
-        if (CheckParentDirectory)
-        {
-            if (0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-            {
-                Result = STATUS_NOT_A_DIRECTORY;
-                goto exit;
-            }
-        }
-        else
-        {
-            if ((Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) &&
-                0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-            {
-                Result = STATUS_NOT_A_DIRECTORY;
-                goto exit;
-            }
-            if ((Request->Req.Create.CreateOptions & FILE_NON_DIRECTORY_FILE) &&
-                0 != (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-            {
-                Result = STATUS_FILE_IS_A_DIRECTORY;
-                goto exit;
-            }
-        }
-
         if (0 != (FileAttributes & FILE_ATTRIBUTE_READONLY))
         {
             if (DesiredAccess &

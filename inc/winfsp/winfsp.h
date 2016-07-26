@@ -55,6 +55,35 @@ typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION_GUARD(FSP_FILE_SYSTEM *,
 typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *,
     FSP_FSCTL_TRANSACT_REQ *, FSP_FSCTL_TRANSACT_RSP *);
 /**
+ * User mode file system locking strategy.
+ *
+ * Two concurrency models are provided:
+ *
+ * 1. A fine-grained concurrency model where file system NAMESPACE accesses
+ * are guarded using an exclusive-shared (read-write) lock. File I/O is not
+ * guarded and concurrent reads/writes/etc. are possible. [Note that the FSD
+ * will still apply an exclusive-shared lock PER INDIVIDUAL FILE, but it will
+ * not limit I/O operations for different files.]
+ *
+ * The fine-grained concurrency model applies the exclusive-shared lock as
+ * follows:
+ * <ul>
+ * <li>EXCL: SetVolumeLabel, Create, Cleanup(Delete), SetInformation(Rename)</li>
+ * <li>SHRD: GetVolumeInfo, Open, SetInformation(Disposition), ReadDirectory</li>
+ * <li>NONE: all other operations</li>
+ * </ul>
+ *
+ * 2. A coarse-grained concurrency model where all file system accesses are
+ * guarded by a mutually exclusive lock.
+ *
+ * @see FspFileSystemSetOperationGuardStrategy
+ */
+typedef enum
+{
+    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE = 0,
+    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE,
+} FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY;
+/**
  * @class FSP_FILE_SYSTEM
  * File system interface.
  *
@@ -74,7 +103,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Pointer to a structure that will receive the volume information on successful return
      *     from this call.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*GetVolumeInfo)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -92,7 +121,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Pointer to a structure that will receive the volume information on successful return
      *     from this call.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*SetVolumeLabel)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -116,7 +145,11 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     security descriptor buffer. On output it will contain the actual size of the security
      *     descriptor copied into the security descriptor buffer. May be NULL.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS, STATUS_REPARSE or error code.
+     *
+     *     STATUS_REPARSE should be returned by file systems that support reparse points when
+     *     they encounter a FileName that contains reparse points anywhere but the final path
+     *     component.
      */
     NTSTATUS (*GetSecurityByName)(FSP_FILE_SYSTEM *FileSystem,
         PWSTR FileName, PUINT32 PFileAttributes,
@@ -158,7 +191,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Create)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -193,7 +226,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Open)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -217,7 +250,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Overwrite)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -292,7 +325,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param PBytesTransferred [out]
      *     Pointer to a memory location that will receive the actual number of bytes read.
      * @return
-     *     STATUS_SUCCESS on error code. STATUS_PENDING is supported allowing for asynchronous
+     *     STATUS_SUCCESS or error code. STATUS_PENDING is supported allowing for asynchronous
      *     operation.
      */
     NTSTATUS (*Read)(FSP_FILE_SYSTEM *FileSystem,
@@ -325,7 +358,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
      * @return
-     *     STATUS_SUCCESS on error code. STATUS_PENDING is supported allowing for asynchronous
+     *     STATUS_SUCCESS or error code. STATUS_PENDING is supported allowing for asynchronous
      *     operation.
      */
     NTSTATUS (*Write)(FSP_FILE_SYSTEM *FileSystem,
@@ -345,7 +378,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param FileNode
      *     The file node of the file to be flushed. When NULL the whole volume is being flushed.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Flush)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -363,7 +396,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*GetFileInfo)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -394,7 +427,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*SetBasicInfo)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -435,7 +468,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*SetFileSize)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -463,7 +496,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param FileName
      *     The name of the file or directory to test for deletion.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      * @see
      *     Cleanup
      */
@@ -495,7 +528,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param ReplaceIfExists
      *     Whether to replace a file that already exists at NewFileName.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Rename)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -516,7 +549,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     security descriptor buffer. On output it will contain the actual size of the security
      *     descriptor copied into the security descriptor buffer. Cannot be NULL.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*GetSecurity)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -535,7 +568,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Security descriptor to apply to the file or directory. This security descriptor will
      *     always be in self-relative format.
      * @return
-     *     STATUS_SUCCESS on error code.
+     *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*SetSecurity)(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_TRANSACT_REQ *Request,
@@ -566,7 +599,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param PBytesTransferred [out]
      *     Pointer to a memory location that will receive the actual number of bytes read.
      * @return
-     *     STATUS_SUCCESS on error code. STATUS_PENDING is supported allowing for asynchronous
+     *     STATUS_SUCCESS or error code. STATUS_PENDING is supported allowing for asynchronous
      *     operation.
      * @see
      *     FspFileSystemAddDirInfo
@@ -576,12 +609,123 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
         PWSTR Pattern,
         PULONG PBytesTransferred);
+    /**
+     * Resolve reparse points.
+     *
+     * A file or directory can contain a reparse point. A reparse point is data that has
+     * special meaning to the file system, Windows or user applications. For example, NTFS
+     * and Windows use reparse points to implement symbolic links. As another example,
+     * a particular file system may use reparse points to emulate UNIX FIFO's.
+     *
+     * Reparse points are a general mechanism for attaching special behavior to files. WinFsp
+     * supports any kind of reparse point. The symbolic link reparse point however is so
+     * important for many file systems (especially POSIX ones) that WinFsp implements special
+     * support for it.
+     *
+     * This function is expected to resolve as many reparse points as possible. If a reparse
+     * point is encountered that is not understood by the file system further reparse point
+     * resolution should stop; the reparse point data should be returned to the FSD with status
+     * STATUS_REPARSE/reparse-tag. If a reparse point (symbolic link) is encountered that is
+     * understood by the file system but points outside it, the reparse point should be
+     * resolved, but further reparse point resolution should stop; the resolved file name
+     * should be returned to the FSD with status STATUS_REPARSE/IO_REPARSE.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param FileName
+     *     The name of the file or directory to have its reparse points resolved.
+     * @param OpenReparsePoint
+     *     If TRUE, the last path component of FileName should not be resolved, even
+     *     if it is a reparse point that can be resolved. If FALSE, all path components
+     *     should be resolved if possible.
+     * @param PIoStatus
+     *     Pointer to storage that will receive the status to return to the FSD. When
+     *     this function succeeds it must set PIoStatus->Status to STATUS_REPARSE and
+     *     PIoStatus->Information to either IO_REPARSE or the reparse tag.
+     * @param Buffer
+     *     Pointer to a buffer that will receive the resolved file name (IO_REPARSE) or
+     *     reparse data (reparse tag). If the function returns a file name, it should
+     *     not be NULL terminated.
+     * @param PSize [in,out]
+     *     Pointer to the buffer size. On input it contains the size of the buffer.
+     *     On output it will contain the actual size of data copied.
+     * @return
+     *     STATUS_REPARSE or error code.
+     */
+    NTSTATUS (*ResolveReparsePoints)(FSP_FILE_SYSTEM *FileSystem,
+        PWSTR FileName, BOOLEAN OpenReparsePoint,
+        PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize);
+    /**
+     * Get reparse point.
+     *
+     * The behavior of this function depends on the value of FSP_FSCTL_VOLUME_PARAMS ::
+     * SymbolicLinksOnly. If the value of SymbolicLinksOnly is FALSE the file system
+     * supports full reparse points and this function is expected to fill the buffer
+     * with a full reparse point. If the value of SymbolicLinksOnly is TRUE the file
+     * system supports symbolic links only as reparse points and this function is
+     * expected to fill the buffer with the symbolic link path.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param Request
+     *     The request posted by the kernel mode FSD.
+     * @param FileNode
+     *     The file node of the reparse point.
+     * @param FileName
+     *     The file name of the reparse point.
+     * @param Buffer
+     *     Pointer to a buffer that will receive the results of this operation. If
+     *     the function returns a symbolic link path, it should not be NULL terminated.
+     * @param PSize [in,out]
+     *     Pointer to the buffer size. On input it contains the size of the buffer.
+     *     On output it will contain the actual size of data copied.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     * @see
+     *     SetReparsePoint
+     */
+    NTSTATUS (*GetReparsePoint)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request,
+        PVOID FileNode,
+        PWSTR FileName, PVOID Buffer, PSIZE_T PSize);
+    /**
+     * Set reparse point.
+     *
+     * The behavior of this function depends on the value of FSP_FSCTL_VOLUME_PARAMS ::
+     * SymbolicLinksOnly. If the value of SymbolicLinksOnly is FALSE the file system
+     * supports full reparse points and this function is expected to set the reparse point
+     * contained in the buffer. If the value of SymbolicLinksOnly is TRUE the file
+     * system supports symbolic links only as reparse points and this function is
+     * expected to set the symbolic link path contained in the buffer.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param Request
+     *     The request posted by the kernel mode FSD.
+     * @param FileNode
+     *     The file node of the reparse point.
+     * @param FileName
+     *     The file name of the reparse point.
+     * @param Buffer
+     *     Pointer to a buffer that contains the data for this operation. If this buffer
+     *     contains a symbolic link path, it should not be assumed to be NULL terminated.
+     * @param Size
+     *     Size of data to write.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     * @see
+     *     GetReparsePoint
+     */
+    NTSTATUS (*SetReparsePoint)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request,
+        PVOID FileNode,
+        PWSTR FileName, PVOID Buffer, SIZE_T Size);
 
     /*
      * This ensures that this interface will always contain 64 function pointers.
      * Please update when changing the interface as it is important for future compatibility.
      */
-    NTSTATUS (*Reserved[45])();
+    NTSTATUS (*Reserved[42])();
 } FSP_FILE_SYSTEM_INTERFACE;
 #if defined(WINFSP_DLL_INTERNAL)
 /*
@@ -591,11 +735,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
 static_assert(sizeof(FSP_FILE_SYSTEM_INTERFACE) == 64 * sizeof(NTSTATUS (*)()),
     "FSP_FILE_SYSTEM_INTERFACE must have 64 entries.");
 #endif
-typedef enum
-{
-    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE = 0,
-    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE,
-} FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY;
 typedef struct _FSP_FILE_SYSTEM
 {
     UINT16 Version;
@@ -628,7 +767,7 @@ typedef struct _FSP_FILE_SYSTEM
  *     Pointer that will receive the file system object created on successful return from this
  *     call.
  * @return
- *     STATUS_SUCCESS on error code.
+ *     STATUS_SUCCESS or error code.
  */
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
@@ -654,7 +793,7 @@ FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem);
  *     The mount point for the new file system. A value of NULL means that the file system should
  *     use the next available drive letter counting downwards from Z: as its mount point.
  * @return
- *     STATUS_SUCCESS on error code.
+ *     STATUS_SUCCESS or error code.
  */
 FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint);
 /**
@@ -677,7 +816,7 @@ FSP_API VOID FspFileSystemRemoveMountPoint(FSP_FILE_SYSTEM *FileSystem);
  *     The number of threads for the file system dispatcher. A value of 0 will create a default
  *     number of threads and should be chosen in most cases.
  * @return
- *     STATUS_SUCCESS on error code.
+ *     STATUS_SUCCESS or error code.
  */
 FSP_API NTSTATUS FspFileSystemStartDispatcher(FSP_FILE_SYSTEM *FileSystem, ULONG ThreadCount);
 /**
@@ -740,6 +879,16 @@ VOID FspFileSystemSetOperationGuard(FSP_FILE_SYSTEM *FileSystem,
     FileSystem->EnterOperation = EnterOperation;
     FileSystem->LeaveOperation = LeaveOperation;
 }
+/**
+ * Set file system locking strategy.
+ *
+ * @param FileSystem
+ *     The file system object.
+ * @param GuardStrategy
+ *     The locking (guard) strategy.
+ * @see
+ *     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY
+ */
 static inline
 VOID FspFileSystemSetOperationGuardStrategy(FSP_FILE_SYSTEM *FileSystem,
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY GuardStrategy)
@@ -806,6 +955,8 @@ FSP_API NTSTATUS FspFileSystemOpQueryVolumeInformation(FSP_FILE_SYSTEM *FileSyst
 FSP_API NTSTATUS FspFileSystemOpSetVolumeInformation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpQueryDirectory(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
@@ -973,7 +1124,7 @@ ULONG FspServiceRun(PWSTR ServiceName,
  *     Pointer that will receive the service object created on successful return from this
  *     call.
  * @return
- *     STATUS_SUCCESS on error code.
+ *     STATUS_SUCCESS or error code.
  */
 FSP_API NTSTATUS FspServiceCreate(PWSTR ServiceName,
     FSP_SERVICE_START *OnStart,
@@ -1053,7 +1204,7 @@ FSP_API ULONG FspServiceGetExitCode(FSP_SERVICE *Service);
  * @param Service
  *     The service object.
  * @return
- *     STATUS_SUCCESS on error code.
+ *     STATUS_SUCCESS or error code.
  */
 FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service);
 /**
@@ -1066,7 +1217,7 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service);
  * @param Service
  *     The service object.
  * @return
- *     STATUS_SUCCESS on error code.
+ *     STATUS_SUCCESS or error code.
  */
 FSP_API VOID FspServiceStop(FSP_SERVICE *Service);
 /**

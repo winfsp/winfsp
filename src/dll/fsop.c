@@ -17,25 +17,38 @@
 
 #include <dll/library.h>
 
-/*
- * The FspFileSystemOpEnter/FspFileSystemOpLeave functions guard against
- * concurrent accesses. Two concurrency models are provided:
- *
- * 1. A fine-grained concurrency model where file system NAMESPACE accesses
- * are guarded using an exclusive-shared (read-write) lock. File I/O is not
- * guarded and concurrent reads/writes/etc. are possible. [Note that the FSD
- * will still apply an exclusive-shared lock PER INDIVIDUAL FILE, but it will
- * not limit I/O operations for different files.]
- *
- * The fine-grained concurrency model applies the exclusive-shared lock as
- * follows:
- *     - EXCL: SetVolumeLabel, Create, Cleanup(Delete), SetInformation(Rename)
- *     - SHRD: GetVolumeInfo, Open, SetInformation(Disposition), ReadDirectory
- *     - NONE: all other operations
- *
- * 2. A coarse-grained concurrency model where all file system accesses are
- * guarded by a mutually exclusive lock.
- */
+/* the following definitions appear to be missing from the user mode headers */
+#define SYMLINK_FLAG_RELATIVE           1
+typedef struct _REPARSE_DATA_BUFFER
+{
+    ULONG ReparseTag;
+    USHORT ReparseDataLength;
+    USHORT Reserved;
+    union
+    {
+        struct
+        {
+            USHORT SubstituteNameOffset;
+            USHORT SubstituteNameLength;
+            USHORT PrintNameOffset;
+            USHORT PrintNameLength;
+            ULONG Flags;
+            WCHAR PathBuffer[1];
+        } SymbolicLinkReparseBuffer;
+        struct
+        {
+            USHORT SubstituteNameOffset;
+            USHORT SubstituteNameLength;
+            USHORT PrintNameOffset;
+            USHORT PrintNameLength;
+            WCHAR PathBuffer[1];
+        } MountPointReparseBuffer;
+        struct
+        {
+            UCHAR DataBuffer[1];
+        } GenericReparseBuffer;
+    } DUMMYUNIONNAME;
+} REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
 
 FSP_API NTSTATUS FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
@@ -108,8 +121,33 @@ FSP_API NTSTATUS FspFileSystemOpLeave(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static inline
+NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
+    IO_STATUS_BLOCK IoStatus;
+    SIZE_T Size;
+
+    if (0 != FileSystem->Interface->ResolveReparsePoints)
+    {
+        memset(&IoStatus, 0, sizeof IoStatus);
+        Size = FSP_FSCTL_TRANSACT_RSP_SIZEMAX - FIELD_OFFSET(FSP_FSCTL_TRANSACT_RSP, Buffer);
+        Result = FileSystem->Interface->ResolveReparsePoints(FileSystem,
+            (PWSTR)Request->Buffer,
+            !!(Request->Req.Create.CreateOptions & FILE_OPEN_REPARSE_POINT),
+            &IoStatus,
+            Response->Buffer,
+            &Size);
+        if (STATUS_REPARSE == Result)
+            Response->IoStatus.Information = (UINT32)IoStatus.Information;
+    }
+
+    return Result;
+}
+
+static inline
 NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response,
     BOOLEAN AllowTraverseCheck, PUINT32 PGrantedAccess,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor)
 {
@@ -128,7 +166,9 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
         (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) ?
             FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE,
         PGrantedAccess, PSecurityDescriptor);
-    if (NT_SUCCESS(Result))
+    if (STATUS_REPARSE == Result)
+        Result = FspFileSystemResolveReparsePoints(FileSystem, Request, Response);
+    else if (NT_SUCCESS(Result))
     {
         *PGrantedAccess = (MAXIMUM_ALLOWED & Request->Req.Create.DesiredAccess) ?
             FspGetFileGenericMapping()->GenericAll : Request->Req.Create.DesiredAccess;
@@ -139,7 +179,7 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
 
 static inline
 NTSTATUS FspFileSystemOpenCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response,
     BOOLEAN AllowTraverseCheck, PUINT32 PGrantedAccess)
 {
     NTSTATUS Result;
@@ -158,7 +198,9 @@ NTSTATUS FspFileSystemOpenCheck(FSP_FILE_SYSTEM *FileSystem,
         Request->Req.Create.DesiredAccess |
             ((Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE) ? DELETE : 0),
         PGrantedAccess);
-    if (NT_SUCCESS(Result))
+    if (STATUS_REPARSE == Result)
+        Result = FspFileSystemResolveReparsePoints(FileSystem, Request, Response);
+    else if (NT_SUCCESS(Result))
     {
         if (0 == (Request->Req.Create.DesiredAccess & MAXIMUM_ALLOWED))
             *PGrantedAccess &= ~DELETE | (Request->Req.Create.DesiredAccess & DELETE);
@@ -169,7 +211,7 @@ NTSTATUS FspFileSystemOpenCheck(FSP_FILE_SYSTEM *FileSystem,
 
 static inline
 NTSTATUS FspFileSystemOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response,
     BOOLEAN AllowTraverseCheck, PUINT32 PGrantedAccess)
 {
     NTSTATUS Result;
@@ -191,12 +233,34 @@ NTSTATUS FspFileSystemOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
             (Supersede ? DELETE : FILE_WRITE_DATA) |
             ((Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE) ? DELETE : 0),
         PGrantedAccess);
-    if (NT_SUCCESS(Result))
+    if (STATUS_REPARSE == Result)
+        Result = FspFileSystemResolveReparsePoints(FileSystem, Request, Response);
+    else if (NT_SUCCESS(Result))
     {
         if (0 == (Request->Req.Create.DesiredAccess & MAXIMUM_ALLOWED))
             *PGrantedAccess &= ~(DELETE | FILE_WRITE_DATA) |
                 (Request->Req.Create.DesiredAccess & (DELETE | FILE_WRITE_DATA));
     }
+
+    return Result;
+}
+
+static inline
+NTSTATUS FspFileSystemOpenTargetDirectoryCheck(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response,
+    PUINT32 PGrantedAccess)
+{
+    NTSTATUS Result;
+
+    /*
+     * OpenTargetDirectoryCheck consists of checking the parent directory
+     * for the desired access.
+     */
+
+    Result = FspAccessCheck(FileSystem, Request, TRUE, TRUE, Request->Req.Create.DesiredAccess,
+        PGrantedAccess);
+    if (STATUS_REPARSE == Result)
+        Result = FspFileSystemResolveReparsePoints(FileSystem, Request, Response);
 
     return Result;
 }
@@ -235,7 +299,9 @@ NTSTATUS FspFileSystemRenameCheck(FSP_FILE_SYSTEM *FileSystem,
     CreateRequest->Size = sizeof CreateRequest +
         Request->Req.SetInformation.Info.Rename.NewFileName.Size;
     CreateRequest->Kind = FspFsctlTransactCreateKind;
-    CreateRequest->Req.Create.CreateOptions = FILE_DELETE_ON_CLOSE; /* force read-only check! */
+    CreateRequest->Req.Create.CreateOptions =
+        FILE_DELETE_ON_CLOSE |          /* force read-only check! */
+        FILE_OPEN_REPARSE_POINT;        /* allow rename over reparse point */
     CreateRequest->Req.Create.AccessToken = Request->Req.SetInformation.Info.Rename.AccessToken;
     CreateRequest->Req.Create.UserMode = TRUE;
     CreateRequest->FileName.Offset = 0;
@@ -247,6 +313,9 @@ NTSTATUS FspFileSystemRenameCheck(FSP_FILE_SYSTEM *FileSystem,
     Result = FspAccessCheck(FileSystem, CreateRequest, FALSE, FALSE, DELETE, &GrantedAccess);
 
     MemFree(CreateRequest);
+
+    if (STATUS_REPARSE == Result)
+        Result = STATUS_SUCCESS; /* file system should not return STATUS_REPARSE during rename */
 
     return Result;
 }
@@ -260,8 +329,9 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode;
     FSP_FSCTL_FILE_INFO FileInfo;
 
-    Result = FspFileSystemCreateCheck(FileSystem, Request, TRUE, &GrantedAccess, &ParentDescriptor);
-    if (!NT_SUCCESS(Result))
+    Result = FspFileSystemCreateCheck(FileSystem, Request, Response, TRUE,
+        &GrantedAccess, &ParentDescriptor);
+    if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
         return Result;
 
     Result = FspCreateSecurityDescriptor(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
@@ -294,8 +364,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode;
     FSP_FSCTL_FILE_INFO FileInfo;
 
-    Result = FspFileSystemOpenCheck(FileSystem, Request, TRUE, &GrantedAccess);
-    if (!NT_SUCCESS(Result))
+    Result = FspFileSystemOpenCheck(FileSystem, Request, Response, TRUE, &GrantedAccess);
+    if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
         return Result;
 
     FileNode = 0;
@@ -323,8 +393,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_FILE_INFO FileInfo;
     BOOLEAN Create = FALSE;
 
-    Result = FspFileSystemOpenCheck(FileSystem, Request, TRUE, &GrantedAccess);
-    if (!NT_SUCCESS(Result))
+    Result = FspFileSystemOpenCheck(FileSystem, Request, Response, TRUE, &GrantedAccess);
+    if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
     {
         if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
             return Result;
@@ -348,8 +418,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
 
     if (Create)
     {
-        Result = FspFileSystemCreateCheck(FileSystem, Request, FALSE, &GrantedAccess, &ParentDescriptor);
-        if (!NT_SUCCESS(Result))
+        Result = FspFileSystemCreateCheck(FileSystem, Request, Response, FALSE,
+            &GrantedAccess, &ParentDescriptor);
+        if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
             return Result;
 
         Result = FspCreateSecurityDescriptor(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
@@ -384,8 +455,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_FILE_INFO FileInfo;
     BOOLEAN Supersede = FILE_SUPERSEDE == ((Request->Req.Create.CreateOptions >> 24) & 0xff);
 
-    Result = FspFileSystemOverwriteCheck(FileSystem, Request, TRUE, &GrantedAccess);
-    if (!NT_SUCCESS(Result))
+    Result = FspFileSystemOverwriteCheck(FileSystem, Request, Response, TRUE, &GrantedAccess);
+    if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
         return Result;
 
     FileNode = 0;
@@ -413,8 +484,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
     FSP_FSCTL_FILE_INFO FileInfo;
     BOOLEAN Create = FALSE;
 
-    Result = FspFileSystemOverwriteCheck(FileSystem, Request, TRUE, &GrantedAccess);
-    if (!NT_SUCCESS(Result))
+    Result = FspFileSystemOverwriteCheck(FileSystem, Request, Response, TRUE, &GrantedAccess);
+    if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
     {
         if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
             return Result;
@@ -438,8 +509,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
 
     if (Create)
     {
-        Result = FspFileSystemCreateCheck(FileSystem, Request, FALSE, &GrantedAccess, &ParentDescriptor);
-        if (!NT_SUCCESS(Result))
+        Result = FspFileSystemCreateCheck(FileSystem, Request, Response,
+            FALSE, &GrantedAccess, &ParentDescriptor);
+        if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
             return Result;
 
         Result = FspCreateSecurityDescriptor(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
@@ -476,9 +548,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     FSP_FSCTL_FILE_INFO FileInfo;
     UINT32 Information;
 
-    Result = FspAccessCheck(FileSystem, Request, TRUE, TRUE,
-        Request->Req.Create.DesiredAccess, &GrantedAccess);
-    if (!NT_SUCCESS(Result))
+    Result = FspFileSystemOpenTargetDirectoryCheck(FileSystem, Request, Response, &GrantedAccess);
+    if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
         return Result;
 
     FileNode = 0;
@@ -817,6 +888,112 @@ FSP_API NTSTATUS FspFileSystemOpQueryDirectory(FSP_FILE_SYSTEM *FileSystem,
         Response->IoStatus.Information = BytesTransferred;
 
     return Result;
+}
+
+FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+    PREPARSE_DATA_BUFFER SymlinkReparseData;
+    SIZE_T Offset, Size;
+
+    Result = STATUS_INVALID_DEVICE_REQUEST;
+    switch (Request->Req.FileSystemControl.FsControlCode)
+    {
+    case FSCTL_GET_REPARSE_POINT:
+        if (0 != FileSystem->Interface->GetReparsePoint)
+        {
+            SymlinkReparseData = (PREPARSE_DATA_BUFFER)Response->Buffer;
+            memset(SymlinkReparseData, 0, sizeof *SymlinkReparseData);
+
+            if (1/*!!!: SymbolicLinksOnly*/)
+            {
+                Size = FSP_FSCTL_TRANSACT_RSP_SIZEMAX - FIELD_OFFSET(FSP_FSCTL_TRANSACT_RSP, Buffer) -
+                    sizeof(*SymlinkReparseData);
+                Size /= 2; /* need space for SubstituteName and PrintName */
+                Result = FileSystem->Interface->GetReparsePoint(FileSystem, Request,
+                    (PVOID)Request->Req.FileSystemControl.UserContext,
+                    (PWSTR)Request->Buffer,
+                    SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer,
+                    &Size);
+                if (NT_SUCCESS(Result))
+                {
+                    Offset = 0;
+                    if (Size > 4 * sizeof(WCHAR) &&
+                        '\\' == SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer[0] &&
+                        '?' == SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer[1] &&
+                        '?' == SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer[2] &&
+                        '\\' == SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer[3])
+                        Offset = 4 * sizeof(WCHAR);
+
+                    SymlinkReparseData->ReparseTag = IO_REPARSE_TAG_SYMLINK;
+                    SymlinkReparseData->ReparseDataLength = (USHORT)(
+                        FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) -
+                        FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer) +
+                        Size + Size - Offset);
+                    SymlinkReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset =
+                        0;
+                    SymlinkReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength =
+                        (USHORT)Size;
+                    SymlinkReparseData->SymbolicLinkReparseBuffer.PrintNameOffset =
+                        (USHORT)Size;
+                    SymlinkReparseData->SymbolicLinkReparseBuffer.PrintNameLength =
+                        (USHORT)(Size - Offset);
+                    SymlinkReparseData->SymbolicLinkReparseBuffer.Flags =
+                        Size > 1 * sizeof(WCHAR) &&
+                        '\\' == SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer[0] ?
+                            0 : SYMLINK_FLAG_RELATIVE;
+                    RtlMoveMemory(
+                        SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer + Size / sizeof(WCHAR),
+                        SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer + Offset / sizeof(WCHAR),
+                        (DWORD)(Size - Offset));
+
+                    Response->Rsp.FileSystemControl.Buffer.Size = (UINT16)Size;
+                }
+            }
+            else
+            {
+                Size = FSP_FSCTL_TRANSACT_RSP_SIZEMAX - FIELD_OFFSET(FSP_FSCTL_TRANSACT_RSP, Buffer);
+                Result = FileSystem->Interface->GetReparsePoint(FileSystem, Request,
+                    (PVOID)Request->Req.FileSystemControl.UserContext,
+                    (PWSTR)Request->Buffer, SymlinkReparseData, &Size);
+                if (NT_SUCCESS(Result))
+                    Response->Rsp.FileSystemControl.Buffer.Size = (UINT16)Size;
+            }
+        }
+        break;
+    case FSCTL_SET_REPARSE_POINT:
+        if (0 != FileSystem->Interface->SetReparsePoint)
+        {
+            SymlinkReparseData = (PREPARSE_DATA_BUFFER)
+                (Request->Buffer + Request->Req.FileSystemControl.Buffer.Offset);
+
+            if (1/*!!!: SymbolicLinksOnly*/)
+            {
+                Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
+                    (PVOID)Request->Req.FileSystemControl.UserContext,
+                    (PWSTR)Request->Buffer,
+                    SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer +
+                        SymlinkReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(WCHAR),
+                    SymlinkReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength);
+            }
+            else
+                Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
+                    (PVOID)Request->Req.FileSystemControl.UserContext,
+                    (PWSTR)Request->Buffer,
+                    SymlinkReparseData,
+                    Request->Req.FileSystemControl.Buffer.Size);
+        }
+        break;
+    case FSCTL_DELETE_REPARSE_POINT:
+        if (0 != FileSystem->Interface->SetReparsePoint)
+            Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
+                (PVOID)Request->Req.FileSystemControl.UserContext,
+                (PWSTR)Request->Buffer, 0, 0);
+        break;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
