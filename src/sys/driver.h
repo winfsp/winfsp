@@ -1034,4 +1034,14 @@ extern WCHAR FspFileDescDirectoryPatternMatchAll[];
 extern FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
 extern ULONG FspMvMdlMappingNoWrite;
 
+/* add missing API prototype */
+#if (NTDDI_VERSION < NTDDI_WIN7)
+NTKERNELAPI
+NTSTATUS
+ObCloseHandle(
+    _In_ HANDLE Handle,
+    _In_ KPROCESSOR_MODE PreviousMode
+    );
+#endif
+
 #endif

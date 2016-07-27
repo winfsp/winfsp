@@ -686,6 +686,7 @@ NTSTATUS SvcInstanceStart(HANDLE ClientToken,
         UINT8 RspBuf[2];
         DWORD BytesTransferred;
         OVERLAPPED Overlapped;
+        DWORD WaitResult;
 
         if (0 == (BytesTransferred =
             WideCharToMultiByte(CP_UTF8, 0, Secret, lstrlenW(Secret), ReqBuf, sizeof ReqBuf, 0, 0)))
@@ -711,13 +712,22 @@ NTSTATUS SvcInstanceStart(HANDLE ClientToken,
             goto exit;
         }
 
-        if (!GetOverlappedResultEx(SvcInstance->StdioHandles[1], &Overlapped, &BytesTransferred,
-            LAUNCHER_START_WITH_SECRET_TIMEOUT, FALSE))
+        /*
+         * We need to perform a GetOverlappedResult with a timeout. GetOverlappedResultEx would
+         * be perfect except that it is a Windows 8 and above API. We will therefore replace with
+         * WaitForSingleObject followed by GetOverlappedResult on success.
+         */
+        WaitResult = WaitForSingleObject(SvcInstance->StdioHandles[1],
+            LAUNCHER_START_WITH_SECRET_TIMEOUT);
+        if (WAIT_OBJECT_0 == WaitResult)
+            Result = GetOverlappedResult(SvcInstance->StdioHandles[1], &Overlapped, &BytesTransferred, TRUE) ?
+                STATUS_SUCCESS : FspNtStatusFromWin32(GetLastError());
+        else if (WAIT_TIMEOUT == WaitResult)
+            Result = STATUS_TIMEOUT;
+        else
+            Result = FspNtStatusFromWin32(GetLastError());
+        if (!NT_SUCCESS(Result))
         {
-            if (WAIT_TIMEOUT == GetLastError())
-                Result = STATUS_TIMEOUT;
-            else
-                Result = FspNtStatusFromWin32(GetLastError());
             CancelIoEx(SvcInstance->StdioHandles[1], &Overlapped);
             goto exit;
         }
