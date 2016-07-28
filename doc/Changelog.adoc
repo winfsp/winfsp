@@ -1,6 +1,14 @@
 = Changelog
 
 
+v0.15::
+
+This is a minor release that brings support for Windows 7 and 32-bit OS'es.
+
+- Fixes a number of issues for Windows 7. Windows 7 is now officially supported.
+- Fixes a number of issues with the 32-bit FSD and user mode components. 32-bit versions of Windows are now officially supported.
+
+
 v0.14::
 
 This release includes support for file systems protected by credentials.
