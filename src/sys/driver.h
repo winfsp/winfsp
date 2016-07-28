@@ -655,13 +655,14 @@ enum
 #define FspIopPostWorkRequestBestEffort(D, R)\
     FspIopPostWorkRequestFunnel(D, R, TRUE)
 #define FspIopCompleteIrp(I, R)         FspIopCompleteIrpEx(I, R, TRUE)
+#define REQ_ALIGN_SIZE                  16
 typedef VOID FSP_IOP_REQUEST_FINI(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4]);
 typedef struct
 {
     FSP_IOP_REQUEST_FINI *RequestFini;
     PVOID Context[4];
     FSP_FSCTL_TRANSACT_RSP *Response;
-    __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 RequestBuf[];
+    __declspec(align(REQ_ALIGN_SIZE)) UINT8 RequestBuf[];
 } FSP_FSCTL_TRANSACT_REQ_HEADER;
 static inline
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I)
