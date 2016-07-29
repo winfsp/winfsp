@@ -49,6 +49,7 @@ If you build the driver yourself it will not be signed and Windows will refuse t
 
 WinFsp is designed to run on Vista and above. It has been tested on the following platforms so far:
 
+* Windows 7 Enterprise
 * Windows 8 Pro
 * Windows 10 Pro
 * Windows Server 2012
