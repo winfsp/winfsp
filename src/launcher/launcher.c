@@ -726,7 +726,7 @@ NTSTATUS SvcInstanceStart(HANDLE ClientToken,
             Result = STATUS_TIMEOUT;
         else
             Result = FspNtStatusFromWin32(GetLastError());
-        if (!NT_SUCCESS(Result))
+        if (!NT_SUCCESS(Result) || STATUS_TIMEOUT == Result)
         {
             CancelIoEx(SvcInstance->StdioHandles[1], &Overlapped);
             goto exit;
