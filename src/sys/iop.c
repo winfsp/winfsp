@@ -48,10 +48,12 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
 #endif
 
 /* Requests (and RequestHeaders) must be 16-byte aligned, because we use the low 4 bits for flags */
-#if 16 != MEMORY_ALLOCATION_ALIGNMENT
-#define REQ_HEADER_ALIGNMASK            15
+#if REQ_ALIGN_SIZE <= MEMORY_ALLOCATION_ALIGNMENT
+#define REQ_HEADER_ALIGN_MASK           0
+#define REQ_HEADER_ALIGN_OVERHEAD       0
 #else
-#define REQ_HEADER_ALIGNMASK            0
+#define REQ_HEADER_ALIGN_MASK           (REQ_ALIGN_SIZE - 1)
+#define REQ_HEADER_ALIGN_OVERHEAD       (sizeof(PVOID) + REQ_HEADER_ALIGN_MASK)
 #endif
 
 NTSTATUS FspIopCreateRequestFunnel(
@@ -74,20 +76,23 @@ NTSTATUS FspIopCreateRequestFunnel(
     if (FlagOn(Flags, FspIopRequestMustSucceed))
         RequestHeader = FspAllocatePoolMustSucceed(
             FlagOn(Flags, FspIopRequestNonPaged) ? NonPagedPool : PagedPool,
-            sizeof *RequestHeader + sizeof *Request + ExtraSize + REQ_HEADER_ALIGNMASK,
+            sizeof *RequestHeader + sizeof *Request + ExtraSize + REQ_HEADER_ALIGN_OVERHEAD,
             FSP_ALLOC_INTERNAL_TAG);
     else
     {
         RequestHeader = ExAllocatePoolWithTag(
             FlagOn(Flags, FspIopRequestNonPaged) ? NonPagedPool : PagedPool,
-            sizeof *RequestHeader + sizeof *Request + ExtraSize + REQ_HEADER_ALIGNMASK,
+            sizeof *RequestHeader + sizeof *Request + ExtraSize + REQ_HEADER_ALIGN_OVERHEAD,
             FSP_ALLOC_INTERNAL_TAG);
         if (0 == RequestHeader)
             return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-#if 0 != REQ_HEADER_ALIGNMASK
-    RequestHeader = (PVOID)(((UINT_PTR)RequestHeader + REQ_HEADER_ALIGNMASK) & REQ_HEADER_ALIGNMASK);
+#if 0 != REQ_HEADER_ALIGN_MASK
+    PVOID Allocation = RequestHeader;
+    RequestHeader = (PVOID)(((UINT_PTR)RequestHeader + REQ_HEADER_ALIGN_OVERHEAD) &
+        ~REQ_HEADER_ALIGN_MASK);
+    ((PVOID *)RequestHeader)[-1] = Allocation;
 #endif
 
     RtlZeroMemory(RequestHeader, sizeof *RequestHeader + sizeof *Request + ExtraSize);
@@ -126,6 +131,10 @@ VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request)
 
     if (0 != RequestHeader->Response)
         FspFree(RequestHeader->Response);
+
+#if 0 != REQ_HEADER_ALIGN_MASK
+    RequestHeader = ((PVOID *)RequestHeader)[-1];
+#endif
 
     FspFree(RequestHeader);
 }

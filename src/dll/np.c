@@ -161,7 +161,7 @@ static inline BOOLEAN FspNpParseUserName(PWSTR RemoteName,
         &ClassName, &ClassNameLen, &InstanceName, &InstanceNameLen))
     {
         for (P = InstanceName; *P; P++)
-            if ('@' == *P && P - InstanceName < UserNameSize)
+            if ('@' == *P && (ULONG)(P - InstanceName) < UserNameSize)
             {
                 memcpy(UserName, InstanceName, (P - InstanceName) * sizeof(WCHAR));
                 UserName[P - InstanceName] = L'\0';

@@ -20,6 +20,7 @@
 #include <sddl.h>
 #include <map>
 #include <cassert>
+#include <VersionHelpers.h>
 
 /*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
@@ -541,7 +542,8 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
         __try
         {
             *P = *P | 0;
-            assert(0);
+            assert(!IsWindows8OrGreater());
+                /* only on Windows 8 we can make the buffer read-only! */
         }
         __except (EXCEPTION_EXECUTE_HANDLER)
         {
