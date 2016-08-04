@@ -118,6 +118,8 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\src\dll\fuse\fuse.pc" />
+    <CustomBuild Include="..\..\src\dll\fuse\fuse.pc">
+      <Filter>Source\fuse</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

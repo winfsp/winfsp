@@ -126,7 +126,7 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
         ReparseTag = ((PREPARSE_DATA_BUFFER)InputBuffer)->ReparseTag;
 
         /* NTFS severely limits symbolic links; we will not do that unless our file system asks */
-        if (FsvolDeviceExtension->VolumeParams.ReparsePointPrivilegeCheck)
+        if (FsvolDeviceExtension->VolumeParams.ReparsePointsPrivilegeCheck)
         {
             if (IO_REPARSE_TAG_SYMLINK == ReparseTag &&
                 KernelMode != Irp->RequestorMode &&

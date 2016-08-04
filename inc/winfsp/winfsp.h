@@ -752,6 +752,7 @@ typedef struct _FSP_FILE_SYSTEM
     UINT32 DebugLog;
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     SRWLOCK OpGuardLock;
+    UINT32 ReparsePointsSymbolicLinks:1;
 } FSP_FILE_SYSTEM;
 /**
  * Create a file system object.

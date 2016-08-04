@@ -449,7 +449,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o VolumeSerialNumber=N    32-bit wide\n"
             "    -o FileInfoTimeout=N       FileInfo/Security/VolumeInfo timeout (millisec)\n"
             "    -o CaseInsensitiveSearch   file system supports case-insensitive file names\n"
-            //"    -o ReparsePoints           file system supports reparse points\n"
+            "    -o ReparsePoints           file system supports reparse points\n"
             //"    -o NamedStreams            file system supports named streams\n"
             //"    -o ReadOnlyVolume          file system is read only\n"
             "    --UNC=U --VolumePrefix=U   UNC prefix (\\Server\\Share)\n");

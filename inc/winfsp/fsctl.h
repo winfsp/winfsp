@@ -125,8 +125,8 @@ typedef struct
     UINT32 UnicodeOnDisk:1;             /* file system supports Unicode in file names */
     UINT32 PersistentAcls:1;            /* file system preserves and enforces access control lists */
     UINT32 ReparsePoints:1;             /* file system supports reparse points */
-    UINT32 ReparsePointPrivilegeCheck:1;/* file system perform reparse point privilege checks */
-    UINT32 SymbolicLinksOnly:1;         /* file system supports only symbolic link reparse points */
+    UINT32 ReparsePointsPrivilegeCheck:1;   /* file system performs reparse point privilege checks */
+    UINT32 ReparsePointsSymbolicLinks:1;    /* file system supports only symbolic link reparse points */
     UINT32 NamedStreams:1;              /* file system supports named streams (!!!: unimplemented) */
     UINT32 HardLinks:1;                 /* unimplemented; set to 0 */
     UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */

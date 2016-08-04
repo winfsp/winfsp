@@ -906,7 +906,7 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
             SymlinkReparseData = (PREPARSE_DATA_BUFFER)Response->Buffer;
             memset(SymlinkReparseData, 0, sizeof *SymlinkReparseData);
 
-            if (1/*!!!: SymbolicLinksOnly*/)
+            if (FileSystem->ReparsePointsSymbolicLinks)
             {
                 Size = FSP_FSCTL_TRANSACT_RSP_SIZEMAX - FIELD_OFFSET(FSP_FSCTL_TRANSACT_RSP, Buffer) -
                     sizeof(*SymlinkReparseData);
@@ -968,7 +968,7 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
             SymlinkReparseData = (PREPARSE_DATA_BUFFER)
                 (Request->Buffer + Request->Req.FileSystemControl.Buffer.Offset);
 
-            if (1/*!!!: SymbolicLinksOnly*/)
+            if (FileSystem->ReparsePointsSymbolicLinks)
             {
                 Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
                     (PVOID)Request->Req.FileSystemControl.UserContext,
