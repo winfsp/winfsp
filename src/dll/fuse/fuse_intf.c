@@ -1660,7 +1660,12 @@ static NTSTATUS fsp_fuse_intf_GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_INVALID_DEVICE_REQUEST;
 
     err = f->ops.readlink(filedesc->PosixPath, PosixTargetPath, sizeof PosixTargetPath);
-    if (0 != err)
+    if (EINVAL/* same on MSVC and Cygwin */ == err)
+    {
+        Result = STATUS_NOT_A_REPARSE_POINT;
+        goto exit;
+    }
+    else if (0 != err)
     {
         Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         goto exit;
