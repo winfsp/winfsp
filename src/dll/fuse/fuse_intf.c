@@ -1797,6 +1797,10 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     if (0 == f->ops.symlink)
         return STATUS_INVALID_DEVICE_REQUEST;
 
+    /* were we asked to delete the reparse point? no can do! */
+    if (0 == Buffer)
+        return STATUS_ACCESS_DENIED;
+
     /* is this an absolute path? */
     if (Size > 4 * sizeof(WCHAR) &&
         '\\' == ((PWSTR)Buffer)[0] &&
