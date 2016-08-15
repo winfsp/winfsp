@@ -910,7 +910,6 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
             {
                 Size = FSP_FSCTL_TRANSACT_RSP_SIZEMAX - FIELD_OFFSET(FSP_FSCTL_TRANSACT_RSP, Buffer) -
                     sizeof(*SymlinkReparseData);
-                Size /= 2; /* need space for SubstituteName and PrintName */
                 Result = FileSystem->Interface->GetReparsePoint(FileSystem, Request,
                     (PVOID)Request->Req.FileSystemControl.UserContext,
                     (PWSTR)Request->Buffer,
@@ -921,8 +920,8 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
                     Offset = 0;
                     if (Size > 4 * sizeof(WCHAR) &&
                         '\\' == SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer[0] &&
-                        '?' == SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer[1] &&
-                        '?' == SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer[2] &&
+                        '?'  == SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer[1] &&
+                        '?'  == SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer[2] &&
                         '\\' == SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer[3])
                         Offset = 4 * sizeof(WCHAR);
 
@@ -930,23 +929,17 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
                     SymlinkReparseData->ReparseDataLength = (USHORT)(
                         FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) -
                         FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer) +
-                        Size + Size - Offset);
+                        Size);
                     SymlinkReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset =
                         0;
                     SymlinkReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength =
                         (USHORT)Size;
                     SymlinkReparseData->SymbolicLinkReparseBuffer.PrintNameOffset =
-                        (USHORT)Size;
+                        (USHORT)Offset;
                     SymlinkReparseData->SymbolicLinkReparseBuffer.PrintNameLength =
                         (USHORT)(Size - Offset);
-                    SymlinkReparseData->SymbolicLinkReparseBuffer.Flags =
-                        Size > 1 * sizeof(WCHAR) &&
-                        '\\' == SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer[0] ?
-                            0 : SYMLINK_FLAG_RELATIVE;
-                    RtlMoveMemory(
-                        SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer + Size / sizeof(WCHAR),
-                        SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer + Offset / sizeof(WCHAR),
-                        (DWORD)(Size - Offset));
+                    SymlinkReparseData->SymbolicLinkReparseBuffer.Flags = 0 == Offset ?
+                        0 : SYMLINK_FLAG_RELATIVE;
 
                     Response->Rsp.FileSystemControl.Buffer.Size = (UINT16)Size;
                 }
@@ -974,7 +967,7 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
                     (PVOID)Request->Req.FileSystemControl.UserContext,
                     (PWSTR)Request->Buffer,
                     SymlinkReparseData->SymbolicLinkReparseBuffer.PathBuffer +
-                        SymlinkReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(WCHAR),
+                        SymlinkReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR),
                     SymlinkReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength);
             }
             else

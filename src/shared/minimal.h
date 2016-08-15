@@ -50,8 +50,14 @@
 NTSYSAPI VOID NTAPI RtlFillMemory(VOID *Destination, DWORD Length, BYTE Fill);
 NTSYSAPI VOID NTAPI RtlMoveMemory(VOID *Destination, CONST VOID *Source, DWORD Length);
 
-#pragma function(memcpy)
 #pragma function(memset)
+#pragma function(memcpy)
+static inline
+void *memset(void *dst, int val, size_t siz)
+{
+    RtlFillMemory(dst, (DWORD)siz, val);
+    return dst;
+}
 static inline
 void *memcpy(void *dst, const void *src, size_t siz)
 {
@@ -59,9 +65,9 @@ void *memcpy(void *dst, const void *src, size_t siz)
     return dst;
 }
 static inline
-void *memset(void *dst, int val, size_t siz)
+void *memmove(void *dst, const void *src, size_t siz)
 {
-    RtlFillMemory(dst, (DWORD)siz, val);
+    RtlMoveMemory(dst, src, (DWORD)siz);
     return dst;
 }
 

@@ -17,6 +17,14 @@
 
 #include <dll/fuse/library.h>
 
+/*
+ * FSP_FUSE_REPARSE_OPTHACK
+ *
+ * Define this macro to enable the ResolveReparsePoints optimization hack.
+ * See fsp_fuse_intf_GetSecurityByName for details.
+ */
+#define FSP_FUSE_REPARSE_OPTHACK
+
 NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
@@ -218,8 +226,25 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoEx(FSP_FILE_SYSTEM *FileSystem,
 
     AllocationUnit = (UINT64)f->VolumeParams.SectorSize *
         (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
-    FileInfo->FileAttributes = (stbuf.st_mode & 0040000) ? FILE_ATTRIBUTE_DIRECTORY : 0;
-    FileInfo->ReparseTag = 0;
+    switch (stbuf.st_mode & 0170000)
+    {
+    case 0040000:
+        FileInfo->FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+        FileInfo->ReparseTag = 0;
+        break;
+    case 0120000:
+        if (FSP_FUSE_HAS_SYMLINKS(f))
+        {
+            FileInfo->FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
+            FileInfo->ReparseTag = IO_REPARSE_TAG_SYMLINK;
+            break;
+        }
+        /* fall through */
+    default:
+        FileInfo->FileAttributes = 0;
+        FileInfo->ReparseTag = 0;
+        break;
+    }
     FileInfo->FileSize = stbuf.st_size;
     FileInfo->AllocationSize =
         (FileInfo->FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
@@ -289,6 +314,44 @@ exit:
     return Result;
 }
 
+static char *fsp_fuse_intf_GetSymlinkPointer(FSP_FILE_SYSTEM *FileSystem,
+    char *PosixPath)
+{
+    struct fuse *f = FileSystem->UserContext;
+    char *p, *lastp;
+    struct fuse_stat stbuf;
+    int err;
+
+    if (0 == f->ops.getattr)
+        return 0;
+
+    p = PosixPath;
+    for (;;)
+    {
+        while ('/' == *p)
+            p++;
+        lastp = p;
+        while ('/' != *p)
+        {
+            if ('\0' == *p)
+                return 0;
+            p++;
+        }
+
+        *p = '\0';
+        memset(&stbuf, 0, sizeof stbuf);
+        err = f->ops.getattr(PosixPath, (void *)&stbuf);
+        *p = '/';
+
+        if (0 != err)
+            return 0;
+        else if (0120000 == (stbuf.st_mode & 0170000))
+            return lastp;
+    }
+
+    return 0;
+}
+
 static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
@@ -330,7 +393,7 @@ static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     PSECURITY_DESCRIPTOR SecurityDescriptorBuf, SIZE_T *PSecurityDescriptorSize)
 {
     struct fuse *f = FileSystem->UserContext;
-    char *PosixPath = 0;
+    char *PosixPath = 0, *PosixSymlinkPointer;
     NTSTATUS Result;
 
     Result = FspPosixMapWindowsToPosixPath(FileName, &PosixPath);
@@ -342,7 +405,31 @@ static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Result = STATUS_SUCCESS;
+    if (FSP_FUSE_HAS_SYMLINKS(f) &&
+        0 != (PosixSymlinkPointer = fsp_fuse_intf_GetSymlinkPointer(FileSystem, PosixPath)))
+    {
+#if defined(FSP_FUSE_REPARSE_OPTHACK)
+        /* OPTHACK: This is a rather gross hack for optimization purposes only.
+         *
+         * If the FileName in this GetSecurityByName call and the PosixPath we computed
+         * matches the one in the FSD request, then remember where the first symlink is
+         * for use in ResolveReparsePoints later on. This avoids going through every path
+         * component twice (doing both a getattr and readlink).
+         */
+
+        struct fuse_context *context = fsp_fuse_get_context(f->env);
+        struct fsp_fuse_context_header *contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
+
+        if (FspFsctlTransactCreateKind == contexthdr->Request->Kind &&
+            (PUINT8)FileName == contexthdr->Request->Buffer &&
+            0 == lstrcmpA(PosixPath, contexthdr->PosixPath))
+            contexthdr->SymlinkIndex = PosixSymlinkPointer - PosixPath;
+#endif
+
+        Result = STATUS_REPARSE;
+    }
+    else
+        Result = STATUS_SUCCESS;
 
 exit:
     if (0 != PosixPath)
@@ -1422,6 +1509,337 @@ exit:
     return Result;
 }
 
+static NTSTATUS fsp_fuse_intf_ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
+    PWSTR FileName, BOOLEAN OpenReparsePoint,
+    PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
+{
+    struct fuse *f = FileSystem->UserContext;
+    struct fuse_context *context = fsp_fuse_get_context(f->env);
+    struct fsp_fuse_context_header *contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
+    char c, *p, *lastp;
+    char PosixTargetPath[FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR)];
+    char PosixTargetLink[FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR)];
+    PWSTR TargetPath = 0;
+    ULONG Length, MaxTries = 32;
+    int err;
+    NTSTATUS Result;
+
+    if (0 == f->ops.readlink)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    Length = lstrlenA(contexthdr->PosixPath);
+    if (Length > sizeof PosixTargetPath - 1)
+        return STATUS_OBJECT_NAME_INVALID;
+    memcpy(PosixTargetPath, contexthdr->PosixPath, Length + 1);
+
+    p = PosixTargetPath +
+        contexthdr->SymlinkIndex; /* NOTE: if FSP_FUSE_REPARSE_OPTHACK is undefined, this will be 0 */
+    c = *p;
+    for (;;)
+    {
+        while ('/' == *p)
+            p++;
+        lastp = p;
+        while ('/' != *p)
+        {
+            if ('\0' == *p)
+            {
+                if (!OpenReparsePoint)
+                    goto end;
+                OpenReparsePoint = FALSE;
+                break;
+            }
+            p++;
+        }
+
+        /* handle dot and dotdot! */
+        if ('.' == lastp[0])
+        {
+            if (p == lastp + 1)
+                /* dot */
+                continue;
+
+            if ('.' == lastp[1] && p == lastp + 1)
+            {
+                /* dotdot */
+                p = lastp;
+                while (PosixTargetPath < p)
+                {
+                    p--;
+                    if ('/' != *p)
+                        break;
+                }
+                while (PosixTargetPath < p)
+                {
+                    p--;
+                    if ('/' == *p)
+                        break;
+                }
+                continue;
+            }
+        }
+
+        c = *p;
+        *p = '\0';
+        err = f->ops.readlink(contexthdr->PosixPath, PosixTargetLink, sizeof PosixTargetLink);
+        *p = c;
+
+        if (EINVAL/* same on MSVC and Cygwin */ == err)
+            /* it was not a symlink; continue */
+            continue;
+        else if (0 != err)
+            return fsp_fuse_ntstatus_from_errno(f->env, err);
+
+        /* found a symlink */
+        if (0 == --MaxTries)
+            return STATUS_REPARSE_POINT_NOT_RESOLVED;
+        Length = lstrlenA(PosixTargetLink);
+        if ('/' == PosixTargetLink[0])
+        {
+            /* we do not support absolute paths without the rellinks option */
+            if (!f->rellinks)
+            {
+                Result = STATUS_OBJECT_NAME_NOT_FOUND;
+                goto exit;
+            }
+
+            /* absolute symlink; replace whole path */
+            memcpy(PosixTargetPath, PosixTargetLink, Length + 1);
+            p = PosixTargetPath;
+        }
+        else
+        {
+            /* relative symlink; replace last path component seen */
+            if (Length + 1 > (p + sizeof PosixTargetPath) - lastp)
+                return STATUS_OBJECT_NAME_INVALID;
+            memcpy(lastp, PosixTargetLink, Length + 1);
+            p = lastp;
+        }
+    }
+
+end:
+    Result = FspPosixMapPosixToWindowsPath(PosixTargetPath, &TargetPath);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    Length = lstrlenW(TargetPath);
+    if (Length > *PSize)
+    {
+        Result = STATUS_OBJECT_NAME_INVALID;
+        goto exit;
+    }
+    *PSize = Length;
+    memcpy(Buffer, TargetPath, Length * sizeof(WCHAR));
+
+    PIoStatus->Status = STATUS_REPARSE;
+    PIoStatus->Information = 0/*IO_REPARSE*/;
+    Result = STATUS_REPARSE;
+
+exit:
+    if (0 != TargetPath)
+        FspPosixDeletePath(TargetPath);
+
+    return Result;
+}
+
+static NTSTATUS fsp_fuse_intf_GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode,
+    PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
+{
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.FileSystemControl.UserContext2;
+    char PosixTargetPath[FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR)];
+    PWSTR TargetPath = 0;
+    ULONG Length;
+    int err;
+    NTSTATUS Result;
+
+    if (0 == f->ops.readlink)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    err = f->ops.readlink(filedesc->PosixPath, PosixTargetPath, sizeof PosixTargetPath);
+    if (0 != err)
+    {
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        goto exit;
+    }
+
+    /* is this an absolute path? */
+    if ('/' == PosixTargetPath[0])
+    {
+        /* we do not support absolute paths without the rellinks option */
+        if (!f->rellinks)
+        {
+            Result = STATUS_ACCESS_DENIED;
+            goto exit;
+        }
+
+        /*
+         * Transform absolute path to relative.
+         */
+
+        char *p, *t, *pstem, *tstem;
+        unsigned index, count;
+
+        p = pstem = filedesc->PosixPath;
+        t = tstem = PosixTargetPath;
+
+        /* skip common prefix */
+        for (;;)
+        {
+            while ('/' == *p)
+                p++;
+            while ('/' == *t)
+                t++;
+            pstem = p, tstem = t;
+            while ('/' != *p)
+            {
+                if (*p != *t)
+                    goto common_prefix_end;
+                else if ('\0' == *p)
+                {
+                    while ('/' == *t)
+                        t++;
+                    pstem = p, tstem = t;
+                    goto common_prefix_end;
+                }
+                p++, t++;
+            }
+        }
+    common_prefix_end:
+        p = pstem;
+        t = tstem;
+
+        /* count path components */
+        for (count = 0; '\0' != *p; count++)
+        {
+            while ('/' == *p)
+                p++;
+            while ('/' != *p && '\0' != *p)
+                p++;
+        }
+
+        /* make relative path */
+        if (0 == count)
+        {
+            /* special case symlink loop: a -> a/stem */
+            while (PosixTargetPath < tstem)
+            {
+                tstem--;
+                if ('/' != *tstem)
+                    break;
+            }
+            while (PosixTargetPath < tstem)
+            {
+                tstem--;
+                if ('/' == *tstem)
+                {
+                    tstem++;
+                    break;
+                }
+            }
+        }
+        Length = lstrlenA(tstem);
+        Length += !!Length; /* add tstem term-0 */
+        if (3 * count + Length > sizeof PosixTargetPath)
+        {
+            Result = STATUS_IO_REPARSE_DATA_INVALID;
+            goto exit;
+        }
+        memmove(PosixTargetPath + 3 * count, tstem, Length);
+        for (index = 0; count > index; index++)
+        {
+            PosixTargetPath[index * 3 + 0] = '.';
+            PosixTargetPath[index * 3 + 1] = '.';
+            PosixTargetPath[index * 3 + 2] = '/';
+        }
+        if (0 == Length)
+            PosixTargetPath[(count - 1) * 3 + 2] = '\0';
+    }
+
+    Result = FspPosixMapPosixToWindowsPath(PosixTargetPath, &TargetPath);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Length = lstrlenW(TargetPath);
+    if (Length > *PSize)
+    {
+        Result = STATUS_BUFFER_TOO_SMALL;
+        goto exit;
+    }
+    *PSize = Length;
+    memcpy(Buffer, TargetPath, Length * sizeof(WCHAR));
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (0 != TargetPath)
+        FspPosixDeletePath(TargetPath);
+
+    return Result;
+}
+
+static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode,
+    PWSTR FileName, PVOID Buffer, SIZE_T Size)
+{
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc =
+        (PVOID)(UINT_PTR)Request->Req.FileSystemControl.UserContext2;
+    WCHAR TargetPath[FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR)];
+    char *PosixTargetPath = 0;
+    int err;
+    NTSTATUS Result;
+
+    if (0 == f->ops.symlink)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    /* is this an absolute path? */
+    if (Size > 4 * sizeof(WCHAR) &&
+        '\\' == ((PWSTR)Buffer)[0] &&
+        '?'  == ((PWSTR)Buffer)[1] &&
+        '?'  == ((PWSTR)Buffer)[2] &&
+        '\\' == ((PWSTR)Buffer)[3])
+    {
+        /* we do not support absolute paths that point outside this file system */
+        if (!Request->Req.FileSystemControl.TargetOnFileSystem)
+        {
+            Result = STATUS_ACCESS_DENIED;
+            goto exit;
+        }
+    }
+
+    if (Size > sizeof TargetPath - sizeof(WCHAR))
+    {
+        Result = STATUS_IO_REPARSE_DATA_INVALID;
+        goto exit;
+    }
+    memcpy(TargetPath, Buffer, Size);
+    TargetPath[Size / sizeof(WCHAR)] = L'\0';
+
+    Result = FspPosixMapWindowsToPosixPath(TargetPath, &PosixTargetPath);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    err = f->ops.symlink(PosixTargetPath, filedesc->PosixPath);
+    if (0 != err)
+    {
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        goto exit;
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (0 != PosixTargetPath)
+        FspPosixDeletePath(PosixTargetPath);
+
+    return Result;
+}
+
 FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
 {
     fsp_fuse_intf_GetVolumeInfo,
@@ -1443,4 +1861,7 @@ FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
     fsp_fuse_intf_GetSecurity,
     fsp_fuse_intf_SetSecurity,
     fsp_fuse_intf_ReadDirectory,
+    fsp_fuse_intf_ResolveReparsePoints,
+    fsp_fuse_intf_GetReparsePoint,
+    fsp_fuse_intf_SetReparsePoint,
 };

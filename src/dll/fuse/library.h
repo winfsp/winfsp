@@ -29,12 +29,15 @@
 #define FSP_FUSE_CONTEXT_FROM_HDR(h)    \
     (struct fuse_context *)((PUINT8)(h) + sizeof(struct fsp_fuse_context_header))
 
+#define FSP_FUSE_HAS_SYMLINKS(f)        (0 != (f)->ops.readlink)
+
 struct fuse
 {
     struct fsp_fuse_env *env;
     int set_umask, umask;
     int set_uid, uid;
     int set_gid, gid;
+    int rellinks;
     struct fuse_operations ops;
     void *data;
     UINT32 DebugLog;
@@ -51,6 +54,7 @@ struct fsp_fuse_context_header
     FSP_FSCTL_TRANSACT_REQ *Request;
     FSP_FSCTL_TRANSACT_RSP *Response;
     char *PosixPath;
+    ptrdiff_t SymlinkIndex;
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 ContextBuf[];
 };
 

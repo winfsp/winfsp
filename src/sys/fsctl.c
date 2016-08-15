@@ -103,7 +103,9 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
     PVOID OutputBuffer = Irp->UserBuffer;
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
-    ULONG ReparseTag;
+    PREPARSE_DATA_BUFFER ReparseData;
+    PWSTR PathBuffer;
+    BOOLEAN TargetOnFileSystem = FALSE;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     ASSERT(FileNode == FileDesc->FileNode);
@@ -123,16 +125,53 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
         if (!NT_SUCCESS(Result))
             return Result;
 
-        ReparseTag = ((PREPARSE_DATA_BUFFER)InputBuffer)->ReparseTag;
+        ReparseData = (PREPARSE_DATA_BUFFER)InputBuffer;
 
-        /* NTFS severely limits symbolic links; we will not do that unless our file system asks */
-        if (FsvolDeviceExtension->VolumeParams.ReparsePointsPrivilegeCheck)
+        if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag)
         {
-            if (IO_REPARSE_TAG_SYMLINK == ReparseTag &&
-                KernelMode != Irp->RequestorMode &&
-                SeSinglePrivilegeCheck(RtlConvertLongToLuid(SE_CREATE_SYMBOLIC_LINK_PRIVILEGE),
-                    UserMode))
-                return STATUS_ACCESS_DENIED;
+            /* NTFS severely limits symbolic links; we will not do that unless our file system asks */
+            if (FsvolDeviceExtension->VolumeParams.ReparsePointsPrivilegeCheck)
+            {
+                if (KernelMode != Irp->RequestorMode &&
+                    SeSinglePrivilegeCheck(RtlConvertLongToLuid(SE_CREATE_SYMBOLIC_LINK_PRIVILEGE),
+                        UserMode))
+                    return STATUS_ACCESS_DENIED;
+            }
+
+            /* determine if target resides on same device as link (convenience for user mode) */
+            PathBuffer = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
+                ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
+            if (ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength > 4 * sizeof(WCHAR) &&
+                '\\' == PathBuffer[0] &&
+                '?'  == PathBuffer[1] &&
+                '?'  == PathBuffer[2] &&
+                '\\' == PathBuffer[3])
+            {
+                UNICODE_STRING TargetDeviceName;
+                PFILE_OBJECT TargetDeviceFile;
+                PDEVICE_OBJECT TargetDeviceObject;
+
+                RtlInitEmptyUnicodeString(&TargetDeviceName,
+                    PathBuffer,
+                    ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength);
+
+                /* the first path component is assumed to be the device name */
+                TargetDeviceName.Length = 4 * sizeof(WCHAR);
+                while (TargetDeviceName.Length < TargetDeviceName.MaximumLength &&
+                    '\\' != TargetDeviceName.Buffer[TargetDeviceName.Length / sizeof(WCHAR)])
+                    TargetDeviceName.Length += sizeof(WCHAR);
+
+                Result = IoGetDeviceObjectPointer(&TargetDeviceName,
+                    FILE_READ_ATTRIBUTES, &TargetDeviceFile, &TargetDeviceObject);
+                if (!NT_SUCCESS(Result))
+                    goto target_check_exit;
+
+                TargetOnFileSystem = IoGetRelatedDeviceObject(FileObject) == TargetDeviceObject;
+                ObDereferenceObject(TargetDeviceFile);
+
+            target_check_exit:
+                ;
+            }
         }
     }
     else
@@ -169,6 +208,8 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
         Request->Req.FileSystemControl.Buffer.Size = (UINT16)InputBufferLength;
         RtlCopyMemory(Request->Buffer + Request->Req.FileSystemControl.Buffer.Offset,
             InputBuffer, InputBufferLength);
+
+        Request->Req.FileSystemControl.TargetOnFileSystem = TargetOnFileSystem;
     }
 
     FspFileNodeSetOwner(FileNode, Full, Request);

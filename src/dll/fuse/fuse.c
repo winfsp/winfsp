@@ -37,10 +37,12 @@ struct fsp_fuse_core_opt_data
         set_umask, umask,
         set_uid, uid,
         set_gid, gid,
-        set_attr_timeout, attr_timeout;
+        set_attr_timeout, attr_timeout,
+        rellinks;
     int set_FileInfoTimeout;
-    int CaseInsensitiveSearch, ReparsePoints,
-        NamedStreams, ReadOnlyVolume;
+    int CaseInsensitiveSearch,
+        NamedStreams,
+        ReadOnlyVolume;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
 };
 
@@ -78,6 +80,9 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FUSE_OPT_KEY("intr_signal=", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("modules=", FUSE_OPT_KEY_DISCARD),
 
+    FSP_FUSE_CORE_OPT("rellinks", rellinks, 1),
+    FSP_FUSE_CORE_OPT("norellinks", rellinks, 0),
+
     FSP_FUSE_CORE_OPT("SectorSize=%hu", VolumeParams.SectorSize, 4096),
     FSP_FUSE_CORE_OPT("SectorsPerAllocationUnit=%hu", VolumeParams.SectorsPerAllocationUnit, 1),
     FSP_FUSE_CORE_OPT("MaxComponentLength=%hu", VolumeParams.MaxComponentLength, 0),
@@ -89,11 +94,11 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("FileInfoTimeout=", set_FileInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=%d", VolumeParams.FileInfoTimeout, 0),
     FSP_FUSE_CORE_OPT("CaseInsensitiveSearch", CaseInsensitiveSearch, 1),
-    FSP_FUSE_CORE_OPT("ReparsePoints", ReparsePoints, 1),
     FSP_FUSE_CORE_OPT("NamedStreams", NamedStreams, 1),
+    FSP_FUSE_CORE_OPT("ReadOnlyVolume", ReadOnlyVolume, 1),
+    FUSE_OPT_KEY("ReparsePoints", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("HardLinks", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("ExtendedAttributes", FUSE_OPT_KEY_DISCARD),
-    FSP_FUSE_CORE_OPT("ReadOnlyVolume", ReadOnlyVolume, 1),
     FUSE_OPT_KEY("--UNC=", 'U'),
     FUSE_OPT_KEY("--VolumePrefix=", 'U'),
 
@@ -449,7 +454,6 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o VolumeSerialNumber=N    32-bit wide\n"
             "    -o FileInfoTimeout=N       FileInfo/Security/VolumeInfo timeout (millisec)\n"
             "    -o CaseInsensitiveSearch   file system supports case-insensitive file names\n"
-            "    -o ReparsePoints           file system supports reparse points\n"
             //"    -o NamedStreams            file system supports named streams\n"
             //"    -o ReadOnlyVolume          file system is read only\n"
             "    --UNC=U --VolumePrefix=U   UNC prefix (\\Server\\Share)\n");
@@ -498,7 +502,9 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         opt_data.VolumeParams.FileInfoTimeout = opt_data.set_attr_timeout * 1000;
     opt_data.VolumeParams.CaseSensitiveSearch = !opt_data.CaseInsensitiveSearch;
     opt_data.VolumeParams.PersistentAcls = TRUE;
-    opt_data.VolumeParams.ReparsePoints = !!opt_data.ReparsePoints;
+    opt_data.VolumeParams.ReparsePoints = FALSE; /* see FSP_FUSE_HAS_SYMLINKS use below */
+    opt_data.VolumeParams.ReparsePointsSymbolicLinks = TRUE;
+    opt_data.VolumeParams.ReparsePointsPrivilegeCheck = FALSE;
     opt_data.VolumeParams.NamedStreams = !!opt_data.NamedStreams;
     opt_data.VolumeParams.ReadOnlyVolume = !!opt_data.ReadOnlyVolume;
 
@@ -510,6 +516,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     f->set_umask = opt_data.set_umask; f->umask = opt_data.umask;
     f->set_uid = opt_data.set_uid; f->uid = opt_data.uid;
     f->set_gid = opt_data.set_gid; f->gid = opt_data.gid;
+    f->rellinks = opt_data.rellinks;
     memcpy(&f->ops, ops, opsize);
     f->data = data;
     f->DebugLog = opt_data.debug ? -1 : 0;
@@ -549,6 +556,8 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
 
         goto fail;
     }
+
+    f->VolumeParams.ReparsePoints = FSP_FUSE_HAS_SYMLINKS(f);
 
     return f;
 

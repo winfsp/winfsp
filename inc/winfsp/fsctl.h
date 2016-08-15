@@ -59,6 +59,8 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_VOLUME_PREFIX_SIZE    (64 * sizeof(WCHAR))
 #define FSP_FSCTL_VOLUME_NAME_SIZEMAX   (FSP_FSCTL_VOLUME_NAME_SIZE + FSP_FSCTL_VOLUME_PREFIX_SIZE)
 
+#define FSP_FSCTL_TRANSACT_PATH_SIZEMAX 2048
+
 #define FSP_FSCTL_TRANSACT_REQ_SIZEMAX  (4096 - 64) /* 64: size for internal request header */
 #define FSP_FSCTL_TRANSACT_RSP_SIZEMAX  (4096 - 64) /* symmetry! */
 #define FSP_FSCTL_TRANSACT_BATCH_BUFFER_SIZEMIN 16384
@@ -295,6 +297,7 @@ typedef struct
             UINT64 UserContext2;
             UINT32 FsControlCode;
             FSP_FSCTL_TRANSACT_BUF Buffer;
+            UINT32 TargetOnFileSystem:1;/* the target of the symbolic link is on this file system */
         } FileSystemControl;
         struct
         {
