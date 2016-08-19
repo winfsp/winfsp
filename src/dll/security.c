@@ -48,6 +48,19 @@ static NTSTATUS FspGetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     }
 }
 
+static inline ULONG FspPathSuffixIndex(PWSTR FileName)
+{
+    WCHAR Root[2] = L"\\";
+    PWSTR Remain, Suffix;
+    ULONG Result;
+
+    FspPathSuffix(FileName, &Remain, &Suffix, Root);
+    Result = Remain == Root ? 0 : (ULONG)(Suffix - Remain);
+    FspPathCombine(FileName, Suffix);
+
+    return Result;
+}
+
 FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
@@ -76,7 +89,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
     WCHAR Root[2] = L"\\", TraverseCheckRoot[2] = L"\\";
     PWSTR FileName, Suffix, Prefix, Remain;
-    UINT32 FileAttributes;
+    UINT32 FileAttributes = 0;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     SIZE_T SecurityDescriptorSize;
     UINT8 PrivilegeSetBuf[sizeof(PRIVILEGE_SET) + 15 * sizeof(LUID_AND_ATTRIBUTES)];
@@ -111,8 +124,14 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
                 break;
             }
 
+            FileAttributes = 0;
             Result = FspGetSecurityByName(FileSystem, Prefix, &FileAttributes,
                 &SecurityDescriptor, &SecurityDescriptorSize);
+
+            /* compute the ReparsePointIndex and place it in FileAttributes now */
+            if (NT_SUCCESS(Result) && STATUS_REPARSE != Result &&
+                (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+                FileAttributes = FspPathSuffixIndex(Prefix);
 
             FspPathCombine(FileName, Remain);
 
@@ -139,6 +158,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
              */
             if (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
             {
+                /* ReparsePointIndex already computed after FspGetSecurityByName call above */
                 Result = STATUS_REPARSE;
                 goto exit;
             }
@@ -165,6 +185,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
         }
     }
 
+    FileAttributes = 0;
     Result = FspGetSecurityByName(FileSystem, FileName, &FileAttributes,
         &SecurityDescriptor, &SecurityDescriptorSize);
     if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
@@ -237,6 +258,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
          */
         if (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
         {
+            FileAttributes = FspPathSuffixIndex(FileName);
             Result = STATUS_REPARSE;
             goto exit;
         }
@@ -256,6 +278,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
         if (0 != (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) &&
             0 == (Request->Req.Create.CreateOptions & FILE_OPEN_REPARSE_POINT))
         {
+            FileAttributes = FspPathSuffixIndex(FileName);
             Result = STATUS_REPARSE;
             goto exit;
         }
@@ -307,7 +330,9 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     Result = STATUS_SUCCESS;
 
 exit:
-    if (0 != PSecurityDescriptor && 0 < SecurityDescriptorSize && NT_SUCCESS(Result))
+    if (STATUS_REPARSE == Result)
+        *PGrantedAccess = FileAttributes; /* FileAttributes contains ReparsePointIndex */
+    else if (0 != PSecurityDescriptor && 0 < SecurityDescriptorSize && NT_SUCCESS(Result))
         *PSecurityDescriptor = SecurityDescriptor;
     else
         MemFree(SecurityDescriptor);

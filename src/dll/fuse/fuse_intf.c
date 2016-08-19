@@ -17,14 +17,6 @@
 
 #include <dll/fuse/library.h>
 
-/*
- * FSP_FUSE_REPARSE_OPTHACK
- *
- * Define this macro to enable the ResolveReparsePoints optimization hack.
- * See fsp_fuse_intf_GetSecurityByName for details.
- */
-#define FSP_FUSE_REPARSE_OPTHACK
-
 NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
@@ -314,8 +306,8 @@ exit:
     return Result;
 }
 
-static char *fsp_fuse_intf_GetSymlinkPointer(FSP_FILE_SYSTEM *FileSystem,
-    char *PosixPath)
+static BOOLEAN fsp_fuse_intf_FindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+    char *PosixPath, PUINT32 PReparsePointIndex)
 {
     struct fuse *f = FileSystem->UserContext;
     char *p, *lastp;
@@ -323,7 +315,7 @@ static char *fsp_fuse_intf_GetSymlinkPointer(FSP_FILE_SYSTEM *FileSystem,
     int err;
 
     if (0 == f->ops.getattr)
-        return 0;
+        return FALSE;
 
     p = PosixPath;
     for (;;)
@@ -334,7 +326,7 @@ static char *fsp_fuse_intf_GetSymlinkPointer(FSP_FILE_SYSTEM *FileSystem,
         while ('/' != *p)
         {
             if ('\0' == *p)
-                return 0;
+                return FALSE;
             p++;
         }
 
@@ -344,12 +336,17 @@ static char *fsp_fuse_intf_GetSymlinkPointer(FSP_FILE_SYSTEM *FileSystem,
         *p = '/';
 
         if (0 != err)
-            return 0;
+            return FALSE;
         else if (0120000 == (stbuf.st_mode & 0170000))
-            return lastp;
+        {
+            if (0 != PReparsePointIndex)
+                *PReparsePointIndex = (ULONG)(lastp - PosixPath);
+
+            return TRUE;
+        }
     }
 
-    return 0;
+    return FALSE;
 }
 
 static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
@@ -393,7 +390,7 @@ static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     PSECURITY_DESCRIPTOR SecurityDescriptorBuf, SIZE_T *PSecurityDescriptorSize)
 {
     struct fuse *f = FileSystem->UserContext;
-    char *PosixPath = 0, *PosixSymlinkPointer;
+    char *PosixPath = 0;
     NTSTATUS Result;
 
     Result = FspPosixMapWindowsToPosixPath(FileName, &PosixPath);
@@ -406,28 +403,8 @@ static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
         goto exit;
 
     if (FSP_FUSE_HAS_SYMLINKS(f) &&
-        0 != (PosixSymlinkPointer = fsp_fuse_intf_GetSymlinkPointer(FileSystem, PosixPath)))
-    {
-#if defined(FSP_FUSE_REPARSE_OPTHACK)
-        /* OPTHACK: This is a rather gross hack for optimization purposes only.
-         *
-         * If the FileName in this GetSecurityByName call and the PosixPath we computed
-         * matches the one in the FSD request, then remember where the first symlink is
-         * for use in ResolveReparsePoints later on. This avoids going through every path
-         * component twice (doing both a getattr and readlink).
-         */
-
-        struct fuse_context *context = fsp_fuse_get_context(f->env);
-        struct fsp_fuse_context_header *contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
-
-        if (FspFsctlTransactCreateKind == contexthdr->Request->Kind &&
-            (PUINT8)FileName == contexthdr->Request->Buffer &&
-            0 == lstrcmpA(PosixPath, contexthdr->PosixPath))
-            contexthdr->SymlinkIndex = PosixSymlinkPointer - PosixPath;
-#endif
-
+        fsp_fuse_intf_FindReparsePoint(FileSystem, PosixPath, PFileAttributes))
         Result = STATUS_REPARSE;
-    }
     else
         Result = STATUS_SUCCESS;
 
@@ -1510,7 +1487,7 @@ exit:
 }
 
 static NTSTATUS fsp_fuse_intf_ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
-    PWSTR FileName, BOOLEAN OpenReparsePoint,
+    PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN OpenReparsePoint,
     PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
 {
     struct fuse *f = FileSystem->UserContext;
@@ -1532,8 +1509,7 @@ static NTSTATUS fsp_fuse_intf_ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_OBJECT_NAME_INVALID;
     memcpy(PosixTargetPath, contexthdr->PosixPath, Length + 1);
 
-    p = PosixTargetPath +
-        contexthdr->SymlinkIndex; /* NOTE: if FSP_FUSE_REPARSE_OPTHACK is undefined, this will be 0 */
+    p = PosixTargetPath + ReparsePointIndex;
     c = *p;
     for (;;)
     {
@@ -1581,7 +1557,7 @@ static NTSTATUS fsp_fuse_intf_ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
 
         c = *p;
         *p = '\0';
-        err = f->ops.readlink(contexthdr->PosixPath, PosixTargetLink, sizeof PosixTargetLink);
+        err = f->ops.readlink(PosixTargetPath, PosixTargetLink, sizeof PosixTargetLink);
         *p = c;
 
         if (EINVAL/* same on MSVC and Cygwin */ == err)
@@ -1598,10 +1574,7 @@ static NTSTATUS fsp_fuse_intf_ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
         {
             /* we do not support absolute paths without the rellinks option */
             if (!f->rellinks)
-            {
-                Result = STATUS_OBJECT_NAME_NOT_FOUND;
-                goto exit;
-            }
+                return STATUS_OBJECT_NAME_NOT_FOUND;
 
             /* absolute symlink; replace whole path */
             memcpy(PosixTargetPath, PosixTargetLink, Length + 1);

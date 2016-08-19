@@ -54,7 +54,6 @@ struct fsp_fuse_context_header
     FSP_FSCTL_TRANSACT_REQ *Request;
     FSP_FSCTL_TRANSACT_RSP *Response;
     char *PosixPath;
-    ptrdiff_t SymlinkIndex;
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 ContextBuf[];
 };
 

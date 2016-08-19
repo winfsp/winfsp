@@ -137,6 +137,10 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param PFileAttributes
      *     Pointer to a memory location that will receive the file attributes on successful return
      *     from this call. May be NULL.
+     *
+     *     If this call returns STATUS_REPARSE, the file system MAY place here the index of the
+     *     first reparse point within FileName. The file system MAY also leave this at its default
+     *     value of 0.
      * @param SecurityDescriptor
      *     Pointer to a buffer that will receive the file security descriptor on successful return
      *     from this call. May be NULL.
@@ -152,7 +156,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     component.
      */
     NTSTATUS (*GetSecurityByName)(FSP_FILE_SYSTEM *FileSystem,
-        PWSTR FileName, PUINT32 PFileAttributes,
+        PWSTR FileName, PUINT32 PFileAttributes/* or ReparsePointIndex */,
         PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
     /**
      * Create new file or directory.
@@ -634,6 +638,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     The file system on which this request is posted.
      * @param FileName
      *     The name of the file or directory to have its reparse points resolved.
+     * @param ReparsePointIndex
+     *     The index of the first reparse point within FileName.
      * @param OpenReparsePoint
      *     If TRUE, the last path component of FileName should not be resolved, even
      *     if it is a reparse point that can be resolved. If FALSE, all path components
@@ -653,7 +659,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_REPARSE or error code.
      */
     NTSTATUS (*ResolveReparsePoints)(FSP_FILE_SYSTEM *FileSystem,
-        PWSTR FileName, BOOLEAN OpenReparsePoint,
+        PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN OpenReparsePoint,
         PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize);
     /**
      * Get reparse point.
@@ -993,6 +999,91 @@ FSP_API NTSTATUS FspFileSystemOpSetSecurity(FSP_FILE_SYSTEM *FileSystem,
  */
 FSP_API BOOLEAN FspFileSystemAddDirInfo(FSP_FSCTL_DIR_INFO *DirInfo,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
+/**
+ * Find reparse point in file name.
+ *
+ * Given a file name this function returns an index to the first path component that is a reparse
+ * point. The function will call the supplied GetReparsePointByName function for every path
+ * component until it finds a reparse point or the whole path is processed.
+ *
+ * This is a helper for implementing the GetSecurityByName operation in file systems
+ * that support reparse points.
+ *
+ * @param FileSystem
+ *     The file system object.
+ * @param GetReparsePointByName
+ *     Pointer to function that can retrieve reparse point information by name. The
+ *     FspFileSystemFindReparsePoint will call this function with the Buffer and PSize
+ *     arguments set to NULL. The function should return STATUS_SUCCESS if the passed
+ *     FileName is a reparse point or STATUS_NOT_A_REPARSE_POINT (or other error code)
+ *     otherwise.
+ * @param Context
+ *     User context to supply to GetReparsePointByName.
+ * @param FileName
+ *     The name of the file or directory.
+ * @param PReparsePointIndex
+ *     Pointer to a memory location that will receive the index of the first reparse point
+ *     within FileName. A value is only placed in this memory location if the function returns
+ *     TRUE. May be NULL.
+ * @return
+ *     TRUE if a reparse point was found, FALSE otherwise.
+ * @see
+ *     GetSecurityByName
+ */
+FSP_API BOOLEAN FspFileSystemFindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*GetReparsePointByName)(
+        FSP_FILE_SYSTEM *FileSystem, PVOID Context, PWSTR FileName, PVOID Buffer, PSIZE_T PSize),
+    PVOID Context,
+    PWSTR FileName, PUINT32 PReparsePointIndex);
+/**
+ * Resolve reparse points.
+ *
+ * Given a file name (and an index where to start resolving) this function will attempt to
+ * resolve as many reparse points as possible. The function will call the supplied
+ * GetReparsePointByName function for every path component until it resolves the reparse points
+ * or the whole path is processed.
+ *
+ * This is a helper for implementing the ResolveReparsePoints operation in file systems
+ * that support reparse points.
+ *
+ * @param FileSystem
+ *     The file system object.
+ * @param GetReparsePointByName
+ *     Pointer to function that can retrieve reparse point information by name. The function
+ *     should return STATUS_SUCCESS if the passed FileName is a reparse point or
+ *     STATUS_NOT_A_REPARSE_POINT (or other error code) otherwise.
+ * @param Context
+ *     User context to supply to GetReparsePointByName.
+ * @param FileName
+ *     The name of the file or directory to have its reparse points resolved.
+ * @param ReparsePointIndex
+ *     The index of the first reparse point within FileName.
+ * @param OpenReparsePoint
+ *     If TRUE, the last path component of FileName should not be resolved, even
+ *     if it is a reparse point that can be resolved. If FALSE, all path components
+ *     should be resolved if possible.
+ * @param PIoStatus
+ *     Pointer to storage that will receive the status to return to the FSD. When
+ *     this function succeeds it must set PIoStatus->Status to STATUS_REPARSE and
+ *     PIoStatus->Information to either IO_REPARSE or the reparse tag.
+ * @param Buffer
+ *     Pointer to a buffer that will receive the resolved file name (IO_REPARSE) or
+ *     reparse data (reparse tag). If the function returns a file name, it should
+ *     not be NULL terminated.
+ * @param PSize [in,out]
+ *     Pointer to the buffer size. On input it contains the size of the buffer.
+ *     On output it will contain the actual size of data copied.
+ * @return
+ *     STATUS_REPARSE or error code.
+ * @see
+ *     ResolveReparsePoints
+ */
+FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*GetReparsePointByName)(
+        FSP_FILE_SYSTEM *FileSystem, PVOID Context, PWSTR FileName, PVOID Buffer, PSIZE_T PSize),
+    PVOID Context,
+    PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN OpenReparsePoint,
+    PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize);
 
 /*
  * Security
@@ -1001,7 +1092,7 @@ FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
 FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
-    UINT32 DesiredAccess, PUINT32 PGrantedAccess,
+    UINT32 DesiredAccess, PUINT32 PGrantedAccess/* or ReparsePointIndex */,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor);
 FSP_API NTSTATUS FspCreateSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
