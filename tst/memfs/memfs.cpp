@@ -115,6 +115,7 @@ NTSTATUS MemfsFileNodeCreate(PWSTR FileName, MEMFS_FILE_NODE **PFileNode)
 static inline
 VOID MemfsFileNodeDelete(MEMFS_FILE_NODE *FileNode)
 {
+    free(FileNode->ReparseData);
     free(FileNode->FileData);
     free(FileNode->FileSecurity);
     free(FileNode);
@@ -274,6 +275,10 @@ BOOLEAN MemfsFileNodeMapEnumerateDescendants(MEMFS_FILE_NODE_MAP *FileNodeMap, M
     return TRUE;
 }
 
+static NTSTATUS GetReparsePointByName(
+    FSP_FILE_SYSTEM *FileSystem,
+    PVOID Context, PWSTR FileName, PVOID Buffer, PSIZE_T PSize);
+
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize,
@@ -327,7 +332,12 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     if (0 == FileNode)
     {
         Result = STATUS_OBJECT_NAME_NOT_FOUND;
-        MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result);
+
+        if (!MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result) &&
+            FspFileSystemFindReparsePoint(FileSystem, GetReparsePointByName, 0,
+                FileName, PFileAttributes))
+            Result = STATUS_REPARSE;
+
         return Result;
     }
 
@@ -935,10 +945,38 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
-    PWSTR FileName, BOOLEAN OpenReparsePoint,
+    PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN OpenReparsePoint,
     PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    return FspFileSystemResolveReparsePoints(FileSystem, GetReparsePointByName, 0,
+        FileName, ReparsePointIndex, OpenReparsePoint,
+        PIoStatus, Buffer, PSize);
+}
+
+static NTSTATUS GetReparsePointByName(
+    FSP_FILE_SYSTEM *FileSystem,
+    PVOID Context, PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
+{
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
+    MEMFS_FILE_NODE *FileNode;
+
+    FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
+    if (0 == FileNode)
+        return STATUS_OBJECT_NAME_NOT_FOUND;
+
+    if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+        return STATUS_NOT_A_REPARSE_POINT;
+
+    if (0 != Buffer)
+    {
+        if (FileNode->ReparseDataSize > *PSize)
+            return STATUS_BUFFER_TOO_SMALL;
+
+        *PSize = FileNode->ReparseDataSize;
+        memcpy(Buffer, FileNode->ReparseData, FileNode->ReparseDataSize);
+    }
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
@@ -948,7 +986,16 @@ static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+        return STATUS_NOT_A_REPARSE_POINT;
+
+    if (FileNode->ReparseDataSize > *PSize)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    *PSize = FileNode->ReparseDataSize;
+    memcpy(Buffer, FileNode->ReparseData, FileNode->ReparseDataSize);
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
@@ -957,8 +1004,22 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PVOID Buffer, SIZE_T Size)
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    PVOID ReparseData;
 
-    return STATUS_INVALID_DEVICE_REQUEST;
+    if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+        return STATUS_NOT_A_REPARSE_POINT;
+
+    ReparseData = realloc(FileNode->ReparseData, Size);
+    if (0 == ReparseData)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    /* the first field in a reparse buffer is the reparse tag */
+    FileNode->FileInfo.ReparseTag = 0 != Buffer ? *(PULONG)Buffer : 0;
+
+    FileNode->ReparseDataSize = Size;
+    memcpy(FileNode->ReparseData, Buffer, Size);
+
+    return STATUS_SUCCESS;
 }
 
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
@@ -1045,6 +1106,7 @@ NTSTATUS MemfsCreate(
     VolumeParams.CasePreservedNames = 1;
     VolumeParams.UnicodeOnDisk = 1;
     VolumeParams.PersistentAcls = 1;
+    VolumeParams.ReparsePoints = 1;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
 
