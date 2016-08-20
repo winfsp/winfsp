@@ -665,11 +665,12 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * Get reparse point.
      *
      * The behavior of this function depends on the value of FSP_FSCTL_VOLUME_PARAMS ::
-     * SymbolicLinksOnly. If the value of SymbolicLinksOnly is FALSE the file system
-     * supports full reparse points and this function is expected to fill the buffer
-     * with a full reparse point. If the value of SymbolicLinksOnly is TRUE the file
-     * system supports symbolic links only as reparse points and this function is
-     * expected to fill the buffer with the symbolic link path.
+     * ReparsePointsSymbolicLinksOnly. If the value of ReparsePointsSymbolicLinksOnly
+     * is FALSE the file system supports full reparse points and this function is expected
+     * to fill the buffer with a full reparse point. If the value of
+     * ReparsePointsSymbolicLinksOnly is TRUE the file system supports symbolic links only
+     * as reparse points and this function is expected to fill the buffer with the symbolic
+     * link path.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
@@ -698,11 +699,12 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * Set reparse point.
      *
      * The behavior of this function depends on the value of FSP_FSCTL_VOLUME_PARAMS ::
-     * SymbolicLinksOnly. If the value of SymbolicLinksOnly is FALSE the file system
-     * supports full reparse points and this function is expected to set the reparse point
-     * contained in the buffer. If the value of SymbolicLinksOnly is TRUE the file
-     * system supports symbolic links only as reparse points and this function is
-     * expected to set the symbolic link path contained in the buffer.
+     * ReparsePointsSymbolicLinksOnly. If the value of ReparsePointsSymbolicLinksOnly
+     * is FALSE the file system supports full reparse points and this function is expected
+     * to set the reparse point contained in the buffer. If the value of
+     * ReparsePointsSymbolicLinksOnly is TRUE the file system supports symbolic links only
+     * as reparse points and this function is expected to set the symbolic link path contained
+     * in the buffer.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
