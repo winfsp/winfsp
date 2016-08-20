@@ -1213,7 +1213,11 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
             /* it was not a reparse point; continue */
             continue;
         else if (!NT_SUCCESS(Result))
+        {
+            if (STATUS_OBJECT_NAME_NOT_FOUND == Result && '\0' == *p)
+                Result = STATUS_OBJECT_PATH_NOT_FOUND;
             return Result;
+        }
 
         /* found a reparse point */
 
