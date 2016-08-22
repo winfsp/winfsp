@@ -83,7 +83,7 @@ typedef struct _REPARSE_DATA_BUFFER
  * A user mode file system is a program that uses the WinFsp API to expose a file system to
  * Windows. The user mode file system must implement the operations in FSP_FILE_SYSTEM_INTERFACE,
  * create a file system object using FspFileSystemCreate and start its dispatcher using
- * FspFileSystemStartDispatcher. At that point it will start receing file system requests on the
+ * FspFileSystemStartDispatcher. At that point it will start receiving file system requests on the
  * FSP_FILE_SYSTEM_INTERFACE operations.
  */
 typedef struct _FSP_FILE_SYSTEM FSP_FILE_SYSTEM;
