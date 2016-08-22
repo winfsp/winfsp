@@ -1045,11 +1045,12 @@ FSP_API BOOLEAN FspFileSystemAddDirInfo(FSP_FSCTL_DIR_INFO *DirInfo,
 
 FSP_API BOOLEAN FspFileSystemFindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS (*GetReparsePointByName)(
-        FSP_FILE_SYSTEM *FileSystem, PVOID Context, PWSTR FileName, PVOID Buffer, PSIZE_T PSize),
+        FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+        PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize),
     PVOID Context,
     PWSTR FileName, PUINT32 PReparsePointIndex)
 {
-    PWSTR p, lastp;
+    WCHAR *p, *lastp;
     NTSTATUS Result;
 
     p = FileName;
@@ -1066,7 +1067,7 @@ FSP_API BOOLEAN FspFileSystemFindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
         }
 
         *p = L'\0';
-        Result = GetReparsePointByName(FileSystem, Context, FileName, 0, 0);
+        Result = GetReparsePointByName(FileSystem, Context, FileName, TRUE, 0, 0);
         *p = L'\\';
 
         if (!NT_SUCCESS(Result))
@@ -1085,7 +1086,8 @@ FSP_API BOOLEAN FspFileSystemFindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 
 FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS (*GetReparsePointByName)(
-        FSP_FILE_SYSTEM *FileSystem, PVOID Context, PWSTR FileName, PVOID Buffer, PSIZE_T PSize),
+        FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+        PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize),
     PVOID Context,
     PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN OpenReparsePoint,
     PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
@@ -1158,17 +1160,17 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
         }
 
         c = *p;
-        *p = '\0';
+        *p = L'\0';
         if (FileSystem->ReparsePointsSymlinkOnly)
         {
             Size = FSP_FSCTL_TRANSACT_PATH_SIZEMAX;
-            Result = GetReparsePointByName(FileSystem, Context, TargetPath,
+            Result = GetReparsePointByName(FileSystem, Context, TargetPath, '\0' != c,
                 ReparseData->SymbolicLinkReparseBuffer.PathBuffer, &Size);
         }
         else
         {
             Size = sizeof ReparseDataBuf;
-            Result = GetReparsePointByName(FileSystem, Context, TargetPath,
+            Result = GetReparsePointByName(FileSystem, Context, TargetPath, '\0' != c,
                 ReparseData, &Size);
         }
         *p = c;
@@ -1178,7 +1180,8 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
             continue;
         else if (!NT_SUCCESS(Result))
         {
-            if (STATUS_OBJECT_NAME_NOT_FOUND == Result && '\0' != c)
+            if ((STATUS_OBJECT_NAME_NOT_FOUND == Result && '\0' != c) ||
+                STATUS_NOT_A_DIRECTORY == Result)
                 Result = STATUS_OBJECT_PATH_NOT_FOUND;
             return Result;
         }

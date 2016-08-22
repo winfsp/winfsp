@@ -448,8 +448,8 @@ exit:
 }
 
 static NTSTATUS fsp_fuse_intf_GetReparsePointByName(
-    FSP_FILE_SYSTEM *FileSystem,
-    PVOID Context, PWSTR FileName, PVOID Buffer, PSIZE_T PSize);
+    FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+    PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize);
 
 static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
@@ -1599,8 +1599,8 @@ static NTSTATUS fsp_fuse_intf_ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS fsp_fuse_intf_GetReparsePointByName(
-    FSP_FILE_SYSTEM *FileSystem,
-    PVOID Context, PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
+    FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+    PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize)
 {
     struct fuse *f = FileSystem->UserContext;
     char *PosixPath = 0;

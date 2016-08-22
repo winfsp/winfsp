@@ -1071,7 +1071,8 @@ FSP_API BOOLEAN FspFileSystemAddDirInfo(FSP_FSCTL_DIR_INFO *DirInfo,
  */
 FSP_API BOOLEAN FspFileSystemFindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS (*GetReparsePointByName)(
-        FSP_FILE_SYSTEM *FileSystem, PVOID Context, PWSTR FileName, PVOID Buffer, PSIZE_T PSize),
+        FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+        PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize),
     PVOID Context,
     PWSTR FileName, PUINT32 PReparsePointIndex);
 /**
@@ -1119,7 +1120,8 @@ FSP_API BOOLEAN FspFileSystemFindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
  */
 FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS (*GetReparsePointByName)(
-        FSP_FILE_SYSTEM *FileSystem, PVOID Context, PWSTR FileName, PVOID Buffer, PSIZE_T PSize),
+        FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+        PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize),
     PVOID Context,
     PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN OpenReparsePoint,
     PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize);

@@ -276,8 +276,8 @@ BOOLEAN MemfsFileNodeMapEnumerateDescendants(MEMFS_FILE_NODE_MAP *FileNodeMap, M
 }
 
 static NTSTATUS GetReparsePointByName(
-    FSP_FILE_SYSTEM *FileSystem,
-    PVOID Context, PWSTR FileName, PVOID Buffer, PSIZE_T PSize);
+    FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+    PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize);
 
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
@@ -954,8 +954,8 @@ static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS GetReparsePointByName(
-    FSP_FILE_SYSTEM *FileSystem,
-    PVOID Context, PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
+    FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+    PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode;
@@ -966,6 +966,10 @@ static NTSTATUS GetReparsePointByName(
 
     if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
         return STATUS_NOT_A_REPARSE_POINT;
+
+    if (IsDirectory &&
+        0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+        return STATUS_NOT_A_DIRECTORY;
 
     if (0 != Buffer)
     {
