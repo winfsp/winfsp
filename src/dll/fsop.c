@@ -29,7 +29,9 @@ FSP_API NTSTATUS FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
                 10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass) ||
-            FspFsctlTransactSetVolumeInformationKind == Request->Kind)
+            FspFsctlTransactSetVolumeInformationKind == Request->Kind ||
+            (FspFsctlTransactFlushBuffersKind == Request->Kind &&
+                0 == Request->Req.FlushBuffers.UserContext))
         {
             AcquireSRWLockExclusive(&FileSystem->OpGuardLock);
         }

@@ -105,7 +105,8 @@ typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *,
  * The fine-grained concurrency model applies the exclusive-shared lock as
  * follows:
  * <ul>
- * <li>EXCL: SetVolumeLabel, Create, Cleanup(Delete), SetInformation(Rename)</li>
+ * <li>EXCL: SetVolumeLabel, Flush(Volume),
+ * Create, Cleanup(Delete), SetInformation(Rename)</li>
  * <li>SHRD: GetVolumeInfo, Open, SetInformation(Disposition), ReadDirectory</li>
  * <li>NONE: all other operations</li>
  * </ul>
