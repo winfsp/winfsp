@@ -130,7 +130,7 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
         if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag)
         {
             /* NTFS severely limits symbolic links; we will not do that unless our file system asks */
-            if (FsvolDeviceExtension->VolumeParams.ReparsePointsPrivilegeCheck)
+            if (FsvolDeviceExtension->VolumeParams.ReparsePointsAccessCheck)
             {
                 if (KernelMode != Irp->RequestorMode &&
                     SeSinglePrivilegeCheck(RtlConvertLongToLuid(SE_CREATE_SYMBOLIC_LINK_PRIVILEGE),

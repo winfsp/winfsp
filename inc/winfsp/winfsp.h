@@ -702,10 +702,10 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * Get reparse point.
      *
      * The behavior of this function depends on the value of FSP_FSCTL_VOLUME_PARAMS ::
-     * ReparsePointsSymbolicLinksOnly. If the value of ReparsePointsSymbolicLinksOnly
+     * ReparsePointsSymlinkOnly. If the value of ReparsePointsSymlinkOnly
      * is FALSE the file system supports full reparse points and this function is expected
      * to fill the buffer with a full reparse point. If the value of
-     * ReparsePointsSymbolicLinksOnly is TRUE the file system supports symbolic links only
+     * ReparsePointsSymlinkOnly is TRUE the file system supports symbolic links only
      * as reparse points and this function is expected to fill the buffer with the symbolic
      * link path.
      *
@@ -736,10 +736,10 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * Set reparse point.
      *
      * The behavior of this function depends on the value of FSP_FSCTL_VOLUME_PARAMS ::
-     * ReparsePointsSymbolicLinksOnly. If the value of ReparsePointsSymbolicLinksOnly
+     * ReparsePointsSymlinkOnly. If the value of ReparsePointsSymlinkOnly
      * is FALSE the file system supports full reparse points and this function is expected
      * to set the reparse point contained in the buffer. If the value of
-     * ReparsePointsSymbolicLinksOnly is TRUE the file system supports symbolic links only
+     * ReparsePointsSymlinkOnly is TRUE the file system supports symbolic links only
      * as reparse points and this function is expected to set the symbolic link path contained
      * in the buffer.
      *
@@ -797,7 +797,7 @@ typedef struct _FSP_FILE_SYSTEM
     UINT32 DebugLog;
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     SRWLOCK OpGuardLock;
-    UINT32 ReparsePointsSymbolicLinks:1;
+    UINT32 ReparsePointsSymlinkOnly:1;
 } FSP_FILE_SYSTEM;
 /**
  * Create a file system object.

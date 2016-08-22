@@ -503,8 +503,8 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.CaseSensitiveSearch = !opt_data.CaseInsensitiveSearch;
     opt_data.VolumeParams.PersistentAcls = TRUE;
     opt_data.VolumeParams.ReparsePoints = FALSE; /* see FSP_FUSE_HAS_SYMLINKS use below */
-    opt_data.VolumeParams.ReparsePointsSymbolicLinks = TRUE;
-    opt_data.VolumeParams.ReparsePointsPrivilegeCheck = FALSE;
+    opt_data.VolumeParams.ReparsePointsAccessCheck = FALSE;
+    opt_data.VolumeParams.ReparsePointsSymlinkOnly = TRUE;
     opt_data.VolumeParams.NamedStreams = !!opt_data.NamedStreams;
     opt_data.VolumeParams.ReadOnlyVolume = !!opt_data.ReadOnlyVolume;
 

@@ -897,7 +897,7 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
             ReparseData = (PREPARSE_DATA_BUFFER)Response->Buffer;
             memset(ReparseData, 0, sizeof *ReparseData);
 
-            if (FileSystem->ReparsePointsSymbolicLinks)
+            if (FileSystem->ReparsePointsSymlinkOnly)
             {
                 Size = FSP_FSCTL_TRANSACT_RSP_SIZEMAX - FIELD_OFFSET(FSP_FSCTL_TRANSACT_RSP, Buffer) -
                     FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer);
@@ -950,7 +950,7 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
             ReparseData = (PREPARSE_DATA_BUFFER)
                 (Request->Buffer + Request->Req.FileSystemControl.Buffer.Offset);
 
-            if (FileSystem->ReparsePointsSymbolicLinks)
+            if (FileSystem->ReparsePointsSymlinkOnly)
             {
                 Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
                     (PVOID)Request->Req.FileSystemControl.UserContext,
@@ -1159,7 +1159,7 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
 
         c = *p;
         *p = '\0';
-        if (FileSystem->ReparsePointsSymbolicLinks)
+        if (FileSystem->ReparsePointsSymlinkOnly)
         {
             Size = FSP_FSCTL_TRANSACT_PATH_SIZEMAX;
             Result = GetReparsePointByName(FileSystem, Context, TargetPath,
@@ -1188,7 +1188,7 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
         if (0 == --MaxTries)
             return STATUS_REPARSE_POINT_NOT_RESOLVED;
 
-        if (FileSystem->ReparsePointsSymbolicLinks)
+        if (FileSystem->ReparsePointsSymlinkOnly)
             TargetLink = ReparseData->SymbolicLinkReparseBuffer.PathBuffer;
         else
         {
