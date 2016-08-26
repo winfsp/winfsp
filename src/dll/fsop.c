@@ -954,12 +954,15 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
 
             if (FileSystem->ReparsePointsSymlinkOnly)
             {
-                Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
-                    (PVOID)Request->Req.FileSystemControl.UserContext,
-                    (PWSTR)Request->Buffer,
-                    SetReparseData->SymbolicLinkReparseBuffer.PathBuffer +
-                        SetReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR),
-                    SetReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength);
+                if (IO_REPARSE_TAG_SYMLINK == *(PULONG)SetReparseData)
+                    Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
+                        (PVOID)Request->Req.FileSystemControl.UserContext,
+                        (PWSTR)Request->Buffer,
+                        SetReparseData->SymbolicLinkReparseBuffer.PathBuffer +
+                            SetReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR),
+                        SetReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength);
+                else
+                    Result = STATUS_IO_REPARSE_TAG_MISMATCH;
             }
             else
                 Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
@@ -970,58 +973,27 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
         }
         break;
     case FSCTL_DELETE_REPARSE_POINT:
-        if (0 != FileSystem->Interface->GetReparsePoint &&
-            0 != FileSystem->Interface->SetReparsePoint)
+        if (0 != FileSystem->Interface->DeleteReparsePoint)
         {
-            GetReparseData = (PREPARSE_DATA_BUFFER)Response->Buffer;
-            memset(GetReparseData, 0, sizeof *GetReparseData);
+            SetReparseData = (PREPARSE_DATA_BUFFER)
+                (Request->Buffer + Request->Req.FileSystemControl.Buffer.Offset);
 
             if (FileSystem->ReparsePointsSymlinkOnly)
             {
-                GetReparseData->ReparseTag = IO_REPARSE_TAG_SYMLINK;
-                Result = STATUS_SUCCESS;
+                if (IO_REPARSE_TAG_SYMLINK == *(PULONG)SetReparseData)
+                    Result = FileSystem->Interface->DeleteReparsePoint(FileSystem, Request,
+                        (PVOID)Request->Req.FileSystemControl.UserContext,
+                        (PWSTR)Request->Buffer,
+                        0, 0);
+                else
+                    Result = STATUS_IO_REPARSE_TAG_MISMATCH;
             }
             else
-            {
-                Size = FSP_FSCTL_TRANSACT_RSP_SIZEMAX - FIELD_OFFSET(FSP_FSCTL_TRANSACT_RSP, Buffer);
-                Result = FileSystem->Interface->GetReparsePoint(FileSystem, Request,
+                Result = FileSystem->Interface->DeleteReparsePoint(FileSystem, Request,
                     (PVOID)Request->Req.FileSystemControl.UserContext,
-                    (PWSTR)Request->Buffer, GetReparseData, &Size);
-            }
-
-            if (NT_SUCCESS(Result))
-            {
-                SetReparseData = (PREPARSE_DATA_BUFFER)
-                    (Request->Buffer + Request->Req.FileSystemControl.Buffer.Offset);
-
-                if (GetReparseData->ReparseTag != SetReparseData->ReparseTag)
-                    Result = STATUS_IO_REPARSE_TAG_MISMATCH;
-                else if (!IsReparseTagMicrosoft(SetReparseData->ReparseTag) && (
-                    ((PREPARSE_GUID_DATA_BUFFER)GetReparseData)->ReparseGuid.Data1 !=
-                    ((PREPARSE_GUID_DATA_BUFFER)SetReparseData)->ReparseGuid.Data1 ||
-                    ((PREPARSE_GUID_DATA_BUFFER)GetReparseData)->ReparseGuid.Data2 !=
-                    ((PREPARSE_GUID_DATA_BUFFER)SetReparseData)->ReparseGuid.Data2 ||
-                    ((PREPARSE_GUID_DATA_BUFFER)GetReparseData)->ReparseGuid.Data3 !=
-                    ((PREPARSE_GUID_DATA_BUFFER)SetReparseData)->ReparseGuid.Data3 ||
-                    ((PREPARSE_GUID_DATA_BUFFER)GetReparseData)->ReparseGuid.Data4[0] !=
-                    ((PREPARSE_GUID_DATA_BUFFER)SetReparseData)->ReparseGuid.Data4[0] ||
-                    ((PREPARSE_GUID_DATA_BUFFER)GetReparseData)->ReparseGuid.Data4[1] !=
-                    ((PREPARSE_GUID_DATA_BUFFER)SetReparseData)->ReparseGuid.Data4[1] ||
-                    ((PREPARSE_GUID_DATA_BUFFER)GetReparseData)->ReparseGuid.Data4[2] !=
-                    ((PREPARSE_GUID_DATA_BUFFER)SetReparseData)->ReparseGuid.Data4[2] ||
-                    ((PREPARSE_GUID_DATA_BUFFER)GetReparseData)->ReparseGuid.Data4[3] !=
-                    ((PREPARSE_GUID_DATA_BUFFER)SetReparseData)->ReparseGuid.Data4[3] ||
-                    ((PREPARSE_GUID_DATA_BUFFER)GetReparseData)->ReparseGuid.Data4[4] !=
-                    ((PREPARSE_GUID_DATA_BUFFER)SetReparseData)->ReparseGuid.Data4[4] ||
-                    ((PREPARSE_GUID_DATA_BUFFER)GetReparseData)->ReparseGuid.Data4[5] !=
-                    ((PREPARSE_GUID_DATA_BUFFER)SetReparseData)->ReparseGuid.Data4[5]))
-                    Result = STATUS_REPARSE_ATTRIBUTE_CONFLICT;
-
-                if (NT_SUCCESS(Result))
-                    Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
-                        (PVOID)Request->Req.FileSystemControl.UserContext,
-                        (PWSTR)Request->Buffer, 0, 0);
-            }
+                    (PWSTR)Request->Buffer,
+                    SetReparseData,
+                    Request->Req.FileSystemControl.Buffer.Size);
         }
         break;
     }
@@ -1231,8 +1203,7 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
             continue;
         else if (!NT_SUCCESS(Result))
         {
-            if ((STATUS_OBJECT_NAME_NOT_FOUND == Result && '\0' != c) ||
-                STATUS_NOT_A_DIRECTORY == Result)
+            if (STATUS_OBJECT_NAME_NOT_FOUND != Result || '\0' != c)
                 Result = STATUS_OBJECT_PATH_NOT_FOUND;
             return Result;
         }
@@ -1300,4 +1271,39 @@ no_symlink_exit:
     PIoStatus->Status = STATUS_REPARSE;
     PIoStatus->Information = ReparseData->ReparseTag;
     return STATUS_REPARSE;
+}
+
+FSP_API NTSTATUS FspFileSystemCanReplaceReparsePoint(
+    PVOID CurrentReparseData, SIZE_T CurrentReparseDataSize,
+    PVOID ReplaceReparseData, SIZE_T ReplaceReparseDataSize)
+{
+    if (sizeof(ULONG) > CurrentReparseDataSize ||
+        sizeof(ULONG) > ReplaceReparseDataSize)
+        return STATUS_IO_REPARSE_DATA_INVALID; /* should not happen! */
+    else if (*(PULONG)CurrentReparseData != *(PULONG)ReplaceReparseData)
+        return STATUS_IO_REPARSE_TAG_MISMATCH;
+    else if (!IsReparseTagMicrosoft(*(PULONG)CurrentReparseData) && (
+        REPARSE_GUID_DATA_BUFFER_HEADER_SIZE > CurrentReparseDataSize ||
+        REPARSE_GUID_DATA_BUFFER_HEADER_SIZE > ReplaceReparseDataSize ||
+        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data1 !=
+        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data1 ||
+        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data2 !=
+        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data2 ||
+        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data3 !=
+        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data3 ||
+        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[0] !=
+        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[0] ||
+        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[1] !=
+        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[1] ||
+        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[2] !=
+        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[2] ||
+        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[3] !=
+        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[3] ||
+        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[4] !=
+        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[4] ||
+        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[5] !=
+        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[5]))
+        return STATUS_REPARSE_ATTRIBUTE_CONFLICT;
+    else
+        return STATUS_SUCCESS;
 }

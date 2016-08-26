@@ -1007,21 +1007,62 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0,
     PWSTR FileName, PVOID Buffer, SIZE_T Size)
 {
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     PVOID ReparseData;
+    NTSTATUS Result;
 
-    if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
-        return STATUS_NOT_A_REPARSE_POINT;
+    if (MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
+        return STATUS_DIRECTORY_NOT_EMPTY;
+
+    if (0 != FileNode->ReparseData)
+    {
+        Result = FspFileSystemCanReplaceReparsePoint(
+            FileNode->ReparseData, FileNode->ReparseDataSize,
+            Buffer, Size);
+        if (!NT_SUCCESS(Result))
+            return Result;
+    }
 
     ReparseData = realloc(FileNode->ReparseData, Size);
-    if (0 == ReparseData)
+    if (0 == ReparseData && 0 != Size)
         return STATUS_INSUFFICIENT_RESOURCES;
 
-    /* the first field in a reparse buffer is the reparse tag */
-    FileNode->FileInfo.ReparseTag = 0 != Buffer ? *(PULONG)Buffer : 0;
-
+    FileNode->FileInfo.FileAttributes |= FILE_ATTRIBUTE_REPARSE_POINT;
+    FileNode->FileInfo.ReparseTag = *(PULONG)Buffer;
+        /* the first field in a reparse buffer is the reparse tag */
     FileNode->ReparseDataSize = Size;
+    FileNode->ReparseData = ReparseData;
     memcpy(FileNode->ReparseData, Buffer, Size);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0,
+    PWSTR FileName, PVOID Buffer, SIZE_T Size)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    NTSTATUS Result;
+
+    if (0 != FileNode->ReparseData)
+    {
+        Result = FspFileSystemCanReplaceReparsePoint(
+            FileNode->ReparseData, FileNode->ReparseDataSize,
+            Buffer, Size);
+        if (!NT_SUCCESS(Result))
+            return Result;
+    }
+    else
+        return STATUS_NOT_A_REPARSE_POINT;
+
+    free(FileNode->ReparseData);
+
+    FileNode->FileInfo.FileAttributes &= ~FILE_ATTRIBUTE_REPARSE_POINT;
+    FileNode->FileInfo.ReparseTag = 0;
+    FileNode->ReparseDataSize = 0;
+    FileNode->ReparseData = 0;
 
     return STATUS_SUCCESS;
 }
@@ -1050,6 +1091,7 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     ResolveReparsePoints,
     GetReparsePoint,
     SetReparsePoint,
+    DeleteReparsePoint,
 };
 
 NTSTATUS MemfsCreate(

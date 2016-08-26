@@ -183,6 +183,86 @@ NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS fsp_fuse_intf_NewHiddenName(FSP_FILE_SYSTEM *FileSystem,
+    char *PosixPath, char **PPosixHiddenPath)
+{
+    struct fuse *f = FileSystem->UserContext;
+    NTSTATUS Result;
+    char *PosixHiddenPath = 0;
+    char *p, *lastp;
+    size_t Size;
+    RPC_STATUS RpcStatus;
+    union
+    {
+        struct { UINT32 V[4]; } Values;
+        UUID Uuid;
+    } UuidBuf;
+    struct fuse_stat stbuf;
+    int err, maxtries = 3;
+
+    *PPosixHiddenPath = 0;
+
+    p = PosixPath;
+    for (;;)
+    {
+        while ('/' == *p)
+            p++;
+        lastp = p;
+        while ('/' != *p)
+        {
+            if ('\0' == *p)
+                goto loopend;
+            p++;
+        }
+    }
+loopend:;
+
+    Size = lastp - PosixPath + sizeof ".fuse_hidden0123456789abcdef";
+    PosixHiddenPath = MemAlloc(Size);
+    if (0 == PosixHiddenPath)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+    memcpy(PosixHiddenPath, PosixPath, lastp - PosixPath);
+
+    do
+    {
+        RpcStatus = UuidCreate(&UuidBuf.Uuid);
+        if (S_OK != RpcStatus && RPC_S_UUID_LOCAL_ONLY != RpcStatus)
+        {
+            Result = STATUS_INTERNAL_ERROR;
+            goto exit;
+        }
+
+        wsprintfA(PosixHiddenPath + (lastp - PosixPath),
+            ".fuse_hidden%08lx%08lx",
+            UuidBuf.Values.V[0] ^ UuidBuf.Values.V[2],
+            UuidBuf.Values.V[1] ^ UuidBuf.Values.V[3]);
+
+        memset(&stbuf, 0, sizeof stbuf);
+        if (0 != f->ops.getattr)
+            err = f->ops.getattr(PosixPath, (void *)&stbuf);
+        else
+            err = -ENOSYS;
+    } while (0 == err && 0 < --maxtries);
+
+    if (0 == err)
+    {
+        Result = STATUS_DEVICE_BUSY; // current EBUSY mapping
+        goto exit;
+    }
+
+    *PPosixHiddenPath = PosixHiddenPath;
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result))
+        MemFree(PosixHiddenPath);
+
+    return Result;
+}
+
 static NTSTATUS fsp_fuse_intf_GetFileInfoEx(FSP_FILE_SYSTEM *FileSystem,
     const char *PosixPath, struct fuse_file_info *fi,
     PUINT32 PUid, PUINT32 PGid, PUINT32 PMode,
@@ -321,7 +401,7 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointEx(
         return STATUS_INVALID_DEVICE_REQUEST;
 
     err = f->ops.readlink(PosixPath, PosixTargetPath, sizeof PosixTargetPath);
-    if (EINVAL/* same on MSVC and Cygwin */ == err)
+    if (-EINVAL/* same on MSVC and Cygwin */ == err)
     {
         Result = STATUS_NOT_A_REPARSE_POINT;
         goto exit;
@@ -1653,16 +1733,19 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     struct fsp_fuse_file_desc *filedesc =
         (PVOID)(UINT_PTR)Request->Req.FileSystemControl.UserContext2;
     WCHAR TargetPath[FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR)];
-    char *PosixTargetPath = 0;
+    char *PosixTargetPath = 0, *PosixHiddenPath = 0;
     int err;
     NTSTATUS Result;
 
-    if (0 == f->ops.symlink)
+    if (0 == f->ops.symlink || 0 == f->ops.rename || 0 == f->ops.unlink)
         return STATUS_INVALID_DEVICE_REQUEST;
 
-    /* were we asked to delete the reparse point? no can do! */
-    if (0 == Buffer)
-        return STATUS_ACCESS_DENIED;
+    /* FUSE cannot make a directory into a symlink */
+    if (filedesc->IsDirectory)
+    {
+        Result = STATUS_ACCESS_DENIED;
+        goto exit;
+    }
 
     /* is this an absolute path? */
     if (Size > 4 * sizeof(WCHAR) &&
@@ -1691,9 +1774,40 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    err = f->ops.symlink(PosixTargetPath, filedesc->PosixPath);
+    /*
+     * How we implement this is probably one of the worst aspects of this FUSE implementation.
+     *
+     * In Windows a CreateSymbolicLink is the sequence of the following:
+     *     Create
+     *     DeviceIoControl(FSCTL_SET_REPARSE_POINT)
+     *     Cleanup
+     *     Close
+     *
+     * The Create call creates the new file and the DeviceIoControl(FSCTL_SET_REPARSE_POINT)
+     * call is supposed to convert it into a reparse point. However FUSE symlink() will fail
+     * with -EEXIST in this case.
+     *
+     * We must therefore find a solution using rename, which is unreliable and error-prone.
+     * Note that this will also result in a change of the inode number for the symlink!
+     */
+
+    Result = fsp_fuse_intf_NewHiddenName(FileSystem, filedesc->PosixPath, &PosixHiddenPath);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    err = f->ops.symlink(PosixTargetPath, PosixHiddenPath);
     if (0 != err)
     {
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        goto exit;
+    }
+
+    err = f->ops.rename(PosixHiddenPath, filedesc->PosixPath);
+    if (0 != err)
+    {
+        /* on failure unlink "hidden" symlink */
+        f->ops.unlink(PosixHiddenPath);
+
         Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         goto exit;
     }
@@ -1701,10 +1815,21 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     Result = STATUS_SUCCESS;
 
 exit:
+    MemFree(PosixHiddenPath);
+
     if (0 != PosixTargetPath)
         FspPosixDeletePath(PosixTargetPath);
 
     return Result;
+}
+
+static NTSTATUS fsp_fuse_intf_DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode,
+    PWSTR FileName, PVOID Buffer, SIZE_T Size)
+{
+    /* we were asked to delete the reparse point? no can do! */
+    return STATUS_ACCESS_DENIED;
 }
 
 FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
@@ -1731,4 +1856,5 @@ FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
     fsp_fuse_intf_ResolveReparsePoints,
     fsp_fuse_intf_GetReparsePoint,
     fsp_fuse_intf_SetReparsePoint,
+    fsp_fuse_intf_DeleteReparsePoint,
 };

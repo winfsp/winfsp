@@ -766,12 +766,41 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,
         PWSTR FileName, PVOID Buffer, SIZE_T Size);
+    /**
+     * Delete reparse point.
+     *
+     * The behavior of this function depends on the value of FSP_FSCTL_VOLUME_PARAMS ::
+     * ReparsePointsSymlinkOnly. If the value of ReparsePointsSymlinkOnly
+     * is FALSE the file system supports full reparse points and this function is expected
+     * to delete the reparse point contained in the buffer. If the value of
+     * ReparsePointsSymlinkOnly is TRUE the file system supports symbolic links only
+     * as reparse points and the Buffer and Size arguments will be NULL.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param Request
+     *     The request posted by the kernel mode FSD.
+     * @param FileNode
+     *     The file node of the reparse point.
+     * @param FileName
+     *     The file name of the reparse point.
+     * @param Buffer
+     *     Pointer to a buffer that contains the data for this operation.
+     * @param Size
+     *     Size of data to write.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     */
+    NTSTATUS (*DeleteReparsePoint)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request,
+        PVOID FileNode,
+        PWSTR FileName, PVOID Buffer, SIZE_T Size);
 
     /*
      * This ensures that this interface will always contain 64 function pointers.
      * Please update when changing the interface as it is important for future compatibility.
      */
-    NTSTATUS (*Reserved[42])();
+    NTSTATUS (*Reserved[41])();
 } FSP_FILE_SYSTEM_INTERFACE;
 #if defined(WINFSP_DLL_INTERNAL)
 /*
@@ -1126,6 +1155,29 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
     PVOID Context,
     PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN OpenReparsePoint,
     PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize);
+/**
+ * Test whether reparse data can be replaced.
+ *
+ * This is a helper for implementing the SetReparsePoint/DeleteReparsePoint operation
+ * in file systems that support reparse points.
+ *
+ * @param CurrentReparseData
+ *     Pointer to the current reparse data.
+ * @param CurrentReparseDataSize
+ *     Pointer to the current reparse data size.
+ * @param ReplaceReparseData
+ *     Pointer to the replacement reparse data.
+ * @param ReplaceReparseDataSize
+ *     Pointer to the replacement reparse data size.
+ * @return
+ *     STATUS_SUCCESS or error code.
+ * @see
+ *     SetReparsePoint
+ *     DeleteReparsePoint
+ */
+FSP_API NTSTATUS FspFileSystemCanReplaceReparsePoint(
+    PVOID CurrentReparseData, SIZE_T CurrentReparseDataSize,
+    PVOID ReplaceReparseData, SIZE_T ReplaceReparseDataSize);
 
 /*
  * Security

@@ -339,8 +339,6 @@ static NTSTATUS FspFsvolCreateNoLock(
         FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT);
     if (CreateOptions & FILE_DIRECTORY_FILE)
         SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
-    if (CreateOptions & FILE_OPEN_REPARSE_POINT)
-        SetFlag(FileAttributes, FILE_ATTRIBUTE_REPARSE_POINT);
 
     /*
      * The new request is associated with our IRP. Go ahead and associate our FileNode/FileDesc
