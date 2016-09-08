@@ -654,15 +654,11 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     /**
      * Resolve reparse points.
      *
+     * Reparse points are a general mechanism for attaching special behavior to files.
      * A file or directory can contain a reparse point. A reparse point is data that has
      * special meaning to the file system, Windows or user applications. For example, NTFS
      * and Windows use reparse points to implement symbolic links. As another example,
      * a particular file system may use reparse points to emulate UNIX FIFO's.
-     *
-     * Reparse points are a general mechanism for attaching special behavior to files. WinFsp
-     * supports any kind of reparse point. The symbolic link reparse point however is so
-     * important for many file systems (especially POSIX ones) that WinFsp implements special
-     * support for it.
      *
      * This function is expected to resolve as many reparse points as possible. If a reparse
      * point is encountered that is not understood by the file system further reparse point
@@ -702,14 +698,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     /**
      * Get reparse point.
      *
-     * The behavior of this function depends on the value of FSP_FSCTL_VOLUME_PARAMS ::
-     * ReparsePointsSymlinkOnly. If the value of ReparsePointsSymlinkOnly
-     * is FALSE the file system supports full reparse points and this function is expected
-     * to fill the buffer with a full reparse point. If the value of
-     * ReparsePointsSymlinkOnly is TRUE the file system supports symbolic links only
-     * as reparse points and this function is expected to fill the buffer with the symbolic
-     * link path.
-     *
      * @param FileSystem
      *     The file system on which this request is posted.
      * @param Request
@@ -736,14 +724,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     /**
      * Set reparse point.
      *
-     * The behavior of this function depends on the value of FSP_FSCTL_VOLUME_PARAMS ::
-     * ReparsePointsSymlinkOnly. If the value of ReparsePointsSymlinkOnly
-     * is FALSE the file system supports full reparse points and this function is expected
-     * to set the reparse point contained in the buffer. If the value of
-     * ReparsePointsSymlinkOnly is TRUE the file system supports symbolic links only
-     * as reparse points and this function is expected to set the symbolic link path contained
-     * in the buffer.
-     *
      * @param FileSystem
      *     The file system on which this request is posted.
      * @param Request
@@ -768,13 +748,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         PWSTR FileName, PVOID Buffer, SIZE_T Size);
     /**
      * Delete reparse point.
-     *
-     * The behavior of this function depends on the value of FSP_FSCTL_VOLUME_PARAMS ::
-     * ReparsePointsSymlinkOnly. If the value of ReparsePointsSymlinkOnly
-     * is FALSE the file system supports full reparse points and this function is expected
-     * to delete the reparse point contained in the buffer. If the value of
-     * ReparsePointsSymlinkOnly is TRUE the file system supports symbolic links only
-     * as reparse points and the Buffer and Size arguments will be NULL.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
@@ -827,7 +800,6 @@ typedef struct _FSP_FILE_SYSTEM
     UINT32 DebugLog;
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     SRWLOCK OpGuardLock;
-    UINT32 ReparsePointsSymlinkOnly:1;
 } FSP_FILE_SYSTEM;
 /**
  * Create a file system object.

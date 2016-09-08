@@ -106,8 +106,6 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     FileSystem->EnterOperation = FspFileSystemOpEnter;
     FileSystem->LeaveOperation = FspFileSystemOpLeave;
 
-    FileSystem->ReparsePointsSymlinkOnly = VolumeParams->ReparsePointsSymlinkOnly;
-
     *PFileSystem = FileSystem;
 
     return STATUS_SUCCESS;

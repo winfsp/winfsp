@@ -263,9 +263,11 @@ exit:
     return Result;
 }
 
-static NTSTATUS fsp_fuse_intf_GetFileInfoEx(FSP_FILE_SYSTEM *FileSystem,
+#define fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, fi, PUid, PGid, PMode, FileInfo)\
+    fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi, PUid, PGid, PMode, 0, FileInfo)
+static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
     const char *PosixPath, struct fuse_file_info *fi,
-    PUINT32 PUid, PUINT32 PGid, PUINT32 PMode,
+    PUINT32 PUid, PUINT32 PGid, PUINT32 PMode, PUINT32 PDev,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
@@ -295,16 +297,25 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoEx(FSP_FILE_SYSTEM *FileSystem,
     *PUid = stbuf.st_uid;
     *PGid = stbuf.st_gid;
     *PMode = stbuf.st_mode;
+    if (0 != PDev)
+        *PDev = stbuf.st_rdev;
 
     AllocationUnit = (UINT64)f->VolumeParams.SectorSize *
         (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
     switch (stbuf.st_mode & 0170000)
     {
-    case 0040000:
+    case 0040000: /* S_IFDIR */
         FileInfo->FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
         FileInfo->ReparseTag = 0;
         break;
-    case 0120000:
+    case 0010000: /* S_IFIFO */
+    case 0020000: /* S_IFCHR */
+    case 0060000: /* S_IFBLK */
+    case 0140000: /* S_IFSOCK */
+        FileInfo->FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
+        FileInfo->ReparseTag = IO_REPARSE_TAG_NFS;
+        break;
+    case 0120000: /* S_IFLNK */
         if (FSP_FUSE_HAS_SYMLINKS(f))
         {
             FileInfo->FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
@@ -386,9 +397,8 @@ exit:
     return Result;
 }
 
-static NTSTATUS fsp_fuse_intf_GetReparsePointEx(
-    FSP_FILE_SYSTEM *FileSystem,
-    char *PosixPath, PVOID Buffer, PSIZE_T PSize)
+static NTSTATUS fsp_fuse_intf_GetReparsePointSymlink(FSP_FILE_SYSTEM *FileSystem,
+    const char *PosixPath, PVOID Buffer, PSIZE_T PSize)
 {
     struct fuse *f = FileSystem->UserContext;
     char PosixTargetPath[FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR)];
@@ -396,9 +406,6 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointEx(
     ULONG Length;
     int err;
     NTSTATUS Result;
-
-    if (0 == f->ops.readlink)
-        return STATUS_INVALID_DEVICE_REQUEST;
 
     err = f->ops.readlink(PosixPath, PosixTargetPath, sizeof PosixTargetPath);
     if (-EINVAL/* same on MSVC and Cygwin */ == err)
@@ -426,7 +433,7 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointEx(
          * Transform absolute path to relative.
          */
 
-        char *p, *t, *pstem, *tstem;
+        const char *p, *t, *pstem, *tstem;
         unsigned index, count;
 
         p = pstem = PosixPath;
@@ -525,6 +532,124 @@ exit:
         FspPosixDeletePath(TargetPath);
 
     return Result;
+}
+
+static NTSTATUS fsp_fuse_intf_GetReparsePointEx(FSP_FILE_SYSTEM *FileSystem,
+    const char *PosixPath, struct fuse_file_info *fi,
+    PVOID Buffer, PSIZE_T PSize)
+{
+    struct fuse *f = FileSystem->UserContext;
+    UINT32 Uid, Gid, Mode, Dev;
+    FSP_FSCTL_FILE_INFO FileInfo;
+    PREPARSE_DATA_BUFFER ReparseData;
+    USHORT ReparseDataLength;
+    SIZE_T Size;
+    NTSTATUS Result;
+
+    Result = fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi,
+        &Uid, &Gid, &Mode, &Dev, &FileInfo);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (0 == (FILE_ATTRIBUTE_REPARSE_POINT & FileInfo.FileAttributes))
+        return STATUS_NOT_A_REPARSE_POINT;
+
+    if (0 == Buffer)
+        return STATUS_SUCCESS;
+
+    switch (Mode & 0170000)
+    {
+    case 0010000: /* S_IFIFO */
+        ReparseDataLength = (USHORT)(
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer) -
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) +
+            sizeof(UINT64));
+        break;
+
+    case 0020000: /* S_IFCHR */
+        ReparseDataLength = (USHORT)(
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer) -
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) +
+            sizeof(UINT64) + sizeof(UINT32) + sizeof(UINT32));
+        break;
+
+    case 0060000: /* S_IFBLK */
+        ReparseDataLength = (USHORT)(
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer) -
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) +
+            sizeof(UINT64) + sizeof(UINT32) + sizeof(UINT32));
+        break;
+
+    case 0140000: /* S_IFSOCK */
+        ReparseDataLength = (USHORT)(
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer) -
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) +
+            sizeof(UINT64));
+        break;
+
+    case 0120000: /* S_IFLNK */
+        ReparseDataLength = (USHORT)(
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) -
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer));
+        break;
+
+    default:
+        /* cannot happen! */
+        return STATUS_NOT_A_REPARSE_POINT;
+    }
+
+    if (FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) + ReparseDataLength > *PSize)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    ReparseData = (PREPARSE_DATA_BUFFER)Buffer;
+    ReparseData->ReparseTag = FileInfo.ReparseTag;
+    ReparseData->ReparseDataLength = ReparseDataLength;
+
+    switch (Mode & 0170000)
+    {
+    case 0010000: /* S_IFIFO */
+        *(PUINT64)ReparseData->GenericReparseBuffer.DataBuffer = NFS_SPECFILE_FIFO;
+        break;
+
+    case 0020000: /* S_IFCHR */
+        *(PUINT64)ReparseData->GenericReparseBuffer.DataBuffer = NFS_SPECFILE_CHR;
+        ((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[0] = (Dev >> 16) & 0xffff;
+        ((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[1] = Dev & 0xffff;
+        break;
+
+    case 0060000: /* S_IFBLK */
+        *(PUINT64)ReparseData->GenericReparseBuffer.DataBuffer = NFS_SPECFILE_BLK;
+        ((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[0] = (Dev >> 16) & 0xffff;
+        ((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[1] = Dev & 0xffff;
+        break;
+
+    case 0140000: /* S_IFSOCK */
+        *(PUINT64)ReparseData->GenericReparseBuffer.DataBuffer = NFS_SPECFILE_SOCK;
+        break;
+
+    case 0120000: /* S_IFLNK */
+        Size = *PSize -
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer);
+        Result = fsp_fuse_intf_GetReparsePointSymlink(FileSystem, PosixPath,
+            ReparseData->SymbolicLinkReparseBuffer.PathBuffer, &Size);
+        if (!NT_SUCCESS(Result))
+            return Result;
+
+        ReparseData->ReparseDataLength += (USHORT)Size;
+        ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
+        ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength = (USHORT)Size;
+        ReparseData->SymbolicLinkReparseBuffer.PrintNameOffset = 0;
+        ReparseData->SymbolicLinkReparseBuffer.PrintNameLength = (USHORT)Size;
+        ReparseData->SymbolicLinkReparseBuffer.Flags = SYMLINK_FLAG_RELATIVE;
+        break;
+
+    default:
+        /* cannot happen! */
+        return STATUS_NOT_A_REPARSE_POINT;
+    }
+
+    *PSize = FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) + ReparseData->ReparseDataLength;
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS fsp_fuse_intf_GetReparsePointByName(
@@ -1684,27 +1809,13 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointByName(
 {
     struct fuse *f = FileSystem->UserContext;
     char *PosixPath = 0;
-    struct fuse_stat stbuf;
-    int err;
     NTSTATUS Result;
 
     Result = FspPosixMapWindowsToPosixPath(FileName, &PosixPath);
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    if (0 == Buffer)
-    {
-        memset(&stbuf, 0, sizeof stbuf);
-        err = f->ops.getattr(PosixPath, (void *)&stbuf);
-        if (0 != err)
-            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-        else if (0120000 != (stbuf.st_mode & 0170000))
-            Result = STATUS_NOT_A_REPARSE_POINT;
-        else
-            Result = STATUS_SUCCESS;
-    }
-    else
-        Result = fsp_fuse_intf_GetReparsePointEx(FileSystem, PosixPath, Buffer, PSize);
+    Result = fsp_fuse_intf_GetReparsePointEx(FileSystem, PosixPath, 0, Buffer, PSize);
 
 exit:
     if (0 != PosixPath)
@@ -1720,8 +1831,13 @@ static NTSTATUS fsp_fuse_intf_GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 {
     struct fsp_fuse_file_desc *filedesc =
         (PVOID)(UINT_PTR)Request->Req.FileSystemControl.UserContext2;
+    struct fuse_file_info fi;
 
-    return fsp_fuse_intf_GetReparsePointEx(FileSystem, filedesc->PosixPath, Buffer, PSize);
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    return fsp_fuse_intf_GetReparsePointEx(FileSystem, filedesc->PosixPath, &fi, Buffer, PSize);
 }
 
 static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
@@ -1732,47 +1848,17 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc =
         (PVOID)(UINT_PTR)Request->Req.FileSystemControl.UserContext2;
+    struct fuse_file_info fi;
+    UINT32 Uid, Gid, Mode, Dev;
+    FSP_FSCTL_FILE_INFO FileInfo;
+    PREPARSE_DATA_BUFFER ReparseData;
+    PWSTR ReparseTargetPath;
+    SIZE_T ReparseTargetPathLength;
     WCHAR TargetPath[FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR)];
     char *PosixTargetPath = 0, *PosixHiddenPath = 0;
+    BOOLEAN IsSymlink;
     int err;
     NTSTATUS Result;
-
-    if (0 == f->ops.symlink || 0 == f->ops.rename || 0 == f->ops.unlink)
-        return STATUS_INVALID_DEVICE_REQUEST;
-
-    /* FUSE cannot make a directory into a symlink */
-    if (filedesc->IsDirectory)
-    {
-        Result = STATUS_ACCESS_DENIED;
-        goto exit;
-    }
-
-    /* is this an absolute path? */
-    if (Size > 4 * sizeof(WCHAR) &&
-        '\\' == ((PWSTR)Buffer)[0] &&
-        '?'  == ((PWSTR)Buffer)[1] &&
-        '?'  == ((PWSTR)Buffer)[2] &&
-        '\\' == ((PWSTR)Buffer)[3])
-    {
-        /* we do not support absolute paths that point outside this file system */
-        if (!Request->Req.FileSystemControl.TargetOnFileSystem)
-        {
-            Result = STATUS_ACCESS_DENIED;
-            goto exit;
-        }
-    }
-
-    if (Size > sizeof TargetPath - sizeof(WCHAR))
-    {
-        Result = STATUS_IO_REPARSE_DATA_INVALID;
-        goto exit;
-    }
-    memcpy(TargetPath, Buffer, Size);
-    TargetPath[Size / sizeof(WCHAR)] = L'\0';
-
-    Result = FspPosixMapWindowsToPosixPath(TargetPath, &PosixTargetPath);
-    if (!NT_SUCCESS(Result))
-        goto exit;
 
     /*
      * How we implement this is probably one of the worst aspects of this FUSE implementation.
@@ -1784,22 +1870,159 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
      *     Close
      *
      * The Create call creates the new file and the DeviceIoControl(FSCTL_SET_REPARSE_POINT)
-     * call is supposed to convert it into a reparse point. However FUSE symlink() will fail
-     * with -EEXIST in this case.
+     * call is supposed to convert it into a reparse point. However FUSE mknod/symlink will
+     * fail with -EEXIST in this case.
      *
      * We must therefore find a solution using rename, which is unreliable and error-prone.
-     * Note that this will also result in a change of the inode number for the symlink!
+     * Note that this will also result in a change of the inode number for the reparse point!
      */
 
-    Result = fsp_fuse_intf_NewHiddenName(FileSystem, filedesc->PosixPath, &PosixHiddenPath);
-    if (!NT_SUCCESS(Result))
-        goto exit;
+    if (0 == f->ops.rename || 0 == f->ops.unlink)
+        return STATUS_INVALID_DEVICE_REQUEST;
 
-    err = f->ops.symlink(PosixTargetPath, PosixHiddenPath);
-    if (0 != err)
+    if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag || (
+        IO_REPARSE_TAG_NFS == ReparseData->ReparseTag &&
+        NFS_SPECFILE_LNK == *(PUINT64)ReparseData->GenericReparseBuffer.DataBuffer))
     {
-        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-        goto exit;
+        if (0 == f->ops.symlink)
+            return STATUS_INVALID_DEVICE_REQUEST;
+
+        IsSymlink = TRUE;
+    }
+    else if (IO_REPARSE_TAG_NFS == ReparseData->ReparseTag)
+    {
+        if (0 == f->ops.mknod)
+            return STATUS_INVALID_DEVICE_REQUEST;
+
+        IsSymlink = FALSE;
+    }
+    else
+        return STATUS_IO_REPARSE_TAG_MISMATCH;
+
+    /* FUSE cannot make a directory into a reparse point */
+    if (filedesc->IsDirectory)
+        return STATUS_ACCESS_DENIED;
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+        &Uid, &Gid, &Mode, &FileInfo);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    ReparseData = (PREPARSE_DATA_BUFFER)Buffer;
+
+    if (IsSymlink)
+    {
+        if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag)
+        {
+            ReparseTargetPath = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
+                ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
+            ReparseTargetPathLength = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
+
+            /* is this an absolute path? */
+            if (ReparseTargetPathLength > 4 * sizeof(WCHAR) &&
+                '\\' == ReparseTargetPath[0] &&
+                '?'  == ReparseTargetPath[1] &&
+                '?'  == ReparseTargetPath[2] &&
+                '\\' == ReparseTargetPath[3])
+            {
+                /* we do not support absolute paths that point outside this file system */
+                if (!Request->Req.FileSystemControl.TargetOnFileSystem)
+                    return STATUS_ACCESS_DENIED;
+            }
+
+            /* the first path component is assumed to be the device name; skip it! */
+            ReparseTargetPath += 4;
+            ReparseTargetPathLength -= 4 * sizeof(WCHAR);
+            while (0 < ReparseTargetPathLength && '\\' != ReparseTargetPath)
+                ReparseTargetPathLength--, ReparseTargetPath++;
+        }
+        else
+        {
+            ReparseTargetPath = (PVOID)(ReparseData->GenericReparseBuffer.DataBuffer + sizeof(UINT64));
+            ReparseTargetPathLength = ReparseData->ReparseDataLength - sizeof(UINT64);
+        }
+
+        memcpy(TargetPath, ReparseTargetPath, ReparseTargetPathLength);
+        TargetPath[ReparseTargetPathLength / sizeof(WCHAR)] = L'\0';
+
+        /*
+         * From this point forward we must jump to the EXIT label on failure.
+         */
+
+        Result = FspPosixMapWindowsToPosixPath(TargetPath, &PosixTargetPath);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        Result = fsp_fuse_intf_NewHiddenName(FileSystem, filedesc->PosixPath, &PosixHiddenPath);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        err = f->ops.symlink(PosixTargetPath, PosixHiddenPath);
+        if (0 != err)
+        {
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+            goto exit;
+        }
+    }
+    else
+    {
+        switch (*(PULONG)ReparseData->GenericReparseBuffer.DataBuffer)
+        {
+        case NFS_SPECFILE_FIFO:
+            Mode = (Mode & ~0170000) | 0010000;
+            Dev = 0;
+            break;
+        case NFS_SPECFILE_SOCK:
+            Mode = (Mode & ~0170000) | 0140000;
+            Dev = 0;
+            break;
+        case NFS_SPECFILE_CHR:
+            Mode = (Mode & ~0170000) | 0020000;
+            Dev =
+                (((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[0] << 16) |
+                (((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[1]);
+            break;
+        case NFS_SPECFILE_BLK:
+            Mode = (Mode & ~0170000) | 0060000;
+            Dev =
+                (((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[0] << 16) |
+                (((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[1]);
+            break;
+        default:
+            return STATUS_IO_REPARSE_DATA_INVALID;
+        }
+
+        /*
+         * From this point forward we must jump to the EXIT label on failure.
+         */
+
+        Result = fsp_fuse_intf_NewHiddenName(FileSystem, filedesc->PosixPath, &PosixHiddenPath);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        err = f->ops.mknod(PosixHiddenPath, Mode, Dev);
+        if (0 != err)
+        {
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+            goto exit;
+        }
+    }
+
+    if (0 != f->ops.chown)
+    {
+        err = f->ops.chown(PosixHiddenPath, Uid, Gid);
+        if (0 != err)
+        {
+            /* on failure unlink "hidden" symlink */
+            f->ops.unlink(PosixHiddenPath);
+
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+            goto exit;
+        }
     }
 
     err = f->ops.rename(PosixHiddenPath, filedesc->PosixPath);

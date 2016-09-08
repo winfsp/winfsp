@@ -887,8 +887,8 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
-    PREPARSE_DATA_BUFFER GetReparseData, SetReparseData;
-    SIZE_T Offset, Size;
+    PREPARSE_DATA_BUFFER ReparseData;
+    SIZE_T Size;
 
     Result = STATUS_INVALID_DEVICE_REQUEST;
     switch (Request->Req.FileSystemControl.FsControlCode)
@@ -896,104 +896,41 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
     case FSCTL_GET_REPARSE_POINT:
         if (0 != FileSystem->Interface->GetReparsePoint)
         {
-            GetReparseData = (PREPARSE_DATA_BUFFER)Response->Buffer;
-            memset(GetReparseData, 0, sizeof *GetReparseData);
+            ReparseData = (PREPARSE_DATA_BUFFER)Response->Buffer;
+            memset(ReparseData, 0, sizeof *ReparseData);
 
-            if (FileSystem->ReparsePointsSymlinkOnly)
-            {
-                Size = FSP_FSCTL_TRANSACT_RSP_SIZEMAX - FIELD_OFFSET(FSP_FSCTL_TRANSACT_RSP, Buffer) -
-                    FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer);
-                Result = FileSystem->Interface->GetReparsePoint(FileSystem, Request,
-                    (PVOID)Request->Req.FileSystemControl.UserContext,
-                    (PWSTR)Request->Buffer,
-                    GetReparseData->SymbolicLinkReparseBuffer.PathBuffer,
-                    &Size);
-                if (NT_SUCCESS(Result))
-                {
-                    Offset = 0;
-                    if (Size > 4 * sizeof(WCHAR) &&
-                        '\\' == GetReparseData->SymbolicLinkReparseBuffer.PathBuffer[0] &&
-                        '?'  == GetReparseData->SymbolicLinkReparseBuffer.PathBuffer[1] &&
-                        '?'  == GetReparseData->SymbolicLinkReparseBuffer.PathBuffer[2] &&
-                        '\\' == GetReparseData->SymbolicLinkReparseBuffer.PathBuffer[3])
-                        Offset = 4 * sizeof(WCHAR);
-
-                    GetReparseData->ReparseTag = IO_REPARSE_TAG_SYMLINK;
-                    GetReparseData->ReparseDataLength = (USHORT)(
-                        FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) -
-                        FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer) +
-                        Size);
-                    GetReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
-                    GetReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength = (USHORT)Size;
-                    GetReparseData->SymbolicLinkReparseBuffer.PrintNameOffset = (USHORT)Offset;
-                    GetReparseData->SymbolicLinkReparseBuffer.PrintNameLength = (USHORT)(Size - Offset);
-                    GetReparseData->SymbolicLinkReparseBuffer.Flags = 0 == Offset ?
-                        0 : SYMLINK_FLAG_RELATIVE;
-
-                    Response->Rsp.FileSystemControl.Buffer.Size = (UINT16)(
-                        FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) +
-                        Size);
-                }
-            }
-            else
-            {
-                Size = FSP_FSCTL_TRANSACT_RSP_SIZEMAX - FIELD_OFFSET(FSP_FSCTL_TRANSACT_RSP, Buffer);
-                Result = FileSystem->Interface->GetReparsePoint(FileSystem, Request,
-                    (PVOID)Request->Req.FileSystemControl.UserContext,
-                    (PWSTR)Request->Buffer, GetReparseData, &Size);
-                if (NT_SUCCESS(Result))
-                    Response->Rsp.FileSystemControl.Buffer.Size = (UINT16)Size;
-            }
+            Size = FSP_FSCTL_TRANSACT_RSP_SIZEMAX - FIELD_OFFSET(FSP_FSCTL_TRANSACT_RSP, Buffer);
+            Result = FileSystem->Interface->GetReparsePoint(FileSystem, Request,
+                (PVOID)Request->Req.FileSystemControl.UserContext,
+                (PWSTR)Request->Buffer, ReparseData, &Size);
+            if (NT_SUCCESS(Result))
+                Response->Rsp.FileSystemControl.Buffer.Size = (UINT16)Size;
         }
         break;
     case FSCTL_SET_REPARSE_POINT:
         if (0 != FileSystem->Interface->SetReparsePoint)
         {
-            SetReparseData = (PREPARSE_DATA_BUFFER)
+            ReparseData = (PREPARSE_DATA_BUFFER)
                 (Request->Buffer + Request->Req.FileSystemControl.Buffer.Offset);
 
-            if (FileSystem->ReparsePointsSymlinkOnly)
-            {
-                if (IO_REPARSE_TAG_SYMLINK == *(PULONG)SetReparseData)
-                    Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
-                        (PVOID)Request->Req.FileSystemControl.UserContext,
-                        (PWSTR)Request->Buffer,
-                        SetReparseData->SymbolicLinkReparseBuffer.PathBuffer +
-                            SetReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR),
-                        SetReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength);
-                else
-                    Result = STATUS_IO_REPARSE_TAG_MISMATCH;
-            }
-            else
-                Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
-                    (PVOID)Request->Req.FileSystemControl.UserContext,
-                    (PWSTR)Request->Buffer,
-                    SetReparseData,
-                    Request->Req.FileSystemControl.Buffer.Size);
+            Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
+                (PVOID)Request->Req.FileSystemControl.UserContext,
+                (PWSTR)Request->Buffer,
+                ReparseData,
+                Request->Req.FileSystemControl.Buffer.Size);
         }
         break;
     case FSCTL_DELETE_REPARSE_POINT:
         if (0 != FileSystem->Interface->DeleteReparsePoint)
         {
-            SetReparseData = (PREPARSE_DATA_BUFFER)
+            ReparseData = (PREPARSE_DATA_BUFFER)
                 (Request->Buffer + Request->Req.FileSystemControl.Buffer.Offset);
 
-            if (FileSystem->ReparsePointsSymlinkOnly)
-            {
-                if (IO_REPARSE_TAG_SYMLINK == *(PULONG)SetReparseData)
-                    Result = FileSystem->Interface->DeleteReparsePoint(FileSystem, Request,
-                        (PVOID)Request->Req.FileSystemControl.UserContext,
-                        (PWSTR)Request->Buffer,
-                        0, 0);
-                else
-                    Result = STATUS_IO_REPARSE_TAG_MISMATCH;
-            }
-            else
-                Result = FileSystem->Interface->DeleteReparsePoint(FileSystem, Request,
-                    (PVOID)Request->Req.FileSystemControl.UserContext,
-                    (PWSTR)Request->Buffer,
-                    SetReparseData,
-                    Request->Req.FileSystemControl.Buffer.Size);
+            Result = FileSystem->Interface->DeleteReparsePoint(FileSystem, Request,
+                (PVOID)Request->Req.FileSystemControl.UserContext,
+                (PWSTR)Request->Buffer,
+                ReparseData,
+                Request->Req.FileSystemControl.Buffer.Size);
         }
         break;
     }
@@ -1184,18 +1121,9 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
 
         c = *p;
         *p = L'\0';
-        if (FileSystem->ReparsePointsSymlinkOnly)
-        {
-            Size = FSP_FSCTL_TRANSACT_PATH_SIZEMAX;
-            Result = GetReparsePointByName(FileSystem, Context, TargetPath, '\0' != c,
-                ReparseData->SymbolicLinkReparseBuffer.PathBuffer, &Size);
-        }
-        else
-        {
-            Size = sizeof ReparseDataBuf;
-            Result = GetReparsePointByName(FileSystem, Context, TargetPath, '\0' != c,
-                ReparseData, &Size);
-        }
+        Size = sizeof ReparseDataBuf;
+        Result = GetReparsePointByName(FileSystem, Context, TargetPath, '\0' != c,
+            ReparseData, &Size);
         *p = c;
 
         if (STATUS_NOT_A_REPARSE_POINT == Result)
@@ -1213,25 +1141,20 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
         if (0 == --MaxTries)
             return STATUS_REPARSE_POINT_NOT_RESOLVED;
 
-        if (FileSystem->ReparsePointsSymlinkOnly)
-            TargetLink = ReparseData->SymbolicLinkReparseBuffer.PathBuffer;
+        if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag)
+        {
+            TargetLink = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
+                ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset;
+            Size = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
+        }
         else
         {
-            if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag)
-            {
-                TargetLink = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
-                    ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset;
-                Size = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
-            }
-            else
-            {
-                /* not a symlink; return the full reparse point! */
-                if (Size > *PSize)
-                    return STATUS_OBJECT_NAME_INVALID;
-                memcpy(Buffer, ReparseData, Size);
+            /* not a symlink; return the full reparse point! */
+            if (Size > *PSize)
+                return STATUS_OBJECT_NAME_INVALID;
+            memcpy(Buffer, ReparseData, Size);
 
-                goto no_symlink_exit;
-            }
+            goto no_symlink_exit;
         }
 
         if (Size > 4 * sizeof(WCHAR) &&

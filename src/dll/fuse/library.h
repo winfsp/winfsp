@@ -92,4 +92,12 @@ NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
 
 extern FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf;
 
+/* NFS reparse points */
+
+#define NFS_SPECFILE_FIFO               0x000000004F464946
+#define NFS_SPECFILE_CHR                0x0000000000524843
+#define NFS_SPECFILE_BLK                0x00000000004b4c42
+#define NFS_SPECFILE_LNK                0x00000000014b4e4c
+#define NFS_SPECFILE_SOCK               0x000000004B434F53
+
 #endif
