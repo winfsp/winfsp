@@ -371,7 +371,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
     BOOLEAN Inserted;
 
-    if (CreateOptions & (FILE_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT))
+    if (CreateOptions & FILE_DIRECTORY_FILE)
         AllocationSize = 0;
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
