@@ -58,10 +58,25 @@ void reparse_setget_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     ASSERT(Success);
 
     ASSERT(ReparseDataBuf.G.ReparseTag == 0x1234);
-    ASSERT(ReparseDataBuf.G.ReparseDataLength == strlen(datstr) + 1);
+    ASSERT(ReparseDataBuf.G.ReparseDataLength == strlen(datstr));
     ASSERT(ReparseDataBuf.G.Reserved == 0);
     ASSERT(0 == memcmp(&ReparseDataBuf.G.ReparseGuid, &reparse_guid, sizeof reparse_guid));
     ASSERT(0 == memcmp(ReparseDataBuf.G.GenericReparseBuffer.DataBuffer, datstr, strlen(datstr)));
+
+    CloseHandle(Handle);
+
+    Handle = CreateFileW(FilePath,
+        FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0, OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_CANT_ACCESS_FILE == GetLastError());
+
+    Handle = CreateFileW(FilePath,
+        FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    ReparseDataBuf.G.ReparseDataLength = 0;
 
     Success = DeviceIoControl(Handle, FSCTL_DELETE_REPARSE_POINT,
         &ReparseDataBuf, REPARSE_GUID_DATA_BUFFER_HEADER_SIZE + ReparseDataBuf.G.ReparseDataLength,
