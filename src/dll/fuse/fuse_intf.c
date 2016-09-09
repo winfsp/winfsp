@@ -17,6 +17,90 @@
 
 #include <dll/fuse/library.h>
 
+static inline
+VOID fsp_fuse_op_enter_lock(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    switch (FileSystem->OpGuardStrategy)
+    {
+    case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE:
+        if ((FspFsctlTransactCreateKind == Request->Kind &&
+                FILE_OPEN != ((Request->Req.Create.CreateOptions >> 24) & 0xff)) ||
+            (FspFsctlTransactCleanupKind == Request->Kind &&
+                Request->Req.Cleanup.Delete) ||
+            (FspFsctlTransactSetInformationKind == Request->Kind &&
+                10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass) ||
+            FspFsctlTransactSetVolumeInformationKind == Request->Kind ||
+            (FspFsctlTransactFlushBuffersKind == Request->Kind &&
+                0 == Request->Req.FlushBuffers.UserContext) ||
+            /* FSCTL_SET_REPARSE_POINT manipulates namespace */
+            (FspFsctlTransactFileSystemControlKind == Request->Kind &&
+                FSCTL_SET_REPARSE_POINT == Request->Req.FileSystemControl.FsControlCode))
+        {
+            AcquireSRWLockExclusive(&FileSystem->OpGuardLock);
+        }
+        else
+        if (FspFsctlTransactCreateKind == Request->Kind ||
+            (FspFsctlTransactSetInformationKind == Request->Kind &&
+                13/*FileDispositionInformation*/ == Request->Req.SetInformation.FileInformationClass) ||
+            FspFsctlTransactQueryDirectoryKind == Request->Kind ||
+            FspFsctlTransactQueryVolumeInformationKind == Request->Kind ||
+            /* FSCTL_GET_REPARSE_POINT may access namespace */
+            (FspFsctlTransactFileSystemControlKind == Request->Kind &&
+                FSCTL_GET_REPARSE_POINT == Request->Req.FileSystemControl.FsControlCode))
+        {
+            AcquireSRWLockShared(&FileSystem->OpGuardLock);
+        }
+        break;
+
+    case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE:
+        AcquireSRWLockExclusive(&FileSystem->OpGuardLock);
+        break;
+    }
+}
+
+static inline
+VOID fsp_fuse_op_leave_unlock(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    switch (FileSystem->OpGuardStrategy)
+    {
+    case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE:
+        if ((FspFsctlTransactCreateKind == Request->Kind &&
+                FILE_OPEN != ((Request->Req.Create.CreateOptions >> 24) & 0xff)) ||
+            (FspFsctlTransactCleanupKind == Request->Kind &&
+                Request->Req.Cleanup.Delete) ||
+            (FspFsctlTransactSetInformationKind == Request->Kind &&
+                10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass) ||
+            FspFsctlTransactSetVolumeInformationKind == Request->Kind ||
+            (FspFsctlTransactFlushBuffersKind == Request->Kind &&
+                0 == Request->Req.FlushBuffers.UserContext) ||
+            /* FSCTL_SET_REPARSE_POINT manipulates namespace */
+            (FspFsctlTransactFileSystemControlKind == Request->Kind &&
+                FSCTL_SET_REPARSE_POINT == Request->Req.FileSystemControl.FsControlCode))
+        {
+            ReleaseSRWLockExclusive(&FileSystem->OpGuardLock);
+        }
+        else
+        if (FspFsctlTransactCreateKind == Request->Kind ||
+            (FspFsctlTransactSetInformationKind == Request->Kind &&
+                13/*FileDispositionInformation*/ == Request->Req.SetInformation.FileInformationClass) ||
+            FspFsctlTransactQueryDirectoryKind == Request->Kind ||
+            FspFsctlTransactQueryVolumeInformationKind == Request->Kind ||
+            /* FSCTL_GET_REPARSE_POINT may access namespace */
+            (FspFsctlTransactFileSystemControlKind == Request->Kind &&
+                FSCTL_GET_REPARSE_POINT == Request->Req.FileSystemControl.FsControlCode))
+        {
+            ReleaseSRWLockShared(&FileSystem->OpGuardLock);
+        }
+        break;
+
+    case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE:
+        ReleaseSRWLockExclusive(&FileSystem->OpGuardLock);
+        break;
+    }
+}
+
 NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
@@ -131,9 +215,7 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
         goto exit;
     }
 
-    Result = FspFileSystemOpEnter(FileSystem, Request, Response);
-    if (!NT_SUCCESS(Result))
-        goto exit;
+    fsp_fuse_op_enter_lock(FileSystem, Request, Response);
 
     context->fuse = f;
     context->private_data = f->data;
@@ -167,7 +249,7 @@ NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
     struct fuse_context *context;
     struct fsp_fuse_context_header *contexthdr;
 
-    FspFileSystemOpLeave(FileSystem, Request, Response);
+    fsp_fuse_op_leave_unlock(FileSystem, Request, Response);
 
     context = fsp_fuse_get_context(f->env);
     context->fuse = 0;
