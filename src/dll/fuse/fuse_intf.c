@@ -645,28 +645,28 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointEx(FSP_FILE_SYSTEM *FileSystem,
         ReparseDataLength = (USHORT)(
             FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer) -
             FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) +
-            sizeof(UINT64));
+            8);
         break;
 
     case 0020000: /* S_IFCHR */
         ReparseDataLength = (USHORT)(
             FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer) -
             FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) +
-            sizeof(UINT64) + sizeof(UINT32) + sizeof(UINT32));
+            16);
         break;
 
     case 0060000: /* S_IFBLK */
         ReparseDataLength = (USHORT)(
             FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer) -
             FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) +
-            sizeof(UINT64) + sizeof(UINT32) + sizeof(UINT32));
+            16);
         break;
 
     case 0140000: /* S_IFSOCK */
         ReparseDataLength = (USHORT)(
             FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer) -
             FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) +
-            sizeof(UINT64));
+            8);
         break;
 
     case 0120000: /* S_IFLNK */
@@ -690,23 +690,23 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointEx(FSP_FILE_SYSTEM *FileSystem,
     switch (Mode & 0170000)
     {
     case 0010000: /* S_IFIFO */
-        *(PUINT64)ReparseData->GenericReparseBuffer.DataBuffer = NFS_SPECFILE_FIFO;
+        *(PUINT64)(ReparseData->GenericReparseBuffer.DataBuffer +  0) = NFS_SPECFILE_FIFO;
         break;
 
     case 0020000: /* S_IFCHR */
-        *(PUINT64)ReparseData->GenericReparseBuffer.DataBuffer = NFS_SPECFILE_CHR;
-        ((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[0] = (Dev >> 16) & 0xffff;
-        ((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[1] = Dev & 0xffff;
+        *(PUINT64)(ReparseData->GenericReparseBuffer.DataBuffer +  0) = NFS_SPECFILE_CHR;
+        *(PUINT32)(ReparseData->GenericReparseBuffer.DataBuffer +  8) = (Dev >> 16) & 0xffff;
+        *(PUINT32)(ReparseData->GenericReparseBuffer.DataBuffer + 12) = Dev & 0xffff;
         break;
 
     case 0060000: /* S_IFBLK */
-        *(PUINT64)ReparseData->GenericReparseBuffer.DataBuffer = NFS_SPECFILE_BLK;
-        ((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[0] = (Dev >> 16) & 0xffff;
-        ((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[1] = Dev & 0xffff;
+        *(PUINT64)(ReparseData->GenericReparseBuffer.DataBuffer +  0) = NFS_SPECFILE_BLK;
+        *(PUINT32)(ReparseData->GenericReparseBuffer.DataBuffer +  8) = (Dev >> 16) & 0xffff;
+        *(PUINT32)(ReparseData->GenericReparseBuffer.DataBuffer + 12) = Dev & 0xffff;
         break;
 
     case 0140000: /* S_IFSOCK */
-        *(PUINT64)ReparseData->GenericReparseBuffer.DataBuffer = NFS_SPECFILE_SOCK;
+        *(PUINT64)(ReparseData->GenericReparseBuffer.DataBuffer +  0) = NFS_SPECFILE_SOCK;
         break;
 
     case 0120000: /* S_IFLNK */
@@ -2024,7 +2024,7 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
         }
         else
         {
-            ReparseTargetPath = (PVOID)(ReparseData->GenericReparseBuffer.DataBuffer + sizeof(UINT64));
+            ReparseTargetPath = (PVOID)(ReparseData->GenericReparseBuffer.DataBuffer + 8);
             ReparseTargetPathLength = ReparseData->ReparseDataLength - sizeof(UINT64);
         }
 
@@ -2065,14 +2065,14 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
         case NFS_SPECFILE_CHR:
             Mode = (Mode & ~0170000) | 0020000;
             Dev =
-                (((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[0] << 16) |
-                (((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[1]);
+                (*(PUINT32)(ReparseData->GenericReparseBuffer.DataBuffer +  8) << 16) |
+                (*(PUINT32)(ReparseData->GenericReparseBuffer.DataBuffer + 12));
             break;
         case NFS_SPECFILE_BLK:
             Mode = (Mode & ~0170000) | 0060000;
             Dev =
-                (((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[0] << 16) |
-                (((PUINT32)ReparseData->GenericReparseBuffer.DataBuffer)[1]);
+                (*(PUINT32)(ReparseData->GenericReparseBuffer.DataBuffer +  8) << 16) |
+                (*(PUINT32)(ReparseData->GenericReparseBuffer.DataBuffer + 12));
             break;
         default:
             return STATUS_IO_REPARSE_DATA_INVALID;
