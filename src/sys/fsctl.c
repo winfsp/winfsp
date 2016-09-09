@@ -89,13 +89,18 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
 {
     PAGED_CODE();
 
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+
+    /* do we support reparse points? */
+    if (!FsvolDeviceExtension->VolumeParams.ReparsePoints)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
     /* is this a valid FileObject? */
-    if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
+    if (!FspFileNodeIsValid(FileObject->FsContext))
         return STATUS_INVALID_DEVICE_REQUEST;
 
     NTSTATUS Result;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     ULONG FsControlCode = IrpSp->Parameters.FileSystemControl.FsControlCode;
@@ -109,10 +114,6 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     ASSERT(FileNode == FileDesc->FileNode);
-
-    /* do we support reparse points? */
-    if (!FsvolDeviceExtension->VolumeParams.ReparsePoints)
-        return STATUS_INVALID_DEVICE_REQUEST;
 
     if (IsWrite)
     {
@@ -285,6 +286,10 @@ NTSTATUS FspFsvolFileSystemControlComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     FSP_ENTER_IOC(PAGED_CODE());
+
+    /* exit now if we do not have a FileObject (FSP_FSCTL_WORK*) */
+    if (0 == IrpSp->FileObject)
+        FSP_RETURN();
 
     if (!NT_SUCCESS(Response->IoStatus.Status))
     {
