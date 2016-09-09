@@ -45,6 +45,7 @@ extern "C" {
  */
 #if !defined(SYMLINK_FLAG_RELATIVE)
 #define SYMLINK_FLAG_RELATIVE           1
+#define REPARSE_DATA_BUFFER_HEADER_SIZE FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer)
 typedef struct _REPARSE_DATA_BUFFER
 {
     ULONG ReparseTag;
