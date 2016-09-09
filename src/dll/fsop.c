@@ -1208,24 +1208,14 @@ FSP_API NTSTATUS FspFileSystemCanReplaceReparsePoint(
     else if (!IsReparseTagMicrosoft(*(PULONG)CurrentReparseData) && (
         REPARSE_GUID_DATA_BUFFER_HEADER_SIZE > CurrentReparseDataSize ||
         REPARSE_GUID_DATA_BUFFER_HEADER_SIZE > ReplaceReparseDataSize ||
-        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data1 !=
-        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data1 ||
-        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data2 !=
-        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data2 ||
-        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data3 !=
-        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data3 ||
-        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[0] !=
-        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[0] ||
-        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[1] !=
-        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[1] ||
-        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[2] !=
-        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[2] ||
-        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[3] !=
-        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[3] ||
-        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[4] !=
-        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[4] ||
-        ((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[5] !=
-        ((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[5]))
+        *(PUINT32)&((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data1 !=
+        *(PUINT32)&((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data1 ||
+        *(PUINT32)&((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data2 !=
+        *(PUINT32)&((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data2 ||
+        *(PUINT32)&((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[0] !=
+        *(PUINT32)&((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[0] ||
+        *(PUINT32)&((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data4[4] !=
+        *(PUINT32)&((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data4[4]))
         return STATUS_REPARSE_ATTRIBUTE_CONFLICT;
     else
         return STATUS_SUCCESS;
