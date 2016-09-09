@@ -1880,6 +1880,8 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     if (0 == f->ops.rename || 0 == f->ops.unlink)
         return STATUS_INVALID_DEVICE_REQUEST;
 
+    ReparseData = (PREPARSE_DATA_BUFFER)Buffer;
+
     if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag || (
         IO_REPARSE_TAG_NFS == ReparseData->ReparseTag &&
         NFS_SPECFILE_LNK == *(PUINT64)ReparseData->GenericReparseBuffer.DataBuffer))
@@ -1912,8 +1914,6 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return Result;
 
-    ReparseData = (PREPARSE_DATA_BUFFER)Buffer;
-
     if (IsSymlink)
     {
         if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag)
@@ -1937,7 +1937,7 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
             /* the first path component is assumed to be the device name; skip it! */
             ReparseTargetPath += 4;
             ReparseTargetPathLength -= 4 * sizeof(WCHAR);
-            while (0 < ReparseTargetPathLength && '\\' != ReparseTargetPath)
+            while (0 < ReparseTargetPathLength && L'\\' != *ReparseTargetPath)
                 ReparseTargetPathLength--, ReparseTargetPath++;
         }
         else
