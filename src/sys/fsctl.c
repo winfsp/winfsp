@@ -118,8 +118,8 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
     if (IsWrite)
     {
         if (0 == InputBuffer || 0 == InputBufferLength ||
-            FSP_FSCTL_TRANSACT_REQ_SIZEMAX - FIELD_OFFSET(FSP_FSCTL_TRANSACT_REQ, Buffer) -
-                (FileNode->FileName.Length + sizeof(WCHAR)) < InputBufferLength)
+            FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMAX - (FileNode->FileName.Length + sizeof(WCHAR)) <
+                InputBufferLength)
             return STATUS_INVALID_PARAMETER;
 
         Result = FsRtlValidateReparsePointBuffer(InputBufferLength, InputBuffer);
@@ -134,9 +134,9 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
             if (FsvolDeviceExtension->VolumeParams.ReparsePointsAccessCheck)
             {
                 if (KernelMode != Irp->RequestorMode &&
-                    SeSinglePrivilegeCheck(RtlConvertLongToLuid(SE_CREATE_SYMBOLIC_LINK_PRIVILEGE),
+                    !SeSinglePrivilegeCheck(RtlConvertLongToLuid(SE_CREATE_SYMBOLIC_LINK_PRIVILEGE),
                         UserMode))
-                    return STATUS_ACCESS_DENIED;
+                    return STATUS_PRIVILEGE_NOT_HELD;
             }
 
             /* determine if target resides on same device as link (convenience for user mode) */

@@ -219,8 +219,89 @@ void reparse_nfs_test(void)
     }
 }
 
+static void reparse_symlink_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR FilePath[MAX_PATH], LinkPath[MAX_PATH];
+    PUINT8 NameInfoBuf[sizeof(FILE_NAME_INFO) + MAX_PATH];
+    PFILE_NAME_INFO PNameInfo = (PVOID)NameInfoBuf;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(LinkPath, sizeof LinkPath, L"%s%s\\link0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateSymbolicLinkW(LinkPath, FilePath, 0);
+    if (Success)
+    {
+        Handle = CreateFileW(FilePath,
+            FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        CloseHandle(Handle);
+
+        Handle = CreateFileW(LinkPath,
+            FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+        Success = GetFileInformationByHandleEx(Handle, FileNameInfo, PNameInfo, sizeof NameInfoBuf);
+        ASSERT(Success);
+        if (-1 == Flags)
+            ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 6) * sizeof(WCHAR));
+        else if (0 == Prefix)
+            ASSERT(PNameInfo->FileNameLength == wcslen(L"\\file0") * sizeof(WCHAR));
+        else
+            ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 1) * sizeof(WCHAR));
+        if (-1 == Flags)
+            ASSERT(0 == memcmp(FilePath + 6, PNameInfo->FileName, PNameInfo->FileNameLength));
+        else if (0 == Prefix)
+            ASSERT(0 == memcmp(L"\\file0", PNameInfo->FileName, PNameInfo->FileNameLength));
+        else
+            ASSERT(0 == memcmp(FilePath + 1, PNameInfo->FileName, PNameInfo->FileNameLength));
+
+        CloseHandle(Handle);
+
+        Success = DeleteFileW(LinkPath);
+        ASSERT(Success);
+
+        Success = DeleteFileW(FilePath);
+        ASSERT(Success);
+    }
+    else
+    {
+        ASSERT(ERROR_PRIVILEGE_NOT_HELD == GetLastError());
+        FspDebugLog(__FUNCTION__ ": need SE_CREATE_SYMBOLIC_LINK_PRIVILEGE\n");
+    }
+
+    memfs_stop(memfs);
+}
+
+void reparse_symlink_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        reparse_symlink_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        reparse_symlink_dotest(MemfsDisk, 0, 0);
+    }
+    if (WinFspNetTests)
+    {
+        reparse_symlink_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+    }
+}
+
 void reparse_tests(void)
 {
     TEST(reparse_guid_test);
     TEST(reparse_nfs_test);
+    TEST(reparse_symlink_test);
 }

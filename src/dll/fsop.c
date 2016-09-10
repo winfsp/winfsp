@@ -1064,9 +1064,7 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
     union
     {
         REPARSE_DATA_BUFFER V;
-        UINT8 B[FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) +
-            /* assumption: the substitute and print paths fit in the same buffer */
-            FSP_FSCTL_TRANSACT_PATH_SIZEMAX];
+        UINT8 B[FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX];
     } ReparseDataBuf;
     PREPARSE_DATA_BUFFER ReparseData = &ReparseDataBuf.V;
     SIZE_T Size, MaxTries = 32;
@@ -1151,7 +1149,7 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
         if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag)
         {
             TargetLink = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
-                ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset;
+                ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
             Size = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
         }
         else

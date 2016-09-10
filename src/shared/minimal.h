@@ -26,6 +26,7 @@
  * - "C/C++ > Code Generation > Basic Runtime Checks" must be set to "Default"
  * - "C/C++ > Code Generation > Runtime Library" must be set to "Multi-threaded (/MT)".
  * - "C/C++ > Code Generation > Security Check" must be disabled (/GS-).
+ * - "C/C++ > Command Line > Additional Options" add "/Gs16384" to disable __chkstk probes.
  * - "Linker > Input > Ignore All Default Libraries" must be "Yes".
  *
  *
