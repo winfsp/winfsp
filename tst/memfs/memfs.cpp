@@ -945,11 +945,11 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
-    PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN OpenReparsePoint,
+    PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent,
     PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
 {
     return FspFileSystemResolveReparsePoints(FileSystem, GetReparsePointByName, 0,
-        FileName, ReparsePointIndex, OpenReparsePoint,
+        FileName, ReparsePointIndex, ResolveLastPathComponent,
         PIoStatus, Buffer, PSize);
 }
 

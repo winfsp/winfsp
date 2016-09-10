@@ -675,9 +675,9 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     The name of the file or directory to have its reparse points resolved.
      * @param ReparsePointIndex
      *     The index of the first reparse point within FileName.
-     * @param OpenReparsePoint
-     *     If TRUE, the last path component of FileName should not be resolved, even
-     *     if it is a reparse point that can be resolved. If FALSE, all path components
+     * @param ResolveLastPathComponent
+     *     If FALSE, the last path component of FileName should not be resolved, even
+     *     if it is a reparse point that can be resolved. If TRUE, all path components
      *     should be resolved if possible.
      * @param PIoStatus
      *     Pointer to storage that will receive the status to return to the FSD. When
@@ -694,7 +694,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_REPARSE or error code.
      */
     NTSTATUS (*ResolveReparsePoints)(FSP_FILE_SYSTEM *FileSystem,
-        PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN OpenReparsePoint,
+        PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent,
         PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize);
     /**
      * Get reparse point.
@@ -1101,9 +1101,9 @@ FSP_API BOOLEAN FspFileSystemFindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
  *     The name of the file or directory to have its reparse points resolved.
  * @param ReparsePointIndex
  *     The index of the first reparse point within FileName.
- * @param OpenReparsePoint
- *     If TRUE, the last path component of FileName should not be resolved, even
- *     if it is a reparse point that can be resolved. If FALSE, all path components
+ * @param ResolveLastPathComponent
+ *     If FALSE, the last path component of FileName should not be resolved, even
+ *     if it is a reparse point that can be resolved. If TRUE, all path components
  *     should be resolved if possible.
  * @param PIoStatus
  *     Pointer to storage that will receive the status to return to the FSD. When
@@ -1126,7 +1126,7 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
         FSP_FILE_SYSTEM *FileSystem, PVOID Context,
         PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize),
     PVOID Context,
-    PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN OpenReparsePoint,
+    PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent,
     PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize);
 /**
  * Test whether reparse data can be replaced.
