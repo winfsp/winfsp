@@ -1,0 +1,50 @@
+= Native API vs FUSE
+
+This document compares the "native" WinFsp API to the FUSE API and provides a rationale for the existence of both within WinFsp.
+
+== Overview
+
+WinFsp provides two different but conceptually similar API's for the same purpose of implementing a user mode file system:
+
+- The WinFsp API, which is documented in the include file `inc/winfsp/winfsp.h` (and online at http://www.secfs.net/winfsp/apiref/). This API consists of the `FSP_FILE_SYSTEM_INTERFACE` "class" and the `FspFileSystem*` functions.
+- The FUSE (high-level) API, which is the well understood API from the FUSE project originally by Miklos Szeredi.
+
+Given the similarities between the two API's some questions naturally arise:
+
+- What are the differences between the two API's?
+- Why are both needed?
+- What is the target audience for each API?
+
+== Comparison
+
+The primary difference between the two API's is that the WinFsp API is being designed to use all features available to a Windows file system, whereas the FUSE API is being designed (by the FUSE project) to better fit a POSIX file system. For example, a Windows file system can do the following, that cannot be (easily) made available to FUSE:
+
+- Create and manage alternate data streams.
+- Manage arbitrary security descriptors (SID's and ACL's vs POSIX permissions).
+- Create and manage special files beyond what is supported through FUSE `mknod` (using reparse points).
+- Support volume labels.
+- Allow the file system to fulfill Read/Write requests using asynchronous I/O.
+
+Furthermore there are other smaller, but still important differences:
+
+- The file deletion model on Windows is different from the FUSE/POSIX model.
+- The reparse mechanism (which supports symbolic links) on Windows is quite more powerful (and more complicated) than FUSE/POSIX symbolic links.
+- Windows uses UTF-16 for file names, whereas FUSE uses UTF-8, requiring constant conversions between the two.
+
+These and other differences make the creation of the WinFsp FUSE compatibility layer non-trivial and suggest that a native API that more closely resembles the Windows file system model is desirable. At the same time there are hundreds of FUSE (high-level) file systems and having a FUSE compatible API is also very desirable.
+
+== Target Audiences
+
+As mentioned WinFsp provides two different API's; to further complicate matters the FUSE API can be used from both a native Windows application and a Cygwin (POSIX) application. There are then 3 different audiences that the API's cater for:
+
+- The WinFsp API audience. This consists of Windows-only file systems or cross-platform file systems that wish to provide maximum features and/or performance on Windows.
+- The FUSE API for native Windows audience. This consists of FUSE file-systems that have had their core file system code ported to Windows, but have not yet been integrated into the operating system. It also includes cross-platform file systems that do not wish to include advanced (non-POSIX) Windows file system features.
+- The FUSE API for Cygwin audience. This consists of FUSE file-systems that are ported to Windows/Cygwin with minimal work. For example, the author of this document has ported SSHFS to Cygwin using this API and a minimal SSHFS patch.
+
+For the developer of a new or Windows exclusive file system the recommendation is to use the WinFsp API as it provides support for all features of the Windows file system.
+
+For the developer of a FUSE file system that wishes to port their file system to Windows a natural process may be the following:
+
+- Use the FUSE API for Cygwin to port the file system to Cygwin. In many cases little or no changes to the file system code are required.
+- Use the FUSE API for native Windows to port the file system to native Windows. This would require porting the core file system code (i.e. those parts of the file system code that actually manage and organize files). Little to no changes should be required for the file system FUSE layer glue.
+- Use the WinFsp API only if the file system requires maximum features and/or performance under Windows.
