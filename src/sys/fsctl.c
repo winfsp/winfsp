@@ -174,24 +174,24 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
                 ;
             }
         }
+
+        FspFileNodeAcquireExclusive(FileNode, Full);
     }
     else
     {
-        if (0 != InputBuffer || 0 != InputBufferLength ||
-            0 == OutputBuffer || 0 == OutputBufferLength)
+        if (0 == OutputBuffer || 0 == OutputBufferLength)
             return STATUS_INVALID_PARAMETER;
 
-        Result = FspBufferUserBuffer(Irp, OutputBufferLength, IoWriteAccess);
-        if (!NT_SUCCESS(Result))
-            return Result;
+        /*
+         * NtFsControlFile (IopXxxControlFile) will setup Irp->AssociatedIrp.SystemBuffer
+         * with enough space for either InputBufferLength or OutputBufferLength. There is
+         * no need to call FspBufferUserBuffer ourselves.
+         */
+
+        FspFileNodeAcquireShared(FileNode, Full);
     }
 
-    if (IsWrite)
-        FspFileNodeAcquireExclusive(FileNode, Full);
-    else
-        FspFileNodeAcquireShared(FileNode, Full);
-
-    Result = FspIopCreateRequestEx(Irp, &FileNode->FileName, InputBufferLength,
+    Result = FspIopCreateRequestEx(Irp, &FileNode->FileName, IsWrite ? InputBufferLength : 0,
         FspFsvolFileSystemControlRequestFini, &Request);
     if (!NT_SUCCESS(Result))
     {
@@ -225,12 +225,12 @@ static NTSTATUS FspFsvolFileSystemControlReparsePointComplete(
 {
     PAGED_CODE();
 
-    if (!IsWrite)
+    if (IsWrite)
         return STATUS_SUCCESS;
 
     NTSTATUS Result;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-    PVOID OutputBuffer = Irp->AssociatedIrp.SystemBuffer; /* see FspBufferUserBuffer call */
+    PVOID OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
 
     if (Response->Buffer + Response->Rsp.FileSystemControl.Buffer.Offset +
@@ -302,6 +302,7 @@ NTSTATUS FspFsvolFileSystemControlComplete(
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
 
+    Result = STATUS_INVALID_DEVICE_REQUEST;
     switch (IrpSp->MinorFunction)
     {
     case IRP_MN_USER_FS_REQUEST:
@@ -314,17 +315,11 @@ NTSTATUS FspFsvolFileSystemControlComplete(
         case FSCTL_DELETE_REPARSE_POINT:
             Result = FspFsvolFileSystemControlReparsePointComplete(Irp, Response, TRUE);
             break;
-        default:
-            ASSERT(0);
-            Result = STATUS_INVALID_PARAMETER;
-            break;
         }
         break;
-    default:
-        ASSERT(0);
-        Result = STATUS_INVALID_PARAMETER;
-        break;
     }
+
+    ASSERT(STATUS_INVALID_DEVICE_REQUEST != Result);
 
     FspIopRequestContext(Request, RequestFileNode) = 0;
     FspFileNodeReleaseOwner(FileNode, Full, Request);

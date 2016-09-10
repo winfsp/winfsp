@@ -906,7 +906,11 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
                 (PVOID)Request->Req.FileSystemControl.UserContext,
                 (PWSTR)Request->Buffer, ReparseData, &Size);
             if (NT_SUCCESS(Result))
+            {
+                Response->Size = (UINT16)(sizeof *Response + Size);
+                Response->Rsp.FileSystemControl.Buffer.Offset = 0;
                 Response->Rsp.FileSystemControl.Buffer.Size = (UINT16)Size;
+            }
         }
         break;
     case FSCTL_SET_REPARSE_POINT:
@@ -937,7 +941,7 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
         break;
     }
 
-    return STATUS_SUCCESS;
+    return Result;
 }
 
 FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
