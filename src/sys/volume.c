@@ -505,9 +505,7 @@ NTSTATUS FspVolumeRedirQueryPathEx(
     if (!FspIoqStopped(FsvolDeviceExtension->Ioq))
     {
         if (0 < FsvolDeviceExtension->VolumePrefix.Length &&
-            QueryPathRequest->PathName.Length >= FsvolDeviceExtension->VolumePrefix.Length &&
-            RtlEqualMemory(QueryPathRequest->PathName.Buffer,
-                FsvolDeviceExtension->VolumePrefix.Buffer, FsvolDeviceExtension->VolumePrefix.Length) &&
+            FspFsvolDeviceVolumePrefixInString(FsvolDeviceObject, &QueryPathRequest->PathName) &&
             (QueryPathRequest->PathName.Length == FsvolDeviceExtension->VolumePrefix.Length ||
                 '\\' == QueryPathRequest->PathName.Buffer[FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR)]))
         {

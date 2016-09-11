@@ -268,9 +268,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     /* check and remove any volume prefix */
     if (0 == RelatedFileObject && 0 < FsvolDeviceExtension->VolumePrefix.Length)
     {
-        if (FileNode->FileName.Length <= FsvolDeviceExtension->VolumePrefix.Length ||
-            !RtlEqualMemory(FileNode->FileName.Buffer, FsvolDeviceExtension->VolumePrefix.Buffer,
-                FsvolDeviceExtension->VolumePrefix.Length) ||
+        if (!FspFsvolDeviceVolumePrefixInString(FsvolDeviceObject, &FileNode->FileName) ||
             '\\' != FileNode->FileName.Buffer[FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR)])
         {
             FspFileNodeDereference(FileNode);
