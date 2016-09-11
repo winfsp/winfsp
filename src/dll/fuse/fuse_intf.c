@@ -2005,7 +2005,8 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
             ReparseTargetPathLength = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
 
             /* is this an absolute path? */
-            if (ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
+            if (0 == (ReparseData->SymbolicLinkReparseBuffer.Flags & SYMLINK_FLAG_RELATIVE) &&
+                ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
             {
                 /* we do not support absolute paths that point outside this file system */
                 if (0 == Request->Req.FileSystemControl.TargetOnFileSystem)

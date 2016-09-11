@@ -516,9 +516,8 @@ NTSTATUS FspFsvolCreateComplete(
                  * path. Prefix it with our device name and send it to the IO Manager.
                  *
                  * IO_REPARSE_TAG_SYMLINK means that the user-mode file system has returned a full
-                 * symbolic link reparse buffer. In this case send the target path to the IO Manager
-                 * without prefixing it with our device name as it is expected to be absolute in the
-                 * NT namespace.
+                 * symbolic link reparse buffer. In this case send the target path to the IO Manager,
+                 * and prefix it with our device name depending on SYMLINK_FLAG_RELATIVE.
                  */
 
                 if (IO_REPARSE == Response->IoStatus.Information)
@@ -550,7 +549,11 @@ NTSTATUS FspFsvolCreateComplete(
                     if (!NT_SUCCESS(Result))
                         FSP_RETURN();
 
-                    RtlZeroMemory(&ReparseTargetPrefix, sizeof ReparseTargetPrefix);
+                    if (0 == (ReparseData->SymbolicLinkReparseBuffer.Flags & SYMLINK_FLAG_RELATIVE))
+                        RtlZeroMemory(&ReparseTargetPrefix, sizeof ReparseTargetPrefix);
+                    else
+                        RtlCopyMemory(&ReparseTargetPrefix, &FsvolDeviceExtension->VolumeName,
+                            sizeof ReparseTargetPrefix);
 
                     ReparseTargetPath.Buffer = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
                         ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);

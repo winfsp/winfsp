@@ -1141,29 +1141,35 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
             return Result;
         }
 
-        /* found a reparse point */
+        /*
+         * Found a reparse point!
+         */
 
+        /* if not a symlink return the full reparse point */
         if (IO_REPARSE_TAG_SYMLINK != ReparseData->ReparseTag)
-            /* not a symlink; return the full reparse point! */
             goto reparse_data_exit;
 
         ReparseTargetPath = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
             ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
         ReparseTargetPathLength = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
 
-        if (ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
-            /* absolute symlink; return the full reparse point! */
+        /* if an absolute (in the NT namespace) symlink return the full reparse point */
+        if (0 == (ReparseData->SymbolicLinkReparseBuffer.Flags & SYMLINK_FLAG_RELATIVE) &&
+            ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
             goto reparse_data_exit;
 
         if (0 == --MaxTries)
             return STATUS_REPARSE_POINT_NOT_RESOLVED;
 
-        /* relative symlink; replace last path component seen */
-        if (ReparseTargetPathLength + sizeof(WCHAR) > (TargetPathEnd - lastp) * sizeof(WCHAR))
+        /* if device relative symlink replace whole path; else replace last path component */
+        p = ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0] ?
+            TargetPath : lastp;
+
+        if (ReparseTargetPathLength + sizeof(WCHAR) > (TargetPathEnd - p) * sizeof(WCHAR))
             return STATUS_REPARSE_POINT_NOT_RESOLVED;
-        memcpy(lastp, ReparseTargetPath, ReparseTargetPathLength);
-        lastp[ReparseTargetPathLength / sizeof(WCHAR)] = L'\0';
-        p = lastp;
+
+        memcpy(p, ReparseTargetPath, ReparseTargetPathLength);
+        p[ReparseTargetPathLength / sizeof(WCHAR)] = L'\0';
     }
 
 exit:
@@ -1196,8 +1202,8 @@ FSP_API NTSTATUS FspFileSystemCanReplaceReparsePoint(
     else if (*(PULONG)CurrentReparseData != *(PULONG)ReplaceReparseData)
         return STATUS_IO_REPARSE_TAG_MISMATCH;
     else if (!IsReparseTagMicrosoft(*(PULONG)CurrentReparseData) && (
-        REPARSE_GUID_DATA_BUFFER_HEADER_SIZE > CurrentReparseDataSize ||
-        REPARSE_GUID_DATA_BUFFER_HEADER_SIZE > ReplaceReparseDataSize ||
+        (SIZE_T)REPARSE_GUID_DATA_BUFFER_HEADER_SIZE > CurrentReparseDataSize ||
+        (SIZE_T)REPARSE_GUID_DATA_BUFFER_HEADER_SIZE > ReplaceReparseDataSize ||
         *(PUINT32)&((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data1 !=
         *(PUINT32)&((PREPARSE_GUID_DATA_BUFFER)ReplaceReparseData)->ReparseGuid.Data1 ||
         *(PUINT32)&((PREPARSE_GUID_DATA_BUFFER)CurrentReparseData)->ReparseGuid.Data2 !=
