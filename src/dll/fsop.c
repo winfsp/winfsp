@@ -1060,21 +1060,21 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
     PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
 {
     WCHAR c, *p, *lastp;
-    PWSTR TargetPath, TargetPathEnd, TargetLink;
+    PWSTR TargetPath, TargetPathEnd, ReparseTargetPath;
     union
     {
         REPARSE_DATA_BUFFER V;
         UINT8 B[FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX];
     } ReparseDataBuf;
     PREPARSE_DATA_BUFFER ReparseData = &ReparseDataBuf.V;
-    SIZE_T Size, MaxTries = 32;
+    SIZE_T Size, ReparseTargetPathLength, MaxTries = 32;
     NTSTATUS Result;
 
     TargetPath = Buffer;
     TargetPathEnd = TargetPath + *PSize / sizeof(WCHAR);
     Size = (lstrlenW(FileName) + 1) * sizeof(WCHAR);
     if (Size > *PSize)
-        return STATUS_OBJECT_NAME_INVALID;
+        return STATUS_REPARSE_POINT_NOT_RESOLVED;
     memcpy(TargetPath, FileName, Size);
 
     p = TargetPath + ReparsePointIndex;
@@ -1143,59 +1143,44 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
 
         /* found a reparse point */
 
+        if (IO_REPARSE_TAG_SYMLINK != ReparseData->ReparseTag)
+            /* not a symlink; return the full reparse point! */
+            goto reparse_data_exit;
+
+        ReparseTargetPath = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
+            ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
+        ReparseTargetPathLength = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
+
+        if (ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
+            /* absolute symlink; return the full reparse point! */
+            goto reparse_data_exit;
+
         if (0 == --MaxTries)
             return STATUS_REPARSE_POINT_NOT_RESOLVED;
 
-        if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag)
-        {
-            TargetLink = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
-                ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
-            Size = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
-        }
-        else
-        {
-            /* not a symlink; return the full reparse point! */
-            if (Size > *PSize)
-                return STATUS_IO_REPARSE_DATA_INVALID;
-            memcpy(Buffer, ReparseData, Size);
-
-            goto no_symlink_exit;
-        }
-
-        if (Size > 4 * sizeof(WCHAR) &&
-            '\\' == TargetLink[0] &&
-            '?'  == TargetLink[1] &&
-            '?'  == TargetLink[2] &&
-            '\\' == TargetLink[3])
-        {
-            /* absolute symlink; replace whole path */
-            if (Size > *PSize)
-                return STATUS_OBJECT_NAME_INVALID;
-            memcpy(TargetPath, TargetLink, Size);
-            p = TargetPath + Size / sizeof(WCHAR);
-
-            /* absolute symlinks on Windows are in NT namespace; send to FSD for further processing */
-            goto exit;
-        }
-        else
-        {
-            /* relative symlink; replace last path component seen */
-            if (Size + sizeof(WCHAR) > (TargetPathEnd - lastp) * sizeof(WCHAR))
-                return STATUS_OBJECT_NAME_INVALID;
-            memcpy(lastp, TargetLink, Size);
-            lastp[Size / sizeof(WCHAR)] = L'\0';
-            p = lastp;
-        }
+        /* relative symlink; replace last path component seen */
+        if (ReparseTargetPathLength + sizeof(WCHAR) > (TargetPathEnd - lastp) * sizeof(WCHAR))
+            return STATUS_REPARSE_POINT_NOT_RESOLVED;
+        memcpy(lastp, ReparseTargetPath, ReparseTargetPathLength);
+        lastp[ReparseTargetPathLength / sizeof(WCHAR)] = L'\0';
+        p = lastp;
     }
 
 exit:
     *PSize = (PUINT8)p - (PUINT8)TargetPath;
+
     PIoStatus->Status = STATUS_REPARSE;
     PIoStatus->Information = 0/*IO_REPARSE*/;
     return STATUS_REPARSE;
 
-no_symlink_exit:
+reparse_data_exit:
+    if (Size > *PSize)
+        return IO_REPARSE_TAG_SYMLINK != ReparseData->ReparseTag ?
+            STATUS_IO_REPARSE_DATA_INVALID : STATUS_REPARSE_POINT_NOT_RESOLVED;
+
     *PSize = Size;
+    memcpy(Buffer, ReparseData, Size);
+
     PIoStatus->Status = STATUS_REPARSE;
     PIoStatus->Information = ReparseData->ReparseTag;
     return STATUS_REPARSE;

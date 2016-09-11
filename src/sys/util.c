@@ -20,6 +20,8 @@
 BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
+NTSTATUS FspGetDeviceObjectByName(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
+    PULONG PFileNameIndex, PDEVICE_OBJECT *PDeviceObject);
 NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
 static NTSTATUS FspSendSetInformationIrpCompletion(
@@ -88,6 +90,7 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #pragma alloc_text(PAGE, FspUnicodePathIsValid)
 #pragma alloc_text(PAGE, FspUnicodePathSuffix)
 #pragma alloc_text(PAGE, FspCreateGuid)
+#pragma alloc_text(PAGE, FspGetDeviceObjectByName)
 #pragma alloc_text(PAGE, FspSendSetInformationIrp)
 #pragma alloc_text(PAGE, FspBufferUserBuffer)
 #pragma alloc_text(PAGE, FspLockUserBuffer)
@@ -239,6 +242,55 @@ NTSTATUS FspCreateGuid(GUID *Guid)
     {
         Result = ExUuidCreate(Guid);
     } while (!NT_SUCCESS(Result) && 0 < --Retries);
+
+    return Result;
+}
+
+NTSTATUS FspGetDeviceObjectByName(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
+    PULONG PFileNameIndex, PDEVICE_OBJECT *PDeviceObject)
+{
+    UNICODE_STRING PartialName;
+    PFILE_OBJECT FileObject;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    HANDLE Handle;
+    NTSTATUS Result;
+
+    PartialName.Length = 0;
+    PartialName.MaximumLength = ObjectName->Length;
+    PartialName.Buffer = ObjectName->Buffer;
+
+    Result = STATUS_NO_SUCH_DEVICE;
+    while (PartialName.MaximumLength > PartialName.Length)
+    {
+        while (PartialName.MaximumLength > PartialName.Length &&
+            L'\\' == PartialName.Buffer[PartialName.Length / sizeof(WCHAR)])
+            PartialName.Length += sizeof(WCHAR);
+        while (PartialName.MaximumLength > PartialName.Length &&
+            L'\\' != PartialName.Buffer[PartialName.Length / sizeof(WCHAR)])
+            PartialName.Length += sizeof(WCHAR);
+
+        Result = IoGetDeviceObjectPointer(&PartialName, DesiredAccess, &FileObject, PDeviceObject);
+        if (NT_SUCCESS(Result))
+        {
+            *PFileNameIndex = PartialName.Length;
+            ObReferenceObject(*PDeviceObject);
+            ObDereferenceObject(FileObject);
+            break;
+        }
+
+        InitializeObjectAttributes(&ObjectAttributes, &PartialName, OBJ_KERNEL_HANDLE, 0, 0);
+        Result = ZwOpenDirectoryObject(&Handle, 0, &ObjectAttributes);
+        if (!NT_SUCCESS(Result))
+        {
+            Result = ZwOpenSymbolicLinkObject(&Handle, 0, &ObjectAttributes);
+            if (!NT_SUCCESS(Result))
+            {
+                Result = STATUS_NO_SUCH_DEVICE;
+                break;
+            }
+        }
+        ZwClose(Handle);
+    }
 
     return Result;
 }

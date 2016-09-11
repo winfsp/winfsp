@@ -109,8 +109,9 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PREPARSE_DATA_BUFFER ReparseData;
-    PWSTR PathBuffer;
-    BOOLEAN TargetOnFileSystem = FALSE;
+    PWSTR ReparseTargetPath;
+    USHORT ReparseTargetPathLength;
+    UINT16 TargetOnFileSystem = 0;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     ASSERT(FileNode == FileDesc->FileNode);
@@ -139,36 +140,28 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
                     return STATUS_PRIVILEGE_NOT_HELD;
             }
 
-            /* determine if target resides on same device as link (convenience for user mode) */
-            PathBuffer = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
+            ReparseTargetPath = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
                 ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
-            if (ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength > 4 * sizeof(WCHAR) &&
-                '\\' == PathBuffer[0] &&
-                '?'  == PathBuffer[1] &&
-                '?'  == PathBuffer[2] &&
-                '\\' == PathBuffer[3])
+            ReparseTargetPathLength = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
+
+            /* is this an absolute path? determine if target resides on same device as link */
+            if (ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
             {
-                UNICODE_STRING TargetDeviceName;
-                PFILE_OBJECT TargetDeviceFile;
+                UNICODE_STRING TargetObjectName;
                 PDEVICE_OBJECT TargetDeviceObject;
+                ULONG TargetFileNameIndex;
 
-                RtlInitEmptyUnicodeString(&TargetDeviceName,
-                    PathBuffer,
-                    ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength);
+                TargetObjectName.Length = TargetObjectName.MaximumLength = ReparseTargetPathLength;
+                TargetObjectName.Buffer = ReparseTargetPath;
 
-                /* the first path component is assumed to be the device name */
-                TargetDeviceName.Length = 4 * sizeof(WCHAR);
-                while (TargetDeviceName.Length < TargetDeviceName.MaximumLength &&
-                    '\\' != TargetDeviceName.Buffer[TargetDeviceName.Length / sizeof(WCHAR)])
-                    TargetDeviceName.Length += sizeof(WCHAR);
-
-                Result = IoGetDeviceObjectPointer(&TargetDeviceName,
-                    FILE_READ_ATTRIBUTES, &TargetDeviceFile, &TargetDeviceObject);
+                Result = FspGetDeviceObjectByName(&TargetObjectName, FILE_READ_DATA,
+                    &TargetFileNameIndex, &TargetDeviceObject);
                 if (!NT_SUCCESS(Result))
                     goto target_check_exit;
 
-                TargetOnFileSystem = IoGetRelatedDeviceObject(FileObject) == TargetDeviceObject;
-                ObDereferenceObject(TargetDeviceFile);
+                TargetOnFileSystem = IoGetRelatedDeviceObject(FileObject) == TargetDeviceObject ?
+                    (UINT16)TargetFileNameIndex : 0;
+                ObDereferenceObject(TargetDeviceObject);
 
             target_check_exit:
                 ;

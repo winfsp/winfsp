@@ -1153,7 +1153,7 @@ NTSTATUS MemfsCreate(
     VolumeParams.UnicodeOnDisk = 1;
     VolumeParams.PersistentAcls = 1;
     VolumeParams.ReparsePoints = 1;
-    VolumeParams.ReparsePointsAccessCheck = 1;
+    VolumeParams.ReparsePointsAccessCheck = 0;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
 

@@ -2005,27 +2005,20 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
             ReparseTargetPathLength = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
 
             /* is this an absolute path? */
-            if (ReparseTargetPathLength > 4 * sizeof(WCHAR) &&
-                '\\' == ReparseTargetPath[0] &&
-                '?'  == ReparseTargetPath[1] &&
-                '?'  == ReparseTargetPath[2] &&
-                '\\' == ReparseTargetPath[3])
+            if (ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
             {
                 /* we do not support absolute paths that point outside this file system */
-                if (!Request->Req.FileSystemControl.TargetOnFileSystem)
+                if (0 == Request->Req.FileSystemControl.TargetOnFileSystem)
                     return STATUS_ACCESS_DENIED;
-            }
 
-            /* the first path component is assumed to be the device name; skip it! */
-            ReparseTargetPath += 4;
-            ReparseTargetPathLength -= 4 * sizeof(WCHAR);
-            while (0 < ReparseTargetPathLength && L'\\' != *ReparseTargetPath)
-                ReparseTargetPathLength--, ReparseTargetPath++;
+                ReparseTargetPath += Request->Req.FileSystemControl.TargetOnFileSystem / sizeof(WCHAR);
+                ReparseTargetPathLength -= Request->Req.FileSystemControl.TargetOnFileSystem;
+            }
         }
         else
         {
             ReparseTargetPath = (PVOID)(ReparseData->GenericReparseBuffer.DataBuffer + 8);
-            ReparseTargetPathLength = ReparseData->ReparseDataLength - sizeof(UINT64);
+            ReparseTargetPathLength = ReparseData->ReparseDataLength - 8;
         }
 
         memcpy(TargetPath, ReparseTargetPath, ReparseTargetPathLength);
