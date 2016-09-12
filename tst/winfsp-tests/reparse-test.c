@@ -219,23 +219,15 @@ void reparse_nfs_test(void)
     }
 }
 
-static void reparse_symlink_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+static void reparse_symlink_dotest0(ULONG Flags, PWSTR Prefix,
+    PWSTR FilePath, PWSTR LinkPath, PWSTR TargetPath)
 {
-    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
-
     HANDLE Handle;
     BOOL Success;
-    WCHAR FilePath[MAX_PATH], LinkPath[MAX_PATH];
     PUINT8 NameInfoBuf[sizeof(FILE_NAME_INFO) + MAX_PATH];
     PFILE_NAME_INFO PNameInfo = (PVOID)NameInfoBuf;
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
-        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
-
-    StringCbPrintfW(LinkPath, sizeof LinkPath, L"%s%s\\link0",
-        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
-
-    Success = CreateSymbolicLinkW(LinkPath, FilePath, 0);
+    Success = CreateSymbolicLinkW(LinkPath, TargetPath, 0);
     if (Success)
     {
         Handle = CreateFileW(FilePath,
@@ -277,6 +269,29 @@ static void reparse_symlink_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTime
         ASSERT(ERROR_PRIVILEGE_NOT_HELD == GetLastError());
         FspDebugLog(__FUNCTION__ ": need SE_CREATE_SYMBOLIC_LINK_PRIVILEGE\n");
     }
+}
+
+static void reparse_symlink_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    WCHAR FilePath[MAX_PATH], LinkPath[MAX_PATH], TargetPath[MAX_PATH];
+    PUINT8 NameInfoBuf[sizeof(FILE_NAME_INFO) + MAX_PATH];
+    PFILE_NAME_INFO PNameInfo = (PVOID)NameInfoBuf;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(LinkPath, sizeof LinkPath, L"%s%s\\link0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    reparse_symlink_dotest0(Flags, Prefix, FilePath, LinkPath, FilePath);
+
+    StringCbPrintfW(TargetPath, sizeof TargetPath, L"%s\\file0",
+        -1 == Flags ? Prefix + 6 : L"");
+    reparse_symlink_dotest0(Flags, Prefix, FilePath, LinkPath, TargetPath);
+
+    reparse_symlink_dotest0(Flags, Prefix, FilePath, LinkPath, L"file0");
 
     memfs_stop(memfs);
 }

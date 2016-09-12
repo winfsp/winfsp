@@ -145,7 +145,7 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
             ReparseTargetPathLength = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
 
             /* is this an absolute path? determine if target resides on same device as link */
-            if (0 == (ReparseData->SymbolicLinkReparseBuffer.Flags & SYMLINK_FLAG_RELATIVE) &&
+            if (!FlagOn(ReparseData->SymbolicLinkReparseBuffer.Flags, SYMLINK_FLAG_RELATIVE) &&
                 ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
             {
                 UNICODE_STRING TargetObjectName;

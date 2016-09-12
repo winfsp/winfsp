@@ -485,7 +485,7 @@ NTSTATUS FspFsvolCreateComplete(
     FSP_FILE_NODE *FileNode = FileDesc->FileNode;
     FSP_FILE_NODE *OpenedFileNode;
     PREPARSE_DATA_BUFFER ReparseData;
-    UNICODE_STRING ReparseTargetPrefix, ReparseTargetPath;
+    UNICODE_STRING ReparseTargetPrefix0, ReparseTargetPrefix1, ReparseTargetPath;
 
     if (FspFsctlTransactCreateKind == Request->Kind)
     {
@@ -514,14 +514,15 @@ NTSTATUS FspFsvolCreateComplete(
                  * path. Prefix it with our device name and send it to the IO Manager.
                  *
                  * IO_REPARSE_TAG_SYMLINK means that the user-mode file system has returned a full
-                 * symbolic link reparse buffer. In this case send the target path to the IO Manager,
-                 * and prefix it with our device name depending on SYMLINK_FLAG_RELATIVE.
+                 * symbolic link reparse buffer. In this case send the target path to the IO Manager.
                  */
 
                 if (IO_REPARSE == Response->IoStatus.Information)
                 {
-                    RtlCopyMemory(&ReparseTargetPrefix, &FsvolDeviceExtension->VolumeName,
-                        sizeof ReparseTargetPrefix);
+                    RtlCopyMemory(&ReparseTargetPrefix0, &FsvolDeviceExtension->VolumeName,
+                        sizeof ReparseTargetPrefix0);
+                    RtlCopyMemory(&ReparseTargetPrefix1, &FsvolDeviceExtension->VolumePrefix,
+                        sizeof ReparseTargetPrefix1);
 
                     ReparseTargetPath.Length = ReparseTargetPath.MaximumLength =
                         Response->Rsp.Create.Reparse.FileName.Size;
@@ -529,7 +530,9 @@ NTSTATUS FspFsvolCreateComplete(
                         (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset);
 
                     if ((PUINT8)ReparseTargetPath.Buffer + ReparseTargetPath.Length >
-                        (PUINT8)Response + Response->Size || 0 == ReparseTargetPath.Length)
+                        (PUINT8)Response + Response->Size ||
+                        sizeof(WCHAR) > ReparseTargetPath.Length ||
+                        L'\\' != ReparseTargetPath.Buffer[0])
                         FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
                 }
                 else
@@ -540,18 +543,18 @@ NTSTATUS FspFsvolCreateComplete(
 
                     if ((PUINT8)ReparseData + Response->Rsp.Create.Reparse.Data.Size >
                         (PUINT8)Response + Response->Size)
-                        FSP_RETURN(Result = STATUS_IO_REPARSE_DATA_INVALID);
+                        FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
 
                     Result = FsRtlValidateReparsePointBuffer(Response->Rsp.Create.Reparse.Data.Size,
                         ReparseData);
                     if (!NT_SUCCESS(Result))
-                        FSP_RETURN();
+                        FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
 
-                    if (0 == (ReparseData->SymbolicLinkReparseBuffer.Flags & SYMLINK_FLAG_RELATIVE))
-                        RtlZeroMemory(&ReparseTargetPrefix, sizeof ReparseTargetPrefix);
-                    else
-                        RtlCopyMemory(&ReparseTargetPrefix, &FsvolDeviceExtension->VolumeName,
-                            sizeof ReparseTargetPrefix);
+                    if (FlagOn(ReparseData->SymbolicLinkReparseBuffer.Flags, SYMLINK_FLAG_RELATIVE))
+                        FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
+
+                    RtlZeroMemory(&ReparseTargetPrefix0, sizeof ReparseTargetPrefix0);
+                    RtlZeroMemory(&ReparseTargetPrefix1, sizeof ReparseTargetPrefix1);
 
                     ReparseTargetPath.Buffer = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
                         ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
@@ -559,20 +562,21 @@ NTSTATUS FspFsvolCreateComplete(
                         ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
                 }
 
-                if (ReparseTargetPrefix.Length + ReparseTargetPath.Length >
+                if (ReparseTargetPrefix0.Length + ReparseTargetPrefix1.Length + ReparseTargetPath.Length >
                     FileObject->FileName.MaximumLength)
                 {
                     PVOID Buffer = FspAllocExternal(
-                        ReparseTargetPrefix.Length + ReparseTargetPath.Length);
+                        ReparseTargetPrefix0.Length + ReparseTargetPrefix1.Length + ReparseTargetPath.Length);
                     if (0 == Buffer)
                         FSP_RETURN(Result = STATUS_INSUFFICIENT_RESOURCES);
                     FspFreeExternal(FileObject->FileName.Buffer);
                     FileObject->FileName.MaximumLength =
-                        ReparseTargetPrefix.Length + ReparseTargetPath.Length;
+                        ReparseTargetPrefix0.Length + ReparseTargetPrefix1.Length + ReparseTargetPath.Length;
                     FileObject->FileName.Buffer = Buffer;
                 }
                 FileObject->FileName.Length = 0;
-                RtlAppendUnicodeStringToString(&FileObject->FileName, &ReparseTargetPrefix);
+                RtlAppendUnicodeStringToString(&FileObject->FileName, &ReparseTargetPrefix0);
+                RtlAppendUnicodeStringToString(&FileObject->FileName, &ReparseTargetPrefix1);
                 RtlAppendUnicodeStringToString(&FileObject->FileName, &ReparseTargetPath);
 
                 /*
