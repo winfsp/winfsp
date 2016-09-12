@@ -249,6 +249,8 @@ NTSTATUS FspCreateGuid(GUID *Guid)
 NTSTATUS FspGetDeviceObjectByName(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
     PULONG PFileNameIndex, PDEVICE_OBJECT *PDeviceObject)
 {
+    PAGED_CODE();
+
     UNICODE_STRING PartialName;
     PFILE_OBJECT FileObject;
     OBJECT_ATTRIBUTES ObjectAttributes;
