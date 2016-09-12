@@ -159,23 +159,29 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
                 TargetObjectName.Length = TargetObjectName.MaximumLength = ReparseTargetPathLength;
                 TargetObjectName.Buffer = ReparseTargetPath;
 
+                /* get a pointer to the target device */
                 Result = FspGetDeviceObjectPointer(&TargetObjectName, FILE_READ_DATA,
                     &TargetFileNameIndex, &TargetFileObject, &TargetDeviceObject);
                 if (!NT_SUCCESS(Result))
                     goto target_check_exit;
 
+                /* is the target device the same as ours? */
                 if (TargetFileNameIndex < ReparseTargetPathLength &&
                     IoGetRelatedDeviceObject(FileObject) == TargetDeviceObject)
                 {
                     if (0 == FsvolDeviceExtension->VolumePrefix.Length)
+                        /* not going thru MUP: DONE! */
                         TargetOnFileSystem = (UINT16)TargetFileNameIndex;
                     else
                     {
+                        /* going thru MUP cases: \Device\Volume{GUID} and \??\UNC\{VolumePrefix} */
                         ProviderInfoSize = sizeof ProviderInfo;
                         Result = FsRtlMupGetProviderInfoFromFileObject(TargetFileObject, 1,
                             &ProviderInfo, &ProviderInfoSize);
                         if (NT_SUCCESS(Result))
                         {
+                            /* case \Device\Volume{GUID}: is the targer provider id same as ours? */
+
                             TargetProviderId = ProviderInfo.ProviderId;
 
                             ProviderInfoSize = sizeof ProviderInfo;
@@ -189,6 +195,8 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
                         }
                         else
                         {
+                            /* case \??\UNC\{VolumePrefix}: is the target volume prefix same as ours? */
+
                             TargetObjectName.Length = TargetObjectName.MaximumLength =
                                 FsvolDeviceExtension->VolumePrefix.Length;
                             TargetObjectName.Buffer = ReparseTargetPath +
