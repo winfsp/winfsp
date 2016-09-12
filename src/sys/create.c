@@ -511,10 +511,13 @@ NTSTATUS FspFsvolCreateComplete(
             {
                 /*
                  * IO_REPARSE means that the user-mode file system has returned a device-relative
-                 * path. Prefix it with our device name and send it to the IO Manager.
+                 * (absolute in the device namespace) path. Prefix it with our device name/prefix
+                 * and send it to the IO Manager.
                  *
                  * IO_REPARSE_TAG_SYMLINK means that the user-mode file system has returned a full
-                 * symbolic link reparse buffer. In this case send the target path to the IO Manager.
+                 * symbolic link reparse buffer with an absolute (in the NT namespace) path. Send
+                 * it as is to the IO Manager. The FSD cannot handle relative symbolic links, so
+                 * it is the responsibility of the user-mode file system to resolve them.
                  */
 
                 if (IO_REPARSE == Response->IoStatus.Information)
@@ -531,8 +534,7 @@ NTSTATUS FspFsvolCreateComplete(
 
                     if ((PUINT8)ReparseTargetPath.Buffer + ReparseTargetPath.Length >
                         (PUINT8)Response + Response->Size ||
-                        sizeof(WCHAR) > ReparseTargetPath.Length ||
-                        L'\\' != ReparseTargetPath.Buffer[0])
+                        ReparseTargetPath.Length < sizeof(WCHAR) || L'\\' != ReparseTargetPath.Buffer[0])
                         FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
                 }
                 else
@@ -550,9 +552,6 @@ NTSTATUS FspFsvolCreateComplete(
                     if (!NT_SUCCESS(Result))
                         FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
 
-                    if (FlagOn(ReparseData->SymbolicLinkReparseBuffer.Flags, SYMLINK_FLAG_RELATIVE))
-                        FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
-
                     RtlZeroMemory(&ReparseTargetPrefix0, sizeof ReparseTargetPrefix0);
                     RtlZeroMemory(&ReparseTargetPrefix1, sizeof ReparseTargetPrefix1);
 
@@ -560,6 +559,10 @@ NTSTATUS FspFsvolCreateComplete(
                         ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
                     ReparseTargetPath.Length = ReparseTargetPath.MaximumLength =
                         ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
+
+                    if (FlagOn(ReparseData->SymbolicLinkReparseBuffer.Flags, SYMLINK_FLAG_RELATIVE) ||
+                        ReparseTargetPath.Length < sizeof(WCHAR) || L'\\' != ReparseTargetPath.Buffer[0])
+                        FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
                 }
 
                 if (ReparseTargetPrefix0.Length + ReparseTargetPrefix1.Length + ReparseTargetPath.Length >
