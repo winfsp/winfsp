@@ -45,6 +45,7 @@
 #define FSP_ALLOC_INTERNAL_TAG          'IpsF'
 #define FSP_ALLOC_EXTERNAL_TAG          'XpsF'
 #define FSP_IO_INCREMENT                IO_NETWORK_INCREMENT
+#define FSP_VOLUME_PREFIX_CASE_INS      TRUE
 
 /* debug */
 #if DBG
@@ -427,8 +428,8 @@ PVOID FspAllocateIrpMustSucceed(CCHAR StackSize);
 BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
-NTSTATUS FspGetDeviceObjectByName(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
-    PULONG PFileNameIndex, PDEVICE_OBJECT *PDeviceObject);
+NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
+    PULONG PFileNameIndex, PFILE_OBJECT *PFileObject, PDEVICE_OBJECT *PDeviceObject);
 NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
 NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
@@ -820,7 +821,8 @@ VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject);
 static inline
 BOOLEAN FspFsvolDeviceVolumePrefixInString(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING String)
 {
-    return RtlPrefixUnicodeString(&FspFsvolDeviceExtension(DeviceObject)->VolumePrefix, String, TRUE);
+    return RtlPrefixUnicodeString(&FspFsvolDeviceExtension(DeviceObject)->VolumePrefix, String,
+        FSP_VOLUME_PREFIX_CASE_INS);
 }
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);

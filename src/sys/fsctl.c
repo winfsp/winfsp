@@ -150,19 +150,62 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
             {
                 UNICODE_STRING TargetObjectName;
                 PDEVICE_OBJECT TargetDeviceObject;
+                PFILE_OBJECT TargetFileObject;
                 ULONG TargetFileNameIndex;
+                ULONG32 TargetProviderId;
+                FSRTL_MUP_PROVIDER_INFO_LEVEL_1 ProviderInfo;
+                ULONG ProviderInfoSize;
 
                 TargetObjectName.Length = TargetObjectName.MaximumLength = ReparseTargetPathLength;
                 TargetObjectName.Buffer = ReparseTargetPath;
 
-                Result = FspGetDeviceObjectByName(&TargetObjectName, FILE_READ_DATA,
-                    &TargetFileNameIndex, &TargetDeviceObject);
+                Result = FspGetDeviceObjectPointer(&TargetObjectName, FILE_READ_DATA,
+                    &TargetFileNameIndex, &TargetFileObject, &TargetDeviceObject);
                 if (!NT_SUCCESS(Result))
                     goto target_check_exit;
 
-                TargetOnFileSystem = IoGetRelatedDeviceObject(FileObject) == TargetDeviceObject ?
-                    (UINT16)TargetFileNameIndex : 0;
-                ObDereferenceObject(TargetDeviceObject);
+                if (TargetFileNameIndex < ReparseTargetPathLength &&
+                    IoGetRelatedDeviceObject(FileObject) == TargetDeviceObject)
+                {
+                    if (0 == FsvolDeviceExtension->VolumePrefix.Length)
+                        TargetOnFileSystem = (UINT16)TargetFileNameIndex;
+                    else
+                    {
+                        ProviderInfoSize = sizeof ProviderInfo;
+                        Result = FsRtlMupGetProviderInfoFromFileObject(TargetFileObject, 1,
+                            &ProviderInfo, &ProviderInfoSize);
+                        if (NT_SUCCESS(Result))
+                        {
+                            TargetProviderId = ProviderInfo.ProviderId;
+
+                            ProviderInfoSize = sizeof ProviderInfo;
+                            Result = FsRtlMupGetProviderInfoFromFileObject(FileObject, 1,
+                                &ProviderInfo, &ProviderInfoSize);
+                            if (!NT_SUCCESS(Result))
+                                goto target_check_exit;
+
+                            if (ProviderInfo.ProviderId == TargetProviderId)
+                                TargetOnFileSystem = (UINT16)TargetFileNameIndex;
+                        }
+                        else
+                        {
+                            TargetObjectName.Length = TargetObjectName.MaximumLength =
+                                FsvolDeviceExtension->VolumePrefix.Length;
+                            TargetObjectName.Buffer = ReparseTargetPath +
+                                TargetFileNameIndex / sizeof(WCHAR);
+
+                            TargetFileNameIndex += FsvolDeviceExtension->VolumePrefix.Length;
+
+                            if (TargetFileNameIndex < ReparseTargetPathLength &&
+                                RtlEqualUnicodeString(&FsvolDeviceExtension->VolumePrefix,
+                                    &TargetObjectName,
+                                    FSP_VOLUME_PREFIX_CASE_INS))
+                                TargetOnFileSystem = (UINT16)TargetFileNameIndex;
+                        }
+                    }
+                }
+
+                ObDereferenceObject(TargetFileObject);
 
             target_check_exit:
                 ;
