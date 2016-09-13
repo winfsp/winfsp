@@ -967,10 +967,6 @@ static NTSTATUS GetReparsePointByName(
     if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
         return STATUS_NOT_A_REPARSE_POINT;
 
-    if (IsDirectory &&
-        0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-        return STATUS_NOT_A_DIRECTORY;
-
     if (0 != Buffer)
     {
         if (FileNode->ReparseDataSize > *PSize)

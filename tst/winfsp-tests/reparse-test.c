@@ -426,7 +426,7 @@ static BOOL my_namecheck_fn(ULONG Flags, PWSTR Prefix, void *memfs, PWSTR FileNa
     SYMBOLIC_LINK_FLAG_DIRECTORY))
 #define my_symlink(LinkName, FileName)  ASSERT(my_symlink_fn(Flags, Prefix, memfs, LinkName, FileName, 0))
 #define my_namecheck(FileName, Expected)ASSERT(my_namecheck_fn(Flags, Prefix, memfs, FileName, Expected))
-#define my_notexist(FileName)           ASSERT(!my_namecheck_fn(Flags, Prefix, memfs, FileName, L""))
+#define my_failcheck(FileName)          ASSERT(!my_namecheck_fn(Flags, Prefix, memfs, FileName, L""))
 
 static void reparse_symlink_relative_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
@@ -442,29 +442,34 @@ static void reparse_symlink_relative_dotest(ULONG Flags, PWSTR Prefix, ULONG Fil
 
     my_symlink(L"\\l0", L"NON-EXISTANT");
     my_symlink(L"\\loop", L"loop");
+    my_symlink(L"\\lf", L"\\1");
+    my_symlinkd(L"\\ld", L"\\1\\1.1\\1.1.1");
     my_symlink(L"\\1\\1.1\\l1.1.1", L"1.1.1");
-    my_symlinkd(L"\\2\\l1", L"..\\1");
+    my_symlinkd(L"\\2\\l1", L"..\\1\\.");
     my_symlinkd(L"\\1\\l2", L"..\\.\\2");
     my_symlinkd(L"\\2\\a1", L"\\1");
     my_symlinkd(L"\\1\\a2", L"\\2");
 
-    my_notexist(L"\\l0");
+    my_failcheck(L"\\l0");
     ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
-    my_notexist(L"\\loop");
+    my_failcheck(L"\\loop");
     ASSERT(ERROR_CANT_RESOLVE_FILENAME == GetLastError());
 
-    my_namecheck(L"\\1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
+    /* NTFS open with FILE_FLAG_BACKUP_SEMANTICS does not care about SYMLINK/SYMLINKD difference! */
+    my_namecheck(L"\\lf", L"\\1");
+    my_namecheck(L"\\ld", L"\\1\\1.1\\1.1.1");
 
+    my_namecheck(L"\\1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
     my_namecheck(L"\\2\\l1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
     my_namecheck(L"\\1\\l2\\l1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
-
     my_namecheck(L"\\2\\a1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
     my_namecheck(L"\\2\\l1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
-
     my_namecheck(L"\\1\\a2\\l1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
     my_namecheck(L"\\1\\a2\\a1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
     my_namecheck(L"\\1\\a2\\a1\\l2\\l1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
 
+    my_rmdir(L"\\ld");
+    my_unlink(L"\\lf");
     my_rmdir(L"\\1\\a2");
     my_rmdir(L"\\2\\a1");
     my_rmdir(L"\\1\\l2");
