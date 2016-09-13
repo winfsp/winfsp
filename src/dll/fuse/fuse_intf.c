@@ -324,7 +324,7 @@ loopend:;
 
         memset(&stbuf, 0, sizeof stbuf);
         if (0 != f->ops.getattr)
-            err = f->ops.getattr(PosixPath, (void *)&stbuf);
+            err = f->ops.getattr(PosixHiddenPath, (void *)&stbuf);
         else
             err = -ENOSYS;
     } while (0 == err && 0 < --maxtries);
@@ -2034,6 +2034,11 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
         }
     }
 
+    /*
+     * At least SSHFS has problems with chown as it attempts to chown the target file
+     * rather than lchown the symlink. So comment out for now!
+     */
+#if 0
     if (0 != f->ops.chown)
     {
         err = f->ops.chown(PosixHiddenPath, Uid, Gid);
@@ -2046,6 +2051,7 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
             goto exit;
         }
     }
+#endif
 
     err = f->ops.rename(PosixHiddenPath, filedesc->PosixPath);
     if (0 != err)
