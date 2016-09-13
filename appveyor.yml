@@ -1,5 +1,4 @@
 version: '{build}'
-os: Previous Visual Studio 2015
 
 environment:
   CONFIGURATION: Release
