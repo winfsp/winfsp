@@ -680,7 +680,7 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointEx(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_NOT_A_REPARSE_POINT;
     }
 
-    if (FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) + ReparseDataLength > *PSize)
+    if ((SIZE_T)FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) + ReparseDataLength > *PSize)
         return STATUS_BUFFER_TOO_SMALL;
 
     ReparseData = (PREPARSE_DATA_BUFFER)Buffer;
