@@ -428,9 +428,21 @@ static BOOL my_namecheck_fn(ULONG Flags, PWSTR Prefix, void *memfs, PWSTR FileNa
 #define my_namecheck(FileName, Expected)ASSERT(my_namecheck_fn(Flags, Prefix, memfs, FileName, Expected))
 #define my_failcheck(FileName)          ASSERT(!my_namecheck_fn(Flags, Prefix, memfs, FileName, L""))
 
+#define my_symlink_noassert(LinkName, FileName)\
+    my_symlink_fn(Flags, Prefix, memfs, LinkName, FileName, 0)
+
 static void reparse_symlink_relative_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    if (my_symlink_noassert(L"\\l0", L"NON-EXISTANT"))
+        my_unlink(L"\\l0");
+    else
+    {
+        ASSERT(ERROR_PRIVILEGE_NOT_HELD == GetLastError());
+        FspDebugLog(__FUNCTION__ ": need SE_CREATE_SYMBOLIC_LINK_PRIVILEGE\n");
+        return;
+    }
 
     my_mkdir(L"\\1");
     my_mkdir(L"\\1\\1.1");
