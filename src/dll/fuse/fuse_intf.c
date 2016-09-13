@@ -485,7 +485,7 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointSymlink(FSP_FILE_SYSTEM *FileSystem
     struct fuse *f = FileSystem->UserContext;
     char PosixTargetPath[FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR)];
     PWSTR TargetPath = 0;
-    ULONG Length;
+    ULONG TargetPathLength;
     int err;
     NTSTATUS Result;
 
@@ -510,102 +510,20 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointSymlink(FSP_FILE_SYSTEM *FileSystem
             Result = STATUS_ACCESS_DENIED;
             goto exit;
         }
-
-        /*
-         * Transform absolute path to relative.
-         */
-
-        const char *p, *t, *pstem, *tstem;
-        unsigned index, count;
-
-        p = pstem = PosixPath;
-        t = tstem = PosixTargetPath;
-
-        /* skip common prefix */
-        for (;;)
-        {
-            while ('/' == *p)
-                p++;
-            while ('/' == *t)
-                t++;
-            pstem = p, tstem = t;
-            while ('/' != *p)
-            {
-                if (*p != *t)
-                    goto common_prefix_end;
-                else if ('\0' == *p)
-                {
-                    while ('/' == *t)
-                        t++;
-                    pstem = p, tstem = t;
-                    goto common_prefix_end;
-                }
-                p++, t++;
-            }
-        }
-    common_prefix_end:
-        p = pstem;
-        t = tstem;
-
-        /* count path components */
-        for (count = 0; '\0' != *p; count++)
-        {
-            while ('/' == *p)
-                p++;
-            while ('/' != *p && '\0' != *p)
-                p++;
-        }
-
-        /* make relative path */
-        if (0 == count)
-        {
-            /* special case symlink loop: a -> a/stem */
-            while (PosixTargetPath < tstem)
-            {
-                tstem--;
-                if ('/' != *tstem)
-                    break;
-            }
-            while (PosixTargetPath < tstem)
-            {
-                tstem--;
-                if ('/' == *tstem)
-                {
-                    tstem++;
-                    break;
-                }
-            }
-        }
-        Length = lstrlenA(tstem);
-        Length += !!Length; /* add tstem term-0 */
-        if (3 * count + Length > sizeof PosixTargetPath)
-        {
-            Result = STATUS_IO_REPARSE_DATA_INVALID;
-            goto exit;
-        }
-        memmove(PosixTargetPath + 3 * count, tstem, Length);
-        for (index = 0; count > index; index++)
-        {
-            PosixTargetPath[index * 3 + 0] = '.';
-            PosixTargetPath[index * 3 + 1] = '.';
-            PosixTargetPath[index * 3 + 2] = '/';
-        }
-        if (0 == Length)
-            PosixTargetPath[(count - 1) * 3 + 2] = '\0';
     }
 
     Result = FspPosixMapPosixToWindowsPath(PosixTargetPath, &TargetPath);
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Length = lstrlenW(TargetPath);
-    if (Length > *PSize)
+    TargetPathLength = lstrlenW(TargetPath) * sizeof(WCHAR);
+    if (TargetPathLength > *PSize)
     {
         Result = STATUS_BUFFER_TOO_SMALL;
         goto exit;
     }
-    *PSize = Length;
-    memcpy(Buffer, TargetPath, Length * sizeof(WCHAR));
+    *PSize = TargetPathLength;
+    memcpy(Buffer, TargetPath, TargetPathLength);
 
     Result = STATUS_SUCCESS;
 
