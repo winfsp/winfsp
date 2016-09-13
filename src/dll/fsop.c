@@ -1181,14 +1181,14 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
             ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
             goto reparse_data_exit;
 
+        if (0 == --MaxTries)
+            return STATUS_REPARSE_POINT_NOT_RESOLVED;
+
         /* if device relative symlink replace whole path; else replace last path component */
         NewRemainderPath = ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0] ?
             TargetPath : LastPathComponent;
 
     reparse:
-        if (0 == --MaxTries)
-            return STATUS_REPARSE_POINT_NOT_RESOLVED;
-
         RemainderPathSize = (lstrlenW(RemainderPath) + 1) * sizeof(WCHAR);
         if (NewRemainderPath + (ReparseTargetPathLength + RemainderPathSize) / sizeof(WCHAR) >
             TargetPath + *PSize / sizeof(WCHAR))

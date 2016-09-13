@@ -444,7 +444,7 @@ static void reparse_symlink_relative_dotest(ULONG Flags, PWSTR Prefix, ULONG Fil
     my_symlink(L"\\loop", L"loop");
     my_symlink(L"\\1\\1.1\\l1.1.1", L"1.1.1");
     my_symlinkd(L"\\2\\l1", L"..\\1");
-    my_symlinkd(L"\\1\\l2", L"..\\2");
+    my_symlinkd(L"\\1\\l2", L"..\\.\\2");
     my_symlinkd(L"\\2\\a1", L"\\1");
     my_symlinkd(L"\\1\\a2", L"\\2");
 
