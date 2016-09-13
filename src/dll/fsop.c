@@ -1017,35 +1017,41 @@ FSP_API BOOLEAN FspFileSystemFindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     PVOID Context,
     PWSTR FileName, PUINT32 PReparsePointIndex)
 {
-    WCHAR *p, *lastp;
+    PWSTR RemainderPath, LastPathComponent;
     NTSTATUS Result;
 
-    p = FileName;
+    RemainderPath = FileName;
+
     for (;;)
     {
-        while (L'\\' == *p)
-            p++;
-        lastp = p;
-        while (L'\\' != *p)
+        while (L'\\' == *RemainderPath)
+            RemainderPath++;
+        LastPathComponent = RemainderPath;
+        while (L'\\' != *RemainderPath)
         {
-            if (L'\0' == *p)
+            if (L'\0' == *RemainderPath)
                 return FALSE;
-            p++;
+            RemainderPath++;
         }
 
-        *p = L'\0';
+        *RemainderPath = L'\0';
         Result = GetReparsePointByName(FileSystem, Context, FileName, TRUE, 0, 0);
-        *p = L'\\';
+        *RemainderPath = L'\\';
 
-        if (!NT_SUCCESS(Result))
+        if (STATUS_NOT_A_REPARSE_POINT == Result)
+            /* it was not a reparse point; continue */
+            continue;
+        else if (!NT_SUCCESS(Result))
             return FALSE;
-        else
-        {
-            if (0 != PReparsePointIndex)
-                *PReparsePointIndex = (ULONG)(lastp - FileName);
 
-            return TRUE;
-        }
+        /*
+         * Found a reparse point!
+         */
+
+        if (0 != PReparsePointIndex)
+            *PReparsePointIndex = (ULONG)(LastPathComponent - FileName);
+
+        return TRUE;
     }
 
     return FALSE;
@@ -1102,26 +1108,43 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
         if (L'.' == LastPathComponent[0])
         {
             if (RemainderPath == LastPathComponent + 1)
+            {
                 /* dot */
-                continue;
+                ReparseTargetPath = 0;
+                ReparseTargetPathLength = 0;
+
+                NewRemainderPath = LastPathComponent;
+                while (TargetPath < NewRemainderPath)
+                {
+                    NewRemainderPath--;
+                    if (L'\\' == *NewRemainderPath)
+                        break;
+                }
+
+                goto reparse;
+            }
 
             if (L'.' == LastPathComponent[1] && RemainderPath == LastPathComponent + 2)
             {
                 /* dotdot */
-                RemainderPath = LastPathComponent;
-                while (TargetPath < RemainderPath)
+                ReparseTargetPath = 0;
+                ReparseTargetPathLength = 0;
+
+                NewRemainderPath = LastPathComponent;
+                while (TargetPath < NewRemainderPath)
                 {
-                    RemainderPath--;
-                    if (L'\\' != *RemainderPath)
+                    NewRemainderPath--;
+                    if (L'\\' != *NewRemainderPath)
                         break;
                 }
-                while (TargetPath < RemainderPath)
+                while (TargetPath < NewRemainderPath)
                 {
-                    RemainderPath--;
-                    if (L'\\' == *RemainderPath)
+                    NewRemainderPath--;
+                    if (L'\\' == *NewRemainderPath)
                         break;
                 }
-                continue;
+
+                goto reparse;
             }
         }
 
@@ -1158,12 +1181,13 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
             ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
             goto reparse_data_exit;
 
-        if (0 == --MaxTries)
-            return STATUS_REPARSE_POINT_NOT_RESOLVED;
-
         /* if device relative symlink replace whole path; else replace last path component */
         NewRemainderPath = ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0] ?
             TargetPath : LastPathComponent;
+
+    reparse:
+        if (0 == --MaxTries)
+            return STATUS_REPARSE_POINT_NOT_RESOLVED;
 
         RemainderPathSize = (lstrlenW(RemainderPath) + 1) * sizeof(WCHAR);
         if (NewRemainderPath + (ReparseTargetPathLength + RemainderPathSize) / sizeof(WCHAR) >
@@ -1171,7 +1195,8 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
             return STATUS_REPARSE_POINT_NOT_RESOLVED;
 
         /* move remainder path to its new position */
-        memmove(NewRemainderPath + ReparseTargetPathLength, RemainderPath, RemainderPathSize);
+        memmove(NewRemainderPath + ReparseTargetPathLength / sizeof(WCHAR),
+            RemainderPath, RemainderPathSize);
 
         /* copy symlink target */
         memcpy(NewRemainderPath, ReparseTargetPath, ReparseTargetPathLength);

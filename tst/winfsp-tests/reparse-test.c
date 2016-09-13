@@ -452,6 +452,7 @@ static void reparse_symlink_relative_dotest(ULONG Flags, PWSTR Prefix, ULONG Fil
     ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
     my_notexist(L"\\loop");
     ASSERT(ERROR_CANT_RESOLVE_FILENAME == GetLastError());
+
     my_namecheck(L"\\1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
 
     my_namecheck(L"\\2\\l1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
