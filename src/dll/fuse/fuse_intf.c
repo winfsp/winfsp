@@ -847,6 +847,7 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
 
     filedesc->PosixPath = contexthdr->PosixPath;
     filedesc->IsDirectory = !!(FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+    filedesc->IsReparsePoint = FALSE;
     filedesc->OpenFlags = fi.flags;
     filedesc->FileHandle = fi.fh;
     filedesc->DirBuffer = 0;
@@ -934,6 +935,11 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
             Result = STATUS_SUCCESS;
         }
     }
+    else if (FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+    {
+        fi.fh = -1;
+        Result = STATUS_SUCCESS;
+    }
     else
     {
         if (0 != f->ops.open)
@@ -961,6 +967,7 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
 
     filedesc->PosixPath = contexthdr->PosixPath;
     filedesc->IsDirectory = !!(FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+    filedesc->IsReparsePoint = !!(FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT);
     filedesc->OpenFlags = fi.flags;
     filedesc->FileHandle = fi.fh;
     filedesc->DirBuffer = 0;
@@ -989,6 +996,9 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
     struct fuse_file_info fi;
     int err;
     NTSTATUS Result;
+
+    if (filedesc->IsDirectory || filedesc->IsReparsePoint)
+        return STATUS_ACCESS_DENIED;
 
     if (0 != f->ops.ftruncate)
     {
@@ -1069,6 +1079,10 @@ static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
         if (0 != f->ops.releasedir)
             f->ops.releasedir(filedesc->PosixPath, &fi);
     }
+    else if (filedesc->IsReparsePoint)
+    {
+        /* reparse points are not opened, nothing to do! */
+    }
     else
     {
         if (0 != f->ops.flush)
@@ -1093,6 +1107,9 @@ static NTSTATUS fsp_fuse_intf_Read(FSP_FILE_SYSTEM *FileSystem,
     struct fuse_file_info fi;
     int bytes;
     NTSTATUS Result;
+
+    if (filedesc->IsDirectory || filedesc->IsReparsePoint)
+        return STATUS_ACCESS_DENIED;
 
     if (0 == f->ops.read)
         return STATUS_INVALID_DEVICE_REQUEST;
@@ -1130,6 +1147,9 @@ static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
     UINT64 EndOffset, AllocationUnit;
     int bytes;
     NTSTATUS Result;
+
+    if (filedesc->IsDirectory || filedesc->IsReparsePoint)
+        return STATUS_ACCESS_DENIED;
 
     if (0 == f->ops.write)
         return STATUS_INVALID_DEVICE_REQUEST;
@@ -1203,6 +1223,8 @@ static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
     }
+    else if (filedesc->IsReparsePoint)
+        Result = STATUS_ACCESS_DENIED;
     else
     {
         if (0 != f->ops.fsync)
@@ -1328,6 +1350,9 @@ static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     UINT64 AllocationUnit;
     int err;
     NTSTATUS Result;
+
+    if (filedesc->IsDirectory || filedesc->IsReparsePoint)
+        return STATUS_ACCESS_DENIED;
 
     if (0 == f->ops.ftruncate && 0 == f->ops.truncate)
         return STATUS_INVALID_DEVICE_REQUEST;
@@ -1643,6 +1668,9 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     ULONG Size;
     int err;
     NTSTATUS Result;
+
+    if (!filedesc->IsDirectory)
+        return STATUS_ACCESS_DENIED;
 
     memset(&dh, 0, sizeof dh);
 
@@ -2028,6 +2056,8 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
         Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         goto exit;
     }
+
+    filedesc->IsReparsePoint = TRUE;
 
     Result = STATUS_SUCCESS;
 
