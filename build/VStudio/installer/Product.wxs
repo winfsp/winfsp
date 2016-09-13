@@ -136,6 +136,10 @@
                 <File Name="launchctl-x86.exe" KeyPath="yes" />
             </Component>
 
+            <Component Id="C.diag.bat">
+                <File Name="diag.bat" Source="..\..\..\tools\diag.bat" KeyPath="yes" />
+            </Component>
+
             <Component Id="C.memfs_x64.exe">
                 <File Name="memfs-x64.exe" KeyPath="yes" />
                 <RegistryKey
@@ -268,6 +272,7 @@
             <ComponentRef Id="C.launcher_x86.exe.svcinst" />
             <ComponentRef Id="C.launchctl_x64.exe" />
             <ComponentRef Id="C.launchctl_x86.exe" />
+            <ComponentRef Id="C.diag.bat" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.inc">
             <ComponentRef Id="C.fsctl.h" />
