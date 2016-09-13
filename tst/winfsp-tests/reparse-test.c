@@ -361,14 +361,23 @@ static BOOL my_unlink_fn(PWSTR Prefix, void *memfs, PWSTR FileName)
     return DeleteFileW(FilePath);
 }
 
-static BOOL my_symlink_fn(PWSTR Prefix, void *memfs, PWSTR LinkName, PWSTR FileName, DWORD Flags)
+static BOOL my_symlink_fn(ULONG Flags, PWSTR Prefix, void *memfs, PWSTR LinkName, PWSTR FileName,
+    DWORD SymlinkFlags)
 {
-    WCHAR LinkPath[MAX_PATH];
+    WCHAR LinkPath[MAX_PATH], FilePath[MAX_PATH];
 
     StringCbPrintfW(LinkPath, sizeof LinkPath, L"%s%s%s",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), LinkName);
+    if (-1 == Flags && L'\\' == FileName[0])
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s",
+            Prefix ? Prefix : L"", FileName);
+    else
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s",
+            FileName);
 
-    return CreateSymbolicLinkW(LinkPath, FileName, Flags);
+    return CreateSymbolicLinkW(LinkPath,
+        -1 == Flags && L'\\' == FileName[0] ? FilePath + 6 : FilePath,
+        SymlinkFlags);
 }
 
 static BOOL my_namecheck_fn(ULONG Flags, PWSTR Prefix, void *memfs, PWSTR FileName, PWSTR Expected)
@@ -380,8 +389,8 @@ static BOOL my_namecheck_fn(ULONG Flags, PWSTR Prefix, void *memfs, PWSTR FileNa
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s%s",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), FileName);
-    StringCbPrintfW(ExpectedPath, sizeof ExpectedPath, L"%s%s%s",
-        Prefix ? Prefix : L"", Prefix ? L"\\" : L"", Expected);
+    StringCbPrintfW(ExpectedPath, sizeof ExpectedPath, L"%s%s",
+        Prefix ? Prefix : L"", Expected);
 
     Handle = CreateFileW(FilePath, FILE_READ_ATTRIBUTES,
         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -413,12 +422,13 @@ static BOOL my_namecheck_fn(ULONG Flags, PWSTR Prefix, void *memfs, PWSTR FileNa
 #define my_rmdir(FileName)              ASSERT(my_rmdir_fn(Prefix, memfs, FileName))
 #define my_make(FileName)               ASSERT(my_make_fn(Prefix, memfs, FileName))
 #define my_unlink(FileName)             ASSERT(my_unlink_fn(Prefix, memfs, FileName))
-#define my_symlinkd(LinkName, FileName) ASSERT(my_symlink_fn(Prefix, memfs, LinkName, FileName,\
+#define my_symlinkd(LinkName, FileName) ASSERT(my_symlink_fn(Flags, Prefix, memfs, LinkName, FileName,\
     SYMBOLIC_LINK_FLAG_DIRECTORY))
-#define my_symlink(LinkName, FileName)  ASSERT(my_symlink_fn(Prefix, memfs, LinkName, FileName, 0))
+#define my_symlink(LinkName, FileName)  ASSERT(my_symlink_fn(Flags, Prefix, memfs, LinkName, FileName, 0))
 #define my_namecheck(FileName, Expected)ASSERT(my_namecheck_fn(Flags, Prefix, memfs, FileName, Expected))
+#define my_notexist(FileName)           ASSERT(!my_namecheck_fn(Flags, Prefix, memfs, FileName, L""))
 
-static void reparse_symlink_large_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+static void reparse_symlink_relative_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
@@ -437,6 +447,22 @@ static void reparse_symlink_large_dotest(ULONG Flags, PWSTR Prefix, ULONG FileIn
     my_symlinkd(L"\\1\\l2", L"..\\2");
     my_symlinkd(L"\\2\\a1", L"\\1");
     my_symlinkd(L"\\1\\a2", L"\\2");
+
+    my_notexist(L"\\l0");
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+    my_notexist(L"\\loop");
+    ASSERT(ERROR_CANT_RESOLVE_FILENAME == GetLastError());
+    my_namecheck(L"\\1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
+
+    my_namecheck(L"\\2\\l1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
+    my_namecheck(L"\\1\\l2\\l1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
+
+    my_namecheck(L"\\2\\a1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
+    my_namecheck(L"\\2\\l1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
+
+    my_namecheck(L"\\1\\a2\\l1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
+    my_namecheck(L"\\1\\a2\\a1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
+    my_namecheck(L"\\1\\a2\\a1\\l2\\l1\\1.1\\l1.1.1", L"\\1\\1.1\\1.1.1");
 
     my_rmdir(L"\\1\\a2");
     my_rmdir(L"\\2\\a1");
@@ -457,21 +483,21 @@ static void reparse_symlink_large_dotest(ULONG Flags, PWSTR Prefix, ULONG FileIn
     memfs_stop(memfs);
 }
 
-void reparse_symlink_large_test(void)
+void reparse_symlink_relative_test(void)
 {
     if (NtfsTests)
     {
         WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
         GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        reparse_symlink_large_dotest(-1, DirBuf, 0);
+        reparse_symlink_relative_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
     {
-        reparse_symlink_large_dotest(MemfsDisk, 0, 0);
+        reparse_symlink_relative_dotest(MemfsDisk, 0, 0);
     }
     if (WinFspNetTests)
     {
-        reparse_symlink_large_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        reparse_symlink_relative_dotest(MemfsNet, L"\\\\memfs\\share", 0);
     }
 }
 
@@ -480,5 +506,5 @@ void reparse_tests(void)
     TEST(reparse_guid_test);
     TEST(reparse_nfs_test);
     TEST(reparse_symlink_test);
-    TEST(reparse_symlink_large_test);
+    TEST(reparse_symlink_relative_test);
 }
