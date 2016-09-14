@@ -1083,7 +1083,7 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
      */
 
     if (Delete)
-        if (filedesc->IsDirectory)
+        if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
         {
             if (0 != f->ops.rmdir)
                 f->ops.rmdir(filedesc->PosixPath);
@@ -1466,7 +1466,7 @@ static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
     struct fuse_dirhandle dh;
     int err;
 
-    if (filedesc->IsDirectory)
+    if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
     {
         /* check that directory is empty! */
 
