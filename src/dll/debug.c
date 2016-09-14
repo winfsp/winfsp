@@ -161,6 +161,99 @@ static const char *FspDebugLogVolumeInfoString(FSP_FSCTL_VOLUME_INFO *VolumeInfo
     return Buf;
 }
 
+static const char *FspDebugLogReparseDataString(PVOID ReparseData0, char *Buf)
+{
+    union
+    {
+        PREPARSE_DATA_BUFFER D;
+        PREPARSE_GUID_DATA_BUFFER G;
+    } ReparseData;
+    WCHAR SubstituteName[64 + 1], PrintName[64 + 1];
+
+    ReparseData.D = ReparseData0;
+    if (0 == ReparseData.D->ReparseDataLength)
+        wsprintfA(Buf,
+            "{"
+            "ReparseTag=%#lx, "
+            "ReparseDataLength=%hu"
+            "}",
+            ReparseData.D->ReparseTag, ReparseData.D->ReparseDataLength);
+    else if (IO_REPARSE_TAG_MOUNT_POINT == ReparseData.D->ReparseTag)
+    {
+        memcpy(SubstituteName,
+            ReparseData.D->MountPointReparseBuffer.PathBuffer +
+                ReparseData.D->MountPointReparseBuffer.SubstituteNameOffset / sizeof(WCHAR),
+            (int)min(sizeof SubstituteName - sizeof(WCHAR),
+                ReparseData.D->MountPointReparseBuffer.SubstituteNameLength));
+        SubstituteName[ReparseData.D->MountPointReparseBuffer.SubstituteNameLength / sizeof(WCHAR)] =
+            L'\0';
+        memcpy(PrintName,
+            ReparseData.D->MountPointReparseBuffer.PathBuffer +
+                ReparseData.D->MountPointReparseBuffer.PrintNameOffset / sizeof(WCHAR),
+            (int)min(sizeof SubstituteName - sizeof(WCHAR),
+                ReparseData.D->MountPointReparseBuffer.PrintNameLength));
+        PrintName[ReparseData.D->MountPointReparseBuffer.PrintNameLength / sizeof(WCHAR)] =
+            L'\0';
+        wsprintfA(Buf,
+            "{"
+            "ReparseTag=IO_REPARSE_TAG_MOUNT_POINT, "
+            "SubstituteName=\"%S\", "
+            "PrintName=\"%S\""
+            "}",
+            SubstituteName,
+            PrintName);
+    }
+    else if (IO_REPARSE_TAG_SYMLINK == ReparseData.D->ReparseTag)
+    {
+        memcpy(SubstituteName,
+            ReparseData.D->SymbolicLinkReparseBuffer.PathBuffer +
+                ReparseData.D->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR),
+            (int)min(sizeof SubstituteName - sizeof(WCHAR),
+                ReparseData.D->SymbolicLinkReparseBuffer.SubstituteNameLength));
+        SubstituteName[ReparseData.D->SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(WCHAR)] =
+            L'\0';
+        memcpy(PrintName,
+            ReparseData.D->SymbolicLinkReparseBuffer.PathBuffer +
+                ReparseData.D->SymbolicLinkReparseBuffer.PrintNameOffset / sizeof(WCHAR),
+            (int)min(sizeof SubstituteName - sizeof(WCHAR),
+                ReparseData.D->SymbolicLinkReparseBuffer.PrintNameLength));
+        PrintName[ReparseData.D->SymbolicLinkReparseBuffer.PrintNameLength / sizeof(WCHAR)] =
+            L'\0';
+        wsprintfA(Buf,
+            "{"
+            "ReparseTag=IO_REPARSE_TAG_SYMLINK, "
+            "SubstituteName=\"%S\", "
+            "PrintName=\"%S\", "
+            "Flags=%u"
+            "}",
+            SubstituteName,
+            PrintName,
+            ReparseData.D->SymbolicLinkReparseBuffer.Flags);
+    }
+    else if (IsReparseTagMicrosoft(ReparseData.D->ReparseTag))
+        wsprintfA(Buf,
+            "{"
+            "ReparseTag=%#lx, "
+            "ReparseDataLength=%hu"
+            "}",
+            ReparseData.D->ReparseTag, ReparseData.D->ReparseDataLength);
+    else
+#define Guid ReparseData.G->ReparseGuid
+        wsprintfA(Buf,
+            "{"
+            "ReparseTag=%#lx, "
+            "ReparseDataLength=%hu, "
+            "ReparseGuid={%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}"
+            "}",
+            ReparseData.G->ReparseTag, ReparseData.G->ReparseDataLength,
+            Guid.Data1, Guid.Data2, Guid.Data3,
+            Guid.Data4[0], Guid.Data4[1], Guid.Data4[2], Guid.Data4[3],
+            Guid.Data4[4], Guid.Data4[5], Guid.Data4[6], Guid.Data4[7]);
+#undef Guid
+
+    return Buf;
+}
+
 static VOID FspDebugLogRequestVoid(FSP_FSCTL_TRANSACT_REQ *Request, const char *Name)
 {
     FspDebugLog("%S[TID=%04lx]: %p: >>%s\n",
@@ -178,6 +271,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
 {
     char UserContextBuf[40];
     char CreationTimeBuf[32], LastAccessTimeBuf[32], LastWriteTimeBuf[32];
+    char InfoBuf[256];
     char *Sddl = 0;
 
     switch (Request->Kind)
@@ -368,6 +462,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 FspDebugLogUserContextString(
                     Request->Req.SetInformation.UserContext, Request->Req.SetInformation.UserContext2,
                     UserContextBuf));
+            break;
         }
         break;
     case FspFsctlTransactQueryEaKind:
@@ -423,7 +518,45 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             Request->Req.QueryDirectory.Pattern.Size ? "\"" : "");
         break;
     case FspFsctlTransactFileSystemControlKind:
-        FspDebugLogRequestVoid(Request, "FILESYSTEMCONTROL");
+        switch (Request->Req.FileSystemControl.FsControlCode)
+        {
+        case FSCTL_GET_REPARSE_POINT:
+            FspDebugLog("%S[TID=%04lx]: %p: >>FileSystemControl [FSCTL_GET_REPARSE_POINT] %s%S%s%s\n",
+                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                Request->FileName.Size ? "\"" : "",
+                Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
+                Request->FileName.Size ? "\", " : "",
+                FspDebugLogUserContextString(
+                    Request->Req.FileSystemControl.UserContext, Request->Req.FileSystemControl.UserContext2,
+                    UserContextBuf));
+            break;
+        case FSCTL_SET_REPARSE_POINT:
+        case FSCTL_DELETE_REPARSE_POINT:
+            FspDebugLog("%S[TID=%04lx]: %p: >>FileSystemControl [%s] %s%S%s%s "
+                "ReparseData=%s\n",
+                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                FSCTL_SET_REPARSE_POINT == Request->Req.FileSystemControl.FsControlCode ?
+                    "FSCTL_SET_REPARSE_POINT" : "FSCTL_DELETE_REPARSE_POINT",
+                Request->FileName.Size ? "\"" : "",
+                Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
+                Request->FileName.Size ? "\", " : "",
+                FspDebugLogUserContextString(
+                    Request->Req.FileSystemControl.UserContext, Request->Req.FileSystemControl.UserContext2,
+                    UserContextBuf),
+                FspDebugLogReparseDataString(Request->Buffer + Request->Req.FileSystemControl.Buffer.Offset,
+                    InfoBuf));
+            break;
+        default:
+            FspDebugLog("%S[TID=%04lx]: %p: >>FileSystemControl [INVALID] %s%S%s%s\n",
+                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                Request->FileName.Size ? "\"" : "",
+                Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
+                Request->FileName.Size ? "\", " : "",
+                FspDebugLogUserContextString(
+                    Request->Req.FileSystemControl.UserContext, Request->Req.FileSystemControl.UserContext2,
+                    UserContextBuf));
+            break;
+        }
         break;
     case FspFsctlTransactDeviceControlKind:
         FspDebugLogRequestVoid(Request, "DEVICECONTROL");
@@ -590,7 +723,16 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         FspDebugLogResponseStatus(Response, "QueryDirectory");
         break;
     case FspFsctlTransactFileSystemControlKind:
-        FspDebugLogResponseStatus(Response, "FILESYSTEMCONTROL");
+        if (!NT_SUCCESS(Response->IoStatus.Status) ||
+            0 == Response->Rsp.FileSystemControl.Buffer.Size)
+            FspDebugLogResponseStatus(Response, "FileSystemControl");
+        else
+            FspDebugLog("%S[TID=%04lx]: %p: <<FileSystemControl IoStatus=%lx[%ld] "
+                "ReparseData=%s\n",
+                FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                Response->IoStatus.Status, Response->IoStatus.Information,
+                FspDebugLogReparseDataString(Response->Buffer + Response->Rsp.FileSystemControl.Buffer.Offset,
+                    InfoBuf));
         break;
     case FspFsctlTransactDeviceControlKind:
         FspDebugLogResponseStatus(Response, "DEVICECONTROL");
