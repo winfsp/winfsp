@@ -333,10 +333,11 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     {
         Result = STATUS_OBJECT_NAME_NOT_FOUND;
 
-        if (!MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result) &&
-            FspFileSystemFindReparsePoint(FileSystem, GetReparsePointByName, 0,
-                FileName, PFileAttributes))
+        if (FspFileSystemFindReparsePoint(FileSystem, GetReparsePointByName, 0,
+            FileName, PFileAttributes))
             Result = STATUS_REPARSE;
+        else
+            MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result);
 
         return Result;
     }
