@@ -345,6 +345,38 @@ exit:
     return Result;
 }
 
+static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
+    const char *PosixPath)
+{
+    struct fuse *f = FileSystem->UserContext;
+    char *PosixDotPath = 0;
+    size_t Length;
+    struct fuse_stat stbuf;
+    int err;
+    BOOLEAN Result = FALSE;
+
+    Length = lstrlenA(PosixPath);
+    PosixDotPath = MemAlloc(Length + 3);
+    if (0 != PosixDotPath)
+    {
+        memcpy(PosixDotPath, PosixPath, Length);
+        PosixDotPath[Length + 0] = '/';
+        PosixDotPath[Length + 1] = '.';
+        PosixDotPath[Length + 2] = '\0';
+
+        if (0 != f->ops.getattr)
+            err = f->ops.getattr(PosixDotPath, (void *)&stbuf);
+        else
+            err = -ENOSYS;
+
+        MemFree(PosixDotPath);
+
+        Result = 0 == err && 0040000 == (stbuf.st_mode & 0170000);
+    }
+
+    return Result;
+}
+
 #define fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, fi, PUid, PGid, PMode, FileInfo)\
     fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi, PUid, PGid, PMode, 0, FileInfo)
 static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
@@ -402,6 +434,8 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
         {
             FileInfo->FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
             FileInfo->ReparseTag = IO_REPARSE_TAG_SYMLINK;
+            if (fsp_fuse_intf_CheckSymlinkDirectory(FileSystem, PosixPath))
+                FileInfo->FileAttributes |= FILE_ATTRIBUTE_DIRECTORY;
             break;
         }
         /* fall through */
@@ -1874,6 +1908,7 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PVOID Buffer, SIZE_T Size)
 {
     struct fuse *f = FileSystem->UserContext;
+    struct fuse_context *context = fsp_fuse_get_context(f->env);
     struct fsp_fuse_file_desc *filedesc =
         (PVOID)(UINT_PTR)Request->Req.FileSystemControl.UserContext2;
     struct fuse_file_info fi;
@@ -1983,7 +2018,9 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
         if (!NT_SUCCESS(Result))
             goto exit;
 
+        context->uid = Uid, context->gid = Gid;
         err = f->ops.symlink(PosixTargetPath, PosixHiddenPath);
+        context->uid = -1, context->gid = -1;
         if (0 != err)
         {
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
@@ -2026,32 +2063,15 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
         if (!NT_SUCCESS(Result))
             goto exit;
 
+        context->uid = Uid, context->gid = Gid;
         err = f->ops.mknod(PosixHiddenPath, Mode, Dev);
+        context->uid = -1, context->gid = -1;
         if (0 != err)
         {
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
             goto exit;
         }
     }
-
-    /*
-     * At least SSHFS has problems with chown as it attempts to chown the target file
-     * rather than lchown the symlink. So comment out for now!
-     */
-#if 0
-    if (0 != f->ops.chown)
-    {
-        err = f->ops.chown(PosixHiddenPath, Uid, Gid);
-        if (0 != err)
-        {
-            /* on failure unlink "hidden" symlink */
-            f->ops.unlink(PosixHiddenPath);
-
-            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-            goto exit;
-        }
-    }
-#endif
 
     err = f->ops.rename(PosixHiddenPath, filedesc->PosixPath);
     if (0 != err)
