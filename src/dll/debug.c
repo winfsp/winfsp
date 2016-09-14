@@ -161,6 +161,21 @@ static const char *FspDebugLogVolumeInfoString(FSP_FSCTL_VOLUME_INFO *VolumeInfo
     return Buf;
 }
 
+static const char *FspDebugLogWideCharBufferString(PVOID WideCharBuf, ULONG Length, char *Buf)
+{
+    WCHAR TempWideCharBuf[64 + 1];
+
+    if (Length > sizeof TempWideCharBuf - sizeof(WCHAR))
+        Length = sizeof TempWideCharBuf - sizeof(WCHAR);
+
+    memcpy(TempWideCharBuf, WideCharBuf, Length);
+    TempWideCharBuf[Length / sizeof(WCHAR)] = L'\0';
+
+    wsprintfA(Buf, "%.64S", TempWideCharBuf);
+
+    return Buf;
+}
+
 static const char *FspDebugLogReparseDataString(PVOID ReparseData0, char *Buf)
 {
     union
@@ -168,7 +183,7 @@ static const char *FspDebugLogReparseDataString(PVOID ReparseData0, char *Buf)
         PREPARSE_DATA_BUFFER D;
         PREPARSE_GUID_DATA_BUFFER G;
     } ReparseData;
-    WCHAR SubstituteName[64 + 1], PrintName[64 + 1];
+    char SubstituteName[64 + 1], PrintName[64 + 1];
 
     ReparseData.D = ReparseData0;
     if (0 == ReparseData.D->ReparseDataLength)
@@ -179,57 +194,41 @@ static const char *FspDebugLogReparseDataString(PVOID ReparseData0, char *Buf)
             "}",
             ReparseData.D->ReparseTag, ReparseData.D->ReparseDataLength);
     else if (IO_REPARSE_TAG_MOUNT_POINT == ReparseData.D->ReparseTag)
-    {
-        memcpy(SubstituteName,
-            ReparseData.D->MountPointReparseBuffer.PathBuffer +
-                ReparseData.D->MountPointReparseBuffer.SubstituteNameOffset / sizeof(WCHAR),
-            (int)min(sizeof SubstituteName - sizeof(WCHAR),
-                ReparseData.D->MountPointReparseBuffer.SubstituteNameLength));
-        SubstituteName[ReparseData.D->MountPointReparseBuffer.SubstituteNameLength / sizeof(WCHAR)] =
-            L'\0';
-        memcpy(PrintName,
-            ReparseData.D->MountPointReparseBuffer.PathBuffer +
-                ReparseData.D->MountPointReparseBuffer.PrintNameOffset / sizeof(WCHAR),
-            (int)min(sizeof SubstituteName - sizeof(WCHAR),
-                ReparseData.D->MountPointReparseBuffer.PrintNameLength));
-        PrintName[ReparseData.D->MountPointReparseBuffer.PrintNameLength / sizeof(WCHAR)] =
-            L'\0';
         wsprintfA(Buf,
             "{"
             "ReparseTag=IO_REPARSE_TAG_MOUNT_POINT, "
-            "SubstituteName=\"%S\", "
-            "PrintName=\"%S\""
+            "SubstituteName=\"%s\", "
+            "PrintName=\"%s\""
             "}",
-            SubstituteName,
-            PrintName);
-    }
+            FspDebugLogWideCharBufferString(
+                ReparseData.D->MountPointReparseBuffer.PathBuffer +
+                    ReparseData.D->MountPointReparseBuffer.SubstituteNameOffset / sizeof(WCHAR),
+                ReparseData.D->MountPointReparseBuffer.SubstituteNameLength,
+                SubstituteName),
+            FspDebugLogWideCharBufferString(
+                ReparseData.D->MountPointReparseBuffer.PathBuffer +
+                    ReparseData.D->MountPointReparseBuffer.PrintNameOffset / sizeof(WCHAR),
+                ReparseData.D->MountPointReparseBuffer.PrintNameLength,
+                PrintName));
     else if (IO_REPARSE_TAG_SYMLINK == ReparseData.D->ReparseTag)
-    {
-        memcpy(SubstituteName,
-            ReparseData.D->SymbolicLinkReparseBuffer.PathBuffer +
-                ReparseData.D->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR),
-            (int)min(sizeof SubstituteName - sizeof(WCHAR),
-                ReparseData.D->SymbolicLinkReparseBuffer.SubstituteNameLength));
-        SubstituteName[ReparseData.D->SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(WCHAR)] =
-            L'\0';
-        memcpy(PrintName,
-            ReparseData.D->SymbolicLinkReparseBuffer.PathBuffer +
-                ReparseData.D->SymbolicLinkReparseBuffer.PrintNameOffset / sizeof(WCHAR),
-            (int)min(sizeof SubstituteName - sizeof(WCHAR),
-                ReparseData.D->SymbolicLinkReparseBuffer.PrintNameLength));
-        PrintName[ReparseData.D->SymbolicLinkReparseBuffer.PrintNameLength / sizeof(WCHAR)] =
-            L'\0';
         wsprintfA(Buf,
             "{"
             "ReparseTag=IO_REPARSE_TAG_SYMLINK, "
-            "SubstituteName=\"%S\", "
-            "PrintName=\"%S\", "
+            "SubstituteName=\"%s\", "
+            "PrintName=\"%s\", "
             "Flags=%u"
             "}",
-            SubstituteName,
-            PrintName,
+            FspDebugLogWideCharBufferString(
+                ReparseData.D->SymbolicLinkReparseBuffer.PathBuffer +
+                    ReparseData.D->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR),
+                ReparseData.D->SymbolicLinkReparseBuffer.SubstituteNameLength,
+                SubstituteName),
+            FspDebugLogWideCharBufferString(
+                ReparseData.D->SymbolicLinkReparseBuffer.PathBuffer +
+                    ReparseData.D->SymbolicLinkReparseBuffer.PrintNameOffset / sizeof(WCHAR),
+                ReparseData.D->SymbolicLinkReparseBuffer.PrintNameLength,
+                PrintName),
             ReparseData.D->SymbolicLinkReparseBuffer.Flags);
-    }
     else if (IsReparseTagMicrosoft(ReparseData.D->ReparseTag))
         wsprintfA(Buf,
             "{"
@@ -625,11 +624,27 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         if (!NT_SUCCESS(Response->IoStatus.Status))
             FspDebugLogResponseStatus(Response, "Create");
         else if (STATUS_REPARSE == Response->IoStatus.Status)
-            FspDebugLog("%S[TID=%04lx]: %p: <<Create IoStatus=%lx[%ld] "
-                "Reparse.FileName=\"%S\"\n",
-                FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
-                Response->IoStatus.Status, Response->IoStatus.Information,
-                (PWSTR)(Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset));
+        {
+            if (0/*IO_REPARSE*/ == Response->IoStatus.Information)
+                FspDebugLog("%S[TID=%04lx]: %p: <<Create IoStatus=%lx[%ld] "
+                    "Reparse.FileName=\"%s\"\n",
+                    FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                    Response->IoStatus.Status, Response->IoStatus.Information,
+                    FspDebugLogWideCharBufferString(
+                        Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset,
+                        Response->Rsp.Create.Reparse.FileName.Size,
+                        InfoBuf));
+            else if (1/*IO_REMOUNT*/ == Response->IoStatus.Information)
+                FspDebugLogResponseStatus(Response, "Create");
+            else
+                FspDebugLog("%S[TID=%04lx]: %p: <<Create IoStatus=%lx[%ld] "
+                    "Reparse.Data=\"%s\"\n",
+                    FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                    Response->IoStatus.Status, Response->IoStatus.Information,
+                    FspDebugLogReparseDataString(
+                        Response->Buffer + Response->Rsp.Create.Reparse.Data.Offset,
+                        InfoBuf));
+        }
         else
             FspDebugLog("%S[TID=%04lx]: %p: <<Create IoStatus=%lx[%ld] "
                 "UserContext=%s, GrantedAccess=%lx, FileInfo=%s\n",
