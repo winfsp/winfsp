@@ -90,18 +90,18 @@ exit /b 0
 
 :winfstest-memfs-x64
 M:
-call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat" base
+call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat" base reparse
 if errorlevel 1 goto fail
 N:
-call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat" base
+call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat" base reparse
 if errorlevel 1 goto fail
 exit /b 0
 
 :winfstest-memfs-x86
 O:
-call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat" base
+call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat" base reparse
 if errorlevel 1 goto fail
 P:
-call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat" base
+call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat" base reparse
 if errorlevel 1 goto fail
 exit /b 0
