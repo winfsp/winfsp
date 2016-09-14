@@ -1999,6 +1999,7 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
         }
         else
         {
+            /* the PATH is in POSIX format (UTF-16 encoding) */
             ReparseTargetPath = (PVOID)(ReparseData->GenericReparseBuffer.DataBuffer + 8);
             ReparseTargetPathLength = ReparseData->ReparseDataLength - 8;
         }
@@ -2010,7 +2011,8 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
          * From this point forward we must jump to the EXIT label on failure.
          */
 
-        Result = FspPosixMapWindowsToPosixPath(TargetPath, &PosixTargetPath);
+        Result = FspPosixMapWindowsToPosixPathEx(TargetPath, &PosixTargetPath,
+            IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag);
         if (!NT_SUCCESS(Result))
             goto exit;
 
@@ -2029,7 +2031,7 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     }
     else
     {
-        switch (*(PULONG)ReparseData->GenericReparseBuffer.DataBuffer)
+        switch (*(PUINT64)ReparseData->GenericReparseBuffer.DataBuffer)
         {
         case NFS_SPECFILE_FIFO:
             Mode = (Mode & ~0170000) | 0010000;

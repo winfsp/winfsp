@@ -805,7 +805,8 @@ static UINT32 FspPosixInvalidPathChars[4] =
     0x00000008,
 };
 
-FSP_API NTSTATUS FspPosixMapWindowsToPosixPath(PWSTR WindowsPath, char **PPosixPath)
+FSP_API NTSTATUS FspPosixMapWindowsToPosixPathEx(PWSTR WindowsPath, char **PPosixPath,
+    BOOLEAN Translate)
 {
     NTSTATUS Result;
     ULONG Size;
@@ -828,25 +829,28 @@ FSP_API NTSTATUS FspPosixMapWindowsToPosixPath(PWSTR WindowsPath, char **PPosixP
     if (0 == Size)
         goto lasterror;
 
-    for (p = PosixPath, q = p; *p; p++)
+    if (Translate)
     {
-        unsigned char c = *p;
-
-        if ('\\' == c)
-            *q++ = '/';
-        /* encode characters in the Unicode private use area: U+F0XX -> XX */
-        else if (0xef == c && 0x80 == (0xfc & p[1]) && 0x80 == (0xc0 & p[2]))
+        for (p = PosixPath, q = p; *p; p++)
         {
-            c = ((p[1] & 0x3) << 6) | (p[2] & 0x3f);
-            if (128 > c && (FspPosixInvalidPathChars[c >> 5] & (0x80000000 >> (c & 0x1f))))
-                *q++ = c, p += 2;
+            unsigned char c = *p;
+
+            if ('\\' == c)
+                *q++ = '/';
+            /* encode characters in the Unicode private use area: U+F0XX -> XX */
+            else if (0xef == c && 0x80 == (0xfc & p[1]) && 0x80 == (0xc0 & p[2]))
+            {
+                c = ((p[1] & 0x3) << 6) | (p[2] & 0x3f);
+                if (128 > c && (FspPosixInvalidPathChars[c >> 5] & (0x80000000 >> (c & 0x1f))))
+                    *q++ = c, p += 2;
+                else
+                    *q++ = *p++, *q++ = *p++, *q++ = *p;
+            }
             else
-                *q++ = *p++, *q++ = *p++, *q++ = *p;
+                *q++ = c;
         }
-        else
-            *q++ = c;
+        *q = '\0';
     }
-    *q = '\0';
 
     *PPosixPath = PosixPath;
 
@@ -863,7 +867,8 @@ lasterror:
     goto exit;
 }
 
-FSP_API NTSTATUS FspPosixMapPosixToWindowsPath(const char *PosixPath, PWSTR *PWindowsPath)
+FSP_API NTSTATUS FspPosixMapPosixToWindowsPathEx(const char *PosixPath, PWSTR *PWindowsPath,
+    BOOLEAN Translate)
 {
     NTSTATUS Result;
     ULONG Size;
@@ -886,14 +891,17 @@ FSP_API NTSTATUS FspPosixMapPosixToWindowsPath(const char *PosixPath, PWSTR *PWi
     if (0 == Size)
         goto lasterror;
 
-    for (p = WindowsPath; *p; p++)
+    if (Translate)
     {
-        WCHAR c = *p;
+        for (p = WindowsPath; *p; p++)
+        {
+            WCHAR c = *p;
 
-        if (L'/' == c)
-            *p = L'\\';
-        else if (128 > c && (FspPosixInvalidPathChars[c >> 5] & (0x80000000 >> (c & 0x1f))))
-            *p |= 0xf000;
+            if (L'/' == c)
+                *p = L'\\';
+            else if (128 > c && (FspPosixInvalidPathChars[c >> 5] & (0x80000000 >> (c & 0x1f))))
+                *p |= 0xf000;
+        }
     }
 
     *PWindowsPath = WindowsPath;
