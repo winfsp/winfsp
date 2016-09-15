@@ -3,14 +3,10 @@
 
 v0.16::
 
-This release brings support for reparse points and symbolic links.
+This release brings support for reparse points and symbolic links as well as other minor changes.
 
-- Reparse points are a general mechanism for attaching special behavior to files. WinFsp supports any kind of reparse point.
-- Symbolic links in Windows are implemented as reparse points. WinFsp includes full symbolic link support.
+- Reparse points are a general mechanism for attaching special behavior to files. Symbolic links in Windows are implemented as reparse points. WinFsp supports any kind of reparse point including symbolic links.
 - The WinFsp FUSE implementation supports symbolic links. It also supports POSIX special files (FIFO, SOCK, CHR, BLK) as NFS reparse points (see https://msdn.microsoft.com/en-us/library/dn617178.aspx).
-
-Other minor changes:
-
 - The installation now includes public symbol files for all WinFsp components shipped.
 
 
