@@ -520,7 +520,7 @@ NTSTATUS FspFsvolCreateComplete(
                  * IO Manager.
                  *
                  * We do our own handling of IO_REPARSE_TAG_SYMLINK reparse points because
-                 * experimentation with handling them directly to the IO Manager revealed problems
+                 * experimentation with handing them directly to the IO Manager revealed problems
                  * with UNC paths (\??\UNC\{VolumePrefix}\{FilePath}).
                  */
 
