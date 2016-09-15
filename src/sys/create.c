@@ -528,9 +528,9 @@ NTSTATUS FspFsvolCreateComplete(
                         sizeof ReparseTargetPrefix1);
 
                     ReparseTargetPath.Length = ReparseTargetPath.MaximumLength =
-                        Response->Rsp.Create.Reparse.FileName.Size;
+                        Response->Rsp.Create.Reparse.Buffer.Size;
                     ReparseTargetPath.Buffer =
-                        (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset);
+                        (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.Buffer.Offset);
 
                     if ((PUINT8)ReparseTargetPath.Buffer + ReparseTargetPath.Length >
                         (PUINT8)Response + Response->Size ||
@@ -541,13 +541,13 @@ NTSTATUS FspFsvolCreateComplete(
                 {
                     ASSERT(IO_REPARSE_TAG_SYMLINK == Response->IoStatus.Information);
 
-                    ReparseData = (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.Data.Offset);
+                    ReparseData = (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.Buffer.Offset);
 
-                    if ((PUINT8)ReparseData + Response->Rsp.Create.Reparse.Data.Size >
+                    if ((PUINT8)ReparseData + Response->Rsp.Create.Reparse.Buffer.Size >
                         (PUINT8)Response + Response->Size)
                         FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
 
-                    Result = FsRtlValidateReparsePointBuffer(Response->Rsp.Create.Reparse.Data.Size,
+                    Result = FsRtlValidateReparsePointBuffer(Response->Rsp.Create.Reparse.Buffer.Size,
                         ReparseData);
                     if (!NT_SUCCESS(Result))
                         FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
@@ -602,25 +602,25 @@ NTSTATUS FspFsvolCreateComplete(
             }
             else
             {
-                ReparseData = (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.Data.Offset);
+                ReparseData = (PVOID)(Response->Buffer + Response->Rsp.Create.Reparse.Buffer.Offset);
 
-                if ((PUINT8)ReparseData + Response->Rsp.Create.Reparse.Data.Size >
+                if ((PUINT8)ReparseData + Response->Rsp.Create.Reparse.Buffer.Size >
                     (PUINT8)Response + Response->Size)
                     FSP_RETURN(Result = STATUS_IO_REPARSE_DATA_INVALID);
 
-                Result = FsRtlValidateReparsePointBuffer(Response->Rsp.Create.Reparse.Data.Size,
+                Result = FsRtlValidateReparsePointBuffer(Response->Rsp.Create.Reparse.Buffer.Size,
                     ReparseData);
                 if (!NT_SUCCESS(Result))
                     FSP_RETURN();
 
                 ASSERT(0 == Irp->Tail.Overlay.AuxiliaryBuffer);
                 Irp->Tail.Overlay.AuxiliaryBuffer = FspAllocNonPagedExternal(
-                    Response->Rsp.Create.Reparse.Data.Size);
+                    Response->Rsp.Create.Reparse.Buffer.Size);
                 if (0 == Irp->Tail.Overlay.AuxiliaryBuffer)
                     FSP_RETURN(Result = STATUS_INSUFFICIENT_RESOURCES);
 
                 RtlCopyMemory(Irp->Tail.Overlay.AuxiliaryBuffer, ReparseData,
-                    Response->Rsp.Create.Reparse.Data.Size);
+                    Response->Rsp.Create.Reparse.Buffer.Size);
 
                 Irp->IoStatus.Information = ReparseData->ReparseTag;
                 FSP_RETURN(Result = STATUS_REPARSE);

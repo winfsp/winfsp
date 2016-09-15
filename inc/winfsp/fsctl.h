@@ -341,10 +341,9 @@ typedef struct
                 FSP_FSCTL_FILE_INFO FileInfo;
             } Opened;
             /* IoStatus.Status == STATUS_REPARSE */
-            union
+            struct
             {
-                FSP_FSCTL_TRANSACT_BUF FileName;    /* IoStatus.Information == IO_REPARSE (== 0) */
-                FSP_FSCTL_TRANSACT_BUF Data;        /* IoStatus.Information >  IO_REMOUNT (== 1) */
+                FSP_FSCTL_TRANSACT_BUF Buffer;
             } Reparse;
         } Create;
         struct

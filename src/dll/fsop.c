@@ -117,16 +117,8 @@ NTSTATUS FspFileSystemCallResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
             Response->IoStatus.Information = (UINT32)IoStatus.Information;
 
             Response->Size = (UINT16)(sizeof *Response + Size);
-            if (0/*IO_REPARSE*/ == IoStatus.Information)
-            {
-                Response->Rsp.Create.Reparse.FileName.Offset = 0;
-                Response->Rsp.Create.Reparse.FileName.Size = (UINT16)Size;
-            }
-            else
-            {
-                Response->Rsp.Create.Reparse.Data.Offset = 0;
-                Response->Rsp.Create.Reparse.Data.Size = (UINT16)Size;
-            }
+            Response->Rsp.Create.Reparse.Buffer.Offset = 0;
+            Response->Rsp.Create.Reparse.Buffer.Size = (UINT16)Size;
         }
     }
 

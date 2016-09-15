@@ -631,8 +631,8 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
                     FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                     Response->IoStatus.Status, Response->IoStatus.Information,
                     FspDebugLogWideCharBufferString(
-                        Response->Buffer + Response->Rsp.Create.Reparse.FileName.Offset,
-                        Response->Rsp.Create.Reparse.FileName.Size,
+                        Response->Buffer + Response->Rsp.Create.Reparse.Buffer.Offset,
+                        Response->Rsp.Create.Reparse.Buffer.Size,
                         InfoBuf));
             else if (1/*IO_REMOUNT*/ == Response->IoStatus.Information)
                 FspDebugLogResponseStatus(Response, "Create");
@@ -642,7 +642,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
                     FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
                     Response->IoStatus.Status, Response->IoStatus.Information,
                     FspDebugLogReparseDataString(
-                        Response->Buffer + Response->Rsp.Create.Reparse.Data.Offset,
+                        Response->Buffer + Response->Rsp.Create.Reparse.Buffer.Offset,
                         InfoBuf));
         }
         else
