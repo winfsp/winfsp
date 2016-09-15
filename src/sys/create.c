@@ -510,22 +510,24 @@ NTSTATUS FspFsvolCreateComplete(
                 IO_REPARSE_TAG_SYMLINK == Response->IoStatus.Information)
             {
                 /*
-                 * IO_REPARSE means that the user-mode file system has returned a device-relative
-                 * (absolute in the device namespace) path. Prefix it with our device name/prefix
-                 * and send it to the IO Manager.
+                 * IO_REPARSE means that the user-mode file system has returned an absolute (in
+                 * the device namespace) path. Send it as is to the IO Manager.
                  *
                  * IO_REPARSE_TAG_SYMLINK means that the user-mode file system has returned a full
-                 * symbolic link reparse buffer with an absolute (in the NT namespace) path. Send
-                 * it as is to the IO Manager. The FSD cannot handle relative symbolic links, so
-                 * it is the responsibility of the user-mode file system to resolve them.
+                 * symbolic link reparse buffer. If the symbolic link is absolute send it to the
+                 * IO Manager as is. If the symbolic link is device-relative (absolute in the
+                 * device namespace) prefix it with our volume name/prefix and then send it to the
+                 * IO Manager.
+                 *
+                 * We do our own handling of IO_REPARSE_TAG_SYMLINK reparse points because
+                 * experimentation with handling them directly to the IO Manager revealed problems
+                 * with UNC paths (\??\UNC\{VolumePrefix}\{FilePath}).
                  */
 
                 if (IO_REPARSE == Response->IoStatus.Information)
                 {
-                    RtlCopyMemory(&ReparseTargetPrefix0, &FsvolDeviceExtension->VolumeName,
-                        sizeof ReparseTargetPrefix0);
-                    RtlCopyMemory(&ReparseTargetPrefix1, &FsvolDeviceExtension->VolumePrefix,
-                        sizeof ReparseTargetPrefix1);
+                    RtlZeroMemory(&ReparseTargetPrefix0, sizeof ReparseTargetPrefix0);
+                    RtlZeroMemory(&ReparseTargetPrefix1, sizeof ReparseTargetPrefix1);
 
                     ReparseTargetPath.Length = ReparseTargetPath.MaximumLength =
                         Response->Rsp.Create.Reparse.Buffer.Size;
@@ -552,16 +554,25 @@ NTSTATUS FspFsvolCreateComplete(
                     if (!NT_SUCCESS(Result))
                         FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
 
-                    RtlZeroMemory(&ReparseTargetPrefix0, sizeof ReparseTargetPrefix0);
-                    RtlZeroMemory(&ReparseTargetPrefix1, sizeof ReparseTargetPrefix1);
+                    if (!FlagOn(ReparseData->SymbolicLinkReparseBuffer.Flags, SYMLINK_FLAG_RELATIVE))
+                    {
+                        RtlZeroMemory(&ReparseTargetPrefix0, sizeof ReparseTargetPrefix0);
+                        RtlZeroMemory(&ReparseTargetPrefix1, sizeof ReparseTargetPrefix1);
+                    }
+                    else
+                    {
+                        RtlCopyMemory(&ReparseTargetPrefix0, &FsvolDeviceExtension->VolumeName,
+                            sizeof ReparseTargetPrefix0);
+                        RtlCopyMemory(&ReparseTargetPrefix1, &FsvolDeviceExtension->VolumePrefix,
+                            sizeof ReparseTargetPrefix1);
+                    }
 
                     ReparseTargetPath.Buffer = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
                         ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
                     ReparseTargetPath.Length = ReparseTargetPath.MaximumLength =
                         ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
 
-                    if (FlagOn(ReparseData->SymbolicLinkReparseBuffer.Flags, SYMLINK_FLAG_RELATIVE) ||
-                        ReparseTargetPath.Length < sizeof(WCHAR) || L'\\' != ReparseTargetPath.Buffer[0])
+                    if (ReparseTargetPath.Length < sizeof(WCHAR) || L'\\' != ReparseTargetPath.Buffer[0])
                         FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
                 }
 

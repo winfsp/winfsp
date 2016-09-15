@@ -1057,6 +1057,7 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent0,
     PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
 {
+    PREPARSE_DATA_BUFFER OutputReparseData;
     PWSTR TargetPath, RemainderPath, LastPathComponent, NewRemainderPath, ReparseTargetPath;
     WCHAR RemainderChar;
     union
@@ -1070,10 +1071,17 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
     ULONG MaxTries = 32;
     NTSTATUS Result;
 
-    TargetPath = Buffer;
     RemainderPathSize = (lstrlenW(FileName) + 1) * sizeof(WCHAR);
-    if (RemainderPathSize > *PSize)
+    if (FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) +
+        RemainderPathSize > *PSize)
         return STATUS_REPARSE_POINT_NOT_RESOLVED;
+
+    OutputReparseData = Buffer;
+    memset(OutputReparseData, 0,
+        FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer));
+    OutputReparseData->ReparseTag = IO_REPARSE_TAG_SYMLINK;
+    OutputReparseData->SymbolicLinkReparseBuffer.Flags = SYMLINK_FLAG_RELATIVE;
+    TargetPath = OutputReparseData->SymbolicLinkReparseBuffer.PathBuffer;
     memcpy(TargetPath, FileName, RemainderPathSize);
 
     ResolveLastPathComponent = ResolveLastPathComponent0;
@@ -1089,7 +1097,7 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
             if (L'\0' == *RemainderPath)
             {
                 if (!ResolveLastPathComponent)
-                    goto exit;
+                    goto symlink_exit;
                 ResolveLastPathComponent = FALSE;
                 break;
             }
@@ -1164,17 +1172,12 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
         if (IO_REPARSE_TAG_SYMLINK != ReparseData->ReparseTag)
             goto reparse_data_exit;
 
+        if (0 == --MaxTries)
+            return STATUS_REPARSE_POINT_NOT_RESOLVED;
+
         ReparseTargetPath = ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
             ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR);
         ReparseTargetPathLength = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
-
-        /* if an absolute (in the NT namespace) symlink return the full reparse point */
-        if (0 == (ReparseData->SymbolicLinkReparseBuffer.Flags & SYMLINK_FLAG_RELATIVE) &&
-            ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
-            goto reparse_data_exit;
-
-        if (0 == --MaxTries)
-            return STATUS_REPARSE_POINT_NOT_RESOLVED;
 
         /* if device relative symlink replace whole path; else replace last path component */
         NewRemainderPath = ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0] ?
@@ -1182,26 +1185,44 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
 
     reparse:
         RemainderPathSize = (lstrlenW(RemainderPath) + 1) * sizeof(WCHAR);
-        if (NewRemainderPath + (ReparseTargetPathLength + RemainderPathSize) / sizeof(WCHAR) >
-            TargetPath + *PSize / sizeof(WCHAR))
+        if ((PUINT8)NewRemainderPath + ReparseTargetPathLength + RemainderPathSize >
+            (PUINT8)Buffer + *PSize)
             return STATUS_REPARSE_POINT_NOT_RESOLVED;
 
         /* move remainder path to its new position */
-        memmove(NewRemainderPath + ReparseTargetPathLength / sizeof(WCHAR),
+        memmove((PUINT8)NewRemainderPath + ReparseTargetPathLength,
             RemainderPath, RemainderPathSize);
 
         /* copy symlink target */
         memcpy(NewRemainderPath, ReparseTargetPath, ReparseTargetPathLength);
 
+        /* if an absolute (in the NT namespace) symlink exit now */
+        if (0 != ReparseTargetPath /* ensure we are not doing dot handling */ &&
+            0 == (ReparseData->SymbolicLinkReparseBuffer.Flags & SYMLINK_FLAG_RELATIVE) &&
+            ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
+        {
+            OutputReparseData->SymbolicLinkReparseBuffer.Flags = 0;
+            goto symlink_exit;
+        }
+
         ResolveLastPathComponent = ResolveLastPathComponent0;
         RemainderPath = NewRemainderPath;
     }
 
-exit:
-    *PSize = (PUINT8)RemainderPath - (PUINT8)TargetPath;
+symlink_exit:
+    OutputReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength =
+        OutputReparseData->SymbolicLinkReparseBuffer.PrintNameLength =
+        (USHORT)lstrlenW(OutputReparseData->SymbolicLinkReparseBuffer.PathBuffer) * sizeof(WCHAR);
+    OutputReparseData->ReparseDataLength =
+        FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) -
+        FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer) +
+        OutputReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength;
+
+    *PSize = FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer) +
+        OutputReparseData->ReparseDataLength;
 
     PIoStatus->Status = STATUS_REPARSE;
-    PIoStatus->Information = 0/*IO_REPARSE*/;
+    PIoStatus->Information = ReparseData->ReparseTag;
     return STATUS_REPARSE;
 
 reparse_data_exit:
