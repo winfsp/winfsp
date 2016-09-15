@@ -184,6 +184,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
       <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;version.lib</AdditionalDependencies>
+      <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -210,6 +211,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
       <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;version.lib</AdditionalDependencies>
+      <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -239,6 +241,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
       <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;version.lib</AdditionalDependencies>
+      <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -268,6 +271,7 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
       <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;version.lib</AdditionalDependencies>
+      <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

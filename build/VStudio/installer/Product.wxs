@@ -40,6 +40,7 @@
                     <Directory Id="INCDIR" Name="inc" />
                     <Directory Id="LIBDIR" Name="lib" />
                     <Directory Id="SMPDIR" Name="samples" />
+                    <Directory Id="SYMDIR" Name="sym" />
                 </Directory>
             </Directory>
         </Directory>
@@ -258,6 +259,38 @@
                 </Component>
             </Directory>
         </DirectoryRef>
+        <DirectoryRef Id="SYMDIR">
+            <Component Id="C.winfsp_x64.sys.pdb">
+                <File Name="winfsp-x64.sys.pdb" Source="..\build\$(var.Configuration)\winfsp-x64.sys.public.pdb" KeyPath="yes" />
+            </Component>
+            <Component Id="C.winfsp_x86.sys.pdb">
+                <File Name="winfsp-x86.sys.pdb" Source="..\build\$(var.Configuration)\winfsp-x86.sys.public.pdb" KeyPath="yes" />
+            </Component>
+            <Component Id="C.winfsp_x64.dll.pdb">
+                <File Name="winfsp-x64.dll.pdb" Source="..\build\$(var.Configuration)\winfsp-x64.dll.public.pdb" KeyPath="yes" />
+            </Component>
+            <Component Id="C.winfsp_x86.dll.pdb">
+                <File Name="winfsp-x86.dll.pdb" Source="..\build\$(var.Configuration)\winfsp-x86.dll.public.pdb" KeyPath="yes" />
+            </Component>
+            <Component Id="C.launcher_x64.pdb">
+                <File Name="launcher-x64.pdb" Source="..\build\$(var.Configuration)\launcher-x64.public.pdb" KeyPath="yes" />
+            </Component>
+            <Component Id="C.launcher_x86.pdb">
+                <File Name="launcher-x86.pdb" Source="..\build\$(var.Configuration)\launcher-x86.public.pdb" KeyPath="yes" />
+            </Component>
+            <Component Id="C.launchctl_x64.pdb">
+                <File Name="launchctl-x64.pdb" Source="..\build\$(var.Configuration)\launchctl-x64.public.pdb" KeyPath="yes" />
+            </Component>
+            <Component Id="C.launchctl_x86.pdb">
+                <File Name="launchctl-x86.pdb" Source="..\build\$(var.Configuration)\launchctl-x86.public.pdb" KeyPath="yes" />
+            </Component>
+            <Component Id="C.memfs_x64.pdb">
+                <File Name="memfs-x64.pdb" Source="..\build\$(var.Configuration)\memfs-x64.public.pdb" KeyPath="yes" />
+            </Component>
+            <Component Id="C.memfs_x86.pdb">
+                <File Name="memfs-x86.pdb" Source="..\build\$(var.Configuration)\memfs-x86.public.pdb" KeyPath="yes" />
+            </Component>
+        </DirectoryRef>
 
         <ComponentGroup Id="C.WinFsp.bin">
             <ComponentRef Id="C.winfsp_x64.sys" />
@@ -295,6 +328,18 @@
             <ComponentRef Id="C.memfs.cpp" />
             <ComponentRef Id="C.memfs_main.c" />
         </ComponentGroup>
+        <ComponentGroup Id="C.WinFsp.sym">
+            <ComponentRef Id="C.winfsp_x64.sys.pdb" />
+            <ComponentRef Id="C.winfsp_x86.sys.pdb" />
+            <ComponentRef Id="C.winfsp_x86.dll.pdb" />
+            <ComponentRef Id="C.winfsp_x64.dll.pdb" />
+            <ComponentRef Id="C.launcher_x86.pdb" />
+            <ComponentRef Id="C.launcher_x64.pdb" />
+            <ComponentRef Id="C.launchctl_x64.pdb" />
+            <ComponentRef Id="C.launchctl_x86.pdb" />
+            <ComponentRef Id="C.memfs_x64.pdb" />
+            <ComponentRef Id="C.memfs_x86.pdb" />
+        </ComponentGroup>
 
         <Feature
             Id="F.Main"
@@ -328,6 +373,7 @@
                 <ComponentGroupRef Id="C.WinFsp.inc" />
                 <ComponentGroupRef Id="C.WinFsp.lib" />
                 <ComponentGroupRef Id="C.WinFsp.smp" />
+                <ComponentGroupRef Id="C.WinFsp.sym" />
             </Feature>
         </Feature>
 
