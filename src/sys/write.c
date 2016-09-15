@@ -151,8 +151,9 @@ static NTSTATUS FspFsvolWriteCached(
     ASSERT(FspTimeoutInfinity32 ==
         FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.FileInfoTimeout);
     FspFileNodeGetFileInfo(FileNode, &FileInfo);
-    WriteEndOffset = WriteToEndOfFile ?
-        FileInfo.FileSize + WriteLength : WriteOffset.QuadPart + WriteLength;
+    if (WriteToEndOfFile)
+        WriteOffset.QuadPart = FileInfo.FileSize;
+    WriteEndOffset = WriteOffset.QuadPart + WriteLength;
     ExtendingFile = FileInfo.FileSize < WriteEndOffset;
     if (ExtendingFile && !CanWait)
     {
