@@ -1,6 +1,7 @@
 @echo off
 
 setlocal
+setlocal EnableDelayedExpansion
 
 set Configuration=Release
 if not X%1==X set Configuration=%1
@@ -36,7 +37,7 @@ for %%f in (winfsp-tests-x64 winfsp-tests-x86 :fsx-memfs-x64 :fsx-memfs-x86 :win
     call %%f
     popd
 
-    if errorlevel 1 (
+    if !ERRORLEVEL! neq 0 (
         set /a testfail=testfail+1
 
         echo === Failed %%f
