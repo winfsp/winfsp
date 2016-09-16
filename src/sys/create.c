@@ -269,15 +269,21 @@ static NTSTATUS FspFsvolCreateNoLock(
     if (0 == RelatedFileObject && 0 < FsvolDeviceExtension->VolumePrefix.Length)
     {
         if (!FspFsvolDeviceVolumePrefixInString(FsvolDeviceObject, &FileNode->FileName) ||
-            '\\' != FileNode->FileName.Buffer[FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR)])
+            (FileNode->FileName.Length > FsvolDeviceExtension->VolumePrefix.Length &&
+            '\\' != FileNode->FileName.Buffer[FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR)]))
         {
             FspFileNodeDereference(FileNode);
             return STATUS_OBJECT_PATH_NOT_FOUND;
         }
 
-        FileNode->FileName.Length -= FsvolDeviceExtension->VolumePrefix.Length;
-        FileNode->FileName.MaximumLength -= FsvolDeviceExtension->VolumePrefix.Length;
-        FileNode->FileName.Buffer += FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR);
+        if (FileNode->FileName.Length > FsvolDeviceExtension->VolumePrefix.Length)
+        {
+            FileNode->FileName.Length -= FsvolDeviceExtension->VolumePrefix.Length;
+            FileNode->FileName.MaximumLength -= FsvolDeviceExtension->VolumePrefix.Length;
+            FileNode->FileName.Buffer += FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR);
+        }
+        else
+            FileNode->FileName.Length = sizeof(WCHAR);
     }
 
     ASSERT(sizeof(WCHAR) <= FileNode->FileName.Length && L'\\' == FileNode->FileName.Buffer[0]);

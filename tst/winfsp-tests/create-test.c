@@ -424,10 +424,48 @@ void create_share_test(void)
         create_share_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+void create_curdir_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    WCHAR CurrentDirectory[MAX_PATH], FilePath[MAX_PATH];
+    BOOL Success;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s%s",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs),
+        Prefix ? L"" : L"\\");
+
+    Success = GetCurrentDirectoryW(MAX_PATH, CurrentDirectory);
+    ASSERT(Success);
+
+    Success = SetCurrentDirectoryW(FilePath);
+    ASSERT(Success);
+
+    Success = SetCurrentDirectoryW(CurrentDirectory);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+void create_curdir_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        create_curdir_dotest(-1, DirBuf);
+    }
+    if (WinFspDiskTests)
+        create_curdir_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        create_curdir_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
 void create_tests(void)
 {
     TEST(create_test);
     TEST(create_related_test);
     TEST(create_sd_test);
     TEST(create_share_test);
+    TEST(create_curdir_test);
 }
