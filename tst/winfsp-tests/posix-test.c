@@ -2,6 +2,8 @@
 #include <tlib/testsuite.h>
 #include <sddl.h>
 
+#include "winfsp-tests.h"
+
 void posix_map_sid_test(void)
 {
     struct

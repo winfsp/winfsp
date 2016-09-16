@@ -1,6 +1,8 @@
 #include <winfsp/winfsp.h>
 #include <tlib/testsuite.h>
 
+#include "winfsp-tests.h"
+
 void eventlog_test(void)
 {
     /* this is not a real test! */

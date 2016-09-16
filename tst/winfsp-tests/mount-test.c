@@ -3,8 +3,7 @@
 #include <process.h>
 #include <strsafe.h>
 
-extern int WinFspDiskTests;
-extern int WinFspNetTests;
+#include "winfsp-tests.h"
 
 void mount_invalid_test(void)
 {

@@ -3,8 +3,7 @@
 #include <process.h>
 #include <strsafe.h>
 
-extern int WinFspDiskTests;
-extern int WinFspNetTests;
+#include "winfsp-tests.h"
 
 static unsigned __stdcall timeout_pending_dotest_thread(void *FilePath)
 {

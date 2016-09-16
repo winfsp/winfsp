@@ -5,14 +5,7 @@
 #include <VersionHelpers.h>
 #include "memfs.h"
 
-void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout);
-void *memfs_start(ULONG Flags);
-void memfs_stop(void *data);
-PWSTR memfs_volumename(void *data);
-
-extern int NtfsTests;
-extern int WinFspDiskTests;
-extern int WinFspNetTests;
+#include "winfsp-tests.h"
 
 static void lock_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileInfoTimeout, DWORD CreateFlags)
 {

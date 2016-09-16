@@ -3,8 +3,7 @@
 #include <process.h>
 #include "memfs.h"
 
-extern int WinFspDiskTests;
-extern int WinFspNetTests;
+#include "winfsp-tests.h"
 
 void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
 {

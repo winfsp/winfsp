@@ -64,12 +64,18 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\reparse-test.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\tst\winfsp-tests\hook.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\ext\tlib\testsuite.h">
       <Filter>Source\tlib</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\tst\memfs\memfs.h">
+      <Filter>Source</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\tst\winfsp-tests\winfsp-tests.h">
       <Filter>Source</Filter>
     </ClInclude>
   </ItemGroup>

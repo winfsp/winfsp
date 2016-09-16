@@ -1,5 +1,7 @@
 #include <tlib/testsuite.h>
 
+#include "winfsp-tests.h"
+
 int NtfsTests = 0;
 int WinFspDiskTests = 1;
 int WinFspNetTests = 1;

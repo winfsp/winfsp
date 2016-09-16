@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "winfsp-tests.h"
+
 struct data
 {
     int fortytwo;

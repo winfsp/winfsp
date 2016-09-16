@@ -1,6 +1,8 @@
 #include <winfsp/winfsp.h>
 #include <tlib/testsuite.h>
 
+#include "winfsp-tests.h"
+
 void path_prefix_test(void)
 {
     PWSTR ipaths[] =

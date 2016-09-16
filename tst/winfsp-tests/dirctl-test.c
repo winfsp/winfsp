@@ -5,14 +5,7 @@
 #include <strsafe.h>
 #include "memfs.h"
 
-void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout);
-void *memfs_start(ULONG Flags);
-void memfs_stop(void *data);
-PWSTR memfs_volumename(void *data);
-
-extern int NtfsTests;
-extern int WinFspDiskTests;
-extern int WinFspNetTests;
+#include "winfsp-tests.h"
 
 static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG SleepTimeout)
 {
