@@ -9,7 +9,7 @@ extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
-#define CreateFileW HookCreateFileW
+//#define CreateFileW HookCreateFileW
 HANDLE HookCreateFileW(
     LPCWSTR lpFileName,
     DWORD dwDesiredAccess,
