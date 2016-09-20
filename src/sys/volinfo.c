@@ -79,6 +79,8 @@ static NTSTATUS FspFsvolQueryFsAttributeInformation(
     PFILE_FS_ATTRIBUTE_INFORMATION Info = (PFILE_FS_ATTRIBUTE_INFORMATION)*PBuffer;
     PUINT8 Buffer = (PUINT8)Info->FileSystemName;
     ULONG CopyLength;
+    UNICODE_STRING FileSystemName;
+    WCHAR FileSystemNameBuf[16 + FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
 
     Info->FileSystemAttributes =
         (FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch ? FILE_CASE_SENSITIVE_SEARCH : 0) |
@@ -91,15 +93,29 @@ static NTSTATUS FspFsvolQueryFsAttributeInformation(
         //(FsvolDeviceExtension->VolumeParams.ExtendedAttributes ? FILE_SUPPORTS_EXTENDED_ATTRIBUTES : 0) |
         (FsvolDeviceExtension->VolumeParams.ReadOnlyVolume ? FILE_READ_ONLY_VOLUME : 0);
     Info->MaximumComponentNameLength = FsvolDeviceExtension->VolumeParams.MaxComponentLength;
-    Info->FileSystemNameLength = sizeof L"" DRIVER_NAME - sizeof(WCHAR);
 
-    CopyLength = Info->FileSystemNameLength;
+    RtlInitUnicodeString(&FileSystemName, FsvolDeviceExtension->VolumeParams.FileSystemName);
+
+    ASSERT(sizeof FileSystemNameBuf >= sizeof L"" DRIVER_NAME + FSP_FSCTL_VOLUME_FSNAME_SIZE);
+
+    CopyLength = sizeof L"" DRIVER_NAME - sizeof(WCHAR);
+    RtlCopyMemory(FileSystemNameBuf, L"" DRIVER_NAME, CopyLength);
+    if (0 != FileSystemName.Length)
+    {
+        FileSystemNameBuf[CopyLength / sizeof(WCHAR)] = L'_';
+        CopyLength += sizeof(WCHAR);
+        RtlCopyMemory(FileSystemNameBuf + CopyLength / sizeof(WCHAR), FileSystemName.Buffer,
+            FileSystemName.Length * sizeof(WCHAR));
+        CopyLength += FileSystemName.Length * sizeof(WCHAR);
+    }
+
+    Info->FileSystemNameLength = CopyLength;
     if (Buffer + CopyLength > BufferEnd)
     {
         CopyLength = (ULONG)(BufferEnd - Buffer);
         Result = STATUS_BUFFER_OVERFLOW;
     }
-    RtlCopyMemory(Buffer, L"" DRIVER_NAME, CopyLength);
+    RtlCopyMemory(Buffer, FileSystemNameBuf, CopyLength);
     Buffer += CopyLength;
 
     *PBuffer = Buffer;
