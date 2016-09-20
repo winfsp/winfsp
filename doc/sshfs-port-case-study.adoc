@@ -1,6 +1,6 @@
 = SSHFS Port Case Study
 
-This document is a case study in porting SSHFS to Windows and WinFsp. At the time of this writing WinFsp has a native API, but no FUSE compatible API. The main purpose of this case study is to develop a FUSE compatible API for WinFsp.
+This document is a case study in porting SSHFS to Windows and WinFsp. At the time that the document was started WinFsp had a native API, but no FUSE compatible API. The main purpose of the case study was to develop a FUSE compatible API for WinFsp.
 
 == Step 1: Gather Information about SSHFS
 
@@ -215,3 +215,52 @@ fuse_destroy
 ----
 
 With this change `fuse_daemonize` works and allows me to declare the Cygwin portion of the SSHFS port complete!
+
+== Step 5: POSIX special files
+
+Although WinFsp now has a working FUSE implementation there remains an important problem: how to handle POSIX special files such as named pipes (FIFO), devices (CHR, BLK), sockets (SOCK) or symbolic links (LNK).
+
+While Windows has support for symbolic links (LNK) there is no direct support for other POSIX special files. The question then is how to represent such files when they are accessed by Windows. This is especially important to systems like Cygwin that understand POSIX special files and can even create them.
+
+Cygwin normally emulates symbolic links and special files using special shortcut (.lnk) files. However many FUSE file systems support POSIX special files; it is desirable then that applications, like Cygwin, that understand them should be able to create and access them without resorting to hacks like using .lnk files.
+
+The problem was originally mentioned by Herbert Stocker on the Cygwin mailing list:
+
+[quote]
+____
+The mkfifo system call will have Cygwin create a .lnk file and
+WinFsp will forward it as such to the file system process. The
+system calls readdir or open will then have the file system
+process tell WinFsp that there is a .lnk file and Cygwin will
+translate this back to a fifo, so in this sense it does work.
+
+But the file system will see a file (with name *.lnk) where it
+should see a pipe (mknod call with \'mode' set to S_IFIFO).
+IMHO one could say this is a break of the FUSE API.
+
+Practically it will break:
+
+- File systems that special-treat pipe files (or .lnk files).
+
+- If one uses sshfs to connect to a Linux based server and
+issues the command mkfifo foo from Cygwin, the server will
+end up with a .lnk file instead of a pipe special file.
+
+- Imagine something like mysqlfs, which stores the stuff in a
+database. When you run SQL statements to analyze the data
+in the file system, you won't see the pipes as such. Or if
+you open the file system from Linux you'll see the .lnk
+files.
+____
+
+Herbert is of course right. A .lnk file is not a FIFO to any application other than Cygwin. We need a better mechanism for representing special files. One such mechanism is reparse points.
+
+Reparse points can be viewed as a form of special metadata that can be attached to a file or directory. The interesting thing about reparse points is that they can have special meaning to a file system driver (NTFS/WinFsp), a filter driver (e.g. a hierarchical storage system) or even an application (Cygwin).
+
+Symbolic links are already implemented as reparse points on Windows. We could perhaps define a new reparse point type for representing POSIX special files. Turns out that this is unnecessary, because Microsoft has already defined a reparse point type for special files on NFS: https://msdn.microsoft.com/en-us/library/dn617178.aspx
+
+It is a relatively straightforward task then to map reparse point operations into their FUSE equivalents:
+
+GetReparsePoint:: Mapped to `getattr`/`fgetattr` and possibly `readlink` (in the case of a symbolic link). The returned `stat.st_mode` information is transformed to the appropriate reparse point information.
+
+SetReparsePoint:: Mapped to `symlink` or `mknod` depending on whether a symbolic link or other special file is created.
