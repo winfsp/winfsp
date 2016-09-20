@@ -24,11 +24,16 @@
 extern "C" {
 #endif
 
+/* static_assert is a C++11 feature, but seems to work with C on MSVC 2015 */
+#if defined(WINFSP_SYS_INTERNAL) || defined(WINFSP_DLL_INTERNAL)
+#define FSP_FSCTL_STATIC_ASSERT(e,m)    static_assert(e,m)
+#else
+#define FSP_FSCTL_STATIC_ASSERT(e,m)
+#endif
+
 #define FSP_FSCTL_DRIVER_NAME           "WinFsp"
 #define FSP_FSCTL_DISK_DEVICE_NAME      "WinFsp.Disk"
 #define FSP_FSCTL_NET_DEVICE_NAME       "WinFsp.Net"
-
-#define FSP_FSCTL_VOLUME_PARAMS_PREFIX  "\\VolumeParams="
 
 // {6F9D25FA-6DEE-4A9D-80F5-E98E14F35E54}
 extern const __declspec(selectany) GUID FspFsctlDeviceClassGuid =
@@ -55,9 +60,14 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_STOP                  \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'S', METHOD_BUFFERED, FILE_ANY_ACCESS)
 
+#define FSP_FSCTL_VOLUME_PARAMS_PREFIX  "\\VolumeParams="
+
 #define FSP_FSCTL_VOLUME_NAME_SIZE      (64 * sizeof(WCHAR))
-#define FSP_FSCTL_VOLUME_PREFIX_SIZE    (64 * sizeof(WCHAR))
+#define FSP_FSCTL_VOLUME_PREFIX_SIZE    (192 * sizeof(WCHAR))
+#define FSP_FSCTL_VOLUME_FSNAME_SIZE    (16 * sizeof(WCHAR))
 #define FSP_FSCTL_VOLUME_NAME_SIZEMAX   (FSP_FSCTL_VOLUME_NAME_SIZE + FSP_FSCTL_VOLUME_PREFIX_SIZE)
+FSP_FSCTL_STATIC_ASSERT(FSP_FSCTL_VOLUME_NAME_SIZEMAX <= 260 * sizeof(WCHAR),
+    "Max volume name size is greater than MAX_PATH.");
 
 #define FSP_FSCTL_TRANSACT_PATH_SIZEMAX 2048
 
@@ -135,6 +145,7 @@ typedef struct
     UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */
     UINT32 ReadOnlyVolume:1;
     WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */
+    WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
 } FSP_FSCTL_VOLUME_PARAMS;
 typedef struct
 {

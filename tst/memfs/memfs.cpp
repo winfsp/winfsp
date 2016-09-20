@@ -1153,6 +1153,7 @@ NTSTATUS MemfsCreate(
     VolumeParams.ReparsePointsAccessCheck = 0;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
+    wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR), L"MEMFS");
 
     Result = FspFileSystemCreate(DevicePath, &VolumeParams, &MemfsInterface, &Memfs->FileSystem);
     if (!NT_SUCCESS(Result))

@@ -776,14 +776,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      */
     NTSTATUS (*Reserved[41])();
 } FSP_FILE_SYSTEM_INTERFACE;
-#if defined(WINFSP_DLL_INTERNAL)
-/*
- * Static_assert is a C++11 feature, but seems to work with C on MSVC 2015.
- * Use it to verify that FSP_FILE_SYSTEM_INTERFACE has the right size.
- */
-static_assert(sizeof(FSP_FILE_SYSTEM_INTERFACE) == 64 * sizeof(NTSTATUS (*)()),
+FSP_FSCTL_STATIC_ASSERT(sizeof(FSP_FILE_SYSTEM_INTERFACE) == 64 * sizeof(NTSTATUS (*)()),
     "FSP_FILE_SYSTEM_INTERFACE must have 64 entries.");
-#endif
 typedef struct _FSP_FILE_SYSTEM
 {
     UINT16 Version;

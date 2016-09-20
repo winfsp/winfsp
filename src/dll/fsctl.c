@@ -32,7 +32,7 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     NTSTATUS Result;
     PWSTR DeviceRoot;
     SIZE_T DeviceRootSize, DevicePathSize;
-    WCHAR DevicePathBuf[MAX_PATH], *DevicePathPtr, *DevicePathEnd;
+    WCHAR DevicePathBuf[MAX_PATH + sizeof *VolumeParams], *DevicePathPtr, *DevicePathEnd;
     HANDLE VolumeHandle = INVALID_HANDLE_VALUE;
     DWORD Bytes;
 
@@ -40,7 +40,7 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
         VolumeNameBuf[0] = L'\0';
     *PVolumeHandle = INVALID_HANDLE_VALUE;
 
-    /* check lengths; everything (including encoded volume params) must fit within MAX_PATH */
+    /* check lengths; everything (including encoded volume params) must fit within DevicePathBuf */
     DeviceRoot = L'\\' == DevicePath[0] ? GLOBALROOT : GLOBALROOT "\\Device\\";
     DeviceRootSize = lstrlenW(DeviceRoot) * sizeof(WCHAR);
     DevicePathSize = lstrlenW(DevicePath) * sizeof(WCHAR);
