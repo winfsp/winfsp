@@ -230,6 +230,8 @@ static unsigned __stdcall dirnotify_dotest_thread(void *FilePath)
 {
     FspDebugLog(__FUNCTION__ ": \"%S\"\n", FilePath);
 
+    Sleep(1000); /* wait for ReadDirectoryChangesW */
+
     HANDLE Handle;
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, 0, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
