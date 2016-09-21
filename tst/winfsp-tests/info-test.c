@@ -496,7 +496,7 @@ void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         ASSERT(255 == MaxComponentLength);
         ASSERT(0 != (FileSystemFlags &
             (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
-        ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp_MEMFS"));
+        ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp-MEMFS"));
     }
 
     Success = GetDiskFreeSpaceW(FilePath, &SectorsPerCluster, &BytesPerSector, &FreeClusters, &TotalClusters);
@@ -573,7 +573,7 @@ void setvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
             ASSERT(255 == MaxComponentLength);
             ASSERT(0 != (FileSystemFlags &
                 (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
-            ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp_MEMFS"));
+            ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp-MEMFS"));
         }
 
         Success = SetVolumeLabelW(FilePath, L"TestLabel");
@@ -590,7 +590,7 @@ void setvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
             ASSERT(255 == MaxComponentLength);
             ASSERT(0 != (FileSystemFlags &
                 (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
-            ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp_MEMFS"));
+            ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp-MEMFS"));
         }
 
         Success = SetVolumeLabelW(FilePath, L"123456789012345678901234567890123");
@@ -607,7 +607,7 @@ void setvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
             ASSERT(255 == MaxComponentLength);
             ASSERT(0 != (FileSystemFlags &
                 (FILE_CASE_SENSITIVE_SEARCH | FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_PERSISTENT_ACLS)));
-            ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp_MEMFS"));
+            ASSERT(0 == wcscmp(FileSystemNameBuf, L"WinFsp-MEMFS"));
         }
     }
 

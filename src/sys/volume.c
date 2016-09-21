@@ -169,6 +169,7 @@ static NTSTATUS FspVolumeCreateNoLock(
         if (I == PrefixLength)
             return STATUS_INVALID_PARAMETER;
     }
+    VolumeParams.FileSystemName[sizeof VolumeParams.FileSystemName / sizeof(WCHAR) - 1] = L'\0';
 
     /* create volume guid */
     Result = FspCreateGuid(&Guid);

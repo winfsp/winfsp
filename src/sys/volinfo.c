@@ -82,6 +82,8 @@ static NTSTATUS FspFsvolQueryFsAttributeInformation(
     UNICODE_STRING FileSystemName;
     WCHAR FileSystemNameBuf[16 + FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
 
+    ASSERT(sizeof FileSystemNameBuf >= sizeof L"" DRIVER_NAME + FSP_FSCTL_VOLUME_FSNAME_SIZE);
+
     Info->FileSystemAttributes =
         (FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch ? FILE_CASE_SENSITIVE_SEARCH : 0) |
         (FsvolDeviceExtension->VolumeParams.CasePreservedNames ? FILE_CASE_PRESERVED_NAMES : 0) |
@@ -96,17 +98,15 @@ static NTSTATUS FspFsvolQueryFsAttributeInformation(
 
     RtlInitUnicodeString(&FileSystemName, FsvolDeviceExtension->VolumeParams.FileSystemName);
 
-    ASSERT(sizeof FileSystemNameBuf >= sizeof L"" DRIVER_NAME + FSP_FSCTL_VOLUME_FSNAME_SIZE);
-
     CopyLength = sizeof L"" DRIVER_NAME - sizeof(WCHAR);
     RtlCopyMemory(FileSystemNameBuf, L"" DRIVER_NAME, CopyLength);
     if (0 != FileSystemName.Length)
     {
-        FileSystemNameBuf[CopyLength / sizeof(WCHAR)] = L'_';
+        FileSystemNameBuf[CopyLength / sizeof(WCHAR)] = L'-';
         CopyLength += sizeof(WCHAR);
         RtlCopyMemory(FileSystemNameBuf + CopyLength / sizeof(WCHAR), FileSystemName.Buffer,
-            FileSystemName.Length * sizeof(WCHAR));
-        CopyLength += FileSystemName.Length * sizeof(WCHAR);
+            FileSystemName.Length);
+        CopyLength += FileSystemName.Length;
     }
 
     Info->FileSystemNameLength = CopyLength;
