@@ -78,6 +78,8 @@ FSP_FSCTL_STATIC_ASSERT(FSP_FSCTL_VOLUME_NAME_SIZEMAX <= 260 * sizeof(WCHAR),
 #define FSP_FSCTL_TRANSACT_BATCH_BUFFER_SIZEMIN 16384
 #define FSP_FSCTL_TRANSACT_BUFFER_SIZEMIN       FSP_FSCTL_TRANSACT_REQ_SIZEMAX
 
+#define FSP_FSCTL_TRANSACT_USERCONTEXT(s,i)     (((PUINT64)&(s).UserContext)[i])
+
 /* marshalling */
 #pragma warning(push)
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
@@ -144,6 +146,10 @@ typedef struct
     UINT32 HardLinks:1;                 /* unimplemented; set to 0 */
     UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */
     UINT32 ReadOnlyVolume:1;
+    UINT32 KmReservedFlags:6;
+    /* user-mode flags */
+    UINT32 UmFileNodeIsUserContext2:1;  /* user mode: FileNode parameter is UserContext2 */
+    UINT32 UmReservedFlags:15;
     WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */
     WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
 } FSP_FSCTL_VOLUME_PARAMS;

@@ -32,7 +32,8 @@ VOID fsp_fuse_op_enter_lock(FSP_FILE_SYSTEM *FileSystem,
                 10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass) ||
             FspFsctlTransactSetVolumeInformationKind == Request->Kind ||
             (FspFsctlTransactFlushBuffersKind == Request->Kind &&
-                0 == Request->Req.FlushBuffers.UserContext) ||
+                0 == Request->Req.FlushBuffers.UserContext &&
+                0 == Request->Req.FlushBuffers.UserContext2) ||
             /* FSCTL_SET_REPARSE_POINT manipulates namespace */
             (FspFsctlTransactFileSystemControlKind == Request->Kind &&
                 FSCTL_SET_REPARSE_POINT == Request->Req.FileSystemControl.FsControlCode))
@@ -74,7 +75,8 @@ VOID fsp_fuse_op_leave_unlock(FSP_FILE_SYSTEM *FileSystem,
                 10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass) ||
             FspFsctlTransactSetVolumeInformationKind == Request->Kind ||
             (FspFsctlTransactFlushBuffersKind == Request->Kind &&
-                0 == Request->Req.FlushBuffers.UserContext) ||
+                0 == Request->Req.FlushBuffers.UserContext &&
+                0 == Request->Req.FlushBuffers.UserContext2) ||
             /* FSCTL_SET_REPARSE_POINT manipulates namespace */
             (FspFsctlTransactFileSystemControlKind == Request->Kind &&
                 FSCTL_SET_REPARSE_POINT == Request->Req.FileSystemControl.FsControlCode))
@@ -223,8 +225,6 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     context->gid = Gid;
 
     contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
-    contexthdr->Request = Request;
-    contexthdr->Response = Response;
     contexthdr->PosixPath = PosixPath;
 
     Result = STATUS_SUCCESS;
@@ -876,7 +876,7 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    *PFileNode = 0;
+    *PFileNode = filedesc;
     memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
 
     filedesc->PosixPath = contexthdr->PosixPath;
@@ -887,7 +887,6 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     filedesc->DirBuffer = 0;
     filedesc->DirBufferSize = 0;
     contexthdr->PosixPath = 0;
-    contexthdr->Response->Rsp.Create.Opened.UserContext2 = (UINT64)(UINT_PTR)filedesc;
 
     Result = STATUS_SUCCESS;
 
@@ -996,7 +995,7 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
      * Ignore fuse_file_info::nonseekable.
      */
 
-    *PFileNode = 0;
+    *PFileNode = filedesc;
     memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
 
     filedesc->PosixPath = contexthdr->PosixPath;
@@ -1007,7 +1006,6 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     filedesc->DirBuffer = 0;
     filedesc->DirBufferSize = 0;
     contexthdr->PosixPath = 0;
-    contexthdr->Response->Rsp.Create.Opened.UserContext2 = (UINT64)(UINT_PTR)filedesc;
 
     Result = STATUS_SUCCESS;
 
@@ -1024,8 +1022,7 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.Overwrite.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     UINT32 Uid, Gid, Mode;
     struct fuse_file_info fi;
     int err;
@@ -1062,8 +1059,7 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode, PWSTR FileName, BOOLEAN Delete)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.Cleanup.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
 
     /*
      * In Windows a DeleteFile/RemoveDirectory is the sequence of the following:
@@ -1100,8 +1096,7 @@ static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.Close.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     struct fuse_file_info fi;
 
     memset(&fi, 0, sizeof fi);
@@ -1136,8 +1131,7 @@ static NTSTATUS fsp_fuse_intf_Read(FSP_FILE_SYSTEM *FileSystem,
     PULONG PBytesTransferred)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.Read.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     struct fuse_file_info fi;
     int bytes;
     NTSTATUS Result;
@@ -1173,8 +1167,7 @@ static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
     PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.Write.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     UINT32 Uid, Gid, Mode;
     struct fuse_file_info fi;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
@@ -1235,8 +1228,7 @@ static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.FlushBuffers.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     struct fuse_file_info fi;
     int err;
     NTSTATUS Result;
@@ -1277,8 +1269,7 @@ static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.QueryInformation.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     UINT32 Uid, Gid, Mode;
     struct fuse_file_info fi;
 
@@ -1297,8 +1288,7 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.SetInformation.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     UINT32 Uid, Gid, Mode;
     struct fuse_file_info fi;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
@@ -1376,8 +1366,7 @@ static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.SetInformation.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     UINT32 Uid, Gid, Mode;
     struct fuse_file_info fi;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
@@ -1460,8 +1449,7 @@ static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode, PWSTR FileName)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.SetInformation.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     struct fuse_file_info fi;
     struct fuse_dirhandle dh;
     int err;
@@ -1500,8 +1488,7 @@ static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
     struct fsp_fuse_context_header *contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
     UINT32 Uid, Gid, Mode;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.SetInformation.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     int err;
     NTSTATUS Result;
 
@@ -1531,8 +1518,7 @@ static NTSTATUS fsp_fuse_intf_GetSecurity(FSP_FILE_SYSTEM *FileSystem,
     PSECURITY_DESCRIPTOR SecurityDescriptorBuf, SIZE_T *PSecurityDescriptorSize)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.QuerySecurity.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     struct fuse_file_info fi;
     UINT32 FileAttributes;
 
@@ -1550,8 +1536,7 @@ static NTSTATUS fsp_fuse_intf_SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR Ignored)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.SetSecurity.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     struct fuse_file_info fi;
     UINT32 Uid, Gid, Mode, NewUid, NewGid, NewMode;
     FSP_FSCTL_FILE_INFO FileInfo;
@@ -1684,8 +1669,7 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     PULONG PBytesTransferred)
 {
     struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.QueryDirectory.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     struct fuse_file_info fi;
     struct fuse_dirhandle dh;
     struct fsp_fuse_dirinfo *di;
@@ -1891,8 +1875,7 @@ static NTSTATUS fsp_fuse_intf_GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode,
     PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
 {
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.FileSystemControl.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     struct fuse_file_info fi;
 
     memset(&fi, 0, sizeof fi);
@@ -1909,8 +1892,7 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 {
     struct fuse *f = FileSystem->UserContext;
     struct fuse_context *context = fsp_fuse_get_context(f->env);
-    struct fsp_fuse_file_desc *filedesc =
-        (PVOID)(UINT_PTR)Request->Req.FileSystemControl.UserContext2;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
     struct fuse_file_info fi;
     UINT32 Uid, Gid, Mode, Dev;
     FSP_FSCTL_FILE_INFO FileInfo;

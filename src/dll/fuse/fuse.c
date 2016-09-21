@@ -525,6 +525,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.ReparsePointsAccessCheck = FALSE;
     opt_data.VolumeParams.NamedStreams = !!opt_data.NamedStreams;
     opt_data.VolumeParams.ReadOnlyVolume = !!opt_data.ReadOnlyVolume;
+    opt_data.VolumeParams.UmFileNodeIsUserContext2 = TRUE;
     if (L'\0' == opt_data.VolumeParams.FileSystemName[0])
         memcpy(opt_data.VolumeParams.FileSystemName, L"FUSE", 5 * sizeof(WCHAR));
 

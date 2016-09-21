@@ -106,6 +106,8 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     FileSystem->EnterOperation = FspFileSystemOpEnter;
     FileSystem->LeaveOperation = FspFileSystemOpLeave;
 
+    FileSystem->UmFileNodeIsUserContext2 = !!VolumeParams->UmFileNodeIsUserContext2;
+
     *PFileSystem = FileSystem;
 
     return STATUS_SUCCESS;
