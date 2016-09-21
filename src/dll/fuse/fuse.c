@@ -83,6 +83,8 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("rellinks", rellinks, 1),
     FSP_FUSE_CORE_OPT("norellinks", rellinks, 0),
 
+    FUSE_OPT_KEY("fstypename=", 'F'),
+
     FSP_FUSE_CORE_OPT("SectorSize=%hu", VolumeParams.SectorSize, 4096),
     FSP_FUSE_CORE_OPT("SectorsPerAllocationUnit=%hu", VolumeParams.SectorsPerAllocationUnit, 1),
     FSP_FUSE_CORE_OPT("MaxComponentLength=%hu", VolumeParams.MaxComponentLength, 0),
@@ -101,6 +103,7 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FUSE_OPT_KEY("ExtendedAttributes", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("--UNC=", 'U'),
     FUSE_OPT_KEY("--VolumePrefix=", 'U'),
+    FUSE_OPT_KEY("--FileSystemName=", 'F'),
 
     FUSE_OPT_END,
 };
@@ -456,7 +459,8 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o CaseInsensitiveSearch   file system supports case-insensitive file names\n"
             //"    -o NamedStreams            file system supports named streams\n"
             //"    -o ReadOnlyVolume          file system is read only\n"
-            "    --UNC=U --VolumePrefix=U   UNC prefix (\\Server\\Share)\n");
+            "    --UNC=U --VolumePrefix=U   UNC prefix (\\Server\\Share)\n"
+            "    --FileSystemName=FSN       Name of user mode file system\n");
         opt_data->help = 1;
         return 1;
     case 'V':
@@ -473,6 +477,21 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
         if (0 == MultiByteToWideChar(CP_UTF8, 0, arg, -1,
             opt_data->VolumeParams.Prefix, sizeof opt_data->VolumeParams.Prefix / sizeof(WCHAR)))
             return -1;
+        opt_data->VolumeParams.Prefix
+            [sizeof opt_data->VolumeParams.Prefix / sizeof(WCHAR) - 1] = L'\0';
+        return 0;
+    case 'F':
+        if ('f' == arg[0])
+            arg += sizeof "fstypename=" - 1;
+        else if ('F' == arg[2])
+            arg += sizeof "--FileSystemName=" - 1;
+        if (0 == MultiByteToWideChar(CP_UTF8, 0, arg, -1,
+            opt_data->VolumeParams.FileSystemName + 5,
+            sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR)) - 5)
+            return -1;
+        opt_data->VolumeParams.FileSystemName
+            [sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR) - 1] = L'\0';
+        memcpy(opt_data->VolumeParams.FileSystemName, L"FUSE-", 5 * sizeof(WCHAR));
         return 0;
     }
 }
@@ -506,6 +525,8 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.ReparsePointsAccessCheck = FALSE;
     opt_data.VolumeParams.NamedStreams = !!opt_data.NamedStreams;
     opt_data.VolumeParams.ReadOnlyVolume = !!opt_data.ReadOnlyVolume;
+    if (L'\0' == opt_data.VolumeParams.FileSystemName[0])
+        memcpy(opt_data.VolumeParams.FileSystemName, L"FUSE", 5 * sizeof(WCHAR));
 
     f = fsp_fuse_obj_alloc(env, sizeof *f);
     if (0 == f)
