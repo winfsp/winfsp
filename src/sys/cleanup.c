@@ -72,6 +72,7 @@ static NTSTATUS FspFsvolCleanup(
     if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
         return STATUS_SUCCESS;
 
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
@@ -87,9 +88,6 @@ static NTSTATUS FspFsvolCleanup(
     /* if this is a directory inform the FSRTL Notify mechanism */
     if (FileNode->IsDirectory)
     {
-        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-            FspFsvolDeviceExtension(FsvolDeviceObject);
-
         if (DeletePending)
             FspNotifyDeletePending(
                 FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList, FileNode);
@@ -114,14 +112,22 @@ static NTSTATUS FspFsvolCleanup(
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;
 
-    return FSP_STATUS_IOQ_POST_BEST_EFFORT;
+    if (DeletePending || !FsvolDeviceExtension->VolumeParams.PostCleanupOnDeleteOnly)
+        /*
+         * Note that it is still possible for this request to not be delivered,
+         * if the volume device Ioq is stopped. But such failures are benign
+         * from our perspective, because they mean that the file system is going
+         * away and should correctly tear things down.
+         */
+        return FSP_STATUS_IOQ_POST_BEST_EFFORT;
+    else
+    {
+        /* if the file is being resized invalidate the volume info */
+        if (FileNode->TruncateOnClose)
+            FspFsvolDeviceInvalidateVolumeInfo(IrpSp->DeviceObject);
 
-    /*
-     * Note that it is still possible for this request to not be delivered,
-     * if the volume device Ioq is stopped. But such failures are benign
-     * from our perspective, because they mean that the file system is going
-     * away and should correctly tear things down.
-     */
+        return STATUS_SUCCESS; /* FspFsvolCleanupRequestFini will take care of the rest! */
+    }
 }
 
 NTSTATUS FspFsvolCleanupComplete(

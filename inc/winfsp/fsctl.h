@@ -146,7 +146,9 @@ typedef struct
     UINT32 HardLinks:1;                 /* unimplemented; set to 0 */
     UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */
     UINT32 ReadOnlyVolume:1;
-    UINT32 KmReservedFlags:6;
+    /* kernel-mode flags */
+    UINT32 PostCleanupOnDeleteOnly:1;   /* post Cleanup when deleting a file only */
+    UINT32 KmReservedFlags:5;
     /* user-mode flags */
     UINT32 UmFileNodeIsUserContext2:1;  /* user mode: FileNode parameter is UserContext2 */
     UINT32 UmReservedFlags:15;

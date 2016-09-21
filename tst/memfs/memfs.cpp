@@ -502,6 +502,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
     assert(0 == FileName || 0 == wcscmp(FileNode->FileName, FileName));
+    assert(Delete); /* the new FSP_FSCTL_VOLUME_PARAMS::PostCleanupOnDeleteOnly ensures this */
 
     if (Delete && !MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
         MemfsFileNodeMapRemove(Memfs->FileNodeMap, FileNode);
@@ -1151,6 +1152,7 @@ NTSTATUS MemfsCreate(
     VolumeParams.PersistentAcls = 1;
     VolumeParams.ReparsePoints = 1;
     VolumeParams.ReparsePointsAccessCheck = 0;
+    VolumeParams.PostCleanupOnDeleteOnly = 1;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
     wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR), L"MEMFS");

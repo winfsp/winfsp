@@ -318,6 +318,10 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * tested to see if the delete can proceed and if the answer is positive the file is then
      * deleted during Cleanup.
      *
+     * As an optimization a file system may specify the FSP_FSCTL_VOLUME_PARAMS ::
+     * PostCleanupOnDeleteOnly flag. In this case the FSD will only post Cleanup requests when a
+     * file is being deleted.
+     *
      * @param FileSystem
      *     The file system on which this request is posted.
      * @param Request
