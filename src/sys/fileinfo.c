@@ -38,6 +38,13 @@ static NTSTATUS FspFsvolQueryPositionInformation(PFILE_OBJECT FileObject,
 static NTSTATUS FspFsvolQueryStandardInformation(PFILE_OBJECT FileObject,
     PVOID *PBuffer, PVOID BufferEnd,
     const FSP_FSCTL_FILE_INFO *FileInfo);
+static NTSTATUS FspFsvolQueryStreamInformationCopy(
+    FSP_FSCTL_STREAM_INFO *StreamInfoBuffer, ULONG StreamInfoBufferSize,
+    PVOID DestBuf, PULONG PDestLen);
+static NTSTATUS FspFsvolQueryStreamInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolQueryStreamInformationSuccess(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 static NTSTATUS FspFsvolQueryInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolQueryInformationComplete;
@@ -78,6 +85,9 @@ FSP_DRIVER_DISPATCH FspSetInformation;
 #pragma alloc_text(PAGE, FspFsvolQueryNetworkOpenInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryPositionInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryStandardInformation)
+#pragma alloc_text(PAGE, FspFsvolQueryStreamInformationCopy)
+#pragma alloc_text(PAGE, FspFsvolQueryStreamInformation)
+#pragma alloc_text(PAGE, FspFsvolQueryStreamInformationSuccess)
 #pragma alloc_text(PAGE, FspFsvolQueryInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryInformationComplete)
 #pragma alloc_text(PAGE, FspFsvolQueryInformationRequestFini)
@@ -349,6 +359,197 @@ static NTSTATUS FspFsvolQueryStandardInformation(PFILE_OBJECT FileObject,
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS FspFsvolQueryStreamInformationCopy(
+    FSP_FSCTL_STREAM_INFO *StreamInfo, ULONG StreamInfoSize,
+    PVOID DestBuf, PULONG PDestLen)
+{
+#define FILL_INFO()\
+    do\
+    {\
+        FILE_STREAM_INFORMATION InfoStruct = { 0 }, *Info = &InfoStruct;\
+        Info->NextEntryOffset = 0;\
+        Info->StreamNameLength = StreamNameLength;\
+        Info->StreamSize.QuadPart = StreamInfo->StreamSize;\
+        Info->StreamAllocationSize.QuadPart = StreamInfo->StreamAllocationSize;\
+        Info = DestBuf;\
+        RtlCopyMemory(Info, &InfoStruct, FIELD_OFFSET(FILE_STREAM_INFORMATION, StreamName));\
+        RtlCopyMemory(Info->StreamName, StreamInfo->StreamNameBuf, StreamNameLength);\
+    } while (0,0)
+
+    PAGED_CODE();
+
+    NTSTATUS Result = STATUS_SUCCESS;
+    PUINT8 StreamInfoEnd = (PUINT8)StreamInfo + StreamInfoSize;
+    PUINT8 DestBufBgn = (PUINT8)DestBuf;
+    PUINT8 DestBufEnd = (PUINT8)DestBuf + *PDestLen;
+    PVOID PrevDestBuf = 0;
+    ULONG StreamNameLength;
+    ULONG BaseInfoLen = FIELD_OFFSET(FILE_STREAM_INFORMATION, StreamName);
+
+    *PDestLen = 0;
+
+    for (;
+        NT_SUCCESS(Result) && (PUINT8)StreamInfo + sizeof(StreamInfo->Size) <= StreamInfoEnd;
+        StreamInfo = (PVOID)((PUINT8)StreamInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(StreamInfoSize)))
+    {
+        StreamInfoSize = StreamInfo->Size;
+
+        if (sizeof(FSP_FSCTL_STREAM_INFO) > StreamInfoSize)
+            break;
+
+        if ((PUINT8)DestBuf + BaseInfoLen > DestBufEnd)
+        {
+            if (0 == *PDestLen)
+                /* if we haven't copied anything yet, buffer is too small */
+                return STATUS_BUFFER_TOO_SMALL;
+            else
+                /* *PDestLen contains bytes copied so far */
+                return STATUS_BUFFER_OVERFLOW;
+        }
+
+        StreamNameLength = StreamInfoSize - sizeof(FSP_FSCTL_STREAM_INFO);
+
+        if ((PUINT8)DestBuf + BaseInfoLen + StreamNameLength > DestBufEnd)
+        {
+            /* only copy as much of the stream name as we can and return STATUS_BUFFER_OVERFLOW */
+            StreamNameLength = (ULONG)(DestBufEnd - ((PUINT8)DestBuf + BaseInfoLen));
+            Result = STATUS_BUFFER_OVERFLOW;
+        }
+
+        /* fill in NextEntryOffset */
+        if (0 != PrevDestBuf)
+            *(PULONG)PrevDestBuf = (ULONG)((PUINT8)DestBuf - (PUINT8)PrevDestBuf);
+        PrevDestBuf = DestBuf;
+
+        FILL_INFO();
+
+        /* bytes copied so far */
+        *PDestLen = (ULONG)((PUINT8)DestBuf + BaseInfoLen + StreamNameLength - DestBufBgn);
+
+        /* advance DestBuf; make sure to align properly! */
+        DestBuf = (PVOID)((PUINT8)DestBuf +
+            FSP_FSCTL_ALIGN_UP(BaseInfoLen + StreamNameLength, sizeof(LONGLONG)));
+    }
+
+    return Result;
+
+#undef FILL_INFO
+}
+
+static NTSTATUS FspFsvolQueryStreamInformation(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG Length = IrpSp->Parameters.QueryFile.Length;
+    PVOID StreamInfoBuffer;
+    ULONG StreamInfoBufferSize;
+    FSP_FSCTL_TRANSACT_REQ *Request;
+
+    ASSERT(FileNode == FileDesc->FileNode);
+
+    FspFileNodeAcquireShared(FileNode, Main);
+    if (FspFileNodeReferenceStreamInfo(FileNode, &StreamInfoBuffer, &StreamInfoBufferSize))
+    {
+        FspFileNodeRelease(FileNode, Main);
+
+        Result = FspFsvolQueryStreamInformationCopy(
+            StreamInfoBuffer, StreamInfoBufferSize, Buffer, &Length);
+
+        FspFileNodeDereferenceStreamInfo(StreamInfoBuffer);
+
+        Irp->IoStatus.Information = Length;
+        return Result;
+    }
+
+    FspFileNodeAcquireShared(FileNode, Pgio);
+
+    Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolQueryInformationRequestFini, &Request);
+    if (!NT_SUCCESS(Result))
+    {
+        FspFileNodeRelease(FileNode, Full);
+        return Result;
+    }
+
+    Request->Kind = FspFsctlTransactQueryStreamInformationKind;
+    Request->Req.QueryStreamInformation.UserContext = FileNode->UserContext;
+    Request->Req.QueryStreamInformation.UserContext2 = FileDesc->UserContext2;
+
+    FspFileNodeSetOwner(FileNode, Full, Request);
+    FspIopRequestContext(Request, RequestFileNode) = FileNode;
+
+    return FSP_STATUS_IOQ_POST;
+}
+
+static NTSTATUS FspFsvolQueryStreamInformationSuccess(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG Length = IrpSp->Parameters.QueryFile.Length;
+    PVOID StreamInfoBuffer = 0;
+    ULONG StreamInfoBufferSize = 0;
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    BOOLEAN Success;
+
+    if (0 != FspIopRequestContext(Request, RequestFileNode))
+    {
+        /* check that the stream info we got back is valid */
+        if (Response->Buffer + Response->Rsp.QueryStreamInformation.Buffer.Size >
+            (PUINT8)Response + Response->Size)
+        {
+            Irp->IoStatus.Information = 0;
+            return STATUS_INFO_LENGTH_MISMATCH; /* ???: what is the best code to return here? */
+        }
+
+        FspIopRequestContext(Request, RequestInfoChangeNumber) = (PVOID)FileNode->StreamInfoChangeNumber;
+        FspIopRequestContext(Request, RequestFileNode) = 0;
+
+        FspFileNodeReleaseOwner(FileNode, Full, Request);
+    }
+
+    Success = DEBUGTEST(90) && FspFileNodeTryAcquireExclusive(FileNode, Main);
+    if (!Success)
+    {
+        FspIopRetryCompleteIrp(Irp, Response, &Result);
+        return Result;
+    }
+
+    Success = !FspFileNodeTrySetStreamInfo(FileNode,
+        Response->Buffer, Response->Rsp.QueryStreamInformation.Buffer.Size,
+        (ULONG)(UINT_PTR)FspIopRequestContext(Request, RequestInfoChangeNumber));
+    Success = Success &&
+        FspFileNodeReferenceStreamInfo(FileNode, &StreamInfoBuffer, &StreamInfoBufferSize);
+    FspFileNodeRelease(FileNode, Main);
+    if (Success)
+    {
+        Result = FspFsvolQueryStreamInformationCopy(
+            StreamInfoBuffer, StreamInfoBufferSize, Buffer, &Length);
+        FspFileNodeDereferenceStreamInfo(StreamInfoBuffer);
+    }
+    else
+    {
+        StreamInfoBuffer = (PVOID)Response->Buffer;
+        StreamInfoBufferSize = Response->Rsp.QueryStreamInformation.Buffer.Size;
+        Result = FspFsvolQueryStreamInformationCopy(
+            StreamInfoBuffer, StreamInfoBufferSize, Buffer, &Length);
+    }
+
+    Irp->IoStatus.Information = Length;
+
+    return Result;
+}
+
 static NTSTATUS FspFsvolQueryInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -358,8 +559,13 @@ static NTSTATUS FspFsvolQueryInformation(
     if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
         return STATUS_INVALID_DEVICE_REQUEST;
 
-    NTSTATUS Result;
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryFile.FileInformationClass;
+
+    /* special case FileStreamInformation */
+    if (FileStreamInformation == FileInformationClass)
+        return FspFsvolQueryStreamInformation(FsvolDeviceObject, Irp, IrpSp);
+
+    NTSTATUS Result;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
@@ -415,9 +621,6 @@ static NTSTATUS FspFsvolQueryInformation(
     case FileStandardInformation:
         Result = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd, 0);
         break;
-    case FileStreamInformation:
-        Result = STATUS_INVALID_PARAMETER;  /* !!!: no stream support yet! */
-        return Result;
     default:
         Result = STATUS_INVALID_PARAMETER;
         return Result;
@@ -496,6 +699,11 @@ NTSTATUS FspFsvolQueryInformationComplete(
     }
 
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryFile.FileInformationClass;
+
+    /* special case FileStreamInformation */
+    if (FileStreamInformation == FileInformationClass)
+        FSP_RETURN(Result = FspFsvolQueryStreamInformationSuccess(Irp, Response));
+
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;

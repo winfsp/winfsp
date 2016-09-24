@@ -722,6 +722,8 @@ enum
     FspFsvolDeviceSecurityCacheItemSizeMax = 4096,
     FspFsvolDeviceDirInfoCacheCapacity = 100,
     FspFsvolDeviceDirInfoCacheItemSizeMax = FSP_FSCTL_ALIGN_UP(16384, PAGE_SIZE),
+    FspFsvolDeviceStreamInfoCacheCapacity = 100,
+    FspFsvolDeviceStreamInfoCacheItemSizeMax = 4096,
 };
 typedef struct
 {
@@ -748,7 +750,7 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-    UINT32 InitDoneFsvrt:1, InitDoneIoq:1, InitDoneSec:1, InitDoneDir:1,
+    UINT32 InitDoneFsvrt:1, InitDoneIoq:1, InitDoneSec:1, InitDoneDir:1, InitDoneStrm:1,
         InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1, InitDoneNotify:1;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
@@ -760,6 +762,7 @@ typedef struct
     FSP_IOQ *Ioq;
     FSP_META_CACHE *SecurityCache;
     FSP_META_CACHE *DirInfoCache;
+    FSP_META_CACHE *StreamInfoCache;
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;
     BOOLEAN ExpirationInProgress;
@@ -888,8 +891,9 @@ typedef struct
     ERESOURCE PagingIoResource;
     FAST_MUTEX HeaderFastMutex;
     SECTION_OBJECT_POINTERS SectionObjectPointers;
-    KSPIN_LOCK DirInfoSpinLock;
-    UINT64 DirInfo;                     /* allows to invalidate DirInfo w/o resources acquired */
+    KSPIN_LOCK NpInfoSpinLock;          /* allows to invalidate non-page Info w/o resources acquired */
+    UINT64 DirInfo;
+    UINT64 StreamInfo;
 } FSP_FILE_NODE_NONPAGED;
 typedef struct
 {
@@ -918,6 +922,7 @@ typedef struct
     UINT64 Security;
     ULONG SecurityChangeNumber;
     ULONG DirInfoChangeNumber;
+    ULONG StreamInfoChangeNumber;
     BOOLEAN TruncateOnClose;
     FILE_LOCK FileLock;
     struct
@@ -1001,6 +1006,10 @@ BOOLEAN FspFileNodeReferenceDirInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PU
 VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG DirInfoChangeNumber);
+BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
+VOID FspFileNodeSetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
+BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
+    ULONG StreamInfoChangeNumber);
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action);
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
@@ -1017,6 +1026,7 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
 #define FspFileNodeReleaseOwner(N,F,P)  FspFileNodeReleaseOwnerF(N, FspFileNodeAcquire ## F, P)
 #define FspFileNodeDereferenceSecurity(P)   FspMetaCacheDereferenceItemBuffer(P)
 #define FspFileNodeDereferenceDirInfo(P)    FspMetaCacheDereferenceItemBuffer(P)
+#define FspFileNodeDereferenceStreamInfo(P) FspMetaCacheDereferenceItemBuffer(P)
 #define FspFileNodeUnlockAll(N,F,P)     FsRtlFastUnlockAll(&(N)->FileLock, F, P, N)
 
 /* multiversion support */

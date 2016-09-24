@@ -41,7 +41,6 @@ struct fsp_fuse_core_opt_data
         rellinks;
     int set_FileInfoTimeout;
     int CaseInsensitiveSearch,
-        NamedStreams,
         ReadOnlyVolume;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
 };
@@ -96,9 +95,9 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("FileInfoTimeout=", set_FileInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=%d", VolumeParams.FileInfoTimeout, 0),
     FSP_FUSE_CORE_OPT("CaseInsensitiveSearch", CaseInsensitiveSearch, 1),
-    FSP_FUSE_CORE_OPT("NamedStreams", NamedStreams, 1),
     FSP_FUSE_CORE_OPT("ReadOnlyVolume", ReadOnlyVolume, 1),
     FUSE_OPT_KEY("ReparsePoints", FUSE_OPT_KEY_DISCARD),
+    FUSE_OPT_KEY("NamedStreams", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("HardLinks", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("ExtendedAttributes", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("--UNC=", 'U'),
@@ -457,7 +456,6 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o VolumeSerialNumber=N    32-bit wide\n"
             "    -o FileInfoTimeout=N       FileInfo/Security/VolumeInfo timeout (millisec)\n"
             "    -o CaseInsensitiveSearch   file system supports case-insensitive file names\n"
-            //"    -o NamedStreams            file system supports named streams\n"
             //"    -o ReadOnlyVolume          file system is read only\n"
             "    --UNC=U --VolumePrefix=U   UNC prefix (\\Server\\Share)\n"
             "    --FileSystemName=FSN       Name of user mode file system\n");
@@ -523,7 +521,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.PersistentAcls = TRUE;
     opt_data.VolumeParams.ReparsePoints = TRUE;
     opt_data.VolumeParams.ReparsePointsAccessCheck = FALSE;
-    opt_data.VolumeParams.NamedStreams = !!opt_data.NamedStreams;
+    opt_data.VolumeParams.NamedStreams = FALSE;
     opt_data.VolumeParams.ReadOnlyVolume = !!opt_data.ReadOnlyVolume;
     opt_data.VolumeParams.PostCleanupOnDeleteOnly = TRUE;
     opt_data.VolumeParams.UmFileNodeIsUserContext2 = TRUE;

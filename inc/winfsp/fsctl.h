@@ -106,6 +106,7 @@ enum
     FspFsctlTransactLockControlKind,
     FspFsctlTransactQuerySecurityKind,
     FspFsctlTransactSetSecurityKind,
+    FspFsctlTransactQueryStreamInformationKind,
     FspFsctlTransactKindCount,
 };
 enum
@@ -142,7 +143,7 @@ typedef struct
     UINT32 PersistentAcls:1;            /* file system preserves and enforces access control lists */
     UINT32 ReparsePoints:1;             /* file system supports reparse points */
     UINT32 ReparsePointsAccessCheck:1;  /* file system performs reparse point access checks */
-    UINT32 NamedStreams:1;              /* file system supports named streams (!!!: unimplemented) */
+    UINT32 NamedStreams:1;              /* file system supports named streams */
     UINT32 HardLinks:1;                 /* unimplemented; set to 0 */
     UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */
     UINT32 ReadOnlyVolume:1;
@@ -183,6 +184,13 @@ typedef struct
         /* make struct as big as FILE_ID_BOTH_DIR_INFORMATION; allows for in-place copying */
     WCHAR FileNameBuf[];
 } FSP_FSCTL_DIR_INFO;
+typedef struct
+{
+    UINT16 Size;
+    UINT64 StreamSize;
+    UINT64 StreamAllocationSize;
+    WCHAR StreamNameBuf[];
+} FSP_FSCTL_STREAM_INFO;
 typedef struct
 {
     UINT16 Offset;
@@ -332,6 +340,11 @@ typedef struct
             UINT64 AccessToken;         /* request access token (HANDLE) */
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;
         } SetSecurity;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+        } QueryStreamInformation;
     } Req;
     FSP_FSCTL_TRANSACT_BUF FileName;    /* {Create,Cleanup,SetInformation/{...},QueryDirectory} */
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
@@ -401,6 +414,10 @@ typedef struct
         {
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;  /* Size==0 means no security descriptor returned */
         } SetSecurity;
+        struct
+        {
+            FSP_FSCTL_TRANSACT_BUF Buffer;
+        } QueryStreamInformation;
     } Rsp;
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_RSP;

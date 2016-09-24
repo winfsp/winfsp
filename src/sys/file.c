@@ -57,6 +57,11 @@ VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG DirInfoChangeNumber);
 static VOID FspFileNodeInvalidateDirInfo(FSP_FILE_NODE *FileNode);
+BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
+VOID FspFileNodeSetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
+BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
+    ULONG StreamInfoChangeNumber);
+static VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode);
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
     ULONG Filter, ULONG Action);
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
@@ -97,6 +102,10 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
 // !#pragma alloc_text(PAGE, FspFileNodeSetDirInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeTrySetDirInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeInvalidateDirInfo)
+// !#pragma alloc_text(PAGE, FspFileNodeReferenceStreamInfo)
+// !#pragma alloc_text(PAGE, FspFileNodeSetStreamInfo)
+// !#pragma alloc_text(PAGE, FspFileNodeTrySetStreamInfo)
+// !#pragma alloc_text(PAGE, FspFileNodeInvalidateStreamInfo)
 #pragma alloc_text(PAGE, FspFileNodeNotifyChange)
 #pragma alloc_text(PAGE, FspFileNodeProcessLockIrp)
 #pragma alloc_text(PAGE, FspFileNodeCompleteLockIrp)
@@ -176,7 +185,7 @@ NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     ExInitializeResourceLite(&NonPaged->Resource);
     ExInitializeResourceLite(&NonPaged->PagingIoResource);
     ExInitializeFastMutex(&NonPaged->HeaderFastMutex);
-    KeInitializeSpinLock(&NonPaged->DirInfoSpinLock);
+    KeInitializeSpinLock(&NonPaged->NpInfoSpinLock);
 
     RtlZeroMemory(FileNode, sizeof *FileNode + ExtraSize);
     FileNode->Header.NodeTypeCode = FspFileNodeFileKind;
@@ -211,6 +220,7 @@ VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode)
 
     FsRtlTeardownPerStreamContexts(&FileNode->Header);
 
+    FspMetaCacheInvalidateItem(FsvolDeviceExtension->StreamInfoCache, FileNode->NonPaged->StreamInfo);
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->DirInfoCache, FileNode->NonPaged->DirInfo);
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->SecurityCache, FileNode->Security);
 
@@ -848,7 +858,7 @@ BOOLEAN FspFileNodeReferenceDirInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PU
     FSP_FILE_NODE_NONPAGED *NonPaged = FileNode->NonPaged;
     UINT64 DirInfo;
 
-    /* no need to acquire the DirInfoSpinLock as the FileNode is acquired */
+    /* no need to acquire the NpInfoSpinLock as the FileNode is acquired */
     DirInfo = NonPaged->DirInfo;
 
     return FspMetaCacheReferenceItemBuffer(FsvolDeviceExtension->DirInfoCache,
@@ -865,7 +875,7 @@ VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size)
     KIRQL Irql;
     UINT64 DirInfo;
 
-    /* no need to acquire the DirInfoSpinLock as the FileNode is acquired */
+    /* no need to acquire the NpInfoSpinLock as the FileNode is acquired */
     DirInfo = NonPaged->DirInfo;
 
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->DirInfoCache, DirInfo);
@@ -873,10 +883,10 @@ VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size)
         FspMetaCacheAddItem(FsvolDeviceExtension->DirInfoCache, Buffer, Size) : 0;
     FileNode->DirInfoChangeNumber++;
 
-    /* acquire the DirInfoSpinLock to protect against concurrent FspFileNodeInvalidateDirInfo */
-    KeAcquireSpinLock(&NonPaged->DirInfoSpinLock, &Irql);
+    /* acquire the NpInfoSpinLock to protect against concurrent FspFileNodeInvalidateDirInfo */
+    KeAcquireSpinLock(&NonPaged->NpInfoSpinLock, &Irql);
     NonPaged->DirInfo = DirInfo;
-    KeReleaseSpinLock(&NonPaged->DirInfoSpinLock, Irql);
+    KeReleaseSpinLock(&NonPaged->NpInfoSpinLock, Irql);
 }
 
 BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
@@ -901,12 +911,82 @@ static VOID FspFileNodeInvalidateDirInfo(FSP_FILE_NODE *FileNode)
     KIRQL Irql;
     UINT64 DirInfo;
 
-    /* acquire the DirInfoSpinLock to protect against concurrent FspFileNodeSetDirInfo */
-    KeAcquireSpinLock(&NonPaged->DirInfoSpinLock, &Irql);
+    /* acquire the NpInfoSpinLock to protect against concurrent FspFileNodeSetDirInfo */
+    KeAcquireSpinLock(&NonPaged->NpInfoSpinLock, &Irql);
     DirInfo = NonPaged->DirInfo;
-    KeReleaseSpinLock(&NonPaged->DirInfoSpinLock, Irql);
+    KeReleaseSpinLock(&NonPaged->NpInfoSpinLock, Irql);
 
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->DirInfoCache, DirInfo);
+}
+
+BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize)
+{
+    // !PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+    FSP_FILE_NODE_NONPAGED *NonPaged = FileNode->NonPaged;
+    UINT64 StreamInfo;
+
+    /* no need to acquire the NpInfoSpinLock as the FileNode is acquired */
+    StreamInfo = NonPaged->StreamInfo;
+
+    return FspMetaCacheReferenceItemBuffer(FsvolDeviceExtension->StreamInfoCache,
+        StreamInfo, PBuffer, PSize);
+}
+
+VOID FspFileNodeSetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size)
+{
+    // !PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+    FSP_FILE_NODE_NONPAGED *NonPaged = FileNode->NonPaged;
+    KIRQL Irql;
+    UINT64 StreamInfo;
+
+    /* no need to acquire the NpInfoSpinLock as the FileNode is acquired */
+    StreamInfo = NonPaged->StreamInfo;
+
+    FspMetaCacheInvalidateItem(FsvolDeviceExtension->StreamInfoCache, StreamInfo);
+    StreamInfo = 0 != Buffer ?
+        FspMetaCacheAddItem(FsvolDeviceExtension->StreamInfoCache, Buffer, Size) : 0;
+    FileNode->StreamInfoChangeNumber++;
+
+    /* acquire the NpInfoSpinLock to protect against concurrent FspFileNodeInvalidateStreamInfo */
+    KeAcquireSpinLock(&NonPaged->NpInfoSpinLock, &Irql);
+    NonPaged->StreamInfo = StreamInfo;
+    KeReleaseSpinLock(&NonPaged->NpInfoSpinLock, Irql);
+}
+
+BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
+    ULONG StreamInfoChangeNumber)
+{
+    // !PAGED_CODE();
+
+    if (FileNode->StreamInfoChangeNumber != StreamInfoChangeNumber)
+        return FALSE;
+
+    FspFileNodeSetStreamInfo(FileNode, Buffer, Size);
+    return TRUE;
+}
+
+static VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode)
+{
+    // !PAGED_CODE();
+
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    FSP_FILE_NODE_NONPAGED *NonPaged = FileNode->NonPaged;
+    KIRQL Irql;
+    UINT64 StreamInfo;
+
+    /* acquire the NpInfoSpinLock to protect against concurrent FspFileNodeSetStreamInfo */
+    KeAcquireSpinLock(&NonPaged->NpInfoSpinLock, &Irql);
+    StreamInfo = NonPaged->StreamInfo;
+    KeReleaseSpinLock(&NonPaged->NpInfoSpinLock, Irql);
+
+    FspMetaCacheInvalidateItem(FsvolDeviceExtension->StreamInfoCache, StreamInfo);
 }
 
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,

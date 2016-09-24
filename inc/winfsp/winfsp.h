@@ -773,12 +773,36 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,
         PWSTR FileName, PVOID Buffer, SIZE_T Size);
+    /**
+     * Get named streams information.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param Request
+     *     The request posted by the kernel mode FSD.
+     * @param FileNode
+     *     The file node of the file or directory to get stream information for.
+     * @param Buffer
+     *     Pointer to a buffer that will receive the stream information.
+     * @param Length
+     *     Length of buffer.
+     * @param PBytesTransferred [out]
+     *     Pointer to a memory location that will receive the actual number of bytes stored.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     * @see
+     *     FspFileSystemAddStreamInfo
+     */
+    NTSTATUS (*GetStreamInfo)(FSP_FILE_SYSTEM *FileSystem,
+        FSP_FSCTL_TRANSACT_REQ *Request,
+        PVOID FileNode, PVOID Buffer, ULONG Length,
+        PULONG PBytesTransferred);
 
     /*
      * This ensures that this interface will always contain 64 function pointers.
      * Please update when changing the interface as it is important for future compatibility.
      */
-    NTSTATUS (*Reserved[41])();
+    NTSTATUS (*Reserved[40])();
 } FSP_FILE_SYSTEM_INTERFACE;
 FSP_FSCTL_STATIC_ASSERT(sizeof(FSP_FILE_SYSTEM_INTERFACE) == 64 * sizeof(NTSTATUS (*)()),
     "FSP_FILE_SYSTEM_INTERFACE must have 64 entries.");
@@ -1010,6 +1034,8 @@ FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpSetSecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+FSP_API NTSTATUS FspFileSystemOpQueryStreamInformation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 
 /*
  * Helpers
@@ -1150,6 +1176,30 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
 FSP_API NTSTATUS FspFileSystemCanReplaceReparsePoint(
     PVOID CurrentReparseData, SIZE_T CurrentReparseDataSize,
     PVOID ReplaceReparseData, SIZE_T ReplaceReparseDataSize);
+/**
+ * Add named stream information to a buffer.
+ *
+ * This is a helper for implementing the GetStreamInfo operation.
+ *
+ * @param StreamInfo
+ *     The stream information to add. A value of NULL acts as an EOF marker for a GetStreamInfo
+ *     operation.
+ * @param Buffer
+ *     Pointer to a buffer that will receive the stream information. This should contain
+ *     the same value passed to the GetStreamInfo Buffer parameter.
+ * @param Length
+ *     Length of buffer. This should contain the same value passed to the GetStreamInfo
+ *     Length parameter.
+ * @param PBytesTransferred [out]
+ *     Pointer to a memory location that will receive the actual number of bytes stored. This should
+ *     contain the same value passed to the GetStreamInfo PBytesTransferred parameter.
+ * @return
+ *     TRUE if the stream information was added, FALSE if there was not enough space to add it.
+ * @see
+ *     GetStreamInfo
+ */
+FSP_API BOOLEAN FspFileSystemAddStreamInfo(FSP_FSCTL_STREAM_INFO *StreamInfo,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
 
 /*
  * Security

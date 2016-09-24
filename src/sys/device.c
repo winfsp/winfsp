@@ -295,7 +295,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     LARGE_INTEGER IrpTimeout;
-    LARGE_INTEGER SecurityTimeout, DirInfoTimeout;
+    LARGE_INTEGER SecurityTimeout, DirInfoTimeout, StreamInfoTimeout;
 
     /*
      * Volume device initialization is a mess, because of the different ways of
@@ -346,6 +346,16 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     if (!NT_SUCCESS(Result))
         return Result;
     FsvolDeviceExtension->InitDoneDir = 1;
+
+    /* create our stream info meta cache */
+    StreamInfoTimeout.QuadPart = FspTimeoutFromMillis(FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
+        /* convert millis to nanos */
+    Result = FspMetaCacheCreate(
+        FspFsvolDeviceStreamInfoCacheCapacity, FspFsvolDeviceStreamInfoCacheItemSizeMax, &StreamInfoTimeout,
+        &FsvolDeviceExtension->StreamInfoCache);
+    if (!NT_SUCCESS(Result))
+        return Result;
+    FsvolDeviceExtension->InitDoneStrm = 1;
 
     /* initialize the FSRTL Notify mechanism */
     Result = FspNotifyInitializeSync(&FsvolDeviceExtension->NotifySync);
@@ -405,6 +415,10 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
             FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList);
         FspNotifyUninitializeSync(&FsvolDeviceExtension->NotifySync);
     }
+
+    /* delete the stream info meta cache */
+    if (FsvolDeviceExtension->InitDoneStrm)
+        FspMetaCacheDelete(FsvolDeviceExtension->StreamInfoCache);
 
     /* delete the directory meta cache */
     if (FsvolDeviceExtension->InitDoneDir)
@@ -484,6 +498,7 @@ static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
     InterruptTime = KeQueryInterruptTime();
     FspMetaCacheInvalidateExpired(FsvolDeviceExtension->SecurityCache, InterruptTime);
     FspMetaCacheInvalidateExpired(FsvolDeviceExtension->DirInfoCache, InterruptTime);
+    FspMetaCacheInvalidateExpired(FsvolDeviceExtension->StreamInfoCache, InterruptTime);
     FspIoqRemoveExpired(FsvolDeviceExtension->Ioq, InterruptTime);
 
     KeAcquireSpinLock(&FsvolDeviceExtension->ExpirationLock, &Irql);
