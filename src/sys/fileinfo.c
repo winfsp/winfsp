@@ -411,7 +411,7 @@ static NTSTATUS FspFsvolQueryStreamInformationCopy(
 
         if ((PUINT8)DestBuf + BaseInfoLen + StreamNameLength > DestBufEnd)
         {
-            /* only copy as much of the stream name as we can and return STATUS_BUFFER_OVERFLOW */
+            /* copy as much of the stream name as we can and return STATUS_BUFFER_OVERFLOW */
             StreamNameLength = (ULONG)(DestBufEnd - ((PUINT8)DestBuf + BaseInfoLen));
             Result = STATUS_BUFFER_OVERFLOW;
         }
