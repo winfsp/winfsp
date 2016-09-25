@@ -618,7 +618,7 @@ static NTSTATUS FspFsvolQueryDirectory(
         return STATUS_INVALID_PARAMETER;
 
     /* check that FileName is valid (if supplied) */
-    if (0 != FileName && !FspUnicodePathIsValid(FileName, FALSE))
+    if (0 != FileName && !FspUnicodePathIsValidPattern(FileName))
         return STATUS_INVALID_PARAMETER;
 
     /* is this an allowed file information class? */

@@ -18,6 +18,7 @@
 #include <sys/driver.h>
 
 BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
+BOOLEAN FspUnicodePathIsValidPattern(PUNICODE_STRING Pattern);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
@@ -88,6 +89,7 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspUnicodePathIsValid)
+#pragma alloc_text(PAGE, FspUnicodePathIsValidPattern)
 #pragma alloc_text(PAGE, FspUnicodePathSuffix)
 #pragma alloc_text(PAGE, FspCreateGuid)
 #pragma alloc_text(PAGE, FspGetDeviceObjectPointer)
@@ -171,30 +173,91 @@ PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
 
 BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams)
 {
-    /* this does NOT check if the Path contains invalid file name chars (*, ?, etc.) */
-
     PAGED_CODE();
 
     if (0 != Path->Length % sizeof(WCHAR))
         return FALSE;
 
     PWSTR PathBgn, PathEnd, PathPtr;
+    UCHAR Flags = FSRTL_NTFS_LEGAL;
+    WCHAR Char;
 
     PathBgn = Path->Buffer;
     PathEnd = (PWSTR)((PUINT8)PathBgn + Path->Length);
     PathPtr = PathBgn;
 
     while (PathEnd > PathPtr)
-        if (L'\\' == *PathPtr)
+    {
+        Char = *PathPtr;
+
+        if (L'\\' == Char)
         {
+            /* stream names can only appear as the last path component */
+            if (BooleanFlagOn(Flags, FSRTL_OLE_LEGAL))
+                return FALSE;
+
             PathPtr++;
+
+            /* don't like multiple backslashes */
             if (PathEnd > PathPtr && L'\\' == *PathPtr)
                 return FALSE;
         }
-        else if (!AllowStreams && L':' == *PathPtr)
+        else if (L':' == Char)
+        {
+            if (!AllowStreams)
+                return FALSE;
+
+            /*
+             * Where are the docs on legal stream names?
+             */
+
+            PathPtr++;
+
+            /* stream characters now allowed */
+            SetFlag(Flags, FSRTL_OLE_LEGAL);
+        }
+        else if (0x80 > Char && !FsRtlTestAnsiCharacter(Char, TRUE, FALSE, Flags))
             return FALSE;
         else
             PathPtr++;
+    }
+
+    return TRUE;
+}
+
+BOOLEAN FspUnicodePathIsValidPattern(PUNICODE_STRING Path)
+{
+    PAGED_CODE();
+
+    if (0 != Path->Length % sizeof(WCHAR))
+        return FALSE;
+
+    PWSTR PathBgn, PathEnd, PathPtr;
+    WCHAR Char;
+
+    PathBgn = Path->Buffer;
+    PathEnd = (PWSTR)((PUINT8)PathBgn + Path->Length);
+    PathPtr = PathBgn;
+
+    while (PathEnd > PathPtr)
+    {
+        Char = *PathPtr;
+
+        /*
+         * A pattern is allowed to have wildcards. It cannot consist of multiple
+         * path components (have a backslash) and it cannot reference a stream (have
+         * a colon).
+         */
+
+        if (L'\\' == Char)
+            return FALSE;
+        else if (L':' == Char)
+            return FALSE;
+        else if (0x80 > Char && !FsRtlTestAnsiCharacter(Char, TRUE, TRUE, FSRTL_NTFS_LEGAL))
+            return FALSE;
+        else
+            PathPtr++;
+    }
 
     return TRUE;
 }

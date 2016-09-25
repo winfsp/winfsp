@@ -68,6 +68,24 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
         ASSERT(ERROR_INVALID_NAME == GetLastError());
     }
 
+    /* invalid chars (wildcards) not allowed */
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0*",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_INVALID_NAME == GetLastError());
+
+    /* stream names can only appear as the last path component */
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\DOESNOTEXIST:foo\\file0*",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_INVALID_NAME == GetLastError());
+
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
