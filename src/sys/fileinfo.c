@@ -373,7 +373,7 @@ static NTSTATUS FspFsvolQueryStreamInformationCopy(
         Info->StreamAllocationSize.QuadPart = StreamInfo->StreamAllocationSize;\
         Info = DestBuf;\
         RtlCopyMemory(Info, &InfoStruct, FIELD_OFFSET(FILE_STREAM_INFORMATION, StreamName));\
-        RtlCopyMemory(Info->StreamName, StreamInfo->StreamNameBuf, StreamNameLength);\
+        RtlCopyMemory(Info->StreamName, StreamInfo->StreamNameBuf, CopyLength);\
     } while (0,0)
 
     PAGED_CODE();
@@ -383,7 +383,7 @@ static NTSTATUS FspFsvolQueryStreamInformationCopy(
     PUINT8 DestBufBgn = (PUINT8)DestBuf;
     PUINT8 DestBufEnd = (PUINT8)DestBuf + *PDestLen;
     PVOID PrevDestBuf = 0;
-    ULONG StreamNameLength;
+    ULONG StreamNameLength, CopyLength;
     ULONG BaseInfoLen = FIELD_OFFSET(FILE_STREAM_INFORMATION, StreamName);
 
     *PDestLen = 0;
@@ -397,22 +397,27 @@ static NTSTATUS FspFsvolQueryStreamInformationCopy(
         if (sizeof(FSP_FSCTL_STREAM_INFO) > StreamInfoSize)
             break;
 
-        if ((PUINT8)DestBuf + BaseInfoLen > DestBufEnd)
-        {
-            if (0 == *PDestLen)
-                /* if we haven't copied anything yet, buffer is too small */
-                return STATUS_BUFFER_TOO_SMALL;
-            else
-                /* *PDestLen contains bytes copied so far */
-                return STATUS_BUFFER_OVERFLOW;
-        }
-
         StreamNameLength = StreamInfoSize - sizeof(FSP_FSCTL_STREAM_INFO);
 
-        if ((PUINT8)DestBuf + BaseInfoLen + StreamNameLength > DestBufEnd)
+        /* CopyLength is the same as StreamNameLength except on STATUS_BUFFER_OVERFLOW */
+        CopyLength = StreamNameLength;
+
+        /* do we have enough space for this stream info? */
+        if ((PUINT8)DestBuf + BaseInfoLen + CopyLength > DestBufEnd)
         {
+            /* can we even copy the base info? */
+            if ((PUINT8)DestBuf + BaseInfoLen > DestBufEnd)
+            {
+                if (0 == *PDestLen)
+                    /* if we haven't copied anything yet, buffer is too small */
+                    return STATUS_BUFFER_TOO_SMALL;
+                else
+                    /* *PDestLen contains bytes copied so far */
+                    return STATUS_BUFFER_OVERFLOW;
+            }
+
             /* copy as much of the stream name as we can and return STATUS_BUFFER_OVERFLOW */
-            StreamNameLength = (ULONG)(DestBufEnd - ((PUINT8)DestBuf + BaseInfoLen));
+            CopyLength = (ULONG)(DestBufEnd - ((PUINT8)DestBuf + BaseInfoLen));
             Result = STATUS_BUFFER_OVERFLOW;
         }
 
@@ -421,15 +426,18 @@ static NTSTATUS FspFsvolQueryStreamInformationCopy(
             *(PULONG)PrevDestBuf = (ULONG)((PUINT8)DestBuf - (PUINT8)PrevDestBuf);
         PrevDestBuf = DestBuf;
 
-        FILL_INFO();
+        /* update bytes copied */
+        *PDestLen = (ULONG)((PUINT8)DestBuf + BaseInfoLen + CopyLength - DestBufBgn);
 
-        /* bytes copied so far */
-        *PDestLen = (ULONG)((PUINT8)DestBuf + BaseInfoLen + StreamNameLength - DestBufBgn);
+        FILL_INFO();
 
         /* advance DestBuf; make sure to align properly! */
         DestBuf = (PVOID)((PUINT8)DestBuf +
-            FSP_FSCTL_ALIGN_UP(BaseInfoLen + StreamNameLength, sizeof(LONGLONG)));
+            FSP_FSCTL_ALIGN_UP(BaseInfoLen + CopyLength, sizeof(LONGLONG)));
     }
+
+    /* our code flow should allow only these two status codes here */
+    ASSERT(STATUS_SUCCESS == Result || STATUS_BUFFER_OVERFLOW == Result);
 
     return Result;
 
