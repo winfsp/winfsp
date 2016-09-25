@@ -226,6 +226,142 @@ void querydir_expire_cache_test(void)
     }
 }
 
+typedef struct _FILE_DIRECTORY_INFORMATION {
+    ULONG NextEntryOffset;
+    ULONG FileIndex;
+    LARGE_INTEGER CreationTime;
+    LARGE_INTEGER LastAccessTime;
+    LARGE_INTEGER LastWriteTime;
+    LARGE_INTEGER ChangeTime;
+    LARGE_INTEGER EndOfFile;
+    LARGE_INTEGER AllocationSize;
+    ULONG FileAttributes;
+    ULONG FileNameLength;
+    WCHAR FileName[1];
+} FILE_DIRECTORY_INFORMATION, *PFILE_DIRECTORY_INFORMATION;
+
+NTSTATUS
+NTAPI
+NtQueryDirectoryFile (
+    _In_ HANDLE FileHandle,
+    _In_opt_ HANDLE Event,
+    _In_opt_ PIO_APC_ROUTINE ApcRoutine,
+    _In_opt_ PVOID ApcContext,
+    _Out_ PIO_STATUS_BLOCK IoStatusBlock,
+    _Out_writes_bytes_(Length) PVOID FileInformation,
+    _In_ ULONG Length,
+    _In_ FILE_INFORMATION_CLASS FileInformationClass,
+    _In_ BOOLEAN ReturnSingleEntry,
+    _In_opt_ PUNICODE_STRING FileName,
+    _In_ BOOLEAN RestartScan
+    );
+
+static void querydir_buffer_overflow_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG SleepTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle;
+    BOOL Success;
+    NTSTATUS Status;
+    IO_STATUS_BLOCK IoStatus;
+    WCHAR FilePath[MAX_PATH];
+    FILE_DIRECTORY_INFORMATION DirInfo;
+    UNICODE_STRING Pattern;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Pattern.Length = Pattern.MaximumLength = sizeof L"file0" - sizeof(WCHAR);
+    Pattern.Buffer = L"file0";
+
+    memset(&DirInfo, 0, sizeof DirInfo);
+    Status = NtQueryDirectoryFile(
+        Handle,
+        0, 0, 0,
+        &IoStatus,
+        &DirInfo,
+        0,
+        FileDirectoryInformation,
+        FALSE,
+        &Pattern,
+        FALSE);
+    ASSERT(STATUS_INFO_LENGTH_MISMATCH == Status);
+
+    memset(&DirInfo, 0, sizeof DirInfo);
+    Status = NtQueryDirectoryFile(
+        Handle,
+        0, 0, 0,
+        &IoStatus,
+        &DirInfo,
+        sizeof(FILE_DIRECTORY_INFORMATION),
+        FileDirectoryInformation,
+        FALSE,
+        &Pattern,
+        FALSE);
+    ASSERT(STATUS_BUFFER_OVERFLOW == Status);
+    ASSERT(sizeof(FILE_DIRECTORY_INFORMATION) == IoStatus.Information);
+    ASSERT(Pattern.Length == DirInfo.FileNameLength);
+
+    memset(&DirInfo, 0, sizeof DirInfo);
+    Status = NtQueryDirectoryFile(
+        Handle,
+        0, 0, 0,
+        &IoStatus,
+        &DirInfo,
+        sizeof(FILE_DIRECTORY_INFORMATION),
+        FileDirectoryInformation,
+        TRUE,
+        &Pattern,
+        FALSE);
+    ASSERT(STATUS_BUFFER_OVERFLOW == Status);
+    ASSERT(sizeof(FILE_DIRECTORY_INFORMATION) == IoStatus.Information);
+    ASSERT(Pattern.Length == DirInfo.FileNameLength);
+
+    CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+void querydir_buffer_overflow_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        querydir_buffer_overflow_dotest(-1, DirBuf, 0, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        querydir_buffer_overflow_dotest(MemfsDisk, 0, 0, 0);
+        querydir_buffer_overflow_dotest(MemfsDisk, 0, 1000, 0);
+    }
+    if (WinFspNetTests)
+    {
+        querydir_buffer_overflow_dotest(MemfsNet, L"\\\\memfs\\share", 0, 0);
+        querydir_buffer_overflow_dotest(MemfsNet, L"\\\\memfs\\share", 1000, 0);
+    }
+}
+
 static unsigned __stdcall dirnotify_dotest_thread(void *FilePath)
 {
     FspDebugLog(__FUNCTION__ ": \"%S\"\n", FilePath);
@@ -332,5 +468,6 @@ void dirctl_tests(void)
 {
     TEST(querydir_test);
     TEST(querydir_expire_cache_test);
+    TEST(querydir_buffer_overflow_test);
     TEST(dirnotify_test);
 }

@@ -100,7 +100,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
         __VA_ARGS__\
         Info = DestBuf;\
         RtlCopyMemory(Info, &InfoStruct, FIELD_OFFSET(TYPE, FileName));\
-        RtlCopyMemory(Info->FileName, DirInfo->FileNameBuf, FileName.Length);\
+        RtlCopyMemory(Info->FileName, DirInfo->FileNameBuf, CopyLength);\
     } while (0,0)
 #define FILL_INFO(TYPE, ...)\
     FILL_INFO_BASE(TYPE,\
@@ -117,6 +117,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
 
     PAGED_CODE();
 
+    NTSTATUS Result = STATUS_SUCCESS;
     BOOLEAN MatchAll = FspFileDescDirectoryPatternMatchAll == DirectoryPattern->Buffer;
     BOOLEAN Loop = TRUE, DirectoryOffsetFound = FALSE;
     FSP_FSCTL_DIR_INFO *DirInfo = *PDirInfo;
@@ -124,7 +125,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
     PUINT8 DestBufBgn = (PUINT8)DestBuf;
     PUINT8 DestBufEnd = (PUINT8)DestBuf + *PDestLen;
     PVOID PrevDestBuf = 0;
-    ULONG BaseInfoLen;
+    ULONG BaseInfoLen, CopyLength;
     UNICODE_STRING FileName;
 
     *PDestLen = 0;
@@ -178,17 +179,27 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
             FileName.MaximumLength = (USHORT)(DirInfoSize - sizeof(FSP_FSCTL_DIR_INFO));
             FileName.Buffer = DirInfo->FileNameBuf;
 
+            /* CopyLength is the same as FileName.Length except on STATUS_BUFFER_OVERFLOW */
+            CopyLength = FileName.Length;
+
             if (MatchAll || FsRtlIsNameInExpression(DirectoryPattern, &FileName, CaseInsensitive, 0))
             {
-                if ((PUINT8)DestBuf +
-                    FSP_FSCTL_ALIGN_UP(BaseInfoLen + FileName.Length, sizeof(LONGLONG)) > DestBufEnd)
+                if ((PUINT8)DestBuf + BaseInfoLen + CopyLength > DestBufEnd)
                 {
-                    if (0 == *PDestLen)
+                    /* if we have already copied something exit the loop */
+                    if (0 != *PDestLen)
+                        break;
+
+                    if ((PUINT8)DestBuf + BaseInfoLen > DestBufEnd)
+                        /* buffer is too small, can't copy anything */
+                        return STATUS_BUFFER_TOO_SMALL;
+                    else
                     {
-                        *PDestLen = BaseInfoLen + FileName.Length;
-                        return STATUS_BUFFER_OVERFLOW;
+                        /* copy as much of the file name as we can and return STATUS_BUFFER_OVERFLOW */
+                        CopyLength = (USHORT)(DestBufEnd - ((PUINT8)DestBuf + BaseInfoLen));
+                        Result = STATUS_BUFFER_OVERFLOW;
+                        Loop = FALSE;
                     }
-                    break;
                 }
 
                 if (0 != PrevDestBuf)
@@ -196,7 +207,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                 PrevDestBuf = DestBuf;
 
                 *PDirectoryOffset = DirInfo->NextOffset;
-                *PDestLen = (ULONG)((PUINT8)DestBuf + BaseInfoLen + FileName.Length - DestBufBgn);
+                *PDestLen = (ULONG)((PUINT8)DestBuf + BaseInfoLen + CopyLength - DestBufBgn);
 
                 switch (FileInformationClass)
                 {
@@ -238,7 +249,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                 }
 
                 DestBuf = (PVOID)((PUINT8)DestBuf +
-                    FSP_FSCTL_ALIGN_UP(BaseInfoLen + FileName.Length, sizeof(LONGLONG)));
+                    FSP_FSCTL_ALIGN_UP(BaseInfoLen + CopyLength, sizeof(LONGLONG)));
 
                 if (ReturnSingleEntry)
                     /* cannot just break, *PDirInfo must be advanced */
@@ -250,15 +261,18 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
     }
     except (EXCEPTION_EXECUTE_HANDLER)
     {
-        NTSTATUS Result = GetExceptionCode();
+        Result = GetExceptionCode();
         if (STATUS_INSUFFICIENT_RESOURCES == Result)
             return Result;
         return FsRtlIsNtstatusExpected(Result) ? STATUS_INVALID_USER_BUFFER : Result;
     }
 
+    /* our code flow should allow only these two status codes here */
+    ASSERT(STATUS_SUCCESS == Result || STATUS_BUFFER_OVERFLOW == Result);
+
     *PDirInfo = DirInfo;
 
-    return STATUS_SUCCESS;
+    return Result;
 
 #undef FILL_INFO
 #undef FILL_INFO_BASE
