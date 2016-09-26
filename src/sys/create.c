@@ -134,6 +134,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PFILE_OBJECT RelatedFileObject = FileObject->RelatedFileObject;
     UNICODE_STRING FileName = FileObject->FileName;
+    UNICODE_STRING MainStreamName = { 0 }, StreamPart = { 0 };
 
     /* open the volume object? */
     if ((0 == RelatedFileObject || !FspFileNodeIsValid(RelatedFileObject->FsContext)) &&
@@ -211,8 +212,26 @@ static NTSTATUS FspFsvolCreateNoLock(
     }
 
     /* check filename validity */
-    if (!FspUnicodePathIsValid(&FileName, 0 != FsvolDeviceExtension->VolumeParams.NamedStreams))
+    if (!FspUnicodePathIsValid(&FileName,
+        FsvolDeviceExtension->VolumeParams.NamedStreams ? &StreamPart : 0))
         return STATUS_OBJECT_NAME_INVALID;
+
+    /* if we have a stream part */
+    if (0 != StreamPart.Buffer)
+    {
+        ASSERT(
+            FileName.Buffer <= StreamPart.Buffer &&
+            StreamPart.Buffer + StreamPart.Length / sizeof(WCHAR) <=
+                FileName.Buffer + FileName.Length / sizeof(WCHAR));
+
+        FileName.Length = (USHORT)
+            (((PUINT8)StreamPart.Buffer + StreamPart.Length / sizeof(WCHAR)) -
+            (PUINT8)FileName.Buffer - 1);
+
+        MainStreamName.Length = MainStreamName.MaximumLength = (USHORT)
+            ((PUINT8)StreamPart.Buffer - (PUINT8)FileName.Buffer - 1);
+        MainStreamName.Buffer = FileName.Buffer;
+    }
 
     /* is this a relative or absolute open? */
     if (0 != RelatedFileObject)

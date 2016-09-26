@@ -425,7 +425,7 @@ BOOLEAN FspExpirationTimeValid2(UINT64 ExpirationTime, UINT64 CurrentTime)
 /* utility */
 PVOID FspAllocatePoolMustSucceed(POOL_TYPE PoolType, SIZE_T Size, ULONG Tag);
 PVOID FspAllocateIrpMustSucceed(CCHAR StackSize);
-BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
+BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart);
 BOOLEAN FspUnicodePathIsValidPattern(PUNICODE_STRING Pattern);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);

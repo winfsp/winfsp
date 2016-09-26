@@ -17,7 +17,7 @@
 
 #include <sys/driver.h>
 
-BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams);
+BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart);
 BOOLEAN FspUnicodePathIsValidPattern(PUNICODE_STRING Pattern);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
@@ -171,7 +171,7 @@ PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
     }
 }
 
-BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams)
+BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart)
 {
     PAGED_CODE();
 
@@ -180,6 +180,7 @@ BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams)
 
     PWSTR PathBgn, PathEnd, PathPtr;
     UCHAR Flags = FSRTL_NTFS_LEGAL;
+    ULONG Colons = 0;
     WCHAR Char;
 
     PathBgn = Path->Buffer;
@@ -193,7 +194,7 @@ BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams)
         if (L'\\' == Char)
         {
             /* stream names can only appear as the last path component */
-            if (BooleanFlagOn(Flags, FSRTL_OLE_LEGAL))
+            if (0 < Colons)
                 return FALSE;
 
             PathPtr++;
@@ -204,17 +205,32 @@ BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, BOOLEAN AllowStreams)
         }
         else if (L':' == Char)
         {
-            if (!AllowStreams)
+            if (0 == StreamPart)
                 return FALSE;
 
             /*
              * Where are the docs on legal stream names?
              */
 
-            PathPtr++;
-
             /* stream characters now allowed */
-            SetFlag(Flags, FSRTL_OLE_LEGAL);
+            Flags = FSRTL_NTFS_STREAM_LEGAL;
+
+            PathPtr++;
+            Colons++;
+
+            if (1 == Colons)
+            {
+                /* first time through: set up StreamPart */
+                StreamPart->Length = StreamPart->MaximumLength =
+                    (USHORT)((PUINT8)PathEnd - (PUINT8)PathPtr);
+                StreamPart->Buffer = PathPtr;
+            }
+            else if (2 == Colons)
+            {
+                /* second time through: fix StreamPart length to not include 2nd colon */
+                StreamPart->Length =
+                    (USHORT)((PUINT8)PathPtr - (PUINT8)StreamPart->Buffer - 1);
+            }
         }
         else if (0x80 > Char && !FsRtlTestAnsiCharacter(Char, TRUE, FALSE, Flags))
             return FALSE;
