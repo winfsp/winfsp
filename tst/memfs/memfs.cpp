@@ -48,9 +48,14 @@ int MemfsFileNameCompare(PWSTR a, PWSTR b)
 }
 
 static inline
-BOOLEAN MemfsFileNameHasPrefix(PWSTR a, PWSTR b)
+BOOLEAN MemfsFileNameHasPrefix(PWSTR a, PWSTR b, BOOLEAN AllowStreams)
 {
-    return 0 == wcsncmp(a, b, wcslen(b));
+    size_t alen = wcslen(a);
+    size_t blen = wcslen(b);
+
+    return alen >= blen && 0 == memcmp(a, b, blen * sizeof(WCHAR)) &&
+        (alen == blen || (1 == blen && L'\\' == b[0]) ||
+            (L'\\' == a[blen] || (AllowStreams && L':' == a[blen])));
 }
 
 typedef struct _MEMFS_FILE_NODE
@@ -242,15 +247,17 @@ BOOLEAN MemfsFileNodeMapEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMF
     WCHAR Root[2] = L"\\";
     PWSTR Remain, Suffix;
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->upper_bound(FileNode->FileName);
-    BOOLEAN Equal;
+    BOOLEAN IsDirectoryChild;
     for (; FileNodeMap->end() != iter; ++iter)
     {
-        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName))
+        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName, FALSE))
             break;
         FspPathSuffix(iter->second->FileName, &Remain, &Suffix, Root);
-        Equal = 0 == MemfsFileNameCompare(Remain, FileNode->FileName);
+        IsDirectoryChild =
+            0 == MemfsFileNameCompare(Remain, FileNode->FileName) &&
+            0 == wcschr(Suffix, L':');
         FspPathCombine(iter->second->FileName, Suffix);
-        if (Equal)
+        if (IsDirectoryChild)
         {
             if (!EnumFn(iter->second, Context))
                 return FALSE;
@@ -267,7 +274,7 @@ BOOLEAN MemfsFileNodeMapEnumerateDescendants(MEMFS_FILE_NODE_MAP *FileNodeMap, M
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->lower_bound(FileNode->FileName);
     for (; FileNodeMap->end() != iter; ++iter)
     {
-        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName))
+        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName, TRUE))
             break;
         if (!EnumFn(iter->second, Context))
             return FALSE;
@@ -762,7 +769,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     for (Index = 0; Context.Count > Index; Index++)
     {
         DescendantFileNode = Context.FileNodes[Index];
-        assert(MemfsFileNameHasPrefix(DescendantFileNode->FileName, FileNode->FileName));
+        assert(MemfsFileNameHasPrefix(DescendantFileNode->FileName, FileNode->FileName, TRUE));
         if (MAX_PATH <= wcslen(DescendantFileNode->FileName) - FileNameLen + NewFileNameLen)
         {
             Result = STATUS_OBJECT_NAME_INVALID;
