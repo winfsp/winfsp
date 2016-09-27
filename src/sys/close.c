@@ -77,7 +77,7 @@ static NTSTATUS FspFsvolClose(
     FspFileNodeClose(FileNode, FileObject);
 
     /* delete the FileDesc and deref the FileNode; order is important (FileDesc has FileNode ref) */
-    FspFileDescDelete(FileDesc);
+    FspFileDescDelete(FileDesc); /* this will also close the MainStreamObject if any */
     FspFileNodeDereference(FileNode);
 
     /*

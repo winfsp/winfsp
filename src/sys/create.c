@@ -134,7 +134,6 @@ static NTSTATUS FspFsvolCreateNoLock(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PFILE_OBJECT RelatedFileObject = FileObject->RelatedFileObject;
     UNICODE_STRING FileName = FileObject->FileName;
-    UNICODE_STRING MainStreamName = { 0 }, StreamPart = { 0 };
 
     /* open the volume object? */
     if ((0 == RelatedFileObject || !FspFileNodeIsValid(RelatedFileObject->FsContext)) &&
@@ -148,6 +147,7 @@ static NTSTATUS FspFsvolCreateNoLock(
         return STATUS_SUCCESS;
     }
 
+    UNICODE_STRING MainStreamName = { 0 }, StreamPart = { 0 };
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
     ULONG CreateDisposition = (IrpSp->Parameters.Create.Options >> 24) & 0xff;
     ULONG CreateOptions = IrpSp->Parameters.Create.Options;
@@ -163,6 +163,10 @@ static NTSTATUS FspFsvolCreateNoLock(
     ULONG Flags = IrpSp->Flags;
     KPROCESSOR_MODE RequestorMode =
         FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
+    BOOLEAN CaseSensitiveRequested =
+        BooleanFlagOn(Flags, SL_CASE_SENSITIVE);
+    BOOLEAN CaseSensitive =
+        CaseSensitiveRequested || FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
     BOOLEAN HasTraversePrivilege =
         BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
     FSP_FILE_NODE *FileNode, *RelatedFileNode;
@@ -347,6 +351,52 @@ static NTSTATUS FspFsvolCreateNoLock(
         return Result;
     }
 
+    /* if we have a non-empty stream part, open the main stream */
+    if (0 != StreamPart.Buffer)
+    {
+        Result = FspMainStreamOpen(FsvolDeviceObject,
+            &MainStreamName, CaseSensitive,
+            CreateDisposition,
+            &FileDesc->MainStreamHandle,
+            &FileDesc->MainStreamObject);
+        if (!NT_SUCCESS(Result))
+            goto main_stream_exit;
+
+        /* check that the main stream is one we recognize */
+        if (!FspFileNodeIsValid(FileDesc->MainStreamObject->FsContext))
+        {
+            Result = STATUS_OBJECT_NAME_NOT_FOUND;
+            goto main_stream_exit;
+        }
+
+        /* named streams can never be directories (even when attached to directories) */
+        if (FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
+        {
+            Result = STATUS_NOT_A_DIRECTORY;
+            goto main_stream_exit;
+        }
+
+        /* cannot open target directory of a named stream */
+        if (FlagOn(Flags, SL_OPEN_TARGET_DIRECTORY))
+        {
+            Result = STATUS_OBJECT_NAME_INVALID;
+            goto main_stream_exit;
+        }
+
+        /* remember the the main stream node */
+        FileNode->MainStreamFileNode = FileDesc->MainStreamObject->FsContext;
+
+        Result = STATUS_SUCCESS;
+
+    main_stream_exit:
+        if (!NT_SUCCESS(Result))
+        {
+            FspFileDescDelete(FileDesc);
+            FspFileNodeDereference(FileNode);
+            return Result;
+        }
+    }
+
     /* create the user-mode file system request */
     Result = FspIopCreateRequestEx(Irp, &FileNode->FileName, SecurityDescriptorSize,
         FspFsvolCreateRequestFini, &Request);
@@ -369,9 +419,7 @@ static NTSTATUS FspFsvolCreateNoLock(
      * delete the Request and any associated resources.
      */
     FileDesc->FileNode = FileNode;
-    FileDesc->CaseSensitive =
-        0 != FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch ||
-        BooleanFlagOn(Flags, SL_CASE_SENSITIVE);
+    FileDesc->CaseSensitive = CaseSensitive;
     FileDesc->HasTraversePrivilege = HasTraversePrivilege;
     FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, Request);
     FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
@@ -393,7 +441,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     Request->Req.Create.UserMode = UserMode == RequestorMode;
     Request->Req.Create.HasTraversePrivilege = HasTraversePrivilege;
     Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);
-    Request->Req.Create.CaseSensitive = BooleanFlagOn(Flags, SL_CASE_SENSITIVE);
+    Request->Req.Create.CaseSensitive = CaseSensitiveRequested;
 
     /* copy the security descriptor (if any) into the request */
     if (0 != SecurityDescriptorSize)

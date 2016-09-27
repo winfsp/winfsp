@@ -449,6 +449,9 @@ static NTSTATUS FspFsvolQueryStreamInformation(
 {
     PAGED_CODE();
 
+    if (!FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.NamedStreams)
+        return STATUS_INVALID_PARAMETER;
+
     NTSTATUS Result;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
@@ -498,6 +501,10 @@ static NTSTATUS FspFsvolQueryStreamInformationSuccess(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
+
+    if (!FspFsvolDeviceExtension(IoGetCurrentIrpStackLocation(Irp)->DeviceObject)->
+        VolumeParams.NamedStreams)
+        return STATUS_INVALID_PARAMETER;
 
     NTSTATUS Result;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);

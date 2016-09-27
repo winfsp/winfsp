@@ -167,12 +167,21 @@ static VOID FspFsvolCleanupRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Co
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
+    HANDLE MainStreamHandle;
+
+    ASSERT(FileNode == FileDesc->FileNode);
 
     FspFileNodeReleaseOwner(FileNode, Pgio, Request);
 
     FspFileNodeCleanupComplete(FileNode, FileObject);
 
+    MainStreamHandle = FileDesc->MainStreamHandle;
+    FileDesc->MainStreamHandle = 0;
+
     FspFileNodeReleaseOwner(FileNode, Main, Request);
+
+    FspMainStreamClose(MainStreamHandle, 0);
 }
 
 NTSTATUS FspCleanup(
