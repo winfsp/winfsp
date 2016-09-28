@@ -267,6 +267,23 @@ BOOLEAN MemfsFileNodeMapEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMF
 }
 
 static inline
+BOOLEAN MemfsFileNodeMapEnumerateNamedStreams(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode,
+    BOOLEAN (*EnumFn)(MEMFS_FILE_NODE *, PVOID), PVOID Context)
+{
+    MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->upper_bound(FileNode->FileName);
+    for (; FileNodeMap->end() != iter; ++iter)
+    {
+        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName, FALSE))
+            break;
+        if (L':' != iter->second->FileName[wcslen(FileNode->FileName)])
+            break;
+        if (!EnumFn(iter->second, Context))
+            return FALSE;
+    }
+    return TRUE;
+}
+
+static inline
 BOOLEAN MemfsFileNodeMapEnumerateDescendants(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode,
     BOOLEAN (*EnumFn)(MEMFS_FILE_NODE *, PVOID), PVOID Context)
 {
@@ -1072,6 +1089,67 @@ static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+typedef struct _MEMFS_GET_STREAM_INFO_CONTEXT
+{
+    PVOID Buffer;
+    ULONG Length;
+    PULONG PBytesTransferred;
+} MEMFS_GET_STREAM_INFO_CONTEXT;
+
+static BOOLEAN AddStreamInfo(MEMFS_FILE_NODE *FileNode,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+{
+    UINT8 StreamInfoBuf[sizeof(FSP_FSCTL_STREAM_INFO) + sizeof FileNode->FileName];
+    FSP_FSCTL_STREAM_INFO *StreamInfo = (FSP_FSCTL_STREAM_INFO *)StreamInfoBuf;
+    PWSTR StreamName;
+
+    StreamName = wcschr(FileNode->FileName, L':');
+    if (0 != StreamName)
+        StreamName++;
+    else
+        StreamName = L"";
+
+    StreamInfo->Size = (UINT16)(sizeof(FSP_FSCTL_STREAM_INFO) + wcslen(StreamName) * sizeof(WCHAR));
+    StreamInfo->StreamSize = FileNode->FileInfo.FileSize;
+    StreamInfo->StreamAllocationSize = FileNode->FileInfo.AllocationSize;
+    memcpy(StreamInfo->StreamNameBuf, StreamName, StreamInfo->Size - sizeof(FSP_FSCTL_STREAM_INFO));
+
+    return FspFileSystemAddStreamInfo(StreamInfo, Buffer, Length, PBytesTransferred);
+}
+
+static BOOLEAN GetStreamInfoEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
+{
+    MEMFS_GET_STREAM_INFO_CONTEXT *Context = (MEMFS_GET_STREAM_INFO_CONTEXT *)Context0;
+
+    return AddStreamInfo(FileNode,
+        Context->Buffer, Context->Length, Context->PBytesTransferred);
+}
+
+static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request,
+    PVOID FileNode0, PVOID Buffer, ULONG Length,
+    PULONG PBytesTransferred)
+{
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    MEMFS_GET_STREAM_INFO_CONTEXT Context;
+
+    Context.Buffer = Buffer;
+    Context.Length = Length;
+    Context.PBytesTransferred = PBytesTransferred;
+
+    if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+        !AddStreamInfo(FileNode, Buffer, Length, PBytesTransferred))
+        return STATUS_SUCCESS;
+
+    if (MemfsFileNodeMapEnumerateNamedStreams(Memfs->FileNodeMap, FileNode, GetStreamInfoEnumFn, &Context))
+        FspFileSystemAddStreamInfo(0, Buffer, Length, PBytesTransferred);
+
+    /* ???: how to handle out of response buffer condition? */
+
+    return STATUS_SUCCESS;
+}
+
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
     GetVolumeInfo,
@@ -1097,6 +1175,7 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     GetReparsePoint,
     SetReparsePoint,
     DeleteReparsePoint,
+    GetStreamInfo,
 };
 
 NTSTATUS MemfsCreate(
@@ -1159,6 +1238,7 @@ NTSTATUS MemfsCreate(
     VolumeParams.PersistentAcls = 1;
     VolumeParams.ReparsePoints = 1;
     VolumeParams.ReparsePointsAccessCheck = 0;
+    VolumeParams.NamedStreams = 1;
     VolumeParams.PostCleanupOnDeleteOnly = 1;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
