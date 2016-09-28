@@ -363,6 +363,9 @@ static NTSTATUS FspFsvolQueryStreamInformationCopy(
     FSP_FSCTL_STREAM_INFO *StreamInfo, ULONG StreamInfoSize,
     PVOID DestBuf, PULONG PDestLen)
 {
+#define STREAM_TYPE                     ":$DATA"
+#define STREAM_TYPE_LENGTH              (sizeof L"" STREAM_TYPE - sizeof "")
+#define STREAM_EXTRA_LENGTH             (sizeof L":" STREAM_TYPE - sizeof "")
 #define FILL_INFO()\
     do\
     {\
@@ -373,7 +376,23 @@ static NTSTATUS FspFsvolQueryStreamInformationCopy(
         Info->StreamAllocationSize.QuadPart = StreamInfo->StreamAllocationSize;\
         Info = DestBuf;\
         RtlCopyMemory(Info, &InfoStruct, FIELD_OFFSET(FILE_STREAM_INFORMATION, StreamName));\
-        RtlCopyMemory(Info->StreamName, StreamInfo->StreamNameBuf, CopyLength);\
+        {\
+            PWSTR StreamName = Info->StreamName;\
+            ULONG Length[3];\
+            Length[0] = 0 < CopyLength ? sizeof(WCHAR) : 0;\
+            Length[1] = Info->StreamNameLength - STREAM_EXTRA_LENGTH < CopyLength - Length[0] ?\
+                Info->StreamNameLength - STREAM_EXTRA_LENGTH : CopyLength - Length[0];\
+            Length[2] = CopyLength - Length[0] - Length[1];\
+            ASSERT(\
+                sizeof(WCHAR) >= Length[0] &&\
+                Info->StreamNameLength - STREAM_EXTRA_LENGTH >= Length[1] &&\
+                STREAM_TYPE_LENGTH >= Length[2]);\
+            RtlCopyMemory(StreamName, L":", Length[0]);\
+            StreamName += Length[0] / sizeof(WCHAR);\
+            RtlCopyMemory(StreamName, StreamInfo->StreamNameBuf, Length[1]);\
+            StreamName += Length[1] / sizeof(WCHAR);\
+            RtlCopyMemory(StreamName, L"" STREAM_TYPE, Length[2]);\
+        }\
     } while (0,0)
 
     PAGED_CODE();
@@ -397,7 +416,7 @@ static NTSTATUS FspFsvolQueryStreamInformationCopy(
         if (sizeof(FSP_FSCTL_STREAM_INFO) > StreamInfoSize)
             break;
 
-        StreamNameLength = StreamInfoSize - sizeof(FSP_FSCTL_STREAM_INFO);
+        StreamNameLength = StreamInfoSize - sizeof(FSP_FSCTL_STREAM_INFO) + STREAM_EXTRA_LENGTH;
 
         /* CopyLength is the same as StreamNameLength except on STATUS_BUFFER_OVERFLOW */
         CopyLength = StreamNameLength;
@@ -442,6 +461,9 @@ static NTSTATUS FspFsvolQueryStreamInformationCopy(
     return Result;
 
 #undef FILL_INFO
+#undef STREAM_EXTRA_LENGTH
+#undef STREAM_TYPE_LENGTH
+#undef STREAM_TYPE
 }
 
 static NTSTATUS FspFsvolQueryStreamInformation(
