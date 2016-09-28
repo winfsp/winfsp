@@ -518,6 +518,14 @@ NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+static BOOLEAN CleanupEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
+{
+    MEMFS *Memfs = (MEMFS *)Context0;
+
+    MemfsFileNodeMapRemove(Memfs->FileNodeMap, FileNode);
+    return TRUE;
+}
+
 static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, PWSTR FileName, BOOLEAN Delete)
@@ -529,7 +537,10 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     assert(Delete); /* the new FSP_FSCTL_VOLUME_PARAMS::PostCleanupOnDeleteOnly ensures this */
 
     if (Delete && !MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
+    {
+        MemfsFileNodeMapEnumerateNamedStreams(Memfs->FileNodeMap, FileNode, CleanupEnumFn, Memfs);
         MemfsFileNodeMapRemove(Memfs->FileNodeMap, FileNode);
+    }
 }
 
 static VOID Close(FSP_FILE_SYSTEM *FileSystem,
