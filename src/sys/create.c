@@ -147,7 +147,7 @@ static NTSTATUS FspFsvolCreateNoLock(
         return STATUS_SUCCESS;
     }
 
-    UNICODE_STRING MainStreamName = { 0 }, StreamPart = { 0 };
+    UNICODE_STRING MainFileName = { 0 }, StreamPart = { 0 };
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
     ULONG CreateDisposition = (IrpSp->Parameters.Create.Options >> 24) & 0xff;
     ULONG CreateOptions = IrpSp->Parameters.Create.Options;
@@ -232,9 +232,9 @@ static NTSTATUS FspFsvolCreateNoLock(
             (((PUINT8)StreamPart.Buffer + StreamPart.Length / sizeof(WCHAR)) -
             (PUINT8)FileName.Buffer - 1);
 
-        MainStreamName.Length = MainStreamName.MaximumLength = (USHORT)
+        MainFileName.Length = MainFileName.MaximumLength = (USHORT)
             ((PUINT8)StreamPart.Buffer - (PUINT8)FileName.Buffer - 1);
-        MainStreamName.Buffer = FileName.Buffer;
+        MainFileName.Buffer = FileName.Buffer;
     }
 
     /* is this a relative or absolute open? */
@@ -351,19 +351,19 @@ static NTSTATUS FspFsvolCreateNoLock(
         return Result;
     }
 
-    /* if we have a non-empty stream part, open the main stream */
+    /* if we have a non-empty stream part, open the main file */
     if (0 != StreamPart.Buffer)
     {
-        Result = FspMainStreamOpen(FsvolDeviceObject,
-            &MainStreamName, CaseSensitive,
+        Result = FspMainFileOpen(FsvolDeviceObject,
+            &MainFileName, CaseSensitive,
             CreateDisposition,
-            &FileDesc->MainStreamHandle,
-            &FileDesc->MainStreamObject);
+            &FileDesc->MainFileHandle,
+            &FileDesc->MainFileObject);
         if (!NT_SUCCESS(Result))
             goto main_stream_exit;
 
-        /* check that the main stream is one we recognize */
-        if (!FspFileNodeIsValid(FileDesc->MainStreamObject->FsContext))
+        /* check that the main file is one we recognize */
+        if (!FspFileNodeIsValid(FileDesc->MainFileObject->FsContext))
         {
             Result = STATUS_OBJECT_NAME_NOT_FOUND;
             goto main_stream_exit;
@@ -383,8 +383,8 @@ static NTSTATUS FspFsvolCreateNoLock(
             goto main_stream_exit;
         }
 
-        /* remember the the main stream node */
-        FileNode->MainStreamFileNode = FileDesc->MainStreamObject->FsContext;
+        /* remember the main file node */
+        FileNode->MainFileNode = FileDesc->MainFileObject->FsContext;
 
         Result = STATUS_SUCCESS;
 

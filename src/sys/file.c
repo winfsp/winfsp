@@ -427,13 +427,13 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
     /*
-     * If this is a named stream we must also check with our main stream.
-     * Note that FileNode->MainStreamFileNode and OpenedFileNode->MainStreamFileNode
+     * If this is a named stream we must also check with our main file.
+     * Note that FileNode->MainFileNode and OpenedFileNode->MainFileNode
      * will always be the same.
      */
-    if (0 != FileNode->MainStreamFileNode)
+    if (0 != FileNode->MainFileNode)
     {
-        DeletePending = 0 != FileNode->MainStreamFileNode->DeletePending;
+        DeletePending = 0 != FileNode->MainFileNode->DeletePending;
         MemoryBarrier();
         if (DeletePending)
         {
@@ -441,7 +441,7 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
             goto exit;
         }
 
-        if (0 < FileNode->MainStreamFileNode->MainStreamDenyDeleteCount)
+        if (0 < FileNode->MainFileNode->MainFileDenyDeleteCount)
         {
             if (FlagOn(GrantedAccess, DELETE))
             {
@@ -474,7 +474,7 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
          * opening a prior FileNode that we found in the table.
          */
         ASSERT(OpenedFileNode != FileNode);
-        ASSERT(OpenedFileNode->MainStreamFileNode == FileNode->MainStreamFileNode);
+        ASSERT(OpenedFileNode->MainFileNode == FileNode->MainFileNode);
 
         DeletePending = 0 != OpenedFileNode->DeletePending;
         MemoryBarrier();
@@ -484,11 +484,11 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
             goto exit;
         }
 
-        /* if this is a main stream check whether there is a named stream that denies delete */
+        /* if this is a main file check whether there is a named stream that denies delete */
         if (0 < OpenedFileNode->StreamDenyDeleteCount)
         {
-            /* we must be the main stream! */
-            ASSERT(0 == OpenedFileNode->MainStreamFileNode);
+            /* we must be the main file! */
+            ASSERT(0 == OpenedFileNode->MainFileNode);
 
             if (FlagOn(GrantedAccess, DELETE))
             {
@@ -529,10 +529,10 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 
     if (FileObject->DeleteAccess && !FileObject->SharedDelete)
     {
-        if (0 == OpenedFileNode->MainStreamFileNode)
-            OpenedFileNode->MainStreamDenyDeleteCount++;
+        if (0 == OpenedFileNode->MainFileNode)
+            OpenedFileNode->MainFileDenyDeleteCount++;
         else
-            OpenedFileNode->MainStreamFileNode->StreamDenyDeleteCount++;
+            OpenedFileNode->MainFileNode->StreamDenyDeleteCount++;
     }
 
     Result = STATUS_SUCCESS;
@@ -615,10 +615,10 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 
     if (FileObject->DeleteAccess && !FileObject->SharedDelete)
     {
-        if (0 == FileNode->MainStreamFileNode)
-            FileNode->MainStreamDenyDeleteCount--;
+        if (0 == FileNode->MainFileNode)
+            FileNode->MainFileDenyDeleteCount--;
         else
-            FileNode->MainStreamFileNode->StreamDenyDeleteCount--;
+            FileNode->MainFileNode->StreamDenyDeleteCount--;
     }
 
     IoRemoveShareAccess(FileObject, &FileNode->ShareAccess);
@@ -1153,7 +1153,7 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc)
 {
     PAGED_CODE();
 
-    FspMainStreamClose(FileDesc->MainStreamHandle, FileDesc->MainStreamObject);
+    FspMainFileClose(FileDesc->MainFileHandle, FileDesc->MainFileObject);
 
     if (0 != FileDesc->DirectoryPattern.Buffer &&
         FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)

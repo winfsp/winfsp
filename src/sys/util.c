@@ -23,15 +23,15 @@ VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
     PULONG PFileNameIndex, PFILE_OBJECT *PFileObject, PDEVICE_OBJECT *PDeviceObject);
-NTSTATUS FspMainStreamOpen(
+NTSTATUS FspMainFileOpen(
     PDEVICE_OBJECT DeviceObject,
-    PUNICODE_STRING MainStreamName, BOOLEAN CaseSensitive,
+    PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
     ULONG Disposition,
-    PHANDLE PMainStreamHandle,
-    PFILE_OBJECT *PMainStreamObject);
-NTSTATUS FspMainStreamClose(
-    HANDLE MainStreamHandle,
-    PFILE_OBJECT MainStreamObject);
+    PHANDLE PMainFileHandle,
+    PFILE_OBJECT *PMainFileObject);
+NTSTATUS FspMainFileClose(
+    HANDLE MainFileHandle,
+    PFILE_OBJECT MainFileObject);
 NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
 static NTSTATUS FspSendSetInformationIrpCompletion(
@@ -102,8 +102,8 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #pragma alloc_text(PAGE, FspUnicodePathSuffix)
 #pragma alloc_text(PAGE, FspCreateGuid)
 #pragma alloc_text(PAGE, FspGetDeviceObjectPointer)
-#pragma alloc_text(PAGE, FspMainStreamOpen)
-#pragma alloc_text(PAGE, FspMainStreamClose)
+#pragma alloc_text(PAGE, FspMainFileOpen)
+#pragma alloc_text(PAGE, FspMainFileClose)
 #pragma alloc_text(PAGE, FspSendSetInformationIrp)
 #pragma alloc_text(PAGE, FspBufferUserBuffer)
 #pragma alloc_text(PAGE, FspLockUserBuffer)
@@ -384,25 +384,25 @@ NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK Desir
     return Result;
 }
 
-NTSTATUS FspMainStreamOpen(
+NTSTATUS FspMainFileOpen(
     PDEVICE_OBJECT DeviceObject,
-    PUNICODE_STRING MainStreamName, BOOLEAN CaseSensitive,
+    PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
     ULONG Disposition,
-    PHANDLE PMainStreamHandle,
-    PFILE_OBJECT *PMainStreamObject)
+    PHANDLE PMainFileHandle,
+    PFILE_OBJECT *PMainFileObject)
 {
     PAGED_CODE();
 
     OBJECT_ATTRIBUTES ObjectAttributes;
     IO_STATUS_BLOCK IoStatus;
-    HANDLE MainStreamHandle;
-    PFILE_OBJECT MainStreamObject;
+    HANDLE MainFileHandle;
+    PFILE_OBJECT MainFileObject;
 
-    /* assert that the supplied name is actually a main stream name */
-    ASSERT(FspUnicodePathIsValid(MainStreamName, 0));
+    /* assert that the supplied name is actually a main file name */
+    ASSERT(FspUnicodePathIsValid(MainFileName, 0));
 
-    *PMainStreamHandle = 0;
-    *PMainStreamObject = 0;
+    *PMainFileHandle = 0;
+    *PMainFileObject = 0;
 
     switch (Disposition)
     {
@@ -422,13 +422,13 @@ NTSTATUS FspMainStreamOpen(
 
     InitializeObjectAttributes(
         &ObjectAttributes,
-        MainStreamName,
+        MainFileName,
         OBJ_KERNEL_HANDLE | OBJ_FORCE_ACCESS_CHECK | (CaseSensitive ? 0 : OBJ_CASE_INSENSITIVE),
         0/*RootDirectory*/,
         0/*SecurityDescriptor*/);
 
     IoStatus.Status = IoCreateFileSpecifyDeviceObjectHint(
-        &MainStreamHandle,
+        &MainFileHandle,
         FILE_READ_ATTRIBUTES,
         &ObjectAttributes,
         &IoStatus,
@@ -447,38 +447,38 @@ NTSTATUS FspMainStreamOpen(
         return IoStatus.Status;
 
     IoStatus.Status = ObReferenceObjectByHandle(
-        MainStreamHandle,
+        MainFileHandle,
         0/*DesiredAccess*/,
         *IoFileObjectType,
         KernelMode,
-        &MainStreamObject,
+        &MainFileObject,
         0/*HandleInformation*/);
     if (!NT_SUCCESS(IoStatus.Status))
     {
-        ObCloseHandle(MainStreamHandle, KernelMode);
+        ObCloseHandle(MainFileHandle, KernelMode);
         return IoStatus.Status;
     }
 
-    *PMainStreamHandle = MainStreamHandle;
-    *PMainStreamObject = MainStreamObject;
+    *PMainFileHandle = MainFileHandle;
+    *PMainFileObject = MainFileObject;
 
     return STATUS_SUCCESS;
 }
 
-NTSTATUS FspMainStreamClose(
-    HANDLE MainStreamHandle,
-    PFILE_OBJECT MainStreamObject)
+NTSTATUS FspMainFileClose(
+    HANDLE MainFileHandle,
+    PFILE_OBJECT MainFileObject)
 {
     PAGED_CODE();
 
     NTSTATUS Result = STATUS_SUCCESS;
 
-    if (0 != MainStreamObject)
-        ObDereferenceObject(MainStreamObject);
+    if (0 != MainFileObject)
+        ObDereferenceObject(MainFileObject);
 
-    if (0 != MainStreamHandle)
+    if (0 != MainFileHandle)
     {
-        Result = ObCloseHandle(MainStreamHandle, KernelMode);
+        Result = ObCloseHandle(MainFileHandle, KernelMode);
         if (!NT_SUCCESS(Result))
             DEBUGLOG("ObCloseHandle() = %s", NtStatusSym(Result));
     }

@@ -431,15 +431,15 @@ VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
     PULONG PFileNameIndex, PFILE_OBJECT *PFileObject, PDEVICE_OBJECT *PDeviceObject);
-NTSTATUS FspMainStreamOpen(
+NTSTATUS FspMainFileOpen(
     PDEVICE_OBJECT DeviceObject,
-    PUNICODE_STRING MainStreamName, BOOLEAN CaseSensitive,
+    PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
     ULONG Disposition,
-    PHANDLE PMainStreamHandle,
-    PFILE_OBJECT *PMainStreamObject);
-NTSTATUS FspMainStreamClose(
-    HANDLE MainStreamHandle,
-    PFILE_OBJECT MainStreamObject);
+    PHANDLE PMainFileHandle,
+    PFILE_OBJECT *PMainFileObject);
+NTSTATUS FspMainFileClose(
+    HANDLE MainFileHandle,
+    PFILE_OBJECT MainFileObject);
 NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
 NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
@@ -916,8 +916,8 @@ typedef struct FSP_FILE_NODE
     LONG OpenCount;                     /* ContextTable ref count */
     LONG HandleCount;                   /* HANDLE count (CREATE/CLEANUP) */
     SHARE_ACCESS ShareAccess;
-    ULONG MainStreamDenyDeleteCount;    /* number of times main stream is denying delete */
-    ULONG StreamDenyDeleteCount;        /* number of open streams that are denying delete */
+    ULONG MainFileDenyDeleteCount;      /* number of times main file is denying delete */
+    ULONG StreamDenyDeleteCount;        /* number of times open streams are denying delete */
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT ContextByNameElementStorage;
     /* locked under FSP_FSVOL_DEVICE_EXTENSION::FileRenameResource or Header.Resource */
     UNICODE_STRING FileName;
@@ -952,7 +952,7 @@ typedef struct FSP_FILE_NODE
     UINT64 IndexNumber;
     BOOLEAN IsDirectory;
     BOOLEAN IsRootDirectory;
-    struct FSP_FILE_NODE *MainStreamFileNode;   /* this becomes invalid after our last desc close */
+    struct FSP_FILE_NODE *MainFileNode; /* this becomes invalid after our last desc close */
     WCHAR FileNameBuf[];
 } FSP_FILE_NODE;
 typedef struct
@@ -968,8 +968,8 @@ typedef struct
     UINT64 DirInfo;
     ULONG DirInfoCacheHint;
     /* stream support */
-    HANDLE MainStreamHandle;
-    PFILE_OBJECT MainStreamObject;
+    HANDLE MainFileHandle;
+    PFILE_OBJECT MainFileObject;
 } FSP_FILE_DESC;
 NTSTATUS FspFileNodeCopyList(PDEVICE_OBJECT DeviceObject,
     FSP_FILE_NODE ***PFileNodes, PULONG PFileNodeCount);
