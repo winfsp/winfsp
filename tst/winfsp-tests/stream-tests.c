@@ -708,7 +708,6 @@ static void stream_setsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
-#if 0
     static PWSTR Sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;WD)";
     static PWSTR Sddl2 = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)";
     PWSTR ConvertedSddl;
@@ -718,9 +717,9 @@ static void stream_setsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     PACL Dacl, Dacl2, Sacl, Sacl2;
     BOOL OwnerDefaulted, GroupDefaulted, DaclDefaulted, DaclPresent, SaclDefaulted, SaclPresent;
     DWORD Length;
-    HANDLE Handle;
+    HANDLE Handle, StreamHandle;
     BOOLEAN Success;
-    WCHAR FilePath[MAX_PATH];
+    WCHAR FilePath[MAX_PATH], StreamPath[MAX_PATH];
 
     Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(Sddl, SDDL_REVISION_1, &SecurityDescriptor, 0);
     ASSERT(Success);
@@ -728,17 +727,20 @@ static void stream_setsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     SecurityAttributes.nLength = sizeof SecurityAttributes;
     SecurityAttributes.lpSecurityDescriptor = SecurityDescriptor;
 
+    StringCbPrintfW(StreamPath, sizeof StreamPath, L"%s%s\\file0:foo",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StreamHandle = CreateFileW(StreamPath,
+        GENERIC_READ | GENERIC_WRITE | WRITE_DAC, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, &SecurityAttributes,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != StreamHandle);
+
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &SecurityAttributes,
-        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
-    ASSERT(INVALID_HANDLE_VALUE != Handle);
-    CloseHandle(Handle);
-
-    Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE | WRITE_DAC, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+        OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
     Success = GetKernelObjectSecurity(Handle,
@@ -769,7 +771,7 @@ static void stream_setsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(Sddl2, SDDL_REVISION_1, &SecurityDescriptor, 0);
     ASSERT(Success);
 
-    Success = SetKernelObjectSecurity(Handle, DACL_SECURITY_INFORMATION, SecurityDescriptor);
+    Success = SetKernelObjectSecurity(StreamHandle, DACL_SECURITY_INFORMATION, SecurityDescriptor);
     ASSERT(Success);
 
     Success = GetKernelObjectSecurity(Handle,
@@ -806,10 +808,10 @@ static void stream_setsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     free(FileSecurityDescriptor);
     free(FileSecurityDescriptor2);
 
+    CloseHandle(StreamHandle);
     CloseHandle(Handle);
 
     LocalFree(SecurityDescriptor);
-#endif
 
     memfs_stop(memfs);
 }
