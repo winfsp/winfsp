@@ -203,7 +203,6 @@ static void stream_create_sd_dotest(ULONG Flags, PWSTR Prefix)
 {
     void *memfs = memfs_start(Flags);
 
-#if 0
     static PWSTR Sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;WD)";
     UINT8 AbsoluteSecurityDescriptorBuf[SECURITY_DESCRIPTOR_MIN_LENGTH];
     PSECURITY_DESCRIPTOR SecurityDescriptor, AbsoluteSecurityDescriptor = AbsoluteSecurityDescriptorBuf;
@@ -221,7 +220,7 @@ static void stream_create_sd_dotest(ULONG Flags, PWSTR Prefix)
     SecurityAttributes.nLength = sizeof SecurityAttributes;
     SecurityAttributes.lpSecurityDescriptor = SecurityDescriptor;
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Handle = CreateFileW(FilePath,
@@ -230,20 +229,11 @@ static void stream_create_sd_dotest(ULONG Flags, PWSTR Prefix)
     ASSERT(INVALID_HANDLE_VALUE != Handle);
     CloseHandle(Handle);
 
-    Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
-    ASSERT(INVALID_HANDLE_VALUE != Handle);
-    CloseHandle(Handle);
-
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectory(FilePath, &SecurityAttributes);
-    ASSERT(Success);
-
     Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
-        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
     CloseHandle(Handle);
 
@@ -265,34 +255,21 @@ static void stream_create_sd_dotest(ULONG Flags, PWSTR Prefix)
     SecurityAttributes.nLength = sizeof SecurityAttributes;
     SecurityAttributes.lpSecurityDescriptor = AbsoluteSecurityDescriptor;
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
-        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
-
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &SecurityAttributes,
         CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
     CloseHandle(Handle);
 
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
     CloseHandle(Handle);
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
-        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
-
-    Success = CreateDirectory(FilePath, &SecurityAttributes);
-    ASSERT(Success);
-
-    Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
-        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
-    ASSERT(INVALID_HANDLE_VALUE != Handle);
-    CloseHandle(Handle);
-
     LocalFree(SecurityDescriptor);
-#endif
 
     memfs_stop(memfs);
 }
