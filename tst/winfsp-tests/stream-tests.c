@@ -599,7 +599,6 @@ static void stream_getsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
-#if 0
     static PWSTR Sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;WD)";
     PSECURITY_DESCRIPTOR SecurityDescriptor, FileSecurityDescriptor;
     SECURITY_ATTRIBUTES SecurityAttributes = { 0 };
@@ -617,7 +616,7 @@ static void stream_getsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     SecurityAttributes.nLength = sizeof SecurityAttributes;
     SecurityAttributes.lpSecurityDescriptor = SecurityDescriptor;
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Handle = CreateFileW(FilePath,
@@ -625,6 +624,9 @@ static void stream_getsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
         CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
     CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
@@ -678,7 +680,6 @@ static void stream_getsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     CloseHandle(Handle);
 
     LocalFree(SecurityDescriptor);
-#endif
 
     memfs_stop(memfs);
 }
