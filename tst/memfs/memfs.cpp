@@ -25,7 +25,7 @@
 /*
  * Define the MEMFS_NAMED_STREAMS macro to include named streams support.
  */
-//#define MEMFS_NAMED_STREAMS
+#define MEMFS_NAMED_STREAMS
 
 /*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes

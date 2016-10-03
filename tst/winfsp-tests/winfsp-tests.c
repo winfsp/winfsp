@@ -23,6 +23,7 @@ int main(int argc, char *argv[])
     TESTSUITE(lock_tests);
     TESTSUITE(dirctl_tests);
     TESTSUITE(reparse_tests);
+    TESTSUITE(stream_tests);
 
     tlib_run_tests(argc, argv);
     return 0;
