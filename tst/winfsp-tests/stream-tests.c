@@ -11,7 +11,6 @@ static void stream_create_dotest(ULONG Flags, PWSTR Prefix)
     void *memfs = memfs_start(Flags);
 
     HANDLE Handle;
-    BOOLEAN Success;
     WCHAR FilePath[MAX_PATH];
 
     /* single stream */
@@ -292,11 +291,10 @@ static void stream_create_share_dotest(ULONG Flags, PWSTR Prefix)
 {
     void *memfs = memfs_start(Flags);
 
-#if 0
     HANDLE Handle1, Handle2;
     WCHAR FilePath[MAX_PATH];
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Handle1 = CreateFileW(FilePath,
@@ -341,11 +339,169 @@ static void stream_create_share_dotest(ULONG Flags, PWSTR Prefix)
         CloseHandle(Handle1);
     }
 
+    {
+        /* main file deny delete test #1 */
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle1 = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle2 = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+
+        CloseHandle(Handle1);
+        CloseHandle(Handle2);
+
+        /* main file deny delete test #2 */
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle1 = CreateFileW(FilePath,
+            DELETE, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle2 = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+
+        CloseHandle(Handle1);
+        CloseHandle(Handle2);
+
+        /* main file deny delete test #3 */
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle1 = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle2 = CreateFileW(FilePath,
+            DELETE, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+
+        CloseHandle(Handle1);
+
+        /* main file deny delete test #4 */
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle1 = CreateFileW(FilePath,
+            DELETE, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle2 = CreateFileW(FilePath,
+            DELETE, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+
+        CloseHandle(Handle1);
+    }
+
+    {
+        /* stream deny delete test #1 */
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle1 = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle2 = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+
+        CloseHandle(Handle1);
+        CloseHandle(Handle2);
+
+        /* stream deny delete test #2 */
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle1 = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle2 = CreateFileW(FilePath,
+            DELETE, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+
+        CloseHandle(Handle1);
+        CloseHandle(Handle2);
+
+        /* stream deny delete test #3 */
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle1 = CreateFileW(FilePath,
+            DELETE, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle2 = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+
+        CloseHandle(Handle1);
+
+        /* stream deny delete test #4 */
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle1 = CreateFileW(FilePath,
+            DELETE, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle2 = CreateFileW(FilePath,
+            DELETE, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+
+        CloseHandle(Handle1);
+    }
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
     Handle1 = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle1);
     CloseHandle(Handle1);
-#endif
 
     memfs_stop(memfs);
 }
