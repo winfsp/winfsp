@@ -599,7 +599,6 @@ static void stream_getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
-#if 0
     HANDLE Handle;
     BOOL Success;
     WCHAR FilePath[MAX_PATH];
@@ -611,17 +610,107 @@ static void stream_getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     BY_HANDLE_FILE_INFORMATION FileInfo;
     FILETIME FileTime;
     LONGLONG TimeLo, TimeHi;
+    DWORD nFileIndexHigh, nFileIndexLow;
 
     GetSystemTimeAsFileTime(&FileTime);
     TimeLo = ((PLARGE_INTEGER)&FileTime)->QuadPart;
     TimeHi = TimeLo + 10000 * 10000/* 10 seconds */;
+
+    /* test stream */
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Success = GetFileInformationByHandleEx(Handle, FileAttributeTagInfo, &AttributeTagInfo, sizeof AttributeTagInfo);
+    ASSERT(Success);
+    //ASSERT(FILE_ATTRIBUTE_ARCHIVE == AttributeTagInfo.FileAttributes);
+    ASSERT(0 == AttributeTagInfo.ReparseTag);
+
+    Success = GetFileInformationByHandleEx(Handle, FileBasicInfo, &BasicInfo, sizeof BasicInfo);
+    ASSERT(Success);
+    //ASSERT(FILE_ATTRIBUTE_ARCHIVE == BasicInfo.FileAttributes);
+    if (-1 != Flags)
+        ASSERT(
+            TimeLo <= BasicInfo.CreationTime.QuadPart &&
+            TimeHi >  BasicInfo.CreationTime.QuadPart);
+    ASSERT(
+        TimeLo <= BasicInfo.LastAccessTime.QuadPart &&
+        TimeHi >  BasicInfo.LastAccessTime.QuadPart);
+    ASSERT(
+        TimeLo <= BasicInfo.LastWriteTime.QuadPart &&
+        TimeHi >  BasicInfo.LastWriteTime.QuadPart);
+    ASSERT(
+        TimeLo <= BasicInfo.ChangeTime.QuadPart &&
+        TimeHi >  BasicInfo.ChangeTime.QuadPart);
+
+    Success = GetFileInformationByHandleEx(Handle, FileStandardInfo, &StandardInfo, sizeof StandardInfo);
+    ASSERT(Success);
+    ASSERT(0 == StandardInfo.AllocationSize.QuadPart);
+    ASSERT(0 == StandardInfo.EndOfFile.QuadPart);
+    ASSERT(1 == StandardInfo.NumberOfLinks);
+    ASSERT(!StandardInfo.DeletePending);
+    ASSERT(!StandardInfo.Directory);
+
+    Success = GetFileInformationByHandleEx(Handle, FileNameInfo, PNameInfo, sizeof *PNameInfo);
+    ASSERT(!Success);
+    ASSERT(ERROR_MORE_DATA == GetLastError());
+    if (-1 == Flags)
+        ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 6) * sizeof(WCHAR));
+    else if (0 == Prefix)
+        ASSERT(PNameInfo->FileNameLength == wcslen(L"\\file0:foo") * sizeof(WCHAR));
+    else
+        ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 1) * sizeof(WCHAR));
+    ASSERT(L'\\' == PNameInfo->FileName[0]);
+
+    Success = GetFileInformationByHandleEx(Handle, FileNameInfo, PNameInfo, sizeof NameInfoBuf);
+    ASSERT(Success);
+    if (-1 == Flags)
+        ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 6) * sizeof(WCHAR));
+    else if (0 == Prefix)
+        ASSERT(PNameInfo->FileNameLength == wcslen(L"\\file0:foo") * sizeof(WCHAR));
+    else
+        ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 1) * sizeof(WCHAR));
+    if (-1 == Flags)
+        ASSERT(0 == memcmp(FilePath + 6, PNameInfo->FileName, PNameInfo->FileNameLength));
+    else if (0 == Prefix)
+        ASSERT(0 == memcmp(L"\\file0:foo", PNameInfo->FileName, PNameInfo->FileNameLength));
+    else
+        ASSERT(0 == memcmp(FilePath + 1, PNameInfo->FileName, PNameInfo->FileNameLength));
+
+    Success = GetFileInformationByHandle(Handle, &FileInfo);
+    ASSERT(Success);
+    //ASSERT(FILE_ATTRIBUTE_ARCHIVE == FileInfo.dwFileAttributes);
+    if (-1 != Flags)
+        ASSERT(
+            TimeLo <= ((PLARGE_INTEGER)&FileInfo.ftCreationTime)->QuadPart &&
+            TimeHi >  ((PLARGE_INTEGER)&FileInfo.ftCreationTime)->QuadPart);
+    ASSERT(
+        TimeLo <= ((PLARGE_INTEGER)&FileInfo.ftLastAccessTime)->QuadPart &&
+        TimeHi >  ((PLARGE_INTEGER)&FileInfo.ftLastAccessTime)->QuadPart);
+    ASSERT(
+        TimeLo <= ((PLARGE_INTEGER)&FileInfo.ftLastWriteTime)->QuadPart &&
+        TimeHi >  ((PLARGE_INTEGER)&FileInfo.ftLastWriteTime)->QuadPart);
+    ASSERT(0 == FileInfo.nFileSizeLow && 0 == FileInfo.nFileSizeHigh);
+    ASSERT(1 == FileInfo.nNumberOfLinks);
+
+    nFileIndexHigh = FileInfo.nFileIndexHigh;
+    nFileIndexLow = FileInfo.nFileIndexLow;
+
+    CloseHandle(Handle);
+
+    /* test main file */
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+        OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
     Success = GetFileInformationByHandleEx(Handle, FileAttributeTagInfo, &AttributeTagInfo, sizeof AttributeTagInfo);
@@ -696,8 +785,10 @@ static void stream_getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     ASSERT(0 == FileInfo.nFileSizeLow && 0 == FileInfo.nFileSizeHigh);
     ASSERT(1 == FileInfo.nNumberOfLinks);
 
+    ASSERT(nFileIndexHigh == FileInfo.nFileIndexHigh);
+    ASSERT(nFileIndexLow == FileInfo.nFileIndexLow);
+
     CloseHandle(Handle);
-#endif
 
     memfs_stop(memfs);
 }
