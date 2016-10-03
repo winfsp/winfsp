@@ -26,6 +26,8 @@ NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK Desir
 NTSTATUS FspMainFileOpen(
     PDEVICE_OBJECT DeviceObject,
     PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    ULONG FileAttributes,
     ULONG Disposition,
     PHANDLE PMainFileHandle,
     PFILE_OBJECT *PMainFileObject);
@@ -387,6 +389,8 @@ NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK Desir
 NTSTATUS FspMainFileOpen(
     PDEVICE_OBJECT DeviceObject,
     PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    ULONG FileAttributes,
     ULONG Disposition,
     PHANDLE PMainFileHandle,
     PFILE_OBJECT *PMainFileObject)
@@ -425,7 +429,7 @@ NTSTATUS FspMainFileOpen(
         MainFileName,
         OBJ_KERNEL_HANDLE | OBJ_FORCE_ACCESS_CHECK | (CaseSensitive ? 0 : OBJ_CASE_INSENSITIVE),
         0/*RootDirectory*/,
-        0/*SecurityDescriptor*/);
+        SecurityDescriptor);
 
     IoStatus.Status = IoCreateFileSpecifyDeviceObjectHint(
         &MainFileHandle,
@@ -433,7 +437,7 @@ NTSTATUS FspMainFileOpen(
         &ObjectAttributes,
         &IoStatus,
         0/*AllocationSize*/,
-        FILE_ATTRIBUTE_NORMAL,
+        FileAttributes,
         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
         Disposition,
         FILE_OPEN_REPARSE_POINT,

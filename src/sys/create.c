@@ -351,24 +351,15 @@ static NTSTATUS FspFsvolCreateNoLock(
         return Result;
     }
 
+    /* fix FileAttributes */
+    ClearFlag(FileAttributes,
+        FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT);
+    if (CreateOptions & FILE_DIRECTORY_FILE)
+        SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
+
     /* if we have a non-empty stream part, open the main file */
     if (0 != StreamPart.Buffer)
     {
-        Result = FspMainFileOpen(FsvolDeviceObject,
-            &MainFileName, CaseSensitive,
-            CreateDisposition,
-            &FileDesc->MainFileHandle,
-            &FileDesc->MainFileObject);
-        if (!NT_SUCCESS(Result))
-            goto main_stream_exit;
-
-        /* check that the main file is one we recognize */
-        if (!FspFileNodeIsValid(FileDesc->MainFileObject->FsContext))
-        {
-            Result = STATUS_OBJECT_NAME_NOT_FOUND;
-            goto main_stream_exit;
-        }
-
         /* named streams can never be directories (even when attached to directories) */
         if (FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
         {
@@ -382,6 +373,28 @@ static NTSTATUS FspFsvolCreateNoLock(
             Result = STATUS_OBJECT_NAME_INVALID;
             goto main_stream_exit;
         }
+
+        Result = FspMainFileOpen(FsvolDeviceObject,
+            &MainFileName, CaseSensitive,
+            SecurityDescriptor,
+            FileAttributes,
+            CreateDisposition,
+            &FileDesc->MainFileHandle,
+            &FileDesc->MainFileObject);
+        if (!NT_SUCCESS(Result))
+            goto main_stream_exit;
+
+        /* check that the main file is one we recognize */
+        if (!FspFileNodeIsValid(FileDesc->MainFileObject->FsContext))
+        {
+            Result = STATUS_OBJECT_NAME_NOT_FOUND;
+            goto main_stream_exit;
+        }
+
+        /* cannot set security descriptor or file attributes on named stream */
+        SecurityDescriptor = 0;
+        SecurityDescriptorSize = 0;
+        FileAttributes = 0;
 
         /* remember the main file node */
         FileNode->MainFileNode = FileDesc->MainFileObject->FsContext;
@@ -406,12 +419,6 @@ static NTSTATUS FspFsvolCreateNoLock(
         FspFileNodeDereference(FileNode);
         return Result;
     }
-
-    /* fix FileAttributes */
-    ClearFlag(FileAttributes,
-        FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT);
-    if (CreateOptions & FILE_DIRECTORY_FILE)
-        SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
 
     /*
      * The new request is associated with our IRP. Go ahead and associate our FileNode/FileDesc

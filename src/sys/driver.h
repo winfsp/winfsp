@@ -434,6 +434,8 @@ NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK Desir
 NTSTATUS FspMainFileOpen(
     PDEVICE_OBJECT DeviceObject,
     PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    ULONG FileAttributes,
     ULONG Disposition,
     PHANDLE PMainFileHandle,
     PFILE_OBJECT *PMainFileObject);
