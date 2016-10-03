@@ -23,6 +23,11 @@
 #include <VersionHelpers.h>
 
 /*
+ * Define the MEMFS_NAMED_STREAMS macro to include named streams support.
+ */
+//#define MEMFS_NAMED_STREAMS
+
+/*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
  * a check for the Write buffer to ensure that it is read-only.
  */
@@ -48,14 +53,18 @@ int MemfsFileNameCompare(PWSTR a, PWSTR b)
 }
 
 static inline
-BOOLEAN MemfsFileNameHasPrefix(PWSTR a, PWSTR b, BOOLEAN AllowStreams)
+BOOLEAN MemfsFileNameHasPrefix(PWSTR a, PWSTR b)
 {
     size_t alen = wcslen(a);
     size_t blen = wcslen(b);
 
     return alen >= blen && 0 == memcmp(a, b, blen * sizeof(WCHAR)) &&
         (alen == blen || (1 == blen && L'\\' == b[0]) ||
-            (L'\\' == a[blen] || (AllowStreams && L':' == a[blen])));
+#if defined(MEMFS_NAMED_STREAMS)
+            (L'\\' == a[blen] || L':' == a[blen]));
+#else
+            (L'\\' == a[blen]));
+#endif
 }
 
 typedef struct _MEMFS_FILE_NODE
@@ -68,8 +77,9 @@ typedef struct _MEMFS_FILE_NODE
     SIZE_T ReparseDataSize;
     PVOID ReparseData;
     ULONG RefCount;
-    /* stream support */
+#if defined(MEMFS_NAMED_STREAMS)
     struct _MEMFS_FILE_NODE *MainFileNode;
+#endif
 } MEMFS_FILE_NODE;
 
 struct MEMFS_FILE_NODE_LESS
@@ -131,6 +141,7 @@ VOID MemfsFileNodeDelete(MEMFS_FILE_NODE *FileNode)
 static inline
 VOID MemfsFileNodeGetFileInfo(MEMFS_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
+#if defined(MEMFS_NAMED_STREAMS)
     if (0 == FileNode->MainFileNode)
         *FileInfo = FileNode->FileInfo;
     else
@@ -141,6 +152,9 @@ VOID MemfsFileNodeGetFileInfo(MEMFS_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *Fi
         FileInfo->AllocationSize = FileNode->FileInfo.AllocationSize;
         FileInfo->FileSize = FileNode->FileInfo.FileSize;
     }
+#else
+    *FileInfo = FileNode->FileInfo;
+#endif
 }
 
 static inline
@@ -193,6 +207,7 @@ MEMFS_FILE_NODE *MemfsFileNodeMapGet(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR Fil
     return iter->second;
 }
 
+#if defined(MEMFS_NAMED_STREAMS)
 static inline
 MEMFS_FILE_NODE *MemfsFileNodeMapGetMain(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR FileName0)
 {
@@ -207,6 +222,7 @@ MEMFS_FILE_NODE *MemfsFileNodeMapGetMain(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR
         return 0;
     return iter->second;
 }
+#endif
 
 static inline
 MEMFS_FILE_NODE *MemfsFileNodeMapGetParent(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR FileName0,
@@ -282,12 +298,13 @@ BOOLEAN MemfsFileNodeMapEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMF
     BOOLEAN IsDirectoryChild;
     for (; FileNodeMap->end() != iter; ++iter)
     {
-        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName, FALSE))
+        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName))
             break;
         FspPathSuffix(iter->second->FileName, &Remain, &Suffix, Root);
-        IsDirectoryChild =
-            0 == MemfsFileNameCompare(Remain, FileNode->FileName) &&
-            0 == wcschr(Suffix, L':');
+        IsDirectoryChild = 0 == MemfsFileNameCompare(Remain, FileNode->FileName);
+#if defined(MEMFS_NAMED_STREAMS)
+        IsDirectoryChild = IsDirectoryChild && 0 == wcschr(Suffix, L':');
+#endif
         FspPathCombine(iter->second->FileName, Suffix);
         if (IsDirectoryChild)
         {
@@ -298,6 +315,7 @@ BOOLEAN MemfsFileNodeMapEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMF
     return TRUE;
 }
 
+#if defined(MEMFS_NAMED_STREAMS)
 static inline
 BOOLEAN MemfsFileNodeMapEnumerateNamedStreams(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode,
     BOOLEAN (*EnumFn)(MEMFS_FILE_NODE *, PVOID), PVOID Context)
@@ -305,7 +323,7 @@ BOOLEAN MemfsFileNodeMapEnumerateNamedStreams(MEMFS_FILE_NODE_MAP *FileNodeMap, 
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->upper_bound(FileNode->FileName);
     for (; FileNodeMap->end() != iter; ++iter)
     {
-        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName, FALSE))
+        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName))
             break;
         if (L':' != iter->second->FileName[wcslen(FileNode->FileName)])
             break;
@@ -314,6 +332,7 @@ BOOLEAN MemfsFileNodeMapEnumerateNamedStreams(MEMFS_FILE_NODE_MAP *FileNodeMap, 
     }
     return TRUE;
 }
+#endif
 
 static inline
 BOOLEAN MemfsFileNodeMapEnumerateDescendants(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode,
@@ -323,7 +342,7 @@ BOOLEAN MemfsFileNodeMapEnumerateDescendants(MEMFS_FILE_NODE_MAP *FileNodeMap, M
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->lower_bound(FileNode->FileName);
     for (; FileNodeMap->end() != iter; ++iter)
     {
-        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName, TRUE))
+        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName))
             break;
         if (!EnumFn(iter->second, Context))
             return FALSE;
@@ -398,8 +417,10 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
         return Result;
     }
 
+#if defined(MEMFS_NAMED_STREAMS)
     if (0 != FileNode->MainFileNode)
         FileNode = FileNode->MainFileNode;
+#endif
 
     if (0 != PFileAttributes)
         *PFileAttributes = FileNode->FileInfo.FileAttributes;
@@ -451,7 +472,9 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return Result;
 
+#if defined(MEMFS_NAMED_STREAMS)
     FileNode->MainFileNode = MemfsFileNodeMapGetMain(Memfs->FileNodeMap, FileName);
+#endif
 
     FileNode->FileInfo.FileAttributes = (FileAttributes & FILE_ATTRIBUTE_DIRECTORY) ?
         FileAttributes : FileAttributes | FILE_ATTRIBUTE_ARCHIVE;
@@ -555,6 +578,7 @@ NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+#if defined(MEMFS_NAMED_STREAMS)
 typedef struct _MEMFS_CLEANUP_CONTEXT
 {
     MEMFS_FILE_NODE **FileNodes;
@@ -569,6 +593,7 @@ static BOOLEAN CleanupEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
 
     return TRUE;
 }
+#endif
 
 static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
@@ -582,6 +607,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
 
     if (Delete && !MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
     {
+#if defined(MEMFS_NAMED_STREAMS)
         MEMFS_CLEANUP_CONTEXT Context = { 0 };
         ULONG Index;
 
@@ -593,6 +619,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
                 MemfsFileNodeMapRemove(Memfs->FileNodeMap, Context.FileNodes[Index]);
             free(Context.FileNodes);
         }
+#endif
 
         MemfsFileNodeMapRemove(Memfs->FileNodeMap, FileNode);
     }
@@ -709,8 +736,10 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
+#if defined(MEMFS_NAMED_STREAMS)
     if (0 != FileNode->MainFileNode)
         FileNode = FileNode->MainFileNode;
+#endif
 
     if (INVALID_FILE_ATTRIBUTES != FileAttributes)
         FileNode->FileInfo.FileAttributes = FileAttributes;
@@ -855,7 +884,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     for (Index = 0; Context.Count > Index; Index++)
     {
         DescendantFileNode = Context.FileNodes[Index];
-        assert(MemfsFileNameHasPrefix(DescendantFileNode->FileName, FileNode->FileName, TRUE));
+        assert(MemfsFileNameHasPrefix(DescendantFileNode->FileName, FileNode->FileName));
         if (MAX_PATH <= wcslen(DescendantFileNode->FileName) - FileNameLen + NewFileNameLen)
         {
             Result = STATUS_OBJECT_NAME_INVALID;
@@ -908,8 +937,10 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
+#if defined(MEMFS_NAMED_STREAMS)
     if (0 != FileNode->MainFileNode)
         FileNode = FileNode->MainFileNode;
+#endif
 
     if (FileNode->FileSecuritySize > *PSecurityDescriptorSize)
     {
@@ -934,8 +965,10 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     SIZE_T FileSecuritySize;
     NTSTATUS Result;
 
+#if defined(MEMFS_NAMED_STREAMS)
     if (0 != FileNode->MainFileNode)
         FileNode = FileNode->MainFileNode;
+#endif
 
     Result = FspSetSecurityDescriptor(FileSystem, Request, FileNode->FileSecurity,
         &NewSecurityDescriptor);
@@ -1164,6 +1197,7 @@ static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+#if defined(MEMFS_NAMED_STREAMS)
 typedef struct _MEMFS_GET_STREAM_INFO_CONTEXT
 {
     PVOID Buffer;
@@ -1224,6 +1258,7 @@ static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM *FileSystem,
 
     return STATUS_SUCCESS;
 }
+#endif
 
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
@@ -1250,7 +1285,11 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     GetReparsePoint,
     SetReparsePoint,
     DeleteReparsePoint,
+#if defined(MEMFS_NAMED_STREAMS)
     GetStreamInfo,
+#else
+    0,
+#endif
 };
 
 NTSTATUS MemfsCreate(
@@ -1313,7 +1352,9 @@ NTSTATUS MemfsCreate(
     VolumeParams.PersistentAcls = 1;
     VolumeParams.ReparsePoints = 1;
     VolumeParams.ReparsePointsAccessCheck = 0;
+#if defined(MEMFS_NAMED_STREAMS)
     VolumeParams.NamedStreams = 1;
+#endif
     VolumeParams.PostCleanupOnDeleteOnly = 1;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
