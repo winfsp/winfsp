@@ -116,7 +116,9 @@ NTSTATUS FspAcquireForModWrite(
     Success = FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, FALSE);
     if (Success)
     {
-        *ResourceToRelease = FileNode->Header.PagingIoResource;
+        *ResourceToRelease = 0 == FileNode->MainFileNode ?
+            FileNode->Header.PagingIoResource :
+            FileNode->MainFileNode->Header.PagingIoResource;
         Result = STATUS_SUCCESS;
     }
     else

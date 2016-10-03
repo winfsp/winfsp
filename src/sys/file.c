@@ -240,6 +240,9 @@ VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
 
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+
     FSP_FILE_NODE_GET_FLAGS();
     FSP_FILE_NODE_ASSERT_FLAGS_CLR();
 
@@ -255,6 +258,9 @@ VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
 BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLEAN Wait)
 {
     PAGED_CODE();
+
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
 
     FSP_FILE_NODE_GET_FLAGS();
     FSP_FILE_NODE_ASSERT_FLAGS_CLR();
@@ -289,6 +295,9 @@ VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
 
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+
     FSP_FILE_NODE_GET_FLAGS();
     FSP_FILE_NODE_ASSERT_FLAGS_CLR();
 
@@ -304,6 +313,9 @@ VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags)
 BOOLEAN FspFileNodeTryAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLEAN Wait)
 {
     PAGED_CODE();
+
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
 
     FSP_FILE_NODE_GET_FLAGS();
     FSP_FILE_NODE_ASSERT_FLAGS_CLR();
@@ -338,6 +350,9 @@ VOID FspFileNodeConvertExclusiveToSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
 
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+
     FSP_FILE_NODE_GET_FLAGS();
 
     if (Flags & FspFileNodeAcquirePgio)
@@ -350,6 +365,9 @@ VOID FspFileNodeConvertExclusiveToSharedF(FSP_FILE_NODE *FileNode, ULONG Flags)
 VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
 {
     PAGED_CODE();
+
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
 
     FSP_FILE_NODE_GET_FLAGS();
 
@@ -366,6 +384,9 @@ VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags)
 {
     PAGED_CODE();
 
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+
     FSP_FILE_NODE_GET_FLAGS();
     FSP_FILE_NODE_ASSERT_FLAGS_SET();
 
@@ -381,6 +402,9 @@ VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags)
 VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
 {
     PAGED_CODE();
+
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
 
     FSP_FILE_NODE_GET_FLAGS();
     FSP_FILE_NODE_ASSERT_FLAGS_SET();
