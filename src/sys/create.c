@@ -224,16 +224,15 @@ static NTSTATUS FspFsvolCreateNoLock(
     if (0 != StreamPart.Buffer)
     {
         ASSERT(
-            FileName.Buffer <= StreamPart.Buffer &&
-            StreamPart.Buffer + StreamPart.Length / sizeof(WCHAR) <=
-                FileName.Buffer + FileName.Length / sizeof(WCHAR));
+            (PUINT8)FileName.Buffer + sizeof(WCHAR) <= (PUINT8)StreamPart.Buffer &&
+            (PUINT8)StreamPart.Buffer + StreamPart.Length <=
+                (PUINT8)FileName.Buffer + FileName.Length);
 
         FileName.Length = (USHORT)
-            (((PUINT8)StreamPart.Buffer + StreamPart.Length / sizeof(WCHAR)) -
-            (PUINT8)FileName.Buffer - 1);
+            ((PUINT8)StreamPart.Buffer - (PUINT8)FileName.Buffer + StreamPart.Length);
 
         MainFileName.Length = MainFileName.MaximumLength = (USHORT)
-            ((PUINT8)StreamPart.Buffer - (PUINT8)FileName.Buffer - 1);
+            ((PUINT8)StreamPart.Buffer - (PUINT8)FileName.Buffer - sizeof(WCHAR));
         MainFileName.Buffer = FileName.Buffer;
     }
 
