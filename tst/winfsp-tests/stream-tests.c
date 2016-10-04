@@ -817,20 +817,22 @@ static void stream_setfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
-#if 0
     HANDLE Handle;
     BOOL Success;
     WCHAR FilePath[MAX_PATH];
     BY_HANDLE_FILE_INFORMATION FileInfo0, FileInfo;
     FILETIME FileTime;
     DWORD Offset;
+    DWORD nFileIndexHigh, nFileIndexLow;
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+    /* test stream */
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
     Success = GetFileInformationByHandle(Handle, &FileInfo0);
@@ -872,8 +874,34 @@ static void stream_setfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     ASSERT(42 == FileInfo.nFileSizeLow);
     ASSERT(0 == FileInfo.nFileSizeHigh);
 
+    nFileIndexHigh = FileInfo.nFileIndexHigh;
+    nFileIndexLow = FileInfo.nFileIndexLow;
+
     CloseHandle(Handle);
-#endif
+
+    /* test main file */
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Success = GetFileInformationByHandle(Handle, &FileInfo);
+    ASSERT(Success);
+    ASSERT(0 != (FileInfo.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN));
+    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftLastAccessTime);
+    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftLastWriteTime);
+    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftCreationTime);
+    ASSERT(0 == FileInfo.nFileSizeLow);
+    ASSERT(0 == FileInfo.nFileSizeHigh);
+
+    ASSERT(nFileIndexHigh == FileInfo.nFileIndexHigh);
+    ASSERT(nFileIndexLow == FileInfo.nFileIndexLow);
+
+    CloseHandle(Handle);
 
     memfs_stop(memfs);
 }
