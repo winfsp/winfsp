@@ -926,6 +926,89 @@ static void stream_setfileinfo_test(void)
     }
 }
 
+static void stream_delete_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR Dir1Path[MAX_PATH], Dir1StreamPath[MAX_PATH];
+    WCHAR FilePath[MAX_PATH], FileStreamPath[MAX_PATH];
+
+    StringCbPrintfW(Dir1Path, sizeof Dir1Path, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(Dir1StreamPath, sizeof Dir1StreamPath, L"%s%s\\dir1:foo1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(FileStreamPath, sizeof FileStreamPath, L"%s%s\\dir1\\file0:foo0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(Dir1Path, 0);
+    ASSERT(Success);
+
+    Handle = CreateFileW(Dir1StreamPath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Handle = CreateFileW(FileStreamPath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Success = RemoveDirectoryW(Dir1Path);
+    ASSERT(!Success);
+    ASSERT(ERROR_DIR_NOT_EMPTY == GetLastError());
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(!Success);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    Success = RemoveDirectoryW(Dir1Path);
+    ASSERT(Success);
+
+    Success = RemoveDirectoryW(Dir1Path);
+    ASSERT(!Success);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    memfs_stop(memfs);
+}
+
+static void stream_delete_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        stream_delete_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        stream_delete_dotest(MemfsDisk, 0, 0);
+        stream_delete_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        stream_delete_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        stream_delete_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 static void stream_getsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -1174,6 +1257,7 @@ void stream_tests(void)
     TEST(stream_create_share_test);
     TEST(stream_getfileinfo_test);
     TEST(stream_setfileinfo_test);
+    TEST(stream_delete_test);
     TEST(stream_getsecurity_test);
     TEST(stream_setsecurity_test);
 }
