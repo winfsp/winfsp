@@ -1504,14 +1504,6 @@ static void stream_getstreaminfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInf
         ASSERT(Success);
     }
 
-#if 0
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file*",
-        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
-    Handle = FindFirstFileW(FilePath, &FindData);
-    ASSERT(INVALID_HANDLE_VALUE == Handle);
-    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
-#endif
-
     memfs_stop(memfs);
 }
 
