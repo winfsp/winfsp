@@ -1366,6 +1366,187 @@ static void stream_setsecurity_test(void)
     }
 }
 
+static void stream_getstreaminfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG SleepTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR FilePath[MAX_PATH];
+    WIN32_FIND_STREAM_DATA FindData;
+    ULONG FileCount, FileTotal;
+
+    for (int i = 1; 10 >= i; i++)
+    {
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file%d",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), i);
+        Handle = CreateFileW(FilePath, GENERIC_ALL, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        Success = CloseHandle(Handle);
+        ASSERT(Success);
+    }
+
+    for (int i = 1; 10 >= i; i++)
+    {
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir%d",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), i);
+        Success = CreateDirectoryW(FilePath, 0);
+        ASSERT(Success);
+    }
+
+    for (int j = 1; 100 >= j; j++)
+    {
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file5:strm%d",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), j);
+        Handle = CreateFileW(FilePath, GENERIC_ALL, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        Success = CloseHandle(Handle);
+        ASSERT(Success);
+    }
+
+    for (int j = 1; 100 >= j; j++)
+    {
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir5:strm%d",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), j);
+        Handle = CreateFileW(FilePath, GENERIC_ALL, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        Success = CloseHandle(Handle);
+        ASSERT(Success);
+    }
+
+    DWORD times[2];
+    times[0] = GetTickCount();
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file5",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Handle = FindFirstStreamW(FilePath, FindStreamInfoStandard, &FindData, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    FileCount = FileTotal = 0;
+    do
+    {
+        unsigned long ul;
+        wchar_t *endp;
+
+        if (1 > FileCount)
+        {
+            FileCount++;
+            ASSERT(0 == wcscmp(FindData.cStreamName, L"::$DATA"));
+            continue;
+        }
+
+        ASSERT(0 == wcsncmp(FindData.cStreamName, L":strm", 5));
+        ul = wcstoul(FindData.cStreamName + 5, &endp, 10);
+        ASSERT(0 != ul);
+        ASSERT(L':' == *endp);
+
+        FileCount++;
+        FileTotal += ul;
+
+        if (0 < SleepTimeout && 5 == FileCount)
+            Sleep(SleepTimeout);
+    } while (FindNextStreamW(Handle, &FindData));
+    ASSERT(ERROR_HANDLE_EOF == GetLastError());
+
+    ASSERT(101 == FileCount);
+    ASSERT(101 * 100 / 2 == FileTotal);
+
+    Success = FindClose(Handle);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir5",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Handle = FindFirstStreamW(FilePath, FindStreamInfoStandard, &FindData, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    FileCount = FileTotal = 0;
+    do
+    {
+        unsigned long ul;
+        wchar_t *endp;
+
+        ASSERT(0 == wcsncmp(FindData.cStreamName, L":strm", 5));
+        ul = wcstoul(FindData.cStreamName + 5, &endp, 10);
+        ASSERT(0 != ul);
+        ASSERT(L':' == *endp);
+
+        FileCount++;
+        FileTotal += ul;
+
+        if (0 < SleepTimeout && 5 == FileCount)
+            Sleep(SleepTimeout);
+    } while (FindNextStreamW(Handle, &FindData));
+    ASSERT(ERROR_HANDLE_EOF == GetLastError());
+
+    ASSERT(100 == FileCount);
+    ASSERT(101 * 100 / 2 == FileTotal);
+
+    Success = FindClose(Handle);
+    ASSERT(Success);
+
+    times[1] = GetTickCount();
+    FspDebugLog(__FUNCTION__ "(Flags=%lx, Prefix=\"%S\", FileInfoTimeout=%ld, SleepTimeout=%ld): %ldms\n",
+        Flags, Prefix, FileInfoTimeout, SleepTimeout, times[1] - times[0]);
+
+    for (int i = 1; 10 >= i; i++)
+    {
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file%d",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), i);
+        Success = DeleteFileW(FilePath);
+        ASSERT(Success);
+    }
+
+    for (int i = 1; 10 >= i; i++)
+    {
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir%d",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), i);
+        Success = RemoveDirectoryW(FilePath);
+        ASSERT(Success);
+    }
+
+#if 0
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file*",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Handle = FindFirstFileW(FilePath, &FindData);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+#endif
+
+    memfs_stop(memfs);
+}
+
+void stream_getstreaminfo_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        stream_getstreaminfo_dotest(-1, DirBuf, 0, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        stream_getstreaminfo_dotest(MemfsDisk, 0, 0, 0);
+        stream_getstreaminfo_dotest(MemfsDisk, 0, 1000, 0);
+    }
+    if (WinFspNetTests)
+    {
+        stream_getstreaminfo_dotest(MemfsNet, L"\\\\memfs\\share", 0, 0);
+        stream_getstreaminfo_dotest(MemfsNet, L"\\\\memfs\\share", 1000, 0);
+    }
+}
+
+void stream_getstreaminfo_expire_cache_test(void)
+{
+    if (WinFspDiskTests)
+    {
+        stream_getstreaminfo_dotest(MemfsDisk, 0, 500, 750);
+    }
+    if (WinFspNetTests)
+    {
+        stream_getstreaminfo_dotest(MemfsNet, L"\\\\memfs\\share", 500, 750);
+    }
+}
+
 void stream_tests(void)
 {
     TEST(stream_create_test);
@@ -1377,4 +1558,6 @@ void stream_tests(void)
     TEST(stream_delete_pending_test);
     TEST(stream_getsecurity_test);
     TEST(stream_setsecurity_test);
+    TEST(stream_getstreaminfo_test);
+    TEST(stream_getstreaminfo_expire_cache_test);
 }
