@@ -218,6 +218,7 @@ typedef struct
             UINT32 HasTraversePrivilege:1;  /* requestor has TOKEN_HAS_TRAVERSE_PRIVILEGE */
             UINT32 OpenTargetDirectory:1;   /* open target dir and report FILE_{EXISTS,DOES_NOT_EXIST} */
             UINT32 CaseSensitive:1;         /* FileName comparisons should be case-sensitive */
+            UINT32 NamedStream:1;           /* request targets named stream; FileName has colon */
         } Create;
         struct
         {

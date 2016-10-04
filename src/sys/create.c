@@ -358,7 +358,7 @@ static NTSTATUS FspFsvolCreateNoLock(
         SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
 
     /* if we have a non-empty stream part, open the main file */
-    if (0 != StreamPart.Buffer)
+    if (0 != StreamPart.Length)
     {
         /* named streams can never be directories (even when attached to directories) */
         if (FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
@@ -449,6 +449,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     Request->Req.Create.HasTraversePrivilege = HasTraversePrivilege;
     Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);
     Request->Req.Create.CaseSensitive = CaseSensitiveRequested;
+    Request->Req.Create.NamedStream = 0 != StreamPart.Length;
 
     /* copy the security descriptor (if any) into the request */
     if (0 != SecurityDescriptorSize)

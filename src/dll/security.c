@@ -358,6 +358,10 @@ FSP_API NTSTATUS FspCreateSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
     if (FspFsctlTransactCreateKind != Request->Kind)
         return STATUS_INVALID_PARAMETER;
 
+    /* stream support: return NULL security descriptor when creating named stream */
+    if (Request->Req.Create.NamedStream)
+        return STATUS_SUCCESS;
+
     if (!CreatePrivateObjectSecurity(
         ParentDescriptor,
         0 != Request->Req.Create.SecurityDescriptor.Offset ?
@@ -438,6 +442,10 @@ FSP_API NTSTATUS FspSetSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
 FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor,
     NTSTATUS (*CreateFunc)())
 {
+    /* stream support: allow NULL security descriptors */
+    if (0 == SecurityDescriptor)
+        return;
+
     if ((NTSTATUS (*)())FspAccessCheckEx == CreateFunc ||
         (NTSTATUS (*)())FspPosixMapPermissionsToSecurityDescriptor == CreateFunc)
         MemFree(SecurityDescriptor);
