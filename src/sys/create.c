@@ -238,10 +238,6 @@ static NTSTATUS FspFsvolCreateNoLock(
 
         FileName.Length = (USHORT)
             ((PUINT8)StreamPart.Buffer - (PUINT8)FileName.Buffer + StreamPart.Length);
-
-        MainFileName.Length = MainFileName.MaximumLength = (USHORT)
-            ((PUINT8)StreamPart.Buffer - (PUINT8)FileName.Buffer - sizeof(WCHAR));
-        MainFileName.Buffer = FileName.Buffer;
     }
 
     /* is this a relative or absolute open? */
@@ -381,7 +377,13 @@ static NTSTATUS FspFsvolCreateNoLock(
             goto main_stream_exit;
         }
 
-        Result = FspMainFileOpen(FsvolDeviceObject,
+        MainFileName.Length = MainFileName.MaximumLength = (USHORT)
+            ((PUINT8)StreamPart.Buffer - (PUINT8)FileName.Buffer - sizeof(WCHAR));
+        MainFileName.Buffer = FileName.Buffer;
+
+        Result = FspMainFileOpen(
+            FsvolDeviceObject,
+            FileObject->DeviceObject, /* use as device hint when using MUP */
             &MainFileName, CaseSensitive,
             SecurityDescriptor,
             FileAttributes,
@@ -405,9 +407,6 @@ static NTSTATUS FspFsvolCreateNoLock(
 
         /* remember the main file node */
         FileNode->MainFileNode = FileDesc->MainFileObject->FsContext;
-
-        ASSERT(RtlEqualUnicodeString(&MainFileName, &FileNode->MainFileNode->FileName,
-            !CaseSensitive));
 
         Result = STATUS_SUCCESS;
 

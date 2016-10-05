@@ -1025,6 +1025,7 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
     PUNICODE_STRING FileName, BOOLEAN Reset);
 NTSTATUS FspMainFileOpen(
     PDEVICE_OBJECT FsvolDeviceObject,
+    PDEVICE_OBJECT DeviceObjectHint,
     PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
     PSECURITY_DESCRIPTOR SecurityDescriptor,
     ULONG FileAttributes,

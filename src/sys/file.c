@@ -72,6 +72,7 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
     PUNICODE_STRING FileName, BOOLEAN Reset);
 NTSTATUS FspMainFileOpen(
     PDEVICE_OBJECT FsvolDeviceObject,
+    PDEVICE_OBJECT DeviceObjectHint,
     PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
     PSECURITY_DESCRIPTOR SecurityDescriptor,
     ULONG FileAttributes,
@@ -1253,6 +1254,7 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
 
 NTSTATUS FspMainFileOpen(
     PDEVICE_OBJECT FsvolDeviceObject,
+    PDEVICE_OBJECT DeviceObjectHint,
     PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
     PSECURITY_DESCRIPTOR SecurityDescriptor,
     ULONG FileAttributes,
@@ -1297,7 +1299,6 @@ NTSTATUS FspMainFileOpen(
     FullFileName.Length = 0;
     FullFileName.MaximumLength =
         FsvolDeviceExtension->VolumeName.Length +
-        FsvolDeviceExtension->VolumePrefix.Length +
         MainFileName->Length;
     FullFileName.Buffer = FspAlloc(FullFileName.MaximumLength);
     if (0 == FullFileName.Buffer)
@@ -1307,7 +1308,6 @@ NTSTATUS FspMainFileOpen(
     }
 
     RtlAppendUnicodeStringToString(&FullFileName, &FsvolDeviceExtension->VolumeName);
-    RtlAppendUnicodeStringToString(&FullFileName, &FsvolDeviceExtension->VolumePrefix);
     RtlAppendUnicodeStringToString(&FullFileName, MainFileName);
 
     InitializeObjectAttributes(
@@ -1321,7 +1321,8 @@ NTSTATUS FspMainFileOpen(
     DriverCreateContext.Size =
         FIELD_OFFSET(IO_DRIVER_CREATE_CONTEXT, TxnParameters) +
         sizeof(((PIO_DRIVER_CREATE_CONTEXT)0)->TxnParameters);
-    DriverCreateContext.DeviceObjectHint = FsvolDeviceObject;
+    DriverCreateContext.DeviceObjectHint = 0 != FsvolDeviceExtension->FsvrtDeviceObject ?
+        FsvolDeviceObject : DeviceObjectHint;
 
     IoStatus.Status = FsRtlAllocateExtraCreateParameterList(0,
         &DriverCreateContext.ExtraCreateParameter);
