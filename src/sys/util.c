@@ -17,7 +17,7 @@
 
 #include <sys/driver.h>
 
-BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart);
+BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType);
 BOOLEAN FspUnicodePathIsValidPattern(PUNICODE_STRING Pattern);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);
@@ -171,14 +171,17 @@ PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
     }
 }
 
-BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart)
+BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType)
 {
     PAGED_CODE();
+
+    /* if StreamPart is not NULL, StreamType must also be not NULL */
+    ASSERT(0 == StreamPart || 0 != StreamType);
 
     if (0 != Path->Length % sizeof(WCHAR))
         return FALSE;
 
-    PWSTR PathBgn, PathEnd, PathPtr;
+    PWSTR PathBgn, PathEnd, PathPtr, StreamTypeStr = 0;
     UCHAR Flags = FSRTL_NTFS_LEGAL;
     ULONG Colons = 0;
     WCHAR Char;
@@ -221,15 +224,17 @@ BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart)
             if (1 == Colons)
             {
                 /* first time through: set up StreamPart */
-                StreamPart->Length = StreamPart->MaximumLength =
-                    (USHORT)((PUINT8)PathEnd - (PUINT8)PathPtr);
+                StreamPart->Length = StreamPart->MaximumLength = (USHORT)
+                    ((PUINT8)PathEnd - (PUINT8)PathPtr);
                 StreamPart->Buffer = PathPtr;
             }
             else if (2 == Colons)
             {
                 /* second time through: fix StreamPart length to not include 2nd colon */
-                StreamPart->Length =
-                    (USHORT)((PUINT8)PathPtr - (PUINT8)StreamPart->Buffer - 1);
+                StreamPart->Length = (USHORT)
+                    ((PUINT8)PathPtr - (PUINT8)StreamPart->Buffer - sizeof(WCHAR));
+
+                StreamTypeStr = PathPtr;
             }
         }
         else if (0x80 > Char && !FsRtlTestAnsiCharacter(Char, TRUE, FALSE, Flags))
@@ -238,7 +243,31 @@ BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart)
             PathPtr++;
     }
 
-    return TRUE;
+    /* if we had no colons the path is valid */
+    if (0 == Colons)
+        return TRUE;
+
+    ASSERT(0 != StreamPart && 0 != StreamType);
+
+    *StreamType = FspUnicodePathStreamTypeNone;
+
+    /* if we had no stream type the path is valid if there was an actual stream name */
+    if (0 == StreamTypeStr)
+        return 0 != StreamPart->Length;
+
+    /* if we had a stream type the path is valid if the stream type was "$DATA" only */
+    if (StreamTypeStr + 5 == PathEnd &&
+        L'$' == StreamTypeStr[0] &&
+        L'D' == StreamTypeStr[1] &&
+        L'A' == StreamTypeStr[2] &&
+        L'T' == StreamTypeStr[3] &&
+        L'A' == StreamTypeStr[4])
+    {
+        *StreamType = FspUnicodePathStreamTypeData;
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 BOOLEAN FspUnicodePathIsValidPattern(PUNICODE_STRING Path)

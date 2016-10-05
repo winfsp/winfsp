@@ -423,9 +423,14 @@ BOOLEAN FspExpirationTimeValid2(UINT64 ExpirationTime, UINT64 CurrentTime)
 }
 
 /* utility */
+enum
+{
+    FspUnicodePathStreamTypeNone        = 0,
+    FspUnicodePathStreamTypeData        = 1,
+};
 PVOID FspAllocatePoolMustSucceed(POOL_TYPE PoolType, SIZE_T Size, ULONG Tag);
 PVOID FspAllocateIrpMustSucceed(CCHAR StackSize);
-BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart);
+BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType);
 BOOLEAN FspUnicodePathIsValidPattern(PUNICODE_STRING Pattern);
 VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspCreateGuid(GUID *Guid);

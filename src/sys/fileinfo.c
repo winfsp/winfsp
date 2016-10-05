@@ -1114,7 +1114,7 @@ static NTSTATUS FspFsvolSetRenameInformation(
     if (FileNode->IsRootDirectory)
         /* cannot rename root directory */
         return STATUS_INVALID_PARAMETER;
-    if (!FspUnicodePathIsValid(&FileNode->FileName, 0))
+    if (!FspUnicodePathIsValid(&FileNode->FileName, 0, 0))
         /* cannot rename streams (WinFsp limitation) */
         return STATUS_INVALID_PARAMETER;
 
@@ -1139,7 +1139,7 @@ static NTSTATUS FspFsvolSetRenameInformation(
     if (L'\\' == Suffix.Buffer[0])
         FspUnicodePathSuffix(&Suffix, &NewFileName, &Suffix);
 
-    if (!FspUnicodePathIsValid(&Remain, 0) || !FspUnicodePathIsValid(&Suffix, 0))
+    if (!FspUnicodePathIsValid(&Remain, 0, 0) || !FspUnicodePathIsValid(&Suffix, 0, 0))
     {
         /* cannot rename streams (WinFsp limitation) */
         Result = STATUS_INVALID_PARAMETER;

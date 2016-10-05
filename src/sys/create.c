@@ -179,6 +179,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     FSP_FILE_NODE *FileNode, *RelatedFileNode;
     FSP_FILE_DESC *FileDesc;
     UNICODE_STRING MainFileName = { 0 }, StreamPart = { 0 };
+    ULONG StreamType = FspUnicodePathStreamTypeNone;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     /* cannot open files by fileid */
@@ -276,7 +277,8 @@ static NTSTATUS FspFsvolCreateNoLock(
 
     /* check filename validity */
     if (!FspUnicodePathIsValid(&FileNode->FileName,
-        FsvolDeviceExtension->VolumeParams.NamedStreams ? &StreamPart : 0))
+        FsvolDeviceExtension->VolumeParams.NamedStreams ? &StreamPart : 0,
+        &StreamType))
     {
         FspFileNodeDereference(FileNode);
         return STATUS_OBJECT_NAME_INVALID;
@@ -291,7 +293,8 @@ static NTSTATUS FspFsvolCreateNoLock(
                 (PUINT8)FileNode->FileName.Buffer + FileNode->FileName.Length);
 
         FileNode->FileName.Length = (USHORT)
-            ((PUINT8)StreamPart.Buffer - (PUINT8)FileNode->FileName.Buffer + StreamPart.Length);
+            ((PUINT8)StreamPart.Buffer - (PUINT8)FileNode->FileName.Buffer + StreamPart.Length -
+            (0 == StreamPart.Length) * sizeof(WCHAR));
     }
 
     /* check and remove any volume prefix */
@@ -328,6 +331,16 @@ static NTSTATUS FspFsvolCreateNoLock(
         }
 
         FileNode->FileName.Length -= sizeof(WCHAR);
+    }
+
+    /* if a $DATA stream type, this cannot be a directory */
+    if (FspUnicodePathStreamTypeData == StreamType)
+    {
+        if (FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
+        {
+            FspFileNodeDereference(FileNode);
+            return STATUS_NOT_A_DIRECTORY;
+        }
     }
 
     /* not all operations allowed on the root directory */

@@ -1274,7 +1274,7 @@ NTSTATUS FspMainFileOpen(
     PFILE_OBJECT MainFileObject;
 
     /* assert that the supplied name is actually a main file name */
-    ASSERT(FspUnicodePathIsValid(MainFileName, 0));
+    ASSERT(FspUnicodePathIsValid(MainFileName, 0, 0));
 
     *PMainFileHandle = 0;
     *PMainFileObject = 0;
