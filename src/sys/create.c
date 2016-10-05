@@ -155,7 +155,6 @@ static NTSTATUS FspFsvolCreateNoLock(
         return STATUS_SUCCESS;
     }
 
-    UNICODE_STRING MainFileName = { 0 }, StreamPart = { 0 };
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
     ULONG CreateDisposition = (IrpSp->Parameters.Create.Options >> 24) & 0xff;
     ULONG CreateOptions = IrpSp->Parameters.Create.Options;
@@ -179,6 +178,7 @@ static NTSTATUS FspFsvolCreateNoLock(
         BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
     FSP_FILE_NODE *FileNode, *RelatedFileNode;
     FSP_FILE_DESC *FileDesc;
+    UNICODE_STRING MainFileName = { 0 }, StreamPart = { 0 };
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     /* cannot open files by fileid */
@@ -221,23 +221,6 @@ static NTSTATUS FspFsvolCreateNoLock(
         FileName.Length -= sizeof(WCHAR);
         FileName.MaximumLength -= sizeof(WCHAR);
         FileName.Buffer++;
-    }
-
-    /* check filename validity */
-    if (!FspUnicodePathIsValid(&FileName,
-        FsvolDeviceExtension->VolumeParams.NamedStreams ? &StreamPart : 0))
-        return STATUS_OBJECT_NAME_INVALID;
-
-    /* if we have a stream part (even non-empty) */
-    if (0 != StreamPart.Buffer)
-    {
-        ASSERT(
-            (PUINT8)FileName.Buffer + sizeof(WCHAR) <= (PUINT8)StreamPart.Buffer &&
-            (PUINT8)StreamPart.Buffer + StreamPart.Length <=
-                (PUINT8)FileName.Buffer + FileName.Length);
-
-        FileName.Length = (USHORT)
-            ((PUINT8)StreamPart.Buffer - (PUINT8)FileName.Buffer + StreamPart.Length);
     }
 
     /* is this a relative or absolute open? */
@@ -290,6 +273,26 @@ static NTSTATUS FspFsvolCreateNoLock(
 
     Result = RtlAppendUnicodeStringToString(&FileNode->FileName, &FileName);
     ASSERT(NT_SUCCESS(Result));
+
+    /* check filename validity */
+    if (!FspUnicodePathIsValid(&FileNode->FileName,
+        FsvolDeviceExtension->VolumeParams.NamedStreams ? &StreamPart : 0))
+    {
+        FspFileNodeDereference(FileNode);
+        return STATUS_OBJECT_NAME_INVALID;
+    }
+
+    /* if we have a stream part (even non-empty), ensure that FileNode->FileName has single colon */
+    if (0 != StreamPart.Buffer)
+    {
+        ASSERT(
+            (PUINT8)FileNode->FileName.Buffer + sizeof(WCHAR) <= (PUINT8)StreamPart.Buffer &&
+            (PUINT8)StreamPart.Buffer + StreamPart.Length <=
+                (PUINT8)FileNode->FileName.Buffer + FileNode->FileName.Length);
+
+        FileNode->FileName.Length = (USHORT)
+            ((PUINT8)StreamPart.Buffer - (PUINT8)FileNode->FileName.Buffer + StreamPart.Length);
+    }
 
     /* check and remove any volume prefix */
     if (0 == RelatedFileObject && 0 < FsvolDeviceExtension->VolumePrefix.Length)
@@ -378,8 +381,8 @@ static NTSTATUS FspFsvolCreateNoLock(
         }
 
         MainFileName.Length = MainFileName.MaximumLength = (USHORT)
-            ((PUINT8)StreamPart.Buffer - (PUINT8)FileName.Buffer - sizeof(WCHAR));
-        MainFileName.Buffer = FileName.Buffer;
+            ((PUINT8)StreamPart.Buffer - (PUINT8)FileNode->FileName.Buffer - sizeof(WCHAR));
+        MainFileName.Buffer = FileNode->FileName.Buffer;
 
         Result = FspMainFileOpen(
             FsvolDeviceObject,

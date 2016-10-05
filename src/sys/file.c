@@ -1299,6 +1299,7 @@ NTSTATUS FspMainFileOpen(
     FullFileName.Length = 0;
     FullFileName.MaximumLength =
         FsvolDeviceExtension->VolumeName.Length +
+        FsvolDeviceExtension->VolumePrefix.Length +
         MainFileName->Length;
     FullFileName.Buffer = FspAlloc(FullFileName.MaximumLength);
     if (0 == FullFileName.Buffer)
@@ -1308,6 +1309,7 @@ NTSTATUS FspMainFileOpen(
     }
 
     RtlAppendUnicodeStringToString(&FullFileName, &FsvolDeviceExtension->VolumeName);
+    RtlAppendUnicodeStringToString(&FullFileName, &FsvolDeviceExtension->VolumePrefix);
     RtlAppendUnicodeStringToString(&FullFileName, MainFileName);
 
     InitializeObjectAttributes(
