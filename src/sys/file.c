@@ -479,9 +479,15 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
             goto exit;
         }
 
+        /*
+         * Sharing violations between main file and streams were determined
+         * through experimentation with NTFS. They may be wrong!
+         */
         if (0 < FileNode->MainFileNode->MainFileDenyDeleteCount)
         {
-            if (FlagOn(GrantedAccess, DELETE))
+            if (!FlagOn(ShareAccess, FILE_SHARE_DELETE) &&
+                FlagOn(GrantedAccess,
+                    FILE_EXECUTE | FILE_READ_DATA | FILE_WRITE_DATA | FILE_APPEND_DATA | DELETE))
             {
                 Result = STATUS_SHARING_VIOLATION;
                 goto exit;
@@ -522,7 +528,10 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
             goto exit;
         }
 
-        /* if this is a main file check whether there is a named stream that denies delete */
+        /*
+         * Sharing violations between main file and streams were determined
+         * through experimentation with NTFS. They may be wrong!
+         */
         if (0 < OpenedFileNode->StreamDenyDeleteCount)
         {
             /* we must be the main file! */
@@ -565,11 +574,19 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
      * We also updated OpenedFileNode->ShareAccess in IoSetShareAccess/IoCheckShareAccess.
      */
 
-    if (FileObject->DeleteAccess && !FileObject->SharedDelete)
+    /*
+     * Sharing violations between main file and streams were determined
+     * through experimentation with NTFS. They may be wrong!
+     */
+    if (0 == OpenedFileNode->MainFileNode)
     {
-        if (0 == OpenedFileNode->MainFileNode)
+        if (FileObject->DeleteAccess)
             OpenedFileNode->MainFileDenyDeleteCount++;
-        else
+    }
+    else
+    {
+        if ((FileObject->ReadAccess || FileObject->WriteAccess || FileObject->DeleteAccess) &&
+            !FileObject->SharedDelete)
             OpenedFileNode->MainFileNode->StreamDenyDeleteCount++;
     }
 
@@ -651,11 +668,19 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
-    if (FileObject->DeleteAccess && !FileObject->SharedDelete)
+    /*
+     * Sharing violations between main file and streams were determined
+     * through experimentation with NTFS. They may be wrong!
+     */
+    if (0 == FileNode->MainFileNode)
     {
-        if (0 == FileNode->MainFileNode)
+        if (FileObject->DeleteAccess)
             FileNode->MainFileDenyDeleteCount--;
-        else
+    }
+    else
+    {
+        if ((FileObject->ReadAccess || FileObject->WriteAccess || FileObject->DeleteAccess) &&
+            !FileObject->SharedDelete)
             FileNode->MainFileNode->StreamDenyDeleteCount--;
     }
 

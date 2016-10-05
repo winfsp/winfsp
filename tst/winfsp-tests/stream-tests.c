@@ -487,6 +487,16 @@ static void stream_create_share_dotest(ULONG Flags, PWSTR Prefix)
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
         Handle2 = CreateFileW(FilePath,
+            FILE_READ_DATA, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
+
+        Handle2 = CreateFileW(FilePath,
+            FILE_WRITE_DATA, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
+
+        Handle2 = CreateFileW(FilePath,
             DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
         ASSERT(INVALID_HANDLE_VALUE != Handle2);
 
@@ -504,6 +514,16 @@ static void stream_create_share_dotest(ULONG Flags, PWSTR Prefix)
 
         StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle2 = CreateFileW(FilePath,
+            FILE_READ_DATA, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
+
+        Handle2 = CreateFileW(FilePath,
+            FILE_WRITE_DATA, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
 
         Handle2 = CreateFileW(FilePath,
             DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
@@ -525,6 +545,16 @@ static void stream_create_share_dotest(ULONG Flags, PWSTR Prefix)
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
         Handle2 = CreateFileW(FilePath,
+            FILE_READ_DATA, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+
+        Handle2 = CreateFileW(FilePath,
+            FILE_WRITE_DATA, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+
+        Handle2 = CreateFileW(FilePath,
             DELETE, 0, 0, OPEN_EXISTING, 0, 0);
         ASSERT(INVALID_HANDLE_VALUE == Handle2);
         ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
@@ -542,6 +572,16 @@ static void stream_create_share_dotest(ULONG Flags, PWSTR Prefix)
 
         StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle2 = CreateFileW(FilePath,
+            FILE_READ_DATA, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+
+        Handle2 = CreateFileW(FilePath,
+            FILE_WRITE_DATA, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
 
         Handle2 = CreateFileW(FilePath,
             DELETE, 0, 0, OPEN_EXISTING, 0, 0);
@@ -565,6 +605,16 @@ static void stream_create_share_dotest(ULONG Flags, PWSTR Prefix)
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
         Handle2 = CreateFileW(FilePath,
+            FILE_READ_DATA, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
+
+        Handle2 = CreateFileW(FilePath,
+            FILE_WRITE_DATA, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
+
+        Handle2 = CreateFileW(FilePath,
             DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
         ASSERT(INVALID_HANDLE_VALUE != Handle2);
 
@@ -582,6 +632,16 @@ static void stream_create_share_dotest(ULONG Flags, PWSTR Prefix)
 
         StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle2 = CreateFileW(FilePath,
+            FILE_READ_DATA, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
+
+        Handle2 = CreateFileW(FilePath,
+            FILE_WRITE_DATA, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
 
         Handle2 = CreateFileW(FilePath,
             DELETE, 0, 0, OPEN_EXISTING, 0, 0);
@@ -603,6 +663,16 @@ static void stream_create_share_dotest(ULONG Flags, PWSTR Prefix)
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
         Handle2 = CreateFileW(FilePath,
+            FILE_READ_DATA, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
+
+        Handle2 = CreateFileW(FilePath,
+            FILE_WRITE_DATA, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
+
+        Handle2 = CreateFileW(FilePath,
             DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
         ASSERT(INVALID_HANDLE_VALUE == Handle2);
         ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
@@ -620,6 +690,16 @@ static void stream_create_share_dotest(ULONG Flags, PWSTR Prefix)
 
         StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle2 = CreateFileW(FilePath,
+            FILE_READ_DATA, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
+
+        Handle2 = CreateFileW(FilePath,
+            FILE_WRITE_DATA, 0, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
 
         Handle2 = CreateFileW(FilePath,
             DELETE, 0, 0, OPEN_EXISTING, 0, 0);
