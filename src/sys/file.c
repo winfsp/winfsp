@@ -70,6 +70,17 @@ NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
     PUNICODE_STRING FileName, BOOLEAN Reset);
+NTSTATUS FspMainFileOpen(
+    PDEVICE_OBJECT FsvolDeviceObject,
+    PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    ULONG FileAttributes,
+    ULONG Disposition,
+    PHANDLE PMainFileHandle,
+    PFILE_OBJECT *PMainFileObject);
+NTSTATUS FspMainFileClose(
+    HANDLE MainFileHandle,
+    PFILE_OBJECT MainFileObject);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFileNodeCopyList)
@@ -112,6 +123,8 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
 #pragma alloc_text(PAGE, FspFileDescCreate)
 #pragma alloc_text(PAGE, FspFileDescDelete)
 #pragma alloc_text(PAGE, FspFileDescResetDirectoryPattern)
+#pragma alloc_text(PAGE, FspMainFileOpen)
+#pragma alloc_text(PAGE, FspMainFileClose)
 #endif
 
 #define FSP_FILE_NODE_GET_FLAGS()       \
@@ -1238,4 +1251,170 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
     return STATUS_SUCCESS;
 }
 
+NTSTATUS FspMainFileOpen(
+    PDEVICE_OBJECT FsvolDeviceObject,
+    PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    ULONG FileAttributes,
+    ULONG Disposition,
+    PHANDLE PMainFileHandle,
+    PFILE_OBJECT *PMainFileObject)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    UNICODE_STRING FullFileName = { 0 };
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    IO_STATUS_BLOCK IoStatus;
+    IO_DRIVER_CREATE_CONTEXT DriverCreateContext = { 0 };
+    PVOID ExtraCreateParameter;
+    HANDLE MainFileHandle;
+    PFILE_OBJECT MainFileObject;
+
+    /* assert that the supplied name is actually a main file name */
+    ASSERT(FspUnicodePathIsValid(MainFileName, 0));
+
+    *PMainFileHandle = 0;
+    *PMainFileObject = 0;
+
+    switch (Disposition)
+    {
+    case FILE_CREATE:
+    case FILE_OPEN_IF:
+    case FILE_OVERWRITE_IF:
+        Disposition = FILE_OPEN_IF;
+        break;
+    case FILE_OPEN:
+    case FILE_OVERWRITE:
+    case FILE_SUPERSEDE:
+        Disposition = FILE_OPEN;
+        break;
+    default:
+        IoStatus.Status = STATUS_INVALID_PARAMETER;
+        goto exit;
+    }
+
+    FullFileName.Length = 0;
+    FullFileName.MaximumLength =
+        FsvolDeviceExtension->VolumeName.Length +
+        FsvolDeviceExtension->VolumePrefix.Length +
+        MainFileName->Length;
+    FullFileName.Buffer = FspAlloc(FullFileName.MaximumLength);
+    if (0 == FullFileName.Buffer)
+    {
+        IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    RtlAppendUnicodeStringToString(&FullFileName, &FsvolDeviceExtension->VolumeName);
+    RtlAppendUnicodeStringToString(&FullFileName, &FsvolDeviceExtension->VolumePrefix);
+    RtlAppendUnicodeStringToString(&FullFileName, MainFileName);
+
+    InitializeObjectAttributes(
+        &ObjectAttributes,
+        &FullFileName,
+        OBJ_KERNEL_HANDLE | OBJ_FORCE_ACCESS_CHECK | (CaseSensitive ? 0 : OBJ_CASE_INSENSITIVE),
+        0/*RootDirectory*/,
+        SecurityDescriptor);
+
+    /* do not use SiloContext field as it is only available on Win10 v1607 and higher */
+    DriverCreateContext.Size =
+        FIELD_OFFSET(IO_DRIVER_CREATE_CONTEXT, TxnParameters) +
+        sizeof(((PIO_DRIVER_CREATE_CONTEXT)0)->TxnParameters);
+    DriverCreateContext.DeviceObjectHint = FsvolDeviceObject;
+
+    IoStatus.Status = FsRtlAllocateExtraCreateParameterList(0,
+        &DriverCreateContext.ExtraCreateParameter);
+    if (!NT_SUCCESS(IoStatus.Status))
+        goto exit;
+
+    IoStatus.Status = FsRtlAllocateExtraCreateParameter(&FspMainFileOpenEcpGuid,
+        sizeof(PVOID),
+        0/*Flags*/,
+        0/*CleanupCallback*/,
+        FSP_ALLOC_INTERNAL_TAG,
+        &ExtraCreateParameter);
+    if (!NT_SUCCESS(IoStatus.Status))
+        goto exit;
+
+    IoStatus.Status = FsRtlInsertExtraCreateParameter(DriverCreateContext.ExtraCreateParameter,
+        ExtraCreateParameter);
+    if (!NT_SUCCESS(IoStatus.Status))
+    {
+        FsRtlFreeExtraCreateParameter(ExtraCreateParameter);
+        goto exit;
+    }
+
+    IoStatus.Status = IoCreateFileEx(
+        &MainFileHandle,
+        FILE_READ_ATTRIBUTES,
+        &ObjectAttributes,
+        &IoStatus,
+        0/*AllocationSize*/,
+        FileAttributes,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        Disposition,
+        FILE_OPEN_REPARSE_POINT,
+        0/*EaBuffer*/,
+        0/*EaLength*/,
+        CreateFileTypeNone,
+        0/*InternalParameters*/,
+        IO_FORCE_ACCESS_CHECK,
+        &DriverCreateContext);
+    if (!NT_SUCCESS(IoStatus.Status))
+        goto exit;
+
+    IoStatus.Status = ObReferenceObjectByHandle(
+        MainFileHandle,
+        0/*DesiredAccess*/,
+        *IoFileObjectType,
+        KernelMode,
+        &MainFileObject,
+        0/*HandleInformation*/);
+    if (!NT_SUCCESS(IoStatus.Status))
+    {
+        ObCloseHandle(MainFileHandle, KernelMode);
+        goto exit;
+    }
+
+    *PMainFileHandle = MainFileHandle;
+    *PMainFileObject = MainFileObject;
+
+    IoStatus.Status = STATUS_SUCCESS;
+
+exit:
+    if (0 != DriverCreateContext.ExtraCreateParameter)
+        FsRtlFreeExtraCreateParameterList(DriverCreateContext.ExtraCreateParameter);
+
+    if (0 != FullFileName.Buffer)
+        FspFree(FullFileName.Buffer);
+
+    return IoStatus.Status;
+}
+
+NTSTATUS FspMainFileClose(
+    HANDLE MainFileHandle,
+    PFILE_OBJECT MainFileObject)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result = STATUS_SUCCESS;
+
+    if (0 != MainFileObject)
+        ObDereferenceObject(MainFileObject);
+
+    if (0 != MainFileHandle)
+    {
+        Result = ObCloseHandle(MainFileHandle, KernelMode);
+        if (!NT_SUCCESS(Result))
+            DEBUGLOG("ObCloseHandle() = %s", NtStatusSym(Result));
+    }
+
+    return Result;
+}
+
 WCHAR FspFileDescDirectoryPatternMatchAll[] = L"*";
+
+// {904862B4-EB3F-461E-ACB2-4DF2B3FC898B}
+const GUID FspMainFileOpenEcpGuid =
+    { 0x904862b4, 0xeb3f, 0x461e, { 0xac, 0xb2, 0x4d, 0xf2, 0xb3, 0xfc, 0x89, 0x8b } };

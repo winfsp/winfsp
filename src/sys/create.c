@@ -24,7 +24,8 @@ static NTSTATUS FspFsvrtCreate(
 static NTSTATUS FspFsvolCreate(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolCreateNoLock(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    BOOLEAN MainFileOpen);
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
 static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
@@ -109,23 +110,30 @@ static NTSTATUS FspFsvolCreate(
     PAGED_CODE();
 
     NTSTATUS Result = STATUS_SUCCESS;
+    BOOLEAN MainFileOpen = FspMainFileOpenCheck(Irp);
 
-    FspFsvolDeviceFileRenameAcquireShared(FsvolDeviceObject);
-    try
+    if (!MainFileOpen)
     {
-        Result = FspFsvolCreateNoLock(FsvolDeviceObject, Irp, IrpSp);
+        FspFsvolDeviceFileRenameAcquireShared(FsvolDeviceObject);
+        try
+        {
+            Result = FspFsvolCreateNoLock(FsvolDeviceObject, Irp, IrpSp, FALSE);
+        }
+        finally
+        {
+            if (FSP_STATUS_IOQ_POST != Result)
+                FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
+        }
     }
-    finally
-    {
-        if (FSP_STATUS_IOQ_POST != Result)
-            FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
-    }
+    else
+        Result = FspFsvolCreateNoLock(FsvolDeviceObject, Irp, IrpSp, TRUE);
 
     return Result;
 }
 
 static NTSTATUS FspFsvolCreateNoLock(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    BOOLEAN MainFileOpen)
 {
     PAGED_CODE();
 
@@ -220,7 +228,7 @@ static NTSTATUS FspFsvolCreateNoLock(
         FsvolDeviceExtension->VolumeParams.NamedStreams ? &StreamPart : 0))
         return STATUS_OBJECT_NAME_INVALID;
 
-    /* if we have a stream part */
+    /* if we have a stream part (even non-empty) */
     if (0 != StreamPart.Buffer)
     {
         ASSERT(
@@ -398,6 +406,9 @@ static NTSTATUS FspFsvolCreateNoLock(
         /* remember the main file node */
         FileNode->MainFileNode = FileDesc->MainFileObject->FsContext;
 
+        ASSERT(RtlEqualUnicodeString(&MainFileName, &FileNode->MainFileNode->FileName,
+            !CaseSensitive));
+
         Result = STATUS_SUCCESS;
 
     main_stream_exit:
@@ -427,8 +438,11 @@ static NTSTATUS FspFsvolCreateNoLock(
     FileDesc->FileNode = FileNode;
     FileDesc->CaseSensitive = CaseSensitive;
     FileDesc->HasTraversePrivilege = HasTraversePrivilege;
-    FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, Request);
-    FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
+    if (!MainFileOpen)
+    {
+        FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, Request);
+        FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
+    }
     FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
 
     /* populate the Create request */
@@ -798,6 +812,8 @@ NTSTATUS FspFsvolCreateComplete(
             if (FileNode->IsDirectory)
                 SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
 
+            PVOID RequestDeviceObjectValue = FspIopRequestContext(Request, RequestDeviceObject);
+
             /* disassociate the FileDesc momentarily from the Request */
             FspIopRequestContext(Request, RequestDeviceObject) = 0;
             FspIopRequestContext(Request, RequestFileDesc) = 0;
@@ -806,7 +822,7 @@ NTSTATUS FspFsvolCreateComplete(
             Request->Kind = FspFsctlTransactOverwriteKind;
             RtlZeroMemory(&Request->Req.Create, sizeof Request->Req.Create);
             FspIopResetRequest(Request, FspFsvolCreateOverwriteRequestFini);
-            FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
+            FspIopRequestContext(Request, RequestDeviceObject) = RequestDeviceObjectValue;
             FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
             FspIopRequestContext(Request, RequestFileObject) = FileObject;
             FspIopRequestContext(Request, RequestState) = (PVOID)RequestPending;
@@ -889,7 +905,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
 
         if (FspFsctlTransactCreateKind == Request->Kind)
         {
-            PDEVICE_OBJECT FsvolDeviceObject = FspIopRequestContext(Request, RequestDeviceObject);
+            PVOID RequestDeviceObjectValue = FspIopRequestContext(Request, RequestDeviceObject);
 
             /* disassociate the FileDesc momentarily from the Request */
             Request = FspIrpRequest(Irp);
@@ -899,7 +915,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
             /* reset the Request and reassociate the FileDesc and FileObject with it */
             Request->Kind = FspFsctlTransactReservedKind;
             FspIopResetRequest(Request, FspFsvolCreateTryOpenRequestFini);
-            FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
+            FspIopRequestContext(Request, RequestDeviceObject) = RequestDeviceObjectValue;
             FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
             FspIopRequestContext(Request, RequestFileObject) = FileObject;
             FspIopRequestContext(Request, RequestState) = (PVOID)(UINT_PTR)FlushImage;

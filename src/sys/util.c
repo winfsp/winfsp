@@ -23,17 +23,6 @@ VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
     PULONG PFileNameIndex, PFILE_OBJECT *PFileObject, PDEVICE_OBJECT *PDeviceObject);
-NTSTATUS FspMainFileOpen(
-    PDEVICE_OBJECT DeviceObject,
-    PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
-    PSECURITY_DESCRIPTOR SecurityDescriptor,
-    ULONG FileAttributes,
-    ULONG Disposition,
-    PHANDLE PMainFileHandle,
-    PFILE_OBJECT *PMainFileObject);
-NTSTATUS FspMainFileClose(
-    HANDLE MainFileHandle,
-    PFILE_OBJECT MainFileObject);
 NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
 static NTSTATUS FspSendSetInformationIrpCompletion(
@@ -104,8 +93,6 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #pragma alloc_text(PAGE, FspUnicodePathSuffix)
 #pragma alloc_text(PAGE, FspCreateGuid)
 #pragma alloc_text(PAGE, FspGetDeviceObjectPointer)
-#pragma alloc_text(PAGE, FspMainFileOpen)
-#pragma alloc_text(PAGE, FspMainFileClose)
 #pragma alloc_text(PAGE, FspSendSetInformationIrp)
 #pragma alloc_text(PAGE, FspBufferUserBuffer)
 #pragma alloc_text(PAGE, FspLockUserBuffer)
@@ -381,110 +368,6 @@ NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK Desir
             }
         }
         ZwClose(Handle);
-    }
-
-    return Result;
-}
-
-NTSTATUS FspMainFileOpen(
-    PDEVICE_OBJECT DeviceObject,
-    PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
-    PSECURITY_DESCRIPTOR SecurityDescriptor,
-    ULONG FileAttributes,
-    ULONG Disposition,
-    PHANDLE PMainFileHandle,
-    PFILE_OBJECT *PMainFileObject)
-{
-    PAGED_CODE();
-
-    OBJECT_ATTRIBUTES ObjectAttributes;
-    IO_STATUS_BLOCK IoStatus;
-    HANDLE MainFileHandle;
-    PFILE_OBJECT MainFileObject;
-
-    /* assert that the supplied name is actually a main file name */
-    ASSERT(FspUnicodePathIsValid(MainFileName, 0));
-
-    *PMainFileHandle = 0;
-    *PMainFileObject = 0;
-
-    switch (Disposition)
-    {
-    case FILE_CREATE:
-    case FILE_OPEN_IF:
-    case FILE_OVERWRITE_IF:
-        Disposition = FILE_OPEN_IF;
-        break;
-    case FILE_OPEN:
-    case FILE_OVERWRITE:
-    case FILE_SUPERSEDE:
-        Disposition = FILE_OPEN;
-        break;
-    default:
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    InitializeObjectAttributes(
-        &ObjectAttributes,
-        MainFileName,
-        OBJ_KERNEL_HANDLE | OBJ_FORCE_ACCESS_CHECK | (CaseSensitive ? 0 : OBJ_CASE_INSENSITIVE),
-        0/*RootDirectory*/,
-        SecurityDescriptor);
-
-    IoStatus.Status = IoCreateFileSpecifyDeviceObjectHint(
-        &MainFileHandle,
-        FILE_READ_ATTRIBUTES,
-        &ObjectAttributes,
-        &IoStatus,
-        0/*AllocationSize*/,
-        FileAttributes,
-        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-        Disposition,
-        FILE_OPEN_REPARSE_POINT,
-        0/*EaBuffer*/,
-        0/*EaLength*/,
-        CreateFileTypeNone,
-        0/*InternalParameters*/,
-        IO_FORCE_ACCESS_CHECK,
-        DeviceObject);
-    if (!NT_SUCCESS(IoStatus.Status))
-        return IoStatus.Status;
-
-    IoStatus.Status = ObReferenceObjectByHandle(
-        MainFileHandle,
-        0/*DesiredAccess*/,
-        *IoFileObjectType,
-        KernelMode,
-        &MainFileObject,
-        0/*HandleInformation*/);
-    if (!NT_SUCCESS(IoStatus.Status))
-    {
-        ObCloseHandle(MainFileHandle, KernelMode);
-        return IoStatus.Status;
-    }
-
-    *PMainFileHandle = MainFileHandle;
-    *PMainFileObject = MainFileObject;
-
-    return STATUS_SUCCESS;
-}
-
-NTSTATUS FspMainFileClose(
-    HANDLE MainFileHandle,
-    PFILE_OBJECT MainFileObject)
-{
-    PAGED_CODE();
-
-    NTSTATUS Result = STATUS_SUCCESS;
-
-    if (0 != MainFileObject)
-        ObDereferenceObject(MainFileObject);
-
-    if (0 != MainFileHandle)
-    {
-        Result = ObCloseHandle(MainFileHandle, KernelMode);
-        if (!NT_SUCCESS(Result))
-            DEBUGLOG("ObCloseHandle() = %s", NtStatusSym(Result));
     }
 
     return Result;

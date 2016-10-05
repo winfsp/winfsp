@@ -431,17 +431,6 @@ VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
     PULONG PFileNameIndex, PFILE_OBJECT *PFileObject, PDEVICE_OBJECT *PDeviceObject);
-NTSTATUS FspMainFileOpen(
-    PDEVICE_OBJECT DeviceObject,
-    PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
-    PSECURITY_DESCRIPTOR SecurityDescriptor,
-    ULONG FileAttributes,
-    ULONG Disposition,
-    PHANDLE PMainFileHandle,
-    PFILE_OBJECT *PMainFileObject);
-NTSTATUS FspMainFileClose(
-    HANDLE MainFileHandle,
-    PFILE_OBJECT MainFileObject);
 NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
 NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
@@ -1034,6 +1023,39 @@ NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
     PUNICODE_STRING FileName, BOOLEAN Reset);
+NTSTATUS FspMainFileOpen(
+    PDEVICE_OBJECT FsvolDeviceObject,
+    PUNICODE_STRING MainFileName, BOOLEAN CaseSensitive,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    ULONG FileAttributes,
+    ULONG Disposition,
+    PHANDLE PMainFileHandle,
+    PFILE_OBJECT *PMainFileObject);
+NTSTATUS FspMainFileClose(
+    HANDLE MainFileHandle,
+    PFILE_OBJECT MainFileObject);
+static __forceinline
+BOOLEAN FspMainFileOpenCheck(PIRP Irp)
+{
+    extern const GUID FspMainFileOpenEcpGuid;
+    NTSTATUS Result;
+    PECP_LIST ExtraCreateParameters = 0;
+    PVOID ExtraCreateParameter = 0;
+
+    Result = FsRtlGetEcpListFromIrp(Irp, &ExtraCreateParameters);
+    if (!NT_SUCCESS(Result) || 0 == ExtraCreateParameters)
+        return FALSE;
+
+    Result = FsRtlFindExtraCreateParameter(ExtraCreateParameters,
+        &FspMainFileOpenEcpGuid, &ExtraCreateParameter, 0);
+    if (!NT_SUCCESS(Result) || 0 == ExtraCreateParameter)
+        return FALSE;
+
+    if (FsRtlIsEcpFromUserMode(ExtraCreateParameter))
+        return FALSE;
+
+    return TRUE;
+}
 #define FspFileNodeAcquireShared(N,F)   FspFileNodeAcquireSharedF(N, FspFileNodeAcquire ## F)
 #define FspFileNodeTryAcquireShared(N,F)    FspFileNodeTryAcquireSharedF(N, FspFileNodeAcquire ## F, FALSE)
 #define FspFileNodeAcquireExclusive(N,F)    FspFileNodeAcquireExclusiveF(N, FspFileNodeAcquire ## F)
@@ -1069,6 +1091,7 @@ extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
 extern ERESOURCE FspDeviceGlobalResource;
 extern WCHAR FspFileDescDirectoryPatternMatchAll[];
+extern const GUID FspMainFileOpenEcpGuid;
 extern FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
 extern ULONG FspMvMdlMappingNoWrite;
 
