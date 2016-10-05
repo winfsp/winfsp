@@ -1298,7 +1298,7 @@ static void stream_getsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
     Success = GetKernelObjectSecurity(Handle, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION,
@@ -1347,6 +1347,66 @@ static void stream_getsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     free(FileSecurityDescriptor);
 
     CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Success = GetKernelObjectSecurity(Handle, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION,
+        0, 0, &Length);
+    ASSERT(!Success);
+    ASSERT(ERROR_INSUFFICIENT_BUFFER == GetLastError());
+    FileSecurityDescriptor = malloc(Length);
+    Success = GetKernelObjectSecurity(Handle, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION,
+        FileSecurityDescriptor, Length, &Length);
+    ASSERT(Success);
+    Success = GetSecurityDescriptorOwner(FileSecurityDescriptor, &Owner, &OwnerDefaulted);
+    ASSERT(Success);
+    ASSERT(0 != Owner);
+    Success = GetSecurityDescriptorGroup(FileSecurityDescriptor, &Group, &GroupDefaulted);
+    ASSERT(Success);
+    ASSERT(0 != Group);
+    Success = GetSecurityDescriptorDacl(FileSecurityDescriptor, &DaclPresent, &Dacl, &DaclDefaulted);
+    ASSERT(Success);
+    ASSERT(!DaclPresent);
+    Success = GetSecurityDescriptorSacl(FileSecurityDescriptor, &SaclPresent, &Sacl, &SaclDefaulted);
+    ASSERT(Success);
+    ASSERT(!SaclPresent);
+    free(FileSecurityDescriptor);
+
+    Success = GetKernelObjectSecurity(Handle, DACL_SECURITY_INFORMATION,
+        0, 0, &Length);
+    ASSERT(!Success);
+    ASSERT(ERROR_INSUFFICIENT_BUFFER == GetLastError());
+    FileSecurityDescriptor = malloc(Length);
+    Success = GetKernelObjectSecurity(Handle, DACL_SECURITY_INFORMATION,
+        FileSecurityDescriptor, Length, &Length);
+    ASSERT(Success);
+    Success = GetSecurityDescriptorOwner(FileSecurityDescriptor, &Owner, &OwnerDefaulted);
+    ASSERT(Success);
+    ASSERT(0 == Owner);
+    Success = GetSecurityDescriptorGroup(FileSecurityDescriptor, &Group, &GroupDefaulted);
+    ASSERT(Success);
+    ASSERT(0 == Group);
+    Success = GetSecurityDescriptorDacl(FileSecurityDescriptor, &DaclPresent, &Dacl, &DaclDefaulted);
+    ASSERT(Success);
+    ASSERT(DaclPresent);
+    ASSERT(0 != Dacl);
+    Success = GetSecurityDescriptorSacl(FileSecurityDescriptor, &SaclPresent, &Sacl, &SaclDefaulted);
+    ASSERT(Success);
+    ASSERT(!SaclPresent);
+    free(FileSecurityDescriptor);
+
+    CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
 
     LocalFree(SecurityDescriptor);
 
