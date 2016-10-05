@@ -276,15 +276,21 @@ VOID MemfsFileNodeMapRemove(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *F
 static inline
 BOOLEAN MemfsFileNodeMapHasChild(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode)
 {
-    BOOLEAN Result;
+    BOOLEAN Result = FALSE;
     WCHAR Root[2] = L"\\";
     PWSTR Remain, Suffix;
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->upper_bound(FileNode->FileName);
-    if (iter == FileNodeMap->end())
-        return FALSE;
-    FspPathSuffix(iter->second->FileName, &Remain, &Suffix, Root);
-    Result = 0 == MemfsFileNameCompare(Remain, FileNode->FileName);
-    FspPathCombine(iter->second->FileName, Suffix);
+    for (; FileNodeMap->end() != iter; ++iter)
+    {
+#if defined(MEMFS_NAMED_STREAMS)
+        if (0 != wcschr(iter->second->FileName, L':'))
+            continue;
+#endif
+        FspPathSuffix(iter->second->FileName, &Remain, &Suffix, Root);
+        Result = 0 == MemfsFileNameCompare(Remain, FileNode->FileName);
+        FspPathCombine(iter->second->FileName, Suffix);
+        break;
+    }
     return Result;
 }
 
