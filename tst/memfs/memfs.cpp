@@ -418,12 +418,19 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     }
 
 #if defined(MEMFS_NAMED_STREAMS)
+    UINT32 FileAttributesMask = ~0;
     if (0 != FileNode->MainFileNode)
+    {
+        FileAttributesMask = ~FILE_ATTRIBUTE_DIRECTORY;
         FileNode = FileNode->MainFileNode;
-#endif
+    }
 
     if (0 != PFileAttributes)
+        *PFileAttributes = FileNode->FileInfo.FileAttributes & FileAttributesMask;
+#else
+    if (0 != PFileAttributes)
         *PFileAttributes = FileNode->FileInfo.FileAttributes;
+#endif
 
     if (0 != PSecurityDescriptorSize)
     {
