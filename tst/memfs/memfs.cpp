@@ -424,10 +424,10 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     }
 
 #if defined(MEMFS_NAMED_STREAMS)
-    UINT32 FileAttributesMask = ~0;
+    UINT32 FileAttributesMask = ~(UINT32)0;
     if (0 != FileNode->MainFileNode)
     {
-        FileAttributesMask = ~FILE_ATTRIBUTE_DIRECTORY;
+        FileAttributesMask = ~(UINT32)FILE_ATTRIBUTE_DIRECTORY;
         FileNode = FileNode->MainFileNode;
     }
 
