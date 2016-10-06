@@ -855,7 +855,14 @@ VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileIn
     FileInfo->AllocationSize = FileNode->Header.AllocationSize.QuadPart;
     FileInfo->FileSize = FileNode->Header.FileSize.QuadPart;
 
-    FileInfo->FileAttributes = FileNode->FileAttributes;
+    UINT32 FileAttributesMask = ~(UINT32)0;
+    if (0 != FileNode->MainFileNode)
+    {
+        FileAttributesMask = ~(UINT32)FILE_ATTRIBUTE_DIRECTORY;
+        FileNode = FileNode->MainFileNode;
+    }
+
+    FileInfo->FileAttributes = FileNode->FileAttributes & FileAttributesMask;
     FileInfo->ReparseTag = FileNode->ReparseTag;
     FileInfo->CreationTime = FileNode->CreationTime;
     FileInfo->LastAccessTime = FileNode->LastAccessTime;
@@ -867,25 +874,20 @@ BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *
 {
     PAGED_CODE();
 
-    BOOLEAN Result;
+    UINT64 CurrentTime = KeQueryInterruptTime();
 
-    if (FspExpirationTimeValid(FileNode->InfoExpirationTime))
+    if (0 != FileNode->MainFileNode)
     {
-        FileInfo->AllocationSize = FileNode->Header.AllocationSize.QuadPart;
-        FileInfo->FileSize = FileNode->Header.FileSize.QuadPart;
-
-        FileInfo->FileAttributes = FileNode->FileAttributes;
-        FileInfo->ReparseTag = FileNode->ReparseTag;
-        FileInfo->CreationTime = FileNode->CreationTime;
-        FileInfo->LastAccessTime = FileNode->LastAccessTime;
-        FileInfo->LastWriteTime = FileNode->LastWriteTime;
-        FileInfo->ChangeTime = FileNode->ChangeTime;
-        Result = TRUE;
+        /* if this is a stream the main file basic info must have not expired as well! */
+        if (!FspExpirationTimeValidEx(FileNode->MainFileNode->BasicInfoExpirationTime, CurrentTime))
+            return FALSE;
     }
-    else
-        Result = FALSE;
 
-    return Result;
+    if (!FspExpirationTimeValidEx(FileNode->FileInfoExpirationTime, CurrentTime))
+        return FALSE;
+
+    FspFileNodeGetFileInfo(FileNode, FileInfo);
+    return TRUE;
 }
 
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
@@ -906,15 +908,29 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     FileNode->Header.AllocationSize.QuadPart = AllocationSize;
     FileNode->Header.FileSize.QuadPart = FileInfo->FileSize;
 
-    FileNode->FileAttributes = FileInfo->FileAttributes;
-    FileNode->ReparseTag = FileInfo->ReparseTag;
-    FileNode->CreationTime = FileInfo->CreationTime;
-    FileNode->LastAccessTime = FileInfo->LastAccessTime;
-    FileNode->LastWriteTime = FileInfo->LastWriteTime;
-    FileNode->ChangeTime = FileInfo->ChangeTime;
-    FileNode->InfoExpirationTime = FspExpirationTimeFromMillis(
-        FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
-    FileNode->InfoChangeNumber++;
+    FileNode->FileInfoExpirationTime = FileNode->BasicInfoExpirationTime =
+        FspExpirationTimeFromMillis(FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
+    FileNode->FileInfoChangeNumber++;
+
+    FSP_FILE_NODE *MainFileNode = FileNode;
+    UINT32 FileAttributesMask = ~(UINT32)0;
+    if (0 != FileNode->MainFileNode)
+    {
+        FileAttributesMask = ~(UINT32)FILE_ATTRIBUTE_DIRECTORY;
+        MainFileNode = FileNode->MainFileNode;
+
+        MainFileNode->BasicInfoExpirationTime = FileNode->BasicInfoExpirationTime;
+        MainFileNode->FileInfoChangeNumber++;
+    }
+
+    MainFileNode->FileAttributes =
+        (MainFileNode->FileAttributes & ~FileAttributesMask) |
+        (FileInfo->FileAttributes & FileAttributesMask);
+    MainFileNode->ReparseTag = FileInfo->ReparseTag;
+    MainFileNode->CreationTime = FileInfo->CreationTime;
+    MainFileNode->LastAccessTime = FileInfo->LastAccessTime;
+    MainFileNode->LastWriteTime = FileInfo->LastWriteTime;
+    MainFileNode->ChangeTime = FileInfo->ChangeTime;
 
     if (0 != CcFileObject)
     {
@@ -934,7 +950,7 @@ BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileOb
 {
     PAGED_CODE();
 
-    if (FileNode->InfoChangeNumber != InfoChangeNumber)
+    if (FspFileNodeFileInfoChangeNumber(FileNode) != InfoChangeNumber)
         return FALSE;
 
     FspFileNodeSetFileInfo(FileNode, CcFileObject, FileInfo);

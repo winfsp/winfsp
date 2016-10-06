@@ -417,6 +417,12 @@ BOOLEAN FspExpirationTimeValid(UINT64 ExpirationTime)
     return 1 >= ExpirationTime + 1 ? (0 != ExpirationTime) : (KeQueryInterruptTime() < ExpirationTime);
 }
 static inline
+BOOLEAN FspExpirationTimeValidEx(UINT64 ExpirationTime, UINT64 CurrentTime)
+{
+    /* if ExpirationTime is 0 or -1 then ExpirationTime else CurrentTime < ExpirationTime */
+    return 1 >= ExpirationTime + 1 ? (0 != ExpirationTime) : (CurrentTime < ExpirationTime);
+}
+static inline
 BOOLEAN FspExpirationTimeValid2(UINT64 ExpirationTime, UINT64 CurrentTime)
 {
     return CurrentTime < ExpirationTime;
@@ -919,14 +925,14 @@ typedef struct FSP_FILE_NODE
     UNICODE_STRING FileName;
     PWSTR ExternalFileName;
     /* locked under Header.Resource */
-    UINT64 InfoExpirationTime;
+    UINT64 FileInfoExpirationTime, BasicInfoExpirationTime;
     UINT32 FileAttributes;
     UINT32 ReparseTag;
     UINT64 CreationTime;
     UINT64 LastAccessTime;
     UINT64 LastWriteTime;
     UINT64 ChangeTime;
-    ULONG InfoChangeNumber;
+    ULONG FileInfoChangeNumber;
     UINT64 Security;
     ULONG SecurityChangeNumber;
     ULONG DirInfoChangeNumber;
@@ -1013,7 +1019,11 @@ BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileOb
 static inline
 ULONG FspFileNodeFileInfoChangeNumber(FSP_FILE_NODE *FileNode)
 {
-    return FileNode->InfoChangeNumber;
+    if (0 != FileNode->MainFileNode)
+        return (FileNode->MainFileNode->FileInfoChangeNumber & 0xfffff) |
+            ((FileNode->FileInfoChangeNumber & 0xfff) << 20);
+    else
+        return FileNode->FileInfoChangeNumber & 0xfffff;
 }
 BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
 VOID FspFileNodeSetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
@@ -1024,7 +1034,6 @@ ULONG FspFileNodeSecurityChangeNumber(FSP_FILE_NODE *FileNode)
 {
     if (0 != FileNode->MainFileNode)
         FileNode = FileNode->MainFileNode;
-
     return FileNode->SecurityChangeNumber;
 }
 BOOLEAN FspFileNodeReferenceDirInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
