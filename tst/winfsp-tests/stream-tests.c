@@ -956,7 +956,7 @@ static void stream_setfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
-    HANDLE Handle;
+    HANDLE Handle, StreamHandle;
     BOOL Success;
     WCHAR FilePath[MAX_PATH];
     BY_HANDLE_FILE_INFORMATION FileInfo0, FileInfo;
@@ -969,46 +969,46 @@ static void stream_setfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+    StreamHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
         CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
-    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    ASSERT(INVALID_HANDLE_VALUE != StreamHandle);
 
-    Success = GetFileInformationByHandle(Handle, &FileInfo0);
+    Success = GetFileInformationByHandle(StreamHandle, &FileInfo0);
     ASSERT(Success);
     //ASSERT(FILE_ATTRIBUTE_ARCHIVE == FileInfo0.dwFileAttributes);
 
     Success = SetFileAttributesW(FilePath, FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_HIDDEN);
     ASSERT(Success);
 
-    Success = GetFileInformationByHandle(Handle, &FileInfo);
+    Success = GetFileInformationByHandle(StreamHandle, &FileInfo);
     ASSERT(Success);
     ASSERT(FILE_ATTRIBUTE_HIDDEN == FileInfo.dwFileAttributes);
 
     *(PUINT64)&FileTime = 0x4200000042ULL;
-    Success = SetFileTime(Handle, 0, &FileTime, &FileTime);
+    Success = SetFileTime(StreamHandle, 0, &FileTime, &FileTime);
     ASSERT(Success);
 
-    Success = GetFileInformationByHandle(Handle, &FileInfo);
+    Success = GetFileInformationByHandle(StreamHandle, &FileInfo);
     ASSERT(Success);
     ASSERT(*(PUINT64)&FileInfo0.ftCreationTime == *(PUINT64)&FileInfo.ftCreationTime);
     ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftLastAccessTime);
     ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftLastWriteTime);
 
-    Success = SetFileTime(Handle, &FileTime, 0, 0);
+    Success = SetFileTime(StreamHandle, &FileTime, 0, 0);
     ASSERT(Success);
 
-    Success = GetFileInformationByHandle(Handle, &FileInfo);
+    Success = GetFileInformationByHandle(StreamHandle, &FileInfo);
     ASSERT(Success);
     ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftCreationTime);
 
-    Offset = SetFilePointer(Handle, 42, 0, 0);
+    Offset = SetFilePointer(StreamHandle, 42, 0, 0);
     ASSERT(42 == Offset);
 
-    Success = SetEndOfFile(Handle);
+    Success = SetEndOfFile(StreamHandle);
     ASSERT(Success);
 
-    Success = GetFileInformationByHandle(Handle, &FileInfo);
+    Success = GetFileInformationByHandle(StreamHandle, &FileInfo);
     ASSERT(Success);
     ASSERT(42 == FileInfo.nFileSizeLow);
     ASSERT(0 == FileInfo.nFileSizeHigh);
@@ -1016,15 +1016,13 @@ static void stream_setfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     nFileIndexHigh = FileInfo.nFileIndexHigh;
     nFileIndexLow = FileInfo.nFileIndexLow;
 
-    CloseHandle(Handle);
-
     /* test main file */
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
         OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
@@ -1040,6 +1038,29 @@ static void stream_setfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     ASSERT(nFileIndexHigh == FileInfo.nFileIndexHigh);
     ASSERT(nFileIndexLow == FileInfo.nFileIndexLow);
 
+    /* test mixed */
+
+    *(PUINT64)&FileTime = 0x4100000041ULL;
+    Success = SetFileTime(StreamHandle, &FileTime, &FileTime, &FileTime);
+    ASSERT(Success);
+
+    Success = GetFileInformationByHandle(Handle, &FileInfo);
+    ASSERT(Success);
+    ASSERT(0x4100000041ULL == *(PUINT64)&FileInfo.ftLastAccessTime);
+    ASSERT(0x4100000041ULL == *(PUINT64)&FileInfo.ftLastWriteTime);
+    ASSERT(0x4100000041ULL == *(PUINT64)&FileInfo.ftCreationTime);
+
+    *(PUINT64)&FileTime = 0x4300000043ULL;
+    Success = SetFileTime(Handle, &FileTime, &FileTime, &FileTime);
+    ASSERT(Success);
+
+    Success = GetFileInformationByHandle(StreamHandle, &FileInfo);
+    ASSERT(Success);
+    ASSERT(0x4300000043ULL == *(PUINT64)&FileInfo.ftLastAccessTime);
+    ASSERT(0x4300000043ULL == *(PUINT64)&FileInfo.ftLastWriteTime);
+    ASSERT(0x4300000043ULL == *(PUINT64)&FileInfo.ftCreationTime);
+
+    CloseHandle(StreamHandle);
     CloseHandle(Handle);
 
     memfs_stop(memfs);
