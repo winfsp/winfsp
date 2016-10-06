@@ -1616,7 +1616,7 @@ static void stream_getstreaminfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInf
 
     for (int j = 1; 100 >= j; j++)
     {
-        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file5:strm%d",
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file5:s%d",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), j);
         Handle = CreateFileW(FilePath, GENERIC_ALL, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
         ASSERT(INVALID_HANDLE_VALUE != Handle);
@@ -1626,7 +1626,7 @@ static void stream_getstreaminfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInf
 
     for (int j = 1; 100 >= j; j++)
     {
-        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir5:strm%d",
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir5:s%d",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), j);
         Handle = CreateFileW(FilePath, GENERIC_ALL, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
         ASSERT(INVALID_HANDLE_VALUE != Handle);
@@ -1655,8 +1655,8 @@ static void stream_getstreaminfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInf
             continue;
         }
 
-        ASSERT(0 == wcsncmp(FindData.cStreamName, L":strm", 5));
-        ul = wcstoul(FindData.cStreamName + 5, &endp, 10);
+        ASSERT(0 == wcsncmp(FindData.cStreamName, L":s", 2));
+        ul = wcstoul(FindData.cStreamName + 2, &endp, 10);
         ASSERT(0 != ul);
         ASSERT(L':' == *endp);
 
@@ -1685,8 +1685,8 @@ static void stream_getstreaminfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInf
         unsigned long ul;
         wchar_t *endp;
 
-        ASSERT(0 == wcsncmp(FindData.cStreamName, L":strm", 5));
-        ul = wcstoul(FindData.cStreamName + 5, &endp, 10);
+        ASSERT(0 == wcsncmp(FindData.cStreamName, L":s", 2));
+        ul = wcstoul(FindData.cStreamName + 2, &endp, 10);
         ASSERT(0 != ul);
         ASSERT(L':' == *endp);
 
