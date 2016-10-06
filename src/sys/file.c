@@ -945,6 +945,9 @@ BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, P
 {
     PAGED_CODE();
 
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
         FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
 
@@ -955,6 +958,9 @@ BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, P
 VOID FspFileNodeSetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size)
 {
     PAGED_CODE();
+
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
         FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
@@ -969,6 +975,9 @@ BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG 
     ULONG SecurityChangeNumber)
 {
     PAGED_CODE();
+
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
 
     if (FileNode->SecurityChangeNumber != SecurityChangeNumber)
         return FALSE;

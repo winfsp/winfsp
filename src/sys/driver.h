@@ -1022,6 +1022,9 @@ BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG 
 static inline
 ULONG FspFileNodeSecurityChangeNumber(FSP_FILE_NODE *FileNode)
 {
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+
     return FileNode->SecurityChangeNumber;
 }
 BOOLEAN FspFileNodeReferenceDirInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
