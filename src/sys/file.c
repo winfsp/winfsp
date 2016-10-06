@@ -992,10 +992,7 @@ BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG 
 {
     PAGED_CODE();
 
-    if (0 != FileNode->MainFileNode)
-        FileNode = FileNode->MainFileNode;
-
-    if (FileNode->SecurityChangeNumber != SecurityChangeNumber)
+    if (FspFileNodeSecurityChangeNumber(FileNode) != SecurityChangeNumber)
         return FALSE;
 
     FspFileNodeSetSecurity(FileNode, Buffer, Size);
@@ -1047,7 +1044,7 @@ BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG S
 {
     // !PAGED_CODE();
 
-    if (FileNode->DirInfoChangeNumber != DirInfoChangeNumber)
+    if (FspFileNodeDirInfoChangeNumber(FileNode) != DirInfoChangeNumber)
         return FALSE;
 
     FspFileNodeSetDirInfo(FileNode, Buffer, Size);
