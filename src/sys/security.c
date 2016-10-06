@@ -146,7 +146,8 @@ NTSTATUS FspFsvolQuerySecurityComplete(
             FSP_RETURN();
         }
 
-        FspIopRequestContext(Request, RequestSecurityChangeNumber) = (PVOID)FileNode->SecurityChangeNumber;
+        FspIopRequestContext(Request, RequestSecurityChangeNumber) = (PVOID)
+            FspFileNodeSecurityChangeNumber(FileNode);
         FspIopRequestContext(Request, RequestFileNode) = 0;
 
         FspFileNodeReleaseOwner(FileNode, Full, Request);

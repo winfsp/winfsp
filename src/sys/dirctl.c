@@ -871,7 +871,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
 
     if (FspFsctlTransactQueryDirectoryKind == Request->Kind)
     {
-        DirInfoChangeNumber = FileNode->DirInfoChangeNumber;
+        DirInfoChangeNumber = FspFileNodeDirInfoChangeNumber(FileNode);
         Request->Kind = FspFsctlTransactReservedKind;
         FspIopResetRequest(Request, 0);
         FspIopRequestContext(Request, RequestDirInfoChangeNumber) = (PVOID)DirInfoChangeNumber;

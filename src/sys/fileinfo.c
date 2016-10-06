@@ -549,7 +549,8 @@ static NTSTATUS FspFsvolQueryStreamInformationSuccess(
             return STATUS_INFO_LENGTH_MISMATCH; /* ???: what is the best code to return here? */
         }
 
-        FspIopRequestContext(Request, RequestInfoChangeNumber) = (PVOID)FileNode->StreamInfoChangeNumber;
+        FspIopRequestContext(Request, RequestInfoChangeNumber) = (PVOID)
+            FspFileNodeStreamInfoChangeNumber(FileNode);
         FspIopRequestContext(Request, RequestFileNode) = 0;
 
         FspFileNodeReleaseOwner(FileNode, Full, Request);
@@ -752,7 +753,8 @@ NTSTATUS FspFsvolQueryInformationComplete(
 
     if (0 != FspIopRequestContext(Request, RequestFileNode))
     {
-        FspIopRequestContext(Request, RequestInfoChangeNumber) = (PVOID)FileNode->InfoChangeNumber;
+        FspIopRequestContext(Request, RequestInfoChangeNumber) = (PVOID)
+            FspFileNodeFileInfoChangeNumber(FileNode);
         FspIopRequestContext(Request, RequestFileNode) = 0;
 
         FspFileNodeReleaseOwner(FileNode, Full, Request);

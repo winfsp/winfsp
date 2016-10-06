@@ -1010,18 +1010,38 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, ULONG InfoChangeNumber);
+static inline
+ULONG FspFileNodeFileInfoChangeNumber(FSP_FILE_NODE *FileNode)
+{
+    return FileNode->InfoChangeNumber;
+}
 BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
 VOID FspFileNodeSetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG SecurityChangeNumber);
+static inline
+ULONG FspFileNodeSecurityChangeNumber(FSP_FILE_NODE *FileNode)
+{
+    return FileNode->SecurityChangeNumber;
+}
 BOOLEAN FspFileNodeReferenceDirInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
 VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG DirInfoChangeNumber);
+static inline
+ULONG FspFileNodeDirInfoChangeNumber(FSP_FILE_NODE *FileNode)
+{
+    return FileNode->DirInfoChangeNumber;
+}
 BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
 VOID FspFileNodeSetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG StreamInfoChangeNumber);
+static inline
+ULONG FspFileNodeStreamInfoChangeNumber(FSP_FILE_NODE *FileNode)
+{
+    return FileNode->StreamInfoChangeNumber;
+}
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action);
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
