@@ -1256,6 +1256,9 @@ static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     MEMFS_GET_STREAM_INFO_CONTEXT Context;
 
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+
     Context.Buffer = Buffer;
     Context.Length = Length;
     Context.PBytesTransferred = PBytesTransferred;
