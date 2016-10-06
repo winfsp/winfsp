@@ -100,7 +100,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
         __VA_ARGS__\
         Info = DestBuf;\
         RtlCopyMemory(Info, &InfoStruct, FIELD_OFFSET(TYPE, FileName));\
-        RtlCopyMemory(Info->FileName, DirInfo->FileNameBuf, CopyLength);\
+        RtlMoveMemory(Info->FileName, DirInfo->FileNameBuf, CopyLength);\
     } while (0,0)
 #define FILL_INFO(TYPE, ...)\
     FILL_INFO_BASE(TYPE,\
