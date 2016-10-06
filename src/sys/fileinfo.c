@@ -364,8 +364,8 @@ static NTSTATUS FspFsvolQueryStreamInformationCopy(
     PVOID DestBuf, PULONG PDestLen)
 {
 #define STREAM_TYPE                     ":$DATA"
-#define STREAM_TYPE_LENGTH              (sizeof L"" STREAM_TYPE - sizeof "")
-#define STREAM_EXTRA_LENGTH             (sizeof L":" STREAM_TYPE - sizeof "")
+#define STREAM_TYPE_LENGTH              (sizeof L"" STREAM_TYPE - sizeof(WCHAR))
+#define STREAM_EXTRA_LENGTH             (sizeof L":" STREAM_TYPE - sizeof(WCHAR))
 #define FILL_INFO()\
     do\
     {\

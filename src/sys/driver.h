@@ -1052,6 +1052,8 @@ BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULON
 static inline
 ULONG FspFileNodeStreamInfoChangeNumber(FSP_FILE_NODE *FileNode)
 {
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
     return FileNode->StreamInfoChangeNumber;
 }
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action);

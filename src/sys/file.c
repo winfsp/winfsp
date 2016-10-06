@@ -1073,6 +1073,9 @@ BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer,
 {
     // !PAGED_CODE();
 
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
         FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
     FSP_FILE_NODE_NONPAGED *NonPaged = FileNode->NonPaged;
@@ -1088,6 +1091,9 @@ BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer,
 VOID FspFileNodeSetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size)
 {
     // !PAGED_CODE();
+
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
         FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
@@ -1114,7 +1120,7 @@ BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULON
 {
     // !PAGED_CODE();
 
-    if (FileNode->StreamInfoChangeNumber != StreamInfoChangeNumber)
+    if (FspFileNodeStreamInfoChangeNumber(FileNode) != StreamInfoChangeNumber)
         return FALSE;
 
     FspFileNodeSetStreamInfo(FileNode, Buffer, Size);
@@ -1124,6 +1130,9 @@ BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULON
 static VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode)
 {
     // !PAGED_CODE();
+
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);

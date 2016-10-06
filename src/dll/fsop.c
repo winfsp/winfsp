@@ -1004,7 +1004,7 @@ FSP_FSCTL_STATIC_ASSERT(
     sizeof(UINT16) == sizeof ((FSP_FSCTL_DIR_INFO *)0)->Size &&
     sizeof(UINT16) == sizeof ((FSP_FSCTL_STREAM_INFO *)0)->Size,
     "FSP_FSCTL_DIR_INFO::Size and FSP_FSCTL_STREAM_INFO::Size: sizeof must be 2.");
-static BOOLEAN FspFileSystemAddXxxInfo(PVOID Info, SIZE_T InfoSize,
+static BOOLEAN FspFileSystemAddXxxInfo(PVOID Info,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
     static UINT8 Zero[sizeof(UINT16)] = { 0 };
@@ -1038,7 +1038,7 @@ static BOOLEAN FspFileSystemAddXxxInfo(PVOID Info, SIZE_T InfoSize,
 FSP_API BOOLEAN FspFileSystemAddDirInfo(FSP_FSCTL_DIR_INFO *DirInfo,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
-    return FspFileSystemAddXxxInfo(DirInfo, sizeof *DirInfo, Buffer, Length, PBytesTransferred);
+    return FspFileSystemAddXxxInfo(DirInfo, Buffer, Length, PBytesTransferred);
 }
 
 FSP_API BOOLEAN FspFileSystemFindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
@@ -1305,5 +1305,5 @@ FSP_API NTSTATUS FspFileSystemCanReplaceReparsePoint(
 FSP_API BOOLEAN FspFileSystemAddStreamInfo(FSP_FSCTL_STREAM_INFO *StreamInfo,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
-    return FspFileSystemAddXxxInfo(StreamInfo, sizeof *StreamInfo, Buffer, Length, PBytesTransferred);
+    return FspFileSystemAddXxxInfo(StreamInfo, Buffer, Length, PBytesTransferred);
 }
