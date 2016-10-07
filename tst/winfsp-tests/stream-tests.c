@@ -1645,8 +1645,47 @@ static void stream_getstreaminfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInf
     Success = FindNextStreamW(Handle, &FindData);
     ASSERT(!Success);
     ASSERT(ERROR_HANDLE_EOF == GetLastError());
+    Success = FindClose(Handle);
+    ASSERT(Success);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file5",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Handle = FindFirstStreamW(FilePath, FindStreamInfoStandard, &FindData, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    FileCount = FileTotal = 0;
+    do
+    {
+        unsigned long ul;
+        wchar_t *endp;
+
+        if (1 > FileCount)
+        {
+            FileCount++;
+            ASSERT(0 == wcscmp(FindData.cStreamName, L"::$DATA"));
+            continue;
+        }
+
+        ASSERT(0 == wcsncmp(FindData.cStreamName, L":s", 2));
+        ul = wcstoul(FindData.cStreamName + 2, &endp, 10);
+        ASSERT(0 != ul);
+        ASSERT(L':' == *endp);
+
+        FileCount++;
+        FileTotal += ul;
+
+        if (0 < SleepTimeout && 5 == FileCount)
+            Sleep(SleepTimeout);
+    } while (FindNextStreamW(Handle, &FindData));
+    ASSERT(ERROR_HANDLE_EOF == GetLastError());
+
+    ASSERT(101 == FileCount);
+    ASSERT(101 * 100 / 2 == FileTotal);
+
+    Success = FindClose(Handle);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file5:s50",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
     Handle = FindFirstStreamW(FilePath, FindStreamInfoStandard, &FindData, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
