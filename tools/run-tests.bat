@@ -75,8 +75,12 @@ exit /b 1
 M:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if errorlevel 1 goto fail
+"%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
+if errorlevel 1 goto fail
 N:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
+if errorlevel 1 goto fail
+"%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
 if errorlevel 1 goto fail
 exit /b 0
 
@@ -84,25 +88,29 @@ exit /b 0
 O:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if errorlevel 1 goto fail
+"%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
+if errorlevel 1 goto fail
 P:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
+if errorlevel 1 goto fail
+"%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
 if errorlevel 1 goto fail
 exit /b 0
 
 :winfstest-memfs-x64
 M:
-call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat" base reparse
+call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if errorlevel 1 goto fail
 N:
-call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat" base reparse
+call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if errorlevel 1 goto fail
 exit /b 0
 
 :winfstest-memfs-x86
 O:
-call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat" base reparse
+call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if errorlevel 1 goto fail
 P:
-call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat" base reparse
+call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if errorlevel 1 goto fail
 exit /b 0
