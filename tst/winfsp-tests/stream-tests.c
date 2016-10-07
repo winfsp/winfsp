@@ -1637,6 +1637,15 @@ static void stream_getstreaminfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInf
     DWORD times[2];
     times[0] = GetTickCount();
 
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Handle = FindFirstStreamW(FilePath, FindStreamInfoStandard, &FindData, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    ASSERT(0 == wcscmp(FindData.cStreamName, L"::$DATA"));
+    Success = FindNextStreamW(Handle, &FindData);
+    ASSERT(!Success);
+    ASSERT(ERROR_HANDLE_EOF == GetLastError());
+
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file5",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
     Handle = FindFirstStreamW(FilePath, FindStreamInfoStandard, &FindData, 0);
@@ -1673,6 +1682,12 @@ static void stream_getstreaminfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInf
 
     Success = FindClose(Handle);
     ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Handle = FindFirstStreamW(FilePath, FindStreamInfoStandard, &FindData, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_HANDLE_EOF == GetLastError());
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir5",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
