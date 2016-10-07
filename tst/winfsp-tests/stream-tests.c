@@ -332,6 +332,66 @@ static void stream_create_test(void)
         stream_create_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+static void stream_create_related_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    HANDLE FileHandle, StreamHandle;
+    NTSTATUS Result;
+    WCHAR FilePath[MAX_PATH];
+    WCHAR UnicodePathBuf[MAX_PATH] = L":foo";
+    UNICODE_STRING UnicodePath;
+    OBJECT_ATTRIBUTES Obja;
+    IO_STATUS_BLOCK Iosb;
+    LARGE_INTEGER LargeZero = { 0 };
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    FileHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != FileHandle);
+
+    UnicodePath.Length = (USHORT)wcslen(UnicodePathBuf) * sizeof(WCHAR);
+    UnicodePath.MaximumLength = sizeof UnicodePathBuf;
+    UnicodePath.Buffer = UnicodePathBuf;
+    InitializeObjectAttributes(&Obja, &UnicodePath, 0, FileHandle, 0);
+    Result = NtCreateFile(&StreamHandle,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE, &Obja, &Iosb,
+        &LargeZero, FILE_ATTRIBUTE_NORMAL, 0,
+        FILE_CREATE, 0, 0, 0);
+    ASSERT(STATUS_SUCCESS == Result);
+    CloseHandle(StreamHandle);
+
+    CloseHandle(FileHandle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    FileHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != FileHandle);
+    CloseHandle(FileHandle);
+
+    memfs_stop(memfs);
+}
+
+static void stream_create_related_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        stream_create_related_dotest(-1, DirBuf);
+    }
+    if (WinFspDiskTests)
+        stream_create_related_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        stream_create_related_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
 static void stream_create_sd_dotest(ULONG Flags, PWSTR Prefix)
 {
     void *memfs = memfs_start(Flags);
@@ -1816,6 +1876,7 @@ void stream_getstreaminfo_expire_cache_test(void)
 void stream_tests(void)
 {
     TEST(stream_create_test);
+    TEST(stream_create_related_test);
     TEST(stream_create_sd_test);
     TEST(stream_create_share_test);
     TEST(stream_getfileinfo_test);
