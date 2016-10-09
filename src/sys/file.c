@@ -1185,11 +1185,38 @@ VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
         break;
     }
 
-    FspNotifyReportChange(
-        FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList,
-        &FileNode->FileName,
-        (USHORT)((PUINT8)Suffix.Buffer - (PUINT8)FileNode->FileName.Buffer),
-        0, Filter, Action);
+    if (0 != FileNode->MainFileNode)
+    {
+        if (FlagOn(Filter, FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_FILE_NAME))
+            SetFlag(Filter, FILE_NOTIFY_CHANGE_STREAM_NAME);
+        if (FlagOn(Filter, FILE_NOTIFY_CHANGE_SIZE))
+            SetFlag(Filter, FILE_NOTIFY_CHANGE_STREAM_SIZE);
+        /* ???: what about FILE_NOTIFY_CHANGE_STREAM_WRITE */
+        ClearFlag(Filter, ~(FILE_NOTIFY_CHANGE_STREAM_NAME | FILE_NOTIFY_CHANGE_STREAM_SIZE));
+
+        switch (Action)
+        {
+        case FILE_ACTION_ADDED:
+            Action = FILE_ACTION_ADDED_STREAM;
+            FspFileNodeInvalidateStreamInfo(FileNode);
+            break;
+        case FILE_ACTION_REMOVED:
+            Action = FILE_ACTION_REMOVED_STREAM;
+            FspFileNodeInvalidateStreamInfo(FileNode);
+            break;
+        case FILE_ACTION_MODIFIED:
+            Action = FILE_ACTION_MODIFIED_STREAM;
+            //FspFileNodeInvalidateStreamInfo(FileNode);
+            break;
+        }
+    }
+
+    if (0 != Filter)
+        FspNotifyReportChange(
+            FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList,
+            &FileNode->FileName,
+            (USHORT)((PUINT8)Suffix.Buffer - (PUINT8)FileNode->FileName.Buffer),
+            0, Filter, Action);
 }
 
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp)
