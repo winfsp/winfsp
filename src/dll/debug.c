@@ -19,6 +19,13 @@
 #include <sddl.h>
 #include <stdarg.h>
 
+static HANDLE FspDebugLogHandle = INVALID_HANDLE_VALUE;
+
+FSP_API VOID FspDebugLogSetHandle(HANDLE Handle)
+{
+    FspDebugLogHandle = Handle;
+}
+
 FSP_API VOID FspDebugLog(const char *format, ...)
 {
     char buf[1024];
@@ -28,7 +35,13 @@ FSP_API VOID FspDebugLog(const char *format, ...)
     wvsprintfA(buf, format, ap);
     va_end(ap);
     buf[sizeof buf - 1] = '\0';
-    OutputDebugStringA(buf);
+    if (INVALID_HANDLE_VALUE != FspDebugLogHandle)
+    {
+        DWORD bytes;
+        WriteFile(FspDebugLogHandle, buf, lstrlenA(buf), &bytes, 0);
+    }
+    else
+        OutputDebugStringA(buf);
 }
 
 FSP_API VOID FspDebugLogSD(const char *format, PSECURITY_DESCRIPTOR SecurityDescriptor)

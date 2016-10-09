@@ -1469,9 +1469,10 @@ FSP_API NTSTATUS FspNtStatusFromWin32(DWORD Error);
 FSP_API DWORD FspWin32FromNtStatus(NTSTATUS Status);
 FSP_API VOID FspEventLog(ULONG Type, PWSTR Format, ...);
 FSP_API VOID FspEventLogV(ULONG Type, PWSTR Format, va_list ap);
-FSP_API VOID FspDebugLog(const char *format, ...);
-FSP_API VOID FspDebugLogSD(const char *format, PSECURITY_DESCRIPTOR SecurityDescriptor);
-FSP_API VOID FspDebugLogFT(const char *format, PFILETIME FileTime);
+FSP_API VOID FspDebugLogSetHandle(HANDLE Handle);
+FSP_API VOID FspDebugLog(const char *Format, ...);
+FSP_API VOID FspDebugLogSD(const char *Format, PSECURITY_DESCRIPTOR SecurityDescriptor);
+FSP_API VOID FspDebugLogFT(const char *Format, PFILETIME FileTime);
 FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request);
 FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspCallNamedPipeSecurely(PWSTR PipeName,
