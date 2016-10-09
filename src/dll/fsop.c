@@ -951,7 +951,7 @@ FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
     if (0 == FileSystem->Interface->GetSecurity)
         return STATUS_INVALID_DEVICE_REQUEST;
 
-    SecurityDescriptorSize = FSP_FSCTL_TRANSACT_RSP_SIZEMAX - sizeof *Response;
+    SecurityDescriptorSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
     Result = FileSystem->Interface->GetSecurity(FileSystem, Request,
         (PVOID)USERCONTEXT(Request->Req.QuerySecurity),
         Response->Buffer, &SecurityDescriptorSize);
@@ -989,7 +989,7 @@ FSP_API NTSTATUS FspFileSystemOpQueryStreamInformation(FSP_FILE_SYSTEM *FileSyst
     Result = FileSystem->Interface->GetStreamInfo(FileSystem, Request,
         (PVOID)USERCONTEXT(Request->Req.QueryStreamInformation),
         Response->Buffer,
-        FSP_FSCTL_TRANSACT_RSP_SIZEMAX - sizeof *Response,
+        FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX,
         &BytesTransferred);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -1088,23 +1088,18 @@ FSP_API BOOLEAN FspFileSystemFindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     return FALSE;
 }
 
-FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
+FSP_API NTSTATUS FspFileSystemResolveReparsePointsInternal(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS (*GetReparsePointByName)(
         FSP_FILE_SYSTEM *FileSystem, PVOID Context,
         PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize),
     PVOID Context,
+    PREPARSE_DATA_BUFFER ReparseData, SIZE_T ReparseDataSize0,
     PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent0,
     PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
 {
     PREPARSE_DATA_BUFFER OutputReparseData;
     PWSTR TargetPath, RemainderPath, LastPathComponent, NewRemainderPath, ReparseTargetPath;
     WCHAR RemainderChar;
-    union
-    {
-        REPARSE_DATA_BUFFER V;
-        UINT8 B[FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX];
-    } ReparseDataBuf;
-    PREPARSE_DATA_BUFFER ReparseData = &ReparseDataBuf.V;
     SIZE_T ReparseDataSize, RemainderPathSize, ReparseTargetPathLength;
     BOOLEAN ResolveLastPathComponent;
     ULONG MaxTries = 32;
@@ -1188,7 +1183,7 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
         }
 
         RemainderChar = *RemainderPath; *RemainderPath = L'\0';
-        ReparseDataSize = sizeof ReparseDataBuf;
+        ReparseDataSize = ReparseDataSize0;
         Result = GetReparsePointByName(FileSystem, Context, TargetPath, '\0' != RemainderChar,
             ReparseData, &ReparseDataSize);
         *RemainderPath = RemainderChar;
@@ -1275,6 +1270,32 @@ reparse_data_exit:
     PIoStatus->Status = STATUS_REPARSE;
     PIoStatus->Information = ReparseData->ReparseTag;
     return STATUS_REPARSE;
+}
+
+FSP_API NTSTATUS FspFileSystemResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*GetReparsePointByName)(
+        FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+        PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize),
+    PVOID Context,
+    PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent,
+    PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
+{
+    PREPARSE_DATA_BUFFER ReparseData;
+    NTSTATUS Result;
+
+    ReparseData = MemAlloc(FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX);
+    if (0 == ReparseData)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    Result = FspFileSystemResolveReparsePointsInternal(FileSystem,
+        GetReparsePointByName, Context,
+        ReparseData, FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX,
+        FileName, ReparsePointIndex, ResolveLastPathComponent,
+        PIoStatus, Buffer, PSize);
+
+    MemFree(ReparseData);
+
+    return Result;
 }
 
 FSP_API NTSTATUS FspFileSystemCanReplaceReparsePoint(

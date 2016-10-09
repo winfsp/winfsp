@@ -26,11 +26,10 @@
  * - "C/C++ > Code Generation > Basic Runtime Checks" must be set to "Default"
  * - "C/C++ > Code Generation > Runtime Library" must be set to "Multi-threaded (/MT)".
  * - "C/C++ > Code Generation > Security Check" must be disabled (/GS-).
- * - "C/C++ > Command Line > Additional Options" add "/Gs16384" to disable __chkstk probes.
  * - "Linker > Input > Ignore All Default Libraries" must be "Yes".
  *
  *
- * Update:
+ * Update 1:
  *
  * It is possible to have the "Linker > Input > Ignore All Default Libraries"
  * setting to "No" and still eliminate most dependencies on the MSVCRT libraries.
@@ -44,6 +43,22 @@
  * that are not required (or worse create a half-baked CRT). For example, the WinFsp
  * DLL ensures this by setting the "Linker > Input > Ignore All Default Libraries"
  * to "Yes" on 64-bit builds and "No" on 32-bit builds.
+ *
+ *
+ * Update 2:
+ *
+ * Using the /Gs[size] compiler option with a large size is a very bad idea.
+ * Turns out that the compiler uses the _chkstk call to ensure that enough
+ * stack space has been committed even when a function accesses locations in
+ * the stack below the guard page.
+ *
+ * The following links explain the problem very well:
+ * - http://stackoverflow.com/questions/8400118/what-is-the-purpose-of-the-chkstk-function#8400171
+ * - https://support.microsoft.com/en-us/kb/100775
+ *
+ * A library/program that does not wish to use the MSVCRT libraries (and hence
+ * does not have _chkstk available) must take care to not use more than a page
+ * (4096 bytes) of stack within a single function.
  */
 
 #undef RtlFillMemory

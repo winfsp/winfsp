@@ -735,7 +735,7 @@ enum
     FspFsvolDeviceDirInfoCacheCapacity = 100,
     FspFsvolDeviceDirInfoCacheItemSizeMax = FSP_FSCTL_ALIGN_UP(16384, PAGE_SIZE),
     FspFsvolDeviceStreamInfoCacheCapacity = 100,
-    FspFsvolDeviceStreamInfoCacheItemSizeMax = 4096,
+    FspFsvolDeviceStreamInfoCacheItemSizeMax = FSP_FSCTL_ALIGN_UP(16384, PAGE_SIZE),
 };
 typedef struct
 {
