@@ -377,7 +377,7 @@
             </Feature>
         </Feature>
 
-        <WixVariable Id="WixUIBannerBmp" Value="wixbanner.bmp" />
+        <WixVariable Id="WixUIBannerBmp" Value="wixbanner-$(var.MyDevStage).bmp" />
         <WixVariable Id="WixUIDialogBmp" Value="wixdialog.bmp" />
         <UI Id="FeatureTree">
             <UIRef Id="WixUI_FeatureTree" />
