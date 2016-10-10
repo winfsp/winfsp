@@ -38,6 +38,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
     wchar_t **argp, **arge;
     ULONG DebugFlags = 0;
+    PWSTR DebugLogFile = 0;
     ULONG Flags = MemfsDisk;
     ULONG FileInfoTimeout = INFINITE;
     ULONG MaxFileNodes = 1024;
@@ -45,6 +46,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     PWSTR MountPoint = 0;
     PWSTR VolumePrefix = 0;
     PWSTR RootSddl = 0;
+    HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
     MEMFS *Memfs = 0;
     NTSTATUS Result;
 
@@ -58,6 +60,9 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
             goto usage;
         case L'd':
             argtol(DebugFlags);
+            break;
+        case L'D':
+            argtos(DebugLogFile);
             break;
         case L'm':
             argtos(MountPoint);
@@ -90,6 +95,26 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     if (MemfsDisk == Flags && 0 == MountPoint)
         goto usage;
 
+    if (0 != DebugLogFile)
+    {
+        if (0 == wcscmp(L"-", DebugLogFile))
+            DebugLogHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+        else
+            DebugLogHandle = CreateFileW(
+                DebugLogFile,
+                FILE_APPEND_DATA,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                0,
+                OPEN_ALWAYS,
+                FILE_ATTRIBUTE_NORMAL,
+                0);
+        if (INVALID_HANDLE_VALUE == DebugLogHandle)
+        {
+            fail(L"cannot open debug log file");
+            goto usage;
+        }
+    }
+
     Result = MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, RootSddl,
         &Memfs);
     if (!NT_SUCCESS(Result))
@@ -98,6 +123,8 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         goto exit;
     }
 
+    if (INVALID_HANDLE_VALUE != DebugLogHandle)
+        FspDebugLogSetHandle(DebugLogHandle);
     FspFileSystemSetDebugLog(MemfsFileSystem(Memfs), DebugFlags);
 
     if (0 != MountPoint && L'\0' != MountPoint[0])
@@ -142,6 +169,7 @@ usage:
         "\n"
         "options:\n"
         "    -d DebugFlags       [-1: enable all debug logs]\n"
+        "    -D DebugLogFile     [file path; use - for stdout]\n"
         "    -t FileInfoTimeout  [millis]\n"
         "    -n MaxFileNodes\n"
         "    -s MaxFileSize      [bytes]\n"
