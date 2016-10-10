@@ -113,6 +113,8 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
             fail(L"cannot open debug log file");
             goto usage;
         }
+
+        FspDebugLogSetHandle(DebugLogHandle);
     }
 
     Result = MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, RootSddl,
@@ -123,8 +125,6 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         goto exit;
     }
 
-    if (INVALID_HANDLE_VALUE != DebugLogHandle)
-        FspDebugLogSetHandle(DebugLogHandle);
     FspFileSystemSetDebugLog(MemfsFileSystem(Memfs), DebugFlags);
 
     if (0 != MountPoint && L'\0' != MountPoint[0])
