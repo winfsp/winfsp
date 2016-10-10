@@ -7,7 +7,7 @@ This release brings support for named streams.
 
 - Named streams (or alternate data streams) are additional streams of data within a file. When a file gets opened the main (default, unnamed) data stream of a file gets accessed. However NTFS (and now WinFsp) supports multiple data streams per file accessible using the `filename:streamname` syntax.
 - WinFsp handles a lot of the hairy details regarding named streams, including sharing checks, pending delete checks, conflicts between the main and named streams, etc.
-- User mode file systems that wish to support named streams must set the `FSP_FSCTL_VOLUME_PARAMS::NamedStreams` flag and must also be prepared to handle named stream on `Create`, `Cleanup`, etc. They must also implement the new `FSP_FILE_SYSTEM_INTERFACE::GetStreamInfo` operation. For more information on how to correctly handle named streams refer to the MEMFS sample.
+- User mode file systems that wish to support named streams must set the `FSP_FSCTL_VOLUME_PARAMS::NamedStreams` flag and must also be prepared to handle named streams on `Create`, `Cleanup`, etc. They must also implement the new `FSP_FILE_SYSTEM_INTERFACE::GetStreamInfo` operation. For more information on how to correctly handle named streams refer to the MEMFS sample.
 
 
 v0.16::
