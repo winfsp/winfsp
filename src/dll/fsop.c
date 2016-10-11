@@ -140,24 +140,57 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
     UINT32 GrantedAccess;
 
     /*
-     * CreateCheck consists of checking the parent directory for the
-     * FILE_ADD_SUBDIRECTORY or FILE_ADD_FILE rights (depending on whether
-     * we are creating a file or directory).
+     * CreateCheck does different checks depending on whether we are
+     * creating a new file/directory or a new stream.
      *
-     * If the access check succeeds and MAXIMUM_ALLOWED has been requested
-     * then we go ahead and grant all access to the creator.
+     * -   CreateCheck for a new file consists of checking the parent directory
+     *     for the FILE_ADD_SUBDIRECTORY or FILE_ADD_FILE rights (depending on
+     *     whether we are creating a file or directory).
+     *
+     *     If the access check succeeds and MAXIMUM_ALLOWED has been requested
+     *     then we go ahead and grant all access to the creator.
+     *
+     * -   CreateCheck for a new stream consists of checking the main file for
+     *     FILE_WRITE_DATA access, unless FILE_DELETE_ON_CLOSE is requested in
+     *     which case we also check for DELETE access.
+     *
+     *     If the access check succeeds and MAXIMUM_ALLOWED was not requested
+     *     then we reset the DELETE and FILE_WRITE_DATA accesses based on whether
+     *     they were actually requested in DesiredAccess.
      */
 
-    Result = FspAccessCheckEx(FileSystem, Request, TRUE, AllowTraverseCheck,
-        (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) ?
-            FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE,
-        &GrantedAccess, PSecurityDescriptor);
-    if (STATUS_REPARSE == Result)
-        Result = FspFileSystemCallResolveReparsePoints(FileSystem, Request, Response, GrantedAccess);
-    else if (NT_SUCCESS(Result))
+    if (!Request->Req.Create.NamedStream)
     {
-        *PGrantedAccess = (MAXIMUM_ALLOWED & Request->Req.Create.DesiredAccess) ?
-            FspGetFileGenericMapping()->GenericAll : Request->Req.Create.DesiredAccess;
+        Result = FspAccessCheckEx(FileSystem, Request, TRUE, AllowTraverseCheck,
+            (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) ?
+                FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE,
+            &GrantedAccess, PSecurityDescriptor);
+        if (STATUS_REPARSE == Result)
+            Result = FspFileSystemCallResolveReparsePoints(FileSystem, Request, Response, GrantedAccess);
+        else if (NT_SUCCESS(Result))
+        {
+            *PGrantedAccess = (MAXIMUM_ALLOWED & Request->Req.Create.DesiredAccess) ?
+                FspGetFileGenericMapping()->GenericAll : Request->Req.Create.DesiredAccess;
+        }
+    }
+    else
+    {
+        *PSecurityDescriptor = 0;
+
+        Result = FspAccessCheckEx(FileSystem, Request, TRUE, AllowTraverseCheck,
+            Request->Req.Create.DesiredAccess |
+                FILE_WRITE_DATA |
+                ((Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE) ? DELETE : 0),
+            &GrantedAccess, 0);
+        if (STATUS_REPARSE == Result)
+            Result = FspFileSystemCallResolveReparsePoints(FileSystem, Request, Response, GrantedAccess);
+        else if (NT_SUCCESS(Result))
+        {
+            *PGrantedAccess = GrantedAccess;
+            if (0 == (Request->Req.Create.DesiredAccess & MAXIMUM_ALLOWED))
+                *PGrantedAccess &= ~(DELETE | FILE_WRITE_DATA) |
+                    (Request->Req.Create.DesiredAccess & (DELETE | FILE_WRITE_DATA));
+        }
     }
 
     return Result;

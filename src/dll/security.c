@@ -63,10 +63,21 @@ static inline ULONG FspPathSuffixIndex(PWSTR FileName)
 
 FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
-    BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
+    BOOLEAN CheckParentOrMain, BOOLEAN AllowTraverseCheck,
     UINT32 DesiredAccess, PUINT32 PGrantedAccess,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor)
 {
+    BOOLEAN CheckParentDirectory, CheckMainFile;
+
+    CheckParentDirectory = CheckMainFile = FALSE;
+    if (CheckParentOrMain)
+    {
+        if (!Request->Req.Create.NamedStream)
+            CheckParentDirectory = TRUE;
+        else
+            CheckMainFile = TRUE;
+    }
+
     *PGrantedAccess = 0;
     if (0 != PSecurityDescriptor)
         *PSecurityDescriptor = 0;
@@ -100,6 +111,11 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
 
     if (CheckParentDirectory)
         FspPathSuffix((PWSTR)Request->Buffer, &FileName, &Suffix, Root);
+    else if (CheckMainFile)
+    {
+        ((PWSTR)Request->Buffer)[Request->Req.Create.NamedStream / sizeof(WCHAR)] = L'\0';
+        FileName = (PWSTR)Request->Buffer;
+    }
     else
         FileName = (PWSTR)Request->Buffer;
 
@@ -269,6 +285,20 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
             goto exit;
         }
     }
+    else if (CheckMainFile)
+    {
+        /*
+         * We check to see if this is a reparse point and FILE_OPEN_REPARSE_POINT
+         * was not specified, in which case we return STATUS_REPARSE.
+         */
+        if (0 != (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) &&
+            0 == (Request->Req.Create.CreateOptions & FILE_OPEN_REPARSE_POINT))
+        {
+            FileAttributes = FspPathSuffixIndex(FileName);
+            Result = STATUS_REPARSE;
+            goto exit;
+        }
+    }
     else
     {
         /*
@@ -344,6 +374,8 @@ exit:
         if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
             Result = STATUS_OBJECT_PATH_NOT_FOUND;
     }
+    else if (CheckMainFile)
+        ((PWSTR)Request->Buffer)[Request->Req.Create.NamedStream / sizeof(WCHAR)] = L':';
 
     return Result;
 }

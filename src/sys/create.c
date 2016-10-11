@@ -477,7 +477,11 @@ static NTSTATUS FspFsvolCreateNoLock(
     Request->Req.Create.HasTraversePrivilege = HasTraversePrivilege;
     Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);
     Request->Req.Create.CaseSensitive = CaseSensitiveRequested;
-    Request->Req.Create.NamedStream = 0 != StreamPart.Length;
+    Request->Req.Create.NamedStream = MainFileName.Length;
+
+    ASSERT(
+        0 == StreamPart.Length && 0 == MainFileName.Length ||
+        0 != StreamPart.Length && 0 != MainFileName.Length);
 
     /* copy the security descriptor (if any) into the request */
     if (0 != SecurityDescriptorSize)

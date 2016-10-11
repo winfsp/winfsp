@@ -1207,7 +1207,7 @@ FSP_API BOOLEAN FspFileSystemAddStreamInfo(FSP_FSCTL_STREAM_INFO *StreamInfo,
 FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
 FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
-    BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
+    BOOLEAN CheckParentOrMain, BOOLEAN AllowTraverseCheck,
     UINT32 DesiredAccess, PUINT32 PGrantedAccess/* or ReparsePointIndex */,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor);
 FSP_API NTSTATUS FspCreateSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
@@ -1223,11 +1223,11 @@ FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor
 static inline
 NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
-    BOOLEAN CheckParentDirectory, BOOLEAN AllowTraverseCheck,
+    BOOLEAN CheckParentOrMain, BOOLEAN AllowTraverseCheck,
     UINT32 DesiredAccess, PUINT32 PGrantedAccess)
 {
     return FspAccessCheckEx(FileSystem, Request,
-        CheckParentDirectory, AllowTraverseCheck,
+        CheckParentOrMain, AllowTraverseCheck,
         DesiredAccess, PGrantedAccess,
         0);
 }
