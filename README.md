@@ -73,4 +73,4 @@ If you wish to discuss WinFsp there are now two options:
 
 ## License
 
-WinFsp is available under the [AGPLv3](http://www.gnu.org/licenses/agpl-3.0.html) license. If you find the constraints of the AGPLv3 too onerous, a commercial license is also available. Please contact Bill Zissimopoulos <billziss at navimatics.com> for more details.
+WinFsp is available under the [GPLv3](http://www.gnu.org/licenses/gpl-3.0.html) license. If you find the constraints of the GPLv3 too onerous, a commercial license is also available. Please contact Bill Zissimopoulos <billziss at navimatics.com> for more details.
