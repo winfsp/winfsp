@@ -107,6 +107,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     PPRIVILEGE_SET PrivilegeSet = (PVOID)PrivilegeSetBuf;
     DWORD PrivilegeSetLength = sizeof PrivilegeSetBuf;
     UINT32 TraverseAccess, ParentAccess, DesiredAccess2;
+    UINT16 NamedStreamSave;
     BOOL AccessStatus;
 
     if (CheckParentDirectory)
@@ -228,6 +229,8 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
                 0 == ((MAXIMUM_ALLOWED | DELETE | FILE_READ_ATTRIBUTES) & DesiredAccess))
                 goto exit;
 
+            NamedStreamSave = Request->Req.Create.NamedStream;
+            Request->Req.Create.NamedStream = 0;
             Result = FspAccessCheck(FileSystem, Request, TRUE, FALSE,
                 (MAXIMUM_ALLOWED & DesiredAccess) ? (FILE_DELETE_CHILD | FILE_LIST_DIRECTORY) :
                 (
@@ -235,6 +238,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
                     ((FILE_READ_ATTRIBUTES & DesiredAccess) ? FILE_LIST_DIRECTORY : 0)
                 ),
                 &ParentAccess);
+            Request->Req.Create.NamedStream = NamedStreamSave;
             if (!NT_SUCCESS(Result))
             {
                 /* any failure just becomes ACCESS DENIED at this point */
