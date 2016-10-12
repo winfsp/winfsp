@@ -602,9 +602,84 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS FspFileSystemOpCreate_NotFoundCheck(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    /*
+     * This handles an Open of a named stream done via a symlink. The file system
+     * has returned STATUS_OBJECT_NAME_NOT_FOUND, but we check to see if the main
+     * file is a reparse point that can be resolved.
+     */
+
+    NTSTATUS Result;
+    UINT32 FileAttributes;
+
+    if (0 == FileSystem->Interface->GetSecurityByName ||
+        0 == FileSystem->Interface->ResolveReparsePoints)
+        return STATUS_OBJECT_NAME_NOT_FOUND;
+
+    if (!Request->Req.Create.NamedStream ||
+        (Request->Req.Create.CreateOptions & FILE_OPEN_REPARSE_POINT))
+        return STATUS_OBJECT_NAME_NOT_FOUND;
+
+    ((PWSTR)Request->Buffer)[Request->Req.Create.NamedStream / sizeof(WCHAR)] = L'\0';
+    Result = FileSystem->Interface->GetSecurityByName(
+        FileSystem, (PWSTR)Request->Buffer, &FileAttributes, 0, 0);
+    ((PWSTR)Request->Buffer)[Request->Req.Create.NamedStream / sizeof(WCHAR)] = L':';
+
+    if (STATUS_SUCCESS != Result ||
+        FILE_ATTRIBUTE_REPARSE_POINT != (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+        return STATUS_OBJECT_NAME_NOT_FOUND;
+
+    FileAttributes = FspPathSuffixIndex((PWSTR)Request->Buffer);
+    Result = FspFileSystemCallResolveReparsePoints(
+        FileSystem, Request, Response, FileAttributes);
+    if (STATUS_REPARSE != Result)
+        return STATUS_OBJECT_NAME_NOT_FOUND;
+
+    return STATUS_REPARSE;
+}
+
+static NTSTATUS FspFileSystemOpCreate_CollisionCheck(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    /*
+     * This handles a Create done via a symlink. The file system has returned
+     * STATUS_OBJECT_NAME_COLLISION, but we check to see if the collision is
+     * due to a reparse point that can be resolved.
+     */
+
+    NTSTATUS Result;
+    UINT32 FileAttributes;
+
+    if (0 == FileSystem->Interface->GetSecurityByName ||
+        0 == FileSystem->Interface->ResolveReparsePoints)
+        return STATUS_OBJECT_NAME_COLLISION;
+
+    if (Request->Req.Create.CreateOptions & FILE_OPEN_REPARSE_POINT)
+        return STATUS_OBJECT_NAME_COLLISION;
+
+    Result = FileSystem->Interface->GetSecurityByName(
+        FileSystem, (PWSTR)Request->Buffer, &FileAttributes, 0, 0);
+    if (STATUS_SUCCESS != Result ||
+        FILE_ATTRIBUTE_REPARSE_POINT !=
+            (FileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)))
+        return STATUS_OBJECT_NAME_COLLISION;
+
+    FileAttributes = FspPathSuffixIndex((PWSTR)Request->Buffer);
+    Result = FspFileSystemCallResolveReparsePoints(
+        FileSystem, Request, Response, FileAttributes);
+    if (STATUS_REPARSE != Result)
+        return STATUS_OBJECT_NAME_COLLISION;
+
+    return STATUS_REPARSE;
+}
+
 FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
+    NTSTATUS Result;
+
     if (0 == FileSystem->Interface->Create ||
         0 == FileSystem->Interface->Open ||
         0 == FileSystem->Interface->Overwrite)
@@ -616,19 +691,32 @@ FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
     switch ((Request->Req.Create.CreateOptions >> 24) & 0xff)
     {
     case FILE_CREATE:
-        return FspFileSystemOpCreate_FileCreate(FileSystem, Request, Response);
+        Result = FspFileSystemOpCreate_FileCreate(FileSystem, Request, Response);
+        break;
     case FILE_OPEN:
-        return FspFileSystemOpCreate_FileOpen(FileSystem, Request, Response);
+        Result = FspFileSystemOpCreate_FileOpen(FileSystem, Request, Response);
+        break;
     case FILE_OPEN_IF:
-        return FspFileSystemOpCreate_FileOpenIf(FileSystem, Request, Response);
+        Result = FspFileSystemOpCreate_FileOpenIf(FileSystem, Request, Response);
+        break;
     case FILE_OVERWRITE:
     case FILE_SUPERSEDE:
-        return FspFileSystemOpCreate_FileOverwrite(FileSystem, Request, Response);
+        Result = FspFileSystemOpCreate_FileOverwrite(FileSystem, Request, Response);
+        break;
     case FILE_OVERWRITE_IF:
-        return FspFileSystemOpCreate_FileOverwriteIf(FileSystem, Request, Response);
+        Result = FspFileSystemOpCreate_FileOverwriteIf(FileSystem, Request, Response);
+        break;
     default:
-        return STATUS_INVALID_PARAMETER;
+        Result = STATUS_INVALID_PARAMETER;
+        break;
     }
+
+    if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
+        Result = FspFileSystemOpCreate_NotFoundCheck(FileSystem, Request, Response);
+    else if (STATUS_OBJECT_NAME_COLLISION == Result)
+        Result = FspFileSystemOpCreate_CollisionCheck(FileSystem, Request, Response);
+
+    return Result;
 }
 
 FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
@@ -1093,7 +1181,7 @@ FSP_API BOOLEAN FspFileSystemFindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
         LastPathComponent = RemainderPath;
         while (L'\\' != *RemainderPath)
         {
-            if (L'\0' == *RemainderPath)
+            if (L'\0' == *RemainderPath || L':' == *RemainderPath)
                 return FALSE;
             RemainderPath++;
         }
@@ -1161,7 +1249,7 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePointsInternal(FSP_FILE_SYSTEM *File
         LastPathComponent = RemainderPath;
         while (L'\\' != *RemainderPath)
         {
-            if (L'\0' == *RemainderPath)
+            if (L'\0' == *RemainderPath || L':' == *RemainderPath)
             {
                 if (!ResolveLastPathComponent)
                     goto symlink_exit;
@@ -1217,16 +1305,18 @@ FSP_API NTSTATUS FspFileSystemResolveReparsePointsInternal(FSP_FILE_SYSTEM *File
 
         RemainderChar = *RemainderPath; *RemainderPath = L'\0';
         ReparseDataSize = ReparseDataSize0;
-        Result = GetReparsePointByName(FileSystem, Context, TargetPath, '\0' != RemainderChar,
+        Result = GetReparsePointByName(FileSystem, Context, TargetPath, L'\\' == RemainderChar,
             ReparseData, &ReparseDataSize);
         *RemainderPath = RemainderChar;
 
         if (STATUS_NOT_A_REPARSE_POINT == Result)
             /* it was not a reparse point; continue */
             continue;
+        else if (STATUS_OBJECT_NAME_NOT_FOUND == Result && L'\\' != RemainderChar)
+            goto symlink_exit;
         else if (!NT_SUCCESS(Result))
         {
-            if (STATUS_OBJECT_NAME_NOT_FOUND != Result || '\0' != RemainderChar)
+            if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
                 Result = STATUS_OBJECT_PATH_NOT_FOUND;
             return Result;
         }

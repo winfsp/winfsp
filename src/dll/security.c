@@ -48,19 +48,6 @@ static NTSTATUS FspGetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     }
 }
 
-static inline ULONG FspPathSuffixIndex(PWSTR FileName)
-{
-    WCHAR Root[2] = L"\\";
-    PWSTR Remain, Suffix;
-    ULONG Result;
-
-    FspPathSuffix(FileName, &Remain, &Suffix, Root);
-    Result = Remain == Root ? 0 : (ULONG)(Suffix - Remain);
-    FspPathCombine(FileName, Suffix);
-
-    return Result;
-}
-
 FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     BOOLEAN CheckParentOrMain, BOOLEAN AllowTraverseCheck,

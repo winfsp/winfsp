@@ -53,4 +53,17 @@ PWSTR FspDiagIdent(VOID);
 
 BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType);
 
+static inline ULONG FspPathSuffixIndex(PWSTR FileName)
+{
+    WCHAR Root[2] = L"\\";
+    PWSTR Remain, Suffix;
+    ULONG Result;
+
+    FspPathSuffix(FileName, &Remain, &Suffix, Root);
+    Result = Remain == Root ? 0 : (ULONG)(Suffix - Remain);
+    FspPathCombine(FileName, Suffix);
+
+    return Result;
+}
+
 #endif

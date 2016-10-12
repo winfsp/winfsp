@@ -470,7 +470,13 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
     if (0 != FileNode)
-        return STATUS_OBJECT_NAME_COLLISION;
+    {
+        if ((CreateOptions & FILE_NON_DIRECTORY_FILE) &&
+            0 != (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            return STATUS_FILE_IS_A_DIRECTORY;
+        else
+            return STATUS_OBJECT_NAME_COLLISION;
+    }
 
     if (!MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result))
         return Result;
@@ -1107,6 +1113,11 @@ static NTSTATUS GetReparsePointByName(
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode;
 
+#if defined(MEMFS_NAMED_STREAMS)
+    /* GetReparsePointByName will never receive a named stream */
+    assert(0 == wcschr(FileName, L':'));
+#endif
+
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
     if (0 == FileNode)
         return STATUS_OBJECT_NAME_NOT_FOUND;
@@ -1133,6 +1144,11 @@ static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
+#if defined(MEMFS_NAMED_STREAMS)
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+#endif
+
     if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
         return STATUS_NOT_A_REPARSE_POINT;
 
@@ -1154,6 +1170,11 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     PVOID ReparseData;
     NTSTATUS Result;
+
+#if defined(MEMFS_NAMED_STREAMS)
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+#endif
 
     if (MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
         return STATUS_DIRECTORY_NOT_EMPTY;
@@ -1188,6 +1209,11 @@ static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     NTSTATUS Result;
+
+#if defined(MEMFS_NAMED_STREAMS)
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+#endif
 
     if (0 != FileNode->ReparseData)
     {
