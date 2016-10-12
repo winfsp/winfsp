@@ -470,13 +470,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
     if (0 != FileNode)
-    {
-        if ((CreateOptions & FILE_NON_DIRECTORY_FILE) &&
-            0 != (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-            return STATUS_FILE_IS_A_DIRECTORY;
-        else
-            return STATUS_OBJECT_NAME_COLLISION;
-    }
+        return STATUS_OBJECT_NAME_COLLISION;
 
     if (!MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result))
         return Result;

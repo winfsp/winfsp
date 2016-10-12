@@ -626,9 +626,10 @@ static NTSTATUS FspFileSystemOpCreate_NotFoundCheck(FSP_FILE_SYSTEM *FileSystem,
     Result = FileSystem->Interface->GetSecurityByName(
         FileSystem, (PWSTR)Request->Buffer, &FileAttributes, 0, 0);
     ((PWSTR)Request->Buffer)[Request->Req.Create.NamedStream / sizeof(WCHAR)] = L':';
+    if (STATUS_SUCCESS != Result)
+        return STATUS_OBJECT_NAME_NOT_FOUND;
 
-    if (STATUS_SUCCESS != Result ||
-        FILE_ATTRIBUTE_REPARSE_POINT != (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+    if (0 == (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
         return STATUS_OBJECT_NAME_NOT_FOUND;
 
     FileAttributes = FspPathSuffixIndex((PWSTR)Request->Buffer);
@@ -644,26 +645,38 @@ static NTSTATUS FspFileSystemOpCreate_CollisionCheck(FSP_FILE_SYSTEM *FileSystem
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     /*
-     * This handles a Create done via a symlink. The file system has returned
-     * STATUS_OBJECT_NAME_COLLISION, but we check to see if the collision is
-     * due to a reparse point that can be resolved.
+     * This handles a Create that resulted in STATUS_OBJECT_NAME_COLLISION. We
+     * handle two separate cases:
+     *
+     * 1)  A Create colliding with a directory and the FILE_NON_DIRECTORY_FILE
+     *     flag set. We then change the result code to STATUS_FILE_IS_A_DIRECTORY.
+     *
+     * 2)  A Create colliding with a symlink (reparse point) that can be resolved.
+     *     In this case we resolve the reparse point and return STATUS_REPARSE.
      */
 
     NTSTATUS Result;
     UINT32 FileAttributes;
 
-    if (0 == FileSystem->Interface->GetSecurityByName ||
-        0 == FileSystem->Interface->ResolveReparsePoints)
+    if (0 == FileSystem->Interface->GetSecurityByName)
+        return STATUS_OBJECT_NAME_COLLISION;
+
+    Result = FileSystem->Interface->GetSecurityByName(
+        FileSystem, (PWSTR)Request->Buffer, &FileAttributes, 0, 0);
+    if (STATUS_SUCCESS != Result)
+        return STATUS_OBJECT_NAME_COLLISION;
+
+    if ((Request->Req.Create.CreateOptions & FILE_NON_DIRECTORY_FILE) &&
+        (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+        return STATUS_FILE_IS_A_DIRECTORY;
+
+    if (0 == FileSystem->Interface->ResolveReparsePoints)
         return STATUS_OBJECT_NAME_COLLISION;
 
     if (Request->Req.Create.CreateOptions & FILE_OPEN_REPARSE_POINT)
         return STATUS_OBJECT_NAME_COLLISION;
 
-    Result = FileSystem->Interface->GetSecurityByName(
-        FileSystem, (PWSTR)Request->Buffer, &FileAttributes, 0, 0);
-    if (STATUS_SUCCESS != Result ||
-        FILE_ATTRIBUTE_REPARSE_POINT !=
-            (FileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)))
+    if (0 == (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
         return STATUS_OBJECT_NAME_COLLISION;
 
     FileAttributes = FspPathSuffixIndex((PWSTR)Request->Buffer);
