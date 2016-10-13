@@ -1346,6 +1346,120 @@ static void stream_delete_pending_test(void)
     }
 }
 
+static void stream_rename_flipflop_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG NumMappings)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle, Mappings[80];
+    BOOL Success;
+    WCHAR FilePath[MAX_PATH];
+    WCHAR FilePath2[MAX_PATH];
+    SYSTEM_INFO SystemInfo;
+
+    ASSERT(ARRAYSIZE(Mappings) >= NumMappings);
+
+    GetSystemInfo(&SystemInfo);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\short",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\short\\subdir",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    for (ULONG j = 1; NumMappings >= j; j++)
+    {
+        if (NumMappings / 2 >= j)
+            StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\short\\%.*s:foo",
+                Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs),
+                j, L"01234567890123456789012345678901234567890123456789012345678901234567890123456789");
+        else
+            StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\short\\subdir\\%.*s:bar",
+                Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs),
+                j, L"01234567890123456789012345678901234567890123456789012345678901234567890123456789");
+        Handle = CreateFileW(FilePath, GENERIC_ALL, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        Mappings[j - 1] = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+            0, SystemInfo.dwAllocationGranularity, 0);
+        ASSERT(0 != Mappings[j - 1]);
+        Success = CloseHandle(Handle);
+        ASSERT(Success);
+    }
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\short",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(FilePath2, sizeof FilePath2, L"%s%s\\longlonglonglonglonglonglonglong",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    for (ULONG i = 0; 10 > i; i++)
+    {
+        Success = MoveFileExW(FilePath, FilePath2, 0);
+        ASSERT(Success);
+        Success = MoveFileExW(FilePath2, FilePath, 0);
+        ASSERT(Success);
+    }
+
+    for (ULONG j = 1; NumMappings >= j; j++)
+    {
+        Success = CloseHandle(Mappings[j - 1]);
+        ASSERT(Success);
+    }
+
+    for (ULONG j = 1; NumMappings >= j; j++)
+    {
+        if (NumMappings / 2 >= j)
+            StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\short\\%.*s",
+                Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs),
+                j, L"01234567890123456789012345678901234567890123456789012345678901234567890123456789");
+        else
+            StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\short\\subdir\\%.*s",
+                Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs),
+                j, L"01234567890123456789012345678901234567890123456789012345678901234567890123456789");
+        Success = DeleteFileW(FilePath);
+        ASSERT(Success);
+    }
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\short\\subdir",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Success = RemoveDirectoryW(FilePath);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\short",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Success = RemoveDirectoryW(FilePath);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+static void stream_rename_flipflop_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        stream_rename_flipflop_dotest(-1, DirBuf, 0, 10);
+    }
+    if (WinFspDiskTests)
+    {
+        stream_rename_flipflop_dotest(MemfsDisk, 0, 0, 10);
+        stream_rename_flipflop_dotest(MemfsDisk, 0, 1000, 10);
+        stream_rename_flipflop_dotest(MemfsDisk, 0, 0, 40);
+        stream_rename_flipflop_dotest(MemfsDisk, 0, 1000, 40);
+    }
+    if (WinFspNetTests)
+    {
+        stream_rename_flipflop_dotest(MemfsNet, L"\\\\memfs\\share", 0, 10);
+        stream_rename_flipflop_dotest(MemfsNet, L"\\\\memfs\\share", 1000, 10);
+        stream_rename_flipflop_dotest(MemfsNet, L"\\\\memfs\\share", 0, 40);
+        stream_rename_flipflop_dotest(MemfsNet, L"\\\\memfs\\share", 1000, 40);
+    }
+}
+
 static void stream_getsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -2010,6 +2124,7 @@ void stream_tests(void)
     TEST(stream_setfileinfo_test);
     TEST(stream_delete_test);
     TEST(stream_delete_pending_test);
+    TEST(stream_rename_flipflop_test);
     TEST(stream_getsecurity_test);
     TEST(stream_setsecurity_test);
     TEST(stream_getstreaminfo_test);
