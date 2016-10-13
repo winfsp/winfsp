@@ -1229,9 +1229,8 @@ static NTSTATUS FspFsvolSetRenameInformationSuccess(
 
     NewFileName.Length = NewFileName.MaximumLength =
         Request->Req.SetInformation.Info.Rename.NewFileName.Size - sizeof(WCHAR);
-    NewFileName.Buffer = FspAllocMustSucceed(NewFileName.Length);
-    RtlCopyMemory(NewFileName.Buffer, Request->Buffer + Request->FileName.Size, NewFileName.Length);
-
+    NewFileName.Buffer = (PVOID)
+        (Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset);
     FspFileNodeRename(FileNode, &NewFileName);
 
     /* fastfat has some really arcane rules on rename notifications; simplify! */

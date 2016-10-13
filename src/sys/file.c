@@ -806,23 +806,94 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
     PAGED_CODE();
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    FSP_FILE_NODE *DescendantFileNode;
+    FSP_FILE_NODE *DescendantFileNodeArray[16], **DescendantFileNodes;
+    ULONG DescendantFileNodeCount, DescendantFileNodeIndex;
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY RestartKey;
     BOOLEAN Deleted, Inserted;
+    USHORT FileNameLength;
+    PWSTR ExternalFileName;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
-    FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName, &Deleted);
-    ASSERT(Deleted);
+    DescendantFileNodes = DescendantFileNodeArray;
+    DescendantFileNodes[0] = FileNode;
+    DescendantFileNodeCount = 1;
+    memset(&RestartKey, 0, sizeof RestartKey);
+    for (;;)
+    {
+        DescendantFileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject,
+            &FileNode->FileName, TRUE, &RestartKey);
+        if (0 == DescendantFileNode)
+            break;
 
-    if (0 != FileNode->ExternalFileName)
-        FspFree(FileNode->ExternalFileName);
-    FileNode->FileName = *NewFileName;
-    FileNode->ExternalFileName = NewFileName->Buffer;
+        if (ARRAYSIZE(DescendantFileNodeArray) > DescendantFileNodeCount)
+            DescendantFileNodes[DescendantFileNodeCount] = DescendantFileNode;
+        DescendantFileNodeCount++;
+    }
 
-    FspFsvolDeviceInsertContextByName(FsvolDeviceObject, &FileNode->FileName, FileNode,
-        &FileNode->ContextByNameElementStorage, &Inserted);
-    ASSERT(Inserted);
+    if (ARRAYSIZE(DescendantFileNodeArray) < DescendantFileNodeCount)
+    {
+        DescendantFileNodes = FspAllocMustSucceed(DescendantFileNodeCount * sizeof(FSP_FILE_NODE *));
+        DescendantFileNodes[0] = FileNode;
+        DescendantFileNodeIndex = 1;
+        memset(&RestartKey, 0, sizeof RestartKey);
+        for (;;)
+        {
+            DescendantFileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject,
+                &FileNode->FileName, TRUE, &RestartKey);
+            if (0 == DescendantFileNode)
+                break;
+
+            DescendantFileNodes[DescendantFileNodeIndex] = DescendantFileNode;
+            DescendantFileNodeIndex++;
+            ASSERT(DescendantFileNodeCount >= DescendantFileNodeIndex);
+        }
+
+        ASSERT(DescendantFileNodeCount == DescendantFileNodeIndex);
+    }
+
+    FileNameLength = FileNode->FileName.Length;
+    for (
+        DescendantFileNodeIndex = 0;
+        DescendantFileNodeCount > DescendantFileNodeIndex;
+        DescendantFileNodeIndex++)
+    {
+        DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
+        ASSERT(DescendantFileNode->FileName.Length >= FileNameLength);
+
+        FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &DescendantFileNode->FileName, &Deleted);
+        ASSERT(Deleted);
+
+        ExternalFileName = DescendantFileNode->ExternalFileName;
+
+        DescendantFileNode->FileName.MaximumLength =
+            DescendantFileNode->FileName.Length - FileNameLength + NewFileName->Length;
+        DescendantFileNode->ExternalFileName = FspAllocMustSucceed(
+            DescendantFileNode->FileName.MaximumLength);
+
+        RtlCopyMemory((PUINT8)DescendantFileNode->ExternalFileName + NewFileName->Length,
+            (PUINT8)DescendantFileNode->FileName.Buffer + FileNameLength,
+            DescendantFileNode->FileName.Length - FileNameLength);
+        RtlCopyMemory(DescendantFileNode->ExternalFileName,
+            NewFileName->Buffer,
+            NewFileName->Length);
+
+        DescendantFileNode->FileName.Length = DescendantFileNode->FileName.MaximumLength;
+        DescendantFileNode->FileName.Buffer = DescendantFileNode->ExternalFileName;
+
+        if (0 != ExternalFileName)
+            FspFree(ExternalFileName);
+
+        FspFsvolDeviceInsertContextByName(FsvolDeviceObject, &DescendantFileNode->FileName, DescendantFileNode,
+            &DescendantFileNode->ContextByNameElementStorage, &Inserted);
+        ASSERT(Inserted);
+    }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    if (DescendantFileNodeArray != DescendantFileNodes)
+        FspFree(DescendantFileNodes);
 }
 
 BOOLEAN FspFileNodeHasOpenHandles(PDEVICE_OBJECT FsvolDeviceObject,
