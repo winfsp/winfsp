@@ -47,7 +47,7 @@ NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
     PVOID **PContexts, PULONG PContextCount);
 VOID FspFsvolDeviceDeleteContextByNameList(PVOID *Contexts, ULONG ContextCount);
 PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
-    BOOLEAN SubpathOnly, PVOID *PRestartKey);
+    BOOLEAN NextFlag, FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY *RestartKey);
 PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
 PVOID FspFsvolDeviceInsertContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName, PVOID Context,
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);
@@ -616,20 +616,19 @@ VOID FspFsvolDeviceDeleteContextByNameList(PVOID *Contexts, ULONG ContextCount)
 }
 
 PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
-    BOOLEAN SubpathOnly, PVOID *PRestartKey)
+    BOOLEAN NextFlag, FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY *RestartKey)
 {
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     BOOLEAN CaseInsensitive = 0 == FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT_DATA *Result;
-    ULONG DeleteCount = 0;
 
-    if (0 != *PRestartKey)
-        SubpathOnly = FALSE;
+    if (0 != RestartKey->RestartKey)
+        NextFlag = TRUE;
 
     Result = RtlEnumerateGenericTableLikeADirectory(&FsvolDeviceExtension->ContextByNameTable,
-        0, 0, SubpathOnly, PRestartKey, &DeleteCount, &FileName);
+        0, 0, NextFlag, &RestartKey->RestartKey, &RestartKey->DeleteCount, &FileName);
 
     if (0 != Result &&
         RtlPrefixUnicodeString(FileName, Result->FileName, CaseInsensitive) &&

@@ -747,6 +747,11 @@ typedef struct
     RTL_BALANCED_LINKS Header;
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT_DATA Data;
 } FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT;
+typedef struct
+{
+    PVOID RestartKey;
+    ULONG DeleteCount;
+} FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY;
 enum
 {
     FspFsctlDeviceExtensionKind = '\0ltC',  /* file system control device (e.g. \Device\WinFsp.Disk) */
@@ -823,7 +828,7 @@ NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
     PVOID **PContexts, PULONG PContextCount);
 VOID FspFsvolDeviceDeleteContextByNameList(PVOID *Contexts, ULONG ContextCount);
 PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
-    BOOLEAN SubpathOnly, PVOID *PRestartKey);
+    BOOLEAN NextFlag, FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY *RestartKey);
 PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
 PVOID FspFsvolDeviceInsertContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName, PVOID Context,
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT *ElementStorage, PBOOLEAN PInserted);

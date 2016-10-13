@@ -835,7 +835,7 @@ BOOLEAN FspFileNodeHasOpenHandles(PDEVICE_OBJECT FsvolDeviceObject,
     PAGED_CODE();
 
     FSP_FILE_NODE *FileNode;
-    PVOID RestartKey = 0;
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY RestartKey = { 0 };
 
     for (;;)
     {
