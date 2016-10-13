@@ -27,7 +27,7 @@ BEGIN
             VALUE "LegalCopyright", STR(MyCopyright)
             VALUE "OriginalFilename", "winfsp.dll"
             VALUE "ProductName", STR(MyProductName)
-            VALUE "ProductVersion", STR(MyVersion)
+            VALUE "ProductVersion", STR(MyProductVersion)
         END
     END
     BLOCK "VarFileInfo"

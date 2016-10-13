@@ -344,7 +344,7 @@
         <Feature
             Id="F.Main"
             Level="1"
-            Title="$(var.MyProductName) $(var.MyVersion)"
+            Title="$(var.MyProductName) $(var.MyProductVersion)"
             Description="$(var.MyDescription)"
             Display="expand"
             ConfigurableDirectory="INSTALLDIR"
@@ -378,7 +378,7 @@
         </Feature>
 
         <WixVariable Id="WixUIBannerBmp" Value="wixbanner.bmp" />
-        <WixVariable Id="WixUIDialogBmp" Value="wixdialog-$(var.MyDevStage).bmp" />
+        <WixVariable Id="WixUIDialogBmp" Value="wixdialog-$(var.MyProductStage).bmp" />
         <UI Id="FeatureTree">
             <UIRef Id="WixUI_FeatureTree" />
             <!-- skip the license agreement dialog; higher Order takes priority (weird) -->
