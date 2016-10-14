@@ -428,16 +428,16 @@ BOOLEAN FspExpirationTimeValid2(UINT64 ExpirationTime, UINT64 CurrentTime)
     return CurrentTime < ExpirationTime;
 }
 
-/* string utility */
+/* names */
 enum
 {
-    FspUnicodePathStreamTypeNone        = 0,
-    FspUnicodePathStreamTypeData        = 1,
+    FspFileNameStreamTypeNone           = 0,
+    FspFileNameStreamTypeData           = 1,
 };
-BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType);
-BOOLEAN FspUnicodePathIsValidPattern(PUNICODE_STRING Pattern);
-VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
-NTSTATUS FspIsNameInExpression(
+BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType);
+BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Pattern);
+VOID FspFileNameSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
+NTSTATUS FspFileNameInExpression(
     PUNICODE_STRING Expression,
     PUNICODE_STRING Name,
     BOOLEAN IgnoreCase,

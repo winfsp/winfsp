@@ -173,10 +173,10 @@
     <ClCompile Include="..\..\src\sys\ioq.c" />
     <ClCompile Include="..\..\src\sys\lockctl.c" />
     <ClCompile Include="..\..\src\sys\meta.c" />
+    <ClCompile Include="..\..\src\sys\name.c" />
     <ClCompile Include="..\..\src\sys\read.c" />
     <ClCompile Include="..\..\src\sys\security.c" />
     <ClCompile Include="..\..\src\sys\shutdown.c" />
-    <ClCompile Include="..\..\src\sys\strutil.c" />
     <ClCompile Include="..\..\src\sys\util.c" />
     <ClCompile Include="..\..\src\sys\volinfo.c" />
     <ClCompile Include="..\..\src\sys\volume.c" />

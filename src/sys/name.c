@@ -1,5 +1,5 @@
 /**
- * @file sys/strutil.c
+ * @file sys/name.c
  *
  * @copyright 2015-2016 Bill Zissimopoulos
  */
@@ -17,10 +17,10 @@
 
 #include <sys/driver.h>
 
-BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType);
-BOOLEAN FspUnicodePathIsValidPattern(PUNICODE_STRING Pattern);
-VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
-NTSTATUS FspIsNameInExpression(
+BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType);
+BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Pattern);
+VOID FspFileNameSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
+NTSTATUS FspFileNameInExpression(
     PUNICODE_STRING Expression,
     PUNICODE_STRING Name,
     BOOLEAN IgnoreCase,
@@ -28,13 +28,13 @@ NTSTATUS FspIsNameInExpression(
     PBOOLEAN PResult);
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text(PAGE, FspUnicodePathIsValid)
-#pragma alloc_text(PAGE, FspUnicodePathIsValidPattern)
-#pragma alloc_text(PAGE, FspUnicodePathSuffix)
-#pragma alloc_text(PAGE, FspIsNameInExpression)
+#pragma alloc_text(PAGE, FspFileNameIsValid)
+#pragma alloc_text(PAGE, FspFileNameIsValidPattern)
+#pragma alloc_text(PAGE, FspFileNameSuffix)
+#pragma alloc_text(PAGE, FspFileNameInExpression)
 #endif
 
-BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType)
+BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType)
 {
     PAGED_CODE();
 
@@ -112,7 +112,7 @@ BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, 
 
     ASSERT(0 != StreamPart && 0 != StreamType);
 
-    *StreamType = FspUnicodePathStreamTypeNone;
+    *StreamType = FspFileNameStreamTypeNone;
 
     /* if we had no stream type the path is valid if there was an actual stream name */
     if (0 == StreamTypeStr)
@@ -126,14 +126,14 @@ BOOLEAN FspUnicodePathIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, 
         L'T' == StreamTypeStr[3] &&
         L'A' == StreamTypeStr[4])
     {
-        *StreamType = FspUnicodePathStreamTypeData;
+        *StreamType = FspFileNameStreamTypeData;
         return TRUE;
     }
 
     return FALSE;
 }
 
-BOOLEAN FspUnicodePathIsValidPattern(PUNICODE_STRING Path)
+BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Path)
 {
     PAGED_CODE();
 
@@ -170,7 +170,7 @@ BOOLEAN FspUnicodePathIsValidPattern(PUNICODE_STRING Path)
     return TRUE;
 }
 
-VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix)
+VOID FspFileNameSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix)
 {
     PAGED_CODE();
 
@@ -202,7 +202,7 @@ VOID FspUnicodePathSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE
     Suffix->Buffer = SuffixBgn;
 }
 
-NTSTATUS FspIsNameInExpression(
+NTSTATUS FspFileNameInExpression(
     PUNICODE_STRING Expression,
     PUNICODE_STRING Name,
     BOOLEAN IgnoreCase,
