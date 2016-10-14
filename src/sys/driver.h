@@ -436,6 +436,21 @@ enum
 BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType);
 BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Pattern);
 VOID FspFileNameSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
+#if 0
+LONG FspFileNameCompare(
+    PUNICODE_STRING Name1,
+    PUNICODE_STRING Name2,
+    BOOLEAN IgnoreCase,
+    PCWCH UpcaseTable);
+BOOLEAN FspFileNameIsPrefix(
+    PCUNICODE_STRING Name1,
+    PCUNICODE_STRING Name2,
+    BOOLEAN IgnoreCase,
+    PCWCH UpcaseTable);
+#else
+#define FspFileNameCompare(N1,N2,I,U)   (ASSERT(0 == (U)), RtlCompareUnicodeString(N1,N2,I))
+#define FspFileNameIsPrefix(N1,N2,I,U)  (ASSERT(0 == (U)), RtlPrefixUnicodeString(N1,N2,I))
+#endif
 NTSTATUS FspFileNameInExpression(
     PUNICODE_STRING Expression,
     PUNICODE_STRING Name,

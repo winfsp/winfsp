@@ -631,7 +631,7 @@ PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE
         0, 0, NextFlag, &RestartKey->RestartKey, &RestartKey->DeleteCount, &FileName);
 
     if (0 != Result &&
-        RtlPrefixUnicodeString(FileName, Result->FileName, CaseInsensitive) &&
+        FspFileNameIsPrefix(FileName, Result->FileName, CaseInsensitive, 0) &&
         FileName->Length < Result->FileName->Length &&
         '\\' == Result->FileName->Buffer[FileName->Length / sizeof(WCHAR)])
         return Result->Context;
@@ -699,7 +699,7 @@ static RTL_GENERIC_COMPARE_RESULTS NTAPI FspFsvolDeviceCompareContextByName(
     PUNICODE_STRING SecondFileName = *(PUNICODE_STRING *)SecondElement;
     LONG ComparisonResult;
 
-    ComparisonResult = RtlCompareUnicodeString(FirstFileName, SecondFileName, CaseInsensitive);
+    ComparisonResult = FspFileNameCompare(FirstFileName, SecondFileName, CaseInsensitive, 0);
 
     if (0 > ComparisonResult)
         return GenericLessThan;

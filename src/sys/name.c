@@ -211,6 +211,9 @@ NTSTATUS FspFileNameInExpression(
 {
     PAGED_CODE();
 
+    /* we do not support non-NULL UpcaseTable yet */
+    ASSERT(0 == UpcaseTable);
+
     try
     {
         *PResult = FsRtlIsNameInExpression(Expression, Name, IgnoreCase, UpcaseTable);
