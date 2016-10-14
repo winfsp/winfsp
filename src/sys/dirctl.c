@@ -118,7 +118,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
     PAGED_CODE();
 
     NTSTATUS Result = STATUS_SUCCESS;
-    BOOLEAN MatchAll = FspFileDescDirectoryPatternMatchAll == DirectoryPattern->Buffer;
+    BOOLEAN MatchAll = FspFileDescDirectoryPatternMatchAll == DirectoryPattern->Buffer, Match;
     BOOLEAN Loop = TRUE, DirectoryOffsetFound = FALSE;
     FSP_FSCTL_DIR_INFO *DirInfo = *PDirInfo;
     PUINT8 DirInfoEnd = (PUINT8)DirInfo + DirInfoSize;
@@ -182,7 +182,15 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
             /* CopyLength is the same as FileName.Length except on STATUS_BUFFER_OVERFLOW */
             CopyLength = FileName.Length;
 
-            if (MatchAll || FsRtlIsNameInExpression(DirectoryPattern, &FileName, CaseInsensitive, 0))
+            Match = MatchAll;
+            if (!Match)
+            {
+                Result = FspIsNameInExpression(DirectoryPattern, &FileName, CaseInsensitive, 0, &Match);
+                if (!NT_SUCCESS(Result))
+                    return Result;
+            }
+
+            if (Match)
             {
                 if ((PUINT8)DestBuf + BaseInfoLen + CopyLength > DestBufEnd)
                 {
