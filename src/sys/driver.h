@@ -45,7 +45,6 @@
 #define FSP_ALLOC_INTERNAL_TAG          'IpsF'
 #define FSP_ALLOC_EXTERNAL_TAG          'XpsF'
 #define FSP_IO_INCREMENT                IO_NETWORK_INCREMENT
-#define FSP_VOLUME_PREFIX_CASE_INS      TRUE
 
 /* debug */
 #if DBG
@@ -850,7 +849,7 @@ static inline
 BOOLEAN FspFsvolDeviceVolumePrefixInString(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING String)
 {
     return RtlPrefixUnicodeString(&FspFsvolDeviceExtension(DeviceObject)->VolumePrefix, String,
-        FSP_VOLUME_PREFIX_CASE_INS);
+        TRUE);
 }
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);

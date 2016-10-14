@@ -205,9 +205,7 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
                             TargetFileNameIndex += FsvolDeviceExtension->VolumePrefix.Length;
 
                             if (TargetFileNameIndex < ReparseTargetPathLength &&
-                                RtlEqualUnicodeString(&FsvolDeviceExtension->VolumePrefix,
-                                    &TargetObjectName,
-                                    FSP_VOLUME_PREFIX_CASE_INS))
+                                FspFsvolDeviceVolumePrefixInString(FsvolDeviceObject, &TargetObjectName))
                                 TargetOnFileSystem = (UINT16)TargetFileNameIndex;
                         }
                     }
