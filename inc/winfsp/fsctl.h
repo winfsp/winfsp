@@ -348,7 +348,8 @@ typedef struct
             UINT64 UserContext2;
         } QueryStreamInformation;
     } Req;
-    FSP_FSCTL_TRANSACT_BUF FileName;    /* {Create,Cleanup,SetInformation/{...},QueryDirectory} */
+    FSP_FSCTL_TRANSACT_BUF FileName;
+        /* Create,Cleanup,SetInformation{Disposition,Rename},FileSystemControl{ReparsePoint} */
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_REQ;
 typedef struct

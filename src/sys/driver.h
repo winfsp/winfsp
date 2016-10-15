@@ -514,13 +514,13 @@ NTSTATUS FspNotifyFullReportChange(
 #define FspNotifyCleanupAll(NS, NL)\
     FsRtlNotifyCleanupAll(NS, NL)
 #define FspNotifyChangeDirectory(NS, NL, FC, FN, WT, CF, I)\
-    FspNotifyFullChangeDirectory(NS, NL, FC, (PSTRING)FN, WT, FALSE, CF, I, 0, 0)
+    FspNotifyFullChangeDirectory(NS, NL, FC, (PSTRING)(FN), WT, FALSE, CF, I, 0, 0)
 #define FspNotifyCleanup(NS, NL, FC)\
     FsRtlNotifyCleanup(NS, NL, FC)
 #define FspNotifyDeletePending(NS, NL, FC)\
     FspNotifyFullChangeDirectory(NS, NL, FC, 0, 0, FALSE, 0, 0, 0, 0)
-#define FspNotifyReportChange(NS, NL, FN, FO, SN, F, A)\
-    FspNotifyFullReportChange(NS, NL, (PSTRING)FN, FO, (PSTRING)SN, 0, F, A, 0)
+#define FspNotifyReportChange(NS, NL, FN, FO, NP, F, A)\
+    FspNotifyFullReportChange(NS, NL, (PSTRING)(FN), FO, 0, (PSTRING)(NP), F, A, 0)
 
 /* utility: synchronous work queue */
 typedef struct
@@ -1026,6 +1026,27 @@ VOID FspFileNodeConvertExclusiveToSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
+static inline
+VOID FspFileNodeAcquireSharedForeign(FSP_FILE_NODE *FileNode)
+{
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+    ExAcquireResourceSharedLite(FileNode->Header.Resource, TRUE);
+}
+static inline
+VOID FspFileNodeAcquireExclusiveForeign(FSP_FILE_NODE *FileNode)
+{
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+    ExAcquireResourceExclusiveLite(FileNode->Header.Resource, TRUE);
+}
+static inline
+VOID FspFileNodeReleaseForeign(FSP_FILE_NODE *FileNode)
+{
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+    ExReleaseResourceLite(FileNode->Header.Resource);
+}
 FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess, NTSTATUS *PResult);
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,

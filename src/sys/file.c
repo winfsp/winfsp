@@ -803,6 +803,25 @@ NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
 
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
 {
+    /*
+     * FspFileNodeRename may block, because it attempts to acquire the Main
+     * resource of descendant file nodes. FspFileNodeRename is called at the
+     * completion path of IRP_MJ_SET_INFORMATION[Rename] and an IRP completion
+     * path should not block, with the notable exception of Rename.
+     *
+     * The original reason that Rename completion is allowed to block was that
+     * it was observed that IoCompleteRequest of a Rename could sometimes
+     * trigger a recursive call into the FSD (likely due to a filter). WinFsp
+     * was modified to accommodate this by allowing this recursive call to
+     * proceed on a different thread.
+     *
+     * Since WinFsp can already accommodate blocking on Rename completions,
+     * it is safe to acquire the Main resource of descendant file nodes.
+     *
+     * Note also that there can only be one rename at a time because of the
+     * device's FileRenameResource.
+     */
+
     PAGED_CODE();
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
@@ -862,6 +881,9 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
         DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
         ASSERT(DescendantFileNode->FileName.Length >= FileNameLength);
 
+        if (0 != DescendantFileNodeIndex)
+            FspFileNodeAcquireExclusiveForeign(DescendantFileNode);
+
         FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &DescendantFileNode->FileName, &Deleted);
         ASSERT(Deleted);
 
@@ -888,6 +910,9 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
         FspFsvolDeviceInsertContextByName(FsvolDeviceObject, &DescendantFileNode->FileName, DescendantFileNode,
             &DescendantFileNode->ContextByNameElementStorage, &Inserted);
         ASSERT(Inserted);
+
+        if (0 != DescendantFileNodeIndex)
+            FspFileNodeReleaseForeign(DescendantFileNode);
     }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
