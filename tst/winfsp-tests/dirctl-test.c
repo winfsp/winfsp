@@ -396,15 +396,24 @@ static void dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, U
     Success = CreateDirectoryW(FilePath, 0);
     ASSERT(Success);
 
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\Directory\\Subdirectory",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
     NotifyInfo = malloc(4096);
     ASSERT(0 != NotifyInfo);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\Directory",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Handle = CreateFileW(FilePath,
         FILE_LIST_DIRECTORY, FILE_SHARE_READ, 0, OPEN_EXISTING,
         FILE_FLAG_BACKUP_SEMANTICS, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\Directory\\file0",
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\Directory\\Subdirectory\\file0",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Thread = (HANDLE)_beginthreadex(0, 0, dirnotify_dotest_thread, FilePath, 0, 0);
@@ -416,8 +425,9 @@ static void dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, U
     ASSERT(0 < BytesTransferred);
 
     ASSERT(FILE_ACTION_ADDED == NotifyInfo->Action);
-    ASSERT(wcslen(L"file0") * sizeof(WCHAR) == NotifyInfo->FileNameLength);
-    ASSERT(0 == mywcscmp(L"file0", -1, NotifyInfo->FileName, NotifyInfo->FileNameLength / sizeof(WCHAR)));
+    ASSERT(wcslen(L"Subdirectory\\file0") * sizeof(WCHAR) == NotifyInfo->FileNameLength);
+    ASSERT(0 == mywcscmp(L"Subdirectory\\file0", -1,
+        NotifyInfo->FileName, NotifyInfo->FileNameLength / sizeof(WCHAR)));
 
     if (0 == NotifyInfo->NextEntryOffset)
     {
@@ -430,8 +440,9 @@ static void dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, U
         NotifyInfo = (PVOID)((PUINT8)NotifyInfo + NotifyInfo->NextEntryOffset);
 
     ASSERT(FILE_ACTION_REMOVED == NotifyInfo->Action);
-    ASSERT(wcslen(L"file0") * sizeof(WCHAR) == NotifyInfo->FileNameLength);
-    ASSERT(0 == mywcscmp(L"file0", -1, NotifyInfo->FileName, NotifyInfo->FileNameLength / sizeof(WCHAR)));
+    ASSERT(wcslen(L"Subdirectory\\file0") * sizeof(WCHAR) == NotifyInfo->FileNameLength);
+    ASSERT(0 == mywcscmp(L"Subdirectory\\file0", -1,
+        NotifyInfo->FileName, NotifyInfo->FileNameLength / sizeof(WCHAR)));
 
     ASSERT(0 == NotifyInfo->NextEntryOffset);
 
@@ -441,6 +452,12 @@ static void dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, U
     ASSERT(0 == ExitCode);
 
     Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\Directory\\Subdirectory",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = RemoveDirectoryW(FilePath);
     ASSERT(Success);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\Directory",
