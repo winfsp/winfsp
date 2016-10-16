@@ -121,10 +121,10 @@ BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PUL
     /* if we had a stream type the path is valid if the stream type was "$DATA" only */
     if (StreamTypeStr + 5 == PathEnd &&
         L'$' == StreamTypeStr[0] &&
-        L'D' == StreamTypeStr[1] &&
-        L'A' == StreamTypeStr[2] &&
-        L'T' == StreamTypeStr[3] &&
-        L'A' == StreamTypeStr[4])
+        L'd' == (StreamTypeStr[1] | 0x20) &&
+        L'a' == (StreamTypeStr[2] | 0x20) &&
+        L't' == (StreamTypeStr[3] | 0x20) &&
+        L'a' == (StreamTypeStr[4] | 0x20))
     {
         *StreamType = FspFileNameStreamTypeData;
         return TRUE;

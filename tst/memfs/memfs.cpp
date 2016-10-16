@@ -47,18 +47,42 @@ UINT64 MemfsGetSystemTime(VOID)
 }
 
 static inline
-int MemfsFileNameCompare(PWSTR a, PWSTR b)
+int MemfsCompareString(PWSTR a, int alen, PWSTR b, int blen, BOOLEAN CaseInsensitive)
 {
-    return wcscmp(a, b);
+    int len, res;
+
+    if (-1 == alen)
+        alen = (int)wcslen(a);
+    if (-1 == blen)
+        blen = (int)wcslen(b);
+
+    len = alen < blen ? alen : blen;
+
+    /* we should still be in the C locale */
+    if (CaseInsensitive)
+        res = _wcsnicmp(a, b, len);
+    else
+        res = wcsncmp(a, b, len);
+
+    if (0 == res)
+        res = alen - blen;
+
+    return res;
 }
 
 static inline
-BOOLEAN MemfsFileNameHasPrefix(PWSTR a, PWSTR b)
+int MemfsFileNameCompare(PWSTR a, PWSTR b, BOOLEAN CaseInsensitive)
 {
-    size_t alen = wcslen(a);
-    size_t blen = wcslen(b);
+    return MemfsCompareString(a, -1, b, -1, CaseInsensitive);
+}
 
-    return alen >= blen && 0 == memcmp(a, b, blen * sizeof(WCHAR)) &&
+static inline
+BOOLEAN MemfsFileNameHasPrefix(PWSTR a, PWSTR b, BOOLEAN CaseInsensitive)
+{
+    int alen = (int)wcslen(a);
+    int blen = (int)wcslen(b);
+
+    return alen >= blen && 0 == MemfsCompareString(a, blen, b, blen, CaseInsensitive) &&
         (alen == blen || (1 == blen && L'\\' == b[0]) ||
 #if defined(MEMFS_NAMED_STREAMS)
             (L'\\' == a[blen] || L':' == a[blen]));
@@ -84,10 +108,14 @@ typedef struct _MEMFS_FILE_NODE
 
 struct MEMFS_FILE_NODE_LESS
 {
+    MEMFS_FILE_NODE_LESS(BOOLEAN CaseInsensitive) : CaseInsensitive(CaseInsensitive)
+    {
+    }
     bool operator()(PWSTR a, PWSTR b) const
     {
-        return 0 > MemfsFileNameCompare(a, b);
+        return 0 > MemfsFileNameCompare(a, b, CaseInsensitive);
     }
+    BOOLEAN CaseInsensitive;
 };
 typedef std::map<PWSTR, MEMFS_FILE_NODE *, MEMFS_FILE_NODE_LESS> MEMFS_FILE_NODE_MAP;
 
@@ -169,12 +197,18 @@ VOID MemfsFileNodeMapDump(MEMFS_FILE_NODE_MAP *FileNodeMap)
 }
 
 static inline
-NTSTATUS MemfsFileNodeMapCreate(MEMFS_FILE_NODE_MAP **PFileNodeMap)
+BOOLEAN MemfsFileNodeMapIsCaseInsensitive(MEMFS_FILE_NODE_MAP *FileNodeMap)
+{
+    return FileNodeMap->key_comp().CaseInsensitive;
+}
+
+static inline
+NTSTATUS MemfsFileNodeMapCreate(BOOLEAN CaseInsensitive, MEMFS_FILE_NODE_MAP **PFileNodeMap)
 {
     *PFileNodeMap = 0;
     try
     {
-        *PFileNodeMap = new MEMFS_FILE_NODE_MAP;
+        *PFileNodeMap = new MEMFS_FILE_NODE_MAP(MEMFS_FILE_NODE_LESS(CaseInsensitive));
         return STATUS_SUCCESS;
     }
     catch (...)
@@ -287,7 +321,8 @@ BOOLEAN MemfsFileNodeMapHasChild(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NO
             continue;
 #endif
         FspPathSuffix(iter->second->FileName, &Remain, &Suffix, Root);
-        Result = 0 == MemfsFileNameCompare(Remain, FileNode->FileName);
+        Result = 0 == MemfsFileNameCompare(Remain, FileNode->FileName,
+            MemfsFileNodeMapIsCaseInsensitive(FileNodeMap));
         FspPathCombine(iter->second->FileName, Suffix);
         break;
     }
@@ -304,10 +339,12 @@ BOOLEAN MemfsFileNodeMapEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMF
     BOOLEAN IsDirectoryChild;
     for (; FileNodeMap->end() != iter; ++iter)
     {
-        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName))
+        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName,
+            MemfsFileNodeMapIsCaseInsensitive(FileNodeMap)))
             break;
         FspPathSuffix(iter->second->FileName, &Remain, &Suffix, Root);
-        IsDirectoryChild = 0 == MemfsFileNameCompare(Remain, FileNode->FileName);
+        IsDirectoryChild = 0 == MemfsFileNameCompare(Remain, FileNode->FileName,
+            MemfsFileNodeMapIsCaseInsensitive(FileNodeMap));
 #if defined(MEMFS_NAMED_STREAMS)
         IsDirectoryChild = IsDirectoryChild && 0 == wcschr(Suffix, L':');
 #endif
@@ -329,7 +366,8 @@ BOOLEAN MemfsFileNodeMapEnumerateNamedStreams(MEMFS_FILE_NODE_MAP *FileNodeMap, 
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->upper_bound(FileNode->FileName);
     for (; FileNodeMap->end() != iter; ++iter)
     {
-        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName))
+        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName,
+            MemfsFileNodeMapIsCaseInsensitive(FileNodeMap)))
             break;
         if (L':' != iter->second->FileName[wcslen(FileNode->FileName)])
             break;
@@ -348,7 +386,8 @@ BOOLEAN MemfsFileNodeMapEnumerateDescendants(MEMFS_FILE_NODE_MAP *FileNodeMap, M
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->lower_bound(FileNode->FileName);
     for (; FileNodeMap->end() != iter; ++iter)
     {
-        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName))
+        if (!MemfsFileNameHasPrefix(iter->second->FileName, FileNode->FileName,
+            MemfsFileNodeMapIsCaseInsensitive(FileNodeMap)))
             break;
         if (!EnumFn(iter->second, Context))
             return FALSE;
@@ -615,7 +654,6 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
-    assert(0 == FileName || 0 == wcscmp(FileNode->FileName, FileName));
     assert(Delete); /* the new FSP_FSCTL_VOLUME_PARAMS::PostCleanupOnDeleteOnly ensures this */
 
     if (Delete && !MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
@@ -828,8 +866,6 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
-    assert(0 == FileName || 0 == wcscmp(FileNode->FileName, FileName));
-
     if (MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
         return STATUS_DIRECTORY_NOT_EMPTY;
 
@@ -865,8 +901,6 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     BOOLEAN Inserted;
     NTSTATUS Result;
 
-    assert(0 == FileName || 0 == wcscmp(FileNode->FileName, FileName));
-
     NewFileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, NewFileName);
     if (0 != NewFileNode)
     {
@@ -897,7 +931,6 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     for (Index = 0; Context.Count > Index; Index++)
     {
         DescendantFileNode = Context.FileNodes[Index];
-        assert(MemfsFileNameHasPrefix(DescendantFileNode->FileName, FileNode->FileName));
         if (MAX_PATH <= wcslen(DescendantFileNode->FileName) - FileNameLen + NewFileNameLen)
         {
             Result = STATUS_OBJECT_NAME_INVALID;
@@ -1339,6 +1372,7 @@ NTSTATUS MemfsCreate(
 {
     NTSTATUS Result;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    BOOLEAN CaseInsensitive = !!(Flags & MemfsCaseInsensitive);
     PWSTR DevicePath = (Flags & MemfsNet) ?
         L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME;
     UINT64 AllocationUnit;
@@ -1368,7 +1402,7 @@ NTSTATUS MemfsCreate(
     AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
     Memfs->MaxFileSize = (ULONG)((MaxFileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit);
 
-    Result = MemfsFileNodeMapCreate(&Memfs->FileNodeMap);
+    Result = MemfsFileNodeMapCreate(CaseInsensitive, &Memfs->FileNodeMap);
     if (!NT_SUCCESS(Result))
     {
         free(Memfs);
@@ -1382,7 +1416,7 @@ NTSTATUS MemfsCreate(
     VolumeParams.VolumeCreationTime = MemfsGetSystemTime();
     VolumeParams.VolumeSerialNumber = (UINT32)(MemfsGetSystemTime() / (10000 * 1000));
     VolumeParams.FileInfoTimeout = FileInfoTimeout;
-    VolumeParams.CaseSensitiveSearch = 1;
+    VolumeParams.CaseSensitiveSearch = !CaseInsensitive;
     VolumeParams.CasePreservedNames = 1;
     VolumeParams.UnicodeOnDisk = 1;
     VolumeParams.PersistentAcls = 1;

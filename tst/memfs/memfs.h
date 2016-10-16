@@ -30,6 +30,7 @@ enum
 {
     MemfsDisk                           = 0x00,
     MemfsNet                            = 0x01,
+    MemfsCaseInsensitive                = 0x80,
 };
 
 NTSTATUS MemfsCreate(

@@ -39,6 +39,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     wchar_t **argp, **arge;
     ULONG DebugFlags = 0;
     PWSTR DebugLogFile = 0;
+    ULONG CaseInsensitiveFlags = 0;
     ULONG Flags = MemfsDisk;
     ULONG FileInfoTimeout = INFINITE;
     ULONG MaxFileNodes = 1024;
@@ -63,6 +64,9 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
             break;
         case L'D':
             argtos(DebugLogFile);
+            break;
+        case L'i':
+            CaseInsensitiveFlags = MemfsCaseInsensitive;
             break;
         case L'm':
             argtos(MountPoint);
@@ -117,7 +121,13 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         FspDebugLogSetHandle(DebugLogHandle);
     }
 
-    Result = MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, RootSddl,
+    Result = MemfsCreate(
+        CaseInsensitiveFlags | Flags,
+        FileInfoTimeout,
+        MaxFileNodes,
+        MaxFileSize,
+        VolumePrefix,
+        RootSddl,
         &Memfs);
     if (!NT_SUCCESS(Result))
     {
@@ -170,6 +180,7 @@ usage:
         "options:\n"
         "    -d DebugFlags       [-1: enable all debug logs]\n"
         "    -D DebugLogFile     [file path; use - for stdout]\n"
+        "    -i                  [case insensitive file system]\n"
         "    -t FileInfoTimeout  [millis]\n"
         "    -n MaxFileNodes\n"
         "    -s MaxFileSize      [bytes]\n"

@@ -64,12 +64,12 @@ static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, UL
             FileCount++;
             ASSERT(0 != (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
             ASSERT(FileCount == wcslen(FindData.cFileName));
-            ASSERT(0 == wcsncmp(FindData.cFileName, L"..", FileCount));
+            ASSERT(0 == mywcscmp(FindData.cFileName, FileCount, L"..", FileCount));
             continue;
         }
 
         ASSERT(0 == (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
-        ASSERT(0 == wcsncmp(FindData.cFileName, L"file", 4));
+        ASSERT(0 == mywcscmp(FindData.cFileName, 4, L"file", 4));
         ul = wcstoul(FindData.cFileName + 4, &endp, 10);
         ASSERT(0 != ul);
         ASSERT(L'\0' == *endp);
@@ -100,7 +100,7 @@ static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, UL
         wchar_t *endp;
 
         ASSERT(0 != (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
-        ASSERT(0 == wcsncmp(FindData.cFileName, L"dir", 3));
+        ASSERT(0 == mywcscmp(FindData.cFileName, 3, L"dir", 3));
         ul = wcstoul(FindData.cFileName + 3, &endp, 10);
         ASSERT(0 != ul);
         ASSERT(L'\0' == *endp);
@@ -132,7 +132,8 @@ static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, UL
         size_t wcscnt = sizeof "fileABCDEFGHIJKLMNOPQRSTUVXWYZfile" - 1/* count of wchar_t*/;
 
         ASSERT(0 == (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
-        ASSERT(0 == wcsncmp(FindData.cFileName, L"fileABCDEFGHIJKLMNOPQRSTUVXWYZfile", wcscnt));
+        ASSERT(0 == mywcscmp(FindData.cFileName, (int)wcscnt,
+            L"fileABCDEFGHIJKLMNOPQRSTUVXWYZfile", (int)wcscnt));
         ul = wcstoul(FindData.cFileName + wcscnt, &endp, 10);
         ASSERT(0 != ul);
         ASSERT(L'\0' == *endp);
@@ -413,7 +414,7 @@ static void dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, U
 
     ASSERT(FILE_ACTION_ADDED == NotifyInfo->Action);
     ASSERT(wcslen(L"file0") * sizeof(WCHAR) == NotifyInfo->FileNameLength);
-    ASSERT(0 == memcmp(L"file0", NotifyInfo->FileName, NotifyInfo->FileNameLength));
+    ASSERT(0 == mywcscmp(L"file0", -1, NotifyInfo->FileName, NotifyInfo->FileNameLength / sizeof(WCHAR)));
 
     if (0 == NotifyInfo->NextEntryOffset)
     {
@@ -427,7 +428,7 @@ static void dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, U
 
     ASSERT(FILE_ACTION_REMOVED == NotifyInfo->Action);
     ASSERT(wcslen(L"file0") * sizeof(WCHAR) == NotifyInfo->FileNameLength);
-    ASSERT(0 == memcmp(L"file0", NotifyInfo->FileName, NotifyInfo->FileNameLength));
+    ASSERT(0 == mywcscmp(L"file0", -1, NotifyInfo->FileName, NotifyInfo->FileNameLength / sizeof(WCHAR)));
 
     ASSERT(0 == NotifyInfo->NextEntryOffset);
 

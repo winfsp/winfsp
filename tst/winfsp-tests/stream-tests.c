@@ -876,11 +876,11 @@ static void stream_getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     else
         ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 1) * sizeof(WCHAR));
     if (-1 == Flags)
-        ASSERT(0 == memcmp(FilePath + 6, PNameInfo->FileName, PNameInfo->FileNameLength));
+        ASSERT(0 == mywcscmp(FilePath + 6, -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
     else if (0 == Prefix)
-        ASSERT(0 == memcmp(L"\\file0:foo", PNameInfo->FileName, PNameInfo->FileNameLength));
+        ASSERT(0 == mywcscmp(L"\\file0:foo", -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
     else
-        ASSERT(0 == memcmp(FilePath + 1, PNameInfo->FileName, PNameInfo->FileNameLength));
+        ASSERT(0 == mywcscmp(FilePath + 1, -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
 
     Success = GetFileInformationByHandle(Handle, &FileInfo);
     ASSERT(Success);
@@ -963,11 +963,11 @@ static void stream_getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     else
         ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 1) * sizeof(WCHAR));
     if (-1 == Flags)
-        ASSERT(0 == memcmp(FilePath + 6, PNameInfo->FileName, PNameInfo->FileNameLength));
+        ASSERT(0 == mywcscmp(FilePath + 6, -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
     else if (0 == Prefix)
-        ASSERT(0 == memcmp(L"\\file0", PNameInfo->FileName, PNameInfo->FileNameLength));
+        ASSERT(0 == mywcscmp(L"\\file0", -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
     else
-        ASSERT(0 == memcmp(FilePath + 1, PNameInfo->FileName, PNameInfo->FileNameLength));
+        ASSERT(0 == mywcscmp(FilePath + 1, -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
 
     Success = GetFileInformationByHandle(Handle, &FileInfo);
     ASSERT(Success);
@@ -1837,11 +1837,11 @@ static void stream_getstreaminfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInf
         if (1 > FileCount)
         {
             FileCount++;
-            ASSERT(0 == wcscmp(FindData.cStreamName, L"::$DATA"));
+            ASSERT(0 == mywcscmp(FindData.cStreamName, -1, L"::$DATA", -1));
             continue;
         }
 
-        ASSERT(0 == wcsncmp(FindData.cStreamName, L":s", 2));
+        ASSERT(0 == mywcscmp(FindData.cStreamName, 2, L":s", 2));
         ul = wcstoul(FindData.cStreamName + 2, &endp, 10);
         ASSERT(0 != ul);
         ASSERT(L':' == *endp);
@@ -1878,7 +1878,7 @@ static void stream_getstreaminfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInf
             continue;
         }
 
-        ASSERT(0 == wcsncmp(FindData.cStreamName, L":s", 2));
+        ASSERT(0 == mywcscmp(FindData.cStreamName, 2, L":s", 2));
         ul = wcstoul(FindData.cStreamName + 2, &endp, 10);
         ASSERT(0 != ul);
         ASSERT(L':' == *endp);
@@ -1914,7 +1914,7 @@ static void stream_getstreaminfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInf
         unsigned long ul;
         wchar_t *endp;
 
-        ASSERT(0 == wcsncmp(FindData.cStreamName, L":s", 2));
+        ASSERT(0 == mywcscmp(FindData.cStreamName, 2, L":s", 2));
         ul = wcstoul(FindData.cStreamName + 2, &endp, 10);
         ASSERT(0 != ul);
         ASSERT(L':' == *endp);
@@ -2048,7 +2048,7 @@ static void stream_dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTim
 
     ASSERT(6/*FILE_ACTION_ADDED_STREAM*/ == NotifyInfo->Action);
     ASSERT(wcslen(L"file0:foo") * sizeof(WCHAR) == NotifyInfo->FileNameLength);
-    ASSERT(0 == memcmp(L"file0:foo", NotifyInfo->FileName, NotifyInfo->FileNameLength));
+    ASSERT(0 == mywcscmp(L"file0:foo", -1, NotifyInfo->FileName, NotifyInfo->FileNameLength / sizeof(WCHAR)));
 
     /*
      * NTFS never seems to send FILE_ACTION_REMOVED_STREAM notification. So don't do this test on it.
@@ -2070,7 +2070,7 @@ static void stream_dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTim
 
         ASSERT(7/*FILE_ACTION_REMOVED_STREAM*/ == NotifyInfo->Action);
         ASSERT(wcslen(L"file0:foo") * sizeof(WCHAR) == NotifyInfo->FileNameLength);
-        ASSERT(0 == memcmp(L"file0:foo", NotifyInfo->FileName, NotifyInfo->FileNameLength));
+        ASSERT(0 == mywcscmp(L"file0:foo", -1, NotifyInfo->FileName, NotifyInfo->FileNameLength / sizeof(WCHAR)));
 
         ASSERT(0 == NotifyInfo->NextEntryOffset);
     }

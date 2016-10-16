@@ -9,7 +9,12 @@ extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
-//#define CreateFileW HookCreateFileW
+extern BOOLEAN OptCaseInsensitive;
+extern BOOLEAN OptCaseRandomize;
+
+int mywcscmp(PWSTR a, int alen, PWSTR b, int blen);
+
+#define CreateFileW HookCreateFileW
 HANDLE HookCreateFileW(
     LPCWSTR lpFileName,
     DWORD dwDesiredAccess,

@@ -213,7 +213,7 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
         ASSERT(!Request->Req.Create.CaseSensitive);
         ASSERT(0 == Request->FileName.Offset);
         ASSERT((wcslen((PVOID)Request->Buffer) + 1) * sizeof(WCHAR) == Request->FileName.Size);
-        ASSERT(0 == wcscmp((PVOID)Request->Buffer, L"\\file0"));
+        ASSERT(0 == mywcscmp((PVOID)Request->Buffer, -1, L"\\file0", -1));
     }
 
     ASSERT(FspFsctlTransactCanProduceResponse(Response, ResponseBufEnd));
