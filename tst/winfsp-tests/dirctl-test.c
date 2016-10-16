@@ -390,8 +390,11 @@ static void dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, U
     DWORD BytesTransferred;
     PFILE_NOTIFY_INFORMATION NotifyInfo;
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\Directory",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
 
     NotifyInfo = malloc(4096);
     ASSERT(0 != NotifyInfo);
@@ -401,7 +404,7 @@ static void dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, U
         FILE_FLAG_BACKUP_SEMANTICS, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\Directory\\file0",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Thread = (HANDLE)_beginthreadex(0, 0, dirnotify_dotest_thread, FilePath, 0, 0);
@@ -438,6 +441,12 @@ static void dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, U
     ASSERT(0 == ExitCode);
 
     Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\Directory",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = RemoveDirectoryW(FilePath);
     ASSERT(Success);
 
     free(NotifyInfo);
