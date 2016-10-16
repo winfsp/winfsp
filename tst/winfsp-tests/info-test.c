@@ -131,6 +131,86 @@ void getfileinfo_test(void)
     }
 }
 
+void getfileinfo_name_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    BOOLEAN CaseRandomizeSave = OptCaseRandomize;
+    OptCaseRandomize = FALSE;
+
+    HANDLE Handle;
+    WCHAR OrigPath[MAX_PATH];
+    WCHAR FilePath[MAX_PATH];
+    WCHAR FinalPath[MAX_PATH];
+    DWORD Result;
+
+    if (-1 == Flags)
+        StringCbPrintfW(OrigPath, sizeof OrigPath, L"%s\\fileFILE",
+            Prefix + 6);
+    else if (0 == Prefix)
+        StringCbPrintfW(OrigPath, sizeof OrigPath, L"\\fileFILE");
+    else
+        StringCbPrintfW(OrigPath, sizeof OrigPath, L"%s\\fileFILE",
+            Prefix + 1);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\fileFILE",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    if (-1 == Flags || OptCaseInsensitive)
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\FILEfile",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    else
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\fileFILE",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Result = GetFinalPathNameByHandleW(
+        Handle, FinalPath, MAX_PATH - 1, VOLUME_NAME_NONE | FILE_NAME_OPENED);
+    ASSERT(0 != Result && Result < MAX_PATH);
+    ASSERT(0 == wcscmp(OrigPath, FinalPath)); /* don't use mywcscmp */
+
+    Result = GetFinalPathNameByHandleW(
+        Handle, FinalPath, MAX_PATH - 1, VOLUME_NAME_NONE | FILE_NAME_NORMALIZED);
+    ASSERT(0 != Result && Result < MAX_PATH);
+    ASSERT(0 == wcscmp(OrigPath, FinalPath)); /* don't use mywcscmp */
+
+    CloseHandle(Handle);
+
+    OptCaseRandomize = CaseRandomizeSave;
+
+    memfs_stop(memfs);
+}
+
+void getfileinfo_name_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        getfileinfo_name_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        getfileinfo_name_dotest(MemfsDisk, 0, 0);
+        getfileinfo_name_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        getfileinfo_name_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        getfileinfo_name_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 void setfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -749,6 +829,7 @@ void setvolinfo_test(void)
 void info_tests(void)
 {
     TEST(getfileinfo_test);
+    TEST(getfileinfo_name_test);
     TEST(setfileinfo_test);
     TEST(delete_test);
     TEST(delete_access_test);
