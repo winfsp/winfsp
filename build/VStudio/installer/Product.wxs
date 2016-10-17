@@ -155,7 +155,7 @@
                         <RegistryValue
                             Type="string"
                             Name="CommandLine"
-                            Value="-u %1 -m %2" />
+                            Value="-i -u %1 -m %2" />
                         <RegistryValue
                             Type="string"
                             Name="Security"
@@ -181,7 +181,7 @@
                         <RegistryValue
                             Type="string"
                             Name="CommandLine"
-                            Value="-u %1 -m %2" />
+                            Value="-i -u %1 -m %2" />
                         <RegistryValue
                             Type="string"
                             Name="Security"
