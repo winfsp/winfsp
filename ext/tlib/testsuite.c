@@ -131,7 +131,7 @@ void tlib_run_tests(int argc, char *argv[])
                 no_abort = 1;
             else if (0 == strcmp("--repeat-forever", a))
                 repeat = ULONG_MAX;
-            else
+            else if ('-' == a[1])
             {
                 fprintf(stderr, "tlib_run_tests: unknown option %s\n", a);
                 exit(2);
