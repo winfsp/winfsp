@@ -2,7 +2,7 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
     <Product
         Id="*"
-        Name="$(var.MyProductName)"
+        Name="$(var.MyProductName) $(var.MyProductVersion)"
         Manufacturer="$(var.MyCompanyName)"
         Version="$(var.MyVersion)"
         Language="1033"
@@ -17,8 +17,8 @@
             Disallow="yes"
             AllowDowngrades="no"
             AllowSameVersionUpgrades="no"
-            DisallowUpgradeErrorMessage="An older version of [ProductName] is already installed. You must uninstall it before you can install this version."
-            DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+            DisallowUpgradeErrorMessage="An older version of $(var.MyProductName) is already installed. You must uninstall it before you can install this version."
+            DowngradeErrorMessage="A newer version of $(var.MyProductName) is already installed." />
         <Media Id="1" Cabinet="WinFsp.cab" EmbedCab="yes" />
 
         <Property Id="P.LauncherName">$(var.MyProductName).Launcher</Property>
