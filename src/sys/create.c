@@ -488,6 +488,14 @@ static NTSTATUS FspFsvolCreateNoLock(
         RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset,
             SecurityDescriptor, SecurityDescriptorSize);
 
+    /* fix FileNode->FileName if we were doing SL_OPEN_TARGET_DIRECTORY */
+    if (Request->Req.Create.OpenTargetDirectory)
+    {
+        UNICODE_STRING Suffix;
+
+        FspFileNameSuffix(&FileNode->FileName, &FileNode->FileName, &Suffix);
+    }
+
     return FSP_STATUS_IOQ_POST;
 }
 
@@ -749,14 +757,6 @@ NTSTATUS FspFsvolCreateComplete(
                 Irp->IoStatus.Information = ReparseData->ReparseTag;
                 FSP_RETURN(Result = STATUS_REPARSE);
             }
-        }
-
-        /* fix FileNode->FileName if we were doing SL_OPEN_TARGET_DIRECTORY */
-        if (Request->Req.Create.OpenTargetDirectory)
-        {
-            UNICODE_STRING Suffix;
-
-            FspFileNameSuffix(&FileNode->FileName, &FileNode->FileName, &Suffix);
         }
 
         /* populate the FileNode/FileDesc fields from the Response */
