@@ -28,7 +28,7 @@ extern "C" {
 #if defined(WINFSP_SYS_INTERNAL) || defined(WINFSP_DLL_INTERNAL)
 #define FSP_FSCTL_STATIC_ASSERT(e,m)    static_assert(e,m)
 #else
-#define FSP_FSCTL_STATIC_ASSERT(e,m)
+#define FSP_FSCTL_STATIC_ASSERT(e,m)    static_assert(1,"")
 #endif
 
 #define FSP_FSCTL_DRIVER_NAME           "WinFsp"
@@ -175,6 +175,12 @@ typedef struct
     UINT64 ChangeTime;
     UINT64 IndexNumber;
 } FSP_FSCTL_FILE_INFO;
+typedef struct
+{
+    FSP_FSCTL_FILE_INFO FileInfo;
+    PWSTR NormalizedName;
+    UINT16 NormalizedNameSize;
+} FSP_FSCTL_OPEN_FILE_INFO;
 typedef struct
 {
     UINT16 Size;
@@ -374,6 +380,7 @@ typedef struct
                 UINT64 UserContext2;    /* user context associated with file descriptor (handle) */
                 UINT32 GrantedAccess;   /* FILE_{READ_DATA,WRITE_DATA,etc.} */
                 FSP_FSCTL_FILE_INFO FileInfo;
+                FSP_FSCTL_TRANSACT_BUF FileName;
             } Opened;
             /* IoStatus.Status == STATUS_REPARSE */
             struct
@@ -425,6 +432,9 @@ typedef struct
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 Buffer[];
 } FSP_FSCTL_TRANSACT_RSP;
 #pragma warning(pop)
+FSP_FSCTL_STATIC_ASSERT(FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX > FSP_FSCTL_TRANSACT_PATH_SIZEMAX,
+    "FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX must be greater than FSP_FSCTL_TRANSACT_PATH_SIZEMAX "
+    "to detect when a normalized name has been set during a Create/Open request.");
 static inline BOOLEAN FspFsctlTransactCanProduceRequest(
     FSP_FSCTL_TRANSACT_REQ *Request, PVOID RequestBufEnd)
 {

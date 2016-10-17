@@ -488,7 +488,7 @@ static NTSTATUS FspFsvolCreateNoLock(
         RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset,
             SecurityDescriptor, SecurityDescriptorSize);
 
-    /* fix FileNode->FileName if we were doing SL_OPEN_TARGET_DIRECTORY */
+    /* fix FileNode->FileName if we are doing SL_OPEN_TARGET_DIRECTORY */
     if (Request->Req.Create.OpenTargetDirectory)
     {
         UNICODE_STRING Suffix;
@@ -605,6 +605,7 @@ NTSTATUS FspFsvolCreateComplete(
     FSP_FILE_DESC *FileDesc = FspIopRequestContext(Request, RequestFileDesc);
     FSP_FILE_NODE *FileNode = FileDesc->FileNode;
     FSP_FILE_NODE *OpenedFileNode;
+    UNICODE_STRING NormalizedName;
     PREPARSE_DATA_BUFFER ReparseData;
     UNICODE_STRING ReparseTargetPrefix0, ReparseTargetPrefix1, ReparseTargetPath;
 
@@ -760,6 +761,35 @@ NTSTATUS FspFsvolCreateComplete(
         }
 
         /* populate the FileNode/FileDesc fields from the Response */
+        if (!FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
+        {
+            /* is there a normalized file name as part of the response? */
+            if (0 == Response->Rsp.Create.Opened.FileName.Size)
+            {
+                /* if not, the default is to upper case the name */
+
+                FspFileNameUpcase(&FileNode->FileName, &FileNode->FileName, 0);
+            }
+            else
+            {
+                /* if yes, verify it and then set it */
+
+                if (Response->Buffer + Response->Rsp.Create.Opened.FileName.Size >
+                    (PUINT8)Response + Response->Size)
+                    FSP_RETURN(Result = STATUS_OBJECT_NAME_INVALID);
+
+                NormalizedName.Length = NormalizedName.MaximumLength =
+                    Response->Rsp.Create.Opened.FileName.Size;
+                NormalizedName.Buffer = (PVOID)Response->Buffer;
+
+                /* normalized file name can only differ in case from requested one */
+                if (0 != FspFileNameCompare(&FileNode->FileName, &NormalizedName, TRUE, 0))
+                    FSP_RETURN(Result = STATUS_OBJECT_NAME_INVALID);
+
+                ASSERT(FileNode->FileName.Length == NormalizedName.Length);
+                RtlCopyMemory(FileNode->FileName.Buffer, NormalizedName.Buffer, NormalizedName.Length);
+            }
+        }
         FileNode->UserContext = Response->Rsp.Create.Opened.UserContext;
         FileNode->IndexNumber = Response->Rsp.Create.Opened.FileInfo.IndexNumber;
         FileNode->IsDirectory = BooleanFlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes,

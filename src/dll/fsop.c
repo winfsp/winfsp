@@ -353,7 +353,7 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     UINT32 GrantedAccess;
     PSECURITY_DESCRIPTOR ParentDescriptor, ObjectDescriptor;
     PVOID FileNode;
-    FSP_FSCTL_FILE_INFO FileInfo;
+    FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
 
     Result = FspFileSystemCreateCheck(FileSystem, Request, Response, TRUE,
         &GrantedAccess, &ParentDescriptor);
@@ -366,19 +366,29 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
         return Result;
 
     FileNode = 0;
-    memset(&FileInfo, 0, sizeof FileInfo);
+    memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
+    OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
+    OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
     Result = FileSystem->Interface->Create(FileSystem, Request,
         (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
         Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
-        &FileNode, &FileInfo);
+        &FileNode, &OpenFileInfo.FileInfo);
     FspDeleteSecurityDescriptor(ObjectDescriptor, FspCreateSecurityDescriptor);
     if (!NT_SUCCESS(Result))
         return Result;
 
+    if (FSP_FSCTL_TRANSACT_PATH_SIZEMAX >= OpenFileInfo.NormalizedNameSize)
+    {
+        Response->Size = (UINT16)(sizeof *Response + OpenFileInfo.NormalizedNameSize);
+        Response->Rsp.Create.Opened.FileName.Offset = 0;
+        Response->Rsp.Create.Opened.FileName.Size = (UINT16)OpenFileInfo.NormalizedNameSize;
+    }
+
     Response->IoStatus.Information = FILE_CREATED;
     USERCONTEXT(Response->Rsp.Create.Opened) = (UINT_PTR)FileNode;
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
-    memcpy(&Response->Rsp.Create.Opened.FileInfo, &FileInfo, sizeof FileInfo);
+    memcpy(&Response->Rsp.Create.Opened.FileInfo,
+        &OpenFileInfo.FileInfo, sizeof OpenFileInfo.FileInfo);
     return STATUS_SUCCESS;
 }
 
@@ -388,24 +398,34 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
     UINT32 GrantedAccess;
     PVOID FileNode;
-    FSP_FSCTL_FILE_INFO FileInfo;
+    FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
 
     Result = FspFileSystemOpenCheck(FileSystem, Request, Response, TRUE, &GrantedAccess);
     if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
         return Result;
 
     FileNode = 0;
-    memset(&FileInfo, 0, sizeof FileInfo);
+    memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
+    OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
+    OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
     Result = FileSystem->Interface->Open(FileSystem, Request,
         (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
-        &FileNode, &FileInfo);
+        &FileNode, &OpenFileInfo.FileInfo);
     if (!NT_SUCCESS(Result))
         return Result;
+
+    if (FSP_FSCTL_TRANSACT_PATH_SIZEMAX >= OpenFileInfo.NormalizedNameSize)
+    {
+        Response->Size = (UINT16)(sizeof *Response + OpenFileInfo.NormalizedNameSize);
+        Response->Rsp.Create.Opened.FileName.Offset = 0;
+        Response->Rsp.Create.Opened.FileName.Size = (UINT16)OpenFileInfo.NormalizedNameSize;
+    }
 
     Response->IoStatus.Information = FILE_OPENED;
     USERCONTEXT(Response->Rsp.Create.Opened) = (UINT_PTR)FileNode;
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
-    memcpy(&Response->Rsp.Create.Opened.FileInfo, &FileInfo, sizeof FileInfo);
+    memcpy(&Response->Rsp.Create.Opened.FileInfo,
+        &OpenFileInfo.FileInfo, sizeof OpenFileInfo.FileInfo);
     return STATUS_SUCCESS;
 }
 
@@ -416,7 +436,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
     UINT32 GrantedAccess;
     PSECURITY_DESCRIPTOR ParentDescriptor, ObjectDescriptor;
     PVOID FileNode;
-    FSP_FSCTL_FILE_INFO FileInfo;
+    FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
     BOOLEAN Create = FALSE;
 
     Result = FspFileSystemOpenCheck(FileSystem, Request, Response, TRUE, &GrantedAccess);
@@ -430,10 +450,12 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
     if (!Create)
     {
         FileNode = 0;
-        memset(&FileInfo, 0, sizeof FileInfo);
+        memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
+        OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
+        OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
         Result = FileSystem->Interface->Open(FileSystem, Request,
             (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
-            &FileNode, &FileInfo);
+            &FileNode, &OpenFileInfo.FileInfo);
         if (!NT_SUCCESS(Result))
         {
             if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
@@ -455,20 +477,30 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
             return Result;
 
         FileNode = 0;
-        memset(&FileInfo, 0, sizeof FileInfo);
+        memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
+        OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
+        OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
         Result = FileSystem->Interface->Create(FileSystem, Request,
             (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
             Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
-            &FileNode, &FileInfo);
+            &FileNode, &OpenFileInfo.FileInfo);
         FspDeleteSecurityDescriptor(ObjectDescriptor, FspCreateSecurityDescriptor);
         if (!NT_SUCCESS(Result))
             return Result;
     }
 
+    if (FSP_FSCTL_TRANSACT_PATH_SIZEMAX >= OpenFileInfo.NormalizedNameSize)
+    {
+        Response->Size = (UINT16)(sizeof *Response + OpenFileInfo.NormalizedNameSize);
+        Response->Rsp.Create.Opened.FileName.Offset = 0;
+        Response->Rsp.Create.Opened.FileName.Size = (UINT16)OpenFileInfo.NormalizedNameSize;
+    }
+
     Response->IoStatus.Information = Create ? FILE_CREATED : FILE_OPENED;
     USERCONTEXT(Response->Rsp.Create.Opened) = (UINT_PTR)FileNode;
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
-    memcpy(&Response->Rsp.Create.Opened.FileInfo, &FileInfo, sizeof FileInfo);
+    memcpy(&Response->Rsp.Create.Opened.FileInfo,
+        &OpenFileInfo.FileInfo, sizeof OpenFileInfo.FileInfo);
     return STATUS_SUCCESS;
 }
 
@@ -478,7 +510,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
     UINT32 GrantedAccess;
     PVOID FileNode;
-    FSP_FSCTL_FILE_INFO FileInfo;
+    FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
     BOOLEAN Supersede = FILE_SUPERSEDE == ((Request->Req.Create.CreateOptions >> 24) & 0xff);
 
     Result = FspFileSystemOverwriteCheck(FileSystem, Request, Response, TRUE, &GrantedAccess);
@@ -486,17 +518,27 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
         return Result;
 
     FileNode = 0;
-    memset(&FileInfo, 0, sizeof FileInfo);
+    memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
+    OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
+    OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
     Result = FileSystem->Interface->Open(FileSystem, Request,
         (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
-        &FileNode, &FileInfo);
+        &FileNode, &OpenFileInfo.FileInfo);
     if (!NT_SUCCESS(Result))
         return Result;
+
+    if (FSP_FSCTL_TRANSACT_PATH_SIZEMAX >= OpenFileInfo.NormalizedNameSize)
+    {
+        Response->Size = (UINT16)(sizeof *Response + OpenFileInfo.NormalizedNameSize);
+        Response->Rsp.Create.Opened.FileName.Offset = 0;
+        Response->Rsp.Create.Opened.FileName.Size = (UINT16)OpenFileInfo.NormalizedNameSize;
+    }
 
     Response->IoStatus.Information = Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
     USERCONTEXT(Response->Rsp.Create.Opened) = (UINT_PTR)FileNode;
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
-    memcpy(&Response->Rsp.Create.Opened.FileInfo, &FileInfo, sizeof FileInfo);
+    memcpy(&Response->Rsp.Create.Opened.FileInfo,
+        &OpenFileInfo.FileInfo, sizeof OpenFileInfo.FileInfo);
     return STATUS_SUCCESS;
 }
 
@@ -507,7 +549,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
     UINT32 GrantedAccess;
     PSECURITY_DESCRIPTOR ParentDescriptor, ObjectDescriptor;
     PVOID FileNode;
-    FSP_FSCTL_FILE_INFO FileInfo;
+    FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
     BOOLEAN Create = FALSE;
 
     Result = FspFileSystemOverwriteCheck(FileSystem, Request, Response, TRUE, &GrantedAccess);
@@ -521,10 +563,12 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
     if (!Create)
     {
         FileNode = 0;
-        memset(&FileInfo, 0, sizeof FileInfo);
+        memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
+        OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
+        OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
         Result = FileSystem->Interface->Open(FileSystem, Request,
             (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
-            &FileNode, &FileInfo);
+            &FileNode, &OpenFileInfo.FileInfo);
         if (!NT_SUCCESS(Result))
         {
             if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
@@ -546,20 +590,30 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
             return Result;
 
         FileNode = 0;
-        memset(&FileInfo, 0, sizeof FileInfo);
+        memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
+        OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
+        OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
         Result = FileSystem->Interface->Create(FileSystem, Request,
             (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
             Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
-            &FileNode, &FileInfo);
+            &FileNode, &OpenFileInfo.FileInfo);
         FspDeleteSecurityDescriptor(ObjectDescriptor, FspCreateSecurityDescriptor);
         if (!NT_SUCCESS(Result))
             return Result;
     }
 
+    if (FSP_FSCTL_TRANSACT_PATH_SIZEMAX >= OpenFileInfo.NormalizedNameSize)
+    {
+        Response->Size = (UINT16)(sizeof *Response + OpenFileInfo.NormalizedNameSize);
+        Response->Rsp.Create.Opened.FileName.Offset = 0;
+        Response->Rsp.Create.Opened.FileName.Size = (UINT16)OpenFileInfo.NormalizedNameSize;
+    }
+
     Response->IoStatus.Information = Create ? FILE_CREATED : FILE_OVERWRITTEN;
     USERCONTEXT(Response->Rsp.Create.Opened) = (UINT_PTR)FileNode;
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
-    memcpy(&Response->Rsp.Create.Opened.FileInfo, &FileInfo, sizeof FileInfo);
+    memcpy(&Response->Rsp.Create.Opened.FileInfo,
+        &OpenFileInfo.FileInfo, sizeof OpenFileInfo.FileInfo);
     return STATUS_SUCCESS;
 }
 
@@ -571,7 +625,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     PWSTR Parent, Suffix;
     UINT32 GrantedAccess;
     PVOID FileNode;
-    FSP_FSCTL_FILE_INFO FileInfo;
+    FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
     UINT32 Information;
 
     Result = FspFileSystemOpenTargetDirectoryCheck(FileSystem, Request, Response, &GrantedAccess);
@@ -579,11 +633,13 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
         return Result;
 
     FileNode = 0;
-    memset(&FileInfo, 0, sizeof FileInfo);
+    memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
+    OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
+    OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
     FspPathSuffix((PWSTR)Request->Buffer, &Parent, &Suffix, Root);
     Result = FileSystem->Interface->Open(FileSystem, Request,
         Parent, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
-        &FileNode, &FileInfo);
+        &FileNode, &OpenFileInfo.FileInfo);
     FspPathCombine((PWSTR)Request->Buffer, Suffix);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -595,10 +651,18 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
         Information = NT_SUCCESS(Result) ? FILE_EXISTS : FILE_DOES_NOT_EXIST;
     }
 
+    if (FSP_FSCTL_TRANSACT_PATH_SIZEMAX >= OpenFileInfo.NormalizedNameSize)
+    {
+        Response->Size = (UINT16)(sizeof *Response + OpenFileInfo.NormalizedNameSize);
+        Response->Rsp.Create.Opened.FileName.Offset = 0;
+        Response->Rsp.Create.Opened.FileName.Size = (UINT16)OpenFileInfo.NormalizedNameSize;
+    }
+
     Response->IoStatus.Information = Information;
     USERCONTEXT(Response->Rsp.Create.Opened) = (UINT_PTR)FileNode;
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
-    memcpy(&Response->Rsp.Create.Opened.FileInfo, &FileInfo, sizeof FileInfo);
+    memcpy(&Response->Rsp.Create.Opened.FileInfo,
+        &OpenFileInfo.FileInfo, sizeof OpenFileInfo.FileInfo);
     return STATUS_SUCCESS;
 }
 

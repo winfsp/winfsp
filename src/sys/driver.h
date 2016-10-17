@@ -437,6 +437,10 @@ BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PUL
 BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Pattern);
 VOID FspFileNameSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 #if 0
+NTSTATUS FspFileNameUpcase(
+    PUNICODE_STRING DestinationName,
+    PUNICODE_STRING SourceName,
+    PCWCH UpcaseTable);
 LONG FspFileNameCompare(
     PUNICODE_STRING Name1,
     PUNICODE_STRING Name2,
@@ -448,6 +452,7 @@ BOOLEAN FspFileNameIsPrefix(
     BOOLEAN IgnoreCase,
     PCWCH UpcaseTable);
 #else
+#define FspFileNameUpcase(D,S,U)        (ASSERT(0 == (U)), RtlUpcaseUnicodeString(D,S,FALSE))
 #define FspFileNameCompare(N1,N2,I,U)   (ASSERT(0 == (U)), RtlCompareUnicodeString(N1,N2,I))
 #define FspFileNameIsPrefix(N1,N2,I,U)  (ASSERT(0 == (U)), RtlPrefixUnicodeString(N1,N2,I))
 #endif

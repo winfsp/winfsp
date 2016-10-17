@@ -699,6 +699,11 @@ static RTL_GENERIC_COMPARE_RESULTS NTAPI FspFsvolDeviceCompareContextByName(
     PUNICODE_STRING SecondFileName = *(PUNICODE_STRING *)SecondElement;
     LONG ComparisonResult;
 
+    /*
+     * Since FileNode FileName's are now always normalized, we could perhaps get away
+     * with using CaseInsensitive == FALSE at all times. For safety reasons we avoid
+     * doing so here.
+     */
     ComparisonResult = FspFileNameCompare(FirstFileName, SecondFileName, CaseInsensitive, 0);
 
     if (0 > ComparisonResult)

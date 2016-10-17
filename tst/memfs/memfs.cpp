@@ -28,6 +28,11 @@
 #define MEMFS_NAMED_STREAMS
 
 /*
+ * Define the MEMFS_NAME_NORMALIZATION macro to include name normalization support.
+ */
+#define MEMFS_NAME_NORMALIZATION
+
+/*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
  * a check for the Write buffer to ensure that it is read-only.
  */
@@ -500,7 +505,11 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
+#if defined(MEMFS_NAME_NORMALIZATION)
+    WCHAR FileNameBuf[MAX_PATH];
+#endif
     MEMFS_FILE_NODE *FileNode;
+    MEMFS_FILE_NODE *ParentNode;
     NTSTATUS Result;
     BOOLEAN Inserted;
 
@@ -511,7 +520,8 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     if (0 != FileNode)
         return STATUS_OBJECT_NAME_COLLISION;
 
-    if (!MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result))
+    ParentNode = MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result);
+    if (0 == ParentNode)
         return Result;
 
     if (MemfsFileNodeMapCount(Memfs->FileNodeMap) >= Memfs->MaxFileNodes)
@@ -519,6 +529,31 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 
     if (AllocationSize > Memfs->MaxFileSize)
         return STATUS_DISK_FULL;
+
+#if defined(MEMFS_NAME_NORMALIZATION)
+    if (MemfsFileNodeMapIsCaseInsensitive(Memfs->FileNodeMap))
+    {
+        WCHAR Root[2] = L"\\";
+        PWSTR Remain, Suffix;
+        size_t RemainLength, BSlashLength, SuffixLength;
+
+        FspPathSuffix(FileName, &Remain, &Suffix, Root);
+        assert(0 == MemfsCompareString(Remain, -1, ParentNode->FileName, -1, TRUE));
+        FspPathCombine(FileName, Suffix);
+
+        RemainLength = wcslen(ParentNode->FileName);
+        BSlashLength = 1 < RemainLength;
+        SuffixLength = wcslen(Suffix);
+        if (MAX_PATH <= RemainLength + BSlashLength + SuffixLength)
+            return STATUS_OBJECT_NAME_INVALID;
+
+        memcpy(FileNameBuf, ParentNode->FileName, RemainLength * sizeof(WCHAR));
+        memcpy(FileNameBuf + RemainLength, L"\\", BSlashLength * sizeof(WCHAR));
+        memcpy(FileNameBuf + RemainLength + BSlashLength, Suffix, (SuffixLength + 1) * sizeof(WCHAR));
+
+        FileName = FileNameBuf;
+    }
+#endif
 
     Result = MemfsFileNodeCreate(FileName, &FileNode);
     if (!NT_SUCCESS(Result))
@@ -567,6 +602,17 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     *PFileNode = FileNode;
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
 
+#if defined(MEMFS_NAME_NORMALIZATION)
+    if (MemfsFileNodeMapIsCaseInsensitive(Memfs->FileNodeMap))
+    {
+        FSP_FSCTL_OPEN_FILE_INFO *OpenFileInfo = FspFileSystemGetOpenFileInfo(FileInfo);
+
+        wcscpy_s(OpenFileInfo->NormalizedName, OpenFileInfo->NormalizedNameSize / sizeof(WCHAR),
+            FileNode->FileName);
+        OpenFileInfo->NormalizedNameSize = (UINT16)(wcslen(FileNode->FileName) * sizeof(WCHAR));
+    }
+#endif
+
     return STATUS_SUCCESS;
 }
 
@@ -604,6 +650,17 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     FileNode->RefCount++;
     *PFileNode = FileNode;
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
+
+#if defined(MEMFS_NAME_NORMALIZATION)
+    if (MemfsFileNodeMapIsCaseInsensitive(Memfs->FileNodeMap))
+    {
+        FSP_FSCTL_OPEN_FILE_INFO *OpenFileInfo = FspFileSystemGetOpenFileInfo(FileInfo);
+
+        wcscpy_s(OpenFileInfo->NormalizedName, OpenFileInfo->NormalizedNameSize / sizeof(WCHAR),
+            FileNode->FileName);
+        OpenFileInfo->NormalizedNameSize = (UINT16)(wcslen(FileNode->FileName) * sizeof(WCHAR));
+    }
+#endif
 
     return STATUS_SUCCESS;
 }

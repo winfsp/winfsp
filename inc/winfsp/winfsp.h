@@ -1041,6 +1041,54 @@ FSP_API NTSTATUS FspFileSystemOpQueryStreamInformation(FSP_FILE_SYSTEM *FileSyst
  * Helpers
  */
 /**
+ * Get open information buffer.
+ *
+ * This is a helper for implementing the Create and Open operations. It cannot be used with
+ * any other operations.
+ *
+ * The FileInfo parameter to Create and Open is typed as pointer to FSP_FSCTL_FILE_INFO. The
+ * true type of this parameter is pointer to FSP_FSCTL_OPEN_FILE_INFO. This simple function
+ * converts from one type to the other.
+ *
+ * The FSP_FSCTL_OPEN_FILE_INFO type contains a FSP_FSCTL_FILE_INFO as well as the fields
+ * NormalizedName and NormalizedNameSize. These fields can be used for file name normalization.
+ * File name normalization is used to ensure that the FSD and the OS know the correct case
+ * of a newly opened file name.
+ *
+ * For case-sensitive file systems this functionality should be ignored. The FSD will always
+ * assume that the normalized file name is the same as the file name used to open the file.
+ *
+ * For case-insensitive file systems this functionality may be ignored. In this case the FSD
+ * will assume that the normalized file name is the upper case version of the file name used
+ * to open the file. The file system will work correctly and the only way an application will
+ * be able to tell that the file system does not preserve case in normalized file names is by
+ * issuing a GetFinalPathNameByHandle API call (or NtQueryInformationFile with
+ * FileNameInformation/FileNormalizedNameInformation).
+ *
+ * For case-insensitive file systems this functionality may also be used. In this case the
+ * user mode file system may use the NormalizedName and NormalizedNameSize parameters to
+ * report to the FSD the normalized file name. It should be noted that the normalized file
+ * name may only differ in case from the file name used to open the file. The NormalizedName
+ * field will point to a buffer that can receive the normalized file name. The
+ * NormalizedNameSize field will contain the size of the normalized file name buffer. On
+ * completion of the Create or Open operation it should contain the actual size of the
+ * normalized file name copied into the normalized file name buffer. The normalized file name
+ * should not contain a terminating zero.
+ *
+ * @param FileInfo
+ *     The FileInfo parameter as passed to Create or Open operation.
+ * @return
+ *     A pointer to the open information buffer for this Create or Open operation.
+ * @see
+ *     Create
+ *     Open
+ */
+static inline
+FSP_FSCTL_OPEN_FILE_INFO *FspFileSystemGetOpenFileInfo(FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    return (FSP_FSCTL_OPEN_FILE_INFO *)FileInfo;
+}
+/**
  * Add directory information to a buffer.
  *
  * This is a helper for implementing the ReadDirectory operation.

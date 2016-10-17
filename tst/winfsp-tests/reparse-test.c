@@ -243,11 +243,11 @@ static void reparse_symlink_dotest0(ULONG Flags, PWSTR Prefix,
         else
             ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 1) * sizeof(WCHAR));
         if (-1 == Flags)
-            ASSERT(0 == memcmp(FilePath + 6, PNameInfo->FileName, PNameInfo->FileNameLength));
+            ASSERT(0 == mywcscmp(FilePath + 6, -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
         else if (0 == Prefix)
-            ASSERT(0 == memcmp(L"\\file0", PNameInfo->FileName, PNameInfo->FileNameLength));
+            ASSERT(0 == mywcscmp(L"\\file0", -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
         else
-            ASSERT(0 == memcmp(FilePath + 1, PNameInfo->FileName, PNameInfo->FileNameLength));
+            ASSERT(0 == mywcscmp(FilePath + 1, -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
 
         CloseHandle(Handle);
 
@@ -400,11 +400,11 @@ static BOOL my_namecheck_fn(ULONG Flags, PWSTR Prefix, void *memfs, PWSTR FileNa
         else
             ASSERT(PNameInfo->FileNameLength == wcslen(ExpectedPath + 1) * sizeof(WCHAR));
         if (-1 == Flags)
-            ASSERT(0 == memcmp(ExpectedPath + 6, PNameInfo->FileName, PNameInfo->FileNameLength));
+            ASSERT(0 == mywcscmp(ExpectedPath + 6, -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
         else if (0 == Prefix)
-            ASSERT(0 == memcmp(ExpectedPath, PNameInfo->FileName, PNameInfo->FileNameLength));
+            ASSERT(0 == mywcscmp(ExpectedPath, -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
         else
-            ASSERT(0 == memcmp(ExpectedPath + 1, PNameInfo->FileName, PNameInfo->FileNameLength));
+            ASSERT(0 == mywcscmp(ExpectedPath + 1, -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
     }
 
     CloseHandle(Handle);
