@@ -126,10 +126,24 @@ static NTSTATUS FspFileSystemSetMountPoint_CreateDirectory(PWSTR MountPoint, PWS
     NTSTATUS Result;
     HANDLE DirHandle;
     BOOL Success;
-    DWORD Bytes;
+    DWORD Backslashes, Bytes;
     USHORT VolumeNameLength, BackslashLength, ReparseDataLength;
     PREPARSE_DATA_BUFFER ReparseData = 0;
-    PWSTR PathBuffer;
+    PWSTR P, PathBuffer;
+
+    /*
+     * Windows does not allow mount points (junctions) to point to network file systems.
+     *
+     * Count how many backslashes our VolumeName. If it is 3 or more this is a network
+     * file system. Preemptively return STATUS_NETWORK_ACCESS_DENIED.
+     */
+    for (P = VolumeName, Backslashes = 0; *P; P++)
+        if (L'\\' == *P)
+            if (3 == ++Backslashes)
+            {
+                Result = STATUS_NETWORK_ACCESS_DENIED;
+                goto exit;
+            }
 
     if (!CreateDirectoryW(MountPoint, 0))
     {

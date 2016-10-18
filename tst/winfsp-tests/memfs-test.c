@@ -5,6 +5,8 @@
 
 #include "winfsp-tests.h"
 
+int memfs_running;
+
 void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
 {
     if (-1 == Flags)
@@ -24,8 +26,16 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
     ASSERT(NT_SUCCESS(Result));
     ASSERT(0 != Memfs);
 
+    if (OptMountPoint)
+    {
+        Result = FspFileSystemSetMountPoint(MemfsFileSystem(Memfs), OptMountPoint);
+        ASSERT(NT_SUCCESS(Result));
+    }
+
     Result = MemfsStart(Memfs);
     ASSERT(NT_SUCCESS(Result));
+
+    memfs_running = 1;
 
     return Memfs;
 }
@@ -39,6 +49,8 @@ void memfs_stop(void *data)
 {
     if (0 == data)
         return;
+
+    memfs_running = 0;
 
     MEMFS *Memfs = data;
 

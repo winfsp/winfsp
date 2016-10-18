@@ -5,13 +5,6 @@ void *memfs_start(ULONG Flags);
 void memfs_stop(void *data);
 PWSTR memfs_volumename(void *data);
 
-extern int NtfsTests;
-extern int WinFspDiskTests;
-extern int WinFspNetTests;
-
-extern BOOLEAN OptCaseInsensitive;
-extern BOOLEAN OptCaseRandomize;
-
 int mywcscmp(PWSTR a, int alen, PWSTR b, int blen);
 
 #define CreateFileW HookCreateFileW
@@ -23,3 +16,13 @@ HANDLE HookCreateFileW(
     DWORD dwCreationDisposition,
     DWORD dwFlagsAndAttributes,
     HANDLE hTemplateFile);
+
+extern int NtfsTests;
+extern int WinFspDiskTests;
+extern int WinFspNetTests;
+
+extern BOOLEAN OptCaseInsensitive;
+extern BOOLEAN OptCaseRandomize;
+extern WCHAR OptMountPointBuf[], *OptMountPoint;
+
+extern int memfs_running;

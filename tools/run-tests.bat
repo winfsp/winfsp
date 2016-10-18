@@ -78,6 +78,12 @@ if errorlevel 1 goto fail
 echo winfsp-tests-x64 --case-randomize
 winfsp-tests-x64 --case-randomize
 if errorlevel 1 goto fail
+echo winfsp-tests-x64 --mountpoint=X:
+winfsp-tests-x64 --mountpoint=X:
+if errorlevel 1 goto fail
+echo winfsp-tests-x64 --mountpoint=mymnt
+winfsp-tests-x64 --mountpoint=mymnt
+if errorlevel 1 goto fail
 exit /b 0
 
 :winfsp-tests-x86
@@ -86,6 +92,12 @@ winfsp-tests-x86
 if errorlevel 1 goto fail
 echo winfsp-tests-x86 --case-randomize
 winfsp-tests-x86 --case-randomize
+if errorlevel 1 goto fail
+echo winfsp-tests-x86 --mountpoint=X:
+winfsp-tests-x86 --mountpoint=X:
+if errorlevel 1 goto fail
+echo winfsp-tests-x86 --mountpoint=mymnt
+winfsp-tests-x86 --mountpoint=mymnt
 if errorlevel 1 goto fail
 exit /b 0
 

@@ -9,6 +9,7 @@ int WinFspNetTests = 1;
 
 BOOLEAN OptCaseInsensitive = FALSE;
 BOOLEAN OptCaseRandomize = FALSE;
+WCHAR OptMountPointBuf[MAX_PATH], *OptMountPoint;
 
 int mywcscmp(PWSTR a, int alen, PWSTR b, int blen)
 {
@@ -57,12 +58,16 @@ HANDLE HookCreateFileW(
     HANDLE hTemplateFile)
 {
     static WCHAR DevicePrefix[] =
-        L"\\\\?\\GLOBALROOT\\Device\\Volume{01234567-0123-0123-0101-010101010101}\\";
+        L"\\\\?\\GLOBALROOT\\Device\\Volume{01234567-0123-0123-0101-010101010101}";
+    static WCHAR MemfsSharePrefix[] =
+        L"\\\\memfs\\share";
     static const TogglePercent = 25;
     WCHAR FileNameBuf[1024];
     PWSTR P, EndP;
+    size_t L1, L2;
 
     wcscpy_s(FileNameBuf, sizeof FileNameBuf / sizeof(WCHAR), lpFileName);
+
     if (OptCaseRandomize)
     {
         if (L'\\' == FileNameBuf[0] && L'\\' == FileNameBuf[1] &&
@@ -81,6 +86,37 @@ HANDLE HookCreateFileW(
         for (EndP = P + wcslen(P); EndP > P; P++)
             if (testalpha(*P) && myrand() <= (TogglePercent) * 0x7fff / 100)
                 *P = togglealpha(*P);
+    }
+
+    if (OptMountPoint && memfs_running)
+    {
+        if (L'\\' == FileNameBuf[0] && L'\\' == FileNameBuf[1] &&
+            L'?' == FileNameBuf[2] && L'\\' == FileNameBuf[3] &&
+            testalpha(FileNameBuf[4]) && L':' == FileNameBuf[5] && L'\\' == FileNameBuf[6])
+            ;
+        else if (0 == wcsncmp(FileNameBuf, DevicePrefix, wcschr(DevicePrefix, L'{') - DevicePrefix))
+        {
+            P = FileNameBuf + wcslen(DevicePrefix);
+            L1 = wcslen(P) + 1;
+            L2 = wcslen(OptMountPoint);
+            memmove(FileNameBuf + 1024 - L1, P, L1 * sizeof(WCHAR));
+            memmove(FileNameBuf, OptMountPoint, L2 * sizeof(WCHAR));
+            memmove(FileNameBuf + L2, P, L1 * sizeof(WCHAR));
+        }
+        else if (0 == mywcscmp(
+            FileNameBuf, (int)wcslen(MemfsSharePrefix), MemfsSharePrefix, (int)wcslen(MemfsSharePrefix)))
+        {
+            P = FileNameBuf + wcslen(MemfsSharePrefix);
+            L1 = wcslen(P) + 1;
+            L2 = wcslen(OptMountPoint);
+            memmove(FileNameBuf + 1024 - L1, P, L1 * sizeof(WCHAR));
+            memmove(FileNameBuf, OptMountPoint, L2 * sizeof(WCHAR));
+            memmove(FileNameBuf + L2, P, L1 * sizeof(WCHAR));
+        }
+        else if (testalpha(FileNameBuf[0]) && L':' == FileNameBuf[1] && L'\\' == FileNameBuf[2])
+            ;
+        else
+            abort();
     }
 
     HANDLE h = CreateFileW(
@@ -148,6 +184,21 @@ int main(int argc, char *argv[])
                 OptCaseRandomize = TRUE;
                 OptCaseInsensitive = TRUE;
                 rmarg(argv, argc, argi);
+            }
+            else if (0 == strncmp("--mountpoint=", a, sizeof "--mountpoint=" - 1))
+            {
+                if (0 != MultiByteToWideChar(CP_UTF8, 0,
+                    a + sizeof "--mountpoint=" - 1, -1, OptMountPointBuf, MAX_PATH))
+                {
+                    OptMountPoint = OptMountPointBuf;
+                    rmarg(argv, argc, argi);
+
+                    NtfsTests = 0;
+                    if (!(testalpha(OptMountPoint[0]) &&
+                        L':' == OptMountPoint[1] &&
+                        L'\0' == OptMountPoint[2]))
+                        WinFspNetTests = 0;
+                }
             }
         }
     }

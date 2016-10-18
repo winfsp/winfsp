@@ -855,9 +855,13 @@ FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem);
 /**
  * Set the mount point for a file system.
  *
- * This function currently only supports drive letters (X:) as mount points. Refer to the
- * documentation of the DefineDosDevice Windows API to better understand how drive letters are
- * created.
+ * This function supports drive letters (X:) or directories as mount points:
+ * <ul>
+ * <li>Drive letters: Refer to the documentation of the DefineDosDevice Windows API
+ * to better understand how they are created.</li>
+ * <li>Directories: They can be used as mount points for disk based file systems. They cannot
+ * be used for network file systems. This is a limitation that Windows imposes on junctions.</li>
+ * </ul>
  *
  * @param FileSystem
  *     The file system object.

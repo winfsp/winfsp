@@ -434,7 +434,7 @@ static void reparse_symlink_relative_dotest(ULONG Flags, PWSTR Prefix, ULONG Fil
     {
         ASSERT(ERROR_PRIVILEGE_NOT_HELD == GetLastError());
         FspDebugLog(__FUNCTION__ ": need SE_CREATE_SYMBOLIC_LINK_PRIVILEGE\n");
-        return;
+        goto exit;
     }
 
     my_mkdir(L"\\1");
@@ -491,6 +491,7 @@ static void reparse_symlink_relative_dotest(ULONG Flags, PWSTR Prefix, ULONG Fil
     my_rmdir(L"\\1\\1.1");
     my_rmdir(L"\\1");
 
+exit:
     memfs_stop(memfs);
 }
 
