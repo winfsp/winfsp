@@ -100,12 +100,7 @@ DWORD APIENTRY NPGetCaps(DWORD Index)
 
 static inline BOOLEAN FspNpCheckLocalName(PWSTR LocalName)
 {
-    return 0 != LocalName &&
-        (
-            (L'A' <= LocalName[0] && LocalName[0] <= L'Z') ||
-            (L'a' <= LocalName[0] && LocalName[0] <= L'z')
-        ) &&
-        L':' == LocalName[1] || L'\0' == LocalName[2];
+    return 0 != LocalName && FspPathIsDrive(LocalName);
 }
 
 static inline BOOLEAN FspNpCheckRemoteName(PWSTR RemoteName)

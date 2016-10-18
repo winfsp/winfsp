@@ -121,6 +121,154 @@ FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem)
     MemFree(FileSystem);
 }
 
+static NTSTATUS FspFileSystemSetMountPoint_CreateDirectory(PWSTR MountPoint, PWSTR VolumeName)
+{
+    NTSTATUS Result;
+    HANDLE DirHandle;
+    BOOL Success;
+    DWORD Bytes;
+    USHORT VolumeNameLength, BackslashLength, ReparseDataLength;
+    PREPARSE_DATA_BUFFER ReparseData = 0;
+    PWSTR PathBuffer;
+
+    if (!CreateDirectoryW(MountPoint, 0))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    DirHandle = CreateFileW(MountPoint,
+        FILE_WRITE_ATTRIBUTES,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+        0);
+    if (INVALID_HANDLE_VALUE == DirHandle)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto rmdir_and_exit;
+    }
+
+    VolumeNameLength = (USHORT)lstrlenW(VolumeName);
+    BackslashLength = 0 == VolumeNameLength || L'\\' != VolumeName[VolumeNameLength - 1];
+    VolumeNameLength *= sizeof(WCHAR);
+    BackslashLength *= sizeof(WCHAR);
+
+    ReparseDataLength = (USHORT)(
+        FIELD_OFFSET(REPARSE_DATA_BUFFER, MountPointReparseBuffer.PathBuffer) -
+        FIELD_OFFSET(REPARSE_DATA_BUFFER, MountPointReparseBuffer)) +
+        2 * (VolumeNameLength + BackslashLength + sizeof(WCHAR));
+    ReparseData = MemAlloc(REPARSE_DATA_BUFFER_HEADER_SIZE + ReparseDataLength);
+    if (0 == ReparseData)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto rmdir_and_exit;
+    }
+
+    ReparseData->ReparseTag = IO_REPARSE_TAG_MOUNT_POINT;
+    ReparseData->ReparseDataLength = ReparseDataLength;
+    ReparseData->Reserved = 0;
+    ReparseData->MountPointReparseBuffer.SubstituteNameOffset = 0;
+    ReparseData->MountPointReparseBuffer.SubstituteNameLength =
+        VolumeNameLength + BackslashLength;
+    ReparseData->MountPointReparseBuffer.PrintNameOffset =
+        ReparseData->MountPointReparseBuffer.SubstituteNameLength + sizeof(WCHAR);
+    ReparseData->MountPointReparseBuffer.PrintNameLength =
+        VolumeNameLength + BackslashLength;
+
+    PathBuffer = ReparseData->MountPointReparseBuffer.PathBuffer;
+    memcpy(PathBuffer, VolumeName, VolumeNameLength);
+    if (BackslashLength)
+        PathBuffer[VolumeNameLength / sizeof(WCHAR)] = L'\\';
+    PathBuffer[(VolumeNameLength + BackslashLength) / sizeof(WCHAR)] = L'\0';
+
+    PathBuffer = ReparseData->MountPointReparseBuffer.PathBuffer +
+        (ReparseData->MountPointReparseBuffer.PrintNameOffset) / sizeof(WCHAR);
+    memcpy(PathBuffer, VolumeName, VolumeNameLength);
+    if (BackslashLength)
+        PathBuffer[VolumeNameLength / sizeof(WCHAR)] = L'\\';
+    PathBuffer[(VolumeNameLength + BackslashLength) / sizeof(WCHAR)] = L'\0';
+
+    Success = DeviceIoControl(DirHandle, FSCTL_SET_REPARSE_POINT,
+        ReparseData, REPARSE_DATA_BUFFER_HEADER_SIZE + ReparseData->ReparseDataLength,
+        0, 0,
+        &Bytes, 0);
+    CloseHandle(DirHandle);
+    if (!Success)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto rmdir_and_exit;
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    MemFree(ReparseData);
+    return Result;
+
+rmdir_and_exit:
+    RemoveDirectoryW(MountPoint);
+    goto exit;
+}
+
+static NTSTATUS FspFileSystemSetMountPoint_MakeTemporary(PWSTR MountPoint, PHANDLE PMountHandle)
+{
+    NTSTATUS Result = STATUS_SUCCESS;
+    HANDLE MountHandle = 0;
+
+    if (FspPathIsDrive(MountPoint))
+    {
+        if (0 != FspNtOpenSymbolicLinkObject)
+        {
+            WCHAR SymlinkBuf[6];
+            UNICODE_STRING Symlink;
+            OBJECT_ATTRIBUTES Obja;
+
+            memcpy(SymlinkBuf, L"\\??\\X:", sizeof SymlinkBuf);
+            SymlinkBuf[4] = MountPoint[0];
+            Symlink.Length = Symlink.MaximumLength = sizeof SymlinkBuf;
+            Symlink.Buffer = SymlinkBuf;
+
+            memset(&Obja, 0, sizeof Obja);
+            Obja.Length = sizeof Obja;
+            Obja.ObjectName = &Symlink;
+            Obja.Attributes = OBJ_CASE_INSENSITIVE;
+
+            Result = FspNtOpenSymbolicLinkObject(&MountHandle, DELETE, &Obja);
+            if (NT_SUCCESS(Result))
+            {
+                Result = FspNtMakeTemporaryObject(MountHandle);
+                if (!NT_SUCCESS(Result))
+                {
+                    FspNtClose(MountHandle);
+                    MountHandle = 0;
+                }
+            }
+        }
+    }
+    else
+    {
+        /* open the directory for DELETE_ON_CLOSE; closing it will remove the directory */
+        MountHandle = CreateFileW(MountPoint,
+            FILE_READ_ATTRIBUTES,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            0,
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_DELETE_ON_CLOSE,
+            0);
+        if (INVALID_HANDLE_VALUE == MountHandle)
+        {
+            MountHandle = 0;
+            Result = FspNtStatusFromWin32(GetLastError());
+        }
+    }
+
+    *PMountHandle = MountHandle;
+
+    return Result;
+}
+
 FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint)
 {
     if (0 != FileSystem->MountPoint)
@@ -163,9 +311,7 @@ FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR M
         PWSTR P;
         ULONG L;
 
-        for (P = MountPoint; *P; P++)
-            ;
-        L = (ULONG)((P - MountPoint + 1) * sizeof(WCHAR));
+        L = (ULONG)((lstrlenW(MountPoint) + 1) * sizeof(WCHAR));
 
         P = MemAlloc(L);
         if (0 == P)
@@ -173,46 +319,23 @@ FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR M
         memcpy(P, MountPoint, L);
         MountPoint = P;
 
-        if (DefineDosDeviceW(DDD_RAW_TARGET_PATH, MountPoint, FileSystem->VolumeName))
-            Result = STATUS_SUCCESS;
+        if (FspPathIsDrive(MountPoint))
+        {
+            if (DefineDosDeviceW(DDD_RAW_TARGET_PATH, MountPoint, FileSystem->VolumeName))
+                Result = STATUS_SUCCESS;
+            else
+                Result = FspNtStatusFromWin32(GetLastError());
+        }
         else
-            Result = FspNtStatusFromWin32(GetLastError());
+            Result = FspFileSystemSetMountPoint_CreateDirectory(MountPoint, FileSystem->VolumeName);
     }
 
 exit:
-    if (NT_SUCCESS(Result) && 0 != FspNtOpenSymbolicLinkObject)
-    {
-        WCHAR SymlinkBuf[6];
-        UNICODE_STRING Symlink;
-        OBJECT_ATTRIBUTES Obja;
-
-        memcpy(SymlinkBuf, L"\\??\\X:", sizeof SymlinkBuf);
-        SymlinkBuf[4] = MountPoint[0];
-        Symlink.Length = Symlink.MaximumLength = sizeof SymlinkBuf;
-        Symlink.Buffer = SymlinkBuf;
-
-        memset(&Obja, 0, sizeof Obja);
-        Obja.Length = sizeof Obja;
-        Obja.ObjectName = &Symlink;
-        Obja.Attributes = OBJ_CASE_INSENSITIVE;
-
-        Result = FspNtOpenSymbolicLinkObject(&MountHandle, DELETE, &Obja);
-        if (NT_SUCCESS(Result))
-        {
-            Result = FspNtMakeTemporaryObject(MountHandle);
-            if (!NT_SUCCESS(Result))
-            {
-                FspNtClose(MountHandle);
-                MountHandle = 0;
-            }
-        }
-
-        /* this path always considered successful regardless if we made symlink temporary */
-        Result = STATUS_SUCCESS;
-    }
-
     if (NT_SUCCESS(Result))
     {
+        FspFileSystemSetMountPoint_MakeTemporary(MountPoint, &MountHandle);
+            /* ignore result; this path always considered successful */
+
         FileSystem->MountPoint = MountPoint;
         FileSystem->MountHandle = MountHandle;
     }
@@ -224,17 +347,29 @@ exit:
 
 FSP_API VOID FspFileSystemRemoveMountPoint(FSP_FILE_SYSTEM *FileSystem)
 {
+    BOOLEAN IsDrive;
+
     if (0 == FileSystem->MountPoint)
         return;
 
-    DefineDosDeviceW(DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
-        FileSystem->MountPoint, FileSystem->VolumeName);
+    IsDrive = FspPathIsDrive(FileSystem->MountPoint);
+    if (IsDrive)
+        DefineDosDeviceW(DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
+            FileSystem->MountPoint, FileSystem->VolumeName);
+    else
+        /* nothing to do! directory will be deleted when the MountHandle is closed */;
+
     MemFree(FileSystem->MountPoint);
     FileSystem->MountPoint = 0;
 
     if (0 != FileSystem->MountHandle)
     {
-        FspNtClose(FileSystem->MountHandle);
+        if (IsDrive)
+            FspNtClose(FileSystem->MountHandle);
+        else
+            /* CloseHandle really calls NtClose, but I like being defensive when programming */
+            CloseHandle(FileSystem->MountHandle);
+
         FileSystem->MountHandle = 0;
     }
 }
