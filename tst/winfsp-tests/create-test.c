@@ -368,6 +368,115 @@ void create_sd_test(void)
         create_sd_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+void create_notraverse_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    static PWSTR Sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGWSD;;;WD)";
+    PSECURITY_DESCRIPTOR SecurityDescriptor;
+    SECURITY_ATTRIBUTES SecurityAttributes = { 0 };
+    LUID Luid;
+    TOKEN_PRIVILEGES Privileges;
+    HANDLE Handle, Token;
+    BOOLEAN Success;
+    WCHAR FilePath[MAX_PATH];
+
+    Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(Sddl, SDDL_REVISION_1, &SecurityDescriptor, 0);
+    ASSERT(Success);
+
+    SecurityAttributes.nLength = sizeof SecurityAttributes;
+    SecurityAttributes.lpSecurityDescriptor = SecurityDescriptor;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectory(FilePath, &SecurityAttributes);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\dir2",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectory(FilePath, &SecurityAttributes);
+    ASSERT(Success);
+
+    Success = LookupPrivilegeValue(0, SE_CHANGE_NOTIFY_NAME, &Luid);
+    ASSERT(Success);
+    Success = OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &Token);
+    ASSERT(Success);
+    Privileges.PrivilegeCount = 1;
+    Privileges.Privileges[0].Attributes = 0;
+    Privileges.Privileges[0].Luid = Luid;
+    Success = AdjustTokenPrivileges(Token, FALSE, &Privileges, 0, 0, 0);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\dir2\\dir3",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectory(FilePath, &SecurityAttributes);
+    ASSERT(!Success);
+    ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+    Privileges.PrivilegeCount = 1;
+    Privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    Privileges.Privileges[0].Luid = Luid;
+    Success = AdjustTokenPrivileges(Token, FALSE, &Privileges, 0, 0, 0);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\dir2\\dir3",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectory(FilePath, &SecurityAttributes);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\dir2\\dir3",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        DELETE, 0, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\dir2",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        DELETE, 0, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        DELETE, 0, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    LocalFree(SecurityDescriptor);
+
+    memfs_stop(memfs);
+}
+
+void create_notraverse_test(void)
+{
+    if (OptNoTraverseToken)
+        return; /* this test needs traverse access privilege in order to work */
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        create_notraverse_dotest(-1, DirBuf);
+    }
+    if (WinFspDiskTests)
+        create_notraverse_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        create_notraverse_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
 void create_share_dotest(ULONG Flags, PWSTR Prefix)
 {
     void *memfs = memfs_start(Flags);
@@ -484,6 +593,7 @@ void create_tests(void)
     TEST(create_test);
     TEST(create_related_test);
     TEST(create_sd_test);
+    TEST(create_notraverse_test);
     TEST(create_share_test);
     TEST(create_curdir_test);
 }
