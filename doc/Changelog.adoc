@@ -1,6 +1,15 @@
 = Changelog
 
 
+v1.0RC1::
+
+This is the first Release Candidate. It has been tested for robustness and correct file system semantics in a variety of scenarios. Some of the more important changes:
+
+- Directories are now supported as mount points.
+- Case insensitive file systems are now fully supported and tested.
+- Access checks are performed correctly in the absense of the traverse privilege.
+
+
 v0.17::
 
 This release brings support for named streams.
