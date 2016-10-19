@@ -1189,7 +1189,6 @@ static NTSTATUS FspFsvolSetRenameInformation(
      * -   A directory cannot be renamed if it or any of its subdirectories contains a file
      *     that has open handles (except in the batch-oplock case described earlier).
      */
-
     Result = STATUS_SUCCESS;
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
     if (1 < FileNode->HandleCount ||
@@ -1200,6 +1199,17 @@ static NTSTATUS FspFsvolSetRenameInformation(
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
     if (!NT_SUCCESS(Result))
         return Result;
+
+    /*
+     * If the new file name is *exactly* the same (including case) as the old one,
+     * there is no need to go to the user mode file system. Just return STATUS_SUCCESS.
+     * Our RequestFini will do any cleanup necessary.
+     *
+     * This check needs to be done *after* the open handle test above. This is what FASTFAT
+     * and NTFS do.
+     */
+    if (0 == FspFileNameCompare(&FileNode->FileName, &NewFileName, FALSE, 0))
+        return STATUS_SUCCESS;
 
     return FSP_STATUS_IOQ_POST;
 

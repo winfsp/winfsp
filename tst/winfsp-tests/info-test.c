@@ -568,6 +568,9 @@ static void rename_caseins_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeo
     Success = CreateDirectoryW(Dir1Path, 0);
     ASSERT(Success);
 
+    Success = MoveFileExW(Dir1Path, Dir1Path, 0);
+    ASSERT(Success);
+
     Success = MoveFileExW(Dir1Path, Dir2Path, 0);
     ASSERT(Success);
 
@@ -579,6 +582,9 @@ static void rename_caseins_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeo
         CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
     CloseHandle(Handle);
+
+    Success = MoveFileExW(File1Path, File1Path, 0);
+    ASSERT(Success);
 
     Success = MoveFileExW(File1Path, File2Path, 0);
     ASSERT(Success);
