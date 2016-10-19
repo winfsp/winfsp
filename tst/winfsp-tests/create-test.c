@@ -372,7 +372,7 @@ void create_notraverse_dotest(ULONG Flags, PWSTR Prefix)
 {
     void *memfs = memfs_start(Flags);
 
-    static PWSTR Sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGWSD;;;WD)";
+    static PWSTR Sddl = L"D:P(A;;GRGWSD;;;WD)";
     PSECURITY_DESCRIPTOR SecurityDescriptor;
     SECURITY_ATTRIBUTES SecurityAttributes = { 0 };
     LUID Luid;
