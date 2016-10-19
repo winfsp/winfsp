@@ -208,7 +208,7 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
         ASSERT(0 == Request->Req.Create.Ea.Offset);
         ASSERT(0 == Request->Req.Create.Ea.Size);
         ASSERT(Request->Req.Create.UserMode);
-        ASSERT(Request->Req.Create.HasTraversePrivilege);
+        ASSERT(!OptNoTraverseToken == Request->Req.Create.HasTraversePrivilege);
         ASSERT(!Request->Req.Create.OpenTargetDirectory);
         ASSERT(!Request->Req.Create.CaseSensitive);
         ASSERT(0 == Request->FileName.Offset);

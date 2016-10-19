@@ -84,6 +84,9 @@ if errorlevel 1 goto fail
 echo winfsp-tests-x64 --mountpoint=mymnt
 winfsp-tests-x64 --mountpoint=mymnt
 if errorlevel 1 goto fail
+echo winfsp-tests-x64 --no-traverse
+winfsp-tests-x64 --no-traverse
+if errorlevel 1 goto fail
 exit /b 0
 
 :winfsp-tests-x86
@@ -98,6 +101,9 @@ winfsp-tests-x86 --mountpoint=X:
 if errorlevel 1 goto fail
 echo winfsp-tests-x86 --mountpoint=mymnt
 winfsp-tests-x86 --mountpoint=mymnt
+if errorlevel 1 goto fail
+echo winfsp-tests-x86 --no-traverse
+winfsp-tests-x86 --no-traverse
 if errorlevel 1 goto fail
 exit /b 0
 

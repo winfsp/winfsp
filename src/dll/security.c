@@ -116,17 +116,23 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     }
 
     if (Request->Req.Create.UserMode &&
-        AllowTraverseCheck && !Request->Req.Create.HasTraversePrivilege)
+        AllowTraverseCheck && !Request->Req.Create.HasTraversePrivilege &&
+        !(L'\\' == FileName[0] && L'\0' == FileName[1])/* no need to traverse check for root */)
     {
-        Remain = (PWSTR)FileName;
+        DEBUGLOG("TraverseCheck: Full=\"%S\"", FileName);
+        Remain = FileName;
         for (;;)
         {
-            FspPathPrefix(Remain, &Prefix, &Remain, TraverseCheckRoot);
-            if (L'\0' == Remain[0])
+            while (L'\\' != *Remain)
             {
-                FspPathCombine(FileName, Remain);
-                break;
+                if (L'\0' == *Remain || L':' == *Remain)
+                    goto traverse_check_done;
+                Remain++;
             }
+
+            *Remain = L'\0';
+            Prefix = Remain > FileName ? FileName : TraverseCheckRoot;
+            DEBUGLOG("TraverseCheck: Part=\"%S\"", Prefix);
 
             FileAttributes = 0;
             Result = FspGetSecurityByName(FileSystem, Prefix, &FileAttributes,
@@ -137,7 +143,11 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
                 (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
                 FileAttributes = FspPathSuffixIndex(Prefix);
 
-            FspPathCombine(FileName, Remain);
+            *Remain = L'\\';
+            do
+            {
+                Remain++;
+            } while (L'\\' == *Remain);
 
             if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
             {
@@ -187,6 +197,8 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
                     goto exit;
             }
         }
+    traverse_check_done:
+        ;
     }
 
     FileAttributes = 0;

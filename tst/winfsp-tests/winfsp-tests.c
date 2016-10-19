@@ -10,6 +10,8 @@ int WinFspNetTests = 1;
 BOOLEAN OptCaseInsensitive = FALSE;
 BOOLEAN OptCaseRandomize = FALSE;
 WCHAR OptMountPointBuf[MAX_PATH], *OptMountPoint;
+HANDLE OptNoTraverseToken = 0;
+    LUID OptNoTraverseLuid;
 
 int mywcscmp(PWSTR a, int alen, PWSTR b, int blen)
 {
@@ -63,6 +65,7 @@ HANDLE HookCreateFileW(
         L"\\\\memfs\\share";
     static const TogglePercent = 25;
     WCHAR FileNameBuf[1024];
+    TOKEN_PRIVILEGES Privileges;
     PWSTR P, EndP;
     size_t L1, L2;
 
@@ -119,6 +122,15 @@ HANDLE HookCreateFileW(
             abort();
     }
 
+    if (OptNoTraverseToken)
+    {
+        Privileges.PrivilegeCount = 1;
+        Privileges.Privileges[0].Attributes = 0;
+        Privileges.Privileges[0].Luid = OptNoTraverseLuid;
+        if (!AdjustTokenPrivileges(OptNoTraverseToken, FALSE, &Privileges, 0, 0, 0))
+            abort();
+    }
+
     HANDLE h = CreateFileW(
         FileNameBuf,
         dwDesiredAccess,
@@ -127,9 +139,18 @@ HANDLE HookCreateFileW(
         dwCreationDisposition,
         dwFlagsAndAttributes,
         hTemplateFile);
+    DWORD LastError = GetLastError();
+
+    if (OptNoTraverseToken)
+    {
+        Privileges.PrivilegeCount = 1;
+        Privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+        Privileges.Privileges[0].Luid = OptNoTraverseLuid;
+        if (!AdjustTokenPrivileges(OptNoTraverseToken, FALSE, &Privileges, 0, 0, 0))
+            abort();
+    }
 
 #if 0
-    DWORD LastError = GetLastError();
     FspDebugLog("CreateFileW(\"%S\", %#lx, %#lx, %p, %#lx, %#lx, %p) = %p[%#lx]\n",
         FileNameBuf,
         dwDesiredAccess,
@@ -139,9 +160,9 @@ HANDLE HookCreateFileW(
         dwFlagsAndAttributes,
         hTemplateFile,
         h, INVALID_HANDLE_VALUE != h ? 0 : LastError);
-    SetLastError(LastError);
 #endif
 
+    SetLastError(LastError);
     return h;
 }
 
@@ -198,6 +219,14 @@ int main(int argc, char *argv[])
                         L':' == OptMountPoint[1] &&
                         L'\0' == OptMountPoint[2]))
                         WinFspNetTests = 0;
+                }
+            }
+            else if (0 == strcmp("--no-traverse", a))
+            {
+                if (LookupPrivilegeValue(0, SE_CHANGE_NOTIFY_NAME, &OptNoTraverseLuid) &&
+                    OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &OptNoTraverseToken))
+                {
+                    rmarg(argv, argc, argi);
                 }
             }
         }

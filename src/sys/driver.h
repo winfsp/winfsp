@@ -33,8 +33,8 @@
 /* IoCreateDeviceSecure default SDDL's */
 #define FSP_FSCTL_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;WD)"
     /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ */
-#define FSP_FSVRT_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;WD)"
-    /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ */
+#define FSP_FSVRT_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGX;;;WD)"
+    /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ|GENERIC_EXECUTE */
 
 /* private NTSTATUS codes */
 #define FSP_STATUS_PRIVATE_BIT          (0x20000000)

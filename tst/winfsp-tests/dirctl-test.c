@@ -479,12 +479,14 @@ void dirnotify_test(void)
         GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
         dirnotify_dotest(-1, DirBuf, 0, 0);
     }
-    if (WinFspDiskTests)
+    if (WinFspDiskTests && !OptNoTraverseToken
+        /* WinFsp does not support change notifications without traverse privilege*/)
     {
         dirnotify_dotest(MemfsDisk, 0, 0, 0);
         dirnotify_dotest(MemfsDisk, 0, 1000, 0);
     }
-    if (WinFspNetTests)
+    if (WinFspNetTests && !OptNoTraverseToken
+        /* WinFsp does not support change notifications without traverse privilege*/)
     {
         dirnotify_dotest(MemfsNet, L"\\\\memfs\\share", 0, 0);
         dirnotify_dotest(MemfsNet, L"\\\\memfs\\share", 1000, 0);

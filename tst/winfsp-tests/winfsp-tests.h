@@ -24,5 +24,7 @@ extern int WinFspNetTests;
 extern BOOLEAN OptCaseInsensitive;
 extern BOOLEAN OptCaseRandomize;
 extern WCHAR OptMountPointBuf[], *OptMountPoint;
+extern HANDLE OptNoTraverseToken;
+    extern LUID OptNoTraverseLuid;
 
 extern int memfs_running;
