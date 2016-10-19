@@ -3,6 +3,13 @@
 
 #include "winfsp-tests.h"
 
+#define ABORT()\
+    do\
+    {\
+        tlib_printf("ABORT: %s:%s:%d\n", __func__, __FILE__, __LINE__);\
+        abort();\
+    } while (0,0)
+
 int NtfsTests = 0;
 int WinFspDiskTests = 1;
 int WinFspNetTests = 1;
@@ -84,7 +91,7 @@ HANDLE HookCreateFileW(
         else if (testalpha(FileNameBuf[0]) && L':' == FileNameBuf[1] && L'\\' == FileNameBuf[2])
             P = FileNameBuf + 3;
         else
-            abort();
+            ABORT();
 
         for (EndP = P + wcslen(P); EndP > P; P++)
             if (testalpha(*P) && myrand() <= (TogglePercent) * 0x7fff / 100)
@@ -119,7 +126,7 @@ HANDLE HookCreateFileW(
         else if (testalpha(FileNameBuf[0]) && L':' == FileNameBuf[1] && L'\\' == FileNameBuf[2])
             ;
         else
-            abort();
+            ABORT();
     }
 
     if (OptNoTraverseToken)
@@ -128,7 +135,7 @@ HANDLE HookCreateFileW(
         Privileges.Privileges[0].Attributes = 0;
         Privileges.Privileges[0].Luid = OptNoTraverseLuid;
         if (!AdjustTokenPrivileges(OptNoTraverseToken, FALSE, &Privileges, 0, 0, 0))
-            abort();
+            ABORT();
     }
 
     HANDLE h = CreateFileW(
@@ -147,7 +154,7 @@ HANDLE HookCreateFileW(
         Privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
         Privileges.Privileges[0].Luid = OptNoTraverseLuid;
         if (!AdjustTokenPrivileges(OptNoTraverseToken, FALSE, &Privileges, 0, 0, 0))
-            abort();
+            ABORT();
     }
 
 #if 0
