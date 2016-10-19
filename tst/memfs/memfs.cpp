@@ -308,8 +308,8 @@ NTSTATUS MemfsFileNodeMapInsert(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NOD
 static inline
 VOID MemfsFileNodeMapRemove(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode)
 {
-    --FileNode->RefCount;
-    FileNodeMap->erase(FileNode->FileName);
+    if (FileNodeMap->erase(FileNode->FileName))
+        --FileNode->RefCount;
 }
 
 static inline
@@ -959,7 +959,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
 
     NewFileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, NewFileName);
-    if (0 != NewFileNode)
+    if (0 != NewFileNode && FileNode != NewFileNode)
     {
         if (!ReplaceIfExists)
         {

@@ -542,6 +542,73 @@ void rename_test(void)
     }
 }
 
+static void rename_caseins_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR Dir1Path[MAX_PATH];
+    WCHAR Dir2Path[MAX_PATH];
+    WCHAR File1Path[MAX_PATH];
+    WCHAR File2Path[MAX_PATH];
+
+    StringCbPrintfW(Dir1Path, sizeof Dir1Path, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(Dir2Path, sizeof Dir2Path, L"%s%s\\DIR1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File1Path, sizeof File1Path, L"%s%s\\file1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File2Path, sizeof File2Path, L"%s%s\\FILE1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(Dir1Path, 0);
+    ASSERT(Success);
+
+    Success = MoveFileExW(Dir1Path, Dir2Path, 0);
+    ASSERT(Success);
+
+    Success = RemoveDirectoryW(Dir2Path);
+    ASSERT(Success);
+
+    Handle = CreateFileW(File1Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Success = MoveFileExW(File1Path, File2Path, 0);
+    ASSERT(Success);
+
+    Success = DeleteFileW(File2Path);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+void rename_caseins_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        rename_caseins_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        rename_caseins_dotest(MemfsDisk, 0, 0);
+        rename_caseins_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        rename_caseins_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        rename_caseins_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 static void rename_flipflop_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG NumMappings)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -834,6 +901,7 @@ void info_tests(void)
     TEST(delete_test);
     TEST(delete_access_test);
     TEST(rename_test);
+    TEST(rename_caseins_test);
     TEST(rename_flipflop_test);
     TEST(getvolinfo_test);
     TEST(setvolinfo_test);
