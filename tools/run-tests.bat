@@ -74,79 +74,79 @@ exit /b 1
 :winfsp-tests-x64
 echo winfsp-tests-x64
 winfsp-tests-x64
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 echo winfsp-tests-x64 --case-randomize
 winfsp-tests-x64 --case-randomize
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 echo winfsp-tests-x64 --mountpoint=X:
 winfsp-tests-x64 --mountpoint=X:
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 echo winfsp-tests-x64 --mountpoint=mymnt
 winfsp-tests-x64 --mountpoint=mymnt
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 echo winfsp-tests-x64 --no-traverse
 winfsp-tests-x64 --no-traverse
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86
 echo winfsp-tests-x86
 winfsp-tests-x86
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 echo winfsp-tests-x86 --case-randomize
 winfsp-tests-x86 --case-randomize
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 echo winfsp-tests-x86 --mountpoint=X:
 winfsp-tests-x86 --mountpoint=X:
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 echo winfsp-tests-x86 --mountpoint=mymnt
 winfsp-tests-x86 --mountpoint=mymnt
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 echo winfsp-tests-x86 --no-traverse
 winfsp-tests-x86 --no-traverse
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :fsx-memfs-x64
 M:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 N:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :fsx-memfs-x86
 O:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 P:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfstest-memfs-x64
 M:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 N:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfstest-memfs-x86
 O:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 P:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
-if errorlevel 1 goto fail
+if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
