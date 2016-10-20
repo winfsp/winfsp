@@ -691,7 +691,6 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointByName(
     PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize);
 
 static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
     struct fuse *f = FileSystem->UserContext;
@@ -715,7 +714,6 @@ static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS fsp_fuse_intf_SetVolumeLabel(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PWSTR VolumeLabel,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
@@ -758,8 +756,7 @@ exit:
 }
 
 static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    PWSTR FileName, BOOLEAN CaseSensitive, UINT32 CreateOptions,
+    PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
     UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
     PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
@@ -914,8 +911,7 @@ exit:
 }
 
 static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    PWSTR FileName, BOOLEAN CaseSensitive, UINT32 CreateOptions,
+    PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
     PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
@@ -941,7 +937,7 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     }
 
     memset(&fi, 0, sizeof fi);
-    switch (Request->Req.Create.DesiredAccess & (FILE_READ_DATA | FILE_WRITE_DATA))
+    switch (GrantedAccess & (FILE_READ_DATA | FILE_WRITE_DATA))
     {
     default:
     case FILE_READ_DATA:
@@ -1017,7 +1013,6 @@ exit:
 }
 
 static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
@@ -1055,7 +1050,6 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode, PWSTR FileName, BOOLEAN Delete)
 {
     struct fuse *f = FileSystem->UserContext;
@@ -1092,7 +1086,6 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode)
 {
     struct fuse *f = FileSystem->UserContext;
@@ -1126,7 +1119,6 @@ static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS fsp_fuse_intf_Read(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
     PULONG PBytesTransferred)
 {
@@ -1161,7 +1153,6 @@ static NTSTATUS fsp_fuse_intf_Read(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
     BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
     PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
@@ -1224,7 +1215,6 @@ success:
 }
 
 static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode)
 {
     struct fuse *f = FileSystem->UserContext;
@@ -1264,7 +1254,6 @@ static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
@@ -1282,7 +1271,6 @@ static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode, UINT32 FileAttributes,
     UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
     FSP_FSCTL_FILE_INFO *FileInfo)
@@ -1361,7 +1349,6 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode, UINT64 NewSize, BOOLEAN SetAllocationSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
@@ -1445,7 +1432,6 @@ static int fsp_fuse_intf_CanDeleteAddDirInfoOld(fuse_dirh_t dh, const char *name
 }
 
 static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode, PWSTR FileName)
 {
     struct fuse *f = FileSystem->UserContext;
@@ -1479,7 +1465,6 @@ static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode,
     PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
 {
@@ -1513,7 +1498,6 @@ static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS fsp_fuse_intf_GetSecurity(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode,
     PSECURITY_DESCRIPTOR SecurityDescriptorBuf, SIZE_T *PSecurityDescriptorSize)
 {
@@ -1531,9 +1515,9 @@ static NTSTATUS fsp_fuse_intf_GetSecurity(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS fsp_fuse_intf_SetSecurity(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode,
-    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR Ignored)
+    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor,
+    HANDLE AccessToken)
 {
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc = FileNode;
@@ -1560,7 +1544,11 @@ static NTSTATUS fsp_fuse_intf_SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Result = FspSetSecurityDescriptor(FileSystem, Request, SecurityDescriptor,
+    Result = FspSetSecurityDescriptor(
+        SecurityDescriptor,
+        SecurityInformation,
+        ModificationDescriptor,
+        AccessToken,
         &NewSecurityDescriptor);
     if (!NT_SUCCESS(Result))
         goto exit;
@@ -1663,7 +1651,6 @@ int fsp_fuse_intf_AddDirInfoOld(fuse_dirh_t dh, const char *name,
 }
 
 static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
     PWSTR Pattern,
     PULONG PBytesTransferred)
@@ -1871,7 +1858,6 @@ exit:
 }
 
 static NTSTATUS fsp_fuse_intf_GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode,
     PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
 {
@@ -1886,7 +1872,6 @@ static NTSTATUS fsp_fuse_intf_GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode,
     PWSTR FileName, PVOID Buffer, SIZE_T Size)
 {
@@ -1971,6 +1956,8 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
             if (0 == (ReparseData->SymbolicLinkReparseBuffer.Flags & SYMLINK_FLAG_RELATIVE) &&
                 ReparseTargetPathLength >= sizeof(WCHAR) && L'\\' == ReparseTargetPath[0])
             {
+                FSP_FSCTL_TRANSACT_REQ *Request = FspFileSystemGetOperationContext()->Request;
+
                 /* we do not support absolute paths that point outside this file system */
                 if (0 == Request->Req.FileSystemControl.TargetOnFileSystem)
                     return STATUS_ACCESS_DENIED;
@@ -2081,7 +2068,6 @@ exit:
 }
 
 static NTSTATUS fsp_fuse_intf_DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode,
     PWSTR FileName, PVOID Buffer, SIZE_T Size)
 {

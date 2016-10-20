@@ -25,6 +25,7 @@ enum
 static FSP_FILE_SYSTEM_INTERFACE FspFileSystemNullInterface;
 
 static INIT_ONCE FspFileSystemInitOnce = INIT_ONCE_STATIC_INIT;
+static DWORD FspFileSystemTlsKey = TLS_OUT_OF_INDEXES;
 static NTSTATUS (NTAPI *FspNtOpenSymbolicLinkObject)(
     PHANDLE LinkHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes);
 static NTSTATUS (NTAPI *FspNtMakeTemporaryObject)(
@@ -36,6 +37,8 @@ static BOOL WINAPI FspFileSystemInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
     HANDLE Handle;
+
+    FspFileSystemTlsKey = TlsAlloc();
 
     Handle = GetModuleHandleW(L"ntdll.dll");
     if (0 != Handle)
@@ -55,6 +58,20 @@ static BOOL WINAPI FspFileSystemInitialize(
     return TRUE;
 }
 
+VOID FspFileSystemFinalize(BOOLEAN Dynamic)
+{
+    /*
+     * This function is called during DLL_PROCESS_DETACH. We must therefore keep
+     * finalization tasks to a minimum.
+     *
+     * We must free our TLS key (if any). We only do so if the library
+     * is being explicitly unloaded (rather than the process exiting).
+     */
+
+    if (Dynamic && TLS_OUT_OF_INDEXES != FspFileSystemTlsKey)
+        TlsFree(FspFileSystemTlsKey);
+}
+
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
     const FSP_FILE_SYSTEM_INTERFACE *Interface,
@@ -69,6 +86,8 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
         Interface = &FspFileSystemNullInterface;
 
     InitOnceExecuteOnce(&FspFileSystemInitOnce, FspFileSystemInitialize, 0, 0);
+    if (TLS_OUT_OF_INDEXES == FspFileSystemTlsKey)
+        return STATUS_INSUFFICIENT_RESOURCES;
 
     FileSystem = MemAlloc(sizeof *FileSystem);
     if (0 == FileSystem)
@@ -395,6 +414,7 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
     SIZE_T RequestSize, ResponseSize;
     FSP_FSCTL_TRANSACT_REQ *Request = 0;
     FSP_FSCTL_TRANSACT_RSP *Response = 0;
+    FSP_FILE_SYSTEM_OPERATION_CONTEXT OperationContext;
     HANDLE DispatcherThread = 0;
 
     Request = MemAlloc(FSP_FSCTL_TRANSACT_BUFFER_SIZEMIN);
@@ -415,6 +435,10 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
             goto exit;
         }
     }
+
+    OperationContext.Request = Request;
+    OperationContext.Response = Response;
+    TlsSetValue(FspFileSystemTlsKey, &OperationContext);
 
     memset(Response, 0, sizeof *Response);
     for (;;)
@@ -479,6 +503,7 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
     }
 
 exit:
+    TlsSetValue(FspFileSystemTlsKey, 0);
     MemFree(Response);
     MemFree(Request);
 
@@ -555,4 +580,9 @@ FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
 
         FspFsctlStop(FileSystem->VolumeHandle);
     }
+}
+
+FSP_API FSP_FILE_SYSTEM_OPERATION_CONTEXT *FspFileSystemGetOperationContext(VOID)
+{
+    return (FSP_FILE_SYSTEM_OPERATION_CONTEXT *)TlsGetValue(FspFileSystemTlsKey);
 }

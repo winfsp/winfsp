@@ -369,8 +369,8 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
     OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
     OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
-    Result = FileSystem->Interface->Create(FileSystem, Request,
-        (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+    Result = FileSystem->Interface->Create(FileSystem,
+        (PWSTR)Request->Buffer, Request->Req.Create.CreateOptions, GrantedAccess,
         Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
         &FileNode, &OpenFileInfo.FileInfo);
     FspDeleteSecurityDescriptor(ObjectDescriptor, FspCreateSecurityDescriptor);
@@ -408,8 +408,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
     OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
     OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
-    Result = FileSystem->Interface->Open(FileSystem, Request,
-        (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+    Result = FileSystem->Interface->Open(FileSystem,
+        (PWSTR)Request->Buffer, Request->Req.Create.CreateOptions, GrantedAccess,
         &FileNode, &OpenFileInfo.FileInfo);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -453,8 +453,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
         OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
         OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
-        Result = FileSystem->Interface->Open(FileSystem, Request,
-            (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+        Result = FileSystem->Interface->Open(FileSystem,
+            (PWSTR)Request->Buffer, Request->Req.Create.CreateOptions, GrantedAccess,
             &FileNode, &OpenFileInfo.FileInfo);
         if (!NT_SUCCESS(Result))
         {
@@ -480,8 +480,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
         OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
         OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
-        Result = FileSystem->Interface->Create(FileSystem, Request,
-            (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+        Result = FileSystem->Interface->Create(FileSystem,
+            (PWSTR)Request->Buffer, Request->Req.Create.CreateOptions, GrantedAccess,
             Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
             &FileNode, &OpenFileInfo.FileInfo);
         FspDeleteSecurityDescriptor(ObjectDescriptor, FspCreateSecurityDescriptor);
@@ -521,8 +521,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
     OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
     OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
-    Result = FileSystem->Interface->Open(FileSystem, Request,
-        (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+    Result = FileSystem->Interface->Open(FileSystem,
+        (PWSTR)Request->Buffer, Request->Req.Create.CreateOptions, GrantedAccess,
         &FileNode, &OpenFileInfo.FileInfo);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -566,8 +566,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
         memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
         OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
         OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
-        Result = FileSystem->Interface->Open(FileSystem, Request,
-            (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+        Result = FileSystem->Interface->Open(FileSystem,
+            (PWSTR)Request->Buffer, Request->Req.Create.CreateOptions, GrantedAccess,
             &FileNode, &OpenFileInfo.FileInfo);
         if (!NT_SUCCESS(Result))
         {
@@ -593,8 +593,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
         memset(&OpenFileInfo, 0, sizeof OpenFileInfo);
         OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
         OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
-        Result = FileSystem->Interface->Create(FileSystem, Request,
-            (PWSTR)Request->Buffer, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+        Result = FileSystem->Interface->Create(FileSystem,
+            (PWSTR)Request->Buffer, Request->Req.Create.CreateOptions, GrantedAccess,
             Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
             &FileNode, &OpenFileInfo.FileInfo);
         FspDeleteSecurityDescriptor(ObjectDescriptor, FspCreateSecurityDescriptor);
@@ -637,8 +637,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
     OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
     FspPathSuffix((PWSTR)Request->Buffer, &Parent, &Suffix, Root);
-    Result = FileSystem->Interface->Open(FileSystem, Request,
-        Parent, Request->Req.Create.CaseSensitive, Request->Req.Create.CreateOptions,
+    Result = FileSystem->Interface->Open(FileSystem,
+        Parent, Request->Req.Create.CreateOptions, GrantedAccess,
         &FileNode, &OpenFileInfo.FileInfo);
     FspPathCombine((PWSTR)Request->Buffer, Suffix);
     if (!NT_SUCCESS(Result))
@@ -806,7 +806,7 @@ FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_INVALID_DEVICE_REQUEST;
 
     memset(&FileInfo, 0, sizeof FileInfo);
-    Result = FileSystem->Interface->Overwrite(FileSystem, Request,
+    Result = FileSystem->Interface->Overwrite(FileSystem,
         (PVOID)USERCONTEXT(Request->Req.Overwrite),
         Request->Req.Overwrite.FileAttributes,
         Request->Req.Overwrite.Supersede,
@@ -814,7 +814,7 @@ FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
     {
         if (0 != FileSystem->Interface->Close)
-            FileSystem->Interface->Close(FileSystem, Request,
+            FileSystem->Interface->Close(FileSystem,
                 (PVOID)USERCONTEXT(Request->Req.Overwrite));
         return Result;
     }
@@ -827,7 +827,7 @@ FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     if (0 != FileSystem->Interface->Cleanup)
-        FileSystem->Interface->Cleanup(FileSystem, Request,
+        FileSystem->Interface->Cleanup(FileSystem,
             (PVOID)USERCONTEXT(Request->Req.Cleanup),
             0 != Request->FileName.Size ? (PWSTR)Request->Buffer : 0,
             0 != Request->Req.Cleanup.Delete);
@@ -839,7 +839,7 @@ FSP_API NTSTATUS FspFileSystemOpClose(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     if (0 != FileSystem->Interface->Close)
-        FileSystem->Interface->Close(FileSystem, Request,
+        FileSystem->Interface->Close(FileSystem,
             (PVOID)USERCONTEXT(Request->Req.Close));
 
     return STATUS_SUCCESS;
@@ -855,7 +855,7 @@ FSP_API NTSTATUS FspFileSystemOpRead(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_INVALID_DEVICE_REQUEST;
 
     BytesTransferred = 0;
-    Result = FileSystem->Interface->Read(FileSystem, Request,
+    Result = FileSystem->Interface->Read(FileSystem,
         (PVOID)USERCONTEXT(Request->Req.Read),
         (PVOID)Request->Req.Read.Address,
         Request->Req.Read.Offset,
@@ -881,7 +881,7 @@ FSP_API NTSTATUS FspFileSystemOpWrite(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_INVALID_DEVICE_REQUEST;
 
     BytesTransferred = 0;
-    Result = FileSystem->Interface->Write(FileSystem, Request,
+    Result = FileSystem->Interface->Write(FileSystem,
         (PVOID)USERCONTEXT(Request->Req.Write),
         (PVOID)Request->Req.Write.Address,
         Request->Req.Write.Offset,
@@ -908,7 +908,7 @@ FSP_API NTSTATUS FspFileSystemOpFlushBuffers(FSP_FILE_SYSTEM *FileSystem,
     if (0 == FileSystem->Interface->Flush)
         return STATUS_SUCCESS; /* liar! */
 
-    return FileSystem->Interface->Flush(FileSystem, Request,
+    return FileSystem->Interface->Flush(FileSystem,
         (PVOID)USERCONTEXT(Request->Req.FlushBuffers));
 }
 
@@ -922,7 +922,7 @@ FSP_API NTSTATUS FspFileSystemOpQueryInformation(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_INVALID_DEVICE_REQUEST;
 
     memset(&FileInfo, 0, sizeof FileInfo);
-    Result = FileSystem->Interface->GetFileInfo(FileSystem, Request,
+    Result = FileSystem->Interface->GetFileInfo(FileSystem,
         (PVOID)USERCONTEXT(Request->Req.QueryInformation), &FileInfo);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -943,7 +943,7 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
     {
     case 4/*FileBasicInformation*/:
         if (0 != FileSystem->Interface->SetBasicInfo)
-            Result = FileSystem->Interface->SetBasicInfo(FileSystem, Request,
+            Result = FileSystem->Interface->SetBasicInfo(FileSystem,
                 (PVOID)USERCONTEXT(Request->Req.SetInformation),
                 Request->Req.SetInformation.Info.Basic.FileAttributes,
                 Request->Req.SetInformation.Info.Basic.CreationTime,
@@ -953,14 +953,14 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
         break;
     case 19/*FileAllocationInformation*/:
         if (0 != FileSystem->Interface->SetFileSize)
-            Result = FileSystem->Interface->SetFileSize(FileSystem, Request,
+            Result = FileSystem->Interface->SetFileSize(FileSystem,
                 (PVOID)USERCONTEXT(Request->Req.SetInformation),
                 Request->Req.SetInformation.Info.Allocation.AllocationSize, TRUE,
                 &FileInfo);
         break;
     case 20/*FileEndOfFileInformation*/:
         if (0 != FileSystem->Interface->SetFileSize)
-            Result = FileSystem->Interface->SetFileSize(FileSystem, Request,
+            Result = FileSystem->Interface->SetFileSize(FileSystem,
                 (PVOID)USERCONTEXT(Request->Req.SetInformation),
                 Request->Req.SetInformation.Info.EndOfFile.FileSize, FALSE,
                 &FileInfo);
@@ -968,7 +968,7 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
     case 13/*FileDispositionInformation*/:
         if (0 != FileSystem->Interface->GetFileInfo)
         {
-            Result = FileSystem->Interface->GetFileInfo(FileSystem, Request,
+            Result = FileSystem->Interface->GetFileInfo(FileSystem,
                 (PVOID)USERCONTEXT(Request->Req.SetInformation), &FileInfo);
             if (NT_SUCCESS(Result) && 0 != (FileInfo.FileAttributes & FILE_ATTRIBUTE_READONLY))
             {
@@ -978,7 +978,7 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
         }
         if (0 != FileSystem->Interface->CanDelete)
             if (Request->Req.SetInformation.Info.Disposition.Delete)
-                Result = FileSystem->Interface->CanDelete(FileSystem, Request,
+                Result = FileSystem->Interface->CanDelete(FileSystem,
                     (PVOID)USERCONTEXT(Request->Req.SetInformation),
                     (PWSTR)Request->Buffer);
             else
@@ -995,7 +995,7 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
                     STATUS_OBJECT_NAME_NOT_FOUND != Result)
                     break;
             }
-            Result = FileSystem->Interface->Rename(FileSystem, Request,
+            Result = FileSystem->Interface->Rename(FileSystem,
                 (PVOID)USERCONTEXT(Request->Req.SetInformation),
                 (PWSTR)Request->Buffer,
                 (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset),
@@ -1021,7 +1021,7 @@ FSP_API NTSTATUS FspFileSystemOpQueryVolumeInformation(FSP_FILE_SYSTEM *FileSyst
         return STATUS_INVALID_DEVICE_REQUEST;
 
     memset(&VolumeInfo, 0, sizeof VolumeInfo);
-    Result = FileSystem->Interface->GetVolumeInfo(FileSystem, Request, &VolumeInfo);
+    Result = FileSystem->Interface->GetVolumeInfo(FileSystem, &VolumeInfo);
     if (!NT_SUCCESS(Result))
         return Result;
 
@@ -1041,7 +1041,7 @@ FSP_API NTSTATUS FspFileSystemOpSetVolumeInformation(FSP_FILE_SYSTEM *FileSystem
     {
     case 2/*FileFsLabelInformation*/:
         if (0 != FileSystem->Interface->SetVolumeLabel)
-            Result = FileSystem->Interface->SetVolumeLabel(FileSystem, Request,
+            Result = FileSystem->Interface->SetVolumeLabel(FileSystem,
                 (PWSTR)Request->Buffer,
                 &VolumeInfo);
         break;
@@ -1064,7 +1064,7 @@ FSP_API NTSTATUS FspFileSystemOpQueryDirectory(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_INVALID_DEVICE_REQUEST;
 
     BytesTransferred = 0;
-    Result = FileSystem->Interface->ReadDirectory(FileSystem, Request,
+    Result = FileSystem->Interface->ReadDirectory(FileSystem,
         (PVOID)USERCONTEXT(Request->Req.QueryDirectory),
         (PVOID)Request->Req.QueryDirectory.Address,
         Request->Req.QueryDirectory.Offset,
@@ -1098,7 +1098,7 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
             memset(ReparseData, 0, sizeof *ReparseData);
 
             Size = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
-            Result = FileSystem->Interface->GetReparsePoint(FileSystem, Request,
+            Result = FileSystem->Interface->GetReparsePoint(FileSystem,
                 (PVOID)USERCONTEXT(Request->Req.FileSystemControl),
                 (PWSTR)Request->Buffer, ReparseData, &Size);
             if (NT_SUCCESS(Result))
@@ -1115,7 +1115,7 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
             ReparseData = (PREPARSE_DATA_BUFFER)
                 (Request->Buffer + Request->Req.FileSystemControl.Buffer.Offset);
 
-            Result = FileSystem->Interface->SetReparsePoint(FileSystem, Request,
+            Result = FileSystem->Interface->SetReparsePoint(FileSystem,
                 (PVOID)USERCONTEXT(Request->Req.FileSystemControl),
                 (PWSTR)Request->Buffer,
                 ReparseData,
@@ -1128,7 +1128,7 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
             ReparseData = (PREPARSE_DATA_BUFFER)
                 (Request->Buffer + Request->Req.FileSystemControl.Buffer.Offset);
 
-            Result = FileSystem->Interface->DeleteReparsePoint(FileSystem, Request,
+            Result = FileSystem->Interface->DeleteReparsePoint(FileSystem,
                 (PVOID)USERCONTEXT(Request->Req.FileSystemControl),
                 (PWSTR)Request->Buffer,
                 ReparseData,
@@ -1150,7 +1150,7 @@ FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_INVALID_DEVICE_REQUEST;
 
     SecurityDescriptorSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
-    Result = FileSystem->Interface->GetSecurity(FileSystem, Request,
+    Result = FileSystem->Interface->GetSecurity(FileSystem,
         (PVOID)USERCONTEXT(Request->Req.QuerySecurity),
         Response->Buffer, &SecurityDescriptorSize);
     if (!NT_SUCCESS(Result))
@@ -1168,10 +1168,11 @@ FSP_API NTSTATUS FspFileSystemOpSetSecurity(FSP_FILE_SYSTEM *FileSystem,
     if (0 == FileSystem->Interface->SetSecurity)
         return STATUS_INVALID_DEVICE_REQUEST;
 
-    return FileSystem->Interface->SetSecurity(FileSystem, Request,
+    return FileSystem->Interface->SetSecurity(FileSystem,
         (PVOID)USERCONTEXT(Request->Req.SetSecurity),
         Request->Req.SetSecurity.SecurityInformation,
-        (PSECURITY_DESCRIPTOR)Request->Buffer);
+        (PSECURITY_DESCRIPTOR)Request->Buffer,
+        (HANDLE)Request->Req.SetSecurity.AccessToken);
 }
 
 FSP_API NTSTATUS FspFileSystemOpQueryStreamInformation(FSP_FILE_SYSTEM *FileSystem,
@@ -1184,7 +1185,7 @@ FSP_API NTSTATUS FspFileSystemOpQueryStreamInformation(FSP_FILE_SYSTEM *FileSyst
         return STATUS_INVALID_DEVICE_REQUEST;
 
     BytesTransferred = 0;
-    Result = FileSystem->Interface->GetStreamInfo(FileSystem, Request,
+    Result = FileSystem->Interface->GetStreamInfo(FileSystem,
         (PVOID)USERCONTEXT(Request->Req.QueryStreamInformation),
         Response->Buffer,
         FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX,

@@ -412,15 +412,14 @@ FSP_API NTSTATUS FspCreateSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-FSP_API NTSTATUS FspSetSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
+FSP_API NTSTATUS FspSetSecurityDescriptor(
     PSECURITY_DESCRIPTOR InputDescriptor,
+    SECURITY_INFORMATION SecurityInformation,
+    PSECURITY_DESCRIPTOR ModificationDescriptor,
+    HANDLE AccessToken,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor)
 {
     *PSecurityDescriptor = 0;
-
-    if (FspFsctlTransactSetSecurityKind != Request->Kind)
-        return STATUS_INVALID_PARAMETER;
 
     if (0 == InputDescriptor)
         return STATUS_NO_SECURITY_ON_OBJECT;
@@ -455,11 +454,11 @@ FSP_API NTSTATUS FspSetSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
     InputDescriptor = CopiedDescriptor;
 
     if (!SetPrivateObjectSecurity(
-        Request->Req.SetSecurity.SecurityInformation,
-        (PVOID)Request->Buffer,
+        SecurityInformation,
+        ModificationDescriptor,
         &InputDescriptor,
         &FspFileGenericMapping,
-        (HANDLE)Request->Req.SetSecurity.AccessToken))
+        AccessToken))
     {
         HeapFree(ProcessHeap, 0, CopiedDescriptor);
         return FspNtStatusFromWin32(GetLastError());

@@ -136,8 +136,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param VolumeInfo [out]
      *     Pointer to a structure that will receive the volume information on successful return
      *     from this call.
@@ -145,15 +143,12 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*GetVolumeInfo)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         FSP_FSCTL_VOLUME_INFO *VolumeInfo);
     /**
      * Set volume label.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param VolumeLabel
      *     The new label for the volume.
      * @param VolumeInfo [out]
@@ -163,7 +158,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*SetVolumeLabel)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PWSTR VolumeLabel,
         FSP_FSCTL_VOLUME_INFO *VolumeInfo);
     /**
@@ -202,13 +196,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileName
      *     The name of the file or directory to be created.
-     * @param CaseSensitive
-     *     Whether to treat the FileName as case-sensitive or case-insensitive. Case-sensitive
-     *     file systems always treat FileName as case-sensitive regardless of this parameter.
      * @param CreateOptions
      *     Create options for this request. This parameter has the same meaning as the
      *     CreateOptions parameter of the NtCreateFile API. User mode file systems should typically
@@ -216,12 +205,18 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     directory rather than a file. Some file systems may also want to pay attention to the
      *     FILE_NO_INTERMEDIATE_BUFFERING and FILE_WRITE_THROUGH flags, although these are
      *     typically handled by the FSD component.
+     * @param GrantedAccess
+     *     Determines the specific access rights that have been granted for this request. Upon
+     *     receiving this call all access checks have been performed and the user mode file system
+     *     need not perform any additional checks. However this parameter may be useful to a user
+     *     mode file system; for example the WinFsp-FUSE layer uses this parameter to determine
+     *     which flags to use in its POSIX open() call.
      * @param FileAttributes
      *     File attributes to apply to the newly created file or directory.
      * @param SecurityDescriptor
      *     Security descriptor to apply to the newly created file or directory. This security
      *     descriptor will always be in self-relative format. Its length can be retrieved using the
-     *     Windows GetSecurityDescriptorLength API.
+     *     Windows GetSecurityDescriptorLength API. Will be NULL for named streams.
      * @param AllocationSize
      *     Allocation size for the newly created file.
      * @param PFileNode [out]
@@ -237,8 +232,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Create)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
-        PWSTR FileName, BOOLEAN CaseSensitive, UINT32 CreateOptions,
+        PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
         UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
         PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo);
     /**
@@ -246,19 +240,20 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileName
      *     The name of the file or directory to be opened.
-     * @param CaseSensitive
-     *     Whether to treat the FileName as case-sensitive or case-insensitive. Case-sensitive
-     *     file systems always treat FileName as case-sensitive regardless of this parameter.
      * @param CreateOptions
      *     Create options for this request. This parameter has the same meaning as the
      *     CreateOptions parameter of the NtCreateFile API. User mode file systems typically
      *     do not need to do anything special with respect to this parameter. Some file systems may
      *     also want to pay attention to the FILE_NO_INTERMEDIATE_BUFFERING and FILE_WRITE_THROUGH
      *     flags, although these are typically handled by the FSD component.
+     * @param GrantedAccess
+     *     Determines the specific access rights that have been granted for this request. Upon
+     *     receiving this call all access checks have been performed and the user mode file system
+     *     need not perform any additional checks. However this parameter may be useful to a user
+     *     mode file system; for example the WinFsp-FUSE layer uses this parameter to determine
+     *     which flags to use in its POSIX open() call.
      * @param PFileNode [out]
      *     Pointer that will receive the file node on successful return from this call. The file
      *     node is a void pointer (or an integer that can fit in a pointer) that is used to
@@ -272,16 +267,13 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Open)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
-        PWSTR FileName, BOOLEAN CaseSensitive, UINT32 CreateOptions,
+        PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
         PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Overwrite a file.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the file to overwrite.
      * @param FileAttributes
@@ -296,7 +288,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Overwrite)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
@@ -324,8 +315,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the file or directory to cleanup.
      * @param FileName
@@ -339,28 +328,22 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     CanDelete
      */
     VOID (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, PWSTR FileName, BOOLEAN Delete);
     /**
      * Close a file.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the file or directory to be closed.
      */
     VOID (*Close)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode);
     /**
      * Read a file.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the file to be read.
      * @param Buffer
@@ -376,7 +359,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     operation.
      */
     NTSTATUS (*Read)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
         PULONG PBytesTransferred);
     /**
@@ -384,8 +366,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the file to be written.
      * @param Buffer
@@ -409,7 +389,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     operation.
      */
     NTSTATUS (*Write)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
         BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
         PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo);
@@ -420,23 +399,18 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the file to be flushed. When NULL the whole volume is being flushed.
      * @return
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Flush)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode);
     /**
      * Get file or directory information.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the file or directory to get information for.
      * @param FileInfo [out]
@@ -446,7 +420,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*GetFileInfo)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
@@ -454,8 +427,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the file or directory to set information for.
      * @param FileAttributes
@@ -477,7 +448,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*SetBasicInfo)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, UINT32 FileAttributes,
         UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
         FSP_FSCTL_FILE_INFO *FileInfo);
@@ -503,8 +473,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the file to set the file/allocation size for.
      * @param NewSize
@@ -518,7 +486,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*SetFileSize)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, UINT64 NewSize, BOOLEAN SetAllocationSize,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
@@ -536,8 +503,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the file or directory to test for deletion.
      * @param FileName
@@ -548,7 +513,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Cleanup
      */
     NTSTATUS (*CanDelete)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, PWSTR FileName);
     /**
      * Renames a file or directory.
@@ -564,8 +528,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the file or directory to be renamed.
      * @param FileName
@@ -578,7 +540,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Rename)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,
         PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists);
     /**
@@ -599,7 +560,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*GetSecurity)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,
         PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
     /**
@@ -610,24 +570,28 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param FileNode
      *     The file node of the file or directory to set the security descriptor for.
      * @param SecurityInformation
-     *     Indicates what part of the file or directory security descriptor to change.
-     * @param SecurityDescriptor
-     *     Security descriptor to apply to the file or directory. This security descriptor will
-     *     always be in self-relative format.
+     *     Describes what parts of the file or directory security descriptor should
+     *     be modified.
+     * @param ModificationDescriptor
+     *     Describes the modifications to apply to the file or directory security descriptor.
+     * @param AccessToken
+     *     A handle to a token that can be used to verify whether the requested modifications
+     *     are allowed.
      * @return
      *     STATUS_SUCCESS or error code.
+     * @see
+     *     FspSetSecurityDescriptor
+     *     FspDeleteSecurityDescriptor
      */
     NTSTATUS (*SetSecurity)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,
-        SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR SecurityDescriptor);
+        SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor,
+        HANDLE AccessToken);
     /**
      * Read a directory.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the directory to be read.
      * @param Buffer
@@ -652,7 +616,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     FspFileSystemAddDirInfo
      */
     NTSTATUS (*ReadDirectory)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
         PWSTR Pattern,
         PULONG PBytesTransferred);
@@ -705,8 +668,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the reparse point.
      * @param FileName
@@ -723,7 +684,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     SetReparsePoint
      */
     NTSTATUS (*GetReparsePoint)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,
         PWSTR FileName, PVOID Buffer, PSIZE_T PSize);
     /**
@@ -731,8 +691,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the reparse point.
      * @param FileName
@@ -748,7 +706,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     GetReparsePoint
      */
     NTSTATUS (*SetReparsePoint)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,
         PWSTR FileName, PVOID Buffer, SIZE_T Size);
     /**
@@ -756,8 +713,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the reparse point.
      * @param FileName
@@ -770,7 +725,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*DeleteReparsePoint)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode,
         PWSTR FileName, PVOID Buffer, SIZE_T Size);
     /**
@@ -778,8 +732,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param Request
-     *     The request posted by the kernel mode FSD.
      * @param FileNode
      *     The file node of the file or directory to get stream information for.
      * @param Buffer
@@ -794,7 +746,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     FspFileSystemAddStreamInfo
      */
     NTSTATUS (*GetStreamInfo)(FSP_FILE_SYSTEM *FileSystem,
-        FSP_FSCTL_TRANSACT_REQ *Request,
         PVOID FileNode, PVOID Buffer, ULONG Length,
         PULONG PBytesTransferred);
 
@@ -825,6 +776,11 @@ typedef struct _FSP_FILE_SYSTEM
     SRWLOCK OpGuardLock;
     BOOLEAN UmFileNodeIsUserContext2;
 } FSP_FILE_SYSTEM;
+typedef struct _FSP_FILE_SYSTEM_OPERATION_CONTEXT
+{
+    FSP_FSCTL_TRANSACT_REQ *Request;
+    FSP_FSCTL_TRANSACT_RSP *Response;
+} FSP_FILE_SYSTEM_OPERATION_CONTEXT;
 /**
  * Create a file system object.
  *
@@ -924,6 +880,17 @@ FSP_API VOID FspFileSystemStopDispatcher(FSP_FILE_SYSTEM *FileSystem);
  */
 FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP *Response);
+/**
+ * Get the current operation context.
+ *
+ * This function may be used only when servicing one of the FSP_FILE_SYSTEM_INTERFACE operations.
+ * The current operation context is stored in thread local storage. It allows access to the
+ * Request and Response associated with this operation.
+ *
+ * @return
+ *     The current operation context.
+ */
+FSP_API FSP_FILE_SYSTEM_OPERATION_CONTEXT *FspFileSystemGetOperationContext(VOID);
 static inline
 PWSTR FspFileSystemMountPoint(FSP_FILE_SYSTEM *FileSystem)
 {
@@ -999,6 +966,12 @@ VOID FspFileSystemSetDebugLog(FSP_FILE_SYSTEM *FileSystem,
     UINT32 DebugLog)
 {
     FileSystem->DebugLog = DebugLog;
+}
+static inline
+BOOLEAN FspFileSystemIsOperationCaseSensitive(VOID)
+{
+    FSP_FSCTL_TRANSACT_REQ *Request = FspFileSystemGetOperationContext()->Request;
+    return FspFsctlTransactCreateKind == Request->Kind && Request->Req.Create.CaseSensitive;
 }
 
 /*
@@ -1266,10 +1239,54 @@ FSP_API NTSTATUS FspCreateSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request,
     PSECURITY_DESCRIPTOR ParentDescriptor,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor);
-FSP_API NTSTATUS FspSetSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
+/**
+ * Modify security descriptor.
+ *
+ * This is a helper for implementing the SetSecurity operation.
+ *
+ * @param InputDescriptor
+ *     The input security descriptor to be modified.
+ * @param SecurityInformation
+ *     Describes what parts of the InputDescriptor should be modified. This should contain
+ *     the same value passed to the SetSecurity SecurityInformation parameter.
+ * @param ModificationDescriptor
+ *     Describes the modifications to apply to the InputDescriptor. This should contain
+ *     the same value passed to the SetSecurity ModificationDescriptor parameter.
+ * @param AccessToken
+ *     A handle to a token that can be used to verify whether the requested modifications
+ *     are allowed. This should contain the same value passed to the SetSecurity AccessToken
+ *     parameter.
+ * @param PSecurityDescriptor [out]
+ *     Pointer to a memory location that will receive the resulting security descriptor.
+ *     This security descriptor can be later freed using FspDeleteSecurityDescriptor.
+ * @return
+ *     STATUS_SUCCESS or error code.
+ * @see
+ *     SetSecurity
+ *     FspDeleteSecurityDescriptor
+ */
+FSP_API NTSTATUS FspSetSecurityDescriptor(
     PSECURITY_DESCRIPTOR InputDescriptor,
+    SECURITY_INFORMATION SecurityInformation,
+    PSECURITY_DESCRIPTOR ModificationDescriptor,
+    HANDLE AccessToken,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor);
+/**
+ * Delete security descriptor.
+ *
+ * This is a helper for implementing the SetSecurity operation.
+ *
+ * @param SecurityDescriptor
+ *     The security descriptor to be deleted.
+ * @param CreateFunc
+ *     Function used to create the security descriptor. This parameter should be
+ *     set to FspSetSecurityDescriptor for the public API.
+ * @return
+ *     STATUS_SUCCESS or error code.
+ * @see
+ *     SetSecurity
+ *     FspSetSecurityDescriptor
+ */
 FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor,
     NTSTATUS (*CreateFunc)());
 static inline

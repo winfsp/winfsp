@@ -405,12 +405,10 @@ static NTSTATUS GetReparsePointByName(
     PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize);
 
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize,
     FSP_FSCTL_FILE_INFO *FileInfo);
 
 static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
@@ -425,7 +423,6 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS SetVolumeLabel(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PWSTR VolumeLabel,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
@@ -499,8 +496,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    PWSTR FileName, BOOLEAN CaseSensitive, UINT32 CreateOptions,
+    PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
     UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
     PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
@@ -617,8 +613,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
-    PWSTR FileName, BOOLEAN CaseSensitive, UINT32 CreateOptions,
+    PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
     PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
@@ -644,7 +639,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
      * TBD.
      */
     if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
-        Request->Req.Create.DesiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA))
+        (GrantedAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA)))
         FileNode->FileInfo.FileAttributes |= FILE_ATTRIBUTE_ARCHIVE;
 
     FileNode->RefCount++;
@@ -666,7 +661,6 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
 }
 
 NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
@@ -705,7 +699,6 @@ static BOOLEAN CleanupEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
 #endif
 
 static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, PWSTR FileName, BOOLEAN Delete)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
@@ -734,7 +727,6 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static VOID Close(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
@@ -745,7 +737,6 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, PVOID Buffer, UINT64 Offset, ULONG Length,
     PULONG PBytesTransferred)
 {
@@ -767,7 +758,6 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, PVOID Buffer, UINT64 Offset, ULONG Length,
     BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
     PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
@@ -805,7 +795,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
             Offset = FileNode->FileInfo.FileSize;
         EndOffset = Offset + Length;
         if (EndOffset > FileNode->FileInfo.FileSize)
-            SetFileSize(FileSystem, Request, FileNode, EndOffset, FALSE, FileInfo);
+            SetFileSize(FileSystem, FileNode, EndOffset, FALSE, FileInfo);
     }
 
     memcpy((PUINT8)FileNode->FileData + Offset, Buffer, (size_t)(EndOffset - Offset));
@@ -817,7 +807,6 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
 }
 
 NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode)
 {
     /* nothing to do, since we do not cache anything */
@@ -825,7 +814,6 @@ NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
@@ -837,7 +825,6 @@ static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, UINT32 FileAttributes,
     UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
     FSP_FSCTL_FILE_INFO *FileInfo)
@@ -864,7 +851,6 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
@@ -898,7 +884,7 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
                 UINT64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
                 UINT64 AllocationSize = (NewSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
-                NTSTATUS Result = SetFileSize(FileSystem, Request, FileNode, AllocationSize, TRUE,
+                NTSTATUS Result = SetFileSize(FileSystem, FileNode, AllocationSize, TRUE,
                     FileInfo);
                 if (!NT_SUCCESS(Result))
                     return Result;
@@ -917,7 +903,6 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, PWSTR FileName)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
@@ -946,7 +931,6 @@ static BOOLEAN RenameEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
 }
 
 static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0,
     PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
 {
@@ -1034,7 +1018,6 @@ exit:
 }
 
 static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0,
     PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
 {
@@ -1059,9 +1042,9 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0,
-    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR SecurityDescriptor)
+    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor,
+    HANDLE AccessToken)
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     PSECURITY_DESCRIPTOR NewSecurityDescriptor, FileSecurity;
@@ -1073,7 +1056,11 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
         FileNode = FileNode->MainFileNode;
 #endif
 
-    Result = FspSetSecurityDescriptor(FileSystem, Request, FileNode->FileSecurity,
+    Result = FspSetSecurityDescriptor(
+        FileNode->FileSecurity,
+        SecurityInformation,
+        ModificationDescriptor,
+        AccessToken,
         &NewSecurityDescriptor);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -1143,7 +1130,6 @@ static BOOLEAN ReadDirectoryEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
 }
 
 static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, PVOID Buffer, UINT64 Offset, ULONG Length,
     PWSTR Pattern,
     PULONG PBytesTransferred)
@@ -1222,7 +1208,6 @@ static NTSTATUS GetReparsePointByName(
 }
 
 static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0,
     PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
 {
@@ -1246,7 +1231,6 @@ static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0,
     PWSTR FileName, PVOID Buffer, SIZE_T Size)
 {
@@ -1287,7 +1271,6 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0,
     PWSTR FileName, PVOID Buffer, SIZE_T Size)
 {
@@ -1358,7 +1341,6 @@ static BOOLEAN GetStreamInfoEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
 }
 
 static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request,
     PVOID FileNode0, PVOID Buffer, ULONG Length,
     PULONG PBytesTransferred)
 {
