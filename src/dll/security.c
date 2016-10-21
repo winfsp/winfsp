@@ -119,7 +119,6 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
         AllowTraverseCheck && !Request->Req.Create.HasTraversePrivilege &&
         !(L'\\' == FileName[0] && L'\0' == FileName[1])/* no need to traverse check for root */)
     {
-        DEBUGLOG("TraverseCheck: Full=\"%S\"", FileName);
         Remain = FileName;
         for (;;)
         {
@@ -132,16 +131,22 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
 
             *Remain = L'\0';
             Prefix = Remain > FileName ? FileName : TraverseCheckRoot;
-            DEBUGLOG("TraverseCheck: Part=\"%S\"", Prefix);
 
             FileAttributes = 0;
             Result = FspGetSecurityByName(FileSystem, Prefix, &FileAttributes,
                 &SecurityDescriptor, &SecurityDescriptorSize);
 
-            /* compute the ReparsePointIndex and place it in FileAttributes now */
+            /*
+             * We check to see if this is a reparse point and then compute the ReparsePointIndex
+             * and place it in FileAttributes.  We do this check BEFORE the directory check,
+             * because contrary to NTFS we want to allow non-directory symlinks to directories.
+             */
             if (NT_SUCCESS(Result) && STATUS_REPARSE != Result &&
                 (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+            {
                 FileAttributes = FspPathSuffixIndex(Prefix);
+                Result = STATUS_REPARSE;
+            }
 
             *Remain = L'\\';
             do
@@ -153,27 +158,6 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
             {
                 if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
                     Result = STATUS_OBJECT_PATH_NOT_FOUND;
-                goto exit;
-            }
-
-            /*
-             * We check to see if this is a reparse point and then immediately return
-             * STATUS_REPARSE. We do this check BEFORE the directory check, because
-             * contrary to NTFS we want to allow non-directory symlinks to directories.
-             *
-             * Note that this effectively turns off traverse checking a path comprised of
-             * reparse points even when the originating process does not have the Traverse
-             * privilege. [I am not sure what NTFS does in this case, but POSIX symlinks
-             * behave similarly.] We will still traverse check the reparsed path when
-             * the FSD sends it back to us though!
-             *
-             * Now if the reparse points are not symlinks (or symlink-like) things
-             * get even more complicated. Argh! Windows!
-             */
-            if (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
-            {
-                /* ReparsePointIndex already computed after FspGetSecurityByName call above */
-                Result = STATUS_REPARSE;
                 goto exit;
             }
 
