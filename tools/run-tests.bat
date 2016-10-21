@@ -28,11 +28,23 @@ set testpass=0
 set testfail=0
 for %%f in (^
 	:winfsp-tests-x64 ^
+	:winfsp-tests-x64-case-randomize ^
+	:winfsp-tests-x64-mountpoint-drive ^
+	:winfsp-tests-x64-mountpoint-dir ^
+	:winfsp-tests-x64-no-traverse ^
 	:winfsp-tests-x86 ^
-	:fsx-memfs-x64 ^
-	:fsx-memfs-x86 ^
-	:winfstest-memfs-x64 ^
-	:winfstest-memfs-x86 ^
+	:winfsp-tests-x86-case-randomize ^
+	:winfsp-tests-x86-mountpoint-drive ^
+	:winfsp-tests-x86-mountpoint-dir ^
+	:winfsp-tests-x86-no-traverse ^
+	:fsx-memfs-x64-disk ^
+	:fsx-memfs-x64-net ^
+	:fsx-memfs-x86-disk ^
+	:fsx-memfs-x86-net ^
+	:winfstest-memfs-x64-disk ^
+	:winfstest-memfs-x64-net ^
+	:winfstest-memfs-x86-disk ^
+	:winfstest-memfs-x86-net ^
 	) do (
     echo === Running %%f
 
@@ -79,47 +91,64 @@ exit /b 0
 exit /b 1
 
 :winfsp-tests-x64
-echo winfsp-tests-x64
 winfsp-tests-x64
 if !ERRORLEVEL! neq 0 goto fail
-echo winfsp-tests-x64 --case-randomize
+exit /b 0
+
+:winfsp-tests-x64-case-randomize
 winfsp-tests-x64 --case-randomize
 if !ERRORLEVEL! neq 0 goto fail
-echo winfsp-tests-x64 --mountpoint=X:
+exit /b 0
+
+:winfsp-tests-x64-mountpoint-drive
 winfsp-tests-x64 --mountpoint=X:
 if !ERRORLEVEL! neq 0 goto fail
-echo winfsp-tests-x64 --mountpoint=mymnt
+exit /b 0
+
+:winfsp-tests-x64-mountpoint-dir
 winfsp-tests-x64 --mountpoint=mymnt
 if !ERRORLEVEL! neq 0 goto fail
-echo winfsp-tests-x64 --no-traverse
+exit /b 0
+
+:winfsp-tests-x64-no-traverse
 winfsp-tests-x64 --no-traverse
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86
-echo winfsp-tests-x86
 winfsp-tests-x86
 if !ERRORLEVEL! neq 0 goto fail
-echo winfsp-tests-x86 --case-randomize
+exit /b 0
+
+:winfsp-tests-x86-case-randomize
 winfsp-tests-x86 --case-randomize
 if !ERRORLEVEL! neq 0 goto fail
-echo winfsp-tests-x86 --mountpoint=X:
+exit /b 0
+
+:winfsp-tests-x86-mountpoint-drive
 winfsp-tests-x86 --mountpoint=X:
 if !ERRORLEVEL! neq 0 goto fail
-echo winfsp-tests-x86 --mountpoint=mymnt
+exit /b 0
+
+:winfsp-tests-x86-mountpoint-dir
 winfsp-tests-x86 --mountpoint=mymnt
 if !ERRORLEVEL! neq 0 goto fail
-echo winfsp-tests-x86 --no-traverse
+exit /b 0
+
+:winfsp-tests-x86-no-traverse
 winfsp-tests-x86 --no-traverse
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:fsx-memfs-x64
+:fsx-memfs-x64-disk
 M:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:fsx-memfs-x64-net
 N:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
@@ -127,12 +156,15 @@ if !ERRORLEVEL! neq 0 goto fail
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:fsx-memfs-x86
+:fsx-memfs-x86-disk
 O:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:fsx-memfs-x86-net
 P:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
@@ -140,19 +172,25 @@ if !ERRORLEVEL! neq 0 goto fail
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:winfstest-memfs-x64
+:winfstest-memfs-x64-disk
 M:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfstest-memfs-x64-net
 N:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:winfstest-memfs-x86
+:winfstest-memfs-x86-disk
 O:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfstest-memfs-x86-net
 P:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
