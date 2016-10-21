@@ -26,7 +26,14 @@ cd P: >nul 2>nul || (echo === Unable to find drive P: >&2 & goto fail)
 
 set testpass=0
 set testfail=0
-for %%f in (:winfsp-tests-x64 :winfsp-tests-x86 :fsx-memfs-x64 :fsx-memfs-x86 :winfstest-memfs-x64 :winfstest-memfs-x86) do (
+for %%f in (^
+	:winfsp-tests-x64 ^
+	:winfsp-tests-x86 ^
+	:fsx-memfs-x64 ^
+	:fsx-memfs-x86 ^
+	:winfstest-memfs-x64 ^
+	:winfstest-memfs-x86 ^
+	) do (
     echo === Running %%f
 
     if defined APPVEYOR (
