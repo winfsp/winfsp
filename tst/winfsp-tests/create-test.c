@@ -399,7 +399,7 @@ void create_notraverse_dotest(ULONG Flags, PWSTR Prefix)
     Success = CreateDirectory(FilePath, &SecurityAttributes);
     ASSERT(Success);
 
-    Success = LookupPrivilegeValue(0, SE_CHANGE_NOTIFY_NAME, &Luid);
+    Success = LookupPrivilegeValueW(0, SE_CHANGE_NOTIFY_NAME, &Luid);
     ASSERT(Success);
     Success = OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &Token);
     ASSERT(Success);
@@ -475,6 +475,253 @@ void create_notraverse_test(void)
         create_notraverse_dotest(MemfsDisk, 0);
     if (WinFspNetTests)
         create_notraverse_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
+void create_backup_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    LUID Luid;
+    PRIVILEGE_SET RequiredPrivileges;
+    TOKEN_PRIVILEGES Privileges;
+    HANDLE Token;
+    BOOL Success;
+
+    Success = LookupPrivilegeValueW(0, SE_BACKUP_NAME, &Luid);
+    ASSERT(Success);
+    Success = OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &Token);
+    ASSERT(Success);
+    Privileges.PrivilegeCount = 1;
+    Privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    Privileges.Privileges[0].Luid = Luid;
+    Success = AdjustTokenPrivileges(Token, FALSE, &Privileges, 0, 0, 0);
+    ASSERT(Success);
+
+    RequiredPrivileges.PrivilegeCount = 1;
+    RequiredPrivileges.Control = PRIVILEGE_SET_ALL_NECESSARY;
+    RequiredPrivileges.Privilege[0].Attributes = 0;
+    RequiredPrivileges.Privilege[0].Luid = Luid;
+    ASSERT(PrivilegeCheck(Token, &RequiredPrivileges, &Success));
+
+    if (Success)
+    {
+        FspDebugLog(__FUNCTION__ ": HasBackupPrivilege\n");
+
+        static PWSTR Sddl = L"D:P(A;;SD;;;WD)";
+        PSECURITY_DESCRIPTOR SecurityDescriptor;
+        SECURITY_ATTRIBUTES SecurityAttributes = { 0 };
+        HANDLE Handle;
+        WCHAR FilePath[MAX_PATH];
+
+        Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(Sddl, SDDL_REVISION_1, &SecurityDescriptor, 0);
+        ASSERT(Success);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Success = CreateDirectoryW(FilePath, 0);
+        ASSERT(Success);
+
+        SecurityAttributes.nLength = sizeof SecurityAttributes;
+        SecurityAttributes.lpSecurityDescriptor = SecurityDescriptor;
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file0",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+            &SecurityAttributes, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        CloseHandle(Handle);
+
+        Handle = CreateFileW(FilePath,
+            GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle);
+        ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+        Handle = CreateFileW(FilePath,
+            GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        CloseHandle(Handle);
+
+        Privileges.PrivilegeCount = 1;
+        Privileges.Privileges[0].Attributes = 0;
+        Privileges.Privileges[0].Luid = Luid;
+        Success = AdjustTokenPrivileges(Token, FALSE, &Privileges, 0, 0, 0);
+        ASSERT(Success);
+
+        Handle = CreateFileW(FilePath,
+            GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle);
+        ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+        Handle = CreateFileW(FilePath,
+            GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle);
+        ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+        Success = DeleteFileW(FilePath);
+        ASSERT(Success);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Success = RemoveDirectoryW(FilePath);
+        ASSERT(Success);
+
+        LocalFree(SecurityDescriptor);
+    }
+
+    CloseHandle(Token);
+
+    memfs_stop(memfs);
+}
+
+void create_backup_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        create_backup_dotest(-1, DirBuf);
+    }
+    if (WinFspDiskTests)
+        create_backup_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        create_backup_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
+void create_restore_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    LUID Luid;
+    PRIVILEGE_SET RequiredPrivileges;
+    TOKEN_PRIVILEGES Privileges;
+    HANDLE Token;
+    BOOL Success;
+
+    Success = LookupPrivilegeValueW(0, SE_RESTORE_NAME, &Luid);
+    ASSERT(Success);
+    Success = OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &Token);
+    ASSERT(Success);
+    Privileges.PrivilegeCount = 1;
+    Privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    Privileges.Privileges[0].Luid = Luid;
+    Success = AdjustTokenPrivileges(Token, FALSE, &Privileges, 0, 0, 0);
+    ASSERT(Success);
+
+    RequiredPrivileges.PrivilegeCount = 1;
+    RequiredPrivileges.Control = PRIVILEGE_SET_ALL_NECESSARY;
+    RequiredPrivileges.Privilege[0].Attributes = 0;
+    RequiredPrivileges.Privilege[0].Luid = Luid;
+    ASSERT(PrivilegeCheck(Token, &RequiredPrivileges, &Success));
+
+    if (Success)
+    {
+        FspDebugLog(__FUNCTION__ ": HasRestorePrivilege\n");
+
+        static PWSTR Sddl = L"D:P(A;;SD;;;WD)";
+        PSECURITY_DESCRIPTOR SecurityDescriptor;
+        SECURITY_ATTRIBUTES SecurityAttributes = { 0 };
+        HANDLE DirHandle, Handle;
+        WCHAR FilePath[MAX_PATH];
+
+        Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(Sddl, SDDL_REVISION_1, &SecurityDescriptor, 0);
+        ASSERT(Success);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        SecurityAttributes.nLength = sizeof SecurityAttributes;
+        SecurityAttributes.lpSecurityDescriptor = SecurityDescriptor;
+
+        Success = CreateDirectoryW(FilePath, &SecurityAttributes);
+        ASSERT(Success);
+
+        DirHandle = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+        ASSERT(INVALID_HANDLE_VALUE != DirHandle);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file0",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+            0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle);
+        ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+        if (!OptNoTraverseToken)
+        {
+            Handle = CreateFileW(FilePath,
+                GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, 0);
+            ASSERT(INVALID_HANDLE_VALUE != Handle);
+            CloseHandle(Handle);
+
+            Success = DeleteFileW(FilePath);
+            ASSERT(Success);
+        }
+        else
+        {
+            Handle = CreateFileW(FilePath,
+                GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+            ASSERT(INVALID_HANDLE_VALUE == Handle);
+            ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+        }
+
+        Privileges.PrivilegeCount = 1;
+        Privileges.Privileges[0].Attributes = 0;
+        Privileges.Privileges[0].Luid = Luid;
+        Success = AdjustTokenPrivileges(Token, FALSE, &Privileges, 0, 0, 0);
+        ASSERT(Success);
+
+        Handle = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+            0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle);
+        ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+        Handle = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+            0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle);
+        ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+        CloseHandle(DirHandle);
+
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        DirHandle = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+        ASSERT(INVALID_HANDLE_VALUE == DirHandle);
+        ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+        LocalFree(SecurityDescriptor);
+    }
+
+    CloseHandle(Token);
+
+    memfs_stop(memfs);
+}
+
+void create_restore_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
+        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        create_restore_dotest(-1, DirBuf);
+    }
+    if (WinFspDiskTests)
+        create_restore_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        create_restore_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
 void create_share_dotest(ULONG Flags, PWSTR Prefix)
@@ -594,6 +841,8 @@ void create_tests(void)
     TEST(create_related_test);
     TEST(create_sd_test);
     TEST(create_notraverse_test);
+    TEST(create_backup_test);
+    TEST(create_restore_test);
     TEST(create_share_test);
     TEST(create_curdir_test);
 }

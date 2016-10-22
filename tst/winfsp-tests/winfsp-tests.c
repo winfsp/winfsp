@@ -173,6 +173,32 @@ HANDLE HookCreateFileW(
     return h;
 }
 
+static VOID DisableBackupRestorePrivileges(VOID)
+{
+    union
+    {
+        TOKEN_PRIVILEGES P;
+        UINT B[sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES)];
+    } Privileges;
+    HANDLE Token;
+
+    Privileges.P.PrivilegeCount = 2;
+    Privileges.P.Privileges[0].Attributes = 0;
+    Privileges.P.Privileges[1].Attributes = 0;
+
+    if (!LookupPrivilegeValueW(0, SE_BACKUP_NAME, &Privileges.P.Privileges[0].Luid) ||
+        !LookupPrivilegeValueW(0, SE_RESTORE_NAME, &Privileges.P.Privileges[1].Luid))
+        ABORT();
+
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &Token))
+        ABORT();
+
+    if (!AdjustTokenPrivileges(Token, FALSE, &Privileges.P, 0, 0, 0))
+        ABORT();
+
+    CloseHandle(Token);
+}
+
 #define rmarg(argv, argc, argi)         \
     argc--,\
     memmove(argv + argi, argv + argi + 1, (argc - argi) * sizeof(char *)),\
@@ -230,7 +256,7 @@ int main(int argc, char *argv[])
             }
             else if (0 == strcmp("--no-traverse", a))
             {
-                if (LookupPrivilegeValue(0, SE_CHANGE_NOTIFY_NAME, &OptNoTraverseLuid) &&
+                if (LookupPrivilegeValueW(0, SE_CHANGE_NOTIFY_NAME, &OptNoTraverseLuid) &&
                     OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &OptNoTraverseToken))
                 {
                     rmarg(argv, argc, argi);
@@ -238,6 +264,8 @@ int main(int argc, char *argv[])
             }
         }
     }
+
+    DisableBackupRestorePrivileges();
 
     myrandseed = (unsigned)time(0);
 
