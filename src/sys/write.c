@@ -405,6 +405,10 @@ NTSTATUS FspFsvolWriteComplete(
     }
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+
+    if (Response->IoStatus.Information > Request->Req.Write.Length)
+        FSP_RETURN(Result = STATUS_INTERNAL_ERROR);
+
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     LARGE_INTEGER WriteOffset = IrpSp->Parameters.Write.ByteOffset;

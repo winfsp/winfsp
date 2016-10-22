@@ -347,6 +347,10 @@ NTSTATUS FspFsvolReadComplete(
     }
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+
+    if (Response->IoStatus.Information > Request->Req.Read.Length)
+        FSP_RETURN(Result = STATUS_INTERNAL_ERROR);
+
     FSP_SAFE_MDL *SafeMdl = FspIopRequestContext(Request, RequestSafeMdl);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     LARGE_INTEGER ReadOffset = IrpSp->Parameters.Read.ByteOffset;

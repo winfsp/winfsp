@@ -546,7 +546,7 @@ static NTSTATUS FspFsvolQueryStreamInformationSuccess(
             (PUINT8)Response + Response->Size)
         {
             Irp->IoStatus.Information = 0;
-            return STATUS_INFO_LENGTH_MISMATCH; /* ???: what is the best code to return here? */
+            return STATUS_INTERNAL_ERROR;
         }
 
         FspIopRequestContext(Request, RequestInfoChangeNumber) = (PVOID)
