@@ -618,6 +618,16 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             Sddl ? "\"" : "");
         LocalFree(Sddl);
         break;
+    case FspFsctlTransactQueryStreamInformationKind:
+        FspDebugLog("%S[TID=%04lx]: %p: >>QueryStreamInformation %s%S%s%s\n",
+            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            Request->FileName.Size ? "\"" : "",
+            Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
+            Request->FileName.Size ? "\", " : "",
+            FspDebugLogUserContextString(
+                Request->Req.QueryStreamInformation.UserContext, Request->Req.QueryStreamInformation.UserContext2,
+                UserContextBuf));
+        break;
     default:
         FspDebugLogRequestVoid(Request, "INVALID");
         break;
@@ -819,6 +829,9 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
                 Sddl ? "\"" : "");
             LocalFree(Sddl);
         }
+        break;
+    case FspFsctlTransactQueryStreamInformationKind:
+        FspDebugLogResponseStatus(Response, "QueryStreamInformation");
         break;
     default:
         FspDebugLogResponseStatus(Response, "INVALID");
