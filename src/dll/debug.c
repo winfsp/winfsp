@@ -299,12 +299,16 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION |
                 DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION,
                 &Sddl, 0);
-        FspDebugLog("%S[TID=%04lx]: %p: >>Create [%c%c%c%c] \"%S\", "
+        FspDebugLog("%S[TID=%04lx]: %p: >>Create [%c%c%c%c%c%c] \"%S\", "
             "%s, CreateOptions=%lx, FileAttributes=%lx, Security=%s%s%s, "
-            "AllocationSize=%lx:%lx, AccessToken=%p, DesiredAccess=%lx, ShareAccess=%lx\n",
+            "AllocationSize=%lx:%lx, "
+            "AccessToken=%p, DesiredAccess=%lx, GrantedAccess=%lx, "
+            "ShareAccess=%lx\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->Req.Create.UserMode ? 'U' : 'K',
             Request->Req.Create.HasTraversePrivilege ? 'T' : '-',
+            Request->Req.Create.HasBackupPrivilege ? 'B' : '-',
+            Request->Req.Create.HasRestorePrivilege ? 'R' : '-',
             Request->Req.Create.OpenTargetDirectory ? 'D' : '-',
             Request->Req.Create.CaseSensitive ? 'C' : '-',
             (PWSTR)Request->Buffer,
@@ -317,6 +321,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             MAKE_UINT32_PAIR(Request->Req.Create.AllocationSize),
             (PVOID)Request->Req.Create.AccessToken,
             Request->Req.Create.DesiredAccess,
+            Request->Req.Create.GrantedAccess,
             Request->Req.Create.ShareAccess);
         LocalFree(Sddl);
         break;

@@ -193,7 +193,9 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
 
     if (Request->Req.Create.UserMode && 0 < SecurityDescriptorSize)
     {
-        if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess,
+        if (0 == DesiredAccess)
+            Result = STATUS_SUCCESS;
+        else if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess,
             &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
             Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
         else

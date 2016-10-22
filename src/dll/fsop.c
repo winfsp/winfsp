@@ -137,7 +137,7 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor)
 {
     NTSTATUS Result;
-    UINT32 GrantedAccess;
+    UINT32 ParentDesiredAccess, GrantedAccess;
 
     /*
      * CreateCheck does different checks depending on whether we are
@@ -161,9 +161,14 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
 
     if (!Request->Req.Create.NamedStream)
     {
+        if (Request->Req.Create.HasRestorePrivilege)
+            ParentDesiredAccess = 0;
+        else if (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE)
+            ParentDesiredAccess = FILE_ADD_SUBDIRECTORY;
+        else
+            ParentDesiredAccess = FILE_ADD_FILE;
         Result = FspAccessCheckEx(FileSystem, Request, TRUE, AllowTraverseCheck,
-            (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) ?
-                FILE_ADD_SUBDIRECTORY : FILE_ADD_FILE,
+            ParentDesiredAccess,
             &GrantedAccess, PSecurityDescriptor);
         if (STATUS_REPARSE == Result)
             Result = FspFileSystemCallResolveReparsePoints(FileSystem, Request, Response, GrantedAccess);
@@ -171,6 +176,7 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
         {
             *PGrantedAccess = (MAXIMUM_ALLOWED & Request->Req.Create.DesiredAccess) ?
                 FspGetFileGenericMapping()->GenericAll : Request->Req.Create.DesiredAccess;
+            *PGrantedAccess |= Request->Req.Create.GrantedAccess;
         }
     }
     else
@@ -190,6 +196,7 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
             if (0 == (Request->Req.Create.DesiredAccess & MAXIMUM_ALLOWED))
                 *PGrantedAccess &= ~(DELETE | FILE_WRITE_DATA) |
                     (Request->Req.Create.DesiredAccess & (DELETE | FILE_WRITE_DATA));
+            *PGrantedAccess |= Request->Req.Create.GrantedAccess;
         }
     }
 
@@ -225,6 +232,7 @@ NTSTATUS FspFileSystemOpenCheck(FSP_FILE_SYSTEM *FileSystem,
         *PGrantedAccess = GrantedAccess;
         if (0 == (Request->Req.Create.DesiredAccess & MAXIMUM_ALLOWED))
             *PGrantedAccess &= ~DELETE | (Request->Req.Create.DesiredAccess & DELETE);
+        *PGrantedAccess |= Request->Req.Create.GrantedAccess;
     }
 
     return Result;
@@ -263,6 +271,7 @@ NTSTATUS FspFileSystemOverwriteCheck(FSP_FILE_SYSTEM *FileSystem,
         if (0 == (Request->Req.Create.DesiredAccess & MAXIMUM_ALLOWED))
             *PGrantedAccess &= ~(DELETE | FILE_WRITE_DATA) |
                 (Request->Req.Create.DesiredAccess & (DELETE | FILE_WRITE_DATA));
+        *PGrantedAccess |= Request->Req.Create.GrantedAccess;
     }
 
     return Result;
@@ -286,7 +295,7 @@ NTSTATUS FspFileSystemOpenTargetDirectoryCheck(FSP_FILE_SYSTEM *FileSystem,
     if (STATUS_REPARSE == Result)
         Result = FspFileSystemCallResolveReparsePoints(FileSystem, Request, Response, GrantedAccess);
     else if (NT_SUCCESS(Result))
-        *PGrantedAccess = GrantedAccess;
+        *PGrantedAccess = GrantedAccess | Request->Req.Create.GrantedAccess;
 
     return Result;
 }

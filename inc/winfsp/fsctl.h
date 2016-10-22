@@ -218,13 +218,16 @@ typedef struct
             UINT64 AllocationSize;      /* initial allocation size */
             UINT64 AccessToken;         /* request access token (HANDLE) */
             UINT32 DesiredAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
+            UINT32 GrantedAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             UINT32 ShareAccess;         /* FILE_SHARE_{READ,WRITE,DELETE} */
             FSP_FSCTL_TRANSACT_BUF Ea;  /* reserved; not currently implemented */
             UINT32 UserMode:1;          /* request originated in user mode */
             UINT32 HasTraversePrivilege:1;  /* requestor has TOKEN_HAS_TRAVERSE_PRIVILEGE */
+            UINT32 HasBackupPrivilege:1;    /* requestor has TOKEN_HAS_BACKUP_PRIVILEGE */
+            UINT32 HasRestorePrivilege:1;   /* requestor has TOKEN_HAS_RESTORE_PRIVILEGE */
             UINT32 OpenTargetDirectory:1;   /* open target dir and report FILE_{EXISTS,DOES_NOT_EXIST} */
             UINT32 CaseSensitive:1;         /* FileName comparisons should be case-sensitive */
-            UINT32 ReservedFlags:28;
+            UINT32 ReservedFlags:26;
             UINT16 NamedStream;             /* request targets named stream; colon offset in FileName */
         } Create;
         struct

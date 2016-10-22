@@ -163,7 +163,8 @@ static NTSTATUS FspFsvolCreateNoLock(
     ULONG SecurityDescriptorSize = 0;
     UINT64 AllocationSize = Irp->Overlay.AllocationSize.QuadPart;
     UINT64 AllocationUnit;
-    ACCESS_MASK DesiredAccess = IrpSp->Parameters.Create.SecurityContext->DesiredAccess;
+    ACCESS_MASK DesiredAccess = AccessState->RemainingDesiredAccess;
+    ACCESS_MASK GrantedAccess = AccessState->PreviouslyGrantedAccess;
     USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
     //ULONG EaLength = IrpSp->Parameters.Create.EaLength;
@@ -176,6 +177,10 @@ static NTSTATUS FspFsvolCreateNoLock(
         CaseSensitiveRequested || FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
     BOOLEAN HasTraversePrivilege =
         BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
+    BOOLEAN HasBackupPrivilege =
+        BooleanFlagOn(AccessState->Flags, TOKEN_HAS_BACKUP_PRIVILEGE);
+    BOOLEAN HasRestorePrivilege =
+        BooleanFlagOn(AccessState->Flags, TOKEN_HAS_RESTORE_PRIVILEGE);
     FSP_FILE_NODE *FileNode, *RelatedFileNode;
     FSP_FILE_DESC *FileDesc;
     UNICODE_STRING MainFileName = { 0 }, StreamPart = { 0 };
@@ -453,6 +458,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     FileDesc->FileNode = FileNode;
     FileDesc->CaseSensitive = CaseSensitive;
     FileDesc->HasTraversePrivilege = HasTraversePrivilege;
+
     if (!MainFileOpen)
     {
         FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, Request);
@@ -470,11 +476,14 @@ static NTSTATUS FspFsvolCreateNoLock(
     Request->Req.Create.AllocationSize = AllocationSize;
     Request->Req.Create.AccessToken = 0;
     Request->Req.Create.DesiredAccess = DesiredAccess;
+    Request->Req.Create.GrantedAccess = GrantedAccess;
     Request->Req.Create.ShareAccess = ShareAccess;
     Request->Req.Create.Ea.Offset = 0;
     Request->Req.Create.Ea.Size = 0;
     Request->Req.Create.UserMode = UserMode == RequestorMode;
     Request->Req.Create.HasTraversePrivilege = HasTraversePrivilege;
+    Request->Req.Create.HasBackupPrivilege = HasBackupPrivilege;
+    Request->Req.Create.HasRestorePrivilege = HasRestorePrivilege;
     Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);
     Request->Req.Create.CaseSensitive = CaseSensitiveRequested;
     Request->Req.Create.NamedStream = MainFileName.Length;
@@ -600,6 +609,7 @@ NTSTATUS FspFsvolCreateComplete(
 
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->DeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     FSP_FILE_DESC *FileDesc = FspIopRequestContext(Request, RequestFileDesc);
@@ -816,6 +826,10 @@ NTSTATUS FspFsvolCreateComplete(
             FspFileNodeDereference(FileNode);
             FileDesc->FileNode = FileNode = OpenedFileNode;
         }
+
+        /* set up the AccessState */
+        AccessState->RemainingDesiredAccess = 0;
+        AccessState->PreviouslyGrantedAccess = Response->Rsp.Create.Opened.GrantedAccess;
 
         /* set up the FileObject */
         if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
@@ -1161,7 +1175,7 @@ NTSTATUS FspCreate(
         "Ea=%p, EaLength=%ld",
         IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName,
         IrpSp->Flags,
-        IrpSp->Parameters.Create.SecurityContext->DesiredAccess,
+        IrpSp->Parameters.Create.SecurityContext->AccessState->OriginalDesiredAccess,
         IrpSp->Parameters.Create.ShareAccess,
         IrpSp->Parameters.Create.Options,
         IrpSp->Parameters.Create.FileAttributes,
