@@ -175,8 +175,6 @@ static NTSTATUS FspFsvolReadCached(
     }
     else
     {
-        ASSERT(0 == Irp->MdlAddress);
-
         Result = FspCcMdlRead(FileObject, &ReadOffset, ReadLength, &Irp->MdlAddress,
             &Irp->IoStatus);
         if (!NT_SUCCESS(Result))

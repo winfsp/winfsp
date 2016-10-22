@@ -442,33 +442,15 @@ NTSTATUS FspCcMdlRead(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG 
 {
     PAGED_CODE();
 
-    NTSTATUS Result;
-
-    *PMdlChain = 0;
-
     try
     {
         CcMdlRead(FileObject, FileOffset, Length, PMdlChain, IoStatus);
-        Result = IoStatus->Status;
+        return IoStatus->Status;
     }
-    except(EXCEPTION_EXECUTE_HANDLER)
+    except (EXCEPTION_EXECUTE_HANDLER)
     {
-        Result = GetExceptionCode();
+        return GetExceptionCode();
     }
-
-    if (!NT_SUCCESS(Result))
-    {
-        if (0 != *PMdlChain)
-        {
-            CcMdlReadComplete(FileObject, *PMdlChain);
-            *PMdlChain = 0;
-        }
-
-        IoStatus->Information = 0;
-        IoStatus->Status = Result;
-    }
-
-    return Result;
 }
 
 NTSTATUS FspCcMdlReadComplete(PFILE_OBJECT FileObject, PMDL MdlChain)
@@ -491,33 +473,15 @@ NTSTATUS FspCcPrepareMdlWrite(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset
 {
     PAGED_CODE();
 
-    NTSTATUS Result;
-
-    *PMdlChain = 0;
-
     try
     {
         CcPrepareMdlWrite(FileObject, FileOffset, Length, PMdlChain, IoStatus);
-        Result = IoStatus->Status;
+        return IoStatus->Status;
     }
-    except(EXCEPTION_EXECUTE_HANDLER)
+    except (EXCEPTION_EXECUTE_HANDLER)
     {
-        Result = GetExceptionCode();
+        return GetExceptionCode();
     }
-
-    if (!NT_SUCCESS(Result))
-    {
-        if (0 != *PMdlChain)
-        {
-            CcMdlWriteAbort(FileObject, *PMdlChain);
-            *PMdlChain = 0;
-        }
-
-        IoStatus->Information = 0;
-        IoStatus->Status = Result;
-    }
-
-    return Result;
 }
 
 NTSTATUS FspCcMdlWriteComplete(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, PMDL MdlChain)

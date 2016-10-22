@@ -218,8 +218,6 @@ static NTSTATUS FspFsvolWriteCached(
     }
     else
     {
-        ASSERT(0 == Irp->MdlAddress);
-
         Result = FspCcPrepareMdlWrite(FileObject, &WriteOffset, WriteLength, &Irp->MdlAddress,
             &Irp->IoStatus);
         if (!NT_SUCCESS(Result))
