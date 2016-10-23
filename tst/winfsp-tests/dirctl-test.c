@@ -48,6 +48,33 @@ static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, UL
     DWORD times[2];
     times[0] = GetTickCount();
 
+    if (-1 != Flags)
+    {
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\*",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+        Handle = FindFirstFileW(FilePath, &FindData);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+        FileCount = 0;
+        do
+        {
+            ASSERT(
+                0 == mywcscmp(FindData.cFileName, 4, L"file", 4) ||
+                0 == mywcscmp(FindData.cFileName, 3, L"dir", 3));
+
+            FileCount++;
+
+            if (0 < SleepTimeout && 5 == FileCount)
+                Sleep(SleepTimeout);
+        } while (FindNextFileW(Handle, &FindData));
+        ASSERT(ERROR_NO_MORE_FILES == GetLastError());
+
+        ASSERT(110 == FileCount);
+
+        Success = FindClose(Handle);
+        ASSERT(Success);
+    }
+
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir5\\*",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
     Handle = FindFirstFileW(FilePath, &FindData);

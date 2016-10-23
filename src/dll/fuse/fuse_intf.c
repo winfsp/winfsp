@@ -1735,6 +1735,15 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         if (sizeof(struct fsp_fuse_dirinfo) > di->Size)
             break;
 
+        if ('/' == filedesc->PosixPath[0] && '\0' == filedesc->PosixPath[1])
+        {
+            /* if this is the root directory do not add the dot entries */
+
+            if ('.' == di->PosixNameBuf[0] && ('\0' == di->PosixNameBuf[1] ||
+                ('.' == di->PosixNameBuf[1] && '\0' == di->PosixNameBuf[2])))
+                continue;
+        }
+
         if (!di->FileInfoValid)
         {
             if (0 == PosixPath)

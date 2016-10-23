@@ -1150,15 +1150,20 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     Context.PBytesTransferred = PBytesTransferred;
     Context.OffsetFound = FALSE;
 
-    if (0 == Offset)
-        if (!AddDirInfo(FileNode, L".", Buffer, Length, PBytesTransferred))
-            return STATUS_SUCCESS;
-    if (0 == Offset || FileNode->FileInfo.IndexNumber == Offset)
+    if (L'\0' != FileNode->FileName[1])
     {
-        Context.OffsetFound = FileNode->FileInfo.IndexNumber == Context.Offset;
+        /* if this is not the root directory add the dot entries */
 
-        if (!AddDirInfo(ParentNode, L"..", Buffer, Length, PBytesTransferred))
-            return STATUS_SUCCESS;
+        if (0 == Offset)
+            if (!AddDirInfo(FileNode, L".", Buffer, Length, PBytesTransferred))
+                return STATUS_SUCCESS;
+        if (0 == Offset || FileNode->FileInfo.IndexNumber == Offset)
+        {
+            Context.OffsetFound = FileNode->FileInfo.IndexNumber == Context.Offset;
+
+            if (!AddDirInfo(ParentNode, L"..", Buffer, Length, PBytesTransferred))
+                return STATUS_SUCCESS;
+        }
     }
 
     if (MemfsFileNodeMapEnumerateChildren(Memfs->FileNodeMap, FileNode, ReadDirectoryEnumFn, &Context))

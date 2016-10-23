@@ -600,7 +600,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Offset within the directory to read from. The kernel does not interpret this value
      *     which is used solely by the file system to locate directory entries. However the
      *     special value 0 indicates that the read should start from the first entries. The first
-     *     two entries returned by ReadDirectory should always be the "." and ".." entries.
+     *     two entries returned by ReadDirectory should always be the "." and ".." entries,
+     *     except for the root directory which does not have these entries.
      * @param Length
      *     Length of data to read.
      * @param Pattern
