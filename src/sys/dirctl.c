@@ -71,7 +71,7 @@ FSP_DRIVER_DISPATCH FspDirectoryControl;
 enum
 {
     /* QueryDirectory */
-    RequestFileNode                     = 0,
+    RequestIrp                          = 0,
     RequestMdl                          = 1,
     RequestAddress                      = 2,
     RequestProcess                      = 3,
@@ -348,7 +348,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     UINT64 DirectoryOffset = FileDesc->DirectoryOffset;
 
     ASSERT(DirInfo == DestBuf);
-    static_assert(
+    FSP_FSCTL_STATIC_ASSERT(
         FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) >=
         FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName),
         "FSP_FSCTL_DIR_INFO must be bigger than FILE_ID_BOTH_DIR_INFORMATION");
@@ -588,7 +588,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     }
 
     FspFileNodeSetOwner(FileNode, Full, Request);
-    FspIopRequestContext(Request, RequestFileNode) = FileNode;
+    FspIopRequestContext(Request, RequestIrp) = Irp;
 
     return FSP_STATUS_IOQ_POST;
 
@@ -942,7 +942,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
         Request->Req.QueryDirectory.Offset = FileDesc->DirectoryOffset;
 
         FspFileNodeSetOwner(FileNode, Full, Request);
-        FspIopRequestContext(Request, RequestFileNode) = FileNode;
+        FspIopRequestContext(Request, RequestIrp) = Irp;
 
         FspIoqPostIrp(FsvolDeviceExtension->Ioq, Irp, &Result);
     }
@@ -964,7 +964,7 @@ static VOID FspFsvolQueryDirectoryRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
 {
     PAGED_CODE();
 
-    FSP_FILE_NODE *FileNode = Context[RequestFileNode];
+    PIRP Irp = Context[RequestIrp];
     PMDL Mdl = Context[RequestMdl];
     PVOID Address = Context[RequestAddress];
     PEPROCESS Process = Context[RequestProcess];
@@ -989,8 +989,13 @@ static VOID FspFsvolQueryDirectoryRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
     if (0 != Mdl)
         IoFreeMdl(Mdl);
 
-    if (0 != FileNode)
+    if (0 != Irp)
+    {
+        PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+        FSP_FILE_NODE *FileNode = IrpSp->FileObject->FsContext;
+
         FspFileNodeReleaseOwner(FileNode, Full, Request);
+    }
 }
 
 NTSTATUS FspDirectoryControl(
