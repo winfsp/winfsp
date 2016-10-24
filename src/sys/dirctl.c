@@ -847,17 +847,39 @@ NTSTATUS FspFsvolDirectoryControlComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
+    if (0 != Irp->MdlAddress &&
+        0 != Irp->AssociatedIrp.SystemBuffer)
+    {
+        /*
+         * Turns out that SRV2 sends an undocumented flavor of IRP_MJ_DIRECTORY_CONTROL /
+         * IRP_MN_QUERY_DIRECTORY. These IRP's have a non-NULL Irp->MdlAddress. They expect
+         * the FSD to fill the buffer pointed by Irp->MdlAddress and they cannot handle
+         * completed IRP's with a non-NULL Irp->AssociatedIrp.SystemBuffer. So we have to
+         * provide special support for these IRPs.
+         *
+         * If we detect such an IRP here, we clear out the IRP flags that normally tell the
+         * I/O manager how to handle the SystemBuffer. Because we are doing the SystemBuffer
+         * handling ourselves, we do this to avoid having the SystemBuffer deallocated
+         * prematurely in FspIopResetRequest.
+         */
+
+        ClearFlag(Irp->Flags, IRP_INPUT_OPERATION | IRP_BUFFERED_IO | IRP_DEALLOCATE_BUFFER);
+    }
+
     if (!NT_SUCCESS(Response->IoStatus.Status))
     {
         Irp->IoStatus.Information = 0;
         Result = Response->IoStatus.Status;
-        FSP_RETURN();
+        goto exit;
     }
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
 
     if (Response->IoStatus.Information > Request->Req.QueryDirectory.Length)
-        FSP_RETURN(Result = STATUS_INTERNAL_ERROR);
+    {
+        Result = STATUS_INTERNAL_ERROR;
+        goto exit;
+    }
 
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
@@ -878,7 +900,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
     {
         Result = !FileDesc->DirectoryHasSuchFile ?
             STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES;
-        FSP_RETURN();
+        goto exit;
     }
 
     if (FspFsctlTransactQueryDirectoryKind == Request->Kind)
@@ -897,7 +919,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
     if (!Success)
     {
         FspIopRetryCompleteIrp(Irp, Response, &Result);
-        FSP_RETURN();
+        goto exit;
     }
 
     if (0 == FileDesc->DirectoryOffset &&
@@ -953,6 +975,34 @@ NTSTATUS FspFsvolDirectoryControlComplete(
         Irp->IoStatus.Information = Length;
     }
 
+exit:
+    if (0 != Irp->MdlAddress &&
+        0 != Irp->AssociatedIrp.SystemBuffer)
+    {
+        /*
+         * Turns out that SRV2 sends an undocumented flavor of IRP_MJ_DIRECTORY_CONTROL /
+         * IRP_MN_QUERY_DIRECTORY. These IRP's have a non-NULL Irp->MdlAddress. They expect
+         * the FSD to fill the buffer pointed by Irp->MdlAddress and they cannot handle
+         * completed IRP's with a non-NULL Irp->AssociatedIrp.SystemBuffer. So we have to
+         * provide special support for these IRPs.
+         *
+         * Copy the SystemBuffer into Irp->MdlAddress and then deallocate the buffer. The
+         * relevant Irp->Flags have been cleared earlier.
+         */
+
+        if (NT_SUCCESS(Result))
+        {
+            PVOID Address = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
+            if (0 != Address)
+                RtlCopyMemory(Address, Irp->AssociatedIrp.SystemBuffer, Irp->IoStatus.Information);
+            else
+                Result = STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        FspFreeExternal(Irp->AssociatedIrp.SystemBuffer);
+        Irp->AssociatedIrp.SystemBuffer = 0;
+    }
+
     FSP_LEAVE_IOC("%s%sFileObject=%p",
         IRP_MN_QUERY_DIRECTORY == IrpSp->MinorFunction ?
             FileInformationClassSym(IrpSp->Parameters.QueryDirectory.FileInformationClass) : "",
@@ -995,6 +1045,28 @@ static VOID FspFsvolQueryDirectoryRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
         FSP_FILE_NODE *FileNode = IrpSp->FileObject->FsContext;
 
         FspFileNodeReleaseOwner(FileNode, Full, Request);
+
+        if (0 != Irp->MdlAddress &&
+            0 != Irp->AssociatedIrp.SystemBuffer &&
+            FlagOn(Irp->Flags, IRP_DEALLOCATE_BUFFER))
+        {
+            /*
+             * Turns out that SRV2 sends an undocumented flavor of IRP_MJ_DIRECTORY_CONTROL /
+             * IRP_MN_QUERY_DIRECTORY. These IRP's have a non-NULL Irp->MdlAddress. They expect
+             * the FSD to fill the buffer pointed by Irp->MdlAddress and they cannot handle
+             * completed IRP's with a non-NULL Irp->AssociatedIrp.SystemBuffer. So we have to
+             * provide special support for these IRPs.
+             *
+             * This code should only execute when the IRP gets canceled without completing
+             * normally. If the normal completion routine is entered
+             * (FspFsvolDirectoryControlComplete), the IRP_DEALLOCATE_BUFFER flag will be
+             * cleared and this branch will not be taken.
+             */
+
+            FspFreeExternal(Irp->AssociatedIrp.SystemBuffer);
+            Irp->AssociatedIrp.SystemBuffer = 0;
+            ClearFlag(Irp->Flags, IRP_INPUT_OPERATION | IRP_BUFFERED_IO | IRP_DEALLOCATE_BUFFER);
+        }
     }
 }
 
