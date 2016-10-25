@@ -206,26 +206,35 @@ HANDLE HookCreateFileW(
 BOOL HookDeleteFileW(
     LPCWSTR lpFileName)
 {
+    ULONG MaxTries = 30;
+    ULONG SleepTimeout = 300;
     BOOL Success;
     DWORD LastError;
 
     Success = DeleteFileW(lpFileName);
     LastError = GetLastError();
-    if (OptResilient && !Success)
+    if (OptResilient)
     {
-        ULONG MaxTries = 10;
-        while (!Success && ERROR_SHARING_VIOLATION == LastError && 0 != MaxTries--)
+        if (!Success)
         {
-            Sleep(300);
-            Success = DeleteFileW(lpFileName);
+            while (!Success && ERROR_SHARING_VIOLATION == GetLastError() && 0 != MaxTries--)
+            {
+                Sleep(SleepTimeout);
+                Success = DeleteFileW(lpFileName);
+            }
         }
-    }
-    else
-    {
-        ULONG MaxTries = 3;
-        while (INVALID_FILE_ATTRIBUTES != GetFileAttributes(lpFileName) && 0 != MaxTries--)
+        else
         {
-            Sleep(300);
+            while (0 != MaxTries--)
+            {
+                HANDLE Handle = CreateFileW(lpFileName, FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, 0, 0);
+                if (INVALID_HANDLE_VALUE != Handle)
+                    CloseHandle(Handle); /* should never happen! */
+                else if (ERROR_ACCESS_DENIED == GetLastError())
+                    Sleep(SleepTimeout);
+                else
+                    break;
+            }
         }
     }
 
