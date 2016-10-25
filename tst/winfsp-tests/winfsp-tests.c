@@ -320,7 +320,6 @@ int main(int argc, char *argv[])
                     OptMountPoint = OptMountPointBuf;
                     rmarg(argv, argc, argi);
 
-                    NtfsTests = 0;
                     if (!(testalpha(OptMountPoint[0]) &&
                         L':' == OptMountPoint[1] &&
                         L'\0' == OptMountPoint[2]))
