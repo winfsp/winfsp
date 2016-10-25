@@ -11,6 +11,7 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
 {
     if (-1 == Flags)
     {
+        AddNetShareIfNeeded();
         memfs_running = 1;
         return 0;
     }
@@ -38,6 +39,7 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
     Result = MemfsStart(Memfs);
     ASSERT(NT_SUCCESS(Result));
 
+    AddNetShareIfNeeded();
     memfs_running = 1;
 
     return Memfs;
@@ -50,6 +52,7 @@ void *memfs_start(ULONG Flags)
 
 void memfs_stop(void *data)
 {
+    RemoveNetShareIfNeeded();
     memfs_running = 0;
 
     if (0 == data)

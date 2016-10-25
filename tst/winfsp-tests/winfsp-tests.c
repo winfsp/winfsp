@@ -227,8 +227,11 @@ static VOID DisableBackupRestorePrivileges(VOID)
     CloseHandle(Token);
 }
 
-static VOID AddNetworkShare(VOID)
+VOID AddNetShareIfNeeded(VOID)
 {
+    if (!OptShareName)
+        return;
+
     SHARE_INFO_2 ShareInfo = { 0 };
     NET_API_STATUS NetStatus;
 
@@ -242,6 +245,14 @@ static VOID AddNetworkShare(VOID)
     NetStatus = NetShareAdd(0, 2, (PBYTE)&ShareInfo, 0);
     if (NERR_Success != NetStatus)
         ABORT("cannot add network share");
+}
+
+VOID RemoveNetShareIfNeeded(VOID)
+{
+    if (!OptShareName)
+        return;
+
+    NetShareDel(0, OptShareName, 0);
 }
 
 static void abort_handler(int sig)
@@ -348,9 +359,6 @@ int main(int argc, char *argv[])
 
     DisableBackupRestorePrivileges();
 
-    if (OptShareName)
-        AddNetworkShare();
-
     myrandseed = (unsigned)time(0);
 
     tlib_run_tests(argc, argv);
@@ -360,6 +368,5 @@ int main(int argc, char *argv[])
 static void exiting(void)
 {
     OutputDebugStringA("winfsp-tests: exiting\n");
-    if (OptShareName)
-        NetShareDel(0, OptShareName, 0);
+    RemoveNetShareIfNeeded();
 }

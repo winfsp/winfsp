@@ -17,6 +17,9 @@ HANDLE HookCreateFileW(
     DWORD dwFlagsAndAttributes,
     HANDLE hTemplateFile);
 
+VOID AddNetShareIfNeeded(VOID);
+VOID RemoveNetShareIfNeeded(VOID);
+
 extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
