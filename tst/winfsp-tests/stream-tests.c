@@ -1260,7 +1260,7 @@ static void stream_delete_pending_dotest(ULONG Flags, PWSTR Prefix, ULONG FileIn
     BOOL Success;
     WCHAR Dir1Path[MAX_PATH], Dir1StreamPath[MAX_PATH];
     WCHAR FilePath[MAX_PATH], FileStreamPath[MAX_PATH];
-    FILE_DISPOSITION_INFO DispositionInfo;
+    MY_FILE_DISPOSITION_INFO DispositionInfo;
 
     StringCbPrintfW(Dir1Path, sizeof Dir1Path, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
@@ -1304,7 +1304,7 @@ static void stream_delete_pending_dotest(ULONG Flags, PWSTR Prefix, ULONG FileIn
             DELETE, FILE_SHARE_DELETE, 0,
             OPEN_EXISTING, 0, 0);
         ASSERT(INVALID_HANDLE_VALUE != Handle);
-        DispositionInfo.DeleteFile = TRUE;
+        DispositionInfo.Disposition = TRUE;
         Success = SetFileInformationByHandle(Handle,
             FileDispositionInfo, &DispositionInfo, sizeof DispositionInfo);
         ASSERT(Success);
@@ -1327,7 +1327,7 @@ static void stream_delete_pending_dotest(ULONG Flags, PWSTR Prefix, ULONG FileIn
             DELETE, FILE_SHARE_DELETE, 0,
             OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
         ASSERT(INVALID_HANDLE_VALUE != Handle);
-        DispositionInfo.DeleteFile = TRUE;
+        DispositionInfo.Disposition = TRUE;
         Success = SetFileInformationByHandle(Handle,
             FileDispositionInfo, &DispositionInfo, sizeof DispositionInfo);
         ASSERT(Success);

@@ -17,13 +17,20 @@ HANDLE HookCreateFileW(
     DWORD dwFlagsAndAttributes,
     HANDLE hTemplateFile);
 
-VOID AddNetShareIfNeeded(VOID);
-VOID RemoveNetShareIfNeeded(VOID);
+#define DeleteFileW HookDeleteFileW
+BOOL HookDeleteFileW(
+    LPCWSTR lpFileName);
+
+typedef struct
+{
+    BOOLEAN Disposition;
+} MY_FILE_DISPOSITION_INFO;
 
 extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
+extern BOOLEAN OptResilient;
 extern BOOLEAN OptCaseInsensitive;
 extern BOOLEAN OptCaseRandomize;
 extern WCHAR OptMountPointBuf[], *OptMountPoint;

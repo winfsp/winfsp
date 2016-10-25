@@ -17,6 +17,7 @@ int NtfsTests = 0;
 int WinFspDiskTests = 1;
 int WinFspNetTests = 1;
 
+BOOLEAN OptResilient = FALSE;
 BOOLEAN OptCaseInsensitive = FALSE;
 BOOLEAN OptCaseRandomize = FALSE;
 WCHAR OptMountPointBuf[MAX_PATH], *OptMountPoint;
@@ -201,6 +202,37 @@ HANDLE HookCreateFileW(
     return h;
 }
 
+#undef DeleteFileW
+BOOL HookDeleteFileW(
+    LPCWSTR lpFileName)
+{
+    BOOL Success;
+    DWORD LastError;
+
+    Success = DeleteFileW(lpFileName);
+    LastError = GetLastError();
+    if (OptResilient && !Success)
+    {
+        ULONG MaxTries = 10;
+        while (!Success && ERROR_SHARING_VIOLATION == LastError && 0 != MaxTries--)
+        {
+            Sleep(300);
+            Success = DeleteFileW(lpFileName);
+        }
+    }
+    else
+    {
+        ULONG MaxTries = 3;
+        while (INVALID_FILE_ATTRIBUTES != GetFileAttributes(lpFileName) && 0 != MaxTries--)
+        {
+            Sleep(300);
+        }
+    }
+
+    SetLastError(LastError);
+    return Success;
+}
+
 static VOID DisableBackupRestorePrivileges(VOID)
 {
     union
@@ -227,7 +259,7 @@ static VOID DisableBackupRestorePrivileges(VOID)
     CloseHandle(Token);
 }
 
-VOID AddNetShareIfNeeded(VOID)
+static VOID AddNetShareIfNeeded(VOID)
 {
     if (!OptShareName)
         return;
@@ -247,7 +279,7 @@ VOID AddNetShareIfNeeded(VOID)
         ABORT("cannot add network share");
 }
 
-VOID RemoveNetShareIfNeeded(VOID)
+static VOID RemoveNetShareIfNeeded(VOID)
 {
     if (!OptShareName)
         return;
@@ -306,6 +338,11 @@ int main(int argc, char *argv[])
                 NtfsTests = 1;
                 WinFspDiskTests = 0;
                 WinFspNetTests = 0;
+                rmarg(argv, argc, argi);
+            }
+            else if (0 == strcmp("--resilient", a))
+            {
+                OptResilient = TRUE;
                 rmarg(argv, argc, argi);
             }
             else if (0 == strcmp("--case-insensitive", a))
