@@ -301,7 +301,14 @@ int main(int argc, char *argv[])
         const char *a = argv[argi];
         if ('-' == a[0])
         {
-            if (0 == strcmp("--case-insensitive", a))
+            if (0 == strcmp("--ntfs", a) || 0 == strcmp("--external", a))
+            {
+                NtfsTests = 1;
+                WinFspDiskTests = 0;
+                WinFspNetTests = 0;
+                rmarg(argv, argc, argi);
+            }
+            else if (0 == strcmp("--case-insensitive", a))
             {
                 OptCaseInsensitive = TRUE;
                 rmarg(argv, argc, argi);
@@ -341,6 +348,7 @@ int main(int argc, char *argv[])
                         OptSharePrefixLength = (ULONG)
                             (sizeof OptShareComputer - 2 * sizeof(WCHAR) + (wcslen(OptShareName) * sizeof(WCHAR)));
 
+                        WinFspDiskTests = 0;
                         WinFspNetTests = 0;
                     }
                 }
@@ -356,7 +364,12 @@ int main(int argc, char *argv[])
         }
     }
 
+    if (!NtfsTests && OptShareName)
+        ABORT("option --share requires --ntfs/--external");
+
     DisableBackupRestorePrivileges();
+
+    AddNetShareIfNeeded();
 
     myrandseed = (unsigned)time(0);
 
