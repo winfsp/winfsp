@@ -6,10 +6,10 @@
 
 #include "winfsp-tests.h"
 
-#define ABORT()\
+#define ABORT(s)\
     do\
     {\
-        tlib_printf("ABORT: %s:%s:%d\n", __func__, __FILE__, __LINE__);\
+        tlib_printf("ABORT: %s: %s\n", __func__, s);\
         abort();\
     } while (0,0)
 
@@ -99,28 +99,28 @@ HANDLE HookCreateFileW(
         else if (testalpha(FileNameBuf[0]) && L':' == FileNameBuf[1] && L'\\' == FileNameBuf[2])
             P = FileNameBuf + 3;
         else
-            ABORT();
+            ABORT("unknown filename format");
 
         for (EndP = P + wcslen(P); EndP > P; P++)
             if (testalpha(*P) && myrand() <= (TogglePercent) * 0x7fff / 100)
                 *P = togglealpha(*P);
     }
 
-    if (OptMountPoint && !OptShareName && memfs_running)
+    if (OptMountPoint && memfs_running)
     {
         if (L'\\' == FileNameBuf[0] && L'\\' == FileNameBuf[1] &&
             L'?' == FileNameBuf[2] && L'\\' == FileNameBuf[3] &&
             testalpha(FileNameBuf[4]) && L':' == FileNameBuf[5] && L'\\' == FileNameBuf[6])
-            ;
+            ABORT("--mountpoint not supported with NTFS");
         else if (0 == wcsncmp(FileNameBuf, DevicePrefix, wcschr(DevicePrefix, L'{') - DevicePrefix))
             P = FileNameBuf + wcslen(DevicePrefix);
         else if (0 == mywcscmp(
             FileNameBuf, (int)wcslen(MemfsSharePrefix), MemfsSharePrefix, (int)wcslen(MemfsSharePrefix)))
             P = FileNameBuf + wcslen(MemfsSharePrefix);
         else if (testalpha(FileNameBuf[0]) && L':' == FileNameBuf[1] && L'\\' == FileNameBuf[2])
-            ;
+            ABORT("--mountpoint not supported with NTFS");
         else
-            ABORT();
+            ABORT("unknown filename format");
 
         L1 = wcslen(P) + 1;
         L2 = wcslen(OptMountPoint);
@@ -145,7 +145,7 @@ HANDLE HookCreateFileW(
             /* NTFS testing can only been done when the whole drive is being shared */
             P = FileNameBuf + 2;
         else
-            ABORT();
+            ABORT("unknown filename format");
 
         L1 = wcslen(P) + 1;
         L2 = wcslen(OptShareName);
@@ -163,7 +163,7 @@ HANDLE HookCreateFileW(
         Privileges.Privileges[0].Attributes = 0;
         Privileges.Privileges[0].Luid = OptNoTraverseLuid;
         if (!AdjustTokenPrivileges(OptNoTraverseToken, FALSE, &Privileges, 0, 0, 0))
-            ABORT();
+            ABORT("cannot disable traverse privilege");
     }
 
     HANDLE h = CreateFileW(
@@ -182,7 +182,7 @@ HANDLE HookCreateFileW(
         Privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
         Privileges.Privileges[0].Luid = OptNoTraverseLuid;
         if (!AdjustTokenPrivileges(OptNoTraverseToken, FALSE, &Privileges, 0, 0, 0))
-            ABORT();
+            ABORT("cannot enable traverse privilege");
     }
 
 #if 0
@@ -216,13 +216,13 @@ static VOID DisableBackupRestorePrivileges(VOID)
 
     if (!LookupPrivilegeValueW(0, SE_BACKUP_NAME, &Privileges.P.Privileges[0].Luid) ||
         !LookupPrivilegeValueW(0, SE_RESTORE_NAME, &Privileges.P.Privileges[1].Luid))
-        ABORT();
+        ABORT("cannot lookup backup/restore privileges");
 
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &Token))
-        ABORT();
+        ABORT("cannot open process token");
 
     if (!AdjustTokenPrivileges(Token, FALSE, &Privileges.P, 0, 0, 0))
-        ABORT();
+        ABORT("cannot disable backup/restore privileges");
 
     CloseHandle(Token);
 }
@@ -241,7 +241,7 @@ static VOID AddNetworkShare(VOID)
     NetShareDel(0, OptShareName, 0);
     NetStatus = NetShareAdd(0, 2, (PBYTE)&ShareInfo, 0);
     if (NERR_Success != NetStatus)
-        ABORT();
+        ABORT("cannot add network share");
 }
 
 static void abort_handler(int sig)
