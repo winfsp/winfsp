@@ -859,6 +859,10 @@ static void stream_getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     Success = GetFileInformationByHandleEx(Handle, FileNameInfo, PNameInfo, sizeof *PNameInfo);
     ASSERT(!Success);
     ASSERT(ERROR_MORE_DATA == GetLastError());
+    if (OptSharePrefixLength)
+    {
+        PNameInfo->FileNameLength -= OptSharePrefixLength;
+    }
     if (-1 == Flags)
         ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 6) * sizeof(WCHAR));
     else if (0 == Prefix)
@@ -869,6 +873,13 @@ static void stream_getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
 
     Success = GetFileInformationByHandleEx(Handle, FileNameInfo, PNameInfo, sizeof NameInfoBuf);
     ASSERT(Success);
+    if (OptSharePrefixLength)
+    {
+        memmove(PNameInfo->FileName,
+            PNameInfo->FileName + OptSharePrefixLength / sizeof(WCHAR),
+            PNameInfo->FileNameLength - OptSharePrefixLength);
+        PNameInfo->FileNameLength -= OptSharePrefixLength;
+    }
     if (-1 == Flags)
         ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 6) * sizeof(WCHAR));
     else if (0 == Prefix)
@@ -946,6 +957,10 @@ static void stream_getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     Success = GetFileInformationByHandleEx(Handle, FileNameInfo, PNameInfo, sizeof *PNameInfo);
     ASSERT(!Success);
     ASSERT(ERROR_MORE_DATA == GetLastError());
+    if (OptSharePrefixLength)
+    {
+        PNameInfo->FileNameLength -= OptSharePrefixLength;
+    }
     if (-1 == Flags)
         ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 6) * sizeof(WCHAR));
     else if (0 == Prefix)
@@ -956,6 +971,13 @@ static void stream_getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
 
     Success = GetFileInformationByHandleEx(Handle, FileNameInfo, PNameInfo, sizeof NameInfoBuf);
     ASSERT(Success);
+    if (OptSharePrefixLength)
+    {
+        memmove(PNameInfo->FileName,
+            PNameInfo->FileName + OptSharePrefixLength / sizeof(WCHAR),
+            PNameInfo->FileNameLength - OptSharePrefixLength);
+        PNameInfo->FileNameLength -= OptSharePrefixLength;
+    }
     if (-1 == Flags)
         ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 6) * sizeof(WCHAR));
     else if (0 == Prefix)
@@ -1438,6 +1460,10 @@ static void stream_rename_flipflop_dotest(ULONG Flags, PWSTR Prefix, ULONG FileI
 
 static void stream_rename_flipflop_test(void)
 {
+    if (OptShareName)
+        /* this test fails with shares */
+        return;
+
     if (NtfsTests)
     {
         WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";

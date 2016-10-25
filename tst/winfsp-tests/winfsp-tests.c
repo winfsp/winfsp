@@ -1,3 +1,6 @@
+#include <windows.h>
+#include <lm.h>
+#include <signal.h>
 #include <tlib/testsuite.h>
 #include <time.h>
 
@@ -17,8 +20,13 @@ int WinFspNetTests = 1;
 BOOLEAN OptCaseInsensitive = FALSE;
 BOOLEAN OptCaseRandomize = FALSE;
 WCHAR OptMountPointBuf[MAX_PATH], *OptMountPoint;
+WCHAR OptShareNameBuf[MAX_PATH], *OptShareName, *OptShareTarget;
+    WCHAR OptShareComputer[] = L"\\\\localhost\\";
+    ULONG OptSharePrefixLength; /* only counts single leading slash: \localhost\target\path */
 HANDLE OptNoTraverseToken = 0;
     LUID OptNoTraverseLuid;
+
+static void exiting(void);
 
 int mywcscmp(PWSTR a, int alen, PWSTR b, int blen)
 {
@@ -98,35 +106,55 @@ HANDLE HookCreateFileW(
                 *P = togglealpha(*P);
     }
 
-    if (OptMountPoint && memfs_running)
+    if (OptMountPoint && !OptShareName && memfs_running)
     {
         if (L'\\' == FileNameBuf[0] && L'\\' == FileNameBuf[1] &&
             L'?' == FileNameBuf[2] && L'\\' == FileNameBuf[3] &&
             testalpha(FileNameBuf[4]) && L':' == FileNameBuf[5] && L'\\' == FileNameBuf[6])
             ;
         else if (0 == wcsncmp(FileNameBuf, DevicePrefix, wcschr(DevicePrefix, L'{') - DevicePrefix))
-        {
             P = FileNameBuf + wcslen(DevicePrefix);
-            L1 = wcslen(P) + 1;
-            L2 = wcslen(OptMountPoint);
-            memmove(FileNameBuf + 1024 - L1, P, L1 * sizeof(WCHAR));
-            memmove(FileNameBuf, OptMountPoint, L2 * sizeof(WCHAR));
-            memmove(FileNameBuf + L2, P, L1 * sizeof(WCHAR));
-        }
         else if (0 == mywcscmp(
             FileNameBuf, (int)wcslen(MemfsSharePrefix), MemfsSharePrefix, (int)wcslen(MemfsSharePrefix)))
-        {
             P = FileNameBuf + wcslen(MemfsSharePrefix);
-            L1 = wcslen(P) + 1;
-            L2 = wcslen(OptMountPoint);
-            memmove(FileNameBuf + 1024 - L1, P, L1 * sizeof(WCHAR));
-            memmove(FileNameBuf, OptMountPoint, L2 * sizeof(WCHAR));
-            memmove(FileNameBuf + L2, P, L1 * sizeof(WCHAR));
-        }
         else if (testalpha(FileNameBuf[0]) && L':' == FileNameBuf[1] && L'\\' == FileNameBuf[2])
             ;
         else
             ABORT();
+
+        L1 = wcslen(P) + 1;
+        L2 = wcslen(OptMountPoint);
+        memmove(FileNameBuf + 1024 - L1, P, L1 * sizeof(WCHAR));
+        memmove(FileNameBuf, OptMountPoint, L2 * sizeof(WCHAR));
+        memmove(FileNameBuf + L2, FileNameBuf + 1024 - L1, L1 * sizeof(WCHAR));
+    }
+
+    if (OptShareName && memfs_running)
+    {
+        if (L'\\' == FileNameBuf[0] && L'\\' == FileNameBuf[1] &&
+            L'?' == FileNameBuf[2] && L'\\' == FileNameBuf[3] &&
+            testalpha(FileNameBuf[4]) && L':' == FileNameBuf[5] && L'\\' == FileNameBuf[6])
+            /* NTFS testing can only been done when the whole drive is being shared */
+            P = FileNameBuf + 6;
+        else if (0 == wcsncmp(FileNameBuf, DevicePrefix, wcschr(DevicePrefix, L'{') - DevicePrefix))
+            P = FileNameBuf + wcslen(DevicePrefix);
+        else if (0 == mywcscmp(
+            FileNameBuf, (int)wcslen(MemfsSharePrefix), MemfsSharePrefix, (int)wcslen(MemfsSharePrefix)))
+            P = FileNameBuf + wcslen(MemfsSharePrefix);
+        else if (testalpha(FileNameBuf[0]) && L':' == FileNameBuf[1] && L'\\' == FileNameBuf[2])
+            /* NTFS testing can only been done when the whole drive is being shared */
+            P = FileNameBuf + 2;
+        else
+            ABORT();
+
+        L1 = wcslen(P) + 1;
+        L2 = wcslen(OptShareName);
+        memmove(FileNameBuf + 1024 - L1, P, L1 * sizeof(WCHAR));
+        memmove(FileNameBuf, OptShareComputer, sizeof OptShareComputer - sizeof(WCHAR));
+        memmove(FileNameBuf + (sizeof OptShareComputer - sizeof(WCHAR)) / sizeof(WCHAR),
+            OptShareName, L2 * sizeof(WCHAR));
+        memmove(FileNameBuf + (sizeof OptShareComputer - sizeof(WCHAR)) / sizeof(WCHAR) + L2,
+            FileNameBuf + 1024 - L1, L1 * sizeof(WCHAR));
     }
 
     if (OptNoTraverseToken)
@@ -199,6 +227,36 @@ static VOID DisableBackupRestorePrivileges(VOID)
     CloseHandle(Token);
 }
 
+static VOID AddNetworkShare(VOID)
+{
+    SHARE_INFO_2 ShareInfo = { 0 };
+    NET_API_STATUS NetStatus;
+
+    ShareInfo.shi2_netname = OptShareName;
+    ShareInfo.shi2_type = STYPE_DISKTREE;
+    ShareInfo.shi2_permissions = ACCESS_ALL;
+    ShareInfo.shi2_max_uses = -1;
+    ShareInfo.shi2_path = OptShareTarget;
+
+    NetShareDel(0, OptShareName, 0);
+    NetStatus = NetShareAdd(0, 2, (PBYTE)&ShareInfo, 0);
+    if (NERR_Success != NetStatus)
+        ABORT();
+}
+
+static void abort_handler(int sig)
+{
+    DWORD Error = GetLastError();
+    exiting();
+    SetLastError(Error);
+}
+
+LONG WINAPI UnhandledExceptionHandler(struct _EXCEPTION_POINTERS *ExceptionInfo)
+{
+    exiting();
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
 #define rmarg(argv, argc, argi)         \
     argc--,\
     memmove(argv + argi, argv + argi + 1, (argc - argi) * sizeof(char *)),\
@@ -222,6 +280,10 @@ int main(int argc, char *argv[])
     TESTSUITE(dirctl_tests);
     TESTSUITE(reparse_tests);
     TESTSUITE(stream_tests);
+
+    atexit(exiting);
+    signal(SIGABRT, abort_handler);
+    SetUnhandledExceptionFilter(UnhandledExceptionHandler);
 
     for (int argi = 1; argc > argi; argi++)
     {
@@ -254,6 +316,25 @@ int main(int argc, char *argv[])
                         WinFspNetTests = 0;
                 }
             }
+            else if (0 == strncmp("--share=", a, sizeof "--share=" - 1))
+            {
+                if (0 != MultiByteToWideChar(CP_UTF8, 0,
+                    a + sizeof "--share=" - 1, -1, OptShareNameBuf, MAX_PATH))
+                {
+                    OptShareTarget = wcschr(OptShareNameBuf, L'=');
+                    if (OptShareTarget)
+                    {
+                        *OptShareTarget++ = L'\0';
+                        OptShareName = OptShareNameBuf;
+                        rmarg(argv, argc, argi);
+
+                        OptSharePrefixLength = (ULONG)
+                            (sizeof OptShareComputer - 2 * sizeof(WCHAR) + (wcslen(OptShareName) * sizeof(WCHAR)));
+
+                        WinFspNetTests = 0;
+                    }
+                }
+            }
             else if (0 == strcmp("--no-traverse", a))
             {
                 if (LookupPrivilegeValueW(0, SE_CHANGE_NOTIFY_NAME, &OptNoTraverseLuid) &&
@@ -267,8 +348,18 @@ int main(int argc, char *argv[])
 
     DisableBackupRestorePrivileges();
 
+    if (OptShareName)
+        AddNetworkShare();
+
     myrandseed = (unsigned)time(0);
 
     tlib_run_tests(argc, argv);
     return 0;
+}
+
+static void exiting(void)
+{
+    OutputDebugStringA("winfsp-tests: exiting\n");
+    if (OptShareName)
+        NetShareDel(0, OptShareName, 0);
 }

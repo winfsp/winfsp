@@ -236,6 +236,13 @@ static void reparse_symlink_dotest0(ULONG Flags, PWSTR Prefix,
 
         Success = GetFileInformationByHandleEx(Handle, FileNameInfo, PNameInfo, sizeof NameInfoBuf);
         ASSERT(Success);
+        if (OptSharePrefixLength)
+        {
+            memmove(PNameInfo->FileName,
+                PNameInfo->FileName + OptSharePrefixLength / sizeof(WCHAR),
+                PNameInfo->FileNameLength - OptSharePrefixLength);
+            PNameInfo->FileNameLength -= OptSharePrefixLength;
+        }
         if (-1 == Flags)
             ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 6) * sizeof(WCHAR));
         else if (0 == Prefix)
@@ -278,7 +285,12 @@ static void reparse_symlink_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTime
     StringCbPrintfW(LinkPath, sizeof LinkPath, L"%s%s\\link0",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    reparse_symlink_dotest0(Flags, Prefix, FilePath, LinkPath, FilePath);
+    if (OptShareName)
+        StringCbPrintfW(TargetPath, sizeof TargetPath, L"%s%s%s\\file0",
+            OptShareComputer, OptShareName, -1 == Flags ? Prefix + 6 : L"");
+
+    reparse_symlink_dotest0(Flags, Prefix, FilePath, LinkPath,
+        OptShareName ? TargetPath : FilePath);
 
     StringCbPrintfW(TargetPath, sizeof TargetPath, L"%s\\file0",
         -1 == Flags ? Prefix + 6 : L"");
@@ -393,6 +405,13 @@ static BOOL my_namecheck_fn(ULONG Flags, PWSTR Prefix, void *memfs, PWSTR FileNa
 
     if (GetFileInformationByHandleEx(Handle, FileNameInfo, PNameInfo, sizeof NameInfoBuf))
     {
+        if (OptSharePrefixLength)
+        {
+            memmove(PNameInfo->FileName,
+                PNameInfo->FileName + OptSharePrefixLength / sizeof(WCHAR),
+                PNameInfo->FileNameLength - OptSharePrefixLength);
+            PNameInfo->FileNameLength -= OptSharePrefixLength;
+        }
         if (-1 == Flags)
             ASSERT(PNameInfo->FileNameLength == wcslen(ExpectedPath + 6) * sizeof(WCHAR));
         else if (0 == Prefix)

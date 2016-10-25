@@ -67,6 +67,10 @@ void getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     Success = GetFileInformationByHandleEx(Handle, FileNameInfo, PNameInfo, sizeof *PNameInfo);
     ASSERT(!Success);
     ASSERT(ERROR_MORE_DATA == GetLastError());
+    if (OptSharePrefixLength)
+    {
+        PNameInfo->FileNameLength -= OptSharePrefixLength;
+    }
     if (-1 == Flags)
         ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 6) * sizeof(WCHAR));
     else if (0 == Prefix)
@@ -77,6 +81,13 @@ void getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 
     Success = GetFileInformationByHandleEx(Handle, FileNameInfo, PNameInfo, sizeof NameInfoBuf);
     ASSERT(Success);
+    if (OptSharePrefixLength)
+    {
+        memmove(PNameInfo->FileName,
+            PNameInfo->FileName + OptSharePrefixLength / sizeof(WCHAR),
+            PNameInfo->FileNameLength - OptSharePrefixLength);
+        PNameInfo->FileNameLength -= OptSharePrefixLength;
+    }
     if (-1 == Flags)
         ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 6) * sizeof(WCHAR));
     else if (0 == Prefix)
@@ -177,11 +188,25 @@ void getfileinfo_name_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     Result = GetFinalPathNameByHandleW(
         Handle, FinalPath, MAX_PATH - 1, VOLUME_NAME_NONE | FILE_NAME_OPENED);
     ASSERT(0 != Result && Result < MAX_PATH);
-    ASSERT(0 == wcscmp(OrigPath, FinalPath)); /* don't use mywcscmp */
+    if (OptSharePrefixLength)
+    {
+        memmove(FinalPath,
+            FinalPath + OptSharePrefixLength / sizeof(WCHAR),
+            (wcslen(FinalPath) + 1) * sizeof(WCHAR) - OptSharePrefixLength);
+        ASSERT(0 == _wcsicmp(OrigPath, FinalPath)); /* use wcsicmp when going through share (?) */
+    }
+    else
+        ASSERT(0 == wcscmp(OrigPath, FinalPath)); /* don't use mywcscmp */
 
     Result = GetFinalPathNameByHandleW(
         Handle, FinalPath, MAX_PATH - 1, VOLUME_NAME_NONE | FILE_NAME_NORMALIZED);
     ASSERT(0 != Result && Result < MAX_PATH);
+    if (OptSharePrefixLength)
+    {
+        memmove(FinalPath,
+            FinalPath + OptSharePrefixLength / sizeof(WCHAR),
+            (wcslen(FinalPath) + 1) * sizeof(WCHAR) - OptSharePrefixLength);
+    }
     ASSERT(0 == wcscmp(OrigPath, FinalPath)); /* don't use mywcscmp */
 
     CloseHandle(Handle);
@@ -707,6 +732,10 @@ static void rename_flipflop_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTime
 
 void rename_flipflop_test(void)
 {
+    if (OptShareName)
+        /* this test fails with shares */
+        return;
+
     if (NtfsTests)
     {
         WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";

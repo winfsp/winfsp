@@ -372,6 +372,9 @@ static void querydir_buffer_overflow_dotest(ULONG Flags, PWSTR Prefix, ULONG Fil
 
 void querydir_buffer_overflow_test(void)
 {
+    if (OptShareName)
+        return;
+
     if (NtfsTests)
     {
         WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";

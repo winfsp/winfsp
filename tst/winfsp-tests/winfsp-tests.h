@@ -24,6 +24,9 @@ extern int WinFspNetTests;
 extern BOOLEAN OptCaseInsensitive;
 extern BOOLEAN OptCaseRandomize;
 extern WCHAR OptMountPointBuf[], *OptMountPoint;
+extern WCHAR OptShareNameBuf[], *OptShareName, *OptShareTarget;
+    extern WCHAR OptShareComputer[];
+    extern ULONG OptSharePrefixLength;
 extern HANDLE OptNoTraverseToken;
     extern LUID OptNoTraverseLuid;
 
