@@ -103,6 +103,23 @@ static VOID PrepareFileName(PCWSTR FileName, PWSTR FileNameBuf)
     }
 }
 
+static VOID MaybeAdjustTraversePrivilege(BOOL Enable)
+{
+    if (OptNoTraverseToken)
+    {
+        TOKEN_PRIVILEGES Privileges;
+        DWORD LastError = GetLastError();
+
+        Privileges.PrivilegeCount = 1;
+        Privileges.Privileges[0].Attributes = Enable ? SE_PRIVILEGE_ENABLED : 0;
+        Privileges.Privileges[0].Luid = OptNoTraverseLuid;
+        if (!AdjustTokenPrivileges(OptNoTraverseToken, FALSE, &Privileges, 0, 0, 0))
+            ABORT("cannot adjust traverse privilege");
+
+        SetLastError(LastError);
+    }
+}
+
 HANDLE HookCreateFileW(
     LPCWSTR lpFileName,
     DWORD dwDesiredAccess,
@@ -113,72 +130,28 @@ HANDLE HookCreateFileW(
     HANDLE hTemplateFile)
 {
     WCHAR FileNameBuf[FILENAMEBUF_SIZE];
-    TOKEN_PRIVILEGES Privileges;
+    HANDLE Handle;
 
     PrepareFileName(lpFileName, FileNameBuf);
 
-    if (OptNoTraverseToken)
-    {
-        Privileges.PrivilegeCount = 1;
-        Privileges.Privileges[0].Attributes = 0;
-        Privileges.Privileges[0].Luid = OptNoTraverseLuid;
-        if (!AdjustTokenPrivileges(OptNoTraverseToken, FALSE, &Privileges, 0, 0, 0))
-            ABORT("cannot disable traverse privilege");
-    }
-
-    HANDLE h;
-    if (!OptResilient)
-        h = CreateFileW(
-            FileNameBuf,
-            dwDesiredAccess,
-            dwShareMode,
-            lpSecurityAttributes,
-            dwCreationDisposition,
-            dwFlagsAndAttributes,
-            hTemplateFile);
-    else
-        h = ResilientCreateFileW(
-            FileNameBuf,
-            dwDesiredAccess,
-            dwShareMode,
-            lpSecurityAttributes,
-            dwCreationDisposition,
-            dwFlagsAndAttributes,
-            hTemplateFile);
-    DWORD LastError = GetLastError();
-
-    if (OptNoTraverseToken)
-    {
-        Privileges.PrivilegeCount = 1;
-        Privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-        Privileges.Privileges[0].Luid = OptNoTraverseLuid;
-        if (!AdjustTokenPrivileges(OptNoTraverseToken, FALSE, &Privileges, 0, 0, 0))
-            ABORT("cannot enable traverse privilege");
-    }
-
-#if 0
-    FspDebugLog("CreateFileW(\"%S\", %#lx, %#lx, %p, %#lx, %#lx, %p) = %p[%#lx]\n",
+    MaybeAdjustTraversePrivilege(FALSE);
+    Handle = (OptResilient ? ResilientCreateFileW : CreateFileW)(
         FileNameBuf,
         dwDesiredAccess,
         dwShareMode,
         lpSecurityAttributes,
         dwCreationDisposition,
         dwFlagsAndAttributes,
-        hTemplateFile,
-        h, INVALID_HANDLE_VALUE != h ? 0 : LastError);
-#endif
-
-    SetLastError(LastError);
-    return h;
+        hTemplateFile);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Handle;
 }
 
 BOOL HookCloseHandle(
     HANDLE hObject)
 {
-    if (!OptResilient)
-        return CloseHandle(hObject);
-    else
-        return ResilientCloseHandle(hObject);
+    return (OptResilient ? ResilientCloseHandle : CloseHandle)(
+        hObject);
 }
 
 BOOL HookCreateDirectoryW(
@@ -186,33 +159,43 @@ BOOL HookCreateDirectoryW(
     LPSECURITY_ATTRIBUTES lpSecurityAttributes)
 {
     WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+    BOOL Success;
 
     PrepareFileName(lpPathName, FileNameBuf);
 
-    return CreateDirectoryW(FileNameBuf, lpSecurityAttributes);
+    MaybeAdjustTraversePrivilege(FALSE);
+    Success = CreateDirectoryW(FileNameBuf, lpSecurityAttributes);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Success;
 }
 
 BOOL HookDeleteFileW(
     LPCWSTR lpFileName)
 {
     WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+    BOOL Success;
 
     PrepareFileName(lpFileName, FileNameBuf);
 
-    if (!OptResilient)
-        return DeleteFileW(FileNameBuf);
-    else
-        return ResilientDeleteFileW(FileNameBuf);
+    MaybeAdjustTraversePrivilege(FALSE);
+    Success = (OptResilient ? ResilientDeleteFileW : DeleteFileW)(
+        FileNameBuf);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Success;
 }
 
 BOOL HookRemoveDirectoryW(
     LPCWSTR lpPathName)
 {
     WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+    BOOL Success;
 
     PrepareFileName(lpPathName, FileNameBuf);
 
-    return RemoveDirectoryW(FileNameBuf);
+    MaybeAdjustTraversePrivilege(FALSE);
+    Success = RemoveDirectoryW(FileNameBuf);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Success;
 }
 
 BOOL HookMoveFileExW(
@@ -222,11 +205,15 @@ BOOL HookMoveFileExW(
 {
     WCHAR OldFileNameBuf[FILENAMEBUF_SIZE];
     WCHAR NewFileNameBuf[FILENAMEBUF_SIZE];
+    BOOL Success;
 
     PrepareFileName(lpExistingFileName, OldFileNameBuf);
     PrepareFileName(lpNewFileName, NewFileNameBuf);
 
-    return MoveFileExW(OldFileNameBuf, NewFileNameBuf, dwFlags);
+    MaybeAdjustTraversePrivilege(FALSE);
+    Success = MoveFileExW(OldFileNameBuf, NewFileNameBuf, dwFlags);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Success;
 }
 
 HANDLE HookFindFirstFileW(
@@ -234,8 +221,12 @@ HANDLE HookFindFirstFileW(
     LPWIN32_FIND_DATAW lpFindFileData)
 {
     WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+    HANDLE Handle;
 
     PrepareFileName(lpFileName, FileNameBuf);
 
-    return FindFirstFileW(FileNameBuf, lpFindFileData);
+    MaybeAdjustTraversePrivilege(FALSE);
+    Handle = FindFirstFileW(FileNameBuf, lpFindFileData);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Handle;
 }

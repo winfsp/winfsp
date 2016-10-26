@@ -215,16 +215,23 @@ void getfileinfo_name_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     else
         ASSERT(0 == wcscmp(OrigPath, FinalPath)); /* don't use mywcscmp */
 
-    Result = GetFinalPathNameByHandleW(
-        Handle, FinalPath, MAX_PATH - 1, VOLUME_NAME_NONE | FILE_NAME_NORMALIZED);
-    ASSERT(0 != Result && Result < MAX_PATH);
-    if (OptSharePrefixLength)
+    if (!OptNoTraverseToken || -1 != Flags)
     {
-        memmove(FinalPath,
-            FinalPath + OptSharePrefixLength / sizeof(WCHAR),
-            (wcslen(FinalPath) + 1) * sizeof(WCHAR) - OptSharePrefixLength);
+        /*
+         * FILE_NAME_NORMALIZED fails without Traverse privilege on NTFS.
+         * FILE_NAME_OPENED succeeds. Go figure!
+         */
+        Result = GetFinalPathNameByHandleW(
+            Handle, FinalPath, MAX_PATH - 1, VOLUME_NAME_NONE | FILE_NAME_NORMALIZED);
+        ASSERT(0 != Result && Result < MAX_PATH);
+        if (OptSharePrefixLength)
+        {
+            memmove(FinalPath,
+                FinalPath + OptSharePrefixLength / sizeof(WCHAR),
+                (wcslen(FinalPath) + 1) * sizeof(WCHAR) - OptSharePrefixLength);
+        }
+        ASSERT(0 == wcscmp(OrigPath, FinalPath)); /* don't use mywcscmp */
     }
-    ASSERT(0 == wcscmp(OrigPath, FinalPath)); /* don't use mywcscmp */
 
     CloseHandle(Handle);
 
