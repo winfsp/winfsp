@@ -109,10 +109,10 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectory(FilePath, 0);
+    Success = CreateDirectoryW(FilePath, 0);
     ASSERT(Success);
 
-    Success = CreateDirectory(FilePath, 0);
+    Success = CreateDirectoryW(FilePath, 0);
     ASSERT(!Success);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file2",
@@ -179,7 +179,7 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
 
         if (0 == OptMountPoint && 0 == OptShareName)
         {
-            Success = CreateDirectory(FilePath, 0);
+            Success = CreateDirectoryW(FilePath, 0);
             ASSERT(!Success);
             ASSERT(ERROR_INVALID_NAME == GetLastError());
         }
@@ -187,7 +187,7 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
         StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-        Success = CreateDirectory(FilePath, 0);
+        Success = CreateDirectoryW(FilePath, 0);
         ASSERT(Success);
 
         StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
@@ -234,7 +234,7 @@ void create_related_dotest(ULONG Flags, PWSTR Prefix)
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectory(FilePath, 0);
+    Success = CreateDirectoryW(FilePath, 0);
     ASSERT(Success);
 
     DirHandle = CreateFileW(FilePath,
@@ -316,7 +316,7 @@ void create_sd_dotest(ULONG Flags, PWSTR Prefix)
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectory(FilePath, &SecurityAttributes);
+    Success = CreateDirectoryW(FilePath, &SecurityAttributes);
     ASSERT(Success);
 
     Handle = CreateFileW(FilePath,
@@ -360,7 +360,7 @@ void create_sd_dotest(ULONG Flags, PWSTR Prefix)
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectory(FilePath, &SecurityAttributes);
+    Success = CreateDirectoryW(FilePath, &SecurityAttributes);
     ASSERT(Success);
 
     Handle = CreateFileW(FilePath,
@@ -410,13 +410,13 @@ void create_notraverse_dotest(ULONG Flags, PWSTR Prefix)
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectory(FilePath, &SecurityAttributes);
+    Success = CreateDirectoryW(FilePath, &SecurityAttributes);
     ASSERT(Success);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\dir2",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectory(FilePath, &SecurityAttributes);
+    Success = CreateDirectoryW(FilePath, &SecurityAttributes);
     ASSERT(Success);
 
     Success = LookupPrivilegeValueW(0, SE_CHANGE_NOTIFY_NAME, &Luid);
@@ -432,7 +432,7 @@ void create_notraverse_dotest(ULONG Flags, PWSTR Prefix)
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\dir2\\dir3",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectory(FilePath, &SecurityAttributes);
+    Success = CreateDirectoryW(FilePath, &SecurityAttributes);
     ASSERT(!Success);
     ASSERT(ERROR_ACCESS_DENIED == GetLastError());
 
@@ -445,7 +445,7 @@ void create_notraverse_dotest(ULONG Flags, PWSTR Prefix)
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\dir2\\dir3",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectory(FilePath, &SecurityAttributes);
+    Success = CreateDirectoryW(FilePath, &SecurityAttributes);
     ASSERT(Success);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\dir2\\dir3",

@@ -205,7 +205,7 @@ static void stream_create_dotest(ULONG Flags, PWSTR Prefix)
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectory(FilePath, 0);
+    Success = CreateDirectoryW(FilePath, 0);
     ASSERT(Success);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1:foo",
@@ -311,7 +311,7 @@ static void stream_create_dotest(ULONG Flags, PWSTR Prefix)
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1:foo",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectory(FilePath, 0);
+    Success = CreateDirectoryW(FilePath, 0);
     ASSERT(!Success);
     ASSERT(ERROR_DIRECTORY == GetLastError());
 
@@ -329,7 +329,7 @@ static void stream_create_dotest(ULONG Flags, PWSTR Prefix)
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1::$DATA",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectory(FilePath, 0);
+    Success = CreateDirectoryW(FilePath, 0);
     ASSERT(!Success);
     ASSERT(ERROR_DIRECTORY == GetLastError());
 
