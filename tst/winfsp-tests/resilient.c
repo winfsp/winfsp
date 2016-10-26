@@ -1,5 +1,5 @@
 /**
- * @file tst/resilient.c
+ * @file resilient.c
  *
  * @copyright 2015-2016 Bill Zissimopoulos
  */
