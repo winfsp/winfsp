@@ -106,7 +106,7 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x64-mountpoint-dir
-winfsp-tests-x64 --mountpoint=mymnt
+winfsp-tests-x64 --mountpoint=mymnt --case-insensitive
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -131,7 +131,7 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-mountpoint-dir
-winfsp-tests-x86 --mountpoint=mymnt
+winfsp-tests-x86 --mountpoint=mymnt --case-insensitive
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
