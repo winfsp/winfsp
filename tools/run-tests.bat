@@ -144,11 +144,7 @@ exit /b 0
 
 :winfsp-tests-x64-disk-share
 M:
-mkdir foo
-if !ERRORLEVEL! neq 0 goto fail
-winfsp-tests-x64 --external --share=winfsp-tests-share=M:\ --resilient
-if !ERRORLEVEL! neq 0 goto fail
-rmdir foo
+"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=M:\ --resilient
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -170,11 +166,7 @@ exit /b 0
 
 :winfsp-tests-x86-disk-share
 O:
-mkdir foo
-if !ERRORLEVEL! neq 0 goto fail
-winfsp-tests-x86 --external --share=winfsp-tests-share=O:\ --resilient
-if !ERRORLEVEL! neq 0 goto fail
-rmdir foo
+"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --share=winfsp-tests-share=O:\ --resilient
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
