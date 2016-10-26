@@ -154,6 +154,21 @@ BOOL HookCloseHandle(
         hObject);
 }
 
+BOOL HookSetFileAttributesW(
+    LPCWSTR lpFileName,
+    DWORD dwFileAttributes)
+{
+    WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+    BOOL Success;
+
+    PrepareFileName(lpFileName, FileNameBuf);
+
+    MaybeAdjustTraversePrivilege(FALSE);
+    Success = SetFileAttributesW(FileNameBuf, dwFileAttributes);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Success;
+}
+
 BOOL HookCreateDirectoryW(
     LPCWSTR lpPathName,
     LPSECURITY_ATTRIBUTES lpSecurityAttributes)
@@ -227,6 +242,23 @@ HANDLE HookFindFirstFileW(
 
     MaybeAdjustTraversePrivilege(FALSE);
     Handle = FindFirstFileW(FileNameBuf, lpFindFileData);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Handle;
+}
+
+HANDLE HookFindFirstStreamW(
+    LPCWSTR lpFileName,
+    STREAM_INFO_LEVELS InfoLevel,
+    LPVOID lpFindStreamData,
+    DWORD dwFlags)
+{
+    WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+    HANDLE Handle;
+
+    PrepareFileName(lpFileName, FileNameBuf);
+
+    MaybeAdjustTraversePrivilege(FALSE);
+    Handle = FindFirstStreamW(FileNameBuf, InfoLevel, lpFindStreamData, dwFlags);
     MaybeAdjustTraversePrivilege(TRUE);
     return Handle;
 }
