@@ -105,6 +105,8 @@ BOOL ResilientCloseHandle(
     HANDLE hObject);
 BOOL ResilientDeleteFileW(
     LPCWSTR lpFileName);
+BOOL ResilientRemoveDirectoryW(
+    LPCWSTR lpPathName);
 
 typedef struct
 {

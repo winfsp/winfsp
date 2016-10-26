@@ -208,7 +208,8 @@ BOOL HookRemoveDirectoryW(
     PrepareFileName(lpPathName, FileNameBuf);
 
     MaybeAdjustTraversePrivilege(FALSE);
-    Success = RemoveDirectoryW(FileNameBuf);
+    Success = (OptResilient ? ResilientRemoveDirectoryW : RemoveDirectoryW)(
+        FileNameBuf);
     MaybeAdjustTraversePrivilege(TRUE);
     return Success;
 }

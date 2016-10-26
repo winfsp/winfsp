@@ -116,6 +116,32 @@ BOOL ResilientDeleteFileW(
     return Success;
 }
 
+BOOL ResilientRemoveDirectoryW(
+    LPCWSTR lpPathName)
+{
+    BOOL Success;
+    DWORD LastError;
+
+    Success = RemoveDirectoryW(lpPathName);
+    LastError = GetLastError();
+
+    if (Success)
+        WaitDeletePending(lpPathName);
+    else
+    {
+        for (ULONG MaxTries = DeleteMaxTries;
+            !Success && ERROR_SHARING_VIOLATION == GetLastError() && 0 != MaxTries;
+            MaxTries--)
+        {
+            Sleep(DeleteSleepTimeout);
+            Success = RemoveDirectoryW(lpPathName);
+        }
+    }
+
+    SetLastError(LastError);
+    return Success;
+}
+
 static VOID WaitDeletePending(PCWSTR FileName)
 {
     for (ULONG MaxTries = DeleteMaxTries; 0 != MaxTries; MaxTries--)
