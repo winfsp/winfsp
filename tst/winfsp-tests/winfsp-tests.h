@@ -28,9 +28,12 @@
 #define testalpha(c)                    ('a' <= ((c) | 0x20) && ((c) | 0x20) <= 'z')
 #define togglealpha(c)                  ((c) ^ 0x20)
 
+#if !defined(WINFSP_TESTS_NO_HOOKS)
 #define CreateFileW HookCreateFileW
 #define CloseHandle HookCloseHandle
 #define DeleteFileW HookDeleteFileW
+#define RemoveDirectoryW HookRemoveDirectoryW
+#endif
 HANDLE HookCreateFileW(
     LPCWSTR lpFileName,
     DWORD dwDesiredAccess,
@@ -43,6 +46,8 @@ BOOL HookCloseHandle(
     HANDLE hObject);
 BOOL HookDeleteFileW(
     LPCWSTR lpFileName);
+BOOL HookRemoveDirectoryW(
+    LPCWSTR lpPathName);
 
 HANDLE ResilientCreateFileW(
     LPCWSTR lpFileName,

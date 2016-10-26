@@ -15,11 +15,8 @@
  * software.
  */
 
+#define WINFSP_TESTS_NO_HOOKS
 #include "winfsp-tests.h"
-
-#undef CreateFileW
-#undef CloseHandle
-#undef DeleteFileW
 
 #define FILENAMEBUF_SIZE                1024
 
@@ -187,8 +184,22 @@ BOOL HookCloseHandle(
 BOOL HookDeleteFileW(
     LPCWSTR lpFileName)
 {
+    WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+
+    PrepareFileName(lpFileName, FileNameBuf);
+
     if (!OptResilient)
         return DeleteFileW(lpFileName);
     else
         return ResilientDeleteFileW(lpFileName);
+}
+
+BOOL HookRemoveDirectoryW(
+    LPCWSTR lpPathName)
+{
+    WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+
+    PrepareFileName(lpPathName, FileNameBuf);
+
+    return RemoveDirectoryW(lpPathName);
 }

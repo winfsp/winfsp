@@ -21,11 +21,8 @@
 #include <tlib/testsuite.h>
 #include <time.h>
 
+#define WINFSP_TESTS_NO_HOOKS
 #include "winfsp-tests.h"
-
-#undef CreateFileW
-#undef CloseHandle
-#undef DeleteFileW
 
 int NtfsTests = 0;
 int WinFspDiskTests = 1;
