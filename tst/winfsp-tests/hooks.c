@@ -262,3 +262,72 @@ HANDLE HookFindFirstStreamW(
     MaybeAdjustTraversePrivilege(TRUE);
     return Handle;
 }
+
+BOOL HookGetDiskFreeSpaceW(
+    LPCWSTR lpRootPathName,
+    LPDWORD lpSectorsPerCluster,
+    LPDWORD lpBytesPerSector,
+    LPDWORD lpNumberOfFreeClusters,
+    LPDWORD lpTotalNumberOfClusters)
+{
+    WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+    BOOL Success;
+
+    PrepareFileName(lpRootPathName, FileNameBuf);
+
+    MaybeAdjustTraversePrivilege(FALSE);
+    Success = GetDiskFreeSpaceW(
+        FileNameBuf,
+        lpSectorsPerCluster,
+        lpBytesPerSector,
+        lpNumberOfFreeClusters,
+        lpTotalNumberOfClusters);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Success;
+}
+
+BOOL HookGetVolumeInformationW(
+    LPCWSTR lpRootPathName,
+    LPWSTR lpVolumeNameBuffer,
+    DWORD nVolumeNameSize,
+    LPDWORD lpVolumeSerialNumber,
+    LPDWORD lpMaximumComponentLength,
+    LPDWORD lpFileSystemFlags,
+    LPWSTR lpFileSystemNameBuffer,
+    DWORD nFileSystemNameSize)
+{
+    WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+    BOOL Success;
+
+    PrepareFileName(lpRootPathName, FileNameBuf);
+
+    MaybeAdjustTraversePrivilege(FALSE);
+    Success = GetVolumeInformationW(
+        FileNameBuf,
+        lpVolumeNameBuffer,
+        nVolumeNameSize,
+        lpVolumeSerialNumber,
+        lpMaximumComponentLength,
+        lpFileSystemFlags,
+        lpFileSystemNameBuffer,
+        nFileSystemNameSize);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Success;
+}
+
+BOOL HookSetVolumeLabelW(
+    LPCWSTR lpRootPathName,
+    LPCWSTR lpVolumeName)
+{
+    WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+    BOOL Success;
+
+    PrepareFileName(lpRootPathName, FileNameBuf);
+
+    MaybeAdjustTraversePrivilege(FALSE);
+    Success = SetVolumeLabelW(
+        FileNameBuf,
+        lpVolumeName);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Success;
+}

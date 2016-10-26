@@ -38,6 +38,9 @@
 #define MoveFileExW HookMoveFileExW
 #define FindFirstFileW HookFindFirstFileW
 #define FindFirstStreamW HookFindFirstStreamW
+#define GetDiskFreeSpaceW HookGetDiskFreeSpaceW
+#define GetVolumeInformationW HookGetVolumeInformationW
+#define SetVolumeLabelW HookSetVolumeLabelW
 #endif
 HANDLE HookCreateFileW(
     LPCWSTR lpFileName,
@@ -71,6 +74,24 @@ HANDLE HookFindFirstStreamW(
     STREAM_INFO_LEVELS InfoLevel,
     LPVOID lpFindStreamData,
     DWORD dwFlags);
+BOOL HookGetDiskFreeSpaceW(
+    LPCWSTR lpRootPathName,
+    LPDWORD lpSectorsPerCluster,
+    LPDWORD lpBytesPerSector,
+    LPDWORD lpNumberOfFreeClusters,
+    LPDWORD lpTotalNumberOfClusters);
+BOOL HookGetVolumeInformationW(
+    LPCWSTR lpRootPathName,
+    LPWSTR lpVolumeNameBuffer,
+    DWORD nVolumeNameSize,
+    LPDWORD lpVolumeSerialNumber,
+    LPDWORD lpMaximumComponentLength,
+    LPDWORD lpFileSystemFlags,
+    LPWSTR lpFileSystemNameBuffer,
+    DWORD nFileSystemNameSize);
+BOOL HookSetVolumeLabelW(
+    LPCWSTR lpRootPathName,
+    LPCWSTR lpVolumeName);
 
 HANDLE ResilientCreateFileW(
     LPCWSTR lpFileName,
