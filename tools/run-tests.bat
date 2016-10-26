@@ -37,8 +37,10 @@ for %%f in (^
 	:winfsp-tests-x86-mountpoint-drive ^
 	:winfsp-tests-x86-mountpoint-dir ^
 	:winfsp-tests-x86-no-traverse ^
+    :winfsp-tests-x64-disk-share ^
 	:fsx-memfs-x64-disk ^
 	:fsx-memfs-x64-net ^
+    :winfsp-tests-x86-disk-share ^
 	:fsx-memfs-x86-disk ^
 	:fsx-memfs-x86-net ^
 	:winfstest-memfs-x64-disk ^
@@ -140,6 +142,16 @@ winfsp-tests-x86 --no-traverse
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:winfsp-tests-x64-disk-share
+M:
+mkdir foo
+if !ERRORLEVEL! neq 0 goto fail
+winfsp-tests-x64 --external --share=winfsp-tests-share=M:\ --resilient
+if !ERRORLEVEL! neq 0 goto fail
+rmdir foo
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :fsx-memfs-x64-disk
 M:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
@@ -153,6 +165,16 @@ N:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-x86-disk-share
+O:
+mkdir foo
+if !ERRORLEVEL! neq 0 goto fail
+winfsp-tests-x86 --external --share=winfsp-tests-share=O:\ --resilient
+if !ERRORLEVEL! neq 0 goto fail
+rmdir foo
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
