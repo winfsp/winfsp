@@ -31,8 +31,11 @@
 #if !defined(WINFSP_TESTS_NO_HOOKS)
 #define CreateFileW HookCreateFileW
 #define CloseHandle HookCloseHandle
+#define CreateDirectoryW HookCreateDirectoryW
 #define DeleteFileW HookDeleteFileW
 #define RemoveDirectoryW HookRemoveDirectoryW
+#define MoveFileExW HookMoveFileExW
+#define FindFirstFileW HookFindFirstFileW
 #endif
 HANDLE HookCreateFileW(
     LPCWSTR lpFileName,
@@ -44,10 +47,20 @@ HANDLE HookCreateFileW(
     HANDLE hTemplateFile);
 BOOL HookCloseHandle(
     HANDLE hObject);
+BOOL HookCreateDirectoryW(
+    LPCWSTR lpPathName,
+    LPSECURITY_ATTRIBUTES lpSecurityAttributes);
 BOOL HookDeleteFileW(
     LPCWSTR lpFileName);
 BOOL HookRemoveDirectoryW(
     LPCWSTR lpPathName);
+BOOL HookMoveFileExW(
+    LPCWSTR lpExistingFileName,
+    LPCWSTR lpNewFileName,
+    DWORD dwFlags);
+HANDLE HookFindFirstFileW(
+    LPCWSTR lpFileName,
+    LPWIN32_FIND_DATAW lpFindFileData);
 
 HANDLE ResilientCreateFileW(
     LPCWSTR lpFileName,

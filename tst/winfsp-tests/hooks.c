@@ -181,6 +181,17 @@ BOOL HookCloseHandle(
         return ResilientCloseHandle(hObject);
 }
 
+BOOL HookCreateDirectoryW(
+    LPCWSTR lpPathName,
+    LPSECURITY_ATTRIBUTES lpSecurityAttributes)
+{
+    WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+
+    PrepareFileName(lpPathName, FileNameBuf);
+
+    return CreateDirectoryW(FileNameBuf, lpSecurityAttributes);
+}
+
 BOOL HookDeleteFileW(
     LPCWSTR lpFileName)
 {
@@ -189,9 +200,9 @@ BOOL HookDeleteFileW(
     PrepareFileName(lpFileName, FileNameBuf);
 
     if (!OptResilient)
-        return DeleteFileW(lpFileName);
+        return DeleteFileW(FileNameBuf);
     else
-        return ResilientDeleteFileW(lpFileName);
+        return ResilientDeleteFileW(FileNameBuf);
 }
 
 BOOL HookRemoveDirectoryW(
@@ -201,5 +212,30 @@ BOOL HookRemoveDirectoryW(
 
     PrepareFileName(lpPathName, FileNameBuf);
 
-    return RemoveDirectoryW(lpPathName);
+    return RemoveDirectoryW(FileNameBuf);
+}
+
+BOOL HookMoveFileExW(
+    LPCWSTR lpExistingFileName,
+    LPCWSTR lpNewFileName,
+    DWORD dwFlags)
+{
+    WCHAR OldFileNameBuf[FILENAMEBUF_SIZE];
+    WCHAR NewFileNameBuf[FILENAMEBUF_SIZE];
+
+    PrepareFileName(lpExistingFileName, OldFileNameBuf);
+    PrepareFileName(lpNewFileName, NewFileNameBuf);
+
+    return MoveFileExW(OldFileNameBuf, NewFileNameBuf, dwFlags);
+}
+
+HANDLE HookFindFirstFileW(
+    LPCWSTR lpFileName,
+    LPWIN32_FIND_DATAW lpFindFileData)
+{
+    WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+
+    PrepareFileName(lpFileName, FileNameBuf);
+
+    return FindFirstFileW(FileNameBuf, lpFindFileData);
 }

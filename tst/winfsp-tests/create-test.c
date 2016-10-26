@@ -177,9 +177,12 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
         StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\\\",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-        Success = CreateDirectory(FilePath, 0);
-        ASSERT(!Success);
-        ASSERT(ERROR_INVALID_NAME == GetLastError());
+        if (0 == OptMountPoint && 0 == OptShareName)
+        {
+            Success = CreateDirectory(FilePath, 0);
+            ASSERT(!Success);
+            ASSERT(ERROR_INVALID_NAME == GetLastError());
+        }
 
         StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
