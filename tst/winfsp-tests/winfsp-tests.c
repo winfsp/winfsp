@@ -23,12 +23,9 @@
 
 #include "winfsp-tests.h"
 
-#define ABORT(s)\
-    do\
-    {\
-        tlib_printf("ABORT: %s: %s\n", __func__, s);\
-        abort();\
-    } while (0,0)
+#undef CreateFileW
+#undef CloseHandle
+#undef DeleteFileW
 
 int NtfsTests = 0;
 int WinFspDiskTests = 1;
@@ -69,11 +66,8 @@ int mywcscmp(PWSTR a, int alen, PWSTR b, int blen)
     return res;
 }
 
-#define testalpha(c)                    ('a' <= ((c) | 0x20) && ((c) | 0x20) <= 'z')
-#define togglealpha(c)                  ((c) ^ 0x20)
-#undef CreateFileW
 static unsigned myrandseed = 1;
-static int myrand(void)
+int myrand(void)
 {
     /*
      * This mimics MSVCRT rand(); we need our own version
@@ -82,172 +76,6 @@ static int myrand(void)
 
     myrandseed = myrandseed * 214013 + 2531011;
     return (myrandseed >> 16) & RAND_MAX;
-}
-HANDLE HookCreateFileW(
-    LPCWSTR lpFileName,
-    DWORD dwDesiredAccess,
-    DWORD dwShareMode,
-    LPSECURITY_ATTRIBUTES lpSecurityAttributes,
-    DWORD dwCreationDisposition,
-    DWORD dwFlagsAndAttributes,
-    HANDLE hTemplateFile)
-{
-    static WCHAR DevicePrefix[] =
-        L"\\\\?\\GLOBALROOT\\Device\\Volume{01234567-0123-0123-0101-010101010101}";
-    static WCHAR MemfsSharePrefix[] =
-        L"\\\\memfs\\share";
-    static const TogglePercent = 25;
-    WCHAR FileNameBuf[1024];
-    TOKEN_PRIVILEGES Privileges;
-    PWSTR P, EndP;
-    size_t L1, L2;
-
-    wcscpy_s(FileNameBuf, sizeof FileNameBuf / sizeof(WCHAR), lpFileName);
-
-    if (OptCaseRandomize)
-    {
-        if (L'\\' == FileNameBuf[0] && L'\\' == FileNameBuf[1] &&
-            L'?' == FileNameBuf[2] && L'\\' == FileNameBuf[3] &&
-            testalpha(FileNameBuf[4]) && L':' == FileNameBuf[5] && L'\\' == FileNameBuf[6])
-            P = FileNameBuf + 7;
-        else if (0 == wcsncmp(FileNameBuf, DevicePrefix, wcschr(DevicePrefix, L'{') - DevicePrefix))
-            P = FileNameBuf + wcslen(DevicePrefix);
-        else if (L'\\' == FileNameBuf[0] && L'\\' == FileNameBuf[1])
-            P = FileNameBuf + 2;
-        else if (testalpha(FileNameBuf[0]) && L':' == FileNameBuf[1] && L'\\' == FileNameBuf[2])
-            P = FileNameBuf + 3;
-        else
-            ABORT("unknown filename format");
-
-        for (EndP = P + wcslen(P); EndP > P; P++)
-            if (testalpha(*P) && myrand() <= (TogglePercent) * 0x7fff / 100)
-                *P = togglealpha(*P);
-    }
-
-    if (OptMountPoint && memfs_running)
-    {
-        if (L'\\' == FileNameBuf[0] && L'\\' == FileNameBuf[1] &&
-            L'?' == FileNameBuf[2] && L'\\' == FileNameBuf[3] &&
-            testalpha(FileNameBuf[4]) && L':' == FileNameBuf[5] && L'\\' == FileNameBuf[6])
-            ABORT("--mountpoint not supported with NTFS");
-        else if (0 == wcsncmp(FileNameBuf, DevicePrefix, wcschr(DevicePrefix, L'{') - DevicePrefix))
-            P = FileNameBuf + wcslen(DevicePrefix);
-        else if (0 == mywcscmp(
-            FileNameBuf, (int)wcslen(MemfsSharePrefix), MemfsSharePrefix, (int)wcslen(MemfsSharePrefix)))
-            P = FileNameBuf + wcslen(MemfsSharePrefix);
-        else if (testalpha(FileNameBuf[0]) && L':' == FileNameBuf[1] && L'\\' == FileNameBuf[2])
-            ABORT("--mountpoint not supported with NTFS");
-        else
-            ABORT("unknown filename format");
-
-        L1 = wcslen(P) + 1;
-        L2 = wcslen(OptMountPoint);
-        memmove(FileNameBuf + 1024 - L1, P, L1 * sizeof(WCHAR));
-        memmove(FileNameBuf, OptMountPoint, L2 * sizeof(WCHAR));
-        memmove(FileNameBuf + L2, FileNameBuf + 1024 - L1, L1 * sizeof(WCHAR));
-    }
-
-    if (OptShareName && memfs_running)
-    {
-        if (L'\\' == FileNameBuf[0] && L'\\' == FileNameBuf[1] &&
-            L'?' == FileNameBuf[2] && L'\\' == FileNameBuf[3] &&
-            testalpha(FileNameBuf[4]) && L':' == FileNameBuf[5] && L'\\' == FileNameBuf[6])
-            /* NTFS testing can only been done when the whole drive is being shared */
-            P = FileNameBuf + 6;
-        else if (0 == wcsncmp(FileNameBuf, DevicePrefix, wcschr(DevicePrefix, L'{') - DevicePrefix))
-            P = FileNameBuf + wcslen(DevicePrefix);
-        else if (0 == mywcscmp(
-            FileNameBuf, (int)wcslen(MemfsSharePrefix), MemfsSharePrefix, (int)wcslen(MemfsSharePrefix)))
-            P = FileNameBuf + wcslen(MemfsSharePrefix);
-        else if (testalpha(FileNameBuf[0]) && L':' == FileNameBuf[1] && L'\\' == FileNameBuf[2])
-            /* NTFS testing can only been done when the whole drive is being shared */
-            P = FileNameBuf + 2;
-        else
-            ABORT("unknown filename format");
-
-        L1 = wcslen(P) + 1;
-        L2 = wcslen(OptShareName);
-        memmove(FileNameBuf + 1024 - L1, P, L1 * sizeof(WCHAR));
-        memmove(FileNameBuf, OptShareComputer, sizeof OptShareComputer - sizeof(WCHAR));
-        memmove(FileNameBuf + (sizeof OptShareComputer - sizeof(WCHAR)) / sizeof(WCHAR),
-            OptShareName, L2 * sizeof(WCHAR));
-        memmove(FileNameBuf + (sizeof OptShareComputer - sizeof(WCHAR)) / sizeof(WCHAR) + L2,
-            FileNameBuf + 1024 - L1, L1 * sizeof(WCHAR));
-    }
-
-    if (OptNoTraverseToken)
-    {
-        Privileges.PrivilegeCount = 1;
-        Privileges.Privileges[0].Attributes = 0;
-        Privileges.Privileges[0].Luid = OptNoTraverseLuid;
-        if (!AdjustTokenPrivileges(OptNoTraverseToken, FALSE, &Privileges, 0, 0, 0))
-            ABORT("cannot disable traverse privilege");
-    }
-
-    HANDLE h;
-    if (!OptResilient)
-        h = CreateFileW(
-            FileNameBuf,
-            dwDesiredAccess,
-            dwShareMode,
-            lpSecurityAttributes,
-            dwCreationDisposition,
-            dwFlagsAndAttributes,
-            hTemplateFile);
-    else
-        h = ResilientCreateFileW(
-            FileNameBuf,
-            dwDesiredAccess,
-            dwShareMode,
-            lpSecurityAttributes,
-            dwCreationDisposition,
-            dwFlagsAndAttributes,
-            hTemplateFile);
-    DWORD LastError = GetLastError();
-
-    if (OptNoTraverseToken)
-    {
-        Privileges.PrivilegeCount = 1;
-        Privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-        Privileges.Privileges[0].Luid = OptNoTraverseLuid;
-        if (!AdjustTokenPrivileges(OptNoTraverseToken, FALSE, &Privileges, 0, 0, 0))
-            ABORT("cannot enable traverse privilege");
-    }
-
-#if 0
-    FspDebugLog("CreateFileW(\"%S\", %#lx, %#lx, %p, %#lx, %#lx, %p) = %p[%#lx]\n",
-        FileNameBuf,
-        dwDesiredAccess,
-        dwShareMode,
-        lpSecurityAttributes,
-        dwCreationDisposition,
-        dwFlagsAndAttributes,
-        hTemplateFile,
-        h, INVALID_HANDLE_VALUE != h ? 0 : LastError);
-#endif
-
-    SetLastError(LastError);
-    return h;
-}
-
-#undef CloseHandle
-BOOL HookCloseHandle(
-    HANDLE hObject)
-{
-    if (!OptResilient)
-        return CloseHandle(hObject);
-    else
-        return ResilientCloseHandle(hObject);
-}
-
-#undef DeleteFileW
-BOOL HookDeleteFileW(
-    LPCWSTR lpFileName)
-{
-    if (!OptResilient)
-        return DeleteFileW(lpFileName);
-    else
-        return ResilientDeleteFileW(lpFileName);
 }
 
 static VOID DisableBackupRestorePrivileges(VOID)

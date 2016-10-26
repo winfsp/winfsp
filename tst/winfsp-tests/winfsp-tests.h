@@ -17,12 +17,16 @@
 
 #include <windows.h>
 
-void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout);
-void *memfs_start(ULONG Flags);
-void memfs_stop(void *data);
-PWSTR memfs_volumename(void *data);
+#define ABORT(s)\
+    do\
+    {\
+        void tlib_printf(const char *fmt, ...);\
+        tlib_printf("ABORT: %s: %s\n", __func__, s);\
+        abort();\
+    } while (0,0)
 
-int mywcscmp(PWSTR a, int alen, PWSTR b, int blen);
+#define testalpha(c)                    ('a' <= ((c) | 0x20) && ((c) | 0x20) <= 'z')
+#define togglealpha(c)                  ((c) ^ 0x20)
 
 #define CreateFileW HookCreateFileW
 #define CloseHandle HookCloseHandle
@@ -57,6 +61,14 @@ typedef struct
 {
     BOOLEAN Disposition;
 } MY_FILE_DISPOSITION_INFO;
+
+void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout);
+void *memfs_start(ULONG Flags);
+void memfs_stop(void *data);
+PWSTR memfs_volumename(void *data);
+
+int mywcscmp(PWSTR a, int alen, PWSTR b, int blen);
+int myrand(void);
 
 extern int NtfsTests;
 extern int WinFspDiskTests;
