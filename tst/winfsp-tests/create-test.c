@@ -483,7 +483,15 @@ void create_notraverse_dotest(ULONG Flags, PWSTR Prefix)
 void create_notraverse_test(void)
 {
     if (OptNoTraverseToken)
-        return; /* this test needs traverse access privilege in order to work */
+        /* this test needs traverse access privilege in order to work */
+        return;
+
+    if (OptShareName)
+        /*
+         * This test does not work when going through a share!
+         * Does this suggest that traverse privilege is always on when going through shares?
+         */
+        return;
 
     if (NtfsTests)
     {

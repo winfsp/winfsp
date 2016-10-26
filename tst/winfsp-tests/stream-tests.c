@@ -329,9 +329,13 @@ static void stream_create_dotest(ULONG Flags, PWSTR Prefix)
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1::$DATA",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Success = CreateDirectoryW(FilePath, 0);
-    ASSERT(!Success);
-    ASSERT(ERROR_DIRECTORY == GetLastError());
+    if (!OptShareName)
+    {
+        /* this CreateDirectory actually succeeds when going through a share! */
+        Success = CreateDirectoryW(FilePath, 0);
+        ASSERT(!Success);
+        ASSERT(ERROR_DIRECTORY == GetLastError());
+    }
 
     memfs_stop(memfs);
 }
