@@ -26,6 +26,8 @@ static NTSTATUS FspFsvolQueryAttributeTagInformation(PFILE_OBJECT FileObject,
 static NTSTATUS FspFsvolQueryBasicInformation(PFILE_OBJECT FileObject,
     PVOID *PBuffer, PVOID BufferEnd,
     const FSP_FSCTL_FILE_INFO *FileInfo);
+static NTSTATUS FspFsvolQueryEaInformation(PFILE_OBJECT FileObject,
+    PVOID *PBuffer, PVOID BufferEnd);
 static NTSTATUS FspFsvolQueryInternalInformation(PFILE_OBJECT FileObject,
     PVOID *PBuffer, PVOID BufferEnd);
 static NTSTATUS FspFsvolQueryNameInformation(PFILE_OBJECT FileObject,
@@ -80,6 +82,7 @@ FSP_DRIVER_DISPATCH FspSetInformation;
 #pragma alloc_text(PAGE, FspFsvolQueryAllInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryAttributeTagInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryBasicInformation)
+#pragma alloc_text(PAGE, FspFsvolQueryEaInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryInternalInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryNameInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryNetworkOpenInformation)
@@ -210,6 +213,27 @@ static NTSTATUS FspFsvolQueryBasicInformation(PFILE_OBJECT FileObject,
     Info->ChangeTime.QuadPart = FileInfo->ChangeTime;
     Info->FileAttributes = 0 != FileInfo->FileAttributes ?
         FileInfo->FileAttributes : FILE_ATTRIBUTE_NORMAL;
+
+    *PBuffer = (PVOID)(Info + 1);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS FspFsvolQueryEaInformation(PFILE_OBJECT FileObject,
+    PVOID *PBuffer, PVOID BufferEnd)
+{
+    PAGED_CODE();
+
+    PFILE_EA_INFORMATION Info = (PFILE_EA_INFORMATION)*PBuffer;
+
+    if ((PVOID)(Info + 1) > BufferEnd)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    /*
+     * No EA support currently. We must nevertheless respond to this query
+     * or SRV2 gets unhappy. Just tell them that we have 0 EA's.
+     */
+    Info->EaSize = 0;
 
     *PBuffer = (PVOID)(Info + 1);
 
@@ -635,7 +659,8 @@ static NTSTATUS FspFsvolQueryInformation(
         Result = STATUS_INVALID_PARAMETER;  /* no compression support */
         return Result;
     case FileEaInformation:
-        Result = STATUS_INVALID_PARAMETER;  /* no EA support currently */
+        Result = FspFsvolQueryEaInformation(FileObject, &Buffer, BufferEnd);
+        Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
         return Result;
     case FileHardLinkInformation:
         Result = STATUS_INVALID_PARAMETER;  /* no hard link support */
