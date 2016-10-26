@@ -8,6 +8,8 @@ PWSTR memfs_volumename(void *data);
 int mywcscmp(PWSTR a, int alen, PWSTR b, int blen);
 
 #define CreateFileW HookCreateFileW
+#define CloseHandle HookCloseHandle
+#define DeleteFileW HookDeleteFileW
 HANDLE HookCreateFileW(
     LPCWSTR lpFileName,
     DWORD dwDesiredAccess,
@@ -16,9 +18,22 @@ HANDLE HookCreateFileW(
     DWORD dwCreationDisposition,
     DWORD dwFlagsAndAttributes,
     HANDLE hTemplateFile);
-
-#define DeleteFileW HookDeleteFileW
+BOOL HookCloseHandle(
+    HANDLE hObject);
 BOOL HookDeleteFileW(
+    LPCWSTR lpFileName);
+
+HANDLE ResilientCreateFileW(
+    LPCWSTR lpFileName,
+    DWORD dwDesiredAccess,
+    DWORD dwShareMode,
+    LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+    DWORD dwCreationDisposition,
+    DWORD dwFlagsAndAttributes,
+    HANDLE hTemplateFile);
+BOOL ResilientCloseHandle(
+    HANDLE hObject);
+BOOL ResilientDeleteFileW(
     LPCWSTR lpFileName);
 
 typedef struct

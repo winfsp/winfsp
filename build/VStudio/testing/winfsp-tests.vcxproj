@@ -194,6 +194,7 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\posix-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\rdwr-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\reparse-test.c" />
+    <ClCompile Include="..\..\..\tst\winfsp-tests\resilient.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\security-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\stream-tests.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\timeout-test.c" />

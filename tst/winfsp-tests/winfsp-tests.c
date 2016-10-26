@@ -167,14 +167,25 @@ HANDLE HookCreateFileW(
             ABORT("cannot disable traverse privilege");
     }
 
-    HANDLE h = CreateFileW(
-        FileNameBuf,
-        dwDesiredAccess,
-        dwShareMode,
-        lpSecurityAttributes,
-        dwCreationDisposition,
-        dwFlagsAndAttributes,
-        hTemplateFile);
+    HANDLE h;
+    if (!OptResilient)
+        h = CreateFileW(
+            FileNameBuf,
+            dwDesiredAccess,
+            dwShareMode,
+            lpSecurityAttributes,
+            dwCreationDisposition,
+            dwFlagsAndAttributes,
+            hTemplateFile);
+    else
+        h = ResilientCreateFileW(
+            FileNameBuf,
+            dwDesiredAccess,
+            dwShareMode,
+            lpSecurityAttributes,
+            dwCreationDisposition,
+            dwFlagsAndAttributes,
+            hTemplateFile);
     DWORD LastError = GetLastError();
 
     if (OptNoTraverseToken)
@@ -202,44 +213,24 @@ HANDLE HookCreateFileW(
     return h;
 }
 
+#undef CloseHandle
+BOOL HookCloseHandle(
+    HANDLE hObject)
+{
+    if (!OptResilient)
+        return CloseHandle(hObject);
+    else
+        return ResilientCloseHandle(hObject);
+}
+
 #undef DeleteFileW
 BOOL HookDeleteFileW(
     LPCWSTR lpFileName)
 {
-    ULONG MaxTries = 30;
-    ULONG SleepTimeout = 300;
-    BOOL Success;
-    DWORD LastError;
-
-    Success = DeleteFileW(lpFileName);
-    LastError = GetLastError();
-    if (OptResilient)
-    {
-        if (!Success)
-        {
-            while (!Success && ERROR_SHARING_VIOLATION == GetLastError() && 0 != MaxTries--)
-            {
-                Sleep(SleepTimeout);
-                Success = DeleteFileW(lpFileName);
-            }
-        }
-        else
-        {
-            while (0 != MaxTries--)
-            {
-                HANDLE Handle = CreateFileW(lpFileName, FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, 0, 0);
-                if (INVALID_HANDLE_VALUE != Handle)
-                    CloseHandle(Handle); /* should never happen! */
-                else if (ERROR_ACCESS_DENIED == GetLastError())
-                    Sleep(SleepTimeout);
-                else
-                    break;
-            }
-        }
-    }
-
-    SetLastError(LastError);
-    return Success;
+    if (!OptResilient)
+        return DeleteFileW(lpFileName);
+    else
+        return ResilientDeleteFileW(lpFileName);
 }
 
 static VOID DisableBackupRestorePrivileges(VOID)
