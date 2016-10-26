@@ -120,7 +120,7 @@ static VOID MaybeAdjustTraversePrivilege(BOOL Enable)
     }
 }
 
-HANDLE HookCreateFileW(
+HANDLE WINAPI HookCreateFileW(
     LPCWSTR lpFileName,
     DWORD dwDesiredAccess,
     DWORD dwShareMode,
@@ -147,14 +147,14 @@ HANDLE HookCreateFileW(
     return Handle;
 }
 
-BOOL HookCloseHandle(
+BOOL WINAPI HookCloseHandle(
     HANDLE hObject)
 {
     return (OptResilient ? ResilientCloseHandle : CloseHandle)(
         hObject);
 }
 
-BOOL HookSetFileAttributesW(
+BOOL WINAPI HookSetFileAttributesW(
     LPCWSTR lpFileName,
     DWORD dwFileAttributes)
 {
@@ -169,7 +169,7 @@ BOOL HookSetFileAttributesW(
     return Success;
 }
 
-BOOL HookCreateDirectoryW(
+BOOL WINAPI HookCreateDirectoryW(
     LPCWSTR lpPathName,
     LPSECURITY_ATTRIBUTES lpSecurityAttributes)
 {
@@ -184,7 +184,7 @@ BOOL HookCreateDirectoryW(
     return Success;
 }
 
-BOOL HookDeleteFileW(
+BOOL WINAPI HookDeleteFileW(
     LPCWSTR lpFileName)
 {
     WCHAR FileNameBuf[FILENAMEBUF_SIZE];
@@ -199,7 +199,7 @@ BOOL HookDeleteFileW(
     return Success;
 }
 
-BOOL HookRemoveDirectoryW(
+BOOL WINAPI HookRemoveDirectoryW(
     LPCWSTR lpPathName)
 {
     WCHAR FileNameBuf[FILENAMEBUF_SIZE];
@@ -214,7 +214,7 @@ BOOL HookRemoveDirectoryW(
     return Success;
 }
 
-BOOL HookMoveFileExW(
+BOOL WINAPI HookMoveFileExW(
     LPCWSTR lpExistingFileName,
     LPCWSTR lpNewFileName,
     DWORD dwFlags)
@@ -232,7 +232,7 @@ BOOL HookMoveFileExW(
     return Success;
 }
 
-HANDLE HookFindFirstFileW(
+HANDLE WINAPI HookFindFirstFileW(
     LPCWSTR lpFileName,
     LPWIN32_FIND_DATAW lpFindFileData)
 {
@@ -247,7 +247,7 @@ HANDLE HookFindFirstFileW(
     return Handle;
 }
 
-HANDLE HookFindFirstStreamW(
+HANDLE WINAPI HookFindFirstStreamW(
     LPCWSTR lpFileName,
     STREAM_INFO_LEVELS InfoLevel,
     LPVOID lpFindStreamData,
@@ -264,7 +264,7 @@ HANDLE HookFindFirstStreamW(
     return Handle;
 }
 
-BOOL HookGetDiskFreeSpaceW(
+BOOL WINAPI HookGetDiskFreeSpaceW(
     LPCWSTR lpRootPathName,
     LPDWORD lpSectorsPerCluster,
     LPDWORD lpBytesPerSector,
@@ -287,7 +287,7 @@ BOOL HookGetDiskFreeSpaceW(
     return Success;
 }
 
-BOOL HookGetVolumeInformationW(
+BOOL WINAPI HookGetVolumeInformationW(
     LPCWSTR lpRootPathName,
     LPWSTR lpVolumeNameBuffer,
     DWORD nVolumeNameSize,
@@ -316,7 +316,7 @@ BOOL HookGetVolumeInformationW(
     return Success;
 }
 
-BOOL HookSetVolumeLabelW(
+BOOL WINAPI HookSetVolumeLabelW(
     LPCWSTR lpRootPathName,
     LPCWSTR lpVolumeName)
 {

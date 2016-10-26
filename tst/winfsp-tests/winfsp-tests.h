@@ -42,7 +42,7 @@
 #define GetVolumeInformationW HookGetVolumeInformationW
 #define SetVolumeLabelW HookSetVolumeLabelW
 #endif
-HANDLE HookCreateFileW(
+HANDLE WINAPI HookCreateFileW(
     LPCWSTR lpFileName,
     DWORD dwDesiredAccess,
     DWORD dwShareMode,
@@ -50,37 +50,37 @@ HANDLE HookCreateFileW(
     DWORD dwCreationDisposition,
     DWORD dwFlagsAndAttributes,
     HANDLE hTemplateFile);
-BOOL HookCloseHandle(
+BOOL WINAPI HookCloseHandle(
     HANDLE hObject);
-BOOL HookSetFileAttributesW(
+BOOL WINAPI HookSetFileAttributesW(
     LPCWSTR lpFileName,
     DWORD dwFileAttributes);
-BOOL HookCreateDirectoryW(
+BOOL WINAPI HookCreateDirectoryW(
     LPCWSTR lpPathName,
     LPSECURITY_ATTRIBUTES lpSecurityAttributes);
-BOOL HookDeleteFileW(
+BOOL WINAPI HookDeleteFileW(
     LPCWSTR lpFileName);
-BOOL HookRemoveDirectoryW(
+BOOL WINAPI HookRemoveDirectoryW(
     LPCWSTR lpPathName);
-BOOL HookMoveFileExW(
+BOOL WINAPI HookMoveFileExW(
     LPCWSTR lpExistingFileName,
     LPCWSTR lpNewFileName,
     DWORD dwFlags);
-HANDLE HookFindFirstFileW(
+HANDLE WINAPI HookFindFirstFileW(
     LPCWSTR lpFileName,
     LPWIN32_FIND_DATAW lpFindFileData);
-HANDLE HookFindFirstStreamW(
+HANDLE WINAPI HookFindFirstStreamW(
     LPCWSTR lpFileName,
     STREAM_INFO_LEVELS InfoLevel,
     LPVOID lpFindStreamData,
     DWORD dwFlags);
-BOOL HookGetDiskFreeSpaceW(
+BOOL WINAPI HookGetDiskFreeSpaceW(
     LPCWSTR lpRootPathName,
     LPDWORD lpSectorsPerCluster,
     LPDWORD lpBytesPerSector,
     LPDWORD lpNumberOfFreeClusters,
     LPDWORD lpTotalNumberOfClusters);
-BOOL HookGetVolumeInformationW(
+BOOL WINAPI HookGetVolumeInformationW(
     LPCWSTR lpRootPathName,
     LPWSTR lpVolumeNameBuffer,
     DWORD nVolumeNameSize,
@@ -89,11 +89,11 @@ BOOL HookGetVolumeInformationW(
     LPDWORD lpFileSystemFlags,
     LPWSTR lpFileSystemNameBuffer,
     DWORD nFileSystemNameSize);
-BOOL HookSetVolumeLabelW(
+BOOL WINAPI HookSetVolumeLabelW(
     LPCWSTR lpRootPathName,
     LPCWSTR lpVolumeName);
 
-HANDLE ResilientCreateFileW(
+HANDLE WINAPI ResilientCreateFileW(
     LPCWSTR lpFileName,
     DWORD dwDesiredAccess,
     DWORD dwShareMode,
@@ -101,11 +101,11 @@ HANDLE ResilientCreateFileW(
     DWORD dwCreationDisposition,
     DWORD dwFlagsAndAttributes,
     HANDLE hTemplateFile);
-BOOL ResilientCloseHandle(
+BOOL WINAPI ResilientCloseHandle(
     HANDLE hObject);
-BOOL ResilientDeleteFileW(
+BOOL WINAPI ResilientDeleteFileW(
     LPCWSTR lpFileName);
-BOOL ResilientRemoveDirectoryW(
+BOOL WINAPI ResilientRemoveDirectoryW(
     LPCWSTR lpPathName);
 
 typedef struct

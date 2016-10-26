@@ -22,7 +22,7 @@
 
 static VOID WaitDeletePending(PCWSTR FileName);
 
-HANDLE ResilientCreateFileW(
+HANDLE WINAPI ResilientCreateFileW(
     LPCWSTR lpFileName,
     DWORD dwDesiredAccess,
     DWORD dwShareMode,
@@ -56,7 +56,7 @@ HANDLE ResilientCreateFileW(
     return Handle;
 }
 
-BOOL ResilientCloseHandle(
+BOOL WINAPI ResilientCloseHandle(
     HANDLE hObject)
 {
     BOOL Success;
@@ -90,7 +90,7 @@ BOOL ResilientCloseHandle(
     return Success;
 }
 
-BOOL ResilientDeleteFileW(
+BOOL WINAPI ResilientDeleteFileW(
     LPCWSTR lpFileName)
 {
     BOOL Success;
@@ -116,7 +116,7 @@ BOOL ResilientDeleteFileW(
     return Success;
 }
 
-BOOL ResilientRemoveDirectoryW(
+BOOL WINAPI ResilientRemoveDirectoryW(
     LPCWSTR lpPathName)
 {
     BOOL Success;
@@ -147,7 +147,8 @@ static VOID WaitDeletePending(PCWSTR FileName)
     for (ULONG MaxTries = DeleteMaxTries; 0 != MaxTries; MaxTries--)
     {
         HANDLE Handle = CreateFileW(FileName,
-            FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+            FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
         if (INVALID_HANDLE_VALUE != Handle)
             /* should never happen! */
             CloseHandle(Handle);
