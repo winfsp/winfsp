@@ -843,7 +843,7 @@ void create_curdir_dotest(ULONG Flags, PWSTR Prefix)
     Success = SetCurrentDirectoryW(FilePath);
     ASSERT(Success);
 
-    Success = SetCurrentDirectoryW(CurrentDirectory);
+    Success = RealSetCurrentDirectoryW(CurrentDirectory);
     ASSERT(Success);
 
     memfs_stop(memfs);

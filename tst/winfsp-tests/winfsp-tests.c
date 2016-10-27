@@ -38,6 +38,9 @@ WCHAR OptShareNameBuf[MAX_PATH], *OptShareName, *OptShareTarget;
 HANDLE OptNoTraverseToken = 0;
     LUID OptNoTraverseLuid;
 
+static WCHAR CurrentDirectory[MAX_PATH];
+static PWSTR TestDirectory = L"winfsp-tests";
+
 static void exiting(void);
 
 int mywcscmp(PWSTR a, int alen, PWSTR b, int blen)
@@ -252,6 +255,20 @@ int main(int argc, char *argv[])
 
     myrandseed = (unsigned)time(0);
 
+    if (NtfsTests)
+    {
+        if (!GetCurrentDirectoryW(MAX_PATH, CurrentDirectory))
+            ABORT("cannot get test directory");
+
+        /* create a directory for testing */
+        if (!CreateDirectoryW(TestDirectory, 0))
+            ABORT("cannot create test directory");
+
+        /* change into the directory */
+        if (!SetCurrentDirectoryW(TestDirectory))
+            ABORT("cannot change to test directory");
+    }
+
     tlib_run_tests(argc, argv);
     return 0;
 }
@@ -259,5 +276,12 @@ int main(int argc, char *argv[])
 static void exiting(void)
 {
     OutputDebugStringA("winfsp-tests: exiting\n");
+
+    if (NtfsTests)
+    {
+        if (SetCurrentDirectoryW(CurrentDirectory))
+            RemoveDirectoryW(TestDirectory);
+    }
+
     RemoveNetShareIfNeeded();
 }

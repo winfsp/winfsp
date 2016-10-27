@@ -28,20 +28,6 @@
 #define testalpha(c)                    ('a' <= ((c) | 0x20) && ((c) | 0x20) <= 'z')
 #define togglealpha(c)                  ((c) ^ 0x20)
 
-#if !defined(WINFSP_TESTS_NO_HOOKS)
-#define CreateFileW HookCreateFileW
-#define CloseHandle HookCloseHandle
-#define SetFileAttributesW HookSetFileAttributesW
-#define CreateDirectoryW HookCreateDirectoryW
-#define DeleteFileW HookDeleteFileW
-#define RemoveDirectoryW HookRemoveDirectoryW
-#define MoveFileExW HookMoveFileExW
-#define FindFirstFileW HookFindFirstFileW
-#define FindFirstStreamW HookFindFirstStreamW
-#define GetDiskFreeSpaceW HookGetDiskFreeSpaceW
-#define GetVolumeInformationW HookGetVolumeInformationW
-#define SetVolumeLabelW HookSetVolumeLabelW
-#endif
 HANDLE WINAPI HookCreateFileW(
     LPCWSTR lpFileName,
     DWORD dwDesiredAccess,
@@ -92,6 +78,28 @@ BOOL WINAPI HookGetVolumeInformationW(
 BOOL WINAPI HookSetVolumeLabelW(
     LPCWSTR lpRootPathName,
     LPCWSTR lpVolumeName);
+BOOL WINAPI HookSetCurrentDirectoryW(
+    LPCWSTR lpPathName);
+static inline BOOL RealSetCurrentDirectoryW(
+    LPCWSTR lpPathName)
+{
+    return SetCurrentDirectoryW(lpPathName);
+}
+#if !defined(WINFSP_TESTS_NO_HOOKS)
+#define CreateFileW HookCreateFileW
+#define CloseHandle HookCloseHandle
+#define SetFileAttributesW HookSetFileAttributesW
+#define CreateDirectoryW HookCreateDirectoryW
+#define DeleteFileW HookDeleteFileW
+#define RemoveDirectoryW HookRemoveDirectoryW
+#define MoveFileExW HookMoveFileExW
+#define FindFirstFileW HookFindFirstFileW
+#define FindFirstStreamW HookFindFirstStreamW
+#define GetDiskFreeSpaceW HookGetDiskFreeSpaceW
+#define GetVolumeInformationW HookGetVolumeInformationW
+#define SetVolumeLabelW HookSetVolumeLabelW
+#define SetCurrentDirectoryW HookSetCurrentDirectoryW
+#endif
 
 HANDLE WINAPI ResilientCreateFileW(
     LPCWSTR lpFileName,

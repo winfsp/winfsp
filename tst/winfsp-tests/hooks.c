@@ -332,3 +332,17 @@ BOOL WINAPI HookSetVolumeLabelW(
     MaybeAdjustTraversePrivilege(TRUE);
     return Success;
 }
+
+BOOL WINAPI HookSetCurrentDirectoryW(
+    LPCWSTR lpPathName)
+{
+    WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+    BOOL Success;
+
+    PrepareFileName(lpPathName, FileNameBuf);
+
+    MaybeAdjustTraversePrivilege(FALSE);
+    Success = SetCurrentDirectoryW(FileNameBuf);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Success;
+}
