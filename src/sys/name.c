@@ -41,7 +41,7 @@ BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PUL
     /* if StreamPart is not NULL, StreamType must also be not NULL */
     ASSERT(0 == StreamPart || 0 != StreamType);
 
-    if (0 != Path->Length % sizeof(WCHAR))
+    if (0 == Path->Length || 0 != Path->Length % sizeof(WCHAR))
         return FALSE;
 
     PWSTR PathBgn, PathEnd, PathPtr, StreamTypeStr = 0;

@@ -1161,10 +1161,16 @@ static NTSTATUS FspFsvolSetRenameInformation(
     else
         FspFileNameSuffix(&FileNode->FileName, &Remain, &Suffix);
 
-    Suffix.Length = Suffix.MaximumLength = (USHORT)Info->FileNameLength;
+    Suffix.Length = (USHORT)Info->FileNameLength;
     Suffix.Buffer = Info->FileName;
-    if (L'\\' == Suffix.Buffer[0])
-        FspFileNameSuffix(&Suffix, &NewFileName, &Suffix);
+    /* if there is a backslash anywhere in the NewFileName get its suffix */
+    for (PWSTR P = Suffix.Buffer, EndP = P + Suffix.Length / sizeof(WCHAR); EndP > P; P++)
+        if (L'\\' == *P)
+        {
+            Suffix.Length = (USHORT)((EndP - P - 1) * sizeof(WCHAR));
+            Suffix.Buffer = P + 1;
+        }
+    Suffix.MaximumLength = Suffix.Length;
 
     if (!FspFileNameIsValid(&Remain, 0, 0) || !FspFileNameIsValid(&Suffix, 0, 0))
     {

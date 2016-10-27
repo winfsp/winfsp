@@ -37,10 +37,10 @@ for %%f in (^
 	:winfsp-tests-x86-mountpoint-drive ^
 	:winfsp-tests-x86-mountpoint-dir ^
 	:winfsp-tests-x86-no-traverse ^
-    :winfsp-tests-x64-disk-share ^
+    :winfsp-tests-x64-external-share ^
 	:fsx-memfs-x64-disk ^
 	:fsx-memfs-x64-net ^
-    :winfsp-tests-x86-disk-share ^
+    :winfsp-tests-x86-external-share ^
 	:fsx-memfs-x86-disk ^
 	:fsx-memfs-x86-net ^
 	:winfstest-memfs-x64-disk ^
@@ -142,7 +142,7 @@ winfsp-tests-x86 --no-traverse
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:winfsp-tests-x64-disk-share
+:winfsp-tests-x64-external-share
 M:
 "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=M:\ --resilient
 if !ERRORLEVEL! neq 0 goto fail
@@ -164,7 +164,7 @@ if !ERRORLEVEL! neq 0 goto fail
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:winfsp-tests-x86-disk-share
+:winfsp-tests-x86-external-share
 O:
 "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --share=winfsp-tests-share=O:\ --resilient
 if !ERRORLEVEL! neq 0 goto fail
