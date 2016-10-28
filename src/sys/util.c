@@ -722,7 +722,7 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
     ULONG BufferPageCount;
 
     ASSERT(0 != PageCount);
-    ASSERT(FlagOn(UserMdl->MdlFlags, MDL_PAGES_LOCKED));
+    ASSERT(FlagOn(UserMdl->MdlFlags, MDL_SOURCE_IS_NONPAGED_POOL | MDL_PAGES_LOCKED));
 
     *PSafeMdl = 0;
 
