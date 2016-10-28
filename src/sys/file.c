@@ -695,9 +695,11 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
         {
             PTruncateSize = &TruncateSize;
 
-            if (0 == --FileNode->OpenCount)
-                FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName,
-                    &DeletedFromContextTable);
+            FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName,
+                &DeletedFromContextTable);
+            ASSERT(DeletedFromContextTable);
+
+            FileNode->OpenCount = 0;
         }
         else if (FileNode->TruncateOnClose && FlagOn(FileObject->Flags, FO_CACHE_SUPPORTED))
         {
@@ -735,8 +737,11 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
     if (0 < FileNode->OpenCount && 0 == --FileNode->OpenCount)
+    {
         FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName,
             &DeletedFromContextTable);
+        ASSERT(DeletedFromContextTable);
+    }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
