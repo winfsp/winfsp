@@ -17,6 +17,15 @@
 
 #include <sys/driver.h>
 
+/*
+ * NOTE:
+ *
+ * FspIopCompleteIrpEx does some special processing for IRP_MJ_DIRECTORY_CONTROL /
+ * IRP_MN_QUERY_DIRECTORY IRP's that come from SRV2. If the processing of this IRP
+ * changes substantially (in particular if we eliminate our use of
+ * Irp->AssociatedIrp.SystemBuffer) we should also revisit FspIopCompleteIrpEx.
+ */
+
 static NTSTATUS FspFsvolQueryDirectoryCopy(
     PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
     UINT64 DirectoryOffset, PUINT64 PDirectoryOffset,
