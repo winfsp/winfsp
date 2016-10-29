@@ -229,6 +229,9 @@ static NTSTATUS FspFsvolWriteCached(
     if (SynchronousIo)
         FileObject->CurrentByteOffset.QuadPart = WriteEndOffset;
 
+    /* mark the file object as modified (if not paging I/O) */
+    SetFlag(FileObject->Flags, FO_FILE_MODIFIED);
+
     FspFileNodeRelease(FileNode, Main);
 
     return STATUS_SUCCESS;
@@ -431,6 +434,10 @@ NTSTATUS FspFsvolWriteComplete(
             FileObject->CurrentByteOffset.QuadPart = WriteToEndOfFile ?
                 Response->Rsp.Write.FileInfo.FileSize :
                 WriteOffset.QuadPart + Response->IoStatus.Information;
+
+        /* mark the file object as modified (if not paging I/O) */
+        if (!PagingIo)
+            SetFlag(FileObject->Flags, FO_FILE_MODIFIED);
 
         FspIopResetRequest(Request, 0);
     }

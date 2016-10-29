@@ -634,7 +634,8 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
      * To properly implement this we should maintain some state of whether
      * we modified the file or not. Alternatively we could have the driver
      * report to us at Cleanup time whether the file was modified. [The
-     * driver does not currently maintain the FO_FILE_MODIFIED bit however.]
+     * FSD does maintain the FO_FILE_MODIFIED bit, but does not send it
+     * to us.]
      *
      * TBD.
      */

@@ -896,6 +896,9 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
         FileNode->TruncateOnClose = TRUE;
 
+        /* mark the file object as modified */
+        SetFlag(FileObject->Flags, FO_FILE_MODIFIED);
+
         FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED);
     }
 
@@ -995,6 +998,9 @@ static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
 
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
         FileNode->TruncateOnClose = TRUE;
+
+        /* mark the file object as modified -- FastFat does this only for Allocation though! */
+        SetFlag(FileObject->Flags, FO_FILE_MODIFIED);
 
         FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED);
     }
