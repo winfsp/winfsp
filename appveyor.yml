@@ -1,7 +1,9 @@
 version: '{build}'
 
 environment:
-  CONFIGURATION: Release
+  matrix:
+  - CONFIGURATION: Debug
+  - CONFIGURATION: Release
 
 install:
 - git submodule update --init --recursive
