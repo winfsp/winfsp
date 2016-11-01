@@ -113,8 +113,8 @@ void getsecurity_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         getsecurity_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -241,8 +241,8 @@ void setsecurity_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         setsecurity_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)

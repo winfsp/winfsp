@@ -243,8 +243,8 @@ void querydir_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         querydir_dotest(-1, DirBuf, 0, 0);
     }
     if (WinFspDiskTests)
@@ -394,8 +394,8 @@ void querydir_buffer_overflow_test(void)
 
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         querydir_buffer_overflow_dotest(-1, DirBuf, 0, 0);
     }
     if (WinFspDiskTests)
@@ -522,8 +522,8 @@ void dirnotify_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         dirnotify_dotest(-1, DirBuf, 0, 0);
     }
     if (WinFspDiskTests && !OptNoTraverseToken

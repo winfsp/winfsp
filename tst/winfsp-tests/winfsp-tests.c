@@ -38,9 +38,6 @@ WCHAR OptShareNameBuf[MAX_PATH], *OptShareName, *OptShareTarget;
 HANDLE OptNoTraverseToken = 0;
     LUID OptNoTraverseLuid;
 
-static WCHAR CurrentDirectory[MAX_PATH];
-static PWSTR TestDirectory = L"winfsp-tests";
-
 static void exiting(void);
 
 int mywcscmp(PWSTR a, int alen, PWSTR b, int blen)
@@ -76,6 +73,34 @@ int myrand(void)
 
     myrandseed = myrandseed * 214013 + 2531011;
     return (myrandseed >> 16) & RAND_MAX;
+}
+
+VOID GetTestDirectoryEx(PWSTR DirBuf, ULONG DirBufSize, PWSTR DriveBuf)
+{
+    DirBufSize /= sizeof(WCHAR);
+    if (MAX_PATH > DirBufSize)
+        ABORT("test directory buffer must be at least MAX_PATH long");
+
+    DWORD Result = GetCurrentDirectoryW(DirBufSize - 4, DirBuf + 4);
+    if (0 == Result || Result >= DirBufSize - 4)
+        ABORT("GetCurrentDirectoryW failed");
+
+    if (!testalpha(DirBuf[4]) || L':' != DirBuf[5])
+        ABORT("--ntfs/--external tests must be run from a drive");
+
+    DirBuf[0] = L'\\';
+    DirBuf[1] = L'\\';
+    DirBuf[2] = L'?';
+    DirBuf[3] = L'\\';
+    if (L'\\' == DirBuf[6] && L'\0' == DirBuf[7])
+        DirBuf[6] = L'\0';
+
+    if (0 != DriveBuf)
+    {
+        DriveBuf[0] = DirBuf[4];
+        DriveBuf[1] = L':';
+        DriveBuf[2] = L'\0';
+    }
 }
 
 static VOID DisableBackupRestorePrivileges(VOID)
@@ -255,20 +280,6 @@ int main(int argc, char *argv[])
 
     myrandseed = (unsigned)time(0);
 
-    if (NtfsTests)
-    {
-        if (!GetCurrentDirectoryW(MAX_PATH, CurrentDirectory))
-            ABORT("cannot get test directory");
-
-        /* create a directory for testing */
-        if (!CreateDirectoryW(TestDirectory, 0))
-            ABORT("cannot create test directory");
-
-        /* change into the directory */
-        if (!SetCurrentDirectoryW(TestDirectory))
-            ABORT("cannot change to test directory");
-    }
-
     tlib_run_tests(argc, argv);
     return 0;
 }
@@ -276,12 +287,6 @@ int main(int argc, char *argv[])
 static void exiting(void)
 {
     OutputDebugStringA("winfsp-tests: exiting\n");
-
-    if (NtfsTests)
-    {
-        if (SetCurrentDirectoryW(CurrentDirectory))
-            RemoveDirectoryW(TestDirectory);
-    }
 
     RemoveNetShareIfNeeded();
 }

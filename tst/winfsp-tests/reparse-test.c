@@ -112,8 +112,8 @@ void reparse_guid_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         reparse_guid_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -215,8 +215,8 @@ void reparse_nfs_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         reparse_nfs_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -322,8 +322,8 @@ void reparse_symlink_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         reparse_symlink_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -535,8 +535,8 @@ void reparse_symlink_relative_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         reparse_symlink_relative_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)

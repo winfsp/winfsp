@@ -143,8 +143,8 @@ void getfileinfo_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         getfileinfo_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -244,8 +244,8 @@ void getfileinfo_name_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         getfileinfo_name_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -327,8 +327,8 @@ void setfileinfo_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         setfileinfo_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -392,8 +392,8 @@ void delete_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         delete_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -463,8 +463,8 @@ void delete_access_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         delete_access_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -575,8 +575,8 @@ void rename_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         rename_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -648,8 +648,8 @@ void rename_caseins_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         rename_caseins_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -762,8 +762,8 @@ void rename_flipflop_test(void)
 
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         rename_flipflop_dotest(-1, DirBuf, 0, 10);
     }
     if (WinFspDiskTests)
@@ -846,7 +846,11 @@ void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 void getvolinfo_test(void)
 {
     if (NtfsTests)
-        getvolinfo_dotest(-1, L"C:", 0);
+    {
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        getvolinfo_dotest(-1, DriveBuf, 0);
+    }
     if (WinFspDiskTests)
     {
         getvolinfo_dotest(MemfsDisk, 0, 0);
@@ -938,7 +942,11 @@ void setvolinfo_test(void)
 {
 #if 0
     if (NtfsTests)
-        setvolinfo_dotest(-1, L"C:", 0);
+    {
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        setvolinfo_dotest(-1, DriveBuf, 0);
+    }
 #endif
     if (WinFspDiskTests)
     {

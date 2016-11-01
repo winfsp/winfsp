@@ -129,6 +129,10 @@ PWSTR memfs_volumename(void *data);
 int mywcscmp(PWSTR a, int alen, PWSTR b, int blen);
 int myrand(void);
 
+#define GetTestDirectory(D)             GetTestDirectoryEx(DirBuf, sizeof DirBuf, 0)
+#define GetTestDirectoryAndDrive(D,V)   GetTestDirectoryEx(DirBuf, sizeof DirBuf, V)
+VOID GetTestDirectoryEx(PWSTR DirBuf, ULONG DirBufSize, PWSTR DriveBuf);
+
 extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;

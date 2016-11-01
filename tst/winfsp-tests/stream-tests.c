@@ -344,8 +344,8 @@ static void stream_create_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_create_dotest(-1, DirBuf);
     }
     if (WinFspDiskTests)
@@ -404,8 +404,8 @@ static void stream_create_related_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_create_related_dotest(-1, DirBuf);
     }
     if (WinFspDiskTests)
@@ -493,8 +493,8 @@ static void stream_create_sd_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_create_sd_dotest(-1, DirBuf);
     }
     if (WinFspDiskTests)
@@ -806,8 +806,8 @@ static void stream_create_share_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_create_share_dotest(-1, DirBuf);
     }
     if (WinFspDiskTests)
@@ -1040,8 +1040,8 @@ static void stream_getfileinfo_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_getfileinfo_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -1174,8 +1174,8 @@ static void stream_setfileinfo_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_setfileinfo_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -1257,8 +1257,8 @@ static void stream_delete_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_delete_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -1373,8 +1373,8 @@ static void stream_delete_pending_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_delete_pending_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -1487,8 +1487,8 @@ static void stream_rename_flipflop_test(void)
 
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_rename_flipflop_dotest(-1, DirBuf, 0, 10);
     }
     if (WinFspDiskTests)
@@ -1660,8 +1660,8 @@ static void stream_getsecurity_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_getsecurity_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -1792,8 +1792,8 @@ static void stream_setsecurity_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_setsecurity_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
@@ -2007,8 +2007,8 @@ void stream_getstreaminfo_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_getstreaminfo_dotest(-1, DirBuf, 0, 0);
     }
     if (WinFspDiskTests)
@@ -2145,8 +2145,8 @@ void stream_dirnotify_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         stream_dirnotify_dotest(-1, DirBuf, 0, 0);
     }
     if (WinFspDiskTests && !OptNoTraverseToken

@@ -475,9 +475,9 @@ void lock_noncached_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        lock_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        lock_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_NO_BUFFERING);
     }
     if (WinFspDiskTests)
     {
@@ -495,9 +495,9 @@ void lock_noncached_overlapped_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        lock_overlapped_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        lock_overlapped_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_NO_BUFFERING);
     }
     if (WinFspDiskTests)
     {
@@ -515,9 +515,9 @@ void lock_cached_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        lock_dotest(-1, L"C:", DirBuf, 0, 0);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        lock_dotest(-1, DriveBuf, DirBuf, 0, 0);
     }
     if (WinFspDiskTests)
     {
@@ -535,9 +535,9 @@ void lock_cached_overlapped_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        lock_overlapped_dotest(-1, L"C:", DirBuf, 0, 0);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        lock_overlapped_dotest(-1, DriveBuf, DirBuf, 0, 0);
     }
     if (WinFspDiskTests)
     {

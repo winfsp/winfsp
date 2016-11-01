@@ -820,9 +820,9 @@ void rdwr_noncached_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        rdwr_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_NO_BUFFERING);
     }
     if (WinFspDiskTests)
     {
@@ -845,9 +845,9 @@ void rdwr_noncached_append_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_append_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        rdwr_append_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_NO_BUFFERING);
     }
     if (WinFspDiskTests)
     {
@@ -866,9 +866,9 @@ void rdwr_noncached_overlapped_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_overlapped_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        rdwr_overlapped_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_NO_BUFFERING);
     }
     if (WinFspDiskTests)
     {
@@ -886,9 +886,9 @@ void rdwr_cached_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_dotest(-1, L"C:", DirBuf, 0, 0);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        rdwr_dotest(-1, DriveBuf, DirBuf, 0, 0);
     }
     if (WinFspDiskTests)
     {
@@ -906,9 +906,9 @@ void rdwr_cached_append_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_append_dotest(-1, L"C:", DirBuf, 0, 0);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        rdwr_append_dotest(-1, DriveBuf, DirBuf, 0, 0);
     }
     if (WinFspDiskTests)
     {
@@ -926,9 +926,9 @@ void rdwr_cached_overlapped_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_overlapped_dotest(-1, L"C:", DirBuf, 0, 0);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        rdwr_overlapped_dotest(-1, DriveBuf, DirBuf, 0, 0);
     }
     if (WinFspDiskTests)
     {
@@ -946,9 +946,9 @@ void rdwr_writethru_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_WRITE_THROUGH);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        rdwr_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_WRITE_THROUGH);
     }
     if (WinFspDiskTests)
     {
@@ -966,9 +966,9 @@ void rdwr_writethru_append_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_append_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_WRITE_THROUGH);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        rdwr_append_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_WRITE_THROUGH);
     }
     if (WinFspDiskTests)
     {
@@ -986,9 +986,9 @@ void rdwr_writethru_overlapped_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_overlapped_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_WRITE_THROUGH);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        rdwr_overlapped_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_WRITE_THROUGH);
     }
     if (WinFspDiskTests)
     {
@@ -1006,14 +1006,14 @@ void rdwr_mmap_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_mmap_dotest(-1, L"C:", DirBuf, 0, 0, FALSE);
-        rdwr_mmap_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING, FALSE);
-        rdwr_mmap_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_WRITE_THROUGH, FALSE);
-        rdwr_mmap_dotest(-1, L"C:", DirBuf, 0, 0, TRUE);
-        rdwr_mmap_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING, TRUE);
-        rdwr_mmap_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_WRITE_THROUGH, TRUE);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, 0, FALSE);
+        rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_NO_BUFFERING, FALSE);
+        rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_WRITE_THROUGH, FALSE);
+        rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, 0, TRUE);
+        rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_NO_BUFFERING, TRUE);
+        rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_WRITE_THROUGH, TRUE);
     }
     if (WinFspDiskTests)
     {
@@ -1081,9 +1081,9 @@ void rdwr_mixed_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        rdwr_mixed_dotest(-1, L"C:", DirBuf, 0);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        rdwr_mixed_dotest(-1, DriveBuf, DirBuf, 0);
     }
     if (WinFspDiskTests)
     {

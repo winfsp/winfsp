@@ -207,8 +207,8 @@ void create_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         create_dotest(-1, DirBuf);
     }
     if (WinFspDiskTests)
@@ -268,8 +268,8 @@ void create_related_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         create_related_dotest(-1, DirBuf);
     }
     if (WinFspDiskTests)
@@ -378,8 +378,8 @@ void create_sd_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         create_sd_dotest(-1, DirBuf);
     }
     if (WinFspDiskTests)
@@ -495,8 +495,8 @@ void create_notraverse_test(void)
 
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         create_notraverse_dotest(-1, DirBuf);
     }
     if (WinFspDiskTests)
@@ -609,8 +609,8 @@ void create_backup_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         create_backup_dotest(-1, DirBuf);
     }
     if (WinFspDiskTests)
@@ -742,8 +742,8 @@ void create_restore_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         create_restore_dotest(-1, DirBuf);
     }
     if (WinFspDiskTests)
@@ -816,8 +816,8 @@ void create_share_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         create_share_dotest(-1, DirBuf);
     }
     if (WinFspDiskTests)
@@ -833,9 +833,8 @@ void create_curdir_dotest(ULONG Flags, PWSTR Prefix)
     WCHAR CurrentDirectory[MAX_PATH], FilePath[MAX_PATH];
     BOOL Success;
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s%s",
-        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs),
-        Prefix ? L"" : L"\\");
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     Success = GetCurrentDirectoryW(MAX_PATH, CurrentDirectory);
     ASSERT(Success);
@@ -853,8 +852,8 @@ void create_curdir_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
         create_curdir_dotest(-1, DirBuf);
     }
     if (WinFspDiskTests)

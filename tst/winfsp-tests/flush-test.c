@@ -234,11 +234,11 @@ void flush_test(void)
 {
     if (NtfsTests)
     {
-        WCHAR DirBuf[MAX_PATH] = L"\\\\?\\";
-        GetCurrentDirectoryW(MAX_PATH - 4, DirBuf + 4);
-        flush_dotest(-1, L"C:", DirBuf, 0, 0, FALSE);
-        flush_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_WRITE_THROUGH, FALSE);
-        flush_dotest(-1, L"C:", DirBuf, 0, FILE_FLAG_NO_BUFFERING, FALSE);
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        flush_dotest(-1, DriveBuf, DirBuf, 0, 0, FALSE);
+        flush_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_WRITE_THROUGH, FALSE);
+        flush_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_NO_BUFFERING, FALSE);
     }
     if (WinFspDiskTests)
     {
