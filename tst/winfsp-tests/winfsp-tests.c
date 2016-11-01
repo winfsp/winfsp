@@ -33,7 +33,7 @@ BOOLEAN OptCaseInsensitive = FALSE;
 BOOLEAN OptCaseRandomize = FALSE;
 WCHAR OptMountPointBuf[MAX_PATH], *OptMountPoint;
 WCHAR OptShareNameBuf[MAX_PATH], *OptShareName, *OptShareTarget;
-    WCHAR OptShareComputer[] = L"\\\\localhost\\";
+    WCHAR OptShareComputer[MAX_PATH] = L"\\\\localhost\\";
     ULONG OptSharePrefixLength; /* only counts single leading slash: \localhost\target\path */
 HANDLE OptNoTraverseToken = 0;
     LUID OptNoTraverseLuid;
@@ -131,7 +131,7 @@ static VOID DisableBackupRestorePrivileges(VOID)
 
 static VOID AddNetShareIfNeeded(VOID)
 {
-    if (!OptShareName)
+    if (!OptShareTarget)
         return;
 
     SHARE_INFO_2 ShareInfo = { 0 };
@@ -151,7 +151,7 @@ static VOID AddNetShareIfNeeded(VOID)
 
 static VOID RemoveNetShareIfNeeded(VOID)
 {
-    if (!OptShareName)
+    if (!OptShareTarget)
         return;
 
     NetShareDel(0, OptShareName, 0);
@@ -250,14 +250,29 @@ int main(int argc, char *argv[])
                     {
                         *OptShareTarget++ = L'\0';
                         OptShareName = OptShareNameBuf;
-                        rmarg(argv, argc, argi);
-
-                        OptSharePrefixLength = (ULONG)
-                            (sizeof OptShareComputer - 2 * sizeof(WCHAR) + (wcslen(OptShareName) * sizeof(WCHAR)));
-
-                        WinFspDiskTests = 0;
-                        WinFspNetTests = 0;
                     }
+                    else if (L'\\' == OptShareNameBuf[0] && L'\\' == OptShareNameBuf[1])
+                    {
+                        OptShareName = wcschr(OptShareNameBuf + 2, L'\\');
+                        if (OptShareName)
+                        {
+                            OptShareName++;
+                            memcpy(OptShareComputer, OptShareNameBuf,
+                                (OptShareName - OptShareNameBuf) * sizeof(WCHAR));
+                            OptShareComputer[OptShareName - OptShareNameBuf] = L'\0';
+                        }
+                    }
+                }
+
+                if (OptShareName)
+                {
+                    rmarg(argv, argc, argi);
+
+                    OptSharePrefixLength = (ULONG)
+                        ((wcslen(OptShareComputer) + wcslen(OptShareName) - 1) * sizeof(WCHAR));
+
+                    WinFspDiskTests = 0;
+                    WinFspNetTests = 0;
                 }
             }
             else if (0 == strcmp("--no-traverse", a))
