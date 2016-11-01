@@ -145,7 +145,7 @@ exit /b 0
 :winfsp-tests-x64-external-share
 M:
 "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=M:\ --resilient ^
-    -rdwr_mmap* -reparse_symlink*
+    -reparse_symlink*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -168,7 +168,7 @@ exit /b 0
 :winfsp-tests-x86-external-share
 O:
 "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --share=winfsp-tests-share=O:\ --resilient ^
-    -rdwr_mmap* -reparse_symlink*
+    -reparse_symlink*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 

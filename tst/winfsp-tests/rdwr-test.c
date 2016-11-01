@@ -1009,10 +1009,20 @@ void rdwr_mmap_test(void)
         WCHAR DirBuf[MAX_PATH], DriveBuf[3];
         GetTestDirectoryAndDrive(DirBuf, DriveBuf);
         rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, 0, FALSE);
-        rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_NO_BUFFERING, FALSE);
+        if (!OptShareTarget)
+            /*
+             * This test fails under Win8 (version 6.2 Build 9200)
+             * See: http://www.osronline.com/showthread.cfm?link=279909
+             */
+            rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_NO_BUFFERING, FALSE);
         rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_WRITE_THROUGH, FALSE);
         rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, 0, TRUE);
-        rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_NO_BUFFERING, TRUE);
+        if (!OptShareTarget)
+            /*
+             * This test fails under Win8 (version 6.2 Build 9200)
+             * See: http://www.osronline.com/showthread.cfm?link=279909
+             */
+            rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_NO_BUFFERING, TRUE);
         rdwr_mmap_dotest(-1, DriveBuf, DirBuf, 0, FILE_FLAG_WRITE_THROUGH, TRUE);
     }
     if (WinFspDiskTests)
