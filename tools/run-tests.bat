@@ -40,9 +40,13 @@ for %%f in (^
     :winfsp-tests-x64-external-share ^
 	:fsx-memfs-x64-disk ^
 	:fsx-memfs-x64-net ^
+    :standby-memfs-x64-disk ^
+    :standby-memfs-x64-net ^
     :winfsp-tests-x86-external-share ^
 	:fsx-memfs-x86-disk ^
 	:fsx-memfs-x86-net ^
+    :standby-memfs-x86-disk ^
+    :standby-memfs-x86-net ^
 	:winfstest-memfs-x64-disk ^
 	:winfstest-memfs-x64-net ^
 	:winfstest-memfs-x86-disk ^
@@ -165,6 +169,18 @@ if !ERRORLEVEL! neq 0 goto fail
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:standby-memfs-x64-disk
+M:
+copy "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:standby-memfs-x64-net
+N:
+copy "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :winfsp-tests-x86-external-share
 O:
 "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --share=winfsp-tests-share=O:\ --resilient ^
@@ -185,6 +201,18 @@ P:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:standby-memfs-x86-disk
+O:
+copy "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:standby-memfs-x86-net
+P:
+copy "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
