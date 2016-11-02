@@ -473,6 +473,13 @@ static NTSTATUS FspVolumeMountNoLock(
     Vpb->SerialNumber = FsvolDeviceExtension->VolumeParams.VolumeSerialNumber;
     IoReleaseVpbSpinLock(Irql);
 
+    /*
+     * Argh! Turns out that the IrpSp->Parameters.MountVolume.DeviceObject is
+     * passed to us with an extra reference, which is not removed on SUCCESS.
+     * So go ahead and dereference it now!
+     */
+    ObDereferenceObject(FsvrtDeviceObject);
+
     Irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;
 }
