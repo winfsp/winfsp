@@ -82,6 +82,10 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
 
     *PFileSystem = 0;
 
+    if (VolumeParams->UmFileContextIsUserContext2 &&
+        VolumeParams->UmFileContextIsFullContext)
+        return STATUS_INVALID_PARAMETER;
+
     if (0 == Interface)
         Interface = &FspFileSystemNullInterface;
 
@@ -126,7 +130,8 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     FileSystem->EnterOperation = FspFileSystemOpEnter;
     FileSystem->LeaveOperation = FspFileSystemOpLeave;
 
-    FileSystem->UmFileNodeIsUserContext2 = !!VolumeParams->UmFileNodeIsUserContext2;
+    FileSystem->UmFileContextIsUserContext2 = !!VolumeParams->UmFileContextIsUserContext2;
+    FileSystem->UmFileContextIsFullContext = !!VolumeParams->UmFileContextIsFullContext;
 
     *PFileSystem = FileSystem;
 

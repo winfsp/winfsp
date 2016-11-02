@@ -127,7 +127,35 @@ typedef enum
  * File system interface.
  *
  * The operations in this interface must be implemented by the user mode
- * file system.
+ * file system. Not all operations need be implemented. For example,
+ * a user mode file system that does not wish to support reparse points,
+ * need not implement the reparse point operations.
+ *
+ * Most of the operations accept a FileContext parameter. This parameter
+ * has different meanings depending on the value of the FSP_FSCTL_VOLUME_PARAMS
+ * flags UmFileContextIsUserContext2 and UmFileContextIsFullContext.
+ *
+ * There are three cases to consider:
+ * <ul>
+ * <li>When both of these flags are unset (default), the FileContext parameter
+ * represents the file node. The file node is a void pointer (or an integer
+ * that can fit in a pointer) that is used to uniquely identify an open file.
+ * Opening the same file name should always yield the same file node value
+ * for as long as the file with that name remains open anywhere in the system.
+ * </li>
+ * <li>When the UmFileContextIsUserContext2 is set, the FileContext parameter
+ * represents the file descriptor. The file descriptor is a void pointer (or
+ * an integer that can fit in a pointer) that is used to identify an open
+ * instance of a file. Opening the same file name may yield a different file
+ * descriptor.
+ * </li>
+ * <li>When the UmFileContextIsFullContext is set, the FileContext parameter
+ * is a pointer to a FSP_FSCTL_TRANSACT_FULL_CONTEXT. This allows a user mode
+ * file system to access the low-level UserContext and UserContext2 values.
+ * The UserContext is used to store the file node and the UserContext2 is
+ * used to store the file descriptor for an open file.
+ * </li>
+ * </ul>
  */
 typedef struct _FSP_FILE_SYSTEM_INTERFACE
 {
@@ -219,12 +247,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Windows GetSecurityDescriptorLength API. Will be NULL for named streams.
      * @param AllocationSize
      *     Allocation size for the newly created file.
-     * @param PFileNode [out]
-     *     Pointer that will receive the file node on successful return from this call. The file
-     *     node is a void pointer (or an integer that can fit in a pointer) that is used to
-     *     uniquely identify an open file. Opening the same file name should always return the same
-     *     file node value for as long as the file with that name remains open anywhere in the
-     *     system. The file system can place any value it needs here.
+     * @param PFileContext [out]
+     *     Pointer that will receive the file context on successful return from this call.
      * @param FileInfo [out]
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
@@ -234,7 +258,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     NTSTATUS (*Create)(FSP_FILE_SYSTEM *FileSystem,
         PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
         UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
-        PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo);
+        PVOID *PFileContext, FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Open a file or directory.
      *
@@ -254,12 +278,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     need not perform any additional checks. However this parameter may be useful to a user
      *     mode file system; for example the WinFsp-FUSE layer uses this parameter to determine
      *     which flags to use in its POSIX open() call.
-     * @param PFileNode [out]
-     *     Pointer that will receive the file node on successful return from this call. The file
-     *     node is a void pointer (or an integer that can fit in a pointer) that is used to
-     *     uniquely identify an open file. Opening the same file name should always return the same
-     *     file node value for as long as the file with that name remains open anywhere in the
-     *     system. The file system can place any value it needs here.
+     * @param PFileContext [out]
+     *     Pointer that will receive the file context on successful return from this call.
      * @param FileInfo [out]
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
@@ -268,14 +288,14 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      */
     NTSTATUS (*Open)(FSP_FILE_SYSTEM *FileSystem,
         PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
-        PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo);
+        PVOID *PFileContext, FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Overwrite a file.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file to overwrite.
+     * @param FileContext
+     *     The file context of the file to overwrite.
      * @param FileAttributes
      *     File attributes to apply to the overwritten file.
      * @param ReplaceFileAttributes
@@ -288,7 +308,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Overwrite)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
+        PVOID FileContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Cleanup a file.
@@ -315,8 +335,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file or directory to cleanup.
+     * @param FileContext
+     *     The file context of the file or directory to cleanup.
      * @param FileName
      *     The name of the file or directory to cleanup. Sent only when a Delete is requested.
      * @param Delete
@@ -328,24 +348,24 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     CanDelete
      */
     VOID (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode, PWSTR FileName, BOOLEAN Delete);
+        PVOID FileContext, PWSTR FileName, BOOLEAN Delete);
     /**
      * Close a file.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file or directory to be closed.
+     * @param FileContext
+     *     The file context of the file or directory to be closed.
      */
     VOID (*Close)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode);
+        PVOID FileContext);
     /**
      * Read a file.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file to be read.
+     * @param FileContext
+     *     The file context of the file to be read.
      * @param Buffer
      *     Pointer to a buffer that will receive the results of the read operation.
      * @param Offset
@@ -359,15 +379,15 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     operation.
      */
     NTSTATUS (*Read)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
+        PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
         PULONG PBytesTransferred);
     /**
      * Write a file.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file to be written.
+     * @param FileContext
+     *     The file context of the file to be written.
      * @param Buffer
      *     Pointer to a buffer that contains the data to write.
      * @param Offset
@@ -389,7 +409,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     operation.
      */
     NTSTATUS (*Write)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
+        PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
         BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
         PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo);
     /**
@@ -399,20 +419,20 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file to be flushed. When NULL the whole volume is being flushed.
+     * @param FileContext
+     *     The file context of the file to be flushed. When NULL the whole volume is being flushed.
      * @return
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Flush)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode);
+        PVOID FileContext);
     /**
      * Get file or directory information.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file or directory to get information for.
+     * @param FileContext
+     *     The file context of the file or directory to get information for.
      * @param FileInfo [out]
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
@@ -420,15 +440,15 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*GetFileInfo)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode,
+        PVOID FileContext,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Set file or directory basic information.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file or directory to set information for.
+     * @param FileContext
+     *     The file context of the file or directory to set information for.
      * @param FileAttributes
      *     File attributes to apply to the file or directory. If the value INVALID_FILE_ATTRIBUTES
      *     is sent, the file attributes should not be changed.
@@ -448,7 +468,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*SetBasicInfo)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode, UINT32 FileAttributes,
+        PVOID FileContext, UINT32 FileAttributes,
         UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
@@ -473,8 +493,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file to set the file/allocation size for.
+     * @param FileContext
+     *     The file context of the file to set the file/allocation size for.
      * @param NewSize
      *     New file/allocation size to apply to the file.
      * @param SetAllocationSize
@@ -486,7 +506,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*SetFileSize)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode, UINT64 NewSize, BOOLEAN SetAllocationSize,
+        PVOID FileContext, UINT64 NewSize, BOOLEAN SetAllocationSize,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Determine whether a file or directory can be deleted.
@@ -503,8 +523,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file or directory to test for deletion.
+     * @param FileContext
+     *     The file context of the file or directory to test for deletion.
      * @param FileName
      *     The name of the file or directory to test for deletion.
      * @return
@@ -513,7 +533,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Cleanup
      */
     NTSTATUS (*CanDelete)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode, PWSTR FileName);
+        PVOID FileContext, PWSTR FileName);
     /**
      * Renames a file or directory.
      *
@@ -528,8 +548,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file or directory to be renamed.
+     * @param FileContext
+     *     The file context of the file or directory to be renamed.
      * @param FileName
      *     The current name of the file or directory to rename.
      * @param NewFileName
@@ -540,15 +560,15 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Rename)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode,
+        PVOID FileContext,
         PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists);
     /**
      * Get file or directory security descriptor.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file or directory to get the security descriptor for.
+     * @param FileContext
+     *     The file context of the file or directory to get the security descriptor for.
      * @param SecurityDescriptor
      *     Pointer to a buffer that will receive the file security descriptor on successful return
      *     from this call. May be NULL.
@@ -560,15 +580,15 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*GetSecurity)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode,
+        PVOID FileContext,
         PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
     /**
      * Set file or directory security descriptor.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file or directory to set the security descriptor for.
+     * @param FileContext
+     *     The file context of the file or directory to set the security descriptor for.
      * @param SecurityInformation
      *     Describes what parts of the file or directory security descriptor should
      *     be modified.
@@ -584,7 +604,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     FspDeleteSecurityDescriptor
      */
     NTSTATUS (*SetSecurity)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode,
+        PVOID FileContext,
         SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor,
         HANDLE AccessToken);
     /**
@@ -592,8 +612,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the directory to be read.
+     * @param FileContext
+     *     The file context of the directory to be read.
      * @param Buffer
      *     Pointer to a buffer that will receive the results of the read operation.
      * @param Offset
@@ -617,7 +637,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     FspFileSystemAddDirInfo
      */
     NTSTATUS (*ReadDirectory)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
+        PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
         PWSTR Pattern,
         PULONG PBytesTransferred);
     /**
@@ -669,8 +689,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the reparse point.
+     * @param FileContext
+     *     The file context of the reparse point.
      * @param FileName
      *     The file name of the reparse point.
      * @param Buffer
@@ -685,15 +705,15 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     SetReparsePoint
      */
     NTSTATUS (*GetReparsePoint)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode,
+        PVOID FileContext,
         PWSTR FileName, PVOID Buffer, PSIZE_T PSize);
     /**
      * Set reparse point.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the reparse point.
+     * @param FileContext
+     *     The file context of the reparse point.
      * @param FileName
      *     The file name of the reparse point.
      * @param Buffer
@@ -707,15 +727,15 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     GetReparsePoint
      */
     NTSTATUS (*SetReparsePoint)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode,
+        PVOID FileContext,
         PWSTR FileName, PVOID Buffer, SIZE_T Size);
     /**
      * Delete reparse point.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the reparse point.
+     * @param FileContext
+     *     The file context of the reparse point.
      * @param FileName
      *     The file name of the reparse point.
      * @param Buffer
@@ -726,15 +746,15 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*DeleteReparsePoint)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode,
+        PVOID FileContext,
         PWSTR FileName, PVOID Buffer, SIZE_T Size);
     /**
      * Get named streams information.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
-     * @param FileNode
-     *     The file node of the file or directory to get stream information for.
+     * @param FileContext
+     *     The file context of the file or directory to get stream information for.
      * @param Buffer
      *     Pointer to a buffer that will receive the stream information.
      * @param Length
@@ -747,7 +767,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     FspFileSystemAddStreamInfo
      */
     NTSTATUS (*GetStreamInfo)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileNode, PVOID Buffer, ULONG Length,
+        PVOID FileContext, PVOID Buffer, ULONG Length,
         PULONG PBytesTransferred);
 
     /*
@@ -775,7 +795,7 @@ typedef struct _FSP_FILE_SYSTEM
     UINT32 DebugLog;
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     SRWLOCK OpGuardLock;
-    BOOLEAN UmFileNodeIsUserContext2;
+    BOOLEAN UmFileContextIsUserContext2, UmFileContextIsFullContext;
 } FSP_FILE_SYSTEM;
 typedef struct _FSP_FILE_SYSTEM_OPERATION_CONTEXT
 {

@@ -78,8 +78,6 @@ FSP_FSCTL_STATIC_ASSERT(FSP_FSCTL_VOLUME_NAME_SIZEMAX <= 260 * sizeof(WCHAR),
 #define FSP_FSCTL_TRANSACT_BATCH_BUFFER_SIZEMIN (64 * 1024)
 #define FSP_FSCTL_TRANSACT_BUFFER_SIZEMIN       FSP_FSCTL_TRANSACT_REQ_SIZEMAX
 
-#define FSP_FSCTL_TRANSACT_USERCONTEXT(s,i)     (((PUINT64)&(s).UserContext)[i])
-
 /* marshalling */
 #pragma warning(push)
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
@@ -151,8 +149,9 @@ typedef struct
     UINT32 PostCleanupOnDeleteOnly:1;   /* post Cleanup when deleting a file only */
     UINT32 KmReservedFlags:5;
     /* user-mode flags */
-    UINT32 UmFileNodeIsUserContext2:1;  /* user mode: FileNode parameter is UserContext2 */
-    UINT32 UmReservedFlags:15;
+    UINT32 UmFileContextIsUserContext2:1;   /* user mode: FileContext parameter is UserContext2 */
+    UINT32 UmFileContextIsFullContext:1;    /* user mode: FileContext parameter is FullContext */
+    UINT32 UmReservedFlags:14;
     WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */
     WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
 } FSP_FSCTL_VOLUME_PARAMS;
@@ -197,6 +196,11 @@ typedef struct
     UINT64 StreamAllocationSize;
     WCHAR StreamNameBuf[];
 } FSP_FSCTL_STREAM_INFO;
+typedef struct
+{
+    UINT64 UserContext;
+    UINT64 UserContext2;
+} FSP_FSCTL_TRANSACT_FULL_CONTEXT;
 typedef struct
 {
     UINT16 Offset;
