@@ -268,7 +268,9 @@ for /F "tokens=1,2 delims=:" %%i in ('verifier /query ^| findstr ^
     )
 )
 set /A TotalAlloc=PagedAlloc+NonPagedAlloc
-if !TotalAlloc! neq 0 (
+if !TotalAlloc! equ 0 (
+    echo Leaks: None
+) else (
     echo Leaks: !NonPagedAlloc! NP / !PagedAlloc! P
     goto fail
 )
