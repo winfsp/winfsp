@@ -267,6 +267,9 @@ for /F "tokens=1,2 delims=:" %%i in ('verifier /query ^| findstr ^
         set NonPagedAlloc=%%j
     )
 )
-if !PagedAlloc! neq 0 goto fail
-if !NonPagedAlloc! neq 0 goto fail
+set /A TotalAlloc=PagedAlloc+NonPagedAlloc
+if !TotalAlloc! neq 0 (
+    echo Leaks: !NonPagedAlloc! NP / !PagedAlloc! P
+    goto fail
+)
 exit /b 0
