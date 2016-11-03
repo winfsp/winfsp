@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.25123.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "winfsp.dll", "winfsp_dll.vcxproj", "{4A7C0B21-9E10-4C81-92DE-1493EFCF24EB}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -43,6 +43,12 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "launchctl", "launcher\launchctl.vcxproj", "{73EAAEDA-557B-48D5-A137-328934720FB4}"
 	ProjectSection(ProjectDependencies) = postProject
 		{A5EFD487-0140-4184-8C54-FFAEC2F85E35} = {A5EFD487-0140-4184-8C54-FFAEC2F85E35}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fscrash", "testing\fscrash.vcxproj", "{10757011-749D-4954-873B-AE38D8145472}"
+	ProjectSection(ProjectDependencies) = postProject
+		{4A7C0B21-9E10-4C81-92DE-1493EFCF24EB} = {4A7C0B21-9E10-4C81-92DE-1493EFCF24EB}
+		{C85C26BA-8C22-4D30-83DA-46C3548E6332} = {C85C26BA-8C22-4D30-83DA-46C3548E6332}
 	EndProjectSection
 EndProject
 Global
@@ -153,6 +159,22 @@ Global
 		{73EAAEDA-557B-48D5-A137-328934720FB4}.Release|x64.Build.0 = Release|x64
 		{73EAAEDA-557B-48D5-A137-328934720FB4}.Release|x86.ActiveCfg = Release|Win32
 		{73EAAEDA-557B-48D5-A137-328934720FB4}.Release|x86.Build.0 = Release|Win32
+		{10757011-749D-4954-873B-AE38D8145472}.Debug|x64.ActiveCfg = Debug|x64
+		{10757011-749D-4954-873B-AE38D8145472}.Debug|x64.Build.0 = Debug|x64
+		{10757011-749D-4954-873B-AE38D8145472}.Debug|x86.ActiveCfg = Debug|Win32
+		{10757011-749D-4954-873B-AE38D8145472}.Debug|x86.Build.0 = Debug|Win32
+		{10757011-749D-4954-873B-AE38D8145472}.Installer.Debug|x64.ActiveCfg = Debug|x64
+		{10757011-749D-4954-873B-AE38D8145472}.Installer.Debug|x64.Build.0 = Debug|x64
+		{10757011-749D-4954-873B-AE38D8145472}.Installer.Debug|x86.ActiveCfg = Debug|Win32
+		{10757011-749D-4954-873B-AE38D8145472}.Installer.Debug|x86.Build.0 = Debug|Win32
+		{10757011-749D-4954-873B-AE38D8145472}.Installer.Release|x64.ActiveCfg = Release|x64
+		{10757011-749D-4954-873B-AE38D8145472}.Installer.Release|x64.Build.0 = Release|x64
+		{10757011-749D-4954-873B-AE38D8145472}.Installer.Release|x86.ActiveCfg = Release|Win32
+		{10757011-749D-4954-873B-AE38D8145472}.Installer.Release|x86.Build.0 = Release|Win32
+		{10757011-749D-4954-873B-AE38D8145472}.Release|x64.ActiveCfg = Release|x64
+		{10757011-749D-4954-873B-AE38D8145472}.Release|x64.Build.0 = Release|x64
+		{10757011-749D-4954-873B-AE38D8145472}.Release|x86.ActiveCfg = Release|Win32
+		{10757011-749D-4954-873B-AE38D8145472}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -164,5 +186,6 @@ Global
 		{95C223E6-B5F1-4FD0-9376-41CDBC824445} = {B464EF06-42AE-4674-81BB-FDDE80204822}
 		{A5EFD487-0140-4184-8C54-FFAEC2F85E35} = {FD28A504-431E-49B9-BB8C-DCA0E7019F66}
 		{73EAAEDA-557B-48D5-A137-328934720FB4} = {FD28A504-431E-49B9-BB8C-DCA0E7019F66}
+		{10757011-749D-4954-873B-AE38D8145472} = {69439FD1-C07D-4BF1-98DC-3CCFECE53A49}
 	EndGlobalSection
 EndGlobal
