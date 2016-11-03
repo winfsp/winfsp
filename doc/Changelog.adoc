@@ -5,9 +5,12 @@ v1.0RC1::
 
 This is the first Release Candidate. It has been tested for robustness and correct file system semantics in a variety of scenarios. Some of the more important changes:
 
-- Directories are now supported as mount points.
-- Case insensitive file systems are now fully supported and tested.
+- API has been polished and finalized.
+- Sharing a (disk) file system over the network is supported.
+- Case insensitive file systems are supported.
+- Directories are supported as mount points.
 - Access checks are performed correctly in the absense of the traverse privilege.
+- Access checks are performed correctly in the presence of the backup and restore privileges.
 
 
 v0.17::
