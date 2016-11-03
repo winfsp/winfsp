@@ -282,9 +282,30 @@ VOID FspVolumeDelete(
 {
     // !PAGED_CODE();
 
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+    FSP_FILE_NODE **FileNodes;
+    ULONG FileNodeCount, Index;
+    NTSTATUS Result;
+
+    FspDeviceReference(FsvolDeviceObject);
+
     FspDeviceGlobalLock();
     FspVolumeDeleteNoLock(FsctlDeviceObject, Irp, IrpSp);
     FspDeviceGlobalUnlock();
+
+    /*
+     * Call MmForceSectionClosed on open files to ensure that Mm removes them from Standby List.
+     */
+    Result = FspFileNodeCopyList(FsvolDeviceObject, &FileNodes, &FileNodeCount);
+    if (NT_SUCCESS(Result))
+    {
+        for (Index = FileNodeCount - 1; FileNodeCount > Index; Index--)
+            MmForceSectionClosed(&FileNodes[Index]->NonPaged->SectionObjectPointers, TRUE);
+
+        FspFileNodeDeleteList(FileNodes, FileNodeCount);
+    }
+
+    FspDeviceDereference(FsvolDeviceObject);
 }
 
 static VOID FspVolumeDeleteNoLock(

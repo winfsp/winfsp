@@ -171,13 +171,13 @@ exit /b 0
 
 :standby-memfs-x64-disk
 M:
-copy "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe"
+copy "%ProjRoot%\build\VStudio\build\%Configuration%\*"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :standby-memfs-x64-net
 N:
-copy "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe"
+copy "%ProjRoot%\build\VStudio\build\%Configuration%\*"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -206,13 +206,13 @@ exit /b 0
 
 :standby-memfs-x86-disk
 O:
-copy "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe"
+copy "%ProjRoot%\build\VStudio\build\%Configuration%\*"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :standby-memfs-x86-net
 P:
-copy "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe"
+copy "%ProjRoot%\build\VStudio\build\%Configuration%\*"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 

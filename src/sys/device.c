@@ -590,7 +590,9 @@ NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
     *PContextCount = 0;
 
     ContextCount = RtlNumberGenericTableElementsAvl(&FsvolDeviceExtension->ContextByNameTable);
-    Contexts = FspAlloc(sizeof(PVOID) * ContextCount);
+
+    /* if ContextCount == 0 allocate an empty Context list */
+    Contexts = FspAlloc(sizeof(PVOID) * (0 != ContextCount ? ContextCount : 1));
     if (0 == Contexts)
         return STATUS_INSUFFICIENT_RESOURCES;
 
