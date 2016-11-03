@@ -26,7 +26,7 @@ These 3 test suites and a few smaller tests are run through Continuous Integrati
 
 === Test File System
 
-WinFsp includes a test user mode file system called *MEMFS*. This is a simple in memory file system written in C/C\++. *MEMFS* attempts to achieve parity with NTFS (barring a few WinFsp limitations -- notably no support for hard links). MEMFS also performs some user mode file system checks during testing, for example, it checks that the buffer received during WRITE calls is read-only.
+WinFsp includes a test user mode file system called *MEMFS*. This is a simple in memory file system written in C/C++. *MEMFS* attempts to achieve parity with NTFS (barring a few WinFsp limitations -- notably no support for hard links). MEMFS also performs some user mode file system checks during testing, for example, it checks that the buffer received during WRITE calls is read-only.
 
 == Range of Tests
 
