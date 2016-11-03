@@ -1,0 +1,98 @@
+= WinFsp Testing Strategy
+
+WinFsp maintains quality through rigorous testing under a variety of scenarios. This document discusses its testing strategy.
+
+== Importance of Testing
+
+A file system is a fundamental block of an OS. It provides the primary means for storing persistent information and capturing system state. A file system must not only be reliable and stable when the computer is running, it must also store data in a manner as to eliminate data loss or data corruption. Furthermore a file system must provide semantics that closely adhere to existing standards and conventions for its OS to avoid confusion or even accidental corruption from programs that use it. For these reasons rigorous and extensive testing of a file system is of paramount importance.
+
+WinFsp enables the creation of user mode file systems that fully integrate with the Windows OS. WinFsp is a system component and the user mode file systems that integrate with it also become system components. The need for thorough testing of WinFsp becomes apparent.
+
+== Test Suites
+
+WinFsp currently has 3 test suites:
+
+- *Winfsp-tests*: This test suite provides comprehensive testing of WinFsp's capabilities under various scenarios. This includes general Win32 (and NTDLL) file API testing, but also includes WinFsp specific tests, such as incorrectly functioning user mode file systems. The non-WinFsp specific tests are verified against NTFS.
++
+This test suite is developed together with WinFsp. It is written in C/C++ and provides a form of gray box testing.
+
+- *Winfstest*: This is a file system test suite that was originally developed for the *secfs.test* collection of file system test programs by the WinFsp author. However none of its tests are WinFsp specific and all its tests pass on NTFS. *Winfstest* is used for testing by other Windows file systems.
++
+This test suite is written in Python and C. It provides a form of black box testing.
+
+- *FSX*: This is Apple's FSX ported to Windows by the WinFsp author. *FSX* is not WinFsp specific and is used for testing by other Windows file systems.
+
+These 3 test suites and a few smaller tests are run through Continuous Integration testing every time a push is made into the WinFsp repository.
+
+=== Test File System
+
+WinFsp includes a test user mode file system called *MEMFS*. This is a simple in memory file system written in C/C\++. *MEMFS* attempts to achieve parity with NTFS (barring a few WinFsp limitations -- notably no support for hard links). MEMFS also performs some user mode file system checks during testing, for example, it checks that the buffer received during WRITE calls is read-only.
+
+== Range of Tests
+
+The combined test suites exercise the majority of Win32 file API's and a few NTDLL ones. The tested API's include:
+
+- API's to create, open, close files/streams.
+- API's to perform file/stream I/O in cached, non-cached, write-through, overlapped, etc. modes.
+- API's to perform memory mapped I/O.
+- API's to get or set file/stream metadata and security.
+- API's to rename or delete files/streams.
+- API's to enumerate directories and streams.
+- API's that act on reparse points and symbolic links.
+
+These tests are run under a variety of conditions:
+
+- When the file system is a "disk" file system (+FILE_DEVICE_DISK_FILE_SYSTEM+).
+- When the file system is a "network" file system (+FILE_DEVICE_NETWORK_FILE_SYSTEM+).
+- When the file system is a "disk" file system exposed as a network share (+NetShareAdd+).
+- When the file system is mapped as a drive (+DefineDosDeviceW+).
+- When the file system is mounted on a directory (using junctions).
+- When the file system is case-sensitive or case-insensitive.
+- When the process making the API calls lacks the traverse privilege (+SE_CHANGE_NOTIFY_NAME+).
+- When the process making the API calls has the backup or restore privilege (+SE_BACKUP_NAME+, +SE_RESTORE_NAME+).
+
+Not all tests apply to all conditions. The test suites will disable/skip tests that do not apply to a particular scenario.
+
+In addition the tests are run both on Debug and Release builds. Debug builds includes numerous ASSERT() statements that test various conditions within the WinFsp code.
+
+=== Coverage
+
+Windows File System Drivers (FSD) run in a variety of conditions that are not always easy to replicate during testing. For example, an FSD may not be able to get locks to perform an operation, in which case it may retry the operation later. Or it may be unable to allocate memory for a MustSucceed task, in which case it may wait a bit and retry.
+
+Such situations may not arise during normal testing. For this reason, WinFsp uses the +DEBUGTEST()+ macro, which takes a single +Percent+ argument. In Release builds this macro always evaluates to +TRUE+. In Debug builds this macro may evaluate to +TRUE+ or +FALSE+ depending on the value of the +Percent+ argument, which specifies the percentage of times that +DEBUGTEST()+ should evaluate to +TRUE+. For example, a +DEBUGTEST(90)+ means that 90% of the time the macro should evaluate to +TRUE+ and 10% of the time it should evaluate to +FALSE+.
+
+The WinFsp FSD uses the +DEBUGTEST()+ macro in various places where an operation may have to be retried. For example, here is how it handles deferred writes:
+
+----
+/* should we defer the write? */
+Success = DEBUGTEST(90) && CcCanIWrite(FileObject, WriteLength, CanWait, Retrying);
+if (!Success)
+{
+    Result = FspWqCreateIrpWorkItem(Irp, FspFsvolWriteCached, 0);
+    if (NT_SUCCESS(Result))
+    {
+        IoMarkIrpPending(Irp);
+        CcDeferWrite(FileObject, FspFsvolWriteCachedDeferred, Irp, 0, WriteLength, Retrying);
+
+        return STATUS_PENDING;
+    }
+
+    /* if we are unable to defer we will go ahead and (try to) service the IRP now! */
+}
+----
+
+In Release builds the +DEBUGTEST(90)+ macro will evaluate to +TRUE+ and the Cache Manager will be asked directly via +CcCanIWrite+ whether a WRITE should be deferred. In Debug builds the +DEBUGTEST(90)+ macro will evaluate to +FALSE+ sometimes (10% of the time) and the WRITE will be deferred, thus allowing us to test the retry code path.
+
+== Verifier
+
+All development and testing of WinFsp is done under the Driver Verifier with standard settings enabled. The Driver Verifier is an invaluable tool for Windows Driver development. It has caught numerous issues within WinFsp, in most cases immediately after the faulty code was written and run for the first time.
+
+=== Leak Testing
+
+One of the most important aspects of the Driver Verifier is that it can track the pool (memory) usage of WinFsp. The WinFsp master test driver uses this to confirm that the WinFsp FSD does not leak memory.
+
+== Code Analysis
+
+WinFsp is regularly run under the Visual Studio's Code Analyzer. Any issues found are examined and if necessary acted upon.
+
+WinFsp compiles cleanly without any warnings.
