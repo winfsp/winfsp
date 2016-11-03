@@ -27,31 +27,32 @@ cd P: >nul 2>nul || (echo === Unable to find drive P: >&2 & goto fail)
 set testpass=0
 set testfail=0
 for %%f in (^
-	:winfsp-tests-x64 ^
-	:winfsp-tests-x64-case-randomize ^
-	:winfsp-tests-x64-mountpoint-drive ^
-	:winfsp-tests-x64-mountpoint-dir ^
-	:winfsp-tests-x64-no-traverse ^
-	:winfsp-tests-x86 ^
-	:winfsp-tests-x86-case-randomize ^
-	:winfsp-tests-x86-mountpoint-drive ^
-	:winfsp-tests-x86-mountpoint-dir ^
-	:winfsp-tests-x86-no-traverse ^
+    :winfsp-tests-x64 ^
+    :winfsp-tests-x64-case-randomize ^
+    :winfsp-tests-x64-mountpoint-drive ^
+    :winfsp-tests-x64-mountpoint-dir ^
+    :winfsp-tests-x64-no-traverse ^
+    :winfsp-tests-x86 ^
+    :winfsp-tests-x86-case-randomize ^
+    :winfsp-tests-x86-mountpoint-drive ^
+    :winfsp-tests-x86-mountpoint-dir ^
+    :winfsp-tests-x86-no-traverse ^
     :winfsp-tests-x64-external-share ^
-	:fsx-memfs-x64-disk ^
-	:fsx-memfs-x64-net ^
+    :fsx-memfs-x64-disk ^
+    :fsx-memfs-x64-net ^
     :standby-memfs-x64-disk ^
     :standby-memfs-x64-net ^
     :winfsp-tests-x86-external-share ^
-	:fsx-memfs-x86-disk ^
-	:fsx-memfs-x86-net ^
+    :fsx-memfs-x86-disk ^
+    :fsx-memfs-x86-net ^
     :standby-memfs-x86-disk ^
     :standby-memfs-x86-net ^
-	:winfstest-memfs-x64-disk ^
-	:winfstest-memfs-x64-net ^
-	:winfstest-memfs-x86-disk ^
-	:winfstest-memfs-x86-net ^
-	) do (
+    :winfstest-memfs-x64-disk ^
+    :winfstest-memfs-x64-net ^
+    :winfstest-memfs-x86-disk ^
+    :winfstest-memfs-x86-net ^
+    :leak-test ^
+    ) do (
     echo === Running %%f
 
     if defined APPVEYOR (
@@ -238,4 +239,34 @@ exit /b 0
 P:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:leak-test
+for /F "tokens=1,2 delims=:" %%i in ('verifier /query ^| findstr ^
+    /c:"Current Pool Allocations:" ^
+    /c:"CurrentPagedPoolAllocations:" ^
+    /c:"CurrentNonPagedPoolAllocations:"'
+    ) do (
+
+    set FieldName=%%i
+    set FieldName=!FieldName: =!
+
+    set FieldValue=%%j
+    set FieldValue=!FieldValue: =!
+    set FieldValue=!FieldValue:^(=!
+    set FieldValue=!FieldValue:^)=!
+
+    if X!FieldName!==XCurrentPoolAllocations (
+        for /F "tokens=1,2 delims=/" %%k in ("!FieldValue!") do (
+            set NonPagedAlloc=%%k
+            set PagedAlloc=%%l
+        )
+    ) else if X!FieldName!==XCurrentPagedPoolAllocations (
+        set PagedAlloc=%%j
+    ) else if X!FieldName!==XCurrentNonPagedPoolAllocations (
+        set NonPagedAlloc=%%j
+    )
+)
+if !PagedAlloc! neq 0 goto fail
+if !NonPagedAlloc! neq 0 goto fail
 exit /b 0
