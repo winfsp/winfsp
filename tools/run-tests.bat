@@ -262,9 +262,9 @@ for /F "tokens=1,2 delims=:" %%i in ('verifier /query ^| findstr ^
             set PagedAlloc=%%l
         )
     ) else if X!FieldName!==XCurrentPagedPoolAllocations (
-        set PagedAlloc=%%j
+        set PagedAlloc=!FieldValue!
     ) else if X!FieldName!==XCurrentNonPagedPoolAllocations (
-        set NonPagedAlloc=%%j
+        set NonPagedAlloc=!FieldValue!
     )
 )
 set /A TotalAlloc=PagedAlloc+NonPagedAlloc
