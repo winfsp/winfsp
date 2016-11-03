@@ -51,7 +51,6 @@ for %%f in (^
     :winfstest-memfs-x64-net ^
     :winfstest-memfs-x86-disk ^
     :winfstest-memfs-x86-net ^
-    :leak-test ^
     ) do (
     echo === Running %%f
 
@@ -87,10 +86,15 @@ launchctl-x64 stop memfs64 testdsk >nul
 launchctl-x64 stop memfs64 testnet >nul
 launchctl-x64 stop memfs32 testdsk >nul
 launchctl-x64 stop memfs32 testnet >nul
+rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
+waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
 
 set /a total=testpass+testfail
 echo === Total: %testpass%/%total%
 if not %testfail%==0 goto fail
+
+call :leak-test
+if !ERRORLEVEL! neq 0 goto fail
 
 exit /b 0
 
@@ -269,9 +273,9 @@ for /F "tokens=1,2 delims=:" %%i in ('verifier /query ^| findstr ^
 )
 set /A TotalAlloc=PagedAlloc+NonPagedAlloc
 if !TotalAlloc! equ 0 (
-    echo Leaks: None
+    echo === Leaks: None
 ) else (
-    echo Leaks: !NonPagedAlloc! NP / !PagedAlloc! P
+    echo === Leaks: !NonPagedAlloc! NP / !PagedAlloc! P
     goto fail
 )
 exit /b 0
