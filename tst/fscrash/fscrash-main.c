@@ -31,18 +31,20 @@
 
 VOID Test(PWSTR Prefix)
 {
-    static WCHAR *Sddl = L"D:P(A;;GA;;;WD)";
+    static PWSTR Sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;WD)";
     static const GUID ReparseGuid =
         { 0x2cf25cfa, 0x41af, 0x4796, { 0xb5, 0xef, 0xac, 0xa3, 0x85, 0x3, 0xe2, 0xd8 } };
     WCHAR FileName[1024];
     PSECURITY_DESCRIPTOR SecurityDescriptor;
     HANDLE Handle;
     BOOL Success;
-    UINT8 RdBuffer[512], WrBuffer[] = "Buffer";
+    UINT8 RdBuffer[4096], WrBuffer[4096];
     REPARSE_GUID_DATA_BUFFER ReparseDataBuf;
-    DWORD BytesTransferred;
+    DWORD BytesTransferred, Offset;
     WIN32_FIND_DATAW FindData;
     WIN32_FIND_STREAM_DATA FindStreamData;
+
+    memset(WrBuffer, 'B', sizeof WrBuffer);
 
     Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(
         Sddl, SDDL_REVISION_1, &SecurityDescriptor, 0);
@@ -54,32 +56,32 @@ VOID Test(PWSTR Prefix)
 
     wsprintfW(FileName, L"%s\\fscrash\\file0", Prefix);
     Handle = CreateFileW(FileName,
-        GENERIC_READ | GENERIC_WRITE, 0, 0,
+        GENERIC_ALL, 0, 0,
         CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
     Success = WriteFile(Handle, WrBuffer, sizeof WrBuffer, &BytesTransferred, 0);
     ASSERT(Success);
-    ASSERT(0 != BytesTransferred);
+    ASSERT(sizeof WrBuffer == BytesTransferred);
 
     Success = FlushFileBuffers(Handle);
     ASSERT(Success);
 
-    Success = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
-    ASSERT(Success);
+    Offset = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
+    ASSERT(0 == Offset);
 
     Success = ReadFile(Handle, RdBuffer, sizeof RdBuffer, &BytesTransferred, 0);
     ASSERT(Success);
     ASSERT(sizeof WrBuffer == BytesTransferred);
 
-    Success = SetFilePointer(Handle, 42, 0, FILE_BEGIN);
-    ASSERT(Success);
+    Offset = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
+    ASSERT(0 == Offset);
 
     Success = SetEndOfFile(Handle);
     ASSERT(Success);
 
-    BytesTransferred = GetFileSize(Handle, 0);
-    ASSERT(42 == BytesTransferred);
+    Offset = GetFileSize(Handle, 0);
+    ASSERT(0 == Offset);
 
     Success = LockFile(Handle, 0, 0, 1, 0);
     ASSERT(Success);
@@ -94,9 +96,6 @@ VOID Test(PWSTR Prefix)
     ASSERT(!Success);
     ASSERT(ERROR_INSUFFICIENT_BUFFER == GetLastError());
 
-    Success = CloseHandle(Handle);
-    ASSERT(Success);
-
     ReparseDataBuf.ReparseTag = 0x1234;
     ReparseDataBuf.ReparseDataLength = 0;
     ReparseDataBuf.Reserved = 0;
@@ -108,6 +107,9 @@ VOID Test(PWSTR Prefix)
         &BytesTransferred, 0);
     ASSERT(Success);
 
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
     wsprintfW(FileName, L"%s\\fscrash\\*", Prefix);
     Handle = FindFirstFileW(FileName, &FindData);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
@@ -115,6 +117,8 @@ VOID Test(PWSTR Prefix)
     {
     } while (FindNextFileW(Handle, &FindData));
     ASSERT(ERROR_NO_MORE_FILES == GetLastError());
+    Success = FindClose(Handle);
+    ASSERT(Success);
 
     wsprintfW(FileName, L"%s\\fscrash\\file0", Prefix);
     Handle = FindFirstStreamW(FileName, FindStreamInfoStandard, &FindStreamData, 0);
@@ -123,6 +127,8 @@ VOID Test(PWSTR Prefix)
     {
     } while (FindNextStreamW(Handle, &FindStreamData));
     ASSERT(ERROR_HANDLE_EOF == GetLastError());
+    Success = FindClose(Handle);
+    ASSERT(Success);
 
     wsprintfW(FileName, L"%s\\fscrash\\file0", Prefix);
     Success = DeleteFileW(FileName);
