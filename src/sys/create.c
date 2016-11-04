@@ -302,7 +302,10 @@ static NTSTATUS FspFsvolCreateNoLock(
             (0 == StreamPart.Length) * sizeof(WCHAR));
     }
 
-    /* check and remove any volume prefix */
+    /*
+     * Check and remove any volume prefix. Only do this when RelatedFileObject is NULL,
+     * because the volume prefix has been removed already from the RelatedFileNode.
+     */
     if (0 == RelatedFileObject && 0 < FsvolDeviceExtension->VolumePrefix.Length)
     {
         if (!FspFsvolDeviceVolumePrefixInString(FsvolDeviceObject, &FileNode->FileName) ||
