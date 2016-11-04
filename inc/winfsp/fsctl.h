@@ -388,6 +388,7 @@ typedef struct
                 UINT32 GrantedAccess;   /* FILE_{READ_DATA,WRITE_DATA,etc.} */
                 FSP_FSCTL_FILE_INFO FileInfo;
                 FSP_FSCTL_TRANSACT_BUF FileName;
+                UINT32 DisableCache:1;
             } Opened;
             /* IoStatus.Status == STATUS_REPARSE */
             struct

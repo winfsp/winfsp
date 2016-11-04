@@ -843,7 +843,8 @@ NTSTATUS FspFsvolCreateComplete(
         FileObject->FsContext = FileNode;
         FileObject->FsContext2 = FileDesc;
         if (FspTimeoutInfinity32 == FsvolDeviceExtension->VolumeParams.FileInfoTimeout &&
-            !FlagOn(IrpSp->Parameters.Create.Options, FILE_NO_INTERMEDIATE_BUFFERING))
+            !FlagOn(IrpSp->Parameters.Create.Options, FILE_NO_INTERMEDIATE_BUFFERING) &&
+            !Response->Rsp.Create.Opened.DisableCache)
             /* enable caching! */
             SetFlag(FileObject->Flags, FO_CACHE_SUPPORTED);
 
