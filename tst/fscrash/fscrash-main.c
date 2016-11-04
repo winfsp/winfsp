@@ -34,7 +34,7 @@ VOID Test(PWSTR Prefix)
     static PWSTR Sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;WD)";
     static const GUID ReparseGuid =
         { 0x2cf25cfa, 0x41af, 0x4796, { 0xb5, 0xef, 0xac, 0xa3, 0x85, 0x3, 0xe2, 0xd8 } };
-    WCHAR FileName[1024];
+    WCHAR FileName[1024], VolumeName[MAX_PATH];
     PSECURITY_DESCRIPTOR SecurityDescriptor;
     HANDLE Handle;
     BOOL Success;
@@ -50,8 +50,24 @@ VOID Test(PWSTR Prefix)
         Sddl, SDDL_REVISION_1, &SecurityDescriptor, 0);
     ASSERT(Success);
 
+    wsprintfW(FileName, L"%s\\", Prefix);
+    Success = GetVolumeInformationW(FileName, VolumeName, MAX_PATH, 0, 0, 0, 0, 0);
+    ASSERT(Success);
+
+    wsprintfW(FileName, L"%s\\", Prefix);
+    Success = SetVolumeLabelW(FileName, VolumeName);
+    //ASSERT(Success);
+
     wsprintfW(FileName, L"%s\\fscrash", Prefix);
     Success = CreateDirectoryW(FileName, 0);
+    ASSERT(Success);
+
+    wsprintfW(FileName, L"%s\\fscrash\\file0", Prefix);
+    Handle = CreateFileW(FileName,
+        GENERIC_ALL, 0, 0,
+        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Success = CloseHandle(Handle);
     ASSERT(Success);
 
     wsprintfW(FileName, L"%s\\fscrash\\file0", Prefix);
@@ -179,8 +195,8 @@ int wmain(int argc, wchar_t **argv)
                 OptCrashPercent = wcstoul(a + sizeof "--percent=" - 1, 0, 10);
             else if (0 == wcscmp(L"--disk", a))
                 OptMemfsFlags = MemfsDisk;
-            else if (0 == wcscmp(L"--n", a))
-                OptMemfsFlags = MemfsDisk;
+            else if (0 == wcscmp(L"--net", a))
+                OptMemfsFlags = MemfsNet;
             else if (0 == wcsncmp(L"--iterations=", a, sizeof "--iterations=" - 1))
                 OptIterations = wcstoul(a + sizeof "--iterations=" - 1, 0, 10);
         }
@@ -204,6 +220,7 @@ int wmain(int argc, wchar_t **argv)
         exit(1);
     }
 
+    //FspFileSystemSetDebugLog(MemfsFileSystem(Memfs), -1);
     FspCrashIntercept(MemfsFileSystem(Memfs), OptCrashMask, OptCrashFlags, OptCrashPercent);
 
     Result = MemfsStart(Memfs);
