@@ -10,7 +10,7 @@ WinFsp enables the creation of user mode file systems that fully integrate with 
 
 == Test Suites
 
-WinFsp currently has 3 test suites:
+WinFsp currently has the following test suites:
 
 - *Winfsp-tests*: This test suite provides comprehensive testing of WinFsp's capabilities under various scenarios. This includes general Win32 (and NTDLL) file API testing, but also includes WinFsp specific tests, such as incorrectly functioning user mode file systems. The non-WinFsp specific tests are verified against NTFS.
 +
@@ -20,15 +20,19 @@ This test suite is developed together with WinFsp. It is written in C/C++ and pr
 +
 This test suite is written in Python and C. It provides a form of black box testing.
 
-- *FSX*: This is Apple's FSX ported to Windows by the WinFsp author. *FSX* is not WinFsp specific and is used for testing by other Windows file systems.
+- *FSX*: This is Apple's FSX ported to Windows by the WinFsp author. This *FSX* port is not WinFsp specific and is used for testing by other Windows file systems.
 
-These 3 test suites and a few smaller tests are run through Continuous Integration testing every time a push is made into the WinFsp repository.
+- *Fscrash*: This is a tool that simulates a crashing user mode file system. It is used to test the fault tolerance of WinFsp.
++
+This test is WinFsp specific and is developed together with WinFsp. It is written in C/C++.
+
+These test suites and a few smaller tests are run through Continuous Integration testing every time a push is made into the WinFsp repository.
 
 === Test File System
 
 WinFsp includes a test user mode file system called *MEMFS*. This is a simple in memory file system written in C/C++. *MEMFS* attempts to achieve parity with NTFS (barring a few WinFsp limitations -- notably no support for hard links). MEMFS also performs some user mode file system checks during testing, for example, it checks that the buffer received during WRITE calls is read-only.
 
-== Range of Tests
+== Tested Scenarios
 
 The combined test suites exercise the majority of Win32 file API's and a few NTDLL ones. The tested API's include:
 
@@ -82,6 +86,14 @@ if (!Success)
 ----
 
 In Release builds the +DEBUGTEST(90)+ macro will evaluate to +TRUE+ and the Cache Manager will be asked directly via +CcCanIWrite+ whether a WRITE should be deferred. In Debug builds the +DEBUGTEST(90)+ macro will evaluate to +FALSE+ sometimes (10% of the time) and the WRITE will be deferred, thus allowing us to test the retry code path.
+
+== Crash Tolerance Testing
+
+User mode file systems are normal user mode processes and as such they may fail in a variety of conditions. For example, a user mode file system may trigger an access violation while servicing a file operation. As another example, the developer of a user mode file system may terminate the file system process forcefully from within a debugger.
+
+In such cases WinFsp is able to recover gracefully and clean up its resources and data structures. This is a fundamental capability of WinFsp and one that must be tested thoroughly.
+
+For this purpose WinFsp is tested using the *fscrash* tool. *Fscrash* includes a special version of MEMFS, where file operations can potentially cause a crash. *Fscrash* also includes a simple test that is run in a loop until the included file system crashes. When the OS kills the process, the WinFsp FSD steps in and cleans up all resources used by the faulty file system. The intent of the test is to verify that WinFsp handles the crash properly, without leaving any leaks and without crashing the OS.
 
 == Verifier
 
