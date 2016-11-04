@@ -23,13 +23,16 @@
 #include "fscrash.h"
 #include "memfs.h"
 
-#define fail(format, ...)               fprintf(stderr, format, __VA_ARGS__)
+#define fail(format, ...)               fprintf(stderr, format "\n", __VA_ARGS__)
 #define ASSERT(expr)                    \
     (!(expr) ?                          \
-        (fail("ASSERT(%s) failed at %s:%d:%s\n", #expr, __FILE__, __LINE__, __func__), abort()) :\
+        (fail("ASSERT(%s) failed at %s:%d:%s\n", #expr, __FILE__, __LINE__, __func__), exit(1)) :\
         (void)0)
+    /* do not use abort() in ASSERT to avoid Windows error dialogs */
 
-VOID Test(PWSTR Prefix)
+#define FSCRASH_EVENT_NAME              "fscrash-626ECD8572604254A690C31D563B244C"
+
+static VOID Test(PWSTR Prefix)
 {
     static PWSTR Sddl = L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;WD)";
     static const GUID ReparseGuid =
@@ -157,9 +160,54 @@ VOID Test(PWSTR Prefix)
     LocalFree(SecurityDescriptor);
 }
 
+static NTSTATUS CreateTestProcess(PWSTR GlobalRoot, PWSTR Prefix, PHANDLE PProcess)
+{
+    WCHAR Executable[MAX_PATH];
+    WCHAR CommandLine[1024];
+    STARTUPINFO StartupInfo;
+    PROCESS_INFORMATION ProcessInfo;
+    HANDLE Event;
+    DWORD WaitResult, ExitCode = -1, MaxTries = 5;
+
+    *PProcess = 0;
+
+    GetModuleFileName(0, Executable, MAX_PATH);
+    wsprintfW(CommandLine, L"%s --run-test=%s%s",
+        GetCommandLineW(), GlobalRoot, Prefix);
+
+    Event = CreateEventW(0, TRUE, FALSE, L"" FSCRASH_EVENT_NAME);
+    if (0 == Event)
+        return FspNtStatusFromWin32(GetLastError());
+
+    memset(&StartupInfo, 0, sizeof StartupInfo);
+    memset(&ProcessInfo, 0, sizeof ProcessInfo);
+    StartupInfo.cb = sizeof StartupInfo;
+    if (!CreateProcessW(Executable, CommandLine, 0, 0, FALSE, 0, 0, 0, &StartupInfo, &ProcessInfo))
+        return FspNtStatusFromWin32(GetLastError());
+
+    CloseHandle(ProcessInfo.hThread);
+
+    do
+    {
+        WaitResult = WaitForSingleObject(Event, 1000);
+        GetExitCodeProcess(ProcessInfo.hProcess, &ExitCode);
+    } while (WAIT_TIMEOUT == WaitResult && 0 != --MaxTries && STILL_ACTIVE == ExitCode);
+
+    if (WAIT_OBJECT_0 != WaitResult)
+    {
+        CloseHandle(ProcessInfo.hProcess);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    *PProcess = ProcessInfo.hProcess;
+
+    return STATUS_SUCCESS;
+}
+
 ULONG OptCrashMask = -1, OptCrashFlags = FspCrashInterceptAccessViolation, OptCrashPercent = 10;
 ULONG OptMemfsFlags = MemfsDisk;
 ULONG OptIterations = -1;
+PWSTR OptPrefix = 0;
 
 int wmain(int argc, wchar_t **argv)
 {
@@ -172,7 +220,7 @@ int wmain(int argc, wchar_t **argv)
 
     for (int argi = 1; argc > argi; argi++)
     {
-        const wchar_t *a = argv[argi];
+        wchar_t *a = argv[argi];
         if ('-' == a[0])
         {
             if (0 == wcsncmp(L"--mask=", a, sizeof "--mask=" - 1))
@@ -199,50 +247,83 @@ int wmain(int argc, wchar_t **argv)
                 OptMemfsFlags = MemfsNet;
             else if (0 == wcsncmp(L"--iterations=", a, sizeof "--iterations=" - 1))
                 OptIterations = wcstoul(a + sizeof "--iterations=" - 1, 0, 10);
+            else if (0 == wcsncmp(L"--run-test=", a, sizeof "--run-test=" - 1))
+                OptPrefix = a + sizeof "--run-test=" - 1;
         }
     }
 
-    MEMFS *Memfs;
-    NTSTATUS Result;
-    WCHAR Prefix[1024];
-
-    Result = MemfsCreate(
-        OptMemfsFlags,
-        0,
-        1024,
-        1024 * 1024,
-        (MemfsNet & OptMemfsFlags) ? L"\\memfs\\share" : 0,
-        0,
-        &Memfs);
-    if (!NT_SUCCESS(Result))
+    if (0 == OptPrefix)
     {
-        fail("cannot create MEMFS file system: (Status=%lx)", Result);
-        exit(1);
+        MEMFS *Memfs;
+        HANDLE Process;
+        DWORD ExitCode = -1;
+        NTSTATUS Result;
+
+        Result = MemfsCreate(
+            OptMemfsFlags,
+            0,
+            1024,
+            1024 * 1024,
+            (MemfsNet & OptMemfsFlags) ? L"\\memfs\\share" : 0,
+            0,
+            &Memfs);
+        if (!NT_SUCCESS(Result))
+        {
+            fail("cannot create MEMFS file system: (Status=%lx)", Result);
+            exit(1);
+        }
+
+        //FspFileSystemSetDebugLog(MemfsFileSystem(Memfs), -1);
+        FspCrashIntercept(MemfsFileSystem(Memfs), OptCrashMask, OptCrashFlags, OptCrashPercent);
+
+        Result = MemfsStart(Memfs);
+        if (!NT_SUCCESS(Result))
+        {
+            fail("cannot start MEMFS file system: (Status=%lx)", Result);
+            exit(1);
+        }
+
+        Result = CreateTestProcess(
+            (MemfsNet & OptMemfsFlags) ? L"" : L"\\\\?\\GLOBALROOT",
+            (MemfsNet & OptMemfsFlags) ? L"\\memfs\\share" : MemfsFileSystem(Memfs)->VolumeName,
+            &Process);
+        if (!NT_SUCCESS(Result))
+        {
+            fail("cannot create test process: (Status=%lx)", Result);
+            exit(1);
+        }
+
+        FspCrash(MemfsFileSystem(Memfs));
+        WaitForSingleObject(Process, INFINITE);
+        GetExitCodeProcess(Process, &ExitCode);
+        CloseHandle(Process);
+
+        MemfsStop(Memfs);
+        MemfsDelete(Memfs);
+
+        if (0 != ExitCode)
+        {
+            fail("test process exitcode: %lx", ExitCode);
+            exit(1);
+        }
     }
-
-    //FspFileSystemSetDebugLog(MemfsFileSystem(Memfs), -1);
-    FspCrashIntercept(MemfsFileSystem(Memfs), OptCrashMask, OptCrashFlags, OptCrashPercent);
-
-    Result = MemfsStart(Memfs);
-    if (!NT_SUCCESS(Result))
-    {
-        fail("cannot start MEMFS file system: (Status=%lx)", Result);
-        exit(1);
-    }
-
-    if (0 == (MemfsNet & OptMemfsFlags))
-        wsprintfW(Prefix, L"\\\\?\\GLOBALROOT%s", MemfsFileSystem(Memfs)->VolumeName);
     else
-        wsprintfW(Prefix, L"\\memfs\\share");
-
-    for (ULONG Iterations = 0; -1 == OptIterations || OptIterations != Iterations; Iterations++)
     {
-        Test(Prefix);
-        FspCrash(MemfsFileSystem(Memfs)); /* after one time through, go ahead and crash! */
-    }
+        HANDLE Event;
 
-    MemfsStop(Memfs);
-    MemfsDelete(Memfs);
+        Event = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"" FSCRASH_EVENT_NAME);
+        if (0 == Event)
+        {
+            fail("cannot create test event: (Status=%lx)", FspNtStatusFromWin32(GetLastError()));
+            exit(1);
+        }
+
+        for (ULONG Iterations = 0; -1 == OptIterations || OptIterations != Iterations; Iterations++)
+        {
+            Test(OptPrefix);
+            SetEvent(Event);
+        }
+    }
 
     return 0;
 }
