@@ -235,7 +235,7 @@ int wmain(int argc, wchar_t **argv)
     else
         wsprintfW(Prefix, L"\\memfs\\share");
 
-    for (ULONG Iterations = OptIterations; -1 == Iterations || 0 != Iterations; Iterations--)
+    for (ULONG Iterations = 0; -1 == OptIterations || OptIterations != Iterations; Iterations++)
     {
         Test(Prefix);
         FspCrash(MemfsFileSystem(Memfs)); /* after one time through, go ahead and crash! */
