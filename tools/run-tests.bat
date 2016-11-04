@@ -51,6 +51,8 @@ for %%f in (^
     :winfstest-memfs-x64-net ^
     :winfstest-memfs-x86-disk ^
     :winfstest-memfs-x86-net ^
+    :fscrash-x64 ^
+    :fscrash-x86 ^
     ) do (
     echo === Running %%f
 
@@ -243,6 +245,38 @@ exit /b 0
 P:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:fscrash-x64
+for %%m in (^
+    000002 000004 000008 000010 ^
+    000020 000040 000080 000100 ^
+    000800 001000 002000 004000 ^
+    008000 080000 100000 200000 ^
+    ) do (
+    echo fscrash-x64 --terminate --mask=0x%%m --enter
+    fscrash-x64 --terminate --mask=0x%%m --enter >nul 2>&1
+    if !ERRORLEVEL! neq -1073741823 goto fail
+    echo fscrash-x64 --terminate --mask=0x%%m --leave
+    fscrash-x64 --terminate --mask=0x%%m --leave >nul 2>&1
+    if !ERRORLEVEL! neq -1073741823 goto fail
+)
+exit /b 0
+
+:fscrash-x86
+for %%m in (^
+    000002 000004 000008 000010 ^
+    000020 000040 000080 000100 ^
+    000800 001000 002000 004000 ^
+    008000 080000 100000 200000 ^
+    ) do (
+    echo fscrash-x86 --terminate --mask=0x%%m --enter
+    fscrash-x86 --terminate --mask=0x%%m --enter >nul 2>&1
+    if !ERRORLEVEL! neq -1073741823 goto fail
+    echo fscrash-x86 --terminate --mask=0x%%m --leave
+    fscrash-x86 --terminate --mask=0x%%m --leave >nul 2>&1
+    if !ERRORLEVEL! neq -1073741823 goto fail
+)
 exit /b 0
 
 :leak-test
