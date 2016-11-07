@@ -1082,7 +1082,7 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
                 UninitializeEvent.Next = 0;
                 KeInitializeEvent(&UninitializeEvent.Event, NotificationEvent, FALSE);
                 BOOLEAN CacheStopped = CcUninitializeCacheMap(CcFileObject, 0, &UninitializeEvent);
-                ASSERT(CacheStopped);
+                (VOID)CacheStopped; ASSERT(CacheStopped);
                 KeWaitForSingleObject(&UninitializeEvent.Event, Executive, KernelMode, FALSE, 0);
             }
         }
