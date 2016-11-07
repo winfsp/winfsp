@@ -1192,16 +1192,6 @@ extern ULONG FspMvMdlMappingNoWrite;
  * Fixes
  */
 
- /* ObCloseHandle: add missing prototype */
-#if (NTDDI_VERSION < NTDDI_WIN7)
-NTKERNELAPI
-NTSTATUS
-ObCloseHandle(
-    _In_ HANDLE Handle,
-    _In_ KPROCESSOR_MODE PreviousMode
-    );
-#endif
-
 /* RtlEqualMemory: this is defined as memcmp, which does not exist on Win7 x86! */
 #undef RtlEqualMemory
 static inline
