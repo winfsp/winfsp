@@ -26,8 +26,10 @@ extern "C" {
 
 enum
 {
-    FspCrashInterceptAccessViolation    = 0x01,
-    FspCrashInterceptTerminate          = 0x02,
+    FspCrashInterceptMask               = 0x0f,
+    FspCrashInterceptAccessViolation    = 0x00,
+    FspCrashInterceptTerminate          = 0x01,
+    FspCrashInterceptHugeAllocationSize = 0x02,
     FspCrashInterceptEnter              = 0x10,
     FspCrashInterceptLeave              = 0x20,
 };

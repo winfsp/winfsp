@@ -1039,9 +1039,52 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
             CcFileObject, (PCC_FILE_SIZES)&FileNode->Header.AllocationSize);
         if (!NT_SUCCESS(Result))
         {
-            DEBUGLOG("FspCcSetFileSizes error: %s", NtStatusSym(Result));
-            DEBUGBREAK_CRIT();
-            CcUninitializeCacheMap(CcFileObject, 0, 0);
+            /*
+             * CcSetFileSizes failed. This is a hard case to handle, because it is
+             * usually late in IRP processing. So we have the following strategy.
+             *
+             * Our goal is to completely stop all caching for this FileNode. The idea
+             * is that if some I/O arrives later for this FileNode, CcInitializeCacheMap
+             * will be executed (and possibly fail safely there). In fact we may decide
+             * later to make such CcInitializeCacheMap failures benign (by not using the
+             * cache when we cannot).
+             *
+             * In order to completely stop caching for the FileNode we do the following:
+             *
+             * -   We flush the cache using CcFlushCache.
+             * -   We purge the cache and uninitialize all PrivateCacheMap's using
+             *     CcPurgeCacheSection with UninitializeCacheMaps==TRUE.
+             * -   If the SharedCacheMap is still around, we perform an additional
+             *     CcUninitializeCacheMap with an UninitializeEvent. At this point
+             *     CcUninitializeCacheMap should delete the SharedCacheMap and
+             *     signal the UninitializeEvent.
+             *
+             * One potential gotcha is whether there is any possibility for another
+             * system component to delay deletion of the SharedCacheMap and signaling
+             * of the UninitializeEvent. This could result in a deadlock, because we
+             * are already holding the FileNode exclusive and waiting for the
+             * UninitializeEvent. But the thread that would signal our event would have
+             * to first acquire our FileNode. Classic deadlock.
+             *
+             * I believe (but cannot prove) that this deadlock cannot happen. The reason
+             * is that we have flushed and purged the cache and we have closed all
+             * PrivateCacheMap's using this SharedCacheMap. There should be no reason for
+             * any system component to keep the SharedCacheMap around (famous last words).
+             */
+
+            IO_STATUS_BLOCK IoStatus;
+            CACHE_UNINITIALIZE_EVENT UninitializeEvent;
+
+            FspCcFlushCache(CcFileObject->SectionObjectPointer, 0, 0, &IoStatus);
+            CcPurgeCacheSection(CcFileObject->SectionObjectPointer, 0, 0, TRUE);
+            if (0 != CcFileObject->SectionObjectPointer->SharedCacheMap)
+            {
+                UninitializeEvent.Next = 0;
+                KeInitializeEvent(&UninitializeEvent.Event, NotificationEvent, FALSE);
+                BOOLEAN CacheStopped = CcUninitializeCacheMap(CcFileObject, 0, &UninitializeEvent);
+                ASSERT(CacheStopped);
+                KeWaitForSingleObject(&UninitializeEvent.Event, Executive, KernelMode, FALSE, 0);
+            }
         }
     }
 }

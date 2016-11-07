@@ -191,6 +191,13 @@ static NTSTATUS FspFsvolWriteCached(
             FspFileNodeRelease(FileNode, Main);
             return Result;
         }
+
+        /* double-check that the cache still exists in case CcSetFileSizes failed */
+        if (0 == FileObject->SectionObjectPointer->SharedCacheMap)
+        {
+            FspFileNodeRelease(FileNode, Main);
+            return STATUS_INSUFFICIENT_RESOURCES; // or STATUS_SECTION_TOO_BIG?
+        }
     }
 
     /*

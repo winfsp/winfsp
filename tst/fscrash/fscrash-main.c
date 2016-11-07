@@ -68,7 +68,7 @@ static VOID Test(PWSTR Prefix)
     wsprintfW(FileName, L"%s\\fscrash\\file0", Prefix);
     Handle = CreateFileW(FileName,
         GENERIC_ALL, 0, 0,
-        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING, 0);
+        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
     Success = CloseHandle(Handle);
     ASSERT(Success);
@@ -76,7 +76,7 @@ static VOID Test(PWSTR Prefix)
     wsprintfW(FileName, L"%s\\fscrash\\file0", Prefix);
     Handle = CreateFileW(FileName,
         GENERIC_ALL, 0, 0,
-        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING, 0);
+        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
     Success = WriteFile(Handle, WrBuffer, sizeof WrBuffer, &BytesTransferred, 0);
@@ -205,7 +205,7 @@ static NTSTATUS CreateTestProcess(PWSTR GlobalRoot, PWSTR Prefix, PHANDLE PProce
 }
 
 ULONG OptCrashMask = -1, OptCrashFlags = FspCrashInterceptAccessViolation, OptCrashPercent = 10;
-ULONG OptMemfsFlags = MemfsDisk;
+ULONG OptMemfsFlags = MemfsDisk, OptFileInfoTimeout = 0;
 ULONG OptIterations = -1;
 PWSTR OptPrefix = 0;
 
@@ -227,13 +227,18 @@ int wmain(int argc, wchar_t **argv)
                 OptCrashMask = wcstoul(a + sizeof "--mask=" - 1, 0, 0);
             else if (0 == wcscmp(L"--crash", a))
             {
-                OptCrashFlags &= ~FspCrashInterceptTerminate;
+                OptCrashFlags &= ~FspCrashInterceptMask;
                 OptCrashFlags |= FspCrashInterceptAccessViolation;
             }
             else if (0 == wcscmp(L"--terminate", a))
             {
-                OptCrashFlags &= ~FspCrashInterceptAccessViolation;
+                OptCrashFlags &= ~FspCrashInterceptMask;
                 OptCrashFlags |= FspCrashInterceptTerminate;
+            }
+            else if (0 == wcscmp(L"--huge-alloc-size", a))
+            {
+                OptCrashFlags &= ~FspCrashInterceptMask;
+                OptCrashFlags |= FspCrashInterceptHugeAllocationSize;
             }
             else if (0 == wcscmp(L"--enter", a))
                 OptCrashFlags |= FspCrashInterceptEnter;
@@ -245,10 +250,19 @@ int wmain(int argc, wchar_t **argv)
                 OptMemfsFlags = MemfsDisk;
             else if (0 == wcscmp(L"--net", a))
                 OptMemfsFlags = MemfsNet;
+            else if (0 == wcscmp(L"--non-cached", a))
+                OptFileInfoTimeout = 0;
+            else if (0 == wcscmp(L"--cached", a))
+                OptFileInfoTimeout = -1;
             else if (0 == wcsncmp(L"--iterations=", a, sizeof "--iterations=" - 1))
                 OptIterations = wcstoul(a + sizeof "--iterations=" - 1, 0, 10);
             else if (0 == wcsncmp(L"--run-test=", a, sizeof "--run-test=" - 1))
                 OptPrefix = a + sizeof "--run-test=" - 1;
+            else
+            {
+                fail("unknown option %S", a);
+                exit(2);
+            }
         }
     }
 
@@ -261,7 +275,7 @@ int wmain(int argc, wchar_t **argv)
 
         Result = MemfsCreate(
             OptMemfsFlags,
-            0,
+            OptFileInfoTimeout,
             1024,
             1024 * 1024,
             (MemfsNet & OptMemfsFlags) ? L"\\memfs\\share" : 0,

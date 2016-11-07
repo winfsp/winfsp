@@ -261,6 +261,9 @@ for %%m in (^
     fscrash-x64 --terminate --mask=0x%%m --leave >nul 2>&1
     if !ERRORLEVEL! neq -1073741823 goto fail
 )
+echo fscrash-x64 --huge-alloc-size --cached
+fscrash-x64 --huge-alloc-size --cached >nul 2>&1
+if !ERRORLEVEL! neq 1 goto fail
 exit /b 0
 
 :fscrash-x86
@@ -277,6 +280,9 @@ for %%m in (^
     fscrash-x86 --terminate --mask=0x%%m --leave >nul 2>&1
     if !ERRORLEVEL! neq -1073741823 goto fail
 )
+echo fscrash-x86 --huge-alloc-size --cached
+fscrash-x86 --huge-alloc-size --cached >nul 2>&1
+if !ERRORLEVEL! neq 1 goto fail
 exit /b 0
 
 :leak-test

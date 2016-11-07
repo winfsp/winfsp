@@ -19,13 +19,14 @@
 
 static SRWLOCK FspCrashLock = SRWLOCK_INIT;
 static FSP_FILE_SYSTEM *FspCrashFileSystem;
+static BOOLEAN FspCrashInterceptFlag;
 static ULONG FspCrashPercent;
 static FSP_FILE_SYSTEM_OPERATION *FspCrashInterceptedOperations
     [ARRAYSIZE(((FSP_FILE_SYSTEM *)0)->Operations)];
 static volatile PULONG FspCrashNullPointer;
 
 static unsigned FspCrashRandSeed = 1;
-static int FspCrashRand(void)
+static __forceinline int FspCrashRand(void)
 {
     /*
      * This mimics MSVCRT rand(); we need our own version
@@ -40,55 +41,93 @@ static __forceinline BOOLEAN FspCrashInterceptTest(FSP_FILE_SYSTEM *FileSystem)
 {
     BOOLEAN Result;
     AcquireSRWLockShared(&FspCrashLock);
-    Result = FileSystem == FspCrashFileSystem &&
-        FspCrashRand() < (LONG)FspCrashPercent * 0x7fff / 100;
+    Result = FspCrashInterceptFlag ||
+        (FileSystem == FspCrashFileSystem &&
+            FspCrashRand() < (LONG)FspCrashPercent * 0x7fff / 100);
+    FspCrashInterceptFlag = FspCrashInterceptFlag || Result;
     ReleaseSRWLockShared(&FspCrashLock);
     return Result;
 }
 
-#define DefineInterceptor(NAME, CRASH, ENTER, LEAVE)\
+#define DefineInterceptor(NAME, ACTION, ENTER, LEAVE)\
     static NTSTATUS NAME(FSP_FILE_SYSTEM *FileSystem,\
         FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)\
     {\
         NTSTATUS Result;\
         if (ENTER)\
         {\
-            if (FspCrashInterceptTest(FileSystem))\
+            switch (ACTION)\
             {\
-                if (CRASH)\
+            default:\
+            case FspCrashInterceptAccessViolation:\
+                if (FspCrashInterceptTest(FileSystem))\
                     *FspCrashNullPointer = 0x42424242;\
-                else\
+                break;\
+            case FspCrashInterceptTerminate:\
+                if (FspCrashInterceptTest(FileSystem))\
                     TerminateProcess(GetCurrentProcess(), STATUS_UNSUCCESSFUL);\
+                break;\
+            case FspCrashInterceptHugeAllocationSize:\
+                break;\
             }\
         }\
         Result = FspCrashInterceptedOperations[Request->Kind](FileSystem, Request, Response);\
         if (LEAVE)\
         {\
-            if (FspCrashInterceptTest(FileSystem))\
+            switch (ACTION)\
             {\
-                if (CRASH)\
+            default:\
+            case FspCrashInterceptAccessViolation:\
+                if (FspCrashInterceptTest(FileSystem))\
                     *FspCrashNullPointer = 0x42424242;\
-                else\
+                break;\
+            case FspCrashInterceptTerminate:\
+                if (FspCrashInterceptTest(FileSystem))\
                     TerminateProcess(GetCurrentProcess(), STATUS_UNSUCCESSFUL);\
+                break;\
+            case FspCrashInterceptHugeAllocationSize:\
+                if (FspCrashInterceptTest(FileSystem))\
+                    if (STATUS_SUCCESS == Response->IoStatus.Status)\
+                    {\
+                        if (FspFsctlTransactCreateKind == Request->Kind)\
+                            Response->Rsp.Create.Opened.FileInfo.AllocationSize = HugeAllocationSize;\
+                        else if (FspFsctlTransactOverwriteKind == Request->Kind)\
+                            Response->Rsp.Overwrite.FileInfo.AllocationSize = HugeAllocationSize;\
+                        else if (FspFsctlTransactQueryInformationKind == Request->Kind)\
+                            Response->Rsp.QueryInformation.FileInfo.AllocationSize = HugeAllocationSize;\
+                        else if (FspFsctlTransactSetInformationKind == Request->Kind &&\
+                            (4/*Basic*/ == Request->Req.SetInformation.FileInformationClass ||\
+                            19/*Allocation*/ == Request->Req.SetInformation.FileInformationClass ||\
+                            20/*EndOfFile*/ == Request->Req.SetInformation.FileInformationClass))\
+                            Response->Rsp.SetInformation.FileInfo.AllocationSize = HugeAllocationSize;\
+                        else if (FspFsctlTransactWriteKind == Request->Kind &&\
+                            !Request->Req.Write.ConstrainedIo)\
+                            Response->Rsp.Write.FileInfo.AllocationSize = HugeAllocationSize;\
+                    }\
+                break;\
             }\
         }\
         return Result;\
     }
 
-DefineInterceptor(FspCrashInterceptorCE, TRUE, TRUE, FALSE)
-DefineInterceptor(FspCrashInterceptorCL, TRUE, FALSE, TRUE)
-DefineInterceptor(FspCrashInterceptorCB, TRUE, TRUE, TRUE)
-DefineInterceptor(FspCrashInterceptorTE, FALSE, TRUE, FALSE)
-DefineInterceptor(FspCrashInterceptorTL, FALSE, FALSE, TRUE)
-DefineInterceptor(FspCrashInterceptorTB, FALSE, TRUE, TRUE)
+#define HugeAllocationSize              0x1000000000000000ULL
+DefineInterceptor(FspCrashInterceptorCE, FspCrashInterceptAccessViolation, TRUE, FALSE)
+DefineInterceptor(FspCrashInterceptorCL, FspCrashInterceptAccessViolation, FALSE, TRUE)
+DefineInterceptor(FspCrashInterceptorCB, FspCrashInterceptAccessViolation, TRUE, TRUE)
+DefineInterceptor(FspCrashInterceptorTE, FspCrashInterceptTerminate, TRUE, FALSE)
+DefineInterceptor(FspCrashInterceptorTL, FspCrashInterceptTerminate, FALSE, TRUE)
+DefineInterceptor(FspCrashInterceptorTB, FspCrashInterceptTerminate, TRUE, TRUE)
+DefineInterceptor(FspCrashInterceptorAB, FspCrashInterceptHugeAllocationSize, TRUE, TRUE)
 
 VOID FspCrashIntercept(FSP_FILE_SYSTEM *FileSystem,
     ULONG CrashMask, ULONG CrashFlags, ULONG CrashPercent)
 {
     FSP_FILE_SYSTEM_OPERATION *Interceptor = 0;
 
-    if (CrashFlags & FspCrashInterceptAccessViolation)
+    switch (CrashFlags & FspCrashInterceptMask)
     {
+    default:
+    case FspCrashInterceptAccessViolation:
         if (FspCrashInterceptEnter == (CrashFlags & FspCrashInterceptEnter))
             Interceptor = FspCrashInterceptorCE;
         else
@@ -96,9 +135,8 @@ VOID FspCrashIntercept(FSP_FILE_SYSTEM *FileSystem,
             Interceptor = FspCrashInterceptorCL;
         else
             Interceptor = FspCrashInterceptorCB;
-    }
-    else
-    {
+        break;
+    case FspCrashInterceptTerminate:
         if (FspCrashInterceptEnter == (CrashFlags & FspCrashInterceptEnter))
             Interceptor = FspCrashInterceptorTE;
         else
@@ -106,6 +144,10 @@ VOID FspCrashIntercept(FSP_FILE_SYSTEM *FileSystem,
             Interceptor = FspCrashInterceptorTL;
         else
             Interceptor = FspCrashInterceptorTB;
+        break;
+    case FspCrashInterceptHugeAllocationSize:
+        Interceptor = FspCrashInterceptorAB;
+        break;
     }
 
     RtlCopyMemory(FspCrashInterceptedOperations,
