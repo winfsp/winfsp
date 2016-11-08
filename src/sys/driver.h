@@ -514,11 +514,24 @@ NTSTATUS FspNotifyFullReportChange(
     ULONG FilterMatch,
     ULONG Action,
     PVOID TargetContext);
-NTSTATUS FspOplockFsctrlEx(
+NTSTATUS FspOplockFsctrlF(
     POPLOCK Oplock,
     PIRP Irp,
     ULONG OpenCount,
     BOOLEAN Create);
+NTSTATUS FspCheckOplock(
+    POPLOCK Oplock,
+    PIRP Irp,
+    PVOID Context,
+    POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
+    POPLOCK_FS_PREPOST_IRP PostIrpRoutine);
+NTSTATUS FspCheckOplockEx(
+    POPLOCK Oplock,
+    PIRP Irp,
+    ULONG Flags,
+    PVOID Context,
+    POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
+    POPLOCK_FS_PREPOST_IRP PostIrpRoutine);
 #define FspNotifyUninitializeSync(NS)\
     FsRtlNotifyUninitializeSync(NS)
 #define FspNotifyCleanupAll(NS, NL)\
@@ -532,9 +545,9 @@ NTSTATUS FspOplockFsctrlEx(
 #define FspNotifyReportChange(NS, NL, FN, FO, NP, F, A)\
     FspNotifyFullReportChange(NS, NL, (PSTRING)(FN), FO, 0, (PSTRING)(NP), F, A, 0)
 #define FspOplockFsctrlCreate(OL, I, OC)\
-    FspOplockFsctrlEx(OL, I, OC, TRUE)
+    FspOplockFsctrlF(OL, I, OC, TRUE)
 #define FspOplockFsctrl(OL, I, OC)\
-    FspOplockFsctrlEx(OL, I, OC, FALSE)
+    FspOplockFsctrlF(OL, I, OC, FALSE)
 
 /* utility: synchronous work queue */
 typedef struct

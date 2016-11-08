@@ -67,7 +67,20 @@ NTSTATUS FspNotifyFullReportChange(
     ULONG FilterMatch,
     ULONG Action,
     PVOID TargetContext);
-NTSTATUS FspOplockFsctrlEx(
+NTSTATUS FspCheckOplock(
+    POPLOCK Oplock,
+    PIRP Irp,
+    PVOID Context,
+    POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
+    POPLOCK_FS_PREPOST_IRP PostIrpRoutine);
+NTSTATUS FspCheckOplockEx(
+    POPLOCK Oplock,
+    PIRP Irp,
+    ULONG Flags,
+    PVOID Context,
+    POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
+    POPLOCK_FS_PREPOST_IRP PostIrpRoutine);
+NTSTATUS FspOplockFsctrlF(
     POPLOCK Oplock,
     PIRP Irp,
     ULONG OpenCount,
@@ -109,7 +122,9 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #pragma alloc_text(PAGE, FspNotifyInitializeSync)
 #pragma alloc_text(PAGE, FspNotifyFullChangeDirectory)
 #pragma alloc_text(PAGE, FspNotifyFullReportChange)
-#pragma alloc_text(PAGE, FspOplockFsctrlEx)
+#pragma alloc_text(PAGE, FspCheckOplock)
+#pragma alloc_text(PAGE, FspCheckOplockEx)
+#pragma alloc_text(PAGE, FspOplockFsctrlF)
 #pragma alloc_text(PAGE, FspInitializeSynchronousWorkItem)
 #pragma alloc_text(PAGE, FspExecuteSynchronousWorkItem)
 #pragma alloc_text(PAGE, FspExecuteSynchronousWorkItemRoutine)
@@ -646,7 +661,65 @@ NTSTATUS FspNotifyFullReportChange(
     return Result;
 }
 
-NTSTATUS FspOplockFsctrlEx(
+NTSTATUS FspCheckOplock(
+    POPLOCK Oplock,
+    PIRP Irp,
+    PVOID Context,
+    POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
+    POPLOCK_FS_PREPOST_IRP PostIrpRoutine)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    try
+    {
+        Result = FsRtlCheckOplock(
+            Oplock,
+            Irp,
+            Context,
+            CompletionRoutine,
+            PostIrpRoutine);
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Result = GetExceptionCode();
+    }
+
+    return Result;
+}
+
+NTSTATUS FspCheckOplockEx(
+    POPLOCK Oplock,
+    PIRP Irp,
+    ULONG Flags,
+    PVOID Context,
+    POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
+    POPLOCK_FS_PREPOST_IRP PostIrpRoutine)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    try
+    {
+        Result = FsRtlCheckOplockEx(
+            Oplock,
+            Irp,
+            Flags,
+            Context,
+            CompletionRoutine,
+            PostIrpRoutine);
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Result = GetExceptionCode();
+    }
+
+    return Result;
+}
+
+NTSTATUS FspOplockFsctrlF(
     POPLOCK Oplock,
     PIRP Irp,
     ULONG OpenCount,
