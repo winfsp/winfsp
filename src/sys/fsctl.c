@@ -516,7 +516,7 @@ static NTSTATUS FspFsvolFileSystemControl(
         case FSCTL_OPLOCK_BREAK_ACK_NO_2:
         case FSCTL_REQUEST_FILTER_OPLOCK:
         case FSCTL_REQUEST_OPLOCK:
-            Result = FspFsvolFileSystemControlOplock(FsvolDeviceObject, Irp, IrpSp);
+            //Result = FspFsvolFileSystemControlOplock(FsvolDeviceObject, Irp, IrpSp);
             break;
         }
         break;
