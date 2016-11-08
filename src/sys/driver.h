@@ -706,6 +706,9 @@ typedef struct
     FSP_FSCTL_TRANSACT_RSP *Response;
     __declspec(align(REQ_ALIGN_SIZE)) UINT8 RequestBuf[];
 } FSP_FSCTL_TRANSACT_REQ_HEADER;
+FSP_FSCTL_STATIC_ASSERT(sizeof(FSP_FSCTL_TRANSACT_REQ_HEADER) <= 64,
+    "sizeof(FSP_FSCTL_TRANSACT_REQ_HEADER) assumed less or equal to 64; "
+    "see FSP_FSCTL_TRANSACT_REQ_SIZEMAX");
 static inline
 PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I)
 {
