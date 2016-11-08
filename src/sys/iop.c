@@ -63,6 +63,7 @@ NTSTATUS FspIopCreateRequestFunnel(
     PAGED_CODE();
 
     FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader;
+    FSP_FSCTL_TRANSACT_REQ_WORK_ITEM *RequestWorkItem = 0;
     FSP_FSCTL_TRANSACT_REQ *Request;
 
     *PRequest = 0;
@@ -73,19 +74,42 @@ NTSTATUS FspIopCreateRequestFunnel(
     if (FSP_FSCTL_TRANSACT_REQ_SIZEMAX < sizeof *Request + ExtraSize)
         return STATUS_INVALID_PARAMETER;
 
-    if (FlagOn(Flags, FspIopRequestMustSucceed))
+    if (FlagOn(Flags, FspIopCreateRequestMustSucceed))
+    {
         RequestHeader = FspAllocatePoolMustSucceed(
-            FlagOn(Flags, FspIopRequestNonPaged) ? NonPagedPool : PagedPool,
+            FlagOn(Flags, FspIopCreateRequestNonPaged) ? NonPagedPool : PagedPool,
             sizeof *RequestHeader + sizeof *Request + ExtraSize + REQ_HEADER_ALIGN_OVERHEAD,
             FSP_ALLOC_INTERNAL_TAG);
+
+        if (FlagOn(Flags, FspIopCreateRequestWorkItem))
+        {
+            RequestWorkItem = FspAllocatePoolMustSucceed(
+                NonPagedPool, sizeof *RequestWorkItem, FSP_ALLOC_INTERNAL_TAG);
+
+            RtlZeroMemory(RequestWorkItem, sizeof *RequestWorkItem);
+        }
+    }
     else
     {
         RequestHeader = ExAllocatePoolWithTag(
-            FlagOn(Flags, FspIopRequestNonPaged) ? NonPagedPool : PagedPool,
+            FlagOn(Flags, FspIopCreateRequestNonPaged) ? NonPagedPool : PagedPool,
             sizeof *RequestHeader + sizeof *Request + ExtraSize + REQ_HEADER_ALIGN_OVERHEAD,
             FSP_ALLOC_INTERNAL_TAG);
         if (0 == RequestHeader)
             return STATUS_INSUFFICIENT_RESOURCES;
+
+        if (FlagOn(Flags, FspIopCreateRequestWorkItem))
+        {
+            RequestWorkItem = ExAllocatePoolWithTag(
+                NonPagedPool, sizeof *RequestWorkItem, FSP_ALLOC_INTERNAL_TAG);
+            if (0 == RequestWorkItem)
+            {
+                FspFree(RequestHeader);
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
+
+            RtlZeroMemory(RequestWorkItem, sizeof *RequestWorkItem);
+        }
     }
 
 #if 0 != REQ_HEADER_ALIGN_MASK
@@ -97,6 +121,7 @@ NTSTATUS FspIopCreateRequestFunnel(
 
     RtlZeroMemory(RequestHeader, sizeof *RequestHeader + sizeof *Request + ExtraSize);
     RequestHeader->RequestFini = RequestFini;
+    RequestHeader->WorkItem = RequestWorkItem;
 
     Request = (PVOID)RequestHeader->RequestBuf;
     Request->Size = (UINT16)(sizeof *Request + ExtraSize);
@@ -109,6 +134,8 @@ NTSTATUS FspIopCreateRequestFunnel(
         //Request->FileName.Offset = 0;
         Request->FileName.Size = FileName->Length + sizeof(WCHAR);
     }
+
+    ASSERT(0 == ((UINT_PTR)Request & (FSP_FSCTL_TRANSACT_REQ_ALIGNMENT - 1)));
 
     if (0 != Irp)
     {
@@ -131,6 +158,9 @@ VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request)
 
     if (0 != RequestHeader->Response)
         FspFree(RequestHeader->Response);
+
+    if (0 != RequestHeader->WorkItem)
+        FspFree(RequestHeader->WorkItem);
 
 #if 0 != REQ_HEADER_ALIGN_MASK
     RequestHeader = ((PVOID *)RequestHeader)[-1];

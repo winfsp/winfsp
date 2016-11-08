@@ -679,8 +679,9 @@ VOID FspMetaCacheInvalidateItem(FSP_META_CACHE *MetaCache, UINT64 ItemIndex);
 #define FSP_FSCTL_TRANSACT_REQ_ALIGNMENT 16
 enum
 {
-    FspIopRequestMustSucceed            = 0x01,
-    FspIopRequestNonPaged               = 0x02,
+    FspIopCreateRequestMustSucceed      = 0x01,
+    FspIopCreateRequestNonPaged         = 0x02,
+    FspIopCreateRequestWorkItem         = 0x04,
 };
 typedef VOID FSP_IOP_REQUEST_FINI(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4]);
 typedef NTSTATUS FSP_IOP_REQUEST_WORK(
@@ -688,9 +689,15 @@ typedef NTSTATUS FSP_IOP_REQUEST_WORK(
     BOOLEAN CanWait);
 typedef struct
 {
+    FSP_IOP_REQUEST_WORK *WorkRoutine;
+    WORK_QUEUE_ITEM WorkQueueItem;
+} FSP_FSCTL_TRANSACT_REQ_WORK_ITEM;
+typedef struct
+{
     FSP_IOP_REQUEST_FINI *RequestFini;
     PVOID Context[4];
     FSP_FSCTL_TRANSACT_RSP *Response;
+    FSP_FSCTL_TRANSACT_REQ_WORK_ITEM *WorkItem;
     __declspec(align(FSP_FSCTL_TRANSACT_REQ_ALIGNMENT)) UINT8 RequestBuf[];
 } FSP_FSCTL_TRANSACT_REQ_HEADER;
 FSP_FSCTL_STATIC_ASSERT(sizeof(FSP_FSCTL_TRANSACT_REQ_HEADER) <= 64,
@@ -701,6 +708,12 @@ PVOID *FspIopRequestContextAddress(FSP_FSCTL_TRANSACT_REQ *Request, ULONG I)
 {
     FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
     return &RequestHeader->Context[I];
+}
+static inline
+FSP_FSCTL_TRANSACT_REQ_WORK_ITEM *FspIopRequestWorkItem(FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
+    return RequestHeader->WorkItem;
 }
 NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
@@ -729,13 +742,13 @@ VOID FspIrpDeleteRequest(PIRP Irp)
 #define FspIopCreateRequest(I, F, E, P) \
     FspIopCreateRequestFunnel(I, F, E, 0, 0, P)
 #define FspIopCreateRequestMustSucceed(I, F, E, P)\
-    FspIopCreateRequestFunnel(I, F, E, 0, FspIopRequestMustSucceed, P)
+    FspIopCreateRequestFunnel(I, F, E, 0, FspIopCreateRequestMustSucceed, P)
 #define FspIopCreateRequestEx(I, F, E, RF, P)\
     FspIopCreateRequestFunnel(I, F, E, RF, 0, P)
 #define FspIopCreateRequestMustSucceedEx(I, F, E, RF, P)\
-    FspIopCreateRequestFunnel(I, F, E, RF, FspIopRequestMustSucceed, P)
-#define FspIopCreateRequestWorkItem(I, E, RF, P)\
-    FspIopCreateRequestFunnel(I, 0, E, RF, FspIopRequestNonPaged, P)
+    FspIopCreateRequestFunnel(I, F, E, RF, FspIopCreateRequestMustSucceed, P)
+#define FspIopCreateRequestAndWorkItem(I, E, RF, P)\
+    FspIopCreateRequestFunnel(I, 0, E, RF, FspIopCreateRequestWorkItem, P)
 #define FspIopRequestContext(Request, I)\
     (*FspIopRequestContextAddress(Request, I))
 #define FspIopPostWorkRequest(D, R)     FspIopPostWorkRequestFunnel(D, R, FALSE)
@@ -744,10 +757,6 @@ VOID FspIrpDeleteRequest(PIRP Irp)
 #define FspIopCompleteIrp(I, R)         FspIopCompleteIrpEx(I, R, TRUE)
 
 /* work queue processing */
-enum
-{
-    FspWqRequestWorkRoutine             = 3,
-};
 NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
     FSP_IOP_REQUEST_WORK *WorkRoutine, FSP_IOP_REQUEST_FINI *RequestFini,
     BOOLEAN CreateAndPost);

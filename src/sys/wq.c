@@ -24,6 +24,7 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
     BOOLEAN CreateAndPost)
 {
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    FSP_FSCTL_TRANSACT_REQ_WORK_ITEM *RequestWorkItem;
 
     if (0 == Request)
     {
@@ -42,16 +43,13 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
                 return Result;
         }
 
-        Result = FspIopCreateRequestWorkItem(Irp, sizeof(WORK_QUEUE_ITEM),
-            RequestFini, &Request);
+        Result = FspIopCreateRequestAndWorkItem(Irp, 0, RequestFini, &Request);
         if (!NT_SUCCESS(Result))
             return Result;
 
-        ASSERT(sizeof(FSP_IOP_REQUEST_WORK *) == sizeof(PVOID));
-
-        FspIopRequestContext(Request, FspWqRequestWorkRoutine) =
-            (PVOID)(UINT_PTR)WorkRoutine;
-        ExInitializeWorkItem((PWORK_QUEUE_ITEM)&Request->Buffer, FspWqWorkRoutine, Irp);
+        RequestWorkItem = FspIopRequestWorkItem(Request);
+        RequestWorkItem->WorkRoutine = WorkRoutine;
+        ExInitializeWorkItem(&RequestWorkItem->WorkQueueItem, FspWqWorkRoutine, Irp);
     }
 
     if (!CreateAndPost)
@@ -64,13 +62,14 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
 VOID FspWqPostIrpWorkItem(PIRP Irp)
 {
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    FSP_FSCTL_TRANSACT_REQ_WORK_ITEM *RequestWorkItem = FspIopRequestWorkItem(Request);
 
-    ASSERT(Request->Kind == FspFsctlTransactReservedKind);
-    ASSERT(Request->Size == sizeof *Request + sizeof(WORK_QUEUE_ITEM));
     ASSERT(Request->Hint == (UINT_PTR)Irp);
+    ASSERT(0 != RequestWorkItem);
+    ASSERT(0 != RequestWorkItem->WorkRoutine);
 
     IoMarkIrpPending(Irp);
-    ExQueueWorkItem((PWORK_QUEUE_ITEM)&Request->Buffer, CriticalWorkQueue);
+    ExQueueWorkItem(&RequestWorkItem->WorkQueueItem, CriticalWorkQueue);
 }
 
 static VOID FspWqWorkRoutine(PVOID Context)
@@ -79,8 +78,8 @@ static VOID FspWqWorkRoutine(PVOID Context)
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
     PDEVICE_OBJECT DeviceObject = IrpSp->DeviceObject;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
-    FSP_IOP_REQUEST_WORK *WorkRoutine = (FSP_IOP_REQUEST_WORK *)(UINT_PTR)
-        FspIopRequestContext(Request, FspWqRequestWorkRoutine);
+    FSP_FSCTL_TRANSACT_REQ_WORK_ITEM *RequestWorkItem = FspIopRequestWorkItem(Request);
+    FSP_IOP_REQUEST_WORK *WorkRoutine = RequestWorkItem->WorkRoutine;
     NTSTATUS Result;
 
     IoSetTopLevelIrp(Irp);
