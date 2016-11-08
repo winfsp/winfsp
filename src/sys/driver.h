@@ -699,6 +699,9 @@ enum
 #define FspIopCompleteIrp(I, R)         FspIopCompleteIrpEx(I, R, TRUE)
 #define REQ_ALIGN_SIZE                  16
 typedef VOID FSP_IOP_REQUEST_FINI(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4]);
+typedef NTSTATUS FSP_IOP_REQUEST_WORK(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    BOOLEAN CanWait);
 typedef struct
 {
     FSP_IOP_REQUEST_FINI *RequestFini;
@@ -745,11 +748,8 @@ enum
 {
     FspWqRequestWorkRoutine             = 3,
 };
-typedef NTSTATUS FSP_WQ_REQUEST_WORK(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
-    BOOLEAN CanWait);
 NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
-    FSP_WQ_REQUEST_WORK *WorkRoutine, FSP_IOP_REQUEST_FINI *RequestFini,
+    FSP_IOP_REQUEST_WORK *WorkRoutine, FSP_IOP_REQUEST_FINI *RequestFini,
     BOOLEAN CreateAndPost);
 VOID FspWqPostIrpWorkItem(PIRP Irp);
 #define FspWqCreateIrpWorkItem(I, RW, RF)\
