@@ -48,11 +48,11 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
 #endif
 
 /* Requests (and RequestHeaders) must be 16-byte aligned, because we use the low 4 bits for flags */
-#if REQ_ALIGN_SIZE <= MEMORY_ALLOCATION_ALIGNMENT
+#if FSP_FSCTL_TRANSACT_REQ_ALIGNMENT <= MEMORY_ALLOCATION_ALIGNMENT
 #define REQ_HEADER_ALIGN_MASK           0
 #define REQ_HEADER_ALIGN_OVERHEAD       0
 #else
-#define REQ_HEADER_ALIGN_MASK           (REQ_ALIGN_SIZE - 1)
+#define REQ_HEADER_ALIGN_MASK           (FSP_FSCTL_TRANSACT_REQ_ALIGNMENT - 1)
 #define REQ_HEADER_ALIGN_OVERHEAD       (sizeof(PVOID) + REQ_HEADER_ALIGN_MASK)
 #endif
 

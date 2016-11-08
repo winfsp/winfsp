@@ -676,28 +676,12 @@ VOID FspMetaCacheInvalidateItem(FSP_META_CACHE *MetaCache, UINT64 ItemIndex);
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'W', METHOD_NEITHER, FILE_ANY_ACCESS)
 #define FSP_FSCTL_WORK_BEST_EFFORT      \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'w', METHOD_NEITHER, FILE_ANY_ACCESS)
+#define FSP_FSCTL_TRANSACT_REQ_ALIGNMENT 16
 enum
 {
     FspIopRequestMustSucceed            = 0x01,
     FspIopRequestNonPaged               = 0x02,
 };
-#define FspIopCreateRequest(I, F, E, P) \
-    FspIopCreateRequestFunnel(I, F, E, 0, 0, P)
-#define FspIopCreateRequestMustSucceed(I, F, E, P)\
-    FspIopCreateRequestFunnel(I, F, E, 0, FspIopRequestMustSucceed, P)
-#define FspIopCreateRequestEx(I, F, E, RF, P)\
-    FspIopCreateRequestFunnel(I, F, E, RF, 0, P)
-#define FspIopCreateRequestMustSucceedEx(I, F, E, RF, P)\
-    FspIopCreateRequestFunnel(I, F, E, RF, FspIopRequestMustSucceed, P)
-#define FspIopCreateRequestWorkItem(I, E, RF, P)\
-    FspIopCreateRequestFunnel(I, 0, E, RF, FspIopRequestNonPaged, P)
-#define FspIopRequestContext(Request, I)\
-    (*FspIopRequestContextAddress(Request, I))
-#define FspIopPostWorkRequest(D, R)     FspIopPostWorkRequestFunnel(D, R, FALSE)
-#define FspIopPostWorkRequestBestEffort(D, R)\
-    FspIopPostWorkRequestFunnel(D, R, TRUE)
-#define FspIopCompleteIrp(I, R)         FspIopCompleteIrpEx(I, R, TRUE)
-#define REQ_ALIGN_SIZE                  16
 typedef VOID FSP_IOP_REQUEST_FINI(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4]);
 typedef NTSTATUS FSP_IOP_REQUEST_WORK(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
@@ -707,7 +691,7 @@ typedef struct
     FSP_IOP_REQUEST_FINI *RequestFini;
     PVOID Context[4];
     FSP_FSCTL_TRANSACT_RSP *Response;
-    __declspec(align(REQ_ALIGN_SIZE)) UINT8 RequestBuf[];
+    __declspec(align(FSP_FSCTL_TRANSACT_REQ_ALIGNMENT)) UINT8 RequestBuf[];
 } FSP_FSCTL_TRANSACT_REQ_HEADER;
 FSP_FSCTL_STATIC_ASSERT(sizeof(FSP_FSCTL_TRANSACT_REQ_HEADER) <= 64,
     "sizeof(FSP_FSCTL_TRANSACT_REQ_HEADER) assumed less or equal to 64; "
@@ -742,6 +726,22 @@ VOID FspIrpDeleteRequest(PIRP Irp)
         FspIrpSetRequest(Irp, 0);
     }
 }
+#define FspIopCreateRequest(I, F, E, P) \
+    FspIopCreateRequestFunnel(I, F, E, 0, 0, P)
+#define FspIopCreateRequestMustSucceed(I, F, E, P)\
+    FspIopCreateRequestFunnel(I, F, E, 0, FspIopRequestMustSucceed, P)
+#define FspIopCreateRequestEx(I, F, E, RF, P)\
+    FspIopCreateRequestFunnel(I, F, E, RF, 0, P)
+#define FspIopCreateRequestMustSucceedEx(I, F, E, RF, P)\
+    FspIopCreateRequestFunnel(I, F, E, RF, FspIopRequestMustSucceed, P)
+#define FspIopCreateRequestWorkItem(I, E, RF, P)\
+    FspIopCreateRequestFunnel(I, 0, E, RF, FspIopRequestNonPaged, P)
+#define FspIopRequestContext(Request, I)\
+    (*FspIopRequestContextAddress(Request, I))
+#define FspIopPostWorkRequest(D, R)     FspIopPostWorkRequestFunnel(D, R, FALSE)
+#define FspIopPostWorkRequestBestEffort(D, R)\
+    FspIopPostWorkRequestFunnel(D, R, TRUE)
+#define FspIopCompleteIrp(I, R)         FspIopCompleteIrpEx(I, R, TRUE)
 
 /* work queue processing */
 enum
