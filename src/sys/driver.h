@@ -514,6 +514,11 @@ NTSTATUS FspNotifyFullReportChange(
     ULONG FilterMatch,
     ULONG Action,
     PVOID TargetContext);
+NTSTATUS FspOplockFsctrlEx(
+    POPLOCK Oplock,
+    PIRP Irp,
+    ULONG OpenCount,
+    BOOLEAN Create);
 #define FspNotifyUninitializeSync(NS)\
     FsRtlNotifyUninitializeSync(NS)
 #define FspNotifyCleanupAll(NS, NL)\
@@ -526,6 +531,10 @@ NTSTATUS FspNotifyFullReportChange(
     FspNotifyFullChangeDirectory(NS, NL, FC, 0, 0, FALSE, 0, 0, 0, 0)
 #define FspNotifyReportChange(NS, NL, FN, FO, NP, F, A)\
     FspNotifyFullReportChange(NS, NL, (PSTRING)(FN), FO, 0, (PSTRING)(NP), F, A, 0)
+#define FspOplockFsctrlCreate(OL, I, OC)\
+    FspOplockFsctrlEx(OL, I, OC, TRUE)
+#define FspOplockFsctrl(OL, I, OC)\
+    FspOplockFsctrlEx(OL, I, OC, FALSE)
 
 /* utility: synchronous work queue */
 typedef struct
@@ -983,6 +992,9 @@ typedef struct FSP_FILE_NODE
     ULONG StreamInfoChangeNumber;
     BOOLEAN TruncateOnClose;
     FILE_LOCK FileLock;
+#if (NTDDI_VERSION < NTDDI_WIN8)
+    OPLOCK Oplock;
+#endif
     struct
     {
         PVOID LazyWriteThread;
@@ -1174,6 +1186,11 @@ BOOLEAN FspMainFileOpenCheck(PIRP Irp)
 #define FspFileNodeDereferenceDirInfo(P)    FspMetaCacheDereferenceItemBuffer(P)
 #define FspFileNodeDereferenceStreamInfo(P) FspMetaCacheDereferenceItemBuffer(P)
 #define FspFileNodeUnlockAll(N,F,P)     FsRtlFastUnlockAll(&(N)->FileLock, F, P, N)
+#if (NTDDI_VERSION < NTDDI_WIN8)
+#define FspFileNodeAddrOfOplock(N)      (&(N)->Oplock)
+#else
+#define FspFileNodeAddrOfOplock(N)      (&(N)->Header.Oplock)
+#endif
 
 /* multiversion support */
 typedef

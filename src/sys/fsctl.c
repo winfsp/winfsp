@@ -25,6 +25,10 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
 static NTSTATUS FspFsvolFileSystemControlReparsePointComplete(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
     BOOLEAN IsWrite);
+static NTSTATUS FspFsvolFileSystemControlOplock(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static IO_COMPLETION_ROUTINE FspFsvolFileSystemControlOplockCompletion;
+static WORKER_THREAD_ROUTINE FspFsvolFileSystemControlOplockCompletionWork;
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolFileSystemControlComplete;
@@ -35,6 +39,9 @@ FSP_DRIVER_DISPATCH FspFileSystemControl;
 #pragma alloc_text(PAGE, FspFsctlFileSystemControl)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlReparsePoint)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlReparsePointComplete)
+#pragma alloc_text(PAGE, FspFsvolFileSystemControlOplock)
+// !#pragma alloc_text(PAGE, FspFsvolFileSystemControlOplockCompletion)
+#pragma alloc_text(PAGE, FspFsvolFileSystemControlOplockCompletionWork)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControl)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlComplete)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlRequestFini)
@@ -296,6 +303,202 @@ static NTSTATUS FspFsvolFileSystemControlReparsePointComplete(
     return STATUS_SUCCESS;
 }
 
+typedef struct
+{
+    PDEVICE_OBJECT FsvolDeviceObject;
+    WORK_QUEUE_ITEM WorkItem;
+} FSP_FSVOL_FILESYSTEM_CONTROL_OPLOCK_COMPLETION_CONTEXT;
+
+static NTSTATUS FspFsvolFileSystemControlOplock(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+
+    /* is this a valid FileObject? */
+    if (!FspFileNodeIsValid(FileObject->FsContext))
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    NTSTATUS Result;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    ULONG FsControlCode = IrpSp->Parameters.FileSystemControl.FsControlCode;
+    PVOID InputBuffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
+    ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+    ULONG OplockCount;
+    FSP_FSVOL_FILESYSTEM_CONTROL_OPLOCK_COMPLETION_CONTEXT *CompletionContext;
+
+    if (FSCTL_REQUEST_OPLOCK == FsControlCode)
+    {
+        if (sizeof(REQUEST_OPLOCK_INPUT_BUFFER) > InputBufferLength ||
+            sizeof(REQUEST_OPLOCK_OUTPUT_BUFFER) > OutputBufferLength)
+            return STATUS_BUFFER_TOO_SMALL;
+
+        if (FileNode->IsDirectory && !FsRtlOplockIsSharedRequest(Irp))
+            return STATUS_INVALID_PARAMETER;
+    }
+    else
+    {
+        if (FileNode->IsDirectory)
+            return STATUS_INVALID_PARAMETER;
+    }
+
+    /*
+     * As per FastFat:
+     *
+     * We grab the Fcb exclusively for oplock requests, shared for oplock
+     * break acknowledgement.
+     */
+
+    switch (FsControlCode)
+    {
+    case FSCTL_REQUEST_OPLOCK_LEVEL_1:
+    case FSCTL_REQUEST_OPLOCK_LEVEL_2:
+    case FSCTL_REQUEST_BATCH_OPLOCK:
+    case FSCTL_REQUEST_FILTER_OPLOCK:
+    exclusive:
+        FspFileNodeAcquireExclusive(FileNode, Main);
+        if (!FsRtlOplockIsSharedRequest(Irp))
+        {
+            FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+            OplockCount = FileNode->HandleCount;
+            FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+        }
+        else
+        {
+            if (!FileNode->IsDirectory)
+                /* ???: Win8 and FsRtlCheckLockForOplockRequest? see FastFat */
+                OplockCount = FsRtlAreThereCurrentOrInProgressFileLocks(&FileNode->FileLock);
+            else
+                OplockCount = 0;
+        }
+        if (FSCTL_REQUEST_FILTER_OPLOCK == FsControlCode ||
+            FSCTL_REQUEST_BATCH_OPLOCK == FsControlCode ||
+            (FSCTL_REQUEST_OPLOCK == FsControlCode &&
+                FlagOn(((PREQUEST_OPLOCK_INPUT_BUFFER)InputBuffer)->RequestedOplockLevel,
+                    OPLOCK_LEVEL_CACHE_HANDLE)))
+        {
+            BOOLEAN DeletePending;
+
+            DeletePending = 0 != FileNode->DeletePending;
+            MemoryBarrier();
+            if (DeletePending)
+            {
+                FspFileNodeRelease(FileNode, Main);
+                return STATUS_DELETE_PENDING;
+            }
+        }
+        break;
+
+    case FSCTL_OPLOCK_BREAK_ACKNOWLEDGE:
+    case FSCTL_OPBATCH_ACK_CLOSE_PENDING:
+    case FSCTL_OPLOCK_BREAK_NOTIFY:
+    case FSCTL_OPLOCK_BREAK_ACK_NO_2:
+    shared:
+        FspFileNodeAcquireShared(FileNode, Main);
+        OplockCount = 0;
+        break;
+
+    case FSCTL_REQUEST_OPLOCK:
+        if (FlagOn(((PREQUEST_OPLOCK_INPUT_BUFFER)InputBuffer)->Flags,
+            REQUEST_OPLOCK_INPUT_FLAG_REQUEST))
+            goto exclusive;
+        if (FlagOn(((PREQUEST_OPLOCK_INPUT_BUFFER)InputBuffer)->Flags,
+            REQUEST_OPLOCK_INPUT_FLAG_ACK))
+            goto shared;
+
+        /* one of REQUEST_OPLOCK_INPUT_FLAG_REQUEST or REQUEST_OPLOCK_INPUT_FLAG_ACK required */
+        return STATUS_INVALID_PARAMETER;
+
+    default:
+        ASSERT(0);
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    /*
+     * The FileNode is acquired exclusive or shared.
+     * Make sure to release it before exiting!
+     */
+
+    /*
+     * This IRP will be completed by the FSRTL package and therefore
+     * we will have no chance to do our normal IRP completion processing.
+     * Hook the IRP completion and perform the IRP completion processing
+     * there.
+     */
+
+    CompletionContext = FspAllocNonPaged(sizeof *CompletionContext);
+    if (0 == CompletionContext)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto unlock_exit;
+    }
+    CompletionContext->FsvolDeviceObject = FsvolDeviceObject;
+    ExInitializeWorkItem(&CompletionContext->WorkItem,
+        FspFsvolFileSystemControlOplockCompletionWork, CompletionContext);
+
+    Result = FspIrpHook(Irp, FspFsvolFileSystemControlOplockCompletion, CompletionContext);
+    if (!NT_SUCCESS(Result))
+    {
+        FspFree(CompletionContext);
+        goto unlock_exit;
+    }
+
+    /*
+     * It is possible for FspOplockFsctrl to complete the IRP immediately.
+     * In this case trying to access the IRP (to get its IrpFlags) in FspFileNodeRelease
+     * can lead to a bugcheck. For this reason we set the TopLevelIrp to NULL here.
+     *
+     * FspFsvolFileSystemControlOplock does not need the TopLevelIrp functionality,
+     * because it cannot be used recursively (I believe -- famous last words).
+     */
+    PIRP TopLevelIrp = IoGetTopLevelIrp();
+    IoSetTopLevelIrp(0);
+
+    Result = FspOplockFsctrl(FspFileNodeAddrOfOplock(FileNode), Irp, OplockCount);
+
+    FspFileNodeRelease(FileNode, Main);
+
+    if (!NT_SUCCESS(Result))
+    {
+        /* set back the top level IRP just in case! */
+        IoSetTopLevelIrp(TopLevelIrp);
+
+        FspIrpHookReset(Irp);
+        FspFree(CompletionContext);
+        return Result;
+    }
+
+    return STATUS_PENDING;
+
+unlock_exit:
+    FspFileNodeRelease(FileNode, Main);
+
+    return Result;
+}
+
+static NTSTATUS FspFsvolFileSystemControlOplockCompletion(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context)
+{
+    // !PAGED_CODE();
+
+    FSP_FSVOL_FILESYSTEM_CONTROL_OPLOCK_COMPLETION_CONTEXT *CompletionContext =
+        FspIrpHookContext(Context);
+    ExQueueWorkItem(&CompletionContext->WorkItem, DelayedWorkQueue);
+
+    return FspIrpHookNext(DeviceObject, Irp, Context);
+}
+
+static VOID FspFsvolFileSystemControlOplockCompletionWork(PVOID Context)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_FILESYSTEM_CONTROL_OPLOCK_COMPLETION_CONTEXT *CompletionContext = Context;
+    FspDeviceDereference(CompletionContext->FsvolDeviceObject);
+    FspFree(CompletionContext);
+}
+
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -317,6 +520,17 @@ static NTSTATUS FspFsvolFileSystemControl(
         case FSCTL_SET_REPARSE_POINT:
         case FSCTL_DELETE_REPARSE_POINT:
             Result = FspFsvolFileSystemControlReparsePoint(FsvolDeviceObject, Irp, IrpSp, TRUE);
+            break;
+        case FSCTL_REQUEST_OPLOCK_LEVEL_1:
+        case FSCTL_REQUEST_OPLOCK_LEVEL_2:
+        case FSCTL_REQUEST_BATCH_OPLOCK:
+        case FSCTL_OPLOCK_BREAK_ACKNOWLEDGE:
+        case FSCTL_OPBATCH_ACK_CLOSE_PENDING:
+        case FSCTL_OPLOCK_BREAK_NOTIFY:
+        case FSCTL_OPLOCK_BREAK_ACK_NO_2:
+        case FSCTL_REQUEST_FILTER_OPLOCK:
+        case FSCTL_REQUEST_OPLOCK:
+            Result = FspFsvolFileSystemControlOplock(FsvolDeviceObject, Irp, IrpSp);
             break;
         }
         break;

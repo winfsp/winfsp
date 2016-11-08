@@ -218,6 +218,7 @@ NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     RtlInitEmptyUnicodeString(&FileNode->FileName, FileNode->FileNameBuf, (USHORT)ExtraSize);
 
     FsRtlInitializeFileLock(&FileNode->FileLock, FspFileNodeCompleteLockIrp, 0);
+    FsRtlInitializeOplock(FspFileNodeAddrOfOplock(FileNode));
 
     *PFileNode = FileNode;
 
@@ -231,6 +232,7 @@ VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode)
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
         FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
 
+    FsRtlUninitializeOplock(FspFileNodeAddrOfOplock(FileNode));
     FsRtlUninitializeFileLock(&FileNode->FileLock);
 
     FsRtlTeardownPerStreamContexts(&FileNode->Header);

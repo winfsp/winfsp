@@ -67,6 +67,11 @@ NTSTATUS FspNotifyFullReportChange(
     ULONG FilterMatch,
     ULONG Action,
     PVOID TargetContext);
+NTSTATUS FspOplockFsctrlEx(
+    POPLOCK Oplock,
+    PIRP Irp,
+    ULONG OpenCount,
+    BOOLEAN Create);
 VOID FspInitializeSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem,
     PWORKER_THREAD_ROUTINE Routine, PVOID Context);
 VOID FspExecuteSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem);
@@ -104,6 +109,7 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #pragma alloc_text(PAGE, FspNotifyInitializeSync)
 #pragma alloc_text(PAGE, FspNotifyFullChangeDirectory)
 #pragma alloc_text(PAGE, FspNotifyFullReportChange)
+#pragma alloc_text(PAGE, FspOplockFsctrlEx)
 #pragma alloc_text(PAGE, FspInitializeSynchronousWorkItem)
 #pragma alloc_text(PAGE, FspExecuteSynchronousWorkItem)
 #pragma alloc_text(PAGE, FspExecuteSynchronousWorkItemRoutine)
@@ -631,6 +637,42 @@ NTSTATUS FspNotifyFullReportChange(
             Action,
             TargetContext);
         Result = STATUS_SUCCESS;
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Result = GetExceptionCode();
+    }
+
+    return Result;
+}
+
+NTSTATUS FspOplockFsctrlEx(
+    POPLOCK Oplock,
+    PIRP Irp,
+    ULONG OpenCount,
+    BOOLEAN Create)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    try
+    {
+        ASSERT(
+            (Create && IRP_MJ_CREATE == IoGetCurrentIrpStackLocation(Irp)->MajorFunction) ||
+            (!Create && IRP_MJ_FILE_SYSTEM_CONTROL == IoGetCurrentIrpStackLocation(Irp)->MajorFunction));
+
+        Result = FsRtlOplockFsctrl(
+            Oplock,
+            Irp,
+            OpenCount);
+
+        /*
+         * When the IRP is IRP_MJ_FILE_SYSTEM_CONTROL, FsRtlOplockFsctrl always completes the IRP
+         * (unless it raises). So return STATUS_SUCCESS in that case.
+         */
+        if (!Create)
+            Result = STATUS_SUCCESS;
     }
     except (EXCEPTION_EXECUTE_HANDLER)
     {
