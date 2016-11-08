@@ -329,20 +329,8 @@ static NTSTATUS FspFsvolFileSystemControlOplock(
     ULONG OplockCount;
     FSP_FSVOL_FILESYSTEM_CONTROL_OPLOCK_COMPLETION_CONTEXT *CompletionContext;
 
-    if (FSCTL_REQUEST_OPLOCK == FsControlCode)
-    {
-        if (sizeof(REQUEST_OPLOCK_INPUT_BUFFER) > InputBufferLength ||
-            sizeof(REQUEST_OPLOCK_OUTPUT_BUFFER) > OutputBufferLength)
-            return STATUS_BUFFER_TOO_SMALL;
-
-        if (FileNode->IsDirectory && !FsRtlOplockIsSharedRequest(Irp))
-            return STATUS_INVALID_PARAMETER;
-    }
-    else
-    {
-        if (FileNode->IsDirectory)
-            return STATUS_INVALID_PARAMETER;
-    }
+    if (FileNode->IsDirectory)
+        return STATUS_INVALID_PARAMETER;
 
     /*
      * As per FastFat:
@@ -353,6 +341,20 @@ static NTSTATUS FspFsvolFileSystemControlOplock(
 
     switch (FsControlCode)
     {
+    case FSCTL_REQUEST_OPLOCK:
+        if (sizeof(REQUEST_OPLOCK_INPUT_BUFFER) > InputBufferLength ||
+            sizeof(REQUEST_OPLOCK_OUTPUT_BUFFER) > OutputBufferLength)
+            return STATUS_BUFFER_TOO_SMALL;
+        if (FlagOn(((PREQUEST_OPLOCK_INPUT_BUFFER)InputBuffer)->Flags,
+            REQUEST_OPLOCK_INPUT_FLAG_REQUEST))
+            goto exclusive;
+        if (FlagOn(((PREQUEST_OPLOCK_INPUT_BUFFER)InputBuffer)->Flags,
+            REQUEST_OPLOCK_INPUT_FLAG_ACK))
+            goto shared;
+
+        /* one of REQUEST_OPLOCK_INPUT_FLAG_REQUEST or REQUEST_OPLOCK_INPUT_FLAG_ACK required */
+        return STATUS_INVALID_PARAMETER;
+
     case FSCTL_REQUEST_OPLOCK_LEVEL_1:
     case FSCTL_REQUEST_OPLOCK_LEVEL_2:
     case FSCTL_REQUEST_BATCH_OPLOCK:
@@ -366,29 +368,7 @@ static NTSTATUS FspFsvolFileSystemControlOplock(
             FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
         }
         else
-        {
-            if (!FileNode->IsDirectory)
-                /* ???: Win8 and FsRtlCheckLockForOplockRequest? see FastFat */
-                OplockCount = FsRtlAreThereCurrentOrInProgressFileLocks(&FileNode->FileLock);
-            else
-                OplockCount = 0;
-        }
-        if (FSCTL_REQUEST_FILTER_OPLOCK == FsControlCode ||
-            FSCTL_REQUEST_BATCH_OPLOCK == FsControlCode ||
-            (FSCTL_REQUEST_OPLOCK == FsControlCode &&
-                FlagOn(((PREQUEST_OPLOCK_INPUT_BUFFER)InputBuffer)->RequestedOplockLevel,
-                    OPLOCK_LEVEL_CACHE_HANDLE)))
-        {
-            BOOLEAN DeletePending;
-
-            DeletePending = 0 != FileNode->DeletePending;
-            MemoryBarrier();
-            if (DeletePending)
-            {
-                FspFileNodeRelease(FileNode, Main);
-                return STATUS_DELETE_PENDING;
-            }
-        }
+            OplockCount = FsRtlAreThereCurrentOrInProgressFileLocks(&FileNode->FileLock);
         break;
 
     case FSCTL_OPLOCK_BREAK_ACKNOWLEDGE:
@@ -400,17 +380,6 @@ static NTSTATUS FspFsvolFileSystemControlOplock(
         OplockCount = 0;
         break;
 
-    case FSCTL_REQUEST_OPLOCK:
-        if (FlagOn(((PREQUEST_OPLOCK_INPUT_BUFFER)InputBuffer)->Flags,
-            REQUEST_OPLOCK_INPUT_FLAG_REQUEST))
-            goto exclusive;
-        if (FlagOn(((PREQUEST_OPLOCK_INPUT_BUFFER)InputBuffer)->Flags,
-            REQUEST_OPLOCK_INPUT_FLAG_ACK))
-            goto shared;
-
-        /* one of REQUEST_OPLOCK_INPUT_FLAG_REQUEST or REQUEST_OPLOCK_INPUT_FLAG_ACK required */
-        return STATUS_INVALID_PARAMETER;
-
     default:
         ASSERT(0);
         return STATUS_INVALID_DEVICE_REQUEST;
@@ -420,6 +389,23 @@ static NTSTATUS FspFsvolFileSystemControlOplock(
      * The FileNode is acquired exclusive or shared.
      * Make sure to release it before exiting!
      */
+
+    if (FSCTL_REQUEST_FILTER_OPLOCK == FsControlCode ||
+        FSCTL_REQUEST_BATCH_OPLOCK == FsControlCode ||
+        (FSCTL_REQUEST_OPLOCK == FsControlCode &&
+            FlagOn(((PREQUEST_OPLOCK_INPUT_BUFFER)InputBuffer)->RequestedOplockLevel,
+                OPLOCK_LEVEL_CACHE_HANDLE)))
+    {
+        BOOLEAN DeletePending;
+
+        DeletePending = 0 != FileNode->DeletePending;
+        MemoryBarrier();
+        if (DeletePending)
+        {
+            Result = STATUS_DELETE_PENDING;
+            goto unlock_exit;
+        }
+    }
 
     /*
      * This IRP will be completed by the FSRTL package and therefore
