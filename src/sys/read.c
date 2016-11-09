@@ -266,15 +266,25 @@ static NTSTATUS FspFsvolReadNonCached(
     /* convert FileNode to shared */
     FspFileNodeConvertExclusiveToShared(FileNode, Full);
 
-    /* delete any work item if present! */
-    FspIrpDeleteRequest(Irp);
-
-    /* create request */
-    Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolReadNonCachedRequestFini, &Request);
-    if (!NT_SUCCESS(Result))
+    Request = FspIrpRequest(Irp);
+    if (0 == Request)
     {
-        FspFileNodeRelease(FileNode, Full);
-        return Result;
+        /* create request */
+        Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolReadNonCachedRequestFini, &Request);
+        if (!NT_SUCCESS(Result))
+        {
+            FspFileNodeRelease(FileNode, Full);
+            return Result;
+        }
+    }
+    else
+    {
+        /* reuse existing request */
+        ASSERT(Request->Size == sizeof *Request);
+        ASSERT(Request->Hint == (UINT_PTR)Irp);
+        FspIopResetRequest(Request, FspFsvolReadNonCachedRequestFini);
+        RtlZeroMemory(&Request->Req,
+            sizeof *Request - FIELD_OFFSET(FSP_FSCTL_TRANSACT_REQ, Req));
     }
 
     Request->Kind = FspFsctlTransactReadKind;
