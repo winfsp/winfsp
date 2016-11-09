@@ -36,7 +36,8 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
-VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
+VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+    BOOLEAN AlsoCleanup);
 NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     UINT64 FlushOffset64, ULONG FlushLength, BOOLEAN FlushAndPurge);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
@@ -720,7 +721,8 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
         FspFileNodeDereference(FileNode);
 }
 
-VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
+VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+    BOOLEAN AlsoCleanup)
 {
     /*
      * Close the FileNode. If the OpenCount becomes zero remove it
@@ -735,6 +737,29 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
     BOOLEAN DeletedFromContextTable = FALSE;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+
+    if (AlsoCleanup)
+    {
+        /*
+         * Sharing violations between main file and streams were determined
+         * through experimentation with NTFS. They may be wrong!
+         */
+        if (0 == FileNode->MainFileNode)
+        {
+            if (FileObject->DeleteAccess)
+                FileNode->MainFileDenyDeleteCount--;
+        }
+        else
+        {
+            if ((FileObject->ReadAccess || FileObject->WriteAccess || FileObject->DeleteAccess) &&
+                !FileObject->SharedDelete)
+                FileNode->MainFileNode->StreamDenyDeleteCount--;
+        }
+
+        IoRemoveShareAccess(FileObject, &FileNode->ShareAccess);
+
+        FileNode->HandleCount--;
+    }
 
     if (0 < FileNode->OpenCount && 0 == --FileNode->OpenCount)
     {
