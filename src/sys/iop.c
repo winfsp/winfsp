@@ -20,6 +20,7 @@
 NTSTATUS FspIopCreateRequestFunnel(
     PIRP Irp, PUNICODE_STRING FileName, ULONG ExtraSize, FSP_IOP_REQUEST_FINI *RequestFini,
     ULONG Flags, FSP_FSCTL_TRANSACT_REQ **PRequest);
+NTSTATUS FspIopCreateRequestWorkItem(FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopDeleteRequest(FSP_FSCTL_TRANSACT_REQ *Request);
 VOID FspIopResetRequest(FSP_FSCTL_TRANSACT_REQ *Request, FSP_IOP_REQUEST_FINI *RequestFini);
 NTSTATUS FspIopPostWorkRequestFunnel(PDEVICE_OBJECT DeviceObject,
@@ -35,6 +36,7 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspIopCreateRequestFunnel)
+#pragma alloc_text(PAGE, FspIopCreateRequestWorkItem)
 #pragma alloc_text(PAGE, FspIopDeleteRequest)
 #pragma alloc_text(PAGE, FspIopResetRequest)
 #pragma alloc_text(PAGE, FspIopPostWorkRequestFunnel)
@@ -100,8 +102,7 @@ NTSTATUS FspIopCreateRequestFunnel(
 
         if (FlagOn(Flags, FspIopCreateRequestWorkItemFlag))
         {
-            RequestWorkItem = ExAllocatePoolWithTag(
-                NonPagedPool, sizeof *RequestWorkItem, FSP_ALLOC_INTERNAL_TAG);
+            RequestWorkItem = FspAllocNonPaged(sizeof *RequestWorkItem);
             if (0 == RequestWorkItem)
             {
                 FspFree(RequestHeader);
@@ -143,6 +144,25 @@ NTSTATUS FspIopCreateRequestFunnel(
         FspIrpSetRequest(Irp, Request);
     }
     *PRequest = Request;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS FspIopCreateRequestWorkItem(FSP_FSCTL_TRANSACT_REQ *Request)
+{
+    PAGED_CODE();
+
+    FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
+    FSP_FSCTL_TRANSACT_REQ_WORK_ITEM *RequestWorkItem;
+
+    if (0 == RequestHeader->WorkItem)
+    {
+        RequestWorkItem = FspAllocNonPaged(sizeof *RequestWorkItem);
+        if (0 == RequestWorkItem)
+            return STATUS_INSUFFICIENT_RESOURCES;
+
+        RtlZeroMemory(RequestWorkItem, sizeof *RequestWorkItem);
+    }
 
     return STATUS_SUCCESS;
 }

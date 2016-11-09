@@ -51,6 +51,22 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
         RequestWorkItem->WorkRoutine = WorkRoutine;
         ExInitializeWorkItem(&RequestWorkItem->WorkQueueItem, FspWqWorkRoutine, Irp);
     }
+    else
+    {
+        RequestWorkItem = FspIopRequestWorkItem(Request);
+        if (0 == RequestWorkItem)
+        {
+            NTSTATUS Result;
+
+            Result = FspIopCreateRequestWorkItem(Request);
+            if (!NT_SUCCESS(Result))
+                return Result;
+
+            RequestWorkItem = FspIopRequestWorkItem(Request);
+            RequestWorkItem->WorkRoutine = WorkRoutine;
+            ExInitializeWorkItem(&RequestWorkItem->WorkQueueItem, FspWqWorkRoutine, Irp);
+        }
+    }
 
     if (!CreateAndPost)
         return STATUS_SUCCESS;
