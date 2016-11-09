@@ -93,10 +93,9 @@ waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
 
 set /a total=testpass+testfail
 echo === Total: %testpass%/%total%
-if not %testfail%==0 goto fail
-
 call :leak-test
 if !ERRORLEVEL! neq 0 goto fail
+if not %testfail%==0 goto fail
 
 exit /b 0
 
