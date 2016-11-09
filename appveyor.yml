@@ -22,4 +22,6 @@ test_script:
 - for %%f in ("build\VStudio\build\%CONFIGURATION%\winfsp-*.msi") do start /wait msiexec /i %%f /qn INSTALLLEVEL=1000
 - tools\nmake-ext-test.bat %CONFIGURATION%
 - tools\run-tests.bat %CONFIGURATION%
+
+on_finish:
 - verifier /query
