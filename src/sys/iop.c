@@ -74,14 +74,14 @@ NTSTATUS FspIopCreateRequestFunnel(
     if (FSP_FSCTL_TRANSACT_REQ_SIZEMAX < sizeof *Request + ExtraSize)
         return STATUS_INVALID_PARAMETER;
 
-    if (FlagOn(Flags, FspIopCreateRequestMustSucceed))
+    if (FlagOn(Flags, FspIopCreateRequestMustSucceedFlag))
     {
         RequestHeader = FspAllocatePoolMustSucceed(
-            FlagOn(Flags, FspIopCreateRequestNonPaged) ? NonPagedPool : PagedPool,
+            FlagOn(Flags, FspIopCreateRequestNonPagedFlag) ? NonPagedPool : PagedPool,
             sizeof *RequestHeader + sizeof *Request + ExtraSize + REQ_HEADER_ALIGN_OVERHEAD,
             FSP_ALLOC_INTERNAL_TAG);
 
-        if (FlagOn(Flags, FspIopCreateRequestWorkItem))
+        if (FlagOn(Flags, FspIopCreateRequestWorkItemFlag))
         {
             RequestWorkItem = FspAllocatePoolMustSucceed(
                 NonPagedPool, sizeof *RequestWorkItem, FSP_ALLOC_INTERNAL_TAG);
@@ -92,13 +92,13 @@ NTSTATUS FspIopCreateRequestFunnel(
     else
     {
         RequestHeader = ExAllocatePoolWithTag(
-            FlagOn(Flags, FspIopCreateRequestNonPaged) ? NonPagedPool : PagedPool,
+            FlagOn(Flags, FspIopCreateRequestNonPagedFlag) ? NonPagedPool : PagedPool,
             sizeof *RequestHeader + sizeof *Request + ExtraSize + REQ_HEADER_ALIGN_OVERHEAD,
             FSP_ALLOC_INTERNAL_TAG);
         if (0 == RequestHeader)
             return STATUS_INSUFFICIENT_RESOURCES;
 
-        if (FlagOn(Flags, FspIopCreateRequestWorkItem))
+        if (FlagOn(Flags, FspIopCreateRequestWorkItemFlag))
         {
             RequestWorkItem = ExAllocatePoolWithTag(
                 NonPagedPool, sizeof *RequestWorkItem, FSP_ALLOC_INTERNAL_TAG);

@@ -679,9 +679,9 @@ VOID FspMetaCacheInvalidateItem(FSP_META_CACHE *MetaCache, UINT64 ItemIndex);
 #define FSP_FSCTL_TRANSACT_REQ_ALIGNMENT 16
 enum
 {
-    FspIopCreateRequestMustSucceed      = 0x01,
-    FspIopCreateRequestNonPaged         = 0x02,
-    FspIopCreateRequestWorkItem         = 0x04,
+    FspIopCreateRequestMustSucceedFlag  = 0x01,
+    FspIopCreateRequestNonPagedFlag     = 0x02,
+    FspIopCreateRequestWorkItemFlag     = 0x04,
 };
 typedef VOID FSP_IOP_REQUEST_FINI(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4]);
 typedef NTSTATUS FSP_IOP_REQUEST_WORK(
@@ -742,13 +742,13 @@ VOID FspIrpDeleteRequest(PIRP Irp)
 #define FspIopCreateRequest(I, F, E, P) \
     FspIopCreateRequestFunnel(I, F, E, 0, 0, P)
 #define FspIopCreateRequestMustSucceed(I, F, E, P)\
-    FspIopCreateRequestFunnel(I, F, E, 0, FspIopCreateRequestMustSucceed, P)
+    FspIopCreateRequestFunnel(I, F, E, 0, FspIopCreateRequestMustSucceedFlag, P)
 #define FspIopCreateRequestEx(I, F, E, RF, P)\
     FspIopCreateRequestFunnel(I, F, E, RF, 0, P)
 #define FspIopCreateRequestMustSucceedEx(I, F, E, RF, P)\
-    FspIopCreateRequestFunnel(I, F, E, RF, FspIopCreateRequestMustSucceed, P)
+    FspIopCreateRequestFunnel(I, F, E, RF, FspIopCreateRequestMustSucceedFlag, P)
 #define FspIopCreateRequestAndWorkItem(I, E, RF, P)\
-    FspIopCreateRequestFunnel(I, 0, E, RF, FspIopCreateRequestWorkItem, P)
+    FspIopCreateRequestFunnel(I, 0, E, RF, FspIopCreateRequestWorkItemFlag, P)
 #define FspIopRequestContext(Request, I)\
     (*FspIopRequestContextAddress(Request, I))
 #define FspIopPostWorkRequest(D, R)     FspIopPostWorkRequestFunnel(D, R, FALSE)
