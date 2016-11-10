@@ -30,6 +30,7 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference);
 VOID FspIopCompleteCanceledIrp(PIRP Irp);
 BOOLEAN FspIopRetryPrepareIrp(PIRP Irp, NTSTATUS *PResult);
 BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response, NTSTATUS *PResult);
+VOID FspIopSetIrpResponse(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_FSCTL_TRANSACT_RSP *FspIopIrpResponse(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
 NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
@@ -44,6 +45,7 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
 #pragma alloc_text(PAGE, FspIopCompleteCanceledIrp)
 #pragma alloc_text(PAGE, FspIopRetryPrepareIrp)
 #pragma alloc_text(PAGE, FspIopRetryCompleteIrp)
+#pragma alloc_text(PAGE, FspIopSetIrpResponse)
 #pragma alloc_text(PAGE, FspIopIrpResponse)
 #pragma alloc_text(PAGE, FspIopDispatchPrepare)
 #pragma alloc_text(PAGE, FspIopDispatchComplete)
@@ -367,6 +369,16 @@ BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
 
     PDEVICE_OBJECT DeviceObject = IoGetCurrentIrpStackLocation(Irp)->DeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+
+    FspIopSetIrpResponse(Irp, Response);
+
+    return FspIoqRetryCompleteIrp(FsvolDeviceExtension->Ioq, Irp, PResult);
+}
+
+VOID FspIopSetIrpResponse(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     FSP_FSCTL_TRANSACT_REQ_HEADER *RequestHeader = (PVOID)((PUINT8)Request - sizeof *RequestHeader);
 
@@ -380,8 +392,6 @@ BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
         RtlCopyMemory(RequestHeader->Response, Response, Response->Size);
         Response = RequestHeader->Response;
     }
-
-    return FspIoqRetryCompleteIrp(FsvolDeviceExtension->Ioq, Irp, PResult);
 }
 
 FSP_FSCTL_TRANSACT_RSP *FspIopIrpResponse(PIRP Irp)
