@@ -321,7 +321,10 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference)
         ClearFlag(Irp->Flags, IRP_INPUT_OPERATION | IRP_BUFFERED_IO | IRP_DEALLOCATE_BUFFER);
     }
 
-    if (STATUS_SUCCESS != Result && STATUS_REPARSE != Result && STATUS_BUFFER_OVERFLOW != Result)
+    if (STATUS_SUCCESS != Result &&
+        STATUS_REPARSE != Result &&
+        STATUS_BUFFER_OVERFLOW != Result &&
+        STATUS_SHARING_VIOLATION != Result)
         Irp->IoStatus.Information = 0;
     Irp->IoStatus.Status = Result;
     IoCompleteRequest(Irp, FSP_IO_INCREMENT);

@@ -712,6 +712,10 @@ enum
     FspIopCreateRequestNonPagedFlag     = 0x02,
     FspIopCreateRequestWorkItemFlag     = 0x04,
 };
+enum
+{
+    FspIopRequestExtraContext           = 4,
+};
 typedef VOID FSP_IOP_REQUEST_FINI(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Context[4]);
 typedef NTSTATUS FSP_IOP_REQUEST_WORK(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
@@ -724,7 +728,7 @@ typedef struct
 typedef struct
 {
     FSP_IOP_REQUEST_FINI *RequestFini;
-    PVOID Context[4];
+    PVOID Context[4 + 1/*FspIopRequestExtraContext*/];
     FSP_FSCTL_TRANSACT_RSP *Response;
     FSP_FSCTL_TRANSACT_REQ_WORK_ITEM *WorkItem;
     __declspec(align(FSP_FSCTL_TRANSACT_REQ_ALIGNMENT)) UINT8 RequestBuf[];
@@ -1098,13 +1102,13 @@ VOID FspFileNodeReleaseForeign(FSP_FILE_NODE *FileNode)
         FileNode = FileNode->MainFileNode;
     ExReleaseResourceLite(FileNode->Header.Resource);
 }
-FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    UINT32 GrantedAccess, UINT32 ShareAccess, NTSTATUS *PResult);
+NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+    UINT32 GrantedAccess, UINT32 ShareAccess, FSP_FILE_NODE **POpenedFileNode);
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    BOOLEAN AlsoCleanup);
+    BOOLEAN RemoveShareAccess, BOOLEAN HandleCleanup);
 NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     UINT64 FlushOffset64, ULONG FlushLength, BOOLEAN FlushAndPurge);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);

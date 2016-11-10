@@ -74,7 +74,7 @@ static NTSTATUS FspFsvolClose(
     Request->Req.Close.UserContext = FileNode->UserContext;
     Request->Req.Close.UserContext2 = FileDesc->UserContext2;
 
-    FspFileNodeClose(FileNode, FileObject, FALSE);
+    FspFileNodeClose(FileNode, FileObject, FALSE, FALSE);
 
     /* delete the FileDesc and deref the FileNode; order is important (FileDesc has FileNode ref) */
     FspFileDescDelete(FileDesc); /* this will also close the MainFileObject if any */

@@ -28,6 +28,13 @@ static NTSTATUS FspFsvolCreateNoLock(
     BOOLEAN MainFileOpen);
 FSP_IOPREP_DISPATCH FspFsvolCreatePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
+static NTSTATUS FspFsvolCreateSharingViolation(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response, FSP_FILE_NODE *FileNode);
+static NTSTATUS FspFsvolCreateSharingViolationWork(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    BOOLEAN CanWait);
+static VOID FspFsvolCreateSharingViolationOplockComplete(
+    PVOID Context, PIRP Irp);
 static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
     FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject,
     BOOLEAN FlushImage);
@@ -45,6 +52,9 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreatePrepare)
 #pragma alloc_text(PAGE, FspFsvolCreateComplete)
 #pragma alloc_text(PAGE, FspFsvolCreateTryOpen)
+#pragma alloc_text(PAGE, FspFsvolCreateSharingViolation)
+#pragma alloc_text(PAGE, FspFsvolCreateSharingViolationWork)
+#pragma alloc_text(PAGE, FspFsvolCreateSharingViolationOplockComplete)
 #pragma alloc_text(PAGE, FspFsvolCreatePostClose)
 #pragma alloc_text(PAGE, FspFsvolCreateRequestFini)
 #pragma alloc_text(PAGE, FspFsvolCreateTryOpenRequestFini)
@@ -813,11 +823,25 @@ NTSTATUS FspFsvolCreateComplete(
         FileDesc->DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
 
         /* open the FileNode */
-        OpenedFileNode = FspFileNodeOpen(FileNode, FileObject,
+        Result = FspFileNodeOpen(FileNode, FileObject,
             Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
-            &Result);
-        if (0 == OpenedFileNode)
+            &OpenedFileNode);
+        if (!NT_SUCCESS(Result))
         {
+            if (STATUS_SHARING_VIOLATION == Result)
+            {
+                Result = FspFsvolCreateSharingViolation(Irp, Response, OpenedFileNode);
+                if (STATUS_PENDING != Result)
+                {
+                    FspFileNodeClose(OpenedFileNode, FileObject, FALSE, TRUE);
+                    FspFileNodeDereference(OpenedFileNode);
+                    Result = STATUS_SHARING_VIOLATION;
+                }
+
+                Irp->IoStatus.Information = 0;
+                FSP_RETURN();
+            }
+
             /* unable to open the FileNode; post a Close request */
             FspFsvolCreatePostClose(FileDesc);
 
@@ -955,6 +979,118 @@ NTSTATUS FspFsvolCreateComplete(
         IrpSp->FileObject, IrpSp->FileObject->RelatedFileObject, IrpSp->FileObject->FileName);
 }
 
+static NTSTATUS FspFsvolCreateSharingViolation(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response, FSP_FILE_NODE *FileNode)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+
+    FspIopSetIrpResponse(Irp, Response);
+    FspIopRequestContext(Request, FspIopRequestExtraContext) = FileNode;
+
+    Result = FspWqRepostIrpWorkItem(Irp,
+        FspFsvolCreateSharingViolationWork, FspFsvolCreateRequestFini);
+    if (!NT_SUCCESS(Result))
+    {
+        FspIopRequestContext(Request, FspIopRequestExtraContext) = 0;
+        return STATUS_SHARING_VIOLATION;
+    }
+
+    return STATUS_PENDING;
+}
+
+static NTSTATUS FspFsvolCreateSharingViolationWork(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    BOOLEAN CanWait)
+{
+    PAGED_CODE();
+
+    /*
+     * Perform oplock checks in the case that we received STATUS_SHARING_VIOLATION.
+     * The logic below is quite tortured, because it tries to mimic what FastFat
+     * does in Win7. Here is an explanation.
+     *
+     * First notice that this is run in a work thread. So it is assumed that we can
+     * block here. We cannot block in the completion thread, because it belongs to
+     * the user mode file system that may have a limited number of threads to service
+     * file system requests.
+     *
+     * Second we want a way to differentiate the case between an oplock break being
+     * underway and no oplock needed. Unfortunately this only seems possible when a
+     * completion routine is set in FsRtlCheckOplock and FsRtlOplockBreakH. In this
+     * case we get STATUS_PENDING when there is an oplock to be broken and
+     * STATUS_SUCCESS where there is not one.
+     *
+     * Third notice that by default we must return STATUS_SHARING_VIOLATION, because
+     * the share access check failed. The only case that we will completely retry is
+     * when FspRtlOplockBreakH returns STATUS_PENDING.
+     *
+     * So in a nutshell, this routine emulates what happens with FastFat during
+     * STATUS_SHARING_VIOLATION processing. However FastFat tries to break batch
+     * oplocks before the share access check. Unfortunately this is hard to do in
+     * this FSD, so we have to emulate this behavior.
+     */
+
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    FSP_FSCTL_TRANSACT_RSP *Response = FspIopIrpResponse(Irp);
+    FSP_FILE_NODE *FileNode = FspIopRequestContext(Request, FspIopRequestExtraContext);
+    BOOLEAN StatusSharingViolation = TRUE, OpbatchBreakUnderway = FALSE;
+    KEVENT Event;
+    NTSTATUS Result;
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    FspFileNodeAcquireShared(FileNode, Main);
+
+    if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(FileNode)))
+    {
+        Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
+            &Event, FspFsvolCreateSharingViolationOplockComplete, 0);
+        if (STATUS_PENDING == Result)
+        {
+            KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, 0);
+            if (STATUS_SUCCESS == Irp->IoStatus.Status)
+                OpbatchBreakUnderway = TRUE;
+        }
+    }
+
+    KeResetEvent(&Event);
+    Result = FspOplockBreakH(FspFileNodeAddrOfOplock(FileNode), Irp, 0,
+        &Event, FspFsvolCreateSharingViolationOplockComplete, 0);
+    if (STATUS_PENDING == Result)
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, 0);
+        if (STATUS_SUCCESS == Irp->IoStatus.Status)
+            StatusSharingViolation = FALSE;
+    }
+
+    FspFileNodeRelease(FileNode, Main);
+
+    FspFileNodeClose(FileNode, IrpSp->FileObject, FALSE, TRUE);
+    FspFileNodeDereference(FileNode);
+    FspIopRequestContext(Request, FspIopRequestExtraContext) = 0;
+
+    if (StatusSharingViolation)
+    {
+        Response->IoStatus.Status = (UINT32)STATUS_SHARING_VIOLATION;
+        Response->IoStatus.Information = OpbatchBreakUnderway ? FILE_OPBATCH_BREAK_UNDERWAY : 0;
+    }
+
+    FspIopRetryCompleteIrp(Irp, Response, &Result);
+
+    return Result;
+}
+
+static VOID FspFsvolCreateSharingViolationOplockComplete(
+    PVOID Context, PIRP Irp)
+{
+    PAGED_CODE();
+
+    KeSetEvent((PKEVENT)Context, FSP_IO_INCREMENT, FALSE);
+}
+
 static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
     FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject,
     BOOLEAN FlushImage)
@@ -1009,7 +1145,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
             if (0 == Request)
             {
                 FspFsvolCreatePostClose(FileDesc);
-                FspFileNodeClose(FileNode, FileObject, TRUE);
+                FspFileNodeClose(FileNode, FileObject, TRUE, TRUE);
             }
         
             return DeleteOnClose ? STATUS_CANNOT_DELETE : STATUS_SHARING_VIOLATION;
@@ -1115,7 +1251,7 @@ static VOID FspFsvolCreateTryOpenRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PV
         ASSERT(0 != FileObject);
 
         FspFsvolCreatePostClose(FileDesc);
-        FspFileNodeClose(FileDesc->FileNode, FileObject, TRUE);
+        FspFileNodeClose(FileDesc->FileNode, FileObject, TRUE, TRUE);
         FspFileNodeDereference(FileDesc->FileNode);
         FspFileDescDelete(FileDesc);
     }
@@ -1142,7 +1278,7 @@ static VOID FspFsvolCreateOverwriteRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, 
         else if (RequestProcessing == State)
             FspFileNodeReleaseOwner(FileDesc->FileNode, Full, Request);
 
-        FspFileNodeClose(FileDesc->FileNode, FileObject, TRUE);
+        FspFileNodeClose(FileDesc->FileNode, FileObject, TRUE, TRUE);
         FspFileNodeDereference(FileDesc->FileNode);
         FspFileDescDelete(FileDesc);
     }

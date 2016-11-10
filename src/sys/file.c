@@ -31,13 +31,13 @@ VOID FspFileNodeConvertExclusiveToSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
-FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    UINT32 GrantedAccess, UINT32 ShareAccess, NTSTATUS *PResult);
+NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+    UINT32 GrantedAccess, UINT32 ShareAccess, FSP_FILE_NODE **POpenedFileNode);
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    BOOLEAN AlsoCleanup);
+    BOOLEAN RemoveShareAccess, BOOLEAN HandleCleanup);
 NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     UINT64 FlushOffset64, ULONG FlushLength, BOOLEAN FlushAndPurge);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
@@ -447,8 +447,8 @@ VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
     FSP_FILE_NODE_CLR_FLAGS();
 }
 
-FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    UINT32 GrantedAccess, UINT32 ShareAccess, NTSTATUS *PResult)
+NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
+    UINT32 GrantedAccess, UINT32 ShareAccess, FSP_FILE_NODE **POpenedFileNode)
 {
     /*
      * Attempt to insert our FileNode into the volume device's generic table.
@@ -596,13 +596,8 @@ FSP_FILE_NODE *FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     Result = STATUS_SUCCESS;
 
 exit:
-    if (!NT_SUCCESS(Result))
-    {
-        if (0 != PResult)
-            *PResult = Result;
-
+    if (!NT_SUCCESS(Result) && STATUS_SHARING_VIOLATION != Result)
         OpenedFileNode = 0;
-    }
 
     if (0 != OpenedFileNode)
     {
@@ -613,7 +608,9 @@ exit:
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
-    return OpenedFileNode;
+    *POpenedFileNode = OpenedFileNode;
+
+    return Result;
 }
 
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
@@ -724,7 +721,7 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 }
 
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    BOOLEAN AlsoCleanup)
+    BOOLEAN RemoveShareAccess, BOOLEAN HandleCleanup)
 {
     /*
      * Close the FileNode. If the OpenCount becomes zero remove it
@@ -740,7 +737,7 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
-    if (AlsoCleanup)
+    if (RemoveShareAccess)
     {
         /*
          * Sharing violations between main file and streams were determined
@@ -759,9 +756,10 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
         }
 
         IoRemoveShareAccess(FileObject, &FileNode->ShareAccess);
-
-        FileNode->HandleCount--;
     }
+
+    if (HandleCleanup)
+        FileNode->HandleCount--;
 
     if (0 < FileNode->OpenCount && 0 == --FileNode->OpenCount)
     {
