@@ -67,6 +67,13 @@ NTSTATUS FspNotifyFullReportChange(
     ULONG FilterMatch,
     ULONG Action,
     PVOID TargetContext);
+NTSTATUS FspOplockBreakH(
+    POPLOCK Oplock,
+    PIRP Irp,
+    ULONG Flags,
+    PVOID Context,
+    POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
+    POPLOCK_FS_PREPOST_IRP PostIrpRoutine);
 NTSTATUS FspCheckOplock(
     POPLOCK Oplock,
     PIRP Irp,
@@ -122,6 +129,7 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #pragma alloc_text(PAGE, FspNotifyInitializeSync)
 #pragma alloc_text(PAGE, FspNotifyFullChangeDirectory)
 #pragma alloc_text(PAGE, FspNotifyFullReportChange)
+#pragma alloc_text(PAGE, FspOplockBreakH)
 #pragma alloc_text(PAGE, FspCheckOplock)
 #pragma alloc_text(PAGE, FspCheckOplockEx)
 #pragma alloc_text(PAGE, FspOplockFsctrlF)
@@ -652,6 +660,36 @@ NTSTATUS FspNotifyFullReportChange(
             Action,
             TargetContext);
         Result = STATUS_SUCCESS;
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        Result = GetExceptionCode();
+    }
+
+    return Result;
+}
+
+NTSTATUS FspOplockBreakH(
+    POPLOCK Oplock,
+    PIRP Irp,
+    ULONG Flags,
+    PVOID Context,
+    POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
+    POPLOCK_FS_PREPOST_IRP PostIrpRoutine)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    try
+    {
+        Result = FspOplockBreakH(
+            Oplock,
+            Irp,
+            Flags,
+            Context,
+            CompletionRoutine,
+            PostIrpRoutine);
     }
     except (EXCEPTION_EXECUTE_HANDLER)
     {

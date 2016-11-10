@@ -514,11 +514,13 @@ NTSTATUS FspNotifyFullReportChange(
     ULONG FilterMatch,
     ULONG Action,
     PVOID TargetContext);
-NTSTATUS FspOplockFsctrlF(
+NTSTATUS FspOplockBreakH(
     POPLOCK Oplock,
     PIRP Irp,
-    ULONG OpenCount,
-    BOOLEAN Create);
+    ULONG Flags,
+    PVOID Context,
+    POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
+    POPLOCK_FS_PREPOST_IRP PostIrpRoutine);
 NTSTATUS FspCheckOplock(
     POPLOCK Oplock,
     PIRP Irp,
@@ -532,6 +534,11 @@ NTSTATUS FspCheckOplockEx(
     PVOID Context,
     POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
     POPLOCK_FS_PREPOST_IRP PostIrpRoutine);
+NTSTATUS FspOplockFsctrlF(
+    POPLOCK Oplock,
+    PIRP Irp,
+    ULONG OpenCount,
+    BOOLEAN Create);
 #define FspNotifyUninitializeSync(NS)\
     FsRtlNotifyUninitializeSync(NS)
 #define FspNotifyCleanupAll(NS, NL)\
