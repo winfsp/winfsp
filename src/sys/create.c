@@ -1040,9 +1040,14 @@ static NTSTATUS FspFsvolCreateSharingViolationWork(
     KEVENT Event;
     NTSTATUS Result;
 
-    KeInitializeEvent(&Event, NotificationEvent, FALSE);
-
     FspFileNodeAcquireShared(FileNode, Main);
+
+    Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
+        OPLOCK_FLAG_OPLOCK_KEY_CHECK_ONLY, 0, 0, 0);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
 
     if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(FileNode)))
     {
@@ -1053,10 +1058,11 @@ static NTSTATUS FspFsvolCreateSharingViolationWork(
             KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, 0);
             if (STATUS_SUCCESS == Irp->IoStatus.Status)
                 OpbatchBreakUnderway = TRUE;
+
+            KeResetEvent(&Event);
         }
     }
 
-    KeResetEvent(&Event);
     Result = FspOplockBreakH(FspFileNodeAddrOfOplock(FileNode), Irp, 0,
         &Event, FspFsvolCreateSharingViolationOplockComplete, 0);
     if (STATUS_PENDING == Result)
@@ -1066,6 +1072,7 @@ static NTSTATUS FspFsvolCreateSharingViolationWork(
             StatusSharingViolation = FALSE;
     }
 
+exit:
     FspFileNodeRelease(FileNode, Main);
 
     FspFileNodeClose(FileNode, IrpSp->FileObject, FALSE, TRUE);
