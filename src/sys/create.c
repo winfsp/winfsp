@@ -1063,13 +1063,16 @@ static NTSTATUS FspFsvolCreateSharingViolationWork(
         }
     }
 
-    Result = FspOplockBreakH(FspFileNodeAddrOfOplock(FileNode), Irp, 0,
-        &Event, FspFsvolCreateSharingViolationOplockComplete, 0);
-    if (STATUS_PENDING == Result)
+    if (!FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED))
     {
-        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, 0);
-        if (STATUS_SUCCESS == Irp->IoStatus.Status)
-            StatusSharingViolation = FALSE;
+        Result = FspOplockBreakH(FspFileNodeAddrOfOplock(FileNode), Irp, 0,
+            &Event, FspFsvolCreateSharingViolationOplockComplete, 0);
+        if (STATUS_PENDING == Result)
+        {
+            KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, 0);
+            if (STATUS_SUCCESS == Irp->IoStatus.Status)
+                StatusSharingViolation = FALSE;
+        }
     }
 
 exit:
@@ -1081,13 +1084,14 @@ exit:
 
     if (StatusSharingViolation)
     {
-        Response->IoStatus.Status = (UINT32)STATUS_SHARING_VIOLATION;
-        Response->IoStatus.Information = OpbatchBreakUnderway ? FILE_OPBATCH_BREAK_UNDERWAY : 0;
+        Irp->IoStatus.Information = OpbatchBreakUnderway ? FILE_OPBATCH_BREAK_UNDERWAY : 0;
+        return STATUS_SHARING_VIOLATION;
     }
-
-    FspIopRetryCompleteIrp(Irp, Response, &Result);
-
-    return Result;
+    else
+    {
+        FspIopRetryCompleteIrp(Irp, Response, &Result);
+        return Result;
+    }
 }
 
 static VOID FspFsvolCreateSharingViolationOplockComplete(
