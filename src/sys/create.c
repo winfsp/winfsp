@@ -35,6 +35,12 @@ static NTSTATUS FspFsvolCreateSharingViolationWork(
     BOOLEAN CanWait);
 static VOID FspFsvolCreateSharingViolationOplockComplete(
     PVOID Context, PIRP Irp);
+static BOOLEAN FspFsvolCreateCheckOplock(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
+    PNTSTATUS PResult);
+static VOID FspFsvolCreateCheckOplockPrepare(
+    PVOID Context, PIRP Irp);
+static VOID FspFsvolCreateCheckOplockComplete(
+    PVOID Context, PIRP Irp);
 static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
     FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject,
     BOOLEAN FlushImage);
@@ -51,10 +57,13 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreateNoLock)
 #pragma alloc_text(PAGE, FspFsvolCreatePrepare)
 #pragma alloc_text(PAGE, FspFsvolCreateComplete)
-#pragma alloc_text(PAGE, FspFsvolCreateTryOpen)
 #pragma alloc_text(PAGE, FspFsvolCreateSharingViolation)
 #pragma alloc_text(PAGE, FspFsvolCreateSharingViolationWork)
 #pragma alloc_text(PAGE, FspFsvolCreateSharingViolationOplockComplete)
+#pragma alloc_text(PAGE, FspFsvolCreateCheckOplock)
+#pragma alloc_text(PAGE, FspFsvolCreateCheckOplockPrepare)
+#pragma alloc_text(PAGE, FspFsvolCreateCheckOplockComplete)
+#pragma alloc_text(PAGE, FspFsvolCreateTryOpen)
 #pragma alloc_text(PAGE, FspFsvolCreatePostClose)
 #pragma alloc_text(PAGE, FspFsvolCreateRequestFini)
 #pragma alloc_text(PAGE, FspFsvolCreateTryOpenRequestFini)
@@ -582,9 +591,18 @@ NTSTATUS FspFsvolCreatePrepare(
         FileObject = FspIopRequestContext(Request, RequestFileObject);
 
         /* lock the FileNode for overwriting */
-        Success = DEBUGTEST(90) && FspFileNodeTryAcquireExclusive(FileNode, Full);
+        Result = STATUS_SUCCESS;
+        Success = DEBUGTEST(90) &&
+            FspFileNodeTryAcquireExclusive(FileNode, Full) &&
+            FspFsvolCreateCheckOplock(Irp, 0, &Result);
         if (!Success)
         {
+            if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
+            {
+                FspFileNodeRelease(FileNode, Full);
+                return Result;
+            }
+
             FspIopRetryPrepareIrp(Irp, &Result);
             return Result;
         }
@@ -1017,11 +1035,11 @@ static NTSTATUS FspFsvolCreateSharingViolationWork(
      * the user mode file system that may have a limited number of threads to service
      * file system requests.
      *
-     * Second we want a way to differentiate the case between an oplock break being
+     * Second we want a way to differentiate the case between an oplock broken or
      * underway and no oplock needed. Unfortunately this only seems possible when a
      * completion routine is set in FsRtlCheckOplock and FsRtlOplockBreakH. In this
      * case we get STATUS_PENDING when there is an oplock to be broken and
-     * STATUS_SUCCESS where there is not one.
+     * STATUS_SUCCESS when there is not one.
      *
      * Third notice that by default we must return STATUS_SHARING_VIOLATION, because
      * the share access check failed. The only case that we will completely retry is
@@ -1102,6 +1120,86 @@ static VOID FspFsvolCreateSharingViolationOplockComplete(
     KeSetEvent((PKEVENT)Context, FSP_IO_INCREMENT, FALSE);
 }
 
+static BOOLEAN FspFsvolCreateCheckOplock(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
+    PNTSTATUS PResult)
+{
+    PAGED_CODE();
+
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->DeviceObject;
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    BOOLEAN OpenRequiringOplock, CheckOplock;
+    ULONG OplockCount = 0;
+    NTSTATUS Result;
+
+    Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
+        OPLOCK_FLAG_OPLOCK_KEY_CHECK_ONLY, 0, 0, 0);
+    if (!NT_SUCCESS(Result))
+    {
+        *PResult = Result;
+        return FALSE;
+    }
+
+    OpenRequiringOplock = BooleanFlagOn(IrpSp->Parameters.Create.Options,
+        FILE_OPEN_REQUIRING_OPLOCK);
+    CheckOplock = FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(FileNode));
+    if (OpenRequiringOplock || !CheckOplock)
+    {
+        FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+        OplockCount = FileNode->HandleCount;
+        FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+        CheckOplock = CheckOplock || 1 < OplockCount;
+    }
+
+    if (CheckOplock)
+    {
+        Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
+            (PVOID)Response, FspFsvolCreateCheckOplockComplete, FspFsvolCreateCheckOplockPrepare);
+        if (STATUS_PENDING == Result)
+        {
+            *PResult = Result;
+            return FALSE;
+        }
+    }
+
+    if (OpenRequiringOplock && STATUS_SUCCESS == Result)
+        Result = FspOplockFsctrlCreate(FspFileNodeAddrOfOplock(FileNode), Irp, OplockCount);
+
+    if (STATUS_SUCCESS != Result &&
+        STATUS_OPLOCK_BREAK_IN_PROGRESS != Result)
+    {
+        *PResult = Result;
+        return FALSE;
+    }
+
+    *PResult = STATUS_SUCCESS;
+    return TRUE;
+}
+
+static VOID FspFsvolCreateCheckOplockPrepare(
+    PVOID Context, PIRP Irp)
+{
+    PAGED_CODE();
+
+    if (0 != Context)
+        FspIopSetIrpResponse(Irp, Context);
+}
+
+static VOID FspFsvolCreateCheckOplockComplete(
+    PVOID Context, PIRP Irp)
+{
+    PAGED_CODE();
+
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    NTSTATUS Result;
+
+    if (FspFsctlTransactOverwriteKind == Request->Kind)
+        FspIopRetryPrepareIrp(Irp, &Result);
+    else if (FspFsctlTransactReservedKind == Request->Kind)
+        FspIopRetryCompleteIrp(Irp, Context, &Result);
+}
+
 static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
     FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject,
     BOOLEAN FlushImage)
@@ -1109,34 +1207,40 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     PAGED_CODE();
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    NTSTATUS Result;
     BOOLEAN Success;
 
-    Success = DEBUGTEST(90) && FspFileNodeTryAcquireExclusive(FileNode, Main);
+    if (FspFsctlTransactCreateKind == Request->Kind)
+    {
+        PVOID RequestDeviceObjectValue = FspIopRequestContext(Request, RequestDeviceObject);
+
+        /* disassociate the FileDesc momentarily from the Request */
+        Request = FspIrpRequest(Irp);
+        FspIopRequestContext(Request, RequestDeviceObject) = 0;
+        FspIopRequestContext(Request, RequestFileDesc) = 0;
+
+        /* reset the Request and reassociate the FileDesc and FileObject with it */
+        Request->Kind = FspFsctlTransactReservedKind;
+        FspIopResetRequest(Request, FspFsvolCreateTryOpenRequestFini);
+        FspIopRequestContext(Request, RequestDeviceObject) = RequestDeviceObjectValue;
+        FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
+        FspIopRequestContext(Request, RequestFileObject) = FileObject;
+        FspIopRequestContext(Request, RequestState) = (PVOID)(UINT_PTR)FlushImage;
+    }
+
+    Result = STATUS_SUCCESS;
+    Success = DEBUGTEST(90) &&
+        FspFileNodeTryAcquireExclusive(FileNode, Main) &&
+        FspFsvolCreateCheckOplock(Irp, Response, &Result);
     if (!Success)
     {
-        /* repost the IRP to retry later */
-        NTSTATUS Result;
-
-        if (FspFsctlTransactCreateKind == Request->Kind)
+        if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
         {
-            PVOID RequestDeviceObjectValue = FspIopRequestContext(Request, RequestDeviceObject);
-
-            /* disassociate the FileDesc momentarily from the Request */
-            Request = FspIrpRequest(Irp);
-            FspIopRequestContext(Request, RequestDeviceObject) = 0;
-            FspIopRequestContext(Request, RequestFileDesc) = 0;
-
-            /* reset the Request and reassociate the FileDesc and FileObject with it */
-            Request->Kind = FspFsctlTransactReservedKind;
-            FspIopResetRequest(Request, FspFsvolCreateTryOpenRequestFini);
-            FspIopRequestContext(Request, RequestDeviceObject) = RequestDeviceObjectValue;
-            FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
-            FspIopRequestContext(Request, RequestFileObject) = FileObject;
-            FspIopRequestContext(Request, RequestState) = (PVOID)(UINT_PTR)FlushImage;
+            FspFileNodeRelease(FileNode, Main);
+            return Result;
         }
 
         FspIopRetryCompleteIrp(Irp, Response, &Result);
-
         return Result;
     }
 
