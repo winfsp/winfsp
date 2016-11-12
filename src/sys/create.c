@@ -1335,14 +1335,18 @@ static BOOLEAN FspFsvolCreateCheckOplock(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP 
 
     OpenRequiringOplock = BooleanFlagOn(IrpSp->Parameters.Create.Options,
         FILE_OPEN_REQUIRING_OPLOCK);
-    CheckOplock = FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(FileNode));
-    if (OpenRequiringOplock || !CheckOplock)
+    CheckOplock = FALSE;
+
+    if (OpenRequiringOplock)
     {
         FspFsvolDeviceLockContextTable(FsvolDeviceObject);
         OplockCount = FileNode->HandleCount;
         FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
-        CheckOplock = CheckOplock || 1 < OplockCount;
+
+        CheckOplock = 1 < OplockCount;
     }
+
+    CheckOplock = CheckOplock || FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(FileNode));
 
     if (CheckOplock)
     {
@@ -1389,7 +1393,7 @@ static VOID FspFsvolCreateCheckOplockComplete(
     if (FspFsctlTransactOverwriteKind == Request->Kind)
         FspIopRetryPrepareIrp(Irp, &Result);
     else if (FspFsctlTransactReservedKind == Request->Kind)
-        FspIopRetryCompleteIrp(Irp, Context, &Result);
+        FspIopRetryCompleteIrp(Irp, FspIopIrpResponse(Irp), &Result);
 }
 
 NTSTATUS FspCreate(
