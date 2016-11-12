@@ -116,6 +116,15 @@ static NTSTATUS FspFsvolReadCached(
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolReadCached, 0);
 
+    /* perform oplock check */
+    Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
+        (PVOID)(UINT_PTR)FspFsvolReadCached, FspWqOplockComplete, FspWqOplockPrepare);
+    if (STATUS_PENDING == Result)
+    {
+        FspFileNodeRelease(FileNode, Main);
+        return Result;
+    }
+
     /* check the file locks */
     if (!FsRtlCheckLockForReadAccess(&FileNode->FileLock, Irp))
     {
@@ -235,6 +244,18 @@ static NTSTATUS FspFsvolReadNonCached(
         FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolReadNonCached, 0);
+
+    /* perform oplock check */
+    if (!PagingIo)
+    {
+        Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
+            (PVOID)(UINT_PTR)FspFsvolReadNonCached, FspWqOplockComplete, FspWqOplockPrepare);
+        if (STATUS_PENDING == Result)
+        {
+            FspFileNodeRelease(FileNode, Full);
+            return Result;
+        }
+    }
 
     /* check the file locks */
     if (!PagingIo && !FsRtlCheckLockForReadAccess(&FileNode->FileLock, Irp))
