@@ -62,11 +62,10 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     FSP_FSCTL_TRANSACT_REQ_WORK_ITEM *RequestWorkItem;
+    NTSTATUS Result;
 
     if (0 == Request)
     {
-        NTSTATUS Result;
-
         Result = FspWqPrepareIrpWorkItem(Irp);
         if (!NT_SUCCESS(Result))
             return Result;
@@ -79,21 +78,19 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
         RequestWorkItem->WorkRoutine = WorkRoutine;
         ExInitializeWorkItem(&RequestWorkItem->WorkQueueItem, FspWqWorkRoutine, Irp);
     }
-    else
+    else if (0 == FspIopRequestWorkItem(Request))
     {
+        Result = FspWqPrepareIrpWorkItem(Irp);
+        if (!NT_SUCCESS(Result))
+            return Result;
+
+        Result = FspIopCreateRequestWorkItem(Request);
+        if (!NT_SUCCESS(Result))
+            return Result;
+
         RequestWorkItem = FspIopRequestWorkItem(Request);
-        if (0 == RequestWorkItem)
-        {
-            NTSTATUS Result;
-
-            Result = FspIopCreateRequestWorkItem(Request);
-            if (!NT_SUCCESS(Result))
-                return Result;
-
-            RequestWorkItem = FspIopRequestWorkItem(Request);
-            RequestWorkItem->WorkRoutine = WorkRoutine;
-            ExInitializeWorkItem(&RequestWorkItem->WorkQueueItem, FspWqWorkRoutine, Irp);
-        }
+        RequestWorkItem->WorkRoutine = WorkRoutine;
+        ExInitializeWorkItem(&RequestWorkItem->WorkQueueItem, FspWqWorkRoutine, Irp);
     }
 
     if (!CreateAndPost)
