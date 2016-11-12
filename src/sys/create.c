@@ -1156,10 +1156,15 @@ static VOID FspFsvolCreateTryOpenRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PV
     PDEVICE_OBJECT FsvolDeviceObject = Context[RequestDeviceObject];
     FSP_FILE_DESC *FileDesc = Context[RequestFileDesc];
     PFILE_OBJECT FileObject = Context[RequestFileObject];
+    PIRP OplockIrp = FspIopRequestContext(Request, FspIopRequestExtraContext);
 
     if (0 != FileDesc)
     {
         ASSERT(0 != FileObject);
+
+        if (OplockIrp)
+            FspCheckOplockEx(FspFileNodeAddrOfOplock(FileDesc->FileNode), OplockIrp,
+                OPLOCK_FLAG_BACK_OUT_ATOMIC_OPLOCK, 0, 0, 0);
 
         FspFsvolCreatePostClose(FileDesc);
         FspFileNodeClose(FileDesc->FileNode, FileObject, TRUE);
@@ -1179,6 +1184,7 @@ static VOID FspFsvolCreateOverwriteRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, 
     FSP_FILE_DESC *FileDesc = Context[RequestFileDesc];
     PFILE_OBJECT FileObject = Context[RequestFileObject];
     ULONG State = (ULONG)(UINT_PTR)Context[RequestState];
+    PIRP OplockIrp = FspIopRequestContext(Request, FspIopRequestExtraContext);
 
     if (0 != FileDesc)
     {
@@ -1188,6 +1194,10 @@ static VOID FspFsvolCreateOverwriteRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, 
             FspFsvolCreatePostClose(FileDesc);
         else if (RequestProcessing == State)
             FspFileNodeReleaseOwner(FileDesc->FileNode, Full, Request);
+
+        if (OplockIrp)
+            FspCheckOplockEx(FspFileNodeAddrOfOplock(FileDesc->FileNode), OplockIrp,
+                OPLOCK_FLAG_BACK_OUT_ATOMIC_OPLOCK, 0, 0, 0);
 
         FspFileNodeClose(FileDesc->FileNode, FileObject, TRUE);
         FspFileNodeDereference(FileDesc->FileNode);
@@ -1299,7 +1309,13 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
 
         Response = FspIopIrpResponse(Irp);
 
-        if (!NT_SUCCESS(Result))
+        if (NT_SUCCESS(Result))
+        {
+            FspFileNodeClose(FileNode, 0, TRUE);
+            FspFileNodeDereference(FileNode);
+            FspIopRequestContext(Request, FspIopRequestExtraContext) = 0;
+        }
+        else
         {
             Response->IoStatus.Status = (UINT32)Result;
             Response->IoStatus.Information =
@@ -1365,6 +1381,9 @@ static BOOLEAN FspFsvolCreateOpenOrOverwiteOplock(PIRP Irp, const FSP_FSCTL_TRAN
     {
         Result = FspOplockFsctrlCreate(FspFileNodeAddrOfOplock(FileNode), Irp, OplockCount);
         ASSERT(STATUS_PENDING != Result);
+
+        if (STATUS_SUCCESS == Result)
+            FspIopRequestContext(FspIrpRequest(Irp), FspIopRequestExtraContext) = Irp;
     }
 
     if (STATUS_SUCCESS != Result &&
