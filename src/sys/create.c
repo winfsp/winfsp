@@ -1293,7 +1293,7 @@ static NTSTATUS FspFsvolCreateSharingViolationCheckOplock(
         }
 
 #if 0
-        exit:
+    exit:
 #endif
         FspFileNodeRelease(FileNode, Main);
 
