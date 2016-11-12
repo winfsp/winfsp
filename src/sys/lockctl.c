@@ -49,6 +49,14 @@ static NTSTATUS FspFsvolLockControlRetry(
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolLockControlRetry, 0);
 
+    /* perform oplock check; we are only implementing Win7 behavior */
+    Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp, 0, 0, 0);
+    if (!NT_SUCCESS(Result))
+    {
+        FspFileNodeRelease(FileNode);
+        return Result;
+    }
+
     /* let the FSRTL package handle this one! */
     Result = FspFileNodeProcessLockIrp(FileNode, Irp);
 
