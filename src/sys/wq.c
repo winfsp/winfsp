@@ -176,7 +176,10 @@ VOID FspWqOplockPrepare(PVOID Context, PIRP Irp)
 
     NTSTATUS Result;
 
-    Result = FspWqPrepareIrpWorkItem(Irp);
+    FSP_FSCTL_STATIC_ASSERT(sizeof(PVOID) == sizeof(VOID (*)(VOID)),
+        "Data and code pointers must have same size!");
+
+    Result = FspWqCreateAndPostIrpWorkItem(Irp, (FSP_IOP_REQUEST_WORK *)(UINT_PTR)Context, 0, TRUE);
     if (!NT_SUCCESS(Result))
         /*
          * Only way to communicate failure is through ExRaiseStatus.
