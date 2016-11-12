@@ -796,6 +796,8 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
     FSP_IOP_REQUEST_WORK *WorkRoutine, FSP_IOP_REQUEST_FINI *RequestFini,
     BOOLEAN CreateAndPost);
 VOID FspWqPostIrpWorkItem(PIRP Irp);
+VOID FspWqOplockPrepare(PVOID Context, PIRP Irp);
+VOID FspWqOplockComplete(PVOID Context, PIRP Irp);
 #define FspWqCreateIrpWorkItem(I, RW, RF)\
     FspWqCreateAndPostIrpWorkItem(I, RW, RF, FALSE)
 #define FspWqRepostIrpWorkItem(I, RW, RF)\
