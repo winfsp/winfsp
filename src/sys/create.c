@@ -35,13 +35,9 @@ static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc);
 static FSP_IOP_REQUEST_FINI FspFsvolCreateRequestFini;
 static FSP_IOP_REQUEST_FINI FspFsvolCreateTryOpenRequestFini;
 static FSP_IOP_REQUEST_FINI FspFsvolCreateOverwriteRequestFini;
-static NTSTATUS FspFsvolCreateSharingViolation(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response, FSP_FILE_NODE *FileNode);
-static NTSTATUS FspFsvolCreateSharingViolationWork(
+static NTSTATUS FspFsvolCreateSharingViolationCheckOplock(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
     BOOLEAN CanWait);
-static VOID FspFsvolCreateSharingViolationOplockComplete(
-    PVOID Context, PIRP Irp);
 static BOOLEAN FspFsvolCreateCheckOplock(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
     PNTSTATUS PResult);
 static VOID FspFsvolCreateCheckOplockPrepare(
@@ -62,9 +58,7 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreateRequestFini)
 #pragma alloc_text(PAGE, FspFsvolCreateTryOpenRequestFini)
 #pragma alloc_text(PAGE, FspFsvolCreateOverwriteRequestFini)
-#pragma alloc_text(PAGE, FspFsvolCreateSharingViolation)
-#pragma alloc_text(PAGE, FspFsvolCreateSharingViolationWork)
-#pragma alloc_text(PAGE, FspFsvolCreateSharingViolationOplockComplete)
+#pragma alloc_text(PAGE, FspFsvolCreateSharingViolationCheckOplock)
 #pragma alloc_text(PAGE, FspFsvolCreateCheckOplock)
 #pragma alloc_text(PAGE, FspFsvolCreateCheckOplockPrepare)
 #pragma alloc_text(PAGE, FspFsvolCreateCheckOplockComplete)
@@ -848,15 +842,13 @@ NTSTATUS FspFsvolCreateComplete(
         {
             if (STATUS_SHARING_VIOLATION == Result)
             {
-                Result = FspFsvolCreateSharingViolation(Irp, Response, OpenedFileNode);
-                if (STATUS_PENDING != Result)
-                {
-                    FspFileNodeClose(OpenedFileNode, 0, TRUE);
-                    FspFileNodeDereference(OpenedFileNode);
-                    Result = STATUS_SHARING_VIOLATION;
-                }
+                FspIopSetIrpResponse(Irp, Response);
+                FspIopRequestContext(Request, FspIopRequestExtraContext) = FileNode;
 
                 Irp->IoStatus.Information = 0;
+                Result = FspFsvolCreateSharingViolationCheckOplock(
+                    FsvolDeviceObject, Irp, IrpSp, FALSE);
+
                 FSP_RETURN();
             }
 
@@ -1115,6 +1107,13 @@ static VOID FspFsvolCreateRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Con
     FSP_FILE_DESC *FileDesc = Context[RequestFileDesc];
     HANDLE AccessToken = Context[RequestAccessToken];
     PEPROCESS Process = Context[RequestProcess];
+    FSP_FILE_NODE *ExtraFileNode = FspIopRequestContext(Request, FspIopRequestExtraContext);
+
+    if (0 != ExtraFileNode)
+    {
+        FspFileNodeClose(ExtraFileNode, 0, TRUE);
+        FspFileNodeDereference(ExtraFileNode);
+    }
 
     if (0 != FileDesc)
     {
@@ -1199,127 +1198,118 @@ static VOID FspFsvolCreateOverwriteRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, 
         FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject, Request);
 }
 
-static NTSTATUS FspFsvolCreateSharingViolation(
-    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response, FSP_FILE_NODE *FileNode)
-{
-    PAGED_CODE();
-
-    NTSTATUS Result;
-    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
-
-    FspIopSetIrpResponse(Irp, Response);
-    FspIopRequestContext(Request, FspIopRequestExtraContext) = FileNode;
-
-    Result = FspWqRepostIrpWorkItem(Irp,
-        FspFsvolCreateSharingViolationWork, FspFsvolCreateRequestFini);
-    if (!NT_SUCCESS(Result))
-    {
-        FspIopRequestContext(Request, FspIopRequestExtraContext) = 0;
-        return STATUS_SHARING_VIOLATION;
-    }
-
-    return STATUS_PENDING;
-}
-
-static NTSTATUS FspFsvolCreateSharingViolationWork(
-    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+static NTSTATUS FspFsvolCreateSharingViolationCheckOplock(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
     BOOLEAN CanWait)
 {
     PAGED_CODE();
 
     /*
      * Perform oplock checks in the case that we received STATUS_SHARING_VIOLATION.
-     * The logic below is quite tortured, because it tries to mimic what FastFat
-     * does in Win7. Here is an explanation.
+     * The logic below is rather tortured, because it tries to mimic what FastFat
+     * does in Win7 when a sharing violation happens. Here is an explanation.
      *
-     * First notice that this is run in a work thread. So it is assumed that we can
-     * block here. We cannot block in the completion thread, because it belongs to
-     * the user mode file system that may have a limited number of threads to service
-     * file system requests.
+     * When this routine first gets called the CanWait parameter is FALSE. This is
+     * because it gets called in the context of a completion thread, which belongs
+     * to the user mode file system. This means that we cannot block this thread
+     * because the user mode file system may have a limited number of threads to
+     * service file system requests.
      *
-     * Second we want a way to differentiate the case between an oplock broken or
-     * underway and no oplock needed. Unfortunately this only seems possible when a
-     * completion routine is set in FsRtlCheckOplock and FsRtlOplockBreakH. In this
-     * case we get STATUS_PENDING when there is an oplock to be broken and
-     * STATUS_SUCCESS when there is not one.
+     * When CanWait is FALSE the routine checks whether there are any oplocks on
+     * this file. If there are none it simply returns STATUS_SHARING_VIOLATION.
+     * Otherwise it posts a work item so that the routine can be executed in the
+     * context of a worker thread. When executed in the context of a worker thread
+     * the CanWait parameter is TRUE.
      *
-     * Third notice that by default we must return STATUS_SHARING_VIOLATION, because
-     * the share access check failed. The only case that we will completely retry is
-     * when FspRtlOplockBreakH returns STATUS_PENDING.
+     * When CanWait is TRUE the routine is free to wait for any oplocks breaks. We
+     * try to break both batch and CACHE_HANDLE_LEVEL oplocks and return the
+     * appropriate status code.
      *
-     * So in a nutshell, this routine emulates what happens with FastFat during
-     * STATUS_SHARING_VIOLATION processing. However FastFat tries to break batch
-     * oplocks before the share access check. Unfortunately this is hard to do in
-     * this FSD, so we have to emulate this behavior.
+     * We acquire the FileNode shared so allow oplock breaks to happen concurrently.
+     * See https://www.osronline.com/showthread.cfm?link=248984
      */
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
-    FSP_FSCTL_TRANSACT_RSP *Response = FspIopIrpResponse(Irp);
+    FSP_FSCTL_TRANSACT_RSP *Response;
     FSP_FILE_NODE *FileNode = FspIopRequestContext(Request, FspIopRequestExtraContext);
-    BOOLEAN StatusSharingViolation = TRUE, OpbatchBreakUnderway = FALSE;
-    KEVENT Event;
+    BOOLEAN OpbatchBreakUnderway = FALSE;
     NTSTATUS Result;
+    BOOLEAN Success;
 
-    FspFileNodeAcquireShared(FileNode, Main);
+    Success = DEBUGTEST(90) &&
+        FspFileNodeTryAcquireSharedF(FileNode, FspFileNodeAcquireMain, CanWait);
+    if (!Success)
+        return FspWqRepostIrpWorkItem(Irp,
+            FspFsvolCreateSharingViolationCheckOplock, FspFsvolCreateRequestFini);
 
-    Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
-        OPLOCK_FLAG_OPLOCK_KEY_CHECK_ONLY, 0, 0, 0);
-    if (!NT_SUCCESS(Result))
-        goto exit;
-
-    KeInitializeEvent(&Event, NotificationEvent, FALSE);
-
-    if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(FileNode)))
+    if (!CanWait)
     {
-        Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
-            &Event, FspFsvolCreateSharingViolationOplockComplete, 0);
-        if (STATUS_PENDING == Result)
-        {
-            KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, 0);
-            if (STATUS_SUCCESS == Irp->IoStatus.Status)
-                OpbatchBreakUnderway = TRUE;
+        /*
+         * If there is no batch or CACHE_HANDLE_LEVEL oplock we are done;
+         * else retry in a worker thread to break the oplocks.
+         */
+        Success = !FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(FileNode)) &&
+            (FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) ||
+                !FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(FileNode)));
 
-            KeResetEvent(&Event);
-        }
-    }
+        FspFileNodeRelease(FileNode, Main);
 
-    if (!FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED))
-    {
-        Result = FspOplockBreakH(FspFileNodeAddrOfOplock(FileNode), Irp, 0,
-            &Event, FspFsvolCreateSharingViolationOplockComplete, 0);
-        if (STATUS_PENDING == Result)
-        {
-            KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, 0);
-            if (STATUS_SUCCESS == Irp->IoStatus.Status)
-                StatusSharingViolation = FALSE;
-        }
-    }
+        if (!Success)
+            return FspWqRepostIrpWorkItem(Irp,
+                FspFsvolCreateSharingViolationCheckOplock, FspFsvolCreateRequestFini);
 
-exit:
-    FspFileNodeRelease(FileNode, Main);
-
-    FspFileNodeClose(FileNode, 0, TRUE);
-    FspFileNodeDereference(FileNode);
-    FspIopRequestContext(Request, FspIopRequestExtraContext) = 0;
-
-    if (StatusSharingViolation)
-    {
-        Irp->IoStatus.Information = OpbatchBreakUnderway ? FILE_OPBATCH_BREAK_UNDERWAY : 0;
         return STATUS_SHARING_VIOLATION;
     }
     else
     {
+#if 0
+        /* ???: is this needed in this case? */
+        Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
+            OPLOCK_FLAG_OPLOCK_KEY_CHECK_ONLY, 0, 0, 0);
+        if (!NT_SUCCESS(Result))
+        {
+            Result = STATUS_SHARING_VIOLATION;
+            goto exit;
+        }
+#endif
+
+        if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(FileNode)))
+        {
+            /* wait for batch oplock break to complete */
+            Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
+                0, 0, 0);
+            if (STATUS_SUCCESS == Result)
+                OpbatchBreakUnderway = TRUE;
+        }
+
+        Result = STATUS_SHARING_VIOLATION;
+
+        if (!FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) &&
+            FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(FileNode)))
+        {
+            /* wait for CACHE_HANDLE_LEVEL oplock break to complete */
+            Result = FspOplockBreakH(FspFileNodeAddrOfOplock(FileNode), Irp,
+                0, 0, 0, 0);
+        }
+
+#if 0
+        exit:
+#endif
+        FspFileNodeRelease(FileNode, Main);
+
+        Response = FspIopIrpResponse(Irp);
+
+        if (!NT_SUCCESS(Result))
+        {
+            Response->IoStatus.Status = (UINT32)Result;
+            Response->IoStatus.Information =
+                STATUS_SHARING_VIOLATION == Result && OpbatchBreakUnderway ?
+                    FILE_OPBATCH_BREAK_UNDERWAY : 0;
+        }
+
         FspIopRetryCompleteIrp(Irp, Response, &Result);
         return Result;
     }
-}
-
-static VOID FspFsvolCreateSharingViolationOplockComplete(
-    PVOID Context, PIRP Irp)
-{
-    PAGED_CODE();
-
-    KeSetEvent((PKEVENT)Context, FSP_IO_INCREMENT, FALSE);
 }
 
 static BOOLEAN FspFsvolCreateCheckOplock(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
