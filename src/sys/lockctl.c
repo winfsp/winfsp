@@ -52,7 +52,7 @@ static NTSTATUS FspFsvolLockControlRetry(
     /* perform oplock check; we are only implementing Win7 behavior */
     Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
         (PVOID)(UINT_PTR)FspFsvolLockControlRetry, FspWqOplockComplete, FspWqOplockPrepare);
-    if (STATUS_PENDING == Result)
+    if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
     {
         FspFileNodeRelease(FileNode, Main);
         return Result;

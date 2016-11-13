@@ -143,7 +143,7 @@ static NTSTATUS FspFsvolWriteCached(
     /* perform oplock check */
     Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
         (PVOID)(UINT_PTR)FspFsvolWriteCached, FspWqOplockComplete, FspWqOplockPrepare);
-    if (STATUS_PENDING == Result)
+    if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
     {
         FspFileNodeRelease(FileNode, Main);
         return Result;
@@ -320,7 +320,7 @@ static NTSTATUS FspFsvolWriteNonCached(
     {
         Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
             (PVOID)(UINT_PTR)FspFsvolWriteNonCached, FspWqOplockComplete, FspWqOplockPrepare);
-        if (STATUS_PENDING == Result)
+        if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
         {
             FspFileNodeRelease(FileNode, Full);
             return Result;
