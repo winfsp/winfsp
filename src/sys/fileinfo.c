@@ -1050,10 +1050,36 @@ static NTSTATUS FspFsvolSetDispositionInformation(
         /* cannot delete root directory */
         return STATUS_CANNOT_DELETE;
 
+retry:
     FspFileNodeAcquireExclusive(FileNode, Full);
 
     if (Info->DeleteFile)
     {
+        /*
+         * Perform oplock check.
+         *
+         * It is ok to block our thread during receipt of the SetInformation IRP.
+         * However we cannot acquire the FileNode exclusive and wait for oplock
+         * breaks to complete, because oplock break processing acquires the FileNode
+         * shared.
+         *
+         * Instead we initiate the oplock breaks and then check if any are in progress.
+         * If that is the case we release the FileNode and wait for the oplock breaks
+         * to complete. Once they are complete we retry the whole thing.
+         */
+        Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
+            OPLOCK_FLAG_COMPLETE_IF_OPLOCKED, 0, 0, 0);
+        if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result)
+        {
+            FspFileNodeRelease(FileNode, Full);
+            Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp, 0, 0, 0);
+            if (!NT_SUCCESS(Result))
+                return Result;
+            goto retry;
+        }
+        if (!NT_SUCCESS(Result))
+            goto unlock_exit;
+
         /* make sure no process is mapping the file as an image */
         Success = MmFlushImageSection(FileObject->SectionObjectPointer, MmFlushForDelete);
         if (!Success)
@@ -1159,8 +1185,35 @@ static NTSTATUS FspFsvolSetRenameInformation(
         ASSERT(TargetFileNode->IsDirectory);
     }
 
+retry:
     FspFsvolDeviceFileRenameAcquireExclusive(FsvolDeviceObject);
     FspFileNodeAcquireExclusive(FileNode, Full);
+
+    /*
+     * Perform oplock check.
+     *
+     * It is ok to block our thread during receipt of the SetInformation IRP.
+     * However we cannot acquire the FileNode exclusive and wait for oplock
+     * breaks to complete, because oplock break processing acquires the FileNode
+     * shared.
+     *
+     * Instead we initiate the oplock breaks and then check if any are in progress.
+     * If that is the case we release the FileNode and wait for the oplock breaks
+     * to complete. Once they are complete we retry the whole thing.
+     */
+    Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
+        OPLOCK_FLAG_COMPLETE_IF_OPLOCKED, 0, 0, 0);
+    if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result)
+    {
+        FspFileNodeRelease(FileNode, Full);
+        FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
+        Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp, 0, 0, 0);
+        if (!NT_SUCCESS(Result))
+            return Result;
+        goto retry;
+    }
+    if (!NT_SUCCESS(Result))
+        goto unlock_exit;
 
     if (0 != TargetFileNode)
         Remain = TargetFileNode->FileName;
@@ -1355,16 +1408,52 @@ static NTSTATUS FspFsvolSetInformation(
 
     ASSERT(FileNode == FileDesc->FileNode);
 
+    FspFileNodeAcquireExclusive(FileNode, Full);
+
+    if (FileAllocationInformation == FileInformationClass ||
+        FileEndOfFileInformation == FileInformationClass)
+    {
+        /*
+         * Perform oplock check.
+         *
+         * It is ok to block our thread during receipt of the SetInformation IRP.
+         * However we cannot acquire the FileNode exclusive and wait for oplock
+         * breaks to complete, because oplock break processing acquires the FileNode
+         * shared.
+         *
+         * Instead we initiate the oplock breaks and then check if any are in progress.
+         * If that is the case we release the FileNode and wait for the oplock breaks
+         * to complete. Once they are complete we retry the whole thing.
+         */
+        Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
+            OPLOCK_FLAG_COMPLETE_IF_OPLOCKED, 0, 0, 0);
+        if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result)
+        {
+            FspFileNodeRelease(FileNode, Full);
+            Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp, 0, 0, 0);
+            if (!NT_SUCCESS(Result))
+                return Result;
+            goto retry;
+        }
+        if (!NT_SUCCESS(Result))
+        {
+            FspFileNodeRelease(FileNode, Full);
+            return Result;
+        }
+    }
+
     Result = FspIopCreateRequestEx(Irp, 0, 0, FspFsvolSetInformationRequestFini, &Request);
     if (!NT_SUCCESS(Result))
+    {
+        FspFileNodeRelease(FileNode, Full);
         return Result;
+    }
 
     Request->Kind = FspFsctlTransactSetInformationKind;
     Request->Req.SetInformation.UserContext = FileNode->UserContext;
     Request->Req.SetInformation.UserContext2 = FileDesc->UserContext2;
     Request->Req.SetInformation.FileInformationClass = FileInformationClass;
 
-    FspFileNodeAcquireExclusive(FileNode, Full);
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestFileNode) = FileNode;
 
