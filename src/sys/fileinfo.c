@@ -1280,13 +1280,9 @@ retry:
      *     that has open handles (except in the batch-oplock case described earlier).
      */
     Result = STATUS_SUCCESS;
-    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
-    if (1 < FileNode->HandleCount ||
-        (FileNode->IsDirectory &&
-            FspFileNodeHasOpenHandles(FsvolDeviceObject, &FileNode->FileName, TRUE)) ||
-        FspFileNodeHasOpenHandles(FsvolDeviceObject, &NewFileName, FALSE))
+    if (!FspFileNodeRenameCheck(FsvolDeviceObject, Irp, FileNode, &FileNode->FileName) &&
+        !FspFileNodeRenameCheck(FsvolDeviceObject, Irp, 0, &NewFileName))
         Result = STATUS_ACCESS_DENIED;
-    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
     if (!NT_SUCCESS(Result))
         return Result;
 
@@ -1408,6 +1404,7 @@ static NTSTATUS FspFsvolSetInformation(
 
     ASSERT(FileNode == FileDesc->FileNode);
 
+retry:
     FspFileNodeAcquireExclusive(FileNode, Full);
 
     if (FileAllocationInformation == FileInformationClass ||

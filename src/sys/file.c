@@ -41,9 +41,9 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     BOOLEAN HandleCleanup);     /* TRUE to decrement handle count */
 NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     UINT64 FlushOffset64, ULONG FlushLength, BOOLEAN FlushAndPurge);
+BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp,
+    FSP_FILE_NODE *FileNode, PUNICODE_STRING FileName);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
-BOOLEAN FspFileNodeHasOpenHandles(PDEVICE_OBJECT FsvolDeviceObject,
-    PUNICODE_STRING FileName, BOOLEAN SubpathOnly);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
@@ -103,8 +103,8 @@ NTSTATUS FspMainFileClose(
 #pragma alloc_text(PAGE, FspFileNodeCleanupComplete)
 #pragma alloc_text(PAGE, FspFileNodeClose)
 #pragma alloc_text(PAGE, FspFileNodeFlushAndPurgeCache)
+#pragma alloc_text(PAGE, FspFileNodeRenameCheck)
 #pragma alloc_text(PAGE, FspFileNodeRename)
-#pragma alloc_text(PAGE, FspFileNodeHasOpenHandles)
 #pragma alloc_text(PAGE, FspFileNodeGetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeTryGetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeSetFileInfo)
@@ -833,6 +833,137 @@ NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     return IoStatus.Status;
 }
 
+BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp,
+    FSP_FILE_NODE *FileNode, PUNICODE_STRING FileName)
+{
+    PAGED_CODE();
+
+    FSP_FILE_NODE *DescendantFileNode;
+    FSP_FILE_NODE *DescendantFileNodeArray[16], **DescendantFileNodes;
+    ULONG DescendantFileNodeCount, DescendantFileNodeIndex;
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY RestartKey;
+    BOOLEAN SubpathOnly = 0 != FileNode;
+    BOOLEAN Success = TRUE;
+
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+
+    DescendantFileNodes = DescendantFileNodeArray;
+
+    if (0 != FileNode)
+    {
+        if (1 < FileNode->HandleCount)
+        {
+            Success = FALSE;
+            goto unlock_exit;
+        }
+
+        if (!FileNode->IsDirectory)
+            goto unlock_exit;
+    }
+
+    DescendantFileNodeCount = 0;
+    memset(&RestartKey, 0, sizeof RestartKey);
+    for (;;)
+    {
+        DescendantFileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject,
+            FileName, SubpathOnly, &RestartKey);
+        if (0 == DescendantFileNode)
+            break;
+
+        if (0 < DescendantFileNode->HandleCount)
+        {
+            if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(DescendantFileNode)) ||
+                FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(DescendantFileNode)))
+            {
+                if (ARRAYSIZE(DescendantFileNodeArray) > DescendantFileNodeCount)
+                    DescendantFileNodes[DescendantFileNodeCount] = DescendantFileNode;
+                DescendantFileNodeCount++;
+            }
+            else
+            {
+                Success = FALSE;
+                goto unlock_exit;
+            }
+        }
+    }
+
+    if (ARRAYSIZE(DescendantFileNodeArray) < DescendantFileNodeCount)
+    {
+        DescendantFileNodes = FspAllocMustSucceed(DescendantFileNodeCount * sizeof(FSP_FILE_NODE *));
+        DescendantFileNodeIndex = 0;
+        memset(&RestartKey, 0, sizeof RestartKey);
+        for (;;)
+        {
+            DescendantFileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject,
+                FileName, SubpathOnly, &RestartKey);
+            if (0 == DescendantFileNode)
+                break;
+
+            if (0 < DescendantFileNode->HandleCount)
+            {
+                if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(DescendantFileNode)) ||
+                    FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(DescendantFileNode)))
+                {
+                    DescendantFileNodes[DescendantFileNodeIndex] = DescendantFileNode;
+                    DescendantFileNodeIndex++;
+                    ASSERT(DescendantFileNodeCount >= DescendantFileNodeIndex);
+                }
+                else
+                {
+                    Success = FALSE;
+                    goto unlock_exit;
+                }
+            }
+        }
+
+        ASSERT(DescendantFileNodeCount == DescendantFileNodeIndex);
+    }
+
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    for (
+        DescendantFileNodeIndex = 0;
+        DescendantFileNodeCount > DescendantFileNodeIndex;
+        DescendantFileNodeIndex++)
+    {
+        DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
+
+        FspCheckOplock(FspFileNodeAddrOfOplock(DescendantFileNode), Irp, 0, 0, 0);
+    }
+
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+
+    memset(&RestartKey, 0, sizeof RestartKey);
+    for (;;)
+    {
+        DescendantFileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject,
+            FileName, SubpathOnly, &RestartKey);
+        if (0 == DescendantFileNode)
+            break;
+
+        if (0 < DescendantFileNode->HandleCount)
+        {
+            Success = FALSE;
+            goto unlock_exit;
+        }
+    }
+
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    if (DescendantFileNodeArray != DescendantFileNodes)
+        FspFree(DescendantFileNodes);
+
+    return Success;
+
+unlock_exit:
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    if (DescendantFileNodeArray != DescendantFileNodes)
+        FspFree(DescendantFileNodes);
+
+    return Success;
+}
+
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
 {
     /*
@@ -951,29 +1082,6 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
 
     if (DescendantFileNodeArray != DescendantFileNodes)
         FspFree(DescendantFileNodes);
-}
-
-BOOLEAN FspFileNodeHasOpenHandles(PDEVICE_OBJECT FsvolDeviceObject,
-    PUNICODE_STRING FileName, BOOLEAN SubpathOnly)
-{
-    /*
-     * The ContextByNameTable must be already locked.
-     */
-
-    PAGED_CODE();
-
-    FSP_FILE_NODE *FileNode;
-    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY RestartKey = { 0 };
-
-    for (;;)
-    {
-        FileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject, FileName, SubpathOnly,
-            &RestartKey);
-        if (0 == FileNode)
-            return FALSE;
-        if (0 < FileNode->HandleCount)
-            return TRUE;
-    }
 }
 
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo)
