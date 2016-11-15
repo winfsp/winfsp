@@ -1280,7 +1280,7 @@ retry:
      *     that has open handles (except in the batch-oplock case described earlier).
      */
     Result = STATUS_SUCCESS;
-    if (!FspFileNodeRenameCheck(FsvolDeviceObject, Irp, FileNode, &FileNode->FileName) &&
+    if (!FspFileNodeRenameCheck(FsvolDeviceObject, Irp, FileNode, &FileNode->FileName) ||
         !FspFileNodeRenameCheck(FsvolDeviceObject, Irp, 0, &NewFileName))
         Result = STATUS_ACCESS_DENIED;
     if (!NT_SUCCESS(Result))

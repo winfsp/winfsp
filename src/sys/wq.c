@@ -93,6 +93,9 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
         ExInitializeWorkItem(&RequestWorkItem->WorkQueueItem, FspWqWorkRoutine, Irp);
     }
 
+    ASSERT(RequestFini == ((FSP_FSCTL_TRANSACT_REQ_HEADER *)
+        ((PUINT8)Request - sizeof(FSP_FSCTL_TRANSACT_REQ_HEADER)))->RequestFini);
+
     if (!CreateAndPost)
         return STATUS_SUCCESS;
 
@@ -117,6 +120,7 @@ VOID FspWqPostIrpWorkItem(PIRP Irp)
     case IRP_MJ_WRITE:
     case IRP_MJ_DIRECTORY_CONTROL:
     case IRP_MJ_LOCK_CONTROL:
+        break;
     default:
         ASSERT(0);
         break;

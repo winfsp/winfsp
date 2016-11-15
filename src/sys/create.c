@@ -649,7 +649,8 @@ NTSTATUS FspFsvolCreateComplete(
         /* did the user-mode file system sent us a failure code? */
         if (!NT_SUCCESS(Response->IoStatus.Status))
         {
-            Irp->IoStatus.Information = 0;
+            Irp->IoStatus.Information = STATUS_SHARING_VIOLATION == Response->IoStatus.Status ?
+                Response->IoStatus.Information : 0;
             Result = Response->IoStatus.Status;
             FSP_RETURN();
         }
@@ -842,8 +843,10 @@ NTSTATUS FspFsvolCreateComplete(
         {
             if (STATUS_SHARING_VIOLATION == Result)
             {
+                ASSERT(0 != OpenedFileNode);
+
                 FspIopSetIrpResponse(Irp, Response);
-                FspIopRequestContext(Request, FspIopRequestExtraContext) = FileNode;
+                FspIopRequestContext(Request, FspIopRequestExtraContext) = OpenedFileNode;
 
                 Result = FspFsvolCreateSharingViolationOplock(
                     FsvolDeviceObject, Irp, IrpSp, FALSE);
@@ -1240,13 +1243,13 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     FSP_FSCTL_TRANSACT_RSP *Response;
-    FSP_FILE_NODE *FileNode = FspIopRequestContext(Request, FspIopRequestExtraContext);
+    FSP_FILE_NODE *ExtraFileNode = FspIopRequestContext(Request, FspIopRequestExtraContext);
     BOOLEAN OpbatchBreakUnderway = FALSE;
     NTSTATUS Result;
     BOOLEAN Success;
 
     Success = DEBUGTEST(90) &&
-        FspFileNodeTryAcquireSharedF(FileNode, FspFileNodeAcquireMain, CanWait);
+        FspFileNodeTryAcquireSharedF(ExtraFileNode, FspFileNodeAcquireMain, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp,
             FspFsvolCreateSharingViolationOplock, FspFsvolCreateRequestFini);
@@ -1257,11 +1260,11 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
          * If there is no batch or CACHE_HANDLE_LEVEL oplock we are done;
          * else retry in a worker thread to break the oplocks.
          */
-        Success = !FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(FileNode)) &&
+        Success = !FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(ExtraFileNode)) &&
             (FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) ||
-                !FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(FileNode)));
+                !FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(ExtraFileNode)));
 
-        FspFileNodeRelease(FileNode, Main);
+        FspFileNodeRelease(ExtraFileNode, Main);
 
         if (!Success)
             return FspWqRepostIrpWorkItem(Irp,
@@ -1274,7 +1277,7 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
     {
 #if 0
         /* ???: is this needed in this case? */
-        Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
+        Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(ExtraFileNode), Irp,
             OPLOCK_FLAG_OPLOCK_KEY_CHECK_ONLY, 0, 0, 0);
         if (!NT_SUCCESS(Result))
         {
@@ -1283,10 +1286,10 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
         }
 #endif
 
-        if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(FileNode)))
+        if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(ExtraFileNode)))
         {
             /* wait for batch oplock break to complete */
-            Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
+            Result = FspCheckOplock(FspFileNodeAddrOfOplock(ExtraFileNode), Irp,
                 0, 0, 0);
             if (STATUS_SUCCESS == Result)
                 OpbatchBreakUnderway = TRUE;
@@ -1295,24 +1298,24 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
         Result = STATUS_SHARING_VIOLATION;
 
         if (!FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) &&
-            FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(FileNode)))
+            FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(ExtraFileNode)))
         {
             /* wait for CACHE_HANDLE_LEVEL oplock break to complete */
-            Result = FspOplockBreakH(FspFileNodeAddrOfOplock(FileNode), Irp,
+            Result = FspOplockBreakH(FspFileNodeAddrOfOplock(ExtraFileNode), Irp,
                 0, 0, 0, 0);
         }
 
 #if 0
     exit:
 #endif
-        FspFileNodeRelease(FileNode, Main);
+        FspFileNodeRelease(ExtraFileNode, Main);
 
         Response = FspIopIrpResponse(Irp);
 
         if (NT_SUCCESS(Result))
         {
-            FspFileNodeClose(FileNode, 0, TRUE);
-            FspFileNodeDereference(FileNode);
+            FspFileNodeClose(ExtraFileNode, 0, TRUE);
+            FspFileNodeDereference(ExtraFileNode);
             FspIopRequestContext(Request, FspIopRequestExtraContext) = 0;
         }
         else

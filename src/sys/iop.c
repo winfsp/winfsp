@@ -164,6 +164,7 @@ NTSTATUS FspIopCreateRequestWorkItem(FSP_FSCTL_TRANSACT_REQ *Request)
             return STATUS_INSUFFICIENT_RESOURCES;
 
         RtlZeroMemory(RequestWorkItem, sizeof *RequestWorkItem);
+        RequestHeader->WorkItem = RequestWorkItem;
     }
 
     return STATUS_SUCCESS;

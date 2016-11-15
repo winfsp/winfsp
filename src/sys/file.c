@@ -41,7 +41,7 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     BOOLEAN HandleCleanup);     /* TRUE to decrement handle count */
 NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     UINT64 FlushOffset64, ULONG FlushLength, BOOLEAN FlushAndPurge);
-BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp,
+BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
     FSP_FILE_NODE *FileNode, PUNICODE_STRING FileName);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
@@ -493,6 +493,7 @@ NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
                 FlagOn(GrantedAccess,
                     FILE_EXECUTE | FILE_READ_DATA | FILE_WRITE_DATA | FILE_APPEND_DATA | DELETE))
             {
+                OpenedFileNode = FileNode->MainFileNode;
                 Result = STATUS_SHARING_VIOLATION;
                 goto exit;
             }
@@ -833,7 +834,7 @@ NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     return IoStatus.Status;
 }
 
-BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp,
+BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
     FSP_FILE_NODE *FileNode, PUNICODE_STRING FileName)
 {
     PAGED_CODE();
@@ -860,6 +861,8 @@ BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp,
     DescendantFileNodes = DescendantFileNodeArray;
     DescendantFileNodeCount = 0;
 
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+
     /* if we are checking the existing file name, do a quick check here */
     if (CheckingOldName)
     {
@@ -872,8 +875,6 @@ BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp,
 
         /* Note: when CheckingOldName==TRUE, the old FileNode is not included in enumerations below */
     }
-
-    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
     /* count descendant file nodes and try to gather them in a local array if possible */
     memset(&RestartKey, 0, sizeof RestartKey);
@@ -893,6 +894,12 @@ BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp,
             DescendantFileNodes[DescendantFileNodeCount] =
                 (PVOID)((UINT_PTR)DescendantFileNode | HasOpenHandles);
         DescendantFileNodeCount++;
+    }
+
+    if (0 == DescendantFileNodeCount)
+    {
+        ASSERT(Success);
+        goto unlock_exit;
     }
 
     /* if the local array is out of space, gather descendant file nodes in the pool */
@@ -956,7 +963,7 @@ BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp,
         DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode & ~1);
 
         if (HasOpenHandles)
-            FspCheckOplock(FspFileNodeAddrOfOplock(DescendantFileNode), Irp, 0, 0, 0);
+            FspCheckOplock(FspFileNodeAddrOfOplock(DescendantFileNode), OplockIrp, 0, 0, 0);
     }
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
