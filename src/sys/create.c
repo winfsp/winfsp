@@ -38,11 +38,11 @@ static FSP_IOP_REQUEST_FINI FspFsvolCreateOverwriteRequestFini;
 static NTSTATUS FspFsvolCreateSharingViolationOplock(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
     BOOLEAN CanWait);
-static BOOLEAN FspFsvolCreateOpenOrOverwiteOplock(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
+static BOOLEAN FspFsvolCreateOpenOrOverwriteOplock(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
     PNTSTATUS PResult);
-static VOID FspFsvolCreateOpenOrOverwiteOplockPrepare(
+static VOID FspFsvolCreateOpenOrOverwriteOplockPrepare(
     PVOID Context, PIRP Irp);
-static VOID FspFsvolCreateOpenOrOverwiteOplockComplete(
+static VOID FspFsvolCreateOpenOrOverwriteOplockComplete(
     PVOID Context, PIRP Irp);
 FSP_DRIVER_DISPATCH FspCreate;
 
@@ -59,9 +59,9 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreateTryOpenRequestFini)
 #pragma alloc_text(PAGE, FspFsvolCreateOverwriteRequestFini)
 #pragma alloc_text(PAGE, FspFsvolCreateSharingViolationOplock)
-#pragma alloc_text(PAGE, FspFsvolCreateOpenOrOverwiteOplock)
-#pragma alloc_text(PAGE, FspFsvolCreateOpenOrOverwiteOplockPrepare)
-#pragma alloc_text(PAGE, FspFsvolCreateOpenOrOverwiteOplockComplete)
+#pragma alloc_text(PAGE, FspFsvolCreateOpenOrOverwriteOplock)
+#pragma alloc_text(PAGE, FspFsvolCreateOpenOrOverwriteOplockPrepare)
+#pragma alloc_text(PAGE, FspFsvolCreateOpenOrOverwriteOplockComplete)
 #pragma alloc_text(PAGE, FspCreate)
 #endif
 
@@ -588,7 +588,7 @@ NTSTATUS FspFsvolCreatePrepare(
         Result = STATUS_SUCCESS;
         Success = DEBUGTEST(90) &&
             FspFileNodeTryAcquireExclusive(FileNode, Full) &&
-            FspFsvolCreateOpenOrOverwiteOplock(Irp, 0, &Result);
+            FspFsvolCreateOpenOrOverwriteOplock(Irp, 0, &Result);
         if (!Success)
         {
             if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
@@ -1020,7 +1020,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     Result = STATUS_SUCCESS;
     Success = DEBUGTEST(90) &&
         FspFileNodeTryAcquireExclusive(FileNode, Main) &&
-        FspFsvolCreateOpenOrOverwiteOplock(Irp, Response, &Result);
+        FspFsvolCreateOpenOrOverwriteOplock(Irp, Response, &Result);
     if (!Success)
     {
         if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
@@ -1328,7 +1328,7 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
     }
 }
 
-static BOOLEAN FspFsvolCreateOpenOrOverwiteOplock(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
+static BOOLEAN FspFsvolCreateOpenOrOverwriteOplock(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
     PNTSTATUS PResult)
 {
     PAGED_CODE();
@@ -1368,8 +1368,8 @@ static BOOLEAN FspFsvolCreateOpenOrOverwiteOplock(PIRP Irp, const FSP_FSCTL_TRAN
     {
         Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
             (PVOID)Response,
-            FspFsvolCreateOpenOrOverwiteOplockComplete,
-            FspFsvolCreateOpenOrOverwiteOplockPrepare);
+            FspFsvolCreateOpenOrOverwriteOplockComplete,
+            FspFsvolCreateOpenOrOverwriteOplockPrepare);
         if (STATUS_PENDING == Result)
         {
             *PResult = Result;
@@ -1397,7 +1397,7 @@ static BOOLEAN FspFsvolCreateOpenOrOverwiteOplock(PIRP Irp, const FSP_FSCTL_TRAN
     return TRUE;
 }
 
-static VOID FspFsvolCreateOpenOrOverwiteOplockPrepare(
+static VOID FspFsvolCreateOpenOrOverwriteOplockPrepare(
     PVOID Context, PIRP Irp)
 {
     PAGED_CODE();
@@ -1406,7 +1406,7 @@ static VOID FspFsvolCreateOpenOrOverwiteOplockPrepare(
         FspIopSetIrpResponse(Irp, Context);
 }
 
-static VOID FspFsvolCreateOpenOrOverwiteOplockComplete(
+static VOID FspFsvolCreateOpenOrOverwriteOplockComplete(
     PVOID Context, PIRP Irp)
 {
     PAGED_CODE();
