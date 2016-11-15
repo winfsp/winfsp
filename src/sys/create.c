@@ -845,11 +845,10 @@ NTSTATUS FspFsvolCreateComplete(
                 FspIopSetIrpResponse(Irp, Response);
                 FspIopRequestContext(Request, FspIopRequestExtraContext) = FileNode;
 
-                Irp->IoStatus.Information = 0;
                 Result = FspFsvolCreateSharingViolationOplock(
                     FsvolDeviceObject, Irp, IrpSp, FALSE);
-
-                FSP_RETURN();
+                if (STATUS_PENDING == Result)
+                    FSP_RETURN();
             }
 
             /* unable to open the FileNode; post a Close request */
@@ -1268,6 +1267,7 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
             return FspWqRepostIrpWorkItem(Irp,
                 FspFsvolCreateSharingViolationOplock, FspFsvolCreateRequestFini);
 
+        Irp->IoStatus.Information = 0;
         return STATUS_SHARING_VIOLATION;
     }
     else
