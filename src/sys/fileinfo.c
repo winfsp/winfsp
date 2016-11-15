@@ -1069,7 +1069,8 @@ retry:
          */
         Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
             OPLOCK_FLAG_COMPLETE_IF_OPLOCKED, 0, 0, 0);
-        if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result)
+        if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result ||
+            DEBUGTEST_EX(NT_SUCCESS(Result), 10, FALSE))
         {
             FspFileNodeRelease(FileNode, Full);
             Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp, 0, 0, 0);
@@ -1203,7 +1204,8 @@ retry:
      */
     Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
         OPLOCK_FLAG_COMPLETE_IF_OPLOCKED, 0, 0, 0);
-    if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result)
+    if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result ||
+        DEBUGTEST_EX(NT_SUCCESS(Result), 10, FALSE))
     {
         FspFileNodeRelease(FileNode, Full);
         FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
@@ -1424,7 +1426,8 @@ retry:
          */
         Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
             OPLOCK_FLAG_COMPLETE_IF_OPLOCKED, 0, 0, 0);
-        if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result)
+        if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result ||
+            DEBUGTEST_EX(NT_SUCCESS(Result), 10, FALSE))
         {
             FspFileNodeRelease(FileNode, Full);
             Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp, 0, 0, 0);
