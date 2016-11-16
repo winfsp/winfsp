@@ -981,7 +981,7 @@ NTSTATUS FspFsvolCreateComplete(
         /* SUCCESS! */
         FspIopRequestContext(Request, RequestFileDesc) = 0;
         Irp->IoStatus.Information = Request->Req.Overwrite.Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
-        Result = STATUS_SUCCESS;
+        Result = Irp->IoStatus.Status; /* get success value from oplock processing */
     }
     else
         ASSERT(0);
@@ -1054,6 +1054,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
                 FspFileNodeClose(FileNode, FileObject, TRUE);
             }
 
+            Irp->IoStatus.Information = 0;
             return DeleteOnClose ? STATUS_CANNOT_DELETE : STATUS_SHARING_VIOLATION;
         }
     }
@@ -1068,7 +1069,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     /* SUCCESS! */
     FspIopRequestContext(Request, RequestFileDesc) = 0;
     Irp->IoStatus.Information = Response->IoStatus.Information;
-    return STATUS_SUCCESS;
+    return Irp->IoStatus.Status; /* get success value from oplock processing */
 }
 
 static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc)
@@ -1241,8 +1242,8 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
      * the CanWait parameter is TRUE.
      *
      * When CanWait is TRUE the routine is free to wait for any oplocks breaks. We
-     * try to break both batch and CACHE_HANDLE_LEVEL oplocks and return the
-     * appropriate status code.
+     * try to break both Batch and Handle oplocks and return the appropriate status
+     * code.
      *
      * We acquire the FileNode shared so allow oplock breaks to happen concurrently.
      * See https://www.osronline.com/showthread.cfm?link=248984
@@ -1255,6 +1256,8 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
     NTSTATUS Result;
     BOOLEAN Success;
 
+    ASSERT(FspFsctlTransactCreateKind == Request->Kind);
+
     Success = DEBUGTEST(90) &&
         FspFileNodeTryAcquireSharedF(ExtraFileNode, FspFileNodeAcquireMain, CanWait);
     if (!Success)
@@ -1264,13 +1267,13 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
     if (!CanWait)
     {
         /*
-         * If there is no batch or CACHE_HANDLE_LEVEL oplock we are done;
-         * else retry in a worker thread to break the oplocks.
+         * If there is no Batch or Handle oplock we are done; else retry in a
+         * worker thread to break the oplocks.
          */
         Success = DEBUGTEST(90) &&
-            (!FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(ExtraFileNode)) &&
-            (FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) ||
-                !FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(ExtraFileNode))));
+            !FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(ExtraFileNode)) &&
+            !(!FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) &&
+                FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(ExtraFileNode)));
 
         FspFileNodeRelease(ExtraFileNode, Main);
 
@@ -1283,44 +1286,36 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
     }
     else
     {
-#if 0
-        /* ???: is this needed in this case? */
-        Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(ExtraFileNode), Irp,
-            OPLOCK_FLAG_OPLOCK_KEY_CHECK_ONLY, 0, 0, 0);
-        if (!NT_SUCCESS(Result))
-        {
-            Result = STATUS_SHARING_VIOLATION;
-            goto exit;
-        }
-#endif
-
         if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(ExtraFileNode)))
         {
-            /* wait for batch oplock break to complete */
+            /* wait for Batch oplock break to complete */
             Result = FspCheckOplock(FspFileNodeAddrOfOplock(ExtraFileNode), Irp,
                 0, 0, 0);
             if (STATUS_SUCCESS == Result)
                 OpbatchBreakUnderway = TRUE;
+
+            /* if a Batch oplock is broken, we still return STATUS_SHARING_VIOLATION */
+            Result = STATUS_SHARING_VIOLATION;
         }
-
-        Result = STATUS_SHARING_VIOLATION;
-
+        else
         if (!FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) &&
             FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(ExtraFileNode)))
         {
-            /* wait for CACHE_HANDLE_LEVEL oplock break to complete */
+            /* wait for Handle oplock break to complete */
             Result = FspOplockBreakH(FspFileNodeAddrOfOplock(ExtraFileNode), Irp,
                 0, 0, 0, 0);
-        }
+            ASSERT(STATUS_OPLOCK_BREAK_IN_PROGRESS != Result);
 
-#if 0
-    exit:
-#endif
+            /* if a Handle oplock is broken, we can actually retry the sharing check */
+        }
+        else
+            Result = STATUS_SHARING_VIOLATION;
+
         FspFileNodeRelease(ExtraFileNode, Main);
 
         Response = FspIopIrpResponse(Irp);
 
-        if (NT_SUCCESS(Result))
+        if (STATUS_SUCCESS == Result)
         {
             FspFileNodeClose(ExtraFileNode, 0, TRUE);
             FspFileNodeDereference(ExtraFileNode);
@@ -1348,10 +1343,14 @@ static BOOLEAN FspFsvolCreateOpenOrOverwriteOplock(PIRP Irp, const FSP_FSCTL_TRA
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->DeviceObject;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    BOOLEAN OpenRequiringOplock, CheckOplock;
     ULONG OplockCount = 0;
     NTSTATUS Result;
 
+    ASSERT(
+        FspFsctlTransactReservedKind == FspIrpRequest(Irp)->Kind ||
+        FspFsctlTransactOverwriteKind == FspIrpRequest(Irp)->Kind);
+
+    /* add oplock key to the file object */
     Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
         OPLOCK_FLAG_OPLOCK_KEY_CHECK_ONLY, 0, 0, 0);
     if (!NT_SUCCESS(Result))
@@ -1360,22 +1359,13 @@ static BOOLEAN FspFsvolCreateOpenOrOverwriteOplock(PIRP Irp, const FSP_FSCTL_TRA
         return FALSE;
     }
 
-    OpenRequiringOplock = BooleanFlagOn(IrpSp->Parameters.Create.Options,
-        FILE_OPEN_REQUIRING_OPLOCK);
-    CheckOplock = FALSE;
+    /* get current handle count */
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+    OplockCount = FileNode->HandleCount;
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
-    if (OpenRequiringOplock)
-    {
-        FspFsvolDeviceLockContextTable(FsvolDeviceObject);
-        OplockCount = FileNode->HandleCount;
-        FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
-
-        CheckOplock = 1 < OplockCount;
-    }
-
-    CheckOplock = CheckOplock || FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(FileNode));
-
-    if (CheckOplock)
+    /* if there are more than one handles, perform oplock check */
+    if (1 < OplockCount)
     {
         Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
             (PVOID)Response,
@@ -1388,24 +1378,20 @@ static BOOLEAN FspFsvolCreateOpenOrOverwriteOplock(PIRP Irp, const FSP_FSCTL_TRA
         }
     }
 
-    if (OpenRequiringOplock && STATUS_SUCCESS == Result)
+    /* is an oplock requested during Create? */
+    if (STATUS_SUCCESS == Result &&
+        FlagOn(IrpSp->Parameters.Create.Options, FILE_OPEN_REQUIRING_OPLOCK))
     {
         Result = FspOplockFsctrlCreate(FspFileNodeAddrOfOplock(FileNode), Irp, OplockCount);
         ASSERT(STATUS_PENDING != Result);
 
         if (STATUS_SUCCESS == Result)
+            /* if we added an oplock, remember to remove it later in case of failure */
             FspIopRequestContext(FspIrpRequest(Irp), FspIopRequestExtraContext) = Irp;
     }
 
-    if (STATUS_SUCCESS != Result &&
-        STATUS_OPLOCK_BREAK_IN_PROGRESS != Result)
-    {
-        *PResult = Result;
-        return FALSE;
-    }
-
-    *PResult = STATUS_SUCCESS;
-    return TRUE;
+    *PResult = Irp->IoStatus.Status = Result;
+    return STATUS_SUCCESS == Result || STATUS_OPLOCK_BREAK_IN_PROGRESS == Result;
 }
 
 static VOID FspFsvolCreateOpenOrOverwriteOplockPrepare(
@@ -1425,10 +1411,13 @@ static VOID FspFsvolCreateOpenOrOverwriteOplockComplete(
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     NTSTATUS Result;
 
+    if (FspFsctlTransactReservedKind == Request->Kind)
+        FspIopRetryCompleteIrp(Irp, FspIopIrpResponse(Irp), &Result);
+    else
     if (FspFsctlTransactOverwriteKind == Request->Kind)
         FspIopRetryPrepareIrp(Irp, &Result);
-    else if (FspFsctlTransactReservedKind == Request->Kind)
-        FspIopRetryCompleteIrp(Irp, FspIopIrpResponse(Irp), &Result);
+    else
+        ASSERT(0);
 }
 
 NTSTATUS FspCreate(

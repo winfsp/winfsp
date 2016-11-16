@@ -324,6 +324,7 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference)
 
     if (STATUS_SUCCESS != Result &&
         STATUS_REPARSE != Result &&
+        STATUS_OPLOCK_BREAK_IN_PROGRESS != Result &&
         STATUS_BUFFER_OVERFLOW != Result &&
         STATUS_SHARING_VIOLATION != Result)
         Irp->IoStatus.Information = 0;

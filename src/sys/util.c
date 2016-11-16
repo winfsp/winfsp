@@ -779,8 +779,8 @@ NTSTATUS FspOplockFsctrlF(
             OpenCount);
 
         /*
-         * When the IRP is IRP_MJ_FILE_SYSTEM_CONTROL, FsRtlOplockFsctrl always completes the IRP
-         * (unless it raises). So return STATUS_SUCCESS in that case.
+         * When the IRP is IRP_MJ_FILE_SYSTEM_CONTROL, FsRtlOplockFsctrl always takes ownership
+         * of the IRP (unless it raises). So return STATUS_SUCCESS in that case.
          */
         if (!Create)
             Result = STATUS_SUCCESS;
