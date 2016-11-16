@@ -1113,6 +1113,7 @@ static VOID FspFsvolCreateRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Con
 
     if (0 != ExtraFileNode)
     {
+        ASSERT(FspFileNodeIsValid(ExtraFileNode));
         FspFileNodeClose(ExtraFileNode, 0, TRUE);
         FspFileNodeDereference(ExtraFileNode);
     }
@@ -1165,8 +1166,11 @@ static VOID FspFsvolCreateTryOpenRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PV
         ASSERT(0 != FileObject);
 
         if (OplockIrp)
+        {
+            ASSERT(IO_TYPE_IRP == OplockIrp->Type);
             FspCheckOplockEx(FspFileNodeAddrOfOplock(FileDesc->FileNode), OplockIrp,
                 OPLOCK_FLAG_BACK_OUT_ATOMIC_OPLOCK, 0, 0, 0);
+        }
 
         FspFsvolCreatePostClose(FileDesc);
         FspFileNodeClose(FileDesc->FileNode, FileObject, TRUE);
@@ -1198,8 +1202,11 @@ static VOID FspFsvolCreateOverwriteRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, 
             FspFileNodeReleaseOwner(FileDesc->FileNode, Full, Request);
 
         if (OplockIrp)
+        {
+            ASSERT(IO_TYPE_IRP == OplockIrp->Type);
             FspCheckOplockEx(FspFileNodeAddrOfOplock(FileDesc->FileNode), OplockIrp,
                 OPLOCK_FLAG_BACK_OUT_ATOMIC_OPLOCK, 0, 0, 0);
+        }
 
         FspFileNodeClose(FileDesc->FileNode, FileObject, TRUE);
         FspFileNodeDereference(FileDesc->FileNode);
@@ -1260,9 +1267,10 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
          * If there is no batch or CACHE_HANDLE_LEVEL oplock we are done;
          * else retry in a worker thread to break the oplocks.
          */
-        Success = !FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(ExtraFileNode)) &&
+        Success = DEBUGTEST(90) &&
+            (!FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(ExtraFileNode)) &&
             (FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) ||
-                !FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(ExtraFileNode)));
+                !FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(ExtraFileNode))));
 
         FspFileNodeRelease(ExtraFileNode, Main);
 
