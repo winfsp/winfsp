@@ -1033,7 +1033,7 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
     FSP_FILE_NODE *DescendantFileNodeArray[16], **DescendantFileNodes;
     ULONG DescendantFileNodeCount, DescendantFileNodeIndex;
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY RestartKey;
-    BOOLEAN Deleted, Inserted;
+    BOOLEAN Deleted, Inserted, AcquireForeign;
     USHORT FileNameLength;
     PWSTR ExternalFileName;
 
@@ -1085,7 +1085,9 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
         DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
         ASSERT(DescendantFileNode->FileName.Length >= FileNameLength);
 
-        if (0 != DescendantFileNodeIndex)
+        AcquireForeign = DescendantFileNode->FileName.Length > FileNameLength &&
+            L'\\' == DescendantFileNode->FileName.Buffer[FileNameLength / sizeof(WCHAR)];
+        if (AcquireForeign)
             FspFileNodeAcquireExclusiveForeign(DescendantFileNode);
 
         FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &DescendantFileNode->FileName, &Deleted);
@@ -1115,7 +1117,7 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
             &DescendantFileNode->ContextByNameElementStorage, &Inserted);
         ASSERT(Inserted);
 
-        if (0 != DescendantFileNodeIndex)
+        if (AcquireForeign)
             FspFileNodeReleaseForeign(DescendantFileNode);
     }
 

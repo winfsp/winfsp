@@ -1393,7 +1393,7 @@ static void stream_rename_flipflop_dotest(ULONG Flags, PWSTR Prefix, ULONG FileI
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
-    HANDLE Handle, Mappings[80];
+    HANDLE Handle, Mappings[80], DirStreamMapping;
     BOOL Success;
     WCHAR FilePath[MAX_PATH];
     WCHAR FilePath2[MAX_PATH];
@@ -1406,6 +1406,16 @@ static void stream_rename_flipflop_dotest(ULONG Flags, PWSTR Prefix, ULONG FileI
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\short",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
     Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\short:dirstrm",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Handle = CreateFileW(FilePath, GENERIC_ALL, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    DirStreamMapping = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+        0, SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != DirStreamMapping);
+    Success = CloseHandle(Handle);
     ASSERT(Success);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\short\\subdir",
@@ -1451,6 +1461,9 @@ static void stream_rename_flipflop_dotest(ULONG Flags, PWSTR Prefix, ULONG FileI
         Success = CloseHandle(Mappings[j - 1]);
         ASSERT(Success);
     }
+
+    Success = CloseHandle(DirStreamMapping);
+    ASSERT(Success);
 
     for (ULONG j = 1; NumMappings >= j; j++)
     {

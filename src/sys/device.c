@@ -635,7 +635,8 @@ PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE
     if (0 != Result &&
         FspFileNameIsPrefix(FileName, Result->FileName, CaseInsensitive, 0) &&
         FileName->Length < Result->FileName->Length &&
-        '\\' == Result->FileName->Buffer[FileName->Length / sizeof(WCHAR)])
+        (L'\\' == Result->FileName->Buffer[FileName->Length / sizeof(WCHAR)] ||
+            L':' == Result->FileName->Buffer[FileName->Length / sizeof(WCHAR)]))
         return Result->Context;
     else
         return 0;
