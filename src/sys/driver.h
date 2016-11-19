@@ -977,6 +977,12 @@ enum
 };
 enum
 {
+    FspFileNodeSharingViolationGeneral  = 'G',
+    FspFileNodeSharingViolationMainFile = 'M',
+    FspFileNodeSharingViolationStream   = 'S',
+};
+enum
+{
     FspFileNodeAcquireMain              = 1,
     FspFileNodeAcquirePgio              = 2,
     FspFileNodeAcquireFull              = 3,
@@ -1108,7 +1114,8 @@ VOID FspFileNodeReleaseForeign(FSP_FILE_NODE *FileNode)
     ExReleaseResourceLite(FileNode->Header.Resource);
 }
 NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    UINT32 GrantedAccess, UINT32 ShareAccess, FSP_FILE_NODE **POpenedFileNode);
+    UINT32 GrantedAccess, UINT32 ShareAccess,
+    FSP_FILE_NODE **POpenedFileNode, PULONG PSharingViolationReason);
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     PBOOLEAN PDeletePending);
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
@@ -1117,6 +1124,11 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     BOOLEAN HandleCleanup);     /* TRUE to decrement handle count */
 NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     UINT64 FlushOffset64, ULONG FlushLength, BOOLEAN FlushAndPurge);
+NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
+    PDEVICE_OBJECT FsvolDeviceObject,
+    PIRP OplockIrp,
+    FSP_FILE_NODE *FileNode,
+    PUNICODE_STRING StreamFileName);
 BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
     FSP_FILE_NODE *FileNode, PUNICODE_STRING FileName);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);

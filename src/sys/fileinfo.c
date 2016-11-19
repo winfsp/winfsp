@@ -1283,7 +1283,8 @@ retry:
      */
     Result = STATUS_SUCCESS;
     if (!FspFileNodeRenameCheck(FsvolDeviceObject, Irp, FileNode, &FileNode->FileName) ||
-        !FspFileNodeRenameCheck(FsvolDeviceObject, Irp, 0, &NewFileName))
+        (0 != FspFileNameCompare(&FileNode->FileName, &NewFileName, !FileDesc->CaseSensitive, 0) &&
+            !FspFileNodeRenameCheck(FsvolDeviceObject, Irp, 0, &NewFileName)))
         Result = STATUS_ACCESS_DENIED;
     if (!NT_SUCCESS(Result))
         return Result;

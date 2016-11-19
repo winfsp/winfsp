@@ -521,6 +521,10 @@ static NTSTATUS FspFsvolCreateNoLock(
         FspFileNameSuffix(&FileNode->FileName, &FileNode->FileName, &Suffix);
     }
 
+    /* zero Irp->IoStatus, because we now use it to maintain state in FspFsvolCreateComplete */
+    Irp->IoStatus.Status = 0;
+    Irp->IoStatus.Information = 0;
+
     return FSP_STATUS_IOQ_POST;
 }
 
@@ -640,6 +644,7 @@ NTSTATUS FspFsvolCreateComplete(
     FSP_FILE_DESC *FileDesc = FspIopRequestContext(Request, RequestFileDesc);
     FSP_FILE_NODE *FileNode = FileDesc->FileNode;
     FSP_FILE_NODE *OpenedFileNode;
+    ULONG SharingViolationReason;
     UNICODE_STRING NormalizedName;
     PREPARSE_DATA_BUFFER ReparseData;
     UNICODE_STRING ReparseTargetPrefix0, ReparseTargetPrefix1, ReparseTargetPath;
@@ -838,21 +843,38 @@ NTSTATUS FspFsvolCreateComplete(
         /* open the FileNode */
         Result = FspFileNodeOpen(FileNode, FileObject,
             Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
-            &OpenedFileNode);
+            &OpenedFileNode, &SharingViolationReason);
         if (!NT_SUCCESS(Result))
         {
             if (STATUS_SHARING_VIOLATION == Result)
             {
                 ASSERT(0 != OpenedFileNode);
 
-                FspIopSetIrpResponse(Irp, Response);
-                FspIopRequestContext(Request, FspIopRequestExtraContext) = OpenedFileNode;
+                if (STATUS_SHARING_VIOLATION != Irp->IoStatus.Status)
+                {
+                    ASSERT(0 == Irp->IoStatus.Information ||
+                        FILE_OPBATCH_BREAK_UNDERWAY == Irp->IoStatus.Information);
 
-                Result = FspFsvolCreateSharingViolationOplock(
-                    FsvolDeviceObject, Irp, IrpSp, FALSE);
-                if (STATUS_PENDING == Result)
-                    FSP_RETURN();
+                    FspIopSetIrpResponse(Irp, Response);
+                    FspIopRequestContext(Request, FspIopRequestExtraContext) = OpenedFileNode;
+
+                    /* HACK: We have run out of Contexts. Store the sharing violation reason in the IRP. */
+                    Irp->IoStatus.Status = STATUS_SHARING_VIOLATION;
+                    Irp->IoStatus.Information = SharingViolationReason;
+
+                    Result = FspFsvolCreateSharingViolationOplock(
+                        FsvolDeviceObject, Irp, IrpSp, FALSE);
+                    if (STATUS_PENDING == Result)
+                        FSP_RETURN();
+                }
+                else
+                {
+                    FspFileNodeClose(OpenedFileNode, 0, TRUE);
+                    FspFileNodeDereference(OpenedFileNode);
+                }
             }
+            else
+                ASSERT(0 == OpenedFileNode);
 
             /* unable to open the FileNode; post a Close request */
             FspFsvolCreatePostClose(FileDesc);
@@ -1245,18 +1267,22 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
      * try to break both Batch and Handle oplocks and return the appropriate status
      * code.
      *
-     * We acquire the FileNode shared so allow oplock breaks to happen concurrently.
+     * We acquire the FileNode shared to allow oplock breaks to happen concurrently.
      * See https://www.osronline.com/showthread.cfm?link=248984
      */
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     FSP_FSCTL_TRANSACT_RSP *Response;
     FSP_FILE_NODE *ExtraFileNode = FspIopRequestContext(Request, FspIopRequestExtraContext);
-    BOOLEAN OpbatchBreakUnderway = FALSE;
+    ULONG SharingViolationReason = (ULONG)Irp->IoStatus.Information;
     NTSTATUS Result;
     BOOLEAN Success;
 
     ASSERT(FspFsctlTransactCreateKind == Request->Kind);
+    ASSERT(
+        FspFileNodeSharingViolationGeneral == SharingViolationReason ||
+        FspFileNodeSharingViolationMainFile == SharingViolationReason ||
+        FspFileNodeSharingViolationStream == SharingViolationReason);
 
     Success = DEBUGTEST(90) &&
         FspFileNodeTryAcquireSharedF(ExtraFileNode, FspFileNodeAcquireMain, CanWait);
@@ -1271,7 +1297,9 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
          * worker thread to break the oplocks.
          */
         Success = DEBUGTEST(90) &&
-            !FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(ExtraFileNode)) &&
+            !(FspFileNodeSharingViolationMainFile == SharingViolationReason) &&
+            !(FspFileNodeSharingViolationStream == SharingViolationReason) &&
+            !(FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(ExtraFileNode))) &&
             !(!FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) &&
                 FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(ExtraFileNode)));
 
@@ -1286,16 +1314,55 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
     }
     else
     {
+        Irp->IoStatus.Information = 0;
+
+        Result = STATUS_SHARING_VIOLATION;
+        if (FspFileNodeSharingViolationMainFile == SharingViolationReason)
+        {
+            /*
+             * If a SUPERSEDE, OVERWRITE or OVERWRITE_IF operation is performed
+             * on an alternate data stream and FILE_SHARE_DELETE is not specified
+             * and there is a Batch or Filter oplock on the primary data stream,
+             * request a break of the Batch or Filter oplock on the primary data
+             * stream.
+             */
+
+            FSP_FILE_DESC *FileDesc = FspIopRequestContext(Request, RequestFileDesc);
+            FSP_FILE_NODE *FileNode = FileDesc->FileNode;
+
+            /* break Batch oplocks on the main file and this stream */
+            Result = FspFileNodeCheckBatchOplocksOnAllStreams(FsvolDeviceObject, Irp,
+                ExtraFileNode, &FileNode->FileName);
+            if (STATUS_SUCCESS != Result)
+                Result = STATUS_SHARING_VIOLATION;
+        }
+        else
+        if (FspFileNodeSharingViolationStream == SharingViolationReason)
+        {
+            /*
+             * If a SUPERSEDE, OVERWRITE or OVERWRITE_IF operation is performed
+             * on the primary data stream and DELETE access has been requested
+             * and there are Batch or Filter oplocks on any alternate data stream,
+             * request a break of the Batch or Filter oplocks on all alternate data
+             * streams that have them.
+             */
+
+            /* break Batch oplocks on the main file and all our streams */
+            Result = FspFileNodeCheckBatchOplocksOnAllStreams(FsvolDeviceObject, Irp,
+                ExtraFileNode, 0);
+            if (STATUS_SUCCESS != Result)
+                Result = STATUS_SHARING_VIOLATION;
+        }
+        else
         if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(ExtraFileNode)))
         {
             /* wait for Batch oplock break to complete */
             Result = FspCheckOplock(FspFileNodeAddrOfOplock(ExtraFileNode), Irp,
                 0, 0, 0);
-            if (STATUS_SUCCESS == Result)
-                OpbatchBreakUnderway = TRUE;
-
-            /* if a Batch oplock is broken, we still return STATUS_SHARING_VIOLATION */
-            Result = STATUS_SHARING_VIOLATION;
+            if (STATUS_SUCCESS != Result)
+                Result = STATUS_SHARING_VIOLATION;
+            else
+                Irp->IoStatus.Information = FILE_OPBATCH_BREAK_UNDERWAY;
         }
         else
         if (!FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) &&
@@ -1305,11 +1372,9 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
             Result = FspOplockBreakH(FspFileNodeAddrOfOplock(ExtraFileNode), Irp,
                 0, 0, 0, 0);
             ASSERT(STATUS_OPLOCK_BREAK_IN_PROGRESS != Result);
-
-            /* if a Handle oplock is broken, we can actually retry the sharing check */
+            if (STATUS_SUCCESS != Result)
+                Result = STATUS_SHARING_VIOLATION;
         }
-        else
-            Result = STATUS_SHARING_VIOLATION;
 
         FspFileNodeRelease(ExtraFileNode, Main);
 
@@ -1324,9 +1389,7 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
         else
         {
             Response->IoStatus.Status = (UINT32)Result;
-            Response->IoStatus.Information =
-                STATUS_SHARING_VIOLATION == Result && OpbatchBreakUnderway ?
-                    FILE_OPBATCH_BREAK_UNDERWAY : 0;
+            Response->IoStatus.Information = (UINT32)Irp->IoStatus.Information;
         }
 
         FspIopRetryCompleteIrp(Irp, Response, &Result);
