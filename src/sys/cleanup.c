@@ -176,7 +176,7 @@ static VOID FspFsvolCleanupRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Co
 
     FspFileNodeCleanupComplete(FileNode, FileObject);
     if (!FileNode->IsDirectory)
-        FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp, 0, 0, 0);
+        FspFileNodeOplockCheck(FileNode, Irp);
     SetFlag(FileObject->Flags, FO_CLEANUP_COMPLETE);
 
     MainFileHandle = FileDesc->MainFileHandle;

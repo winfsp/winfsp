@@ -952,20 +952,18 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     {
         DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
 
-        if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(DescendantFileNode)))
+        if (FspFileNodeOplockIsBatch(DescendantFileNode))
         {
-            NTSTATUS Result0 = FspCheckOplock(FspFileNodeAddrOfOplock(DescendantFileNode), OplockIrp,
-                0, 0, 0);
+            NTSTATUS Result0 = FspFileNodeOplockCheck(DescendantFileNode, OplockIrp);
             if (STATUS_SUCCESS != Result0)
                 Result = STATUS_SHARING_VIOLATION;
             else
                 OplockIrp->IoStatus.Information = FILE_OPBATCH_BREAK_UNDERWAY;
         }
         else
-        if (FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(DescendantFileNode)))
+        if (FspFileNodeOplockIsHandle(DescendantFileNode))
         {
-            NTSTATUS Result0 = FspOplockBreakH(FspFileNodeAddrOfOplock(DescendantFileNode), OplockIrp,
-                0, 0, 0, 0);
+            NTSTATUS Result0 = FspFileNodeOplockBreakHandle(DescendantFileNode, OplockIrp, 0);
             ASSERT(STATUS_OPLOCK_BREAK_IN_PROGRESS != Result0);
             if (STATUS_SUCCESS != Result0)
                 Result = STATUS_SHARING_VIOLATION;
@@ -1118,9 +1116,9 @@ BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
         DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode & ~1);
 
         if (HasOpenHandles)
-            if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(DescendantFileNode)) ||
-                FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(DescendantFileNode)))
-                FspCheckOplock(FspFileNodeAddrOfOplock(DescendantFileNode), OplockIrp, 0, 0, 0);
+            if (FspFileNodeOplockIsBatch(DescendantFileNode) ||
+                FspFileNodeOplockIsHandle(DescendantFileNode))
+                FspFileNodeOplockCheck(DescendantFileNode, OplockIrp);
     }
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
@@ -1976,6 +1974,36 @@ NTSTATUS FspMainFileClose(
     }
 
     return Result;
+}
+
+VOID FspFileNodeOplockPrepare(PVOID Context, PIRP Irp)
+{
+    PAGED_CODE();
+
+    FSP_IOP_REQUEST_WORK *WorkRoutine = (FSP_IOP_REQUEST_WORK *)(UINT_PTR)
+        FspFileNodeReleaseForOplock(Context);
+    NTSTATUS Result;
+
+    FSP_FSCTL_STATIC_ASSERT(sizeof(PVOID) == sizeof(VOID (*)(VOID)),
+        "Data and code pointers must have same size!");
+
+    Result = FspWqCreateIrpWorkItem(Irp, WorkRoutine, 0);
+    if (!NT_SUCCESS(Result))
+        /*
+         * Only way to communicate failure is through ExRaiseStatus.
+         * We will catch it in FspCheckOplock, etc.
+         */
+        ExRaiseStatus(Result);
+}
+
+VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp)
+{
+    PAGED_CODE();
+
+    if (STATUS_SUCCESS == Irp->IoStatus.Status)
+        FspWqPostIrpWorkItem(Irp);
+    else
+        FspIopCompleteIrp(Irp, Irp->IoStatus.Status);
 }
 
 WCHAR FspFileDescDirectoryPatternMatchAll[] = L"*";

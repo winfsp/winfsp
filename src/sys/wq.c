@@ -173,31 +173,3 @@ static VOID FspWqWorkRoutine(PVOID Context)
 
     IoSetTopLevelIrp(0);
 }
-
-VOID FspWqOplockPrepare(PVOID Context, PIRP Irp)
-{
-    PAGED_CODE();
-
-    NTSTATUS Result;
-
-    FSP_FSCTL_STATIC_ASSERT(sizeof(PVOID) == sizeof(VOID (*)(VOID)),
-        "Data and code pointers must have same size!");
-
-    Result = FspWqCreateAndPostIrpWorkItem(Irp, (FSP_IOP_REQUEST_WORK *)(UINT_PTR)Context, 0, TRUE);
-    if (!NT_SUCCESS(Result))
-        /*
-         * Only way to communicate failure is through ExRaiseStatus.
-         * We will catch it in FspCheckOplock, etc.
-         */
-        ExRaiseStatus(Result);
-}
-
-VOID FspWqOplockComplete(PVOID Context, PIRP Irp)
-{
-    PAGED_CODE();
-
-    if (STATUS_SUCCESS == Irp->IoStatus.Status)
-        FspWqPostIrpWorkItem(Irp);
-    else
-        FspIopCompleteIrp(Irp, Irp->IoStatus.Status);
-}

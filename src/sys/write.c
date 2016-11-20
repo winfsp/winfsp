@@ -141,9 +141,12 @@ static NTSTATUS FspFsvolWriteCached(
         return FspWqRepostIrpWorkItem(Irp, FspFsvolWriteCached, 0);
 
     /* perform oplock check */
-    Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
-        (PVOID)(UINT_PTR)FspFsvolWriteCached, FspWqOplockComplete, FspWqOplockPrepare);
-    if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
+    Result = FspFileNodeOplockCheckAsync(
+        FileNode, FspFileNodeAcquireMain, FspFsvolWriteCached,
+        Irp);
+    if (STATUS_PENDING == Result)
+        return Result;
+    if (!NT_SUCCESS(Result))
     {
         FspFileNodeRelease(FileNode, Main);
         return Result;
@@ -318,9 +321,12 @@ static NTSTATUS FspFsvolWriteNonCached(
     /* perform oplock check */
     if (!PagingIo)
     {
-        Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
-            (PVOID)(UINT_PTR)FspFsvolWriteNonCached, FspWqOplockComplete, FspWqOplockPrepare);
-        if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
+        Result = FspFileNodeOplockCheckAsync(
+            FileNode, FspFileNodeAcquireFull, FspFsvolWriteNonCached,
+            Irp);
+        if (STATUS_PENDING == Result)
+            return Result;
+        if (!NT_SUCCESS(Result))
         {
             FspFileNodeRelease(FileNode, Full);
             return Result;

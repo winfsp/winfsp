@@ -683,7 +683,7 @@ NTSTATUS FspOplockBreakH(
 
     try
     {
-        Result = FspOplockBreakH(
+        Result = FsRtlOplockBreakH(
             Oplock,
             Irp,
             Flags,

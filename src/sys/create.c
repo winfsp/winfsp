@@ -595,7 +595,9 @@ NTSTATUS FspFsvolCreatePrepare(
             FspFsvolCreateOpenOrOverwriteOplock(Irp, 0, &Result);
         if (!Success)
         {
-            if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
+            if (STATUS_PENDING == Result)
+                return Result;
+            if (!NT_SUCCESS(Result))
             {
                 FspFileNodeRelease(FileNode, Full);
                 return Result;
@@ -1047,7 +1049,9 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
         FspFsvolCreateOpenOrOverwriteOplock(Irp, Response, &Result);
     if (!Success)
     {
-        if (!NT_SUCCESS(Result) || STATUS_PENDING == Result)
+        if (STATUS_PENDING == Result)
+            return Result;
+        if (!NT_SUCCESS(Result))
         {
             FspFileNodeRelease(FileNode, Main);
             return Result;
@@ -1191,8 +1195,8 @@ static VOID FspFsvolCreateTryOpenRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PV
         if (OplockIrp)
         {
             ASSERT(IO_TYPE_IRP == OplockIrp->Type);
-            FspCheckOplockEx(FspFileNodeAddrOfOplock(FileDesc->FileNode), OplockIrp,
-                OPLOCK_FLAG_BACK_OUT_ATOMIC_OPLOCK, 0, 0, 0);
+            FspFileNodeOplockCheckEx(FileDesc->FileNode, OplockIrp,
+                OPLOCK_FLAG_BACK_OUT_ATOMIC_OPLOCK);
         }
 
         FspFsvolCreatePostClose(FileDesc);
@@ -1227,8 +1231,8 @@ static VOID FspFsvolCreateOverwriteRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, 
         if (OplockIrp)
         {
             ASSERT(IO_TYPE_IRP == OplockIrp->Type);
-            FspCheckOplockEx(FspFileNodeAddrOfOplock(FileDesc->FileNode), OplockIrp,
-                OPLOCK_FLAG_BACK_OUT_ATOMIC_OPLOCK, 0, 0, 0);
+            FspFileNodeOplockCheckEx(FileDesc->FileNode, OplockIrp,
+                OPLOCK_FLAG_BACK_OUT_ATOMIC_OPLOCK);
         }
 
         FspFileNodeClose(FileDesc->FileNode, FileObject, TRUE);
@@ -1299,9 +1303,9 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
         Success = DEBUGTEST(90) &&
             !(FspFileNodeSharingViolationMainFile == SharingViolationReason) &&
             !(FspFileNodeSharingViolationStream == SharingViolationReason) &&
-            !(FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(ExtraFileNode))) &&
+            !(FspFileNodeOplockIsBatch(ExtraFileNode)) &&
             !(!FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) &&
-                FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(ExtraFileNode)));
+                FspFileNodeOplockIsHandle(ExtraFileNode));
 
         FspFileNodeRelease(ExtraFileNode, Main);
 
@@ -1354,11 +1358,10 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
                 Result = STATUS_SHARING_VIOLATION;
         }
         else
-        if (FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(ExtraFileNode)))
+        if (FspFileNodeOplockIsBatch(ExtraFileNode))
         {
             /* wait for Batch oplock break to complete */
-            Result = FspCheckOplock(FspFileNodeAddrOfOplock(ExtraFileNode), Irp,
-                0, 0, 0);
+            Result = FspFileNodeOplockCheck(ExtraFileNode, Irp);
             if (STATUS_SUCCESS != Result)
                 Result = STATUS_SHARING_VIOLATION;
             else
@@ -1366,11 +1369,10 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
         }
         else
         if (!FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) &&
-            FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(ExtraFileNode)))
+            FspFileNodeOplockIsHandle(ExtraFileNode))
         {
             /* wait for Handle oplock break to complete */
-            Result = FspOplockBreakH(FspFileNodeAddrOfOplock(ExtraFileNode), Irp,
-                0, 0, 0, 0);
+            Result = FspFileNodeOplockBreakHandle(ExtraFileNode, Irp, 0);
             ASSERT(STATUS_OPLOCK_BREAK_IN_PROGRESS != Result);
             if (STATUS_SUCCESS != Result)
                 Result = STATUS_SHARING_VIOLATION;
@@ -1406,16 +1408,17 @@ static BOOLEAN FspFsvolCreateOpenOrOverwriteOplock(PIRP Irp, const FSP_FSCTL_TRA
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->DeviceObject;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    UINT32 RequestKind = FspIrpRequest(Irp)->Kind;
     ULONG OplockCount = 0;
     NTSTATUS Result;
 
     ASSERT(
-        FspFsctlTransactReservedKind == FspIrpRequest(Irp)->Kind ||
-        FspFsctlTransactOverwriteKind == FspIrpRequest(Irp)->Kind);
+        FspFsctlTransactReservedKind == RequestKind ||
+        FspFsctlTransactOverwriteKind == RequestKind);
 
     /* add oplock key to the file object */
-    Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
-        OPLOCK_FLAG_OPLOCK_KEY_CHECK_ONLY, 0, 0, 0);
+    Result = FspFileNodeOplockCheckEx(FileNode, Irp,
+        OPLOCK_FLAG_OPLOCK_KEY_CHECK_ONLY);
     if (!NT_SUCCESS(Result))
     {
         *PResult = Result;
@@ -1430,8 +1433,11 @@ static BOOLEAN FspFsvolCreateOpenOrOverwriteOplock(PIRP Irp, const FSP_FSCTL_TRA
     /* if there are more than one handles, perform oplock check */
     if (1 < OplockCount)
     {
-        Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp,
+        Result = FspFileNodeOplockCheckAsyncEx(
+            FileNode,
+            FspFsctlTransactReservedKind == RequestKind ? FspFileNodeAcquireMain : FspFileNodeAcquireFull,
             (PVOID)Response,
+            Irp,
             FspFsvolCreateOpenOrOverwriteOplockComplete,
             FspFsvolCreateOpenOrOverwriteOplockPrepare);
         if (STATUS_PENDING == Result)
@@ -1462,8 +1468,10 @@ static VOID FspFsvolCreateOpenOrOverwriteOplockPrepare(
 {
     PAGED_CODE();
 
-    if (0 != Context)
-        FspIopSetIrpResponse(Irp, Context);
+    FSP_FSCTL_TRANSACT_RSP *Response = FspFileNodeReleaseForOplock(Context);
+
+    if (0 != Response)
+        FspIopSetIrpResponse(Irp, Response);
 }
 
 static VOID FspFsvolCreateOpenOrOverwriteOplockComplete(

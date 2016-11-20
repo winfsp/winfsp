@@ -799,8 +799,6 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
     FSP_IOP_REQUEST_WORK *WorkRoutine, FSP_IOP_REQUEST_FINI *RequestFini,
     BOOLEAN CreateAndPost);
 VOID FspWqPostIrpWorkItem(PIRP Irp);
-VOID FspWqOplockPrepare(PVOID Context, PIRP Irp);
-VOID FspWqOplockComplete(PVOID Context, PIRP Irp);
 #define FspWqCreateIrpWorkItem(I, RW, RF)\
     FspWqCreateAndPostIrpWorkItem(I, RW, RF, FALSE)
 #define FspWqRepostIrpWorkItem(I, RW, RF)\
@@ -1235,6 +1233,68 @@ BOOLEAN FspMainFileOpenCheck(PIRP Irp)
 #else
 #define FspFileNodeAddrOfOplock(N)      (&(N)->Header.Oplock)
 #endif
+
+/* oplock support */
+typedef struct
+{
+    FSP_FILE_NODE *FileNode;
+    ULONG AcquireFlags;
+    PVOID PrepareContext;
+} FSP_FILE_NODE_OPLOCK_CONTEXT;
+static inline
+BOOLEAN FspFileNodeOplockIsBatch(FSP_FILE_NODE *FileNode)
+{
+    return FsRtlCurrentBatchOplock(FspFileNodeAddrOfOplock(FileNode));
+}
+static inline
+BOOLEAN FspFileNodeOplockIsHandle(FSP_FILE_NODE *FileNode)
+{
+    return FsRtlCurrentOplockH(FspFileNodeAddrOfOplock(FileNode));
+}
+static inline
+NTSTATUS FspFileNodeOplockCheck(FSP_FILE_NODE *FileNode, PIRP Irp)
+{
+    return FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp, 0, 0, 0);
+}
+static inline
+NTSTATUS FspFileNodeOplockCheckEx(FSP_FILE_NODE *FileNode, PIRP Irp, ULONG Flags)
+{
+    return FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp, Flags, 0, 0, 0);
+}
+static inline
+NTSTATUS FspFileNodeOplockBreakHandle(FSP_FILE_NODE *FileNode, PIRP Irp, ULONG Flags)
+{
+    return FspOplockBreakH(FspFileNodeAddrOfOplock(FileNode), Irp, Flags, 0, 0, 0);
+}
+static inline
+NTSTATUS FspFileNodeOplockCheckAsyncEx(
+    FSP_FILE_NODE *FileNode, ULONG AcquireFlags, PVOID PrepareContext,
+    PIRP Irp,
+    POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
+    POPLOCK_FS_PREPOST_IRP PostIrpRoutine)
+{
+    FSP_FILE_NODE_OPLOCK_CONTEXT OplockContext;
+    OplockContext.FileNode = FileNode;
+    OplockContext.AcquireFlags = AcquireFlags;
+    OplockContext.PrepareContext = PrepareContext;
+    return FspCheckOplock(
+        FspFileNodeAddrOfOplock(FileNode),
+        Irp,
+        &OplockContext,
+        CompletionRoutine,
+        PostIrpRoutine);
+}
+static inline
+PVOID FspFileNodeReleaseForOplock(FSP_FILE_NODE_OPLOCK_CONTEXT *OplockContext)
+{
+    FspFileNodeReleaseF(OplockContext->FileNode, OplockContext->AcquireFlags);
+    return OplockContext->PrepareContext;
+}
+VOID FspFileNodeOplockPrepare(PVOID Context, PIRP Irp);
+VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
+#define FspFileNodeOplockCheckAsync(FileNode, AcquireFlags, PrepareContext, Irp)\
+    FspFileNodeOplockCheckAsyncEx(FileNode, AcquireFlags, (PVOID)(UINT_PTR)PrepareContext, Irp,\
+        FspFileNodeOplockComplete,FspFileNodeOplockPrepare)
 
 /* multiversion support */
 typedef

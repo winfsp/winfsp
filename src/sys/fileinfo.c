@@ -1067,13 +1067,13 @@ retry:
          * If that is the case we release the FileNode and wait for the oplock breaks
          * to complete. Once they are complete we retry the whole thing.
          */
-        Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
-            OPLOCK_FLAG_COMPLETE_IF_OPLOCKED, 0, 0, 0);
+        Result = FspFileNodeOplockCheckEx(FileNode, Irp,
+            OPLOCK_FLAG_COMPLETE_IF_OPLOCKED);
         if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result ||
             DEBUGTEST_EX(NT_SUCCESS(Result), 10, FALSE))
         {
             FspFileNodeRelease(FileNode, Full);
-            Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp, 0, 0, 0);
+            Result = FspFileNodeOplockCheck(FileNode, Irp);
             if (!NT_SUCCESS(Result))
                 return Result;
             goto retry;
@@ -1202,14 +1202,14 @@ retry:
      * If that is the case we release the FileNode and wait for the oplock breaks
      * to complete. Once they are complete we retry the whole thing.
      */
-    Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
-        OPLOCK_FLAG_COMPLETE_IF_OPLOCKED, 0, 0, 0);
+    Result = FspFileNodeOplockCheckEx(FileNode, Irp,
+        OPLOCK_FLAG_COMPLETE_IF_OPLOCKED);
     if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result ||
         DEBUGTEST_EX(NT_SUCCESS(Result), 10, FALSE))
     {
         FspFileNodeRelease(FileNode, Full);
         FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
-        Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp, 0, 0, 0);
+        Result = FspFileNodeOplockCheck(FileNode, Irp);
         if (!NT_SUCCESS(Result))
             return Result;
         goto retry;
@@ -1425,13 +1425,13 @@ retry:
          * If that is the case we release the FileNode and wait for the oplock breaks
          * to complete. Once they are complete we retry the whole thing.
          */
-        Result = FspCheckOplockEx(FspFileNodeAddrOfOplock(FileNode), Irp,
-            OPLOCK_FLAG_COMPLETE_IF_OPLOCKED, 0, 0, 0);
+        Result = FspFileNodeOplockCheckEx(FileNode, Irp,
+            OPLOCK_FLAG_COMPLETE_IF_OPLOCKED);
         if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result ||
             DEBUGTEST_EX(NT_SUCCESS(Result), 10, FALSE))
         {
             FspFileNodeRelease(FileNode, Full);
-            Result = FspCheckOplock(FspFileNodeAddrOfOplock(FileNode), Irp, 0, 0, 0);
+            Result = FspFileNodeOplockCheck(FileNode, Irp);
             if (!NT_SUCCESS(Result))
                 return Result;
             goto retry;
