@@ -87,11 +87,10 @@ NTSTATUS FspCheckOplockEx(
     PVOID Context,
     POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
     POPLOCK_FS_PREPOST_IRP PostIrpRoutine);
-NTSTATUS FspOplockFsctrlF(
+NTSTATUS FspOplockFsctrl(
     POPLOCK Oplock,
     PIRP Irp,
-    ULONG OpenCount,
-    BOOLEAN Create);
+    ULONG OpenCount);
 VOID FspInitializeSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem,
     PWORKER_THREAD_ROUTINE Routine, PVOID Context);
 VOID FspExecuteSynchronousWorkItem(FSP_SYNCHRONOUS_WORK_ITEM *SynchronousWorkItem);
@@ -132,7 +131,7 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #pragma alloc_text(PAGE, FspOplockBreakH)
 #pragma alloc_text(PAGE, FspCheckOplock)
 #pragma alloc_text(PAGE, FspCheckOplockEx)
-#pragma alloc_text(PAGE, FspOplockFsctrlF)
+#pragma alloc_text(PAGE, FspOplockFsctrl)
 #pragma alloc_text(PAGE, FspInitializeSynchronousWorkItem)
 #pragma alloc_text(PAGE, FspExecuteSynchronousWorkItem)
 #pragma alloc_text(PAGE, FspExecuteSynchronousWorkItemRoutine)
@@ -757,11 +756,10 @@ NTSTATUS FspCheckOplockEx(
     return Result;
 }
 
-NTSTATUS FspOplockFsctrlF(
+NTSTATUS FspOplockFsctrl(
     POPLOCK Oplock,
     PIRP Irp,
-    ULONG OpenCount,
-    BOOLEAN Create)
+    ULONG OpenCount)
 {
     PAGED_CODE();
 
@@ -769,21 +767,10 @@ NTSTATUS FspOplockFsctrlF(
 
     try
     {
-        ASSERT(
-            (Create && IRP_MJ_CREATE == IoGetCurrentIrpStackLocation(Irp)->MajorFunction) ||
-            (!Create && IRP_MJ_FILE_SYSTEM_CONTROL == IoGetCurrentIrpStackLocation(Irp)->MajorFunction));
-
         Result = FsRtlOplockFsctrl(
             Oplock,
             Irp,
             OpenCount);
-
-        /*
-         * When the IRP is IRP_MJ_FILE_SYSTEM_CONTROL, FsRtlOplockFsctrl always takes ownership
-         * of the IRP (unless it raises). So return STATUS_SUCCESS in that case.
-         */
-        if (!Create)
-            Result = STATUS_SUCCESS;
     }
     except (EXCEPTION_EXECUTE_HANDLER)
     {

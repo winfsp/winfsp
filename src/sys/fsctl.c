@@ -432,29 +432,17 @@ static NTSTATUS FspFsvolFileSystemControlOplock(
     }
 
     /*
-     * It is possible for FspOplockFsctrl to complete the IRP immediately.
-     * In this case trying to access the IRP (to get its IrpFlags) in FspFileNodeRelease
-     * can lead to a bugcheck. For this reason we set the TopLevelIrp to NULL here.
+     * FspOplockFsctrl takes ownership of the IRP under all circumstances.
      *
-     * FspFsvolFileSystemControlOplock does not need the TopLevelIrp functionality,
-     * because it cannot be used recursively (I believe -- famous last words).
+     * We mark the IRP pending so that we can safely return STATUS_PENDING.
      */
-    PIRP TopLevelIrp = IoGetTopLevelIrp();
+
     IoSetTopLevelIrp(0);
 
-    Result = FspOplockFsctrl(FspFileNodeAddrOfOplock(FileNode), Irp, OplockCount);
+    IoMarkIrpPending(Irp);
+    Result = FspFileNodeOplockFsctl(FileNode, Irp, OplockCount);
 
     FspFileNodeRelease(FileNode, Main);
-
-    if (!NT_SUCCESS(Result))
-    {
-        /* set back the top level IRP just in case! */
-        IoSetTopLevelIrp(TopLevelIrp);
-
-        FspIrpHookReset(Irp);
-        FspFree(CompletionContext);
-        return Result;
-    }
 
     return STATUS_PENDING;
 

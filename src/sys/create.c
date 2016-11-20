@@ -1451,7 +1451,7 @@ static BOOLEAN FspFsvolCreateOpenOrOverwriteOplock(PIRP Irp, const FSP_FSCTL_TRA
     if (STATUS_SUCCESS == Result &&
         FlagOn(IrpSp->Parameters.Create.Options, FILE_OPEN_REQUIRING_OPLOCK))
     {
-        Result = FspOplockFsctrlCreate(FspFileNodeAddrOfOplock(FileNode), Irp, OplockCount);
+        Result = FspFileNodeOplockFsctl(FileNode, Irp, OplockCount);
         ASSERT(STATUS_PENDING != Result);
 
         if (STATUS_SUCCESS == Result)

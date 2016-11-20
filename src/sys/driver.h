@@ -537,11 +537,10 @@ NTSTATUS FspCheckOplockEx(
     PVOID Context,
     POPLOCK_WAIT_COMPLETE_ROUTINE CompletionRoutine,
     POPLOCK_FS_PREPOST_IRP PostIrpRoutine);
-NTSTATUS FspOplockFsctrlF(
+NTSTATUS FspOplockFsctrl(
     POPLOCK Oplock,
     PIRP Irp,
-    ULONG OpenCount,
-    BOOLEAN Create);
+    ULONG OpenCount);
 #define FspNotifyUninitializeSync(NS)\
     FsRtlNotifyUninitializeSync(NS)
 #define FspNotifyCleanupAll(NS, NL)\
@@ -554,10 +553,6 @@ NTSTATUS FspOplockFsctrlF(
     FspNotifyFullChangeDirectory(NS, NL, FC, 0, 0, FALSE, 0, 0, 0, 0)
 #define FspNotifyReportChange(NS, NL, FN, FO, NP, F, A)\
     FspNotifyFullReportChange(NS, NL, (PSTRING)(FN), FO, 0, (PSTRING)(NP), F, A, 0)
-#define FspOplockFsctrlCreate(OL, I, OC)\
-    FspOplockFsctrlF(OL, I, OC, TRUE)
-#define FspOplockFsctrl(OL, I, OC)\
-    FspOplockFsctrlF(OL, I, OC, FALSE)
 
 /* utility: synchronous work queue */
 typedef struct
@@ -1241,6 +1236,11 @@ typedef struct
     ULONG AcquireFlags;
     PVOID PrepareContext;
 } FSP_FILE_NODE_OPLOCK_CONTEXT;
+static inline
+NTSTATUS FspFileNodeOplockFsctl(FSP_FILE_NODE *FileNode, PIRP Irp, ULONG OpenCount)
+{
+    return FspOplockFsctrl(FspFileNodeAddrOfOplock(FileNode), Irp, OpenCount);
+}
 static inline
 BOOLEAN FspFileNodeOplockIsBatch(FSP_FILE_NODE *FileNode)
 {
