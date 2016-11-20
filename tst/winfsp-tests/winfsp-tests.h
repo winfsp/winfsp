@@ -140,6 +140,7 @@ extern int WinFspNetTests;
 extern BOOLEAN OptResilient;
 extern BOOLEAN OptCaseInsensitive;
 extern BOOLEAN OptCaseRandomize;
+extern WCHAR OptOplock;
 extern WCHAR OptMountPointBuf[], *OptMountPoint;
 extern WCHAR OptShareNameBuf[], *OptShareName, *OptShareTarget;
     extern WCHAR OptShareComputer[];

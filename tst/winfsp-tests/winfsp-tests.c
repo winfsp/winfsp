@@ -31,6 +31,7 @@ int WinFspNetTests = 1;
 BOOLEAN OptResilient = FALSE;
 BOOLEAN OptCaseInsensitive = FALSE;
 BOOLEAN OptCaseRandomize = FALSE;
+WCHAR OptOplock = 0;
 WCHAR OptMountPointBuf[MAX_PATH], *OptMountPoint;
 WCHAR OptShareNameBuf[MAX_PATH], *OptShareName, *OptShareTarget;
     WCHAR OptShareComputer[MAX_PATH] = L"\\\\localhost\\";
@@ -224,6 +225,16 @@ int main(int argc, char *argv[])
             {
                 OptCaseRandomize = TRUE;
                 OptCaseInsensitive = TRUE;
+                rmarg(argv, argc, argi);
+            }
+            else if (0 == strcmp("--oplock=batch", a))
+            {
+                OptOplock = 'B';
+                rmarg(argv, argc, argi);
+            }
+            else if (0 == strcmp("--oplock=filter", a))
+            {
+                OptOplock = 'F';
                 rmarg(argv, argc, argi);
             }
             else if (0 == strncmp("--mountpoint=", a, sizeof "--mountpoint=" - 1))

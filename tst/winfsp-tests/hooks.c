@@ -103,6 +103,78 @@ static VOID PrepareFileName(PCWSTR FileName, PWSTR FileNameBuf)
     }
 }
 
+typedef struct
+{
+    HANDLE File;
+    HANDLE Wait;
+    OVERLAPPED Overlapped;
+} OPLOCK_BREAK_WAIT_DATA;
+
+static VOID CALLBACK OplockBreakWait(PVOID Context, BOOLEAN Timeout)
+{
+    OPLOCK_BREAK_WAIT_DATA *Data = Context;
+
+    UnregisterWaitEx(Data->Wait, 0);
+    CloseHandle(Data->File);
+    HeapFree(GetProcessHeap(), 0, Data);
+}
+
+static VOID MaybeRequestOplock(PCWSTR FileName)
+{
+    HANDLE File;
+    OPLOCK_BREAK_WAIT_DATA *Data;
+    DWORD FsControlCode;
+    BOOL Success;
+    DWORD BytesTransferred;
+
+    if (0 == OptOplock)
+        return;
+
+    File = CreateFileW(
+        FileName,
+        FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING,
+        FILE_FLAG_OVERLAPPED,
+        0);
+    if (INVALID_HANDLE_VALUE == File)
+        return;
+
+    Data = HeapAlloc(GetProcessHeap(), 0, sizeof *Data);
+    if (0 == Data)
+        ABORT("cannot malloc filter oplock data");
+    memset(Data, 0, sizeof *Data);
+
+    switch (OptOplock)
+    {
+    case 'B':
+        FsControlCode = FSCTL_REQUEST_BATCH_OPLOCK;
+        break;
+    case 'F':
+        FsControlCode = FSCTL_REQUEST_FILTER_OPLOCK;
+        break;
+    default:
+        FsControlCode = FSCTL_REQUEST_FILTER_OPLOCK;
+        break;
+    }
+
+    Success = DeviceIoControl(File, FsControlCode, 0, 0, 0, 0, &BytesTransferred,
+        &Data->Overlapped);
+    if (!Success && ERROR_IO_PENDING == GetLastError())
+    {
+        Data->File = File;
+        if (!RegisterWaitForSingleObject(&Data->Wait, File,
+            OplockBreakWait, Data, INFINITE, WT_EXECUTEONLYONCE))
+            ABORT("cannot register wait for filter oplock");
+    }
+    else
+    {
+        CloseHandle(File);
+        HeapFree(GetProcessHeap(), 0, Data);
+    }
+}
+
 static VOID MaybeAdjustTraversePrivilege(BOOL Enable)
 {
     if (OptNoTraverseToken)
@@ -133,6 +205,8 @@ HANDLE WINAPI HookCreateFileW(
     HANDLE Handle;
 
     PrepareFileName(lpFileName, FileNameBuf);
+
+    MaybeRequestOplock(lpFileName);
 
     MaybeAdjustTraversePrivilege(FALSE);
     Handle = (OptResilient ? ResilientCreateFileW : CreateFileW)(
