@@ -90,6 +90,8 @@ NTSTATUS FspMainFileOpen(
 NTSTATUS FspMainFileClose(
     HANDLE MainFileHandle,
     PFILE_OBJECT MainFileObject);
+VOID FspFileNodeOplockPrepare(PVOID Context, PIRP Irp);
+VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFileNodeCopyList)
@@ -135,6 +137,8 @@ NTSTATUS FspMainFileClose(
 #pragma alloc_text(PAGE, FspFileDescResetDirectoryPattern)
 #pragma alloc_text(PAGE, FspMainFileOpen)
 #pragma alloc_text(PAGE, FspMainFileClose)
+#pragma alloc_text(PAGE, FspFileNodeOplockPrepare)
+#pragma alloc_text(PAGE, FspFileNodeOplockComplete)
 #endif
 
 #define FSP_FILE_NODE_GET_FLAGS()       \

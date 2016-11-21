@@ -22,15 +22,11 @@ NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,
     BOOLEAN CreateAndPost);
 VOID FspWqPostIrpWorkItem(PIRP Irp);
 static VOID FspWqWorkRoutine(PVOID Context);
-VOID FspWqOplockPrepare(PVOID Context, PIRP Irp);
-VOID FspWqOplockComplete(PVOID Context, PIRP Irp);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspWqCreateAndPostIrpWorkItem)
 #pragma alloc_text(PAGE, FspWqPostIrpWorkItem)
 #pragma alloc_text(PAGE, FspWqWorkRoutine)
-#pragma alloc_text(PAGE, FspWqOplockPrepare)
-#pragma alloc_text(PAGE, FspWqOplockComplete)
 #endif
 
 static inline
