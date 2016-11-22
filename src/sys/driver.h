@@ -1123,8 +1123,9 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     FSP_FILE_NODE *FileNode,
     ULONG AcquireFlags,
     PUNICODE_STRING StreamFileName);
-BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
-    FSP_FILE_NODE *FileNode, PUNICODE_STRING FileName);
+NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
+    FSP_FILE_NODE *FileNode, ULONG AcquireFlags,
+    PUNICODE_STRING FileName, BOOLEAN CheckingOldName);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);

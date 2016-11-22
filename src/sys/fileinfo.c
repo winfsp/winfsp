@@ -1159,7 +1159,7 @@ static NTSTATUS FspFsvolSetRenameInformation(
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     FSP_FILE_NODE *TargetFileNode = 0 != TargetFileObject ?
         TargetFileObject->FsContext : 0;
-    FSP_FSCTL_TRANSACT_REQ *Request;
+    FSP_FSCTL_TRANSACT_REQ *Request = 0;
     UNICODE_STRING Remain, Suffix;
     UNICODE_STRING NewFileName;
     PUINT8 NewFileNameBuffer;
@@ -1186,90 +1186,61 @@ static NTSTATUS FspFsvolSetRenameInformation(
         ASSERT(TargetFileNode->IsDirectory);
     }
 
-retry:
     FspFsvolDeviceFileRenameAcquireExclusive(FsvolDeviceObject);
+retry:
     FspFileNodeAcquireExclusive(FileNode, Full);
 
-    /*
-     * Perform oplock check.
-     *
-     * It is ok to block our thread during receipt of the SetInformation IRP.
-     * However we cannot acquire the FileNode exclusive and wait for oplock
-     * breaks to complete, because oplock break processing acquires the FileNode
-     * shared.
-     *
-     * Instead we initiate the oplock breaks and then check if any are in progress.
-     * If that is the case we release the FileNode and wait for the oplock breaks
-     * to complete. Once they are complete we retry the whole thing.
-     */
-    Result = FspFileNodeOplockCheckEx(FileNode, Irp,
-        OPLOCK_FLAG_COMPLETE_IF_OPLOCKED);
-    if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result ||
-        DEBUGTEST_EX(NT_SUCCESS(Result), 10, FALSE))
+    if (0 == Request)
     {
-        FspFileNodeRelease(FileNode, Full);
-        FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
-        Result = FspFileNodeOplockCheck(FileNode, Irp);
-        if (!NT_SUCCESS(Result))
-            return Result;
-        goto retry;
-    }
-    if (!NT_SUCCESS(Result))
-        goto unlock_exit;
+        if (0 != TargetFileNode)
+            Remain = TargetFileNode->FileName;
+        else
+            FspFileNameSuffix(&FileNode->FileName, &Remain, &Suffix);
 
-    if (0 != TargetFileNode)
-        Remain = TargetFileNode->FileName;
-    else
-        FspFileNameSuffix(&FileNode->FileName, &Remain, &Suffix);
+        Suffix.Length = (USHORT)Info->FileNameLength;
+        Suffix.Buffer = Info->FileName;
+        /* if there is a backslash anywhere in the NewFileName get its suffix */
+        for (PWSTR P = Suffix.Buffer, EndP = P + Suffix.Length / sizeof(WCHAR); EndP > P; P++)
+            if (L'\\' == *P)
+            {
+                Suffix.Length = (USHORT)((EndP - P - 1) * sizeof(WCHAR));
+                Suffix.Buffer = P + 1;
+            }
+        Suffix.MaximumLength = Suffix.Length;
 
-    Suffix.Length = (USHORT)Info->FileNameLength;
-    Suffix.Buffer = Info->FileName;
-    /* if there is a backslash anywhere in the NewFileName get its suffix */
-    for (PWSTR P = Suffix.Buffer, EndP = P + Suffix.Length / sizeof(WCHAR); EndP > P; P++)
-        if (L'\\' == *P)
+        if (!FspFileNameIsValid(&Remain, 0, 0) || !FspFileNameIsValid(&Suffix, 0, 0))
         {
-            Suffix.Length = (USHORT)((EndP - P - 1) * sizeof(WCHAR));
-            Suffix.Buffer = P + 1;
+            /* cannot rename streams (WinFsp limitation) */
+            Result = STATUS_INVALID_PARAMETER;
+            goto unlock_exit;
         }
-    Suffix.MaximumLength = Suffix.Length;
 
-    if (!FspFileNameIsValid(&Remain, 0, 0) || !FspFileNameIsValid(&Suffix, 0, 0))
-    {
-        /* cannot rename streams (WinFsp limitation) */
-        Result = STATUS_INVALID_PARAMETER;
-        goto unlock_exit;
+        AppendBackslash = sizeof(WCHAR) < Remain.Length;
+        NewFileName.Length = NewFileName.MaximumLength =
+            Remain.Length + AppendBackslash * sizeof(WCHAR) + Suffix.Length;
+
+        Result = FspIopCreateRequestEx(Irp, &FileNode->FileName,
+            NewFileName.Length + sizeof(WCHAR),
+            FspFsvolSetInformationRequestFini, &Request);
+        if (!NT_SUCCESS(Result))
+            goto unlock_exit;
+
+        NewFileNameBuffer = Request->Buffer + Request->FileName.Size;
+        NewFileName.Buffer = (PVOID)NewFileNameBuffer;
+
+        RtlCopyMemory(NewFileNameBuffer, Remain.Buffer, Remain.Length);
+        *(PWSTR)(NewFileNameBuffer + Remain.Length) = L'\\';
+        RtlCopyMemory(NewFileNameBuffer + Remain.Length + AppendBackslash * sizeof(WCHAR),
+            Suffix.Buffer, Suffix.Length);
+        *(PWSTR)(NewFileNameBuffer + NewFileName.Length) = L'\0';
+
+        Request->Kind = FspFsctlTransactSetInformationKind;
+        Request->Req.SetInformation.UserContext = FileNode->UserContext;
+        Request->Req.SetInformation.UserContext2 = FileDesc->UserContext2;
+        Request->Req.SetInformation.FileInformationClass = FileRenameInformation;
+        Request->Req.SetInformation.Info.Rename.NewFileName.Offset = Request->FileName.Size;
+        Request->Req.SetInformation.Info.Rename.NewFileName.Size = NewFileName.Length + sizeof(WCHAR);
     }
-
-    AppendBackslash = sizeof(WCHAR) < Remain.Length;
-    NewFileName.Length = NewFileName.MaximumLength =
-        Remain.Length + AppendBackslash * sizeof(WCHAR) + Suffix.Length;
-
-    Result = FspIopCreateRequestEx(Irp, &FileNode->FileName,
-        NewFileName.Length + sizeof(WCHAR),
-        FspFsvolSetInformationRequestFini, &Request);
-    if (!NT_SUCCESS(Result))
-        goto unlock_exit;
-
-    NewFileNameBuffer = Request->Buffer + Request->FileName.Size;
-    NewFileName.Buffer = (PVOID)NewFileNameBuffer;
-
-    RtlCopyMemory(NewFileNameBuffer, Remain.Buffer, Remain.Length);
-    *(PWSTR)(NewFileNameBuffer + Remain.Length) = L'\\';
-    RtlCopyMemory(NewFileNameBuffer + Remain.Length + AppendBackslash * sizeof(WCHAR),
-        Suffix.Buffer, Suffix.Length);
-    *(PWSTR)(NewFileNameBuffer + NewFileName.Length) = L'\0';
-
-    Request->Kind = FspFsctlTransactSetInformationKind;
-    Request->Req.SetInformation.UserContext = FileNode->UserContext;
-    Request->Req.SetInformation.UserContext2 = FileDesc->UserContext2;
-    Request->Req.SetInformation.FileInformationClass = FileRenameInformation;
-    Request->Req.SetInformation.Info.Rename.NewFileName.Offset = Request->FileName.Size;
-    Request->Req.SetInformation.Info.Rename.NewFileName.Size = NewFileName.Length + sizeof(WCHAR);
-
-    FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, Request);
-    FspFileNodeSetOwner(FileNode, Full, Request);
-    FspIopRequestContext(Request, RequestFileNode) = FileNode;
-    FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
 
     /*
      * Special rules for renaming open files:
@@ -1281,29 +1252,60 @@ retry:
      * -   A directory cannot be renamed if it or any of its subdirectories contains a file
      *     that has open handles (except in the batch-oplock case described earlier).
      */
-    Result = STATUS_SUCCESS;
-    if (!FspFileNodeRenameCheck(FsvolDeviceObject, Irp, FileNode, &FileNode->FileName) ||
-        (0 != FspFileNameCompare(&FileNode->FileName, &NewFileName, !FileDesc->CaseSensitive, 0) &&
-            !FspFileNodeRenameCheck(FsvolDeviceObject, Irp, 0, &NewFileName)))
-        Result = STATUS_ACCESS_DENIED;
-    if (!NT_SUCCESS(Result))
-        return Result;
 
-    /*
-     * If the new file name is *exactly* the same (including case) as the old one,
-     * there is no need to go to the user mode file system. Just return STATUS_SUCCESS.
-     * Our RequestFini will do any cleanup necessary.
-     *
-     * This check needs to be done *after* the open handle test above. This is what FASTFAT
-     * and NTFS do.
-     */
-    if (0 == FspFileNameCompare(&FileNode->FileName, &NewFileName, FALSE, 0))
-        return STATUS_SUCCESS;
+    Result = FspFileNodeRenameCheck(FsvolDeviceObject, Irp,
+        FileNode, FspFileNodeAcquireFull,
+        &FileNode->FileName, TRUE);
+    /* FspFileNodeRenameCheck releases FileNode with STATUS_OPLOCK_BREAK_IN_PROGRESS or failure */
+    if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result)
+        goto retry;
+    if (!NT_SUCCESS(Result))
+    {
+        Result = STATUS_ACCESS_DENIED;
+        goto rename_unlock_exit;
+    }
+
+    if (0 != FspFileNameCompare(&FileNode->FileName, &NewFileName, !FileDesc->CaseSensitive, 0))
+    {
+        Result = FspFileNodeRenameCheck(FsvolDeviceObject, Irp,
+            FileNode, FspFileNodeAcquireFull,
+            &NewFileName, FALSE);
+        /* FspFileNodeRenameCheck releases FileNode with STATUS_OPLOCK_BREAK_IN_PROGRESS or failure */
+        if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result)
+            goto retry;
+        if (!NT_SUCCESS(Result))
+        {
+            Result = STATUS_ACCESS_DENIED;
+            goto rename_unlock_exit;
+        }
+    }
+    else
+    {
+        /*
+         * If the new file name is *exactly* the same (including case) as the old one,
+         * there is no need to go to the user mode file system. Just return STATUS_SUCCESS.
+         * Our RequestFini will do any cleanup necessary.
+         *
+         * This check needs to be done *after* the open handle test above. This is what FASTFAT
+         * and NTFS do.
+         */
+        if (0 == FspFileNameCompare(&FileNode->FileName, &NewFileName, FALSE, 0))
+        {
+            Result = STATUS_SUCCESS;
+            goto unlock_exit;
+        }
+    }
+
+    FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, Request);
+    FspFileNodeSetOwner(FileNode, Full, Request);
+    FspIopRequestContext(Request, RequestFileNode) = FileNode;
+    FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
 
     return FSP_STATUS_IOQ_POST;
 
 unlock_exit:
     FspFileNodeRelease(FileNode, Full);
+rename_unlock_exit:
     FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
 
     return Result;

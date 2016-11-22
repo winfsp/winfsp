@@ -48,8 +48,9 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     FSP_FILE_NODE *FileNode,
     ULONG AcquireFlags,
     PUNICODE_STRING StreamFileName);
-BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
-    FSP_FILE_NODE *FileNode, PUNICODE_STRING FileName);
+NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
+    FSP_FILE_NODE *FileNode, ULONG AcquireFlags,
+    PUNICODE_STRING FileName, BOOLEAN CheckingOldName);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
@@ -851,7 +852,7 @@ NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     return IoStatus.Status;
 }
 
-#define GATHER_DESCENDANTS(FILENAME, SUBPATHONLY, REFERENCE, ...)\
+#define GATHER_DESCENDANTS(FILENAME, REFERENCE, ...)\
     FSP_FILE_NODE *DescendantFileNode;\
     FSP_FILE_NODE *DescendantFileNodeArray[16], **DescendantFileNodes;\
     ULONG DescendantFileNodeCount, DescendantFileNodeIndex;\
@@ -862,7 +863,7 @@ NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     for (;;)                            \
     {                                   \
         DescendantFileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject,\
-            FILENAME, SUBPATHONLY, &RestartKey);\
+            FILENAME, FALSE, &RestartKey);\
         if (0 == DescendantFileNode)    \
             break;                      \
         ASSERT(0 == ((UINT_PTR)DescendantFileNode & 7));\
@@ -882,7 +883,7 @@ NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
         for (;;)                        \
         {                               \
             DescendantFileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject,\
-                FILENAME, SUBPATHONLY, &RestartKey);\
+                FILENAME, FALSE, &RestartKey);\
             if (0 == DescendantFileNode)\
                 break;                  \
             ASSERT(0 == ((UINT_PTR)DescendantFileNode & 7));\
@@ -934,7 +935,7 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
-    GATHER_DESCENDANTS(&FileNode->FileName, FALSE, TRUE,
+    GATHER_DESCENDANTS(&FileNode->FileName, TRUE,
         if (DescendantFileNode->FileName.Length > FileNameLength &&
             L'\\' == DescendantFileNode->FileName.Buffer[FileNameLength / sizeof(WCHAR)])
             break;
@@ -1028,41 +1029,35 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     return Result;
 }
 
-BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
-    FSP_FILE_NODE *FileNode, PUNICODE_STRING FileName)
+NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
+    FSP_FILE_NODE *FileNode, ULONG AcquireFlags,
+    PUNICODE_STRING FileName, BOOLEAN CheckingOldName)
 {
     PAGED_CODE();
 
-    BOOLEAN CheckingOldName = 0 != FileNode;
-    BOOLEAN HasOpenHandles;
-    BOOLEAN Success = TRUE;
+    NTSTATUS Result;
+    ULONG HasHandles, IsBatchOplock, IsHandleOplock;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
-    /* if we are checking the existing file name, do a quick check here */
-    if (CheckingOldName)
+    if (CheckingOldName && !FileNode->IsDirectory && 1 == FileNode->HandleCount)
     {
-        /* if file has single open handle (also means no streams open) and not a directory, exit now */
-        if (1 == FileNode->HandleCount && !FileNode->IsDirectory)
-        {
-            FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
-            return TRUE;
-        }
-
-        /* Note: when CheckingOldName==TRUE, the old FileNode is not included in enumerations below */
+        /* quick exit */
+        FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+        return STATUS_SUCCESS;
     }
 
-    GATHER_DESCENDANTS(FileName, CheckingOldName, TRUE,
+    GATHER_DESCENDANTS(FileName, TRUE,
         DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode |
             (0 < DescendantFileNode->HandleCount)));
 
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
     if (0 == DescendantFileNodeCount)
     {
-        ASSERT(Success);
-        goto unlock_exit;
+        Result = STATUS_SUCCESS;
+        goto exit;
     }
-
-    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
     /*
      * At this point all descendant FileNode's are enumerated and referenced.
@@ -1079,29 +1074,103 @@ BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
             DescendantFileNodeIndex++)
         {
             DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
-            DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode & ~1);
+            DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode & ~7);
 
-            Success = MmFlushImageSection(&DescendantFileNode->NonPaged->SectionObjectPointers,
-                MmFlushForDelete);
-            if (!Success)
-                goto unlock_exit;
+            if (!MmFlushImageSection(&DescendantFileNode->NonPaged->SectionObjectPointers,
+                MmFlushForDelete))
+            {
+                /* release the FileNode in case of failure! */
+                FspFileNodeReleaseF(FileNode, AcquireFlags);
+
+                Result = STATUS_ACCESS_DENIED;
+                goto exit;
+            }
         }
     }
 
     /* break any Batch or Handle oplocks on descendants */
+    Result = STATUS_SUCCESS;
     for (
         DescendantFileNodeIndex = 0;
         DescendantFileNodeCount > DescendantFileNodeIndex;
         DescendantFileNodeIndex++)
     {
         DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
-        HasOpenHandles = (UINT_PTR)DescendantFileNode & 1;
-        DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode & ~1);
+        HasHandles = (UINT_PTR)DescendantFileNode & 1;
+        DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode & ~7);
 
-        if (HasOpenHandles)
-            if (FspFileNodeOplockIsBatch(DescendantFileNode) ||
-                FspFileNodeOplockIsHandle(DescendantFileNode))
-                FspFileNodeOplockCheck(DescendantFileNode, OplockIrp);
+        if (!HasHandles)
+            continue;
+
+        if (FspFileNodeOplockIsBatch(DescendantFileNode))
+        {
+            NTSTATUS Result0 = FspFileNodeOplockCheckEx(DescendantFileNode, OplockIrp,
+                OPLOCK_FLAG_COMPLETE_IF_OPLOCKED);
+            if (STATUS_SUCCESS == Result0)
+                Result = NT_SUCCESS(Result) ? STATUS_OPLOCK_BREAK_IN_PROGRESS : Result;
+            else
+            if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result0)
+            {
+                Result = NT_SUCCESS(Result) ? STATUS_OPLOCK_BREAK_IN_PROGRESS : Result;
+                DescendantFileNodes[DescendantFileNodeIndex] =
+                    (PVOID)((UINT_PTR)DescendantFileNode | 2);
+            }
+            else
+                Result = STATUS_ACCESS_DENIED;
+        }
+        else
+        if (FspFileNodeOplockIsHandle(DescendantFileNode))
+        {
+            NTSTATUS Result0 = FspFileNodeOplockBreakHandle(DescendantFileNode, OplockIrp,
+                OPLOCK_FLAG_COMPLETE_IF_OPLOCKED);
+            if (STATUS_SUCCESS == Result0)
+                Result = NT_SUCCESS(Result) ? STATUS_OPLOCK_BREAK_IN_PROGRESS : Result;
+            else
+            if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result0)
+            {
+                Result = NT_SUCCESS(Result) ? STATUS_OPLOCK_BREAK_IN_PROGRESS : Result;
+                DescendantFileNodes[DescendantFileNodeIndex] =
+                    (PVOID)((UINT_PTR)DescendantFileNode | 2);
+            }
+            else
+                Result = STATUS_ACCESS_DENIED;
+        }
+    }
+
+    if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result || !NT_SUCCESS(Result))
+    {
+        /* release the FileNode so that we can safely wait without deadlocks */
+        FspFileNodeReleaseF(FileNode, AcquireFlags);
+
+        /* wait for oplock breaks to finish */
+        for (
+            DescendantFileNodeIndex = 0;
+            DescendantFileNodeCount > DescendantFileNodeIndex;
+            DescendantFileNodeIndex++)
+        {
+            DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
+            IsBatchOplock = (UINT_PTR)DescendantFileNode & 2;
+            IsHandleOplock = (UINT_PTR)DescendantFileNode & 4;
+            DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode & ~7);
+
+            if (IsBatchOplock)
+            {
+                NTSTATUS Result0 = FspFileNodeOplockCheck(DescendantFileNode, OplockIrp);
+                ASSERT(STATUS_OPLOCK_BREAK_IN_PROGRESS != Result0);
+                if (STATUS_SUCCESS != Result0)
+                    Result = STATUS_ACCESS_DENIED;
+            }
+            else
+            if (IsHandleOplock)
+            {
+                NTSTATUS Result0 = FspFileNodeOplockBreakHandle(DescendantFileNode, OplockIrp, 0);
+                ASSERT(STATUS_OPLOCK_BREAK_IN_PROGRESS != Result0);
+                if (STATUS_SUCCESS != Result0)
+                    Result = STATUS_ACCESS_DENIED;
+            }
+        }
+
+        goto exit;
     }
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
@@ -1111,23 +1180,27 @@ BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
     for (;;)
     {
         DescendantFileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject,
-            FileName, CheckingOldName, &RestartKey);
+            FileName, FALSE, &RestartKey);
         if (0 == DescendantFileNode)
             break;
 
-        if (0 < DescendantFileNode->HandleCount)
+        /* if this is the FileNode being renamed then HandleCount must be 1, else 0 */
+        if ((DescendantFileNode == FileNode) < DescendantFileNode->HandleCount)
         {
-            Success = FALSE;
-            goto unlock_exit;
+            /* release the FileNode in case of failure! */
+            FspFileNodeReleaseF(FileNode, AcquireFlags);
+
+            Result = STATUS_ACCESS_DENIED;
+            break;
         }
     }
 
-unlock_exit:
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
+exit:
     SCATTER_DESCENDANTS(TRUE);
 
-    return Success;
+    return Result;
 }
 
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
@@ -1160,7 +1233,7 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
-    GATHER_DESCENDANTS(&FileNode->FileName, FALSE, FALSE, {});
+    GATHER_DESCENDANTS(&FileNode->FileName, FALSE, {});
 
     FileNameLength = FileNode->FileName.Length;
     for (
