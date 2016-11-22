@@ -1336,7 +1336,7 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
 
             /* break Batch oplocks on the main file and this stream */
             Result = FspFileNodeCheckBatchOplocksOnAllStreams(FsvolDeviceObject, Irp,
-                ExtraFileNode, &FileNode->FileName);
+                ExtraFileNode, FspFileNodeAcquireMain, &FileNode->FileName);
             if (STATUS_SUCCESS != Result)
                 Result = STATUS_SHARING_VIOLATION;
         }
@@ -1353,15 +1353,18 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
 
             /* break Batch oplocks on the main file and all our streams */
             Result = FspFileNodeCheckBatchOplocksOnAllStreams(FsvolDeviceObject, Irp,
-                ExtraFileNode, 0);
+                ExtraFileNode, FspFileNodeAcquireMain, 0);
             if (STATUS_SUCCESS != Result)
                 Result = STATUS_SHARING_VIOLATION;
         }
         else
         if (FspFileNodeOplockIsBatch(ExtraFileNode))
         {
+            FspFileNodeRelease(ExtraFileNode, Main);
+
             /* wait for Batch oplock break to complete */
             Result = FspFileNodeOplockCheck(ExtraFileNode, Irp);
+            ASSERT(STATUS_OPLOCK_BREAK_IN_PROGRESS != Result);
             if (STATUS_SUCCESS != Result)
                 Result = STATUS_SHARING_VIOLATION;
             else
@@ -1371,14 +1374,16 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
         if (!FlagOn(IrpSp->Parameters.Create.Options, FILE_COMPLETE_IF_OPLOCKED) &&
             FspFileNodeOplockIsHandle(ExtraFileNode))
         {
+            FspFileNodeRelease(ExtraFileNode, Main);
+
             /* wait for Handle oplock break to complete */
             Result = FspFileNodeOplockBreakHandle(ExtraFileNode, Irp, 0);
             ASSERT(STATUS_OPLOCK_BREAK_IN_PROGRESS != Result);
             if (STATUS_SUCCESS != Result)
                 Result = STATUS_SHARING_VIOLATION;
         }
-
-        FspFileNodeRelease(ExtraFileNode, Main);
+        else
+            FspFileNodeRelease(ExtraFileNode, Main);
 
         Response = FspIopIrpResponse(Irp);
 

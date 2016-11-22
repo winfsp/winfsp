@@ -46,6 +46,7 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     PDEVICE_OBJECT FsvolDeviceObject,
     PIRP OplockIrp,
     FSP_FILE_NODE *FileNode,
+    ULONG AcquireFlags,
     PUNICODE_STRING StreamFileName);
 BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
     FSP_FILE_NODE *FileNode, PUNICODE_STRING FileName);
@@ -854,6 +855,7 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     PDEVICE_OBJECT FsvolDeviceObject,
     PIRP OplockIrp,
     FSP_FILE_NODE *FileNode,
+    ULONG AcquireFlags,
     PUNICODE_STRING StreamFileName)
 {
     /*
@@ -872,6 +874,7 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     USHORT FileNameLength = FileNode->FileName.Length;
     BOOLEAN CaseInsensitive = !FspFsvolDeviceExtension(FsvolDeviceObject)->
         VolumeParams.CaseSensitiveSearch;
+    ULONG IsBatchOplock, IsHandleOplock;
     NTSTATUS Result;
 
     DescendantFileNodes = DescendantFileNodeArray;
@@ -901,6 +904,8 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
                     CaseInsensitive, 0))
                 continue;
         }
+
+        ASSERT(0 == ((UINT_PTR)DescendantFileNode & 7));
 
         /* keep a reference to the FileNode in case it goes away in later processing */
         FspFileNodeReference(DescendantFileNode);
@@ -958,14 +963,59 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
 
         if (FspFileNodeOplockIsBatch(DescendantFileNode))
         {
-            NTSTATUS Result0 = FspFileNodeOplockCheck(DescendantFileNode, OplockIrp);
-            if (STATUS_SUCCESS != Result0)
-                Result = STATUS_SHARING_VIOLATION;
-            else
+            NTSTATUS Result0 = FspFileNodeOplockCheckEx(DescendantFileNode, OplockIrp,
+                OPLOCK_FLAG_COMPLETE_IF_OPLOCKED);
+            if (STATUS_SUCCESS == Result0)
                 OplockIrp->IoStatus.Information = FILE_OPBATCH_BREAK_UNDERWAY;
+            else
+            if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result0)
+            {
+                OplockIrp->IoStatus.Information = FILE_OPBATCH_BREAK_UNDERWAY;
+                DescendantFileNodes[DescendantFileNodeIndex] =
+                    (PVOID)((UINT_PTR)DescendantFileNode | 2);
+            }
+            else
+                Result = STATUS_SHARING_VIOLATION;
         }
         else
         if (FspFileNodeOplockIsHandle(DescendantFileNode))
+        {
+            NTSTATUS Result0 = FspFileNodeOplockBreakHandle(DescendantFileNode, OplockIrp,
+                OPLOCK_FLAG_COMPLETE_IF_OPLOCKED);
+            if (STATUS_SUCCESS == Result0)
+                ;
+            else
+            if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result0)
+                DescendantFileNodes[DescendantFileNodeIndex] =
+                    (PVOID)((UINT_PTR)DescendantFileNode | 4);
+            else
+                Result = STATUS_SHARING_VIOLATION;
+        }
+    }
+
+    FspFileNodeReleaseF(FileNode, AcquireFlags);
+
+    /* wait for oplock breaks to finish */
+    Result = STATUS_SUCCESS;
+    for (
+        DescendantFileNodeIndex = 0;
+        DescendantFileNodeCount > DescendantFileNodeIndex;
+        DescendantFileNodeIndex++)
+    {
+        DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
+        IsBatchOplock = (UINT_PTR)DescendantFileNode & 2;
+        IsHandleOplock = (UINT_PTR)DescendantFileNode & 4;
+        DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode & ~7);
+
+        if (IsBatchOplock)
+        {
+            NTSTATUS Result0 = FspFileNodeOplockCheck(DescendantFileNode, OplockIrp);
+            ASSERT(STATUS_OPLOCK_BREAK_IN_PROGRESS != Result0);
+            if (STATUS_SUCCESS != Result0)
+                Result = STATUS_SHARING_VIOLATION;
+        }
+        else
+        if (IsHandleOplock)
         {
             NTSTATUS Result0 = FspFileNodeOplockBreakHandle(DescendantFileNode, OplockIrp, 0);
             ASSERT(STATUS_OPLOCK_BREAK_IN_PROGRESS != Result0);
@@ -981,6 +1031,7 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
         DescendantFileNodeIndex++)
     {
         DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
+        DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode & ~7);
 
         FspFileNodeDereference(DescendantFileNode);
     }

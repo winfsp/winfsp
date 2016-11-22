@@ -1121,6 +1121,7 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     PDEVICE_OBJECT FsvolDeviceObject,
     PIRP OplockIrp,
     FSP_FILE_NODE *FileNode,
+    ULONG AcquireFlags,
     PUNICODE_STRING StreamFileName);
 BOOLEAN FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
     FSP_FILE_NODE *FileNode, PUNICODE_STRING FileName);
