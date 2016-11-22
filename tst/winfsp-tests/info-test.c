@@ -537,7 +537,7 @@ static void rename_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     Success = MoveFileExW(File1Path, File2Path, 0);
     ASSERT(Success);
 
-    /* cannot replace existing directory regardless of MOVEFILE_REPLACE_EXISTING */
+    /* cannot replace existing directory regardless of MOVEFILE_REPLACE_EXISTING -- test MEMFS */
     Success = MoveFileExW(Dir2Path, Dir1Path, MOVEFILE_REPLACE_EXISTING);
     ASSERT(!Success);
     ASSERT(ERROR_ACCESS_DENIED == GetLastError());
@@ -561,6 +561,22 @@ static void rename_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     ASSERT(ERROR_ACCESS_DENIED == GetLastError());
 
     CloseHandle(Handle);
+
+    Success = CreateDirectoryW(Dir1Path, 0);
+    ASSERT(Success);
+
+    /* cannot replace existing directory regardless of MOVEFILE_REPLACE_EXISTING -- test FSD */
+    Handle = CreateFileW(File2Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Success = MoveFileExW(Dir1Path, Dir2Path, MOVEFILE_REPLACE_EXISTING);
+    ASSERT(!Success);
+    ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+    CloseHandle(Handle);
+
+    Success = RemoveDirectoryW(Dir1Path);
+    ASSERT(Success);
 
     Success = DeleteFileW(File2Path);
     ASSERT(Success);

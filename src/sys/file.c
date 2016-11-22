@@ -1067,7 +1067,7 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
 
     if (!CheckingOldName)
     {
-        /* make sure no processes are mapping any descendants as an image */
+        /* replaced file cannot be a directory or mapped as an image */
         for (
             DescendantFileNodeIndex = 0;
             DescendantFileNodeCount > DescendantFileNodeIndex;
@@ -1076,8 +1076,10 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
             DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
             DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode & ~7);
 
-            if (!MmFlushImageSection(&DescendantFileNode->NonPaged->SectionObjectPointers,
-                MmFlushForDelete))
+            if ((DescendantFileNode->FileName.Length > FileName->Length &&
+                L'\\' == DescendantFileNode->FileName.Buffer[FileName->Length / sizeof(WCHAR)]) ||
+                !MmFlushImageSection(&DescendantFileNode->NonPaged->SectionObjectPointers,
+                    MmFlushForDelete))
             {
                 /* release the FileNode in case of failure! */
                 FspFileNodeReleaseF(FileNode, AcquireFlags);
