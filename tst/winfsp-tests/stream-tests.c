@@ -2186,7 +2186,8 @@ void stream_tests(void)
     TEST(stream_setfileinfo_test);
     TEST(stream_delete_test);
     TEST(stream_delete_pending_test);
-    TEST(stream_rename_flipflop_test);
+    if (!OptShareName)
+        TEST(stream_rename_flipflop_test);
     TEST(stream_getsecurity_test);
     TEST(stream_setsecurity_test);
     TEST(stream_getstreaminfo_test);

@@ -867,7 +867,8 @@ void create_tests(void)
     TEST(create_test);
     TEST(create_related_test);
     TEST(create_sd_test);
-    TEST(create_notraverse_test);
+    if (!OptNoTraverseToken && !OptShareName)
+        TEST(create_notraverse_test);
     TEST(create_backup_test);
     TEST(create_restore_test);
     TEST(create_share_test);

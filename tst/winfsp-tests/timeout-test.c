@@ -262,6 +262,9 @@ void timeout_transact_test(void)
 
 void timeout_tests(void)
 {
+    if (NtfsTests || OptOplock)
+        return;
+
     TEST(timeout_pending_test);
     TEST(timeout_transact_test);
 }

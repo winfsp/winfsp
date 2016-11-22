@@ -274,6 +274,9 @@ void mount_volume_transact_test(void)
 
 void mount_tests(void)
 {
+    if (NtfsTests || OptOplock)
+        return;
+
     TEST(mount_invalid_test);
     TEST(mount_open_device_test);
     TEST(mount_create_volume_test);

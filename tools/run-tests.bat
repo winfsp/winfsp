@@ -32,11 +32,13 @@ for %%f in (^
     :winfsp-tests-x64-mountpoint-drive ^
     :winfsp-tests-x64-mountpoint-dir ^
     :winfsp-tests-x64-no-traverse ^
+    :winfsp-tests-x64-oplock ^
     :winfsp-tests-x86 ^
     :winfsp-tests-x86-case-randomize ^
     :winfsp-tests-x86-mountpoint-drive ^
     :winfsp-tests-x86-mountpoint-dir ^
     :winfsp-tests-x86-no-traverse ^
+    :winfsp-tests-x86-oplock ^
     :winfsp-tests-x64-external-share ^
     :fsx-memfs-x64-disk ^
     :fsx-memfs-x64-net ^
@@ -127,6 +129,11 @@ winfsp-tests-x64 --no-traverse
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:winfsp-tests-x64-oplock
+winfsp-tests-x64 --oplock=filter --resilient
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :winfsp-tests-x86
 winfsp-tests-x86
 if !ERRORLEVEL! neq 0 goto fail
@@ -149,6 +156,11 @@ exit /b 0
 
 :winfsp-tests-x86-no-traverse
 winfsp-tests-x86 --no-traverse
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-x86-oplock
+winfsp-tests-x86 --oplock=filter --resilient
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 

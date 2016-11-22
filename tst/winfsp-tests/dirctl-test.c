@@ -544,6 +544,7 @@ void dirctl_tests(void)
 {
     TEST(querydir_test);
     TEST(querydir_expire_cache_test);
-    TEST(querydir_buffer_overflow_test);
+    if (!OptShareName)
+        TEST(querydir_buffer_overflow_test);
     TEST(dirnotify_test);
 }

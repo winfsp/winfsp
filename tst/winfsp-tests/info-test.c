@@ -969,7 +969,8 @@ void info_tests(void)
     TEST(delete_access_test);
     TEST(rename_test);
     TEST(rename_caseins_test);
-    TEST(rename_flipflop_test);
+    if (!OptShareName)
+        TEST(rename_flipflop_test);
     TEST(getvolinfo_test);
     TEST(setvolinfo_test);
 }
