@@ -26,6 +26,8 @@ typedef struct
 {
     HANDLE File;
     HANDLE Wait;
+    REQUEST_OPLOCK_INPUT_BUFFER OplockInputBuffer;
+    REQUEST_OPLOCK_OUTPUT_BUFFER OplockOutputBuffer;
     OVERLAPPED Overlapped;
     ULONG Information;
     HANDLE Semaphore;
@@ -40,17 +42,35 @@ static VOID CALLBACK OplockBreakWait(PVOID Context, BOOLEAN Timeout)
 
     switch (Data->Information)
     {
-    case FSCTL_OPLOCK_BREAK_ACKNOWLEDGE:
-        Data->Information = FSCTL_OPLOCK_BREAK_ACK_NO_2;
-        if (!DeviceIoControl(Data->File, FSCTL_OPLOCK_BREAK_ACKNOWLEDGE, 0, 0, 0, 0, &BytesTransferred,
-            &Data->Overlapped) && ERROR_IO_PENDING == GetLastError() &&
+    default:
+        Data->OplockInputBuffer.RequestedOplockLevel = Data->Information;
+        Data->OplockInputBuffer.Flags = REQUEST_OPLOCK_INPUT_FLAG_ACK;
+        Data->Information = 0;
+        if ((Data->OplockOutputBuffer.Flags & REQUEST_OPLOCK_OUTPUT_FLAG_ACK_REQUIRED) &&
+            !DeviceIoControl(Data->File, FSCTL_REQUEST_OPLOCK,
+                &Data->OplockInputBuffer, sizeof Data->OplockInputBuffer,
+                &Data->OplockOutputBuffer, sizeof Data->OplockOutputBuffer,
+                &BytesTransferred, &Data->Overlapped) &&
+            ERROR_IO_PENDING == GetLastError() &&
             RegisterWaitForSingleObject(&Data->Wait, Data->File,
                 OplockBreakWait, Data, INFINITE, WT_EXECUTEONLYONCE))
         {
             break;
         }
-        /* fall through! */
-    default:
+        goto closefile;
+    case FSCTL_OPLOCK_BREAK_ACKNOWLEDGE:
+        Data->Information = 0;
+        if (!DeviceIoControl(Data->File, FSCTL_OPLOCK_BREAK_ACKNOWLEDGE, 0, 0, 0, 0, &BytesTransferred,
+                &Data->Overlapped) &&
+            ERROR_IO_PENDING == GetLastError() &&
+            RegisterWaitForSingleObject(&Data->Wait, Data->File,
+                OplockBreakWait, Data, INFINITE, WT_EXECUTEONLYONCE))
+        {
+            break;
+        }
+        goto closefile;
+    case 0:
+    closefile:
         CloseHandle(Data->File);
         HeapFree(GetProcessHeap(), 0, Data);
         break;
@@ -77,8 +97,29 @@ static VOID RequestOplock(PWSTR FileName, ULONG RequestCode, ULONG BreakCode, HA
     ASSERT(INVALID_HANDLE_VALUE != Data->File);
 
     Data->Information = BreakCode;
-    Success = DeviceIoControl(Data->File, RequestCode, 0, 0, 0, 0, &BytesTransferred,
-        &Data->Overlapped);
+    switch (RequestCode)
+    {
+    case FSCTL_REQUEST_OPLOCK_LEVEL_1:
+    case FSCTL_REQUEST_OPLOCK_LEVEL_2:
+    case FSCTL_REQUEST_BATCH_OPLOCK:
+    case FSCTL_REQUEST_FILTER_OPLOCK:
+        Success = DeviceIoControl(Data->File, RequestCode, 0, 0, 0, 0, &BytesTransferred,
+            &Data->Overlapped);
+        break;
+    default:
+        Data->OplockInputBuffer.StructureVersion = REQUEST_OPLOCK_CURRENT_VERSION;
+        Data->OplockInputBuffer.StructureLength = sizeof Data->OplockInputBuffer;
+        Data->OplockInputBuffer.RequestedOplockLevel = RequestCode;
+        Data->OplockInputBuffer.Flags = REQUEST_OPLOCK_INPUT_FLAG_REQUEST;
+        Success = DeviceIoControl(Data->File,
+            FSCTL_REQUEST_OPLOCK,
+            &Data->OplockInputBuffer, sizeof Data->OplockInputBuffer,
+            &Data->OplockOutputBuffer, sizeof Data->OplockOutputBuffer,
+            &BytesTransferred,
+            &Data->Overlapped);
+        break;
+    }
+
     ASSERT(!Success);
     ASSERT(ERROR_IO_PENDING == GetLastError());
 
@@ -87,7 +128,8 @@ static VOID RequestOplock(PWSTR FileName, ULONG RequestCode, ULONG BreakCode, HA
     ASSERT(Success);
 }
 
-static void oplock_level1_dotest(ULONG Flags, PWSTR Prefix)
+static void oplock_dotest(ULONG Flags, PWSTR Prefix,
+    ULONG RequestCode, ULONG BreakCode, ULONG WaitFlags)
 {
     void *memfs = memfs_start(Flags);
 
@@ -110,24 +152,39 @@ static void oplock_level1_dotest(ULONG Flags, PWSTR Prefix)
     ASSERT(INVALID_HANDLE_VALUE != Handle);
     CloseHandle(Handle);
 
-    RequestOplock(FilePath, FSCTL_REQUEST_OPLOCK_LEVEL_1, FSCTL_OPLOCK_BREAK_ACKNOWLEDGE,
-        Semaphore);
+    RequestOplock(FilePath, RequestCode, BreakCode, Semaphore);
 
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
         OPEN_EXISTING, 0, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
-    /* wait for level1 to level2 break */
-    WaitResult = WaitForSingleObject(Semaphore, INFINITE);
-    ASSERT(WAIT_OBJECT_0 == WaitResult);
+    if (WaitFlags & 1)
+    {
+        /* wait for oplock break after Create */
+        WaitResult = WaitForSingleObject(Semaphore, INFINITE);
+        ASSERT(WAIT_OBJECT_0 == WaitResult);
+    }
+    else
+    {
+        /* ensure no oplock break after Create */
+        WaitResult = WaitForSingleObject(Semaphore, 300);
+        ASSERT(WAIT_TIMEOUT == WaitResult);
+    }
 
     Success = WriteFile(Handle, L"foobar", 6, &BytesTransferred, 0);
     ASSERT(Success);
 
-    /* wait for break to none */
-    WaitResult = WaitForSingleObject(Semaphore, INFINITE);
-    ASSERT(WAIT_OBJECT_0 == WaitResult);
+    if (WaitFlags & 2)
+    {
+        /* wait for any oplock break after Write */
+        WaitResult = WaitForSingleObject(Semaphore, INFINITE);
+        ASSERT(WAIT_OBJECT_0 == WaitResult);
+    }
+
+    /* ensure no additional oplock breaks */
+    WaitResult = WaitForSingleObject(Semaphore, 300);
+    ASSERT(WAIT_TIMEOUT == WaitResult);
 
     Success = CloseHandle(Handle);
     ASSERT(Success);
@@ -150,66 +207,15 @@ static void oplock_level1_test(void)
     {
         WCHAR DirBuf[MAX_PATH];
         GetTestDirectory(DirBuf);
-        oplock_level1_dotest(-1, DirBuf);
+        oplock_dotest(-1, DirBuf,
+            FSCTL_REQUEST_OPLOCK_LEVEL_1, FSCTL_OPLOCK_BREAK_ACKNOWLEDGE, 3);
     }
     if (WinFspDiskTests)
-        oplock_level1_dotest(MemfsDisk, 0);
+        oplock_dotest(MemfsDisk, 0,
+            FSCTL_REQUEST_OPLOCK_LEVEL_1, FSCTL_OPLOCK_BREAK_ACKNOWLEDGE, 3);
     if (WinFspNetTests)
-        oplock_level1_dotest(MemfsNet, L"\\\\memfs\\share");
-}
-
-static void oplock_level2_dotest(ULONG Flags, PWSTR Prefix)
-{
-    void *memfs = memfs_start(Flags);
-
-    HANDLE Semaphore;
-    HANDLE Handle;
-    BOOLEAN Success;
-    WCHAR FilePath[MAX_PATH];
-    DWORD BytesTransferred;
-    DWORD WaitResult;
-
-    Semaphore = CreateSemaphoreW(0, 0, 2, 0);
-    ASSERT(0 != Semaphore);
-
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
-        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
-
-    Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
-    ASSERT(INVALID_HANDLE_VALUE != Handle);
-    CloseHandle(Handle);
-
-    RequestOplock(FilePath, FSCTL_REQUEST_OPLOCK_LEVEL_2, 0,
-        Semaphore);
-
-    Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        OPEN_EXISTING, 0, 0);
-    ASSERT(INVALID_HANDLE_VALUE != Handle);
-
-    Success = WriteFile(Handle, L"foobar", 6, &BytesTransferred, 0);
-    ASSERT(Success);
-
-    /* wait for break to none */
-    WaitResult = WaitForSingleObject(Semaphore, INFINITE);
-    ASSERT(WAIT_OBJECT_0 == WaitResult);
-
-    /* double check there isn't any remaining count on the semaphore */
-    WaitResult = WaitForSingleObject(Semaphore, 100);
-    ASSERT(WAIT_TIMEOUT == WaitResult);
-
-    Success = CloseHandle(Handle);
-    ASSERT(Success);
-
-    Success = DeleteFileW(FilePath);
-    ASSERT(Success);
-
-    Success = CloseHandle(Semaphore);
-    ASSERT(Success);
-
-    memfs_stop(memfs);
+        oplock_dotest(MemfsNet, L"\\\\memfs\\share",
+            FSCTL_REQUEST_OPLOCK_LEVEL_1, FSCTL_OPLOCK_BREAK_ACKNOWLEDGE, 3);
 }
 
 static void oplock_level2_test(void)
@@ -221,66 +227,15 @@ static void oplock_level2_test(void)
     {
         WCHAR DirBuf[MAX_PATH];
         GetTestDirectory(DirBuf);
-        oplock_level2_dotest(-1, DirBuf);
+        oplock_dotest(-1, DirBuf,
+            FSCTL_REQUEST_OPLOCK_LEVEL_2, 0, 2);
     }
     if (WinFspDiskTests)
-        oplock_level2_dotest(MemfsDisk, 0);
+        oplock_dotest(MemfsDisk, 0,
+            FSCTL_REQUEST_OPLOCK_LEVEL_2, 0, 2);
     if (WinFspNetTests)
-        oplock_level2_dotest(MemfsNet, L"\\\\memfs\\share");
-}
-
-static void oplock_batch_dotest(ULONG Flags, PWSTR Prefix, ULONG RequestCode)
-{
-    void *memfs = memfs_start(Flags);
-
-    HANDLE Semaphore;
-    HANDLE Handle;
-    BOOLEAN Success;
-    WCHAR FilePath[MAX_PATH];
-    DWORD BytesTransferred;
-    DWORD WaitResult;
-
-    Semaphore = CreateSemaphoreW(0, 0, 2, 0);
-    ASSERT(0 != Semaphore);
-
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
-        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
-
-    Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
-    ASSERT(INVALID_HANDLE_VALUE != Handle);
-    CloseHandle(Handle);
-
-    RequestOplock(FilePath, RequestCode, 0,
-        Semaphore);
-
-    Handle = CreateFileW(FilePath,
-        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        OPEN_EXISTING, 0, 0);
-    ASSERT(INVALID_HANDLE_VALUE != Handle);
-
-    /* wait for break to none */
-    WaitResult = WaitForSingleObject(Semaphore, INFINITE);
-    ASSERT(WAIT_OBJECT_0 == WaitResult);
-
-    Success = WriteFile(Handle, L"foobar", 6, &BytesTransferred, 0);
-    ASSERT(Success);
-
-    /* double check there isn't any remaining count on the semaphore */
-    WaitResult = WaitForSingleObject(Semaphore, 100);
-    ASSERT(WAIT_TIMEOUT == WaitResult);
-
-    Success = CloseHandle(Handle);
-    ASSERT(Success);
-
-    Success = DeleteFileW(FilePath);
-    ASSERT(Success);
-
-    Success = CloseHandle(Semaphore);
-    ASSERT(Success);
-
-    memfs_stop(memfs);
+        oplock_dotest(MemfsNet, L"\\\\memfs\\share",
+            FSCTL_REQUEST_OPLOCK_LEVEL_2, 0, 2);
 }
 
 static void oplock_batch_test(void)
@@ -292,12 +247,15 @@ static void oplock_batch_test(void)
     {
         WCHAR DirBuf[MAX_PATH];
         GetTestDirectory(DirBuf);
-        oplock_batch_dotest(-1, DirBuf, FSCTL_REQUEST_BATCH_OPLOCK);
+        oplock_dotest(-1, DirBuf,
+            FSCTL_REQUEST_BATCH_OPLOCK, 0, 1);
     }
     if (WinFspDiskTests)
-        oplock_batch_dotest(MemfsDisk, 0, FSCTL_REQUEST_BATCH_OPLOCK);
+        oplock_dotest(MemfsDisk, 0,
+            FSCTL_REQUEST_BATCH_OPLOCK, 0, 1);
     if (WinFspNetTests)
-        oplock_batch_dotest(MemfsNet, L"\\\\memfs\\share", FSCTL_REQUEST_BATCH_OPLOCK);
+        oplock_dotest(MemfsNet, L"\\\\memfs\\share",
+            FSCTL_REQUEST_BATCH_OPLOCK, 0, 1);
 }
 
 static void oplock_filter_test(void)
@@ -309,12 +267,38 @@ static void oplock_filter_test(void)
     {
         WCHAR DirBuf[MAX_PATH];
         GetTestDirectory(DirBuf);
-        oplock_batch_dotest(-1, DirBuf, FSCTL_REQUEST_FILTER_OPLOCK);
+        oplock_dotest(-1, DirBuf,
+            FSCTL_REQUEST_FILTER_OPLOCK, 0, 1);
     }
     if (WinFspDiskTests)
-        oplock_batch_dotest(MemfsDisk, 0, FSCTL_REQUEST_FILTER_OPLOCK);
+        oplock_dotest(MemfsDisk, 0,
+            FSCTL_REQUEST_FILTER_OPLOCK, 0, 1);
     if (WinFspNetTests)
-        oplock_batch_dotest(MemfsNet, L"\\\\memfs\\share", FSCTL_REQUEST_FILTER_OPLOCK);
+        oplock_dotest(MemfsNet, L"\\\\memfs\\share",
+            FSCTL_REQUEST_FILTER_OPLOCK, 0, 1);
+}
+
+static void oplock_rwh_test(void)
+{
+    if (OptShareName || OptOplock)
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        oplock_dotest(-1, DirBuf,
+            OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_WRITE | OPLOCK_LEVEL_CACHE_HANDLE,
+            OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_HANDLE, 3);
+    }
+    if (WinFspDiskTests)
+        oplock_dotest(MemfsDisk, 0,
+            OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_WRITE | OPLOCK_LEVEL_CACHE_HANDLE,
+            OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_HANDLE, 3);
+    if (WinFspNetTests)
+        oplock_dotest(MemfsNet, L"\\\\memfs\\share",
+            OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_WRITE | OPLOCK_LEVEL_CACHE_HANDLE,
+            OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_HANDLE, 3);
 }
 
 static void oplock_not_granted_dotest(ULONG Flags, PWSTR Prefix)
@@ -387,5 +371,6 @@ void oplock_tests(void)
     TEST(oplock_level2_test);
     TEST(oplock_batch_test);
     TEST(oplock_filter_test);
+    TEST(oplock_rwh_test);
     TEST(oplock_not_granted_test);
 }
