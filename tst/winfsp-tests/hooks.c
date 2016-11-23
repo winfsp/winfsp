@@ -206,7 +206,7 @@ HANDLE WINAPI HookCreateFileW(
 
     PrepareFileName(lpFileName, FileNameBuf);
 
-    MaybeRequestOplock(lpFileName);
+    MaybeRequestOplock(FileNameBuf);
 
     MaybeAdjustTraversePrivilege(FALSE);
     Handle = (OptResilient ? ResilientCreateFileW : CreateFileW)(
@@ -300,8 +300,10 @@ BOOL WINAPI HookMoveFileExW(
     PrepareFileName(lpExistingFileName, OldFileNameBuf);
     PrepareFileName(lpNewFileName, NewFileNameBuf);
 
-    MaybeRequestOplock(lpExistingFileName);
-    MaybeRequestOplock(lpNewFileName);
+    MaybeRequestOplock(OldFileNameBuf);
+    if (OptCaseInsensitive ?
+        _wcsicmp(OldFileNameBuf, NewFileNameBuf) : wcscmp(OldFileNameBuf, NewFileNameBuf))
+        MaybeRequestOplock(NewFileNameBuf);
 
     MaybeAdjustTraversePrivilege(FALSE);
     Success = MoveFileExW(OldFileNameBuf, NewFileNameBuf, dwFlags);
