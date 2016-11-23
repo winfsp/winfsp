@@ -123,7 +123,7 @@ VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result);
 #define DEBUGTEST(Percent)              \
     (0 == (fsp_debug & fsp_debug_dt) || DebugRandom() <= (Percent) * 0x7fff / 100)
 #define DEBUGTEST_EX(C, Percent, Deflt) \
-    ((C) ? DEBUGTEST(Percent) : (Deflt))
+    (0 != (fsp_debug & fsp_debug_dt) && (C) ? (DebugRandom() <= (Percent) * 0x7fff / 100) : (Deflt))
 #else
 #define DEBUGTEST(Percent)              (TRUE)
 #define DEBUGTEST_EX(C, Percent, Deflt) (Deflt)
