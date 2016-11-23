@@ -22,7 +22,302 @@
 
 #include "winfsp-tests.h"
 
-void oplock_not_granted_dotest(ULONG Flags, PWSTR Prefix)
+typedef struct
+{
+    HANDLE File;
+    HANDLE Wait;
+    OVERLAPPED Overlapped;
+    ULONG Information;
+    HANDLE Semaphore;
+} OPLOCK_BREAK_WAIT_DATA;
+
+static VOID CALLBACK OplockBreakWait(PVOID Context, BOOLEAN Timeout)
+{
+    OPLOCK_BREAK_WAIT_DATA *Data = Context;
+    DWORD BytesTransferred;
+
+    UnregisterWaitEx(Data->Wait, 0);
+
+    switch (Data->Information)
+    {
+    case FSCTL_OPLOCK_BREAK_ACKNOWLEDGE:
+        Data->Information = FSCTL_OPLOCK_BREAK_ACK_NO_2;
+        if (!DeviceIoControl(Data->File, FSCTL_OPLOCK_BREAK_ACKNOWLEDGE, 0, 0, 0, 0, &BytesTransferred,
+            &Data->Overlapped) && ERROR_IO_PENDING == GetLastError() &&
+            RegisterWaitForSingleObject(&Data->Wait, Data->File,
+                OplockBreakWait, Data, INFINITE, WT_EXECUTEONLYONCE))
+        {
+            break;
+        }
+        /* fall through! */
+    default:
+        CloseHandle(Data->File);
+        HeapFree(GetProcessHeap(), 0, Data);
+        break;
+    }
+
+    ReleaseSemaphore(Data->Semaphore, 1, 0);
+}
+
+static VOID RequestOplock(PWSTR FileName, ULONG RequestCode, ULONG BreakCode, HANDLE Semaphore)
+{
+    OPLOCK_BREAK_WAIT_DATA *Data;
+    DWORD BytesTransferred;
+    BOOLEAN Success;
+
+    Data = HeapAlloc(GetProcessHeap(), 0, sizeof *Data);
+    ASSERT(0 != Data);
+    memset(Data, 0, sizeof *Data);
+
+    Data->Semaphore = Semaphore;
+
+    Data->File = CreateFileW(FileName,
+        FILE_READ_ATTRIBUTES, 0,
+        0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Data->File);
+
+    Data->Information = BreakCode;
+    Success = DeviceIoControl(Data->File, RequestCode, 0, 0, 0, 0, &BytesTransferred,
+        &Data->Overlapped);
+    ASSERT(!Success);
+    ASSERT(ERROR_IO_PENDING == GetLastError());
+
+    Success = RegisterWaitForSingleObject(&Data->Wait, Data->File,
+        OplockBreakWait, Data, INFINITE, WT_EXECUTEONLYONCE);
+    ASSERT(Success);
+}
+
+static void oplock_level1_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    HANDLE Semaphore;
+    HANDLE Handle;
+    BOOLEAN Success;
+    WCHAR FilePath[MAX_PATH];
+    DWORD BytesTransferred;
+    DWORD WaitResult;
+
+    Semaphore = CreateSemaphoreW(0, 0, 2, 0);
+    ASSERT(0 != Semaphore);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    RequestOplock(FilePath, FSCTL_REQUEST_OPLOCK_LEVEL_1, FSCTL_OPLOCK_BREAK_ACKNOWLEDGE,
+        Semaphore);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    /* wait for level1 to level2 break */
+    WaitResult = WaitForSingleObject(Semaphore, INFINITE);
+    ASSERT(WAIT_OBJECT_0 == WaitResult);
+
+    Success = WriteFile(Handle, L"foobar", 6, &BytesTransferred, 0);
+    ASSERT(Success);
+
+    /* wait for break to none */
+    WaitResult = WaitForSingleObject(Semaphore, INFINITE);
+    ASSERT(WAIT_OBJECT_0 == WaitResult);
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    Success = CloseHandle(Semaphore);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+static void oplock_level1_test(void)
+{
+    if (OptShareName || OptOplock)
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        oplock_level1_dotest(-1, DirBuf);
+    }
+    if (WinFspDiskTests)
+        oplock_level1_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        oplock_level1_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
+static void oplock_level2_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    HANDLE Semaphore;
+    HANDLE Handle;
+    BOOLEAN Success;
+    WCHAR FilePath[MAX_PATH];
+    DWORD BytesTransferred;
+    DWORD WaitResult;
+
+    Semaphore = CreateSemaphoreW(0, 0, 2, 0);
+    ASSERT(0 != Semaphore);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    RequestOplock(FilePath, FSCTL_REQUEST_OPLOCK_LEVEL_2, 0,
+        Semaphore);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Success = WriteFile(Handle, L"foobar", 6, &BytesTransferred, 0);
+    ASSERT(Success);
+
+    /* wait for break to none */
+    WaitResult = WaitForSingleObject(Semaphore, INFINITE);
+    ASSERT(WAIT_OBJECT_0 == WaitResult);
+
+    /* double check there isn't any remaining count on the semaphore */
+    WaitResult = WaitForSingleObject(Semaphore, 100);
+    ASSERT(WAIT_TIMEOUT == WaitResult);
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    Success = CloseHandle(Semaphore);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+static void oplock_level2_test(void)
+{
+    if (OptShareName || OptOplock)
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        oplock_level2_dotest(-1, DirBuf);
+    }
+    if (WinFspDiskTests)
+        oplock_level2_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        oplock_level2_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
+static void oplock_batch_dotest(ULONG Flags, PWSTR Prefix, ULONG RequestCode)
+{
+    void *memfs = memfs_start(Flags);
+
+    HANDLE Semaphore;
+    HANDLE Handle;
+    BOOLEAN Success;
+    WCHAR FilePath[MAX_PATH];
+    DWORD BytesTransferred;
+    DWORD WaitResult;
+
+    Semaphore = CreateSemaphoreW(0, 0, 2, 0);
+    ASSERT(0 != Semaphore);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    RequestOplock(FilePath, RequestCode, 0,
+        Semaphore);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    /* wait for break to none */
+    WaitResult = WaitForSingleObject(Semaphore, INFINITE);
+    ASSERT(WAIT_OBJECT_0 == WaitResult);
+
+    Success = WriteFile(Handle, L"foobar", 6, &BytesTransferred, 0);
+    ASSERT(Success);
+
+    /* double check there isn't any remaining count on the semaphore */
+    WaitResult = WaitForSingleObject(Semaphore, 100);
+    ASSERT(WAIT_TIMEOUT == WaitResult);
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    Success = CloseHandle(Semaphore);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+static void oplock_batch_test(void)
+{
+    if (OptShareName || OptOplock)
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        oplock_batch_dotest(-1, DirBuf, FSCTL_REQUEST_BATCH_OPLOCK);
+    }
+    if (WinFspDiskTests)
+        oplock_batch_dotest(MemfsDisk, 0, FSCTL_REQUEST_BATCH_OPLOCK);
+    if (WinFspNetTests)
+        oplock_batch_dotest(MemfsNet, L"\\\\memfs\\share", FSCTL_REQUEST_BATCH_OPLOCK);
+}
+
+static void oplock_filter_test(void)
+{
+    if (OptShareName || OptOplock)
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        oplock_batch_dotest(-1, DirBuf, FSCTL_REQUEST_FILTER_OPLOCK);
+    }
+    if (WinFspDiskTests)
+        oplock_batch_dotest(MemfsDisk, 0, FSCTL_REQUEST_FILTER_OPLOCK);
+    if (WinFspNetTests)
+        oplock_batch_dotest(MemfsNet, L"\\\\memfs\\share", FSCTL_REQUEST_FILTER_OPLOCK);
+}
+
+static void oplock_not_granted_dotest(ULONG Flags, PWSTR Prefix)
 {
     void *memfs = memfs_start(Flags);
 
@@ -66,7 +361,7 @@ void oplock_not_granted_dotest(ULONG Flags, PWSTR Prefix)
     memfs_stop(memfs);
 }
 
-void oplock_not_granted_test(void)
+static void oplock_not_granted_test(void)
 {
     if (OptShareName || OptOplock)
         return;
@@ -88,5 +383,9 @@ void oplock_tests(void)
     if (OptShareName || OptOplock)
         return;
 
+    TEST(oplock_level1_test);
+    TEST(oplock_level2_test);
+    TEST(oplock_batch_test);
+    TEST(oplock_filter_test);
     TEST(oplock_not_granted_test);
 }
