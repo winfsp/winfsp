@@ -191,6 +191,7 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\lock-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\memfs-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\mount-test.c" />
+    <ClCompile Include="..\..\..\tst\winfsp-tests\oplock-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\path-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\posix-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\rdwr-test.c" />

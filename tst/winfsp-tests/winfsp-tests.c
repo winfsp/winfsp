@@ -194,6 +194,7 @@ int main(int argc, char *argv[])
     TESTSUITE(dirctl_tests);
     TESTSUITE(reparse_tests);
     TESTSUITE(stream_tests);
+    TESTSUITE(oplock_tests);
 
     atexit(exiting);
     signal(SIGABRT, abort_handler);
