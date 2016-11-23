@@ -1230,6 +1230,7 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     BOOLEAN Deleted, Inserted, AcquireForeign;
+    FSP_FILE_NODE *InsertedFileNode;
     USHORT FileNameLength;
     PWSTR ExternalFileName;
 
@@ -1274,9 +1275,33 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
         if (0 != ExternalFileName)
             FspFree(ExternalFileName);
 
-        FspFsvolDeviceInsertContextByName(FsvolDeviceObject, &DescendantFileNode->FileName, DescendantFileNode,
+        InsertedFileNode = FspFsvolDeviceInsertContextByName(
+            FsvolDeviceObject, &DescendantFileNode->FileName, DescendantFileNode,
             &DescendantFileNode->ContextByNameElementStorage, &Inserted);
-        ASSERT(Inserted);
+        if (!Inserted)
+        {
+            /*
+             * Handle files that have been Cleanup'ed but not Close'd.
+             * For example, this can happen when the user has mapped and closed a file
+             * or immediately after breaking a Batch oplock.
+             */
+
+            ASSERT(FspFileNodeIsValid(InsertedFileNode));
+            ASSERT(DescendantFileNode != InsertedFileNode);
+            ASSERT(0 == InsertedFileNode->HandleCount);
+            ASSERT(0 != InsertedFileNode->OpenCount);
+
+            InsertedFileNode->OpenCount = 0;
+            FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &InsertedFileNode->FileName, &Deleted);
+            ASSERT(Deleted);
+
+            FspFileNodeDereference(InsertedFileNode);
+
+            FspFsvolDeviceInsertContextByName(
+                FsvolDeviceObject, &DescendantFileNode->FileName, DescendantFileNode,
+                &DescendantFileNode->ContextByNameElementStorage, &Inserted);
+            ASSERT(Inserted);
+        }
 
         if (AcquireForeign)
             FspFileNodeReleaseForeign(DescendantFileNode);

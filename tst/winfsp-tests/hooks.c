@@ -300,6 +300,9 @@ BOOL WINAPI HookMoveFileExW(
     PrepareFileName(lpExistingFileName, OldFileNameBuf);
     PrepareFileName(lpNewFileName, NewFileNameBuf);
 
+    MaybeRequestOplock(lpExistingFileName);
+    MaybeRequestOplock(lpNewFileName);
+
     MaybeAdjustTraversePrivilege(FALSE);
     Success = MoveFileExW(OldFileNameBuf, NewFileNameBuf, dwFlags);
     MaybeAdjustTraversePrivilege(TRUE);
