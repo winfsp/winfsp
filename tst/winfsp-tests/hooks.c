@@ -266,6 +266,8 @@ BOOL WINAPI HookDeleteFileW(
 
     PrepareFileName(lpFileName, FileNameBuf);
 
+    MaybeRequestOplock(FileNameBuf);
+
     MaybeAdjustTraversePrivilege(FALSE);
     Success = (OptResilient ? ResilientDeleteFileW : DeleteFileW)(
         FileNameBuf);
