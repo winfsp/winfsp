@@ -68,7 +68,7 @@ void oplock_not_granted_dotest(ULONG Flags, PWSTR Prefix)
 
 void oplock_not_granted_test(void)
 {
-    if (OptOplock)
+    if (OptShareName || OptOplock)
         return;
 
     if (NtfsTests)
@@ -85,7 +85,7 @@ void oplock_not_granted_test(void)
 
 void oplock_tests(void)
 {
-    if (OptOplock)
+    if (OptShareName || OptOplock)
         return;
 
     TEST(oplock_not_granted_test);
