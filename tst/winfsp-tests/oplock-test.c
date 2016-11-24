@@ -128,17 +128,26 @@ static VOID RequestOplock(PWSTR FileName, ULONG RequestCode, ULONG BreakCode, HA
     ASSERT(Success);
 }
 
-static void oplock_dotest(ULONG Flags, PWSTR Prefix,
-    ULONG RequestCode, ULONG BreakCode, ULONG WaitFlags)
+static void oplock_dotest2(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout,
+    ULONG RequestCode, ULONG BreakCode, ULONG WaitFlags,
+    ULONG CreateFlags)
 {
-    void *memfs = memfs_start(Flags);
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
     HANDLE Semaphore;
     HANDLE Handle;
     BOOLEAN Success;
     WCHAR FilePath[MAX_PATH];
+    SYSTEM_INFO SystemInfo;
+    PVOID Buffer;
+    ULONG BufferSize;
     DWORD BytesTransferred;
     DWORD WaitResult;
+
+    GetSystemInfo(&SystemInfo);
+    BufferSize = 16 * SystemInfo.dwPageSize;
+    Buffer = _aligned_malloc(BufferSize, BufferSize);
+    ASSERT(0 != Buffer);
 
     Semaphore = CreateSemaphoreW(0, 0, 2, 0);
     ASSERT(0 != Semaphore);
@@ -156,7 +165,7 @@ static void oplock_dotest(ULONG Flags, PWSTR Prefix,
 
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        OPEN_EXISTING, 0, 0);
+        OPEN_EXISTING, CreateFlags, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
     if (WaitFlags & 1)
@@ -172,8 +181,20 @@ static void oplock_dotest(ULONG Flags, PWSTR Prefix,
         ASSERT(WAIT_TIMEOUT == WaitResult);
     }
 
-    Success = WriteFile(Handle, L"foobar", 6, &BytesTransferred, 0);
-    ASSERT(Success);
+    if (FILE_FLAG_OVERLAPPED & CreateFlags)
+    {
+        OVERLAPPED Overlapped;
+        memset(&Overlapped, 0, sizeof Overlapped);
+        Success = WriteFile(Handle, Buffer, BufferSize, &BytesTransferred, &Overlapped);
+        ASSERT(Success || ERROR_IO_PENDING == GetLastError());
+        Success = GetOverlappedResult(Handle, &Overlapped, &BytesTransferred, TRUE);
+        ASSERT(Success);
+    }
+    else
+    {
+        Success = WriteFile(Handle, Buffer, BufferSize, &BytesTransferred, 0);
+        ASSERT(Success);
+    }
 
     if (WaitFlags & 2)
     {
@@ -195,7 +216,25 @@ static void oplock_dotest(ULONG Flags, PWSTR Prefix,
     Success = CloseHandle(Semaphore);
     ASSERT(Success);
 
+    _aligned_free(Buffer);
+
     memfs_stop(memfs);
+}
+
+static void oplock_dotest(ULONG Flags, PWSTR Prefix,
+    ULONG RequestCode, ULONG BreakCode, ULONG WaitFlags)
+{
+    oplock_dotest2(Flags, Prefix, 0, RequestCode, BreakCode, WaitFlags, 0);
+    oplock_dotest2(Flags, Prefix, 0, RequestCode, BreakCode, WaitFlags, FILE_FLAG_NO_BUFFERING);
+    oplock_dotest2(Flags, Prefix, 0, RequestCode, BreakCode, WaitFlags, FILE_FLAG_OVERLAPPED);
+    oplock_dotest2(Flags, Prefix, 0, RequestCode, BreakCode, WaitFlags, FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING);
+    if (-1 != Flags)
+    {
+        oplock_dotest2(Flags, Prefix, INFINITE, RequestCode, BreakCode, WaitFlags, 0);
+        oplock_dotest2(Flags, Prefix, INFINITE, RequestCode, BreakCode, WaitFlags, FILE_FLAG_NO_BUFFERING);
+        oplock_dotest2(Flags, Prefix, INFINITE, RequestCode, BreakCode, WaitFlags, FILE_FLAG_OVERLAPPED);
+        oplock_dotest2(Flags, Prefix, INFINITE, RequestCode, BreakCode, WaitFlags, FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING);
+    }
 }
 
 static void oplock_level1_test(void)
