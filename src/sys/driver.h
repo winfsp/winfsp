@@ -1276,15 +1276,27 @@ NTSTATUS FspFileNodeOplockCheckAsyncEx(
     POPLOCK_FS_PREPOST_IRP PostIrpRoutine)
 {
     FSP_FILE_NODE_OPLOCK_CONTEXT OplockContext;
+    NTSTATUS Result;
     OplockContext.FileNode = FileNode;
     OplockContext.AcquireFlags = AcquireFlags;
     OplockContext.PrepareContext = PrepareContext;
-    return FspCheckOplock(
+    Result = FspCheckOplock(
         FspFileNodeAddrOfOplock(FileNode),
         Irp,
         &OplockContext,
         CompletionRoutine,
         PostIrpRoutine);
+#if DBG
+    if (STATUS_SUCCESS == Result && DEBUGTEST(10))
+    {
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+        Irp->IoStatus.Information = 0;
+        PostIrpRoutine(&OplockContext, Irp);
+        CompletionRoutine(&OplockContext, Irp);
+        Result = STATUS_PENDING;
+    }
+#endif
+    return Result;
 }
 static inline
 PVOID FspFileNodeReleaseForOplock(FSP_FILE_NODE_OPLOCK_CONTEXT *OplockContext)
