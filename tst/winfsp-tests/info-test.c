@@ -479,6 +479,69 @@ void delete_access_test(void)
     }
 }
 
+static void delete_pending_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle, Handle2;
+    BOOL Success;
+    WCHAR FilePath[MAX_PATH];
+    MY_FILE_DISPOSITION_INFO DispositionInfo;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Handle = CreateFileW(FilePath,
+        DELETE, FILE_SHARE_DELETE, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    DispositionInfo.Disposition = TRUE;
+    Success = SetFileInformationByHandle(Handle,
+        FileDispositionInfo, &DispositionInfo, sizeof DispositionInfo);
+    ASSERT(Success);
+
+    Handle2 = CreateFileW(FilePath,
+        FILE_READ_ATTRIBUTES, 0, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle2);
+    ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(!Success);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    memfs_stop(memfs);
+}
+
+void delete_pending_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        delete_pending_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        delete_pending_dotest(MemfsDisk, 0, 0);
+        delete_pending_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        delete_pending_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        delete_pending_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 static void delete_mmap_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -1041,6 +1104,7 @@ void info_tests(void)
     TEST(setfileinfo_test);
     TEST(delete_test);
     TEST(delete_access_test);
+    TEST(delete_pending_test);
     TEST(delete_mmap_test);
     TEST(rename_test);
     TEST(rename_caseins_test);
