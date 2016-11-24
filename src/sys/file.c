@@ -1076,10 +1076,20 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
             DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
             DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode & ~7);
 
+            /*
+             * Windows file systems do not allow the replaced file to be a directory.
+             * However POSIX allows this (when the directory is empty).
+             *
+             * For this reason we will allow the case where the replaced file is a directory
+             * (without any open files within it). The user mode file system can always fail
+             * such requests if it wants.
+             */
+
             if ((DescendantFileNode->FileName.Length > FileName->Length &&
                 L'\\' == DescendantFileNode->FileName.Buffer[FileName->Length / sizeof(WCHAR)]) ||
+                (0 != DescendantFileNode->NonPaged->SectionObjectPointers.ImageSectionObject &&
                 !MmFlushImageSection(&DescendantFileNode->NonPaged->SectionObjectPointers,
-                    MmFlushForDelete))
+                    MmFlushForDelete)))
             {
                 /* release the FileNode in case of failure! */
                 FspFileNodeReleaseF(FileNode, AcquireFlags);

@@ -919,6 +919,96 @@ void rename_flipflop_test(void)
     }
 }
 
+static void rename_mmap_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle, Mapping0, Mapping1;
+    BOOL Success;
+    WCHAR File0Path[MAX_PATH];
+    WCHAR File1Path[MAX_PATH];
+    WCHAR File2Path[MAX_PATH];
+    SYSTEM_INFO SystemInfo;
+
+    GetSystemInfo(&SystemInfo);
+
+    StringCbPrintfW(File0Path, sizeof File0Path, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File1Path, sizeof File1Path, L"%s%s\\file1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File2Path, sizeof File2Path, L"%s%s\\file2",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(File0Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Mapping0 = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+        0, SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping0);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Handle = CreateFileW(File1Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Mapping1 = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+        0, SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping1);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Success = MoveFileExW(File0Path, File2Path, MOVEFILE_REPLACE_EXISTING);
+    ASSERT(Success);
+    Success = MoveFileExW(File2Path, File1Path, MOVEFILE_REPLACE_EXISTING);
+    ASSERT(Success);
+
+    Success = CloseHandle(Mapping0);
+    ASSERT(Success);
+    Success = CloseHandle(Mapping1);
+    ASSERT(Success);
+
+    Success = DeleteFileW(File1Path);
+    ASSERT(Success);
+
+    Success = DeleteFileW(File0Path);
+    ASSERT(!Success);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    Success = DeleteFileW(File1Path);
+    ASSERT(!Success);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    Success = DeleteFileW(File2Path);
+    ASSERT(!Success);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    memfs_stop(memfs);
+}
+
+void rename_mmap_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        rename_mmap_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        rename_mmap_dotest(MemfsDisk, 0, 0);
+        rename_mmap_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        rename_mmap_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        rename_mmap_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -1110,6 +1200,7 @@ void info_tests(void)
     TEST(rename_caseins_test);
     if (!OptShareName)
         TEST(rename_flipflop_test);
+    TEST(rename_mmap_test);
     TEST(getvolinfo_test);
     TEST(setvolinfo_test);
 }
