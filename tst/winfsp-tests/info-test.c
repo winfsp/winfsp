@@ -479,6 +479,64 @@ void delete_access_test(void)
     }
 }
 
+static void delete_mmap_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle, Mapping;
+    BOOL Success;
+    WCHAR FilePath[MAX_PATH];
+    SYSTEM_INFO SystemInfo;
+
+    GetSystemInfo(&SystemInfo);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Mapping = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+        0, SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping);
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    Success = CloseHandle(Mapping);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+void delete_mmap_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        delete_mmap_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        delete_mmap_dotest(MemfsDisk, 0, 0);
+        delete_mmap_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        delete_mmap_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        delete_mmap_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 static void rename_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -983,6 +1041,7 @@ void info_tests(void)
     TEST(setfileinfo_test);
     TEST(delete_test);
     TEST(delete_access_test);
+    TEST(delete_mmap_test);
     TEST(rename_test);
     TEST(rename_caseins_test);
     if (!OptShareName)
