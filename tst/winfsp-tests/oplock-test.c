@@ -475,13 +475,13 @@ void oplock_tests(void)
     if (OptShareName || OptOplock)
         return;
 
-    TEST(oplock_level1_test);
-    TEST(oplock_level2_test);
-    TEST(oplock_batch_test);
-    TEST(oplock_filter_test);
-    TEST(oplock_rwh_test);
-    TEST(oplock_rw_test);
-    TEST(oplock_rh_test);
-    TEST(oplock_r_test);
-    TEST(oplock_not_granted_test);
+    TEST_OPT(oplock_level1_test);
+    TEST_OPT(oplock_level2_test);
+    TEST_OPT(oplock_batch_test);
+    TEST_OPT(oplock_filter_test);
+    TEST_OPT(oplock_rwh_test);
+    TEST_OPT(oplock_rw_test);
+    TEST_OPT(oplock_rh_test);
+    TEST_OPT(oplock_r_test);
+    TEST_OPT(oplock_not_granted_test);
 }

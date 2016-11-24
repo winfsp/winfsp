@@ -105,7 +105,7 @@ exit /b 0
 exit /b 1
 
 :winfsp-tests-x64
-winfsp-tests-x64
+winfsp-tests-x64 +*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -135,7 +135,7 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86
-winfsp-tests-x86
+winfsp-tests-x86 +*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
