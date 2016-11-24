@@ -340,6 +340,75 @@ static void oplock_rwh_test(void)
             OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_HANDLE, 3);
 }
 
+static void oplock_rw_test(void)
+{
+    if (OptShareName || OptOplock)
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        oplock_dotest(-1, DirBuf,
+            OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_WRITE,
+            OPLOCK_LEVEL_CACHE_READ, 3);
+    }
+    if (WinFspDiskTests)
+        oplock_dotest(MemfsDisk, 0,
+            OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_WRITE,
+            OPLOCK_LEVEL_CACHE_READ, 3);
+    if (WinFspNetTests)
+        oplock_dotest(MemfsNet, L"\\\\memfs\\share",
+            OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_WRITE,
+            OPLOCK_LEVEL_CACHE_READ, 3);
+}
+
+static void oplock_rh_test(void)
+{
+    if (OptShareName || OptOplock)
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        oplock_dotest(-1, DirBuf,
+            OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_HANDLE,
+            0, 2);
+    }
+    if (WinFspDiskTests)
+        oplock_dotest(MemfsDisk, 0,
+            OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_HANDLE,
+            0, 2);
+    if (WinFspNetTests)
+        oplock_dotest(MemfsNet, L"\\\\memfs\\share",
+            OPLOCK_LEVEL_CACHE_READ | OPLOCK_LEVEL_CACHE_HANDLE,
+            0, 2);
+}
+
+static void oplock_r_test(void)
+{
+    if (OptShareName || OptOplock)
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        oplock_dotest(-1, DirBuf,
+            OPLOCK_LEVEL_CACHE_READ,
+            0, 2);
+    }
+    if (WinFspDiskTests)
+        oplock_dotest(MemfsDisk, 0,
+            OPLOCK_LEVEL_CACHE_READ,
+            0, 2);
+    if (WinFspNetTests)
+        oplock_dotest(MemfsNet, L"\\\\memfs\\share",
+            OPLOCK_LEVEL_CACHE_READ,
+            0, 2);
+}
+
 static void oplock_not_granted_dotest(ULONG Flags, PWSTR Prefix)
 {
     void *memfs = memfs_start(Flags);
@@ -411,5 +480,8 @@ void oplock_tests(void)
     TEST(oplock_batch_test);
     TEST(oplock_filter_test);
     TEST(oplock_rwh_test);
+    TEST(oplock_rw_test);
+    TEST(oplock_rh_test);
+    TEST(oplock_r_test);
     TEST(oplock_not_granted_test);
 }
