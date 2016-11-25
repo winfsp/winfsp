@@ -19,9 +19,9 @@
 #include <strsafe.h>
 #include <tlib/testsuite.h>
 
-ULONG OptFiles = 1000;
-ULONG OptDirs = 1000;
-ULONG OptRdwr = 10000;
+ULONG OptFileCount = 1000;
+ULONG OptListCount = 100;
+ULONG OptRdwrCount = 10000;
 
 static void file_create_test(void)
 {
@@ -29,7 +29,7 @@ static void file_create_test(void)
     BOOL Success;
     WCHAR FileName[MAX_PATH];
 
-    for (ULONG Index = 0; OptFiles > Index; Index++)
+    for (ULONG Index = 0; OptFileCount > Index; Index++)
     {
         StringCbPrintfW(FileName, sizeof FileName, L"fsbench-file%lu", Index);
         Handle = CreateFileW(FileName,
@@ -42,12 +42,29 @@ static void file_create_test(void)
         ASSERT(Success);
     }
 }
+static void file_list_test(void)
+{
+    HANDLE Handle;
+    BOOL Success;
+    WIN32_FIND_DATAW FindData;
+
+    for (ULONG Index = 0; OptListCount > Index; Index++)
+    {
+        Handle = FindFirstFileW(L"*", &FindData);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        do
+        {
+        } while (FindNextFileW(Handle, &FindData));
+        Success = FindClose(Handle);
+        ASSERT(Success);
+    }
+}
 static void file_delete_test(void)
 {
     BOOL Success;
     WCHAR FileName[MAX_PATH];
 
-    for (ULONG Index = 0; OptFiles > Index; Index++)
+    for (ULONG Index = 0; OptFileCount > Index; Index++)
     {
         StringCbPrintfW(FileName, sizeof FileName, L"fsbench-file%lu", Index);
         Success = DeleteFileW(FileName);
@@ -57,6 +74,7 @@ static void file_delete_test(void)
 static void file_tests(void)
 {
     TEST(file_create_test);
+    TEST(file_list_test);
     TEST(file_delete_test);
 }
 
@@ -65,7 +83,7 @@ static void dir_mkdir_test(void)
     BOOL Success;
     WCHAR FileName[MAX_PATH];
 
-    for (ULONG Index = 0; OptDirs > Index; Index++)
+    for (ULONG Index = 0; OptFileCount > Index; Index++)
     {
         StringCbPrintfW(FileName, sizeof FileName, L"fsbench-dir%lu", Index);
         Success = CreateDirectoryW(FileName, 0);
@@ -77,7 +95,7 @@ static void dir_rmdir_test(void)
     BOOL Success;
     WCHAR FileName[MAX_PATH];
 
-    for (ULONG Index = 0; OptDirs > Index; Index++)
+    for (ULONG Index = 0; OptFileCount > Index; Index++)
     {
         StringCbPrintfW(FileName, sizeof FileName, L"fsbench-dir%lu", Index);
         Success = RemoveDirectoryW(FileName);
@@ -113,7 +131,7 @@ static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags)
         0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
-    for (ULONG Index = 0; OptRdwr > Index; Index++)
+    for (ULONG Index = 0; OptRdwrCount > Index; Index++)
     {
         if (CREATE_NEW == CreateDisposition)
             Success = WriteFile(Handle, Buffer, SystemInfo.dwPageSize, &BytesTransferred, 0);
@@ -183,17 +201,17 @@ int main(int argc, char *argv[])
         {
             if (0 == strncmp("--files=", a, sizeof "--files=" - 1))
             {
-                OptFiles = strtoul(a + sizeof "--files=" - 1, 0, 10);
+                OptFileCount = strtoul(a + sizeof "--files=" - 1, 0, 10);
                 rmarg(argv, argc, argi);
             }
-            else if (0 == strncmp("--dirs=", a, sizeof "--dirs=" - 1))
+            else if (0 == strncmp("--list=", a, sizeof "--list=" - 1))
             {
-                OptDirs = strtoul(a + sizeof "--dirs=" - 1, 0, 10);
+                OptListCount = strtoul(a + sizeof "--list=" - 1, 0, 10);
                 rmarg(argv, argc, argi);
             }
             else if (0 == strncmp("--rdwr=", a, sizeof "--rdwr=" - 1))
             {
-                OptRdwr = strtoul(a + sizeof "--rdwr=" - 1, 0, 10);
+                OptRdwrCount = strtoul(a + sizeof "--rdwr=" - 1, 0, 10);
                 rmarg(argv, argc, argi);
             }
         }
