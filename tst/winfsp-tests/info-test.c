@@ -582,6 +582,10 @@ static void delete_mmap_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 
 void delete_mmap_test(void)
 {
+    if (OptShareName)
+        /* this test fails with shares */
+        return;
+
     if (NtfsTests)
     {
         WCHAR DirBuf[MAX_PATH];
@@ -687,14 +691,17 @@ static void rename_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     ASSERT(Success);
 
     /* cannot replace existing directory regardless of MOVEFILE_REPLACE_EXISTING -- test FSD */
-    Handle = CreateFileW(File2Path,
-        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        OPEN_EXISTING, 0, 0);
-    ASSERT(INVALID_HANDLE_VALUE != Handle);
-    Success = MoveFileExW(Dir1Path, Dir2Path, MOVEFILE_REPLACE_EXISTING);
-    ASSERT(!Success);
-    ASSERT(ERROR_ACCESS_DENIED == GetLastError());
-    CloseHandle(Handle);
+    if (!OptShareName)
+    {
+        Handle = CreateFileW(File2Path,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+            OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        Success = MoveFileExW(Dir1Path, Dir2Path, MOVEFILE_REPLACE_EXISTING);
+        ASSERT(!Success);
+        ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+        CloseHandle(Handle);
+    }
 
     Success = RemoveDirectoryW(Dir1Path);
     ASSERT(Success);
@@ -991,6 +998,10 @@ static void rename_mmap_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 
 void rename_mmap_test(void)
 {
+    if (OptShareName)
+        /* this test fails with shares */
+        return;
+
     if (NtfsTests)
     {
         WCHAR DirBuf[MAX_PATH];
@@ -1195,12 +1206,14 @@ void info_tests(void)
     TEST(delete_test);
     TEST(delete_access_test);
     TEST(delete_pending_test);
-    TEST(delete_mmap_test);
+    if (!OptShareName)
+        TEST(delete_mmap_test);
     TEST(rename_test);
     TEST(rename_caseins_test);
     if (!OptShareName)
         TEST(rename_flipflop_test);
-    TEST(rename_mmap_test);
+    if (!OptShareName)
+        TEST(rename_mmap_test);
     TEST(getvolinfo_test);
     TEST(setvolinfo_test);
 }
