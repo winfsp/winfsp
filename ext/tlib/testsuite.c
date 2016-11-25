@@ -54,10 +54,19 @@ static char assert_buf[256];
 static void test_printf(const char *fmt, ...);
 static double run_test(struct test *test)
 {
+#if defined(_WIN64) || defined(_WIN32)
+    #pragma comment(lib, "winmm.lib")
+    unsigned long __stdcall timeGetTime(void);
+    unsigned long t0 = timeGetTime();
+    test->fn();
+    unsigned long t1 = timeGetTime();
+    return (t1 - t0) / 1000.0;
+#else
     time_t t0 = time(0);
     test->fn();
     time_t t1 = time(0);
     return difftime(t1, t0);
+#endif
 }
 static void do_test_default(struct test *test, int testno)
 {
@@ -73,7 +82,7 @@ static void do_test_default(struct test *test, int testno)
         dispname[sizeof dispname - 1] = '\0';
         test_printf("%s ", dispname);
         double d = run_test(test);
-        test_printf("OK %.0fs\n", d);
+        test_printf("OK %.2fs\n", d);
     }
     else
         test_printf("--- COMPLETE ---\n");
