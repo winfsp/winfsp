@@ -23,7 +23,7 @@ ULONG OptFileCount = 1000;
 ULONG OptListCount = 100;
 ULONG OptRdwrCount = 10000;
 
-static void file_create_test(void)
+static void file_create_dotest(ULONG CreateDisposition)
 {
     HANDLE Handle;
     BOOL Success;
@@ -35,12 +35,24 @@ static void file_create_test(void)
         Handle = CreateFileW(FileName,
             GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
             0,
-            CREATE_NEW, FILE_ATTRIBUTE_NORMAL,
+            CreateDisposition, FILE_ATTRIBUTE_NORMAL,
             0);
         ASSERT(INVALID_HANDLE_VALUE != Handle);
         Success = CloseHandle(Handle);
         ASSERT(Success);
     }
+}
+static void file_create_test(void)
+{
+    file_create_dotest(CREATE_NEW);
+}
+static void file_open_test(void)
+{
+    file_create_dotest(OPEN_EXISTING);
+}
+static void file_overwrite_test(void)
+{
+    file_create_dotest(CREATE_ALWAYS);
 }
 static void file_list_test(void)
 {
@@ -74,6 +86,8 @@ static void file_delete_test(void)
 static void file_tests(void)
 {
     TEST(file_create_test);
+    TEST(file_open_test);
+    TEST(file_overwrite_test);
     TEST(file_list_test);
     TEST(file_delete_test);
 }
