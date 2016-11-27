@@ -22,6 +22,7 @@
 static ULONG OptFileCount = 1000;
 static ULONG OptListCount = 100;
 static ULONG OptRdwrCount = 100;
+static ULONG OptMmapCount = 100;
 
 static void file_create_dotest(ULONG CreateDisposition)
 {
@@ -198,16 +199,83 @@ static void rdwr_tests(void)
     TEST(rdwr_noncached_read_test);
 }
 
-static void mmap_cached_test(void)
+static void mmap_dotest(ULONG CreateDisposition, ULONG CreateFlags)
 {
+    SYSTEM_INFO SystemInfo;
+    HANDLE Handle, Mapping;
+    BOOL Success;
+    WCHAR FileName[MAX_PATH];
+    ULONG Iterations = 1000;
+    PUINT8 MappedView;
+
+    GetSystemInfo(&SystemInfo);
+
+    StringCbPrintfW(FileName, sizeof FileName, L"fsbench-file");
+    Handle = CreateFileW(FileName,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        0,
+        CreateDisposition,
+        FILE_ATTRIBUTE_NORMAL | CreateFlags,
+        0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Mapping = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+        0, Iterations * SystemInfo.dwPageSize, 0);
+    ASSERT(0 != Mapping);
+
+    MappedView = MapViewOfFile(Mapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    ASSERT(0 != MappedView);
+
+    for (ULONG Index = 0; OptMmapCount > Index; Index++)
+    {
+        for (ULONG I = 0; Iterations > I; I++)
+        {
+            if (CREATE_NEW == CreateDisposition)
+            {
+                for (ULONG J = 0; SystemInfo.dwPageSize > J; J++)
+                    MappedView[J] = 0;
+            }
+            else
+            {
+                ULONG Total = 0;
+                for (ULONG J = 0; SystemInfo.dwPageSize > J; J++)
+                    Total += MappedView[J];
+                ASSERT(0 == Total);
+            }
+        }
+    }
+
+    Success = UnmapViewOfFile(MappedView);
+    ASSERT(Success);
+
+    Success = CloseHandle(Mapping);
+    ASSERT(Success);
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
 }
-static void mmap_noncached_test(void)
+static void mmap_cached_write_test(void)
 {
+    mmap_dotest(CREATE_NEW, 0);
+}
+static void mmap_cached_read_test(void)
+{
+    mmap_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE);
+}
+static void mmap_noncached_write_test(void)
+{
+    mmap_dotest(CREATE_NEW, 0 | FILE_FLAG_NO_BUFFERING);
+}
+static void mmap_noncached_read_test(void)
+{
+    mmap_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE | FILE_FLAG_NO_BUFFERING);
 }
 static void mmap_tests(void)
 {
-    TEST(mmap_cached_test);
-    TEST(mmap_noncached_test);
+    TEST(mmap_cached_write_test);
+    TEST(mmap_cached_read_test);
+    TEST(mmap_noncached_write_test);
+    TEST(mmap_noncached_read_test);
 }
 
 #define rmarg(argv, argc, argi)         \
@@ -240,6 +308,11 @@ int main(int argc, char *argv[])
             else if (0 == strncmp("--rdwr=", a, sizeof "--rdwr=" - 1))
             {
                 OptRdwrCount = strtoul(a + sizeof "--rdwr=" - 1, 0, 10);
+                rmarg(argv, argc, argi);
+            }
+            else if (0 == strncmp("--mmap=", a, sizeof "--mmap=" - 1))
+            {
+                OptMmapCount = strtoul(a + sizeof "--mmap=" - 1, 0, 10);
                 rmarg(argv, argc, argi);
             }
         }
