@@ -19,9 +19,9 @@
 #include <strsafe.h>
 #include <tlib/testsuite.h>
 
-ULONG OptFileCount = 1000;
-ULONG OptListCount = 100;
-ULONG OptRdwrCount = 10000;
+static ULONG OptFileCount = 1000;
+static ULONG OptListCount = 100;
+static ULONG OptRdwrCount = 100;
 
 static void file_create_dotest(ULONG CreateDisposition)
 {
@@ -130,6 +130,8 @@ static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags)
     BOOL Success;
     DWORD BytesTransferred;
     WCHAR FileName[MAX_PATH];
+    ULONG Iterations = 1000;
+
 
     GetSystemInfo(&SystemInfo);
     Buffer = _aligned_malloc(SystemInfo.dwPageSize, SystemInfo.dwPageSize);
@@ -145,14 +147,26 @@ static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags)
         0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
+    if (CREATE_NEW == CreateDisposition)
+    {
+        BytesTransferred = SetFilePointer(Handle, Iterations * SystemInfo.dwPageSize, 0, FILE_BEGIN);
+        ASSERT(Iterations * SystemInfo.dwPageSize == BytesTransferred);
+        SetEndOfFile(Handle);
+    }
+
     for (ULONG Index = 0; OptRdwrCount > Index; Index++)
     {
-        if (CREATE_NEW == CreateDisposition)
-            Success = WriteFile(Handle, Buffer, SystemInfo.dwPageSize, &BytesTransferred, 0);
-        else
-            Success = ReadFile(Handle, Buffer, SystemInfo.dwPageSize, &BytesTransferred, 0);
-        ASSERT(Success);
-        ASSERT(SystemInfo.dwPageSize == BytesTransferred);
+        BytesTransferred = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
+        ASSERT(0 == BytesTransferred);
+        for (ULONG I = 0; Iterations > I; I++)
+        {
+            if (CREATE_NEW == CreateDisposition)
+                Success = WriteFile(Handle, Buffer, SystemInfo.dwPageSize, &BytesTransferred, 0);
+            else
+                Success = ReadFile(Handle, Buffer, SystemInfo.dwPageSize, &BytesTransferred, 0);
+            ASSERT(Success);
+            ASSERT(SystemInfo.dwPageSize == BytesTransferred);
+        }
     }
 
     Success = CloseHandle(Handle);
