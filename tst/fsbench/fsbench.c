@@ -21,7 +21,8 @@
 
 static ULONG OptFileCount = 1000;
 static ULONG OptListCount = 100;
-static ULONG OptRdwrCount = 100;
+static ULONG OptRdwrCcCount = 100;
+static ULONG OptRdwrNcCount = 100;
 static ULONG OptMmapCount = 100;
 
 static void file_create_dotest(ULONG CreateDisposition)
@@ -123,7 +124,7 @@ static void dir_tests(void)
     TEST(dir_rmdir_test);
 }
 
-static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags)
+static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags, ULONG Count)
 {
     SYSTEM_INFO SystemInfo;
     PVOID Buffer;
@@ -155,7 +156,7 @@ static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags)
         SetEndOfFile(Handle);
     }
 
-    for (ULONG Index = 0; OptRdwrCount > Index; Index++)
+    for (ULONG Index = 0; Count > Index; Index++)
     {
         BytesTransferred = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
         ASSERT(0 == BytesTransferred);
@@ -175,31 +176,32 @@ static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags)
 
     _aligned_free(Buffer);
 }
-static void rdwr_cached_write_test(void)
+static void rdwr_cc_write_test(void)
 {
-    rdwr_dotest(CREATE_NEW, 0);
+    rdwr_dotest(CREATE_NEW, 0, OptRdwrCcCount);
 }
-static void rdwr_cached_read_test(void)
+static void rdwr_cc_read_test(void)
 {
-    rdwr_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE);
+    rdwr_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, OptRdwrCcCount);
 }
-static void rdwr_noncached_write_test(void)
+static void rdwr_nc_write_test(void)
 {
-    rdwr_dotest(CREATE_NEW, 0 | FILE_FLAG_NO_BUFFERING);
+    rdwr_dotest(CREATE_NEW, 0 | FILE_FLAG_NO_BUFFERING, OptRdwrNcCount);
 }
-static void rdwr_noncached_read_test(void)
+static void rdwr_nc_read_test(void)
 {
-    rdwr_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE | FILE_FLAG_NO_BUFFERING);
+    rdwr_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE | FILE_FLAG_NO_BUFFERING,
+        OptRdwrNcCount);
 }
 static void rdwr_tests(void)
 {
-    TEST(rdwr_cached_write_test);
-    TEST(rdwr_cached_read_test);
-    TEST(rdwr_noncached_write_test);
-    TEST(rdwr_noncached_read_test);
+    TEST(rdwr_cc_write_test);
+    TEST(rdwr_cc_read_test);
+    TEST(rdwr_nc_write_test);
+    TEST(rdwr_nc_read_test);
 }
 
-static void mmap_dotest(ULONG CreateDisposition, ULONG CreateFlags)
+static void mmap_dotest(ULONG CreateDisposition, ULONG CreateFlags, ULONG Count)
 {
     SYSTEM_INFO SystemInfo;
     HANDLE Handle, Mapping;
@@ -226,7 +228,7 @@ static void mmap_dotest(ULONG CreateDisposition, ULONG CreateFlags)
     MappedView = MapViewOfFile(Mapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
     ASSERT(0 != MappedView);
 
-    for (ULONG Index = 0; OptMmapCount > Index; Index++)
+    for (ULONG Index = 0; Count > Index; Index++)
     {
         for (ULONG I = 0; Iterations > I; I++)
         {
@@ -254,28 +256,18 @@ static void mmap_dotest(ULONG CreateDisposition, ULONG CreateFlags)
     Success = CloseHandle(Handle);
     ASSERT(Success);
 }
-static void mmap_cached_write_test(void)
+static void mmap_write_test(void)
 {
-    mmap_dotest(CREATE_NEW, 0);
+    mmap_dotest(CREATE_NEW, 0, OptMmapCount);
 }
-static void mmap_cached_read_test(void)
+static void mmap_read_test(void)
 {
-    mmap_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE);
-}
-static void mmap_noncached_write_test(void)
-{
-    mmap_dotest(CREATE_NEW, 0 | FILE_FLAG_NO_BUFFERING);
-}
-static void mmap_noncached_read_test(void)
-{
-    mmap_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE | FILE_FLAG_NO_BUFFERING);
+    mmap_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, OptMmapCount);
 }
 static void mmap_tests(void)
 {
-    TEST(mmap_cached_write_test);
-    TEST(mmap_cached_read_test);
-    TEST(mmap_noncached_write_test);
-    TEST(mmap_noncached_read_test);
+    TEST(mmap_write_test);
+    TEST(mmap_read_test);
 }
 
 #define rmarg(argv, argc, argi)         \
@@ -305,9 +297,14 @@ int main(int argc, char *argv[])
                 OptListCount = strtoul(a + sizeof "--list=" - 1, 0, 10);
                 rmarg(argv, argc, argi);
             }
-            else if (0 == strncmp("--rdwr=", a, sizeof "--rdwr=" - 1))
+            else if (0 == strncmp("--rdwr-cc=", a, sizeof "--rdwr-cc=" - 1))
             {
-                OptRdwrCount = strtoul(a + sizeof "--rdwr=" - 1, 0, 10);
+                OptRdwrCcCount = strtoul(a + sizeof "--rdwr-cc=" - 1, 0, 10);
+                rmarg(argv, argc, argi);
+            }
+            else if (0 == strncmp("--rdwr-nocc=", a, sizeof "--rdwr-nocc=" - 1))
+            {
+                OptRdwrNcCount = strtoul(a + sizeof "--rdwr-nocc=" - 1, 0, 10);
                 rmarg(argv, argc, argi);
             }
             else if (0 == strncmp("--mmap=", a, sizeof "--mmap=" - 1))
