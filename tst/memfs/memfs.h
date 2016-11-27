@@ -46,6 +46,8 @@ NTSTATUS MemfsStart(MEMFS *Memfs);
 VOID MemfsStop(MEMFS *Memfs);
 FSP_FILE_SYSTEM *MemfsFileSystem(MEMFS *Memfs);
 
+NTSTATUS MemfsHeapConfigure(SIZE_T InitialSize, SIZE_T MaximumSize, SIZE_T Alignment);
+
 #ifdef __cplusplus
 }
 #endif

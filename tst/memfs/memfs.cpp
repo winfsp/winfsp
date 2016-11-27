@@ -43,6 +43,72 @@
 #define MEMFS_SECTOR_SIZE               512
 #define MEMFS_SECTORS_PER_ALLOCATION_UNIT 1
 
+/* Large Heap Support */
+typedef struct
+{
+    DWORD Options;
+    SIZE_T InitialSize;
+    SIZE_T MaximumSize;
+    SIZE_T Alignment;
+} LARGE_HEAP_INITIALIZE_PARAMS;
+static INIT_ONCE LargeHeapInitOnce = INIT_ONCE_STATIC_INIT;
+static HANDLE LargeHeap;
+static SIZE_T LargeHeapAlignment;
+static BOOL WINAPI LargeHeapInitOnceF(
+    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
+{
+    LARGE_HEAP_INITIALIZE_PARAMS *Params = (LARGE_HEAP_INITIALIZE_PARAMS *)Parameter;
+    LargeHeap = HeapCreate(Params->Options, Params->InitialSize, Params->MaximumSize);
+    LargeHeapAlignment = 0 != Params->Alignment ?
+        FSP_FSCTL_ALIGN_UP(Params->Alignment, 4096) :
+        16 * 4096;
+    return TRUE;
+}
+static inline
+BOOLEAN LargeHeapInitialize(
+    DWORD Options,
+    SIZE_T InitialSize,
+    SIZE_T MaximumSize,
+    SIZE_T Alignment)
+{
+    LARGE_HEAP_INITIALIZE_PARAMS Params;
+    Params.Options = Options;
+    Params.InitialSize = InitialSize;
+    Params.MaximumSize = MaximumSize;
+    Params.Alignment = Alignment;
+    InitOnceExecuteOnce(&LargeHeapInitOnce, LargeHeapInitOnceF, &Params, 0);
+    return 0 != LargeHeap;
+}
+static inline
+PVOID LargeHeapAlloc(SIZE_T Size)
+{
+    return HeapAlloc(LargeHeap, 0, FSP_FSCTL_ALIGN_UP(Size, LargeHeapAlignment));
+}
+static inline
+PVOID LargeHeapRealloc(PVOID Pointer, SIZE_T Size)
+{
+    if (0 != Pointer)
+    {
+        if (0 != Size)
+            return HeapReAlloc(LargeHeap, 0, Pointer, FSP_FSCTL_ALIGN_UP(Size, LargeHeapAlignment));
+        else
+            return HeapFree(LargeHeap, 0, Pointer), 0;
+    }
+    else
+    {
+        if (0 != Size)
+            return HeapAlloc(LargeHeap, 0, FSP_FSCTL_ALIGN_UP(Size, LargeHeapAlignment));
+        else
+            return 0;
+    }
+}
+static inline
+VOID LargeHeapFree(PVOID Pointer)
+{
+    if (0 != Pointer)
+        HeapFree(LargeHeap, 0, Pointer);
+}
+
 static inline
 UINT64 MemfsGetSystemTime(VOID)
 {
@@ -166,7 +232,7 @@ static inline
 VOID MemfsFileNodeDelete(MEMFS_FILE_NODE *FileNode)
 {
     free(FileNode->ReparseData);
-    free(FileNode->FileData);
+    LargeHeapFree(FileNode->FileData);
     free(FileNode->FileSecurity);
     free(FileNode);
 }
@@ -577,7 +643,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     FileNode->FileInfo.AllocationSize = AllocationSize;
     if (0 != FileNode->FileInfo.AllocationSize)
     {
-        FileNode->FileData = malloc((size_t)FileNode->FileInfo.AllocationSize);
+        FileNode->FileData = LargeHeapAlloc((size_t)FileNode->FileInfo.AllocationSize);
         if (0 == FileNode->FileData)
         {
             MemfsFileNodeDelete(FileNode);
@@ -865,7 +931,7 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
             if (NewSize > Memfs->MaxFileSize)
                 return STATUS_DISK_FULL;
 
-            PVOID FileData = realloc(FileNode->FileData, (size_t)NewSize);
+            PVOID FileData = LargeHeapRealloc(FileNode->FileData, (size_t)NewSize);
             if (0 == FileData && 0 != NewSize)
                 return STATUS_INSUFFICIENT_RESOURCES;
 
@@ -1429,6 +1495,10 @@ NTSTATUS MemfsCreate(
 
     *PMemfs = 0;
 
+    Result = MemfsHeapConfigure(0, 0, 0);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
     if (0 == RootSddl)
         RootSddl = L"O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;WD)";
     if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(RootSddl, SDDL_REVISION_1,
@@ -1556,4 +1626,10 @@ VOID MemfsStop(MEMFS *Memfs)
 FSP_FILE_SYSTEM *MemfsFileSystem(MEMFS *Memfs)
 {
     return Memfs->FileSystem;
+}
+
+NTSTATUS MemfsHeapConfigure(SIZE_T InitialSize, SIZE_T MaximumSize, SIZE_T Alignment)
+{
+    return LargeHeapInitialize(0, InitialSize, MaximumSize, LargeHeapAlignment) ?
+        STATUS_SUCCESS : STATUS_INSUFFICIENT_RESOURCES;
 }
