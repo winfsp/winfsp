@@ -302,9 +302,9 @@ int main(int argc, char *argv[])
                 OptRdwrCcCount = strtoul(a + sizeof "--rdwr-cc=" - 1, 0, 10);
                 rmarg(argv, argc, argi);
             }
-            else if (0 == strncmp("--rdwr-nocc=", a, sizeof "--rdwr-nocc=" - 1))
+            else if (0 == strncmp("--rdwr-nc=", a, sizeof "--rdwr-nc=" - 1))
             {
-                OptRdwrNcCount = strtoul(a + sizeof "--rdwr-nocc=" - 1, 0, 10);
+                OptRdwrNcCount = strtoul(a + sizeof "--rdwr-nc=" - 1, 0, 10);
                 rmarg(argv, argc, argi);
             }
             else if (0 == strncmp("--mmap=", a, sizeof "--mmap=" - 1))
