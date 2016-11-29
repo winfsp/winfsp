@@ -18,19 +18,19 @@ set fsbench="%ProjRoot%\build\VStudio\build\%Configuration%\fsbench-x64.exe"
 mkdir fsbench
 pushd fsbench
 
-for %%a in (1000 2000 3000 4000 5000 6000 7000 8000 9000 10000) do (
+for %%a in (1000 2000 3000 4000 5000) do (
     call :csv %%a "%fsbench% --files=%%a file_*"
 )
 
-for %%a in (100 200 300 400 500 600 700 800 900 1000) do (
+for %%a in (100 200 300 400 500) do (
     call :csv %%a "%fsbench% --rdwr-cc=%%a rdwr_cc_*"
 )
 
-for %%a in (10 20 30 40 50 60 70 80 90 100) do (
+for %%a in (100 200 300 400 500) do (
     call :csv %%a "%fsbench% --rdwr-nc=%%a rdwr_nc_*"
 )
 
-for %%a in (100 200 300 400 500 600 700 800 900 1000) do (
+for %%a in (100 200 300 400 500) do (
     call :csv %%a "%fsbench% --mmap=%%a mmap_*"
 )
 
