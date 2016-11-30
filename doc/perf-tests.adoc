@@ -81,7 +81,8 @@ This test measures the performance of CreateFileW(CREATE_NEW)/CloseHandle or equ
 
 Dokany seems to perform rather badly in this test. NTFS is better (the spike when the file count is 4000 is likely due to some other system activity), but it has of course to also update disk data structures, which takes time. WinFsp has very good performance in all cases, with the best performance when a non-0 FileInfoTimeout is used.
 
-chart::line[data-uri="perf-tests/file_create_test.csv",file="perf-tests/file_create_test.png",opt="x-label=file count,y-label=time"]
+ifndef::env-github[chart::line[data-uri="perf-tests/file_create_test.csv",file="perf-tests/file_create_test.png",opt="x-label=file count,y-label=time"]]
+ifdef::env-github[image::perf-tests/file_create_test.png[]]
 
 === file_open_test
 
@@ -109,7 +110,7 @@ chart::line[data-uri="perf-tests/file_list_test.csv",file="perf-tests/file_list_
 
 === file_delete_test
 
-This test measures the performance of DeleteFileW or equivalently the IRP sequence IRP_MJ_CREATE, IRP_MJ_SET_INFORMATION/FileDispositionInformation, IRP_MJ_ClEANUP, IRP_MJ_CLOSE.
+This test measures the performance of DeleteFileW or equivalently the IRP sequence IRP_MJ_CREATE, IRP_MJ_SET_INFORMATION/FileDispositionInformation, IRP_MJ_CLEANUP, IRP_MJ_CLOSE.
 
 NTFS has the worst performance, which makes sense as it likely needs to update its on disk data structures. Dokany is slighlty better, but WinFsp has the best performance.
 
@@ -178,3 +179,7 @@ There are no results for Dokany as it faces the same issue as with mmap_write_te
 Again NTFS and WinFsp seem to have identical performance here.
 
 chart::line[data-uri="perf-tests/mmap_read_test.csv",file="perf-tests/mmap_read_test.png",opt="x-label=iterations,y-label=time"]
+
+== Conclusion
+
+WinFsp appears to perform best in most of these tests with the notable exception of file_list_test and the rather dubious exception of rdwr_nc_write_test. The best performance is always when an infinite FileInfoTimeout because this enables metadata and data caching. User mode file systems that have consistency issues (e.g. network file systems) can choose a non-0 FileInfoTimeout (a conservative value is 1 second), which enables metadata caching but disables data caching. User mode file systems may also choose to use a FileInfoTimeout of 0, which will disable all caching and still know that they will extract maximum performance from WinFsp.
