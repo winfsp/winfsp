@@ -1,0 +1,180 @@
+= Performance Testing
+
+This document discusses performance testing for WinFsp. The goal of this performance testing is to discover optimization opportunities for WinFsp and compare its performance to that of NTFS and Dokany.
+
+== Fsbench
+
+All testing was performed using a new performance test suite developed as part of WinFsp, called https://github.com/billziss-gh/winfsp/blob/master/tst/fsbench/fsbench.c[fsbench]. Fsbench was developed because it allows the creation of tests that are important to file system developers; for example, it can answer questions of the type: "how long does it take to delete 1000 files" or "how long does it take to list a directory with 10000 files in it".
+
+Fsbench is based on the https://github.com/billziss-gh/winfsp/tree/master/ext/tlib[tlib] library, originally from the *secfs* project. Tlib is usually used to develop regression test suites in C/C++, but can be also used to create performance tests. 
+
+Fsbench currently includes the following tests:
+
+[width="100%",cols="20%,60%,20%",options="header"]
+|===
+|Test               |Measures performance of                        |Parameters
+|file_create_test   |CreateFileW(CREATE_NEW)/CloseHandle            |file count
+|file_open_test     |CreateFileW(OPEN_EXISTING)/CloseHandle         |file count
+|file_overwrite_test|CreateFileW(CREATE_ALWAYS)/CloseHandle with existing files|file count
+|file_list_test     |FindFirstFileW/FindNextFile/FindClose          |iterations
+|file_delete_test   |DeleteFileW                                    |file count
+|file_mkdir_test    |CreateDirectoryW (not tested due to mistake)   |file count
+|file_rmdir_test    |RemoveDirectoryW (not tested due to mistake)   |file count
+|rdwr_cc_write_test |WriteFile (cached)                             |iterations
+|rdwr_cc_read_test  |ReadFile (cached)                              |iterations
+|rdwr_cc_write_test |WriteFile (non-cached; FILE_FLAG_NO_BUFFERING) |iterations
+|rdwr_cc_read_test  |ReadFile (non-cached; FILE_FLAG_NO_BUFFERING)  |iterations
+|mmap_write_test    |Memory mapped write test                       |iterations
+|mmap_write_test    |Memory mapped read test                        |iterations
+|===
+
+== Tested File Systems
+
+=== NTFS
+
+The comparison to NTFS is very important to establish a baseline. It is also very misleading because NTFS is a disk file system and MEMFS (either the WinFsp or Dokany) variants is an in memory file system. The tests will show that MEMFS is faster than NTFS. This should not be taken to mean that we are trying to make a bogus claim that an in memory file system is faster than a disk file system, but to show that the approach of writing a file system in user mode is a valid proposition and can be efficient.
+
+=== WinFsp/MEMFS
+
+MEMFS is the sample file system used to test WinFsp and shipped bundled with WinFsp in the WinFsp installer. MEMFS is a simple in memory file system and as such very fast under most conditions. This is desirable because our goal with performance testing is to measure the speed of the WinFsp FSD and DLL rather the performance of a complex user mode file system. MEMFS has minimal overhead and as such is ideal for this purpose.
+
+WinFsp/MEMFS can be run in different configurations, which enable or disable WinFsp caching features. The tested configurations were:
+
+- An infinite FileInfoTimeout, which enables caching of metadata and data
+- A FileInfoTimeout of 1s, which enables caching of metadata but disables caching of data.
+- A FileInfoTimeout of 0, which completely disables caching.
+
+The WinFsp git commit at the time of testing was 7bdca634aaf503e12b4442e42554449756771a6d.
+
+=== Dokany/MEMFS
+
+To achieve fairness when comparing Dokany to WinFsp the MEMFS file system has been ported to Dokany. Substantial care was taken to ensure that WinFsp/MEMFS and Dokany/MEMFS perform equally well, so that the performance of the Dokany FSD and user-mode components can be measured and compared accurately.
+
+The Dokany/MEMFS project has its own https://github.com/billziss-gh/memfs-dokany[repository]. The project comes without a license, which means that it may not be used for any purpose other than as a reference.
+
+The Dokany version used for testing was 1.0.1.
+
+== Test Environment
+
+Tests were performed on an idle computer/VM. There was a reboot of both the computer and VM before each file system test run. Each test was run twice and the smaller time value chosen. The assumption is that even in a seemingly idle desktop system there is some activity which will affect the results; the smaller value is the preferred one to use because it reflects the time when there is less or no other activity.
+
+The test environment was as follows:
+----
+MacBook Pro (Retina, 13-inch, Early 2015)
+3.1 GHz Intel Core i7
+16 GB 1867 MHz DDR3
+500 GB SSD
+
+VirtualBox Version 5.0.20 r106931
+1 CPU
+4 GB RAM
+80 GB Dynamically allocated differencing storage
+
+Windows 10 (64-bit) Version 1511 (OS Build 10586.420)
+----
+
+== Test Results
+
+=== file_create_test
+
+This test measures the performance of CreateFileW(CREATE_NEW)/CloseHandle or equivalently the IRP sequence IRP_MJ_CREATE/FILE_CREATE, IRP_MJ_CLEANUP, IRP_MJ_CLOSE.
+
+Dokany seems to perform rather badly in this test. NTFS is better (the spike when the file count is 4000 is likely due to some other system activity), but it has of course to also update disk data structures, which takes time. WinFsp has very good performance in all cases, with the best performance when a non-0 FileInfoTimeout is used.
+
+chart::line[data-uri="perf-tests/file_create_test.csv",file="perf-tests/file_create_test.png",opt="x-label=file count,y-label=time"]
+
+=== file_open_test
+
+This test measures the performance of CreateFileW(OPEN_EXISTING) or equivalently the IRP sequence IRP_MJ_CREATE/FILE_OPEN, IRP_MJ_CLEANUP, IRP_MJ_CLOSE.
+
+Dokany and WinFsp with a FileInfoTimeout of 0, have the worst performance with WinFsp slightly better than Dokany. NTFS has very good performance in this test, but this is likely because the test is run immediately after file_create_test, so all file metadata information is still cached. WinFsp with a FileInfoTimeout of 1 or +∞ performs very well (better than NTFS), because it maintains its own metadata cache, which is used to speed up extraneous IRP_MJ_QUERY_INFORMATION queries, etc.
+
+chart::line[data-uri="perf-tests/file_open_test.csv",file="perf-tests/file_open_test.png",opt="x-label=file count,y-label=time"]
+
+=== file_overwrite_test
+
+This test measures the performance of CreateFileW(CREATE_ALWAYS) or equivalently the IRP sequence IRP_MJ_CREATE/FILE_OVERWRITE_IF, IRP_MJ_ClEANUP, IRP_MJ_CLOSE.
+
+Dokany again has the worst performance here, followed by NTFS. I suspect that NTFS has bad performance here, because it needs to hit the disk to update its data structures and cannot rely on the cache. WinFsp has very good performance in all cases, with the best performance when a non-0 FileInfoTimeout is used.
+
+chart::line[data-uri="perf-tests/file_overwrite_test.csv",file="perf-tests/file_overwrite_test.png",opt="x-label=file count,y-label=time"]
+
+=== file_list_test
+
+This test measures the performance of FindFirstFileW/FindNextFile/FindClose or equivalently the IRP's IRP_MJ_DIRECTORY_CONTROL/IRP_MN_QUERY_DIRECTORY.
+
+WinFsp performance is embarrasing here. Not only it has the worst performance of the group, it seems that its performance is quadratic rather than linear. Furthermore performance is the same regardless of the value of FileInfoTimeout. Dokany performs well and NTFS performs even better, likely because results are cached from the prior I/O operations.
+
+chart::line[data-uri="perf-tests/file_list_test.csv",file="perf-tests/file_list_test.png",opt="x-label=file count,y-label=time"]
+
+=== file_delete_test
+
+This test measures the performance of DeleteFileW or equivalently the IRP sequence IRP_MJ_CREATE, IRP_MJ_SET_INFORMATION/FileDispositionInformation, IRP_MJ_ClEANUP, IRP_MJ_CLOSE.
+
+NTFS has the worst performance, which makes sense as it likely needs to update its on disk data structures. Dokany is slighlty better, but WinFsp has the best performance.
+
+chart::line[data-uri="perf-tests/file_delete_test.csv",file="perf-tests/file_delete_test.png",opt="x-label=file count,y-label=time"]
+
+=== rdwr_cc_write_test
+
+This test measures the performance of cached WriteFile or equivalently IRP_MJ_WRITE.
+
+Dokany has very bad performance in this case, which makes sense because it does not integrate with the NTOS Cache Manager. WinFsp when used with the Cache Manager disabled (with a FileInfoTimeout of 0 or 1s) comes next and is considerably faster than Dokany. Finally WinFsp with a FileInfoTimeout of +∞ and NTFS have the best performance as they fully utilize the Cache Manager. NTFS has slightly better performance likely due to its use of FastIO (which WinFsp does not currently use).
+
+chart::line[data-uri="perf-tests/rdwr_cc_write_test.csv",file="perf-tests/rdwr_cc_write_test.png",opt="x-label=iterations,y-label=time"]
+
+=== rdwr_cc_read_test
+
+This test measures the performance of cached ReadFile or equivalently IRP_MJ_READ.
+
+The results here are very similar to the rdwr_cc_write_test case and similar comments apply.
+
+chart::line[data-uri="perf-tests/rdwr_cc_read_test.csv",file="perf-tests/rdwr_cc_read_test.png",opt="x-label=iterations,y-label=time"]
+
+=== rdwr_nc_write_test
+
+This test measures the performance of non-cached WriteFile (FILE_FLAG_NO_BUFFERING) or equivalently IRP_MJ_WRITE.
+
+NTFS has very bad performance here, which of course make sense as we are asking it to write all data to the disk. WinFsp has much better performance (because MEMFS is an in-memory file system), but is outperformed by Dokany, which is a rather surprising result.
+
+chart::line[data-uri="perf-tests/rdwr_nc_write_test.csv",file="perf-tests/rdwr_nc_write_test.png",opt="x-label=iterations,y-label=time"]
+
+The reason that I find this result surprising is that the WinFsp performance numbers for the non-cached case are worse than the cached case when the FileInfoTimeout is 0. This makes no sense because WinFsp takes the exact same code path in both cases. This may point to a bug in the code or some unexpected system activity when the tests were run.
+
+Here is a chart comparing WinFsp runs between the cached and non-cached cases (in all these cases WinFsp does not use the Cache Manager).
+
+chart::line[data-uri="perf-tests/winfsp_rdwr_ccnc_write_test.csv",file="perf-tests/winfsp_rdwr_ccnc_write_test.png",opt="x-label=iterations,y-label=time"]
+
+=== rdwr_nc_read_test
+
+This test measures the performance of non-cached ReadFile or equivalently IRP_MJ_READ.
+
+The results are inline with what we have been seeing so far with NTFS having the worst performance because it has to do actual disk I/O. Dokany comes next and finally WinFsp has the best performance.
+
+chart::line[data-uri="perf-tests/rdwr_nc_read_test.csv",file="perf-tests/rdwr_nc_read_test.png",opt="x-label=iterations,y-label=time"]
+
+=== mmap_write_test
+
+This test measures the performance of memory mapped writes.
+
+There are no results for Dokany as it seems to (still) not support memory mapped files:
+
+----
+Y:\>c:\Users\billziss\Projects\winfsp\build\VStudio\build\Release\fsbench-x64.exe --mmap=100 mmap*
+mmap_write_test........................ KO
+    ASSERT(0 != Mapping) failed at fsbench.c:226:mmap_dotest
+----
+
+NTFS and WinFsp seem to have identical performance here, which actually makes sense because memory mapped I/O is effectively always cached and most of the actual I/O is done asynchronously by the system.
+
+chart::line[data-uri="perf-tests/mmap_write_test.csv",file="perf-tests/mmap_write_test.png",opt="x-label=iterations,y-label=time"]
+
+=== mmap_read_test
+
+This test measures the performance of memory mapped reads.
+
+There are no results for Dokany as it faces the same issue as with mmap_write_test.
+
+Again NTFS and WinFsp seem to have identical performance here.
+
+chart::line[data-uri="perf-tests/mmap_read_test.csv",file="perf-tests/mmap_read_test.png",opt="x-label=iterations,y-label=time"]
