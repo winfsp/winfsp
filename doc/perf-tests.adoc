@@ -90,7 +90,8 @@ This test measures the performance of CreateFileW(OPEN_EXISTING) or equivalently
 
 Dokany and WinFsp with a FileInfoTimeout of 0, have the worst performance with WinFsp slightly better than Dokany. NTFS has very good performance in this test, but this is likely because the test is run immediately after file_create_test, so all file metadata information is still cached. WinFsp with a FileInfoTimeout of 1 or +∞ performs very well (better than NTFS), because it maintains its own metadata cache, which is used to speed up extraneous IRP_MJ_QUERY_INFORMATION queries, etc.
 
-chart::line[data-uri="perf-tests/file_open_test.csv",file="perf-tests/file_open_test.png",opt="x-label=file count,y-label=time"]
+ifndef::env-github[chart::line[data-uri="perf-tests/file_open_test.csv",file="perf-tests/file_open_test.png",opt="x-label=file count,y-label=time"]]
+ifdef::env-github[image::perf-tests/file_open_test.png[]]
 
 === file_overwrite_test
 
@@ -98,7 +99,8 @@ This test measures the performance of CreateFileW(CREATE_ALWAYS) or equivalently
 
 Dokany again has the worst performance here, followed by NTFS. I suspect that NTFS has bad performance here, because it needs to hit the disk to update its data structures and cannot rely on the cache. WinFsp has very good performance in all cases, with the best performance when a non-0 FileInfoTimeout is used.
 
-chart::line[data-uri="perf-tests/file_overwrite_test.csv",file="perf-tests/file_overwrite_test.png",opt="x-label=file count,y-label=time"]
+ifndef::env-github[chart::line[data-uri="perf-tests/file_overwrite_test.csv",file="perf-tests/file_overwrite_test.png",opt="x-label=file count,y-label=time"]]
+ifdef::env-github[image::perf-tests/file_overwrite_test.png[]]
 
 === file_list_test
 
@@ -106,7 +108,8 @@ This test measures the performance of FindFirstFileW/FindNextFile/FindClose or e
 
 WinFsp performance is embarrasing here. Not only it has the worst performance of the group, it seems that its performance is quadratic rather than linear. Furthermore performance is the same regardless of the value of FileInfoTimeout. Dokany performs well and NTFS performs even better, likely because results are cached from the prior I/O operations.
 
-chart::line[data-uri="perf-tests/file_list_test.csv",file="perf-tests/file_list_test.png",opt="x-label=file count,y-label=time"]
+ifndef::env-github[chart::line[data-uri="perf-tests/file_list_test.csv",file="perf-tests/file_list_test.png",opt="x-label=file count,y-label=time"]]
+ifdef::env-github[image::perf-tests/file_list_test.png[]]
 
 === file_delete_test
 
@@ -114,7 +117,8 @@ This test measures the performance of DeleteFileW or equivalently the IRP sequen
 
 NTFS has the worst performance, which makes sense as it likely needs to update its on disk data structures. Dokany is slighlty better, but WinFsp has the best performance.
 
-chart::line[data-uri="perf-tests/file_delete_test.csv",file="perf-tests/file_delete_test.png",opt="x-label=file count,y-label=time"]
+ifndef::env-github[chart::line[data-uri="perf-tests/file_delete_test.csv",file="perf-tests/file_delete_test.png",opt="x-label=file count,y-label=time"]]
+ifdef::env-github[image::perf-tests/file_delete_test.png[]]
 
 === rdwr_cc_write_test
 
@@ -122,7 +126,8 @@ This test measures the performance of cached WriteFile or equivalently IRP_MJ_WR
 
 Dokany has very bad performance in this case, which makes sense because it does not integrate with the NTOS Cache Manager. WinFsp when used with the Cache Manager disabled (with a FileInfoTimeout of 0 or 1s) comes next and is considerably faster than Dokany. Finally WinFsp with a FileInfoTimeout of +∞ and NTFS have the best performance as they fully utilize the Cache Manager. NTFS has slightly better performance likely due to its use of FastIO (which WinFsp does not currently use).
 
-chart::line[data-uri="perf-tests/rdwr_cc_write_test.csv",file="perf-tests/rdwr_cc_write_test.png",opt="x-label=iterations,y-label=time"]
+ifndef::env-github[chart::line[data-uri="perf-tests/rdwr_cc_write_test.csv",file="perf-tests/rdwr_cc_write_test.png",opt="x-label=iterations,y-label=time"]]
+ifdef::env-github[image::perf-tests/rdwr_cc_write_test.png[]]
 
 === rdwr_cc_read_test
 
@@ -130,7 +135,8 @@ This test measures the performance of cached ReadFile or equivalently IRP_MJ_REA
 
 The results here are very similar to the rdwr_cc_write_test case and similar comments apply.
 
-chart::line[data-uri="perf-tests/rdwr_cc_read_test.csv",file="perf-tests/rdwr_cc_read_test.png",opt="x-label=iterations,y-label=time"]
+ifndef::env-github[chart::line[data-uri="perf-tests/rdwr_cc_read_test.csv",file="perf-tests/rdwr_cc_read_test.png",opt="x-label=iterations,y-label=time"]]
+ifdef::env-github[image::perf-tests/rdwr_cc_read_test.png[]]
 
 === rdwr_nc_write_test
 
@@ -138,13 +144,15 @@ This test measures the performance of non-cached WriteFile (FILE_FLAG_NO_BUFFERI
 
 NTFS has very bad performance here, which of course make sense as we are asking it to write all data to the disk. WinFsp has much better performance (because MEMFS is an in-memory file system), but is outperformed by Dokany, which is a rather surprising result.
 
-chart::line[data-uri="perf-tests/rdwr_nc_write_test.csv",file="perf-tests/rdwr_nc_write_test.png",opt="x-label=iterations,y-label=time"]
+ifndef::env-github[chart::line[data-uri="perf-tests/rdwr_nc_write_test.csv",file="perf-tests/rdwr_nc_write_test.png",opt="x-label=iterations,y-label=time"]]
+ifdef::env-github[image::perf-tests/rdwr_nc_write_test.png[]]
 
 The reason that I find this result surprising is that the WinFsp performance numbers for the non-cached case are worse than the cached case when the FileInfoTimeout is 0. This makes no sense because WinFsp takes the exact same code path in both cases. This may point to a bug in the code or some unexpected system activity when the tests were run.
 
 Here is a chart comparing WinFsp runs between the cached and non-cached cases (in all these cases WinFsp does not use the Cache Manager).
 
-chart::line[data-uri="perf-tests/winfsp_rdwr_ccnc_write_test.csv",file="perf-tests/winfsp_rdwr_ccnc_write_test.png",opt="x-label=iterations,y-label=time"]
+ifndef::env-github[chart::line[data-uri="perf-tests/winfsp_rdwr_ccnc_write_test.csv",file="perf-tests/winfsp_rdwr_ccnc_write_test.png",opt="x-label=iterations,y-label=time"]]
+ifdef::env-github[image::perf-tests/winfsp_rdwr_ccnc_write_test.png[]]
 
 === rdwr_nc_read_test
 
@@ -152,7 +160,8 @@ This test measures the performance of non-cached ReadFile or equivalently IRP_MJ
 
 The results are inline with what we have been seeing so far with NTFS having the worst performance because it has to do actual disk I/O. Dokany comes next and finally WinFsp has the best performance.
 
-chart::line[data-uri="perf-tests/rdwr_nc_read_test.csv",file="perf-tests/rdwr_nc_read_test.png",opt="x-label=iterations,y-label=time"]
+ifndef::env-github[chart::line[data-uri="perf-tests/rdwr_nc_read_test.csv",file="perf-tests/rdwr_nc_read_test.png",opt="x-label=iterations,y-label=time"]]
+ifdef::env-github[image::perf-tests/rdwr_nc_read_test.png[]]
 
 === mmap_write_test
 
@@ -168,7 +177,8 @@ mmap_write_test........................ KO
 
 NTFS and WinFsp seem to have identical performance here, which actually makes sense because memory mapped I/O is effectively always cached and most of the actual I/O is done asynchronously by the system.
 
-chart::line[data-uri="perf-tests/mmap_write_test.csv",file="perf-tests/mmap_write_test.png",opt="x-label=iterations,y-label=time"]
+ifndef::env-github[chart::line[data-uri="perf-tests/mmap_write_test.csv",file="perf-tests/mmap_write_test.png",opt="x-label=iterations,y-label=time"]]
+ifdef::env-github[image::perf-tests/mmap_write_test.png[]]
 
 === mmap_read_test
 
@@ -178,7 +188,8 @@ There are no results for Dokany as it faces the same issue as with mmap_write_te
 
 Again NTFS and WinFsp seem to have identical performance here.
 
-chart::line[data-uri="perf-tests/mmap_read_test.csv",file="perf-tests/mmap_read_test.png",opt="x-label=iterations,y-label=time"]
+ifndef::env-github[chart::line[data-uri="perf-tests/mmap_read_test.csv",file="perf-tests/mmap_read_test.png",opt="x-label=iterations,y-label=time"]]
+ifdef::env-github[image::perf-tests/mmap_read_test.png[]]
 
 == Conclusion
 
