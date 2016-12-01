@@ -27,6 +27,18 @@
             (PVOID)(&(s)) :             \
             (PVOID)(((PUINT64)&(s).UserContext)[FileSystem->UmFileContextIsUserContext2])\
     )
+#define SetFileContext(t, s)            \
+    (                                   \
+        FileSystem->UmFileContextIsFullContext ?\
+            (VOID)(                     \
+                (t).UserContext = (s).UserContext,\
+                (t).UserContext2 = (s).UserContext2\
+            ) :                         \
+            (VOID)(                     \
+                ((PUINT64)&(t).UserContext)[FileSystem->UmFileContextIsUserContext2] =\
+                ((PUINT64)&(s).UserContext)[FileSystem->UmFileContextIsUserContext2]\
+            )                           \
+    )
 
 FSP_API NTSTATUS FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
@@ -403,8 +415,7 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     }
 
     Response->IoStatus.Information = FILE_CREATED;
-    Response->Rsp.Create.Opened.UserContext = FullContext.UserContext;
-    Response->Rsp.Create.Opened.UserContext2 = FullContext.UserContext2;
+    SetFileContext(Response->Rsp.Create.Opened, FullContext);
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     memcpy(&Response->Rsp.Create.Opened.FileInfo,
         &OpenFileInfo.FileInfo, sizeof OpenFileInfo.FileInfo);
@@ -442,8 +453,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     }
 
     Response->IoStatus.Information = FILE_OPENED;
-    Response->Rsp.Create.Opened.UserContext = FullContext.UserContext;
-    Response->Rsp.Create.Opened.UserContext2 = FullContext.UserContext2;
+    SetFileContext(Response->Rsp.Create.Opened, FullContext);
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     memcpy(&Response->Rsp.Create.Opened.FileInfo,
         &OpenFileInfo.FileInfo, sizeof OpenFileInfo.FileInfo);
@@ -520,8 +530,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
     }
 
     Response->IoStatus.Information = Create ? FILE_CREATED : FILE_OPENED;
-    Response->Rsp.Create.Opened.UserContext = FullContext.UserContext;
-    Response->Rsp.Create.Opened.UserContext2 = FullContext.UserContext2;
+    SetFileContext(Response->Rsp.Create.Opened, FullContext);
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     memcpy(&Response->Rsp.Create.Opened.FileInfo,
         &OpenFileInfo.FileInfo, sizeof OpenFileInfo.FileInfo);
@@ -560,8 +569,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     }
 
     Response->IoStatus.Information = Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
-    Response->Rsp.Create.Opened.UserContext = FullContext.UserContext;
-    Response->Rsp.Create.Opened.UserContext2 = FullContext.UserContext2;
+    SetFileContext(Response->Rsp.Create.Opened, FullContext);
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     memcpy(&Response->Rsp.Create.Opened.FileInfo,
         &OpenFileInfo.FileInfo, sizeof OpenFileInfo.FileInfo);
@@ -638,8 +646,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
     }
 
     Response->IoStatus.Information = Create ? FILE_CREATED : FILE_OVERWRITTEN;
-    Response->Rsp.Create.Opened.UserContext = FullContext.UserContext;
-    Response->Rsp.Create.Opened.UserContext2 = FullContext.UserContext2;
+    SetFileContext(Response->Rsp.Create.Opened, FullContext);
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     memcpy(&Response->Rsp.Create.Opened.FileInfo,
         &OpenFileInfo.FileInfo, sizeof OpenFileInfo.FileInfo);
@@ -689,8 +696,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     }
 
     Response->IoStatus.Information = Information;
-    Response->Rsp.Create.Opened.UserContext = FullContext.UserContext;
-    Response->Rsp.Create.Opened.UserContext2 = FullContext.UserContext2;
+    SetFileContext(Response->Rsp.Create.Opened, FullContext);
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     memcpy(&Response->Rsp.Create.Opened.FileInfo,
         &OpenFileInfo.FileInfo, sizeof OpenFileInfo.FileInfo);
