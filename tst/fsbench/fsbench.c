@@ -21,8 +21,10 @@
 
 static ULONG OptFileCount = 1000;
 static ULONG OptListCount = 100;
+static ULONG OptRdwrFileSize = 4096 * 1024;
 static ULONG OptRdwrCcCount = 100;
 static ULONG OptRdwrNcCount = 100;
+static ULONG OptMmapFileSize = 4096 * 1024;
 static ULONG OptMmapCount = 100;
 
 static void file_create_dotest(ULONG CreateDisposition)
@@ -85,16 +87,7 @@ static void file_delete_test(void)
         ASSERT(Success);
     }
 }
-static void file_tests(void)
-{
-    TEST(file_create_test);
-    TEST(file_open_test);
-    TEST(file_overwrite_test);
-    TEST(file_list_test);
-    TEST(file_delete_test);
-}
-
-static void dir_mkdir_test(void)
+static void file_mkdir_test(void)
 {
     BOOL Success;
     WCHAR FileName[MAX_PATH];
@@ -106,7 +99,7 @@ static void dir_mkdir_test(void)
         ASSERT(Success);
     }
 }
-static void dir_rmdir_test(void)
+static void file_rmdir_test(void)
 {
     BOOL Success;
     WCHAR FileName[MAX_PATH];
@@ -118,27 +111,29 @@ static void dir_rmdir_test(void)
         ASSERT(Success);
     }
 }
-static void dir_tests(void)
+static void file_tests(void)
 {
-    TEST(dir_mkdir_test);
-    TEST(dir_rmdir_test);
+    TEST(file_create_test);
+    TEST(file_open_test);
+    TEST(file_overwrite_test);
+    TEST(file_list_test);
+    TEST(file_delete_test);
+    TEST(file_mkdir_test);
+    TEST(file_rmdir_test);
 }
 
-static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags, ULONG Count)
+static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags,
+    ULONG FileSize, ULONG BufferSize, ULONG Count)
 {
-    SYSTEM_INFO SystemInfo;
-    PVOID Buffer;
+    WCHAR FileName[MAX_PATH];
     HANDLE Handle;
     BOOL Success;
+    PVOID Buffer;
     DWORD BytesTransferred;
-    WCHAR FileName[MAX_PATH];
-    ULONG Iterations = 1000;
 
-
-    GetSystemInfo(&SystemInfo);
-    Buffer = _aligned_malloc(SystemInfo.dwPageSize, SystemInfo.dwPageSize);
+    Buffer = _aligned_malloc(BufferSize, BufferSize);
     ASSERT(0 != Buffer);
-    memset(Buffer, 0, SystemInfo.dwPageSize);
+    memset(Buffer, 0, BufferSize);
 
     StringCbPrintfW(FileName, sizeof FileName, L"fsbench-file");
     Handle = CreateFileW(FileName,
@@ -151,8 +146,8 @@ static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags, ULONG Count)
 
     if (CREATE_NEW == CreateDisposition)
     {
-        BytesTransferred = SetFilePointer(Handle, Iterations * SystemInfo.dwPageSize, 0, FILE_BEGIN);
-        ASSERT(Iterations * SystemInfo.dwPageSize == BytesTransferred);
+        BytesTransferred = SetFilePointer(Handle, FileSize, 0, FILE_BEGIN);
+        ASSERT(FileSize == BytesTransferred);
         SetEndOfFile(Handle);
     }
 
@@ -160,14 +155,14 @@ static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags, ULONG Count)
     {
         BytesTransferred = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
         ASSERT(0 == BytesTransferred);
-        for (ULONG I = 0; Iterations > I; I++)
+        for (ULONG I = 0, N = FileSize / BufferSize; N > I; I++)
         {
             if (CREATE_NEW == CreateDisposition)
-                Success = WriteFile(Handle, Buffer, SystemInfo.dwPageSize, &BytesTransferred, 0);
+                Success = WriteFile(Handle, Buffer, BufferSize, &BytesTransferred, 0);
             else
-                Success = ReadFile(Handle, Buffer, SystemInfo.dwPageSize, &BytesTransferred, 0);
+                Success = ReadFile(Handle, Buffer, BufferSize, &BytesTransferred, 0);
             ASSERT(Success);
-            ASSERT(SystemInfo.dwPageSize == BytesTransferred);
+            ASSERT(BufferSize == BytesTransferred);
         }
     }
 
@@ -176,41 +171,113 @@ static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags, ULONG Count)
 
     _aligned_free(Buffer);
 }
-static void rdwr_cc_write_test(void)
+static void rdwr_cc_write_sector_test(void)
 {
-    rdwr_dotest(CREATE_NEW, 0, OptRdwrCcCount);
+    DWORD SC, BS, FC, TC;
+    ASSERT(GetDiskFreeSpaceW(0, &SC, &BS, &FC, &TC));
+    rdwr_dotest(CREATE_NEW, 0,
+        OptRdwrFileSize, BS, OptRdwrCcCount);
 }
-static void rdwr_cc_read_test(void)
+static void rdwr_cc_read_sector_test(void)
 {
-    rdwr_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, OptRdwrCcCount);
+    DWORD SC, BS, FC, TC;
+    ASSERT(GetDiskFreeSpaceW(0, &SC, &BS, &FC, &TC));
+    rdwr_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE,
+        OptRdwrFileSize, BS, OptRdwrCcCount);
 }
-static void rdwr_nc_write_test(void)
+static void rdwr_nc_write_sector_test(void)
 {
-    rdwr_dotest(CREATE_NEW, 0 | FILE_FLAG_NO_BUFFERING, OptRdwrNcCount);
+    DWORD SC, BS, FC, TC;
+    ASSERT(GetDiskFreeSpaceW(0, &SC, &BS, &FC, &TC));
+    rdwr_dotest(CREATE_NEW, 0 | FILE_FLAG_NO_BUFFERING,
+        OptRdwrFileSize, BS, OptRdwrNcCount);
 }
-static void rdwr_nc_read_test(void)
+static void rdwr_nc_read_sector_test(void)
 {
+    DWORD SC, BS, FC, TC;
+    ASSERT(GetDiskFreeSpaceW(0, &SC, &BS, &FC, &TC));
     rdwr_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE | FILE_FLAG_NO_BUFFERING,
-        OptRdwrNcCount);
+        OptRdwrFileSize, BS, OptRdwrNcCount);
+}
+static void rdwr_cc_write_page_test(void)
+{
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    rdwr_dotest(CREATE_NEW, 0,
+        OptRdwrFileSize, SystemInfo.dwPageSize, OptRdwrCcCount);
+}
+static void rdwr_cc_read_page_test(void)
+{
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    rdwr_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE,
+        OptRdwrFileSize, SystemInfo.dwPageSize, OptRdwrCcCount);
+}
+static void rdwr_nc_write_page_test(void)
+{
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    rdwr_dotest(CREATE_NEW, 0 | FILE_FLAG_NO_BUFFERING,
+        OptRdwrFileSize, SystemInfo.dwPageSize, OptRdwrNcCount);
+}
+static void rdwr_nc_read_page_test(void)
+{
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    rdwr_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE | FILE_FLAG_NO_BUFFERING,
+        OptRdwrFileSize, SystemInfo.dwPageSize, OptRdwrNcCount);
+}
+static void rdwr_cc_write_large_test(void)
+{
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    rdwr_dotest(CREATE_NEW, 0,
+        OptRdwrFileSize, 16 * SystemInfo.dwPageSize, OptRdwrCcCount);
+}
+static void rdwr_cc_read_large_test(void)
+{
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    rdwr_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE,
+        OptRdwrFileSize, 16 * SystemInfo.dwPageSize, OptRdwrCcCount);
+}
+static void rdwr_nc_write_large_test(void)
+{
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    rdwr_dotest(CREATE_NEW, 0 | FILE_FLAG_NO_BUFFERING,
+        OptRdwrFileSize, 16 * SystemInfo.dwPageSize, OptRdwrNcCount);
+}
+static void rdwr_nc_read_large_test(void)
+{
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    rdwr_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE | FILE_FLAG_NO_BUFFERING,
+        OptRdwrFileSize, 16 * SystemInfo.dwPageSize, OptRdwrNcCount);
 }
 static void rdwr_tests(void)
 {
-    TEST(rdwr_cc_write_test);
-    TEST(rdwr_cc_read_test);
-    TEST(rdwr_nc_write_test);
-    TEST(rdwr_nc_read_test);
+    TEST(rdwr_cc_write_sector_test);
+    TEST(rdwr_cc_read_sector_test);
+    TEST(rdwr_cc_write_page_test);
+    TEST(rdwr_cc_read_page_test);
+    TEST(rdwr_cc_write_large_test);
+    TEST(rdwr_cc_read_large_test);
+    TEST(rdwr_nc_write_sector_test);
+    TEST(rdwr_nc_read_sector_test);
+    TEST(rdwr_nc_write_page_test);
+    TEST(rdwr_nc_read_page_test);
+    TEST(rdwr_nc_write_large_test);
+    TEST(rdwr_nc_read_large_test);
 }
 
-static void mmap_dotest(ULONG CreateDisposition, ULONG CreateFlags, ULONG Count)
+static void mmap_dotest(ULONG CreateDisposition, ULONG CreateFlags,
+    ULONG FileSize, ULONG BufferSize, ULONG Count)
 {
-    SYSTEM_INFO SystemInfo;
+    WCHAR FileName[MAX_PATH];
     HANDLE Handle, Mapping;
     BOOL Success;
-    WCHAR FileName[MAX_PATH];
-    ULONG Iterations = 1000;
     PUINT8 MappedView;
-
-    GetSystemInfo(&SystemInfo);
 
     StringCbPrintfW(FileName, sizeof FileName, L"fsbench-file");
     Handle = CreateFileW(FileName,
@@ -222,7 +289,7 @@ static void mmap_dotest(ULONG CreateDisposition, ULONG CreateFlags, ULONG Count)
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
     Mapping = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
-        0, Iterations * SystemInfo.dwPageSize, 0);
+        0, FileSize, 0);
     ASSERT(0 != Mapping);
 
     MappedView = MapViewOfFile(Mapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
@@ -230,18 +297,18 @@ static void mmap_dotest(ULONG CreateDisposition, ULONG CreateFlags, ULONG Count)
 
     for (ULONG Index = 0; Count > Index; Index++)
     {
-        for (ULONG I = 0; Iterations > I; I++)
+        for (ULONG I = 0, N = FileSize / BufferSize; N > I; I++)
         {
             if (CREATE_NEW == CreateDisposition)
             {
-                for (ULONG J = 0; SystemInfo.dwPageSize > J; J++)
-                    MappedView[J] = 0;
+                for (ULONG J = 0; BufferSize > J; J++)
+                    MappedView[I * BufferSize + J] = 0;
             }
             else
             {
                 ULONG Total = 0;
-                for (ULONG J = 0; SystemInfo.dwPageSize > J; J++)
-                    Total += MappedView[J];
+                for (ULONG J = 0; BufferSize > J; J++)
+                    Total += MappedView[I * BufferSize + J];
                 ASSERT(0 == Total);
             }
         }
@@ -258,11 +325,17 @@ static void mmap_dotest(ULONG CreateDisposition, ULONG CreateFlags, ULONG Count)
 }
 static void mmap_write_test(void)
 {
-    mmap_dotest(CREATE_NEW, 0, OptMmapCount);
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    mmap_dotest(CREATE_NEW, 0,
+        OptMmapFileSize, SystemInfo.dwPageSize, OptMmapCount);
 }
 static void mmap_read_test(void)
 {
-    mmap_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, OptMmapCount);
+    SYSTEM_INFO SystemInfo;
+    GetSystemInfo(&SystemInfo);
+    mmap_dotest(OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE,
+        OptMmapFileSize, SystemInfo.dwPageSize, OptMmapCount);
 }
 static void mmap_tests(void)
 {
@@ -278,7 +351,6 @@ static void mmap_tests(void)
 int main(int argc, char *argv[])
 {
     TESTSUITE(file_tests);
-    TESTSUITE(dir_tests);
     TESTSUITE(rdwr_tests);
     TESTSUITE(mmap_tests);
 
