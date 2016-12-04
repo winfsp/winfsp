@@ -639,7 +639,151 @@ VOID FspIrpSetTopFlags(PIRP Irp, ULONG Flags)
     Irp->Tail.Overlay.DriverContext[2] = (PVOID)((UINT_PTR)Request | (Flags << 2));
 }
 
+/*
+ * Queued Events
+ *
+ * Queued Events are an implementation of SynchronizationEvent's using
+ * a KQUEUE. The reason we do this is because a KQUEUE has some desirable
+ * properties:
+ *
+ * - It has a LIFO wait discipline, which is advantageous in many situations.
+ * - It can limit the numbers of threads that can be satisfied concurrently.
+ *
+ * Queued Events must always be allocated in non-paged storage.
+ *
+ * Here is how Queued Events work. A queued event consists of a KQUEUE and a
+ * spin lock. There is also a LIST_ENTRY which is used as a dummy item to
+ * place in the KQUEUE.
+ *
+ * The KQUEUE is guaranteed to contain either 0 or 1 items. When the KQUEUE
+ * contains 0 items the queued event is considered non-signaled. When the
+ * KQUEUE contains 1 items the queued event is considered signaled.
+ *
+ * To transition from the non-signaled to the signaled state, we acquire the
+ * spin lock and then insert the dummy item in the KQUEUE using KeInsertQueue.
+ * To transition from the signaled to the non-signaled state, we simply (wait
+ * and) remove the dummy item from the KQUEUE using KeRemoveQueue (without
+ * the use of the spin lock).
+ *
+ * EventSet:
+ *     AcquireSpinLock
+ *     if (0 == KeReadState())          // if KQUEUE is empty
+ *         KeInsertQueue(DUMMY);
+ *     ReleaseSpinLock
+ *
+ * EventWait:
+ *     KeRemoveQueue();                 // (wait and) remove item
+ *
+ * First notice that EventSet is serialized by the use of the spin lock. This
+ * guarantees that the dummy item can be only inserted ONCE in the KQUEUE
+ * and that the only possible signaled state transitions for EventSet are 0->1
+ * and 1->1. This is how KeSetEvent works for a SynchronizationEvent.
+ *
+ * Second notice that EventWait is not protected by the spin lock, which means
+ * that it can happen at any time including concurrently with EventSet or
+ * another EventWait. Notice also that for EventWait the only possible
+ * transitions are 1->0 or 0->0 (0->block->0). This is how
+ * KeWaitForSingleObject works for a SynchronizationEvent.
+ *
+ * We now have to consider what happens when we have one EventSet concurrently
+ * with one or more EventWait's:
+ *
+ * 1.  The EventWait(s) happen before KeReadState. If the KQUEUE has an
+ *     item one EventWait gets satisfied, otherwise it blocks. In this case
+ *     KeReadState will read the KQUEUE's state as 0 and KeInsertQueue will
+ *     insert the dummy item, which will unblock the EventWait.
+ *
+ * 2.  The EventWait(s) happen after KeReadState, but before KeInsertQueue.
+ *     If the dummy item was already in the KQUEUE the KeReadState test will
+ *     fail and KeInsertQueue will not be executed, but EventWait will be
+ *     satisfied immediately. If the dummy item was not in the KQUEUE the
+ *     KeReadState will succeed and EventWait will momentarily block until
+ *     KeInsertQueue releases it.
+ *
+ * 3.  The EventWait(s) happen after KeInsertQueue. In this case the dummy
+ *     item in is the KQUEUE already and one EventWait will be satisfied
+ *     immediately.
+ *
+ * A final note: Queued Events cannot cleanly support an EventClear operation.
+ * The obvious choice of using KeRemoveQueue with a 0 timeout is insufficient
+ * because it would associate the current thread with the KQUEUE and that is
+ * not desirable. KeRundownQueue cannot be used either because it
+ * disassociates all threads from the KQUEUE.
+ */
+typedef struct
+{
+    KQUEUE Queue;
+    LIST_ENTRY DummyEntry;
+    KSPIN_LOCK SpinLock;
+} FSP_QEVENT;
+static inline
+VOID FspQeventInitialize(FSP_QEVENT *Qevent, ULONG ThreadCount)
+{
+    KeInitializeQueue(&Qevent->Queue, ThreadCount);
+    RtlZeroMemory(&Qevent->DummyEntry, sizeof Qevent->DummyEntry);
+    KeInitializeSpinLock(&Qevent->SpinLock);
+}
+static inline
+VOID FspQeventFinalize(FSP_QEVENT *Qevent)
+{
+    KeRundownQueue(&Qevent->Queue);
+}
+static inline
+VOID FspQeventSetNoLock(FSP_QEVENT *Qevent)
+{
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+    if (0 == KeReadStateQueue(&Qevent->Queue))
+        KeInsertQueue(&Qevent->Queue, &Qevent->DummyEntry);
+}
+static inline
+VOID FspQeventSet(FSP_QEVENT *Qevent)
+{
+    KIRQL Irql;
+    KeAcquireSpinLock(&Qevent->SpinLock, &Irql);
+    FspQeventSetNoLock(Qevent);
+    KeReleaseSpinLock(&Qevent->SpinLock, Irql);
+}
+static inline
+NTSTATUS FspQeventWait(FSP_QEVENT *Qevent,
+    KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, PLARGE_INTEGER PTimeout)
+{
+    PLIST_ENTRY ListEntry;
+    KeRemoveQueueEx(&Qevent->Queue, WaitMode, Alertable, PTimeout, &ListEntry, 1);
+    if (ListEntry == &Qevent->DummyEntry)
+        return STATUS_SUCCESS;
+    return (NTSTATUS)(UINT_PTR)ListEntry;
+}
+static inline
+NTSTATUS FspQeventCancellableWait(FSP_QEVENT *Qevent,
+    PLARGE_INTEGER PTimeout, PIRP Irp)
+{
+    NTSTATUS Result;
+    UINT64 ExpirationTime = 0, InterruptTime;
+    if (0 != PTimeout && 0 > PTimeout->QuadPart)
+        ExpirationTime = KeQueryInterruptTime() - PTimeout->QuadPart;
+retry:
+    Result = FspQeventWait(Qevent, KernelMode, TRUE, PTimeout);
+    if (STATUS_ALERTED == Result)
+    {
+        if (PsIsThreadTerminating(PsGetCurrentThread()))
+            return STATUS_THREAD_IS_TERMINATING;
+        if (0 != Irp && Irp->Cancel)
+            return STATUS_CANCELLED;
+        if (0 != ExpirationTime)
+        {
+            InterruptTime = KeQueryInterruptTime();
+            if (ExpirationTime <= InterruptTime)
+                return STATUS_TIMEOUT;
+            PTimeout->QuadPart = (INT64)InterruptTime - (INT64)ExpirationTime;
+        }
+        goto retry;
+    }
+    return Result;
+}
+
 /* I/O queue */
+#define FSP_IOQ_USE_QEVENT
+#define FSP_IOQ_PROCESS_NO_CANCEL
 #define FspIoqTimeout                   ((PIRP)1)
 #define FspIoqCancelled                 ((PIRP)2)
 #define FspIoqPostIrp(Q, I, R)          FspIoqPostIrpEx(Q, I, FALSE, R)
@@ -648,7 +792,11 @@ typedef struct
 {
     KSPIN_LOCK SpinLock;
     BOOLEAN Stopped;
+#if defined(FSP_IOQ_USE_QEVENT)
+    FSP_QEVENT PendingIrpEvent;
+#else
     KEVENT PendingIrpEvent;
+#endif
     LIST_ENTRY PendingIrpList, ProcessIrpList, RetriedIrpList;
     IO_CSQ PendingIoCsq, ProcessIoCsq, RetriedIoCsq;
     ULONG IrpTimeout;

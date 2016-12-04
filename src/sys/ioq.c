@@ -22,7 +22,9 @@
  *
  * [NOTE: this comment no longer describes accurately an FSP_IOQ. The main
  * difference is that an FSP_IOQ now has a third queue which is used to
- * retry IRP completions. However the main ideas below are still valid, so
+ * retry IRP completions. Another difference is that the FSP_IOQ can now
+ * use Queued Events (which are implemented on top of KQUEUE) instead of
+ * SynchronizationEvent's. However the main ideas below are still valid, so
  * I am leaving the rest of the comment intact.]
  *
  * An FSP_IOQ encapsulates the main FSP mechanism for handling IRP's.
@@ -123,7 +125,30 @@
  * To deal with the second problem we simply call FspIoqPendingResetSynch after
  * a WaitForSingleObject call if the IRP dequeueing fails; this ensures that the
  * event is in the correst state.
+ *
+ * UPDATE: We can now use a Queued Event which behaves like a SynchronizationEvent,
+ * but has better performance. Unfortunately Queued Events cannot cleanly implement
+ * an EventClear operation. However the EventClear operation is not strictly needed.
  */
+
+/*
+ * FSP_IOQ_USE_QEVENT
+ *
+ * Define this macro to use Queued Events instead of simple SynchronizationEvent's.
+ */
+#if defined(FSP_IOQ_USE_QEVENT)
+#define FspIoqEventInitialize(E)        FspQeventInitialize(E, 0)
+#define FspIoqEventFinalize(E)          FspQeventFinalize(E)
+#define FspIoqEventSet(E)               FspQeventSetNoLock(E)
+#define FspIoqEventCancellableWait(E,T,I)   FspQeventCancellableWait(E,T,I)
+#define FspIoqEventClear(E)             ((VOID)0)
+#else
+#define FspIoqEventInitialize(E)        KeInitializeEvent(E, SynchronizationEvent, FALSE)
+#define FspIoqEventFinalize(E)          ((VOID)0)
+#define FspIoqEventSet(E)               KeSetEvent(E, 1, FALSE)
+#define FspIoqEventCancellableWait(E,T,I)   FsRtlCancellableWaitForSingleObject(E,T,I)
+#define FspIoqEventClear(E)             KeClearEvent(E)
+#endif
 
 /*
  * FSP_IOQ_PROCESS_NO_CANCEL
@@ -136,8 +161,6 @@
  * inform it of whether the operation was successful or not. We can only do this reliably
  * if we do not allow cancelation after an operation has been started.
  */
-#define FSP_IOQ_PROCESS_NO_CANCEL
-
 #if defined(FSP_IOQ_PROCESS_NO_CANCEL)
 static NTSTATUS FspCsqInsertIrpEx(PIO_CSQ Csq, PIRP Irp, PIO_CSQ_IRP_CONTEXT Context, PVOID InsertContext)
 {
@@ -199,10 +222,11 @@ static inline VOID FspIoqPendingResetSynch(FSP_IOQ *Ioq)
      */
     if (0 != Ioq->PendingIrpCount || Ioq->Stopped)
         /* list is not empty or is stopped; wake up a waiter */
-        KeSetEvent(&Ioq->PendingIrpEvent, 1, FALSE);
+        FspIoqEventSet(&Ioq->PendingIrpEvent);
     else
         /* list is empty and not stopped; future threads should go to sleep */
-        KeClearEvent(&Ioq->PendingIrpEvent);
+        /* NOTE: this is not stricly necessary! */
+        FspIoqEventClear(&Ioq->PendingIrpEvent);
 }
 
 static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
@@ -214,7 +238,7 @@ static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertCo
         return STATUS_INSUFFICIENT_RESOURCES;
     Ioq->PendingIrpCount++;
     InsertTailList(&Ioq->PendingIrpList, &Irp->Tail.Overlay.ListEntry);
-    KeSetEvent(&Ioq->PendingIrpEvent, 1, FALSE);
+    FspIoqEventSet(&Ioq->PendingIrpEvent);
         /* equivalent to FspIoqPendingResetSynch(Ioq) */
     return STATUS_SUCCESS;
 }
@@ -460,7 +484,7 @@ NTSTATUS FspIoqCreate(
     RtlZeroMemory(Ioq, PAGE_SIZE);
 
     KeInitializeSpinLock(&Ioq->SpinLock);
-    KeInitializeEvent(&Ioq->PendingIrpEvent, SynchronizationEvent, FALSE);
+    FspIoqEventInitialize(&Ioq->PendingIrpEvent);
     InitializeListHead(&Ioq->PendingIrpList);
     InitializeListHead(&Ioq->ProcessIrpList);
     InitializeListHead(&Ioq->RetriedIrpList);
@@ -499,6 +523,7 @@ NTSTATUS FspIoqCreate(
 VOID FspIoqDelete(FSP_IOQ *Ioq)
 {
     FspIoqStop(Ioq);
+    FspIoqEventFinalize(&Ioq->PendingIrpEvent);
     FspFree(Ioq);
 }
 
@@ -508,7 +533,7 @@ VOID FspIoqStop(FSP_IOQ *Ioq)
     KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
     Ioq->Stopped = TRUE;
     /* we are being stopped, permanently wake up waiters */
-    KeSetEvent(&Ioq->PendingIrpEvent, 1, FALSE);
+    FspIoqEventSet(&Ioq->PendingIrpEvent);
         /* equivalent to FspIoqPendingResetSynch(Ioq) */
     KeReleaseSpinLock(&Ioq->SpinLock, Irql);
     PIRP Irp;
@@ -577,7 +602,7 @@ PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout
     if (0 != Timeout)
     {
         NTSTATUS Result;
-        Result = FsRtlCancellableWaitForSingleObject(&Ioq->PendingIrpEvent, Timeout,
+        Result = FspIoqEventCancellableWait(&Ioq->PendingIrpEvent, Timeout,
             CancellableIrp);
         if (STATUS_TIMEOUT == Result)
             return FspIoqTimeout;
