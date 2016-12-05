@@ -5,7 +5,7 @@
 
 import csv, os, sys
 
-snames = ["ntfs", "winfsp-t0", "winfsp-t1", "winfsp-inf", "dokany"]
+snames = ["ntfs", "winfsp-t0", "winfsp-t1", "winfsp-tinf", "dokany"]
 aggregate = min
 
 tests = {}
