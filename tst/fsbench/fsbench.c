@@ -257,14 +257,14 @@ static void rdwr_nc_read_large_test(void)
 }
 static void rdwr_tests(void)
 {
-    TEST(rdwr_cc_write_sector_test);
-    TEST(rdwr_cc_read_sector_test);
+    //TEST(rdwr_cc_write_sector_test);
+    //TEST(rdwr_cc_read_sector_test);
     TEST(rdwr_cc_write_page_test);
     TEST(rdwr_cc_read_page_test);
     TEST(rdwr_cc_write_large_test);
     TEST(rdwr_cc_read_large_test);
-    TEST(rdwr_nc_write_sector_test);
-    TEST(rdwr_nc_read_sector_test);
+    //TEST(rdwr_nc_write_sector_test);
+    //TEST(rdwr_nc_read_sector_test);
     TEST(rdwr_nc_write_page_test);
     TEST(rdwr_nc_read_page_test);
     TEST(rdwr_nc_write_large_test);
