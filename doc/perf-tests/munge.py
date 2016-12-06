@@ -6,6 +6,22 @@
 import csv, os, sys
 
 snames = ["ntfs", "winfsp-t0", "winfsp-t1", "winfsp-tinf", "dokany"]
+file_tnames = [
+    "file_create_test",
+    "file_open_test",
+    "file_overwrite_test",
+    "file_list_test",
+    "file_delete_test"]
+    #"file_mkdir_test",
+    #"file_rmdir_test"]
+rdwr_tnames = [
+    "rdwr_cc_read_page_test",
+    "rdwr_cc_write_page_test",
+    "rdwr_nc_read_page_test",
+    "rdwr_nc_write_page_test",
+    "mmap_read_test",
+    "mmap_write_test"]
+tnames = file_tnames + rdwr_tnames
 aggregate = min
 
 tests = {}
@@ -18,28 +34,41 @@ for arg in sys.argv[1:]:
             tests.\
                 setdefault(row[0], {}).\
                 setdefault(name, {}).\
-                setdefault(row[1], []).\
-                append(row[2])
+                setdefault(int(row[1]), []).\
+                append(float(row[2]))
 
 if False:
-    for testname in sorted(tests.keys()):
-        print "%s:" % testname
-        test = tests[testname]
+    for tname in (tnames if tnames else sorted(tests.keys())):
+        print "%s:" % tname
+        test = tests[tname]
         for sname in (snames if snames else sorted(test.keys())):
             if sname not in test:
                 continue
             print "    %s:" % sname
             series = test[sname]
             for param in sorted(series.keys()):
-                print "        %s: %s -> %s" % (param, series[param], aggregate(series[param]))
+                print "        %s: %s -> %.2f" % (param, series[param], aggregate(series[param]))
 else:
-    for testname in sorted(tests.keys()):
-        with open(testname + ".csv", "w") as fout:
-            test = tests[testname]
+    for tname in (tnames if tnames else sorted(tests.keys())):
+        with open(tname + ".csv", "w") as fout:
+            test = tests[tname]
             for sname in (snames if snames else sorted(test.keys())):
                 if sname not in test:
                     continue
                 fout.write("//%s\r\n" % sname)
                 series = test[sname]
                 for param in sorted(series.keys()):
-                    fout.write("%s,%s\r\n" % (param, aggregate(series[param])))
+                    fout.write("%s,%.2f\r\n" % (param, aggregate(series[param])))
+    def master_write(fname, tnames):
+        with open(fname + ".csv", "w") as fout:
+            for sname in snames:
+                fout.write("//%s\r\n" % sname)
+                for tname in (tnames if tnames else sorted(tests.keys())):
+                    test = tests[tname]
+                    if sname not in test:
+                        continue
+                    series = test[sname]
+                    param = max(series.keys())
+                    fout.write("%s,%.2f\r\n" % (tname, aggregate(series[param])))
+    master_write("file_tests", file_tnames)
+    master_write("rdwr_tests", rdwr_tnames)
