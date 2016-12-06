@@ -1,0 +1,171 @@
+= WinFsp as an IPC Mechanism
+
+WinFsp enables the creation of user mode file systems for Windows. At its core WinFsp is also an Inter-Process Communication (IPC) mechanism that uses the familiar file system interface for communication. This document discusses WinFsp from that viewpoint.
+
+== Single File API Request
+
+When a process uses the familiar file API to access a file on Windows, this API request gets packaged into an I/O Request Packet (IRP) and gets routed to the relevant File System Driver (FSD). The usual FSD's in Windows (NTFS, FastFat, etc.) will process the IRP and return a response to the process. For the remainder of this discussion, we will call this process the Originating Process (OP).
+
+In the WinFsp case things are more complicated. WinFsp will forward IRP's to another process, which implements a user mode file system. This process will process the IRP and return a response, which WinFsp will eventually forward to the OP. We will call the process that implements the user mode file system, the File System process (FS).
+
+In the following we will also use the notation [U] to denote user mode processing and [K] to denote kernel mode processing. Additionally because a Context Switch always goes through kernel mode, we will simplify the diagrams and omit this detail when it is not important.
+
+Consider then what happens when an OP issues a synchronous (non-overlapped), non-cached (non-buffered) WriteFile call.
+
+[uml,file="winfsp-ipc/synchronous.png"]
+--
+hide footbox
+
+participant "OP[U]" as OPU
+participant "OP[K]" as OPK
+participant "FS[K]" as FSK
+participant "FS[U]" as FSU
+
+activate OPU
+OPU ->OPK: WriteFile
+deactivate OPU
+activate OPK #Salmon
+OPK-->FSK: Context Switch
+deactivate OPK
+activate FSK #Salmon
+FSK ->FSU: TRANSACT Req
+deactivate FSK
+activate FSU #Salmon
+FSU ->FSU: Process
+activate FSU
+deactivate FSU
+FSU ->FSK: TRANSACT Rsp
+deactivate FSU
+activate FSK #Salmon
+FSK-->OPU: Context Switch and Return
+deactivate FSK
+activate OPU
+note over FSK, FSU #Salmon
+    Salmon color denotes WinFsp processing.
+end note
+--
+
+Let us now consider what happens when an OP issues an asynchronous (overlapped), non-cached (non-buffered) WriteFile call. This scenario does not show how the OP receives the WriteFile result.
+
+[uml,file="winfsp-ipc/asynchronous.png"]
+--
+hide footbox
+
+participant "OP[U]" as OPU
+participant "OP[K]" as OPK
+participant "FS[K]" as FSK
+participant "FS[U]" as FSU
+
+activate OPU
+OPU ->OPK: WriteFile
+deactivate OPU
+activate OPK #Salmon
+OPK ->OPU: Return
+deactivate OPK
+activate OPU
+OPU ->OPU: Process
+activate OPU
+deactivate OPU
+OPU-->FSK: Context Switch
+deactivate OPU
+activate FSK #Salmon
+FSK ->FSU: TRANSACT Req
+deactivate FSK
+activate FSU #Salmon
+FSU ->FSU: Process
+activate FSU
+deactivate FSU
+FSU ->FSK: TRANSACT Rsp
+deactivate FSU
+activate FSK #Salmon
+FSK-->OPU: Context Switch
+deactivate FSK
+activate OPU
+note over FSK, FSU #Salmon
+    Salmon color denotes WinFsp processing.
+end note
+--
+
+It should be noted that from the WinFsp perspective both cases look similar. WinFsp processing occurs:
+
+- At *OP[K]* time immediately after receipt of an IRP. An IRP is said to be in the _Pending_ stage at this point.
+- At *FS[K]* time after a context switch, but before the TRANSACT call. An IRP is said to be in the _Prepare_ stage at this point.
+- At *FS[K]* time after the TRANSACT call. An IRP is said to be in the _Complete_ stage at this point. Upon completion of this stage the IRP will be completed and relinquished to the OS.
+- AT *FS[U]* time between the two TRANSACT calls.
+
+The TRANSACT calls are DeviceIoControl requests that the FS issues to WinFsp. A single TRANSACT call can be used to communicate a file system response and retrieve the next file system request.
+
+## Multiple File API Requests
+
+Let us now consider what may happen with two simultaneous API Requests from two different processes. For example, two WriteFile requests for different files.
+
+[uml,file="winfsp-ipc/multiple.png"]
+--
+hide footbox
+
+participant "OP<sub>1</sub>[U]" as OP1U
+participant "OP<sub>1</sub>[K]" as OP1K
+participant "OP<sub>2</sub>[U]" as OP2U
+participant "OP<sub>2</sub>[K]" as OP2K
+participant "FS[K]" as FSK
+participant "FS[U]" as FSU
+
+activate OP1U
+OP1U ->OP1K: WriteFile
+deactivate OP1U
+activate OP1K #Salmon
+OP1K-->OP2U: Context Switch
+deactivate OP1K
+activate OP2U
+OP2U ->OP2K: WriteFile
+deactivate OP2U
+activate OP2K #Salmon
+OP2K-->FSK: Context Switch
+deactivate OP2K
+activate FSK #Salmon
+FSK ->FSU: TRANSACT\nReq<sub>1</sub>
+deactivate FSK
+activate FSU #Salmon
+FSU ->FSU: Process
+activate FSU
+deactivate FSU
+FSU ->FSK: TRANSACT\nRsp<sub>1</sub>
+deactivate FSU
+activate FSK #Salmon
+FSK ->FSU: TRANSACT\nReq<sub>2</sub>
+deactivate FSK
+activate FSU #Salmon
+FSU ->FSU: Process
+activate FSU
+deactivate FSU
+FSU ->FSK: TRANSACT\nRsp<sub>2</sub>
+deactivate FSU
+activate FSK #Salmon
+FSK-->OP1U: Context Switch and Return
+deactivate FSK
+activate OP1U
+OP1U ->OP1U: Process
+activate OP1U
+deactivate OP1U
+OP1U-->OP2U: Context Switch and Return
+deactivate OP1U
+activate OP2U
+note over FSK, FSU #Salmon
+    Salmon color denotes WinFsp processing.
+end note
+--
+
+Notice that it is possible for the FS to process multiple file system requests without context switching.
+
+## I/O Queues and Performance
+
+I/O Queues are the fundamental IPC mechanism in WinFsp. The purpose of the I/O Queue is to forward an IRP from the OP to the FS and when FS processing is complete to forward the response back to the OP. I/O Queues are discussed in detail in the WinFsp design document.
+
+WinFsp owes its excellent performance primarily to the design of the I/O Queues. I/O Queues borrow heavily from the design of I/O completion ports and schedule threads in a similar manner:
+
+- They have a Last-In First-Out (LIFO) wait discipline.
+- They limit the number of threads that can be satisfied concurrently to the number of processors.
+
+The first property ensures that when an FS thread finishes processing a file system request, it will very likely pick up the next one from the I/O Queue without blocking and context switching to another FS thread. Minimizing context switches results in better performance.
+
+The second property ensures that even if there are multiple file system requests waiting to be serviced in the I/O Queue, it will not schedule more thread than the number of processors. Having more than one threads scheduled on each processor is counter-productive.
