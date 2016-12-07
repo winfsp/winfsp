@@ -26,6 +26,10 @@ This test suite is written in Python and C. It provides a form of black box test
 +
 This test is WinFsp specific and is developed together with WinFsp. It is written in C/C++.
 
+- *Fsbench*: This is a tool that can be used to test the performance of Windows file systems under different scenarios. It is not WinFsp specific.
++
+This tool is currently developed together with WinFsp. It is written in C.
+
 These test suites and a few smaller tests are run through Continuous Integration testing every time a push is made into the WinFsp repository.
 
 === Test File System
@@ -102,6 +106,12 @@ All development and testing of WinFsp is done under the Driver Verifier with sta
 === Leak Testing
 
 One of the most important aspects of the Driver Verifier is that it can track the pool (memory) usage of WinFsp. The WinFsp master test driver uses this to confirm that the WinFsp FSD does not leak memory. At the end of the tests the master test driver unmounts any remaining WinFsp file systems and then verifies that there are zero pool allocations for the WinFsp FSD.
+
+== Performance Testing
+
+The goal of performance testing is to evaluate and understand how software behaves under certain workloads. Performance testing can help identify cases where the software requires too much time or resources. It is also useful to establish a performance baseline to ensure that software performance does not degrade over time.
+
+WinFsp uses a tool called fsbench for this purpose. Fsbench is able to test specific scenarios, for example: "how long does it take to delete 1000 files?" Fsbench has been very useful for WinFsp and has helped improve its performance: in one situation it helped identify quadratic behavior with the MEMFS ReadDirectory operation, in another situation it helped fine tune the performance of the WinFsp I/O Queue.
 
 == Code Analysis
 
