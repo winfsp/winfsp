@@ -23,7 +23,7 @@ WinFsp consists of a kernel mode FSD (File System Driver) and a user mode DLL (D
 The project source code is organized as follows:
 
 * build/VStudio: WinFsp solution and project files.
-* doc: WinFsp license, contributor agreement and additional documentation. The WinFsp design documents can be found here.
+* doc: The WinFsp design documents and additional documentation can be found here.
 * ext/tlib: A small test library originally from the secfs (Secure Cloud File System) project.
 * ext/test: Submodule pointing to the secfs.test project, which contains a number of tools for testing Windows and POSIX file systems.
 * inc/winfsp: Public headers for the WinFsp API.
