@@ -153,7 +153,7 @@ This test measures the performance of cached ReadFile with 1 page reads. The res
 ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/rdwr_cc_read_page_test.csv",file="WinFsp-Performance-Testing/rdwr_cc_read_page_test.png",opt="x-label=iterations,y-label=time"]]
 ifndef::env-browser[image::WinFsp-Performance-Testing/rdwr_cc_read_page_test.png[]]
 
-==== rdwr_nc_write_test
+==== rdwr_nc_write_page_test
 
 This test measures the performance of non-cached WriteFile with 1 page writes. WinFsp has the best performance, followed by Dokany. NTFS shows bad performance, which of course make sense as we are asking it to write all data to the disk.
 
