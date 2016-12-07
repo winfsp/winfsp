@@ -8,12 +8,12 @@ This document discusses performance testing for WinFsp. The goal of this perform
 This performance testing shows that WinFsp has excellent performance in all tested scenarios. It outperforms NTFS in most scenarios (an unfair comparison as NTFS is a disk file system and WinFsp is tested with an in-memory file system). It also outperforms Dokany in all scenarios, often by an order of magnitude.
 
 .File Tests
-ifdef::env-browser[chart::bar[data-uri="perf-tests/file_tests.csv",file="perf-tests/file_tests.png",opt="y-label=time"]]
-ifndef::env-browser[image::perf-tests/file_tests.png[]]
+ifdef::env-browser[chart::bar[data-uri="Performance-Testing/file_tests.csv",file="Performance-Testing/file_tests.png",opt="y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/file_tests.png[]]
 
 .Read/Write Tests
-ifdef::env-browser[chart::bar[data-uri="perf-tests/rdwr_tests.csv",file="perf-tests/rdwr_tests.png",opt="y-label=time"]]
-ifndef::env-browser[image::perf-tests/rdwr_tests.png[]]
+ifdef::env-browser[chart::bar[data-uri="Performance-Testing/rdwr_tests.csv",file="Performance-Testing/rdwr_tests.png",opt="y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/rdwr_tests.png[]]
 
 == Fsbench
 
@@ -104,8 +104,8 @@ These tests measure the performance of creating, opening, overwriting and listin
 
 This test measures the performance of CreateFileW(CREATE_NEW) / CloseHandle. WinFsp has the best performance here. Dokany follows and NTFS is last as it has to actually update its data structures on disk.
 
-ifdef::env-browser[chart::line[data-uri="perf-tests/file_create_test.csv",file="perf-tests/file_create_test.png",opt="x-label=file count,y-label=time"]]
-ifndef::env-browser[image::perf-tests/file_create_test.png[]]
+ifdef::env-browser[chart::line[data-uri="Performance-Testing/file_create_test.csv",file="Performance-Testing/file_create_test.png",opt="x-label=file count,y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/file_create_test.png[]]
 
 ==== file_open_test
 
@@ -113,29 +113,29 @@ This test measures the performance of CreateFileW(OPEN_EXISTING) / CloseHandle. 
 
 WinFsp appears to have very uneven performance here. In particular notice that opening 1000 files is slower than opening 2000 files, which makes no sense! I suspect that the test observes an initial acquisition of resouces when the test first starts, which is not necessary when the test runs for 2000 files at a later time. This uneven performance should probably be investigated in the future.
 
-ifdef::env-browser[chart::line[data-uri="perf-tests/file_open_test.csv",file="perf-tests/file_open_test.png",opt="x-label=file count,y-label=time"]]
-ifndef::env-browser[image::perf-tests/file_open_test.png[]]
+ifdef::env-browser[chart::line[data-uri="Performance-Testing/file_open_test.csv",file="Performance-Testing/file_open_test.png",opt="x-label=file count,y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/file_open_test.png[]]
 
 ==== file_overwrite_test
 
 This test measures the performance of CreateFileW(CREATE_ALWAYS) / CloseHandle. WinFsp is fastest, followed by NTFS and then Dokany.
 
-ifdef::env-browser[chart::line[data-uri="perf-tests/file_overwrite_test.csv",file="perf-tests/file_overwrite_test.png",opt="x-label=file count,y-label=time"]]
-ifndef::env-browser[image::perf-tests/file_overwrite_test.png[]]
+ifdef::env-browser[chart::line[data-uri="Performance-Testing/file_overwrite_test.csv",file="Performance-Testing/file_overwrite_test.png",opt="x-label=file count,y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/file_overwrite_test.png[]]
 
 ==== file_list_test
 
 This test measures the performance of FindFirstFileW / FindNextFile / FindClose. NTFS wins this scenario, likely because it can satisfy the list operation from cache. WinFsp has overall good performance. Dokany appears to show slightly quadratic performance in this scenario.
 
-ifdef::env-browser[chart::line[data-uri="perf-tests/file_list_test.csv",file="perf-tests/file_list_test.png",opt="x-label=file count,y-label=time"]]
-ifndef::env-browser[image::perf-tests/file_list_test.png[]]
+ifdef::env-browser[chart::line[data-uri="Performance-Testing/file_list_test.csv",file="Performance-Testing/file_list_test.png",opt="x-label=file count,y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/file_list_test.png[]]
 
 ==== file_delete_test
 
 This test measures the performance of DeleteFileW. WinFsp has the best performance, followed by Dokany and NTFS with very similar performance.
 
-ifdef::env-browser[chart::line[data-uri="perf-tests/file_delete_test.csv",file="perf-tests/file_delete_test.png",opt="x-label=file count,y-label=time"]]
-ifndef::env-browser[image::perf-tests/file_delete_test.png[]]
+ifdef::env-browser[chart::line[data-uri="Performance-Testing/file_delete_test.csv",file="Performance-Testing/file_delete_test.png",opt="x-label=file count,y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/file_delete_test.png[]]
 
 === Read/Write Tests
 
@@ -145,29 +145,29 @@ These tests measure the performance of cached, non-cached and memory-mapped I/O.
 
 This test measures the performance of cached WriteFile with 1 page writes. NTFS and WinFsp with an infinite FileInfoTimeout have the best performance, with a clear edge to NTFS (likely because of its use of FastIO, which WinFsp does not currently support). WinFsp with a FileInfoTimeout of 0 or 1 performance is next, because WinFsp does not use the NTOS Cache Manager in this scenario. Dokany performance is last.
 
-ifdef::env-browser[chart::line[data-uri="perf-tests/rdwr_cc_write_page_test.csv",file="perf-tests/rdwr_cc_write_page_test.png",opt="x-label=iterations,y-label=time"]]
-ifndef::env-browser[image::perf-tests/rdwr_cc_write_page_test.png[]]
+ifdef::env-browser[chart::line[data-uri="Performance-Testing/rdwr_cc_write_page_test.csv",file="Performance-Testing/rdwr_cc_write_page_test.png",opt="x-label=iterations,y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/rdwr_cc_write_page_test.png[]]
 
 ==== rdwr_cc_read_page_test
 
 This test measures the performance of cached ReadFile with 1 page reads. The results here are very similar to the rdwr_cc_write_page_test case and similar comments apply.
 
-ifdef::env-browser[chart::line[data-uri="perf-tests/rdwr_cc_read_page_test.csv",file="perf-tests/rdwr_cc_read_page_test.png",opt="x-label=iterations,y-label=time"]]
-ifndef::env-browser[image::perf-tests/rdwr_cc_read_page_test.png[]]
+ifdef::env-browser[chart::line[data-uri="Performance-Testing/rdwr_cc_read_page_test.csv",file="Performance-Testing/rdwr_cc_read_page_test.png",opt="x-label=iterations,y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/rdwr_cc_read_page_test.png[]]
 
 ==== rdwr_nc_write_test
 
 This test measures the performance of non-cached WriteFile with 1 page writes. WinFsp has the best performance, followed by Dokany. NTFS shows bad performance, which of course make sense as we are asking it to write all data to the disk.
 
-ifdef::env-browser[chart::line[data-uri="perf-tests/rdwr_nc_write_page_test.csv",file="perf-tests/rdwr_nc_write_page_test.png",opt="x-label=iterations,y-label=time"]]
-ifndef::env-browser[image::perf-tests/rdwr_nc_write_page_test.png[]]
+ifdef::env-browser[chart::line[data-uri="Performance-Testing/rdwr_nc_write_page_test.csv",file="Performance-Testing/rdwr_nc_write_page_test.png",opt="x-label=iterations,y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/rdwr_nc_write_page_test.png[]]
 
 ==== rdwr_nc_read_page_test
 
 This test measures the performance of non-cached ReadFile with 1 page reads. The results here are very similar to the rdwr_nc_write_page_test case and similar comments apply.
 
-ifdef::env-browser[chart::line[data-uri="perf-tests/rdwr_nc_read_page_test.csv",file="perf-tests/rdwr_nc_read_page_test.png",opt="x-label=iterations,y-label=time"]]
-ifndef::env-browser[image::perf-tests/rdwr_nc_read_page_test.png[]]
+ifdef::env-browser[chart::line[data-uri="Performance-Testing/rdwr_nc_read_page_test.csv",file="Performance-Testing/rdwr_nc_read_page_test.png",opt="x-label=iterations,y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/rdwr_nc_read_page_test.png[]]
 
 ==== mmap_write_test
 
@@ -181,8 +181,8 @@ mmap_write_test........................ KO
     ASSERT(0 != Mapping) failed at fsbench.c:226:mmap_dotest
 ----
 
-ifdef::env-browser[chart::line[data-uri="perf-tests/mmap_write_test.csv",file="perf-tests/mmap_write_test.png",opt="x-label=iterations,y-label=time"]]
-ifndef::env-browser[image::perf-tests/mmap_write_test.png[]]
+ifdef::env-browser[chart::line[data-uri="Performance-Testing/mmap_write_test.csv",file="Performance-Testing/mmap_write_test.png",opt="x-label=iterations,y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/mmap_write_test.png[]]
 
 ==== mmap_read_test
 
@@ -190,5 +190,5 @@ This test measures the performance of memory mapped reads. Again NTFS and WinFsp
 
 There are no results for Dokany as it faces the same issue as with mmap_write_test.
 
-ifdef::env-browser[chart::line[data-uri="perf-tests/mmap_read_test.csv",file="perf-tests/mmap_read_test.png",opt="x-label=iterations,y-label=time"]]
-ifndef::env-browser[image::perf-tests/mmap_read_test.png[]]
+ifdef::env-browser[chart::line[data-uri="Performance-Testing/mmap_read_test.csv",file="Performance-Testing/mmap_read_test.png",opt="x-label=iterations,y-label=time"]]
+ifndef::env-browser[image::Performance-Testing/mmap_read_test.png[]]

@@ -13,7 +13,7 @@ In the following we will also use the notation [U] to denote user mode processin
 Consider then what happens when an OP issues a synchronous (non-overlapped), non-cached (non-buffered) WriteFile call.
 
 ifdef::env-browser[]
-[uml,file="winfsp-ipc/synchronous.png"]
+[uml,file="WinFsp-as-an-IPC-Mechanism/synchronous.png"]
 --
 hide footbox
 
@@ -46,12 +46,12 @@ note over FSK, FSU #Salmon
 end note
 --
 endif::env-browser[]
-ifndef::env-browser[image::winfsp-ipc/synchronous.png[]]
+ifndef::env-browser[image::WinFsp-as-an-IPC-Mechanism/synchronous.png[]]
 
 Let us now consider what happens when an OP issues an asynchronous (overlapped), non-cached (non-buffered) WriteFile call. This scenario does not show how the OP receives the WriteFile result.
 
 ifdef::env-browser[]
-[uml,file="winfsp-ipc/asynchronous.png"]
+[uml,file="WinFsp-as-an-IPC-Mechanism/asynchronous.png"]
 --
 hide footbox
 
@@ -90,7 +90,7 @@ note over FSK, FSU #Salmon
 end note
 --
 endif::env-browser[]
-ifndef::env-browser[image::winfsp-ipc/asynchronous.png[]]
+ifndef::env-browser[image::WinFsp-as-an-IPC-Mechanism/asynchronous.png[]]
 
 It should be noted that from the WinFsp perspective both cases look similar. WinFsp processing occurs:
 
@@ -106,7 +106,7 @@ The TRANSACT calls are DeviceIoControl requests that the FS issues to WinFsp. A 
 Let us now consider what may happen with two simultaneous API Requests from two different processes. For example, two WriteFile requests for different files.
 
 ifdef::env-browser[]
-[uml,file="winfsp-ipc/multiple.png"]
+[uml,file="WinFsp-as-an-IPC-Mechanism/multiple.png"]
 --
 hide footbox
 
@@ -162,7 +162,7 @@ note over FSK, FSU #Salmon
 end note
 --
 endif::env-browser[]
-ifndef::env-browser[image::winfsp-ipc/multiple.png[]]
+ifndef::env-browser[image::WinFsp-as-an-IPC-Mechanism/multiple.png[]]
 
 Notice that it is possible for the FS to process multiple file system requests without context switching.
 
