@@ -7,11 +7,9 @@ This document discusses performance testing for WinFsp. The goal of this perform
 
 This performance testing shows that WinFsp has excellent performance in all tested scenarios. It outperforms NTFS in most scenarios (an unfair comparison as NTFS is a disk file system and WinFsp is tested with an in-memory file system). It also outperforms Dokany in all scenarios, often by an order of magnitude.
 
-.File Tests
 ifdef::env-browser[chart::bar[data-uri="WinFsp-Performance-Testing/file_tests.csv",file="WinFsp-Performance-Testing/file_tests.png",opt="y-label=time"]]
 ifndef::env-browser[image::WinFsp-Performance-Testing/file_tests.png[]]
 
-.Read/Write Tests
 ifdef::env-browser[chart::bar[data-uri="WinFsp-Performance-Testing/rdwr_tests.csv",file="WinFsp-Performance-Testing/rdwr_tests.png",opt="y-label=time"]]
 ifndef::env-browser[image::WinFsp-Performance-Testing/rdwr_tests.png[]]
 
