@@ -622,6 +622,16 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     special value 0 indicates that the read should start from the first entries. The first
      *     two entries returned by ReadDirectory should always be the "." and ".." entries,
      *     except for the root directory which does not have these entries.
+     *
+     *     This parameter is used by the WinFsp FSD to break directory listings into chunks.
+     *     In this case all 64-bits of the Offset are valid. In some cases the Windows kernel
+     *     (NTOS) may also use this parameter. In this case only the lower 32-bits of this
+     *     parameter will be valid. This is an unfortunate limitation of Windows (for more
+     *     information see the documentation for IRP_MJ_DIRECTORY_CONTROL and the flag
+     *     SL_INDEX_SPECIFIED).
+     *
+     *     In practice this means that you should only rely on the lower 32-bits of this value
+     *     to be valid.
      * @param Length
      *     Length of data to read.
      * @param Pattern
