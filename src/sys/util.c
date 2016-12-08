@@ -149,12 +149,13 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 
 static const LONG Delays[] =
 {
-    -100,
-    -200,
-    -300,
-    -400,
-    -500,
-    -1000,
+     10/*ms*/ * -10000,
+     10/*ms*/ * -10000,
+     50/*ms*/ * -10000,
+     50/*ms*/ * -10000,
+    100/*ms*/ * -10000,
+    100/*ms*/ * -10000,
+    300/*ms*/ * -10000,
 };
 
 PVOID FspAllocatePoolMustSucceed(POOL_TYPE PoolType, SIZE_T Size, ULONG Tag)
@@ -166,7 +167,7 @@ PVOID FspAllocatePoolMustSucceed(POOL_TYPE PoolType, SIZE_T Size, ULONG Tag)
 
     for (ULONG i = 0, n = sizeof(Delays) / sizeof(Delays[0]);; i++)
     {
-        Result = DEBUGTEST(95) ? ExAllocatePoolWithTag(PoolType, Size, Tag) : 0;
+        Result = DEBUGTEST(99) ? ExAllocatePoolWithTag(PoolType, Size, Tag) : 0;
         if (0 != Result)
             return Result;
 
@@ -184,7 +185,7 @@ PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
 
     for (ULONG i = 0, n = sizeof(Delays) / sizeof(Delays[0]);; i++)
     {
-        Result = DEBUGTEST(95) ? IoAllocateIrp(StackSize, FALSE) : 0;
+        Result = DEBUGTEST(99) ? IoAllocateIrp(StackSize, FALSE) : 0;
         if (0 != Result)
             return Result;
 
