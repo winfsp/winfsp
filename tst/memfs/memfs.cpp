@@ -24,14 +24,19 @@
 #include <unordered_map>
 
 /*
- * Define the MEMFS_NAMED_STREAMS macro to include named streams support.
- */
-#define MEMFS_NAMED_STREAMS
-
-/*
  * Define the MEMFS_NAME_NORMALIZATION macro to include name normalization support.
  */
 #define MEMFS_NAME_NORMALIZATION
+
+/*
+ * Define the MEMFS_REPARSE_POINTS macro to include reparse points support.
+ */
+#define MEMFS_REPARSE_POINTS
+
+/*
+ * Define the MEMFS_NAMED_STREAMS macro to include named streams support.
+ */
+#define MEMFS_NAMED_STREAMS
 
 /*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
@@ -177,8 +182,10 @@ typedef struct _MEMFS_FILE_NODE
     SIZE_T FileSecuritySize;
     PVOID FileSecurity;
     PVOID FileData;
+#if defined(MEMFS_REPARSE_POINTS)
     SIZE_T ReparseDataSize;
     PVOID ReparseData;
+#endif
     ULONG RefCount;
 #if defined(MEMFS_NAMED_STREAMS)
     struct _MEMFS_FILE_NODE *MainFileNode;
@@ -239,7 +246,9 @@ NTSTATUS MemfsFileNodeCreate(PWSTR FileName, MEMFS_FILE_NODE **PFileNode)
 static inline
 VOID MemfsFileNodeDelete(MEMFS_FILE_NODE *FileNode)
 {
+#if defined(MEMFS_REPARSE_POINTS)
     free(FileNode->ReparseData);
+#endif
     LargeHeapFree(FileNode->FileData);
     free(FileNode->FileSecurity);
     free(FileNode);
@@ -551,9 +560,11 @@ NTSTATUS MemfsDirDescInsertFileName(MEMFS_DIR_DESC *DirDesc, UINT64 Offset, PWST
  * FSP_FILE_SYSTEM_INTERFACE
  */
 
+#if defined(MEMFS_REPARSE_POINTS)
 static NTSTATUS GetReparsePointByName(
     FSP_FILE_SYSTEM *FileSystem, PVOID Context,
     PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize);
+#endif
 
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize,
@@ -606,10 +617,12 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     {
         Result = STATUS_OBJECT_NAME_NOT_FOUND;
 
+#if defined(MEMFS_REPARSE_POINTS)
         if (FspFileSystemFindReparsePoint(FileSystem, GetReparsePointByName, 0,
             FileName, PFileAttributes))
             Result = STATUS_REPARSE;
         else
+#endif
             MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result);
 
         return Result;
@@ -1371,6 +1384,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+#if defined(MEMFS_REPARSE_POINTS)
 static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent,
     PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
@@ -1506,6 +1520,7 @@ static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 
     return STATUS_SUCCESS;
 }
+#endif
 
 #if defined(MEMFS_NAMED_STREAMS)
 typedef struct _MEMFS_GET_STREAM_INFO_CONTEXT
@@ -1593,10 +1608,17 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     GetSecurity,
     SetSecurity,
     ReadDirectory,
+#if defined(MEMFS_REPARSE_POINTS)
     ResolveReparsePoints,
     GetReparsePoint,
     SetReparsePoint,
     DeleteReparsePoint,
+#else
+    0,
+    0,
+    0,
+    0,
+#endif
 #if defined(MEMFS_NAMED_STREAMS)
     GetStreamInfo,
 #else
