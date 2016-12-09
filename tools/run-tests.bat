@@ -44,11 +44,13 @@ for %%f in (^
     :fsx-memfs-x64-net ^
     :standby-memfs-x64-disk ^
     :standby-memfs-x64-net ^
+    :net-use-memfs-x64 ^
     :winfsp-tests-x86-external-share ^
     :fsx-memfs-x86-disk ^
     :fsx-memfs-x86-net ^
     :standby-memfs-x86-disk ^
     :standby-memfs-x86-net ^
+    :net-use-memfs-x86 ^
     :winfstest-memfs-x64-disk ^
     :winfstest-memfs-x64-net ^
     :winfstest-memfs-x86-disk ^
@@ -199,6 +201,18 @@ copy "%ProjRoot%\build\VStudio\build\%Configuration%\*"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:net-use-memfs-x64
+echo net use L: \\memfs64\share
+net use L: \\memfs64\share
+if !ERRORLEVEL! neq 0 goto fail
+echo net use ^| findstr L: ^| findstr WinFsp.Np
+net use | findstr L: | findstr WinFsp.Np
+if !ERRORLEVEL! neq 0 goto fail
+echo net use L: /delete
+net use L: /delete
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :winfsp-tests-x86-external-share
 O:
 "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --share=winfsp-tests-share=O:\ --resilient ^
@@ -231,6 +245,18 @@ exit /b 0
 :standby-memfs-x86-net
 P:
 copy "%ProjRoot%\build\VStudio\build\%Configuration%\*"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:net-use-memfs-x86
+echo net use L: \\memfs32\share
+net use L: \\memfs32\share
+if !ERRORLEVEL! neq 0 goto fail
+echo net use ^| findstr L: ^| findstr WinFsp.Np
+net use | findstr L: | findstr WinFsp.Np
+if !ERRORLEVEL! neq 0 goto fail
+echo net use L: /delete
+net use L: /delete
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
