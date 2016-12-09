@@ -584,6 +584,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     Request->Req.QueryDirectory.UserContext2 = FileDesc->UserContext2;
     Request->Req.QueryDirectory.Offset = FileDesc->DirectoryOffset;
     Request->Req.QueryDirectory.Length = SystemBufferLength;
+    Request->Req.QueryDirectory.CaseSensitive = FileDesc->CaseSensitive;
 
     if (FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
     {

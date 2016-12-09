@@ -184,10 +184,9 @@ static NTSTATUS FspFsvolCreateNoLock(
     ULONG Flags = IrpSp->Flags;
     KPROCESSOR_MODE RequestorMode =
         FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
-    BOOLEAN CaseSensitiveRequested =
-        BooleanFlagOn(Flags, SL_CASE_SENSITIVE);
     BOOLEAN CaseSensitive =
-        CaseSensitiveRequested || FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
+        //BooleanFlagOn(Flags, SL_CASE_SENSITIVE) ||
+        !!FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
     BOOLEAN HasTraversePrivilege =
         BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
     BOOLEAN HasBackupPrivilege =
@@ -501,7 +500,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     Request->Req.Create.HasBackupPrivilege = HasBackupPrivilege;
     Request->Req.Create.HasRestorePrivilege = HasRestorePrivilege;
     Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);
-    Request->Req.Create.CaseSensitive = CaseSensitiveRequested;
+    Request->Req.Create.CaseSensitive = CaseSensitive;
     Request->Req.Create.NamedStream = MainFileName.Length;
 
     ASSERT(

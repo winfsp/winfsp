@@ -173,7 +173,7 @@ typedef struct
     UINT64 LastWriteTime;
     UINT64 ChangeTime;
     UINT64 IndexNumber;
-    UINT32 HardLinks;                   /* currently unused: set to 0 */
+    UINT32 HardLinks;                   /* unimplemented: set to 0 */
 } FSP_FSCTL_FILE_INFO;
 typedef struct
 {
@@ -334,6 +334,7 @@ typedef struct
             UINT64 Offset;
             UINT32 Length;
             FSP_FSCTL_TRANSACT_BUF Pattern;
+            UINT32 CaseSensitive:1;     /* FileName comparisons should be case-sensitive */
         } QueryDirectory;
         struct
         {

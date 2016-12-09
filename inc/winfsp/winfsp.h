@@ -1002,7 +1002,9 @@ static inline
 BOOLEAN FspFileSystemIsOperationCaseSensitive(VOID)
 {
     FSP_FSCTL_TRANSACT_REQ *Request = FspFileSystemGetOperationContext()->Request;
-    return FspFsctlTransactCreateKind == Request->Kind && Request->Req.Create.CaseSensitive;
+    return
+        FspFsctlTransactCreateKind == Request->Kind && Request->Req.Create.CaseSensitive ||
+        FspFsctlTransactQueryDirectoryKind == Request->Kind && Request->Req.QueryDirectory.CaseSensitive;
 }
 
 /*
