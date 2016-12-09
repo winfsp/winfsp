@@ -227,7 +227,7 @@ int wmain(int argc, wchar_t **argv)
     if (0 == argc)
         usage();
 
-    if (0 == lstrcmpW(L"start", argv[0]))
+    if (0 == invariant_wcscmp(L"start", argv[0]))
     {
         if (3 > argc || argc > 12)
             usage();
@@ -236,7 +236,7 @@ int wmain(int argc, wchar_t **argv)
             FALSE);
     }
     else
-    if (0 == lstrcmpW(L"startWithSecret", argv[0]))
+    if (0 == invariant_wcscmp(L"startWithSecret", argv[0]))
     {
         if (4 > argc || argc > 13)
             usage();
@@ -245,7 +245,7 @@ int wmain(int argc, wchar_t **argv)
             TRUE);
     }
     else
-    if (0 == lstrcmpW(L"stop", argv[0]))
+    if (0 == invariant_wcscmp(L"stop", argv[0]))
     {
         if (3 != argc)
             usage();
@@ -253,7 +253,7 @@ int wmain(int argc, wchar_t **argv)
         return stop(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2]);
     }
     else
-    if (0 == lstrcmpW(L"info", argv[0]))
+    if (0 == invariant_wcscmp(L"info", argv[0]))
     {
         if (3 != argc)
             usage();
@@ -261,7 +261,7 @@ int wmain(int argc, wchar_t **argv)
         return getinfo(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2]);
     }
     else
-    if (0 == lstrcmpW(L"list", argv[0]))
+    if (0 == invariant_wcscmp(L"list", argv[0]))
     {
         if (1 != argc)
             usage();
@@ -269,7 +269,7 @@ int wmain(int argc, wchar_t **argv)
         return list(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE);
     }
     else
-    if (0 == lstrcmpW(L"quit", argv[0]))
+    if (0 == invariant_wcscmp(L"quit", argv[0]))
     {
         if (1 != argc)
             usage();

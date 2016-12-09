@@ -157,8 +157,8 @@ static SVC_INSTANCE *SvcInstanceLookup(PWSTR ClassName, PWSTR InstanceName)
     {
         SvcInstance = CONTAINING_RECORD(ListEntry, SVC_INSTANCE, ListEntry);
 
-        if (0 == lstrcmpiW(ClassName, SvcInstance->ClassName) &&
-            0 == lstrcmpiW(InstanceName, SvcInstance->InstanceName))
+        if (0 == invariant_wcsicmp(ClassName, SvcInstance->ClassName) &&
+            0 == invariant_wcsicmp(InstanceName, SvcInstance->InstanceName))
             return SvcInstance;
     }
 

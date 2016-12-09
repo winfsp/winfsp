@@ -87,6 +87,41 @@ void *memmove(void *dst, const void *src, size_t siz)
     return dst;
 }
 
+#define WINFSP_SHARED_MINIMAL_STRCMP(NAME, TYPE, CONV)\
+    static inline\
+    int NAME(const TYPE *s, const TYPE *t)\
+    {\
+        int v = 0;\
+        while (0 == (v = CONV(*s) - CONV(*t)) && *t)\
+            ++s, ++t;\
+        return v;/*(0 < v) - (0 > v);*/\
+    }
+#define WINFSP_SHARED_MINIMAL_STRNCMP(NAME, TYPE, CONV)\
+    static inline\
+    int NAME(const TYPE *s, const TYPE *t, size_t n)\
+    {\
+        int v = 0;\
+        const void *e = t + n;\
+        while (e > (const void *)t && 0 == (v = CONV(*s) - CONV(*t)) && *t)\
+            ++s, ++t;\
+        return v;/*(0 < v) - (0 > v);*/\
+    }
+static inline
+unsigned invariant_toupper(unsigned c)
+{
+    return ('a' <= c && c <= 'z') ? c & ~0x20 : c;
+}
+WINFSP_SHARED_MINIMAL_STRCMP(invariant_strcmp, char, (unsigned))
+WINFSP_SHARED_MINIMAL_STRCMP(invariant_stricmp, char, invariant_toupper)
+WINFSP_SHARED_MINIMAL_STRNCMP(invariant_strncmp, char, (unsigned))
+WINFSP_SHARED_MINIMAL_STRNCMP(invariant_strnicmp, char, invariant_toupper)
+WINFSP_SHARED_MINIMAL_STRCMP(invariant_wcscmp, wchar_t, (unsigned))
+WINFSP_SHARED_MINIMAL_STRCMP(invariant_wcsicmp, wchar_t, invariant_toupper)
+WINFSP_SHARED_MINIMAL_STRNCMP(invariant_wcsncmp, wchar_t, (unsigned))
+WINFSP_SHARED_MINIMAL_STRNCMP(invariant_wcsnicmp, wchar_t, invariant_toupper)
+#undef WINFSP_SHARED_MINIMAL_STRCMP
+#undef WINFSP_SHARED_MINIMAL_STRNCMP
+
 static inline void *MemAlloc(size_t Size)
 {
     return HeapAlloc(GetProcessHeap(), 0, Size);

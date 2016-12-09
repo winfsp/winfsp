@@ -107,7 +107,7 @@ static void fsp_fuse_opt_match_templ(
                 if ('%' == *p || '\0' == *p)
                     *pspec = p, *parg = q;
                 else
-                    *parg = 0 == lstrcmpA(q, p) ?
+                    *parg = 0 == invariant_strcmp(q, p) ?
                         fsp_fuse_opt_match_exact : fsp_fuse_opt_match_none;
             }
             else

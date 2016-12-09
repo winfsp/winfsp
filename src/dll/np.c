@@ -252,7 +252,7 @@ static WCHAR FspNpGetDriveLetter(PDWORD PLogicalDrives, PWSTR VolumeName)
             LocalNameBuf[0] = Drive;
             if (QueryDosDeviceW(LocalNameBuf, VolumeNameBuf, sizeof VolumeNameBuf / sizeof(WCHAR)))
             {
-                if (0 == lstrcmpW(VolumeNameBuf, VolumeName))
+                if (0 == invariant_wcscmp(VolumeNameBuf, VolumeName))
                 {
                     *PLogicalDrives &= ~(1 << (Drive - 'A'));
                     return Drive;
@@ -432,7 +432,7 @@ DWORD APIENTRY NPGetConnection(
     {
         if (L'\0' == *P)
         {
-            if (0 == lstrcmpW(VolumeNameBuf, VolumeName))
+            if (0 == invariant_wcscmp(VolumeNameBuf, VolumeName))
             {
                 /*
                  * Looks like this is a WinFsp device. Extract the VolumePrefix from the VolumeName.
@@ -604,7 +604,7 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
             RemoteNameSize = sizeof RemoteNameBuf / sizeof(WCHAR);
             NpResult = NPGetConnection(LocalNameBuf, RemoteNameBuf, &RemoteNameSize);
             if (WN_SUCCESS == NpResult)
-                NpResult = 0 == lstrcmpW(ExpectRemoteNameBuf, RemoteNameBuf) ? WN_SUCCESS : WN_NO_NETWORK;
+                NpResult = 0 == invariant_wcscmp(ExpectRemoteNameBuf, RemoteNameBuf) ? WN_SUCCESS : WN_NO_NETWORK;
             else
                 NpResult = WN_NO_NETWORK;
         }
@@ -1036,9 +1036,7 @@ NTSTATUS FspNpRegister(VOID)
     {
         if (L',' == *P || '\0' == *P)
         {
-            if (CSTR_EQUAL == CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE,
-                Part, (int)(P - Part),
-                L"" FSP_NP_NAME, (int)(sizeof L"" FSP_NP_NAME - sizeof(WCHAR)) / sizeof(WCHAR)))
+            if (0 == invariant_wcsncmp(Part, L"" FSP_NP_NAME, P - Part))
             {
                 FoundProvider = TRUE;
                 break;
@@ -1099,9 +1097,7 @@ NTSTATUS FspNpUnregister(VOID)
     {
         if (L',' == *P || '\0' == *P)
         {
-            if (CSTR_EQUAL == CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE,
-                Part, (int)(P - Part),
-                L"" FSP_NP_NAME, (int)(sizeof L"" FSP_NP_NAME - sizeof(WCHAR)) / sizeof(WCHAR)))
+            if (0 == invariant_wcsncmp(Part, L"" FSP_NP_NAME, P - Part))
             {
                 FoundProvider = TRUE;
                 break;
