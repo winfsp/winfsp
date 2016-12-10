@@ -444,7 +444,7 @@ FSP_API NTSTATUS FspSetSecurityDescriptor(
         ModificationDescriptor,
         &InputDescriptor,
         &FspFileGenericMapping,
-        AccessToken))
+        0))
     {
         HeapFree(ProcessHeap, 0, CopiedDescriptor);
         return FspNtStatusFromWin32(GetLastError());
