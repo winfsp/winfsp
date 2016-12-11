@@ -603,7 +603,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION,
                 &Sddl, 0);
         FspDebugLog("%S[TID=%04lx]: %p: >>SetSecurity %s%S%s%s, "
-            "SecurityInformation=%lx, AccessToken=%p, Security=%s%s%s\n",
+            "SecurityInformation=%lx, Security=%s%s%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
@@ -612,7 +612,6 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 Request->Req.SetSecurity.UserContext, Request->Req.SetSecurity.UserContext2,
                 UserContextBuf),
             Request->Req.SetSecurity.SecurityInformation,
-            (PVOID)Request->Req.SetSecurity.AccessToken,
             Sddl ? "\"" : "",
             Sddl ? Sddl : "NULL",
             Sddl ? "\"" : "");

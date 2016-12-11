@@ -1208,8 +1208,7 @@ FSP_API NTSTATUS FspFileSystemOpSetSecurity(FSP_FILE_SYSTEM *FileSystem,
     return FileSystem->Interface->SetSecurity(FileSystem,
         (PVOID)ValOfFileContext(Request->Req.SetSecurity),
         Request->Req.SetSecurity.SecurityInformation,
-        (PSECURITY_DESCRIPTOR)Request->Buffer,
-        (HANDLE)Request->Req.SetSecurity.AccessToken);
+        (PSECURITY_DESCRIPTOR)Request->Buffer);
 }
 
 FSP_API NTSTATUS FspFileSystemOpQueryStreamInformation(FSP_FILE_SYSTEM *FileSystem,

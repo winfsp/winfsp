@@ -143,8 +143,6 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
         FileName = (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset);
         Token = (HANDLE)Request->Req.SetInformation.Info.Rename.AccessToken;
     }
-    else if (FspFsctlTransactSetSecurityKind == Request->Kind)
-        Token = (HANDLE)Request->Req.SetSecurity.AccessToken;
 
     if (0 != FileName)
     {
@@ -1516,8 +1514,7 @@ static NTSTATUS fsp_fuse_intf_GetSecurity(FSP_FILE_SYSTEM *FileSystem,
 
 static NTSTATUS fsp_fuse_intf_SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode,
-    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor,
-    HANDLE AccessToken)
+    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor)
 {
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc = FileNode;
@@ -1548,7 +1545,6 @@ static NTSTATUS fsp_fuse_intf_SetSecurity(FSP_FILE_SYSTEM *FileSystem,
         SecurityDescriptor,
         SecurityInformation,
         ModificationDescriptor,
-        AccessToken,
         &NewSecurityDescriptor);
     if (!NT_SUCCESS(Result))
         goto exit;

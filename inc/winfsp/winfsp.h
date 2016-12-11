@@ -594,9 +594,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     be modified.
      * @param ModificationDescriptor
      *     Describes the modifications to apply to the file or directory security descriptor.
-     * @param AccessToken
-     *     A handle to a token that can be used to verify whether the requested modifications
-     *     are allowed.
      * @return
      *     STATUS_SUCCESS or error code.
      * @see
@@ -605,8 +602,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      */
     NTSTATUS (*SetSecurity)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext,
-        SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor,
-        HANDLE AccessToken);
+        SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor);
     /**
      * Read a directory.
      *
@@ -1285,10 +1281,6 @@ FSP_API NTSTATUS FspCreateSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
  * @param ModificationDescriptor
  *     Describes the modifications to apply to the InputDescriptor. This should contain
  *     the same value passed to the SetSecurity ModificationDescriptor parameter.
- * @param AccessToken
- *     A handle to a token that can be used to verify whether the requested modifications
- *     are allowed. This should contain the same value passed to the SetSecurity AccessToken
- *     parameter.
  * @param PSecurityDescriptor [out]
  *     Pointer to a memory location that will receive the resulting security descriptor.
  *     This security descriptor can be later freed using FspDeleteSecurityDescriptor.
@@ -1302,7 +1294,6 @@ FSP_API NTSTATUS FspSetSecurityDescriptor(
     PSECURITY_DESCRIPTOR InputDescriptor,
     SECURITY_INFORMATION SecurityInformation,
     PSECURITY_DESCRIPTOR ModificationDescriptor,
-    HANDLE AccessToken,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor);
 /**
  * Delete security descriptor.

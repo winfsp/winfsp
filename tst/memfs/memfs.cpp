@@ -1245,8 +1245,7 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
 
 static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0,
-    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor,
-    HANDLE AccessToken)
+    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor)
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     PSECURITY_DESCRIPTOR NewSecurityDescriptor, FileSecurity;
@@ -1262,7 +1261,6 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
         FileNode->FileSecurity,
         SecurityInformation,
         ModificationDescriptor,
-        AccessToken,
         &NewSecurityDescriptor);
     if (!NT_SUCCESS(Result))
         return Result;

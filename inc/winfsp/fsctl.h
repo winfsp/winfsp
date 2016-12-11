@@ -354,7 +354,6 @@ typedef struct
             UINT64 UserContext;
             UINT64 UserContext2;
             UINT32 SecurityInformation;
-            UINT64 AccessToken;         /* request access token (HANDLE) */
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;
         } SetSecurity;
         struct

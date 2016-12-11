@@ -402,7 +402,6 @@ FSP_API NTSTATUS FspSetSecurityDescriptor(
     PSECURITY_DESCRIPTOR InputDescriptor,
     SECURITY_INFORMATION SecurityInformation,
     PSECURITY_DESCRIPTOR ModificationDescriptor,
-    HANDLE AccessToken,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor)
 {
     *PSecurityDescriptor = 0;
