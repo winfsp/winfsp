@@ -122,7 +122,7 @@ enum
     //RequestFileNode                   = 0,
     RequestDeviceObject                 = 1,
     /* Rename */
-    RequestAccessToken                  = 2,
+    RequestSubjectContextOrAccessToken  = 2,
     RequestProcess                      = 3,
 };
 
@@ -1153,6 +1153,7 @@ static NTSTATUS FspFsvolSetRenameInformation(
     NTSTATUS Result;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PFILE_OBJECT TargetFileObject = IrpSp->Parameters.SetFile.FileObject;
+    BOOLEAN ReplaceIfExists = IrpSp->Parameters.SetFile.ReplaceIfExists;
     PFILE_RENAME_INFORMATION Info = (PFILE_RENAME_INFORMATION)Irp->AssociatedIrp.SystemBuffer;
     ULONG Length = IrpSp->Parameters.SetFile.Length;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
@@ -1164,6 +1165,7 @@ static NTSTATUS FspFsvolSetRenameInformation(
     UNICODE_STRING NewFileName;
     PUINT8 NewFileNameBuffer;
     BOOLEAN AppendBackslash;
+    PSECURITY_SUBJECT_CONTEXT SecuritySubjectContext = 0;
 
     ASSERT(FileNode == FileDesc->FileNode);
 
@@ -1296,10 +1298,23 @@ retry:
         }
     }
 
+    /* capture the security context */
+    if (ReplaceIfExists)
+    {
+        SecuritySubjectContext = FspAlloc(sizeof *SecuritySubjectContext);
+        if (0 == SecuritySubjectContext)
+        {
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+            goto unlock_exit;
+        }
+        SeCaptureSubjectContext(SecuritySubjectContext);
+    }
+
     FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, Request);
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestFileNode) = FileNode;
     FspIopRequestContext(Request, RequestDeviceObject) = FsvolDeviceObject;
+    FspIopRequestContext(Request, RequestSubjectContextOrAccessToken) = SecuritySubjectContext;
 
     return FSP_STATUS_IOQ_POST;
 
@@ -1491,31 +1506,35 @@ NTSTATUS FspFsvolSetInformationPrepare(
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
 
     if (FileRenameInformation != IrpSp->Parameters.SetFile.FileInformationClass ||
-        !IrpSp->Parameters.SetFile.ReplaceIfExists)
+        0 == FspIopRequestContext(Request, RequestSubjectContextOrAccessToken))
         return STATUS_SUCCESS;
 
     NTSTATUS Result;
-    SECURITY_SUBJECT_CONTEXT SecuritySubjectContext;
+    PSECURITY_SUBJECT_CONTEXT SecuritySubjectContext;
     SECURITY_QUALITY_OF_SERVICE SecurityQualityOfService;
     SECURITY_CLIENT_CONTEXT SecurityClientContext;
     HANDLE UserModeAccessToken;
     PEPROCESS Process;
+
+    SecuritySubjectContext = FspIopRequestContext(Request, RequestSubjectContextOrAccessToken);
 
     /* duplicate the subject context access token into an impersonation token */
     SecurityQualityOfService.Length = sizeof SecurityQualityOfService;
     SecurityQualityOfService.ImpersonationLevel = SecurityIdentification;
     SecurityQualityOfService.ContextTrackingMode = SECURITY_STATIC_TRACKING;
     SecurityQualityOfService.EffectiveOnly = FALSE;
-    SeCaptureSubjectContext(&SecuritySubjectContext);
-    SeLockSubjectContext(&SecuritySubjectContext);
-    Result = SeCreateClientSecurityFromSubjectContext(&SecuritySubjectContext,
+    SeLockSubjectContext(SecuritySubjectContext);
+    Result = SeCreateClientSecurityFromSubjectContext(SecuritySubjectContext,
         &SecurityQualityOfService, FALSE, &SecurityClientContext);
-    SeUnlockSubjectContext(&SecuritySubjectContext);
-    SeReleaseSubjectContext(&SecuritySubjectContext);
+    SeUnlockSubjectContext(SecuritySubjectContext);
     if (!NT_SUCCESS(Result))
         return Result;
 
     ASSERT(TokenImpersonation == SeTokenType(SecurityClientContext.ClientToken));
+
+    SeReleaseSubjectContext(SecuritySubjectContext);
+    FspFree(SecuritySubjectContext);
+    FspIopRequestContext(Request, RequestSubjectContextOrAccessToken) = 0;
 
     /* get a user-mode handle to the impersonation token */
     Result = ObOpenObjectByPointer(SecurityClientContext.ClientToken,
@@ -1529,7 +1548,7 @@ NTSTATUS FspFsvolSetInformationPrepare(
     ObReferenceObject(Process);
 
     /* send the user-mode handle to the user-mode file system */
-    FspIopRequestContext(Request, RequestAccessToken) = UserModeAccessToken;
+    FspIopRequestContext(Request, RequestSubjectContextOrAccessToken) = UserModeAccessToken;
     FspIopRequestContext(Request, RequestProcess) = Process;
     Request->Req.SetInformation.Info.Rename.AccessToken = (UINT_PTR)UserModeAccessToken;
 
@@ -1595,7 +1614,7 @@ static VOID FspFsvolSetInformationRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
 
     FSP_FILE_NODE *FileNode = Context[RequestFileNode];
     PDEVICE_OBJECT FsvolDeviceObject = Context[RequestDeviceObject];
-    HANDLE AccessToken = Context[RequestAccessToken];
+    PVOID SubjectContextOrAccessToken = Context[RequestSubjectContextOrAccessToken];
     PEPROCESS Process = Context[RequestProcess];
 
     if (0 != FileNode)
@@ -1604,8 +1623,9 @@ static VOID FspFsvolSetInformationRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
     if (0 != FsvolDeviceObject)
         FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject, Request);
 
-    if (0 != AccessToken)
+    if (0 != SubjectContextOrAccessToken && 0 != Process)
     {
+        HANDLE AccessToken = SubjectContextOrAccessToken;
         KAPC_STATE ApcState;
         BOOLEAN Attach;
 
@@ -1626,6 +1646,13 @@ static VOID FspFsvolSetInformationRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
             KeUnstackDetachProcess(&ApcState);
 
         ObDereferenceObject(Process);
+    }
+    else if (0 != SubjectContextOrAccessToken)
+    {
+        PSECURITY_SUBJECT_CONTEXT SecuritySubjectContext = SubjectContextOrAccessToken;
+
+        SeReleaseSubjectContext(SecuritySubjectContext);
+        FspFree(SecuritySubjectContext);
     }
 }
 
