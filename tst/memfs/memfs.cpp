@@ -858,11 +858,16 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode0, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
+    PVOID FileNode0, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    NTSTATUS Result;
+
+    Result = SetFileSize(FileSystem, FileNode, AllocationSize, TRUE, FileInfo);
+    if (!NT_SUCCESS(Result))
+        return Result;
 
     if (ReplaceFileAttributes)
         FileNode->FileInfo.FileAttributes = FileAttributes | FILE_ATTRIBUTE_ARCHIVE;
@@ -982,6 +987,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
 
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     UINT64 EndOffset;
+    NTSTATUS Result;
 
     if (ConstrainedIo)
     {
@@ -997,7 +1003,11 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
             Offset = FileNode->FileInfo.FileSize;
         EndOffset = Offset + Length;
         if (EndOffset > FileNode->FileInfo.FileSize)
-            SetFileSize(FileSystem, FileNode, EndOffset, FALSE, FileInfo);
+        {
+            Result = SetFileSize(FileSystem, FileNode, EndOffset, FALSE, FileInfo);
+            if (!NT_SUCCESS(Result))
+                return Result;
+        }
     }
 
     memcpy((PUINT8)FileNode->FileData + Offset, Buffer, (size_t)(EndOffset - Offset));

@@ -240,6 +240,7 @@ typedef struct
             UINT64 UserContext;
             UINT64 UserContext2;
             UINT32 FileAttributes;      /* file attributes for overwritten/superseded files */
+            UINT64 AllocationSize;      /* allocation size for overwritten/superseded files */
             UINT32 Supersede:1;         /* 0: FILE_OVERWRITE operation, 1: FILE_SUPERSEDE operation */
         } Overwrite;
         struct

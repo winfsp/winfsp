@@ -1011,7 +1011,7 @@ exit:
 }
 
 static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
+    PVOID FileNode, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;

@@ -933,6 +933,7 @@ NTSTATUS FspFsvolCreateComplete(
              */
 
             USHORT FileAttributes = IrpSp->Parameters.Create.FileAttributes;
+            UINT64 AllocationSize = Request->Req.Create.AllocationSize;
 
             ClearFlag(FileAttributes, FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_DIRECTORY);
             if (FileNode->IsDirectory)
@@ -957,6 +958,7 @@ NTSTATUS FspFsvolCreateComplete(
             Request->Req.Overwrite.UserContext = FileNode->UserContext;
             Request->Req.Overwrite.UserContext2 = FileDesc->UserContext2;
             Request->Req.Overwrite.FileAttributes = FileAttributes;
+            Request->Req.Overwrite.AllocationSize = AllocationSize;
             Request->Req.Overwrite.Supersede = FILE_SUPERSEDED == Response->IoStatus.Information;
 
             /*

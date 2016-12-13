@@ -301,6 +301,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param ReplaceFileAttributes
      *     When TRUE the existing file attributes should be replaced with the new ones.
      *     When FALSE the existing file attributes should be merged (or'ed) with the new ones.
+     * @param AllocationSize
+     *     Allocation size for the overwritten file.
      * @param FileInfo [out]
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
@@ -308,7 +310,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Overwrite)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
+        PVOID FileContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Cleanup a file.

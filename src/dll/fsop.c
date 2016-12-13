@@ -847,6 +847,7 @@ FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
         (PVOID)ValOfFileContext(Request->Req.Overwrite),
         Request->Req.Overwrite.FileAttributes,
         Request->Req.Overwrite.Supersede,
+        Request->Req.Overwrite.AllocationSize,
         &FileInfo);
     if (!NT_SUCCESS(Result))
     {
