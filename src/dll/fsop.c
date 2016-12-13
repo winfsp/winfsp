@@ -48,6 +48,7 @@ FSP_API NTSTATUS FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
     case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE:
         if ((FspFsctlTransactCreateKind == Request->Kind &&
                 FILE_OPEN != ((Request->Req.Create.CreateOptions >> 24) & 0xff)) ||
+            FspFsctlTransactOverwriteKind == Request->Kind ||
             (FspFsctlTransactCleanupKind == Request->Kind &&
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
@@ -86,6 +87,7 @@ FSP_API NTSTATUS FspFileSystemOpLeave(FSP_FILE_SYSTEM *FileSystem,
     case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE:
         if ((FspFsctlTransactCreateKind == Request->Kind &&
                 FILE_OPEN != ((Request->Req.Create.CreateOptions >> 24) & 0xff)) ||
+            FspFsctlTransactOverwriteKind == Request->Kind ||
             (FspFsctlTransactCleanupKind == Request->Kind &&
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&

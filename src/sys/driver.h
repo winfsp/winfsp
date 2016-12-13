@@ -1264,6 +1264,7 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     BOOLEAN HandleCleanup);     /* TRUE to decrement handle count */
 NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     UINT64 FlushOffset64, ULONG FlushLength, BOOLEAN FlushAndPurge);
+VOID FspFileNodeOverwriteStreams(FSP_FILE_NODE *FileNode);
 NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     PDEVICE_OBJECT FsvolDeviceObject,
     PIRP OplockIrp,

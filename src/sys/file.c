@@ -42,6 +42,7 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     BOOLEAN HandleCleanup);     /* TRUE to decrement handle count */
 NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     UINT64 FlushOffset64, ULONG FlushLength, BOOLEAN FlushAndPurge);
+VOID FspFileNodeOverwriteStreams(FSP_FILE_NODE *FileNode);
 NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     PDEVICE_OBJECT FsvolDeviceObject,
     PIRP OplockIrp,
@@ -113,6 +114,7 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 #pragma alloc_text(PAGE, FspFileNodeCleanupComplete)
 #pragma alloc_text(PAGE, FspFileNodeClose)
 #pragma alloc_text(PAGE, FspFileNodeFlushAndPurgeCache)
+#pragma alloc_text(PAGE, FspFileNodeOverwriteStreams)
 #pragma alloc_text(PAGE, FspFileNodeCheckBatchOplocksOnAllStreams)
 #pragma alloc_text(PAGE, FspFileNodeRenameCheck)
 #pragma alloc_text(PAGE, FspFileNodeRename)
@@ -910,6 +912,45 @@ NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     if (DescendantFileNodeArray != DescendantFileNodes)\
         FspFree(DescendantFileNodes);   \
     ((VOID)0)
+
+VOID FspFileNodeOverwriteStreams(FSP_FILE_NODE *FileNode)
+{
+    /*
+     * Called during Create processing. The device rename resource has been acquired shared.
+     * No concurrent renames are allowed.
+     */
+
+    PAGED_CODE();
+
+    ASSERT(0 == FileNode->MainFileNode);
+
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    USHORT FileNameLength = FileNode->FileName.Length;
+
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+
+    GATHER_DESCENDANTS(&FileNode->FileName, FALSE,
+        if (DescendantFileNode->FileName.Length > FileNameLength &&
+            L'\\' == DescendantFileNode->FileName.Buffer[FileNameLength / sizeof(WCHAR)])
+            break;
+        if (FileNode == DescendantFileNode || 0 >= DescendantFileNode->HandleCount)
+            continue;
+        );
+
+    /* mark any open named streams as DeletePending */
+    for (
+        DescendantFileNodeIndex = 0;
+        DescendantFileNodeCount > DescendantFileNodeIndex;
+        DescendantFileNodeIndex++)
+    {
+        DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
+        DescendantFileNode->DeletePending = TRUE;
+    }
+
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    SCATTER_DESCENDANTS(FALSE);
+}
 
 NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     PDEVICE_OBJECT FsvolDeviceObject,

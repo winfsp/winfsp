@@ -26,6 +26,7 @@ VOID fsp_fuse_op_enter_lock(FSP_FILE_SYSTEM *FileSystem,
     case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE:
         if ((FspFsctlTransactCreateKind == Request->Kind &&
                 FILE_OPEN != ((Request->Req.Create.CreateOptions >> 24) & 0xff)) ||
+            FspFsctlTransactOverwriteKind == Request->Kind ||
             (FspFsctlTransactCleanupKind == Request->Kind &&
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
@@ -69,6 +70,7 @@ VOID fsp_fuse_op_leave_unlock(FSP_FILE_SYSTEM *FileSystem,
     case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE:
         if ((FspFsctlTransactCreateKind == Request->Kind &&
                 FILE_OPEN != ((Request->Req.Create.CreateOptions >> 24) & 0xff)) ||
+            FspFsctlTransactOverwriteKind == Request->Kind ||
             (FspFsctlTransactCleanupKind == Request->Kind &&
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&

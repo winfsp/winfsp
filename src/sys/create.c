@@ -996,6 +996,8 @@ NTSTATUS FspFsvolCreateComplete(
         }
 
         /* file was successfully overwritten/superseded */
+        if (0 == FileNode->MainFileNode)
+            FspFileNodeOverwriteStreams(FileNode);
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Overwrite.FileInfo);
         FspFileNodeNotifyChange(FileNode,
             FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE,

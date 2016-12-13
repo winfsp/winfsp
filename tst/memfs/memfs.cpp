@@ -925,6 +925,18 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     NTSTATUS Result;
 
+#if defined(MEMFS_NAMED_STREAMS)
+    MEMFS_FILE_NODE_MAP_ENUM_CONTEXT Context = { FALSE };
+    ULONG Index;
+
+    MemfsFileNodeMapEnumerateNamedStreams(Memfs->FileNodeMap, FileNode,
+        MemfsFileNodeMapEnumerateFn, &Context);
+    for (Index = 0; Context.Count > Index; Index++)
+        if (1 >= Context.FileNodes[Index]->RefCount)
+            MemfsFileNodeMapRemove(Memfs->FileNodeMap, Context.FileNodes[Index]);
+    MemfsFileNodeMapEnumerateFree(&Context);
+#endif
+
     Result = SetFileSize(FileSystem, FileNode, AllocationSize, TRUE, FileInfo);
     if (!NT_SUCCESS(Result))
         return Result;
