@@ -255,6 +255,19 @@ VOID MemfsFileNodeDelete(MEMFS_FILE_NODE *FileNode)
 }
 
 static inline
+VOID MemfsFileNodeReference(MEMFS_FILE_NODE *FileNode)
+{
+    FileNode->RefCount++;
+}
+
+static inline
+VOID MemfsFileNodeDereference(MEMFS_FILE_NODE *FileNode)
+{
+    if (0 == --FileNode->RefCount)
+        MemfsFileNodeDelete(FileNode);
+}
+
+static inline
 VOID MemfsFileNodeGetFileInfo(MEMFS_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
 #if defined(MEMFS_NAMED_STREAMS)
@@ -379,7 +392,7 @@ NTSTATUS MemfsFileNodeMapInsert(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NOD
     {
         *PInserted = FileNodeMap->insert(MEMFS_FILE_NODE_MAP::value_type(FileNode->FileName, FileNode)).second;
         if (*PInserted)
-            FileNode->RefCount++;
+            MemfsFileNodeReference(FileNode);
         return STATUS_SUCCESS;
     }
     catch (...)
@@ -392,7 +405,7 @@ static inline
 VOID MemfsFileNodeMapRemove(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode)
 {
     if (FileNodeMap->erase(FileNode->FileName))
-        --FileNode->RefCount;
+        MemfsFileNodeDereference(FileNode);
 }
 
 static inline
@@ -502,6 +515,53 @@ BOOLEAN MemfsFileNodeMapEnumerateDescendants(MEMFS_FILE_NODE_MAP *FileNodeMap, M
             return FALSE;
     }
     return TRUE;
+}
+
+typedef struct _MEMFS_FILE_NODE_MAP_ENUM_CONTEXT
+{
+    BOOLEAN Reference;
+    MEMFS_FILE_NODE **FileNodes;
+    ULONG Capacity, Count;
+} MEMFS_FILE_NODE_MAP_ENUM_CONTEXT;
+
+static inline
+BOOLEAN MemfsFileNodeMapEnumerateFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
+{
+    MEMFS_FILE_NODE_MAP_ENUM_CONTEXT *Context = (MEMFS_FILE_NODE_MAP_ENUM_CONTEXT *)Context0;
+
+    if (Context->Capacity <= Context->Count)
+    {
+        ULONG Capacity = 0 != Context->Capacity ? Context->Capacity * 2 : 16;
+        PVOID P = realloc(Context->FileNodes, Capacity * sizeof Context->FileNodes[0]);
+        if (0 == P)
+        {
+            FspDebugLog(__FUNCTION__ ": cannot allocate memory; aborting\n");
+            abort();
+        }
+
+        Context->FileNodes = (MEMFS_FILE_NODE **)P;
+        Context->Capacity = Capacity;
+    }
+
+    Context->FileNodes[Context->Count++] = FileNode;
+    if (Context->Reference)
+        MemfsFileNodeReference(FileNode);
+
+    return TRUE;
+}
+
+static inline
+VOID MemfsFileNodeMapEnumerateFree(MEMFS_FILE_NODE_MAP_ENUM_CONTEXT *Context)
+{
+    if (Context->Reference)
+    {
+        for (ULONG Index = 0; Context->Count > Index; Index++)
+        {
+            MEMFS_FILE_NODE *FileNode = Context->FileNodes[Index];
+            MemfsFileNodeDereference(FileNode);
+        }
+    }
+    free(Context->FileNodes);
 }
 
 typedef std::unordered_map<UINT64, std::wstring> MEMFS_DIR_DESC;
@@ -776,7 +836,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         return Result;
     }
 
-    FileNode->RefCount++;
+    MemfsFileNodeReference(FileNode);
     *PFileNode = FileNode;
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
 
@@ -836,7 +896,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
         (GrantedAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA)))
         FileNode->FileInfo.FileAttributes |= FILE_ATTRIBUTE_ARCHIVE;
 
-    FileNode->RefCount++;
+    MemfsFileNodeReference(FileNode);
     *PFileNode = FileNode;
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
 
@@ -883,23 +943,6 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-#if defined(MEMFS_NAMED_STREAMS)
-typedef struct _MEMFS_CLEANUP_CONTEXT
-{
-    MEMFS_FILE_NODE **FileNodes;
-    ULONG Count;
-} MEMFS_CLEANUP_CONTEXT;
-
-static BOOLEAN CleanupEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
-{
-    MEMFS_CLEANUP_CONTEXT *Context = (MEMFS_CLEANUP_CONTEXT *)Context0;
-
-    Context->FileNodes[Context->Count++] = FileNode;
-
-    return TRUE;
-}
-#endif
-
 static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0, PWSTR FileName, BOOLEAN Delete)
 {
@@ -911,17 +954,14 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     if (Delete && !MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
     {
 #if defined(MEMFS_NAMED_STREAMS)
-        MEMFS_CLEANUP_CONTEXT Context = { 0 };
+        MEMFS_FILE_NODE_MAP_ENUM_CONTEXT Context = { FALSE };
         ULONG Index;
 
-        Context.FileNodes = (MEMFS_FILE_NODE **)malloc(Memfs->MaxFileNodes * sizeof Context.FileNodes[0]);
-        if (0 != Context.FileNodes)
-        {
-            MemfsFileNodeMapEnumerateNamedStreams(Memfs->FileNodeMap, FileNode, CleanupEnumFn, &Context);
-            for (Index = 0; Context.Count > Index; Index++)
-                MemfsFileNodeMapRemove(Memfs->FileNodeMap, Context.FileNodes[Index]);
-            free(Context.FileNodes);
-        }
+        MemfsFileNodeMapEnumerateNamedStreams(Memfs->FileNodeMap, FileNode,
+            MemfsFileNodeMapEnumerateFn, &Context);
+        for (Index = 0; Context.Count > Index; Index++)
+            MemfsFileNodeMapRemove(Memfs->FileNodeMap, Context.FileNodes[Index]);
+        MemfsFileNodeMapEnumerateFree(&Context);
 #endif
 
         MemfsFileNodeMapRemove(Memfs->FileNodeMap, FileNode);
@@ -936,8 +976,7 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_DIR_DESC *DirDesc = (MEMFS_DIR_DESC *)(UINT_PTR)
         FspFileSystemGetOperationContext()->Request->Req.Close.UserContext2;
 
-    if (0 == --FileNode->RefCount)
-        MemfsFileNodeDelete(FileNode);
+    MemfsFileNodeDereference(FileNode);
 
     if (0 != DirDesc)
         MemfsDirDescDelete(DirDesc);
@@ -1126,22 +1165,6 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-typedef struct _MEMFS_RENAME_CONTEXT
-{
-    MEMFS_FILE_NODE **FileNodes;
-    ULONG Count;
-} MEMFS_RENAME_CONTEXT;
-
-static BOOLEAN RenameEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
-{
-    MEMFS_RENAME_CONTEXT *Context = (MEMFS_RENAME_CONTEXT *)Context0;
-
-    Context->FileNodes[Context->Count++] = FileNode;
-    FileNode->RefCount++;
-
-    return TRUE;
-}
-
 static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0,
     PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
@@ -1149,7 +1172,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     MEMFS_FILE_NODE *NewFileNode, *DescendantFileNode;
-    MEMFS_RENAME_CONTEXT Context = { 0 };
+    MEMFS_FILE_NODE_MAP_ENUM_CONTEXT Context = { TRUE };
     ULONG Index, FileNameLen, NewFileNameLen;
     BOOLEAN Inserted;
     NTSTATUS Result;
@@ -1170,14 +1193,8 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
         }
     }
 
-    Context.FileNodes = (MEMFS_FILE_NODE **)malloc(Memfs->MaxFileNodes * sizeof Context.FileNodes[0]);
-    if (0 == Context.FileNodes)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
-
-    MemfsFileNodeMapEnumerateDescendants(Memfs->FileNodeMap, FileNode, RenameEnumFn, &Context);
+    MemfsFileNodeMapEnumerateDescendants(Memfs->FileNodeMap, FileNode,
+        MemfsFileNodeMapEnumerateFn, &Context);
 
     FileNameLen = (ULONG)wcslen(FileNode->FileName);
     NewFileNameLen = (ULONG)wcslen(NewFileName);
@@ -1193,10 +1210,9 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
 
     if (0 != NewFileNode)
     {
-        NewFileNode->RefCount++;
+        MemfsFileNodeReference(NewFileNode);
         MemfsFileNodeMapRemove(Memfs->FileNodeMap, NewFileNode);
-        if (0 == --NewFileNode->RefCount)
-            MemfsFileNodeDelete(NewFileNode);
+        MemfsFileNodeDereference(NewFileNode);
     }
 
     for (Index = 0; Context.Count > Index; Index++)
@@ -1219,12 +1235,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     Result = STATUS_SUCCESS;
 
 exit:
-    for (Index = 0; Context.Count > Index; Index++)
-    {
-        DescendantFileNode = Context.FileNodes[Index];
-        DescendantFileNode->RefCount--;
-    }
-    free(Context.FileNodes);
+    MemfsFileNodeMapEnumerateFree(&Context);
 
     return Result;
 }
