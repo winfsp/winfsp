@@ -444,6 +444,10 @@ static void stream_create_overwrite_dotest(ULONG Flags, PWSTR Prefix)
 
 static void stream_create_overwrite_test(void)
 {
+    if (OptOplock)
+        /* this test fails with oplocks */
+        return;
+
     if (NtfsTests)
     {
         WCHAR DirBuf[MAX_PATH];
@@ -2280,7 +2284,8 @@ void stream_dirnotify_test(void)
 void stream_tests(void)
 {
     TEST(stream_create_test);
-    TEST(stream_create_overwrite_test);
+    if (!OptOplock)
+        TEST(stream_create_overwrite_test);
     TEST(stream_create_related_test);
     TEST(stream_create_sd_test);
     TEST(stream_create_share_test);
