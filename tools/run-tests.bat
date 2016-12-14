@@ -33,29 +33,29 @@ for %%f in (^
     :winfsp-tests-x64-mountpoint-dir ^
     :winfsp-tests-x64-no-traverse ^
     :winfsp-tests-x64-oplock ^
-    :winfsp-tests-x86 ^
-    :winfsp-tests-x86-case-randomize ^
-    :winfsp-tests-x86-mountpoint-drive ^
-    :winfsp-tests-x86-mountpoint-dir ^
-    :winfsp-tests-x86-no-traverse ^
-    :winfsp-tests-x86-oplock ^
     :winfsp-tests-x64-external-share ^
     :fsx-memfs-x64-disk ^
     :fsx-memfs-x64-net ^
     :standby-memfs-x64-disk ^
     :standby-memfs-x64-net ^
     :net-use-memfs-x64 ^
+    :winfstest-memfs-x64-disk ^
+    :winfstest-memfs-x64-net ^
+    :fscrash-x64 ^
+    :winfsp-tests-x86 ^
+    :winfsp-tests-x86-case-randomize ^
+    :winfsp-tests-x86-mountpoint-drive ^
+    :winfsp-tests-x86-mountpoint-dir ^
+    :winfsp-tests-x86-no-traverse ^
+    :winfsp-tests-x86-oplock ^
     :winfsp-tests-x86-external-share ^
     :fsx-memfs-x86-disk ^
     :fsx-memfs-x86-net ^
     :standby-memfs-x86-disk ^
     :standby-memfs-x86-net ^
     :net-use-memfs-x86 ^
-    :winfstest-memfs-x64-disk ^
-    :winfstest-memfs-x64-net ^
     :winfstest-memfs-x86-disk ^
     :winfstest-memfs-x86-net ^
-    :fscrash-x64 ^
     :fscrash-x86 ^
     ) do (
     echo === Running %%f
