@@ -176,6 +176,8 @@ NTSTATUS DriverEntry(
 
 static VOID FspDriverMultiVersionInitialize(VOID)
 {
+    ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
+
     if (RtlIsNtDdiVersionAvailable(NTDDI_WIN7))
     {
         UNICODE_STRING Name;

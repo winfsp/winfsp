@@ -19,6 +19,8 @@
 #define WINFSP_SYS_DRIVER_H_INCLUDED
 
 #define WINFSP_SYS_INTERNAL
+
+#define POOL_NX_OPTIN                   1
 #include <ntifs.h>
 #include <ntstrsafe.h>
 #include <wdmsec.h>

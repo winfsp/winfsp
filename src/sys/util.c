@@ -851,8 +851,13 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
 {
     PAGED_CODE();
 
-    NTSTATUS Result;
+    *PSafeMdl = 0;
+
     PVOID VirtualAddress = MmGetSystemAddressForMdlSafe(UserMdl, NormalPagePriority);
+    if (0 == VirtualAddress)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    NTSTATUS Result;
     ULONG ByteCount = MmGetMdlByteCount(UserMdl);
     ULONG PageCount = ADDRESS_AND_SIZE_TO_SPAN_PAGES(VirtualAddress, ByteCount);
     FSP_SAFE_MDL *SafeMdl;
@@ -864,8 +869,6 @@ NTSTATUS FspSafeMdlCreate(PMDL UserMdl, LOCK_OPERATION Operation, FSP_SAFE_MDL *
 
     ASSERT(0 != PageCount);
     ASSERT(FlagOn(UserMdl->MdlFlags, MDL_SOURCE_IS_NONPAGED_POOL | MDL_PAGES_LOCKED));
-
-    *PSafeMdl = 0;
 
     SafeMdl = FspAllocNonPaged(sizeof *SafeMdl);
     if (0 == SafeMdl)
@@ -996,6 +999,9 @@ VOID FspSafeMdlCopyBack(FSP_SAFE_MDL *SafeMdl)
         return;
 
     PVOID VirtualAddress = MmGetSystemAddressForMdlSafe(SafeMdl->UserMdl, NormalPagePriority);
+    if (0 == VirtualAddress)
+        return; /* should never happen, already checked in FspSafeMdlCreate */
+
     ULONG ByteCount = MmGetMdlByteCount(SafeMdl->UserMdl);
     ULONG PageCount = ADDRESS_AND_SIZE_TO_SPAN_PAGES(VirtualAddress, ByteCount);
     ULONG ByteOffsetBgn0, ByteOffsetEnd0, ByteOffsetEnd1;
