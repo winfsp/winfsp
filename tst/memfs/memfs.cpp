@@ -1661,11 +1661,12 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
  * Public API
  */
 
-NTSTATUS MemfsCreate(
+NTSTATUS MemfsCreateFunnel(
     ULONG Flags,
     ULONG FileInfoTimeout,
     ULONG MaxFileNodes,
     ULONG MaxFileSize,
+    PWSTR FileSystemName,
     PWSTR VolumePrefix,
     PWSTR RootSddl,
     MEMFS **PMemfs)
@@ -1732,7 +1733,8 @@ NTSTATUS MemfsCreate(
     VolumeParams.PostCleanupOnDeleteOnly = 1;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
-    wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR), L"MEMFS");
+    wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),
+        0 != FileSystemName ? FileSystemName : L"-MEMFS");
 
     Result = FspFileSystemCreate(DevicePath, &VolumeParams, &MemfsInterface, &Memfs->FileSystem);
     if (!NT_SUCCESS(Result))

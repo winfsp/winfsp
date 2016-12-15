@@ -44,6 +44,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     ULONG FileInfoTimeout = INFINITE;
     ULONG MaxFileNodes = 1024;
     ULONG MaxFileSize = 16 * 1024 * 1024;
+    PWSTR FileSystemName = 0;
     PWSTR MountPoint = 0;
     PWSTR VolumePrefix = 0;
     PWSTR RootSddl = 0;
@@ -64,6 +65,9 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
             break;
         case L'D':
             argtos(DebugLogFile);
+            break;
+        case L'F':
+            argtos(FileSystemName);
             break;
         case L'i':
             CaseInsensitiveFlags = MemfsCaseInsensitive;
@@ -121,11 +125,12 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         FspDebugLogSetHandle(DebugLogHandle);
     }
 
-    Result = MemfsCreate(
+    Result = MemfsCreateFunnel(
         CaseInsensitiveFlags | Flags,
         FileInfoTimeout,
         MaxFileNodes,
         MaxFileSize,
+        FileSystemName,
         VolumePrefix,
         RootSddl,
         &Memfs);
@@ -184,6 +189,7 @@ usage:
         "    -t FileInfoTimeout  [millis]\n"
         "    -n MaxFileNodes\n"
         "    -s MaxFileSize      [bytes]\n"
+        "    -F FileSystemName\n"
         "    -S RootSddl         [file rights: FA, etc; NO generic rights: GA, etc.]\n"
         "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
         "    -m MountPoint       [X:|* (required if no UNC prefix)]\n";

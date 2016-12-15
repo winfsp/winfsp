@@ -98,15 +98,21 @@ static NTSTATUS FspFsvolQueryFsAttributeInformation(
 
     RtlInitUnicodeString(&FileSystemName, FsvolDeviceExtension->VolumeParams.FileSystemName);
 
-    CopyLength = sizeof L"" DRIVER_NAME - sizeof(WCHAR);
-    RtlCopyMemory(FileSystemNameBuf, L"" DRIVER_NAME, CopyLength);
-    if (0 != FileSystemName.Length)
+    if (0 == FileSystemName.Length ||
+        (L'-' == FileSystemName.Buffer[0] ||
+            L'/' == FileSystemName.Buffer[0] ||
+            L'\\' == FileSystemName.Buffer[0]))
     {
-        FileSystemNameBuf[CopyLength / sizeof(WCHAR)] = L'-';
-        CopyLength += sizeof(WCHAR);
+        CopyLength = sizeof L"" DRIVER_NAME - sizeof(WCHAR);
+        RtlCopyMemory(FileSystemNameBuf, L"" DRIVER_NAME, CopyLength);
         RtlCopyMemory(FileSystemNameBuf + CopyLength / sizeof(WCHAR), FileSystemName.Buffer,
             FileSystemName.Length);
         CopyLength += FileSystemName.Length;
+    }
+    else
+    {
+        CopyLength = FileSystemName.Length;
+        RtlCopyMemory(FileSystemNameBuf, FileSystemName.Buffer, CopyLength);
     }
 
     Info->FileSystemNameLength = CopyLength;
