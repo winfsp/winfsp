@@ -223,9 +223,6 @@ NTSTATUS MemfsFileNodeCreate(PWSTR FileName, MEMFS_FILE_NODE **PFileNode)
 
     *PFileNode = 0;
 
-    if (MAX_PATH <= wcslen(FileName))
-        return STATUS_OBJECT_NAME_INVALID;
-
     FileNode = (MEMFS_FILE_NODE *)malloc(sizeof *FileNode);
     if (0 == FileNode)
         return STATUS_INSUFFICIENT_RESOURCES;
@@ -734,6 +731,9 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
     BOOLEAN Inserted;
 
+    if (MAX_PATH <= wcslen(FileName))
+        return STATUS_OBJECT_NAME_INVALID;
+
     if (CreateOptions & FILE_DIRECTORY_FILE)
         AllocationSize = 0;
 
@@ -865,6 +865,9 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_FILE_NODE *FileNode;
     MEMFS_DIR_DESC *DirDesc = 0;
     NTSTATUS Result;
+
+    if (MAX_PATH <= wcslen(FileName))
+        return STATUS_OBJECT_NAME_INVALID;
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
     if (0 == FileNode)

@@ -329,7 +329,7 @@ exit /b 0
 
 :ifstest-memfs-x64-disk
 M:
-call "%ProjRoot%\tools\ifstest.bat" M:\ /b
+call "%ProjRoot%\tools\ifstest.bat" M:\ /b /z
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
