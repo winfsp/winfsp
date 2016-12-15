@@ -24,40 +24,45 @@ cd N: >nul 2>nul || (echo === Unable to find drive N: >&2 & goto fail)
 cd O: >nul 2>nul || (echo === Unable to find drive O: >&2 & goto fail)
 cd P: >nul 2>nul || (echo === Unable to find drive P: >&2 & goto fail)
 
+if not X%2==X (
+    set tests=%2
+) else (
+    set tests=^
+        winfsp-tests-x64 ^
+        winfsp-tests-x64-case-randomize ^
+        winfsp-tests-x64-mountpoint-drive ^
+        winfsp-tests-x64-mountpoint-dir ^
+        winfsp-tests-x64-no-traverse ^
+        winfsp-tests-x64-oplock ^
+        winfsp-tests-x64-external-share ^
+        fsx-memfs-x64-disk ^
+        fsx-memfs-x64-net ^
+        standby-memfs-x64-disk ^
+        standby-memfs-x64-net ^
+        net-use-memfs-x64 ^
+        winfstest-memfs-x64-disk ^
+        winfstest-memfs-x64-net ^
+        fscrash-x64 ^
+        winfsp-tests-x86 ^
+        winfsp-tests-x86-case-randomize ^
+        winfsp-tests-x86-mountpoint-drive ^
+        winfsp-tests-x86-mountpoint-dir ^
+        winfsp-tests-x86-no-traverse ^
+        winfsp-tests-x86-oplock ^
+        winfsp-tests-x86-external-share ^
+        fsx-memfs-x86-disk ^
+        fsx-memfs-x86-net ^
+        standby-memfs-x86-disk ^
+        standby-memfs-x86-net ^
+        net-use-memfs-x86 ^
+        winfstest-memfs-x86-disk ^
+        winfstest-memfs-x86-net ^
+        fscrash-x86
+)
+
 set testpass=0
 set testfail=0
-for %%f in (^
-    :winfsp-tests-x64 ^
-    :winfsp-tests-x64-case-randomize ^
-    :winfsp-tests-x64-mountpoint-drive ^
-    :winfsp-tests-x64-mountpoint-dir ^
-    :winfsp-tests-x64-no-traverse ^
-    :winfsp-tests-x64-oplock ^
-    :winfsp-tests-x64-external-share ^
-    :fsx-memfs-x64-disk ^
-    :fsx-memfs-x64-net ^
-    :standby-memfs-x64-disk ^
-    :standby-memfs-x64-net ^
-    :net-use-memfs-x64 ^
-    :winfstest-memfs-x64-disk ^
-    :winfstest-memfs-x64-net ^
-    :fscrash-x64 ^
-    :winfsp-tests-x86 ^
-    :winfsp-tests-x86-case-randomize ^
-    :winfsp-tests-x86-mountpoint-drive ^
-    :winfsp-tests-x86-mountpoint-dir ^
-    :winfsp-tests-x86-no-traverse ^
-    :winfsp-tests-x86-oplock ^
-    :winfsp-tests-x86-external-share ^
-    :fsx-memfs-x86-disk ^
-    :fsx-memfs-x86-net ^
-    :standby-memfs-x86-disk ^
-    :standby-memfs-x86-net ^
-    :net-use-memfs-x86 ^
-    :winfstest-memfs-x86-disk ^
-    :winfstest-memfs-x86-net ^
-    :fscrash-x86 ^
-    ) do (
+for %%f in (%tests%) do (
     echo === Running %%f
 
     if defined APPVEYOR (
@@ -65,7 +70,7 @@ for %%f in (^
     )
 
     pushd %cd%
-    call %%f
+    call :%%f
     popd
 
     if !ERRORLEVEL! neq 0 (
@@ -320,6 +325,12 @@ for %%m in (^
 echo fscrash-x86 --huge-alloc-size --cached
 fscrash-x86 --huge-alloc-size --cached >nul 2>&1
 if !ERRORLEVEL! neq 1 goto fail
+exit /b 0
+
+:ifstest-memfs-x64-disk
+M:
+call "%ProjRoot%\tools\ifstest.bat" M:\ /b
+if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :leak-test
