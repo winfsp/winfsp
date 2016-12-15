@@ -13,6 +13,7 @@ mkdir %TARGET% 2>nul
 for %%f in (winfsp-%SUFFIX%.sys winfsp-%SUFFIX%.dll winfsp-tests-%SUFFIX%.exe fsbench-%SUFFIX%.exe fscrash-%SUFFIX%.exe memfs-%SUFFIX%.exe) do (
 	copy build\VStudio\build\%CONFIG%\%%f %TARGET% >nul
 )
+copy tools\ifstest.bat %TARGET% >nul
 echo sc create WinFsp type=filesys binPath=%%~dp0%DRIVER% >%TARGET%sc-create.bat
 echo sc start WinFsp >%TARGET%sc-start.bat
 echo sc stop WinFsp >%TARGET%sc-stop.bat
