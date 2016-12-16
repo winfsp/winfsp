@@ -29,6 +29,8 @@ static NTSTATUS FspFsvolFileSystemControlOplock(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static IO_COMPLETION_ROUTINE FspFsvolFileSystemControlOplockCompletion;
 static WORKER_THREAD_ROUTINE FspFsvolFileSystemControlOplockCompletionWork;
+static NTSTATUS FspFsvolFileSystemControlQueryPersistentVolumeState(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolFileSystemControlComplete;
@@ -42,6 +44,7 @@ FSP_DRIVER_DISPATCH FspFileSystemControl;
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlOplock)
 // !#pragma alloc_text(PAGE, FspFsvolFileSystemControlOplockCompletion)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlOplockCompletionWork)
+#pragma alloc_text(PAGE, FspFsvolFileSystemControlQueryPersistentVolumeState)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControl)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlComplete)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlRequestFini)
@@ -473,6 +476,36 @@ static VOID FspFsvolFileSystemControlOplockCompletionWork(PVOID Context)
     FspFree(CompletionContext);
 }
 
+static NTSTATUS FspFsvolFileSystemControlQueryPersistentVolumeState(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
+    ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+    PFILE_FS_PERSISTENT_VOLUME_INFORMATION Info;
+
+    if (0 == Buffer)
+        return STATUS_INVALID_PARAMETER;
+
+    if (sizeof(FILE_FS_PERSISTENT_VOLUME_INFORMATION) > InputBufferLength ||
+        sizeof(FILE_FS_PERSISTENT_VOLUME_INFORMATION) > OutputBufferLength)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    Info = Buffer;
+    if (1 != Info->Version ||
+        !FlagOn(Info->FlagMask, PERSISTENT_VOLUME_STATE_SHORT_NAME_CREATION_DISABLED))
+        return STATUS_INVALID_PARAMETER;
+
+    RtlZeroMemory(Info, sizeof(FILE_FS_PERSISTENT_VOLUME_INFORMATION));
+    Info->VolumeFlags = PERSISTENT_VOLUME_STATE_SHORT_NAME_CREATION_DISABLED;
+
+    Irp->IoStatus.Information = sizeof(FILE_FS_PERSISTENT_VOLUME_INFORMATION);
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -505,6 +538,9 @@ static NTSTATUS FspFsvolFileSystemControl(
         case FSCTL_REQUEST_FILTER_OPLOCK:
         case FSCTL_REQUEST_OPLOCK:
             Result = FspFsvolFileSystemControlOplock(FsvolDeviceObject, Irp, IrpSp);
+            break;
+        case FSCTL_QUERY_PERSISTENT_VOLUME_STATE:
+            Result = FspFsvolFileSystemControlQueryPersistentVolumeState(FsvolDeviceObject, Irp, IrpSp);
             break;
         }
         break;
