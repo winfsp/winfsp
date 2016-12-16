@@ -1080,27 +1080,30 @@ void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     ASSERT(FILE_TYPE_DISK == FileType);
     CloseHandle(Handle);
 
-    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s%s",
-        -1 == Flags ? L"\\\\.\\" : L"",
-        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    if (!OptShareName)
+    {
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s%s",
+            -1 == Flags ? L"\\\\?\\" : L"",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
-    Handle = CreateFileW(FilePath,
-        FILE_READ_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
-        FILE_FLAG_BACKUP_SEMANTICS, 0);
-    ASSERT(INVALID_HANDLE_VALUE != Handle);
-    memset(&PersistentVolumeInfo, 0, sizeof PersistentVolumeInfo);
-    PersistentVolumeInfo.FlagMask = PERSISTENT_VOLUME_STATE_SHORT_NAME_CREATION_DISABLED;
-    PersistentVolumeInfo.Version = 1;
-    Success = DeviceIoControl(Handle, FSCTL_QUERY_PERSISTENT_VOLUME_STATE,
-        &PersistentVolumeInfo, sizeof PersistentVolumeInfo,
-        &PersistentVolumeInfoOut, sizeof PersistentVolumeInfoOut,
-        &BytesTransferred,
-        0);
-    ASSERT(Success);
-    ASSERT(sizeof PersistentVolumeInfoOut == BytesTransferred);
-    if (-1 != Flags)
-        ASSERT(PERSISTENT_VOLUME_STATE_SHORT_NAME_CREATION_DISABLED == PersistentVolumeInfoOut.VolumeFlags);
-    CloseHandle(Handle);
+        Handle = CreateFileW(FilePath,
+            FILE_READ_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        memset(&PersistentVolumeInfo, 0, sizeof PersistentVolumeInfo);
+        PersistentVolumeInfo.FlagMask = PERSISTENT_VOLUME_STATE_SHORT_NAME_CREATION_DISABLED;
+        PersistentVolumeInfo.Version = 1;
+        Success = DeviceIoControl(Handle, FSCTL_QUERY_PERSISTENT_VOLUME_STATE,
+            &PersistentVolumeInfo, sizeof PersistentVolumeInfo,
+            &PersistentVolumeInfoOut, sizeof PersistentVolumeInfoOut,
+            &BytesTransferred,
+            0);
+        ASSERT(Success);
+        ASSERT(sizeof PersistentVolumeInfoOut == BytesTransferred);
+        if (-1 != Flags)
+            ASSERT(PERSISTENT_VOLUME_STATE_SHORT_NAME_CREATION_DISABLED == PersistentVolumeInfoOut.VolumeFlags);
+        CloseHandle(Handle);
+    }
 
     memfs_stop(memfs);
 }
