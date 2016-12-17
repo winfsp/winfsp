@@ -362,9 +362,8 @@ for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* ^| findstr /n "
                 set IfsTestStatus=!FieldValue!
             )
         ) else (
-            rem set IfsTestLine=!IfsTestGroup!.!IfsTestName!.......................................
-            set IfsTestPrefix=!IfsTestName!.......................................
-            set IfsTestPrefix=!IfsTestPrefix:~0,39!
+            set IfsTestPrefix=!IfsTestGroup!.!IfsTestName!..............................................................
+            set IfsTestPrefix=!IfsTestPrefix:~0,63!
             if X!IfsTestStatus!==X (
                 rem
             ) else if not "X!IfsTestStatus:(IFSTEST_SUCCESS)=!"=="X!IfsTestStatus!" (
