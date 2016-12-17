@@ -329,9 +329,40 @@ exit /b 0
 
 :ifstest-memfs-x64-disk
 M:
-call :__ifstest M: /g OpenCreateGeneral /z /v
+call :__ifstest-memfs M:
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
+
+:__ifstest-memfs
+set IfsTestMemfsExit=0
+M:
+call :__ifstest %1 /g OpenCreateGeneral /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g OpenCreateParameters /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g CloseCleanupDelete /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g VolumeInformation /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g FileInformation /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g DirectoryInformation /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g FileLocking /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g OpLocks /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem call :__ifstest %1 /g ChangeNotification /z /v
+rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g ReadWrite /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g SectionsCaching /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g ReparsePoints /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g StreamEnhancements /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+exit /b !IfsTestMemfsExit!
 
 :__ifstest
 set IfsTestName=
