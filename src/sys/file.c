@@ -1782,7 +1782,6 @@ NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp)
     PAGED_CODE();
 
     IoMarkIrpPending(Irp);
-    FspFileNodeSetOwnerF(FileNode, FspIrpFlags(Irp), Irp);
 
     try
     {
@@ -1803,10 +1802,7 @@ static NTSTATUS FspFileNodeCompleteLockIrp(PVOID Context, PIRP Irp)
 {
     PAGED_CODE();
 
-    FSP_FILE_NODE *FileNode = Context;
     NTSTATUS Result = Irp->IoStatus.Status;
-
-    FspFileNodeReleaseOwnerF(FileNode, FspIrpFlags(Irp), Irp);
 
     DEBUGLOGIRP(Irp, Result);
 

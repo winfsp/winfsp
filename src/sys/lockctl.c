@@ -61,8 +61,14 @@ static NTSTATUS FspFsvolLockControlRetry(
         return Result;
     }
 
+    ULONG IrpFlags = FspIrpFlags(Irp);
+    IoSetTopLevelIrp(0);
+
     /* let the FSRTL package handle this one! */
     Result = FspFileNodeProcessLockIrp(FileNode, Irp);
+    ASSERT(STATUS_PENDING == Result);
+
+    FspFileNodeReleaseF(FileNode, IrpFlags);
 
     return Result;
 }
