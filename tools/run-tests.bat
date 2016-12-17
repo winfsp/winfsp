@@ -334,34 +334,59 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :__ifstest
-set __ifstest_exit=0
-for /F "tokens=1,2 delims=:" %%i in ('call "%ProjRoot%\tools\ifstest.bat" %*') do (
-    set FieldName=%%i
-    set FieldName=!FieldName: =!
+set IfsTestName=
+set IfsTestGroup=
+set IfsTestStatus=
+set IfsTestLines=
+set IfsTestExit=0
+(SET LF=^
+%=this line is empty=%
+)
+for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* ^| findstr /n "^"') do (
+    set IfsTestLine=%%l
+    set IfsTestLine=!IfsTestLine:*:=!
 
-    set FieldValue=%%j
+    for /F "tokens=1,2,3 delims=:" %%h in ("%%l") do (
+        set FieldName=%%i
+        set FieldName=!FieldName: =!
+        set FieldValue=%%j
 
-    if X!FieldName!==XTest (
-        set IfsTestName=!FieldValue!
-    ) else if X!FieldName!==XGroup (
-        set IfsTestGroup=!FieldValue!
-    ) else if X!FieldName!==XStatus (
-        rem set IfsTestLine=!IfsTestGroup!.!IfsTestName!.......................................
-        set IfsTestPrefix=!IfsTestName!.......................................
-        set IfsTestPrefix=!IfsTestPrefix:~0,39!
-        if not "X!FieldValue:(IFSTEST_SUCCESS)=!"=="X!FieldValue!" (
-            echo !IfsTestPrefix! OK
-        ) else if not "X!FieldValue:(IFSTEST_TEST_NOT_SUPPORTED)=!"=="X!FieldValue!" (
-            echo !IfsTestPrefix! SKIP
-        ) else if not "X!FieldValue:(IFSTEST_INFO_END_OF_GROUP)=!"=="X!FieldValue!" (
-            rem
+        if not X!IfsTestLine!==X (
+            set IfsTestLines=!IfsTestLines!!LF!    !IfsTestLine!
+
+            if X!FieldName!==XTest (
+                set IfsTestName=!FieldValue!
+            ) else if X!FieldName!==XGroup (
+                set IfsTestGroup=!FieldValue!
+            ) else if X!FieldName!==XStatus (
+                set IfsTestStatus=!FieldValue!
+            )
         ) else (
-            echo !IfsTestPrefix! KO !FieldValue!
-            set __ifstest_exit=1
+            rem set IfsTestLine=!IfsTestGroup!.!IfsTestName!.......................................
+            set IfsTestPrefix=!IfsTestName!.......................................
+            set IfsTestPrefix=!IfsTestPrefix:~0,39!
+            if X!IfsTestStatus!==X (
+                rem
+            ) else if not "X!IfsTestStatus:(IFSTEST_SUCCESS)=!"=="X!IfsTestStatus!" (
+                echo !IfsTestPrefix! OK
+            ) else if not "X!IfsTestStatus:(IFSTEST_TEST_NOT_SUPPORTED)=!"=="X!IfsTestStatus!" (
+                echo !IfsTestPrefix! SKIP
+            ) else if not "X!IfsTestStatus:(IFSTEST_SUCCESS_NOT_SUPPORTED)=!"=="X!IfsTestStatus!" (
+                echo !IfsTestPrefix! SKIP
+            ) else if not "X!IfsTestStatus:(IFSTEST_INFO_END_OF_GROUP)=!"=="X!IfsTestStatus!" (
+                rem
+            ) else (
+                echo !IfsTestPrefix! KO!IfsTestLines!
+                set IfsTestExit=1
+            )
+            set IfsTestName=
+            set IfsTestGroup=
+            set IfsTestStatus=
+            set IfsTestLines=
         )
     )
 )
-exit /b !__ifstest_exit!
+exit /b !IfsTestExit!
 
 :leak-test
 for /F "tokens=1,2 delims=:" %%i in ('verifier /query ^| findstr ^
