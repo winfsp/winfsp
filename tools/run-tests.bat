@@ -329,9 +329,39 @@ exit /b 0
 
 :ifstest-memfs-x64-disk
 M:
-call "%ProjRoot%\tools\ifstest.bat" M:\ /b /z
+call :__ifstest M: /g OpenCreateGeneral /z /v
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
+
+:__ifstest
+set __ifstest_exit=0
+for /F "tokens=1,2 delims=:" %%i in ('call "%ProjRoot%\tools\ifstest.bat" %*') do (
+    set FieldName=%%i
+    set FieldName=!FieldName: =!
+
+    set FieldValue=%%j
+
+    if X!FieldName!==XTest (
+        set IfsTestName=!FieldValue!
+    ) else if X!FieldName!==XGroup (
+        set IfsTestGroup=!FieldValue!
+    ) else if X!FieldName!==XStatus (
+        rem set IfsTestLine=!IfsTestGroup!.!IfsTestName!.......................................
+        set IfsTestPrefix=!IfsTestName!.......................................
+        set IfsTestPrefix=!IfsTestPrefix:~0,39!
+        if not "X!FieldValue:(IFSTEST_SUCCESS)=!"=="X!FieldValue!" (
+            echo !IfsTestPrefix! OK
+        ) else if not "X!FieldValue:(IFSTEST_TEST_NOT_SUPPORTED)=!"=="X!FieldValue!" (
+            echo !IfsTestPrefix! SKIP
+        ) else if not "X!FieldValue:(IFSTEST_INFO_END_OF_GROUP)=!"=="X!FieldValue!" (
+            rem
+        ) else (
+            echo !IfsTestPrefix! KO !FieldValue!
+            set __ifstest_exit=1
+        )
+    )
+)
+exit /b !__ifstest_exit!
 
 :leak-test
 for /F "tokens=1,2 delims=:" %%i in ('verifier /query ^| findstr ^
