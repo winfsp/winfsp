@@ -915,6 +915,15 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
     {
         if (sizeof(FILE_BASIC_INFORMATION) > Length)
             return STATUS_INVALID_PARAMETER;
+
+        PFILE_BASIC_INFORMATION Info = (PFILE_BASIC_INFORMATION)Buffer;
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        UINT32 FileAttributes = Info->FileAttributes;
+
+        /* do not allow the temporary bit on a directory */
+        if (FileNode->IsDirectory &&
+            FlagOn(FileAttributes, FILE_ATTRIBUTE_TEMPORARY))
+            return STATUS_INVALID_PARAMETER;
     }
     else if (0 == Response)
     {
@@ -940,6 +949,16 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
     {
         FSP_FILE_NODE *FileNode = FileObject->FsContext;
         ULONG NotifyFilter = 0;
+
+        if (!FileNode->IsDirectory)
+        {
+            /* properly set temporary bit for lazy writer */
+            if (FlagOn(Response->Rsp.SetInformation.FileInfo.FileAttributes,
+                FILE_ATTRIBUTE_TEMPORARY))
+                SetFlag(FileObject->Flags, FO_TEMPORARY_FILE);
+            else
+                ClearFlag(FileObject->Flags, FO_TEMPORARY_FILE);
+        }
 
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
 

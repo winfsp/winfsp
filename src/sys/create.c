@@ -216,6 +216,12 @@ static NTSTATUS FspFsvolCreateNoLock(
         FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
         return STATUS_INVALID_PARAMETER;
 
+    /* do not allow the temporary bit on a directory */
+    if (FlagOn(CreateOptions, FILE_DIRECTORY_FILE) &&
+        FlagOn(FileAttributes, FILE_ATTRIBUTE_TEMPORARY) &&
+        (FILE_CREATE == CreateDisposition || FILE_OPEN_IF == CreateDisposition))
+        return STATUS_INVALID_PARAMETER;
+
     /* check security descriptor validity */
     if (0 != SecurityDescriptor)
     {
@@ -901,6 +907,13 @@ NTSTATUS FspFsvolCreateComplete(
         FileObject->PrivateCacheMap = 0;
         FileObject->FsContext = FileNode;
         FileObject->FsContext2 = FileDesc;
+        if (!FileNode->IsDirectory)
+        {
+            /* properly set temporary bit for lazy writer */
+            if (FlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes,
+                FILE_ATTRIBUTE_TEMPORARY))
+                SetFlag(FileObject->Flags, FO_TEMPORARY_FILE);
+        }
         if (FspTimeoutInfinity32 == FsvolDeviceExtension->VolumeParams.FileInfoTimeout &&
             !FlagOn(IrpSp->Parameters.Create.Options, FILE_NO_INTERMEDIATE_BUFFERING) &&
             !Response->Rsp.Create.Opened.DisableCache)
