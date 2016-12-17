@@ -263,7 +263,7 @@ static NTSTATUS FspFsvolCreateNoLock(
 
         /* must be a relative path */
         if (sizeof(WCHAR) <= FileName.Length && L'\\' == FileName.Buffer[0])
-            return STATUS_OBJECT_NAME_INVALID;
+            return STATUS_INVALID_PARAMETER; /* IFSTEST */
 
         BOOLEAN AppendBackslash =
             sizeof(WCHAR) * 2/* not empty or root */ <= RelatedFileNode->FileName.Length &&
