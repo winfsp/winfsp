@@ -17,8 +17,9 @@
 
 #include <sys/driver.h>
 
-BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType);
-BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Pattern);
+BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, ULONG MaxComponentLength,
+    PUNICODE_STRING StreamPart, PULONG StreamType);
+BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Pattern, ULONG MaxComponentLength);
 VOID FspFileNameSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspFileNameInExpression(
     PUNICODE_STRING Expression,
@@ -34,7 +35,8 @@ NTSTATUS FspFileNameInExpression(
 #pragma alloc_text(PAGE, FspFileNameInExpression)
 #endif
 
-BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType)
+BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, ULONG MaxComponentLength,
+    PUNICODE_STRING StreamPart, PULONG StreamType)
 {
     PAGED_CODE();
 
@@ -44,7 +46,7 @@ BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PUL
     if (0 == Path->Length || 0 != Path->Length % sizeof(WCHAR))
         return FALSE;
 
-    PWSTR PathBgn, PathEnd, PathPtr, StreamTypeStr = 0;
+    PWSTR PathBgn, PathEnd, PathPtr, ComponentPtr, StreamTypeStr = 0;
     UCHAR Flags = FSRTL_NTFS_LEGAL;
     ULONG Colons = 0;
     WCHAR Char;
@@ -52,6 +54,7 @@ BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PUL
     PathBgn = Path->Buffer;
     PathEnd = (PWSTR)((PUINT8)PathBgn + Path->Length);
     PathPtr = PathBgn;
+    ComponentPtr = PathPtr;
 
     while (PathEnd > PathPtr)
     {
@@ -63,7 +66,12 @@ BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PUL
             if (0 < Colons)
                 return FALSE;
 
+            /* path component cannot be longer than MaxComponentLength */
+            if (PathPtr - ComponentPtr > MaxComponentLength)
+                return FALSE;
+
             PathPtr++;
+            ComponentPtr = PathPtr;
 
             /* don't like multiple backslashes */
             if (PathEnd > PathPtr && L'\\' == *PathPtr)
@@ -106,6 +114,10 @@ BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PUL
             PathPtr++;
     }
 
+    /* path component cannot be longer than MaxComponentLength */
+    if (PathPtr - ComponentPtr > MaxComponentLength)
+        return FALSE;
+
     /* if we had no colons the path is valid */
     if (0 == Colons)
         return TRUE;
@@ -133,19 +145,20 @@ BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PUL
     return FALSE;
 }
 
-BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Path)
+BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Path, ULONG MaxComponentLength)
 {
     PAGED_CODE();
 
     if (0 != Path->Length % sizeof(WCHAR))
         return FALSE;
 
-    PWSTR PathBgn, PathEnd, PathPtr;
+    PWSTR PathBgn, PathEnd, PathPtr, ComponentPtr;
     WCHAR Char;
 
     PathBgn = Path->Buffer;
     PathEnd = (PWSTR)((PUINT8)PathBgn + Path->Length);
     PathPtr = PathBgn;
+    ComponentPtr = PathPtr;
 
     while (PathEnd > PathPtr)
     {
@@ -166,6 +179,10 @@ BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Path)
         else
             PathPtr++;
     }
+
+    /* path component cannot be longer than MaxComponentLength */
+    if (PathPtr - ComponentPtr > MaxComponentLength)
+        return FALSE;
 
     return TRUE;
 }

@@ -617,6 +617,7 @@ static NTSTATUS FspFsvolQueryDirectory(
         return STATUS_INVALID_DEVICE_REQUEST;
 
     NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryDirectory.FileInformationClass;
@@ -636,7 +637,8 @@ static NTSTATUS FspFsvolQueryDirectory(
         return STATUS_INVALID_PARAMETER;
 
     /* check that FileName is valid (if supplied) */
-    if (0 != FileName && !FspFileNameIsValidPattern(FileName))
+    if (0 != FileName &&
+        !FspFileNameIsValidPattern(FileName, FsvolDeviceExtension->VolumeParams.MaxComponentLength))
         return STATUS_INVALID_PARAMETER;
 
     /* is this an allowed file information class? */

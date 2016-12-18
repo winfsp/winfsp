@@ -23,6 +23,10 @@
 #include <map>
 #include <unordered_map>
 
+#define MEMFS_MAX_PATH                  512
+FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
+    "MEMFS_MAX_PATH must be greater than MAX_PATH.");
+
 /*
  * Define the MEMFS_NAME_NORMALIZATION macro to include name normalization support.
  */
@@ -177,7 +181,7 @@ BOOLEAN MemfsFileNameHasPrefix(PWSTR a, PWSTR b, BOOLEAN CaseInsensitive)
 
 typedef struct _MEMFS_FILE_NODE
 {
-    WCHAR FileName[MAX_PATH];
+    WCHAR FileName[MEMFS_MAX_PATH];
     FSP_FSCTL_FILE_INFO FileInfo;
     SIZE_T FileSecuritySize;
     PVOID FileSecurity;
@@ -343,7 +347,7 @@ MEMFS_FILE_NODE *MemfsFileNodeMapGet(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR Fil
 static inline
 MEMFS_FILE_NODE *MemfsFileNodeMapGetMain(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR FileName0)
 {
-    WCHAR FileName[MAX_PATH];
+    WCHAR FileName[MEMFS_MAX_PATH];
     wcscpy_s(FileName, sizeof FileName / sizeof(WCHAR), FileName0);
     PWSTR StreamName = wcschr(FileName, L':');
     if (0 == StreamName)
@@ -362,7 +366,7 @@ MEMFS_FILE_NODE *MemfsFileNodeMapGetParent(MEMFS_FILE_NODE_MAP *FileNodeMap, PWS
 {
     WCHAR Root[2] = L"\\";
     PWSTR Remain, Suffix;
-    WCHAR FileName[MAX_PATH];
+    WCHAR FileName[MEMFS_MAX_PATH];
     wcscpy_s(FileName, sizeof FileName / sizeof(WCHAR), FileName0);
     FspPathSuffix(FileName, &Remain, &Suffix, Root);
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->find(Remain);
@@ -437,11 +441,11 @@ BOOLEAN MemfsFileNodeMapEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMF
     BOOLEAN IsDirectoryChild;
     if (0 != PrevFileName0)
     {
-        WCHAR PrevFileName[MAX_PATH];
+        WCHAR PrevFileName[MEMFS_MAX_PATH];
         size_t Length0 = wcslen(FileNode->FileName);
         size_t Length1 = 1 != Length0 || L'\\' != FileNode->FileName[0];
         size_t Length2 = wcslen(PrevFileName0);
-        if (MAX_PATH <= Length0 + Length1 + Length2)
+        if (MEMFS_MAX_PATH <= Length0 + Length1 + Length2)
             /* fall back to linear scan! */
             goto fallback;
         memcpy(PrevFileName, FileNode->FileName, Length0 * sizeof(WCHAR));
@@ -723,7 +727,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
 #if defined(MEMFS_NAME_NORMALIZATION)
-    WCHAR FileNameBuf[MAX_PATH];
+    WCHAR FileNameBuf[MEMFS_MAX_PATH];
 #endif
     MEMFS_FILE_NODE *FileNode;
     MEMFS_FILE_NODE *ParentNode;
@@ -731,7 +735,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
     BOOLEAN Inserted;
 
-    if (MAX_PATH <= wcslen(FileName))
+    if (MEMFS_MAX_PATH <= wcslen(FileName))
         return STATUS_OBJECT_NAME_INVALID;
 
     if (CreateOptions & FILE_DIRECTORY_FILE)
@@ -765,7 +769,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         RemainLength = wcslen(ParentNode->FileName);
         BSlashLength = 1 < RemainLength;
         SuffixLength = wcslen(Suffix);
-        if (MAX_PATH <= RemainLength + BSlashLength + SuffixLength)
+        if (MEMFS_MAX_PATH <= RemainLength + BSlashLength + SuffixLength)
             return STATUS_OBJECT_NAME_INVALID;
 
         memcpy(FileNameBuf, ParentNode->FileName, RemainLength * sizeof(WCHAR));
@@ -866,7 +870,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_DIR_DESC *DirDesc = 0;
     NTSTATUS Result;
 
-    if (MAX_PATH <= wcslen(FileName))
+    if (MEMFS_MAX_PATH <= wcslen(FileName))
         return STATUS_OBJECT_NAME_INVALID;
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
@@ -1216,7 +1220,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     for (Index = 0; Context.Count > Index; Index++)
     {
         DescendantFileNode = Context.FileNodes[Index];
-        if (MAX_PATH <= wcslen(DescendantFileNode->FileName) - FileNameLen + NewFileNameLen)
+        if (MEMFS_MAX_PATH <= wcslen(DescendantFileNode->FileName) - FileNameLen + NewFileNameLen)
         {
             Result = STATUS_OBJECT_NAME_INVALID;
             goto exit;

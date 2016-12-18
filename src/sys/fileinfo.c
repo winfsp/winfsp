@@ -1170,6 +1170,7 @@ static NTSTATUS FspFsvolSetRenameInformation(
     PAGED_CODE();
 
     NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PFILE_OBJECT TargetFileObject = IrpSp->Parameters.SetFile.FileObject;
     BOOLEAN ReplaceIfExists = IrpSp->Parameters.SetFile.ReplaceIfExists;
@@ -1195,7 +1196,9 @@ static NTSTATUS FspFsvolSetRenameInformation(
     if (FileNode->IsRootDirectory)
         /* cannot rename root directory */
         return STATUS_INVALID_PARAMETER;
-    if (!FspFileNameIsValid(&FileNode->FileName, 0, 0))
+    if (!FspFileNameIsValid(&FileNode->FileName,
+        FsvolDeviceExtension->VolumeParams.MaxComponentLength,
+        0, 0))
         /* cannot rename streams (WinFsp limitation) */
         return STATUS_INVALID_PARAMETER;
 
@@ -1229,7 +1232,12 @@ retry:
             }
         Suffix.MaximumLength = Suffix.Length;
 
-        if (!FspFileNameIsValid(&Remain, 0, 0) || !FspFileNameIsValid(&Suffix, 0, 0))
+        if (!FspFileNameIsValid(&Remain,
+                FsvolDeviceExtension->VolumeParams.MaxComponentLength,
+                0, 0) ||
+            !FspFileNameIsValid(&Suffix,
+                FsvolDeviceExtension->VolumeParams.MaxComponentLength,
+                0, 0))
         {
             /* cannot rename streams (WinFsp limitation) */
             Result = STATUS_INVALID_PARAMETER;

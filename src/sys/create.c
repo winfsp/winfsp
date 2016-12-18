@@ -299,7 +299,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     ASSERT(NT_SUCCESS(Result));
 
     /* check filename validity */
-    if (!FspFileNameIsValid(&FileNode->FileName,
+    if (!FspFileNameIsValid(&FileNode->FileName, FsvolDeviceExtension->VolumeParams.MaxComponentLength,
         FsvolDeviceExtension->VolumeParams.NamedStreams ? &StreamPart : 0,
         &StreamType))
     {

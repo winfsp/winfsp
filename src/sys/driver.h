@@ -437,8 +437,9 @@ enum
     FspFileNameStreamTypeNone           = 0,
     FspFileNameStreamTypeData           = 1,
 };
-BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType);
-BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Pattern);
+BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, ULONG MaxComponentLength,
+    PUNICODE_STRING StreamPart, PULONG StreamType);
+BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Pattern, ULONG MaxComponentLength);
 VOID FspFileNameSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 #if 0
 NTSTATUS FspFileNameUpcase(
