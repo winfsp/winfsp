@@ -67,7 +67,7 @@ BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, ULONG MaxComponentLength,
                 return FALSE;
 
             /* path component cannot be longer than MaxComponentLength */
-            if (PathPtr - ComponentPtr > MaxComponentLength)
+            if ((ULONG)(PathPtr - ComponentPtr) > MaxComponentLength)
                 return FALSE;
 
             PathPtr++;
@@ -115,7 +115,7 @@ BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, ULONG MaxComponentLength,
     }
 
     /* path component cannot be longer than MaxComponentLength */
-    if (PathPtr - ComponentPtr > MaxComponentLength)
+    if ((ULONG)(PathPtr - ComponentPtr) > MaxComponentLength)
         return FALSE;
 
     /* if we had no colons the path is valid */
@@ -181,7 +181,7 @@ BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Path, ULONG MaxComponentLength
     }
 
     /* path component cannot be longer than MaxComponentLength */
-    if (PathPtr - ComponentPtr > MaxComponentLength)
+    if ((ULONG)(PathPtr - ComponentPtr) > MaxComponentLength)
         return FALSE;
 
     return TRUE;
