@@ -329,38 +329,38 @@ exit /b 0
 
 :ifstest-memfs-x64-disk
 M:
-call :__ifstest-memfs M:
+call :__ifstest-memfs M: \Device\WinFsp.Disk
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :__ifstest-memfs
 set IfsTestMemfsExit=0
 M:
-call :__ifstest %1 /g OpenCreateGeneral /z /v
+call :__ifstest %1 /d %2 /g OpenCreateGeneral -t FileOpenByIDTest -t OpenVolumeTest /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /g OpenCreateParameters /z /v
+call :__ifstest %1 /d %2 /g OpenCreateParameters /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /g CloseCleanupDelete /z /v
+call :__ifstest %1 /d %2 /g CloseCleanupDelete /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /g VolumeInformation /z /v
+call :__ifstest %1 /d %2 /g VolumeInformation /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /g FileInformation /z /v
+call :__ifstest %1 /d %2 /g FileInformation /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /g DirectoryInformation /z /v
+call :__ifstest %1 /d %2 /g DirectoryInformation /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /g FileLocking /z /v
+call :__ifstest %1 /d %2 /g FileLocking /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /g OpLocks /z /v
+call :__ifstest %1 /d %2 /g OpLocks /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-rem call :__ifstest %1 /g ChangeNotification /z /v
+rem call :__ifstest %1 /d %2 /g ChangeNotification /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /g ReadWrite /z /v
+call :__ifstest %1 /d %2 /g ReadWrite /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /g SectionsCaching /z /v
+call :__ifstest %1 /d %2 /g SectionsCaching /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /g ReparsePoints /z /v
+call :__ifstest %1 /d %2 /g ReparsePoints /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /g StreamEnhancements /z /v
+call :__ifstest %1 /d %2 /g StreamEnhancements /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 exit /b !IfsTestMemfsExit!
 
