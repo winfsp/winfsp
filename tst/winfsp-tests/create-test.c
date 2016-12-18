@@ -932,8 +932,7 @@ void create_namelen_dotest(ULONG Flags, PWSTR Prefix, PWSTR Drive)
 
 void create_namelen_test(void)
 {
-    if (OptShareName)
-        /* This test does not work when going through a share! */
+    if (OptShareName || OptMountPoint)
         return;
 
     if (NtfsTests)
@@ -962,6 +961,6 @@ void create_tests(void)
     TEST(create_restore_test);
     TEST(create_share_test);
     TEST(create_curdir_test);
-    if (!OptShareName)
+    if (!OptShareName && !OptMountPoint)
         TEST(create_namelen_test);
 }
