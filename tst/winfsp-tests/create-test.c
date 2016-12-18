@@ -872,6 +872,85 @@ void create_curdir_test(void)
         create_curdir_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+void create_namelen_dotest(ULONG Flags, PWSTR Prefix, PWSTR Drive)
+{
+    void *memfs = memfs_start(Flags);
+
+    WCHAR FilePath[1024];
+    PWSTR FilePathBgn, P, EndP;
+    DWORD MaxComponentLength;
+    HANDLE Handle;
+    BOOL Success;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Drive ? Drive : memfs_volumename(memfs));
+
+    Success = GetVolumeInformationW(FilePath,
+        0, 0,
+        0, &MaxComponentLength, 0,
+        0, 0);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    FilePathBgn = FilePath + wcslen(FilePath);
+
+    for (P = FilePathBgn, EndP = P + MaxComponentLength - 1; EndP > P; P++)
+        *P = (P - FilePathBgn) % 10 + '0';
+    *P = L'\0';
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    for (P = FilePathBgn, EndP = P + MaxComponentLength; EndP > P; P++)
+        *P = (P - FilePathBgn) % 10 + '0';
+    *P = L'\0';
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    for (P = FilePathBgn, EndP = P + MaxComponentLength + 1; EndP > P; P++)
+        *P = (P - FilePathBgn) % 10 + '0';
+    *P = L'\0';
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_INVALID_NAME == GetLastError());
+
+    memfs_stop(memfs);
+}
+
+void create_namelen_test(void)
+{
+    if (OptShareName)
+        /* This test does not work when going through a share! */
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        create_namelen_dotest(-1, DirBuf, DriveBuf);
+    }
+    if (WinFspDiskTests)
+        create_namelen_dotest(MemfsDisk, 0, 0);
+#if 0
+    /* This test does not work when going through the MUP! */
+    if (WinFspNetTests)
+        create_namelen_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share");
+#endif
+}
+
 void create_tests(void)
 {
     TEST(create_test);
@@ -883,4 +962,6 @@ void create_tests(void)
     TEST(create_restore_test);
     TEST(create_share_test);
     TEST(create_curdir_test);
+    if (!OptShareName)
+        TEST(create_namelen_test);
 }
