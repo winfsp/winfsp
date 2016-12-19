@@ -546,7 +546,6 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
     UINT32 GrantedAccess;
     FSP_FSCTL_TRANSACT_FULL_CONTEXT FullContext;
     FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
-    BOOLEAN Supersede = FILE_SUPERSEDE == ((Request->Req.Create.CreateOptions >> 24) & 0xff);
 
     Result = FspFileSystemOverwriteCheck(FileSystem, Request, Response, TRUE, &GrantedAccess);
     if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
@@ -570,7 +569,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwrite(FSP_FILE_SYSTEM *FileSystem,
         Response->Rsp.Create.Opened.FileName.Size = (UINT16)OpenFileInfo.NormalizedNameSize;
     }
 
-    Response->IoStatus.Information = Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN;
+    Response->IoStatus.Information = FILE_OVERWRITTEN;
     SetFileContext(Response->Rsp.Create.Opened, FullContext);
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     memcpy(&Response->Rsp.Create.Opened.FileInfo,
@@ -586,6 +585,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
     PSECURITY_DESCRIPTOR ParentDescriptor, ObjectDescriptor;
     FSP_FSCTL_TRANSACT_FULL_CONTEXT FullContext;
     FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
+    BOOLEAN Supersede = FILE_SUPERSEDE == ((Request->Req.Create.CreateOptions >> 24) & 0xff);
     BOOLEAN Create = FALSE;
 
     Result = FspFileSystemOverwriteCheck(FileSystem, Request, Response, TRUE, &GrantedAccess);
@@ -647,7 +647,8 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
         Response->Rsp.Create.Opened.FileName.Size = (UINT16)OpenFileInfo.NormalizedNameSize;
     }
 
-    Response->IoStatus.Information = Create ? FILE_CREATED : FILE_OVERWRITTEN;
+    Response->IoStatus.Information = Create ? FILE_CREATED :
+        (Supersede ? FILE_SUPERSEDED : FILE_OVERWRITTEN);
     SetFileContext(Response->Rsp.Create.Opened, FullContext);
     Response->Rsp.Create.Opened.GrantedAccess = GrantedAccess;
     memcpy(&Response->Rsp.Create.Opened.FileInfo,
@@ -816,10 +817,10 @@ FSP_API NTSTATUS FspFileSystemOpCreate(FSP_FILE_SYSTEM *FileSystem,
         Result = FspFileSystemOpCreate_FileOpenIf(FileSystem, Request, Response);
         break;
     case FILE_OVERWRITE:
-    case FILE_SUPERSEDE:
         Result = FspFileSystemOpCreate_FileOverwrite(FileSystem, Request, Response);
         break;
     case FILE_OVERWRITE_IF:
+    case FILE_SUPERSEDE:
         Result = FspFileSystemOpCreate_FileOverwriteIf(FileSystem, Request, Response);
         break;
     default:

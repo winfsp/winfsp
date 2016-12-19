@@ -1923,11 +1923,11 @@ NTSTATUS FspMainFileOpen(
     case FILE_CREATE:
     case FILE_OPEN_IF:
     case FILE_OVERWRITE_IF:
+    case FILE_SUPERSEDE:
         Disposition = FILE_OPEN_IF;
         break;
     case FILE_OPEN:
     case FILE_OVERWRITE:
-    case FILE_SUPERSEDE:
         Disposition = FILE_OPEN;
         break;
     default:
