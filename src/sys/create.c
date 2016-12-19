@@ -952,6 +952,19 @@ NTSTATUS FspFsvolCreateComplete(
             if (FileNode->IsDirectory)
                 SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
 
+            /* overwrite/supersede operations must have the correct hidden/system attributes set */
+            if ((FlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes, FILE_ATTRIBUTE_HIDDEN) &&
+                    !FlagOn(FileAttributes, FILE_ATTRIBUTE_HIDDEN)) ||
+                (FlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes, FILE_ATTRIBUTE_SYSTEM) &&
+                    !FlagOn(FileAttributes, FILE_ATTRIBUTE_SYSTEM)))
+            {
+                FspFsvolCreatePostClose(FileDesc);
+                FspFileNodeClose(FileNode, FileObject, TRUE);
+
+                Result = STATUS_ACCESS_DENIED;
+                FSP_RETURN();
+            }
+
             PVOID RequestDeviceObjectValue = FspIopRequestContext(Request, RequestDeviceObject);
 
             /* disassociate the FileDesc momentarily from the Request */
