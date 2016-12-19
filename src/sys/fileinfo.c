@@ -134,6 +134,7 @@ static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
 
     PFILE_ALL_INFORMATION Info = (PFILE_ALL_INFORMATION)*PBuffer;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    BOOLEAN DeletePending;
 
     if (0 == FileInfo)
     {
@@ -143,6 +144,9 @@ static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
         *PBuffer = (PVOID)&Info->NameInformation;
         return FspFsvolQueryNameInformation(FileObject, PBuffer, BufferEnd);
     }
+
+    DeletePending = 0 != FileNode->DeletePending;
+    MemoryBarrier();
 
     Info->BasicInformation.CreationTime.QuadPart = FileInfo->CreationTime;
     Info->BasicInformation.LastAccessTime.QuadPart = FileInfo->LastAccessTime;
@@ -154,7 +158,7 @@ static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
     Info->StandardInformation.AllocationSize.QuadPart = FileInfo->AllocationSize;
     Info->StandardInformation.EndOfFile.QuadPart = FileInfo->FileSize;
     Info->StandardInformation.NumberOfLinks = 1;
-    Info->StandardInformation.DeletePending = FileObject->DeletePending;
+    Info->StandardInformation.DeletePending = DeletePending || FileObject->DeletePending;
     Info->StandardInformation.Directory = FileNode->IsDirectory;
 
     Info->InternalInformation.IndexNumber.QuadPart = FileNode->IndexNumber;
@@ -363,6 +367,7 @@ static NTSTATUS FspFsvolQueryStandardInformation(PFILE_OBJECT FileObject,
 
     PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)*PBuffer;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    BOOLEAN DeletePending;
 
     if (0 == FileInfo)
     {
@@ -372,10 +377,13 @@ static NTSTATUS FspFsvolQueryStandardInformation(PFILE_OBJECT FileObject,
         return STATUS_SUCCESS;
     }
 
+    DeletePending = 0 != FileNode->DeletePending;
+    MemoryBarrier();
+
     Info->AllocationSize.QuadPart = FileInfo->AllocationSize;
     Info->EndOfFile.QuadPart = FileInfo->FileSize;
     Info->NumberOfLinks = 1;
-    Info->DeletePending = FileObject->DeletePending;
+    Info->DeletePending = DeletePending || FileObject->DeletePending;
     Info->Directory = FileNode->IsDirectory;
 
     *PBuffer = (PVOID)(Info + 1);
