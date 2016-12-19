@@ -189,9 +189,13 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
             ParentDesiredAccess = FILE_ADD_SUBDIRECTORY;
         else
             ParentDesiredAccess = FILE_ADD_FILE;
-        Result = FspAccessCheckEx(FileSystem, Request, TRUE, AllowTraverseCheck,
-            ParentDesiredAccess,
-            &GrantedAccess, PSecurityDescriptor);
+        if ((Request->Req.Create.FileAttributes & FILE_ATTRIBUTE_READONLY) &&
+            (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE))
+            Result = STATUS_CANNOT_DELETE;
+        else
+            Result = FspAccessCheckEx(FileSystem, Request, TRUE, AllowTraverseCheck,
+                ParentDesiredAccess,
+                &GrantedAccess, PSecurityDescriptor);
         if (STATUS_REPARSE == Result)
             Result = FspFileSystemCallResolveReparsePoints(FileSystem, Request, Response, GrantedAccess);
         else if (NT_SUCCESS(Result))
