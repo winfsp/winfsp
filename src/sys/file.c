@@ -55,7 +55,7 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
-    const FSP_FSCTL_FILE_INFO *FileInfo);
+    const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose);
 BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, ULONG InfoChangeNumber);
 BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
@@ -1416,7 +1416,7 @@ BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *
 }
 
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
-    const FSP_FSCTL_FILE_INFO *FileInfo)
+    const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose)
 {
     PAGED_CODE();
 
@@ -1430,8 +1430,20 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
         FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
     AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
-    FileNode->Header.AllocationSize.QuadPart = AllocationSize;
-    FileNode->Header.FileSize.QuadPart = FileInfo->FileSize;
+    if (TruncateOnClose)
+    {
+        if ((UINT64)FileNode->Header.AllocationSize.QuadPart != AllocationSize ||
+            (UINT64)FileNode->Header.FileSize.QuadPart != FileInfo->FileSize)
+            FileNode->TruncateOnClose = TRUE;
+
+        FileNode->Header.AllocationSize.QuadPart = AllocationSize;
+        FileNode->Header.FileSize.QuadPart = FileInfo->FileSize;
+    }
+    else
+    {
+        FileNode->Header.AllocationSize.QuadPart = AllocationSize;
+        FileNode->Header.FileSize.QuadPart = FileInfo->FileSize;
+    }
 
     FileNode->FileInfoExpirationTime = FileNode->BasicInfoExpirationTime =
         FspExpirationTimeFromMillis(FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
@@ -1521,7 +1533,7 @@ BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileOb
     if (FspFileNodeFileInfoChangeNumber(FileNode) != InfoChangeNumber)
         return FALSE;
 
-    FspFileNodeSetFileInfo(FileNode, CcFileObject, FileInfo);
+    FspFileNodeSetFileInfo(FileNode, CcFileObject, FileInfo, FALSE);
     return TRUE;
 }
 

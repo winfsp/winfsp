@@ -1024,11 +1024,7 @@ NTSTATUS FspFsvolCreateComplete(
         /* file was successfully overwritten/superseded */
         if (0 == FileNode->MainFileNode)
             FspFileNodeOverwriteStreams(FileNode);
-        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Overwrite.FileInfo);
-
-        if (0 != Response->Rsp.Overwrite.FileInfo.AllocationSize)
-            FileNode->TruncateOnClose = TRUE;
-
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Overwrite.FileInfo, TRUE);
         FspFileNodeNotifyChange(FileNode,
             FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE,
             FILE_ACTION_MODIFIED);
@@ -1094,7 +1090,8 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
         return Result;
     }
 
-    FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Create.Opened.FileInfo);
+    FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Create.Opened.FileInfo,
+        FILE_CREATED == Response->IoStatus.Information);
 
     if (FlushImage)
     {
@@ -1119,14 +1116,9 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     }
 
     if (FILE_CREATED == Response->IoStatus.Information)
-    {
-        if (0 != Response->Rsp.Create.Opened.FileInfo.AllocationSize)
-            FileNode->TruncateOnClose = TRUE;
-
         FspFileNodeNotifyChange(FileNode,
             FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
             FILE_ACTION_ADDED);
-    }
 
     FspFileNodeRelease(FileNode, Main);
 

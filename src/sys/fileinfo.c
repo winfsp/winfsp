@@ -901,8 +901,7 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
     {
         FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
-        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
-        FileNode->TruncateOnClose = TRUE;
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo, TRUE);
 
         /* mark the file object as modified */
         SetFlag(FileObject->Flags, FO_FILE_MODIFIED);
@@ -971,7 +970,7 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
                 ClearFlag(FileObject->Flags, FO_TEMPORARY_FILE);
         }
 
-        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo, FALSE);
 
         if ((UINT32)-1 != Request->Req.SetInformation.Info.Basic.FileAttributes)
             NotifyFilter |= FILE_NOTIFY_CHANGE_ATTRIBUTES;
@@ -1032,8 +1031,7 @@ static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
     {
         FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
-        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
-        FileNode->TruncateOnClose = TRUE;
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo, TRUE);
 
         /* mark the file object as modified -- FastFat does this only for Allocation though! */
         SetFlag(FileObject->Flags, FO_FILE_MODIFIED);
