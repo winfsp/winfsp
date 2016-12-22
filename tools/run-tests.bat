@@ -365,20 +365,20 @@ call :__ifstest %1 /d %2 /g OpenCreateParameters /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem call :__ifstest %1 /d %2 /g CloseCleanupDelete /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-rem call :__ifstest %1 /d %2 /g VolumeInformation /z /v
-rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /d %2 /g VolumeInformation /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem call :__ifstest %1 /d %2 /g FileInformation /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem call :__ifstest %1 /d %2 /g DirectoryInformation /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-rem call :__ifstest %1 /d %2 /g FileLocking /z /v
-rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /d %2 /g FileLocking /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem call :__ifstest %1 /d %2 /g OpLocks /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem call :__ifstest %1 /d %2 /g ChangeNotification /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-rem call :__ifstest %1 /d %2 /g ReadWrite /z /v
-rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /d %2 /g ReadWrite /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem call :__ifstest %1 /d %2 /g SectionsCaching /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem call :__ifstest %1 /d %2 /g ReparsePoints /z /v
