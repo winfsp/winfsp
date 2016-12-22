@@ -146,7 +146,7 @@ typedef struct
     UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */
     UINT32 ReadOnlyVolume:1;
     /* kernel-mode flags */
-    UINT32 PostCleanupOnDeleteOnly:1;   /* post Cleanup when deleting a file only */
+    UINT32 PostCleanupWhenModifiedOnly:1;   /* post Cleanup when a file was modified/deleted */
     UINT32 KmReservedFlags:5;
     /* user-mode flags */
     UINT32 UmFileContextIsUserContext2:1;   /* user mode: FileContext parameter is UserContext2 */
@@ -248,6 +248,11 @@ typedef struct
             UINT64 UserContext;
             UINT64 UserContext2;
             UINT32 Delete:1;            /* file must be deleted */
+            UINT32 SetAllocationSize:1;
+            UINT32 SetArchiveBit:1;
+            UINT32 SetLastAccessTime:1;
+            UINT32 SetLastWriteTime:1;
+            UINT32 SetChangeTime:1;
         } Cleanup;
         struct
         {

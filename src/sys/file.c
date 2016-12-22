@@ -34,8 +34,7 @@ VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
 NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess,
     FSP_FILE_NODE **POpenedFileNode, PULONG PSharingViolationReason);
-VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    PBOOLEAN PDeletePending);
+VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG PCleanupFlags);
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     PFILE_OBJECT FileObject,    /* non-0 to remove share access */
@@ -635,8 +634,7 @@ exit:
     return Result;
 }
 
-VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    PBOOLEAN PDeletePending)
+VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG PCleanupFlags)
 {
     /*
      * Determine whether a FileNode should be deleted. Note that when FileNode->DeletePending
@@ -650,7 +648,7 @@ VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
-    BOOLEAN DeletePending, SingleHandle;
+    BOOLEAN DeletePending, SetAllocationSize, SingleHandle;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
@@ -659,12 +657,13 @@ VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     DeletePending = 0 != FileNode->DeletePending;
     MemoryBarrier();
 
+    SetAllocationSize = !DeletePending && FileNode->TruncateOnClose;
+
     SingleHandle = 1 == FileNode->HandleCount;
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
-    if (0 != PDeletePending)
-        *PDeletePending = SingleHandle && DeletePending;
+    *PCleanupFlags = SingleHandle ? DeletePending | (SetAllocationSize << 1) : 0;
 }
 
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
@@ -684,7 +683,7 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
     PAGED_CODE();
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
-    LARGE_INTEGER TruncateSize = { 0 }, *PTruncateSize = 0;
+    LARGE_INTEGER TruncateSize, *PTruncateSize = 0;
     BOOLEAN DeletePending;
     BOOLEAN DeletedFromContextTable = FALSE;
 
@@ -715,23 +714,34 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 
         if (DeletePending)
         {
-            PTruncateSize = &TruncateSize;
-
             FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName,
                 &DeletedFromContextTable);
             ASSERT(DeletedFromContextTable);
 
             FileNode->OpenCount = 0;
+            FileNode->Header.FileSize.QuadPart = 0;
         }
-        else if (FileNode->TruncateOnClose && FlagOn(FileObject->Flags, FO_CACHE_SUPPORTED))
+
+        if (DeletePending || FileNode->TruncateOnClose)
         {
+            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+                FspFsvolDeviceExtension(FsvolDeviceObject);
+            UINT64 AllocationUnit =
+                FsvolDeviceExtension->VolumeParams.SectorSize *
+                FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+
             /*
              * Even when the FileInfo is expired, this is the best guess for a file size
              * without asking the user-mode file system.
              */
             TruncateSize = FileNode->Header.FileSize;
             PTruncateSize = &TruncateSize;
+
+            FileNode->Header.AllocationSize.QuadPart = (TruncateSize.QuadPart + AllocationUnit - 1)
+                / AllocationUnit * AllocationUnit;
         }
+
+        FileNode->TruncateOnClose = FALSE;
     }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);

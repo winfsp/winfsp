@@ -288,9 +288,9 @@ void create_related_test(void)
         create_related_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
-void create_allocation_dotest(ULONG Flags, PWSTR Prefix)
+void create_allocation_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
-    void *memfs = memfs_start(Flags);
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
     HANDLE DirHandle, FileHandle, FileHandle2;
     NTSTATUS Result;
@@ -347,9 +347,26 @@ void create_allocation_dotest(ULONG Flags, PWSTR Prefix)
     ASSERT(65536 == StandardInfo.AllocationSize.QuadPart);
 
     CloseHandle(FileHandle2);
+
+    AllocationSize.QuadPart = 0;
+    UnicodePath.Length = (USHORT)wcslen(UnicodePathBuf) * sizeof(WCHAR);
+    UnicodePath.MaximumLength = sizeof UnicodePathBuf;
+    UnicodePath.Buffer = UnicodePathBuf;
+    InitializeObjectAttributes(&Obja, &UnicodePath, 0, DirHandle, 0);
+    Result = NtCreateFile(&FileHandle2,
+        FILE_READ_ATTRIBUTES, &Obja, &Iosb,
+        &AllocationSize, FILE_ATTRIBUTE_NORMAL,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        FILE_OPEN, 0, 0, 0);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    Success = GetFileInformationByHandleEx(FileHandle2, FileStandardInfo, &StandardInfo, sizeof StandardInfo);
+    ASSERT(Success);
+    ASSERT(65536 == StandardInfo.AllocationSize.QuadPart);
+
+    CloseHandle(FileHandle2);
     CloseHandle(FileHandle);
 
-#if 0
     AllocationSize.QuadPart = 0;
     UnicodePath.Length = (USHORT)wcslen(UnicodePathBuf) * sizeof(WCHAR);
     UnicodePath.MaximumLength = sizeof UnicodePathBuf;
@@ -366,7 +383,6 @@ void create_allocation_dotest(ULONG Flags, PWSTR Prefix)
     ASSERT(0 == StandardInfo.AllocationSize.QuadPart);
 
     CloseHandle(FileHandle);
-#endif
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file2",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
@@ -388,12 +404,20 @@ void create_allocation_test(void)
     {
         WCHAR DirBuf[MAX_PATH];
         GetTestDirectory(DirBuf);
-        create_allocation_dotest(-1, DirBuf);
+        create_allocation_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
-        create_allocation_dotest(MemfsDisk, 0);
+    {
+        create_allocation_dotest(MemfsDisk, 0, 0);
+        create_allocation_dotest(MemfsDisk, 0, 1000);
+        create_allocation_dotest(MemfsDisk, 0, INFINITE);
+    }
     if (WinFspNetTests)
-        create_allocation_dotest(MemfsNet, L"\\\\memfs\\share");
+    {
+        create_allocation_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        create_allocation_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+        create_allocation_dotest(MemfsNet, L"\\\\memfs\\share", INFINITE);
+    }
 }
 
 void create_sd_dotest(ULONG Flags, PWSTR Prefix)

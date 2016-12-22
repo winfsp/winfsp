@@ -627,9 +627,8 @@ static NTSTATUS GetReparsePointByName(
     PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize);
 #endif
 
-static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize,
-    FSP_FSCTL_FILE_INFO *FileInfo);
+static NTSTATUS SetFileSizeInternal(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize);
 
 static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
@@ -888,21 +887,6 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
             return Result;
     }
 
-    /*
-     * NTFS and FastFat do this at Cleanup time, but we are going to cheat.
-     *
-     * To properly implement this we should maintain some state of whether
-     * we modified the file or not. Alternatively we could have the driver
-     * report to us at Cleanup time whether the file was modified. [The
-     * FSD does maintain the FO_FILE_MODIFIED bit, but does not send it
-     * to us.]
-     *
-     * TBD.
-     */
-    if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
-        (GrantedAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA)))
-        FileNode->FileInfo.FileAttributes |= FILE_ATTRIBUTE_ARCHIVE;
-
     MemfsFileNodeReference(FileNode);
     *PFileNode = FileNode;
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
@@ -944,7 +928,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
     MemfsFileNodeMapEnumerateFree(&Context);
 #endif
 
-    Result = SetFileSize(FileSystem, FileNode, AllocationSize, TRUE, FileInfo);
+    Result = SetFileSizeInternal(FileSystem, FileNode, AllocationSize, TRUE);
     if (!NT_SUCCESS(Result))
         return Result;
 
@@ -954,8 +938,9 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
         FileNode->FileInfo.FileAttributes |= FileAttributes | FILE_ATTRIBUTE_ARCHIVE;
 
     FileNode->FileInfo.FileSize = 0;
+    FileNode->FileInfo.LastAccessTime =
     FileNode->FileInfo.LastWriteTime =
-    FileNode->FileInfo.LastAccessTime = MemfsGetSystemTime();
+    FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
 
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
 
@@ -963,14 +948,41 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode0, PWSTR FileName, BOOLEAN Delete)
+    PVOID FileNode0, PWSTR FileName, ULONG Flags)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
 
-    assert(Delete); /* the new FSP_FSCTL_VOLUME_PARAMS::PostCleanupOnDeleteOnly ensures this */
+    assert(0 != Flags); /* FSP_FSCTL_VOLUME_PARAMS::PostCleanupWhenModifiedOnly ensures this */
 
-    if (Delete && !MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
+    if (Flags & FspCleanupSetArchiveBit)
+    {
+        if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            FileNode->FileInfo.FileAttributes |= FILE_ATTRIBUTE_ARCHIVE;
+    }
+
+    if (Flags & (FspCleanupSetLastAccessTime | FspCleanupSetLastWriteTime | FspCleanupSetChangeTime))
+    {
+        UINT64 SystemTime = MemfsGetSystemTime();
+
+        if (Flags & FspCleanupSetLastAccessTime)
+            FileNode->FileInfo.LastAccessTime = SystemTime;
+        if (Flags & FspCleanupSetLastWriteTime)
+            FileNode->FileInfo.LastWriteTime = SystemTime;
+        if (Flags & FspCleanupSetChangeTime)
+            FileNode->FileInfo.ChangeTime = SystemTime;
+    }
+
+    if (Flags & FspCleanupSetAllocationSize)
+    {
+        UINT64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+        UINT64 AllocationSize = (FileNode->FileInfo.FileSize + AllocationUnit - 1) /
+            AllocationUnit * AllocationUnit;
+
+        SetFileSizeInternal(FileSystem, FileNode, AllocationSize, TRUE);
+    }
+
+    if ((Flags & FspCleanupDelete) && !MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
     {
 #if defined(MEMFS_NAMED_STREAMS)
         MEMFS_FILE_NODE_MAP_ENUM_CONTEXT Context = { FALSE };
@@ -1062,7 +1074,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
         EndOffset = Offset + Length;
         if (EndOffset > FileNode->FileInfo.FileSize)
         {
-            Result = SetFileSize(FileSystem, FileNode, EndOffset, FALSE, FileInfo);
+            Result = SetFileSizeInternal(FileSystem, FileNode, EndOffset, FALSE);
             if (!NT_SUCCESS(Result))
                 return Result;
         }
@@ -1077,9 +1089,19 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
 }
 
 NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode)
+    PVOID FileNode0)
 {
-    /* nothing to do, since we do not cache anything */
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    /* nothing to flush, since we do not cache anything */
+
+    if (0 != FileNode)
+    {
+        FileNode->FileInfo.LastAccessTime =
+        FileNode->FileInfo.LastWriteTime =
+        FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
+    }
+
     return STATUS_SUCCESS;
 }
 
@@ -1120,9 +1142,8 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize,
-    FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS SetFileSizeInternal(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
@@ -1154,8 +1175,7 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
                 UINT64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
                 UINT64 AllocationSize = (NewSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
-                NTSTATUS Result = SetFileSize(FileSystem, FileNode, AllocationSize, TRUE,
-                    FileInfo);
+                NTSTATUS Result = SetFileSizeInternal(FileSystem, FileNode, AllocationSize, TRUE);
                 if (!NT_SUCCESS(Result))
                     return Result;
             }
@@ -1166,6 +1186,24 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
             FileNode->FileInfo.FileSize = NewSize;
         }
     }
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize,
+    FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    NTSTATUS Result;
+
+    Result = SetFileSizeInternal(FileSystem, FileNode0, NewSize, SetAllocationSize);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    FileNode->FileInfo.LastAccessTime =
+    FileNode->FileInfo.LastWriteTime =
+    FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
 
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
 
@@ -1318,6 +1356,8 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     free(FileNode->FileSecurity);
     FileNode->FileSecuritySize = FileSecuritySize;
     FileNode->FileSecurity = FileSecurity;
+
+    FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
 
     return STATUS_SUCCESS;
 }
@@ -1523,6 +1563,8 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     FileNode->ReparseData = ReparseData;
     memcpy(FileNode->ReparseData, Buffer, Size);
 
+    FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
+
     return STATUS_SUCCESS;
 }
 
@@ -1555,6 +1597,8 @@ static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     FileNode->FileInfo.ReparseTag = 0;
     FileNode->ReparseDataSize = 0;
     FileNode->ReparseData = 0;
+
+    FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
 
     return STATUS_SUCCESS;
 }
@@ -1737,7 +1781,7 @@ NTSTATUS MemfsCreateFunnel(
 #if defined(MEMFS_NAMED_STREAMS)
     VolumeParams.NamedStreams = 1;
 #endif
-    VolumeParams.PostCleanupOnDeleteOnly = 1;
+    VolumeParams.PostCleanupWhenModifiedOnly = 1;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
     wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),

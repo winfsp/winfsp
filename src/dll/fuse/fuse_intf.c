@@ -1050,7 +1050,7 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode, PWSTR FileName, BOOLEAN Delete)
+    PVOID FileNode, PWSTR FileName, ULONG Flags)
 {
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc = FileNode;
@@ -1072,7 +1072,7 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
      * FUSE option and can safely remove the file at this time.
      */
 
-    if (Delete)
+    if (Flags & FspCleanupDelete)
         if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
         {
             if (0 != f->ops.rmdir)

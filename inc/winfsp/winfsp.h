@@ -122,6 +122,15 @@ typedef enum
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE = 0,
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE,
 } FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY;
+enum
+{
+    FspCleanupDelete                    = 0x01,
+    FspCleanupSetAllocationSize         = 0x02,
+    FspCleanupSetArchiveBit             = 0x10,
+    FspCleanupSetLastAccessTime         = 0x20,
+    FspCleanupSetLastWriteTime          = 0x40,
+    FspCleanupSetChangeTime             = 0x80,
+};
 /**
  * @class FSP_FILE_SYSTEM
  * File system interface.
@@ -332,8 +341,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * deleted during Cleanup.
      *
      * As an optimization a file system may specify the FSP_FSCTL_VOLUME_PARAMS ::
-     * PostCleanupOnDeleteOnly flag. In this case the FSD will only post Cleanup requests when a
-     * file is being deleted.
+     * PostCleanupWhenModifiedOnly flag. In this case the FSD will only post Cleanup requests when
+     * the file was modified/deleted.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
@@ -341,16 +350,17 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     The file context of the file or directory to cleanup.
      * @param FileName
      *     The name of the file or directory to cleanup. Sent only when a Delete is requested.
-     * @param Delete
-     *     Determines whether to delete the file. Note that there is no way to report failure of
-     *     this operation. Also note that when this parameter is TRUE this is the last outstanding
-     *     cleanup for this particular file node.
+     * @param Flags
+     *     These flags determine whether the file was modified and whether to delete the file.
+     *     Note that there is no way to report failure of this operation. Also note that when
+     *     this parameter has the FspCleanupDelete bit set, this is the last outstanding cleanup
+     *     for this particular file node.
      * @see
      *     Close
      *     CanDelete
      */
     VOID (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileContext, PWSTR FileName, BOOLEAN Delete);
+        PVOID FileContext, PWSTR FileName, ULONG Flags);
     /**
      * Close a file.
      *

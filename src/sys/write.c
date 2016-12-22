@@ -195,6 +195,7 @@ static NTSTATUS FspFsvolWriteCached(
     {
         ASSERT(CanWait);
 
+        /* send EndOfFileInformation IRP; this will also set TruncateOnClose, etc. */
         EndOfFileInformation.EndOfFile.QuadPart = WriteEndOffset;
         Result = FspSendSetInformationIrp(FsvolDeviceObject/* bypass filters */, FileObject,
             FileEndOfFileInformation, &EndOfFileInformation, sizeof EndOfFileInformation);
@@ -471,11 +472,14 @@ NTSTATUS FspFsvolWriteComplete(
         /* update file info */
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Write.FileInfo);
 
-        if (OriginalFileSize != Response->Rsp.Write.FileInfo.FileSize)
+        if (!PagingIo && OriginalFileSize != Response->Rsp.Write.FileInfo.FileSize)
+        {
+            FileNode->TruncateOnClose = TRUE;
             FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED);
+        }
 
         /* update the current file offset if synchronous I/O (and not paging I/O) */
-        if (SynchronousIo && !PagingIo)
+        if (!PagingIo && SynchronousIo)
             FileObject->CurrentByteOffset.QuadPart = WriteToEndOfFile ?
                 Response->Rsp.Write.FileInfo.FileSize :
                 WriteOffset.QuadPart + Response->IoStatus.Information;

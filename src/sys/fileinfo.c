@@ -956,7 +956,10 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
     else
     {
         FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
         ULONG NotifyFilter = 0;
+
+        ASSERT(FileNode == FileDesc->FileNode);
 
         if (!FileNode->IsDirectory)
         {
@@ -975,9 +978,15 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
         if (0 != Request->Req.SetInformation.Info.Basic.CreationTime)
             NotifyFilter |= FILE_NOTIFY_CHANGE_CREATION;
         if (0 != Request->Req.SetInformation.Info.Basic.LastAccessTime)
+        {
+            FileDesc->DidSetLastAccessTime = TRUE;
             NotifyFilter |= FILE_NOTIFY_CHANGE_LAST_ACCESS;
+        }
         if (0 != Request->Req.SetInformation.Info.Basic.LastWriteTime)
+        {
+            FileDesc->DidSetLastWriteTime = TRUE;
             NotifyFilter |= FILE_NOTIFY_CHANGE_LAST_WRITE;
+        }
         FspFileNodeNotifyChange(FileNode, NotifyFilter, FILE_ACTION_MODIFIED);
     }
 

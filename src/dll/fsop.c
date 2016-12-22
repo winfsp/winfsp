@@ -875,7 +875,12 @@ FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
         FileSystem->Interface->Cleanup(FileSystem,
             (PVOID)ValOfFileContext(Request->Req.Cleanup),
             0 != Request->FileName.Size ? (PWSTR)Request->Buffer : 0,
-            0 != Request->Req.Cleanup.Delete);
+            (0 != Request->Req.Cleanup.Delete ? FspCleanupDelete : 0) |
+            (0 != Request->Req.Cleanup.SetAllocationSize ? FspCleanupSetAllocationSize : 0) |
+            (0 != Request->Req.Cleanup.SetArchiveBit ? FspCleanupSetArchiveBit : 0) |
+            (0 != Request->Req.Cleanup.SetLastAccessTime ? FspCleanupSetLastAccessTime : 0) |
+            (0 != Request->Req.Cleanup.SetLastWriteTime ? FspCleanupSetLastWriteTime : 0) |
+            (0 != Request->Req.Cleanup.SetChangeTime ? FspCleanupSetChangeTime : 0));
 
     return STATUS_SUCCESS;
 }

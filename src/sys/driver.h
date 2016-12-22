@@ -1200,6 +1200,7 @@ typedef struct
     BOOLEAN CaseSensitive;
     BOOLEAN HasTraversePrivilege;
     BOOLEAN DeleteOnClose;
+    BOOLEAN DidSetLastAccessTime, DidSetLastWriteTime;
     BOOLEAN DirectoryHasSuchFile;
     UNICODE_STRING DirectoryPattern;
     UINT64 DirectoryOffset;
@@ -1259,8 +1260,7 @@ VOID FspFileNodeReleaseForeign(FSP_FILE_NODE *FileNode)
 NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess,
     FSP_FILE_NODE **POpenedFileNode, PULONG PSharingViolationReason);
-VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    PBOOLEAN PDeletePending);
+VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG PCleanupFlags);
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     PFILE_OBJECT FileObject,    /* non-0 to remove share access */

@@ -77,13 +77,17 @@ static NTSTATUS FspFsvolCleanup(
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request;
-    BOOLEAN DeletePending;
+    ULONG CleanupFlags;
+    BOOLEAN DeletePending, SetAllocationSize, FileModified;
 
     ASSERT(FileNode == FileDesc->FileNode);
 
     FspFileNodeAcquireExclusive(FileNode, Main);
 
-    FspFileNodeCleanup(FileNode, FileObject, &DeletePending);
+    FspFileNodeCleanup(FileNode, FileObject, &CleanupFlags);
+    DeletePending = CleanupFlags & 1;
+    SetAllocationSize = !!(CleanupFlags & 2);
+    FileModified = BooleanFlagOn(FileObject->Flags, FO_FILE_MODIFIED);
 
     /* if this is a directory inform the FSRTL Notify mechanism */
     if (FileNode->IsDirectory)
@@ -106,13 +110,23 @@ static NTSTATUS FspFsvolCleanup(
     Request->Req.Cleanup.UserContext = FileNode->UserContext;
     Request->Req.Cleanup.UserContext2 = FileDesc->UserContext2;
     Request->Req.Cleanup.Delete = DeletePending;
+    Request->Req.Cleanup.SetAllocationSize = SetAllocationSize;
+    Request->Req.Cleanup.SetArchiveBit = FileModified;
+    Request->Req.Cleanup.SetLastAccessTime = !FileDesc->DidSetLastAccessTime;
+    Request->Req.Cleanup.SetLastWriteTime = FileModified && !FileDesc->DidSetLastWriteTime;
+    Request->Req.Cleanup.SetChangeTime = FileModified;
 
     FspFileNodeAcquireExclusive(FileNode, Pgio);
 
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;
 
-    if (DeletePending || !FsvolDeviceExtension->VolumeParams.PostCleanupOnDeleteOnly)
+    if (Request->Req.Cleanup.Delete ||
+        Request->Req.Cleanup.SetAllocationSize ||
+        Request->Req.Cleanup.SetArchiveBit ||
+        Request->Req.Cleanup.SetLastWriteTime ||
+        Request->Req.Cleanup.SetChangeTime ||
+        !FsvolDeviceExtension->VolumeParams.PostCleanupWhenModifiedOnly)
         /*
          * Note that it is still possible for this request to not be delivered,
          * if the volume device Ioq is stopped. But such failures are benign
