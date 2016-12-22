@@ -24,40 +24,57 @@ cd N: >nul 2>nul || (echo === Unable to find drive N: >&2 & goto fail)
 cd O: >nul 2>nul || (echo === Unable to find drive O: >&2 & goto fail)
 cd P: >nul 2>nul || (echo === Unable to find drive P: >&2 & goto fail)
 
-if not X%2==X (
-    set tests=%2
-) else (
-    set tests=^
-        winfsp-tests-x64 ^
-        winfsp-tests-x64-case-randomize ^
-        winfsp-tests-x64-mountpoint-drive ^
-        winfsp-tests-x64-mountpoint-dir ^
-        winfsp-tests-x64-no-traverse ^
-        winfsp-tests-x64-oplock ^
-        winfsp-tests-x64-external-share ^
-        fsx-memfs-x64-disk ^
-        fsx-memfs-x64-net ^
-        standby-memfs-x64-disk ^
-        standby-memfs-x64-net ^
-        net-use-memfs-x64 ^
-        winfstest-memfs-x64-disk ^
-        winfstest-memfs-x64-net ^
-        fscrash-x64 ^
-        winfsp-tests-x86 ^
-        winfsp-tests-x86-case-randomize ^
-        winfsp-tests-x86-mountpoint-drive ^
-        winfsp-tests-x86-mountpoint-dir ^
-        winfsp-tests-x86-no-traverse ^
-        winfsp-tests-x86-oplock ^
-        winfsp-tests-x86-external-share ^
-        fsx-memfs-x86-disk ^
-        fsx-memfs-x86-net ^
-        standby-memfs-x86-disk ^
-        standby-memfs-x86-net ^
-        net-use-memfs-x86 ^
-        winfstest-memfs-x86-disk ^
-        winfstest-memfs-x86-net ^
-        fscrash-x86
+set dfl_tests=^
+    winfsp-tests-x64 ^
+    winfsp-tests-x64-case-randomize ^
+    winfsp-tests-x64-mountpoint-drive ^
+    winfsp-tests-x64-mountpoint-dir ^
+    winfsp-tests-x64-no-traverse ^
+    winfsp-tests-x64-oplock ^
+    winfsp-tests-x64-external-share ^
+    fsx-memfs-x64-disk ^
+    fsx-memfs-x64-net ^
+    standby-memfs-x64-disk ^
+    standby-memfs-x64-net ^
+    net-use-memfs-x64 ^
+    winfstest-memfs-x64-disk ^
+    winfstest-memfs-x64-net ^
+    fscrash-x64 ^
+    winfsp-tests-x86 ^
+    winfsp-tests-x86-case-randomize ^
+    winfsp-tests-x86-mountpoint-drive ^
+    winfsp-tests-x86-mountpoint-dir ^
+    winfsp-tests-x86-no-traverse ^
+    winfsp-tests-x86-oplock ^
+    winfsp-tests-x86-external-share ^
+    fsx-memfs-x86-disk ^
+    fsx-memfs-x86-net ^
+    standby-memfs-x86-disk ^
+    standby-memfs-x86-net ^
+    net-use-memfs-x86 ^
+    winfstest-memfs-x86-disk ^
+    winfstest-memfs-x86-net ^
+    fscrash-x86
+set opt_tests=^
+    ifstest-memfs-x64-disk ^
+    ifstest-memfs-x86-disk
+
+set tests=
+for %%f in (%dfl_tests%) do (
+    if X%2==X (
+        set tests=!tests! %%f
+    ) else (
+        set test=%%f
+        if not "X!test:%2=!"=="X!test!" set tests=!tests! %%f
+    )
+)
+for %%f in (%opt_tests%) do (
+    if X%2==X (
+        rem
+    ) else (
+        set test=%%f
+        if not "X!test:%2=!"=="X!test!" set tests=!tests! %%f
+    )
 )
 
 set testpass=0
@@ -333,6 +350,12 @@ call :__ifstest-memfs M: \Device\WinFsp.Disk
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:ifstest-memfs-x86-disk
+O:
+call :__ifstest-memfs O: \Device\WinFsp.Disk
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :__ifstest-memfs
 set IfsTestMemfsExit=0
 M:
@@ -340,31 +363,32 @@ call :__ifstest %1 /d %2 /g OpenCreateGeneral -t FileOpenByIDTest -t OpenVolumeT
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g OpenCreateParameters /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g CloseCleanupDelete /z /v
-if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g VolumeInformation /z /v
-if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g FileInformation /z /v
-if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g DirectoryInformation /z /v
-if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g FileLocking /z /v
-if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g OpLocks /z /v
-if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem call :__ifstest %1 /d %2 /g CloseCleanupDelete /z /v
+rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem call :__ifstest %1 /d %2 /g VolumeInformation /z /v
+rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem call :__ifstest %1 /d %2 /g FileInformation /z /v
+rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem call :__ifstest %1 /d %2 /g DirectoryInformation /z /v
+rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem call :__ifstest %1 /d %2 /g FileLocking /z /v
+rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem call :__ifstest %1 /d %2 /g OpLocks /z /v
+rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem call :__ifstest %1 /d %2 /g ChangeNotification /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g ReadWrite /z /v
-if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g SectionsCaching /z /v
-if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g ReparsePoints /z /v
-if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g StreamEnhancements /z /v
-if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem call :__ifstest %1 /d %2 /g ReadWrite /z /v
+rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem call :__ifstest %1 /d %2 /g SectionsCaching /z /v
+rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem call :__ifstest %1 /d %2 /g ReparsePoints /z /v
+rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem call :__ifstest %1 /d %2 /g StreamEnhancements /z /v
+rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 exit /b !IfsTestMemfsExit!
 
 :__ifstest
+set IfsTestFound=
 set IfsTestName=
 set IfsTestGroup=
 set IfsTestStatus=
@@ -387,6 +411,7 @@ for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* ^| findstr /n "
 
             if X!FieldName!==XTest (
                 set IfsTestName=!FieldValue!
+                set IfsTestFound=YES
             ) else if X!FieldName!==XGroup (
                 set IfsTestGroup=!FieldValue!
             ) else if X!FieldName!==XStatus (
@@ -416,6 +441,7 @@ for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* ^| findstr /n "
         )
     )
 )
+if not X!IfsTestFound!==XYES set IfsTestExit=1
 exit /b !IfsTestExit!
 
 :leak-test

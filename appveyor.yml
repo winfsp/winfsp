@@ -7,6 +7,8 @@ environment:
 
 install:
 - git submodule update --init --recursive
+- appveyor DownloadFile http://www.secfs.net/winfsp/resources/Test.Filter.Driver.zip
+- 7z x Test.Filter.Driver.zip
 - appveyor AddMessage "Change boot configuration and reboot" -Category Information
 - verifier /standard /driver winfsp-x64.sys
 - bcdedit /set testsigning on
@@ -20,8 +22,10 @@ build_script:
 
 test_script:
 - for %%f in ("build\VStudio\build\%CONFIGURATION%\winfsp-*.msi") do start /wait msiexec /i %%f /qn INSTALLLEVEL=1000
+- start /wait msiexec /i "Test.Filter.Driver\HCK Filter.Driver Content-x86_en-us.msi" /qn
 - tools\nmake-ext-test.bat %CONFIGURATION%
 - tools\run-tests.bat %CONFIGURATION%
+- tools\run-tests.bat %CONFIGURATION% ifstest
 
 on_finish:
 - verifier /query
