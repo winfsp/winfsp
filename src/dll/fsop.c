@@ -999,6 +999,7 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
                 Request->Req.SetInformation.Info.Basic.CreationTime,
                 Request->Req.SetInformation.Info.Basic.LastAccessTime,
                 Request->Req.SetInformation.Info.Basic.LastWriteTime,
+                Request->Req.SetInformation.Info.Basic.ChangeTime,
                 &FileInfo);
         break;
     case 19/*FileAllocationInformation*/:

@@ -1272,7 +1272,7 @@ static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
 
 static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode, UINT32 FileAttributes,
-    UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
+    UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;

@@ -300,6 +300,7 @@ typedef struct
                     UINT64 CreationTime;
                     UINT64 LastAccessTime;
                     UINT64 LastWriteTime;
+                    UINT64 ChangeTime;
                 } Basic;
                 struct
                 {

@@ -473,6 +473,9 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param LastWriteTime
      *     Last write time to apply to the file or directory. If the value 0 is sent, the last
      *     write time should not be changed.
+     * @param ChangeTime
+     *     Change time to apply to the file or directory. If the value 0 is sent, the change time
+     *     should not be changed.
      * @param FileInfo [out]
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
@@ -481,7 +484,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      */
     NTSTATUS (*SetBasicInfo)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext, UINT32 FileAttributes,
-        UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
+        UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Set file/allocation size.

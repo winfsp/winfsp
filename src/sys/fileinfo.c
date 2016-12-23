@@ -951,6 +951,7 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
         Request->Req.SetInformation.Info.Basic.CreationTime = Info->CreationTime.QuadPart;
         Request->Req.SetInformation.Info.Basic.LastAccessTime = Info->LastAccessTime.QuadPart;
         Request->Req.SetInformation.Info.Basic.LastWriteTime = Info->LastWriteTime.QuadPart;
+        Request->Req.SetInformation.Info.Basic.ChangeTime = Info->ChangeTime.QuadPart;
     }
     else
     {
@@ -973,9 +974,15 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo, FALSE);
 
         if ((UINT32)-1 != Request->Req.SetInformation.Info.Basic.FileAttributes)
+        {
+            FileDesc->DidSetFileAttributes = TRUE;
             NotifyFilter |= FILE_NOTIFY_CHANGE_ATTRIBUTES;
+        }
         if (0 != Request->Req.SetInformation.Info.Basic.CreationTime)
+        {
+            FileDesc->DidSetCreationTime = TRUE;
             NotifyFilter |= FILE_NOTIFY_CHANGE_CREATION;
+        }
         if (0 != Request->Req.SetInformation.Info.Basic.LastAccessTime)
         {
             FileDesc->DidSetLastAccessTime = TRUE;
@@ -986,6 +993,10 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
             FileDesc->DidSetLastWriteTime = TRUE;
             NotifyFilter |= FILE_NOTIFY_CHANGE_LAST_WRITE;
         }
+        if (0 != Request->Req.SetInformation.Info.Basic.ChangeTime)
+            FileDesc->DidSetChangeTime = TRUE;
+
+        FileDesc->DidSetBasicInfo = TRUE;
         FspFileNodeNotifyChange(FileNode, NotifyFilter, FILE_ACTION_MODIFIED);
     }
 

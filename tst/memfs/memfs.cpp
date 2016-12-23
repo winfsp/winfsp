@@ -1118,7 +1118,7 @@ static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
 
 static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0, UINT32 FileAttributes,
-    UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
+    UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
@@ -1136,6 +1136,8 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
         FileNode->FileInfo.LastAccessTime = LastAccessTime;
     if (0 != LastWriteTime)
         FileNode->FileInfo.LastWriteTime = LastWriteTime;
+    if (0 != ChangeTime)
+        FileNode->FileInfo.ChangeTime = ChangeTime;
 
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
 

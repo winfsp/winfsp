@@ -1197,11 +1197,12 @@ typedef struct
 {
     FSP_FILE_NODE *FileNode;
     UINT64 UserContext2;
-    BOOLEAN CaseSensitive;
-    BOOLEAN HasTraversePrivilege;
-    BOOLEAN DeleteOnClose;
-    BOOLEAN DidSetLastAccessTime, DidSetLastWriteTime;
-    BOOLEAN DirectoryHasSuchFile;
+    UINT32
+        CaseSensitive:1, HasTraversePrivilege:1, DeleteOnClose:1,
+        DidSetBasicInfo:1,
+        DidSetFileAttributes:1,
+        DidSetCreationTime:1, DidSetLastAccessTime:1, DidSetLastWriteTime:1, DidSetChangeTime:1,
+        DirectoryHasSuchFile:1;
     UNICODE_STRING DirectoryPattern;
     UINT64 DirectoryOffset;
     UINT64 DirInfo;
@@ -1313,6 +1314,7 @@ ULONG FspFileNodeDirInfoChangeNumber(FSP_FILE_NODE *FileNode)
 {
     return FileNode->DirInfoChangeNumber;
 }
+VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode);
 BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
 VOID FspFileNodeSetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,

@@ -67,6 +67,9 @@ VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG DirInfoChangeNumber);
 static VOID FspFileNodeInvalidateDirInfo(FSP_FILE_NODE *FileNode);
+static VOID FspFileNodeInvalidateDirInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
+    PUNICODE_STRING FileName);
+VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode);
 BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
 VOID FspFileNodeSetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
@@ -128,6 +131,8 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 // !#pragma alloc_text(PAGE, FspFileNodeSetDirInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeTrySetDirInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeInvalidateDirInfo)
+#pragma alloc_text(PAGE, FspFileNodeInvalidateDirInfoByName)
+#pragma alloc_text(PAGE, FspFileNodeInvalidateParentDirInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeReferenceStreamInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeSetStreamInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeTrySetStreamInfo)
@@ -1649,6 +1654,40 @@ static VOID FspFileNodeInvalidateDirInfo(FSP_FILE_NODE *FileNode)
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->DirInfoCache, DirInfo);
 }
 
+static VOID FspFileNodeInvalidateDirInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
+    PUNICODE_STRING FileName)
+{
+    PAGED_CODE();
+
+    FSP_FILE_NODE *FileNode;
+
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+    FileNode = FspFsvolDeviceLookupContextByName(FsvolDeviceObject, FileName);
+    if (0 != FileNode)
+        FspFileNodeReference(FileNode);
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    if (0 != FileNode)
+    {
+        FspFileNodeInvalidateDirInfo(FileNode);
+        FspFileNodeDereference(FileNode);
+    }
+}
+
+VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode)
+{
+    PAGED_CODE();
+
+    if (sizeof(WCHAR) == FileNode->FileName.Length && L'\\' == FileNode->FileName.Buffer[0])
+        return; /* root does not have a parent */
+
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    UNICODE_STRING Parent, Suffix;
+
+    FspFileNameSuffix(&FileNode->FileName, &Parent, &Suffix);
+    FspFileNodeInvalidateDirInfoByName(FsvolDeviceObject, &Parent);
+}
+
 BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize)
 {
     // !PAGED_CODE();
@@ -1738,7 +1777,6 @@ VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     UNICODE_STRING Parent, Suffix;
-    FSP_FILE_NODE *ParentNode;
 
     FspFileNameSuffix(&FileNode->FileName, &Parent, &Suffix);
 
@@ -1746,22 +1784,10 @@ VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
     {
     case FILE_ACTION_ADDED:
     case FILE_ACTION_REMOVED:
-    //case FILE_ACTION_MODIFIED:
     case FILE_ACTION_RENAMED_OLD_NAME:
     case FILE_ACTION_RENAMED_NEW_NAME:
         FspFsvolDeviceInvalidateVolumeInfo(FsvolDeviceObject);
-
-        FspFsvolDeviceLockContextTable(FsvolDeviceObject);
-        ParentNode = FspFsvolDeviceLookupContextByName(FsvolDeviceObject, &Parent);
-        if (0 != ParentNode)
-            FspFileNodeReference(ParentNode);
-        FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
-
-        if (0 != ParentNode)
-        {
-            FspFileNodeInvalidateDirInfo(ParentNode);
-            FspFileNodeDereference(ParentNode);
-        }
+        FspFileNodeInvalidateDirInfoByName(FsvolDeviceObject, &Parent);
         break;
     }
 

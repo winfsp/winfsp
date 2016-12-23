@@ -111,10 +111,11 @@ static NTSTATUS FspFsvolCleanup(
     Request->Req.Cleanup.UserContext2 = FileDesc->UserContext2;
     Request->Req.Cleanup.Delete = DeletePending;
     Request->Req.Cleanup.SetAllocationSize = SetAllocationSize;
-    Request->Req.Cleanup.SetArchiveBit = FileModified;
+    Request->Req.Cleanup.SetArchiveBit = FileModified && !FileDesc->DidSetFileAttributes;
     Request->Req.Cleanup.SetLastAccessTime = !FileDesc->DidSetLastAccessTime;
     Request->Req.Cleanup.SetLastWriteTime = FileModified && !FileDesc->DidSetLastWriteTime;
-    Request->Req.Cleanup.SetChangeTime = FileModified;
+    Request->Req.Cleanup.SetChangeTime = (FileModified || FileDesc->DidSetBasicInfo) &&
+        !FileDesc->DidSetChangeTime;
 
     FspFileNodeAcquireExclusive(FileNode, Pgio);
 
@@ -136,9 +137,9 @@ static NTSTATUS FspFsvolCleanup(
         return FSP_STATUS_IOQ_POST_BEST_EFFORT;
     else
     {
-        /* if the file is being resized invalidate the volume info */
-        if (FileNode->TruncateOnClose)
-            FspFsvolDeviceInvalidateVolumeInfo(IrpSp->DeviceObject);
+        if (FileDesc->DidSetBasicInfo)
+            /* invalidate the parent dir info */
+            FspFileNodeInvalidateParentDirInfo(FileNode);
 
         return STATUS_SUCCESS; /* FspFsvolCleanupRequestFini will take care of the rest! */
     }
@@ -155,12 +156,22 @@ NTSTATUS FspFsvolCleanupComplete(
 
     /* if the file is being deleted do a change notification */
     if (Request->Req.Cleanup.Delete)
+    {
         FspFileNodeNotifyChange(FileNode,
             FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
             FILE_ACTION_REMOVED);
-    /* if the file is being resized invalidate the volume info */
-    else if (FileNode->TruncateOnClose)
-        FspFsvolDeviceInvalidateVolumeInfo(IrpSp->DeviceObject);
+
+        /* FspFileNodeNotifyChange also invalidates parent dir and volume info */
+    }
+    else
+    {
+        /* invalidate the parent dir info */
+        FspFileNodeInvalidateParentDirInfo(FileNode);
+
+        /* if the file is being resized invalidate the volume info */
+        if (FileNode->TruncateOnClose)
+            FspFsvolDeviceInvalidateVolumeInfo(IrpSp->DeviceObject);
+    }
 
     FSP_LEAVE_IOC("FileObject=%p", IrpSp->FileObject);
 }
