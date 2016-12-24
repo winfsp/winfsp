@@ -385,6 +385,21 @@ MEMFS_FILE_NODE *MemfsFileNodeMapGetParent(MEMFS_FILE_NODE_MAP *FileNodeMap, PWS
 }
 
 static inline
+VOID MemfsFileNodeMapTouchParent(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode)
+{
+    NTSTATUS Result;
+    MEMFS_FILE_NODE *Parent;
+    if (L'\\' == FileNode->FileName[0] && L'\0' == FileNode->FileName[1])
+        return;
+    Parent = MemfsFileNodeMapGetParent(FileNodeMap, FileNode->FileName, &Result);
+    if (0 == Parent)
+        return;
+    Parent->FileInfo.LastAccessTime =
+    Parent->FileInfo.LastWriteTime =
+    Parent->FileInfo.ChangeTime = MemfsGetSystemTime();
+}
+
+static inline
 NTSTATUS MemfsFileNodeMapInsert(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode,
     PBOOLEAN PInserted)
 {
@@ -393,7 +408,10 @@ NTSTATUS MemfsFileNodeMapInsert(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NOD
     {
         *PInserted = FileNodeMap->insert(MEMFS_FILE_NODE_MAP::value_type(FileNode->FileName, FileNode)).second;
         if (*PInserted)
+        {
             MemfsFileNodeReference(FileNode);
+            MemfsFileNodeMapTouchParent(FileNodeMap, FileNode);
+        }
         return STATUS_SUCCESS;
     }
     catch (...)
@@ -406,7 +424,10 @@ static inline
 VOID MemfsFileNodeMapRemove(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode)
 {
     if (FileNodeMap->erase(FileNode->FileName))
+    {
+        MemfsFileNodeMapTouchParent(FileNodeMap, FileNode);
         MemfsFileNodeDereference(FileNode);
+    }
 }
 
 static inline
