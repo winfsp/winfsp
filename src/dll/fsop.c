@@ -189,7 +189,10 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
             ParentDesiredAccess = FILE_ADD_SUBDIRECTORY;
         else
             ParentDesiredAccess = FILE_ADD_FILE;
-        if ((Request->Req.Create.FileAttributes & FILE_ATTRIBUTE_READONLY) &&
+        if (Request->Req.Create.HasTrailingBackslash &&
+            !(Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE))
+            Result = STATUS_OBJECT_NAME_INVALID;
+        else if ((Request->Req.Create.FileAttributes & FILE_ATTRIBUTE_READONLY) &&
             (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE))
             Result = STATUS_CANNOT_DELETE;
         else
@@ -209,11 +212,14 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
     {
         *PSecurityDescriptor = 0;
 
-        Result = FspAccessCheckEx(FileSystem, Request, TRUE, AllowTraverseCheck,
-            Request->Req.Create.DesiredAccess |
-                FILE_WRITE_DATA |
-                ((Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE) ? DELETE : 0),
-            &GrantedAccess, 0);
+        if (Request->Req.Create.HasTrailingBackslash)
+            Result = STATUS_OBJECT_NAME_INVALID;
+        else
+            Result = FspAccessCheckEx(FileSystem, Request, TRUE, AllowTraverseCheck,
+                Request->Req.Create.DesiredAccess |
+                    FILE_WRITE_DATA |
+                    ((Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE) ? DELETE : 0),
+                &GrantedAccess, 0);
         if (STATUS_REPARSE == Result)
             Result = FspFileSystemCallResolveReparsePoints(FileSystem, Request, Response, GrantedAccess);
         else if (NT_SUCCESS(Result))

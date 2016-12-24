@@ -193,6 +193,7 @@ static NTSTATUS FspFsvolCreateNoLock(
         BooleanFlagOn(AccessState->Flags, TOKEN_HAS_BACKUP_PRIVILEGE);
     BOOLEAN HasRestorePrivilege =
         BooleanFlagOn(AccessState->Flags, TOKEN_HAS_RESTORE_PRIVILEGE);
+    BOOLEAN HasTrailingBackslash = FALSE;
     FSP_FILE_NODE *FileNode, *RelatedFileNode;
     FSP_FILE_DESC *FileDesc;
     UNICODE_STRING MainFileName = { 0 }, StreamPart = { 0 };
@@ -350,12 +351,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     if (sizeof(WCHAR) * 2/* not empty or root */ <= FileNode->FileName.Length &&
         L'\\' == FileNode->FileName.Buffer[FileNode->FileName.Length / sizeof(WCHAR) - 1])
     {
-        if (!FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
-        {
-            FspFileNodeDereference(FileNode);
-            return STATUS_OBJECT_NAME_INVALID;
-        }
-
+        HasTrailingBackslash = TRUE;
         FileNode->FileName.Length -= sizeof(WCHAR);
     }
 
@@ -507,6 +503,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     Request->Req.Create.HasRestorePrivilege = HasRestorePrivilege;
     Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);
     Request->Req.Create.CaseSensitive = CaseSensitive;
+    Request->Req.Create.HasTrailingBackslash = HasTrailingBackslash;
     Request->Req.Create.NamedStream = MainFileName.Length;
 
     ASSERT(

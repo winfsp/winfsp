@@ -232,7 +232,8 @@ typedef struct
             UINT32 HasRestorePrivilege:1;   /* requestor has TOKEN_HAS_RESTORE_PRIVILEGE */
             UINT32 OpenTargetDirectory:1;   /* open target dir and report FILE_{EXISTS,DOES_NOT_EXIST} */
             UINT32 CaseSensitive:1;         /* FileName comparisons should be case-sensitive */
-            UINT32 ReservedFlags:26;
+            UINT32 HasTrailingBackslash:1;  /* FileName had trailing backslash */
+            UINT32 ReservedFlags:25;
             UINT16 NamedStream;             /* request targets named stream; colon offset in FileName */
         } Create;
         struct

@@ -191,6 +191,13 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
         goto exit;
 
+    if (!CheckParentOrMain && Request->Req.Create.HasTrailingBackslash &&
+        !(FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+        Result = STATUS_OBJECT_NAME_INVALID;
+        goto exit;
+    }
+
     if (Request->Req.Create.UserMode && 0 < SecurityDescriptorSize)
     {
         if (0 == DesiredAccess)
