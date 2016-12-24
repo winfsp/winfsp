@@ -1091,16 +1091,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
 NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0)
 {
-    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
-
     /* nothing to flush, since we do not cache anything */
-
-    if (0 != FileNode)
-    {
-        FileNode->FileInfo.LastAccessTime =
-        FileNode->FileInfo.LastWriteTime =
-        FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
-    }
 
     return STATUS_SUCCESS;
 }
@@ -1202,10 +1193,6 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     Result = SetFileSizeInternal(FileSystem, FileNode0, NewSize, SetAllocationSize);
     if (!NT_SUCCESS(Result))
         return Result;
-
-    FileNode->FileInfo.LastAccessTime =
-    FileNode->FileInfo.LastWriteTime =
-    FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
 
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
 
@@ -1358,8 +1345,6 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     free(FileNode->FileSecurity);
     FileNode->FileSecuritySize = FileSecuritySize;
     FileNode->FileSecurity = FileSecurity;
-
-    FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
 
     return STATUS_SUCCESS;
 }
@@ -1565,8 +1550,6 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     FileNode->ReparseData = ReparseData;
     memcpy(FileNode->ReparseData, Buffer, Size);
 
-    FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
-
     return STATUS_SUCCESS;
 }
 
@@ -1599,8 +1582,6 @@ static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     FileNode->FileInfo.ReparseTag = 0;
     FileNode->ReparseDataSize = 0;
     FileNode->ReparseData = 0;
-
-    FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
 
     return STATUS_SUCCESS;
 }

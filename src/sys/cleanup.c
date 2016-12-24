@@ -114,7 +114,7 @@ static NTSTATUS FspFsvolCleanup(
     Request->Req.Cleanup.SetArchiveBit = FileModified && !FileDesc->DidSetFileAttributes;
     Request->Req.Cleanup.SetLastAccessTime = !FileDesc->DidSetLastAccessTime;
     Request->Req.Cleanup.SetLastWriteTime = FileModified && !FileDesc->DidSetLastWriteTime;
-    Request->Req.Cleanup.SetChangeTime = (FileModified || FileDesc->DidSetBasicInfo) &&
+    Request->Req.Cleanup.SetChangeTime = (FileModified || FileDesc->DidSetMetadata) &&
         !FileDesc->DidSetChangeTime;
 
     FspFileNodeAcquireExclusive(FileNode, Pgio);
@@ -137,7 +137,7 @@ static NTSTATUS FspFsvolCleanup(
         return FSP_STATUS_IOQ_POST_BEST_EFFORT;
     else
     {
-        if (FileDesc->DidSetBasicInfo)
+        if (FileDesc->DidSetMetadata)
             /* invalidate the parent dir info */
             FspFileNodeInvalidateParentDirInfo(FileNode);
 

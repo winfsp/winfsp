@@ -279,7 +279,14 @@ static NTSTATUS FspFsvolFileSystemControlReparsePointComplete(
     PAGED_CODE();
 
     if (IsWrite)
+    {
+        PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+        FSP_FILE_DESC *FileDesc = IrpSp->FileObject->FsContext2;
+
+        FileDesc->DidSetMetadata = TRUE;
+
         return STATUS_SUCCESS;
+    }
 
     NTSTATUS Result;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);

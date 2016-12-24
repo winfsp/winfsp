@@ -1199,7 +1199,7 @@ typedef struct
     UINT64 UserContext2;
     UINT32
         CaseSensitive:1, HasTraversePrivilege:1, DeleteOnClose:1,
-        DidSetBasicInfo:1,
+        DidSetMetadata:1,
         DidSetFileAttributes:1,
         DidSetCreationTime:1, DidSetLastAccessTime:1, DidSetLastWriteTime:1, DidSetChangeTime:1,
         DirectoryHasSuchFile:1;

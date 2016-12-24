@@ -254,7 +254,10 @@ NTSTATUS FspFsvolSetSecurityComplete(
 
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+
+    ASSERT(FileNode == FileDesc->FileNode);
 
     /* if the security descriptor that we got back is valid */
     if (0 < Response->Rsp.SetSecurity.SecurityDescriptor.Size &&
@@ -272,6 +275,8 @@ NTSTATUS FspFsvolSetSecurityComplete(
         /* invalidate the cached security */
         FspFileNodeSetSecurity(FileNode, 0, 0);
     }
+
+    FileDesc->DidSetMetadata = TRUE;
 
     FspIopRequestContext(Request, RequestFileNode) = 0;
     FspFileNodeReleaseOwner(FileNode, Full, Request);

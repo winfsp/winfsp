@@ -149,7 +149,21 @@ NTSTATUS FspFsvolFlushBuffersComplete(
     else if (!NT_SUCCESS(FlushResult))
         Result = FlushResult;
     else
+    {
+        PFILE_OBJECT FileObject = IrpSp->FileObject;
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
+
+        /*
+         * A flush request on the volume (or the root directory according to FastFat)
+         * is a request to flush the whole volume.
+         */
+        if (!FspFileNodeIsValid(FileNode) || FileNode->IsRootDirectory)
+            ;
+        else
+            SetFlag(FileObject->Flags, FO_FILE_MODIFIED);
+
         Result = STATUS_SUCCESS;
+    }
 
     FSP_LEAVE_IOC("FileObject=%p",
         IrpSp->FileObject);
