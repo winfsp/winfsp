@@ -160,7 +160,7 @@ NTSTATUS FspFsvolFlushBuffersComplete(
         if (!FspFileNodeIsValid(FileNode) || FileNode->IsRootDirectory)
             ;
         else
-            SetFlag(FileObject->Flags, FO_FILE_MODIFIED);
+            FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.FlushBuffers.FileInfo, TRUE);
 
         Result = STATUS_SUCCESS;
     }

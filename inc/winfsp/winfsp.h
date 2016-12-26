@@ -433,11 +433,16 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     The file system on which this request is posted.
      * @param FileContext
      *     The file context of the file to be flushed. When NULL the whole volume is being flushed.
+     * @param FileInfo [out]
+     *     Pointer to a structure that will receive the file information on successful return
+     *     from this call. This information includes file attributes, file times, etc. Used when
+     *     flushing file (not volume).
      * @return
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Flush)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileContext);
+        PVOID FileContext,
+        FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Get file or directory information.
      *

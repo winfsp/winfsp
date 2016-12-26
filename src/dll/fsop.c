@@ -961,11 +961,21 @@ FSP_API NTSTATUS FspFileSystemOpWrite(FSP_FILE_SYSTEM *FileSystem,
 FSP_API NTSTATUS FspFileSystemOpFlushBuffers(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
-    if (0 == FileSystem->Interface->Flush)
-        return STATUS_SUCCESS; /* liar! */
+    NTSTATUS Result;
+    FSP_FSCTL_FILE_INFO FileInfo;
 
-    return FileSystem->Interface->Flush(FileSystem,
-        (PVOID)ValOfFileContext(Request->Req.FlushBuffers));
+    memset(&FileInfo, 0, sizeof FileInfo);
+    if (0 == FileSystem->Interface->Flush)
+        Result = FileSystem->Interface->GetFileInfo(FileSystem,
+            (PVOID)ValOfFileContext(Request->Req.FlushBuffers), &FileInfo);
+    else
+        Result = FileSystem->Interface->Flush(FileSystem,
+            (PVOID)ValOfFileContext(Request->Req.FlushBuffers), &FileInfo);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    memcpy(&Response->Rsp.FlushBuffers.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
 }
 
 FSP_API NTSTATUS FspFileSystemOpQueryInformation(FSP_FILE_SYSTEM *FileSystem,

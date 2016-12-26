@@ -1110,9 +1110,30 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
 }
 
 NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode0)
+    PVOID FileNode0,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    /* nothing to flush, since we do not cache anything */
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    /*  nothing to flush, since we do not cache anything */
+
+    if (0 != FileNode)
+    {
+#if 0
+#if defined(MEMFS_NAMED_STREAMS)
+        if (0 != FileNode->MainFileNode)
+            FileNode->MainFileNode->FileInfo.LastAccessTime =
+            FileNode->MainFileNode->FileInfo.LastWriteTime =
+            FileNode->MainFileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
+        else
+#endif
+        FileNode->FileInfo.LastAccessTime =
+        FileNode->FileInfo.LastWriteTime =
+        FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
+#endif
+
+        MemfsFileNodeGetFileInfo(FileNode, FileInfo);
+    }
 
     return STATUS_SUCCESS;
 }

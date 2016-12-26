@@ -1215,11 +1215,14 @@ success:
 }
 
 static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode)
+    PVOID FileNode,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc = FileNode;
+    UINT32 Uid, Gid, Mode;
     struct fuse_file_info fi;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
     int err;
     NTSTATUS Result;
 
@@ -1249,8 +1252,17 @@ static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
     }
+    if (!NT_SUCCESS(Result))
+        return Result;
 
-    return Result;
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+        &Uid, &Gid, &Mode, &FileInfoBuf);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,

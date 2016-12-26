@@ -423,6 +423,10 @@ typedef struct
         } SetInformation;
         struct
         {
+            FSP_FSCTL_FILE_INFO FileInfo;       /* valid when flushing file (not volume) */
+        } FlushBuffers;
+        struct
+        {
             FSP_FSCTL_VOLUME_INFO VolumeInfo;
         } QueryVolumeInformation;
         struct
