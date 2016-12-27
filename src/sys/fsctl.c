@@ -31,6 +31,8 @@ static IO_COMPLETION_ROUTINE FspFsvolFileSystemControlOplockCompletion;
 static WORKER_THREAD_ROUTINE FspFsvolFileSystemControlOplockCompletionWork;
 static NTSTATUS FspFsvolFileSystemControlQueryPersistentVolumeState(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolFileSystemControlGetStatistics(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolFileSystemControlComplete;
@@ -45,6 +47,7 @@ FSP_DRIVER_DISPATCH FspFileSystemControl;
 // !#pragma alloc_text(PAGE, FspFsvolFileSystemControlOplockCompletion)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlOplockCompletionWork)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlQueryPersistentVolumeState)
+#pragma alloc_text(PAGE, FspFsvolFileSystemControlGetStatistics)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControl)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlComplete)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlRequestFini)
@@ -513,6 +516,23 @@ static NTSTATUS FspFsvolFileSystemControlQueryPersistentVolumeState(
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS FspFsvolFileSystemControlGetStatistics(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG Length = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+
+    Result = FspStatisticsCopy(FsvolDeviceExtension->Statistics, Buffer, &Length);
+
+    Irp->IoStatus.Information = Length;
+
+    return Result;
+}
+
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -548,6 +568,9 @@ static NTSTATUS FspFsvolFileSystemControl(
             break;
         case FSCTL_QUERY_PERSISTENT_VOLUME_STATE:
             Result = FspFsvolFileSystemControlQueryPersistentVolumeState(FsvolDeviceObject, Irp, IrpSp);
+            break;
+        case FSCTL_FILESYSTEM_GET_STATISTICS:
+            Result = FspFsvolFileSystemControlGetStatistics(FsvolDeviceObject, Irp, IrpSp);
             break;
         }
         break;

@@ -177,6 +177,7 @@
     <ClCompile Include="..\..\src\sys\read.c" />
     <ClCompile Include="..\..\src\sys\security.c" />
     <ClCompile Include="..\..\src\sys\shutdown.c" />
+    <ClCompile Include="..\..\src\sys\statistics.c" />
     <ClCompile Include="..\..\src\sys\util.c" />
     <ClCompile Include="..\..\src\sys\volinfo.c" />
     <ClCompile Include="..\..\src\sys\volume.c" />

@@ -284,6 +284,28 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference)
     /*
      * HACK:
      *
+     * We update the Create statistics here to avoid doing it in multiple places.
+     */
+    if (IRP_MJ_CREATE == IrpSp->MajorFunction)
+    {
+        FSP_DEVICE_EXTENSION *DeviceExtension = FspDeviceExtension(DeviceObject);
+
+        if (FspFsvolDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind)
+        {
+            FSP_STATISTICS *Statistics = FspStatistics(
+                ((FSP_FSVOL_DEVICE_EXTENSION *)DeviceExtension)->Statistics);
+
+            FspStatisticsInc(Statistics, Specific.CreateHits);
+            if (STATUS_SUCCESS == Result)
+                FspStatisticsInc(Statistics, Specific.SuccessfulCreates);
+            else
+                FspStatisticsInc(Statistics, Specific.FailedCreates);
+        }
+    }
+    else
+    /*
+     * HACK:
+     *
      * Turns out that SRV2 sends an undocumented flavor of IRP_MJ_DIRECTORY_CONTROL /
      * IRP_MN_QUERY_DIRECTORY. These IRP's have a non-NULL Irp->MdlAddress. They expect
      * the FSD to fill the buffer pointed by Irp->MdlAddress and they cannot handle

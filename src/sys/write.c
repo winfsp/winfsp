@@ -394,6 +394,20 @@ static NTSTATUS FspFsvolWriteNonCached(
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;
 
+    FSP_STATISTICS *Statistics = FspFsvolDeviceStatistics(FsvolDeviceObject);
+    if (PagingIo)
+    {
+        FspStatisticsInc(Statistics, Base.UserFileWrites);
+        FspStatisticsAdd(Statistics, Base.UserFileWriteBytes, WriteLength);
+        FspStatisticsInc(Statistics, Base.UserDiskWrites);
+    }
+    else
+    {
+        FspStatisticsInc(Statistics, Specific.NonCachedWrites);
+        FspStatisticsAdd(Statistics, Specific.NonCachedWriteBytes, WriteLength);
+        FspStatisticsInc(Statistics, Specific.NonCachedDiskWrites);
+    }
+
     return FSP_STATUS_IOQ_POST;
 }
 

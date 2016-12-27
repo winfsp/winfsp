@@ -176,6 +176,8 @@ NTSTATUS DriverEntry(
 
 static VOID FspDriverMultiVersionInitialize(VOID)
 {
+    FspProcessorCount = KeQueryActiveProcessorCount(0);
+
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
 
     if (RtlIsNtDdiVersionAvailable(NTDDI_WIN7))
@@ -216,5 +218,6 @@ PDEVICE_OBJECT FspFsctlNetDeviceObject;
 FAST_IO_DISPATCH FspFastIoDispatch;
 CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 
+ULONG FspProcessorCount;
 FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
 ULONG FspMvMdlMappingNoWrite = 0;

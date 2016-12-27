@@ -364,6 +364,12 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     InitializeListHead(&FsvolDeviceExtension->NotifyList);
     FsvolDeviceExtension->InitDoneNotify = 1;
 
+    /* create file system statistics */
+    Result = FspStatisticsCreate(&FsvolDeviceExtension->Statistics);
+    if (!NT_SUCCESS(Result))
+        return Result;
+    FsvolDeviceExtension->InitDoneStat = 1;
+
     /* initialize our context table */
     ExInitializeResourceLite(&FsvolDeviceExtension->FileRenameResource);
     ExInitializeResourceLite(&FsvolDeviceExtension->ContextTableResource);
@@ -407,6 +413,10 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
      */
     if (FsvolDeviceExtension->InitDoneTimer)
         IoStopTimer(DeviceObject);
+
+    /* delete the file system statistics */
+    if (FsvolDeviceExtension->InitDoneStat)
+        FspStatisticsDelete(FsvolDeviceExtension->Statistics);
 
     /* uninitialize the FSRTL Notify mechanism */
     if (FsvolDeviceExtension->InitDoneNotify)

@@ -949,6 +949,21 @@ VOID FspWqPostIrpWorkItem(PIRP Irp);
 #define FspWqRepostIrpWorkItem(I, RW, RF)\
     FspWqCreateAndPostIrpWorkItem(I, RW, RF, TRUE)
 
+/* file system statistics */
+typedef struct
+{
+    FILESYSTEM_STATISTICS Base;
+    FAT_STATISTICS Specific;            /* pretend that we are FAT when it comes to stats */
+    /* align to 64 bytes */
+    __declspec(align(64)) UINT8 EndOfStruct[];
+} FSP_STATISTICS;
+NTSTATUS FspStatisticsCreate(FSP_STATISTICS **PStatistics);
+VOID FspStatisticsDelete(FSP_STATISTICS *Statistics);
+NTSTATUS FspStatisticsCopy(FSP_STATISTICS *Statistics, PVOID Buffer, PULONG PLength);
+#define FspStatistics(S)                (&(S)[KeGetCurrentProcessorNumber() % FspProcessorCount])
+#define FspStatisticsInc(S,F)           ((S)->F++)
+#define FspStatisticsAdd(S,F,V)         ((S)->F += (V))
+
 /* device management */
 enum
 {
@@ -990,7 +1005,7 @@ typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
     UINT32 InitDoneFsvrt:1, InitDoneIoq:1, InitDoneSec:1, InitDoneDir:1, InitDoneStrm:1,
-        InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1, InitDoneNotify:1;
+        InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1, InitDoneNotify:1, InitDoneStat:1;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     HANDLE MupHandle;
@@ -1016,6 +1031,7 @@ typedef struct
     FSP_FSCTL_VOLUME_INFO VolumeInfo;
     PNOTIFY_SYNC NotifySync;
     LIST_ENTRY NotifyList;
+    FSP_STATISTICS *Statistics;
 } FSP_FSVOL_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
@@ -1083,6 +1099,8 @@ VOID FspDeviceGlobalUnlock(VOID)
     extern ERESOURCE FspDeviceGlobalResource;
     ExReleaseResourceLite(&FspDeviceGlobalResource);
 }
+#define FspFsvolDeviceStatistics(DeviceObject)\
+    FspStatistics(FspFsvolDeviceExtension(DeviceObject)->Statistics)
 #define FspFsvolDeviceStoppedStatus(DeviceObject)\
     STATUS_VOLUME_DISMOUNTED
     //(FILE_DEVICE_DISK_FILE_SYSTEM == (DeviceObject)->DeviceType ?\
@@ -1486,6 +1504,7 @@ extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
 extern ERESOURCE FspDeviceGlobalResource;
 extern WCHAR FspFileDescDirectoryPatternMatchAll[];
 extern const GUID FspMainFileOpenEcpGuid;
+extern ULONG FspProcessorCount;
 extern FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
 extern ULONG FspMvMdlMappingNoWrite;
 

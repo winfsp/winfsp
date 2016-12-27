@@ -324,6 +324,20 @@ static NTSTATUS FspFsvolReadNonCached(
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;
 
+    FSP_STATISTICS *Statistics = FspFsvolDeviceStatistics(FsvolDeviceObject);
+    if (PagingIo)
+    {
+        FspStatisticsInc(Statistics, Base.UserFileReads);
+        FspStatisticsAdd(Statistics, Base.UserFileReadBytes, ReadLength);
+        FspStatisticsInc(Statistics, Base.UserDiskReads);
+    }
+    else
+    {
+        FspStatisticsInc(Statistics, Specific.NonCachedReads);
+        FspStatisticsAdd(Statistics, Specific.NonCachedReadBytes, ReadLength);
+        FspStatisticsInc(Statistics, Specific.NonCachedDiskReads);
+    }
+
     return FSP_STATUS_IOQ_POST;
 }
 
