@@ -36,7 +36,7 @@ NTSTATUS FspStatisticsCreate(FSP_STATISTICS **PStatistics)
     RtlZeroMemory(*PStatistics, sizeof(FSP_STATISTICS) * FspProcessorCount);
     for (ULONG Index = 0; FspProcessorCount > Index; Index++)
     {
-        FSP_STATISTICS *Statistics = PStatistics[Index];
+        FSP_STATISTICS *Statistics = *PStatistics + Index;
 
         /* pretend that we are FAT when it comes to stats */
         Statistics->Base.FileSystemType = FILESYSTEM_STATISTICS_TYPE_FAT;
