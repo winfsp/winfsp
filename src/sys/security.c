@@ -276,7 +276,10 @@ NTSTATUS FspFsvolSetSecurityComplete(
         FspFileNodeSetSecurity(FileNode, 0, 0);
     }
 
+    FileDesc->DidSetSecurity = TRUE;
     FileDesc->DidSetMetadata = TRUE;
+
+    FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SECURITY, FILE_ACTION_MODIFIED, FALSE);
 
     FspIopRequestContext(Request, RequestFileNode) = 0;
     FspFileNodeReleaseOwner(FileNode, Full, Request);

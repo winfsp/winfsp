@@ -111,7 +111,8 @@ static NTSTATUS FspFsvolCleanup(
     Request->Req.Cleanup.UserContext2 = FileDesc->UserContext2;
     Request->Req.Cleanup.Delete = DeletePending;
     Request->Req.Cleanup.SetAllocationSize = SetAllocationSize;
-    Request->Req.Cleanup.SetArchiveBit = FileModified && !FileDesc->DidSetFileAttributes;
+    Request->Req.Cleanup.SetArchiveBit = (FileModified || FileDesc->DidSetSecurity) &&
+        !FileDesc->DidSetFileAttributes;
     Request->Req.Cleanup.SetLastAccessTime = !FileDesc->DidSetLastAccessTime;
     Request->Req.Cleanup.SetLastWriteTime = FileModified && !FileDesc->DidSetLastWriteTime;
     Request->Req.Cleanup.SetChangeTime = (FileModified || FileDesc->DidSetMetadata) &&
@@ -162,7 +163,7 @@ NTSTATUS FspFsvolCleanupComplete(
 
     ASSERT(FileNode == FileDesc->FileNode);
 
-    /* do the appropriate change notification; also invalidate dirinfo/etc. caches */
+    /* send the appropriate notification; also invalidate dirinfo/etc. caches */
     if (Request->Req.Cleanup.Delete)
     {
         NotifyFilter = FileNode->IsDirectory ?
@@ -171,13 +172,17 @@ NTSTATUS FspFsvolCleanupComplete(
     }
     else
     {
-        /* do change notification for any metadata changes */
+        /* send notification for any metadata changes */
         NotifyFilter = 0;
+#if 0
+        /* do not send notification when resetting the allocation size */
         if (Request->Req.Cleanup.SetAllocationSize)
             NotifyFilter |= FILE_NOTIFY_CHANGE_SIZE;
+#endif
         if (Request->Req.Cleanup.SetArchiveBit)
             NotifyFilter |= FILE_NOTIFY_CHANGE_ATTRIBUTES;
 #if 0
+        /* do not send notification for implicit LastAccessTime changes */
         if (Request->Req.Cleanup.SetLastAccessTime)
             NotifyFilter |= FILE_NOTIFY_CHANGE_LAST_ACCESS;
 #endif

@@ -1220,6 +1220,7 @@ typedef struct
         DidSetMetadata:1,
         DidSetFileAttributes:1,
         DidSetCreationTime:1, DidSetLastAccessTime:1, DidSetLastWriteTime:1, DidSetChangeTime:1,
+        DidSetSecurity:1,
         DirectoryHasSuchFile:1;
     UNICODE_STRING DirectoryPattern;
     UINT64 DirectoryOffset;
