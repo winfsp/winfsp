@@ -359,6 +359,8 @@ exit /b 0
 :__ifstest-memfs
 set IfsTestMemfsExit=0
 M:
+rem call :__ifstest %1 /d %2 /g Security /z /v
+rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g OpenCreateGeneral -t FileOpenByIDTest -t OpenVolumeTest /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g OpenCreateParameters /z /v
@@ -375,8 +377,8 @@ call :__ifstest %1 /d %2 /g FileLocking /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem call :__ifstest %1 /d %2 /g OpLocks /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-rem call :__ifstest %1 /d %2 /g ChangeNotification /z /v
-rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /d %2 /g ChangeNotification /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g ReadWrite /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g SectionsCaching /z /v
