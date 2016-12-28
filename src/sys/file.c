@@ -74,9 +74,9 @@ BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer,
 VOID FspFileNodeSetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG StreamInfoChangeNumber);
-static VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode);
-VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
-    ULONG Filter, ULONG Action);
+VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode);
+VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action,
+    BOOLEAN InvalidateCaches);
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
 static NTSTATUS FspFileNodeCompleteLockIrp(PVOID Context, PIRP Irp);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
@@ -1746,7 +1746,7 @@ BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULON
     return TRUE;
 }
 
-static VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode)
+VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode)
 {
     // !PAGED_CODE();
 
@@ -1767,8 +1767,8 @@ static VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode)
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->StreamInfoCache, StreamInfo);
 }
 
-VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
-    ULONG Filter, ULONG Action)
+VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action,
+    BOOLEAN InvalidateCaches)
 {
     /* FileNode must be acquired (exclusive or shared) Main */
 
@@ -1777,19 +1777,6 @@ VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     UNICODE_STRING Parent, Suffix;
-
-    FspFileNameSuffix(&FileNode->FileName, &Parent, &Suffix);
-
-    switch (Action)
-    {
-    case FILE_ACTION_ADDED:
-    case FILE_ACTION_REMOVED:
-    case FILE_ACTION_RENAMED_OLD_NAME:
-    case FILE_ACTION_RENAMED_NEW_NAME:
-        FspFsvolDeviceInvalidateVolumeInfo(FsvolDeviceObject);
-        FspFileNodeInvalidateDirInfoByName(FsvolDeviceObject, &Parent);
-        break;
-    }
 
     if (0 != FileNode->MainFileNode)
     {
@@ -1804,25 +1791,40 @@ VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode,
         {
         case FILE_ACTION_ADDED:
             Action = FILE_ACTION_ADDED_STREAM;
-            FspFileNodeInvalidateStreamInfo(FileNode);
             break;
         case FILE_ACTION_REMOVED:
             Action = FILE_ACTION_REMOVED_STREAM;
-            FspFileNodeInvalidateStreamInfo(FileNode);
             break;
         case FILE_ACTION_MODIFIED:
             Action = FILE_ACTION_MODIFIED_STREAM;
-            //FspFileNodeInvalidateStreamInfo(FileNode);
             break;
         }
     }
 
     if (0 != Filter)
+    {
+        FspFileNameSuffix(&FileNode->FileName, &Parent, &Suffix);
+
+        if (InvalidateCaches)
+        {
+            FspFsvolDeviceInvalidateVolumeInfo(FsvolDeviceObject);
+            if (0 == FileNode->MainFileNode)
+            {
+                if (sizeof(WCHAR) == FileNode->FileName.Length && L'\\' == FileNode->FileName.Buffer[0])
+                    ; /* root does not have a parent */
+                else
+                    FspFileNodeInvalidateDirInfoByName(FsvolDeviceObject, &Parent);
+            }
+            else
+                FspFileNodeInvalidateStreamInfo(FileNode);
+        }
+
         FspNotifyReportChange(
             FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList,
             &FileNode->FileName,
             (USHORT)((PUINT8)Suffix.Buffer - (PUINT8)FileNode->FileName.Buffer),
             0, Filter, Action);
+    }
 }
 
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp)

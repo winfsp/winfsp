@@ -1344,7 +1344,9 @@ ULONG FspFileNodeStreamInfoChangeNumber(FSP_FILE_NODE *FileNode)
         FileNode = FileNode->MainFileNode;
     return FileNode->StreamInfoChangeNumber;
 }
-VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action);
+VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode);
+VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action,
+    BOOLEAN InvalidateCaches);
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);

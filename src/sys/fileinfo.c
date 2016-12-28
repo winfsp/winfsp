@@ -906,7 +906,7 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
         /* mark the file object as modified */
         SetFlag(FileObject->Flags, FO_FILE_MODIFIED);
 
-        FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED);
+        FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED, FALSE);
     }
 
     return STATUS_SUCCESS;
@@ -997,7 +997,7 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
             FileDesc->DidSetChangeTime = TRUE;
 
         FileDesc->DidSetMetadata = TRUE;
-        FspFileNodeNotifyChange(FileNode, NotifyFilter, FILE_ACTION_MODIFIED);
+        FspFileNodeNotifyChange(FileNode, NotifyFilter, FILE_ACTION_MODIFIED, FALSE);
     }
 
     return STATUS_SUCCESS;
@@ -1047,7 +1047,7 @@ static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
         /* mark the file object as modified -- FastFat does this only for Allocation though! */
         SetFlag(FileObject->Flags, FO_FILE_MODIFIED);
 
-        FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED);
+        FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED, FALSE);
     }
 
     return STATUS_SUCCESS;
@@ -1394,7 +1394,8 @@ static NTSTATUS FspFsvolSetRenameInformationSuccess(
     /* fastfat has some really arcane rules on rename notifications; simplify! */
     FspFileNodeNotifyChange(FileNode,
         FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
-        FILE_ACTION_RENAMED_OLD_NAME);
+        FILE_ACTION_RENAMED_OLD_NAME,
+        TRUE);
 
     NewFileName.Length = NewFileName.MaximumLength =
         Request->Req.SetInformation.Info.Rename.NewFileName.Size - sizeof(WCHAR);
@@ -1405,7 +1406,8 @@ static NTSTATUS FspFsvolSetRenameInformationSuccess(
     /* fastfat has some really arcane rules on rename notifications; simplify! */
     FspFileNodeNotifyChange(FileNode,
         FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
-        FILE_ACTION_RENAMED_NEW_NAME);
+        FILE_ACTION_RENAMED_NEW_NAME,
+        TRUE);
 
     FspIopRequestContext(Request, RequestFileNode) = 0;
     FspIopRequestContext(Request, RequestDeviceObject) = 0;

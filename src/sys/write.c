@@ -487,7 +487,7 @@ NTSTATUS FspFsvolWriteComplete(
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Write.FileInfo, TRUE);
 
         if (OriginalFileSize != Response->Rsp.Write.FileInfo.FileSize)
-            FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED);
+            FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED, FALSE);
 
         /* update the current file offset if synchronous I/O (and not paging I/O) */
         if (SynchronousIo && !PagingIo)
