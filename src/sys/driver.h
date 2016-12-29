@@ -1208,7 +1208,7 @@ typedef struct FSP_FILE_NODE
     UINT64 IndexNumber;
     BOOLEAN IsDirectory;
     BOOLEAN IsRootDirectory;
-    struct FSP_FILE_NODE *MainFileNode; /* this becomes invalid after our last desc close */
+    struct FSP_FILE_NODE *MainFileNode;
     WCHAR FileNameBuf[];
 } FSP_FILE_NODE;
 typedef struct

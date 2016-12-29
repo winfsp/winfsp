@@ -252,6 +252,9 @@ VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode)
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
         FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
 
+    if (0 != FileNode->MainFileNode)
+        FspFileNodeDereference(FileNode->MainFileNode);
+
     FsRtlUninitializeOplock(FspFileNodeAddrOfOplock(FileNode));
     FsRtlUninitializeFileLock(&FileNode->FileLock);
 

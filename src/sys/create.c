@@ -444,7 +444,9 @@ static NTSTATUS FspFsvolCreateNoLock(
         FileAttributes = 0;
 
         /* remember the main file node */
+        ASSERT(0 == FileNode->MainFileNode);
         FileNode->MainFileNode = FileDesc->MainFileObject->FsContext;
+        FspFileNodeReference(FileNode->MainFileNode);
 
         Result = STATUS_SUCCESS;
 
