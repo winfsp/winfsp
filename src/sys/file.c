@@ -166,6 +166,65 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
     if (IrpValid)                       \
         FspIrpSetFlags(Irp, FspIrpFlags(Irp) & (~Flags & 3))
 
+#define GATHER_DESCENDANTS(FILENAME, REFERENCE, ...)\
+    FSP_FILE_NODE *DescendantFileNode;\
+    FSP_FILE_NODE *DescendantFileNodeArray[16], **DescendantFileNodes;\
+    ULONG DescendantFileNodeCount, DescendantFileNodeIndex;\
+    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY RestartKey;\
+    DescendantFileNodes = DescendantFileNodeArray;\
+    DescendantFileNodeCount = 0;\
+    memset(&RestartKey, 0, sizeof RestartKey);\
+    for (;;)                            \
+    {                                   \
+        DescendantFileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject,\
+            FILENAME, FALSE, &RestartKey);\
+        if (0 == DescendantFileNode)    \
+            break;                      \
+        ASSERT(0 == ((UINT_PTR)DescendantFileNode & 7));\
+        __VA_ARGS__;                    \
+        if (REFERENCE)                  \
+            FspFileNodeReference((PVOID)((UINT_PTR)DescendantFileNode & ~7));\
+        if (ARRAYSIZE(DescendantFileNodeArray) > DescendantFileNodeCount)\
+            DescendantFileNodes[DescendantFileNodeCount] = DescendantFileNode;\
+        DescendantFileNodeCount++;      \
+    }                                   \
+    if (ARRAYSIZE(DescendantFileNodeArray) < DescendantFileNodeCount ||\
+        DEBUGTEST_EX(0 != DescendantFileNodeCount, 10, FALSE))  \
+    {                                   \
+        DescendantFileNodes = FspAllocMustSucceed(DescendantFileNodeCount * sizeof(FSP_FILE_NODE *));\
+        DescendantFileNodeIndex = 0;    \
+        memset(&RestartKey, 0, sizeof RestartKey);\
+        for (;;)                        \
+        {                               \
+            DescendantFileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject,\
+                FILENAME, FALSE, &RestartKey);\
+            if (0 == DescendantFileNode)\
+                break;                  \
+            ASSERT(0 == ((UINT_PTR)DescendantFileNode & 7));\
+            __VA_ARGS__;                \
+            DescendantFileNodes[DescendantFileNodeIndex] = DescendantFileNode;\
+            DescendantFileNodeIndex++;  \
+            ASSERT(DescendantFileNodeCount >= DescendantFileNodeIndex);\
+        }                               \
+        ASSERT(DescendantFileNodeCount == DescendantFileNodeIndex);\
+    }                                   \
+    ((VOID)0)
+#define SCATTER_DESCENDANTS(REFERENCE)  \
+    if (REFERENCE)                      \
+    {                                   \
+        for (                           \
+            DescendantFileNodeIndex = 0;\
+            DescendantFileNodeCount > DescendantFileNodeIndex;\
+            DescendantFileNodeIndex++)  \
+        {                               \
+            DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];\
+            FspFileNodeDereference((PVOID)((UINT_PTR)DescendantFileNode & ~7));\
+        }                               \
+    }                                   \
+    if (DescendantFileNodeArray != DescendantFileNodes)\
+        FspFree(DescendantFileNodes);   \
+    ((VOID)0)
+
 NTSTATUS FspFileNodeCopyList(PDEVICE_OBJECT DeviceObject,
     FSP_FILE_NODE ***PFileNodes, PULONG PFileNodeCount)
 {
@@ -728,6 +787,44 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 
             FileNode->OpenCount = 0;
             FileNode->Header.FileSize.QuadPart = 0;
+
+            /*
+             * We now have to deal with the scenario where there are cleaned up,
+             * but unclosed streams for this file still in the context table.
+             */
+            if (FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.NamedStreams &&
+                0 == FileNode->MainFileNode)
+            {
+                BOOLEAN StreamDeletedFromContextTable;
+                USHORT FileNameLength = FileNode->FileName.Length;
+
+                GATHER_DESCENDANTS(&FileNode->FileName, FALSE,
+                    if (DescendantFileNode->FileName.Length > FileNameLength &&
+                        L'\\' == DescendantFileNode->FileName.Buffer[FileNameLength / sizeof(WCHAR)])
+                        break;
+                    ASSERT(FileNode != DescendantFileNode);
+                    ASSERT(0 != DescendantFileNode->OpenCount);
+                    ASSERT(0 == DescendantFileNode->HandleCount);
+                    );
+
+                for (
+                    DescendantFileNodeIndex = 0;
+                    DescendantFileNodeCount > DescendantFileNodeIndex;
+                    DescendantFileNodeIndex++)
+                {
+                    DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
+
+                    FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &DescendantFileNode->FileName,
+                        &StreamDeletedFromContextTable);
+                    if (StreamDeletedFromContextTable)
+                    {
+                        DescendantFileNode->OpenCount = 0;
+                        FspFileNodeDereference(DescendantFileNode);
+                    }
+                }
+
+                SCATTER_DESCENDANTS(FALSE);
+            }
         }
 
         if (DeletePending || FileNode->TruncateOnClose)
@@ -871,65 +968,6 @@ NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
 
     return IoStatus.Status;
 }
-
-#define GATHER_DESCENDANTS(FILENAME, REFERENCE, ...)\
-    FSP_FILE_NODE *DescendantFileNode;\
-    FSP_FILE_NODE *DescendantFileNodeArray[16], **DescendantFileNodes;\
-    ULONG DescendantFileNodeCount, DescendantFileNodeIndex;\
-    FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY RestartKey;\
-    DescendantFileNodes = DescendantFileNodeArray;\
-    DescendantFileNodeCount = 0;\
-    memset(&RestartKey, 0, sizeof RestartKey);\
-    for (;;)                            \
-    {                                   \
-        DescendantFileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject,\
-            FILENAME, FALSE, &RestartKey);\
-        if (0 == DescendantFileNode)    \
-            break;                      \
-        ASSERT(0 == ((UINT_PTR)DescendantFileNode & 7));\
-        __VA_ARGS__;                    \
-        if (REFERENCE)                  \
-            FspFileNodeReference((PVOID)((UINT_PTR)DescendantFileNode & ~7));\
-        if (ARRAYSIZE(DescendantFileNodeArray) > DescendantFileNodeCount)\
-            DescendantFileNodes[DescendantFileNodeCount] = DescendantFileNode;\
-        DescendantFileNodeCount++;      \
-    }                                   \
-    if (ARRAYSIZE(DescendantFileNodeArray) < DescendantFileNodeCount ||\
-        DEBUGTEST_EX(0 != DescendantFileNodeCount, 10, FALSE))  \
-    {                                   \
-        DescendantFileNodes = FspAllocMustSucceed(DescendantFileNodeCount * sizeof(FSP_FILE_NODE *));\
-        DescendantFileNodeIndex = 0;    \
-        memset(&RestartKey, 0, sizeof RestartKey);\
-        for (;;)                        \
-        {                               \
-            DescendantFileNode = FspFsvolDeviceEnumerateContextByName(FsvolDeviceObject,\
-                FILENAME, FALSE, &RestartKey);\
-            if (0 == DescendantFileNode)\
-                break;                  \
-            ASSERT(0 == ((UINT_PTR)DescendantFileNode & 7));\
-            __VA_ARGS__;                \
-            DescendantFileNodes[DescendantFileNodeIndex] = DescendantFileNode;\
-            DescendantFileNodeIndex++;  \
-            ASSERT(DescendantFileNodeCount >= DescendantFileNodeIndex);\
-        }                               \
-        ASSERT(DescendantFileNodeCount == DescendantFileNodeIndex);\
-    }                                   \
-    ((VOID)0)
-#define SCATTER_DESCENDANTS(REFERENCE)  \
-    if (REFERENCE)                      \
-    {                                   \
-        for (                           \
-            DescendantFileNodeIndex = 0;\
-            DescendantFileNodeCount > DescendantFileNodeIndex;\
-            DescendantFileNodeIndex++)  \
-        {                               \
-            DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];\
-            FspFileNodeDereference((PVOID)((UINT_PTR)DescendantFileNode & ~7));\
-        }                               \
-    }                                   \
-    if (DescendantFileNodeArray != DescendantFileNodes)\
-        FspFree(DescendantFileNodes);   \
-    ((VOID)0)
 
 VOID FspFileNodeOverwriteStreams(FSP_FILE_NODE *FileNode)
 {
