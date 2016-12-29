@@ -345,18 +345,32 @@ if !ERRORLEVEL! neq 1 goto fail
 exit /b 0
 
 :ifstest-memfs-x64-disk
-M:
 call :__ifstest-memfs M: \Device\WinFsp.Disk
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :ifstest-memfs-x86-disk
-O:
 call :__ifstest-memfs O: \Device\WinFsp.Disk
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :__ifstest-memfs
+%1
+set IfsTestDirectories=^
+	securit^
+	opcreatg^
+	opcreatp^
+	closedel^
+	volinfo^
+	fileinfo^
+	dirinfo^
+	filelock^
+	oplocks^
+	chgnotif^
+	readwr^
+	seccache^
+	reparspt^
+	estream
 set IfsTestMemfsExit=0
 rem call :__ifstest %1 /d %2 /g Security /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
@@ -386,6 +400,9 @@ rem call :__ifstest %1 /d %2 /g ReparsePoints /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem call :__ifstest %1 /d %2 /g StreamEnhancements /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+for %%d in (!IfsTestDirectories!) do  (
+	if exist %%d (echo :ifstest directory %%d still exists & set IfsTestMemfsExit=1)
+)
 exit /b !IfsTestMemfsExit!
 
 :__ifstest
