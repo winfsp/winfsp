@@ -7,12 +7,11 @@ environment:
 
 install:
 - git submodule update --init --recursive
-- appveyor DownloadFile http://www.secfs.net/winfsp/resources/Test.Filter.Driver.zip
-- 7z x Test.Filter.Driver.zip
+- appveyor DownloadFile http://www.secfs.net/winfsp/resources/Test.Filter.Driver.zip & 7z x Test.Filter.Driver.zip
 - appveyor AddMessage "Change boot configuration and reboot" -Category Information
+- if exist %SystemRoot%\memory.dmp del %SystemRoot%\memory.dmp
 - verifier /standard /driver winfsp-x64.sys
 - bcdedit /set testsigning on
-- if exist %SystemRoot%\memory.dmp del %SystemRoot%\memory.dmp
 - ps: Restart-Computer -Force
 - ps: Start-Sleep -s 60
 
