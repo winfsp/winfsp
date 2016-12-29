@@ -358,14 +358,13 @@ exit /b 0
 
 :__ifstest-memfs
 set IfsTestMemfsExit=0
-M:
 rem call :__ifstest %1 /d %2 /g Security /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g OpenCreateGeneral -t FileOpenByIDTest -t OpenVolumeTest /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g OpenCreateParameters /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g CloseCleanupDelete -t UpdateOnCloseTest /z /v
+call :__ifstest %1 /d %2 /g CloseCleanupDelete -t UpdateOnCloseTest -t TunnelingTest /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g VolumeInformation /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1

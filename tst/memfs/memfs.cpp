@@ -462,24 +462,18 @@ BOOLEAN MemfsFileNodeMapEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMF
     BOOLEAN IsDirectoryChild;
     if (0 != PrevFileName0)
     {
-        WCHAR PrevFileName[MEMFS_MAX_PATH];
+        WCHAR PrevFileName[MEMFS_MAX_PATH + 256];
         size_t Length0 = wcslen(FileNode->FileName);
         size_t Length1 = 1 != Length0 || L'\\' != FileNode->FileName[0];
         size_t Length2 = wcslen(PrevFileName0);
-        if (MEMFS_MAX_PATH <= Length0 + Length1 + Length2)
-            /* fall back to linear scan! */
-            goto fallback;
+        assert(MEMFS_MAX_PATH + 256 > Length0 + Length1 + Length2);
         memcpy(PrevFileName, FileNode->FileName, Length0 * sizeof(WCHAR));
         memcpy(PrevFileName + Length0, L"\\", Length1 * sizeof(WCHAR));
         memcpy(PrevFileName + Length0 + Length1, PrevFileName0, Length2 * sizeof(WCHAR));
         PrevFileName[Length0 + Length1 + Length2] = L'\0';
-        iter = FileNodeMap->find(PrevFileName);
-        if (FileNodeMap->end() == iter)
-            /* fall back to linear scan! */
-            goto fallback;
+        iter = FileNodeMap->upper_bound(PrevFileName);
     }
     else
-    fallback:
         iter = FileNodeMap->upper_bound(FileNode->FileName);
     for (; FileNodeMap->end() != iter; ++iter)
     {
@@ -1452,6 +1446,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         FspFileSystemGetOperationContext()->Request->Req.QueryDirectory.UserContext2;
     MEMFS_FILE_NODE *ParentNode;
     MEMFS_READ_DIRECTORY_CONTEXT Context;
+    PWSTR PrevFileName = 0;
     NTSTATUS Result;
 
     Context.Buffer = Buffer;
@@ -1484,7 +1479,13 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         }
     }
 
-    if (MemfsFileNodeMapEnumerateChildren(Memfs->FileNodeMap, FileNode, MemfsDirDescGetFileName(DirDesc, Offset),
+    if (0 != Context.Offset && !Context.OffsetFound)
+    {
+        PrevFileName = MemfsDirDescGetFileName(DirDesc, Offset);
+        Context.OffsetFound = 0 != PrevFileName;
+    }
+
+    if (MemfsFileNodeMapEnumerateChildren(Memfs->FileNodeMap, FileNode, PrevFileName,
         ReadDirectoryEnumFn, &Context))
         FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
 
