@@ -512,7 +512,8 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     }
 
     /* set the DirectoryPattern in the FileDesc */
-    Result = FspFileDescResetDirectoryPattern(FileDesc, FileName, RestartScan);
+    Result = FspFileDescResetDirectoryPattern(FileDesc, FileName,
+        RestartScan && 0 != FileName && 0 != FileName->Length);
     if (!NT_SUCCESS(Result))
     {
         FspFileNodeRelease(FileNode, Full);
