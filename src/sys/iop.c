@@ -288,18 +288,22 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference)
      */
     if (IRP_MJ_CREATE == IrpSp->MajorFunction)
     {
-        FSP_DEVICE_EXTENSION *DeviceExtension = FspDeviceExtension(DeviceObject);
-
-        if (FspFsvolDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind)
+        /* only update statistics if we actually have a reference to the DeviceObject */
+        if (DeviceDereference)
         {
-            FSP_STATISTICS *Statistics = FspStatistics(
-                ((FSP_FSVOL_DEVICE_EXTENSION *)DeviceExtension)->Statistics);
+            FSP_DEVICE_EXTENSION *DeviceExtension = FspDeviceExtension(DeviceObject);
 
-            FspStatisticsInc(Statistics, Specific.CreateHits);
-            if (STATUS_SUCCESS == Result)
-                FspStatisticsInc(Statistics, Specific.SuccessfulCreates);
-            else
-                FspStatisticsInc(Statistics, Specific.FailedCreates);
+            if (FspFsvolDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind)
+            {
+                FSP_STATISTICS *Statistics = FspStatistics(
+                    ((FSP_FSVOL_DEVICE_EXTENSION *)DeviceExtension)->Statistics);
+
+                FspStatisticsInc(Statistics, Specific.CreateHits);
+                if (STATUS_SUCCESS == Result)
+                    FspStatisticsInc(Statistics, Specific.SuccessfulCreates);
+                else
+                    FspStatisticsInc(Statistics, Specific.FailedCreates);
+            }
         }
     }
     else
