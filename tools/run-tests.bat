@@ -382,7 +382,10 @@ call :__ifstest %1 /d %2 /g CloseCleanupDelete -t UpdateOnCloseTest -t Tunneling
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g VolumeInformation /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g FileInformation -t LinkInformationTest /z /v
+call :__ifstest %1 /d %2 /g FileInformation -t LinkInformationTest -t StreamStandardInformationTest /r C: /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem StreamStandardInformationTest uses FileLinkInformation in NTFS mode, so run in FAT compatibility mode
+call :__ifstest %1 /d %2 /t StreamStandardInformationTest /f /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g DirectoryInformation /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
