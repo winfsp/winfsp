@@ -627,7 +627,7 @@ static NTSTATUS FspFsvolQueryInformation(
 
     /* is this a valid FileObject? */
     if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
-        return STATUS_INVALID_DEVICE_REQUEST;
+        return STATUS_INVALID_PARAMETER;
 
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryFile.FileInformationClass;
 
@@ -1429,7 +1429,7 @@ static NTSTATUS FspFsvolSetInformation(
 
     /* is this a valid FileObject? */
     if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
-        return STATUS_INVALID_DEVICE_REQUEST;
+        return STATUS_INVALID_PARAMETER;
 
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.SetFile.FileInformationClass;
 
