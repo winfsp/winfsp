@@ -682,6 +682,9 @@ static NTSTATUS FspFsvolQueryInformation(
         Result = FspFsvolQueryNameInformation(FileObject, &Buffer, BufferEnd);
         Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
         return Result;
+    case FileAlternateNameInformation:
+        Result = STATUS_OBJECT_NAME_NOT_FOUND;  /* WinFsp does not support short names */
+        return Result;
     case FileNetworkOpenInformation:
         Result = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, 0);
         break;
