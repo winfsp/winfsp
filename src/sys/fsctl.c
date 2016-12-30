@@ -33,6 +33,8 @@ static NTSTATUS FspFsvolFileSystemControlQueryPersistentVolumeState(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolFileSystemControlGetStatistics(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolFileSystemControlGetRetrievalPointers(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolFileSystemControlComplete;
@@ -48,6 +50,7 @@ FSP_DRIVER_DISPATCH FspFileSystemControl;
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlOplockCompletionWork)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlQueryPersistentVolumeState)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlGetStatistics)
+#pragma alloc_text(PAGE, FspFsvolFileSystemControlGetRetrievalPointers)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControl)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlComplete)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlRequestFini)
@@ -534,6 +537,93 @@ static NTSTATUS FspFsvolFileSystemControlGetStatistics(
     return Result;
 }
 
+static NTSTATUS FspFsvolFileSystemControlGetRetrievalPointers(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    /*
+     * FSCTL_GET_RETRIEVAL_POINTERS is normally used for defragmentation support,
+     * which WinFsp does NOT support. However some tools (notably IFSTEST) use it
+     * to determine whether files are "resident" or "non-resident" which is an NTFS
+     * concept. To support such tools we respond in a manner that indicates that
+     * WinFsp files are always non-resident.
+     */
+
+    PAGED_CODE();
+
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+
+    /* is this a valid FileObject? */
+    if (!FspFileNodeIsValid(FileObject->FsContext))
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    PSTARTING_VCN_INPUT_BUFFER InputBuffer = IrpSp->Parameters.FileSystemControl.Type3InputBuffer;
+    PRETRIEVAL_POINTERS_BUFFER OutputBuffer = Irp->UserBuffer;
+    ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
+    ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+    STARTING_VCN_INPUT_BUFFER StartingVcn;
+    RETRIEVAL_POINTERS_BUFFER RetrievalPointers;
+    UINT64 AllocationUnit;
+
+    if (0 == InputBuffer || 0 == OutputBuffer)
+        return STATUS_INVALID_PARAMETER;
+
+    if (sizeof(STARTING_VCN_INPUT_BUFFER) > InputBufferLength ||
+        sizeof(RETRIEVAL_POINTERS_BUFFER) > OutputBufferLength)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    if (UserMode == Irp->RequestorMode)
+    {
+        try
+        {
+            ProbeForRead(InputBuffer, InputBufferLength, sizeof(UCHAR)/*FastFat*/);
+            StartingVcn = *InputBuffer;
+        }
+        except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return GetExceptionCode();
+        }
+    }
+    else
+        StartingVcn = *InputBuffer;
+
+    RetrievalPointers.ExtentCount = 1;
+    RetrievalPointers.StartingVcn.QuadPart = 0;
+    RetrievalPointers.Extents[0].NextVcn.QuadPart = 0;
+    RetrievalPointers.Extents[0].Lcn.QuadPart = -1LL;
+
+    AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+        FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+
+    FspFileNodeAcquireShared(FileNode, Main);
+    RetrievalPointers.Extents[0].NextVcn.QuadPart =
+        FileNode->Header.AllocationSize.QuadPart / AllocationUnit;
+    FspFileNodeRelease(FileNode, Main);
+
+    if (StartingVcn.StartingVcn.QuadPart > RetrievalPointers.Extents[0].NextVcn.QuadPart)
+        return STATUS_END_OF_FILE;
+
+    if (UserMode == Irp->RequestorMode)
+    {
+        try
+        {
+            ProbeForWrite(OutputBuffer, OutputBufferLength, sizeof(UCHAR)/*FastFat*/);
+            *OutputBuffer = RetrievalPointers;
+        }
+        except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return GetExceptionCode();
+        }
+    }
+    else
+        *OutputBuffer = RetrievalPointers;
+
+    Irp->IoStatus.Information = sizeof RetrievalPointers;
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -572,6 +662,9 @@ static NTSTATUS FspFsvolFileSystemControl(
             break;
         case FSCTL_FILESYSTEM_GET_STATISTICS:
             Result = FspFsvolFileSystemControlGetStatistics(FsvolDeviceObject, Irp, IrpSp);
+            break;
+        case FSCTL_GET_RETRIEVAL_POINTERS:
+            Result = FspFsvolFileSystemControlGetRetrievalPointers(FsvolDeviceObject, Irp, IrpSp);
             break;
         }
         break;
