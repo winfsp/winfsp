@@ -671,7 +671,7 @@ static NTSTATUS FspFsvolQueryInformation(
         Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
         return Result;
     case FileHardLinkInformation:
-        Result = STATUS_INVALID_PARAMETER;  /* no hard link support */
+        Result = STATUS_NOT_SUPPORTED;  /* no hard link support */
         return Result;
     case FileInternalInformation:
         Result = FspFsvolQueryInternalInformation(FileObject, &Buffer, BufferEnd);
@@ -1460,7 +1460,7 @@ static NTSTATUS FspFsvolSetInformation(
             Result = FspFsvolSetEndOfFileInformation(FileObject, Buffer, Length, 0, 0);
         break;
     case FileLinkInformation:
-        Result = STATUS_INVALID_PARAMETER;  /* no hard link support */
+        Result = STATUS_NOT_SUPPORTED;  /* no hard link support */
         return Result;
     case FilePositionInformation:
         Result = FspFsvolSetPositionInformation(FileObject, Buffer, Length);
