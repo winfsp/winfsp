@@ -374,18 +374,21 @@ set IfsTestDirectories=^
 set IfsTestMemfsExit=0
 rem call :__ifstest %1 /d %2 /g Security /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem OpenCreateGeneral.FileOpenByIDTest: FILE_OPEN_BY_FILE_ID not implemented
+rem OpenCreateGeneral.OpenVolumeTest: volume handles can be opened/closed but no other support
 call :__ifstest %1 /d %2 /g OpenCreateGeneral -t FileOpenByIDTest -t OpenVolumeTest /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g OpenCreateParameters /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem CloseCleanupDelete.UpdateOnCloseTest: WinFsp updates size information in directories immediately
+rem CloseCleanupDelete.TunnelingTest: short names and tunneling not supported
 call :__ifstest %1 /d %2 /g CloseCleanupDelete -t UpdateOnCloseTest -t TunnelingTest /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g VolumeInformation /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem FileInformation.LinkInformationTest: WinFsp does not support hard links
+rem FileInformation.StreamStandardInformationTest: test requires FileLinkInformation support (no hard links)
 call :__ifstest %1 /d %2 /g FileInformation -t LinkInformationTest -t StreamStandardInformationTest /r C: /z /v
-if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-rem StreamStandardInformationTest uses FileLinkInformation in NTFS mode, so run in FAT compatibility mode
-call :__ifstest %1 /d %2 /t StreamStandardInformationTest /f /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g DirectoryInformation /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
