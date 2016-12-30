@@ -997,7 +997,7 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
             FileDesc->DidSetChangeTime = TRUE;
 
         FileDesc->DidSetMetadata = TRUE;
-        FspFileNodeNotifyChange(FileNode, NotifyFilter, FILE_ACTION_MODIFIED, FALSE);
+        FspFileNodeNotifyChange(FileNode, NotifyFilter, FILE_ACTION_MODIFIED, TRUE/*FALSE*/);
     }
 
     return STATUS_SUCCESS;

@@ -1218,9 +1218,8 @@ typedef struct
     UINT32
         CaseSensitive:1, HasTraversePrivilege:1, DeleteOnClose:1,
         DidSetMetadata:1,
-        DidSetFileAttributes:1,
+        DidSetFileAttributes:1, DidSetReparsePoint:1, DidSetSecurity:1,
         DidSetCreationTime:1, DidSetLastAccessTime:1, DidSetLastWriteTime:1, DidSetChangeTime:1,
-        DidSetSecurity:1,
         DirectoryHasSuchFile:1;
     UNICODE_STRING DirectoryPattern;
     UINT64 DirectoryOffset;

@@ -286,6 +286,7 @@ static NTSTATUS FspFsvolFileSystemControlReparsePointComplete(
         PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
         FSP_FILE_DESC *FileDesc = IrpSp->FileObject->FsContext2;
 
+        FileDesc->DidSetReparsePoint = TRUE;
         FileDesc->DidSetMetadata = TRUE;
 
         return STATUS_SUCCESS;
