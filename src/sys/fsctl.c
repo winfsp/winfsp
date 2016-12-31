@@ -450,18 +450,15 @@ static NTSTATUS FspFsvolFileSystemControlOplock(
 
     /*
      * FspOplockFsctrl takes ownership of the IRP under all circumstances.
-     *
-     * We mark the IRP pending so that we can safely return STATUS_PENDING.
      */
 
     IoSetTopLevelIrp(0);
 
-    IoMarkIrpPending(Irp);
     Result = FspFileNodeOplockFsctl(FileNode, Irp, OplockCount);
 
     FspFileNodeRelease(FileNode, Main);
 
-    return STATUS_PENDING;
+    return Result | FSP_STATUS_IGNORE_BIT;
 
 unlock_exit:
     FspFileNodeRelease(FileNode, Main);

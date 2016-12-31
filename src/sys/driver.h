@@ -40,6 +40,7 @@
 
 /* private NTSTATUS codes */
 #define FSP_STATUS_PRIVATE_BIT          (0x20000000)
+#define FSP_STATUS_IGNORE_BIT           (0x10000000)
 #define FSP_STATUS_IOQ_POST             (FSP_STATUS_PRIVATE_BIT | 0x0000)
 #define FSP_STATUS_IOQ_POST_BEST_EFFORT (FSP_STATUS_PRIVATE_BIT | 0x0001)
 
@@ -198,7 +199,7 @@ VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result);
     } while (0,0)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(                         \
-        if (STATUS_PENDING != Result)   \
+        if (STATUS_PENDING != Result && !(FSP_STATUS_IGNORE_BIT & Result))\
         {                               \
             ASSERT(0 == (FSP_STATUS_PRIVATE_BIT & Result) ||\
                 FSP_STATUS_IOQ_POST == Result || FSP_STATUS_IOQ_POST_BEST_EFFORT == Result);\
@@ -225,6 +226,8 @@ VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result);
             else                        \
                 FspIopCompleteIrpEx(Irp, Result, fsp_device_deref);\
         }                               \
+        else                            \
+            Result &= ~FSP_STATUS_IGNORE_BIT;\
         IoSetTopLevelIrp(fsp_top_level_irp);\
     );                                  \
     return Result

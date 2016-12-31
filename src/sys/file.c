@@ -1872,21 +1872,21 @@ NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp)
 {
     PAGED_CODE();
 
-    IoMarkIrpPending(Irp);
+    NTSTATUS Result;
 
     try
     {
-        FsRtlProcessFileLock(&FileNode->FileLock, Irp, FileNode);
+        Result = FsRtlProcessFileLock(&FileNode->FileLock, Irp, FileNode);
     }
     except (EXCEPTION_EXECUTE_HANDLER)
     {
         Irp->IoStatus.Status = GetExceptionCode();
         Irp->IoStatus.Information = 0;
 
-        FspFileNodeCompleteLockIrp(FileNode, Irp);
+        Result = FspFileNodeCompleteLockIrp(FileNode, Irp);
     }
 
-    return STATUS_PENDING;
+    return Result;
 }
 
 static NTSTATUS FspFileNodeCompleteLockIrp(PVOID Context, PIRP Irp)

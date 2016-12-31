@@ -66,11 +66,10 @@ static NTSTATUS FspFsvolLockControlRetry(
 
     /* let the FSRTL package handle this one! */
     Result = FspFileNodeProcessLockIrp(FileNode, Irp);
-    ASSERT(STATUS_PENDING == Result);
 
     FspFileNodeReleaseF(FileNode, IrpFlags);
 
-    return Result;
+    return Result | FSP_STATUS_IGNORE_BIT;
 }
 
 static NTSTATUS FspFsvolLockControl(

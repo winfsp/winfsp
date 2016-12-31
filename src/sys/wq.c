@@ -145,7 +145,7 @@ static VOID FspWqWorkRoutine(PVOID Context)
     IoSetTopLevelIrp(Irp);
 
     Result = WorkRoutine(DeviceObject, Irp, IrpSp, TRUE);
-    if (STATUS_PENDING != Result)
+    if (STATUS_PENDING != Result && !(FSP_STATUS_IGNORE_BIT & Result))
     {
         ASSERT(0 == (FSP_STATUS_PRIVATE_BIT & Result) ||
             FSP_STATUS_IOQ_POST == Result || FSP_STATUS_IOQ_POST_BEST_EFFORT == Result);
