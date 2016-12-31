@@ -33,7 +33,7 @@ BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
 VOID FspIopSetIrpResponse(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_FSCTL_TRANSACT_RSP *FspIopIrpResponse(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
-NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+NTSTATUS FspIopDispatchComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspIopCreateRequestFunnel)
@@ -448,7 +448,7 @@ NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
         return STATUS_SUCCESS;
 }
 
-NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS FspIopDispatchComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
 
@@ -457,6 +457,9 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
     ASSERT(IRP_MJ_MAXIMUM_FUNCTION >= IrpSp->MajorFunction);
     ASSERT(0 != FspIopCompleteFunction[IrpSp->MajorFunction]);
 
+    if (STATUS_PENDING == Response->IoStatus.Status ||
+        FlagOn(Response->IoStatus.Status, FSP_STATUS_PRIVATE_BIT | FSP_STATUS_IGNORE_BIT))
+        Response->IoStatus.Status = (UINT32)STATUS_INTERNAL_ERROR;
     return FspIopCompleteFunction[IrpSp->MajorFunction](Irp, Response);
 }
 
