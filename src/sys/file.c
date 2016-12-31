@@ -1293,8 +1293,7 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
         if (0 == DescendantFileNode)
             break;
 
-        /* if this is the FileNode being renamed then HandleCount must be 1, else 0 */
-        if ((DescendantFileNode == FileNode) < DescendantFileNode->HandleCount)
+        if (DescendantFileNode != FileNode && 0 < DescendantFileNode->HandleCount)
         {
             /* release the FileNode in case of failure! */
             FspFileNodeReleaseF(FileNode, AcquireFlags);
