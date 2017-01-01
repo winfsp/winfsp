@@ -244,7 +244,7 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
     else
     {
         if (0 == OutputBuffer || 0 == OutputBufferLength)
-            return STATUS_INVALID_PARAMETER;
+            return STATUS_INVALID_USER_BUFFER;
 
         /*
          * NtFsControlFile (IopXxxControlFile) will setup Irp->AssociatedIrp.SystemBuffer
