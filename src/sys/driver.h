@@ -1218,6 +1218,7 @@ typedef struct
 {
     FSP_FILE_NODE *FileNode;
     UINT64 UserContext2;
+    UINT32 GrantedAccess;
     UINT32
         CaseSensitive:1, HasTraversePrivilege:1, DeleteOnClose:1,
         DidSetMetadata:1,

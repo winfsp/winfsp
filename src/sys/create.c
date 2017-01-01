@@ -897,6 +897,7 @@ NTSTATUS FspFsvolCreateComplete(
         /* set up the AccessState */
         AccessState->RemainingDesiredAccess = 0;
         AccessState->PreviouslyGrantedAccess = Response->Rsp.Create.Opened.GrantedAccess;
+        FileDesc->GrantedAccess = Response->Rsp.Create.Opened.GrantedAccess;
 
         /* set up the FileObject */
         if (0 != FsvolDeviceExtension->FsvrtDeviceObject)

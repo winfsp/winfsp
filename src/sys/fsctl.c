@@ -148,6 +148,11 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
         if (!NT_SUCCESS(Result))
             return Result;
 
+        /* NTFS seems to require one of these rights to allow FSCTL_SET_REPARSE_POINT */
+        if (!FlagOn(FileDesc->GrantedAccess,
+            FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_ATTRIBUTES))
+            return STATUS_ACCESS_DENIED;
+
         ReparseData = (PREPARSE_DATA_BUFFER)InputBuffer;
 
         if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag)
