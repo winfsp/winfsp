@@ -114,7 +114,7 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
 
     /* is this a valid FileObject? */
     if (!FspFileNodeIsValid(FileObject->FsContext))
-        return STATUS_INVALID_DEVICE_REQUEST;
+        return STATUS_INVALID_PARAMETER;
 
     NTSTATUS Result;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
@@ -135,6 +135,7 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
     if (IsWrite)
     {
         if (0 == InputBuffer || 0 == InputBufferLength ||
+            0 != OutputBuffer || 0 != OutputBufferLength ||
             FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMAX - (FileNode->FileName.Length + sizeof(WCHAR)) <
                 InputBufferLength)
             return STATUS_INVALID_PARAMETER;
