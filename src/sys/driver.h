@@ -1307,6 +1307,7 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose);
 BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, ULONG InfoChangeNumber);
+VOID FspFileNodeInvalidateFileInfo(FSP_FILE_NODE *FileNode);
 static inline
 ULONG FspFileNodeFileInfoChangeNumber(FSP_FILE_NODE *FileNode)
 {

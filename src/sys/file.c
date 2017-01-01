@@ -58,6 +58,7 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose);
 BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, ULONG InfoChangeNumber);
+VOID FspFileNodeInvalidateFileInfo(FSP_FILE_NODE *FileNode);
 BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
 VOID FspFileNodeSetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
@@ -124,6 +125,7 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 #pragma alloc_text(PAGE, FspFileNodeTryGetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeSetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeTrySetFileInfo)
+#pragma alloc_text(PAGE, FspFileNodeInvalidateFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeReferenceSecurity)
 #pragma alloc_text(PAGE, FspFileNodeSetSecurity)
 #pragma alloc_text(PAGE, FspFileNodeTrySetSecurity)
@@ -1580,6 +1582,16 @@ BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileOb
 
     FspFileNodeSetFileInfo(FileNode, CcFileObject, FileInfo, FALSE);
     return TRUE;
+}
+
+VOID FspFileNodeInvalidateFileInfo(FSP_FILE_NODE *FileNode)
+{
+    PAGED_CODE();
+
+    FileNode->FileInfoExpirationTime = FileNode->BasicInfoExpirationTime = 0;
+
+    if (0 != FileNode->MainFileNode)
+        FileNode->MainFileNode->BasicInfoExpirationTime = 0;
 }
 
 BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize)

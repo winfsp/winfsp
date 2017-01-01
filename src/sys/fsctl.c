@@ -300,7 +300,13 @@ static NTSTATUS FspFsvolFileSystemControlReparsePointComplete(
     if (IsWrite)
     {
         PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+        PFILE_OBJECT FileObject = IrpSp->FileObject;
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
         FSP_FILE_DESC *FileDesc = IrpSp->FileObject->FsContext2;
+
+        ASSERT(FileNode == FileDesc->FileNode);
+
+        FspFileNodeInvalidateFileInfo(FileNode);
 
         FileDesc->DidSetReparsePoint = TRUE;
         FileDesc->DidSetMetadata = TRUE;
