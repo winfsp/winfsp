@@ -402,8 +402,11 @@ call :__ifstest %1 /d %2 /g ReadWrite /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /d %2 /g SectionsCaching /z /v
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-rem call :__ifstest %1 /d %2 /g ReparsePoints /z /v
-rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem ReparsePoints.SetPointEASNotSupportedTest: EA's not supported
+rem ReparsePoints.EnumReparsePointsTest: enumeration of reparse points not supported
+rem ReparsePoints.ChangeNotificationReparseTest: change notifications of reparse points not supported
+call :__ifstest %1 /d %2 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest /z /v
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem call :__ifstest %1 /d %2 /g StreamEnhancements /z /v
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 for %%d in (!IfsTestDirectories!) do  (
