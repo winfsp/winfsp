@@ -137,7 +137,7 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
         if (0 == InputBuffer || 0 == InputBufferLength)
             return STATUS_INVALID_BUFFER_SIZE;
 
-        if (0 != OutputBuffer || 0 != OutputBufferLength)
+        if (0 != OutputBufferLength)
             return STATUS_INVALID_PARAMETER;
 
         if (FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMAX - (FileNode->FileName.Length + sizeof(WCHAR)) <
@@ -248,6 +248,9 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
     }
     else
     {
+        if (0 != InputBufferLength)
+            return STATUS_INVALID_PARAMETER;
+
         if (0 == OutputBuffer || 0 == OutputBufferLength)
             return STATUS_INVALID_USER_BUFFER;
 
