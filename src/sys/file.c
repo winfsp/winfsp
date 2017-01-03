@@ -1836,8 +1836,10 @@ VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action
             SetFlag(Filter, FILE_NOTIFY_CHANGE_STREAM_NAME);
         if (FlagOn(Filter, FILE_NOTIFY_CHANGE_SIZE))
             SetFlag(Filter, FILE_NOTIFY_CHANGE_STREAM_SIZE);
-        /* ???: what about FILE_NOTIFY_CHANGE_STREAM_WRITE */
-        ClearFlag(Filter, ~(FILE_NOTIFY_CHANGE_STREAM_NAME | FILE_NOTIFY_CHANGE_STREAM_SIZE));
+        if (FlagOn(Filter, FILE_NOTIFY_CHANGE_LAST_WRITE))
+            SetFlag(Filter, FILE_NOTIFY_CHANGE_STREAM_WRITE);
+        ClearFlag(Filter, ~(FILE_NOTIFY_CHANGE_STREAM_NAME | FILE_NOTIFY_CHANGE_STREAM_SIZE |
+            FILE_NOTIFY_CHANGE_STREAM_WRITE));
 
         switch (Action)
         {
