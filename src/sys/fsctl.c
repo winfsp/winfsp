@@ -134,26 +134,50 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
 
     if (IsWrite)
     {
+        ASSERT(
+            FSCTL_SET_REPARSE_POINT == FsControlCode ||
+            FSCTL_DELETE_REPARSE_POINT == FsControlCode);
+
         if (0 == InputBuffer || 0 == InputBufferLength)
             return STATUS_INVALID_BUFFER_SIZE;
 
         if (0 != OutputBufferLength)
             return STATUS_INVALID_PARAMETER;
 
-        if (FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMAX - (FileNode->FileName.Length + sizeof(WCHAR)) <
-                InputBufferLength)
-            return STATUS_IO_REPARSE_DATA_INVALID;
+        ReparseData = (PREPARSE_DATA_BUFFER)InputBuffer;
 
-        Result = FsRtlValidateReparsePointBuffer(InputBufferLength, InputBuffer);
-        if (!NT_SUCCESS(Result))
-            return Result;
+        if (FSCTL_SET_REPARSE_POINT == FsControlCode)
+        {
+            if (FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMAX - (FileNode->FileName.Length + sizeof(WCHAR)) <
+                    InputBufferLength)
+                return STATUS_IO_REPARSE_DATA_INVALID;
 
-        /* NTFS seems to require one of these rights to allow FSCTL_SET_REPARSE_POINT */
+            Result = FsRtlValidateReparsePointBuffer(InputBufferLength, InputBuffer);
+            if (!NT_SUCCESS(Result))
+                return Result;
+        }
+        else
+        {
+            if ((ULONG)FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) != InputBufferLength &&
+                (ULONG)FIELD_OFFSET(REPARSE_GUID_DATA_BUFFER, GenericReparseBuffer) != InputBufferLength)
+                return STATUS_IO_REPARSE_DATA_INVALID;
+
+            if (0 != ReparseData->ReparseDataLength)
+                return STATUS_IO_REPARSE_DATA_INVALID;
+
+            if (IO_REPARSE_TAG_RESERVED_ZERO == ReparseData->ReparseTag ||
+                IO_REPARSE_TAG_RESERVED_ONE == ReparseData->ReparseTag)
+                return STATUS_IO_REPARSE_TAG_INVALID;
+
+            if (!IsReparseTagMicrosoft(ReparseData->ReparseTag) &&
+                (ULONG)FIELD_OFFSET(REPARSE_GUID_DATA_BUFFER, GenericReparseBuffer) != InputBufferLength)
+                return STATUS_IO_REPARSE_DATA_INVALID;
+        }
+
+        /* NTFS seems to require one of these rights to allow FSCTL_{SET,DELETE}_REPARSE_POINT */
         if (!FlagOn(FileDesc->GrantedAccess,
             FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_ATTRIBUTES))
             return STATUS_ACCESS_DENIED;
-
-        ReparseData = (PREPARSE_DATA_BUFFER)InputBuffer;
 
         if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag)
         {
@@ -248,6 +272,8 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
     }
     else
     {
+        ASSERT(FSCTL_GET_REPARSE_POINT == FsControlCode);
+
         if (0 != InputBufferLength)
             return STATUS_INVALID_PARAMETER;
 
