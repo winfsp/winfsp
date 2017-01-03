@@ -345,12 +345,12 @@ if !ERRORLEVEL! neq 1 goto fail
 exit /b 0
 
 :ifstest-memfs-x64-disk
-call :__ifstest-memfs M: \Device\WinFsp.Disk
+call :__ifstest-memfs M: \Device\WinFsp.Disk C:
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :ifstest-memfs-x86-disk
-call :__ifstest-memfs O: \Device\WinFsp.Disk
+call :__ifstest-memfs O: \Device\WinFsp.Disk C:
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -372,42 +372,44 @@ set IfsTestDirectories=^
 	reparspt^
 	estream
 set IfsTestMemfsExit=0
-rem call :__ifstest %1 /d %2 /g Security /z /v
+rem call :__ifstest %1 /g Security
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem OpenCreateGeneral.FileOpenByIDTest: FILE_OPEN_BY_FILE_ID not implemented
 rem OpenCreateGeneral.OpenVolumeTest: volume handles can be opened/closed but no other support
-call :__ifstest %1 /d %2 /g OpenCreateGeneral -t FileOpenByIDTest -t OpenVolumeTest /z /v
+call :__ifstest %1 /d %2 /g OpenCreateGeneral -t FileOpenByIDTest -t OpenVolumeTest
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g OpenCreateParameters /z /v
+call :__ifstest %1 /g OpenCreateParameters
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem CloseCleanupDelete.UpdateOnCloseTest: WinFsp updates size information in directories immediately
 rem CloseCleanupDelete.TunnelingTest: short names and tunneling not supported
-call :__ifstest %1 /d %2 /g CloseCleanupDelete -t UpdateOnCloseTest -t TunnelingTest /z /v
+call :__ifstest %1 /g CloseCleanupDelete -t UpdateOnCloseTest -t TunnelingTest
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g VolumeInformation /z /v
+call :__ifstest %1 /g VolumeInformation
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem FileInformation.LinkInformationTest: WinFsp does not support hard links
 rem FileInformation.StreamStandardInformationTest: test requires FileLinkInformation support (no hard links)
-call :__ifstest %1 /d %2 /g FileInformation -t LinkInformationTest -t StreamStandardInformationTest /r C: /z /v
+call :__ifstest %1 /g FileInformation -t LinkInformationTest -t StreamStandardInformationTest /r %3
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g DirectoryInformation /z /v
+call :__ifstest %1 /g DirectoryInformation
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g FileLocking /z /v
+call :__ifstest %1 /g FileLocking
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g OpLocks /z /v
+call :__ifstest %1 /g OpLocks
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g ChangeNotification /z /v
+call :__ifstest %1 /g ChangeNotification
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g ReadWrite /z /v
+call :__ifstest %1 /g ReadWrite
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-call :__ifstest %1 /d %2 /g SectionsCaching /z /v
+call :__ifstest %1 /g SectionsCaching
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem ReparsePoints.SetPointEASNotSupportedTest: EA's not supported
 rem ReparsePoints.EnumReparsePointsTest: enumeration of reparse points not supported
 rem ReparsePoints.ChangeNotificationReparseTest: change notifications of reparse points not supported
-call :__ifstest %1 /d %2 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest /z /v
+call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest /c
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
-rem call :__ifstest %1 /d %2 /g StreamEnhancements /z /v
+rem IfsTest ReparsePoints seems to have a bug in that it cannot handle STATUS_PENDING for FSCTL_GET_REPARSE_POINT
+rmdir /s/q reparspt
+rem call :__ifstest %1 /g StreamEnhancements
 rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 for %%d in (!IfsTestDirectories!) do  (
 	if exist %%d (echo :ifstest directory %%d still exists & set IfsTestMemfsExit=1)
@@ -424,7 +426,7 @@ set IfsTestExit=0
 (SET LF=^
 %=this line is empty=%
 )
-for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* ^| findstr /n "^"') do (
+for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* /z /v ^| findstr /n "^"') do (
     set IfsTestLine=%%l
     set IfsTestLine=!IfsTestLine:*:=!
 
