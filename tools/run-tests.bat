@@ -409,8 +409,9 @@ call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumRepars
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem IfsTest ReparsePoints seems to have a bug in that it cannot handle STATUS_PENDING for FSCTL_GET_REPARSE_POINT
 rmdir /s/q reparspt
-rem call :__ifstest %1 /g StreamEnhancements
-rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+rem StreamEnhancements.StreamRenameTest: WinFsp does not support stream renaming
+call :__ifstest %1 /g StreamEnhancements -t StreamRenameTest
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 for %%d in (!IfsTestDirectories!) do  (
 	if exist %%d (echo :ifstest directory %%d still exists & set IfsTestMemfsExit=1)
 )
