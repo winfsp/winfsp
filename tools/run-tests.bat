@@ -110,6 +110,9 @@ for %%f in (%tests%) do (
     echo:
 )
 
+rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
+waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
+
 launchctl-x64 stop memfs64 testdsk >nul
 launchctl-x64 stop memfs64 testnet >nul
 launchctl-x64 stop memfs32 testdsk >nul
@@ -372,8 +375,8 @@ set IfsTestDirectories=^
 	reparspt^
 	estream
 set IfsTestMemfsExit=0
-rem call :__ifstest %1 /g Security
-rem if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g Security
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem OpenCreateGeneral.FileOpenByIDTest: FILE_OPEN_BY_FILE_ID not implemented
 rem OpenCreateGeneral.OpenVolumeTest: volume handles can be opened/closed but no other support
 call :__ifstest %1 /d %2 /g OpenCreateGeneral -t FileOpenByIDTest -t OpenVolumeTest
