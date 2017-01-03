@@ -110,9 +110,6 @@ for %%f in (%tests%) do (
     echo:
 )
 
-rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
-waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
-
 launchctl-x64 stop memfs64 testdsk >nul
 launchctl-x64 stop memfs64 testnet >nul
 launchctl-x64 stop memfs32 testdsk >nul
