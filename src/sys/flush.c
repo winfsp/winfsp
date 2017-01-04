@@ -58,7 +58,7 @@ static NTSTATUS FspFsvolFlushBuffers(
      */
     if (!FspFileNodeIsValid(FileNode) || FileNode->IsRootDirectory)
     {
-        Result = FspFileNodeCopyList(FsvolDeviceObject, &FileNodes, &FileNodeCount);
+        Result = FspFileNodeCopyOpenList(FsvolDeviceObject, &FileNodes, &FileNodeCount);
         if (!NT_SUCCESS(Result))
             return Result;
 

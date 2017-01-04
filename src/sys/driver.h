@@ -1066,6 +1066,8 @@ VOID FspFsvolDeviceFileRenameRelease(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameReleaseOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
 VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
+NTSTATUS FspFsvolDeviceCopyContextList(PDEVICE_OBJECT DeviceObject,
+    PVOID **PContexts, PULONG PContextCount);
 NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
     PVOID **PContexts, PULONG PContextCount);
 VOID FspFsvolDeviceDeleteContextList(PVOID *Contexts, ULONG ContextCount);
@@ -1236,7 +1238,9 @@ typedef struct
     HANDLE MainFileHandle;
     PFILE_OBJECT MainFileObject;
 } FSP_FILE_DESC;
-NTSTATUS FspFileNodeCopyList(PDEVICE_OBJECT DeviceObject,
+NTSTATUS FspFileNodeCopyActiveList(PDEVICE_OBJECT DeviceObject,
+    FSP_FILE_NODE ***PFileNodes, PULONG PFileNodeCount);
+NTSTATUS FspFileNodeCopyOpenList(PDEVICE_OBJECT DeviceObject,
     FSP_FILE_NODE ***PFileNodes, PULONG PFileNodeCount);
 VOID FspFileNodeDeleteList(FSP_FILE_NODE **FileNodes, ULONG FileNodeCount);
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,

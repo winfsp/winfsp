@@ -43,6 +43,8 @@ VOID FspFsvolDeviceFileRenameRelease(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameReleaseOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
 VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
+NTSTATUS FspFsvolDeviceCopyContextList(PDEVICE_OBJECT DeviceObject,
+    PVOID **PContexts, PULONG PContextCount);
 NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
     PVOID **PContexts, PULONG PContextCount);
 VOID FspFsvolDeviceDeleteContextList(PVOID *Contexts, ULONG ContextCount);
@@ -80,6 +82,7 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceFileRenameReleaseOwner)
 #pragma alloc_text(PAGE, FspFsvolDeviceLockContextTable)
 #pragma alloc_text(PAGE, FspFsvolDeviceUnlockContextTable)
+#pragma alloc_text(PAGE, FspFsvolDeviceCopyContextList)
 #pragma alloc_text(PAGE, FspFsvolDeviceCopyContextByNameList)
 #pragma alloc_text(PAGE, FspFsvolDeviceDeleteContextList)
 #pragma alloc_text(PAGE, FspFsvolDeviceEnumerateContextByName)
@@ -585,6 +588,50 @@ VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject)
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     ExReleaseResourceLite(&FsvolDeviceExtension->ContextTableResource);
+}
+
+NTSTATUS FspFsvolDeviceCopyContextList(PDEVICE_OBJECT DeviceObject,
+    PVOID **PContexts, PULONG PContextCount)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    PVOID *Contexts;
+    ULONG ContextCount, Index;
+
+    *PContexts = 0;
+    *PContextCount = 0;
+
+    ContextCount = 0;
+    for (
+        PLIST_ENTRY Head = &FsvolDeviceExtension->ContextList, Entry = Head->Flink;
+        Head != Entry;
+        Entry = Entry->Flink)
+    {
+        ContextCount++;
+    }
+
+    /* if ContextCount == 0 allocate an empty Context list */
+    Contexts = FspAlloc(sizeof(PVOID) * (0 != ContextCount ? ContextCount : 1));
+    if (0 == Contexts)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    Index = 0;
+    for (
+        PLIST_ENTRY Head = &FsvolDeviceExtension->ContextList, Entry = Head->Flink;
+        Head != Entry;
+        Entry = Entry->Flink)
+    {
+        ASSERT(Index < ContextCount);
+        Contexts[Index++] = CONTAINING_RECORD(Entry, FSP_FILE_NODE, ActiveEntry);
+            /* assume that Contexts can only be FSP_FILE_NODE's */
+    }
+    ASSERT(Index == ContextCount);
+
+    *PContexts = Contexts;
+    *PContextCount = Index;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,

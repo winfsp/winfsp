@@ -294,9 +294,9 @@ VOID FspVolumeDelete(
     FspDeviceGlobalUnlock();
 
     /*
-     * Call MmForceSectionClosed on open files to ensure that Mm removes them from Standby List.
+     * Call MmForceSectionClosed on active files to ensure that Mm removes them from Standby List.
      */
-    Result = FspFileNodeCopyList(FsvolDeviceObject, &FileNodes, &FileNodeCount);
+    Result = FspFileNodeCopyActiveList(FsvolDeviceObject, &FileNodes, &FileNodeCount);
     if (NT_SUCCESS(Result))
     {
         for (Index = FileNodeCount - 1; FileNodeCount > Index; Index--)
