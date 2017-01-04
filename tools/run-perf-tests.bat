@@ -27,19 +27,27 @@ if X%2==Xself (
 mkdir fsbench
 pushd fsbench
 
-for %%a in (1000 2000 3000 4000 5000) do (
+set OptFiles=1000 2000 3000 4000 5000
+if X%2==Xself set OptFiles=10000
+for %%a in (%OptFiles%) do (
     call :csv %%a "%fsbench% --files=%%a file_*"
 )
 
-for %%a in (100 200 300 400 500) do (
+set OptRdwrCc=100 200 300 400 500
+if X%2==Xself set OptRdwrCc=1000
+for %%a in (%OptRdwrCc%) do (
     call :csv %%a "%fsbench% --rdwr-cc=%%a rdwr_cc_*"
 )
 
-for %%a in (100 200 300 400 500) do (
+set OptRdwrNc=100 200 300 400 500
+if X%2==Xself set OptRdwrNc=100
+for %%a in (%OptRdwrNc%) do (
     call :csv %%a "%fsbench% --rdwr-nc=%%a rdwr_nc_*"
 )
 
-for %%a in (100 200 300 400 500) do (
+set OptMmap=100 200 300 400 500
+if X%2==Xself set OptMmap=1000
+for %%a in (%OptMmap%) do (
     call :csv %%a "%fsbench% --mmap=%%a mmap_*"
 )
 
