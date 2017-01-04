@@ -2,6 +2,10 @@ version: '{build}'
 
 environment:
   matrix:
+  - CONFIGURATION: Debug
+    TESTING: Func
+  - CONFIGURATION: Release
+    TESTING: Func
   - CONFIGURATION: Release
     TESTING: Perf
 
@@ -26,7 +30,6 @@ test_script:
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION%
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% ifstest
 - if %TESTING%==Perf tools\run-perf-tests.bat %CONFIGURATION% baseline > perf-tests.csv && type perf-tests.csv & appveyor PushArtifact perf-tests.csv
-- echo DUMP > %SystemRoot%\memory.dmp
 - if exist %SystemRoot%\memory.dmp exit 1
 
 on_finish:
