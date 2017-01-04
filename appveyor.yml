@@ -26,7 +26,7 @@ test_script:
 - tools\nmake-ext-test.bat %CONFIGURATION%
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION%
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% ifstest
-- if %TESTING%==Perf tools\run-perf-tests.bat %CONFIGURATION% self
+- if %TESTING%==Perf tools\run-perf-tests.bat %CONFIGURATION% baseline
 - if exist %SystemRoot%\memory.dmp exit 1
 
 on_finish:
