@@ -45,7 +45,7 @@ VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
 NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
     PVOID **PContexts, PULONG PContextCount);
-VOID FspFsvolDeviceDeleteContextByNameList(PVOID *Contexts, ULONG ContextCount);
+VOID FspFsvolDeviceDeleteContextList(PVOID *Contexts, ULONG ContextCount);
 PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
     BOOLEAN NextFlag, FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY *RestartKey);
 PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
@@ -81,7 +81,7 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceLockContextTable)
 #pragma alloc_text(PAGE, FspFsvolDeviceUnlockContextTable)
 #pragma alloc_text(PAGE, FspFsvolDeviceCopyContextByNameList)
-#pragma alloc_text(PAGE, FspFsvolDeviceDeleteContextByNameList)
+#pragma alloc_text(PAGE, FspFsvolDeviceDeleteContextList)
 #pragma alloc_text(PAGE, FspFsvolDeviceEnumerateContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceLookupContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceInsertContextByName)
@@ -373,6 +373,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     /* initialize our context table */
     ExInitializeResourceLite(&FsvolDeviceExtension->FileRenameResource);
     ExInitializeResourceLite(&FsvolDeviceExtension->ContextTableResource);
+    InitializeListHead(&FsvolDeviceExtension->ContextList);
     RtlInitializeGenericTableAvl(&FsvolDeviceExtension->ContextByNameTable,
         FspFsvolDeviceCompareContextByName,
         FspFsvolDeviceAllocateContextByName,
@@ -620,7 +621,7 @@ NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
     return STATUS_SUCCESS;
 }
 
-VOID FspFsvolDeviceDeleteContextByNameList(PVOID *Contexts, ULONG ContextCount)
+VOID FspFsvolDeviceDeleteContextList(PVOID *Contexts, ULONG ContextCount)
 {
     PAGED_CODE();
 

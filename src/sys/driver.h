@@ -1025,6 +1025,7 @@ typedef struct
     BOOLEAN ExpirationInProgress;
     ERESOURCE FileRenameResource;
     ERESOURCE ContextTableResource;
+    LIST_ENTRY ContextList;
     RTL_AVL_TABLE ContextByNameTable;
     PVOID ContextByNameTableElementStorage;
     UNICODE_STRING VolumeName;
@@ -1067,7 +1068,7 @@ VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
 NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
     PVOID **PContexts, PULONG PContextCount);
-VOID FspFsvolDeviceDeleteContextByNameList(PVOID *Contexts, ULONG ContextCount);
+VOID FspFsvolDeviceDeleteContextList(PVOID *Contexts, ULONG ContextCount);
 PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
     BOOLEAN NextFlag, FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY *RestartKey);
 PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
@@ -1169,11 +1170,13 @@ typedef struct FSP_FILE_NODE
     LONG RefCount;
     UINT32 DeletePending;
     /* locked under FSP_FSVOL_DEVICE_EXTENSION::ContextTableResource */
+    LONG ActiveCount;                   /* CREATE w/o CLOSE count */
     LONG OpenCount;                     /* ContextTable ref count */
     LONG HandleCount;                   /* HANDLE count (CREATE/CLEANUP) */
     SHARE_ACCESS ShareAccess;
     ULONG MainFileDenyDeleteCount;      /* number of times main file is denying delete */
     ULONG StreamDenyDeleteCount;        /* number of times open streams are denying delete */
+    LIST_ENTRY ActiveEntry;
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT ContextByNameElementStorage;
     /* locked under FSP_FSVOL_DEVICE_EXTENSION::FileRenameResource or Header.Resource */
     UNICODE_STRING FileName;

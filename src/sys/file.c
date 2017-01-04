@@ -256,7 +256,7 @@ VOID FspFileNodeDeleteList(FSP_FILE_NODE **FileNodes, ULONG FileNodeCount)
     for (Index = 0; FileNodeCount > Index; Index++)
         FspFileNodeDereference(FileNodes[Index]);
 
-    FspFsvolDeviceDeleteContextByNameList(FileNodes, FileNodeCount);
+    FspFsvolDeviceDeleteContextList(FileNodes, FileNodeCount);
 }
 
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
@@ -692,6 +692,14 @@ exit:
     if (0 != OpenedFileNode)
     {
         FspFileNodeReference(OpenedFileNode);
+
+        ASSERT(0 <= OpenedFileNode->ActiveCount);
+        ASSERT(0 <= OpenedFileNode->OpenCount);
+        ASSERT(0 <= OpenedFileNode->HandleCount);
+
+        if (0 == OpenedFileNode->ActiveCount++)
+            InsertTailList(&FspFsvolDeviceExtension(FsvolDeviceObject)->ContextList,
+                &FileNode->ActiveEntry);
         OpenedFileNode->OpenCount++;
         OpenedFileNode->HandleCount++;
     }
@@ -776,6 +784,7 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 
     IoRemoveShareAccess(FileObject, &FileNode->ShareAccess);
 
+    ASSERT(0 < FileNode->HandleCount);
     if (0 == --FileNode->HandleCount)
     {
         DeletePending = 0 != FileNode->DeletePending;
@@ -906,6 +915,15 @@ VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
         FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName,
             &DeletedFromContextTable);
         ASSERT(DeletedFromContextTable);
+    }
+
+    ASSERT(0 < FileNode->ActiveCount);
+    if (0 == --FileNode->ActiveCount)
+    {
+        ASSERT(0 == FileNode->OpenCount);
+        ASSERT(0 == FileNode->HandleCount);
+
+        RemoveEntryList(&FileNode->ActiveEntry);
     }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
