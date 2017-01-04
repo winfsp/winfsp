@@ -18,7 +18,7 @@ set launchctl="%ProjRoot%\build\VStudio\build\%Configuration%\launchctl-x64.exe"
 set fsbench="%ProjRoot%\build\VStudio\build\%Configuration%\fsbench-x64.exe"
 
 if X%2==Xself (
-    "%launchctl%" start memfs64 testdsk "" M: >nul
+    %launchctl% start memfs64 testdsk "" M: >nul
     rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
     waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
     cd M: >nul 2>nul || (echo === Unable to find drive M: >&2 & goto fail)
@@ -47,7 +47,7 @@ popd
 rmdir fsbench
 
 if X%2==Xself (
-    "%launchctl%" stop memfs64 testdsk >nul
+    %launchctl% stop memfs64 testdsk >nul
     rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
     waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
 )
