@@ -20,7 +20,7 @@ build_script:
 
 test_script:
 - for %%f in ("build\VStudio\build\%CONFIGURATION%\winfsp-*.msi") do start /wait msiexec /i %%f /qn INSTALLLEVEL=1000
-- if %TESTING%==Func appveyor DownloadFile http://www.secfs.net/winfsp/resources/Test.Filter.Driver.zip & 7z x Test.Filter.Driver.zip
+- if %TESTING%==Func appveyor DownloadFile http://www.secfs.net/winfsp/resources/Test.Filter.Driver.zip && 7z x Test.Filter.Driver.zip
 - if %TESTING%==Func start /wait msiexec /i "Test.Filter.Driver\HCK Filter.Driver Content-x86_en-us.msi" /qn
 - if %TESTING%==Func tools\nmake-ext-test.bat %CONFIGURATION%
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION%
@@ -29,5 +29,5 @@ test_script:
 - if exist %SystemRoot%\memory.dmp exit 1
 
 on_finish:
-- if exist %SystemRoot%\memory.dmp (7z a memory.dmp.zip %SystemRoot%\memory.dmp & appveyor PushArtifact memory.dmp.zip)
+- if exist %SystemRoot%\memory.dmp (7z a memory.dmp.zip %SystemRoot%\memory.dmp && appveyor PushArtifact memory.dmp.zip)
 - verifier /query
