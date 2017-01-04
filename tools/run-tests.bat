@@ -410,7 +410,8 @@ if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 rem IfsTest ReparsePoints seems to have a bug in that it cannot handle STATUS_PENDING for FSCTL_GET_REPARSE_POINT
 rmdir /s/q reparspt
 rem StreamEnhancements.StreamRenameTest: WinFsp does not support stream renaming
-call :__ifstest %1 /g StreamEnhancements -t StreamRenameTest
+rem StreamEnhancements.StreamNotifyNameTest: WinFsp does not notify when streams are deleted because main file is deleted
+call :__ifstest %1 /g StreamEnhancements -t StreamRenameTest -t StreamNotifyNameTest
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 for %%d in (!IfsTestDirectories!) do  (
 	if exist %%d (echo :ifstest directory %%d still exists & set IfsTestMemfsExit=1)
