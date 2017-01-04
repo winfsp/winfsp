@@ -2,10 +2,6 @@ version: '{build}'
 
 environment:
   matrix:
-  - CONFIGURATION: Debug
-    TESTING: Func
-  - CONFIGURATION: Release
-    TESTING: Func
   - CONFIGURATION: Release
     TESTING: Perf
 
