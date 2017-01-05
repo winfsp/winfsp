@@ -16,17 +16,21 @@ WinFsp currently has the following test suites:
 +
 This test suite is developed together with WinFsp. It is written in C/C++ and provides a form of gray box testing.
 
-- *Winfstest*: This is a file system test suite that was originally developed for the secfs.test collection of file system test programs by the WinFsp author. However none of its tests are WinFsp specific and all its tests pass on NTFS. Winfstest is used for testing by other Windows file systems.
+- *Winfstest*: This is another test suite that verifies general file system functionality. It is not WinFsp specific and all its tests pass on NTFS.
 +
-This test suite is written in Python and C. It provides a form of black box testing.
+This test suite is written in Python and C and was originally developed for the secfs.test collection of file system test programs by the WinFsp author. It provides a form of black box testing.
 
-- *FSX*: This is Apple's FSX ported to Windows by the WinFsp author. This FSX port is not WinFsp specific and is used for testing by other Windows file systems.
+- *IfsTest*: This is Microsoft's Installable File System Test Suite. It is used to verify that WinFsp behavior closely resembles that of NTFS.
++
+This test suite is part of the Windows Hardware Lab Kit (HLK). It provides a form of black box testing.
+
+- *FSX*: This is Apple's FSX ported to Windows by the WinFsp author. FSX is very good at finding problems with read/write and memory-mapped I/O.
 
 - *Fscrash*: This is a tool that simulates a faulty or crashing user mode file system. It is used to test the fault tolerance of WinFsp.
 +
-This test is WinFsp specific and is developed together with WinFsp. It is written in C/C++.
+This test is developed together with WinFsp. It is written in C/C++.
 
-- *Fsbench*: This is a tool that can be used to test the performance of Windows file systems under different scenarios. It is not WinFsp specific.
+- *Fsbench*: This is a tool that can be used to test the performance of Windows file systems under different scenarios. It can work with any Windows file system and is not specific to WinFsp.
 +
 This tool is currently developed together with WinFsp. It is written in C.
 
@@ -34,7 +38,7 @@ These test suites and a few smaller tests are run through Continuous Integration
 
 === Test File System
 
-WinFsp includes a test user mode file system called *MEMFS*. This is a simple in memory file system written in C/C++. MEMFS attempts to achieve parity with NTFS (barring a few WinFsp limitations -- notably no support for hard links). MEMFS also performs some user mode file system checks during testing, for example, it checks that the buffer received during WRITE calls is read-only.
+WinFsp includes a test user mode file system called *MEMFS*. This is a simple in memory file system written in C/C++. MEMFS implements all file system features that WinFsp supports. MEMFS also performs various user mode file system checks during testing, for example, it checks that the buffer received during WRITE calls is read-only.
 
 == Tested Scenarios
 
@@ -90,6 +94,12 @@ if (!Success)
 ----
 
 In Release builds the +DEBUGTEST(90)+ macro will evaluate to +TRUE+ and the Cache Manager will be asked directly via +CcCanIWrite+ whether a WRITE should be deferred. In Debug builds the +DEBUGTEST(90)+ macro will evaluate to +FALSE+ sometimes (10% of the time) and the WRITE will be deferred, thus allowing us to test the retry code path.
+
+== Compatibility Testing
+
+WinFsp allows the creation of user mode file systems that exhibit behavior similar to NTFS. This means that Windows applications that use such a file system should not be able to tell the difference between NTFS and the WinFsp-based file system. OTOH specialized applications (such as Defrag) will not work properly on WinFsp file systems.
+
+WinFsp uses the winfsp-tests, winfstest and ifstest test suites for compatibility testing. These test suites verify that WinFsp and NTFS have very similar behavior. There is a separate document that examines the differences between WinFsp and NTFS in more detail.
 
 == Fault Tolerance Testing
 
