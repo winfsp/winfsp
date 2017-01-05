@@ -215,7 +215,7 @@ not need to perform access checks, but may performs tasks such as check for empt
 directories, etc.
 
 This function should **NEVER** delete the file or directory in question. Deletion should
-happen during Cleanup with Delete==TRUE.
+happen during Cleanup with the FspCleanupDelete flag set.
 
 This function gets called when Win32 API's such as DeleteFile or RemoveDirectory are used.
 It does not get called when a file or directory is opened with FILE\_DELETE\_ON\_CLOSE.
@@ -233,16 +233,14 @@ It does not get called when a file or directory is opened with FILE\_DELETE\_ON\
         FSP_FILE_SYSTEM *FileSystem, 
         PVOID FileContext,
         PWSTR FileName,
-        BOOLEAN Delete);
+        ULONG Flags);
 
 **Parameters**
 
 - _FileSystem_ \- The file system on which this request is posted.
 - _FileContext_ \- The file context of the file or directory to cleanup.
 - _FileName_ \- The name of the file or directory to cleanup. Sent only when a Delete is requested.
-- _Delete_ \- Determines whether to delete the file. Note that there is no way to report failure of
-this operation. Also note that when this parameter is TRUE this is the last outstanding
-cleanup for this particular file node.
+- _Flags_ \- These flags determine whether the file was modified and whether to delete the file.
 
 **Discussion**
 
@@ -253,18 +251,43 @@ file object. When all handles for a particular file object get closed (using Clo
 the system sends a Cleanup request to the file system.
 
 There will be a Cleanup operation for every Create or Open operation posted to the user mode
-file system. However the Cleanup operation is **not** the final close operation on a file. The
-file system must be ready to receive additional operations until close time. This is true
+file system. However the Cleanup operation is **not** the final close operation on a file.
+The file system must be ready to receive additional operations until close time. This is true
 even when the file is being deleted!
 
+The Flags parameter contains information about the cleanup operation:
+
+- FspCleanupDelete -
 An important function of the Cleanup operation is to complete a delete operation. Deleting
 a file or directory in Windows is a three-stage process where the file is first opened, then
 tested to see if the delete can proceed and if the answer is positive the file is then
 deleted during Cleanup.
 
+When this flag is set, this is the last outstanding cleanup for this particular file node.
+
+
+- FspCleanupSetAllocationSize -
+The NTFS and FAT file systems reset a file's allocation size when they receive the last
+outstanding cleanup for a particular file node. User mode file systems that implement
+allocation size and wish to duplicate the NTFS and FAT behavior can use this flag.
+
+
+- FspCleanupSetArchiveBit -
+File systems that support the archive bit should set the file node's archive bit when this
+flag is set.
+
+
+- FspCleanupSetLastAccessTime, FspCleanupSetLastWriteTime, FspCleanupSetChangeTime - File
+systems should set the corresponding file time when each one of these flags is set. Note that
+updating the last access time is expensive and a file system may choose to not implement it.
+
+
+
+There is no way to report failure of this operation. This is a Windows limitation.
+
 As an optimization a file system may specify the FSP\_FSCTL\_VOLUME\_PARAMS ::
-PostCleanupOnDeleteOnly flag. In this case the FSD will only post Cleanup requests when a
-file is being deleted.
+PostCleanupWhenModifiedOnly flag. In this case the FSD will only post Cleanup requests when
+the file was modified/deleted.
 
 **See Also**
 
@@ -362,12 +385,17 @@ STATUS\_SUCCESS or error code.
     :::c
     NTSTATUS ( *Flush)(
         FSP_FILE_SYSTEM *FileSystem, 
-        PVOID FileContext);
+        PVOID FileContext, 
+        FSP_FSCTL_FILE_INFO *FileInfo);
 
 **Parameters**
 
 - _FileSystem_ \- The file system on which this request is posted.
 - _FileContext_ \- The file context of the file to be flushed. When NULL the whole volume is being flushed.
+- _FileInfo_ \- [out]
+Pointer to a structure that will receive the file information on successful return
+from this call. This information includes file attributes, file times, etc. Used when
+flushing file (not volume).
 
 **Return Value**
 
@@ -588,7 +616,8 @@ STATUS\_SUCCESS or error code.
         FSP_FILE_SYSTEM *FileSystem, 
         PVOID FileContext,
         UINT32 FileAttributes,
-        BOOLEAN ReplaceFileAttributes, 
+        BOOLEAN ReplaceFileAttributes,
+        UINT64 AllocationSize, 
         FSP_FSCTL_FILE_INFO *FileInfo);
 
 **Parameters**
@@ -598,6 +627,7 @@ STATUS\_SUCCESS or error code.
 - _FileAttributes_ \- File attributes to apply to the overwritten file.
 - _ReplaceFileAttributes_ \- When TRUE the existing file attributes should be replaced with the new ones.
 When FALSE the existing file attributes should be merged (or'ed) with the new ones.
+- _AllocationSize_ \- Allocation size for the overwritten file.
 - _FileInfo_ \- [out]
 Pointer to a structure that will receive the file information on successful return
 from this call. This information includes file attributes, file times, etc.
@@ -658,6 +688,16 @@ which is used solely by the file system to locate directory entries. However the
 special value 0 indicates that the read should start from the first entries. The first
 two entries returned by ReadDirectory should always be the "." and ".." entries,
 except for the root directory which does not have these entries.
+
+This parameter is used by the WinFsp FSD to break directory listings into chunks.
+In this case all 64-bits of the Offset are valid. In some cases the Windows kernel
+(NTOS) may also use this parameter. In this case only the lower 32-bits of this
+parameter will be valid. This is an unfortunate limitation of Windows (for more
+information see the documentation for IRP\_MJ\_DIRECTORY\_CONTROL and the flag
+SL\_INDEX\_SPECIFIED).
+
+In practice this means that you should only rely on the lower 32-bits of this value
+to be valid.
 - _Length_ \- Length of data to read.
 - _Pattern_ \- The pattern to match against files in this directory. Can be NULL. The file system
 can choose to ignore this parameter as the FSD will always perform its own pattern
@@ -701,10 +741,6 @@ STATUS\_SUCCESS or error code.
 **Discussion**
 
 The kernel mode FSD provides certain guarantees prior to posting a rename operation:
-
-- A file cannot be renamed if it has any open handles, other than the one used to perform
-the rename.
-
 
 - A file cannot be renamed if a file with the same name exists and has open handles.
 
@@ -775,7 +811,8 @@ should be returned to the FSD with status STATUS\_REPARSE/IO\_REPARSE.
         UINT32 FileAttributes, 
         UINT64 CreationTime,
         UINT64 LastAccessTime,
-        UINT64 LastWriteTime, 
+        UINT64 LastWriteTime,
+        UINT64 ChangeTime, 
         FSP_FSCTL_FILE_INFO *FileInfo);
 
 **Parameters**
@@ -790,6 +827,8 @@ time should not be changed.
 access time should not be changed.
 - _LastWriteTime_ \- Last write time to apply to the file or directory. If the value 0 is sent, the last
 write time should not be changed.
+- _ChangeTime_ \- Change time to apply to the file or directory. If the value 0 is sent, the change time
+should not be changed.
 - _FileInfo_ \- [out]
 Pointer to a structure that will receive the file information on successful return
 from this call. This information includes file attributes, file times, etc.
@@ -886,8 +925,7 @@ STATUS\_SUCCESS or error code.
         FSP_FILE_SYSTEM *FileSystem, 
         PVOID FileContext, 
         SECURITY_INFORMATION SecurityInformation,
-        PSECURITY_DESCRIPTOR ModificationDescriptor, 
-        HANDLE AccessToken);
+        PSECURITY_DESCRIPTOR ModificationDescriptor);
 
 **Parameters**
 
@@ -896,8 +934,6 @@ STATUS\_SUCCESS or error code.
 - _SecurityInformation_ \- Describes what parts of the file or directory security descriptor should
 be modified.
 - _ModificationDescriptor_ \- Describes the modifications to apply to the file or directory security descriptor.
-- _AccessToken_ \- A handle to a token that can be used to verify whether the requested modifications
-are allowed.
 
 **Return Value**
 
@@ -1463,7 +1499,6 @@ file system requests from the kernel.
         PSECURITY_DESCRIPTOR InputDescriptor, 
         SECURITY_INFORMATION SecurityInformation, 
         PSECURITY_DESCRIPTOR ModificationDescriptor, 
-        HANDLE AccessToken, 
         PSECURITY_DESCRIPTOR *PSecurityDescriptor);
 
 **Parameters**
@@ -1473,9 +1508,6 @@ file system requests from the kernel.
 the same value passed to the SetSecurity SecurityInformation parameter.
 - _ModificationDescriptor_ \- Describes the modifications to apply to the InputDescriptor. This should contain
 the same value passed to the SetSecurity ModificationDescriptor parameter.
-- _AccessToken_ \- A handle to a token that can be used to verify whether the requested modifications
-are allowed. This should contain the same value passed to the SetSecurity AccessToken
-parameter.
 - _PSecurityDescriptor_ \- [out]
 Pointer to a memory location that will receive the resulting security descriptor.
 This security descriptor can be later freed using FspDeleteSecurityDescriptor.
