@@ -823,7 +823,10 @@ NTSTATUS FspFsvolCreateComplete(
 
                 if (Response->Buffer + Response->Rsp.Create.Opened.FileName.Size >
                     (PUINT8)Response + Response->Size)
+                {
+                    FspFsvolCreatePostClose(FileDesc);
                     FSP_RETURN(Result = STATUS_OBJECT_NAME_INVALID);
+                }
 
                 NormalizedName.Length = NormalizedName.MaximumLength =
                     Response->Rsp.Create.Opened.FileName.Size;
@@ -831,7 +834,10 @@ NTSTATUS FspFsvolCreateComplete(
 
                 /* normalized file name can only differ in case from requested one */
                 if (0 != FspFileNameCompare(&FileNode->FileName, &NormalizedName, TRUE, 0))
+                {
+                    FspFsvolCreatePostClose(FileDesc);
                     FSP_RETURN(Result = STATUS_OBJECT_NAME_INVALID);
+                }
 
                 ASSERT(FileNode->FileName.Length == NormalizedName.Length);
                 RtlCopyMemory(FileNode->FileName.Buffer, NormalizedName.Buffer, NormalizedName.Length);
