@@ -2,7 +2,7 @@
  * @file sys/callbacks.c
  * Fast I/O and resource acquisition callbacks.
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.

@@ -14,7 +14,7 @@
  * [SNAME]
  *     https://www.cygwin.com/cygwin-ug-net/using-specialnames.html
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
