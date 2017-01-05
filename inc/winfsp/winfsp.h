@@ -331,14 +331,36 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * the system sends a Cleanup request to the file system.
      *
      * There will be a Cleanup operation for every Create or Open operation posted to the user mode
-     * file system. However the Cleanup operation is <b>not</b> the final close operation on a file. The
-     * file system must be ready to receive additional operations until close time. This is true
+     * file system. However the Cleanup operation is <b>not</b> the final close operation on a file.
+     * The file system must be ready to receive additional operations until close time. This is true
      * even when the file is being deleted!
      *
+     * The Flags parameter contains information about the cleanup operation:
+     * <ul>
+     * <li>FspCleanupDelete -
      * An important function of the Cleanup operation is to complete a delete operation. Deleting
      * a file or directory in Windows is a three-stage process where the file is first opened, then
      * tested to see if the delete can proceed and if the answer is positive the file is then
      * deleted during Cleanup.
+     *
+     * When this flag is set, this is the last outstanding cleanup for this particular file node.
+     * </li>
+     * <li>FspCleanupSetAllocationSize -
+     * The NTFS and FAT file systems reset a file's allocation size when they receive the last
+     * outstanding cleanup for a particular file node. User mode file systems that implement
+     * allocation size and wish to duplicate the NTFS and FAT behavior can use this flag.
+     * </li>
+     * <li>
+     * FspCleanupSetArchiveBit -
+     * File systems that support the archive bit should set the file node's archive bit when this
+     * flag is set.
+     * </li>
+     * <li>FspCleanupSetLastAccessTime, FspCleanupSetLastWriteTime, FspCleanupSetChangeTime - File
+     * systems should set the corresponding file time when each one of these flags is set. Note that
+     * updating the last access time is expensive and a file system may choose to not implement it.
+     * </ul>
+     *
+     * There is no way to report failure of this operation. This is a Windows limitation.
      *
      * As an optimization a file system may specify the FSP_FSCTL_VOLUME_PARAMS ::
      * PostCleanupWhenModifiedOnly flag. In this case the FSD will only post Cleanup requests when
@@ -352,9 +374,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     The name of the file or directory to cleanup. Sent only when a Delete is requested.
      * @param Flags
      *     These flags determine whether the file was modified and whether to delete the file.
-     *     Note that there is no way to report failure of this operation. Also note that when
-     *     this parameter has the FspCleanupDelete bit set, this is the last outstanding cleanup
-     *     for this particular file node.
      * @see
      *     Close
      *     CanDelete
@@ -536,7 +555,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * directories, etc.
      *
      * This function should <b>NEVER</b> delete the file or directory in question. Deletion should
-     * happen during Cleanup with Delete==TRUE.
+     * happen during Cleanup with the FspCleanupDelete flag set.
      *
      * This function gets called when Win32 API's such as DeleteFile or RemoveDirectory are used.
      * It does not get called when a file or directory is opened with FILE_DELETE_ON_CLOSE.
@@ -559,8 +578,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * The kernel mode FSD provides certain guarantees prior to posting a rename operation:
      * <ul>
-     * <li>A file cannot be renamed if it has any open handles, other than the one used to perform
-     * the rename.</li>
      * <li>A file cannot be renamed if a file with the same name exists and has open handles.</li>
      * <li>A directory cannot be renamed if it or any of its subdirectories contains a file that
      * has open handles.</li>
