@@ -6,13 +6,12 @@ WinFsp is a set of software components for Windows computers that allows the cre
 
 Some of the benefits and features of using WinFsp are listed below:
 
-* Allows for easy development of file systems in user mode. There are no restrictions on what a process can do in order to implement a file system (other than respond in a timely manner to file system requests).
-* Support for disk and network based file systems.
-* Support for NTFS level security and access control.
-* Support for memory mapped files, cached files and the NT cache manager.
-* Support for file change notifications.
-* Support for file locking.
-* Correct NT semantics with respect to file sharing, file deletion and renaming.
+* Very well-tested and stable. Read about its [Testing Strategy](doc/WinFsp-Testing.asciidoc).
+* Very fast. Read about its [Performance](doc/WinFsp-Performance-Testing.asciidoc).
+* Strives for compatibility with NTFS. Read about its [Compatibility](doc/NTFS-Compatibility.asciidoc ).
+* Easy to understand but comprehensive API. Consult the [API Reference](http://www.secfs.net/winfsp/apiref/).
+* Signed drivers provided on every release.
+* Available under the GPLv3.
 
 To learn more about WinFsp, please visit its website: http://www.secfs.net/winfsp/
 
@@ -53,6 +52,7 @@ WinFsp is designed to run on Vista and above. It has been tested on the followin
 * Windows 8 Pro
 * Windows 10 Pro
 * Windows Server 2012
+* Windows Server 2016
 
 ## How to Help
 
@@ -60,7 +60,7 @@ I am looking for help in the following areas:
 
 * If you have a file system that runs on FUSE please consider porting it to WinFsp. WinFsp has a native API, but it also has a FUSE (high-level) API.
 * If you are working with a language other than C/C++ (e.g. Delphi, C#, etc.) and you are interested in porting/wrapping WinFsp I would love to hear from you.
-* There are a number of outstanding issues listed in the [GitHub repository](https://github.com/billziss-gh/winfsp/issues) ~~[BitBucket repository](https://bitbucket.org/billziss/winfsp/issues?status=new&status=open)~~. Many of these require knowledge of Windows kernel-mode and an understanding of the internals of WinFsp so they are not for the faint of heart. If you decide to tackle any of those please coordinate with me as I am actively working on that issue list.
+* There are a number of outstanding issues listed in the [GitHub repository](https://github.com/billziss-gh/winfsp/issues). Many of these require knowledge of Windows kernel-mode and an understanding of the internals of WinFsp so they are not for the faint of heart. If you decide to tackle any of those please coordinate with me as I am actively working on that issue list.
 
 In all cases I can provide ideas and/or support.
 
