@@ -3,9 +3,13 @@
 
 v1.0RC1::
 
-This is the first Release Candidate. It has been tested for robustness and correct file system semantics in a variety of scenarios. Some of the more important changes:
+This is the WinFsp 2017 Release Candidate 1. It has been tested extensively in a variety of scenarios for stability and correct file system semantics. Some of the more important changes:
 
 - API has been polished and finalized.
+- Extensively tested against multiple test suites including Microsoft's IfsTest.
+- WinFsp I/O Queues (the fundamental WinFsp IPC mechanism) have been improved to work similar to I/O Completion Ports.
+- Opportunistic locks have been implemented.
+- File system statistics have been implemented.
 - Sharing a (disk) file system over the network is supported.
 - Case insensitive file systems are supported.
 - Directories are supported as mount points.
