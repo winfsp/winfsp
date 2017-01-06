@@ -4,7 +4,7 @@
 
 WinFsp is a set of software components for Windows computers that allows the creation of user mode file systems. In this sense it is similar to FUSE (Filesystem in Userspace), which provides the same functionality on UNIX-like computers.
 
-Some of the benefits and features of using WinFsp are listed below:
+Some of the benefits of using WinFsp are listed below:
 
 * Very well-tested and stable. Read about its [Testing Strategy](doc/WinFsp-Testing.asciidoc).
 * Very fast. Read about its [Performance](doc/WinFsp-Performance-Testing.asciidoc).
@@ -61,7 +61,7 @@ I am looking for help in the following areas:
 
 * If you have a file system that runs on FUSE please consider porting it to WinFsp. WinFsp has a native API, but it also has a FUSE (high-level) API.
 * If you are working with a language other than C/C++ (e.g. Delphi, C#, etc.) and you are interested in porting/wrapping WinFsp I would love to hear from you.
-* There are a number of outstanding issues listed in the [GitHub repository](https://github.com/billziss-gh/winfsp/issues). Many of these require knowledge of Windows kernel-mode and an understanding of the internals of WinFsp so they are not for the faint of heart. If you decide to tackle any of those please coordinate with me as I am actively working on that issue list.
+* There are a number of outstanding issues listed in the [GitHub repository](https://github.com/billziss-gh/winfsp/issues). Many of these require knowledge of Windows kernel-mode and an understanding of the internals of WinFsp so they are not for the faint of heart.
 
 In all cases I can provide ideas and/or support.
 
