@@ -112,4 +112,9 @@
       <Filter>Source</Filter>
     </ResourceCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\src\sys\driver.inf.in">
+      <Filter>Source</Filter>
+    </None>
+  </ItemGroup>
 </Project>

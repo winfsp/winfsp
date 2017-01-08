@@ -196,6 +196,71 @@
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_WIN64;_AMD64_=1;AMD64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\src\sys\driver.inf.in">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">set DriverFile=$(TargetFileName)
+set Provider="$(MyCompanyName)"
+set CatalogFile=driver-$(PlatformTarget).cat
+
+setlocal EnableDelayedExpansion
+if exist $(OutDir)driver-$(PlatformTarget).inf del $(OutDir)driver-$(PlatformTarget).inf
+for /f "delims=" %%l in (%(FullPath)) do (
+    set line=%%l
+    echo !line! &gt;&gt;$(OutDir)driver-$(PlatformTarget).inf
+)
+
+stampinf -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkObjects>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">set DriverFile=$(TargetFileName)
+set Provider="$(MyCompanyName)"
+set CatalogFile=driver-$(PlatformTarget).cat
+
+setlocal EnableDelayedExpansion
+if exist $(OutDir)driver-$(PlatformTarget).inf del $(OutDir)driver-$(PlatformTarget).inf
+for /f "delims=" %%l in (%(FullPath)) do (
+    set line=%%l
+    echo !line! &gt;&gt;$(OutDir)driver-$(PlatformTarget).inf
+)
+
+stampinf -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkObjects>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">set DriverFile=$(TargetFileName)
+set Provider="$(MyCompanyName)"
+set CatalogFile=driver-$(PlatformTarget).cat
+
+setlocal EnableDelayedExpansion
+if exist $(OutDir)driver-$(PlatformTarget).inf del $(OutDir)driver-$(PlatformTarget).inf
+for /f "delims=" %%l in (%(FullPath)) do (
+    set line=%%l
+    echo !line! &gt;&gt;$(OutDir)driver-$(PlatformTarget).inf
+)
+
+stampinf -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">set DriverFile=$(TargetFileName)
+set Provider="$(MyCompanyName)"
+set CatalogFile=driver-$(PlatformTarget).cat
+
+setlocal EnableDelayedExpansion
+if exist $(OutDir)driver-$(PlatformTarget).inf del $(OutDir)driver-$(PlatformTarget).inf
+for /f "delims=" %%l in (%(FullPath)) do (
+    set line=%%l
+    echo !line! &gt;&gt;$(OutDir)driver-$(PlatformTarget).inf
+)
+
+stampinf -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Writing driver-$(PlatformTarget).inf</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)driver-$(PlatformTarget).inf</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Writing driver-$(PlatformTarget).inf</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)driver-$(PlatformTarget).inf</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Writing driver-$(PlatformTarget).inf</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)driver-$(PlatformTarget).inf</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Writing driver-$(PlatformTarget).inf</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)driver-$(PlatformTarget).inf</Outputs>
+    </CustomBuild>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

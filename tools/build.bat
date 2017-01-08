@@ -28,6 +28,27 @@ for %%f in (build\%Configuration%\winfsp-x64.sys build\%Configuration%\winfsp-x8
 	if errorlevel 1 set /a signfail=signfail+1
 )
 
+pushd build\%Configuration%
+for %%a in (x64 x86) do (
+	echo .OPTION EXPLICIT >driver-%%a.ddf
+	echo .Set CabinetFileCountThreshold=0 >>driver-%%a.ddf
+	echo .Set FolderFileCountThreshold=0 >>driver-%%a.ddf
+	echo .Set FolderSizeThreshold=0 >>driver-%%a.ddf
+	echo .Set MaxCabinetSize=0 >>driver-%%a.ddf
+	echo .Set MaxDiskFileCount=0 >>driver-%%a.ddf
+	echo .Set MaxDiskSize=0 >>driver-%%a.ddf
+	echo .Set CompressionType=MSZIP >>driver-%%a.ddf
+	echo .Set Cabinet=on >>driver-%%a.ddf
+	echo .Set Compress=on >>driver-%%a.ddf
+	echo .Set CabinetNameTemplate=driver-%%a.cab >>driver-%%a.ddf
+	echo .Set DiskDirectory1=. >>driver-%%a.ddf
+	echo .Set DestinationDir=winfsp >>driver-%%a.ddf
+	echo driver-%%a.inf >>driver-%%a.ddf
+	echo winfsp-%%a.sys >>driver-%%a.ddf
+	makecab /F driver-%%a.ddf
+)
+popd
+
 devenv winfsp.sln /build "Installer.%Configuration%|x86"
 if errorlevel 1 goto fail
 
