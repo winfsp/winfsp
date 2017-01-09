@@ -2,6 +2,11 @@
 
 ![WinFsp Demo](http://www.secfs.net/winfsp/files/cap.gif)
 
+
+<a href="https://github.com/billziss-gh/winfsp/releases/download/v1.0RC1/winfsp-1.0.17009.msi"><img src="http://www.secfs.net/winfsp/resources/Download-WinFsp.png" alt="Download WinFsp Installer" width="244" height="34"></a>
+
+
+
 WinFsp is a set of software components for Windows computers that allows the creation of user mode file systems. In this sense it is similar to FUSE (Filesystem in Userspace), which provides the same functionality on UNIX-like computers.
 
 Some of the benefits of using WinFsp are listed below:
