@@ -272,6 +272,68 @@ void mount_volume_transact_test(void)
         mount_volume_transact_dotest(L"WinFsp.Net", L"\\\\winfsp-tests\\share");
 }
 
+void mount_preflight_dotest(PWSTR DeviceName)
+{
+    NTSTATUS Result;
+    WCHAR MountPoint[MAX_PATH];
+    WCHAR DirBuf[MAX_PATH];
+    DWORD Drives;
+    WCHAR Drive;
+    BOOL Success;
+
+    MountPoint[0] = L'C';
+    MountPoint[1] = L':';
+    MountPoint[2] = L'\0';
+
+    GetTestDirectory(DirBuf);
+
+    Drives = GetLogicalDrives();
+    ASSERT(0 != Drives);
+
+    Result = FspFileSystemPreflight(DeviceName, 0);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    for (Drive = 'Z'; 'A' <= Drive; Drive--)
+        if (0 == (Drives & (1 << (Drive - 'A'))))
+            break;
+    ASSERT('A' <= Drive);
+
+    MountPoint[0] = Drive;
+    Result = FspFileSystemPreflight(DeviceName, MountPoint);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    for (Drive = 'Z'; 'A' <= Drive; Drive--)
+        if (0 != (Drives & (1 << (Drive - 'A'))))
+            break;
+    ASSERT('A' <= Drive);
+
+    MountPoint[0] = Drive;
+    Result = FspFileSystemPreflight(DeviceName, MountPoint);
+    ASSERT(STATUS_OBJECT_NAME_COLLISION == Result);
+
+    StringCbPrintfW(MountPoint, sizeof MountPoint, L"%s\\dir1", DirBuf);
+
+    Result = FspFileSystemPreflight(DeviceName, MountPoint);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    Success = CreateDirectoryW(MountPoint, 0);
+    ASSERT(Success);
+
+    Result = FspFileSystemPreflight(DeviceName, MountPoint);
+    ASSERT(STATUS_OBJECT_NAME_COLLISION == Result);
+
+    Success = RemoveDirectoryW(MountPoint);
+    ASSERT(Success);
+}
+
+void mount_preflight_test(void)
+{
+    if (WinFspDiskTests)
+        mount_preflight_dotest(L"WinFsp.Disk");
+    if (WinFspNetTests)
+        mount_preflight_dotest(L"WinFsp.Net");
+}
+
 void mount_tests(void)
 {
     if (NtfsTests || OptOplock)
@@ -282,4 +344,5 @@ void mount_tests(void)
     TEST_OPT(mount_create_volume_test);
     TEST_OPT(mount_volume_cancel_test);
     TEST_OPT(mount_volume_transact_test);
+    TEST_OPT(mount_preflight_test);
 }

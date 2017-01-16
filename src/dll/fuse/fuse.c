@@ -230,36 +230,6 @@ FSP_FUSE_API int fsp_fuse_is_lib_option(struct fsp_fuse_env *env,
 
 static void fsp_fuse_cleanup(struct fuse *f);
 
-static NTSTATUS fsp_fuse_preflight(struct fuse *f)
-{
-    NTSTATUS Result;
-
-    Result = FspFsctlPreflight(f->VolumeParams.Prefix[0] ?
-        L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME);
-    if (!NT_SUCCESS(Result))
-        return Result;
-
-    if (L'\0' != f->MountPoint)
-    {
-        if ((
-                (L'A' <= f->MountPoint[0] && f->MountPoint[0] <= L'Z') ||
-                (L'a' <= f->MountPoint[0] && f->MountPoint[0] <= L'z')
-            ) &&
-            L':' == f->MountPoint[1] || L'\0' == f->MountPoint[2])
-        {
-            if (GetLogicalDrives() & (1 << ((f->MountPoint[0] & ~0x20) - 'a')))
-                return STATUS_OBJECT_NAME_COLLISION;
-        }
-        else
-        if (L'*' == f->MountPoint[0] && L'\0' == f->MountPoint[1])
-            ;
-        else
-            return STATUS_OBJECT_NAME_INVALID;
-    }
-
-    return STATUS_SUCCESS;
-}
-
 static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
     struct fuse *f = Service->UserContext;
@@ -380,7 +350,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     FspFileSystemSetOperationGuardStrategy(f->FileSystem, f->OpGuardStrategy);
     FspFileSystemSetDebugLog(f->FileSystem, f->DebugLog);
 
-    if (L'\0' != f->MountPoint)
+    if (0 != f->MountPoint)
     {
         Result = FspFileSystemSetMountPoint(f->FileSystem,
             L'*' == f->MountPoint[0] && L'\0' == f->MountPoint[1] ? 0 : f->MountPoint);
@@ -548,7 +518,9 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         goto fail;
     memcpy(f->MountPoint, ch->MountPoint, Size);
 
-    Result = fsp_fuse_preflight(f);
+    Result = FspFileSystemPreflight(
+        f->VolumeParams.Prefix[0] ? L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME,
+        '*' != f->MountPoint[0] || '\0' != f->MountPoint[1] ? f->MountPoint : 0);
     if (!NT_SUCCESS(Result))
     {
         switch (Result)

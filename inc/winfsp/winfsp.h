@@ -846,6 +846,20 @@ typedef struct _FSP_FILE_SYSTEM_OPERATION_CONTEXT
     FSP_FSCTL_TRANSACT_RSP *Response;
 } FSP_FILE_SYSTEM_OPERATION_CONTEXT;
 /**
+ * Check whether creating a file system object is possible.
+ *
+ * @param DevicePath
+ *     The name of the control device for this file system. This must be either
+ *     FSP_FSCTL_DISK_DEVICE_NAME or FSP_FSCTL_NET_DEVICE_NAME.
+ * @param MountPoint
+ *     The mount point for the new file system. A value of NULL means that the file system should
+ *     use the next available drive letter counting downwards from Z: as its mount point.
+ * @return
+ *     STATUS_SUCCESS or error code.
+ */
+FSP_API NTSTATUS FspFileSystemPreflight(PWSTR DevicePath,
+    PWSTR MountPoint);
+/**
  * Create a file system object.
  *
  * @param DevicePath

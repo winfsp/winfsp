@@ -113,8 +113,8 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\src\sys\driver.inf.in">
+    <CustomBuild Include="..\..\src\sys\driver.inf.in">
       <Filter>Source</Filter>
-    </None>
+    </CustomBuild>
   </ItemGroup>
 </Project>

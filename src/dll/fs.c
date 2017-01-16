@@ -72,6 +72,43 @@ VOID FspFileSystemFinalize(BOOLEAN Dynamic)
         TlsFree(FspFileSystemTlsKey);
 }
 
+FSP_API NTSTATUS FspFileSystemPreflight(PWSTR DevicePath,
+    PWSTR MountPoint)
+{
+    NTSTATUS Result;
+    WCHAR TargetPath[MAX_PATH];
+    HANDLE DirHandle;
+
+    Result = FspFsctlPreflight(DevicePath);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (0 == MountPoint)
+        Result = STATUS_SUCCESS;
+    else
+    {
+        if (FspPathIsDrive(MountPoint))
+            Result = QueryDosDeviceW(MountPoint, TargetPath, MAX_PATH) ?
+                STATUS_OBJECT_NAME_COLLISION : STATUS_SUCCESS;
+        else
+        {
+            DirHandle = CreateFileW(MountPoint,
+                FILE_READ_ATTRIBUTES,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                0,
+                OPEN_EXISTING,
+                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+                0);
+            Result = INVALID_HANDLE_VALUE != DirHandle || ERROR_FILE_NOT_FOUND != GetLastError() ?
+                STATUS_OBJECT_NAME_COLLISION : STATUS_SUCCESS;
+            if (INVALID_HANDLE_VALUE != DirHandle)
+                CloseHandle(DirHandle);
+        }
+    }
+
+    return Result;
+}
+
 FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
     const FSP_FILE_SYSTEM_INTERFACE *Interface,
