@@ -99,10 +99,15 @@ FSP_API NTSTATUS FspFileSystemPreflight(PWSTR DevicePath,
                 OPEN_EXISTING,
                 FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
                 0);
-            Result = INVALID_HANDLE_VALUE != DirHandle || ERROR_FILE_NOT_FOUND != GetLastError() ?
-                STATUS_OBJECT_NAME_COLLISION : STATUS_SUCCESS;
             if (INVALID_HANDLE_VALUE != DirHandle)
+            {
                 CloseHandle(DirHandle);
+                Result = STATUS_OBJECT_NAME_COLLISION;
+            }
+            else if (ERROR_FILE_NOT_FOUND != GetLastError())
+                Result = STATUS_OBJECT_NAME_INVALID;
+            else
+                Result = STATUS_SUCCESS;
         }
     }
 
