@@ -73,7 +73,7 @@ static inline BOOLEAN FspPathIsDrive(PWSTR FileName)
             (L'A' <= FileName[0] && FileName[0] <= L'Z') ||
             (L'a' <= FileName[0] && FileName[0] <= L'z')
         ) &&
-        L':' == FileName[1] || L'\0' == FileName[2];
+        L':' == FileName[1] && L'\0' == FileName[2];
 }
 
 #endif
