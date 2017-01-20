@@ -16,8 +16,11 @@
  */
 
 #include <winfsp/winfsp.h>
+#include <strsafe.h>
 
 #define PROGNAME                        "passthrough"
+#define ALLOCATION_UNIT                 4096
+#define FULLPATH_LENGTH                 (MAX_PATH + FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR))
 
 #define info(format, ...)               FspServiceLog(EVENTLOG_INFORMATION_TYPE, format, __VA_ARGS__)
 #define warn(format, ...)               FspServiceLog(EVENTLOG_WARNING_TYPE, format, __VA_ARGS__)
@@ -29,10 +32,49 @@ typedef struct
     PWSTR Path;
 } PTFS;
 
+#define ConcatPath(Ptfs, FN, FP)        (0 == StringCbPrintfW(FP, sizeof FP, L"%s%s", Ptfs->Path, FN))
+
+static NTSTATUS GetFileInfoInternal(HANDLE Handle, FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    BY_HANDLE_FILE_INFORMATION ByHandleFileInfo;
+
+    if (!GetFileInformationByHandle(Handle, &ByHandleFileInfo))
+        return FspNtStatusFromWin32(GetLastError());
+
+    FileInfo->FileAttributes = ByHandleFileInfo.dwFileAttributes;
+    FileInfo->ReparseTag = 0;
+    FileInfo->FileSize =
+        ((UINT64)ByHandleFileInfo.nFileSizeHigh << 32) | (UINT64)ByHandleFileInfo.nFileSizeLow;
+    FileInfo->AllocationSize = (FileInfo->FileSize + ALLOCATION_UNIT - 1)
+        / ALLOCATION_UNIT * ALLOCATION_UNIT;
+    FileInfo->CreationTime = ((PLARGE_INTEGER)&ByHandleFileInfo.ftCreationTime)->QuadPart;
+    FileInfo->LastAccessTime = ((PLARGE_INTEGER)&ByHandleFileInfo.ftLastAccessTime)->QuadPart;
+    FileInfo->LastWriteTime = ((PLARGE_INTEGER)&ByHandleFileInfo.ftLastWriteTime)->QuadPart;
+    FileInfo->ChangeTime = FileInfo->LastWriteTime;
+    FileInfo->IndexNumber =
+        ((UINT64)ByHandleFileInfo.nFileIndexHigh << 32) | (UINT64)ByHandleFileInfo.nFileIndexLow;
+    FileInfo->HardLinks = 0;
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
+    WCHAR Root[MAX_PATH];
+    ULARGE_INTEGER TotalSize, FreeSize;
+
+    if (!GetVolumePathName(Ptfs->Path, Root, MAX_PATH))
+        return FspNtStatusFromWin32(GetLastError());
+
+    if (!GetDiskFreeSpaceEx(Root, 0, &TotalSize, &FreeSize))
+        return FspNtStatusFromWin32(GetLastError());
+
+    VolumeInfo->TotalSize = TotalSize.QuadPart;
+    VolumeInfo->FreeSize = FreeSize.QuadPart;
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM *FileSystem,
@@ -46,7 +88,57 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, PUINT32 PFileAttributes,
     PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
+    WCHAR FullPath[FULLPATH_LENGTH];
+    HANDLE Handle;
+    FILE_ATTRIBUTE_TAG_INFO AttributeTagInfo;
+    DWORD SecurityDescriptorSizeNeeded;
+    NTSTATUS Result;
+
+    if (!ConcatPath(Ptfs, FileName, FullPath))
+        return STATUS_OBJECT_NAME_INVALID;
+
+    Handle = CreateFileW(FullPath,
+        FILE_READ_ATTRIBUTES | READ_CONTROL, 0, 0,
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == Handle)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    if (0 != PFileAttributes)
+    {
+        if (!GetFileInformationByHandleEx(Handle,
+            FileAttributeTagInfo, &AttributeTagInfo, sizeof AttributeTagInfo))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+
+        *PFileAttributes = AttributeTagInfo.FileAttributes;
+    }
+
+    if (0 != PSecurityDescriptorSize)
+    {
+        if (!GetKernelObjectSecurity(Handle,
+            OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+            SecurityDescriptor, (DWORD)*PSecurityDescriptorSize, &SecurityDescriptorSizeNeeded))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+
+        *PSecurityDescriptorSize = SecurityDescriptorSizeNeeded;
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (INVALID_HANDLE_VALUE != Handle)
+        CloseHandle(Handle);
+
+    return Result;
 }
 
 static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
@@ -61,7 +153,20 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
     PVOID *PFileContext, FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
+    WCHAR FullPath[FULLPATH_LENGTH];
+    HANDLE Handle;
+
+    if (!ConcatPath(Ptfs, FileName, FullPath))
+        return STATUS_OBJECT_NAME_INVALID;
+
+    Handle = CreateFileW(FullPath,
+        GrantedAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == Handle)
+        return FspNtStatusFromWin32(GetLastError());
+
+    return GetFileInfoInternal(Handle, FileInfo);
 }
 
 static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
@@ -79,6 +184,9 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
 static VOID Close(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext)
 {
+    HANDLE Handle = FileContext;
+
+    CloseHandle(Handle);
 }
 
 static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
@@ -201,6 +309,9 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
 
     if (!GetFullPathNameW(Path, MAX_PATH, FullPath, 0))
         return FspNtStatusFromWin32(GetLastError());
+    Length = (ULONG)wcslen(FullPath);
+    if (0 < Length && L'\\' == FullPath[Length - 1])
+        FullPath[--Length] = L'\0';
 
     Handle = CreateFileW(
         FullPath, FILE_READ_ATTRIBUTES, 0, 0,
@@ -222,7 +333,7 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
     }
     memset(Ptfs, 0, sizeof *Ptfs);
 
-    Length = (ULONG)(wcslen(FullPath) + 1) * sizeof(WCHAR);
+    Length = (Length + 1) * sizeof(WCHAR);
     Ptfs->Path = malloc(Length);
     if (0 == Ptfs->Path)
     {
@@ -232,7 +343,7 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
     memcpy(Ptfs->Path, FullPath, Length);
 
     memset(&VolumeParams, 0, sizeof VolumeParams);
-    VolumeParams.SectorSize = 4096;
+    VolumeParams.SectorSize = ALLOCATION_UNIT;
     VolumeParams.SectorsPerAllocationUnit = 1;
     VolumeParams.VolumeCreationTime = ((PLARGE_INTEGER)&CreationTime)->QuadPart;
     VolumeParams.VolumeSerialNumber = 0;
