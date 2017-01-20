@@ -353,13 +353,92 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext, UINT64 NewSize, BOOLEAN SetAllocationSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    HANDLE Handle = FileContext;
+    FILE_ALLOCATION_INFO AllocationInfo;
+    FILE_END_OF_FILE_INFO EndOfFileInfo;
+
+    if (SetAllocationSize)
+    {
+        /*
+         * This file system does not maintain AllocationSize, although NTFS clearly can.
+         * However it must always be FileSize <= AllocationSize and NTFS will make sure
+         * to truncate the FileSize if it sees an AllocationSize < FileSize.
+         *
+         * If OTOH a very large AllocationSize is passed, the call below will increase
+         * the AllocationSize of the underlying file, although our file system does not
+         * expose this fact. This AllocationSize is only temporary as NTFS will reset
+         * the AllocationSize of the underlying file when it is closed.
+         */
+
+        AllocationInfo.AllocationSize.QuadPart = NewSize;
+
+        if (!SetFileInformationByHandle(Handle,
+            FileAllocationInfo, &AllocationInfo, sizeof AllocationInfo))
+            return FspNtStatusFromWin32(GetLastError());
+    }
+    else
+    {
+        EndOfFileInfo.EndOfFile.QuadPart = NewSize;
+
+        if (!SetFileInformationByHandle(Handle,
+            FileEndOfFileInfo, &EndOfFileInfo, sizeof EndOfFileInfo))
+            return FspNtStatusFromWin32(GetLastError());
+    }
+
+    return GetFileInfoInternal(Handle, FileInfo);
 }
 
 static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext, PWSTR FileName)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
+    HANDLE Handle = FileContext;
+    WCHAR FullPath[FULLPATH_SIZE];
+    ULONG Length;
+    FILE_ATTRIBUTE_TAG_INFO AttributeTagInfo;
+    HANDLE FindHandle;
+    WIN32_FIND_DATAW FindData;
+    BOOL HasChild;
+
+    if (!GetFileInformationByHandleEx(Handle,
+        FileAttributeTagInfo, &AttributeTagInfo, sizeof AttributeTagInfo))
+        return FspNtStatusFromWin32(GetLastError());
+
+    if (0 == (AttributeTagInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+        return STATUS_SUCCESS;
+
+    if (!ConcatPath(Ptfs, FileName, FullPath))
+        return STATUS_OBJECT_NAME_INVALID;
+
+    Length = (ULONG)wcslen(FullPath);
+    if (Length + 1 + 1 >= FULLPATH_SIZE)
+        return STATUS_OBJECT_NAME_INVALID;
+
+    if (L'\\' != FullPath[Length - 1])
+        FullPath[Length++] = L'\\';
+    FullPath[Length] = L'*';
+    FullPath[Length + 1] = L'\0';
+
+    FindHandle = FindFirstFileW(FullPath, &FindData);
+    if (INVALID_HANDLE_VALUE == FindHandle)
+        return FspNtStatusFromWin32(GetLastError());
+
+    HasChild = FALSE;
+    do
+    {
+        if (L'.' == FindData.cFileName[0] && (L'\0' == FindData.cFileName[1] ||
+            (L'.' == FindData.cFileName[1] && L'\0' == FindData.cFileName[2])))
+            ;
+        else
+        {
+            HasChild = TRUE;
+            break;
+        }
+    } while (FindNextFileW(FindHandle, &FindData));
+
+    FindClose(FindHandle);
+
+    return HasChild ? STATUS_DIRECTORY_NOT_EMPTY : STATUS_SUCCESS;
 }
 
 static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
@@ -393,7 +472,12 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext,
     SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    HANDLE Handle = FileContext;
+
+    if (!SetKernelObjectSecurity(Handle, SecurityInformation, ModificationDescriptor))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
@@ -433,6 +517,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     FindHandle = FindFirstFileW(FullPath, &FindData);
     if (INVALID_HANDLE_VALUE == FindHandle)
         return FspNtStatusFromWin32(GetLastError());
+
     for (;;)
     {
         /*
@@ -488,6 +573,8 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
             break;
         }
     }
+
+    FindClose(FindHandle);
 
     return STATUS_SUCCESS;
 }
