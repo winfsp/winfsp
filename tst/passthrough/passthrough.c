@@ -161,7 +161,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     SecurityAttributes.bInheritHandle = FALSE;
 
     /*
-     * It is not widely known but CreateFile can be used to create directories!
+     * It is not widely known but CreateFileW can be used to create directories!
      * It requires the specification of both FILE_FLAG_BACKUP_SEMANTICS and
      * FILE_FLAG_POSIX_SEMANTICS. It also requires that FileAttributes has
      * FILE_ATTRIBUTE_DIRECTORY set.
@@ -248,6 +248,9 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
 static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext, PWSTR FileName, ULONG Flags)
 {
+    if (Flags & FspCleanupDelete)
+    {
+    }
 }
 
 static VOID Close(FSP_FILE_SYSTEM *FileSystem,
@@ -391,54 +394,16 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext, PWSTR FileName)
 {
-    PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
     HANDLE Handle = FileContext;
-    WCHAR FullPath[FULLPATH_SIZE];
-    ULONG Length;
-    FILE_ATTRIBUTE_TAG_INFO AttributeTagInfo;
-    HANDLE FindHandle;
-    WIN32_FIND_DATAW FindData;
-    BOOL HasChild;
+    FILE_DISPOSITION_INFO DispositionInfo;
 
-    if (!GetFileInformationByHandleEx(Handle,
-        FileAttributeTagInfo, &AttributeTagInfo, sizeof AttributeTagInfo))
+    DispositionInfo.DeleteFile = TRUE;
+
+    if (!SetFileInformationByHandle(Handle,
+        FileDispositionInfo, &DispositionInfo, sizeof DispositionInfo))
         return FspNtStatusFromWin32(GetLastError());
 
-    if (0 == (AttributeTagInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-        return STATUS_SUCCESS;
-
-    if (!ConcatPath(Ptfs, FileName, FullPath))
-        return STATUS_OBJECT_NAME_INVALID;
-
-    Length = (ULONG)wcslen(FullPath);
-    if (Length + 1 + 1 >= FULLPATH_SIZE)
-        return STATUS_OBJECT_NAME_INVALID;
-
-    if (L'\\' != FullPath[Length - 1])
-        FullPath[Length++] = L'\\';
-    FullPath[Length] = L'*';
-    FullPath[Length + 1] = L'\0';
-
-    FindHandle = FindFirstFileW(FullPath, &FindData);
-    if (INVALID_HANDLE_VALUE == FindHandle)
-        return FspNtStatusFromWin32(GetLastError());
-
-    HasChild = FALSE;
-    do
-    {
-        if (L'.' == FindData.cFileName[0] && (L'\0' == FindData.cFileName[1] ||
-            (L'.' == FindData.cFileName[1] && L'\0' == FindData.cFileName[2])))
-            ;
-        else
-        {
-            HasChild = TRUE;
-            break;
-        }
-    } while (FindNextFileW(FindHandle, &FindData));
-
-    FindClose(FindHandle);
-
-    return HasChild ? STATUS_DIRECTORY_NOT_EMPTY : STATUS_SUCCESS;
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
@@ -516,7 +481,11 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
 
     FindHandle = FindFirstFileW(FullPath, &FindData);
     if (INVALID_HANDLE_VALUE == FindHandle)
-        return FspNtStatusFromWin32(GetLastError());
+    {
+        /* add "End-Of-Listing" marker */
+        FspFileSystemAddDirInfo(0, Buffer, BufferLength, PBytesTransferred);
+        return STATUS_SUCCESS;
+    }
 
     for (;;)
     {
