@@ -80,6 +80,7 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM *FileSystem,
     PWSTR VolumeLabel,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
+    /* we do not support changing the volume label */
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
@@ -124,6 +125,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
             OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
             SecurityDescriptor, (DWORD)*PSecurityDescriptorSize, &SecurityDescriptorSizeNeeded))
         {
+            *PSecurityDescriptorSize = SecurityDescriptorSizeNeeded;
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
         }
@@ -216,7 +218,9 @@ static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    HANDLE Handle = FileContext;
+
+    return GetFileInfoInternal(Handle, FileInfo);
 }
 
 static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
@@ -251,7 +255,20 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext,
     PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    HANDLE Handle = FileContext;
+    DWORD SecurityDescriptorSizeNeeded;
+
+    if (!GetKernelObjectSecurity(Handle,
+        OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+        SecurityDescriptor, (DWORD)*PSecurityDescriptorSize, &SecurityDescriptorSizeNeeded))
+    {
+        *PSecurityDescriptorSize = SecurityDescriptorSizeNeeded;
+        return FspNtStatusFromWin32(GetLastError());
+    }
+
+    *PSecurityDescriptorSize = SecurityDescriptorSizeNeeded;
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
