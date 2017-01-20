@@ -147,7 +147,42 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
     PVOID *PFileContext, FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
+    WCHAR FullPath[FULLPATH_SIZE];
+    SECURITY_ATTRIBUTES SecurityAttributes;
+    ULONG CreateDirectory;
+    HANDLE Handle;
+
+    if (!ConcatPath(Ptfs, FileName, FullPath))
+        return STATUS_OBJECT_NAME_INVALID;
+
+    SecurityAttributes.nLength = sizeof SecurityAttributes;
+    SecurityAttributes.lpSecurityDescriptor = SecurityDescriptor;
+    SecurityAttributes.bInheritHandle = FALSE;
+
+    /*
+     * It is not widely known but CreateFile can be used to create directories!
+     * It requires the specification of both FILE_FLAG_BACKUP_SEMANTICS and
+     * FILE_FLAG_POSIX_SEMANTICS. It also requires that FileAttributes has
+     * FILE_ATTRIBUTE_DIRECTORY set.
+     */
+    CreateDirectory = (CreateOptions & FILE_DIRECTORY_FILE) ? FILE_FLAG_POSIX_SEMANTICS : 0;
+    if (CreateDirectory)
+        FileAttributes |= FILE_ATTRIBUTE_DIRECTORY;
+    else
+        FileAttributes &= ~FILE_ATTRIBUTE_DIRECTORY;
+    if (0 == FileAttributes)
+        FileAttributes = FILE_ATTRIBUTE_NORMAL;
+
+    Handle = CreateFileW(FullPath,
+        GrantedAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, &SecurityAttributes,
+        CREATE_NEW, FileAttributes | CreateDirectory | FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == Handle)
+        return FspNtStatusFromWin32(GetLastError());
+
+    *PFileContext = Handle;
+
+    return GetFileInfoInternal(Handle, FileInfo);
 }
 
 static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
@@ -176,7 +211,38 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    HANDLE Handle = FileContext;
+    FILE_BASIC_INFO BasicInfo = { 0 };
+    FILE_ALLOCATION_INFO AllocationInfo = { 0 };
+    FILE_ATTRIBUTE_TAG_INFO AttributeTagInfo;
+
+    if (ReplaceFileAttributes)
+    {
+        BasicInfo.FileAttributes = FileAttributes;
+        if (!SetFileInformationByHandle(Handle,
+            FileBasicInfo, &BasicInfo, sizeof BasicInfo))
+            return FspNtStatusFromWin32(GetLastError());
+    }
+    else if (0 != FileAttributes)
+    {
+        if (!GetFileInformationByHandleEx(Handle,
+            FileAttributeTagInfo, &AttributeTagInfo, sizeof AttributeTagInfo))
+            return FspNtStatusFromWin32(GetLastError());
+
+        BasicInfo.FileAttributes = FileAttributes | AttributeTagInfo.FileAttributes;
+        if (BasicInfo.FileAttributes ^ FileAttributes)
+        {
+            if (!SetFileInformationByHandle(Handle,
+                FileBasicInfo, &BasicInfo, sizeof BasicInfo))
+                return FspNtStatusFromWin32(GetLastError());
+        }
+    }
+
+    if (!SetFileInformationByHandle(Handle,
+        FileAllocationInfo, &AllocationInfo, sizeof AllocationInfo))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return GetFileInfoInternal(Handle, FileInfo);
 }
 
 static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
@@ -332,7 +398,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
          */
 
         /*
-         * The simple conditional `Offset > NextOffset++` only works when files
+         * The simple conditional `Offset <= NextOffset++` only works when files
          * are not created/deleted in the directory while it is being read.
          * This is perhaps ok for this sample file system, but a "real" file
          * system would probably have to handle this better.
@@ -344,7 +410,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
          *
          * The easiest method to achieve this is to buffer all directory contents
          * in a call to ReadDirectory with Offset == 0 and then return offsets
-         * within the directory content buffer. Subsequent ReadDirectory operation
+         * within the directory content buffer. Subsequent ReadDirectory operations
          * return directory contents directly from the buffer.
          */
 
