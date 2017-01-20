@@ -196,7 +196,16 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
     PULONG PBytesTransferred)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    HANDLE Handle = FileContext;
+    OVERLAPPED Overlapped = { 0 };
+
+    Overlapped.Offset = (DWORD)Offset;
+    Overlapped.OffsetHigh = (DWORD)(Offset >> 32);
+
+    if (!ReadFile(Handle, Buffer, Length, PBytesTransferred, &Overlapped))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
@@ -317,6 +326,11 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         return FspNtStatusFromWin32(GetLastError());
     for (;;)
     {
+        /*
+         * NOTE: The root directory does not have the dot (".", "..") entries
+         * under Windows. This sample file system always adds them regardless.
+         */
+
         /*
          * The simple conditional `Offset > NextOffset++` only works when files
          * are not created/deleted in the directory while it is being read.
