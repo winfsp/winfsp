@@ -279,14 +279,44 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
     PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    HANDLE Handle = FileContext;
+    LARGE_INTEGER FileSize;
+    OVERLAPPED Overlapped = { 0 };
+
+    if (ConstrainedIo)
+    {
+        if (!GetFileSizeEx(Handle, &FileSize))
+            return FspNtStatusFromWin32(GetLastError());
+
+        if (Offset >= (UINT64)FileSize.QuadPart)
+            return STATUS_SUCCESS;
+        if (Offset + Length > (UINT64)FileSize.QuadPart)
+            Length = (ULONG)((UINT64)FileSize.QuadPart - Offset);
+    }
+
+    Overlapped.Offset = (DWORD)Offset;
+    Overlapped.OffsetHigh = (DWORD)(Offset >> 32);
+
+    if (!WriteFile(Handle, Buffer, Length, PBytesTransferred, &Overlapped))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return GetFileInfoInternal(Handle, FileInfo);
 }
 
 NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    HANDLE Handle = FileContext;
+
+    /* we do not flush the whole volume, so just return SUCCESS */
+    if (0 == Handle)
+        return STATUS_SUCCESS;
+
+    if (!FlushFileBuffers(Handle))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return GetFileInfoInternal(Handle, FileInfo);
 }
 
 static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
@@ -303,7 +333,20 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    HANDLE Handle = FileContext;
+    FILE_BASIC_INFO BasicInfo = { 0 };
+
+    BasicInfo.FileAttributes = INVALID_FILE_ATTRIBUTES != FileAttributes ? FileAttributes : 0;
+    BasicInfo.CreationTime.QuadPart = CreationTime;
+    BasicInfo.LastAccessTime.QuadPart = LastAccessTime;
+    BasicInfo.LastWriteTime.QuadPart = LastWriteTime;
+    //BasicInfo.ChangeTime = ChangeTime;
+
+    if (!SetFileInformationByHandle(Handle,
+        FileBasicInfo, &BasicInfo, sizeof BasicInfo))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return GetFileInfoInternal(Handle, FileInfo);
 }
 
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
