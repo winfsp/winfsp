@@ -20,7 +20,7 @@
 
 #define PROGNAME                        "passthrough"
 #define ALLOCATION_UNIT                 4096
-#define FULLPATH_LENGTH                 (MAX_PATH + FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR))
+#define FULLPATH_SIZE                   (MAX_PATH + FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR))
 
 #define info(format, ...)               FspServiceLog(EVENTLOG_INFORMATION_TYPE, format, __VA_ARGS__)
 #define warn(format, ...)               FspServiceLog(EVENTLOG_WARNING_TYPE, format, __VA_ARGS__)
@@ -51,8 +51,7 @@ static NTSTATUS GetFileInfoInternal(HANDLE Handle, FSP_FSCTL_FILE_INFO *FileInfo
     FileInfo->LastAccessTime = ((PLARGE_INTEGER)&ByHandleFileInfo.ftLastAccessTime)->QuadPart;
     FileInfo->LastWriteTime = ((PLARGE_INTEGER)&ByHandleFileInfo.ftLastWriteTime)->QuadPart;
     FileInfo->ChangeTime = FileInfo->LastWriteTime;
-    FileInfo->IndexNumber =
-        ((UINT64)ByHandleFileInfo.nFileIndexHigh << 32) | (UINT64)ByHandleFileInfo.nFileIndexLow;
+    FileInfo->IndexNumber = 0;
     FileInfo->HardLinks = 0;
 
     return STATUS_SUCCESS;
@@ -89,7 +88,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
 {
     PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
-    WCHAR FullPath[FULLPATH_LENGTH];
+    WCHAR FullPath[FULLPATH_SIZE];
     HANDLE Handle;
     FILE_ATTRIBUTE_TAG_INFO AttributeTagInfo;
     DWORD SecurityDescriptorSizeNeeded;
@@ -154,7 +153,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     PVOID *PFileContext, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
-    WCHAR FullPath[FULLPATH_LENGTH];
+    WCHAR FullPath[FULLPATH_SIZE];
     HANDLE Handle;
 
     if (!ConcatPath(Ptfs, FileName, FullPath))
@@ -165,6 +164,8 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
         OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
     if (INVALID_HANDLE_VALUE == Handle)
         return FspNtStatusFromWin32(GetLastError());
+
+    *PFileContext = Handle;
 
     return GetFileInfoInternal(Handle, FileInfo);
 }
@@ -261,11 +262,94 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
+    PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG BufferLength,
     PWSTR Pattern,
     PULONG PBytesTransferred)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
+    HANDLE Handle = FileContext;
+    WCHAR FullPath[FULLPATH_SIZE];
+    ULONG Length, PatternLength;
+    HANDLE FindHandle;
+    WIN32_FIND_DATAW FindData;
+    union
+    {
+        UINT8 B[FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) + MAX_PATH * sizeof(WCHAR)];
+        FSP_FSCTL_DIR_INFO D;
+    } DirInfoBuf;
+    FSP_FSCTL_DIR_INFO *DirInfo = &DirInfoBuf.D;
+    UINT64 NextOffset = 0;
+
+    if (0 == Pattern)
+        Pattern = L"*";
+    PatternLength = (ULONG)wcslen(Pattern);
+
+    Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
+    if (0 == Length)
+        return FspNtStatusFromWin32(GetLastError());
+    if (Length + 1 + PatternLength >= FULLPATH_SIZE)
+        return STATUS_OBJECT_NAME_INVALID;
+
+    if (L'\\' != FullPath[Length - 1])
+        FullPath[Length++] = L'\\';
+    memcpy(FullPath + Length, Pattern, PatternLength * sizeof(WCHAR));
+    FullPath[Length + PatternLength] = L'\0';
+
+    FindHandle = FindFirstFileW(FullPath, &FindData);
+    if (INVALID_HANDLE_VALUE == FindHandle)
+        return FspNtStatusFromWin32(GetLastError());
+    for (;;)
+    {
+        /*
+         * The simple conditional `Offset > NextOffset++` only works when files
+         * are not created/deleted in the directory while it is being read.
+         * This is perhaps ok for this sample file system, but a "real" file
+         * system would probably have to handle this better.
+         *
+         * The best approach for a file system is to use directory offsets that
+         * do not change when files are created/deleted. If this is not possible
+         * it is also acceptable to have directory offsets that do not change
+         * for as long as the directory remains open.
+         *
+         * The easiest method to achieve this is to buffer all directory contents
+         * in a call to ReadDirectory with Offset == 0 and then return offsets
+         * within the directory content buffer. Subsequent ReadDirectory operation
+         * return directory contents directly from the buffer.
+         */
+
+        if (Offset <= NextOffset++)
+        {
+            memset(DirInfo, 0, sizeof *DirInfo);
+            Length = (ULONG)wcslen(FindData.cFileName);
+            DirInfo->Size = (UINT16)(FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) + Length * sizeof(WCHAR));
+            DirInfo->FileInfo.FileAttributes = FindData.dwFileAttributes;
+            DirInfo->FileInfo.ReparseTag = 0;
+            DirInfo->FileInfo.FileSize =
+                ((UINT64)FindData.nFileSizeHigh << 32) | (UINT64)FindData.nFileSizeLow;
+            DirInfo->FileInfo.AllocationSize = (DirInfo->FileInfo.FileSize + ALLOCATION_UNIT - 1)
+                / ALLOCATION_UNIT * ALLOCATION_UNIT;
+            DirInfo->FileInfo.CreationTime = ((PLARGE_INTEGER)&FindData.ftCreationTime)->QuadPart;
+            DirInfo->FileInfo.LastAccessTime = ((PLARGE_INTEGER)&FindData.ftLastAccessTime)->QuadPart;
+            DirInfo->FileInfo.LastWriteTime = ((PLARGE_INTEGER)&FindData.ftLastWriteTime)->QuadPart;
+            DirInfo->FileInfo.ChangeTime = DirInfo->FileInfo.LastWriteTime;
+            DirInfo->FileInfo.IndexNumber = 0;
+            DirInfo->FileInfo.HardLinks = 0;
+            DirInfo->NextOffset = NextOffset;
+            memcpy(DirInfo->FileNameBuf, FindData.cFileName, Length * sizeof(WCHAR));
+
+            if (!FspFileSystemAddDirInfo(DirInfo, Buffer, BufferLength, PBytesTransferred))
+                break;
+        }
+
+        if (!FindNextFileW(FindHandle, &FindData))
+        {
+            /* add "End-Of-Listing" marker */
+            FspFileSystemAddDirInfo(0, Buffer, BufferLength, PBytesTransferred);
+            break;
+        }
+    }
+
+    return STATUS_SUCCESS;
 }
 
 static FSP_FILE_SYSTEM_INTERFACE PtfsInterface =
