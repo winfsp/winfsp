@@ -438,7 +438,19 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext,
     PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
+    WCHAR FullPath[FULLPATH_SIZE], NewFullPath[FULLPATH_SIZE];
+
+    if (!ConcatPath(Ptfs, FileName, FullPath))
+        return STATUS_OBJECT_NAME_INVALID;
+
+    if (!ConcatPath(Ptfs, NewFileName, NewFullPath))
+        return STATUS_OBJECT_NAME_INVALID;
+
+    if (!MoveFileExW(FullPath, NewFullPath, ReplaceIfExists ? MOVEFILE_REPLACE_EXISTING : 0))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
