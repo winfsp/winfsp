@@ -156,7 +156,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
     WCHAR FullPath[FULLPATH_SIZE];
     SECURITY_ATTRIBUTES SecurityAttributes;
-    ULONG CreateDirectory;
+    ULONG CreateFlags;
     PTFS_FILE_CONTEXT *FileContext;
 
     if (!ConcatPath(Ptfs, FileName, FullPath))
@@ -170,23 +170,30 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     SecurityAttributes.lpSecurityDescriptor = SecurityDescriptor;
     SecurityAttributes.bInheritHandle = FALSE;
 
-    /*
-     * It is not widely known but CreateFileW can be used to create directories!
-     * It requires the specification of both FILE_FLAG_BACKUP_SEMANTICS and
-     * FILE_FLAG_POSIX_SEMANTICS. It also requires that FileAttributes has
-     * FILE_ATTRIBUTE_DIRECTORY set.
-     */
-    CreateDirectory = (CreateOptions & FILE_DIRECTORY_FILE) ? FILE_FLAG_POSIX_SEMANTICS : 0;
-    if (CreateDirectory)
+    CreateFlags = FILE_FLAG_BACKUP_SEMANTICS;
+    if (CreateOptions & FILE_DELETE_ON_CLOSE)
+        CreateFlags |= FILE_FLAG_DELETE_ON_CLOSE;
+
+    if (CreateOptions & FILE_DIRECTORY_FILE)
+    {
+        /*
+         * It is not widely known but CreateFileW can be used to create directories!
+         * It requires the specification of both FILE_FLAG_BACKUP_SEMANTICS and
+         * FILE_FLAG_POSIX_SEMANTICS. It also requires that FileAttributes has
+         * FILE_ATTRIBUTE_DIRECTORY set.
+         */
+        CreateFlags |= FILE_FLAG_POSIX_SEMANTICS;
         FileAttributes |= FILE_ATTRIBUTE_DIRECTORY;
+    }
     else
         FileAttributes &= ~FILE_ATTRIBUTE_DIRECTORY;
+
     if (0 == FileAttributes)
         FileAttributes = FILE_ATTRIBUTE_NORMAL;
 
     FileContext->Handle = CreateFileW(FullPath,
         GrantedAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, &SecurityAttributes,
-        CREATE_NEW, FileAttributes | CreateDirectory | FILE_FLAG_BACKUP_SEMANTICS, 0);
+        CREATE_NEW, CreateFlags | FileAttributes, 0);
     if (INVALID_HANDLE_VALUE == FileContext->Handle)
     {
         free(FileContext);
@@ -204,6 +211,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
 {
     PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
     WCHAR FullPath[FULLPATH_SIZE];
+    ULONG CreateFlags;
     PTFS_FILE_CONTEXT *FileContext;
 
     if (!ConcatPath(Ptfs, FileName, FullPath))
@@ -213,9 +221,13 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     if (0 == FileContext)
         return STATUS_INSUFFICIENT_RESOURCES;
 
+    CreateFlags = FILE_FLAG_BACKUP_SEMANTICS;
+    if (CreateOptions & FILE_DELETE_ON_CLOSE)
+        CreateFlags |= FILE_FLAG_DELETE_ON_CLOSE;
+
     FileContext->Handle = CreateFileW(FullPath,
         GrantedAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
-        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+        OPEN_EXISTING, CreateFlags, 0);
     if (INVALID_HANDLE_VALUE == FileContext->Handle)
     {
         free(FileContext);
@@ -367,7 +379,12 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     HANDLE Handle = HandleFromContext(FileContext);
     FILE_BASIC_INFO BasicInfo = { 0 };
 
-    BasicInfo.FileAttributes = INVALID_FILE_ATTRIBUTES != FileAttributes ? FileAttributes : 0;
+    if (INVALID_FILE_ATTRIBUTES == FileAttributes)
+        FileAttributes = 0;
+    else if (0 == FileAttributes)
+        FileAttributes = FILE_ATTRIBUTE_NORMAL;
+
+    BasicInfo.FileAttributes = FileAttributes;
     BasicInfo.CreationTime.QuadPart = CreationTime;
     BasicInfo.LastAccessTime.QuadPart = LastAccessTime;
     BasicInfo.LastWriteTime.QuadPart = LastWriteTime;
@@ -627,21 +644,30 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
 
     *PPtfs = 0;
 
-    if (!GetFullPathNameW(Path, MAX_PATH, FullPath, 0))
-        return FspNtStatusFromWin32(GetLastError());
-    Length = (ULONG)wcslen(FullPath);
-    if (0 < Length && L'\\' == FullPath[Length - 1])
-        FullPath[--Length] = L'\0';
-
     Handle = CreateFileW(
-        FullPath, FILE_READ_ATTRIBUTES, 0, 0,
+        Path, FILE_READ_ATTRIBUTES, 0, 0,
         OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
     if (INVALID_HANDLE_VALUE == Handle)
         return FspNtStatusFromWin32(GetLastError());
-    LastError = GetFileTime(Handle, &CreationTime, 0, 0) ? GetLastError() : 0;
-    CloseHandle(Handle);
-    if (0 != LastError)
+
+    Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
+    if (0 == Length)
+    {
+        LastError = GetLastError();
+        CloseHandle(Handle);
         return FspNtStatusFromWin32(LastError);
+    }
+    if (L'\\' == FullPath[Length - 1])
+        FullPath[--Length] = L'\0';
+
+    if (!GetFileTime(Handle, &CreationTime, 0, 0))
+    {
+        LastError = GetLastError();
+        CloseHandle(Handle);
+        return FspNtStatusFromWin32(LastError);
+    }
+
+    CloseHandle(Handle);
 
     /* from now on we must goto exit on failure */
 
