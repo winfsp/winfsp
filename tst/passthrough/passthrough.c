@@ -38,6 +38,8 @@ typedef struct
 typedef struct
 {
     HANDLE Handle;
+    PVOID DirBuffer;
+    ULONG DirBufferCapacity, DirBufferLength;
 } PTFS_FILE_CONTEXT;
 
 static NTSTATUS GetFileInfoInternal(HANDLE Handle, FSP_FSCTL_FILE_INFO *FileInfo)
@@ -165,6 +167,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     FileContext = malloc(sizeof *FileContext);
     if (0 == FileContext)
         return STATUS_INSUFFICIENT_RESOURCES;
+    memset(FileContext, 0, sizeof *FileContext);
 
     SecurityAttributes.nLength = sizeof SecurityAttributes;
     SecurityAttributes.lpSecurityDescriptor = SecurityDescriptor;
@@ -220,6 +223,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     FileContext = malloc(sizeof *FileContext);
     if (0 == FileContext)
         return STATUS_INSUFFICIENT_RESOURCES;
+    memset(FileContext, 0, sizeof *FileContext);
 
     CreateFlags = FILE_FLAG_BACKUP_SEMANTICS;
     if (CreateOptions & FILE_DELETE_ON_CLOSE)
@@ -298,6 +302,7 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem,
 
     CloseHandle(Handle);
 
+    free(((PTFS_FILE_CONTEXT *)FileContext)->DirBuffer);
     free(FileContext);
 }
 
@@ -502,12 +507,32 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+static BOOLEAN AddDirInfo(PTFS_FILE_CONTEXT *FileContext, FSP_FSCTL_DIR_INFO *DirInfo)
+{
+    while (!FspFileSystemAddDirInfo(DirInfo,
+        FileContext->DirBuffer, FileContext->DirBufferCapacity, &FileContext->DirBufferLength))
+    {
+        PVOID Buffer;
+        ULONG Capacity = FileContext->DirBufferCapacity ? FileContext->DirBufferCapacity * 2 : 256;
+
+        Buffer = realloc(FileContext->DirBuffer, Capacity);
+        if (0 == Buffer)
+            return FALSE;
+
+        FileContext->DirBuffer = Buffer;
+        FileContext->DirBufferCapacity = Capacity;
+    }
+
+    return TRUE;
+}
+
 static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG BufferLength,
+    PVOID FileContext0, PVOID Buffer, UINT64 Offset, ULONG BufferLength,
     PWSTR Pattern,
     PULONG PBytesTransferred)
 {
     PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
+    PTFS_FILE_CONTEXT *FileContext = FileContext0;
     HANDLE Handle = HandleFromContext(FileContext);
     WCHAR FullPath[FULLPATH_SIZE];
     ULONG Length, PatternLength;
@@ -521,87 +546,70 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_DIR_INFO *DirInfo = &DirInfoBuf.D;
     UINT64 NextOffset = 0;
 
-    if (0 == Pattern)
-        Pattern = L"*";
-    PatternLength = (ULONG)wcslen(Pattern);
-
-    Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
-    if (0 == Length)
-        return FspNtStatusFromWin32(GetLastError());
-    if (Length + 1 + PatternLength >= FULLPATH_SIZE)
-        return STATUS_OBJECT_NAME_INVALID;
-
-    if (L'\\' != FullPath[Length - 1])
-        FullPath[Length++] = L'\\';
-    memcpy(FullPath + Length, Pattern, PatternLength * sizeof(WCHAR));
-    FullPath[Length + PatternLength] = L'\0';
-
-    FindHandle = FindFirstFileW(FullPath, &FindData);
-    if (INVALID_HANDLE_VALUE == FindHandle)
+    if (0 == Offset)
     {
-        /* add "End-Of-Listing" marker */
-        FspFileSystemAddDirInfo(0, Buffer, BufferLength, PBytesTransferred);
-        return STATUS_SUCCESS;
+        if (0 == Pattern)
+            Pattern = L"*";
+        PatternLength = (ULONG)wcslen(Pattern);
+
+        Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
+        if (0 == Length)
+            return FspNtStatusFromWin32(GetLastError());
+        if (Length + 1 + PatternLength >= FULLPATH_SIZE)
+            return STATUS_OBJECT_NAME_INVALID;
+
+        if (L'\\' != FullPath[Length - 1])
+            FullPath[Length++] = L'\\';
+        memcpy(FullPath + Length, Pattern, PatternLength * sizeof(WCHAR));
+        FullPath[Length + PatternLength] = L'\0';
+
+        FindHandle = FindFirstFileW(FullPath, &FindData);
+        if (INVALID_HANDLE_VALUE != FindHandle)
+        {
+            do
+            {
+                memset(DirInfo, 0, sizeof *DirInfo);
+                Length = (ULONG)wcslen(FindData.cFileName);
+                DirInfo->Size = (UINT16)(FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) + Length * sizeof(WCHAR));
+                DirInfo->FileInfo.FileAttributes = FindData.dwFileAttributes;
+                DirInfo->FileInfo.ReparseTag = 0;
+                DirInfo->FileInfo.FileSize =
+                    ((UINT64)FindData.nFileSizeHigh << 32) | (UINT64)FindData.nFileSizeLow;
+                DirInfo->FileInfo.AllocationSize = (DirInfo->FileInfo.FileSize + ALLOCATION_UNIT - 1)
+                    / ALLOCATION_UNIT * ALLOCATION_UNIT;
+                DirInfo->FileInfo.CreationTime = ((PLARGE_INTEGER)&FindData.ftCreationTime)->QuadPart;
+                DirInfo->FileInfo.LastAccessTime = ((PLARGE_INTEGER)&FindData.ftLastAccessTime)->QuadPart;
+                DirInfo->FileInfo.LastWriteTime = ((PLARGE_INTEGER)&FindData.ftLastWriteTime)->QuadPart;
+                DirInfo->FileInfo.ChangeTime = DirInfo->FileInfo.LastWriteTime;
+                DirInfo->FileInfo.IndexNumber = 0;
+                DirInfo->FileInfo.HardLinks = 0;
+                DirInfo->NextOffset = (NextOffset += FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size));
+                memcpy(DirInfo->FileNameBuf, FindData.cFileName, Length * sizeof(WCHAR));
+
+                if (!AddDirInfo(FileContext, DirInfo))
+                    break;
+            } while (FindNextFileW(FindHandle, &FindData));
+
+            FindClose(FindHandle);
+
+            if (!AddDirInfo(FileContext, 0))
+                return STATUS_INSUFFICIENT_RESOURCES;
+        }
     }
 
-    for (;;)
+    if (0 != FileContext->DirBuffer)
     {
-        /*
-         * NOTE: The root directory does not have the dot (".", "..") entries
-         * under Windows. This sample file system always adds them regardless.
-         */
-
-        /*
-         * The simple conditional `Offset <= NextOffset++` only works when files
-         * are not created/deleted in the directory while it is being read.
-         * This is perhaps ok for this sample file system, but a "real" file
-         * system would probably have to handle this better.
-         *
-         * The best approach for a file system is to use directory offsets that
-         * do not change when files are created/deleted. If this is not possible
-         * it is also acceptable to have directory offsets that do not change
-         * for as long as the directory remains open.
-         *
-         * The easiest method to achieve this is to buffer all directory contents
-         * in a call to ReadDirectory with Offset == 0 and then return offsets
-         * within the directory content buffer. Subsequent ReadDirectory operations
-         * return directory contents directly from the buffer.
-         */
-
-        if (Offset <= NextOffset++)
+        for (DirInfo = (PVOID)((PUINT8)FileContext->DirBuffer + Offset);
+            0 != DirInfo->Size;
+            DirInfo = (PVOID)((PUINT8)DirInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size)))
         {
-            memset(DirInfo, 0, sizeof *DirInfo);
-            Length = (ULONG)wcslen(FindData.cFileName);
-            DirInfo->Size = (UINT16)(FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) + Length * sizeof(WCHAR));
-            DirInfo->FileInfo.FileAttributes = FindData.dwFileAttributes;
-            DirInfo->FileInfo.ReparseTag = 0;
-            DirInfo->FileInfo.FileSize =
-                ((UINT64)FindData.nFileSizeHigh << 32) | (UINT64)FindData.nFileSizeLow;
-            DirInfo->FileInfo.AllocationSize = (DirInfo->FileInfo.FileSize + ALLOCATION_UNIT - 1)
-                / ALLOCATION_UNIT * ALLOCATION_UNIT;
-            DirInfo->FileInfo.CreationTime = ((PLARGE_INTEGER)&FindData.ftCreationTime)->QuadPart;
-            DirInfo->FileInfo.LastAccessTime = ((PLARGE_INTEGER)&FindData.ftLastAccessTime)->QuadPart;
-            DirInfo->FileInfo.LastWriteTime = ((PLARGE_INTEGER)&FindData.ftLastWriteTime)->QuadPart;
-            DirInfo->FileInfo.ChangeTime = DirInfo->FileInfo.LastWriteTime;
-            DirInfo->FileInfo.IndexNumber = 0;
-            DirInfo->FileInfo.HardLinks = 0;
-            DirInfo->NextOffset = NextOffset;
-            memcpy(DirInfo->FileNameBuf, FindData.cFileName, Length * sizeof(WCHAR));
-
             if (!FspFileSystemAddDirInfo(DirInfo, Buffer, BufferLength, PBytesTransferred))
-                break;
-        }
-
-        if (!FindNextFileW(FindHandle, &FindData))
-        {
-            /* add "End-Of-Listing" marker */
-            FspFileSystemAddDirInfo(0, Buffer, BufferLength, PBytesTransferred);
-            break;
+                return STATUS_SUCCESS;
         }
     }
 
-    FindClose(FindHandle);
-
+    /* add "End-Of-Listing" marker */
+    FspFileSystemAddDirInfo(0, Buffer, BufferLength, PBytesTransferred);
     return STATUS_SUCCESS;
 }
 
