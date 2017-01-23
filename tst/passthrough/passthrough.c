@@ -254,6 +254,9 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
 
     if (ReplaceFileAttributes)
     {
+        if (0 == FileAttributes)
+            FileAttributes = FILE_ATTRIBUTES_NORMAL;
+
         BasicInfo.FileAttributes = FileAttributes;
         if (!SetFileInformationByHandle(Handle,
             FileBasicInfo, &BasicInfo, sizeof BasicInfo))
