@@ -14,7 +14,7 @@ Some of the benefits of using WinFsp are listed below:
 * Very well-tested and stable. Read about its [Testing Strategy](doc/WinFsp-Testing.asciidoc).
 * Very fast. Read about its [Performance](doc/WinFsp-Performance-Testing.asciidoc).
 * Strives for compatibility with NTFS. Read about its [Compatibility](doc/NTFS-Compatibility.asciidoc ).
-* Easy to understand but comprehensive API. Consult the [API Reference](http://www.secfs.net/winfsp/apiref/).
+* Easy to understand but comprehensive API. Consult the [API Reference](http://www.secfs.net/winfsp/apiref/). There is also a simple [Tutorial](doc/WinFsp-Tutorial.asciidoc).
 * FUSE compatibility layer for native Windows and Cygwin. See [fuse.h](inc/fuse/fuse.h).
 * Signed drivers provided on every release.
 * Available under the GPLv3.
