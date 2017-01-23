@@ -255,7 +255,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
     if (ReplaceFileAttributes)
     {
         if (0 == FileAttributes)
-            FileAttributes = FILE_ATTRIBUTES_NORMAL;
+            FileAttributes = FILE_ATTRIBUTE_NORMAL;
 
         BasicInfo.FileAttributes = FileAttributes;
         if (!SetFileInformationByHandle(Handle,
@@ -907,22 +907,26 @@ static NTSTATUS WinFspLoad(VOID)
     LONG Result;
     HMODULE Module;
 
-    Size = sizeof PathBuf;
-    Result = RegGetValueW(
-        HKEY_LOCAL_MACHINE, L"Software\\WinFsp", L"InstallDir",
-        RRF_RT_REG_SZ | 0x00020000/*RRF_SUBKEY_WOW6432KEY*/,
-        0, PathBuf, &Size);
-    if (ERROR_SUCCESS != Result)
-        return STATUS_OBJECT_NAME_NOT_FOUND;
-
-    RtlCopyMemory(PathBuf + (Size / sizeof(WCHAR) - 1), L"" FSP_DLLPATH, sizeof L"" FSP_DLLPATH);
-    Module = LoadLibraryW(PathBuf);
+    Module = LoadLibraryW(L"" FSP_DLLNAME);
     if (0 == Module)
-        return STATUS_DLL_NOT_FOUND;
+    {
+        Size = sizeof PathBuf;
+        Result = RegGetValueW(
+            HKEY_LOCAL_MACHINE, L"Software\\WinFsp", L"InstallDir",
+            RRF_RT_REG_SZ | 0x00020000/*RRF_SUBKEY_WOW6432KEY*/,
+            0, PathBuf, &Size);
+        if (ERROR_SUCCESS != Result)
+            return STATUS_OBJECT_NAME_NOT_FOUND;
 
-    Result = __HrLoadAllImportsForDll(FSP_DLLNAME);
-    if (0 > Result)
-        return STATUS_DELAY_LOAD_FAILED;
+        RtlCopyMemory(PathBuf + (Size / sizeof(WCHAR) - 1), L"" FSP_DLLPATH, sizeof L"" FSP_DLLPATH);
+        Module = LoadLibraryW(PathBuf);
+        if (0 == Module)
+            return STATUS_DLL_NOT_FOUND;
+
+        Result = __HrLoadAllImportsForDll(FSP_DLLNAME);
+        if (0 > Result)
+            return STATUS_DELAY_LOAD_FAILED;
+    }
 
     return STATUS_SUCCESS;
 
