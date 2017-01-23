@@ -17,7 +17,7 @@ We first start by creating the Visual Studio project. Choose "Win32 Console Appl
 
 image::WinFsp-Tutorial/NewProject.png[Visual Studio New Project]
 
-NOTE: A user mode file system services requests from the operating system. Therefore it becomes an important system component and must service requests timely. In general it should be a console mode application, not block for user input after it has been initialized, and not expose a GUI. This also allows the user mode file system to be be converted into a Windows service easily or to be controlled by the WinFsp.Launcher service (see the WinFsp Service Architecture document).
+NOTE: A user mode file system services requests from the operating system. Therefore it becomes an important system component and must service requests timely. In general it should be a console mode application, not block for user input after it has been initialized, and not expose a GUI. This also allows the user mode file system to be converted into a Windows service easily or to be controlled by the WinFsp.Launcher service (see the WinFsp Service Architecture document).
 
 Now create and add a file passthrough.c with the following contents:
 
@@ -132,7 +132,7 @@ The message is `The service passthrough has failed to start (Status=c0000002).` 
 
 == File system entry/exit points
 
-We now turn our attention to the file system entry/exit points. Recall that passthrough is written as a service and and its entry and exit points are `SvcStart` and `SvcStop` respectively.
+We now turn our attention to the file system entry/exit points. Recall that passthrough is written as a service and its entry and exit points are `SvcStart` and `SvcStop` respectively.
 
 === Entry point
 
@@ -382,7 +382,7 @@ You can now run the program from Visual Studio or the command line. The program 
 
 image::WinFsp-Tutorial/EntryExit.png[Entry/exit test run]
 
-NOTE: Pressing Ctrl-C orderly stops the file system (by calling `SvcStop`). It is however possible to forcibly stop a file system, e.g. by killing the process in the debugger. This is fine with WinFsp as *all associated resources will be automatically cleaned up*. This includes resources that WinFsp knows about such as kernel memory, drive letter associations, etc. It does not include resources that it has no knowledge about such as temporary files, network registrations, etc.
+NOTE: Pressing Ctrl-C orderly stops the file system (by calling `SvcStop`). It is however possible to forcibly stop a file system, e.g. by killing the process in the debugger. This is fine with WinFsp as *all associated resources will be automatically cleaned up*. This includes resources that WinFsp knows about such as kernel memory, volume devices, etc. It does not include resources that it has no knowledge about such as temporary files, network registrations, etc.
 
 == File system operations
 
@@ -982,7 +982,7 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
 
 Windows file systems are free to cache file information in order to speed up operations. In some cases it is important to ensure that all caches have been "flushed" and all information has been persisted in the final storage medium. Windows provides the `FlushFileBuffers` API for this purpose. User mode file systems that support flushing must implement the `Flush` operation.
 
-The `Flush` operation is used to flush a single file or the whole volume (file system). At the time the `Flush` call arrives the kernel has already flushed all its file caches (by calling `Write` for all dirty data in its caches). If the file system performs additional caching it should flush those caches at this point.
+The `Flush` operation is used to flush a single file or the whole volume (file system). At the time the `Flush` call arrives the kernel has already flushed all its file caches (by calling `Write` for all dirty data in its caches). If the file system performs additional caching it should flush its own caches at this point.
 
 The implementation of `Flush` for our passthrough file system follows:
 
@@ -1166,7 +1166,7 @@ If our open file instance is not marked for deletion we do *not* `CloseHandle` t
 
 If our open file instance is marked for deletion we `CloseHandle` the underlying handle, and we invalidate the handle. By calling `CloseHandle` we ensure that the underlying file system can now delete a file that has been previously marked for deletion by the `FILE_FLAG_DELETE_ON_CLOSE` flag or a `FileDispositionInfo` call (see `CanDelete` below). By invalidating the handle we ensure that no additional file operations can be performed on this file instance (they will fail with `STATUS_INVALID_HANDLE`). We will still receive a `Close` operation for our open file instance which calls `CloseHandle` again, but this is safe to do with INVALID_HANDLE_VALUE.
 
-NOTE: The WinFsp kernel driver maintains a `DeletePending` flag for every open file. This flag becomes true when a file is opened with `FILE_FLAG_DELETE_ON_CLOSE` or when `FileDispositionInfo` is set. The WinFsp kernel driver sets `FspCleanupDelete` when it receives the last `CloseHandle` for a particular file. The user mode file system need not maintain its own flag.
+NOTE: The WinFsp kernel driver maintains a `DeletePending` flag for every open file. This flag becomes true when a file is opened with `FILE_FLAG_DELETE_ON_CLOSE` or when `FileDispositionInfo` is set. The WinFsp kernel driver sets `FspCleanupDelete` when it receives the last `CloseHandle` for a file that is being deleted. The user mode file system need not maintain its own `DeletePending` flag.
 
 === CanDelete
 
@@ -1199,6 +1199,8 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
 === Rename
 
 Our file system is almost fully functional. There remains one operation to implement: `Rename`.
+
+`Rename` can be hard to implement for a general purpose file system, but in our case things are simple, because the underlying Windows file system will take care of the details.
 
 .`*Rename*`
 [source,c]
