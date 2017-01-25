@@ -580,58 +580,6 @@ VOID MemfsFileNodeMapEnumerateFree(MEMFS_FILE_NODE_MAP_ENUM_CONTEXT *Context)
     free(Context->FileNodes);
 }
 
-typedef std::unordered_map<UINT64, std::wstring> MEMFS_DIR_DESC;
-
-static inline
-NTSTATUS MemfsDirDescCreate(MEMFS_DIR_DESC **PDirDesc)
-{
-    *PDirDesc = 0;
-    try
-    {
-        *PDirDesc = new MEMFS_DIR_DESC;
-        return STATUS_SUCCESS;
-    }
-    catch (...)
-    {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-}
-
-static inline
-VOID MemfsDirDescDelete(MEMFS_DIR_DESC *DirDesc)
-{
-    delete DirDesc;
-}
-
-static inline
-VOID MemfsDirDescReset(MEMFS_DIR_DESC *DirDesc)
-{
-    DirDesc->clear();
-}
-
-static inline
-PWSTR MemfsDirDescGetFileName(MEMFS_DIR_DESC *DirDesc, UINT64 Offset)
-{
-    MEMFS_DIR_DESC::iterator iter = DirDesc->find(Offset);
-    if (iter == DirDesc->end())
-        return 0;
-    return const_cast<PWSTR>(iter->second.c_str());
-}
-
-static inline
-NTSTATUS MemfsDirDescInsertFileName(MEMFS_DIR_DESC *DirDesc, UINT64 Offset, PWSTR FileName)
-{
-    try
-    {
-        DirDesc->insert(MEMFS_DIR_DESC::value_type(Offset, FileName));
-        return STATUS_SUCCESS;
-    }
-    catch (...)
-    {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-}
-
 /*
  * FSP_FILE_SYSTEM_INTERFACE
  */
@@ -745,7 +693,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 #endif
     MEMFS_FILE_NODE *FileNode;
     MEMFS_FILE_NODE *ParentNode;
-    MEMFS_DIR_DESC *DirDesc = 0;
     NTSTATUS Result;
     BOOLEAN Inserted;
 
@@ -794,20 +741,9 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     }
 #endif
 
-    if (CreateOptions & FILE_DIRECTORY_FILE)
-    {
-        Result = MemfsDirDescCreate(&DirDesc);
-        if (!NT_SUCCESS(Result))
-            return Result;
-    }
-
     Result = MemfsFileNodeCreate(FileName, &FileNode);
     if (!NT_SUCCESS(Result))
-    {
-        if (0 != DirDesc)
-            MemfsDirDescDelete(DirDesc);
         return Result;
-    }
 
 #if defined(MEMFS_NAMED_STREAMS)
     FileNode->MainFileNode = MemfsFileNodeMapGetMain(Memfs->FileNodeMap, FileName);
@@ -823,8 +759,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         if (0 == FileNode->FileSecurity)
         {
             MemfsFileNodeDelete(FileNode);
-            if (0 != DirDesc)
-                MemfsDirDescDelete(DirDesc);
             return STATUS_INSUFFICIENT_RESOURCES;
         }
         memcpy(FileNode->FileSecurity, SecurityDescriptor, FileNode->FileSecuritySize);
@@ -837,8 +771,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         if (0 == FileNode->FileData)
         {
             MemfsFileNodeDelete(FileNode);
-            if (0 != DirDesc)
-                MemfsDirDescDelete(DirDesc);
             return STATUS_INSUFFICIENT_RESOURCES;
         }
     }
@@ -847,8 +779,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result) || !Inserted)
     {
         MemfsFileNodeDelete(FileNode);
-        if (0 != DirDesc)
-            MemfsDirDescDelete(DirDesc);
         if (NT_SUCCESS(Result))
             Result = STATUS_OBJECT_NAME_COLLISION; /* should not happen! */
         return Result;
@@ -869,9 +799,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     }
 #endif
 
-    /* since we now use dir descriptors to quickly retrieve dir contents, place it in UserContext2 */
-    FspFileSystemGetOperationContext()->Response->Rsp.Create.Opened.UserContext2 = (UINT_PTR)DirDesc;
-
     return STATUS_SUCCESS;
 }
 
@@ -881,7 +808,6 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode;
-    MEMFS_DIR_DESC *DirDesc = 0;
     NTSTATUS Result;
 
     if (MEMFS_MAX_PATH <= wcslen(FileName))
@@ -893,13 +819,6 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
         Result = STATUS_OBJECT_NAME_NOT_FOUND;
         MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result);
         return Result;
-    }
-
-    if (0 != (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-    {
-        Result = MemfsDirDescCreate(&DirDesc);
-        if (!NT_SUCCESS(Result))
-            return Result;
     }
 
     MemfsFileNodeReference(FileNode);
@@ -916,9 +835,6 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
         OpenFileInfo->NormalizedNameSize = (UINT16)(wcslen(FileNode->FileName) * sizeof(WCHAR));
     }
 #endif
-
-    /* since we now use dir descriptors to quickly retrieve dir contents, place it in UserContext2 */
-    FspFileSystemGetOperationContext()->Response->Rsp.Create.Opened.UserContext2 = (UINT_PTR)DirDesc;
 
     return STATUS_SUCCESS;
 }
@@ -1025,13 +941,8 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
-    MEMFS_DIR_DESC *DirDesc = (MEMFS_DIR_DESC *)(UINT_PTR)
-        FspFileSystemGetOperationContext()->Request->Req.Close.UserContext2;
 
     MemfsFileNodeDereference(FileNode);
-
-    if (0 != DirDesc)
-        MemfsDirDescDelete(DirDesc);
 }
 
 static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
@@ -1394,14 +1305,11 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
 typedef struct _MEMFS_READ_DIRECTORY_CONTEXT
 {
     PVOID Buffer;
-    UINT64 Offset;
     ULONG Length;
     PULONG PBytesTransferred;
-    BOOLEAN OffsetFound;
-    MEMFS_DIR_DESC *DirDesc;
 } MEMFS_READ_DIRECTORY_CONTEXT;
 
-static BOOLEAN AddDirInfo(MEMFS_DIR_DESC *DirDesc, MEMFS_FILE_NODE *FileNode, PWSTR FileName,
+static BOOLEAN AddDirInfo(MEMFS_FILE_NODE *FileNode, PWSTR FileName,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
     UINT8 DirInfoBuf[sizeof(FSP_FSCTL_DIR_INFO) + sizeof FileNode->FileName];
@@ -1414,14 +1322,11 @@ static BOOLEAN AddDirInfo(MEMFS_DIR_DESC *DirDesc, MEMFS_FILE_NODE *FileNode, PW
         FspPathSuffix(FileNode->FileName, &Remain, &Suffix, Root);
         FileName = Suffix;
         FspPathCombine(FileNode->FileName, Suffix);
-
-        MemfsDirDescInsertFileName(DirDesc, FileNode->FileInfo.IndexNumber, FileName);
     }
 
     memset(DirInfo->Padding, 0, sizeof DirInfo->Padding);
     DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + wcslen(FileName) * sizeof(WCHAR));
     DirInfo->FileInfo = FileNode->FileInfo;
-    DirInfo->NextOffset = FileNode->FileInfo.IndexNumber;
     memcpy(DirInfo->FileNameBuf, FileName, DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
 
     return FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred);
@@ -1431,39 +1336,24 @@ static BOOLEAN ReadDirectoryEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
 {
     MEMFS_READ_DIRECTORY_CONTEXT *Context = (MEMFS_READ_DIRECTORY_CONTEXT *)Context0;
 
-    if (0 != Context->Offset && !Context->OffsetFound)
-    {
-        Context->OffsetFound = FileNode->FileInfo.IndexNumber == Context->Offset;
-        return TRUE;
-    }
-
-    return AddDirInfo(Context->DirDesc, FileNode, 0,
+    return AddDirInfo(FileNode, 0,
         Context->Buffer, Context->Length, Context->PBytesTransferred);
 }
 
 static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode0, PVOID Buffer, UINT64 Offset, ULONG Length,
-    PWSTR Pattern,
+    PVOID FileNode0, PVOID Buffer, ULONG Length,
+    PWSTR Pattern, PWSTR Marker,
     PULONG PBytesTransferred)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
-    MEMFS_DIR_DESC *DirDesc = (MEMFS_DIR_DESC *)(UINT_PTR)
-        FspFileSystemGetOperationContext()->Request->Req.QueryDirectory.UserContext2;
     MEMFS_FILE_NODE *ParentNode;
     MEMFS_READ_DIRECTORY_CONTEXT Context;
-    PWSTR PrevFileName = 0;
     NTSTATUS Result;
 
     Context.Buffer = Buffer;
-    Context.Offset = Offset;
     Context.Length = Length;
     Context.PBytesTransferred = PBytesTransferred;
-    Context.OffsetFound = FALSE;
-    Context.DirDesc = DirDesc;
-
-    if (0 == Offset)
-        MemfsDirDescReset(DirDesc);
 
     if (L'\0' != FileNode->FileName[1])
     {
@@ -1473,25 +1363,20 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         if (0 == ParentNode)
             return Result;
 
-        if (0 == Offset)
-            if (!AddDirInfo(DirDesc, FileNode, L".", Buffer, Length, PBytesTransferred))
-                return STATUS_SUCCESS;
-        if (0 == Offset || FileNode->FileInfo.IndexNumber == Offset)
+        if (0 == Marker)
         {
-            Context.OffsetFound = FileNode->FileInfo.IndexNumber == Context.Offset;
-
-            if (!AddDirInfo(DirDesc, ParentNode, L"..", Buffer, Length, PBytesTransferred))
+            if (!AddDirInfo(FileNode, L".", Buffer, Length, PBytesTransferred))
                 return STATUS_SUCCESS;
+        }
+        if (0 == Marker || (L'.' == Marker[0] && L'\0' == Marker[1]))
+        {
+            if (!AddDirInfo(ParentNode, L"..", Buffer, Length, PBytesTransferred))
+                return STATUS_SUCCESS;
+            Marker = 0;
         }
     }
 
-    if (0 != Context.Offset && !Context.OffsetFound)
-    {
-        PrevFileName = MemfsDirDescGetFileName(DirDesc, Offset);
-        Context.OffsetFound = 0 != PrevFileName;
-    }
-
-    if (MemfsFileNodeMapEnumerateChildren(Memfs->FileNodeMap, FileNode, PrevFileName,
+    if (MemfsFileNodeMapEnumerateChildren(Memfs->FileNodeMap, FileNode, Marker,
         ReadDirectoryEnumFn, &Context))
         FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
 

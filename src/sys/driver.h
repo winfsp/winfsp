@@ -1231,7 +1231,7 @@ typedef struct
         DidSetCreationTime:1, DidSetLastAccessTime:1, DidSetLastWriteTime:1, DidSetChangeTime:1,
         DirectoryHasSuchFile:1;
     UNICODE_STRING DirectoryPattern;
-    UINT64 DirectoryOffset;
+    UNICODE_STRING DirectoryMarker;
     UINT64 DirInfo;
     ULONG DirInfoCacheHint;
     /* stream support */
@@ -1362,8 +1362,10 @@ VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
-NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
-    PUNICODE_STRING FileName, BOOLEAN Reset);
+NTSTATUS FspFileDescResetDirectory(FSP_FILE_DESC *FileDesc,
+    PUNICODE_STRING FileName, BOOLEAN RestartScan, BOOLEAN IndexSpecified);
+NTSTATUS FspFileDescSetDirectoryMarker(FSP_FILE_DESC *FileDesc,
+    PUNICODE_STRING FileName);
 NTSTATUS FspMainFileOpen(
     PDEVICE_OBJECT FsvolDeviceObject,
     PDEVICE_OBJECT DeviceObjectHint,

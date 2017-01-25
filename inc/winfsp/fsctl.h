@@ -185,8 +185,7 @@ typedef struct
 {
     UINT16 Size;
     FSP_FSCTL_FILE_INFO FileInfo;
-    UINT64 NextOffset;
-    UINT8 Padding[16];
+    UINT8 Padding[24];
         /* make struct as big as FILE_ID_BOTH_DIR_INFORMATION; allows for in-place copying */
     WCHAR FileNameBuf[];
 } FSP_FSCTL_DIR_INFO;
@@ -339,9 +338,9 @@ typedef struct
             UINT64 UserContext;
             UINT64 UserContext2;
             UINT64 Address;
-            UINT64 Offset;
             UINT32 Length;
             FSP_FSCTL_TRANSACT_BUF Pattern;
+            FSP_FSCTL_TRANSACT_BUF Marker;
             UINT32 CaseSensitive:1;     /* FileName comparisons should be case-sensitive */
         } QueryDirectory;
         struct

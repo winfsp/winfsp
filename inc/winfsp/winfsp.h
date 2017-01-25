@@ -649,28 +649,16 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     The file context of the directory to be read.
      * @param Buffer
      *     Pointer to a buffer that will receive the results of the read operation.
-     * @param Offset
-     *     Offset within the directory to read from. The kernel does not interpret this value
-     *     which is used solely by the file system to locate directory entries. However the
-     *     special value 0 indicates that the read should start from the first entries. The first
-     *     two entries returned by ReadDirectory should always be the "." and ".." entries,
-     *     except for the root directory which does not have these entries.
-     *
-     *     This parameter is used by the WinFsp FSD to break directory listings into chunks.
-     *     In this case all 64-bits of the Offset are valid. In some cases the Windows kernel
-     *     (NTOS) may also use this parameter. In this case only the lower 32-bits of this
-     *     parameter will be valid. This is an unfortunate limitation of Windows (for more
-     *     information see the documentation for IRP_MJ_DIRECTORY_CONTROL and the flag
-     *     SL_INDEX_SPECIFIED).
-     *
-     *     In practice this means that you should only rely on the lower 32-bits of this value
-     *     to be valid.
      * @param Length
      *     Length of data to read.
      * @param Pattern
      *     The pattern to match against files in this directory. Can be NULL. The file system
      *     can choose to ignore this parameter as the FSD will always perform its own pattern
      *     matching on the returned results.
+     * @param Marker
+     *     A file name that marks where in the directory to start reading. Files with names
+     *     that are greater than (not equal to) this marker (in the directory order determined
+     *     by the file system) should be returned. Can be NULL.
      * @param PBytesTransferred [out]
      *     Pointer to a memory location that will receive the actual number of bytes read.
      * @return
@@ -680,8 +668,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     FspFileSystemAddDirInfo
      */
     NTSTATUS (*ReadDirectory)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
-        PWSTR Pattern,
+        PVOID FileContext, PVOID Buffer, ULONG Length,
+        PWSTR Pattern, PWSTR Marker,
         PULONG PBytesTransferred);
     /**
      * Resolve reparse points.

@@ -84,8 +84,10 @@ NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
 static NTSTATUS FspFileNodeCompleteLockIrp(PVOID Context, PIRP Irp);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
-NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
-    PUNICODE_STRING FileName, BOOLEAN Reset);
+NTSTATUS FspFileDescResetDirectory(FSP_FILE_DESC *FileDesc,
+    PUNICODE_STRING FileName, BOOLEAN RestartScan, BOOLEAN IndexSpecified);
+NTSTATUS FspFileDescSetDirectoryMarker(FSP_FILE_DESC *FileDesc,
+    PUNICODE_STRING FileName);
 NTSTATUS FspMainFileOpen(
     PDEVICE_OBJECT FsvolDeviceObject,
     PDEVICE_OBJECT DeviceObjectHint,
@@ -147,7 +149,8 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 #pragma alloc_text(PAGE, FspFileNodeCompleteLockIrp)
 #pragma alloc_text(PAGE, FspFileDescCreate)
 #pragma alloc_text(PAGE, FspFileDescDelete)
-#pragma alloc_text(PAGE, FspFileDescResetDirectoryPattern)
+#pragma alloc_text(PAGE, FspFileDescResetDirectory)
+#pragma alloc_text(PAGE, FspFileDescSetDirectoryMarker)
 #pragma alloc_text(PAGE, FspMainFileOpen)
 #pragma alloc_text(PAGE, FspMainFileClose)
 #pragma alloc_text(PAGE, FspFileNodeOplockPrepare)
@@ -1984,15 +1987,19 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc)
             RtlFreeUnicodeString(&FileDesc->DirectoryPattern);
     }
 
+    if (0 != FileDesc->DirectoryMarker.Buffer)
+        FspFree(FileDesc->DirectoryMarker.Buffer);
+
     FspFree(FileDesc);
 }
 
-NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
-    PUNICODE_STRING FileName, BOOLEAN Reset)
+NTSTATUS FspFileDescResetDirectory(FSP_FILE_DESC *FileDesc,
+    PUNICODE_STRING FileName, BOOLEAN RestartScan, BOOLEAN IndexSpecified)
 {
     PAGED_CODE();
 
-    if (Reset || 0 == FileDesc->DirectoryPattern.Buffer)
+    if (0 == FileDesc->DirectoryPattern.Buffer ||
+        (RestartScan && 0 != FileName && 0 != FileName->Length))
     {
         UNICODE_STRING DirectoryPattern;
 
@@ -2029,7 +2036,51 @@ NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
         }
 
         FileDesc->DirectoryPattern = DirectoryPattern;
+        FileDesc->DirectoryHasSuchFile = FALSE;
+
+        if (0 != FileDesc->DirectoryMarker.Buffer)
+        {
+            FspFree(FileDesc->DirectoryMarker.Buffer);
+            FileDesc->DirectoryMarker.Buffer = 0;
+        }
     }
+    else if (IndexSpecified && 0 != FileName && 0 != FileName->Length)
+    {
+        NTSTATUS Result;
+
+        Result = FspFileDescSetDirectoryMarker(FileDesc, FileName);
+        if (!NT_SUCCESS(Result))
+            return Result;
+
+        FileDesc->DirectoryHasSuchFile = FALSE;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS FspFileDescSetDirectoryMarker(FSP_FILE_DESC *FileDesc,
+    PUNICODE_STRING FileName)
+{
+    if (&FileDesc->DirectoryMarker == FileName)
+        return STATUS_SUCCESS;
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileDesc->FileNode->FsvolDeviceObject);
+    UNICODE_STRING DirectoryMarker;
+
+    if (FsvolDeviceExtension->VolumeParams.MaxComponentLength < FileName->Length)
+        return STATUS_OBJECT_NAME_INVALID;
+
+    DirectoryMarker.Length = DirectoryMarker.MaximumLength = FileName->Length;
+    DirectoryMarker.Buffer = FspAlloc(FileName->Length);
+    if (0 == DirectoryMarker.Buffer)
+        return STATUS_INSUFFICIENT_RESOURCES;
+    RtlCopyMemory(DirectoryMarker.Buffer, FileName->Buffer, FileName->Length);
+
+    if (0 != FileDesc->DirectoryMarker.Buffer)
+        FspFree(FileDesc->DirectoryMarker.Buffer);
+
+    FileDesc->DirectoryMarker = DirectoryMarker;
 
     return STATUS_SUCCESS;
 }

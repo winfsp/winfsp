@@ -518,7 +518,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         break;
     case FspFsctlTransactQueryDirectoryKind:
         FspDebugLog("%S[TID=%04lx]: %p: >>QueryDirectory %s%S%s%s, "
-            "Address=%p, Offset=%lx:%lx, Length=%ld, Pattern=%s%S%s\n",
+            "Address=%p, Length=%ld, Pattern=%s%S%s, Marker=%s%S%s\n",
             FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
@@ -527,12 +527,15 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 Request->Req.QueryDirectory.UserContext, Request->Req.QueryDirectory.UserContext2,
                 UserContextBuf),
             Request->Req.QueryDirectory.Address,
-            MAKE_UINT32_PAIR(Request->Req.QueryDirectory.Offset),
             Request->Req.QueryDirectory.Length,
             Request->Req.QueryDirectory.Pattern.Size ? "\"" : "",
             Request->Req.QueryDirectory.Pattern.Size ?
                 (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Pattern.Offset) : L"NULL",
-            Request->Req.QueryDirectory.Pattern.Size ? "\"" : "");
+            Request->Req.QueryDirectory.Pattern.Size ? "\"" : "",
+            Request->Req.QueryDirectory.Marker.Size ? "\"" : "",
+            Request->Req.QueryDirectory.Marker.Size ?
+                (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Marker.Offset) : L"NULL",
+            Request->Req.QueryDirectory.Marker.Size ? "\"" : "");
         break;
     case FspFsctlTransactFileSystemControlKind:
         switch (Request->Req.FileSystemControl.FsControlCode)

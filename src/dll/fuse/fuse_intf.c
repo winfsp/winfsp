@@ -1661,10 +1661,12 @@ int fsp_fuse_intf_AddDirInfoOld(fuse_dirh_t dh, const char *name,
 }
 
 static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
-    PWSTR Pattern,
+    PVOID FileContext, PVOID Buffer, ULONG Length,
+    PWSTR Pattern, PWSTR Marker,
     PULONG PBytesTransferred)
 {
+    return STATUS_INVALID_DEVICE_REQUEST;
+#if 0
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc = FileNode;
     struct fuse_file_info fi;
@@ -1844,6 +1846,7 @@ exit:
     MemFree(dh.Buffer);
 
     return Result;
+#endif
 }
 
 static NTSTATUS fsp_fuse_intf_ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
