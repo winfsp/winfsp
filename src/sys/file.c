@@ -2044,6 +2044,18 @@ NTSTATUS FspFileDescResetDirectory(FSP_FILE_DESC *FileDesc,
             FileDesc->DirectoryMarker.Buffer = 0;
         }
     }
+    else if (RestartScan)
+    {
+        ASSERT(0 == FileName || 0 == FileName->Length);
+
+        FileDesc->DirectoryHasSuchFile = FALSE;
+
+        if (0 != FileDesc->DirectoryMarker.Buffer)
+        {
+            FspFree(FileDesc->DirectoryMarker.Buffer);
+            FileDesc->DirectoryMarker.Buffer = 0;
+        }
+    }
     else if (IndexSpecified && 0 != FileName && 0 != FileName->Length)
     {
         NTSTATUS Result;
