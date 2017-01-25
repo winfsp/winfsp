@@ -1133,12 +1133,12 @@ FSP_API NTSTATUS FspFileSystemOpQueryDirectory(FSP_FILE_SYSTEM *FileSystem,
     BytesTransferred = 0;
     Result = FileSystem->Interface->ReadDirectory(FileSystem,
         (PVOID)ValOfFileContext(Request->Req.QueryDirectory),
-        (PVOID)Request->Req.QueryDirectory.Address,
-        Request->Req.QueryDirectory.Length,
         0 != Request->Req.QueryDirectory.Pattern.Size ?
             (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Pattern.Offset) : 0,
         0 != Request->Req.QueryDirectory.Marker.Size ?
             (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Marker.Offset) : 0,
+        (PVOID)Request->Req.QueryDirectory.Address,
+        Request->Req.QueryDirectory.Length,
         &BytesTransferred);
     if (!NT_SUCCESS(Result))
         return Result;

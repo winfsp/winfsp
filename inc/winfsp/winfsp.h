@@ -647,10 +647,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     The file system on which this request is posted.
      * @param FileContext
      *     The file context of the directory to be read.
-     * @param Buffer
-     *     Pointer to a buffer that will receive the results of the read operation.
-     * @param Length
-     *     Length of data to read.
      * @param Pattern
      *     The pattern to match against files in this directory. Can be NULL. The file system
      *     can choose to ignore this parameter as the FSD will always perform its own pattern
@@ -659,6 +655,10 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     A file name that marks where in the directory to start reading. Files with names
      *     that are greater than (not equal to) this marker (in the directory order determined
      *     by the file system) should be returned. Can be NULL.
+     * @param Buffer
+     *     Pointer to a buffer that will receive the results of the read operation.
+     * @param Length
+     *     Length of data to read.
      * @param PBytesTransferred [out]
      *     Pointer to a memory location that will receive the actual number of bytes read.
      * @return
@@ -668,9 +668,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     FspFileSystemAddDirInfo
      */
     NTSTATUS (*ReadDirectory)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileContext, PVOID Buffer, ULONG Length,
-        PWSTR Pattern, PWSTR Marker,
-        PULONG PBytesTransferred);
+        PVOID FileContext, PWSTR Pattern, PWSTR Marker,
+        PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
     /**
      * Resolve reparse points.
      *

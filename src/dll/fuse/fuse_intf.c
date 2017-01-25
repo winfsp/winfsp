@@ -1661,9 +1661,8 @@ int fsp_fuse_intf_AddDirInfoOld(fuse_dirh_t dh, const char *name,
 }
 
 static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileContext, PVOID Buffer, ULONG Length,
-    PWSTR Pattern, PWSTR Marker,
-    PULONG PBytesTransferred)
+    PVOID FileContext, PWSTR Pattern, PWSTR Marker,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
     return STATUS_INVALID_DEVICE_REQUEST;
 #if 0

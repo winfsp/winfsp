@@ -1341,9 +1341,8 @@ static BOOLEAN ReadDirectoryEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
 }
 
 static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode0, PVOID Buffer, ULONG Length,
-    PWSTR Pattern, PWSTR Marker,
-    PULONG PBytesTransferred)
+    PVOID FileNode0, PWSTR Pattern, PWSTR Marker,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
