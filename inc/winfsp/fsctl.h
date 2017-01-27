@@ -147,7 +147,8 @@ typedef struct
     UINT32 ReadOnlyVolume:1;
     /* kernel-mode flags */
     UINT32 PostCleanupWhenModifiedOnly:1;   /* post Cleanup when a file was modified/deleted */
-    UINT32 KmReservedFlags:5;
+    UINT32 PassQueryDirectoryPattern:1;     /* pass Pattern during QueryDirectory operations */
+    UINT32 KmReservedFlags:4;
     /* user-mode flags */
     UINT32 UmFileContextIsUserContext2:1;   /* user mode: FileContext parameter is UserContext2 */
     UINT32 UmFileContextIsFullContext:1;    /* user mode: FileContext parameter is FullContext */

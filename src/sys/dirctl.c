@@ -565,7 +565,8 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
 
     /* create request */
     Result = FspIopCreateRequestEx(Irp, 0,
-        (FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer ?
+        (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryPattern &&
+        FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer ?
             FileDesc->DirectoryPattern.Length + sizeof(WCHAR) : 0) +
         (FsvolDeviceExtension->VolumeParams.MaxComponentLength + 1) * sizeof(WCHAR),
         FspFsvolQueryDirectoryRequestFini, &Request);
@@ -581,7 +582,8 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     Request->Req.QueryDirectory.Length = SystemBufferLength;
     Request->Req.QueryDirectory.CaseSensitive = FileDesc->CaseSensitive;
 
-    if (FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
+    if (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryPattern &&
+        FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
     {
         Request->Req.QueryDirectory.Pattern.Offset =
             Request->FileName.Size;
@@ -925,7 +927,8 @@ NTSTATUS FspFsvolDirectoryControlComplete(
         FSP_RETURN();
     }
 
-    if (0 == Request->Req.QueryDirectory.Marker.Size &&
+    if (0 == Request->Req.QueryDirectory.Pattern.Size &&
+        0 == Request->Req.QueryDirectory.Marker.Size &&
         FspFileNodeTrySetDirInfo(FileNode,
             Irp->AssociatedIrp.SystemBuffer,
             (ULONG)Response->IoStatus.Information,
