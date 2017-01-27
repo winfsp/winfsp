@@ -182,6 +182,7 @@
     </ClCompile>
     <ClCompile Include="..\..\..\tst\memfs\memfs.cpp" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\create-test.c" />
+    <ClCompile Include="..\..\..\tst\winfsp-tests\dirbuf-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\dirctl-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\eventlog-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\flush-test.c" />

@@ -182,6 +182,7 @@ int main(int argc, char *argv[])
     TESTSUITE(posix_tests);
     TESTSUITE(eventlog_tests);
     TESTSUITE(path_tests);
+    TESTSUITE(dirbuf_tests);
     TESTSUITE(mount_tests);
     TESTSUITE(timeout_tests);
     TESTSUITE(memfs_tests);

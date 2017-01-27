@@ -1294,6 +1294,19 @@ FSP_API BOOLEAN FspFileSystemAddStreamInfo(FSP_FSCTL_STREAM_INFO *StreamInfo,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
 
 /*
+ * Directory buffering
+ */
+FSP_API BOOLEAN FspFileSystemAcquireDirectoryBuffer(PVOID *PDirBuffer,
+    BOOLEAN Reset, PNTSTATUS PResult);
+FSP_API BOOLEAN FspFileSystemFillDirectoryBuffer(PVOID *PDirBuffer,
+    FSP_FSCTL_DIR_INFO *DirInfo, PNTSTATUS PResult);
+FSP_API VOID FspFileSystemReleaseDirectoryBuffer(PVOID *PDirBuffer);
+FSP_API VOID FspFileSystemReadDirectoryBuffer(PVOID *PDirBuffer,
+    PWSTR Marker,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
+FSP_API VOID FspFileSystemDeleteDirectoryBuffer(PVOID *PDirBuffer);
+
+/*
  * Security
  */
 FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);

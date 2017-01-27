@@ -76,6 +76,9 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\oplock-test.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\tst\winfsp-tests\dirbuf-test.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\ext\tlib\testsuite.h">
