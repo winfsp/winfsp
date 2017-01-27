@@ -258,6 +258,22 @@
                     <File Name="memfs-main.c" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="SMPDIR.passthrough" Name="passthrough">
+                <Component Id="C.passthrough.c">
+                    <File Name="passthrough.c" KeyPath="yes" />
+                </Component>
+                <Directory Id="SMPDIR.passthrough.passthrough" Name="passthrough">
+                    <Component Id="C.passthrough.sln">
+                        <File Name="passthrough.sln" KeyPath="yes" />
+                    </Component>
+                    <Component Id="C.passthrough.vcxproj">
+                        <File Name="passthrough.vcxproj" KeyPath="yes" />
+                    </Component>
+                    <Component Id="C.passthrough.vcxproj.filters">
+                        <File Name="passthrough.vcxproj.filters" KeyPath="yes" />
+                    </Component>
+                </Directory>
+            </Directory>
         </DirectoryRef>
         <DirectoryRef Id="SYMDIR">
             <Component Id="C.winfsp_x64.sys.pdb">
@@ -327,6 +343,10 @@
             <ComponentRef Id="C.memfs.h" />
             <ComponentRef Id="C.memfs.cpp" />
             <ComponentRef Id="C.memfs_main.c" />
+            <ComponentRef Id="C.passthrough.c" />
+            <ComponentRef Id="C.passthrough.sln" />
+            <ComponentRef Id="C.passthrough.vcxproj" />
+            <ComponentRef Id="C.passthrough.vcxproj.filters" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.sym">
             <ComponentRef Id="C.winfsp_x64.sys.pdb" />
