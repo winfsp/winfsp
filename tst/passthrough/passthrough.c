@@ -682,6 +682,7 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
     VolumeParams.UnicodeOnDisk = 1;
     VolumeParams.PersistentAcls = 1;
     VolumeParams.PostCleanupWhenModifiedOnly = 1;
+    VolumeParams.PassQueryDirectoryPattern = 1;
     VolumeParams.UmFileContextIsUserContext2 = 1;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
