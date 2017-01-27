@@ -39,7 +39,6 @@ typedef struct
 {
     HANDLE Handle;
     PVOID DirBuffer;
-    ULONG DirBufferCapacity, DirBufferLength;
 } PTFS_FILE_CONTEXT;
 
 static NTSTATUS GetFileInfoInternal(HANDLE Handle, FSP_FSCTL_FILE_INFO *FileInfo)
@@ -299,13 +298,14 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static VOID Close(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileContext)
+    PVOID FileContext0)
 {
+    PTFS_FILE_CONTEXT *FileContext = FileContext0;
     HANDLE Handle = HandleFromContext(FileContext);
 
     CloseHandle(Handle);
 
-    free(((PTFS_FILE_CONTEXT *)FileContext)->DirBuffer);
+    FspFileSystemDeleteDirectoryBuffer(&FileContext->DirBuffer);
     free(FileContext);
 }
 
@@ -510,29 +510,9 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-static BOOLEAN AddDirInfo(PTFS_FILE_CONTEXT *FileContext, FSP_FSCTL_DIR_INFO *DirInfo)
-{
-    while (!FspFileSystemAddDirInfo(DirInfo,
-        FileContext->DirBuffer, FileContext->DirBufferCapacity, &FileContext->DirBufferLength))
-    {
-        PVOID Buffer;
-        ULONG Capacity = FileContext->DirBufferCapacity ? FileContext->DirBufferCapacity * 2 : 256;
-
-        Buffer = realloc(FileContext->DirBuffer, Capacity);
-        if (0 == Buffer)
-            return FALSE;
-
-        FileContext->DirBuffer = Buffer;
-        FileContext->DirBufferCapacity = Capacity;
-    }
-
-    return TRUE;
-}
-
 static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileContext0, PVOID Buffer, UINT64 Offset, ULONG BufferLength,
-    PWSTR Pattern,
-    PULONG PBytesTransferred)
+    PVOID FileContext0, PWSTR Pattern, PWSTR Marker,
+    PVOID Buffer, ULONG BufferLength, PULONG PBytesTransferred)
 {
     PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
     PTFS_FILE_CONTEXT *FileContext = FileContext0;
@@ -547,9 +527,10 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_DIR_INFO D;
     } DirInfoBuf;
     FSP_FSCTL_DIR_INFO *DirInfo = &DirInfoBuf.D;
-    UINT64 NextOffset = 0;
+    NTSTATUS DirBufferResult;
 
-    if (0 == Offset)
+    DirBufferResult = STATUS_SUCCESS;
+    if (FspFileSystemAcquireDirectoryBuffer(&FileContext->DirBuffer, 0 == Marker, &DirBufferResult))
     {
         if (0 == Pattern)
             Pattern = L"*";
@@ -586,33 +567,24 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
                 DirInfo->FileInfo.ChangeTime = DirInfo->FileInfo.LastWriteTime;
                 DirInfo->FileInfo.IndexNumber = 0;
                 DirInfo->FileInfo.HardLinks = 0;
-                DirInfo->NextOffset = (NextOffset += FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size));
                 memcpy(DirInfo->FileNameBuf, FindData.cFileName, Length * sizeof(WCHAR));
 
-                if (!AddDirInfo(FileContext, DirInfo))
+                if (!FspFileSystemFillDirectoryBuffer(&FileContext->DirBuffer, DirInfo, &DirBufferResult))
                     break;
             } while (FindNextFileW(FindHandle, &FindData));
 
             FindClose(FindHandle);
-
-            if (!AddDirInfo(FileContext, 0))
-                return STATUS_INSUFFICIENT_RESOURCES;
         }
+
+        FspFileSystemReleaseDirectoryBuffer(&FileContext->DirBuffer);
     }
 
-    if (0 != FileContext->DirBuffer)
-    {
-        for (DirInfo = (PVOID)((PUINT8)FileContext->DirBuffer + Offset);
-            0 != DirInfo->Size;
-            DirInfo = (PVOID)((PUINT8)DirInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size)))
-        {
-            if (!FspFileSystemAddDirInfo(DirInfo, Buffer, BufferLength, PBytesTransferred))
-                return STATUS_SUCCESS;
-        }
-    }
+    if (!NT_SUCCESS(DirBufferResult))
+        return DirBufferResult;
 
-    /* add "End-Of-Listing" marker */
-    FspFileSystemAddDirInfo(0, Buffer, BufferLength, PBytesTransferred);
+    FspFileSystemReadDirectoryBuffer(&FileContext->DirBuffer,
+        Marker, Buffer, BufferLength, PBytesTransferred);
+
     return STATUS_SUCCESS;
 }
 
