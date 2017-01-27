@@ -29,6 +29,7 @@ int WinFspDiskTests = 1;
 int WinFspNetTests = 1;
 
 BOOLEAN OptResilient = FALSE;
+BOOLEAN OptCaseInsensitiveCmp = FALSE;
 BOOLEAN OptCaseInsensitive = FALSE;
 BOOLEAN OptCaseRandomize = FALSE;
 WCHAR OptOplock = 0;
@@ -53,7 +54,7 @@ int mywcscmp(PWSTR a, int alen, PWSTR b, int blen)
     len = alen < blen ? alen : blen;
 
     /* we should still be in the C locale */
-    if (OptCaseRandomize)
+    if (OptCaseInsensitiveCmp)
         res = _wcsnicmp(a, b, len);
     else
         res = wcsncmp(a, b, len);
@@ -218,6 +219,11 @@ int main(int argc, char *argv[])
                 OptResilient = TRUE;
                 rmarg(argv, argc, argi);
             }
+            else if (0 == strcmp("--case-insensitive-cmp", a))
+            {
+                OptCaseInsensitiveCmp = TRUE;
+                rmarg(argv, argc, argi);
+            }
             else if (0 == strcmp("--case-insensitive", a))
             {
                 OptCaseInsensitive = TRUE;
@@ -227,6 +233,7 @@ int main(int argc, char *argv[])
             {
                 OptCaseRandomize = TRUE;
                 OptCaseInsensitive = TRUE;
+                OptCaseInsensitiveCmp = TRUE;
                 rmarg(argv, argc, argi);
             }
             else if (0 == strcmp("--oplock=batch", a))

@@ -138,6 +138,7 @@ extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
 extern BOOLEAN OptResilient;
+extern BOOLEAN OptCaseInsensitiveCmp;
 extern BOOLEAN OptCaseInsensitive;
 extern BOOLEAN OptCaseRandomize;
 extern WCHAR OptOplock;
