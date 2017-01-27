@@ -745,6 +745,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     PWSTR PassThrough = 0;
     PWSTR MountPoint = 0;
     HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
+    WCHAR PassThroughBuf[MAX_PATH];
     PTFS *Ptfs = 0;
     NTSTATUS Result;
 
@@ -778,6 +779,26 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
     if (arge > argp)
         goto usage;
+
+    if (0 == PassThrough && 0 != VolumePrefix)
+    {
+        PWSTR P;
+
+        P = wcschr(VolumePrefix, L'\\');
+        if (0 != P && L'\\' != P[1])
+        {
+            P = wcschr(P + 1, L'\\');
+            if (0 != P && L'$' == P[2] &&
+                (
+                (L'A' <= P[1] && P[1] <= L'Z') ||
+                (L'a' <= P[1] && P[1] <= L'z')
+                ))
+            {
+                StringCbPrintf(PassThroughBuf, sizeof PassThroughBuf, L"%c:%s", P[1], P + 3);
+                PassThrough = PassThroughBuf;
+            }
+        }
+    }
 
     if (0 == PassThrough || 0 == MountPoint)
         goto usage;
