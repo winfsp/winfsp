@@ -585,18 +585,20 @@ Every `Open` (or `Create`) is always matched by `Close`. `Close` is the final ca
 [source,c]
 ----
 static VOID Close(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileContext)
+    PVOID FileContext0)
 {
+    PTFS_FILE_CONTEXT *FileContext = FileContext0;
     HANDLE Handle = HandleFromContext(FileContext);
 
     CloseHandle(Handle);                                                // <1>
 
-    free(((PTFS_FILE_CONTEXT *)FileContext)->DirBuffer);                // <2>
-    free(FileContext);                                                  // <2>
+    FspFileSystemDeleteDirectoryBuffer(&FileContext->DirBuffer);        // <2>
+    free(FileContext);                                                  // <3>
 }
 ----
 <1> Close the file handle.
-<2> Free the `FileContext` object.
+<2> Delete the directory buffer (if there is one).
+<3> Free the `FileContext` object.
 
 For completeness the definition of `PTFS_FILE_CONTEXT` is included here:
 
@@ -609,7 +611,6 @@ typedef struct
 {
     HANDLE Handle;
     PVOID DirBuffer;
-    ULONG DirBufferCapacity, DirBufferLength;
 } PTFS_FILE_CONTEXT;
 ----
 
@@ -617,41 +618,20 @@ typedef struct
 
 Our simple file system can only open and close existing files. Supporting the Windows explorer is somewhat more involved. It requires implementation of `ReadDirectory`.
 
-`ReadDirectory` is conceptually simple: given an `Offset` within the directory fill the specified `Buffer` with directory contents. The idea here is that a directory can be viewed as a file with directory entries, the `Offset` is used to specify where in the file to start reading. Every directory entry contains a `NextOffset` field that the file system can use to store any `Offset` it wants. The kernel does not interpret this `Offset` specially othar than that a zero `Offset` means the beginning of the directory file.
+`ReadDirectory` is conceptually simple: given a `Marker` file name within the directory fill the specified `Buffer` with directory contents. The idea here is that a directory can be viewed as a file with directory entries, the `Marker` is used to specify where in the file to start reading. Only files with names that are greater than (not equal to) the `Marker` (in the directory order determined by the file system) should be returned. If the `Marker` is `NULL` it means to start at the beginning of the directory file.
 
-This scheme is simple and flexible in that it allows arbitrarily large directories to be read in chunks. If implemented correctly it can also cope with concurrent modifications to the directory (like file creations, deletions). Unfortunately not all file systems have an internal concept of `Offset` for directories, which can make `ReadDirectory` challenging to implement.
+This scheme is simple and flexible in that it allows arbitrarily large directories to be read in chunks. If implemented correctly it can also cope with concurrent modifications to the directory (like file creations, deletions).
 
-In that case the simplest strategy is to buffer *all* directory contents when we receive a zero `Offset` and use the `NextOffset` field to store the offset from the beginning of the buffer to the next directory entry. If we later receive a non-zero `Offset` we can simply find the corresponding entry in the buffered directory contents.
+Not all file systems maintain a consistent directory order or are able to seek by file name within a directory. For these file systems a simple straegy is to buffer *all* directory contents when they receive a `NULL` `Marker`.
 
 This is how we implement `ReadDirectory` for our passthrough file system.
 
 .`*ReadDirectory*`
 [source,c]
 ----
-static BOOLEAN AddDirInfo(PTFS_FILE_CONTEXT *FileContext,
-    FSP_FSCTL_DIR_INFO *DirInfo)                                        // <1>
-{
-    while (!FspFileSystemAddDirInfo(DirInfo,
-        FileContext->DirBuffer, FileContext->DirBufferCapacity, &FileContext->DirBufferLength))
-    {
-        PVOID Buffer;
-        ULONG Capacity = FileContext->DirBufferCapacity ? FileContext->DirBufferCapacity * 2 : 256;
-
-        Buffer = realloc(FileContext->DirBuffer, Capacity);
-        if (0 == Buffer)
-            return FALSE;
-
-        FileContext->DirBuffer = Buffer;
-        FileContext->DirBufferCapacity = Capacity;
-    }
-
-    return TRUE;
-}
-
 static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileContext0, PVOID Buffer, UINT64 Offset, ULONG BufferLength,
-    PWSTR Pattern,
-    PULONG PBytesTransferred)
+    PVOID FileContext0, PWSTR Pattern, PWSTR Marker,
+    PVOID Buffer, ULONG BufferLength, PULONG PBytesTransferred)
 {
     PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
     PTFS_FILE_CONTEXT *FileContext = FileContext0;
@@ -666,9 +646,11 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         FSP_FSCTL_DIR_INFO D;
     } DirInfoBuf;
     FSP_FSCTL_DIR_INFO *DirInfo = &DirInfoBuf.D;
-    UINT64 NextOffset = 0;
+    NTSTATUS DirBufferResult;
 
-    if (0 == Offset)                                                    // <2>
+    DirBufferResult = STATUS_SUCCESS;
+    if (FspFileSystemAcquireDirectoryBuffer(&FileContext->DirBuffer, 0 == Marker,
+        &DirBufferResult))                                              // <1>
     {
         if (0 == Pattern)
             Pattern = L"*";
@@ -685,7 +667,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         memcpy(FullPath + Length, Pattern, PatternLength * sizeof(WCHAR));
         FullPath[Length + PatternLength] = L'\0';
 
-        FindHandle = FindFirstFileW(FullPath, &FindData);               // <3>
+        FindHandle = FindFirstFileW(FullPath, &FindData);               // <2>
         if (INVALID_HANDLE_VALUE != FindHandle)
         {
             do
@@ -705,40 +687,32 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
                 DirInfo->FileInfo.ChangeTime = DirInfo->FileInfo.LastWriteTime;
                 DirInfo->FileInfo.IndexNumber = 0;
                 DirInfo->FileInfo.HardLinks = 0;
-                DirInfo->NextOffset = (NextOffset += FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size));
                 memcpy(DirInfo->FileNameBuf, FindData.cFileName, Length * sizeof(WCHAR));
 
-                if (!AddDirInfo(FileContext, DirInfo))
+                if (!FspFileSystemFillDirectoryBuffer(&FileContext->DirBuffer, DirInfo,
+                    &DirBufferResult))                                  // <2>
                     break;
-            } while (FindNextFileW(FindHandle, &FindData));             // <3>
+            } while (FindNextFileW(FindHandle, &FindData));             // <2>
 
             FindClose(FindHandle);
-
-            if (!AddDirInfo(FileContext, 0))
-                return STATUS_INSUFFICIENT_RESOURCES;
         }
+
+        FspFileSystemReleaseDirectoryBuffer(&FileContext->DirBuffer);   // <3>
     }
 
-    if (0 != FileContext->DirBuffer)                                    // <4>
-    {
-        for (DirInfo = (PVOID)((PUINT8)FileContext->DirBuffer + Offset);
-            0 != DirInfo->Size;
-            DirInfo = (PVOID)((PUINT8)DirInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size)))
-        {
-            if (!FspFileSystemAddDirInfo(DirInfo, Buffer, BufferLength, PBytesTransferred))
-                return STATUS_SUCCESS;
-        }
-    }
+    if (!NT_SUCCESS(DirBufferResult))
+        return DirBufferResult;
 
-    /* add "End-Of-Listing" marker */
-    FspFileSystemAddDirInfo(0, Buffer, BufferLength, PBytesTransferred);
+    FspFileSystemReadDirectoryBuffer(&FileContext->DirBuffer,
+        Marker, Buffer, BufferLength, PBytesTransferred);               // <4>
+
     return STATUS_SUCCESS;
 }
 ----
-<1> Helper function used to buffer directory contents when `Offset == 0`.
-<2> Only buffer directory contents when `Offset == 0`.
-<3> Iterate over all directory entries and buffer them.
-<4> Now copy the buffered directory contents into the specified `Buffer`.
+<1> Acquire a directory buffer if there is not one or if `Marker == 0`.
+<2> Iterate over all directory entries and buffer them.
+<3> Release the directory buffer.
+<4> Copy the buffered directory contents into the specified `Buffer`.
 
 === GetVolumeInfo
 
