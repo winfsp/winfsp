@@ -55,7 +55,7 @@ This simple template allows a user mode file system to be run as a console appli
 If you try to build this simple program, it will fail. We must set up the locations where Visual Studio can find the WinFsp headers and libraries. The following settings must be made:
 
 - C/C++ > General > Additional Include Directories: `$(MSBuildProgramFiles32)\WinFsp\inc`
-- Linker > Input > Additional Dependencies: `$(MSBuildProgramFiles32)\WinFsp\lib\winfsp-$(PlatformTarget).lib;%(AdditionalDependencies)`
+- Linker > Input > Additional Dependencies: `$(MSBuildProgramFiles32)\WinFsp\lib\winfsp-$(PlatformTarget).lib`
 
 NOTE: These settings assume that WinFsp has been installed in the default location under "Program Files".
 
@@ -85,7 +85,6 @@ static NTSTATUS WinFspLoad(VOID)
 #endif
 #define FSP_DLLPATH                     "bin\\" FSP_DLLNAME
 
-    LONG WINAPI __HrLoadAllImportsForDll(CONST CHAR *);
     WCHAR PathBuf[MAX_PATH - (sizeof L"" FSP_DLLPATH / sizeof(WCHAR) - 1)];
     DWORD Size;
     LONG Result;
@@ -106,10 +105,6 @@ static NTSTATUS WinFspLoad(VOID)
         Module = LoadLibraryW(PathBuf);
         if (0 == Module)
             return STATUS_DLL_NOT_FOUND;
-
-        Result = __HrLoadAllImportsForDll(FSP_DLLNAME);
-        if (0 > Result)
-            return STATUS_DELAY_LOAD_FAILED;
     }
 
     return STATUS_SUCCESS;
