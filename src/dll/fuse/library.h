@@ -62,25 +62,13 @@ struct fsp_fuse_file_desc
     int OpenFlags;
     UINT64 FileHandle;
     PVOID DirBuffer;
-    ULONG DirBufferSize;
 };
 
 struct fuse_dirhandle
 {
-    PVOID Buffer;
-    ULONG Length;
-    ULONG BytesTransferred;
-    BOOLEAN NonZeroOffset;
+    struct fsp_fuse_file_desc *filedesc;
+    NTSTATUS Result;
     BOOLEAN DotFiles, HasChild;
-};
-
-struct fsp_fuse_dirinfo
-{
-    UINT16 Size;
-    FSP_FSCTL_FILE_INFO FileInfo;
-    BOOLEAN FileInfoValid;
-    UINT64 NextOffset;
-    char PosixNameBuf[];                /* includes term-0 (unlike FSP_FSCTL_DIR_INFO) */
 };
 
 NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,

@@ -390,3 +390,15 @@ FSP_API VOID FspFileSystemDeleteDirectoryBuffer(PVOID *PDirBuffer)
         *PDirBuffer = 0;
     }
 }
+
+VOID FspFileSystemPeekInDirectoryBuffer(PVOID *PDirBuffer,
+    PUINT8 *PBuffer, PULONG *PIndex, PULONG PCount)
+{
+    /* assume that FspFileSystemAcquireDirectoryBuffer has been called */
+
+    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = *PDirBuffer;
+
+    *PBuffer = DirBuffer->Buffer;
+    *PIndex = (PULONG)(DirBuffer->Buffer + DirBuffer->HiMark);
+    *PCount = (DirBuffer->Capacity - DirBuffer->HiMark) / sizeof(ULONG);
+}

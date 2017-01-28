@@ -1403,6 +1403,8 @@ NTSTATUS FspPosixMapPosixToWindowsPath(const char *PosixPath, PWSTR *PWindowsPat
     return FspPosixMapPosixToWindowsPathEx(PosixPath, PWindowsPath, TRUE);
 }
 FSP_API VOID FspPosixDeletePath(void *Path);
+FSP_API VOID FspPosixEncodeWindowsPath(PWSTR WindowsPath, ULONG Size);
+FSP_API VOID FspPosixDecodeWindowsPath(PWSTR WindowsPath, ULONG Size);
 
 /*
  * Path Handling

@@ -51,6 +51,9 @@ NTSTATUS FspEventLogUnregister(VOID);
 
 PWSTR FspDiagIdent(VOID);
 
+VOID FspFileSystemPeekInDirectoryBuffer(PVOID *PDirBuffer,
+    PUINT8 *PBuffer, PULONG *PIndex, PULONG PCount);
+
 BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType);
 
 static inline ULONG FspPathSuffixIndex(PWSTR FileName)
