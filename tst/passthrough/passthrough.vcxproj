@@ -18,6 +18,9 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="passthrough.c" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{9E0E5997-7316-4818-A130-00B3AF1AD354}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
@@ -173,9 +176,6 @@
       <DelayLoadDLLs>winfsp-$(PlatformTarget).dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="..\passthrough.c" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

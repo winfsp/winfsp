@@ -7,7 +7,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\passthrough.c">
+    <ClCompile Include="passthrough.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

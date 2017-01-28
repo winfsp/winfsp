@@ -262,17 +262,15 @@
                 <Component Id="C.passthrough.c">
                     <File Name="passthrough.c" KeyPath="yes" />
                 </Component>
-                <Directory Id="SMPDIR.passthrough.passthrough" Name="passthrough">
-                    <Component Id="C.passthrough.sln">
-                        <File Name="passthrough.sln" KeyPath="yes" />
-                    </Component>
-                    <Component Id="C.passthrough.vcxproj">
-                        <File Name="passthrough.vcxproj" KeyPath="yes" />
-                    </Component>
-                    <Component Id="C.passthrough.vcxproj.filters">
-                        <File Name="passthrough.vcxproj.filters" KeyPath="yes" />
-                    </Component>
-                </Directory>
+                <Component Id="C.passthrough.sln">
+                    <File Name="passthrough.sln" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough.vcxproj">
+                    <File Name="passthrough.vcxproj" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough.vcxproj.filters">
+                    <File Name="passthrough.vcxproj.filters" KeyPath="yes" />
+                </Component>
             </Directory>
         </DirectoryRef>
         <DirectoryRef Id="SYMDIR">

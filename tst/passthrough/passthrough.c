@@ -895,7 +895,6 @@ static NTSTATUS WinFspLoad(VOID)
 #endif
 #define FSP_DLLPATH                     "bin\\" FSP_DLLNAME
 
-    LONG WINAPI __HrLoadAllImportsForDll(CONST CHAR *);
     WCHAR PathBuf[MAX_PATH - (sizeof L"" FSP_DLLPATH / sizeof(WCHAR) - 1)];
     DWORD Size;
     LONG Result;
@@ -916,10 +915,6 @@ static NTSTATUS WinFspLoad(VOID)
         Module = LoadLibraryW(PathBuf);
         if (0 == Module)
             return STATUS_DLL_NOT_FOUND;
-
-        Result = __HrLoadAllImportsForDll(FSP_DLLNAME);
-        if (0 > Result)
-            return STATUS_DELAY_LOAD_FAILED;
     }
 
     return STATUS_SUCCESS;
