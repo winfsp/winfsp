@@ -33,7 +33,7 @@
 #define FSNAME                          "passthrough"
 #define PROGNAME                        "passthrough-fuse"
 
-#define concat_path(ptfs, fn, fp)       (sizeof fp > (unsigned)snprintf(fp, sizeof fp, "%s/%s", ptfs->rootdir, fn))
+#define concat_path(ptfs, fn, fp)       (sizeof fp > (unsigned)snprintf(fp, sizeof fp, "%s%s", ptfs->rootdir, fn))
 #define ptfs_impl_fullpath(n)           \
     char full ## n[PATH_MAX];           \
     if (!concat_path(((PTFS *)fuse_get_context()->private_data), n, full ## n))\

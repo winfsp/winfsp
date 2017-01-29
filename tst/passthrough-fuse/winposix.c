@@ -54,12 +54,6 @@ char *realpath(const char *path, char *resolved)
 {
     char *result;
 
-    HANDLE h = CreateFileA(path,
-        FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
-
-    if (INVALID_HANDLE_VALUE == h)
-        return error0();
-
     if (0 == resolved)
     {
         result = malloc(PATH_MAX); /* sets errno */
@@ -69,18 +63,31 @@ char *realpath(const char *path, char *resolved)
     else
         result = resolved;
 
-    if (PATH_MAX < GetFinalPathNameByHandleA(h, resolved, PATH_MAX, 0))
-    {
-        int LastError = GetLastError();
+    int err = 0;
+    DWORD len = GetFullPathNameA(path, PATH_MAX, result, 0);
+    if (0 == len)
+        err = GetLastError();
+    else if (PATH_MAX < len)
+        err = ERROR_INVALID_PARAMETER;
 
+    if (0 == err)
+    {
+        HANDLE h = CreateFileA(result,
+            FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+        if (INVALID_HANDLE_VALUE != h)
+            CloseHandle(h);
+        else
+            err = GetLastError();
+    }
+
+    if (0 != err)
+    {
         if (result != resolved)
             free(result);
 
-        errno = maperror(LastError);
+        errno = maperror(err);
         result = 0;
     }
-
-    CloseHandle(h);
 
     return result;
 }
@@ -113,7 +120,7 @@ int statvfs(const char *path, struct fuse_statvfs *stbuf)
     stbuf->f_fsid = VolumeSerialNumber;
     stbuf->f_namemax = MaxComponentLength;
 
-    return -1;
+    return 0;
 }
 
 int open(const char *path, int oflag, ...)
@@ -130,7 +137,7 @@ int open(const char *path, int oflag, ...)
     HANDLE h = CreateFileA(path,
         DesiredAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
         0/* default security */,
-        CreationDisposition, FILE_ATTRIBUTE_NORMAL, 0);
+        CreationDisposition, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, 0);
 
     if (INVALID_HANDLE_VALUE == h)
         return error();
@@ -492,4 +499,41 @@ static int maperror(int winerrno)
         else
             return EINVAL;
     }
+}
+
+NTSTATUS WinFspLoad(VOID)
+{
+#if defined(_WIN64)
+#define FSP_DLLNAME                     "winfsp-x64.dll"
+#else
+#define FSP_DLLNAME                     "winfsp-x86.dll"
+#endif
+#define FSP_DLLPATH                     "bin\\" FSP_DLLNAME
+
+    WCHAR PathBuf[MAX_PATH - (sizeof L"" FSP_DLLPATH / sizeof(WCHAR) - 1)];
+    DWORD Size;
+    LONG Result;
+    HMODULE Module;
+
+    Module = LoadLibraryW(L"" FSP_DLLNAME);
+    if (0 == Module)
+    {
+        Size = sizeof PathBuf;
+        Result = RegGetValueW(
+            HKEY_LOCAL_MACHINE, L"Software\\WinFsp", L"InstallDir",
+            RRF_RT_REG_SZ | 0x00020000/*RRF_SUBKEY_WOW6432KEY*/,
+            0, PathBuf, &Size);
+        if (ERROR_SUCCESS != Result)
+            return 0xC0000034L/*STATUS_OBJECT_NAME_NOT_FOUND*/;
+
+        RtlCopyMemory(PathBuf + (Size / sizeof(WCHAR) - 1), L"" FSP_DLLPATH, sizeof L"" FSP_DLLPATH);
+        Module = LoadLibraryW(PathBuf);
+        if (0 == Module)
+            return 0xC0000135L/*STATUS_DLL_NOT_FOUND*/;
+    }
+
+    return 0/*STATUS_SUCCESS*/;
+
+#undef FSP_DLLNAME
+#undef FSP_DLLPATH
 }

@@ -62,4 +62,9 @@ void rewinddir(DIR *dirp);
 struct dirent *readdir(DIR *dirp);
 int closedir(DIR *dirp);
 
+long WinFspLoad(void);
+#undef fuse_main
+#define fuse_main(argc, argv, ops, data)\
+    (WinFspLoad(), fuse_main_real(argc, argv, ops, sizeof *(ops), data))
+
 #endif
