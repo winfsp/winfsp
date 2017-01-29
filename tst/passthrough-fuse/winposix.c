@@ -355,6 +355,12 @@ DIR *opendir(const char *path)
     return dirp;
 }
 
+void rewinddir(DIR *dirp)
+{
+    if (INVALID_HANDLE_VALUE != dirp->handle)
+        FindClose(dirp->handle);
+}
+
 struct dirent *readdir(DIR *dirp)
 {
     WIN32_FIND_DATAA FindData;

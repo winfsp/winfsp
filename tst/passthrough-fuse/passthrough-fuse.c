@@ -171,6 +171,7 @@ static int ptfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, fus
     DIR *dirp = (DIR *)fi->fh;
     struct dirent *de;
 
+    rewinddir(dirp);
     for (;;)
     {
         errno = 0;
