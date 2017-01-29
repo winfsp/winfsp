@@ -59,6 +59,6 @@ int rmdir(const char *path);
 
 DIR *opendir(const char *path);
 struct dirent *readdir(DIR *dirp);
-int closedir(DIR *dp);
+int closedir(DIR *dirp);
 
 #endif

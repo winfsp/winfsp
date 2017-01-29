@@ -161,20 +161,20 @@ static int ptfs_opendir(const char *path, struct fuse_file_info *fi)
 {
     ptfs_impl_fullpath(path);
 
-    DIR *dp;
-    return 0 != (dp = opendir(path)) ? (fi->fh = (intptr_t)dp, 0) : -errno;
+    DIR *dirp;
+    return 0 != (dirp = opendir(path)) ? (fi->fh = (intptr_t)dirp, 0) : -errno;
 }
 
 static int ptfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, fuse_off_t off,
     struct fuse_file_info *fi)
 {
-    DIR *dp = (DIR *)fi->fh;
+    DIR *dirp = (DIR *)fi->fh;
     struct dirent *de;
 
     for (;;)
     {
         errno = 0;
-        if (0 == (de = readdir(dp)))
+        if (0 == (de = readdir(dirp)))
             break;
         if (0 != filler(buf, de->d_name, 0, 0))
             return -ENOMEM;

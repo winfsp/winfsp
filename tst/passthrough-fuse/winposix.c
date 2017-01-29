@@ -15,12 +15,40 @@
  * software.
  */
 
+/*
+ * This is a very simple Windows POSIX layer. It handles all the POSIX
+ * file API's required to implement passthrough-fuse in POSIX, however
+ * the API handling is rather unsophisticated.
+ *
+ * Ways to improve it: use the FspPosix* API's to properly handle
+ * file names and security.
+ */
+
 #include <windows.h>
 #include <fcntl.h>
 #include <fuse.h>
 #include "winposix.h"
 
+struct _DIR
+{
+    HANDLE handle;
+    struct dirent dirent;
+    char path[];
+};
+
 static int maperror(int winerrno);
+
+static inline void *error0(void)
+{
+    errno = maperror(GetLastError());
+    return 0;
+}
+
+static inline int error(void)
+{
+    errno = maperror(GetLastError());
+    return -1;
+}
 
 char *realpath(const char *path, char *resolved)
 {
@@ -30,10 +58,7 @@ char *realpath(const char *path, char *resolved)
         FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
 
     if (INVALID_HANDLE_VALUE == h)
-    {
-        errno = maperror(GetLastError());
-        return 0;
-    }
+        return error0();
 
     if (0 == resolved)
     {
@@ -46,9 +71,12 @@ char *realpath(const char *path, char *resolved)
 
     if (PATH_MAX < GetFinalPathNameByHandleA(h, resolved, PATH_MAX, 0))
     {
+        int LastError = GetLastError();
+
         if (result != resolved)
             free(result);
-        errno = EINVAL;
+
+        errno = maperror(LastError);
         result = 0;
     }
 
@@ -73,8 +101,7 @@ int statvfs(const char *path, struct fuse_statvfs *stbuf)
         !GetDiskFreeSpaceA(root, &SectorsPerCluster, &BytesPerSector,
             &NumberOfFreeClusters, &TotalNumberOfClusters))
     {
-        errno = maperror(GetLastError());
-        return -1;
+        return error();
     }
 
     memset(stbuf, 0, sizeof *stbuf);
@@ -101,106 +128,262 @@ int open(const char *path, int oflag, ...)
         cd[(oflag & (_O_CREAT | _O_TRUNC)) >> 8];
 
     HANDLE h = CreateFileA(path,
-        DesiredAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+        DesiredAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0/* default security */,
         CreationDisposition, FILE_ATTRIBUTE_NORMAL, 0);
 
     if (INVALID_HANDLE_VALUE == h)
-    {
-        errno = maperror(GetLastError());
-        return -1;
-    }
+        return error();
 
     return (int)(intptr_t)h;
 }
 
 int fstat(int fd, struct fuse_stat *stbuf)
 {
-    return -1;
+    HANDLE h = (HANDLE)(intptr_t)fd;
+    BY_HANDLE_FILE_INFORMATION FileInfo;
+    UINT64 CreationTime, LastAccessTime, LastWriteTime;
+
+    if (!GetFileInformationByHandle(h, &FileInfo))
+        return error();
+
+    CreationTime = ((PLARGE_INTEGER)(&FileInfo.ftCreationTime))->QuadPart - 116444736000000000;
+    LastAccessTime = ((PLARGE_INTEGER)(&FileInfo.ftLastAccessTime))->QuadPart - 116444736000000000;
+    LastWriteTime = ((PLARGE_INTEGER)(&FileInfo.ftLastWriteTime))->QuadPart - 116444736000000000;
+
+    memset(stbuf, 0, sizeof *stbuf);
+    stbuf->st_mode = 0755 |
+        ((FileInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 0040000/* S_IFDIR */ : 0);
+    stbuf->st_nlink = 1;
+    stbuf->st_size = ((UINT64)FileInfo.nFileSizeHigh << 32) | ((UINT64)FileInfo.nFileSizeLow);
+    stbuf->st_atim.tv_sec = LastAccessTime / 10000000;
+    stbuf->st_atim.tv_nsec = LastAccessTime % 10000000 * 100;
+    stbuf->st_mtim.tv_sec = LastWriteTime / 10000000;
+    stbuf->st_mtim.tv_nsec = LastWriteTime % 10000000 * 100;
+    stbuf->st_ctim.tv_sec = LastWriteTime / 10000000;
+    stbuf->st_ctim.tv_nsec = LastWriteTime % 10000000 * 100;
+    stbuf->st_birthtim.tv_sec = CreationTime / 10000000;
+    stbuf->st_birthtim.tv_nsec = CreationTime % 10000000 * 100;
+
+    return 0;
 }
 
 int ftruncate(int fd, fuse_off_t size)
 {
-    return -1;
+    HANDLE h = (HANDLE)(intptr_t)fd;
+    FILE_END_OF_FILE_INFO EndOfFileInfo;
+
+    EndOfFileInfo.EndOfFile.QuadPart = size;
+
+    if (!SetFileInformationByHandle(h, FileEndOfFileInfo, &EndOfFileInfo, sizeof EndOfFileInfo))
+        return error();
+
+    return 0;
 }
 
 int pread(int fd, void *buf, size_t nbyte, fuse_off_t offset)
 {
-    return -1;
+    HANDLE h = (HANDLE)(intptr_t)fd;
+    OVERLAPPED Overlapped = { 0 };
+    DWORD BytesTransferred;
+
+    Overlapped.Offset = (DWORD)offset;
+    Overlapped.OffsetHigh = (DWORD)(offset >> 32);
+
+    if (!ReadFile(h, buf, (DWORD)nbyte, &BytesTransferred, &Overlapped))
+        return error();
+
+    return BytesTransferred;
 }
 
 int pwrite(int fd, const void *buf, size_t nbyte, fuse_off_t offset)
 {
-    return -1;
+    HANDLE h = (HANDLE)(intptr_t)fd;
+    OVERLAPPED Overlapped = { 0 };
+    DWORD BytesTransferred;
+
+    Overlapped.Offset = (DWORD)offset;
+    Overlapped.OffsetHigh = (DWORD)(offset >> 32);
+
+    if (!WriteFile(h, buf, (DWORD)nbyte, &BytesTransferred, &Overlapped))
+        return error();
+
+    return BytesTransferred;
 }
 
 int fsync(int fd)
 {
-    return -1;
+    HANDLE h = (HANDLE)(intptr_t)fd;
+
+    if (!FlushFileBuffers(h))
+        return error();
+
+    return 0;
 }
 
 int close(int fd)
 {
-    return -1;
+    HANDLE h = (HANDLE)(intptr_t)fd;
+
+    if (!CloseHandle(h))
+        return error();
+
+    return 0;
 }
 
 int lstat(const char *path, struct fuse_stat *stbuf)
 {
-    return -1;
+    int res = -1;
+    int fd;
+
+    fd = open(path, O_RDONLY);
+    if (-1 != fd)
+    {
+        res = fstat(fd, stbuf);
+        close(fd);
+    }
+
+    return res;
 }
 
 int chmod(const char *path, fuse_mode_t mode)
 {
-    return -1;
+    /* we do not support file security */
+    return 0;
 }
 
 int lchown(const char *path, fuse_uid_t uid, fuse_gid_t gid)
 {
-    return -1;
+    /* we do not support file security */
+    return 0;
 }
 
 int truncate(const char *path, fuse_off_t size)
 {
-    return -1;
+    int res = -1;
+    int fd;
+
+    fd = open(path, O_WRONLY);
+    if (-1 != fd)
+    {
+        res = ftruncate(fd, size);
+        close(fd);
+    }
+
+    return res;
 }
 
 int utime(const char *path, const struct fuse_utimbuf *timbuf)
 {
-    return -1;
+    int res = -1;
+    int fd;
+    UINT64 LastAccessTime, LastWriteTime;
+
+    fd = open(path, O_WRONLY);
+    if (-1 != fd)
+    {
+        LastAccessTime = timbuf->actime * 10000000 + 116444736000000000;
+        LastWriteTime = timbuf->modtime * 10000000 + 116444736000000000;
+
+        res = SetFileTime((HANDLE)(intptr_t)fd,
+            0, (PFILETIME)&LastAccessTime, (PFILETIME)&LastWriteTime) ? 0 : error();
+
+        close(fd);
+    }
+
+    return res;
 }
 
 int unlink(const char *path)
 {
-    return -1;
+    if (!DeleteFileA(path))
+        return error();
+
+    return 0;
 }
 
 int rename(const char *oldpath, const char *newpath)
 {
-    return -1;
+    if (!MoveFileExA(oldpath, newpath, MOVEFILE_REPLACE_EXISTING))
+        return error();
+
+    return 0;
 }
 
 int mkdir(const char *path, fuse_mode_t mode)
 {
-    return -1;
+    if (!CreateDirectoryA(path, 0/* default security */))
+        return error();
+
+    return 0;
 }
 
 int rmdir(const char *path)
 {
-    return -1;
+    if (!RemoveDirectoryA(path))
+        return error();
+
+    return 0;
 }
 
 DIR *opendir(const char *path)
 {
-    return 0;
+    DWORD FileAttributes = GetFileAttributesA(path);
+    if (INVALID_FILE_ATTRIBUTES == FileAttributes)
+        return error0();
+    if (0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+        errno = ENOTDIR;
+        return 0;
+    }
+
+    size_t pathlen = strlen(path);
+    if (0 < pathlen && '/' == path[pathlen - 1])
+        pathlen--;
+
+    DIR *dirp = malloc(sizeof *dirp + pathlen + 3); /* sets errno */
+    if (0 == dirp)
+        return 0;
+
+    memset(dirp, 0, sizeof *dirp);
+    dirp->handle = INVALID_HANDLE_VALUE;
+    memcpy(dirp->path, path, pathlen);
+    dirp->path[pathlen + 0] = '/';
+    dirp->path[pathlen + 1] = '*';
+    dirp->path[pathlen + 2] = '\0';
+
+    return dirp;
 }
 
 struct dirent *readdir(DIR *dirp)
 {
-    return 0;
+    WIN32_FIND_DATAA FindData;
+
+    if (INVALID_HANDLE_VALUE != dirp->handle)
+    {
+        dirp->handle = FindFirstFileA(dirp->path, &FindData);
+        if (INVALID_HANDLE_VALUE == dirp)
+            return error0();
+    }
+    else
+    {
+        if (!FindNextFileA(dirp->handle, &FindData))
+            return error0();
+    }
+
+    strcpy(dirp->dirent.d_name, FindData.cFileName);
+
+    return &dirp->dirent;
 }
 
-int closedir(DIR *dp)
+int closedir(DIR *dirp)
 {
-    return -1;
+    if (INVALID_HANDLE_VALUE != dirp->handle)
+        FindClose(dirp->handle);
+
+    free(dirp);
+
+    return 0;
 }
 
 static int maperror(int winerrno)
