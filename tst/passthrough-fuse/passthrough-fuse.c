@@ -16,6 +16,7 @@
  */
 
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -195,7 +196,7 @@ static int ptfs_create(const char *path, fuse_mode_t mode, struct fuse_file_info
     ptfs_impl_fullpath(path);
 
     int fd;
-    return -1 != (fd = creat(path, mode)) ? (fi->fh = fd, 0) : -errno;
+    return -1 != (fd = open(path, O_CREAT | O_EXCL, mode)) ? (fi->fh = fd, 0) : -errno;
 }
 
 static int ptfs_ftruncate(const char *path, fuse_off_t off, struct fuse_file_info *fi)
