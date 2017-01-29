@@ -58,6 +58,7 @@ int mkdir(const char *path, fuse_mode_t mode);
 int rmdir(const char *path);
 
 DIR *opendir(const char *path);
+int dirfd(DIR *dirp);
 void rewinddir(DIR *dirp);
 struct dirent *readdir(DIR *dirp);
 int closedir(DIR *dirp);

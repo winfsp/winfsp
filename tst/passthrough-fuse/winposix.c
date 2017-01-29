@@ -31,7 +31,7 @@
 
 struct _DIR
 {
-    HANDLE handle;
+    HANDLE h, fh;
     struct dirent dirent;
     char path[];
 };
@@ -330,14 +330,10 @@ int rmdir(const char *path)
 
 DIR *opendir(const char *path)
 {
-    DWORD FileAttributes = GetFileAttributesA(path);
-    if (INVALID_FILE_ATTRIBUTES == FileAttributes)
+    HANDLE h = CreateFileA(path,
+        FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == h)
         return error0();
-    if (0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-    {
-        errno = ENOTDIR;
-        return 0;
-    }
 
     size_t pathlen = strlen(path);
     if (0 < pathlen && '/' == path[pathlen - 1])
@@ -345,10 +341,14 @@ DIR *opendir(const char *path)
 
     DIR *dirp = malloc(sizeof *dirp + pathlen + 3); /* sets errno */
     if (0 == dirp)
+    {
+        CloseHandle(h);
         return 0;
+    }
 
     memset(dirp, 0, sizeof *dirp);
-    dirp->handle = INVALID_HANDLE_VALUE;
+    dirp->h = h;
+    dirp->fh = INVALID_HANDLE_VALUE;
     memcpy(dirp->path, path, pathlen);
     dirp->path[pathlen + 0] = '/';
     dirp->path[pathlen + 1] = '*';
@@ -357,25 +357,33 @@ DIR *opendir(const char *path)
     return dirp;
 }
 
+int dirfd(DIR *dirp)
+{
+    return (int)(intptr_t)dirp->h;
+}
+
 void rewinddir(DIR *dirp)
 {
-    if (INVALID_HANDLE_VALUE != dirp->handle)
-        FindClose(dirp->handle);
+    if (INVALID_HANDLE_VALUE != dirp->fh)
+    {
+        FindClose(dirp->fh);
+        dirp->fh = INVALID_HANDLE_VALUE;
+    }
 }
 
 struct dirent *readdir(DIR *dirp)
 {
     WIN32_FIND_DATAA FindData;
 
-    if (INVALID_HANDLE_VALUE != dirp->handle)
+    if (INVALID_HANDLE_VALUE == dirp->fh)
     {
-        dirp->handle = FindFirstFileA(dirp->path, &FindData);
-        if (INVALID_HANDLE_VALUE == dirp)
+        dirp->fh = FindFirstFileA(dirp->path, &FindData);
+        if (INVALID_HANDLE_VALUE == dirp->fh)
             return error0();
     }
     else
     {
-        if (!FindNextFileA(dirp->handle, &FindData))
+        if (!FindNextFileA(dirp->fh, &FindData))
             return error0();
     }
 
@@ -386,9 +394,10 @@ struct dirent *readdir(DIR *dirp)
 
 int closedir(DIR *dirp)
 {
-    if (INVALID_HANDLE_VALUE != dirp->handle)
-        FindClose(dirp->handle);
+    if (INVALID_HANDLE_VALUE != dirp->fh)
+        FindClose(dirp->fh);
 
+    CloseHandle(dirp->h);
     free(dirp);
 
     return 0;
