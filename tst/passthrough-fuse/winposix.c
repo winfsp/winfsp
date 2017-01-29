@@ -240,15 +240,14 @@ int close(int fd)
 
 int lstat(const char *path, struct fuse_stat *stbuf)
 {
-    int res = -1;
-    int fd;
+    HANDLE h = CreateFileA(path,
+        FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == h)
+        return error();
 
-    fd = open(path, O_RDONLY);
-    if (-1 != fd)
-    {
-        res = fstat(fd, stbuf);
-        close(fd);
-    }
+    int res = fstat((int)(intptr_t)h, stbuf);
+
+    CloseHandle(h);
 
     return res;
 }
@@ -267,36 +266,32 @@ int lchown(const char *path, fuse_uid_t uid, fuse_gid_t gid)
 
 int truncate(const char *path, fuse_off_t size)
 {
-    int res = -1;
-    int fd;
+    HANDLE h = CreateFileA(path,
+        FILE_WRITE_DATA, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == h)
+        return error();
 
-    fd = open(path, O_WRONLY);
-    if (-1 != fd)
-    {
-        res = ftruncate(fd, size);
-        close(fd);
-    }
+    int res = ftruncate((int)(intptr_t)h, size);
+
+    CloseHandle(h);
 
     return res;
 }
 
 int utime(const char *path, const struct fuse_utimbuf *timbuf)
 {
-    int res = -1;
-    int fd;
-    UINT64 LastAccessTime, LastWriteTime;
+    HANDLE h = CreateFileA(path,
+        FILE_WRITE_DATA, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == h)
+        return error();
 
-    fd = open(path, O_WRONLY);
-    if (-1 != fd)
-    {
-        LastAccessTime = timbuf->actime * 10000000 + 116444736000000000;
-        LastWriteTime = timbuf->modtime * 10000000 + 116444736000000000;
+    UINT64 LastAccessTime = timbuf->actime * 10000000 + 116444736000000000;
+    UINT64 LastWriteTime = timbuf->modtime * 10000000 + 116444736000000000;
 
-        res = SetFileTime((HANDLE)(intptr_t)fd,
-            0, (PFILETIME)&LastAccessTime, (PFILETIME)&LastWriteTime) ? 0 : error();
+    int res = SetFileTime(h,
+        0, (PFILETIME)&LastAccessTime, (PFILETIME)&LastWriteTime) ? 0 : error();
 
-        close(fd);
-    }
+    CloseHandle(h);
 
     return res;
 }
