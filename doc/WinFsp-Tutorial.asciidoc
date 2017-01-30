@@ -1197,3 +1197,84 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 ----
+
+== Testing the file system
+
+We now have a functional file system. It supports the following Windows file system functionality:
+
+- Query volume information.
+- Open, create, close, delete files and directories.
+- Query and set file and directory information.
+- Query and set security information (ACL's).
+- Read and write files.
+- Memory mapped I/O.
+- Directory change notifications.
+- Lock and unlock files.
+- Opportunistic locks.
+
+[NOTE]
+====
+There is some additional functionality which WinFsp supports but our file system does not implement:
+
+- Open, create, close, delete, query named streams.
+- Reparse points and symbolic links.
+====
+
+The question is: how can we develop the confidence that our file system works as a "proper" Windows file system?
+
+WinFsp includes a number of test suites that are used for testing its components and its reference file system MEMFS. The primary test suite is called `winfsp-tests` and can be used to test other WinFsp-based file systems. We will use it in this case to test our passthrough file system.
+
+`Winfsp-tests` is a comprehensive test suite that exercises all aspects of Windows file system functionality that WinFsp supports. The test suite can be run in a special `--external` mode where it can be used to test any file system. For example, all `winfsp-tests` pass when run in this way over NTFS.
+
+`Winfsp-tests` exercises some esoteric aspects of Windows file system functionality, so we do not expect all the tests to pass. For example, our simple file system does not maintain `AllocationSize`, we therefore expect related tests to fail. As another example, the passthrough file system uses normal Windows file API's to implement its functionality, as such some security tests are expected to fail if the file system runs under a normal account.
+
+In order to test our file system we create a drive `Y:` using the command line `passthrough-x64 -p C:\Users\billziss\Desktop\passthrough -m Y:` and then execute the command.
+
+----
+Y:\>C:\...\winfsp-tests-x64 --external --resilient --case-insensitive-cmp -create_allocation_test -getfileinfo_name_test -delete_access_test -rename_flipflop_test -rename_mmap_test -reparse* -stream* <1> <2>
+[snip irrelevant tests]
+create_test............................ OK 0.03s
+create_related_test.................... OK 0.00s
+create_sd_test......................... OK 0.03s
+create_notraverse_test................. OK 0.00s
+create_backup_test..................... OK 0.00s
+create_restore_test.................... OK 0.00s
+create_share_test...................... OK 0.00s
+create_curdir_test..................... OK 0.00s
+create_namelen_test.................... OK 0.02s
+getfileinfo_test....................... OK 0.00s
+setfileinfo_test....................... OK 0.01s
+delete_test............................ OK 0.00s
+delete_pending_test.................... OK 0.00s
+delete_mmap_test....................... OK 0.02s
+rename_test............................ OK 0.06s
+rename_open_test....................... OK 0.00s
+rename_caseins_test.................... OK 0.02s
+getvolinfo_test........................ OK 0.00s
+setvolinfo_test........................ OK 0.00s
+getsecurity_test....................... OK 0.00s
+setsecurity_test....................... OK 0.01s
+rdwr_noncached_test.................... OK 0.02s
+rdwr_noncached_overlapped_test......... OK 0.03s
+rdwr_cached_test....................... OK 0.02s
+rdwr_cached_append_test................ OK 0.01s
+rdwr_cached_overlapped_test............ OK 0.03s
+rdwr_writethru_test.................... OK 0.06s
+rdwr_writethru_append_test............. OK 0.01s
+rdwr_writethru_overlapped_test......... OK 0.00s
+rdwr_mmap_test......................... OK 0.23s
+rdwr_mixed_test........................ OK 0.03s
+flush_test............................. OK 0.06s
+flush_volume_test...................... OK 0.00s
+lock_noncached_test.................... OK 0.02s
+lock_noncached_overlapped_test......... OK 0.02s
+lock_cached_test....................... OK 0.05s
+lock_cached_overlapped_test............ OK 0.02s
+querydir_test.......................... OK 0.39s
+querydir_expire_cache_test............. OK 0.00s
+querydir_buffer_overflow_test.......... OK 0.00s
+dirnotify_test......................... OK 1.01s
+--- COMPLETE ---
+----
+<1> Run `winfsp-tests` with `--external`, `--resilient` switches which instructs it to run its external file system tests.
+<2> Disable tests that are not expected to pass because they test functionality that either we did not implement (`-reparse*`, `-stream*`) or is esoteric or requires an account with sufficient security rights.
