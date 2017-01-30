@@ -1457,7 +1457,13 @@ static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
         memset(&dh, 0, sizeof dh);
 
         if (0 != f->ops.readdir)
+        {
+            memset(&fi, 0, sizeof fi);
+            fi.flags = filedesc->OpenFlags;
+            fi.fh = filedesc->FileHandle;
+
             err = f->ops.readdir(filedesc->PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfo, 0, &fi);
+        }
         else if (0 != f->ops.getdir)
             err = f->ops.getdir(filedesc->PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfoOld);
         else
