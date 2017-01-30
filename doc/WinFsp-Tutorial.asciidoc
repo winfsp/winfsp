@@ -1228,7 +1228,7 @@ WinFsp includes a number of test suites that are used for testing its components
 
 `Winfsp-tests` exercises some esoteric aspects of Windows file system functionality, so we do not expect all the tests to pass. For example, our simple file system does not maintain `AllocationSize`, we therefore expect related tests to fail. As another example, the passthrough file system uses normal Windows file API's to implement its functionality, as such some security tests are expected to fail if the file system runs under a normal account.
 
-In order to test our file system we create a drive `Y:` using the command line `passthrough-x64 -p C:\Users\billziss\Desktop\passthrough -m Y:` and then execute the command.
+In order to test our file system we create a drive `Y:` using the command line `passthrough-x64 -p C:\...\passthrough -m Y:` and then execute the command.
 
 ----
 Y:\>C:\...\winfsp-tests-x64 --external --resilient --case-insensitive-cmp -create_allocation_test -getfileinfo_name_test -delete_access_test -rename_flipflop_test -rename_mmap_test -reparse* -stream* <1> <2>
