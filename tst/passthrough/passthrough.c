@@ -726,6 +726,34 @@ static VOID PtfsDelete(PTFS *Ptfs)
     free(Ptfs);
 }
 
+static NTSTATUS EnableBackupRestorePrivileges(VOID)
+{
+    union
+    {
+        TOKEN_PRIVILEGES P;
+        UINT B[sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES)];
+    } Privileges;
+    HANDLE Token;
+
+    Privileges.P.PrivilegeCount = 2;
+    Privileges.P.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    Privileges.P.Privileges[1].Attributes = SE_PRIVILEGE_ENABLED;
+
+    if (!LookupPrivilegeValueW(0, SE_BACKUP_NAME, &Privileges.P.Privileges[0].Luid) ||
+        !LookupPrivilegeValueW(0, SE_RESTORE_NAME, &Privileges.P.Privileges[1].Luid))
+        return FspNtStatusFromWin32(GetLastError());
+
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &Token))
+        return FspNtStatusFromWin32(GetLastError());
+
+    if (!AdjustTokenPrivileges(Token, FALSE, &Privileges.P, 0, 0, 0))
+        return FspNtStatusFromWin32(GetLastError());
+
+    CloseHandle(Token);
+
+    return STATUS_SUCCESS;
+}
+
 static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
 {
     wchar_t *endp;
@@ -802,6 +830,8 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
     if (0 == PassThrough || 0 == MountPoint)
         goto usage;
+
+    EnableBackupRestorePrivileges();
 
     if (0 != DebugLogFile)
     {
