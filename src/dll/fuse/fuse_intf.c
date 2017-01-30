@@ -1500,7 +1500,8 @@ static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
         STATUS_OBJECT_PATH_NOT_FOUND != Result)
         return Result;
 
-    if (NT_SUCCESS(Result))
+    if (NT_SUCCESS(Result) &&
+        (f->VolumeParams.CaseSensitiveSearch || 0 != invariant_wcsicmp(FileName, NewFileName)))
     {
         if (!ReplaceIfExists)
             return STATUS_OBJECT_NAME_COLLISION;
