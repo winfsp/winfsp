@@ -73,7 +73,9 @@ char *realpath(const char *path, char *resolved)
     if (0 == err)
     {
         HANDLE h = CreateFileA(result,
-            FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+            FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            0,
+            OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
         if (INVALID_HANDLE_VALUE != h)
             CloseHandle(h);
         else
@@ -198,7 +200,11 @@ int pread(int fd, void *buf, size_t nbyte, fuse_off_t offset)
     Overlapped.OffsetHigh = (DWORD)(offset >> 32);
 
     if (!ReadFile(h, buf, (DWORD)nbyte, &BytesTransferred, &Overlapped))
+    {
+        if (ERROR_HANDLE_EOF == GetLastError())
+            return 0;
         return error();
+    }
 
     return BytesTransferred;
 }
@@ -241,7 +247,9 @@ int close(int fd)
 int lstat(const char *path, struct fuse_stat *stbuf)
 {
     HANDLE h = CreateFileA(path,
-        FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+        FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
     if (INVALID_HANDLE_VALUE == h)
         return error();
 
@@ -267,7 +275,9 @@ int lchown(const char *path, fuse_uid_t uid, fuse_gid_t gid)
 int truncate(const char *path, fuse_off_t size)
 {
     HANDLE h = CreateFileA(path,
-        FILE_WRITE_DATA, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+        FILE_WRITE_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
     if (INVALID_HANDLE_VALUE == h)
         return error();
 
@@ -281,7 +291,9 @@ int truncate(const char *path, fuse_off_t size)
 int utime(const char *path, const struct fuse_utimbuf *timbuf)
 {
     HANDLE h = CreateFileA(path,
-        FILE_WRITE_DATA, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+        FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
     if (INVALID_HANDLE_VALUE == h)
         return error();
 
@@ -331,7 +343,9 @@ int rmdir(const char *path)
 DIR *opendir(const char *path)
 {
     HANDLE h = CreateFileA(path,
-        FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+        FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
     if (INVALID_HANDLE_VALUE == h)
         return error0();
 
