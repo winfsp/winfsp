@@ -1222,9 +1222,9 @@ There is some additional functionality which WinFsp supports but our file system
 
 The question is: how can we develop the confidence that our file system works as a "proper" Windows file system?
 
-WinFsp includes a number of test suites that are used for testing its components and its reference file system MEMFS. The primary test suite is called `winfsp-tests` and can be used to test other WinFsp-based file systems. We will use it in this case to test our passthrough file system.
+WinFsp includes a number of test suites that are used for testing its components and its reference file system MEMFS. The primary test suite is called `winfsp-tests` and is a comprehensive test suite that exercises all aspects of Windows file system functionality that WinFsp supports. `Winfsp-tests` can be run in a special `--external` mode where it can be used to test other WinFsp-based file systems. We will use it in this case to test our passthrough file system.
 
-`Winfsp-tests` is a comprehensive test suite that exercises all aspects of Windows file system functionality that WinFsp supports. The test suite can be run in a special `--external` mode where it can be used to test any file system. For example, all `winfsp-tests` pass when run in this way over NTFS.
+`Winfsp-tests` is not included with the WinFsp installer. In order to use `winfsp-tests` one must first clone the WinFsp repository and build the WinFsp Visual Studio solution. The steps to do so are not included in this tutorial.
 
 `Winfsp-tests` exercises some esoteric aspects of Windows file system functionality, so we do not expect all the tests to pass. For example, our simple file system does not maintain `AllocationSize`, we therefore expect related tests to fail. As another example, the passthrough file system uses normal Windows file API's to implement its functionality, as such some security tests are expected to fail if the file system runs under a normal account.
 
@@ -1277,4 +1277,4 @@ dirnotify_test......................... OK 1.01s
 --- COMPLETE ---
 ----
 <1> Run `winfsp-tests` with `--external`, `--resilient` switches which instructs it to run its external file system tests.
-<2> Disable tests that are not expected to pass because they test functionality that either we did not implement (`-reparse*`, `-stream*`) or is esoteric or requires an account with sufficient security rights.
+<2> Disable tests that are not expected to pass because they test functionality that either we did not implement (`-reparse*`, `-stream*`) or is esoteric (`-create_allocation_test`, `-getfileinfo_name_test`, `-rename_flipflop_test`, `-rename_mmap_test`) or requires that the file system is run under an account with sufficient security rights (`-delete_access_test`).
