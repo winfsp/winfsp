@@ -36,7 +36,7 @@
 #define concat_path(ptfs, fn, fp)       (sizeof fp > (unsigned)snprintf(fp, sizeof fp, "%s%s", ptfs->rootdir, fn))
 
 #define fi_dirbit                       (0x8000000000000000ULL)
-#define fi_fh(fi, MASK)                 ((intptr_t)((fi)->fh & (MASK)))
+#define fi_fh(fi, MASK)                 ((fi)->fh & (MASK))
 #define fi_setfh(fi, FH, MASK)          ((fi)->fh = (intptr_t)(FH) | (MASK))
 #define fi_fd(fi)                       (fi_fh(fi, fi_dirbit) ? \
     dirfd((DIR *)fi_fh(fi, ~fi_dirbit)) : (int)fi_fh(fi, ~fi_dirbit))
