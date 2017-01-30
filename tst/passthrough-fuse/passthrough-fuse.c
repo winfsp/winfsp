@@ -34,6 +34,16 @@
 #define PROGNAME                        "passthrough-fuse"
 
 #define concat_path(ptfs, fn, fp)       (sizeof fp > (unsigned)snprintf(fp, sizeof fp, "%s%s", ptfs->rootdir, fn))
+
+#define fi_dirbit                       (0x8000000000000000ULL)
+#define fi_fh(fi, MASK)                 ((intptr_t)((fi)->fh & (MASK)))
+#define fi_setfh(fi, FH, MASK)          ((fi)->fh = (intptr_t)(FH) | (MASK))
+#define fi_fd(fi)                       (fi_fh(fi, fi_dirbit) ? \
+    dirfd((DIR *)fi_fh(fi, ~fi_dirbit)) : (int)fi_fh(fi, ~fi_dirbit))
+#define fi_dirp(fi)                     ((DIR *)fi_fh(fi, ~fi_dirbit))
+#define fi_setfd(fi, fd)                (fi_setfh(fi, fd, 0))
+#define fi_setdirp(fi, dirp)            (fi_setfh(fi, dirp, fi_dirbit))
+
 #define ptfs_impl_fullpath(n)           \
     char full ## n[PATH_MAX];           \
     if (!concat_path(((PTFS *)fuse_get_context()->private_data), n, full ## n))\
@@ -114,25 +124,25 @@ static int ptfs_open(const char *path, struct fuse_file_info *fi)
     ptfs_impl_fullpath(path);
 
     int fd;
-    return -1 != (fd = open(path, fi->flags)) ? (fi->fh = fd, 0) : -errno;
+    return -1 != (fd = open(path, fi->flags)) ? (fi_setfd(fi, fd), 0) : -errno;
 }
 
 static int ptfs_read(const char *path, char *buf, size_t size, fuse_off_t off,
     struct fuse_file_info *fi)
 {
-    int fd = (int)fi->fh;
+    int fd = fi_fd(fi);
 
-    int by;
-    return -1 != (by = pread(fd, buf, size, off)) ? by : -errno;
+    int nb;
+    return -1 != (nb = pread(fd, buf, size, off)) ? nb : -errno;
 }
 
 static int ptfs_write(const char *path, const char *buf, size_t size, fuse_off_t off,
     struct fuse_file_info *fi)
 {
-    int fd = (int)fi->fh;
+    int fd = fi_fd(fi);
 
-    int by;
-    return -1 != (by = pwrite(fd, buf, size, off)) ? by : -errno;
+    int nb;
+    return -1 != (nb = pwrite(fd, buf, size, off)) ? nb : -errno;
 }
 
 static int ptfs_statfs(const char *path, struct fuse_statvfs *stbuf)
@@ -144,7 +154,7 @@ static int ptfs_statfs(const char *path, struct fuse_statvfs *stbuf)
 
 static int ptfs_release(const char *path, struct fuse_file_info *fi)
 {
-    int fd = (int)fi->fh;
+    int fd = fi_fd(fi);
 
     close(fd);
     return 0;
@@ -152,7 +162,7 @@ static int ptfs_release(const char *path, struct fuse_file_info *fi)
 
 static int ptfs_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 {
-    int fd = (int)fi->fh;
+    int fd = fi_fd(fi);
 
     return -1 != fsync(fd) ? 0 : -errno;
 }
@@ -162,13 +172,13 @@ static int ptfs_opendir(const char *path, struct fuse_file_info *fi)
     ptfs_impl_fullpath(path);
 
     DIR *dirp;
-    return 0 != (dirp = opendir(path)) ? (fi->fh = (intptr_t)dirp, 0) : -errno;
+    return 0 != (dirp = opendir(path)) ? (fi_setdirp(fi, dirp), 0) : -errno;
 }
 
 static int ptfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, fuse_off_t off,
     struct fuse_file_info *fi)
 {
-    DIR *dirp = (DIR *)fi->fh;
+    DIR *dirp = fi_dirp(fi);
     struct dirent *de;
 
     rewinddir(dirp);
@@ -186,9 +196,9 @@ static int ptfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, fus
 
 static int ptfs_releasedir(const char *path, struct fuse_file_info *fi)
 {
-    DIR *dp = (DIR *)fi->fh;
+    DIR *dirp = fi_dirp(fi);
 
-    closedir(dp);
+    closedir(dirp);
     return 0;
 }
 
@@ -197,19 +207,19 @@ static int ptfs_create(const char *path, fuse_mode_t mode, struct fuse_file_info
     ptfs_impl_fullpath(path);
 
     int fd;
-    return -1 != (fd = open(path, O_CREAT | O_EXCL, mode)) ? (fi->fh = fd, 0) : -errno;
+    return -1 != (fd = open(path, O_CREAT | O_EXCL, mode)) ? (fi_setfd(fi, fd), 0) : -errno;
 }
 
 static int ptfs_ftruncate(const char *path, fuse_off_t off, struct fuse_file_info *fi)
 {
-    int fd = (int)fi->fh;
+    int fd = fi_fd(fi);
 
     return -1 != ftruncate(fd, off) ? 0 : -errno;
 }
 
 static int ptfs_fgetattr(const char *path, struct fuse_stat *stbuf, struct fuse_file_info *fi)
 {
-    int fd = (int)fi->fh;
+    int fd = fi_fd(fi);
 
     return -1 != fstat(fd, stbuf) ? 0 : -errno;
 }
