@@ -159,7 +159,7 @@ int fstat(int fd, struct fuse_stat *stbuf)
     LastWriteTime = ((PLARGE_INTEGER)(&FileInfo.ftLastWriteTime))->QuadPart - 116444736000000000;
 
     memset(stbuf, 0, sizeof *stbuf);
-    stbuf->st_mode = 0755 |
+    stbuf->st_mode = 0777 |
         ((FileInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 0040000/* S_IFDIR */ : 0);
     stbuf->st_nlink = 1;
     stbuf->st_size = ((UINT64)FileInfo.nFileSizeHigh << 32) | ((UINT64)FileInfo.nFileSizeLow);
