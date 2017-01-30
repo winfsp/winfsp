@@ -32,7 +32,7 @@
 struct _DIR
 {
     HANDLE h, fh;
-    struct dirent dirent;
+    struct dirent de;
     char path[];
 };
 
@@ -384,12 +384,16 @@ struct dirent *readdir(DIR *dirp)
     else
     {
         if (!FindNextFileA(dirp->fh, &FindData))
+        {
+            if (ERROR_NO_MORE_FILES == GetLastError())
+                return 0;
             return error0();
+        }
     }
 
-    strcpy(dirp->dirent.d_name, FindData.cFileName);
+    strcpy(dirp->de.d_name, FindData.cFileName);
 
-    return &dirp->dirent;
+    return &dirp->de;
 }
 
 int closedir(DIR *dirp)

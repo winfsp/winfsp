@@ -198,8 +198,7 @@ static int ptfs_releasedir(const char *path, struct fuse_file_info *fi)
 {
     DIR *dirp = fi_dirp(fi);
 
-    closedir(dirp);
-    return 0;
+    return -1 != closedir(dirp) ? 0 : -errno;
 }
 
 static int ptfs_create(const char *path, fuse_mode_t mode, struct fuse_file_info *fi)
