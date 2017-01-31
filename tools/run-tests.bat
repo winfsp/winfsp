@@ -57,7 +57,9 @@ set dfl_tests=^
     fscrash-x86
 set opt_tests=^
     ifstest-memfs-x64-disk ^
-    ifstest-memfs-x86-disk
+    ifstest-memfs-x86-disk ^
+    sample-passthrough-x64 ^
+    sample-passthrough-x86
 
 set tests=
 for %%f in (%dfl_tests%) do (
@@ -476,6 +478,41 @@ for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* /z /v ^| findst
 )
 if not X!IfsTestFound!==XYES set IfsTestExit=1
 exit /b !IfsTestExit!
+
+:sample-passthrough-x64
+call :__sample-passthrough x64
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-passthrough-x86
+call :__sample-passthrough x86
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:__sample-passthrough
+set SamplePassthroughExit=0
+call %ProjRoot%\tools\build-sample %Configuration% %1 passthrough "%TMP%\passthrough-%1"
+if !ERRORLEVEL! neq 0 goto fail
+mkdir "%TMP%\passthrough-%1\test"
+call "%ProjRoot%\tools\fsreg" passthrough "%TMP%\passthrough-%1\build\%Configuration%\passthrough-%1.exe" "-u %%%%1 -m %%%%2" "D:P(A;;RPWPLC;;;WD)"
+net use L: "\\passthrough\%TMP::=$%\passthrough-%1\test"
+if !ERRORLEVEL! neq 0 goto fail
+rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
+waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
+pushd
+cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
+L:
+
+"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-%1.exe" ^
+    --external --resilient --case-insensitive-cmp --share-prefix="\passthrough\%TMP::=$%\passthrough-%1\test" ^
+    -create_allocation_test -getfileinfo_name_test -rename_flipflop_test -rename_mmap_test -reparse* -stream*
+if !ERRORLEVEL! neq 0 set SamplePassthroughExit=1
+
+popd
+net use L: /delete
+call "%ProjRoot%\tools\fsreg" -u passthrough
+rmdir /s/q "%TMP%\passthrough-%1"
+exit /b !SamplePassthroughExit!
 
 :leak-test
 for /F "tokens=1,2 delims=:" %%i in ('verifier /query ^| findstr ^
