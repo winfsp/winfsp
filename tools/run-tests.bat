@@ -498,6 +498,8 @@ call "%ProjRoot%\tools\fsreg" passthrough "%TMP%\passthrough-%1\build\%Configura
 echo net use L: "\\passthrough\%TMP::=$%\passthrough-%1\test"
 net use L: "\\passthrough\%TMP::=$%\passthrough-%1\test"
 if !ERRORLEVEL! neq 0 goto fail
+echo net use ^| findstr L:
+net use | findstr L:
 pushd >nul
 cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
@@ -530,9 +532,12 @@ call %ProjRoot%\tools\build-sample %Configuration% %1 passthrough-fuse "%TMP%\pa
 if !ERRORLEVEL! neq 0 goto fail
 mkdir "%TMP%\passthrough-fuse-%1\test"
 call "%ProjRoot%\tools\fsreg" passthrough-fuse "%TMP%\passthrough-fuse-%1\build\%Configuration%\passthrough-fuse-%1.exe" "--VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
+echo net use L: "\\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test"
 net use L: "\\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test"
 if !ERRORLEVEL! neq 0 goto fail
-pushd
+echo net use ^| findstr L:
+net use | findstr L:
+pushd >nul
 cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
 
@@ -543,6 +548,7 @@ L:
     ERRORLEVEL! neq 0 set SamplePassthroughExit=1
 
 popd
+echo net use L: /delete
 net use L: /delete
 call "%ProjRoot%\tools\fsreg" -u passthrough-fuse
 rmdir /s/q "%TMP%\passthrough-fuse-%1"
