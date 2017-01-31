@@ -497,8 +497,6 @@ mkdir "%TMP%\passthrough-%1\test"
 call "%ProjRoot%\tools\fsreg" passthrough "%TMP%\passthrough-%1\build\%Configuration%\passthrough-%1.exe" "-u %%%%1 -m %%%%2" "D:P(A;;RPWPLC;;;WD)"
 net use L: "\\passthrough\%TMP::=$%\passthrough-%1\test"
 if !ERRORLEVEL! neq 0 goto fail
-rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
-waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
 pushd
 cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
@@ -532,8 +530,6 @@ mkdir "%TMP%\passthrough-fuse-%1\test"
 call "%ProjRoot%\tools\fsreg" passthrough-fuse "%TMP%\passthrough-fuse-%1\build\%Configuration%\passthrough-fuse-%1.exe" "--VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
 net use L: "\\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test"
 if !ERRORLEVEL! neq 0 goto fail
-rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
-waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
 pushd
 cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
