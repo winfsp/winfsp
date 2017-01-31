@@ -916,51 +916,9 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS WinFspLoad(VOID)
-{
-#if defined(_WIN64)
-#define FSP_DLLNAME                     "winfsp-x64.dll"
-#else
-#define FSP_DLLNAME                     "winfsp-x86.dll"
-#endif
-#define FSP_DLLPATH                     "bin\\" FSP_DLLNAME
-
-    WCHAR PathBuf[MAX_PATH];
-    DWORD Size;
-    HKEY RegKey;
-    LONG Result;
-    HMODULE Module;
-
-    Module = LoadLibraryW(L"" FSP_DLLNAME);
-    if (0 == Module)
-    {
-        Result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\WinFsp",
-            0, KEY_READ | KEY_WOW64_32KEY, &RegKey);
-        if (ERROR_SUCCESS == Result)
-        {
-            Size = sizeof PathBuf - sizeof L"" FSP_DLLPATH + sizeof(WCHAR);
-            Result = RegGetValueW(RegKey, 0, L"InstallDir",
-                RRF_RT_REG_SZ, 0, PathBuf, &Size);
-            RegCloseKey(RegKey);
-        }
-        if (ERROR_SUCCESS != Result)
-            return STATUS_OBJECT_NAME_NOT_FOUND;
-
-        RtlCopyMemory(PathBuf + (Size / sizeof(WCHAR) - 1), L"" FSP_DLLPATH, sizeof L"" FSP_DLLPATH);
-        Module = LoadLibraryW(PathBuf);
-        if (0 == Module)
-            return STATUS_DLL_NOT_FOUND;
-    }
-
-    return STATUS_SUCCESS;
-
-#undef FSP_DLLNAME
-#undef FSP_DLLPATH
-}
-
 int wmain(int argc, wchar_t **argv)
 {
-    if (!NT_SUCCESS(WinFspLoad()))
+    if (!NT_SUCCESS(FspLoad()))
         return ERROR_DELAY_LOAD_FAILED;
 
     return FspServiceRun(L"" PROGNAME, SvcStart, SvcStop, 0);
