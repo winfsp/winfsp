@@ -495,9 +495,10 @@ call %ProjRoot%\tools\build-sample %Configuration% %1 passthrough "%TMP%\passthr
 if !ERRORLEVEL! neq 0 goto fail
 mkdir "%TMP%\passthrough-%1\test"
 call "%ProjRoot%\tools\fsreg" passthrough "%TMP%\passthrough-%1\build\%Configuration%\passthrough-%1.exe" "-u %%%%1 -m %%%%2" "D:P(A;;RPWPLC;;;WD)"
+echo net use L: "\\passthrough\%TMP::=$%\passthrough-%1\test"
 net use L: "\\passthrough\%TMP::=$%\passthrough-%1\test"
 if !ERRORLEVEL! neq 0 goto fail
-pushd
+pushd >nul
 cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
 
@@ -507,6 +508,7 @@ L:
 if !ERRORLEVEL! neq 0 set SamplePassthroughExit=1
 
 popd
+echo net use L: /delete
 net use L: /delete
 call "%ProjRoot%\tools\fsreg" -u passthrough
 rmdir /s/q "%TMP%\passthrough-%1"
