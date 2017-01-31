@@ -514,6 +514,42 @@ call "%ProjRoot%\tools\fsreg" -u passthrough
 rmdir /s/q "%TMP%\passthrough-%1"
 exit /b !SamplePassthroughExit!
 
+:sample-passthrough-fuse-x64
+call :__sample-passthrough-fuse x64
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-passthrough-fuse-x86
+call :__sample-passthrough-fuse x86
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:__sample-passthrough-fuse
+set SamplePassthroughExit=0
+call %ProjRoot%\tools\build-sample %Configuration% %1 passthrough-fuse "%TMP%\passthrough-fuse-%1"
+if !ERRORLEVEL! neq 0 goto fail
+mkdir "%TMP%\passthrough-fuse-%1\test"
+call "%ProjRoot%\tools\fsreg" passthrough-fuse "%TMP%\passthrough-fuse-%1\build\%Configuration%\passthrough-fuse-%1.exe" "--VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
+net use L: "\\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test"
+if !ERRORLEVEL! neq 0 goto fail
+rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
+waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
+pushd
+cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
+L:
+
+"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-%1.exe" ^
+    --external --resilient --case-insensitive-cmp --share-prefix="\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test" ^
+    -create_allocation_test -create_notraverse_test -create_namelen_test -getfileinfo_name_test -setfileinfo_test ^
+    -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -reparse* -stream*
+    ERRORLEVEL! neq 0 set SamplePassthroughExit=1
+
+popd
+net use L: /delete
+call "%ProjRoot%\tools\fsreg" -u passthrough-fuse
+rmdir /s/q "%TMP%\passthrough-fuse-%1"
+exit /b !SamplePassthroughExit!
+
 :leak-test
 for /F "tokens=1,2 delims=:" %%i in ('verifier /query ^| findstr ^
     /c:"Current Pool Allocations:" ^
