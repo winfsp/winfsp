@@ -140,6 +140,9 @@
             <Component Id="C.diag.bat">
                 <File Name="diag.bat" Source="..\..\..\tools\diag.bat" KeyPath="yes" />
             </Component>
+            <Component Id="C.fsreg.bat">
+                <File Name="fsreg.bat" Source="..\..\..\tools\fsreg.bat" KeyPath="yes" />
+            </Component>
 
             <Component Id="C.memfs_x64.exe">
                 <File Name="memfs-x64.exe" KeyPath="yes" />
@@ -272,6 +275,29 @@
                     <File Name="passthrough.vcxproj.filters" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="SMPDIR.passthrough_fuse" Name="passthrough-fuse">
+                <Component Id="C.passthrough_fuse.c">
+                    <File Name="passthrough-fuse.c" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse.winposix.c">
+                    <File Name="winposix.c" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse.winposix.h">
+                    <File Name="winposix.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse.sln">
+                    <File Name="passthrough-fuse.sln" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse.vcxproj">
+                    <File Name="passthrough-fuse.vcxproj" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse.vcxproj.filters">
+                    <File Name="passthrough-fuse.vcxproj.filters" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse.Makefile">
+                    <File Name="Makefile" KeyPath="yes" />
+                </Component>
+            </Directory>
         </DirectoryRef>
         <DirectoryRef Id="SYMDIR">
             <Component Id="C.winfsp_x64.sys.pdb">
@@ -320,6 +346,7 @@
             <ComponentRef Id="C.launchctl_x64.exe" />
             <ComponentRef Id="C.launchctl_x86.exe" />
             <ComponentRef Id="C.diag.bat" />
+            <ComponentRef Id="C.fsreg.bat" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.inc">
             <ComponentRef Id="C.fsctl.h" />
@@ -345,6 +372,13 @@
             <ComponentRef Id="C.passthrough.sln" />
             <ComponentRef Id="C.passthrough.vcxproj" />
             <ComponentRef Id="C.passthrough.vcxproj.filters" />
+            <ComponentRef Id="C.passthrough_fuse.c" />
+            <ComponentRef Id="C.passthrough_fuse.winposix.c" />
+            <ComponentRef Id="C.passthrough_fuse.winposix.h" />
+            <ComponentRef Id="C.passthrough_fuse.sln" />
+            <ComponentRef Id="C.passthrough_fuse.vcxproj" />
+            <ComponentRef Id="C.passthrough_fuse.vcxproj.filters" />
+            <ComponentRef Id="C.passthrough_fuse.Makefile" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.sym">
             <ComponentRef Id="C.winfsp_x64.sys.pdb" />
