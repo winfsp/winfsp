@@ -22,6 +22,7 @@
 
 #define FSP_NP_NAME                     LIBRARY_NAME ".Np"
 #define FSP_NP_TYPE                     ' spF'  /* pick a value hopefully not in use */
+#define FSP_NP_ADDCONNECTION_TIMEOUT    15000
 
 /*
  * Define the following macro to use CredUIPromptForWindowsCredentials.
@@ -583,6 +584,63 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
     switch (NpResult)
     {
     case WN_SUCCESS:
+        /*
+         * The Launcher is reporting success. Wait until we can access the new volume
+         * root directory. If we see it report success, otherwise report error.
+         */
+        {
+            WCHAR RemoteNameBuf[9 + sizeof(((FSP_FSCTL_VOLUME_PARAMS *)0)->Prefix) / sizeof(WCHAR)];
+            HANDLE Handle;
+
+            if (L'\0' != LocalNameBuf[0])
+            {
+                P = RemoteNameBuf;
+                *P++ = L'\\'; *P++ = L'\\'; *P++ = L'?'; *P++ = L'\\';
+                *P++ = LocalNameBuf[0]; *P++ = L':'; *P++ = L'\\';
+                *P++ = L'\0';
+            }
+            else
+            {
+                P = RemoteNameBuf;
+                *P++ = L'\\'; *P++ = L'\\'; *P++ = L'?'; *P++ = L'\\';
+                *P++ = L'U'; *P++ = L'N'; *P++ = L'C'; *P++ = L'\\';
+                memcpy(P, ClassName, ClassNameLen * sizeof(WCHAR)); P += ClassNameLen; *P++ = L'\\';
+                memcpy(P, InstanceName, InstanceNameLen * sizeof(WCHAR)); P += InstanceNameLen; *P++ = L'\\';
+                *P++ = L'\0';
+            }
+
+            NpResult = WN_NO_NETWORK; /* timeout error */
+
+            for (ULONG I = 0, N = 1 + FSP_NP_ADDCONNECTION_TIMEOUT / 500; N > I; I++)
+            {
+                if (0 != I)
+                    Sleep(500);
+
+                Handle = CreateFileW(RemoteNameBuf,
+                    FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+                if (INVALID_HANDLE_VALUE != Handle)
+                {
+                    /* the file system is up and running */
+                    CloseHandle(Handle);
+                    NpResult = WN_SUCCESS;
+                    break;
+                }
+
+                P = PipeBuf;
+                *P++ = LauncherSvcInstanceInfo;
+                memcpy(P, ClassName, ClassNameLen * sizeof(WCHAR)); P += ClassNameLen; *P++ = L'\0';
+                memcpy(P, InstanceName, InstanceNameLen * sizeof(WCHAR)); P += InstanceNameLen; *P++ = L'\0';
+
+                if (WN_SUCCESS != FspNpCallLauncherPipe(
+                    PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), LAUNCHER_PIPE_BUFFER_SIZE))
+                {
+                    /* looks like the file system is gone! */
+                    NpResult = WN_NO_NETWORK;
+                    break;
+                }
+            }
+        }
+        break;
     case WN_ACCESS_DENIED:
         break;
     case ERROR_ALREADY_EXISTS:
