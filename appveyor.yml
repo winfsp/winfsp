@@ -29,6 +29,7 @@ test_script:
 - if %TESTING%==Func tools\nmake-ext-test.bat %CONFIGURATION%
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION%
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% ifstest
+- if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% sample
 - if %TESTING%==Perf tools\run-perf-tests.bat %CONFIGURATION% baseline > perf-tests.csv && type perf-tests.csv & appveyor PushArtifact perf-tests.csv
 - if exist %SystemRoot%\memory.dmp exit 1
 
