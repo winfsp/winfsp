@@ -295,6 +295,20 @@ int main(int argc, char *argv[])
                     WinFspNetTests = 0;
                 }
             }
+            else if (0 == strncmp("--share-prefix=", a, sizeof "--share-prefix=" - 1))
+            {
+                /* hack to allow name queries on network file systems with mapped drives */
+
+                WCHAR SharePrefixBuf[MAX_PATH];
+
+                if (0 != MultiByteToWideChar(CP_UTF8, 0,
+                    a + sizeof "--share-prefix=" - 1, -1, SharePrefixBuf, MAX_PATH))
+                {
+                    rmarg(argv, argc, argi);
+
+                    OptSharePrefixLength = (ULONG)(wcslen(SharePrefixBuf) * sizeof(WCHAR));
+                }
+            }
             else if (0 == strcmp("--no-traverse", a))
             {
                 if (LookupPrivilegeValueW(0, SE_CHANGE_NOTIFY_NAME, &OptNoTraverseLuid) &&
