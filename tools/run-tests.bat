@@ -59,7 +59,9 @@ set opt_tests=^
     ifstest-memfs-x64-disk ^
     ifstest-memfs-x86-disk ^
     sample-passthrough-x64 ^
-    sample-passthrough-x86
+    sample-passthrough-x86 ^
+    sample-passthrough-fuse-x64 ^
+    sample-passthrough-fuse-x86
 
 set tests=
 for %%f in (%dfl_tests%) do (
@@ -545,7 +547,7 @@ L:
     --external --resilient --case-insensitive-cmp --share-prefix="\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test" ^
     -create_allocation_test -create_notraverse_test -create_namelen_test -getfileinfo_name_test -setfileinfo_test ^
     -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -reparse* -stream*
-    ERRORLEVEL! neq 0 set SamplePassthroughExit=1
+if !ERRORLEVEL! neq 0 set SamplePassthroughExit=1
 
 popd
 echo net use L: /delete
