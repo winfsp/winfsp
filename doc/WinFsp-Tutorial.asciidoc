@@ -1187,6 +1187,7 @@ NOTE: `Winfsp-tests` is not included with the WinFsp installer. In order to use 
 
 In order to test our file system we create a drive `Y:` using the command line `passthrough-x64 -p C:\\...\passthrough-x64 -m Y:` and then execute the command.
 
+.`*winfsp-tests run*`
 ----
 Y:\>C:\...\winfsp-tests-x64 --external --resilient --case-insensitive-cmp -create_allocation_test -getfileinfo_name_test -delete_access_test -rename_flipflop_test -rename_mmap_test -reparse* -stream* <1> <2>
 [snip irrelevant tests]
@@ -1235,3 +1236,68 @@ dirnotify_test......................... OK 1.01s
 ----
 <1> Run `winfsp-tests` with `--external`, `--resilient` switches which instructs it to run its external file system tests.
 <2> Disable tests that are not expected to pass because they test functionality that either we did not implement (`-reparse*`, `-stream*`) or is esoteric (`-create_allocation_test`, `-getfileinfo_name_test`, `-rename_flipflop_test`, `-rename_mmap_test`) or requires that the file system is run under an account with sufficient security rights (`-delete_access_test`).
+
+== Running it as a service
+
+Our final task is to discuss how to convert our file system into a service that can be managed by the WinFsp launcher. This allows our file system to provide file services to all processes in the system.
+
+An important thing to consider is that our file system will be running in the SYSTEM account security context, which is different from the security context of any processes that want to use this file system. Recall that the passthrough file system is a simple layer over an underlying file system, therefore how the underlying file system handles security becomes important, particularly when the underlying file system is NTFS.
+
+For this reason we modify the passthrough file system to enable the "backup" and "restore" privileges which are available to a process running under the SYSTEM account. Enabling these privileges allows us to circumvent some NTFS access checks and simply use NTFS as a storage medium.
+
+.`*EnableBackupRestorePrivileges*`
+[source,c]
+----
+static NTSTATUS EnableBackupRestorePrivileges(VOID)
+{
+    union
+    {
+        TOKEN_PRIVILEGES P;
+        UINT8 B[sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES)];
+    } Privileges;
+    HANDLE Token;
+
+    Privileges.P.PrivilegeCount = 2;
+    Privileges.P.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    Privileges.P.Privileges[1].Attributes = SE_PRIVILEGE_ENABLED;
+
+    if (!LookupPrivilegeValueW(0, SE_BACKUP_NAME, &Privileges.P.Privileges[0].Luid) ||
+        !LookupPrivilegeValueW(0, SE_RESTORE_NAME, &Privileges.P.Privileges[1].Luid))
+        return FspNtStatusFromWin32(GetLastError());
+
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &Token))
+        return FspNtStatusFromWin32(GetLastError());
+
+    if (!AdjustTokenPrivileges(Token, FALSE, &Privileges.P, 0, 0, 0))
+        return FspNtStatusFromWin32(GetLastError());
+
+    CloseHandle(Token);
+
+    return STATUS_SUCCESS;
+}
+----
+
+With the `EnableBackupRestorePrivileges` implementation in place all that remains is to call it from `SvcStart`.
+
+.`*SvcStart excerpt*`
+[source,c]
+----
+    EnableBackupRestorePrivileges();
+----
+
+We are now ready to register our file system to be managed by the WinFsp launcher. For this purpose we will use the `fsreg.bat` utility which can be found in the WinFsp `bin` directory. `Fsreg.bat` will create all necessary entries in the Windows registry.
+
+From an administrator prompt switch to the passthrough directory and run:
+
+.`*fsreg*`
+----
+fsreg.bat passthrough build\Debug\passthrough-x64.exe "-u %1 -m %2" "D:P(A;;RPWPLC;;;WD)"
+----
+
+With this step complete we can now launch our file system from the command prompt.
+
+image::WinFsp-Tutorial/NetUse.png[First Run]
+
+Alternatively one can use the Windows explorer.
+
+image::WinFsp-Tutorial/Explorer.png[First Run]
