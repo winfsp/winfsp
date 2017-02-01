@@ -731,7 +731,7 @@ static NTSTATUS EnableBackupRestorePrivileges(VOID)
     union
     {
         TOKEN_PRIVILEGES P;
-        UINT B[sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES)];
+        UINT8 B[sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES)];
     } Privileges;
     HANDLE Token;
 
