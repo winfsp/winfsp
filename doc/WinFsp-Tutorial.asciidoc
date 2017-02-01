@@ -13,7 +13,7 @@ In this tutorial we describe the process of creating a simple user mode file sys
 
 == Create the project skeleton
 
-We first start by creating the Visual Studio project. Choose "Win32 Console Application" and then select your preferred settings. For this project I will select empty project, because we will add all files ourselves.
+We first start by creating the Visual Studio project. Choose "Win32 Console Application" and then select our preferred settings. For this project we will select empty project, because we will add all files ourselves.
 
 image::WinFsp-Tutorial/NewProject.png[Visual Studio New Project]
 
@@ -52,14 +52,14 @@ int wmain(int argc, wchar_t **argv)
 
 This simple template allows a user mode file system to be run as a console application, as a Windows service, or as a "sub-service" controlled by the WinFsp launcher.
 
-If you try to build this simple program, it will fail. We must set up the locations where Visual Studio can find the WinFsp headers and libraries. The following settings must be made:
+If we try to build the program, it will fail. We must set up the locations where Visual Studio can find the WinFsp headers and libraries. The following settings must be made:
 
 - C/C++ > General > Additional Include Directories: `$(MSBuildProgramFiles32)\WinFsp\inc`
 - Linker > Input > Additional Dependencies: `$(MSBuildProgramFiles32)\WinFsp\lib\winfsp-$(PlatformTarget).lib`
 
 NOTE: These settings assume that WinFsp has been installed in the default location under "Program Files".
 
-We are now able to build this program. But if you try to run it:
+We are now able to build this program. But if we try to run it:
 
 image::WinFsp-Tutorial/MissingDll.png[Missing WinFsp DLL]
 
@@ -334,7 +334,7 @@ static VOID PtfsDelete(PTFS *Ptfs)
 
 === Test run
 
-You can now run the program from Visual Studio or the command line. The program starts and waits for file system requests from the operating system (although we do not yet service any). Press Ctrl-C to stop the file system.
+We can now run the program from Visual Studio or the command line. The program starts and waits for file system requests from the operating system (although we do not yet service any). Press Ctrl-C to stop the file system.
 
 image::WinFsp-Tutorial/EntryExit.png[Entry/exit test run]
 
@@ -574,7 +574,7 @@ Our simple file system can only open and close existing files. Supporting the Wi
 
 This scheme is simple and flexible in that it allows arbitrarily large directories to be read in chunks. If implemented correctly it can also cope with concurrent modifications to the directory (like file creations, deletions).
 
-Not all file systems maintain a consistent directory order or are able to seek by file name within a directory. For these file systems a simple straegy is to buffer *all* directory contents when they receive a `NULL` `Marker`.
+Not all file systems maintain a consistent directory order or are able to seek by file name within a directory. For these file systems a simple strategy is to buffer *all* directory contents when they receive a `NULL` `Marker`.
 
 This is how we implement `ReadDirectory` for our passthrough file system.
 
@@ -698,7 +698,7 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
 
 === GetFileInfo / GetSecurity
 
-If you right click on a file and choose "Properties" on the Windows explorer, it will interrogate the file system for the file metadata. This metadata includes file information such as file size, attributes, times, etc. and security information such as ACL's.
+If we right click on a file and choose "Properties" on the Windows explorer, it will interrogate the file system for the file metadata. This metadata includes file information such as file size, attributes, times, etc. and security information such as ACL's.
 
 The `GetFileInfo` operation allows the kernel to query/refresh its view of the file metadata.
 
@@ -1160,7 +1160,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
 We now have a functional file system. It supports the following Windows file system functionality:
 
 - Query volume information.
-- Open, create, close, delete files and directories.
+- Open, create, close, delete, rename files and directories.
 - Query and set file and directory information.
 - Query and set security information (ACL's).
 - Read and write files.
@@ -1181,11 +1181,11 @@ The question is: how can we develop the confidence that our file system works as
 
 WinFsp includes a number of test suites that are used for testing its components and its reference file system MEMFS. The primary test suite is called `winfsp-tests` and is a comprehensive test suite that exercises all aspects of Windows file system functionality that WinFsp supports. `Winfsp-tests` can be run in a special `--external` mode where it can be used to test other WinFsp-based file systems. We will use it in this case to test our passthrough file system.
 
-`Winfsp-tests` is not included with the WinFsp installer. In order to use `winfsp-tests` one must first clone the WinFsp repository and build the WinFsp Visual Studio solution. The steps to do so are not included in this tutorial.
+NOTE: `Winfsp-tests` is not included with the WinFsp installer. In order to use `winfsp-tests` one must first clone the WinFsp repository and build the WinFsp Visual Studio solution. The steps to do so are not included in this tutorial.
 
-`Winfsp-tests` exercises some esoteric aspects of Windows file system functionality, so we do not expect all the tests to pass. For example, our simple file system does not maintain `AllocationSize`, we therefore expect related tests to fail. As another example, the passthrough file system uses normal Windows file API's to implement its functionality, as such some security tests are expected to fail if the file system runs under a normal account.
+`Winfsp-tests` exercises some esoteric aspects of Windows file system functionality, so we do not expect all the tests to pass. For example, our simple file system does not maintain `AllocationSize`; we therefore expect related tests to fail. As another example, the passthrough file system uses normal Windows file API's to implement its functionality, as such some security tests are expected to fail if the file system runs under a normal account.
 
-In order to test our file system we create a drive `Y:` using the command line `passthrough-x64 -p C:\...\passthrough -m Y:` and then execute the command.
+In order to test our file system we create a drive `Y:` using the command line `passthrough-x64 -p C:\\...\passthrough-x64 -m Y:` and then execute the command.
 
 ----
 Y:\>C:\...\winfsp-tests-x64 --external --resilient --case-insensitive-cmp -create_allocation_test -getfileinfo_name_test -delete_access_test -rename_flipflop_test -rename_mmap_test -reparse* -stream* <1> <2>
