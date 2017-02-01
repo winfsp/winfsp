@@ -274,6 +274,26 @@ int main(int argc, char *argv[])
 
     if (3 <= argc && '-' != argv[argc - 2][0] && '-' != argv[argc - 1][0])
     {
+#if defined(_WIN64) || defined(_WIN32)
+        /*
+         * When building for Windows (rather than Cygwin or POSIX OS)
+         * allow the syntax C$\Path as an alternative to C:\Path. This
+         * allows us to run the file system under the WinFsp.Launcher
+         * and start it using commands like:
+         *
+         *     net use z: \\passthrough-fuse\C$\Path
+         */
+        if ((
+            ('A' <= argv[argc - 2][0] && argv[argc - 2][0] <= 'Z') ||
+            ('a' <= argv[argc - 2][0] && argv[argc - 2][0] <= 'z')
+            ) &&
+            '$' == argv[argc - 2][1] &&
+            ('\\' == argv[argc - 2][2] || '/' == argv[argc - 2][2]))
+        {
+            argv[argc - 2][1] = ':';
+        }
+#endif
+
         ptfs.rootdir = realpath(argv[argc - 2], 0); /* memory freed at process end */
         argv[argc - 2] = argv[argc - 1];
         argc--;

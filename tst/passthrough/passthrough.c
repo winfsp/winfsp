@@ -816,11 +816,12 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         if (0 != P && L'\\' != P[1])
         {
             P = wcschr(P + 1, L'\\');
-            if (0 != P && L'$' == P[2] &&
+            if (0 != P &&
                 (
                 (L'A' <= P[1] && P[1] <= L'Z') ||
                 (L'a' <= P[1] && P[1] <= L'z')
-                ))
+                ) &&
+                L'$' == P[2])
             {
                 StringCbPrintf(PassThroughBuf, sizeof PassThroughBuf, L"%c:%s", P[1], P + 3);
                 PassThrough = PassThroughBuf;
