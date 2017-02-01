@@ -1630,7 +1630,7 @@ FSP_API NTSTATUS FspCallNamedPipeSecurely(PWSTR PipeName,
  * Delay load
  */
 static inline
-NTSTATUS FspLoad(VOID)
+NTSTATUS FspLoad(PVOID *PModule)
 {
 #if defined(_WIN64)
 #define FSP_DLLNAME                     "winfsp-x64.dll"
@@ -1644,6 +1644,9 @@ NTSTATUS FspLoad(VOID)
     HKEY RegKey;
     LONG Result;
     HMODULE Module;
+
+    if (0 != PModule)
+        *PModule = 0;
 
     Module = LoadLibraryW(L"" FSP_DLLNAME);
     if (0 == Module)
@@ -1665,6 +1668,9 @@ NTSTATUS FspLoad(VOID)
         if (0 == Module)
             return STATUS_DLL_NOT_FOUND;
     }
+
+    if (0 != PModule)
+        *PModule = Module;
 
     return STATUS_SUCCESS;
 

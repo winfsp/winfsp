@@ -76,7 +76,7 @@ Then add the following lines in the beginning of `wmain`:
 .`*wmain excerpt*`
 [source,c]
 ----
-    if (!NT_SUCCESS(FspLoad()))
+    if (!NT_SUCCESS(FspLoad(0)))
         return ERROR_DELAY_LOAD_FAILED;
 ----
 

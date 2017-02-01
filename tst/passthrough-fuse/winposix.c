@@ -525,5 +525,5 @@ static int maperror(int winerrno)
 
 long WinFspLoad(void)
 {
-    return FspLoad();
+    return FspLoad(0);
 }
