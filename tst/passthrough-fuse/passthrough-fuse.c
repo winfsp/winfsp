@@ -274,30 +274,51 @@ int main(int argc, char *argv[])
 
     if (3 <= argc && '-' != argv[argc - 2][0] && '-' != argv[argc - 1][0])
     {
-#if defined(_WIN64) || defined(_WIN32)
-        /*
-         * When building for Windows (rather than Cygwin or POSIX OS)
-         * allow the syntax C$\Path as an alternative to C:\Path. This
-         * allows us to run the file system under the WinFsp.Launcher
-         * and start it using commands like:
-         *
-         *     net use z: \\passthrough-fuse\C$\Path
-         */
-        if ((
-            ('A' <= argv[argc - 2][0] && argv[argc - 2][0] <= 'Z') ||
-            ('a' <= argv[argc - 2][0] && argv[argc - 2][0] <= 'z')
-            ) &&
-            '$' == argv[argc - 2][1] &&
-            ('\\' == argv[argc - 2][2] || '/' == argv[argc - 2][2]))
-        {
-            argv[argc - 2][1] = ':';
-        }
-#endif
-
         ptfs.rootdir = realpath(argv[argc - 2], 0); /* memory freed at process end */
         argv[argc - 2] = argv[argc - 1];
         argc--;
     }
+
+#if defined(_WIN64) || defined(_WIN32)
+    /*
+     * When building for Windows (rather than Cygwin or POSIX OS)
+     * allow the path to be specified using the --VolumePrefix
+     * switch using the syntax \\passthrough-fuse\C$\Path. This
+     * allows us to run the file system under the WinFsp.Launcher
+     * and start it using commands like:
+     *
+     *     net use z: \\passthrough-fuse\C$\Path
+     */
+    if (0 == ptfs.rootdir)
+        for (int argi = 1; argc > argi; argi++)
+        {
+            int strncmp(const char *a, const char *b, size_t length);
+            char *strchr(const char *s, int c);
+            char *p = 0;
+
+            if (0 == strncmp("--UNC=", argv[argi], sizeof "--UNC=" - 1))
+                p = argv[argi] + sizeof "--UNC=" - 1;
+            else if (0 == strncmp("--VolumePrefix=", argv[argi], sizeof "--VolumePrefix=" - 1))
+                p = argv[argi] + sizeof "--VolumePrefix=" - 1;
+
+            if (0 != p && '\\' != p[1])
+            {
+                p = strchr(p + 1, '\\');
+                if (0 != p &&
+                    (
+                    ('A' <= p[1] && p[1] <= 'Z') ||
+                    ('a' <= p[1] && p[1] <= 'z')
+                    ) &&
+                    '$' == p[2])
+                {
+                    p[2] = ':';
+                    ptfs.rootdir = realpath(p + 1, 0); /* memory freed at process end */
+                    p[2] = '$';
+                    break;
+                }
+            }
+        }
+#endif
 
     if (0 == ptfs.rootdir)
         usage();
