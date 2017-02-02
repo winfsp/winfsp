@@ -747,7 +747,11 @@ static NTSTATUS EnableBackupRestorePrivileges(VOID)
         return FspNtStatusFromWin32(GetLastError());
 
     if (!AdjustTokenPrivileges(Token, FALSE, &Privileges.P, 0, 0, 0))
+    {
+        CloseHandle(Token);
+
         return FspNtStatusFromWin32(GetLastError());
+    }
 
     CloseHandle(Token);
 
