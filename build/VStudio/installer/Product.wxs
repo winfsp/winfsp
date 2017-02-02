@@ -55,6 +55,9 @@
                     Value="[INSTALLDIR]"
                     KeyPath="yes" />
             </Component>
+            <Component Id="C.License.txt">
+                <File Name="License.txt" Source="..\..\..\License.txt" KeyPath="yes" />
+            </Component>
         </DirectoryRef>
         <DirectoryRef Id="BINDIR" FileSource="..\build\$(var.Configuration)">
             <Component Id="C.winfsp_x64.sys">
@@ -297,6 +300,9 @@
                 <Component Id="C.passthrough_fuse.Makefile">
                     <File Name="Makefile" KeyPath="yes" />
                 </Component>
+                <Component Id="C.passthrough_fuse.README.md">
+                    <File Name="README.md" KeyPath="yes" />
+                </Component>
             </Directory>
         </DirectoryRef>
         <DirectoryRef Id="SYMDIR">
@@ -379,6 +385,7 @@
             <ComponentRef Id="C.passthrough_fuse.vcxproj" />
             <ComponentRef Id="C.passthrough_fuse.vcxproj.filters" />
             <ComponentRef Id="C.passthrough_fuse.Makefile" />
+            <ComponentRef Id="C.passthrough_fuse.README.md" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.sym">
             <ComponentRef Id="C.winfsp_x64.sys.pdb" />
@@ -404,6 +411,7 @@
             InstallDefault="local"
             Absent="disallow">
             <ComponentRef Id="C.INSTALLDIR" />
+            <ComponentRef Id="C.License.txt" />
             <Feature
                 Id="F.User"
                 Level="1"
