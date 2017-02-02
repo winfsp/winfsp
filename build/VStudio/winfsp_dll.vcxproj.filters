@@ -121,7 +121,7 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\src\dll\fuse\fuse.pc">
+    <CustomBuild Include="..\..\src\dll\fuse\fuse.pc.in">
       <Filter>Source\fuse</Filter>
     </CustomBuild>
   </ItemGroup>

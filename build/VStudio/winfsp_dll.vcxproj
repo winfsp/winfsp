@@ -51,7 +51,7 @@
     <ClCompile Include="..\..\src\dll\util.c" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\src\dll\fuse\fuse.pc">
+    <CustomBuild Include="..\..\src\dll\fuse\fuse.pc.in">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse-$(PlatformTarget).pc
 copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(PlatformTarget).pc &gt;nul</Command>
