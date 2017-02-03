@@ -533,7 +533,7 @@ set SamplePassthroughExit=0
 call %ProjRoot%\tools\build-sample %Configuration% %1 passthrough-fuse "%TMP%\passthrough-fuse-%1"
 if !ERRORLEVEL! neq 0 goto fail
 mkdir "%TMP%\passthrough-fuse-%1\test"
-call "%ProjRoot%\tools\fsreg" passthrough-fuse "%TMP%\passthrough-fuse-%1\build\%Configuration%\passthrough-fuse-%1.exe" "-ouid=-1,gid=-1 --VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
+call "%ProjRoot%\tools\fsreg" passthrough-fuse "%TMP%\passthrough-fuse-%1\build\%Configuration%\passthrough-fuse-%1.exe" "-ouid=65792,gid=65792 --VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
 echo net use L: "\\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test"
 net use L: "\\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test"
 if !ERRORLEVEL! neq 0 goto fail
@@ -545,8 +545,9 @@ L:
 
 "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-%1.exe" ^
     --external --resilient --case-insensitive-cmp --share-prefix="\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test" ^
-    -create_allocation_test -create_notraverse_test -create_namelen_test -getfileinfo_name_test -setfileinfo_test ^
-    -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -reparse* -stream*
+    -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
+    -getfileinfo_name_test -setfileinfo_test -delete_access_test -delete_mmap_test -rename_caseins_test -rename_flipflop_test -rename_mmap_test -setsecurity_test ^
+    -reparse* -stream*
 if !ERRORLEVEL! neq 0 set SamplePassthroughExit=1
 
 popd
