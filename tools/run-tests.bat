@@ -533,7 +533,7 @@ set SamplePassthroughExit=0
 call %ProjRoot%\tools\build-sample %Configuration% %1 passthrough-fuse "%TMP%\passthrough-fuse-%1"
 if !ERRORLEVEL! neq 0 goto fail
 mkdir "%TMP%\passthrough-fuse-%1\test"
-call "%ProjRoot%\tools\fsreg" passthrough-fuse "%TMP%\passthrough-fuse-%1\build\%Configuration%\passthrough-fuse-%1.exe" "--VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
+call "%ProjRoot%\tools\fsreg" passthrough-fuse "%TMP%\passthrough-fuse-%1\build\%Configuration%\passthrough-fuse-%1.exe" "-ouid=-1,gid=-1 --VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
 echo net use L: "\\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test"
 net use L: "\\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test"
 if !ERRORLEVEL! neq 0 goto fail
