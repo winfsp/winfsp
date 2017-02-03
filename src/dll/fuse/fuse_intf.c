@@ -116,19 +116,6 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName = 0, Suffix;
     WCHAR Root[2] = L"\\";
     HANDLE Token = 0;
-    union
-    {
-        TOKEN_USER V;
-        UINT8 B[128];
-    } UserInfoBuf;
-    PTOKEN_USER UserInfo = &UserInfoBuf.V;
-    union
-    {
-        TOKEN_PRIMARY_GROUP V;
-        UINT8 B[128];
-    } GroupInfoBuf;
-    PTOKEN_PRIMARY_GROUP GroupInfo = &GroupInfoBuf.V;
-    DWORD Size;
     NTSTATUS Result;
 
     if (FspFsctlTransactCreateKind == Request->Kind)
@@ -157,55 +144,7 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
 
     if (0 != Token)
     {
-        if (!GetTokenInformation(Token, TokenUser, UserInfo, sizeof UserInfoBuf, &Size))
-        {
-            if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
-            {
-                Result = FspNtStatusFromWin32(GetLastError());
-                goto exit;
-            }
-
-            UserInfo = MemAlloc(Size);
-            if (0 == UserInfo)
-            {
-                Result = STATUS_INSUFFICIENT_RESOURCES;
-                goto exit;
-            }
-
-            if (!GetTokenInformation(Token, TokenUser, UserInfo, Size, &Size))
-            {
-                Result = FspNtStatusFromWin32(GetLastError());
-                goto exit;
-            }
-        }
-
-        if (!GetTokenInformation(Token, TokenPrimaryGroup, GroupInfo, sizeof GroupInfoBuf, &Size))
-        {
-            if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
-            {
-                Result = FspNtStatusFromWin32(GetLastError());
-                goto exit;
-            }
-
-            GroupInfo = MemAlloc(Size);
-            if (0 == UserInfo)
-            {
-                Result = STATUS_INSUFFICIENT_RESOURCES;
-                goto exit;
-            }
-
-            if (!GetTokenInformation(Token, TokenPrimaryGroup, GroupInfo, Size, &Size))
-            {
-                Result = FspNtStatusFromWin32(GetLastError());
-                goto exit;
-            }
-        }
-
-        Result = FspPosixMapSidToUid(UserInfo->User.Sid, &Uid);
-        if (!NT_SUCCESS(Result))
-            goto exit;
-
-        Result = FspPosixMapSidToUid(GroupInfo->PrimaryGroup, &Gid);
+        Result = fsp_fuse_get_token_uidgid(Token, TokenUser, &Uid, &Gid);
         if (!NT_SUCCESS(Result))
             goto exit;
     }
@@ -230,12 +169,6 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     Result = STATUS_SUCCESS;
 
 exit:
-    if (UserInfo != &UserInfoBuf.V)
-        MemFree(UserInfo);
-
-    if (GroupInfo != &GroupInfoBuf.V)
-        MemFree(GroupInfo);
-
     if (!NT_SUCCESS(Result) && 0 != PosixPath)
         FspPosixDeletePath(PosixPath);
 
@@ -2062,3 +1995,140 @@ FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
     fsp_fuse_intf_SetReparsePoint,
     fsp_fuse_intf_DeleteReparsePoint,
 };
+
+/*
+ * Utility
+ */
+NTSTATUS fsp_fuse_get_token_uidgid(
+    HANDLE Token,
+    TOKEN_INFORMATION_CLASS UserOrOwnerClass, /* TokenUser|TokenOwner */
+    PUINT32 PUid, PUINT32 PGid)
+{
+    UINT32 Uid, Gid;
+    union
+    {
+        TOKEN_USER V;
+        UINT8 B[128];
+    } UserInfoBuf;
+    PTOKEN_USER UserInfo = &UserInfoBuf.V;
+    union
+    {
+        TOKEN_OWNER V;
+        UINT8 B[128];
+    } OwnerInfoBuf;
+    PTOKEN_OWNER OwnerInfo = &OwnerInfoBuf.V;
+    union
+    {
+        TOKEN_PRIMARY_GROUP V;
+        UINT8 B[128];
+    } GroupInfoBuf;
+    PTOKEN_PRIMARY_GROUP GroupInfo = &GroupInfoBuf.V;
+    DWORD Size;
+    NTSTATUS Result;
+
+    if (0 != PUid && TokenUser == UserOrOwnerClass)
+    {
+        if (!GetTokenInformation(Token, TokenUser, UserInfo, sizeof UserInfoBuf, &Size))
+        {
+            if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+
+            UserInfo = MemAlloc(Size);
+            if (0 == UserInfo)
+            {
+                Result = STATUS_INSUFFICIENT_RESOURCES;
+                goto exit;
+            }
+
+            if (!GetTokenInformation(Token, TokenUser, UserInfo, Size, &Size))
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+        }
+
+        Result = FspPosixMapSidToUid(UserInfo->User.Sid, &Uid);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
+    else if (0 != PUid && TokenOwner == UserOrOwnerClass)
+    {
+        if (!GetTokenInformation(Token, TokenOwner, OwnerInfo, sizeof OwnerInfoBuf, &Size))
+        {
+            if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+
+            OwnerInfo = MemAlloc(Size);
+            if (0 == OwnerInfo)
+            {
+                Result = STATUS_INSUFFICIENT_RESOURCES;
+                goto exit;
+            }
+
+            if (!GetTokenInformation(Token, TokenOwner, OwnerInfo, Size, &Size))
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+        }
+
+        Result = FspPosixMapSidToUid(OwnerInfo->Owner, &Uid);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
+
+    if (0 != PGid)
+    {
+        if (!GetTokenInformation(Token, TokenPrimaryGroup, GroupInfo, sizeof GroupInfoBuf, &Size))
+        {
+            if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+
+            GroupInfo = MemAlloc(Size);
+            if (0 == GroupInfo)
+            {
+                Result = STATUS_INSUFFICIENT_RESOURCES;
+                goto exit;
+            }
+
+            if (!GetTokenInformation(Token, TokenPrimaryGroup, GroupInfo, Size, &Size))
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+        }
+
+        Result = FspPosixMapSidToUid(GroupInfo->PrimaryGroup, &Gid);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
+
+    if (0 != PUid)
+        *PUid = Uid;
+
+    if (0 != PGid)
+        *PGid = Gid;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (UserInfo != &UserInfoBuf.V)
+        MemFree(UserInfo);
+
+    if (OwnerInfo != &OwnerInfoBuf.V)
+        MemFree(OwnerInfo);
+
+    if (GroupInfo != &GroupInfoBuf.V)
+        MemFree(GroupInfo);
+
+    return Result;
+}

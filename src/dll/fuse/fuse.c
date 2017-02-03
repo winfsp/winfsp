@@ -485,6 +485,28 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     if (opt_data.help)
         return 0;
 
+    if ((opt_data.set_uid && -1 == opt_data.uid) ||
+        (opt_data.set_gid && -1 == opt_data.gid))
+    {
+        HANDLE Token;
+
+        if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token))
+        {
+            fsp_fuse_get_token_uidgid(Token, TokenUser,
+                opt_data.set_uid && -1 == opt_data.uid ? &opt_data.uid : 0,
+                opt_data.set_gid && -1 == opt_data.gid ? &opt_data.gid : 0);
+
+            CloseHandle(Token);
+        }
+
+        if ((opt_data.set_uid && -1 == opt_data.uid) ||
+            (opt_data.set_gid && -1 == opt_data.gid))
+        {
+            ErrorMessage = L": unknown user/group.";
+            goto fail;
+        }
+    }
+
     if (!opt_data.set_FileInfoTimeout && opt_data.set_attr_timeout)
         opt_data.VolumeParams.FileInfoTimeout = opt_data.set_attr_timeout * 1000;
     opt_data.VolumeParams.CaseSensitiveSearch = !opt_data.CaseInsensitiveSearch;

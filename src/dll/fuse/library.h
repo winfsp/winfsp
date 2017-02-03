@@ -78,6 +78,11 @@ NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
 
 extern FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf;
 
+NTSTATUS fsp_fuse_get_token_uidgid(
+    HANDLE Token,
+    TOKEN_INFORMATION_CLASS UserOrOwnerClass, /* TokenUser|TokenOwner */
+    PUINT32 PUid, PUINT32 PGid);
+
 /* NFS reparse points */
 
 #define NFS_SPECFILE_FIFO               0x000000004F464946
