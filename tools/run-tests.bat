@@ -143,7 +143,7 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x64-mountpoint-drive
-winfsp-tests-x64 --mountpoint=X:
+winfsp-tests-x64 --mountpoint=X: --resilient
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -173,7 +173,7 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-mountpoint-drive
-winfsp-tests-x86 --mountpoint=X:
+winfsp-tests-x86 --mountpoint=X: --resilient
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
