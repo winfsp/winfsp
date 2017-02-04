@@ -808,6 +808,16 @@ NTSTATUS FspFsvolCreateComplete(
         }
 
         /* populate the FileNode/FileDesc fields from the Response */
+        FileNode->UserContext = Response->Rsp.Create.Opened.UserContext;
+        FileNode->IndexNumber = Response->Rsp.Create.Opened.FileInfo.IndexNumber;
+        FileNode->IsDirectory = BooleanFlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes,
+            FILE_ATTRIBUTE_DIRECTORY);
+        FileNode->IsRootDirectory = FileNode->IsDirectory &&
+            sizeof(WCHAR) == FileNode->FileName.Length && L'\\' == FileNode->FileName.Buffer[0];
+        FileDesc->UserContext2 = Response->Rsp.Create.Opened.UserContext2;
+        FileDesc->DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
+
+        /* handle normalized names */
         if (!FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
         {
             /* is there a normalized file name as part of the response? */
@@ -843,14 +853,6 @@ NTSTATUS FspFsvolCreateComplete(
                 RtlCopyMemory(FileNode->FileName.Buffer, NormalizedName.Buffer, NormalizedName.Length);
             }
         }
-        FileNode->UserContext = Response->Rsp.Create.Opened.UserContext;
-        FileNode->IndexNumber = Response->Rsp.Create.Opened.FileInfo.IndexNumber;
-        FileNode->IsDirectory = BooleanFlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes,
-            FILE_ATTRIBUTE_DIRECTORY);
-        FileNode->IsRootDirectory = FileNode->IsDirectory &&
-            sizeof(WCHAR) == FileNode->FileName.Length && L'\\' == FileNode->FileName.Buffer[0];
-        FileDesc->UserContext2 = Response->Rsp.Create.Opened.UserContext2;
-        FileDesc->DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
 
         /* open the FileNode */
         Result = FspFileNodeOpen(FileNode, FileObject,
