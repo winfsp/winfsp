@@ -21,6 +21,7 @@ image::WinFsp-Tutorial/Installer.png[WinFsp Installer]
 
 With those prerequisites out of the way we are now ready to start creating our first file system.
 
+NOTE: The file system that we will create is included as a sample with the WinFsp installer. Look in the `samples\passthrough` directory.
 
 == Create the project skeleton
 
@@ -1308,3 +1309,13 @@ image::WinFsp-Tutorial/NetUse.png[First Run]
 Alternatively one can use the Windows explorer.
 
 image::WinFsp-Tutorial/Explorer.png[First Run]
+
+== Conclusion
+
+In less than 1000 lines of C code we have written a Windows file system. Our file system implements all commonly used file functionality on Windows. It integrates fully with the OS and has been tested to give us reasonable confidence that it works as expected under many scenarios.
+
+Time to go on and create your own file system! Some ideas for quick gratification:
+
+- *RegFs*: Create a file system view of the registry. Bonus points if you make it read/write and if you find creative ways of handling different registry value types.
+- *WinObjFs*: Are you familiar with WinObj from SysInternals? It's a fantastic app to explore the NTOS object namespace. Create a file system that presents this namespace as a file system. *Make it read-only!*
+- *ProcFs*: Create something akin to procfs for Windows.
