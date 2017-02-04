@@ -48,7 +48,7 @@ void getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
-        CREATE_ALWAYS/*CREATE_NEW*/, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
     Success = GetFileInformationByHandleEx(Handle, FileAttributeTagInfo, &AttributeTagInfo, sizeof AttributeTagInfo);
