@@ -878,8 +878,7 @@ NTSTATUS FspFsvolCreateComplete(
 
                     Result = FspFsvolCreateSharingViolationOplock(
                         FsvolDeviceObject, Irp, IrpSp, FALSE);
-                    if (STATUS_PENDING == Result)
-                        FSP_RETURN();
+                    FSP_RETURN();
                 }
                 else
                 {
@@ -1317,6 +1316,7 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     FSP_FSCTL_TRANSACT_RSP *Response;
+    FSP_FILE_DESC *FileDesc = FspIopRequestContext(Request, RequestFileDesc);
     FSP_FILE_NODE *ExtraFileNode = FspIopRequestContext(Request, FspIopRequestExtraContext);
     ULONG SharingViolationReason = (ULONG)Irp->IoStatus.Information;
     NTSTATUS Result;
@@ -1353,6 +1353,12 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
             return FspWqRepostIrpWorkItem(Irp,
                 FspFsvolCreateSharingViolationOplock, FspFsvolCreateRequestFini);
 
+        FspFileNodeClose(ExtraFileNode, 0, TRUE);
+        FspFileNodeDereference(ExtraFileNode);
+        FspIopRequestContext(Request, FspIopRequestExtraContext) = 0;
+
+        FspFsvolCreatePostClose(FileDesc);
+
         Irp->IoStatus.Information = 0;
         return STATUS_SHARING_VIOLATION;
     }
@@ -1371,7 +1377,6 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
              * stream.
              */
 
-            FSP_FILE_DESC *FileDesc = FspIopRequestContext(Request, RequestFileDesc);
             FSP_FILE_NODE *FileNode = FileDesc->FileNode;
 
             /* break Batch oplocks on the main file and this stream */
@@ -1427,14 +1432,14 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
 
         Response = FspIopIrpResponse(Irp);
 
-        if (STATUS_SUCCESS == Result)
+        FspFileNodeClose(ExtraFileNode, 0, TRUE);
+        FspFileNodeDereference(ExtraFileNode);
+        FspIopRequestContext(Request, FspIopRequestExtraContext) = 0;
+
+        if (STATUS_SUCCESS != Result)
         {
-            FspFileNodeClose(ExtraFileNode, 0, TRUE);
-            FspFileNodeDereference(ExtraFileNode);
-            FspIopRequestContext(Request, FspIopRequestExtraContext) = 0;
-        }
-        else
-        {
+            FspFsvolCreatePostClose(FileDesc);
+
             Response->IoStatus.Status = (UINT32)Result;
             Response->IoStatus.Information = (UINT32)Irp->IoStatus.Information;
         }
