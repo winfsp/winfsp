@@ -1,4 +1,4 @@
-= Tutorial: creating a simple file system for Windows
+= Tutorial: creating a simple file system
 :toc: preamble
 :toc-title:
 ifdef::env-github[]
@@ -10,6 +10,17 @@ ifdef::env-github[]
 endif::[]
 
 In this tutorial we describe the process of creating a simple user mode file system using WinFsp. The file system we will create is called "passthrough", because it simply passes through the file system operations requested by the kernel to an underlying file system (usually NTFS).
+
+== Prerequisites
+
+This tutorial assumes that you have WinFsp and Visual Studio 2015 installed. The WinFsp installer can be downloaded from the WinFsp GitHub repository: https://github.com/billziss-gh/winfsp. The Microsoft Visual Studio Community 2015 can be downloaded for free from Microsoft's web site.
+
+When installing WinFsp make sure to choose "Developer" to ensure that all necessary header and library files are included in the installation.
+
+image::WinFsp-Tutorial/Installer.png[WinFsp Installer]
+
+With those prerequisites out of the way we are now ready to start creating our first file system.
+
 
 == Create the project skeleton
 
@@ -106,7 +117,7 @@ options:
     -m MountPoint       [X:|*|directory]
 ----
 
-The full code to handle these command line parameters is straight forward and is omitted for brevity. It can be found in the passthrough.c file. The code sets a number of variables that are used to configure each run of the passthrough file system.
+The full code to handle these command line parameters is straight forward and is omitted for brevity. It can be found in the passthrough.c sample file that ships with the WinFsp installer. The code sets a number of variables that are used to configure each run of the passthrough file system.
 
 .`*SvcStart excerpt*`
 [source,c]
@@ -118,7 +129,7 @@ The full code to handle these command line parameters is straight forward and is
     PWSTR MountPoint = 0;
 ----
 
-The variable `DebugLogFile` is used to control the WinFsp debug logging mechanism. This debug logging mechanism can send messages to the debugger for display or log them into a file. The behavior is controlled by a call to `FspDebugLogSetHandle`: if this call is not made any debug log messages will be sent to the debugger; if this call is made debug log messages will be logged into the specified file handle.
+The variable `DebugLogFile` is used to control the WinFsp debug logging mechanism. This mechanism can send messages to the debugger for display or log them into a file. The behavior is controlled by a call to `FspDebugLogSetHandle`: if this call is not made any debug log messages will be sent to the debugger; if this call is made debug log messages will be logged into the specified file handle.
 
 .`*SvcStart excerpt*`
 [source,c]
@@ -1100,7 +1111,7 @@ NOTE: The WinFsp kernel driver maintains a `DeletePending` flag for every open f
 
 === CanDelete
 
-There are two ways for deleting a file or directory on Windows. One is to supply the `FILE_FLAG_DELETE_ON_CLOSE` flag during a `CreateFileW` call. The other one is to use the `FileDispositionInfo` information class with a call to `SetInformationByHandle` (which is what `DeleteFileW` and `RemoveDirectory` effectively do). [It is also possible to delete an (unopened) file using `Rename` by we will ignore this case here.]
+There are two ways for deleting a file or directory on Windows. One is to supply the `FILE_FLAG_DELETE_ON_CLOSE` flag during a `CreateFileW` call. The other one is to use the `FileDispositionInfo` information class with a call to `SetInformationByHandle` (which is what `DeleteFileW` and `RemoveDirectoryW` effectively do). [It is also possible to delete an (unopened) file using `Rename` by we will ignore this case here.]
 
 `CanDelete` is called in the `FileDispositionInfo` case (only). In general `CanDelete` needs to check whether deleting the file or directory is allowed and return `STATUS_SUCCESS` or an appropriate status code. Most file systems need only check whether a directory is empty and disallow deletion by returning `STATUS_DIRECTORY_NOT_EMPTY` if it is not. `CanDelete` need *not* mark a file for deletion, this flag is maintained by the WinFsp kernel driver.
 
@@ -1237,13 +1248,13 @@ dirnotify_test......................... OK 1.01s
 <1> Run `winfsp-tests` with `--external`, `--resilient` switches which instructs it to run its external file system tests.
 <2> Disable tests that are not expected to pass because they test functionality that either we did not implement (`-reparse*`, `-stream*`) or is esoteric (`-create_allocation_test`, `-getfileinfo_name_test`, `-rename_flipflop_test`, `-rename_mmap_test`) or requires that the file system is run under an account with sufficient security rights (`-delete_access_test`).
 
-== Running it as a service
+== Running the file system as a service
 
 Our final task is to discuss how to convert our file system into a service that can be managed by the WinFsp launcher. This allows our file system to provide file services to all processes in the system.
 
 An important thing to consider is that our file system will be running in the SYSTEM account security context, which is different from the security context of any processes that want to use this file system. Recall that the passthrough file system is a simple layer over an underlying file system, therefore how the underlying file system handles security becomes important, particularly when the underlying file system is NTFS.
 
-For this reason we modify the passthrough file system to enable the "backup" and "restore" privileges which are available to a process running under the SYSTEM account. Enabling these privileges allows us to circumvent some NTFS access checks and simply use NTFS as a storage medium.
+For this reason we modify the passthrough file system to enable the "backup" and "restore" privileges which are available to a process running under the SYSTEM account. Enabling these privileges allows us to circumvent some NTFS access checks and simply use NTFS as a storage medium. With the `EnableBackupRestorePrivileges` implementation in place all that remains is to call it from `SvcStart`.
 
 .`*EnableBackupRestorePrivileges*`
 [source,c]
@@ -1281,24 +1292,16 @@ static NTSTATUS EnableBackupRestorePrivileges(VOID)
 }
 ----
 
-With the `EnableBackupRestorePrivileges` implementation in place all that remains is to call it from `SvcStart`.
-
-.`*SvcStart excerpt*`
-[source,c]
-----
-    EnableBackupRestorePrivileges();
-----
-
 We are now ready to register our file system to be managed by the WinFsp launcher. For this purpose we will use the `fsreg.bat` utility which can be found in the WinFsp `bin` directory. `Fsreg.bat` will create all necessary entries in the Windows registry.
 
 From an administrator prompt switch to the passthrough directory and run:
 
-.`*fsreg*`
+.`*fsreg.bat invocation*`
 ----
 fsreg.bat passthrough build\Debug\passthrough-x64.exe "-u %1 -m %2" "D:P(A;;RPWPLC;;;WD)"
 ----
 
-With this step complete we can now launch our file system from the command prompt.
+With this step complete we can now launch our file system from any command prompt.
 
 image::WinFsp-Tutorial/NetUse.png[First Run]
 
