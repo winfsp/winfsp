@@ -538,9 +538,14 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
 
         Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
         if (0 == Length)
-            return FspNtStatusFromWin32(GetLastError());
-        if (Length + 1 + PatternLength >= FULLPATH_SIZE)
-            return STATUS_OBJECT_NAME_INVALID;
+            DirBufferResult = FspNtStatusFromWin32(GetLastError());
+        else if (Length + 1 + PatternLength >= FULLPATH_SIZE)
+            DirBufferResult = STATUS_OBJECT_NAME_INVALID;
+        if (!NT_SUCCESS(DirBufferResult))
+        {
+            FspFileSystemReleaseDirectoryBuffer(&FileContext->DirBuffer);
+            return DirBufferResult;
+        }
 
         if (L'\\' != FullPath[Length - 1])
             FullPath[Length++] = L'\\';
