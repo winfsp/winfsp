@@ -17,7 +17,7 @@ Some of the benefits of using WinFsp are listed below:
 * Easy to understand but comprehensive API. Consult the [API Reference](http://www.secfs.net/winfsp/apiref/). There is also a simple [Tutorial](doc/WinFsp-Tutorial.asciidoc).
 * FUSE compatibility layer for native Windows and Cygwin. See [fuse.h](inc/fuse/fuse.h).
 * Signed drivers provided on every release.
-* Available under the GPLv3.
+* Available under the [GPLv3](License.txt) license with a special exception for Free/Libre and Open Source Software.
 
 To learn more about WinFsp, please visit its website: http://www.secfs.net/winfsp/
 
