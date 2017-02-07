@@ -79,4 +79,4 @@ If you wish to discuss WinFsp there are now two options:
 
 ## License
 
-WinFsp is available under the [GPLv3](http://www.gnu.org/licenses/gpl-3.0.html) license with a special exception for Free/Libre and Open Source Software. A commercial license is also available. Please contact Bill Zissimopoulos <billziss at navimatics.com> for more details.
+WinFsp is available under the [GPLv3](License.txt) license with a special exception for Free/Libre and Open Source Software. A commercial license is also available. Please contact Bill Zissimopoulos <billziss at navimatics.com> for more details.
