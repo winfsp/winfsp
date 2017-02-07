@@ -22,7 +22,7 @@
         <Media Id="1" Cabinet="WinFsp.cab" EmbedCab="yes" />
 
         <Property Id="P.LauncherName">$(var.MyProductName).Launcher</Property>
-        <Property Id="P.LauncherRegistryKey">SYSTEM\\CurrentControlSet\\Services\\$(var.MyProductName).Launcher\\Services</Property>
+        <Property Id="P.LauncherRegistryKey">Software\$(var.MyProductName)\Services</Property>
         <Property Id="P.RegistryKey">Software\$(var.MyProductName)</Property>
         <Property Id="INSTALLDIR">
             <RegistrySearch

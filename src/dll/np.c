@@ -284,7 +284,8 @@ static DWORD FspNpGetCredentialsKind(PWSTR RemoteName, PDWORD PCredentialsKind)
     memcpy(ClassNameBuf, ClassName, ClassNameLen * sizeof(WCHAR));
     ClassNameBuf[ClassNameLen] = '\0';
 
-    NpResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" LAUNCHER_REGKEY, 0, KEY_READ, &RegKey);
+    NpResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" LAUNCHER_REGKEY,
+        0, LAUNCHER_REGKEY_WOW64 | KEY_READ, &RegKey);
     if (ERROR_SUCCESS != NpResult)
         goto exit;
 

@@ -3,7 +3,7 @@
 setlocal
 setlocal EnableDelayedExpansion
 
-set RegKey=HKLM\SYSTEM\CurrentControlSet\Services\WinFsp.Launcher\Services
+set RegKey=HKLM\Software\WinFsp\Services
 
 if not X%1==X-u (
 	set unreg=0
@@ -16,9 +16,9 @@ if not X%1==X-u (
 	if X!fscmdl!==X goto usage
 	if not exist !fsexec! goto notfound
 
-	reg add !RegKey!\!fsname! /v Executable /t REG_SZ /d !fsexec! /f
-	reg add !RegKey!\!fsname! /v CommandLine /t REG_SZ /d !fscmdl! /f
-	if not X!fssecu!==X reg add !RegKey!\!fsname! /v Security /t REG_SZ /d !fssecu! /f
+	reg add !RegKey!\!fsname! /v Executable /t REG_SZ /d !fsexec! /f /reg:32
+	reg add !RegKey!\!fsname! /v CommandLine /t REG_SZ /d !fscmdl! /f /reg:32
+	if not X!fssecu!==X reg add !RegKey!\!fsname! /v Security /t REG_SZ /d !fssecu! /f /reg:32
 ) else (
 	set unreg=1
 
@@ -26,7 +26,7 @@ if not X%1==X-u (
 
 	if X!fsname!==X goto usage
 
-	reg delete !RegKey!\!fsname! /f
+	reg delete !RegKey!\!fsname! /f /reg:32
 )
 
 exit /b 0

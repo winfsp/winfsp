@@ -21,7 +21,8 @@
 #include <winfsp/winfsp.h>
 #include <shared/minimal.h>
 
-#define LAUNCHER_REGKEY                 "SYSTEM\\CurrentControlSet\\Services\\WinFsp.Launcher\\Services"
+#define LAUNCHER_REGKEY                 "Software\\WinFsp\\Services"
+#define LAUNCHER_REGKEY_WOW64           KEY_WOW64_32KEY
 
 #define LAUNCHER_STOP_TIMEOUT           5500
 #define LAUNCHER_KILL_TIMEOUT           5000

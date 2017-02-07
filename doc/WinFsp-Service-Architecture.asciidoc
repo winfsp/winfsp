@@ -20,19 +20,21 @@ In order to overcome the issue with launching multiple instances of a particular
 
 Services that wish to be controlled by the WinFsp.Launcher must add themselves under the following registry key:
 
-    HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WinFsp.Launcher\Services
+    HKEY_LOCAL_MACHINE\Software\WinFsp\Services
 
-For example, the MEMFS sample adds the following registry entries under this key:
+NOTE: Please note that in a 64-bit system the actual location is `HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\WinFsp\Services`.
 
-    [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WinFsp.Launcher\Services\memfs32]
+For example, the MEMFS sample adds the following registry entries in a 64-bit system:
+
+    [HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\WinFsp\Services\memfs32]
     "Executable"="C:\\Program Files (x86)\\WinFsp\\bin\\memfs-x86.exe"
-    "CommandLine"="-u %1 -m %2"
+    "CommandLine"="-i -F NTFS -n 65536 -s 67108864 -u %1 -m %2"
     "Security"="D:P(A;;RPWPLC;;;WD)"
     "JobControl"=dword:00000001
 
-    [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WinFsp.Launcher\Services\memfs64]
+    [HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\WinFsp\Services\memfs64]
     "Executable"="C:\\Program Files (x86)\\WinFsp\\bin\\memfs-x64.exe"
-    "CommandLine"="-u %1 -m %2"
+    "CommandLine"="-i -F NTFS -n 65536 -s 67108864 -u %1 -m %2"
     "Security"="D:P(A;;RPWPLC;;;WD)"
     "JobControl"=dword:00000001
 
