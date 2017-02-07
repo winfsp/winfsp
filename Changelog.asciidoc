@@ -5,7 +5,7 @@ v1.0RC2::
 
 This is the WinFsp 2017 Release Candidate 2. Some important changes included below:
 
-- Despite stating in the previous release that the API has been finalized the `ReadDirectory` `FSP_FILE_SYSTEM_INTERFACE` operation has been changed. Extensive testing with multiple file systems has shown that `ReadDirectory` was hard to implement correctly. The new definition should make implementation easier for most file system. [See GitHub issue #34.]
+- Despite stating in the previous release that the API has been finalized the `ReadDirectory` `FSP_FILE_SYSTEM_INTERFACE` operation has been changed. Extensive testing with multiple file systems has shown that `ReadDirectory` was hard to implement correctly. The new definition should make implementation easier for most file systems. [See GitHub issue #34.]
 - Some API's to facilitate `ReadDirectory` implementation have been added. Look for `FspFileSystem*DirectoryBuffer` symbols.
 - The installer now (optionally) installs a sample file system called "passthrough". This is a simple file system that passes all operations to an underlying file system. There is also a tutorial for this file system (in the doc directory).
 - The installer now (optionally) installs a sample file system called "passthrough-fuse". This file system performs the same function as the "passthrough" file system, but uses the FUSE compatibility layer. It builds and runs on both Windows and Cygwin.
