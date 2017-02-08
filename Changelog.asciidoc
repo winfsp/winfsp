@@ -6,6 +6,7 @@ v1.0RC2::
 This is the WinFsp 2017 Release Candidate 2. Some important changes included below:
 
 - WinFsp is now available under the GPLv3 with a special exception for Free/Libre and Open Source Software.
+- The location of the WinFsp launcher registry entries is now `HKEY_LOCAL_MACHINE\Software\WinFsp\Services`. [On Win64 the actual location is `HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\WinFsp\Services`.] This change was necessary to avoid loss of third party file system registry entries during WinFsp uninstallation. [See GitHub issue #31.]
 - Despite stating in the previous release that the API has been finalized the `ReadDirectory` `FSP_FILE_SYSTEM_INTERFACE` operation has been changed. Extensive testing with multiple file systems has shown that `ReadDirectory` was hard to implement correctly. The new definition should make implementation easier for most file systems. [See GitHub issue #34.]
 - Some API's to facilitate `ReadDirectory` implementation have been added. Look for `FspFileSystem*DirectoryBuffer` symbols.
 - The installer now (optionally) installs a sample file system called "passthrough". This is a simple file system that passes all operations to an underlying file system. There is also a tutorial for this file system (in the doc directory).
