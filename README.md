@@ -45,19 +45,22 @@ The project source code is organized as follows:
 
 In order to build WinFsp you will need the following:
 
-* Windows 10
 * Visual Studio 2015
 * Windows Driver Kit (WDK) 10
 * [Wix toolset](http://wixtoolset.org)
 
-If you build the driver yourself it will not be signed and Windows will refuse to load it unless you enable "testsigning". You can enable "testsigning" using the command `bcdedit.exe -set testsigning`. For more information see this [document](http://www.secfs.net/winfsp/develop/debug/).
+In order to fully build WinFsp (including the installer) you must use `tools\build.bat`. By default it builds a Release build, but you can choose either the Debug or Release configuration by using the syntax:
 
-WinFsp is designed to run on Vista and above. It has been tested on the following platforms so far:
+    tools\build.bat CONFIGURATION
+
+If you build the driver yourself it will not be signed and Windows will refuse to load it unless you enable "testsigning". You can enable "testsigning" using the command `bcdedit.exe -set testsigning on`. For more information see this [document](http://www.secfs.net/winfsp/develop/debug/).
+
+WinFsp is designed to run on Windows 7 and above. It has been tested on the following platforms:
 
 * Windows 7 Enterprise
 * Windows 8 Pro
-* Windows 10 Pro
 * Windows Server 2012
+* Windows 10 Pro
 * Windows Server 2016
 
 ## How to Help
