@@ -49,7 +49,7 @@ In order to build WinFsp you will need the following:
 * Windows Driver Kit (WDK) 10
 * [Wix toolset](http://wixtoolset.org)
 
-In order to fully build WinFsp (including the installer) you must use `tools\build.bat`. By default it builds a Release build, but you can choose either the Debug or Release configuration by using the syntax:
+To fully build WinFsp (including the installer) you must use `tools\build.bat`. By default it builds a Release build, but you can choose either the Debug or Release configuration by using the syntax:
 
     tools\build.bat CONFIGURATION
 
