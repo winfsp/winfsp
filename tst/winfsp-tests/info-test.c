@@ -1116,6 +1116,113 @@ void rename_mmap_test(void)
     }
 }
 
+static void rename_standby_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle, Mapping0, Mapping1;
+    PUINT8 MappedView0, MappedView1;
+    BOOL Success;
+    WCHAR Dir1Path[MAX_PATH];
+    WCHAR Dir2Path[MAX_PATH];
+    WCHAR File0Path[MAX_PATH];
+    WCHAR File1Path[MAX_PATH];
+    SYSTEM_INFO SystemInfo;
+
+    GetSystemInfo(&SystemInfo);
+
+    StringCbPrintfW(Dir1Path, sizeof Dir1Path, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(Dir2Path, sizeof Dir2Path, L"%s%s\\dir2",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File0Path, sizeof File0Path, L"%s%s\\dir1\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File1Path, sizeof File1Path, L"%s%s\\dir1\\file1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(Dir1Path, 0);
+    ASSERT(Success);
+
+    Handle = CreateFileW(File0Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Mapping0 = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+        0, 16 * SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping0);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+    MappedView0 = MapViewOfFile(Mapping0, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    ASSERT(0 != MappedView0);
+    for (PUINT8 P = MappedView0, EndP = P + 16 * SystemInfo.dwAllocationGranularity; EndP > P; P++)
+        *P = 0x42;
+    Success = UnmapViewOfFile(MappedView0);
+    ASSERT(Success);
+    Success = CloseHandle(Mapping0);
+    ASSERT(Success);
+
+    Handle = CreateFileW(File1Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Mapping1 = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+        0, 16 * SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping1);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+    MappedView1 = MapViewOfFile(Mapping1, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    ASSERT(0 != MappedView1);
+    for (PUINT8 P = MappedView1, EndP = P + 16 * SystemInfo.dwAllocationGranularity; EndP > P; P++)
+        *P = 0x42;
+    Success = UnmapViewOfFile(MappedView1);
+    ASSERT(Success);
+    Success = CloseHandle(Mapping1);
+    ASSERT(Success);
+
+    Success = MoveFileExW(Dir1Path, Dir2Path, MOVEFILE_REPLACE_EXISTING);
+    ASSERT(Success);
+    Success = MoveFileExW(Dir2Path, Dir1Path, MOVEFILE_REPLACE_EXISTING);
+    ASSERT(Success);
+
+    Success = DeleteFileW(File0Path);
+    ASSERT(Success);
+
+    Success = DeleteFileW(File1Path);
+    ASSERT(Success);
+
+    Success = RemoveDirectoryW(Dir1Path);
+    ASSERT(Success);
+
+    Success = RemoveDirectoryW(Dir1Path);
+    ASSERT(!Success);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    memfs_stop(memfs);
+}
+
+void rename_standby_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        rename_standby_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        rename_standby_dotest(MemfsDisk, 0, 0);
+        rename_standby_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        rename_standby_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        rename_standby_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -1338,6 +1445,7 @@ void info_tests(void)
         TEST(rename_flipflop_test);
     if (!OptShareName)
         TEST(rename_mmap_test);
+    TEST(rename_standby_test);
     TEST(getvolinfo_test);
     TEST(setvolinfo_test);
 }
