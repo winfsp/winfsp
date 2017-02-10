@@ -19,6 +19,7 @@
 #include <tlib/testsuite.h>
 #include <sddl.h>
 #include <strsafe.h>
+#include <time.h>
 #include "memfs.h"
 
 #include "winfsp-tests.h"
@@ -1128,6 +1129,7 @@ static void rename_standby_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeo
     WCHAR File0Path[MAX_PATH];
     WCHAR File1Path[MAX_PATH];
     SYSTEM_INFO SystemInfo;
+    unsigned seed = (unsigned)time(0);
 
     GetSystemInfo(&SystemInfo);
 
@@ -1146,6 +1148,8 @@ static void rename_standby_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeo
     Success = CreateDirectoryW(Dir1Path, 0);
     ASSERT(Success);
 
+    srand(seed);
+
     Handle = CreateFileW(File0Path,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
         CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
@@ -1158,7 +1162,7 @@ static void rename_standby_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeo
     MappedView0 = MapViewOfFile(Mapping0, FILE_MAP_ALL_ACCESS, 0, 0, 0);
     ASSERT(0 != MappedView0);
     for (PUINT8 P = MappedView0, EndP = P + 16 * SystemInfo.dwAllocationGranularity; EndP > P; P++)
-        *P = 0x42;
+        *P = rand() & 0xff;
     Success = UnmapViewOfFile(MappedView0);
     ASSERT(Success);
     Success = CloseHandle(Mapping0);
@@ -1176,7 +1180,7 @@ static void rename_standby_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeo
     MappedView1 = MapViewOfFile(Mapping1, FILE_MAP_ALL_ACCESS, 0, 0, 0);
     ASSERT(0 != MappedView1);
     for (PUINT8 P = MappedView1, EndP = P + 16 * SystemInfo.dwAllocationGranularity; EndP > P; P++)
-        *P = 0x42;
+        *P = rand() & 0xff;
     Success = UnmapViewOfFile(MappedView1);
     ASSERT(Success);
     Success = CloseHandle(Mapping1);
@@ -1184,7 +1188,96 @@ static void rename_standby_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeo
 
     Success = MoveFileExW(Dir1Path, Dir2Path, MOVEFILE_REPLACE_EXISTING);
     ASSERT(Success);
+
+    StringCbPrintfW(File0Path, sizeof File0Path, L"%s%s\\dir2\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File1Path, sizeof File1Path, L"%s%s\\dir2\\file1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    srand(seed);
+
+    Handle = CreateFileW(File0Path,
+        GENERIC_READ, FILE_SHARE_READ, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Mapping0 = CreateFileMappingW(Handle, 0, PAGE_READONLY,
+        0, 16 * SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping0);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+    MappedView0 = MapViewOfFile(Mapping0, FILE_MAP_READ, 0, 0, 0);
+    ASSERT(0 != MappedView0);
+    for (PUINT8 P = MappedView0, EndP = P + 16 * SystemInfo.dwAllocationGranularity; EndP > P; P++)
+        ASSERT(*P == (rand() & 0xff));
+    Success = UnmapViewOfFile(MappedView0);
+    ASSERT(Success);
+    Success = CloseHandle(Mapping0);
+    ASSERT(Success);
+
+    Handle = CreateFileW(File1Path,
+        GENERIC_READ, FILE_SHARE_READ, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Mapping1 = CreateFileMappingW(Handle, 0, PAGE_READONLY,
+        0, 16 * SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping1);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+    MappedView1 = MapViewOfFile(Mapping1, FILE_MAP_READ, 0, 0, 0);
+    ASSERT(0 != MappedView1);
+    for (PUINT8 P = MappedView1, EndP = P + 16 * SystemInfo.dwAllocationGranularity; EndP > P; P++)
+        ASSERT(*P == (rand() & 0xff));
+    Success = UnmapViewOfFile(MappedView1);
+    ASSERT(Success);
+    Success = CloseHandle(Mapping1);
+    ASSERT(Success);
+
     Success = MoveFileExW(Dir2Path, Dir1Path, MOVEFILE_REPLACE_EXISTING);
+    ASSERT(Success);
+
+    StringCbPrintfW(File0Path, sizeof File0Path, L"%s%s\\dir1\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File1Path, sizeof File1Path, L"%s%s\\dir1\\file1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    srand(seed);
+
+    Handle = CreateFileW(File0Path,
+        GENERIC_READ, FILE_SHARE_READ, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Mapping0 = CreateFileMappingW(Handle, 0, PAGE_READONLY,
+        0, 16 * SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping0);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+    MappedView0 = MapViewOfFile(Mapping0, FILE_MAP_READ, 0, 0, 0);
+    ASSERT(0 != MappedView0);
+    for (PUINT8 P = MappedView0, EndP = P + 16 * SystemInfo.dwAllocationGranularity; EndP > P; P++)
+        ASSERT(*P == (rand() & 0xff));
+    Success = UnmapViewOfFile(MappedView0);
+    ASSERT(Success);
+    Success = CloseHandle(Mapping0);
+    ASSERT(Success);
+
+    Handle = CreateFileW(File1Path,
+        GENERIC_READ, FILE_SHARE_READ, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Mapping1 = CreateFileMappingW(Handle, 0, PAGE_READONLY,
+        0, 16 * SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping1);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+    MappedView1 = MapViewOfFile(Mapping1, FILE_MAP_READ, 0, 0, 0);
+    ASSERT(0 != MappedView1);
+    for (PUINT8 P = MappedView1, EndP = P + 16 * SystemInfo.dwAllocationGranularity; EndP > P; P++)
+        ASSERT(*P == (rand() & 0xff));
+    Success = UnmapViewOfFile(MappedView1);
+    ASSERT(Success);
+    Success = CloseHandle(Mapping1);
     ASSERT(Success);
 
     Success = DeleteFileW(File0Path);
