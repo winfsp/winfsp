@@ -1280,10 +1280,53 @@ static void rename_standby_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeo
     Success = CloseHandle(Mapping1);
     ASSERT(Success);
 
-    Success = DeleteFileW(File0Path);
+    Success = MoveFileExW(File0Path, File1Path, MOVEFILE_REPLACE_EXISTING);
     ASSERT(Success);
 
-    Success = DeleteFileW(File1Path);
+    srand(seed);
+
+    Handle = CreateFileW(File1Path,
+        GENERIC_READ, FILE_SHARE_READ, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Mapping1 = CreateFileMappingW(Handle, 0, PAGE_READONLY,
+        0, 16 * SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping1);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+    MappedView1 = MapViewOfFile(Mapping1, FILE_MAP_READ, 0, 0, 0);
+    ASSERT(0 != MappedView1);
+    for (PUINT8 P = MappedView1, EndP = P + 16 * SystemInfo.dwAllocationGranularity; EndP > P; P++)
+        ASSERT(*P == (rand() & 0xff));
+    Success = UnmapViewOfFile(MappedView1);
+    ASSERT(Success);
+    Success = CloseHandle(Mapping1);
+    ASSERT(Success);
+
+    Success = MoveFileExW(File1Path, File0Path, MOVEFILE_REPLACE_EXISTING);
+    ASSERT(Success);
+
+    srand(seed);
+
+    Handle = CreateFileW(File0Path,
+        GENERIC_READ, FILE_SHARE_READ, 0,
+        OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Mapping0 = CreateFileMappingW(Handle, 0, PAGE_READONLY,
+        0, 16 * SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping0);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+    MappedView0 = MapViewOfFile(Mapping0, FILE_MAP_READ, 0, 0, 0);
+    ASSERT(0 != MappedView0);
+    for (PUINT8 P = MappedView0, EndP = P + 16 * SystemInfo.dwAllocationGranularity; EndP > P; P++)
+        ASSERT(*P == (rand() & 0xff));
+    Success = UnmapViewOfFile(MappedView0);
+    ASSERT(Success);
+    Success = CloseHandle(Mapping0);
+    ASSERT(Success);
+
+    Success = DeleteFileW(File0Path);
     ASSERT(Success);
 
     Success = RemoveDirectoryW(Dir1Path);
@@ -1308,11 +1351,13 @@ void rename_standby_test(void)
     {
         rename_standby_dotest(MemfsDisk, 0, 0);
         rename_standby_dotest(MemfsDisk, 0, 1000);
+        rename_standby_dotest(MemfsDisk, 0, INFINITE);
     }
     if (WinFspNetTests)
     {
         rename_standby_dotest(MemfsNet, L"\\\\memfs\\share", 0);
         rename_standby_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+        rename_standby_dotest(MemfsDisk, 0, INFINITE);
     }
 }
 
