@@ -80,8 +80,18 @@ static NTSTATUS FspFsvolClose(
     FspFileDescDelete(FileDesc); /* this will also close the MainFileObject if any */
     FspFileNodeDereference(FileNode);
 
+    /* if we are closing files in the context of a rename make it synchronous */
+    if (FspFsvolDeviceFileRenameIsAcquiredExclusive(FsvolDeviceObject))
+    {
+        /* acquire ownership of the Request */
+        Request->Hint = (UINT_PTR)Irp;
+        FspIrpSetRequest(Irp, Request);
+
+        return FSP_STATUS_IOQ_POST_BEST_EFFORT;
+    }
+
     /*
-     * Post as a BestEffort work request. This allows us to complete our own IRP
+     * Post as a BestEffort WORK request. This allows us to complete our own IRP
      * and return immediately.
      */
     FspIopPostWorkRequestBestEffort(FsvolDeviceObject, Request);

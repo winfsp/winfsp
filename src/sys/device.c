@@ -41,6 +41,7 @@ VOID FspFsvolDeviceFileRenameAcquireExclusive(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameSetOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
 VOID FspFsvolDeviceFileRenameRelease(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameReleaseOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
+BOOLEAN FspFsvolDeviceFileRenameIsAcquiredExclusive(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
 NTSTATUS FspFsvolDeviceCopyContextList(PDEVICE_OBJECT DeviceObject,
@@ -80,6 +81,7 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceFileRenameSetOwner)
 #pragma alloc_text(PAGE, FspFsvolDeviceFileRenameRelease)
 #pragma alloc_text(PAGE, FspFsvolDeviceFileRenameReleaseOwner)
+#pragma alloc_text(PAGE, FspFsvolDeviceFileRenameIsAcquiredExclusive)
 #pragma alloc_text(PAGE, FspFsvolDeviceLockContextTable)
 #pragma alloc_text(PAGE, FspFsvolDeviceUnlockContextTable)
 #pragma alloc_text(PAGE, FspFsvolDeviceCopyContextList)
@@ -572,6 +574,15 @@ VOID FspFsvolDeviceFileRenameReleaseOwner(PDEVICE_OBJECT DeviceObject, PVOID Own
         ExReleaseResourceLite(&FsvolDeviceExtension->FileRenameResource);
     else
         ExReleaseResourceForThreadLite(&FsvolDeviceExtension->FileRenameResource, (ERESOURCE_THREAD)Owner);
+}
+
+BOOLEAN FspFsvolDeviceFileRenameIsAcquiredExclusive(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+
+    return ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->FileRenameResource);
 }
 
 VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject)

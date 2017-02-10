@@ -1243,6 +1243,50 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
         }
     }
 
+    /* flush and purge cleaned up but still open files affected by rename (github issue #45) */
+    {
+        PIRP TopLevelIrp;
+        IO_STATUS_BLOCK IoStatus;
+
+        /* reset the top-level IRP to avoid deadlock on the FileNodes' resources */
+        TopLevelIrp = IoGetTopLevelIrp();
+        IoSetTopLevelIrp(0);
+
+        /* enumerate in reverse order so that files are flushed before containing directories */
+        for (
+            DescendantFileNodeIndex = DescendantFileNodeCount - 1;
+            DescendantFileNodeCount > DescendantFileNodeIndex;
+            DescendantFileNodeIndex--)
+        {
+            DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
+            HasHandles = (UINT_PTR)DescendantFileNode & 1;
+            DescendantFileNode = (PVOID)((UINT_PTR)DescendantFileNode & ~7);
+
+            if (HasHandles)
+                continue;
+            if (CheckingOldName &&
+                (DescendantFileNode->FileName.Length <= FileName->Length ||
+                    L'\\' != DescendantFileNode->FileName.Buffer[FileName->Length / sizeof(WCHAR)]))
+                continue;
+            if (MmDoesFileHaveUserWritableReferences(&DescendantFileNode->NonPaged->SectionObjectPointers))
+                continue;
+
+            /*
+             * There are no handles and no writable user mappings. [Ideally we would want to know
+             * that there are no handles and no user mappings, period. Is there an DDI/method to
+             * do that?] There may be a read-only user mapping, but in this case CcFlushCache
+             * should be a no-op and MmForceSectionClosed will fail (which is fine).
+             */
+
+            ASSERT(DescendantFileNode != FileNode && DescendantFileNode->MainFileNode != FileNode);
+
+            FspCcFlushCache(&DescendantFileNode->NonPaged->SectionObjectPointers, 0, 0, &IoStatus);
+            MmForceSectionClosed(&DescendantFileNode->NonPaged->SectionObjectPointers, FALSE);
+        }
+
+        IoSetTopLevelIrp(TopLevelIrp);
+    }
+
     /* break any Batch or Handle oplocks on descendants */
     Result = STATUS_SUCCESS;
     for (
