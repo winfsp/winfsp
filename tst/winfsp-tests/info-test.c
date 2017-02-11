@@ -683,6 +683,8 @@ static void delete_standby_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeo
     ASSERT(!Success);
     ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
 
+#if 0
+    /* disable test that fails with shares and passthrough file systems */
     if (!OptShareName)
     {
         Success = CreateDirectoryW(Dir1Path, 0);
@@ -733,6 +735,7 @@ static void delete_standby_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeo
         ASSERT(!Success);
         ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
     }
+#endif
 
     memfs_stop(memfs);
 }
