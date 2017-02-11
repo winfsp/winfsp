@@ -683,6 +683,54 @@ static void delete_standby_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeo
     ASSERT(!Success);
     ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
 
+    Success = CreateDirectoryW(Dir1Path, 0);
+    ASSERT(Success);
+
+    srand(seed);
+
+    Handle = CreateFileW(File0Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Mapping0 = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+        0, 16 * SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping0);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+    MappedView0 = MapViewOfFile(Mapping0, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    ASSERT(0 != MappedView0);
+    for (PUINT8 P = MappedView0, EndP = P + 16 * SystemInfo.dwAllocationGranularity; EndP > P; P++)
+        *P = rand() & 0xff;
+    Success = UnmapViewOfFile(MappedView0);
+    ASSERT(Success);
+    Success = CloseHandle(Mapping0);
+    ASSERT(Success);
+
+    Handle = CreateFileW(File1Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Mapping1 = CreateFileMappingW(Handle, 0, PAGE_READWRITE,
+        0, 16 * SystemInfo.dwAllocationGranularity, 0);
+    ASSERT(0 != Mapping1);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+    MappedView1 = MapViewOfFile(Mapping1, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    ASSERT(0 != MappedView1);
+    for (PUINT8 P = MappedView1, EndP = P + 16 * SystemInfo.dwAllocationGranularity; EndP > P; P++)
+        *P = rand() & 0xff;
+    Success = UnmapViewOfFile(MappedView1);
+    ASSERT(Success);
+    Success = CloseHandle(Mapping1);
+    ASSERT(Success);
+
+    Success = RemoveDirectoryW(Dir1Path);
+    ASSERT(Success);
+
+    Success = RemoveDirectoryW(Dir1Path);
+    ASSERT(!Success);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
     memfs_stop(memfs);
 }
 
