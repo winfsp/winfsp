@@ -79,6 +79,9 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\dirbuf-test.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\tst\winfsp-tests\exec-test.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\ext\tlib\testsuite.h">
@@ -90,5 +93,10 @@
     <ClInclude Include="..\..\..\tst\winfsp-tests\winfsp-tests.h">
       <Filter>Source</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\..\..\tst\winfsp-tests\helper\winfsp-tests-helper.rc">
+      <Filter>Source</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

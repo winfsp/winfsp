@@ -194,6 +194,7 @@ int main(int argc, char *argv[])
     TESTSUITE(flush_tests);
     TESTSUITE(lock_tests);
     TESTSUITE(dirctl_tests);
+    TESTSUITE(exec_tests);
     TESTSUITE(reparse_tests);
     TESTSUITE(stream_tests);
     TESTSUITE(oplock_tests);
