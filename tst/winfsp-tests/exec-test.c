@@ -320,6 +320,9 @@ static void exec_rename_dir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTime
 
 static void exec_rename_dir_test(void)
 {
+    if (OptShareName)
+        return;
+
     if (NtfsTests)
     {
         WCHAR DirBuf[MAX_PATH];
@@ -344,5 +347,6 @@ void exec_tests(void)
     TEST(exec_delete_test);
     if (!OptShareName)
         TEST(exec_rename_test);
-    TEST(exec_rename_dir_test);
+    if (!OptShareName)
+        TEST(exec_rename_dir_test);
 }
