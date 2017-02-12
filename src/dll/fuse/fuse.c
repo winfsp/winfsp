@@ -479,6 +479,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
 
     memset(&opt_data, 0, sizeof opt_data);
     opt_data.env = env;
+    opt_data.VolumeParams.FileInfoTimeout = 1000;   /* default FileInfoTimeout for FUSE file systems */
 
     if (-1 == fsp_fuse_opt_parse(env, args, &opt_data, fsp_fuse_core_opts, fsp_fuse_core_opt_proc))
         return 0;
