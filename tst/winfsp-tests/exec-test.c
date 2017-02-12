@@ -283,9 +283,62 @@ static void exec_rename_test(void)
     }
 }
 
+static void exec_rename_dir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    WCHAR Dir1Path[MAX_PATH], Dir2Path[MAX_PATH], FilePath[MAX_PATH];
+    HANDLE Process;
+
+    StringCbPrintfW(Dir1Path, sizeof Dir1Path, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(Dir2Path, sizeof Dir2Path, L"%s%s\\dir2",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\helper.exe",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    ASSERT(CreateDirectoryW(Dir1Path, 0));
+
+    ExecHelper(FilePath, 1000, &Process);
+
+    ASSERT(MoveFileExW(Dir1Path, Dir2Path, MOVEFILE_REPLACE_EXISTING));
+    ASSERT(MoveFileExW(Dir2Path, Dir1Path, MOVEFILE_REPLACE_EXISTING));
+
+    WaitHelper(Process, 1000);
+
+    ASSERT(DeleteFileW(FilePath));
+
+    ASSERT(RemoveDirectoryW(Dir1Path));
+
+    memfs_stop(memfs);
+}
+
+static void exec_rename_dir_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        exec_rename_dir_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        exec_rename_dir_dotest(MemfsDisk, 0, 0);
+        exec_rename_dir_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        exec_rename_dir_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        exec_rename_dir_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 void exec_tests(void)
 {
     TEST(exec_test);
     TEST(exec_delete_test);
     TEST(exec_rename_test);
+    TEST(exec_rename_dir_test);
 }
