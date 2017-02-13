@@ -32,9 +32,7 @@ struct fsp_fuse_core_opt_data
 {
     struct fsp_fuse_env *env;
     int help, debug;
-    int hard_remove,
-        use_ino, readdir_ino,
-        set_umask, umask,
+    int set_umask, umask,
         set_uid, uid,
         set_gid, gid,
         set_attr_timeout, attr_timeout,
@@ -56,9 +54,9 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("-d", debug, 1),
     FSP_FUSE_CORE_OPT("debug", debug, 1),
 
-    FSP_FUSE_CORE_OPT("hard_remove", hard_remove, 1),
-    FSP_FUSE_CORE_OPT("use_ino", use_ino, 1),
-    FSP_FUSE_CORE_OPT("readdir_ino", readdir_ino, 1),
+    FUSE_OPT_KEY("hard_remove", FUSE_OPT_KEY_DISCARD),
+    FUSE_OPT_KEY("use_ino", FUSE_OPT_KEY_DISCARD),
+    FUSE_OPT_KEY("readdir_ino", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("direct_io", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("kernel_cache", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("auto_cache", FUSE_OPT_KEY_DISCARD),
