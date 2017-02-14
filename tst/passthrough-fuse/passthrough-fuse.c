@@ -207,12 +207,14 @@ static int ptfs_releasedir(const char *path, struct fuse_file_info *fi)
 
 static void *ptfs_init(struct fuse_conn_info *conn)
 {
-#if 0 && defined(FSP_FUSE_CAP_READDIR_PLUS)
+#if defined(_WIN64) || defined(_WIN32)
+#if defined(FSP_FUSE_CAP_READDIR_PLUS)
     conn->want |= (conn->capable & FSP_FUSE_CAP_READDIR_PLUS);
 #endif
 
-#if 0 && defined(FSP_FUSE_CAP_CASE_INSENSITIVE)
+#if defined(FSP_FUSE_CAP_CASE_INSENSITIVE)
     conn->want |= (conn->capable & FSP_FUSE_CAP_CASE_INSENSITIVE);
+#endif
 #endif
 
     return fuse_get_context()->private_data;
