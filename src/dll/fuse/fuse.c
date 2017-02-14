@@ -87,17 +87,10 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("MaxComponentLength=%hu", VolumeParams.MaxComponentLength, 0),
     FSP_FUSE_CORE_OPT("VolumeCreationTime=%lli", VolumeParams.VolumeCreationTime, 0),
     FSP_FUSE_CORE_OPT("VolumeSerialNumber=%lx", VolumeParams.VolumeSerialNumber, 0),
-    FSP_FUSE_CORE_OPT("TransactTimeout=%u", VolumeParams.TransactTimeout, 0),
-    FSP_FUSE_CORE_OPT("IrpTimeout=%u", VolumeParams.IrpTimeout, 0),
-    FSP_FUSE_CORE_OPT("IrpCapacity=%u", VolumeParams.IrpCapacity, 0),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=", set_FileInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=%d", VolumeParams.FileInfoTimeout, 0),
     FSP_FUSE_CORE_OPT("CaseInsensitiveSearch", CaseInsensitiveSearch, 1),
     FSP_FUSE_CORE_OPT("ReadOnlyVolume", ReadOnlyVolume, 1),
-    FUSE_OPT_KEY("ReparsePoints", FUSE_OPT_KEY_DISCARD),
-    FUSE_OPT_KEY("NamedStreams", FUSE_OPT_KEY_DISCARD),
-    FUSE_OPT_KEY("HardLinks", FUSE_OPT_KEY_DISCARD),
-    FUSE_OPT_KEY("ExtendedAttributes", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("--UNC=", 'U'),
     FUSE_OPT_KEY("--VolumePrefix=", 'U'),
     FUSE_OPT_KEY("--FileSystemName=", 'F'),
@@ -276,10 +269,12 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
             goto fail;
         }
 
-        if (stbuf.f_frsize > FSP_FUSE_SECTORSIZE_MAX)
-            stbuf.f_frsize = FSP_FUSE_SECTORSIZE_MAX;
-        if (0 == f->VolumeParams.SectorSize)
+        if (0 == f->VolumeParams.SectorSize && 0 != stbuf.f_frsize)
             f->VolumeParams.SectorSize = (UINT16)stbuf.f_frsize;
+#if 0
+        if (0 == f->VolumeParams.SectorsPerAllocationUnit && 0 != stbuf.f_frsize)
+            f->VolumeParams.SectorsPerAllocationUnit = (UINT16)(stbuf.f_bsize / stbuf.f_frsize);
+#endif
         if (0 == f->VolumeParams.MaxComponentLength)
             f->VolumeParams.MaxComponentLength = (UINT16)stbuf.f_namemax;
     }
@@ -311,9 +306,8 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     }
 
     /* the FSD does not currently limit these VolumeParams fields; do so here! */
-    if (f->VolumeParams.SectorSize < FSP_FUSE_SECTORSIZE_MIN)
-        f->VolumeParams.SectorSize = FSP_FUSE_SECTORSIZE_MIN;
-    if (f->VolumeParams.SectorSize > FSP_FUSE_SECTORSIZE_MAX)
+    if (f->VolumeParams.SectorSize < FSP_FUSE_SECTORSIZE_MIN ||
+        f->VolumeParams.SectorSize > FSP_FUSE_SECTORSIZE_MAX)
         f->VolumeParams.SectorSize = FSP_FUSE_SECTORSIZE_MAX;
     if (f->VolumeParams.SectorsPerAllocationUnit == 0)
         f->VolumeParams.SectorsPerAllocationUnit = 1;
@@ -417,14 +411,13 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
     case 'h':
         FspServiceLog(EVENTLOG_ERROR_TYPE, L""
             FSP_FUSE_LIBRARY_NAME " options:\n"
-            "    -o SectorSize=N        sector size for Windows (512-4096, deflt: 512)\n"
-            "    -o SectorsPerAllocationUnit=N  allocation unit size (deflt: 1*SectorSize)\n"
+            "    -o SectorSize=N            sector size for Windows (512-4096, deflt: 4096)\n"
+            "    -o SectorsPerAllocationUnit=N  sectors per allocation unit (deflt: 1)\n"
             "    -o MaxComponentLength=N    max file name component length (deflt: 255)\n"
             "    -o VolumeCreationTime=T    volume creation time (FILETIME hex format)\n"
             "    -o VolumeSerialNumber=N    32-bit wide\n"
             "    -o FileInfoTimeout=N       FileInfo/Security/VolumeInfo timeout (millisec)\n"
             "    -o CaseInsensitiveSearch   file system supports case-insensitive file names\n"
-            //"    -o ReadOnlyVolume          file system is read only\n"
             "    --UNC=U --VolumePrefix=U   UNC prefix (\\Server\\Share)\n"
             "    --FileSystemName=FSN       Name of user mode file system\n");
         opt_data->help = 1;
