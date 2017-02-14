@@ -40,12 +40,13 @@ struct fuse
     int rellinks;
     struct fuse_operations ops;
     void *data;
+    unsigned conn_want;
+    BOOLEAN fsinit;
     UINT32 DebugLog;
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     PWSTR MountPoint;
     FSP_FILE_SYSTEM *FileSystem;
-    BOOLEAN fsinit;
     FSP_SERVICE *Service; /* weak */
 };
 
@@ -66,8 +67,12 @@ struct fsp_fuse_file_desc
 
 struct fuse_dirhandle
 {
+    /* ReadDirectory */
     struct fsp_fuse_file_desc *filedesc;
+    FSP_FILE_SYSTEM *FileSystem;
+    BOOLEAN ReaddirPlus;
     NTSTATUS Result;
+    /* CanDelete */
     BOOLEAN DotFiles, HasChild;
 };
 

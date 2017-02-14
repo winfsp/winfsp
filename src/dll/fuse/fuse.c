@@ -38,8 +38,6 @@ struct fsp_fuse_core_opt_data
         set_attr_timeout, attr_timeout,
         rellinks;
     int set_FileInfoTimeout;
-    int CaseInsensitiveSearch,
-        ReadOnlyVolume;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
 };
 
@@ -89,8 +87,6 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("VolumeSerialNumber=%lx", VolumeParams.VolumeSerialNumber, 0),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=", set_FileInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=%d", VolumeParams.FileInfoTimeout, 0),
-    FSP_FUSE_CORE_OPT("CaseInsensitiveSearch", CaseInsensitiveSearch, 1),
-    FSP_FUSE_CORE_OPT("ReadOnlyVolume", ReadOnlyVolume, 1),
     FUSE_OPT_KEY("--UNC=", 'U'),
     FUSE_OPT_KEY("--VolumePrefix=", 'U'),
     FUSE_OPT_KEY("--FileSystemName=", 'F'),
@@ -252,9 +248,17 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         //FUSE_CAP_ATOMIC_O_TRUNC |     /* due to Windows/WinFsp design, no support */
         //FUSE_CAP_EXPORT_SUPPORT |     /* not needed in Windows/WinFsp */
         FUSE_CAP_BIG_WRITES |
-        FUSE_CAP_DONT_MASK;
+        FUSE_CAP_DONT_MASK |
+        FSP_FUSE_CAP_READDIR_PLUS |
+        FSP_FUSE_CAP_READ_ONLY |
+        FSP_FUSE_CAP_CASE_INSENSITIVE;
     if (0 != f->ops.init)
+    {
         context->private_data = f->data = f->ops.init(&conn);
+        f->VolumeParams.ReadOnlyVolume = 0 != (conn.want & FSP_FUSE_CAP_READ_ONLY);
+        f->VolumeParams.CaseSensitiveSearch = 0 == (conn.want & FSP_FUSE_CAP_CASE_INSENSITIVE);
+        f->conn_want = conn.want;
+    }
     f->fsinit = TRUE;
     if (0 != f->ops.statfs)
     {
@@ -417,7 +421,6 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o VolumeCreationTime=T    volume creation time (FILETIME hex format)\n"
             "    -o VolumeSerialNumber=N    32-bit wide\n"
             "    -o FileInfoTimeout=N       FileInfo/Security/VolumeInfo timeout (millisec)\n"
-            "    -o CaseInsensitiveSearch   file system supports case-insensitive file names\n"
             "    --UNC=U --VolumePrefix=U   UNC prefix (\\Server\\Share)\n"
             "    --FileSystemName=FSN       Name of user mode file system\n");
         opt_data->help = 1;
@@ -501,12 +504,12 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
 
     if (!opt_data.set_FileInfoTimeout && opt_data.set_attr_timeout)
         opt_data.VolumeParams.FileInfoTimeout = opt_data.set_attr_timeout * 1000;
-    opt_data.VolumeParams.CaseSensitiveSearch = !opt_data.CaseInsensitiveSearch;
+    opt_data.VolumeParams.CaseSensitiveSearch = TRUE;
     opt_data.VolumeParams.PersistentAcls = TRUE;
     opt_data.VolumeParams.ReparsePoints = TRUE;
     opt_data.VolumeParams.ReparsePointsAccessCheck = FALSE;
     opt_data.VolumeParams.NamedStreams = FALSE;
-    opt_data.VolumeParams.ReadOnlyVolume = !!opt_data.ReadOnlyVolume;
+    opt_data.VolumeParams.ReadOnlyVolume = FALSE;
     opt_data.VolumeParams.PostCleanupWhenModifiedOnly = TRUE;
     opt_data.VolumeParams.UmFileContextIsUserContext2 = TRUE;
     if (L'\0' == opt_data.VolumeParams.FileSystemName[0])

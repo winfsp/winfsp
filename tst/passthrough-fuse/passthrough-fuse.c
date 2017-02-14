@@ -187,7 +187,11 @@ static int ptfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, fus
         errno = 0;
         if (0 == (de = readdir(dirp)))
             break;
+#if defined(_WIN64) || defined(_WIN32)
+        if (0 != filler(buf, de->d_name, &de->d_stat, 0))
+#else
         if (0 != filler(buf, de->d_name, 0, 0))
+#endif
             return -ENOMEM;
     }
 
@@ -199,6 +203,19 @@ static int ptfs_releasedir(const char *path, struct fuse_file_info *fi)
     DIR *dirp = fi_dirp(fi);
 
     return -1 != closedir(dirp) ? 0 : -errno;
+}
+
+static void *ptfs_init(struct fuse_conn_info *conn)
+{
+#if 0 && defined(FSP_FUSE_CAP_READDIR_PLUS)
+    conn->want |= (conn->capable & FSP_FUSE_CAP_READDIR_PLUS);
+#endif
+
+#if 0 && defined(FSP_FUSE_CAP_CASE_INSENSITIVE)
+    conn->want |= (conn->capable & FSP_FUSE_CAP_CASE_INSENSITIVE);
+#endif
+
+    return fuse_get_context()->private_data;
 }
 
 static int ptfs_create(const char *path, fuse_mode_t mode, struct fuse_file_info *fi)
@@ -254,7 +271,7 @@ static struct fuse_operations ptfs_ops =
     ptfs_readdir,
     ptfs_releasedir,
     0, //fsyncdir
-    0, //init
+    ptfs_init,
     0, //destroy
     0, //access
     ptfs_create,

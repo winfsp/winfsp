@@ -115,7 +115,7 @@ int statvfs(const char *path, struct fuse_statvfs *stbuf)
 
     memset(stbuf, 0, sizeof *stbuf);
     stbuf->f_bsize = SectorsPerCluster * BytesPerSector;
-    stbuf->f_frsize = BytesPerSector;
+    stbuf->f_frsize = SectorsPerCluster * BytesPerSector;
     stbuf->f_blocks = TotalNumberOfClusters;
     stbuf->f_bfree = NumberOfFreeClusters;
     stbuf->f_bavail = TotalNumberOfClusters;
@@ -388,6 +388,8 @@ void rewinddir(DIR *dirp)
 struct dirent *readdir(DIR *dirp)
 {
     WIN32_FIND_DATAA FindData;
+    UINT64 CreationTime, LastAccessTime, LastWriteTime;
+    struct fuse_stat *stbuf = &dirp->de.d_stat;
 
     if (INVALID_HANDLE_VALUE == dirp->fh)
     {
@@ -404,6 +406,24 @@ struct dirent *readdir(DIR *dirp)
             return error0();
         }
     }
+
+    CreationTime = ((PLARGE_INTEGER)(&FindData.ftCreationTime))->QuadPart - 116444736000000000;
+    LastAccessTime = ((PLARGE_INTEGER)(&FindData.ftLastAccessTime))->QuadPart - 116444736000000000;
+    LastWriteTime = ((PLARGE_INTEGER)(&FindData.ftLastWriteTime))->QuadPart - 116444736000000000;
+
+    memset(stbuf, 0, sizeof *stbuf);
+    stbuf->st_mode = 0777 |
+        ((FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 0040000/* S_IFDIR */ : 0);
+    stbuf->st_nlink = 1;
+    stbuf->st_size = ((UINT64)FindData.nFileSizeHigh << 32) | ((UINT64)FindData.nFileSizeLow);
+    stbuf->st_atim.tv_sec = LastAccessTime / 10000000;
+    stbuf->st_atim.tv_nsec = LastAccessTime % 10000000 * 100;
+    stbuf->st_mtim.tv_sec = LastWriteTime / 10000000;
+    stbuf->st_mtim.tv_nsec = LastWriteTime % 10000000 * 100;
+    stbuf->st_ctim.tv_sec = LastWriteTime / 10000000;
+    stbuf->st_ctim.tv_nsec = LastWriteTime % 10000000 * 100;
+    stbuf->st_birthtim.tv_sec = CreationTime / 10000000;
+    stbuf->st_birthtim.tv_nsec = CreationTime % 10000000 * 100;
 
     strcpy(dirp->de.d_name, FindData.cFileName);
 

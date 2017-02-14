@@ -31,6 +31,7 @@
 typedef struct _DIR DIR;
 struct dirent
 {
+    struct fuse_stat d_stat;
     char d_name[255];
 };
 

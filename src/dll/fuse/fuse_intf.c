@@ -311,28 +311,34 @@ static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
 }
 
 #define fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, fi, PUid, PGid, PMode, FileInfo)\
-    fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi, PUid, PGid, PMode, 0, FileInfo)
+    fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi, 0, PUid, PGid, PMode, 0, FileInfo)
 static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
-    const char *PosixPath, struct fuse_file_info *fi,
+    const char *PosixPath, struct fuse_file_info *fi, const struct fuse_stat *stbufp,
     PUINT32 PUid, PUINT32 PGid, PUINT32 PMode, PUINT32 PDev,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
     UINT64 AllocationUnit;
     struct fuse_stat stbuf;
-    int err;
 
-    memset(&stbuf, 0, sizeof stbuf);
-
-    if (0 != f->ops.fgetattr && 0 != fi && -1 != fi->fh)
-        err = f->ops.fgetattr(PosixPath, (void *)&stbuf, fi);
-    else if (0 != f->ops.getattr)
-        err = f->ops.getattr(PosixPath, (void *)&stbuf);
+    if (0 != stbufp)
+        memcpy(&stbuf, stbufp, sizeof stbuf);
     else
-        return STATUS_INVALID_DEVICE_REQUEST;
+    {
+        int err;
 
-    if (0 != err)
-        return fsp_fuse_ntstatus_from_errno(f->env, err);
+        memset(&stbuf, 0, sizeof stbuf);
+
+        if (0 != f->ops.fgetattr && 0 != fi && -1 != fi->fh)
+            err = f->ops.fgetattr(PosixPath, (void *)&stbuf, fi);
+        else if (0 != f->ops.getattr)
+            err = f->ops.getattr(PosixPath, (void *)&stbuf);
+        else
+            return STATUS_INVALID_DEVICE_REQUEST;
+
+        if (0 != err)
+            return fsp_fuse_ntstatus_from_errno(f->env, err);
+    }
 
     if (f->set_umask)
         stbuf.st_mode = (stbuf.st_mode & 0170000) | (0777 & ~f->umask);
@@ -513,7 +519,7 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointEx(FSP_FILE_SYSTEM *FileSystem,
     SIZE_T Size;
     NTSTATUS Result;
 
-    Result = fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi,
+    Result = fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi, 0,
         &Uid, &Gid, &Mode, &Dev, &FileInfo);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -1576,6 +1582,17 @@ static int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
     memset(DirInfo, 0, sizeof *DirInfo);
     DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + SizeW * sizeof(WCHAR));
 
+    if (dh->ReaddirPlus && 0 != stbuf)
+    {
+        UINT32 Uid, Gid, Mode;
+        NTSTATUS Result0;
+
+        Result0 = fsp_fuse_intf_GetFileInfoFunnel(dh->FileSystem, 0, 0, stbuf,
+            &Uid, &Gid, &Mode, 0, &DirInfo->FileInfo);
+        if (NT_SUCCESS(Result0))
+            DirInfo->Padding[0] = 1; /* HACK: remember that the FileInfo is valid */
+    }
+
     return !FspFileSystemFillDirectoryBuffer(&filedesc->DirBuffer, DirInfo, &dh->Result);
 }
 
@@ -1619,43 +1636,52 @@ static NTSTATUS fsp_fuse_intf_FixDirInfo(FSP_FILE_SYSTEM *FileSystem,
         DirInfo = (FSP_FSCTL_DIR_INFO *)(Buffer + *Index);
         SizeW = (DirInfo->Size - sizeof *DirInfo) / sizeof(WCHAR);
 
-        if (1 == SizeW && L'.' == DirInfo->FileNameBuf[0])
+        if (DirInfo->Padding[0])
         {
-            PosixPathEnd = 1 < PosixName - PosixPath ? PosixName - 1 : PosixName;
-            SavedPathChar = *PosixPathEnd;
-            *PosixPathEnd = '\0';
-        }
-        else
-        if (2 == SizeW && L'.' == DirInfo->FileNameBuf[0] && L'.' == DirInfo->FileNameBuf[1])
-        {
-            PosixPathEnd = 1 < PosixName - PosixPath ? PosixName - 2 : PosixName;
-            while (PosixPath < PosixPathEnd && '/' != *PosixPathEnd)
-                PosixPathEnd--;
-            if (PosixPath == PosixPathEnd)
-                PosixPathEnd++;
-            SavedPathChar = *PosixPathEnd;
-            *PosixPathEnd = '\0';
+            /* DirInfo has been filled already! */
+
+            DirInfo->Padding[0] = 0;
         }
         else
         {
-            PosixPathEnd = 0;
-            SizeA = WideCharToMultiByte(CP_UTF8, 0, DirInfo->FileNameBuf, SizeW, PosixName, 255, 0, 0);
-            if (0 == SizeA)
+            if (1 == SizeW && L'.' == DirInfo->FileNameBuf[0])
             {
-                /* this should never happen because we just converted using MultiByteToWideChar */
-                Result = STATUS_OBJECT_NAME_INVALID;
-                goto exit;
+                PosixPathEnd = 1 < PosixName - PosixPath ? PosixName - 1 : PosixName;
+                SavedPathChar = *PosixPathEnd;
+                *PosixPathEnd = '\0';
             }
-            PosixName[SizeA] = '\0';
+            else
+            if (2 == SizeW && L'.' == DirInfo->FileNameBuf[0] && L'.' == DirInfo->FileNameBuf[1])
+            {
+                PosixPathEnd = 1 < PosixName - PosixPath ? PosixName - 2 : PosixName;
+                while (PosixPath < PosixPathEnd && '/' != *PosixPathEnd)
+                    PosixPathEnd--;
+                if (PosixPath == PosixPathEnd)
+                    PosixPathEnd++;
+                SavedPathChar = *PosixPathEnd;
+                *PosixPathEnd = '\0';
+            }
+            else
+            {
+                PosixPathEnd = 0;
+                SizeA = WideCharToMultiByte(CP_UTF8, 0, DirInfo->FileNameBuf, SizeW, PosixName, 255, 0, 0);
+                if (0 == SizeA)
+                {
+                    /* this should never happen because we just converted using MultiByteToWideChar */
+                    Result = STATUS_OBJECT_NAME_INVALID;
+                    goto exit;
+                }
+                PosixName[SizeA] = '\0';
+            }
+
+            Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, 0,
+                &Uid, &Gid, &Mode, &DirInfo->FileInfo);
+            if (!NT_SUCCESS(Result))
+                goto exit;
+
+            if (0 != PosixPathEnd)
+                *PosixPathEnd = SavedPathChar;
         }
-
-        Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, 0,
-            &Uid, &Gid, &Mode, &DirInfo->FileInfo);
-        if (!NT_SUCCESS(Result))
-            goto exit;
-
-        if (0 != PosixPathEnd)
-            *PosixPathEnd = SavedPathChar;
 
         FspPosixDecodeWindowsPath(DirInfo->FileNameBuf, SizeW);
     }
@@ -1683,6 +1709,8 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     {
         memset(&dh, 0, sizeof dh);
         dh.filedesc = filedesc;
+        dh.FileSystem = FileSystem;
+        dh.ReaddirPlus = 0 != (f->conn_want & FSP_FUSE_CAP_READDIR_PLUS);
         dh.Result = STATUS_SUCCESS;
 
         if (0 != f->ops.readdir)
