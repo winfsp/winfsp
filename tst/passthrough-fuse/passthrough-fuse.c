@@ -209,7 +209,7 @@ static void *ptfs_init(struct fuse_conn_info *conn)
 {
 #if defined(_WIN64) || defined(_WIN32)
 #if defined(FSP_FUSE_CAP_READDIR_PLUS)
-    //conn->want |= (conn->capable & FSP_FUSE_CAP_READDIR_PLUS);
+    conn->want |= (conn->capable & FSP_FUSE_CAP_READDIR_PLUS);
 #endif
 
 #if defined(FSP_FUSE_CAP_CASE_INSENSITIVE)
