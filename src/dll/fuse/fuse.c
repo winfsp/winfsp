@@ -177,23 +177,55 @@ FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(struct fsp_fuse_env *env,
     const char *mountpoint, struct fuse_args *args)
 {
     struct fuse_chan *ch = 0;
+    WCHAR TempMountPointBuf[MAX_PATH], MountPointBuf[MAX_PATH];
     int Size;
 
-    if (0 == mountpoint)
-        mountpoint = "";
+    if (0 == mountpoint || '\0' == mountpoint[0] ||
+        ('*' == mountpoint[0] && '\0' == mountpoint[1]))
+    {
+        MountPointBuf[0] = L'*';
+        MountPointBuf[1] = L'\0';
+        Size = 2 * sizeof(WCHAR);
+    }
+    else if (
+        (
+            ('A' <= mountpoint[0] && mountpoint[0] <= 'Z') ||
+            ('a' <= mountpoint[0] && mountpoint[0] <= 'z')
+        ) &&
+        ':' == mountpoint[1] && '\0' == mountpoint[2])
+    {
+        MountPointBuf[0] = mountpoint[0];
+        MountPointBuf[1] = ':';
+        MountPointBuf[2] = '\0';
+        Size = 3 * sizeof(WCHAR);
+    }
+    else
+    {
+        char *win_mountpoint = 0;
 
-    Size = MultiByteToWideChar(CP_UTF8, 0, mountpoint, -1, 0, 0);
-    if (0 == Size)
-        goto fail;
+        if (0 != env->conv_to_win_path)
+            mountpoint = win_mountpoint = env->conv_to_win_path(mountpoint);
 
-    ch = fsp_fuse_obj_alloc(env, sizeof *ch + Size * sizeof(WCHAR));
+        Size = 0;
+        if (0 != mountpoint &&
+            0 != MultiByteToWideChar(CP_UTF8, 0, mountpoint, -1, TempMountPointBuf, MAX_PATH))
+            Size = GetFullPathNameW(TempMountPointBuf, MAX_PATH, MountPointBuf, 0);
+
+        env->memfree(win_mountpoint);
+
+        if (0 == Size || MAX_PATH <= Size)
+            goto fail;
+
+        mountpoint = 0;
+        Size = (Size + 1) * sizeof(WCHAR);
+    }
+
+    ch = fsp_fuse_obj_alloc(env, sizeof *ch + Size);
     if (0 == ch)
         goto fail;
 
     ch->MountPoint = (PVOID)ch->Buffer;
-    Size = MultiByteToWideChar(CP_UTF8, 0, mountpoint, -1, ch->MountPoint, Size);
-    if (0 == Size)
-        goto fail;
+    memcpy(ch->MountPoint, MountPointBuf, Size);
 
     return ch;
 
