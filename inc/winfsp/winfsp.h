@@ -893,6 +893,8 @@ FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem);
  *     STATUS_SUCCESS or error code.
  */
 FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint);
+FSP_API NTSTATUS FspFileSystemSetMountPointEx(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint,
+    PSECURITY_DESCRIPTOR SecurityDescriptor);
 /**
  * Remove the mount point for a file system.
  *
