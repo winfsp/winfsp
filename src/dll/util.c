@@ -163,3 +163,47 @@ exit:
 
     return Result;
 }
+
+FSP_API NTSTATUS FspVersion(PUINT32 PVersion)
+{
+    static UINT32 Version;
+
+    if (0 == Version)
+    {
+        /*
+         * This check is not thread-safe, but that should be ok.
+         * Two threads competing to read the version will read
+         * the same value from the Version resource.
+         */
+        extern HINSTANCE DllInstance;
+        WCHAR ModuleFileName[MAX_PATH];
+        PVOID VersionInfo;
+        DWORD Size;
+        VS_FIXEDFILEINFO *FixedFileInfo = 0;
+
+        if (0 != GetModuleFileNameW(DllInstance, ModuleFileName, MAX_PATH))
+        {
+            Size = GetFileVersionInfoSizeW(ModuleFileName, &Size/*dummy*/);
+            if (0 < Size)
+            {
+                VersionInfo = MemAlloc(Size);
+                if (0 != VersionInfo &&
+                    GetFileVersionInfoW(ModuleFileName, 0, Size, VersionInfo) &&
+                    VerQueryValueW(VersionInfo, L"\\", &FixedFileInfo, &Size))
+                {
+                    /* 32-bit store should be atomic! */
+                    Version = FixedFileInfo->dwFileVersionMS;
+                }
+
+                MemFree(VersionInfo);
+            }
+        }
+
+        if (0 == FixedFileInfo)
+            return STATUS_UNSUCCESSFUL;
+    }
+
+    *PVersion = Version;
+
+    return STATUS_SUCCESS;
+}
