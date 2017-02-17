@@ -22,8 +22,6 @@
 
 static void version_test(void)
 {
-    /* this is not a real test! */
-
     UINT32 Version1, Version2;
     NTSTATUS Result;
 
