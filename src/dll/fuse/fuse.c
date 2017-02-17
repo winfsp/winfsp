@@ -118,6 +118,9 @@ static inline void *fsp_fuse_obj_alloc(struct fsp_fuse_env *env, size_t size)
 
 static inline void fsp_fuse_obj_free(void *obj)
 {
+    if (0 == obj)
+        return;
+
     struct fsp_fuse_obj_hdr *hdr = (PVOID)((PUINT8)obj - sizeof(struct fsp_fuse_obj_hdr));
 
     hdr->dtor(hdr);
