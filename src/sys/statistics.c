@@ -29,6 +29,8 @@ NTSTATUS FspStatisticsCopy(FSP_STATISTICS *Statistics, PVOID Buffer, PULONG PLen
 
 NTSTATUS FspStatisticsCreate(FSP_STATISTICS **PStatistics)
 {
+    PAGED_CODE();
+
     *PStatistics = FspAllocNonPaged(sizeof(FSP_STATISTICS) * FspProcessorCount);
     if (0 == *PStatistics)
         return STATUS_INSUFFICIENT_RESOURCES;
@@ -49,11 +51,15 @@ NTSTATUS FspStatisticsCreate(FSP_STATISTICS **PStatistics)
 
 VOID FspStatisticsDelete(FSP_STATISTICS *Statistics)
 {
+    PAGED_CODE();
+
     FspFree(Statistics);
 }
 
 NTSTATUS FspStatisticsCopy(FSP_STATISTICS *Statistics, PVOID Buffer, PULONG PLength)
 {
+    PAGED_CODE();
+
     NTSTATUS Result;
     ULONG StatLength;
 

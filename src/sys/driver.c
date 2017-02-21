@@ -178,6 +178,7 @@ static VOID FspDriverMultiVersionInitialize(VOID)
 {
     FspProcessorCount = KeQueryActiveProcessorCount(0);
 
+#pragma prefast(suppress:30035, "FspDriverMultiVersionInitialize is called from DriverEntry")
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
 
     if (RtlIsNtDdiVersionAvailable(NTDDI_WIN7))

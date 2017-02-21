@@ -2117,6 +2117,8 @@ NTSTATUS FspFileDescResetDirectory(FSP_FILE_DESC *FileDesc,
 NTSTATUS FspFileDescSetDirectoryMarker(FSP_FILE_DESC *FileDesc,
     PUNICODE_STRING FileName)
 {
+    PAGED_CODE();
+
     if (&FileDesc->DirectoryMarker == FileName)
         return STATUS_SUCCESS;
 
