@@ -102,7 +102,7 @@ static inline VOID FspProcessBufferReuseEntry(HANDLE ProcessId,
         if (0 != BufferEntry->Buffer)
         {
             SIZE_T BufferSize = 0;
-            ZwFreeVirtualMemory(ZwCurrentProcess(), BufferEntry->Buffer, &BufferSize, MEM_RELEASE);
+            ZwFreeVirtualMemory(ZwCurrentProcess(), &BufferEntry->Buffer, &BufferSize, MEM_RELEASE);
         }
 
         FspFree(BufferEntry);
@@ -275,6 +275,6 @@ VOID FspProcessBufferRelease(PVOID BufferCookie, PVOID Buffer)
     else
     {
         SIZE_T BufferSize = 0;
-        ZwFreeVirtualMemory(ZwCurrentProcess(), Buffer, &BufferSize, MEM_RELEASE);
+        ZwFreeVirtualMemory(ZwCurrentProcess(), &Buffer, &BufferSize, MEM_RELEASE);
     }
 }
