@@ -251,13 +251,10 @@ NTSTATUS FspProcessBufferAcquire(SIZE_T BufferSize, PVOID *PBufferCookie, PVOID 
     else
     {
     alloc_no_reuse:
-        NTSTATUS Result;
-
         *PBufferCookie = 0;
-        Result = ZwAllocateVirtualMemory(ZwCurrentProcess(),
+        *PBuffer = 0;
+        return ZwAllocateVirtualMemory(ZwCurrentProcess(),
             PBuffer, 0, &BufferSize, MEM_COMMIT, PAGE_READWRITE);
-
-        return Result;
     }
 }
 
