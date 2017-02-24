@@ -49,6 +49,7 @@ enum
     RequestAddress                      = 2,
     RequestProcess                      = 3,
 };
+FSP_FSCTL_STATIC_ASSERT(RequestCookie == RequestSafeMdl, "");
 
 static NTSTATUS FspFsvolRead(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
@@ -367,7 +368,7 @@ NTSTATUS FspFsvolReadPrepare(
 
         Request->Req.Read.Address = (UINT64)(UINT_PTR)Address;
 
-        FspIopRequestContext(Request, RequestCookie) = Cookie;
+        FspIopRequestContext(Request, RequestCookie) = (PVOID)((UINT_PTR)Cookie | 1);
         FspIopRequestContext(Request, RequestAddress) = Address;
         FspIopRequestContext(Request, RequestProcess) = Process;
 
@@ -430,7 +431,7 @@ NTSTATUS FspFsvolReadComplete(
     if (Response->IoStatus.Information > Request->Req.Read.Length)
         FSP_RETURN(Result = STATUS_INTERNAL_ERROR);
 
-    if (FspReadIrpShouldUseProcessBuffer(Irp, Request->Req.Read.Length))
+    if ((UINT_PTR)FspIopRequestContext(Request, RequestCookie) & 1)
     {
         PVOID Address = FspIopRequestContext(Request, RequestAddress);
         PVOID SystemAddress = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
@@ -494,9 +495,9 @@ static VOID FspFsvolReadNonCachedRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PV
 
     PIRP Irp = Context[RequestIrp];
 
-    if (0 != Irp && FspReadIrpShouldUseProcessBuffer(Irp, Request->Req.Read.Length))
+    if ((UINT_PTR)Context[RequestCookie] & 1)
     {
-        PVOID Cookie = Context[RequestCookie];
+        PVOID Cookie = (PVOID)((UINT_PTR)Context[RequestCookie] & ~1);
         PVOID Address = Context[RequestAddress];
         PEPROCESS Process = Context[RequestProcess];
 

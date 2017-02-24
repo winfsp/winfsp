@@ -50,6 +50,7 @@ enum
     RequestAddress                      = 2,
     RequestProcess                      = 3,
 };
+FSP_FSCTL_STATIC_ASSERT(RequestCookie == RequestSafeMdl, "");
 
 static NTSTATUS FspFsvolWrite(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
@@ -453,7 +454,7 @@ NTSTATUS FspFsvolWritePrepare(
 
         Request->Req.Write.Address = (UINT64)(UINT_PTR)Address;
 
-        FspIopRequestContext(Request, RequestCookie) = Cookie;
+        FspIopRequestContext(Request, RequestCookie) = (PVOID)((UINT_PTR)Cookie | 1);
         FspIopRequestContext(Request, RequestAddress) = Address;
         FspIopRequestContext(Request, RequestProcess) = Process;
 
@@ -571,9 +572,9 @@ static VOID FspFsvolWriteNonCachedRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
 
     PIRP Irp = Context[RequestIrp];
 
-    if (0 != Irp && FspWriteIrpShouldUseProcessBuffer(Irp, Request->Req.Write.Length))
+    if ((UINT_PTR)Context[RequestCookie] & 1)
     {
-        PVOID Cookie = Context[RequestCookie];
+        PVOID Cookie = (PVOID)((UINT_PTR)Context[RequestCookie] & ~1);
         PVOID Address = Context[RequestAddress];
         PEPROCESS Process = Context[RequestProcess];
 

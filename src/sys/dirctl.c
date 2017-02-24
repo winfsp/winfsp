@@ -89,6 +89,7 @@ enum
     /* DirectoryControlComplete retry */
     RequestDirInfoChangeNumber          = 0,
 };
+FSP_FSCTL_STATIC_ASSERT(RequestCookie == RequestMdl, "");
 
 static NTSTATUS FspFsvolQueryDirectoryCopy(
     PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
@@ -851,7 +852,7 @@ NTSTATUS FspFsvolDirectoryControlPrepare(
 
         Request->Req.QueryDirectory.Address = (UINT64)(UINT_PTR)Address;
 
-        FspIopRequestContext(Request, RequestCookie) = Cookie;
+        FspIopRequestContext(Request, RequestCookie) = (PVOID)((UINT_PTR)Cookie | 1);
         FspIopRequestContext(Request, RequestAddress) = Address;
         FspIopRequestContext(Request, RequestProcess) = Process;
 
@@ -937,7 +938,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
 
     if (FspFsctlTransactQueryDirectoryKind == Request->Kind)
     {
-        if (FspQueryDirectoryIrpShouldUseProcessBuffer(Irp, Request->Req.QueryDirectory.Length))
+        if ((UINT_PTR)FspIopRequestContext(Request, RequestCookie) & 1)
         {
             PVOID Address = FspIopRequestContext(Request, RequestAddress);
 
@@ -1055,9 +1056,9 @@ static VOID FspFsvolQueryDirectoryRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
 
     PIRP Irp = Context[RequestIrp];
 
-    if (0 != Irp && FspQueryDirectoryIrpShouldUseProcessBuffer(Irp, Request->Req.QueryDirectory.Length))
+    if ((UINT_PTR)Context[RequestCookie] & 1)
     {
-        PVOID Cookie = Context[RequestCookie];
+        PVOID Cookie = (PVOID)((UINT_PTR)Context[RequestCookie] & ~1);
         PVOID Address = Context[RequestAddress];
         PEPROCESS Process = Context[RequestProcess];
 
