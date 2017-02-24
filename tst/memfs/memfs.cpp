@@ -45,9 +45,11 @@ FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
 /*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
  * a check for the Write buffer to ensure that it is read-only.
+ *
+ * Since ProcessBuffer support in the FSD, this is no longer a guarantee.
  */
 #if !defined(NDEBUG)
-#define DEBUG_BUFFER_CHECK
+//#define DEBUG_BUFFER_CHECK
 #endif
 
 #define MEMFS_SECTOR_SIZE               512

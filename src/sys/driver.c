@@ -46,6 +46,10 @@ NTSTATUS DriverEntry(
 
     FspDriverMultiVersionInitialize();
 
+    Result = FspProcessBufferInitialize();
+    if (!NT_SUCCESS(Result))
+        FSP_RETURN();
+
     FspDriverObject = DriverObject;
     ExInitializeResourceLite(&FspDeviceGlobalResource);
 
@@ -59,14 +63,21 @@ NTSTATUS DriverEntry(
         &DeviceSddl, &FspFsctlDeviceClassGuid,
         &FspFsctlDiskDeviceObject);
     if (!NT_SUCCESS(Result))
+    {
+        FspProcessBufferFinalize();
         FSP_RETURN();
+    }
     RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
     Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
         &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
         &DeviceSddl, &FspFsctlDeviceClassGuid,
         &FspFsctlNetDeviceObject);
     if (!NT_SUCCESS(Result))
-        FSP_RETURN(FspDeviceDelete(FspFsctlDiskDeviceObject));
+    {
+        FspDeviceDelete(FspFsctlDiskDeviceObject);
+        FspProcessBufferFinalize();
+        FSP_RETURN();
+    }
     Result = FspDeviceInitialize(FspFsctlDiskDeviceObject);
     ASSERT(STATUS_SUCCESS == Result);
     Result = FspDeviceInitialize(FspFsctlNetDeviceObject);
@@ -206,6 +217,8 @@ VOID FspUnload(
 
     ExDeleteResourceLite(&FspDeviceGlobalResource);
     FspDriverObject = 0;
+
+    FspProcessBufferFinalize();
 
 #pragma prefast(suppress:28175, "We are in DriverUnload: ok to access DriverName")
     FSP_LEAVE_VOID("DriverName=\"%wZ\"",

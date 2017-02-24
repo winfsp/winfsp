@@ -601,6 +601,14 @@ VOID FspIrpHookReset(PIRP Irp);
 PVOID FspIrpHookContext(PVOID Context);
 NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 
+/* process buffers */
+#define FspProcessBufferSizeMax         (64 * 1024)
+NTSTATUS FspProcessBufferInitialize(VOID);
+VOID FspProcessBufferFinalize(VOID);
+VOID FspProcessBufferCollect(HANDLE ProcessId);
+NTSTATUS FspProcessBufferAcquire(SIZE_T BufferSize, PVOID *PBufferCookie, PVOID *PBuffer);
+VOID FspProcessBufferRelease(PVOID BufferCookie, PVOID Buffer);
+
 /* IRP context */
 #define FspIrpTimestampInfinity         ((ULONG)-1L)
 #define FspIrpTimestamp(Irp)            \
@@ -1047,6 +1055,23 @@ FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
     ASSERT(FspFsvolDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
     return DeviceObject->DeviceExtension;
+}
+static inline
+BOOLEAN FspFsvolDeviceReadShouldUseProcessBuffer(PDEVICE_OBJECT FsvolDeviceObject, SIZE_T BufferSize)
+{
+    return FspProcessBufferSizeMax >= BufferSize ||
+        FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.AlwaysUseDoubleBuffering;
+}
+static inline
+BOOLEAN FspFsvolDeviceWriteShouldUseProcessBuffer(PDEVICE_OBJECT FsvolDeviceObject, SIZE_T BufferSize)
+{
+    return FspProcessBufferSizeMax >= BufferSize ||
+        FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.AlwaysUseDoubleBuffering;
+}
+static inline
+BOOLEAN FspFsvolDeviceQueryDirectoryShouldUseProcessBuffer(PDEVICE_OBJECT FsvolDeviceObject, SIZE_T BufferSize)
+{
+    return FspFsvolDeviceReadShouldUseProcessBuffer(FsvolDeviceObject, BufferSize);
 }
 NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
     PUNICODE_STRING DeviceName, DEVICE_TYPE DeviceType, ULONG DeviceCharacteristics,

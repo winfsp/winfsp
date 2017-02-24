@@ -78,6 +78,7 @@ enum
 {
     /* QueryDirectory */
     RequestIrp                          = 0,
+    RequestCookie                       = 1,
     RequestMdl                          = 1,
     RequestAddress                      = 2,
     RequestProcess                      = 3,
@@ -833,41 +834,68 @@ NTSTATUS FspFsvolDirectoryControlPrepare(
 {
     PAGED_CODE();
 
-    NTSTATUS Result;
-    PMDL Mdl = 0;
-    PVOID Address;
-    PEPROCESS Process;
-
-    Mdl = IoAllocateMdl(
-        Irp->AssociatedIrp.SystemBuffer,
-        Request->Req.QueryDirectory.Length,
-        FALSE, FALSE, 0);
-    if (0 == Mdl)
-        return STATUS_INSUFFICIENT_RESOURCES;
-
-    MmBuildMdlForNonPagedPool(Mdl);
-
-    /* map the MDL into user-mode */
-    Result = FspMapLockedPagesInUserMode(Mdl, &Address, 0);
-    if (!NT_SUCCESS(Result))
+    if (FspFsvolDeviceQueryDirectoryShouldUseProcessBuffer(
+        IoGetCurrentIrpStackLocation(Irp)->DeviceObject, Request->Req.QueryDirectory.Length))
     {
-        if (0 != Mdl)
-            IoFreeMdl(Mdl);
+        NTSTATUS Result;
+        PVOID Cookie;
+        PVOID Address;
+        PEPROCESS Process;
 
-        return Result;
+        Result = FspProcessBufferAcquire(Request->Req.QueryDirectory.Length, &Cookie, &Address);
+        if (!NT_SUCCESS(Result))
+            return Result;
+
+        /* get a pointer to the current process so that we can release the buffer later */
+        Process = PsGetCurrentProcess();
+        ObReferenceObject(Process);
+
+        Request->Req.QueryDirectory.Address = (UINT64)(UINT_PTR)Address;
+
+        FspIopRequestContext(Request, RequestCookie) = Cookie;
+        FspIopRequestContext(Request, RequestAddress) = Address;
+        FspIopRequestContext(Request, RequestProcess) = Process;
+
+        return STATUS_SUCCESS;
     }
+    else
+    {
+        NTSTATUS Result;
+        PMDL Mdl = 0;
+        PVOID Address;
+        PEPROCESS Process;
 
-    /* get a pointer to the current process so that we can unmap the address later */
-    Process = PsGetCurrentProcess();
-    ObReferenceObject(Process);
+        Mdl = IoAllocateMdl(
+            Irp->AssociatedIrp.SystemBuffer,
+            Request->Req.QueryDirectory.Length,
+            FALSE, FALSE, 0);
+        if (0 == Mdl)
+            return STATUS_INSUFFICIENT_RESOURCES;
 
-    Request->Req.QueryDirectory.Address = (UINT64)(UINT_PTR)Address;
+        MmBuildMdlForNonPagedPool(Mdl);
 
-    FspIopRequestContext(Request, RequestMdl) = Mdl;
-    FspIopRequestContext(Request, RequestAddress) = Address;
-    FspIopRequestContext(Request, RequestProcess) = Process;
+        /* map the MDL into user-mode */
+        Result = FspMapLockedPagesInUserMode(Mdl, &Address, 0);
+        if (!NT_SUCCESS(Result))
+        {
+            if (0 != Mdl)
+                IoFreeMdl(Mdl);
 
-    return STATUS_SUCCESS;
+            return Result;
+        }
+
+        /* get a pointer to the current process so that we can unmap the address later */
+        Process = PsGetCurrentProcess();
+        ObReferenceObject(Process);
+
+        Request->Req.QueryDirectory.Address = (UINT64)(UINT_PTR)Address;
+
+        FspIopRequestContext(Request, RequestMdl) = Mdl;
+        FspIopRequestContext(Request, RequestAddress) = Address;
+        FspIopRequestContext(Request, RequestProcess) = Process;
+
+        return STATUS_SUCCESS;
+    }
 }
 
 NTSTATUS FspFsvolDirectoryControlComplete(
@@ -910,6 +938,24 @@ NTSTATUS FspFsvolDirectoryControlComplete(
 
     if (FspFsctlTransactQueryDirectoryKind == Request->Kind)
     {
+        if (FspFsvolDeviceQueryDirectoryShouldUseProcessBuffer(
+            IrpSp->DeviceObject, Request->Req.QueryDirectory.Length))
+        {
+            PVOID Address = FspIopRequestContext(Request, RequestAddress);
+
+            ASSERT(0 != Address);
+            try
+            {
+                RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer, Address, Response->IoStatus.Information);
+            }
+            except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                Result = GetExceptionCode();
+                Result = FsRtlIsNtstatusExpected(Result) ? STATUS_INVALID_USER_BUFFER : Result;
+                FSP_RETURN();
+            }
+        }
+
         DirInfoChangeNumber = FspFileNodeDirInfoChangeNumber(FileNode);
         Request->Kind = FspFsctlTransactReservedKind;
         FspIopResetRequest(Request, 0);
@@ -1010,29 +1056,57 @@ static VOID FspFsvolQueryDirectoryRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
     PAGED_CODE();
 
     PIRP Irp = Context[RequestIrp];
-    PMDL Mdl = Context[RequestMdl];
-    PVOID Address = Context[RequestAddress];
-    PEPROCESS Process = Context[RequestProcess];
 
-    if (0 != Address)
+    if (0 != Irp && FspFsvolDeviceQueryDirectoryShouldUseProcessBuffer(
+        IoGetCurrentIrpStackLocation(Irp)->DeviceObject, Request->Req.QueryDirectory.Length))
     {
-        KAPC_STATE ApcState;
-        BOOLEAN Attach;
+        PVOID Cookie = Context[RequestCookie];
+        PVOID Address = Context[RequestAddress];
+        PEPROCESS Process = Context[RequestProcess];
 
-        ASSERT(0 != Process);
-        Attach = Process != PsGetCurrentProcess();
+        if (0 != Address)
+        {
+            KAPC_STATE ApcState;
+            BOOLEAN Attach;
 
-        if (Attach)
-            KeStackAttachProcess(Process, &ApcState);
-        MmUnmapLockedPages(Address, Mdl);
-        if (Attach)
-            KeUnstackDetachProcess(&ApcState);
+            ASSERT(0 != Process);
+            Attach = Process != PsGetCurrentProcess();
 
-        ObDereferenceObject(Process);
+            if (Attach)
+                KeStackAttachProcess(Process, &ApcState);
+            FspProcessBufferRelease(Cookie, Address);
+            if (Attach)
+                KeUnstackDetachProcess(&ApcState);
+
+            ObDereferenceObject(Process);
+        }
     }
+    else
+    {
+        PMDL Mdl = Context[RequestMdl];
+        PVOID Address = Context[RequestAddress];
+        PEPROCESS Process = Context[RequestProcess];
 
-    if (0 != Mdl)
-        IoFreeMdl(Mdl);
+        if (0 != Address)
+        {
+            KAPC_STATE ApcState;
+            BOOLEAN Attach;
+
+            ASSERT(0 != Process);
+            Attach = Process != PsGetCurrentProcess();
+
+            if (Attach)
+                KeStackAttachProcess(Process, &ApcState);
+            MmUnmapLockedPages(Address, Mdl);
+            if (Attach)
+                KeUnstackDetachProcess(&ApcState);
+
+            ObDereferenceObject(Process);
+        }
+
+        if (0 != Mdl)
+            IoFreeMdl(Mdl);
+    }
 
     if (0 != Irp)
     {
