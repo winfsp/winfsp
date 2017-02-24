@@ -417,8 +417,7 @@ NTSTATUS FspFsvolWritePrepare(
 {
     PAGED_CODE();
 
-    if (FspFsvolDeviceWriteShouldUseProcessBuffer(
-        IoGetCurrentIrpStackLocation(Irp)->DeviceObject, Request->Req.Write.Length))
+    if (FspWriteIrpShouldUseProcessBuffer(Irp, Request->Req.Write.Length))
     {
         NTSTATUS Result;
         PVOID Cookie;
@@ -572,8 +571,7 @@ static VOID FspFsvolWriteNonCachedRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
 
     PIRP Irp = Context[RequestIrp];
 
-    if (0 != Irp && FspFsvolDeviceWriteShouldUseProcessBuffer(
-        IoGetCurrentIrpStackLocation(Irp)->DeviceObject, Request->Req.Write.Length))
+    if (0 != Irp && FspWriteIrpShouldUseProcessBuffer(Irp, Request->Req.Write.Length))
     {
         PVOID Cookie = Context[RequestCookie];
         PVOID Address = Context[RequestAddress];

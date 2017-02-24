@@ -347,8 +347,7 @@ NTSTATUS FspFsvolReadPrepare(
 {
     PAGED_CODE();
 
-    if (FspFsvolDeviceReadShouldUseProcessBuffer(
-        IoGetCurrentIrpStackLocation(Irp)->DeviceObject, Request->Req.Read.Length))
+    if (FspReadIrpShouldUseProcessBuffer(Irp, Request->Req.Read.Length))
     {
         NTSTATUS Result;
         PVOID Cookie;
@@ -431,8 +430,7 @@ NTSTATUS FspFsvolReadComplete(
     if (Response->IoStatus.Information > Request->Req.Read.Length)
         FSP_RETURN(Result = STATUS_INTERNAL_ERROR);
 
-    if (FspFsvolDeviceReadShouldUseProcessBuffer(
-        IrpSp->DeviceObject, Request->Req.Read.Length))
+    if (FspReadIrpShouldUseProcessBuffer(Irp, Request->Req.Read.Length))
     {
         PVOID Address = FspIopRequestContext(Request, RequestAddress);
         PVOID SystemAddress = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
@@ -496,8 +494,7 @@ static VOID FspFsvolReadNonCachedRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PV
 
     PIRP Irp = Context[RequestIrp];
 
-    if (0 != Irp && FspFsvolDeviceReadShouldUseProcessBuffer(
-        IoGetCurrentIrpStackLocation(Irp)->DeviceObject, Request->Req.Read.Length))
+    if (0 != Irp && FspReadIrpShouldUseProcessBuffer(Irp, Request->Req.Read.Length))
     {
         PVOID Cookie = Context[RequestCookie];
         PVOID Address = Context[RequestAddress];

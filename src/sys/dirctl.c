@@ -834,8 +834,7 @@ NTSTATUS FspFsvolDirectoryControlPrepare(
 {
     PAGED_CODE();
 
-    if (FspFsvolDeviceQueryDirectoryShouldUseProcessBuffer(
-        IoGetCurrentIrpStackLocation(Irp)->DeviceObject, Request->Req.QueryDirectory.Length))
+    if (FspQueryDirectoryIrpShouldUseProcessBuffer(Irp, Request->Req.QueryDirectory.Length))
     {
         NTSTATUS Result;
         PVOID Cookie;
@@ -938,8 +937,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
 
     if (FspFsctlTransactQueryDirectoryKind == Request->Kind)
     {
-        if (FspFsvolDeviceQueryDirectoryShouldUseProcessBuffer(
-            IrpSp->DeviceObject, Request->Req.QueryDirectory.Length))
+        if (FspQueryDirectoryIrpShouldUseProcessBuffer(Irp, Request->Req.QueryDirectory.Length))
         {
             PVOID Address = FspIopRequestContext(Request, RequestAddress);
 
@@ -1057,8 +1055,7 @@ static VOID FspFsvolQueryDirectoryRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
 
     PIRP Irp = Context[RequestIrp];
 
-    if (0 != Irp && FspFsvolDeviceQueryDirectoryShouldUseProcessBuffer(
-        IoGetCurrentIrpStackLocation(Irp)->DeviceObject, Request->Req.QueryDirectory.Length))
+    if (0 != Irp && FspQueryDirectoryIrpShouldUseProcessBuffer(Irp, Request->Req.QueryDirectory.Length))
     {
         PVOID Cookie = Context[RequestCookie];
         PVOID Address = Context[RequestAddress];

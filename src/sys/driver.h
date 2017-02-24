@@ -1056,23 +1056,6 @@ FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
     ASSERT(FspFsvolDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
     return DeviceObject->DeviceExtension;
 }
-static inline
-BOOLEAN FspFsvolDeviceReadShouldUseProcessBuffer(PDEVICE_OBJECT FsvolDeviceObject, SIZE_T BufferSize)
-{
-    return FspProcessBufferSizeMax >= BufferSize ||
-        FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.AlwaysUseDoubleBuffering;
-}
-static inline
-BOOLEAN FspFsvolDeviceWriteShouldUseProcessBuffer(PDEVICE_OBJECT FsvolDeviceObject, SIZE_T BufferSize)
-{
-    return FspProcessBufferSizeMax >= BufferSize ||
-        FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.AlwaysUseDoubleBuffering;
-}
-static inline
-BOOLEAN FspFsvolDeviceQueryDirectoryShouldUseProcessBuffer(PDEVICE_OBJECT FsvolDeviceObject, SIZE_T BufferSize)
-{
-    return FspFsvolDeviceReadShouldUseProcessBuffer(FsvolDeviceObject, BufferSize);
-}
 NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
     PUNICODE_STRING DeviceName, DEVICE_TYPE DeviceType, ULONG DeviceCharacteristics,
     PUNICODE_STRING DeviceSddl, LPCGUID DeviceClassGuid,
@@ -1137,6 +1120,29 @@ VOID FspDeviceGlobalUnlock(VOID)
     STATUS_VOLUME_DISMOUNTED
     //(FILE_DEVICE_DISK_FILE_SYSTEM == (DeviceObject)->DeviceType ?\
     //    STATUS_VOLUME_DISMOUNTED : STATUS_DEVICE_NOT_CONNECTED)
+
+/* process buffers conditional usage */
+static inline
+BOOLEAN FspReadIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
+{
+    ASSERT(0 != Irp);
+    return FspProcessBufferSizeMax >= BufferSize ||
+        FspFsvolDeviceExtension(IoGetCurrentIrpStackLocation(Irp)->DeviceObject)->
+            VolumeParams.AlwaysUseDoubleBuffering;
+}
+static inline
+BOOLEAN FspWriteIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
+{
+    ASSERT(0 != Irp);
+    return FspProcessBufferSizeMax >= BufferSize ||
+        FspFsvolDeviceExtension(IoGetCurrentIrpStackLocation(Irp)->DeviceObject)->
+            VolumeParams.AlwaysUseDoubleBuffering;
+}
+static inline
+BOOLEAN FspQueryDirectoryIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
+{
+    return FspReadIrpShouldUseProcessBuffer(Irp, BufferSize);
+}
 
 /* volume management */
 #define FspVolumeTransactEarlyTimeout   (1 * 10000ULL)
