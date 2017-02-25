@@ -1139,12 +1139,10 @@ BOOLEAN FspWriteIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
 {
     ASSERT(0 != Irp);
 #if DBG
-    return DEBUGTEST(50) ||
+    return DEBUGTEST(50);
 #else
-    return FspProcessBufferSizeMax >= BufferSize ||
+    return FspProcessBufferSizeMax >= BufferSize;
 #endif
-        FspFsvolDeviceExtension(IoGetCurrentIrpStackLocation(Irp)->DeviceObject)->
-            VolumeParams.AlwaysUseDoubleBuffering;
 }
 static inline
 BOOLEAN FspQueryDirectoryIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)

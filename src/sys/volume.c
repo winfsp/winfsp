@@ -171,6 +171,16 @@ static NTSTATUS FspVolumeCreateNoLock(
     }
     VolumeParams.FileSystemName[sizeof VolumeParams.FileSystemName / sizeof(WCHAR) - 1] = L'\0';
 
+#if !DBG
+    /*
+     * In Release builds we hardcode AlwaysUseDoubleBuffering for Reads as we do not want someone
+     * to use WinFsp to crash Windows.
+     *
+     * See http://www.osronline.com/showthread.cfm?link=282037
+     */
+    VolumeParams.AlwaysUseDoubleBuffering = 1;
+#endif
+
     /* create volume guid */
     Result = FspCreateGuid(&Guid);
     if (!NT_SUCCESS(Result))
