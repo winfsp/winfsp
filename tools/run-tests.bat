@@ -535,7 +535,7 @@ call %ProjRoot%\tools\build-sample %Configuration% %1 passthrough-fuse "%TMP%\pa
 if !ERRORLEVEL! neq 0 goto fail
 mkdir "%TMP%\passthrough-fuse-%1\test"
 call "%ProjRoot%\tools\fsreg" passthrough-fuse "%TMP%\passthrough-fuse-%1\build\%Configuration%\passthrough-fuse-%1.exe" ^
-    "-ouid=65792,gid=65792 -oCaseInsensitiveSearch --VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
+    "-ouid=65792,gid=65792 --VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
 echo net use L: "\\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test"
 net use L: "\\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test"
 if !ERRORLEVEL! neq 0 goto fail
