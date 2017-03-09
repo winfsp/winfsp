@@ -636,13 +636,13 @@ static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     struct fuse_statvfs stbuf;
     int err;
 
-    if (0 == f->ops.statfs)
-        return STATUS_INVALID_DEVICE_REQUEST;
-
     memset(&stbuf, 0, sizeof stbuf);
-    err = f->ops.statfs("/", &stbuf);
-    if (0 != err)
-        return fsp_fuse_ntstatus_from_errno(f->env, err);
+    if (0 != f->ops.statfs)
+    {
+        err = f->ops.statfs("/", &stbuf);
+        if (0 != err)
+            return fsp_fuse_ntstatus_from_errno(f->env, err);
+    }
 
     VolumeInfo->TotalSize = (UINT64)stbuf.f_blocks * (UINT64)stbuf.f_frsize;
     VolumeInfo->FreeSize = (UINT64)stbuf.f_bfree * (UINT64)stbuf.f_frsize;
