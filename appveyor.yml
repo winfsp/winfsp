@@ -23,7 +23,7 @@ build_script:
 - tools\build.bat %CONFIGURATION%
 
 test_script:
-- choco install winfsp -s build\VStudio\build\%CONFIGURATION%
+- choco install winfsp -s build\VStudio\build\%CONFIGURATION% -y
 - if %TESTING%==Func appveyor DownloadFile http://www.secfs.net/winfsp/resources/Test.Filter.Driver.zip && 7z x Test.Filter.Driver.zip
 - if %TESTING%==Func start /wait msiexec /i "Test.Filter.Driver\HCK Filter.Driver Content-x86_en-us.msi" /qn
 - if %TESTING%==Func tools\nmake-ext-test.bat %CONFIGURATION%
@@ -31,7 +31,7 @@ test_script:
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% ifstest
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% sample
 - if %TESTING%==Perf tools\run-perf-tests.bat %CONFIGURATION% baseline > perf-tests.csv && type perf-tests.csv & appveyor PushArtifact perf-tests.csv
-- choco uninstall winfsp
+- choco uninstall winfsp -y
 - if exist %SystemRoot%\memory.dmp exit 1
 
 on_finish:
