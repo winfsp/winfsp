@@ -23,7 +23,8 @@ build_script:
 - tools\build.bat %CONFIGURATION%
 
 test_script:
-- for %%f in ("build\VStudio\build\%CONFIGURATION%\winfsp-*.msi") do start /wait msiexec /i %%f /qn INSTALLLEVEL=1000
+- rem for %%f in ("build\VStudio\build\%CONFIGURATION%\winfsp-*.msi") do start /wait msiexec /i %%f /qn INSTALLLEVEL=1000
+- choco install winfsp -s build\VStudio\build\%CONFIGURATION%
 - if %TESTING%==Func appveyor DownloadFile http://www.secfs.net/winfsp/resources/Test.Filter.Driver.zip && 7z x Test.Filter.Driver.zip
 - if %TESTING%==Func start /wait msiexec /i "Test.Filter.Driver\HCK Filter.Driver Content-x86_en-us.msi" /qn
 - if %TESTING%==Func tools\nmake-ext-test.bat %CONFIGURATION%

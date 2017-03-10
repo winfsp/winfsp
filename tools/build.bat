@@ -1,6 +1,7 @@
 @echo off
 
 setlocal
+setlocal EnableDelayedExpansion
 
 set MsiName="WinFsp - Windows File System Proxy"
 set CrossCert="%~dp0DigiCert High Assurance EV Root CA.crt"
@@ -19,6 +20,7 @@ if not X%SignedPackage%==X (
     if not exist "%~dp0..\build\VStudio\build\%Configuration%\winfsp-*.msi" (echo previous build not found >&2 & exit /b 1)
     if not exist "%SignedPackage%" (echo signed package not found >&2 & exit /b 1)
     del "%~dp0..\build\VStudio\build\%Configuration%\winfsp-*.msi"
+    if exist "%~dp0..\build\VStudio\build\%Configuration%\winfsp.*.nupkg" del "%~dp0..\build\VStudio\build\%Configuration%\winfsp.*.nupkg"
     for /R "%SignedPackage%" %%f in (*.sys) do (
         copy "%%f" "%~dp0..\build\VStudio\build\%Configuration%" >nul
     )
@@ -80,6 +82,16 @@ for %%f in (build\%Configuration%\winfsp-*.msi) do (
 )
 
 if not %signfail%==0 echo SIGNING FAILED! The product has been successfully built, but not signed.
+
+where /q choco.exe
+if %ERRORLEVEL% equ 0 (
+    for %%f in (build\%Configuration%\winfsp-*.msi) do set Version=%%~nf
+    set Version=!Version:winfsp-=!
+
+    copy ..\choco\* build\%Configuration%
+    choco pack build\%Configuration%\winfsp.nuspec --version=!Version! --outputdirectory=build\%Configuration%
+    if errorlevel 1 goto fail
+)
 
 exit /b 0
 

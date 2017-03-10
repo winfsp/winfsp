@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+    <metadata>
+        <id>winfsp</id>
+        <version>$version$</version>
+        <packageSourceUrl>https://github.com/billziss-gh/winfsp/tree/master/build/choco</packageSourceUrl>
+        <owners>Bill Zissimopoulos &lt;billziss at navimatics.com&gt;</owners>
+
+        <title>WinFsp</title>
+        <authors>Bill Zissimopoulos &lt;billziss at navimatics.com&gt;</authors>
+        <projectUrl>https://github.com/billziss-gh/winfsp</projectUrl>
+        <iconUrl>https://github.com/billziss-gh/winfsp/raw/master/art/winfsp-solid.png</iconUrl>
+        <copyright>Bill Zissimopoulos</copyright>
+        <licenseUrl>https://github.com/billziss-gh/winfsp/blob/master/License.txt</licenseUrl>
+        <requireLicenseAcceptance>false</requireLicenseAcceptance>
+        <projectSourceUrl>https://github.com/billziss-gh/winfsp</projectSourceUrl>
+        <docsUrl>https://github.com/billziss-gh/winfsp/tree/master/doc</docsUrl>
+        <mailingListUrl>https://groups.google.com/forum/#!forum/winfsp</mailingListUrl>
+        <bugTrackerUrl>https://github.com/billziss-gh/winfsp/issues</bugTrackerUrl>
+        <tags>driver filesystem fuse gplv3 windows-kernel</tags>
+        <summary>Windows File System Proxy - FUSE for Windows</summary>
+        <description>
+WinFsp is a set of software components for Windows computers that allows the creation of user mode file systems. In this sense it is similar to FUSE (Filesystem in Userspace), which provides the same functionality on UNIX-like computers.
+
+Some of the benefits of using WinFsp are listed below:
+
+* Very well-tested and stable.
+* Very fast.
+* Strives for compatibility with NTFS.
+* Easy to understand but comprehensive API.
+* FUSE compatibility layer for native Windows and Cygwin.
+* Signed drivers provided on every release.
+* Available under the GPLv3 license with a special exception for Free/Libre and Open Source Software.
+        </description>
+        <releaseNotes>https://github.com/billziss-gh/winfsp/blob/master/Changelog.asciidoc</releaseNotes>
+
+        <!--<dependencies>
+            <dependency id="chocolatey-uninstall.extension" />
+        </dependencies>-->
+    </metadata>
+
+    <files>
+        <file src="chocolateyInstall.ps1" target="tools" />
+        <file src="winfsp-$version$.msi" target="tools" />
+    </files>
+</package>
