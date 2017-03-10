@@ -17,7 +17,7 @@
         <docsUrl>https://github.com/billziss-gh/winfsp/tree/master/doc</docsUrl>
         <mailingListUrl>https://groups.google.com/forum/#!forum/winfsp</mailingListUrl>
         <bugTrackerUrl>https://github.com/billziss-gh/winfsp/issues</bugTrackerUrl>
-        <tags>driver filesystem fuse gplv3 windows-kernel</tags>
+        <tags>driver filesystem fuse gplv3 windows-kernel admin</tags>
         <summary>Windows File System Proxy - FUSE for Windows</summary>
         <description>
 WinFsp is a set of software components for Windows computers that allows the creation of user mode file systems. In this sense it is similar to FUSE (Filesystem in Userspace), which provides the same functionality on UNIX-like computers.
