@@ -41,6 +41,7 @@ Some of the benefits of using WinFsp are listed below:
 
     <files>
         <file src="chocolateyInstall.ps1" target="tools" />
+        <file src="chocolateyUninstall.ps1" target="tools" />
         <file src="winfsp-$version$.msi" target="tools" />
     </files>
 </package>
