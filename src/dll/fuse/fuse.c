@@ -32,6 +32,7 @@ struct fsp_fuse_core_opt_data
 {
     struct fsp_fuse_env *env;
     int help, debug;
+    HANDLE DebugLogHandle;
     int set_umask, umask,
         set_uid, uid,
         set_gid, gid,
@@ -51,6 +52,8 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FUSE_OPT_KEY("debug", FUSE_OPT_KEY_KEEP),
     FSP_FUSE_CORE_OPT("-d", debug, 1),
     FSP_FUSE_CORE_OPT("debug", debug, 1),
+
+    FUSE_OPT_KEY("DebugLog=", 'D'),
 
     FUSE_OPT_KEY("hard_remove", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("use_ino", FUSE_OPT_KEY_DISCARD),
@@ -450,6 +453,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
     case 'h':
         FspServiceLog(EVENTLOG_ERROR_TYPE, L""
             FSP_FUSE_LIBRARY_NAME " options:\n"
+            "    -o DebugLog=FILE           debug log file (deflt: stderr)\n"
             "    -o SectorSize=N            sector size for Windows (512-4096, deflt: 4096)\n"
             "    -o SectorsPerAllocationUnit=N  sectors per allocation unit (deflt: 1)\n"
             "    -o MaxComponentLength=N    max file name component length (deflt: 255)\n"
@@ -466,6 +470,17 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION);
         opt_data->help = 1;
         return 1;
+    case 'D':
+        arg += sizeof "DebugLog=" - 1;
+        opt_data->DebugLogHandle = CreateFileA(
+            arg,
+            FILE_APPEND_DATA,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            0,
+            OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            0);
+        return 0;
     case 'U':
         if ('U' == arg[2])
             arg += sizeof "--UNC=" - 1;
@@ -508,12 +523,23 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
 
     memset(&opt_data, 0, sizeof opt_data);
     opt_data.env = env;
+    opt_data.DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
     opt_data.VolumeParams.FileInfoTimeout = 1000;   /* default FileInfoTimeout for FUSE file systems */
 
     if (-1 == fsp_fuse_opt_parse(env, args, &opt_data, fsp_fuse_core_opts, fsp_fuse_core_opt_proc))
         return 0;
     if (opt_data.help)
         return 0;
+
+    if (opt_data.debug)
+    {
+        if (INVALID_HANDLE_VALUE == opt_data.DebugLogHandle)
+        {
+            ErrorMessage = L": cannot open debug log file.";
+            goto fail;
+        }
+        FspDebugLogSetHandle(opt_data.DebugLogHandle);
+    }
 
     if ((opt_data.set_uid && -1 == opt_data.uid) ||
         (opt_data.set_gid && -1 == opt_data.gid))

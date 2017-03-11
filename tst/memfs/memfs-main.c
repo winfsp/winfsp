@@ -106,7 +106,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     if (0 != DebugLogFile)
     {
         if (0 == wcscmp(L"-", DebugLogFile))
-            DebugLogHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+            DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
         else
             DebugLogHandle = CreateFileW(
                 DebugLogFile,
@@ -184,7 +184,7 @@ usage:
         "\n"
         "options:\n"
         "    -d DebugFlags       [-1: enable all debug logs]\n"
-        "    -D DebugLogFile     [file path; use - for stdout]\n"
+        "    -D DebugLogFile     [file path; use - for stderr]\n"
         "    -i                  [case insensitive file system]\n"
         "    -t FileInfoTimeout  [millis]\n"
         "    -n MaxFileNodes\n"

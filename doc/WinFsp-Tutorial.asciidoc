@@ -112,7 +112,7 @@ usage: passthrough OPTIONS
 
 options:
     -d DebugFlags       [-1: enable all debug logs]
-    -D DebugLogFile     [file path; use - for stdout]
+    -D DebugLogFile     [file path; use - for stderr]
     -u \Server\Share    [UNC prefix (single backslash)]
     -p Directory        [directory to expose as pass through file system]
     -m MountPoint       [X:|*|directory]
@@ -138,7 +138,7 @@ The variable `DebugLogFile` is used to control the WinFsp debug logging mechanis
     if (0 != DebugLogFile)
     {
         if (0 == wcscmp(L"-", DebugLogFile))
-            DebugLogHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+            DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
         else
             DebugLogHandle = CreateFileW(
                 DebugLogFile,
