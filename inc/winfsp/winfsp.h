@@ -26,7 +26,10 @@
 #include <windows.h>
 #undef WIN32_NO_STATUS
 #include <winternl.h>
+#pragma warning(push)
+#pragma warning(disable:4005)           /* macro redefinition */
 #include <ntstatus.h>
+#pragma warning(pop)
 
 #if defined(WINFSP_DLL_INTERNAL)
 #define FSP_API                         __declspec(dllexport)
@@ -1641,6 +1644,18 @@ NTSTATUS FspLoad(PVOID *PModule)
 #define FSP_DLLNAME                     "winfsp-x86.dll"
 #endif
 #define FSP_DLLPATH                     "bin\\" FSP_DLLNAME
+
+    WINADVAPI
+    LSTATUS
+    APIENTRY
+    RegGetValueW(
+        HKEY hkey,
+        LPCWSTR lpSubKey,
+        LPCWSTR lpValue,
+        DWORD dwFlags,
+        LPDWORD pdwType,
+        PVOID pvData,
+        LPDWORD pcbData);
 
     WCHAR PathBuf[MAX_PATH];
     DWORD Size;
