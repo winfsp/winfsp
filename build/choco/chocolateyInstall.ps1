@@ -12,3 +12,5 @@ $packageArgs = @{
 }
 
 Install-ChocolateyInstallPackage @packageArgs
+
+Remove-Item -Force $packageArgs.file
