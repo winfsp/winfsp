@@ -3,8 +3,9 @@
 
 v1.0::
 
-This is the WinFsp 2017 release! :tada: A few minor changes since v1.0RC3:
+This is the WinFsp 2017 release! :tada:
 
+- The API is now *FROZEN*. Breaking API changes will receive a major version update (`2.0`). Incremental API changes will receive a minor version update (`1.x`).
 - Adds chocolatey package. Try `choco install winfsp` (note: pending approval from chocolatey.org).
 - FUSE `-d` output now always goes to stderr. There is also a new `-oDebugLog=FILE` switch to specify a debug output file.
 - FUSE now provides a default `statfs` implementation if a file system does not provide one.
