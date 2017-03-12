@@ -3,7 +3,7 @@
 
 v1.0::
 
-This is the WinFsp 2017 release. A few minor changes since v1.0RC3:
+This is the WinFsp 2017 release! :tada: A few minor changes since v1.0RC3:
 
 - Adds chocolatey package. Try `choco install winfsp` (note: pending approval from chocolatey.org).
 - FUSE `-d` output now always goes to stderr. There is also a new `-oDebugLog=FILE` switch to specify a debug output file.
