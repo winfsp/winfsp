@@ -1354,7 +1354,7 @@ FSP_API BOOLEAN FspFileSystemFindReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     return FALSE;
 }
 
-FSP_API NTSTATUS FspFileSystemResolveReparsePointsInternal(FSP_FILE_SYSTEM *FileSystem,
+static NTSTATUS FspFileSystemResolveReparsePointsInternal(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS (*GetReparsePointByName)(
         FSP_FILE_SYSTEM *FileSystem, PVOID Context,
         PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize),
