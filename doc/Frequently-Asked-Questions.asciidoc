@@ -13,7 +13,7 @@ There are a few alternative methods to overcome this problem. WinFsp recommends 
 
 Does WinFsp provide debugging symbols? [@netheril96]::
 
-    Public debugging symbols are already included in the installer. You need to install the "Developer" feature; the symbols can be found in the `sym` directory.
+    Public debugging symbols are already included in the installer. You need to install the "Developer" feature; the symbols can be found in the `sym` directory under the WinFsp installation directory.
 
 
 Is there a maximum number of concurrent file systems? [@efeat]::
