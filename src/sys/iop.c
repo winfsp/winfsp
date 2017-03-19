@@ -1,7 +1,7 @@
 /**
  * @file sys/iop.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -33,7 +33,7 @@ BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
 VOID FspIopSetIrpResponse(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_FSCTL_TRANSACT_RSP *FspIopIrpResponse(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
-NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+NTSTATUS FspIopDispatchComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspIopCreateRequestFunnel)
@@ -284,6 +284,32 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference)
     /*
      * HACK:
      *
+     * We update the Create statistics here to avoid doing it in multiple places.
+     */
+    if (IRP_MJ_CREATE == IrpSp->MajorFunction)
+    {
+        /* only update statistics if we actually have a reference to the DeviceObject */
+        if (DeviceDereference)
+        {
+            FSP_DEVICE_EXTENSION *DeviceExtension = FspDeviceExtension(DeviceObject);
+
+            if (FspFsvolDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind)
+            {
+                FSP_STATISTICS *Statistics = FspStatistics(
+                    ((FSP_FSVOL_DEVICE_EXTENSION *)DeviceExtension)->Statistics);
+
+                FspStatisticsInc(Statistics, Specific.CreateHits);
+                if (STATUS_SUCCESS == Result)
+                    FspStatisticsInc(Statistics, Specific.SuccessfulCreates);
+                else
+                    FspStatisticsInc(Statistics, Specific.FailedCreates);
+            }
+        }
+    }
+    else
+    /*
+     * HACK:
+     *
      * Turns out that SRV2 sends an undocumented flavor of IRP_MJ_DIRECTORY_CONTROL /
      * IRP_MN_QUERY_DIRECTORY. These IRP's have a non-NULL Irp->MdlAddress. They expect
      * the FSD to fill the buffer pointed by Irp->MdlAddress and they cannot handle
@@ -422,7 +448,7 @@ NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request)
         return STATUS_SUCCESS;
 }
 
-NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+NTSTATUS FspIopDispatchComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     PAGED_CODE();
 
@@ -431,6 +457,9 @@ NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response
     ASSERT(IRP_MJ_MAXIMUM_FUNCTION >= IrpSp->MajorFunction);
     ASSERT(0 != FspIopCompleteFunction[IrpSp->MajorFunction]);
 
+    if (STATUS_PENDING == Response->IoStatus.Status ||
+        FlagOn(Response->IoStatus.Status, FSP_STATUS_PRIVATE_BIT | FSP_STATUS_IGNORE_BIT))
+        Response->IoStatus.Status = (UINT32)STATUS_INTERNAL_ERROR;
     return FspIopCompleteFunction[IrpSp->MajorFunction](Irp, Response);
 }
 

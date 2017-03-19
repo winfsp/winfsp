@@ -1,7 +1,7 @@
 /**
  * @file sys/write.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -45,10 +45,12 @@ enum
 {
     /* WriteNonCached */
     RequestIrp                          = 0,
+    RequestCookie                       = 1,
     RequestSafeMdl                      = 1,
     RequestAddress                      = 2,
     RequestProcess                      = 3,
 };
+FSP_FSCTL_STATIC_ASSERT(RequestCookie == RequestSafeMdl, "");
 
 static NTSTATUS FspFsvolWrite(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
@@ -195,6 +197,7 @@ static NTSTATUS FspFsvolWriteCached(
     {
         ASSERT(CanWait);
 
+        /* send EndOfFileInformation IRP; this will also set TruncateOnClose, etc. */
         EndOfFileInformation.EndOfFile.QuadPart = WriteEndOffset;
         Result = FspSendSetInformationIrp(FsvolDeviceObject/* bypass filters */, FileObject,
             FileEndOfFileInformation, &EndOfFileInformation, sizeof EndOfFileInformation);
@@ -393,6 +396,20 @@ static NTSTATUS FspFsvolWriteNonCached(
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;
 
+    FSP_STATISTICS *Statistics = FspFsvolDeviceStatistics(FsvolDeviceObject);
+    if (PagingIo)
+    {
+        FspStatisticsInc(Statistics, Base.UserFileWrites);
+        FspStatisticsAdd(Statistics, Base.UserFileWriteBytes, WriteLength);
+        FspStatisticsInc(Statistics, Base.UserDiskWrites);
+    }
+    else
+    {
+        FspStatisticsInc(Statistics, Specific.NonCachedWrites);
+        FspStatisticsAdd(Statistics, Specific.NonCachedWriteBytes, WriteLength);
+        FspStatisticsInc(Statistics, Specific.NonCachedDiskWrites);
+    }
+
     return FSP_STATUS_IOQ_POST;
 }
 
@@ -401,41 +418,86 @@ NTSTATUS FspFsvolWritePrepare(
 {
     PAGED_CODE();
 
-    NTSTATUS Result;
-    FSP_SAFE_MDL *SafeMdl = 0;
-    PVOID Address;
-    PEPROCESS Process;
-
-    /* create a "safe" MDL if necessary */
-    if (!FspSafeMdlCheck(Irp->MdlAddress))
+    if (FspWriteIrpShouldUseProcessBuffer(Irp, Request->Req.Write.Length))
     {
-        Result = FspSafeMdlCreate(Irp->MdlAddress, IoReadAccess, &SafeMdl);
+        NTSTATUS Result;
+        PVOID Cookie;
+        PVOID Address;
+        PEPROCESS Process;
+        PVOID SystemAddress = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
+
+        if (0 == SystemAddress)
+            return STATUS_INSUFFICIENT_RESOURCES; /* something is seriously screwy! */
+
+        Result = FspProcessBufferAcquire(Request->Req.Write.Length, &Cookie, &Address);
         if (!NT_SUCCESS(Result))
             return Result;
-    }
 
-    /* map the MDL into user-mode */
-    Result = FspMapLockedPagesInUserMode(
-        0 != SafeMdl ? SafeMdl->Mdl : Irp->MdlAddress, &Address, FspMvMdlMappingNoWrite);
-    if (!NT_SUCCESS(Result))
+        ASSERT(0 != Address);
+        try
+        {
+            RtlCopyMemory(Address, SystemAddress, Request->Req.Write.Length);
+        }
+        except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            Result = GetExceptionCode();
+            Result = FsRtlIsNtstatusExpected(Result) ? STATUS_INVALID_USER_BUFFER : Result;
+
+            FspProcessBufferRelease(Cookie, Address);
+
+            return Result;
+        }
+
+        /* get a pointer to the current process so that we can release the buffer later */
+        Process = PsGetCurrentProcess();
+        ObReferenceObject(Process);
+
+        Request->Req.Write.Address = (UINT64)(UINT_PTR)Address;
+
+        FspIopRequestContext(Request, RequestCookie) = (PVOID)((UINT_PTR)Cookie | 1);
+        FspIopRequestContext(Request, RequestAddress) = Address;
+        FspIopRequestContext(Request, RequestProcess) = Process;
+
+        return STATUS_SUCCESS;
+    }
+    else
     {
-        if (0 != SafeMdl)
-            FspSafeMdlDelete(SafeMdl);
+        NTSTATUS Result;
+        FSP_SAFE_MDL *SafeMdl = 0;
+        PVOID Address;
+        PEPROCESS Process;
 
-        return Result;
+        /* create a "safe" MDL if necessary */
+        if (!FspSafeMdlCheck(Irp->MdlAddress))
+        {
+            Result = FspSafeMdlCreate(Irp->MdlAddress, IoReadAccess, &SafeMdl);
+            if (!NT_SUCCESS(Result))
+                return Result;
+        }
+
+        /* map the MDL into user-mode */
+        Result = FspMapLockedPagesInUserMode(
+            0 != SafeMdl ? SafeMdl->Mdl : Irp->MdlAddress, &Address, FspMvMdlMappingNoWrite);
+        if (!NT_SUCCESS(Result))
+        {
+            if (0 != SafeMdl)
+                FspSafeMdlDelete(SafeMdl);
+
+            return Result;
+        }
+
+        /* get a pointer to the current process so that we can unmap the address later */
+        Process = PsGetCurrentProcess();
+        ObReferenceObject(Process);
+
+        Request->Req.Write.Address = (UINT64)(UINT_PTR)Address;
+
+        FspIopRequestContext(Request, RequestSafeMdl) = SafeMdl;
+        FspIopRequestContext(Request, RequestAddress) = Address;
+        FspIopRequestContext(Request, RequestProcess) = Process;
+
+        return STATUS_SUCCESS;
     }
-
-    /* get a pointer to the current process so that we can unmap the address later */
-    Process = PsGetCurrentProcess();
-    ObReferenceObject(Process);
-
-    Request->Req.Write.Address = (UINT64)(UINT_PTR)Address;
-
-    FspIopRequestContext(Request, RequestSafeMdl) = SafeMdl;
-    FspIopRequestContext(Request, RequestAddress) = Address;
-    FspIopRequestContext(Request, RequestProcess) = Process;
-
-    return STATUS_SUCCESS;
 }
 
 NTSTATUS FspFsvolWriteComplete(
@@ -469,10 +531,10 @@ NTSTATUS FspFsvolWriteComplete(
         UINT64 OriginalFileSize = FileNode->Header.FileSize.QuadPart;
 
         /* update file info */
-        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Write.FileInfo);
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Write.FileInfo, TRUE);
 
         if (OriginalFileSize != Response->Rsp.Write.FileInfo.FileSize)
-            FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED);
+            FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED, FALSE);
 
         /* update the current file offset if synchronous I/O (and not paging I/O) */
         if (SynchronousIo && !PagingIo)
@@ -509,29 +571,56 @@ static VOID FspFsvolWriteNonCachedRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
     PAGED_CODE();
 
     PIRP Irp = Context[RequestIrp];
-    FSP_SAFE_MDL *SafeMdl = Context[RequestSafeMdl];
-    PVOID Address = Context[RequestAddress];
-    PEPROCESS Process = Context[RequestProcess];
 
-    if (0 != Address)
+    if ((UINT_PTR)Context[RequestCookie] & 1)
     {
-        KAPC_STATE ApcState;
-        BOOLEAN Attach;
+        PVOID Cookie = (PVOID)((UINT_PTR)Context[RequestCookie] & ~1);
+        PVOID Address = Context[RequestAddress];
+        PEPROCESS Process = Context[RequestProcess];
 
-        ASSERT(0 != Process);
-        Attach = Process != PsGetCurrentProcess();
+        if (0 != Address)
+        {
+            KAPC_STATE ApcState;
+            BOOLEAN Attach;
 
-        if (Attach)
-            KeStackAttachProcess(Process, &ApcState);
-        MmUnmapLockedPages(Address, 0 != SafeMdl ? SafeMdl->Mdl : Irp->MdlAddress);
-        if (Attach)
-            KeUnstackDetachProcess(&ApcState);
+            ASSERT(0 != Process);
+            Attach = Process != PsGetCurrentProcess();
 
-        ObDereferenceObject(Process);
+            if (Attach)
+                KeStackAttachProcess(Process, &ApcState);
+            FspProcessBufferRelease(Cookie, Address);
+            if (Attach)
+                KeUnstackDetachProcess(&ApcState);
+
+            ObDereferenceObject(Process);
+        }
     }
+    else
+    {
+        FSP_SAFE_MDL *SafeMdl = Context[RequestSafeMdl];
+        PVOID Address = Context[RequestAddress];
+        PEPROCESS Process = Context[RequestProcess];
 
-    if (0 != SafeMdl)
-        FspSafeMdlDelete(SafeMdl);
+        if (0 != Address)
+        {
+            KAPC_STATE ApcState;
+            BOOLEAN Attach;
+
+            ASSERT(0 != Process);
+            Attach = Process != PsGetCurrentProcess();
+
+            if (Attach)
+                KeStackAttachProcess(Process, &ApcState);
+            MmUnmapLockedPages(Address, 0 != SafeMdl ? SafeMdl->Mdl : Irp->MdlAddress);
+            if (Attach)
+                KeUnstackDetachProcess(&ApcState);
+
+            ObDereferenceObject(Process);
+        }
+
+        if (0 != SafeMdl)
+            FspSafeMdlDelete(SafeMdl);
+    }
 
     if (0 != Irp)
     {

@@ -95,6 +95,12 @@
     <ClCompile Include="..\..\src\sys\name.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\sys\statistics.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\sys\psbuffer.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\sys\driver.h">
@@ -108,5 +114,10 @@
     <ResourceCompile Include="..\..\src\sys\version.rc">
       <Filter>Source</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\src\sys\driver.inf.in">
+      <Filter>Source</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

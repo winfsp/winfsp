@@ -1,7 +1,7 @@
 /**
  * @file sys/cleanup.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -77,13 +77,17 @@ static NTSTATUS FspFsvolCleanup(
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request;
-    BOOLEAN DeletePending;
+    ULONG CleanupFlags;
+    BOOLEAN DeletePending, SetAllocationSize, FileModified;
 
     ASSERT(FileNode == FileDesc->FileNode);
 
     FspFileNodeAcquireExclusive(FileNode, Main);
 
-    FspFileNodeCleanup(FileNode, FileObject, &DeletePending);
+    FspFileNodeCleanup(FileNode, FileObject, &CleanupFlags);
+    DeletePending = CleanupFlags & 1;
+    SetAllocationSize = !!(CleanupFlags & 2);
+    FileModified = BooleanFlagOn(FileObject->Flags, FO_FILE_MODIFIED);
 
     /* if this is a directory inform the FSRTL Notify mechanism */
     if (FileNode->IsDirectory)
@@ -106,13 +110,25 @@ static NTSTATUS FspFsvolCleanup(
     Request->Req.Cleanup.UserContext = FileNode->UserContext;
     Request->Req.Cleanup.UserContext2 = FileDesc->UserContext2;
     Request->Req.Cleanup.Delete = DeletePending;
+    Request->Req.Cleanup.SetAllocationSize = SetAllocationSize;
+    Request->Req.Cleanup.SetArchiveBit = (FileModified || FileDesc->DidSetSecurity) &&
+        !FileDesc->DidSetFileAttributes;
+    Request->Req.Cleanup.SetLastAccessTime = !FileDesc->DidSetLastAccessTime;
+    Request->Req.Cleanup.SetLastWriteTime = FileModified && !FileDesc->DidSetLastWriteTime;
+    Request->Req.Cleanup.SetChangeTime = (FileModified || FileDesc->DidSetMetadata) &&
+        !FileDesc->DidSetChangeTime;
 
     FspFileNodeAcquireExclusive(FileNode, Pgio);
 
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;
 
-    if (DeletePending || !FsvolDeviceExtension->VolumeParams.PostCleanupOnDeleteOnly)
+    if (Request->Req.Cleanup.Delete ||
+        Request->Req.Cleanup.SetAllocationSize ||
+        Request->Req.Cleanup.SetArchiveBit ||
+        Request->Req.Cleanup.SetLastWriteTime ||
+        Request->Req.Cleanup.SetChangeTime ||
+        !FsvolDeviceExtension->VolumeParams.PostCleanupWhenModifiedOnly)
         /*
          * Note that it is still possible for this request to not be delivered,
          * if the volume device Ioq is stopped. But such failures are benign
@@ -122,9 +138,13 @@ static NTSTATUS FspFsvolCleanup(
         return FSP_STATUS_IOQ_POST_BEST_EFFORT;
     else
     {
-        /* if the file is being resized invalidate the volume info */
-        if (FileNode->TruncateOnClose)
-            FspFsvolDeviceInvalidateVolumeInfo(IrpSp->DeviceObject);
+        if (FileDesc->DidSetMetadata)
+        {
+            if (0 == FileNode->MainFileNode)
+                FspFileNodeInvalidateParentDirInfo(FileNode);
+            else
+                FspFileNodeInvalidateStreamInfo(FileNode);
+        }
 
         return STATUS_SUCCESS; /* FspFsvolCleanupRequestFini will take care of the rest! */
     }
@@ -138,15 +158,51 @@ NTSTATUS FspFsvolCleanupComplete(
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
+    ULONG NotifyFilter, NotifyAction;
 
-    /* if the file is being deleted do a change notification */
+    ASSERT(FileNode == FileDesc->FileNode);
+
+    /* send the appropriate notification; also invalidate dirinfo/etc. caches */
     if (Request->Req.Cleanup.Delete)
-        FspFileNodeNotifyChange(FileNode,
-            FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
-            FILE_ACTION_REMOVED);
-    /* if the file is being resized invalidate the volume info */
-    else if (FileNode->TruncateOnClose)
-        FspFsvolDeviceInvalidateVolumeInfo(IrpSp->DeviceObject);
+    {
+        NotifyFilter = FileNode->IsDirectory ?
+            FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME;
+        NotifyAction = FILE_ACTION_REMOVED;
+    }
+    else
+    {
+        /* send notification for any metadata changes */
+        NotifyFilter = 0;
+#if 0
+        /* do not send notification when resetting the allocation size */
+        if (Request->Req.Cleanup.SetAllocationSize)
+            NotifyFilter |= FILE_NOTIFY_CHANGE_SIZE;
+#endif
+        if (Request->Req.Cleanup.SetArchiveBit)
+            NotifyFilter |= FILE_NOTIFY_CHANGE_ATTRIBUTES;
+#if 0
+        /* do not send notification for implicit LastAccessTime changes */
+        if (Request->Req.Cleanup.SetLastAccessTime)
+            NotifyFilter |= FILE_NOTIFY_CHANGE_LAST_ACCESS;
+#endif
+        if (Request->Req.Cleanup.SetLastWriteTime)
+            NotifyFilter |= FILE_NOTIFY_CHANGE_LAST_WRITE;
+        NotifyAction = FILE_ACTION_MODIFIED;
+    }
+
+    if (0 != NotifyFilter)
+        FspFileNodeNotifyChange(FileNode, NotifyFilter, NotifyAction, TRUE);
+    else
+    {
+        if (FileDesc->DidSetMetadata)
+        {
+            if (0 == FileNode->MainFileNode)
+                FspFileNodeInvalidateParentDirInfo(FileNode);
+            else
+                FspFileNodeInvalidateStreamInfo(FileNode);
+        }
+    }
 
     FSP_LEAVE_IOC("FileObject=%p", IrpSp->FileObject);
 }

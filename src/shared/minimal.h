@@ -1,7 +1,7 @@
 /**
  * @file shared/minimal.h
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -125,6 +125,10 @@ WINFSP_SHARED_MINIMAL_STRNCMP(invariant_wcsnicmp, wchar_t, invariant_toupper)
 static inline void *MemAlloc(size_t Size)
 {
     return HeapAlloc(GetProcessHeap(), 0, Size);
+}
+static inline void *MemRealloc(void *Pointer, size_t Size)
+{
+    return HeapReAlloc(GetProcessHeap(), 0, Pointer, Size);
 }
 static inline void MemFree(void *Pointer)
 {

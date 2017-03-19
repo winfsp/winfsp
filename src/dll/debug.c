@@ -1,7 +1,7 @@
 /**
  * @file dll/debug.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -106,7 +106,7 @@ static const char *FspDebugLogDispositionString(UINT32 CreateOptions)
 
 static const char *FspDebugLogUserContextString(UINT64 UserContext, UINT64 UserContext2, char *Buf)
 {
-    wsprintfA(Buf, 0 == UserContext2 ? "%p" : "%p:%p", UserContext, UserContext2);
+    wsprintfA(Buf, 0 == UserContext2 ? "%p" : "%p:%p", (PVOID)UserContext, (PVOID)UserContext2);
 
     return Buf;
 }
@@ -269,13 +269,13 @@ static const char *FspDebugLogReparseDataString(PVOID ReparseData0, char *Buf)
 static VOID FspDebugLogRequestVoid(FSP_FSCTL_TRANSACT_REQ *Request, const char *Name)
 {
     FspDebugLog("%S[TID=%04lx]: %p: >>%s\n",
-        FspDiagIdent(), GetCurrentThreadId(), Request->Hint, Name);
+        FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint, Name);
 }
 
 static VOID FspDebugLogResponseStatus(FSP_FSCTL_TRANSACT_RSP *Response, const char *Name)
 {
     FspDebugLog("%S[TID=%04lx]: %p: <<%s IoStatus=%lx[%ld]\n",
-        FspDiagIdent(), GetCurrentThreadId(), Response->Hint, Name,
+        FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint, Name,
         Response->IoStatus.Status, Response->IoStatus.Information);
 }
 
@@ -304,7 +304,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             "AllocationSize=%lx:%lx, "
             "AccessToken=%p, DesiredAccess=%lx, GrantedAccess=%lx, "
             "ShareAccess=%lx\n",
-            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->Req.Create.UserMode ? 'U' : 'K',
             Request->Req.Create.HasTraversePrivilege ? 'T' : '-',
             Request->Req.Create.HasBackupPrivilege ? 'B' : '-',
@@ -328,7 +328,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
     case FspFsctlTransactOverwriteKind:
         FspDebugLog("%S[TID=%04lx]: %p: >>Overwrite%s %s%S%s%s, "
             "FileAttributes=%lx\n",
-            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->Req.Overwrite.Supersede ? " [Supersede]" : "",
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
@@ -340,7 +340,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         break;
     case FspFsctlTransactCleanupKind:
         FspDebugLog("%S[TID=%04lx]: %p: >>Cleanup%s %s%S%s%s\n",
-            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->Req.Cleanup.Delete ? " [Delete]" : "",
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
@@ -351,7 +351,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         break;
     case FspFsctlTransactCloseKind:
         FspDebugLog("%S[TID=%04lx]: %p: >>Close %s%S%s%s\n",
-            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
@@ -362,14 +362,14 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
     case FspFsctlTransactReadKind:
         FspDebugLog("%S[TID=%04lx]: %p: >>Read %s%S%s%s, "
             "Address=%p, Offset=%lx:%lx, Length=%ld, Key=%lx\n",
-            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
             FspDebugLogUserContextString(
                 Request->Req.Read.UserContext, Request->Req.Read.UserContext2,
                 UserContextBuf),
-            Request->Req.Read.Address,
+            (PVOID)Request->Req.Read.Address,
             MAKE_UINT32_PAIR(Request->Req.Read.Offset),
             Request->Req.Read.Length,
             Request->Req.Read.Key);
@@ -377,7 +377,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
     case FspFsctlTransactWriteKind:
         FspDebugLog("%S[TID=%04lx]: %p: >>Write%s %s%S%s%s, "
             "Address=%p, Offset=%lx:%lx, Length=%ld, Key=%lx\n",
-            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->Req.Write.ConstrainedIo ? " [C]" : "",
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
@@ -385,14 +385,14 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             FspDebugLogUserContextString(
                 Request->Req.Write.UserContext, Request->Req.Write.UserContext2,
                 UserContextBuf),
-            Request->Req.Write.Address,
+            (PVOID)Request->Req.Write.Address,
             MAKE_UINT32_PAIR(Request->Req.Write.Offset),
             Request->Req.Write.Length,
             Request->Req.Write.Key);
         break;
     case FspFsctlTransactQueryInformationKind:
         FspDebugLog("%S[TID=%04lx]: %p: >>QueryInformation %s%S%s%s\n",
-            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
@@ -406,7 +406,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         case 4/*FileBasicInformation*/:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [Basic] %s%S%s%s, "
                 "FileAttributes=%lx, CreationTime=%s, LastAccessTime=%s, LastWriteTime=%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
@@ -424,7 +424,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         case 19/*FileAllocationInformation*/:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [Allocation] %s%S%s%s, "
                 "AllocationSize=%lx:%lx\n",
-                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
@@ -436,7 +436,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         case 20/*FileEndOfFileInformation*/:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [EndOfFile] %s%S%s%s, "
                 "FileSize = %lx:%lx\n",
-                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
@@ -448,7 +448,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         case 13/*FileDispositionInformation*/:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [Disposition] %s%S%s%s, "
                 "%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
@@ -460,7 +460,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         case 10/*FileRenameInformation*/:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [Rename] %s%S%s%s, "
                 "NewFileName=\"%S\", AccessToken=%p\n",
-                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
@@ -472,7 +472,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             break;
         default:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [INVALID] %s%S%s%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
@@ -490,7 +490,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         break;
     case FspFsctlTransactFlushBuffersKind:
         FspDebugLog("%S[TID=%04lx]: %p: >>FlushBuffers %s%S%s%s\n",
-            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
@@ -507,39 +507,42 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         case 2/*FileFsLabelInformation*/:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetVolumeInformation [FsLabel] "
                 "Label=\"%S\"\n",
-                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
                 (PWSTR)Request->Buffer);
             break;
         default:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetVolumeInformation [INVALID]\n",
-                FspDiagIdent(), GetCurrentThreadId(), Request->Hint);
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint);
             break;
         }
         break;
     case FspFsctlTransactQueryDirectoryKind:
         FspDebugLog("%S[TID=%04lx]: %p: >>QueryDirectory %s%S%s%s, "
-            "Address=%p, Offset=%lx:%lx, Length=%ld, Pattern=%s%S%s\n",
-            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            "Address=%p, Length=%ld, Pattern=%s%S%s, Marker=%s%S%s\n",
+            FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
             FspDebugLogUserContextString(
                 Request->Req.QueryDirectory.UserContext, Request->Req.QueryDirectory.UserContext2,
                 UserContextBuf),
-            Request->Req.QueryDirectory.Address,
-            MAKE_UINT32_PAIR(Request->Req.QueryDirectory.Offset),
+            (PVOID)Request->Req.QueryDirectory.Address,
             Request->Req.QueryDirectory.Length,
             Request->Req.QueryDirectory.Pattern.Size ? "\"" : "",
             Request->Req.QueryDirectory.Pattern.Size ?
                 (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Pattern.Offset) : L"NULL",
-            Request->Req.QueryDirectory.Pattern.Size ? "\"" : "");
+            Request->Req.QueryDirectory.Pattern.Size ? "\"" : "",
+            Request->Req.QueryDirectory.Marker.Size ? "\"" : "",
+            Request->Req.QueryDirectory.Marker.Size ?
+                (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Marker.Offset) : L"NULL",
+            Request->Req.QueryDirectory.Marker.Size ? "\"" : "");
         break;
     case FspFsctlTransactFileSystemControlKind:
         switch (Request->Req.FileSystemControl.FsControlCode)
         {
         case FSCTL_GET_REPARSE_POINT:
             FspDebugLog("%S[TID=%04lx]: %p: >>FileSystemControl [FSCTL_GET_REPARSE_POINT] %s%S%s%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
@@ -551,7 +554,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         case FSCTL_DELETE_REPARSE_POINT:
             FspDebugLog("%S[TID=%04lx]: %p: >>FileSystemControl [%s] %s%S%s%s "
                 "ReparseData=%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
                 FSCTL_SET_REPARSE_POINT == Request->Req.FileSystemControl.FsControlCode ?
                     "FSCTL_SET_REPARSE_POINT" : "FSCTL_DELETE_REPARSE_POINT",
                 Request->FileName.Size ? "\"" : "",
@@ -565,7 +568,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             break;
         default:
             FspDebugLog("%S[TID=%04lx]: %p: >>FileSystemControl [INVALID] %s%S%s%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
                 Request->FileName.Size ? "\", " : "",
@@ -586,7 +589,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         break;
     case FspFsctlTransactQuerySecurityKind:
         FspDebugLog("%S[TID=%04lx]: %p: >>QuerySecurity %s%S%s%s\n",
-            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
@@ -604,7 +607,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 &Sddl, 0);
         FspDebugLog("%S[TID=%04lx]: %p: >>SetSecurity %s%S%s%s, "
             "SecurityInformation=%lx, Security=%s%s%s\n",
-            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
@@ -619,7 +622,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         break;
     case FspFsctlTransactQueryStreamInformationKind:
         FspDebugLog("%S[TID=%04lx]: %p: >>QueryStreamInformation %s%S%s%s\n",
-            FspDiagIdent(), GetCurrentThreadId(), Request->Hint,
+            FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->FileName.Size ? "\"" : "",
             Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
             Request->FileName.Size ? "\", " : "",
@@ -655,7 +658,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
             if (0/*IO_REPARSE*/ == Response->IoStatus.Information)
                 FspDebugLog("%S[TID=%04lx]: %p: <<Create IoStatus=%lx[%ld] "
                     "Reparse.FileName=\"%s\"\n",
-                    FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                    FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint,
                     Response->IoStatus.Status, Response->IoStatus.Information,
                     FspDebugLogWideCharBufferString(
                         Response->Buffer + Response->Rsp.Create.Reparse.Buffer.Offset,
@@ -666,7 +669,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
             else
                 FspDebugLog("%S[TID=%04lx]: %p: <<Create IoStatus=%lx[%ld] "
                     "Reparse.Data=\"%s\"\n",
-                    FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                    FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint,
                     Response->IoStatus.Status, Response->IoStatus.Information,
                     FspDebugLogReparseDataString(
                         Response->Buffer + Response->Rsp.Create.Reparse.Buffer.Offset,
@@ -675,7 +678,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         else
             FspDebugLog("%S[TID=%04lx]: %p: <<Create IoStatus=%lx[%ld] "
                 "UserContext=%s, GrantedAccess=%lx, FileInfo=%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
                 FspDebugLogUserContextString(
                     Response->Rsp.Create.Opened.UserContext, Response->Rsp.Create.Opened.UserContext2,
@@ -689,7 +692,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         else
             FspDebugLog("%S[TID=%04lx]: %p: <<Overwrite IoStatus=%lx[%ld] "
                 "FileInfo=%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
                 FspDebugLogFileInfoString(&Response->Rsp.Overwrite.FileInfo, InfoBuf));
         break;
@@ -708,7 +711,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         else
             FspDebugLog("%S[TID=%04lx]: %p: <<Write IoStatus=%lx[%ld] "
                 "FileInfo=%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
                 FspDebugLogFileInfoString(&Response->Rsp.Write.FileInfo, InfoBuf));
         break;
@@ -718,7 +721,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         else
             FspDebugLog("%S[TID=%04lx]: %p: <<QueryInformation IoStatus=%lx[%ld] "
                 "FileInfo=%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
                 FspDebugLogFileInfoString(&Response->Rsp.QueryInformation.FileInfo, InfoBuf));
         break;
@@ -728,7 +731,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         else
             FspDebugLog("%S[TID=%04lx]: %p: <<SetInformation IoStatus=%lx[%ld] "
                 "FileInfo=%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
                 FspDebugLogFileInfoString(&Response->Rsp.SetInformation.FileInfo, InfoBuf));
         break;
@@ -747,7 +750,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         else
             FspDebugLog("%S[TID=%04lx]: %p: <<QueryVolumeInformation IoStatus=%lx[%ld] "
                 "VolumeInfo=%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
                 FspDebugLogVolumeInfoString(&Response->Rsp.QueryVolumeInformation.VolumeInfo, InfoBuf));
         break;
@@ -757,7 +760,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         else
             FspDebugLog("%S[TID=%04lx]: %p: <<SetVolumeInformation IoStatus=%lx[%ld] "
                 "VolumeInfo=%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
                 FspDebugLogVolumeInfoString(&Response->Rsp.SetVolumeInformation.VolumeInfo, InfoBuf));
         break;
@@ -771,7 +774,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
         else
             FspDebugLog("%S[TID=%04lx]: %p: <<FileSystemControl IoStatus=%lx[%ld] "
                 "ReparseData=%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
                 FspDebugLogReparseDataString(Response->Buffer + Response->Rsp.FileSystemControl.Buffer.Offset,
                     InfoBuf));
@@ -799,7 +802,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
                     &Sddl, 0);
             FspDebugLog("%S[TID=%04lx]: %p: <<QuerySecurity IoStatus=%lx[%ld] "
                 "Security=%s%s%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
                 Sddl ? "\"" : "",
                 Sddl ? Sddl : "NULL",
@@ -821,7 +824,7 @@ FSP_API VOID FspDebugLogResponse(FSP_FSCTL_TRANSACT_RSP *Response)
                     &Sddl, 0);
             FspDebugLog("%S[TID=%04lx]: %p: <<SetSecurity IoStatus=%lx[%ld] "
                 "Security=%s%s%s\n",
-                FspDiagIdent(), GetCurrentThreadId(), Response->Hint,
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Response->Hint,
                 Response->IoStatus.Status, Response->IoStatus.Information,
                 Sddl ? "\"" : "",
                 Sddl ? Sddl : "NULL",

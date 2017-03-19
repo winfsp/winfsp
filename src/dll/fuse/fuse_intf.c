@@ -1,7 +1,7 @@
 /**
  * @file dll/fuse/fuse_intf.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -26,6 +26,7 @@ VOID fsp_fuse_op_enter_lock(FSP_FILE_SYSTEM *FileSystem,
     case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE:
         if ((FspFsctlTransactCreateKind == Request->Kind &&
                 FILE_OPEN != ((Request->Req.Create.CreateOptions >> 24) & 0xff)) ||
+            FspFsctlTransactOverwriteKind == Request->Kind ||
             (FspFsctlTransactCleanupKind == Request->Kind &&
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
@@ -69,6 +70,7 @@ VOID fsp_fuse_op_leave_unlock(FSP_FILE_SYSTEM *FileSystem,
     case FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE:
         if ((FspFsctlTransactCreateKind == Request->Kind &&
                 FILE_OPEN != ((Request->Req.Create.CreateOptions >> 24) & 0xff)) ||
+            FspFsctlTransactOverwriteKind == Request->Kind ||
             (FspFsctlTransactCleanupKind == Request->Kind &&
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
@@ -114,19 +116,6 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName = 0, Suffix;
     WCHAR Root[2] = L"\\";
     HANDLE Token = 0;
-    union
-    {
-        TOKEN_USER V;
-        UINT8 B[128];
-    } UserInfoBuf;
-    PTOKEN_USER UserInfo = &UserInfoBuf.V;
-    union
-    {
-        TOKEN_PRIMARY_GROUP V;
-        UINT8 B[128];
-    } GroupInfoBuf;
-    PTOKEN_PRIMARY_GROUP GroupInfo = &GroupInfoBuf.V;
-    DWORD Size;
     NTSTATUS Result;
 
     if (FspFsctlTransactCreateKind == Request->Kind)
@@ -155,55 +144,7 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
 
     if (0 != Token)
     {
-        if (!GetTokenInformation(Token, TokenUser, UserInfo, sizeof UserInfoBuf, &Size))
-        {
-            if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
-            {
-                Result = FspNtStatusFromWin32(GetLastError());
-                goto exit;
-            }
-
-            UserInfo = MemAlloc(Size);
-            if (0 == UserInfo)
-            {
-                Result = STATUS_INSUFFICIENT_RESOURCES;
-                goto exit;
-            }
-
-            if (!GetTokenInformation(Token, TokenUser, UserInfo, Size, &Size))
-            {
-                Result = FspNtStatusFromWin32(GetLastError());
-                goto exit;
-            }
-        }
-
-        if (!GetTokenInformation(Token, TokenPrimaryGroup, GroupInfo, sizeof GroupInfoBuf, &Size))
-        {
-            if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
-            {
-                Result = FspNtStatusFromWin32(GetLastError());
-                goto exit;
-            }
-
-            GroupInfo = MemAlloc(Size);
-            if (0 == UserInfo)
-            {
-                Result = STATUS_INSUFFICIENT_RESOURCES;
-                goto exit;
-            }
-
-            if (!GetTokenInformation(Token, TokenPrimaryGroup, GroupInfo, Size, &Size))
-            {
-                Result = FspNtStatusFromWin32(GetLastError());
-                goto exit;
-            }
-        }
-
-        Result = FspPosixMapSidToUid(UserInfo->User.Sid, &Uid);
-        if (!NT_SUCCESS(Result))
-            goto exit;
-
-        Result = FspPosixMapSidToUid(GroupInfo->PrimaryGroup, &Gid);
+        Result = fsp_fuse_get_token_uidgid(Token, TokenUser, &Uid, &Gid);
         if (!NT_SUCCESS(Result))
             goto exit;
     }
@@ -228,12 +169,6 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     Result = STATUS_SUCCESS;
 
 exit:
-    if (UserInfo != &UserInfoBuf.V)
-        MemFree(UserInfo);
-
-    if (GroupInfo != &GroupInfoBuf.V)
-        MemFree(GroupInfo);
-
     if (!NT_SUCCESS(Result) && 0 != PosixPath)
         FspPosixDeletePath(PosixPath);
 
@@ -376,28 +311,34 @@ static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
 }
 
 #define fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, fi, PUid, PGid, PMode, FileInfo)\
-    fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi, PUid, PGid, PMode, 0, FileInfo)
+    fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi, 0, PUid, PGid, PMode, 0, FileInfo)
 static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
-    const char *PosixPath, struct fuse_file_info *fi,
+    const char *PosixPath, struct fuse_file_info *fi, const struct fuse_stat *stbufp,
     PUINT32 PUid, PUINT32 PGid, PUINT32 PMode, PUINT32 PDev,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
     UINT64 AllocationUnit;
     struct fuse_stat stbuf;
-    int err;
 
-    memset(&stbuf, 0, sizeof stbuf);
-
-    if (0 != f->ops.fgetattr && 0 != fi && -1 != fi->fh)
-        err = f->ops.fgetattr(PosixPath, (void *)&stbuf, fi);
-    else if (0 != f->ops.getattr)
-        err = f->ops.getattr(PosixPath, (void *)&stbuf);
+    if (0 != stbufp)
+        memcpy(&stbuf, stbufp, sizeof stbuf);
     else
-        return STATUS_INVALID_DEVICE_REQUEST;
+    {
+        int err;
 
-    if (0 != err)
-        return fsp_fuse_ntstatus_from_errno(f->env, err);
+        memset(&stbuf, 0, sizeof stbuf);
+
+        if (0 != f->ops.fgetattr && 0 != fi && -1 != fi->fh)
+            err = f->ops.fgetattr(PosixPath, (void *)&stbuf, fi);
+        else if (0 != f->ops.getattr)
+            err = f->ops.getattr(PosixPath, (void *)&stbuf);
+        else
+            return STATUS_INVALID_DEVICE_REQUEST;
+
+        if (0 != err)
+            return fsp_fuse_ntstatus_from_errno(f->env, err);
+    }
 
     if (f->set_umask)
         stbuf.st_mode = (stbuf.st_mode & 0170000) | (0777 & ~f->umask);
@@ -578,7 +519,7 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointEx(FSP_FILE_SYSTEM *FileSystem,
     SIZE_T Size;
     NTSTATUS Result;
 
-    Result = fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi,
+    Result = fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi, 0,
         &Uid, &Gid, &Mode, &Dev, &FileInfo);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -695,13 +636,13 @@ static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     struct fuse_statvfs stbuf;
     int err;
 
-    if (0 == f->ops.statfs)
-        return STATUS_INVALID_DEVICE_REQUEST;
-
     memset(&stbuf, 0, sizeof stbuf);
-    err = f->ops.statfs("/", &stbuf);
-    if (0 != err)
-        return fsp_fuse_ntstatus_from_errno(f->env, err);
+    if (0 != f->ops.statfs)
+    {
+        err = f->ops.statfs("/", &stbuf);
+        if (0 != err)
+            return fsp_fuse_ntstatus_from_errno(f->env, err);
+    }
 
     VolumeInfo->TotalSize = (UINT64)stbuf.f_blocks * (UINT64)stbuf.f_frsize;
     VolumeInfo->FreeSize = (UINT64)stbuf.f_bfree * (UINT64)stbuf.f_frsize;
@@ -880,7 +821,6 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     filedesc->OpenFlags = fi.flags;
     filedesc->FileHandle = fi.fh;
     filedesc->DirBuffer = 0;
-    filedesc->DirBufferSize = 0;
     contexthdr->PosixPath = 0;
 
     Result = STATUS_SUCCESS;
@@ -998,7 +938,6 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     filedesc->OpenFlags = fi.flags;
     filedesc->FileHandle = fi.fh;
     filedesc->DirBuffer = 0;
-    filedesc->DirBufferSize = 0;
     contexthdr->PosixPath = 0;
 
     Result = STATUS_SUCCESS;
@@ -1011,7 +950,7 @@ exit:
 }
 
 static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes,
+    PVOID FileNode, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
@@ -1048,7 +987,7 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode, PWSTR FileName, BOOLEAN Delete)
+    PVOID FileNode, PWSTR FileName, ULONG Flags)
 {
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc = FileNode;
@@ -1070,7 +1009,7 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
      * FUSE option and can safely remove the file at this time.
      */
 
-    if (Delete)
+    if (Flags & FspCleanupDelete)
         if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
         {
             if (0 != f->ops.rmdir)
@@ -1111,7 +1050,7 @@ static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
             f->ops.release(filedesc->PosixPath, &fi);
     }
 
-    MemFree(filedesc->DirBuffer);
+    FspFileSystemDeleteDirectoryBuffer(&filedesc->DirBuffer);
     MemFree(filedesc->PosixPath);
     MemFree(filedesc);
 }
@@ -1213,11 +1152,14 @@ success:
 }
 
 static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode)
+    PVOID FileNode,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc = FileNode;
+    UINT32 Uid, Gid, Mode;
     struct fuse_file_info fi;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
     int err;
     NTSTATUS Result;
 
@@ -1247,8 +1189,17 @@ static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
     }
+    if (!NT_SUCCESS(Result))
+        return Result;
 
-    return Result;
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+        &Uid, &Gid, &Mode, &FileInfoBuf);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
@@ -1270,7 +1221,7 @@ static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
 
 static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode, UINT32 FileAttributes,
-    UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
+    UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
@@ -1445,7 +1396,13 @@ static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
         memset(&dh, 0, sizeof dh);
 
         if (0 != f->ops.readdir)
+        {
+            memset(&fi, 0, sizeof fi);
+            fi.flags = filedesc->OpenFlags;
+            fi.fh = filedesc->FileHandle;
+
             err = f->ops.readdir(filedesc->PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfo, 0, &fi);
+        }
         else if (0 != f->ops.getdir)
             err = f->ops.getdir(filedesc->PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfoOld);
         else
@@ -1482,7 +1439,8 @@ static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
         STATUS_OBJECT_PATH_NOT_FOUND != Result)
         return Result;
 
-    if (NT_SUCCESS(Result))
+    if (NT_SUCCESS(Result) &&
+        (f->VolumeParams.CaseSensitiveSearch || 0 != invariant_wcsicmp(FileName, NewFileName)))
     {
         if (!ReplaceIfExists)
             return STATUS_OBJECT_NAME_COLLISION;
@@ -1589,185 +1547,111 @@ exit:
     return Result;
 }
 
-int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
+static int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
     const struct fuse_stat *stbuf, fuse_off_t off)
 {
     struct fuse_dirhandle *dh = buf;
-    struct fsp_fuse_dirinfo *di;
-    ULONG len, xfersize;
-
-    len = lstrlenA(name);
-    if (len > 255)
-        len = 255;
-
-    di = (PVOID)((PUINT8)dh->Buffer + dh->BytesTransferred);
-    xfersize = FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(struct fsp_fuse_dirinfo) + len + 1);
-
-    if ((PUINT8)di + xfersize > (PUINT8)dh->Buffer + dh->Length)
-    {
-        PVOID Buffer;
-        ULONG Length = dh->Length;
-
-        if (0 == Length)
-            Length = 16 * 1024;
-        else if (Length < 16 * 1024 * 1024)
-            Length *= 2;
-        else
-            return 1;
-
-        Buffer = MemAlloc(Length);
-        if (0 == Buffer)
-            return 1;
-
-        memcpy(Buffer, dh->Buffer, dh->BytesTransferred);
-        MemFree(dh->Buffer);
-
-        dh->Buffer = Buffer;
-        dh->Length = Length;
-
-        di = (PVOID)((PUINT8)dh->Buffer + dh->BytesTransferred);
-    }
-
-    dh->BytesTransferred += xfersize;
-    dh->NonZeroOffset = dh->NonZeroOffset || 0 != off;
-
-    di->Size = (UINT16)(sizeof(struct fsp_fuse_dirinfo) + len + 1);
-    di->FileInfoValid = FALSE;
-    di->NextOffset = 0 != off ? off : dh->BytesTransferred;
-    memcpy(di->PosixNameBuf, name, len);
-    di->PosixNameBuf[len] = '\0';
-
-    return 0;
-}
-
-int fsp_fuse_intf_AddDirInfoOld(fuse_dirh_t dh, const char *name,
-    int type, fuse_ino_t ino)
-{
-    return fsp_fuse_intf_AddDirInfo(dh, name, 0, 0) ? -ENOMEM : 0;
-}
-
-static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode, PVOID Buffer, UINT64 Offset, ULONG Length,
-    PWSTR Pattern,
-    PULONG PBytesTransferred)
-{
-    struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc = FileNode;
-    struct fuse_file_info fi;
-    struct fuse_dirhandle dh;
-    struct fsp_fuse_dirinfo *di;
-    PUINT8 diend;
+    struct fsp_fuse_file_desc *filedesc = dh->filedesc;
     union
     {
         FSP_FSCTL_DIR_INFO V;
         UINT8 B[sizeof(FSP_FSCTL_DIR_INFO) + 255 * sizeof(WCHAR)];
     } DirInfoBuf;
     FSP_FSCTL_DIR_INFO *DirInfo = &DirInfoBuf.V;
-    UINT32 Uid, Gid, Mode;
+    ULONG SizeA, SizeW;
+
+    if ('/' == filedesc->PosixPath[0] && '\0' == filedesc->PosixPath[1])
+    {
+        /* if this is the root directory do not add the dot entries */
+
+        if ('.' == name[0] && ('\0' == name[1] ||
+            ('.' == name[1] && '\0' == name[2])))
+            return 0;
+    }
+
+    SizeA = lstrlenA(name);
+    if (SizeA > 255)
+        /* ignore bad filenames; should we return error code? */
+        return 0;
+
+    SizeW = MultiByteToWideChar(CP_UTF8, 0, name, SizeA, DirInfo->FileNameBuf, 255);
+    if (0 == SizeW)
+        /* ignore bad filenames; should we return error code? */
+        return 0;
+
+    memset(DirInfo, 0, sizeof *DirInfo);
+    DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + SizeW * sizeof(WCHAR));
+
+    if (dh->ReaddirPlus && 0 != stbuf)
+    {
+        UINT32 Uid, Gid, Mode;
+        NTSTATUS Result0;
+
+        Result0 = fsp_fuse_intf_GetFileInfoFunnel(dh->FileSystem, 0, 0, stbuf,
+            &Uid, &Gid, &Mode, 0, &DirInfo->FileInfo);
+        if (NT_SUCCESS(Result0))
+            DirInfo->Padding[0] = 1; /* HACK: remember that the FileInfo is valid */
+    }
+
+    return !FspFileSystemFillDirectoryBuffer(&filedesc->DirBuffer, DirInfo, &dh->Result);
+}
+
+static int fsp_fuse_intf_AddDirInfoOld(fuse_dirh_t dh, const char *name,
+    int type, fuse_ino_t ino)
+{
+    return fsp_fuse_intf_AddDirInfo(dh, name, 0, 0) ? -ENOMEM : 0;
+}
+
+static NTSTATUS fsp_fuse_intf_FixDirInfo(FSP_FILE_SYSTEM *FileSystem,
+    struct fsp_fuse_file_desc *filedesc)
+{
     char *PosixPath = 0, *PosixName, *PosixPathEnd, SavedPathChar;
-    PWSTR FileName = 0;
-    ULONG Size;
-    int err;
+    ULONG SizeA, SizeW;
+    PUINT8 Buffer;
+    PULONG Index, IndexEnd;
+    ULONG Count;
+    FSP_FSCTL_DIR_INFO *DirInfo;
+    UINT32 Uid, Gid, Mode;
     NTSTATUS Result;
 
-    if (!filedesc->IsDirectory)
-        return STATUS_ACCESS_DENIED;
-
-    memset(&dh, 0, sizeof dh);
-
-    if (0 == filedesc->DirBuffer)
+    SizeA = lstrlenA(filedesc->PosixPath);
+    PosixPath = MemAlloc(SizeA + 1 + 255 + 1);
+    if (0 == PosixPath)
     {
-        if (0 != f->ops.readdir)
-        {
-            memset(&fi, 0, sizeof fi);
-            fi.flags = filedesc->OpenFlags;
-            fi.fh = filedesc->FileHandle;
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
 
-            err = f->ops.readdir(filedesc->PosixPath, &dh, fsp_fuse_intf_AddDirInfo, Offset, &fi);
-            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-        }
-        else if (0 != f->ops.getdir)
-        {
-            err = f->ops.getdir(filedesc->PosixPath, &dh, fsp_fuse_intf_AddDirInfoOld);
-            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-        }
-        else
-            Result = STATUS_INVALID_DEVICE_REQUEST;
+    memcpy(PosixPath, filedesc->PosixPath, SizeA);
+    if (1 < SizeA)
+        /* if not root */
+        PosixPath[SizeA++] = '/';
+    PosixPath[SizeA] = '\0';
+    PosixName = PosixPath + SizeA;
 
-        if (!NT_SUCCESS(Result))
-            goto exit;
+    FspFileSystemPeekInDirectoryBuffer(&filedesc->DirBuffer, &Buffer, &Index, &Count);
 
-        if (0 == dh.BytesTransferred)
+    for (IndexEnd = Index + Count; IndexEnd > Index; Index++)
+    {
+        DirInfo = (FSP_FSCTL_DIR_INFO *)(Buffer + *Index);
+        SizeW = (DirInfo->Size - sizeof *DirInfo) / sizeof(WCHAR);
+
+        if (DirInfo->Padding[0])
         {
-            /* EOF */
-            *PBytesTransferred = 0;
-            FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
-            goto success;
-        }
-        else if (dh.NonZeroOffset)
-        {
-            di = (PVOID)((PUINT8)dh.Buffer + 0);
-            diend = (PUINT8)dh.Buffer + dh.BytesTransferred;
+            /* DirInfo has been filled already! */
+
+            DirInfo->Padding[0] = 0;
         }
         else
         {
-            di = (PVOID)((PUINT8)dh.Buffer + Offset);
-            diend = (PUINT8)dh.Buffer + dh.BytesTransferred;
-            filedesc->DirBuffer = dh.Buffer;
-            filedesc->DirBufferSize = dh.BytesTransferred;
-            dh.Buffer = 0;
-        }
-    }
-    else
-    {
-        di = (PVOID)((PUINT8)filedesc->DirBuffer + Offset);
-        diend = (PUINT8)filedesc->DirBuffer + filedesc->DirBufferSize;
-    }
-
-    for (;
-        (PUINT8)di + sizeof(di->Size) <= diend;
-        di = (PVOID)((PUINT8)di + FSP_FSCTL_DEFAULT_ALIGN_UP(di->Size)))
-    {
-        if (sizeof(struct fsp_fuse_dirinfo) > di->Size)
-            break;
-
-        if ('/' == filedesc->PosixPath[0] && '\0' == filedesc->PosixPath[1])
-        {
-            /* if this is the root directory do not add the dot entries */
-
-            if ('.' == di->PosixNameBuf[0] && ('\0' == di->PosixNameBuf[1] ||
-                ('.' == di->PosixNameBuf[1] && '\0' == di->PosixNameBuf[2])))
-                continue;
-        }
-
-        if (!di->FileInfoValid)
-        {
-            if (0 == PosixPath)
-            {
-                Size = lstrlenA(filedesc->PosixPath);
-                PosixPath = MemAlloc(Size + 1 + 255 + 1);
-                if (0 == PosixPath)
-                {
-                    Result = STATUS_INSUFFICIENT_RESOURCES;
-                    goto exit;
-                }
-
-                memcpy(PosixPath, filedesc->PosixPath, Size);
-                if (1 < Size)
-                    /* if not root */
-                    PosixPath[Size++] = '/';
-                PosixPath[Size] = '\0';
-                PosixName = PosixPath + Size;
-            }
-
-            if ('.' == di->PosixNameBuf[0] && '\0' == di->PosixNameBuf[1])
+            if (1 == SizeW && L'.' == DirInfo->FileNameBuf[0])
             {
                 PosixPathEnd = 1 < PosixName - PosixPath ? PosixName - 1 : PosixName;
                 SavedPathChar = *PosixPathEnd;
                 *PosixPathEnd = '\0';
             }
             else
-            if ('.' == di->PosixNameBuf[0] && '.' == di->PosixNameBuf[1] && '\0' == di->PosixNameBuf[2])
+            if (2 == SizeW && L'.' == DirInfo->FileNameBuf[0] && L'.' == DirInfo->FileNameBuf[1])
             {
                 PosixPathEnd = 1 < PosixName - PosixPath ? PosixName - 2 : PosixName;
                 while (PosixPath < PosixPathEnd && '/' != *PosixPathEnd)
@@ -1780,56 +1664,89 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
             else
             {
                 PosixPathEnd = 0;
-                Size = lstrlenA(di->PosixNameBuf);
-                if (Size > 255)
-                    Size = 255;
-                memcpy(PosixName, di->PosixNameBuf, Size);
-                PosixName[Size] = '\0';
+                SizeA = WideCharToMultiByte(CP_UTF8, 0, DirInfo->FileNameBuf, SizeW, PosixName, 255, 0, 0);
+                if (0 == SizeA)
+                {
+                    /* this should never happen because we just converted using MultiByteToWideChar */
+                    Result = STATUS_OBJECT_NAME_INVALID;
+                    goto exit;
+                }
+                PosixName[SizeA] = '\0';
             }
 
             Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, 0,
-                &Uid, &Gid, &Mode, &di->FileInfo);
+                &Uid, &Gid, &Mode, &DirInfo->FileInfo);
             if (!NT_SUCCESS(Result))
                 goto exit;
 
             if (0 != PosixPathEnd)
                 *PosixPathEnd = SavedPathChar;
-
-            di->FileInfoValid = TRUE;
         }
-        memcpy(&DirInfo->FileInfo, &di->FileInfo, sizeof di->FileInfo);
 
-        Result = FspPosixMapPosixToWindowsPath(di->PosixNameBuf, &FileName);
-        if (!NT_SUCCESS(Result))
-            goto exit;
-
-        Size = lstrlenW(FileName);
-        if (Size > 255)
-            Size = 255;
-        Size *= sizeof(WCHAR);
-        memcpy(DirInfo->FileNameBuf, FileName, Size);
-
-        FspPosixDeletePath(FileName);
-
-        memset(DirInfo->Padding, 0, sizeof DirInfo->Padding);
-        DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + Size);
-        DirInfo->NextOffset = di->NextOffset;
-
-        if (!FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred))
-            break;
+        FspPosixDecodeWindowsPath(DirInfo->FileNameBuf, SizeW);
     }
 
-    if ((PUINT8)di + sizeof(di->Size) > diend)
-        FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
-
-success:
     Result = STATUS_SUCCESS;
 
 exit:
     MemFree(PosixPath);
-    MemFree(dh.Buffer);
 
     return Result;
+}
+
+static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode, PWSTR Pattern, PWSTR Marker,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+{
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
+    struct fuse_dirhandle dh;
+    struct fuse_file_info fi;
+    int err;
+    NTSTATUS Result;
+
+    if (FspFileSystemAcquireDirectoryBuffer(&filedesc->DirBuffer, 0 == Marker, &Result))
+    {
+        memset(&dh, 0, sizeof dh);
+        dh.filedesc = filedesc;
+        dh.FileSystem = FileSystem;
+        dh.ReaddirPlus = 0 != (f->conn_want & FSP_FUSE_CAP_READDIR_PLUS);
+        dh.Result = STATUS_SUCCESS;
+
+        if (0 != f->ops.readdir)
+        {
+            memset(&fi, 0, sizeof fi);
+            fi.flags = filedesc->OpenFlags;
+            fi.fh = filedesc->FileHandle;
+
+            err = f->ops.readdir(filedesc->PosixPath, &dh, fsp_fuse_intf_AddDirInfo, 0, &fi);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+        else if (0 != f->ops.getdir)
+        {
+            err = f->ops.getdir(filedesc->PosixPath, &dh, fsp_fuse_intf_AddDirInfoOld);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+        else
+            Result = STATUS_INVALID_DEVICE_REQUEST;
+
+        if (NT_SUCCESS(Result))
+        {
+            Result = dh.Result;
+            if (NT_SUCCESS(Result))
+                Result = fsp_fuse_intf_FixDirInfo(FileSystem, filedesc);
+        }
+
+        FspFileSystemReleaseDirectoryBuffer(&filedesc->DirBuffer);
+    }
+
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    FspFileSystemReadDirectoryBuffer(&filedesc->DirBuffer,
+        Marker, Buffer, Length, PBytesTransferred);
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS fsp_fuse_intf_ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
@@ -2106,3 +2023,140 @@ FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
     fsp_fuse_intf_SetReparsePoint,
     fsp_fuse_intf_DeleteReparsePoint,
 };
+
+/*
+ * Utility
+ */
+NTSTATUS fsp_fuse_get_token_uidgid(
+    HANDLE Token,
+    TOKEN_INFORMATION_CLASS UserOrOwnerClass, /* TokenUser|TokenOwner */
+    PUINT32 PUid, PUINT32 PGid)
+{
+    UINT32 Uid, Gid;
+    union
+    {
+        TOKEN_USER V;
+        UINT8 B[128];
+    } UserInfoBuf;
+    PTOKEN_USER UserInfo = &UserInfoBuf.V;
+    union
+    {
+        TOKEN_OWNER V;
+        UINT8 B[128];
+    } OwnerInfoBuf;
+    PTOKEN_OWNER OwnerInfo = &OwnerInfoBuf.V;
+    union
+    {
+        TOKEN_PRIMARY_GROUP V;
+        UINT8 B[128];
+    } GroupInfoBuf;
+    PTOKEN_PRIMARY_GROUP GroupInfo = &GroupInfoBuf.V;
+    DWORD Size;
+    NTSTATUS Result;
+
+    if (0 != PUid && TokenUser == UserOrOwnerClass)
+    {
+        if (!GetTokenInformation(Token, TokenUser, UserInfo, sizeof UserInfoBuf, &Size))
+        {
+            if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+
+            UserInfo = MemAlloc(Size);
+            if (0 == UserInfo)
+            {
+                Result = STATUS_INSUFFICIENT_RESOURCES;
+                goto exit;
+            }
+
+            if (!GetTokenInformation(Token, TokenUser, UserInfo, Size, &Size))
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+        }
+
+        Result = FspPosixMapSidToUid(UserInfo->User.Sid, &Uid);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
+    else if (0 != PUid && TokenOwner == UserOrOwnerClass)
+    {
+        if (!GetTokenInformation(Token, TokenOwner, OwnerInfo, sizeof OwnerInfoBuf, &Size))
+        {
+            if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+
+            OwnerInfo = MemAlloc(Size);
+            if (0 == OwnerInfo)
+            {
+                Result = STATUS_INSUFFICIENT_RESOURCES;
+                goto exit;
+            }
+
+            if (!GetTokenInformation(Token, TokenOwner, OwnerInfo, Size, &Size))
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+        }
+
+        Result = FspPosixMapSidToUid(OwnerInfo->Owner, &Uid);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
+
+    if (0 != PGid)
+    {
+        if (!GetTokenInformation(Token, TokenPrimaryGroup, GroupInfo, sizeof GroupInfoBuf, &Size))
+        {
+            if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+
+            GroupInfo = MemAlloc(Size);
+            if (0 == GroupInfo)
+            {
+                Result = STATUS_INSUFFICIENT_RESOURCES;
+                goto exit;
+            }
+
+            if (!GetTokenInformation(Token, TokenPrimaryGroup, GroupInfo, Size, &Size))
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+        }
+
+        Result = FspPosixMapSidToUid(GroupInfo->PrimaryGroup, &Gid);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
+
+    if (0 != PUid)
+        *PUid = Uid;
+
+    if (0 != PGid)
+        *PGid = Gid;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (UserInfo != &UserInfoBuf.V)
+        MemFree(UserInfo);
+
+    if (OwnerInfo != &OwnerInfoBuf.V)
+        MemFree(OwnerInfo);
+
+    if (GroupInfo != &GroupInfoBuf.V)
+        MemFree(GroupInfo);
+
+    return Result;
+}

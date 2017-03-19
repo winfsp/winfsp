@@ -1,7 +1,7 @@
 /**
  * @file sys/driver.h
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -19,6 +19,8 @@
 #define WINFSP_SYS_DRIVER_H_INCLUDED
 
 #define WINFSP_SYS_INTERNAL
+
+#define POOL_NX_OPTIN                   1
 #include <ntifs.h>
 #include <ntstrsafe.h>
 #include <wdmsec.h>
@@ -38,6 +40,7 @@
 
 /* private NTSTATUS codes */
 #define FSP_STATUS_PRIVATE_BIT          (0x20000000)
+#define FSP_STATUS_IGNORE_BIT           (0x10000000)
 #define FSP_STATUS_IOQ_POST             (FSP_STATUS_PRIVATE_BIT | 0x0000)
 #define FSP_STATUS_IOQ_POST_BEST_EFFORT (FSP_STATUS_PRIVATE_BIT | 0x0001)
 
@@ -196,7 +199,7 @@ VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result);
     } while (0,0)
 #define FSP_LEAVE_MJ(fmt, ...)          \
     FSP_LEAVE_(                         \
-        if (STATUS_PENDING != Result)   \
+        if (STATUS_PENDING != Result && !(FSP_STATUS_IGNORE_BIT & Result))\
         {                               \
             ASSERT(0 == (FSP_STATUS_PRIVATE_BIT & Result) ||\
                 FSP_STATUS_IOQ_POST == Result || FSP_STATUS_IOQ_POST_BEST_EFFORT == Result);\
@@ -223,6 +226,8 @@ VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result);
             else                        \
                 FspIopCompleteIrpEx(Irp, Result, fsp_device_deref);\
         }                               \
+        else                            \
+            Result &= ~FSP_STATUS_IGNORE_BIT;\
         IoSetTopLevelIrp(fsp_top_level_irp);\
     );                                  \
     return Result
@@ -435,8 +440,9 @@ enum
     FspFileNameStreamTypeNone           = 0,
     FspFileNameStreamTypeData           = 1,
 };
-BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, PUNICODE_STRING StreamPart, PULONG StreamType);
-BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Pattern);
+BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, ULONG MaxComponentLength,
+    PUNICODE_STRING StreamPart, PULONG StreamType);
+BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Pattern, ULONG MaxComponentLength);
 VOID FspFileNameSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 #if 0
 NTSTATUS FspFileNameUpcase(
@@ -594,6 +600,14 @@ NTSTATUS FspIrpHook(PIRP Irp, PIO_COMPLETION_ROUTINE CompletionRoutine, PVOID Ow
 VOID FspIrpHookReset(PIRP Irp);
 PVOID FspIrpHookContext(PVOID Context);
 NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
+
+/* process buffers */
+#define FspProcessBufferSizeMax         (64 * 1024)
+NTSTATUS FspProcessBufferInitialize(VOID);
+VOID FspProcessBufferFinalize(VOID);
+VOID FspProcessBufferCollect(HANDLE ProcessId);
+NTSTATUS FspProcessBufferAcquire(SIZE_T BufferSize, PVOID *PBufferCookie, PVOID *PBuffer);
+VOID FspProcessBufferRelease(PVOID BufferCookie, PVOID Buffer);
 
 /* IRP context */
 #define FspIrpTimestampInfinity         ((ULONG)-1L)
@@ -908,7 +922,7 @@ BOOLEAN FspIopRetryCompleteIrp(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
 VOID FspIopSetIrpResponse(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_FSCTL_TRANSACT_RSP *FspIopIrpResponse(PIRP Irp);
 NTSTATUS FspIopDispatchPrepare(PIRP Irp, FSP_FSCTL_TRANSACT_REQ *Request);
-NTSTATUS FspIopDispatchComplete(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+NTSTATUS FspIopDispatchComplete(PIRP Irp, FSP_FSCTL_TRANSACT_RSP *Response);
 static inline
 VOID FspIrpDeleteRequest(PIRP Irp)
 {
@@ -945,6 +959,21 @@ VOID FspWqPostIrpWorkItem(PIRP Irp);
     FspWqCreateAndPostIrpWorkItem(I, RW, RF, FALSE)
 #define FspWqRepostIrpWorkItem(I, RW, RF)\
     FspWqCreateAndPostIrpWorkItem(I, RW, RF, TRUE)
+
+/* file system statistics */
+typedef struct
+{
+    FILESYSTEM_STATISTICS Base;
+    FAT_STATISTICS Specific;            /* pretend that we are FAT when it comes to stats */
+    /* align to 64 bytes */
+    __declspec(align(64)) UINT8 EndOfStruct[];
+} FSP_STATISTICS;
+NTSTATUS FspStatisticsCreate(FSP_STATISTICS **PStatistics);
+VOID FspStatisticsDelete(FSP_STATISTICS *Statistics);
+NTSTATUS FspStatisticsCopy(FSP_STATISTICS *Statistics, PVOID Buffer, PULONG PLength);
+#define FspStatistics(S)                (&(S)[KeGetCurrentProcessorNumber() % FspProcessorCount])
+#define FspStatisticsInc(S,F)           ((S)->F++)
+#define FspStatisticsAdd(S,F,V)         ((S)->F += (V))
 
 /* device management */
 enum
@@ -987,7 +1016,7 @@ typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
     UINT32 InitDoneFsvrt:1, InitDoneIoq:1, InitDoneSec:1, InitDoneDir:1, InitDoneStrm:1,
-        InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1, InitDoneNotify:1;
+        InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1, InitDoneNotify:1, InitDoneStat:1;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     HANDLE MupHandle;
@@ -1004,6 +1033,7 @@ typedef struct
     BOOLEAN ExpirationInProgress;
     ERESOURCE FileRenameResource;
     ERESOURCE ContextTableResource;
+    LIST_ENTRY ContextList;
     RTL_AVL_TABLE ContextByNameTable;
     PVOID ContextByNameTableElementStorage;
     UNICODE_STRING VolumeName;
@@ -1013,6 +1043,7 @@ typedef struct
     FSP_FSCTL_VOLUME_INFO VolumeInfo;
     PNOTIFY_SYNC NotifySync;
     LIST_ENTRY NotifyList;
+    FSP_STATISTICS *Statistics;
 } FSP_FSVOL_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
@@ -1041,11 +1072,14 @@ VOID FspFsvolDeviceFileRenameAcquireExclusive(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameSetOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
 VOID FspFsvolDeviceFileRenameRelease(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameReleaseOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
+BOOLEAN FspFsvolDeviceFileRenameIsAcquiredExclusive(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
+NTSTATUS FspFsvolDeviceCopyContextList(PDEVICE_OBJECT DeviceObject,
+    PVOID **PContexts, PULONG PContextCount);
 NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
     PVOID **PContexts, PULONG PContextCount);
-VOID FspFsvolDeviceDeleteContextByNameList(PVOID *Contexts, ULONG ContextCount);
+VOID FspFsvolDeviceDeleteContextList(PVOID *Contexts, ULONG ContextCount);
 PVOID FspFsvolDeviceEnumerateContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName,
     BOOLEAN NextFlag, FSP_DEVICE_CONTEXT_BY_NAME_TABLE_RESTART_KEY *RestartKey);
 PVOID FspFsvolDeviceLookupContextByName(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING FileName);
@@ -1080,10 +1114,41 @@ VOID FspDeviceGlobalUnlock(VOID)
     extern ERESOURCE FspDeviceGlobalResource;
     ExReleaseResourceLite(&FspDeviceGlobalResource);
 }
+#define FspFsvolDeviceStatistics(DeviceObject)\
+    FspStatistics(FspFsvolDeviceExtension(DeviceObject)->Statistics)
 #define FspFsvolDeviceStoppedStatus(DeviceObject)\
     STATUS_VOLUME_DISMOUNTED
     //(FILE_DEVICE_DISK_FILE_SYSTEM == (DeviceObject)->DeviceType ?\
     //    STATUS_VOLUME_DISMOUNTED : STATUS_DEVICE_NOT_CONNECTED)
+
+/* process buffers conditional usage */
+static inline
+BOOLEAN FspReadIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
+{
+    ASSERT(0 != Irp);
+#if DBG
+    return DEBUGTEST(50) ||
+#else
+    return FspProcessBufferSizeMax >= BufferSize ||
+#endif
+        FspFsvolDeviceExtension(IoGetCurrentIrpStackLocation(Irp)->DeviceObject)->
+            VolumeParams.AlwaysUseDoubleBuffering;
+}
+static inline
+BOOLEAN FspWriteIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
+{
+    ASSERT(0 != Irp);
+#if DBG
+    return DEBUGTEST(50);
+#else
+    return FspProcessBufferSizeMax >= BufferSize;
+#endif
+}
+static inline
+BOOLEAN FspQueryDirectoryIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
+{
+    return FspReadIrpShouldUseProcessBuffer(Irp, BufferSize);
+}
 
 /* volume management */
 #define FspVolumeTransactEarlyTimeout   (1 * 10000ULL)
@@ -1145,11 +1210,13 @@ typedef struct FSP_FILE_NODE
     LONG RefCount;
     UINT32 DeletePending;
     /* locked under FSP_FSVOL_DEVICE_EXTENSION::ContextTableResource */
+    LONG ActiveCount;                   /* CREATE w/o CLOSE count */
     LONG OpenCount;                     /* ContextTable ref count */
     LONG HandleCount;                   /* HANDLE count (CREATE/CLEANUP) */
     SHARE_ACCESS ShareAccess;
     ULONG MainFileDenyDeleteCount;      /* number of times main file is denying delete */
     ULONG StreamDenyDeleteCount;        /* number of times open streams are denying delete */
+    LIST_ENTRY ActiveEntry;
     FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT ContextByNameElementStorage;
     /* locked under FSP_FSVOL_DEVICE_EXTENSION::FileRenameResource or Header.Resource */
     UNICODE_STRING FileName;
@@ -1187,26 +1254,31 @@ typedef struct FSP_FILE_NODE
     UINT64 IndexNumber;
     BOOLEAN IsDirectory;
     BOOLEAN IsRootDirectory;
-    struct FSP_FILE_NODE *MainFileNode; /* this becomes invalid after our last desc close */
+    struct FSP_FILE_NODE *MainFileNode;
     WCHAR FileNameBuf[];
 } FSP_FILE_NODE;
 typedef struct
 {
     FSP_FILE_NODE *FileNode;
     UINT64 UserContext2;
-    BOOLEAN CaseSensitive;
-    BOOLEAN HasTraversePrivilege;
-    BOOLEAN DeleteOnClose;
-    BOOLEAN DirectoryHasSuchFile;
+    UINT32 GrantedAccess;
+    UINT32
+        CaseSensitive:1, HasTraversePrivilege:1, DeleteOnClose:1,
+        DidSetMetadata:1,
+        DidSetFileAttributes:1, DidSetReparsePoint:1, DidSetSecurity:1,
+        DidSetCreationTime:1, DidSetLastAccessTime:1, DidSetLastWriteTime:1, DidSetChangeTime:1,
+        DirectoryHasSuchFile:1;
     UNICODE_STRING DirectoryPattern;
-    UINT64 DirectoryOffset;
+    UNICODE_STRING DirectoryMarker;
     UINT64 DirInfo;
     ULONG DirInfoCacheHint;
     /* stream support */
     HANDLE MainFileHandle;
     PFILE_OBJECT MainFileObject;
 } FSP_FILE_DESC;
-NTSTATUS FspFileNodeCopyList(PDEVICE_OBJECT DeviceObject,
+NTSTATUS FspFileNodeCopyActiveList(PDEVICE_OBJECT DeviceObject,
+    FSP_FILE_NODE ***PFileNodes, PULONG PFileNodeCount);
+NTSTATUS FspFileNodeCopyOpenList(PDEVICE_OBJECT DeviceObject,
     FSP_FILE_NODE ***PFileNodes, PULONG PFileNodeCount);
 VOID FspFileNodeDeleteList(FSP_FILE_NODE **FileNodes, ULONG FileNodeCount);
 NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
@@ -1256,14 +1328,14 @@ VOID FspFileNodeReleaseForeign(FSP_FILE_NODE *FileNode)
 NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess,
     FSP_FILE_NODE **POpenedFileNode, PULONG PSharingViolationReason);
-VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    PBOOLEAN PDeletePending);
+VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG PCleanupFlags);
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     PFILE_OBJECT FileObject,    /* non-0 to remove share access */
     BOOLEAN HandleCleanup);     /* TRUE to decrement handle count */
 NTSTATUS FspFileNodeFlushAndPurgeCache(FSP_FILE_NODE *FileNode,
     UINT64 FlushOffset64, ULONG FlushLength, BOOLEAN FlushAndPurge);
+VOID FspFileNodeOverwriteStreams(FSP_FILE_NODE *FileNode);
 NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     PDEVICE_OBJECT FsvolDeviceObject,
     PIRP OplockIrp,
@@ -1277,9 +1349,10 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
-    const FSP_FSCTL_FILE_INFO *FileInfo);
+    const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose);
 BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, ULONG InfoChangeNumber);
+VOID FspFileNodeInvalidateFileInfo(FSP_FILE_NODE *FileNode);
 static inline
 ULONG FspFileNodeFileInfoChangeNumber(FSP_FILE_NODE *FileNode)
 {
@@ -1309,6 +1382,7 @@ ULONG FspFileNodeDirInfoChangeNumber(FSP_FILE_NODE *FileNode)
 {
     return FileNode->DirInfoChangeNumber;
 }
+VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode);
 BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
 VOID FspFileNodeSetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
@@ -1320,12 +1394,16 @@ ULONG FspFileNodeStreamInfoChangeNumber(FSP_FILE_NODE *FileNode)
         FileNode = FileNode->MainFileNode;
     return FileNode->StreamInfoChangeNumber;
 }
-VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action);
+VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode);
+VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action,
+    BOOLEAN InvalidateCaches);
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
-NTSTATUS FspFileDescResetDirectoryPattern(FSP_FILE_DESC *FileDesc,
-    PUNICODE_STRING FileName, BOOLEAN Reset);
+NTSTATUS FspFileDescResetDirectory(FSP_FILE_DESC *FileDesc,
+    PUNICODE_STRING FileName, BOOLEAN RestartScan, BOOLEAN IndexSpecified);
+NTSTATUS FspFileDescSetDirectoryMarker(FSP_FILE_DESC *FileDesc,
+    PUNICODE_STRING FileName);
 NTSTATUS FspMainFileOpen(
     PDEVICE_OBJECT FsvolDeviceObject,
     PDEVICE_OBJECT DeviceObjectHint,
@@ -1480,6 +1558,7 @@ extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
 extern ERESOURCE FspDeviceGlobalResource;
 extern WCHAR FspFileDescDirectoryPatternMatchAll[];
 extern const GUID FspMainFileOpenEcpGuid;
+extern ULONG FspProcessorCount;
 extern FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
 extern ULONG FspMvMdlMappingNoWrite;
 

@@ -1,7 +1,7 @@
 /**
  * @file dll/fuse/fuse.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -32,16 +32,13 @@ struct fsp_fuse_core_opt_data
 {
     struct fsp_fuse_env *env;
     int help, debug;
-    int hard_remove,
-        use_ino, readdir_ino,
-        set_umask, umask,
+    HANDLE DebugLogHandle;
+    int set_umask, umask,
         set_uid, uid,
         set_gid, gid,
         set_attr_timeout, attr_timeout,
         rellinks;
     int set_FileInfoTimeout;
-    int CaseInsensitiveSearch,
-        ReadOnlyVolume;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
 };
 
@@ -56,9 +53,11 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("-d", debug, 1),
     FSP_FUSE_CORE_OPT("debug", debug, 1),
 
-    FSP_FUSE_CORE_OPT("hard_remove", hard_remove, 1),
-    FSP_FUSE_CORE_OPT("use_ino", use_ino, 1),
-    FSP_FUSE_CORE_OPT("readdir_ino", readdir_ino, 1),
+    FUSE_OPT_KEY("DebugLog=", 'D'),
+
+    FUSE_OPT_KEY("hard_remove", FUSE_OPT_KEY_DISCARD),
+    FUSE_OPT_KEY("use_ino", FUSE_OPT_KEY_DISCARD),
+    FUSE_OPT_KEY("readdir_ino", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("direct_io", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("kernel_cache", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("auto_cache", FUSE_OPT_KEY_DISCARD),
@@ -89,17 +88,8 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("MaxComponentLength=%hu", VolumeParams.MaxComponentLength, 0),
     FSP_FUSE_CORE_OPT("VolumeCreationTime=%lli", VolumeParams.VolumeCreationTime, 0),
     FSP_FUSE_CORE_OPT("VolumeSerialNumber=%lx", VolumeParams.VolumeSerialNumber, 0),
-    FSP_FUSE_CORE_OPT("TransactTimeout=%u", VolumeParams.TransactTimeout, 0),
-    FSP_FUSE_CORE_OPT("IrpTimeout=%u", VolumeParams.IrpTimeout, 0),
-    FSP_FUSE_CORE_OPT("IrpCapacity=%u", VolumeParams.IrpCapacity, 0),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=", set_FileInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=%d", VolumeParams.FileInfoTimeout, 0),
-    FSP_FUSE_CORE_OPT("CaseInsensitiveSearch", CaseInsensitiveSearch, 1),
-    FSP_FUSE_CORE_OPT("ReadOnlyVolume", ReadOnlyVolume, 1),
-    FUSE_OPT_KEY("ReparsePoints", FUSE_OPT_KEY_DISCARD),
-    FUSE_OPT_KEY("NamedStreams", FUSE_OPT_KEY_DISCARD),
-    FUSE_OPT_KEY("HardLinks", FUSE_OPT_KEY_DISCARD),
-    FUSE_OPT_KEY("ExtendedAttributes", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("--UNC=", 'U'),
     FUSE_OPT_KEY("--VolumePrefix=", 'U'),
     FUSE_OPT_KEY("--FileSystemName=", 'F'),
@@ -131,6 +121,9 @@ static inline void *fsp_fuse_obj_alloc(struct fsp_fuse_env *env, size_t size)
 
 static inline void fsp_fuse_obj_free(void *obj)
 {
+    if (0 == obj)
+        return;
+
     struct fsp_fuse_obj_hdr *hdr = (PVOID)((PUINT8)obj - sizeof(struct fsp_fuse_obj_hdr));
 
     hdr->dtor(hdr);
@@ -190,23 +183,55 @@ FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(struct fsp_fuse_env *env,
     const char *mountpoint, struct fuse_args *args)
 {
     struct fuse_chan *ch = 0;
+    WCHAR TempMountPointBuf[MAX_PATH], MountPointBuf[MAX_PATH];
     int Size;
 
-    if (0 == mountpoint)
-        mountpoint = "";
+    if (0 == mountpoint || '\0' == mountpoint[0] ||
+        ('*' == mountpoint[0] && '\0' == mountpoint[1]))
+    {
+        MountPointBuf[0] = L'*';
+        MountPointBuf[1] = L'\0';
+        Size = 2 * sizeof(WCHAR);
+    }
+    else if (
+        (
+            ('A' <= mountpoint[0] && mountpoint[0] <= 'Z') ||
+            ('a' <= mountpoint[0] && mountpoint[0] <= 'z')
+        ) &&
+        ':' == mountpoint[1] && '\0' == mountpoint[2])
+    {
+        MountPointBuf[0] = mountpoint[0];
+        MountPointBuf[1] = ':';
+        MountPointBuf[2] = '\0';
+        Size = 3 * sizeof(WCHAR);
+    }
+    else
+    {
+        char *win_mountpoint = 0;
 
-    Size = MultiByteToWideChar(CP_UTF8, 0, mountpoint, -1, 0, 0);
-    if (0 == Size)
-        goto fail;
+        if (0 != env->conv_to_win_path)
+            mountpoint = win_mountpoint = env->conv_to_win_path(mountpoint);
 
-    ch = fsp_fuse_obj_alloc(env, sizeof *ch + Size * sizeof(WCHAR));
+        Size = 0;
+        if (0 != mountpoint &&
+            0 != MultiByteToWideChar(CP_UTF8, 0, mountpoint, -1, TempMountPointBuf, MAX_PATH))
+            Size = GetFullPathNameW(TempMountPointBuf, MAX_PATH, MountPointBuf, 0);
+
+        env->memfree(win_mountpoint);
+
+        if (0 == Size || MAX_PATH <= Size)
+            goto fail;
+
+        mountpoint = 0;
+        Size = (Size + 1) * sizeof(WCHAR);
+    }
+
+    ch = fsp_fuse_obj_alloc(env, sizeof *ch + Size);
     if (0 == ch)
         goto fail;
 
     ch->MountPoint = (PVOID)ch->Buffer;
-    Size = MultiByteToWideChar(CP_UTF8, 0, mountpoint, -1, ch->MountPoint, Size);
-    if (0 == Size)
-        goto fail;
+    memcpy(ch->MountPoint, MountPointBuf, Size);
 
     return ch;
 
@@ -229,36 +254,6 @@ FSP_FUSE_API int fsp_fuse_is_lib_option(struct fsp_fuse_env *env,
 }
 
 static void fsp_fuse_cleanup(struct fuse *f);
-
-static NTSTATUS fsp_fuse_preflight(struct fuse *f)
-{
-    NTSTATUS Result;
-
-    Result = FspFsctlPreflight(f->VolumeParams.Prefix[0] ?
-        L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME);
-    if (!NT_SUCCESS(Result))
-        return Result;
-
-    if (L'\0' != f->MountPoint)
-    {
-        if ((
-                (L'A' <= f->MountPoint[0] && f->MountPoint[0] <= L'Z') ||
-                (L'a' <= f->MountPoint[0] && f->MountPoint[0] <= L'z')
-            ) &&
-            L':' == f->MountPoint[1] || L'\0' == f->MountPoint[2])
-        {
-            if (GetLogicalDrives() & (1 << ((f->MountPoint[0] & ~0x20) - 'a')))
-                return STATUS_OBJECT_NAME_COLLISION;
-        }
-        else
-        if (L'*' == f->MountPoint[0] && L'\0' == f->MountPoint[1])
-            ;
-        else
-            return STATUS_OBJECT_NAME_INVALID;
-    }
-
-    return STATUS_SUCCESS;
-}
 
 static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 {
@@ -291,9 +286,17 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         //FUSE_CAP_ATOMIC_O_TRUNC |     /* due to Windows/WinFsp design, no support */
         //FUSE_CAP_EXPORT_SUPPORT |     /* not needed in Windows/WinFsp */
         FUSE_CAP_BIG_WRITES |
-        FUSE_CAP_DONT_MASK;
+        FUSE_CAP_DONT_MASK |
+        FSP_FUSE_CAP_READDIR_PLUS |
+        FSP_FUSE_CAP_READ_ONLY |
+        FSP_FUSE_CAP_CASE_INSENSITIVE;
     if (0 != f->ops.init)
+    {
         context->private_data = f->data = f->ops.init(&conn);
+        f->VolumeParams.ReadOnlyVolume = 0 != (conn.want & FSP_FUSE_CAP_READ_ONLY);
+        f->VolumeParams.CaseSensitiveSearch = 0 == (conn.want & FSP_FUSE_CAP_CASE_INSENSITIVE);
+        f->conn_want = conn.want;
+    }
     f->fsinit = TRUE;
     if (0 != f->ops.statfs)
     {
@@ -308,10 +311,12 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
             goto fail;
         }
 
-        if (stbuf.f_frsize > FSP_FUSE_SECTORSIZE_MAX)
-            stbuf.f_frsize = FSP_FUSE_SECTORSIZE_MAX;
-        if (0 == f->VolumeParams.SectorSize)
+        if (0 == f->VolumeParams.SectorSize && 0 != stbuf.f_frsize)
             f->VolumeParams.SectorSize = (UINT16)stbuf.f_frsize;
+#if 0
+        if (0 == f->VolumeParams.SectorsPerAllocationUnit && 0 != stbuf.f_frsize)
+            f->VolumeParams.SectorsPerAllocationUnit = (UINT16)(stbuf.f_bsize / stbuf.f_frsize);
+#endif
         if (0 == f->VolumeParams.MaxComponentLength)
             f->VolumeParams.MaxComponentLength = (UINT16)stbuf.f_namemax;
     }
@@ -343,9 +348,8 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     }
 
     /* the FSD does not currently limit these VolumeParams fields; do so here! */
-    if (f->VolumeParams.SectorSize < FSP_FUSE_SECTORSIZE_MIN)
-        f->VolumeParams.SectorSize = FSP_FUSE_SECTORSIZE_MIN;
-    if (f->VolumeParams.SectorSize > FSP_FUSE_SECTORSIZE_MAX)
+    if (f->VolumeParams.SectorSize < FSP_FUSE_SECTORSIZE_MIN ||
+        f->VolumeParams.SectorSize > FSP_FUSE_SECTORSIZE_MAX)
         f->VolumeParams.SectorSize = FSP_FUSE_SECTORSIZE_MAX;
     if (f->VolumeParams.SectorsPerAllocationUnit == 0)
         f->VolumeParams.SectorsPerAllocationUnit = 1;
@@ -380,7 +384,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     FspFileSystemSetOperationGuardStrategy(f->FileSystem, f->OpGuardStrategy);
     FspFileSystemSetDebugLog(f->FileSystem, f->DebugLog);
 
-    if (L'\0' != f->MountPoint)
+    if (0 != f->MountPoint)
     {
         Result = FspFileSystemSetMountPoint(f->FileSystem,
             L'*' == f->MountPoint[0] && L'\0' == f->MountPoint[1] ? 0 : f->MountPoint);
@@ -449,14 +453,13 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
     case 'h':
         FspServiceLog(EVENTLOG_ERROR_TYPE, L""
             FSP_FUSE_LIBRARY_NAME " options:\n"
-            "    -o SectorSize=N        sector size for Windows (512-4096, deflt: 512)\n"
-            "    -o SectorsPerAllocationUnit=N  allocation unit size (deflt: 1*SectorSize)\n"
+            "    -o DebugLog=FILE           debug log file (deflt: stderr)\n"
+            "    -o SectorSize=N            sector size for Windows (512-4096, deflt: 4096)\n"
+            "    -o SectorsPerAllocationUnit=N  sectors per allocation unit (deflt: 1)\n"
             "    -o MaxComponentLength=N    max file name component length (deflt: 255)\n"
             "    -o VolumeCreationTime=T    volume creation time (FILETIME hex format)\n"
             "    -o VolumeSerialNumber=N    32-bit wide\n"
             "    -o FileInfoTimeout=N       FileInfo/Security/VolumeInfo timeout (millisec)\n"
-            "    -o CaseInsensitiveSearch   file system supports case-insensitive file names\n"
-            //"    -o ReadOnlyVolume          file system is read only\n"
             "    --UNC=U --VolumePrefix=U   UNC prefix (\\Server\\Share)\n"
             "    --FileSystemName=FSN       Name of user mode file system\n");
         opt_data->help = 1;
@@ -467,6 +470,17 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION);
         opt_data->help = 1;
         return 1;
+    case 'D':
+        arg += sizeof "DebugLog=" - 1;
+        opt_data->DebugLogHandle = CreateFileA(
+            arg,
+            FILE_APPEND_DATA,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            0,
+            OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            0);
+        return 0;
     case 'U':
         if ('U' == arg[2])
             arg += sizeof "--UNC=" - 1;
@@ -509,21 +523,55 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
 
     memset(&opt_data, 0, sizeof opt_data);
     opt_data.env = env;
+    opt_data.DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
+    opt_data.VolumeParams.FileInfoTimeout = 1000;   /* default FileInfoTimeout for FUSE file systems */
 
     if (-1 == fsp_fuse_opt_parse(env, args, &opt_data, fsp_fuse_core_opts, fsp_fuse_core_opt_proc))
         return 0;
     if (opt_data.help)
         return 0;
 
+    if (opt_data.debug)
+    {
+        if (INVALID_HANDLE_VALUE == opt_data.DebugLogHandle)
+        {
+            ErrorMessage = L": cannot open debug log file.";
+            goto fail;
+        }
+        FspDebugLogSetHandle(opt_data.DebugLogHandle);
+    }
+
+    if ((opt_data.set_uid && -1 == opt_data.uid) ||
+        (opt_data.set_gid && -1 == opt_data.gid))
+    {
+        HANDLE Token;
+
+        if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token))
+        {
+            fsp_fuse_get_token_uidgid(Token, TokenUser,
+                opt_data.set_uid && -1 == opt_data.uid ? &opt_data.uid : 0,
+                opt_data.set_gid && -1 == opt_data.gid ? &opt_data.gid : 0);
+
+            CloseHandle(Token);
+        }
+
+        if ((opt_data.set_uid && -1 == opt_data.uid) ||
+            (opt_data.set_gid && -1 == opt_data.gid))
+        {
+            ErrorMessage = L": unknown user/group.";
+            goto fail;
+        }
+    }
+
     if (!opt_data.set_FileInfoTimeout && opt_data.set_attr_timeout)
         opt_data.VolumeParams.FileInfoTimeout = opt_data.set_attr_timeout * 1000;
-    opt_data.VolumeParams.CaseSensitiveSearch = !opt_data.CaseInsensitiveSearch;
+    opt_data.VolumeParams.CaseSensitiveSearch = TRUE;
     opt_data.VolumeParams.PersistentAcls = TRUE;
     opt_data.VolumeParams.ReparsePoints = TRUE;
     opt_data.VolumeParams.ReparsePointsAccessCheck = FALSE;
     opt_data.VolumeParams.NamedStreams = FALSE;
-    opt_data.VolumeParams.ReadOnlyVolume = !!opt_data.ReadOnlyVolume;
-    opt_data.VolumeParams.PostCleanupOnDeleteOnly = TRUE;
+    opt_data.VolumeParams.ReadOnlyVolume = FALSE;
+    opt_data.VolumeParams.PostCleanupWhenModifiedOnly = TRUE;
     opt_data.VolumeParams.UmFileContextIsUserContext2 = TRUE;
     if (L'\0' == opt_data.VolumeParams.FileSystemName[0])
         memcpy(opt_data.VolumeParams.FileSystemName, L"FUSE", 5 * sizeof(WCHAR));
@@ -548,7 +596,9 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         goto fail;
     memcpy(f->MountPoint, ch->MountPoint, Size);
 
-    Result = fsp_fuse_preflight(f);
+    Result = FspFileSystemPreflight(
+        f->VolumeParams.Prefix[0] ? L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME,
+        '*' != f->MountPoint[0] || '\0' != f->MountPoint[1] ? f->MountPoint : 0);
     if (!NT_SUCCESS(Result))
     {
         switch (Result)

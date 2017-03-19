@@ -1,7 +1,7 @@
 /**
  * @file sys/driver.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -46,6 +46,10 @@ NTSTATUS DriverEntry(
 
     FspDriverMultiVersionInitialize();
 
+    Result = FspProcessBufferInitialize();
+    if (!NT_SUCCESS(Result))
+        FSP_RETURN();
+
     FspDriverObject = DriverObject;
     ExInitializeResourceLite(&FspDeviceGlobalResource);
 
@@ -59,14 +63,21 @@ NTSTATUS DriverEntry(
         &DeviceSddl, &FspFsctlDeviceClassGuid,
         &FspFsctlDiskDeviceObject);
     if (!NT_SUCCESS(Result))
+    {
+        FspProcessBufferFinalize();
         FSP_RETURN();
+    }
     RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
     Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
         &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
         &DeviceSddl, &FspFsctlDeviceClassGuid,
         &FspFsctlNetDeviceObject);
     if (!NT_SUCCESS(Result))
-        FSP_RETURN(FspDeviceDelete(FspFsctlDiskDeviceObject));
+    {
+        FspDeviceDelete(FspFsctlDiskDeviceObject);
+        FspProcessBufferFinalize();
+        FSP_RETURN();
+    }
     Result = FspDeviceInitialize(FspFsctlDiskDeviceObject);
     ASSERT(STATUS_SUCCESS == Result);
     Result = FspDeviceInitialize(FspFsctlNetDeviceObject);
@@ -176,6 +187,11 @@ NTSTATUS DriverEntry(
 
 static VOID FspDriverMultiVersionInitialize(VOID)
 {
+    FspProcessorCount = KeQueryActiveProcessorCount(0);
+
+#pragma prefast(suppress:30035, "FspDriverMultiVersionInitialize is called from DriverEntry")
+    ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
+
     if (RtlIsNtDdiVersionAvailable(NTDDI_WIN7))
     {
         UNICODE_STRING Name;
@@ -202,6 +218,8 @@ VOID FspUnload(
     ExDeleteResourceLite(&FspDeviceGlobalResource);
     FspDriverObject = 0;
 
+    FspProcessBufferFinalize();
+
 #pragma prefast(suppress:28175, "We are in DriverUnload: ok to access DriverName")
     FSP_LEAVE_VOID("DriverName=\"%wZ\"",
         &DriverObject->DriverName);
@@ -214,5 +232,6 @@ PDEVICE_OBJECT FspFsctlNetDeviceObject;
 FAST_IO_DISPATCH FspFastIoDispatch;
 CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 
+ULONG FspProcessorCount;
 FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
 ULONG FspMvMdlMappingNoWrite = 0;

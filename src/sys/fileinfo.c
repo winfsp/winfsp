@@ -1,7 +1,7 @@
 /**
  * @file sys/fileinfo.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -134,6 +134,7 @@ static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
 
     PFILE_ALL_INFORMATION Info = (PFILE_ALL_INFORMATION)*PBuffer;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    BOOLEAN DeletePending;
 
     if (0 == FileInfo)
     {
@@ -143,6 +144,9 @@ static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
         *PBuffer = (PVOID)&Info->NameInformation;
         return FspFsvolQueryNameInformation(FileObject, PBuffer, BufferEnd);
     }
+
+    DeletePending = 0 != FileNode->DeletePending;
+    MemoryBarrier();
 
     Info->BasicInformation.CreationTime.QuadPart = FileInfo->CreationTime;
     Info->BasicInformation.LastAccessTime.QuadPart = FileInfo->LastAccessTime;
@@ -154,7 +158,7 @@ static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
     Info->StandardInformation.AllocationSize.QuadPart = FileInfo->AllocationSize;
     Info->StandardInformation.EndOfFile.QuadPart = FileInfo->FileSize;
     Info->StandardInformation.NumberOfLinks = 1;
-    Info->StandardInformation.DeletePending = FileObject->DeletePending;
+    Info->StandardInformation.DeletePending = DeletePending || FileObject->DeletePending;
     Info->StandardInformation.Directory = FileNode->IsDirectory;
 
     Info->InternalInformation.IndexNumber.QuadPart = FileNode->IndexNumber;
@@ -363,6 +367,7 @@ static NTSTATUS FspFsvolQueryStandardInformation(PFILE_OBJECT FileObject,
 
     PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)*PBuffer;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    BOOLEAN DeletePending;
 
     if (0 == FileInfo)
     {
@@ -372,10 +377,13 @@ static NTSTATUS FspFsvolQueryStandardInformation(PFILE_OBJECT FileObject,
         return STATUS_SUCCESS;
     }
 
+    DeletePending = 0 != FileNode->DeletePending;
+    MemoryBarrier();
+
     Info->AllocationSize.QuadPart = FileInfo->AllocationSize;
     Info->EndOfFile.QuadPart = FileInfo->FileSize;
     Info->NumberOfLinks = 1;
-    Info->DeletePending = FileObject->DeletePending;
+    Info->DeletePending = DeletePending || FileObject->DeletePending;
     Info->Directory = FileNode->IsDirectory;
 
     *PBuffer = (PVOID)(Info + 1);
@@ -619,7 +627,7 @@ static NTSTATUS FspFsvolQueryInformation(
 
     /* is this a valid FileObject? */
     if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
-        return STATUS_INVALID_DEVICE_REQUEST;
+        return STATUS_INVALID_PARAMETER;
 
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryFile.FileInformationClass;
 
@@ -663,7 +671,7 @@ static NTSTATUS FspFsvolQueryInformation(
         Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
         return Result;
     case FileHardLinkInformation:
-        Result = STATUS_INVALID_PARAMETER;  /* no hard link support */
+        Result = STATUS_NOT_SUPPORTED;  /* no hard link support */
         return Result;
     case FileInternalInformation:
         Result = FspFsvolQueryInternalInformation(FileObject, &Buffer, BufferEnd);
@@ -673,6 +681,9 @@ static NTSTATUS FspFsvolQueryInformation(
     case FileNormalizedNameInformation:
         Result = FspFsvolQueryNameInformation(FileObject, &Buffer, BufferEnd);
         Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
+        return Result;
+    case FileAlternateNameInformation:
+        Result = STATUS_OBJECT_NAME_NOT_FOUND;  /* WinFsp does not support short names */
         return Result;
     case FileNetworkOpenInformation:
         Result = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, 0);
@@ -893,13 +904,12 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
     {
         FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
-        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
-        FileNode->TruncateOnClose = TRUE;
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo, TRUE);
 
         /* mark the file object as modified */
         SetFlag(FileObject->Flags, FO_FILE_MODIFIED);
 
-        FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED);
+        FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED, FALSE);
     }
 
     return STATUS_SUCCESS;
@@ -914,6 +924,15 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
     if (0 == Request)
     {
         if (sizeof(FILE_BASIC_INFORMATION) > Length)
+            return STATUS_INVALID_PARAMETER;
+
+        PFILE_BASIC_INFORMATION Info = (PFILE_BASIC_INFORMATION)Buffer;
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        UINT32 FileAttributes = Info->FileAttributes;
+
+        /* do not allow the temporary bit on a directory */
+        if (FileNode->IsDirectory &&
+            FlagOn(FileAttributes, FILE_ATTRIBUTE_TEMPORARY))
             return STATUS_INVALID_PARAMETER;
     }
     else if (0 == Response)
@@ -935,23 +954,53 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
         Request->Req.SetInformation.Info.Basic.CreationTime = Info->CreationTime.QuadPart;
         Request->Req.SetInformation.Info.Basic.LastAccessTime = Info->LastAccessTime.QuadPart;
         Request->Req.SetInformation.Info.Basic.LastWriteTime = Info->LastWriteTime.QuadPart;
+        Request->Req.SetInformation.Info.Basic.ChangeTime = Info->ChangeTime.QuadPart;
     }
     else
     {
         FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
         ULONG NotifyFilter = 0;
 
-        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
+        ASSERT(FileNode == FileDesc->FileNode);
+
+        if (!FileNode->IsDirectory)
+        {
+            /* properly set temporary bit for lazy writer */
+            if (FlagOn(Response->Rsp.SetInformation.FileInfo.FileAttributes,
+                FILE_ATTRIBUTE_TEMPORARY))
+                SetFlag(FileObject->Flags, FO_TEMPORARY_FILE);
+            else
+                ClearFlag(FileObject->Flags, FO_TEMPORARY_FILE);
+        }
+
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo, FALSE);
 
         if ((UINT32)-1 != Request->Req.SetInformation.Info.Basic.FileAttributes)
+        {
+            FileDesc->DidSetFileAttributes = TRUE;
             NotifyFilter |= FILE_NOTIFY_CHANGE_ATTRIBUTES;
+        }
         if (0 != Request->Req.SetInformation.Info.Basic.CreationTime)
+        {
+            FileDesc->DidSetCreationTime = TRUE;
             NotifyFilter |= FILE_NOTIFY_CHANGE_CREATION;
+        }
         if (0 != Request->Req.SetInformation.Info.Basic.LastAccessTime)
+        {
+            FileDesc->DidSetLastAccessTime = TRUE;
             NotifyFilter |= FILE_NOTIFY_CHANGE_LAST_ACCESS;
+        }
         if (0 != Request->Req.SetInformation.Info.Basic.LastWriteTime)
+        {
+            FileDesc->DidSetLastWriteTime = TRUE;
             NotifyFilter |= FILE_NOTIFY_CHANGE_LAST_WRITE;
-        FspFileNodeNotifyChange(FileNode, NotifyFilter, FILE_ACTION_MODIFIED);
+        }
+        if (0 != Request->Req.SetInformation.Info.Basic.ChangeTime)
+            FileDesc->DidSetChangeTime = TRUE;
+
+        FileDesc->DidSetMetadata = TRUE;
+        FspFileNodeNotifyChange(FileNode, NotifyFilter, FILE_ACTION_MODIFIED, TRUE/*FALSE*/);
     }
 
     return STATUS_SUCCESS;
@@ -996,13 +1045,12 @@ static NTSTATUS FspFsvolSetEndOfFileInformation(PFILE_OBJECT FileObject,
     {
         FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
-        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo);
-        FileNode->TruncateOnClose = TRUE;
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetInformation.FileInfo, TRUE);
 
         /* mark the file object as modified -- FastFat does this only for Allocation though! */
         SetFlag(FileObject->Flags, FO_FILE_MODIFIED);
 
-        FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED);
+        FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_SIZE, FILE_ACTION_MODIFIED, FALSE);
     }
 
     return STATUS_SUCCESS;
@@ -1151,6 +1199,7 @@ static NTSTATUS FspFsvolSetRenameInformation(
     PAGED_CODE();
 
     NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PFILE_OBJECT TargetFileObject = IrpSp->Parameters.SetFile.FileObject;
     BOOLEAN ReplaceIfExists = IrpSp->Parameters.SetFile.ReplaceIfExists;
@@ -1176,7 +1225,9 @@ static NTSTATUS FspFsvolSetRenameInformation(
     if (FileNode->IsRootDirectory)
         /* cannot rename root directory */
         return STATUS_INVALID_PARAMETER;
-    if (!FspFileNameIsValid(&FileNode->FileName, 0, 0))
+    if (!FspFileNameIsValid(&FileNode->FileName,
+        FsvolDeviceExtension->VolumeParams.MaxComponentLength,
+        0, 0))
         /* cannot rename streams (WinFsp limitation) */
         return STATUS_INVALID_PARAMETER;
 
@@ -1210,7 +1261,12 @@ retry:
             }
         Suffix.MaximumLength = Suffix.Length;
 
-        if (!FspFileNameIsValid(&Remain, 0, 0) || !FspFileNameIsValid(&Suffix, 0, 0))
+        if (!FspFileNameIsValid(&Remain,
+                FsvolDeviceExtension->VolumeParams.MaxComponentLength,
+                0, 0) ||
+            !FspFileNameIsValid(&Suffix,
+                FsvolDeviceExtension->VolumeParams.MaxComponentLength,
+                0, 0))
         {
             /* cannot rename streams (WinFsp limitation) */
             Result = STATUS_INVALID_PARAMETER;
@@ -1341,7 +1397,8 @@ static NTSTATUS FspFsvolSetRenameInformationSuccess(
     /* fastfat has some really arcane rules on rename notifications; simplify! */
     FspFileNodeNotifyChange(FileNode,
         FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
-        FILE_ACTION_RENAMED_OLD_NAME);
+        FILE_ACTION_RENAMED_OLD_NAME,
+        TRUE);
 
     NewFileName.Length = NewFileName.MaximumLength =
         Request->Req.SetInformation.Info.Rename.NewFileName.Size - sizeof(WCHAR);
@@ -1352,7 +1409,8 @@ static NTSTATUS FspFsvolSetRenameInformationSuccess(
     /* fastfat has some really arcane rules on rename notifications; simplify! */
     FspFileNodeNotifyChange(FileNode,
         FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
-        FILE_ACTION_RENAMED_NEW_NAME);
+        FILE_ACTION_RENAMED_NEW_NAME,
+        TRUE);
 
     FspIopRequestContext(Request, RequestFileNode) = 0;
     FspIopRequestContext(Request, RequestDeviceObject) = 0;
@@ -1371,7 +1429,7 @@ static NTSTATUS FspFsvolSetInformation(
 
     /* is this a valid FileObject? */
     if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
-        return STATUS_INVALID_DEVICE_REQUEST;
+        return STATUS_INVALID_PARAMETER;
 
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.SetFile.FileInformationClass;
 
@@ -1402,7 +1460,7 @@ static NTSTATUS FspFsvolSetInformation(
             Result = FspFsvolSetEndOfFileInformation(FileObject, Buffer, Length, 0, 0);
         break;
     case FileLinkInformation:
-        Result = STATUS_INVALID_PARAMETER;  /* no hard link support */
+        Result = STATUS_NOT_SUPPORTED;  /* no hard link support */
         return Result;
     case FilePositionInformation:
         Result = FspFsvolSetPositionInformation(FileObject, Buffer, Length);

@@ -14,7 +14,7 @@
  * [SNAME]
  *     https://www.cygwin.com/cygwin-ug-net/using-specialnames.html
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -922,4 +922,31 @@ lasterror:
 FSP_API VOID FspPosixDeletePath(void *Path)
 {
     MemFree(Path);
+}
+
+FSP_API VOID FspPosixEncodeWindowsPath(PWSTR WindowsPath, ULONG Size)
+{
+    for (PWSTR p = WindowsPath, endp = p + Size; endp > p; p++)
+    {
+        WCHAR c = *p;
+
+        if (L'\\' == c)
+            *p = L'/';
+        /* encode characters in the Unicode private use area: U+F0XX -> XX */
+        else if (0xf000 <= c && c <= 0xf0ff)
+            *p &= ~0xf000;
+    }
+}
+
+FSP_API VOID FspPosixDecodeWindowsPath(PWSTR WindowsPath, ULONG Size)
+{
+    for (PWSTR p = WindowsPath, endp = p + Size; endp > p; p++)
+    {
+        WCHAR c = *p;
+
+        if (L'/' == c)
+            *p = L'\\';
+        else if (128 > c && (FspPosixInvalidPathChars[c >> 5] & (0x80000000 >> (c & 0x1f))))
+            *p |= 0xf000;
+    }
 }

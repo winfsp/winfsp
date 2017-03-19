@@ -1,7 +1,7 @@
 /**
  * @file create-test.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -200,6 +200,16 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
         CloseHandle(Handle);
     }
 
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
     memfs_stop(memfs);
 }
 
@@ -276,6 +286,138 @@ void create_related_test(void)
         create_related_dotest(MemfsDisk, 0);
     if (WinFspNetTests)
         create_related_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
+void create_allocation_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE DirHandle, FileHandle, FileHandle2;
+    NTSTATUS Result;
+    BOOLEAN Success;
+    WCHAR FilePath[MAX_PATH];
+    WCHAR UnicodePathBuf[MAX_PATH] = L"file2";
+    UNICODE_STRING UnicodePath;
+    OBJECT_ATTRIBUTES Obja;
+    IO_STATUS_BLOCK Iosb;
+    LARGE_INTEGER AllocationSize;
+    FILE_STANDARD_INFO StandardInfo;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    DirHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != DirHandle);
+
+    AllocationSize.QuadPart = 65536;
+    UnicodePath.Length = (USHORT)wcslen(UnicodePathBuf) * sizeof(WCHAR);
+    UnicodePath.MaximumLength = sizeof UnicodePathBuf;
+    UnicodePath.Buffer = UnicodePathBuf;
+    InitializeObjectAttributes(&Obja, &UnicodePath, 0, DirHandle, 0);
+    Result = NtCreateFile(&FileHandle,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
+        &AllocationSize, FILE_ATTRIBUTE_NORMAL,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        FILE_CREATE, 0, 0, 0);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    Success = GetFileInformationByHandleEx(FileHandle, FileStandardInfo, &StandardInfo, sizeof StandardInfo);
+    ASSERT(Success);
+    ASSERT(65536 == StandardInfo.AllocationSize.QuadPart);
+
+    AllocationSize.QuadPart = 0;
+    UnicodePath.Length = (USHORT)wcslen(UnicodePathBuf) * sizeof(WCHAR);
+    UnicodePath.MaximumLength = sizeof UnicodePathBuf;
+    UnicodePath.Buffer = UnicodePathBuf;
+    InitializeObjectAttributes(&Obja, &UnicodePath, 0, DirHandle, 0);
+    Result = NtCreateFile(&FileHandle2,
+        FILE_READ_ATTRIBUTES, &Obja, &Iosb,
+        &AllocationSize, FILE_ATTRIBUTE_NORMAL,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        FILE_OPEN, 0, 0, 0);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    Success = GetFileInformationByHandleEx(FileHandle2, FileStandardInfo, &StandardInfo, sizeof StandardInfo);
+    ASSERT(Success);
+    ASSERT(65536 == StandardInfo.AllocationSize.QuadPart);
+
+    CloseHandle(FileHandle2);
+
+    AllocationSize.QuadPart = 0;
+    UnicodePath.Length = (USHORT)wcslen(UnicodePathBuf) * sizeof(WCHAR);
+    UnicodePath.MaximumLength = sizeof UnicodePathBuf;
+    UnicodePath.Buffer = UnicodePathBuf;
+    InitializeObjectAttributes(&Obja, &UnicodePath, 0, DirHandle, 0);
+    Result = NtCreateFile(&FileHandle2,
+        FILE_READ_ATTRIBUTES, &Obja, &Iosb,
+        &AllocationSize, FILE_ATTRIBUTE_NORMAL,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        FILE_OPEN, 0, 0, 0);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    Success = GetFileInformationByHandleEx(FileHandle2, FileStandardInfo, &StandardInfo, sizeof StandardInfo);
+    ASSERT(Success);
+    ASSERT(65536 == StandardInfo.AllocationSize.QuadPart);
+
+    CloseHandle(FileHandle2);
+    CloseHandle(FileHandle);
+
+    AllocationSize.QuadPart = 0;
+    UnicodePath.Length = (USHORT)wcslen(UnicodePathBuf) * sizeof(WCHAR);
+    UnicodePath.MaximumLength = sizeof UnicodePathBuf;
+    UnicodePath.Buffer = UnicodePathBuf;
+    InitializeObjectAttributes(&Obja, &UnicodePath, 0, DirHandle, 0);
+    Result = NtCreateFile(&FileHandle,
+        FILE_READ_ATTRIBUTES, &Obja, &Iosb,
+        &AllocationSize, FILE_ATTRIBUTE_NORMAL, 0,
+        FILE_OPEN, 0, 0, 0);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    Success = GetFileInformationByHandleEx(FileHandle, FileStandardInfo, &StandardInfo, sizeof StandardInfo);
+    ASSERT(Success);
+    ASSERT(0 == StandardInfo.AllocationSize.QuadPart);
+
+    CloseHandle(FileHandle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file2",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    FileHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != FileHandle);
+    CloseHandle(FileHandle);
+
+    CloseHandle(DirHandle);
+
+    memfs_stop(memfs);
+}
+
+void create_allocation_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        create_allocation_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        create_allocation_dotest(MemfsDisk, 0, 0);
+        create_allocation_dotest(MemfsDisk, 0, 1000);
+        create_allocation_dotest(MemfsDisk, 0, INFINITE);
+    }
+    if (WinFspNetTests)
+    {
+        create_allocation_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        create_allocation_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+        create_allocation_dotest(MemfsNet, L"\\\\memfs\\share", INFINITE);
+    }
 }
 
 void create_sd_dotest(ULONG Flags, PWSTR Prefix)
@@ -862,10 +1004,89 @@ void create_curdir_test(void)
         create_curdir_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+void create_namelen_dotest(ULONG Flags, PWSTR Prefix, PWSTR Drive)
+{
+    void *memfs = memfs_start(Flags);
+
+    WCHAR FilePath[1024];
+    PWSTR FilePathBgn, P, EndP;
+    DWORD MaxComponentLength;
+    HANDLE Handle;
+    BOOL Success;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Drive ? Drive : memfs_volumename(memfs));
+
+    Success = GetVolumeInformationW(FilePath,
+        0, 0,
+        0, &MaxComponentLength, 0,
+        0, 0);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    FilePathBgn = FilePath + wcslen(FilePath);
+
+    for (P = FilePathBgn, EndP = P + MaxComponentLength - 1; EndP > P; P++)
+        *P = (P - FilePathBgn) % 10 + '0';
+    *P = L'\0';
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    for (P = FilePathBgn, EndP = P + MaxComponentLength; EndP > P; P++)
+        *P = (P - FilePathBgn) % 10 + '0';
+    *P = L'\0';
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    for (P = FilePathBgn, EndP = P + MaxComponentLength + 1; EndP > P; P++)
+        *P = (P - FilePathBgn) % 10 + '0';
+    *P = L'\0';
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_INVALID_NAME == GetLastError());
+
+    memfs_stop(memfs);
+}
+
+void create_namelen_test(void)
+{
+    if (OptShareName || OptMountPoint)
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        create_namelen_dotest(-1, DirBuf, DriveBuf);
+    }
+    if (WinFspDiskTests)
+        create_namelen_dotest(MemfsDisk, 0, 0);
+#if 0
+    /* This test does not work when going through the MUP! */
+    if (WinFspNetTests)
+        create_namelen_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share");
+#endif
+}
+
 void create_tests(void)
 {
     TEST(create_test);
     TEST(create_related_test);
+    TEST(create_allocation_test);
     TEST(create_sd_test);
     if (!OptNoTraverseToken && !OptShareName)
         TEST(create_notraverse_test);
@@ -873,4 +1094,6 @@ void create_tests(void)
     TEST(create_restore_test);
     TEST(create_share_test);
     TEST(create_curdir_test);
+    if (!OptShareName && !OptMountPoint)
+        TEST(create_namelen_test);
 }

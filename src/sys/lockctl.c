@@ -1,7 +1,7 @@
 /**
  * @file sys/lockctl.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -61,10 +61,15 @@ static NTSTATUS FspFsvolLockControlRetry(
         return Result;
     }
 
+    ULONG IrpFlags = FspIrpFlags(Irp);
+    IoSetTopLevelIrp(0);
+
     /* let the FSRTL package handle this one! */
     Result = FspFileNodeProcessLockIrp(FileNode, Irp);
 
-    return Result;
+    FspFileNodeReleaseF(FileNode, IrpFlags);
+
+    return Result | FSP_STATUS_IGNORE_BIT;
 }
 
 static NTSTATUS FspFsvolLockControl(

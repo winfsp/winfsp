@@ -1,7 +1,7 @@
 /**
  * @file sys/volume.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -171,6 +171,16 @@ static NTSTATUS FspVolumeCreateNoLock(
     }
     VolumeParams.FileSystemName[sizeof VolumeParams.FileSystemName / sizeof(WCHAR) - 1] = L'\0';
 
+#if !DBG
+    /*
+     * In Release builds we hardcode AlwaysUseDoubleBuffering for Reads as we do not want someone
+     * to use WinFsp to crash Windows.
+     *
+     * See http://www.osronline.com/showthread.cfm?link=282037
+     */
+    VolumeParams.AlwaysUseDoubleBuffering = 1;
+#endif
+
     /* create volume guid */
     Result = FspCreateGuid(&Guid);
     if (!NT_SUCCESS(Result))
@@ -294,9 +304,9 @@ VOID FspVolumeDelete(
     FspDeviceGlobalUnlock();
 
     /*
-     * Call MmForceSectionClosed on open files to ensure that Mm removes them from Standby List.
+     * Call MmForceSectionClosed on active files to ensure that Mm removes them from Standby List.
      */
-    Result = FspFileNodeCopyList(FsvolDeviceObject, &FileNodes, &FileNodeCount);
+    Result = FspFileNodeCopyActiveList(FsvolDeviceObject, &FileNodes, &FileNodeCount);
     if (NT_SUCCESS(Result))
     {
         for (Index = FileNodeCount - 1; FileNodeCount > Index; Index--)

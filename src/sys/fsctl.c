@@ -1,7 +1,7 @@
 /**
  * @file sys/fsctl.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -29,6 +29,12 @@ static NTSTATUS FspFsvolFileSystemControlOplock(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static IO_COMPLETION_ROUTINE FspFsvolFileSystemControlOplockCompletion;
 static WORKER_THREAD_ROUTINE FspFsvolFileSystemControlOplockCompletionWork;
+static NTSTATUS FspFsvolFileSystemControlQueryPersistentVolumeState(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolFileSystemControlGetStatistics(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolFileSystemControlGetRetrievalPointers(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolFileSystemControlComplete;
@@ -42,6 +48,9 @@ FSP_DRIVER_DISPATCH FspFileSystemControl;
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlOplock)
 // !#pragma alloc_text(PAGE, FspFsvolFileSystemControlOplockCompletion)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlOplockCompletionWork)
+#pragma alloc_text(PAGE, FspFsvolFileSystemControlQueryPersistentVolumeState)
+#pragma alloc_text(PAGE, FspFsvolFileSystemControlGetStatistics)
+#pragma alloc_text(PAGE, FspFsvolFileSystemControlGetRetrievalPointers)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControl)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlComplete)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlRequestFini)
@@ -105,7 +114,7 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
 
     /* is this a valid FileObject? */
     if (!FspFileNodeIsValid(FileObject->FsContext))
-        return STATUS_INVALID_DEVICE_REQUEST;
+        return STATUS_INVALID_PARAMETER;
 
     NTSTATUS Result;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
@@ -125,16 +134,50 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
 
     if (IsWrite)
     {
-        if (0 == InputBuffer || 0 == InputBufferLength ||
-            FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMAX - (FileNode->FileName.Length + sizeof(WCHAR)) <
-                InputBufferLength)
+        ASSERT(
+            FSCTL_SET_REPARSE_POINT == FsControlCode ||
+            FSCTL_DELETE_REPARSE_POINT == FsControlCode);
+
+        if (0 == InputBuffer || 0 == InputBufferLength)
+            return STATUS_INVALID_BUFFER_SIZE;
+
+        if (0 != OutputBufferLength)
             return STATUS_INVALID_PARAMETER;
 
-        Result = FsRtlValidateReparsePointBuffer(InputBufferLength, InputBuffer);
-        if (!NT_SUCCESS(Result))
-            return Result;
-
         ReparseData = (PREPARSE_DATA_BUFFER)InputBuffer;
+
+        if (FSCTL_SET_REPARSE_POINT == FsControlCode)
+        {
+            if (FSP_FSCTL_TRANSACT_REQ_BUFFER_SIZEMAX - (FileNode->FileName.Length + sizeof(WCHAR)) <
+                    InputBufferLength)
+                return STATUS_IO_REPARSE_DATA_INVALID;
+
+            Result = FsRtlValidateReparsePointBuffer(InputBufferLength, InputBuffer);
+            if (!NT_SUCCESS(Result))
+                return Result;
+        }
+        else
+        {
+            if ((ULONG)FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) != InputBufferLength &&
+                (ULONG)FIELD_OFFSET(REPARSE_GUID_DATA_BUFFER, GenericReparseBuffer) != InputBufferLength)
+                return STATUS_IO_REPARSE_DATA_INVALID;
+
+            if (0 != ReparseData->ReparseDataLength)
+                return STATUS_IO_REPARSE_DATA_INVALID;
+
+            if (IO_REPARSE_TAG_RESERVED_ZERO == ReparseData->ReparseTag ||
+                IO_REPARSE_TAG_RESERVED_ONE == ReparseData->ReparseTag)
+                return STATUS_IO_REPARSE_TAG_INVALID;
+
+            if (!IsReparseTagMicrosoft(ReparseData->ReparseTag) &&
+                (ULONG)FIELD_OFFSET(REPARSE_GUID_DATA_BUFFER, GenericReparseBuffer) != InputBufferLength)
+                return STATUS_IO_REPARSE_DATA_INVALID;
+        }
+
+        /* NTFS seems to require one of these rights to allow FSCTL_{SET,DELETE}_REPARSE_POINT */
+        if (!FlagOn(FileDesc->GrantedAccess,
+            FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_ATTRIBUTES))
+            return STATUS_ACCESS_DENIED;
 
         if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag)
         {
@@ -229,8 +272,13 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
     }
     else
     {
-        if (0 == OutputBuffer || 0 == OutputBufferLength)
+        ASSERT(FSCTL_GET_REPARSE_POINT == FsControlCode);
+
+        if (0 != InputBufferLength)
             return STATUS_INVALID_PARAMETER;
+
+        if (0 == OutputBuffer || 0 == OutputBufferLength)
+            return STATUS_INVALID_USER_BUFFER;
 
         /*
          * NtFsControlFile (IopXxxControlFile) will setup Irp->AssociatedIrp.SystemBuffer
@@ -276,7 +324,21 @@ static NTSTATUS FspFsvolFileSystemControlReparsePointComplete(
     PAGED_CODE();
 
     if (IsWrite)
+    {
+        PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+        PFILE_OBJECT FileObject = IrpSp->FileObject;
+        FSP_FILE_NODE *FileNode = FileObject->FsContext;
+        FSP_FILE_DESC *FileDesc = IrpSp->FileObject->FsContext2;
+
+        ASSERT(FileNode == FileDesc->FileNode);
+
+        FspFileNodeInvalidateFileInfo(FileNode);
+
+        FileDesc->DidSetReparsePoint = TRUE;
+        FileDesc->DidSetMetadata = TRUE;
+
         return STATUS_SUCCESS;
+    }
 
     NTSTATUS Result;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
@@ -433,18 +495,15 @@ static NTSTATUS FspFsvolFileSystemControlOplock(
 
     /*
      * FspOplockFsctrl takes ownership of the IRP under all circumstances.
-     *
-     * We mark the IRP pending so that we can safely return STATUS_PENDING.
      */
 
     IoSetTopLevelIrp(0);
 
-    IoMarkIrpPending(Irp);
     Result = FspFileNodeOplockFsctl(FileNode, Irp, OplockCount);
 
     FspFileNodeRelease(FileNode, Main);
 
-    return STATUS_PENDING;
+    return Result | FSP_STATUS_IGNORE_BIT;
 
 unlock_exit:
     FspFileNodeRelease(FileNode, Main);
@@ -471,6 +530,140 @@ static VOID FspFsvolFileSystemControlOplockCompletionWork(PVOID Context)
     FSP_FSVOL_FILESYSTEM_CONTROL_OPLOCK_COMPLETION_CONTEXT *CompletionContext = Context;
     FspDeviceDereference(CompletionContext->FsvolDeviceObject);
     FspFree(CompletionContext);
+}
+
+static NTSTATUS FspFsvolFileSystemControlQueryPersistentVolumeState(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
+    ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+    PFILE_FS_PERSISTENT_VOLUME_INFORMATION Info;
+
+    if (0 == Buffer)
+        return STATUS_INVALID_PARAMETER;
+
+    if (sizeof(FILE_FS_PERSISTENT_VOLUME_INFORMATION) > InputBufferLength ||
+        sizeof(FILE_FS_PERSISTENT_VOLUME_INFORMATION) > OutputBufferLength)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    Info = Buffer;
+    if (1 != Info->Version ||
+        !FlagOn(Info->FlagMask, PERSISTENT_VOLUME_STATE_SHORT_NAME_CREATION_DISABLED))
+        return STATUS_INVALID_PARAMETER;
+
+    RtlZeroMemory(Info, sizeof(FILE_FS_PERSISTENT_VOLUME_INFORMATION));
+    Info->VolumeFlags = PERSISTENT_VOLUME_STATE_SHORT_NAME_CREATION_DISABLED;
+
+    Irp->IoStatus.Information = sizeof(FILE_FS_PERSISTENT_VOLUME_INFORMATION);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS FspFsvolFileSystemControlGetStatistics(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG Length = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+
+    Result = FspStatisticsCopy(FsvolDeviceExtension->Statistics, Buffer, &Length);
+
+    Irp->IoStatus.Information = Length;
+
+    return Result;
+}
+
+static NTSTATUS FspFsvolFileSystemControlGetRetrievalPointers(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    /*
+     * FSCTL_GET_RETRIEVAL_POINTERS is normally used for defragmentation support,
+     * which WinFsp does NOT support. However some tools (notably IFSTEST) use it
+     * to determine whether files are "resident" or "non-resident" which is an NTFS
+     * concept. To support such tools we respond in a manner that indicates that
+     * WinFsp files are always non-resident.
+     */
+
+    PAGED_CODE();
+
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+
+    /* is this a valid FileObject? */
+    if (!FspFileNodeIsValid(FileObject->FsContext))
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    PSTARTING_VCN_INPUT_BUFFER InputBuffer = IrpSp->Parameters.FileSystemControl.Type3InputBuffer;
+    PRETRIEVAL_POINTERS_BUFFER OutputBuffer = Irp->UserBuffer;
+    ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
+    ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+    STARTING_VCN_INPUT_BUFFER StartingVcn;
+    RETRIEVAL_POINTERS_BUFFER RetrievalPointers;
+    UINT64 AllocationUnit;
+
+    if (0 == InputBuffer || 0 == OutputBuffer)
+        return STATUS_INVALID_PARAMETER;
+
+    if (sizeof(STARTING_VCN_INPUT_BUFFER) > InputBufferLength ||
+        sizeof(RETRIEVAL_POINTERS_BUFFER) > OutputBufferLength)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    if (UserMode == Irp->RequestorMode)
+    {
+        try
+        {
+            ProbeForRead(InputBuffer, InputBufferLength, sizeof(UCHAR)/*FastFat*/);
+            StartingVcn = *InputBuffer;
+        }
+        except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return GetExceptionCode();
+        }
+    }
+    else
+        StartingVcn = *InputBuffer;
+
+    RetrievalPointers.ExtentCount = 1;
+    RetrievalPointers.StartingVcn.QuadPart = 0;
+    RetrievalPointers.Extents[0].NextVcn.QuadPart = 0;
+    RetrievalPointers.Extents[0].Lcn.QuadPart = -1LL;
+
+    AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+        FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+
+    FspFileNodeAcquireShared(FileNode, Main);
+    RetrievalPointers.Extents[0].NextVcn.QuadPart =
+        FileNode->Header.AllocationSize.QuadPart / AllocationUnit;
+    FspFileNodeRelease(FileNode, Main);
+
+    if (StartingVcn.StartingVcn.QuadPart > RetrievalPointers.Extents[0].NextVcn.QuadPart)
+        return STATUS_END_OF_FILE;
+
+    if (UserMode == Irp->RequestorMode)
+    {
+        try
+        {
+            ProbeForWrite(OutputBuffer, OutputBufferLength, sizeof(UCHAR)/*FastFat*/);
+            *OutputBuffer = RetrievalPointers;
+        }
+        except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return GetExceptionCode();
+        }
+    }
+    else
+        *OutputBuffer = RetrievalPointers;
+
+    Irp->IoStatus.Information = sizeof RetrievalPointers;
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS FspFsvolFileSystemControl(
@@ -505,6 +698,15 @@ static NTSTATUS FspFsvolFileSystemControl(
         case FSCTL_REQUEST_FILTER_OPLOCK:
         case FSCTL_REQUEST_OPLOCK:
             Result = FspFsvolFileSystemControlOplock(FsvolDeviceObject, Irp, IrpSp);
+            break;
+        case FSCTL_QUERY_PERSISTENT_VOLUME_STATE:
+            Result = FspFsvolFileSystemControlQueryPersistentVolumeState(FsvolDeviceObject, Irp, IrpSp);
+            break;
+        case FSCTL_FILESYSTEM_GET_STATISTICS:
+            Result = FspFsvolFileSystemControlGetStatistics(FsvolDeviceObject, Irp, IrpSp);
+            break;
+        case FSCTL_GET_RETRIEVAL_POINTERS:
+            Result = FspFsvolFileSystemControlGetRetrievalPointers(FsvolDeviceObject, Irp, IrpSp);
             break;
         }
         break;

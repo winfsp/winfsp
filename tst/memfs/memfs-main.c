@@ -1,7 +1,7 @@
 /**
  * @file memfs-main.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -44,6 +44,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     ULONG FileInfoTimeout = INFINITE;
     ULONG MaxFileNodes = 1024;
     ULONG MaxFileSize = 16 * 1024 * 1024;
+    PWSTR FileSystemName = 0;
     PWSTR MountPoint = 0;
     PWSTR VolumePrefix = 0;
     PWSTR RootSddl = 0;
@@ -64,6 +65,9 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
             break;
         case L'D':
             argtos(DebugLogFile);
+            break;
+        case L'F':
+            argtos(FileSystemName);
             break;
         case L'i':
             CaseInsensitiveFlags = MemfsCaseInsensitive;
@@ -102,7 +106,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     if (0 != DebugLogFile)
     {
         if (0 == wcscmp(L"-", DebugLogFile))
-            DebugLogHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+            DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
         else
             DebugLogHandle = CreateFileW(
                 DebugLogFile,
@@ -121,11 +125,12 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         FspDebugLogSetHandle(DebugLogHandle);
     }
 
-    Result = MemfsCreate(
+    Result = MemfsCreateFunnel(
         CaseInsensitiveFlags | Flags,
         FileInfoTimeout,
         MaxFileNodes,
         MaxFileSize,
+        FileSystemName,
         VolumePrefix,
         RootSddl,
         &Memfs);
@@ -179,11 +184,12 @@ usage:
         "\n"
         "options:\n"
         "    -d DebugFlags       [-1: enable all debug logs]\n"
-        "    -D DebugLogFile     [file path; use - for stdout]\n"
+        "    -D DebugLogFile     [file path; use - for stderr]\n"
         "    -i                  [case insensitive file system]\n"
         "    -t FileInfoTimeout  [millis]\n"
         "    -n MaxFileNodes\n"
         "    -s MaxFileSize      [bytes]\n"
+        "    -F FileSystemName\n"
         "    -S RootSddl         [file rights: FA, etc; NO generic rights: GA, etc.]\n"
         "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
         "    -m MountPoint       [X:|* (required if no UNC prefix)]\n";

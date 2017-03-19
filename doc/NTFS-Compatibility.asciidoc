@@ -1,0 +1,46 @@
+= NTFS Compatibility
+
+WinFsp enables the creation of user mode file systems that behave similar to NTFS or FAT. Generic Windows applications that access files on a WinFsp file system cannot and should not be able to determine that it is not a native Windows file system. However specialized applications that access NTFS or FAT specific extensions (such as Defrag) will not work properly on WinFsp file systems.
+
+== Supported features
+
+WinFsp supports the following NTFS features:
+
+- Query and set volume information.
+- Open, create, close, delete files and directories.
+- Query and set file and directory information.
+- Query and set security information (ACL's).
+- Read and write files.
+- Memory mapped I/O.
+- Directory change notifications.
+- Lock and unlock files.
+- Opportunistic locks.
+- Open, create, close, delete, query named streams.
+- Reparse points with special support for symbolic links.
+
+== Unsupported features
+
+WinFsp does not support the following NTFS features:
+
+- Hard links. Rather rarely used on Windows. However it might be worthwhile to implement them for WinFsp.
+- Extended attributes. Although popular with POSIX file systems, they are severely hampered and rarely used on Windows. They are also not exposed via the Win32 API.
+- Short file names. Short file names are a relic of the past. WinFsp made a conscious decision not to support them.
+- Paging files. Providing paging file support via a user mode file system is impossible for a number of reasons.
+- Object ID's. Opening files by ID (+FILE_OPEN_BY_FILE_ID+) is not supported.
+- Volume access. Volume handles can be opened and closed, but volumes cannot be read or written. Such an operation makes little sense for most user mode file systems, that do not store information on disks.
+- Sparse files. A user mode file system is free to implement sparse files. However WinFsp does not support any sparse file related FSCTL or information class codes.
+- Compressed files. A user mode file system is free to implement compressed files. However WinFsp does not support any compression related FSCTL or information class codes.
+- Encrypted files. A user mode file system is free to implement encrypted files. However WinFsp does not support any encryption related FSCTL or information class codes.
+- Quotas.
+- The Change Journal.
+- Defragmentation support.
+
+== Incompatibilities
+
+This section lists incompatibilites with NTFS in those features that they both support:
+
+- WinFsp supports case sensitive and case insensitive file systems. However it does not support case sensitive lookups on a case insensitive file system (+SL_CASE_SENSITIVE+).
+- NTFS updates the file size information in the directory entry when a file is cleaned up. WinFsp file systems do not (and probably should not attempt to) replicate this behavior. [Related article: https://blogs.msdn.microsoft.com/oldnewthing/20111226-00/?p=8813]
+- NTFS supports change notifications on streams (these are mostly undocumented). WinFsp supports them as well but it differs from NTFS in that it issues a single notification when a file with streams is deleted; NTFS appears to issue one notification per deleted stream.
+- WinFsp does not support renaming a stream.
+- NTFS allows for enumeration and change notifications of all reparse points by opening a special NTFS-only "directory" that "contains" all reparse points (+\$Extend\$Reparse:$R:$INDEX_ALLOCATION+). WinFsp does not support this feature.

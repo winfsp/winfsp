@@ -1,7 +1,7 @@
 /**
  * @file winfsp-tests.h
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -85,6 +85,17 @@ static inline BOOL RealSetCurrentDirectoryW(
 {
     return SetCurrentDirectoryW(lpPathName);
 }
+BOOL WINAPI HookCreateProcessW(
+    LPCWSTR lpApplicationName,
+    LPWSTR lpCommandLine,
+    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    BOOL bInheritHandles,
+    DWORD dwCreationFlags,
+    LPVOID lpEnvironment,
+    LPCWSTR lpCurrentDirectory,
+    LPSTARTUPINFOW lpStartupInfo,
+    LPPROCESS_INFORMATION lpProcessInformation);
 #if !defined(WINFSP_TESTS_NO_HOOKS)
 #define CreateFileW HookCreateFileW
 #define CloseHandle HookCloseHandle
@@ -99,6 +110,7 @@ static inline BOOL RealSetCurrentDirectoryW(
 #define GetVolumeInformationW HookGetVolumeInformationW
 #define SetVolumeLabelW HookSetVolumeLabelW
 #define SetCurrentDirectoryW HookSetCurrentDirectoryW
+#define CreateProcessW HookCreateProcessW
 #endif
 
 HANDLE WINAPI ResilientCreateFileW(
@@ -138,6 +150,7 @@ extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
 extern BOOLEAN OptResilient;
+extern BOOLEAN OptCaseInsensitiveCmp;
 extern BOOLEAN OptCaseInsensitive;
 extern BOOLEAN OptCaseRandomize;
 extern WCHAR OptOplock;

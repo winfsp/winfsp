@@ -1,7 +1,7 @@
 /**
  * @file stream-test.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -354,6 +354,111 @@ static void stream_create_test(void)
         stream_create_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+static void stream_create_overwrite_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    HANDLE Handle, Handle2;
+    WCHAR FilePath[MAX_PATH];
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:bar",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:bar",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle2 = CreateFileW(FilePath,
+        FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle2);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:foo",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:bar",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+    CloseHandle(Handle2);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0:bar",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Handle = CreateFileW(FilePath,
+        FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, 0, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    memfs_stop(memfs);
+}
+
+static void stream_create_overwrite_test(void)
+{
+    if (OptOplock)
+        /* this test fails with oplocks */
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        stream_create_overwrite_dotest(-1, DirBuf);
+    }
+    if (WinFspDiskTests)
+        stream_create_overwrite_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        stream_create_overwrite_dotest(MemfsNet, L"\\\\memfs\\share");
+}
 static void stream_create_related_dotest(ULONG Flags, PWSTR Prefix)
 {
     void *memfs = memfs_start(Flags);
@@ -2179,6 +2284,8 @@ void stream_dirnotify_test(void)
 void stream_tests(void)
 {
     TEST(stream_create_test);
+    if (!OptOplock)
+        TEST(stream_create_overwrite_test);
     TEST(stream_create_related_test);
     TEST(stream_create_sd_test);
     TEST(stream_create_share_test);

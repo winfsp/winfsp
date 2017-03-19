@@ -1,7 +1,7 @@
 /**
  * @file hooks.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -424,6 +424,38 @@ BOOL WINAPI HookSetCurrentDirectoryW(
 
     MaybeAdjustTraversePrivilege(FALSE);
     Success = SetCurrentDirectoryW(FileNameBuf);
+    MaybeAdjustTraversePrivilege(TRUE);
+    return Success;
+}
+
+BOOL WINAPI HookCreateProcessW(
+    LPCWSTR lpApplicationName,
+    LPWSTR lpCommandLine,
+    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    BOOL bInheritHandles,
+    DWORD dwCreationFlags,
+    LPVOID lpEnvironment,
+    LPCWSTR lpCurrentDirectory,
+    LPSTARTUPINFOW lpStartupInfo,
+    LPPROCESS_INFORMATION lpProcessInformation)
+{
+    WCHAR FileNameBuf[FILENAMEBUF_SIZE];
+    BOOL Success;
+
+    PrepareFileName(lpApplicationName, FileNameBuf);
+
+    MaybeAdjustTraversePrivilege(FALSE);
+    Success = CreateProcessW(FileNameBuf,
+        lpCommandLine,  /* we should probably change this as well */
+        lpProcessAttributes,
+        lpThreadAttributes,
+        bInheritHandles,
+        dwCreationFlags,
+        lpEnvironment,
+        lpCurrentDirectory,
+        lpStartupInfo,
+        lpProcessInformation);
     MaybeAdjustTraversePrivilege(TRUE);
     return Success;
 }

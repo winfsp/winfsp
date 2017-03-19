@@ -1,7 +1,7 @@
 /**
  * @file memfs.h
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -33,11 +33,14 @@ enum
     MemfsCaseInsensitive                = 0x80,
 };
 
-NTSTATUS MemfsCreate(
+#define MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, RootSddl, PMemfs)\
+    MemfsCreateFunnel(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, 0, VolumePrefix, RootSddl, PMemfs)
+NTSTATUS MemfsCreateFunnel(
     ULONG Flags,
     ULONG FileInfoTimeout,
     ULONG MaxFileNodes,
     ULONG MaxFileSize,
+    PWSTR FileSystemName,
     PWSTR VolumePrefix,
     PWSTR RootSddl,
     MEMFS **PMemfs);

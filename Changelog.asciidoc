@@ -1,11 +1,50 @@
 = Changelog
 
 
+v1.0::
+
+This is the WinFsp 2017 release! :tada:
+
+- The API is now *FROZEN*. Breaking API changes will receive a major version update (`2.0`). Incremental API changes will receive a minor version update (`1.x`).
+- Adds chocolatey package. Try `choco install winfsp` (note: pending approval from chocolatey.org).
+- FUSE `-d` output now always goes to stderr. There is also a new `-oDebugLog=FILE` switch to specify a debug output file.
+- FUSE now provides a default `statfs` implementation if a file system does not provide one.
+- The WinFsp DLL now exports `fuse_*` symbols in addition to the `fsp_fuse_*` symbols. These symbols are for use with programs that use FFI technology such as jnr-fuse and fusepy *ONLY*. They are not supposed to be used by native C/C++ programs. Such programs are supposed to include the `<fuse.h>` headers.
+
+
+v1.0RC3::
+
+This is the WinFsp 2017 Release Candidate 3, which should be the last Release Candidate according to the current plan. This release fixes a major issue with some file systems and includes a few smaller changes:
+
+- Fixes GitHub issue #55. Prior to this fix it was possible for a rogue process (or faulty file system) to crash Windows using WinFsp. For full details read http://www.osronline.com/showthread.cfm?link=282037[this thread].
+- Introduces the `FspFileSystemSetMountPointEx` API, which allows the specification of a security descriptor when mounting over a directory.
+- Introduces the `FspVersion` API, which allows the retrieval of the WinFsp DLL version. Currently this reports `0x00010000` (version `1.0`).
+- Introduces the `FSP_FUSE_CAP_CASE_INSENSITIVE` and `FSP_FUSE_CAP_READDIR_PLUS` WinFsp-FUSE flags. The `FSP_FUSE_CAP_CASE_INSENSITIVE` flag allows a file system to mark itself as case-insensitive. The `FSP_FUSE_CAP_READDIR_PLUS` flag allows a file system to include full `stat` details when responding to the `readdir` operation (thus avoiding extraneous `getattr` calls).
+- When using WinFsp-FUSE over Cygwin, POSIX paths can be used as mountpoints.
+- Fixes GitHub issue #45. Prior to this fix, file systems that do not properly implement `Cleanup` (including FUSE file systems) would at times disallow renaming of directories.
+
+
+v1.0RC2::
+
+This is the WinFsp 2017 Release Candidate 2. Some important changes included below:
+
+- WinFsp is now available under the GPLv3 with a special exception for Free/Libre and Open Source Software.
+- The location of the WinFsp launcher registry entries is now `HKEY_LOCAL_MACHINE\Software\WinFsp\Services`. [On Win64 the actual location is `HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\WinFsp\Services`.] This change was necessary to avoid loss of third party file system registry entries during WinFsp uninstallation. [See GitHub issue #31.]
+- Despite stating in the previous release that the API has been finalized the `ReadDirectory` `FSP_FILE_SYSTEM_INTERFACE` operation has been changed. Extensive testing with multiple file systems has shown that `ReadDirectory` was hard to implement correctly. The new definition should make implementation easier for most file systems. [See GitHub issue #34.]
+- Some API's to facilitate `ReadDirectory` implementation have been added. Look for `FspFileSystem*DirectoryBuffer` symbols.
+- The installer now (optionally) installs a sample file system called "passthrough". This is a simple file system that passes all operations to an underlying file system. There is also a tutorial for this file system (in the doc directory).
+- The installer now (optionally) installs a sample file system called "passthrough-fuse". This file system performs the same function as the "passthrough" file system, but uses the FUSE compatibility layer. It builds and runs on both Windows and Cygwin.
+
+
 v1.0RC1::
 
-This is the first Release Candidate. It has been tested for robustness and correct file system semantics in a variety of scenarios. Some of the more important changes:
+This is the WinFsp 2017 Release Candidate 1. It has been tested extensively in a variety of scenarios for stability and correct file system semantics. Some of the more important changes:
 
 - API has been polished and finalized.
+- Extensively tested against multiple test suites including Microsoft's IfsTest.
+- WinFsp I/O Queues (the fundamental WinFsp IPC mechanism) have been improved to work similar to I/O Completion Ports.
+- Opportunistic locks have been implemented.
+- File system statistics have been implemented.
 - Sharing a (disk) file system over the network is supported.
 - Case insensitive file systems are supported.
 - Directories are supported as mount points.
