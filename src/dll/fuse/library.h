@@ -48,6 +48,7 @@ struct fuse
     PWSTR MountPoint;
     FSP_FILE_SYSTEM *FileSystem;
     FSP_SERVICE *Service; /* weak */
+    WCHAR VolumeLabel[32];
 };
 
 struct fsp_fuse_context_header
