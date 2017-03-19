@@ -15,11 +15,13 @@ install:
 - bcdedit /set testsigning on
 - if %TESTING%==Func verifier /standard /driver winfsp-x64.sys
 - if exist %SystemRoot%\memory.dmp del %SystemRoot%\memory.dmp
+- ps: Set-MpPreference -DisableRealtimeMonitoring $true
 - ps: Restart-Computer -Force
 - ps: Start-Sleep -s 60
 
 build_script:
 - appveyor AddMessage "Reboot complete" -Category Information
+- ps: Get-MpPreference | FL *RealtimeMonitoring
 - tools\build.bat %CONFIGURATION%
 
 test_script:
