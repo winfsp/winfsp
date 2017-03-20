@@ -1,0 +1,15 @@
+VERIFICATION
+Verification is intended to assist the Chocolatey moderators and community
+in verifying that this package's contents are trustworthy.
+
+WinFsp GitHub repository: https://github.com/billziss-gh/winfsp
+WinFsp MSI releases     : https://github.com/billziss-gh/winfsp/releases
+
+You may use the Windows certutil utility to confirm the hash of the MSI
+included in this package against the WinFsp MSI release of the same version.
+For example, for WinFsp version 1.0.17072 the command line to use is:
+
+    certutil -hashfile winfsp-1.0.17072.msi SHA256
+
+The certutil output of the MSI in this package is included below.
+

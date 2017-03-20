@@ -1,13 +1,13 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
     <metadata>
         <id>winfsp</id>
         <version>$version$</version>
         <packageSourceUrl>https://github.com/billziss-gh/winfsp/tree/master/build/choco</packageSourceUrl>
-        <owners>Bill Zissimopoulos &lt;billziss at navimatics.com&gt;</owners>
+        <owners>Bill Zissimopoulos</owners>
 
         <title>WinFsp</title>
-        <authors>Bill Zissimopoulos &lt;billziss at navimatics.com&gt;</authors>
+        <authors>Bill Zissimopoulos</authors>
         <projectUrl>https://github.com/billziss-gh/winfsp</projectUrl>
         <iconUrl>https://github.com/billziss-gh/winfsp/raw/master/art/winfsp-solid.png</iconUrl>
         <copyright>Bill Zissimopoulos</copyright>
@@ -31,6 +31,54 @@ Some of the benefits of using WinFsp are listed below:
 * FUSE compatibility layer for native Windows and Cygwin.
 * Signed drivers provided on every release.
 * Available under the GPLv3 license with a special exception for Free/Libre and Open Source Software.
+
+To verify installation try a variation of the following:
+
+    C:\...>net use m: \\memfs64\share
+    The command completed successfully.
+
+
+    C:\...>net use
+    New connections will not be remembered.
+
+
+    Status       Local     Remote                    Network
+
+    -------------------------------------------------------------------------------
+                 M:        \\memfs64\share           WinFsp.Np
+                 ...
+    The command completed successfully.
+
+
+    C:\...>m:
+
+    M:\>echo hello >world
+
+    M:\>dir m:
+     Volume in drive M is MEMFS
+     Volume Serial Number is 0EE0-E0E2
+
+     Directory of M:\
+
+    03/20/2017  02:56 PM                 8 world
+                   1 File(s)              8 bytes
+                   0 Dir(s)  4,397,912,293,376 bytes free
+
+    M:\>type world
+    hello
+
+    M:\>c:
+
+    C:\...>net use m: /delete
+    m: was deleted successfully.
+
+
+    C:\...>m:
+    The system cannot find the drive specified.
+
+If you are on 32-bit Windows use `\\memfs32\share`. If you are on Cygwin make sure to use single quotes like so:
+
+    net use m: '\\memfs64\share'
         </description>
         <releaseNotes>https://github.com/billziss-gh/winfsp/blob/master/Changelog.asciidoc</releaseNotes>
 
@@ -40,6 +88,8 @@ Some of the benefits of using WinFsp are listed below:
     </metadata>
 
     <files>
+        <file src="LICENSE.txt" target="tools" />
+        <file src="VERIFICATION.txt" target="tools" />
         <file src="chocolateyInstall.ps1" target="tools" />
         <file src="chocolateyBeforeModify.ps1" target="tools" />
         <file src="winfsp-$version$.msi" target="tools" />
