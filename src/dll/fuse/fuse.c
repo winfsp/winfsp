@@ -40,8 +40,12 @@ struct fsp_fuse_core_opt_data
         rellinks;
     int set_FileInfoTimeout;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
-    WCHAR VolumeLabel[32];
+    UINT16 VolumeLabelLength;
+    WCHAR VolumeLabel[sizeof ((FSP_FSCTL_VOLUME_INFO *)0)->VolumeLabel / sizeof(WCHAR)];
 };
+FSP_FSCTL_STATIC_ASSERT(
+    sizeof ((struct fuse *)0)->VolumeLabel == sizeof ((struct fsp_fuse_core_opt_data *)0)->VolumeLabel,
+    "fuse::VolumeLabel and fsp_fuse_core_opt_data::VolumeLabel: sizeof must be same.");
 
 static struct fuse_opt fsp_fuse_core_opts[] =
 {
@@ -78,12 +82,12 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FUSE_OPT_KEY("intr", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("intr_signal=", FUSE_OPT_KEY_DISCARD),
     FUSE_OPT_KEY("modules=", FUSE_OPT_KEY_DISCARD),
-    FUSE_OPT_KEY("volname=", 'v'),
 
     FSP_FUSE_CORE_OPT("rellinks", rellinks, 1),
     FSP_FUSE_CORE_OPT("norellinks", rellinks, 0),
 
     FUSE_OPT_KEY("fstypename=", 'F'),
+    FUSE_OPT_KEY("volname=", 'v'),
 
     FSP_FUSE_CORE_OPT("SectorSize=%hu", VolumeParams.SectorSize, 4096),
     FSP_FUSE_CORE_OPT("SectorsPerAllocationUnit=%hu", VolumeParams.SectorsPerAllocationUnit, 1),
@@ -501,16 +505,19 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             arg += sizeof "--FileSystemName=" - 1;
         if (0 == MultiByteToWideChar(CP_UTF8, 0, arg, -1,
             opt_data->VolumeParams.FileSystemName + 5,
-            sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR)) - 5)
+            sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR) - 5))
             return -1;
         opt_data->VolumeParams.FileSystemName
             [sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR) - 1] = L'\0';
         memcpy(opt_data->VolumeParams.FileSystemName, L"FUSE-", 5 * sizeof(WCHAR));
         return 0;
     case 'v':
-        arg += sizeof "volname" - 1;
-        memcpy(&opt_data->VolumeLabel, arg, sizeof opt_data->VolumeLabel);
-        opt_data->VolumeLabel[sizeof opt_data->VolumeLabel - 1] = L'\0';
+        arg += sizeof "volname=" - 1;
+        opt_data->VolumeLabelLength = (UINT16)(sizeof(WCHAR) *
+            MultiByteToWideChar(CP_UTF8, 0, arg, lstrlenA(arg),
+            opt_data->VolumeLabel, sizeof opt_data->VolumeLabel / sizeof(WCHAR)));
+        if (0 == opt_data->VolumeLabelLength)
+            return -1;
         return 0;
     }
 }
@@ -521,8 +528,6 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
 {
     struct fuse *f = 0;
     struct fsp_fuse_core_opt_data opt_data;
-    opt_data.VolumeLabel[0] = L'\0';
-
     ULONG Size;
     PWSTR ErrorMessage = L".";
     NTSTATUS Result;
@@ -598,7 +603,8 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     f->data = data;
     f->DebugLog = opt_data.debug ? -1 : 0;
     memcpy(&f->VolumeParams, &opt_data.VolumeParams, sizeof opt_data.VolumeParams);
-    memcpy(&f->VolumeLabel, &opt_data.VolumeLabel, sizeof opt_data.VolumeLabel);
+    f->VolumeLabelLength = opt_data.VolumeLabelLength;
+    memcpy(&f->VolumeLabel, &opt_data.VolumeLabel, opt_data.VolumeLabelLength);
 
     Size = (lstrlenW(ch->MountPoint) + 1) * sizeof(WCHAR);
     f->MountPoint = fsp_fuse_obj_alloc(env, Size);

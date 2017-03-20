@@ -45,10 +45,11 @@ struct fuse
     UINT32 DebugLog;
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    UINT16 VolumeLabelLength;
+    WCHAR VolumeLabel[sizeof ((FSP_FSCTL_VOLUME_INFO *)0)->VolumeLabel / sizeof(WCHAR)];
     PWSTR MountPoint;
     FSP_FILE_SYSTEM *FileSystem;
     FSP_SERVICE *Service; /* weak */
-    WCHAR VolumeLabel[32];
 };
 
 struct fsp_fuse_context_header
