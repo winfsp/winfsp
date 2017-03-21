@@ -55,7 +55,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fsbench", "testing\fsbench.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "winfsp.net", "..\..\src\dotnet\winfsp.net.vcxproj", "{E220D8C7-EDFA-47BC-9041-08278DA635EE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MemFsSharp", "testing\MemFsSharp\MemFsSharp.csproj", "{16F1F4EC-845D-474A-BFBB-358CC7F36846}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MemFsSharp", "..\..\tst\MemFsSharp\MemFsSharp.csproj", "{16F1F4EC-845D-474A-BFBB-358CC7F36846}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -149,6 +149,7 @@ Global
 		{AA7190E8-877F-4827-8CDD-E0D85F83C8C1}.Release|x86.Build.0 = Release|Win32
 		{D53AAC39-4C57-4CA5-A4F3-C2B24888C594}.Debug|Any CPU.ActiveCfg = Debug|x86
 		{D53AAC39-4C57-4CA5-A4F3-C2B24888C594}.Debug|x64.ActiveCfg = Debug|x86
+		{D53AAC39-4C57-4CA5-A4F3-C2B24888C594}.Debug|x64.Build.0 = Debug|x86
 		{D53AAC39-4C57-4CA5-A4F3-C2B24888C594}.Debug|x86.ActiveCfg = Debug|x86
 		{D53AAC39-4C57-4CA5-A4F3-C2B24888C594}.Installer.Debug|Any CPU.ActiveCfg = Release|x86
 		{D53AAC39-4C57-4CA5-A4F3-C2B24888C594}.Installer.Debug|Any CPU.Build.0 = Release|x86
@@ -289,17 +290,16 @@ Global
 		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Debug|Any CPU.ActiveCfg = Debug|x86
 		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Debug|x64.ActiveCfg = Debug|x64
 		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Debug|x64.Build.0 = Debug|x64
-		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Debug|x64.Deploy.0 = Debug|x64
 		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Debug|x86.ActiveCfg = Debug|x86
 		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Debug|x86.Build.0 = Debug|x86
-		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Debug|Any CPU.ActiveCfg = Release|x86
-		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Debug|Any CPU.Build.0 = Release|x86
+		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Debug|Any CPU.ActiveCfg = Release|x64
+		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Debug|Any CPU.Build.0 = Release|x64
 		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Debug|x64.ActiveCfg = Debug|x64
 		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Debug|x64.Build.0 = Debug|x64
 		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Debug|x86.ActiveCfg = Debug|x86
 		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Debug|x86.Build.0 = Debug|x86
-		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Release|Any CPU.ActiveCfg = Release|x86
-		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Release|Any CPU.Build.0 = Release|x86
+		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Release|Any CPU.ActiveCfg = Release|x64
+		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Release|Any CPU.Build.0 = Release|x64
 		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Release|x64.ActiveCfg = Release|x64
 		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Release|x64.Build.0 = Release|x64
 		{16F1F4EC-845D-474A-BFBB-358CC7F36846}.Installer.Release|x86.ActiveCfg = Release|x86
