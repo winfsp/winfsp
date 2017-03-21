@@ -89,6 +89,8 @@ if %ERRORLEVEL% equ 0 (
     set Version=!Version:winfsp-=!
 
     copy ..\choco\* build\%Configuration%
+    copy ..\choco\LICENSE.TXT /B + ..\..\License.txt /B build\%Configuration%\LICENSE.txt /B
+    certutil -hashfile build\%Configuration%\winfsp-!Version!.msi SHA256 >>build\%Configuration%\VERIFICATION.txt
     choco pack build\%Configuration%\winfsp.nuspec --version=!Version! --outputdirectory=build\%Configuration%
     if errorlevel 1 goto fail
 )

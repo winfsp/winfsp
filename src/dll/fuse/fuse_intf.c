@@ -646,8 +646,8 @@ static NTSTATUS fsp_fuse_intf_GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
 
     VolumeInfo->TotalSize = (UINT64)stbuf.f_blocks * (UINT64)stbuf.f_frsize;
     VolumeInfo->FreeSize = (UINT64)stbuf.f_bfree * (UINT64)stbuf.f_frsize;
-    VolumeInfo->VolumeLabelLength = 0;
-    VolumeInfo->VolumeLabel[0] = L'\0';
+    VolumeInfo->VolumeLabelLength = f->VolumeLabelLength;
+    memcpy(&VolumeInfo->VolumeLabel, &f->VolumeLabel, f->VolumeLabelLength);
 
     return STATUS_SUCCESS;
 }

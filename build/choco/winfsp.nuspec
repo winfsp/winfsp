@@ -1,13 +1,13 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
     <metadata>
         <id>winfsp</id>
         <version>$version$</version>
         <packageSourceUrl>https://github.com/billziss-gh/winfsp/tree/master/build/choco</packageSourceUrl>
-        <owners>Bill Zissimopoulos &lt;billziss at navimatics.com&gt;</owners>
+        <owners>Bill Zissimopoulos</owners>
 
         <title>WinFsp</title>
-        <authors>Bill Zissimopoulos &lt;billziss at navimatics.com&gt;</authors>
+        <authors>Bill Zissimopoulos</authors>
         <projectUrl>https://github.com/billziss-gh/winfsp</projectUrl>
         <iconUrl>https://github.com/billziss-gh/winfsp/raw/master/art/winfsp-solid.png</iconUrl>
         <copyright>Bill Zissimopoulos</copyright>
@@ -31,6 +31,13 @@ Some of the benefits of using WinFsp are listed below:
 * FUSE compatibility layer for native Windows and Cygwin.
 * Signed drivers provided on every release.
 * Available under the GPLv3 license with a special exception for Free/Libre and Open Source Software.
+
+To verify installation:
+
+* For 64-bit Windows: `net use m: \\memfs64\share` from the command prompt.
+* For 32-bit Windows: `net use m: \\memfs32\share`
+* For Cygwin: `net use m: '\\memfs64\share'`
+* To delete the drive: `net use m: /delete`
         </description>
         <releaseNotes>https://github.com/billziss-gh/winfsp/blob/master/Changelog.asciidoc</releaseNotes>
 
@@ -40,6 +47,8 @@ Some of the benefits of using WinFsp are listed below:
     </metadata>
 
     <files>
+        <file src="LICENSE.txt" target="tools" />
+        <file src="VERIFICATION.txt" target="tools" />
         <file src="chocolateyInstall.ps1" target="tools" />
         <file src="chocolateyBeforeModify.ps1" target="tools" />
         <file src="winfsp-$version$.msi" target="tools" />
