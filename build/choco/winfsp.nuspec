@@ -32,53 +32,12 @@ Some of the benefits of using WinFsp are listed below:
 * Signed drivers provided on every release.
 * Available under the GPLv3 license with a special exception for Free/Libre and Open Source Software.
 
-To verify installation try a variation of the following:
+To verify installation:
 
-    C:\...>net use m: \\memfs64\share
-    The command completed successfully.
-
-
-    C:\...>net use
-    New connections will not be remembered.
-
-
-    Status       Local     Remote                    Network
-
-    -------------------------------------------------------------------------------
-                 M:        \\memfs64\share           WinFsp.Np
-                 ...
-    The command completed successfully.
-
-
-    C:\...>m:
-
-    M:\>echo hello >world
-
-    M:\>dir m:
-     Volume in drive M is MEMFS
-     Volume Serial Number is 0EE0-E0E2
-
-     Directory of M:\
-
-    03/20/2017  02:56 PM                 8 world
-                   1 File(s)              8 bytes
-                   0 Dir(s)  4,397,912,293,376 bytes free
-
-    M:\>type world
-    hello
-
-    M:\>c:
-
-    C:\...>net use m: /delete
-    m: was deleted successfully.
-
-
-    C:\...>m:
-    The system cannot find the drive specified.
-
-If you are on 32-bit Windows use `\\memfs32\share`. If you are on Cygwin make sure to use single quotes like so:
-
-    net use m: '\\memfs64\share'
+* For 64-bit Windows: `net use m: \\memfs64\share` from the command prompt.
+* For 32-bit Windows: `net use m: \\memfs32\share`
+* For Cygwin: `net use m: '\\memfs64\share'`
+* To delete the drive: `net use m: /delete`
         </description>
         <releaseNotes>https://github.com/billziss-gh/winfsp/blob/master/Changelog.asciidoc</releaseNotes>
 
