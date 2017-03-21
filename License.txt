@@ -1,7 +1,34 @@
 The WinFsp project is Copyright (C) Bill Zissimopoulos. It is licensed
-under the terms of the GPLv3. The full text of this license follows
-below. Commercial licensing options are also available: Please contact
+under the terms of the GPLv3.
+
+As a special exception to GPLv3, Bill Zissimopoulos grants additional
+permissions to Free/Libre and Open Source Software ("FLOSS") without requiring
+that such software is covered by the GPLv3.
+
+    1. Permission to link with a platform specific version of the WinFsp DLL
+    (currently winfsp-x64.dll or winfsp-x86.dll).
+
+    2. Permission to distribute unmodified binary releases of the WinFsp
+    installer (as released by the WinFsp project).
+
+    These permissions (and no other) are granted provided that the software:
+
+    1. Is distributed under a license that satisfies the Free Software
+    Definition Version 1.141 (https://www.gnu.org/philosophy/free-sw.en.html)
+    or the Open Source Definition Version 1.9 (https://opensource.org/osd).
+
+    2. Includes the copyright notice "WinFsp - Windows File System Proxy,
+    Copyright (C) Bill Zissimopoulos" and a link to the WinFsp repository in
+    its user-interface and any user-facing documentation.
+
+    3. Is not linked or distributed with proprietary (non-FLOSS) software.
+    [You cannot mix FLOSS and proprietary software while using WinFsp under
+    this special exception.]
+
+Commercial licensing options are also available: Please contact
 Bill Zissimopoulos <billziss at navimatics.com>.
+
+The full text of the GPLv3 license follows below.
 
 -----------------------------------------------------------------------
 

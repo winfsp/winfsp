@@ -31,8 +31,10 @@
     <ClInclude Include="..\..\src\shared\minimal.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\dll\dirbuf.c" />
     <ClCompile Include="..\..\src\dll\eventlog.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse.c" />
+    <ClCompile Include="..\..\src\dll\fuse\fuse_compat.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse_intf.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse_main.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse_opt.c" />
@@ -50,7 +52,7 @@
     <ClCompile Include="..\..\src\dll\util.c" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\src\dll\fuse\fuse.pc">
+    <CustomBuild Include="..\..\src\dll\fuse\fuse.pc.in">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse-$(PlatformTarget).pc
 copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(PlatformTarget).pc &gt;nul</Command>
@@ -78,10 +80,10 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
   <ItemGroup>
     <ResourceCompile Include="..\..\src\dll\eventlog\eventlog.rc" />
     <ResourceCompile Include="..\..\src\dll\version.rc">
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_UNICODE;UNICODE;%(PreprocessorDefinitions);MyProductName=$(MyProductName);MyDescription=$(MyDescription);MyCompanyName=$(MyCompanyName);MyCopyright=$(MyCopyright);MyProductVersion=$(MyProductVersion);MyProductStage=$(MyProductStage);MyVersion=$(MyVersion);MyVersionWithCommas=$(MyVersionWithCommas)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_UNICODE;UNICODE;%(PreprocessorDefinitions);MyProductName=$(MyProductName);MyDescription=$(MyDescription);MyCompanyName=$(MyCompanyName);MyCopyright=$(MyCopyright);MyProductVersion=$(MyProductVersion);MyProductStage=$(MyProductStage);MyVersion=$(MyVersion);MyVersionWithCommas=$(MyVersionWithCommas)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_UNICODE;UNICODE;%(PreprocessorDefinitions);MyProductName=$(MyProductName);MyDescription=$(MyDescription);MyCompanyName=$(MyCompanyName);MyCopyright=$(MyCopyright);MyProductVersion=$(MyProductVersion);MyProductStage=$(MyProductStage);MyVersion=$(MyVersion);MyVersionWithCommas=$(MyVersionWithCommas)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_UNICODE;UNICODE;%(PreprocessorDefinitions);MyProductName=$(MyProductName);MyDescription=$(MyDescription);MyCompanyName=$(MyCompanyName);MyCopyright=$(MyCopyright);MyProductVersion=$(MyProductVersion);MyProductStage=$(MyProductStage);MyVersion=$(MyVersion);MyVersionWithCommas=$(MyVersionWithCommas)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
   </ItemGroup>
   <PropertyGroup Label="Globals">

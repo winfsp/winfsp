@@ -1,7 +1,7 @@
 /**
  * @file winfsp/fsctl.h
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -146,8 +146,10 @@ typedef struct
     UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */
     UINT32 ReadOnlyVolume:1;
     /* kernel-mode flags */
-    UINT32 PostCleanupOnDeleteOnly:1;   /* post Cleanup when deleting a file only */
-    UINT32 KmReservedFlags:5;
+    UINT32 PostCleanupWhenModifiedOnly:1;   /* post Cleanup when a file was modified/deleted */
+    UINT32 PassQueryDirectoryPattern:1;     /* pass Pattern during QueryDirectory operations */
+    UINT32 AlwaysUseDoubleBuffering:1;
+    UINT32 KmReservedFlags:3;
     /* user-mode flags */
     UINT32 UmFileContextIsUserContext2:1;   /* user mode: FileContext parameter is UserContext2 */
     UINT32 UmFileContextIsFullContext:1;    /* user mode: FileContext parameter is FullContext */
@@ -185,8 +187,7 @@ typedef struct
 {
     UINT16 Size;
     FSP_FSCTL_FILE_INFO FileInfo;
-    UINT64 NextOffset;
-    UINT8 Padding[16];
+    UINT8 Padding[24];
         /* make struct as big as FILE_ID_BOTH_DIR_INFORMATION; allows for in-place copying */
     WCHAR FileNameBuf[];
 } FSP_FSCTL_DIR_INFO;
@@ -232,7 +233,8 @@ typedef struct
             UINT32 HasRestorePrivilege:1;   /* requestor has TOKEN_HAS_RESTORE_PRIVILEGE */
             UINT32 OpenTargetDirectory:1;   /* open target dir and report FILE_{EXISTS,DOES_NOT_EXIST} */
             UINT32 CaseSensitive:1;         /* FileName comparisons should be case-sensitive */
-            UINT32 ReservedFlags:26;
+            UINT32 HasTrailingBackslash:1;  /* FileName had trailing backslash */
+            UINT32 ReservedFlags:25;
             UINT16 NamedStream;             /* request targets named stream; colon offset in FileName */
         } Create;
         struct
@@ -248,6 +250,11 @@ typedef struct
             UINT64 UserContext;
             UINT64 UserContext2;
             UINT32 Delete:1;            /* file must be deleted */
+            UINT32 SetAllocationSize:1;
+            UINT32 SetArchiveBit:1;
+            UINT32 SetLastAccessTime:1;
+            UINT32 SetLastWriteTime:1;
+            UINT32 SetChangeTime:1;
         } Cleanup;
         struct
         {
@@ -295,6 +302,7 @@ typedef struct
                     UINT64 CreationTime;
                     UINT64 LastAccessTime;
                     UINT64 LastWriteTime;
+                    UINT64 ChangeTime;
                 } Basic;
                 struct
                 {
@@ -332,9 +340,9 @@ typedef struct
             UINT64 UserContext;
             UINT64 UserContext2;
             UINT64 Address;
-            UINT64 Offset;
             UINT32 Length;
             FSP_FSCTL_TRANSACT_BUF Pattern;
+            FSP_FSCTL_TRANSACT_BUF Marker;
             UINT32 CaseSensitive:1;     /* FileName comparisons should be case-sensitive */
         } QueryDirectory;
         struct
@@ -414,6 +422,10 @@ typedef struct
         {
             FSP_FSCTL_FILE_INFO FileInfo;       /* valid: File{Allocation,Basic,EndOfFile}Information */
         } SetInformation;
+        struct
+        {
+            FSP_FSCTL_FILE_INFO FileInfo;       /* valid when flushing file (not volume) */
+        } FlushBuffers;
         struct
         {
             FSP_FSCTL_VOLUME_INFO VolumeInfo;

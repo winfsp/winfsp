@@ -1,7 +1,7 @@
 /**
  * @file winfsp-tests.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -29,6 +29,7 @@ int WinFspDiskTests = 1;
 int WinFspNetTests = 1;
 
 BOOLEAN OptResilient = FALSE;
+BOOLEAN OptCaseInsensitiveCmp = FALSE;
 BOOLEAN OptCaseInsensitive = FALSE;
 BOOLEAN OptCaseRandomize = FALSE;
 WCHAR OptOplock = 0;
@@ -53,7 +54,7 @@ int mywcscmp(PWSTR a, int alen, PWSTR b, int blen)
     len = alen < blen ? alen : blen;
 
     /* we should still be in the C locale */
-    if (OptCaseRandomize)
+    if (OptCaseInsensitiveCmp)
         res = _wcsnicmp(a, b, len);
     else
         res = wcsncmp(a, b, len);
@@ -182,6 +183,8 @@ int main(int argc, char *argv[])
     TESTSUITE(posix_tests);
     TESTSUITE(eventlog_tests);
     TESTSUITE(path_tests);
+    TESTSUITE(dirbuf_tests);
+    TESTSUITE(version_tests);
     TESTSUITE(mount_tests);
     TESTSUITE(timeout_tests);
     TESTSUITE(memfs_tests);
@@ -192,6 +195,7 @@ int main(int argc, char *argv[])
     TESTSUITE(flush_tests);
     TESTSUITE(lock_tests);
     TESTSUITE(dirctl_tests);
+    TESTSUITE(exec_tests);
     TESTSUITE(reparse_tests);
     TESTSUITE(stream_tests);
     TESTSUITE(oplock_tests);
@@ -217,6 +221,11 @@ int main(int argc, char *argv[])
                 OptResilient = TRUE;
                 rmarg(argv, argc, argi);
             }
+            else if (0 == strcmp("--case-insensitive-cmp", a))
+            {
+                OptCaseInsensitiveCmp = TRUE;
+                rmarg(argv, argc, argi);
+            }
             else if (0 == strcmp("--case-insensitive", a))
             {
                 OptCaseInsensitive = TRUE;
@@ -226,6 +235,7 @@ int main(int argc, char *argv[])
             {
                 OptCaseRandomize = TRUE;
                 OptCaseInsensitive = TRUE;
+                OptCaseInsensitiveCmp = TRUE;
                 rmarg(argv, argc, argi);
             }
             else if (0 == strcmp("--oplock=batch", a))
@@ -285,6 +295,20 @@ int main(int argc, char *argv[])
 
                     WinFspDiskTests = 0;
                     WinFspNetTests = 0;
+                }
+            }
+            else if (0 == strncmp("--share-prefix=", a, sizeof "--share-prefix=" - 1))
+            {
+                /* hack to allow name queries on network file systems with mapped drives */
+
+                WCHAR SharePrefixBuf[MAX_PATH];
+
+                if (0 != MultiByteToWideChar(CP_UTF8, 0,
+                    a + sizeof "--share-prefix=" - 1, -1, SharePrefixBuf, MAX_PATH))
+                {
+                    rmarg(argv, argc, argi);
+
+                    OptSharePrefixLength = (ULONG)(wcslen(SharePrefixBuf) * sizeof(WCHAR));
                 }
             }
             else if (0 == strcmp("--no-traverse", a))

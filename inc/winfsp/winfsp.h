@@ -5,7 +5,7 @@
  * In order to use the WinFsp API the user mode file system must include &lt;winfsp/winfsp.h&gt;
  * and link with the winfsp_x64.dll (or winfsp_x86.dll) library.
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -26,7 +26,10 @@
 #include <windows.h>
 #undef WIN32_NO_STATUS
 #include <winternl.h>
+#pragma warning(push)
+#pragma warning(disable:4005)           /* macro redefinition */
 #include <ntstatus.h>
+#pragma warning(pop)
 
 #if defined(WINFSP_DLL_INTERNAL)
 #define FSP_API                         __declspec(dllexport)
@@ -122,6 +125,15 @@ typedef enum
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE = 0,
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE,
 } FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY;
+enum
+{
+    FspCleanupDelete                    = 0x01,
+    FspCleanupSetAllocationSize         = 0x02,
+    FspCleanupSetArchiveBit             = 0x10,
+    FspCleanupSetLastAccessTime         = 0x20,
+    FspCleanupSetLastWriteTime          = 0x40,
+    FspCleanupSetChangeTime             = 0x80,
+};
 /**
  * @class FSP_FILE_SYSTEM
  * File system interface.
@@ -322,18 +334,40 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * the system sends a Cleanup request to the file system.
      *
      * There will be a Cleanup operation for every Create or Open operation posted to the user mode
-     * file system. However the Cleanup operation is <b>not</b> the final close operation on a file. The
-     * file system must be ready to receive additional operations until close time. This is true
+     * file system. However the Cleanup operation is <b>not</b> the final close operation on a file.
+     * The file system must be ready to receive additional operations until close time. This is true
      * even when the file is being deleted!
      *
+     * The Flags parameter contains information about the cleanup operation:
+     * <ul>
+     * <li>FspCleanupDelete -
      * An important function of the Cleanup operation is to complete a delete operation. Deleting
      * a file or directory in Windows is a three-stage process where the file is first opened, then
      * tested to see if the delete can proceed and if the answer is positive the file is then
      * deleted during Cleanup.
      *
+     * When this flag is set, this is the last outstanding cleanup for this particular file node.
+     * </li>
+     * <li>FspCleanupSetAllocationSize -
+     * The NTFS and FAT file systems reset a file's allocation size when they receive the last
+     * outstanding cleanup for a particular file node. User mode file systems that implement
+     * allocation size and wish to duplicate the NTFS and FAT behavior can use this flag.
+     * </li>
+     * <li>
+     * FspCleanupSetArchiveBit -
+     * File systems that support the archive bit should set the file node's archive bit when this
+     * flag is set.
+     * </li>
+     * <li>FspCleanupSetLastAccessTime, FspCleanupSetLastWriteTime, FspCleanupSetChangeTime - File
+     * systems should set the corresponding file time when each one of these flags is set. Note that
+     * updating the last access time is expensive and a file system may choose to not implement it.
+     * </ul>
+     *
+     * There is no way to report failure of this operation. This is a Windows limitation.
+     *
      * As an optimization a file system may specify the FSP_FSCTL_VOLUME_PARAMS ::
-     * PostCleanupOnDeleteOnly flag. In this case the FSD will only post Cleanup requests when a
-     * file is being deleted.
+     * PostCleanupWhenModifiedOnly flag. In this case the FSD will only post Cleanup requests when
+     * the file was modified/deleted.
      *
      * @param FileSystem
      *     The file system on which this request is posted.
@@ -341,16 +375,14 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     The file context of the file or directory to cleanup.
      * @param FileName
      *     The name of the file or directory to cleanup. Sent only when a Delete is requested.
-     * @param Delete
-     *     Determines whether to delete the file. Note that there is no way to report failure of
-     *     this operation. Also note that when this parameter is TRUE this is the last outstanding
-     *     cleanup for this particular file node.
+     * @param Flags
+     *     These flags determine whether the file was modified and whether to delete the file.
      * @see
      *     Close
      *     CanDelete
      */
     VOID (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileContext, PWSTR FileName, BOOLEAN Delete);
+        PVOID FileContext, PWSTR FileName, ULONG Flags);
     /**
      * Close a file.
      *
@@ -423,11 +455,16 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     The file system on which this request is posted.
      * @param FileContext
      *     The file context of the file to be flushed. When NULL the whole volume is being flushed.
+     * @param FileInfo [out]
+     *     Pointer to a structure that will receive the file information on successful return
+     *     from this call. This information includes file attributes, file times, etc. Used when
+     *     flushing file (not volume).
      * @return
      *     STATUS_SUCCESS or error code.
      */
     NTSTATUS (*Flush)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileContext);
+        PVOID FileContext,
+        FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Get file or directory information.
      *
@@ -463,6 +500,9 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param LastWriteTime
      *     Last write time to apply to the file or directory. If the value 0 is sent, the last
      *     write time should not be changed.
+     * @param ChangeTime
+     *     Change time to apply to the file or directory. If the value 0 is sent, the change time
+     *     should not be changed.
      * @param FileInfo [out]
      *     Pointer to a structure that will receive the file information on successful return
      *     from this call. This information includes file attributes, file times, etc.
@@ -471,7 +511,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      */
     NTSTATUS (*SetBasicInfo)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext, UINT32 FileAttributes,
-        UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
+        UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Set file/allocation size.
@@ -518,7 +558,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * directories, etc.
      *
      * This function should <b>NEVER</b> delete the file or directory in question. Deletion should
-     * happen during Cleanup with Delete==TRUE.
+     * happen during Cleanup with the FspCleanupDelete flag set.
      *
      * This function gets called when Win32 API's such as DeleteFile or RemoveDirectory are used.
      * It does not get called when a file or directory is opened with FILE_DELETE_ON_CLOSE.
@@ -541,8 +581,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *
      * The kernel mode FSD provides certain guarantees prior to posting a rename operation:
      * <ul>
-     * <li>A file cannot be renamed if it has any open handles, other than the one used to perform
-     * the rename.</li>
      * <li>A file cannot be renamed if a file with the same name exists and has open handles.</li>
      * <li>A directory cannot be renamed if it or any of its subdirectories contains a file that
      * has open handles.</li>
@@ -612,30 +650,18 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     The file system on which this request is posted.
      * @param FileContext
      *     The file context of the directory to be read.
-     * @param Buffer
-     *     Pointer to a buffer that will receive the results of the read operation.
-     * @param Offset
-     *     Offset within the directory to read from. The kernel does not interpret this value
-     *     which is used solely by the file system to locate directory entries. However the
-     *     special value 0 indicates that the read should start from the first entries. The first
-     *     two entries returned by ReadDirectory should always be the "." and ".." entries,
-     *     except for the root directory which does not have these entries.
-     *
-     *     This parameter is used by the WinFsp FSD to break directory listings into chunks.
-     *     In this case all 64-bits of the Offset are valid. In some cases the Windows kernel
-     *     (NTOS) may also use this parameter. In this case only the lower 32-bits of this
-     *     parameter will be valid. This is an unfortunate limitation of Windows (for more
-     *     information see the documentation for IRP_MJ_DIRECTORY_CONTROL and the flag
-     *     SL_INDEX_SPECIFIED).
-     *
-     *     In practice this means that you should only rely on the lower 32-bits of this value
-     *     to be valid.
-     * @param Length
-     *     Length of data to read.
      * @param Pattern
      *     The pattern to match against files in this directory. Can be NULL. The file system
      *     can choose to ignore this parameter as the FSD will always perform its own pattern
      *     matching on the returned results.
+     * @param Marker
+     *     A file name that marks where in the directory to start reading. Files with names
+     *     that are greater than (not equal to) this marker (in the directory order determined
+     *     by the file system) should be returned. Can be NULL.
+     * @param Buffer
+     *     Pointer to a buffer that will receive the results of the read operation.
+     * @param Length
+     *     Length of data to read.
      * @param PBytesTransferred [out]
      *     Pointer to a memory location that will receive the actual number of bytes read.
      * @return
@@ -645,9 +671,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     FspFileSystemAddDirInfo
      */
     NTSTATUS (*ReadDirectory)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
-        PWSTR Pattern,
-        PULONG PBytesTransferred);
+        PVOID FileContext, PWSTR Pattern, PWSTR Marker,
+        PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
     /**
      * Resolve reparse points.
      *
@@ -811,6 +836,20 @@ typedef struct _FSP_FILE_SYSTEM_OPERATION_CONTEXT
     FSP_FSCTL_TRANSACT_RSP *Response;
 } FSP_FILE_SYSTEM_OPERATION_CONTEXT;
 /**
+ * Check whether creating a file system object is possible.
+ *
+ * @param DevicePath
+ *     The name of the control device for this file system. This must be either
+ *     FSP_FSCTL_DISK_DEVICE_NAME or FSP_FSCTL_NET_DEVICE_NAME.
+ * @param MountPoint
+ *     The mount point for the new file system. A value of NULL means that the file system should
+ *     use the next available drive letter counting downwards from Z: as its mount point.
+ * @return
+ *     STATUS_SUCCESS or error code.
+ */
+FSP_API NTSTATUS FspFileSystemPreflight(PWSTR DevicePath,
+    PWSTR MountPoint);
+/**
  * Create a file system object.
  *
  * @param DevicePath
@@ -857,6 +896,8 @@ FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem);
  *     STATUS_SUCCESS or error code.
  */
 FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint);
+FSP_API NTSTATUS FspFileSystemSetMountPointEx(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint,
+    PSECURITY_DESCRIPTOR SecurityDescriptor);
 /**
  * Remove the mount point for a file system.
  *
@@ -1258,6 +1299,19 @@ FSP_API BOOLEAN FspFileSystemAddStreamInfo(FSP_FSCTL_STREAM_INFO *StreamInfo,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
 
 /*
+ * Directory buffering
+ */
+FSP_API BOOLEAN FspFileSystemAcquireDirectoryBuffer(PVOID *PDirBuffer,
+    BOOLEAN Reset, PNTSTATUS PResult);
+FSP_API BOOLEAN FspFileSystemFillDirectoryBuffer(PVOID *PDirBuffer,
+    FSP_FSCTL_DIR_INFO *DirInfo, PNTSTATUS PResult);
+FSP_API VOID FspFileSystemReleaseDirectoryBuffer(PVOID *PDirBuffer);
+FSP_API VOID FspFileSystemReadDirectoryBuffer(PVOID *PDirBuffer,
+    PWSTR Marker,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
+FSP_API VOID FspFileSystemDeleteDirectoryBuffer(PVOID *PDirBuffer);
+
+/*
  * Security
  */
 FSP_API PGENERIC_MAPPING FspGetFileGenericMapping(VOID);
@@ -1354,6 +1408,8 @@ NTSTATUS FspPosixMapPosixToWindowsPath(const char *PosixPath, PWSTR *PWindowsPat
     return FspPosixMapPosixToWindowsPathEx(PosixPath, PWindowsPath, TRUE);
 }
 FSP_API VOID FspPosixDeletePath(void *Path);
+FSP_API VOID FspPosixEncodeWindowsPath(PWSTR WindowsPath, ULONG Size);
+FSP_API VOID FspPosixDecodeWindowsPath(PWSTR WindowsPath, ULONG Size);
 
 /*
  * Path Handling
@@ -1574,6 +1630,71 @@ FSP_API NTSTATUS FspCallNamedPipeSecurely(PWSTR PipeName,
     PVOID InBuffer, ULONG InBufferSize, PVOID OutBuffer, ULONG OutBufferSize,
     PULONG PBytesTransferred, ULONG Timeout,
     PSID Sid);
+FSP_API NTSTATUS FspVersion(PUINT32 PVersion);
+
+/*
+ * Delay load
+ */
+static inline
+NTSTATUS FspLoad(PVOID *PModule)
+{
+#if defined(_WIN64)
+#define FSP_DLLNAME                     "winfsp-x64.dll"
+#else
+#define FSP_DLLNAME                     "winfsp-x86.dll"
+#endif
+#define FSP_DLLPATH                     "bin\\" FSP_DLLNAME
+
+    WINADVAPI
+    LSTATUS
+    APIENTRY
+    RegGetValueW(
+        HKEY hkey,
+        LPCWSTR lpSubKey,
+        LPCWSTR lpValue,
+        DWORD dwFlags,
+        LPDWORD pdwType,
+        PVOID pvData,
+        LPDWORD pcbData);
+
+    WCHAR PathBuf[MAX_PATH];
+    DWORD Size;
+    HKEY RegKey;
+    LONG Result;
+    HMODULE Module;
+
+    if (0 != PModule)
+        *PModule = 0;
+
+    Module = LoadLibraryW(L"" FSP_DLLNAME);
+    if (0 == Module)
+    {
+        Result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\WinFsp",
+            0, KEY_READ | KEY_WOW64_32KEY, &RegKey);
+        if (ERROR_SUCCESS == Result)
+        {
+            Size = sizeof PathBuf - sizeof L"" FSP_DLLPATH + sizeof(WCHAR);
+            Result = RegGetValueW(RegKey, 0, L"InstallDir",
+                RRF_RT_REG_SZ, 0, PathBuf, &Size);
+            RegCloseKey(RegKey);
+        }
+        if (ERROR_SUCCESS != Result)
+            return STATUS_OBJECT_NAME_NOT_FOUND;
+
+        RtlCopyMemory(PathBuf + (Size / sizeof(WCHAR) - 1), L"" FSP_DLLPATH, sizeof L"" FSP_DLLPATH);
+        Module = LoadLibraryW(PathBuf);
+        if (0 == Module)
+            return STATUS_DLL_NOT_FOUND;
+    }
+
+    if (0 != PModule)
+        *PModule = Module;
+
+    return STATUS_SUCCESS;
+
+#undef FSP_DLLNAME
+#undef FSP_DLLPATH
+}
 
 #ifdef __cplusplus
 }

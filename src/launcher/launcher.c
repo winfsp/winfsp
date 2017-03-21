@@ -1,7 +1,7 @@
 /**
  * @file launcher/launcher.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -19,7 +19,6 @@
 #include <sddl.h>
 
 #define PROGNAME                        "WinFsp.Launcher"
-#define REGKEY                          LAUNCHER_REGKEY
 
 BOOL CreateOverlappedPipe(
     PHANDLE PReadPipe, PHANDLE PWritePipe, PSECURITY_ATTRIBUTES SecurityAttributes, DWORD Size,
@@ -441,7 +440,8 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
-    RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" REGKEY, 0, KEY_READ, &RegKey);
+    RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" LAUNCHER_REGKEY,
+        0, LAUNCHER_REGKEY_WOW64 | KEY_READ, &RegKey);
     if (ERROR_SUCCESS != RegResult)
     {
         Result = FspNtStatusFromWin32(RegResult);

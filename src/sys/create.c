@@ -1,7 +1,7 @@
 /**
  * @file sys/create.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -193,6 +193,7 @@ static NTSTATUS FspFsvolCreateNoLock(
         BooleanFlagOn(AccessState->Flags, TOKEN_HAS_BACKUP_PRIVILEGE);
     BOOLEAN HasRestorePrivilege =
         BooleanFlagOn(AccessState->Flags, TOKEN_HAS_RESTORE_PRIVILEGE);
+    BOOLEAN HasTrailingBackslash = FALSE;
     FSP_FILE_NODE *FileNode, *RelatedFileNode;
     FSP_FILE_DESC *FileDesc;
     UNICODE_STRING MainFileName = { 0 }, StreamPart = { 0 };
@@ -214,6 +215,12 @@ static NTSTATUS FspFsvolCreateNoLock(
     /* check create options */
     if (FlagOn(CreateOptions, FILE_NON_DIRECTORY_FILE) &&
         FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
+        return STATUS_INVALID_PARAMETER;
+
+    /* do not allow the temporary bit on a directory */
+    if (FlagOn(CreateOptions, FILE_DIRECTORY_FILE) &&
+        FlagOn(FileAttributes, FILE_ATTRIBUTE_TEMPORARY) &&
+        (FILE_CREATE == CreateDisposition || FILE_OPEN_IF == CreateDisposition))
         return STATUS_INVALID_PARAMETER;
 
     /* check security descriptor validity */
@@ -257,7 +264,7 @@ static NTSTATUS FspFsvolCreateNoLock(
 
         /* must be a relative path */
         if (sizeof(WCHAR) <= FileName.Length && L'\\' == FileName.Buffer[0])
-            return STATUS_OBJECT_NAME_INVALID;
+            return STATUS_INVALID_PARAMETER; /* IFSTEST */
 
         BOOLEAN AppendBackslash =
             sizeof(WCHAR) * 2/* not empty or root */ <= RelatedFileNode->FileName.Length &&
@@ -293,7 +300,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     ASSERT(NT_SUCCESS(Result));
 
     /* check filename validity */
-    if (!FspFileNameIsValid(&FileNode->FileName,
+    if (!FspFileNameIsValid(&FileNode->FileName, FsvolDeviceExtension->VolumeParams.MaxComponentLength,
         FsvolDeviceExtension->VolumeParams.NamedStreams ? &StreamPart : 0,
         &StreamType))
     {
@@ -344,12 +351,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     if (sizeof(WCHAR) * 2/* not empty or root */ <= FileNode->FileName.Length &&
         L'\\' == FileNode->FileName.Buffer[FileNode->FileName.Length / sizeof(WCHAR) - 1])
     {
-        if (!FlagOn(CreateOptions, FILE_DIRECTORY_FILE))
-        {
-            FspFileNodeDereference(FileNode);
-            return STATUS_OBJECT_NAME_INVALID;
-        }
-
+        HasTrailingBackslash = TRUE;
         FileNode->FileName.Length -= sizeof(WCHAR);
     }
 
@@ -442,7 +444,9 @@ static NTSTATUS FspFsvolCreateNoLock(
         FileAttributes = 0;
 
         /* remember the main file node */
+        ASSERT(0 == FileNode->MainFileNode);
         FileNode->MainFileNode = FileDesc->MainFileObject->FsContext;
+        FspFileNodeReference(FileNode->MainFileNode);
 
         Result = STATUS_SUCCESS;
 
@@ -501,6 +505,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     Request->Req.Create.HasRestorePrivilege = HasRestorePrivilege;
     Request->Req.Create.OpenTargetDirectory = BooleanFlagOn(Flags, SL_OPEN_TARGET_DIRECTORY);
     Request->Req.Create.CaseSensitive = CaseSensitive;
+    Request->Req.Create.HasTrailingBackslash = HasTrailingBackslash;
     Request->Req.Create.NamedStream = MainFileName.Length;
 
     ASSERT(
@@ -803,6 +808,16 @@ NTSTATUS FspFsvolCreateComplete(
         }
 
         /* populate the FileNode/FileDesc fields from the Response */
+        FileNode->UserContext = Response->Rsp.Create.Opened.UserContext;
+        FileNode->IndexNumber = Response->Rsp.Create.Opened.FileInfo.IndexNumber;
+        FileNode->IsDirectory = BooleanFlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes,
+            FILE_ATTRIBUTE_DIRECTORY);
+        FileNode->IsRootDirectory = FileNode->IsDirectory &&
+            sizeof(WCHAR) == FileNode->FileName.Length && L'\\' == FileNode->FileName.Buffer[0];
+        FileDesc->UserContext2 = Response->Rsp.Create.Opened.UserContext2;
+        FileDesc->DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
+
+        /* handle normalized names */
         if (!FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
         {
             /* is there a normalized file name as part of the response? */
@@ -818,7 +833,10 @@ NTSTATUS FspFsvolCreateComplete(
 
                 if (Response->Buffer + Response->Rsp.Create.Opened.FileName.Size >
                     (PUINT8)Response + Response->Size)
+                {
+                    FspFsvolCreatePostClose(FileDesc);
                     FSP_RETURN(Result = STATUS_OBJECT_NAME_INVALID);
+                }
 
                 NormalizedName.Length = NormalizedName.MaximumLength =
                     Response->Rsp.Create.Opened.FileName.Size;
@@ -826,20 +844,15 @@ NTSTATUS FspFsvolCreateComplete(
 
                 /* normalized file name can only differ in case from requested one */
                 if (0 != FspFileNameCompare(&FileNode->FileName, &NormalizedName, TRUE, 0))
+                {
+                    FspFsvolCreatePostClose(FileDesc);
                     FSP_RETURN(Result = STATUS_OBJECT_NAME_INVALID);
+                }
 
                 ASSERT(FileNode->FileName.Length == NormalizedName.Length);
                 RtlCopyMemory(FileNode->FileName.Buffer, NormalizedName.Buffer, NormalizedName.Length);
             }
         }
-        FileNode->UserContext = Response->Rsp.Create.Opened.UserContext;
-        FileNode->IndexNumber = Response->Rsp.Create.Opened.FileInfo.IndexNumber;
-        FileNode->IsDirectory = BooleanFlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes,
-            FILE_ATTRIBUTE_DIRECTORY);
-        FileNode->IsRootDirectory = FileNode->IsDirectory &&
-            sizeof(WCHAR) == FileNode->FileName.Length && L'\\' == FileNode->FileName.Buffer[0];
-        FileDesc->UserContext2 = Response->Rsp.Create.Opened.UserContext2;
-        FileDesc->DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
 
         /* open the FileNode */
         Result = FspFileNodeOpen(FileNode, FileObject,
@@ -865,8 +878,7 @@ NTSTATUS FspFsvolCreateComplete(
 
                     Result = FspFsvolCreateSharingViolationOplock(
                         FsvolDeviceObject, Irp, IrpSp, FALSE);
-                    if (STATUS_PENDING == Result)
-                        FSP_RETURN();
+                    FSP_RETURN();
                 }
                 else
                 {
@@ -892,6 +904,7 @@ NTSTATUS FspFsvolCreateComplete(
         /* set up the AccessState */
         AccessState->RemainingDesiredAccess = 0;
         AccessState->PreviouslyGrantedAccess = Response->Rsp.Create.Opened.GrantedAccess;
+        FileDesc->GrantedAccess = Response->Rsp.Create.Opened.GrantedAccess;
 
         /* set up the FileObject */
         if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
@@ -901,6 +914,13 @@ NTSTATUS FspFsvolCreateComplete(
         FileObject->PrivateCacheMap = 0;
         FileObject->FsContext = FileNode;
         FileObject->FsContext2 = FileDesc;
+        if (!FileNode->IsDirectory)
+        {
+            /* properly set temporary bit for lazy writer */
+            if (FlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes,
+                FILE_ATTRIBUTE_TEMPORARY))
+                SetFlag(FileObject->Flags, FO_TEMPORARY_FILE);
+        }
         if (FspTimeoutInfinity32 == FsvolDeviceExtension->VolumeParams.FileInfoTimeout &&
             !FlagOn(IrpSp->Parameters.Create.Options, FILE_NO_INTERMEDIATE_BUFFERING) &&
             !Response->Rsp.Create.Opened.DisableCache)
@@ -938,6 +958,19 @@ NTSTATUS FspFsvolCreateComplete(
             ClearFlag(FileAttributes, FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_DIRECTORY);
             if (FileNode->IsDirectory)
                 SetFlag(FileAttributes, FILE_ATTRIBUTE_DIRECTORY);
+
+            /* overwrite/supersede operations must have the correct hidden/system attributes set */
+            if ((FlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes, FILE_ATTRIBUTE_HIDDEN) &&
+                    !FlagOn(FileAttributes, FILE_ATTRIBUTE_HIDDEN)) ||
+                (FlagOn(Response->Rsp.Create.Opened.FileInfo.FileAttributes, FILE_ATTRIBUTE_SYSTEM) &&
+                    !FlagOn(FileAttributes, FILE_ATTRIBUTE_SYSTEM)))
+            {
+                FspFsvolCreatePostClose(FileDesc);
+                FspFileNodeClose(FileNode, FileObject, TRUE);
+
+                Result = STATUS_ACCESS_DENIED;
+                FSP_RETURN();
+            }
 
             PVOID RequestDeviceObjectValue = FspIopRequestContext(Request, RequestDeviceObject);
 
@@ -998,10 +1031,11 @@ NTSTATUS FspFsvolCreateComplete(
         /* file was successfully overwritten/superseded */
         if (0 == FileNode->MainFileNode)
             FspFileNodeOverwriteStreams(FileNode);
-        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Overwrite.FileInfo);
+        FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Overwrite.FileInfo, TRUE);
         FspFileNodeNotifyChange(FileNode,
             FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE,
-            FILE_ACTION_MODIFIED);
+            FILE_ACTION_MODIFIED,
+            FALSE);
 
         FspFileNodeReleaseOwner(FileNode, Full, Request);
 
@@ -1064,7 +1098,8 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
         return Result;
     }
 
-    FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Create.Opened.FileInfo);
+    FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Create.Opened.FileInfo,
+        FILE_CREATED == Response->IoStatus.Information);
 
     if (FlushImage)
     {
@@ -1091,7 +1126,8 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     if (FILE_CREATED == Response->IoStatus.Information)
         FspFileNodeNotifyChange(FileNode,
             FileNode->IsDirectory ? FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME,
-            FILE_ACTION_ADDED);
+            FILE_ACTION_ADDED,
+            TRUE);
 
     FspFileNodeRelease(FileNode, Main);
 
@@ -1280,6 +1316,7 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     FSP_FSCTL_TRANSACT_RSP *Response;
+    FSP_FILE_DESC *FileDesc = FspIopRequestContext(Request, RequestFileDesc);
     FSP_FILE_NODE *ExtraFileNode = FspIopRequestContext(Request, FspIopRequestExtraContext);
     ULONG SharingViolationReason = (ULONG)Irp->IoStatus.Information;
     NTSTATUS Result;
@@ -1316,6 +1353,12 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
             return FspWqRepostIrpWorkItem(Irp,
                 FspFsvolCreateSharingViolationOplock, FspFsvolCreateRequestFini);
 
+        FspFileNodeClose(ExtraFileNode, 0, TRUE);
+        FspFileNodeDereference(ExtraFileNode);
+        FspIopRequestContext(Request, FspIopRequestExtraContext) = 0;
+
+        FspFsvolCreatePostClose(FileDesc);
+
         Irp->IoStatus.Information = 0;
         return STATUS_SHARING_VIOLATION;
     }
@@ -1334,7 +1377,6 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
              * stream.
              */
 
-            FSP_FILE_DESC *FileDesc = FspIopRequestContext(Request, RequestFileDesc);
             FSP_FILE_NODE *FileNode = FileDesc->FileNode;
 
             /* break Batch oplocks on the main file and this stream */
@@ -1390,14 +1432,14 @@ static NTSTATUS FspFsvolCreateSharingViolationOplock(
 
         Response = FspIopIrpResponse(Irp);
 
-        if (STATUS_SUCCESS == Result)
+        FspFileNodeClose(ExtraFileNode, 0, TRUE);
+        FspFileNodeDereference(ExtraFileNode);
+        FspIopRequestContext(Request, FspIopRequestExtraContext) = 0;
+
+        if (STATUS_SUCCESS != Result)
         {
-            FspFileNodeClose(ExtraFileNode, 0, TRUE);
-            FspFileNodeDereference(ExtraFileNode);
-            FspIopRequestContext(Request, FspIopRequestExtraContext) = 0;
-        }
-        else
-        {
+            FspFsvolCreatePostClose(FileDesc);
+
             Response->IoStatus.Status = (UINT32)Result;
             Response->IoStatus.Information = (UINT32)Irp->IoStatus.Information;
         }

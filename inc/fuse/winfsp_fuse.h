@@ -2,7 +2,7 @@
  * @file fuse/winfsp_fuse.h
  * WinFsp FUSE compatible API.
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -177,6 +177,7 @@ struct fuse_flock
         MemAlloc, MemFree,              \
         fsp_fuse_daemonize,             \
         fsp_fuse_set_signal_handlers,   \
+        0/*conv_to_win_path*/,          \
     }
 #else
 #define FSP_FUSE_ENV_INIT               \
@@ -185,6 +186,7 @@ struct fuse_flock
         malloc, free,                   \
         fsp_fuse_daemonize,             \
         fsp_fuse_set_signal_handlers,   \
+        0/*conv_to_win_path*/,          \
     }
 #endif
 
@@ -226,6 +228,7 @@ struct fuse_flock
         malloc, free,                   \
         fsp_fuse_daemonize,             \
         fsp_fuse_set_signal_handlers,   \
+        fsp_fuse_conv_to_win_path,      \
     }
 
 /*
@@ -244,7 +247,8 @@ struct fsp_fuse_env
     void (*memfree)(void *);
     int (*daemonize)(int);
     int (*set_signal_handlers)(void *);
-    void (*reserved[4])();
+    char *(*conv_to_win_path)(const char *);
+    void (*reserved[3])();
 };
 
 FSP_FUSE_API void FSP_FUSE_API_NAME(fsp_fuse_signal_handler)(int sig);
@@ -348,6 +352,13 @@ static inline int fsp_fuse_set_signal_handlers(void *se)
 #undef FSP_FUSE_SET_SIGNAL_HANDLER
 }
 
+static inline char *fsp_fuse_conv_to_win_path(const char *path)
+{
+    void *cygwin_create_path(unsigned, const void *);
+    return cygwin_create_path(
+        0/*CCP_POSIX_TO_WIN_A*/ | 0x100/*CCP_RELATIVE*/,
+        path);
+}
 #endif
 
 

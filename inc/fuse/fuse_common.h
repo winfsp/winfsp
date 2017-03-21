@@ -6,7 +6,7 @@
  *     FUSE: Filesystem in Userspace
  *     Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -41,6 +41,15 @@ extern "C" {
 #define FUSE_CAP_EXPORT_SUPPORT         (1 << 4)
 #define FUSE_CAP_BIG_WRITES             (1 << 5)
 #define FUSE_CAP_DONT_MASK              (1 << 6)
+#define FUSE_CAP_ALLOCATE               (1 << 27)   /* reserved (OSXFUSE) */
+#define FUSE_CAP_EXCHANGE_DATA          (1 << 28)   /* reserved (OSXFUSE) */
+#define FUSE_CAP_CASE_INSENSITIVE       (1 << 29)   /* file system is case insensitive */
+#define FUSE_CAP_VOL_RENAME             (1 << 30)   /* reserved (OSXFUSE) */
+#define FUSE_CAP_XTIMES                 (1 << 31)   /* reserved (OSXFUSE) */
+
+#define FSP_FUSE_CAP_READDIR_PLUS       (1 << 21)   /* file system supports enhanced readdir */
+#define FSP_FUSE_CAP_READ_ONLY          (1 << 22)   /* file system is marked read-only */
+#define FSP_FUSE_CAP_CASE_INSENSITIVE   FUSE_CAP_CASE_INSENSITIVE
 
 #define FUSE_IOCTL_COMPAT               (1 << 0)
 #define FUSE_IOCTL_UNRESTRICTED         (1 << 1)

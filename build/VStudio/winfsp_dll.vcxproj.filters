@@ -103,6 +103,12 @@
     <ClCompile Include="..\..\src\dll\fuse\fuse_intf.c">
       <Filter>Source\fuse</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\dll\dirbuf.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\dll\fuse\fuse_compat.c">
+      <Filter>Source\fuse</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\library.def">
@@ -118,7 +124,7 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\src\dll\fuse\fuse.pc">
+    <CustomBuild Include="..\..\src\dll\fuse\fuse.pc.in">
       <Filter>Source\fuse</Filter>
     </CustomBuild>
   </ItemGroup>

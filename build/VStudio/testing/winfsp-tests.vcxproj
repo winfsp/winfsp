@@ -182,8 +182,10 @@
     </ClCompile>
     <ClCompile Include="..\..\..\tst\memfs\memfs.cpp" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\create-test.c" />
+    <ClCompile Include="..\..\..\tst\winfsp-tests\dirbuf-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\dirctl-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\eventlog-test.c" />
+    <ClCompile Include="..\..\..\tst\winfsp-tests\exec-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\flush-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\fuse-opt-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\hooks.c" />
@@ -200,6 +202,7 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\security-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\stream-tests.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\timeout-test.c" />
+    <ClCompile Include="..\..\..\tst\winfsp-tests\version-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\winfsp-tests.c" />
   </ItemGroup>
   <ItemGroup>
@@ -211,6 +214,9 @@
     <ProjectReference Include="..\winfsp_dll.vcxproj">
       <Project>{4a7c0b21-9e10-4c81-92de-1493efcf24eb}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\..\..\tst\winfsp-tests\helper\winfsp-tests-helper.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

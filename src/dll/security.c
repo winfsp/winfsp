@@ -1,7 +1,7 @@
 /**
  * @file dll/security.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -190,6 +190,13 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
         &SecurityDescriptor, &SecurityDescriptorSize);
     if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
         goto exit;
+
+    if (!CheckParentOrMain && Request->Req.Create.HasTrailingBackslash &&
+        !(FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+        Result = STATUS_OBJECT_NAME_INVALID;
+        goto exit;
+    }
 
     if (Request->Req.Create.UserMode && 0 < SecurityDescriptorSize)
     {

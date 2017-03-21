@@ -1,7 +1,7 @@
 /**
  * @file memfs.cpp
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -23,6 +23,10 @@
 #include <map>
 #include <unordered_map>
 
+#define MEMFS_MAX_PATH                  512
+FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
+    "MEMFS_MAX_PATH must be greater than MAX_PATH.");
+
 /*
  * Define the MEMFS_NAME_NORMALIZATION macro to include name normalization support.
  */
@@ -41,9 +45,11 @@
 /*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
  * a check for the Write buffer to ensure that it is read-only.
+ *
+ * Since ProcessBuffer support in the FSD, this is no longer a guarantee.
  */
 #if !defined(NDEBUG)
-#define DEBUG_BUFFER_CHECK
+//#define DEBUG_BUFFER_CHECK
 #endif
 
 #define MEMFS_SECTOR_SIZE               512
@@ -177,7 +183,7 @@ BOOLEAN MemfsFileNameHasPrefix(PWSTR a, PWSTR b, BOOLEAN CaseInsensitive)
 
 typedef struct _MEMFS_FILE_NODE
 {
-    WCHAR FileName[MAX_PATH];
+    WCHAR FileName[MEMFS_MAX_PATH];
     FSP_FSCTL_FILE_INFO FileInfo;
     SIZE_T FileSecuritySize;
     PVOID FileSecurity;
@@ -222,9 +228,6 @@ NTSTATUS MemfsFileNodeCreate(PWSTR FileName, MEMFS_FILE_NODE **PFileNode)
     MEMFS_FILE_NODE *FileNode;
 
     *PFileNode = 0;
-
-    if (MAX_PATH <= wcslen(FileName))
-        return STATUS_OBJECT_NAME_INVALID;
 
     FileNode = (MEMFS_FILE_NODE *)malloc(sizeof *FileNode);
     if (0 == FileNode)
@@ -346,7 +349,7 @@ MEMFS_FILE_NODE *MemfsFileNodeMapGet(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR Fil
 static inline
 MEMFS_FILE_NODE *MemfsFileNodeMapGetMain(MEMFS_FILE_NODE_MAP *FileNodeMap, PWSTR FileName0)
 {
-    WCHAR FileName[MAX_PATH];
+    WCHAR FileName[MEMFS_MAX_PATH];
     wcscpy_s(FileName, sizeof FileName / sizeof(WCHAR), FileName0);
     PWSTR StreamName = wcschr(FileName, L':');
     if (0 == StreamName)
@@ -365,7 +368,7 @@ MEMFS_FILE_NODE *MemfsFileNodeMapGetParent(MEMFS_FILE_NODE_MAP *FileNodeMap, PWS
 {
     WCHAR Root[2] = L"\\";
     PWSTR Remain, Suffix;
-    WCHAR FileName[MAX_PATH];
+    WCHAR FileName[MEMFS_MAX_PATH];
     wcscpy_s(FileName, sizeof FileName / sizeof(WCHAR), FileName0);
     FspPathSuffix(FileName, &Remain, &Suffix, Root);
     MEMFS_FILE_NODE_MAP::iterator iter = FileNodeMap->find(Remain);
@@ -384,6 +387,21 @@ MEMFS_FILE_NODE *MemfsFileNodeMapGetParent(MEMFS_FILE_NODE_MAP *FileNodeMap, PWS
 }
 
 static inline
+VOID MemfsFileNodeMapTouchParent(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode)
+{
+    NTSTATUS Result;
+    MEMFS_FILE_NODE *Parent;
+    if (L'\\' == FileNode->FileName[0] && L'\0' == FileNode->FileName[1])
+        return;
+    Parent = MemfsFileNodeMapGetParent(FileNodeMap, FileNode->FileName, &Result);
+    if (0 == Parent)
+        return;
+    Parent->FileInfo.LastAccessTime =
+    Parent->FileInfo.LastWriteTime =
+    Parent->FileInfo.ChangeTime = MemfsGetSystemTime();
+}
+
+static inline
 NTSTATUS MemfsFileNodeMapInsert(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode,
     PBOOLEAN PInserted)
 {
@@ -392,7 +410,10 @@ NTSTATUS MemfsFileNodeMapInsert(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NOD
     {
         *PInserted = FileNodeMap->insert(MEMFS_FILE_NODE_MAP::value_type(FileNode->FileName, FileNode)).second;
         if (*PInserted)
+        {
             MemfsFileNodeReference(FileNode);
+            MemfsFileNodeMapTouchParent(FileNodeMap, FileNode);
+        }
         return STATUS_SUCCESS;
     }
     catch (...)
@@ -405,7 +426,10 @@ static inline
 VOID MemfsFileNodeMapRemove(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NODE *FileNode)
 {
     if (FileNodeMap->erase(FileNode->FileName))
+    {
+        MemfsFileNodeMapTouchParent(FileNodeMap, FileNode);
         MemfsFileNodeDereference(FileNode);
+    }
 }
 
 static inline
@@ -440,24 +464,18 @@ BOOLEAN MemfsFileNodeMapEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMF
     BOOLEAN IsDirectoryChild;
     if (0 != PrevFileName0)
     {
-        WCHAR PrevFileName[MAX_PATH];
+        WCHAR PrevFileName[MEMFS_MAX_PATH + 256];
         size_t Length0 = wcslen(FileNode->FileName);
         size_t Length1 = 1 != Length0 || L'\\' != FileNode->FileName[0];
         size_t Length2 = wcslen(PrevFileName0);
-        if (MAX_PATH <= Length0 + Length1 + Length2)
-            /* fall back to linear scan! */
-            goto fallback;
+        assert(MEMFS_MAX_PATH + 256 > Length0 + Length1 + Length2);
         memcpy(PrevFileName, FileNode->FileName, Length0 * sizeof(WCHAR));
         memcpy(PrevFileName + Length0, L"\\", Length1 * sizeof(WCHAR));
         memcpy(PrevFileName + Length0 + Length1, PrevFileName0, Length2 * sizeof(WCHAR));
         PrevFileName[Length0 + Length1 + Length2] = L'\0';
-        iter = FileNodeMap->find(PrevFileName);
-        if (FileNodeMap->end() == iter)
-            /* fall back to linear scan! */
-            goto fallback;
+        iter = FileNodeMap->upper_bound(PrevFileName);
     }
     else
-    fallback:
         iter = FileNodeMap->upper_bound(FileNode->FileName);
     for (; FileNodeMap->end() != iter; ++iter)
     {
@@ -564,58 +582,6 @@ VOID MemfsFileNodeMapEnumerateFree(MEMFS_FILE_NODE_MAP_ENUM_CONTEXT *Context)
     free(Context->FileNodes);
 }
 
-typedef std::unordered_map<UINT64, std::wstring> MEMFS_DIR_DESC;
-
-static inline
-NTSTATUS MemfsDirDescCreate(MEMFS_DIR_DESC **PDirDesc)
-{
-    *PDirDesc = 0;
-    try
-    {
-        *PDirDesc = new MEMFS_DIR_DESC;
-        return STATUS_SUCCESS;
-    }
-    catch (...)
-    {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-}
-
-static inline
-VOID MemfsDirDescDelete(MEMFS_DIR_DESC *DirDesc)
-{
-    delete DirDesc;
-}
-
-static inline
-VOID MemfsDirDescReset(MEMFS_DIR_DESC *DirDesc)
-{
-    DirDesc->clear();
-}
-
-static inline
-PWSTR MemfsDirDescGetFileName(MEMFS_DIR_DESC *DirDesc, UINT64 Offset)
-{
-    MEMFS_DIR_DESC::iterator iter = DirDesc->find(Offset);
-    if (iter == DirDesc->end())
-        return 0;
-    return const_cast<PWSTR>(iter->second.c_str());
-}
-
-static inline
-NTSTATUS MemfsDirDescInsertFileName(MEMFS_DIR_DESC *DirDesc, UINT64 Offset, PWSTR FileName)
-{
-    try
-    {
-        DirDesc->insert(MEMFS_DIR_DESC::value_type(Offset, FileName));
-        return STATUS_SUCCESS;
-    }
-    catch (...)
-    {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-}
-
 /*
  * FSP_FILE_SYSTEM_INTERFACE
  */
@@ -626,9 +592,8 @@ static NTSTATUS GetReparsePointByName(
     PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize);
 #endif
 
-static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize,
-    FSP_FSCTL_FILE_INFO *FileInfo);
+static NTSTATUS SetFileSizeInternal(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize);
 
 static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_VOLUME_INFO *VolumeInfo)
@@ -726,13 +691,15 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
 #if defined(MEMFS_NAME_NORMALIZATION)
-    WCHAR FileNameBuf[MAX_PATH];
+    WCHAR FileNameBuf[MEMFS_MAX_PATH];
 #endif
     MEMFS_FILE_NODE *FileNode;
     MEMFS_FILE_NODE *ParentNode;
-    MEMFS_DIR_DESC *DirDesc = 0;
     NTSTATUS Result;
     BOOLEAN Inserted;
+
+    if (MEMFS_MAX_PATH <= wcslen(FileName))
+        return STATUS_OBJECT_NAME_INVALID;
 
     if (CreateOptions & FILE_DIRECTORY_FILE)
         AllocationSize = 0;
@@ -765,7 +732,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         RemainLength = wcslen(ParentNode->FileName);
         BSlashLength = 1 < RemainLength;
         SuffixLength = wcslen(Suffix);
-        if (MAX_PATH <= RemainLength + BSlashLength + SuffixLength)
+        if (MEMFS_MAX_PATH <= RemainLength + BSlashLength + SuffixLength)
             return STATUS_OBJECT_NAME_INVALID;
 
         memcpy(FileNameBuf, ParentNode->FileName, RemainLength * sizeof(WCHAR));
@@ -776,20 +743,9 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     }
 #endif
 
-    if (CreateOptions & FILE_DIRECTORY_FILE)
-    {
-        Result = MemfsDirDescCreate(&DirDesc);
-        if (!NT_SUCCESS(Result))
-            return Result;
-    }
-
     Result = MemfsFileNodeCreate(FileName, &FileNode);
     if (!NT_SUCCESS(Result))
-    {
-        if (0 != DirDesc)
-            MemfsDirDescDelete(DirDesc);
         return Result;
-    }
 
 #if defined(MEMFS_NAMED_STREAMS)
     FileNode->MainFileNode = MemfsFileNodeMapGetMain(Memfs->FileNodeMap, FileName);
@@ -805,8 +761,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         if (0 == FileNode->FileSecurity)
         {
             MemfsFileNodeDelete(FileNode);
-            if (0 != DirDesc)
-                MemfsDirDescDelete(DirDesc);
             return STATUS_INSUFFICIENT_RESOURCES;
         }
         memcpy(FileNode->FileSecurity, SecurityDescriptor, FileNode->FileSecuritySize);
@@ -819,8 +773,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         if (0 == FileNode->FileData)
         {
             MemfsFileNodeDelete(FileNode);
-            if (0 != DirDesc)
-                MemfsDirDescDelete(DirDesc);
             return STATUS_INSUFFICIENT_RESOURCES;
         }
     }
@@ -829,8 +781,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result) || !Inserted)
     {
         MemfsFileNodeDelete(FileNode);
-        if (0 != DirDesc)
-            MemfsDirDescDelete(DirDesc);
         if (NT_SUCCESS(Result))
             Result = STATUS_OBJECT_NAME_COLLISION; /* should not happen! */
         return Result;
@@ -851,9 +801,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     }
 #endif
 
-    /* since we now use dir descriptors to quickly retrieve dir contents, place it in UserContext2 */
-    FspFileSystemGetOperationContext()->Response->Rsp.Create.Opened.UserContext2 = (UINT_PTR)DirDesc;
-
     return STATUS_SUCCESS;
 }
 
@@ -863,8 +810,10 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode;
-    MEMFS_DIR_DESC *DirDesc = 0;
     NTSTATUS Result;
+
+    if (MEMFS_MAX_PATH <= wcslen(FileName))
+        return STATUS_OBJECT_NAME_INVALID;
 
     FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
     if (0 == FileNode)
@@ -873,28 +822,6 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
         MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result);
         return Result;
     }
-
-    if (0 != (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-    {
-        Result = MemfsDirDescCreate(&DirDesc);
-        if (!NT_SUCCESS(Result))
-            return Result;
-    }
-
-    /*
-     * NTFS and FastFat do this at Cleanup time, but we are going to cheat.
-     *
-     * To properly implement this we should maintain some state of whether
-     * we modified the file or not. Alternatively we could have the driver
-     * report to us at Cleanup time whether the file was modified. [The
-     * FSD does maintain the FO_FILE_MODIFIED bit, but does not send it
-     * to us.]
-     *
-     * TBD.
-     */
-    if (0 == (FileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
-        (GrantedAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA)))
-        FileNode->FileInfo.FileAttributes |= FILE_ATTRIBUTE_ARCHIVE;
 
     MemfsFileNodeReference(FileNode);
     *PFileNode = FileNode;
@@ -910,9 +837,6 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
         OpenFileInfo->NormalizedNameSize = (UINT16)(wcslen(FileNode->FileName) * sizeof(WCHAR));
     }
 #endif
-
-    /* since we now use dir descriptors to quickly retrieve dir contents, place it in UserContext2 */
-    FspFileSystemGetOperationContext()->Response->Rsp.Create.Opened.UserContext2 = (UINT_PTR)DirDesc;
 
     return STATUS_SUCCESS;
 }
@@ -937,7 +861,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
     MemfsFileNodeMapEnumerateFree(&Context);
 #endif
 
-    Result = SetFileSize(FileSystem, FileNode, AllocationSize, TRUE, FileInfo);
+    Result = SetFileSizeInternal(FileSystem, FileNode, AllocationSize, TRUE);
     if (!NT_SUCCESS(Result))
         return Result;
 
@@ -947,8 +871,9 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
         FileNode->FileInfo.FileAttributes |= FileAttributes | FILE_ATTRIBUTE_ARCHIVE;
 
     FileNode->FileInfo.FileSize = 0;
+    FileNode->FileInfo.LastAccessTime =
     FileNode->FileInfo.LastWriteTime =
-    FileNode->FileInfo.LastAccessTime = MemfsGetSystemTime();
+    FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
 
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
 
@@ -956,14 +881,47 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode0, PWSTR FileName, BOOLEAN Delete)
+    PVOID FileNode0, PWSTR FileName, ULONG Flags)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+#if defined(MEMFS_NAMED_STREAMS)
+    MEMFS_FILE_NODE *MainFileNode = 0 != FileNode->MainFileNode ?
+        FileNode->MainFileNode : FileNode;
+#else
+    MEMFS_FILE_NODE *MainFileNode = FileNode;
+#endif
 
-    assert(Delete); /* the new FSP_FSCTL_VOLUME_PARAMS::PostCleanupOnDeleteOnly ensures this */
+    assert(0 != Flags); /* FSP_FSCTL_VOLUME_PARAMS::PostCleanupWhenModifiedOnly ensures this */
 
-    if (Delete && !MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
+    if (Flags & FspCleanupSetArchiveBit)
+    {
+        if (0 == (MainFileNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            MainFileNode->FileInfo.FileAttributes |= FILE_ATTRIBUTE_ARCHIVE;
+    }
+
+    if (Flags & (FspCleanupSetLastAccessTime | FspCleanupSetLastWriteTime | FspCleanupSetChangeTime))
+    {
+        UINT64 SystemTime = MemfsGetSystemTime();
+
+        if (Flags & FspCleanupSetLastAccessTime)
+            MainFileNode->FileInfo.LastAccessTime = SystemTime;
+        if (Flags & FspCleanupSetLastWriteTime)
+            MainFileNode->FileInfo.LastWriteTime = SystemTime;
+        if (Flags & FspCleanupSetChangeTime)
+            MainFileNode->FileInfo.ChangeTime = SystemTime;
+    }
+
+    if (Flags & FspCleanupSetAllocationSize)
+    {
+        UINT64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+        UINT64 AllocationSize = (FileNode->FileInfo.FileSize + AllocationUnit - 1) /
+            AllocationUnit * AllocationUnit;
+
+        SetFileSizeInternal(FileSystem, FileNode, AllocationSize, TRUE);
+    }
+
+    if ((Flags & FspCleanupDelete) && !MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
     {
 #if defined(MEMFS_NAMED_STREAMS)
         MEMFS_FILE_NODE_MAP_ENUM_CONTEXT Context = { FALSE };
@@ -985,13 +943,8 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem,
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
-    MEMFS_DIR_DESC *DirDesc = (MEMFS_DIR_DESC *)(UINT_PTR)
-        FspFileSystemGetOperationContext()->Request->Req.Close.UserContext2;
 
     MemfsFileNodeDereference(FileNode);
-
-    if (0 != DirDesc)
-        MemfsDirDescDelete(DirDesc);
 }
 
 static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
@@ -1055,7 +1008,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
         EndOffset = Offset + Length;
         if (EndOffset > FileNode->FileInfo.FileSize)
         {
-            Result = SetFileSize(FileSystem, FileNode, EndOffset, FALSE, FileInfo);
+            Result = SetFileSizeInternal(FileSystem, FileNode, EndOffset, FALSE);
             if (!NT_SUCCESS(Result))
                 return Result;
         }
@@ -1070,9 +1023,31 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
 }
 
 NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode)
+    PVOID FileNode0,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    /* nothing to do, since we do not cache anything */
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    /*  nothing to flush, since we do not cache anything */
+
+    if (0 != FileNode)
+    {
+#if 0
+#if defined(MEMFS_NAMED_STREAMS)
+        if (0 != FileNode->MainFileNode)
+            FileNode->MainFileNode->FileInfo.LastAccessTime =
+            FileNode->MainFileNode->FileInfo.LastWriteTime =
+            FileNode->MainFileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
+        else
+#endif
+        FileNode->FileInfo.LastAccessTime =
+        FileNode->FileInfo.LastWriteTime =
+        FileNode->FileInfo.ChangeTime = MemfsGetSystemTime();
+#endif
+
+        MemfsFileNodeGetFileInfo(FileNode, FileInfo);
+    }
+
     return STATUS_SUCCESS;
 }
 
@@ -1089,7 +1064,7 @@ static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
 
 static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0, UINT32 FileAttributes,
-    UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime,
+    UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
@@ -1107,15 +1082,16 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
         FileNode->FileInfo.LastAccessTime = LastAccessTime;
     if (0 != LastWriteTime)
         FileNode->FileInfo.LastWriteTime = LastWriteTime;
+    if (0 != ChangeTime)
+        FileNode->FileInfo.ChangeTime = ChangeTime;
 
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
 
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize,
-    FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS SetFileSizeInternal(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
@@ -1147,8 +1123,7 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
                 UINT64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
                 UINT64 AllocationSize = (NewSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
-                NTSTATUS Result = SetFileSize(FileSystem, FileNode, AllocationSize, TRUE,
-                    FileInfo);
+                NTSTATUS Result = SetFileSizeInternal(FileSystem, FileNode, AllocationSize, TRUE);
                 if (!NT_SUCCESS(Result))
                     return Result;
             }
@@ -1159,6 +1134,20 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
             FileNode->FileInfo.FileSize = NewSize;
         }
     }
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode0, UINT64 NewSize, BOOLEAN SetAllocationSize,
+    FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    NTSTATUS Result;
+
+    Result = SetFileSizeInternal(FileSystem, FileNode0, NewSize, SetAllocationSize);
+    if (!NT_SUCCESS(Result))
+        return Result;
 
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
 
@@ -1213,7 +1202,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     for (Index = 0; Context.Count > Index; Index++)
     {
         DescendantFileNode = Context.FileNodes[Index];
-        if (MAX_PATH <= wcslen(DescendantFileNode->FileName) - FileNameLen + NewFileNameLen)
+        if (MEMFS_MAX_PATH <= wcslen(DescendantFileNode->FileName) - FileNameLen + NewFileNameLen)
         {
             Result = STATUS_OBJECT_NAME_INVALID;
             goto exit;
@@ -1318,14 +1307,11 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
 typedef struct _MEMFS_READ_DIRECTORY_CONTEXT
 {
     PVOID Buffer;
-    UINT64 Offset;
     ULONG Length;
     PULONG PBytesTransferred;
-    BOOLEAN OffsetFound;
-    MEMFS_DIR_DESC *DirDesc;
 } MEMFS_READ_DIRECTORY_CONTEXT;
 
-static BOOLEAN AddDirInfo(MEMFS_DIR_DESC *DirDesc, MEMFS_FILE_NODE *FileNode, PWSTR FileName,
+static BOOLEAN AddDirInfo(MEMFS_FILE_NODE *FileNode, PWSTR FileName,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
     UINT8 DirInfoBuf[sizeof(FSP_FSCTL_DIR_INFO) + sizeof FileNode->FileName];
@@ -1338,14 +1324,11 @@ static BOOLEAN AddDirInfo(MEMFS_DIR_DESC *DirDesc, MEMFS_FILE_NODE *FileNode, PW
         FspPathSuffix(FileNode->FileName, &Remain, &Suffix, Root);
         FileName = Suffix;
         FspPathCombine(FileNode->FileName, Suffix);
-
-        MemfsDirDescInsertFileName(DirDesc, FileNode->FileInfo.IndexNumber, FileName);
     }
 
     memset(DirInfo->Padding, 0, sizeof DirInfo->Padding);
     DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + wcslen(FileName) * sizeof(WCHAR));
     DirInfo->FileInfo = FileNode->FileInfo;
-    DirInfo->NextOffset = FileNode->FileInfo.IndexNumber;
     memcpy(DirInfo->FileNameBuf, FileName, DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
 
     return FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred);
@@ -1355,38 +1338,23 @@ static BOOLEAN ReadDirectoryEnumFn(MEMFS_FILE_NODE *FileNode, PVOID Context0)
 {
     MEMFS_READ_DIRECTORY_CONTEXT *Context = (MEMFS_READ_DIRECTORY_CONTEXT *)Context0;
 
-    if (0 != Context->Offset && !Context->OffsetFound)
-    {
-        Context->OffsetFound = FileNode->FileInfo.IndexNumber == Context->Offset;
-        return TRUE;
-    }
-
-    return AddDirInfo(Context->DirDesc, FileNode, 0,
+    return AddDirInfo(FileNode, 0,
         Context->Buffer, Context->Length, Context->PBytesTransferred);
 }
 
 static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode0, PVOID Buffer, UINT64 Offset, ULONG Length,
-    PWSTR Pattern,
-    PULONG PBytesTransferred)
+    PVOID FileNode0, PWSTR Pattern, PWSTR Marker,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
-    MEMFS_DIR_DESC *DirDesc = (MEMFS_DIR_DESC *)(UINT_PTR)
-        FspFileSystemGetOperationContext()->Request->Req.QueryDirectory.UserContext2;
     MEMFS_FILE_NODE *ParentNode;
     MEMFS_READ_DIRECTORY_CONTEXT Context;
     NTSTATUS Result;
 
     Context.Buffer = Buffer;
-    Context.Offset = Offset;
     Context.Length = Length;
     Context.PBytesTransferred = PBytesTransferred;
-    Context.OffsetFound = FALSE;
-    Context.DirDesc = DirDesc;
-
-    if (0 == Offset)
-        MemfsDirDescReset(DirDesc);
 
     if (L'\0' != FileNode->FileName[1])
     {
@@ -1396,19 +1364,20 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         if (0 == ParentNode)
             return Result;
 
-        if (0 == Offset)
-            if (!AddDirInfo(DirDesc, FileNode, L".", Buffer, Length, PBytesTransferred))
-                return STATUS_SUCCESS;
-        if (0 == Offset || FileNode->FileInfo.IndexNumber == Offset)
+        if (0 == Marker)
         {
-            Context.OffsetFound = FileNode->FileInfo.IndexNumber == Context.Offset;
-
-            if (!AddDirInfo(DirDesc, ParentNode, L"..", Buffer, Length, PBytesTransferred))
+            if (!AddDirInfo(FileNode, L".", Buffer, Length, PBytesTransferred))
                 return STATUS_SUCCESS;
+        }
+        if (0 == Marker || (L'.' == Marker[0] && L'\0' == Marker[1]))
+        {
+            if (!AddDirInfo(ParentNode, L"..", Buffer, Length, PBytesTransferred))
+                return STATUS_SUCCESS;
+            Marker = 0;
         }
     }
 
-    if (MemfsFileNodeMapEnumerateChildren(Memfs->FileNodeMap, FileNode, MemfsDirDescGetFileName(DirDesc, Offset),
+    if (MemfsFileNodeMapEnumerateChildren(Memfs->FileNodeMap, FileNode, Marker,
         ReadDirectoryEnumFn, &Context))
         FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
 
@@ -1661,11 +1630,12 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
  * Public API
  */
 
-NTSTATUS MemfsCreate(
+NTSTATUS MemfsCreateFunnel(
     ULONG Flags,
     ULONG FileInfoTimeout,
     ULONG MaxFileNodes,
     ULONG MaxFileSize,
+    PWSTR FileSystemName,
     PWSTR VolumePrefix,
     PWSTR RootSddl,
     MEMFS **PMemfs)
@@ -1729,10 +1699,11 @@ NTSTATUS MemfsCreate(
 #if defined(MEMFS_NAMED_STREAMS)
     VolumeParams.NamedStreams = 1;
 #endif
-    VolumeParams.PostCleanupOnDeleteOnly = 1;
+    VolumeParams.PostCleanupWhenModifiedOnly = 1;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
-    wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR), L"MEMFS");
+    wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),
+        0 != FileSystemName ? FileSystemName : L"-MEMFS");
 
     Result = FspFileSystemCreate(DevicePath, &VolumeParams, &MemfsInterface, &Memfs->FileSystem);
     if (!NT_SUCCESS(Result))

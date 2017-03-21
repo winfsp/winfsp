@@ -1,7 +1,7 @@
 /**
  * @file dll/fuse/library.h
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -40,12 +40,15 @@ struct fuse
     int rellinks;
     struct fuse_operations ops;
     void *data;
+    unsigned conn_want;
+    BOOLEAN fsinit;
     UINT32 DebugLog;
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    UINT16 VolumeLabelLength;
+    WCHAR VolumeLabel[sizeof ((FSP_FSCTL_VOLUME_INFO *)0)->VolumeLabel / sizeof(WCHAR)];
     PWSTR MountPoint;
     FSP_FILE_SYSTEM *FileSystem;
-    BOOLEAN fsinit;
     FSP_SERVICE *Service; /* weak */
 };
 
@@ -62,25 +65,17 @@ struct fsp_fuse_file_desc
     int OpenFlags;
     UINT64 FileHandle;
     PVOID DirBuffer;
-    ULONG DirBufferSize;
 };
 
 struct fuse_dirhandle
 {
-    PVOID Buffer;
-    ULONG Length;
-    ULONG BytesTransferred;
-    BOOLEAN NonZeroOffset;
+    /* ReadDirectory */
+    struct fsp_fuse_file_desc *filedesc;
+    FSP_FILE_SYSTEM *FileSystem;
+    BOOLEAN ReaddirPlus;
+    NTSTATUS Result;
+    /* CanDelete */
     BOOLEAN DotFiles, HasChild;
-};
-
-struct fsp_fuse_dirinfo
-{
-    UINT16 Size;
-    FSP_FSCTL_FILE_INFO FileInfo;
-    BOOLEAN FileInfoValid;
-    UINT64 NextOffset;
-    char PosixNameBuf[];                /* includes term-0 (unlike FSP_FSCTL_DIR_INFO) */
 };
 
 NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
@@ -89,6 +84,11 @@ NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 
 extern FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf;
+
+NTSTATUS fsp_fuse_get_token_uidgid(
+    HANDLE Token,
+    TOKEN_INFORMATION_CLASS UserOrOwnerClass, /* TokenUser|TokenOwner */
+    PUINT32 PUid, PUINT32 PGid);
 
 /* NFS reparse points */
 

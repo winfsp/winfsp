@@ -1,0 +1,7 @@
+build
+*.ncb
+*.suo
+*.vcproj.*
+*.vcxproj.user
+*.exe
+*.install

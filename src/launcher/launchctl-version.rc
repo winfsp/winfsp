@@ -22,7 +22,7 @@ BEGIN
         BEGIN
             VALUE "CompanyName", STR(MyCompanyName)
             VALUE "FileDescription", STR(MyDescription)
-            VALUE "FileVersion", STR(MyVersion)
+            VALUE "FileVersion", STR(MyFullVersion)
             VALUE "InternalName", "launchctl.exe"
             VALUE "LegalCopyright", STR(MyCopyright)
             VALUE "OriginalFilename", "launchctl.exe"

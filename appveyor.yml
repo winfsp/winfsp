@@ -3,25 +3,37 @@ version: '{build}'
 environment:
   matrix:
   - CONFIGURATION: Debug
+    TESTING: Func
   - CONFIGURATION: Release
+    TESTING: Func
+  - CONFIGURATION: Release
+    TESTING: Perf
 
 install:
 - git submodule update --init --recursive
 - appveyor AddMessage "Change boot configuration and reboot" -Category Information
-- verifier /standard /driver winfsp-x64.sys
 - bcdedit /set testsigning on
+- if %TESTING%==Func verifier /standard /driver winfsp-x64.sys
+- if exist %SystemRoot%\memory.dmp del %SystemRoot%\memory.dmp
 - ps: Restart-Computer -Force
-- ps: Start-Sleep -s 10
+- ps: Start-Sleep -s 60
 
 build_script:
 - appveyor AddMessage "Reboot complete" -Category Information
-- bcdedit | findstr /i "testsigning"
 - tools\build.bat %CONFIGURATION%
 
 test_script:
-- for %%f in ("build\VStudio\build\%CONFIGURATION%\winfsp-*.msi") do start /wait msiexec /i %%f /qn INSTALLLEVEL=1000
-- tools\nmake-ext-test.bat %CONFIGURATION%
-- tools\run-tests.bat %CONFIGURATION%
+- choco install winfsp -s build\VStudio\build\%CONFIGURATION% -y
+- if %TESTING%==Func appveyor DownloadFile http://www.secfs.net/winfsp/resources/Test.Filter.Driver.zip && 7z x Test.Filter.Driver.zip
+- if %TESTING%==Func start /wait msiexec /i "Test.Filter.Driver\HCK Filter.Driver Content-x86_en-us.msi" /qn
+- if %TESTING%==Func tools\nmake-ext-test.bat %CONFIGURATION%
+- if %TESTING%==Func tools\run-tests.bat %CONFIGURATION%
+- if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% ifstest
+- if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% sample
+- if %TESTING%==Perf tools\run-perf-tests.bat %CONFIGURATION% baseline > perf-tests.csv && type perf-tests.csv & appveyor PushArtifact perf-tests.csv
+- choco uninstall winfsp -y
+- if exist %SystemRoot%\memory.dmp exit 1
 
 on_finish:
+- if exist %SystemRoot%\memory.dmp (7z a memory.dmp.zip %SystemRoot%\memory.dmp && appveyor PushArtifact memory.dmp.zip)
 - verifier /query

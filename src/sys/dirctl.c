@@ -1,7 +1,7 @@
 /**
  * @file sys/dirctl.c
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -28,7 +28,7 @@
 
 static NTSTATUS FspFsvolQueryDirectoryCopy(
     PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
-    UINT64 DirectoryOffset, PUINT64 PDirectoryOffset,
+    PUNICODE_STRING DirectoryMarker, PUNICODE_STRING DirectoryMarkerOut,
     FILE_INFORMATION_CLASS FileInformationClass, BOOLEAN ReturnSingleEntry,
     FSP_FSCTL_DIR_INFO **PDirInfo, ULONG DirInfoSize,
     PVOID DestBuf, PULONG PDestLen);
@@ -74,13 +74,11 @@ FSP_DRIVER_DISPATCH FspDirectoryControl;
 #pragma alloc_text(PAGE, FspDirectoryControl)
 #endif
 
-#define FILE_INDEX_FROM_OFFSET(v)       ((ULONG)(v))
-#define OFFSET_FROM_FILE_INDEX(v)       ((UINT64)(v))
-
 enum
 {
     /* QueryDirectory */
     RequestIrp                          = 0,
+    RequestCookie                       = 1,
     RequestMdl                          = 1,
     RequestAddress                      = 2,
     RequestProcess                      = 3,
@@ -91,10 +89,11 @@ enum
     /* DirectoryControlComplete retry */
     RequestDirInfoChangeNumber          = 0,
 };
+FSP_FSCTL_STATIC_ASSERT(RequestCookie == RequestMdl, "");
 
 static NTSTATUS FspFsvolQueryDirectoryCopy(
     PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
-    UINT64 DirectoryOffset, PUINT64 PDirectoryOffset,
+    PUNICODE_STRING DirectoryMarker, PUNICODE_STRING DirectoryMarkerOut,
     FILE_INFORMATION_CLASS FileInformationClass, BOOLEAN ReturnSingleEntry,
     FSP_FSCTL_DIR_INFO **PDirInfo, ULONG DirInfoSize,
     PVOID DestBuf, PULONG PDestLen)
@@ -104,7 +103,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
     {\
         TYPE InfoStruct = { 0 }, *Info = &InfoStruct;\
         Info->NextEntryOffset = 0;\
-        Info->FileIndex = FILE_INDEX_FROM_OFFSET(DirInfo->NextOffset);\
+        Info->FileIndex = 0;\
         Info->FileNameLength = FileName.Length;\
         __VA_ARGS__\
         Info = DestBuf;\
@@ -128,7 +127,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
 
     NTSTATUS Result = STATUS_SUCCESS;
     BOOLEAN MatchAll = FspFileDescDirectoryPatternMatchAll == DirectoryPattern->Buffer, Match;
-    BOOLEAN Loop = TRUE, DirectoryOffsetFound = FALSE;
+    BOOLEAN Loop = TRUE, DirectoryMarkerFound = FALSE;
     FSP_FSCTL_DIR_INFO *DirInfo = *PDirInfo;
     PUINT8 DirInfoEnd = (PUINT8)DirInfo + DirInfoSize;
     PUINT8 DestBufBgn = (PUINT8)DestBuf;
@@ -178,15 +177,17 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                 break;
             }
 
-            if (0 != DirectoryOffset && !DirectoryOffsetFound)
-            {
-                DirectoryOffsetFound = DirInfo->NextOffset == DirectoryOffset;
-                continue;
-            }
-
             FileName.Length =
             FileName.MaximumLength = (USHORT)(DirInfoSize - sizeof(FSP_FSCTL_DIR_INFO));
             FileName.Buffer = DirInfo->FileNameBuf;
+
+            if (0 != DirectoryMarker && 0 != DirectoryMarker->Buffer &&
+                !DirectoryMarkerFound)
+            {
+                DirectoryMarkerFound = 0 == FspFileNameCompare(
+                    &FileName, DirectoryMarker, CaseInsensitive, 0);
+                continue;
+            }
 
             /* CopyLength is the same as FileName.Length except on STATUS_BUFFER_OVERFLOW */
             CopyLength = FileName.Length;
@@ -223,7 +224,6 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     *(PULONG)PrevDestBuf = (ULONG)((PUINT8)DestBuf - (PUINT8)PrevDestBuf);
                 PrevDestBuf = DestBuf;
 
-                *PDirectoryOffset = DirInfo->NextOffset;
                 *PDestLen = (ULONG)((PUINT8)DestBuf + BaseInfoLen + CopyLength - DestBufBgn);
 
                 switch (FileInformationClass)
@@ -265,6 +265,9 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     break;
                 }
 
+                DirectoryMarkerOut->Length = DirectoryMarkerOut->MaximumLength = FileName.Length;
+                DirectoryMarkerOut->Buffer = (PVOID)((PUINT8)DestBuf + BaseInfoLen);
+
                 DestBuf = (PVOID)((PUINT8)DestBuf +
                     FSP_FSCTL_ALIGN_UP(BaseInfoLen + CopyLength, sizeof(LONGLONG)));
 
@@ -273,7 +276,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     Loop = FALSE;
             }
             else
-                *PDirectoryOffset = DirInfo->NextOffset;
+                *DirectoryMarkerOut = FileName;
         }
     }
     except (EXCEPTION_EXECUTE_HANDLER)
@@ -315,7 +318,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopyCache(
     NTSTATUS Result;
     BOOLEAN CaseInsensitive = !FileDesc->CaseSensitive;
     PUNICODE_STRING DirectoryPattern = &FileDesc->DirectoryPattern;
-    UINT64 DirectoryOffset = FileDesc->DirectoryOffset;
+    UNICODE_STRING DirectoryMarker = FileDesc->DirectoryMarker;
     PUINT8 DirInfoBgn = (PUINT8)DirInfo;
     PUINT8 DirInfoEnd = (PUINT8)DirInfo + DirInfoSize;
 
@@ -323,17 +326,20 @@ static NTSTATUS FspFsvolQueryDirectoryCopyCache(
     DirInfoSize = (ULONG)(DirInfoEnd - (PUINT8)DirInfo);
 
     Result = FspFsvolQueryDirectoryCopy(DirectoryPattern, CaseInsensitive,
-        0 != FileDesc->DirInfoCacheHint ? 0 : DirectoryOffset, &DirectoryOffset,
+        0 != FileDesc->DirInfoCacheHint ? 0 : &FileDesc->DirectoryMarker, &DirectoryMarker,
         FileInformationClass, ReturnSingleEntry,
         &DirInfo, DirInfoSize,
         DestBuf, PDestLen);
 
     if (NT_SUCCESS(Result))
     {
-        if (0 != *PDestLen)
-            FileDesc->DirectoryHasSuchFile = TRUE;
-        FileDesc->DirectoryOffset = DirectoryOffset;
-        FileDesc->DirInfoCacheHint = (ULONG)((PUINT8)DirInfo - DirInfoBgn);
+        Result = FspFileDescSetDirectoryMarker(FileDesc, &DirectoryMarker);
+        if (NT_SUCCESS(Result))
+        {
+            if (0 != *PDestLen)
+                FileDesc->DirectoryHasSuchFile = TRUE;
+            FileDesc->DirInfoCacheHint = (ULONG)((PUINT8)DirInfo - DirInfoBgn);
+        }
     }
     else if (STATUS_NO_MORE_FILES == Result && !FileDesc->DirectoryHasSuchFile)
         Result = STATUS_NO_SUCH_FILE;
@@ -354,7 +360,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     NTSTATUS Result;
     BOOLEAN CaseInsensitive = !FileDesc->CaseSensitive;
     PUNICODE_STRING DirectoryPattern = &FileDesc->DirectoryPattern;
-    UINT64 DirectoryOffset = FileDesc->DirectoryOffset;
+    UNICODE_STRING DirectoryMarker = FileDesc->DirectoryMarker;
 
     ASSERT(DirInfo == DestBuf);
     FSP_FSCTL_STATIC_ASSERT(
@@ -363,16 +369,19 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
         "FSP_FSCTL_DIR_INFO must be bigger than FILE_ID_BOTH_DIR_INFORMATION");
 
     Result = FspFsvolQueryDirectoryCopy(DirectoryPattern, CaseInsensitive,
-        0, &DirectoryOffset,
+        0, &DirectoryMarker,
         FileInformationClass, ReturnSingleEntry,
         &DirInfo, DirInfoSize,
         DestBuf, PDestLen);
 
     if (NT_SUCCESS(Result))
     {
-        if (0 != *PDestLen)
-            FileDesc->DirectoryHasSuchFile = TRUE;
-        FileDesc->DirectoryOffset = DirectoryOffset;
+        Result = FspFileDescSetDirectoryMarker(FileDesc, &DirectoryMarker);
+        if (NT_SUCCESS(Result))
+        {
+            if (0 != *PDestLen)
+                FileDesc->DirectoryHasSuchFile = TRUE;
+        }
     }
     else if (STATUS_NO_MORE_FILES == Result && !FileDesc->DirectoryHasSuchFile)
         Result = STATUS_NO_SUCH_FILE;
@@ -442,7 +451,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
      *     counter-productive to try to read more than we need.
      */
 #define GetSystemBufferLengthMaybeCached()\
-    (0 != FsvolDeviceExtension->VolumeParams.FileInfoTimeout && 0 == FileDesc->DirectoryOffset) ||\
+    (0 != FsvolDeviceExtension->VolumeParams.FileInfoTimeout && 0 == FileDesc->DirectoryMarker.Buffer) ||\
     FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer ?\
         FspFsvolDeviceDirInfoCacheItemSizeMax : Length
 #define GetSystemBufferLengthNonCached()\
@@ -463,7 +472,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     BOOLEAN ReturnSingleEntry = BooleanFlagOn(IrpSp->Flags, SL_RETURN_SINGLE_ENTRY);
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryDirectory.FileInformationClass;
     PUNICODE_STRING FileName = IrpSp->Parameters.QueryDirectory.FileName;
-    ULONG FileIndex = IrpSp->Parameters.QueryDirectory.FileIndex;
+    //ULONG FileIndex = IrpSp->Parameters.QueryDirectory.FileIndex;
     PVOID Buffer = 0 != Irp->AssociatedIrp.SystemBuffer ?
         Irp->AssociatedIrp.SystemBuffer : Irp->UserBuffer;
     ULONG Length = IrpSp->Parameters.QueryDirectory.Length;
@@ -511,24 +520,12 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
         Request = 0;
     }
 
-    /* set the DirectoryPattern in the FileDesc */
-    Result = FspFileDescResetDirectoryPattern(FileDesc, FileName, RestartScan);
+    /* reset the FileDesc */
+    Result = FspFileDescResetDirectory(FileDesc, FileName, RestartScan, IndexSpecified);
     if (!NT_SUCCESS(Result))
     {
         FspFileNodeRelease(FileNode, Full);
         return Result;
-    }
-
-    /* determine where to (re)start */
-    if (IndexSpecified)
-    {
-        FileDesc->DirectoryHasSuchFile = FALSE;
-        FileDesc->DirectoryOffset = OFFSET_FROM_FILE_INDEX(FileIndex);
-    }
-    else if (RestartScan)
-    {
-        FileDesc->DirectoryHasSuchFile = FALSE;
-        FileDesc->DirectoryOffset = 0;
     }
 
     /* see if the required information is still in the cache and valid! */
@@ -570,8 +567,10 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
 
     /* create request */
     Result = FspIopCreateRequestEx(Irp, 0,
+        (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryPattern &&
         FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer ?
-            FileDesc->DirectoryPattern.Length + sizeof(WCHAR) : 0,
+            FileDesc->DirectoryPattern.Length + sizeof(WCHAR) : 0) +
+        (FsvolDeviceExtension->VolumeParams.MaxComponentLength + 1) * sizeof(WCHAR),
         FspFsvolQueryDirectoryRequestFini, &Request);
     if (!NT_SUCCESS(Result))
     {
@@ -582,19 +581,38 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     Request->Kind = FspFsctlTransactQueryDirectoryKind;
     Request->Req.QueryDirectory.UserContext = FileNode->UserContext;
     Request->Req.QueryDirectory.UserContext2 = FileDesc->UserContext2;
-    Request->Req.QueryDirectory.Offset = FileDesc->DirectoryOffset;
     Request->Req.QueryDirectory.Length = SystemBufferLength;
     Request->Req.QueryDirectory.CaseSensitive = FileDesc->CaseSensitive;
 
-    if (FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
+    if (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryPattern &&
+        FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
     {
-        Request->Req.QueryDirectory.Pattern.Offset = Request->FileName.Size;
+        Request->Req.QueryDirectory.Pattern.Offset =
+            Request->FileName.Size;
         Request->Req.QueryDirectory.Pattern.Size =
             FileDesc->DirectoryPattern.Length + sizeof(WCHAR);
-        RtlCopyMemory(Request->Buffer + Request->FileName.Size,
+        RtlCopyMemory(Request->Buffer + Request->Req.QueryDirectory.Pattern.Offset,
             FileDesc->DirectoryPattern.Buffer, FileDesc->DirectoryPattern.Length);
-        *(PWSTR)(Request->Buffer + Request->FileName.Size + FileDesc->DirectoryPattern.Length) =
-            L'\0';
+        *(PWSTR)(Request->Buffer +
+            Request->Req.QueryDirectory.Pattern.Offset +
+            FileDesc->DirectoryPattern.Length) = L'\0';
+    }
+
+    if (0 != FileDesc->DirectoryMarker.Buffer)
+    {
+        ASSERT(
+            FsvolDeviceExtension->VolumeParams.MaxComponentLength >=
+            FileDesc->DirectoryMarker.Length);
+
+        Request->Req.QueryDirectory.Marker.Offset =
+            Request->FileName.Size + Request->Req.QueryDirectory.Pattern.Size;
+        Request->Req.QueryDirectory.Marker.Size =
+            FileDesc->DirectoryMarker.Length + sizeof(WCHAR);
+        RtlCopyMemory(Request->Buffer + Request->Req.QueryDirectory.Marker.Offset,
+            FileDesc->DirectoryMarker.Buffer, FileDesc->DirectoryMarker.Length);
+        *(PWSTR)(Request->Buffer +
+            Request->Req.QueryDirectory.Marker.Offset +
+            FileDesc->DirectoryMarker.Length) = L'\0';
     }
 
     FspFileNodeSetOwner(FileNode, Full, Request);
@@ -617,6 +635,7 @@ static NTSTATUS FspFsvolQueryDirectory(
         return STATUS_INVALID_DEVICE_REQUEST;
 
     NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryDirectory.FileInformationClass;
@@ -636,7 +655,8 @@ static NTSTATUS FspFsvolQueryDirectory(
         return STATUS_INVALID_PARAMETER;
 
     /* check that FileName is valid (if supplied) */
-    if (0 != FileName && !FspFileNameIsValidPattern(FileName))
+    if (0 != FileName &&
+        !FspFileNameIsValidPattern(FileName, FsvolDeviceExtension->VolumeParams.MaxComponentLength))
         return STATUS_INVALID_PARAMETER;
 
     /* is this an allowed file information class? */
@@ -815,41 +835,67 @@ NTSTATUS FspFsvolDirectoryControlPrepare(
 {
     PAGED_CODE();
 
-    NTSTATUS Result;
-    PMDL Mdl = 0;
-    PVOID Address;
-    PEPROCESS Process;
-
-    Mdl = IoAllocateMdl(
-        Irp->AssociatedIrp.SystemBuffer,
-        Request->Req.QueryDirectory.Length,
-        FALSE, FALSE, 0);
-    if (0 == Mdl)
-        return STATUS_INSUFFICIENT_RESOURCES;
-
-    MmBuildMdlForNonPagedPool(Mdl);
-
-    /* map the MDL into user-mode */
-    Result = FspMapLockedPagesInUserMode(Mdl, &Address, 0);
-    if (!NT_SUCCESS(Result))
+    if (FspQueryDirectoryIrpShouldUseProcessBuffer(Irp, Request->Req.QueryDirectory.Length))
     {
-        if (0 != Mdl)
-            IoFreeMdl(Mdl);
+        NTSTATUS Result;
+        PVOID Cookie;
+        PVOID Address;
+        PEPROCESS Process;
 
-        return Result;
+        Result = FspProcessBufferAcquire(Request->Req.QueryDirectory.Length, &Cookie, &Address);
+        if (!NT_SUCCESS(Result))
+            return Result;
+
+        /* get a pointer to the current process so that we can release the buffer later */
+        Process = PsGetCurrentProcess();
+        ObReferenceObject(Process);
+
+        Request->Req.QueryDirectory.Address = (UINT64)(UINT_PTR)Address;
+
+        FspIopRequestContext(Request, RequestCookie) = (PVOID)((UINT_PTR)Cookie | 1);
+        FspIopRequestContext(Request, RequestAddress) = Address;
+        FspIopRequestContext(Request, RequestProcess) = Process;
+
+        return STATUS_SUCCESS;
     }
+    else
+    {
+        NTSTATUS Result;
+        PMDL Mdl = 0;
+        PVOID Address;
+        PEPROCESS Process;
 
-    /* get a pointer to the current process so that we can unmap the address later */
-    Process = PsGetCurrentProcess();
-    ObReferenceObject(Process);
+        Mdl = IoAllocateMdl(
+            Irp->AssociatedIrp.SystemBuffer,
+            Request->Req.QueryDirectory.Length,
+            FALSE, FALSE, 0);
+        if (0 == Mdl)
+            return STATUS_INSUFFICIENT_RESOURCES;
 
-    Request->Req.QueryDirectory.Address = (UINT64)(UINT_PTR)Address;
+        MmBuildMdlForNonPagedPool(Mdl);
 
-    FspIopRequestContext(Request, RequestMdl) = Mdl;
-    FspIopRequestContext(Request, RequestAddress) = Address;
-    FspIopRequestContext(Request, RequestProcess) = Process;
+        /* map the MDL into user-mode */
+        Result = FspMapLockedPagesInUserMode(Mdl, &Address, 0);
+        if (!NT_SUCCESS(Result))
+        {
+            if (0 != Mdl)
+                IoFreeMdl(Mdl);
 
-    return STATUS_SUCCESS;
+            return Result;
+        }
+
+        /* get a pointer to the current process so that we can unmap the address later */
+        Process = PsGetCurrentProcess();
+        ObReferenceObject(Process);
+
+        Request->Req.QueryDirectory.Address = (UINT64)(UINT_PTR)Address;
+
+        FspIopRequestContext(Request, RequestMdl) = Mdl;
+        FspIopRequestContext(Request, RequestAddress) = Address;
+        FspIopRequestContext(Request, RequestProcess) = Process;
+
+        return STATUS_SUCCESS;
+    }
 }
 
 NTSTATUS FspFsvolDirectoryControlComplete(
@@ -882,7 +928,6 @@ NTSTATUS FspFsvolDirectoryControlComplete(
     BOOLEAN Success;
 
     ASSERT(FileNode == FileDesc->FileNode);
-    ASSERT(Request->Req.QueryDirectory.Offset == FileDesc->DirectoryOffset);
 
     if (0 == Response->IoStatus.Information)
     {
@@ -893,6 +938,23 @@ NTSTATUS FspFsvolDirectoryControlComplete(
 
     if (FspFsctlTransactQueryDirectoryKind == Request->Kind)
     {
+        if ((UINT_PTR)FspIopRequestContext(Request, RequestCookie) & 1)
+        {
+            PVOID Address = FspIopRequestContext(Request, RequestAddress);
+
+            ASSERT(0 != Address);
+            try
+            {
+                RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer, Address, Response->IoStatus.Information);
+            }
+            except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                Result = GetExceptionCode();
+                Result = FsRtlIsNtstatusExpected(Result) ? STATUS_INVALID_USER_BUFFER : Result;
+                FSP_RETURN();
+            }
+        }
+
         DirInfoChangeNumber = FspFileNodeDirInfoChangeNumber(FileNode);
         Request->Kind = FspFsctlTransactReservedKind;
         FspIopResetRequest(Request, 0);
@@ -910,7 +972,8 @@ NTSTATUS FspFsvolDirectoryControlComplete(
         FSP_RETURN();
     }
 
-    if (0 == FileDesc->DirectoryOffset &&
+    if (0 == Request->Req.QueryDirectory.Pattern.Size &&
+        0 == Request->Req.QueryDirectory.Marker.Size &&
         FspFileNodeTrySetDirInfo(FileNode,
             Irp->AssociatedIrp.SystemBuffer,
             (ULONG)Response->IoStatus.Information,
@@ -949,7 +1012,24 @@ NTSTATUS FspFsvolDirectoryControlComplete(
         FspIopResetRequest(Request, FspFsvolQueryDirectoryRequestFini);
 
         Request->Req.QueryDirectory.Address = 0;
-        Request->Req.QueryDirectory.Offset = FileDesc->DirectoryOffset;
+        Request->Req.QueryDirectory.Marker.Offset = 0;
+        Request->Req.QueryDirectory.Marker.Size = 0;
+        if (0 != FileDesc->DirectoryMarker.Buffer)
+        {
+            ASSERT(
+                FsvolDeviceExtension->VolumeParams.MaxComponentLength >=
+                FileDesc->DirectoryMarker.Length);
+
+            Request->Req.QueryDirectory.Marker.Offset =
+                Request->FileName.Size + Request->Req.QueryDirectory.Pattern.Size;
+            Request->Req.QueryDirectory.Marker.Size =
+                FileDesc->DirectoryMarker.Length + sizeof(WCHAR);
+            RtlCopyMemory(Request->Buffer + Request->Req.QueryDirectory.Marker.Offset,
+                FileDesc->DirectoryMarker.Buffer, FileDesc->DirectoryMarker.Length);
+            *(PWSTR)(Request->Buffer +
+                Request->Req.QueryDirectory.Marker.Offset +
+                FileDesc->DirectoryMarker.Length) = L'\0';
+        }
 
         FspFileNodeSetOwner(FileNode, Full, Request);
         FspIopRequestContext(Request, RequestIrp) = Irp;
@@ -975,29 +1055,56 @@ static VOID FspFsvolQueryDirectoryRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
     PAGED_CODE();
 
     PIRP Irp = Context[RequestIrp];
-    PMDL Mdl = Context[RequestMdl];
-    PVOID Address = Context[RequestAddress];
-    PEPROCESS Process = Context[RequestProcess];
 
-    if (0 != Address)
+    if ((UINT_PTR)Context[RequestCookie] & 1)
     {
-        KAPC_STATE ApcState;
-        BOOLEAN Attach;
+        PVOID Cookie = (PVOID)((UINT_PTR)Context[RequestCookie] & ~1);
+        PVOID Address = Context[RequestAddress];
+        PEPROCESS Process = Context[RequestProcess];
 
-        ASSERT(0 != Process);
-        Attach = Process != PsGetCurrentProcess();
+        if (0 != Address)
+        {
+            KAPC_STATE ApcState;
+            BOOLEAN Attach;
 
-        if (Attach)
-            KeStackAttachProcess(Process, &ApcState);
-        MmUnmapLockedPages(Address, Mdl);
-        if (Attach)
-            KeUnstackDetachProcess(&ApcState);
+            ASSERT(0 != Process);
+            Attach = Process != PsGetCurrentProcess();
 
-        ObDereferenceObject(Process);
+            if (Attach)
+                KeStackAttachProcess(Process, &ApcState);
+            FspProcessBufferRelease(Cookie, Address);
+            if (Attach)
+                KeUnstackDetachProcess(&ApcState);
+
+            ObDereferenceObject(Process);
+        }
     }
+    else
+    {
+        PMDL Mdl = Context[RequestMdl];
+        PVOID Address = Context[RequestAddress];
+        PEPROCESS Process = Context[RequestProcess];
 
-    if (0 != Mdl)
-        IoFreeMdl(Mdl);
+        if (0 != Address)
+        {
+            KAPC_STATE ApcState;
+            BOOLEAN Attach;
+
+            ASSERT(0 != Process);
+            Attach = Process != PsGetCurrentProcess();
+
+            if (Attach)
+                KeStackAttachProcess(Process, &ApcState);
+            MmUnmapLockedPages(Address, Mdl);
+            if (Attach)
+                KeUnstackDetachProcess(&ApcState);
+
+            ObDereferenceObject(Process);
+        }
+
+        if (0 != Mdl)
+            IoFreeMdl(Mdl);
+    }
 
     if (0 != Irp)
     {

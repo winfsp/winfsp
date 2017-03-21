@@ -1,7 +1,7 @@
 /**
  * @file dll/library.h
  *
- * @copyright 2015-2016 Bill Zissimopoulos
+ * @copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -51,6 +51,9 @@ NTSTATUS FspEventLogUnregister(VOID);
 
 PWSTR FspDiagIdent(VOID);
 
+VOID FspFileSystemPeekInDirectoryBuffer(PVOID *PDirBuffer,
+    PUINT8 *PBuffer, PULONG *PIndex, PULONG PCount);
+
 BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType);
 
 static inline ULONG FspPathSuffixIndex(PWSTR FileName)
@@ -73,7 +76,7 @@ static inline BOOLEAN FspPathIsDrive(PWSTR FileName)
             (L'A' <= FileName[0] && FileName[0] <= L'Z') ||
             (L'a' <= FileName[0] && FileName[0] <= L'z')
         ) &&
-        L':' == FileName[1] || L'\0' == FileName[2];
+        L':' == FileName[1] && L'\0' == FileName[2];
 }
 
 #endif
