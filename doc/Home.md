@@ -18,6 +18,7 @@ The documentation available here discusses various aspects of WinFsp.
 - The [[Design|WinFsp-Design]] document describes the high-level design of WinFsp.
 - The [[IPC|WinFsp-as-an-IPC-Mechanism]] document offers insights into the WinFsp Inter-Process Communication mechanism.
 - The [[Service Architecture|WinFsp-Service-Architecture]] document discusses how to intergrate a file system into Windows as a service and the reasons to do so.
+- The [[SSHFS Port Case Study|SSHFS-Port-Case-Study]] document chronicles the creation of the WinFsp-FUSE compatibility layer and the decisions that led to its design.
 
 ## Testing
 
