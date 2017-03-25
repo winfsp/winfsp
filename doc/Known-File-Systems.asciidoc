@@ -1,0 +1,17 @@
+= Known File Systems and File System Libraries
+
+This document contains a list of known file systems and file system libraries that run on WinFsp. Please contact the WinFsp project to have your file system solution added to this list.
+
+== File Systems
+
+- nfs-win - NFS for Windows [https://github.com/billziss-gh/nfs-win[link]]
+- redditfs - ls -l /r/programming [https://github.com/billziss-gh/redditfs[link]]
+- securefs - Filesystem in userspace (FUSE) with transparent authenticated encryption [https://github.com/netheril96/securefs[link]]
+- sshfs-win - SSHFS for Windows [https://github.com/billziss-gh/sshfs-win[link]]
+
+== File System Libraries
+
+- fuse-bindings - Fully maintained FUSE bindings for Node that aims to cover the entire FUSE api [https://github.com/DuroSoft/fuse-bindings[link]]
+- fuse-jna - No-nonsense, actually-working Java bindings to FUSE using JNA [https://github.com/ui4j/fuse-jna[link]]
+- fusepy - Simple ctypes bindings for FUSE [https://github.com/billziss-gh/fusepy[link]]
+- WinFsp fork with .NET Layer - by @yogendersolanki91 [https://github.com/yogendersolanki91/winfsp[link]]
