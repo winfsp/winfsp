@@ -4,14 +4,14 @@ This document contains a list of known file systems and file system libraries th
 
 == File Systems
 
-- nfs-win - NFS for Windows [https://github.com/billziss-gh/nfs-win[link]]
-- redditfs - ls -l /r/programming [https://github.com/billziss-gh/redditfs[link]]
-- securefs - Filesystem in userspace (FUSE) with transparent authenticated encryption [https://github.com/netheril96/securefs[link]]
-- sshfs-win - SSHFS for Windows [https://github.com/billziss-gh/sshfs-win[link]]
+- https://github.com/billziss-gh/nfs-win[nfs-win] - NFS for Windows
+- https://github.com/billziss-gh/redditfs[redditfs] - ls -l /r/programming
+- https://github.com/netheril96/securefs[securefs] - Filesystem in userspace (FUSE) with transparent authenticated encryption
+- https://github.com/billziss-gh/sshfs-win[sshfs-win] - SSHFS for Windows
 
 == File System Libraries
 
-- fuse-bindings - Fully maintained FUSE bindings for Node that aims to cover the entire FUSE api [https://github.com/DuroSoft/fuse-bindings[link]]
-- fuse-jna - No-nonsense, actually-working Java bindings to FUSE using JNA [https://github.com/ui4j/fuse-jna[link]]
-- fusepy - Simple ctypes bindings for FUSE [https://github.com/billziss-gh/fusepy[link]]
-- WinFsp fork with .NET Layer - by @yogendersolanki91 [https://github.com/yogendersolanki91/winfsp[link]]
+- https://github.com/DuroSoft/fuse-bindings[fuse-bindings] - Fully maintained FUSE bindings for Node that aims to cover the entire FUSE api
+- https://github.com/ui4j/fuse-jna[fuse-jna] - No-nonsense, actually-working Java bindings to FUSE using JNA
+- https://github.com/billziss-gh/fusepy[fusepy] - Simple ctypes bindings for FUSE
+- https://github.com/yogendersolanki91/winfsp[WinFsp fork with .NET Layer] - by @yogendersolanki91
