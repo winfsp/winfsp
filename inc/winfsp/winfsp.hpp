@@ -44,12 +44,12 @@ public:
     };
     enum CLEANUP_FLAGS
     {
-        Delete                          = FspCleanupDelete,
-        SetAllocationSize               = FspCleanupSetAllocationSize,
-        SetArchiveBit                   = FspCleanupSetArchiveBit,
-        SetLastAccessTime               = FspCleanupSetLastAccessTime,
-        SetLastWriteTime                = FspCleanupSetLastWriteTime,
-        SetChangeTime                   = FspCleanupSetChangeTime,
+        CleanupDelete                   = FspCleanupDelete,
+        CleanupSetAllocationSize        = FspCleanupSetAllocationSize,
+        CleanupSetArchiveBit            = FspCleanupSetArchiveBit,
+        CleanupSetLastAccessTime        = FspCleanupSetLastAccessTime,
+        CleanupSetLastWriteTime         = FspCleanupSetLastWriteTime,
+        CleanupSetChangeTime            = FspCleanupSetChangeTime,
     };
 
 public:
@@ -60,6 +60,7 @@ public:
         _VolumeParams.SectorSize = 4096;
         _VolumeParams.SectorsPerAllocationUnit = 1;
         _VolumeParams.MaxComponentLength = 255;
+        _VolumeParams.FileInfoTimeout = 1000;
         GetSystemTimeAsFileTime((PFILETIME)&_VolumeParams.VolumeCreationTime);
         _VolumeParams.VolumeSerialNumber = (UINT32)(_VolumeParams.VolumeCreationTime / (10000 * 1000));
         _VolumeParams.UmFileContextIsUserContext2 = 1;
@@ -257,6 +258,7 @@ public:
             ReplaceReparseData, ReplaceReparseDataSize);
     }
 
+protected:
     /* operations */
     virtual NTSTATUS GetVolumeInfo(
         VOLUME_INFO *VolumeInfo)
@@ -436,7 +438,7 @@ private:
         PVOID *FullContext, FILE_INFO *FileInfo)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
+        FILE_CONTEXT FileContext = { 0 };
         NTSTATUS Result = self->Create(
             FileName, CreateOptions, GrantedAccess, FileAttributes, SecurityDescriptor, AllocationSize,
             &FileContext, FspFileSystemGetOpenFileInfo(FileInfo));
@@ -449,7 +451,7 @@ private:
         PVOID *FullContext, FILE_INFO *FileInfo)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
+        FILE_CONTEXT FileContext = { 0 };
         NTSTATUS Result = self->Open(
             FileName, CreateOptions, GrantedAccess,
             &FileContext, FspFileSystemGetOpenFileInfo(FileInfo));
