@@ -150,13 +150,16 @@ static void rdwr_dotest(ULONG CreateDisposition, ULONG CreateFlags,
         ASSERT(FileSize == BytesTransferred);
         SetEndOfFile(Handle);
     }
-
+	//printf("FileSize %d BufferSize %d\n", FileSize,BufferSize);
     for (ULONG Index = 0; Count > Index; Index++)
     {
         BytesTransferred = SetFilePointer(Handle, 0, 0, FILE_BEGIN);
+	//	printf("Bytetransferd %d\n", BytesTransferred);
+	//	printf("OUT: Index %d Count %d\n", Index,Count);
         ASSERT(0 == BytesTransferred);
         for (ULONG I = 0, N = FileSize / BufferSize; N > I; I++)
         {
+		//	printf("IN: I %d N %d\n", I, N);
             if (CREATE_NEW == CreateDisposition)
                 Success = WriteFile(Handle, Buffer, BufferSize, &BytesTransferred, 0);
             else

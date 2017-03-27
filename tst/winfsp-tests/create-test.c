@@ -146,7 +146,7 @@ void create_dotest(ULONG Flags, PWSTR Prefix)
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
-
+	wprintf("Current FileName %ls", FilePath);
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
