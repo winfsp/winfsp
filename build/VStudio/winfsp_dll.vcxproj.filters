@@ -50,6 +50,9 @@
     <ClInclude Include="..\..\src\dll\fuse\library.h">
       <Filter>Source\fuse</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\inc\winfsp\winfsp.hpp">
+      <Filter>Include\winfsp</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\dll\library.c">
