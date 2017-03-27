@@ -160,6 +160,7 @@ public:
             MountPoint);
     }
     NTSTATUS Mount(PWSTR MountPoint,
+        PSECURITY_DESCRIPTOR SecurityDescriptor = 0,
         BOOLEAN Synchronized = FALSE,
         UINT32 DebugLog = 0)
     {
@@ -169,7 +170,7 @@ public:
             &_VolumeParams, Interface(), &_FileSystem);
         if (NT_SUCCESS(Result))
         {
-            Result = FspFileSystemSetMountPoint(_FileSystem, MountPoint);
+            Result = FspFileSystemSetMountPointEx(_FileSystem, MountPoint, SecurityDescriptor);
             if (NT_SUCCESS(Result))
                 Result = FspFileSystemStartDispatcher(_FileSystem, 0);
         }
