@@ -411,32 +411,42 @@ protected:
 
 private:
     /* FSP_FILE_SYSTEM_INTERFACE */
+#define FSP_FSOP_PROLOG                 try {
+#define FSP_FSOP_EPILOG                 } catch (...) { return STATUS_UNEXPECTED_IO_ERROR; }
+#define FSP_FSOP_EPILOG_VOID            } catch (...) { return; }
     static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem0,
         VOLUME_INFO *VolumeInfo)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         return self->GetVolumeInfo(VolumeInfo);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM *FileSystem0,
         PWSTR VolumeLabel,
         VOLUME_INFO *VolumeInfo)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         return self->SetVolumeLabel_(VolumeLabel, VolumeInfo);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem0,
         PWSTR FileName, PUINT32 PFileAttributes/* or ReparsePointIndex */,
         PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         return self->GetSecurityByName(
             FileName, PFileAttributes, SecurityDescriptor, PSecurityDescriptorSize);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem0,
         PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
         UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
         PVOID *FullContext, FILE_INFO *FileInfo)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext = { 0 };
         NTSTATUS Result = self->Create(
@@ -445,11 +455,13 @@ private:
         ((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext = (UINT64)(UINT_PTR)FileContext.FileNode;
         ((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2 = (UINT64)(UINT_PTR)FileContext.FileDesc;
         return Result;
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem0,
         PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
         PVOID *FullContext, FILE_INFO *FileInfo)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext = { 0 };
         NTSTATUS Result = self->Open(
@@ -458,83 +470,99 @@ private:
         ((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext = (UINT64)(UINT_PTR)FileContext.FileNode;
         ((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2 = (UINT64)(UINT_PTR)FileContext.FileDesc;
         return Result;
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
         FILE_INFO *FileInfo)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->Overwrite(&FileContext, FileAttributes, ReplaceFileAttributes, AllocationSize,
             FileInfo);
+        FSP_FSOP_EPILOG
     }
     static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext, PWSTR FileName, ULONG Flags)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->Cleanup(&FileContext, FileName, (CLEANUP_FLAGS)Flags);
+        FSP_FSOP_EPILOG_VOID
     }
     static VOID Close(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->Close(&FileContext);
+        FSP_FSOP_EPILOG_VOID
     }
     static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext, PVOID Buffer, UINT64 Offset, ULONG Length,
         PULONG PBytesTransferred)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->Read(&FileContext, Buffer, Offset, Length, PBytesTransferred);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext, PVOID Buffer, UINT64 Offset, ULONG Length,
         BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
         PULONG PBytesTransferred, FILE_INFO *FileInfo)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->Write(&FileContext, Buffer, Offset, Length, WriteToEndOfFile, ConstrainedIo,
             PBytesTransferred, FileInfo);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
         FILE_INFO *FileInfo)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->Flush(&FileContext, FileInfo);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
         FILE_INFO *FileInfo)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->GetFileInfo(&FileContext, FileInfo);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext, UINT32 FileAttributes,
         UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime,
         FILE_INFO *FileInfo)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
@@ -542,121 +570,149 @@ private:
         return self->SetBasicInfo(&FileContext, FileAttributes,
             CreationTime, LastAccessTime, LastWriteTime, ChangeTime,
             FileInfo);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext, UINT64 NewSize, BOOLEAN SetAllocationSize,
         FILE_INFO *FileInfo)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->SetFileSize(&FileContext, NewSize, SetAllocationSize, FileInfo);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext, PWSTR FileName)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->CanDelete(&FileContext, FileName);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
         PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->Rename(&FileContext, FileName, NewFileName, ReplaceIfExists);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
         PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->GetSecurity(&FileContext, SecurityDescriptor, PSecurityDescriptorSize);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
         SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->SetSecurity(&FileContext, SecurityInformation, ModificationDescriptor);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext, PWSTR Pattern, PWSTR Marker,
         PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->ReadDirectory(&FileContext, Pattern, Marker, Buffer, Length, PBytesTransferred);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem0,
         PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent,
         PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         return self->ResolveReparsePoints(FileName, ReparsePointIndex, ResolveLastPathComponent,
             PIoStatus, Buffer, PSize);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS GetReparsePointByName(
         FSP_FILE_SYSTEM *FileSystem0, PVOID Context,
         PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         return self->GetReparsePointByName(FileName, IsDirectory, Buffer, PSize);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
         PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->GetReparsePoint(&FileContext, FileName, Buffer, PSize);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
         PWSTR FileName, PVOID Buffer, SIZE_T Size)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->SetReparsePoint(&FileContext, FileName, Buffer, Size);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
         PWSTR FileName, PVOID Buffer, SIZE_T Size)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->DeleteReparsePoint(&FileContext, FileName, Buffer, Size);
+        FSP_FSOP_EPILOG
     }
     static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext, PVOID Buffer, ULONG Length,
         PULONG PBytesTransferred)
     {
+        FSP_FSOP_PROLOG
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FILE_CONTEXT FileContext;
         FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
         FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         return self->GetStreamInfo(&FileContext, Buffer, Length, PBytesTransferred);
+        FSP_FSOP_EPILOG
     }
+#undef FSP_FSOP_PROLOG
+#undef FSP_FSOP_EPILOG
+#undef FSP_FSOP_EPILOG_VOID
     static FSP_FILE_SYSTEM_INTERFACE *Interface()
     {
         static FSP_FILE_SYSTEM_INTERFACE _Interface =
