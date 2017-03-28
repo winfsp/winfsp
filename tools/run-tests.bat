@@ -484,28 +484,28 @@ if not X!IfsTestFound!==XYES set IfsTestExit=1
 exit /b !IfsTestExit!
 
 :sample-passthrough-x64
-call :__sample-passthrough x64
+call :__sample-passthrough x64 x64
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-x86
-call :__sample-passthrough x86
+call :__sample-passthrough x86 x86
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-cpp-x64
-call :__sample-passthrough cpp-x64
+call :__sample-passthrough cpp-x64 x64 -cpp
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-cpp-x86
-call :__sample-passthrough cpp-x86
+call :__sample-passthrough cpp-x86 x86 -cpp
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :__sample-passthrough
 set SamplePassthroughExit=0
-call %ProjRoot%\tools\build-sample %Configuration% %1 passthrough "%TMP%\passthrough-%1"
+call %ProjRoot%\tools\build-sample %Configuration% %2 passthrough%3 "%TMP%\passthrough-%1"
 if !ERRORLEVEL! neq 0 goto fail
 mkdir "%TMP%\passthrough-%1\test"
 call "%ProjRoot%\tools\fsreg" passthrough "%TMP%\passthrough-%1\build\%Configuration%\passthrough-%1.exe" "-u %%%%1 -m %%%%2" "D:P(A;;RPWPLC;;;WD)"
@@ -517,13 +517,11 @@ net use | findstr L:
 pushd >nul
 cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
-
 "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-%1.exe" ^
     --external --resilient --case-insensitive-cmp --share-prefix="\passthrough\%TMP::=$%\passthrough-%1\test" ^
     -create_allocation_test -getfileinfo_name_test -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test ^
     -reparse* -stream*
 if !ERRORLEVEL! neq 0 set SamplePassthroughExit=1
-
 popd
 echo net use L: /delete
 net use L: /delete
@@ -556,14 +554,12 @@ net use | findstr L:
 pushd >nul
 cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
-
 "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-%1.exe" ^
     --external --resilient --case-insensitive-cmp --share-prefix="\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test" ^
     -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
     -getfileinfo_name_test -setfileinfo_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -exec_rename_dir_test ^
     -reparse* -stream*
 if !ERRORLEVEL! neq 0 set SamplePassthroughExit=1
-
 popd
 echo net use L: /delete
 net use L: /delete
