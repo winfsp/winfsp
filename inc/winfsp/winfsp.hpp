@@ -56,14 +56,13 @@ public:
     /* ctor/dtor */
     FileSystem() : _VolumeParams(), _FileSystem(0)
     {
-        static NTSTATUS LoadResult = FspLoad(0);
         _VolumeParams.SectorSize = 4096;
         _VolumeParams.SectorsPerAllocationUnit = 1;
         _VolumeParams.MaxComponentLength = 255;
         _VolumeParams.FileInfoTimeout = 1000;
         GetSystemTimeAsFileTime((PFILETIME)&_VolumeParams.VolumeCreationTime);
         _VolumeParams.VolumeSerialNumber = (UINT32)(_VolumeParams.VolumeCreationTime / (10000 * 1000));
-        _VolumeParams.UmFileContextIsUserContext2 = 1;
+        _VolumeParams.UmFileContextIsFullContext = 1;
     }
     virtual ~FileSystem()
     {
@@ -171,19 +170,16 @@ public:
             &_VolumeParams, Interface(), &_FileSystem);
         if (NT_SUCCESS(Result))
         {
-            Result = FspFileSystemSetMountPointEx(_FileSystem, MountPoint, SecurityDescriptor);
-            if (NT_SUCCESS(Result))
-                Result = FspFileSystemStartDispatcher(_FileSystem, 0);
-        }
-        if (NT_SUCCESS(Result))
-        {
             _FileSystem->UserContext = this;
             FspFileSystemSetOperationGuardStrategy(_FileSystem, Synchronized ?
                 FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE :
                 FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE);
             FspFileSystemSetDebugLog(_FileSystem, DebugLog);
+            Result = FspFileSystemSetMountPointEx(_FileSystem, MountPoint, SecurityDescriptor);
+            if (NT_SUCCESS(Result))
+                Result = FspFileSystemStartDispatcher(_FileSystem, 0);
         }
-        else if (0 != _FileSystem)
+        if (!NT_SUCCESS(Result) && 0 != _FileSystem)
         {
             FspFileSystemDelete(_FileSystem);
             _FileSystem = 0;
