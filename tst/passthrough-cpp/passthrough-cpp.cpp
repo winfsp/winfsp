@@ -899,5 +899,8 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
 
 int wmain(int argc, wchar_t **argv)
 {
+    if (!NT_SUCCESS(FspLoad(0)))
+        return ERROR_DELAY_LOAD_FAILED;
+
     return FspServiceRun(L"" PROGNAME, SvcStart, SvcStop, 0);
 }
