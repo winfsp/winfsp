@@ -517,7 +517,7 @@ net use | findstr L:
 pushd >nul
 cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
-"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-%1.exe" ^
+"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-%2.exe" ^
     --external --resilient --case-insensitive-cmp --share-prefix="\passthrough\%TMP::=$%\passthrough-%1\test" ^
     -create_allocation_test -getfileinfo_name_test -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test ^
     -reparse* -stream*
