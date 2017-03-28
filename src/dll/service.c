@@ -79,7 +79,7 @@ FSP_API ULONG FspServiceRunEx(PWSTR ServiceName,
     if (!NT_SUCCESS(Result))
     {
         FspServiceLog(EVENTLOG_ERROR_TYPE,
-            L"The service %s cannot be created (Status=%lx).", Service->ServiceName, Result);
+            L"The service %s cannot be created (Status=%lx).", ServiceName, Result);
         return FspWin32FromNtStatus(Result);
     }
     Service->UserContext = UserContext;
@@ -92,7 +92,7 @@ FSP_API ULONG FspServiceRunEx(PWSTR ServiceName,
     if (!NT_SUCCESS(Result))
     {
         FspServiceLog(EVENTLOG_ERROR_TYPE,
-            L"The service %s has failed to run (Status=%lx).", Service->ServiceName, Result);
+            L"The service %s has failed to run (Status=%lx).", ServiceName, Result);
         return FspWin32FromNtStatus(Result);
     }
 
