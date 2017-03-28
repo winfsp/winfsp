@@ -208,6 +208,9 @@
                 <Component Id="C.winfsp.h">
                     <File Name="winfsp.h" KeyPath="yes" />
                 </Component>
+                <Component Id="C.winfsp.hpp">
+                    <File Name="winfsp.hpp" KeyPath="yes" />
+                </Component>
             </Directory>
             <Directory Id="INCDIR.fuse" Name="fuse">
                 <Component Id="C.fuse.h">
@@ -276,6 +279,20 @@
                 </Component>
                 <Component Id="C.passthrough.vcxproj.filters">
                     <File Name="passthrough.vcxproj.filters" KeyPath="yes" />
+                </Component>
+            </Directory>
+            <Directory Id="SMPDIR.passthrough_cpp" Name="passthrough-cpp">
+                <Component Id="C.passthrough_cpp.cpp">
+                    <File Name="passthrough-cpp.cpp" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_cpp.sln">
+                    <File Name="passthrough-cpp.sln" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_cpp.vcxproj">
+                    <File Name="passthrough-cpp.vcxproj" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_cpp.vcxproj.filters">
+                    <File Name="passthrough-cpp.vcxproj.filters" KeyPath="yes" />
                 </Component>
             </Directory>
             <Directory Id="SMPDIR.passthrough_fuse" Name="passthrough-fuse">
@@ -357,6 +374,7 @@
         <ComponentGroup Id="C.WinFsp.inc">
             <ComponentRef Id="C.fsctl.h" />
             <ComponentRef Id="C.winfsp.h" />
+            <ComponentRef Id="C.winfsp.hpp" />
             <ComponentRef Id="C.fuse.h" />
             <ComponentRef Id="C.fuse_common.h" />
             <ComponentRef Id="C.fuse_opt.h" />
@@ -378,6 +396,10 @@
             <ComponentRef Id="C.passthrough.sln" />
             <ComponentRef Id="C.passthrough.vcxproj" />
             <ComponentRef Id="C.passthrough.vcxproj.filters" />
+            <ComponentRef Id="C.passthrough_cpp.cpp" />
+            <ComponentRef Id="C.passthrough_cpp.sln" />
+            <ComponentRef Id="C.passthrough_cpp.vcxproj" />
+            <ComponentRef Id="C.passthrough_cpp.vcxproj.filters" />
             <ComponentRef Id="C.passthrough_fuse.c" />
             <ComponentRef Id="C.passthrough_fuse.winposix.c" />
             <ComponentRef Id="C.passthrough_fuse.winposix.h" />

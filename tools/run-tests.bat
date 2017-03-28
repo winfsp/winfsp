@@ -60,6 +60,8 @@ set opt_tests=^
     ifstest-memfs-x86-disk ^
     sample-passthrough-x64 ^
     sample-passthrough-x86 ^
+    sample-passthrough-cpp-x64 ^
+    sample-passthrough-cpp-x86 ^
     sample-passthrough-fuse-x64 ^
     sample-passthrough-fuse-x86
 
@@ -488,6 +490,16 @@ exit /b 0
 
 :sample-passthrough-x86
 call :__sample-passthrough x86
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-passthrough-cpp-x64
+call :__sample-passthrough cpp-x64
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-passthrough-cpp-x86
+call :__sample-passthrough cpp-x86
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
