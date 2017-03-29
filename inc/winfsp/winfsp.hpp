@@ -820,7 +820,11 @@ public:
     }
 
 protected:
-    /* virtuals */
+    /* start/stop */
+    virtual NTSTATUS ExceptionHandler()
+    {
+        return 0xE06D7363/*STATUS_CPP_EH_EXCEPTION*/;
+    }
     virtual NTSTATUS OnStart(ULONG Argc, PWSTR *Argv)
     {
         return STATUS_SUCCESS;
@@ -832,10 +836,6 @@ protected:
 
 private:
     /* callbacks */
-    virtual NTSTATUS ExceptionHandler()
-    {
-        return 0xE06D7363/*STATUS_CPP_EH_EXCEPTION*/;
-    }
     static NTSTATUS OnStart(FSP_SERVICE *Service0, ULONG Argc, PWSTR *Argv)
     {
         Service *self = (Service *)Service0->UserContext;
