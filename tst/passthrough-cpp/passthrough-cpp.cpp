@@ -104,7 +104,7 @@ struct PTFS_FILE_DESC
     ~PTFS_FILE_DESC()
     {
         CloseHandle(Handle);
-        FspFileSystemDeleteDirectoryBuffer(&DirBuffer);
+        PTFS::DeleteDirectoryBuffer(&DirBuffer);
     }
     HANDLE Handle;
     PVOID DirBuffer;
@@ -635,7 +635,7 @@ NTSTATUS PTFS::ReadDirectory(
     NTSTATUS DirBufferResult;
 
     DirBufferResult = STATUS_SUCCESS;
-    if (FspFileSystemAcquireDirectoryBuffer(&FileDesc->DirBuffer, 0 == Marker, &DirBufferResult))
+    if (AcquireDirectoryBuffer(&FileDesc->DirBuffer, 0 == Marker, &DirBufferResult))
     {
         if (0 == Pattern)
             Pattern = L"*";
@@ -648,7 +648,7 @@ NTSTATUS PTFS::ReadDirectory(
             DirBufferResult = STATUS_OBJECT_NAME_INVALID;
         if (!NT_SUCCESS(DirBufferResult))
         {
-            FspFileSystemReleaseDirectoryBuffer(&FileDesc->DirBuffer);
+            ReleaseDirectoryBuffer(&FileDesc->DirBuffer);
             return DirBufferResult;
         }
 
@@ -679,20 +679,20 @@ NTSTATUS PTFS::ReadDirectory(
                 DirInfo->FileInfo.HardLinks = 0;
                 memcpy(DirInfo->FileNameBuf, FindData.cFileName, Length * sizeof(WCHAR));
 
-                if (!FspFileSystemFillDirectoryBuffer(&FileDesc->DirBuffer, DirInfo, &DirBufferResult))
+                if (!FillDirectoryBuffer(&FileDesc->DirBuffer, DirInfo, &DirBufferResult))
                     break;
             } while (FindNextFileW(FindHandle, &FindData));
 
             FindClose(FindHandle);
         }
 
-        FspFileSystemReleaseDirectoryBuffer(&FileDesc->DirBuffer);
+        ReleaseDirectoryBuffer(&FileDesc->DirBuffer);
     }
 
     if (!NT_SUCCESS(DirBufferResult))
         return DirBufferResult;
 
-    FspFileSystemReadDirectoryBuffer(&FileDesc->DirBuffer,
+    ReadDirectoryBuffer(&FileDesc->DirBuffer,
         Marker, Buffer, BufferLength, PBytesTransferred);
 
     return STATUS_SUCCESS;
