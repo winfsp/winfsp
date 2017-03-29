@@ -23,9 +23,9 @@
 #define ALLOCATION_UNIT                 4096
 #define FULLPATH_SIZE                   (MAX_PATH + FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR))
 
-#define info(format, ...)               FspServiceLog(EVENTLOG_INFORMATION_TYPE, format, __VA_ARGS__)
-#define warn(format, ...)               FspServiceLog(EVENTLOG_WARNING_TYPE, format, __VA_ARGS__)
-#define fail(format, ...)               FspServiceLog(EVENTLOG_ERROR_TYPE, format, __VA_ARGS__)
+#define info(format, ...)               Fsp::Service::Log(EVENTLOG_INFORMATION_TYPE, format, __VA_ARGS__)
+#define warn(format, ...)               Fsp::Service::Log(EVENTLOG_WARNING_TYPE, format, __VA_ARGS__)
+#define fail(format, ...)               Fsp::Service::Log(EVENTLOG_ERROR_TYPE, format, __VA_ARGS__)
 
 #define ConcatPath(FN, FP)              (0 == StringCbPrintfW(FP, sizeof FP, L"%s%s", _Path, FN))
 #define HandleFromContext(FC)           ((PTFS_FILE_DESC *)FileContext->FileDesc)->Handle
@@ -698,6 +698,19 @@ NTSTATUS PTFS::ReadDirectory(
     return STATUS_SUCCESS;
 }
 
+class PTFS_SERVICE : public Fsp::Service
+{
+public:
+    PTFS_SERVICE();
+
+protected:
+    NTSTATUS OnStart(ULONG Argc, PWSTR *Argv);
+    NTSTATUS OnStop();
+
+private:
+    PTFS *_Ptfs;
+};
+
 static NTSTATUS EnableBackupRestorePrivileges(VOID)
 {
     union
@@ -737,7 +750,11 @@ static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
     return L'\0' != w[0] && L'\0' == *endp ? ul : deflt;
 }
 
-static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
+PTFS_SERVICE::PTFS_SERVICE() : Fsp::Service(L"" PROGNAME)
+{
+}
+
+NTSTATUS PTFS_SERVICE::OnStart(ULONG argc, PWSTR *argv)
 {
 #define argtos(v)                       if (arge > ++argp) v = *argp; else goto usage
 #define argtol(v)                       if (arge > ++argp) v = wcstol_deflt(*argp, v); else goto usage
@@ -859,7 +876,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         PassThrough,
         MountPoint);
 
-    Service->UserContext = Ptfs;
+    _Ptfs = Ptfs;
     Result = STATUS_SUCCESS;
 
 exit:
@@ -887,20 +904,16 @@ usage:
 #undef argtol
 }
 
-static NTSTATUS SvcStop(FSP_SERVICE *Service)
+NTSTATUS PTFS_SERVICE::OnStop()
 {
-    PTFS *Ptfs = (PTFS *)Service->UserContext;
-
-    Ptfs->Unmount();
-    delete Ptfs;
+    _Ptfs->Unmount();
+    delete _Ptfs;
+    _Ptfs = 0;
 
     return STATUS_SUCCESS;
 }
 
 int wmain(int argc, wchar_t **argv)
 {
-    if (!NT_SUCCESS(FspLoad(0)))
-        return ERROR_DELAY_LOAD_FAILED;
-
-    return FspServiceRun(L"" PROGNAME, SvcStart, SvcStop, 0);
+    return PTFS_SERVICE().Run();
 }
