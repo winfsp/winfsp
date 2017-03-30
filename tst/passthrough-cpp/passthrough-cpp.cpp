@@ -750,7 +750,7 @@ static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
     return L'\0' != w[0] && L'\0' == *endp ? ul : deflt;
 }
 
-PTFS_SERVICE::PTFS_SERVICE() : Fsp::Service(L"" PROGNAME)
+PTFS_SERVICE::PTFS_SERVICE() : Fsp::Service(L"" PROGNAME), _Ptfs(0)
 {
 }
 
