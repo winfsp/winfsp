@@ -30,8 +30,7 @@
 #define FSP_CPP_EXCEPTION_GUARD_VOID(...)\
     try { __VA_ARGS__ } catch (...) { self->ExceptionHandler(); return; }
 
-namespace Fsp
-{
+namespace Fsp {
 
 inline NTSTATUS Initialize()
 {
@@ -68,12 +67,6 @@ public:
     FileSystem() : _VolumeParams(), _FileSystem(0)
     {
         Initialize();
-        _VolumeParams.SectorSize = 4096;
-        _VolumeParams.SectorsPerAllocationUnit = 1;
-        _VolumeParams.MaxComponentLength = 255;
-        _VolumeParams.FileInfoTimeout = 1000;
-        GetSystemTimeAsFileTime((PFILETIME)&_VolumeParams.VolumeCreationTime);
-        _VolumeParams.VolumeSerialNumber = (UINT32)(_VolumeParams.VolumeCreationTime / (10000 * 1000));
         _VolumeParams.UmFileContextIsFullContext = 1;
     }
     virtual ~FileSystem()
