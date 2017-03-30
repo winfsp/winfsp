@@ -23,14 +23,16 @@
 #define ALLOCATION_UNIT                 4096
 #define FULLPATH_SIZE                   (MAX_PATH + FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR))
 
-#define info(format, ...)               Fsp::Service::Log(EVENTLOG_INFORMATION_TYPE, format, __VA_ARGS__)
-#define warn(format, ...)               Fsp::Service::Log(EVENTLOG_WARNING_TYPE, format, __VA_ARGS__)
-#define fail(format, ...)               Fsp::Service::Log(EVENTLOG_ERROR_TYPE, format, __VA_ARGS__)
+#define info(format, ...)               Service::Log(EVENTLOG_INFORMATION_TYPE, format, __VA_ARGS__)
+#define warn(format, ...)               Service::Log(EVENTLOG_WARNING_TYPE, format, __VA_ARGS__)
+#define fail(format, ...)               Service::Log(EVENTLOG_ERROR_TYPE, format, __VA_ARGS__)
 
 #define ConcatPath(FN, FP)              (0 == StringCbPrintfW(FP, sizeof FP, L"%s%s", _Path, FN))
 #define HandleFromContext(FC)           ((PTFS_FILE_DESC *)FileContext->FileDesc)->Handle
 
-class PTFS : public Fsp::FileSystem
+using namespace Fsp;
+
+class PTFS : public FileSystem
 {
 public:
     PTFS();
@@ -110,7 +112,7 @@ struct PTFS_FILE_DESC
     PVOID DirBuffer;
 };
 
-PTFS::PTFS() : _Path()
+PTFS::PTFS() : FileSystem(), _Path()
 {
     SetSectorSize(ALLOCATION_UNIT);
     SetSectorsPerAllocationUnit(1);
@@ -140,14 +142,14 @@ NTSTATUS PTFS::SetPath(PWSTR Path)
         Path, FILE_READ_ATTRIBUTES, 0, 0,
         OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
     if (INVALID_HANDLE_VALUE == Handle)
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
     if (0 == Length)
     {
         LastError = GetLastError();
         CloseHandle(Handle);
-        return FspNtStatusFromWin32(LastError);
+        return NtStatusFromWin32(LastError);
     }
     if (L'\\' == FullPath[Length - 1])
         FullPath[--Length] = L'\0';
@@ -156,7 +158,7 @@ NTSTATUS PTFS::SetPath(PWSTR Path)
     {
         LastError = GetLastError();
         CloseHandle(Handle);
-        return FspNtStatusFromWin32(LastError);
+        return NtStatusFromWin32(LastError);
     }
 
     CloseHandle(Handle);
@@ -176,7 +178,7 @@ NTSTATUS PTFS::GetFileInfoInternal(HANDLE Handle, FILE_INFO *FileInfo)
     BY_HANDLE_FILE_INFORMATION ByHandleFileInfo;
 
     if (!GetFileInformationByHandle(Handle, &ByHandleFileInfo))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     FileInfo->FileAttributes = ByHandleFileInfo.dwFileAttributes;
     FileInfo->ReparseTag = 0;
@@ -200,10 +202,10 @@ NTSTATUS PTFS::GetVolumeInfo(VOLUME_INFO *VolumeInfo)
     ULARGE_INTEGER TotalSize, FreeSize;
 
     if (!GetVolumePathName(_Path, Root, MAX_PATH))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     if (!GetDiskFreeSpaceEx(Root, 0, &TotalSize, &FreeSize))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     VolumeInfo->TotalSize = TotalSize.QuadPart;
     VolumeInfo->FreeSize = FreeSize.QuadPart;
@@ -229,7 +231,7 @@ NTSTATUS PTFS::GetSecurityByName(
         OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
     if (INVALID_HANDLE_VALUE == Handle)
     {
-        Result = FspNtStatusFromWin32(GetLastError());
+        Result = NtStatusFromWin32(GetLastError());
         goto exit;
     }
 
@@ -238,7 +240,7 @@ NTSTATUS PTFS::GetSecurityByName(
         if (!GetFileInformationByHandleEx(Handle,
             FileAttributeTagInfo, &AttributeTagInfo, sizeof AttributeTagInfo))
         {
-            Result = FspNtStatusFromWin32(GetLastError());
+            Result = NtStatusFromWin32(GetLastError());
             goto exit;
         }
 
@@ -252,7 +254,7 @@ NTSTATUS PTFS::GetSecurityByName(
             SecurityDescriptor, (DWORD)*PSecurityDescriptorSize, &SecurityDescriptorSizeNeeded))
         {
             *PSecurityDescriptorSize = SecurityDescriptorSizeNeeded;
-            Result = FspNtStatusFromWin32(GetLastError());
+            Result = NtStatusFromWin32(GetLastError());
             goto exit;
         }
 
@@ -314,7 +316,7 @@ NTSTATUS PTFS::Create(
     if (INVALID_HANDLE_VALUE == FileDesc->Handle)
     {
         delete FileDesc;
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
     }
 
     FileContext->FileDesc = FileDesc;
@@ -345,7 +347,7 @@ NTSTATUS PTFS::Open(
     if (INVALID_HANDLE_VALUE == FileDesc->Handle)
     {
         delete FileDesc;
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
     }
 
     FileContext->FileDesc = FileDesc;
@@ -370,26 +372,26 @@ NTSTATUS PTFS::Overwrite(
         BasicInfo.FileAttributes = FileAttributes;
         if (!SetFileInformationByHandle(Handle,
             FileBasicInfo, &BasicInfo, sizeof BasicInfo))
-            return FspNtStatusFromWin32(GetLastError());
+            return NtStatusFromWin32(GetLastError());
     }
     else if (0 != FileAttributes)
     {
         if (!GetFileInformationByHandleEx(Handle,
             FileAttributeTagInfo, &AttributeTagInfo, sizeof AttributeTagInfo))
-            return FspNtStatusFromWin32(GetLastError());
+            return NtStatusFromWin32(GetLastError());
 
         BasicInfo.FileAttributes = FileAttributes | AttributeTagInfo.FileAttributes;
         if (BasicInfo.FileAttributes ^ FileAttributes)
         {
             if (!SetFileInformationByHandle(Handle,
                 FileBasicInfo, &BasicInfo, sizeof BasicInfo))
-                return FspNtStatusFromWin32(GetLastError());
+                return NtStatusFromWin32(GetLastError());
         }
     }
 
     if (!SetFileInformationByHandle(Handle,
         FileAllocationInfo, &AllocationInfo, sizeof AllocationInfo))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     return GetFileInfoInternal(Handle, FileInfo);
 }
@@ -427,7 +429,7 @@ NTSTATUS PTFS::Read(
     Overlapped.OffsetHigh = (DWORD)(Offset >> 32);
 
     if (!ReadFile(Handle, Buffer, Length, PBytesTransferred, &Overlapped))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     return STATUS_SUCCESS;
 }
@@ -444,7 +446,7 @@ NTSTATUS PTFS::Write(
     if (ConstrainedIo)
     {
         if (!GetFileSizeEx(Handle, &FileSize))
-            return FspNtStatusFromWin32(GetLastError());
+            return NtStatusFromWin32(GetLastError());
 
         if (Offset >= (UINT64)FileSize.QuadPart)
             return STATUS_SUCCESS;
@@ -456,7 +458,7 @@ NTSTATUS PTFS::Write(
     Overlapped.OffsetHigh = (DWORD)(Offset >> 32);
 
     if (!WriteFile(Handle, Buffer, Length, PBytesTransferred, &Overlapped))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     return GetFileInfoInternal(Handle, FileInfo);
 }
@@ -472,7 +474,7 @@ NTSTATUS PTFS::Flush(
         return STATUS_SUCCESS;
 
     if (!FlushFileBuffers(Handle))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     return GetFileInfoInternal(Handle, FileInfo);
 }
@@ -507,7 +509,7 @@ NTSTATUS PTFS::SetBasicInfo(
 
     if (!SetFileInformationByHandle(Handle,
         FileBasicInfo, &BasicInfo, sizeof BasicInfo))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     return GetFileInfoInternal(Handle, FileInfo);
 }
@@ -537,7 +539,7 @@ NTSTATUS PTFS::SetFileSize(
 
         if (!SetFileInformationByHandle(Handle,
             FileAllocationInfo, &AllocationInfo, sizeof AllocationInfo))
-            return FspNtStatusFromWin32(GetLastError());
+            return NtStatusFromWin32(GetLastError());
     }
     else
     {
@@ -545,7 +547,7 @@ NTSTATUS PTFS::SetFileSize(
 
         if (!SetFileInformationByHandle(Handle,
             FileEndOfFileInfo, &EndOfFileInfo, sizeof EndOfFileInfo))
-            return FspNtStatusFromWin32(GetLastError());
+            return NtStatusFromWin32(GetLastError());
     }
 
     return GetFileInfoInternal(Handle, FileInfo);
@@ -561,7 +563,7 @@ NTSTATUS PTFS::CanDelete(
 
     if (!SetFileInformationByHandle(Handle,
         FileDispositionInfo, &DispositionInfo, sizeof DispositionInfo))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     return STATUS_SUCCESS;
 }
@@ -579,7 +581,7 @@ NTSTATUS PTFS::Rename(
         return STATUS_OBJECT_NAME_INVALID;
 
     if (!MoveFileExW(FullPath, NewFullPath, ReplaceIfExists ? MOVEFILE_REPLACE_EXISTING : 0))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     return STATUS_SUCCESS;
 }
@@ -596,7 +598,7 @@ NTSTATUS PTFS::GetSecurity(
         SecurityDescriptor, (DWORD)*PSecurityDescriptorSize, &SecurityDescriptorSizeNeeded))
     {
         *PSecurityDescriptorSize = SecurityDescriptorSizeNeeded;
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
     }
 
     *PSecurityDescriptorSize = SecurityDescriptorSizeNeeded;
@@ -611,7 +613,7 @@ NTSTATUS PTFS::SetSecurity(
     HANDLE Handle = HandleFromContext(FileContext);
 
     if (!SetKernelObjectSecurity(Handle, SecurityInformation, ModificationDescriptor))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     return STATUS_SUCCESS;
 }
@@ -643,7 +645,7 @@ NTSTATUS PTFS::ReadDirectory(
 
         Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
         if (0 == Length)
-            DirBufferResult = FspNtStatusFromWin32(GetLastError());
+            DirBufferResult = NtStatusFromWin32(GetLastError());
         else if (Length + 1 + PatternLength >= FULLPATH_SIZE)
             DirBufferResult = STATUS_OBJECT_NAME_INVALID;
         if (!NT_SUCCESS(DirBufferResult))
@@ -698,7 +700,7 @@ NTSTATUS PTFS::ReadDirectory(
     return STATUS_SUCCESS;
 }
 
-class PTFS_SERVICE : public Fsp::Service
+class PTFS_SERVICE : public Service
 {
 public:
     PTFS_SERVICE();
@@ -726,16 +728,16 @@ static NTSTATUS EnableBackupRestorePrivileges(VOID)
 
     if (!LookupPrivilegeValueW(0, SE_BACKUP_NAME, &Privileges.P.Privileges[0].Luid) ||
         !LookupPrivilegeValueW(0, SE_RESTORE_NAME, &Privileges.P.Privileges[1].Luid))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &Token))
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
 
     if (!AdjustTokenPrivileges(Token, FALSE, &Privileges.P, 0, 0, 0))
     {
         CloseHandle(Token);
 
-        return FspNtStatusFromWin32(GetLastError());
+        return NtStatusFromWin32(GetLastError());
     }
 
     CloseHandle(Token);
@@ -750,7 +752,7 @@ static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
     return L'\0' != w[0] && L'\0' == *endp ? ul : deflt;
 }
 
-PTFS_SERVICE::PTFS_SERVICE() : Fsp::Service(L"" PROGNAME), _Ptfs(0)
+PTFS_SERVICE::PTFS_SERVICE() : Service(L"" PROGNAME), _Ptfs(0)
 {
 }
 

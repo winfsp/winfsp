@@ -38,6 +38,21 @@ inline NTSTATUS Initialize()
     return LoadResult;
 }
 
+inline NTSTATUS Version(PUINT32 PVersion)
+{
+    return FspVersion(PVersion);
+}
+
+inline NTSTATUS NtStatusFromWin32(DWORD Error)
+{
+    return FspNtStatusFromWin32(Error);
+}
+
+inline DWORD Win32FromNtStatus(NTSTATUS Status)
+{
+    return FspWin32FromNtStatus(Status);
+}
+
 class FileSystem
 {
 public:
@@ -764,12 +779,6 @@ public:
     {
         Initialize();
         _CreateResult = FspServiceCreate(ServiceName, OnStart, OnStop, 0, &_Service);
-        if (!NT_SUCCESS(_CreateResult))
-        {
-            FspServiceLog(EVENTLOG_ERROR_TYPE,
-                L"The service %s cannot be created (Status=%lx).", ServiceName, _CreateResult);
-            return;
-        }
         _Service->UserContext = this;
     }
     virtual ~Service()
@@ -782,7 +791,11 @@ public:
     ULONG Run()
     {
         if (!NT_SUCCESS(_CreateResult))
+        {
+            FspServiceLog(EVENTLOG_ERROR_TYPE,
+                L"The service cannot be created (Status=%lx).", _CreateResult);
             return FspWin32FromNtStatus(_CreateResult);
+        }
         FspServiceAllowConsoleMode(_Service);
         NTSTATUS Result = FspServiceLoop(_Service);
         ULONG ExitCode = FspServiceGetExitCode(_Service);
