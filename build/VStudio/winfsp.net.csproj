@@ -1,0 +1,68 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="version.properties" />
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{94580219-CC8D-4FE5-A3BE-437B0B3481E1}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <ProjectName>winfsp.net</ProjectName>
+    <RootNamespace>Fsp</RootNamespace>
+    <AssemblyName>$(SolutionName)-net</AssemblyName>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>$(SolutionDir)build\$(Configuration)\</OutputPath>
+    <BaseIntermediateOutputPath>$(SolutionDir)build\$(ProjectName).build\</BaseIntermediateOutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>$(SolutionDir)build\$(Configuration)\</OutputPath>
+    <BaseIntermediateOutputPath>$(SolutionDir)build\$(ProjectName).build\</BaseIntermediateOutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\dotnet\FileSystem.cs">
+      <Link>FileSystem.cs</Link>
+    </Compile>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+  <Target Name="BeforeBuild">
+    <ItemGroup>
+      <AssemblyInfo Include="using System.Reflection%3b" />
+      <AssemblyInfo Include="[assembly: AssemblyProduct(&quot;$(MyProductName)&quot;)]" />
+      <AssemblyInfo Include="[assembly: AssemblyTitle(&quot;$(MyDescription)&quot;)]" />
+      <AssemblyInfo Include="[assembly: AssemblyCompany(&quot;$(MyCompanyName)&quot;)]" />
+      <AssemblyInfo Include="[assembly: AssemblyCopyright(&quot;$(MyCopyright)&quot;)]" />
+      <AssemblyInfo Include="[assembly: AssemblyVersion(&quot;$(MyCanonicalVersion)&quot;)]" />
+      <AssemblyInfo Include="[assembly: AssemblyFileVersion(&quot;$(MyVersion)&quot;)]" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)AssemblyInfo.cs" Lines="@(AssemblyInfo)" Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)AssemblyInfo.cs" />
+      <FileWrites Include="$(IntermediateOutputPath)AssemblyInfo.cs" />
+    </ItemGroup>
+  </Target>
+</Project>
