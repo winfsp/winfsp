@@ -302,7 +302,7 @@ namespace Fsp.Interop
             out UInt32 PBytesTransferred);
 
         internal unsafe fixed ulong Reserved[40];
-            /* cannot use IntPtr so use ulong */
+            /* cannot use IntPtr with fixed; on 32-bit struct will be too long, but that's ok */
     }
 
     [SuppressUnmanagedCodeSecurity]
@@ -311,14 +311,55 @@ namespace Fsp.Interop
         internal const String dllname = "winfsp.dll";
 
         [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern Int32 FspFileSystemPreflight(
+            [MarshalAs(UnmanagedType.LPWStr)] String DevicePath,
+            [MarshalAs(UnmanagedType.LPWStr)] String MountPoint);
+
+        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemCreate(
             [MarshalAs(UnmanagedType.LPWStr)] String DevicePath,
             ref VolumeParams VolumeParams,
-            IntPtr Interface,
+            ref FileSystemInterface Interface,
             out IntPtr PFileSystem);
 
         [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
         internal static extern void FspFileSystemDelete(IntPtr FileSystem);
+
+        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern Int32 FspFileSystemSetMountPoint(
+            IntPtr FileSystem,
+            [MarshalAs(UnmanagedType.LPWStr)] String MountPoint);
+
+        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern Int32 FspFileSystemSetMountPointEx(
+            IntPtr FileSystem,
+            [MarshalAs(UnmanagedType.LPWStr)] String MountPoint,
+            IntPtr SecurityDescriptor);
+
+        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern Int32 FspFileSystemRemoveMountPoint(
+            IntPtr FileSystem);
+
+        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern Int32 FspFileSystemStartDispatcher(
+            IntPtr FileSystem,
+            UInt32 ThreadCount);
+
+        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern Int32 FspFileSystemStopDispatcher(
+            IntPtr FileSystem);
+
+        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern Int32 FspVersion(
+            out UInt32 PVersion);
+
+        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern Int32 FspNtStatusFromWin32(
+            UInt32 Error);
+
+        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern UInt32 FspWin32FromNtStatus(
+            Int32 Status);
     }
 
 }
