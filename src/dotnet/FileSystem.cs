@@ -15,10 +15,11 @@
  * software.
  */
 
-namespace Fsp {
-
-public class FileSystem
+namespace Fsp
 {
-}
+
+    public class FileSystem
+    {
+    }
 
 }
