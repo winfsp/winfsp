@@ -23,7 +23,7 @@ using System.Security;
 namespace Fsp.Interop
 {
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    [StructLayout(LayoutKind.Sequential)]
     internal struct VolumeParams
     {
         /* const */
@@ -92,7 +92,7 @@ namespace Fsp.Interop
         }
     }
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    [StructLayout(LayoutKind.Sequential)]
     internal struct VolumeInfo
     {
         internal const int VolumeLabelSize = 32;
