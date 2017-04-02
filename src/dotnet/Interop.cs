@@ -306,60 +306,99 @@ namespace Fsp.Interop
     }
 
     [SuppressUnmanagedCodeSecurity]
-    internal static class Native
+    internal static class Api
     {
-        internal const String dllname = "winfsp.dll";
+        internal const String DllName = "winfsp.dll";
 
-        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemPreflight(
             [MarshalAs(UnmanagedType.LPWStr)] String DevicePath,
             [MarshalAs(UnmanagedType.LPWStr)] String MountPoint);
 
-        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemCreate(
             [MarshalAs(UnmanagedType.LPWStr)] String DevicePath,
             ref VolumeParams VolumeParams,
             ref FileSystemInterface Interface,
             out IntPtr PFileSystem);
 
-        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern void FspFileSystemDelete(IntPtr FileSystem);
 
-        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemSetMountPoint(
             IntPtr FileSystem,
             [MarshalAs(UnmanagedType.LPWStr)] String MountPoint);
 
-        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemSetMountPointEx(
             IntPtr FileSystem,
             [MarshalAs(UnmanagedType.LPWStr)] String MountPoint,
             IntPtr SecurityDescriptor);
 
-        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemRemoveMountPoint(
             IntPtr FileSystem);
 
-        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemStartDispatcher(
             IntPtr FileSystem,
             UInt32 ThreadCount);
 
-        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemStopDispatcher(
             IntPtr FileSystem);
 
-        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspVersion(
             out UInt32 PVersion);
 
-        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspNtStatusFromWin32(
             UInt32 Error);
 
-        [DllImport(dllname, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern UInt32 FspWin32FromNtStatus(
             Int32 Status);
+    }
+
+    internal static class Initializer
+    {
+        [DllImport("kernel32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true)]
+        private static extern IntPtr LoadLibraryW(
+            [MarshalAs(UnmanagedType.LPWStr)] String DllName);
+
+        private static Boolean Load()
+        {
+            String DllPath = null;
+            String DllName = 8 == IntPtr.Size ? "winfsp-x64.dll" : "winfsp-x86.dll";
+            String KeyName = 8 == IntPtr.Size ?
+                "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\WinFsp" :
+                "HKEY_LOCAL_MACHINE\\Software\\WinFsp";
+            IntPtr Module;
+
+            Module = LoadLibraryW(DllName);
+            if (IntPtr.Zero == Module)
+            {
+                DllPath = Microsoft.Win32.Registry.GetValue(KeyName, "InstallDir", null) as String;
+                if (null == DllPath)
+                    return false;
+                Module = LoadLibraryW(DllPath + DllName);
+                if (IntPtr.Zero == Module)
+                    return false;
+            }
+            return true;
+        }
+
+        internal static void Initialize()
+        {
+        }
+
+        static Initializer()
+        {
+            if (!Load())
+                return;
+        }
     }
 
 }
