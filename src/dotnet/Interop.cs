@@ -145,175 +145,203 @@ namespace Fsp.Interop
     [StructLayout(LayoutKind.Sequential)]
     internal struct FileSystemInterface
     {
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 GetVolumeInfo(
-            IntPtr FileSystem,
-            out VolumeInfo VolumeInfo);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 SetVolumeLabel(
-            IntPtr FileSystem,
-            [MarshalAs(UnmanagedType.LPWStr)] String VolumeLabel,
-            out VolumeInfo VolumeInfo);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 GetSecurityByName(
-            IntPtr FileSystem,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-            out UInt32 PFileAttributes/* or ReparsePointIndex */,
-            IntPtr SecurityDescriptor,
-            out UIntPtr PSecurityDescriptorSize);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 Create(
-            IntPtr FileSystem,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-            UInt32 CreateOptions,
-            UInt32 GrantedAccess,
-            UInt32 FileAttributes,
-            IntPtr SecurityDescriptor,
-            UInt64 AllocationSize,
-            IntPtr PFileContext,
-            out FileInfo FileInfo);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 Open(
-            IntPtr FileSystem,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-            UInt32 CreateOptions,
-            UInt32 GrantedAccess,
-            IntPtr PFileContext,
-            out FileInfo FileInfo);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 Overwrite(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            UInt32 FileAttributes,
-            Boolean ReplaceFileAttributes,
-            UInt64 AllocationSize,
-            out FileInfo FileInfo);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate void Cleanup(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-            UInt32 Flags);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate void Close(
-            IntPtr FileSystem,
-            IntPtr FileContext);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 Read(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            IntPtr Buffer,
-            UInt64 Offset,
-            UInt32 Length,
-            out UInt32 PBytesTransferred);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 Write(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            IntPtr Buffer,
-            UInt64 Offset,
-            UInt32 Length,
-            Boolean WriteToEndOfFile,
-            Boolean ConstrainedIo,
-            out UInt32 PBytesTransferred,
-            out FileInfo FileInfo);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 Flush(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            out FileInfo FileInfo);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 GetFileInfo(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            out FileInfo FileInfo);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 SetBasicInfo(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            UInt32 FileAttributes,
-            UInt64 CreationTime,
-            UInt64 LastAccessTime,
-            UInt64 LastWriteTime,
-            UInt64 ChangeTime,
-            out FileInfo FileInfo);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 SetFileSize(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            UInt64 NewSize,
-            Boolean SetAllocationSize,
-            out FileInfo FileInfo);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 CanDelete(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 Rename(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-            [MarshalAs(UnmanagedType.LPWStr)] String NewFileName,
-            Boolean ReplaceIfExists);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 GetSecurity(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            IntPtr SecurityDescriptor,
-            out UIntPtr PSecurityDescriptorSize);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 SetSecurity(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            UInt32 SecurityInformation,
-            IntPtr ModificationDescriptor);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 ReadDirectory(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            [MarshalAs(UnmanagedType.LPWStr)] String Pattern,
-            [MarshalAs(UnmanagedType.LPWStr)] String Marker,
-            IntPtr Buffer,
-            UInt32 Length,
-            out UInt32 PBytesTransferred);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 ResolveReparsePoints(
-            IntPtr FileSystem,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-            UInt32 ReparsePointIndex,
-            Boolean ResolveLastPathComponent,
-            out IoStatusBlock PIoStatus,
-            IntPtr Buffer,
-            out UIntPtr PSize);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 GetReparsePoint(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-            IntPtr Buffer,
-            out UIntPtr PSize);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 SetReparsePoint(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-            IntPtr Buffer,
-            UIntPtr Size);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 DeleteReparsePoint(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-            IntPtr Buffer,
-            UIntPtr Size);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 GetStreamInfo(
-            IntPtr FileSystem,
-            IntPtr FileContext,
-            IntPtr Buffer,
-            UInt32 Length,
-            out UInt32 PBytesTransferred);
+        internal struct Proto
+        {
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 GetVolumeInfo(
+                IntPtr FileSystem,
+                out VolumeInfo VolumeInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 SetVolumeLabel(
+                IntPtr FileSystem,
+                [MarshalAs(UnmanagedType.LPWStr)] String VolumeLabel,
+                out VolumeInfo VolumeInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 GetSecurityByName(
+                IntPtr FileSystem,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                out UInt32 PFileAttributes/* or ReparsePointIndex */,
+                IntPtr SecurityDescriptor,
+                out UIntPtr PSecurityDescriptorSize);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 Create(
+                IntPtr FileSystem,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                UInt32 CreateOptions,
+                UInt32 GrantedAccess,
+                UInt32 FileAttributes,
+                IntPtr SecurityDescriptor,
+                UInt64 AllocationSize,
+                IntPtr PFileContext,
+                out FileInfo FileInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 Open(
+                IntPtr FileSystem,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                UInt32 CreateOptions,
+                UInt32 GrantedAccess,
+                IntPtr PFileContext,
+                out FileInfo FileInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 Overwrite(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                UInt32 FileAttributes,
+                Boolean ReplaceFileAttributes,
+                UInt64 AllocationSize,
+                out FileInfo FileInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void Cleanup(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                UInt32 Flags);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void Close(
+                IntPtr FileSystem,
+                IntPtr FileContext);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 Read(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                IntPtr Buffer,
+                UInt64 Offset,
+                UInt32 Length,
+                out UInt32 PBytesTransferred);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 Write(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                IntPtr Buffer,
+                UInt64 Offset,
+                UInt32 Length,
+                Boolean WriteToEndOfFile,
+                Boolean ConstrainedIo,
+                out UInt32 PBytesTransferred,
+                out FileInfo FileInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 Flush(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                out FileInfo FileInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 GetFileInfo(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                out FileInfo FileInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 SetBasicInfo(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                UInt32 FileAttributes,
+                UInt64 CreationTime,
+                UInt64 LastAccessTime,
+                UInt64 LastWriteTime,
+                UInt64 ChangeTime,
+                out FileInfo FileInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 SetFileSize(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                UInt64 NewSize,
+                Boolean SetAllocationSize,
+                out FileInfo FileInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 CanDelete(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 Rename(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                [MarshalAs(UnmanagedType.LPWStr)] String NewFileName,
+                Boolean ReplaceIfExists);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 GetSecurity(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                IntPtr SecurityDescriptor,
+                out UIntPtr PSecurityDescriptorSize);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 SetSecurity(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                UInt32 SecurityInformation,
+                IntPtr ModificationDescriptor);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 ReadDirectory(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                [MarshalAs(UnmanagedType.LPWStr)] String Pattern,
+                [MarshalAs(UnmanagedType.LPWStr)] String Marker,
+                IntPtr Buffer,
+                UInt32 Length,
+                out UInt32 PBytesTransferred);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 ResolveReparsePoints(
+                IntPtr FileSystem,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                UInt32 ReparsePointIndex,
+                Boolean ResolveLastPathComponent,
+                out IoStatusBlock PIoStatus,
+                IntPtr Buffer,
+                out UIntPtr PSize);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 GetReparsePoint(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                IntPtr Buffer,
+                out UIntPtr PSize);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 SetReparsePoint(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                IntPtr Buffer,
+                UIntPtr Size);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 DeleteReparsePoint(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                IntPtr Buffer,
+                UIntPtr Size);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 GetStreamInfo(
+                IntPtr FileSystem,
+                IntPtr FileContext,
+                IntPtr Buffer,
+                UInt32 Length,
+                out UInt32 PBytesTransferred);
+        }
+
+        internal Proto.GetVolumeInfo GetVolumeInfo;
+        internal Proto.SetVolumeLabel SetVolumeLabel;
+        internal Proto.GetSecurityByName GetSecurityByName;
+        internal Proto.Create Create;
+        internal Proto.Open Open;
+        internal Proto.Overwrite Overwrite;
+        internal Proto.Cleanup Cleanup;
+        internal Proto.Close Close;
+        internal Proto.Read Read;
+        internal Proto.Write Write;
+        internal Proto.Flush Flush;
+        internal Proto.GetFileInfo GetFileInfo;
+        internal Proto.SetBasicInfo SetBasicInfo;
+        internal Proto.SetFileSize SetFileSize;
+        internal Proto.CanDelete CanDelete;
+        internal Proto.Rename Rename;
+        internal Proto.GetSecurity GetSecurity;
+        internal Proto.SetSecurity SetSecurity;
+        internal Proto.ReadDirectory ReadDirectory;
+        internal Proto.ResolveReparsePoints ResolveReparsePoints;
+        internal Proto.GetReparsePoint GetReparsePoint;
+        internal Proto.SetReparsePoint SetReparsePoint;
+        internal Proto.DeleteReparsePoint DeleteReparsePoint;
+        internal Proto.DeleteReparsePoint GetStreamInfo;
         internal unsafe fixed long/*IntPtr*/ Reserved[40];
             /* NTSTATUS (*Reserved[40])(); */
     }
