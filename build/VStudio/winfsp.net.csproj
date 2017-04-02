@@ -41,6 +41,9 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\..\src\dotnet\FileSystem+NtStatus.cs">
+      <Link>FileSystem+NtStatus.cs</Link>
+    </Compile>
     <Compile Include="..\..\src\dotnet\FileSystem.cs">
       <Link>FileSystem.cs</Link>
     </Compile>

@@ -23,7 +23,7 @@ using Fsp.Interop;
 namespace Fsp
 {
 
-    public class FileSystem : IDisposable
+    public partial class FileSystem : IDisposable
     {
         /* ctor/dtor */
         public FileSystem()
