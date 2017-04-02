@@ -16,6 +16,8 @@
  */
 
 using System;
+using System.Security.AccessControl;
+
 using Fsp.Interop;
 
 namespace Fsp
@@ -28,18 +30,15 @@ namespace Fsp
         {
             _VolumeParams.Flags = VolumeParams.UmFileContextIsFullContext;
         }
-
         ~FileSystem()
         {
             Dispose(false);
         }
-
         public void Dispose()
         {
             Dispose(true);
             GC.SuppressFinalize(true);
         }
-
         protected void Dispose(bool disposing)
         {
             if (IntPtr.Zero != _FileSystem)
@@ -117,6 +116,60 @@ namespace Fsp
         public void SetFileSystemName(String FileSystemName)
         {
             _VolumeParams.FileSystemName = FileSystemName;
+        }
+
+        /* control */
+        Int32 Preflight(String MountPoint)
+        {
+            return Api.FspFileSystemPreflight(
+                0 < _VolumeParams.Prefix.Length ? "WinFsp.Net" : "WinFsp.Disk",
+                MountPoint);
+        }
+        Int32 Mount(String MountPoint,
+            GenericSecurityDescriptor SecurityDescriptor = null,
+            Boolean Synchronized = false,
+            UInt32 DebugLog = 0)
+        {
+            FileSystemInterface Intf; // ???: padding
+            Int32 Result;
+            Result = Api.FspFileSystemCreate(
+                0 < _VolumeParams.Prefix.Length ? "WinFsp.Net" : "WinFsp.Disk",
+                ref _VolumeParams, ref Intf, out _FileSystem);
+            if (0 <= Result)
+            {
+#if false
+                _FileSystem->UserContext = this;
+                FspFileSystemSetOperationGuardStrategy(_FileSystem, Synchronized ?
+                    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE :
+                    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE);
+                FspFileSystemSetDebugLog(_FileSystem, DebugLog);
+#endif
+                Result = Api.FspFileSystemSetMountPointEx(_FileSystem, MountPoint, IntPtr.Zero);
+                if (0 <= Result)
+                    Result = Api.FspFileSystemStartDispatcher(_FileSystem, 0);
+            }
+            if (0 > Result && IntPtr.Zero != _FileSystem)
+            {
+                Api.FspFileSystemDelete(_FileSystem);
+                _FileSystem = IntPtr.Zero;
+            }
+            return Result;
+        }
+        public void Unmount()
+        {
+            Api.FspFileSystemStopDispatcher(_FileSystem);
+            Api.FspFileSystemDelete(_FileSystem);
+            _FileSystem = IntPtr.Zero;
+        }
+#if false
+        PWSTR MountPoint()
+        {
+            return 0 != _FileSystem ? FspFileSystemMountPoint(_FileSystem) : 0;
+        }
+#endif
+        IntPtr FileSystemHandle()
+        {
+            return _FileSystem;
         }
 
         private VolumeParams _VolumeParams;
