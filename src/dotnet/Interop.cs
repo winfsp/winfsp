@@ -149,13 +149,11 @@ namespace Fsp.Interop
         internal delegate Int32 GetVolumeInfo(
             IntPtr FileSystem,
             out VolumeInfo VolumeInfo);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 SetVolumeLabel(
             IntPtr FileSystem,
             [MarshalAs(UnmanagedType.LPWStr)] String VolumeLabel,
             out VolumeInfo VolumeInfo);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 GetSecurityByName(
             IntPtr FileSystem,
@@ -163,7 +161,6 @@ namespace Fsp.Interop
             out UInt32 PFileAttributes/* or ReparsePointIndex */,
             IntPtr SecurityDescriptor,
             out UIntPtr PSecurityDescriptorSize);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 Create(
             IntPtr FileSystem,
@@ -175,7 +172,6 @@ namespace Fsp.Interop
             UInt64 AllocationSize,
             IntPtr PFileContext,
             out FileInfo FileInfo);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 Open(
             IntPtr FileSystem,
@@ -184,7 +180,6 @@ namespace Fsp.Interop
             UInt32 GrantedAccess,
             IntPtr PFileContext,
             out FileInfo FileInfo);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 Overwrite(
             IntPtr FileSystem,
@@ -193,19 +188,16 @@ namespace Fsp.Interop
             Boolean ReplaceFileAttributes,
             UInt64 AllocationSize,
             out FileInfo FileInfo);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate void Cleanup(
             IntPtr FileSystem,
             IntPtr FileContext,
             [MarshalAs(UnmanagedType.LPWStr)] String FileName,
             UInt32 Flags);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate void Close(
             IntPtr FileSystem,
             IntPtr FileContext);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 Read(
             IntPtr FileSystem,
@@ -214,7 +206,6 @@ namespace Fsp.Interop
             UInt64 Offset,
             UInt32 Length,
             out UInt32 PBytesTransferred);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 Write(
             IntPtr FileSystem,
@@ -226,19 +217,16 @@ namespace Fsp.Interop
             Boolean ConstrainedIo,
             out UInt32 PBytesTransferred,
             out FileInfo FileInfo);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 Flush(
             IntPtr FileSystem,
             IntPtr FileContext,
             out FileInfo FileInfo);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 GetFileInfo(
             IntPtr FileSystem,
             IntPtr FileContext,
             out FileInfo FileInfo);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 SetBasicInfo(
             IntPtr FileSystem,
@@ -249,7 +237,6 @@ namespace Fsp.Interop
             UInt64 LastWriteTime,
             UInt64 ChangeTime,
             out FileInfo FileInfo);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 SetFileSize(
             IntPtr FileSystem,
@@ -257,13 +244,11 @@ namespace Fsp.Interop
             UInt64 NewSize,
             Boolean SetAllocationSize,
             out FileInfo FileInfo);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 CanDelete(
             IntPtr FileSystem,
             IntPtr FileContext,
             [MarshalAs(UnmanagedType.LPWStr)] String FileName);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 Rename(
             IntPtr FileSystem,
@@ -271,21 +256,18 @@ namespace Fsp.Interop
             [MarshalAs(UnmanagedType.LPWStr)] String FileName,
             [MarshalAs(UnmanagedType.LPWStr)] String NewFileName,
             Boolean ReplaceIfExists);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 GetSecurity(
             IntPtr FileSystem,
             IntPtr FileContext,
             IntPtr SecurityDescriptor,
             out UIntPtr PSecurityDescriptorSize);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 SetSecurity(
             IntPtr FileSystem,
             IntPtr FileContext,
             UInt32 SecurityInformation,
             IntPtr ModificationDescriptor);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 ReadDirectory(
             IntPtr FileSystem,
@@ -295,7 +277,6 @@ namespace Fsp.Interop
             IntPtr Buffer,
             UInt32 Length,
             out UInt32 PBytesTransferred);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 ResolveReparsePoints(
             IntPtr FileSystem,
@@ -305,7 +286,6 @@ namespace Fsp.Interop
             out IoStatusBlock PIoStatus,
             IntPtr Buffer,
             out UIntPtr PSize);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 GetReparsePoint(
             IntPtr FileSystem,
@@ -313,7 +293,6 @@ namespace Fsp.Interop
             [MarshalAs(UnmanagedType.LPWStr)] String FileName,
             IntPtr Buffer,
             out UIntPtr PSize);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 SetReparsePoint(
             IntPtr FileSystem,
@@ -321,7 +300,6 @@ namespace Fsp.Interop
             [MarshalAs(UnmanagedType.LPWStr)] String FileName,
             IntPtr Buffer,
             UIntPtr Size);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 DeleteReparsePoint(
             IntPtr FileSystem,
@@ -329,7 +307,6 @@ namespace Fsp.Interop
             [MarshalAs(UnmanagedType.LPWStr)] String FileName,
             IntPtr Buffer,
             UIntPtr Size);
-
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate Int32 GetStreamInfo(
             IntPtr FileSystem,
@@ -337,7 +314,6 @@ namespace Fsp.Interop
             IntPtr Buffer,
             UInt32 Length,
             out UInt32 PBytesTransferred);
-
         internal unsafe fixed long/*IntPtr*/ Reserved[40];
             /* NTSTATUS (*Reserved[40])(); */
     }
@@ -345,59 +321,51 @@ namespace Fsp.Interop
     [SuppressUnmanagedCodeSecurity]
     internal static class Api
     {
+        /* const */
         internal const String DllName = "winfsp.dll";
 
+        /* API */
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemPreflight(
             [MarshalAs(UnmanagedType.LPWStr)] String DevicePath,
             [MarshalAs(UnmanagedType.LPWStr)] String MountPoint);
-
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemCreate(
             [MarshalAs(UnmanagedType.LPWStr)] String DevicePath,
             ref VolumeParams VolumeParams,
             ref FileSystemInterface Interface,
             out IntPtr PFileSystem);
-
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern void FspFileSystemDelete(IntPtr FileSystem);
-
+        internal static extern void FspFileSystemDelete(
+            IntPtr FileSystem);
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemSetMountPoint(
             IntPtr FileSystem,
             [MarshalAs(UnmanagedType.LPWStr)] String MountPoint);
-
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemSetMountPointEx(
             IntPtr FileSystem,
             [MarshalAs(UnmanagedType.LPWStr)] String MountPoint,
             IntPtr SecurityDescriptor);
-
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemRemoveMountPoint(
             IntPtr FileSystem);
-
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemStartDispatcher(
             IntPtr FileSystem,
             UInt32 ThreadCount);
-
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspFileSystemStopDispatcher(
             IntPtr FileSystem);
-
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspVersion(
             out UInt32 PVersion);
-
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspNtStatusFromWin32(
             UInt32 Error);
-
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern UInt32 FspWin32FromNtStatus(
             Int32 Status);
-
         internal static unsafe Int32 FspFileSystemSetMountPointEx(
             IntPtr FileSystem,
             String MountPoint,
@@ -413,14 +381,11 @@ namespace Fsp.Interop
             else
                 return FspFileSystemSetMountPointEx(FileSystem, MountPoint, IntPtr.Zero);
         }
-    }
 
-    internal static class Initializer
-    {
+        /* initialization */
         [DllImport("kernel32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true)]
         private static extern IntPtr LoadLibraryW(
             [MarshalAs(UnmanagedType.LPWStr)] String DllName);
-
         private static Boolean Load()
         {
             String DllPath = null;
@@ -429,7 +394,6 @@ namespace Fsp.Interop
                 "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\WinFsp" :
                 "HKEY_LOCAL_MACHINE\\Software\\WinFsp";
             IntPtr Module;
-
             Module = LoadLibraryW(DllName);
             if (IntPtr.Zero == Module)
             {
@@ -442,12 +406,7 @@ namespace Fsp.Interop
             }
             return true;
         }
-
-        internal static void Initialize()
-        {
-        }
-
-        static Initializer()
+        static Api()
         {
             if (!Load())
                 return;
