@@ -111,18 +111,18 @@ namespace Fsp
         }
         public void SetPrefix(String Prefix)
         {
-            _VolumeParams.Prefix = Prefix;
+            _VolumeParams.SetPrefix(Prefix);
         }
         public void SetFileSystemName(String FileSystemName)
         {
-            _VolumeParams.FileSystemName = FileSystemName;
+            _VolumeParams.SetFileSystemName(FileSystemName);
         }
 
         /* control */
         Int32 Preflight(String MountPoint)
         {
             return Api.FspFileSystemPreflight(
-                0 < _VolumeParams.Prefix.Length ? "WinFsp.Net" : "WinFsp.Disk",
+                _VolumeParams.IsPrefixEmpty() ? "WinFsp.Disk" : "WinFsp.Net",
                 MountPoint);
         }
         Int32 Mount(String MountPoint,
@@ -130,11 +130,10 @@ namespace Fsp
             Boolean Synchronized = false,
             UInt32 DebugLog = 0)
         {
-            FileSystemInterface Intf; // ???: padding
             Int32 Result;
             Result = Api.FspFileSystemCreate(
-                0 < _VolumeParams.Prefix.Length ? "WinFsp.Net" : "WinFsp.Disk",
-                ref _VolumeParams, ref Intf, out _FileSystem);
+                _VolumeParams.IsPrefixEmpty() ? "WinFsp.Disk" : "WinFsp.Net",
+                ref _VolumeParams, ref _FileSystemInterface, out _FileSystem);
             if (0 <= Result)
             {
 #if false
@@ -144,7 +143,8 @@ namespace Fsp
                     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE);
                 FspFileSystemSetDebugLog(_FileSystem, DebugLog);
 #endif
-                Result = Api.FspFileSystemSetMountPointEx(_FileSystem, MountPoint, IntPtr.Zero);
+                Result = Api.FspFileSystemSetMountPointEx(_FileSystem, MountPoint,
+                    SecurityDescriptor);
                 if (0 <= Result)
                     Result = Api.FspFileSystemStartDispatcher(_FileSystem, 0);
             }
@@ -172,6 +172,7 @@ namespace Fsp
             return _FileSystem;
         }
 
+        private static FileSystemInterface _FileSystemInterface;
         private VolumeParams _VolumeParams;
         private IntPtr _FileSystem;
     }

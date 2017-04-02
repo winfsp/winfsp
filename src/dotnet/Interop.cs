@@ -16,6 +16,7 @@
  */
 
 using System;
+using System.Security.AccessControl;
 using System.Runtime.InteropServices;
 using System.Security;
 
@@ -56,10 +57,39 @@ namespace Fsp.Interop
         internal UInt32 IrpCapacity;
         internal UInt32 FileInfoTimeout;
         internal UInt32 Flags;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = PrefixSize)]
-        internal String Prefix;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = FileSystemNameSize)]
-        internal String FileSystemName;
+        internal unsafe fixed UInt16 Prefix[PrefixSize];
+        internal unsafe fixed UInt16 FileSystemName[FileSystemNameSize];
+
+        /* helpers */
+        internal unsafe void SetPrefix(String Value)
+        {
+            fixed (UInt16 *P = Prefix)
+            {
+                int Size = Value.Length;
+                if (Size > PrefixSize - 1)
+                    Size = PrefixSize - 1;
+                for (int I = 0; Size > I; I++)
+                    P[I] = Value[I];
+                P[Size] = 0;
+            }
+        }
+        internal unsafe void SetFileSystemName(String Value)
+        {
+            fixed (UInt16 *P = FileSystemName)
+            {
+                int Size = Value.Length;
+                if (Size > FileSystemNameSize - 1)
+                    Size = FileSystemNameSize - 1;
+                for (int I = 0; Size > I; I++)
+                    P[I] = Value[I];
+                P[Size] = 0;
+            }
+        }
+        internal unsafe Boolean IsPrefixEmpty()
+        {
+            fixed (UInt16 *P = Prefix)
+                return 0 == *P;
+        }
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -70,8 +100,7 @@ namespace Fsp.Interop
         internal UInt64 TotalSize;
         internal UInt64 FreeSize;
         internal UInt16 VolumeLabelLength;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = VolumeLabelSize)]
-        internal String VolumeLabel;
+        internal unsafe fixed UInt16 VolumeLabel[VolumeLabelSize];
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -102,7 +131,7 @@ namespace Fsp.Interop
     {
         internal UInt16 Size;
         internal FileInfo FileInfo;
-        //internal unsafe fixed Byte Padding[24];
+        internal unsafe fixed Byte Padding[24];
         //internal unsafe fixed UInt16 FileNameBuf[];
     }
 
@@ -309,7 +338,8 @@ namespace Fsp.Interop
             UInt32 Length,
             out UInt32 PBytesTransferred);
 
-        //internal unsafe fixed IntPtr Reserved[40];
+        internal unsafe fixed long/*IntPtr*/ Reserved[40];
+            /* NTSTATUS (*Reserved[40])(); */
     }
 
     [SuppressUnmanagedCodeSecurity]
@@ -367,6 +397,22 @@ namespace Fsp.Interop
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern UInt32 FspWin32FromNtStatus(
             Int32 Status);
+
+        internal static unsafe Int32 FspFileSystemSetMountPointEx(
+            IntPtr FileSystem,
+            String MountPoint,
+            GenericSecurityDescriptor SecurityDescriptor)
+        {
+            if (null != SecurityDescriptor)
+            {
+                byte[] Bytes = new byte[SecurityDescriptor.BinaryLength];
+                SecurityDescriptor.GetBinaryForm(Bytes, 0);
+                fixed (byte *P = Bytes)
+                    return FspFileSystemSetMountPointEx(FileSystem, MountPoint, (IntPtr)P);
+            }
+            else
+                return FspFileSystemSetMountPointEx(FileSystem, MountPoint, IntPtr.Zero);
+        }
     }
 
     internal static class Initializer
