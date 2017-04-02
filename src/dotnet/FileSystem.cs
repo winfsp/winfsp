@@ -112,33 +112,11 @@ namespace Fsp
         }
         public void SetPrefix(String Prefix)
         {
-            int Size = Prefix.Length;
-            if (Size > VolumeParams.PrefixSize - 1)
-                Size = VolumeParams.PrefixSize - 1;
-            unsafe
-            {
-                fixed (UInt16 *P = _VolumeParams.Prefix)
-                {
-                    for (int I = 0; Size > I; I++)
-                        P[I] = Prefix[I];
-                    P[Size] = '\0';
-                }
-            }
+            _VolumeParams.Prefix = Prefix;
         }
         public void SetFileSystemName(String FileSystemName)
         {
-            int Size = FileSystemName.Length;
-            if (Size > VolumeParams.FileSystemNameSize - 1)
-                Size = VolumeParams.FileSystemNameSize - 1;
-            unsafe
-            {
-                fixed (UInt16 *P = _VolumeParams.FileSystemName)
-                {
-                    for (int I = 0; Size > I; I++)
-                        P[I] = FileSystemName[I];
-                    P[Size] = '\0';
-                }
-            }
+            _VolumeParams.FileSystemName = FileSystemName;
         }
 
         private VolumeParams _VolumeParams;

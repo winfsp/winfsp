@@ -22,7 +22,7 @@ using System.Security;
 namespace Fsp.Interop
 {
 
-    [StructLayout(LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     internal struct VolumeParams
     {
         /* const */
@@ -56,17 +56,22 @@ namespace Fsp.Interop
         internal UInt32 IrpCapacity;
         internal UInt32 FileInfoTimeout;
         internal UInt32 Flags;
-        internal unsafe fixed UInt16 Prefix[PrefixSize];
-        internal unsafe fixed UInt16 FileSystemName[FileSystemNameSize];
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = PrefixSize)]
+        internal String Prefix;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = FileSystemNameSize)]
+        internal String FileSystemName;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     internal struct VolumeInfo
     {
+        internal const int VolumeLabelSize = 32;
+
         internal UInt64 TotalSize;
         internal UInt64 FreeSize;
         internal UInt16 VolumeLabelLength;
-        internal unsafe fixed UInt16 VolumeLabel[32];
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = VolumeLabelSize)]
+        internal String VolumeLabel;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -97,7 +102,7 @@ namespace Fsp.Interop
     {
         internal UInt16 Size;
         internal FileInfo FileInfo;
-        internal unsafe fixed Byte Padding[24];
+        //internal unsafe fixed Byte Padding[24];
         //internal unsafe fixed UInt16 FileNameBuf[];
     }
 
@@ -304,8 +309,7 @@ namespace Fsp.Interop
             UInt32 Length,
             out UInt32 PBytesTransferred);
 
-        internal unsafe fixed ulong Reserved[40];
-            /* cannot use IntPtr with fixed; on 32-bit struct will be too long, but that's ok */
+        //internal unsafe fixed IntPtr Reserved[40];
     }
 
     [SuppressUnmanagedCodeSecurity]
