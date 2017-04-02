@@ -25,20 +25,7 @@ namespace Fsp.Interop
     [StructLayout(LayoutKind.Sequential)]
     internal struct VolumeParams
     {
-        internal UInt16 Version;
-        internal UInt16 SectorSize;
-        internal UInt16 SectorsPerAllocationUnit;
-        internal UInt16 MaxComponentLength;
-        internal UInt64 VolumeCreationTime;
-        internal UInt32 VolumeSerialNumber;
-        internal UInt32 TransactTimeout;
-        internal UInt32 IrpTimeout;
-        internal UInt32 IrpCapacity;
-        internal UInt32 FileInfoTimeout;
-        internal UInt32 Flags;
-        internal unsafe fixed UInt16 Prefix[192];
-        internal unsafe fixed UInt16 FileSystemName[16];
-
+        /* const */
         internal const UInt32 CaseSensitiveSearch = 0x00000001;
         internal const UInt32 CasePreservedNames = 0x00000002;
         internal const UInt32 UnicodeOnDisk = 0x00000004;
@@ -54,6 +41,23 @@ namespace Fsp.Interop
         internal const UInt32 AlwaysUseDoubleBuffering = 0x00001000;
         internal const UInt32 UmFileContextIsUserContext2 = 0x00010000;
         internal const UInt32 UmFileContextIsFullContext = 0x00020000;
+        internal const int PrefixSize = 192;
+        internal const int FileSystemNameSize = 16;
+
+        /* fields */
+        internal UInt16 Version;
+        internal UInt16 SectorSize;
+        internal UInt16 SectorsPerAllocationUnit;
+        internal UInt16 MaxComponentLength;
+        internal UInt64 VolumeCreationTime;
+        internal UInt32 VolumeSerialNumber;
+        internal UInt32 TransactTimeout;
+        internal UInt32 IrpTimeout;
+        internal UInt32 IrpCapacity;
+        internal UInt32 FileInfoTimeout;
+        internal UInt32 Flags;
+        internal unsafe fixed UInt16 Prefix[PrefixSize];
+        internal unsafe fixed UInt16 FileSystemName[FileSystemNameSize];
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -84,8 +88,7 @@ namespace Fsp.Interop
     internal struct OpenFileInfo
     {
         internal FileInfo FileInfo;
-        [MarshalAs(UnmanagedType.LPWStr)]
-        internal String NormalizedName;
+        internal IntPtr NormalizedName;
         internal UInt16 NormalizedNameSize;
     }
 
