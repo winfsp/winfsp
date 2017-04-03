@@ -317,7 +317,7 @@ namespace Fsp.Interop
                 Boolean ResolveLastPathComponent,
                 out IoStatusBlock PIoStatus,
                 IntPtr Buffer,
-                out UIntPtr PSize);
+                ref UIntPtr PSize);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 GetReparsePoint(
                 IntPtr FileSystem,
@@ -416,6 +416,24 @@ namespace Fsp.Interop
         internal static extern Int32 FspFileSystemStopDispatcher(
             IntPtr FileSystem);
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern Int32 FspFileSystemFindReparsePoint(
+            IntPtr FileSystem,
+            GetReparsePointByName GetReparsePointByName,
+            IntPtr Context,
+            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+            out UInt32 PReparsePointIndex);
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern Int32 FspFileSystemResolveReparsePoints(
+            IntPtr FileSystem,
+            GetReparsePointByName GetReparsePointByName,
+            IntPtr Context,
+            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+            UInt32 ReparsePointIndex,
+            Boolean ResolveLastPathComponent,
+            out IoStatusBlock PIoStatus,
+            IntPtr Buffer,
+            ref UIntPtr PSize);
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern Int32 FspVersion(
             out UInt32 PVersion);
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -424,6 +442,16 @@ namespace Fsp.Interop
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern UInt32 FspWin32FromNtStatus(
             Int32 Status);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        internal delegate Int32 GetReparsePointByName(
+            IntPtr FileSystem,
+            IntPtr Context,
+            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+            Boolean IsDirectory,
+            IntPtr Buffer,
+            ref UIntPtr PSize);
+
         internal static unsafe Int32 FspFileSystemSetMountPointEx(
             IntPtr FileSystem,
             String MountPoint,

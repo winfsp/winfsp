@@ -367,10 +367,25 @@ namespace Fsp
             Boolean ResolveLastPathComponent,
             out IoStatusBlock PIoStatus,
             IntPtr Buffer,
-            out UIntPtr PSize)
+            ref UIntPtr PSize)
         {
-            PIoStatus = default(IoStatusBlock);
-            PSize = default(UIntPtr);
+            return Api.FspFileSystemResolveReparsePoints(
+                _FileSystem,
+                GetReparsePointByName,
+                IntPtr.Zero,
+                FileName,
+                ReparsePointIndex,
+                ResolveLastPathComponent,
+                out PIoStatus,
+                Buffer,
+                ref PSize);
+        }
+        protected virtual Int32 GetReparsePointByName(
+            String FileName,
+            Boolean IsDirectory,
+            IntPtr Buffer,
+            ref UIntPtr PSize)
+        {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
         protected virtual Int32 GetReparsePoint(
@@ -897,7 +912,7 @@ namespace Fsp
             Boolean ResolveLastPathComponent,
             out IoStatusBlock PIoStatus,
             IntPtr Buffer,
-            out UIntPtr PSize)
+            ref UIntPtr PSize)
         {
             FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
             try
@@ -908,12 +923,33 @@ namespace Fsp
                     ResolveLastPathComponent,
                     out PIoStatus,
                     Buffer,
-                    out PSize);
+                    ref PSize);
             }
             catch (Exception ex)
             {
                 PIoStatus = default(IoStatusBlock);
-                PSize = default(UIntPtr);
+                return self.ExceptionHandler(ex);
+            }
+        }
+        private static Int32 GetReparsePointByName(
+            IntPtr FileSystem,
+            IntPtr Context,
+            String FileName,
+            Boolean IsDirectory,
+            IntPtr Buffer,
+            ref UIntPtr PSize)
+        {
+            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            try
+            {
+                return self.GetReparsePointByName(
+                    FileName,
+                    IsDirectory,
+                    Buffer,
+                    ref PSize);
+            }
+            catch (Exception ex)
+            {
                 return self.ExceptionHandler(ex);
             }
         }
