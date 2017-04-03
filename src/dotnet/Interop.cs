@@ -449,6 +449,35 @@ namespace Fsp.Interop
                 }
             }
         }
+        internal static Int32 CopySecurityDescriptor(
+            Object SecurityDescriptorObject,
+            IntPtr SecurityDescriptor,
+            IntPtr PSecurityDescriptorSize)
+        {
+            if (IntPtr.Zero != PSecurityDescriptorSize)
+            {
+                GenericSecurityDescriptor GenericSecurityDescriptor =
+                    SecurityDescriptorObject as GenericSecurityDescriptor;
+                if (null != GenericSecurityDescriptor)
+                {
+                    if (GenericSecurityDescriptor.BinaryLength > Marshal.ReadInt32(PSecurityDescriptorSize))
+                    {
+                        Marshal.WriteInt32(PSecurityDescriptorSize, GenericSecurityDescriptor.BinaryLength);
+                        return unchecked((Int32)0x80000005)/*STATUS_BUFFER_OVERFLOW*/;
+                    }
+                    Marshal.WriteInt32(PSecurityDescriptorSize, GenericSecurityDescriptor.BinaryLength);
+                    if (IntPtr.Zero != SecurityDescriptor)
+                    {
+                        byte[] Bytes = new byte[GenericSecurityDescriptor.BinaryLength];
+                        GenericSecurityDescriptor.GetBinaryForm(Bytes, 0);
+                        Marshal.Copy(Bytes, 0, SecurityDescriptor, GenericSecurityDescriptor.BinaryLength);
+                    }
+                }
+                else
+                    Marshal.WriteInt32(PSecurityDescriptorSize, 0);
+            }
+            return 0/*STATUS_SUCCESS*/;
+        }
 
         /* initialization */
         [DllImport("kernel32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true)]

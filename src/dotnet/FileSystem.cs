@@ -17,6 +17,7 @@
 
 using System;
 using System.Security.AccessControl;
+using System.Runtime.InteropServices;
 
 using Fsp.Interop;
 
@@ -194,15 +195,15 @@ namespace Fsp
         }
         protected virtual Int32 GetSecurityByName(
             String FileName,
-            out UInt32 PFileAttributes/* or ReparsePointIndex */,
-            out GenericSecurityDescriptor SecurityDescriptor)
+            out UInt32 FileAttributes/* or ReparsePointIndex */,
+            ref Object SecurityDescriptor)
         {
-            PFileAttributes = default(UInt32);
-            SecurityDescriptor = default(GenericSecurityDescriptor);
+            FileAttributes = default(UInt32);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
 
         /* FSP_FILE_SYSTEM_INTERFACE */
+        private static Object SecurityDescriptorNotNull = new Object();
         private static Int32 GetVolumeInfo(
             IntPtr FileSystem,
             out VolumeInfo VolumeInfo)
@@ -241,29 +242,25 @@ namespace Fsp
             IntPtr SecurityDescriptor,
             IntPtr PSecurityDescriptorSize)
         {
-            return STATUS_INVALID_DEVICE_REQUEST;
-#if false
             FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
-            GenericSecurityDescriptor GenericSecurityDescriptor = null;
+            UInt32 FileAttributes;
+            Object SecurityDescriptorObject = null;
             Int32 Result;
             try
             {
-                Result = self.GetSecurityByName(FileName, out PFileAttributes,
-                    out GenericSecurityDescriptor);
+                if (IntPtr.Zero != PSecurityDescriptorSize)
+                    SecurityDescriptorObject = SecurityDescriptorNotNull;
+                Result = self.GetSecurityByName(FileName,
+                    out FileAttributes, ref SecurityDescriptorObject);
             }
             catch (Exception ex)
             {
-                PFileAttributes = default(UInt32);
                 return self.ExceptionHandler(ex);
             }
-            if (null != GenericSecurityDescriptor)
-            {
-            }
-            else
-            {
-            }
-            return Result;
-#endif
+            if (IntPtr.Zero != PFileAttributes)
+                Marshal.WriteInt32(PFileAttributes, (Int32)FileAttributes);
+            return Api.CopySecurityDescriptor(SecurityDescriptorObject,
+                SecurityDescriptor, PSecurityDescriptorSize);
         }
         private static Int32 Create(
             IntPtr FileSystem,
