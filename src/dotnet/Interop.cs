@@ -166,10 +166,10 @@ namespace Fsp.Interop
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    internal struct IoStatusBlock
+    public struct IoStatusBlock
     {
-        internal IntPtr Status;
-        internal IntPtr Information;
+        public IntPtr Status;
+        public IntPtr Information;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -443,7 +443,7 @@ namespace Fsp.Interop
             IntPtr FileSystem)
         {
             IntPtr UserContext = *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr));
-            return IntPtr.Zero != UserContext ? ((GCHandle)UserContext).Target : null;
+            return IntPtr.Zero != UserContext ? GCHandle.FromIntPtr(UserContext).Target : null;
         }
         internal unsafe static void FspFileSystemSetUserContext(
             IntPtr FileSystem,
@@ -460,7 +460,7 @@ namespace Fsp.Interop
                 IntPtr UserContext = *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr));
                 if (IntPtr.Zero != UserContext)
                 {
-                    ((GCHandle)UserContext).Free();
+                    GCHandle.FromIntPtr(UserContext).Free();
                     *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr)) = IntPtr.Zero;
                 }
             }
@@ -470,9 +470,9 @@ namespace Fsp.Interop
             out Object FileNode, out Object FileDesc)
         {
             FileNode = 0 != FullContext.UserContext ?
-                ((GCHandle)(IntPtr)FullContext.UserContext).Target : null;
+                GCHandle.FromIntPtr((IntPtr)FullContext.UserContext).Target : null;
             FileDesc = 0 != FullContext.UserContext2 ?
-                ((GCHandle)(IntPtr)FullContext.UserContext2).Target : null;
+                GCHandle.FromIntPtr((IntPtr)FullContext.UserContext2).Target : null;
         }
         internal static void SetFullContext(ref FullContext FullContext,
             Object FileNode, Object FileDesc)
@@ -487,7 +487,7 @@ namespace Fsp.Interop
             {
                 if (0 != FullContext.UserContext)
                 {
-                    ((GCHandle)(IntPtr)FullContext.UserContext).Free();
+                    GCHandle.FromIntPtr((IntPtr)FullContext.UserContext).Free();
                     FullContext.UserContext = 0;
                 }
             }
@@ -501,7 +501,7 @@ namespace Fsp.Interop
             {
                 if (0 != FullContext.UserContext2)
                 {
-                    ((GCHandle)(IntPtr)FullContext.UserContext2).Free();
+                    GCHandle.FromIntPtr((IntPtr)FullContext.UserContext2).Free();
                     FullContext.UserContext2 = 0;
                 }
             }
