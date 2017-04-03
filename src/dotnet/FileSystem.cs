@@ -286,7 +286,7 @@ namespace Fsp
             UInt32 FileAttributes,
             IntPtr SecurityDescriptor,
             UInt64 AllocationSize,
-            out FullContext FullContext,
+            ref FullContext FullContext,
             out FileInfo FileInfo)
         {
             FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
@@ -304,7 +304,7 @@ namespace Fsp
                     out FileNode,
                     out FileDesc,
                     out FileInfo);
-                Api.SetFullContext(out FullContext, FileNode, FileDesc);
+                Api.SetFullContext(ref FullContext, FileNode, FileDesc);
                 return Result;
             }
             catch (Exception ex)
@@ -319,7 +319,7 @@ namespace Fsp
             String FileName,
             UInt32 CreateOptions,
             UInt32 GrantedAccess,
-            out FullContext FullContext,
+            ref FullContext FullContext,
             out FileInfo FileInfo)
         {
             FullContext = default(FullContext);

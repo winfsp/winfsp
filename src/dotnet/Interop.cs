@@ -202,7 +202,7 @@ namespace Fsp.Interop
                 UInt32 FileAttributes,
                 IntPtr SecurityDescriptor,
                 UInt64 AllocationSize,
-                out FullContext FullContext,
+                ref FullContext FullContext,
                 out FileInfo FileInfo);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 Open(
@@ -210,7 +210,7 @@ namespace Fsp.Interop
                 [MarshalAs(UnmanagedType.LPWStr)] String FileName,
                 UInt32 CreateOptions,
                 UInt32 GrantedAccess,
-                out FullContext FullContext,
+                ref FullContext FullContext,
                 out FileInfo FileInfo);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 Overwrite(
@@ -469,13 +469,42 @@ namespace Fsp.Interop
         internal static void GetFullContext(ref FullContext FullContext,
             out Object FileNode, out Object FileDesc)
         {
-            FileNode = default(Object);
-            FileDesc = default(Object);
+            FileNode = 0 != FullContext.UserContext ?
+                ((GCHandle)(IntPtr)FullContext.UserContext).Target : null;
+            FileDesc = 0 != FullContext.UserContext2 ?
+                ((GCHandle)(IntPtr)FullContext.UserContext2).Target : null;
         }
-        internal static void SetFullContext(out FullContext FullContext,
+        internal static void SetFullContext(ref FullContext FullContext,
             Object FileNode, Object FileDesc)
         {
-            FullContext = default(FullContext);
+            if (null != FileNode)
+            {
+                Debug.Assert(0 == FullContext.UserContext);
+                GCHandle Handle = GCHandle.Alloc(FileNode, GCHandleType.Normal);
+                FullContext.UserContext = (UInt64)(IntPtr)Handle;
+            }
+            else
+            {
+                if (0 != FullContext.UserContext)
+                {
+                    ((GCHandle)(IntPtr)FullContext.UserContext).Free();
+                    FullContext.UserContext = 0;
+                }
+            }
+            if (null != FileDesc)
+            {
+                Debug.Assert(0 == FullContext.UserContext2);
+                GCHandle Handle = GCHandle.Alloc(FileDesc, GCHandleType.Normal);
+                FullContext.UserContext2 = (UInt64)(IntPtr)Handle;
+            }
+            else
+            {
+                if (0 != FullContext.UserContext2)
+                {
+                    ((GCHandle)(IntPtr)FullContext.UserContext2).Free();
+                    FullContext.UserContext2 = 0;
+                }
+            }
         }
 
         [DllImport("advapi32.dll", CallingConvention = CallingConvention.StdCall)]
