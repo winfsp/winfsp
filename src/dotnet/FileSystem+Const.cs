@@ -1,5 +1,5 @@
 /**
- * @file dotnet/FileSystem.cs
+ * @file dotnet/FileSystem+Const.cs
  *
  * @copyright 2015-2017 Bill Zissimopoulos
  */
@@ -22,6 +22,15 @@ namespace Fsp
 
     public partial class FileSystem
     {
+        /* Cleanup */
+        public const UInt32 CleanupDelete = 0x01;
+        public const UInt32 CleanupSetAllocationSize = 0x02;
+        public const UInt32 CleanupSetArchiveBit = 0x10;
+        public const UInt32 CleanupSetLastAccessTime = 0x20;
+        public const UInt32 CleanupSetLastWriteTime = 0x40;
+        public const UInt32 CleanupSetChangeTime = 0x80;
+
+        /* NTSTATUS */
         public const Int32 STATUS_SUCCESS = unchecked((Int32)0x00000000);
         public const Int32 STATUS_WAIT_1 = unchecked((Int32)0x00000001);
         public const Int32 STATUS_WAIT_2 = unchecked((Int32)0x00000002);

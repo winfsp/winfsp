@@ -41,8 +41,8 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\src\dotnet\FileSystem+NtStatus.cs">
-      <Link>FileSystem+NtStatus.cs</Link>
+    <Compile Include="..\..\src\dotnet\FileSystem+Const.cs">
+      <Link>FileSystem+Const.cs</Link>
     </Compile>
     <Compile Include="..\..\src\dotnet\FileSystem.cs">
       <Link>FileSystem.cs</Link>
@@ -67,6 +67,7 @@
       <AssemblyInfo Include="[assembly: AssemblyVersion(&quot;$(MyCanonicalVersion)&quot;)]" />
       <AssemblyInfo Include="[assembly: AssemblyFileVersion(&quot;$(MyVersion)&quot;)]" />
     </ItemGroup>
+    <MakeDir Directories="$(IntermediateOutputPath)" />
     <WriteLinesToFile File="$(IntermediateOutputPath)AssemblyInfo.cs" Lines="@(AssemblyInfo)" Overwrite="true" />
     <ItemGroup>
       <Compile Include="$(IntermediateOutputPath)AssemblyInfo.cs" />
