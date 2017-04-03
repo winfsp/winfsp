@@ -174,32 +174,96 @@ namespace Fsp
             return _FileSystem;
         }
 
-        /* FSP_FILE_SYSTEM_INTERFACE */
-        private static Int32 GetVolumeInfo(
-            IntPtr FileSystem,
+        /* operations */
+        protected virtual Int32 ExceptionHandler(Exception ex)
+        {
+            return STATUS_UNEXPECTED_IO_ERROR;
+        }
+        protected virtual Int32 GetVolumeInfo(
             out VolumeInfo VolumeInfo)
         {
             VolumeInfo = default(VolumeInfo);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
-        private static Int32 SetVolumeLabel(
-            IntPtr FileSystem,
+        protected virtual Int32 SetVolumeLabel(
             String VolumeLabel,
             out VolumeInfo VolumeInfo)
         {
             VolumeInfo = default(VolumeInfo);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
+        protected virtual Int32 GetSecurityByName(
+            String FileName,
+            out UInt32 PFileAttributes/* or ReparsePointIndex */,
+            out GenericSecurityDescriptor SecurityDescriptor)
+        {
+            PFileAttributes = default(UInt32);
+            SecurityDescriptor = default(GenericSecurityDescriptor);
+            return STATUS_INVALID_DEVICE_REQUEST;
+        }
+
+        /* FSP_FILE_SYSTEM_INTERFACE */
+        private static Int32 GetVolumeInfo(
+            IntPtr FileSystem,
+            out VolumeInfo VolumeInfo)
+        {
+            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            try
+            {
+                return self.GetVolumeInfo(out VolumeInfo);
+            }
+            catch (Exception ex)
+            {
+                VolumeInfo = default(VolumeInfo);
+                return self.ExceptionHandler(ex);
+            }
+        }
+        private static Int32 SetVolumeLabel(
+            IntPtr FileSystem,
+            String VolumeLabel,
+            out VolumeInfo VolumeInfo)
+        {
+            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            try
+            {
+                return self.SetVolumeLabel(VolumeLabel, out VolumeInfo);
+            }
+            catch (Exception ex)
+            {
+                VolumeInfo = default(VolumeInfo);
+                return self.ExceptionHandler(ex);
+            }
+        }
         private static Int32 GetSecurityByName(
             IntPtr FileSystem,
             String FileName,
-            out UInt32 PFileAttributes/* or ReparsePointIndex */,
+            IntPtr PFileAttributes/* or ReparsePointIndex */,
             IntPtr SecurityDescriptor,
-            out UIntPtr PSecurityDescriptorSize)
+            IntPtr PSecurityDescriptorSize)
         {
-            PFileAttributes = default(UInt32);
-            PSecurityDescriptorSize = default(UIntPtr);
             return STATUS_INVALID_DEVICE_REQUEST;
+#if false
+            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            GenericSecurityDescriptor GenericSecurityDescriptor = null;
+            Int32 Result;
+            try
+            {
+                Result = self.GetSecurityByName(FileName, out PFileAttributes,
+                    out GenericSecurityDescriptor);
+            }
+            catch (Exception ex)
+            {
+                PFileAttributes = default(UInt32);
+                return self.ExceptionHandler(ex);
+            }
+            if (null != GenericSecurityDescriptor)
+            {
+            }
+            else
+            {
+            }
+            return Result;
+#endif
         }
         private static Int32 Create(
             IntPtr FileSystem,
@@ -334,9 +398,8 @@ namespace Fsp
             IntPtr FileSystem,
             IntPtr FileContext,
             IntPtr SecurityDescriptor,
-            out UIntPtr PSecurityDescriptorSize)
+            IntPtr PSecurityDescriptorSize)
         {
-            PSecurityDescriptorSize = default(UIntPtr);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
         private static Int32 SetSecurity(

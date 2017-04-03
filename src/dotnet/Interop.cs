@@ -94,14 +94,27 @@ namespace Fsp.Interop
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    internal struct VolumeInfo
+    public struct VolumeInfo
     {
         internal const int VolumeLabelSize = 32;
 
-        internal UInt64 TotalSize;
-        internal UInt64 FreeSize;
+        public UInt64 TotalSize;
+        public UInt64 FreeSize;
         internal UInt16 VolumeLabelLength;
         internal unsafe fixed UInt16 VolumeLabel[VolumeLabelSize];
+
+        internal unsafe void SetVolumeLabel(String Value)
+        {
+            fixed (UInt16 *P = VolumeLabel)
+            {
+                int Size = Value.Length;
+                if (Size > VolumeLabelSize)
+                    Size = VolumeLabelSize;
+                for (int I = 0; Size > I; I++)
+                    P[I] = Value[I];
+                VolumeLabelLength = VolumeLabelSize;
+            }
+        }
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -161,9 +174,9 @@ namespace Fsp.Interop
             internal delegate Int32 GetSecurityByName(
                 IntPtr FileSystem,
                 [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-                out UInt32 PFileAttributes/* or ReparsePointIndex */,
+                IntPtr PFileAttributes/* or ReparsePointIndex */,
                 IntPtr SecurityDescriptor,
-                out UIntPtr PSecurityDescriptorSize);
+                IntPtr PSecurityDescriptorSize);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 Create(
                 IntPtr FileSystem,
@@ -264,7 +277,7 @@ namespace Fsp.Interop
                 IntPtr FileSystem,
                 IntPtr FileContext,
                 IntPtr SecurityDescriptor,
-                out UIntPtr PSecurityDescriptorSize);
+                IntPtr PSecurityDescriptorSize);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 SetSecurity(
                 IntPtr FileSystem,
