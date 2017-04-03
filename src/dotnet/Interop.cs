@@ -442,7 +442,7 @@ namespace Fsp.Interop
         internal unsafe static Object FspFileSystemGetUserContext(
             IntPtr FileSystem)
         {
-            IntPtr UserContext = Marshal.ReadIntPtr(FileSystem, sizeof(IntPtr));
+            IntPtr UserContext = *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr));
             return IntPtr.Zero != UserContext ? ((GCHandle)UserContext).Target : null;
         }
         internal unsafe static void FspFileSystemSetUserContext(
@@ -451,17 +451,17 @@ namespace Fsp.Interop
         {
             if (null != Obj)
             {
-                Debug.Assert(IntPtr.Zero == Marshal.ReadIntPtr(FileSystem, sizeof(IntPtr)));
+                Debug.Assert(IntPtr.Zero == *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr)));
                 GCHandle Handle = GCHandle.Alloc(Obj, GCHandleType.Weak);
-                Marshal.WriteIntPtr(FileSystem, sizeof(IntPtr), (IntPtr)Handle);
+                *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr)) = (IntPtr)Handle;
             }
             else
             {
-                IntPtr UserContext = Marshal.ReadIntPtr(FileSystem, sizeof(IntPtr));
+                IntPtr UserContext = *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr));
                 if (IntPtr.Zero != UserContext)
                 {
                     ((GCHandle)UserContext).Free();
-                    Marshal.WriteIntPtr(FileSystem, sizeof(IntPtr), IntPtr.Zero);
+                    *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr)) = IntPtr.Zero;
                 }
             }
         }
@@ -480,7 +480,7 @@ namespace Fsp.Interop
 
         [DllImport("advapi32.dll", CallingConvention = CallingConvention.StdCall)]
         private static extern UInt32 GetSecurityDescriptorLength(IntPtr SecurityDescriptor);
-        internal static Int32 CopySecurityDescriptor(
+        internal unsafe static Int32 CopySecurityDescriptor(
             Object SecurityDescriptorObject,
             IntPtr SecurityDescriptor,
             IntPtr PSecurityDescriptorSize)
@@ -491,12 +491,12 @@ namespace Fsp.Interop
                     SecurityDescriptorObject as GenericSecurityDescriptor;
                 if (null != GenericSecurityDescriptor)
                 {
-                    if (GenericSecurityDescriptor.BinaryLength > Marshal.ReadInt32(PSecurityDescriptorSize))
+                    if (GenericSecurityDescriptor.BinaryLength > (int)*(IntPtr *)PSecurityDescriptorSize)
                     {
-                        Marshal.WriteInt32(PSecurityDescriptorSize, GenericSecurityDescriptor.BinaryLength);
+                        *(IntPtr *)PSecurityDescriptorSize = (IntPtr)GenericSecurityDescriptor.BinaryLength;
                         return unchecked((Int32)0x80000005)/*STATUS_BUFFER_OVERFLOW*/;
                     }
-                    Marshal.WriteInt32(PSecurityDescriptorSize, GenericSecurityDescriptor.BinaryLength);
+                    *(IntPtr *)PSecurityDescriptorSize = (IntPtr)GenericSecurityDescriptor.BinaryLength;
                     if (IntPtr.Zero != SecurityDescriptor)
                     {
                         byte[] Bytes = new byte[GenericSecurityDescriptor.BinaryLength];
@@ -505,7 +505,7 @@ namespace Fsp.Interop
                     }
                 }
                 else
-                    Marshal.WriteInt32(PSecurityDescriptorSize, 0);
+                    *(IntPtr *)PSecurityDescriptorSize = IntPtr.Zero;
             }
             return 0/*STATUS_SUCCESS*/;
         }
