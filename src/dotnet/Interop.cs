@@ -118,26 +118,26 @@ namespace Fsp.Interop
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    internal struct FileInfo
+    public struct FileInfo
     {
-        internal UInt32 FileAttributes;
-        internal UInt32 ReparseTag;
-        internal UInt64 AllocationSize;
-        internal UInt64 FileSize;
-        internal UInt64 CreationTime;
-        internal UInt64 LastAccessTime;
-        internal UInt64 LastWriteTime;
-        internal UInt64 ChangeTime;
-        internal UInt64 IndexNumber;
-        internal UInt32 HardLinks;
+        public UInt32 FileAttributes;
+        public UInt32 ReparseTag;
+        public UInt64 AllocationSize;
+        public UInt64 FileSize;
+        public UInt64 CreationTime;
+        public UInt64 LastAccessTime;
+        public UInt64 LastWriteTime;
+        public UInt64 ChangeTime;
+        public UInt64 IndexNumber;
+        public UInt32 HardLinks;
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    internal struct OpenFileInfo
+    public struct OpenFileInfo
     {
-        internal FileInfo FileInfo;
-        internal IntPtr NormalizedName;
-        internal UInt16 NormalizedNameSize;
+        public FileInfo FileInfo;
+        public IntPtr NormalizedName;
+        public UInt16 NormalizedNameSize;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -150,7 +150,7 @@ namespace Fsp.Interop
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    struct StreamInfo
+    internal struct StreamInfo
     {
         internal UInt16 Size;
         internal UInt64 StreamSize;
@@ -159,7 +159,7 @@ namespace Fsp.Interop
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    struct FullContext
+    internal struct FullContext
     {
         internal UInt64 UserContext;
         internal UInt64 UserContext2;
@@ -465,6 +465,21 @@ namespace Fsp.Interop
                 }
             }
         }
+
+        internal static void GetFullContext(ref FullContext FullContext,
+            out Object FileNode, out Object FileDesc)
+        {
+            FileNode = default(Object);
+            FileDesc = default(Object);
+        }
+        internal static void SetFullContext(out FullContext FullContext,
+            Object FileNode, Object FileDesc)
+        {
+            FullContext = default(FullContext);
+        }
+
+        [DllImport("advapi32.dll", CallingConvention = CallingConvention.StdCall)]
+        private static extern UInt32 GetSecurityDescriptorLength(IntPtr SecurityDescriptor);
         internal static Int32 CopySecurityDescriptor(
             Object SecurityDescriptorObject,
             IntPtr SecurityDescriptor,
@@ -486,13 +501,25 @@ namespace Fsp.Interop
                     {
                         byte[] Bytes = new byte[GenericSecurityDescriptor.BinaryLength];
                         GenericSecurityDescriptor.GetBinaryForm(Bytes, 0);
-                        Marshal.Copy(Bytes, 0, SecurityDescriptor, GenericSecurityDescriptor.BinaryLength);
+                        Marshal.Copy(Bytes, 0, SecurityDescriptor, Bytes.Length);
                     }
                 }
                 else
                     Marshal.WriteInt32(PSecurityDescriptorSize, 0);
             }
             return 0/*STATUS_SUCCESS*/;
+        }
+        internal static Object MakeSecurityDescriptor(
+            IntPtr SecurityDescriptor)
+        {
+            if (IntPtr.Zero != SecurityDescriptor)
+            {
+                byte[] Bytes = new byte[GetSecurityDescriptorLength(SecurityDescriptor)];
+                Marshal.Copy(SecurityDescriptor, Bytes, 0, Bytes.Length);
+                return new RawSecurityDescriptor(Bytes, 0);
+            }
+            else
+                return null;
         }
 
         /* initialization */

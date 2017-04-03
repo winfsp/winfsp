@@ -201,6 +201,22 @@ namespace Fsp
             FileAttributes = default(UInt32);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
+        protected virtual Int32 Create(
+            String FileName,
+            UInt32 CreateOptions,
+            UInt32 GrantedAccess,
+            UInt32 FileAttributes,
+            Object SecurityDescriptor,
+            UInt64 AllocationSize,
+            out Object FileNode,
+            out Object FileDesc,
+            out FileInfo FileInfo)
+        {
+            FileNode = default(Object);
+            FileDesc = default(Object);
+            FileInfo = default(FileInfo);
+            return STATUS_INVALID_DEVICE_REQUEST;
+        }
 
         /* FSP_FILE_SYSTEM_INTERFACE */
         private static Object SecurityDescriptorNotNull = new Object();
@@ -243,24 +259,24 @@ namespace Fsp
             IntPtr PSecurityDescriptorSize)
         {
             FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
-            UInt32 FileAttributes;
-            Object SecurityDescriptorObject = null;
-            Int32 Result;
             try
             {
+                UInt32 FileAttributes;
+                Object SecurityDescriptorObject = null;
+                Int32 Result;
                 if (IntPtr.Zero != PSecurityDescriptorSize)
                     SecurityDescriptorObject = SecurityDescriptorNotNull;
                 Result = self.GetSecurityByName(FileName,
                     out FileAttributes, ref SecurityDescriptorObject);
+                if (IntPtr.Zero != PFileAttributes)
+                    Marshal.WriteInt32(PFileAttributes, (Int32)FileAttributes);
+                return Api.CopySecurityDescriptor(SecurityDescriptorObject,
+                    SecurityDescriptor, PSecurityDescriptorSize);
             }
             catch (Exception ex)
             {
                 return self.ExceptionHandler(ex);
             }
-            if (IntPtr.Zero != PFileAttributes)
-                Marshal.WriteInt32(PFileAttributes, (Int32)FileAttributes);
-            return Api.CopySecurityDescriptor(SecurityDescriptorObject,
-                SecurityDescriptor, PSecurityDescriptorSize);
         }
         private static Int32 Create(
             IntPtr FileSystem,
@@ -273,9 +289,30 @@ namespace Fsp
             out FullContext FullContext,
             out FileInfo FileInfo)
         {
-            FullContext = default(FullContext);
-            FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            try
+            {
+                Object FileNode, FileDesc;
+                Int32 Result;
+                Result = self.Create(
+                    FileName,
+                    CreateOptions,
+                    GrantedAccess,
+                    FileAttributes,
+                    Api.MakeSecurityDescriptor(SecurityDescriptor),
+                    AllocationSize,
+                    out FileNode,
+                    out FileDesc,
+                    out FileInfo);
+                Api.SetFullContext(out FullContext, FileNode, FileDesc);
+                return Result;
+            }
+            catch (Exception ex)
+            {
+                FullContext = default(FullContext);
+                FileInfo = default(FileInfo);
+                return self.ExceptionHandler(ex);
+            }
         }
         private static Int32 Open(
             IntPtr FileSystem,
