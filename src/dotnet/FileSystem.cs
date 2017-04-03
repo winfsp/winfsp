@@ -270,9 +270,10 @@ namespace Fsp
             UInt32 FileAttributes,
             IntPtr SecurityDescriptor,
             UInt64 AllocationSize,
-            IntPtr PFileContext,
+            out FullContext FullContext,
             out FileInfo FileInfo)
         {
+            FullContext = default(FullContext);
             FileInfo = default(FileInfo);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
@@ -281,15 +282,16 @@ namespace Fsp
             String FileName,
             UInt32 CreateOptions,
             UInt32 GrantedAccess,
-            IntPtr PFileContext,
+            out FullContext FullContext,
             out FileInfo FileInfo)
         {
+            FullContext = default(FullContext);
             FileInfo = default(FileInfo);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
         private static Int32 Overwrite(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             UInt32 FileAttributes,
             Boolean ReplaceFileAttributes,
             UInt64 AllocationSize,
@@ -300,19 +302,19 @@ namespace Fsp
         }
         private static void Cleanup(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             String FileName,
             UInt32 Flags)
         {
         }
         private static void Close(
             IntPtr FileSystem,
-            IntPtr FileContext)
+            ref FullContext FullContext)
         {
         }
         private static Int32 Read(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             IntPtr Buffer,
             UInt64 Offset,
             UInt32 Length,
@@ -323,7 +325,7 @@ namespace Fsp
         }
         private static Int32 Write(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             IntPtr Buffer,
             UInt64 Offset,
             UInt32 Length,
@@ -338,7 +340,7 @@ namespace Fsp
         }
         private static Int32 Flush(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             out FileInfo FileInfo)
         {
             FileInfo = default(FileInfo);
@@ -346,7 +348,7 @@ namespace Fsp
         }
         private static Int32 GetFileInfo(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             out FileInfo FileInfo)
         {
             FileInfo = default(FileInfo);
@@ -354,7 +356,7 @@ namespace Fsp
         }
         private static Int32 SetBasicInfo(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             UInt32 FileAttributes,
             UInt64 CreationTime,
             UInt64 LastAccessTime,
@@ -367,7 +369,7 @@ namespace Fsp
         }
         private static Int32 SetFileSize(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             UInt64 NewSize,
             Boolean SetAllocationSize,
             out FileInfo FileInfo)
@@ -377,14 +379,14 @@ namespace Fsp
         }
         private static Int32 CanDelete(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             String FileName)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
         private static Int32 Rename(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             String FileName,
             String NewFileName,
             Boolean ReplaceIfExists)
@@ -393,7 +395,7 @@ namespace Fsp
         }
         private static Int32 GetSecurity(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             IntPtr SecurityDescriptor,
             IntPtr PSecurityDescriptorSize)
         {
@@ -401,7 +403,7 @@ namespace Fsp
         }
         private static Int32 SetSecurity(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             UInt32 SecurityInformation,
             IntPtr ModificationDescriptor)
         {
@@ -409,7 +411,7 @@ namespace Fsp
         }
         private static Int32 ReadDirectory(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             String Pattern,
             String Marker,
             IntPtr Buffer,
@@ -434,7 +436,7 @@ namespace Fsp
         }
         private static Int32 GetReparsePoint(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             String FileName,
             IntPtr Buffer,
             out UIntPtr PSize)
@@ -444,7 +446,7 @@ namespace Fsp
         }
         private static Int32 SetReparsePoint(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             String FileName,
             IntPtr Buffer,
             UIntPtr Size)
@@ -453,7 +455,7 @@ namespace Fsp
         }
         private static Int32 DeleteReparsePoint(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             String FileName,
             IntPtr Buffer,
             UIntPtr Size)
@@ -462,7 +464,7 @@ namespace Fsp
         }
         private static Int32 GetStreamInfo(
             IntPtr FileSystem,
-            IntPtr FileContext,
+            ref FullContext FullContext,
             IntPtr Buffer,
             UInt32 Length,
             out UInt32 PBytesTransferred)
