@@ -36,13 +36,16 @@ namespace Fsp
         }
         public void Dispose()
         {
-            Dispose(true);
+            lock (this)
+                Dispose(true);
             GC.SuppressFinalize(true);
         }
-        protected void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             if (IntPtr.Zero != _FileSystem)
             {
+                Api.FspFileSystemStopDispatcher(_FileSystem);
+                Api.FspFileSystemSetUserContext(_FileSystem, null);
                 Api.FspFileSystemDelete(_FileSystem);
                 _FileSystem = IntPtr.Zero;
             }
@@ -136,8 +139,8 @@ namespace Fsp
                 ref _VolumeParams, ref _FileSystemInterface, out _FileSystem);
             if (0 <= Result)
             {
+                Api.FspFileSystemSetUserContext(_FileSystem, this);
 #if false
-                _FileSystem->UserContext = this;
                 FspFileSystemSetOperationGuardStrategy(_FileSystem, Synchronized ?
                     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE :
                     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE);
@@ -150,6 +153,7 @@ namespace Fsp
             }
             if (0 > Result && IntPtr.Zero != _FileSystem)
             {
+                Api.FspFileSystemSetUserContext(_FileSystem, null);
                 Api.FspFileSystemDelete(_FileSystem);
                 _FileSystem = IntPtr.Zero;
             }
@@ -157,9 +161,7 @@ namespace Fsp
         }
         public void Unmount()
         {
-            Api.FspFileSystemStopDispatcher(_FileSystem);
-            Api.FspFileSystemDelete(_FileSystem);
-            _FileSystem = IntPtr.Zero;
+            Dispose();
         }
 #if false
         PWSTR MountPoint()

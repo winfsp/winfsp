@@ -16,6 +16,7 @@
  */
 
 using System;
+using System.Diagnostics;
 using System.Security.AccessControl;
 using System.Runtime.InteropServices;
 using System.Security;
@@ -408,6 +409,32 @@ namespace Fsp.Interop
             }
             else
                 return FspFileSystemSetMountPointEx(FileSystem, MountPoint, IntPtr.Zero);
+        }
+        internal unsafe static Object FspFileSystemGetUserContext(
+            IntPtr FileSystem)
+        {
+            IntPtr UserContext = Marshal.ReadIntPtr(FileSystem, sizeof(IntPtr));
+            return IntPtr.Zero != UserContext ? ((GCHandle)UserContext).Target : null;
+        }
+        internal unsafe static void FspFileSystemSetUserContext(
+            IntPtr FileSystem,
+            Object Obj)
+        {
+            if (null != Obj)
+            {
+                Debug.Assert(IntPtr.Zero == Marshal.ReadIntPtr(FileSystem, sizeof(IntPtr)));
+                GCHandle Handle = GCHandle.Alloc(Obj, GCHandleType.Weak);
+                Marshal.WriteIntPtr(FileSystem, sizeof(IntPtr), (IntPtr)Handle);
+            }
+            else
+            {
+                IntPtr UserContext = Marshal.ReadIntPtr(FileSystem, sizeof(IntPtr));
+                if (IntPtr.Zero != UserContext)
+                {
+                    ((GCHandle)UserContext).Free();
+                    Marshal.WriteIntPtr(FileSystem, sizeof(IntPtr), IntPtr.Zero);
+                }
+            }
         }
 
         /* initialization */
