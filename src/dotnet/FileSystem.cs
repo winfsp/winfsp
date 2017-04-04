@@ -210,11 +210,11 @@ namespace Fsp
             UInt64 AllocationSize,
             out Object FileNode,
             out Object FileDesc,
-            out FileInfo FileInfo)
+            out OpenFileInfo OpenFileInfo)
         {
             FileNode = default(Object);
             FileDesc = default(Object);
-            FileInfo = default(FileInfo);
+            OpenFileInfo = default(OpenFileInfo);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
         protected virtual Int32 Open(
@@ -223,11 +223,11 @@ namespace Fsp
             UInt32 GrantedAccess,
             out Object FileNode,
             out Object FileDesc,
-            out FileInfo FileInfo)
+            out OpenFileInfo OpenFileInfo)
         {
             FileNode = default(Object);
             FileDesc = default(Object);
-            FileInfo = default(FileInfo);
+            OpenFileInfo = default(OpenFileInfo);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
         protected virtual Int32 Overwrite(
@@ -501,7 +501,7 @@ namespace Fsp
             IntPtr SecurityDescriptor,
             UInt64 AllocationSize,
             ref FullContext FullContext,
-            out FileInfo FileInfo)
+            out OpenFileInfo OpenFileInfo)
         {
             FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
             try
@@ -517,13 +517,13 @@ namespace Fsp
                     AllocationSize,
                     out FileNode,
                     out FileDesc,
-                    out FileInfo);
+                    out OpenFileInfo);
                 Api.SetFullContext(ref FullContext, FileNode, FileDesc);
                 return Result;
             }
             catch (Exception ex)
             {
-                FileInfo = default(FileInfo);
+                OpenFileInfo = default(OpenFileInfo);
                 return self.ExceptionHandler(ex);
             }
         }
@@ -533,7 +533,7 @@ namespace Fsp
             UInt32 CreateOptions,
             UInt32 GrantedAccess,
             ref FullContext FullContext,
-            out FileInfo FileInfo)
+            out OpenFileInfo OpenFileInfo)
         {
             FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
             try
@@ -546,13 +546,13 @@ namespace Fsp
                     GrantedAccess,
                     out FileNode,
                     out FileDesc,
-                    out FileInfo);
+                    out OpenFileInfo);
                 Api.SetFullContext(ref FullContext, FileNode, FileDesc);
                 return Result;
             }
             catch (Exception ex)
             {
-                FileInfo = default(FileInfo);
+                OpenFileInfo = default(OpenFileInfo);
                 return self.ExceptionHandler(ex);
             }
         }

@@ -27,7 +27,6 @@ namespace Fsp.Interop
     [StructLayout(LayoutKind.Sequential)]
     internal struct VolumeParams
     {
-        /* const */
         internal const UInt32 CaseSensitiveSearch = 0x00000001;
         internal const UInt32 CasePreservedNames = 0x00000002;
         internal const UInt32 UnicodeOnDisk = 0x00000004;
@@ -46,7 +45,6 @@ namespace Fsp.Interop
         internal const int PrefixSize = 192;
         internal const int FileSystemNameSize = 16;
 
-        /* fields */
         internal UInt16 Version;
         internal UInt16 SectorSize;
         internal UInt16 SectorsPerAllocationUnit;
@@ -61,7 +59,6 @@ namespace Fsp.Interop
         internal unsafe fixed UInt16 Prefix[PrefixSize];
         internal unsafe fixed UInt16 FileSystemName[FileSystemNameSize];
 
-        /* helpers */
         internal unsafe void SetPrefix(String Value)
         {
             fixed (UInt16 *P = Prefix)
@@ -112,7 +109,7 @@ namespace Fsp.Interop
                     Size = VolumeLabelSize;
                 for (int I = 0; Size > I; I++)
                     P[I] = Value[I];
-                VolumeLabelLength = VolumeLabelSize;
+                VolumeLabelLength = (UInt16)Size;
             }
         }
     }
@@ -138,6 +135,17 @@ namespace Fsp.Interop
         public FileInfo FileInfo;
         public IntPtr NormalizedName;
         public UInt16 NormalizedNameSize;
+
+        public unsafe void SetNormalizedName(String Value)
+        {
+            UInt16 *P = (UInt16 *)NormalizedName;
+            int Size = Value.Length;
+            if (Size > NormalizedNameSize)
+                Size = NormalizedNameSize;
+            for (int I = 0; Size > I; I++)
+                P[I] = Value[I];
+            NormalizedNameSize = (UInt16)Size;
+        }
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -203,7 +211,7 @@ namespace Fsp.Interop
                 IntPtr SecurityDescriptor,
                 UInt64 AllocationSize,
                 ref FullContext FullContext,
-                out FileInfo FileInfo);
+                out OpenFileInfo OpenFileInfo);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 Open(
                 IntPtr FileSystem,
@@ -211,7 +219,7 @@ namespace Fsp.Interop
                 UInt32 CreateOptions,
                 UInt32 GrantedAccess,
                 ref FullContext FullContext,
-                out FileInfo FileInfo);
+                out OpenFileInfo OpenFileInfo);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 Overwrite(
                 IntPtr FileSystem,
