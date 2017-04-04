@@ -379,78 +379,92 @@ namespace Fsp.Interop
     [SuppressUnmanagedCodeSecurity]
     internal static class Api
     {
-        /* const */
-        internal const String DllName = "winfsp.dll";
+        internal struct Proto
+        {
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspFileSystemPreflight(
+                [MarshalAs(UnmanagedType.LPWStr)] String DevicePath,
+                [MarshalAs(UnmanagedType.LPWStr)] String MountPoint);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspFileSystemCreate(
+                [MarshalAs(UnmanagedType.LPWStr)] String DevicePath,
+                ref VolumeParams VolumeParams,
+                ref FileSystemInterface Interface,
+                out IntPtr PFileSystem);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspFileSystemDelete(
+                IntPtr FileSystem);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspFileSystemSetMountPoint(
+                IntPtr FileSystem,
+                [MarshalAs(UnmanagedType.LPWStr)] String MountPoint);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspFileSystemSetMountPointEx(
+                IntPtr FileSystem,
+                [MarshalAs(UnmanagedType.LPWStr)] String MountPoint,
+                IntPtr SecurityDescriptor);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspFileSystemRemoveMountPoint(
+                IntPtr FileSystem);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspFileSystemStartDispatcher(
+                IntPtr FileSystem,
+                UInt32 ThreadCount);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspFileSystemStopDispatcher(
+                IntPtr FileSystem);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspFileSystemFindReparsePoint(
+                IntPtr FileSystem,
+                GetReparsePointByName GetReparsePointByName,
+                IntPtr Context,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                out UInt32 PReparsePointIndex);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspFileSystemResolveReparsePoints(
+                IntPtr FileSystem,
+                GetReparsePointByName GetReparsePointByName,
+                IntPtr Context,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                UInt32 ReparsePointIndex,
+                Boolean ResolveLastPathComponent,
+                out IoStatusBlock PIoStatus,
+                IntPtr Buffer,
+                ref UIntPtr PSize);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspVersion(
+                out UInt32 PVersion);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspNtStatusFromWin32(
+                UInt32 Error);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate UInt32 FspWin32FromNtStatus(
+                Int32 Status);
 
-        /* API */
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern Int32 FspFileSystemPreflight(
-            [MarshalAs(UnmanagedType.LPWStr)] String DevicePath,
-            [MarshalAs(UnmanagedType.LPWStr)] String MountPoint);
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern Int32 FspFileSystemCreate(
-            [MarshalAs(UnmanagedType.LPWStr)] String DevicePath,
-            ref VolumeParams VolumeParams,
-            ref FileSystemInterface Interface,
-            out IntPtr PFileSystem);
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern void FspFileSystemDelete(
-            IntPtr FileSystem);
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern Int32 FspFileSystemSetMountPoint(
-            IntPtr FileSystem,
-            [MarshalAs(UnmanagedType.LPWStr)] String MountPoint);
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern Int32 FspFileSystemSetMountPointEx(
-            IntPtr FileSystem,
-            [MarshalAs(UnmanagedType.LPWStr)] String MountPoint,
-            IntPtr SecurityDescriptor);
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern Int32 FspFileSystemRemoveMountPoint(
-            IntPtr FileSystem);
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern Int32 FspFileSystemStartDispatcher(
-            IntPtr FileSystem,
-            UInt32 ThreadCount);
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern Int32 FspFileSystemStopDispatcher(
-            IntPtr FileSystem);
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern Int32 FspFileSystemFindReparsePoint(
-            IntPtr FileSystem,
-            GetReparsePointByName GetReparsePointByName,
-            IntPtr Context,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-            out UInt32 PReparsePointIndex);
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern Int32 FspFileSystemResolveReparsePoints(
-            IntPtr FileSystem,
-            GetReparsePointByName GetReparsePointByName,
-            IntPtr Context,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-            UInt32 ReparsePointIndex,
-            Boolean ResolveLastPathComponent,
-            out IoStatusBlock PIoStatus,
-            IntPtr Buffer,
-            ref UIntPtr PSize);
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern Int32 FspVersion(
-            out UInt32 PVersion);
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern Int32 FspNtStatusFromWin32(
-            UInt32 Error);
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern UInt32 FspWin32FromNtStatus(
-            Int32 Status);
+            /* callback */
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 GetReparsePointByName(
+                IntPtr FileSystem,
+                IntPtr Context,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                Boolean IsDirectory,
+                IntPtr Buffer,
+                ref UIntPtr PSize);
+        }
 
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Int32 GetReparsePointByName(
-            IntPtr FileSystem,
-            IntPtr Context,
-            [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-            Boolean IsDirectory,
-            IntPtr Buffer,
-            ref UIntPtr PSize);
+        internal static Proto.FspFileSystemPreflight FspFileSystemPreflight;
+        internal static Proto.FspFileSystemCreate FspFileSystemCreate;
+        internal static Proto.FspFileSystemDelete FspFileSystemDelete;
+        internal static Proto.FspFileSystemSetMountPoint FspFileSystemSetMountPoint;
+        internal static Proto.FspFileSystemSetMountPointEx _FspFileSystemSetMountPointEx;
+        internal static Proto.FspFileSystemRemoveMountPoint FspFileSystemRemoveMountPoint;
+        internal static Proto.FspFileSystemStartDispatcher FspFileSystemStartDispatcher;
+        internal static Proto.FspFileSystemStopDispatcher FspFileSystemStopDispatcher;
+        internal static Proto.FspFileSystemFindReparsePoint FspFileSystemFindReparsePoint;
+        internal static Proto.FspFileSystemResolveReparsePoints FspFileSystemResolveReparsePoints;
+        internal static Proto.FspVersion FspVersion;
+        internal static Proto.FspNtStatusFromWin32 FspNtStatusFromWin32;
+        internal static Proto.FspWin32FromNtStatus FspWin32FromNtStatus;
 
         internal static unsafe Int32 FspFileSystemSetMountPointEx(
             IntPtr FileSystem,
@@ -462,10 +476,10 @@ namespace Fsp.Interop
                 byte[] Bytes = new byte[SecurityDescriptor.BinaryLength];
                 SecurityDescriptor.GetBinaryForm(Bytes, 0);
                 fixed (byte *P = Bytes)
-                    return FspFileSystemSetMountPointEx(FileSystem, MountPoint, (IntPtr)P);
+                    return _FspFileSystemSetMountPointEx(FileSystem, MountPoint, (IntPtr)P);
             }
             else
-                return FspFileSystemSetMountPointEx(FileSystem, MountPoint, IntPtr.Zero);
+                return _FspFileSystemSetMountPointEx(FileSystem, MountPoint, IntPtr.Zero);
         }
         internal unsafe static Object FspFileSystemGetUserContext(
             IntPtr FileSystem)
@@ -535,8 +549,6 @@ namespace Fsp.Interop
             }
         }
 
-        [DllImport("advapi32.dll", CallingConvention = CallingConvention.StdCall)]
-        private static extern UInt32 GetSecurityDescriptorLength(IntPtr SecurityDescriptor);
         internal unsafe static Int32 CopySecurityDescriptor(
             Object SecurityDescriptorObject,
             IntPtr SecurityDescriptor,
@@ -580,10 +592,7 @@ namespace Fsp.Interop
         }
 
         /* initialization */
-        [DllImport("kernel32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true)]
-        private static extern IntPtr LoadLibraryW(
-            [MarshalAs(UnmanagedType.LPWStr)] String DllName);
-        private static Boolean Load()
+        private static IntPtr LoadDll()
         {
             String DllPath = null;
             String DllName = 8 == IntPtr.Size ? "winfsp-x64.dll" : "winfsp-x86.dll";
@@ -595,19 +604,55 @@ namespace Fsp.Interop
             if (IntPtr.Zero == Module)
             {
                 DllPath = Microsoft.Win32.Registry.GetValue(KeyName, "InstallDir", null) as String;
-                if (null == DllPath)
-                    return false;
-                Module = LoadLibraryW(DllPath + DllName);
+                if (null != DllPath)
+                    Module = LoadLibraryW(DllPath + DllName);
                 if (IntPtr.Zero == Module)
-                    return false;
+                    throw new DllNotFoundException("cannot load " + DllName);
             }
-            return true;
+            return Module;
+        }
+        private static T GetEntryPoint<T>(IntPtr Module)
+        {
+            try
+            {
+                return (T)(object)Marshal.GetDelegateForFunctionPointer(
+                    GetProcAddress(Module, typeof(T).Name), typeof(T));
+            }
+            catch (ArgumentNullException)
+            {
+                throw new EntryPointNotFoundException("cannot get entry point " + typeof(T).Name);
+            }
+        }
+        private static void LoadProto(IntPtr Module)
+        {
+            FspFileSystemPreflight = GetEntryPoint<Proto.FspFileSystemPreflight>(Module);
+            FspFileSystemCreate = GetEntryPoint<Proto.FspFileSystemCreate>(Module);
+            FspFileSystemDelete = GetEntryPoint<Proto.FspFileSystemDelete>(Module);
+            FspFileSystemSetMountPoint = GetEntryPoint<Proto.FspFileSystemSetMountPoint>(Module);
+            _FspFileSystemSetMountPointEx = GetEntryPoint<Proto.FspFileSystemSetMountPointEx>(Module);
+            FspFileSystemRemoveMountPoint = GetEntryPoint<Proto.FspFileSystemRemoveMountPoint>(Module);
+            FspFileSystemStartDispatcher = GetEntryPoint<Proto.FspFileSystemStartDispatcher>(Module);
+            FspFileSystemStopDispatcher = GetEntryPoint<Proto.FspFileSystemStopDispatcher>(Module);
+            FspFileSystemFindReparsePoint = GetEntryPoint<Proto.FspFileSystemFindReparsePoint>(Module);
+            FspFileSystemResolveReparsePoints = GetEntryPoint<Proto.FspFileSystemResolveReparsePoints>(Module);
+            FspVersion = GetEntryPoint<Proto.FspVersion>(Module);
+            FspNtStatusFromWin32 = GetEntryPoint<Proto.FspNtStatusFromWin32>(Module);
+            FspWin32FromNtStatus = GetEntryPoint<Proto.FspWin32FromNtStatus>(Module);
         }
         static Api()
         {
-            if (!Load())
-                return;
+            LoadProto(LoadDll());
         }
+
+        [DllImport("kernel32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true)]
+        private static extern IntPtr LoadLibraryW(
+            [MarshalAs(UnmanagedType.LPWStr)] String DllName);
+        [DllImport("kernel32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true)]
+        private static extern IntPtr GetProcAddress(
+            IntPtr hModule,
+            [MarshalAs(UnmanagedType.LPStr)] String lpProcName);
+        [DllImport("advapi32.dll", CallingConvention = CallingConvention.StdCall)]
+        private static extern UInt32 GetSecurityDescriptorLength(IntPtr SecurityDescriptor);
     }
 
 }
