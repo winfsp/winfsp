@@ -50,6 +50,9 @@
     <Compile Include="..\..\src\dotnet\Interop.cs">
       <Link>Interop.cs</Link>
     </Compile>
+    <Compile Include="..\..\src\dotnet\Service.cs">
+      <Link>Service.cs</Link>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

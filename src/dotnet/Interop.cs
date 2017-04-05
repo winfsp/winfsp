@@ -440,6 +440,33 @@ namespace Fsp.Interop
                 IntPtr Buffer,
                 ref UIntPtr PSize);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspServiceCreate(
+                [MarshalAs(UnmanagedType.LPWStr)] String ServiceName,
+                ServiceStart OnStart,
+                ServiceStop OnStop,
+                ServiceControl OnControl,
+                out IntPtr PService);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspServiceDelete(
+                IntPtr Service);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspServiceAllowConsoleMode(
+                IntPtr Service);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate UInt32 FspServiceGetExitCode(
+                IntPtr Service);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspServiceLoop(
+                IntPtr Service);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspServiceStop(
+                IntPtr Service);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspServiceLog(
+                UInt32 Type,
+                [MarshalAs(UnmanagedType.LPWStr)] String Format,
+                [MarshalAs(UnmanagedType.LPWStr)] String Message);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 FspVersion(
                 out UInt32 PVersion);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -449,7 +476,7 @@ namespace Fsp.Interop
             internal delegate UInt32 FspWin32FromNtStatus(
                 Int32 Status);
 
-            /* callback */
+            /* callbacks */
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 GetReparsePointByName(
                 IntPtr FileSystem,
@@ -458,6 +485,22 @@ namespace Fsp.Interop
                 Boolean IsDirectory,
                 IntPtr Buffer,
                 ref UIntPtr PSize);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 ServiceStart(
+                IntPtr Service,
+                UInt32 Argc,
+                [MarshalAs(UnmanagedType.LPArray,
+                    ArraySubType = UnmanagedType.LPWStr, SizeParamIndex = 1)]
+                String[] Argv);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 ServiceStop(
+                IntPtr Service);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 ServiceControl(
+                IntPtr Service,
+                UInt32 Control,
+                UInt32 EventType,
+                IntPtr EventData);
         }
 
         internal static Proto.FspFileSystemPreflight FspFileSystemPreflight;
@@ -471,6 +514,13 @@ namespace Fsp.Interop
         internal static Proto.FspFileSystemFindReparsePoint FspFileSystemFindReparsePoint;
         internal static Proto.FspFileSystemResolveReparsePoints FspFileSystemResolveReparsePoints;
         internal static Proto.FspVersion FspVersion;
+        internal static Proto.FspServiceCreate FspServiceCreate;
+        internal static Proto.FspServiceDelete FspServiceDelete;
+        internal static Proto.FspServiceAllowConsoleMode FspServiceAllowConsoleMode;
+        internal static Proto.FspServiceGetExitCode FspServiceGetExitCode;
+        internal static Proto.FspServiceLoop FspServiceLoop;
+        internal static Proto.FspServiceStop FspServiceStop;
+        internal static Proto.FspServiceLog FspServiceLog;
         internal static Proto.FspNtStatusFromWin32 FspNtStatusFromWin32;
         internal static Proto.FspWin32FromNtStatus FspWin32FromNtStatus;
 
@@ -599,6 +649,33 @@ namespace Fsp.Interop
                 return null;
         }
 
+        internal unsafe static Object FspServiceGetUserContext(
+            IntPtr Service)
+        {
+            IntPtr UserContext = *(IntPtr *)((byte *)Service + sizeof(IntPtr));
+            return IntPtr.Zero != UserContext ? GCHandle.FromIntPtr(UserContext).Target : null;
+        }
+        internal unsafe static void FspServiceSetUserContext(
+            IntPtr Service,
+            Object Obj)
+        {
+            if (null != Obj)
+            {
+                Debug.Assert(IntPtr.Zero == *(IntPtr *)((byte *)Service + sizeof(IntPtr)));
+                GCHandle Handle = GCHandle.Alloc(Obj, GCHandleType.Weak);
+                *(IntPtr *)((byte *)Service + sizeof(IntPtr)) = (IntPtr)Handle;
+            }
+            else
+            {
+                IntPtr UserContext = *(IntPtr *)((byte *)Service + sizeof(IntPtr));
+                if (IntPtr.Zero != UserContext)
+                {
+                    GCHandle.FromIntPtr(UserContext).Free();
+                    *(IntPtr *)((byte *)Service + sizeof(IntPtr)) = IntPtr.Zero;
+                }
+            }
+        }
+
         /* initialization */
         private static IntPtr LoadDll()
         {
@@ -643,6 +720,13 @@ namespace Fsp.Interop
             FspFileSystemStopDispatcher = GetEntryPoint<Proto.FspFileSystemStopDispatcher>(Module);
             FspFileSystemFindReparsePoint = GetEntryPoint<Proto.FspFileSystemFindReparsePoint>(Module);
             FspFileSystemResolveReparsePoints = GetEntryPoint<Proto.FspFileSystemResolveReparsePoints>(Module);
+            FspServiceCreate = GetEntryPoint<Proto.FspServiceCreate>(Module);
+            FspServiceDelete = GetEntryPoint<Proto.FspServiceDelete>(Module);
+            FspServiceAllowConsoleMode = GetEntryPoint<Proto.FspServiceAllowConsoleMode>(Module);
+            FspServiceGetExitCode = GetEntryPoint<Proto.FspServiceGetExitCode>(Module);
+            FspServiceLoop = GetEntryPoint<Proto.FspServiceLoop>(Module);
+            FspServiceStop = GetEntryPoint<Proto.FspServiceStop>(Module);
+            FspServiceLog = GetEntryPoint<Proto.FspServiceLog>(Module);
             FspVersion = GetEntryPoint<Proto.FspVersion>(Module);
             FspNtStatusFromWin32 = GetEntryPoint<Proto.FspNtStatusFromWin32>(Module);
             FspWin32FromNtStatus = GetEntryPoint<Proto.FspWin32FromNtStatus>(Module);
