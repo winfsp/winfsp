@@ -46,7 +46,7 @@ namespace Fsp
             if (IntPtr.Zero != _FileSystem)
             {
                 Api.FspFileSystemStopDispatcher(_FileSystem);
-                Api.FspFileSystemSetUserContext(_FileSystem, null);
+                Api.SetUserContext(_FileSystem, null);
                 Api.FspFileSystemDelete(_FileSystem);
                 _FileSystem = IntPtr.Zero;
             }
@@ -140,7 +140,7 @@ namespace Fsp
                 ref _VolumeParams, ref _FileSystemInterface, out _FileSystem);
             if (0 <= Result)
             {
-                Api.FspFileSystemSetUserContext(_FileSystem, this);
+                Api.SetUserContext(_FileSystem, this);
 #if false
                 FspFileSystemSetOperationGuardStrategy(_FileSystem, Synchronized ?
                     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE :
@@ -154,7 +154,7 @@ namespace Fsp
             }
             if (0 > Result && IntPtr.Zero != _FileSystem)
             {
-                Api.FspFileSystemSetUserContext(_FileSystem, null);
+                Api.SetUserContext(_FileSystem, null);
                 Api.FspFileSystemDelete(_FileSystem);
                 _FileSystem = IntPtr.Zero;
             }
@@ -433,7 +433,7 @@ namespace Fsp
             IntPtr FileSystem,
             out VolumeInfo VolumeInfo)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 return self.GetVolumeInfo(
@@ -450,7 +450,7 @@ namespace Fsp
             String VolumeLabel,
             out VolumeInfo VolumeInfo)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 return self.SetVolumeLabel(
@@ -470,7 +470,7 @@ namespace Fsp
             IntPtr SecurityDescriptor,
             IntPtr PSecurityDescriptorSize)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 UInt32 FileAttributes;
@@ -503,7 +503,7 @@ namespace Fsp
             ref FullContext FullContext,
             out OpenFileInfo OpenFileInfo)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -535,7 +535,7 @@ namespace Fsp
             ref FullContext FullContext,
             out OpenFileInfo OpenFileInfo)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -564,7 +564,7 @@ namespace Fsp
             UInt64 AllocationSize,
             out FileInfo FileInfo)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -589,7 +589,7 @@ namespace Fsp
             String FileName,
             UInt32 Flags)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -609,7 +609,7 @@ namespace Fsp
             IntPtr FileSystem,
             ref FullContext FullContext)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -632,7 +632,7 @@ namespace Fsp
             UInt32 Length,
             out UInt32 PBytesTransferred)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -662,7 +662,7 @@ namespace Fsp
             out UInt32 PBytesTransferred,
             out FileInfo FileInfo)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -690,7 +690,7 @@ namespace Fsp
             ref FullContext FullContext,
             out FileInfo FileInfo)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -711,7 +711,7 @@ namespace Fsp
             ref FullContext FullContext,
             out FileInfo FileInfo)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -737,7 +737,7 @@ namespace Fsp
             UInt64 ChangeTime,
             out FileInfo FileInfo)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -765,7 +765,7 @@ namespace Fsp
             Boolean SetAllocationSize,
             out FileInfo FileInfo)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -788,7 +788,7 @@ namespace Fsp
             ref FullContext FullContext,
             String FileName)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -810,7 +810,7 @@ namespace Fsp
             String NewFileName,
             Boolean ReplaceIfExists)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -833,7 +833,7 @@ namespace Fsp
             IntPtr SecurityDescriptor,
             IntPtr PSecurityDescriptorSize)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -860,7 +860,7 @@ namespace Fsp
             UInt32 SecurityInformation,
             IntPtr ModificationDescriptor)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -885,7 +885,7 @@ namespace Fsp
             UInt32 Length,
             out UInt32 PBytesTransferred)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -914,7 +914,7 @@ namespace Fsp
             IntPtr Buffer,
             ref UIntPtr PSize)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 return self.ResolveReparsePoints(
@@ -939,7 +939,7 @@ namespace Fsp
             IntPtr Buffer,
             ref UIntPtr PSize)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 return self.GetReparsePointByName(
@@ -960,7 +960,7 @@ namespace Fsp
             IntPtr Buffer,
             out UIntPtr PSize)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -985,7 +985,7 @@ namespace Fsp
             IntPtr Buffer,
             UIntPtr Size)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -1009,7 +1009,7 @@ namespace Fsp
             IntPtr Buffer,
             UIntPtr Size)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
@@ -1033,7 +1033,7 @@ namespace Fsp
             UInt32 Length,
             out UInt32 PBytesTransferred)
         {
-            FileSystem self = (FileSystem)Api.FspFileSystemGetUserContext(FileSystem);
+            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;

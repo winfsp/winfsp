@@ -34,13 +34,13 @@ namespace Fsp
         Service(String ServiceName)
         {
             _CreateResult = Api.FspServiceCreate(ServiceName, OnStart, OnStop, null, out _Service);
-            Api.FspServiceSetUserContext(_Service, this);
+            Api.SetUserContext(_Service, this);
         }
         ~Service()
         {
             if (IntPtr.Zero != _Service)
             {
-                Api.FspServiceSetUserContext(_Service, null);
+                Api.SetUserContext(_Service, null);
                 Api.FspServiceDelete(_Service);
             }
         }
@@ -96,7 +96,7 @@ namespace Fsp
             UInt32 Argc,
             String[] Argv)
         {
-            Service self = (Service)Api.FspServiceGetUserContext(Service);
+            Service self = (Service)Api.GetUserContext(Service);
             try
             {
                 return self.OnStart(
@@ -110,7 +110,7 @@ namespace Fsp
         private static Int32 OnStop(
             IntPtr Service)
         {
-            Service self = (Service)Api.FspServiceGetUserContext(Service);
+            Service self = (Service)Api.GetUserContext(Service);
             try
             {
                 return self.OnStop();

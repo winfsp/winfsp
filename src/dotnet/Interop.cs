@@ -539,29 +539,30 @@ namespace Fsp.Interop
             else
                 return _FspFileSystemSetMountPointEx(FileSystem, MountPoint, IntPtr.Zero);
         }
-        internal unsafe static Object FspFileSystemGetUserContext(
-            IntPtr FileSystem)
+
+        internal unsafe static Object GetUserContext(
+            IntPtr NativePtr)
         {
-            IntPtr UserContext = *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr));
+            IntPtr UserContext = *(IntPtr *)((byte *)NativePtr + sizeof(IntPtr));
             return IntPtr.Zero != UserContext ? GCHandle.FromIntPtr(UserContext).Target : null;
         }
-        internal unsafe static void FspFileSystemSetUserContext(
-            IntPtr FileSystem,
+        internal unsafe static void SetUserContext(
+            IntPtr NativePtr,
             Object Obj)
         {
             if (null != Obj)
             {
-                Debug.Assert(IntPtr.Zero == *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr)));
+                Debug.Assert(IntPtr.Zero == *(IntPtr *)((byte *)NativePtr + sizeof(IntPtr)));
                 GCHandle Handle = GCHandle.Alloc(Obj, GCHandleType.Weak);
-                *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr)) = (IntPtr)Handle;
+                *(IntPtr *)((byte *)NativePtr + sizeof(IntPtr)) = (IntPtr)Handle;
             }
             else
             {
-                IntPtr UserContext = *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr));
+                IntPtr UserContext = *(IntPtr *)((byte *)NativePtr + sizeof(IntPtr));
                 if (IntPtr.Zero != UserContext)
                 {
                     GCHandle.FromIntPtr(UserContext).Free();
-                    *(IntPtr *)((byte *)FileSystem + sizeof(IntPtr)) = IntPtr.Zero;
+                    *(IntPtr *)((byte *)NativePtr + sizeof(IntPtr)) = IntPtr.Zero;
                 }
             }
         }
@@ -647,33 +648,6 @@ namespace Fsp.Interop
             }
             else
                 return null;
-        }
-
-        internal unsafe static Object FspServiceGetUserContext(
-            IntPtr Service)
-        {
-            IntPtr UserContext = *(IntPtr *)((byte *)Service + sizeof(IntPtr));
-            return IntPtr.Zero != UserContext ? GCHandle.FromIntPtr(UserContext).Target : null;
-        }
-        internal unsafe static void FspServiceSetUserContext(
-            IntPtr Service,
-            Object Obj)
-        {
-            if (null != Obj)
-            {
-                Debug.Assert(IntPtr.Zero == *(IntPtr *)((byte *)Service + sizeof(IntPtr)));
-                GCHandle Handle = GCHandle.Alloc(Obj, GCHandleType.Weak);
-                *(IntPtr *)((byte *)Service + sizeof(IntPtr)) = (IntPtr)Handle;
-            }
-            else
-            {
-                IntPtr UserContext = *(IntPtr *)((byte *)Service + sizeof(IntPtr));
-                if (IntPtr.Zero != UserContext)
-                {
-                    GCHandle.FromIntPtr(UserContext).Free();
-                    *(IntPtr *)((byte *)Service + sizeof(IntPtr)) = IntPtr.Zero;
-                }
-            }
         }
 
         /* initialization */
