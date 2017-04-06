@@ -67,7 +67,7 @@
       <AssemblyInfo Include="[assembly: AssemblyTitle(&quot;$(MyDescription)&quot;)]" />
       <AssemblyInfo Include="[assembly: AssemblyCompany(&quot;$(MyCompanyName)&quot;)]" />
       <AssemblyInfo Include="[assembly: AssemblyCopyright(&quot;$(MyCopyright)&quot;)]" />
-      <AssemblyInfo Include="[assembly: AssemblyVersion(&quot;$(MyCanonicalVersion)&quot;)]" />
+      <AssemblyInfo Include="[assembly: AssemblyVersion(&quot;$(MyAssemblyVersion)&quot;)]" />
       <AssemblyInfo Include="[assembly: AssemblyFileVersion(&quot;$(MyVersion)&quot;)]" />
     </ItemGroup>
     <MakeDir Directories="$(IntermediateOutputPath)" />
