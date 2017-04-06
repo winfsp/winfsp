@@ -389,6 +389,7 @@ namespace Fsp.Interop
     {
         internal struct Proto
         {
+            /* FileSystem */
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 FspFileSystemPreflight(
                 [MarshalAs(UnmanagedType.LPWStr)] String DevicePath,
@@ -439,6 +440,8 @@ namespace Fsp.Interop
                 out IoStatusBlock PIoStatus,
                 IntPtr Buffer,
                 ref UIntPtr PSize);
+
+            /* Service */
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 FspServiceCreate(
                 [MarshalAs(UnmanagedType.LPWStr)] String ServiceName,
@@ -453,6 +456,14 @@ namespace Fsp.Interop
             internal delegate void FspServiceAllowConsoleMode(
                 IntPtr Service);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspServiceRequestTime(
+                IntPtr Service,
+                UInt32 Time);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspServiceSetExitCode(
+                IntPtr Service,
+                UInt32 ExitCode);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate UInt32 FspServiceGetExitCode(
                 IntPtr Service);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -466,6 +477,8 @@ namespace Fsp.Interop
                 UInt32 Type,
                 [MarshalAs(UnmanagedType.LPWStr)] String Format,
                 [MarshalAs(UnmanagedType.LPWStr)] String Message);
+
+            /* utility */
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 FspVersion(
                 out UInt32 PVersion);
@@ -517,6 +530,8 @@ namespace Fsp.Interop
         internal static Proto.FspServiceCreate FspServiceCreate;
         internal static Proto.FspServiceDelete FspServiceDelete;
         internal static Proto.FspServiceAllowConsoleMode FspServiceAllowConsoleMode;
+        internal static Proto.FspServiceRequestTime FspServiceRequestTime;
+        internal static Proto.FspServiceSetExitCode FspServiceSetExitCode;
         internal static Proto.FspServiceGetExitCode FspServiceGetExitCode;
         internal static Proto.FspServiceLoop FspServiceLoop;
         internal static Proto.FspServiceStop FspServiceStop;
@@ -697,6 +712,8 @@ namespace Fsp.Interop
             FspServiceCreate = GetEntryPoint<Proto.FspServiceCreate>(Module);
             FspServiceDelete = GetEntryPoint<Proto.FspServiceDelete>(Module);
             FspServiceAllowConsoleMode = GetEntryPoint<Proto.FspServiceAllowConsoleMode>(Module);
+            FspServiceRequestTime = GetEntryPoint<Proto.FspServiceRequestTime>(Module);
+            FspServiceSetExitCode = GetEntryPoint<Proto.FspServiceSetExitCode>(Module);
             FspServiceGetExitCode = GetEntryPoint<Proto.FspServiceGetExitCode>(Module);
             FspServiceLoop = GetEntryPoint<Proto.FspServiceLoop>(Module);
             FspServiceStop = GetEntryPoint<Proto.FspServiceStop>(Module);

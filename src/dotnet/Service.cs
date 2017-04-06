@@ -65,11 +65,20 @@ namespace Fsp
             }
             return (int)ExitCode;
         }
-        void Stop()
+        public void Stop()
         {
             if (0 > _CreateResult)
                 return;
             Api.FspServiceStop(_Service);
+        }
+        public void RequestTime(UInt32 Time)
+        {
+            Api.FspServiceRequestTime(_Service, Time);
+        }
+        public int ExitCode
+        {
+            get { return (int)Api.FspServiceGetExitCode(_Service); }
+            set { Api.FspServiceSetExitCode(_Service, (UInt32)value); }
         }
         public static void Log(UInt32 Type, String Message)
         {
@@ -81,13 +90,11 @@ namespace Fsp
         {
             return unchecked((Int32)0xE0434f4D)/*STATUS_CLR_EXCEPTION*/;
         }
-        protected virtual Int32 OnStart(String[] Args)
+        protected virtual void OnStart(String[] Args)
         {
-            return 0;
         }
-        protected virtual Int32 OnStop()
+        protected virtual void OnStop()
         {
-            return 0;
         }
 
         /* callbacks */
@@ -99,8 +106,9 @@ namespace Fsp
             Service self = (Service)Api.GetUserContext(Service);
             try
             {
-                return self.OnStart(
+                self.OnStart(
                     Argv);
+                return 0/*STATUS_SUCCESS*/;
             }
             catch (Exception ex)
             {
@@ -113,7 +121,8 @@ namespace Fsp
             Service self = (Service)Api.GetUserContext(Service);
             try
             {
-                return self.OnStop();
+                self.OnStop();
+                return 0/*STATUS_SUCCESS*/;
             }
             catch (Exception ex)
             {
