@@ -129,7 +129,7 @@ namespace Fsp
                 MountPoint);
         }
         Int32 Mount(String MountPoint,
-            byte[] SecurityDescriptor = null,
+            Byte[] SecurityDescriptor = null,
             Boolean Synchronized = false,
             UInt32 DebugLog = 0)
         {
@@ -195,7 +195,7 @@ namespace Fsp
         protected virtual Int32 GetSecurityByName(
             String FileName,
             out UInt32 FileAttributes/* or ReparsePointIndex */,
-            ref byte[] SecurityDescriptor)
+            ref Byte[] SecurityDescriptor)
         {
             FileAttributes = default(UInt32);
             return STATUS_INVALID_DEVICE_REQUEST;
@@ -336,7 +336,7 @@ namespace Fsp
         protected virtual Int32 GetSecurity(
             Object FileNode,
             Object FileDesc,
-            ref byte[] SecurityDescriptor)
+            ref Byte[] SecurityDescriptor)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
@@ -344,7 +344,7 @@ namespace Fsp
             Object FileNode,
             Object FileDesc,
             UInt32 SecurityInformation,
-            byte[] SecurityDescriptor)
+            Byte[] SecurityDescriptor)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
@@ -427,7 +427,7 @@ namespace Fsp
         }
 
         /* FSP_FILE_SYSTEM_INTERFACE */
-        private static byte[] SecurityDescriptorNotNull = new byte[0];
+        private static Byte[] SecurityDescriptorNotNull = new Byte[0];
         private static Int32 GetVolumeInfo(
             IntPtr FileSystem,
             out VolumeInfo VolumeInfo)
@@ -473,7 +473,7 @@ namespace Fsp
             try
             {
                 UInt32 FileAttributes;
-                byte[] SecurityDescriptorBytes = null;
+                Byte[] SecurityDescriptorBytes = null;
                 Int32 Result;
                 if (IntPtr.Zero != PSecurityDescriptorSize)
                     SecurityDescriptorBytes = SecurityDescriptorNotNull;
@@ -836,7 +836,7 @@ namespace Fsp
             try
             {
                 Object FileNode, FileDesc;
-                byte[] SecurityDescriptorBytes = null;
+                Byte[] SecurityDescriptorBytes = null;
                 Int32 Result;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
                 if (IntPtr.Zero != PSecurityDescriptorSize)

@@ -542,11 +542,11 @@ namespace Fsp.Interop
         internal static unsafe Int32 FspFileSystemSetMountPointEx(
             IntPtr FileSystem,
             String MountPoint,
-            byte[] SecurityDescriptor)
+            Byte[] SecurityDescriptor)
         {
             if (null != SecurityDescriptor)
             {
-                fixed (byte *P = SecurityDescriptor)
+                fixed (Byte *P = SecurityDescriptor)
                     return _FspFileSystemSetMountPointEx(FileSystem, MountPoint, (IntPtr)P);
             }
             else
@@ -556,7 +556,7 @@ namespace Fsp.Interop
         internal unsafe static Object GetUserContext(
             IntPtr NativePtr)
         {
-            IntPtr UserContext = *(IntPtr *)((byte *)NativePtr + sizeof(IntPtr));
+            IntPtr UserContext = *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr));
             return IntPtr.Zero != UserContext ? GCHandle.FromIntPtr(UserContext).Target : null;
         }
         internal unsafe static void SetUserContext(
@@ -565,17 +565,17 @@ namespace Fsp.Interop
         {
             if (null != Obj)
             {
-                Debug.Assert(IntPtr.Zero == *(IntPtr *)((byte *)NativePtr + sizeof(IntPtr)));
+                Debug.Assert(IntPtr.Zero == *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr)));
                 GCHandle Handle = GCHandle.Alloc(Obj, GCHandleType.Weak);
-                *(IntPtr *)((byte *)NativePtr + sizeof(IntPtr)) = (IntPtr)Handle;
+                *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr)) = (IntPtr)Handle;
             }
             else
             {
-                IntPtr UserContext = *(IntPtr *)((byte *)NativePtr + sizeof(IntPtr));
+                IntPtr UserContext = *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr));
                 if (IntPtr.Zero != UserContext)
                 {
                     GCHandle.FromIntPtr(UserContext).Free();
-                    *(IntPtr *)((byte *)NativePtr + sizeof(IntPtr)) = IntPtr.Zero;
+                    *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr)) = IntPtr.Zero;
                 }
             }
         }
@@ -622,7 +622,7 @@ namespace Fsp.Interop
         }
 
         internal unsafe static Int32 CopySecurityDescriptor(
-            byte[] SecurityDescriptorBytes,
+            Byte[] SecurityDescriptorBytes,
             IntPtr SecurityDescriptor,
             IntPtr PSecurityDescriptorSize)
         {
@@ -645,12 +645,12 @@ namespace Fsp.Interop
             }
             return 0/*STATUS_SUCCESS*/;
         }
-        internal static byte[] MakeSecurityDescriptor(
+        internal static Byte[] MakeSecurityDescriptor(
             IntPtr SecurityDescriptor)
         {
             if (IntPtr.Zero != SecurityDescriptor)
             {
-                byte[] SecurityDescriptorBytes = new byte[GetSecurityDescriptorLength(SecurityDescriptor)];
+                Byte[] SecurityDescriptorBytes = new Byte[GetSecurityDescriptorLength(SecurityDescriptor)];
                 Marshal.Copy(SecurityDescriptor,
                     SecurityDescriptorBytes, 0, SecurityDescriptorBytes.Length);
                 return SecurityDescriptorBytes;
