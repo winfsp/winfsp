@@ -215,15 +215,17 @@ namespace Fsp
             UInt32 CreateOptions,
             UInt32 GrantedAccess,
             UInt32 FileAttributes,
-            Object SecurityDescriptor,
+            Byte[] SecurityDescriptor,
             UInt64 AllocationSize,
             out Object FileNode,
             out Object FileDesc,
-            out OpenFileInfo OpenFileInfo)
+            out FileInfo FileInfo,
+            out String NormalizedName)
         {
             FileNode = default(Object);
             FileDesc = default(Object);
-            OpenFileInfo = default(OpenFileInfo);
+            FileInfo = default(FileInfo);
+            NormalizedName = default(String);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
         protected virtual Int32 Open(
@@ -232,11 +234,13 @@ namespace Fsp
             UInt32 GrantedAccess,
             out Object FileNode,
             out Object FileDesc,
-            out OpenFileInfo OpenFileInfo)
+            out FileInfo FileInfo,
+            out String NormalizedName)
         {
             FileNode = default(Object);
             FileDesc = default(Object);
-            OpenFileInfo = default(OpenFileInfo);
+            FileInfo = default(FileInfo);
+            NormalizedName = default(String);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
         protected virtual Int32 Overwrite(
@@ -510,12 +514,13 @@ namespace Fsp
             IntPtr SecurityDescriptor,
             UInt64 AllocationSize,
             ref FullContext FullContext,
-            out OpenFileInfo OpenFileInfo)
+            ref OpenFileInfo OpenFileInfo)
         {
             FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
+                String NormalizedName;
                 Int32 Result;
                 Result = self.Create(
                     FileName,
@@ -526,13 +531,18 @@ namespace Fsp
                     AllocationSize,
                     out FileNode,
                     out FileDesc,
-                    out OpenFileInfo);
-                Api.SetFullContext(ref FullContext, FileNode, FileDesc);
+                    out OpenFileInfo.FileInfo,
+                    out NormalizedName);
+                if (0 <= Result)
+                {
+                    if (null != NormalizedName)
+                        OpenFileInfo.SetNormalizedName(NormalizedName);
+                    Api.SetFullContext(ref FullContext, FileNode, FileDesc);
+                }
                 return Result;
             }
             catch (Exception ex)
             {
-                OpenFileInfo = default(OpenFileInfo);
                 return self.ExceptionHandler(ex);
             }
         }
@@ -542,12 +552,13 @@ namespace Fsp
             UInt32 CreateOptions,
             UInt32 GrantedAccess,
             ref FullContext FullContext,
-            out OpenFileInfo OpenFileInfo)
+            ref OpenFileInfo OpenFileInfo)
         {
             FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
                 Object FileNode, FileDesc;
+                String NormalizedName;
                 Int32 Result;
                 Result = self.Open(
                     FileName,
@@ -555,13 +566,18 @@ namespace Fsp
                     GrantedAccess,
                     out FileNode,
                     out FileDesc,
-                    out OpenFileInfo);
-                Api.SetFullContext(ref FullContext, FileNode, FileDesc);
+                    out OpenFileInfo.FileInfo,
+                    out NormalizedName);
+                if (0 <= Result)
+                {
+                    if (null != NormalizedName)
+                        OpenFileInfo.SetNormalizedName(NormalizedName);
+                    Api.SetFullContext(ref FullContext, FileNode, FileDesc);
+                }
                 return Result;
             }
             catch (Exception ex)
             {
-                OpenFileInfo = default(OpenFileInfo);
                 return self.ExceptionHandler(ex);
             }
         }

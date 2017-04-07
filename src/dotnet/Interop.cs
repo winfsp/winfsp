@@ -130,13 +130,13 @@ namespace Fsp.Interop
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct OpenFileInfo
+    internal struct OpenFileInfo
     {
-        public FileInfo FileInfo;
-        public IntPtr NormalizedName;
-        public UInt16 NormalizedNameSize;
+        internal FileInfo FileInfo;
+        internal IntPtr NormalizedName;
+        internal UInt16 NormalizedNameSize;
 
-        public unsafe void SetNormalizedName(String Value)
+        internal unsafe void SetNormalizedName(String Value)
         {
             UInt16 *P = (UInt16 *)NormalizedName;
             int Size = Value.Length;
@@ -211,7 +211,7 @@ namespace Fsp.Interop
                 IntPtr SecurityDescriptor,
                 UInt64 AllocationSize,
                 ref FullContext FullContext,
-                out OpenFileInfo OpenFileInfo);
+                ref OpenFileInfo OpenFileInfo);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 Open(
                 IntPtr FileSystem,
@@ -219,7 +219,7 @@ namespace Fsp.Interop
                 UInt32 CreateOptions,
                 UInt32 GrantedAccess,
                 ref FullContext FullContext,
-                out OpenFileInfo OpenFileInfo);
+                ref OpenFileInfo OpenFileInfo);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 Overwrite(
                 IntPtr FileSystem,
