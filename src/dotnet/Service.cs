@@ -33,8 +33,9 @@ namespace Fsp
         /* ctor/dtor */
         public Service(String ServiceName)
         {
-            _CreateResult = Api.FspServiceCreate(ServiceName, OnStart, OnStop, null, out _Service);
-            Api.SetUserContext(_Service, this);
+            Api.FspServiceCreate(ServiceName, OnStart, OnStop, null, out _Service);
+            if (IntPtr.Zero != _Service)
+                Api.SetUserContext(_Service, this);
         }
         ~Service()
         {
@@ -48,33 +49,32 @@ namespace Fsp
         /* control */
         public void Run()
         {
-            if (0 > _CreateResult)
+            if (IntPtr.Zero == _Service)
             {
                 Log(EVENTLOG_ERROR_TYPE,
                     String.Format("The service {0} cannot be created (Status={1:X}).",
-                    GetType().FullName, _CreateResult));
+                    GetType().FullName, unchecked((Int32)0xc000009a)/*STATUS_INSUFFICIENT_RESOURCES*/));
                 return;
             }
             Api.FspServiceAllowConsoleMode(_Service);
             Int32 Result = Api.FspServiceLoop(_Service);
-            UInt32 ExitCode = Api.FspServiceGetExitCode(_Service);
-            if (0 > _CreateResult)
+            if (0 > Result)
             {
                 Log(EVENTLOG_ERROR_TYPE,
                     String.Format("The service {0} has failed to run (Status={1:X}).",
-                    GetType().FullName, _CreateResult));
+                    GetType().FullName, Result));
                 return;
             }
         }
         public void Stop()
         {
-            if (0 > _CreateResult)
+            if (IntPtr.Zero == _Service)
                 throw new InvalidOperationException();
             Api.FspServiceStop(_Service);
         }
         public void RequestTime(UInt32 Time)
         {
-            if (0 > _CreateResult)
+            if (IntPtr.Zero == _Service)
                 throw new InvalidOperationException();
             Api.FspServiceRequestTime(_Service, Time);
         }
@@ -82,13 +82,13 @@ namespace Fsp
         {
             get
             {
-                if (0 > _CreateResult)
+                if (IntPtr.Zero == _Service)
                     throw new InvalidOperationException();
                 return (int)Api.FspServiceGetExitCode(_Service);
             }
             set
             {
-                if (0 > _CreateResult)
+                if (IntPtr.Zero == _Service)
                     throw new InvalidOperationException();
                 Api.FspServiceSetExitCode(_Service, (UInt32)value);
             }
@@ -144,7 +144,6 @@ namespace Fsp
         }
 
         private IntPtr _Service;
-        private Int32 _CreateResult;
     }
 
 }
