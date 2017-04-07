@@ -47,24 +47,27 @@ namespace Fsp
         }
 
         /* control */
-        public void Run()
+        public int Run()
         {
             if (IntPtr.Zero == _Service)
             {
+                const Int32 STATUS_INSUFFICIENT_RESOURCES = unchecked((Int32)0xc000009a);
                 Log(EVENTLOG_ERROR_TYPE,
                     String.Format("The service {0} cannot be created (Status={1:X}).",
-                    GetType().FullName, unchecked((Int32)0xc000009a)/*STATUS_INSUFFICIENT_RESOURCES*/));
-                return;
+                    GetType().FullName, STATUS_INSUFFICIENT_RESOURCES));
+                return (int)Api.FspWin32FromNtStatus(STATUS_INSUFFICIENT_RESOURCES);
             }
             Api.FspServiceAllowConsoleMode(_Service);
             Int32 Result = Api.FspServiceLoop(_Service);
+            int ExitCode = (int)Api.FspServiceGetExitCode(_Service);
             if (0 > Result)
             {
                 Log(EVENTLOG_ERROR_TYPE,
                     String.Format("The service {0} has failed to run (Status={1:X}).",
                     GetType().FullName, Result));
-                return;
+                return (int)Api.FspWin32FromNtStatus(Result);
             }
+            return ExitCode;
         }
         public void Stop()
         {
