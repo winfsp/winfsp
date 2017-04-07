@@ -174,6 +174,16 @@ namespace Fsp
             return _FileSystem;
         }
 
+        /* helpers */
+        public static Int32 NtStatusFromWin32(UInt32 Error)
+        {
+            return Api.FspNtStatusFromWin32(Error);
+        }
+        public static UInt32 Win32FromNtStatus(Int32 Status)
+        {
+            return Api.FspWin32FromNtStatus(Status);
+        }
+
         /* operations */
         protected virtual Int32 ExceptionHandler(Exception ex)
         {
