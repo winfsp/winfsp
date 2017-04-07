@@ -96,6 +96,10 @@ namespace Fsp
                 Api.FspServiceSetExitCode(_Service, (UInt32)value);
             }
         }
+        public IntPtr ServiceHandle
+        {
+            get { return _Service; }
+        }
         public static void Log(UInt32 Type, String Message)
         {
             Api.FspServiceLog(Type, "%s", Message);

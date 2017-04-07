@@ -18,7 +18,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Security.AccessControl;
 using System.Runtime.InteropServices;
 using System.Security;
 
@@ -101,7 +100,7 @@ namespace Fsp.Interop
         internal UInt16 VolumeLabelLength;
         internal unsafe fixed UInt16 VolumeLabel[VolumeLabelSize];
 
-        internal unsafe void SetVolumeLabel(String Value)
+        public unsafe void SetVolumeLabel(String Value)
         {
             fixed (UInt16 *P = VolumeLabel)
             {
@@ -543,13 +542,11 @@ namespace Fsp.Interop
         internal static unsafe Int32 FspFileSystemSetMountPointEx(
             IntPtr FileSystem,
             String MountPoint,
-            GenericSecurityDescriptor SecurityDescriptor)
+            byte[] SecurityDescriptor)
         {
             if (null != SecurityDescriptor)
             {
-                byte[] Bytes = new byte[SecurityDescriptor.BinaryLength];
-                SecurityDescriptor.GetBinaryForm(Bytes, 0);
-                fixed (byte *P = Bytes)
+                fixed (byte *P = SecurityDescriptor)
                     return _FspFileSystemSetMountPointEx(FileSystem, MountPoint, (IntPtr)P);
             }
             else
@@ -625,42 +622,38 @@ namespace Fsp.Interop
         }
 
         internal unsafe static Int32 CopySecurityDescriptor(
-            Object SecurityDescriptorObject,
+            byte[] SecurityDescriptorBytes,
             IntPtr SecurityDescriptor,
             IntPtr PSecurityDescriptorSize)
         {
             if (IntPtr.Zero != PSecurityDescriptorSize)
             {
-                GenericSecurityDescriptor GenericSecurityDescriptor =
-                    SecurityDescriptorObject as GenericSecurityDescriptor;
-                if (null != GenericSecurityDescriptor)
+                if (null != SecurityDescriptorBytes)
                 {
-                    if (GenericSecurityDescriptor.BinaryLength > (int)*(IntPtr *)PSecurityDescriptorSize)
+                    if (SecurityDescriptorBytes.Length > (int)*(IntPtr *)PSecurityDescriptorSize)
                     {
-                        *(IntPtr *)PSecurityDescriptorSize = (IntPtr)GenericSecurityDescriptor.BinaryLength;
+                        *(IntPtr *)PSecurityDescriptorSize = (IntPtr)SecurityDescriptorBytes.Length;
                         return unchecked((Int32)0x80000005)/*STATUS_BUFFER_OVERFLOW*/;
                     }
-                    *(IntPtr *)PSecurityDescriptorSize = (IntPtr)GenericSecurityDescriptor.BinaryLength;
+                    *(IntPtr *)PSecurityDescriptorSize = (IntPtr)SecurityDescriptorBytes.Length;
                     if (IntPtr.Zero != SecurityDescriptor)
-                    {
-                        byte[] Bytes = new byte[GenericSecurityDescriptor.BinaryLength];
-                        GenericSecurityDescriptor.GetBinaryForm(Bytes, 0);
-                        Marshal.Copy(Bytes, 0, SecurityDescriptor, Bytes.Length);
-                    }
+                        Marshal.Copy(SecurityDescriptorBytes, 0,
+                            SecurityDescriptor, SecurityDescriptorBytes.Length);
                 }
                 else
                     *(IntPtr *)PSecurityDescriptorSize = IntPtr.Zero;
             }
             return 0/*STATUS_SUCCESS*/;
         }
-        internal static Object MakeSecurityDescriptor(
+        internal static byte[] MakeSecurityDescriptor(
             IntPtr SecurityDescriptor)
         {
             if (IntPtr.Zero != SecurityDescriptor)
             {
-                byte[] Bytes = new byte[GetSecurityDescriptorLength(SecurityDescriptor)];
-                Marshal.Copy(SecurityDescriptor, Bytes, 0, Bytes.Length);
-                return new RawSecurityDescriptor(Bytes, 0);
+                byte[] SecurityDescriptorBytes = new byte[GetSecurityDescriptorLength(SecurityDescriptor)];
+                Marshal.Copy(SecurityDescriptor,
+                    SecurityDescriptorBytes, 0, SecurityDescriptorBytes.Length);
+                return SecurityDescriptorBytes;
             }
             else
                 return null;

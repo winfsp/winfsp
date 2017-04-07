@@ -16,7 +16,6 @@
  */
 
 using System;
-using System.Security.AccessControl;
 using System.Runtime.InteropServices;
 
 using Fsp.Interop;
@@ -130,7 +129,7 @@ namespace Fsp
                 MountPoint);
         }
         Int32 Mount(String MountPoint,
-            GenericSecurityDescriptor SecurityDescriptor = null,
+            byte[] SecurityDescriptor = null,
             Boolean Synchronized = false,
             UInt32 DebugLog = 0)
         {
@@ -196,7 +195,7 @@ namespace Fsp
         protected virtual Int32 GetSecurityByName(
             String FileName,
             out UInt32 FileAttributes/* or ReparsePointIndex */,
-            ref Object SecurityDescriptor)
+            ref byte[] SecurityDescriptor)
         {
             FileAttributes = default(UInt32);
             return STATUS_INVALID_DEVICE_REQUEST;
@@ -337,7 +336,7 @@ namespace Fsp
         protected virtual Int32 GetSecurity(
             Object FileNode,
             Object FileDesc,
-            ref Object SecurityDescriptor)
+            ref byte[] SecurityDescriptor)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
@@ -345,7 +344,7 @@ namespace Fsp
             Object FileNode,
             Object FileDesc,
             UInt32 SecurityInformation,
-            Object SecurityDescriptor)
+            byte[] SecurityDescriptor)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
@@ -428,7 +427,7 @@ namespace Fsp
         }
 
         /* FSP_FILE_SYSTEM_INTERFACE */
-        private static Object SecurityDescriptorNotNull = new Object();
+        private static byte[] SecurityDescriptorNotNull = new byte[0];
         private static Int32 GetVolumeInfo(
             IntPtr FileSystem,
             out VolumeInfo VolumeInfo)
@@ -474,17 +473,17 @@ namespace Fsp
             try
             {
                 UInt32 FileAttributes;
-                Object SecurityDescriptorObject = null;
+                byte[] SecurityDescriptorBytes = null;
                 Int32 Result;
                 if (IntPtr.Zero != PSecurityDescriptorSize)
-                    SecurityDescriptorObject = SecurityDescriptorNotNull;
+                    SecurityDescriptorBytes = SecurityDescriptorNotNull;
                 Result = self.GetSecurityByName(
                     FileName,
                     out FileAttributes,
-                    ref SecurityDescriptorObject);
+                    ref SecurityDescriptorBytes);
                 if (IntPtr.Zero != PFileAttributes)
                     Marshal.WriteInt32(PFileAttributes, (Int32)FileAttributes);
-                return Api.CopySecurityDescriptor(SecurityDescriptorObject,
+                return Api.CopySecurityDescriptor(SecurityDescriptorBytes,
                     SecurityDescriptor, PSecurityDescriptorSize);
             }
             catch (Exception ex)
@@ -837,16 +836,16 @@ namespace Fsp
             try
             {
                 Object FileNode, FileDesc;
-                Object SecurityDescriptorObject = null;
+                byte[] SecurityDescriptorBytes = null;
                 Int32 Result;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
                 if (IntPtr.Zero != PSecurityDescriptorSize)
-                    SecurityDescriptorObject = SecurityDescriptorNotNull;
+                    SecurityDescriptorBytes = SecurityDescriptorNotNull;
                 Result = self.GetSecurity(
                     FileNode,
                     FileDesc,
-                    ref SecurityDescriptorObject);
-                return Api.CopySecurityDescriptor(SecurityDescriptorObject,
+                    ref SecurityDescriptorBytes);
+                return Api.CopySecurityDescriptor(SecurityDescriptorBytes,
                     SecurityDescriptor, PSecurityDescriptorSize);
             }
             catch (Exception ex)
