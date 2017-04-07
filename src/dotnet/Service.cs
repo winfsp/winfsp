@@ -31,7 +31,7 @@ namespace Fsp
         public const UInt32 EVENTLOG_INFORMATION_TYPE = 0x0004;
 
         /* ctor/dtor */
-        Service(String ServiceName)
+        public Service(String ServiceName)
         {
             _CreateResult = Api.FspServiceCreate(ServiceName, OnStart, OnStop, null, out _Service);
             Api.SetUserContext(_Service, this);
@@ -46,13 +46,14 @@ namespace Fsp
         }
 
         /* control */
-        public int Run()
+        public void Run()
         {
             if (0 > _CreateResult)
             {
                 Log(EVENTLOG_ERROR_TYPE,
-                    String.Format("The service cannot be created (Status={0:X}).", _CreateResult));
-                return (int)Api.FspWin32FromNtStatus(_CreateResult);
+                    String.Format("The service {0} cannot be created (Status={1:X}).",
+                    GetType().FullName, _CreateResult));
+                return;
             }
             Api.FspServiceAllowConsoleMode(_Service);
             Int32 Result = Api.FspServiceLoop(_Service);
@@ -60,25 +61,37 @@ namespace Fsp
             if (0 > _CreateResult)
             {
                 Log(EVENTLOG_ERROR_TYPE,
-                    String.Format("The service has failed to run (Status={0:X}).", Result));
-                return (int)Api.FspWin32FromNtStatus(Result);
+                    String.Format("The service {0} has failed to run (Status={1:X}).",
+                    GetType().FullName, _CreateResult));
+                return;
             }
-            return (int)ExitCode;
         }
         public void Stop()
         {
             if (0 > _CreateResult)
-                return;
+                throw new InvalidOperationException();
             Api.FspServiceStop(_Service);
         }
         public void RequestTime(UInt32 Time)
         {
+            if (0 > _CreateResult)
+                throw new InvalidOperationException();
             Api.FspServiceRequestTime(_Service, Time);
         }
         public int ExitCode
         {
-            get { return (int)Api.FspServiceGetExitCode(_Service); }
-            set { Api.FspServiceSetExitCode(_Service, (UInt32)value); }
+            get
+            {
+                if (0 > _CreateResult)
+                    throw new InvalidOperationException();
+                return (int)Api.FspServiceGetExitCode(_Service);
+            }
+            set
+            {
+                if (0 > _CreateResult)
+                    throw new InvalidOperationException();
+                Api.FspServiceSetExitCode(_Service, (UInt32)value);
+            }
         }
         public static void Log(UInt32 Type, String Message)
         {

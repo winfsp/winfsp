@@ -17,6 +17,7 @@
 
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Security.AccessControl;
 using System.Runtime.InteropServices;
 using System.Security;
@@ -679,7 +680,10 @@ namespace Fsp.Interop
             {
                 DllPath = Microsoft.Win32.Registry.GetValue(KeyName, "InstallDir", null) as String;
                 if (null != DllPath)
-                    Module = LoadLibraryW(DllPath + DllName);
+                {
+                    DllPath = Path.Combine(DllPath, Path.Combine("bin", DllName));
+                    Module = LoadLibraryW(DllPath);
+                }
                 if (IntPtr.Zero == Module)
                     throw new DllNotFoundException("cannot load " + DllName);
             }
