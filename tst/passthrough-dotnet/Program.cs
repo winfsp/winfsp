@@ -37,9 +37,9 @@ namespace passthrough
 
     class Program
     {
-        static int Main(string[] args)
+        static void Main(string[] args)
         {
-            return new PtfsService().Run();
+            Environment.ExitCode = new PtfsService().Run();
         }
     }
 }
