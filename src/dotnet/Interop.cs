@@ -488,6 +488,9 @@ namespace Fsp.Interop
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate UInt32 FspWin32FromNtStatus(
                 Int32 Status);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspDebugLogSetHandle(
+                IntPtr Handle);
 
             /* callbacks */
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -538,6 +541,7 @@ namespace Fsp.Interop
         internal static Proto.FspServiceLog FspServiceLog;
         internal static Proto.FspNtStatusFromWin32 FspNtStatusFromWin32;
         internal static Proto.FspWin32FromNtStatus FspWin32FromNtStatus;
+        internal static Proto.FspDebugLogSetHandle FspDebugLogSetHandle;
 
         internal static unsafe Int32 FspFileSystemSetMountPointEx(
             IntPtr FileSystem,
@@ -718,6 +722,7 @@ namespace Fsp.Interop
             FspVersion = GetEntryPoint<Proto.FspVersion>(Module);
             FspNtStatusFromWin32 = GetEntryPoint<Proto.FspNtStatusFromWin32>(Module);
             FspWin32FromNtStatus = GetEntryPoint<Proto.FspWin32FromNtStatus>(Module);
+            FspDebugLogSetHandle = GetEntryPoint<Proto.FspDebugLogSetHandle>(Module);
         }
         static Api()
         {

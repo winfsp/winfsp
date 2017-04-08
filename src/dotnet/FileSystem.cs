@@ -184,6 +184,10 @@ namespace Fsp
         {
             return Api.FspWin32FromNtStatus(Status);
         }
+        public static void FspDebugLogSetHandle(IntPtr Handle)
+        {
+            Api.FspDebugLogSetHandle(Handle);
+        }
 
         /* operations */
         protected virtual Int32 ExceptionHandler(Exception ex)
