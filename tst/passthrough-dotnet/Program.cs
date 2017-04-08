@@ -28,8 +28,6 @@ namespace passthrough
 {
     class Ptfs : FileSystem
     {
-        private const int ALLOCATION_UNIT = 4096;
-
         protected class FileDesc
         {
             public FileSystemInfo Info;
@@ -54,6 +52,8 @@ namespace passthrough
             }
         }
 
+        private const int ALLOCATION_UNIT = 4096;
+
         public Ptfs() : base()
         {
             SetSectorSize(ALLOCATION_UNIT);
@@ -66,7 +66,7 @@ namespace passthrough
             SetPostCleanupWhenModifiedOnly(true);
             SetPassQueryDirectoryPattern(true);
         }
-        void SetPath(String value)
+        public void SetPath(String value)
         {
             _Path = Path.GetFullPath(value);
             SetVolumeCreationTime((UInt64)File.GetCreationTimeUtc(_Path).ToFileTimeUtc());
@@ -467,160 +467,196 @@ namespace passthrough
 
     class PtfsService : Service
     {
+        private class CommandLineUsageException : Exception
+        {
+            public CommandLineUsageException(String Message = null) : base(Message)
+            {
+                HasMessage = null != Message;
+            }
+
+            public bool HasMessage;
+        }
+
+        private const String PROGNAME = "passthrough-dotnet";
+
         public PtfsService() : base("PtfsService")
         {
         }
 
         protected override void OnStart(String[] Args)
         {
-#if false
-    wchar_t **argp, **arge;
-    String DebugLogFile = null;
-    UInt32 DebugFlags = 0;
-    String VolumePrefix = null;
-    String PassThrough = null;
-    String MountPoint = null;
-    HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
-    WCHAR PassThroughBuf[MAX_PATH];
-    PTFS *Ptfs = 0;
-    NTSTATUS Result;
-
-    for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
-    {
-        if (L'-' != argp[0][0])
-            break;
-        switch (argp[0][1])
-        {
-        case L'?':
-            goto usage;
-        case L'd':
-            argtol(DebugFlags);
-            break;
-        case L'D':
-            argtos(DebugLogFile);
-            break;
-        case L'm':
-            argtos(MountPoint);
-            break;
-        case L'p':
-            argtos(PassThrough);
-            break;
-        case L'u':
-            argtos(VolumePrefix);
-            break;
-        default:
-            goto usage;
-        }
-    }
-
-    if (arge > argp)
-        goto usage;
-
-    if (0 == PassThrough && 0 != VolumePrefix)
-    {
-        PWSTR P;
-
-        P = wcschr(VolumePrefix, L'\\');
-        if (0 != P && L'\\' != P[1])
-        {
-            P = wcschr(P + 1, L'\\');
-            if (0 != P &&
-                (
-                (L'A' <= P[1] && P[1] <= L'Z') ||
-                (L'a' <= P[1] && P[1] <= L'z')
-                ) &&
-                L'$' == P[2])
+            String FailMessage = null;
+            try
             {
-                StringCbPrintf(PassThroughBuf, sizeof PassThroughBuf, L"%c:%s", P[1], P + 3);
-                PassThrough = PassThroughBuf;
+                String DebugLogFile = null;
+                UInt32 DebugFlags = 0;
+                String VolumePrefix = null;
+                String PassThrough = null;
+                String MountPoint = null;
+                IntPtr DebugLogHandle = (IntPtr)(-1);
+                Ptfs Ptfs = null;
+                int I;
+
+                for (I = 1; Args.Length > I; I++)
+                {
+                    String Arg = Args[I];
+                    if ('-' != Arg[0])
+                        break;
+                    switch (Arg[1])
+                    {
+                    case '?':
+                        throw new CommandLineUsageException();
+                    case 'd':
+                        argtol(Args, ref I, ref DebugFlags);
+                        break;
+                    case 'D':
+                        argtos(Args, ref I, ref DebugLogFile);
+                        break;
+                    case 'm':
+                        argtos(Args, ref I, ref MountPoint);
+                        break;
+                    case 'p':
+                        argtos(Args, ref I, ref PassThrough);
+                        break;
+                    case 'u':
+                        argtos(Args, ref I, ref VolumePrefix);
+                        break;
+                    default:
+                        throw new CommandLineUsageException();
+                    }
+                }
+
+                if (Args.Length > I)
+                    throw new CommandLineUsageException();
+
+                if (null == PassThrough && null != VolumePrefix)
+                {
+                    I = VolumePrefix.IndexOf('\\');
+                    if (-1 != I && VolumePrefix.Length > I && '\\' != VolumePrefix[I + 1])
+                    {
+                        I = VolumePrefix.IndexOf('\\', I + 1);
+                        if (-1 != I &&
+                            VolumePrefix.Length > I + 1 &&
+                            (
+                            ('A' <= VolumePrefix[I + 1] && VolumePrefix[I + 1] <= 'Z') ||
+                            ('a' <= VolumePrefix[I + 1] && VolumePrefix[I + 1] <= 'z')
+                            ) &&
+                            '$' == VolumePrefix[I + 2])
+                        {
+                            PassThrough = String.Format("{0}:{1}", VolumePrefix[I + 1], VolumePrefix.Substring(I + 3));
+                        }
+                    }
+                }
+
+                if (null == PassThrough || null == MountPoint)
+                    throw new CommandLineUsageException();
+
+                //EnableBackupRestorePrivileges();
+
+                if (null != DebugLogFile)
+                    if (0 > FileSystem.SetDebugLogFile(DebugLogFile))
+                        throw new CommandLineUsageException("cannot open debug log file");
+
+                FailMessage = "cannot create file system";
+                Ptfs = new Ptfs();
+                Ptfs.SetPrefix(VolumePrefix);
+                Ptfs.SetPath(PassThrough);
+
+                FailMessage = "cannot mount file system";
+                Ptfs.Mount(MountPoint, null, false, DebugFlags);
+                MountPoint = Ptfs.MountPoint();
+                _Ptfs = Ptfs;
+
+                Log(EVENTLOG_INFORMATION_TYPE, String.Format("{0}{1}{2} -p {3} -m {4}",
+                    PROGNAME,
+                    null != VolumePrefix && 0 < VolumePrefix.Length ? " -u " : "",
+                        null != VolumePrefix && 0 < VolumePrefix.Length ? VolumePrefix : "",
+                    PassThrough,
+                    MountPoint));
             }
-        }
-    }
-
-    if (0 == PassThrough || 0 == MountPoint)
-        goto usage;
-
-    EnableBackupRestorePrivileges();
-
-    if (0 != DebugLogFile)
-    {
-        if (0 == wcscmp(L"-", DebugLogFile))
-            DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
-        else
-            DebugLogHandle = CreateFileW(
-                DebugLogFile,
-                FILE_APPEND_DATA,
-                FILE_SHARE_READ | FILE_SHARE_WRITE,
-                0,
-                OPEN_ALWAYS,
-                FILE_ATTRIBUTE_NORMAL,
-                0);
-        if (INVALID_HANDLE_VALUE == DebugLogHandle)
-        {
-            fail(L"cannot open debug log file");
-            goto usage;
-        }
-
-        FspDebugLogSetHandle(DebugLogHandle);
-    }
-
-    Ptfs = new PTFS;
-
-    Ptfs->SetPrefix(VolumePrefix);
-
-    Result = Ptfs->SetPath(PassThrough);
-    if (!NT_SUCCESS(Result))
-    {
-        fail(L"cannot create file system");
-        goto exit;
-    }
-
-    Result = Ptfs->Mount(MountPoint, 0, FALSE, DebugFlags);
-    if (!NT_SUCCESS(Result))
-    {
-        fail(L"cannot mount file system");
-        goto exit;
-    }
-
-    MountPoint = Ptfs->MountPoint();
-
-    info(L"%s%s%s -p %s -m %s",
-        L"" PROGNAME,
-        0 != VolumePrefix && L'\0' != VolumePrefix[0] ? L" -u " : L"",
-            0 != VolumePrefix && L'\0' != VolumePrefix[0] ? VolumePrefix : L"",
-        PassThrough,
-        MountPoint);
-
-    _Ptfs = Ptfs;
-    Result = STATUS_SUCCESS;
-
-exit:
-    if (!NT_SUCCESS(Result) && 0 != Ptfs)
-        delete Ptfs;
-
-    return Result;
-
-usage:
-    static wchar_t usage[] = L""
-        "usage: %s OPTIONS\n"
-        "\n"
-        "options:\n"
-        "    -d DebugFlags       [-1: enable all debug logs]\n"
-        "    -D DebugLogFile     [file path; use - for stderr]\n"
-        "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
-        "    -p Directory        [directory to expose as pass through file system]\n"
-        "    -m MountPoint       [X:|*|directory]\n";
-
-    fail(usage, L"" PROGNAME);
-
-    return STATUS_UNSUCCESSFUL;
-#endif
+            catch (CommandLineUsageException ex)
+            {
+                Log(EVENTLOG_ERROR_TYPE, String.Format(
+                    "{0}" +
+                    "usage: {1} OPTIONS\n" +
+                    "\n" +
+                    "options:\n" +
+                    "    -d DebugFlags       [-1: enable all debug logs]\n" +
+                    "    -D DebugLogFile     [file path; use - for stderr]\n" +
+                    "    -u \\Server\\Share    [UNC prefix (single backslash)]\n" +
+                    "    -p Directory        [directory to expose as pass through file system]\n" +
+                    "    -m MountPoint       [X:|*|directory]\n",
+                    ex.HasMessage ? ex.Message + "\n" : "",
+                    PROGNAME));
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Log(EVENTLOG_ERROR_TYPE, String.Format("{0}{1}",
+                    null != FailMessage ? FailMessage + "\n" : "",
+                    ex.Message));
+                throw;
+            }
         }
         protected override void OnStop()
         {
             _Ptfs.Unmount();
             _Ptfs = null;
         }
+
+        private static void argtos(String[] Args, ref int I, ref String V)
+        {
+            if (Args.Length > ++I)
+                V = Args[I];
+            else
+                throw new CommandLineUsageException();
+        }
+        private static void argtol(String[] Args, ref int I, ref UInt32 V)
+        {
+            Int32 R;
+            if (Args.Length > ++I)
+                V = Int32.TryParse(Args[I], out R) ? (UInt32)R : V;
+            else
+                throw new CommandLineUsageException();
+        }
+
+#if false
+        /*
+         * Turns out there is no managed way to adjust privileges.
+         * So we have to write our own using P/Invoke. Joy!
+         */
+        static NTSTATUS EnableBackupRestorePrivileges(VOID)
+        {
+            union
+            {
+                TOKEN_PRIVILEGES P;
+                UINT8 B[sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES)];
+            } Privileges;
+            HANDLE Token;
+
+            Privileges.P.PrivilegeCount = 2;
+            Privileges.P.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+            Privileges.P.Privileges[1].Attributes = SE_PRIVILEGE_ENABLED;
+
+            if (!LookupPrivilegeValueW(0, SE_BACKUP_NAME, &Privileges.P.Privileges[0].Luid) ||
+                !LookupPrivilegeValueW(0, SE_RESTORE_NAME, &Privileges.P.Privileges[1].Luid))
+                return NtStatusFromWin32(GetLastError());
+
+            if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &Token))
+                return NtStatusFromWin32(GetLastError());
+
+            if (!AdjustTokenPrivileges(Token, FALSE, &Privileges.P, 0, 0, 0))
+            {
+                CloseHandle(Token);
+
+                return NtStatusFromWin32(GetLastError());
+            }
+
+            CloseHandle(Token);
+
+            return STATUS_SUCCESS;
+        }
+#endif
 
         private Ptfs _Ptfs;
     }
@@ -734,190 +770,4 @@ NTSTATUS PTFS::ReadDirectory(
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS EnableBackupRestorePrivileges(VOID)
-{
-    union
-    {
-        TOKEN_PRIVILEGES P;
-        UINT8 B[sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES)];
-    } Privileges;
-    HANDLE Token;
-
-    Privileges.P.PrivilegeCount = 2;
-    Privileges.P.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-    Privileges.P.Privileges[1].Attributes = SE_PRIVILEGE_ENABLED;
-
-    if (!LookupPrivilegeValueW(0, SE_BACKUP_NAME, &Privileges.P.Privileges[0].Luid) ||
-        !LookupPrivilegeValueW(0, SE_RESTORE_NAME, &Privileges.P.Privileges[1].Luid))
-        return NtStatusFromWin32(GetLastError());
-
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &Token))
-        return NtStatusFromWin32(GetLastError());
-
-    if (!AdjustTokenPrivileges(Token, FALSE, &Privileges.P, 0, 0, 0))
-    {
-        CloseHandle(Token);
-
-        return NtStatusFromWin32(GetLastError());
-    }
-
-    CloseHandle(Token);
-
-    return STATUS_SUCCESS;
-}
-
-static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
-{
-    wchar_t *endp;
-    ULONG ul = wcstol(w, &endp, 0);
-    return L'\0' != w[0] && L'\0' == *endp ? ul : deflt;
-}
-
-NTSTATUS PTFS_SERVICE::OnStart(ULONG argc, PWSTR *argv)
-{
-
-    wchar_t **argp, **arge;
-    PWSTR DebugLogFile = 0;
-    ULONG DebugFlags = 0;
-    PWSTR VolumePrefix = 0;
-    PWSTR PassThrough = 0;
-    PWSTR MountPoint = 0;
-    HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
-    WCHAR PassThroughBuf[MAX_PATH];
-    PTFS *Ptfs = 0;
-    NTSTATUS Result;
-
-    for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
-    {
-        if (L'-' != argp[0][0])
-            break;
-        switch (argp[0][1])
-        {
-        case L'?':
-            goto usage;
-        case L'd':
-            argtol(DebugFlags);
-            break;
-        case L'D':
-            argtos(DebugLogFile);
-            break;
-        case L'm':
-            argtos(MountPoint);
-            break;
-        case L'p':
-            argtos(PassThrough);
-            break;
-        case L'u':
-            argtos(VolumePrefix);
-            break;
-        default:
-            goto usage;
-        }
-    }
-
-    if (arge > argp)
-        goto usage;
-
-    if (0 == PassThrough && 0 != VolumePrefix)
-    {
-        PWSTR P;
-
-        P = wcschr(VolumePrefix, L'\\');
-        if (0 != P && L'\\' != P[1])
-        {
-            P = wcschr(P + 1, L'\\');
-            if (0 != P &&
-                (
-                (L'A' <= P[1] && P[1] <= L'Z') ||
-                (L'a' <= P[1] && P[1] <= L'z')
-                ) &&
-                L'$' == P[2])
-            {
-                StringCbPrintf(PassThroughBuf, sizeof PassThroughBuf, L"%c:%s", P[1], P + 3);
-                PassThrough = PassThroughBuf;
-            }
-        }
-    }
-
-    if (0 == PassThrough || 0 == MountPoint)
-        goto usage;
-
-    EnableBackupRestorePrivileges();
-
-    if (0 != DebugLogFile)
-    {
-        if (0 == wcscmp(L"-", DebugLogFile))
-            DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
-        else
-            DebugLogHandle = CreateFileW(
-                DebugLogFile,
-                FILE_APPEND_DATA,
-                FILE_SHARE_READ | FILE_SHARE_WRITE,
-                0,
-                OPEN_ALWAYS,
-                FILE_ATTRIBUTE_NORMAL,
-                0);
-        if (INVALID_HANDLE_VALUE == DebugLogHandle)
-        {
-            fail(L"cannot open debug log file");
-            goto usage;
-        }
-
-        FspDebugLogSetHandle(DebugLogHandle);
-    }
-
-    Ptfs = new PTFS;
-
-    Ptfs->SetPrefix(VolumePrefix);
-
-    Result = Ptfs->SetPath(PassThrough);
-    if (!NT_SUCCESS(Result))
-    {
-        fail(L"cannot create file system");
-        goto exit;
-    }
-
-    Result = Ptfs->Mount(MountPoint, 0, FALSE, DebugFlags);
-    if (!NT_SUCCESS(Result))
-    {
-        fail(L"cannot mount file system");
-        goto exit;
-    }
-
-    MountPoint = Ptfs->MountPoint();
-
-    info(L"%s%s%s -p %s -m %s",
-        L"" PROGNAME,
-        0 != VolumePrefix && L'\0' != VolumePrefix[0] ? L" -u " : L"",
-            0 != VolumePrefix && L'\0' != VolumePrefix[0] ? VolumePrefix : L"",
-        PassThrough,
-        MountPoint);
-
-    _Ptfs = Ptfs;
-    Result = STATUS_SUCCESS;
-
-exit:
-    if (!NT_SUCCESS(Result) && 0 != Ptfs)
-        delete Ptfs;
-
-    return Result;
-
-usage:
-    static wchar_t usage[] = L""
-        "usage: %s OPTIONS\n"
-        "\n"
-        "options:\n"
-        "    -d DebugFlags       [-1: enable all debug logs]\n"
-        "    -D DebugLogFile     [file path; use - for stderr]\n"
-        "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
-        "    -p Directory        [directory to expose as pass through file system]\n"
-        "    -m MountPoint       [X:|*|directory]\n";
-
-    fail(usage, L"" PROGNAME);
-
-    return STATUS_UNSUCCESSFUL;
-
-#undef argtos
-#undef argtol
-}
 #endif
