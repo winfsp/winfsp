@@ -20,6 +20,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security;
+using System.Security.AccessControl;
 
 namespace Fsp.Interop
 {
@@ -663,6 +664,26 @@ namespace Fsp.Interop
                 return null;
         }
 
+        internal static Int32 SetDebugLogFile(String FileName)
+        {
+            IntPtr Handle;
+            if ("-" == FileName)
+                Handle = GetStdHandle(unchecked((UInt32)(-12))/*STD_ERROR_HANDLE*/);
+            else
+                Handle = CreateFileW(
+                    FileName,
+                    (UInt32)FileSystemRights.AppendData,
+                    (UInt32)(FileShare.Read | FileShare.Write),
+                    IntPtr.Zero,
+                    (UInt32)FileMode.OpenOrCreate,
+                    (UInt32)FileAttributes.Normal,
+                    IntPtr.Zero);
+            if ((IntPtr)(-1) == Handle)
+                return FspNtStatusFromWin32((UInt32)Marshal.GetLastWin32Error());
+            Api.FspDebugLogSetHandle(Handle);
+            return 0/*STATUS_SUCCESS*/;
+        }
+
         /* initialization */
         private static IntPtr LoadDll()
         {
@@ -738,6 +759,17 @@ namespace Fsp.Interop
             [MarshalAs(UnmanagedType.LPStr)] String lpProcName);
         [DllImport("advapi32.dll", CallingConvention = CallingConvention.StdCall)]
         private static extern UInt32 GetSecurityDescriptorLength(IntPtr SecurityDescriptor);
+        [DllImport("kernel32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true)]
+        private static extern IntPtr GetStdHandle(UInt32 nStdHandle);
+        [DllImport("kernel32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true)]
+        private static extern IntPtr CreateFileW(
+            [MarshalAs(UnmanagedType.LPWStr)] String lpFileName,
+            UInt32 dwDesiredAccess,
+            UInt32 dwShareMode,
+            IntPtr lpSecurityAttributes,
+            UInt32 dwCreationDisposition,
+            UInt32 dwFlagsAndAttributes,
+            IntPtr hTemplateFile);
     }
 
 }

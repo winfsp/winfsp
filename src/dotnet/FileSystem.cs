@@ -123,13 +123,13 @@ namespace Fsp
         }
 
         /* control */
-        Int32 Preflight(String MountPoint)
+        public Int32 Preflight(String MountPoint)
         {
             return Api.FspFileSystemPreflight(
                 _VolumeParams.IsPrefixEmpty() ? "WinFsp.Disk" : "WinFsp.Net",
                 MountPoint);
         }
-        Int32 Mount(String MountPoint,
+        public Int32 Mount(String MountPoint,
             Byte[] SecurityDescriptor = null,
             Boolean Synchronized = false,
             UInt32 DebugLog = 0)
@@ -164,13 +164,14 @@ namespace Fsp
         {
             Dispose();
         }
-#if false
-        PWSTR MountPoint()
+        public String MountPoint()
         {
+            return "UNKNOWN";
+#if false
             return 0 != _FileSystem ? FspFileSystemMountPoint(_FileSystem) : 0;
-        }
 #endif
-        IntPtr FileSystemHandle()
+        }
+        public IntPtr FileSystemHandle()
         {
             return _FileSystem;
         }
@@ -184,9 +185,9 @@ namespace Fsp
         {
             return Api.FspWin32FromNtStatus(Status);
         }
-        public static void FspDebugLogSetHandle(IntPtr Handle)
+        public static Int32 SetDebugLogFile(String FileName)
         {
-            Api.FspDebugLogSetHandle(Handle);
+            return Api.SetDebugLogFile(FileName);
         }
 
         /* operations */
