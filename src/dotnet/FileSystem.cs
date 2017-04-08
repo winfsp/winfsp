@@ -17,6 +17,7 @@
 
 using System;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 
 using Fsp.Interop;
 
@@ -357,7 +358,7 @@ namespace Fsp
         protected virtual Int32 SetSecurity(
             Object FileNode,
             Object FileDesc,
-            UInt32 SecurityInformation,
+            AccessControlSections Sections,
             Byte[] SecurityDescriptor)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
@@ -862,11 +863,10 @@ namespace Fsp
             try
             {
                 Object FileNode, FileDesc;
-                Byte[] SecurityDescriptorBytes = null;
+                Byte[] SecurityDescriptorBytes;
                 Int32 Result;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                if (IntPtr.Zero != PSecurityDescriptorSize)
-                    SecurityDescriptorBytes = SecurityDescriptorNotNull;
+                SecurityDescriptorBytes = SecurityDescriptorNotNull;
                 Result = self.GetSecurity(
                     FileNode,
                     FileDesc,
@@ -889,11 +889,21 @@ namespace Fsp
             try
             {
                 Object FileNode, FileDesc;
+                AccessControlSections Sections;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
+                Sections = AccessControlSections.None;
+                if (0 != (SecurityInformation & 1/*OWNER_SECURITY_INFORMATION*/))
+                    Sections |= AccessControlSections.Owner;
+                if (0 != (SecurityInformation & 2/*GROUP_SECURITY_INFORMATION*/))
+                    Sections |= AccessControlSections.Group;
+                if (0 != (SecurityInformation & 4/*DACL_SECURITY_INFORMATION*/))
+                    Sections |= AccessControlSections.Access;
+                if (0 != (SecurityInformation & 8/*SACL_SECURITY_INFORMATION*/))
+                    Sections |= AccessControlSections.Audit;
                 return self.SetSecurity(
                     FileNode,
                     FileDesc,
-                    SecurityInformation,
+                    Sections,
                     Api.MakeSecurityDescriptor(ModificationDescriptor));
             }
             catch (Exception ex)
