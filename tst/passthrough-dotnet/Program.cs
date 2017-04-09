@@ -60,6 +60,7 @@ namespace passthrough
         {
             SetSectorSize(ALLOCATION_UNIT);
             SetSectorsPerAllocationUnit(1);
+            SetMaxComponentLength(255);
             SetFileInfoTimeout(1000);
             SetCaseSensitiveSearch(false);
             SetCasePreservedNames(true);
@@ -71,6 +72,8 @@ namespace passthrough
         public void SetPath(String value)
         {
             _Path = Path.GetFullPath(value);
+            if (_Path.EndsWith("\\"))
+                _Path = _Path.Substring(0, _Path.Length - 1);
             SetVolumeCreationTime((UInt64)File.GetCreationTimeUtc(_Path).ToFileTimeUtc());
             SetVolumeSerialNumber(0);
         }
@@ -84,7 +87,7 @@ namespace passthrough
         }
         protected String ConcatPath(String FileName)
         {
-            return Path.Combine(_Path, FileName);
+            return _Path + FileName;
         }
         protected Int32 GetFileInfoInternal(FileSystemInfo Info, Boolean Refresh,
             out FileInfo FileInfo)
@@ -258,7 +261,8 @@ namespace passthrough
             Object FileDesc0)
         {
             FileDesc FileDesc = (FileDesc)FileDesc0;
-            FileDesc.Stream.Dispose();
+            if (null != FileDesc.Stream)
+                FileDesc.Stream.Dispose();
             if (null != FileDesc.DirBuffer)
                 FileDesc.DirBuffer.Dispose();
         }
@@ -482,7 +486,8 @@ namespace passthrough
                 FileDesc FileDesc = (FileDesc)FileDesc0;
                 if (null == Pattern)
                     Pattern = "*";
-                Context = (FileDesc.Info as DirectoryInfo).EnumerateFileSystemInfos(Pattern);
+                Context = (FileDesc.Info as DirectoryInfo).EnumerateFileSystemInfos(Pattern).
+                    GetEnumerator();
             }
             IEnumerator<FileSystemInfo> InfoEnumerator = (IEnumerator<FileSystemInfo>)Context;
             if (InfoEnumerator.MoveNext())
