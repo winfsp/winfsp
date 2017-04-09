@@ -3,3 +3,4 @@ build
 *.suo
 *.vcproj.*
 *.vcxproj.user
+*.csproj.user
