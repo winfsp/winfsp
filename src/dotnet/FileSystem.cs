@@ -100,39 +100,39 @@ namespace Fsp
         }
         public void SetCaseSensitiveSearch(Boolean CaseSensitiveSearch)
         {
-            _VolumeParams.Flags = CaseSensitiveSearch ? VolumeParams.CaseSensitiveSearch : 0;
+            _VolumeParams.Flags |= CaseSensitiveSearch ? VolumeParams.CaseSensitiveSearch : 0;
         }
         public void SetCasePreservedNames(Boolean CasePreservedNames)
         {
-            _VolumeParams.Flags = CasePreservedNames ? VolumeParams.CasePreservedNames : 0;
+            _VolumeParams.Flags |= CasePreservedNames ? VolumeParams.CasePreservedNames : 0;
         }
         public void SetUnicodeOnDisk(Boolean UnicodeOnDisk)
         {
-            _VolumeParams.Flags = UnicodeOnDisk ? VolumeParams.UnicodeOnDisk : 0;
+            _VolumeParams.Flags |= UnicodeOnDisk ? VolumeParams.UnicodeOnDisk : 0;
         }
         public void SetPersistentAcls(Boolean PersistentAcls)
         {
-            _VolumeParams.Flags = PersistentAcls ? VolumeParams.PersistentAcls : 0;
+            _VolumeParams.Flags |= PersistentAcls ? VolumeParams.PersistentAcls : 0;
         }
         public void SetReparsePoints(Boolean ReparsePoints)
         {
-            _VolumeParams.Flags = ReparsePoints ? VolumeParams.ReparsePoints : 0;
+            _VolumeParams.Flags |= ReparsePoints ? VolumeParams.ReparsePoints : 0;
         }
         public void SetReparsePointsAccessCheck(Boolean ReparsePointsAccessCheck)
         {
-            _VolumeParams.Flags = ReparsePointsAccessCheck ? VolumeParams.ReparsePointsAccessCheck : 0;
+            _VolumeParams.Flags |= ReparsePointsAccessCheck ? VolumeParams.ReparsePointsAccessCheck : 0;
         }
         public void SetNamedStreams(Boolean NamedStreams)
         {
-            _VolumeParams.Flags = NamedStreams ? VolumeParams.NamedStreams : 0;
+            _VolumeParams.Flags |= NamedStreams ? VolumeParams.NamedStreams : 0;
         }
         public void SetPostCleanupWhenModifiedOnly(Boolean PostCleanupWhenModifiedOnly)
         {
-            _VolumeParams.Flags = PostCleanupWhenModifiedOnly ? VolumeParams.PostCleanupWhenModifiedOnly : 0;
+            _VolumeParams.Flags |= PostCleanupWhenModifiedOnly ? VolumeParams.PostCleanupWhenModifiedOnly : 0;
         }
         public void SetPassQueryDirectoryPattern(Boolean PassQueryDirectoryPattern)
         {
-            _VolumeParams.Flags = PassQueryDirectoryPattern ? VolumeParams.PassQueryDirectoryPattern : 0;
+            _VolumeParams.Flags |= PassQueryDirectoryPattern ? VolumeParams.PassQueryDirectoryPattern : 0;
         }
         public void SetPrefix(String Prefix)
         {
@@ -158,7 +158,7 @@ namespace Fsp
             Int32 Result;
             Result = Api.FspFileSystemCreate(
                 _VolumeParams.IsPrefixEmpty() ? "WinFsp.Disk" : "WinFsp.Net",
-                ref _VolumeParams, ref _FileSystemInterface, out _FileSystem);
+                ref _VolumeParams, _FileSystemInterface, out _FileSystem);
             if (0 <= Result)
             {
                 Api.SetUserContext(_FileSystem, this);
@@ -594,10 +594,14 @@ namespace Fsp
                     FileName,
                     out FileAttributes,
                     ref SecurityDescriptorBytes);
-                if (IntPtr.Zero != PFileAttributes)
-                    Marshal.WriteInt32(PFileAttributes, (Int32)FileAttributes);
-                return Api.CopySecurityDescriptor(SecurityDescriptorBytes,
-                    SecurityDescriptor, PSecurityDescriptorSize);
+                if (0 <= Result)
+                {
+                    if (IntPtr.Zero != PFileAttributes)
+                        Marshal.WriteInt32(PFileAttributes, (Int32)FileAttributes);
+                    Result = Api.CopySecurityDescriptor(SecurityDescriptorBytes,
+                        SecurityDescriptor, PSecurityDescriptorSize);
+                }
+                return Result;
             }
             catch (Exception ex)
             {
@@ -1187,32 +1191,38 @@ namespace Fsp
 
         static FileSystem()
         {
-            _FileSystemInterface.GetVolumeInfo = GetVolumeInfo;
-            _FileSystemInterface.SetVolumeLabel = SetVolumeLabel;
-            _FileSystemInterface.GetSecurityByName = GetSecurityByName;
-            _FileSystemInterface.Create = Create;
-            _FileSystemInterface.Open = Open;
-            _FileSystemInterface.Overwrite = Overwrite;
-            _FileSystemInterface.Cleanup = Cleanup;
-            _FileSystemInterface.Close = Close;
-            _FileSystemInterface.Read = Read;
-            _FileSystemInterface.Write = Write;
-            _FileSystemInterface.Flush = Flush;
-            _FileSystemInterface.GetFileInfo = GetFileInfo;
-            _FileSystemInterface.SetBasicInfo = SetBasicInfo;
-            _FileSystemInterface.SetFileSize = SetFileSize;
-            _FileSystemInterface.CanDelete = CanDelete;
-            _FileSystemInterface.Rename = Rename;
-            _FileSystemInterface.GetSecurity = GetSecurity;
-            _FileSystemInterface.SetSecurity = SetSecurity;
-            _FileSystemInterface.ReadDirectory = ReadDirectory;
-            _FileSystemInterface.ResolveReparsePoints = ResolveReparsePoints;
-            _FileSystemInterface.GetReparsePoint = GetReparsePoint;
-            _FileSystemInterface.SetReparsePoint = SetReparsePoint;
-            _FileSystemInterface.DeleteReparsePoint = DeleteReparsePoint;
+            FileSystemInterface FileSystemInterface;
+            FileSystemInterface = default(FileSystemInterface);
+            FileSystemInterface.GetVolumeInfo = GetVolumeInfo;
+            FileSystemInterface.SetVolumeLabel = SetVolumeLabel;
+            FileSystemInterface.GetSecurityByName = GetSecurityByName;
+            FileSystemInterface.Create = Create;
+            FileSystemInterface.Open = Open;
+            FileSystemInterface.Overwrite = Overwrite;
+            FileSystemInterface.Cleanup = Cleanup;
+            FileSystemInterface.Close = Close;
+            FileSystemInterface.Read = Read;
+            FileSystemInterface.Write = Write;
+            FileSystemInterface.Flush = Flush;
+            FileSystemInterface.GetFileInfo = GetFileInfo;
+            FileSystemInterface.SetBasicInfo = SetBasicInfo;
+            FileSystemInterface.SetFileSize = SetFileSize;
+            FileSystemInterface.CanDelete = CanDelete;
+            FileSystemInterface.Rename = Rename;
+            FileSystemInterface.GetSecurity = GetSecurity;
+            FileSystemInterface.SetSecurity = SetSecurity;
+            FileSystemInterface.ReadDirectory = ReadDirectory;
+            FileSystemInterface.ResolveReparsePoints = ResolveReparsePoints;
+            FileSystemInterface.GetReparsePoint = GetReparsePoint;
+            FileSystemInterface.SetReparsePoint = SetReparsePoint;
+            FileSystemInterface.DeleteReparsePoint = DeleteReparsePoint;
+            FileSystemInterface.GetStreamInfo = GetStreamInfo;
+
+            _FileSystemInterface = Marshal.AllocHGlobal(Marshal.SizeOf(FileSystemInterface));
+            Marshal.StructureToPtr(FileSystemInterface, _FileSystemInterface, false);
         }
 
-        private static FileSystemInterface _FileSystemInterface;
+        private static IntPtr _FileSystemInterface;
         private VolumeParams _VolumeParams;
         private IntPtr _FileSystem;
     }

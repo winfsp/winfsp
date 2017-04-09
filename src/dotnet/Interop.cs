@@ -64,7 +64,7 @@ namespace Fsp.Interop
         {
             fixed (UInt16 *P = Prefix)
             {
-                int Size = Value.Length;
+                int Size = null != Value ? Value.Length : 0;
                 if (Size > PrefixSize - 1)
                     Size = PrefixSize - 1;
                 for (int I = 0; Size > I; I++)
@@ -76,7 +76,7 @@ namespace Fsp.Interop
         {
             fixed (UInt16 *P = FileSystemName)
             {
-                int Size = Value.Length;
+                int Size = null != Value ? Value.Length : 0;
                 if (Size > FileSystemNameSize - 1)
                     Size = FileSystemNameSize - 1;
                 for (int I = 0; Size > I; I++)
@@ -105,7 +105,7 @@ namespace Fsp.Interop
         {
             fixed (UInt16 *P = VolumeLabel)
             {
-                int Size = Value.Length;
+                int Size = null != Value ? Value.Length : 0;
                 if (Size > VolumeLabelSize)
                     Size = VolumeLabelSize;
                 for (int I = 0; Size > I; I++)
@@ -153,6 +153,7 @@ namespace Fsp.Interop
     internal struct DirInfo
     {
         internal const int FileNameBufSize = 255;
+        internal static int FileNameBufOffset = (int)Marshal.OffsetOf(typeof(DirInfo), "FileNameBuf");
 
         internal UInt16 Size;
         internal FileInfo FileInfo;
@@ -164,12 +165,12 @@ namespace Fsp.Interop
         {
             fixed (UInt16 *P = FileNameBuf)
             {
-                int Size = Value.Length;
+                int Size = null != Value ? Value.Length : 0;
                 if (Size > FileNameBufSize)
                     Size = FileNameBufSize;
                 for (int I = 0; Size > I; I++)
                     P[I] = Value[I];
-                this.Size = (UInt16)(sizeof(DirInfo) + Size);
+                this.Size = (UInt16)(FileNameBufOffset + Size * 2);
             }
         }
     }
@@ -396,7 +397,7 @@ namespace Fsp.Interop
         internal Proto.GetReparsePoint GetReparsePoint;
         internal Proto.SetReparsePoint SetReparsePoint;
         internal Proto.DeleteReparsePoint DeleteReparsePoint;
-        internal Proto.DeleteReparsePoint GetStreamInfo;
+        internal Proto.GetStreamInfo GetStreamInfo;
         internal unsafe fixed long/*IntPtr*/ Reserved[40];
             /* NTSTATUS (*Reserved[40])(); */
     }
@@ -415,7 +416,7 @@ namespace Fsp.Interop
             internal delegate Int32 FspFileSystemCreate(
                 [MarshalAs(UnmanagedType.LPWStr)] String DevicePath,
                 ref VolumeParams VolumeParams,
-                ref FileSystemInterface Interface,
+                IntPtr Interface,
                 out IntPtr PFileSystem);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate void FspFileSystemDelete(
@@ -847,6 +848,10 @@ namespace Fsp.Interop
         }
         static Api()
         {
+#if DEBUG
+            if (Debugger.IsAttached)
+                Debugger.Break();
+#endif
             LoadProto(LoadDll());
         }
 
