@@ -16,6 +16,7 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
@@ -32,6 +33,7 @@ namespace passthrough
         {
             public FileSystemInfo Info;
             public FileStream Stream;
+            public DirectoryBuffer DirBuffer;
 
             public FileDesc(FileSystemInfo Info, FileStream Stream)
             {
@@ -84,20 +86,20 @@ namespace passthrough
         {
             return Path.Combine(_Path, FileName);
         }
-        protected Int32 GetFileInfoInternal(FileDesc FileDesc, Boolean Refresh,
+        protected Int32 GetFileInfoInternal(FileSystemInfo Info, Boolean Refresh,
             out FileInfo FileInfo)
         {
             if (Refresh)
-                FileDesc.Info.Refresh();
-            FileInfo.FileAttributes = FileDesc.FileAttributes;
+                Info.Refresh();
+            FileInfo.FileAttributes = (UInt32)Info.Attributes;
             FileInfo.ReparseTag = 0;
-            FileInfo.FileSize = FileDesc.Info is System.IO.FileInfo ?
-                (UInt64)((System.IO.FileInfo)FileDesc.Info).Length : 0;
+            FileInfo.FileSize = Info is System.IO.FileInfo ?
+                (UInt64)((System.IO.FileInfo)Info).Length : 0;
             FileInfo.AllocationSize = (FileInfo.FileSize + ALLOCATION_UNIT - 1)
                 / ALLOCATION_UNIT * ALLOCATION_UNIT;
-            FileInfo.CreationTime = (UInt64)FileDesc.Info.CreationTimeUtc.ToFileTimeUtc();
-            FileInfo.LastAccessTime = (UInt64)FileDesc.Info.LastAccessTimeUtc.ToFileTimeUtc();
-            FileInfo.LastWriteTime = (UInt64)FileDesc.Info.LastWriteTimeUtc.ToFileTimeUtc();
+            FileInfo.CreationTime = (UInt64)Info.CreationTimeUtc.ToFileTimeUtc();
+            FileInfo.LastAccessTime = (UInt64)Info.LastAccessTimeUtc.ToFileTimeUtc();
+            FileInfo.LastWriteTime = (UInt64)Info.LastWriteTimeUtc.ToFileTimeUtc();
             FileInfo.ChangeTime = FileInfo.LastWriteTime;
             FileInfo.IndexNumber = 0;
             FileInfo.HardLinks = 0;
@@ -186,7 +188,7 @@ namespace passthrough
             FileNode = default(Object);
             FileDesc0 = FileDesc;
             NormalizedName = default(String);
-            return GetFileInfoInternal(FileDesc, false, out FileInfo);
+            return GetFileInfoInternal(FileDesc.Info, false, out FileInfo);
         }
         protected override Int32 Open(
             String FileName,
@@ -223,7 +225,7 @@ namespace passthrough
             FileNode = default(Object);
             FileDesc0 = FileDesc;
             NormalizedName = default(String);
-            return GetFileInfoInternal(FileDesc, false, out FileInfo);
+            return GetFileInfoInternal(FileDesc.Info, false, out FileInfo);
         }
         protected override Int32 Overwrite(
             Object FileNode,
@@ -239,7 +241,7 @@ namespace passthrough
             else if (0 != FileAttributes)
                 FileDesc.FileAttributes |= FileAttributes;
             FileDesc.Stream.SetLength(0);
-            return GetFileInfoInternal(FileDesc, true, out FileInfo);
+            return GetFileInfoInternal(FileDesc.Info, true, out FileInfo);
         }
         protected override void Cleanup(
             Object FileNode,
@@ -257,6 +259,8 @@ namespace passthrough
         {
             FileDesc FileDesc = (FileDesc)FileDesc0;
             FileDesc.Stream.Dispose();
+            if (null != FileDesc.DirBuffer)
+                FileDesc.DirBuffer.Dispose();
         }
         protected override Int32 Read(
             Object FileNode,
@@ -304,7 +308,7 @@ namespace passthrough
             FileDesc.Stream.Seek((Int64)Offset, SeekOrigin.Begin);
             FileDesc.Stream.Write(Bytes, 0, Bytes.Length);
             PBytesTransferred = (UInt32)Bytes.Length;
-            return GetFileInfoInternal(FileDesc, true, out FileInfo);
+            return GetFileInfoInternal(FileDesc.Info, true, out FileInfo);
         }
         protected override Int32 Flush(
             Object FileNode,
@@ -319,7 +323,7 @@ namespace passthrough
                 return STATUS_SUCCESS;
             }
             FileDesc.Stream.Flush(true);
-            return GetFileInfoInternal(FileDesc, true, out FileInfo);
+            return GetFileInfoInternal(FileDesc.Info, true, out FileInfo);
         }
         protected override Int32 GetFileInfo(
             Object FileNode,
@@ -327,7 +331,7 @@ namespace passthrough
             out FileInfo FileInfo)
         {
             FileDesc FileDesc = (FileDesc)FileDesc0;
-            return GetFileInfoInternal(FileDesc, true, out FileInfo);
+            return GetFileInfoInternal(FileDesc.Info, true, out FileInfo);
         }
         protected override Int32 SetBasicInfo(
             Object FileNode,
@@ -348,7 +352,7 @@ namespace passthrough
                 FileDesc.Info.LastAccessTimeUtc = DateTime.FromFileTimeUtc((Int64)LastAccessTime);
             if (0 != LastWriteTime)
                 FileDesc.Info.LastWriteTimeUtc = DateTime.FromFileTimeUtc((Int64)LastWriteTime);
-            return GetFileInfoInternal(FileDesc, true, out FileInfo);
+            return GetFileInfoInternal(FileDesc.Info, true, out FileInfo);
         }
         protected override Int32 SetFileSize(
             Object FileNode,
@@ -358,7 +362,7 @@ namespace passthrough
             out FileInfo FileInfo)
         {
             FileDesc FileDesc = (FileDesc)FileDesc0;
-            GetFileInfoInternal(FileDesc, true, out FileInfo);
+            GetFileInfoInternal(FileDesc.Info, true, out FileInfo);
             if (!SetAllocationSize || FileInfo.FileSize > NewSize)
             {
                 /*
@@ -451,15 +455,48 @@ namespace passthrough
         }
         protected override Int32 ReadDirectory(
             Object FileNode,
-            Object FileDesc,
+            Object FileDesc0,
             String Pattern,
             String Marker,
             IntPtr Buffer,
             UInt32 Length,
             out UInt32 PBytesTransferred)
         {
-            PBytesTransferred = default(UInt32);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileDesc FileDesc = (FileDesc)FileDesc0;
+            if (null == FileDesc.DirBuffer)
+                FileDesc.DirBuffer = new DirectoryBuffer();
+            return BufferedReadDirectory(FileDesc.DirBuffer,
+                FileNode, FileDesc, Pattern, Marker, Buffer, Length, out PBytesTransferred);
+        }
+        protected override Boolean ReadDirectoryEntry(
+            Object FileNode,
+            Object FileDesc0,
+            String Pattern,
+            String Marker,
+            ref Object Context,
+            out String FileName,
+            out FileInfo FileInfo)
+        {
+            if (null == Context)
+            {
+                FileDesc FileDesc = (FileDesc)FileDesc0;
+                if (null == Pattern)
+                    Pattern = "*";
+                Context = (FileDesc.Info as DirectoryInfo).EnumerateFileSystemInfos(Pattern);
+            }
+            IEnumerator<FileSystemInfo> InfoEnumerator = (IEnumerator<FileSystemInfo>)Context;
+            if (InfoEnumerator.MoveNext())
+            {
+                FileName = InfoEnumerator.Current.Name;
+                GetFileInfoInternal(InfoEnumerator.Current, false, out FileInfo);
+                return true;
+            }
+            else
+            {
+                FileName = default(String);
+                FileInfo = default(FileInfo);
+                return false;
+            }
         }
 
         private String _Path;
@@ -563,7 +600,7 @@ namespace passthrough
                 Ptfs.SetPath(PassThrough);
 
                 FailMessage = "cannot mount file system";
-                Ptfs.Mount(MountPoint, null, false, DebugFlags);
+                Ptfs.Mount(MountPoint, null, true, DebugFlags);
                 MountPoint = Ptfs.MountPoint();
                 _Ptfs = Ptfs;
 
@@ -669,105 +706,3 @@ namespace passthrough
         }
     }
 }
-
-#if false
-
-using namespace Fsp;
-
-struct PTFS_FILE_DESC
-{
-    PTFS_FILE_DESC() : Handle(INVALID_HANDLE_VALUE), DirBuffer()
-    {
-    }
-    ~PTFS_FILE_DESC()
-    {
-        CloseHandle(Handle);
-        PTFS::DeleteDirectoryBuffer(&DirBuffer);
-    }
-    HANDLE Handle;
-    PVOID DirBuffer;
-};
-
-NTSTATUS PTFS::ReadDirectory(
-    const FILE_CONTEXT *FileContext, PWSTR Pattern, PWSTR Marker,
-    PVOID Buffer, ULONG BufferLength, PULONG PBytesTransferred)
-{
-    PTFS_FILE_DESC *FileDesc = (PTFS_FILE_DESC *)FileContext->FileDesc;
-    HANDLE Handle = FileDesc->Handle;
-    WCHAR FullPath[FULLPATH_SIZE];
-    ULONG Length, PatternLength;
-    HANDLE FindHandle;
-    WIN32_FIND_DATAW FindData;
-    union
-    {
-        UINT8 B[FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) + MAX_PATH * sizeof(WCHAR)];
-        FSP_FSCTL_DIR_INFO D;
-    } DirInfoBuf;
-    FSP_FSCTL_DIR_INFO *DirInfo = &DirInfoBuf.D;
-    NTSTATUS DirBufferResult;
-
-    DirBufferResult = STATUS_SUCCESS;
-    if (AcquireDirectoryBuffer(&FileDesc->DirBuffer, 0 == Marker, &DirBufferResult))
-    {
-        if (0 == Pattern)
-            Pattern = L"*";
-        PatternLength = (ULONG)wcslen(Pattern);
-
-        Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
-        if (0 == Length)
-            DirBufferResult = NtStatusFromWin32(GetLastError());
-        else if (Length + 1 + PatternLength >= FULLPATH_SIZE)
-            DirBufferResult = STATUS_OBJECT_NAME_INVALID;
-        if (!NT_SUCCESS(DirBufferResult))
-        {
-            ReleaseDirectoryBuffer(&FileDesc->DirBuffer);
-            return DirBufferResult;
-        }
-
-        if (L'\\' != FullPath[Length - 1])
-            FullPath[Length++] = L'\\';
-        memcpy(FullPath + Length, Pattern, PatternLength * sizeof(WCHAR));
-        FullPath[Length + PatternLength] = L'\0';
-
-        FindHandle = FindFirstFileW(FullPath, &FindData);
-        if (INVALID_HANDLE_VALUE != FindHandle)
-        {
-            do
-            {
-                memset(DirInfo, 0, sizeof *DirInfo);
-                Length = (ULONG)wcslen(FindData.cFileName);
-                DirInfo->Size = (UINT16)(FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) + Length * sizeof(WCHAR));
-                DirInfo->FileInfo.FileAttributes = FindData.dwFileAttributes;
-                DirInfo->FileInfo.ReparseTag = 0;
-                DirInfo->FileInfo.FileSize =
-                    ((UINT64)FindData.nFileSizeHigh << 32) | (UINT64)FindData.nFileSizeLow;
-                DirInfo->FileInfo.AllocationSize = (DirInfo->FileInfo.FileSize + ALLOCATION_UNIT - 1)
-                    / ALLOCATION_UNIT * ALLOCATION_UNIT;
-                DirInfo->FileInfo.CreationTime = ((PLARGE_INTEGER)&FindData.ftCreationTime)->QuadPart;
-                DirInfo->FileInfo.LastAccessTime = ((PLARGE_INTEGER)&FindData.ftLastAccessTime)->QuadPart;
-                DirInfo->FileInfo.LastWriteTime = ((PLARGE_INTEGER)&FindData.ftLastWriteTime)->QuadPart;
-                DirInfo->FileInfo.ChangeTime = DirInfo->FileInfo.LastWriteTime;
-                DirInfo->FileInfo.IndexNumber = 0;
-                DirInfo->FileInfo.HardLinks = 0;
-                memcpy(DirInfo->FileNameBuf, FindData.cFileName, Length * sizeof(WCHAR));
-
-                if (!FillDirectoryBuffer(&FileDesc->DirBuffer, DirInfo, &DirBufferResult))
-                    break;
-            } while (FindNextFileW(FindHandle, &FindData));
-
-            FindClose(FindHandle);
-        }
-
-        ReleaseDirectoryBuffer(&FileDesc->DirBuffer);
-    }
-
-    if (!NT_SUCCESS(DirBufferResult))
-        return DirBufferResult;
-
-    ReadDirectoryBuffer(&FileDesc->DirBuffer,
-        Marker, Buffer, BufferLength, PBytesTransferred);
-
-    return STATUS_SUCCESS;
-}
-
-#endif
