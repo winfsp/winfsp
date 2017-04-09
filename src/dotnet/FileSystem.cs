@@ -26,6 +26,27 @@ namespace Fsp
 
     public partial class FileSystem : IDisposable
     {
+        /* types */
+        public class DirectoryBuffer : IDisposable
+        {
+            ~DirectoryBuffer()
+            {
+                Dispose(false);
+            }
+            public void Dispose()
+            {
+                lock (this)
+                    Dispose(true);
+                GC.SuppressFinalize(true);
+            }
+            protected virtual void Dispose(bool disposing)
+            {
+                Api.FspFileSystemDeleteDirectoryBuffer(ref DirBuffer);
+            }
+
+            internal IntPtr DirBuffer;
+        }
+
         /* ctor/dtor */
         public FileSystem()
         {
@@ -177,6 +198,70 @@ namespace Fsp
         }
 
         /* helpers */
+        public Int32 SeekableReadDirectory(
+            Object FileNode,
+            Object FileDesc,
+            String Pattern,
+            String Marker,
+            IntPtr Buffer,
+            UInt32 Length,
+            out UInt32 PBytesTransferred)
+        {
+            Object Context = null;
+            String FileName;
+            DirInfo DirInfo = default(DirInfo);
+            PBytesTransferred = default(UInt32);
+            while (ReadDirectoryEntry(FileNode, FileDesc, Pattern, Marker,
+                ref Context, out FileName, out DirInfo.FileInfo))
+            {
+                DirInfo.SetFileNameBuf(FileName);
+                if (!Api.FspFileSystemAddDirInfo(ref DirInfo, Buffer, Length,
+                    out PBytesTransferred))
+                    break;
+            }
+            return STATUS_SUCCESS;
+        }
+        public Int32 BufferedReadDirectory(
+            DirectoryBuffer DirectoryBuffer,
+            Object FileNode,
+            Object FileDesc,
+            String Pattern,
+            String Marker,
+            IntPtr Buffer,
+            UInt32 Length,
+            out UInt32 PBytesTransferred)
+        {
+            Object Context = null;
+            String FileName;
+            DirInfo DirInfo = default(DirInfo);
+            Int32 DirBufferResult = STATUS_SUCCESS;
+            PBytesTransferred = default(UInt32);
+            if (Api.FspFileSystemAcquireDirectoryBuffer(ref DirectoryBuffer.DirBuffer, null == Marker,
+                out DirBufferResult))
+                try
+                {
+                    while (ReadDirectoryEntry(FileNode, FileDesc, Pattern, Marker,
+                        ref Context, out FileName, out DirInfo.FileInfo))
+                    {
+                        DirInfo.SetFileNameBuf(FileName);
+                        if (!Api.FspFileSystemFillDirectoryBuffer(
+                            ref DirectoryBuffer.DirBuffer, ref DirInfo, out DirBufferResult))
+                            break;
+                    }
+                }
+                finally
+                {
+                    Api.FspFileSystemReleaseDirectoryBuffer(ref DirectoryBuffer.DirBuffer);
+                }
+            if (0 > DirBufferResult)
+            {
+                PBytesTransferred = default(UInt32);
+                return DirBufferResult;
+            }
+            Api.FspFileSystemReadDirectoryBuffer(ref DirectoryBuffer.DirBuffer,
+                Marker, Buffer, Length, out PBytesTransferred);
+            return STATUS_SUCCESS;
+        }
         public static Int32 NtStatusFromWin32(UInt32 Error)
         {
             return Api.FspNtStatusFromWin32(Error);
@@ -379,6 +464,19 @@ namespace Fsp
         {
             PBytesTransferred = default(UInt32);
             return STATUS_INVALID_DEVICE_REQUEST;
+        }
+        protected virtual Boolean ReadDirectoryEntry(
+            Object FileNode,
+            Object FileDesc,
+            String Pattern,
+            String Marker,
+            ref Object Context,
+            out String FileName,
+            out FileInfo FileInfo)
+        {
+            FileName = default(String);
+            FileInfo = default(FileInfo);
+            return false;
         }
         protected virtual Int32 ResolveReparsePoints(
             String FileName,

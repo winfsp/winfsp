@@ -152,10 +152,26 @@ namespace Fsp.Interop
     [StructLayout(LayoutKind.Sequential)]
     internal struct DirInfo
     {
+        internal const int FileNameBufSize = 255;
+
         internal UInt16 Size;
         internal FileInfo FileInfo;
         internal unsafe fixed Byte Padding[24];
         //internal unsafe fixed UInt16 FileNameBuf[];
+        internal unsafe fixed UInt16 FileNameBuf[FileNameBufSize];
+
+        public unsafe void SetFileNameBuf(String Value)
+        {
+            fixed (UInt16 *P = FileNameBuf)
+            {
+                int Size = Value.Length;
+                if (Size > FileNameBufSize)
+                    Size = FileNameBufSize;
+                for (int I = 0; Size > I; I++)
+                    P[I] = Value[I];
+                this.Size = (UInt16)(sizeof(DirInfo) + Size);
+            }
+        }
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -424,6 +440,12 @@ namespace Fsp.Interop
             internal delegate Int32 FspFileSystemStopDispatcher(
                 IntPtr FileSystem);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Boolean FspFileSystemAddDirInfo(
+                IntPtr DirInfo,
+                IntPtr Buffer,
+                UInt32 Length,
+                out UInt32 PBytesTransferred);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 FspFileSystemFindReparsePoint(
                 IntPtr FileSystem,
                 GetReparsePointByName GetReparsePointByName,
@@ -441,6 +463,41 @@ namespace Fsp.Interop
                 out IoStatusBlock PIoStatus,
                 IntPtr Buffer,
                 ref UIntPtr PSize);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspFileSystemCanReplaceReparsePoint(
+                IntPtr CurrentReparseData,
+                UIntPtr CurrentReparseDataSize,
+                IntPtr ReplaceReparseData,
+                UIntPtr ReplaceReparseDataSize);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Boolean FspFileSystemAddStreamInfo(
+                IntPtr StreamInfo,
+                IntPtr Buffer,
+                UInt32 Length,
+                out UInt32 PBytesTransferred);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Boolean FspFileSystemAcquireDirectoryBuffer(
+                ref IntPtr PDirBuffer,
+                Boolean Reset,
+                out Int32 PResult);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Boolean FspFileSystemFillDirectoryBuffer(
+                ref IntPtr PDirBuffer,
+                ref DirInfo DirInfo,
+                out Int32 PResult);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspFileSystemReleaseDirectoryBuffer(
+                ref IntPtr PDirBuffer);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspFileSystemReadDirectoryBuffer(
+                ref IntPtr PDirBuffer,
+                [MarshalAs(UnmanagedType.LPWStr)] String Marker,
+                IntPtr Buffer,
+                UInt32 Length,
+                out UInt32 PBytesTransferred);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspFileSystemDeleteDirectoryBuffer(
+                ref IntPtr PDirBuffer);
 
             /* Service */
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -528,9 +585,16 @@ namespace Fsp.Interop
         internal static Proto.FspFileSystemRemoveMountPoint FspFileSystemRemoveMountPoint;
         internal static Proto.FspFileSystemStartDispatcher FspFileSystemStartDispatcher;
         internal static Proto.FspFileSystemStopDispatcher FspFileSystemStopDispatcher;
+        internal static Proto.FspFileSystemAddDirInfo _FspFileSystemAddDirInfo;
         internal static Proto.FspFileSystemFindReparsePoint FspFileSystemFindReparsePoint;
         internal static Proto.FspFileSystemResolveReparsePoints FspFileSystemResolveReparsePoints;
-        internal static Proto.FspVersion FspVersion;
+        internal static Proto.FspFileSystemCanReplaceReparsePoint FspFileSystemCanReplaceReparsePoint;
+        internal static Proto.FspFileSystemAddStreamInfo FspFileSystemAddStreamInfo;
+        internal static Proto.FspFileSystemAcquireDirectoryBuffer FspFileSystemAcquireDirectoryBuffer;
+        internal static Proto.FspFileSystemFillDirectoryBuffer FspFileSystemFillDirectoryBuffer;
+        internal static Proto.FspFileSystemReleaseDirectoryBuffer FspFileSystemReleaseDirectoryBuffer;
+        internal static Proto.FspFileSystemReadDirectoryBuffer FspFileSystemReadDirectoryBuffer;
+        internal static Proto.FspFileSystemDeleteDirectoryBuffer FspFileSystemDeleteDirectoryBuffer;
         internal static Proto.FspServiceCreate FspServiceCreate;
         internal static Proto.FspServiceDelete FspServiceDelete;
         internal static Proto.FspServiceAllowConsoleMode FspServiceAllowConsoleMode;
@@ -540,6 +604,7 @@ namespace Fsp.Interop
         internal static Proto.FspServiceLoop FspServiceLoop;
         internal static Proto.FspServiceStop FspServiceStop;
         internal static Proto.FspServiceLog FspServiceLog;
+        internal static Proto.FspVersion FspVersion;
         internal static Proto.FspNtStatusFromWin32 FspNtStatusFromWin32;
         internal static Proto.FspWin32FromNtStatus FspWin32FromNtStatus;
         internal static Proto.FspDebugLogSetHandle FspDebugLogSetHandle;
@@ -556,6 +621,15 @@ namespace Fsp.Interop
             }
             else
                 return _FspFileSystemSetMountPointEx(FileSystem, MountPoint, IntPtr.Zero);
+        }
+        internal static unsafe Boolean FspFileSystemAddDirInfo(
+            ref DirInfo DirInfo,
+            IntPtr Buffer,
+            UInt32 Length,
+            out UInt32 PBytesTransferred)
+        {
+            fixed (DirInfo *P = &DirInfo)
+                return _FspFileSystemAddDirInfo((IntPtr)P, Buffer, Length, out PBytesTransferred);
         }
 
         internal unsafe static Object GetUserContext(
@@ -729,8 +803,16 @@ namespace Fsp.Interop
             FspFileSystemRemoveMountPoint = GetEntryPoint<Proto.FspFileSystemRemoveMountPoint>(Module);
             FspFileSystemStartDispatcher = GetEntryPoint<Proto.FspFileSystemStartDispatcher>(Module);
             FspFileSystemStopDispatcher = GetEntryPoint<Proto.FspFileSystemStopDispatcher>(Module);
+            _FspFileSystemAddDirInfo = GetEntryPoint<Proto.FspFileSystemAddDirInfo>(Module);
             FspFileSystemFindReparsePoint = GetEntryPoint<Proto.FspFileSystemFindReparsePoint>(Module);
             FspFileSystemResolveReparsePoints = GetEntryPoint<Proto.FspFileSystemResolveReparsePoints>(Module);
+            FspFileSystemCanReplaceReparsePoint = GetEntryPoint<Proto.FspFileSystemCanReplaceReparsePoint>(Module);
+            FspFileSystemAddStreamInfo = GetEntryPoint<Proto.FspFileSystemAddStreamInfo>(Module);
+            FspFileSystemAcquireDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemAcquireDirectoryBuffer>(Module);
+            FspFileSystemFillDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemFillDirectoryBuffer>(Module);
+            FspFileSystemReleaseDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemReleaseDirectoryBuffer>(Module);
+            FspFileSystemReadDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemReadDirectoryBuffer>(Module);
+            FspFileSystemDeleteDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemDeleteDirectoryBuffer>(Module);
             FspServiceCreate = GetEntryPoint<Proto.FspServiceCreate>(Module);
             FspServiceDelete = GetEntryPoint<Proto.FspServiceDelete>(Module);
             FspServiceAllowConsoleMode = GetEntryPoint<Proto.FspServiceAllowConsoleMode>(Module);
