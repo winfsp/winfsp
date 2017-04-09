@@ -440,6 +440,18 @@ namespace Fsp.Interop
             internal delegate Int32 FspFileSystemStopDispatcher(
                 IntPtr FileSystem);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            [return: MarshalAs(UnmanagedType.LPWStr)]
+            internal delegate String FspFileSystemMountPointF(
+                IntPtr FileSystem);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspFileSystemSetOperationGuardStrategyF(
+                IntPtr FileSystem,
+                Int32 GuardStrategy);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspFileSystemSetDebugLogF(
+                IntPtr FileSystem,
+                UInt32 DebugLog);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Boolean FspFileSystemAddDirInfo(
                 IntPtr DirInfo,
                 IntPtr Buffer,
@@ -585,6 +597,9 @@ namespace Fsp.Interop
         internal static Proto.FspFileSystemRemoveMountPoint FspFileSystemRemoveMountPoint;
         internal static Proto.FspFileSystemStartDispatcher FspFileSystemStartDispatcher;
         internal static Proto.FspFileSystemStopDispatcher FspFileSystemStopDispatcher;
+        internal static Proto.FspFileSystemMountPointF FspFileSystemMountPoint;
+        internal static Proto.FspFileSystemSetOperationGuardStrategyF FspFileSystemSetOperationGuardStrategy;
+        internal static Proto.FspFileSystemSetDebugLogF FspFileSystemSetDebugLog;
         internal static Proto.FspFileSystemAddDirInfo _FspFileSystemAddDirInfo;
         internal static Proto.FspFileSystemFindReparsePoint FspFileSystemFindReparsePoint;
         internal static Proto.FspFileSystemResolveReparsePoints FspFileSystemResolveReparsePoints;
@@ -803,6 +818,9 @@ namespace Fsp.Interop
             FspFileSystemRemoveMountPoint = GetEntryPoint<Proto.FspFileSystemRemoveMountPoint>(Module);
             FspFileSystemStartDispatcher = GetEntryPoint<Proto.FspFileSystemStartDispatcher>(Module);
             FspFileSystemStopDispatcher = GetEntryPoint<Proto.FspFileSystemStopDispatcher>(Module);
+            FspFileSystemMountPoint = GetEntryPoint<Proto.FspFileSystemMountPointF>(Module);
+            FspFileSystemSetOperationGuardStrategy = GetEntryPoint<Proto.FspFileSystemSetOperationGuardStrategyF>(Module);
+            FspFileSystemSetDebugLog = GetEntryPoint<Proto.FspFileSystemSetDebugLogF>(Module);
             _FspFileSystemAddDirInfo = GetEntryPoint<Proto.FspFileSystemAddDirInfo>(Module);
             FspFileSystemFindReparsePoint = GetEntryPoint<Proto.FspFileSystemFindReparsePoint>(Module);
             FspFileSystemResolveReparsePoints = GetEntryPoint<Proto.FspFileSystemResolveReparsePoints>(Module);

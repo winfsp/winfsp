@@ -162,12 +162,10 @@ namespace Fsp
             if (0 <= Result)
             {
                 Api.SetUserContext(_FileSystem, this);
-#if false
-                FspFileSystemSetOperationGuardStrategy(_FileSystem, Synchronized ?
-                    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE :
-                    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE);
-                FspFileSystemSetDebugLog(_FileSystem, DebugLog);
-#endif
+                Api.FspFileSystemSetOperationGuardStrategy(_FileSystem, Synchronized ?
+                    1/*FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE*/ :
+                    0/*FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE*/);
+                Api.FspFileSystemSetDebugLog(_FileSystem, DebugLog);
                 Result = Api.FspFileSystemSetMountPointEx(_FileSystem, MountPoint,
                     SecurityDescriptor);
                 if (0 <= Result)
@@ -187,10 +185,7 @@ namespace Fsp
         }
         public String MountPoint()
         {
-            return "UNKNOWN";
-#if false
-            return 0 != _FileSystem ? FspFileSystemMountPoint(_FileSystem) : 0;
-#endif
+            return IntPtr.Zero != _FileSystem ? Api.FspFileSystemMountPoint(_FileSystem) : null;
         }
         public IntPtr FileSystemHandle()
         {

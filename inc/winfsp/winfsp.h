@@ -961,11 +961,14 @@ FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
  *     The current operation context.
  */
 FSP_API FSP_FILE_SYSTEM_OPERATION_CONTEXT *FspFileSystemGetOperationContext(VOID);
+FSP_API PWSTR FspFileSystemMountPointF(FSP_FILE_SYSTEM *FileSystem);
 static inline
 PWSTR FspFileSystemMountPoint(FSP_FILE_SYSTEM *FileSystem)
 {
     return FileSystem->MountPoint;
 }
+FSP_API NTSTATUS FspFileSystemEnterOperationF(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 static inline
 NTSTATUS FspFileSystemEnterOperation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
@@ -975,6 +978,8 @@ NTSTATUS FspFileSystemEnterOperation(FSP_FILE_SYSTEM *FileSystem,
 
     return FileSystem->EnterOperation(FileSystem, Request, Response);
 }
+FSP_API NTSTATUS FspFileSystemLeaveOperationF(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 static inline
 NTSTATUS FspFileSystemLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
@@ -984,6 +989,9 @@ NTSTATUS FspFileSystemLeaveOperation(FSP_FILE_SYSTEM *FileSystem,
 
     return FileSystem->LeaveOperation(FileSystem, Request, Response);
 }
+FSP_API VOID FspFileSystemSetOperationGuardF(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FILE_SYSTEM_OPERATION_GUARD *EnterOperation,
+    FSP_FILE_SYSTEM_OPERATION_GUARD *LeaveOperation);
 static inline
 VOID FspFileSystemSetOperationGuard(FSP_FILE_SYSTEM *FileSystem,
     FSP_FILE_SYSTEM_OPERATION_GUARD *EnterOperation,
@@ -1002,12 +1010,17 @@ VOID FspFileSystemSetOperationGuard(FSP_FILE_SYSTEM *FileSystem,
  * @see
  *     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY
  */
+FSP_API VOID FspFileSystemSetOperationGuardStrategyF(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY GuardStrategy);
 static inline
 VOID FspFileSystemSetOperationGuardStrategy(FSP_FILE_SYSTEM *FileSystem,
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY GuardStrategy)
 {
     FileSystem->OpGuardStrategy = GuardStrategy;
 }
+FSP_API VOID FspFileSystemSetOperationF(FSP_FILE_SYSTEM *FileSystem,
+    ULONG Index,
+    FSP_FILE_SYSTEM_OPERATION *Operation);
 static inline
 VOID FspFileSystemSetOperation(FSP_FILE_SYSTEM *FileSystem,
     ULONG Index,
@@ -1015,6 +1028,8 @@ VOID FspFileSystemSetOperation(FSP_FILE_SYSTEM *FileSystem,
 {
     FileSystem->Operations[Index] = Operation;
 }
+FSP_API VOID FspFileSystemGetDispatcherResultF(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS *PDispatcherResult);
 static inline
 VOID FspFileSystemGetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS *PDispatcherResult)
@@ -1023,6 +1038,8 @@ VOID FspFileSystemGetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
     *PDispatcherResult = FileSystem->DispatcherResult;
     MemoryBarrier();
 }
+FSP_API VOID FspFileSystemSetDispatcherResultF(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS DispatcherResult);
 static inline
 VOID FspFileSystemSetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS DispatcherResult)
@@ -1031,12 +1048,15 @@ VOID FspFileSystemSetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
         return;
     InterlockedCompareExchange(&FileSystem->DispatcherResult, DispatcherResult, 0);
 }
+FSP_API VOID FspFileSystemSetDebugLogF(FSP_FILE_SYSTEM *FileSystem,
+    UINT32 DebugLog);
 static inline
 VOID FspFileSystemSetDebugLog(FSP_FILE_SYSTEM *FileSystem,
     UINT32 DebugLog)
 {
     FileSystem->DebugLog = DebugLog;
 }
+FSP_API BOOLEAN FspFileSystemIsOperationCaseSensitiveF(VOID);
 static inline
 BOOLEAN FspFileSystemIsOperationCaseSensitive(VOID)
 {

@@ -619,3 +619,67 @@ FSP_API FSP_FILE_SYSTEM_OPERATION_CONTEXT *FspFileSystemGetOperationContext(VOID
 {
     return (FSP_FILE_SYSTEM_OPERATION_CONTEXT *)TlsGetValue(FspFileSystemTlsKey);
 }
+
+/*
+ * Out-of-Line
+ */
+
+FSP_API PWSTR FspFileSystemMountPointF(FSP_FILE_SYSTEM *FileSystem)
+{
+    return FspFileSystemMountPoint(FileSystem);
+}
+
+FSP_API NTSTATUS FspFileSystemEnterOperationF(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    return FspFileSystemEnterOperation(FileSystem, Request, Response);
+}
+
+FSP_API NTSTATUS FspFileSystemLeaveOperationF(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    return FspFileSystemLeaveOperation(FileSystem, Request, Response);
+}
+
+FSP_API VOID FspFileSystemSetOperationGuardF(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FILE_SYSTEM_OPERATION_GUARD *EnterOperation,
+    FSP_FILE_SYSTEM_OPERATION_GUARD *LeaveOperation)
+{
+    FspFileSystemSetOperationGuard(FileSystem, EnterOperation, LeaveOperation);
+}
+
+FSP_API VOID FspFileSystemSetOperationGuardStrategyF(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY GuardStrategy)
+{
+    FspFileSystemSetOperationGuardStrategy(FileSystem, GuardStrategy);
+}
+
+FSP_API VOID FspFileSystemSetOperationF(FSP_FILE_SYSTEM *FileSystem,
+    ULONG Index,
+    FSP_FILE_SYSTEM_OPERATION *Operation)
+{
+    FspFileSystemSetOperation(FileSystem, Index, Operation);
+}
+
+FSP_API VOID FspFileSystemGetDispatcherResultF(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS *PDispatcherResult)
+{
+    FspFileSystemGetDispatcherResult(FileSystem, PDispatcherResult);
+}
+
+FSP_API VOID FspFileSystemSetDispatcherResultF(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS DispatcherResult)
+{
+    FspFileSystemSetDispatcherResult(FileSystem, DispatcherResult);
+}
+
+FSP_API VOID FspFileSystemSetDebugLogF(FSP_FILE_SYSTEM *FileSystem,
+    UINT32 DebugLog)
+{
+    FspFileSystemSetDebugLog(FileSystem, DebugLog);
+}
+
+FSP_API BOOLEAN FspFileSystemIsOperationCaseSensitiveF(VOID)
+{
+    return FspFileSystemIsOperationCaseSensitive();
+}
