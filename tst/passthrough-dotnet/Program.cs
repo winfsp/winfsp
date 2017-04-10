@@ -253,7 +253,7 @@ namespace passthrough
             UInt32 Flags)
         {
             FileDesc FileDesc = (FileDesc)FileDesc0;
-            if (0 == (Flags & CleanupDelete))
+            if (0 != (Flags & CleanupDelete))
                 FileDesc.Stream.Dispose();
         }
         protected override void Close(
