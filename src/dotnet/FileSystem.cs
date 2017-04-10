@@ -185,7 +185,8 @@ namespace Fsp
         }
         public String MountPoint()
         {
-            return IntPtr.Zero != _FileSystem ? Api.FspFileSystemMountPoint(_FileSystem) : null;
+            return IntPtr.Zero != _FileSystem ?
+                Marshal.PtrToStringUni(Api.FspFileSystemMountPoint(_FileSystem)) : null;
         }
         public IntPtr FileSystemHandle()
         {

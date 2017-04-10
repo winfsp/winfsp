@@ -441,8 +441,7 @@ namespace Fsp.Interop
             internal delegate Int32 FspFileSystemStopDispatcher(
                 IntPtr FileSystem);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-            [return: MarshalAs(UnmanagedType.LPWStr)]
-            internal delegate String FspFileSystemMountPointF(
+            internal delegate IntPtr FspFileSystemMountPointF(
                 IntPtr FileSystem);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate void FspFileSystemSetOperationGuardStrategyF(
