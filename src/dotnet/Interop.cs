@@ -243,7 +243,7 @@ namespace Fsp.Interop
                 IntPtr FileSystem,
                 ref FullContext FullContext,
                 UInt32 FileAttributes,
-                Boolean ReplaceFileAttributes,
+                [MarshalAs(UnmanagedType.U1)] Boolean ReplaceFileAttributes,
                 UInt64 AllocationSize,
                 out FileInfo FileInfo);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -271,8 +271,8 @@ namespace Fsp.Interop
                 IntPtr Buffer,
                 UInt64 Offset,
                 UInt32 Length,
-                Boolean WriteToEndOfFile,
-                Boolean ConstrainedIo,
+                [MarshalAs(UnmanagedType.U1)] Boolean WriteToEndOfFile,
+                [MarshalAs(UnmanagedType.U1)] Boolean ConstrainedIo,
                 out UInt32 PBytesTransferred,
                 out FileInfo FileInfo);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -300,7 +300,7 @@ namespace Fsp.Interop
                 IntPtr FileSystem,
                 ref FullContext FullContext,
                 UInt64 NewSize,
-                Boolean SetAllocationSize,
+                [MarshalAs(UnmanagedType.U1)] Boolean SetAllocationSize,
                 out FileInfo FileInfo);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 CanDelete(
@@ -313,7 +313,7 @@ namespace Fsp.Interop
                 ref FullContext FullContext,
                 [MarshalAs(UnmanagedType.LPWStr)] String FileName,
                 [MarshalAs(UnmanagedType.LPWStr)] String NewFileName,
-                Boolean ReplaceIfExists);
+                [MarshalAs(UnmanagedType.U1)] Boolean ReplaceIfExists);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 GetSecurity(
                 IntPtr FileSystem,
@@ -340,7 +340,7 @@ namespace Fsp.Interop
                 IntPtr FileSystem,
                 [MarshalAs(UnmanagedType.LPWStr)] String FileName,
                 UInt32 ReparsePointIndex,
-                Boolean ResolveLastPathComponent,
+                [MarshalAs(UnmanagedType.U1)] Boolean ResolveLastPathComponent,
                 out IoStatusBlock PIoStatus,
                 IntPtr Buffer,
                 ref UIntPtr PSize);
@@ -452,6 +452,7 @@ namespace Fsp.Interop
                 IntPtr FileSystem,
                 UInt32 DebugLog);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            [return: MarshalAs(UnmanagedType.U1)]
             internal delegate Boolean FspFileSystemAddDirInfo(
                 IntPtr DirInfo,
                 IntPtr Buffer,
@@ -471,7 +472,7 @@ namespace Fsp.Interop
                 IntPtr Context,
                 [MarshalAs(UnmanagedType.LPWStr)] String FileName,
                 UInt32 ReparsePointIndex,
-                Boolean ResolveLastPathComponent,
+                [MarshalAs(UnmanagedType.U1)] Boolean ResolveLastPathComponent,
                 out IoStatusBlock PIoStatus,
                 IntPtr Buffer,
                 ref UIntPtr PSize);
@@ -482,17 +483,20 @@ namespace Fsp.Interop
                 IntPtr ReplaceReparseData,
                 UIntPtr ReplaceReparseDataSize);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            [return: MarshalAs(UnmanagedType.U1)]
             internal delegate Boolean FspFileSystemAddStreamInfo(
                 IntPtr StreamInfo,
                 IntPtr Buffer,
                 UInt32 Length,
                 out UInt32 PBytesTransferred);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            [return: MarshalAs(UnmanagedType.U1)]
             internal delegate Boolean FspFileSystemAcquireDirectoryBuffer(
                 ref IntPtr PDirBuffer,
-                Boolean Reset,
+                [MarshalAs(UnmanagedType.U1)] Boolean Reset,
                 out Int32 PResult);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            [return: MarshalAs(UnmanagedType.U1)]
             internal delegate Boolean FspFileSystemFillDirectoryBuffer(
                 ref IntPtr PDirBuffer,
                 ref DirInfo DirInfo,
@@ -568,7 +572,7 @@ namespace Fsp.Interop
                 IntPtr FileSystem,
                 IntPtr Context,
                 [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-                Boolean IsDirectory,
+                [MarshalAs(UnmanagedType.U1)] Boolean IsDirectory,
                 IntPtr Buffer,
                 ref UIntPtr PSize);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
