@@ -158,7 +158,7 @@ namespace Fsp
             Int32 Result;
             Result = Api.FspFileSystemCreate(
                 _VolumeParams.IsPrefixEmpty() ? "WinFsp.Disk" : "WinFsp.Net",
-                ref _VolumeParams, _FileSystemInterface, out _FileSystem);
+                ref _VolumeParams, _FileSystemInterfacePtr, out _FileSystem);
             if (0 <= Result)
             {
                 Api.SetUserContext(_FileSystem, this);
@@ -1192,38 +1192,37 @@ namespace Fsp
 
         static FileSystem()
         {
-            FileSystemInterface FileSystemInterface;
-            FileSystemInterface = default(FileSystemInterface);
-            FileSystemInterface.GetVolumeInfo = GetVolumeInfo;
-            FileSystemInterface.SetVolumeLabel = SetVolumeLabel;
-            FileSystemInterface.GetSecurityByName = GetSecurityByName;
-            FileSystemInterface.Create = Create;
-            FileSystemInterface.Open = Open;
-            FileSystemInterface.Overwrite = Overwrite;
-            FileSystemInterface.Cleanup = Cleanup;
-            FileSystemInterface.Close = Close;
-            FileSystemInterface.Read = Read;
-            FileSystemInterface.Write = Write;
-            FileSystemInterface.Flush = Flush;
-            FileSystemInterface.GetFileInfo = GetFileInfo;
-            FileSystemInterface.SetBasicInfo = SetBasicInfo;
-            FileSystemInterface.SetFileSize = SetFileSize;
-            FileSystemInterface.CanDelete = CanDelete;
-            FileSystemInterface.Rename = Rename;
-            FileSystemInterface.GetSecurity = GetSecurity;
-            FileSystemInterface.SetSecurity = SetSecurity;
-            FileSystemInterface.ReadDirectory = ReadDirectory;
-            FileSystemInterface.ResolveReparsePoints = ResolveReparsePoints;
-            FileSystemInterface.GetReparsePoint = GetReparsePoint;
-            FileSystemInterface.SetReparsePoint = SetReparsePoint;
-            FileSystemInterface.DeleteReparsePoint = DeleteReparsePoint;
-            FileSystemInterface.GetStreamInfo = GetStreamInfo;
+            _FileSystemInterface.GetVolumeInfo = GetVolumeInfo;
+            _FileSystemInterface.SetVolumeLabel = SetVolumeLabel;
+            _FileSystemInterface.GetSecurityByName = GetSecurityByName;
+            _FileSystemInterface.Create = Create;
+            _FileSystemInterface.Open = Open;
+            _FileSystemInterface.Overwrite = Overwrite;
+            _FileSystemInterface.Cleanup = Cleanup;
+            _FileSystemInterface.Close = Close;
+            _FileSystemInterface.Read = Read;
+            _FileSystemInterface.Write = Write;
+            _FileSystemInterface.Flush = Flush;
+            _FileSystemInterface.GetFileInfo = GetFileInfo;
+            _FileSystemInterface.SetBasicInfo = SetBasicInfo;
+            _FileSystemInterface.SetFileSize = SetFileSize;
+            _FileSystemInterface.CanDelete = CanDelete;
+            _FileSystemInterface.Rename = Rename;
+            _FileSystemInterface.GetSecurity = GetSecurity;
+            _FileSystemInterface.SetSecurity = SetSecurity;
+            _FileSystemInterface.ReadDirectory = ReadDirectory;
+            _FileSystemInterface.ResolveReparsePoints = ResolveReparsePoints;
+            _FileSystemInterface.GetReparsePoint = GetReparsePoint;
+            _FileSystemInterface.SetReparsePoint = SetReparsePoint;
+            _FileSystemInterface.DeleteReparsePoint = DeleteReparsePoint;
+            _FileSystemInterface.GetStreamInfo = GetStreamInfo;
 
-            _FileSystemInterface = Marshal.AllocHGlobal(Marshal.SizeOf(FileSystemInterface));
-            Marshal.StructureToPtr(FileSystemInterface, _FileSystemInterface, false);
+            _FileSystemInterfacePtr = Marshal.AllocHGlobal(FileSystemInterface.Size);
+            Marshal.StructureToPtr(_FileSystemInterface, _FileSystemInterfacePtr, false);
         }
 
-        private static IntPtr _FileSystemInterface;
+        private static FileSystemInterface _FileSystemInterface;
+        private static IntPtr _FileSystemInterfacePtr;
         private VolumeParams _VolumeParams;
         private IntPtr _FileSystem;
     }

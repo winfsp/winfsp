@@ -374,6 +374,8 @@ namespace Fsp.Interop
                 out UInt32 PBytesTransferred);
         }
 
+        internal static int Size = IntPtr.Size * 64;
+
         internal Proto.GetVolumeInfo GetVolumeInfo;
         internal Proto.SetVolumeLabel SetVolumeLabel;
         internal Proto.GetSecurityByName GetSecurityByName;
@@ -398,8 +400,7 @@ namespace Fsp.Interop
         internal Proto.SetReparsePoint SetReparsePoint;
         internal Proto.DeleteReparsePoint DeleteReparsePoint;
         internal Proto.GetStreamInfo GetStreamInfo;
-        internal unsafe fixed long/*IntPtr*/ Reserved[40];
-            /* NTSTATUS (*Reserved[40])(); */
+        /* NTSTATUS (*Reserved[40])(); */
     }
 
     [SuppressUnmanagedCodeSecurity]

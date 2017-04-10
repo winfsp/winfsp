@@ -33,7 +33,7 @@ namespace Fsp
         /* ctor/dtor */
         public Service(String ServiceName)
         {
-            Api.FspServiceCreate(ServiceName, OnStart, OnStop, null, out _Service);
+            Api.FspServiceCreate(ServiceName, _OnStart, _OnStop, null, out _Service);
             if (IntPtr.Zero != _Service)
                 Api.SetUserContext(_Service, this);
         }
@@ -150,6 +150,8 @@ namespace Fsp
             }
         }
 
+        private static Api.Proto.ServiceStart _OnStart = OnStart;
+        private static Api.Proto.ServiceStop _OnStop = OnStop;
         private IntPtr _Service;
     }
 
