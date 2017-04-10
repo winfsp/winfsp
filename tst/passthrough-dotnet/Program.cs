@@ -259,13 +259,9 @@ namespace passthrough
             FileDesc FileDesc = (FileDesc)FileDesc0;
             if (0 != (Flags & CleanupDelete))
             {
-                FileName = ConcatPath(FileName);
                 try
                 {
-                    if (null == FileDesc.Stream)
-                        Directory.Delete(FileName);
-                    else
-                        FileDesc.Stream.Dispose();
+                    FileDesc.Info.Delete();
                 }
                 catch
                 {
@@ -405,15 +401,11 @@ namespace passthrough
             String FileName)
         {
             FileDesc FileDesc = (FileDesc)FileDesc0;
-            FileName = ConcatPath(FileName);
             /*
              * If a file has an open handle the Delete call below
              * will only mark it for disposition.
              */
-            if (null == FileDesc.Stream)
-                Directory.Delete(FileName);
-            else
-                File.Delete(FileName);
+            FileDesc.Info.Delete();
             return STATUS_SUCCESS;
         }
         protected override Int32 Rename(
