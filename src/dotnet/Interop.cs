@@ -852,7 +852,7 @@ namespace Fsp.Interop
         }
         static Api()
         {
-#if DEBUG
+#if false //DEBUG
             if (Debugger.IsAttached)
                 Debugger.Break();
 #endif

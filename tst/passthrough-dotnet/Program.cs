@@ -85,6 +85,14 @@ namespace passthrough
                 return NtStatusFromWin32((UInt32)HResult & 0xFFFF);
             return STATUS_UNEXPECTED_IO_ERROR;
         }
+        private Int32 HResultFromWin32(UInt32 Error)
+        {
+            return unchecked((Int32)(0x80070000 | Error));
+        }
+        private void ThrowIoException(Int32 Result)
+        {
+            throw new IOException(null, HResultFromWin32(Win32FromNtStatus(Result)));
+        }
         protected String ConcatPath(String FileName)
         {
             return _Path + FileName;
@@ -155,13 +163,14 @@ namespace passthrough
             FileName = ConcatPath(FileName);
             if (0 != (CreateOptions & FILE_DIRECTORY_FILE))
             {
+                if (Directory.Exists(FileName))
+                    ThrowIoException(STATUS_OBJECT_NAME_COLLISION);
                 DirectorySecurity Security = null;
                 if (null != SecurityDescriptor)
                 {
                     Security = new DirectorySecurity();
                     Security.SetSecurityDescriptorBinaryForm(SecurityDescriptor);
                 }
-                // ???: FILE_DELETE_ON_CLOSE
                 FileDesc = new FileDesc(
                     Directory.CreateDirectory(FileName, Security),
                     null);
@@ -174,8 +183,6 @@ namespace passthrough
                     Security = new FileSecurity();
                     Security.SetSecurityDescriptorBinaryForm(SecurityDescriptor);
                 }
-                FileOptions Options = 0 != (CreateOptions & FILE_DELETE_ON_CLOSE) ?
-                    FileOptions.DeleteOnClose : 0;
                 FileDesc = new FileDesc(
                     new System.IO.FileInfo(FileName),
                     new FileStream(
@@ -184,7 +191,7 @@ namespace passthrough
                         (FileSystemRights)GrantedAccess,
                         FileShare.Read | FileShare.Write | FileShare.Delete,
                         4096,
-                        Options,
+                        0,
                         Security));
             }
             FileDesc.FileAttributes = FileAttributes;
@@ -206,15 +213,12 @@ namespace passthrough
             FileName = ConcatPath(FileName);
             if (Directory.Exists(FileName))
             {
-                // ???: FILE_DELETE_ON_CLOSE
                 FileDesc = new FileDesc(
                     new System.IO.DirectoryInfo(FileName),
                     null);
             }
             else
             {
-                FileOptions Options = 0 != (CreateOptions & FILE_DELETE_ON_CLOSE) ?
-                    FileOptions.DeleteOnClose : 0;
                 FileDesc = new FileDesc(
                     new System.IO.FileInfo(FileName),
                     new FileStream(
@@ -223,7 +227,7 @@ namespace passthrough
                         (FileSystemRights)GrantedAccess,
                         FileShare.Read | FileShare.Write | FileShare.Delete,
                         4096,
-                        Options));
+                        0));
             }
             FileNode = default(Object);
             FileDesc0 = FileDesc;
@@ -254,7 +258,21 @@ namespace passthrough
         {
             FileDesc FileDesc = (FileDesc)FileDesc0;
             if (0 != (Flags & CleanupDelete))
-                FileDesc.Stream.Dispose();
+            {
+                FileName = ConcatPath(FileName);
+                try
+                {
+                    if (null == FileDesc.Stream)
+                        Directory.Delete(FileName);
+                    else
+                        FileDesc.Stream.Dispose();
+                }
+                catch
+                {
+                }
+                if (null != FileDesc.Stream)
+                    FileDesc.Stream.Dispose();
+            }
         }
         protected override void Close(
             Object FileNode,
@@ -411,7 +429,7 @@ namespace passthrough
             if (null == FileDesc.Stream)
             {
                 if (ReplaceIfExists)
-                    return STATUS_ACCESS_DENIED;
+                    throw new UnauthorizedAccessException();
                 Directory.Move(FileName, NewFileName);
             }
             else
