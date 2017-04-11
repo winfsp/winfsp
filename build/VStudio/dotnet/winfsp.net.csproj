@@ -87,7 +87,8 @@
     </ItemGroup>
   </Target>
   <PropertyGroup>
-    <PostBuildEvent>set MyAssemblyPolicyVersion=$(MyAssemblyPolicyVersion)
+    <PostBuildEvent>set TargetName=$(TargetName)
+set MyAssemblyPolicyVersion=$(MyAssemblyPolicyVersion)
 set MyAssemblyVersion=$(MyAssemblyVersion)
 
 setlocal EnableDelayedExpansion
