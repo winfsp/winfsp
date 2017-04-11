@@ -63,7 +63,8 @@ set opt_tests=^
     sample-passthrough-cpp-x64 ^
     sample-passthrough-cpp-x86 ^
     sample-passthrough-fuse-x64 ^
-    sample-passthrough-fuse-x86
+    sample-passthrough-fuse-x86 ^
+    sample-passthrough-dotnet
 
 set tests=
 for %%f in (%dfl_tests%) do (
@@ -484,88 +485,93 @@ if not X!IfsTestFound!==XYES set IfsTestExit=1
 exit /b !IfsTestExit!
 
 :sample-passthrough-x64
-call :__sample-passthrough x64 x64
+call :__run_sample_test passthrough x64 passthrough-x64 winfsp-tests-x64
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-x86
-call :__sample-passthrough x86 x86
+call :__run_sample_test passthrough x86 passthrough-x86 winfsp-tests-x86
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-cpp-x64
-call :__sample-passthrough cpp-x64 x64 -cpp
+call :__run_sample_test passthrough-cpp x64 passthrough-cpp-x64 winfsp-tests-x64
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-cpp-x86
-call :__sample-passthrough cpp-x86 x86 -cpp
+call :__run_sample_test passthrough-cpp x86 passthrough-cpp-x86 winfsp-tests-x86
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:__sample-passthrough
-set SamplePassthroughExit=0
-call %ProjRoot%\tools\build-sample %Configuration% %2 passthrough%3 "%TMP%\passthrough-%1"
+:sample-passthrough-dotnet
+call :__run_sample_test passthrough-dotnet anycpu passthrough-dotnet winfsp-tests-x64
 if !ERRORLEVEL! neq 0 goto fail
-mkdir "%TMP%\passthrough-%1\test"
-call "%ProjRoot%\tools\fsreg" passthrough "%TMP%\passthrough-%1\build\%Configuration%\passthrough-%1.exe" "-u %%%%1 -m %%%%2" "D:P(A;;RPWPLC;;;WD)"
-echo net use L: "\\passthrough\%TMP::=$%\passthrough-%1\test"
-net use L: "\\passthrough\%TMP::=$%\passthrough-%1\test"
-if !ERRORLEVEL! neq 0 goto fail
-echo net use ^| findstr L:
-net use | findstr L:
-pushd >nul
-cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
-L:
-"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-%2.exe" ^
-    --external --resilient --case-insensitive-cmp --share-prefix="\passthrough\%TMP::=$%\passthrough-%1\test" ^
-    -create_allocation_test -getfileinfo_name_test -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test ^
-    -reparse* -stream*
-if !ERRORLEVEL! neq 0 set SamplePassthroughExit=1
-popd
-echo net use L: /delete
-net use L: /delete
-call "%ProjRoot%\tools\fsreg" -u passthrough
-rmdir /s/q "%TMP%\passthrough-%1"
-exit /b !SamplePassthroughExit!
+exit /b 0
 
 :sample-passthrough-fuse-x64
-call :__sample-passthrough-fuse x64
+call :__run_sample_fuse_test passthrough-fuse x64 passthrough-fuse-x64 winfsp-tests-x64
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-fuse-x86
-call :__sample-passthrough-fuse x86
+call :__run_sample_fuse_test passthrough-fuse x86 passthrough-fuse-x86 winfsp-tests-x86
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:__sample-passthrough-fuse
-set SamplePassthroughExit=0
-call %ProjRoot%\tools\build-sample %Configuration% %1 passthrough-fuse "%TMP%\passthrough-fuse-%1"
+:__run_sample_test
+set RunSampleTestExit=0
+call %ProjRoot%\tools\build-sample %Configuration% %2 %1 "%TMP%\%1"
 if !ERRORLEVEL! neq 0 goto fail
-mkdir "%TMP%\passthrough-fuse-%1\test"
-call "%ProjRoot%\tools\fsreg" passthrough-fuse "%TMP%\passthrough-fuse-%1\build\%Configuration%\passthrough-fuse-%1.exe" ^
-    "-ouid=65792,gid=65792 --VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
-echo net use L: "\\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test"
-net use L: "\\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test"
+mkdir "%TMP%\%1\test"
+call "%ProjRoot%\tools\fsreg" %1 "%TMP%\%1\build\%Configuration%\%3.exe" "-u %%%%1 -m %%%%2" "D:P(A;;RPWPLC;;;WD)"
+echo net use L: "\\%1\%TMP::=$%\%1\test"
+net use L: "\\%1\%TMP::=$%\%1\test"
 if !ERRORLEVEL! neq 0 goto fail
 echo net use ^| findstr L:
 net use | findstr L:
 pushd >nul
 cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
-"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-%1.exe" ^
-    --external --resilient --case-insensitive-cmp --share-prefix="\passthrough-fuse\%TMP::=$%\passthrough-fuse-%1\test" ^
-    -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
-    -getfileinfo_name_test -setfileinfo_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -exec_rename_dir_test ^
+"%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
+    --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
+    -create_allocation_test -getfileinfo_name_test -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test ^
     -reparse* -stream*
-if !ERRORLEVEL! neq 0 set SamplePassthroughExit=1
+if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
 popd
 echo net use L: /delete
 net use L: /delete
-call "%ProjRoot%\tools\fsreg" -u passthrough-fuse
-rmdir /s/q "%TMP%\passthrough-fuse-%1"
-exit /b !SamplePassthroughExit!
+call "%ProjRoot%\tools\fsreg" -u %1
+rmdir /s/q "%TMP%\%1"
+exit /b !RunSampleTestExit!
+
+:__run_sample_fuse_test
+set RunSampleTestExit=0
+call %ProjRoot%\tools\build-sample %Configuration% %2 %1 "%TMP%\%1"
+if !ERRORLEVEL! neq 0 goto fail
+mkdir "%TMP%\%1\test"
+call "%ProjRoot%\tools\fsreg" %1 "%TMP%\%1\build\%Configuration%\%3.exe" ^
+    "-ouid=11,gid=65792 --VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
+echo net use L: "\\%1\%TMP::=$%\%1\test"
+net use L: "\\%1\%TMP::=$%\%1\test"
+if !ERRORLEVEL! neq 0 goto fail
+echo net use ^| findstr L:
+net use | findstr L:
+pushd >nul
+cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
+L:
+"%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
+    --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
+    -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
+    -getfileinfo_name_test -setfileinfo_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -exec_rename_dir_test ^
+    -reparse* -stream*
+if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
+popd
+echo net use L: /delete
+net use L: /delete
+call "%ProjRoot%\tools\fsreg" -u %1
+rmdir /s/q "%TMP%\%1"
+exit /b !RunSampleTestExit!
 
 :leak-test
 for /F "tokens=1,2 delims=:" %%i in ('verifier /query ^| findstr ^
