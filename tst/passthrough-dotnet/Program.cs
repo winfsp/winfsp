@@ -153,17 +153,26 @@ namespace passthrough
             }
             public void SetSecurityDescriptor(AccessControlSections Sections, Byte[] SecurityDescriptor)
             {
+                Int32 SecurityInformation = 0;
+                if (0 != (Sections & AccessControlSections.Owner))
+                    SecurityInformation |= 1/*OWNER_SECURITY_INFORMATION*/;
+                if (0 != (Sections & AccessControlSections.Group))
+                    SecurityInformation |= 2/*GROUP_SECURITY_INFORMATION*/;
+                if (0 != (Sections & AccessControlSections.Access))
+                    SecurityInformation |= 4/*DACL_SECURITY_INFORMATION*/;
+                if (0 != (Sections & AccessControlSections.Audit))
+                    SecurityInformation |= 8/*SACL_SECURITY_INFORMATION*/;
                 if (null != Stream)
                 {
-                    FileSecurity Security = Stream.GetAccessControl();
-                    Security.SetSecurityDescriptorBinaryForm(SecurityDescriptor, Sections);
-                    Stream.SetAccessControl(Security);
+                    if (!SetKernelObjectSecurity(Stream.SafeFileHandle.DangerousGetHandle(),
+                        SecurityInformation, SecurityDescriptor))
+                        ThrowIoExceptionWithWin32(Marshal.GetLastWin32Error());
                 }
                 else
                 {
-                    DirectorySecurity Security = DirInfo.GetAccessControl();
-                    Security.SetSecurityDescriptorBinaryForm(SecurityDescriptor, Sections);
-                    DirInfo.SetAccessControl(Security);
+                    if (!SetFileSecurityW(DirInfo.FullName,
+                        SecurityInformation, SecurityDescriptor))
+                        ThrowIoExceptionWithWin32(Marshal.GetLastWin32Error());
                 }
             }
             public void SetDisposition(Boolean Safe)
@@ -234,6 +243,16 @@ namespace passthrough
                 Int32 FileInformationClass,
                 ref FILE_DISPOSITION_INFO lpFileInformation,
                 UInt32 dwBufferSize);
+            [DllImport("advapi32.dll", SetLastError = true)]
+            private static extern Boolean SetFileSecurityW(
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                Int32 SecurityInformation,
+                Byte[] SecurityDescriptor);
+            [DllImport("advapi32.dll", SetLastError = true)]
+            private static extern Boolean SetKernelObjectSecurity(
+                IntPtr Handle,
+                Int32 SecurityInformation,
+                Byte[] SecurityDescriptor);
         }
 
         private class DirectoryEntryComparer : IComparer
