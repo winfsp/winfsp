@@ -16,7 +16,7 @@
  */
 
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
@@ -48,7 +48,7 @@ namespace passthrough
         {
             public FileStream Stream;
             public DirectoryInfo DirInfo;
-            public DirectoryBuffer DirBuffer;
+            public DictionaryEntry[] FileSystemInfos;
 
             public FileDesc(FileStream Stream)
             {
@@ -235,6 +235,18 @@ namespace passthrough
                 ref FILE_DISPOSITION_INFO lpFileInformation,
                 UInt32 dwBufferSize);
         }
+
+        private class DirectoryEntryComparer : IComparer
+        {
+            public int Compare(object x, object y)
+            {
+                return String.Compare(
+                    (String)((DictionaryEntry)x).Key,
+                    (String)((DictionaryEntry)y).Key);
+            }
+        }
+        private static DirectoryEntryComparer _DirectoryEntryComparer =
+            new DirectoryEntryComparer();
 
         public Ptfs() : base()
         {
@@ -438,8 +450,6 @@ namespace passthrough
             FileDesc FileDesc = (FileDesc)FileDesc0;
             if (null != FileDesc.Stream)
                 FileDesc.Stream.Dispose();
-            if (null != FileDesc.DirBuffer)
-                FileDesc.DirBuffer.Dispose();
         }
         protected override Int32 Read(
             Object FileNode,
@@ -597,21 +607,6 @@ namespace passthrough
             FileDesc.SetSecurityDescriptor(Sections, SecurityDescriptor);
             return STATUS_SUCCESS;
         }
-        protected override Int32 ReadDirectory(
-            Object FileNode,
-            Object FileDesc0,
-            String Pattern,
-            String Marker,
-            IntPtr Buffer,
-            UInt32 Length,
-            out UInt32 PBytesTransferred)
-        {
-            FileDesc FileDesc = (FileDesc)FileDesc0;
-            if (null == FileDesc.DirBuffer)
-                FileDesc.DirBuffer = new DirectoryBuffer();
-            return BufferedReadDirectory(FileDesc.DirBuffer,
-                FileNode, FileDesc, Pattern, Marker, Buffer, Length, out PBytesTransferred);
-        }
         protected override Boolean ReadDirectoryEntry(
             Object FileNode,
             Object FileDesc0,
@@ -621,18 +616,43 @@ namespace passthrough
             out String FileName,
             out FileInfo FileInfo)
         {
+            FileDesc FileDesc = (FileDesc)FileDesc0;
+            if (null == FileDesc.FileSystemInfos)
+            {
+                IEnumerable Enum = FileDesc.DirInfo.EnumerateFileSystemInfos(
+                    null != Pattern ? Pattern : "*");
+                SortedList List = new SortedList();
+                List.Add(".", FileDesc.DirInfo);
+                List.Add("..", FileDesc.DirInfo.Parent);
+                foreach (FileSystemInfo Info in Enum)
+                    List.Add(Info.Name, Info);
+                FileDesc.FileSystemInfos = new DictionaryEntry[List.Count];
+                List.CopyTo(FileDesc.FileSystemInfos, 0);
+            }
+            int Index;
             if (null == Context)
             {
-                FileDesc FileDesc = (FileDesc)FileDesc0;
-                if (null == Pattern)
-                    Pattern = "*";
-                Context = FileDesc.DirInfo.EnumerateFileSystemInfos(Pattern).GetEnumerator();
+                Index = 0;
+                if (null != Marker)
+                {
+                    Index = Array.BinarySearch(FileDesc.FileSystemInfos,
+                        new DictionaryEntry(Marker, null),
+                        _DirectoryEntryComparer);
+                    if (0 <= Index)
+                        Index++;
+                    else
+                        Index = ~Index;
+                }
             }
-            IEnumerator<FileSystemInfo> InfoEnumerator = (IEnumerator<FileSystemInfo>)Context;
-            if (InfoEnumerator.MoveNext())
+            else
+                Index = (int)Context;
+            if (FileDesc.FileSystemInfos.Length > Index)
             {
-                FileName = InfoEnumerator.Current.Name;
-                FileDesc.GetFileInfoFromFileSystemInfo(InfoEnumerator.Current, out FileInfo);
+                Context = Index + 1;
+                FileName = (String)FileDesc.FileSystemInfos[Index].Key;
+                FileDesc.GetFileInfoFromFileSystemInfo(
+                    (FileSystemInfo)FileDesc.FileSystemInfos[Index].Value,
+                    out FileInfo);
                 return true;
             }
             else

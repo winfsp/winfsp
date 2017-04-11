@@ -458,8 +458,8 @@ namespace Fsp
             UInt32 Length,
             out UInt32 PBytesTransferred)
         {
-            PBytesTransferred = default(UInt32);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            return SeekableReadDirectory(FileNode, FileDesc, Pattern, Marker, Buffer, Length,
+                out PBytesTransferred);
         }
         protected virtual Boolean ReadDirectoryEntry(
             Object FileNode,
