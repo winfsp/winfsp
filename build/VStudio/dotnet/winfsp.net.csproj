@@ -91,14 +91,14 @@
 set MyAssemblyVersion=$(MyAssemblyVersion)
 
 setlocal EnableDelayedExpansion
-if exist $(OutDir)winfsp.net.policy.xml del $(OutDir)winfsp.net.policy.xml
-for /f "delims=" %25%25l in ($(ProjectDir)winfsp.net.policy.xml) do (
+if exist $(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config del $(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config
+for /f "delims=" %25%25l in ($(ProjectDir)winfsp.net.policy.config) do (
     set line=%25%25l
-    echo !line! &gt;&gt;$(OutDir)winfsp.net.policy.xml
+    echo !line! &gt;&gt;$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config
 )
 
 call "$(DevEnvDir)..\Tools\VsDevCmd.bat"
-al /link:$(OutDir)winfsp.net.policy.xml /out:$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).dll /keyfile:$(ProjectDir)$(ProjectName).snk
+al /link:$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config /out:$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).dll /keyfile:$(ProjectDir)$(ProjectName).snk
 </PostBuildEvent>
   </PropertyGroup>
 </Project>
