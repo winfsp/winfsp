@@ -87,11 +87,14 @@
                 <Condition>NOT VersionNT64</Condition>
             </Component>
 
-            <!-- GAC the assembly and its policy -->
-            <Component Id="C.winfsp_msil.dll">
-                <File Name="winfsp-msil.dll" KeyPath="yes" Assembly=".net" />
+            <!-- install assembly and also GAC it and its policy -->
+            <Component Id="C.winfsp_msil.dll" Guid="0D8BA6AE-9F87-402B-AE1A-95B0AE3BE179">
+                <File Id="FILE.winfsp_msil.dll" Name="winfsp-msil.dll" KeyPath="yes" />
             </Component>
-            <Component Id="C.policy.winfsp_msil.dll">
+            <Component Id="C.winfsp_msil.dll.GAC" Guid="6469467D-8C90-4889-8138-4028F9DA6E85">
+                <File Id="FILE.winfsp_msil.dll.GAC" Name="winfsp-msil.dll" KeyPath="yes" Assembly=".net" />
+            </Component>
+            <Component Id="C.policy.winfsp_msil.dll.GAC">
                 <File Name="policy.1.0.winfsp-msil.dll" KeyPath="yes" Assembly=".net" />
                 <File Name="policy.1.0.winfsp-msil.config" KeyPath="no" />
             </Component>
@@ -372,7 +375,8 @@
             <ComponentRef Id="C.winfsp_x64.dll" />
             <ComponentRef Id="C.winfsp_x86.dll.selfreg" />
             <ComponentRef Id="C.winfsp_msil.dll" />
-            <ComponentRef Id="C.policy.winfsp_msil.dll" />
+            <ComponentRef Id="C.winfsp_msil.dll.GAC" />
+            <ComponentRef Id="C.policy.winfsp_msil.dll.GAC" />
             <ComponentRef Id="C.launcher_x64.exe.svcinst" />
             <ComponentRef Id="C.launcher_x86.exe" />
             <ComponentRef Id="C.launcher_x64.exe" />

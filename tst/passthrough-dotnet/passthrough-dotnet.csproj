@@ -53,8 +53,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
-    <Reference Include="winfsp-msil">
-      <HintPath>..\..\build\VStudio\build\Debug\winfsp-msil.dll</HintPath>
+    <Reference Include="winfsp-msil, Version=1.1.17101.0, Culture=neutral, PublicKeyToken=b099876d8fa9b1f3, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>$(MSBuildProgramFiles32)\WinFsp\bin\winfsp-msil.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
