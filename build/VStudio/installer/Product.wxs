@@ -333,6 +333,17 @@
                     <File Name="README.md" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="SMPDIR.passthrough_dotnet" Name="passthrough-dotnet">
+                <Component Id="C.passthrough_dotnet.Program.cs">
+                    <File Name="Program.cs" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_dotnet.sln">
+                    <File Name="passthrough-dotnet.sln" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_dotnet.csproj">
+                    <File Name="passthrough-dotnet.csproj" KeyPath="yes" />
+                </Component>
+            </Directory>
         </DirectoryRef>
         <DirectoryRef Id="SYMDIR">
             <Component Id="C.winfsp_x64.sys.pdb">
@@ -423,6 +434,9 @@
             <ComponentRef Id="C.passthrough_fuse.vcxproj.filters" />
             <ComponentRef Id="C.passthrough_fuse.Makefile" />
             <ComponentRef Id="C.passthrough_fuse.README.md" />
+            <ComponentRef Id="C.passthrough_dotnet.Program.cs" />
+            <ComponentRef Id="C.passthrough_dotnet.sln" />
+            <ComponentRef Id="C.passthrough_dotnet.csproj" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.sym">
             <ComponentRef Id="C.winfsp_x64.sys.pdb" />
