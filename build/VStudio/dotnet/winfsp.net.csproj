@@ -98,8 +98,7 @@ for /f "delims=" %25%25l in ($(ProjectDir)winfsp.net.policy.config) do (
     echo !line! &gt;&gt;$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config
 )
 
-call "$(DevEnvDir)..\Tools\VsDevCmd.bat"
-al /product:"$(MyProductName)" /title:"$(MyDescription)" /company:"$(MyCompanyName)" /copyright:"$(MyCopyright)" /version:"$(MyAssemblyPolicyVersion)" /fileversion:"$(MyVersion)" /link:$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config /out:$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).dll /keyfile:$(ProjectDir)$(ProjectName).snk
+"$(MSBuildProgramFiles32)\Microsoft SDKs\Windows\v7.0A\Bin\al.exe" /product:"$(MyProductName)" /title:"$(MyDescription)" /company:"$(MyCompanyName)" /copyright:"$(MyCopyright)" /version:"$(MyAssemblyPolicyVersion)" /fileversion:"$(MyVersion)" /link:$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config /out:$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).dll /keyfile:$(ProjectDir)$(ProjectName).snk
 </PostBuildEvent>
   </PropertyGroup>
 </Project>
