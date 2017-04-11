@@ -87,6 +87,15 @@
                 <Condition>NOT VersionNT64</Condition>
             </Component>
 
+            <!-- GAC the assembly and its policy -->
+            <Component Id="C.winfsp_msil.dll">
+                <File Name="winfsp-msil.dll" KeyPath="yes" Assembly=".net" />
+            </Component>
+            <Component Id="C.policy.winfsp_msil.dll">
+                <File Name="policy.1.0.winfsp-msil.dll" KeyPath="yes" Assembly=".net" />
+                <File Name="policy.1.0.winfsp-msil.config" KeyPath="no" />
+            </Component>
+
             <!-- On Win64 ServiceInstall launcher-x64.exe -->
             <Component Id="C.launcher_x64.exe.svcinst">
                 <File Id="launcher_x64.exe.svcinst" Name="launcher-x64.exe" KeyPath="yes" />
@@ -362,6 +371,8 @@
             <ComponentRef Id="C.winfsp_x86.dll" />
             <ComponentRef Id="C.winfsp_x64.dll" />
             <ComponentRef Id="C.winfsp_x86.dll.selfreg" />
+            <ComponentRef Id="C.winfsp_msil.dll" />
+            <ComponentRef Id="C.policy.winfsp_msil.dll" />
             <ComponentRef Id="C.launcher_x64.exe.svcinst" />
             <ComponentRef Id="C.launcher_x86.exe" />
             <ComponentRef Id="C.launcher_x64.exe" />
