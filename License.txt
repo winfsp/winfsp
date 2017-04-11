@@ -6,7 +6,7 @@ permissions to Free/Libre and Open Source Software ("FLOSS") without requiring
 that such software is covered by the GPLv3.
 
     1. Permission to link with a platform specific version of the WinFsp DLL
-    (currently winfsp-x64.dll or winfsp-x86.dll).
+    (one of: winfsp-x64.dll, winfsp-x86.dll, winfsp-msil.dll).
 
     2. Permission to distribute unmodified binary releases of the WinFsp
     installer (as released by the WinFsp project).
