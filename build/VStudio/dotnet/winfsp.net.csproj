@@ -37,6 +37,12 @@
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AssemblyOriginatorKeyFile>winfsp.net.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
   </ItemGroup>
@@ -53,6 +59,9 @@
     <Compile Include="..\..\..\src\dotnet\Service.cs">
       <Link>Service.cs</Link>
     </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="winfsp.net.snk" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
@@ -77,4 +86,19 @@
       <FileWrites Include="$(IntermediateOutputPath)AssemblyInfo.cs" />
     </ItemGroup>
   </Target>
+  <PropertyGroup>
+    <PostBuildEvent>set MyAssemblyPolicyVersion=$(MyAssemblyPolicyVersion)
+set MyAssemblyVersion=$(MyAssemblyVersion)
+
+setlocal EnableDelayedExpansion
+if exist $(OutDir)winfsp.net.policy.xml del $(OutDir)winfsp.net.policy.xml
+for /f "delims=" %25%25l in ($(ProjectDir)winfsp.net.policy.xml) do (
+    set line=%25%25l
+    echo !line! &gt;&gt;$(OutDir)winfsp.net.policy.xml
+)
+
+call "$(DevEnvDir)..\Tools\VsDevCmd.bat"
+al /link:$(OutDir)winfsp.net.policy.xml /out:$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).dll /keyfile:$(ProjectDir)$(ProjectName).snk
+</PostBuildEvent>
+  </PropertyGroup>
 </Project>
