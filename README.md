@@ -16,6 +16,7 @@ Some of the benefits of using WinFsp are listed below:
 * Strives for compatibility with NTFS. Read about its [Compatibility](doc/NTFS-Compatibility.asciidoc ).
 * Easy to understand but comprehensive API. Consult the [API Reference](http://www.secfs.net/winfsp/apiref/). There is also a simple [Tutorial](doc/WinFsp-Tutorial.asciidoc).
 * FUSE compatibility layer for native Windows and Cygwin. See [fuse.h](inc/fuse/fuse.h).
+* .NET layer for managed development. See [src/dotnet](src/dotnet).
 * Signed drivers provided on every release.
 * Available under the [GPLv3](License.txt) license with a special exception for Free/Libre and Open Source Software.
 
@@ -35,6 +36,7 @@ The project source code is organized as follows:
 * inc/fuse: Public headers for the FUSE compatibility layer.
 * src/dll: Source code to the WinFsp DLL.
 * src/dll/fuse: Source code to the FUSE compatibility layer.
+* src/dotnet: Source code to the .NET layer.
 * src/launcher: Source code to the launcher service and the launchctl utility.
 * src/sys: Source code to the WinFsp FSD.
 * opt/cygfuse: Source code for the Cygwin FUSE package.
