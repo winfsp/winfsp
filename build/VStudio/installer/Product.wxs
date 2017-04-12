@@ -385,9 +385,6 @@
             <ComponentRef Id="C.winfsp_x86.dll" />
             <ComponentRef Id="C.winfsp_x64.dll" />
             <ComponentRef Id="C.winfsp_x86.dll.selfreg" />
-            <ComponentRef Id="C.winfsp_msil.dll" />
-            <ComponentRef Id="C.winfsp_msil.dll.GAC" />
-            <ComponentRef Id="C.policy.winfsp_msil.dll.GAC" />
             <ComponentRef Id="C.launcher_x64.exe.svcinst" />
             <ComponentRef Id="C.launcher_x86.exe" />
             <ComponentRef Id="C.launcher_x64.exe" />
@@ -434,9 +431,6 @@
             <ComponentRef Id="C.passthrough_fuse.vcxproj.filters" />
             <ComponentRef Id="C.passthrough_fuse.Makefile" />
             <ComponentRef Id="C.passthrough_fuse.README.md" />
-            <ComponentRef Id="C.passthrough_dotnet.Program.cs" />
-            <ComponentRef Id="C.passthrough_dotnet.sln" />
-            <ComponentRef Id="C.passthrough_dotnet.csproj" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.sym">
             <ComponentRef Id="C.winfsp_x64.sys.pdb" />
@@ -449,6 +443,16 @@
             <ComponentRef Id="C.launchctl_x86.pdb" />
             <ComponentRef Id="C.memfs_x64.pdb" />
             <ComponentRef Id="C.memfs_x86.pdb" />
+        </ComponentGroup>
+        <ComponentGroup Id="C.WinFsp.net">
+            <ComponentRef Id="C.winfsp_msil.dll" />
+            <ComponentRef Id="C.winfsp_msil.dll.GAC" />
+            <ComponentRef Id="C.policy.winfsp_msil.dll.GAC" />
+        </ComponentGroup>
+        <ComponentGroup Id="C.WinFsp.smp.net">
+            <ComponentRef Id="C.passthrough_dotnet.Program.cs" />
+            <ComponentRef Id="C.passthrough_dotnet.sln" />
+            <ComponentRef Id="C.passthrough_dotnet.csproj" />
         </ComponentGroup>
 
         <Feature
@@ -474,6 +478,16 @@
                 <ComponentGroupRef Id="C.WinFsp.bin" />
             </Feature>
             <Feature
+                Id="F.Net"
+                Level="10"
+                Title=".NET"
+                Description="The managed $(var.MyProductName) files."
+                AllowAdvertise="no"
+                InstallDefault="local"
+                Absent="allow">
+                <ComponentGroupRef Id="C.WinFsp.net" />
+            </Feature>
+            <Feature
                 Id="F.Developer"
                 Level="1000"
                 Title="Developer"
@@ -484,6 +498,7 @@
                 <ComponentGroupRef Id="C.WinFsp.inc" />
                 <ComponentGroupRef Id="C.WinFsp.lib" />
                 <ComponentGroupRef Id="C.WinFsp.smp" />
+                <ComponentGroupRef Id="C.WinFsp.smp.net" />
                 <ComponentGroupRef Id="C.WinFsp.sym" />
             </Feature>
         </Feature>
