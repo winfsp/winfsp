@@ -355,10 +355,18 @@ static NTSTATUS FspFsctlFixServiceSecurity(HANDLE SvcHandle)
     {
         LastError = GetEffectiveRightsFromAclW(Dacl, &AccessEntry.Trustee, &AccessRights);
         if (0 != LastError)
-        {
-            Result = FspNtStatusFromWin32(LastError);
-            goto exit;
-        }
+            /*
+             * Apparently GetEffectiveRightsFromAclW can fail with ERROR_CIRCULAR_DEPENDENCY
+             * in some rare circumstances. Calling GetEffectiveRightsFromAclW is not essential
+             * in this instance. It is only done to check whether the "Everyone/World" SID
+             * already has the access required to start the FSD; if it does not have those
+             * rights already they are added. It is probably safe to just assume that the
+             * required rights are not there if GetEffectiveRightsFromAclW fails; the worst
+             * that can happen is that the rights get added twice (which is benign).
+             *
+             * See https://github.com/billziss-gh/winfsp/issues/62
+             */
+            AccessRights = 0;
     }
 
     /* do we have the required access rights? */
