@@ -12,20 +12,26 @@ if X!ProjDir!==X (echo usage: build-sample Config Arch Sample ProjDir >&2 & goto
 
 call "%VS140COMNTOOLS%\..\..\VC\vcvarsall.bat" x64
 
-set RegKey="HKLM\SOFTWARE\WinFsp"
-set RegVal="InstallDir"
-reg query !RegKey! /v !RegVal! /reg:32 >nul 2>&1
-if !ERRORLEVEL! equ 0 (
-    for /f "tokens=2,*" %%i in ('reg query !RegKey! /v !RegVal! /reg:32 ^| findstr !RegVal!') do (
-        set InstallDir=%%j
-    )
+if X!FSP_SAMPLE_DIR!==X (
+	set RegKey="HKLM\SOFTWARE\WinFsp"
+	set RegVal="InstallDir"
+	reg query !RegKey! /v !RegVal! /reg:32 >nul 2>&1
+	if !ERRORLEVEL! equ 0 (
+	    for /f "tokens=2,*" %%i in ('reg query !RegKey! /v !RegVal! /reg:32 ^| findstr !RegVal!') do (
+	        set InstallDir=%%j
+	    )
+	)
+	if not exist "!InstallDir!" (echo cannot find WinFsp installation >&2 & goto fail)
+	if not exist "!InstallDir!samples\!Sample!" (echo cannot find WinFsp sample !Sample! >&2 & goto fail)
+
+	set SampleDir=!InstallDir!samples
+) else (
+	set SampleDir=!FSP_SAMPLE_DIR!
 )
-if not exist "!InstallDir!" (echo cannot find WinFsp installation >&2 & goto fail)
-if not exist "!InstallDir!samples\!Sample!" (echo cannot find WinFsp sample !Sample! >&2 & goto fail)
 
 if exist "!ProjDir!" rmdir /s/q "!ProjDir!"
 mkdir "!ProjDir!"
-xcopy /s/e/q/y "!InstallDir!samples\!Sample!" "!ProjDir!"
+xcopy /s/e/q/y "!SampleDir!\!Sample!" "!ProjDir!"
 
 devenv "!ProjDir!\!Sample!.sln" /build "!Config!|!Arch!"
 if !ERRORLEVEL! neq 0 goto :fail

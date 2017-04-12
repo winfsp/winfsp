@@ -197,6 +197,11 @@ namespace passthrough
                             ThrowIoExceptionWithHResult(ex.HResult);
                     }
             }
+            public static void Rename(String FileName, String NewFileName, Boolean ReplaceIfExists)
+            {
+                if (!MoveFileExW(FileName, NewFileName, ReplaceIfExists ? 1U/*MOVEFILE_REPLACE_EXISTING*/ : 0))
+                    ThrowIoExceptionWithWin32(Marshal.GetLastWin32Error());
+            }
 
             /* interop */
             [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -243,6 +248,11 @@ namespace passthrough
                 Int32 FileInformationClass,
                 ref FILE_DISPOSITION_INFO lpFileInformation,
                 UInt32 dwBufferSize);
+            [DllImport("kernel32.dll", SetLastError = true)]
+            private static extern Boolean MoveFileExW(
+                [MarshalAs(UnmanagedType.LPWStr)] String lpExistingFileName,
+                [MarshalAs(UnmanagedType.LPWStr)] String lpNewFileName,
+                UInt32 dwFlags);
             [DllImport("advapi32.dll", SetLastError = true)]
             private static extern Boolean SetFileSecurityW(
                 [MarshalAs(UnmanagedType.LPWStr)] String FileName,
@@ -590,21 +600,9 @@ namespace passthrough
             String NewFileName,
             Boolean ReplaceIfExists)
         {
-            FileDesc FileDesc = (FileDesc)FileDesc0;
             FileName = ConcatPath(FileName);
             NewFileName = ConcatPath(NewFileName);
-            if (null != FileDesc.Stream)
-            {
-                if (ReplaceIfExists)
-                    File.Delete(NewFileName);
-                File.Move(FileName, NewFileName);
-            }
-            else
-            {
-                if (ReplaceIfExists)
-                    throw new UnauthorizedAccessException();
-                Directory.Move(FileName, NewFileName);
-            }
+            FileDesc.Rename(FileName, NewFileName, ReplaceIfExists);
             return STATUS_SUCCESS;
         }
         protected override Int32 GetSecurity(

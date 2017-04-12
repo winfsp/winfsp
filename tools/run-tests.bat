@@ -364,20 +364,20 @@ exit /b 0
 :__ifstest-memfs
 %1
 set IfsTestDirectories=^
-	securit^
-	opcreatg^
-	opcreatp^
-	closedel^
-	volinfo^
-	fileinfo^
-	dirinfo^
-	filelock^
-	oplocks^
-	chgnotif^
-	readwr^
-	seccache^
-	reparspt^
-	estream
+    securit^
+    opcreatg^
+    opcreatp^
+    closedel^
+    volinfo^
+    fileinfo^
+    dirinfo^
+    filelock^
+    oplocks^
+    chgnotif^
+    readwr^
+    seccache^
+    reparspt^
+    estream
 set IfsTestMemfsExit=0
 call :__ifstest %1 /g Security
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
@@ -421,7 +421,7 @@ rem StreamEnhancements.StreamNotifyNameTest: WinFsp does not notify when streams
 call :__ifstest %1 /g StreamEnhancements -t StreamRenameTest -t StreamNotifyNameTest
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 for %%d in (!IfsTestDirectories!) do  (
-	if exist %%d (echo :ifstest directory %%d still exists & set IfsTestMemfsExit=1)
+    if exist %%d (echo :ifstest directory %%d still exists & set IfsTestMemfsExit=1)
 )
 exit /b !IfsTestMemfsExit!
 
@@ -505,7 +505,8 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-dotnet
-call :__run_sample_test passthrough-dotnet anycpu passthrough-dotnet winfsp-tests-x64
+call :__run_sample_test passthrough-dotnet anycpu passthrough-dotnet winfsp-tests-x64 ^
+    "-create_backup_test -create_restore_test -create_namelen_test -delete_access_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -536,7 +537,7 @@ L:
 "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
     --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
     -create_allocation_test -getfileinfo_name_test -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test ^
-    -reparse* -stream*
+    -reparse* -stream* %~5
 if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
 popd
 echo net use L: /delete
