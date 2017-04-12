@@ -4,6 +4,12 @@
 
 [qanda]
 
+I am running Windows 7 and I am finding that the installed driver is not signed. [@efeat]::
+
+	Your Windows 7 OS is missing SHA-2 Code Signing Support. You need to install the following security advisory that will rectify the problem:
+	https://technet.microsoft.com/en-us/library/security/3033929.aspx
+
+
 Why is the DLL not installed in the Windows system directories? [@netheril96]::
 
     It is true that this would make it convenient to load the DLL, because the Windows loader looks into the Windows system directories when it loads DLL's. However, in the opinion of the WinFsp author, software that does not ship with the OS should not be installing components in the system directories.
