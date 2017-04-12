@@ -1,6 +1,15 @@
 = Changelog
 
 
+v1.1 (2017.1)::
+
+This release brings some major new components and improvements.
+
+- A .NET layer that allows the creation of file systems in managed mode.
+- A simple C++ layer.
+- FUSE now has a `-ovolname=VOLNAME` parameter. Thanks @samkelly.
+
+
 v1.0::
 
 This is the WinFsp 2017 release! :tada:
