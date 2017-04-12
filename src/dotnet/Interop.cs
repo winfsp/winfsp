@@ -18,6 +18,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.AccessControl;
@@ -850,6 +851,17 @@ namespace Fsp.Interop
             FspWin32FromNtStatus = GetEntryPoint<Proto.FspWin32FromNtStatus>(Module);
             FspDebugLogSetHandle = GetEntryPoint<Proto.FspDebugLogSetHandle>(Module);
         }
+        private static void CheckVersion()
+        {
+            FileVersionInfo Info;
+            UInt32 Version = 0, VersionMajor, VersionMinor;
+            Info = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
+            FspVersion(out Version); VersionMajor = Version >> 16; VersionMinor = Version & 0xFFFF;
+            if (Info.FileMajorPart != VersionMajor || Info.FileMinorPart > VersionMinor)
+                throw new TypeLoadException(String.Format(
+                    "incorrect dll version (need {0}.{1}, have {2}.{3})",
+                    Info.FileMajorPart, Info.FileMinorPart, VersionMajor, VersionMinor));
+        }
         static Api()
         {
 #if false //DEBUG
@@ -857,6 +869,7 @@ namespace Fsp.Interop
                 Debugger.Break();
 #endif
             LoadProto(LoadDll());
+            CheckVersion();
         }
 
         [DllImport("kernel32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true)]

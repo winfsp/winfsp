@@ -175,6 +175,8 @@ FSP_API NTSTATUS FspVersion(PUINT32 PVersion)
          * Two threads competing to read the version will read
          * the same value from the Version resource.
          */
+        *PVersion = 0;
+
         extern HINSTANCE DllInstance;
         WCHAR ModuleFileName[MAX_PATH];
         PVOID VersionInfo;
