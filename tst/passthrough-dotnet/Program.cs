@@ -769,8 +769,6 @@ namespace passthrough
                 if (null == PassThrough || null == MountPoint)
                     throw new CommandLineUsageException();
 
-                EnableBackupRestorePrivileges();
-
                 if (null != DebugLogFile)
                     if (0 > FileSystem.SetDebugLogFile(DebugLogFile))
                         throw new CommandLineUsageException("cannot open debug log file");
@@ -836,74 +834,6 @@ namespace passthrough
                 V = Int32.TryParse(Args[I], out R) ? (UInt32)R : V;
             else
                 throw new CommandLineUsageException();
-        }
-
-        /*
-         * Turns out there is no managed way to adjust privileges.
-         * So we have to write our own using P/Invoke. Joy!
-         *
-         * NOTE: The P/Invoke definitions below are not for general use.
-         */
-        private struct LUID_AND_ATTRIBUTES
-        {
-            public UInt64 Luid;
-            public UInt32 Attributes;
-        }
-        [StructLayout(LayoutKind.Sequential)]
-        private struct TOKEN_PRIVILEGES
-        {
-            public UInt32 PrivilegeCount;
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)] public LUID_AND_ATTRIBUTES[] Privileges;
-        }
-        [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern Boolean OpenProcessToken(
-            IntPtr ProcessHandle,
-            UInt32 DesiredAccess,
-            out IntPtr TokenHandle);
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern Boolean CloseHandle(
-            IntPtr hObject);
-        [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern Boolean LookupPrivilegeValueW(
-            [MarshalAs(UnmanagedType.LPWStr)] String lpSystemName,
-            [MarshalAs(UnmanagedType.LPWStr)] String lpName,
-            out UInt64 lpLuid);
-        [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern Boolean AdjustTokenPrivileges(
-            IntPtr TokenHandle,
-            Boolean DisableAllPrivileges,
-            ref TOKEN_PRIVILEGES NewState,
-            UInt32 BufferLength,
-            IntPtr PreviousState,
-            IntPtr ReturnLength);
-        private static Int32 EnableBackupRestorePrivileges()
-        {
-            TOKEN_PRIVILEGES Privileges;
-            IntPtr Token;
-
-            Privileges = default(TOKEN_PRIVILEGES);
-            Privileges.PrivilegeCount = 2;
-            Privileges.Privileges = new LUID_AND_ATTRIBUTES[2];
-            Privileges.Privileges[0].Attributes = 2/*SE_PRIVILEGE_ENABLED*/;
-            Privileges.Privileges[1].Attributes = 2/*SE_PRIVILEGE_ENABLED*/;
-
-            if (!LookupPrivilegeValueW(null, "SeBackupPrivilege", out Privileges.Privileges[0].Luid) ||
-                !LookupPrivilegeValueW(null, "SeRestorePrivilege", out Privileges.Privileges[1].Luid))
-                return Marshal.GetLastWin32Error();
-
-            if (!OpenProcessToken((IntPtr)(-1), 0x0020/*TOKEN_ADJUST_PRIVILEGES*/, out Token))
-                return Marshal.GetLastWin32Error();
-
-            if (!AdjustTokenPrivileges(Token, false, ref Privileges, 0, IntPtr.Zero, IntPtr.Zero))
-            {
-                CloseHandle(Token);
-
-                return Marshal.GetLastWin32Error();
-            }
-
-            CloseHandle(Token);
-
-            return 0;
         }
 
         private Ptfs _Ptfs;
