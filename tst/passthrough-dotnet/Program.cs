@@ -279,24 +279,24 @@ namespace passthrough
 
         public Ptfs() : base()
         {
-            SetSectorSize(ALLOCATION_UNIT);
-            SetSectorsPerAllocationUnit(1);
-            SetMaxComponentLength(255);
-            SetFileInfoTimeout(1000);
-            SetCaseSensitiveSearch(false);
-            SetCasePreservedNames(true);
-            SetUnicodeOnDisk(true);
-            SetPersistentAcls(true);
-            SetPostCleanupWhenModifiedOnly(true);
-            SetPassQueryDirectoryPattern(true);
+            SectorSize = ALLOCATION_UNIT;
+            SectorsPerAllocationUnit = 1;
+            MaxComponentLength = 255;
+            FileInfoTimeout = 1000;
+            CaseSensitiveSearch = false;
+            CasePreservedNames = true;
+            UnicodeOnDisk = true;
+            PersistentAcls = true;
+            PostCleanupWhenModifiedOnly = true;
+            PassQueryDirectoryPattern = true;
         }
         public void SetPath(String value)
         {
             _Path = Path.GetFullPath(value);
             if (_Path.EndsWith("\\"))
                 _Path = _Path.Substring(0, _Path.Length - 1);
-            SetVolumeCreationTime((UInt64)File.GetCreationTimeUtc(_Path).ToFileTimeUtc());
-            SetVolumeSerialNumber(0);
+            VolumeCreationTime = (UInt64)File.GetCreationTimeUtc(_Path).ToFileTimeUtc();
+            VolumeSerialNumber = 0;
         }
 
         protected override Int32 ExceptionHandler(Exception ex)
@@ -775,7 +775,7 @@ namespace passthrough
 
                 FailMessage = "cannot create file system";
                 Ptfs = new Ptfs();
-                Ptfs.SetPrefix(VolumePrefix);
+                Ptfs.Prefix = VolumePrefix;
                 Ptfs.SetPath(PassThrough);
 
                 FailMessage = "cannot mount file system";

@@ -74,73 +74,90 @@ namespace Fsp
         }
 
         /* properties */
-        public void SetSectorSize(UInt16 SectorSize)
+        public UInt16 SectorSize
         {
-            _VolumeParams.SectorSize = SectorSize;
+            get { return _VolumeParams.SectorSize; }
+            set { _VolumeParams.SectorSize = value; }
         }
-        public void SetSectorsPerAllocationUnit(UInt16 SectorsPerAllocationUnit)
+        public UInt16 SectorsPerAllocationUnit
         {
-            _VolumeParams.SectorsPerAllocationUnit = SectorsPerAllocationUnit;
+            get { return _VolumeParams.SectorsPerAllocationUnit; }
+            set { _VolumeParams.SectorsPerAllocationUnit = value; }
         }
-        public void SetMaxComponentLength(UInt16 MaxComponentLength)
+        public UInt16 MaxComponentLength
         {
-            _VolumeParams.MaxComponentLength = MaxComponentLength;
+            get { return _VolumeParams.MaxComponentLength; }
+            set { _VolumeParams.MaxComponentLength = value; }
         }
-        public void SetVolumeCreationTime(UInt64 VolumeCreationTime)
+        public UInt64 VolumeCreationTime
         {
-            _VolumeParams.VolumeCreationTime = VolumeCreationTime;
+            get { return _VolumeParams.VolumeCreationTime; }
+            set { _VolumeParams.VolumeCreationTime = value; }
         }
-        public void SetVolumeSerialNumber(UInt32 VolumeSerialNumber)
+        public UInt32 VolumeSerialNumber
         {
-            _VolumeParams.VolumeSerialNumber = VolumeSerialNumber;
+            get { return _VolumeParams.VolumeSerialNumber; }
+            set { _VolumeParams.VolumeSerialNumber = value; }
         }
-        public void SetFileInfoTimeout(UInt32 FileInfoTimeout)
+        public UInt32 FileInfoTimeout
         {
-            _VolumeParams.FileInfoTimeout = FileInfoTimeout;
+            get { return _VolumeParams.FileInfoTimeout; }
+            set { _VolumeParams.FileInfoTimeout = value; }
         }
-        public void SetCaseSensitiveSearch(Boolean CaseSensitiveSearch)
+        public Boolean CaseSensitiveSearch
         {
-            _VolumeParams.Flags |= CaseSensitiveSearch ? VolumeParams.CaseSensitiveSearch : 0;
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.CaseSensitiveSearch); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.CaseSensitiveSearch : 0); }
         }
-        public void SetCasePreservedNames(Boolean CasePreservedNames)
+        public Boolean CasePreservedNames
         {
-            _VolumeParams.Flags |= CasePreservedNames ? VolumeParams.CasePreservedNames : 0;
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.CasePreservedNames); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.CasePreservedNames : 0); }
         }
-        public void SetUnicodeOnDisk(Boolean UnicodeOnDisk)
+        public Boolean UnicodeOnDisk
         {
-            _VolumeParams.Flags |= UnicodeOnDisk ? VolumeParams.UnicodeOnDisk : 0;
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.UnicodeOnDisk); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.UnicodeOnDisk : 0); }
         }
-        public void SetPersistentAcls(Boolean PersistentAcls)
+        public Boolean PersistentAcls
         {
-            _VolumeParams.Flags |= PersistentAcls ? VolumeParams.PersistentAcls : 0;
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.PersistentAcls); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.PersistentAcls : 0); }
         }
-        public void SetReparsePoints(Boolean ReparsePoints)
+        public Boolean ReparsePoints
         {
-            _VolumeParams.Flags |= ReparsePoints ? VolumeParams.ReparsePoints : 0;
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.ReparsePoints); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.ReparsePoints : 0); }
         }
-        public void SetReparsePointsAccessCheck(Boolean ReparsePointsAccessCheck)
+        public Boolean ReparsePointsAccessCheck
         {
-            _VolumeParams.Flags |= ReparsePointsAccessCheck ? VolumeParams.ReparsePointsAccessCheck : 0;
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.ReparsePointsAccessCheck); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.ReparsePointsAccessCheck : 0); }
         }
-        public void SetNamedStreams(Boolean NamedStreams)
+        public Boolean NamedStreams
         {
-            _VolumeParams.Flags |= NamedStreams ? VolumeParams.NamedStreams : 0;
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.NamedStreams); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.NamedStreams : 0); }
         }
-        public void SetPostCleanupWhenModifiedOnly(Boolean PostCleanupWhenModifiedOnly)
+        public Boolean PostCleanupWhenModifiedOnly
         {
-            _VolumeParams.Flags |= PostCleanupWhenModifiedOnly ? VolumeParams.PostCleanupWhenModifiedOnly : 0;
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.PostCleanupWhenModifiedOnly); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.PostCleanupWhenModifiedOnly : 0); }
         }
-        public void SetPassQueryDirectoryPattern(Boolean PassQueryDirectoryPattern)
+        public Boolean PassQueryDirectoryPattern
         {
-            _VolumeParams.Flags |= PassQueryDirectoryPattern ? VolumeParams.PassQueryDirectoryPattern : 0;
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.PassQueryDirectoryPattern); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.PassQueryDirectoryPattern : 0); }
         }
-        public void SetPrefix(String Prefix)
+        public String Prefix
         {
-            _VolumeParams.SetPrefix(Prefix);
+            get { return _VolumeParams.GetPrefix(); }
+            set {  _VolumeParams.SetPrefix(value); }
         }
-        public void SetFileSystemName(String FileSystemName)
+        public String FileSystemName
         {
-            _VolumeParams.SetFileSystemName(FileSystemName);
+            get { return _VolumeParams.GetFileSystemName(); }
+            set {  _VolumeParams.SetFileSystemName(value); }
         }
 
         /* control */

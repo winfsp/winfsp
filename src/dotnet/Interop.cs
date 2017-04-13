@@ -61,6 +61,11 @@ namespace Fsp.Interop
         internal unsafe fixed UInt16 Prefix[PrefixSize];
         internal unsafe fixed UInt16 FileSystemName[FileSystemNameSize];
 
+        internal unsafe String GetPrefix()
+        {
+            fixed (UInt16 *P = Prefix)
+                return Marshal.PtrToStringUni((IntPtr)P);
+        }
         internal unsafe void SetPrefix(String Value)
         {
             fixed (UInt16 *P = Prefix)
@@ -72,6 +77,11 @@ namespace Fsp.Interop
                     P[I] = Value[I];
                 P[Size] = 0;
             }
+        }
+        internal unsafe String GetFileSystemName()
+        {
+            fixed (UInt16 *P = FileSystemName)
+                return Marshal.PtrToStringUni((IntPtr)P);
         }
         internal unsafe void SetFileSystemName(String Value)
         {
