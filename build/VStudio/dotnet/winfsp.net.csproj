@@ -87,7 +87,9 @@
     </ItemGroup>
   </Target>
   <PropertyGroup>
-    <PostBuildEvent>set TargetName=$(TargetName)
+    <PostBuildEvent>exit /b 0
+
+set TargetName=$(TargetName)
 set MyAssemblyPolicyVersion=$(MyAssemblyPolicyVersion)
 set MyAssemblyVersion=$(MyAssemblyVersion)
 

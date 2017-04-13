@@ -87,10 +87,11 @@
                 <Condition>NOT VersionNT64</Condition>
             </Component>
 
-            <!-- install assembly and also GAC it and its policy -->
+            <!-- install assembly -->
             <Component Id="C.winfsp_msil.dll" Guid="0D8BA6AE-9F87-402B-AE1A-95B0AE3BE179">
                 <File Id="FILE.winfsp_msil.dll" Name="winfsp-msil.dll" KeyPath="yes" />
             </Component>
+            <!--
             <Component Id="C.winfsp_msil.dll.GAC" Guid="6469467D-8C90-4889-8138-4028F9DA6E85">
                 <File Id="FILE.winfsp_msil.dll.GAC" Name="winfsp-msil.dll" KeyPath="yes" Assembly=".net" />
             </Component>
@@ -98,6 +99,7 @@
                 <File Name="policy.1.0.winfsp-msil.dll" KeyPath="yes" Assembly=".net" />
                 <File Name="policy.1.0.winfsp-msil.config" KeyPath="no" />
             </Component>
+            -->
 
             <!-- On Win64 ServiceInstall launcher-x64.exe -->
             <Component Id="C.launcher_x64.exe.svcinst">
@@ -446,8 +448,10 @@
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.net">
             <ComponentRef Id="C.winfsp_msil.dll" />
+            <!--
             <ComponentRef Id="C.winfsp_msil.dll.GAC" />
             <ComponentRef Id="C.policy.winfsp_msil.dll.GAC" />
+            -->
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.smp.net">
             <ComponentRef Id="C.passthrough_dotnet.Program.cs" />
@@ -476,7 +480,9 @@
                 InstallDefault="local"
                 Absent="disallow">
                 <ComponentGroupRef Id="C.WinFsp.bin" />
+                <ComponentGroupRef Id="C.WinFsp.net" />
             </Feature>
+            <!--
             <Feature
                 Id="F.Net"
                 Level="10"
@@ -487,6 +493,7 @@
                 Absent="allow">
                 <ComponentGroupRef Id="C.WinFsp.net" />
             </Feature>
+            -->
             <Feature
                 Id="F.Developer"
                 Level="1000"
