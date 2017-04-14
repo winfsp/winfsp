@@ -942,24 +942,12 @@ NTSTATUS PtfsService::OnStart(ULONG argc, PWSTR *argv)
 
     if (0 != DebugLogFile)
     {
-        if (0 == wcscmp(L"-", DebugLogFile))
-            DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
-        else
-            DebugLogHandle = CreateFileW(
-                DebugLogFile,
-                FILE_APPEND_DATA,
-                FILE_SHARE_READ | FILE_SHARE_WRITE,
-                0,
-                OPEN_ALWAYS,
-                FILE_ATTRIBUTE_NORMAL,
-                0);
-        if (INVALID_HANDLE_VALUE == DebugLogHandle)
+        Result = SetDebugLogFile(DebugLogFile);
+        if (!NT_SUCCESS(Result))
         {
             fail(L"cannot open debug log file");
             goto usage;
         }
-
-        FspDebugLogSetHandle(DebugLogHandle);
     }
 
     Ptfs = new ::Ptfs;

@@ -53,6 +53,26 @@ inline DWORD Win32FromNtStatus(NTSTATUS Status)
     return FspWin32FromNtStatus(Status);
 }
 
+inline NTSTATUS SetDebugLogFile(PWSTR FileName)
+{
+    HANDLE Handle;
+    if ('-' == FileName[0] && '\0' == FileName[1])
+        Handle = GetStdHandle(STD_ERROR_HANDLE);
+    else
+        Handle = CreateFileW(
+            FileName,
+            FILE_APPEND_DATA,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            0,
+            OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            0);
+    if (INVALID_HANDLE_VALUE == Handle)
+        return FspNtStatusFromWin32(GetLastError());
+    FspDebugLogSetHandle(Handle);
+    return STATUS_SUCCESS;
+}
+
 class FileSystem
 {
 public:
