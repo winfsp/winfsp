@@ -56,18 +56,13 @@ inline DWORD Win32FromNtStatus(NTSTATUS Status)
 class FileSystem
 {
 public:
-    typedef FSP_FSCTL_VOLUME_PARAMS VOLUME_PARAMS;
-    typedef FSP_FSCTL_VOLUME_INFO VOLUME_INFO;
-    typedef FSP_FSCTL_FILE_INFO FILE_INFO;
-    typedef FSP_FSCTL_OPEN_FILE_INFO OPEN_FILE_INFO;
-    typedef FSP_FSCTL_DIR_INFO DIR_INFO;
-    typedef FSP_FSCTL_STREAM_INFO STREAM_INFO;
-    struct FILE_CONTEXT
-    {
-        PVOID FileNode;
-        PVOID FileDesc;
-    };
-    enum CLEANUP_FLAGS
+    typedef FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    typedef FSP_FSCTL_VOLUME_INFO VolumeInfo;
+    typedef FSP_FSCTL_FILE_INFO FileInfo;
+    typedef FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
+    typedef FSP_FSCTL_DIR_INFO DirInfo;
+    typedef FSP_FSCTL_STREAM_INFO StreamInfo;
+    enum CleanupFlags
     {
         CleanupDelete                   = FspCleanupDelete,
         CleanupSetAllocationSize        = FspCleanupSetAllocationSize,
@@ -91,7 +86,7 @@ public:
     }
 
     /* properties */
-    const VOLUME_PARAMS *VolumeParams()
+    const VolumeParams *GetVolumeParams()
     {
         return &_VolumeParams;
     }
@@ -228,7 +223,7 @@ public:
         return FspFileSystemAcquireDirectoryBuffer(PDirBuffer, Reset, PResult);
     }
     static BOOLEAN FillDirectoryBuffer(PVOID *PDirBuffer,
-        DIR_INFO *DirInfo, PNTSTATUS PResult)
+        DirInfo *DirInfo, PNTSTATUS PResult)
     {
         return FspFileSystemFillDirectoryBuffer(PDirBuffer, DirInfo, PResult);
     }
@@ -247,12 +242,12 @@ public:
     {
         FspFileSystemDeleteDirectoryBuffer(PDirBuffer);
     }
-    static BOOLEAN AddDirInfo(DIR_INFO *DirInfo,
+    static BOOLEAN AddDirInfo(DirInfo *DirInfo,
         PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
     {
         return FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred);
     }
-    static BOOLEAN AddStreamInfo(STREAM_INFO *StreamInfo,
+    static BOOLEAN AddStreamInfo(StreamInfo *StreamInfo,
         PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
     {
         return FspFileSystemAddStreamInfo(StreamInfo, Buffer, Length, PBytesTransferred);
@@ -281,149 +276,222 @@ protected:
         return STATUS_UNEXPECTED_IO_ERROR;
     }
     virtual NTSTATUS GetVolumeInfo(
-        VOLUME_INFO *VolumeInfo)
+        VolumeInfo *VolumeInfo)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS SetVolumeLabel_(
         PWSTR VolumeLabel,
-        VOLUME_INFO *VolumeInfo)
+        VolumeInfo *VolumeInfo)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS GetSecurityByName(
-        PWSTR FileName, PUINT32 PFileAttributes/* or ReparsePointIndex */,
-        PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
+        PWSTR FileName,
+        PUINT32 PFileAttributes/* or ReparsePointIndex */,
+        PSECURITY_DESCRIPTOR SecurityDescriptor,
+        SIZE_T *PSecurityDescriptorSize)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS Create(
-        PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
-        UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
-        FILE_CONTEXT *FileContext, OPEN_FILE_INFO *OpenFileInfo)
+        PWSTR FileName,
+        UINT32 CreateOptions,
+        UINT32 GrantedAccess,
+        UINT32 FileAttributes,
+        PSECURITY_DESCRIPTOR SecurityDescriptor,
+        UINT64 AllocationSize,
+        PVOID *PFileNode,
+        PVOID *PFileDesc,
+        OpenFileInfo *OpenFileInfo)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS Open(
-        PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
-        FILE_CONTEXT *FileContext, OPEN_FILE_INFO *OpenFileInfo)
+        PWSTR FileName,
+        UINT32 CreateOptions,
+        UINT32 GrantedAccess,
+        PVOID *PFileNode,
+        PVOID *PFileDesc,
+        OpenFileInfo *OpenFileInfo)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS Overwrite(
-        const FILE_CONTEXT *FileContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
-        FILE_INFO *FileInfo)
+        PVOID FileNode,
+        PVOID FileDesc,
+        UINT32 FileAttributes,
+        BOOLEAN ReplaceFileAttributes,
+        UINT64 AllocationSize,
+        FileInfo *FileInfo)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual VOID Cleanup(
-        const FILE_CONTEXT *FileContext, PWSTR FileName, ULONG Flags)
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR FileName,
+        ULONG Flags)
     {
     }
     virtual VOID Close(
-        const FILE_CONTEXT *FileContext)
+        PVOID FileNode,
+        PVOID FileDesc)
     {
     }
     virtual NTSTATUS Read(
-        const FILE_CONTEXT *FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
+        PVOID FileNode,
+        PVOID FileDesc,
+        PVOID Buffer,
+        UINT64 Offset,
+        ULONG Length,
         PULONG PBytesTransferred)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS Write(
-        const FILE_CONTEXT *FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
-        BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
-        PULONG PBytesTransferred, FILE_INFO *FileInfo)
+        PVOID FileNode,
+        PVOID FileDesc,
+        PVOID Buffer,
+        UINT64 Offset,
+        ULONG Length,
+        BOOLEAN WriteToEndOfFile,
+        BOOLEAN ConstrainedIo,
+        PULONG PBytesTransferred,
+        FileInfo *FileInfo)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS Flush(
-        const FILE_CONTEXT *FileContext,
-        FILE_INFO *FileInfo)
+        PVOID FileNode,
+        PVOID FileDesc,
+        FileInfo *FileInfo)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS GetFileInfo(
-        const FILE_CONTEXT *FileContext,
-        FILE_INFO *FileInfo)
+        PVOID FileNode,
+        PVOID FileDesc,
+        FileInfo *FileInfo)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS SetBasicInfo(
-        const FILE_CONTEXT *FileContext, UINT32 FileAttributes,
-        UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime,
-        FILE_INFO *FileInfo)
+        PVOID FileNode,
+        PVOID FileDesc,
+        UINT32 FileAttributes,
+        UINT64 CreationTime,
+        UINT64 LastAccessTime,
+        UINT64 LastWriteTime,
+        UINT64 ChangeTime,
+        FileInfo *FileInfo)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS SetFileSize(
-        const FILE_CONTEXT *FileContext, UINT64 NewSize, BOOLEAN SetAllocationSize,
-        FILE_INFO *FileInfo)
+        PVOID FileNode,
+        PVOID FileDesc,
+        UINT64 NewSize,
+        BOOLEAN SetAllocationSize,
+        FileInfo *FileInfo)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS CanDelete(
-        const FILE_CONTEXT *FileContext, PWSTR FileName)
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR FileName)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS Rename(
-        const FILE_CONTEXT *FileContext,
-        PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR FileName,
+        PWSTR NewFileName,
+        BOOLEAN ReplaceIfExists)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS GetSecurity(
-        const FILE_CONTEXT *FileContext,
-        PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
+        PVOID FileNode,
+        PVOID FileDesc,
+        PSECURITY_DESCRIPTOR SecurityDescriptor,
+        SIZE_T *PSecurityDescriptorSize)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS SetSecurity(
-        const FILE_CONTEXT *FileContext,
-        SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor)
+        PVOID FileNode,
+        PVOID FileDesc,
+        SECURITY_INFORMATION SecurityInformation,
+        PSECURITY_DESCRIPTOR ModificationDescriptor)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS ReadDirectory(
-        const FILE_CONTEXT *FileContext, PWSTR Pattern, PWSTR Marker,
-        PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR Pattern,
+        PWSTR Marker,
+        PVOID Buffer,
+        ULONG Length,
+        PULONG PBytesTransferred)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS ResolveReparsePoints(
-        PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent,
-        PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
+        PWSTR FileName,
+        UINT32 ReparsePointIndex,
+        BOOLEAN ResolveLastPathComponent,
+        PIO_STATUS_BLOCK PIoStatus,
+        PVOID Buffer,
+        PSIZE_T PSize)
     {
         return FspFileSystemResolveReparsePoints(_FileSystem, GetReparsePointByName, 0,
             FileName, ReparsePointIndex, ResolveLastPathComponent,
             PIoStatus, Buffer, PSize);
     }
     virtual NTSTATUS GetReparsePointByName(
-        PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize)
+        PWSTR FileName,
+        BOOLEAN IsDirectory,
+        PVOID Buffer,
+        PSIZE_T PSize)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS GetReparsePoint(
-        const FILE_CONTEXT *FileContext,
-        PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR FileName,
+        PVOID Buffer,
+        PSIZE_T PSize)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS SetReparsePoint(
-        const FILE_CONTEXT *FileContext,
-        PWSTR FileName, PVOID Buffer, SIZE_T Size)
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR FileName,
+        PVOID Buffer,
+        SIZE_T Size)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS DeleteReparsePoint(
-        const FILE_CONTEXT *FileContext,
-        PWSTR FileName, PVOID Buffer, SIZE_T Size)
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR FileName,
+        PVOID Buffer,
+        SIZE_T Size)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
     virtual NTSTATUS GetStreamInfo(
-        const FILE_CONTEXT *FileContext, PVOID Buffer, ULONG Length,
+        PVOID FileNode,
+        PVOID FileDesc,
+        PVOID Buffer,
+        ULONG Length,
         PULONG PBytesTransferred)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
@@ -432,301 +500,411 @@ protected:
 private:
     /* FSP_FILE_SYSTEM_INTERFACE */
     static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem0,
-        VOLUME_INFO *VolumeInfo)
+        VolumeInfo *VolumeInfo)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->GetVolumeInfo(VolumeInfo);
+            return self->GetVolumeInfo(
+                VolumeInfo);
         )
     }
     static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM *FileSystem0,
         PWSTR VolumeLabel,
-        VOLUME_INFO *VolumeInfo)
+        VolumeInfo *VolumeInfo)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->SetVolumeLabel_(VolumeLabel, VolumeInfo);
+            return self->SetVolumeLabel_(
+                VolumeLabel,
+                VolumeInfo);
         )
     }
     static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem0,
-        PWSTR FileName, PUINT32 PFileAttributes/* or ReparsePointIndex */,
-        PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
+        PWSTR FileName,
+        PUINT32 PFileAttributes/* or ReparsePointIndex */,
+        PSECURITY_DESCRIPTOR SecurityDescriptor,
+        SIZE_T *PSecurityDescriptorSize)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->GetSecurityByName(
-                FileName, PFileAttributes, SecurityDescriptor, PSecurityDescriptorSize);
+                FileName,
+                PFileAttributes,
+                SecurityDescriptor,
+                PSecurityDescriptorSize);
         )
     }
     static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem0,
-        PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
-        UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
-        PVOID *FullContext, FILE_INFO *FileInfo)
+        PWSTR FileName,
+        UINT32 CreateOptions,
+        UINT32 GrantedAccess,
+        UINT32 FileAttributes,
+        PSECURITY_DESCRIPTOR SecurityDescriptor,
+        UINT64 AllocationSize,
+        PVOID *FullContext,
+        FileInfo *FileInfo)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext = { 0 };
+        PVOID FileNode, FileDesc;
         NTSTATUS Result;
         FSP_CPP_EXCEPTION_GUARD(
             Result = self->Create(
-                FileName, CreateOptions, GrantedAccess, FileAttributes, SecurityDescriptor, AllocationSize,
-                &FileContext, FspFileSystemGetOpenFileInfo(FileInfo));
+                FileName,
+                CreateOptions,
+                GrantedAccess,
+                FileAttributes,
+                SecurityDescriptor,
+                AllocationSize,
+                &FileNode,
+                &FileDesc,
+                FspFileSystemGetOpenFileInfo(FileInfo));
         )
-        ((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext = (UINT64)(UINT_PTR)FileContext.FileNode;
-        ((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2 = (UINT64)(UINT_PTR)FileContext.FileDesc;
+        ((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext = (UINT64)(UINT_PTR)FileNode;
+        ((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2 = (UINT64)(UINT_PTR)FileDesc;
         return Result;
     }
     static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem0,
-        PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
-        PVOID *FullContext, FILE_INFO *FileInfo)
+        PWSTR FileName,
+        UINT32 CreateOptions,
+        UINT32 GrantedAccess,
+        PVOID *FullContext,
+        FileInfo *FileInfo)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext = { 0 };
+        PVOID FileNode, FileDesc;
         NTSTATUS Result;
         FSP_CPP_EXCEPTION_GUARD(
             Result = self->Open(
-                FileName, CreateOptions, GrantedAccess,
-                &FileContext, FspFileSystemGetOpenFileInfo(FileInfo));
+                FileName,
+                CreateOptions,
+                GrantedAccess,
+                &FileNode,
+                &FileDesc,
+                FspFileSystemGetOpenFileInfo(FileInfo));
         )
-        ((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext = (UINT64)(UINT_PTR)FileContext.FileNode;
-        ((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2 = (UINT64)(UINT_PTR)FileContext.FileDesc;
+        ((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext = (UINT64)(UINT_PTR)FileNode;
+        ((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2 = (UINT64)(UINT_PTR)FileDesc;
         return Result;
     }
     static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem0,
-        PVOID FullContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
-        FILE_INFO *FileInfo)
+        PVOID FullContext,
+        UINT32 FileAttributes,
+        BOOLEAN ReplaceFileAttributes,
+        UINT64 AllocationSize,
+        FileInfo *FileInfo)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->Overwrite(&FileContext, FileAttributes, ReplaceFileAttributes, AllocationSize,
+            return self->Overwrite(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                FileAttributes,
+                ReplaceFileAttributes,
+                AllocationSize,
                 FileInfo);
         )
     }
     static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem0,
-        PVOID FullContext, PWSTR FileName, ULONG Flags)
+        PVOID FullContext,
+        PWSTR FileName,
+        ULONG Flags)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD_VOID(
-            return self->Cleanup(&FileContext, FileName, (CLEANUP_FLAGS)Flags);
+            return self->Cleanup(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                FileName,
+                Flags);
         )
     }
     static VOID Close(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD_VOID(
-            return self->Close(&FileContext);
+            return self->Close(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2);
         )
     }
     static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem0,
-        PVOID FullContext, PVOID Buffer, UINT64 Offset, ULONG Length,
+        PVOID FullContext,
+        PVOID Buffer,
+        UINT64 Offset,
+        ULONG Length,
         PULONG PBytesTransferred)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->Read(&FileContext, Buffer, Offset, Length, PBytesTransferred);
+            return self->Read(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                Buffer,
+                Offset,
+                Length,
+                PBytesTransferred);
         )
     }
     static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem0,
-        PVOID FullContext, PVOID Buffer, UINT64 Offset, ULONG Length,
-        BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
-        PULONG PBytesTransferred, FILE_INFO *FileInfo)
+        PVOID FullContext,
+        PVOID Buffer,
+        UINT64 Offset,
+        ULONG Length,
+        BOOLEAN WriteToEndOfFile,
+        BOOLEAN ConstrainedIo,
+        PULONG PBytesTransferred,
+        FileInfo *FileInfo)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->Write(&FileContext, Buffer, Offset, Length, WriteToEndOfFile, ConstrainedIo,
-                PBytesTransferred, FileInfo);
+            return self->Write(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                Buffer,
+                Offset,
+                Length,
+                WriteToEndOfFile,
+                ConstrainedIo,
+                PBytesTransferred,
+                FileInfo);
         )
     }
     static NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
-        FILE_INFO *FileInfo)
+        FileInfo *FileInfo)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->Flush(&FileContext, FileInfo);
+            return self->Flush(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                FileInfo);
         )
     }
     static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
-        FILE_INFO *FileInfo)
+        FileInfo *FileInfo)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->GetFileInfo(&FileContext, FileInfo);
+            return self->GetFileInfo(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                FileInfo);
         )
     }
     static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem0,
-        PVOID FullContext, UINT32 FileAttributes,
-        UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime,
-        FILE_INFO *FileInfo)
+        PVOID FullContext,
+        UINT32 FileAttributes,
+        UINT64 CreationTime,
+        UINT64 LastAccessTime,
+        UINT64 LastWriteTime,
+        UINT64 ChangeTime,
+        FileInfo *FileInfo)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->SetBasicInfo(&FileContext, FileAttributes,
-                CreationTime, LastAccessTime, LastWriteTime, ChangeTime,
+            return self->SetBasicInfo(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                FileAttributes,
+                CreationTime,
+                LastAccessTime,
+                LastWriteTime,
+                ChangeTime,
                 FileInfo);
         )
     }
     static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem0,
-        PVOID FullContext, UINT64 NewSize, BOOLEAN SetAllocationSize,
-        FILE_INFO *FileInfo)
+        PVOID FullContext,
+        UINT64 NewSize,
+        BOOLEAN SetAllocationSize,
+        FileInfo *FileInfo)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->SetFileSize(&FileContext, NewSize, SetAllocationSize, FileInfo);
+            return self->SetFileSize(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                NewSize,
+                SetAllocationSize,
+                FileInfo);
         )
     }
     static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem0,
-        PVOID FullContext, PWSTR FileName)
+        PVOID FullContext,
+        PWSTR FileName)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->CanDelete(&FileContext, FileName);
+            return self->CanDelete(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                FileName);
         )
     }
     static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
-        PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
+        PWSTR FileName,
+        PWSTR NewFileName,
+        BOOLEAN ReplaceIfExists)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->Rename(&FileContext, FileName, NewFileName, ReplaceIfExists);
+            return self->Rename(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                FileName,
+                NewFileName,
+                ReplaceIfExists);
         )
     }
     static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
-        PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
+        PSECURITY_DESCRIPTOR SecurityDescriptor,
+        SIZE_T *PSecurityDescriptorSize)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->GetSecurity(&FileContext, SecurityDescriptor, PSecurityDescriptorSize);
+            return self->GetSecurity(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                SecurityDescriptor,
+                PSecurityDescriptorSize);
         )
     }
     static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
-        SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor)
+        SECURITY_INFORMATION SecurityInformation,
+        PSECURITY_DESCRIPTOR ModificationDescriptor)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->SetSecurity(&FileContext, SecurityInformation, ModificationDescriptor);
+            return self->SetSecurity(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                SecurityInformation,
+                ModificationDescriptor);
         )
     }
     static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem0,
-        PVOID FullContext, PWSTR Pattern, PWSTR Marker,
-        PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+        PVOID FullContext,
+        PWSTR Pattern,
+        PWSTR Marker,
+        PVOID Buffer,
+        ULONG Length,
+        PULONG PBytesTransferred)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->ReadDirectory(&FileContext, Pattern, Marker, Buffer, Length, PBytesTransferred);
+            return self->ReadDirectory(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                Pattern,
+                Marker,
+                Buffer,
+                Length,
+                PBytesTransferred);
         )
     }
     static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem0,
-        PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent,
-        PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
+        PWSTR FileName,
+        UINT32 ReparsePointIndex,
+        BOOLEAN ResolveLastPathComponent,
+        PIO_STATUS_BLOCK PIoStatus,
+        PVOID Buffer,
+        PSIZE_T PSize)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->ResolveReparsePoints(FileName, ReparsePointIndex, ResolveLastPathComponent,
-                PIoStatus, Buffer, PSize);
+            return self->ResolveReparsePoints(
+                FileName,
+                ReparsePointIndex,
+                ResolveLastPathComponent,
+                PIoStatus,
+                Buffer,
+                PSize);
         )
     }
-    static NTSTATUS GetReparsePointByName(
-        FSP_FILE_SYSTEM *FileSystem0, PVOID Context,
-        PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize)
+    static NTSTATUS GetReparsePointByName(FSP_FILE_SYSTEM *FileSystem0,
+        PVOID Context,
+        PWSTR FileName,
+        BOOLEAN IsDirectory,
+        PVOID Buffer,
+        PSIZE_T PSize)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->GetReparsePointByName(FileName, IsDirectory, Buffer, PSize);
+            return self->GetReparsePointByName(
+                FileName,
+                IsDirectory,
+                Buffer,
+                PSize);
         )
     }
     static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
-        PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
+        PWSTR FileName,
+        PVOID Buffer,
+        PSIZE_T PSize)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->GetReparsePoint(&FileContext, FileName, Buffer, PSize);
+            return self->GetReparsePoint(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                FileName,
+                Buffer,
+                PSize);
         )
     }
     static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
-        PWSTR FileName, PVOID Buffer, SIZE_T Size)
+        PWSTR FileName,
+        PVOID Buffer,
+        SIZE_T Size)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->SetReparsePoint(&FileContext, FileName, Buffer, Size);
+            return self->SetReparsePoint(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                FileName,
+                Buffer,
+                Size);
         )
     }
     static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
-        PWSTR FileName, PVOID Buffer, SIZE_T Size)
+        PWSTR FileName,
+        PVOID Buffer,
+        SIZE_T Size)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->DeleteReparsePoint(&FileContext, FileName, Buffer, Size);
+            return self->DeleteReparsePoint(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                FileName,
+                Buffer,
+                Size);
         )
     }
     static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM *FileSystem0,
-        PVOID FullContext, PVOID Buffer, ULONG Length,
+        PVOID FullContext,
+        PVOID Buffer,
+        ULONG Length,
         PULONG PBytesTransferred)
     {
         FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FILE_CONTEXT FileContext;
-        FileContext.FileNode = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext;
-        FileContext.FileDesc = (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2;
         FSP_CPP_EXCEPTION_GUARD(
-            return self->GetStreamInfo(&FileContext, Buffer, Length, PBytesTransferred);
+            return self->GetStreamInfo(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                Buffer,
+                Length,
+                PBytesTransferred);
         )
     }
     static FSP_FILE_SYSTEM_INTERFACE *Interface()
@@ -767,7 +945,7 @@ private:
     FileSystem &operator=(const FileSystem &);
 
 private:
-    VOLUME_PARAMS _VolumeParams;
+    VolumeParams _VolumeParams;
     FSP_FILE_SYSTEM *_FileSystem;
 };
 

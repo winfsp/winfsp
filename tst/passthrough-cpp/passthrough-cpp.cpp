@@ -28,91 +28,146 @@
 #define fail(format, ...)               Service::Log(EVENTLOG_ERROR_TYPE, format, __VA_ARGS__)
 
 #define ConcatPath(FN, FP)              (0 == StringCbPrintfW(FP, sizeof FP, L"%s%s", _Path, FN))
-#define HandleFromContext(FC)           ((PTFS_FILE_DESC *)FileContext->FileDesc)->Handle
+#define HandleFromFileDesc(FD)          ((PtfsFileDesc *)(FD))->Handle
 
 using namespace Fsp;
 
-class PTFS : public FileSystem
+class Ptfs : public FileSystem
 {
 public:
-    PTFS();
-    ~PTFS();
+    Ptfs();
+    ~Ptfs();
     NTSTATUS SetPath(PWSTR Path);
 
 protected:
-    static NTSTATUS GetFileInfoInternal(HANDLE Handle, FILE_INFO *FileInfo);
-    NTSTATUS GetVolumeInfo(VOLUME_INFO *VolumeInfo);
+    static NTSTATUS GetFileInfoInternal(HANDLE Handle, FileInfo *FileInfo);
+    NTSTATUS GetVolumeInfo(
+        VolumeInfo *VolumeInfo);
     NTSTATUS GetSecurityByName(
-        PWSTR FileName, PUINT32 PFileAttributes/* or ReparsePointIndex */,
-        PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
+        PWSTR FileName,
+        PUINT32 PFileAttributes/* or ReparsePointIndex */,
+        PSECURITY_DESCRIPTOR SecurityDescriptor,
+        SIZE_T *PSecurityDescriptorSize);
     NTSTATUS Create(
-        PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
-        UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
-        FILE_CONTEXT *FileContext, OPEN_FILE_INFO *OpenFileInfo);
+        PWSTR FileName,
+        UINT32 CreateOptions,
+        UINT32 GrantedAccess,
+        UINT32 FileAttributes,
+        PSECURITY_DESCRIPTOR SecurityDescriptor,
+        UINT64 AllocationSize,
+        PVOID *PFileNode,
+        PVOID *PFileDesc,
+        OpenFileInfo *OpenFileInfo);
     NTSTATUS Open(
-        PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
-        FILE_CONTEXT *FileContext, OPEN_FILE_INFO *OpenFileInfo);
+        PWSTR FileName,
+        UINT32 CreateOptions,
+        UINT32 GrantedAccess,
+        PVOID *PFileNode,
+        PVOID *PFileDesc,
+        OpenFileInfo *OpenFileInfo);
     NTSTATUS Overwrite(
-        const FILE_CONTEXT *FileContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
-        FILE_INFO *FileInfo);
+        PVOID FileNode,
+        PVOID FileDesc,
+        UINT32 FileAttributes,
+        BOOLEAN ReplaceFileAttributes,
+        UINT64 AllocationSize,
+        FileInfo *FileInfo);
     VOID Cleanup(
-        const FILE_CONTEXT *FileContext, PWSTR FileName, ULONG Flags);
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR FileName,
+        ULONG Flags);
     VOID Close(
-        const FILE_CONTEXT *FileContext);
+        PVOID FileNode,
+        PVOID FileDesc);
     NTSTATUS Read(
-        const FILE_CONTEXT *FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
+        PVOID FileNode,
+        PVOID FileDesc,
+        PVOID Buffer,
+        UINT64 Offset,
+        ULONG Length,
         PULONG PBytesTransferred);
     NTSTATUS Write(
-        const FILE_CONTEXT *FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
-        BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
-        PULONG PBytesTransferred, FILE_INFO *FileInfo);
+        PVOID FileNode,
+        PVOID FileDesc,
+        PVOID Buffer,
+        UINT64 Offset,
+        ULONG Length,
+        BOOLEAN WriteToEndOfFile,
+        BOOLEAN ConstrainedIo,
+        PULONG PBytesTransferred,
+        FileInfo *FileInfo);
     NTSTATUS Flush(
-        const FILE_CONTEXT *FileContext,
-        FILE_INFO *FileInfo);
+        PVOID FileNode,
+        PVOID FileDesc,
+        FileInfo *FileInfo);
     NTSTATUS GetFileInfo(
-        const FILE_CONTEXT *FileContext,
-        FILE_INFO *FileInfo);
+        PVOID FileNode,
+        PVOID FileDesc,
+        FileInfo *FileInfo);
     NTSTATUS SetBasicInfo(
-        const FILE_CONTEXT *FileContext, UINT32 FileAttributes,
-        UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime,
-        FILE_INFO *FileInfo);
+        PVOID FileNode,
+        PVOID FileDesc,
+        UINT32 FileAttributes,
+        UINT64 CreationTime,
+        UINT64 LastAccessTime,
+        UINT64 LastWriteTime,
+        UINT64 ChangeTime,
+        FileInfo *FileInfo);
     NTSTATUS SetFileSize(
-        const FILE_CONTEXT *FileContext, UINT64 NewSize, BOOLEAN SetAllocationSize,
-        FILE_INFO *FileInfo);
+        PVOID FileNode,
+        PVOID FileDesc,
+        UINT64 NewSize,
+        BOOLEAN SetAllocationSize,
+        FileInfo *FileInfo);
     NTSTATUS CanDelete(
-        const FILE_CONTEXT *FileContext, PWSTR FileName);
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR FileName);
     NTSTATUS Rename(
-        const FILE_CONTEXT *FileContext,
-        PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists);
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR FileName,
+        PWSTR NewFileName,
+        BOOLEAN ReplaceIfExists);
     NTSTATUS GetSecurity(
-        const FILE_CONTEXT *FileContext,
-        PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize);
+        PVOID FileNode,
+        PVOID FileDesc,
+        PSECURITY_DESCRIPTOR SecurityDescriptor,
+        SIZE_T *PSecurityDescriptorSize);
     NTSTATUS SetSecurity(
-        const FILE_CONTEXT *FileContext,
-        SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor);
+        PVOID FileNode,
+        PVOID FileDesc,
+        SECURITY_INFORMATION SecurityInformation,
+        PSECURITY_DESCRIPTOR ModificationDescriptor);
     NTSTATUS ReadDirectory(
-        const FILE_CONTEXT *FileContext, PWSTR Pattern, PWSTR Marker,
-        PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR Pattern,
+        PWSTR Marker,
+        PVOID Buffer,
+        ULONG Length,
+        PULONG PBytesTransferred);
 
 private:
     PWSTR _Path;
 };
 
-struct PTFS_FILE_DESC
+struct PtfsFileDesc
 {
-    PTFS_FILE_DESC() : Handle(INVALID_HANDLE_VALUE), DirBuffer()
+    PtfsFileDesc() : Handle(INVALID_HANDLE_VALUE), DirBuffer()
     {
     }
-    ~PTFS_FILE_DESC()
+    ~PtfsFileDesc()
     {
         CloseHandle(Handle);
-        PTFS::DeleteDirectoryBuffer(&DirBuffer);
+        Ptfs::DeleteDirectoryBuffer(&DirBuffer);
     }
     HANDLE Handle;
     PVOID DirBuffer;
 };
 
-PTFS::PTFS() : FileSystem(), _Path()
+Ptfs::Ptfs() : FileSystem(), _Path()
 {
     SetSectorSize(ALLOCATION_UNIT);
     SetSectorsPerAllocationUnit(1);
@@ -125,12 +180,12 @@ PTFS::PTFS() : FileSystem(), _Path()
     SetPassQueryDirectoryPattern(TRUE);
 }
 
-PTFS::~PTFS()
+Ptfs::~Ptfs()
 {
     delete[] _Path;
 }
 
-NTSTATUS PTFS::SetPath(PWSTR Path)
+NTSTATUS Ptfs::SetPath(PWSTR Path)
 {
     WCHAR FullPath[MAX_PATH];
     ULONG Length;
@@ -173,7 +228,7 @@ NTSTATUS PTFS::SetPath(PWSTR Path)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS PTFS::GetFileInfoInternal(HANDLE Handle, FILE_INFO *FileInfo)
+NTSTATUS Ptfs::GetFileInfoInternal(HANDLE Handle, FileInfo *FileInfo)
 {
     BY_HANDLE_FILE_INFORMATION ByHandleFileInfo;
 
@@ -196,7 +251,8 @@ NTSTATUS PTFS::GetFileInfoInternal(HANDLE Handle, FILE_INFO *FileInfo)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS PTFS::GetVolumeInfo(VOLUME_INFO *VolumeInfo)
+NTSTATUS Ptfs::GetVolumeInfo(
+    VolumeInfo *VolumeInfo)
 {
     WCHAR Root[MAX_PATH];
     ULARGE_INTEGER TotalSize, FreeSize;
@@ -213,9 +269,11 @@ NTSTATUS PTFS::GetVolumeInfo(VOLUME_INFO *VolumeInfo)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS PTFS::GetSecurityByName(
-    PWSTR FileName, PUINT32 PFileAttributes/* or ReparsePointIndex */,
-    PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
+NTSTATUS Ptfs::GetSecurityByName(
+    PWSTR FileName,
+    PUINT32 PFileAttributes/* or ReparsePointIndex */,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    SIZE_T *PSecurityDescriptorSize)
 {
     WCHAR FullPath[FULLPATH_SIZE];
     HANDLE Handle;
@@ -270,20 +328,26 @@ exit:
     return Result;
 }
 
-NTSTATUS PTFS::Create(
-    PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
-    UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
-    FILE_CONTEXT *FileContext, OPEN_FILE_INFO *OpenFileInfo)
+NTSTATUS Ptfs::Create(
+    PWSTR FileName,
+    UINT32 CreateOptions,
+    UINT32 GrantedAccess,
+    UINT32 FileAttributes,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    UINT64 AllocationSize,
+    PVOID *PFileNode,
+    PVOID *PFileDesc,
+    OpenFileInfo *OpenFileInfo)
 {
     WCHAR FullPath[FULLPATH_SIZE];
     SECURITY_ATTRIBUTES SecurityAttributes;
     ULONG CreateFlags;
-    PTFS_FILE_DESC *FileDesc;
+    PtfsFileDesc *FileDesc;
 
     if (!ConcatPath(FileName, FullPath))
         return STATUS_OBJECT_NAME_INVALID;
 
-    FileDesc = new PTFS_FILE_DESC;
+    FileDesc = new PtfsFileDesc;
 
     SecurityAttributes.nLength = sizeof SecurityAttributes;
     SecurityAttributes.lpSecurityDescriptor = SecurityDescriptor;
@@ -319,23 +383,27 @@ NTSTATUS PTFS::Create(
         return NtStatusFromWin32(GetLastError());
     }
 
-    FileContext->FileDesc = FileDesc;
+    *PFileDesc = FileDesc;
 
     return GetFileInfoInternal(FileDesc->Handle, &OpenFileInfo->FileInfo);
 }
 
-NTSTATUS PTFS::Open(
-    PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
-    FILE_CONTEXT *FileContext, OPEN_FILE_INFO *OpenFileInfo)
+NTSTATUS Ptfs::Open(
+    PWSTR FileName,
+    UINT32 CreateOptions,
+    UINT32 GrantedAccess,
+    PVOID *PFileNode,
+    PVOID *PFileDesc,
+    OpenFileInfo *OpenFileInfo)
 {
     WCHAR FullPath[FULLPATH_SIZE];
     ULONG CreateFlags;
-    PTFS_FILE_DESC *FileDesc;
+    PtfsFileDesc *FileDesc;
 
     if (!ConcatPath(FileName, FullPath))
         return STATUS_OBJECT_NAME_INVALID;
 
-    FileDesc = new PTFS_FILE_DESC;
+    FileDesc = new PtfsFileDesc;
 
     CreateFlags = FILE_FLAG_BACKUP_SEMANTICS;
     if (CreateOptions & FILE_DELETE_ON_CLOSE)
@@ -350,16 +418,20 @@ NTSTATUS PTFS::Open(
         return NtStatusFromWin32(GetLastError());
     }
 
-    FileContext->FileDesc = FileDesc;
+    *PFileDesc = FileDesc;
 
     return GetFileInfoInternal(FileDesc->Handle, &OpenFileInfo->FileInfo);
 }
 
-NTSTATUS PTFS::Overwrite(
-    const FILE_CONTEXT *FileContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
-    FILE_INFO *FileInfo)
+NTSTATUS Ptfs::Overwrite(
+    PVOID FileNode,
+    PVOID FileDesc,
+    UINT32 FileAttributes,
+    BOOLEAN ReplaceFileAttributes,
+    UINT64 AllocationSize,
+    FileInfo *FileInfo)
 {
-    HANDLE Handle = HandleFromContext(FileContext);
+    HANDLE Handle = HandleFromFileDesc(FileDesc);
     FILE_BASIC_INFO BasicInfo = { 0 };
     FILE_ALLOCATION_INFO AllocationInfo = { 0 };
     FILE_ATTRIBUTE_TAG_INFO AttributeTagInfo;
@@ -396,33 +468,41 @@ NTSTATUS PTFS::Overwrite(
     return GetFileInfoInternal(Handle, FileInfo);
 }
 
-VOID PTFS::Cleanup(
-    const FILE_CONTEXT *FileContext, PWSTR FileName, ULONG Flags)
+VOID Ptfs::Cleanup(
+    PVOID FileNode,
+    PVOID FileDesc,
+    PWSTR FileName,
+    ULONG Flags)
 {
-    HANDLE Handle = HandleFromContext(FileContext);
+    HANDLE Handle = HandleFromFileDesc(FileDesc);
 
     if (Flags & CleanupDelete)
     {
         CloseHandle(Handle);
 
         /* this will make all future uses of Handle to fail with STATUS_INVALID_HANDLE */
-        HandleFromContext(FileContext) = INVALID_HANDLE_VALUE;
+        HandleFromFileDesc(FileDesc) = INVALID_HANDLE_VALUE;
     }
 }
 
-VOID PTFS::Close(
-    const FILE_CONTEXT *FileContext)
+VOID Ptfs::Close(
+    PVOID FileNode,
+    PVOID FileDesc0)
 {
-    PTFS_FILE_DESC *FileDesc = (PTFS_FILE_DESC *)FileContext->FileDesc;
+    PtfsFileDesc *FileDesc = (PtfsFileDesc *)FileDesc0;
 
     delete FileDesc;
 }
 
-NTSTATUS PTFS::Read(
-    const FILE_CONTEXT *FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
+NTSTATUS Ptfs::Read(
+    PVOID FileNode,
+    PVOID FileDesc,
+    PVOID Buffer,
+    UINT64 Offset,
+    ULONG Length,
     PULONG PBytesTransferred)
 {
-    HANDLE Handle = HandleFromContext(FileContext);
+    HANDLE Handle = HandleFromFileDesc(FileDesc);
     OVERLAPPED Overlapped = { 0 };
 
     Overlapped.Offset = (DWORD)Offset;
@@ -434,12 +514,18 @@ NTSTATUS PTFS::Read(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS PTFS::Write(
-    const FILE_CONTEXT *FileContext, PVOID Buffer, UINT64 Offset, ULONG Length,
-    BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo,
-    PULONG PBytesTransferred, FILE_INFO *FileInfo)
+NTSTATUS Ptfs::Write(
+    PVOID FileNode,
+    PVOID FileDesc,
+    PVOID Buffer,
+    UINT64 Offset,
+    ULONG Length,
+    BOOLEAN WriteToEndOfFile,
+    BOOLEAN ConstrainedIo,
+    PULONG PBytesTransferred,
+    FileInfo *FileInfo)
 {
-    HANDLE Handle = HandleFromContext(FileContext);
+    HANDLE Handle = HandleFromFileDesc(FileDesc);
     LARGE_INTEGER FileSize;
     OVERLAPPED Overlapped = { 0 };
 
@@ -463,11 +549,12 @@ NTSTATUS PTFS::Write(
     return GetFileInfoInternal(Handle, FileInfo);
 }
 
-NTSTATUS PTFS::Flush(
-    const FILE_CONTEXT *FileContext,
-    FILE_INFO *FileInfo)
+NTSTATUS Ptfs::Flush(
+    PVOID FileNode,
+    PVOID FileDesc,
+    FileInfo *FileInfo)
 {
-    HANDLE Handle = HandleFromContext(FileContext);
+    HANDLE Handle = HandleFromFileDesc(FileDesc);
 
     /* we do not flush the whole volume, so just return SUCCESS */
     if (0 == Handle)
@@ -479,21 +566,27 @@ NTSTATUS PTFS::Flush(
     return GetFileInfoInternal(Handle, FileInfo);
 }
 
-NTSTATUS PTFS::GetFileInfo(
-    const FILE_CONTEXT *FileContext,
-    FILE_INFO *FileInfo)
+NTSTATUS Ptfs::GetFileInfo(
+    PVOID FileNode,
+    PVOID FileDesc,
+    FileInfo *FileInfo)
 {
-    HANDLE Handle = HandleFromContext(FileContext);
+    HANDLE Handle = HandleFromFileDesc(FileDesc);
 
     return GetFileInfoInternal(Handle, FileInfo);
 }
 
-NTSTATUS PTFS::SetBasicInfo(
-    const FILE_CONTEXT *FileContext, UINT32 FileAttributes,
-    UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime,
-    FILE_INFO *FileInfo)
+NTSTATUS Ptfs::SetBasicInfo(
+    PVOID FileNode,
+    PVOID FileDesc,
+    UINT32 FileAttributes,
+    UINT64 CreationTime,
+    UINT64 LastAccessTime,
+    UINT64 LastWriteTime,
+    UINT64 ChangeTime,
+    FileInfo *FileInfo)
 {
-    HANDLE Handle = HandleFromContext(FileContext);
+    HANDLE Handle = HandleFromFileDesc(FileDesc);
     FILE_BASIC_INFO BasicInfo = { 0 };
 
     if (INVALID_FILE_ATTRIBUTES == FileAttributes)
@@ -514,11 +607,14 @@ NTSTATUS PTFS::SetBasicInfo(
     return GetFileInfoInternal(Handle, FileInfo);
 }
 
-NTSTATUS PTFS::SetFileSize(
-    const FILE_CONTEXT *FileContext, UINT64 NewSize, BOOLEAN SetAllocationSize,
-    FILE_INFO *FileInfo)
+NTSTATUS Ptfs::SetFileSize(
+    PVOID FileNode,
+    PVOID FileDesc,
+    UINT64 NewSize,
+    BOOLEAN SetAllocationSize,
+    FileInfo *FileInfo)
 {
-    HANDLE Handle = HandleFromContext(FileContext);
+    HANDLE Handle = HandleFromFileDesc(FileDesc);
     FILE_ALLOCATION_INFO AllocationInfo;
     FILE_END_OF_FILE_INFO EndOfFileInfo;
 
@@ -553,10 +649,12 @@ NTSTATUS PTFS::SetFileSize(
     return GetFileInfoInternal(Handle, FileInfo);
 }
 
-NTSTATUS PTFS::CanDelete(
-    const FILE_CONTEXT *FileContext, PWSTR FileName)
+NTSTATUS Ptfs::CanDelete(
+    PVOID FileNode,
+    PVOID FileDesc,
+    PWSTR FileName)
 {
-    HANDLE Handle = HandleFromContext(FileContext);
+    HANDLE Handle = HandleFromFileDesc(FileDesc);
     FILE_DISPOSITION_INFO DispositionInfo;
 
     DispositionInfo.DeleteFile = TRUE;
@@ -568,9 +666,12 @@ NTSTATUS PTFS::CanDelete(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS PTFS::Rename(
-    const FILE_CONTEXT *FileContext,
-    PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
+NTSTATUS Ptfs::Rename(
+    PVOID FileNode,
+    PVOID FileDesc,
+    PWSTR FileName,
+    PWSTR NewFileName,
+    BOOLEAN ReplaceIfExists)
 {
     WCHAR FullPath[FULLPATH_SIZE], NewFullPath[FULLPATH_SIZE];
 
@@ -586,11 +687,13 @@ NTSTATUS PTFS::Rename(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS PTFS::GetSecurity(
-    const FILE_CONTEXT *FileContext,
-    PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
+NTSTATUS Ptfs::GetSecurity(
+    PVOID FileNode,
+    PVOID FileDesc,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    SIZE_T *PSecurityDescriptorSize)
 {
-    HANDLE Handle = HandleFromContext(FileContext);
+    HANDLE Handle = HandleFromFileDesc(FileDesc);
     DWORD SecurityDescriptorSizeNeeded;
 
     if (!GetKernelObjectSecurity(Handle,
@@ -606,11 +709,13 @@ NTSTATUS PTFS::GetSecurity(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS PTFS::SetSecurity(
-    const FILE_CONTEXT *FileContext,
-    SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor)
+NTSTATUS Ptfs::SetSecurity(
+    PVOID FileNode,
+    PVOID FileDesc,
+    SECURITY_INFORMATION SecurityInformation,
+    PSECURITY_DESCRIPTOR ModificationDescriptor)
 {
-    HANDLE Handle = HandleFromContext(FileContext);
+    HANDLE Handle = HandleFromFileDesc(FileDesc);
 
     if (!SetKernelObjectSecurity(Handle, SecurityInformation, ModificationDescriptor))
         return NtStatusFromWin32(GetLastError());
@@ -618,11 +723,16 @@ NTSTATUS PTFS::SetSecurity(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS PTFS::ReadDirectory(
-    const FILE_CONTEXT *FileContext, PWSTR Pattern, PWSTR Marker,
-    PVOID Buffer, ULONG BufferLength, PULONG PBytesTransferred)
+NTSTATUS Ptfs::ReadDirectory(
+    PVOID FileNode,
+    PVOID FileDesc0,
+    PWSTR Pattern,
+    PWSTR Marker,
+    PVOID Buffer,
+    ULONG BufferLength,
+    PULONG PBytesTransferred)
 {
-    PTFS_FILE_DESC *FileDesc = (PTFS_FILE_DESC *)FileContext->FileDesc;
+    PtfsFileDesc *FileDesc = (PtfsFileDesc *)FileDesc0;
     HANDLE Handle = FileDesc->Handle;
     WCHAR FullPath[FULLPATH_SIZE];
     ULONG Length, PatternLength;
@@ -630,10 +740,10 @@ NTSTATUS PTFS::ReadDirectory(
     WIN32_FIND_DATAW FindData;
     union
     {
-        UINT8 B[FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) + MAX_PATH * sizeof(WCHAR)];
-        FSP_FSCTL_DIR_INFO D;
+        UINT8 B[FIELD_OFFSET(FileSystem::DirInfo, FileNameBuf) + MAX_PATH * sizeof(WCHAR)];
+        FileSystem::DirInfo D;
     } DirInfoBuf;
-    FSP_FSCTL_DIR_INFO *DirInfo = &DirInfoBuf.D;
+    FileSystem::DirInfo *DirInfo = &DirInfoBuf.D;
     NTSTATUS DirBufferResult;
 
     DirBufferResult = STATUS_SUCCESS;
@@ -666,7 +776,8 @@ NTSTATUS PTFS::ReadDirectory(
             {
                 memset(DirInfo, 0, sizeof *DirInfo);
                 Length = (ULONG)wcslen(FindData.cFileName);
-                DirInfo->Size = (UINT16)(FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) + Length * sizeof(WCHAR));
+                DirInfo->Size = (UINT16)(FIELD_OFFSET(FileSystem::DirInfo, FileNameBuf) +
+                    Length * sizeof(WCHAR));
                 DirInfo->FileInfo.FileAttributes = FindData.dwFileAttributes;
                 DirInfo->FileInfo.ReparseTag = 0;
                 DirInfo->FileInfo.FileSize =
@@ -700,17 +811,17 @@ NTSTATUS PTFS::ReadDirectory(
     return STATUS_SUCCESS;
 }
 
-class PTFS_SERVICE : public Service
+class PtfsService : public Service
 {
 public:
-    PTFS_SERVICE();
+    PtfsService();
 
 protected:
     NTSTATUS OnStart(ULONG Argc, PWSTR *Argv);
     NTSTATUS OnStop();
 
 private:
-    PTFS *_Ptfs;
+    Ptfs *_Ptfs;
 };
 
 static NTSTATUS EnableBackupRestorePrivileges(VOID)
@@ -752,11 +863,11 @@ static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
     return L'\0' != w[0] && L'\0' == *endp ? ul : deflt;
 }
 
-PTFS_SERVICE::PTFS_SERVICE() : Service(L"" PROGNAME), _Ptfs(0)
+PtfsService::PtfsService() : Service(L"" PROGNAME), _Ptfs(0)
 {
 }
 
-NTSTATUS PTFS_SERVICE::OnStart(ULONG argc, PWSTR *argv)
+NTSTATUS PtfsService::OnStart(ULONG argc, PWSTR *argv)
 {
 #define argtos(v)                       if (arge > ++argp) v = *argp; else goto usage
 #define argtol(v)                       if (arge > ++argp) v = wcstol_deflt(*argp, v); else goto usage
@@ -769,7 +880,7 @@ NTSTATUS PTFS_SERVICE::OnStart(ULONG argc, PWSTR *argv)
     PWSTR MountPoint = 0;
     HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
     WCHAR PassThroughBuf[MAX_PATH];
-    PTFS *Ptfs = 0;
+    ::Ptfs *Ptfs = 0;
     NTSTATUS Result;
 
     for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
@@ -851,7 +962,7 @@ NTSTATUS PTFS_SERVICE::OnStart(ULONG argc, PWSTR *argv)
         FspDebugLogSetHandle(DebugLogHandle);
     }
 
-    Ptfs = new PTFS;
+    Ptfs = new ::Ptfs;
 
     Ptfs->SetPrefix(VolumePrefix);
 
@@ -906,7 +1017,7 @@ usage:
 #undef argtol
 }
 
-NTSTATUS PTFS_SERVICE::OnStop()
+NTSTATUS PtfsService::OnStop()
 {
     _Ptfs->Unmount();
     delete _Ptfs;
@@ -917,5 +1028,5 @@ NTSTATUS PTFS_SERVICE::OnStop()
 
 int wmain(int argc, wchar_t **argv)
 {
-    return PTFS_SERVICE().Run();
+    return PtfsService().Run();
 }
