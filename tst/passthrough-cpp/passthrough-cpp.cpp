@@ -148,6 +148,13 @@ protected:
         PVOID Buffer,
         ULONG Length,
         PULONG PBytesTransferred);
+    NTSTATUS ReadDirectoryEntry(
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR Pattern,
+        PWSTR Marker,
+        PVOID *PContext,
+        DirInfo *DirInfo);
 
 private:
     PWSTR _Path;
@@ -729,8 +736,21 @@ NTSTATUS Ptfs::ReadDirectory(
     PWSTR Pattern,
     PWSTR Marker,
     PVOID Buffer,
-    ULONG BufferLength,
+    ULONG Length,
     PULONG PBytesTransferred)
+{
+    PtfsFileDesc *FileDesc = (PtfsFileDesc *)FileDesc0;
+    return BufferedReadDirectory(&FileDesc->DirBuffer,
+        FileNode, FileDesc, Pattern, Marker, Buffer, Length, PBytesTransferred);
+}
+
+NTSTATUS Ptfs::ReadDirectoryEntry(
+    PVOID FileNode,
+    PVOID FileDesc0,
+    PWSTR Pattern,
+    PWSTR Marker,
+    PVOID *PContext,
+    DirInfo *DirInfo)
 {
     PtfsFileDesc *FileDesc = (PtfsFileDesc *)FileDesc0;
     HANDLE Handle = FileDesc->Handle;
@@ -738,16 +758,8 @@ NTSTATUS Ptfs::ReadDirectory(
     ULONG Length, PatternLength;
     HANDLE FindHandle;
     WIN32_FIND_DATAW FindData;
-    union
-    {
-        UINT8 B[FIELD_OFFSET(FileSystem::DirInfo, FileNameBuf) + MAX_PATH * sizeof(WCHAR)];
-        FileSystem::DirInfo D;
-    } DirInfoBuf;
-    FileSystem::DirInfo *DirInfo = &DirInfoBuf.D;
-    NTSTATUS DirBufferResult;
 
-    DirBufferResult = STATUS_SUCCESS;
-    if (AcquireDirectoryBuffer(&FileDesc->DirBuffer, 0 == Marker, &DirBufferResult))
+    if (0 == *PContext)
     {
         if (0 == Pattern)
             Pattern = L"*";
@@ -755,14 +767,9 @@ NTSTATUS Ptfs::ReadDirectory(
 
         Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
         if (0 == Length)
-            DirBufferResult = NtStatusFromWin32(GetLastError());
-        else if (Length + 1 + PatternLength >= FULLPATH_SIZE)
-            DirBufferResult = STATUS_OBJECT_NAME_INVALID;
-        if (!NT_SUCCESS(DirBufferResult))
-        {
-            ReleaseDirectoryBuffer(&FileDesc->DirBuffer);
-            return DirBufferResult;
-        }
+            return NtStatusFromWin32(GetLastError());
+        if (Length + 1 + PatternLength >= FULLPATH_SIZE)
+            return STATUS_OBJECT_NAME_INVALID;
 
         if (L'\\' != FullPath[Length - 1])
             FullPath[Length++] = L'\\';
@@ -770,43 +777,37 @@ NTSTATUS Ptfs::ReadDirectory(
         FullPath[Length + PatternLength] = L'\0';
 
         FindHandle = FindFirstFileW(FullPath, &FindData);
-        if (INVALID_HANDLE_VALUE != FindHandle)
+        if (INVALID_HANDLE_VALUE == FindHandle)
+            return STATUS_NO_MORE_FILES;
+
+        *PContext = FindHandle;
+    }
+    else
+    {
+        FindHandle = *PContext;
+        if (!FindNextFileW(FindHandle, &FindData))
         {
-            do
-            {
-                memset(DirInfo, 0, sizeof *DirInfo);
-                Length = (ULONG)wcslen(FindData.cFileName);
-                DirInfo->Size = (UINT16)(FIELD_OFFSET(FileSystem::DirInfo, FileNameBuf) +
-                    Length * sizeof(WCHAR));
-                DirInfo->FileInfo.FileAttributes = FindData.dwFileAttributes;
-                DirInfo->FileInfo.ReparseTag = 0;
-                DirInfo->FileInfo.FileSize =
-                    ((UINT64)FindData.nFileSizeHigh << 32) | (UINT64)FindData.nFileSizeLow;
-                DirInfo->FileInfo.AllocationSize = (DirInfo->FileInfo.FileSize + ALLOCATION_UNIT - 1)
-                    / ALLOCATION_UNIT * ALLOCATION_UNIT;
-                DirInfo->FileInfo.CreationTime = ((PLARGE_INTEGER)&FindData.ftCreationTime)->QuadPart;
-                DirInfo->FileInfo.LastAccessTime = ((PLARGE_INTEGER)&FindData.ftLastAccessTime)->QuadPart;
-                DirInfo->FileInfo.LastWriteTime = ((PLARGE_INTEGER)&FindData.ftLastWriteTime)->QuadPart;
-                DirInfo->FileInfo.ChangeTime = DirInfo->FileInfo.LastWriteTime;
-                DirInfo->FileInfo.IndexNumber = 0;
-                DirInfo->FileInfo.HardLinks = 0;
-                memcpy(DirInfo->FileNameBuf, FindData.cFileName, Length * sizeof(WCHAR));
-
-                if (!FillDirectoryBuffer(&FileDesc->DirBuffer, DirInfo, &DirBufferResult))
-                    break;
-            } while (FindNextFileW(FindHandle, &FindData));
-
             FindClose(FindHandle);
+            return STATUS_NO_MORE_FILES;
         }
-
-        ReleaseDirectoryBuffer(&FileDesc->DirBuffer);
     }
 
-    if (!NT_SUCCESS(DirBufferResult))
-        return DirBufferResult;
-
-    ReadDirectoryBuffer(&FileDesc->DirBuffer,
-        Marker, Buffer, BufferLength, PBytesTransferred);
+    memset(DirInfo, 0, sizeof *DirInfo);
+    Length = (ULONG)wcslen(FindData.cFileName);
+    DirInfo->Size = (UINT16)(FIELD_OFFSET(FileSystem::DirInfo, FileNameBuf) + Length * sizeof(WCHAR));
+    DirInfo->FileInfo.FileAttributes = FindData.dwFileAttributes;
+    DirInfo->FileInfo.ReparseTag = 0;
+    DirInfo->FileInfo.FileSize =
+        ((UINT64)FindData.nFileSizeHigh << 32) | (UINT64)FindData.nFileSizeLow;
+    DirInfo->FileInfo.AllocationSize = (DirInfo->FileInfo.FileSize + ALLOCATION_UNIT - 1)
+        / ALLOCATION_UNIT * ALLOCATION_UNIT;
+    DirInfo->FileInfo.CreationTime = ((PLARGE_INTEGER)&FindData.ftCreationTime)->QuadPart;
+    DirInfo->FileInfo.LastAccessTime = ((PLARGE_INTEGER)&FindData.ftLastAccessTime)->QuadPart;
+    DirInfo->FileInfo.LastWriteTime = ((PLARGE_INTEGER)&FindData.ftLastWriteTime)->QuadPart;
+    DirInfo->FileInfo.ChangeTime = DirInfo->FileInfo.LastWriteTime;
+    DirInfo->FileInfo.IndexNumber = 0;
+    DirInfo->FileInfo.HardLinks = 0;
+    memcpy(DirInfo->FileNameBuf, FindData.cFileName, Length * sizeof(WCHAR));
 
     return STATUS_SUCCESS;
 }

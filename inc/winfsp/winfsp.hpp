@@ -236,44 +236,95 @@ public:
         return _FileSystem;
     }
 
-    /* helpers: directories/streams */
-    static BOOLEAN AcquireDirectoryBuffer(PVOID *PDirBuffer,
-        BOOLEAN Reset, PNTSTATUS PResult)
-    {
-        return FspFileSystemAcquireDirectoryBuffer(PDirBuffer, Reset, PResult);
-    }
-    static BOOLEAN FillDirectoryBuffer(PVOID *PDirBuffer,
-        DirInfo *DirInfo, PNTSTATUS PResult)
-    {
-        return FspFileSystemFillDirectoryBuffer(PDirBuffer, DirInfo, PResult);
-    }
-    static VOID ReleaseDirectoryBuffer(PVOID *PDirBuffer)
-    {
-        FspFileSystemReleaseDirectoryBuffer(PDirBuffer);
-    }
-    static VOID ReadDirectoryBuffer(PVOID *PDirBuffer,
+    /* helpers */
+    NTSTATUS SeekableReadDirectory(
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR Pattern,
         PWSTR Marker,
-        PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+        PVOID Buffer,
+        ULONG Length,
+        PULONG PBytesTransferred)
     {
-        FspFileSystemReadDirectoryBuffer(PDirBuffer,
-            Marker, Buffer, Length, PBytesTransferred);
+        PVOID Context = 0;
+        union
+        {
+            UINT8 B[FIELD_OFFSET(FileSystem::DirInfo, FileNameBuf) + MAX_PATH * sizeof(WCHAR)];
+            FileSystem::DirInfo D;
+        } DirInfoBuf;
+        FileSystem::DirInfo *DirInfo = &DirInfoBuf.D;
+        NTSTATUS Result = STATUS_SUCCESS;
+        *PBytesTransferred = 0;
+        for (;;)
+        {
+            Result = ReadDirectoryEntry(FileNode, FileDesc, Pattern, Marker, &Context, DirInfo);
+            if (STATUS_NO_MORE_FILES == Result)
+            {
+                Result = STATUS_SUCCESS;
+                break;
+            }
+            if (!NT_SUCCESS(Result))
+                break;
+            if (!FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred))
+                break;
+        }
+        if (!NT_SUCCESS(Result))
+            return Result;
+        return STATUS_SUCCESS;
+    }
+    NTSTATUS BufferedReadDirectory(
+        PVOID *PDirBuffer,
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR Pattern,
+        PWSTR Marker,
+        PVOID Buffer,
+        ULONG Length,
+        PULONG PBytesTransferred)
+    {
+        PVOID Context = 0;
+        union
+        {
+            UINT8 B[FIELD_OFFSET(FileSystem::DirInfo, FileNameBuf) + MAX_PATH * sizeof(WCHAR)];
+            FileSystem::DirInfo D;
+        } DirInfoBuf;
+        FileSystem::DirInfo *DirInfo = &DirInfoBuf.D;
+        NTSTATUS Result = STATUS_SUCCESS;
+        *PBytesTransferred = 0;
+        if (FspFileSystemAcquireDirectoryBuffer(PDirBuffer, 0 == Marker, &Result))
+        {
+            try
+            {
+                for (;;)
+                {
+                    Result = ReadDirectoryEntry(FileNode, FileDesc, Pattern, Marker, &Context, DirInfo);
+                    if (STATUS_NO_MORE_FILES == Result)
+                    {
+                        Result = STATUS_SUCCESS;
+                        break;
+                    }
+                    if (!NT_SUCCESS(Result))
+                        break;
+                    if (!FspFileSystemFillDirectoryBuffer(PDirBuffer, DirInfo, &Result))
+                        break;
+                }
+            }
+            catch (...)
+            {
+                FspFileSystemReleaseDirectoryBuffer(PDirBuffer);
+                throw;
+            }
+            FspFileSystemReleaseDirectoryBuffer(PDirBuffer);
+        }
+        if (!NT_SUCCESS(Result))
+            return Result;
+        FspFileSystemReadDirectoryBuffer(PDirBuffer, Marker, Buffer, Length, PBytesTransferred);
+        return STATUS_SUCCESS;
     }
     static VOID DeleteDirectoryBuffer(PVOID *PDirBuffer)
     {
         FspFileSystemDeleteDirectoryBuffer(PDirBuffer);
     }
-    static BOOLEAN AddDirInfo(DirInfo *DirInfo,
-        PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
-    {
-        return FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred);
-    }
-    static BOOLEAN AddStreamInfo(StreamInfo *StreamInfo,
-        PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
-    {
-        return FspFileSystemAddStreamInfo(StreamInfo, Buffer, Length, PBytesTransferred);
-    }
-
-    /* helpers: reparse points */
     BOOLEAN FindReparsePoint(
         PWSTR FileName, PUINT32 PReparsePointIndex)
     {
@@ -287,6 +338,11 @@ public:
         return FspFileSystemCanReplaceReparsePoint(
             CurrentReparseData, CurrentReparseDataSize,
             ReplaceReparseData, ReplaceReparseDataSize);
+    }
+    static BOOLEAN AddStreamInfo(StreamInfo *StreamInfo,
+        PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+    {
+        return FspFileSystemAddStreamInfo(StreamInfo, Buffer, Length, PBytesTransferred);
     }
 
 protected:
@@ -457,6 +513,16 @@ protected:
         PVOID Buffer,
         ULONG Length,
         PULONG PBytesTransferred)
+    {
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+    virtual NTSTATUS ReadDirectoryEntry(
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR Pattern,
+        PWSTR Marker,
+        PVOID *PContext,
+        DirInfo *DirInfo)
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
