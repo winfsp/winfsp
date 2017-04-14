@@ -953,11 +953,12 @@ class Service
 {
 public:
     /* ctor/dtor */
-    Service(PWSTR ServiceName) : _Service(0), _CreateResult()
+    Service(PWSTR ServiceName) : _Service(0)
     {
         Initialize();
-        _CreateResult = FspServiceCreate(ServiceName, OnStart, OnStop, 0, &_Service);
-        _Service->UserContext = this;
+        FspServiceCreate(ServiceName, OnStart, OnStop, 0, &_Service);
+        if (0 != _Service)
+            _Service->UserContext = this;
     }
     virtual ~Service()
     {
@@ -968,11 +969,12 @@ public:
     /* control */
     ULONG Run()
     {
-        if (!NT_SUCCESS(_CreateResult))
+        if (0 == _Service)
         {
             FspServiceLog(EVENTLOG_ERROR_TYPE,
-                L"The service cannot be created (Status=%lx).", _CreateResult);
-            return FspWin32FromNtStatus(_CreateResult);
+                L"The service cannot be created (Status=%lx).",
+                STATUS_INSUFFICIENT_RESOURCES);
+            return FspWin32FromNtStatus(STATUS_INSUFFICIENT_RESOURCES);
         }
         FspServiceAllowConsoleMode(_Service);
         NTSTATUS Result = FspServiceLoop(_Service);
@@ -980,16 +982,37 @@ public:
         if (!NT_SUCCESS(Result))
         {
             FspServiceLog(EVENTLOG_ERROR_TYPE,
-                L"The service %s has failed to run (Status=%lx).", _Service->ServiceName, Result);
+                L"The service has failed to run (Status=%lx).",
+                Result);
             return FspWin32FromNtStatus(Result);
         }
         return ExitCode;
     }
     VOID Stop()
     {
-        if (!NT_SUCCESS(_CreateResult))
+        if (0 == _Service)
             return;
         FspServiceStop(_Service);
+    }
+    VOID RequestTime(ULONG Time)
+    {
+        if (0 == _Service)
+            return;
+        FspServiceRequestTime(_Service, Time);
+    }
+    ULONG GetExitCode()
+    {
+        return 0 != _Service ? FspServiceGetExitCode(_Service) : ERROR_NO_SYSTEM_RESOURCES;
+    }
+    VOID SetExitCode(ULONG ExitCode)
+    {
+        if (0 == _Service)
+            return;
+        FspServiceSetExitCode(_Service, ExitCode);
+    }
+    FSP_SERVICE *ServiceHandle()
+    {
+        return _Service;
     }
     static VOID Log(ULONG Type, PWSTR Format, ...)
     {
@@ -1042,7 +1065,6 @@ private:
 
 private:
     FSP_SERVICE *_Service;
-    NTSTATUS _CreateResult;
 };
 
 }
