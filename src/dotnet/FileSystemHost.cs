@@ -1,5 +1,5 @@
 /**
- * @file dotnet/FileSystem.cs
+ * @file dotnet/FileSystemHost.cs
  *
  * @copyright 2015-2017 Bill Zissimopoulos
  */
@@ -24,35 +24,15 @@ using Fsp.Interop;
 namespace Fsp
 {
 
-    public partial class FileSystem : IDisposable
+    public class FileSystemHost : IDisposable
     {
-        /* types */
-        public class DirectoryBuffer : IDisposable
-        {
-            ~DirectoryBuffer()
-            {
-                Dispose(false);
-            }
-            public void Dispose()
-            {
-                lock (this)
-                    Dispose(true);
-                GC.SuppressFinalize(true);
-            }
-            protected virtual void Dispose(bool disposing)
-            {
-                Api.FspFileSystemDeleteDirectoryBuffer(ref DirBuffer);
-            }
-
-            internal IntPtr DirBuffer;
-        }
-
         /* ctor/dtor */
-        public FileSystem()
+        public FileSystemHost(FileSystemBase FileSystem)
         {
             _VolumeParams.Flags = VolumeParams.UmFileContextIsFullContext;
+            _FileSystem = FileSystem;
         }
-        ~FileSystem()
+        ~FileSystemHost()
         {
             Dispose(false);
         }
@@ -64,12 +44,21 @@ namespace Fsp
         }
         protected virtual void Dispose(bool disposing)
         {
-            if (IntPtr.Zero != _FileSystem)
+            if (IntPtr.Zero != _FileSystemPtr)
             {
-                Api.FspFileSystemStopDispatcher(_FileSystem);
-                Api.SetUserContext(_FileSystem, null);
-                Api.FspFileSystemDelete(_FileSystem);
-                _FileSystem = IntPtr.Zero;
+                Api.FspFileSystemStopDispatcher(_FileSystemPtr);
+                if (disposing)
+                    try
+                    {
+                        _FileSystem.Unmounted(this);
+                    }
+                    catch (Exception ex)
+                    {
+                        ExceptionHandler(_FileSystem, ex);
+                    }
+                Api.SetUserContext(_FileSystemPtr, null);
+                Api.FspFileSystemDelete(_FileSystemPtr);
+                _FileSystemPtr = IntPtr.Zero;
             }
         }
 
@@ -173,26 +162,57 @@ namespace Fsp
             UInt32 DebugLog = 0)
         {
             Int32 Result;
+            try
+            {
+                Result = _FileSystem.Init(this);
+            }
+            catch (Exception ex)
+            {
+                Result = ExceptionHandler(_FileSystem, ex);
+            }
+            if (0 > Result)
+                return Result;
             Result = Api.FspFileSystemCreate(
                 _VolumeParams.IsPrefixEmpty() ? "WinFsp.Disk" : "WinFsp.Net",
-                ref _VolumeParams, _FileSystemInterfacePtr, out _FileSystem);
+                ref _VolumeParams, _FileSystemInterfacePtr, out _FileSystemPtr);
+            if (0 > Result)
+                return Result;
+            Api.SetUserContext(_FileSystemPtr, _FileSystem);
+            Api.FspFileSystemSetOperationGuardStrategy(_FileSystemPtr, Synchronized ?
+                1/*FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE*/ :
+                0/*FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE*/);
+            Api.FspFileSystemSetDebugLog(_FileSystemPtr, DebugLog);
+            Result = Api.FspFileSystemSetMountPointEx(_FileSystemPtr, MountPoint,
+                SecurityDescriptor);
             if (0 <= Result)
             {
-                Api.SetUserContext(_FileSystem, this);
-                Api.FspFileSystemSetOperationGuardStrategy(_FileSystem, Synchronized ?
-                    1/*FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE*/ :
-                    0/*FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE*/);
-                Api.FspFileSystemSetDebugLog(_FileSystem, DebugLog);
-                Result = Api.FspFileSystemSetMountPointEx(_FileSystem, MountPoint,
-                    SecurityDescriptor);
+                try
+                {
+                    Result = _FileSystem.Mounted(this);
+                }
+                catch (Exception ex)
+                {
+                    Result = ExceptionHandler(_FileSystem, ex);
+                }
                 if (0 <= Result)
-                    Result = Api.FspFileSystemStartDispatcher(_FileSystem, 0);
+                {
+                    Result = Api.FspFileSystemStartDispatcher(_FileSystemPtr, 0);
+                    if (0 > Result)
+                        try
+                        {
+                            _FileSystem.Unmounted(this);
+                        }
+                        catch (Exception ex)
+                        {
+                            ExceptionHandler(_FileSystem, ex);
+                        }
+                }
             }
-            if (0 > Result && IntPtr.Zero != _FileSystem)
+            if (0 > Result)
             {
-                Api.SetUserContext(_FileSystem, null);
-                Api.FspFileSystemDelete(_FileSystem);
-                _FileSystem = IntPtr.Zero;
+                Api.SetUserContext(_FileSystemPtr, null);
+                Api.FspFileSystemDelete(_FileSystemPtr);
+                _FileSystemPtr = IntPtr.Zero;
             }
             return Result;
         }
@@ -202,405 +222,79 @@ namespace Fsp
         }
         public String MountPoint()
         {
-            return IntPtr.Zero != _FileSystem ?
-                Marshal.PtrToStringUni(Api.FspFileSystemMountPoint(_FileSystem)) : null;
+            return IntPtr.Zero != _FileSystemPtr ?
+                Marshal.PtrToStringUni(Api.FspFileSystemMountPoint(_FileSystemPtr)) : null;
         }
         public IntPtr FileSystemHandle()
         {
+            return _FileSystemPtr;
+        }
+        public FileSystemBase FileSystem()
+        {
             return _FileSystem;
-        }
-
-        /* helpers */
-        public Int32 SeekableReadDirectory(
-            Object FileNode,
-            Object FileDesc,
-            String Pattern,
-            String Marker,
-            IntPtr Buffer,
-            UInt32 Length,
-            out UInt32 PBytesTransferred)
-        {
-            Object Context = null;
-            String FileName;
-            DirInfo DirInfo = default(DirInfo);
-            PBytesTransferred = default(UInt32);
-            while (ReadDirectoryEntry(FileNode, FileDesc, Pattern, Marker,
-                ref Context, out FileName, out DirInfo.FileInfo))
-            {
-                DirInfo.SetFileNameBuf(FileName);
-                if (!Api.FspFileSystemAddDirInfo(ref DirInfo, Buffer, Length,
-                    out PBytesTransferred))
-                    break;
-            }
-            return STATUS_SUCCESS;
-        }
-        public Int32 BufferedReadDirectory(
-            DirectoryBuffer DirectoryBuffer,
-            Object FileNode,
-            Object FileDesc,
-            String Pattern,
-            String Marker,
-            IntPtr Buffer,
-            UInt32 Length,
-            out UInt32 PBytesTransferred)
-        {
-            Object Context = null;
-            String FileName;
-            DirInfo DirInfo = default(DirInfo);
-            Int32 DirBufferResult = STATUS_SUCCESS;
-            PBytesTransferred = default(UInt32);
-            if (Api.FspFileSystemAcquireDirectoryBuffer(ref DirectoryBuffer.DirBuffer, null == Marker,
-                out DirBufferResult))
-                try
-                {
-                    while (ReadDirectoryEntry(FileNode, FileDesc, Pattern, Marker,
-                        ref Context, out FileName, out DirInfo.FileInfo))
-                    {
-                        DirInfo.SetFileNameBuf(FileName);
-                        if (!Api.FspFileSystemFillDirectoryBuffer(
-                            ref DirectoryBuffer.DirBuffer, ref DirInfo, out DirBufferResult))
-                            break;
-                    }
-                }
-                finally
-                {
-                    Api.FspFileSystemReleaseDirectoryBuffer(ref DirectoryBuffer.DirBuffer);
-                }
-            if (0 > DirBufferResult)
-            {
-                PBytesTransferred = default(UInt32);
-                return DirBufferResult;
-            }
-            Api.FspFileSystemReadDirectoryBuffer(ref DirectoryBuffer.DirBuffer,
-                Marker, Buffer, Length, out PBytesTransferred);
-            return STATUS_SUCCESS;
-        }
-        public static Int32 NtStatusFromWin32(UInt32 Error)
-        {
-            return Api.FspNtStatusFromWin32(Error);
-        }
-        public static UInt32 Win32FromNtStatus(Int32 Status)
-        {
-            return Api.FspWin32FromNtStatus(Status);
         }
         public static Int32 SetDebugLogFile(String FileName)
         {
             return Api.SetDebugLogFile(FileName);
         }
 
-        /* operations */
-        protected virtual Int32 ExceptionHandler(Exception ex)
-        {
-            return STATUS_UNEXPECTED_IO_ERROR;
-        }
-        protected virtual Int32 GetVolumeInfo(
-            out VolumeInfo VolumeInfo)
-        {
-            VolumeInfo = default(VolumeInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 SetVolumeLabel(
-            String VolumeLabel,
-            out VolumeInfo VolumeInfo)
-        {
-            VolumeInfo = default(VolumeInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 GetSecurityByName(
-            String FileName,
-            out UInt32 FileAttributes/* or ReparsePointIndex */,
-            ref Byte[] SecurityDescriptor)
-        {
-            FileAttributes = default(UInt32);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 Create(
-            String FileName,
-            UInt32 CreateOptions,
-            UInt32 GrantedAccess,
-            UInt32 FileAttributes,
-            Byte[] SecurityDescriptor,
-            UInt64 AllocationSize,
-            out Object FileNode,
-            out Object FileDesc,
-            out FileInfo FileInfo,
-            out String NormalizedName)
-        {
-            FileNode = default(Object);
-            FileDesc = default(Object);
-            FileInfo = default(FileInfo);
-            NormalizedName = default(String);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 Open(
-            String FileName,
-            UInt32 CreateOptions,
-            UInt32 GrantedAccess,
-            out Object FileNode,
-            out Object FileDesc,
-            out FileInfo FileInfo,
-            out String NormalizedName)
-        {
-            FileNode = default(Object);
-            FileDesc = default(Object);
-            FileInfo = default(FileInfo);
-            NormalizedName = default(String);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 Overwrite(
-            Object FileNode,
-            Object FileDesc,
-            UInt32 FileAttributes,
-            Boolean ReplaceFileAttributes,
-            UInt64 AllocationSize,
-            out FileInfo FileInfo)
-        {
-            FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual void Cleanup(
-            Object FileNode,
-            Object FileDesc,
-            String FileName,
-            UInt32 Flags)
-        {
-        }
-        protected virtual void Close(
-            Object FileNode,
-            Object FileDesc)
-        {
-        }
-        protected virtual Int32 Read(
-            Object FileNode,
-            Object FileDesc,
-            IntPtr Buffer,
-            UInt64 Offset,
-            UInt32 Length,
-            out UInt32 PBytesTransferred)
-        {
-            PBytesTransferred = default(UInt32);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 Write(
-            Object FileNode,
-            Object FileDesc,
-            IntPtr Buffer,
-            UInt64 Offset,
-            UInt32 Length,
-            Boolean WriteToEndOfFile,
-            Boolean ConstrainedIo,
-            out UInt32 PBytesTransferred,
-            out FileInfo FileInfo)
-        {
-            PBytesTransferred = default(UInt32);
-            FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 Flush(
-            Object FileNode,
-            Object FileDesc,
-            out FileInfo FileInfo)
-        {
-            FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 GetFileInfo(
-            Object FileNode,
-            Object FileDesc,
-            out FileInfo FileInfo)
-        {
-            FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 SetBasicInfo(
-            Object FileNode,
-            Object FileDesc,
-            UInt32 FileAttributes,
-            UInt64 CreationTime,
-            UInt64 LastAccessTime,
-            UInt64 LastWriteTime,
-            UInt64 ChangeTime,
-            out FileInfo FileInfo)
-        {
-            FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 SetFileSize(
-            Object FileNode,
-            Object FileDesc,
-            UInt64 NewSize,
-            Boolean SetAllocationSize,
-            out FileInfo FileInfo)
-        {
-            FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 CanDelete(
-            Object FileNode,
-            Object FileDesc,
-            String FileName)
-        {
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 Rename(
-            Object FileNode,
-            Object FileDesc,
-            String FileName,
-            String NewFileName,
-            Boolean ReplaceIfExists)
-        {
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 GetSecurity(
-            Object FileNode,
-            Object FileDesc,
-            ref Byte[] SecurityDescriptor)
-        {
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 SetSecurity(
-            Object FileNode,
-            Object FileDesc,
-            AccessControlSections Sections,
-            Byte[] SecurityDescriptor)
-        {
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 ReadDirectory(
-            Object FileNode,
-            Object FileDesc,
-            String Pattern,
-            String Marker,
-            IntPtr Buffer,
-            UInt32 Length,
-            out UInt32 PBytesTransferred)
-        {
-            return SeekableReadDirectory(FileNode, FileDesc, Pattern, Marker, Buffer, Length,
-                out PBytesTransferred);
-        }
-        protected virtual Boolean ReadDirectoryEntry(
-            Object FileNode,
-            Object FileDesc,
-            String Pattern,
-            String Marker,
-            ref Object Context,
-            out String FileName,
-            out FileInfo FileInfo)
-        {
-            FileName = default(String);
-            FileInfo = default(FileInfo);
-            return false;
-        }
-        protected virtual Int32 ResolveReparsePoints(
-            String FileName,
-            UInt32 ReparsePointIndex,
-            Boolean ResolveLastPathComponent,
-            out IoStatusBlock PIoStatus,
-            IntPtr Buffer,
-            ref UIntPtr PSize)
-        {
-            return Api.FspFileSystemResolveReparsePoints(
-                _FileSystem,
-                GetReparsePointByName,
-                IntPtr.Zero,
-                FileName,
-                ReparsePointIndex,
-                ResolveLastPathComponent,
-                out PIoStatus,
-                Buffer,
-                ref PSize);
-        }
-        protected virtual Int32 GetReparsePointByName(
-            String FileName,
-            Boolean IsDirectory,
-            IntPtr Buffer,
-            ref UIntPtr PSize)
-        {
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 GetReparsePoint(
-            Object FileNode,
-            Object FileDesc,
-            String FileName,
-            IntPtr Buffer,
-            out UIntPtr PSize)
-        {
-            PSize = default(UIntPtr);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 SetReparsePoint(
-            Object FileNode,
-            Object FileDesc,
-            String FileName,
-            IntPtr Buffer,
-            UIntPtr Size)
-        {
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 DeleteReparsePoint(
-            Object FileNode,
-            Object FileDesc,
-            String FileName,
-            IntPtr Buffer,
-            UIntPtr Size)
-        {
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        protected virtual Int32 GetStreamInfo(
-            Object FileNode,
-            Object FileDesc,
-            IntPtr Buffer,
-            UInt32 Length,
-            out UInt32 PBytesTransferred)
-        {
-            PBytesTransferred = default(UInt32);
-            return STATUS_INVALID_DEVICE_REQUEST;
-        }
-
         /* FSP_FILE_SYSTEM_INTERFACE */
         private static Byte[] SecurityDescriptorNotNull = new Byte[0];
-        private static Int32 GetVolumeInfo(
-            IntPtr FileSystem,
-            out VolumeInfo VolumeInfo)
+        private static Int32 ExceptionHandler(
+            FileSystemBase FileSystem,
+            Exception ex)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
             try
             {
-                return self.GetVolumeInfo(
+                return FileSystem.ExceptionHandler(ex);
+            }
+            catch
+            {
+                return unchecked((Int32)0xc00000e9)/*STATUS_UNEXPECTED_IO_ERROR*/;
+            }
+        }
+        private static Int32 GetVolumeInfo(
+            IntPtr FileSystemPtr,
+            out VolumeInfo VolumeInfo)
+        {
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
+            try
+            {
+                return FileSystem.GetVolumeInfo(
                     out VolumeInfo);
             }
             catch (Exception ex)
             {
                 VolumeInfo = default(VolumeInfo);
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 SetVolumeLabel(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             String VolumeLabel,
             out VolumeInfo VolumeInfo)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
-                return self.SetVolumeLabel(
+                return FileSystem.SetVolumeLabel(
                     VolumeLabel,
                     out VolumeInfo);
             }
             catch (Exception ex)
             {
                 VolumeInfo = default(VolumeInfo);
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 GetSecurityByName(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             String FileName,
             IntPtr PFileAttributes/* or ReparsePointIndex */,
             IntPtr SecurityDescriptor,
             IntPtr PSecurityDescriptorSize)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 UInt32 FileAttributes;
@@ -608,7 +302,7 @@ namespace Fsp
                 Int32 Result;
                 if (IntPtr.Zero != PSecurityDescriptorSize)
                     SecurityDescriptorBytes = SecurityDescriptorNotNull;
-                Result = self.GetSecurityByName(
+                Result = FileSystem.GetSecurityByName(
                     FileName,
                     out FileAttributes,
                     ref SecurityDescriptorBytes);
@@ -623,11 +317,11 @@ namespace Fsp
             }
             catch (Exception ex)
             {
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 Create(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             String FileName,
             UInt32 CreateOptions,
             UInt32 GrantedAccess,
@@ -637,13 +331,13 @@ namespace Fsp
             ref FullContext FullContext,
             ref OpenFileInfo OpenFileInfo)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 String NormalizedName;
                 Int32 Result;
-                Result = self.Create(
+                Result = FileSystem.Create(
                     FileName,
                     CreateOptions,
                     GrantedAccess,
@@ -664,24 +358,24 @@ namespace Fsp
             }
             catch (Exception ex)
             {
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 Open(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             String FileName,
             UInt32 CreateOptions,
             UInt32 GrantedAccess,
             ref FullContext FullContext,
             ref OpenFileInfo OpenFileInfo)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 String NormalizedName;
                 Int32 Result;
-                Result = self.Open(
+                Result = FileSystem.Open(
                     FileName,
                     CreateOptions,
                     GrantedAccess,
@@ -699,23 +393,23 @@ namespace Fsp
             }
             catch (Exception ex)
             {
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 Overwrite(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             UInt32 FileAttributes,
             Boolean ReplaceFileAttributes,
             UInt64 AllocationSize,
             out FileInfo FileInfo)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.Overwrite(
+                return FileSystem.Overwrite(
                     FileNode,
                     FileDesc,
                     FileAttributes,
@@ -726,21 +420,21 @@ namespace Fsp
             catch (Exception ex)
             {
                 FileInfo = default(FileInfo);
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static void Cleanup(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             String FileName,
             UInt32 Flags)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                self.Cleanup(
+                FileSystem.Cleanup(
                     FileNode,
                     FileDesc,
                     FileName,
@@ -748,42 +442,42 @@ namespace Fsp
             }
             catch (Exception ex)
             {
-                self.ExceptionHandler(ex);
+                ExceptionHandler(FileSystem, ex);
             }
         }
         private static void Close(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                self.Close(
+                FileSystem.Close(
                     FileNode,
                     FileDesc);
                 Api.SetFullContext(ref FullContext, null, null);
             }
             catch (Exception ex)
             {
-                self.ExceptionHandler(ex);
+                ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 Read(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             IntPtr Buffer,
             UInt64 Offset,
             UInt32 Length,
             out UInt32 PBytesTransferred)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.Read(
+                return FileSystem.Read(
                     FileNode,
                     FileDesc,
                     Buffer,
@@ -794,11 +488,11 @@ namespace Fsp
             catch (Exception ex)
             {
                 PBytesTransferred = default(UInt32);
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 Write(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             IntPtr Buffer,
             UInt64 Offset,
@@ -808,12 +502,12 @@ namespace Fsp
             out UInt32 PBytesTransferred,
             out FileInfo FileInfo)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.Write(
+                return FileSystem.Write(
                     FileNode,
                     FileDesc,
                     Buffer,
@@ -828,20 +522,20 @@ namespace Fsp
             {
                 PBytesTransferred = default(UInt32);
                 FileInfo = default(FileInfo);
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 Flush(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             out FileInfo FileInfo)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.Flush(
+                return FileSystem.Flush(
                     FileNode,
                     FileDesc,
                     out FileInfo);
@@ -849,20 +543,20 @@ namespace Fsp
             catch (Exception ex)
             {
                 FileInfo = default(FileInfo);
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 GetFileInfo(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             out FileInfo FileInfo)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.GetFileInfo(
+                return FileSystem.GetFileInfo(
                     FileNode,
                     FileDesc,
                     out FileInfo);
@@ -870,11 +564,11 @@ namespace Fsp
             catch (Exception ex)
             {
                 FileInfo = default(FileInfo);
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 SetBasicInfo(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             UInt32 FileAttributes,
             UInt64 CreationTime,
@@ -883,12 +577,12 @@ namespace Fsp
             UInt64 ChangeTime,
             out FileInfo FileInfo)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.SetBasicInfo(
+                return FileSystem.SetBasicInfo(
                     FileNode,
                     FileDesc,
                     FileAttributes,
@@ -901,22 +595,22 @@ namespace Fsp
             catch (Exception ex)
             {
                 FileInfo = default(FileInfo);
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 SetFileSize(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             UInt64 NewSize,
             Boolean SetAllocationSize,
             out FileInfo FileInfo)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.SetFileSize(
+                return FileSystem.SetFileSize(
                     FileNode,
                     FileDesc,
                     NewSize,
@@ -926,42 +620,42 @@ namespace Fsp
             catch (Exception ex)
             {
                 FileInfo = default(FileInfo);
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 CanDelete(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             String FileName)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.CanDelete(
+                return FileSystem.CanDelete(
                     FileNode,
                     FileDesc,
                     FileName);
             }
             catch (Exception ex)
             {
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 Rename(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             String FileName,
             String NewFileName,
             Boolean ReplaceIfExists)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.Rename(
+                return FileSystem.Rename(
                     FileNode,
                     FileDesc,
                     FileName,
@@ -970,16 +664,16 @@ namespace Fsp
             }
             catch (Exception ex)
             {
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 GetSecurity(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             IntPtr SecurityDescriptor,
             IntPtr PSecurityDescriptorSize)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
@@ -987,7 +681,7 @@ namespace Fsp
                 Int32 Result;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
                 SecurityDescriptorBytes = SecurityDescriptorNotNull;
-                Result = self.GetSecurity(
+                Result = FileSystem.GetSecurity(
                     FileNode,
                     FileDesc,
                     ref SecurityDescriptorBytes);
@@ -996,16 +690,16 @@ namespace Fsp
             }
             catch (Exception ex)
             {
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 SetSecurity(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             UInt32 SecurityInformation,
             IntPtr ModificationDescriptor)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
@@ -1020,7 +714,7 @@ namespace Fsp
                     Sections |= AccessControlSections.Access;
                 if (0 != (SecurityInformation & 8/*SACL_SECURITY_INFORMATION*/))
                     Sections |= AccessControlSections.Audit;
-                return self.SetSecurity(
+                return FileSystem.SetSecurity(
                     FileNode,
                     FileDesc,
                     Sections,
@@ -1028,11 +722,11 @@ namespace Fsp
             }
             catch (Exception ex)
             {
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 ReadDirectory(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             String Pattern,
             String Marker,
@@ -1040,12 +734,12 @@ namespace Fsp
             UInt32 Length,
             out UInt32 PBytesTransferred)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.ReadDirectory(
+                return FileSystem.ReadDirectory(
                     FileNode,
                     FileDesc,
                     Pattern,
@@ -1057,11 +751,11 @@ namespace Fsp
             catch (Exception ex)
             {
                 PBytesTransferred = default(UInt32);
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 ResolveReparsePoints(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             String FileName,
             UInt32 ReparsePointIndex,
             Boolean ResolveLastPathComponent,
@@ -1069,10 +763,10 @@ namespace Fsp
             IntPtr Buffer,
             ref UIntPtr PSize)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
-                return self.ResolveReparsePoints(
+                return FileSystem.ResolveReparsePoints(
                     FileName,
                     ReparsePointIndex,
                     ResolveLastPathComponent,
@@ -1083,44 +777,22 @@ namespace Fsp
             catch (Exception ex)
             {
                 PIoStatus = default(IoStatusBlock);
-                return self.ExceptionHandler(ex);
-            }
-        }
-        private static Int32 GetReparsePointByName(
-            IntPtr FileSystem,
-            IntPtr Context,
-            String FileName,
-            Boolean IsDirectory,
-            IntPtr Buffer,
-            ref UIntPtr PSize)
-        {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
-            try
-            {
-                return self.GetReparsePointByName(
-                    FileName,
-                    IsDirectory,
-                    Buffer,
-                    ref PSize);
-            }
-            catch (Exception ex)
-            {
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 GetReparsePoint(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             String FileName,
             IntPtr Buffer,
             out UIntPtr PSize)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.GetReparsePoint(
+                return FileSystem.GetReparsePoint(
                     FileNode,
                     FileDesc,
                     FileName,
@@ -1130,22 +802,22 @@ namespace Fsp
             catch (Exception ex)
             {
                 PSize = default(UIntPtr);
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 SetReparsePoint(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             String FileName,
             IntPtr Buffer,
             UIntPtr Size)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.SetReparsePoint(
+                return FileSystem.SetReparsePoint(
                     FileNode,
                     FileDesc,
                     FileName,
@@ -1154,22 +826,22 @@ namespace Fsp
             }
             catch (Exception ex)
             {
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 DeleteReparsePoint(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             String FileName,
             IntPtr Buffer,
             UIntPtr Size)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.DeleteReparsePoint(
+                return FileSystem.DeleteReparsePoint(
                     FileNode,
                     FileDesc,
                     FileName,
@@ -1178,22 +850,22 @@ namespace Fsp
             }
             catch (Exception ex)
             {
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
         private static Int32 GetStreamInfo(
-            IntPtr FileSystem,
+            IntPtr FileSystemPtr,
             ref FullContext FullContext,
             IntPtr Buffer,
             UInt32 Length,
             out UInt32 PBytesTransferred)
         {
-            FileSystem self = (FileSystem)Api.GetUserContext(FileSystem);
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return self.GetStreamInfo(
+                return FileSystem.GetStreamInfo(
                     FileNode,
                     FileDesc,
                     Buffer,
@@ -1203,11 +875,11 @@ namespace Fsp
             catch (Exception ex)
             {
                 PBytesTransferred = default(UInt32);
-                return self.ExceptionHandler(ex);
+                return ExceptionHandler(FileSystem, ex);
             }
         }
 
-        static FileSystem()
+        static FileSystemHost()
         {
             _FileSystemInterface.GetVolumeInfo = GetVolumeInfo;
             _FileSystemInterface.SetVolumeLabel = SetVolumeLabel;
@@ -1241,7 +913,8 @@ namespace Fsp
         private static FileSystemInterface _FileSystemInterface;
         private static IntPtr _FileSystemInterfacePtr;
         private VolumeParams _VolumeParams;
-        private IntPtr _FileSystem;
+        private IntPtr _FileSystemPtr;
+        private FileSystemBase _FileSystem;
     }
 
 }

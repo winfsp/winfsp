@@ -1,5 +1,5 @@
 /**
- * @file dotnet/FileSystem+Const.cs
+ * @file dotnet/FileSystemBase+Const.cs
  *
  * @copyright 2015-2017 Bill Zissimopoulos
  */
@@ -20,7 +20,7 @@ using System;
 namespace Fsp
 {
 
-    public partial class FileSystem
+    public partial class FileSystemBase
     {
         /* CreateOptions */
         public const UInt32 FILE_DIRECTORY_FILE = 0x00000001;

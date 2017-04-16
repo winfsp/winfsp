@@ -27,7 +27,7 @@ using FileInfo = Fsp.Interop.FileInfo;
 
 namespace passthrough
 {
-    class Ptfs : FileSystem
+    class Ptfs : FileSystemBase
     {
         protected const int ALLOCATION_UNIT = 4096;
 
@@ -277,40 +277,41 @@ namespace passthrough
         private static DirectoryEntryComparer _DirectoryEntryComparer =
             new DirectoryEntryComparer();
 
-        public Ptfs() : base()
+        public Ptfs(String Path0)
         {
-            SectorSize = ALLOCATION_UNIT;
-            SectorsPerAllocationUnit = 1;
-            MaxComponentLength = 255;
-            FileInfoTimeout = 1000;
-            CaseSensitiveSearch = false;
-            CasePreservedNames = true;
-            UnicodeOnDisk = true;
-            PersistentAcls = true;
-            PostCleanupWhenModifiedOnly = true;
-            PassQueryDirectoryPattern = true;
-        }
-        public void SetPath(String value)
-        {
-            _Path = Path.GetFullPath(value);
+            _Path = Path.GetFullPath(Path0);
             if (_Path.EndsWith("\\"))
                 _Path = _Path.Substring(0, _Path.Length - 1);
-            VolumeCreationTime = (UInt64)File.GetCreationTimeUtc(_Path).ToFileTimeUtc();
-            VolumeSerialNumber = 0;
         }
-
-        protected override Int32 ExceptionHandler(Exception ex)
+        public String ConcatPath(String FileName)
+        {
+            return _Path + FileName;
+        }
+        public override Int32 ExceptionHandler(Exception ex)
         {
             Int32 HResult = ex.HResult; /* needs Framework 4.5 */
             if (0x80070000 == (HResult & 0xFFFF0000))
                 return NtStatusFromWin32((UInt32)HResult & 0xFFFF);
             return STATUS_UNEXPECTED_IO_ERROR;
         }
-        protected String ConcatPath(String FileName)
+        public override Int32 Init(Object Host0)
         {
-            return _Path + FileName;
+            FileSystemHost Host = (FileSystemHost)Host0;
+            Host.SectorSize = ALLOCATION_UNIT;
+            Host.SectorsPerAllocationUnit = 1;
+            Host.MaxComponentLength = 255;
+            Host.FileInfoTimeout = 1000;
+            Host.CaseSensitiveSearch = false;
+            Host.CasePreservedNames = true;
+            Host.UnicodeOnDisk = true;
+            Host.PersistentAcls = true;
+            Host.PostCleanupWhenModifiedOnly = true;
+            Host.PassQueryDirectoryPattern = true;
+            Host.VolumeCreationTime = (UInt64)File.GetCreationTimeUtc(_Path).ToFileTimeUtc();
+            Host.VolumeSerialNumber = 0;
+            return STATUS_SUCCESS;
         }
-        protected override Int32 GetVolumeInfo(
+        public override Int32 GetVolumeInfo(
             out VolumeInfo VolumeInfo)
         {
             VolumeInfo = default(VolumeInfo);
@@ -329,7 +330,7 @@ namespace passthrough
             }
             return STATUS_SUCCESS;
         }
-        protected override Int32 GetSecurityByName(
+        public override Int32 GetSecurityByName(
             String FileName,
             out UInt32 FileAttributes/* or ReparsePointIndex */,
             ref Byte[] SecurityDescriptor)
@@ -341,7 +342,7 @@ namespace passthrough
                 SecurityDescriptor = Info.GetAccessControl().GetSecurityDescriptorBinaryForm();
             return STATUS_SUCCESS;
         }
-        protected override Int32 Create(
+        public override Int32 Create(
             String FileName,
             UInt32 CreateOptions,
             UInt32 GrantedAccess,
@@ -401,7 +402,7 @@ namespace passthrough
                 throw;
             }
         }
-        protected override Int32 Open(
+        public override Int32 Open(
             String FileName,
             UInt32 CreateOptions,
             UInt32 GrantedAccess,
@@ -442,7 +443,7 @@ namespace passthrough
                 throw;
             }
         }
-        protected override Int32 Overwrite(
+        public override Int32 Overwrite(
             Object FileNode,
             Object FileDesc0,
             UInt32 FileAttributes,
@@ -458,7 +459,7 @@ namespace passthrough
             FileDesc.Stream.SetLength(0);
             return FileDesc.GetFileInfo(out FileInfo);
         }
-        protected override void Cleanup(
+        public override void Cleanup(
             Object FileNode,
             Object FileDesc0,
             String FileName,
@@ -472,7 +473,7 @@ namespace passthrough
                     FileDesc.Stream.Dispose();
             }
         }
-        protected override void Close(
+        public override void Close(
             Object FileNode,
             Object FileDesc0)
         {
@@ -480,7 +481,7 @@ namespace passthrough
             if (null != FileDesc.Stream)
                 FileDesc.Stream.Dispose();
         }
-        protected override Int32 Read(
+        public override Int32 Read(
             Object FileNode,
             Object FileDesc0,
             IntPtr Buffer,
@@ -497,7 +498,7 @@ namespace passthrough
             Marshal.Copy(Bytes, 0, Buffer, Bytes.Length);
             return STATUS_SUCCESS;
         }
-        protected override Int32 Write(
+        public override Int32 Write(
             Object FileNode,
             Object FileDesc0,
             IntPtr Buffer,
@@ -528,7 +529,7 @@ namespace passthrough
             PBytesTransferred = (UInt32)Bytes.Length;
             return FileDesc.GetFileInfo(out FileInfo);
         }
-        protected override Int32 Flush(
+        public override Int32 Flush(
             Object FileNode,
             Object FileDesc0,
             out FileInfo FileInfo)
@@ -543,7 +544,7 @@ namespace passthrough
             FileDesc.Stream.Flush(true);
             return FileDesc.GetFileInfo(out FileInfo);
         }
-        protected override Int32 GetFileInfo(
+        public override Int32 GetFileInfo(
             Object FileNode,
             Object FileDesc0,
             out FileInfo FileInfo)
@@ -551,7 +552,7 @@ namespace passthrough
             FileDesc FileDesc = (FileDesc)FileDesc0;
             return FileDesc.GetFileInfo(out FileInfo);
         }
-        protected override Int32 SetBasicInfo(
+        public override Int32 SetBasicInfo(
             Object FileNode,
             Object FileDesc0,
             UInt32 FileAttributes,
@@ -565,7 +566,7 @@ namespace passthrough
             FileDesc.SetBasicInfo(FileAttributes, CreationTime, LastAccessTime, LastWriteTime);
             return FileDesc.GetFileInfo(out FileInfo);
         }
-        protected override Int32 SetFileSize(
+        public override Int32 SetFileSize(
             Object FileNode,
             Object FileDesc0,
             UInt64 NewSize,
@@ -584,7 +585,7 @@ namespace passthrough
             }
             return FileDesc.GetFileInfo(out FileInfo);
         }
-        protected override Int32 CanDelete(
+        public override Int32 CanDelete(
             Object FileNode,
             Object FileDesc0,
             String FileName)
@@ -593,7 +594,7 @@ namespace passthrough
             FileDesc.SetDisposition(false);
             return STATUS_SUCCESS;
         }
-        protected override Int32 Rename(
+        public override Int32 Rename(
             Object FileNode,
             Object FileDesc0,
             String FileName,
@@ -605,7 +606,7 @@ namespace passthrough
             FileDesc.Rename(FileName, NewFileName, ReplaceIfExists);
             return STATUS_SUCCESS;
         }
-        protected override Int32 GetSecurity(
+        public override Int32 GetSecurity(
             Object FileNode,
             Object FileDesc0,
             ref Byte[] SecurityDescriptor)
@@ -614,7 +615,7 @@ namespace passthrough
             SecurityDescriptor = FileDesc.GetSecurityDescriptor();
             return STATUS_SUCCESS;
         }
-        protected override Int32 SetSecurity(
+        public override Int32 SetSecurity(
             Object FileNode,
             Object FileDesc0,
             AccessControlSections Sections,
@@ -624,7 +625,7 @@ namespace passthrough
             FileDesc.SetSecurityDescriptor(Sections, SecurityDescriptor);
             return STATUS_SUCCESS;
         }
-        protected override Boolean ReadDirectoryEntry(
+        public override Boolean ReadDirectoryEntry(
             Object FileNode,
             Object FileDesc0,
             String Pattern,
@@ -703,7 +704,6 @@ namespace passthrough
 
         protected override void OnStart(String[] Args)
         {
-            String FailMessage = null;
             try
             {
                 String DebugLogFile = null;
@@ -712,6 +712,7 @@ namespace passthrough
                 String PassThrough = null;
                 String MountPoint = null;
                 IntPtr DebugLogHandle = (IntPtr)(-1);
+                FileSystemHost Host = null;
                 Ptfs Ptfs = null;
                 int I;
 
@@ -770,18 +771,15 @@ namespace passthrough
                     throw new CommandLineUsageException();
 
                 if (null != DebugLogFile)
-                    if (0 > FileSystem.SetDebugLogFile(DebugLogFile))
+                    if (0 > FileSystemHost.SetDebugLogFile(DebugLogFile))
                         throw new CommandLineUsageException("cannot open debug log file");
 
-                FailMessage = "cannot create file system";
-                Ptfs = new Ptfs();
-                Ptfs.Prefix = VolumePrefix;
-                Ptfs.SetPath(PassThrough);
-
-                FailMessage = "cannot mount file system";
-                Ptfs.Mount(MountPoint, null, true, DebugFlags);
-                MountPoint = Ptfs.MountPoint();
-                _Ptfs = Ptfs;
+                Host = new FileSystemHost(Ptfs = new Ptfs(PassThrough));
+                Host.Prefix = VolumePrefix;
+                if (0 > Host.Mount(MountPoint, null, true, DebugFlags))
+                    throw new IOException("cannot mount file system");
+                MountPoint = Host.MountPoint();
+                _Host = Host;
 
                 Log(EVENTLOG_INFORMATION_TYPE, String.Format("{0}{1}{2} -p {3} -m {4}",
                     PROGNAME,
@@ -808,16 +806,14 @@ namespace passthrough
             }
             catch (Exception ex)
             {
-                Log(EVENTLOG_ERROR_TYPE, String.Format("{0}{1}",
-                    null != FailMessage ? FailMessage + "\n" : "",
-                    ex.Message));
+                Log(EVENTLOG_ERROR_TYPE, String.Format("{0}", ex.Message));
                 throw;
             }
         }
         protected override void OnStop()
         {
-            _Ptfs.Unmount();
-            _Ptfs = null;
+            _Host.Unmount();
+            _Host = null;
         }
 
         private static void argtos(String[] Args, ref int I, ref String V)
@@ -836,7 +832,7 @@ namespace passthrough
                 throw new CommandLineUsageException();
         }
 
-        private Ptfs _Ptfs;
+        private FileSystemHost _Host;
     }
 
     class Program

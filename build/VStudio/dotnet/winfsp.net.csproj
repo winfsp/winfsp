@@ -47,11 +47,14 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\..\src\dotnet\FileSystem+Const.cs">
-      <Link>FileSystem+Const.cs</Link>
+    <Compile Include="..\..\..\src\dotnet\FileSystemBase+Const.cs">
+      <Link>FileSystemBase+Const.cs</Link>
     </Compile>
-    <Compile Include="..\..\..\src\dotnet\FileSystem.cs">
-      <Link>FileSystem.cs</Link>
+    <Compile Include="..\..\..\src\dotnet\FileSystemBase.cs">
+      <Link>FileSystemBase.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\src\dotnet\FileSystemHost.cs">
+      <Link>FileSystemHost.cs</Link>
     </Compile>
     <Compile Include="..\..\..\src\dotnet\Interop.cs">
       <Link>Interop.cs</Link>
