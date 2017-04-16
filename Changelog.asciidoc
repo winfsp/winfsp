@@ -5,9 +5,10 @@ v1.1 (2017.1)::
 
 This release brings some major new components and improvements.
 
-- A .NET layer that allows the creation of file systems in managed mode.
-- A simple C++ layer.
-- FUSE now has a `-ovolname=VOLNAME` parameter. Thanks @samkelly.
+- A .NET layer that allows the creation of file systems in managed mode. This is contained in the new `winfsp-msil.dll`.
+- A simple C++ layer can be found in `inc/winfsp/winfsp.hpp`.
+- FUSE for Cygwin is now included with the installer.
+- FUSE now has a `-ovolname=VOLNAME` parameter that allows setting the volume label. Thanks @samkelly.
 
 
 v1.0::

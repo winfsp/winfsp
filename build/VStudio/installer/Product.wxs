@@ -39,6 +39,7 @@
                     <Directory Id="BINDIR" Name="bin" />
                     <Directory Id="INCDIR" Name="inc" />
                     <Directory Id="LIBDIR" Name="lib" />
+                    <Directory Id="OPTDIR" Name="opt" />
                     <Directory Id="SMPDIR" Name="samples" />
                     <Directory Id="SYMDIR" Name="sym" />
                 </Directory>
@@ -269,6 +270,19 @@
                 <Condition>NOT VersionNT64</Condition>
             </Component>
         </DirectoryRef>
+        <DirectoryRef Id="OPTDIR">
+            <Directory Id="OPTDIR.cygfuse" Name="cygfuse" FileSource="..\..\..\opt\cygfuse\dist">
+                <Component Id="C.fuse.tar.xz">
+                    <File Name="fuse-2.8-4.tar.xz" KeyPath="yes" />
+                </Component>
+                <Component Id="C.fuse.install.sh">
+                    <File Name="install.sh" KeyPath="yes" />
+                </Component>
+                <Component Id="C.fuse.uninstall.sh">
+                    <File Name="uninstall.sh" KeyPath="yes" />
+                </Component>
+            </Directory>
+        </DirectoryRef>
         <DirectoryRef Id="SMPDIR" FileSource="..\..\..\tst">
             <Directory Id="SMPDIR.memfs" Name="memfs">
                 <Component Id="C.memfs.h">
@@ -411,6 +425,11 @@
             <ComponentRef Id="C.fuse_x64.pc" />
             <ComponentRef Id="C.fuse_x86.pc" />
         </ComponentGroup>
+        <ComponentGroup Id="C.WinFsp.opt.fuse">
+            <ComponentRef Id="C.fuse.tar.xz" />
+            <ComponentRef Id="C.fuse.install.sh" />
+            <ComponentRef Id="C.fuse.uninstall.sh" />
+        </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.smp">
             <ComponentRef Id="C.memfs_x64.exe" />
             <ComponentRef Id="C.memfs_x86.exe" />
@@ -507,6 +526,16 @@
                 <ComponentGroupRef Id="C.WinFsp.smp" />
                 <ComponentGroupRef Id="C.WinFsp.smp.net" />
                 <ComponentGroupRef Id="C.WinFsp.sym" />
+            </Feature>
+            <Feature
+                Id="F.Cygfuse"
+                Level="1000"
+                Title="FUSE for Cygwin"
+                Description="From a Cygwin prompt change to $InstallDir/opt/cygfuse and run install.sh."
+                AllowAdvertise="no"
+                InstallDefault="local"
+                Absent="allow">
+                <ComponentGroupRef Id="C.WinFsp.opt.fuse" />
             </Feature>
         </Feature>
 
