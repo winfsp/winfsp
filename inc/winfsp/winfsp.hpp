@@ -475,8 +475,8 @@ class FileSystemHost
 {
 public:
     /* ctor/dtor */
-    FileSystemHost(FileSystemBase *FileSystem) :
-        _VolumeParams(), _FileSystemPtr(0), _FileSystem(FileSystem)
+    FileSystemHost(FileSystemBase &FileSystem) :
+        _VolumeParams(), _FileSystemPtr(0), _FileSystem(&FileSystem)
     {
         Initialize();
         _VolumeParams.UmFileContextIsFullContext = 1;
@@ -721,9 +721,9 @@ public:
     {
         return _FileSystemPtr;
     }
-    FileSystemBase *FileSystem()
+    FileSystemBase &FileSystem()
     {
-        return _FileSystem;
+        return *_FileSystem;
     }
     static NTSTATUS SetDebugLogFile(PWSTR FileName)
     {
