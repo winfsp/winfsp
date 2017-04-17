@@ -32,7 +32,7 @@
 
 using namespace Fsp;
 
-class Ptfs : public FileSystem
+class Ptfs : public FileSystemBase
 {
 public:
     Ptfs();
@@ -41,6 +41,7 @@ public:
 
 protected:
     static NTSTATUS GetFileInfoInternal(HANDLE Handle, FileInfo *FileInfo);
+    NTSTATUS Init(PVOID Host);
     NTSTATUS GetVolumeInfo(
         VolumeInfo *VolumeInfo);
     NTSTATUS GetSecurityByName(
@@ -158,6 +159,7 @@ protected:
 
 private:
     PWSTR _Path;
+    UINT64 _CreationTime;
 };
 
 struct PtfsFileDesc
@@ -174,17 +176,8 @@ struct PtfsFileDesc
     PVOID DirBuffer;
 };
 
-Ptfs::Ptfs() : FileSystem(), _Path()
+Ptfs::Ptfs() : FileSystemBase(), _Path()
 {
-    SetSectorSize(ALLOCATION_UNIT);
-    SetSectorsPerAllocationUnit(1);
-    SetFileInfoTimeout(1000);
-    SetCaseSensitiveSearch(FALSE);
-    SetCasePreservedNames(TRUE);
-    SetUnicodeOnDisk(TRUE);
-    SetPersistentAcls(TRUE);
-    SetPostCleanupWhenModifiedOnly(TRUE);
-    SetPassQueryDirectoryPattern(TRUE);
 }
 
 Ptfs::~Ptfs()
@@ -229,8 +222,7 @@ NTSTATUS Ptfs::SetPath(PWSTR Path)
     _Path = new WCHAR[Length];
     memcpy(_Path, FullPath, Length * sizeof(WCHAR));
 
-    SetVolumeCreationTime(((PLARGE_INTEGER)&CreationTime)->QuadPart);
-    SetVolumeSerialNumber(0);
+    _CreationTime = ((PLARGE_INTEGER)&CreationTime)->QuadPart;
 
     return STATUS_SUCCESS;
 }
@@ -255,6 +247,23 @@ NTSTATUS Ptfs::GetFileInfoInternal(HANDLE Handle, FileInfo *FileInfo)
     FileInfo->IndexNumber = 0;
     FileInfo->HardLinks = 0;
 
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS Ptfs::Init(PVOID Host0)
+{
+    FileSystemHost *Host = (FileSystemHost *)Host0;
+    Host->SetSectorSize(ALLOCATION_UNIT);
+    Host->SetSectorsPerAllocationUnit(1);
+    Host->SetFileInfoTimeout(1000);
+    Host->SetCaseSensitiveSearch(FALSE);
+    Host->SetCasePreservedNames(TRUE);
+    Host->SetUnicodeOnDisk(TRUE);
+    Host->SetPersistentAcls(TRUE);
+    Host->SetPostCleanupWhenModifiedOnly(TRUE);
+    Host->SetPassQueryDirectoryPattern(TRUE);
+    Host->SetVolumeCreationTime(_CreationTime);
+    Host->SetVolumeSerialNumber(0);
     return STATUS_SUCCESS;
 }
 
@@ -794,7 +803,7 @@ NTSTATUS Ptfs::ReadDirectoryEntry(
 
     memset(DirInfo, 0, sizeof *DirInfo);
     Length = (ULONG)wcslen(FindData.cFileName);
-    DirInfo->Size = (UINT16)(FIELD_OFFSET(FileSystem::DirInfo, FileNameBuf) + Length * sizeof(WCHAR));
+    DirInfo->Size = (UINT16)(FIELD_OFFSET(Ptfs::DirInfo, FileNameBuf) + Length * sizeof(WCHAR));
     DirInfo->FileInfo.FileAttributes = FindData.dwFileAttributes;
     DirInfo->FileInfo.ReparseTag = 0;
     DirInfo->FileInfo.FileSize =
@@ -822,7 +831,8 @@ protected:
     NTSTATUS OnStop();
 
 private:
-    Ptfs *_Ptfs;
+    Ptfs _Ptfs;
+    FileSystemHost _Host;
 };
 
 static NTSTATUS EnableBackupRestorePrivileges(VOID)
@@ -840,16 +850,16 @@ static NTSTATUS EnableBackupRestorePrivileges(VOID)
 
     if (!LookupPrivilegeValueW(0, SE_BACKUP_NAME, &Privileges.P.Privileges[0].Luid) ||
         !LookupPrivilegeValueW(0, SE_RESTORE_NAME, &Privileges.P.Privileges[1].Luid))
-        return NtStatusFromWin32(GetLastError());
+        return FspNtStatusFromWin32(GetLastError());
 
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &Token))
-        return NtStatusFromWin32(GetLastError());
+        return FspNtStatusFromWin32(GetLastError());
 
     if (!AdjustTokenPrivileges(Token, FALSE, &Privileges.P, 0, 0, 0))
     {
         CloseHandle(Token);
 
-        return NtStatusFromWin32(GetLastError());
+        return FspNtStatusFromWin32(GetLastError());
     }
 
     CloseHandle(Token);
@@ -864,7 +874,7 @@ static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
     return L'\0' != w[0] && L'\0' == *endp ? ul : deflt;
 }
 
-PtfsService::PtfsService() : Service(L"" PROGNAME), _Ptfs(0)
+PtfsService::PtfsService() : Service(L"" PROGNAME), _Ptfs(), _Host(&_Ptfs)
 {
 }
 
@@ -881,7 +891,6 @@ NTSTATUS PtfsService::OnStart(ULONG argc, PWSTR *argv)
     PWSTR MountPoint = 0;
     HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
     WCHAR PassThroughBuf[MAX_PATH];
-    ::Ptfs *Ptfs = 0;
     NTSTATUS Result;
 
     for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
@@ -943,7 +952,7 @@ NTSTATUS PtfsService::OnStart(ULONG argc, PWSTR *argv)
 
     if (0 != DebugLogFile)
     {
-        Result = SetDebugLogFile(DebugLogFile);
+        Result = FileSystemHost::SetDebugLogFile(DebugLogFile);
         if (!NT_SUCCESS(Result))
         {
             fail(L"cannot open debug log file");
@@ -951,26 +960,22 @@ NTSTATUS PtfsService::OnStart(ULONG argc, PWSTR *argv)
         }
     }
 
-    Ptfs = new ::Ptfs;
-
-    Ptfs->SetPrefix(VolumePrefix);
-
-    Result = Ptfs->SetPath(PassThrough);
+    Result = _Ptfs.SetPath(PassThrough);
     if (!NT_SUCCESS(Result))
     {
         fail(L"cannot create file system");
-        goto exit;
+        return Result;
     }
 
-    Result = Ptfs->Mount(MountPoint, 0, FALSE, DebugFlags);
+    _Host.SetPrefix(VolumePrefix);
+    Result = _Host.Mount(MountPoint, 0, FALSE, DebugFlags);
     if (!NT_SUCCESS(Result))
     {
         fail(L"cannot mount file system");
-        goto exit;
+        return Result;
     }
 
-    MountPoint = Ptfs->MountPoint();
-
+    MountPoint = _Host.MountPoint();
     info(L"%s%s%s -p %s -m %s",
         L"" PROGNAME,
         0 != VolumePrefix && L'\0' != VolumePrefix[0] ? L" -u " : L"",
@@ -978,14 +983,7 @@ NTSTATUS PtfsService::OnStart(ULONG argc, PWSTR *argv)
         PassThrough,
         MountPoint);
 
-    _Ptfs = Ptfs;
-    Result = STATUS_SUCCESS;
-
-exit:
-    if (!NT_SUCCESS(Result) && 0 != Ptfs)
-        delete Ptfs;
-
-    return Result;
+    return STATUS_SUCCESS;
 
 usage:
     static wchar_t usage[] = L""
@@ -1008,10 +1006,7 @@ usage:
 
 NTSTATUS PtfsService::OnStop()
 {
-    _Ptfs->Unmount();
-    delete _Ptfs;
-    _Ptfs = 0;
-
+    _Host.Unmount();
     return STATUS_SUCCESS;
 }
 

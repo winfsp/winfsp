@@ -38,45 +38,9 @@ inline NTSTATUS Initialize()
     return LoadResult;
 }
 
-inline NTSTATUS Version(PUINT32 PVersion)
-{
-    return FspVersion(PVersion);
-}
-
-inline NTSTATUS NtStatusFromWin32(DWORD Error)
-{
-    return FspNtStatusFromWin32(Error);
-}
-
-inline DWORD Win32FromNtStatus(NTSTATUS Status)
-{
-    return FspWin32FromNtStatus(Status);
-}
-
-inline NTSTATUS SetDebugLogFile(PWSTR FileName)
-{
-    HANDLE Handle;
-    if ('-' == FileName[0] && '\0' == FileName[1])
-        Handle = GetStdHandle(STD_ERROR_HANDLE);
-    else
-        Handle = CreateFileW(
-            FileName,
-            FILE_APPEND_DATA,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            0,
-            OPEN_ALWAYS,
-            FILE_ATTRIBUTE_NORMAL,
-            0);
-    if (INVALID_HANDLE_VALUE == Handle)
-        return FspNtStatusFromWin32(GetLastError());
-    FspDebugLogSetHandle(Handle);
-    return STATUS_SUCCESS;
-}
-
-class FileSystem
+class FileSystemBase
 {
 public:
-    typedef FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     typedef FSP_FSCTL_VOLUME_INFO VolumeInfo;
     typedef FSP_FSCTL_FILE_INFO FileInfo;
     typedef FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
@@ -93,263 +57,28 @@ public:
     };
 
 public:
-    /* ctor/dtor */
-    FileSystem() : _VolumeParams(), _FileSystem(0)
+    FileSystemBase()
     {
-        Initialize();
-        _VolumeParams.UmFileContextIsFullContext = 1;
     }
-    virtual ~FileSystem()
+    virtual ~FileSystemBase()
     {
-        if (0 != _FileSystem)
-            FspFileSystemDelete(_FileSystem);
     }
 
-    /* properties */
-    const VolumeParams *GetVolumeParams()
-    {
-        return &_VolumeParams;
-    }
-    VOID SetSectorSize(UINT16 SectorSize)
-    {
-        _VolumeParams.SectorSize = SectorSize;
-    }
-    VOID SetSectorsPerAllocationUnit(UINT16 SectorsPerAllocationUnit)
-    {
-        _VolumeParams.SectorsPerAllocationUnit = SectorsPerAllocationUnit;
-    }
-    VOID SetMaxComponentLength(UINT16 MaxComponentLength)
-    {
-        _VolumeParams.MaxComponentLength = MaxComponentLength;
-    }
-    VOID SetVolumeCreationTime(UINT64 VolumeCreationTime)
-    {
-        _VolumeParams.VolumeCreationTime = VolumeCreationTime;
-    }
-    VOID SetVolumeSerialNumber(UINT32 VolumeSerialNumber)
-    {
-        _VolumeParams.VolumeSerialNumber = VolumeSerialNumber;
-    }
-    VOID SetFileInfoTimeout(UINT32 FileInfoTimeout)
-    {
-        _VolumeParams.FileInfoTimeout = FileInfoTimeout;
-    }
-    VOID SetCaseSensitiveSearch(BOOLEAN CaseSensitiveSearch)
-    {
-        _VolumeParams.CaseSensitiveSearch = !!CaseSensitiveSearch;
-    }
-    VOID SetCasePreservedNames(BOOLEAN CasePreservedNames)
-    {
-        _VolumeParams.CasePreservedNames = !!CasePreservedNames;
-    }
-    VOID SetUnicodeOnDisk(BOOLEAN UnicodeOnDisk)
-    {
-        _VolumeParams.UnicodeOnDisk = !!UnicodeOnDisk;
-    }
-    VOID SetPersistentAcls(BOOLEAN PersistentAcls)
-    {
-        _VolumeParams.PersistentAcls = !!PersistentAcls;
-    }
-    VOID SetReparsePoints(BOOLEAN ReparsePoints)
-    {
-        _VolumeParams.ReparsePoints = !!ReparsePoints;
-    }
-    VOID SetReparsePointsAccessCheck(BOOLEAN ReparsePointsAccessCheck)
-    {
-        _VolumeParams.ReparsePointsAccessCheck = !!ReparsePointsAccessCheck;
-    }
-    VOID SetNamedStreams(BOOLEAN NamedStreams)
-    {
-        _VolumeParams.NamedStreams = !!NamedStreams;
-    }
-    VOID SetPostCleanupWhenModifiedOnly(BOOLEAN PostCleanupWhenModifiedOnly)
-    {
-        _VolumeParams.PostCleanupWhenModifiedOnly = !!PostCleanupWhenModifiedOnly;
-    }
-    VOID SetPassQueryDirectoryPattern(BOOLEAN PassQueryDirectoryPattern)
-    {
-        _VolumeParams.PassQueryDirectoryPattern = !!PassQueryDirectoryPattern;
-    }
-    VOID SetPrefix(PWSTR Prefix)
-    {
-        int Size = lstrlenW(Prefix) * sizeof(WCHAR);
-        if (Size > sizeof _VolumeParams.Prefix - sizeof(WCHAR))
-            Size = sizeof _VolumeParams.Prefix - sizeof(WCHAR);
-        RtlCopyMemory(_VolumeParams.Prefix, Prefix, Size);
-        _VolumeParams.Prefix[Size / sizeof(WCHAR)] = L'\0';
-    }
-    VOID SetFileSystemName(PWSTR FileSystemName)
-    {
-        int Size = lstrlenW(FileSystemName) * sizeof(WCHAR);
-        if (Size > sizeof _VolumeParams.FileSystemName - sizeof(WCHAR))
-            Size = sizeof _VolumeParams.FileSystemName - sizeof(WCHAR);
-        RtlCopyMemory(_VolumeParams.FileSystemName, FileSystemName, Size);
-        _VolumeParams.FileSystemName[Size / sizeof(WCHAR)] = L'\0';
-    }
-
-    /* control */
-    NTSTATUS Preflight(PWSTR MountPoint)
-    {
-        return FspFileSystemPreflight(
-            _VolumeParams.Prefix[0] ? L"WinFsp.Net" : L"WinFsp.Disk",
-            MountPoint);
-    }
-    NTSTATUS Mount(PWSTR MountPoint,
-        PSECURITY_DESCRIPTOR SecurityDescriptor = 0,
-        BOOLEAN Synchronized = FALSE,
-        UINT32 DebugLog = 0)
-    {
-        NTSTATUS Result;
-        Result = FspFileSystemCreate(
-            _VolumeParams.Prefix[0] ? L"WinFsp.Net" : L"WinFsp.Disk",
-            &_VolumeParams, Interface(), &_FileSystem);
-        if (NT_SUCCESS(Result))
-        {
-            _FileSystem->UserContext = this;
-            FspFileSystemSetOperationGuardStrategy(_FileSystem, Synchronized ?
-                FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE :
-                FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE);
-            FspFileSystemSetDebugLog(_FileSystem, DebugLog);
-            Result = FspFileSystemSetMountPointEx(_FileSystem, MountPoint, SecurityDescriptor);
-            if (NT_SUCCESS(Result))
-                Result = FspFileSystemStartDispatcher(_FileSystem, 0);
-        }
-        if (!NT_SUCCESS(Result) && 0 != _FileSystem)
-        {
-            FspFileSystemDelete(_FileSystem);
-            _FileSystem = 0;
-        }
-        return Result;
-    }
-    VOID Unmount()
-    {
-        FspFileSystemStopDispatcher(_FileSystem);
-        FspFileSystemDelete(_FileSystem);
-        _FileSystem = 0;
-    }
-    PWSTR MountPoint()
-    {
-        return 0 != _FileSystem ? FspFileSystemMountPoint(_FileSystem) : 0;
-    }
-    FSP_FILE_SYSTEM *FileSystemHandle()
-    {
-        return _FileSystem;
-    }
-
-    /* helpers */
-    NTSTATUS SeekableReadDirectory(
-        PVOID FileNode,
-        PVOID FileDesc,
-        PWSTR Pattern,
-        PWSTR Marker,
-        PVOID Buffer,
-        ULONG Length,
-        PULONG PBytesTransferred)
-    {
-        PVOID Context = 0;
-        union
-        {
-            UINT8 B[FIELD_OFFSET(FileSystem::DirInfo, FileNameBuf) + MAX_PATH * sizeof(WCHAR)];
-            FileSystem::DirInfo D;
-        } DirInfoBuf;
-        FileSystem::DirInfo *DirInfo = &DirInfoBuf.D;
-        NTSTATUS Result = STATUS_SUCCESS;
-        *PBytesTransferred = 0;
-        for (;;)
-        {
-            Result = ReadDirectoryEntry(FileNode, FileDesc, Pattern, Marker, &Context, DirInfo);
-            if (STATUS_NO_MORE_FILES == Result)
-            {
-                Result = STATUS_SUCCESS;
-                break;
-            }
-            if (!NT_SUCCESS(Result))
-                break;
-            if (!FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred))
-                break;
-        }
-        if (!NT_SUCCESS(Result))
-            return Result;
-        return STATUS_SUCCESS;
-    }
-    NTSTATUS BufferedReadDirectory(
-        PVOID *PDirBuffer,
-        PVOID FileNode,
-        PVOID FileDesc,
-        PWSTR Pattern,
-        PWSTR Marker,
-        PVOID Buffer,
-        ULONG Length,
-        PULONG PBytesTransferred)
-    {
-        PVOID Context = 0;
-        union
-        {
-            UINT8 B[FIELD_OFFSET(FileSystem::DirInfo, FileNameBuf) + MAX_PATH * sizeof(WCHAR)];
-            FileSystem::DirInfo D;
-        } DirInfoBuf;
-        FileSystem::DirInfo *DirInfo = &DirInfoBuf.D;
-        NTSTATUS Result = STATUS_SUCCESS;
-        *PBytesTransferred = 0;
-        if (FspFileSystemAcquireDirectoryBuffer(PDirBuffer, 0 == Marker, &Result))
-        {
-            try
-            {
-                for (;;)
-                {
-                    Result = ReadDirectoryEntry(FileNode, FileDesc, Pattern, Marker, &Context, DirInfo);
-                    if (STATUS_NO_MORE_FILES == Result)
-                    {
-                        Result = STATUS_SUCCESS;
-                        break;
-                    }
-                    if (!NT_SUCCESS(Result))
-                        break;
-                    if (!FspFileSystemFillDirectoryBuffer(PDirBuffer, DirInfo, &Result))
-                        break;
-                }
-            }
-            catch (...)
-            {
-                FspFileSystemReleaseDirectoryBuffer(PDirBuffer);
-                throw;
-            }
-            FspFileSystemReleaseDirectoryBuffer(PDirBuffer);
-        }
-        if (!NT_SUCCESS(Result))
-            return Result;
-        FspFileSystemReadDirectoryBuffer(PDirBuffer, Marker, Buffer, Length, PBytesTransferred);
-        return STATUS_SUCCESS;
-    }
-    static VOID DeleteDirectoryBuffer(PVOID *PDirBuffer)
-    {
-        FspFileSystemDeleteDirectoryBuffer(PDirBuffer);
-    }
-    BOOLEAN FindReparsePoint(
-        PWSTR FileName, PUINT32 PReparsePointIndex)
-    {
-        return FspFileSystemFindReparsePoint(_FileSystem, GetReparsePointByName, 0,
-            FileName, PReparsePointIndex);
-    }
-    static NTSTATUS CanReplaceReparsePoint(
-        PVOID CurrentReparseData, SIZE_T CurrentReparseDataSize,
-        PVOID ReplaceReparseData, SIZE_T ReplaceReparseDataSize)
-    {
-        return FspFileSystemCanReplaceReparsePoint(
-            CurrentReparseData, CurrentReparseDataSize,
-            ReplaceReparseData, ReplaceReparseDataSize);
-    }
-    static BOOLEAN AddStreamInfo(StreamInfo *StreamInfo,
-        PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
-    {
-        return FspFileSystemAddStreamInfo(StreamInfo, Buffer, Length, PBytesTransferred);
-    }
-
-protected:
     /* operations */
     virtual NTSTATUS ExceptionHandler()
     {
         return STATUS_UNEXPECTED_IO_ERROR;
+    }
+    virtual NTSTATUS Init(PVOID Host)
+    {
+        return STATUS_SUCCESS;
+    }
+    virtual NTSTATUS Mounted(PVOID Host)
+    {
+        return STATUS_SUCCESS;
+    }
+    virtual VOID Unmounted(PVOID Host)
+    {
     }
     virtual NTSTATUS GetVolumeInfo(
         VolumeInfo *VolumeInfo)
@@ -514,7 +243,14 @@ protected:
         ULONG Length,
         PULONG PBytesTransferred)
     {
-        return STATUS_INVALID_DEVICE_REQUEST;
+        return SeekableReadDirectory(
+            FileNode,
+            FileDesc,
+            Pattern,
+            Marker,
+            Buffer,
+            Length,
+            PBytesTransferred);
     }
     virtual NTSTATUS ReadDirectoryEntry(
         PVOID FileNode,
@@ -534,9 +270,16 @@ protected:
         PVOID Buffer,
         PSIZE_T PSize)
     {
-        return FspFileSystemResolveReparsePoints(_FileSystem, GetReparsePointByName, 0,
-            FileName, ReparsePointIndex, ResolveLastPathComponent,
-            PIoStatus, Buffer, PSize);
+        return FspFileSystemResolveReparsePoints(
+            0,
+            GetReparsePointByName,
+            this,
+            FileName,
+            ReparsePointIndex,
+            ResolveLastPathComponent,
+            PIoStatus,
+            Buffer,
+            PSize);
     }
     virtual NTSTATUS GetReparsePointByName(
         PWSTR FileName,
@@ -583,12 +326,431 @@ protected:
         return STATUS_INVALID_DEVICE_REQUEST;
     }
 
+    /* helpers */
+    static NTSTATUS NtStatusFromWin32(DWORD Error)
+    {
+        return FspNtStatusFromWin32(Error);
+    }
+    static DWORD Win32FromNtStatus(NTSTATUS Status)
+    {
+        return FspWin32FromNtStatus(Status);
+    }
+    static VOID DeleteDirectoryBuffer(PVOID *PDirBuffer)
+    {
+        FspFileSystemDeleteDirectoryBuffer(PDirBuffer);
+    }
+    NTSTATUS SeekableReadDirectory(
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR Pattern,
+        PWSTR Marker,
+        PVOID Buffer,
+        ULONG Length,
+        PULONG PBytesTransferred)
+    {
+        PVOID Context = 0;
+        union
+        {
+            UINT8 B[FIELD_OFFSET(FileSystemBase::DirInfo, FileNameBuf) + MAX_PATH * sizeof(WCHAR)];
+            FileSystemBase::DirInfo D;
+        } DirInfoBuf;
+        FileSystemBase::DirInfo *DirInfo = &DirInfoBuf.D;
+        NTSTATUS Result = STATUS_SUCCESS;
+        *PBytesTransferred = 0;
+        for (;;)
+        {
+            Result = ReadDirectoryEntry(FileNode, FileDesc, Pattern, Marker, &Context, DirInfo);
+            if (STATUS_NO_MORE_FILES == Result)
+            {
+                Result = STATUS_SUCCESS;
+                break;
+            }
+            if (!NT_SUCCESS(Result))
+                break;
+            if (!FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred))
+                break;
+        }
+        if (!NT_SUCCESS(Result))
+            return Result;
+        return STATUS_SUCCESS;
+    }
+    NTSTATUS BufferedReadDirectory(
+        PVOID *PDirBuffer,
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR Pattern,
+        PWSTR Marker,
+        PVOID Buffer,
+        ULONG Length,
+        PULONG PBytesTransferred)
+    {
+        PVOID Context = 0;
+        union
+        {
+            UINT8 B[FIELD_OFFSET(FileSystemBase::DirInfo, FileNameBuf) + MAX_PATH * sizeof(WCHAR)];
+            FileSystemBase::DirInfo D;
+        } DirInfoBuf;
+        FileSystemBase::DirInfo *DirInfo = &DirInfoBuf.D;
+        NTSTATUS Result = STATUS_SUCCESS;
+        *PBytesTransferred = 0;
+        if (FspFileSystemAcquireDirectoryBuffer(PDirBuffer, 0 == Marker, &Result))
+        {
+            try
+            {
+                for (;;)
+                {
+                    Result = ReadDirectoryEntry(FileNode, FileDesc, Pattern, Marker, &Context, DirInfo);
+                    if (STATUS_NO_MORE_FILES == Result)
+                    {
+                        Result = STATUS_SUCCESS;
+                        break;
+                    }
+                    if (!NT_SUCCESS(Result))
+                        break;
+                    if (!FspFileSystemFillDirectoryBuffer(PDirBuffer, DirInfo, &Result))
+                        break;
+                }
+            }
+            catch (...)
+            {
+                FspFileSystemReleaseDirectoryBuffer(PDirBuffer);
+                throw;
+            }
+            FspFileSystemReleaseDirectoryBuffer(PDirBuffer);
+        }
+        if (!NT_SUCCESS(Result))
+            return Result;
+        FspFileSystemReadDirectoryBuffer(PDirBuffer, Marker, Buffer, Length, PBytesTransferred);
+        return STATUS_SUCCESS;
+    }
+    BOOLEAN FindReparsePoint(
+        PWSTR FileName, PUINT32 PReparsePointIndex)
+    {
+        return FspFileSystemFindReparsePoint(
+            0,
+            GetReparsePointByName,
+            this,
+            FileName,
+            PReparsePointIndex);
+    }
+    static NTSTATUS CanReplaceReparsePoint(
+        PVOID CurrentReparseData, SIZE_T CurrentReparseDataSize,
+        PVOID ReplaceReparseData, SIZE_T ReplaceReparseDataSize)
+    {
+        return FspFileSystemCanReplaceReparsePoint(
+            CurrentReparseData, CurrentReparseDataSize,
+            ReplaceReparseData, ReplaceReparseDataSize);
+    }
+    static BOOLEAN AddStreamInfo(StreamInfo *StreamInfo,
+        PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+    {
+        return FspFileSystemAddStreamInfo(StreamInfo, Buffer, Length, PBytesTransferred);
+    }
+
+private:
+    static NTSTATUS GetReparsePointByName(FSP_FILE_SYSTEM *FileSystem,
+        PVOID Context,
+        PWSTR FileName,
+        BOOLEAN IsDirectory,
+        PVOID Buffer,
+        PSIZE_T PSize)
+    {
+        FileSystemBase *self = (FileSystemBase *)Context;
+        FSP_CPP_EXCEPTION_GUARD(
+            return self->GetReparsePointByName(
+                FileName,
+                IsDirectory,
+                Buffer,
+                PSize);
+        )
+    }
+
+private:
+    /* disallow copy and assignment */
+    FileSystemBase(const FileSystemBase &);
+    FileSystemBase &operator=(const FileSystemBase &);
+};
+
+class FileSystemHost
+{
+public:
+    /* ctor/dtor */
+    FileSystemHost(FileSystemBase *FileSystem) :
+        _VolumeParams(), _FileSystemPtr(0), _FileSystem(FileSystem)
+    {
+        Initialize();
+        _VolumeParams.UmFileContextIsFullContext = 1;
+    }
+    virtual ~FileSystemHost()
+    {
+        if (0 != _FileSystemPtr)
+            FspFileSystemDelete(_FileSystemPtr);
+    }
+
+    /* properties */
+    UINT16 SectorSize()
+    {
+        return _VolumeParams.SectorSize;
+    }
+    VOID SetSectorSize(UINT16 SectorSize)
+    {
+        _VolumeParams.SectorSize = SectorSize;
+    }
+    UINT16 SectorsPerAllocationUnit()
+    {
+        return _VolumeParams.SectorsPerAllocationUnit;
+    }
+    VOID SetSectorsPerAllocationUnit(UINT16 SectorsPerAllocationUnit)
+    {
+        _VolumeParams.SectorsPerAllocationUnit = SectorsPerAllocationUnit;
+    }
+    UINT16 MaxComponentLength()
+    {
+        return _VolumeParams.MaxComponentLength;
+    }
+    VOID SetMaxComponentLength(UINT16 MaxComponentLength)
+    {
+        _VolumeParams.MaxComponentLength = MaxComponentLength;
+    }
+    UINT64 VolumeCreationTime()
+    {
+        return _VolumeParams.VolumeCreationTime;
+    }
+    VOID SetVolumeCreationTime(UINT64 VolumeCreationTime)
+    {
+        _VolumeParams.VolumeCreationTime = VolumeCreationTime;
+    }
+    UINT32 VolumeSerialNumber()
+    {
+        return _VolumeParams.VolumeSerialNumber;
+    }
+    VOID SetVolumeSerialNumber(UINT32 VolumeSerialNumber)
+    {
+        _VolumeParams.VolumeSerialNumber = VolumeSerialNumber;
+    }
+    UINT32 FileInfoTimeout()
+    {
+        return _VolumeParams.FileInfoTimeout;
+    }
+    VOID SetFileInfoTimeout(UINT32 FileInfoTimeout)
+    {
+        _VolumeParams.FileInfoTimeout = FileInfoTimeout;
+    }
+    BOOLEAN CaseSensitiveSearch()
+    {
+        return _VolumeParams.CaseSensitiveSearch;
+    }
+    VOID SetCaseSensitiveSearch(BOOLEAN CaseSensitiveSearch)
+    {
+        _VolumeParams.CaseSensitiveSearch = !!CaseSensitiveSearch;
+    }
+    BOOLEAN CasePreservedNames()
+    {
+        return _VolumeParams.CasePreservedNames;
+    }
+    VOID SetCasePreservedNames(BOOLEAN CasePreservedNames)
+    {
+        _VolumeParams.CasePreservedNames = !!CasePreservedNames;
+    }
+    BOOLEAN UnicodeOnDisk()
+    {
+        return _VolumeParams.UnicodeOnDisk;
+    }
+    VOID SetUnicodeOnDisk(BOOLEAN UnicodeOnDisk)
+    {
+        _VolumeParams.UnicodeOnDisk = !!UnicodeOnDisk;
+    }
+    BOOLEAN PersistentAcls()
+    {
+        return _VolumeParams.PersistentAcls;
+    }
+    VOID SetPersistentAcls(BOOLEAN PersistentAcls)
+    {
+        _VolumeParams.PersistentAcls = !!PersistentAcls;
+    }
+    BOOLEAN ReparsePoints()
+    {
+        return _VolumeParams.ReparsePoints;
+    }
+    VOID SetReparsePoints(BOOLEAN ReparsePoints)
+    {
+        _VolumeParams.ReparsePoints = !!ReparsePoints;
+    }
+    BOOLEAN ReparsePointsAccessCheck()
+    {
+        return _VolumeParams.ReparsePointsAccessCheck;
+    }
+    VOID SetReparsePointsAccessCheck(BOOLEAN ReparsePointsAccessCheck)
+    {
+        _VolumeParams.ReparsePointsAccessCheck = !!ReparsePointsAccessCheck;
+    }
+    BOOLEAN NamedStreams()
+    {
+        return _VolumeParams.NamedStreams;
+    }
+    VOID SetNamedStreams(BOOLEAN NamedStreams)
+    {
+        _VolumeParams.NamedStreams = !!NamedStreams;
+    }
+    BOOLEAN PostCleanupWhenModifiedOnly()
+    {
+        return _VolumeParams.PostCleanupWhenModifiedOnly;
+    }
+    VOID SetPostCleanupWhenModifiedOnly(BOOLEAN PostCleanupWhenModifiedOnly)
+    {
+        _VolumeParams.PostCleanupWhenModifiedOnly = !!PostCleanupWhenModifiedOnly;
+    }
+    BOOLEAN PassQueryDirectoryPattern()
+    {
+        return _VolumeParams.PassQueryDirectoryPattern;
+    }
+    VOID SetPassQueryDirectoryPattern(BOOLEAN PassQueryDirectoryPattern)
+    {
+        _VolumeParams.PassQueryDirectoryPattern = !!PassQueryDirectoryPattern;
+    }
+    PWSTR Prefix()
+    {
+        return _VolumeParams.Prefix;
+    }
+    VOID SetPrefix(PWSTR Prefix)
+    {
+        int Size = lstrlenW(Prefix) * sizeof(WCHAR);
+        if (Size > sizeof _VolumeParams.Prefix - sizeof(WCHAR))
+            Size = sizeof _VolumeParams.Prefix - sizeof(WCHAR);
+        RtlCopyMemory(_VolumeParams.Prefix, Prefix, Size);
+        _VolumeParams.Prefix[Size / sizeof(WCHAR)] = L'\0';
+    }
+    PWSTR FileSystemName()
+    {
+        return _VolumeParams.FileSystemName;
+    }
+    VOID SetFileSystemName(PWSTR FileSystemName)
+    {
+        int Size = lstrlenW(FileSystemName) * sizeof(WCHAR);
+        if (Size > sizeof _VolumeParams.FileSystemName - sizeof(WCHAR))
+            Size = sizeof _VolumeParams.FileSystemName - sizeof(WCHAR);
+        RtlCopyMemory(_VolumeParams.FileSystemName, FileSystemName, Size);
+        _VolumeParams.FileSystemName[Size / sizeof(WCHAR)] = L'\0';
+    }
+
+    /* control */
+    NTSTATUS Preflight(PWSTR MountPoint)
+    {
+        return FspFileSystemPreflight(
+            _VolumeParams.Prefix[0] ? L"WinFsp.Net" : L"WinFsp.Disk",
+            MountPoint);
+    }
+    NTSTATUS Mount(PWSTR MountPoint,
+        PSECURITY_DESCRIPTOR SecurityDescriptor = 0,
+        BOOLEAN Synchronized = FALSE,
+        UINT32 DebugLog = 0)
+    {
+        NTSTATUS Result;
+        try
+        {
+            Result = _FileSystem->Init(this);
+        }
+        catch (...)
+        {
+            Result = _FileSystem->ExceptionHandler();
+        }
+        if (!NT_SUCCESS(Result))
+            return Result;
+        Result = FspFileSystemCreate(
+            _VolumeParams.Prefix[0] ? L"WinFsp.Net" : L"WinFsp.Disk",
+            &_VolumeParams, Interface(), &_FileSystemPtr);
+        if (!NT_SUCCESS(Result))
+            return Result;
+        _FileSystemPtr->UserContext = _FileSystem;
+        FspFileSystemSetOperationGuardStrategy(_FileSystemPtr, Synchronized ?
+            FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE :
+            FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE);
+        FspFileSystemSetDebugLog(_FileSystemPtr, DebugLog);
+        Result = FspFileSystemSetMountPointEx(_FileSystemPtr, MountPoint, SecurityDescriptor);
+        if (NT_SUCCESS(Result))
+        {
+            try
+            {
+                Result = _FileSystem->Mounted(this);
+            }
+            catch (...)
+            {
+                Result = _FileSystem->ExceptionHandler();
+            }
+            if (NT_SUCCESS(Result))
+            {
+                Result = FspFileSystemStartDispatcher(_FileSystemPtr, 0);
+                if (!NT_SUCCESS(Result))
+                    try
+                    {
+                        _FileSystem->Unmounted(this);
+                    }
+                    catch (...)
+                    {
+                        _FileSystem->ExceptionHandler();
+                    }
+            }
+        }
+        if (!NT_SUCCESS(Result))
+        {
+            FspFileSystemDelete(_FileSystemPtr);
+            _FileSystemPtr = 0;
+        }
+        return Result;
+    }
+    VOID Unmount()
+    {
+        FspFileSystemStopDispatcher(_FileSystemPtr);
+        try
+        {
+            _FileSystem->Unmounted(this);
+        }
+        catch (...)
+        {
+            _FileSystem->ExceptionHandler();
+        }
+        _FileSystemPtr->UserContext = 0;
+        FspFileSystemDelete(_FileSystemPtr);
+        _FileSystemPtr = 0;
+    }
+    PWSTR MountPoint()
+    {
+        return 0 != _FileSystemPtr ? FspFileSystemMountPoint(_FileSystemPtr) : 0;
+    }
+    FSP_FILE_SYSTEM *FileSystemHandle()
+    {
+        return _FileSystemPtr;
+    }
+    FileSystemBase *FileSystem()
+    {
+        return _FileSystem;
+    }
+    static NTSTATUS SetDebugLogFile(PWSTR FileName)
+    {
+        HANDLE Handle;
+        if ('-' == FileName[0] && '\0' == FileName[1])
+            Handle = GetStdHandle(STD_ERROR_HANDLE);
+        else
+            Handle = CreateFileW(
+                FileName,
+                FILE_APPEND_DATA,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                0,
+                OPEN_ALWAYS,
+                FILE_ATTRIBUTE_NORMAL,
+                0);
+        if (INVALID_HANDLE_VALUE == Handle)
+            return FspNtStatusFromWin32(GetLastError());
+        FspDebugLogSetHandle(Handle);
+        return STATUS_SUCCESS;
+    }
+
 private:
     /* FSP_FILE_SYSTEM_INTERFACE */
     static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem0,
-        VolumeInfo *VolumeInfo)
+        FSP_FSCTL_VOLUME_INFO *VolumeInfo)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->GetVolumeInfo(
                 VolumeInfo);
@@ -596,9 +758,9 @@ private:
     }
     static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM *FileSystem0,
         PWSTR VolumeLabel,
-        VolumeInfo *VolumeInfo)
+        FSP_FSCTL_VOLUME_INFO *VolumeInfo)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->SetVolumeLabel_(
                 VolumeLabel,
@@ -611,7 +773,7 @@ private:
         PSECURITY_DESCRIPTOR SecurityDescriptor,
         SIZE_T *PSecurityDescriptorSize)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->GetSecurityByName(
                 FileName,
@@ -628,9 +790,9 @@ private:
         PSECURITY_DESCRIPTOR SecurityDescriptor,
         UINT64 AllocationSize,
         PVOID *FullContext,
-        FileInfo *FileInfo)
+        FSP_FSCTL_FILE_INFO *FileInfo)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         PVOID FileNode, FileDesc;
         NTSTATUS Result;
         FSP_CPP_EXCEPTION_GUARD(
@@ -654,9 +816,9 @@ private:
         UINT32 CreateOptions,
         UINT32 GrantedAccess,
         PVOID *FullContext,
-        FileInfo *FileInfo)
+        FSP_FSCTL_FILE_INFO *FileInfo)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         PVOID FileNode, FileDesc;
         NTSTATUS Result;
         FSP_CPP_EXCEPTION_GUARD(
@@ -677,9 +839,9 @@ private:
         UINT32 FileAttributes,
         BOOLEAN ReplaceFileAttributes,
         UINT64 AllocationSize,
-        FileInfo *FileInfo)
+        FSP_FSCTL_FILE_INFO *FileInfo)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->Overwrite(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -695,7 +857,7 @@ private:
         PWSTR FileName,
         ULONG Flags)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD_VOID(
             return self->Cleanup(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -707,7 +869,7 @@ private:
     static VOID Close(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD_VOID(
             return self->Close(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -721,7 +883,7 @@ private:
         ULONG Length,
         PULONG PBytesTransferred)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->Read(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -740,9 +902,9 @@ private:
         BOOLEAN WriteToEndOfFile,
         BOOLEAN ConstrainedIo,
         PULONG PBytesTransferred,
-        FileInfo *FileInfo)
+        FSP_FSCTL_FILE_INFO *FileInfo)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->Write(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -758,9 +920,9 @@ private:
     }
     static NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
-        FileInfo *FileInfo)
+        FSP_FSCTL_FILE_INFO *FileInfo)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->Flush(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -770,9 +932,9 @@ private:
     }
     static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
-        FileInfo *FileInfo)
+        FSP_FSCTL_FILE_INFO *FileInfo)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->GetFileInfo(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -787,9 +949,9 @@ private:
         UINT64 LastAccessTime,
         UINT64 LastWriteTime,
         UINT64 ChangeTime,
-        FileInfo *FileInfo)
+        FSP_FSCTL_FILE_INFO *FileInfo)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->SetBasicInfo(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -806,9 +968,9 @@ private:
         PVOID FullContext,
         UINT64 NewSize,
         BOOLEAN SetAllocationSize,
-        FileInfo *FileInfo)
+        FSP_FSCTL_FILE_INFO *FileInfo)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->SetFileSize(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -822,7 +984,7 @@ private:
         PVOID FullContext,
         PWSTR FileName)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->CanDelete(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -836,7 +998,7 @@ private:
         PWSTR NewFileName,
         BOOLEAN ReplaceIfExists)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->Rename(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -851,7 +1013,7 @@ private:
         PSECURITY_DESCRIPTOR SecurityDescriptor,
         SIZE_T *PSecurityDescriptorSize)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->GetSecurity(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -865,7 +1027,7 @@ private:
         SECURITY_INFORMATION SecurityInformation,
         PSECURITY_DESCRIPTOR ModificationDescriptor)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->SetSecurity(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -882,7 +1044,7 @@ private:
         ULONG Length,
         PULONG PBytesTransferred)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->ReadDirectory(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -902,7 +1064,7 @@ private:
         PVOID Buffer,
         PSIZE_T PSize)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->ResolveReparsePoints(
                 FileName,
@@ -913,29 +1075,13 @@ private:
                 PSize);
         )
     }
-    static NTSTATUS GetReparsePointByName(FSP_FILE_SYSTEM *FileSystem0,
-        PVOID Context,
-        PWSTR FileName,
-        BOOLEAN IsDirectory,
-        PVOID Buffer,
-        PSIZE_T PSize)
-    {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
-        FSP_CPP_EXCEPTION_GUARD(
-            return self->GetReparsePointByName(
-                FileName,
-                IsDirectory,
-                Buffer,
-                PSize);
-        )
-    }
     static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
         PWSTR FileName,
         PVOID Buffer,
         PSIZE_T PSize)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->GetReparsePoint(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -951,7 +1097,7 @@ private:
         PVOID Buffer,
         SIZE_T Size)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->SetReparsePoint(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -967,7 +1113,7 @@ private:
         PVOID Buffer,
         SIZE_T Size)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->DeleteReparsePoint(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -983,7 +1129,7 @@ private:
         ULONG Length,
         PULONG PBytesTransferred)
     {
-        FileSystem *self = (FileSystem *)FileSystem0->UserContext;
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
         FSP_CPP_EXCEPTION_GUARD(
             return self->GetStreamInfo(
                 (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
@@ -1027,12 +1173,13 @@ private:
 
 private:
     /* disallow copy and assignment */
-    FileSystem(const FileSystem &);
-    FileSystem &operator=(const FileSystem &);
+    FileSystemHost(const FileSystemHost &);
+    FileSystemHost &operator=(const FileSystemHost &);
 
 private:
-    VolumeParams _VolumeParams;
-    FSP_FILE_SYSTEM *_FileSystem;
+    FSP_FSCTL_VOLUME_PARAMS _VolumeParams;
+    FSP_FILE_SYSTEM *_FileSystemPtr;
+    FileSystemBase *_FileSystem;
 };
 
 class Service
