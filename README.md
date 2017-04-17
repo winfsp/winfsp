@@ -3,7 +3,7 @@
 ![WinFsp Demo](http://www.secfs.net/winfsp/files/cap.gif)
 
 
-<a href="https://github.com/billziss-gh/winfsp/releases"><img src="http://www.secfs.net/winfsp/resources/Download-WinFsp.png" alt="Download WinFsp Installer" width="244" height="34"></a>
+<a href="https://github.com/billziss-gh/winfsp/releases/latest"><img src="http://www.secfs.net/winfsp/resources/Download-WinFsp.png" alt="Download WinFsp Installer" width="244" height="34"></a>
 &emsp;
 <a href="https://chocolatey.org/packages/winfsp"><img src="http://www.secfs.net/winfsp/resources/Choco-WinFsp.png" alt="choco install winfsp" width="244" height="34"></a>
 
