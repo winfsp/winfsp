@@ -44,7 +44,7 @@ namespace memfs
             else
             {
                 FileInfo FileInfo = MainFileNode.FileInfo;
-                FileInfo.FileAttributes &= ~(UInt32)System.IO.FileAttributes.Directory;
+                FileInfo.FileAttributes &= ~(UInt32)FileAttributes.Directory;
                     /* named streams cannot be directories */
                 FileInfo.AllocationSize = this.FileInfo.AllocationSize;
                 FileInfo.FileSize = this.FileInfo.FileSize;
@@ -71,9 +71,9 @@ namespace memfs
             Set = new SortedSet<String>(Comparer);
             Map = new Dictionary<String, FileNode>(Comparer);
         }
-        public int Count()
+        public UInt32 Count()
         {
-            return Map.Count;
+            return (UInt32)Map.Count;
         }
         public FileNode Get(String FileName)
         {
@@ -168,26 +168,72 @@ namespace memfs
                     yield return Name;
         }
 
-        private Boolean CaseInsensitive;
+        public Boolean CaseInsensitive;
         private SortedSet<String> Set;
         private Dictionary<String, FileNode> Map;
     }
 
     class Memfs : FileSystemBase
     {
+        public const UInt16 MEMFS_SECTOR_SIZE = 512;
+        public const UInt16 MEMFS_SECTORS_PER_ALLOCATION_UNIT = 1;
+
+        public Memfs(
+            Boolean CaseInsensitive, UInt32 MaxFileNodes, UInt32 MaxFileSize, String RootSddl)
+        {
+            this.FileNodeMap = new FileNodeMap(CaseInsensitive);
+            this.MaxFileNodes = MaxFileNodes;
+            this.MaxFileSize = MaxFileSize;
+
+            /*
+             * Create root directory.
+             */
+
+            FileNode RootNode = new FileNode("\\");
+            RootNode.FileInfo.FileAttributes = (UInt32)FileAttributes.Directory;
+            if (null == RootSddl)
+                RootSddl = "O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;WD)";
+            RawSecurityDescriptor RootSecurityDescriptor = new RawSecurityDescriptor(RootSddl);
+            RootNode.FileSecurity = new Byte[RootSecurityDescriptor.BinaryLength];
+            RootSecurityDescriptor.GetBinaryForm(RootNode.FileSecurity, 0);
+
+            FileNodeMap.Insert(RootNode);
+        }
+
+        public override Int32 Init(Object Host0)
+        {
+            FileSystemHost Host = (FileSystemHost)Host0;
+            Host.SectorSize = Memfs.MEMFS_SECTOR_SIZE;
+            Host.SectorsPerAllocationUnit = Memfs.MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+            Host.VolumeCreationTime = (UInt64)DateTime.Now.ToFileTimeUtc();
+            Host.VolumeSerialNumber = (UInt32)(Host.VolumeCreationTime / (10000 * 1000));
+            Host.CaseSensitiveSearch = !FileNodeMap.CaseInsensitive;
+            Host.CasePreservedNames = true;
+            Host.UnicodeOnDisk = true;
+            Host.PersistentAcls = true;
+            Host.ReparsePoints = true;
+            Host.ReparsePointsAccessCheck = false;
+            Host.NamedStreams = true;
+            Host.PostCleanupWhenModifiedOnly = true;
+            return STATUS_SUCCESS;
+        }
         public override Int32 GetVolumeInfo(
             out VolumeInfo VolumeInfo)
         {
             VolumeInfo = default(VolumeInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            VolumeInfo.TotalSize = MaxFileNodes * (UInt64)MaxFileSize;
+            VolumeInfo.FreeSize = (MaxFileNodes - FileNodeMap.Count()) * (UInt64)MaxFileSize;
+            VolumeInfo.SetVolumeLabel(VolumeLabel);
+            return STATUS_SUCCESS;
         }
         public override Int32 SetVolumeLabel(
             String VolumeLabel,
             out VolumeInfo VolumeInfo)
         {
-            VolumeInfo = default(VolumeInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            this.VolumeLabel = VolumeLabel;
+            return GetVolumeInfo(out VolumeInfo);
         }
+
         public override Int32 GetSecurityByName(
             String FileName,
             out UInt32 FileAttributes/* or ReparsePointIndex */,
@@ -407,6 +453,11 @@ namespace memfs
             BytesTransferred = default(UInt32);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
+
+        private FileNodeMap FileNodeMap;
+        UInt32 MaxFileNodes;
+        UInt32 MaxFileSize;
+        String VolumeLabel;
     }
 
     class MemfsService : Service
@@ -426,6 +477,145 @@ namespace memfs
         public MemfsService() : base("MemfsService")
         {
         }
+        protected override void OnStart(String[] Args)
+        {
+            try
+            {
+                Boolean CaseInsensitive = false;
+                String DebugLogFile = null;
+                UInt32 DebugFlags = 0;
+                UInt32 FileInfoTimeout = unchecked((UInt32)(-1));
+                UInt32 MaxFileNodes = 1024;
+                UInt32 MaxFileSize = 16 * 1024 * 1024;
+                String FileSystemName = null;
+                String VolumePrefix = null;
+                String MountPoint = null;
+                String RootSddl = null;
+                FileSystemHost Host = null;
+                Memfs Memfs = null;
+                int I;
+
+                for (I = 1; Args.Length > I; I++)
+                {
+                    String Arg = Args[I];
+                    if ('-' != Arg[0])
+                        break;
+                    switch (Arg[1])
+                    {
+                    case '?':
+                        throw new CommandLineUsageException();
+                    case 'D':
+                        argtos(Args, ref I, ref DebugLogFile);
+                        break;
+                    case 'd':
+                        argtol(Args, ref I, ref DebugFlags);
+                        break;
+                    case 'F':
+                        argtos(Args, ref I, ref FileSystemName);
+                        break;
+                    case 'i':
+                        CaseInsensitive = true;
+                        break;
+                    case 'm':
+                        argtos(Args, ref I, ref MountPoint);
+                        break;
+                    case 'n':
+                        argtol(Args, ref I, ref MaxFileNodes);
+                        break;
+                    case 'S':
+                        argtos(Args, ref I, ref RootSddl);
+                        break;
+                    case 's':
+                        argtol(Args, ref I, ref MaxFileSize);
+                        break;
+                    case 't':
+                        argtol(Args, ref I, ref FileInfoTimeout);
+                        break;
+                    case 'u':
+                        argtos(Args, ref I, ref VolumePrefix);
+                        break;
+                    default:
+                        throw new CommandLineUsageException();
+                    }
+                }
+
+                if (Args.Length > I)
+                    throw new CommandLineUsageException();
+
+                if ((null == VolumePrefix || 0 == VolumePrefix.Length) && null == MountPoint)
+                    throw new CommandLineUsageException();
+
+                if (null != DebugLogFile)
+                    if (0 > FileSystemHost.SetDebugLogFile(DebugLogFile))
+                        throw new CommandLineUsageException("cannot open debug log file");
+
+                Host = new FileSystemHost(Memfs = new Memfs(
+                    CaseInsensitive, MaxFileNodes, MaxFileSize, RootSddl));
+                Host.FileInfoTimeout = FileInfoTimeout;
+                Host.Prefix = VolumePrefix;
+                Host.FileSystemName = null != FileSystemName ? FileSystemName : "-MEMFS";
+                if (0 > Host.Mount(MountPoint, null, false, DebugFlags))
+                    throw new IOException("cannot mount file system");
+                MountPoint = Host.MountPoint();
+                _Host = Host;
+
+                Log(EVENTLOG_INFORMATION_TYPE, String.Format("{0} -t {1} -n {2} -s {3} {4}{5}{6}{7}{8}{9}",
+                    PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize,
+                    null != RootSddl ? " -S " : "", null != RootSddl ? RootSddl : "",
+                    null != VolumePrefix && 0 < VolumePrefix.Length ? " -u " : "",
+                        null != VolumePrefix && 0 < VolumePrefix.Length ? VolumePrefix : "",
+                    null != MountPoint ? " -m " : "", null != MountPoint ? MountPoint : ""));
+            }
+            catch (CommandLineUsageException ex)
+            {
+                Log(EVENTLOG_ERROR_TYPE, String.Format(
+                    "{0}" +
+                    "usage: {1} OPTIONS\n" +
+                    "\n" +
+                    "options:\n" +
+                    "    -d DebugFlags       [-1: enable all debug logs]\n" +
+                    "    -D DebugLogFile     [file path; use - for stderr]\n" +
+                    "    -i                  [case insensitive file system]\n" +
+                    "    -t FileInfoTimeout  [millis]\n" +
+                    "    -n MaxFileNodes\n" +
+                    "    -s MaxFileSize      [bytes]\n" +
+                    "    -F FileSystemName\n" +
+                    "    -S RootSddl         [file rights: FA, etc; NO generic rights: GA, etc.]\n" +
+                    "    -u \\Server\\Share    [UNC prefix (single backslash)]\n" +
+                    "    -m MountPoint       [X:|*|directory]\n",
+                    ex.HasMessage ? ex.Message + "\n" : "",
+                    PROGNAME));
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Log(EVENTLOG_ERROR_TYPE, String.Format("{0}", ex.Message));
+                throw;
+            }
+        }
+        protected override void OnStop()
+        {
+            _Host.Unmount();
+            _Host = null;
+        }
+
+        private static void argtos(String[] Args, ref int I, ref String V)
+        {
+            if (Args.Length > ++I)
+                V = Args[I];
+            else
+                throw new CommandLineUsageException();
+        }
+        private static void argtol(String[] Args, ref int I, ref UInt32 V)
+        {
+            Int32 R;
+            if (Args.Length > ++I)
+                V = Int32.TryParse(Args[I], out R) ? (UInt32)R : V;
+            else
+                throw new CommandLineUsageException();
+        }
+
+        private FileSystemHost _Host;
     }
 
     class Program
@@ -711,42 +901,6 @@ namespace memfs
             if (0x80070000 == (HResult & 0xFFFF0000))
                 return NtStatusFromWin32((UInt32)HResult & 0xFFFF);
             return STATUS_UNEXPECTED_IO_ERROR;
-        }
-        public override Int32 Init(Object Host0)
-        {
-            FileSystemHost Host = (FileSystemHost)Host0;
-            Host.SectorSize = ALLOCATION_UNIT;
-            Host.SectorsPerAllocationUnit = 1;
-            Host.MaxComponentLength = 255;
-            Host.FileInfoTimeout = 1000;
-            Host.CaseSensitiveSearch = false;
-            Host.CasePreservedNames = true;
-            Host.UnicodeOnDisk = true;
-            Host.PersistentAcls = true;
-            Host.PostCleanupWhenModifiedOnly = true;
-            Host.PassQueryDirectoryPattern = true;
-            Host.VolumeCreationTime = (UInt64)File.GetCreationTimeUtc(_Path).ToFileTimeUtc();
-            Host.VolumeSerialNumber = 0;
-            return STATUS_SUCCESS;
-        }
-        public override Int32 GetVolumeInfo(
-            out VolumeInfo VolumeInfo)
-        {
-            VolumeInfo = default(VolumeInfo);
-            try
-            {
-                DriveInfo Info = new DriveInfo(_Path);
-                VolumeInfo.TotalSize = (UInt64)Info.TotalSize;
-                VolumeInfo.FreeSize = (UInt64)Info.TotalFreeSpace;
-            }
-            catch (ArgumentException)
-            {
-                /*
-                 * DriveInfo only supports drives and does not support UNC paths.
-                 * It would be better to use GetDiskFreeSpaceEx here.
-                 */
-            }
-            return STATUS_SUCCESS;
         }
         public override Int32 GetSecurityByName(
             String FileName,
@@ -1101,140 +1255,4 @@ namespace memfs
 
         private String _Path;
     }
-
-    class MemfsService : Service
-    {
-        protected override void OnStart(String[] Args)
-        {
-            try
-            {
-                String DebugLogFile = null;
-                UInt32 DebugFlags = 0;
-                String VolumePrefix = null;
-                String PassThrough = null;
-                String MountPoint = null;
-                IntPtr DebugLogHandle = (IntPtr)(-1);
-                FileSystemHost Host = null;
-                Memfs Memfs = null;
-                int I;
-
-                for (I = 1; Args.Length > I; I++)
-                {
-                    String Arg = Args[I];
-                    if ('-' != Arg[0])
-                        break;
-                    switch (Arg[1])
-                    {
-                    case '?':
-                        throw new CommandLineUsageException();
-                    case 'd':
-                        argtol(Args, ref I, ref DebugFlags);
-                        break;
-                    case 'D':
-                        argtos(Args, ref I, ref DebugLogFile);
-                        break;
-                    case 'm':
-                        argtos(Args, ref I, ref MountPoint);
-                        break;
-                    case 'p':
-                        argtos(Args, ref I, ref PassThrough);
-                        break;
-                    case 'u':
-                        argtos(Args, ref I, ref VolumePrefix);
-                        break;
-                    default:
-                        throw new CommandLineUsageException();
-                    }
-                }
-
-                if (Args.Length > I)
-                    throw new CommandLineUsageException();
-
-                if (null == PassThrough && null != VolumePrefix)
-                {
-                    I = VolumePrefix.IndexOf('\\');
-                    if (-1 != I && VolumePrefix.Length > I && '\\' != VolumePrefix[I + 1])
-                    {
-                        I = VolumePrefix.IndexOf('\\', I + 1);
-                        if (-1 != I &&
-                            VolumePrefix.Length > I + 1 &&
-                            (
-                            ('A' <= VolumePrefix[I + 1] && VolumePrefix[I + 1] <= 'Z') ||
-                            ('a' <= VolumePrefix[I + 1] && VolumePrefix[I + 1] <= 'z')
-                            ) &&
-                            '$' == VolumePrefix[I + 2])
-                        {
-                            PassThrough = String.Format("{0}:{1}", VolumePrefix[I + 1], VolumePrefix.Substring(I + 3));
-                        }
-                    }
-                }
-
-                if (null == PassThrough || null == MountPoint)
-                    throw new CommandLineUsageException();
-
-                if (null != DebugLogFile)
-                    if (0 > FileSystemHost.SetDebugLogFile(DebugLogFile))
-                        throw new CommandLineUsageException("cannot open debug log file");
-
-                Host = new FileSystemHost(Memfs = new Memfs(PassThrough));
-                Host.Prefix = VolumePrefix;
-                if (0 > Host.Mount(MountPoint, null, true, DebugFlags))
-                    throw new IOException("cannot mount file system");
-                MountPoint = Host.MountPoint();
-                _Host = Host;
-
-                Log(EVENTLOG_INFORMATION_TYPE, String.Format("{0}{1}{2} -p {3} -m {4}",
-                    PROGNAME,
-                    null != VolumePrefix && 0 < VolumePrefix.Length ? " -u " : "",
-                        null != VolumePrefix && 0 < VolumePrefix.Length ? VolumePrefix : "",
-                    PassThrough,
-                    MountPoint));
-            }
-            catch (CommandLineUsageException ex)
-            {
-                Log(EVENTLOG_ERROR_TYPE, String.Format(
-                    "{0}" +
-                    "usage: {1} OPTIONS\n" +
-                    "\n" +
-                    "options:\n" +
-                    "    -d DebugFlags       [-1: enable all debug logs]\n" +
-                    "    -D DebugLogFile     [file path; use - for stderr]\n" +
-                    "    -u \\Server\\Share    [UNC prefix (single backslash)]\n" +
-                    "    -p Directory        [directory to expose as pass through file system]\n" +
-                    "    -m MountPoint       [X:|*|directory]\n",
-                    ex.HasMessage ? ex.Message + "\n" : "",
-                    PROGNAME));
-                throw;
-            }
-            catch (Exception ex)
-            {
-                Log(EVENTLOG_ERROR_TYPE, String.Format("{0}", ex.Message));
-                throw;
-            }
-        }
-        protected override void OnStop()
-        {
-            _Host.Unmount();
-            _Host = null;
-        }
-
-        private static void argtos(String[] Args, ref int I, ref String V)
-        {
-            if (Args.Length > ++I)
-                V = Args[I];
-            else
-                throw new CommandLineUsageException();
-        }
-        private static void argtol(String[] Args, ref int I, ref UInt32 V)
-        {
-            Int32 R;
-            if (Args.Length > ++I)
-                V = Int32.TryParse(Args[I], out R) ? (UInt32)R : V;
-            else
-                throw new CommandLineUsageException();
-        }
-
-        private FileSystemHost _Host;
-    }
-}
 #endif
