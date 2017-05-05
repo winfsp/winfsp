@@ -239,7 +239,7 @@ namespace Fsp
         }
 
         /* FSP_FILE_SYSTEM_INTERFACE */
-        private static Byte[] SecurityDescriptorNotNull = new Byte[0];
+        private static Byte[] ByteBufferNotNull = new Byte[0];
         private static Int32 ExceptionHandler(
             FileSystemBase FileSystem,
             Exception ex)
@@ -301,7 +301,7 @@ namespace Fsp
                 Byte[] SecurityDescriptorBytes = null;
                 Int32 Result;
                 if (IntPtr.Zero != PSecurityDescriptorSize)
-                    SecurityDescriptorBytes = SecurityDescriptorNotNull;
+                    SecurityDescriptorBytes = ByteBufferNotNull;
                 Result = FileSystem.GetSecurityByName(
                     FileName,
                     out FileAttributes,
@@ -680,13 +680,15 @@ namespace Fsp
                 Byte[] SecurityDescriptorBytes;
                 Int32 Result;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                SecurityDescriptorBytes = SecurityDescriptorNotNull;
+                SecurityDescriptorBytes = ByteBufferNotNull;
                 Result = FileSystem.GetSecurity(
                     FileNode,
                     FileDesc,
                     ref SecurityDescriptorBytes);
-                return Api.CopySecurityDescriptor(SecurityDescriptorBytes,
-                    SecurityDescriptor, PSecurityDescriptorSize);
+                if (0 <= Result)
+                    Result = Api.CopySecurityDescriptor(SecurityDescriptorBytes,
+                        SecurityDescriptor, PSecurityDescriptorSize);
+                return Result;
             }
             catch (Exception ex)
             {
