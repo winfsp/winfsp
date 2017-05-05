@@ -18,6 +18,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 
 using Fsp;
@@ -315,7 +316,11 @@ namespace memfs
             FileNode.FileSecurity = SecurityDescriptor;
             FileNode.FileInfo.AllocationSize = AllocationSize;
             if (0 != AllocationSize)
-                FileNode.FileData = new byte[AllocationSize];
+            {
+                Result = SetFileSizeInternal(FileNode, AllocationSize, true);
+                if (0 > Result)
+                    return Result;
+            }
             FileNodeMap.Insert(FileNode);
 
             InsertOpenNode(FileNode);
@@ -461,18 +466,34 @@ namespace memfs
         }
 
         public override Int32 Read(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             IntPtr Buffer,
             UInt64 Offset,
             UInt32 Length,
             out UInt32 BytesTransferred)
         {
-            BytesTransferred = default(UInt32);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+            UInt64 EndOffset;
+
+            if (Offset >= FileNode.FileInfo.FileSize)
+            {
+                BytesTransferred = default(UInt32);
+                return STATUS_END_OF_FILE;
+            }
+
+            EndOffset = Offset + Length;
+            if (EndOffset > FileNode.FileInfo.FileSize)
+                EndOffset = FileNode.FileInfo.FileSize;
+
+            BytesTransferred = (UInt32)(EndOffset - Offset);
+            Marshal.Copy(FileNode.FileData, 0, Buffer, (int)BytesTransferred);
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 Write(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             IntPtr Buffer,
             UInt64 Offset,
@@ -482,28 +503,73 @@ namespace memfs
             out UInt32 BytesTransferred,
             out FileInfo FileInfo)
         {
-            BytesTransferred = default(UInt32);
-            FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+            UInt64 EndOffset;
+
+            if (ConstrainedIo)
+            {
+                if (Offset >= FileNode.FileInfo.FileSize)
+                {
+                    BytesTransferred = default(UInt32);
+                    FileInfo = default(FileInfo);
+                    return STATUS_SUCCESS;
+                }
+                EndOffset = Offset + Length;
+                if (EndOffset > FileNode.FileInfo.FileSize)
+                    EndOffset = FileNode.FileInfo.FileSize;
+            }
+            else
+            {
+                if (WriteToEndOfFile)
+                    Offset = FileNode.FileInfo.FileSize;
+                EndOffset = Offset + Length;
+                if (EndOffset > FileNode.FileInfo.FileSize)
+                {
+                    Int32 Result = SetFileSizeInternal(FileNode, EndOffset, false);
+                    if (0 > Result)
+                    {
+                        BytesTransferred = default(UInt32);
+                        FileInfo = default(FileInfo);
+                        return Result;
+                    }
+                }
+            }
+
+            BytesTransferred = (UInt32)(EndOffset - Offset);
+            Marshal.Copy(Buffer, FileNode.FileData, 0, (int)BytesTransferred);
+
+            FileInfo = FileNode.GetFileInfo();
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 Flush(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             out FileInfo FileInfo)
         {
-            FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+
+            /*  nothing to flush, since we do not cache anything */
+            FileInfo = null != FileNode ? FileNode.GetFileInfo() : default(FileInfo);
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 GetFileInfo(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             out FileInfo FileInfo)
         {
-            FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+
+            FileInfo = FileNode.GetFileInfo();
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 SetBasicInfo(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             UInt32 FileAttributes,
             UInt64 CreationTime,
@@ -512,59 +578,184 @@ namespace memfs
             UInt64 ChangeTime,
             out FileInfo FileInfo)
         {
-            FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+
+            if (null != FileNode.MainFileNode)
+                FileNode = FileNode.MainFileNode;
+
+            if (unchecked((UInt32)(-1)) != FileAttributes)
+                FileNode.FileInfo.FileAttributes = FileAttributes;
+            if (0 != CreationTime)
+                FileNode.FileInfo.CreationTime = CreationTime;
+            if (0 != LastAccessTime)
+                FileNode.FileInfo.LastAccessTime = LastAccessTime;
+            if (0 != LastWriteTime)
+                FileNode.FileInfo.LastWriteTime = LastWriteTime;
+            if (0 != ChangeTime)
+                FileNode.FileInfo.ChangeTime = ChangeTime;
+
+            FileInfo = FileNode.GetFileInfo();
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 SetFileSize(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             UInt64 NewSize,
             Boolean SetAllocationSize,
             out FileInfo FileInfo)
         {
-            FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+            Int32 Result;
+
+            Result = SetFileSizeInternal(FileNode, NewSize, SetAllocationSize);
+            FileInfo = 0 <= Result ? FileNode.GetFileInfo() : default(FileInfo);
+
+            return STATUS_SUCCESS;
         }
+
         private Int32 SetFileSizeInternal(
             FileNode FileNode,
             UInt64 NewSize,
             Boolean SetAllocationSize)
         {
-            return STATUS_INVALID_DEVICE_REQUEST;
+            if (SetAllocationSize)
+            {
+                if (FileNode.FileInfo.AllocationSize != NewSize)
+                {
+                    if (NewSize > MaxFileSize)
+                        return STATUS_DISK_FULL;
+
+                    byte[] FileData = null;
+                    if (0 != NewSize)
+                        try
+                        {
+                            FileData = new byte[NewSize];
+                        }
+                        catch
+                        {
+                            return STATUS_INSUFFICIENT_RESOURCES;
+                        }
+                    Array.Copy(FileNode.FileData, FileData,
+                        (int)Math.Min(FileNode.FileInfo.AllocationSize, NewSize));
+
+                    FileNode.FileData = FileData;
+                    FileNode.FileInfo.AllocationSize = NewSize;
+                    if (FileNode.FileInfo.FileSize > NewSize)
+                        FileNode.FileInfo.FileSize = NewSize;
+                }
+            }
+            else
+            {
+                if (FileNode.FileInfo.FileSize != NewSize)
+                {
+                    if (FileNode.FileInfo.AllocationSize < NewSize)
+                    {
+                        UInt64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+                        UInt64 AllocationSize = (NewSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
+                        Int32 Result = SetFileSizeInternal(FileNode, AllocationSize, true);
+                        if (0 > Result)
+                            return Result;
+                    }
+
+                    if (FileNode.FileInfo.FileSize < NewSize)
+                        Array.Clear(FileNode.FileData,
+                            (int)FileNode.FileInfo.FileSize, (int)(NewSize - FileNode.FileInfo.FileSize));
+                    FileNode.FileInfo.FileSize = NewSize;
+                }
+            }
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 CanDelete(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             String FileName)
         {
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+
+            if (FileNodeMap.HasChild(FileNode))
+                return STATUS_DIRECTORY_NOT_EMPTY;
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 Rename(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             String FileName,
             String NewFileName,
             Boolean ReplaceIfExists)
         {
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+            FileNode NewFileNode;
+
+            NewFileNode = FileNodeMap.Get(NewFileName);
+            if (null != NewFileNode && FileNode != NewFileNode)
+            {
+                if (!ReplaceIfExists)
+                    return STATUS_OBJECT_NAME_COLLISION;
+                if (0 != (NewFileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory))
+                    return STATUS_ACCESS_DENIED;
+            }
+            if (null != NewFileNode)
+                FileNodeMap.Remove(NewFileNode);
+
+            List<String> DescendantFileNames = new List<String>(FileNodeMap.GetDescendantFileNames(FileNode));
+            foreach (String DescendantFileName in DescendantFileNames)
+            {
+                FileNode DescendantFileNode = FileNodeMap.Get(DescendantFileName);
+                if (null == DescendantFileNode)
+                    continue; /* should not happen */
+                FileNodeMap.Remove(DescendantFileNode);
+                DescendantFileNode.FileName =
+                    NewFileName + DescendantFileNode.FileName.Substring(FileName.Length);
+                FileNodeMap.Insert(DescendantFileNode);
+            }
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 GetSecurity(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             ref Byte[] SecurityDescriptor)
         {
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+
+            if (null != FileNode.MainFileNode)
+                FileNode = FileNode.MainFileNode;
+
+            SecurityDescriptor = FileNode.FileSecurity;
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 SetSecurity(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             AccessControlSections Sections,
             Byte[] SecurityDescriptor)
         {
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+
+            if (null != FileNode.MainFileNode)
+                FileNode = FileNode.MainFileNode;
+
+            ObjectSecurity ObjectSecurity =
+                0 != (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory) ?
+                    (ObjectSecurity)new DirectorySecurity() : (ObjectSecurity)new FileSecurity();
+            ObjectSecurity.SetSecurityDescriptorBinaryForm(FileNode.FileSecurity);
+            ObjectSecurity.SetSecurityDescriptorBinaryForm(SecurityDescriptor, Sections);
+            FileNode.FileSecurity = ObjectSecurity.GetSecurityDescriptorBinaryForm();
+
+            return STATUS_SUCCESS;
         }
+
         public override Boolean ReadDirectoryEntry(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             String Pattern,
             String Marker,
@@ -572,6 +763,51 @@ namespace memfs
             out String FileName,
             out FileInfo FileInfo)
         {
+            FileNode FileNode = (FileNode)FileNode0;
+            IEnumerator<String> Enumerator = (IEnumerator<String>)Context;
+
+            if (null == Enumerator)
+            {
+                List<String> ChildrenFileNames = new List<String>();
+                if ("\\" != FileNode.FileName)
+                {
+                    /* if this is not the root directory add the dot entries */
+                    ChildrenFileNames.Add(".");
+                    ChildrenFileNames.Add("..");
+                }
+                ChildrenFileNames.AddRange(FileNodeMap.GetChildrenFileNames(FileNode));
+                Context = Enumerator = ChildrenFileNames.GetEnumerator();
+            }
+
+            while (Enumerator.MoveNext())
+            {
+                FileName = Enumerator.Current;
+                if ("." == FileName)
+                {
+                    FileInfo = FileNode.GetFileInfo();
+                    return true;
+                }
+                else if (".." == FileName)
+                {
+                    Int32 Result;
+                    FileNode ParentNode = FileNodeMap.GetParent(FileNode.FileName, out Result);
+                    if (null != ParentNode)
+                    {
+                        FileInfo = ParentNode.GetFileInfo();
+                        return true;
+                    }
+                }
+                else
+                {
+                    FileNode ChildFileNode = FileNodeMap.Get(FileName);
+                    if (null != ChildFileNode)
+                    {
+                        FileInfo = ChildFileNode.GetFileInfo();
+                        return true;
+                    }
+                }
+            }
+
             FileName = default(String);
             FileInfo = default(FileInfo);
             return false;
@@ -1246,15 +1482,15 @@ namespace memfs
             IntPtr Buffer,
             UInt64 Offset,
             UInt32 Length,
-            out UInt32 PBytesTransferred)
+            out UInt32 BytesTransferred)
         {
             FileDesc FileDesc = (FileDesc)FileDesc0;
             if (Offset >= (UInt64)FileDesc.Stream.Length)
                 ThrowIoExceptionWithNtStatus(STATUS_END_OF_FILE);
             Byte[] Bytes = new byte[Length];
             FileDesc.Stream.Seek((Int64)Offset, SeekOrigin.Begin);
-            PBytesTransferred = (UInt32)FileDesc.Stream.Read(Bytes, 0, Bytes.Length);
-            Marshal.Copy(Bytes, 0, Buffer, Bytes.Length);
+            BytesTransferred = (UInt32)FileDesc.Stream.Read(Bytes, 0, Bytes.Length);
+            Marshal.Copy(Bytes, 0, Buffer, BytesTransferred);
             return STATUS_SUCCESS;
         }
         public override Int32 Write(
@@ -1265,7 +1501,7 @@ namespace memfs
             UInt32 Length,
             Boolean WriteToEndOfFile,
             Boolean ConstrainedIo,
-            out UInt32 PBytesTransferred,
+            out UInt32 BytesTransferred,
             out FileInfo FileInfo)
         {
             FileDesc FileDesc = (FileDesc)FileDesc0;
@@ -1273,7 +1509,7 @@ namespace memfs
             {
                 if (Offset >= (UInt64)FileDesc.Stream.Length)
                 {
-                    PBytesTransferred = default(UInt32);
+                    BytesTransferred = default(UInt32);
                     FileInfo = default(FileInfo);
                     return STATUS_SUCCESS;
                 }
@@ -1285,7 +1521,7 @@ namespace memfs
             if (!WriteToEndOfFile)
                 FileDesc.Stream.Seek((Int64)Offset, SeekOrigin.Begin);
             FileDesc.Stream.Write(Bytes, 0, Bytes.Length);
-            PBytesTransferred = (UInt32)Bytes.Length;
+            BytesTransferred = (UInt32)Bytes.Length;
             return FileDesc.GetFileInfo(out FileInfo);
         }
         public override Int32 Flush(
