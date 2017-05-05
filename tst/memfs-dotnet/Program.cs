@@ -59,6 +59,7 @@ namespace memfs
         public Byte[] FileData;
         public Byte[] ReparseData;
         public FileNode MainFileNode;
+        public int OpenCount;
     }
 
     class FileNodeMap
@@ -84,7 +85,7 @@ namespace memfs
             int Index = FileName.IndexOf(':');
             if (0 > Index)
                 return null;
-            return Map[FileName.Substring(Index + 1)];
+            return Map[FileName.Substring(0, Index)];
         }
         public FileNode GetParent(String FileName, out Int32 Result)
         {
@@ -114,12 +115,11 @@ namespace memfs
             Parent.FileInfo.LastWriteTime =
             Parent.FileInfo.ChangeTime = (UInt64)DateTime.Now.ToFileTimeUtc();
         }
-        public Int32 Insert(FileNode FileNode)
+        public void Insert(FileNode FileNode)
         {
             Set.Add(FileNode.FileName);
             Map.Add(FileNode.FileName, FileNode);
             TouchParent(FileNode);
-            return FileSystemBase.STATUS_SUCCESS;
         }
         public void Remove(FileNode FileNode)
         {
@@ -135,11 +135,12 @@ namespace memfs
             String MaxName = FileNode.FileName + "]";
             SortedSet<String> View = Set.GetViewBetween(MinName, MaxName);
             foreach (String Name in View)
-                if (Name != MaxName)
+                if (Name.StartsWith(MinName, CaseInsensitive ?
+                    StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                     return true;
             return false;
         }
-        public IEnumerator<String> GetChildrenFileNames(FileNode FileNode)
+        public IEnumerable<String> GetChildrenFileNames(FileNode FileNode)
         {
             String MinName = FileNode.FileName + "\\";
             String MaxName = FileNode.FileName + "]";
@@ -149,22 +150,26 @@ namespace memfs
                     StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                     yield return Name;
         }
-        public IEnumerator<String> GetStreamNames(FileNode FileNode)
+        public IEnumerable<String> GetStreamFileNames(FileNode FileNode)
         {
             String MinName = FileNode.FileName + ":";
             String MaxName = FileNode.FileName + ";";
             SortedSet<String> View = Set.GetViewBetween(MinName, MaxName);
             foreach (String Name in View)
-                if (Name != MaxName)
+                if (Name.StartsWith(MinName, CaseInsensitive ?
+                    StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                     yield return Name;
         }
-        public IEnumerator<String> GetDescendantFileNames(FileNode FileNode)
+        public IEnumerable<String> GetDescendantFileNames(FileNode FileNode)
         {
-            String MinName = FileNode.FileName + "\\";
+            String MinName = FileNode.FileName;
             String MaxName = FileNode.FileName + "]";
             SortedSet<String> View = Set.GetViewBetween(MinName, MaxName);
             foreach (String Name in View)
-                if (Name != MaxName)
+                if (Name.StartsWith(MinName, CaseInsensitive ?
+                    StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) &&
+                    Name.Length == MinName.Length || (1 == MinName.Length && '\\' == MinName[0]) ||
+                    '\\' == Name[MinName.Length] || ':' == Name[MinName.Length])
                     yield return Name;
         }
 
@@ -182,6 +187,7 @@ namespace memfs
             Boolean CaseInsensitive, UInt32 MaxFileNodes, UInt32 MaxFileSize, String RootSddl)
         {
             this.FileNodeMap = new FileNodeMap(CaseInsensitive);
+            this.OpenNodeSet = new HashSet<FileNode>();
             this.MaxFileNodes = MaxFileNodes;
             this.MaxFileSize = MaxFileSize;
 
@@ -217,6 +223,7 @@ namespace memfs
             Host.PostCleanupWhenModifiedOnly = true;
             return STATUS_SUCCESS;
         }
+
         public override Int32 GetVolumeInfo(
             out VolumeInfo VolumeInfo)
         {
@@ -226,6 +233,7 @@ namespace memfs
             VolumeInfo.SetVolumeLabel(VolumeLabel);
             return STATUS_SUCCESS;
         }
+
         public override Int32 SetVolumeLabel(
             String VolumeLabel,
             out VolumeInfo VolumeInfo)
@@ -239,9 +247,30 @@ namespace memfs
             out UInt32 FileAttributes/* or ReparsePointIndex */,
             ref Byte[] SecurityDescriptor)
         {
-            FileAttributes = default(UInt32);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = FileNodeMap.Get(FileName);
+            if (null == FileNode)
+            {
+                Int32 Result = STATUS_OBJECT_NAME_NOT_FOUND;
+                if (FindReparsePoint(FileName, out FileAttributes))
+                    Result = STATUS_REPARSE;
+                else
+                    FileNodeMap.GetParent(FileName, out Result);
+                return Result;
+            }
+
+            UInt32 FileAttributesMask = ~(UInt32)0;
+            if (null != FileNode.MainFileNode)
+            {
+                FileAttributesMask = ~(UInt32)System.IO.FileAttributes.Directory;
+                FileNode = FileNode.MainFileNode;
+            }
+            FileAttributes = FileNode.FileInfo.FileAttributes & FileAttributesMask;
+            if (null != SecurityDescriptor)
+                SecurityDescriptor = FileNode.FileSecurity;
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 Create(
             String FileName,
             UInt32 CreateOptions,
@@ -249,34 +278,89 @@ namespace memfs
             UInt32 FileAttributes,
             Byte[] SecurityDescriptor,
             UInt64 AllocationSize,
-            out Object FileNode,
+            out Object FileNode0,
             out Object FileDesc,
             out FileInfo FileInfo,
             out String NormalizedName)
         {
-            FileNode = default(Object);
+            FileNode0 = default(Object);
             FileDesc = default(Object);
             FileInfo = default(FileInfo);
             NormalizedName = default(String);
-            return STATUS_INVALID_DEVICE_REQUEST;
+
+            FileNode FileNode;
+            FileNode ParentNode;
+            Int32 Result;
+
+            FileNode = FileNodeMap.Get(FileName);
+            if (null != FileNode)
+                return STATUS_OBJECT_NAME_COLLISION;
+            ParentNode = FileNodeMap.GetParent(FileName, out Result);
+            if (null == ParentNode)
+                return Result;
+
+            if (0 != (CreateOptions & FILE_DIRECTORY_FILE))
+                AllocationSize = 0;
+            if (FileNodeMap.Count() >= MaxFileNodes)
+                return STATUS_CANNOT_MAKE;
+            if (AllocationSize > MaxFileSize)
+                return STATUS_DISK_FULL;
+
+            FileName = Path.Combine(ParentNode.FileName, Path.GetFileName(FileName));
+                /* normalize name */
+            FileNode = new FileNode(FileName);
+            FileNode.MainFileNode = FileNodeMap.GetMain(FileName);
+            FileNode.FileInfo.FileAttributes = 0 != (FileAttributes & (UInt32)System.IO.FileAttributes.Directory) ?
+                FileAttributes : FileAttributes | (UInt32)System.IO.FileAttributes.Archive;
+            FileNode.FileSecurity = SecurityDescriptor;
+            FileNode.FileInfo.AllocationSize = AllocationSize;
+            if (0 != AllocationSize)
+                FileNode.FileData = new byte[AllocationSize];
+            FileNodeMap.Insert(FileNode);
+
+            InsertOpenNode(FileNode);
+            FileNode0 = FileNode;
+            FileInfo = FileNode.GetFileInfo();
+            NormalizedName = FileNode.FileName;
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 Open(
             String FileName,
             UInt32 CreateOptions,
             UInt32 GrantedAccess,
-            out Object FileNode,
+            out Object FileNode0,
             out Object FileDesc,
             out FileInfo FileInfo,
             out String NormalizedName)
         {
-            FileNode = default(Object);
+            FileNode0 = default(Object);
             FileDesc = default(Object);
             FileInfo = default(FileInfo);
             NormalizedName = default(String);
-            return STATUS_INVALID_DEVICE_REQUEST;
+
+            FileNode FileNode;
+            Int32 Result;
+
+            FileNode = FileNodeMap.Get(FileName);
+            if (null == FileNode)
+            {
+                Result = STATUS_OBJECT_NAME_NOT_FOUND;
+                FileNodeMap.GetParent(FileName, out Result);
+                return Result;
+            }
+
+            InsertOpenNode(FileNode);
+            FileNode0 = FileNode;
+            FileInfo = FileNode.GetFileInfo();
+            NormalizedName = FileNode.FileName;
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 Overwrite(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             UInt32 FileAttributes,
             Boolean ReplaceFileAttributes,
@@ -284,20 +368,98 @@ namespace memfs
             out FileInfo FileInfo)
         {
             FileInfo = default(FileInfo);
-            return STATUS_INVALID_DEVICE_REQUEST;
+
+            FileNode FileNode = (FileNode)FileNode0;
+            Int32 Result;
+
+            List<String> StreamFileNames = new List<String>(FileNodeMap.GetStreamFileNames(FileNode));
+            lock (OpenNodeSet)
+            {
+                foreach (String StreamFileName in StreamFileNames)
+                {
+                    FileNode StreamNode = FileNodeMap.Get(StreamFileName);
+                    if (null == StreamNode)
+                        continue; /* should not happen */
+                    if (!OpenNodeSet.Contains(StreamNode))
+                        FileNodeMap.Remove(StreamNode);
+                }
+            }
+
+            Result = SetFileSizeInternal(FileNode, AllocationSize, true);
+            if (0 > Result)
+                return Result;
+            if (ReplaceFileAttributes)
+                FileNode.FileInfo.FileAttributes = FileAttributes | (UInt32)System.IO.FileAttributes.Archive;
+            else
+                FileNode.FileInfo.FileAttributes |= FileAttributes | (UInt32)System.IO.FileAttributes.Archive;
+            FileNode.FileInfo.FileSize = 0;
+            FileNode.FileInfo.LastAccessTime =
+            FileNode.FileInfo.LastWriteTime =
+            FileNode.FileInfo.ChangeTime = (UInt64)DateTime.Now.ToFileTimeUtc();
+
+            FileInfo = FileNode.GetFileInfo();
+
+            return STATUS_SUCCESS;
         }
+
         public override void Cleanup(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             String FileName,
             UInt32 Flags)
         {
+            FileNode FileNode = (FileNode)FileNode0;
+            FileNode MainFileNode = null != FileNode.MainFileNode ?
+                FileNode.MainFileNode : FileNode;
+
+            if (0 != (Flags & CleanupSetArchiveBit))
+            {
+                if (0 == (MainFileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory))
+                    MainFileNode.FileInfo.FileAttributes |= (UInt32)FileAttributes.Archive;
+            }
+
+            if (0 != (Flags & (CleanupSetLastAccessTime | CleanupSetLastWriteTime | CleanupSetChangeTime)))
+            {
+                UInt64 SystemTime = (UInt64)DateTime.Now.ToFileTimeUtc();
+
+                if (0 != (Flags & CleanupSetLastAccessTime))
+                    MainFileNode.FileInfo.LastAccessTime = SystemTime;
+                if (0 != (Flags & CleanupSetLastWriteTime))
+                    MainFileNode.FileInfo.LastWriteTime = SystemTime;
+                if (0 != (Flags & CleanupSetChangeTime))
+                    MainFileNode.FileInfo.ChangeTime = SystemTime;
+            }
+
+            if (0 != (Flags & CleanupSetAllocationSize))
+            {
+                UInt64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+                UInt64 AllocationSize = (FileNode.FileInfo.FileSize + AllocationUnit - 1) /
+                    AllocationUnit * AllocationUnit;
+                SetFileSizeInternal(FileNode, AllocationSize, true);
+            }
+
+            if (0 != (Flags & CleanupDelete) && !FileNodeMap.HasChild(FileNode))
+            {
+                List<String> StreamFileNames = new List<String>(FileNodeMap.GetStreamFileNames(FileNode));
+                foreach (String StreamFileName in StreamFileNames)
+                {
+                    FileNode StreamNode = FileNodeMap.Get(StreamFileName);
+                    if (null == StreamNode)
+                        continue; /* should not happen */
+                    FileNodeMap.Remove(StreamNode);
+                }
+                FileNodeMap.Remove(FileNode);
+            }
         }
+
         public override void Close(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc)
         {
+            FileNode FileNode = (FileNode)FileNode0;
+            RemoveOpenNode(FileNode);
         }
+
         public override Int32 Read(
             Object FileNode,
             Object FileDesc,
@@ -361,6 +523,13 @@ namespace memfs
             out FileInfo FileInfo)
         {
             FileInfo = default(FileInfo);
+            return STATUS_INVALID_DEVICE_REQUEST;
+        }
+        private Int32 SetFileSizeInternal(
+            FileNode FileNode,
+            UInt64 NewSize,
+            Boolean SetAllocationSize)
+        {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
         public override Int32 CanDelete(
@@ -454,10 +623,28 @@ namespace memfs
             return STATUS_INVALID_DEVICE_REQUEST;
         }
 
+        private void InsertOpenNode(FileNode FileNode)
+        {
+            lock (OpenNodeSet)
+            {
+                if (1 == ++FileNode.OpenCount)
+                    OpenNodeSet.Add(FileNode);
+            }
+        }
+        private void RemoveOpenNode(FileNode FileNode)
+        {
+            lock (OpenNodeSet)
+            {
+                if (0 == --FileNode.OpenCount)
+                    OpenNodeSet.Remove(FileNode);
+            }
+        }
+
         private FileNodeMap FileNodeMap;
-        UInt32 MaxFileNodes;
-        UInt32 MaxFileSize;
-        String VolumeLabel;
+        private HashSet<FileNode> OpenNodeSet;
+        private UInt32 MaxFileNodes;
+        private UInt32 MaxFileSize;
+        private String VolumeLabel;
     }
 
     class MemfsService : Service

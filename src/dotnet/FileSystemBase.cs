@@ -408,7 +408,7 @@ namespace Fsp
                 Marker, Buffer, Length, out BytesTransferred);
             return STATUS_SUCCESS;
         }
-        public Int32 FindReparsePoint(
+        public Boolean FindReparsePoint(
             String FileName,
             out UInt32 ReparsePointIndex)
         {

@@ -471,7 +471,8 @@ namespace Fsp.Interop
                 UInt32 Length,
                 out UInt32 PBytesTransferred);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-            internal delegate Int32 FspFileSystemFindReparsePoint(
+            [return: MarshalAs(UnmanagedType.U1)]
+            internal delegate Boolean FspFileSystemFindReparsePoint(
                 IntPtr FileSystem,
                 GetReparsePointByName GetReparsePointByName,
                 IntPtr Context,
