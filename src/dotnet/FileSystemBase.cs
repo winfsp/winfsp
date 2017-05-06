@@ -267,7 +267,7 @@ namespace Fsp
             Boolean ResolveLastPathComponent,
             out IoStatusBlock IoStatus,
             IntPtr Buffer,
-            ref UIntPtr Size)
+            IntPtr PSize)
         {
             GCHandle Handle = GCHandle.Alloc(this, GCHandleType.Normal);
             try
@@ -281,7 +281,7 @@ namespace Fsp
                     ResolveLastPathComponent,
                     out IoStatus,
                     Buffer,
-                    ref Size);
+                    PSize);
             }
             finally
             {
@@ -291,8 +291,7 @@ namespace Fsp
         public virtual Int32 GetReparsePointByName(
             String FileName,
             Boolean IsDirectory,
-            IntPtr Buffer,
-            ref UIntPtr Size)
+            ref Byte[] ReparsePoint)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
@@ -300,18 +299,15 @@ namespace Fsp
             Object FileNode,
             Object FileDesc,
             String FileName,
-            IntPtr Buffer,
-            out UIntPtr Size)
+            ref Byte[] ReparsePoint)
         {
-            Size = default(UIntPtr);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
         public virtual Int32 SetReparsePoint(
             Object FileNode,
             Object FileDesc,
             String FileName,
-            IntPtr Buffer,
-            UIntPtr Size)
+            Byte[] ReparsePoint)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
@@ -319,8 +315,7 @@ namespace Fsp
             Object FileNode,
             Object FileDesc,
             String FileName,
-            IntPtr Buffer,
-            UIntPtr Size)
+            Byte[] ReparsePoint)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
@@ -427,22 +422,40 @@ namespace Fsp
                 Handle.Free();
             }
         }
+        public static UInt32 GetReparseTag(
+            Byte[] ReparseData)
+        {
+            return 0;
+        }
+        public static Int32 CanReplaceReparsePoint(
+            Byte[] CurrentReparseData,
+            Byte[] ReplaceReparseData)
+        {
+            // !!!: NOT IMPLEMENTED
+            return STATUS_SUCCESS;
+        }
         private static Int32 GetReparsePointByName(
             IntPtr FileSystem,
             IntPtr Context,
             String FileName,
             Boolean IsDirectory,
             IntPtr Buffer,
-            ref UIntPtr Size)
+            IntPtr PSize)
         {
             FileSystemBase self = (FileSystemBase)GCHandle.FromIntPtr(Context).Target;
             try
             {
-                return self.GetReparsePointByName(
+                Byte[] ReparsePointBytes;
+                Int32 Result;
+                ReparsePointBytes = null;
+                Result = self.GetReparsePointByName(
                     FileName,
                     IsDirectory,
-                    Buffer,
-                    ref Size);
+                    ref ReparsePointBytes);
+                if (0 <= Result)
+                    Result = Api.CopyReparsePoint(ReparsePointBytes, Buffer, PSize);
+                return Result;
+
             }
             catch (Exception ex)
             {

@@ -763,7 +763,7 @@ namespace Fsp
             Boolean ResolveLastPathComponent,
             out IoStatusBlock PIoStatus,
             IntPtr Buffer,
-            ref UIntPtr PSize)
+            IntPtr PSize)
         {
             FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
@@ -774,7 +774,7 @@ namespace Fsp
                     ResolveLastPathComponent,
                     out PIoStatus,
                     Buffer,
-                    ref PSize);
+                    PSize);
             }
             catch (Exception ex)
             {
@@ -787,23 +787,27 @@ namespace Fsp
             ref FullContext FullContext,
             String FileName,
             IntPtr Buffer,
-            out UIntPtr PSize)
+            IntPtr PSize)
         {
             FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
+                Byte[] ReparsePointBytes;
                 Object FileNode, FileDesc;
+                Int32 Result;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return FileSystem.GetReparsePoint(
+                ReparsePointBytes = null;
+                Result = FileSystem.GetReparsePoint(
                     FileNode,
                     FileDesc,
                     FileName,
-                    Buffer,
-                    out PSize);
+                    ref ReparsePointBytes);
+                if (0 <= Result)
+                    Result = Api.CopyReparsePoint(ReparsePointBytes, Buffer, PSize);
+                return Result;
             }
             catch (Exception ex)
             {
-                PSize = default(UIntPtr);
                 return ExceptionHandler(FileSystem, ex);
             }
         }
@@ -823,8 +827,7 @@ namespace Fsp
                     FileNode,
                     FileDesc,
                     FileName,
-                    Buffer,
-                    Size);
+                    Api.MakeReparsePoint(Buffer, Size));
             }
             catch (Exception ex)
             {
@@ -847,8 +850,7 @@ namespace Fsp
                     FileNode,
                     FileDesc,
                     FileName,
-                    Buffer,
-                    Size);
+                    Api.MakeReparsePoint(Buffer, Size));
             }
             catch (Exception ex)
             {

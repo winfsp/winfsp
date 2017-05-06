@@ -354,14 +354,14 @@ namespace Fsp.Interop
                 [MarshalAs(UnmanagedType.U1)] Boolean ResolveLastPathComponent,
                 out IoStatusBlock PIoStatus,
                 IntPtr Buffer,
-                ref UIntPtr PSize);
+                IntPtr PSize);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 GetReparsePoint(
                 IntPtr FileSystem,
                 ref FullContext FullContext,
                 [MarshalAs(UnmanagedType.LPWStr)] String FileName,
                 IntPtr Buffer,
-                out UIntPtr PSize);
+                IntPtr PSize);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 SetReparsePoint(
                 IntPtr FileSystem,
@@ -488,7 +488,7 @@ namespace Fsp.Interop
                 [MarshalAs(UnmanagedType.U1)] Boolean ResolveLastPathComponent,
                 out IoStatusBlock PIoStatus,
                 IntPtr Buffer,
-                ref UIntPtr PSize);
+                IntPtr PSize);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 FspFileSystemCanReplaceReparsePoint(
                 IntPtr CurrentReparseData,
@@ -587,7 +587,7 @@ namespace Fsp.Interop
                 [MarshalAs(UnmanagedType.LPWStr)] String FileName,
                 [MarshalAs(UnmanagedType.U1)] Boolean IsDirectory,
                 IntPtr Buffer,
-                ref UIntPtr PSize);
+                IntPtr PSize);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 ServiceStart(
                 IntPtr Service,
@@ -765,6 +765,39 @@ namespace Fsp.Interop
                 Marshal.Copy(SecurityDescriptor,
                     SecurityDescriptorBytes, 0, SecurityDescriptorBytes.Length);
                 return SecurityDescriptorBytes;
+            }
+            else
+                return null;
+        }
+
+        internal unsafe static Int32 CopyReparsePoint(
+            Byte[] ReparsePointBytes,
+            IntPtr Buffer,
+            IntPtr PSize)
+        {
+            if (IntPtr.Zero != Buffer)
+            {
+                if (null != ReparsePointBytes)
+                {
+                    if (ReparsePointBytes.Length > (int)*(UIntPtr *)PSize)
+                        return unchecked((Int32)0xc0000023)/*STATUS_BUFFER_TOO_SMALL*/;
+                    *(UIntPtr *)PSize = (UIntPtr)ReparsePointBytes.Length;
+                    Marshal.Copy(ReparsePointBytes, 0, Buffer, ReparsePointBytes.Length);
+                }
+                else
+                    *(UIntPtr *)PSize = UIntPtr.Zero;
+            }
+            return 0/*STATUS_SUCCESS*/;
+        }
+        internal static Byte[] MakeReparsePoint(
+            IntPtr Buffer,
+            UIntPtr Size)
+        {
+            if (IntPtr.Zero != Buffer)
+            {
+                Byte[] ReparsePointBytes = new Byte[(int)Size];
+                Marshal.Copy(Buffer, ReparsePointBytes, 0, ReparsePointBytes.Length);
+                return ReparsePointBytes;
             }
             else
                 return null;
