@@ -164,7 +164,8 @@ namespace Fsp.Interop
     internal struct DirInfo
     {
         internal const int FileNameBufSize = 255;
-        internal static int FileNameBufOffset = (int)Marshal.OffsetOf(typeof(DirInfo), "FileNameBuf");
+        internal static int FileNameBufOffset =
+            (int)Marshal.OffsetOf(typeof(DirInfo), "FileNameBuf");
 
         internal UInt16 Size;
         internal FileInfo FileInfo;
@@ -172,7 +173,7 @@ namespace Fsp.Interop
         //internal unsafe fixed UInt16 FileNameBuf[];
         internal unsafe fixed UInt16 FileNameBuf[FileNameBufSize];
 
-        public unsafe void SetFileNameBuf(String Value)
+        internal unsafe void SetFileNameBuf(String Value)
         {
             fixed (UInt16 *P = FileNameBuf)
             {
@@ -189,10 +190,28 @@ namespace Fsp.Interop
     [StructLayout(LayoutKind.Sequential)]
     internal struct StreamInfo
     {
+        internal const int StreamNameBufSize = 255;
+        internal static int StreamNameBufOffset =
+            (int)Marshal.OffsetOf(typeof(StreamInfo), "StreamNameBuf");
+
         internal UInt16 Size;
         internal UInt64 StreamSize;
         internal UInt64 StreamAllocationSize;
         //internal unsafe fixed UInt16 StreamNameBuf[];
+        internal unsafe fixed UInt16 StreamNameBuf[StreamNameBufSize];
+
+        internal unsafe void SetStreamNameBuf(String Value)
+        {
+            fixed (UInt16 *P = StreamNameBuf)
+            {
+                int Size = null != Value ? Value.Length : 0;
+                if (Size > StreamNameBufSize)
+                    Size = StreamNameBufSize;
+                for (int I = 0; Size > I; I++)
+                    P[I] = Value[I];
+                this.Size = (UInt16)(StreamNameBufOffset + Size * 2);
+            }
+        }
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -621,7 +640,7 @@ namespace Fsp.Interop
         internal static Proto.FspFileSystemFindReparsePoint FspFileSystemFindReparsePoint;
         internal static Proto.FspFileSystemResolveReparsePoints FspFileSystemResolveReparsePoints;
         internal static Proto.FspFileSystemCanReplaceReparsePoint _FspFileSystemCanReplaceReparsePoint;
-        internal static Proto.FspFileSystemAddStreamInfo FspFileSystemAddStreamInfo;
+        internal static Proto.FspFileSystemAddStreamInfo _FspFileSystemAddStreamInfo;
         internal static Proto.FspFileSystemAcquireDirectoryBuffer FspFileSystemAcquireDirectoryBuffer;
         internal static Proto.FspFileSystemFillDirectoryBuffer FspFileSystemFillDirectoryBuffer;
         internal static Proto.FspFileSystemReleaseDirectoryBuffer FspFileSystemReleaseDirectoryBuffer;
@@ -662,6 +681,15 @@ namespace Fsp.Interop
         {
             fixed (DirInfo *P = &DirInfo)
                 return _FspFileSystemAddDirInfo((IntPtr)P, Buffer, Length, out PBytesTransferred);
+        }
+        internal static unsafe Boolean FspFileSystemAddStreamInfo(
+            ref StreamInfo StreamInfo,
+            IntPtr Buffer,
+            UInt32 Length,
+            out UInt32 PBytesTransferred)
+        {
+            fixed (StreamInfo *P = &StreamInfo)
+                return _FspFileSystemAddStreamInfo((IntPtr)P, Buffer, Length, out PBytesTransferred);
         }
 
         internal unsafe static Object GetUserContext(
@@ -890,7 +918,7 @@ namespace Fsp.Interop
             FspFileSystemFindReparsePoint = GetEntryPoint<Proto.FspFileSystemFindReparsePoint>(Module);
             FspFileSystemResolveReparsePoints = GetEntryPoint<Proto.FspFileSystemResolveReparsePoints>(Module);
             _FspFileSystemCanReplaceReparsePoint = GetEntryPoint<Proto.FspFileSystemCanReplaceReparsePoint>(Module);
-            FspFileSystemAddStreamInfo = GetEntryPoint<Proto.FspFileSystemAddStreamInfo>(Module);
+            _FspFileSystemAddStreamInfo = GetEntryPoint<Proto.FspFileSystemAddStreamInfo>(Module);
             FspFileSystemAcquireDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemAcquireDirectoryBuffer>(Module);
             FspFileSystemFillDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemFillDirectoryBuffer>(Module);
             FspFileSystemReleaseDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemReleaseDirectoryBuffer>(Module);

@@ -326,8 +326,33 @@ namespace Fsp
             UInt32 Length,
             out UInt32 BytesTransferred)
         {
+            Object Context = null;
+            String StreamName;
+            UInt64 StreamSize, StreamAllocationSize;
+            StreamInfo StreamInfo = default(StreamInfo);
             BytesTransferred = default(UInt32);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            while (GetStreamEntry(FileNode, FileDesc,
+                ref Context, out StreamName, out StreamSize, out StreamAllocationSize))
+            {
+                StreamInfo.SetStreamNameBuf(StreamName);
+                if (!Api.FspFileSystemAddStreamInfo(ref StreamInfo, Buffer, Length,
+                    out BytesTransferred))
+                    break;
+            }
+            return STATUS_SUCCESS;
+        }
+        public virtual Boolean GetStreamEntry(
+            Object FileNode,
+            Object FileDesc,
+            ref Object Context,
+            out String StreamName,
+            out UInt64 StreamSize,
+            out UInt64 StreamAllocationSize)
+        {
+            StreamName = default(String);
+            StreamSize = default(UInt64);
+            StreamAllocationSize = default(UInt64);
+            return false;
         }
 
         /* helpers */
