@@ -6,6 +6,7 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{4920E350-D496-4652-AE98-6C4208AEC1D8}</ProjectGuid>
     <OutputType>Exe</OutputType>
+    <ProjectName>memfs-dotnet</ProjectName>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>memfs</RootNamespace>
     <AssemblyName>memfs-dotnet-msil</AssemblyName>
