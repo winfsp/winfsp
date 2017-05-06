@@ -620,7 +620,7 @@ namespace Fsp.Interop
         internal static Proto.FspFileSystemAddDirInfo _FspFileSystemAddDirInfo;
         internal static Proto.FspFileSystemFindReparsePoint FspFileSystemFindReparsePoint;
         internal static Proto.FspFileSystemResolveReparsePoints FspFileSystemResolveReparsePoints;
-        internal static Proto.FspFileSystemCanReplaceReparsePoint FspFileSystemCanReplaceReparsePoint;
+        internal static Proto.FspFileSystemCanReplaceReparsePoint _FspFileSystemCanReplaceReparsePoint;
         internal static Proto.FspFileSystemAddStreamInfo FspFileSystemAddStreamInfo;
         internal static Proto.FspFileSystemAcquireDirectoryBuffer FspFileSystemAcquireDirectoryBuffer;
         internal static Proto.FspFileSystemFillDirectoryBuffer FspFileSystemFillDirectoryBuffer;
@@ -771,18 +771,18 @@ namespace Fsp.Interop
         }
 
         internal unsafe static Int32 CopyReparsePoint(
-            Byte[] ReparsePointBytes,
+            Byte[] ReparseData,
             IntPtr Buffer,
             IntPtr PSize)
         {
             if (IntPtr.Zero != Buffer)
             {
-                if (null != ReparsePointBytes)
+                if (null != ReparseData)
                 {
-                    if (ReparsePointBytes.Length > (int)*(UIntPtr *)PSize)
+                    if (ReparseData.Length > (int)*(UIntPtr *)PSize)
                         return unchecked((Int32)0xc0000023)/*STATUS_BUFFER_TOO_SMALL*/;
-                    *(UIntPtr *)PSize = (UIntPtr)ReparsePointBytes.Length;
-                    Marshal.Copy(ReparsePointBytes, 0, Buffer, ReparsePointBytes.Length);
+                    *(UIntPtr *)PSize = (UIntPtr)ReparseData.Length;
+                    Marshal.Copy(ReparseData, 0, Buffer, ReparseData.Length);
                 }
                 else
                     *(UIntPtr *)PSize = UIntPtr.Zero;
@@ -795,12 +795,27 @@ namespace Fsp.Interop
         {
             if (IntPtr.Zero != Buffer)
             {
-                Byte[] ReparsePointBytes = new Byte[(int)Size];
-                Marshal.Copy(Buffer, ReparsePointBytes, 0, ReparsePointBytes.Length);
-                return ReparsePointBytes;
+                Byte[] ReparseData = new Byte[(int)Size];
+                Marshal.Copy(Buffer, ReparseData, 0, ReparseData.Length);
+                return ReparseData;
             }
             else
                 return null;
+        }
+        internal unsafe static UInt32 GetReparseTag(
+            Byte[] ReparseData)
+        {
+            return 0;
+        }
+        internal unsafe static Int32 FspFileSystemCanReplaceReparsePoint(
+            Byte[] CurrentReparseData,
+            Byte[] ReplaceReparseData)
+        {
+            fixed (Byte *C = CurrentReparseData)
+                fixed (Byte *R = ReplaceReparseData)
+                    return _FspFileSystemCanReplaceReparsePoint(
+                        (IntPtr)C, (UIntPtr)CurrentReparseData.Length,
+                        (IntPtr)R, (UIntPtr)ReplaceReparseData.Length);
         }
 
         internal static Int32 SetDebugLogFile(String FileName)
@@ -874,7 +889,7 @@ namespace Fsp.Interop
             _FspFileSystemAddDirInfo = GetEntryPoint<Proto.FspFileSystemAddDirInfo>(Module);
             FspFileSystemFindReparsePoint = GetEntryPoint<Proto.FspFileSystemFindReparsePoint>(Module);
             FspFileSystemResolveReparsePoints = GetEntryPoint<Proto.FspFileSystemResolveReparsePoints>(Module);
-            FspFileSystemCanReplaceReparsePoint = GetEntryPoint<Proto.FspFileSystemCanReplaceReparsePoint>(Module);
+            _FspFileSystemCanReplaceReparsePoint = GetEntryPoint<Proto.FspFileSystemCanReplaceReparsePoint>(Module);
             FspFileSystemAddStreamInfo = GetEntryPoint<Proto.FspFileSystemAddStreamInfo>(Module);
             FspFileSystemAcquireDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemAcquireDirectoryBuffer>(Module);
             FspFileSystemFillDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemFillDirectoryBuffer>(Module);

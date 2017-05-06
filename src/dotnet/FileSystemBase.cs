@@ -291,7 +291,7 @@ namespace Fsp
         public virtual Int32 GetReparsePointByName(
             String FileName,
             Boolean IsDirectory,
-            ref Byte[] ReparsePoint)
+            ref Byte[] ReparseData)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
@@ -299,7 +299,7 @@ namespace Fsp
             Object FileNode,
             Object FileDesc,
             String FileName,
-            ref Byte[] ReparsePoint)
+            ref Byte[] ReparseData)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
@@ -307,7 +307,7 @@ namespace Fsp
             Object FileNode,
             Object FileDesc,
             String FileName,
-            Byte[] ReparsePoint)
+            Byte[] ReparseData)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
@@ -315,7 +315,7 @@ namespace Fsp
             Object FileNode,
             Object FileDesc,
             String FileName,
-            Byte[] ReparsePoint)
+            Byte[] ReparseData)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
@@ -425,14 +425,13 @@ namespace Fsp
         public static UInt32 GetReparseTag(
             Byte[] ReparseData)
         {
-            return 0;
+            return Api.GetReparseTag(ReparseData);
         }
         public static Int32 CanReplaceReparsePoint(
             Byte[] CurrentReparseData,
             Byte[] ReplaceReparseData)
         {
-            // !!!: NOT IMPLEMENTED
-            return STATUS_SUCCESS;
+            return Api.FspFileSystemCanReplaceReparsePoint(CurrentReparseData, ReplaceReparseData);
         }
         private static Int32 GetReparsePointByName(
             IntPtr FileSystem,
@@ -445,15 +444,15 @@ namespace Fsp
             FileSystemBase self = (FileSystemBase)GCHandle.FromIntPtr(Context).Target;
             try
             {
-                Byte[] ReparsePointBytes;
+                Byte[] ReparseData;
                 Int32 Result;
-                ReparsePointBytes = null;
+                ReparseData = null;
                 Result = self.GetReparsePointByName(
                     FileName,
                     IsDirectory,
-                    ref ReparsePointBytes);
+                    ref ReparseData);
                 if (0 <= Result)
-                    Result = Api.CopyReparsePoint(ReparsePointBytes, Buffer, PSize);
+                    Result = Api.CopyReparsePoint(ReparseData, Buffer, PSize);
                 return Result;
 
             }

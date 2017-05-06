@@ -792,18 +792,18 @@ namespace Fsp
             FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
             {
-                Byte[] ReparsePointBytes;
+                Byte[] ReparseData;
                 Object FileNode, FileDesc;
                 Int32 Result;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                ReparsePointBytes = null;
+                ReparseData = null;
                 Result = FileSystem.GetReparsePoint(
                     FileNode,
                     FileDesc,
                     FileName,
-                    ref ReparsePointBytes);
+                    ref ReparseData);
                 if (0 <= Result)
-                    Result = Api.CopyReparsePoint(ReparsePointBytes, Buffer, PSize);
+                    Result = Api.CopyReparsePoint(ReparseData, Buffer, PSize);
                 return Result;
             }
             catch (Exception ex)
