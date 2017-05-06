@@ -816,7 +816,7 @@ namespace memfs
         public override Int32 GetReparsePointByName(
             String FileName,
             Boolean IsDirectory,
-            ref Byte[] ReparsePoint)
+            ref Byte[] ReparseData)
         {
             FileNode FileNode;
 
@@ -827,7 +827,7 @@ namespace memfs
             if (0 == (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.ReparsePoint))
                 return STATUS_NOT_A_REPARSE_POINT;
 
-            ReparsePoint = FileNode.ReparseData;
+            ReparseData = FileNode.ReparseData;
 
             return STATUS_SUCCESS;
         }
@@ -836,7 +836,7 @@ namespace memfs
             Object FileNode0,
             Object FileDesc,
             String FileName,
-            ref Byte[] ReparsePoint)
+            ref Byte[] ReparseData)
         {
             FileNode FileNode = (FileNode)FileNode0;
 
@@ -846,7 +846,7 @@ namespace memfs
             if (0 == (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.ReparsePoint))
                 return STATUS_NOT_A_REPARSE_POINT;
 
-            ReparsePoint = FileNode.ReparseData;
+            ReparseData = FileNode.ReparseData;
 
             return STATUS_SUCCESS;
         }
@@ -855,7 +855,7 @@ namespace memfs
             Object FileNode0,
             Object FileDesc,
             String FileName,
-            Byte[] ReparsePoint)
+            Byte[] ReparseData)
         {
             FileNode FileNode = (FileNode)FileNode0;
 
@@ -867,14 +867,14 @@ namespace memfs
 
             if (null != FileNode.ReparseData)
             {
-                Int32 Result = CanReplaceReparsePoint(FileNode.ReparseData, ReparsePoint);
+                Int32 Result = CanReplaceReparsePoint(FileNode.ReparseData, ReparseData);
                 if (0 > Result)
                     return Result;
             }
 
             FileNode.FileInfo.FileAttributes |= (UInt32)FileAttributes.ReparsePoint;
-            FileNode.FileInfo.ReparseTag = GetReparseTag(ReparsePoint);
-            FileNode.ReparseData = ReparsePoint;
+            FileNode.FileInfo.ReparseTag = GetReparseTag(ReparseData);
+            FileNode.ReparseData = ReparseData;
 
             return STATUS_SUCCESS;
         }
@@ -883,7 +883,7 @@ namespace memfs
             Object FileNode0,
             Object FileDesc,
             String FileName,
-            Byte[] ReparsePoint)
+            Byte[] ReparseData)
         {
             FileNode FileNode = (FileNode)FileNode0;
 
@@ -892,7 +892,7 @@ namespace memfs
 
             if (null != FileNode.ReparseData)
             {
-                Int32 Result = CanReplaceReparsePoint(FileNode.ReparseData, ReparsePoint);
+                Int32 Result = CanReplaceReparsePoint(FileNode.ReparseData, ReparseData);
                 if (0 > Result)
                     return Result;
             }
@@ -900,7 +900,7 @@ namespace memfs
                 return STATUS_NOT_A_REPARSE_POINT;
 
             FileNode.FileInfo.FileAttributes &= ~(UInt32)FileAttributes.ReparsePoint;
-            FileNode.FileInfo.ReparseTag = GetReparseTag(ReparsePoint);
+            FileNode.FileInfo.ReparseTag = GetReparseTag(ReparseData);
             FileNode.ReparseData = null;
 
             return STATUS_SUCCESS;
