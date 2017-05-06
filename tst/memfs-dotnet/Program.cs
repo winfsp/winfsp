@@ -812,42 +812,100 @@ namespace memfs
             FileInfo = default(FileInfo);
             return false;
         }
+
         public override Int32 GetReparsePointByName(
             String FileName,
             Boolean IsDirectory,
-            IntPtr Buffer,
-            ref UIntPtr Size)
+            ref Byte[] ReparsePoint)
         {
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode;
+
+            FileNode = FileNodeMap.Get(FileName);
+            if (null == FileNode)
+                return STATUS_OBJECT_NAME_NOT_FOUND;
+
+            if (0 == (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.ReparsePoint))
+                return STATUS_NOT_A_REPARSE_POINT;
+
+            ReparsePoint = FileNode.ReparseData;
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 GetReparsePoint(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             String FileName,
-            IntPtr Buffer,
-            out UIntPtr Size)
+            ref Byte[] ReparsePoint)
         {
-            Size = default(UIntPtr);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+
+            if (null != FileNode.MainFileNode)
+                FileNode = FileNode.MainFileNode;
+
+            if (0 == (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.ReparsePoint))
+                return STATUS_NOT_A_REPARSE_POINT;
+
+            ReparsePoint = FileNode.ReparseData;
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 SetReparsePoint(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             String FileName,
-            IntPtr Buffer,
-            UIntPtr Size)
+            Byte[] ReparsePoint)
         {
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+
+            if (null != FileNode.MainFileNode)
+                FileNode = FileNode.MainFileNode;
+
+            if (FileNodeMap.HasChild(FileNode))
+                return STATUS_DIRECTORY_NOT_EMPTY;
+
+            if (null != FileNode.ReparseData)
+            {
+                Int32 Result = CanReplaceReparsePoint(FileNode.ReparseData, ReparsePoint);
+                if (0 > Result)
+                    return Result;
+            }
+
+            FileNode.FileInfo.FileAttributes |= (UInt32)FileAttributes.ReparsePoint;
+            FileNode.FileInfo.ReparseTag = GetReparseTag(ReparsePoint);
+            FileNode.ReparseData = ReparsePoint;
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 DeleteReparsePoint(
-            Object FileNode,
+            Object FileNode0,
             Object FileDesc,
             String FileName,
-            IntPtr Buffer,
-            UIntPtr Size)
+            Byte[] ReparsePoint)
         {
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+
+            if (null != FileNode.MainFileNode)
+                FileNode = FileNode.MainFileNode;
+
+            if (null != FileNode.ReparseData)
+            {
+                Int32 Result = CanReplaceReparsePoint(FileNode.ReparseData, ReparsePoint);
+                if (0 > Result)
+                    return Result;
+            }
+            else
+                return STATUS_NOT_A_REPARSE_POINT;
+
+            FileNode.FileInfo.FileAttributes &= ~(UInt32)FileAttributes.ReparsePoint;
+            FileNode.FileInfo.ReparseTag = GetReparseTag(ReparsePoint);
+            FileNode.ReparseData = null;
+
+            return STATUS_SUCCESS;
         }
+
         public override Int32 GetStreamInfo(
             Object FileNode,
             Object FileDesc,
