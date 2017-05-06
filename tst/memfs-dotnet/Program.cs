@@ -781,7 +781,8 @@ namespace memfs
 
             while (Enumerator.MoveNext())
             {
-                FileName = Enumerator.Current;
+                String FullFileName = Enumerator.Current;
+                FileName = Path.GetFileName(FullFileName);
                 if ("." == FileName)
                 {
                     FileInfo = FileNode.GetFileInfo();
@@ -799,7 +800,7 @@ namespace memfs
                 }
                 else
                 {
-                    FileNode ChildFileNode = FileNodeMap.Get(FileName);
+                    FileNode ChildFileNode = FileNodeMap.Get(FullFileName);
                     if (null != ChildFileNode)
                     {
                         FileInfo = ChildFileNode.GetFileInfo();
@@ -906,15 +907,52 @@ namespace memfs
             return STATUS_SUCCESS;
         }
 
-        public override Int32 GetStreamInfo(
-            Object FileNode,
+        public override Boolean GetStreamEntry(
+            Object FileNode0,
             Object FileDesc,
-            IntPtr Buffer,
-            UInt32 Length,
-            out UInt32 BytesTransferred)
+            ref Object Context,
+            out String StreamName,
+            out UInt64 StreamSize,
+            out UInt64 StreamAllocationSize)
         {
-            BytesTransferred = default(UInt32);
-            return STATUS_INVALID_DEVICE_REQUEST;
+            FileNode FileNode = (FileNode)FileNode0;
+            IEnumerator<String> Enumerator = (IEnumerator<String>)Context;
+
+            if (null != FileNode.MainFileNode)
+                FileNode = FileNode.MainFileNode;
+
+            if (null == Enumerator)
+            {
+                List<String> StreamFileNames =
+                    new List<String>(FileNodeMap.GetStreamFileNames(FileNode));
+                Context = Enumerator = StreamFileNames.GetEnumerator();
+            }
+
+            while (Enumerator.MoveNext())
+            {
+                String FullFileName = Enumerator.Current;
+                FileNode StreamFileNode = FileNodeMap.Get(FullFileName);
+                if (null != StreamFileNode)
+                {
+                    int Index = FullFileName.IndexOf(':');
+                    if (0 > Index)
+                    {
+                        if (0 != (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory))
+                            continue;
+                        StreamName = "";
+                    }
+                    else
+                        StreamName = FullFileName.Substring(Index + 1);
+                    StreamSize = StreamFileNode.FileInfo.FileSize;
+                    StreamAllocationSize = StreamFileNode.FileInfo.AllocationSize;
+                    return true;
+                }
+            }
+
+            StreamName = default(String);
+            StreamSize = default(UInt64);
+            StreamAllocationSize = default(UInt64);
+            return false;
         }
 
         private void InsertOpenNode(FileNode FileNode)
