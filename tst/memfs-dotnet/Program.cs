@@ -637,8 +637,9 @@ namespace memfs
                         {
                             return STATUS_INSUFFICIENT_RESOURCES;
                         }
-                    Array.Copy(FileNode.FileData, FileData,
-                        (int)Math.Min(FileNode.FileInfo.AllocationSize, NewSize));
+                    int CopyLength = (int)Math.Min(FileNode.FileInfo.AllocationSize, NewSize);
+                    if (0 != CopyLength)
+                        Array.Copy(FileNode.FileData, FileData, CopyLength);
 
                     FileNode.FileData = FileData;
                     FileNode.FileInfo.AllocationSize = NewSize;
@@ -660,8 +661,11 @@ namespace memfs
                     }
 
                     if (FileNode.FileInfo.FileSize < NewSize)
-                        Array.Clear(FileNode.FileData,
-                            (int)FileNode.FileInfo.FileSize, (int)(NewSize - FileNode.FileInfo.FileSize));
+                    {
+                        int CopyLength = (int)(NewSize - FileNode.FileInfo.FileSize);
+                        if (0 != CopyLength)
+                            Array.Clear(FileNode.FileData, (int)FileNode.FileInfo.FileSize, CopyLength);
+                    }
                     FileNode.FileInfo.FileSize = NewSize;
                 }
             }
