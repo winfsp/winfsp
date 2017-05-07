@@ -50,6 +50,7 @@ namespace Fsp
         /* operations */
         public virtual Int32 ExceptionHandler(Exception ex)
         {
+            Api.FspDebugLog("%s\n", ex.ToString());
             return STATUS_UNEXPECTED_IO_ERROR;
         }
         public virtual Int32 Init(Object Host)

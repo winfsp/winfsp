@@ -595,6 +595,10 @@ namespace Fsp.Interop
             internal delegate UInt32 FspWin32FromNtStatus(
                 Int32 Status);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspDebugLog(
+                [MarshalAs(UnmanagedType.LPStr)] String Format,
+                [MarshalAs(UnmanagedType.LPStr)] String Message);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate void FspDebugLogSetHandle(
                 IntPtr Handle);
 
@@ -658,6 +662,7 @@ namespace Fsp.Interop
         internal static Proto.FspVersion FspVersion;
         internal static Proto.FspNtStatusFromWin32 FspNtStatusFromWin32;
         internal static Proto.FspWin32FromNtStatus FspWin32FromNtStatus;
+        internal static Proto.FspDebugLog FspDebugLog;
         internal static Proto.FspDebugLogSetHandle FspDebugLogSetHandle;
 
         internal static unsafe Int32 FspFileSystemSetMountPointEx(
@@ -950,6 +955,7 @@ namespace Fsp.Interop
             FspVersion = GetEntryPoint<Proto.FspVersion>(Module);
             FspNtStatusFromWin32 = GetEntryPoint<Proto.FspNtStatusFromWin32>(Module);
             FspWin32FromNtStatus = GetEntryPoint<Proto.FspWin32FromNtStatus>(Module);
+            FspDebugLog = GetEntryPoint<Proto.FspDebugLog>(Module);
             FspDebugLogSetHandle = GetEntryPoint<Proto.FspDebugLogSetHandle>(Module);
         }
         private static void CheckVersion()
