@@ -33,23 +33,23 @@ namespace Fsp
         /* ctor/dtor */
         public Service(String ServiceName)
         {
-            Api.FspServiceCreate(ServiceName, _OnStart, _OnStop, null, out _Service);
-            if (IntPtr.Zero != _Service)
-                Api.SetUserContext(_Service, this);
+            Api.FspServiceCreate(ServiceName, _OnStart, _OnStop, null, out _ServicePtr);
+            if (IntPtr.Zero != _ServicePtr)
+                Api.SetUserContext(_ServicePtr, this);
         }
         ~Service()
         {
-            if (IntPtr.Zero != _Service)
+            if (IntPtr.Zero != _ServicePtr)
             {
-                Api.SetUserContext(_Service, null);
-                Api.FspServiceDelete(_Service);
+                Api.DisposeUserContext(_ServicePtr);
+                Api.FspServiceDelete(_ServicePtr);
             }
         }
 
         /* control */
         public int Run()
         {
-            if (IntPtr.Zero == _Service)
+            if (IntPtr.Zero == _ServicePtr)
             {
                 const Int32 STATUS_INSUFFICIENT_RESOURCES = unchecked((Int32)0xc000009a);
                 Log(EVENTLOG_ERROR_TYPE,
@@ -57,9 +57,9 @@ namespace Fsp
                     GetType().FullName, STATUS_INSUFFICIENT_RESOURCES));
                 return (int)Api.FspWin32FromNtStatus(STATUS_INSUFFICIENT_RESOURCES);
             }
-            Api.FspServiceAllowConsoleMode(_Service);
-            Int32 Result = Api.FspServiceLoop(_Service);
-            int ExitCode = (int)Api.FspServiceGetExitCode(_Service);
+            Api.FspServiceAllowConsoleMode(_ServicePtr);
+            Int32 Result = Api.FspServiceLoop(_ServicePtr);
+            int ExitCode = (int)Api.FspServiceGetExitCode(_ServicePtr);
             if (0 > Result)
             {
                 Log(EVENTLOG_ERROR_TYPE,
@@ -71,34 +71,34 @@ namespace Fsp
         }
         public void Stop()
         {
-            if (IntPtr.Zero == _Service)
+            if (IntPtr.Zero == _ServicePtr)
                 throw new InvalidOperationException();
-            Api.FspServiceStop(_Service);
+            Api.FspServiceStop(_ServicePtr);
         }
         public void RequestTime(UInt32 Time)
         {
-            if (IntPtr.Zero == _Service)
+            if (IntPtr.Zero == _ServicePtr)
                 throw new InvalidOperationException();
-            Api.FspServiceRequestTime(_Service, Time);
+            Api.FspServiceRequestTime(_ServicePtr, Time);
         }
         public int ExitCode
         {
             get
             {
-                if (IntPtr.Zero == _Service)
+                if (IntPtr.Zero == _ServicePtr)
                     throw new InvalidOperationException();
-                return (int)Api.FspServiceGetExitCode(_Service);
+                return (int)Api.FspServiceGetExitCode(_ServicePtr);
             }
             set
             {
-                if (IntPtr.Zero == _Service)
+                if (IntPtr.Zero == _ServicePtr)
                     throw new InvalidOperationException();
-                Api.FspServiceSetExitCode(_Service, (UInt32)value);
+                Api.FspServiceSetExitCode(_ServicePtr, (UInt32)value);
             }
         }
         public IntPtr ServiceHandle
         {
-            get { return _Service; }
+            get { return _ServicePtr; }
         }
         public static void Log(UInt32 Type, String Message)
         {
@@ -152,7 +152,7 @@ namespace Fsp
 
         private static Api.Proto.ServiceStart _OnStart = OnStart;
         private static Api.Proto.ServiceStop _OnStop = OnStop;
-        private IntPtr _Service;
+        private IntPtr _ServicePtr;
     }
 
 }

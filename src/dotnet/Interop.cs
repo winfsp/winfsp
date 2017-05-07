@@ -721,61 +721,61 @@ namespace Fsp.Interop
             IntPtr NativePtr,
             Object Obj)
         {
-            if (null != Obj)
+            Debug.Assert(IntPtr.Zero == *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr)));
+            GCHandle Handle = GCHandle.Alloc(Obj, GCHandleType.Weak);
+            *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr)) = (IntPtr)Handle;
+        }
+        internal unsafe static void DisposeUserContext(
+            IntPtr NativePtr)
+        {
+            IntPtr UserContext = *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr));
+            Debug.Assert(IntPtr.Zero != UserContext);
+            if (IntPtr.Zero != UserContext)
             {
-                Debug.Assert(IntPtr.Zero == *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr)));
-                GCHandle Handle = GCHandle.Alloc(Obj, GCHandleType.Weak);
-                *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr)) = (IntPtr)Handle;
-            }
-            else
-            {
-                IntPtr UserContext = *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr));
-                if (IntPtr.Zero != UserContext)
-                {
-                    GCHandle.FromIntPtr(UserContext).Free();
-                    *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr)) = IntPtr.Zero;
-                }
+                GCHandle.FromIntPtr(UserContext).Free();
+                *(IntPtr *)((Byte *)NativePtr + sizeof(IntPtr)) = IntPtr.Zero;
             }
         }
 
+        private class FullContextHolder
+        {
+            public Object FileNode;
+            public Object FileDesc;
+        }
         internal static void GetFullContext(ref FullContext FullContext,
             out Object FileNode, out Object FileDesc)
         {
-            FileNode = 0 != FullContext.UserContext ?
-                GCHandle.FromIntPtr((IntPtr)FullContext.UserContext).Target : null;
-            FileDesc = 0 != FullContext.UserContext2 ?
-                GCHandle.FromIntPtr((IntPtr)FullContext.UserContext2).Target : null;
+            FullContextHolder Holder = 0 != FullContext.UserContext2 ?
+                (FullContextHolder)GCHandle.FromIntPtr((IntPtr)FullContext.UserContext2).Target :
+                null;
+            if (null != Holder)
+            {
+                FileNode = Holder.FileNode;
+                FileDesc = Holder.FileDesc;
+            }
+            else
+            {
+                FileNode = null;
+                FileDesc = null;
+            }
         }
         internal static void SetFullContext(ref FullContext FullContext,
             Object FileNode, Object FileDesc)
         {
-            if (null != FileNode)
+            Debug.Assert(0 == FullContext.UserContext && 0 == FullContext.UserContext2);
+            FullContextHolder Holder = new FullContextHolder();
+            Holder.FileNode = FileNode;
+            Holder.FileDesc = FileDesc;
+            GCHandle Handle = GCHandle.Alloc(Holder, GCHandleType.Normal);
+            FullContext.UserContext2 = (UInt64)(IntPtr)Handle;
+        }
+        internal static void DisposeFullContext(ref FullContext FullContext)
+        {
+            Debug.Assert(0 == FullContext.UserContext && 0 != FullContext.UserContext2);
+            if (0 != FullContext.UserContext2)
             {
-                Debug.Assert(0 == FullContext.UserContext);
-                GCHandle Handle = GCHandle.Alloc(FileNode, GCHandleType.Normal);
-                FullContext.UserContext = (UInt64)(IntPtr)Handle;
-            }
-            else
-            {
-                if (0 != FullContext.UserContext)
-                {
-                    GCHandle.FromIntPtr((IntPtr)FullContext.UserContext).Free();
-                    FullContext.UserContext = 0;
-                }
-            }
-            if (null != FileDesc)
-            {
-                Debug.Assert(0 == FullContext.UserContext2);
-                GCHandle Handle = GCHandle.Alloc(FileDesc, GCHandleType.Normal);
-                FullContext.UserContext2 = (UInt64)(IntPtr)Handle;
-            }
-            else
-            {
-                if (0 != FullContext.UserContext2)
-                {
-                    GCHandle.FromIntPtr((IntPtr)FullContext.UserContext2).Free();
-                    FullContext.UserContext2 = 0;
-                }
+                GCHandle.FromIntPtr((IntPtr)FullContext.UserContext2).Free();
+                FullContext.UserContext2 = 0;
             }
         }
 

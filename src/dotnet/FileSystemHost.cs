@@ -56,7 +56,7 @@ namespace Fsp
                     {
                         ExceptionHandler(_FileSystem, ex);
                     }
-                Api.SetUserContext(_FileSystemPtr, null);
+                Api.DisposeUserContext(_FileSystemPtr);
                 Api.FspFileSystemDelete(_FileSystemPtr);
                 _FileSystemPtr = IntPtr.Zero;
             }
@@ -210,7 +210,7 @@ namespace Fsp
             }
             if (0 > Result)
             {
-                Api.SetUserContext(_FileSystemPtr, null);
+                Api.DisposeUserContext(_FileSystemPtr);
                 Api.FspFileSystemDelete(_FileSystemPtr);
                 _FileSystemPtr = IntPtr.Zero;
             }
@@ -457,7 +457,7 @@ namespace Fsp
                 FileSystem.Close(
                     FileNode,
                     FileDesc);
-                Api.SetFullContext(ref FullContext, null, null);
+                Api.DisposeFullContext(ref FullContext);
             }
             catch (Exception ex)
             {
@@ -917,8 +917,8 @@ namespace Fsp
         private static FileSystemInterface _FileSystemInterface;
         private static IntPtr _FileSystemInterfacePtr;
         private VolumeParams _VolumeParams;
-        private IntPtr _FileSystemPtr;
         private FileSystemBase _FileSystem;
+        private IntPtr _FileSystemPtr;
     }
 
 }
