@@ -121,7 +121,7 @@ namespace Fsp.Interop
                     Size = VolumeLabelSize;
                 for (int I = 0; Size > I; I++)
                     P[I] = Value[I];
-                VolumeLabelLength = (UInt16)Size;
+                VolumeLabelLength = (UInt16)(Size * 2);
             }
         }
     }
@@ -156,7 +156,7 @@ namespace Fsp.Interop
                 Size = NormalizedNameSize;
             for (int I = 0; Size > I; I++)
                 P[I] = Value[I];
-            NormalizedNameSize = (UInt16)Size;
+            NormalizedNameSize = (UInt16)(Size * 2);
         }
     }
 
@@ -682,6 +682,13 @@ namespace Fsp.Interop
             fixed (DirInfo *P = &DirInfo)
                 return _FspFileSystemAddDirInfo((IntPtr)P, Buffer, Length, out PBytesTransferred);
         }
+        internal static unsafe Boolean FspFileSystemEndDirInfo(
+            IntPtr Buffer,
+            UInt32 Length,
+            out UInt32 PBytesTransferred)
+        {
+            return _FspFileSystemAddDirInfo(IntPtr.Zero, Buffer, Length, out PBytesTransferred);
+        }
         internal static unsafe Boolean FspFileSystemAddStreamInfo(
             ref StreamInfo StreamInfo,
             IntPtr Buffer,
@@ -690,6 +697,13 @@ namespace Fsp.Interop
         {
             fixed (StreamInfo *P = &StreamInfo)
                 return _FspFileSystemAddStreamInfo((IntPtr)P, Buffer, Length, out PBytesTransferred);
+        }
+        internal static unsafe Boolean FspFileSystemEndStreamInfo(
+            IntPtr Buffer,
+            UInt32 Length,
+            out UInt32 PBytesTransferred)
+        {
+            return _FspFileSystemAddStreamInfo(IntPtr.Zero, Buffer, Length, out PBytesTransferred);
         }
 
         internal unsafe static Object GetUserContext(

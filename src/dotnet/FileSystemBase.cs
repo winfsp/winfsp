@@ -337,8 +337,9 @@ namespace Fsp
                 StreamInfo.SetStreamNameBuf(StreamName);
                 if (!Api.FspFileSystemAddStreamInfo(ref StreamInfo, Buffer, Length,
                     out BytesTransferred))
-                    break;
+                    return STATUS_SUCCESS;
             }
+            Api.FspFileSystemEndStreamInfo(Buffer, Length, out BytesTransferred);
             return STATUS_SUCCESS;
         }
         public virtual Boolean GetStreamEntry(
@@ -383,8 +384,9 @@ namespace Fsp
                 DirInfo.SetFileNameBuf(FileName);
                 if (!Api.FspFileSystemAddDirInfo(ref DirInfo, Buffer, Length,
                     out BytesTransferred))
-                    break;
+                    return STATUS_SUCCESS;
             }
+            Api.FspFileSystemEndDirInfo(Buffer, Length, out BytesTransferred);
             return STATUS_SUCCESS;
         }
         public Int32 BufferedReadDirectory(
