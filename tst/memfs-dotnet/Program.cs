@@ -79,18 +79,21 @@ namespace memfs
         }
         public FileNode Get(String FileName)
         {
-            return Map[FileName];
+            FileNode FileNode;
+            return Map.TryGetValue(FileName, out FileNode) ? FileNode : null;
         }
         public FileNode GetMain(String FileName)
         {
             int Index = FileName.IndexOf(':');
             if (0 > Index)
                 return null;
-            return Map[FileName.Substring(0, Index)];
+            FileNode FileNode;
+            return Map.TryGetValue(FileName.Substring(0, Index), out FileNode) ? FileNode : null;
         }
         public FileNode GetParent(String FileName, out Int32 Result)
         {
-            FileNode FileNode = Map[Path.GetDirectoryName(FileName)];
+            FileNode FileNode;
+            Map.TryGetValue(Path.GetDirectoryName(FileName), out FileNode);
             if (null == FileNode)
             {
                 Result = FileSystemBase.STATUS_OBJECT_PATH_NOT_FOUND;
@@ -132,48 +135,47 @@ namespace memfs
         }
         public Boolean HasChild(FileNode FileNode)
         {
-            String MinName = FileNode.FileName + "\\";
-            String MaxName = FileNode.FileName + "]";
-            SortedSet<String> View = Set.GetViewBetween(MinName, MaxName);
-            foreach (String Name in View)
-                if (Name.StartsWith(MinName, CaseInsensitive ?
-                    StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
-                    return true;
+            foreach (String Name in GetChildrenFileNames(FileNode))
+                return true;
             return false;
         }
         public IEnumerable<String> GetChildrenFileNames(FileNode FileNode)
         {
-            String MinName = FileNode.FileName + "\\";
-            String MaxName = FileNode.FileName + "]";
-            SortedSet<String> View = Set.GetViewBetween(MinName, MaxName);
-            foreach (String Name in View)
-                if (Name.StartsWith(MinName, CaseInsensitive ?
-                    StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            String MinName = "\\";
+            String MaxName = "]";
+            if ("\\" != FileNode.FileName)
+            {
+                MinName = FileNode.FileName + "\\";
+                MaxName = FileNode.FileName + "]";
+            }
+            foreach (String Name in Set.GetViewBetween(MinName, MaxName))
+                if (Name.Length > MinName.Length &&
+                    -1 == Name.IndexOfAny(Delimiters, MinName.Length))
                     yield return Name;
         }
         public IEnumerable<String> GetStreamFileNames(FileNode FileNode)
         {
             String MinName = FileNode.FileName + ":";
             String MaxName = FileNode.FileName + ";";
-            SortedSet<String> View = Set.GetViewBetween(MinName, MaxName);
-            foreach (String Name in View)
-                if (Name.StartsWith(MinName, CaseInsensitive ?
-                    StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            foreach (String Name in Set.GetViewBetween(MinName, MaxName))
+                if (Name.Length > MinName.Length)
                     yield return Name;
         }
         public IEnumerable<String> GetDescendantFileNames(FileNode FileNode)
         {
-            String MinName = FileNode.FileName;
-            String MaxName = FileNode.FileName + "]";
-            SortedSet<String> View = Set.GetViewBetween(MinName, MaxName);
-            foreach (String Name in View)
-                if (Name.StartsWith(MinName, CaseInsensitive ?
-                    StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) &&
-                    Name.Length == MinName.Length || (1 == MinName.Length && '\\' == MinName[0]) ||
-                    '\\' == Name[MinName.Length] || ':' == Name[MinName.Length])
+            String MinName = "\\";
+            String MaxName = "]";
+            if ("\\" != FileNode.FileName)
+            {
+                MinName = FileNode.FileName;
+                MaxName = FileNode.FileName + "]";
+            }
+            foreach (String Name in Set.GetViewBetween(MinName, MaxName))
+                if (Name == MinName || Name.Length > MinName.Length)
                     yield return Name;
         }
 
+        private static readonly Char[] Delimiters = new Char[] { '\\', ':' };
         public Boolean CaseInsensitive;
         private SortedSet<String> Set;
         private Dictionary<String, FileNode> Map;
@@ -1078,8 +1080,8 @@ namespace memfs
                 MountPoint = Host.MountPoint();
                 _Host = Host;
 
-                Log(EVENTLOG_INFORMATION_TYPE, String.Format("{0} -t {1} -n {2} -s {3} {4}{5}{6}{7}{8}{9}",
-                    PROGNAME, FileInfoTimeout, MaxFileNodes, MaxFileSize,
+                Log(EVENTLOG_INFORMATION_TYPE, String.Format("{0} -t {1} -n {2} -s {3}{4}{5}{6}{7}{8}{9}",
+                    PROGNAME, (Int32)FileInfoTimeout, MaxFileNodes, MaxFileSize,
                     null != RootSddl ? " -S " : "", null != RootSddl ? RootSddl : "",
                     null != VolumePrefix && 0 < VolumePrefix.Length ? " -u " : "",
                         null != VolumePrefix && 0 < VolumePrefix.Length ? VolumePrefix : "",
@@ -1101,7 +1103,7 @@ namespace memfs
                     "    -F FileSystemName\n" +
                     "    -S RootSddl         [file rights: FA, etc; NO generic rights: GA, etc.]\n" +
                     "    -u \\Server\\Share    [UNC prefix (single backslash)]\n" +
-                    "    -m MountPoint       [X:|*|directory]\n",
+                    "    -m MountPoint       [X:|* (required if no UNC prefix)]\n",
                     ex.HasMessage ? ex.Message + "\n" : "",
                     PROGNAME));
                 throw;
