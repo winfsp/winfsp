@@ -90,7 +90,7 @@ namespace memfs
             FileNode FileNode;
             return Map.TryGetValue(FileName.Substring(0, Index), out FileNode) ? FileNode : null;
         }
-        public FileNode GetParent(String FileName, out Int32 Result)
+        public FileNode GetParent(String FileName, ref Int32 Result)
         {
             FileNode FileNode;
             Map.TryGetValue(Path.GetDirectoryName(FileName), out FileNode);
@@ -104,15 +104,14 @@ namespace memfs
                 Result = FileSystemBase.STATUS_NOT_A_DIRECTORY;
                 return null;
             }
-            Result = FileSystemBase.STATUS_SUCCESS;
             return FileNode;
         }
         public void TouchParent(FileNode FileNode)
         {
             if ("\\" == FileNode.FileName)
                 return;
-            Int32 Result;
-            FileNode Parent = GetParent(FileNode.FileName, out Result);
+            Int32 Result = FileSystemBase.STATUS_SUCCESS;
+            FileNode Parent = GetParent(FileNode.FileName, ref Result);
             if (null == Parent)
                 return;
             Parent.FileInfo.LastAccessTime =
@@ -257,7 +256,7 @@ namespace memfs
                 if (FindReparsePoint(FileName, out FileAttributes))
                     Result = STATUS_REPARSE;
                 else
-                    FileNodeMap.GetParent(FileName, out Result);
+                    FileNodeMap.GetParent(FileName, ref Result);
                 return Result;
             }
 
@@ -293,12 +292,12 @@ namespace memfs
 
             FileNode FileNode;
             FileNode ParentNode;
-            Int32 Result;
+            Int32 Result = STATUS_SUCCESS;
 
             FileNode = FileNodeMap.Get(FileName);
             if (null != FileNode)
                 return STATUS_OBJECT_NAME_COLLISION;
-            ParentNode = FileNodeMap.GetParent(FileName, out Result);
+            ParentNode = FileNodeMap.GetParent(FileName, ref Result);
             if (null == ParentNode)
                 return Result;
 
@@ -354,7 +353,7 @@ namespace memfs
             if (null == FileNode)
             {
                 Result = STATUS_OBJECT_NAME_NOT_FOUND;
-                FileNodeMap.GetParent(FileName, out Result);
+                FileNodeMap.GetParent(FileName, ref Result);
                 return Result;
             }
 
@@ -792,8 +791,8 @@ namespace memfs
                 }
                 else if (".." == FileName)
                 {
-                    Int32 Result;
-                    FileNode ParentNode = FileNodeMap.GetParent(FileNode.FileName, out Result);
+                    Int32 Result = STATUS_SUCCESS;
+                    FileNode ParentNode = FileNodeMap.GetParent(FileNode.FileName, ref Result);
                     if (null != ParentNode)
                     {
                         FileInfo = ParentNode.GetFileInfo();
