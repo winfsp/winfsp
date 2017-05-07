@@ -134,11 +134,11 @@ namespace memfs
         }
         public Boolean HasChild(FileNode FileNode)
         {
-            foreach (String Name in GetChildrenFileNames(FileNode))
+            foreach (String Name in GetChildrenFileNames(FileNode, null))
                 return true;
             return false;
         }
-        public IEnumerable<String> GetChildrenFileNames(FileNode FileNode)
+        public IEnumerable<String> GetChildrenFileNames(FileNode FileNode, String Marker)
         {
             String MinName = "\\";
             String MaxName = "]";
@@ -147,9 +147,11 @@ namespace memfs
                 MinName = FileNode.FileName + "\\";
                 MaxName = FileNode.FileName + "]";
             }
+            if (null != Marker)
+                MinName = FileNode.FileName + Marker;
             foreach (String Name in Set.GetViewBetween(MinName, MaxName))
-                if (Name.Length > MinName.Length &&
-                    -1 == Name.IndexOfAny(Delimiters, MinName.Length))
+                if (Name != MinName &&
+                    Name.Length > MaxName.Length && -1 == Name.IndexOfAny(Delimiters, MaxName.Length))
                     yield return Name;
         }
         public IEnumerable<String> GetStreamFileNames(FileNode FileNode)
@@ -776,25 +778,26 @@ namespace memfs
                     ChildrenFileNames.Add(".");
                     ChildrenFileNames.Add("..");
                 }
-                ChildrenFileNames.AddRange(FileNodeMap.GetChildrenFileNames(FileNode));
+                ChildrenFileNames.AddRange(FileNodeMap.GetChildrenFileNames(FileNode, Marker));
                 Context = Enumerator = ChildrenFileNames.GetEnumerator();
             }
 
             while (Enumerator.MoveNext())
             {
                 String FullFileName = Enumerator.Current;
-                FileName = Path.GetFileName(FullFileName);
-                if ("." == FileName)
+                if ("." == FullFileName)
                 {
+                    FileName = ".";
                     FileInfo = FileNode.GetFileInfo();
                     return true;
                 }
-                else if (".." == FileName)
+                else if (".." == FullFileName)
                 {
                     Int32 Result = STATUS_SUCCESS;
                     FileNode ParentNode = FileNodeMap.GetParent(FileNode.FileName, ref Result);
                     if (null != ParentNode)
                     {
+                        FileName = "..";
                         FileInfo = ParentNode.GetFileInfo();
                         return true;
                     }
@@ -804,6 +807,7 @@ namespace memfs
                     FileNode ChildFileNode = FileNodeMap.Get(FullFileName);
                     if (null != ChildFileNode)
                     {
+                        FileName = Path.GetFileName(FullFileName);
                         FileInfo = ChildFileNode.GetFileInfo();
                         return true;
                     }
