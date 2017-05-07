@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
+using System.Threading;
 
 using Fsp;
 using VolumeInfo = Fsp.Interop.VolumeInfo;
@@ -191,7 +192,6 @@ namespace memfs
             Boolean CaseInsensitive, UInt32 MaxFileNodes, UInt32 MaxFileSize, String RootSddl)
         {
             this.FileNodeMap = new FileNodeMap(CaseInsensitive);
-            this.OpenNodeSet = new HashSet<FileNode>();
             this.MaxFileNodes = MaxFileNodes;
             this.MaxFileSize = MaxFileSize;
 
@@ -326,7 +326,7 @@ namespace memfs
             }
             FileNodeMap.Insert(FileNode);
 
-            InsertOpenNode(FileNode);
+            Interlocked.Increment(ref FileNode.OpenCount);
             FileNode0 = FileNode;
             FileInfo = FileNode.GetFileInfo();
             NormalizedName = FileNode.FileName;
@@ -359,7 +359,7 @@ namespace memfs
                 return Result;
             }
 
-            InsertOpenNode(FileNode);
+            Interlocked.Increment(ref FileNode.OpenCount);
             FileNode0 = FileNode;
             FileInfo = FileNode.GetFileInfo();
             NormalizedName = FileNode.FileName;
@@ -381,16 +381,13 @@ namespace memfs
             Int32 Result;
 
             List<String> StreamFileNames = new List<String>(FileNodeMap.GetStreamFileNames(FileNode));
-            lock (OpenNodeSet)
+            foreach (String StreamFileName in StreamFileNames)
             {
-                foreach (String StreamFileName in StreamFileNames)
-                {
-                    FileNode StreamNode = FileNodeMap.Get(StreamFileName);
-                    if (null == StreamNode)
-                        continue; /* should not happen */
-                    if (!OpenNodeSet.Contains(StreamNode))
-                        FileNodeMap.Remove(StreamNode);
-                }
+                FileNode StreamNode = FileNodeMap.Get(StreamFileName);
+                if (null == StreamNode)
+                    continue; /* should not happen */
+                if (0 == FileNode.OpenCount)
+                    FileNodeMap.Remove(StreamNode);
             }
 
             Result = SetFileSizeInternal(FileNode, AllocationSize, true);
@@ -465,7 +462,7 @@ namespace memfs
             Object FileDesc)
         {
             FileNode FileNode = (FileNode)FileNode0;
-            RemoveOpenNode(FileNode);
+            Interlocked.Decrement(ref FileNode.OpenCount);
         }
 
         public override Int32 Read(
@@ -960,25 +957,7 @@ namespace memfs
             return false;
         }
 
-        private void InsertOpenNode(FileNode FileNode)
-        {
-            lock (OpenNodeSet)
-            {
-                if (1 == ++FileNode.OpenCount)
-                    OpenNodeSet.Add(FileNode);
-            }
-        }
-        private void RemoveOpenNode(FileNode FileNode)
-        {
-            lock (OpenNodeSet)
-            {
-                if (0 == --FileNode.OpenCount)
-                    OpenNodeSet.Remove(FileNode);
-            }
-        }
-
         private FileNodeMap FileNodeMap;
-        private HashSet<FileNode> OpenNodeSet;
         private UInt32 MaxFileNodes;
         private UInt32 MaxFileSize;
         private String VolumeLabel;
