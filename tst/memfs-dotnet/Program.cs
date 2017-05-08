@@ -28,6 +28,29 @@ using FileInfo = Fsp.Interop.FileInfo;
 
 namespace memfs
 {
+    class Path
+    {
+        public static String GetDirectoryName(String Path)
+        {
+            int Index = Path.LastIndexOf('\\');
+            if (0 > Index)
+                return Path;
+            else if (0 == Index)
+                return "\\";
+            else
+                return Path.Substring(0, Index);
+        }
+
+        public static String GetFileName(String Path)
+        {
+            int Index = Path.LastIndexOf('\\');
+            if (0 > Index)
+                return Path;
+            else
+                return Path.Substring(Index + 1);
+        }
+    }
+
     class FileNode
     {
         public FileNode(String FileName)
@@ -310,8 +333,9 @@ namespace memfs
             if (AllocationSize > MaxFileSize)
                 return STATUS_DISK_FULL;
 
-            FileName = Path.Combine(ParentNode.FileName, Path.GetFileName(FileName));
+            if ("\\" != ParentNode.FileName)
                 /* normalize name */
+                FileName = ParentNode.FileName + "\\" + Path.GetFileName(FileName);
             FileNode = new FileNode(FileName);
             FileNode.MainFileNode = FileNodeMap.GetMain(FileName);
             FileNode.FileInfo.FileAttributes = 0 != (FileAttributes & (UInt32)System.IO.FileAttributes.Directory) ?
@@ -776,10 +800,13 @@ namespace memfs
                 if ("\\" != FileNode.FileName)
                 {
                     /* if this is not the root directory add the dot entries */
-                    ChildrenFileNames.Add(".");
-                    ChildrenFileNames.Add("..");
+                    if (null == Marker)
+                        ChildrenFileNames.Add(".");
+                    if (null == Marker || "." == Marker)
+                        ChildrenFileNames.Add("..");
                 }
-                ChildrenFileNames.AddRange(FileNodeMap.GetChildrenFileNames(FileNode, Marker));
+                ChildrenFileNames.AddRange(FileNodeMap.GetChildrenFileNames(FileNode,
+                    "." != Marker && ".." != Marker ? Marker : null));
                 Context = Enumerator = ChildrenFileNames.GetEnumerator();
             }
 
