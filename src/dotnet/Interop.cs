@@ -849,11 +849,6 @@ namespace Fsp.Interop
             else
                 return null;
         }
-        internal unsafe static UInt32 GetReparseTag(
-            Byte[] ReparseData)
-        {
-            return 0;
-        }
         internal unsafe static Int32 FspFileSystemCanReplaceReparsePoint(
             Byte[] CurrentReparseData,
             Byte[] ReplaceReparseData)

@@ -453,7 +453,7 @@ namespace Fsp
         public static UInt32 GetReparseTag(
             Byte[] ReparseData)
         {
-            return Api.GetReparseTag(ReparseData);
+            return BitConverter.ToUInt32(ReparseData, 0);
         }
         public static Int32 CanReplaceReparsePoint(
             Byte[] CurrentReparseData,
