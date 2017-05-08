@@ -907,7 +907,7 @@ namespace memfs
                 return STATUS_NOT_A_REPARSE_POINT;
 
             FileNode.FileInfo.FileAttributes &= ~(UInt32)FileAttributes.ReparsePoint;
-            FileNode.FileInfo.ReparseTag = GetReparseTag(ReparseData);
+            FileNode.FileInfo.ReparseTag = 0;
             FileNode.ReparseData = null;
 
             return STATUS_SUCCESS;
