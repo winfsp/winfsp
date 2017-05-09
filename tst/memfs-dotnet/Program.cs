@@ -728,7 +728,8 @@ namespace memfs
                 if (0 != (NewFileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory))
                     return STATUS_ACCESS_DENIED;
             }
-            if (null != NewFileNode)
+
+            if (null != NewFileNode && FileNode != NewFileNode)
                 FileNodeMap.Remove(NewFileNode);
 
             List<String> DescendantFileNames = new List<String>(FileNodeMap.GetDescendantFileNames(FileNode));
