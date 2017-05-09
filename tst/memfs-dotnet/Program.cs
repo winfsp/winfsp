@@ -410,7 +410,7 @@ namespace memfs
                 FileNode StreamNode = FileNodeMap.Get(StreamFileName);
                 if (null == StreamNode)
                     continue; /* should not happen */
-                if (0 == FileNode.OpenCount)
+                if (0 == StreamNode.OpenCount)
                     FileNodeMap.Remove(StreamNode);
             }
 
