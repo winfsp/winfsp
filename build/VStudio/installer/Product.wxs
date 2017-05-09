@@ -214,6 +214,32 @@
                     </RegistryKey>
                 </RegistryKey>
             </Component>
+            <Component Id="C.memfs_dotnet_msil.exe">
+                <File Name="memfs-dotnet-msil.exe" KeyPath="yes" />
+                <RegistryKey
+                    Root="HKLM"
+                    Key="[P.LauncherRegistryKey]">
+                    <RegistryKey
+                        Key="memfs-dotnet">
+                        <RegistryValue
+                            Type="string"
+                            Name="Executable"
+                            Value="[BINDIR]memfs-dotnet-msil.exe" />
+                        <RegistryValue
+                            Type="string"
+                            Name="CommandLine"
+                            Value="-i -F NTFS -n 65536 -s 67108864 -u %1 -m %2" />
+                        <RegistryValue
+                            Type="string"
+                            Name="Security"
+                            Value="D:P(A;;RPWPLC;;;WD)" />
+                        <RegistryValue
+                            Type="integer"
+                            Name="JobControl"
+                            Value="1" />
+                    </RegistryKey>
+                </RegistryKey>
+            </Component>
         </DirectoryRef>
         <DirectoryRef Id="INCDIR" FileSource="..\..\..\inc">
             <Directory Id="INCDIR.winfsp" Name="winfsp">
@@ -295,6 +321,11 @@
                     <File Name="memfs-main.c" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="SMPDIR.memfs_dotnet" Name="memfs-dotnet">
+                <Component Id="C.memfs_dotnet.Program.cs">
+                    <File Id="FILE.memfs_dotnet.Program.cs" Name="Program.cs" KeyPath="yes" />
+                </Component>
+            </Directory>
             <Directory Id="SMPDIR.passthrough" Name="passthrough">
                 <Component Id="C.passthrough.c">
                     <File Name="passthrough.c" KeyPath="yes" />
@@ -351,7 +382,7 @@
             </Directory>
             <Directory Id="SMPDIR.passthrough_dotnet" Name="passthrough-dotnet">
                 <Component Id="C.passthrough_dotnet.Program.cs">
-                    <File Name="Program.cs" KeyPath="yes" />
+                    <File Id="FILE.passthrough_dotnet.Program.cs" Name="Program.cs" KeyPath="yes" />
                 </Component>
                 <Component Id="C.passthrough_dotnet.sln">
                     <File Name="passthrough-dotnet.sln" KeyPath="yes" />
@@ -473,6 +504,8 @@
             -->
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.smp.net">
+            <ComponentRef Id="C.memfs_dotnet_msil.exe" />
+            <ComponentRef Id="C.memfs_dotnet.Program.cs" />
             <ComponentRef Id="C.passthrough_dotnet.Program.cs" />
             <ComponentRef Id="C.passthrough_dotnet.sln" />
             <ComponentRef Id="C.passthrough_dotnet.csproj" />
