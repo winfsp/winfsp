@@ -511,7 +511,7 @@ namespace memfs
                 EndOffset = FileNode.FileInfo.FileSize;
 
             BytesTransferred = (UInt32)(EndOffset - Offset);
-            Marshal.Copy(FileNode.FileData, 0, Buffer, (int)BytesTransferred);
+            Marshal.Copy(FileNode.FileData, (int)Offset, Buffer, (int)BytesTransferred);
 
             return STATUS_SUCCESS;
         }
@@ -560,7 +560,7 @@ namespace memfs
             }
 
             BytesTransferred = (UInt32)(EndOffset - Offset);
-            Marshal.Copy(Buffer, FileNode.FileData, 0, (int)BytesTransferred);
+            Marshal.Copy(Buffer, FileNode.FileData, (int)Offset, (int)BytesTransferred);
 
             FileInfo = FileNode.GetFileInfo();
 
