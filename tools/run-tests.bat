@@ -17,12 +17,16 @@ launchctl-x64 start memfs64 testdsk ""            M: >nul
 launchctl-x64 start memfs64 testnet \memfs64\test N: >nul
 launchctl-x64 start memfs32 testdsk ""            O: >nul
 launchctl-x64 start memfs32 testnet \memfs32\test P: >nul
+launchctl-x64 start memfs-dotnet testdsk ""                 Q: >nul
+launchctl-x64 start memfs-dotnet testnet \memfs-dotnet\test R: >nul
 rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
 waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
 cd M: >nul 2>nul || (echo === Unable to find drive M: >&2 & goto fail)
 cd N: >nul 2>nul || (echo === Unable to find drive N: >&2 & goto fail)
 cd O: >nul 2>nul || (echo === Unable to find drive O: >&2 & goto fail)
 cd P: >nul 2>nul || (echo === Unable to find drive P: >&2 & goto fail)
+cd Q: >nul 2>nul || (echo === Unable to find drive Q: >&2 & goto fail)
+cd R: >nul 2>nul || (echo === Unable to find drive R: >&2 & goto fail)
 
 set dfl_tests=^
     winfsp-tests-x64 ^
@@ -31,6 +35,7 @@ set dfl_tests=^
     winfsp-tests-x64-mountpoint-dir ^
     winfsp-tests-x64-no-traverse ^
     winfsp-tests-x64-oplock ^
+    winfsp-tests-x64-external ^
     winfsp-tests-x64-external-share ^
     fsx-memfs-x64-disk ^
     fsx-memfs-x64-net ^
@@ -46,6 +51,7 @@ set dfl_tests=^
     winfsp-tests-x86-mountpoint-dir ^
     winfsp-tests-x86-no-traverse ^
     winfsp-tests-x86-oplock ^
+    winfsp-tests-x86-external ^
     winfsp-tests-x86-external-share ^
     fsx-memfs-x86-disk ^
     fsx-memfs-x86-net ^
@@ -54,10 +60,13 @@ set dfl_tests=^
     net-use-memfs-x86 ^
     winfstest-memfs-x86-disk ^
     winfstest-memfs-x86-net ^
-    fscrash-x86
+    fscrash-x86 ^
+    winfsp-tests-dotnet-external ^
+    winfsp-tests-dotnet-external-share
 set opt_tests=^
     ifstest-memfs-x64-disk ^
     ifstest-memfs-x86-disk ^
+    ifstest-memfs-dotnet-disk ^
     sample-passthrough-x64 ^
     sample-passthrough-x86 ^
     sample-passthrough-cpp-x64 ^
@@ -121,6 +130,8 @@ launchctl-x64 stop memfs64 testdsk >nul
 launchctl-x64 stop memfs64 testnet >nul
 launchctl-x64 stop memfs32 testdsk >nul
 launchctl-x64 stop memfs32 testnet >nul
+launchctl-x64 stop memfs-dotnet testdsk >nul
+launchctl-x64 stop memfs-dotnet testnet >nul
 rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
 waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
 
@@ -195,6 +206,12 @@ winfsp-tests-x86 --oplock=filter --resilient
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:winfsp-tests-x64-external
+M:
+"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :winfsp-tests-x64-external-share
 M:
 "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=M:\ --resilient ^
@@ -239,6 +256,12 @@ net use | findstr L: | findstr WinFsp.Np
 if !ERRORLEVEL! neq 0 goto fail
 echo net use L: /delete
 net use L: /delete
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-x86-external
+O:
+"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --resilient
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -351,6 +374,19 @@ fscrash-x86 --huge-alloc-size --cached >nul 2>&1
 if !ERRORLEVEL! neq 1 goto fail
 exit /b 0
 
+:winfsp-tests-dotnet-external
+Q:
+"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-dotnet-external-share
+R:
+"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=R:\ --resilient ^
+    -reparse_symlink*
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :ifstest-memfs-x64-disk
 call :__ifstest-memfs M: \Device\WinFsp.Disk C:
 if !ERRORLEVEL! neq 0 goto fail
@@ -358,6 +394,11 @@ exit /b 0
 
 :ifstest-memfs-x86-disk
 call :__ifstest-memfs O: \Device\WinFsp.Disk C:
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:ifstest-memfs-dotnet-disk
+call :__ifstest-memfs Q: \Device\WinFsp.Disk C:
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
