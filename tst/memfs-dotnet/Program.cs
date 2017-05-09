@@ -948,13 +948,15 @@ namespace memfs
             FileNode FileNode = (FileNode)FileNode0;
             IEnumerator<String> Enumerator = (IEnumerator<String>)Context;
 
-            if (null != FileNode.MainFileNode)
-                FileNode = FileNode.MainFileNode;
-
             if (null == Enumerator)
             {
-                List<String> StreamFileNames =
-                    new List<String>(FileNodeMap.GetStreamFileNames(FileNode));
+                if (null != FileNode.MainFileNode)
+                    FileNode = FileNode.MainFileNode;
+
+                List<String> StreamFileNames = new List<String>();
+                if (0 == (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory))
+                    StreamFileNames.Add(FileNode.FileName);
+                StreamFileNames.AddRange(FileNodeMap.GetStreamFileNames(FileNode));
                 Context = Enumerator = StreamFileNames.GetEnumerator();
             }
 
@@ -966,11 +968,7 @@ namespace memfs
                 {
                     int Index = FullFileName.IndexOf(':');
                     if (0 > Index)
-                    {
-                        if (0 != (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory))
-                            continue;
                         StreamName = "";
-                    }
                     else
                         StreamName = FullFileName.Substring(Index + 1);
                     StreamSize = StreamFileNode.FileInfo.FileSize;
