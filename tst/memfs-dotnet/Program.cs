@@ -772,12 +772,8 @@ namespace memfs
             if (null != FileNode.MainFileNode)
                 FileNode = FileNode.MainFileNode;
 
-            ObjectSecurity ObjectSecurity =
-                0 != (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory) ?
-                    (ObjectSecurity)new DirectorySecurity() : (ObjectSecurity)new FileSecurity();
-            ObjectSecurity.SetSecurityDescriptorBinaryForm(FileNode.FileSecurity);
-            ObjectSecurity.SetSecurityDescriptorBinaryForm(SecurityDescriptor, Sections);
-            FileNode.FileSecurity = ObjectSecurity.GetSecurityDescriptorBinaryForm();
+            FileNode.FileSecurity = ModifySecurityDescriptor(
+                FileNode.FileSecurity, Sections, SecurityDescriptor);
 
             return STATUS_SUCCESS;
         }
