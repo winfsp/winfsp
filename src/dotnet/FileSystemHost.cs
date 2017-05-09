@@ -306,7 +306,7 @@ namespace Fsp
                     FileName,
                     out FileAttributes,
                     ref SecurityDescriptorBytes);
-                if (0 <= Result)
+                if (0 <= Result && 260/*STATUS_REPARSE*/ != Result)
                 {
                     if (IntPtr.Zero != PFileAttributes)
                         Marshal.WriteInt32(PFileAttributes, (Int32)FileAttributes);
