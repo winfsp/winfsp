@@ -546,6 +546,16 @@ namespace Fsp.Interop
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate void FspFileSystemDeleteDirectoryBuffer(
                 ref IntPtr PDirBuffer);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspSetSecurityDescriptor(
+                IntPtr InputDescriptor,
+                UInt32 SecurityInformation,
+                IntPtr ModificationDescriptor,
+                out IntPtr PSecurityDescriptor);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspDeleteSecurityDescriptor(
+                IntPtr SecurityDescriptor,
+                IntPtr CreateFunc);
 
             /* Service */
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -650,6 +660,9 @@ namespace Fsp.Interop
         internal static Proto.FspFileSystemReleaseDirectoryBuffer FspFileSystemReleaseDirectoryBuffer;
         internal static Proto.FspFileSystemReadDirectoryBuffer FspFileSystemReadDirectoryBuffer;
         internal static Proto.FspFileSystemDeleteDirectoryBuffer FspFileSystemDeleteDirectoryBuffer;
+        internal static Proto.FspSetSecurityDescriptor FspSetSecurityDescriptor;
+        internal static IntPtr _FspSetSecurityDescriptorPtr;
+        internal static Proto.FspDeleteSecurityDescriptor FspDeleteSecurityDescriptor;
         internal static Proto.FspServiceCreate FspServiceCreate;
         internal static Proto.FspServiceDelete FspServiceDelete;
         internal static Proto.FspServiceAllowConsoleMode FspServiceAllowConsoleMode;
@@ -816,6 +829,24 @@ namespace Fsp.Interop
             else
                 return null;
         }
+        internal unsafe static byte[] ModifySecurityDescriptor(
+            Byte[] SecurityDescriptorBytes,
+            UInt32 SecurityInformation,
+            Byte[] ModificationDescriptorBytes)
+        {
+            fixed (Byte *S = SecurityDescriptorBytes)
+                fixed (Byte *M = ModificationDescriptorBytes)
+                {
+                    IntPtr SecurityDescriptor;
+                    Int32 Result = FspSetSecurityDescriptor(
+                        (IntPtr)S, SecurityInformation, (IntPtr)M, out SecurityDescriptor);
+                    if (0 > Result)
+                        return null;
+                    SecurityDescriptorBytes = MakeSecurityDescriptor(SecurityDescriptor);
+                    FspDeleteSecurityDescriptor(SecurityDescriptor, _FspSetSecurityDescriptorPtr);
+                    return SecurityDescriptorBytes;
+                }
+        }
 
         internal unsafe static Int32 CopyReparsePoint(
             Byte[] ReparseData,
@@ -903,17 +934,17 @@ namespace Fsp.Interop
             }
             return Module;
         }
+        private static IntPtr GetEntryPointPtr(IntPtr Module, String Name)
+        {
+            IntPtr Proc = GetProcAddress(Module, Name);
+            if (IntPtr.Zero == Proc)
+                throw new EntryPointNotFoundException("cannot get entry point " + Name);
+            return Proc;
+        }
         private static T GetEntryPoint<T>(IntPtr Module)
         {
-            try
-            {
-                return (T)(object)Marshal.GetDelegateForFunctionPointer(
-                    GetProcAddress(Module, typeof(T).Name), typeof(T));
-            }
-            catch (ArgumentNullException)
-            {
-                throw new EntryPointNotFoundException("cannot get entry point " + typeof(T).Name);
-            }
+            return (T)(object)Marshal.GetDelegateForFunctionPointer(
+                GetEntryPointPtr(Module, typeof(T).Name), typeof(T));
         }
         private static void LoadProto(IntPtr Module)
         {
@@ -938,6 +969,9 @@ namespace Fsp.Interop
             FspFileSystemReleaseDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemReleaseDirectoryBuffer>(Module);
             FspFileSystemReadDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemReadDirectoryBuffer>(Module);
             FspFileSystemDeleteDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemDeleteDirectoryBuffer>(Module);
+            FspSetSecurityDescriptor = GetEntryPoint<Proto.FspSetSecurityDescriptor>(Module);
+            _FspSetSecurityDescriptorPtr = GetEntryPointPtr(Module, "FspSetSecurityDescriptor");
+            FspDeleteSecurityDescriptor = GetEntryPoint<Proto.FspDeleteSecurityDescriptor>(Module);
             FspServiceCreate = GetEntryPoint<Proto.FspServiceCreate>(Module);
             FspServiceDelete = GetEntryPoint<Proto.FspServiceDelete>(Module);
             FspServiceAllowConsoleMode = GetEntryPoint<Proto.FspServiceAllowConsoleMode>(Module);

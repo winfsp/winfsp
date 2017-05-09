@@ -366,6 +366,25 @@ namespace Fsp
         {
             return Api.FspWin32FromNtStatus(Status);
         }
+        public static byte[] ModifySecurityDescriptor(
+            Byte[] SecurityDescriptor,
+            AccessControlSections Sections,
+            Byte[] ModificationDescriptor)
+        {
+            UInt32 SecurityInformation = 0;
+            if (0 != (Sections & AccessControlSections.Owner))
+                SecurityInformation |= 1/*OWNER_SECURITY_INFORMATION*/;
+            if (0 != (Sections & AccessControlSections.Group))
+                SecurityInformation |= 2/*GROUP_SECURITY_INFORMATION*/;
+            if (0 != (Sections & AccessControlSections.Access))
+                SecurityInformation |= 4/*DACL_SECURITY_INFORMATION*/;
+            if (0 != (Sections & AccessControlSections.Audit))
+                SecurityInformation |= 8/*SACL_SECURITY_INFORMATION*/;
+            return Api.ModifySecurityDescriptor(
+                SecurityDescriptor,
+                SecurityInformation,
+                ModificationDescriptor);
+        }
         public Int32 SeekableReadDirectory(
             Object FileNode,
             Object FileDesc,
