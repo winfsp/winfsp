@@ -381,8 +381,8 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-dotnet-external-share
-R:
-"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=R:\ --resilient ^
+Q:
+"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=Q:\ --resilient ^
     -reparse_symlink*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
