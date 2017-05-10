@@ -172,7 +172,7 @@ namespace memfs
                 MaxName = FileNode.FileName + "]";
             }
             if (null != Marker)
-                MinName = FileNode.FileName + Marker;
+                MinName += Marker;
             foreach (String Name in Set.GetViewBetween(MinName, MaxName))
                 if (Name != MinName &&
                     Name.Length > MaxName.Length && -1 == Name.IndexOfAny(Delimiters, MaxName.Length))
