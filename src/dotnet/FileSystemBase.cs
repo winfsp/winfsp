@@ -329,11 +329,10 @@ namespace Fsp
         {
             Object Context = null;
             String StreamName;
-            UInt64 StreamSize, StreamAllocationSize;
             StreamInfo StreamInfo = default(StreamInfo);
             BytesTransferred = default(UInt32);
-            while (GetStreamEntry(FileNode, FileDesc,
-                ref Context, out StreamName, out StreamSize, out StreamAllocationSize))
+            while (GetStreamEntry(FileNode, FileDesc, ref Context,
+                out StreamName, out StreamInfo.StreamSize, out StreamInfo.StreamAllocationSize))
             {
                 StreamInfo.SetStreamNameBuf(StreamName);
                 if (!Api.FspFileSystemAddStreamInfo(ref StreamInfo, Buffer, Length,
