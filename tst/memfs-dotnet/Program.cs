@@ -341,7 +341,6 @@ namespace memfs
             FileNode.FileInfo.FileAttributes = 0 != (FileAttributes & (UInt32)System.IO.FileAttributes.Directory) ?
                 FileAttributes : FileAttributes | (UInt32)System.IO.FileAttributes.Archive;
             FileNode.FileSecurity = SecurityDescriptor;
-            FileNode.FileInfo.AllocationSize = AllocationSize;
             if (0 != AllocationSize)
             {
                 Result = SetFileSizeInternal(FileNode, AllocationSize, true);
