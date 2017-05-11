@@ -1,7 +1,7 @@
-/**
- * @file dotnet/Service.cs
+/*
+ * dotnet/Service.cs
  *
- * @copyright 2015-2017 Bill Zissimopoulos
+ * Copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -16,13 +16,16 @@
  */
 
 using System;
-using System.Runtime.InteropServices;
 
 using Fsp.Interop;
 
 namespace Fsp
 {
 
+    /// <summary>
+    /// Provides the base class for a process that can be run as a service,
+    /// command line application or under the control of the WinFsp launcher.
+    /// </summary>
     public class Service
     {
         /* const */
@@ -31,6 +34,10 @@ namespace Fsp
         public const UInt32 EVENTLOG_INFORMATION_TYPE = 0x0004;
 
         /* ctor/dtor */
+        /// <summary>
+        /// Creates an instance of the Service class.
+        /// </summary>
+        /// <param name="ServiceName">The name of the service.</param>
         public Service(String ServiceName)
         {
             Api.FspServiceCreate(ServiceName, _OnStart, _OnStop, null, out _ServicePtr);
@@ -47,6 +54,10 @@ namespace Fsp
         }
 
         /* control */
+        /// <summary>
+        /// Runs a service.
+        /// </summary>
+        /// <returns>Service process exit code.</returns>
         public int Run()
         {
             if (IntPtr.Zero == _ServicePtr)
@@ -69,6 +80,9 @@ namespace Fsp
             }
             return ExitCode;
         }
+        /// <summary>
+        /// Stops a running service.
+        /// </summary>
         public void Stop()
         {
             if (IntPtr.Zero == _ServicePtr)
@@ -81,6 +95,9 @@ namespace Fsp
                 throw new InvalidOperationException();
             Api.FspServiceRequestTime(_ServicePtr, Time);
         }
+        /// <summary>
+        /// Gets or sets the service process exit code.
+        /// </summary>
         public int ExitCode
         {
             get
@@ -106,13 +123,25 @@ namespace Fsp
         }
 
         /* start/stop */
+        /// <summary>
+        /// Provides a means to customize the returned status code when an exception happens.
+        /// </summary>
+        /// <param name="ex"></param>
+        /// <returns>STATUS_SUCCESS or error code.</returns>
         protected virtual Int32 ExceptionHandler(Exception ex)
         {
             return unchecked((Int32)0xE0434f4D)/*STATUS_CLR_EXCEPTION*/;
         }
+        /// <summary>
+        /// Occurs when the service starts.
+        /// </summary>
+        /// <param name="Args">Command line arguments passed to the service.</param>
         protected virtual void OnStart(String[] Args)
         {
         }
+        /// <summary>
+        /// Occurs when the service stops.
+        /// </summary>
         protected virtual void OnStop()
         {
         }

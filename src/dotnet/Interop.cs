@@ -1,7 +1,7 @@
-/**
- * @file dotnet/Interop.cs
+/*
+ * dotnet/Interop.cs
  *
- * @copyright 2015-2017 Bill Zissimopoulos
+ * Copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -102,16 +102,28 @@ namespace Fsp.Interop
         }
     }
 
+    /// <summary>
+    /// Contains volume information about a file system.
+    /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct VolumeInfo
     {
         internal const int VolumeLabelSize = 32;
 
+        /// <summary>
+        /// Total size of volume in bytes.
+        /// </summary>
         public UInt64 TotalSize;
+        /// <summary>
+        /// Free size of volume in bytes.
+        /// </summary>
         public UInt64 FreeSize;
         internal UInt16 VolumeLabelLength;
         internal unsafe fixed UInt16 VolumeLabel[VolumeLabelSize];
 
+        /// <summary>
+        /// Sets the volume label.
+        /// </summary>
         public unsafe void SetVolumeLabel(String Value)
         {
             fixed (UInt16 *P = VolumeLabel)
@@ -126,18 +138,54 @@ namespace Fsp.Interop
         }
     }
 
+    /// <summary>
+    /// Contains metadata information about a file or directory.
+    /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct FileInfo
     {
+        /// <summary>
+        /// The file or directory attributes.
+        /// </summary>
         public UInt32 FileAttributes;
+        /// <summary>
+        /// The reparse tag of the file or directory.
+        /// This value is 0 if the file or directory is not a reparse point.
+        /// </summary>
         public UInt32 ReparseTag;
+        /// <summary>
+        /// The allocation size of the file.
+        /// </summary>
         public UInt64 AllocationSize;
+        /// <summary>
+        /// The file size of the file (end of file).
+        /// </summary>
         public UInt64 FileSize;
+        /// <summary>
+        /// The time that the file or directory was created.
+        /// </summary>
         public UInt64 CreationTime;
+        /// <summary>
+        /// The time that the file or directory was last accessed.
+        /// </summary>
         public UInt64 LastAccessTime;
+        /// <summary>
+        /// The time that the file or direcotry was last modified.
+        /// </summary>
         public UInt64 LastWriteTime;
+        /// <summary>
+        /// The time that the file or directory metadata was last modified.
+        /// </summary>
         public UInt64 ChangeTime;
+        /// <summary>
+        /// A unique identifier that is associated with the file or directory.
+        /// Not all file systems support this value.
+        /// </summary>
         public UInt64 IndexNumber;
+        /// <summary>
+        /// The number of hard links.
+        /// Not currently implemented. Set to 0.
+        /// </summary>
         public UInt32 HardLinks;
     }
 

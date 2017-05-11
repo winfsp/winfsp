@@ -1,7 +1,7 @@
-/**
- * @file dotnet/FileSystemHost.cs
+/*
+ * dotnet/FileSystemHost.cs
  *
- * @copyright 2015-2017 Bill Zissimopoulos
+ * Copyright 2015-2017 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
@@ -24,9 +24,16 @@ using Fsp.Interop;
 namespace Fsp
 {
 
+    /// <summary>
+    /// Provides a means to host (mount) a file system.
+    /// </summary>
     public class FileSystemHost : IDisposable
     {
         /* ctor/dtor */
+        /// <summary>
+        /// Creates an instance of the FileSystemHost class.
+        /// </summary>
+        /// <param name="FileSystem">The file system to host.</param>
         public FileSystemHost(FileSystemBase FileSystem)
         {
             _VolumeParams.Flags = VolumeParams.UmFileContextIsFullContext;
@@ -36,6 +43,9 @@ namespace Fsp
         {
             Dispose(false);
         }
+        /// <summary>
+        /// Unmounts the file system and releases all associated resources.
+        /// </summary>
         public void Dispose()
         {
             lock (this)
@@ -63,66 +73,107 @@ namespace Fsp
         }
 
         /* properties */
+        /// <summary>
+        /// Gets or sets the sector size used by the file system.
+        /// </summary>
         public UInt16 SectorSize
         {
             get { return _VolumeParams.SectorSize; }
             set { _VolumeParams.SectorSize = value; }
         }
+        /// <summary>
+        /// Gets or sets the sectors per allocation unit used by the file system.
+        /// </summary>
         public UInt16 SectorsPerAllocationUnit
         {
             get { return _VolumeParams.SectorsPerAllocationUnit; }
             set { _VolumeParams.SectorsPerAllocationUnit = value; }
         }
+        /// <summary>
+        /// Gets or sets the maximum path component length used by the file system.
+        /// </summary>
         public UInt16 MaxComponentLength
         {
             get { return _VolumeParams.MaxComponentLength; }
             set { _VolumeParams.MaxComponentLength = value; }
         }
+        /// <summary>
+        /// Gets or sets the volume creation time.
+        /// </summary>
         public UInt64 VolumeCreationTime
         {
             get { return _VolumeParams.VolumeCreationTime; }
             set { _VolumeParams.VolumeCreationTime = value; }
         }
+        /// <summary>
+        /// Gets or sets the volume serial number.
+        /// </summary>
         public UInt32 VolumeSerialNumber
         {
             get { return _VolumeParams.VolumeSerialNumber; }
             set { _VolumeParams.VolumeSerialNumber = value; }
         }
+        /// <summary>
+        /// Gets or sets the file information timeout.
+        /// </summary>
         public UInt32 FileInfoTimeout
         {
             get { return _VolumeParams.FileInfoTimeout; }
             set { _VolumeParams.FileInfoTimeout = value; }
         }
+        /// <summary>
+        /// Gets or sets a value that determines whether the file system is case sensitive.
+        /// </summary>
         public Boolean CaseSensitiveSearch
         {
             get { return 0 != (_VolumeParams.Flags & VolumeParams.CaseSensitiveSearch); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.CaseSensitiveSearch : 0); }
         }
+        /// <summary>
+        /// Gets or sets a value that determines whether a case insensitive file system
+        /// preserves case in file names.
+        /// </summary>
         public Boolean CasePreservedNames
         {
             get { return 0 != (_VolumeParams.Flags & VolumeParams.CasePreservedNames); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.CasePreservedNames : 0); }
         }
+        /// <summary>
+        /// Gets or sets a value that determines whether file names support unicode characters.
+        /// </summary>
         public Boolean UnicodeOnDisk
         {
             get { return 0 != (_VolumeParams.Flags & VolumeParams.UnicodeOnDisk); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.UnicodeOnDisk : 0); }
         }
+        /// <summary>
+        /// Gets or sets a value that determines whether the file system supports ACL security.
+        /// </summary>
         public Boolean PersistentAcls
         {
             get { return 0 != (_VolumeParams.Flags & VolumeParams.PersistentAcls); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.PersistentAcls : 0); }
         }
+        /// <summary>
+        /// Gets or sets a value that determines whether the file system supports reparse points.
+        /// </summary>
         public Boolean ReparsePoints
         {
             get { return 0 != (_VolumeParams.Flags & VolumeParams.ReparsePoints); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.ReparsePoints : 0); }
         }
+        /// <summary>
+        /// Gets or sets a value that determines whether the file system allows creation of
+        /// symbolic links without additional privileges.
+        /// </summary>
         public Boolean ReparsePointsAccessCheck
         {
             get { return 0 != (_VolumeParams.Flags & VolumeParams.ReparsePointsAccessCheck); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.ReparsePointsAccessCheck : 0); }
         }
+        /// <summary>
+        /// Gets or sets a value that determines whether the file system supports named streams.
+        /// </summary>
         public Boolean NamedStreams
         {
             get { return 0 != (_VolumeParams.Flags & VolumeParams.NamedStreams); }
@@ -138,11 +189,17 @@ namespace Fsp
             get { return 0 != (_VolumeParams.Flags & VolumeParams.PassQueryDirectoryPattern); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.PassQueryDirectoryPattern : 0); }
         }
+        /// <summary>
+        /// Gets or sets the prefix for a network file system.
+        /// </summary>
         public String Prefix
         {
             get { return _VolumeParams.GetPrefix(); }
             set {  _VolumeParams.SetPrefix(value); }
         }
+        /// <summary>
+        /// Gets or sets the file system name.
+        /// </summary>
         public String FileSystemName
         {
             get { return _VolumeParams.GetFileSystemName(); }
@@ -150,12 +207,42 @@ namespace Fsp
         }
 
         /* control */
+        /// <summary>
+        /// Checks whether mounting a file system is possible.
+        /// </summary>
+        /// <param name="MountPoint">
+        /// The mount point for the new file system. A value of null means that
+        /// the file system should use the next available drive letter counting
+        /// downwards from Z: as its mount point.
+        /// </param>
+        /// <returns>STATUS_SUCCESS or error code.</returns>
         public Int32 Preflight(String MountPoint)
         {
             return Api.FspFileSystemPreflight(
                 _VolumeParams.IsPrefixEmpty() ? "WinFsp.Disk" : "WinFsp.Net",
                 MountPoint);
         }
+        /// <summary>
+        /// Mounts a file system.
+        /// </summary>
+        /// <param name="MountPoint">
+        /// The mount point for the new file system. A value of null means that
+        /// the file system should use the next available drive letter counting
+        /// downwards from Z: as its mount point.
+        /// </param>
+        /// <param name="SecurityDescriptor">
+        /// Security descriptor to use if mounting on (newly created) directory.
+        /// A value of null means the directory should be created with default
+        /// security.
+        /// </param>
+        /// <param name="Synchronized">
+        /// If true file system operations are synchronized using an exclusive lock.
+        /// </param>
+        /// <param name="DebugLog">
+        /// A value of 0 disables all debug logging.
+        /// A value of -1 enables all debug logging.
+        /// </param>
+        /// <returns></returns>
         public Int32 Mount(String MountPoint,
             Byte[] SecurityDescriptor = null,
             Boolean Synchronized = false,
@@ -216,10 +303,17 @@ namespace Fsp
             }
             return Result;
         }
+        /// <summary>
+        /// Unmounts the file system and releases all associated resources.
+        /// </summary>
         public void Unmount()
         {
             Dispose();
         }
+        /// <summary>
+        /// Gets the file system mount point.
+        /// </summary>
+        /// <returns>The file system mount point.</returns>
         public String MountPoint()
         {
             return IntPtr.Zero != _FileSystemPtr ?
@@ -229,10 +323,21 @@ namespace Fsp
         {
             return _FileSystemPtr;
         }
+        /// <summary>
+        /// Gets the hosted file system.
+        /// </summary>
+        /// <returns>The hosted file system.</returns>
         public FileSystemBase FileSystem()
         {
             return _FileSystem;
         }
+        /// <summary>
+        /// Sets the debug log file to use when debug logging is enabled.
+        /// </summary>
+        /// <param name="FileName">
+        /// The debug log file name. A value of "-" means standard error output.
+        /// </param>
+        /// <returns>STATUS_SUCCESS or error code.</returns>
         public static Int32 SetDebugLogFile(String FileName)
         {
             return Api.SetDebugLogFile(FileName);
