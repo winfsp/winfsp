@@ -92,6 +92,9 @@
             <Component Id="C.winfsp_msil.dll" Guid="0D8BA6AE-9F87-402B-AE1A-95B0AE3BE179">
                 <File Id="FILE.winfsp_msil.dll" Name="winfsp-msil.dll" KeyPath="yes" />
             </Component>
+            <Component Id="C.winfsp_msil.xml" Guid="1657F707-C112-454C-91AE-0FDEBBF454AB">
+                <File Id="FILE.winfsp_msil.xml" Name="winfsp-msil.xml" KeyPath="yes" />
+            </Component>
             <!--
             <Component Id="C.winfsp_msil.dll.GAC" Guid="6469467D-8C90-4889-8138-4028F9DA6E85">
                 <File Id="FILE.winfsp_msil.dll.GAC" Name="winfsp-msil.dll" KeyPath="yes" Assembly=".net" />
@@ -498,6 +501,7 @@
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.net">
             <ComponentRef Id="C.winfsp_msil.dll" />
+            <ComponentRef Id="C.winfsp_msil.xml" />
             <!--
             <ComponentRef Id="C.winfsp_msil.dll.GAC" />
             <ComponentRef Id="C.policy.winfsp_msil.dll.GAC" />
