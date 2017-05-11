@@ -316,6 +316,9 @@ static void dirbuf_fill_test(void)
 
 void dirbuf_tests(void)
 {
+    if (OptExternal)
+        return;
+
     TEST(dirbuf_empty_test);
     TEST(dirbuf_dots_test);
     TEST(dirbuf_fill_test);

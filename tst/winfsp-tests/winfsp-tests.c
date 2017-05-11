@@ -28,6 +28,7 @@ int NtfsTests = 0;
 int WinFspDiskTests = 1;
 int WinFspNetTests = 1;
 
+BOOLEAN OptExternal = FALSE;
 BOOLEAN OptResilient = FALSE;
 BOOLEAN OptCaseInsensitiveCmp = FALSE;
 BOOLEAN OptCaseInsensitive = FALSE;
@@ -211,6 +212,7 @@ int main(int argc, char *argv[])
         {
             if (0 == strcmp("--ntfs", a) || 0 == strcmp("--external", a))
             {
+                OptExternal = TRUE;
                 NtfsTests = 1;
                 WinFspDiskTests = 0;
                 WinFspNetTests = 0;

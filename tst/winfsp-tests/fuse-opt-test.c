@@ -370,5 +370,8 @@ void fuse_opt_parse_test(void)
 
 void fuse_opt_tests(void)
 {
+    if (OptExternal)
+        return;
+
     TEST(fuse_opt_parse_test);
 }

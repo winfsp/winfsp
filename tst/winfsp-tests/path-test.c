@@ -126,6 +126,9 @@ void path_suffix_test(void)
 
 void path_tests(void)
 {
+    if (OptExternal)
+        return;
+
     TEST(path_prefix_test);
     TEST(path_suffix_test);
 }

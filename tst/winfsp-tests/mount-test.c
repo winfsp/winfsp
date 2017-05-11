@@ -336,7 +336,7 @@ void mount_preflight_test(void)
 
 void mount_tests(void)
 {
-    if (NtfsTests || OptOplock)
+    if (OptExternal || OptOplock)
         return;
 
     TEST_OPT(mount_invalid_test);

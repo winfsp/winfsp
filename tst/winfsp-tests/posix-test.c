@@ -265,6 +265,9 @@ void posix_map_path_test(void)
 
 void posix_tests(void)
 {
+    if (OptExternal)
+        return;
+
     TEST(posix_map_sid_test);
     TEST(posix_map_sd_test);
     TEST(posix_map_path_test);

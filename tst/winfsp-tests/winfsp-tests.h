@@ -149,6 +149,7 @@ extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
+extern BOOLEAN OptExternal;
 extern BOOLEAN OptResilient;
 extern BOOLEAN OptCaseInsensitiveCmp;
 extern BOOLEAN OptCaseInsensitive;

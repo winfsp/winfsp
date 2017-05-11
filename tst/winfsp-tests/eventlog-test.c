@@ -31,5 +31,8 @@ void eventlog_test(void)
 
 void eventlog_tests(void)
 {
+    if (OptExternal)
+        return;
+
     TEST_OPT(eventlog_test);
 }

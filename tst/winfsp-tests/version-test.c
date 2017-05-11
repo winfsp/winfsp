@@ -38,5 +38,8 @@ static void version_test(void)
 
 void version_tests(void)
 {
+    if (OptExternal)
+        return;
+
     TEST(version_test);
 }

@@ -102,5 +102,8 @@ void memfs_test(void)
 
 void memfs_tests(void)
 {
+    if (OptExternal)
+        return;
+
     TEST(memfs_test);
 }
