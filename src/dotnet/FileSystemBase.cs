@@ -65,7 +65,9 @@ namespace Fsp
         /// Occurs just before the file system is mounted.
         /// File systems may override this method to configure the file system host.
         /// </summary>
-        /// <param name="Host">The file system host that is mounting this file system.</param>
+        /// <param name="Host">
+        /// The file system host that is mounting this file system.
+        /// </param>
         /// <returns>STATUS_SUCCESS or error code.</returns>
         public virtual Int32 Init(Object Host)
         {
@@ -75,7 +77,9 @@ namespace Fsp
         /// Occurs just after the file system is mounted,
         /// but prior to receiving any file system operation.
         /// </summary>
-        /// <param name="Host">The file system host that is mounting this file system.</param>
+        /// <param name="Host">
+        /// The file system host that is mounting this file system.
+        /// </param>
         /// <returns>STATUS_SUCCESS or error code.</returns>
         public virtual Int32 Mounted(Object Host)
         {
@@ -85,14 +89,18 @@ namespace Fsp
         /// Occurs just after the file system is unmounted.
         /// No other file system operations will be received on this file system.
         /// </summary>
-        /// <param name="Host">The file system host that is mounting this file system.</param>
+        /// <param name="Host">
+        /// The file system host that is mounting this file system.
+        /// </param>
         public virtual void Unmounted(Object Host)
         {
         }
         /// <summary>
         /// Gets the volume information.
         /// </summary>
-        /// <param name="VolumeInfo">Receives the volume information.</param>
+        /// <param name="VolumeInfo">
+        /// Receives the volume information.
+        /// </param>
         /// <returns>STATUS_SUCCESS or error code.</returns>
         public virtual Int32 GetVolumeInfo(
             out VolumeInfo VolumeInfo)
@@ -103,8 +111,12 @@ namespace Fsp
         /// <summary>
         /// Sets the volume label.
         /// </summary>
-        /// <param name="VolumeLabel">The new label for the volume.</param>
-        /// <param name="VolumeInfo">Receives the updated volume information.</param>
+        /// <param name="VolumeLabel">
+        /// The new label for the volume.
+        /// </param>
+        /// <param name="VolumeInfo">
+        /// Receives the updated volume information.
+        /// </param>
         /// <returns>STATUS_SUCCESS or error code.</returns>
         public virtual Int32 SetVolumeLabel(
             String VolumeLabel,
