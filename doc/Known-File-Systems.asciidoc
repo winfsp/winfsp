@@ -5,6 +5,7 @@ This document contains a list of known file systems and file system libraries th
 == File Systems
 
 - https://github.com/billziss-gh/nfs-win[nfs-win] - NFS for Windows
+- https://github.com/hasse69/rar2fs[rar2fs] - FUSE file system for reading RAR archives
 - https://github.com/billziss-gh/redditfs[redditfs] - ls -l /r/programming
 - https://github.com/netheril96/securefs[securefs] - Filesystem in userspace (FUSE) with transparent authenticated encryption
 - https://github.com/billziss-gh/sshfs-win[sshfs-win] - SSHFS for Windows
