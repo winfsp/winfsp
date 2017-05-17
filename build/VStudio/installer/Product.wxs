@@ -301,9 +301,16 @@
         </DirectoryRef>
         <DirectoryRef Id="OPTDIR">
             <Directory Id="OPTDIR.cygfuse" Name="cygfuse" FileSource="..\..\..\opt\cygfuse\dist">
-                <Component Id="C.fuse.tar.xz">
-                    <File Name="fuse-2.8-5.tar.xz" KeyPath="yes" />
-                </Component>
+                <Directory Id="OPTDIR.cygfuse.x64" Name="x64">
+                    <Component Id="C.fuse.tar.xz.x64">
+                        <File Id="FILE.fuse.tar.xz.x64" Name="fuse-2.8-5.tar.xz" KeyPath="yes" />
+                    </Component>
+                </Directory>
+                <Directory Id="OPTDIR.cygfuse.x86" Name="x86">
+                    <Component Id="C.fuse.tar.xz.x86">
+                        <File Id="FILE.fuse.tar.xz.x86" Name="fuse-2.8-5.tar.xz" KeyPath="yes" />
+                    </Component>
+                </Directory>
                 <Component Id="C.fuse.install.sh">
                     <File Name="install.sh" KeyPath="yes" />
                 </Component>
@@ -460,7 +467,8 @@
             <ComponentRef Id="C.fuse_x86.pc" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.opt.fuse">
-            <ComponentRef Id="C.fuse.tar.xz" />
+            <ComponentRef Id="C.fuse.tar.xz.x64" />
+            <ComponentRef Id="C.fuse.tar.xz.x86" />
             <ComponentRef Id="C.fuse.install.sh" />
             <ComponentRef Id="C.fuse.uninstall.sh" />
         </ComponentGroup>
@@ -568,7 +576,7 @@
                 Id="F.Cygfuse"
                 Level="1000"
                 Title="FUSE for Cygwin"
-                Description="From a Cygwin prompt change to $InstallDir/opt/cygfuse and run install.sh."
+                Description="From a Cygwin prompt change to &lt;InstallDir&gt;/opt/cygfuse and run install.sh."
                 AllowAdvertise="no"
                 InstallDefault="local"
                 Absent="allow">
