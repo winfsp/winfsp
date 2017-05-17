@@ -96,8 +96,11 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("VolumeSerialNumber=%lx", VolumeParams.VolumeSerialNumber, 0),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=", set_FileInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=%d", VolumeParams.FileInfoTimeout, 0),
+    FUSE_OPT_KEY("UNC=", 'U'),
     FUSE_OPT_KEY("--UNC=", 'U'),
+    FUSE_OPT_KEY("VolumePrefix=", 'U'),
     FUSE_OPT_KEY("--VolumePrefix=", 'U'),
+    FUSE_OPT_KEY("FileSystemName=", 'F'),
     FUSE_OPT_KEY("--FileSystemName=", 'F'),
 
     FUSE_OPT_END,
@@ -457,17 +460,26 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
     default:
         return 1;
     case 'h':
+        /* Note: The limit on FspServiceLog messages is 1024 bytes. This is getting close. */
         FspServiceLog(EVENTLOG_ERROR_TYPE, L""
             FSP_FUSE_LIBRARY_NAME " options:\n"
-            "    -o DebugLog=FILE           debug log file (deflt: stderr)\n"
+            "    -o umask=MASK              set file permissions (octal)\n"
+            "    -o uid=N                   set file owner (-1 for mounting user id)\n"
+            "    -o gid=N                   set file group (-1 for mounting user group)\n"
+            "    -o rellinks                interpret absolute symlinks as volume relative\n"
+            "    -o volname=NAME            set volume label\n"
+            "    -o VolumePrefix=UNC        set UNC prefix (\\Server\\Share)\n"
+            "    -o FileSystemName=NAME     set file system name\n"
+            "    -o DebugLog=FILE           debug log file (requires -d)\n"
+            "\n"
+            FSP_FUSE_LIBRARY_NAME " advanced options:\n"
+            "    -o FileInfoTimeout=N       metadata timeout (millis, -1 for data caching)\n"
             "    -o SectorSize=N            sector size for Windows (512-4096, deflt: 4096)\n"
             "    -o SectorsPerAllocationUnit=N  sectors per allocation unit (deflt: 1)\n"
             "    -o MaxComponentLength=N    max file name component length (deflt: 255)\n"
             "    -o VolumeCreationTime=T    volume creation time (FILETIME hex format)\n"
-            "    -o VolumeSerialNumber=N    32-bit wide\n"
-            "    -o FileInfoTimeout=N       FileInfo/Security/VolumeInfo timeout (millisec)\n"
-            "    --UNC=U --VolumePrefix=U   UNC prefix (\\Server\\Share)\n"
-            "    --FileSystemName=FSN       Name of user mode file system\n");
+            "    -o VolumeSerialNumber=N    volume serial number (32-bit wide)\n"
+            );
         opt_data->help = 1;
         return 1;
     case 'V':
@@ -488,8 +500,12 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             0);
         return 0;
     case 'U':
-        if ('U' == arg[2])
+        if ('U' == arg[0])
+            arg += sizeof "UNC=" - 1;
+        else if ('U' == arg[2])
             arg += sizeof "--UNC=" - 1;
+        else if ('V' == arg[0])
+            arg += sizeof "VolumePrefix=" - 1;
         else if ('V' == arg[2])
             arg += sizeof "--VolumePrefix=" - 1;
         if (0 == MultiByteToWideChar(CP_UTF8, 0, arg, -1,
@@ -501,6 +517,8 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
     case 'F':
         if ('f' == arg[0])
             arg += sizeof "fstypename=" - 1;
+        else if ('F' == arg[0])
+            arg += sizeof "FileSystemName=" - 1;
         else if ('F' == arg[2])
             arg += sizeof "--FileSystemName=" - 1;
         if (0 == MultiByteToWideChar(CP_UTF8, 0, arg, -1,
