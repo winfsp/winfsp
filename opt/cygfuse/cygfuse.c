@@ -17,6 +17,7 @@
 
 #include <dlfcn.h>
 #include <pthread.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/cygwin.h>
@@ -141,6 +142,7 @@ static void *cygfuse_init_winfsp()
 
 static void *cygfuse_init_fail()
 {
-    abort();
+    fprintf(stderr, "cygfuse: initialization failed: " CYGFUSE_WINFSP_NAME " not found\n");
+    exit(1);
     return 0;
 }
