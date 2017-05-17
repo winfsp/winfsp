@@ -18,3 +18,11 @@ cygport:
 			> opt/cygfuse/winfsp-work.tar.gz\
 	)
 	CYGPORT_SRC_URI=winfsp-work.tar.gz CYGPORT_SRC_DIR=winfsp-work cygport fuse.cygport download prep compile install package
+
+dist: cygport
+	case $(shell uname -m) in \
+	x86_64)\
+		cp fuse-*/dist/fuse/fuse-*[0-9].tar.xz dist/x64 ;;\
+	*)\
+		cp fuse-*/dist/fuse/fuse-*[0-9].tar.xz dist/x86 ;;\
+	esac
