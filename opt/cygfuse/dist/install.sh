@@ -5,3 +5,4 @@ x86_64)
 *)
     tar -C/ -xaf x86/fuse-2.8-*.tar.xz ;;
 esac
+echo FUSE for Cygwin installed.

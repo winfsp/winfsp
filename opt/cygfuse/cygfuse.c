@@ -22,18 +22,34 @@
 #include <unistd.h>
 #include <sys/cygwin.h>
 
+static void *cygfuse_init_slow(int force);
 static void *cygfuse_init_winfsp();
-static void *cygfuse_init_fail();
 
 static pthread_mutex_t cygfuse_mutex = PTHREAD_MUTEX_INITIALIZER;
 static void *cygfuse_handle = 0;
 
-static inline void cygfuse_init(int force)
+static inline void *cygfuse_init_fast(void)
 {
+    void *handle = cygfuse_handle;
+    __sync_synchronize(); /* memory barrier */
+    if (0 == handle)
+		handle = cygfuse_init_slow(0);
+	return handle;
+}
+
+static void *cygfuse_init_slow(int force)
+{
+    void *handle;
     pthread_mutex_lock(&cygfuse_mutex);
-    if (force || 0 == cygfuse_handle)
-        cygfuse_handle = cygfuse_init_winfsp();
+	handle = cygfuse_handle;
+    if (force || 0 == handle)
+	{
+        handle = cygfuse_init_winfsp();
+        __sync_synchronize(); /* memory barrier */
+        cygfuse_handle = handle;
+	}
     pthread_mutex_unlock(&cygfuse_mutex);
+	return handle;
 }
 
 /*
@@ -51,7 +67,7 @@ static inline int cygfuse_daemon(int nochdir, int noclose)
         return -1;
 
     /* force reload of WinFsp DLL to workaround fork() problems */
-    cygfuse_init(1);
+    cygfuse_init_slow(1);
 
     return 0;
 }
@@ -59,7 +75,7 @@ static inline int cygfuse_daemon(int nochdir, int noclose)
 
 #define FSP_FUSE_API                    static
 #define FSP_FUSE_API_NAME(api)          (* pfn_ ## api)
-#define FSP_FUSE_API_CALL(api)          (cygfuse_init(0), pfn_ ## api)
+#define FSP_FUSE_API_CALL(api)          (cygfuse_init_fast(), pfn_ ## api)
 #define FSP_FUSE_SYM(proto, ...)        __attribute__ ((visibility("default"))) proto { __VA_ARGS__ }
 #include <fuse_common.h>
 #include <fuse.h>
@@ -75,6 +91,7 @@ static inline int cygfuse_daemon(int nochdir, int noclose)
     if (0 == (*(void **)&(pfn_ ## n) = dlsym(h, #n)))\
         return cygfuse_init_fail();
 
+static void *cygfuse_init_fail();
 static void *cygfuse_init_winfsp()
 {
     void *h;
