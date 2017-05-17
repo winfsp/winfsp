@@ -687,6 +687,13 @@ FSP_FUSE_API void fsp_fuse_exit(struct fsp_fuse_env *env,
 {
     if (0 != f->Service)
         FspServiceStop(f->Service);
+    f->exited = 1;
+}
+
+FSP_FUSE_API int FSP_FUSE_API_NAME(fsp_fuse_exited)(struct fsp_fuse_env *env,
+    struct fuse *f)
+{
+    return f->exited;
 }
 
 FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env)

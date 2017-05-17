@@ -50,6 +50,7 @@ struct fuse
     PWSTR MountPoint;
     FSP_FILE_SYSTEM *FileSystem;
     FSP_SERVICE *Service; /* weak */
+    volatile int exited;
 };
 
 struct fsp_fuse_context_header
