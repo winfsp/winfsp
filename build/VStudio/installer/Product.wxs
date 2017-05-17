@@ -302,7 +302,7 @@
         <DirectoryRef Id="OPTDIR">
             <Directory Id="OPTDIR.cygfuse" Name="cygfuse" FileSource="..\..\..\opt\cygfuse\dist">
                 <Component Id="C.fuse.tar.xz">
-                    <File Name="fuse-2.8-4.tar.xz" KeyPath="yes" />
+                    <File Name="fuse-2.8-5.tar.xz" KeyPath="yes" />
                 </Component>
                 <Component Id="C.fuse.install.sh">
                     <File Name="install.sh" KeyPath="yes" />
