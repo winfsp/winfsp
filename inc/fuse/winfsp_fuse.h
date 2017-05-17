@@ -178,6 +178,7 @@ struct fuse_flock
         fsp_fuse_daemonize,             \
         fsp_fuse_set_signal_handlers,   \
         0/*conv_to_win_path*/,          \
+        { 0 },                          \
     }
 #else
 #define FSP_FUSE_ENV_INIT               \
@@ -187,6 +188,7 @@ struct fuse_flock
         fsp_fuse_daemonize,             \
         fsp_fuse_set_signal_handlers,   \
         0/*conv_to_win_path*/,          \
+        { 0 },                          \
     }
 #endif
 
@@ -229,6 +231,7 @@ struct fuse_flock
         fsp_fuse_daemonize,             \
         fsp_fuse_set_signal_handlers,   \
         fsp_fuse_conv_to_win_path,      \
+        { 0 },                          \
     }
 
 /*
