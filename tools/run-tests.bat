@@ -62,7 +62,11 @@ set dfl_tests=^
     winfstest-memfs-x86-net ^
     fscrash-x86 ^
     winfsp-tests-dotnet-external ^
-    winfsp-tests-dotnet-external-share
+    winfsp-tests-dotnet-external-share ^
+    fsx-memfs-dotnet-disk ^
+    fsx-memfs-dotnet-net ^
+    winfstest-memfs-dotnet-disk ^
+    winfstest-memfs-dotnet-net
 set opt_tests=^
     ifstest-memfs-x64-disk ^
     ifstest-memfs-x86-disk ^
@@ -384,6 +388,34 @@ exit /b 0
 Q:
 "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=Q:\ --resilient ^
     -reparse_symlink*
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:fsx-memfs-dotnet-disk
+Q:
+"%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
+if !ERRORLEVEL! neq 0 goto fail
+"%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:fsx-memfs-dotnet-net
+R:
+"%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
+if !ERRORLEVEL! neq 0 goto fail
+"%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfstest-memfs-dotnet-disk
+Q:
+call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfstest-memfs-dotnet-net
+R:
+call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
