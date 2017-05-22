@@ -1,10 +1,10 @@
 = Changelog
 
-v1.1B3 (2017.1)::
+v1.1B3 (2017.1 B3)::
 
-v1.1B2 (2017.1)::
+v1.1B2 (2017.1 B2)::
 
-v1.1B1 (2017.1)::
+v1.1B1 (2017.1 BETA)::
 
 This release brings some major new components and improvements.
 
