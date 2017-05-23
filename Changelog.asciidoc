@@ -1,5 +1,18 @@
 = Changelog
 
+
+v1.1 (2017.1)::
+
+This release brings some major new components and improvements.
+
+- A .NET layer that allows the creation of file systems in managed mode. This is contained in the new `winfsp-msil.dll`. The new .NET layer is being tested with the WinFsp test suites and Microsoft's ifstest.
+- FUSE for Cygwin is now included with the installer.
+- FUSE now has a `-ovolname=VOLNAME` parameter that allows setting the volume label. Thanks @samkelly.
+- A number of other FUSE improvements have been made (see issue #85).
+
+NOTE: The C++ layer included in the v1.1 beta releases is not part of this release as it is still work in progress. It can be found in `inc/winfsp/winfsp.hpp` in the WinFsp source repository.
+
+
 v1.1B3 (2017.1 B3)::
 
 v1.1B2 (2017.1 B2)::
