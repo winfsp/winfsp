@@ -468,17 +468,18 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o gid=N                   set file group (-1 for mounting user group)\n"
             "    -o rellinks                interpret absolute symlinks as volume relative\n"
             "    -o volname=NAME            set volume label\n"
-            "    -o VolumePrefix=UNC        set UNC prefix (\\Server\\Share)\n"
+            "    -o VolumePrefix=UNC        set UNC prefix (/Server/Share)\n"
+            "        --VolumePrefix=UNC     set UNC prefix (\\Server\\Share)\n"
             "    -o FileSystemName=NAME     set file system name\n"
             "    -o DebugLog=FILE           debug log file (requires -d)\n"
             "\n"
             FSP_FUSE_LIBRARY_NAME " advanced options:\n"
             "    -o FileInfoTimeout=N       metadata timeout (millis, -1 for data caching)\n"
-            "    -o SectorSize=N            sector size for Windows (512-4096, deflt: 4096)\n"
-            "    -o SectorsPerAllocationUnit=N  sectors per allocation unit (deflt: 1)\n"
-            "    -o MaxComponentLength=N    max file name component length (deflt: 255)\n"
-            "    -o VolumeCreationTime=T    volume creation time (FILETIME hex format)\n"
-            "    -o VolumeSerialNumber=N    volume serial number (32-bit wide)\n"
+            "    -o SectorSize=N            (512-4096, deflt: 4096)\n"
+            "    -o SectorsPerAllocationUnit=N  (deflt: 1)\n"
+            "    -o MaxComponentLength=N    (deflt: 255)\n"
+            "    -o VolumeCreationTime=T    (FILETIME hex format)\n"
+            "    -o VolumeSerialNumber=N    (32-bit wide)\n"
             );
         opt_data->help = 1;
         return 1;
@@ -513,6 +514,9 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             return -1;
         opt_data->VolumeParams.Prefix
             [sizeof opt_data->VolumeParams.Prefix / sizeof(WCHAR) - 1] = L'\0';
+        for (PWSTR P = opt_data->VolumeParams.Prefix; *P; P++)
+            if (L'/' == *P)
+                *P = '\\';
         return 0;
     case 'F':
         if ('f' == arg[0])
