@@ -38,7 +38,7 @@ For example, the MEMFS sample adds the following registry entries in a 64-bit sy
     "Security"="D:P(A;;RPWPLC;;;WD)"
     "JobControl"=dword:00000001
 
-When the WinFsp.Launcher starts up it creates a named pipe that applications can use to start, stop, get information about and list service instances. A small command line utility (`launchctl`) can be used to issue those commands. The CallNamedPipeW API can be used as well.
+When the WinFsp.Launcher starts up it creates a named pipe that applications can use to start, stop, get information about and list service instances. A small command line utility (`launchctl`) can be used to issue those commands. The `CallNamedPipeW` API can be used as well.
 
 One final note regarding security. Notice the `Security` registry value in the example above. This registry value uses SDDL syntax to instruct WinFsp.Launcher to allow Everyone (`WD`) to start (`RP`), stop (`WP`) and get information (`LC`) about the service instance. If the `Security` registry value is missing the default is to allow only LocalSystem and Administrators to control the service instance.
 
@@ -47,3 +47,13 @@ One final note regarding security. Notice the `Security` registry value in the e
 WinFsp includes a Network Provider that integrates with Windows and can be used to start and stop user mode file systems from the Windows shell. To achieve this the Network Provider (implemented as part of the WinFsp DLL) works closely with the WinFsp.Launcher service.
 
 For example, if a user uses the Windows Explorer to map `\\memfs64\share` to the `Z:` drive, the Network Provider will instruct the WinFsp.Launcher to start an instance of the memfs64 service with command line `-i -F NTFS -n 65536 -s 67108864 -u \\memfs64\share -m Z:`. When the user disconnects the `Z:` drive, the Network Provider will instruct the WinFsp.Launcher to stop the previously started instance of the memfs64 service.
+
+== File System Credential Support
+
+Some file systems require credentials in order to allow access and be mounted. Such file systems must add a registry value `Credentials`:
+
+    "Credentials"=dword:00000001
+
+This will instruct the WinFsp Network Provider to request a password from the user prior to starting the file system. This password will then be securely passed to the WinFsp Launcher which in turn will pass it to the user mode file system on its standard input. The user mode file system must respond `OK` if the password is correct and allows access to the user mode file system. Any other response from the user mode file system (including a timeout without a response) is interpreted as an authentication failure.
+
+NOTE: During password entry the user may also choose to "remember" the password in which case it will be saved in the Windows Credential Manager.
