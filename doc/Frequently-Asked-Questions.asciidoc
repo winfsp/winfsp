@@ -10,6 +10,11 @@ I am running Windows 7 and I am finding that the installed driver is not signed.
 	https://technet.microsoft.com/en-us/library/security/3033929.aspx
 
 
+Disconnecting (unmapping) a network drive does not work. [@carlreinke]::
+
+    You may have Dokany installed. Dokany installs its own Network Provider DLL that unfortunately interferes with the WinFsp handling of network drives. The solution is to change your system's Network Provider order and ensure that the WinFsp Network Provider runs before the Dokany one. Instructions on how to change the Network Provider order can be found in this http://blogs.interfacett.com/changing-the-network-provider-order-in-windows-10[article].
+
+
 Why is the DLL not installed in the Windows system directories? [@netheril96]::
 
     It is true that this would make it convenient to load the DLL, because the Windows loader looks into the Windows system directories when it loads DLL's. However, in the opinion of the WinFsp author, software that does not ship with the OS should not be installing components in the system directories.
