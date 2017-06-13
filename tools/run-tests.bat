@@ -73,8 +73,6 @@ set opt_tests=^
     ifstest-memfs-dotnet-disk ^
     sample-passthrough-x64 ^
     sample-passthrough-x86 ^
-    sample-passthrough-cpp-x64 ^
-    sample-passthrough-cpp-x86 ^
     sample-passthrough-fuse-x64 ^
     sample-passthrough-fuse-x86 ^
     sample-passthrough-dotnet
