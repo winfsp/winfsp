@@ -12,7 +12,7 @@ After a day or two of doing this and being stumped I finally had a lightbulb mom
 
 After contemplating this issue I realized that this was happening because the OS was trying to schedule my threads in a "fair" manner. Windows in general tries to give every thread a chance to run. This can be counter-productive in server-like programs (such as file systems), where all server threads are equivalent and it is actually better to reuse the same thread (if possible) to avoid context switching and other negative effects.
 
-== The solution
+== The Solution
 
 One way of looking at WinFsp is as an IPC (Inter-Process Communication) mechanism. The Windows kernel packages file system operations (open, close, read, write) as IRP's (I/O Request Packets) which it sends to WinFsp. WinFsp places them in an _I/O Queue_; at a later time the threads in a user mode file system retrieve the IRP's from the _I/O Queue_ and service them.
 
