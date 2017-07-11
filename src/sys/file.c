@@ -58,6 +58,8 @@ VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileIn
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose);
+BOOLEAN FspFileNodeTrySetFileInfoOnOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
+    const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose);
 BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, ULONG InfoChangeNumber);
 VOID FspFileNodeInvalidateFileInfo(FSP_FILE_NODE *FileNode);
@@ -129,6 +131,7 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 #pragma alloc_text(PAGE, FspFileNodeGetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeTryGetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeSetFileInfo)
+#pragma alloc_text(PAGE, FspFileNodeTrySetFileInfoOnOpen)
 #pragma alloc_text(PAGE, FspFileNodeTrySetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeInvalidateFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeReferenceSecurity)
@@ -1658,6 +1661,42 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
             }
         }
     }
+}
+
+BOOLEAN FspFileNodeTrySetFileInfoOnOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
+    const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose)
+{
+    PAGED_CODE();
+
+    BOOLEAN EarlyExit;
+
+    FspFsvolDeviceLockContextTable(FileNode->FsvolDeviceObject);
+    EarlyExit = 1 < FileNode->OpenCount;
+    FspFsvolDeviceUnlockContextTable(FileNode->FsvolDeviceObject);
+    if (EarlyExit)
+    {
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+            FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+        UINT64 AllocationSize = FileInfo->AllocationSize > FileInfo->FileSize ?
+            FileInfo->AllocationSize : FileInfo->FileSize;
+        UINT64 AllocationUnit;
+
+        AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+            FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+        AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
+
+        if (TruncateOnClose)
+        {
+            if ((UINT64)FileNode->Header.AllocationSize.QuadPart != AllocationSize ||
+                (UINT64)FileNode->Header.FileSize.QuadPart != FileInfo->FileSize)
+                FileNode->TruncateOnClose = TRUE;
+        }
+
+        return FALSE;
+    }
+
+    FspFileNodeSetFileInfo(FileNode, CcFileObject, FileInfo, TruncateOnClose);
+    return TRUE;
 }
 
 BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,

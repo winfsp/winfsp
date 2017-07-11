@@ -1098,7 +1098,7 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
         return Result;
     }
 
-    FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Create.Opened.FileInfo,
+    FspFileNodeTrySetFileInfoOnOpen(FileNode, FileObject, &Response->Rsp.Create.Opened.FileInfo,
         FILE_CREATED == Response->IoStatus.Information);
 
     if (FlushImage)
