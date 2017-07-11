@@ -1098,6 +1098,43 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
         return Result;
     }
 
+    /*
+     * FspFileNodeTrySetFileInfoOnOpen sets the FileNode's metadata to values reported
+     * by the user mode file system. It does so only if the file is not already open; the
+     * reason is that there is a subtle race condition otherwise.
+     *
+     * Consider that a file is already open and (for example) being appended to. The appends
+     * appear as WRITE IRP's and they are all synchronized by acquiring the FileNode resources
+     * exclusive. Part of the WRITE protocol involves returning an updated FileInfo for the
+     * written FileNode, which the FSD uses to update its view of the file metadata.
+     *
+     * Now consider that a file OPEN comes in. Because the FSD does not know yet which FileNode
+     * will be opened it does not acquire any FileNode. [Note that while it is possible to
+     * uniquely identify a FileNode by FileName currently, this would no longer be the case
+     * when we implement hard links.] The FSD posts the OPEN request to the user mode file system.
+     * The user mode file system processes the OPEN request successfully and responds with the
+     * opened file and its FileInfo.
+     *
+     * Prior to the FSD processing the OPEN response additional WRITE IRP's come through the
+     * original file handle. These WRITE's update the FileSize as understood by the user mode
+     * file system and the corresponding FileInfo gets reported back to the FSD. Eventually the
+     * delayed OPEN response gets processed, which now clobbers the FileInfo as understood by
+     * the FSD.
+     *
+     * The problem here is that OPEN requests have no way of locking the FileNode while the OPEN
+     * request is in transit to the user mode file system. In all other cases the user mode file
+     * system and the FSD update their view of the file's metadata in an atomic fashion. Not so
+     * in the case of OPEN.
+     *
+     * While this is a subtle race condition it can nevertheless creates a real problem. For
+     * example, Explorer often opens files to get information about them and may inappropriately
+     * update the FSD view of the file size during WRITE's.
+     *
+     * FspFileNodeTrySetFileInfoOnOpen attempts to mitigate this problem by only updating the
+     * FileInfo if the file is not already open. This avoids placing stale information in the
+     * FileNode.
+     */
+
     FspFileNodeTrySetFileInfoOnOpen(FileNode, FileObject, &Response->Rsp.Create.Opened.FileInfo,
         FILE_CREATED == Response->IoStatus.Information);
 

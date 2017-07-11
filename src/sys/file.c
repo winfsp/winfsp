@@ -1673,20 +1673,21 @@ BOOLEAN FspFileNodeTrySetFileInfoOnOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT Cc
     FspFsvolDeviceLockContextTable(FileNode->FsvolDeviceObject);
     EarlyExit = 1 < FileNode->OpenCount;
     FspFsvolDeviceUnlockContextTable(FileNode->FsvolDeviceObject);
+
     if (EarlyExit)
     {
-        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-            FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
-        UINT64 AllocationSize = FileInfo->AllocationSize > FileInfo->FileSize ?
-            FileInfo->AllocationSize : FileInfo->FileSize;
-        UINT64 AllocationUnit;
-
-        AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
-            FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
-        AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
-
         if (TruncateOnClose)
         {
+            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+                FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+            UINT64 AllocationSize = FileInfo->AllocationSize > FileInfo->FileSize ?
+                FileInfo->AllocationSize : FileInfo->FileSize;
+            UINT64 AllocationUnit;
+
+            AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+                FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+            AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
+
             if ((UINT64)FileNode->Header.AllocationSize.QuadPart != AllocationSize ||
                 (UINT64)FileNode->Header.FileSize.QuadPart != FileInfo->FileSize)
                 FileNode->TruncateOnClose = TRUE;
