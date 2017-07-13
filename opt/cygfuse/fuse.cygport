@@ -1,6 +1,6 @@
 NAME="fuse"
 VERSION=2.8
-RELEASE=5
+RELEASE=6
 CATEGORY="Utils"
 SUMMARY="WinFsp-FUSE compatibility layer"
 DESCRIPTION="WinFsp-FUSE enables FUSE file systems to be run on Cygwin."
