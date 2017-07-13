@@ -545,6 +545,7 @@ NTSTATUS FspFsvolCreatePrepare(
     SECURITY_CLIENT_CONTEXT SecurityClientContext;
     HANDLE UserModeAccessToken;
     PEPROCESS Process;
+    HANDLE ProcessId;
     FSP_FILE_NODE *FileNode;
     FSP_FILE_DESC *FileDesc;
     PFILE_OBJECT FileObject;
@@ -578,11 +579,15 @@ NTSTATUS FspFsvolCreatePrepare(
         /* get a pointer to the current process so that we can close the impersonation token later */
         Process = PsGetCurrentProcess();
         ObReferenceObject(Process);
+        ProcessId = PsGetProcessId(Process);
 
         /* send the user-mode handle to the user-mode file system */
         FspIopRequestContext(Request, RequestAccessToken) = UserModeAccessToken;
         FspIopRequestContext(Request, RequestProcess) = Process;
-        Request->Req.Create.AccessToken = (UINT_PTR)UserModeAccessToken;
+        ASSERT((UINT64)(UINT_PTR)UserModeAccessToken <= 0xffffffffULL);
+        ASSERT((UINT64)(UINT_PTR)ProcessId <= 0xffffffffULL);
+        Request->Req.Create.AccessToken =
+            ((UINT64)(UINT_PTR)ProcessId << 32) | (UINT64)(UINT_PTR)UserModeAccessToken;
 
         return STATUS_SUCCESS;
     }
