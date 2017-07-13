@@ -1082,6 +1082,57 @@ void create_namelen_test(void)
 #endif
 }
 
+FSP_FILE_SYSTEM_OPERATION *create_pid_CreateOp;
+UINT32 create_pid_Pass, create_pid_Fail;
+
+NTSTATUS create_pid_Create(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    if (FspFileSystemOperationProcessId() == GetCurrentProcessId())
+        InterlockedIncrement(&create_pid_Pass);
+    else
+        InterlockedIncrement(&create_pid_Fail);
+    return create_pid_CreateOp(FileSystem, Request, Response);
+}
+
+void create_pid_dotest(ULONG Flags, PWSTR Prefix)
+{
+    create_pid_Pass = create_pid_Fail = 0;
+
+    void *memfs = memfs_start(Flags);
+
+    FSP_FILE_SYSTEM *FileSystem = MemfsFileSystem(memfs);
+    create_pid_CreateOp = FileSystem->Operations[FspFsctlTransactCreateKind];
+    FileSystem->Operations[FspFsctlTransactCreateKind] = create_pid_Create;
+
+    HANDLE Handle;
+    WCHAR FilePath[MAX_PATH];
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    memfs_stop(memfs);
+
+    ASSERT(0 < create_pid_Pass && 0 == create_pid_Fail);
+}
+
+void create_pid_test(void)
+{
+    if (NtfsTests)
+        return;
+
+    if (WinFspDiskTests)
+        create_pid_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        create_pid_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
 void create_tests(void)
 {
     TEST(create_test);
@@ -1096,4 +1147,6 @@ void create_tests(void)
     TEST(create_curdir_test);
     if (!OptShareName && !OptMountPoint)
         TEST(create_namelen_test);
+    if (!NtfsTests)
+        TEST(create_pid_test);
 }

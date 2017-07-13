@@ -1512,6 +1512,78 @@ void rename_standby_test(void)
     }
 }
 
+FSP_FILE_SYSTEM_OPERATION *rename_pid_SetInformationOp;
+UINT32 rename_pid_Pass, rename_pid_Fail;
+
+NTSTATUS rename_pid_SetInformation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    if (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass)
+    {
+        if (FspFileSystemOperationProcessId() == GetCurrentProcessId())
+            InterlockedIncrement(&rename_pid_Pass);
+        else
+            InterlockedIncrement(&rename_pid_Fail);
+    }
+    else
+    {
+        if (FspFileSystemOperationProcessId() == 0)
+            InterlockedIncrement(&rename_pid_Pass);
+        else
+            InterlockedIncrement(&rename_pid_Fail);
+    }
+    return rename_pid_SetInformationOp(FileSystem, Request, Response);
+}
+
+void rename_pid_dotest(ULONG Flags, PWSTR Prefix)
+{
+    rename_pid_Pass = rename_pid_Fail = 0;
+
+    void *memfs = memfs_start(Flags);
+
+    FSP_FILE_SYSTEM *FileSystem = MemfsFileSystem(memfs);
+    rename_pid_SetInformationOp = FileSystem->Operations[FspFsctlTransactSetInformationKind];
+    FileSystem->Operations[FspFsctlTransactSetInformationKind] = rename_pid_SetInformation;
+
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR File0Path[MAX_PATH];
+    WCHAR File1Path[MAX_PATH];
+
+    StringCbPrintfW(File0Path, sizeof File0Path, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File1Path, sizeof File1Path, L"%s%s\\file1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(File0Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Success = MoveFileExW(File0Path, File1Path, MOVEFILE_REPLACE_EXISTING);
+    ASSERT(Success);
+
+    Success = DeleteFileW(File1Path);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+
+    ASSERT(0 < rename_pid_Pass && 0 == rename_pid_Fail);
+}
+
+void rename_pid_test(void)
+{
+    if (NtfsTests)
+        return;
+
+    if (WinFspDiskTests)
+        rename_pid_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        rename_pid_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
 void getvolinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -1736,6 +1808,8 @@ void info_tests(void)
     if (!OptShareName)
         TEST(rename_mmap_test);
     TEST(rename_standby_test);
+    if (!NtfsTests)
+        TEST(rename_pid_test);
     TEST(getvolinfo_test);
     TEST(setvolinfo_test);
 }
