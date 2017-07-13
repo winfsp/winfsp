@@ -178,6 +178,7 @@ struct fuse_flock
         fsp_fuse_daemonize,             \
         fsp_fuse_set_signal_handlers,   \
         0/*conv_to_win_path*/,          \
+        0/*winpid_to_pid*/,             \
         { 0 },                          \
     }
 #else
@@ -188,6 +189,7 @@ struct fuse_flock
         fsp_fuse_daemonize,             \
         fsp_fuse_set_signal_handlers,   \
         0/*conv_to_win_path*/,          \
+        0/*winpid_to_pid*/,             \
         { 0 },                          \
     }
 #endif
@@ -231,6 +233,7 @@ struct fuse_flock
         fsp_fuse_daemonize,             \
         fsp_fuse_set_signal_handlers,   \
         fsp_fuse_conv_to_win_path,      \
+        fsp_fuse_winpid_to_pid,         \
         { 0 },                          \
     }
 
@@ -251,7 +254,8 @@ struct fsp_fuse_env
     int (*daemonize)(int);
     int (*set_signal_handlers)(void *);
     char *(*conv_to_win_path)(const char *);
-    void (*reserved[3])();
+    fuse_pid_t (*winpid_to_pid)(uint32_t);
+    void (*reserved[2])();
 };
 
 FSP_FUSE_API void FSP_FUSE_API_NAME(fsp_fuse_signal_handler)(int sig);
@@ -361,6 +365,13 @@ static inline char *fsp_fuse_conv_to_win_path(const char *path)
     return cygwin_create_path(
         0/*CCP_POSIX_TO_WIN_A*/ | 0x100/*CCP_RELATIVE*/,
         path);
+}
+
+static inline fuse_pid_t fsp_fuse_winpid_to_pid(uint32_t winpid)
+{
+    pid_t cygwin_winpid_to_pid(int winpid);
+    pid_t pid = cygwin_winpid_to_pid(winpid);
+    return -1 != pid ? pid : (fuse_pid_t)winpid;
 }
 #endif
 

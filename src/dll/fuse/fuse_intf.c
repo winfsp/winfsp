@@ -167,7 +167,7 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     context->private_data = f->data;
     context->uid = Uid;
     context->gid = Gid;
-    context->pid = Pid;
+    context->pid = 0 != f->env->winpid_to_pid ? f->env->winpid_to_pid(Pid) : Pid;
 
     contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
     contexthdr->PosixPath = PosixPath;
