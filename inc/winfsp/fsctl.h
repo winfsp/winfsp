@@ -78,6 +78,9 @@ FSP_FSCTL_STATIC_ASSERT(FSP_FSCTL_VOLUME_NAME_SIZEMAX <= 260 * sizeof(WCHAR),
 #define FSP_FSCTL_TRANSACT_BATCH_BUFFER_SIZEMIN (64 * 1024)
 #define FSP_FSCTL_TRANSACT_BUFFER_SIZEMIN       FSP_FSCTL_TRANSACT_REQ_SIZEMAX
 
+#define FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(T)  ((HANDLE)((T) & 0xffffffff))
+#define FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(T)     ((UINT32)(((T) >> 32) & 0xffffffff))
+
 /* marshalling */
 #pragma warning(push)
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
@@ -222,7 +225,7 @@ typedef struct
             UINT32 FileAttributes;      /* file attributes for new files */
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor; /* security descriptor for new files */
             UINT64 AllocationSize;      /* initial allocation size */
-            UINT64 AccessToken;         /* request access token (HANDLE) */
+            UINT64 AccessToken;         /* request access token (PID,HANDLE) */
             UINT32 DesiredAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             UINT32 GrantedAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             UINT32 ShareAccess;         /* FILE_SHARE_{READ,WRITE,DELETE} */
@@ -315,7 +318,7 @@ typedef struct
                 struct
                 {
                     FSP_FSCTL_TRANSACT_BUF NewFileName;
-                    UINT64 AccessToken; /* request access token (HANDLE) */
+                    UINT64 AccessToken; /* request access token (PID,HANDLE) */
                 } Rename;
             } Info;
         } SetInformation;

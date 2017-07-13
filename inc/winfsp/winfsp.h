@@ -1065,6 +1065,23 @@ BOOLEAN FspFileSystemIsOperationCaseSensitive(VOID)
         FspFsctlTransactCreateKind == Request->Kind && Request->Req.Create.CaseSensitive ||
         FspFsctlTransactQueryDirectoryKind == Request->Kind && Request->Req.QueryDirectory.CaseSensitive;
 }
+FSP_API UINT32 FspFileSystemOperationProcessIdF(VOID);
+static inline
+UINT32 FspFileSystemOperationProcessId(VOID)
+{
+    FSP_FSCTL_TRANSACT_REQ *Request = FspFileSystemGetOperationContext()->Request;
+    switch (Request->Kind)
+    {
+    case FspFsctlTransactCreateKind:
+        return FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(Request->Req.Create.AccessToken);
+    case FspFsctlTransactSetInformationKind:
+        if (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass)
+            return FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(Request->Req.SetInformation.Info.Rename.AccessToken);
+        /* fall through! */
+    default:
+        return 0;
+    }
+}
 
 /*
  * Operations

@@ -172,8 +172,12 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
 
             if (0 < SecurityDescriptorSize)
             {
-                if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, FILE_TRAVERSE,
-                    &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, &TraverseAccess, &AccessStatus))
+                if (AccessCheck(SecurityDescriptor,
+                    FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.Create.AccessToken),
+                    FILE_TRAVERSE,
+                    &FspFileGenericMapping,
+                    PrivilegeSet, &PrivilegeSetLength,
+                    &TraverseAccess, &AccessStatus))
                     Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
                 else
                     Result = FspNtStatusFromWin32(GetLastError());
@@ -202,8 +206,12 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
     {
         if (0 == DesiredAccess)
             Result = STATUS_SUCCESS;
-        else if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess,
-            &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
+        else if (AccessCheck(SecurityDescriptor,
+            FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.Create.AccessToken),
+            DesiredAccess,
+            &FspFileGenericMapping,
+            PrivilegeSet, &PrivilegeSetLength,
+            PGrantedAccess, &AccessStatus))
             Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
         else
             Result = FspNtStatusFromWin32(GetLastError());
@@ -244,8 +252,12 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
                 ((FILE_LIST_DIRECTORY & ParentAccess) ? FILE_READ_ATTRIBUTES : 0));
             if (0 != DesiredAccess2)
             {
-                if (AccessCheck(SecurityDescriptor, (HANDLE)Request->Req.Create.AccessToken, DesiredAccess2,
-                    &FspFileGenericMapping, PrivilegeSet, &PrivilegeSetLength, PGrantedAccess, &AccessStatus))
+                if (AccessCheck(SecurityDescriptor,
+                    FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.Create.AccessToken),
+                    DesiredAccess2,
+                    &FspFileGenericMapping,
+                    PrivilegeSet, &PrivilegeSetLength,
+                    PGrantedAccess, &AccessStatus))
                     Result = AccessStatus ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
                 else
                     /* any failure just becomes ACCESS DENIED at this point */
@@ -396,7 +408,7 @@ FSP_API NTSTATUS FspCreateSecurityDescriptor(FSP_FILE_SYSTEM *FileSystem,
             (PSECURITY_DESCRIPTOR)(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset) : 0,
         PSecurityDescriptor,
         0 != (Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE),
-        (HANDLE)Request->Req.Create.AccessToken,
+        FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.Create.AccessToken),
         &FspFileGenericMapping))
         return FspNtStatusFromWin32(GetLastError());
 

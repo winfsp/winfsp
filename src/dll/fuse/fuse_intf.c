@@ -112,7 +112,7 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     struct fuse_context *context;
     struct fsp_fuse_context_header *contexthdr;
     char *PosixPath = 0;
-    UINT32 Uid = -1, Gid = -1;
+    UINT32 Uid = -1, Gid = -1, Pid = -1;
     PWSTR FileName = 0, Suffix;
     WCHAR Root[2] = L"\\";
     HANDLE Token = 0;
@@ -124,13 +124,15 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
             FspPathSuffix((PWSTR)Request->Buffer, &FileName, &Suffix, Root);
         else
             FileName = (PWSTR)Request->Buffer;
-        Token = (HANDLE)Request->Req.Create.AccessToken;
+        Token = FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.Create.AccessToken);
+        Pid = FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(Request->Req.Create.AccessToken);
     }
     else if (FspFsctlTransactSetInformationKind == Request->Kind &&
         10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass)
     {
         FileName = (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset);
-        Token = (HANDLE)Request->Req.SetInformation.Info.Rename.AccessToken;
+        Token = FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.SetInformation.Info.Rename.AccessToken);
+        Pid = FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(Request->Req.SetInformation.Info.Rename.AccessToken);
     }
 
     if (0 != FileName)
@@ -162,6 +164,7 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     context->private_data = f->data;
     context->uid = Uid;
     context->gid = Gid;
+    context->pid = Pid;
 
     contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
     contexthdr->PosixPath = PosixPath;
@@ -189,6 +192,7 @@ NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
     context->private_data = 0;
     context->uid = -1;
     context->gid = -1;
+    context->pid = -1;
 
     contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
     if (0 != contexthdr->PosixPath)

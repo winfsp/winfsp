@@ -283,6 +283,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     context->private_data = f->data;
     context->uid = -1;
     context->gid = -1;
+    context->pid = -1;
 
     memset(&conn, 0, sizeof conn);
     conn.proto_major = 7;               /* pretend that we are FUSE kernel protocol 7.12 */
@@ -737,7 +738,6 @@ FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env)
             return 0;
 
         context = FSP_FUSE_CONTEXT_FROM_HDR(contexthdr);
-        context->pid = -1;
 
         TlsSetValue(fsp_fuse_tlskey, context);
     }

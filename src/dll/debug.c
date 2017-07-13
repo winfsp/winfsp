@@ -302,7 +302,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
         FspDebugLog("%S[TID=%04lx]: %p: >>Create [%c%c%c%c%c%c] \"%S\", "
             "%s, CreateOptions=%lx, FileAttributes=%lx, Security=%s%s%s, "
             "AllocationSize=%lx:%lx, "
-            "AccessToken=%p, DesiredAccess=%lx, GrantedAccess=%lx, "
+            "AccessToken=%p[PID=%lx], DesiredAccess=%lx, GrantedAccess=%lx, "
             "ShareAccess=%lx\n",
             FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
             Request->Req.Create.UserMode ? 'U' : 'K',
@@ -319,7 +319,8 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             Sddl ? Sddl : "NULL",
             Sddl ? "\"" : "",
             MAKE_UINT32_PAIR(Request->Req.Create.AllocationSize),
-            (PVOID)Request->Req.Create.AccessToken,
+            FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.Create.AccessToken),
+            FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(Request->Req.Create.AccessToken),
             Request->Req.Create.DesiredAccess,
             Request->Req.Create.GrantedAccess,
             Request->Req.Create.ShareAccess);
@@ -459,7 +460,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             break;
         case 10/*FileRenameInformation*/:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [Rename] %s%S%s%s, "
-                "NewFileName=\"%S\", AccessToken=%p\n",
+                "NewFileName=\"%S\", AccessToken=%p[PID=%lx]\n",
                 FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
                 Request->FileName.Size ? "\"" : "",
                 Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
@@ -468,7 +469,8 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                     Request->Req.SetInformation.UserContext, Request->Req.SetInformation.UserContext2,
                     UserContextBuf),
                 (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset),
-                (PVOID)Request->Req.SetInformation.Info.Rename.AccessToken);
+                FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.SetInformation.Info.Rename.AccessToken),
+                FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(Request->Req.SetInformation.Info.Rename.AccessToken));
             break;
         default:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [INVALID] %s%S%s%s\n",
