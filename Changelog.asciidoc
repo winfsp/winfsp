@@ -1,6 +1,11 @@
 = Changelog
 
 
+v1.2B1 (2017.2 B1)::
+
+- Added support for getting the originating process ID (PID) during `Create`, `Open` and `Rename` calls. See the `FspFileSystemOperationProcessId` API.
+
+
 v1.1 (2017.1)::
 
 This release brings some major new components and improvements.
