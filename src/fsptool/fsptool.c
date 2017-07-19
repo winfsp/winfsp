@@ -64,13 +64,63 @@ static void usage(void)
         "    uidtosid    get SID from POSIX UID\n"
         "    sidtouid    get POSIX UID from SID\n"
         "    permtosd    get security descriptor from POSIX permissions\n"
-        "    sdtoperm    get POSIX permissions from security descriptor\n"
+        "    sdtoperm    get POSIX permissions from security descriptor\n",
         PROGNAME);
+}
+
+static NTSTATUS lsvol_dev(PWSTR DeviceName)
+{
+    NTSTATUS Result;
+    PWCHAR VolumeListBuf, VolumeListBufEnd;
+    SIZE_T VolumeListSize;
+
+    for (VolumeListSize = 1024;; VolumeListSize *= 2)
+    {
+        VolumeListBuf = MemAlloc(VolumeListSize);
+        if (0 == VolumeListBuf)
+            return STATUS_INSUFFICIENT_RESOURCES;
+
+        Result = FspFsctlGetVolumeList(DeviceName, VolumeListBuf, &VolumeListSize);
+        if (NT_SUCCESS(Result))
+        {
+            VolumeListBufEnd = (PVOID)((PUINT8)VolumeListBuf + VolumeListSize);
+            break;
+        }
+
+        MemFree(VolumeListBuf);
+
+        if (STATUS_BUFFER_TOO_SMALL != Result)
+            return Result;
+    }
+
+    for (PWCHAR P = VolumeListBuf, VolumeName = P; VolumeListBufEnd > P; P++)
+        if (L'\0' == *P)
+        {
+            info("%S", VolumeName);
+            VolumeName = P + 1;
+        }
+
+    MemFree(VolumeListBuf);
+
+    return STATUS_SUCCESS;
 }
 
 static int lsvol(int argc, wchar_t **argv)
 {
-    return 1;
+    if (1 != argc)
+        usage();
+
+    NTSTATUS Result;
+
+    Result = lsvol_dev(L"" FSP_FSCTL_DISK_DEVICE_NAME);
+    if (!NT_SUCCESS(Result))
+        return FspWin32FromNtStatus(Result);
+
+    Result = lsvol_dev(L"" FSP_FSCTL_NET_DEVICE_NAME);
+    if (!NT_SUCCESS(Result))
+        return FspWin32FromNtStatus(Result);
+
+    return 0;
 }
 
 static int getsid(int argc, wchar_t **argv)
