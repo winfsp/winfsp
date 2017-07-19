@@ -17,6 +17,7 @@
 
 #include <winfsp/winfsp.h>
 #include <shared/minimal.h>
+#include <sddl.h>
 
 #define PROGNAME                        "fsptool"
 
@@ -58,8 +59,7 @@ static void usage(void)
         "    lsvol       list file system devices (volumes)\n"
         //"    list        list running file system processes\n"
         //"    kill        kill file system process\n"
-        "    getuid      get current POSIX UID\n"
-        "    getgid      get current POSIX GID\n"
+        "    id          get current user/group SID\n"
         "    uidtosid    get SID from POSIX UID\n"
         "    sidtouid    get POSIX UID from SID\n"
         "    permtosd    get security descriptor from POSIX permissions\n"
@@ -128,98 +128,44 @@ static WCHAR FspToolGetDriveLetter(PDWORD PLogicalDrives, PWSTR VolumeName)
     return 0;
 }
 
-NTSTATUS FspToolGetUid(HANDLE Token, PUINT32 PUid)
+NTSTATUS FspToolGetTokenInfo(HANDLE Token,
+    TOKEN_INFORMATION_CLASS TokenInformationClass, PVOID *PInfo)
 {
-    UINT32 Uid;
-    union
-    {
-        TOKEN_USER V;
-        UINT8 B[128];
-    } UserInfoBuf;
-    PTOKEN_USER UserInfo = &UserInfoBuf.V;
+    PVOID Info = 0;
     DWORD Size;
     NTSTATUS Result;
 
-    if (!GetTokenInformation(Token, TokenUser, UserInfo, sizeof UserInfoBuf, &Size))
+    if (GetTokenInformation(Token, TokenInformationClass, 0, 0, &Size))
     {
-        if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
-        {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
-        }
-
-        UserInfo = MemAlloc(Size);
-        if (0 == UserInfo)
-        {
-            Result = STATUS_INSUFFICIENT_RESOURCES;
-            goto exit;
-        }
-
-        if (!GetTokenInformation(Token, TokenUser, UserInfo, Size, &Size))
-        {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
-        }
+        Result = STATUS_INVALID_PARAMETER;
+        goto exit;
     }
 
-    Result = FspPosixMapSidToUid(UserInfo->User.Sid, &Uid);
-    if (!NT_SUCCESS(Result))
+    if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
+    }
 
-    *PUid = Uid;
+    Info = MemAlloc(Size);
+    if (0 == Info)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    if (!GetTokenInformation(Token, TokenInformationClass, Info, Size, &Size))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    *PInfo = Info;
     Result = STATUS_SUCCESS;
 
 exit:
-    if (UserInfo != &UserInfoBuf.V)
-        MemFree(UserInfo);
-
-    return Result;
-}
-
-NTSTATUS FspToolGetGid(HANDLE Token, PUINT32 PGid)
-{
-    UINT32 Gid;
-    union
-    {
-        TOKEN_PRIMARY_GROUP V;
-        UINT8 B[128];
-    } GroupInfoBuf;
-    PTOKEN_PRIMARY_GROUP GroupInfo = &GroupInfoBuf.V;
-    DWORD Size;
-    NTSTATUS Result;
-
-    if (!GetTokenInformation(Token, TokenPrimaryGroup, GroupInfo, sizeof GroupInfoBuf, &Size))
-    {
-        if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
-        {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
-        }
-
-        GroupInfo = MemAlloc(Size);
-        if (0 == GroupInfo)
-        {
-            Result = STATUS_INSUFFICIENT_RESOURCES;
-            goto exit;
-        }
-
-        if (!GetTokenInformation(Token, TokenPrimaryGroup, GroupInfo, Size, &Size))
-        {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
-        }
-    }
-
-    Result = FspPosixMapSidToUid(GroupInfo->PrimaryGroup, &Gid);
     if (!NT_SUCCESS(Result))
-        goto exit;
-
-    *PGid = Gid;
-    Result = STATUS_SUCCESS;
-
-exit:
-    if (GroupInfo != &GroupInfoBuf.V)
-        MemFree(GroupInfo);
+        MemFree(Info);
 
     return Result;
 }
@@ -269,50 +215,103 @@ static int lsvol(int argc, wchar_t **argv)
     return 0;
 }
 
-static int getuid(int argc, wchar_t **argv)
+static int id(int argc, wchar_t **argv)
 {
     if (1 != argc)
         usage();
 
-    HANDLE Token;
-    UINT32 Uid;
+    HANDLE Token = 0;
+    TOKEN_USER *Uinfo = 0;
+    TOKEN_OWNER *Oinfo = 0;
+    TOKEN_PRIMARY_GROUP *Ginfo = 0;
+    PWSTR Ustr = 0, Ostr = 0, Gstr = 0;
+    UINT32 Uid, Oid, Gid;
     NTSTATUS Result;
+    int ErrorCode;
 
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token))
-        return GetLastError();
+    {
+        ErrorCode = GetLastError();
+        goto exit;
+    }
 
-    Result = FspToolGetUid(Token, &Uid);
+    Result = FspToolGetTokenInfo(Token, TokenUser, &Uinfo);
     if (!NT_SUCCESS(Result))
-        return FspWin32FromNtStatus(Result);
+    {
+        ErrorCode = FspWin32FromNtStatus(Result);
+        goto exit;
+    }
 
-    CloseHandle(Token);
-
-    info("%u", Uid);
-
-    return 0;
-}
-
-static int getgid(int argc, wchar_t **argv)
-{
-    if (1 != argc)
-        usage();
-
-    HANDLE Token;
-    UINT32 Gid;
-    NTSTATUS Result;
-
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token))
-        return GetLastError();
-
-    Result = FspToolGetGid(Token, &Gid);
+    Result = FspToolGetTokenInfo(Token, TokenOwner, &Oinfo);
     if (!NT_SUCCESS(Result))
-        return FspWin32FromNtStatus(Result);
+    {
+        ErrorCode = FspWin32FromNtStatus(Result);
+        goto exit;
+    }
 
-    CloseHandle(Token);
+    Result = FspToolGetTokenInfo(Token, TokenPrimaryGroup, &Ginfo);
+    if (!NT_SUCCESS(Result))
+    {
+        ErrorCode = FspWin32FromNtStatus(Result);
+        goto exit;
+    }
 
-    info("%u", Gid);
+    if (!ConvertSidToStringSid(Uinfo->User.Sid, &Ustr))
+    {
+        ErrorCode = GetLastError();
+        goto exit;
+    }
 
-    return 0;
+    if (!ConvertSidToStringSid(Oinfo->Owner, &Ostr))
+    {
+        ErrorCode = GetLastError();
+        goto exit;
+    }
+
+    if (!ConvertSidToStringSid(Ginfo->PrimaryGroup, &Gstr))
+    {
+        ErrorCode = GetLastError();
+        goto exit;
+    }
+
+    Result = FspPosixMapSidToUid(Uinfo->User.Sid, &Uid);
+    if (!NT_SUCCESS(Result))
+    {
+        ErrorCode = FspWin32FromNtStatus(Result);
+        goto exit;
+    }
+
+    Result = FspPosixMapSidToUid(Oinfo->Owner, &Oid);
+    if (!NT_SUCCESS(Result))
+    {
+        ErrorCode = FspWin32FromNtStatus(Result);
+        goto exit;
+    }
+
+    Result = FspPosixMapSidToUid(Ginfo->PrimaryGroup, &Gid);
+    if (!NT_SUCCESS(Result))
+    {
+        ErrorCode = FspWin32FromNtStatus(Result);
+        goto exit;
+    }
+
+    info("User=%S(%u)\nOwner=%S(%u)\nGroup=%S(%u)",
+        Ustr, Uid, Ostr, Oid, Gstr, Gid);
+    ErrorCode = 0;
+
+exit:
+    LocalFree(Gstr);
+    LocalFree(Ostr);
+    LocalFree(Ustr);
+
+    MemFree(Ginfo);
+    MemFree(Oinfo);
+    MemFree(Uinfo);
+
+    if (0 != Token)
+        CloseHandle(Token);
+
+    return ErrorCode;
 }
 
 static int uidtosid(int argc, wchar_t **argv)
@@ -346,11 +345,8 @@ int wmain(int argc, wchar_t **argv)
     if (0 == invariant_wcscmp(L"lsvol", argv[0]))
         return lsvol(argc, argv);
     else
-    if (0 == invariant_wcscmp(L"getuid", argv[0]))
-        return getuid(argc, argv);
-    else
-    if (0 == invariant_wcscmp(L"getgid", argv[0]))
-        return getgid(argc, argv);
+    if (0 == invariant_wcscmp(L"id", argv[0]))
+        return id(argc, argv);
     else
     if (0 == invariant_wcscmp(L"uidtosid", argv[0]))
         return uidtosid(argc, argv);
