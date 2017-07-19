@@ -20,7 +20,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{A5EFD487-0140-4184-8C54-FFAEC2F85E35}</ProjectGuid>
+    <ProjectGuid>{6CDF9411-B852-4EAC-822D-8F930675F17B}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>launcher</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
