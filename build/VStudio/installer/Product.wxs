@@ -158,6 +158,13 @@
                 <File Name="launchctl-x86.exe" KeyPath="yes" />
             </Component>
 
+            <Component Id="C.fsptool_x64.exe" Guid="013FE508-097D-4433-9C60-717F5446E7F4">
+                <File Name="fsptool-x64.exe" KeyPath="yes" />
+            </Component>
+            <Component Id="C.fsptool_x86.exe" Guid="6C16DC2C-E12F-49FB-A665-3AF0475487AD">
+                <File Name="fsptool-x86.exe" KeyPath="yes" />
+            </Component>
+
             <Component Id="C.diag.bat">
                 <File Name="diag.bat" Source="..\..\..\tools\diag.bat" KeyPath="yes" />
             </Component>
@@ -427,6 +434,12 @@
             <Component Id="C.launchctl_x86.pdb">
                 <File Name="launchctl-x86.pdb" Source="..\build\$(var.Configuration)\launchctl-x86.public.pdb" KeyPath="yes" />
             </Component>
+            <Component Id="C.fsptool_x64.pdb">
+                <File Name="fsptool-x64.pdb" Source="..\build\$(var.Configuration)\fsptool-x64.public.pdb" KeyPath="yes" />
+            </Component>
+            <Component Id="C.fsptool_x86.pdb">
+                <File Name="fsptool-x86.pdb" Source="..\build\$(var.Configuration)\fsptool-x86.public.pdb" KeyPath="yes" />
+            </Component>
             <Component Id="C.memfs_x64.pdb">
                 <File Name="memfs-x64.pdb" Source="..\build\$(var.Configuration)\memfs-x64.public.pdb" KeyPath="yes" />
             </Component>
@@ -448,6 +461,8 @@
             <ComponentRef Id="C.launcher_x86.exe.svcinst" />
             <ComponentRef Id="C.launchctl_x64.exe" />
             <ComponentRef Id="C.launchctl_x86.exe" />
+            <ComponentRef Id="C.fsptool_x64.exe" />
+            <ComponentRef Id="C.fsptool_x86.exe" />
             <ComponentRef Id="C.diag.bat" />
             <ComponentRef Id="C.fsreg.bat" />
         </ComponentGroup>
@@ -504,6 +519,8 @@
             <ComponentRef Id="C.launcher_x64.pdb" />
             <ComponentRef Id="C.launchctl_x64.pdb" />
             <ComponentRef Id="C.launchctl_x86.pdb" />
+            <ComponentRef Id="C.fsptool_x64.pdb" />
+            <ComponentRef Id="C.fsptool_x86.pdb" />
             <ComponentRef Id="C.memfs_x64.pdb" />
             <ComponentRef Id="C.memfs_x86.pdb" />
         </ComponentGroup>
