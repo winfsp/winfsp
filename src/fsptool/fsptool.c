@@ -68,11 +68,15 @@ static void usage(void)
         PROGNAME);
 }
 
-static NTSTATUS lsvol_dev(PWSTR DeviceName)
+static NTSTATUS FspToolGetVolumeList(PWSTR DeviceName,
+    PWCHAR *PVolumeListBuf, PSIZE_T PVolumeListSize)
 {
     NTSTATUS Result;
-    PWCHAR VolumeListBuf, VolumeListBufEnd;
+    PWCHAR VolumeListBuf;
     SIZE_T VolumeListSize;
+
+    *PVolumeListBuf = 0;
+    *PVolumeListSize = 0;
 
     for (VolumeListSize = 1024;; VolumeListSize *= 2)
     {
@@ -80,11 +84,13 @@ static NTSTATUS lsvol_dev(PWSTR DeviceName)
         if (0 == VolumeListBuf)
             return STATUS_INSUFFICIENT_RESOURCES;
 
-        Result = FspFsctlGetVolumeList(DeviceName, VolumeListBuf, &VolumeListSize);
+        Result = FspFsctlGetVolumeList(DeviceName,
+            VolumeListBuf, &VolumeListSize);
         if (NT_SUCCESS(Result))
         {
-            VolumeListBufEnd = (PVOID)((PUINT8)VolumeListBuf + VolumeListSize);
-            break;
+            *PVolumeListBuf = VolumeListBuf;
+            *PVolumeListSize = VolumeListSize;
+            return Result;
         }
 
         MemFree(VolumeListBuf);
@@ -92,11 +98,57 @@ static NTSTATUS lsvol_dev(PWSTR DeviceName)
         if (STATUS_BUFFER_TOO_SMALL != Result)
             return Result;
     }
+}
 
+static WCHAR FspToolGetDriveLetter(PDWORD PLogicalDrives, PWSTR VolumeName)
+{
+    WCHAR VolumeNameBuf[MAX_PATH];
+    WCHAR LocalNameBuf[3];
+    WCHAR Drive;
+
+    if (0 == *PLogicalDrives)
+        return 0;
+
+    LocalNameBuf[1] = L':';
+    LocalNameBuf[2] = L'\0';
+
+    for (Drive = 'Z'; 'A' <= Drive; Drive--)
+        if (0 != (*PLogicalDrives & (1 << (Drive - 'A'))))
+        {
+            LocalNameBuf[0] = Drive;
+            if (QueryDosDeviceW(LocalNameBuf, VolumeNameBuf, sizeof VolumeNameBuf / sizeof(WCHAR)))
+            {
+                if (0 == invariant_wcscmp(VolumeNameBuf, VolumeName))
+                {
+                    *PLogicalDrives &= ~(1 << (Drive - 'A'));
+                    return Drive;
+                }
+            }
+        }
+
+    return 0;
+}
+
+static NTSTATUS lsvol_dev(PWSTR DeviceName)
+{
+    NTSTATUS Result;
+    PWCHAR VolumeListBuf, VolumeListBufEnd;
+    SIZE_T VolumeListSize;
+    DWORD LogicalDrives;
+    WCHAR Drive[3] = L"\0:";
+
+    Result = FspToolGetVolumeList(DeviceName, &VolumeListBuf, &VolumeListSize);
+    if (!NT_SUCCESS(Result))
+        return Result;
+    VolumeListBufEnd = (PVOID)((PUINT8)VolumeListBuf + VolumeListSize);
+
+    LogicalDrives = GetLogicalDrives();
     for (PWCHAR P = VolumeListBuf, VolumeName = P; VolumeListBufEnd > P; P++)
         if (L'\0' == *P)
         {
-            info("%S", VolumeName);
+            Drive[0] = FspToolGetDriveLetter(&LogicalDrives, VolumeName);
+
+            info("%-4S%S", Drive[0] ? Drive : L"", VolumeName);
             VolumeName = P + 1;
         }
 
