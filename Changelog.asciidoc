@@ -3,6 +3,7 @@
 
 v1.2B1 (2017.2 B1)::
 
+- New command line tool `fsptool` allows command line access to some WinFsp features.
 - Added support for getting the originating process ID (PID) during `Create`, `Open` and `Rename` calls. See the `FspFileSystemOperationProcessId` API.
 
 
