@@ -204,6 +204,37 @@ NTSTATUS FspToolGetNameFromSid(PSID Sid, PWSTR *PName)
     return STATUS_SUCCESS;
 }
 
+NTSTATUS FspToolGetSidFromName(PWSTR Name, PSID *PSid)
+{
+    PSID Sid;
+    WCHAR Domn[256];
+    DWORD SidSize, DomnSize;
+    SID_NAME_USE Use;
+
+    SidSize = 0;
+    DomnSize = sizeof Domn / sizeof Domn[0];
+    if (LookupAccountNameW(0, Name, 0, &SidSize, Domn, &DomnSize, &Use))
+        return STATUS_INVALID_PARAMETER;
+
+    if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+        return FspNtStatusFromWin32(GetLastError());
+
+    Sid = MemAlloc(SidSize);
+    if (0 == Sid)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    DomnSize = sizeof Domn / sizeof Domn[0];
+    if (!LookupAccountNameW(0, Name, Sid, &SidSize, Domn, &DomnSize, &Use))
+    {
+        MemFree(Sid);
+        return FspNtStatusFromWin32(GetLastError());
+    }
+
+    *PSid = Sid;
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS lsvol_dev(PWSTR DeviceName)
 {
     NTSTATUS Result;
@@ -283,17 +314,60 @@ exit:
 
 static NTSTATUS id_name(PWSTR Name)
 {
-    return STATUS_INVALID_PARAMETER;
+    PSID Sid = 0;
+    NTSTATUS Result;
+
+    Result = FspToolGetSidFromName(Name, &Sid);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    id_print_sid("%S(%S) (uid=%u)", Sid);
+
+    MemFree(Sid);
+
+    return STATUS_SUCCESS;
 }
 
-static NTSTATUS id_sid(PWSTR Name)
+static NTSTATUS id_sid(PWSTR SidStr)
 {
-    return STATUS_INVALID_PARAMETER;
+    PSID Sid = 0;
+
+    if (!ConvertStringSidToSid(SidStr, &Sid))
+        return FspNtStatusFromWin32(GetLastError());
+
+    id_print_sid("%S(%S) (uid=%u)", Sid);
+
+    LocalFree(Sid);
+
+    return STATUS_SUCCESS;
 }
 
-static NTSTATUS id_uid(PWSTR Name)
+static NTSTATUS id_uid(PWSTR UidStr)
 {
-    return STATUS_INVALID_PARAMETER;
+    PSID Sid = 0;
+    UINT32 Uid;
+    NTSTATUS Result;
+
+    Uid = 0;
+    for (PWSTR P = UidStr; *P; P++)
+    {
+        int C = *P;
+
+        if ('0' <= C && C <= '9')
+            Uid = 10 * Uid + (C - '0');
+        else
+            return STATUS_INVALID_PARAMETER;
+    }
+
+    Result = FspPosixMapUidToSid(Uid, &Sid);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    id_print_sid("%S(%S) (uid=%u)", Sid);
+
+    FspDeleteSid(Sid, FspPosixMapUidToSid);
+
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS id_user(void)
@@ -348,18 +422,14 @@ static int id(int argc, wchar_t **argv)
 
     if (2 == argc)
     {
-        PWSTR P;
-
-        for (P = argv[1]; *P; P++)
-            if (L'\\' == *P)
-                break;
-
-        if (L'\\' == *P)
-            Result = id_name(argv[1]);
-        else if (L'S' == argv[1][0] || L's' == argv[1][0])
+        if (L'S' == argv[1][0] && L'-' == argv[1][1] && L'1' == argv[1][2] && L'-' == argv[1][3])
             Result = id_sid(argv[1]);
         else
+        {
             Result = id_uid(argv[1]);
+            if (STATUS_INVALID_PARAMETER == Result)
+                Result = id_name(argv[1]);
+        }
     }
     else
         Result = id_user();
