@@ -87,11 +87,11 @@ static void usage(void)
         "usage: %s COMMAND ARGS\n"
         "\n"
         "commands:\n"
-        "    lsvol                       list file system devices (volumes)\n"
-        //"    list                        list running file system processes\n"
-        //"    kill                        kill file system process\n"
-        "    id [NAME|SID|UID]           print user id\n"
-        "    perm [SDDL|UID:GID:MODE]    print permissions\n",
+        "    lsvol                           list file system devices (volumes)\n"
+        //"    list                            list running file system processes\n"
+        //"    kill                            kill file system process\n"
+        "    id [NAME|SID|UID]               print user id\n"
+        "    perm [PATH|SDDL|UID:GID:MODE]   print permissions\n",
         PROGNAME);
 }
 
