@@ -59,7 +59,7 @@ static void usage(void)
         "    lsvol       list file system devices (volumes)\n"
         //"    list        list running file system processes\n"
         //"    kill        kill file system process\n"
-        "    id          get current user/group SID\n"
+        "    id          get user id\n"
         "    uidtosid    get SID from POSIX UID\n"
         "    sidtouid    get POSIX UID from SID\n"
         "    permtosd    get security descriptor from POSIX permissions\n"
@@ -249,7 +249,7 @@ static int lsvol(int argc, wchar_t **argv)
     return 0;
 }
 
-static NTSTATUS id_sid(const char *format, PSID Sid)
+static NTSTATUS id_print_sid(const char *format, PSID Sid)
 {
     PWSTR Str = 0;
     PWSTR Name = 0;
@@ -281,49 +281,52 @@ exit:
     return Result;
 }
 
-static int id(int argc, wchar_t **argv)
+static NTSTATUS id_name(PWSTR Name)
 {
-    if (1 != argc)
-        usage();
+    return STATUS_INVALID_PARAMETER;
+}
 
+static NTSTATUS id_sid(PWSTR Name)
+{
+    return STATUS_INVALID_PARAMETER;
+}
+
+static NTSTATUS id_uid(PWSTR Name)
+{
+    return STATUS_INVALID_PARAMETER;
+}
+
+static NTSTATUS id_user(void)
+{
     HANDLE Token = 0;
     TOKEN_USER *Uinfo = 0;
     TOKEN_OWNER *Oinfo = 0;
     TOKEN_PRIMARY_GROUP *Ginfo = 0;
     NTSTATUS Result;
-    int ErrorCode;
 
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &Token))
     {
-        ErrorCode = GetLastError();
+        Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
     }
 
     Result = FspToolGetTokenInfo(Token, TokenUser, &Uinfo);
     if (!NT_SUCCESS(Result))
-    {
-        ErrorCode = FspWin32FromNtStatus(Result);
         goto exit;
-    }
 
     Result = FspToolGetTokenInfo(Token, TokenOwner, &Oinfo);
     if (!NT_SUCCESS(Result))
-    {
-        ErrorCode = FspWin32FromNtStatus(Result);
         goto exit;
-    }
 
     Result = FspToolGetTokenInfo(Token, TokenPrimaryGroup, &Ginfo);
     if (!NT_SUCCESS(Result))
-    {
-        ErrorCode = FspWin32FromNtStatus(Result);
         goto exit;
-    }
 
-    id_sid("User=%S(%S) (uid=%u)", Uinfo->User.Sid);
-    id_sid("Owner=%S(%S) (uid=%u)", Oinfo->Owner);
-    id_sid("Group=%S(%S) (gid=%u)", Ginfo->PrimaryGroup);
-    ErrorCode = 0;
+    id_print_sid("User=%S(%S) (uid=%u)", Uinfo->User.Sid);
+    id_print_sid("Owner=%S(%S) (uid=%u)", Oinfo->Owner);
+    id_print_sid("Group=%S(%S) (gid=%u)", Ginfo->PrimaryGroup);
+
+    Result = STATUS_SUCCESS;
 
 exit:
     MemFree(Ginfo);
@@ -333,7 +336,35 @@ exit:
     if (0 != Token)
         CloseHandle(Token);
 
-    return ErrorCode;
+    return Result;
+}
+
+static int id(int argc, wchar_t **argv)
+{
+    if (2 < argc)
+        usage();
+
+    NTSTATUS Result;
+
+    if (2 == argc)
+    {
+        PWSTR P;
+
+        for (P = argv[1]; *P; P++)
+            if (L'\\' == *P)
+                break;
+
+        if (L'\\' == *P)
+            Result = id_name(argv[1]);
+        else if (L'S' == argv[1][0] || L's' == argv[1][0])
+            Result = id_sid(argv[1]);
+        else
+            Result = id_uid(argv[1]);
+    }
+    else
+        Result = id_user();
+
+    return FspWin32FromNtStatus(Result);
 }
 
 static int uidtosid(int argc, wchar_t **argv)
