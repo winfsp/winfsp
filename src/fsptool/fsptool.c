@@ -17,6 +17,7 @@
 
 #include <winfsp/winfsp.h>
 #include <shared/minimal.h>
+#include <aclapi.h>
 #include <sddl.h>
 
 #define PROGNAME                        "fsptool"
@@ -481,6 +482,24 @@ static NTSTATUS perm_print_sd(PSECURITY_DESCRIPTOR SecurityDescriptor)
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS perm_path(PWSTR Path)
+{
+    PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
+    int ErrorCode;
+
+    ErrorCode = GetNamedSecurityInfoW(Path, SE_FILE_OBJECT,
+        OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+        0, 0, 0, 0, &SecurityDescriptor);
+    if (0 != ErrorCode)
+        return FspNtStatusFromWin32(ErrorCode);
+
+    perm_print_sd(SecurityDescriptor);
+
+    LocalFree(SecurityDescriptor);
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS perm_sddl(PWSTR Sddl)
 {
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
@@ -530,10 +549,20 @@ static int perm(int argc, wchar_t **argv)
         usage();
 
     NTSTATUS Result;
+    PWSTR P;
 
-    Result = perm_mode(argv[1]);
-    if (STATUS_INVALID_PARAMETER == Result)
-        Result = perm_sddl(argv[1]);
+    for (P = argv[1]; *P; P++)
+        if (L'\\' == *P)
+            break;
+
+    if (L'\\' == *P)
+        Result = perm_path(argv[1]);
+    else
+    {
+        Result = perm_mode(argv[1]);
+        if (STATUS_INVALID_PARAMETER == Result)
+            Result = perm_sddl(argv[1]);
+    }
 
     return FspWin32FromNtStatus(Result);
 }
