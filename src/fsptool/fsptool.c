@@ -170,6 +170,40 @@ exit:
     return Result;
 }
 
+NTSTATUS FspToolGetNameFromSid(PSID Sid, PWSTR *PName)
+{
+    WCHAR Name[256], Domn[256];
+    DWORD NameSize, DomnSize;
+    SID_NAME_USE Use;
+    PWSTR P;
+
+    NameSize = sizeof Name / sizeof Name[0];
+    DomnSize = sizeof Domn / sizeof Domn[0];
+    if (!LookupAccountSidW(0, Sid, Name, &NameSize, Domn, &DomnSize, &Use))
+    {
+        Name[0] = L'\0';
+        Domn[0] = L'\0';
+    }
+
+    NameSize = lstrlenW(Name);
+    DomnSize = lstrlenW(Domn);
+
+    P = *PName = MemAlloc((DomnSize + 1 + NameSize + 1) * sizeof(WCHAR));
+    if (0 == P)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    if (0 < DomnSize)
+    {
+        memcpy(P, Domn, DomnSize * sizeof(WCHAR));
+        P[DomnSize] = L'\\';
+        P += DomnSize + 1;
+    }
+    memcpy(P, Name, NameSize * sizeof(WCHAR));
+    P[NameSize] = L'\0';
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS lsvol_dev(PWSTR DeviceName)
 {
     NTSTATUS Result;
@@ -225,6 +259,7 @@ static int id(int argc, wchar_t **argv)
     TOKEN_OWNER *Oinfo = 0;
     TOKEN_PRIMARY_GROUP *Ginfo = 0;
     PWSTR Ustr = 0, Ostr = 0, Gstr = 0;
+    PWSTR Uname = 0, Oname = 0, Gname = 0;
     UINT32 Uid, Oid, Gid;
     NTSTATUS Result;
     int ErrorCode;
@@ -256,21 +291,42 @@ static int id(int argc, wchar_t **argv)
         goto exit;
     }
 
-    if (!ConvertSidToStringSid(Uinfo->User.Sid, &Ustr))
+    if (!ConvertSidToStringSidW(Uinfo->User.Sid, &Ustr))
     {
         ErrorCode = GetLastError();
         goto exit;
     }
 
-    if (!ConvertSidToStringSid(Oinfo->Owner, &Ostr))
+    if (!ConvertSidToStringSidW(Oinfo->Owner, &Ostr))
     {
         ErrorCode = GetLastError();
         goto exit;
     }
 
-    if (!ConvertSidToStringSid(Ginfo->PrimaryGroup, &Gstr))
+    if (!ConvertSidToStringSidW(Ginfo->PrimaryGroup, &Gstr))
     {
         ErrorCode = GetLastError();
+        goto exit;
+    }
+
+    Result = FspToolGetNameFromSid(Uinfo->User.Sid, &Uname);
+    if (!NT_SUCCESS(Result))
+    {
+        ErrorCode = FspWin32FromNtStatus(Result);
+        goto exit;
+    }
+
+    Result = FspToolGetNameFromSid(Oinfo->Owner, &Oname);
+    if (!NT_SUCCESS(Result))
+    {
+        ErrorCode = FspWin32FromNtStatus(Result);
+        goto exit;
+    }
+
+    Result = FspToolGetNameFromSid(Ginfo->PrimaryGroup, &Gname);
+    if (!NT_SUCCESS(Result))
+    {
+        ErrorCode = FspWin32FromNtStatus(Result);
         goto exit;
     }
 
@@ -295,11 +351,15 @@ static int id(int argc, wchar_t **argv)
         goto exit;
     }
 
-    info("User=%S(%u)\nOwner=%S(%u)\nGroup=%S(%u)",
-        Ustr, Uid, Ostr, Oid, Gstr, Gid);
+    info("User=%S(%S) (uid=%u)\nOwner=%S(%S) (uid=%u)\nGroup=%S(%S) (gid=%u)",
+        Ustr, Uname, Uid, Ostr, Oname, Oid, Gstr, Gname, Gid);
     ErrorCode = 0;
 
 exit:
+    MemFree(Gname);
+    MemFree(Oname);
+    MemFree(Uname);
+
     LocalFree(Gstr);
     LocalFree(Ostr);
     LocalFree(Ustr);
