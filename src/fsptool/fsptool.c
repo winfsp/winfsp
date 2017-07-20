@@ -50,6 +50,36 @@ static void printlog(HANDLE h, const char *format, ...)
     va_end(ap);
 }
 
+static unsigned wcstoint(const wchar_t *p, const wchar_t **endp, int base)
+{
+    unsigned v;
+    int maxdig, maxalp;
+
+    maxdig = 10 < base ? '9' : (base - 1) + '0';
+    maxalp = 10 < base ? (base - 1 - 10) + 'a' : 0;
+
+    for (v = 0; *p; p++)
+    {
+        int c = *p;
+
+        if ('0' <= c && c <= maxdig)
+            v = base * v + (c - '0');
+        else
+        {
+            c |= 0x20;
+            if ('a' <= c && c <= maxalp)
+                v = base * v + (c - 'a') + 10;
+            else
+                break;
+        }
+    }
+
+    if (0 != endp)
+        *endp = (wchar_t *)p;
+
+    return v;
+}
+
 static void usage(void)
 {
     fatal(ERROR_INVALID_PARAMETER,
@@ -60,7 +90,7 @@ static void usage(void)
         //"    list                        list running file system processes\n"
         //"    kill                        kill file system process\n"
         "    id [NAME|SID|UID]           print user id\n"
-        "    perm [SDDL|MODE]            print Windows/POSIX permissions\n",
+        "    perm [SDDL|UID:GID:MODE]    print permissions\n",
         PROGNAME);
 }
 
@@ -345,16 +375,9 @@ static NTSTATUS id_uid(PWSTR UidStr)
     UINT32 Uid;
     NTSTATUS Result;
 
-    Uid = 0;
-    for (PWSTR P = UidStr; *P; P++)
-    {
-        int C = *P;
-
-        if ('0' <= C && C <= '9')
-            Uid = 10 * Uid + (C - '0');
-        else
-            return STATUS_INVALID_PARAMETER;
-    }
+    Uid = wcstoint(UidStr, &UidStr, 10);
+    if (L'\0' != *UidStr)
+        return STATUS_INVALID_PARAMETER;
 
     Result = FspPosixMapUidToSid(Uid, &Sid);
     if (!NT_SUCCESS(Result))
@@ -434,14 +457,85 @@ static int id(int argc, wchar_t **argv)
     return FspWin32FromNtStatus(Result);
 }
 
-static int permtosd(int argc, wchar_t **argv)
+static NTSTATUS perm_print_sd(PSECURITY_DESCRIPTOR SecurityDescriptor)
 {
-    return 1;
+    UINT32 Uid, Gid, Mode;
+    PWSTR Sddl = 0;
+    NTSTATUS Result;
+
+    Result = FspPosixMapSecurityDescriptorToPermissions(SecurityDescriptor, &Uid, &Gid, &Mode);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (!ConvertSecurityDescriptorToStringSecurityDescriptorW(
+        SecurityDescriptor, SDDL_REVISION_1,
+        OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+        &Sddl, 0))
+        return FspNtStatusFromWin32(GetLastError());
+
+    info("%S (perm=%u:%u:%d%d%d%d)",
+        Sddl, Uid, Gid, (Mode >> 9) & 7, (Mode >> 6) & 7, (Mode >> 3) & 7, Mode & 7);
+
+    LocalFree(Sddl);
+
+    return STATUS_SUCCESS;
 }
 
-static int sdtoperm(int argc, wchar_t **argv)
+static NTSTATUS perm_sddl(PWSTR Sddl)
 {
-    return 1;
+    PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
+
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
+        Sddl, SDDL_REVISION_1, &SecurityDescriptor, 0))
+        return FspNtStatusFromWin32(GetLastError());
+
+    perm_print_sd(SecurityDescriptor);
+
+    LocalFree(SecurityDescriptor);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS perm_mode(PWSTR PermStr)
+{
+    PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
+    UINT32 Uid, Gid, Mode;
+    NTSTATUS Result;
+
+    Uid = wcstoint(PermStr, &PermStr, 10);
+    if (L':' != *PermStr)
+        return STATUS_INVALID_PARAMETER;
+    Gid = wcstoint(PermStr + 1, &PermStr, 10);
+    if (L':' != *PermStr)
+        return STATUS_INVALID_PARAMETER;
+    Mode = wcstoint(PermStr + 1, &PermStr, 8);
+    if (L'\0' != *PermStr)
+        return STATUS_INVALID_PARAMETER;
+
+    Result = FspPosixMapPermissionsToSecurityDescriptor(Uid, Gid, Mode, &SecurityDescriptor);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    perm_print_sd(SecurityDescriptor);
+
+    FspDeleteSecurityDescriptor(SecurityDescriptor,
+        FspPosixMapPermissionsToSecurityDescriptor);
+
+    return STATUS_SUCCESS;
+}
+
+static int perm(int argc, wchar_t **argv)
+{
+    if (2 != argc)
+        usage();
+
+    NTSTATUS Result;
+
+    Result = perm_mode(argv[1]);
+    if (STATUS_INVALID_PARAMETER == Result)
+        Result = perm_sddl(argv[1]);
+
+    return FspWin32FromNtStatus(Result);
 }
 
 int wmain(int argc, wchar_t **argv)
@@ -458,12 +552,8 @@ int wmain(int argc, wchar_t **argv)
     if (0 == invariant_wcscmp(L"id", argv[0]))
         return id(argc, argv);
     else
-    if (0 == invariant_wcscmp(L"permtosd", argv[0]))
-        return permtosd(argc, argv);
-    else
-    if (0 == invariant_wcscmp(L"sdtoperm", argv[0]))
-        return sdtoperm(argc, argv);
-
+    if (0 == invariant_wcscmp(L"perm", argv[0]))
+        return perm(argc, argv);
     else
         usage();
 
