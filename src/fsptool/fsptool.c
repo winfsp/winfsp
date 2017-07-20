@@ -249,6 +249,38 @@ static int lsvol(int argc, wchar_t **argv)
     return 0;
 }
 
+static NTSTATUS id_sid(const char *format, PSID Sid)
+{
+    PWSTR Str = 0;
+    PWSTR Name = 0;
+    UINT32 Uid;
+    NTSTATUS Result;
+
+    if (!ConvertSidToStringSidW(Sid, &Str))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    Result = FspToolGetNameFromSid(Sid, &Name);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = FspPosixMapSidToUid(Sid, &Uid);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    info(format, Str, Name, Uid);
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    MemFree(Name);
+    LocalFree(Str);
+
+    return Result;
+}
+
 static int id(int argc, wchar_t **argv)
 {
     if (1 != argc)
@@ -258,9 +290,6 @@ static int id(int argc, wchar_t **argv)
     TOKEN_USER *Uinfo = 0;
     TOKEN_OWNER *Oinfo = 0;
     TOKEN_PRIMARY_GROUP *Ginfo = 0;
-    PWSTR Ustr = 0, Ostr = 0, Gstr = 0;
-    PWSTR Uname = 0, Oname = 0, Gname = 0;
-    UINT32 Uid, Oid, Gid;
     NTSTATUS Result;
     int ErrorCode;
 
@@ -291,79 +320,12 @@ static int id(int argc, wchar_t **argv)
         goto exit;
     }
 
-    if (!ConvertSidToStringSidW(Uinfo->User.Sid, &Ustr))
-    {
-        ErrorCode = GetLastError();
-        goto exit;
-    }
-
-    if (!ConvertSidToStringSidW(Oinfo->Owner, &Ostr))
-    {
-        ErrorCode = GetLastError();
-        goto exit;
-    }
-
-    if (!ConvertSidToStringSidW(Ginfo->PrimaryGroup, &Gstr))
-    {
-        ErrorCode = GetLastError();
-        goto exit;
-    }
-
-    Result = FspToolGetNameFromSid(Uinfo->User.Sid, &Uname);
-    if (!NT_SUCCESS(Result))
-    {
-        ErrorCode = FspWin32FromNtStatus(Result);
-        goto exit;
-    }
-
-    Result = FspToolGetNameFromSid(Oinfo->Owner, &Oname);
-    if (!NT_SUCCESS(Result))
-    {
-        ErrorCode = FspWin32FromNtStatus(Result);
-        goto exit;
-    }
-
-    Result = FspToolGetNameFromSid(Ginfo->PrimaryGroup, &Gname);
-    if (!NT_SUCCESS(Result))
-    {
-        ErrorCode = FspWin32FromNtStatus(Result);
-        goto exit;
-    }
-
-    Result = FspPosixMapSidToUid(Uinfo->User.Sid, &Uid);
-    if (!NT_SUCCESS(Result))
-    {
-        ErrorCode = FspWin32FromNtStatus(Result);
-        goto exit;
-    }
-
-    Result = FspPosixMapSidToUid(Oinfo->Owner, &Oid);
-    if (!NT_SUCCESS(Result))
-    {
-        ErrorCode = FspWin32FromNtStatus(Result);
-        goto exit;
-    }
-
-    Result = FspPosixMapSidToUid(Ginfo->PrimaryGroup, &Gid);
-    if (!NT_SUCCESS(Result))
-    {
-        ErrorCode = FspWin32FromNtStatus(Result);
-        goto exit;
-    }
-
-    info("User=%S(%S) (uid=%u)\nOwner=%S(%S) (uid=%u)\nGroup=%S(%S) (gid=%u)",
-        Ustr, Uname, Uid, Ostr, Oname, Oid, Gstr, Gname, Gid);
+    id_sid("User=%S(%S) (uid=%u)", Uinfo->User.Sid);
+    id_sid("Owner=%S(%S) (uid=%u)", Oinfo->Owner);
+    id_sid("Group=%S(%S) (gid=%u)", Ginfo->PrimaryGroup);
     ErrorCode = 0;
 
 exit:
-    MemFree(Gname);
-    MemFree(Oname);
-    MemFree(Uname);
-
-    LocalFree(Gstr);
-    LocalFree(Ostr);
-    LocalFree(Ustr);
-
     MemFree(Ginfo);
     MemFree(Oinfo);
     MemFree(Uinfo);
