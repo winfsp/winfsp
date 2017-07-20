@@ -56,14 +56,11 @@ static void usage(void)
         "usage: %s COMMAND ARGS\n"
         "\n"
         "commands:\n"
-        "    lsvol       list file system devices (volumes)\n"
-        //"    list        list running file system processes\n"
-        //"    kill        kill file system process\n"
-        "    id          get user id\n"
-        "    uidtosid    get SID from POSIX UID\n"
-        "    sidtouid    get POSIX UID from SID\n"
-        "    permtosd    get security descriptor from POSIX permissions\n"
-        "    sdtoperm    get POSIX permissions from security descriptor\n",
+        "    lsvol                       list file system devices (volumes)\n"
+        //"    list                        list running file system processes\n"
+        //"    kill                        kill file system process\n"
+        "    id [NAME|SID|UID]           print user id\n"
+        "    perm [SDDL|MODE]            print Windows/POSIX permissions\n",
         PROGNAME);
 }
 
@@ -437,16 +434,6 @@ static int id(int argc, wchar_t **argv)
     return FspWin32FromNtStatus(Result);
 }
 
-static int uidtosid(int argc, wchar_t **argv)
-{
-    return 1;
-}
-
-static int sidtouid(int argc, wchar_t **argv)
-{
-    return 1;
-}
-
 static int permtosd(int argc, wchar_t **argv)
 {
     return 1;
@@ -470,12 +457,6 @@ int wmain(int argc, wchar_t **argv)
     else
     if (0 == invariant_wcscmp(L"id", argv[0]))
         return id(argc, argv);
-    else
-    if (0 == invariant_wcscmp(L"uidtosid", argv[0]))
-        return uidtosid(argc, argv);
-    else
-    if (0 == invariant_wcscmp(L"sidtouid", argv[0]))
-        return sidtouid(argc, argv);
     else
     if (0 == invariant_wcscmp(L"permtosd", argv[0]))
         return permtosd(argc, argv);
