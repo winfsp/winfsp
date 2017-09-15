@@ -1148,7 +1148,8 @@ static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
 
     AllocationUnit = (UINT64)f->VolumeParams.SectorSize *
         (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
-    FileInfoBuf.FileSize = Offset + bytes;
+    if (Offset + bytes > FileInfoBuf.FileSize)
+        FileInfoBuf.FileSize = Offset + bytes;
     FileInfoBuf.AllocationSize =
         (FileInfoBuf.FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
