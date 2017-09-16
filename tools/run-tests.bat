@@ -74,7 +74,9 @@ set opt_tests=^
     sample-passthrough-x64 ^
     sample-passthrough-x86 ^
     sample-passthrough-fuse-x64 ^
+    sample-fsx-passthrough-fuse-x64 ^
     sample-passthrough-fuse-x86 ^
+    sample-fsx-passthrough-fuse-x86 ^
     sample-passthrough-dotnet
 
 set tests=
@@ -591,6 +593,16 @@ call :__run_sample_fuse_test passthrough-fuse x86 passthrough-fuse-x86 winfsp-te
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:sample-fsx-passthrough-fuse-x64
+call :__run_sample_fsx_fuse_test passthrough-fuse x64 passthrough-fuse-x64 fsx
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-fsx-passthrough-fuse-x86
+call :__run_sample_fsx_fuse_test passthrough-fuse x86 passthrough-fuse-x86 fsx
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :__run_sample_test
 set RunSampleTestExit=0
 call %ProjRoot%\tools\build-sample %Configuration% %2 %1 "%TMP%\%1"
@@ -637,6 +649,30 @@ L:
     -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
     -getfileinfo_name_test -setfileinfo_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -exec_rename_dir_test ^
     -reparse* -stream*
+if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
+popd
+echo net use L: /delete
+net use L: /delete
+call "%ProjRoot%\tools\fsreg" -u %1
+rmdir /s/q "%TMP%\%1"
+exit /b !RunSampleTestExit!
+
+:__run_sample_fsx_fuse_test
+set RunSampleTestExit=0
+call %ProjRoot%\tools\build-sample %Configuration% %2 %1 "%TMP%\%1"
+if !ERRORLEVEL! neq 0 goto fail
+mkdir "%TMP%\%1\test"
+call "%ProjRoot%\tools\fsreg" %1 "%TMP%\%1\build\%Configuration%\%3.exe" ^
+    "-ouid=11,gid=65792 --VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
+echo net use L: "\\%1\%TMP::=$%\%1\test"
+net use L: "\\%1\%TMP::=$%\%1\test"
+if !ERRORLEVEL! neq 0 goto fail
+echo net use ^| findstr L:
+net use | findstr L:
+pushd >nul
+cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
+L:
+"%ProjRoot%\ext\test\fstools\src\fsx\%4.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
 popd
 echo net use L: /delete
