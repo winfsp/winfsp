@@ -137,14 +137,73 @@ UINT64 MemfsGetSystemTime(VOID)
 }
 
 static inline
-int MemfsCompareString(PWSTR a, int alen, PWSTR b, int blen, BOOLEAN CaseInsensitive)
+int MemfsFileNameCompare(PWSTR a0, int alen, PWSTR b0, int blen, BOOLEAN CaseInsensitive)
 {
+    /*
+     * HACKFIX GITHUB ISSUE #103
+     *
+     * MEMFS stores the whole file system in a single map. This was to keep the file system
+     * "simple", but in retrospect it was probably a bad decision as it creates multiple problems.
+     *
+     * One of these problems was what caused GitHub issue #103. A directory that had both "Firefox"
+     * and "Firefox64" subdirectories in it would cause directory listings of "Firefox" to fail,
+     * because "Firefox\\" (and "Firefox:") comes *after* "Firefox64" in case-sensitive or
+     * case-insensitive order!
+     *
+     * The hackfix is this: copy our input strings into temporary buffers and then translate ':' to
+     * '\x1' and '\\' to '\x2' so they always order the FileName map properly.
+     */
+
+    WCHAR a[MEMFS_MAX_PATH], b[MEMFS_MAX_PATH];
     int len, res;
 
     if (-1 == alen)
-        alen = (int)wcslen(a);
+    {
+        PWSTR p = a0, q = a;
+        for (; *p; p++, q++)
+            if (L':' == *p)
+                *q = L'\x1';
+            else if (L'\\' == *p)
+                *q = L'\x2';
+            else
+                *q = *p;
+        alen = (int)(p - a0);
+    }
+    else
+    {
+        PWSTR p = a0, q = a;
+        for (PWSTR endp = p + alen; endp > p; p++, q++)
+            if (L':' == *p)
+                *q = L'\x1';
+            else if (L'\\' == *p)
+                *q = L'\x2';
+            else
+                *q = *p;
+    }
+
     if (-1 == blen)
-        blen = (int)wcslen(b);
+    {
+        PWSTR p = b0, q = b;
+        for (; *p; p++, q++)
+            if (L':' == *p)
+                *q = L'\x1';
+            else if (L'\\' == *p)
+                *q = L'\x2';
+            else
+                *q = *p;
+        blen = (int)(p - b0);
+    }
+    else
+    {
+        PWSTR p = b0, q = b;
+        for (PWSTR endp = p + blen; endp > p; p++, q++)
+            if (L':' == *p)
+                *q = L'\x1';
+            else if (L'\\' == *p)
+                *q = L'\x2';
+            else
+                *q = *p;
+    }
 
     len = alen < blen ? alen : blen;
 
@@ -161,18 +220,12 @@ int MemfsCompareString(PWSTR a, int alen, PWSTR b, int blen, BOOLEAN CaseInsensi
 }
 
 static inline
-int MemfsFileNameCompare(PWSTR a, PWSTR b, BOOLEAN CaseInsensitive)
-{
-    return MemfsCompareString(a, -1, b, -1, CaseInsensitive);
-}
-
-static inline
 BOOLEAN MemfsFileNameHasPrefix(PWSTR a, PWSTR b, BOOLEAN CaseInsensitive)
 {
     int alen = (int)wcslen(a);
     int blen = (int)wcslen(b);
 
-    return alen >= blen && 0 == MemfsCompareString(a, blen, b, blen, CaseInsensitive) &&
+    return alen >= blen && 0 == MemfsFileNameCompare(a, blen, b, blen, CaseInsensitive) &&
         (alen == blen || (1 == blen && L'\\' == b[0]) ||
 #if defined(MEMFS_NAMED_STREAMS)
             (L'\\' == a[blen] || L':' == a[blen]));
@@ -205,7 +258,7 @@ struct MEMFS_FILE_NODE_LESS
     }
     bool operator()(PWSTR a, PWSTR b) const
     {
-        return 0 > MemfsFileNameCompare(a, b, CaseInsensitive);
+        return 0 > MemfsFileNameCompare(a, -1, b, -1, CaseInsensitive);
     }
     BOOLEAN CaseInsensitive;
 };
@@ -446,7 +499,7 @@ BOOLEAN MemfsFileNodeMapHasChild(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMFS_FILE_NO
             continue;
 #endif
         FspPathSuffix(iter->second->FileName, &Remain, &Suffix, Root);
-        Result = 0 == MemfsFileNameCompare(Remain, FileNode->FileName,
+        Result = 0 == MemfsFileNameCompare(Remain, -1, FileNode->FileName, -1,
             MemfsFileNodeMapIsCaseInsensitive(FileNodeMap));
         FspPathCombine(iter->second->FileName, Suffix);
         break;
@@ -483,7 +536,7 @@ BOOLEAN MemfsFileNodeMapEnumerateChildren(MEMFS_FILE_NODE_MAP *FileNodeMap, MEMF
             MemfsFileNodeMapIsCaseInsensitive(FileNodeMap)))
             break;
         FspPathSuffix(iter->second->FileName, &Remain, &Suffix, Root);
-        IsDirectoryChild = 0 == MemfsFileNameCompare(Remain, FileNode->FileName,
+        IsDirectoryChild = 0 == MemfsFileNameCompare(Remain, -1, FileNode->FileName, -1,
             MemfsFileNodeMapIsCaseInsensitive(FileNodeMap));
 #if defined(MEMFS_NAMED_STREAMS)
         IsDirectoryChild = IsDirectoryChild && 0 == wcschr(Suffix, L':');
@@ -726,7 +779,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         size_t RemainLength, BSlashLength, SuffixLength;
 
         FspPathSuffix(FileName, &Remain, &Suffix, Root);
-        assert(0 == MemfsCompareString(Remain, -1, ParentNode->FileName, -1, TRUE));
+        assert(0 == MemfsFileNameCompare(Remain, -1, ParentNode->FileName, -1, TRUE));
         FspPathCombine(FileName, Suffix);
 
         RemainLength = wcslen(ParentNode->FileName);
