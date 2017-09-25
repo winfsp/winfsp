@@ -188,15 +188,21 @@ namespace memfs
         }
         public IEnumerable<String> GetDescendantFileNames(FileNode FileNode)
         {
-            String MinName = "\\";
-            String MaxName = "]";
+            yield return FileNode.FileName;
+            String MinName = FileNode.FileName + ":";
+            String MaxName = FileNode.FileName + ";";
+            foreach (String Name in Set.GetViewBetween(MinName, MaxName))
+                if (Name.Length > MinName.Length)
+                    yield return Name;
+            MinName = "\\";
+            MaxName = "]";
             if ("\\" != FileNode.FileName)
             {
-                MinName = FileNode.FileName;
+                MinName = FileNode.FileName + "\\";
                 MaxName = FileNode.FileName + "]";
             }
             foreach (String Name in Set.GetViewBetween(MinName, MaxName))
-                if (Name == MinName || Name.Length > MinName.Length)
+                if (Name.Length > MinName.Length)
                     yield return Name;
         }
 
