@@ -1403,6 +1403,8 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0, PWSTR Pattern, PWSTR Marker,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
+    assert(0 == Pattern);
+
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
     MEMFS_FILE_NODE *ParentNode;
