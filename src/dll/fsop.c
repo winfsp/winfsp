@@ -1121,6 +1121,39 @@ FSP_API NTSTATUS FspFileSystemOpSetVolumeInformation(FSP_FILE_SYSTEM *FileSystem
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS FspFileSystemOpQueryDirectory_GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileContext, PWSTR FileName, BOOLEAN HasMarker,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+{
+    NTSTATUS Result;
+    union
+    {
+        FSP_FSCTL_DIR_INFO V;
+        UINT8 B[sizeof(FSP_FSCTL_DIR_INFO) + 255 * sizeof(WCHAR)];
+    } DirInfoBuf;
+    FSP_FSCTL_DIR_INFO *DirInfo = &DirInfoBuf.V;
+
+    memset(DirInfo, 0, sizeof *DirInfo);
+
+    if (!HasMarker)
+    {
+        Result = FileSystem->Interface->GetDirInfoByName(FileSystem,
+            FileContext, FileName, DirInfo);
+        if (!NT_SUCCESS(Result))
+            return Result;
+
+        if (FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred))
+            FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
+    }
+    else
+    {
+        Result = STATUS_SUCCESS;
+        FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
+    }
+
+    return Result;
+}
+
 FSP_API NTSTATUS FspFileSystemOpQueryDirectory(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
@@ -1131,15 +1164,25 @@ FSP_API NTSTATUS FspFileSystemOpQueryDirectory(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_INVALID_DEVICE_REQUEST;
 
     BytesTransferred = 0;
-    Result = FileSystem->Interface->ReadDirectory(FileSystem,
-        (PVOID)ValOfFileContext(Request->Req.QueryDirectory),
-        0 != Request->Req.QueryDirectory.Pattern.Size ?
-            (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Pattern.Offset) : 0,
-        0 != Request->Req.QueryDirectory.Marker.Size ?
-            (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Marker.Offset) : 0,
-        (PVOID)Request->Req.QueryDirectory.Address,
-        Request->Req.QueryDirectory.Length,
-        &BytesTransferred);
+    if (0 != FileSystem->Interface->GetDirInfoByName &&
+        0 != Request->Req.QueryDirectory.Pattern.Size && Request->Req.QueryDirectory.PatternIsFileName)
+        Result = FspFileSystemOpQueryDirectory_GetDirInfoByName(FileSystem,
+            (PVOID)ValOfFileContext(Request->Req.QueryDirectory),
+            (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Pattern.Offset),
+            0 != Request->Req.QueryDirectory.Marker.Size,
+            (PVOID)Request->Req.QueryDirectory.Address,
+            Request->Req.QueryDirectory.Length,
+            &BytesTransferred);
+    else
+        Result = FileSystem->Interface->ReadDirectory(FileSystem,
+            (PVOID)ValOfFileContext(Request->Req.QueryDirectory),
+            0 != Request->Req.QueryDirectory.Pattern.Size ?
+                (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Pattern.Offset) : 0,
+            0 != Request->Req.QueryDirectory.Marker.Size ?
+                (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Marker.Offset) : 0,
+            (PVOID)Request->Req.QueryDirectory.Address,
+            Request->Req.QueryDirectory.Length,
+            &BytesTransferred);
     if (!NT_SUCCESS(Result))
         return Result;
 

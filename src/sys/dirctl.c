@@ -480,6 +480,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     PVOID DirInfoBuffer;
     ULONG DirInfoSize;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    BOOLEAN PassQueryDirectoryPattern, PatternIsFileName;
     BOOLEAN Success;
 
     ASSERT(FileNode == FileDesc->FileNode);
@@ -566,10 +567,20 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     }
 
     /* create request */
+    PassQueryDirectoryPattern = PatternIsFileName = FALSE;
+    if (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryPattern &&
+        FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
+    {
+        PassQueryDirectoryPattern = TRUE;
+        PatternIsFileName = !FsRtlDoesNameContainWildCards(&FileDesc->DirectoryPattern);
+    }
+    else if (!FsRtlDoesNameContainWildCards(&FileDesc->DirectoryPattern))
+    {
+        PassQueryDirectoryPattern = TRUE;
+        PatternIsFileName = TRUE;
+    }
     Result = FspIopCreateRequestEx(Irp, 0,
-        (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryPattern &&
-        FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer ?
-            FileDesc->DirectoryPattern.Length + sizeof(WCHAR) : 0) +
+        (PassQueryDirectoryPattern ? FileDesc->DirectoryPattern.Length + sizeof(WCHAR) : 0) +
         (FsvolDeviceExtension->VolumeParams.MaxComponentLength + 1) * sizeof(WCHAR),
         FspFsvolQueryDirectoryRequestFini, &Request);
     if (!NT_SUCCESS(Result))
@@ -584,9 +595,9 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     Request->Req.QueryDirectory.Length = SystemBufferLength;
     Request->Req.QueryDirectory.CaseSensitive = FileDesc->CaseSensitive;
 
-    if (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryPattern &&
-        FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
+    if (PassQueryDirectoryPattern)
     {
+        Request->Req.QueryDirectory.PatternIsFileName = PatternIsFileName;
         Request->Req.QueryDirectory.Pattern.Offset =
             Request->FileName.Size;
         Request->Req.QueryDirectory.Pattern.Size =

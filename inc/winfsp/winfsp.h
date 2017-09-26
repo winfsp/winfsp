@@ -802,12 +802,32 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     NTSTATUS (*GetStreamInfo)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext, PVOID Buffer, ULONG Length,
         PULONG PBytesTransferred);
+    /**
+     * Get directory information for a single file or directory within a parent directory.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param FileContext
+     *     The file context of the parent directory.
+     * @param FileName
+     *     The name of the file or directory to get information for. This name is relative
+     *     to the parent directory and is a single path component.
+     * @param DirInfo [out]
+     *     Pointer to a structure that will receive the directory information on successful
+     *     return from this call. This information includes the file name, but also file
+     *     attributes, file times, etc.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     */
+    NTSTATUS (*GetDirInfoByName)(FSP_FILE_SYSTEM *FileSystem,
+        PVOID FileContext, PWSTR FileName,
+        FSP_FSCTL_DIR_INFO *DirInfo);
 
     /*
      * This ensures that this interface will always contain 64 function pointers.
      * Please update when changing the interface as it is important for future compatibility.
      */
-    NTSTATUS (*Reserved[40])();
+    NTSTATUS (*Reserved[39])();
 } FSP_FILE_SYSTEM_INTERFACE;
 FSP_FSCTL_STATIC_ASSERT(sizeof(FSP_FILE_SYSTEM_INTERFACE) == 64 * sizeof(NTSTATUS (*)()),
     "FSP_FILE_SYSTEM_INTERFACE must have 64 entries.");

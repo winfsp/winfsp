@@ -347,6 +347,7 @@ typedef struct
             FSP_FSCTL_TRANSACT_BUF Pattern;
             FSP_FSCTL_TRANSACT_BUF Marker;
             UINT32 CaseSensitive:1;     /* FileName comparisons should be case-sensitive */
+            UINT32 PatternIsFileName:1; /* Pattern does not contain wildcards */
         } QueryDirectory;
         struct
         {
