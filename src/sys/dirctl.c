@@ -567,19 +567,11 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     }
 
     /* create request */
-    PassQueryDirectoryPattern = PatternIsFileName = FALSE;
-    if (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryPattern &&
-        FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer)
-    {
-        PassQueryDirectoryPattern = TRUE;
-        PatternIsFileName = !FsRtlDoesNameContainWildCards(&FileDesc->DirectoryPattern);
-    }
-    else if (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryFileName &&
-        !FsRtlDoesNameContainWildCards(&FileDesc->DirectoryPattern))
-    {
-        PassQueryDirectoryPattern = TRUE;
-        PatternIsFileName = TRUE;
-    }
+    PatternIsFileName = FsvolDeviceExtension->VolumeParams.PassQueryDirectoryFileName &&
+        !FsRtlDoesNameContainWildCards(&FileDesc->DirectoryPattern);
+    PassQueryDirectoryPattern = PatternIsFileName ||
+        (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryPattern &&
+            FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer);
     Result = FspIopCreateRequestEx(Irp, 0,
         (PassQueryDirectoryPattern ? FileDesc->DirectoryPattern.Length + sizeof(WCHAR) : 0) +
         (FsvolDeviceExtension->VolumeParams.MaxComponentLength + 1) * sizeof(WCHAR),
