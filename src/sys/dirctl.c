@@ -574,7 +574,8 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
         PassQueryDirectoryPattern = TRUE;
         PatternIsFileName = !FsRtlDoesNameContainWildCards(&FileDesc->DirectoryPattern);
     }
-    else if (!FsRtlDoesNameContainWildCards(&FileDesc->DirectoryPattern))
+    else if (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryFileName &&
+        !FsRtlDoesNameContainWildCards(&FileDesc->DirectoryPattern))
     {
         PassQueryDirectoryPattern = TRUE;
         PatternIsFileName = TRUE;
