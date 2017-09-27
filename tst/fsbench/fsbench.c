@@ -75,6 +75,41 @@ static void file_list_test(void)
         ASSERT(Success);
     }
 }
+static void file_list_single_test(void)
+{
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR FileName[MAX_PATH];
+    WIN32_FIND_DATAW FindData;
+
+    for (ULONG ListIndex = 0; OptListCount > ListIndex; ListIndex++)
+        for (ULONG Index = 0; OptFileCount > Index; Index++)
+        {
+            StringCbPrintfW(FileName, sizeof FileName, L"fsbench-file%lu", Index);
+            Handle = FindFirstFileW(FileName, &FindData);
+            ASSERT(INVALID_HANDLE_VALUE != Handle);
+            do
+            {
+            } while (FindNextFileW(Handle, &FindData));
+            Success = FindClose(Handle);
+            ASSERT(Success);
+        }
+}
+static void file_list_none_test(void)
+{
+    HANDLE Handle;
+    WCHAR FileName[MAX_PATH];
+    WIN32_FIND_DATAW FindData;
+
+    for (ULONG ListIndex = 0; OptListCount > ListIndex; ListIndex++)
+        for (ULONG Index = 0; OptFileCount > Index; Index++)
+        {
+            StringCbPrintfW(FileName, sizeof FileName, L"{5F849D7F-73AF-49AC-B7C3-657B36EAD5C4}");
+            Handle = FindFirstFileW(FileName, &FindData);
+            ASSERT(INVALID_HANDLE_VALUE == Handle);
+            ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+        }
+}
 static void file_delete_test(void)
 {
     BOOL Success;
@@ -117,6 +152,8 @@ static void file_tests(void)
     TEST(file_open_test);
     TEST(file_overwrite_test);
     TEST(file_list_test);
+    TEST(file_list_single_test);
+    TEST(file_list_none_test);
     TEST(file_delete_test);
     TEST(file_mkdir_test);
     TEST(file_rmdir_test);
