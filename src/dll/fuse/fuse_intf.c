@@ -1757,6 +1757,63 @@ static NTSTATUS fsp_fuse_intf_ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS fsp_fuse_intf_GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode, PWSTR FileName,
+    FSP_FSCTL_DIR_INFO *DirInfo)
+{
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
+    char *PosixName = 0;
+    char PosixPath[FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR)];
+    int ParentLength, FSlashLength, PosixNameLength;
+    UINT32 Uid, Gid, Mode;
+    NTSTATUS Result;
+
+    Result = FspPosixMapWindowsToPosixPath(FileName, &PosixName);
+    if (!NT_SUCCESS(Result))
+    {
+        Result = STATUS_OBJECT_NAME_NOT_FOUND; //Result?
+        goto exit;
+    }
+
+    ParentLength = lstrlenA(filedesc->PosixPath);
+    FSlashLength = 1 < ParentLength;
+    PosixNameLength = lstrlenA(PosixName);
+    if (FSP_FSCTL_TRANSACT_PATH_SIZEMAX <= (ParentLength + FSlashLength + PosixNameLength) * sizeof(WCHAR))
+    {
+        Result = STATUS_OBJECT_NAME_NOT_FOUND; //STATUS_OBJECT_NAME_INVALID?
+        goto exit;
+    }
+
+    memcpy(PosixPath, filedesc->PosixPath, ParentLength);
+    memcpy(PosixPath + ParentLength, "/", FSlashLength);
+    memcpy(PosixPath + ParentLength + FSlashLength, PosixName, PosixNameLength + 1);
+
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, 0,
+        &Uid, &Gid, &Mode, &DirInfo->FileInfo);
+    if (!NT_SUCCESS(Result))
+    {
+        Result = STATUS_OBJECT_NAME_NOT_FOUND; //Result?
+        goto exit;
+    }
+
+    /*
+     * FUSE does not do FileName normalization; so just return the FileName as given to us!
+     */
+
+    //memset(DirInfo->Padding, 0, sizeof DirInfo->Padding);
+    DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + lstrlenW(FileName) * sizeof(WCHAR));
+    memcpy(DirInfo->FileNameBuf, FileName, DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (0 != PosixName)
+        FspPosixDeletePath(PosixName);
+
+    return Result;
+}
+
 static NTSTATUS fsp_fuse_intf_ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent,
     PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
@@ -2030,6 +2087,8 @@ FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
     fsp_fuse_intf_GetReparsePoint,
     fsp_fuse_intf_SetReparsePoint,
     fsp_fuse_intf_DeleteReparsePoint,
+    0,
+    fsp_fuse_intf_GetDirInfoByName,
 };
 
 /*

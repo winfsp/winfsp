@@ -603,12 +603,14 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     if (!opt_data.set_FileInfoTimeout && opt_data.set_attr_timeout)
         opt_data.VolumeParams.FileInfoTimeout = opt_data.set_attr_timeout * 1000;
     opt_data.VolumeParams.CaseSensitiveSearch = TRUE;
+    opt_data.VolumeParams.CasePreservedNames = TRUE;
     opt_data.VolumeParams.PersistentAcls = TRUE;
     opt_data.VolumeParams.ReparsePoints = TRUE;
     opt_data.VolumeParams.ReparsePointsAccessCheck = FALSE;
     opt_data.VolumeParams.NamedStreams = FALSE;
     opt_data.VolumeParams.ReadOnlyVolume = FALSE;
     opt_data.VolumeParams.PostCleanupWhenModifiedOnly = TRUE;
+    opt_data.VolumeParams.PassQueryDirectoryFileName = TRUE;
     opt_data.VolumeParams.UmFileContextIsUserContext2 = TRUE;
     if (L'\0' == opt_data.VolumeParams.FileSystemName[0])
         memcpy(opt_data.VolumeParams.FileSystemName, L"FUSE", 5 * sizeof(WCHAR));
