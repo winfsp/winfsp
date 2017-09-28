@@ -2121,6 +2121,7 @@ NTSTATUS FspFileDescResetDirectory(FSP_FILE_DESC *FileDesc,
 
         FileDesc->DirectoryPattern = DirectoryPattern;
         FileDesc->DirectoryHasSuchFile = FALSE;
+        FileDesc->DirectoryNoMoreFiles = FALSE;
 
         if (0 != FileDesc->DirectoryMarker.Buffer)
         {
@@ -2133,6 +2134,7 @@ NTSTATUS FspFileDescResetDirectory(FSP_FILE_DESC *FileDesc,
         ASSERT(0 == FileName || 0 == FileName->Length);
 
         FileDesc->DirectoryHasSuchFile = FALSE;
+        FileDesc->DirectoryNoMoreFiles = FALSE;
 
         if (0 != FileDesc->DirectoryMarker.Buffer)
         {
@@ -2149,6 +2151,7 @@ NTSTATUS FspFileDescResetDirectory(FSP_FILE_DESC *FileDesc,
             return Result;
 
         FileDesc->DirectoryHasSuchFile = FALSE;
+        FileDesc->DirectoryNoMoreFiles = FALSE;
     }
 
     return STATUS_SUCCESS;

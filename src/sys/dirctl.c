@@ -339,6 +339,10 @@ static NTSTATUS FspFsvolQueryDirectoryCopyCache(
             if (0 != *PDestLen)
                 FileDesc->DirectoryHasSuchFile = TRUE;
             FileDesc->DirInfoCacheHint = (ULONG)((PUINT8)DirInfo - DirInfoBgn);
+
+            if (DirInfoEnd >= (PUINT8)DirInfo + sizeof(DirInfo->Size) &&
+                sizeof(FSP_FSCTL_DIR_INFO) > DirInfo->Size)
+                FileDesc->DirectoryNoMoreFiles = TRUE;
         }
     }
     else if (STATUS_NO_MORE_FILES == Result && !FileDesc->DirectoryHasSuchFile)
@@ -361,6 +365,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     BOOLEAN CaseInsensitive = !FileDesc->CaseSensitive;
     PUNICODE_STRING DirectoryPattern = &FileDesc->DirectoryPattern;
     UNICODE_STRING DirectoryMarker = FileDesc->DirectoryMarker;
+    PUINT8 DirInfoEnd = (PUINT8)DirInfo + DirInfoSize;
 
     ASSERT(DirInfo == DestBuf);
     FSP_FSCTL_STATIC_ASSERT(
@@ -381,6 +386,10 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
         {
             if (0 != *PDestLen)
                 FileDesc->DirectoryHasSuchFile = TRUE;
+
+            if (DirInfoEnd >= (PUINT8)DirInfo + sizeof(DirInfo->Size) &&
+                sizeof(FSP_FSCTL_DIR_INFO) > DirInfo->Size)
+                FileDesc->DirectoryNoMoreFiles = TRUE;
         }
     }
     else if (STATUS_NO_MORE_FILES == Result && !FileDesc->DirectoryHasSuchFile)
@@ -527,6 +536,14 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     {
         FspFileNodeRelease(FileNode, Full);
         return Result;
+    }
+
+    /* check if the FileDesc has already seen the "End Of Directory" mark */
+    if (FileDesc->DirectoryNoMoreFiles)
+    {
+        FspFileNodeRelease(FileNode, Full);
+        return !FileDesc->DirectoryHasSuchFile ?
+            STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES;
     }
 
     /* see if the required information is still in the cache and valid! */
