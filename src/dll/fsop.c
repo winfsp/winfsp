@@ -1139,11 +1139,16 @@ static NTSTATUS FspFileSystemOpQueryDirectory_GetDirInfoByName(FSP_FILE_SYSTEM *
     {
         Result = FileSystem->Interface->GetDirInfoByName(FileSystem,
             FileContext, FileName, DirInfo);
-        if (!NT_SUCCESS(Result))
-            return Result;
-
-        if (FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred))
+        if (NT_SUCCESS(Result))
+        {
+            if (FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred))
+                FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
+        }
+        else if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
+        {
+            Result = STATUS_SUCCESS;
             FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
+        }
     }
     else
     {

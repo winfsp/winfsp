@@ -43,6 +43,11 @@ FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
 #define MEMFS_NAMED_STREAMS
 
 /*
+ * Define the MEMFS_DIRINFO_BY_NAME macro to include GetDirInfoByName.
+ */
+#define MEMFS_DIRINFO_BY_NAME
+
+/*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
  * a check for the Write buffer to ensure that it is read-only.
  *
@@ -1443,6 +1448,48 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+#if defined(MEMFS_DIRINFO_BY_NAME)
+static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
+    PVOID ParentNode0, PWSTR FileName,
+    FSP_FSCTL_DIR_INFO *DirInfo)
+{
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
+    MEMFS_FILE_NODE *ParentNode = (MEMFS_FILE_NODE *)ParentNode0;
+    MEMFS_FILE_NODE *FileNode;
+    WCHAR FileNameBuf[MEMFS_MAX_PATH];
+    size_t ParentLength, BSlashLength, FileNameLength;
+    WCHAR Root[2] = L"\\";
+    PWSTR Remain, Suffix;
+
+    ParentLength = wcslen(ParentNode->FileName);
+    BSlashLength = 1 < ParentLength;
+    FileNameLength = wcslen(FileName);
+    if (MEMFS_MAX_PATH <= ParentLength + BSlashLength + FileNameLength)
+        return STATUS_OBJECT_NAME_NOT_FOUND; //STATUS_OBJECT_NAME_INVALID?
+
+    memcpy(FileNameBuf, ParentNode->FileName, ParentLength * sizeof(WCHAR));
+    memcpy(FileNameBuf + ParentLength, L"\\", BSlashLength * sizeof(WCHAR));
+    memcpy(FileNameBuf + ParentLength + BSlashLength, FileName, (FileNameLength + 1) * sizeof(WCHAR));
+
+    FileName = FileNameBuf;
+
+    FileNode = MemfsFileNodeMapGet(Memfs->FileNodeMap, FileName);
+    if (0 == FileNode)
+        return STATUS_OBJECT_NAME_NOT_FOUND;
+
+    FspPathSuffix(FileNode->FileName, &Remain, &Suffix, Root);
+    FileName = Suffix;
+    FspPathCombine(FileNode->FileName, Suffix);
+
+    //memset(DirInfo->Padding, 0, sizeof DirInfo->Padding);
+    DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    DirInfo->FileInfo = FileNode->FileInfo;
+    memcpy(DirInfo->FileNameBuf, FileName, DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
+
+    return STATUS_SUCCESS;
+}
+#endif
+
 #if defined(MEMFS_REPARSE_POINTS)
 static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent,
@@ -1683,6 +1730,11 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 #else
     0,
 #endif
+#if defined(MEMFS_DIRINFO_BY_NAME)
+    GetDirInfoByName,
+#else
+    0,
+#endif
 };
 
 /*
@@ -1759,6 +1811,9 @@ NTSTATUS MemfsCreateFunnel(
     VolumeParams.NamedStreams = 1;
 #endif
     VolumeParams.PostCleanupWhenModifiedOnly = 1;
+#if defined(MEMFS_DIRINFO_BY_NAME)
+    VolumeParams.PassQueryDirectoryFileName = 1;
+#endif
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
     wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),
