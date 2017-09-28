@@ -42,6 +42,7 @@ namespace Fsp.Interop
         internal const UInt32 PostCleanupWhenModifiedOnly = 0x00000400;
         internal const UInt32 PassQueryDirectoryPattern = 0x00000800;
         internal const UInt32 AlwaysUseDoubleBuffering = 0x00001000;
+        internal const UInt32 PassQueryDirectoryFileName = 0x00002000;
         internal const UInt32 UmFileContextIsUserContext2 = 0x00010000;
         internal const UInt32 UmFileContextIsFullContext = 0x00020000;
         internal const int PrefixSize = 192;
@@ -450,6 +451,12 @@ namespace Fsp.Interop
                 IntPtr Buffer,
                 UInt32 Length,
                 out UInt32 PBytesTransferred);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 GetDirInfoByName(
+                IntPtr FileSystem,
+                ref FullContext FullContext,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                out DirInfo DirInfo);
         }
 
         internal static int Size = IntPtr.Size * 64;
@@ -478,7 +485,8 @@ namespace Fsp.Interop
         internal Proto.SetReparsePoint SetReparsePoint;
         internal Proto.DeleteReparsePoint DeleteReparsePoint;
         internal Proto.GetStreamInfo GetStreamInfo;
-        /* NTSTATUS (*Reserved[40])(); */
+        internal Proto.GetDirInfoByName GetDirInfoByName;
+        /* NTSTATUS (*Reserved[39])(); */
     }
 
     [SuppressUnmanagedCodeSecurity]

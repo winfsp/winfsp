@@ -935,6 +935,37 @@ namespace Fsp
             StreamAllocationSize = default(UInt64);
             return false;
         }
+        /// <summary>
+        /// Gets directory information for a single file or directory within a parent directory.
+        /// </summary>
+        /// <param name="FileNode">
+        /// The file node of the parent directory.
+        /// </param>
+        /// <param name="FileDesc">
+        /// The file descriptor of the parent directory.
+        /// </param>
+        /// <param name="FileName">
+        /// The name of the file or directory to get information for. This name is relative
+        /// to the parent directory and is a single path component.
+        /// </param>
+        /// <param name="NormalizedName">
+        /// Receives the normalized name from the directory entry.
+        /// </param>
+        /// <param name="FileInfo">
+        /// Receives the file information.
+        /// </param>
+        /// <returns>STATUS_SUCCESS or error code.</returns>
+        public virtual Int32 GetDirInfoByName(
+            Object FileNode,
+            Object FileDesc,
+            String FileName,
+            out String NormalizedName,
+            out FileInfo FileInfo)
+        {
+            NormalizedName = default(String);
+            FileInfo = default(FileInfo);
+            return STATUS_INVALID_DEVICE_REQUEST;
+        }
 
         /* helpers */
         /// <summary>

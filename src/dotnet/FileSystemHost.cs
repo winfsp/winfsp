@@ -189,6 +189,11 @@ namespace Fsp
             get { return 0 != (_VolumeParams.Flags & VolumeParams.PassQueryDirectoryPattern); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.PassQueryDirectoryPattern : 0); }
         }
+        public Boolean PassQueryDirectoryFileName
+        {
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.PassQueryDirectoryFileName); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.PassQueryDirectoryFileName : 0); }
+        }
         /// <summary>
         /// Gets or sets the prefix for a network file system.
         /// </summary>
@@ -987,6 +992,34 @@ namespace Fsp
                 return ExceptionHandler(FileSystem, ex);
             }
         }
+        private static Int32 GetDirInfoByName(
+            IntPtr FileSystemPtr,
+            ref FullContext FullContext,
+            String FileName,
+            out DirInfo DirInfo)
+        {
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
+            try
+            {
+                Object FileNode, FileDesc;
+                String NormalizedName;
+                Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
+                DirInfo = default(DirInfo);
+                Int32 Result = FileSystem.GetDirInfoByName(
+                    FileNode,
+                    FileDesc,
+                    FileName,
+                    out NormalizedName,
+                    out DirInfo.FileInfo);
+                DirInfo.SetFileNameBuf(NormalizedName);
+                return Result;
+            }
+            catch (Exception ex)
+            {
+                DirInfo = default(DirInfo);
+                return ExceptionHandler(FileSystem, ex);
+            }
+        }
 
         static FileSystemHost()
         {
@@ -1014,6 +1047,7 @@ namespace Fsp
             _FileSystemInterface.SetReparsePoint = SetReparsePoint;
             _FileSystemInterface.DeleteReparsePoint = DeleteReparsePoint;
             _FileSystemInterface.GetStreamInfo = GetStreamInfo;
+            _FileSystemInterface.GetDirInfoByName = GetDirInfoByName;
 
             _FileSystemInterfacePtr = Marshal.AllocHGlobal(FileSystemInterface.Size);
             Marshal.StructureToPtr(_FileSystemInterface, _FileSystemInterfacePtr, false);
