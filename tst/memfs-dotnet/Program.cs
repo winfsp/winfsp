@@ -254,6 +254,7 @@ namespace memfs
             Host.ReparsePointsAccessCheck = false;
             Host.NamedStreams = true;
             Host.PostCleanupWhenModifiedOnly = true;
+            Host.PassQueryDirectoryFileName = true;
             return STATUS_SUCCESS;
         }
 
@@ -847,6 +848,35 @@ namespace memfs
             FileName = default(String);
             FileInfo = default(FileInfo);
             return false;
+        }
+
+        public override int GetDirInfoByName(
+            Object ParentNode0,
+            Object FileDesc,
+            String FileName,
+            out String NormalizedName,
+            out FileInfo FileInfo)
+        {
+            FileNode ParentNode = (FileNode)ParentNode0;
+            FileNode FileNode;
+
+            FileName =
+                ParentNode.FileName +
+                ("\\" == ParentNode.FileName ? "" : "\\") +
+                Path.GetFileName(FileName);
+
+            FileNode = FileNodeMap.Get(FileName);
+            if (null == FileNode)
+            {
+                NormalizedName = default(String);
+                FileInfo = default(FileInfo);
+                return STATUS_OBJECT_NAME_NOT_FOUND;
+            }
+
+            NormalizedName = Path.GetFileName(FileNode.FileName);
+            FileInfo = FileNode.FileInfo;
+
+            return STATUS_SUCCESS;
         }
 
         public override Int32 GetReparsePointByName(
