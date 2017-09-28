@@ -1122,7 +1122,7 @@ FSP_API NTSTATUS FspFileSystemOpSetVolumeInformation(FSP_FILE_SYSTEM *FileSystem
 }
 
 static NTSTATUS FspFileSystemOpQueryDirectory_GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileContext, PWSTR FileName, BOOLEAN HasMarker,
+    PVOID FileContext, PWSTR FileName, PWSTR Marker, BOOLEAN CaseSensitive,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
     NTSTATUS Result;
@@ -1132,8 +1132,11 @@ static NTSTATUS FspFileSystemOpQueryDirectory_GetDirInfoByName(FSP_FILE_SYSTEM *
         UINT8 B[sizeof(FSP_FSCTL_DIR_INFO) + 255 * sizeof(WCHAR)];
     } DirInfoBuf;
     FSP_FSCTL_DIR_INFO *DirInfo = &DirInfoBuf.V;
+    BOOLEAN HasMarker;
 
     memset(DirInfo, 0, sizeof *DirInfo);
+    HasMarker = 0 != Marker &&
+        0 == (CaseSensitive ? invariant_wcscmp : invariant_wcsicmp)(FileName, Marker);
 
     if (!HasMarker)
     {
@@ -1174,7 +1177,9 @@ FSP_API NTSTATUS FspFileSystemOpQueryDirectory(FSP_FILE_SYSTEM *FileSystem,
         Result = FspFileSystemOpQueryDirectory_GetDirInfoByName(FileSystem,
             (PVOID)ValOfFileContext(Request->Req.QueryDirectory),
             (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Pattern.Offset),
-            0 != Request->Req.QueryDirectory.Marker.Size,
+            0 != Request->Req.QueryDirectory.Marker.Size ?
+                (PWSTR)(Request->Buffer + Request->Req.QueryDirectory.Marker.Offset) : 0,
+            Request->Req.QueryDirectory.CaseSensitive,
             (PVOID)Request->Req.QueryDirectory.Address,
             Request->Req.QueryDirectory.Length,
             &BytesTransferred);
