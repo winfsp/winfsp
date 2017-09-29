@@ -557,6 +557,22 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
 
     FspFileNodeConvertExclusiveToShared(FileNode, Full);
 
+    /* special handling when pattern is filename */
+    PatternIsFileName = FsvolDeviceExtension->VolumeParams.PassQueryDirectoryFileName &&
+        !FsRtlDoesNameContainWildCards(&FileDesc->DirectoryPattern);
+    PassQueryDirectoryPattern = PatternIsFileName ||
+        (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryPattern &&
+            FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer);
+    if (PatternIsFileName &&
+        0 != FileDesc->DirectoryMarker.Buffer &&
+        0 == FspFileNameCompare(&FileDesc->DirectoryPattern, &FileDesc->DirectoryMarker,
+            !FileDesc->CaseSensitive, 0))
+    {
+        FspFileNodeRelease(FileNode, Full);
+        return !FileDesc->DirectoryHasSuchFile ?
+            STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES;
+    }
+
     /* buffer the user buffer! */
     Result = FspFsvolQueryDirectoryBufferUserBuffer(
         FsvolDeviceExtension, Irp, &SystemBufferLength);
@@ -567,11 +583,6 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     }
 
     /* create request */
-    PatternIsFileName = FsvolDeviceExtension->VolumeParams.PassQueryDirectoryFileName &&
-        !FsRtlDoesNameContainWildCards(&FileDesc->DirectoryPattern);
-    PassQueryDirectoryPattern = PatternIsFileName ||
-        (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryPattern &&
-            FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer);
     Result = FspIopCreateRequestEx(Irp, 0,
         (PassQueryDirectoryPattern ? FileDesc->DirectoryPattern.Length + sizeof(WCHAR) : 0) +
         (FsvolDeviceExtension->VolumeParams.MaxComponentLength + 1) * sizeof(WCHAR),
