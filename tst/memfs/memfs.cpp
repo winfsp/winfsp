@@ -212,9 +212,15 @@ int MemfsFileNameCompare(PWSTR a0, int alen, PWSTR b0, int blen, BOOLEAN CaseIns
 
     len = alen < blen ? alen : blen;
 
-    /* we should still be in the C locale */
     if (CaseInsensitive)
-        res = _wcsnicmp(a, b, len);
+    {
+        /* better Unicode comparison when case-insensitive */
+        res = CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE, a, alen, b, blen);
+        if (0 != res)
+            res -= 2;
+        else
+            res = _wcsnicmp(a, b, len);
+    }
     else
         res = wcsncmp(a, b, len);
 
