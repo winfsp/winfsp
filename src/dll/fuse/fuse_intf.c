@@ -806,10 +806,9 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
         }
 
     /*
-     * Ignore fuse_file_info::direct_io, fuse_file_info::keep_cache
-     * WinFsp does not currently support disabling the cache manager
-     * for an individual file although it should not be hard to add
-     * if required.
+     * Ignore fuse_file_info::direct_io, fuse_file_info::keep_cache.
+     * NOTE: Originally WinFsp dit not support disabling the cache manager
+     * for an individual file. This is now possible and we should revisit.
      *
      * Ignore fuse_file_info::nonseekable.
      */

@@ -305,6 +305,14 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         context->private_data = f->data = f->ops.init(&conn);
         f->VolumeParams.ReadOnlyVolume = 0 != (conn.want & FSP_FUSE_CAP_READ_ONLY);
         f->VolumeParams.CaseSensitiveSearch = 0 == (conn.want & FSP_FUSE_CAP_CASE_INSENSITIVE);
+        if (!f->VolumeParams.CaseSensitiveSearch)
+            /*
+             * Disable GetDirInfoByName when file system is case-insensitive.
+             * The reason is that Windows always sends us queries with uppercase
+             * file names in GetDirInfoByName and we have no way in FUSE to normalize
+             * those file names when embedding them in FSP_FSCTL_DIR_INFO.
+             */
+            f->VolumeParams.PassQueryDirectoryFileName = FALSE;
         f->conn_want = conn.want;
     }
     f->fsinit = TRUE;
