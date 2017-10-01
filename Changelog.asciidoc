@@ -4,7 +4,8 @@
 v1.2B1 (2017.2 B1)::
 
 - New command line tool `fsptool` allows command line access to some WinFsp features.
-- Added support for getting the originating process ID (PID) during `Create`, `Open` and `Rename` calls. See the `FspFileSystemOperationProcessId` API.
+- New `GetDirInfoByName` file system operation adds fast queries of directory info by file name rather than pattern [e.g. `FindFirstFileW("foobar", FindData)`]. Tests with fsbench showed that such queries are sped up by an order of magnitude when using `GetDirInfoByName` in MEMFS.
+- New `FspFileSystemOperationProcessId` API adds support for getting the originating process ID (PID) during `Create`, `Open` and `Rename` calls.
 
 
 v1.1 (2017.1)::
