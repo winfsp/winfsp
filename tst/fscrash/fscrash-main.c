@@ -278,6 +278,9 @@ int wmain(int argc, wchar_t **argv)
             OptFileInfoTimeout,
             1024,
             1024 * 1024,
+
+			0,0,0,  //  Slowio
+
             (MemfsNet & OptMemfsFlags) ? L"\\memfs\\share" : 0,
             0,
             &Memfs);
