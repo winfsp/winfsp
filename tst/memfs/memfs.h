@@ -33,13 +33,18 @@ enum
     MemfsCaseInsensitive                = 0x80,
 };
 
-#define MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, VolumePrefix, RootSddl, PMemfs)\
-    MemfsCreateFunnel(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, 0, VolumePrefix, RootSddl, PMemfs)
+#define MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, SlowioMaxDelay, SlowioPercentDelay, SlowioRarefyDelay,    VolumePrefix, RootSddl, PMemfs)\
+  MemfsCreateFunnel(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, SlowioMaxDelay, SlowioPercentDelay, SlowioRarefyDelay, 0, VolumePrefix, RootSddl, PMemfs)
 NTSTATUS MemfsCreateFunnel(
     ULONG Flags,
     ULONG FileInfoTimeout,
     ULONG MaxFileNodes,
     ULONG MaxFileSize,
+
+	ULONG SlowioMaxDelay,
+    ULONG SlowioPercentDelay,
+    ULONG SlowioRarefyDelay,
+
     PWSTR FileSystemName,
     PWSTR VolumePrefix,
     PWSTR RootSddl,
