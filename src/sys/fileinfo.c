@@ -1605,6 +1605,8 @@ NTSTATUS FspFsvolSetInformationPrepare(
     /* get a pointer to the current process so that we can close the impersonation token later */
     Process = PsGetCurrentProcess();
     ObReferenceObject(Process);
+
+    /* get the originating process ID stored in the IRP */
     OriginatingProcessId = IoGetRequestorProcessId(Irp);
 
     /* send the user-mode handle to the user-mode file system */
