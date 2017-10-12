@@ -983,6 +983,16 @@ namespace Fsp
             return Api.FspWin32FromNtStatus(Status);
         }
         /// <summary>
+        /// Gets the originating process ID.
+        /// </summary>
+        /// <remarks>
+        /// Valid only during Create, Open and Rename requests when the target exists.
+        /// </remarks>
+        public static int GetOperationProcessId()
+        {
+            return (int)Api.FspFileSystemOperationProcessId();
+        }
+        /// <summary>
         /// Modifies a security descriptor.
         /// </summary>
         /// <remarks>
