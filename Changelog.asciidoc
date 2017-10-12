@@ -3,6 +3,8 @@
 
 v1.2B2 (2017.2 B2)::
 
+Changes since v1.1:
+
 - New command line tool `fsptool` allows command line access to some WinFsp features.
 - New `GetDirInfoByName` file system operation adds fast queries of directory info by file name rather than pattern [e.g. `FindFirstFileW(L"foobar", FindData)`]. Tests with fsbench showed that such queries are sped up by an order of magnitude when using `GetDirInfoByName` in MEMFS. Case-sensitive FUSE file systems get this optimization for free. The .NET layer also adds `GetDirInfoByName`.
 - New `FspFileSystemOperationProcessId` API adds support for getting the originating process ID (PID) during `Create`, `Open` and `Rename` calls. FUSE file systems can now access `fuse_context::pid`. The .NET layer also adds `GetOperationProcessId`.
