@@ -1144,11 +1144,13 @@ BOOLEAN FspWriteIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
     return FspProcessBufferSizeMax >= BufferSize;
 #endif
 }
+#if 0
 static inline
 BOOLEAN FspQueryDirectoryIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
 {
     return FspReadIrpShouldUseProcessBuffer(Irp, BufferSize);
 }
+#endif
 
 /* volume management */
 #define FspVolumeTransactEarlyTimeout   (1 * 10000ULL)

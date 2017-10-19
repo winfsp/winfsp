@@ -17,15 +17,6 @@
 
 #include <sys/driver.h>
 
-/*
- * NOTE:
- *
- * FspIopCompleteIrpEx does some special processing for IRP_MJ_DIRECTORY_CONTROL /
- * IRP_MN_QUERY_DIRECTORY IRP's that come from SRV2. If the processing of this IRP
- * changes substantially (in particular if we eliminate our use of
- * Irp->AssociatedIrp.SystemBuffer) we should also revisit FspIopCompleteIrpEx.
- */
-
 static NTSTATUS FspFsvolQueryDirectoryCopy(
     PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
     PUNICODE_STRING DirectoryMarker, PUNICODE_STRING DirectoryMarkerOut,
@@ -77,19 +68,11 @@ FSP_DRIVER_DISPATCH FspDirectoryControl;
 enum
 {
     /* QueryDirectory */
-    RequestIrp                          = 0,
+    RequestFileNode                     = 0,
     RequestCookie                       = 1,
-    RequestMdl                          = 1,
     RequestAddress                      = 2,
     RequestProcess                      = 3,
-
-    /* QueryDirectoryRetry */
-    RequestSystemBufferLength           = 0,
-
-    /* DirectoryControlComplete retry */
-    RequestDirInfoChangeNumber          = 0,
 };
-FSP_FSCTL_STATIC_ASSERT(RequestCookie == RequestMdl, "");
 
 static NTSTATUS FspFsvolQueryDirectoryCopy(
     PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
@@ -362,7 +345,6 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     PUNICODE_STRING DirectoryPattern = &FileDesc->DirectoryPattern;
     UNICODE_STRING DirectoryMarker = FileDesc->DirectoryMarker;
 
-    ASSERT(DirInfo == DestBuf);
     FSP_FSCTL_STATIC_ASSERT(
         FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) >=
         FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName),
@@ -389,77 +371,10 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     return Result;
 }
 
-static inline NTSTATUS FspFsvolQueryDirectoryBufferUserBuffer(
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension, PIRP Irp, PULONG PLength)
-{
-    if (0 != Irp->AssociatedIrp.SystemBuffer)
-        return STATUS_SUCCESS;
-
-    NTSTATUS Result;
-    ULONG Length = *PLength;
-
-    if (Length > FspFsvolDeviceDirInfoCacheItemSizeMax)
-        Length = FspFsvolDeviceDirInfoCacheItemSizeMax;
-    else if (Length < sizeof(FSP_FSCTL_DIR_INFO) +
-        FsvolDeviceExtension->VolumeParams.MaxComponentLength * sizeof(WCHAR))
-        Length = sizeof(FSP_FSCTL_DIR_INFO) +
-            FsvolDeviceExtension->VolumeParams.MaxComponentLength * sizeof(WCHAR);
-
-    Result = FspBufferUserBuffer(Irp, FSP_FSCTL_ALIGN_UP(Length, PAGE_SIZE), IoWriteAccess);
-    if (!NT_SUCCESS(Result))
-        return Result;
-
-    *PLength = Length;
-
-    return STATUS_SUCCESS;
-}
-
 static NTSTATUS FspFsvolQueryDirectoryRetry(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
     BOOLEAN CanWait)
 {
-    /*
-     * The SystemBufferLength contains the length of the SystemBuffer that we
-     * are going to allocate (in FspFsvolQueryDirectoryBufferUserBuffer). This
-     * buffer is going to be used as the IRP SystemBuffer and it will also be
-     * mapped into the user mode file system process (in
-     * FspFsvolDirectoryControlPrepare) so that the file system can fill in the
-     * buffer.
-     *
-     * The SystemBufferLength is not the actual length that we are going to use
-     * when completing the IRP. This will be computed at IRP completion time
-     * (using FspFsvolQueryDirectoryCopy). Instead the SystemBufferLength is
-     * the size that we want the user mode file system to see and it may be
-     * different from the requested length for the following reasons:
-     *
-     *   - If the FileInfoTimeout is non-zero, then the directory maintains a
-     *     DirInfo meta cache that can be used to fulfill IRP requests without
-     *     reaching out to user mode. In this case we want the SystemBufferLength
-     *     to be FspFsvolDeviceDirInfoCacheItemSizeMax so that we read up to the
-     *     cache size maximum.
-     *
-     *   - If the requested DirectoryPattern (stored in FileDesc) is not the "*"
-     *     (MatchAll) pattern, then we want to read as many entries as possible
-     *     from the user mode file system to avoid multiple roundtrips to user
-     *     mode when doing file name matching. In this case we set again the
-     *     SystemBufferLength to be FspFsvolDeviceDirInfoCacheItemSizeMax. This
-     *     is an important optimization and without it QueryDirectory is *very*
-     *     slow without the DirInfo meta cache (i.e. when FileInfoTimeout is 0).
-     *
-     *   - If the requsted DirectoryPattern is the MatchAll pattern then we set
-     *     the SystemBufferLength to the requested (IRP) length as it is actually
-     *     counter-productive to try to read more than we need.
-     */
-#define GetSystemBufferLengthMaybeCached()\
-    (0 != FsvolDeviceExtension->VolumeParams.FileInfoTimeout && 0 == FileDesc->DirectoryMarker.Buffer) ||\
-    FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer ?\
-        FspFsvolDeviceDirInfoCacheItemSizeMax : Length
-#define GetSystemBufferLengthNonCached()\
-    FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer ?\
-        FspFsvolDeviceDirInfoCacheItemSizeMax : Length
-#define GetSystemBufferLengthBestGuess()\
-    FspFsvolDeviceDirInfoCacheItemSizeMax
-
     PAGED_CODE();
 
     NTSTATUS Result;
@@ -471,12 +386,13 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     BOOLEAN IndexSpecified = BooleanFlagOn(IrpSp->Flags, SL_INDEX_SPECIFIED);
     BOOLEAN ReturnSingleEntry = BooleanFlagOn(IrpSp->Flags, SL_RETURN_SINGLE_ENTRY);
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryDirectory.FileInformationClass;
+    ULONG BaseInfoLen;
     PUNICODE_STRING FileName = IrpSp->Parameters.QueryDirectory.FileName;
     //ULONG FileIndex = IrpSp->Parameters.QueryDirectory.FileIndex;
-    PVOID Buffer = 0 != Irp->AssociatedIrp.SystemBuffer ?
-        Irp->AssociatedIrp.SystemBuffer : Irp->UserBuffer;
+    PVOID Buffer = 0 == Irp->MdlAddress ?
+        Irp->UserBuffer : MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
     ULONG Length = IrpSp->Parameters.QueryDirectory.Length;
-    ULONG SystemBufferLength;
+    ULONG QueryDirectoryLength, QueryDirectoryLengthMin;
     PVOID DirInfoBuffer;
     ULONG DirInfoSize;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
@@ -485,34 +401,42 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
 
     ASSERT(FileNode == FileDesc->FileNode);
 
-    SystemBufferLength = 0 != Request ?
-        (ULONG)(UINT_PTR)FspIopRequestContext(Request, RequestSystemBufferLength) : 0;
+    if (0 == Buffer)
+        return 0 == Irp->MdlAddress ? STATUS_INVALID_PARAMETER : STATUS_INSUFFICIENT_RESOURCES;
+
+    /* is this an allowed file information class? */
+    switch (FileInformationClass)
+    {
+    case FileDirectoryInformation:
+        BaseInfoLen = FIELD_OFFSET(FILE_DIRECTORY_INFORMATION, FileName);
+        break;
+    case FileFullDirectoryInformation:
+        BaseInfoLen = FIELD_OFFSET(FILE_FULL_DIR_INFORMATION, FileName);
+        break;
+    case FileIdFullDirectoryInformation:
+        BaseInfoLen = FIELD_OFFSET(FILE_ID_FULL_DIR_INFORMATION, FileName);
+        break;
+    case FileNamesInformation:
+        BaseInfoLen = FIELD_OFFSET(FILE_NAMES_INFORMATION, FileName);
+        break;
+    case FileBothDirectoryInformation:
+        BaseInfoLen = FIELD_OFFSET(FILE_BOTH_DIR_INFORMATION, FileName);
+        break;
+    case FileIdBothDirectoryInformation:
+        BaseInfoLen = FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName);
+        break;
+    default:
+        return STATUS_INVALID_INFO_CLASS;
+    }
+
+    if (BaseInfoLen >= Length)
+        return STATUS_BUFFER_TOO_SMALL;
 
     /* try to acquire the FileNode exclusive; Full because we may need to send a Request */
     Success = DEBUGTEST(90) &&
         FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, CanWait);
     if (!Success)
-    {
-        if (0 == SystemBufferLength)
-            SystemBufferLength = GetSystemBufferLengthBestGuess();
-
-        Result = FspFsvolQueryDirectoryBufferUserBuffer(
-            FsvolDeviceExtension, Irp, &SystemBufferLength);
-        if (!NT_SUCCESS(Result))
-            return Result;
-
-        Result = FspWqCreateIrpWorkItem(Irp, FspFsvolQueryDirectoryRetry, 0);
-        if (!NT_SUCCESS(Result))
-            return Result;
-
-        Request = FspIrpRequest(Irp);
-        FspIopRequestContext(Request, RequestSystemBufferLength) =
-            (PVOID)(UINT_PTR)SystemBufferLength;
-
-        FspWqPostIrpWorkItem(Irp);
-
-        return STATUS_PENDING;
-    }
+        return FspWqRepostIrpWorkItem(Irp, FspFsvolQueryDirectoryRetry, 0);
 
     /* if we have been retried reset our work item now! */
     if (0 != Request)
@@ -532,9 +456,6 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     /* see if the required information is still in the cache and valid! */
     if (FspFileNodeReferenceDirInfo(FileNode, &DirInfoBuffer, &DirInfoSize))
     {
-        if (0 == SystemBufferLength)
-            SystemBufferLength = GetSystemBufferLengthNonCached();
-
         Result = FspFsvolQueryDirectoryCopyCache(FileDesc,
             IndexSpecified || RestartScan,
             FileInformationClass, ReturnSingleEntry,
@@ -548,11 +469,9 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
             Irp->IoStatus.Information = Length;
             return Result;
         }
-    }
-    else
-    {
-        if (0 == SystemBufferLength)
-            SystemBufferLength = GetSystemBufferLengthMaybeCached();
+
+        /* reset Length! */
+        Length = IrpSp->Parameters.QueryDirectory.Length;
     }
 
     FspFileNodeConvertExclusiveToShared(FileNode, Full);
@@ -573,9 +492,8 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
             STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES;
     }
 
-    /* buffer the user buffer! */
-    Result = FspFsvolQueryDirectoryBufferUserBuffer(
-        FsvolDeviceExtension, Irp, &SystemBufferLength);
+    /* probe and lock the user buffer */
+    Result = FspLockUserBuffer(Irp, Length, IoWriteAccess);
     if (!NT_SUCCESS(Result))
     {
         FspFileNodeRelease(FileNode, Full);
@@ -593,10 +511,81 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
         return Result;
     }
 
+    /*
+     * Compute QueryDirectoryLength
+     *
+     * How much data to request from the file system varies according to the following matrix:
+     *
+     * Pattern                  | NoCache | Cache+1st | Cache+2nd
+     * -------------------------+---------+-----------+----------
+     * Full Wild                | Ratio   | Maximum   | Ratio
+     * Partial Wild w/o PassQDP | Maximum | Maximum   | Maximum
+     * Partial Wild w/  PassQDP | Ratio   | Ratio     | Ratio
+     * File Name w/o PassQDF    | Maximum | Maximum   | Maximum
+     * File Name w/  PassQDF    | Minimum | Minimum   | Minimum
+     *
+     * NoCache means DirInfo caching disabled. Cache+1st means DirInfo caching enabled, but
+     * cache not primed. Cache+2nd means DirInfo caching enabled, cache is primed, but missed.
+     * [If there is no cache miss, there is no need to send the request to the file system.]
+     *
+     * Maximum means to request the maximum size allowed by the FSD. Minimum means the size that
+     * is guaranteed to contain at least one entry. Ratio means to compute how many directory
+     * entries to request from the file system based on an estimate of how many entries the FSD
+     * is supposed to deliver.
+     *
+     * The Ratio computation is as follows: Assume that N is the size of the average file name,
+     * taken to be 24 * sizeof(WCHAR). Let M be the number of entries that can fit in the passed
+     * buffer:
+     *
+     * M := Length / (BaseInfoLen + N) = QueryDirectoryLength / (sizeof(FSP_FSCTL_DIR_INFO) + N)
+     * => QueryDirectoryLength = Length * (sizeof(FSP_FSCTL_DIR_INFO) + N) / (BaseInfoLen + N)
+     */
+
+    QueryDirectoryLengthMin = sizeof(FSP_FSCTL_DIR_INFO) +
+        FsvolDeviceExtension->VolumeParams.MaxComponentLength * sizeof(WCHAR);
+    QueryDirectoryLengthMin = FSP_FSCTL_ALIGN_UP(QueryDirectoryLengthMin, 8);
+    ASSERT(QueryDirectoryLengthMin < FspFsvolDeviceDirInfoCacheItemSizeMax);
+    if (0 != FsvolDeviceExtension->VolumeParams.FileInfoTimeout &&
+        0 == FileDesc->DirectoryMarker.Buffer)
+    {
+        if (PatternIsFileName)
+            QueryDirectoryLength = QueryDirectoryLengthMin;
+        else if (PassQueryDirectoryPattern)
+        {
+            QueryDirectoryLength = Length *
+                (sizeof(FSP_FSCTL_DIR_INFO) + 24 * sizeof(WCHAR)) / (BaseInfoLen + 24 * sizeof(WCHAR));
+            QueryDirectoryLength = FSP_FSCTL_ALIGN_UP(QueryDirectoryLength, 8);
+            if (QueryDirectoryLength < QueryDirectoryLengthMin)
+                QueryDirectoryLength = QueryDirectoryLengthMin;
+            else if (QueryDirectoryLength > FspFsvolDeviceDirInfoCacheItemSizeMax)
+                QueryDirectoryLength = FspFsvolDeviceDirInfoCacheItemSizeMax;
+        }
+        else
+            QueryDirectoryLength = FspFsvolDeviceDirInfoCacheItemSizeMax;
+    }
+    else
+    {
+        if (PatternIsFileName)
+            QueryDirectoryLength = QueryDirectoryLengthMin;
+        else if (PassQueryDirectoryPattern ||
+            FspFileDescDirectoryPatternMatchAll == FileDesc->DirectoryPattern.Buffer)
+        {
+            QueryDirectoryLength = Length *
+                (sizeof(FSP_FSCTL_DIR_INFO) + 24 * sizeof(WCHAR)) / (BaseInfoLen + 24 * sizeof(WCHAR));
+            QueryDirectoryLength = FSP_FSCTL_ALIGN_UP(QueryDirectoryLength, 8);
+            if (QueryDirectoryLength < QueryDirectoryLengthMin)
+                QueryDirectoryLength = QueryDirectoryLengthMin;
+            else if (QueryDirectoryLength > FspFsvolDeviceDirInfoCacheItemSizeMax)
+                QueryDirectoryLength = FspFsvolDeviceDirInfoCacheItemSizeMax;
+        }
+        else
+            QueryDirectoryLength = FspFsvolDeviceDirInfoCacheItemSizeMax;
+    }
+
     Request->Kind = FspFsctlTransactQueryDirectoryKind;
     Request->Req.QueryDirectory.UserContext = FileNode->UserContext;
     Request->Req.QueryDirectory.UserContext2 = FileDesc->UserContext2;
-    Request->Req.QueryDirectory.Length = SystemBufferLength;
+    Request->Req.QueryDirectory.Length = QueryDirectoryLength;
     Request->Req.QueryDirectory.CaseSensitive = FileDesc->CaseSensitive;
 
     if (PassQueryDirectoryPattern)
@@ -631,13 +620,9 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     }
 
     FspFileNodeSetOwner(FileNode, Full, Request);
-    FspIopRequestContext(Request, RequestIrp) = Irp;
+    FspIopRequestContext(Request, RequestFileNode) = FileNode;
 
     return FSP_STATUS_IOQ_POST;
-
-#undef GetSystemBufferLengthBestGuess
-#undef GetSystemBufferLengthNonCached
-#undef GetSystemBufferLengthMaybeCached
 }
 
 static NTSTATUS FspFsvolQueryDirectory(
@@ -649,21 +634,10 @@ static NTSTATUS FspFsvolQueryDirectory(
     if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
         return STATUS_INVALID_DEVICE_REQUEST;
 
-    NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryDirectory.FileInformationClass;
     PUNICODE_STRING FileName = IrpSp->Parameters.QueryDirectory.FileName;
-    ULONG Length = IrpSp->Parameters.QueryDirectory.Length;
-    ULONG BaseInfoLen;
-
-    /* SystemBuffer must be NULL as we are going to be using it! */
-    if (0 != Irp->AssociatedIrp.SystemBuffer)
-    {
-        ASSERT(0);
-        return STATUS_INVALID_PARAMETER;
-    }
 
     /* only directory files can be queried */
     if (!FileNode->IsDirectory)
@@ -674,36 +648,7 @@ static NTSTATUS FspFsvolQueryDirectory(
         !FspFileNameIsValidPattern(FileName, FsvolDeviceExtension->VolumeParams.MaxComponentLength))
         return STATUS_INVALID_PARAMETER;
 
-    /* is this an allowed file information class? */
-    switch (FileInformationClass)
-    {
-    case FileDirectoryInformation:
-        BaseInfoLen = FIELD_OFFSET(FILE_DIRECTORY_INFORMATION, FileName);
-        break;
-    case FileFullDirectoryInformation:
-        BaseInfoLen = FIELD_OFFSET(FILE_FULL_DIR_INFORMATION, FileName);
-        break;
-    case FileIdFullDirectoryInformation:
-        BaseInfoLen = FIELD_OFFSET(FILE_ID_FULL_DIR_INFORMATION, FileName);
-        break;
-    case FileNamesInformation:
-        BaseInfoLen = FIELD_OFFSET(FILE_NAMES_INFORMATION, FileName);
-        break;
-    case FileBothDirectoryInformation:
-        BaseInfoLen = FIELD_OFFSET(FILE_BOTH_DIR_INFORMATION, FileName);
-        break;
-    case FileIdBothDirectoryInformation:
-        BaseInfoLen = FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName);
-        break;
-    default:
-        return STATUS_INVALID_INFO_CLASS;
-    }
-    if (BaseInfoLen >= Length)
-        return STATUS_BUFFER_TOO_SMALL;
-
-    Result = FspFsvolQueryDirectoryRetry(FsvolDeviceObject, Irp, IrpSp, IoIsOperationSynchronous(Irp));
-
-    return Result;
+    return FspFsvolQueryDirectoryRetry(FsvolDeviceObject, Irp, IrpSp, IoIsOperationSynchronous(Irp));
 }
 
 typedef struct
@@ -850,67 +795,26 @@ NTSTATUS FspFsvolDirectoryControlPrepare(
 {
     PAGED_CODE();
 
-    if (FspQueryDirectoryIrpShouldUseProcessBuffer(Irp, Request->Req.QueryDirectory.Length))
-    {
-        NTSTATUS Result;
-        PVOID Cookie;
-        PVOID Address;
-        PEPROCESS Process;
+    NTSTATUS Result;
+    PVOID Cookie;
+    PVOID Address;
+    PEPROCESS Process;
 
-        Result = FspProcessBufferAcquire(Request->Req.QueryDirectory.Length, &Cookie, &Address);
-        if (!NT_SUCCESS(Result))
-            return Result;
+    Result = FspProcessBufferAcquire(Request->Req.QueryDirectory.Length, &Cookie, &Address);
+    if (!NT_SUCCESS(Result))
+        return Result;
 
-        /* get a pointer to the current process so that we can release the buffer later */
-        Process = PsGetCurrentProcess();
-        ObReferenceObject(Process);
+    /* get a pointer to the current process so that we can release the buffer later */
+    Process = PsGetCurrentProcess();
+    ObReferenceObject(Process);
 
-        Request->Req.QueryDirectory.Address = (UINT64)(UINT_PTR)Address;
+    Request->Req.QueryDirectory.Address = (UINT64)(UINT_PTR)Address;
 
-        FspIopRequestContext(Request, RequestCookie) = (PVOID)((UINT_PTR)Cookie | 1);
-        FspIopRequestContext(Request, RequestAddress) = Address;
-        FspIopRequestContext(Request, RequestProcess) = Process;
+    FspIopRequestContext(Request, RequestCookie) = (PVOID)((UINT_PTR)Cookie | 1);
+    FspIopRequestContext(Request, RequestAddress) = Address;
+    FspIopRequestContext(Request, RequestProcess) = Process;
 
-        return STATUS_SUCCESS;
-    }
-    else
-    {
-        NTSTATUS Result;
-        PMDL Mdl = 0;
-        PVOID Address;
-        PEPROCESS Process;
-
-        Mdl = IoAllocateMdl(
-            Irp->AssociatedIrp.SystemBuffer,
-            Request->Req.QueryDirectory.Length,
-            FALSE, FALSE, 0);
-        if (0 == Mdl)
-            return STATUS_INSUFFICIENT_RESOURCES;
-
-        MmBuildMdlForNonPagedPool(Mdl);
-
-        /* map the MDL into user-mode */
-        Result = FspMapLockedPagesInUserMode(Mdl, &Address, 0);
-        if (!NT_SUCCESS(Result))
-        {
-            if (0 != Mdl)
-                IoFreeMdl(Mdl);
-
-            return Result;
-        }
-
-        /* get a pointer to the current process so that we can unmap the address later */
-        Process = PsGetCurrentProcess();
-        ObReferenceObject(Process);
-
-        Request->Req.QueryDirectory.Address = (UINT64)(UINT_PTR)Address;
-
-        FspIopRequestContext(Request, RequestMdl) = Mdl;
-        FspIopRequestContext(Request, RequestAddress) = Address;
-        FspIopRequestContext(Request, RequestProcess) = Process;
-
-        return STATUS_SUCCESS;
-    }
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS FspFsvolDirectoryControlComplete(
@@ -935,9 +839,8 @@ NTSTATUS FspFsvolDirectoryControlComplete(
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     BOOLEAN ReturnSingleEntry = BooleanFlagOn(IrpSp->Flags, SL_RETURN_SINGLE_ENTRY);
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.QueryDirectory.FileInformationClass;
-    PVOID Buffer = Irp->AssociatedIrp.SystemBuffer;
+    PVOID Buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
     ULONG Length = IrpSp->Parameters.QueryDirectory.Length;
-    ULONG DirInfoChangeNumber;
     PVOID DirInfoBuffer;
     ULONG DirInfoSize;
     BOOLEAN Success;
@@ -951,33 +854,14 @@ NTSTATUS FspFsvolDirectoryControlComplete(
         FSP_RETURN();
     }
 
-    if (FspFsctlTransactQueryDirectoryKind == Request->Kind)
+    if (0 != FspIopRequestContext(Request, RequestFileNode))
     {
-        if ((UINT_PTR)FspIopRequestContext(Request, RequestCookie) & 1)
-        {
-            PVOID Address = FspIopRequestContext(Request, RequestAddress);
+        FspIopRequestContext(Request, FspIopRequestExtraContext) = (PVOID)
+            FspFileNodeDirInfoChangeNumber(FileNode);
+        FspIopRequestContext(Request, RequestFileNode) = 0;
 
-            ASSERT(0 != Address);
-            try
-            {
-                RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer, Address, Response->IoStatus.Information);
-            }
-            except (EXCEPTION_EXECUTE_HANDLER)
-            {
-                Result = GetExceptionCode();
-                Result = FsRtlIsNtstatusExpected(Result) ? STATUS_INVALID_USER_BUFFER : Result;
-                FSP_RETURN();
-            }
-        }
-
-        DirInfoChangeNumber = FspFileNodeDirInfoChangeNumber(FileNode);
-        Request->Kind = FspFsctlTransactReservedKind;
-        FspIopResetRequest(Request, 0);
-        FspIopRequestContext(Request, RequestDirInfoChangeNumber) = (PVOID)DirInfoChangeNumber;
+        FspFileNodeReleaseOwner(FileNode, Full, Request);
     }
-    else
-        DirInfoChangeNumber =
-            (ULONG)(UINT_PTR)FspIopRequestContext(Request, RequestDirInfoChangeNumber);
 
     /* acquire FileNode exclusive Full (because we may need to go back to user-mode) */
     Success = DEBUGTEST(90) && FspFileNodeTryAcquireExclusive(FileNode, Full);
@@ -990,9 +874,9 @@ NTSTATUS FspFsvolDirectoryControlComplete(
     if (0 == Request->Req.QueryDirectory.Pattern.Size &&
         0 == Request->Req.QueryDirectory.Marker.Size &&
         FspFileNodeTrySetDirInfo(FileNode,
-            Irp->AssociatedIrp.SystemBuffer,
+            (PVOID)Request->Req.QueryDirectory.Address,
             (ULONG)Response->IoStatus.Information,
-            DirInfoChangeNumber) &&
+            (ULONG)(UINT_PTR)FspIopRequestContext(Request, FspIopRequestExtraContext)) &&
         FspFileNodeReferenceDirInfo(FileNode, &DirInfoBuffer, &DirInfoSize))
     {
         Result = FspFsvolQueryDirectoryCopyCache(FileDesc,
@@ -1004,7 +888,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
     }
     else
     {
-        DirInfoBuffer = Irp->AssociatedIrp.SystemBuffer;
+        DirInfoBuffer = (PVOID)Request->Req.QueryDirectory.Address;
         DirInfoSize = (ULONG)Response->IoStatus.Information;
         Result = FspFsvolQueryDirectoryCopyInPlace(FileDesc,
             FileInformationClass, ReturnSingleEntry,
@@ -1023,7 +907,6 @@ NTSTATUS FspFsvolDirectoryControlComplete(
 
         FspFileNodeConvertExclusiveToShared(FileNode, Full);
 
-        Request->Kind = FspFsctlTransactQueryDirectoryKind;
         FspIopResetRequest(Request, FspFsvolQueryDirectoryRequestFini);
 
         Request->Req.QueryDirectory.Address = 0;
@@ -1047,7 +930,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
         }
 
         FspFileNodeSetOwner(FileNode, Full, Request);
-        FspIopRequestContext(Request, RequestIrp) = Irp;
+        FspIopRequestContext(Request, RequestFileNode) = FileNode;
 
         FspIoqPostIrp(FsvolDeviceExtension->Ioq, Irp, &Result);
     }
@@ -1069,65 +952,30 @@ static VOID FspFsvolQueryDirectoryRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, P
 {
     PAGED_CODE();
 
-    PIRP Irp = Context[RequestIrp];
+    FSP_FILE_NODE *FileNode = Context[RequestFileNode];
+    PVOID Cookie = (PVOID)((UINT_PTR)Context[RequestCookie] & ~1);
+    PVOID Address = Context[RequestAddress];
+    PEPROCESS Process = Context[RequestProcess];
 
-    if ((UINT_PTR)Context[RequestCookie] & 1)
+    if (0 != Address)
     {
-        PVOID Cookie = (PVOID)((UINT_PTR)Context[RequestCookie] & ~1);
-        PVOID Address = Context[RequestAddress];
-        PEPROCESS Process = Context[RequestProcess];
+        KAPC_STATE ApcState;
+        BOOLEAN Attach;
 
-        if (0 != Address)
-        {
-            KAPC_STATE ApcState;
-            BOOLEAN Attach;
+        ASSERT(0 != Process);
+        Attach = Process != PsGetCurrentProcess();
 
-            ASSERT(0 != Process);
-            Attach = Process != PsGetCurrentProcess();
+        if (Attach)
+            KeStackAttachProcess(Process, &ApcState);
+        FspProcessBufferRelease(Cookie, Address);
+        if (Attach)
+            KeUnstackDetachProcess(&ApcState);
 
-            if (Attach)
-                KeStackAttachProcess(Process, &ApcState);
-            FspProcessBufferRelease(Cookie, Address);
-            if (Attach)
-                KeUnstackDetachProcess(&ApcState);
-
-            ObDereferenceObject(Process);
-        }
-    }
-    else
-    {
-        PMDL Mdl = Context[RequestMdl];
-        PVOID Address = Context[RequestAddress];
-        PEPROCESS Process = Context[RequestProcess];
-
-        if (0 != Address)
-        {
-            KAPC_STATE ApcState;
-            BOOLEAN Attach;
-
-            ASSERT(0 != Process);
-            Attach = Process != PsGetCurrentProcess();
-
-            if (Attach)
-                KeStackAttachProcess(Process, &ApcState);
-            MmUnmapLockedPages(Address, Mdl);
-            if (Attach)
-                KeUnstackDetachProcess(&ApcState);
-
-            ObDereferenceObject(Process);
-        }
-
-        if (0 != Mdl)
-            IoFreeMdl(Mdl);
+        ObDereferenceObject(Process);
     }
 
-    if (0 != Irp)
-    {
-        PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
-        FSP_FILE_NODE *FileNode = IrpSp->FileObject->FsContext;
-
+    if (0 != FileNode)
         FspFileNodeReleaseOwner(FileNode, Full, Request);
-    }
 }
 
 NTSTATUS FspDirectoryControl(

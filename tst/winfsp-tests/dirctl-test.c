@@ -202,6 +202,12 @@ static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, UL
     ASSERT(INVALID_HANDLE_VALUE == Handle);
     ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
 
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\DOES-NOT-EXIST*",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Handle = FindFirstFileW(FilePath, &FindData);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
     times[1] = GetTickCount();
     FspDebugLog(__FUNCTION__ "(Flags=%lx, Prefix=\"%S\", FileInfoTimeout=%ld, SleepTimeout=%ld): %ldms\n",
         Flags, Prefix, FileInfoTimeout, SleepTimeout, times[1] - times[0]);

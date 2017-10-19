@@ -32,7 +32,7 @@ static VOID FspWqWorkRoutine(PVOID Context);
 static inline
 NTSTATUS FspWqPrepareIrpWorkItem(PIRP Irp)
 {
-    NTSTATUS Result;
+    NTSTATUS Result = STATUS_SUCCESS;
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
 
     /* lock/buffer the user buffer */
@@ -43,11 +43,12 @@ NTSTATUS FspWqPrepareIrpWorkItem(PIRP Irp)
             Result = FspLockUserBuffer(Irp, IrpSp->Parameters.Read.Length, IoWriteAccess);
         else
             Result = FspLockUserBuffer(Irp, IrpSp->Parameters.Write.Length, IoReadAccess);
-        if (!NT_SUCCESS(Result))
-            return Result;
     }
+    else
+    if (IRP_MJ_DIRECTORY_CONTROL == IrpSp->MajorFunction)
+        Result = FspLockUserBuffer(Irp, IrpSp->Parameters.QueryDirectory.Length, IoWriteAccess);
 
-    return STATUS_SUCCESS;
+    return Result;
 }
 
 NTSTATUS FspWqCreateAndPostIrpWorkItem(PIRP Irp,

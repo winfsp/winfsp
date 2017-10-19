@@ -306,47 +306,6 @@ VOID FspIopCompleteIrpEx(PIRP Irp, NTSTATUS Result, BOOLEAN DeviceDereference)
             }
         }
     }
-    else
-    /*
-     * HACK:
-     *
-     * Turns out that SRV2 sends an undocumented flavor of IRP_MJ_DIRECTORY_CONTROL /
-     * IRP_MN_QUERY_DIRECTORY. These IRP's have a non-NULL Irp->MdlAddress. They expect
-     * the FSD to fill the buffer pointed by Irp->MdlAddress and they cannot handle
-     * completed IRP's with a non-NULL Irp->AssociatedIrp.SystemBuffer. So we have to
-     * provide special support for these IRPs.
-     *
-     * While this processing is IRP_MJ_DIRECTORY_CONTROL specific, we do this here for
-     * these reasons:
-     *
-     * 1.  There may be other IRP's that have similar completion requirements under SRV2.
-     *     If/when such IRP's are discovered the completion processing can be centralized
-     *     here.
-     * 2.  IRP_MJ_DIRECTORY_CONTROL has a few different ways that it can complete IRP's.
-     *     It is far simpler to do this processing here, even if not academically correct.
-     *
-     * This will have to be revisited if IRP_MJ_DIRECTORY_CONTROL processing changes
-     * substantially (e.g. to no longer use Irp->AssociatedIrp.SystemBuffer).
-     */
-    if (IRP_MJ_DIRECTORY_CONTROL == IrpSp->MajorFunction &&
-        IRP_MN_QUERY_DIRECTORY == IrpSp->MinorFunction &&
-        0 != Irp->MdlAddress && /* SRV2 queries have this set */
-        0 != Irp->AssociatedIrp.SystemBuffer &&
-        FlagOn(Irp->Flags, IRP_BUFFERED_IO))
-    {
-        if (STATUS_SUCCESS == Result)
-        {
-            PVOID Address = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
-            if (0 != Address)
-                RtlCopyMemory(Address, Irp->AssociatedIrp.SystemBuffer, Irp->IoStatus.Information);
-            else
-                Result = STATUS_INSUFFICIENT_RESOURCES;
-        }
-
-        FspFreeExternal(Irp->AssociatedIrp.SystemBuffer);
-        Irp->AssociatedIrp.SystemBuffer = 0;
-        ClearFlag(Irp->Flags, IRP_INPUT_OPERATION | IRP_BUFFERED_IO | IRP_DEALLOCATE_BUFFER);
-    }
 
     if (STATUS_SUCCESS != Result &&
         STATUS_REPARSE != Result &&
