@@ -77,7 +77,10 @@ set opt_tests=^
     sample-fsx-passthrough-fuse-x64 ^
     sample-passthrough-fuse-x86 ^
     sample-fsx-passthrough-fuse-x86 ^
-    sample-passthrough-dotnet
+    sample-passthrough-dotnet ^
+    avast-tests-x64 ^
+    avast-tests-x86 ^
+    avast-tests-dotnet
 
 set tests=
 for %%f in (%dfl_tests%) do (
@@ -212,14 +215,28 @@ exit /b 0
 
 :winfsp-tests-x64-external
 M:
-"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient
+fltmc instances -v M: | findstr aswSnx >nul
+if !ERRORLEVEL! neq 0 (
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient
+) else (
+    REM Avast present
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient ^
+        -querydir_buffer_overflow_test
+)
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x64-external-share
 M:
-"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=M:\ --resilient ^
-    -reparse_symlink*
+fltmc instances -v M: | findstr aswSnx >nul
+if !ERRORLEVEL! neq 0 (
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=M:\ --resilient ^
+        -reparse_symlink*
+) else (
+    REM Avast present
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=M:\ --resilient ^
+        -reparse_symlink* -querydir_buffer_overflow_test
+)
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -265,14 +282,28 @@ exit /b 0
 
 :winfsp-tests-x86-external
 O:
-"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --resilient
+fltmc instances -v O: | findstr aswSnx >nul
+if !ERRORLEVEL! neq 0 (
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --resilient
+) else (
+    REM Avast present
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --resilient ^
+        -querydir_buffer_overflow_test
+)
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-external-share
 O:
-"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --share=winfsp-tests-share=O:\ --resilient ^
-    -reparse_symlink*
+fltmc instances -v O: | findstr aswSnx >nul
+if !ERRORLEVEL! neq 0 (
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --share=winfsp-tests-share=O:\ --resilient ^
+        -reparse_symlink*
+) else (
+    REM Avast present
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --share=winfsp-tests-share=O:\ --resilient ^
+        -reparse_symlink* -querydir_buffer_overflow_test
+)
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -380,14 +411,28 @@ exit /b 0
 
 :winfsp-tests-dotnet-external
 Q:
-"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient
+fltmc instances -v Q: | findstr aswSnx >nul
+if !ERRORLEVEL! neq 0 (
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient
+) else (
+    REM Avast present
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient ^
+        -querydir_buffer_overflow_test
+)
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-dotnet-external-share
 Q:
-"%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=Q:\ --resilient ^
-    -reparse_symlink*
+fltmc instances -v Q: | findstr aswSnx >nul
+if !ERRORLEVEL! neq 0 (
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=Q:\ --resilient ^
+        -reparse_symlink*
+) else (
+    REM Avast present
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --share=winfsp-tests-share=Q:\ --resilient ^
+        -reparse_symlink* -querydir_buffer_overflow_test
+)
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -680,6 +725,27 @@ net use L: /delete
 call "%ProjRoot%\tools\fsreg" -u %1
 rmdir /s/q "%TMP%\%1"
 exit /b !RunSampleTestExit!
+
+:avast-tests-x64
+call :winfsp-tests-x64-external
+if !ERRORLEVEL! neq 0 goto fail
+call :winfsp-tests-x64-external-share
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:avast-tests-x86
+call :winfsp-tests-x86-external
+if !ERRORLEVEL! neq 0 goto fail
+call :winfsp-tests-x86-external-share
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:avast-tests-dotnet
+call :winfsp-tests-dotnet-external
+if !ERRORLEVEL! neq 0 goto fail
+call :winfsp-tests-dotnet-external-share
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
 
 :leak-test
 for /F "tokens=1,2 delims=:" %%i in ('verifier /query ^| findstr ^
