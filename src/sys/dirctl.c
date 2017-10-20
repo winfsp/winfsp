@@ -874,7 +874,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
     if (0 == Request->Req.QueryDirectory.Pattern.Size &&
         0 == Request->Req.QueryDirectory.Marker.Size &&
         FspFileNodeTrySetDirInfo(FileNode,
-            (PVOID)Request->Req.QueryDirectory.Address,
+            (PVOID)(UINT_PTR)Request->Req.QueryDirectory.Address,
             (ULONG)Response->IoStatus.Information,
             (ULONG)(UINT_PTR)FspIopRequestContext(Request, FspIopRequestExtraContext)) &&
         FspFileNodeReferenceDirInfo(FileNode, &DirInfoBuffer, &DirInfoSize))
@@ -888,7 +888,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
     }
     else
     {
-        DirInfoBuffer = (PVOID)Request->Req.QueryDirectory.Address;
+        DirInfoBuffer = (PVOID)(UINT_PTR)Request->Req.QueryDirectory.Address;
         DirInfoSize = (ULONG)Response->IoStatus.Information;
         Result = FspFsvolQueryDirectoryCopyInPlace(FileDesc,
             FileInformationClass, ReturnSingleEntry,
