@@ -33,6 +33,8 @@ typedef struct
     ULONG Size;
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 Buffer[];
 } FSP_META_CACHE_ITEM_BUFFER;
+FSP_FSCTL_STATIC_ASSERT(FIELD_OFFSET(FSP_META_CACHE_ITEM_BUFFER, Buffer) == FspMetaCacheItemHeaderSize,
+    "FspMetaCacheItemHeaderSize must match offset of FSP_META_CACHE_ITEM_BUFFER::Buffer");
 
 static inline VOID FspMetaCacheDereferenceItem(FSP_META_CACHE_ITEM *Item)
 {
@@ -218,7 +220,16 @@ UINT64 FspMetaCacheAddItem(FSP_META_CACHE *MetaCache, PCVOID Buffer, ULONG Size)
     Item->RefCount = 1;
     ItemBuffer->Item = Item;
     ItemBuffer->Size = Size;
-    RtlCopyMemory(ItemBuffer->Buffer, Buffer, Size);
+    try
+    {
+        RtlCopyMemory(ItemBuffer->Buffer, Buffer, Size);
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        FspFree(ItemBuffer);
+        FspFree(Item);
+        return 0;
+    }
     KeAcquireSpinLock(&MetaCache->SpinLock, &Irql);
     if (MetaCache->ItemCount >= MetaCache->MetaCapacity)
         FspMetaCacheRemoveExpiredItemAtDpcLevel(MetaCache, (UINT64)-1LL);

@@ -74,6 +74,12 @@ enum
     RequestProcess                      = 3,
 };
 
+enum
+{
+    FspFsvolQueryDirectoryLengthMax     =
+        FspFsvolDeviceDirInfoCacheItemSizeMax - FspMetaCacheItemHeaderSize,
+};
+
 static NTSTATUS FspFsvolQueryDirectoryCopy(
     PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
     PUNICODE_STRING DirectoryMarker, PUNICODE_STRING DirectoryMarkerOut,
@@ -544,7 +550,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     QueryDirectoryLengthMin = sizeof(FSP_FSCTL_DIR_INFO) +
         FsvolDeviceExtension->VolumeParams.MaxComponentLength * sizeof(WCHAR);
     QueryDirectoryLengthMin = FSP_FSCTL_ALIGN_UP(QueryDirectoryLengthMin, 8);
-    ASSERT(QueryDirectoryLengthMin < FspFsvolDeviceDirInfoCacheItemSizeMax);
+    ASSERT(QueryDirectoryLengthMin < FspFsvolQueryDirectoryLengthMax);
     if (0 != FsvolDeviceExtension->VolumeParams.FileInfoTimeout &&
         0 == FileDesc->DirectoryMarker.Buffer)
     {
@@ -557,11 +563,11 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
             QueryDirectoryLength = FSP_FSCTL_ALIGN_UP(QueryDirectoryLength, 8);
             if (QueryDirectoryLength < QueryDirectoryLengthMin)
                 QueryDirectoryLength = QueryDirectoryLengthMin;
-            else if (QueryDirectoryLength > FspFsvolDeviceDirInfoCacheItemSizeMax)
-                QueryDirectoryLength = FspFsvolDeviceDirInfoCacheItemSizeMax;
+            else if (QueryDirectoryLength > FspFsvolQueryDirectoryLengthMax)
+                QueryDirectoryLength = FspFsvolQueryDirectoryLengthMax;
         }
         else
-            QueryDirectoryLength = FspFsvolDeviceDirInfoCacheItemSizeMax;
+            QueryDirectoryLength = FspFsvolQueryDirectoryLengthMax;
     }
     else
     {
@@ -575,11 +581,11 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
             QueryDirectoryLength = FSP_FSCTL_ALIGN_UP(QueryDirectoryLength, 8);
             if (QueryDirectoryLength < QueryDirectoryLengthMin)
                 QueryDirectoryLength = QueryDirectoryLengthMin;
-            else if (QueryDirectoryLength > FspFsvolDeviceDirInfoCacheItemSizeMax)
-                QueryDirectoryLength = FspFsvolDeviceDirInfoCacheItemSizeMax;
+            else if (QueryDirectoryLength > FspFsvolQueryDirectoryLengthMax)
+                QueryDirectoryLength = FspFsvolQueryDirectoryLengthMax;
         }
         else
-            QueryDirectoryLength = FspFsvolDeviceDirInfoCacheItemSizeMax;
+            QueryDirectoryLength = FspFsvolQueryDirectoryLengthMax;
     }
 
     Request->Kind = FspFsctlTransactQueryDirectoryKind;

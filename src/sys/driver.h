@@ -837,6 +837,10 @@ PIRP FspIoqNextCompleteIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp);
 ULONG FspIoqRetriedIrpCount(FSP_IOQ *Ioq);
 
 /* meta cache */
+enum
+{
+    FspMetaCacheItemHeaderSize = MEMORY_ALLOCATION_ALIGNMENT,
+};
 typedef struct
 {
     KSPIN_LOCK SpinLock;
