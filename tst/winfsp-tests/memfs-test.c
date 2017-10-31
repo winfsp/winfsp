@@ -40,10 +40,7 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
         FileInfoTimeout,
         1024,
         1024 * 1024,
-
-		0,0,0,  //  Slowio
-
-		MemfsNet == Flags ? L"\\memfs\\share" : 0,
+        MemfsNet == Flags ? L"\\memfs\\share" : 0,
         0,
         &Memfs);
     ASSERT(NT_SUCCESS(Result));
