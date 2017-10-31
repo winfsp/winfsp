@@ -204,11 +204,9 @@ usage:
         "    -t FileInfoTimeout  [millis]\n"
         "    -n MaxFileNodes\n"
         "    -s MaxFileSize      [bytes]\n"
-
         "    -M MaxDelay         [maximum slow IO delay in millis]\n"
         "    -P PercentDelay     [percent of IO to make slow IO\n"
         "    -R RarefyDelay      [adjust the rarity of slow IO\n"
-
         "    -F FileSystemName\n"
         "    -S RootSddl         [file rights: FA, etc; NO generic rights: GA, etc.]\n"
         "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
