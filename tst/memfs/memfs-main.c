@@ -44,11 +44,9 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     ULONG FileInfoTimeout = INFINITE;
     ULONG MaxFileNodes = 1024;
     ULONG MaxFileSize = 16 * 1024 * 1024;
-
-	ULONG SlowioMaxDelay		=  0;  //  From -M : maximum delay in milliseconds
-    ULONG SlowioPercentDelay	=  0;  //  From -D : percent of IO to slow down
-    ULONG SlowioRarefyDelay		= 12;  //  From -R : adjust the rarity of long delays
-
+    ULONG SlowioMaxDelay     = 0;  //  From -M : maximum delay in milliseconds
+    ULONG SlowioPercentDelay = 0;  //  From -D : percent of IO to slow down
+    ULONG SlowioRarefyDelay  = 0;  //  From -R : adjust the rarity of long delays
     PWSTR FileSystemName = 0;
     PWSTR MountPoint = 0;
     PWSTR VolumePrefix = 0;
@@ -144,11 +142,9 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         FileInfoTimeout,
         MaxFileNodes,
         MaxFileSize,
-
-		SlowioMaxDelay,
-		SlowioPercentDelay,
-		SlowioRarefyDelay,
-
+        SlowioMaxDelay,
+        SlowioPercentDelay,
+        SlowioRarefyDelay,
         FileSystemName,
         VolumePrefix,
         RootSddl,
@@ -209,7 +205,7 @@ usage:
         "    -n MaxFileNodes\n"
         "    -s MaxFileSize      [bytes]\n"
 
-		"    -M MaxDelay         [maximum slow IO delay in millis]\n"
+        "    -M MaxDelay         [maximum slow IO delay in millis]\n"
         "    -P PercentDelay     [percent of IO to make slow IO\n"
         "    -R RarefyDelay      [adjust the rarity of slow IO\n"
 
