@@ -21,8 +21,8 @@
 #include <VersionHelpers.h>
 #include <cassert>
 #include <map>
-#include <unordered_map>
 #include <thread>
+#include <unordered_map>
 
 #define MEMFS_MAX_PATH                  512
 FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
@@ -51,7 +51,7 @@ FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
 /*
  * Define the MEMFS_SLOWIO macro to include delayed I/O response support.
  */
-//#define MEMFS_SLOWIO
+#define MEMFS_SLOWIO
 
 /*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
@@ -659,7 +659,6 @@ VOID MemfsFileNodeMapEnumerateFree(MEMFS_FILE_NODE_MAP_ENUM_CONTEXT *Context)
 }
 
 #ifdef MEMFS_SLOWIO
-
 /*
  * SLOWIO
  *
@@ -672,7 +671,7 @@ VOID MemfsFileNodeMapEnumerateFree(MEMFS_FILE_NODE_MAP_ENUM_CONTEXT *Context)
  * 
  */
 
-inline UINT64 Hash(UINT64 x)
+static inline UINT64 Hash(UINT64 x)
 {
     x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ull;
     x = (x ^ (x >> 27)) * 0x94d049bb133111ebull;
@@ -680,24 +679,25 @@ inline UINT64 Hash(UINT64 x)
     return x;
 }
 
-unsigned int PseudoRandom(unsigned int to)
+static inline UINT32 PseudoRandom(UINT32 to)
 {
     static UINT64 spin = 0;
     InterlockedIncrement(&spin);
     return Hash(spin) % to;
 }
 
-int SlowioReturnPending(FSP_FILE_SYSTEM *FileSystem)
+static inline UINT32 SlowioMillisecondsOfDelay(FSP_FILE_SYSTEM *FileSystem)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
-    return PseudoRandom(100) < Memfs->SlowioPercentDelay;
+    return 0 != Memfs->SlowioMaxDelay ?
+        PseudoRandom(Memfs->SlowioMaxDelay + 1) >> PseudoRandom(Memfs->SlowioRarefyDelay + 1) : 0;
 }
 
-int SlowioMillisecondsOfDelay(FSP_FILE_SYSTEM *FileSystem)
+static inline bool SlowioReturnPending(FSP_FILE_SYSTEM *FileSystem)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
-    int milliseconds = PseudoRandom(Memfs->SlowioMaxDelay+1) >> PseudoRandom(Memfs->SlowioRarefyDelay+1);
-    return milliseconds;
+    return 0 != Memfs->SlowioMaxDelay &&
+        PseudoRandom(100) < Memfs->SlowioPercentDelay;
 }
 
 void SlowioReadThread(
@@ -710,8 +710,8 @@ void SlowioReadThread(
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
 
-    int ms = SlowioMillisecondsOfDelay(FileSystem);
-    if (ms) Sleep(ms);
+    if (UINT32 ms = SlowioMillisecondsOfDelay(FileSystem))
+        Sleep(ms);
 
     memcpy(Buffer, (PUINT8)FileNode->FileData + Offset, (size_t)(EndOffset - Offset));
     UINT32 BytesTransferred = (ULONG)(EndOffset - Offset);
@@ -723,7 +723,6 @@ void SlowioReadThread(
     ResponseBuf.Hint = RequestHint;                         // IRP that is being completed
     ResponseBuf.IoStatus.Status = STATUS_SUCCESS;
     ResponseBuf.IoStatus.Information = BytesTransferred;    // bytes read
-
     FspFileSystemSendResponse(FileSystem, &ResponseBuf);
 
     InterlockedDecrement(&Memfs->SlowioThreadsRunning);
@@ -740,8 +739,8 @@ void SlowioWriteThread(
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
 
-    int ms = SlowioMillisecondsOfDelay(FileSystem);
-    if (ms) Sleep(ms);
+    if (UINT32 ms = SlowioMillisecondsOfDelay(FileSystem))
+        Sleep(ms);
     
     memcpy((PUINT8)FileNode->FileData + Offset, Buffer, (size_t)(EndOffset - Offset));
     UINT32 BytesTransferred = (ULONG)(EndOffset - Offset);
@@ -754,7 +753,6 @@ void SlowioWriteThread(
     ResponseBuf.IoStatus.Status = STATUS_SUCCESS;
     ResponseBuf.IoStatus.Information = BytesTransferred;    // bytes written
     ResponseBuf.Rsp.Write.FileInfo = *FileInfo;             // FileInfo of file after Write
-
     FspFileSystemSendResponse(FileSystem, &ResponseBuf);
 
     InterlockedDecrement(&Memfs->SlowioThreadsRunning);
@@ -767,8 +765,8 @@ void SlowioReadDirectoryThread(
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
 
-    int ms = SlowioMillisecondsOfDelay(FileSystem);
-    if (ms) Sleep(ms);
+    if (UINT32 ms = SlowioMillisecondsOfDelay(FileSystem))
+        Sleep(ms);
 
     FSP_FSCTL_TRANSACT_RSP ResponseBuf;
     memset(&ResponseBuf, 0, sizeof ResponseBuf);
@@ -777,7 +775,6 @@ void SlowioReadDirectoryThread(
     ResponseBuf.Hint = RequestHint;                         // IRP that is being completed
     ResponseBuf.IoStatus.Status = STATUS_SUCCESS;
     ResponseBuf.IoStatus.Information = BytesTransferred;    // bytes of directory info read
-
     FspFileSystemSendResponse(FileSystem, &ResponseBuf);
 
     InterlockedDecrement(&Memfs->SlowioThreadsRunning);
@@ -1168,8 +1165,6 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
         EndOffset = FileNode->FileInfo.FileSize;
 
 #ifdef MEMFS_SLOWIO
-    int ms = SlowioMillisecondsOfDelay(FileSystem);
-    if (ms) Sleep(ms); 
     if (SlowioReturnPending(FileSystem))
     {
         MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
@@ -1177,7 +1172,8 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
         UINT64 RequestHint = Request->Hint;
         InterlockedIncrement(&Memfs->SlowioThreadsRunning);
         try {
-            auto Thread = std::thread(SlowioReadThread, FileSystem, FileNode, Buffer, Offset, EndOffset, RequestHint);
+            auto Thread = std::thread(SlowioReadThread,
+                FileSystem, FileNode, Buffer, Offset, EndOffset, RequestHint);
             Thread.detach();
         }
         catch (...)
@@ -1188,6 +1184,8 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_PENDING;
     }
 regular:
+    if (UINT32 ms = SlowioMillisecondsOfDelay(FileSystem))
+        Sleep(ms);
 #endif
 
     memcpy(Buffer, (PUINT8)FileNode->FileData + Offset, (size_t)(EndOffset - Offset));
@@ -1244,8 +1242,6 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     }
 
 #ifdef MEMFS_SLOWIO
-    int ms = SlowioMillisecondsOfDelay(FileSystem);
-    if (ms) Sleep(ms); 
     if (SlowioReturnPending(FileSystem))
     {
         MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
@@ -1253,7 +1249,8 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
         UINT64 RequestHint = Request->Hint;
         InterlockedIncrement(&Memfs->SlowioThreadsRunning);
         try {
-            auto Thread = std::thread(SlowioWriteThread, FileSystem, FileNode, Buffer, Offset, EndOffset, RequestHint, FileInfo);
+            auto Thread = std::thread(SlowioWriteThread,
+                FileSystem, FileNode, Buffer, Offset, EndOffset, RequestHint, FileInfo);
             Thread.detach();
         }
         catch (...)
@@ -1264,6 +1261,8 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_PENDING;
     }
 regular:
+    if (UINT32 ms = SlowioMillisecondsOfDelay(FileSystem))
+        Sleep(ms);
 #endif
 
     memcpy((PUINT8)FileNode->FileData + Offset, Buffer, (size_t)(EndOffset - Offset));
@@ -1636,15 +1635,14 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
 
 #ifdef MEMFS_SLOWIO
-    int ms = SlowioMillisecondsOfDelay(FileSystem);
-    if (ms) Sleep(ms); 
     if (SlowioReturnPending(FileSystem))
     {
         FSP_FSCTL_TRANSACT_REQ *Request = FspFileSystemGetOperationContext()->Request;
         UINT64 RequestHint = Request->Hint;
         InterlockedIncrement(&Memfs->SlowioThreadsRunning);
         try {
-            auto Thread = std::thread(SlowioReadDirectoryThread, FileSystem, *PBytesTransferred, RequestHint);
+            auto Thread = std::thread(SlowioReadDirectoryThread,
+                FileSystem, *PBytesTransferred, RequestHint);
             Thread.detach();
         }
         catch (...)
@@ -1655,6 +1653,8 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_PENDING;
     }
 regular:
+    if (UINT32 ms = SlowioMillisecondsOfDelay(FileSystem))
+        Sleep(ms);
 #endif
 
     return STATUS_SUCCESS;
@@ -2003,9 +2003,9 @@ NTSTATUS MemfsCreateFunnel(
     Memfs->MaxFileSize = (ULONG)((MaxFileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit);
 
 #ifdef MEMFS_SLOWIO
-    Memfs->SlowioMaxDelay     =  SlowioMaxDelay;
-    Memfs->SlowioPercentDelay =  SlowioPercentDelay;
-    Memfs->SlowioRarefyDelay  =  SlowioRarefyDelay;
+    Memfs->SlowioMaxDelay = SlowioMaxDelay;
+    Memfs->SlowioPercentDelay = SlowioPercentDelay;
+    Memfs->SlowioRarefyDelay = SlowioRarefyDelay;
 #endif
 
     Result = MemfsFileNodeMapCreate(CaseInsensitive, &Memfs->FileNodeMap);
@@ -2122,7 +2122,8 @@ VOID MemfsStop(MEMFS *Memfs)
     FspFileSystemStopDispatcher(Memfs->FileSystem);
 
 #ifdef MEMFS_SLOWIO
-    while (Memfs->SlowioThreadsRunning) Sleep(1);
+    while (Memfs->SlowioThreadsRunning)
+        Sleep(1);
 #endif
 }
 

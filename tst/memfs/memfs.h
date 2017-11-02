@@ -34,7 +34,18 @@ enum
 };
 
 #define MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize,             VolumePrefix, RootSddl, PMemfs)\
-    MemfsCreateFunnel(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize, 0, 0, 0, 0, VolumePrefix, RootSddl, PMemfs)
+    MemfsCreateFunnel(\
+        Flags,\
+        FileInfoTimeout,\
+        MaxFileNodes,\
+        MaxFileSize,\
+        0/*SlowioMaxDelay*/,\
+        0/*SlowioPercentDelay*/,\
+        0/*SlowioRarefyDelay*/,\
+        0/*FileSystemName*/,\
+        VolumePrefix,\
+        RootSddl,\
+        PMemfs)
 NTSTATUS MemfsCreateFunnel(
     ULONG Flags,
     ULONG FileInfoTimeout,
