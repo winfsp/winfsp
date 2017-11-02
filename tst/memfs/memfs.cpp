@@ -736,8 +736,7 @@ void SlowioWriteThread(
     PVOID Buffer, 
     UINT64 Offset, 
     UINT64 EndOffset,
-    UINT64 RequestHint,
-    FSP_FSCTL_FILE_INFO *FileInfo)
+    UINT64 RequestHint)
 {
     SlowioSnooze(FileSystem);
 
@@ -751,7 +750,7 @@ void SlowioWriteThread(
     ResponseBuf.Hint = RequestHint;                         // IRP that is being completed
     ResponseBuf.IoStatus.Status = STATUS_SUCCESS;
     ResponseBuf.IoStatus.Information = BytesTransferred;    // bytes written
-    ResponseBuf.Rsp.Write.FileInfo = *FileInfo;             // FileInfo of file after Write
+    MemfsFileNodeGetFileInfo(FileNode, &ResponseBuf.Rsp.Write.FileInfo);
     FspFileSystemSendResponse(FileSystem, &ResponseBuf);
 
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
@@ -1247,7 +1246,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
         InterlockedIncrement(&Memfs->SlowioThreadsRunning);
         try {
             auto Thread = std::thread(SlowioWriteThread,
-                FileSystem, FileNode, Buffer, Offset, EndOffset, RequestHint, FileInfo);
+                FileSystem, FileNode, Buffer, Offset, EndOffset, RequestHint);
             Thread.detach();
         }
         catch (...)
