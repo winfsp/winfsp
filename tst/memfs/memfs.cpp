@@ -679,25 +679,29 @@ static inline UINT64 Hash(UINT64 x)
     return x;
 }
 
-static inline UINT32 PseudoRandom(UINT32 to)
+static inline ULONG PseudoRandom(ULONG to)
 {
+    /* John Oberschelp's PRNG */
     static UINT64 spin = 0;
     InterlockedIncrement(&spin);
     return Hash(spin) % to;
 }
 
-static inline UINT32 SlowioMillisecondsOfDelay(FSP_FILE_SYSTEM *FileSystem)
+static inline BOOLEAN SlowioReturnPending(FSP_FILE_SYSTEM *FileSystem)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
-    return 0 != Memfs->SlowioMaxDelay ?
-        PseudoRandom(Memfs->SlowioMaxDelay + 1) >> PseudoRandom(Memfs->SlowioRarefyDelay + 1) : 0;
+    if (0 == Memfs->SlowioMaxDelay)
+        return FALSE;
+    return PseudoRandom(100) < Memfs->SlowioPercentDelay;
 }
 
-static inline bool SlowioReturnPending(FSP_FILE_SYSTEM *FileSystem)
+static inline VOID SlowioSnooze(FSP_FILE_SYSTEM *FileSystem)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
-    return 0 != Memfs->SlowioMaxDelay &&
-        PseudoRandom(100) < Memfs->SlowioPercentDelay;
+    if (0 == Memfs->SlowioMaxDelay)
+        return;
+    ULONG millis = PseudoRandom(Memfs->SlowioMaxDelay + 1) >> PseudoRandom(Memfs->SlowioRarefyDelay + 1);
+    Sleep(millis);
 }
 
 void SlowioReadThread(
@@ -708,10 +712,7 @@ void SlowioReadThread(
     UINT64 EndOffset,
     UINT64 RequestHint)
 {
-    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
-
-    if (UINT32 ms = SlowioMillisecondsOfDelay(FileSystem))
-        Sleep(ms);
+    SlowioSnooze(FileSystem);
 
     memcpy(Buffer, (PUINT8)FileNode->FileData + Offset, (size_t)(EndOffset - Offset));
     UINT32 BytesTransferred = (ULONG)(EndOffset - Offset);
@@ -725,6 +726,7 @@ void SlowioReadThread(
     ResponseBuf.IoStatus.Information = BytesTransferred;    // bytes read
     FspFileSystemSendResponse(FileSystem, &ResponseBuf);
 
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     InterlockedDecrement(&Memfs->SlowioThreadsRunning);
 }
 
@@ -737,11 +739,8 @@ void SlowioWriteThread(
     UINT64 RequestHint,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
+    SlowioSnooze(FileSystem);
 
-    if (UINT32 ms = SlowioMillisecondsOfDelay(FileSystem))
-        Sleep(ms);
-    
     memcpy((PUINT8)FileNode->FileData + Offset, Buffer, (size_t)(EndOffset - Offset));
     UINT32 BytesTransferred = (ULONG)(EndOffset - Offset);
 
@@ -755,6 +754,7 @@ void SlowioWriteThread(
     ResponseBuf.Rsp.Write.FileInfo = *FileInfo;             // FileInfo of file after Write
     FspFileSystemSendResponse(FileSystem, &ResponseBuf);
 
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     InterlockedDecrement(&Memfs->SlowioThreadsRunning);
 }
 
@@ -763,10 +763,7 @@ void SlowioReadDirectoryThread(
     ULONG BytesTransferred,
     UINT64 RequestHint)
 {
-    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
-
-    if (UINT32 ms = SlowioMillisecondsOfDelay(FileSystem))
-        Sleep(ms);
+    SlowioSnooze(FileSystem);
 
     FSP_FSCTL_TRANSACT_RSP ResponseBuf;
     memset(&ResponseBuf, 0, sizeof ResponseBuf);
@@ -777,6 +774,7 @@ void SlowioReadDirectoryThread(
     ResponseBuf.IoStatus.Information = BytesTransferred;    // bytes of directory info read
     FspFileSystemSendResponse(FileSystem, &ResponseBuf);
 
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
     InterlockedDecrement(&Memfs->SlowioThreadsRunning);
 }
 #endif
@@ -1184,8 +1182,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_PENDING;
     }
 regular:
-    if (UINT32 ms = SlowioMillisecondsOfDelay(FileSystem))
-        Sleep(ms);
+    SlowioSnooze(FileSystem);
 #endif
 
     memcpy(Buffer, (PUINT8)FileNode->FileData + Offset, (size_t)(EndOffset - Offset));
@@ -1261,8 +1258,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_PENDING;
     }
 regular:
-    if (UINT32 ms = SlowioMillisecondsOfDelay(FileSystem))
-        Sleep(ms);
+    SlowioSnooze(FileSystem);
 #endif
 
     memcpy((PUINT8)FileNode->FileData + Offset, Buffer, (size_t)(EndOffset - Offset));
@@ -1653,8 +1649,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_PENDING;
     }
 regular:
-    if (UINT32 ms = SlowioMillisecondsOfDelay(FileSystem))
-        Sleep(ms);
+    SlowioSnooze(FileSystem);
 #endif
 
     return STATUS_SUCCESS;
