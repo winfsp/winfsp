@@ -35,11 +35,15 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
     MEMFS *Memfs;
     NTSTATUS Result;
 
-    Result = MemfsCreate(
+    Result = MemfsCreateFunnel(
         (OptCaseInsensitive ? MemfsCaseInsensitive : 0) | Flags,
         FileInfoTimeout,
         1024,
         1024 * 1024,
+        50, /*SlowioMaxDelay*/
+        10, /*SlowioPercentDelay*/
+        0,  /*SlowioRarefyDelay*/
+        0,
         MemfsNet == Flags ? L"\\memfs\\share" : 0,
         0,
         &Memfs);
