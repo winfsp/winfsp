@@ -39,6 +39,7 @@ set dfl_tests=^
     winfsp-tests-x64-external-share ^
     fsx-memfs-x64-disk ^
     fsx-memfs-x64-net ^
+    fsx-memfs-x64-slowio ^
     standby-memfs-x64-disk ^
     standby-memfs-x64-net ^
     net-use-memfs-x64 ^
@@ -55,6 +56,7 @@ set dfl_tests=^
     winfsp-tests-x86-external-share ^
     fsx-memfs-x86-disk ^
     fsx-memfs-x86-net ^
+    fsx-memfs-x86-slowio ^
     standby-memfs-x86-disk ^
     standby-memfs-x86-net ^
     net-use-memfs-x86 ^
@@ -451,6 +453,35 @@ if !ERRORLEVEL! neq 0 goto fail
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -f foo -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
+
+:fsx-memfs-x64-slowio
+call :__run_fsx_memfs_slowio_test memfs64-slowio memfs-x64
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:fsx-memfs-x86-slowio
+call :__run_fsx_memfs_slowio_test memfs32-slowio memfs-x86
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:__run_fsx_memfs_slowio_test
+set RunSampleTestExit=0
+call "%ProjRoot%\tools\fsreg" %1 "%ProjRoot%\build\VStudio\build\%Configuration%\%2.exe" "-u %%%%1 -m %%%%2 -M 50 -P 10 -R 5" "D:P(A;;RPWPLC;;;WD)"
+echo net use L: "\\%1\share"
+net use L: "\\%1\share"
+if !ERRORLEVEL! neq 0 goto fail
+echo net use ^| findstr L:
+net use | findstr L:
+pushd >nul
+cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
+L:
+"%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
+if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
+popd
+echo net use L: /delete
+net use L: /delete
+call "%ProjRoot%\tools\fsreg" -u %1
+exit /b !RunSampleTestExit!
 
 :winfstest-memfs-dotnet-disk
 Q:
