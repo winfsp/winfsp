@@ -21,8 +21,10 @@
 #include <VersionHelpers.h>
 #include <cassert>
 #include <map>
-#include <thread>
 #include <unordered_map>
+
+/* SLOWIO */
+#include <thread>
 
 #define MEMFS_MAX_PATH                  512
 FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
@@ -1165,22 +1167,20 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
     if (SlowioReturnPending(FileSystem))
     {
         MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
-        FSP_FSCTL_TRANSACT_REQ *Request = FspFileSystemGetOperationContext()->Request;
-        UINT64 RequestHint = Request->Hint;
-        InterlockedIncrement(&Memfs->SlowioThreadsRunning);
-        try {
-            auto Thread = std::thread(SlowioReadThread,
-                FileSystem, FileNode, Buffer, Offset, EndOffset, RequestHint);
-            Thread.detach();
+        try
+        {
+            InterlockedIncrement(&Memfs->SlowioThreadsRunning);
+            std::thread(SlowioReadThread,
+                FileSystem, FileNode, Buffer, Offset, EndOffset,
+                FspFileSystemGetOperationContext()->Request->Hint).
+                detach();
+            return STATUS_PENDING;
         }
         catch (...)
         {
             InterlockedDecrement(&Memfs->SlowioThreadsRunning);
-            goto regular;
         }
-        return STATUS_PENDING;
     }
-regular:
     SlowioSnooze(FileSystem);
 #endif
 
@@ -1241,22 +1241,20 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     if (SlowioReturnPending(FileSystem))
     {
         MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
-        FSP_FSCTL_TRANSACT_REQ *Request = FspFileSystemGetOperationContext()->Request;
-        UINT64 RequestHint = Request->Hint;
-        InterlockedIncrement(&Memfs->SlowioThreadsRunning);
-        try {
-            auto Thread = std::thread(SlowioWriteThread,
-                FileSystem, FileNode, Buffer, Offset, EndOffset, RequestHint);
-            Thread.detach();
+        try
+        {
+            InterlockedIncrement(&Memfs->SlowioThreadsRunning);
+            std::thread(SlowioWriteThread,
+                FileSystem, FileNode, Buffer, Offset, EndOffset,
+                FspFileSystemGetOperationContext()->Request->Hint).
+                detach();
+            return STATUS_PENDING;
         }
         catch (...)
         {
             InterlockedDecrement(&Memfs->SlowioThreadsRunning);
-            goto regular;
         }
-        return STATUS_PENDING;
     }
-regular:
     SlowioSnooze(FileSystem);
 #endif
 
@@ -1632,22 +1630,20 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
 #ifdef MEMFS_SLOWIO
     if (SlowioReturnPending(FileSystem))
     {
-        FSP_FSCTL_TRANSACT_REQ *Request = FspFileSystemGetOperationContext()->Request;
-        UINT64 RequestHint = Request->Hint;
-        InterlockedIncrement(&Memfs->SlowioThreadsRunning);
-        try {
-            auto Thread = std::thread(SlowioReadDirectoryThread,
-                FileSystem, *PBytesTransferred, RequestHint);
-            Thread.detach();
+        try
+        {
+            InterlockedIncrement(&Memfs->SlowioThreadsRunning);
+            std::thread(SlowioReadDirectoryThread,
+                FileSystem, *PBytesTransferred,
+                FspFileSystemGetOperationContext()->Request->Hint).
+                detach();
+            return STATUS_PENDING;
         }
         catch (...)
         {
             InterlockedDecrement(&Memfs->SlowioThreadsRunning);
-            goto regular;
         }
-        return STATUS_PENDING;
     }
-regular:
     SlowioSnooze(FileSystem);
 #endif
 
