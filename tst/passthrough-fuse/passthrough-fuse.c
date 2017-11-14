@@ -30,6 +30,8 @@
 #include <unistd.h>
 #endif
 
+#define PTFS_UTIMENS
+
 #define FSNAME                          "passthrough"
 #define PROGNAME                        "passthrough-fuse"
 
@@ -112,12 +114,14 @@ static int ptfs_truncate(const char *path, fuse_off_t size)
     return -1 != truncate(path, size) ? 0 : -errno;
 }
 
+#if !defined(PTFS_UTIMENS)
 static int ptfs_utime(const char *path, struct fuse_utimbuf *timbuf)
 {
     ptfs_impl_fullpath(path);
 
     return -1 != utime(path, timbuf) ? 0 : -errno;
 }
+#endif
 
 static int ptfs_open(const char *path, struct fuse_file_info *fi)
 {
@@ -246,6 +250,15 @@ static int ptfs_fgetattr(const char *path, struct fuse_stat *stbuf, struct fuse_
     return -1 != fstat(fd, stbuf) ? 0 : -errno;
 }
 
+#if defined(PTFS_UTIMENS)
+static int ptfs_utimens(const char *path, const struct fuse_timespec tv[2])
+{
+    ptfs_impl_fullpath(path);
+
+    return -1 != utimensat(AT_FDCWD, path, tv) ? 0 : -errno;
+}
+#endif
+
 #if defined(FSP_FUSE_USE_STAT_EX)
 static int ptfs_chflags(const char *path, uint32_t flags)
 {
@@ -265,7 +278,9 @@ static struct fuse_operations ptfs_ops =
     .chmod = ptfs_chmod,
     .chown = ptfs_chown,
     .truncate = ptfs_truncate,
+#if !defined(PTFS_UTIMENS)
     .utime = ptfs_utime,
+#endif
     .open = ptfs_open,
     .read = ptfs_read,
     .write = ptfs_write,
@@ -279,6 +294,9 @@ static struct fuse_operations ptfs_ops =
     .create = ptfs_create,
     .ftruncate = ptfs_ftruncate,
     .fgetattr = ptfs_fgetattr,
+#if defined(PTFS_UTIMENS)
+    .utimens = ptfs_utimens,
+#endif
 #if defined(FSP_FUSE_USE_STAT_EX)
     .chflags = ptfs_chflags,
 #endif

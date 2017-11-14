@@ -342,6 +342,23 @@ int truncate(const char *path, fuse_off_t size)
 
 int utime(const char *path, const struct fuse_utimbuf *timbuf)
 {
+    if (0 == timbuf)
+        return utimensat(AT_FDCWD, path, 0);
+    else
+    {
+        struct fuse_timespec times[2];
+        times[0].tv_sec = timbuf->actime;
+        times[0].tv_nsec = 0;
+        times[1].tv_sec = timbuf->modtime;
+        times[1].tv_nsec = 0;
+        return utimensat(AT_FDCWD, path, times);
+    }
+}
+
+int utimensat(int dirfd, const char *path, const struct fuse_timespec times[2])
+{
+    /* ignore dirfd and assume that it is always AT_FDCWD */
+
     HANDLE h = CreateFileA(path,
         FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
         0,
@@ -349,8 +366,18 @@ int utime(const char *path, const struct fuse_utimbuf *timbuf)
     if (INVALID_HANDLE_VALUE == h)
         return error();
 
-    UINT64 LastAccessTime = timbuf->actime * 10000000 + 116444736000000000;
-    UINT64 LastWriteTime = timbuf->modtime * 10000000 + 116444736000000000;
+    UINT64 LastAccessTime, LastWriteTime;
+    if (0 == times)
+    {
+        FILETIME FileTime;
+        GetSystemTimeAsFileTime(&FileTime);
+        LastAccessTime = LastWriteTime = *(PUINT64)&FileTime;
+    }
+    else
+    {
+        LastAccessTime = times[0].tv_sec * 10000000 + times[0].tv_nsec / 100 + 116444736000000000;
+        LastWriteTime = times[1].tv_sec * 10000000 + times[1].tv_nsec / 100 + 116444736000000000;
+    }
 
     int res = SetFileTime(h,
         0, (PFILETIME)&LastAccessTime, (PFILETIME)&LastWriteTime) ? 0 : error();

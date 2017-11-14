@@ -27,6 +27,7 @@
 #define O_TRUNC                         _O_TRUNC
 
 #define PATH_MAX                        1024
+#define AT_FDCWD                        -2
 
 typedef struct _DIR DIR;
 struct dirent
@@ -53,6 +54,7 @@ int lchown(const char *path, fuse_uid_t uid, fuse_gid_t gid);
 int lchflags(const char *path, uint32_t flags);
 int truncate(const char *path, fuse_off_t size);
 int utime(const char *path, const struct fuse_utimbuf *timbuf);
+int utimensat(int dirfd, const char *path, const struct fuse_timespec times[2]);
 int unlink(const char *path);
 int rename(const char *oldpath, const char *newpath);
 
