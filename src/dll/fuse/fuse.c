@@ -299,6 +299,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         FUSE_CAP_DONT_MASK |
         FSP_FUSE_CAP_READDIR_PLUS |
         FSP_FUSE_CAP_READ_ONLY |
+        FSP_FUSE_CAP_STAT_EX |
         FSP_FUSE_CAP_CASE_INSENSITIVE;
     if (0 != f->ops.init)
     {
@@ -340,7 +341,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     }
     if (0 != f->ops.getattr)
     {
-        struct fuse_stat stbuf;
+        struct fuse_stat_ex stbuf;
         int err;
 
         memset(&stbuf, 0, sizeof stbuf);

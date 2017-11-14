@@ -65,6 +65,22 @@ extern "C" {
  * to be usable from Cygwin.
  */
 
+#define FSP_FUSE_STAT_FIELD_DEFN        \
+    fuse_dev_t st_dev;                  \
+    fuse_ino_t st_ino;                  \
+    fuse_mode_t st_mode;                \
+    fuse_nlink_t st_nlink;              \
+    fuse_uid_t st_uid;                  \
+    fuse_gid_t st_gid;                  \
+    fuse_dev_t st_rdev;                 \
+    fuse_off_t st_size;                 \
+    struct fuse_timespec st_atim;       \
+    struct fuse_timespec st_mtim;       \
+    struct fuse_timespec st_ctim;       \
+    fuse_blksize_t st_blksize;          \
+    fuse_blkcnt_t st_blocks;            \
+    struct fuse_timespec st_birthtim;
+
 #if defined(_WIN64) || defined(_WIN32)
 
 typedef uint32_t fuse_uid_t;
@@ -113,20 +129,7 @@ struct fuse_timespec
 
 struct fuse_stat
 {
-    fuse_dev_t st_dev;
-    fuse_ino_t st_ino;
-    fuse_mode_t st_mode;
-    fuse_nlink_t st_nlink;
-    fuse_uid_t st_uid;
-    fuse_gid_t st_gid;
-    fuse_dev_t st_rdev;
-    fuse_off_t st_size;
-    struct fuse_timespec st_atim;
-    struct fuse_timespec st_mtim;
-    struct fuse_timespec st_ctim;
-    fuse_blksize_t st_blksize;
-    fuse_blkcnt_t st_blocks;
-    struct fuse_timespec st_birthtim;
+    FSP_FUSE_STAT_FIELD_DEFN
 };
 
 #if defined(_WIN64)
@@ -245,6 +248,13 @@ struct fuse_flock
 #else
 #error unsupported environment
 #endif
+
+struct fuse_stat_ex
+{
+    FSP_FUSE_STAT_FIELD_DEFN
+    uint32_t st_flags;
+    uint64_t st_reserved[3];
+};
 
 struct fsp_fuse_env
 {

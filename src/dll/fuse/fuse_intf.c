@@ -219,7 +219,7 @@ static NTSTATUS fsp_fuse_intf_NewHiddenName(FSP_FILE_SYSTEM *FileSystem,
         struct { UINT32 V[4]; } Values;
         UUID Uuid;
     } UuidBuf;
-    struct fuse_stat stbuf;
+    struct fuse_stat_ex stbuf;
     int err, maxtries = 3;
 
     *PPosixHiddenPath = 0;
@@ -291,7 +291,7 @@ static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
     struct fuse *f = FileSystem->UserContext;
     char *PosixDotPath = 0;
     size_t Length;
-    struct fuse_stat stbuf;
+    struct fuse_stat_ex stbuf;
     int err;
     BOOLEAN Result = FALSE;
 
@@ -304,6 +304,7 @@ static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
         PosixDotPath[Length + 1] = '.';
         PosixDotPath[Length + 2] = '\0';
 
+        memset(&stbuf, 0, sizeof stbuf);
         if (0 != f->ops.getattr)
             err = f->ops.getattr(PosixDotPath, (void *)&stbuf);
         else
@@ -317,24 +318,56 @@ static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
     return Result;
 }
 
+static inline uint32_t fsp_fuse_intf_MapFileAttributesToFlags(UINT32 FileAttributes)
+{
+    uint32_t flags = 0;
+
+    if (FileAttributes & FILE_ATTRIBUTE_READONLY)
+        flags |= FSP_FUSE_UF_READONLY;
+    if (FileAttributes & FILE_ATTRIBUTE_HIDDEN)
+        flags |= FSP_FUSE_UF_HIDDEN;
+    if (FileAttributes & FILE_ATTRIBUTE_SYSTEM)
+        flags |= FSP_FUSE_UF_SYSTEM;
+    if (FileAttributes & FILE_ATTRIBUTE_ARCHIVE)
+        flags |= FSP_FUSE_UF_ARCHIVE;
+
+    return flags;
+}
+
+static inline UINT32 fsp_fuse_intf_MapFlagsToFileAttributes(uint32_t flags)
+{
+    UINT32 FileAttributes = 0;
+
+    if (flags & FSP_FUSE_UF_READONLY)
+        FileAttributes |= FILE_ATTRIBUTE_READONLY;
+    if (flags & FSP_FUSE_UF_HIDDEN)
+        FileAttributes |= FILE_ATTRIBUTE_HIDDEN;
+    if (flags & FSP_FUSE_UF_SYSTEM)
+        FileAttributes |= FILE_ATTRIBUTE_SYSTEM;
+    if (flags & FSP_FUSE_UF_ARCHIVE)
+        FileAttributes |= FILE_ATTRIBUTE_ARCHIVE;
+
+    return FileAttributes;
+}
+
 #define fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, fi, PUid, PGid, PMode, FileInfo)\
     fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi, 0, PUid, PGid, PMode, 0, FileInfo)
 static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
-    const char *PosixPath, struct fuse_file_info *fi, const struct fuse_stat *stbufp,
+    const char *PosixPath, struct fuse_file_info *fi, const void *stbufp,
     PUINT32 PUid, PUINT32 PGid, PUINT32 PMode, PUINT32 PDev,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
     UINT64 AllocationUnit;
-    struct fuse_stat stbuf;
+    struct fuse_stat_ex stbuf;
+    BOOLEAN StatEx = 0 != (f->conn_want & FSP_FUSE_CAP_STAT_EX);
 
+    memset(&stbuf, 0, sizeof stbuf);
     if (0 != stbufp)
-        memcpy(&stbuf, stbufp, sizeof stbuf);
+        memcpy(&stbuf, stbufp, StatEx ? sizeof(struct fuse_stat_ex) : sizeof(struct fuse_stat));
     else
     {
         int err;
-
-        memset(&stbuf, 0, sizeof stbuf);
 
         if (0 != f->ops.fgetattr && 0 != fi && -1 != fi->fh)
             err = f->ops.fgetattr(PosixPath, (void *)&stbuf, fi);
@@ -390,6 +423,8 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
         FileInfo->ReparseTag = 0;
         break;
     }
+    if (StatEx)
+        FileInfo->FileAttributes |= fsp_fuse_intf_MapFlagsToFileAttributes(stbuf.st_flags);
     FileInfo->FileSize = stbuf.st_size;
     FileInfo->AllocationSize =
         (FileInfo->FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
@@ -1235,73 +1270,68 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     struct fsp_fuse_file_desc *filedesc = FileNode;
     UINT32 Uid, Gid, Mode;
     struct fuse_file_info fi;
-    FSP_FSCTL_FILE_INFO FileInfoBuf;
     struct fuse_timespec tv[2];
     struct fuse_utimbuf timbuf;
     int err;
     NTSTATUS Result;
 
-    if (0 == f->ops.utimens && 0 == f->ops.utime)
-        return STATUS_SUCCESS; /* liar! */
-
-    /* no way to set FileAttributes, CreationTime! */
-    if (0 == LastAccessTime && 0 == LastWriteTime)
-        return STATUS_SUCCESS;
-
     memset(&fi, 0, sizeof fi);
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
 
-    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
-        &Uid, &Gid, &Mode, &FileInfoBuf);
-    if (!NT_SUCCESS(Result))
-        return Result;
-
-    if (0 != LastAccessTime)
-        FileInfoBuf.LastAccessTime = LastAccessTime;
-    if (0 != LastWriteTime)
-        FileInfoBuf.LastWriteTime = LastWriteTime;
-
-    /* UNIX epoch in 100-ns intervals */
-    LastAccessTime = FileInfoBuf.LastAccessTime - 116444736000000000;
-    LastWriteTime = FileInfoBuf.LastWriteTime - 116444736000000000;
-
-    if (0 != f->ops.utimens)
+    if (INVALID_FILE_ATTRIBUTES != FileAttributes &&
+        0 != (f->conn_want & FSP_FUSE_CAP_STAT_EX) && 0 != f->ops.chflags)
     {
+        err = f->ops.chflags(filedesc->PosixPath,
+            fsp_fuse_intf_MapFileAttributesToFlags(FileAttributes));
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        if (!NT_SUCCESS(Result))
+            return Result;
+    }
+
+    if ((0 != LastAccessTime || 0 != LastWriteTime) &&
+        (0 != f->ops.utimens || 0 != f->ops.utime))
+    {
+        /* UNIX epoch in 100-ns intervals */
+        LastAccessTime -= 116444736000000000;
+        LastWriteTime -= 116444736000000000;
+
+        if (0 != f->ops.utimens)
+        {
 #if defined(_WIN64)
-        tv[0].tv_sec = (int64_t)(LastAccessTime / 10000000);
-        tv[0].tv_nsec = (int64_t)(LastAccessTime % 10000000) * 100;
-        tv[1].tv_sec = (int64_t)(LastWriteTime / 10000000);
-        tv[1].tv_nsec = (int64_t)(LastWriteTime % 10000000) * 100;
+            tv[0].tv_sec = (int64_t)(LastAccessTime / 10000000);
+            tv[0].tv_nsec = (int64_t)(LastAccessTime % 10000000) * 100;
+            tv[1].tv_sec = (int64_t)(LastWriteTime / 10000000);
+            tv[1].tv_nsec = (int64_t)(LastWriteTime % 10000000) * 100;
 #else
-        tv[0].tv_sec = (int32_t)(LastAccessTime / 10000000);
-        tv[0].tv_nsec = (int32_t)(LastAccessTime % 10000000) * 100;
-        tv[1].tv_sec = (int32_t)(LastWriteTime / 10000000);
-        tv[1].tv_nsec = (int32_t)(LastWriteTime % 10000000) * 100;
+            tv[0].tv_sec = (int32_t)(LastAccessTime / 10000000);
+            tv[0].tv_nsec = (int32_t)(LastAccessTime % 10000000) * 100;
+            tv[1].tv_sec = (int32_t)(LastWriteTime / 10000000);
+            tv[1].tv_nsec = (int32_t)(LastWriteTime % 10000000) * 100;
 #endif
 
-        err = f->ops.utimens(filedesc->PosixPath, tv);
-        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-    }
-    else
-    {
+            err = f->ops.utimens(filedesc->PosixPath, tv);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+        else
+        {
 #if defined(_WIN64)
-        timbuf.actime = (int64_t)(LastAccessTime / 10000000);
-        timbuf.modtime = (int64_t)(LastWriteTime / 10000000);
+            timbuf.actime = (int64_t)(LastAccessTime / 10000000);
+            timbuf.modtime = (int64_t)(LastWriteTime / 10000000);
 #else
-        timbuf.actime = (int32_t)(LastAccessTime / 10000000);
-        timbuf.modtime = (int32_t)(LastWriteTime / 10000000);
+            timbuf.actime = (int32_t)(LastAccessTime / 10000000);
+            timbuf.modtime = (int32_t)(LastWriteTime / 10000000);
 #endif
 
-        err = f->ops.utime(filedesc->PosixPath, &timbuf);
-        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+            err = f->ops.utime(filedesc->PosixPath, &timbuf);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+        if (!NT_SUCCESS(Result))
+            return Result;
     }
-    if (!NT_SUCCESS(Result))
-        return Result;
 
-    memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
-
-    return STATUS_SUCCESS;
+    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+        &Uid, &Gid, &Mode, FileInfo);
 }
 
 static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,

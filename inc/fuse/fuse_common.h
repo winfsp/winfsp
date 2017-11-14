@@ -49,12 +49,31 @@ extern "C" {
 
 #define FSP_FUSE_CAP_READDIR_PLUS       (1 << 21)   /* file system supports enhanced readdir */
 #define FSP_FUSE_CAP_READ_ONLY          (1 << 22)   /* file system is marked read-only */
+#define FSP_FUSE_CAP_STAT_EX            (1 << 23)   /* file system supports fuse_stat_ex */
 #define FSP_FUSE_CAP_CASE_INSENSITIVE   FUSE_CAP_CASE_INSENSITIVE
 
 #define FUSE_IOCTL_COMPAT               (1 << 0)
 #define FUSE_IOCTL_UNRESTRICTED         (1 << 1)
 #define FUSE_IOCTL_RETRY                (1 << 2)
 #define FUSE_IOCTL_MAX_IOV              256
+
+/* from FreeBSD */
+#define FSP_FUSE_UF_HIDDEN              0x00008000
+#define FSP_FUSE_UF_READONLY            0x00001000
+#define FSP_FUSE_UF_SYSTEM              0x00000080
+#define FSP_FUSE_UF_ARCHIVE             0x00000800
+#if !defined(UF_HIDDEN)
+#define UF_HIDDEN                       FSP_FUSE_UF_HIDDEN
+#endif
+#if !defined(UF_READONLY)
+#define UF_READONLY                     FSP_FUSE_UF_READONLY
+#endif
+#if !defined(UF_SYSTEM)
+#define UF_SYSTEM                       FSP_FUSE_UF_SYSTEM
+#endif
+#if !defined(UF_ARCHIVE)
+#define UF_ARCHIVE                      FSP_FUSE_UF_ARCHIVE
+#endif
 
 struct fuse_file_info
 {
@@ -85,6 +104,9 @@ struct fuse_conn_info
 struct fuse_session;
 struct fuse_chan;
 struct fuse_pollhandle;
+struct fuse_bufvec;
+struct fuse_statfs;
+struct fuse_setattr_x;
 
 FSP_FUSE_API int FSP_FUSE_API_NAME(fsp_fuse_version)(struct fsp_fuse_env *env);
 FSP_FUSE_API struct fuse_chan *FSP_FUSE_API_NAME(fsp_fuse_mount)(struct fsp_fuse_env *env,
