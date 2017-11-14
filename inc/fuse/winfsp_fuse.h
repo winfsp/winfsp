@@ -80,6 +80,11 @@ extern "C" {
     fuse_blksize_t st_blksize;          \
     fuse_blkcnt_t st_blocks;            \
     struct fuse_timespec st_birthtim;
+#define FSP_FUSE_STAT_EX_FIELD_DEFN     \
+    FSP_FUSE_STAT_FIELD_DEFN            \
+    uint32_t st_flags;                  \
+    uint32_t st_reserved32[3];          \
+    uint64_t st_reserved64[2];
 
 #if defined(_WIN64) || defined(_WIN32)
 
@@ -127,10 +132,17 @@ struct fuse_timespec
 };
 #endif
 
+#if !defined(FSP_FUSE_USE_STAT_EX)
 struct fuse_stat
 {
     FSP_FUSE_STAT_FIELD_DEFN
 };
+#else
+struct fuse_stat
+{
+    FSP_FUSE_STAT_EX_FIELD_DEFN
+};
+#endif
 
 #if defined(_WIN64)
 struct fuse_statvfs
@@ -225,7 +237,14 @@ struct fuse_flock
 #define fuse_utimbuf                    utimbuf
 #define fuse_timespec                   timespec
 
+#if !defined(FSP_FUSE_USE_STAT_EX)
 #define fuse_stat                       stat
+#else
+struct fuse_stat
+{
+    FSP_FUSE_STAT_EX_FIELD_DEFN
+};
+#endif
 #define fuse_statvfs                    statvfs
 #define fuse_flock                      flock
 
@@ -251,9 +270,7 @@ struct fuse_flock
 
 struct fuse_stat_ex
 {
-    FSP_FUSE_STAT_FIELD_DEFN
-    uint32_t st_flags;
-    uint64_t st_reserved[3];
+    FSP_FUSE_STAT_EX_FIELD_DEFN
 };
 
 struct fsp_fuse_env

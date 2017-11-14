@@ -84,7 +84,9 @@ struct fuse_operations
     /* S */ int (*utimens)(const char *path, const struct fuse_timespec tv[2]);
     /* _ */ int (*bmap)(const char *path, size_t blocksize, uint64_t *idx);
     /* _ */ unsigned int flag_nullpath_ok:1;
-    /* _ */ unsigned int flag_reserved:31;
+    /* _ */ unsigned int flag_nopath:1;
+    /* _ */ unsigned int flag_utime_omit_ok:1;
+    /* _ */ unsigned int flag_reserved:29;
     /* _ */ int (*ioctl)(const char *path, int cmd, void *arg, struct fuse_file_info *fi,
         unsigned int flags, void *data);
     /* _ */ int (*poll)(const char *path, struct fuse_file_info *fi,

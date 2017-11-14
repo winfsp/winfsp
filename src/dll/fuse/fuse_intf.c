@@ -1270,6 +1270,7 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     struct fsp_fuse_file_desc *filedesc = FileNode;
     UINT32 Uid, Gid, Mode;
     struct fuse_file_info fi;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
     struct fuse_timespec tv[2];
     struct fuse_utimbuf timbuf;
     int err;
@@ -1292,6 +1293,19 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     if ((0 != LastAccessTime || 0 != LastWriteTime) &&
         (0 != f->ops.utimens || 0 != f->ops.utime))
     {
+        if (0 == LastAccessTime || 0 == LastWriteTime)
+        {
+            Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+                &Uid, &Gid, &Mode, &FileInfoBuf);
+            if (!NT_SUCCESS(Result))
+                return Result;
+
+            if (0 == LastAccessTime)
+                LastAccessTime = FileInfoBuf.LastAccessTime;
+            if (0 == LastWriteTime)
+                LastWriteTime = FileInfoBuf.LastWriteTime;
+        }
+
         /* UNIX epoch in 100-ns intervals */
         LastAccessTime -= 116444736000000000;
         LastWriteTime -= 116444736000000000;
