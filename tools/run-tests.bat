@@ -723,7 +723,7 @@ L:
 "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
     --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
     -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
-    -getfileinfo_name_test -setfileinfo_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -exec_rename_dir_test ^
+    -getfileinfo_name_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -exec_rename_dir_test ^
     -reparse* -stream*
 if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
 popd
