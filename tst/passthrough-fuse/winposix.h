@@ -50,6 +50,7 @@ int close(int fd);
 int lstat(const char *path, struct fuse_stat *stbuf);
 int chmod(const char *path, fuse_mode_t mode);
 int lchown(const char *path, fuse_uid_t uid, fuse_gid_t gid);
+int lchflags(const char *path, uint32_t flags);
 int truncate(const char *path, fuse_off_t size);
 int utime(const char *path, const struct fuse_utimbuf *timbuf);
 int unlink(const char *path);

@@ -1,5 +1,5 @@
 /**
- * @file passthrough-fuse.c
+ * @file winposix.c
  *
  * @copyright 2015-2017 Bill Zissimopoulos
  */
@@ -35,6 +35,40 @@ struct _DIR
     struct dirent de;
     char path[];
 };
+
+#if defined(FSP_FUSE_USE_STAT_EX)
+static inline uint32_t MapFileAttributesToFlags(UINT32 FileAttributes)
+{
+    uint32_t flags = 0;
+
+    if (FileAttributes & FILE_ATTRIBUTE_READONLY)
+        flags |= FSP_FUSE_UF_READONLY;
+    if (FileAttributes & FILE_ATTRIBUTE_HIDDEN)
+        flags |= FSP_FUSE_UF_HIDDEN;
+    if (FileAttributes & FILE_ATTRIBUTE_SYSTEM)
+        flags |= FSP_FUSE_UF_SYSTEM;
+    if (FileAttributes & FILE_ATTRIBUTE_ARCHIVE)
+        flags |= FSP_FUSE_UF_ARCHIVE;
+
+    return flags;
+}
+
+static inline UINT32 MapFlagsToFileAttributes(uint32_t flags)
+{
+    UINT32 FileAttributes = 0;
+
+    if (flags & FSP_FUSE_UF_READONLY)
+        FileAttributes |= FILE_ATTRIBUTE_READONLY;
+    if (flags & FSP_FUSE_UF_HIDDEN)
+        FileAttributes |= FILE_ATTRIBUTE_HIDDEN;
+    if (flags & FSP_FUSE_UF_SYSTEM)
+        FileAttributes |= FILE_ATTRIBUTE_SYSTEM;
+    if (flags & FSP_FUSE_UF_ARCHIVE)
+        FileAttributes |= FILE_ATTRIBUTE_ARCHIVE;
+
+    return FileAttributes;
+}
+#endif
 
 static int maperror(int winerrno);
 
@@ -173,6 +207,9 @@ int fstat(int fd, struct fuse_stat *stbuf)
     stbuf->st_ctim.tv_nsec = LastWriteTime % 10000000 * 100;
     stbuf->st_birthtim.tv_sec = CreationTime / 10000000;
     stbuf->st_birthtim.tv_nsec = CreationTime % 10000000 * 100;
+#if defined(FSP_FUSE_USE_STAT_EX)
+    stbuf->st_flags = MapFileAttributesToFlags(FileInfo.dwFileAttributes);
+#endif
 
     return 0;
 }
@@ -269,6 +306,21 @@ int chmod(const char *path, fuse_mode_t mode)
 int lchown(const char *path, fuse_uid_t uid, fuse_gid_t gid)
 {
     /* we do not support file security */
+    return 0;
+}
+
+int lchflags(const char *path, uint32_t flags)
+{
+#if defined(FSP_FUSE_USE_STAT_EX)
+    UINT32 FileAttributes = MapFlagsToFileAttributes(flags);
+
+    if (0 == FileAttributes)
+        FileAttributes = FILE_ATTRIBUTE_NORMAL;
+
+    if (!SetFileAttributesA(path, FileAttributes))
+        return error();
+#endif
+
     return 0;
 }
 
@@ -424,6 +476,9 @@ struct dirent *readdir(DIR *dirp)
     stbuf->st_ctim.tv_nsec = LastWriteTime % 10000000 * 100;
     stbuf->st_birthtim.tv_sec = CreationTime / 10000000;
     stbuf->st_birthtim.tv_nsec = CreationTime % 10000000 * 100;
+#if defined(FSP_FUSE_USE_STAT_EX)
+    stbuf->st_flags = MapFileAttributesToFlags(FindData.dwFileAttributes);
+#endif
 
     strcpy(dirp->de.d_name, FindData.cFileName);
 

@@ -212,6 +212,10 @@ static void *ptfs_init(struct fuse_conn_info *conn)
     conn->want |= (conn->capable & FSP_FUSE_CAP_READDIR_PLUS);
 #endif
 
+#if defined(FSP_FUSE_USE_STAT_EX) && defined(FSP_FUSE_CAP_STAT_EX)
+    conn->want |= (conn->capable & FSP_FUSE_CAP_STAT_EX);
+#endif
+
 #if defined(FSP_FUSE_CAP_CASE_INSENSITIVE)
     conn->want |= (conn->capable & FSP_FUSE_CAP_CASE_INSENSITIVE);
 #endif
@@ -242,43 +246,42 @@ static int ptfs_fgetattr(const char *path, struct fuse_stat *stbuf, struct fuse_
     return -1 != fstat(fd, stbuf) ? 0 : -errno;
 }
 
+#if defined(FSP_FUSE_USE_STAT_EX)
+static int ptfs_chflags(const char *path, uint32_t flags)
+{
+    ptfs_impl_fullpath(path);
+
+    return -1 != lchflags(path, flags) ? 0 : -errno;
+}
+#endif
+
 static struct fuse_operations ptfs_ops =
 {
-    ptfs_getattr,
-    0, //getdir
-    0, //readlink
-    0, //mknod
-    ptfs_mkdir,
-    ptfs_unlink,
-    ptfs_rmdir,
-    0, //symlink
-    ptfs_rename,
-    0, //link
-    ptfs_chmod,
-    ptfs_chown,
-    ptfs_truncate,
-    ptfs_utime,
-    ptfs_open,
-    ptfs_read,
-    ptfs_write,
-    ptfs_statfs,
-    0, //flush
-    ptfs_release,
-    ptfs_fsync,
-    0, //setxattr
-    0, //getxattr
-    0, //listxattr
-    0, //removexattr
-    ptfs_opendir,
-    ptfs_readdir,
-    ptfs_releasedir,
-    0, //fsyncdir
-    ptfs_init,
-    0, //destroy
-    0, //access
-    ptfs_create,
-    ptfs_ftruncate,
-    ptfs_fgetattr,
+    .getattr = ptfs_getattr,
+    .mkdir = ptfs_mkdir,
+    .unlink = ptfs_unlink,
+    .rmdir = ptfs_rmdir,
+    .rename = ptfs_rename,
+    .chmod = ptfs_chmod,
+    .chown = ptfs_chown,
+    .truncate = ptfs_truncate,
+    .utime = ptfs_utime,
+    .open = ptfs_open,
+    .read = ptfs_read,
+    .write = ptfs_write,
+    .statfs = ptfs_statfs,
+    .release = ptfs_release,
+    .fsync = ptfs_fsync,
+    .opendir = ptfs_opendir,
+    .readdir = ptfs_readdir,
+    .releasedir = ptfs_releasedir,
+    .init = ptfs_init,
+    .create = ptfs_create,
+    .ftruncate = ptfs_ftruncate,
+    .fgetattr = ptfs_fgetattr,
+#if defined(FSP_FUSE_USE_STAT_EX)
+    .chflags = ptfs_chflags,
+#endif
 };
 
 static void usage(void)
