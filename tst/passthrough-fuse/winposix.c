@@ -378,6 +378,26 @@ int utimensat(int dirfd, const char *path, const struct fuse_timespec times[2])
     return res;
 }
 
+int setcrtime(const char *path, const struct fuse_timespec *tv)
+{
+    HANDLE h = CreateFileA(path,
+        FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == h)
+        return error();
+
+    UINT64 CreationTime;
+    FspPosixUnixTimeToFileTime((void *)tv, &CreationTime);
+
+    int res = SetFileTime(h,
+        (PFILETIME)&CreationTime, 0, 0) ? 0 : error();
+
+    CloseHandle(h);
+
+    return res;
+}
+
 int unlink(const char *path)
 {
     if (!DeleteFileA(path))

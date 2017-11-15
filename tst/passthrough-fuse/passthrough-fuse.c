@@ -259,6 +259,15 @@ static int ptfs_utimens(const char *path, const struct fuse_timespec tv[2])
 }
 #endif
 
+#if defined(_WIN64) || defined(_WIN32)
+static int ptfs_setcrtime(const char *path, const struct fuse_timespec *tv)
+{
+    ptfs_impl_fullpath(path);
+
+    return -1 != setcrtime(path, tv) ? 0 : -errno;
+}
+#endif
+
 #if defined(FSP_FUSE_USE_STAT_EX)
 static int ptfs_chflags(const char *path, uint32_t flags)
 {
@@ -296,6 +305,9 @@ static struct fuse_operations ptfs_ops =
     .fgetattr = ptfs_fgetattr,
 #if defined(PTFS_UTIMENS)
     .utimens = ptfs_utimens,
+#endif
+#if defined(_WIN64) || defined(_WIN32)
+    .setcrtime = ptfs_setcrtime,
 #endif
 #if defined(FSP_FUSE_USE_STAT_EX)
     .chflags = ptfs_chflags,
