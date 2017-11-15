@@ -428,18 +428,10 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
     FileInfo->FileSize = stbuf.st_size;
     FileInfo->AllocationSize =
         (FileInfo->FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
-    FileInfo->CreationTime =
-        Int32x32To64(stbuf.st_birthtim.tv_sec, 10000000) + 116444736000000000 +
-        stbuf.st_birthtim.tv_nsec / 100;
-    FileInfo->LastAccessTime =
-        Int32x32To64(stbuf.st_atim.tv_sec, 10000000) + 116444736000000000 +
-        stbuf.st_atim.tv_nsec / 100;
-    FileInfo->LastWriteTime =
-        Int32x32To64(stbuf.st_mtim.tv_sec, 10000000) + 116444736000000000 +
-        stbuf.st_mtim.tv_nsec / 100;
-    FileInfo->ChangeTime =
-        Int32x32To64(stbuf.st_ctim.tv_sec, 10000000) + 116444736000000000 +
-        stbuf.st_ctim.tv_nsec / 100;
+    FspPosixUnixTimeToFileTime((void *)&stbuf.st_birthtim, &FileInfo->CreationTime);
+    FspPosixUnixTimeToFileTime((void *)&stbuf.st_atim, &FileInfo->LastAccessTime);
+    FspPosixUnixTimeToFileTime((void *)&stbuf.st_mtim, &FileInfo->LastWriteTime);
+    FspPosixUnixTimeToFileTime((void *)&stbuf.st_ctim, &FileInfo->ChangeTime);
     FileInfo->IndexNumber = stbuf.st_ino;
 
     return STATUS_SUCCESS;
@@ -1306,37 +1298,17 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
                 LastWriteTime = FileInfoBuf.LastWriteTime;
         }
 
-        /* UNIX epoch in 100-ns intervals */
-        LastAccessTime -= 116444736000000000;
-        LastWriteTime -= 116444736000000000;
-
+        FspPosixFileTimeToUnixTime(LastAccessTime, (void *)&tv[0]);
+        FspPosixFileTimeToUnixTime(LastWriteTime, (void *)&tv[1]);
         if (0 != f->ops.utimens)
         {
-#if defined(_WIN64)
-            tv[0].tv_sec = (int64_t)(LastAccessTime / 10000000);
-            tv[0].tv_nsec = (int64_t)(LastAccessTime % 10000000) * 100;
-            tv[1].tv_sec = (int64_t)(LastWriteTime / 10000000);
-            tv[1].tv_nsec = (int64_t)(LastWriteTime % 10000000) * 100;
-#else
-            tv[0].tv_sec = (int32_t)(LastAccessTime / 10000000);
-            tv[0].tv_nsec = (int32_t)(LastAccessTime % 10000000) * 100;
-            tv[1].tv_sec = (int32_t)(LastWriteTime / 10000000);
-            tv[1].tv_nsec = (int32_t)(LastWriteTime % 10000000) * 100;
-#endif
-
             err = f->ops.utimens(filedesc->PosixPath, tv);
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
         else
         {
-#if defined(_WIN64)
-            timbuf.actime = (int64_t)(LastAccessTime / 10000000);
-            timbuf.modtime = (int64_t)(LastWriteTime / 10000000);
-#else
-            timbuf.actime = (int32_t)(LastAccessTime / 10000000);
-            timbuf.modtime = (int32_t)(LastWriteTime / 10000000);
-#endif
-
+            timbuf.actime = tv[0].tv_sec;
+            timbuf.modtime = tv[1].tv_sec;
             err = f->ops.utime(filedesc->PosixPath, &timbuf);
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }

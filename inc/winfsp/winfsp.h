@@ -1472,6 +1472,21 @@ NTSTATUS FspPosixMapPosixToWindowsPath(const char *PosixPath, PWSTR *PWindowsPat
 FSP_API VOID FspPosixDeletePath(void *Path);
 FSP_API VOID FspPosixEncodeWindowsPath(PWSTR WindowsPath, ULONG Size);
 FSP_API VOID FspPosixDecodeWindowsPath(PWSTR WindowsPath, ULONG Size);
+static inline
+VOID FspPosixFileTimeToUnixTime(UINT64 FileTime0, __int3264 UnixTime[2])
+{
+    INT64 FileTime = (INT64)FileTime0 - 116444736000000000LL;
+    UnixTime[0] = (__int3264)(FileTime / 10000000);
+    UnixTime[1] = (__int3264)(FileTime % 10000000 * 100);
+        /* may produce negative nsec for times before UNIX epoch; strictly speaking this is incorrect */
+}
+static inline
+VOID FspPosixUnixTimeToFileTime(const __int3264 UnixTime[2], PUINT64 PFileTime)
+{
+    INT64 FileTime = (INT64)UnixTime[0] * 10000000 + (INT64)UnixTime[1] / 100 +
+        116444736000000000LL;
+    *PFileTime = FileTime;
+}
 
 /*
  * Path Handling

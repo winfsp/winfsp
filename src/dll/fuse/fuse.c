@@ -355,14 +355,12 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         if (0 == f->VolumeParams.VolumeCreationTime)
         {
             if (0 != stbuf.st_birthtim.tv_sec)
-                f->VolumeParams.VolumeCreationTime =
-                    Int32x32To64(stbuf.st_birthtim.tv_sec, 10000000) + 116444736000000000 +
-                    stbuf.st_birthtim.tv_nsec / 100;
+                FspPosixUnixTimeToFileTime((void *)&stbuf.st_birthtim,
+                    &f->VolumeParams.VolumeCreationTime);
             else
             if (0 != stbuf.st_ctim.tv_sec)
-                f->VolumeParams.VolumeCreationTime =
-                    Int32x32To64(stbuf.st_ctim.tv_sec, 10000000) + 116444736000000000 +
-                    stbuf.st_ctim.tv_nsec / 100;
+                FspPosixUnixTimeToFileTime((void *)&stbuf.st_ctim,
+                    &f->VolumeParams.VolumeCreationTime);
         }
     }
 
