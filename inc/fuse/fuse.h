@@ -109,8 +109,8 @@ struct fuse_operations
     /* _ */ int (*getxtimes)(const char *path,
         struct fuse_timespec *bkuptime, struct fuse_timespec *crtime);
     /* _ */ int (*setbkuptime)(const char *path, const struct fuse_timespec *tv);
-    /* _ */ int (*setchgtime)(const char *path, const struct fuse_timespec *tv);
-    /* _ */ int (*setcrtime)(const char *path, const struct fuse_timespec *tv);
+    /* S */ int (*setchgtime)(const char *path, const struct fuse_timespec *tv);
+    /* S */ int (*setcrtime)(const char *path, const struct fuse_timespec *tv);
     /* S */ int (*chflags)(const char *path, uint32_t flags);
     /* _ */ int (*setattr_x)(const char *path, struct fuse_setattr_x *attr);
     /* _ */ int (*fsetattr_x)(const char *path, struct fuse_setattr_x *attr,

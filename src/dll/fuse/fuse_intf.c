@@ -1316,6 +1316,24 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
             return Result;
     }
 
+    if (0 != CreationTime && 0 != f->ops.setcrtime)
+    {
+        FspPosixFileTimeToUnixTime(CreationTime, (void *)&tv[0]);
+        err = f->ops.setcrtime(filedesc->PosixPath, &tv[0]);
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        if (!NT_SUCCESS(Result))
+            return Result;
+    }
+
+    if (0 != ChangeTime && 0 != f->ops.setchgtime)
+    {
+        FspPosixFileTimeToUnixTime(ChangeTime, (void *)&tv[0]);
+        err = f->ops.setchgtime(filedesc->PosixPath, &tv[0]);
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        if (!NT_SUCCESS(Result))
+            return Result;
+    }
+
     return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
         &Uid, &Gid, &Mode, FileInfo);
 }
