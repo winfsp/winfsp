@@ -185,28 +185,19 @@ int fstat(int fd, struct fuse_stat *stbuf)
 {
     HANDLE h = (HANDLE)(intptr_t)fd;
     BY_HANDLE_FILE_INFORMATION FileInfo;
-    UINT64 CreationTime, LastAccessTime, LastWriteTime;
 
     if (!GetFileInformationByHandle(h, &FileInfo))
         return error();
-
-    CreationTime = ((PLARGE_INTEGER)(&FileInfo.ftCreationTime))->QuadPart - 116444736000000000;
-    LastAccessTime = ((PLARGE_INTEGER)(&FileInfo.ftLastAccessTime))->QuadPart - 116444736000000000;
-    LastWriteTime = ((PLARGE_INTEGER)(&FileInfo.ftLastWriteTime))->QuadPart - 116444736000000000;
 
     memset(stbuf, 0, sizeof *stbuf);
     stbuf->st_mode = 0777 |
         ((FileInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 0040000/* S_IFDIR */ : 0);
     stbuf->st_nlink = 1;
     stbuf->st_size = ((UINT64)FileInfo.nFileSizeHigh << 32) | ((UINT64)FileInfo.nFileSizeLow);
-    stbuf->st_atim.tv_sec = LastAccessTime / 10000000;
-    stbuf->st_atim.tv_nsec = LastAccessTime % 10000000 * 100;
-    stbuf->st_mtim.tv_sec = LastWriteTime / 10000000;
-    stbuf->st_mtim.tv_nsec = LastWriteTime % 10000000 * 100;
-    stbuf->st_ctim.tv_sec = LastWriteTime / 10000000;
-    stbuf->st_ctim.tv_nsec = LastWriteTime % 10000000 * 100;
-    stbuf->st_birthtim.tv_sec = CreationTime / 10000000;
-    stbuf->st_birthtim.tv_nsec = CreationTime % 10000000 * 100;
+    FspPosixFileTimeToUnixTime(*(PUINT64)&FileInfo.ftCreationTime, (void *)&stbuf->st_birthtim);
+    FspPosixFileTimeToUnixTime(*(PUINT64)&FileInfo.ftLastAccessTime, (void *)&stbuf->st_atim);
+    FspPosixFileTimeToUnixTime(*(PUINT64)&FileInfo.ftLastWriteTime, (void *)&stbuf->st_mtim);
+    FspPosixFileTimeToUnixTime(*(PUINT64)&FileInfo.ftLastWriteTime, (void *)&stbuf->st_ctim);
 #if defined(FSP_FUSE_USE_STAT_EX)
     stbuf->st_flags = MapFileAttributesToFlags(FileInfo.dwFileAttributes);
 #endif
@@ -375,8 +366,8 @@ int utimensat(int dirfd, const char *path, const struct fuse_timespec times[2])
     }
     else
     {
-        LastAccessTime = times[0].tv_sec * 10000000 + times[0].tv_nsec / 100 + 116444736000000000;
-        LastWriteTime = times[1].tv_sec * 10000000 + times[1].tv_nsec / 100 + 116444736000000000;
+        FspPosixUnixTimeToFileTime((void *)&times[0], &LastAccessTime);
+        FspPosixUnixTimeToFileTime((void *)&times[1], &LastWriteTime);
     }
 
     int res = SetFileTime(h,
@@ -467,7 +458,6 @@ void rewinddir(DIR *dirp)
 struct dirent *readdir(DIR *dirp)
 {
     WIN32_FIND_DATAA FindData;
-    UINT64 CreationTime, LastAccessTime, LastWriteTime;
     struct fuse_stat *stbuf = &dirp->de.d_stat;
 
     if (INVALID_HANDLE_VALUE == dirp->fh)
@@ -486,23 +476,15 @@ struct dirent *readdir(DIR *dirp)
         }
     }
 
-    CreationTime = ((PLARGE_INTEGER)(&FindData.ftCreationTime))->QuadPart - 116444736000000000;
-    LastAccessTime = ((PLARGE_INTEGER)(&FindData.ftLastAccessTime))->QuadPart - 116444736000000000;
-    LastWriteTime = ((PLARGE_INTEGER)(&FindData.ftLastWriteTime))->QuadPart - 116444736000000000;
-
     memset(stbuf, 0, sizeof *stbuf);
     stbuf->st_mode = 0777 |
         ((FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 0040000/* S_IFDIR */ : 0);
     stbuf->st_nlink = 1;
     stbuf->st_size = ((UINT64)FindData.nFileSizeHigh << 32) | ((UINT64)FindData.nFileSizeLow);
-    stbuf->st_atim.tv_sec = LastAccessTime / 10000000;
-    stbuf->st_atim.tv_nsec = LastAccessTime % 10000000 * 100;
-    stbuf->st_mtim.tv_sec = LastWriteTime / 10000000;
-    stbuf->st_mtim.tv_nsec = LastWriteTime % 10000000 * 100;
-    stbuf->st_ctim.tv_sec = LastWriteTime / 10000000;
-    stbuf->st_ctim.tv_nsec = LastWriteTime % 10000000 * 100;
-    stbuf->st_birthtim.tv_sec = CreationTime / 10000000;
-    stbuf->st_birthtim.tv_nsec = CreationTime % 10000000 * 100;
+    FspPosixFileTimeToUnixTime(*(PUINT64)&FindData.ftCreationTime, (void *)&stbuf->st_birthtim);
+    FspPosixFileTimeToUnixTime(*(PUINT64)&FindData.ftLastAccessTime, (void *)&stbuf->st_atim);
+    FspPosixFileTimeToUnixTime(*(PUINT64)&FindData.ftLastWriteTime, (void *)&stbuf->st_mtim);
+    FspPosixFileTimeToUnixTime(*(PUINT64)&FindData.ftLastWriteTime, (void *)&stbuf->st_ctim);
 #if defined(FSP_FUSE_USE_STAT_EX)
     stbuf->st_flags = MapFileAttributesToFlags(FindData.dwFileAttributes);
 #endif
