@@ -95,7 +95,7 @@ if (!Success)
 
 In Release builds the +DEBUGTEST(90)+ macro will evaluate to +TRUE+ and the Cache Manager will be asked directly via +CcCanIWrite+ whether a WRITE should be deferred. In Debug builds the +DEBUGTEST(90)+ macro will evaluate to +FALSE+ sometimes (10% of the time) and the WRITE will be deferred, thus allowing us to test the retry code path.
 
-== Compatibility Testing
+== NTFS Compatibility Testing
 
 WinFsp allows the creation of user mode file systems that exhibit behavior similar to NTFS. This means that Windows applications that use such a file system should not be able to tell the difference between NTFS and the WinFsp-based file system. OTOH specialized applications (such as Defrag) will not work properly on WinFsp file systems.
 
@@ -122,6 +122,12 @@ One of the most important aspects of the Driver Verifier is that it can track th
 The goal of performance testing is to evaluate and understand how software behaves under certain workloads. Performance testing can help identify cases where the software requires too much time or resources. It is also useful to establish a performance baseline to ensure that software performance does not degrade over time.
 
 WinFsp uses a tool called fsbench for this purpose. Fsbench is able to test specific scenarios, for example: "how long does it take to delete 1000 files?" Fsbench has been very useful for WinFsp and has helped improve its performance: in one situation it helped identify quadratic behavior with the MEMFS ReadDirectory operation, in another situation it helped fine tune the performance of the WinFsp I/O Queue.
+
+== Backwards Compatibility testing
+
+As the WinFsp API's mature it is important to verify that they remain backwards compatible with existing file system binaries. For this purpose binaries that have been compiled against earlier versions of WinFsp are used to verify that they run correctly against the latest version.
+
+For example, in version v1.2B3 of WinFsp an +FSP_FUSE_CAP_STAT_EX+ FUSE extension was introduced. This can change the layout of +struct fuse_stat+ and is therefore a potentially dangerous change. To test against inadvertent breakage a FUSE file system binary that was compiled against v1.2B2 is regularly used to verify backwards compatibility.
 
 == Code Analysis
 
