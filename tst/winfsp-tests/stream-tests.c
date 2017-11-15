@@ -1194,22 +1194,22 @@ static void stream_setfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     ASSERT(Success);
     ASSERT(FILE_ATTRIBUTE_HIDDEN == FileInfo.dwFileAttributes);
 
-    *(PUINT64)&FileTime = 0x4200000042ULL;
+    *(PUINT64)&FileTime = 116444736000000000ULL + 0x4200000042ULL;
     Success = SetFileTime(StreamHandle, 0, &FileTime, &FileTime);
     ASSERT(Success);
 
     Success = GetFileInformationByHandle(StreamHandle, &FileInfo);
     ASSERT(Success);
     ASSERT(*(PUINT64)&FileInfo0.ftCreationTime == *(PUINT64)&FileInfo.ftCreationTime);
-    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftLastAccessTime);
-    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftLastWriteTime);
+    ASSERT(116444736000000000ULL + 0x4200000042ULL == *(PUINT64)&FileInfo.ftLastAccessTime);
+    ASSERT(116444736000000000ULL + 0x4200000042ULL == *(PUINT64)&FileInfo.ftLastWriteTime);
 
     Success = SetFileTime(StreamHandle, &FileTime, 0, 0);
     ASSERT(Success);
 
     Success = GetFileInformationByHandle(StreamHandle, &FileInfo);
     ASSERT(Success);
-    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftCreationTime);
+    ASSERT(116444736000000000ULL + 0x4200000042ULL == *(PUINT64)&FileInfo.ftCreationTime);
 
     Offset = SetFilePointer(StreamHandle, 42, 0, 0);
     ASSERT(42 == Offset);
@@ -1238,9 +1238,9 @@ static void stream_setfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoT
     Success = GetFileInformationByHandle(Handle, &FileInfo);
     ASSERT(Success);
     ASSERT(0 != (FileInfo.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN));
-    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftLastAccessTime);
-    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftLastWriteTime);
-    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftCreationTime);
+    ASSERT(116444736000000000ULL + 0x4200000042ULL == *(PUINT64)&FileInfo.ftLastAccessTime);
+    ASSERT(116444736000000000ULL + 0x4200000042ULL == *(PUINT64)&FileInfo.ftLastWriteTime);
+    ASSERT(116444736000000000ULL + 0x4200000042ULL == *(PUINT64)&FileInfo.ftCreationTime);
     ASSERT(0 == FileInfo.nFileSizeLow);
     ASSERT(0 == FileInfo.nFileSizeHigh);
 

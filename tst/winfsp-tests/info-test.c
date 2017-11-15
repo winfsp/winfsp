@@ -291,22 +291,22 @@ void setfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     ASSERT(Success);
     ASSERT(FILE_ATTRIBUTE_HIDDEN == FileInfo.dwFileAttributes);
 
-    *(PUINT64)&FileTime = 0x4200000042ULL;
+    *(PUINT64)&FileTime = 116444736000000000ULL + 0x4200000042ULL;
     Success = SetFileTime(Handle, 0, &FileTime, &FileTime);
     ASSERT(Success);
 
     Success = GetFileInformationByHandle(Handle, &FileInfo);
     ASSERT(Success);
     ASSERT(*(PUINT64)&FileInfo0.ftCreationTime == *(PUINT64)&FileInfo.ftCreationTime);
-    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftLastAccessTime);
-    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftLastWriteTime);
+    ASSERT(116444736000000000ULL + 0x4200000042ULL == *(PUINT64)&FileInfo.ftLastAccessTime);
+    ASSERT(116444736000000000ULL + 0x4200000042ULL == *(PUINT64)&FileInfo.ftLastWriteTime);
 
     Success = SetFileTime(Handle, &FileTime, 0, 0);
     ASSERT(Success);
 
     Success = GetFileInformationByHandle(Handle, &FileInfo);
     ASSERT(Success);
-    ASSERT(0x4200000042ULL == *(PUINT64)&FileInfo.ftCreationTime);
+    ASSERT(116444736000000000ULL + 0x4200000042ULL == *(PUINT64)&FileInfo.ftCreationTime);
 
     Offset = SetFilePointer(Handle, 42, 0, 0);
     ASSERT(42 == Offset);
