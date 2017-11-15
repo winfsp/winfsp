@@ -80,6 +80,8 @@ set opt_tests=^
     sample-passthrough-fuse-x86 ^
     sample-fsx-passthrough-fuse-x86 ^
     sample-passthrough-dotnet ^
+    compat-v1.1-passthrough-fuse-x64 ^
+    compat-v1.1-passthrough-fuse-x86 ^
     avast-tests-x64 ^
     avast-tests-x86 ^
     avast-tests-dotnet
@@ -749,6 +751,42 @@ pushd >nul
 cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
 "%ProjRoot%\ext\test\fstools\src\fsx\%4.exe" -N 5000 test xxxxxx
+if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
+popd
+echo net use L: /delete
+net use L: /delete
+call "%ProjRoot%\tools\fsreg" -u %1
+rmdir /s/q "%TMP%\%1"
+exit /b !RunSampleTestExit!
+
+:compat-v1.1-passthrough-fuse-x64
+call :__run_compat_fuse_test passthrough-fuse v1.1\passthrough-fuse\passthrough-fuse-x64 winfsp-tests-x64
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:compat-v1.1-passthrough-fuse-x86
+call :__run_compat_fuse_test passthrough-fuse v1.1\passthrough-fuse\passthrough-fuse-x86 winfsp-tests-x86
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:__run_compat_fuse_test
+set RunSampleTestExit=0
+mkdir "%TMP%\%1\test"
+call "%ProjRoot%\tools\fsreg" %1 "%ProjRoot%\tst\compat\%2.exe" ^
+    "-ouid=11,gid=65792 --VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
+echo net use L: "\\%1\%TMP::=$%\%1\test"
+net use L: "\\%1\%TMP::=$%\%1\test"
+if !ERRORLEVEL! neq 0 goto fail
+echo net use ^| findstr L:
+net use | findstr L:
+pushd >nul
+cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
+L:
+"%ProjRoot%\build\VStudio\build\%Configuration%\%3.exe" ^
+    --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
+    -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
+    -getfileinfo_name_test -setfileinfo_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -exec_rename_dir_test ^
+    -reparse* -stream*
 if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
 popd
 echo net use L: /delete

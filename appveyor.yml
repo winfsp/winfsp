@@ -6,10 +6,10 @@ environment:
     TESTING: Func
   - CONFIGURATION: Release
     TESTING: Func
-  - CONFIGURATION: Release
-    TESTING: Avast
-  - CONFIGURATION: Release
-    TESTING: Perf
+  #- CONFIGURATION: Release
+  #  TESTING: Avast
+  #- CONFIGURATION: Release
+  #  TESTING: Perf
 
 install:
 - git submodule update --init --recursive
@@ -32,6 +32,7 @@ test_script:
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION%
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% ifstest
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% sample
+- if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% compat
 - if %TESTING%==Avast choco install avastfreeantivirus && fltmc instances -v "C:"
 - if %TESTING%==Avast tools\run-tests.bat %CONFIGURATION% avast-tests
 - if %TESTING%==Perf tools\run-perf-tests.bat %CONFIGURATION% baseline > perf-tests.csv && type perf-tests.csv & appveyor PushArtifact perf-tests.csv
