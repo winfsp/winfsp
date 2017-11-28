@@ -886,6 +886,7 @@ FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
             (0 != Request->Req.Cleanup.SetArchiveBit ? FspCleanupSetArchiveBit : 0) |
             (0 != Request->Req.Cleanup.SetLastAccessTime ? FspCleanupSetLastAccessTime : 0) |
             (0 != Request->Req.Cleanup.SetLastWriteTime ? FspCleanupSetLastWriteTime : 0) |
+            (0 != Request->Req.Cleanup.UnlockAll ? FspCleanupUnlockAll : 0) |
             (0 != Request->Req.Cleanup.SetChangeTime ? FspCleanupSetChangeTime : 0));
 
     return STATUS_SUCCESS;
@@ -1241,6 +1242,43 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
                 ReparseData,
                 Request->Req.FileSystemControl.Buffer.Size);
         }
+        break;
+    }
+
+    return Result;
+}
+
+FSP_API NTSTATUS FspFileSystemOpLockControl(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+
+    Result = STATUS_INVALID_DEVICE_REQUEST;
+    switch (Request->Req.LockControl.LockFunction)
+    {
+    case 0x01/*IRP_MN_LOCK*/:
+        if (0 != FileSystem->Interface->Lock)
+            Result = FileSystem->Interface->Lock(FileSystem,
+                (PVOID)ValOfFileContext(Request->Req.LockControl),
+                Request->Req.LockControl.Offset, Request->Req.LockControl.Length,
+                ((UINT64)Request->Req.LockControl.ProcessId << 32) | (UINT64)Request->Req.LockControl.Key,
+                0 != Request->Req.LockControl.Exclusive,
+                0 != Request->Req.LockControl.FailImmediately);
+        break;
+    case 0x02/*IRP_MN_UNLOCK_SINGLE*/:
+        if (0 != FileSystem->Interface->Unlock)
+            Result = FileSystem->Interface->Unlock(FileSystem,
+                (PVOID)ValOfFileContext(Request->Req.LockControl),
+                Request->Req.LockControl.Offset, Request->Req.LockControl.Length,
+                ((UINT64)Request->Req.LockControl.ProcessId << 32) | (UINT64)Request->Req.LockControl.Key);
+        break;
+    case 0x03/*IRP_MN_UNLOCK_ALL*/:
+    case 0x04/*IRP_MN_UNLOCK_ALL_BY_KEY*/:
+        if (0 != FileSystem->Interface->Unlock)
+            Result = FileSystem->Interface->Unlock(FileSystem,
+                (PVOID)ValOfFileContext(Request->Req.LockControl),
+                (UINT64)-1LL, (UINT64)-1LL,
+                ((UINT64)Request->Req.LockControl.ProcessId << 32) | (UINT64)Request->Req.LockControl.Key);
         break;
     }
 

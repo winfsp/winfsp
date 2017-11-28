@@ -83,7 +83,6 @@ VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode);
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action,
     BOOLEAN InvalidateCaches);
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
-static NTSTATUS FspFileNodeCompleteLockIrp(PVOID Context, PIRP Irp);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
 NTSTATUS FspFileDescResetDirectory(FSP_FILE_DESC *FileDesc,
@@ -149,7 +148,6 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 // !#pragma alloc_text(PAGE, FspFileNodeInvalidateStreamInfo)
 #pragma alloc_text(PAGE, FspFileNodeNotifyChange)
 #pragma alloc_text(PAGE, FspFileNodeProcessLockIrp)
-#pragma alloc_text(PAGE, FspFileNodeCompleteLockIrp)
 #pragma alloc_text(PAGE, FspFileDescCreate)
 #pragma alloc_text(PAGE, FspFileDescDelete)
 #pragma alloc_text(PAGE, FspFileDescResetDirectory)
@@ -2030,19 +2028,6 @@ NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp)
     return Result;
 }
 
-static NTSTATUS FspFileNodeCompleteLockIrp(PVOID Context, PIRP Irp)
-{
-    PAGED_CODE();
-
-    NTSTATUS Result = Irp->IoStatus.Status;
-
-    DEBUGLOGIRP(Irp, Result);
-
-    FspIopCompleteIrp(Irp, Result);
-
-    return Result;
-}
-
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc)
 {
     PAGED_CODE();
@@ -2379,6 +2364,7 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp)
         FspIopCompleteIrp(Irp, Irp->IoStatus.Status);
 }
 
+PCOMPLETE_LOCK_IRP_ROUTINE FspFileNodeCompleteLockIrp;
 WCHAR FspFileDescDirectoryPatternMatchAll[] = L"*";
 
 // {904862B4-EB3F-461E-ACB2-4DF2B3FC898B}

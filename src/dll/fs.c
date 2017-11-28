@@ -162,6 +162,7 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     FileSystem->Operations[FspFsctlTransactSetVolumeInformationKind] = FspFileSystemOpSetVolumeInformation;
     FileSystem->Operations[FspFsctlTransactQueryDirectoryKind] = FspFileSystemOpQueryDirectory;
     FileSystem->Operations[FspFsctlTransactFileSystemControlKind] = FspFileSystemOpFileSystemControl;
+    FileSystem->Operations[FspFsctlTransactLockControlKind] = FspFileSystemOpLockControl;
     FileSystem->Operations[FspFsctlTransactQuerySecurityKind] = FspFileSystemOpQuerySecurity;
     FileSystem->Operations[FspFsctlTransactSetSecurityKind] = FspFileSystemOpSetSecurity;
     FileSystem->Operations[FspFsctlTransactQueryStreamInformationKind] = FspFileSystemOpQueryStreamInformation;
@@ -687,4 +688,9 @@ FSP_API BOOLEAN FspFileSystemIsOperationCaseSensitiveF(VOID)
 FSP_API UINT32 FspFileSystemOperationProcessIdF(VOID)
 {
     return FspFileSystemOperationProcessId();
+}
+
+FSP_API UINT64 FspFileSystemOperationLockOwnerF(VOID)
+{
+    return FspFileSystemOperationLockOwner();
 }

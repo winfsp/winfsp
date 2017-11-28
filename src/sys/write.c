@@ -289,7 +289,6 @@ static NTSTATUS FspFsvolWriteNonCached(
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     LARGE_INTEGER WriteOffset = IrpSp->Parameters.Write.ByteOffset;
     ULONG WriteLength = IrpSp->Parameters.Write.Length;
-    ULONG WriteKey = IrpSp->Parameters.Write.Key;
     BOOLEAN WriteToEndOfFile =
         FILE_WRITE_TO_END_OF_FILE == WriteOffset.LowPart && -1L == WriteOffset.HighPart;
     BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
@@ -390,8 +389,13 @@ static NTSTATUS FspFsvolWriteNonCached(
     Request->Req.Write.UserContext2 = FileDesc->UserContext2;
     Request->Req.Write.Offset = WriteOffset.QuadPart;
     Request->Req.Write.Length = WriteLength;
-    Request->Req.Write.Key = WriteKey;
-    Request->Req.Write.ConstrainedIo = !!PagingIo;
+    if (!PagingIo)
+    {
+        Request->Req.Write.Key = IrpSp->Parameters.Write.Key;
+        Request->Req.Write.ProcessId = IoGetRequestorProcessId(Irp);
+    }
+    else
+        Request->Req.Write.ConstrainedIo = TRUE;
 
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;

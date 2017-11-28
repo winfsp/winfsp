@@ -117,6 +117,8 @@ static NTSTATUS FspFsvolCleanup(
     Request->Req.Cleanup.SetLastWriteTime = FileModified && !FileDesc->DidSetLastWriteTime;
     Request->Req.Cleanup.SetChangeTime = (FileModified || FileDesc->DidSetMetadata) &&
         !FileDesc->DidSetChangeTime;
+    Request->Req.Cleanup.UnlockAll = FsvolDeviceExtension->VolumeParams.UserModeFileLocking &&
+        FsRtlAreThereCurrentOrInProgressFileLocks(&FileNode->FileLock);
 
     FspFileNodeAcquireExclusive(FileNode, Pgio);
 
@@ -128,6 +130,7 @@ static NTSTATUS FspFsvolCleanup(
         Request->Req.Cleanup.SetArchiveBit ||
         Request->Req.Cleanup.SetLastWriteTime ||
         Request->Req.Cleanup.SetChangeTime ||
+        Request->Req.Cleanup.UnlockAll ||
         !FsvolDeviceExtension->VolumeParams.PostCleanupWhenModifiedOnly)
         /*
          * Note that it is still possible for this request to not be delivered,

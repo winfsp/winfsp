@@ -22,12 +22,14 @@ static NTSTATUS FspFsvolLockControlRetry(
     BOOLEAN CanWait);
 static NTSTATUS FspFsvolLockControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspFsvolLockControlForward(PVOID Context, PIRP Irp);
 FSP_IOCMPL_DISPATCH FspFsvolLockControlComplete;
 FSP_DRIVER_DISPATCH FspLockControl;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolLockControlRetry)
 #pragma alloc_text(PAGE, FspFsvolLockControl)
+#pragma alloc_text(PAGE, FspFsvolLockControlForward)
 #pragma alloc_text(PAGE, FspFsvolLockControlComplete)
 #pragma alloc_text(PAGE, FspLockControl)
 #endif
@@ -91,6 +93,57 @@ static NTSTATUS FspFsvolLockControl(
 
     Result = FspFsvolLockControlRetry(FsvolDeviceObject, Irp, IrpSp, IoIsOperationSynchronous(Irp));
 
+    return Result;
+}
+
+NTSTATUS FspFsvolLockControlForward(PVOID Context, PIRP Irp)
+{
+    /*
+     * At this point the FSRTL package has processed the lock IRP.
+     * Either complete the IRP or if we are supposed to forward to
+     * user mode do so now.
+     */
+
+    PAGED_CODE();
+
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->DeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    NTSTATUS Result = Irp->IoStatus.Status;
+
+    if (!NT_SUCCESS(Result) || !FsvolDeviceExtension->VolumeParams.UserModeFileLocking)
+        goto complete;
+
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
+    FSP_FSCTL_TRANSACT_REQ *Request;
+
+    ASSERT(FileNode == FileDesc->FileNode);
+
+    Result = FspIopCreateRequest(Irp, 0, 0, &Request);
+    if (!NT_SUCCESS(Result))
+        goto complete;
+
+    Request->Kind = FspFsctlTransactLockControlKind;
+    Request->Req.LockControl.UserContext = FileNode->UserContext;
+    Request->Req.LockControl.UserContext2 = FileDesc->UserContext2;
+    Request->Req.LockControl.LockFunction = IrpSp->MinorFunction;
+    Request->Req.LockControl.Offset = IrpSp->Parameters.LockControl.ByteOffset.QuadPart;
+    Request->Req.LockControl.Length = IrpSp->Parameters.LockControl.Length->QuadPart;
+    Request->Req.LockControl.Key = IrpSp->Parameters.LockControl.Key;
+    Request->Req.LockControl.ProcessId = IoGetRequestorProcessId(Irp);
+    Request->Req.LockControl.Exclusive = 0 != (IrpSp->Flags & SL_EXCLUSIVE_LOCK);
+    Request->Req.LockControl.FailImmediately = 0 != (IrpSp->Flags & SL_FAIL_IMMEDIATELY);
+
+    if (!FspIoqPostIrp(FsvolDeviceExtension->Ioq, Irp, &Result))
+        goto complete;
+
+    return Result;
+
+complete:
+    DEBUGLOGIRP(Irp, Result);
+    FspIopCompleteIrp(Irp, Result);
     return Result;
 }
 

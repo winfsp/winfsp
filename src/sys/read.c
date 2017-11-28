@@ -228,7 +228,6 @@ static NTSTATUS FspFsvolReadNonCached(
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     LARGE_INTEGER ReadOffset = IrpSp->Parameters.Read.ByteOffset;
     ULONG ReadLength = IrpSp->Parameters.Read.Length;
-    ULONG ReadKey = IrpSp->Parameters.Read.Key;
     BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
     FSP_FSCTL_TRANSACT_REQ *Request;
     BOOLEAN Success;
@@ -321,7 +320,11 @@ static NTSTATUS FspFsvolReadNonCached(
     Request->Req.Read.UserContext2 = FileDesc->UserContext2;
     Request->Req.Read.Offset = ReadOffset.QuadPart;
     Request->Req.Read.Length = ReadLength;
-    Request->Req.Read.Key = ReadKey;
+    if (!PagingIo)
+    {
+        Request->Req.Read.Key = IrpSp->Parameters.Read.Key;
+        Request->Req.Read.ProcessId = IoGetRequestorProcessId(Irp);
+    }
 
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;

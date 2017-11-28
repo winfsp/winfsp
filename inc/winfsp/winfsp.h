@@ -133,6 +133,7 @@ enum
     FspCleanupSetLastAccessTime         = 0x20,
     FspCleanupSetLastWriteTime          = 0x40,
     FspCleanupSetChangeTime             = 0x80,
+    FspCleanupUnlockAll                 = 0x0100,
 };
 /**
  * @class FSP_FILE_SYSTEM
@@ -822,12 +823,80 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     NTSTATUS (*GetDirInfoByName)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext, PWSTR FileName,
         FSP_FSCTL_DIR_INFO *DirInfo);
+    /**
+     * Lock a file range.
+     *
+     * At the time of this call the FSD has already done its own locking processing.
+     * Thus the kernel may fail a lock control request or a Read or Write without
+     * informing the user mode file system.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param FileContext
+     *     The file context of the file to be locked.
+     * @param Offset
+     *     Offset within the file to lock.
+     * @param Length
+     *     Length of data to lock.
+     * @param Owner
+     *     Lock owner. This 64-bit value consists of a PID in the high 32-bits and a "Key"
+     *     in the low 32-bits. The PID is that of the process requesting the lock. The Key
+     *     is an arbitrary value.
+     *
+     *     The triplet (FileDesc,PID,Key) uniquely identifies the lock owner.
+     * @param Exclusive
+     *     When TRUE an exclusive lock is requested. Otherwise a shared lock is requested.
+     * @param FailImmediately
+     *     When TRUE the function should return immediately if it is unable to acquire the
+     *     requested lock. Otherwise the function should wait until the lock can be granted.
+     *     In this case the function may also return STATUS_PENDING.
+     * @return
+     *     STATUS_SUCCESS or error code. STATUS_PENDING is supported allowing for asynchronous
+     *     operation.
+     */
+    NTSTATUS (*Lock)(FSP_FILE_SYSTEM *FileSystem,
+        PVOID FileContext, UINT64 Offset, UINT64 Length, UINT64 Owner,
+        BOOLEAN Exclusive, BOOLEAN FailImmediately);
+    /**
+     * Unlock file ranges.
+     *
+     * At the time of this call the FSD has already done its own locking processing.
+     * Thus the kernel may fail a lock control request or a Read or Write without
+     * informing the user mode file system.
+     *
+     * An Unlock operation with Offset == Length == -1 is a request to remove multiple locks.
+     * The set of possible locks to remove includes all locks made by the process described
+     * by the Owner parameter through the file descriptor described by the FileContext parameter.
+     * If the Key portion of the Owner parameter is 0, all the locks in the set are removed.
+     * If the Key portion of the Owner paramter is non-0, only locks that match the Key are
+     * removed.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param FileContext
+     *     The file context of the file to be unlocked.
+     * @param Offset
+     *     Offset within the file to unlock.
+     * @param Length
+     *     Length of data to unlock.
+     * @param Owner
+     *     Lock owner. This 64-bit value consists of a PID in the high 32-bits and a "Key"
+     *     in the low 32-bits. The PID is that of the process requesting the lock. The Key
+     *     is an arbitrary value.
+     *
+     *     The triplet (FileDesc,PID,Key) uniquely identifies the lock owner.
+     * @return
+     *     STATUS_SUCCESS or error code. STATUS_PENDING is supported allowing for asynchronous
+     *     operation.
+     */
+    NTSTATUS (*Unlock)(FSP_FILE_SYSTEM *FileSystem,
+        PVOID FileContext, UINT64 Offset, UINT64 Length, UINT64 Owner);
 
     /*
      * This ensures that this interface will always contain 64 function pointers.
      * Please update when changing the interface as it is important for future compatibility.
      */
-    NTSTATUS (*Reserved[39])();
+    NTSTATUS (*Reserved[37])();
 } FSP_FILE_SYSTEM_INTERFACE;
 FSP_FSCTL_STATIC_ASSERT(sizeof(FSP_FILE_SYSTEM_INTERFACE) == 64 * sizeof(NTSTATUS (*)()),
     "FSP_FILE_SYSTEM_INTERFACE must have 64 entries.");
@@ -1086,7 +1155,7 @@ BOOLEAN FspFileSystemIsOperationCaseSensitive(VOID)
 }
 FSP_API BOOLEAN FspFileSystemIsOperationCaseSensitiveF(VOID);
 /**
- * Gets the originating process ID.
+ * Get the originating process ID.
  *
  * Valid only during Create, Open and Rename requests when the target exists.
  */
@@ -1107,6 +1176,28 @@ UINT32 FspFileSystemOperationProcessId(VOID)
     }
 }
 FSP_API UINT32 FspFileSystemOperationProcessIdF(VOID);
+/**
+ * Get the lock owner.
+ *
+ * Valid only during Read, Write, Lock and Unlock requests.
+ */
+static inline
+UINT64 FspFileSystemOperationLockOwner(VOID)
+{
+    FSP_FSCTL_TRANSACT_REQ *Request = FspFileSystemGetOperationContext()->Request;
+    switch (Request->Kind)
+    {
+    case FspFsctlTransactReadKind:
+        return ((UINT64)Request->Req.Read.ProcessId << 32) | (UINT64)Request->Req.Read.Key;
+    case FspFsctlTransactWriteKind:
+        return ((UINT64)Request->Req.Write.ProcessId << 32) | (UINT64)Request->Req.Write.Key;
+    case FspFsctlTransactLockControlKind:
+        return ((UINT64)Request->Req.LockControl.ProcessId << 32) | (UINT64)Request->Req.LockControl.Key;
+    default:
+        return 0;
+    }
+}
+FSP_API UINT64 FspFileSystemOperationLockOwnerF(VOID);
 
 /*
  * Operations
@@ -1140,6 +1231,8 @@ FSP_API NTSTATUS FspFileSystemOpSetVolumeInformation(FSP_FILE_SYSTEM *FileSystem
 FSP_API NTSTATUS FspFileSystemOpQueryDirectory(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+FSP_API NTSTATUS FspFileSystemOpLockControl(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);

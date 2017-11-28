@@ -153,7 +153,8 @@ typedef struct
     UINT32 PassQueryDirectoryPattern:1;     /* pass Pattern during QueryDirectory operations */
     UINT32 AlwaysUseDoubleBuffering:1;
     UINT32 PassQueryDirectoryFileName:1;    /* pass FileName during QueryDirectory (GetDirInfoByName) */
-    UINT32 KmReservedFlags:2;
+    UINT32 UserModeFileLocking:1;           /* pass file locking requests to user mode */
+    UINT32 KmReservedFlags:1;
     /* user-mode flags */
     UINT32 UmFileContextIsUserContext2:1;   /* user mode: FileContext parameter is UserContext2 */
     UINT32 UmFileContextIsFullContext:1;    /* user mode: FileContext parameter is FullContext */
@@ -259,6 +260,7 @@ typedef struct
             UINT32 SetLastAccessTime:1;
             UINT32 SetLastWriteTime:1;
             UINT32 SetChangeTime:1;
+            UINT32 UnlockAll:1;
         } Cleanup;
         struct
         {
@@ -273,6 +275,7 @@ typedef struct
             UINT64 Offset;
             UINT32 Length;
             UINT32 Key;
+            UINT32 ProcessId;
         } Read;
         struct
         {
@@ -283,6 +286,8 @@ typedef struct
             UINT32 Length;
             UINT32 Key;
             UINT32 ConstrainedIo:1;
+            UINT32 ReservedFlags:31;
+            UINT32 ProcessId;
         } Write;
         struct
         {
@@ -358,6 +363,18 @@ typedef struct
             FSP_FSCTL_TRANSACT_BUF Buffer;
             UINT16 TargetOnFileSystem;  /* the target of the symbolic link is on this file system */
         } FileSystemControl;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+            UINT32 LockFunction;
+            UINT64 Offset;
+            UINT64 Length;
+            UINT32 Key;
+            UINT32 ProcessId;
+            UINT32 Exclusive:1;
+            UINT32 FailImmediately:1;
+        } LockControl;
         struct
         {
             UINT64 UserContext;
