@@ -22,7 +22,9 @@ cygport:
 dist: cygport
 	case $(shell uname -m) in \
 	x86_64)\
+		mkdir -p dist/x64 && \
 		cp fuse-*/dist/fuse/fuse-*[0-9].tar.xz dist/x64 ;;\
 	*)\
+		mkdir -p dist/x86 && \
 		cp fuse-*/dist/fuse/fuse-*[0-9].tar.xz dist/x86 ;;\
 	esac
