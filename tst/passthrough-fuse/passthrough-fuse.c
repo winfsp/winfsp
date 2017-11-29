@@ -41,8 +41,8 @@
 #define fi_fh(fi, MASK)                 ((fi)->fh & (MASK))
 #define fi_setfh(fi, FH, MASK)          ((fi)->fh = (intptr_t)(FH) | (MASK))
 #define fi_fd(fi)                       (fi_fh(fi, fi_dirbit) ? \
-    dirfd((DIR *)fi_fh(fi, ~fi_dirbit)) : (int)fi_fh(fi, ~fi_dirbit))
-#define fi_dirp(fi)                     ((DIR *)fi_fh(fi, ~fi_dirbit))
+    dirfd((DIR *)(intptr_t)fi_fh(fi, ~fi_dirbit)) : (int)fi_fh(fi, ~fi_dirbit))
+#define fi_dirp(fi)                     ((DIR *)(intptr_t)fi_fh(fi, ~fi_dirbit))
 #define fi_setfd(fi, fd)                (fi_setfh(fi, fd, 0))
 #define fi_setdirp(fi, dirp)            (fi_setfh(fi, dirp, fi_dirbit))
 
@@ -255,7 +255,7 @@ static int ptfs_utimens(const char *path, const struct fuse_timespec tv[2])
 {
     ptfs_impl_fullpath(path);
 
-    return -1 != utimensat(AT_FDCWD, path, tv) ? 0 : -errno;
+    return -1 != utimensat(AT_FDCWD, path, tv, AT_SYMLINK_NOFOLLOW) ? 0 : -errno;
 }
 #endif
 

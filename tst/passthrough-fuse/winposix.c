@@ -334,7 +334,7 @@ int truncate(const char *path, fuse_off_t size)
 int utime(const char *path, const struct fuse_utimbuf *timbuf)
 {
     if (0 == timbuf)
-        return utimensat(AT_FDCWD, path, 0);
+        return utimensat(AT_FDCWD, path, 0, AT_SYMLINK_NOFOLLOW);
     else
     {
         struct fuse_timespec times[2];
@@ -342,13 +342,14 @@ int utime(const char *path, const struct fuse_utimbuf *timbuf)
         times[0].tv_nsec = 0;
         times[1].tv_sec = timbuf->modtime;
         times[1].tv_nsec = 0;
-        return utimensat(AT_FDCWD, path, times);
+        return utimensat(AT_FDCWD, path, times, AT_SYMLINK_NOFOLLOW);
     }
 }
 
-int utimensat(int dirfd, const char *path, const struct fuse_timespec times[2])
+int utimensat(int dirfd, const char *path, const struct fuse_timespec times[2], int flag)
 {
     /* ignore dirfd and assume that it is always AT_FDCWD */
+    /* ignore flag and assume that it is always AT_SYMLINK_NOFOLLOW */
 
     HANDLE h = CreateFileA(path,
         FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
