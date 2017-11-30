@@ -17,7 +17,6 @@
 
 #include <dll/library.h>
 #include <launcher/launcher.h>
-#include <lmcons.h>
 #include <npapi.h>
 #include <wincred.h>
 
@@ -167,12 +166,6 @@ static inline BOOLEAN FspNpParseRemoteUserName(PWSTR RemoteName,
     }
 
     return FALSE;
-}
-
-static inline BOOLEAN FspNpGetLocalUserName(
-    PWSTR UserName, ULONG UserNameSize/* in chars */)
-{
-    return GetUserName(UserName, &UserNameSize);
 }
 
 static inline DWORD FspNpCallLauncherPipe(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
@@ -496,7 +489,6 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
     WCHAR LocalNameBuf[3];
     PWSTR ClassName, InstanceName, RemoteName, P;
     ULONG ClassNameLen, InstanceNameLen;
-    WCHAR LocalUserName[UNLEN + 1];
     DWORD CredentialsKind;
     PWSTR PipeBuf = 0;
 #if defined(FSP_NP_CREDENTIAL_MANAGER)
@@ -524,9 +516,6 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
         if (GetLogicalDrives() & (1 << (LocalNameBuf[0] - 'A')))
             return WN_ALREADY_CONNECTED;
     }
-
-    if (!FspNpGetLocalUserName(LocalUserName, sizeof LocalUserName / sizeof LocalUserName[0]))
-        LocalUserName[0] = L'\0';
 
     FspNpGetCredentialsKind(lpRemoteName, &CredentialsKind);
 
@@ -582,7 +571,6 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
     memcpy(P, InstanceName, InstanceNameLen * sizeof(WCHAR)); P += InstanceNameLen; *P++ = L'\0';
     lstrcpyW(P, RemoteName); P += lstrlenW(RemoteName) + 1;
     lstrcpyW(P, LocalNameBuf); P += lstrlenW(LocalNameBuf) + 1;
-    lstrcpyW(P, LocalUserName); P += lstrlenW(LocalUserName) + 1;
     if (FSP_NP_CREDENTIALS_USERPASS == CredentialsKind)
     {
         lstrcpyW(P, lpUserName); P += lstrlenW(lpUserName) + 1;

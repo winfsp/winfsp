@@ -67,6 +67,76 @@ BOOL CreateOverlappedPipe(
     return TRUE;
 }
 
+static NTSTATUS GetTokenUserName(HANDLE Token, PWSTR *PUserName)
+{
+    TOKEN_USER *User = 0;
+    WCHAR Name[256], Domn[256];
+    DWORD UserSize, NameSize, DomnSize;
+    SID_NAME_USE Use;
+    PWSTR P;
+    NTSTATUS Result;
+
+    *PUserName = 0;
+
+    if (GetTokenInformation(Token, TokenUser, 0, 0, &UserSize))
+    {
+        Result = STATUS_INVALID_PARAMETER;
+        goto exit;
+    }
+    if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    User = MemAlloc(UserSize);
+    if (0 == User)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    if (!GetTokenInformation(Token, TokenUser, User, UserSize, &UserSize))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    NameSize = sizeof Name / sizeof Name[0];
+    DomnSize = sizeof Domn / sizeof Domn[0];
+    if (!LookupAccountSidW(0, User->User.Sid, Name, &NameSize, Domn, &DomnSize, &Use))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    NameSize = lstrlenW(Name);
+    DomnSize = lstrlenW(Domn);
+
+    P = *PUserName = MemAlloc((DomnSize + 1 + NameSize + 1) * sizeof(WCHAR));
+    if (0 == P)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    if (0 < DomnSize)
+    {
+        memcpy(P, Domn, DomnSize * sizeof(WCHAR));
+        P[DomnSize] = L'\\';
+        P += DomnSize + 1;
+    }
+    memcpy(P, Name, NameSize * sizeof(WCHAR));
+    P[NameSize] = L'\0';
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    MemFree(User);
+
+    return Result;
+}
+
 typedef struct
 {
     HANDLE Process;
@@ -142,6 +212,17 @@ typedef struct
 static CRITICAL_SECTION SvcInstanceLock;
 static HANDLE SvcInstanceEvent;
 static LIST_ENTRY SvcInstanceList = { &SvcInstanceList, &SvcInstanceList };
+static DWORD SvcInstanceTlsKey = TLS_OUT_OF_INDEXES;
+
+static inline PWSTR SvcInstanceUserName(VOID)
+{
+    return TlsGetValue(SvcInstanceTlsKey);
+}
+
+static inline VOID SvcInstanceSetUserName(PWSTR UserName)
+{
+    TlsSetValue(SvcInstanceTlsKey, UserName);
+}
 
 static VOID CALLBACK SvcInstanceTerminated(PVOID Context, BOOLEAN Timeout);
 
@@ -211,6 +292,14 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
                     Length += SvcInstanceArgumentLength(EmptyArg);
             }
             else
+            if (L'U' == *P)
+            {
+                if (0 != SvcInstanceUserName())
+                    Length += SvcInstanceArgumentLength(SvcInstanceUserName());
+                else
+                    Length += SvcInstanceArgumentLength(EmptyArg);
+            }
+            else
                 Length++;
             break;
         default:
@@ -233,6 +322,14 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
             {
                 if (Argc > (ULONG)(*P - L'0'))
                     Q = SvcInstanceArgumentCopy(Q, Argv[*P - L'0']);
+                else
+                    Q = SvcInstanceArgumentCopy(Q, EmptyArg);
+            }
+            else
+            if (L'U' == *P)
+            {
+                if (0 != SvcInstanceUserName())
+                    Q = SvcInstanceArgumentCopy(Q, SvcInstanceUserName());
                 else
                     Q = SvcInstanceArgumentCopy(Q, EmptyArg);
             }
@@ -918,6 +1015,10 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     if (0 == SvcInstanceEvent)
         goto fail;
 
+    SvcInstanceTlsKey = TlsAlloc();
+    if (TLS_OUT_OF_INDEXES == SvcInstanceTlsKey)
+        goto fail;
+
     SvcJob = CreateJobObjectW(0, 0);
     if (0 != SvcJob)
     {
@@ -980,6 +1081,9 @@ fail:
     if (0 != SvcJob)
         CloseHandle(SvcJob);
 
+    if (TLS_OUT_OF_INDEXES != SvcInstanceTlsKey)
+        TlsFree(SvcInstanceTlsKey);
+
     if (0 != SvcInstanceEvent)
         CloseHandle(SvcInstanceEvent);
 
@@ -1022,6 +1126,9 @@ static NTSTATUS SvcStop(FSP_SERVICE *Service)
 
     if (0 != SvcJob)
         CloseHandle(SvcJob);
+
+    if (TLS_OUT_OF_INDEXES != SvcInstanceTlsKey)
+        TlsFree(SvcInstanceTlsKey);
 
     if (0 != SvcInstanceEvent)
         CloseHandle(SvcInstanceEvent);
@@ -1194,12 +1301,15 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         return;
 
     PWSTR P = PipeBuf, PipeBufEnd = PipeBuf + *PSize / sizeof(WCHAR);
-    PWSTR ClassName, InstanceName;
+    PWSTR ClassName, InstanceName, UserName;
     ULONG Argc; PWSTR Argv[9];
     BOOLEAN HasSecret = FALSE;
     NTSTATUS Result;
 
     *PSize = 0;
+
+    GetTokenUserName(ClientToken, &UserName);
+    SvcInstanceSetUserName(UserName);
 
     switch (*P++)
     {
@@ -1264,6 +1374,9 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         SvcPipeTransactResult(STATUS_INVALID_PARAMETER, PipeBuf, PSize);
         break;
     }
+
+    SvcInstanceSetUserName(0);
+    MemFree(UserName);
 }
 
 int wmain(int argc, wchar_t **argv)
