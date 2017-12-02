@@ -611,7 +611,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     if (0 != FileDesc->DirectoryMarker.Buffer)
     {
         ASSERT(
-            FsvolDeviceExtension->VolumeParams.MaxComponentLength >=
+            FsvolDeviceExtension->VolumeParams.MaxComponentLength * sizeof(WCHAR) >=
             FileDesc->DirectoryMarker.Length);
 
         Request->Req.QueryDirectory.Marker.Offset =
@@ -921,7 +921,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
         if (0 != FileDesc->DirectoryMarker.Buffer)
         {
             ASSERT(
-                FsvolDeviceExtension->VolumeParams.MaxComponentLength >=
+                FsvolDeviceExtension->VolumeParams.MaxComponentLength * sizeof(WCHAR) >=
                 FileDesc->DirectoryMarker.Length);
 
             Request->Req.QueryDirectory.Marker.Offset =

@@ -2166,7 +2166,7 @@ NTSTATUS FspFileDescSetDirectoryMarker(FSP_FILE_DESC *FileDesc,
         FspFsvolDeviceExtension(FileDesc->FileNode->FsvolDeviceObject);
     UNICODE_STRING DirectoryMarker;
 
-    if (FsvolDeviceExtension->VolumeParams.MaxComponentLength < FileName->Length)
+    if (FsvolDeviceExtension->VolumeParams.MaxComponentLength * sizeof(WCHAR) < FileName->Length)
         return STATUS_OBJECT_NAME_INVALID;
 
     DirectoryMarker.Length = DirectoryMarker.MaximumLength = FileName->Length;
