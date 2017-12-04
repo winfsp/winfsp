@@ -765,9 +765,9 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
 
     memset(&fi, 0, sizeof fi);
     if ('C' == f->env->environment) /* Cygwin */
-        fi.flags = 0x0200 | 2 /*O_CREAT|O_RDWR*/;
+        fi.flags = 0x0200 | 0x0800 | 2 /*O_CREAT|O_EXCL|O_RDWR*/;
     else
-        fi.flags = 0x0100 | 2 /*O_CREAT|O_RDWR*/;
+        fi.flags = 0x0100 | 0x0400 | 2 /*O_CREAT|O_EXCL|O_RDWR*/;
 
     if (CreateOptions & FILE_DIRECTORY_FILE)
     {
