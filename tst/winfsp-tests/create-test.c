@@ -232,6 +232,122 @@ void create_test(void)
         create_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+static void create_fileattr_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    HANDLE Handle;
+    BOOLEAN Success;
+    DWORD FileAttributes;
+    WCHAR FilePath[MAX_PATH];
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    FileAttributes = GetFileAttributesW(FilePath);
+    ASSERT(FILE_ATTRIBUTE_ARCHIVE == FileAttributes);
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_READONLY, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    FileAttributes = GetFileAttributesW(FilePath);
+    ASSERT((FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_READONLY) == FileAttributes);
+    Success = SetFileAttributesW(FilePath, FILE_ATTRIBUTE_NORMAL);
+    ASSERT(Success);
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_SYSTEM, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    FileAttributes = GetFileAttributesW(FilePath);
+    ASSERT((FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_SYSTEM) == FileAttributes);
+    Success = SetFileAttributesW(FilePath, FILE_ATTRIBUTE_NORMAL);
+    ASSERT(Success);
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_HIDDEN, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    FileAttributes = GetFileAttributesW(FilePath);
+    ASSERT((FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_HIDDEN) == FileAttributes);
+    Success = SetFileAttributesW(FilePath, FILE_ATTRIBUTE_NORMAL);
+    ASSERT(Success);
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    FileAttributes = GetFileAttributesW(FilePath);
+    ASSERT(FILE_ATTRIBUTE_ARCHIVE == FileAttributes);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_READONLY, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    FileAttributes = GetFileAttributesW(FilePath);
+    ASSERT((FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_READONLY) == FileAttributes);
+    Success = SetFileAttributesW(FilePath, FILE_ATTRIBUTE_NORMAL);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_SYSTEM, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    FileAttributes = GetFileAttributesW(FilePath);
+    ASSERT((FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_SYSTEM) == FileAttributes);
+    Success = SetFileAttributesW(FilePath, FILE_ATTRIBUTE_NORMAL);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_HIDDEN, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    FileAttributes = GetFileAttributesW(FilePath);
+    ASSERT((FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_HIDDEN) == FileAttributes);
+    Success = SetFileAttributesW(FilePath, FILE_ATTRIBUTE_NORMAL);
+    ASSERT(Success);
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+static void create_fileattr_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        create_fileattr_dotest(-1, DirBuf);
+    }
+    if (WinFspDiskTests)
+        create_fileattr_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        create_fileattr_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
 void create_related_dotest(ULONG Flags, PWSTR Prefix)
 {
     void *memfs = memfs_start(Flags);
@@ -1141,6 +1257,7 @@ void create_pid_test(void)
 void create_tests(void)
 {
     TEST(create_test);
+    TEST(create_fileattr_test);
     TEST(create_related_test);
     TEST(create_allocation_test);
     TEST(create_sd_test);

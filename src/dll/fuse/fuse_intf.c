@@ -821,16 +821,24 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
 
     Opened = TRUE;
 
-    if (Uid != context->uid || Gid != context->gid)
-        if (0 != f->ops.chown)
-        {
-            err = f->ops.chown(contexthdr->PosixPath, Uid, Gid);
-            if (0 != err)
-            {
-                Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-                goto exit;
-            }
-        }
+    if (0 != FileAttributes &&
+        0 != (f->conn_want & FSP_FUSE_CAP_STAT_EX) && 0 != f->ops.chflags)
+    {
+        err = f->ops.chflags(contexthdr->PosixPath,
+            fsp_fuse_intf_MapFileAttributesToFlags(FileAttributes | FILE_ATTRIBUTE_ARCHIVE));
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        if (!NT_SUCCESS(Result) && STATUS_INVALID_DEVICE_REQUEST != Result)
+            goto exit;
+    }
+
+    if ((Uid != context->uid || Gid != context->gid) &&
+        0 != f->ops.chown)
+    {
+        err = f->ops.chown(contexthdr->PosixPath, Uid, Gid);
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        if (!NT_SUCCESS(Result) && STATUS_INVALID_DEVICE_REQUEST != Result)
+            goto exit;
+    }
 
     /*
      * Ignore fuse_file_info::direct_io, fuse_file_info::keep_cache.
@@ -1014,6 +1022,22 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
         Result = STATUS_INVALID_DEVICE_REQUEST;
     if (!NT_SUCCESS(Result))
         return Result;
+
+    if (0 != FileAttributes &&
+        0 != (f->conn_want & FSP_FUSE_CAP_STAT_EX) && 0 != f->ops.chflags)
+    {
+        /*
+         * The code below is not strictly correct. File attributes should be
+         * replaced when ReplaceFileAttributes is TRUE and merged (or'ed) when
+         * ReplaceFileAttributes is FALSE. I am punting on this detail for now.
+         */
+
+        err = f->ops.chflags(filedesc->PosixPath,
+            fsp_fuse_intf_MapFileAttributesToFlags(FileAttributes | FILE_ATTRIBUTE_ARCHIVE));
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        if (!NT_SUCCESS(Result) && STATUS_INVALID_DEVICE_REQUEST != Result)
+            return Result;
+    }
 
     return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
         &Uid, &Gid, &Mode, FileInfo);
