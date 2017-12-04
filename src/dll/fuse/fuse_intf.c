@@ -825,7 +825,8 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
         0 != (f->conn_want & FSP_FUSE_CAP_STAT_EX) && 0 != f->ops.chflags)
     {
         err = f->ops.chflags(contexthdr->PosixPath,
-            fsp_fuse_intf_MapFileAttributesToFlags(FileAttributes | FILE_ATTRIBUTE_ARCHIVE));
+            fsp_fuse_intf_MapFileAttributesToFlags(CreateOptions & FILE_DIRECTORY_FILE ?
+                FileAttributes : FileAttributes | FILE_ATTRIBUTE_ARCHIVE));
         Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         if (!NT_SUCCESS(Result) && STATUS_INVALID_DEVICE_REQUEST != Result)
             goto exit;
