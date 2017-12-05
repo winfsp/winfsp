@@ -375,6 +375,7 @@ namespace passthrough
                             4096,
                             0,
                             Security));
+                    FileDesc.SetFileAttributes(FileAttributes | (UInt32)System.IO.FileAttributes.Archive);
                 }
                 else
                 {
@@ -388,8 +389,8 @@ namespace passthrough
                     }
                     FileDesc = new FileDesc(
                         Directory.CreateDirectory(FileName, Security));
+                    FileDesc.SetFileAttributes(FileAttributes);
                 }
-                FileDesc.SetFileAttributes(FileAttributes);
                 FileNode = default(Object);
                 FileDesc0 = FileDesc;
                 NormalizedName = default(String);
@@ -453,9 +454,11 @@ namespace passthrough
         {
             FileDesc FileDesc = (FileDesc)FileDesc0;
             if (ReplaceFileAttributes)
-                FileDesc.SetFileAttributes(FileAttributes);
+                FileDesc.SetFileAttributes(FileAttributes |
+                    (UInt32)System.IO.FileAttributes.Archive);
             else if (0 != FileAttributes)
-                FileDesc.SetFileAttributes(FileDesc.GetFileAttributes() | FileAttributes);
+                FileDesc.SetFileAttributes(FileDesc.GetFileAttributes() | FileAttributes |
+                    (UInt32)System.IO.FileAttributes.Archive);
             FileDesc.Stream.SetLength(0);
             return FileDesc.GetFileInfo(out FileInfo);
         }
