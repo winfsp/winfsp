@@ -640,8 +640,11 @@ namespace passthrough
             FileDesc FileDesc = (FileDesc)FileDesc0;
             if (null == FileDesc.FileSystemInfos)
             {
-                IEnumerable Enum = FileDesc.DirInfo.EnumerateFileSystemInfos(
-                    null != Pattern ? Pattern : "*");
+                if (null != Pattern)
+                    Pattern = Pattern.Replace('<', '*').Replace('>', '?').Replace('=', '.');
+                else
+                    Pattern = "*";
+                IEnumerable Enum = FileDesc.DirInfo.EnumerateFileSystemInfos(Pattern);
                 SortedList List = new SortedList();
                 List.Add(".", FileDesc.DirInfo);
                 List.Add("..", FileDesc.DirInfo.Parent);
