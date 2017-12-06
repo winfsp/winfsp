@@ -641,13 +641,16 @@ namespace passthrough
             if (null == FileDesc.FileSystemInfos)
             {
                 if (null != Pattern)
-                    Pattern = Pattern.Replace('<', '*').Replace('>', '?').Replace('=', '.');
+                    Pattern = Pattern.Replace('<', '*').Replace('>', '?').Replace('"', '.');
                 else
                     Pattern = "*";
                 IEnumerable Enum = FileDesc.DirInfo.EnumerateFileSystemInfos(Pattern);
                 SortedList List = new SortedList();
-                List.Add(".", FileDesc.DirInfo);
-                List.Add("..", FileDesc.DirInfo.Parent);
+                if (null != FileDesc.DirInfo && null != FileDesc.DirInfo.Parent)
+                {
+                    List.Add(".", FileDesc.DirInfo);
+                    List.Add("..", FileDesc.DirInfo.Parent);
+                }
                 foreach (FileSystemInfo Info in Enum)
                     List.Add(Info.Name, Info);
                 FileDesc.FileSystemInfos = new DictionaryEntry[List.Count];
