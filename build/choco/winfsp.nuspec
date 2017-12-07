@@ -50,7 +50,8 @@ To verify installation:
         <file src="LICENSE.txt" target="tools" />
         <file src="VERIFICATION.txt" target="tools" />
         <file src="chocolateyInstall.ps1" target="tools" />
-        <file src="chocolateyBeforeModify.ps1" target="tools" />
+        <file src="chocolateyUninstall.ps1" target="tools" />
+        <file src="chocolateyHelper.ps1" target="tools" />
         <file src="winfsp-$version$.msi" target="tools" />
     </files>
 </package>

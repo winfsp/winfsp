@@ -28,7 +28,7 @@ if ($key.Count -eq 1) {
             -File "$file"
     }
 } elseif ($key.Count -eq 0) {
-    Write-Warning "$packageName has already been uninstalled by other means."
+    # Write-Warning "$packageName is not installed"
 } elseif ($key.Count -gt 1) {
     Write-Warning "Too many matching packages found! Package may not be uninstalled."
     Write-Warning "Please alert package maintainer the following packages were matched:"
