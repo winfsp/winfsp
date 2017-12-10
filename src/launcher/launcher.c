@@ -16,6 +16,7 @@
  */
 
 #include <launcher/launcher.h>
+#include <aclapi.h>
 #include <sddl.h>
 #include <userenv.h>
 
@@ -454,6 +455,67 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS SvcInstanceAddUserRights(HANDLE Token,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, PSECURITY_DESCRIPTOR *PNewSecurityDescriptor)
+{
+    PSECURITY_DESCRIPTOR NewSecurityDescriptor;
+    TOKEN_USER *User = 0;
+    EXPLICIT_ACCESSW AccessEntry;
+    DWORD Size, LastError;
+    NTSTATUS Result;
+
+    *PNewSecurityDescriptor = 0;
+
+    if (GetTokenInformation(Token, TokenUser, 0, 0, &Size))
+    {
+        Result = STATUS_INVALID_PARAMETER;
+        goto exit;
+    }
+    if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    User = MemAlloc(Size);
+    if (0 == User)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    if (!GetTokenInformation(Token, TokenUser, User, Size, &Size))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    AccessEntry.grfAccessPermissions = SERVICE_QUERY_STATUS | SERVICE_STOP;
+    AccessEntry.grfAccessMode = GRANT_ACCESS;
+    AccessEntry.grfInheritance = NO_INHERITANCE;
+    AccessEntry.Trustee.pMultipleTrustee = 0;
+    AccessEntry.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
+    AccessEntry.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+    AccessEntry.Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
+    AccessEntry.Trustee.ptstrName = User->User.Sid;
+
+    LastError = BuildSecurityDescriptorW(0, 0, 1, &AccessEntry, 0, 0, SecurityDescriptor,
+        &Size, &NewSecurityDescriptor);
+    if (0 != LastError)
+    {
+        Result = FspNtStatusFromWin32(LastError);
+        goto exit;
+    }
+
+    *PNewSecurityDescriptor = NewSecurityDescriptor;
+    Result = STATUS_SUCCESS;
+
+exit:
+    MemFree(User);
+
+    return Result;
+}
+
 static NTSTATUS SvcInstanceAccessCheck(HANDLE ClientToken, ULONG DesiredAccess,
     PSECURITY_DESCRIPTOR SecurityDescriptor)
 {
@@ -620,7 +682,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     WCHAR Executable[MAX_PATH], CommandLineBuf[512], SecurityBuf[512], RunAsBuf[256];
     PWSTR CommandLine, Security;
     DWORD JobControl, Credentials;
-    PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
+    PSECURITY_DESCRIPTOR SecurityDescriptor = 0, NewSecurityDescriptor;
     PWSTR Argv[10];
     PROCESS_INFORMATION ProcessInfo;
     NTSTATUS Result;
@@ -744,6 +806,14 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     Result = SvcInstanceAccessCheck(ClientToken, SERVICE_START, SecurityDescriptor);
     if (!NT_SUCCESS(Result))
         goto exit;
+
+    Result = SvcInstanceAddUserRights(ClientToken, SecurityDescriptor, &NewSecurityDescriptor);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+    LocalFree(SecurityDescriptor);
+    SecurityDescriptor = NewSecurityDescriptor;
+
+    //FspDebugLogSD(__FUNCTION__ ": SDDL = %s\n", SecurityDescriptor);
 
     ClassNameSize = (lstrlenW(ClassName) + 1) * sizeof(WCHAR);
     InstanceNameSize = (lstrlenW(InstanceName) + 1) * sizeof(WCHAR);
