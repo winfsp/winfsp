@@ -17,6 +17,7 @@
 
 #include <launcher/launcher.h>
 #include <sddl.h>
+#include <userenv.h>
 
 #define PROGNAME                        "WinFsp.Launcher"
 
@@ -135,6 +136,103 @@ exit:
     MemFree(User);
 
     return Result;
+}
+
+static BOOL LogonCreateProcess(
+    PWSTR UserName,
+    LPCWSTR ApplicationName,
+    LPWSTR CommandLine,
+    LPSECURITY_ATTRIBUTES ProcessAttributes,
+    LPSECURITY_ATTRIBUTES ThreadAttributes,
+    BOOL InheritHandles,
+    DWORD CreationFlags,
+    LPVOID Environment,
+    LPCWSTR CurrentDirectory,
+    LPSTARTUPINFOW StartupInfo,
+    LPPROCESS_INFORMATION ProcessInformation)
+{
+    PWSTR DomainName = 0;
+
+    if (0 != UserName)
+    {
+        if (0 == invariant_wcsicmp(UserName, L"LocalSystem"))
+            UserName = 0;
+        else
+        if (0 == invariant_wcsicmp(UserName, L"LocalService") ||
+            0 == invariant_wcsicmp(UserName, L"NetworkService"))
+            DomainName = L"NT AUTHORITY";
+        else
+        {
+            SetLastError(ERROR_ACCESS_DENIED);
+            return FALSE;
+        }
+    }
+
+    if (0 == UserName)
+        /* without a user name go ahead and call CreateProcessW */
+        return CreateProcessW(
+            ApplicationName,
+            CommandLine,
+            ProcessAttributes,
+            ThreadAttributes,
+            InheritHandles,
+            CreationFlags,
+            Environment,
+            CurrentDirectory,
+            StartupInfo,
+            ProcessInformation);
+
+    HANDLE LogonToken = 0;
+    PVOID EnvironmentBlock = 0;
+    DWORD LastError;
+    BOOL Success;
+
+    Success = LogonUserW(
+        UserName,
+        DomainName,
+        0,
+        LOGON32_LOGON_SERVICE,
+        LOGON32_PROVIDER_DEFAULT,
+        &LogonToken);
+    if (!Success)
+        goto exit;
+
+    if (0 == Environment)
+    {
+        Success = CreateEnvironmentBlock(&EnvironmentBlock, LogonToken, FALSE);
+        if (!Success)
+            goto exit;
+
+        CreationFlags |= CREATE_UNICODE_ENVIRONMENT;
+        Environment = EnvironmentBlock;
+    }
+
+    Success = CreateProcessAsUserW(
+        LogonToken,
+        ApplicationName,
+        CommandLine,
+        ProcessAttributes,
+        ThreadAttributes,
+        InheritHandles,
+        CreationFlags,
+        Environment,
+        CurrentDirectory,
+        StartupInfo,
+        ProcessInformation);
+
+exit:
+    if (!Success)
+        LastError = GetLastError();
+
+    if (0 != EnvironmentBlock)
+        DestroyEnvironmentBlock(EnvironmentBlock);
+    if (0 != LogonToken)
+        CloseHandle(LogonToken);
+
+    if (!Success)
+        SetLastError(LastError);
+
+    return Success;
 }
 
 typedef struct
@@ -376,7 +474,8 @@ static NTSTATUS SvcInstanceAccessCheck(HANDLE ClientToken, ULONG DesiredAccess,
     return Result;
 }
 
-NTSTATUS SvcInstanceCreateProcess(PWSTR Executable, PWSTR CommandLine,
+NTSTATUS SvcInstanceCreateProcess(PWSTR UserName,
+    PWSTR Executable, PWSTR CommandLine,
     HANDLE StdioHandles[2],
     PPROCESS_INFORMATION ProcessInfo)
 {
@@ -454,7 +553,8 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR Executable, PWSTR CommandLine,
         StartupInfoEx.StartupInfo.hStdOutput = ChildHandles[1];
         StartupInfoEx.StartupInfo.hStdError = ChildHandles[2];
 
-        if (!CreateProcessW(Executable, CommandLine, 0, 0, TRUE,
+        if (!LogonCreateProcess(UserName,
+            Executable, CommandLine, 0, 0, TRUE,
             CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP | EXTENDED_STARTUPINFO_PRESENT, 0, 0,
             &StartupInfoEx.StartupInfo, ProcessInfo))
         {
@@ -464,7 +564,8 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR Executable, PWSTR CommandLine,
     }
     else
     {
-        if (!CreateProcessW(Executable, CommandLine, 0, 0, FALSE,
+        if (!LogonCreateProcess(UserName,
+            Executable, CommandLine, 0, 0, FALSE,
             CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP, 0, 0,
             &StartupInfoEx.StartupInfo, ProcessInfo))
         {
@@ -508,7 +609,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     HKEY RegKey = 0;
     DWORD RegResult, RegSize;
     DWORD ClassNameSize, InstanceNameSize;
-    WCHAR Executable[MAX_PATH], CommandLineBuf[512], SecurityBuf[512];
+    WCHAR Executable[MAX_PATH], CommandLineBuf[512], SecurityBuf[512], RunAsBuf[256];
     PWSTR CommandLine, Security;
     DWORD JobControl, Credentials;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
@@ -595,6 +696,16 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
+    RegSize = sizeof RunAsBuf;
+    RunAsBuf[0] = L'\0';
+    RegResult = RegGetValueW(RegKey, ClassName, L"RunAs", RRF_RT_REG_SZ, 0,
+        RunAsBuf, &RegSize);
+    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
+    {
+        Result = FspNtStatusFromWin32(RegResult);
+        goto exit;
+    }
+
     RegSize = sizeof JobControl;
     JobControl = 1; /* default is YES! */
     RegResult = RegGetValueW(RegKey, ClassName, L"JobControl", RRF_RT_REG_DWORD, 0,
@@ -650,7 +761,8 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Result = SvcInstanceCreateProcess(Executable, SvcInstance->CommandLine,
+    Result = SvcInstanceCreateProcess(L'\0' != RunAsBuf[0] ? RunAsBuf : 0,
+        Executable, SvcInstance->CommandLine,
         RedirectStdio ? SvcInstance->StdioHandles : 0, &ProcessInfo);
     if (!NT_SUCCESS(Result))
         goto exit;
@@ -721,6 +833,9 @@ exit:
 
     LeaveCriticalSection(&SvcInstanceLock);
 
+    FspServiceLog(EVENTLOG_INFORMATION_TYPE,
+        L"create %s\\%s = %lx", ClassName, InstanceName, Result);
+
     return Result;
 }
 
@@ -753,6 +868,9 @@ static VOID SvcInstanceRelease(SVC_INSTANCE *SvcInstance)
 static VOID CALLBACK SvcInstanceTerminated(PVOID Context, BOOLEAN Timeout)
 {
     SVC_INSTANCE *SvcInstance = Context;
+
+    FspServiceLog(EVENTLOG_INFORMATION_TYPE,
+        L"terminated %s\\%s", SvcInstance->ClassName, SvcInstance->InstanceName);
 
     SvcInstanceRelease(SvcInstance);
 }
