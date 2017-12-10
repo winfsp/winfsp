@@ -207,6 +207,10 @@ static BOOL LogonCreateProcess(
         Environment = EnvironmentBlock;
     }
 
+    Success = ImpersonateLoggedOnUser(LogonToken);
+    if (!Success)
+        goto exit;
+
     Success = CreateProcessAsUserW(
         LogonToken,
         ApplicationName,
@@ -219,6 +223,10 @@ static BOOL LogonCreateProcess(
         CurrentDirectory,
         StartupInfo,
         ProcessInformation);
+
+    if (!RevertToSelf())
+        /* should not happen! */
+        ExitProcess(GetLastError());
 
 exit:
     if (!Success)
