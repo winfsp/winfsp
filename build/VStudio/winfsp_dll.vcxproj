@@ -51,6 +51,7 @@
     <ClCompile Include="..\..\src\dll\path.c" />
     <ClCompile Include="..\..\src\dll\service.c" />
     <ClCompile Include="..\..\src\dll\util.c" />
+    <ClCompile Include="..\..\src\dll\wksid.c" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\dll\fuse\fuse.pc.in">

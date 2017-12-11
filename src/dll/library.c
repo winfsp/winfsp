@@ -44,6 +44,7 @@ BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
         FspServiceFinalize(Dynamic);
         FspEventLogFinalize(Dynamic);
         FspPosixFinalize(Dynamic);
+        FspWksidFinalize(Dynamic);
         break;
 
     case DLL_THREAD_DETACH:

@@ -284,7 +284,7 @@ static NTSTATUS FspFsctlFixServiceSecurity(HANDLE SvcHandle)
      * This function adds an ACE that allows Everyone to start a service.
      */
 
-    PSID WorldSid = 0;
+    PSID WorldSid;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     PSECURITY_DESCRIPTOR NewSecurityDescriptor = 0;
     EXPLICIT_ACCESSW AccessEntry;
@@ -296,16 +296,10 @@ static NTSTATUS FspFsctlFixServiceSecurity(HANDLE SvcHandle)
     NTSTATUS Result;
 
     /* get the Everyone (World) SID */
-    Size = SECURITY_MAX_SID_SIZE;
-    WorldSid = MemAlloc(Size);
+    WorldSid = FspWksidGet(WinWorldSid);
     if (0 == WorldSid)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
-    if (!CreateWellKnownSid(WinWorldSid, 0, WorldSid, &Size))
-    {
-        Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
     }
 
@@ -394,7 +388,6 @@ static NTSTATUS FspFsctlFixServiceSecurity(HANDLE SvcHandle)
 exit:
     LocalFree(NewSecurityDescriptor);
     MemFree(SecurityDescriptor);
-    MemFree(WorldSid);
 
     return Result;
 }

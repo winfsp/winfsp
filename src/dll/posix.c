@@ -453,9 +453,12 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Result = FspPosixMapUidToSid(0x10100, &WorldSid);
-    if (!NT_SUCCESS(Result))
+    WorldSid = FspWksidGet(WinWorldSid);
+    if (0 == WorldSid)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
         goto exit;
+    }
 
     OwnerPerm = (Mode & 0700) >> 6;
     GroupPerm = (Mode & 0070) >> 3;
@@ -579,9 +582,6 @@ exit:
 
     MemFree(Acl);
 
-    if (0 != WorldSid)
-        FspDeleteSid(WorldSid, FspPosixMapUidToSid);
-
     if (0 != GroupSid)
         FspDeleteSid(GroupSid, FspPosixMapUidToSid);
 
@@ -649,13 +649,19 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
 
     if (0 != Acl)
     {
-        Result = FspPosixMapUidToSid(0x10100, &WorldSid);
-        if (!NT_SUCCESS(Result))
+        WorldSid = FspWksidGet(WinWorldSid);
+        if (0 == WorldSid)
+        {
+            Result = STATUS_INSUFFICIENT_RESOURCES;
             goto exit;
+        }
 
-        Result = FspPosixMapUidToSid(11, &AuthUsersSid);
-        if (!NT_SUCCESS(Result))
+        AuthUsersSid = FspWksidGet(WinAuthenticatedUserSid);
+        if (0 == AuthUsersSid)
+        {
+            Result = STATUS_INSUFFICIENT_RESOURCES;
             goto exit;
+        }
 
         OwnerAllow = OwnerDeny = GroupAllow = GroupDeny = WorldAllow = WorldDeny = 0;
 
@@ -771,12 +777,6 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
     Result = STATUS_SUCCESS;
 
 exit:
-    if (0 != AuthUsersSid)
-        FspDeleteSid(AuthUsersSid, FspPosixMapUidToSid);
-
-    if (0 != WorldSid)
-        FspDeleteSid(WorldSid, FspPosixMapUidToSid);
-
     return Result;
 
 lasterror:

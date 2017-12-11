@@ -63,6 +63,21 @@ FSP_API VOID FspDebugLogSD(const char *format, PSECURITY_DESCRIPTOR SecurityDesc
         FspDebugLog(format, "invalid security descriptor");
 }
 
+FSP_API VOID FspDebugLogSid(const char *format, PSID Sid)
+{
+    char *S;
+
+    if (0 == Sid)
+        FspDebugLog(format, "null SID");
+    else if (ConvertSidToStringSidA(Sid, &S))
+    {
+        FspDebugLog(format, S);
+        LocalFree(S);
+    }
+    else
+        FspDebugLog(format, "invalid SID");
+}
+
 FSP_API VOID FspDebugLogFT(const char *format, PFILETIME FileTime)
 {
     SYSTEMTIME SystemTime;
