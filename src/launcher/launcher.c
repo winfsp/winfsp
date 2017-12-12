@@ -23,12 +23,16 @@
 #define PROGNAME                        "WinFsp.Launcher"
 
 BOOL CreateOverlappedPipe(
-    PHANDLE PReadPipe, PHANDLE PWritePipe, PSECURITY_ATTRIBUTES SecurityAttributes, DWORD Size,
+    PHANDLE PReadPipe, PHANDLE PWritePipe,
+    DWORD Size,
+    BOOL ReadInherit, BOOL WriteInherit,
     DWORD ReadMode, DWORD WriteMode)
 {
     RPC_STATUS RpcStatus;
     UUID Uuid;
     WCHAR PipeNameBuf[MAX_PATH];
+    SECURITY_ATTRIBUTES ReadSecurityAttributes = { sizeof(SECURITY_ATTRIBUTES), 0, ReadInherit };
+    SECURITY_ATTRIBUTES WriteSecurityAttributes = { sizeof(SECURITY_ATTRIBUTES), 0, WriteInherit };
     HANDLE ReadPipe, WritePipe;
     DWORD LastError;
 
@@ -48,13 +52,13 @@ BOOL CreateOverlappedPipe(
     ReadPipe = CreateNamedPipeW(PipeNameBuf,
         PIPE_ACCESS_INBOUND | FILE_FLAG_FIRST_PIPE_INSTANCE | ReadMode,
         PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-        1, Size, Size, 120 * 1000, SecurityAttributes);
+        1, Size, Size, 120 * 1000, &ReadSecurityAttributes);
     if (INVALID_HANDLE_VALUE == ReadPipe)
         return FALSE;
 
     WritePipe = CreateFileW(PipeNameBuf,
         GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-        SecurityAttributes, OPEN_EXISTING, WriteMode, 0);
+        &WriteSecurityAttributes, OPEN_EXISTING, WriteMode, 0);
     if (INVALID_HANDLE_VALUE == WritePipe)
     {
         LastError = GetLastError();
@@ -552,7 +556,6 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR UserName,
     STARTUPINFOEXW StartupInfoEx;
     HANDLE ChildHandles[3] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE, 0/* DO NOT CLOSE!*/ };
     HANDLE ParentHandles[2] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE };
-    SECURITY_ATTRIBUTES PipeAttributes = { sizeof(SECURITY_ATTRIBUTES), 0, TRUE };
     PPROC_THREAD_ATTRIBUTE_LIST AttrList = 0;
     SIZE_T Size;
     NTSTATUS Result;
@@ -570,16 +573,16 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR UserName,
          */
 
         /* create stdin read/write ends; make them inheritable */
-        if (!CreateOverlappedPipe(&ChildHandles[0], &ParentHandles[0], &PipeAttributes, 0,
-            0, 0))
+        if (!CreateOverlappedPipe(&ChildHandles[0], &ParentHandles[0],
+            0, TRUE, FALSE, 0, 0))
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
         }
 
         /* create stdout read/write ends; make them inheritable */
-        if (!CreateOverlappedPipe(&ParentHandles[1], &ChildHandles[1], &PipeAttributes, 0,
-            FILE_FLAG_OVERLAPPED, 0))
+        if (!CreateOverlappedPipe(&ParentHandles[1], &ChildHandles[1],
+            0, FALSE, TRUE, FILE_FLAG_OVERLAPPED, 0))
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
@@ -628,8 +631,28 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR UserName,
             CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP | EXTENDED_STARTUPINFO_PRESENT, 0, 0,
             &StartupInfoEx.StartupInfo, ProcessInfo))
         {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
+            if (ERROR_NO_SYSTEM_RESOURCES != GetLastError())
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
+
+            /*
+             * On Win7 CreateProcessW with EXTENDED_STARTUPINFO_PRESENT
+             * may fail with ERROR_NO_SYSTEM_RESOURCES.
+             *
+             * In that case go ahead and retry with a CreateProcessW with
+             * bInheritHandles==TRUE, but without EXTENDED_STARTUPINFO_PRESENT.
+             * Not ideal, but...
+             */
+            StartupInfoEx.StartupInfo.cb = sizeof StartupInfoEx.StartupInfo;
+            if (!CreateProcessW(Executable, CommandLine, 0, 0, TRUE,
+                CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP, 0, 0,
+                &StartupInfoEx.StartupInfo, ProcessInfo))
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
         }
     }
     else
@@ -1044,6 +1067,10 @@ exit:
     }
 
     SvcInstanceRelease(SvcInstance);
+
+    if (STATUS_TIMEOUT == Result)
+        /* convert to an error! */
+        Result = 0x80070000 | ERROR_TIMEOUT;
 
     return Result;
 }
