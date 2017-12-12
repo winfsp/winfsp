@@ -646,7 +646,8 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR UserName,
              * Not ideal, but...
              */
             StartupInfoEx.StartupInfo.cb = sizeof StartupInfoEx.StartupInfo;
-            if (!CreateProcessW(Executable, CommandLine, 0, 0, TRUE,
+            if (!LogonCreateProcess(UserName,
+                Executable, CommandLine, 0, 0, TRUE,
                 CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP, 0, 0,
                 &StartupInfoEx.StartupInfo, ProcessInfo))
             {
