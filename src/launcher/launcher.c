@@ -21,14 +21,16 @@
 #define PROGNAME                        "WinFsp.Launcher"
 
 BOOL CreateOverlappedPipe(
-    PHANDLE PReadPipe, PSECURITY_ATTRIBUTES ReadSecurityAttributes,
-    PHANDLE PWritePipe, PSECURITY_ATTRIBUTES WriteSecurityAttributes,
+    PHANDLE PReadPipe, PHANDLE PWritePipe,
     DWORD Size,
+    BOOL ReadInherit, BOOL WriteInherit,
     DWORD ReadMode, DWORD WriteMode)
 {
     RPC_STATUS RpcStatus;
     UUID Uuid;
     WCHAR PipeNameBuf[MAX_PATH];
+    SECURITY_ATTRIBUTES ReadSecurityAttributes = { sizeof(SECURITY_ATTRIBUTES), 0, ReadInherit };
+    SECURITY_ATTRIBUTES WriteSecurityAttributes = { sizeof(SECURITY_ATTRIBUTES), 0, WriteInherit };
     HANDLE ReadPipe, WritePipe;
     DWORD LastError;
 
@@ -48,13 +50,13 @@ BOOL CreateOverlappedPipe(
     ReadPipe = CreateNamedPipeW(PipeNameBuf,
         PIPE_ACCESS_INBOUND | FILE_FLAG_FIRST_PIPE_INSTANCE | ReadMode,
         PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-        1, Size, Size, 120 * 1000, ReadSecurityAttributes);
+        1, Size, Size, 120 * 1000, &ReadSecurityAttributes);
     if (INVALID_HANDLE_VALUE == ReadPipe)
         return FALSE;
 
     WritePipe = CreateFileW(PipeNameBuf,
         GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-        WriteSecurityAttributes, OPEN_EXISTING, WriteMode, 0);
+        &WriteSecurityAttributes, OPEN_EXISTING, WriteMode, 0);
     if (INVALID_HANDLE_VALUE == WritePipe)
     {
         LastError = GetLastError();
@@ -385,7 +387,6 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR Executable, PWSTR CommandLine,
     STARTUPINFOEXW StartupInfoEx;
     HANDLE ChildHandles[3] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE, 0/* DO NOT CLOSE!*/ };
     HANDLE ParentHandles[2] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE };
-    SECURITY_ATTRIBUTES PipeAttributesInherit = { sizeof(SECURITY_ATTRIBUTES), 0, TRUE };
     PPROC_THREAD_ATTRIBUTE_LIST AttrList = 0;
     SIZE_T Size;
     NTSTATUS Result;
@@ -403,20 +404,16 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR Executable, PWSTR CommandLine,
          */
 
         /* create stdin read/write ends; make them inheritable */
-        if (!CreateOverlappedPipe(
-            &ChildHandles[0], &PipeAttributesInherit,
-            &ParentHandles[0], 0,
-            0, 0, 0))
+        if (!CreateOverlappedPipe(&ChildHandles[0], &ParentHandles[0],
+            0, TRUE, FALSE, 0, 0))
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
         }
 
         /* create stdout read/write ends; make them inheritable */
-        if (!CreateOverlappedPipe(
-            &ParentHandles[1], 0,
-            &ChildHandles[1], &PipeAttributesInherit,
-            0, FILE_FLAG_OVERLAPPED, 0))
+        if (!CreateOverlappedPipe(&ParentHandles[1], &ChildHandles[1],
+            0, FALSE, TRUE, FILE_FLAG_OVERLAPPED, 0))
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
