@@ -1,6 +1,19 @@
 = Changelog
 
 
+v1.2POST1 (2017.2; issue #127)::
+
+Changes since v1.1:
+
+- WinFsp-FUSE now supports BSD flags (Windows file attributes) during `getattr` and `fgetattr`. It also adds the `chflags` operation. BSD flags support requires use of the `FSP_FUSE_CAP_STAT_EX` capability and the new `struct fuse_stat_ex` which includes an `st_flags` field. If the preprocessor macro `FSP_FUSE_USE_STAT_EX` is defined before inclusion of `<fuse.h>` then `struct fuse_stat` will also be defined to include the `st_flags` field.
+- WinFsp-FUSE also adds the following OSXFUSE operations: `setcrtime`, `setchgtime`. These can be used to set the creation (birth) time and change (ctime) time of a file.
+- New `GetDirInfoByName` file system operation adds fast queries of directory info by file name rather than pattern [e.g. `FindFirstFileW(L"foobar", FindData)`]. Tests with fsbench showed that such queries are sped up by an order of magnitude when using `GetDirInfoByName` in MEMFS. Case-sensitive FUSE file systems get this optimization for free. The .NET layer also adds `GetDirInfoByName`.
+- New `FspFileSystemOperationProcessId` API adds support for getting the originating process ID (PID) during `Create`, `Open` and `Rename` calls. FUSE file systems can now access `fuse_context::pid`. The .NET layer also adds `GetOperationProcessId`.
+- New command line tool `fsptool` allows command line access to some WinFsp features.
+- The WinFsp launcher now passes the name of the user who launched the file system as a special parameter %U. This is useful to file systems that use the launcher infrastructure, such as SSHFS-Win. [Please note that in earlier betas the user name was passed as parameter %3; the previous method was insecure and is no longer supported.]
+- Important GitHub issues fixed: #96, #97, #103, #107, #127
+
+
 v1.2 (2017.2)::
 
 Changes since v1.1:
