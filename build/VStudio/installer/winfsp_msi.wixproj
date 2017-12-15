@@ -39,6 +39,10 @@
       <HintPath>$(WixExtDir)\WixUIExtension.dll</HintPath>
       <Name>WixUIExtension</Name>
     </WixExtension>
+    <WixExtension Include="WixDependencyExtension">
+      <HintPath>$(WixExtDir)\WixDependencyExtension.dll</HintPath>
+      <Name>WixDependencyExtension</Name>
+    </WixExtension>
   </ItemGroup>
   <Import Project="$(WixTargetsPath)" />
   <!--
