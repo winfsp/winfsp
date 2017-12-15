@@ -58,4 +58,5 @@ CONTRIBUTOR LIST
 |John Oberschelp                                                |john at oberschelp.net
 |Sam Kelly (DuroSoft Technologies LLC, https://durosoft.com)    |sam at durosoft.com
 |Tobias Urlaub                                                  |saibotu at outlook.de
+|Fritz Elfert                                                   |fritz-github at fritz-elfert.de
 |===
