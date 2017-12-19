@@ -16,6 +16,7 @@
  */
 
 #include <dll/library.h>
+#include <launcher/launcher.h>
 
 enum
 {
@@ -187,17 +188,101 @@ FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem)
     MemFree(FileSystem);
 }
 
+static NTSTATUS FspFileSystemLauncherDefineDosDevice(
+    WCHAR Sign, PWSTR MountPoint, PWSTR VolumeName)
+{
+    NTSTATUS Result;
+    ULONG MountPointLen, VolumeNameLen;
+    PWSTR PipeBuf = 0, P;
+    DWORD BytesTransferred;
+
+    MountPointLen = lstrlenW(MountPoint);
+    VolumeNameLen = lstrlenW(VolumeName);
+
+    if (2 != MountPointLen ||
+        FSP_FSCTL_VOLUME_NAME_SIZEMAX / sizeof(WCHAR) <= VolumeNameLen)
+        return STATUS_INVALID_PARAMETER;
+
+    PipeBuf = MemAlloc(LAUNCHER_PIPE_BUFFER_SIZE);
+    if (0 == PipeBuf)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    P = PipeBuf;
+    *P++ = LauncherDefineDosDevice;
+    *P++ = Sign;
+    memcpy(P, MountPoint, MountPointLen * sizeof(WCHAR)); P += MountPointLen; *P++ = L'\0';
+    memcpy(P, VolumeName, VolumeNameLen * sizeof(WCHAR)); P += VolumeNameLen; *P++ = L'\0';
+
+    Result = FspCallNamedPipeSecurely(L"" LAUNCHER_PIPE_NAME,
+        PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE,
+        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, LAUNCHER_PIPE_OWNER);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    if (sizeof(WCHAR) > BytesTransferred)
+        Result = RPC_NT_PROTOCOL_ERROR;
+    else if (LauncherSuccess == PipeBuf[0])
+        Result = STATUS_SUCCESS;
+    else if (LauncherFailure == PipeBuf[0])
+    {
+        DWORD ErrorCode = 0;
+
+        for (PWSTR P = PipeBuf + 1, EndP = PipeBuf + BytesTransferred / sizeof(WCHAR); EndP > P; P++)
+        {
+            if (L'0' > *P || *P > L'9')
+                break;
+
+            ErrorCode = 10 * ErrorCode + (*P - L'0');
+        }
+
+        Result = FspNtStatusFromWin32(ErrorCode);
+        if (0 == Result)
+            Result = RPC_NT_PROTOCOL_ERROR;
+    }
+    else 
+        Result = RPC_NT_PROTOCOL_ERROR;
+
+exit:
+    MemFree(PipeBuf);
+
+    return Result;
+}
+
 static NTSTATUS FspFileSystemSetMountPoint_Drive(PWSTR MountPoint, PWSTR VolumeName,
     PHANDLE PMountHandle)
 {
+    NTSTATUS Result;
+    BOOLEAN IsLocalSystem, IsServiceContext;
+
     *PMountHandle = 0;
 
-    if (!DefineDosDeviceW(DDD_RAW_TARGET_PATH, MountPoint, VolumeName))
-        return FspNtStatusFromWin32(GetLastError());
+    Result = FspServiceContextCheck(0, &IsLocalSystem);
+    IsServiceContext = NT_SUCCESS(Result) && !IsLocalSystem;
+    if (IsServiceContext)
+    {
+        /*
+         * If the current process is in the service context but not LocalSystem,
+         * ask the launcher to DefineDosDevice for us. This is because the launcher
+         * runs in the LocalSystem context and can create global drives.
+         *
+         * In this case the launcher will also add DELETE access to the drive symlink
+         * for us, so that we can make it temporary below.
+         */
+        Result = FspFileSystemLauncherDefineDosDevice(L'+', MountPoint, VolumeName);
+        if (!NT_SUCCESS(Result))
+            return Result;
+    }
+    else
+    {
+        if (!DefineDosDeviceW(DDD_RAW_TARGET_PATH, MountPoint, VolumeName))
+            return FspNtStatusFromWin32(GetLastError());
+    }
 
     if (0 != FspNtOpenSymbolicLinkObject)
     {
-        NTSTATUS Result;
         WCHAR SymlinkBuf[6];
         UNICODE_STRING Symlink;
         OBJECT_ATTRIBUTES Obja;
@@ -223,6 +308,13 @@ static NTSTATUS FspFileSystemSetMountPoint_Drive(PWSTR MountPoint, PWSTR VolumeN
             }
         }
     }
+
+    /* HACK:
+     *
+     * Handles do not use the low 2 bits (unless they are console handles).
+     * Abuse this fact to remember that we are running in the service context.
+     */
+    *PMountHandle = (HANDLE)(UINT_PTR)((DWORD)(UINT_PTR)*PMountHandle | IsServiceContext);
 
     return STATUS_SUCCESS;
 }
@@ -411,8 +503,18 @@ exit:
 
 static VOID FspFileSystemRemoveMountPoint_Drive(PWSTR MountPoint, PWSTR VolumeName, HANDLE MountHandle)
 {
-    DefineDosDeviceW(DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
-        MountPoint, VolumeName);
+    BOOLEAN IsServiceContext = 0 != ((DWORD)(UINT_PTR)MountHandle & 1);
+    MountHandle = (HANDLE)(UINT_PTR)((DWORD)(UINT_PTR)MountHandle & ~1);
+    if (IsServiceContext)
+        /*
+         * If the current process is in the service context but not LocalSystem,
+         * ask the launcher to DefineDosDevice for us. This is because the launcher
+         * runs in the LocalSystem context and can remove global drives.
+         */
+        FspFileSystemLauncherDefineDosDevice(L'-', MountPoint, VolumeName);
+    else
+        DefineDosDeviceW(DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
+            MountPoint, VolumeName);
 
     if (0 != MountHandle)
         FspNtClose(MountHandle);

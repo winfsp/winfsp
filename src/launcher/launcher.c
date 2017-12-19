@@ -22,6 +22,13 @@
 
 #define PROGNAME                        "WinFsp.Launcher"
 
+static NTSTATUS (NTAPI *SvcNtOpenSymbolicLinkObject)(
+    PHANDLE LinkHandle,
+    ACCESS_MASK DesiredAccess,
+    POBJECT_ATTRIBUTES ObjectAttributes);
+static NTSTATUS (NTAPI *SvcNtClose)(
+    HANDLE Handle);
+
 BOOL CreateOverlappedPipe(
     PHANDLE PReadPipe, PHANDLE PWritePipe,
     DWORD Size,
@@ -138,6 +145,96 @@ static NTSTATUS GetTokenUserName(HANDLE Token, PWSTR *PUserName)
     Result = STATUS_SUCCESS;
 
 exit:
+    MemFree(User);
+
+    return Result;
+}
+
+static NTSTATUS AddAccessForTokenUser(HANDLE Handle, DWORD Access, HANDLE Token)
+{
+    TOKEN_USER *User = 0;
+    PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
+    PSECURITY_DESCRIPTOR NewSecurityDescriptor = 0;
+    EXPLICIT_ACCESSW AccessEntry;
+    DWORD Size, LastError;
+    NTSTATUS Result;
+
+    if (GetTokenInformation(Token, TokenUser, 0, 0, &Size))
+    {
+        Result = STATUS_INVALID_PARAMETER;
+        goto exit;
+    }
+    if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    User = MemAlloc(Size);
+    if (0 == User)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    if (!GetTokenInformation(Token, TokenUser, User, Size, &Size))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    if (GetKernelObjectSecurity(Handle, DACL_SECURITY_INFORMATION, 0, 0, &Size))
+    {
+        Result = STATUS_INVALID_PARAMETER;
+        goto exit;
+    }
+    if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    SecurityDescriptor = MemAlloc(Size);
+    if (0 == SecurityDescriptor)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    if (!GetKernelObjectSecurity(Handle, DACL_SECURITY_INFORMATION, SecurityDescriptor, Size, &Size))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    AccessEntry.grfAccessPermissions = Access;
+    AccessEntry.grfAccessMode = GRANT_ACCESS;
+    AccessEntry.grfInheritance = NO_INHERITANCE;
+    AccessEntry.Trustee.pMultipleTrustee = 0;
+    AccessEntry.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
+    AccessEntry.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+    AccessEntry.Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
+    AccessEntry.Trustee.ptstrName = User->User.Sid;
+
+    LastError = BuildSecurityDescriptorW(0, 0, 1, &AccessEntry, 0, 0, SecurityDescriptor,
+        &Size, &NewSecurityDescriptor);
+    if (0 != LastError)
+    {
+        Result = FspNtStatusFromWin32(LastError);
+        goto exit;
+    }
+
+    if (!SetKernelObjectSecurity(Handle, DACL_SECURITY_INFORMATION, NewSecurityDescriptor))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    LocalFree(NewSecurityDescriptor);
+    MemFree(SecurityDescriptor);
     MemFree(User);
 
     return Result;
@@ -1206,6 +1303,53 @@ NTSTATUS SvcInstanceStopAndWaitAll(VOID)
     return STATUS_SUCCESS;
 }
 
+NTSTATUS SvcDefineDosDevice(HANDLE ClientToken,
+    PWSTR DeviceName, PWSTR TargetPath)
+{
+    NTSTATUS Result;
+
+    if (L'+' != DeviceName[0] && L'-' != DeviceName[0])
+        return STATUS_INVALID_PARAMETER;
+
+    Result = FspServiceContextCheck(ClientToken, 0);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (!DefineDosDeviceW(
+        DDD_RAW_TARGET_PATH |
+            (L'+' == DeviceName[0] ? 0 : DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE),
+        DeviceName + 1, TargetPath))
+        return FspNtStatusFromWin32(GetLastError());
+
+    if (L'+' == DeviceName[0] && 0 != SvcNtOpenSymbolicLinkObject)
+    {
+        /* The drive symlink now exists; add DELETE access to it for the ClientToken. */
+        WCHAR SymlinkBuf[6];
+        UNICODE_STRING Symlink;
+        OBJECT_ATTRIBUTES Obja;
+        HANDLE MountHandle;
+
+        memcpy(SymlinkBuf, L"\\??\\X:", sizeof SymlinkBuf);
+        SymlinkBuf[4] = DeviceName[1];
+        Symlink.Length = Symlink.MaximumLength = sizeof SymlinkBuf;
+        Symlink.Buffer = SymlinkBuf;
+
+        memset(&Obja, 0, sizeof Obja);
+        Obja.Length = sizeof Obja;
+        Obja.ObjectName = &Symlink;
+        Obja.Attributes = OBJ_CASE_INSENSITIVE;
+
+        Result = SvcNtOpenSymbolicLinkObject(&MountHandle, READ_CONTROL | WRITE_DAC, &Obja);
+        if (NT_SUCCESS(Result))
+        {
+            AddAccessForTokenUser(MountHandle, DELETE, ClientToken);
+            SvcNtClose(MountHandle);
+        }
+    }
+
+    return STATUS_SUCCESS;
+}
+
 static HANDLE SvcJob, SvcThread, SvcEvent;
 static DWORD SvcThreadId;
 static HANDLE SvcPipe = INVALID_HANDLE_VALUE;
@@ -1526,6 +1670,7 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
 
     PWSTR P = PipeBuf, PipeBufEnd = PipeBuf + *PSize / sizeof(WCHAR);
     PWSTR ClassName, InstanceName, UserName;
+    PWSTR DeviceName, TargetPath;
     ULONG Argc; PWSTR Argv[9];
     BOOLEAN HasSecret = FALSE;
     NTSTATUS Result;
@@ -1587,6 +1732,17 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
 
+    case LauncherDefineDosDevice:
+        DeviceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
+        TargetPath = SvcPipeTransactGetPart(&P, PipeBufEnd);
+
+        Result = STATUS_INVALID_PARAMETER;
+        if (0 != DeviceName && 0 != TargetPath)
+            Result = SvcDefineDosDevice(ClientToken, DeviceName, TargetPath);
+
+        SvcPipeTransactResult(Result, PipeBuf, PSize);
+        break;
+
 #if !defined(NDEBUG)
     case LauncherQuit:
         SetEvent(SvcEvent);
@@ -1605,6 +1761,19 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
 
 int wmain(int argc, wchar_t **argv)
 {
+    HANDLE Handle = GetModuleHandleW(L"ntdll.dll");
+    if (0 != Handle)
+    {
+        SvcNtOpenSymbolicLinkObject = (PVOID)GetProcAddress(Handle, "NtOpenSymbolicLinkObject");
+        SvcNtClose = (PVOID)GetProcAddress(Handle, "NtClose");
+
+        if (0 == SvcNtOpenSymbolicLinkObject || 0 == SvcNtClose)
+        {
+            SvcNtOpenSymbolicLinkObject = 0;
+            SvcNtClose = 0;
+        }
+    }
+
     return FspServiceRun(L"" PROGNAME, SvcStart, SvcStop, 0);
 }
 

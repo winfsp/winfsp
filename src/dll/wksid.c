@@ -21,8 +21,7 @@ static INIT_ONCE FspWksidInitOnce = INIT_ONCE_STATIC_INIT;
 static PSID FspWksidWorld;
 static PSID FspWksidAuthenticatedUser;
 static PSID FspWksidLocalSystem;
-static PSID FspWksidLocalService;
-static PSID FspWksidNetworkService;
+static PSID FspWksidService;
 
 static BOOL WINAPI FspWksidInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
@@ -30,14 +29,12 @@ static BOOL WINAPI FspWksidInitialize(
     FspWksidWorld = FspWksidNew(WinWorldSid, 0);
     FspWksidAuthenticatedUser = FspWksidNew(WinAuthenticatedUserSid, 0);
     FspWksidLocalSystem = FspWksidNew(WinLocalSystemSid, 0);
-    FspWksidLocalService = FspWksidNew(WinLocalServiceSid, 0);
-    FspWksidNetworkService = FspWksidNew(WinNetworkServiceSid, 0);
+    FspWksidService = FspWksidNew(WinServiceSid, 0);
 
     //DEBUGLOGSID("FspWksidWorld=%s", FspWksidWorld);
     //DEBUGLOGSID("FspWksidAuthenticatedUser=%s", FspWksidAuthenticatedUser);
     //DEBUGLOGSID("FspWksidLocalSystem=%s", FspWksidLocalSystem);
-    //DEBUGLOGSID("FspWksidLocalService=%s", FspWksidLocalService);
-    //DEBUGLOGSID("FspWksidNetworkService=%s", FspWksidNetworkService);
+    //DEBUGLOGSID("FspWksidService=%s", FspWksidService);
 
     return TRUE;
 }
@@ -57,8 +54,7 @@ VOID FspWksidFinalize(BOOLEAN Dynamic)
         MemFree(FspWksidWorld); FspWksidWorld = 0;
         MemFree(FspWksidAuthenticatedUser); FspWksidAuthenticatedUser = 0;
         MemFree(FspWksidLocalSystem); FspWksidLocalSystem = 0;
-        MemFree(FspWksidLocalService); FspWksidLocalService = 0;
-        MemFree(FspWksidNetworkService); FspWksidNetworkService = 0;
+        MemFree(FspWksidService); FspWksidService = 0;
     }
 }
 
@@ -104,10 +100,8 @@ PSID FspWksidGet(WELL_KNOWN_SID_TYPE WellKnownSidType)
         return FspWksidAuthenticatedUser;
     case WinLocalSystemSid:
         return FspWksidLocalSystem;
-    case WinLocalServiceSid:
-        return FspWksidLocalService;
-    case WinNetworkServiceSid:
-        return FspWksidNetworkService;
+    case WinServiceSid:
+        return FspWksidService;
     default:
         return 0;
     }

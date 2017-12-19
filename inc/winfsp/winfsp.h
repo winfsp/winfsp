@@ -1676,6 +1676,19 @@ FSP_API VOID FspServiceStop(FSP_SERVICE *Service);
  */
 FSP_API BOOLEAN FspServiceIsInteractive(VOID);
 /**
+ * Check if the supplied token is from the service context.
+ *
+ * @param Token
+ *     Token to check. Pass NULL to check the current process token.
+ * @param PIsLocalSystem
+ *     Pointer to a boolean that will receive a TRUE value if the token belongs to LocalSystem
+ *     and FALSE otherwise. May be NULL.
+ * @return
+ *     STATUS_SUCCESS if the token is from the service context. STATUS_ACCESS_DENIED if it is not.
+ *     Other error codes are possible.
+ */
+FSP_API NTSTATUS FspServiceContextCheck(HANDLE Token, PBOOLEAN PIsLocalSystem);
+/**
  * Log a service message.
  *
  * This function can be used to log an arbitrary message to the Windows Event Log or to the current
