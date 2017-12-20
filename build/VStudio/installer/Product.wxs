@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
-	xmlns:dep="http://schemas.microsoft.com/wix/DependencyExtension">
+    xmlns:dep="http://schemas.microsoft.com/wix/DependencyExtension">
     <Product
         Id="*"
         Name="$(var.MyProductName) $(var.MyProductVersion)"
@@ -55,7 +55,7 @@
                     Name="InstallDir"
                     Type="string"
                     Value="[INSTALLDIR]" />
-                    <dep:Provides Key="WinFSPprovider" />
+                <dep:Provides Key="WinFsp" />
             </Component>
             <Component Id="C.License.txt">
                 <File Name="License.txt" Source="..\..\..\License.txt" KeyPath="yes" />
