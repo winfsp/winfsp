@@ -646,16 +646,33 @@ static NTSTATUS SvcInstanceAccessCheck(HANDLE ClientToken, ULONG DesiredAccess,
 }
 
 NTSTATUS SvcInstanceCreateProcess(PWSTR UserName,
-    PWSTR Executable, PWSTR CommandLine,
+    PWSTR Executable, PWSTR CommandLine, PWSTR WorkDirectory,
     HANDLE StdioHandles[2],
     PPROCESS_INFORMATION ProcessInfo)
 {
+    WCHAR WorkDirectoryBuf[MAX_PATH];
     STARTUPINFOEXW StartupInfoEx;
     HANDLE ChildHandles[3] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE, 0/* DO NOT CLOSE!*/ };
     HANDLE ParentHandles[2] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE };
     PPROC_THREAD_ATTRIBUTE_LIST AttrList = 0;
     SIZE_T Size;
     NTSTATUS Result;
+
+    if (0 != WorkDirectory && L'.' == WorkDirectory[0] && L'\0' == WorkDirectory[1])
+    {
+        PWSTR Backslash = 0, P;
+
+        if (0 == GetModuleFileNameW(0, WorkDirectoryBuf, MAX_PATH))
+            return FspNtStatusFromWin32(GetLastError());
+
+        for (P = WorkDirectoryBuf; *P; P++)
+            if (L'\\' == *P)
+                Backslash = P;
+        if (0 != Backslash && WorkDirectoryBuf < Backslash && L':' != Backslash[-1])
+            *Backslash = L'\0';
+
+        WorkDirectory = WorkDirectoryBuf;
+    }
 
     memset(&StartupInfoEx, 0, sizeof StartupInfoEx);
     StartupInfoEx.StartupInfo.cb = sizeof StartupInfoEx.StartupInfo;
@@ -725,7 +742,8 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR UserName,
 
         if (!LogonCreateProcess(UserName,
             Executable, CommandLine, 0, 0, TRUE,
-            CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP | EXTENDED_STARTUPINFO_PRESENT, 0, 0,
+            CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP | EXTENDED_STARTUPINFO_PRESENT,
+            0, WorkDirectory,
             &StartupInfoEx.StartupInfo, ProcessInfo))
         {
             if (ERROR_NO_SYSTEM_RESOURCES != GetLastError())
@@ -745,7 +763,8 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR UserName,
             StartupInfoEx.StartupInfo.cb = sizeof StartupInfoEx.StartupInfo;
             if (!LogonCreateProcess(UserName,
                 Executable, CommandLine, 0, 0, TRUE,
-                CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP, 0, 0,
+                CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP,
+                0, WorkDirectory,
                 &StartupInfoEx.StartupInfo, ProcessInfo))
             {
                 Result = FspNtStatusFromWin32(GetLastError());
@@ -757,7 +776,8 @@ NTSTATUS SvcInstanceCreateProcess(PWSTR UserName,
     {
         if (!LogonCreateProcess(UserName,
             Executable, CommandLine, 0, 0, FALSE,
-            CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP, 0, 0,
+            CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP,
+            0, WorkDirectory,
             &StartupInfoEx.StartupInfo, ProcessInfo))
         {
             Result = FspNtStatusFromWin32(GetLastError());
@@ -800,7 +820,8 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     HKEY RegKey = 0;
     DWORD RegResult, RegSize;
     DWORD ClassNameSize, InstanceNameSize;
-    WCHAR Executable[MAX_PATH], CommandLineBuf[512], SecurityBuf[512], RunAsBuf[256];
+    WCHAR Executable[MAX_PATH], CommandLineBuf[512], WorkDirectory[MAX_PATH],
+        SecurityBuf[512], RunAsBuf[64];
     PWSTR CommandLine, Security;
     DWORD JobControl, Credentials;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0, NewSecurityDescriptor;
@@ -876,6 +897,16 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     if (ERROR_FILE_NOT_FOUND == RegResult)
         CommandLine[-1] = L'\0';
     CommandLine = CommandLineBuf;
+
+    RegSize = sizeof WorkDirectory;
+    WorkDirectory[0] = L'\0';
+    RegResult = RegGetValueW(RegKey, ClassName, L"WorkDirectory", RRF_RT_REG_SZ, 0,
+        WorkDirectory, &RegSize);
+    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
+    {
+        Result = FspNtStatusFromWin32(RegResult);
+        goto exit;
+    }
 
     Security = SecurityBuf + lstrlenW(SecurityBuf);
     RegSize = (DWORD)(sizeof SecurityBuf - (Security - SecurityBuf) * sizeof(WCHAR));
@@ -961,7 +992,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
 
     Result = SvcInstanceCreateProcess(L'\0' != RunAsBuf[0] ? RunAsBuf : 0,
-        Executable, SvcInstance->CommandLine,
+        Executable, SvcInstance->CommandLine, L'\0' != WorkDirectory[0] ? WorkDirectory : 0,
         RedirectStdio ? SvcInstance->StdioHandles : 0, &ProcessInfo);
     if (!NT_SUCCESS(Result))
         goto exit;
