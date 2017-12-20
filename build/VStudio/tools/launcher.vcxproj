@@ -112,7 +112,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;userenv.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
@@ -134,7 +134,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;userenv.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
@@ -159,7 +159,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;userenv.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
@@ -184,7 +184,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;userenv.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>

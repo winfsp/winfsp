@@ -97,24 +97,14 @@ FSP_API NTSTATUS FspCallNamedPipeSecurely(PWSTR PipeName,
     {
         PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
         PSID OwnerSid, WellKnownSid = 0;
-        DWORD SidSize, LastError;
+        DWORD LastError;
 
         /* if it is a small number treat it like a well known SID */
         if (1024 > (INT_PTR)Sid)
         {
-            SidSize = SECURITY_MAX_SID_SIZE;
-            WellKnownSid = MemAlloc(SidSize);
+            WellKnownSid = FspWksidNew((INT_PTR)Sid, &Result);
             if (0 == WellKnownSid)
-            {
-                Result = STATUS_INSUFFICIENT_RESOURCES;
                 goto sid_exit;
-            }
-
-            if (!CreateWellKnownSid((INT_PTR)Sid, 0, WellKnownSid, &SidSize))
-            {
-                Result = FspNtStatusFromWin32(GetLastError());
-                goto sid_exit;
-            }
         }
 
         LastError = GetSecurityInfo(Pipe, SE_FILE_OBJECT,

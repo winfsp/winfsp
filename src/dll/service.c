@@ -566,6 +566,106 @@ FSP_API BOOLEAN FspServiceIsInteractive(VOID)
     return IsInteractive;
 }
 
+FSP_API NTSTATUS FspServiceContextCheck(HANDLE Token, PBOOLEAN PIsLocalSystem)
+{
+    NTSTATUS Result;
+    PSID LocalSystemSid, ServiceSid;
+    BOOLEAN IsLocalSystem = FALSE;
+    BOOL HasServiceSid = FALSE;
+    HANDLE ProcessToken = 0, ImpersonationToken = 0;
+    DWORD SessionId, Size;
+    union
+    {
+        TOKEN_USER V;
+        UINT8 B[128];
+    } UserInfoBuf;
+    PTOKEN_USER UserInfo = &UserInfoBuf.V;
+
+    LocalSystemSid = FspWksidGet(WinLocalSystemSid);
+    ServiceSid = FspWksidGet(WinServiceSid);
+    if (0 == LocalSystemSid || 0 == ServiceSid)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    if (0 == Token)
+    {
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE, &ProcessToken) ||
+            !DuplicateToken(ProcessToken, SecurityImpersonation, &ImpersonationToken))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+
+        Token = ImpersonationToken;
+    }
+
+    if (!GetTokenInformation(Token, TokenSessionId, &SessionId, sizeof SessionId, &Size))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    if (0 != SessionId)
+    {
+        Result = STATUS_ACCESS_DENIED;
+        goto exit;
+    }
+
+    if (!GetTokenInformation(Token, TokenUser, UserInfo, sizeof UserInfoBuf, &Size))
+    {
+        if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+
+        UserInfo = MemAlloc(Size);
+        if (0 == UserInfo)
+        {
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+            goto exit;
+        }
+
+        if (!GetTokenInformation(Token, TokenUser, UserInfo, Size, &Size))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+    }
+
+    IsLocalSystem = EqualSid(LocalSystemSid, UserInfo->User.Sid);
+    if (IsLocalSystem)
+    {
+        Result = STATUS_SUCCESS;
+        goto exit;
+    }
+
+    if (!CheckTokenMembership(Token, ServiceSid, &HasServiceSid))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    Result = HasServiceSid ? STATUS_SUCCESS : STATUS_ACCESS_DENIED;
+
+exit:
+    if (0 != PIsLocalSystem)
+        *PIsLocalSystem = NT_SUCCESS(Result) ? IsLocalSystem : FALSE;
+
+    if (UserInfo != &UserInfoBuf.V)
+        MemFree(UserInfo);
+
+    if (0 != ImpersonationToken)
+        CloseHandle(ImpersonationToken);
+
+    if (0 != ProcessToken)
+        CloseHandle(ProcessToken);
+
+    return Result;
+}
+
 FSP_API VOID FspServiceLog(ULONG Type, PWSTR Format, ...)
 {
     va_list ap;

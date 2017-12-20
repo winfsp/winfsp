@@ -112,6 +112,9 @@
     <ClCompile Include="..\..\src\dll\fuse\fuse_compat.c">
       <Filter>Source\fuse</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\dll\wksid.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\library.def">

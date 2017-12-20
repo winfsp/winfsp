@@ -29,7 +29,7 @@
 
 #define LAUNCHER_PIPE_NAME              "\\\\.\\pipe\\WinFsp.{14E7137D-22B4-437A-B0C1-D21D1BDF3767}"
 #define LAUNCHER_PIPE_BUFFER_SIZE       4096
-#define LAUNCHER_PIPE_DEFAULT_TIMEOUT   3000
+#define LAUNCHER_PIPE_DEFAULT_TIMEOUT   (2 * 15000 + 1000)
 
 #define LAUNCHER_START_WITH_SECRET_TIMEOUT 15000
 
@@ -62,6 +62,7 @@ enum
     LauncherSvcInstanceStop             = 'T',  /* requires: SERVICE_STOP */
     LauncherSvcInstanceInfo             = 'I',  /* requires: SERVICE_QUERY_STATUS */
     LauncherSvcInstanceList             = 'L',  /* requires: none*/
+    LauncherDefineDosDevice             = 'D',
     LauncherQuit                        = 'Q',  /* DEBUG version only */
 
     LauncherSuccess                     = '$',
