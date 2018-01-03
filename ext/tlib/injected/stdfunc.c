@@ -1,7 +1,7 @@
 /**
  * @file tlib/injected/stdfunc.c
  *
- * @copyright 2014-2017 Bill Zissimopoulos
+ * @copyright 2014-2018 Bill Zissimopoulos
  */
 
 #include <tlib/injected/stdfunc.h>

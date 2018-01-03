@@ -1,0 +1,17 @@
+#!/bin/bash
+
+OWNER="Bill Zissimopoulos"
+MATCH="(@c|C)opyright ([0-9]+)(-[0-9]+)? ${OWNER}(. All rights reserved.)?"
+SUBST="\1opyright \2-$(date +%Y) ${OWNER}\4"
+
+if [[ $# -eq 0 ]]; then
+    echo "usage: $(basename $0) tree" 1>&2
+    echo "WARNING: this will in-place edit your source files!" 1>&2
+    exit 1
+fi
+
+if [[ "$(uname -s)" == Darwin* ]]; then
+    git grep -lz "$@" | xargs -0 sed -E -i "" -e "s/$MATCH/$SUBST/"
+else
+    git grep -lz "$@" | xargs -0 sed -E -i""  -e "s/$MATCH/$SUBST/"
+fi

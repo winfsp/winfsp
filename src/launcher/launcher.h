@@ -1,7 +1,7 @@
 /**
  * @file launcher/launcher.h
  *
- * @copyright 2015-2017 Bill Zissimopoulos
+ * @copyright 2015-2018 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.

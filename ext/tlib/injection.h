@@ -1,7 +1,7 @@
 /**
  * @file tlib/injection.h
  *
- * @copyright 2014-2017 Bill Zissimopoulos
+ * @copyright 2014-2018 Bill Zissimopoulos
  */
 
 /* NOTE: This header may usefully be included multiple times.
