@@ -29,7 +29,7 @@ static NTSTATUS (NTAPI *SvcNtOpenSymbolicLinkObject)(
 static NTSTATUS (NTAPI *SvcNtClose)(
     HANDLE Handle);
 
-BOOL CreateOverlappedPipe(
+static BOOL CreateOverlappedPipe(
     PHANDLE PReadPipe, PHANDLE PWritePipe,
     DWORD Size,
     BOOL ReadInherit, BOOL WriteInherit,
@@ -82,7 +82,12 @@ BOOL CreateOverlappedPipe(
 
 static NTSTATUS GetTokenUserName(HANDLE Token, PWSTR *PUserName)
 {
-    TOKEN_USER *User = 0;
+    union
+    {
+        TOKEN_USER V;
+        UINT8 B[128];
+    } UserInfoBuf;
+    PTOKEN_USER UserInfo = &UserInfoBuf.V;
     WCHAR Name[256], Domn[256];
     DWORD UserSize, NameSize, DomnSize;
     SID_NAME_USE Use;
@@ -91,33 +96,31 @@ static NTSTATUS GetTokenUserName(HANDLE Token, PWSTR *PUserName)
 
     *PUserName = 0;
 
-    if (GetTokenInformation(Token, TokenUser, 0, 0, &UserSize))
+    if (!GetTokenInformation(Token, TokenUser, UserInfo, sizeof UserInfoBuf, &UserSize))
     {
-        Result = STATUS_INVALID_PARAMETER;
-        goto exit;
-    }
-    if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
-    {
-        Result = FspNtStatusFromWin32(GetLastError());
-        goto exit;
-    }
+        if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
 
-    User = MemAlloc(UserSize);
-    if (0 == User)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
+        UserInfo = MemAlloc(UserSize);
+        if (0 == UserInfo)
+        {
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+            goto exit;
+        }
 
-    if (!GetTokenInformation(Token, TokenUser, User, UserSize, &UserSize))
-    {
-        Result = FspNtStatusFromWin32(GetLastError());
-        goto exit;
+        if (!GetTokenInformation(Token, TokenUser, UserInfo, UserSize, &UserSize))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
     }
 
     NameSize = sizeof Name / sizeof Name[0];
     DomnSize = sizeof Domn / sizeof Domn[0];
-    if (!LookupAccountSidW(0, User->User.Sid, Name, &NameSize, Domn, &DomnSize, &Use))
+    if (!LookupAccountSidW(0, UserInfo->User.Sid, Name, &NameSize, Domn, &DomnSize, &Use))
     {
         Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
@@ -145,42 +148,46 @@ static NTSTATUS GetTokenUserName(HANDLE Token, PWSTR *PUserName)
     Result = STATUS_SUCCESS;
 
 exit:
-    MemFree(User);
+    if (UserInfo != &UserInfoBuf.V)
+        MemFree(UserInfo);
 
     return Result;
 }
 
 static NTSTATUS AddAccessForTokenUser(HANDLE Handle, DWORD Access, HANDLE Token)
 {
-    TOKEN_USER *User = 0;
+    union
+    {
+        TOKEN_USER V;
+        UINT8 B[128];
+    } UserInfoBuf;
+    PTOKEN_USER UserInfo = &UserInfoBuf.V;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     PSECURITY_DESCRIPTOR NewSecurityDescriptor = 0;
     EXPLICIT_ACCESSW AccessEntry;
     DWORD Size, LastError;
     NTSTATUS Result;
 
-    if (GetTokenInformation(Token, TokenUser, 0, 0, &Size))
+    if (!GetTokenInformation(Token, TokenUser, UserInfo, sizeof UserInfoBuf, &Size))
     {
-        Result = STATUS_INVALID_PARAMETER;
-        goto exit;
-    }
-    if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
-    {
-        Result = FspNtStatusFromWin32(GetLastError());
-        goto exit;
-    }
+        if (ERROR_INSUFFICIENT_BUFFER != GetLastError())
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
 
-    User = MemAlloc(Size);
-    if (0 == User)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
+        UserInfo = MemAlloc(Size);
+        if (0 == UserInfo)
+        {
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+            goto exit;
+        }
 
-    if (!GetTokenInformation(Token, TokenUser, User, Size, &Size))
-    {
-        Result = FspNtStatusFromWin32(GetLastError());
-        goto exit;
+        if (!GetTokenInformation(Token, TokenUser, UserInfo, Size, &Size))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
     }
 
     if (GetKernelObjectSecurity(Handle, DACL_SECURITY_INFORMATION, 0, 0, &Size))
@@ -214,7 +221,7 @@ static NTSTATUS AddAccessForTokenUser(HANDLE Handle, DWORD Access, HANDLE Token)
     AccessEntry.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
     AccessEntry.Trustee.TrusteeForm = TRUSTEE_IS_SID;
     AccessEntry.Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
-    AccessEntry.Trustee.ptstrName = User->User.Sid;
+    AccessEntry.Trustee.ptstrName = UserInfo->User.Sid;
 
     LastError = BuildSecurityDescriptorW(0, 0, 1, &AccessEntry, 0, 0, SecurityDescriptor,
         &Size, &NewSecurityDescriptor);
@@ -235,7 +242,8 @@ static NTSTATUS AddAccessForTokenUser(HANDLE Handle, DWORD Access, HANDLE Token)
 exit:
     LocalFree(NewSecurityDescriptor);
     MemFree(SecurityDescriptor);
-    MemFree(User);
+    if (UserInfo != &UserInfoBuf.V)
+        MemFree(UserInfo);
 
     return Result;
 }
@@ -353,7 +361,7 @@ typedef struct
 
 static VOID CALLBACK KillProcessWait(PVOID Context, BOOLEAN Timeout);
 
-VOID KillProcess(ULONG ProcessId, HANDLE Process, ULONG Timeout)
+static VOID KillProcess(ULONG ProcessId, HANDLE Process, ULONG Timeout)
 {
     if (GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, ProcessId))
     {
@@ -645,7 +653,7 @@ static NTSTATUS SvcInstanceAccessCheck(HANDLE ClientToken, ULONG DesiredAccess,
     return Result;
 }
 
-NTSTATUS SvcInstanceCreateProcess(PWSTR UserName,
+static NTSTATUS SvcInstanceCreateProcess(PWSTR UserName,
     PWSTR Executable, PWSTR CommandLine, PWSTR WorkDirectory,
     HANDLE StdioHandles[2],
     PPROCESS_INFORMATION ProcessInfo)
