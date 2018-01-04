@@ -35,6 +35,12 @@
  */
 #define FSP_NP_CREDENTIAL_MANAGER
 
+/*
+ * Define the following macro to register ourselves as the first network provider.
+ * Otherwise we will be registered as the last network provider.
+ */
+#define FSP_NP_ORDER_FIRST
+
 enum
 {
     FSP_NP_CREDENTIALS_NONE             = 0,
@@ -1016,7 +1022,7 @@ NTSTATUS FspNpRegister(VOID)
     WCHAR ProviderPath[MAX_PATH];
     WCHAR RegBuffer[1024];
     PWSTR P, Part;
-    DWORD RegResult, RegType, RegBufferSize;
+    DWORD RegResult, RegType, RegBufferSize, RegBufferOffset;
     HKEY RegKey;
     BOOLEAN FoundProvider;
 
@@ -1082,15 +1088,20 @@ NTSTATUS FspNpRegister(VOID)
         return FspNtStatusFromWin32(RegResult);
 
     RegBufferSize = sizeof RegBuffer - sizeof L"," FSP_NP_NAME;
+#ifdef FSP_NP_ORDER_FIRST
+    RegBufferOffset = sizeof "" FSP_NP_NAME;
+#else
+    RegBufferOffset = 0;
+#endif
     RegResult = RegQueryValueExW(RegKey,
-        L"ProviderOrder", 0, &RegType, (PVOID)RegBuffer, &RegBufferSize);
+        L"ProviderOrder", 0, &RegType, (PVOID)&RegBuffer[RegBufferOffset], &RegBufferSize);
     if (ERROR_SUCCESS != RegResult)
         goto close_and_exit;
     RegBufferSize /= sizeof(WCHAR);
 
     FoundProvider = FALSE;
-    RegBuffer[RegBufferSize] = L'\0';
-    P = RegBuffer, Part = P;
+    RegBuffer[RegBufferSize + RegBufferOffset] = L'\0';
+    P = &RegBuffer[RegBufferOffset], Part = P;
     do
     {
         if (L',' == *P || '\0' == *P)
@@ -1107,8 +1118,11 @@ NTSTATUS FspNpRegister(VOID)
 
     if (!FoundProvider)
     {
-        P--;
-        memcpy(P, L"," FSP_NP_NAME, sizeof L"," FSP_NP_NAME);
+#ifdef FSP_NP_ORDER_FIRST
+        memcpy((PWSTR)RegBuffer, L"" FSP_NP_NAME ",", sizeof L"" FSP_NP_NAME);
+#else
+        memcpy(--P, L"," FSP_NP_NAME, sizeof L"," FSP_NP_NAME);
+#endif
 
         RegBufferSize = lstrlenW(RegBuffer);
         RegBufferSize++;
