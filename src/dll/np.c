@@ -168,39 +168,17 @@ static inline BOOLEAN FspNpParseRemoteUserName(PWSTR RemoteName,
     return FALSE;
 }
 
-static inline DWORD FspNpCallLauncherPipe(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
+static inline DWORD FspNpCallLauncherPipe(
+    WCHAR Command, ULONG Argc, PWSTR *Argv, ULONG *Argl,
+    PWSTR Buffer, PULONG PSize)
 {
-    DWORD NpResult;
     NTSTATUS Result;
-    DWORD BytesTransferred;
+    ULONG ErrorCode;
 
-    Result = FspCallNamedPipeSecurely(L"" LAUNCHER_PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
-        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, LAUNCHER_PIPE_OWNER);
-
-    if (!NT_SUCCESS(Result))
-        NpResult = WN_NO_NETWORK;
-    else if (sizeof(WCHAR) > BytesTransferred)
-        NpResult = WN_NO_NETWORK;
-    else if (LauncherSuccess == PipeBuf[0])
-        NpResult = WN_SUCCESS;
-    else if (LauncherFailure == PipeBuf[0])
-    {
-        NpResult = 0;
-        for (PWSTR P = PipeBuf + 1, EndP = PipeBuf + BytesTransferred / sizeof(WCHAR); EndP > P; P++)
-        {
-            if (L'0' > *P || *P > L'9')
-                break;
-
-            NpResult = 10 * NpResult + (*P - L'0');
-        }
-
-        if (0 == NpResult)
-            NpResult = WN_NO_NETWORK;
-    }
-    else 
-        NpResult = WN_NO_NETWORK;
-
-    return NpResult;
+    Result = FspLaunchCallLauncherPipe(Command, Argc, Argv, Argl, Buffer, PSize, &ErrorCode);
+    return !NT_SUCCESS(Result) ?
+        WN_NO_NETWORK :
+        (ERROR_BROKEN_PIPE == ErrorCode ? WN_NO_NETWORK : ErrorCode);
 }
 
 static NTSTATUS FspNpGetVolumeList(
@@ -490,7 +468,9 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
     PWSTR ClassName, InstanceName, RemoteName, P;
     ULONG ClassNameLen, InstanceNameLen;
     DWORD CredentialsKind;
-    PWSTR PipeBuf = 0;
+    ULONG Argc;
+    PWSTR Argv[6];
+    ULONG Argl[6];
 #if defined(FSP_NP_CREDENTIAL_MANAGER)
     PCREDENTIALW Credential = 0;
 #endif
@@ -556,32 +536,24 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
         }
     }
 
-    PipeBuf = MemAlloc(LAUNCHER_PIPE_BUFFER_SIZE);
-    if (0 == PipeBuf)
-    {
-        NpResult = WN_OUT_OF_MEMORY;
-        goto exit;
-    }
-
-    /* we do not explicitly check, but assumption is it all fits in LAUNCHER_PIPE_BUFFER_SIZE */
-    P = PipeBuf;
-    *P++ = FSP_NP_CREDENTIALS_NONE != CredentialsKind ?
-        LauncherSvcInstanceStartWithSecret : LauncherSvcInstanceStart;
-    memcpy(P, ClassName, ClassNameLen * sizeof(WCHAR)); P += ClassNameLen; *P++ = L'\0';
-    memcpy(P, InstanceName, InstanceNameLen * sizeof(WCHAR)); P += InstanceNameLen; *P++ = L'\0';
-    lstrcpyW(P, RemoteName); P += lstrlenW(RemoteName) + 1;
-    lstrcpyW(P, LocalNameBuf); P += lstrlenW(LocalNameBuf) + 1;
+    Argc = 0;
+    Argv[Argc] = ClassName; Argl[Argc] = ClassNameLen; Argc++;
+    Argv[Argc] = InstanceName; Argl[Argc] = InstanceNameLen; Argc++;
+    Argv[Argc] = RemoteName; Argl[Argc] = -1; Argc++;
+    Argv[Argc] = LocalNameBuf; Argl[Argc] = -1; Argc++;
     if (FSP_NP_CREDENTIALS_USERPASS == CredentialsKind)
     {
-        lstrcpyW(P, lpUserName); P += lstrlenW(lpUserName) + 1;
+        Argv[Argc] = lpUserName; Argl[Argc] = -1; Argc++;
     }
     if (FSP_NP_CREDENTIALS_NONE != CredentialsKind)
     {
-        lstrcpyW(P, lpPassword); P += lstrlenW(lpPassword) + 1;
+        Argv[Argc] = lpPassword; Argl[Argc] = -1; Argc++;
     }
 
     NpResult = FspNpCallLauncherPipe(
-        PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), LAUNCHER_PIPE_BUFFER_SIZE);
+        FSP_NP_CREDENTIALS_NONE != CredentialsKind ?
+            LauncherSvcInstanceStartWithSecret : LauncherSvcInstanceStart,
+        Argc, Argv, Argl, 0, 0);
     switch (NpResult)
     {
     case WN_SUCCESS:
@@ -627,13 +599,13 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
                     break;
                 }
 
-                P = PipeBuf;
-                *P++ = LauncherSvcInstanceInfo;
-                memcpy(P, ClassName, ClassNameLen * sizeof(WCHAR)); P += ClassNameLen; *P++ = L'\0';
-                memcpy(P, InstanceName, InstanceNameLen * sizeof(WCHAR)); P += InstanceNameLen; *P++ = L'\0';
+                Argc = 0;
+                Argv[Argc] = ClassName; Argl[Argc] = ClassNameLen; Argc++;
+                Argv[Argc] = InstanceName; Argl[Argc] = InstanceNameLen; Argc++;
 
                 if (WN_SUCCESS != FspNpCallLauncherPipe(
-                    PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), LAUNCHER_PIPE_BUFFER_SIZE))
+                    LauncherSvcInstanceInfo,
+                    Argc, Argv, Argl, 0, 0))
                 {
                     /* looks like the file system is gone! */
                     NpResult = WN_NO_NETWORK;
@@ -677,8 +649,6 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
     }
 
 exit:
-    MemFree(PipeBuf);
-
 #if defined(FSP_NP_CREDENTIAL_MANAGER)
     if (0 != Credential)
         CredFree(Credential);
@@ -767,9 +737,11 @@ DWORD APIENTRY NPCancelConnection(LPWSTR lpName, BOOL fForce)
     DWORD NpResult;
     WCHAR RemoteNameBuf[sizeof(((FSP_FSCTL_VOLUME_PARAMS *)0)->Prefix) / sizeof(WCHAR)];
     DWORD RemoteNameSize;
-    PWSTR ClassName, InstanceName, RemoteName, P;
+    PWSTR ClassName, InstanceName, RemoteName;
     ULONG ClassNameLen, InstanceNameLen;
-    PWSTR PipeBuf = 0;
+    ULONG Argc;
+    PWSTR Argv[2];
+    ULONG Argl[2];
 
     if (FspNpCheckLocalName(lpName))
     {
@@ -789,17 +761,13 @@ DWORD APIENTRY NPCancelConnection(LPWSTR lpName, BOOL fForce)
         &ClassName, &ClassNameLen, &InstanceName, &InstanceNameLen))
         return WN_BAD_NETNAME;
 
-    PipeBuf = MemAlloc(LAUNCHER_PIPE_BUFFER_SIZE);
-    if (0 == PipeBuf)
-        return WN_OUT_OF_MEMORY;
-
-    P = PipeBuf;
-    *P++ = LauncherSvcInstanceStop;
-    memcpy(P, ClassName, ClassNameLen * sizeof(WCHAR)); P += ClassNameLen; *P++ = L'\0';
-    memcpy(P, InstanceName, InstanceNameLen * sizeof(WCHAR)); P += InstanceNameLen; *P++ = L'\0';
+    Argc = 0;
+    Argv[Argc] = ClassName; Argl[Argc] = ClassNameLen; Argc++;
+    Argv[Argc] = InstanceName; Argl[Argc] = InstanceNameLen; Argc++;
 
     NpResult = FspNpCallLauncherPipe(
-        PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), LAUNCHER_PIPE_BUFFER_SIZE);
+        LauncherSvcInstanceStop,
+        Argc, Argv, Argl, 0, 0);
     switch (NpResult)
     {
     case WN_SUCCESS:
@@ -811,8 +779,6 @@ DWORD APIENTRY NPCancelConnection(LPWSTR lpName, BOOL fForce)
         NpResult = WN_NO_NETWORK;
         break;
     }
-
-    MemFree(PipeBuf);
 
     return NpResult;
 }

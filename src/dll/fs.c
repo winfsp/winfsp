@@ -16,7 +16,6 @@
  */
 
 #include <dll/library.h>
-#include <launcher/launcher.h>
 
 enum
 {
@@ -191,64 +190,25 @@ FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem)
 static NTSTATUS FspFileSystemLauncherDefineDosDevice(
     WCHAR Sign, PWSTR MountPoint, PWSTR VolumeName)
 {
-    NTSTATUS Result;
-    ULONG MountPointLen, VolumeNameLen;
-    PWSTR PipeBuf = 0, P;
-    DWORD BytesTransferred;
-
-    MountPointLen = lstrlenW(MountPoint);
-    VolumeNameLen = lstrlenW(VolumeName);
-
-    if (2 != MountPointLen ||
-        FSP_FSCTL_VOLUME_NAME_SIZEMAX / sizeof(WCHAR) <= VolumeNameLen)
+    if (2 != lstrlenW(MountPoint) ||
+        FSP_FSCTL_VOLUME_NAME_SIZEMAX / sizeof(WCHAR) <= lstrlenW(VolumeName))
         return STATUS_INVALID_PARAMETER;
 
-    PipeBuf = MemAlloc(LAUNCHER_PIPE_BUFFER_SIZE);
-    if (0 == PipeBuf)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
+    WCHAR Argv0[4];
+    PWSTR Argv[2];
+    NTSTATUS Result;
+    ULONG ErrorCode;
 
-    P = PipeBuf;
-    *P++ = LauncherDefineDosDevice;
-    *P++ = Sign;
-    memcpy(P, MountPoint, MountPointLen * sizeof(WCHAR)); P += MountPointLen; *P++ = L'\0';
-    memcpy(P, VolumeName, VolumeNameLen * sizeof(WCHAR)); P += VolumeNameLen; *P++ = L'\0';
+    Argv0[0] = Sign;
+    Argv0[1] = MountPoint[0];
+    Argv0[2] = MountPoint[1];
+    Argv0[3] = L'\0';
 
-    Result = FspCallNamedPipeSecurely(L"" LAUNCHER_PIPE_NAME,
-        PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE,
-        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, LAUNCHER_PIPE_OWNER);
-    if (!NT_SUCCESS(Result))
-        goto exit;
+    Argv[0] = Argv0;
+    Argv[1] = VolumeName;
 
-    if (sizeof(WCHAR) > BytesTransferred)
-        Result = RPC_NT_PROTOCOL_ERROR;
-    else if (LauncherSuccess == PipeBuf[0])
-        Result = STATUS_SUCCESS;
-    else if (LauncherFailure == PipeBuf[0])
-    {
-        DWORD ErrorCode = 0;
-
-        for (PWSTR P = PipeBuf + 1, EndP = PipeBuf + BytesTransferred / sizeof(WCHAR); EndP > P; P++)
-        {
-            if (L'0' > *P || *P > L'9')
-                break;
-
-            ErrorCode = 10 * ErrorCode + (*P - L'0');
-        }
-
-        Result = FspNtStatusFromWin32(ErrorCode);
-        if (0 == Result)
-            Result = RPC_NT_PROTOCOL_ERROR;
-    }
-    else 
-        Result = RPC_NT_PROTOCOL_ERROR;
-
-exit:
-    MemFree(PipeBuf);
-
-    return Result;
+    Result = FspLaunchCallLauncherPipe('D', 2, Argv, 0, 0, 0, &ErrorCode);
+    return !NT_SUCCESS(Result) ? Result : FspNtStatusFromWin32(ErrorCode);
 }
 
 static NTSTATUS FspFileSystemSetMountPoint_Drive(PWSTR MountPoint, PWSTR VolumeName,

@@ -39,6 +39,7 @@
     <ClCompile Include="..\..\src\dll\fuse\fuse_intf.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse_main.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse_opt.c" />
+    <ClCompile Include="..\..\src\dll\launch.c" />
     <ClCompile Include="..\..\src\dll\np.c" />
     <ClCompile Include="..\..\src\dll\posix.c" />
     <ClCompile Include="..\..\src\dll\security.c" />
