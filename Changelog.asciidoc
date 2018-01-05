@@ -5,8 +5,11 @@ v1.3B1 (2018.1 B1)::
 
 Changes since v1.2POST1:
 
+- The WinFsp Launcher can now be controlled by the new `FspLaunch` API. File systems can be started, stopped, queried and listed using `FspLaunchStart`, `FspLaunchStop`, `FspLaunchGetInfo` and `FspLaunchGetNameList`.
 - The WinFsp launcher now supports new registry settings `RunAs` and `WorkDirectory`. `RunAs` allows the laucher to launch a file system process under the service accounts LocalService and NetworkService. `WorkDirectory` can be used to specify the work directory for a newly launched file system process.
-- The WinFsp installer now uses the Wix `Provides` dependency extension to provide a `WinFsp` dependency key. (GitHub PR #129; thanks @felfert).
+- The MEMFS sample file systems are now launched under the LocalService account.
+- The WinFsp network provider is now added first in the provider order list. Previously it was added last. (GitHub PR #131; thanks @felfert.)
+- The WinFsp installer now uses the Wix `Provides` dependency extension to provide a `WinFsp` dependency key. (GitHub PR #129; thanks @felfert.)
 
 
 v1.2POST1 (2017.2; issue #127)::
