@@ -15,7 +15,8 @@
  * software.
  */
 
-#include <launcher/launcher.h>
+#include <winfsp/launch.h>
+#include <shared/minimal.h>
 
 #define PROGNAME                        "launchctl"
 
@@ -67,15 +68,15 @@ static int call_pipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
     NTSTATUS Result;
     DWORD LastError, BytesTransferred;
 
-    Result = FspCallNamedPipeSecurely(L"" LAUNCHER_PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
-        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, LAUNCHER_PIPE_OWNER);
+    Result = FspCallNamedPipeSecurely(L"" FSP_LAUNCH_PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
+        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, FSP_LAUNCH_PIPE_OWNER);
     LastError = FspWin32FromNtStatus(Result);
 
     if (0 != LastError)
         warn("KO CallNamedPipe = %ld", LastError);
     else if (sizeof(WCHAR) > BytesTransferred)
         warn("KO launcher: empty buffer");
-    else if (LauncherSuccess == PipeBuf[0])
+    else if (FspLaunchCmdSuccess == PipeBuf[0])
     {
         if (sizeof(WCHAR) == BytesTransferred)
             info("OK");
@@ -100,7 +101,7 @@ static int call_pipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
             info("OK\n%S", PipeBuf + 1);
         }
     }
-    else if (LauncherFailure == PipeBuf[0])
+    else if (FspLaunchCmdFailure == PipeBuf[0])
     {
         if (BytesTransferred < RecvSize)
             PipeBuf[BytesTransferred / sizeof(WCHAR)] = L'\0';
@@ -132,7 +133,7 @@ int start(PWSTR PipeBuf, ULONG PipeBufSize,
         return ERROR_INVALID_PARAMETER;
 
     P = PipeBuf;
-    *P++ = HasSecret ? LauncherSvcInstanceStartWithSecret : LauncherSvcInstanceStart;
+    *P++ = HasSecret ? FspLaunchCmdStartWithSecret : FspLaunchCmdStart;
     memcpy(P, ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
     memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
     for (DWORD Argi = 0; Argc > Argi; Argi++)
@@ -157,7 +158,7 @@ int stop(PWSTR PipeBuf, ULONG PipeBufSize,
         return ERROR_INVALID_PARAMETER;
 
     P = PipeBuf;
-    *P++ = LauncherSvcInstanceStop;
+    *P++ = FspLaunchCmdStop;
     memcpy(P, ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
     memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
 
@@ -177,7 +178,7 @@ int getinfo(PWSTR PipeBuf, ULONG PipeBufSize,
         return ERROR_INVALID_PARAMETER;
 
     P = PipeBuf;
-    *P++ = LauncherSvcInstanceInfo;
+    *P++ = FspLaunchCmdGetInfo;
     memcpy(P, ClassName, ClassNameSize * sizeof(WCHAR)); P += ClassNameSize;
     memcpy(P, InstanceName, InstanceNameSize * sizeof(WCHAR)); P += InstanceNameSize;
 
@@ -192,7 +193,7 @@ int list(PWSTR PipeBuf, ULONG PipeBufSize)
         return ERROR_INVALID_PARAMETER;
 
     P = PipeBuf;
-    *P++ = LauncherSvcInstanceList;
+    *P++ = FspLaunchCmdGetNameList;
 
     return call_pipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
 }
@@ -207,7 +208,7 @@ int quit(PWSTR PipeBuf, ULONG PipeBufSize)
         return ERROR_INVALID_PARAMETER;
 
     P = PipeBuf;
-    *P++ = LauncherQuit;
+    *P++ = FspLaunchCmdQuit;
 
     return call_pipe_and_report(PipeBuf, (ULONG)((P - PipeBuf) * sizeof(WCHAR)), PipeBufSize);
 }
@@ -217,7 +218,7 @@ int wmain(int argc, wchar_t **argv)
     PWSTR PipeBuf = 0;
 
     /* allocate our PipeBuf early on; freed on process exit by the system */
-    PipeBuf = MemAlloc(LAUNCHER_PIPE_BUFFER_SIZE);
+    PipeBuf = MemAlloc(FSP_LAUNCH_PIPE_BUFFER_SIZE);
     if (0 == PipeBuf)
         return ERROR_NO_SYSTEM_RESOURCES;
 
@@ -232,7 +233,7 @@ int wmain(int argc, wchar_t **argv)
         if (3 > argc || argc > 12)
             usage();
 
-        return start(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2], argc - 3, argv + 3,
+        return start(PipeBuf, FSP_LAUNCH_PIPE_BUFFER_SIZE, argv[1], argv[2], argc - 3, argv + 3,
             FALSE);
     }
     else
@@ -241,7 +242,7 @@ int wmain(int argc, wchar_t **argv)
         if (4 > argc || argc > 13)
             usage();
 
-        return start(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2], argc - 3, argv + 3,
+        return start(PipeBuf, FSP_LAUNCH_PIPE_BUFFER_SIZE, argv[1], argv[2], argc - 3, argv + 3,
             TRUE);
     }
     else
@@ -250,7 +251,7 @@ int wmain(int argc, wchar_t **argv)
         if (3 != argc)
             usage();
 
-        return stop(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2]);
+        return stop(PipeBuf, FSP_LAUNCH_PIPE_BUFFER_SIZE, argv[1], argv[2]);
     }
     else
     if (0 == invariant_wcscmp(L"info", argv[0]))
@@ -258,7 +259,7 @@ int wmain(int argc, wchar_t **argv)
         if (3 != argc)
             usage();
 
-        return getinfo(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, argv[1], argv[2]);
+        return getinfo(PipeBuf, FSP_LAUNCH_PIPE_BUFFER_SIZE, argv[1], argv[2]);
     }
     else
     if (0 == invariant_wcscmp(L"list", argv[0]))
@@ -266,7 +267,7 @@ int wmain(int argc, wchar_t **argv)
         if (1 != argc)
             usage();
 
-        return list(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE);
+        return list(PipeBuf, FSP_LAUNCH_PIPE_BUFFER_SIZE);
     }
     else
     if (0 == invariant_wcscmp(L"quit", argv[0]))
@@ -275,7 +276,7 @@ int wmain(int argc, wchar_t **argv)
             usage();
 
         /* works only against DEBUG version of launcher */
-        return quit(PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE);
+        return quit(PipeBuf, FSP_LAUNCH_PIPE_BUFFER_SIZE);
     }
     else
         usage();

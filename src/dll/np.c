@@ -16,7 +16,6 @@
  */
 
 #include <dll/library.h>
-#include <launcher/launcher.h>
 #include <npapi.h>
 #include <wincred.h>
 
@@ -268,8 +267,8 @@ static DWORD FspNpGetCredentialsKind(PWSTR RemoteName, PDWORD PCredentialsKind)
     memcpy(ClassNameBuf, ClassName, ClassNameLen * sizeof(WCHAR));
     ClassNameBuf[ClassNameLen] = '\0';
 
-    NpResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" LAUNCHER_REGKEY,
-        0, LAUNCHER_REGKEY_WOW64 | KEY_READ, &RegKey);
+    NpResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" FSP_LAUNCH_REGKEY,
+        0, FSP_LAUNCH_REGKEY_WOW64 | KEY_READ, &RegKey);
     if (ERROR_SUCCESS != NpResult)
         goto exit;
 
@@ -557,8 +556,7 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
     }
 
     NpResult = FspNpCallLauncherPipe(
-        FSP_NP_CREDENTIALS_NONE != CredentialsKind ?
-            LauncherSvcInstanceStartWithSecret : LauncherSvcInstanceStart,
+        FSP_NP_CREDENTIALS_NONE != CredentialsKind ? FspLaunchCmdStartWithSecret : FspLaunchCmdStart,
         Argc, Argv, Argl, 0, 0);
     switch (NpResult)
     {
@@ -610,7 +608,7 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
                 Argv[Argc] = InstanceName; Argl[Argc] = InstanceNameLen; Argc++;
 
                 if (WN_SUCCESS != FspNpCallLauncherPipe(
-                    LauncherSvcInstanceInfo,
+                    FspLaunchCmdGetInfo,
                     Argc, Argv, Argl, 0, 0))
                 {
                     /* looks like the file system is gone! */
@@ -772,7 +770,7 @@ DWORD APIENTRY NPCancelConnection(LPWSTR lpName, BOOL fForce)
     Argv[Argc] = InstanceName; Argl[Argc] = InstanceNameLen; Argc++;
 
     NpResult = FspNpCallLauncherPipe(
-        LauncherSvcInstanceStop,
+        FspLaunchCmdStop,
         Argc, Argv, Argl, 0, 0);
     switch (NpResult)
     {

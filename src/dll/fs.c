@@ -207,7 +207,7 @@ static NTSTATUS FspFileSystemLauncherDefineDosDevice(
     Argv[0] = Argv0;
     Argv[1] = VolumeName;
 
-    Result = FspLaunchCallLauncherPipe('D', 2, Argv, 0, 0, 0, &ErrorCode);
+    Result = FspLaunchCallLauncherPipe(FspLaunchCmdDefineDosDevice, 2, Argv, 0, 0, 0, &ErrorCode);
     return !NT_SUCCESS(Result) ? Result : FspNtStatusFromWin32(ErrorCode);
 }
 

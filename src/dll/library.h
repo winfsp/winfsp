@@ -20,6 +20,7 @@
 
 #define WINFSP_DLL_INTERNAL
 #include <winfsp/winfsp.h>
+#include <winfsp/launch.h>
 #include <shared/minimal.h>
 #include <strsafe.h>
 

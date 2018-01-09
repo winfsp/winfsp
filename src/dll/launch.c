@@ -16,7 +16,6 @@
  */
 
 #include <dll/library.h>
-#include <launcher/launcher.h>
 
 FSP_API NTSTATUS FspLaunchCallLauncherPipe(
     WCHAR Command, ULONG Argc, PWSTR *Argv, ULONG *Argl,
@@ -31,7 +30,7 @@ FSP_API NTSTATUS FspLaunchCallLauncherPipe(
         *PSize = 0;
     *PLauncherError = 0;
 
-    PipeBuf = MemAlloc(LAUNCHER_PIPE_BUFFER_SIZE);
+    PipeBuf = MemAlloc(FSP_LAUNCH_PIPE_BUFFER_SIZE);
     if (0 == PipeBuf)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
@@ -44,7 +43,7 @@ FSP_API NTSTATUS FspLaunchCallLauncherPipe(
         if (0 != Argv[I])
         {
             Length = 0 == Argl || -1 == Argl[I] ? lstrlenW(Argv[I]) : Argl[I];
-            if (LAUNCHER_PIPE_BUFFER_SIZE < ((ULONG)(P - PipeBuf) + Length + 1) * sizeof(WCHAR))
+            if (FSP_LAUNCH_PIPE_BUFFER_SIZE < ((ULONG)(P - PipeBuf) + Length + 1) * sizeof(WCHAR))
             {
                 Result = STATUS_INVALID_PARAMETER;
                 goto exit;
@@ -52,9 +51,9 @@ FSP_API NTSTATUS FspLaunchCallLauncherPipe(
             memcpy(P, Argv[I], Length * sizeof(WCHAR)); P += Length; *P++ = L'\0';
         }
 
-    Result = FspCallNamedPipeSecurely(L"" LAUNCHER_PIPE_NAME,
-        PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE,
-        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, LAUNCHER_PIPE_OWNER);
+    Result = FspCallNamedPipeSecurely(L"" FSP_LAUNCH_PIPE_NAME,
+        PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), PipeBuf, FSP_LAUNCH_PIPE_BUFFER_SIZE,
+        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, FSP_LAUNCH_PIPE_OWNER);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -62,18 +61,18 @@ FSP_API NTSTATUS FspLaunchCallLauncherPipe(
     ErrorCode = ERROR_BROKEN_PIPE; /* protocol error! */
     if (sizeof(WCHAR) <= BytesTransferred)
     {
-        if (LauncherSuccess == PipeBuf[0])
+        if (FspLaunchCmdSuccess == PipeBuf[0])
         {
             ErrorCode = 0;
 
             if (0 != PSize)
             {
                 BytesTransferred -= sizeof(WCHAR);
-                memcpy(Buffer, PipeBuf, *PSize < BytesTransferred ? *PSize : BytesTransferred);
+                memcpy(Buffer, PipeBuf + 1, *PSize < BytesTransferred ? *PSize : BytesTransferred);
                 *PSize = BytesTransferred;
             }
         }
-        else if (LauncherFailure == PipeBuf[0])
+        else if (FspLaunchCmdFailure == PipeBuf[0])
         {
             ErrorCode = 0;
 
@@ -112,7 +111,7 @@ FSP_API NTSTATUS FspLaunchStart(
     memcpy(Argv + 2, Argv, Argc * sizeof(PWSTR));
 
     return FspLaunchCallLauncherPipe(
-        HasSecret ? LauncherSvcInstanceStartWithSecret : LauncherSvcInstanceStart,
+        HasSecret ? FspLaunchCmdStartWithSecret : FspLaunchCmdStart,
         Argc + 2, Argv, 0, 0, 0, PLauncherError);
 }
 
@@ -125,7 +124,7 @@ FSP_API NTSTATUS FspLaunchStop(
     Argv[0] = ClassName;
     Argv[1] = InstanceName;
 
-    return FspLaunchCallLauncherPipe(LauncherSvcInstanceStop,
+    return FspLaunchCallLauncherPipe(FspLaunchCmdStop,
         2, Argv, 0, 0, 0, PLauncherError);
 }
 
@@ -139,7 +138,7 @@ FSP_API NTSTATUS FspLaunchGetInfo(
     Argv[0] = ClassName;
     Argv[1] = InstanceName;
 
-    return FspLaunchCallLauncherPipe(LauncherSvcInstanceInfo,
+    return FspLaunchCallLauncherPipe(FspLaunchCmdGetInfo,
         2, Argv, 0, Buffer, PSize, PLauncherError);
 }
 
@@ -147,6 +146,6 @@ FSP_API NTSTATUS FspLaunchGetNameList(
     PWSTR Buffer, PULONG PSize,
     PULONG PLauncherError)
 {
-    return FspLaunchCallLauncherPipe(LauncherSvcInstanceList,
+    return FspLaunchCallLauncherPipe(FspLaunchCmdGetNameList,
         0, 0, 0, Buffer, PSize, PLauncherError);
 }

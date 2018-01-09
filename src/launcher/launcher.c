@@ -15,7 +15,8 @@
  * software.
  */
 
-#include <launcher/launcher.h>
+#include <winfsp/launch.h>
+#include <shared/minimal.h>
 #include <aclapi.h>
 #include <sddl.h>
 #include <userenv.h>
@@ -409,6 +410,11 @@ static VOID CALLBACK KillProcessWait(PVOID Context, BOOLEAN Timeout)
     CloseHandle(KillProcessData->Process);
     MemFree(KillProcessData);
 }
+
+#define LAUNCHER_PIPE_DEFAULT_TIMEOUT   (2 * 15000 + 1000)
+#define LAUNCHER_START_WITH_SECRET_TIMEOUT 15000
+#define LAUNCHER_STOP_TIMEOUT           5500
+#define LAUNCHER_KILL_TIMEOUT           5000
 
 typedef struct
 {
@@ -858,8 +864,8 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
-    RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" LAUNCHER_REGKEY,
-        0, LAUNCHER_REGKEY_WOW64 | KEY_READ, &RegKey);
+    RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" FSP_LAUNCH_REGKEY,
+        0, FSP_LAUNCH_REGKEY_WOW64 | KEY_READ, &RegKey);
     if (ERROR_SUCCESS != RegResult)
     {
         Result = FspNtStatusFromWin32(RegResult);
@@ -950,7 +956,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     RegKey = 0;
 
     if (L'\0' == Security[0])
-        lstrcpyW(Security, L"" SVC_INSTANCE_DEFAULT_SDDL);
+        lstrcpyW(Security, L"" FSP_LAUNCH_SERVICE_DEFAULT_SDDL);
     if (L'D' == Security[0] && L':' == Security[1])
         Security = SecurityBuf;
 
@@ -1412,7 +1418,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
     SecurityAttributes.nLength = sizeof SecurityAttributes;
     SecurityAttributes.bInheritHandle = FALSE;
-    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(L"" LAUNCHER_PIPE_SDDL, SDDL_REVISION_1,
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(L"" FSP_LAUNCH_PIPE_SDDL, SDDL_REVISION_1,
         &SecurityAttributes.lpSecurityDescriptor, 0))
         goto fail;
 
@@ -1449,11 +1455,11 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     if (0 == SvcOverlapped.hEvent)
         goto fail;
 
-    SvcPipe = CreateNamedPipeW(L"" LAUNCHER_PIPE_NAME,
+    SvcPipe = CreateNamedPipeW(L"" FSP_LAUNCH_PIPE_NAME,
         PIPE_ACCESS_DUPLEX |
             FILE_FLAG_FIRST_PIPE_INSTANCE | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_OVERLAPPED,
         PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-        1, LAUNCHER_PIPE_BUFFER_SIZE, LAUNCHER_PIPE_BUFFER_SIZE, LAUNCHER_PIPE_DEFAULT_TIMEOUT,
+        1, FSP_LAUNCH_PIPE_BUFFER_SIZE, FSP_LAUNCH_PIPE_BUFFER_SIZE, LAUNCHER_PIPE_DEFAULT_TIMEOUT,
         &SecurityAttributes);
     if (INVALID_HANDLE_VALUE == SvcPipe)
         goto fail;
@@ -1581,7 +1587,7 @@ static DWORD WINAPI SvcPipeServer(PVOID Context)
     HANDLE ClientToken;
     DWORD LastError, BytesTransferred;
 
-    PipeBuf = MemAlloc(LAUNCHER_PIPE_BUFFER_SIZE);
+    PipeBuf = MemAlloc(FSP_LAUNCH_PIPE_BUFFER_SIZE);
     if (0 == PipeBuf)
     {
         FspServiceSetExitCode(Service, ERROR_NO_SYSTEM_RESOURCES);
@@ -1604,7 +1610,7 @@ static DWORD WINAPI SvcPipeServer(PVOID Context)
         }
 
         LastError = SvcPipeWaitResult(
-            ReadFile(SvcPipe, PipeBuf, LAUNCHER_PIPE_BUFFER_SIZE, &BytesTransferred, &SvcOverlapped),
+            ReadFile(SvcPipe, PipeBuf, FSP_LAUNCH_PIPE_BUFFER_SIZE, &BytesTransferred, &SvcOverlapped),
             SvcEvent, SvcPipe, &SvcOverlapped, &BytesTransferred);
         if (-1 == LastError)
             break;
@@ -1694,11 +1700,11 @@ static inline VOID SvcPipeTransactResult(NTSTATUS Result, PWSTR PipeBuf, PULONG 
 {
     if (NT_SUCCESS(Result))
     {
-        *PipeBuf = LauncherSuccess;
+        *PipeBuf = FspLaunchCmdSuccess;
         *PSize += sizeof(WCHAR);
     }
     else
-        *PSize = (wsprintfW(PipeBuf, L"%c%ld", LauncherFailure, FspWin32FromNtStatus(Result)) + 1) *
+        *PSize = (wsprintfW(PipeBuf, L"%c%ld", FspLaunchCmdFailure, FspWin32FromNtStatus(Result)) + 1) *
             sizeof(WCHAR);
 }
 
@@ -1721,10 +1727,10 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
 
     switch (*P++)
     {
-    case LauncherSvcInstanceStartWithSecret:
+    case FspLaunchCmdStartWithSecret:
         HasSecret = TRUE;
         /* fall through! */
-    case LauncherSvcInstanceStart:
+    case FspLaunchCmdStart:
         ClassName = SvcPipeTransactGetPart(&P, PipeBufEnd);
         InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
         for (Argc = 0; sizeof Argv / sizeof Argv[0] > Argc; Argc++)
@@ -1739,7 +1745,7 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
 
-    case LauncherSvcInstanceStop:
+    case FspLaunchCmdStop:
         ClassName = SvcPipeTransactGetPart(&P, PipeBufEnd);
         InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
 
@@ -1750,28 +1756,28 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
 
-    case LauncherSvcInstanceInfo:
+    case FspLaunchCmdGetInfo:
         ClassName = SvcPipeTransactGetPart(&P, PipeBufEnd);
         InstanceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
 
         Result = STATUS_INVALID_PARAMETER;
         if (0 != ClassName && 0 != InstanceName)
         {
-            *PSize = LAUNCHER_PIPE_BUFFER_SIZE - 1;
+            *PSize = FSP_LAUNCH_PIPE_BUFFER_SIZE - 1;
             Result = SvcInstanceGetInfo(ClientToken, ClassName, InstanceName, PipeBuf + 1, PSize);
         }
 
         SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
 
-    case LauncherSvcInstanceList:
-        *PSize = LAUNCHER_PIPE_BUFFER_SIZE - 1;
+    case FspLaunchCmdGetNameList:
+        *PSize = FSP_LAUNCH_PIPE_BUFFER_SIZE - 1;
         Result = SvcInstanceGetNameList(ClientToken, PipeBuf + 1, PSize);
 
         SvcPipeTransactResult(Result, PipeBuf, PSize);
         break;
 
-    case LauncherDefineDosDevice:
+    case FspLaunchCmdDefineDosDevice:
         DeviceName = SvcPipeTransactGetPart(&P, PipeBufEnd);
         TargetPath = SvcPipeTransactGetPart(&P, PipeBufEnd);
 
@@ -1783,7 +1789,7 @@ static VOID SvcPipeTransact(HANDLE ClientToken, PWSTR PipeBuf, PULONG PSize)
         break;
 
 #if !defined(NDEBUG)
-    case LauncherQuit:
+    case FspLaunchCmdQuit:
         SetEvent(SvcEvent);
 
         SvcPipeTransactResult(STATUS_SUCCESS, PipeBuf, PSize);

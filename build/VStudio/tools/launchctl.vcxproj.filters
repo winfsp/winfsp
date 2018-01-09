@@ -16,9 +16,6 @@
     <ClInclude Include="..\..\..\src\shared\minimal.h">
       <Filter>Include\shared</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\launcher\launcher.h">
-      <Filter>Source</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\launcher\launchctl.c">

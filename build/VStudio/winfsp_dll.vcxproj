@@ -25,6 +25,7 @@
     <ClInclude Include="..\..\inc\fuse\fuse_opt.h" />
     <ClInclude Include="..\..\inc\fuse\winfsp_fuse.h" />
     <ClInclude Include="..\..\inc\winfsp\fsctl.h" />
+    <ClInclude Include="..\..\inc\winfsp\launch.h" />
     <ClInclude Include="..\..\inc\winfsp\winfsp.h" />
     <ClInclude Include="..\..\inc\winfsp\winfsp.hpp" />
     <ClInclude Include="..\..\src\dll\fuse\library.h" />
