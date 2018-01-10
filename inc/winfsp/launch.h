@@ -201,6 +201,35 @@ FSP_API NTSTATUS FspLaunchGetNameList(
     PWSTR Buffer, PULONG PSize,
     PULONG PLauncherError);
 
+/**
+ * @group Registry
+ */
+#pragma warning(push)
+#pragma warning(disable:4200)           /* zero-sized array in struct/union */
+typedef struct _FSP_LAUNCH_REG_RECORD
+{
+    PWSTR Agent;
+    PWSTR Executable;
+    PWSTR CommandLine;
+    PWSTR WorkDirectory;
+    PWSTR RunAs;
+    PWSTR Security;
+    PVOID Reserved0[6];
+    ULONG JobControl;
+    ULONG Credentials;
+    ULONG Reserved1[6];
+    UINT8 Buffer[];
+} FSP_LAUNCH_REG_RECORD;
+#pragma warning(pop)
+FSP_API NTSTATUS FspLaunchRegSetRecord(
+    PWSTR ClassName,
+    const FSP_LAUNCH_REG_RECORD *Record);
+FSP_API NTSTATUS FspLaunchRegGetRecord(
+    PWSTR ClassName, PWSTR Agent,
+    FSP_LAUNCH_REG_RECORD **PRecord);
+FSP_API VOID FspLaunchRegFreeRecord(
+    FSP_LAUNCH_REG_RECORD *Record);
+
 #ifdef __cplusplus
 }
 #endif

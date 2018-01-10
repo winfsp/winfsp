@@ -149,3 +149,262 @@ FSP_API NTSTATUS FspLaunchGetNameList(
     return FspLaunchCallLauncherPipe(FspLaunchCmdGetNameList,
         0, 0, 0, Buffer, PSize, PLauncherError);
 }
+
+FSP_API NTSTATUS FspLaunchRegSetRecord(
+    PWSTR ClassName,
+    const FSP_LAUNCH_REG_RECORD *Record)
+{
+#define SETFIELD(FieldName)             \
+    do                                  \
+    {                                   \
+        if (0 != Record->FieldName)     \
+        {                               \
+            RegResult = RegSetValueExW(RegKey,\
+                L"" #FieldName, 0, REG_SZ,\
+                (PVOID)Record->FieldName, (lstrlenW(Record->FieldName) + 1) * sizeof(WCHAR));\
+            if (ERROR_SUCCESS != RegResult)\
+            {                           \
+                Result = FspNtStatusFromWin32(RegResult);\
+                goto exit;              \
+            }                           \
+        }                               \
+        else                            \
+        {                               \
+            RegResult = RegDeleteValueW(RegKey,\
+                L"" #FieldName);\
+            if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)\
+            {                           \
+                Result = FspNtStatusFromWin32(RegResult);\
+                goto exit;              \
+            }                           \
+        }                               \
+    } while (0,0)
+#define SETFIELDI(FieldName, Deflt)     \
+    do                                  \
+    {                                   \
+        if (Deflt != Record->FieldName) \
+        {                               \
+            RegResult = RegSetValueExW(RegKey,\
+                L"" #FieldName, 0, REG_DWORD,\
+                (PVOID)&Record->FieldName, sizeof Record->FieldName);\
+            if (ERROR_SUCCESS != RegResult)\
+            {                           \
+                Result = FspNtStatusFromWin32(RegResult);\
+                goto exit;              \
+            }                           \
+        }                               \
+        else                            \
+        {                               \
+            RegResult = RegDeleteValueW(RegKey,\
+                L"" #FieldName);\
+            if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)\
+            {                           \
+                Result = FspNtStatusFromWin32(RegResult);\
+                goto exit;              \
+            }                           \
+        }                               \
+    } while (0,0)
+
+    NTSTATUS Result;
+    ULONG ClassNameLen;
+    WCHAR RegPath[MAX_PATH];
+    HKEY RegKey = 0;
+    DWORD RegResult;
+
+    if (0 != Record && 0 == Record->Executable)
+    {
+        Result = STATUS_INVALID_PARAMETER;
+        goto exit;
+    }
+
+    ClassNameLen = lstrlenW(ClassName);
+    if (sizeof RegPath - sizeof L"" FSP_LAUNCH_REGKEY <=
+        (1/*backslash*/ + ClassNameLen) * sizeof(WCHAR))
+    {
+        Result = STATUS_INVALID_PARAMETER;
+        goto exit;
+    }
+
+    memcpy(RegPath, L"" FSP_LAUNCH_REGKEY, sizeof L"" FSP_LAUNCH_REGKEY - sizeof(WCHAR));
+    RegPath[sizeof L"" FSP_LAUNCH_REGKEY / sizeof(WCHAR) - 1] = L'\\';
+    memcpy(RegPath + sizeof L"" FSP_LAUNCH_REGKEY / sizeof(WCHAR), ClassName, ClassNameLen);
+
+    if (0 != Record)
+    {
+        RegResult = RegCreateKeyExW(HKEY_LOCAL_MACHINE, RegPath,
+            0, 0, 0, FSP_LAUNCH_REGKEY_WOW64 | KEY_ALL_ACCESS, 0, &RegKey, 0);
+        if (ERROR_SUCCESS != RegResult)
+        {
+            Result = FspNtStatusFromWin32(RegResult);
+            goto exit;
+        }
+
+        SETFIELD(Agent);
+        SETFIELD(Executable);
+        SETFIELD(CommandLine);
+        SETFIELD(WorkDirectory);
+        SETFIELD(RunAs);
+        SETFIELD(Security);
+        SETFIELDI(JobControl, 1);
+        SETFIELDI(Credentials, 0);
+    }
+    else
+    {
+        RegResult = RegDeleteKeyEx(HKEY_LOCAL_MACHINE, RegPath,
+            FSP_LAUNCH_REGKEY_WOW64, 0);
+        if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
+        {
+            Result = FspNtStatusFromWin32(RegResult);
+            goto exit;
+        }
+    }
+
+exit:
+    if (0 != RegKey)
+        RegCloseKey(RegKey);
+
+    return Result;
+
+#undef SETFIELD
+#undef SETFIELDI
+}
+
+FSP_API NTSTATUS FspLaunchRegGetRecord(
+    PWSTR ClassName, PWSTR Agent,
+    FSP_LAUNCH_REG_RECORD **PRecord)
+{
+#define GETFIELD(FieldName)             \
+    do                                  \
+    {                                   \
+        RegSize = sizeof RegBuf - RegMark;\
+        RegResult = RegGetValueW(RegKey,\
+            ClassName, L"" #FieldName, RRF_RT_REG_SZ, 0,\
+            RegBuf + RegMark, &RegSize);\
+        if (ERROR_SUCCESS == RegResult) \
+        {                               \
+            Record->FieldName = (PVOID)(RegBuf + RegMark);\
+            RegMark += RegSize;         \
+        }                               \
+        else if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)\
+        {                               \
+            Result = FspNtStatusFromWin32(RegResult);\
+            goto exit;                  \
+        }                               \
+    } while (0,0)
+#define GETFIELDI(FieldName)            \
+    do                                  \
+    {                                   \
+        RegSize = sizeof RegDword;\
+        RegResult = RegGetValueW(RegKey,\
+            ClassName, L"" #FieldName, RRF_RT_DWORD, 0,\
+            &RegDword, &RegSize);\
+        if (ERROR_SUCCESS == RegResult) \
+        {                               \
+            Record->FieldName = RegDword;\
+            RegMark += RegSize;         \
+        }                               \
+        else if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)\
+        {                               \
+            Result = FspNtStatusFromWin32(RegResult);\
+            goto exit;                  \
+        }                               \
+    } while (0,0)
+
+    NTSTATUS Result;
+    FSP_LAUNCH_REG_RECORD RecordBuf, *Record = &RecordBuf;
+    HKEY RegKey = 0;
+    DWORD RegResult, RegDword, RegSize, RegMark;
+    UINT8 RegBuf[3 * 1024];
+    PWSTR P, Part;
+    BOOLEAN FoundAgent;
+
+    *PRecord = 0;
+
+    RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" FSP_LAUNCH_REGKEY,
+        0, FSP_LAUNCH_REGKEY_WOW64 | KEY_READ, &RegKey);
+    if (ERROR_SUCCESS != RegResult)
+    {
+        Result = FspNtStatusFromWin32(RegResult);
+        goto exit;
+    }
+
+    memset(&Record, 0, sizeof Record);
+    Record->JobControl = 1; /* default is YES! */
+    RegMark = 0;
+
+    GETFIELD(Agent);
+    if (0 != Agent && L'\0' != Agent[0] &&
+        0 != Record->Agent && L'\0' != Record->Agent[0])
+    {
+        FoundAgent = FALSE;
+        P = Record->Agent, Part = P;
+        do
+        {
+            if (L',' == *P || '\0' == *P)
+            {
+                if (0 == invariant_wcsnicmp(Part, Agent, P - Part))
+                {
+                    FoundAgent = TRUE;
+                    break;
+                }
+                else
+                    Part = P + 1;
+            }
+        } while (L'\0' != *P++);
+
+        if (!FoundAgent)
+        {
+            Result = STATUS_OBJECT_NAME_NOT_FOUND;
+            goto exit;
+        }
+    }
+
+    GETFIELD(Executable);
+    GETFIELD(CommandLine);
+    GETFIELD(WorkDirectory);
+    GETFIELD(RunAs);
+    GETFIELD(Security);
+    GETFIELDI(JobControl);
+    GETFIELDI(Credentials);
+
+    if (0 == Record->Executable)
+    {
+        Result = STATUS_OBJECT_NAME_NOT_FOUND;
+        goto exit;
+    }
+
+    Record = MemAlloc(FIELD_OFFSET(FSP_LAUNCH_REG_RECORD, Buffer) + RegMark);
+    if (0 == Record)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    memcpy(Record->Buffer, RegBuf, RegMark);
+    Record->Agent = (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.Agent - RegBuf));
+    Record->Executable = (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.Executable - RegBuf));
+    Record->CommandLine = (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.CommandLine - RegBuf));
+    Record->WorkDirectory = (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.WorkDirectory - RegBuf));
+    Record->RunAs = (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.RunAs - RegBuf));
+    Record->Security = (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.Security - RegBuf));
+    Record->JobControl = RecordBuf.JobControl;
+    Record->Credentials = RecordBuf.Credentials;
+
+    *PRecord = Record;
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (0 != RegKey)
+        RegCloseKey(RegKey);
+
+    return Result;
+
+#undef GETFIELDI
+#undef GETFIELD
+}
+
+FSP_API VOID FspLaunchRegFreeRecord(
+    FSP_LAUNCH_REG_RECORD *Record)
+{
+    MemFree(Record);
+}
