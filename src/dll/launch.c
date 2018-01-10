@@ -26,8 +26,6 @@ FSP_API NTSTATUS FspLaunchCallLauncherPipe(
     NTSTATUS Result;
     ULONG ErrorCode;
 
-    if (0 != PSize)
-        *PSize = 0;
     *PLauncherError = 0;
 
     PipeBuf = MemAlloc(FSP_LAUNCH_PIPE_BUFFER_SIZE);
@@ -91,6 +89,9 @@ FSP_API NTSTATUS FspLaunchCallLauncherPipe(
     *PLauncherError = ErrorCode;
 
 exit:
+    if (!NT_SUCCESS(Result) && 0 != PSize)
+        *PSize = 0;
+
     MemFree(PipeBuf);
 
     return Result;
@@ -108,7 +109,7 @@ FSP_API NTSTATUS FspLaunchStart(
 
     Argv[0] = ClassName;
     Argv[1] = InstanceName;
-    memcpy(Argv + 2, Argv, Argc * sizeof(PWSTR));
+    memcpy(Argv + 2, Argv0, Argc * sizeof(PWSTR));
 
     return FspLaunchCallLauncherPipe(
         HasSecret ? FspLaunchCmdStartWithSecret : FspLaunchCmdStart,

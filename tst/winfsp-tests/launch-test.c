@@ -154,6 +154,134 @@ static void launch_reg_test(void)
 
 static void launch_test(void)
 {
+    /* this test assumes that memfs32 is registered */
+
+    NTSTATUS Result;
+    ULONG LauncherError;
+    PWSTR Argv[2];
+    FSP_LAUNCH_REG_RECORD *Record;
+    WCHAR Buffer[1024];
+    ULONG Size;
+    ULONG FoundClass, FoundInst1, FoundInst2;
+
+    Result = FspLaunchRegGetRecord(L"memfs32", 0, &Record);
+    if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
+    {
+        FspDebugLog(__FUNCTION__ ": need memfs32 registration\n");
+        return;
+    }
+    ASSERT(NT_SUCCESS(Result));
+
+    Argv[0] = L"";
+    Argv[1] = L"*";
+
+    Result = FspLaunchStart(L"memfs32", L"winfsp-tests-share1", 2, Argv, FALSE, &LauncherError);
+    if (STATUS_OBJECT_NAME_NOT_FOUND == Result)
+    {
+        FspDebugLog(__FUNCTION__ ": need WinFsp.Launcher\n");
+        return;
+    }
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(0 == LauncherError);
+
+    Result = FspLaunchStart(L"memfs32", L"winfsp-tests-share2", 2, Argv, FALSE, &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(0 == LauncherError);
+
+    Result = FspLaunchStart(L"memfs32", L"winfsp-tests-share1", 2, Argv, FALSE, &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(ERROR_ALREADY_EXISTS == LauncherError);
+
+    Result = FspLaunchStart(L"memfs32", L"winfsp-tests-share2", 2, Argv, FALSE, &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(ERROR_ALREADY_EXISTS == LauncherError);
+
+    Size = sizeof Buffer;
+    Result = FspLaunchGetInfo(L"memfs32", L"winfsp-tests-share1", Buffer, &Size, &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(0 == LauncherError);
+    ASSERT((wcslen(L"memfs32") + 1) * sizeof(WCHAR) < Size);
+    ASSERT((wcslen(L"winfsp-tests-share1") + 1) * sizeof(WCHAR) < Size);
+    ASSERT(0 == wcscmp(L"memfs32", Buffer));
+    ASSERT(0 == wcscmp(L"winfsp-tests-share1", Buffer + 8));
+
+    Size = sizeof Buffer;
+    Result = FspLaunchGetInfo(L"memfs32", L"winfsp-tests-share2", Buffer, &Size, &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(0 == LauncherError);
+    ASSERT((wcslen(L"memfs32") + 1) * sizeof(WCHAR) < Size);
+    ASSERT((wcslen(L"winfsp-tests-share2") + 1) * sizeof(WCHAR) < Size);
+    ASSERT(0 == wcscmp(L"memfs32", Buffer));
+    ASSERT(0 == wcscmp(L"winfsp-tests-share2", Buffer + 8));
+
+    Size = sizeof Buffer;
+    Result = FspLaunchGetNameList(Buffer, &Size, &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(0 == LauncherError);
+    FoundClass = FoundInst1 = FoundInst2 = 0;
+    for (PWSTR P = Buffer, EndP = (PVOID)((PUINT8)P + Size), Part = P; EndP > P; P++)
+        if (L'\0' == *P)
+        {
+            if (0 == wcscmp(L"memfs32", Part))
+                FoundClass++;
+            else if (0 == wcscmp(L"winfsp-tests-share1", Part))
+                FoundInst1++;
+            else if (0 == wcscmp(L"winfsp-tests-share2", Part))
+                FoundInst2++;
+            Part = P + 1;
+        }
+    ASSERT(2 == FoundClass);
+    ASSERT(1 == FoundInst1);
+    ASSERT(1 == FoundInst2);
+
+    Result = FspLaunchStop(L"memfs32", L"winfsp-tests-share1", &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(0 == LauncherError);
+
+    Result = FspLaunchStop(L"memfs32", L"winfsp-tests-share2", &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(0 == LauncherError);
+
+    /* give the launcher a chance to stop the file systems! */
+    Sleep(3000);
+
+    Size = sizeof Buffer;
+    Result = FspLaunchGetInfo(L"memfs32", L"winfsp-tests-share1", Buffer, &Size, &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(ERROR_FILE_NOT_FOUND == LauncherError);
+
+    Size = sizeof Buffer;
+    Result = FspLaunchGetInfo(L"memfs32", L"winfsp-tests-share2", Buffer, &Size, &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(ERROR_FILE_NOT_FOUND == LauncherError);
+
+    Result = FspLaunchStop(L"memfs32", L"winfsp-tests-share1", &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(ERROR_FILE_NOT_FOUND == LauncherError);
+
+    Result = FspLaunchStop(L"memfs32", L"winfsp-tests-share2", &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(ERROR_FILE_NOT_FOUND == LauncherError);
+
+    Size = sizeof Buffer;
+    Result = FspLaunchGetNameList(Buffer, &Size, &LauncherError);
+    ASSERT(NT_SUCCESS(Result));
+    ASSERT(0 == LauncherError);
+    FoundClass = FoundInst1 = FoundInst2 = 0;
+    for (PWSTR P = Buffer, EndP = (PVOID)((PUINT8)P + Size), Part = P; EndP > P; P++)
+        if (L'\0' == *P)
+        {
+            if (0 == wcscmp(L"memfs32", Part))
+                FoundClass++;
+            else if (0 == wcscmp(L"winfsp-tests-share1", Part))
+                FoundInst1++;
+            else if (0 == wcscmp(L"winfsp-tests-share2", Part))
+                FoundInst2++;
+            Part = P + 1;
+        }
+    ASSERT(0 == FoundClass);
+    ASSERT(0 == FoundInst1);
+    ASSERT(0 == FoundInst2);
 }
 
 void launch_tests(void)
