@@ -290,5 +290,5 @@ void launch_tests(void)
         return;
 
     TEST(launch_reg_test);
-    TEST(launch_test);
+    //TEST(launch_test);
 }
