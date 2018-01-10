@@ -190,6 +190,7 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\fuse-opt-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\hooks.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\info-test.c" />
+    <ClCompile Include="..\..\..\tst\winfsp-tests\launch-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\lock-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\memfs-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\mount-test.c" />

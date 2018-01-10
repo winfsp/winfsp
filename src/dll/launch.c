@@ -218,8 +218,7 @@ FSP_API NTSTATUS FspLaunchRegSetRecord(
     }
 
     ClassNameLen = lstrlenW(ClassName);
-    if (sizeof RegPath - sizeof L"" FSP_LAUNCH_REGKEY <=
-        (1/*backslash*/ + ClassNameLen) * sizeof(WCHAR))
+    if (sizeof RegPath - sizeof L"" FSP_LAUNCH_REGKEY <= (ClassNameLen + 1) * sizeof(WCHAR))
     {
         Result = STATUS_INVALID_PARAMETER;
         goto exit;
@@ -227,12 +226,13 @@ FSP_API NTSTATUS FspLaunchRegSetRecord(
 
     memcpy(RegPath, L"" FSP_LAUNCH_REGKEY, sizeof L"" FSP_LAUNCH_REGKEY - sizeof(WCHAR));
     RegPath[sizeof L"" FSP_LAUNCH_REGKEY / sizeof(WCHAR) - 1] = L'\\';
-    memcpy(RegPath + sizeof L"" FSP_LAUNCH_REGKEY / sizeof(WCHAR), ClassName, ClassNameLen);
+    memcpy(RegPath + sizeof L"" FSP_LAUNCH_REGKEY / sizeof(WCHAR),
+        ClassName, (ClassNameLen + 1) * sizeof(WCHAR));
 
     if (0 != Record)
     {
         RegResult = RegCreateKeyExW(HKEY_LOCAL_MACHINE, RegPath,
-            0, 0, 0, FSP_LAUNCH_REGKEY_WOW64 | KEY_ALL_ACCESS, 0, &RegKey, 0);
+            0, 0, 0, FSP_LAUNCH_REGKEY_WOW64 | KEY_SET_VALUE, 0, &RegKey, 0);
         if (ERROR_SUCCESS != RegResult)
         {
             Result = FspNtStatusFromWin32(RegResult);
@@ -245,7 +245,7 @@ FSP_API NTSTATUS FspLaunchRegSetRecord(
         SETFIELD(WorkDirectory);
         SETFIELD(RunAs);
         SETFIELD(Security);
-        SETFIELDI(JobControl, 1);
+        SETFIELDI(JobControl, ~0); /* JobControl default is 1; but we treat as without default */
         SETFIELDI(Credentials, 0);
     }
     else
@@ -258,6 +258,8 @@ FSP_API NTSTATUS FspLaunchRegSetRecord(
             goto exit;
         }
     }
+
+    Result = STATUS_SUCCESS;
 
 exit:
     if (0 != RegKey)
@@ -277,58 +279,87 @@ FSP_API NTSTATUS FspLaunchRegGetRecord(
     do                                  \
     {                                   \
         RegSize = sizeof RegBuf - RegMark;\
-        RegResult = RegGetValueW(RegKey,\
-            ClassName, L"" #FieldName, RRF_RT_REG_SZ, 0,\
-            RegBuf + RegMark, &RegSize);\
-        if (ERROR_SUCCESS == RegResult) \
+        RegResult = RegQueryValueEx(RegKey,\
+            L"" #FieldName, 0, &RegType,\
+            (PVOID)(RegBuf + RegMark), &RegSize);\
+        if (ERROR_SUCCESS != RegResult) \
         {                               \
-            Record->FieldName = (PVOID)(RegBuf + RegMark);\
-            RegMark += RegSize;         \
+            if (ERROR_FILE_NOT_FOUND != RegResult)\
+            {                           \
+                Result = FspNtStatusFromWin32(RegResult);\
+                goto exit;              \
+            }                           \
         }                               \
-        else if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)\
+        else if (REG_SZ != RegType ||   \
+            sizeof(WCHAR) > RegSize ||  \
+            L'\0' != *(PWSTR)(RegBuf + RegMark + RegSize - sizeof(WCHAR)))\
         {                               \
-            Result = FspNtStatusFromWin32(RegResult);\
+            Result = STATUS_OBJECT_NAME_NOT_FOUND;\
             goto exit;                  \
+        }                               \
+        else                            \
+        {                               \
+            Record->FieldName = (PWSTR)(RegBuf + RegMark);\
+            RegMark += RegSize;         \
         }                               \
     } while (0,0)
 #define GETFIELDI(FieldName)            \
     do                                  \
     {                                   \
-        RegSize = sizeof RegDword;\
-        RegResult = RegGetValueW(RegKey,\
-            ClassName, L"" #FieldName, RRF_RT_DWORD, 0,\
-            &RegDword, &RegSize);\
-        if (ERROR_SUCCESS == RegResult) \
+        RegSize = sizeof RegDword;      \
+        RegResult = RegQueryValueEx(RegKey,\
+            L"" #FieldName, 0, &RegType,\
+            (PVOID)&RegDword, &RegSize);\
+        if (ERROR_SUCCESS != RegResult) \
         {                               \
-            Record->FieldName = RegDword;\
-            RegMark += RegSize;         \
+            if (ERROR_FILE_NOT_FOUND != RegResult)\
+            {                           \
+                Result = FspNtStatusFromWin32(RegResult);\
+                goto exit;              \
+            }                           \
         }                               \
-        else if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)\
+        else if (REG_DWORD != RegType)  \
         {                               \
-            Result = FspNtStatusFromWin32(RegResult);\
+            Result = STATUS_OBJECT_NAME_NOT_FOUND;\
             goto exit;                  \
         }                               \
+        else                            \
+            Record->FieldName = RegDword;\
     } while (0,0)
 
     NTSTATUS Result;
+    ULONG ClassNameLen;
+    WCHAR RegPath[MAX_PATH];
     FSP_LAUNCH_REG_RECORD RecordBuf, *Record = &RecordBuf;
     HKEY RegKey = 0;
-    DWORD RegResult, RegDword, RegSize, RegMark;
-    UINT8 RegBuf[3 * 1024];
+    DWORD RegResult, RegDword, RegType, RegSize, RegMark;
+    UINT8 RegBuf[2 * 1024];
     PWSTR P, Part;
     BOOLEAN FoundAgent;
 
     *PRecord = 0;
 
-    RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" FSP_LAUNCH_REGKEY,
-        0, FSP_LAUNCH_REGKEY_WOW64 | KEY_READ, &RegKey);
+    ClassNameLen = lstrlenW(ClassName);
+    if (sizeof RegPath - sizeof L"" FSP_LAUNCH_REGKEY <= (ClassNameLen + 1) * sizeof(WCHAR))
+    {
+        Result = STATUS_INVALID_PARAMETER;
+        goto exit;
+    }
+
+    memcpy(RegPath, L"" FSP_LAUNCH_REGKEY, sizeof L"" FSP_LAUNCH_REGKEY - sizeof(WCHAR));
+    RegPath[sizeof L"" FSP_LAUNCH_REGKEY / sizeof(WCHAR) - 1] = L'\\';
+    memcpy(RegPath + sizeof L"" FSP_LAUNCH_REGKEY / sizeof(WCHAR),
+        ClassName, (ClassNameLen + 1) * sizeof(WCHAR));
+
+    RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, RegPath,
+        0, FSP_LAUNCH_REGKEY_WOW64 | KEY_QUERY_VALUE, &RegKey);
     if (ERROR_SUCCESS != RegResult)
     {
         Result = FspNtStatusFromWin32(RegResult);
         goto exit;
     }
 
-    memset(&Record, 0, sizeof Record);
+    memset(Record, 0, sizeof *Record);
     Record->JobControl = 1; /* default is YES! */
     RegMark = 0;
 
@@ -380,13 +411,20 @@ FSP_API NTSTATUS FspLaunchRegGetRecord(
         goto exit;
     }
 
+    memset(Record, 0, sizeof *Record);
     memcpy(Record->Buffer, RegBuf, RegMark);
-    Record->Agent = (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.Agent - RegBuf));
-    Record->Executable = (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.Executable - RegBuf));
-    Record->CommandLine = (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.CommandLine - RegBuf));
-    Record->WorkDirectory = (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.WorkDirectory - RegBuf));
-    Record->RunAs = (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.RunAs - RegBuf));
-    Record->Security = (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.Security - RegBuf));
+    Record->Agent = 0 != RecordBuf.Agent ?
+        (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.Agent - RegBuf)) : 0;
+    Record->Executable = 0 != RecordBuf.Executable ?
+        (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.Executable - RegBuf)) : 0;
+    Record->CommandLine = 0 != RecordBuf.CommandLine ?
+        (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.CommandLine - RegBuf)) : 0;
+    Record->WorkDirectory = 0 != RecordBuf.WorkDirectory ?
+        (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.WorkDirectory - RegBuf)) : 0;
+    Record->RunAs = 0 != RecordBuf.RunAs ?
+        (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.RunAs - RegBuf)) : 0;
+    Record->Security = 0 != RecordBuf.Security ?
+        (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.Security - RegBuf)) : 0;
     Record->JobControl = RecordBuf.JobControl;
     Record->Credentials = RecordBuf.Credentials;
 
