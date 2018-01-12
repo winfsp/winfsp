@@ -20,7 +20,7 @@ launchctl-x64 start memfs32 testnet \memfs32\test P: >nul
 launchctl-x64 start memfs-dotnet testdsk ""                 Q: >nul
 launchctl-x64 start memfs-dotnet testnet \memfs-dotnet\test R: >nul
 rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
-waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
+waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 5 2>nul
 cd M: >nul 2>nul || (echo === Unable to find drive M: >&2 & goto fail)
 cd N: >nul 2>nul || (echo === Unable to find drive N: >&2 & goto fail)
 cd O: >nul 2>nul || (echo === Unable to find drive O: >&2 & goto fail)
@@ -144,7 +144,7 @@ launchctl-x64 stop memfs32 testnet >nul
 launchctl-x64 stop memfs-dotnet testdsk >nul
 launchctl-x64 stop memfs-dotnet testnet >nul
 rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
-waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
+waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 5 2>nul
 
 set /a total=testpass+testfail
 echo === Total: %testpass%/%total%
