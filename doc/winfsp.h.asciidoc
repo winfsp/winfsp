@@ -1,5 +1,5 @@
 = winfsp/winfsp.h
-:author: (C) 2015-2017 Bill Zissimopoulos
+:author: (C) 2015-2018 Bill Zissimopoulos
 :toc: preamble
 :toc-title:
 
@@ -276,6 +276,33 @@ STATUS$$_$$SUCCESS or error code.
 *Discussion*
 
 Note that the FSD will also flush all file/volume caches prior to invoking this operation.
+
+
+*GetDirInfoByName* - Get directory information for a single file or directory within a parent directory.
+
+[source,c]
+----
+NTSTATUS ( *GetDirInfoByName)(
+    FSP_FILE_SYSTEM *FileSystem, 
+    PVOID FileContext,
+    PWSTR FileName, 
+    FSP_FSCTL_DIR_INFO *DirInfo);  
+----
+
+*Parameters*
+
+- _FileSystem_ - The file system on which this request is posted.
+- _FileContext_ - The file context of the parent directory.
+- _FileName_ - The name of the file or directory to get information for. This name is relative
+to the parent directory and is a single path component.
+- _DirInfo_ - [out]
+Pointer to a structure that will receive the directory information on successful
+return from this call. This information includes the file name, but also file
+attributes, file times, etc.
+
+*Return Value*
+
+STATUS$$_$$SUCCESS or error code.
 
 
 *GetFileInfo* - Get file or directory information.
@@ -1185,6 +1212,19 @@ The current operation context is stored in thread local storage. It allows acces
 Request and Response associated with this operation.
 
 
+*FspFileSystemOperationProcessId* - Gets the originating process ID.
+
+[source,c]
+----
+static inline UINT32 FspFileSystemOperationProcessId(
+    VOID) 
+----
+
+*Discussion*
+
+Valid only during Create, Open and Rename requests when the target exists.
+
+
 *FspFileSystemPreflight* - Check whether creating a file system object is possible.
 
 [source,c]
@@ -1533,6 +1573,27 @@ development.
 User mode file systems that wish to use the WinFsp Launcher functionality must also use this
 call. The WinFsp Launcher is a Windows service that can be configured to launch and manage
 multiple instances of a user mode file system.
+
+
+*FspServiceContextCheck* - Check if the supplied token is from the service context.
+
+[source,c]
+----
+FSP_API NTSTATUS FspServiceContextCheck(
+    HANDLE Token,
+    PBOOLEAN PIsLocalSystem);  
+----
+
+*Parameters*
+
+- _Token_ - Token to check. Pass NULL to check the current process token.
+- _PIsLocalSystem_ - Pointer to a boolean that will receive a TRUE value if the token belongs to LocalSystem
+and FALSE otherwise. May be NULL.
+
+*Return Value*
+
+STATUS$$_$$SUCCESS if the token is from the service context. STATUS$$_$$ACCESS$$_$$DENIED if it is not.
+Other error codes are possible.
 
 
 *FspServiceCreate* - Create a service object.
