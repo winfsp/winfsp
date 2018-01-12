@@ -4,30 +4,37 @@
 
 [qanda]
 
-I am running Windows 7 and I am finding that the installed driver is not signed. [@efeat]::
+I am running Windows 7 and I am finding that the installed driver is not signed.::
 
 	Your Windows 7 OS is missing SHA-2 Code Signing Support. You need to install the following security advisory that will rectify the problem:
 	https://technet.microsoft.com/en-us/library/security/3033929.aspx
 
 
-Disconnecting (unmapping) a network drive does not work. [@carlreinke]::
+Disconnecting (unmapping) a network drive does not work.::
 
     You may have Dokany installed. Dokany installs its own Network Provider DLL that unfortunately interferes with the WinFsp handling of network drives. The solution is to change your system's Network Provider order and ensure that the WinFsp Network Provider runs before the Dokany one. Instructions on how to change the Network Provider order can be found in this http://blogs.interfacett.com/changing-the-network-provider-order-in-windows-10[article].
 
 
-Why is the DLL not installed in the Windows system directories? [@netheril96]::
+Case-sensitive file systems do not work properly when mounted as a directory.::
+
+    Windows and WinFsp support case-sensitive file systems. These file systems work properly when mounted as a drive. Unfortunately when a file system is mounted as a directory over NTFS, Windows expects it to be case-insensitive and will UPPERCASE many of the file names sent to the file system.
++
+This is an unfortunate but well understood Windows limitation. Case-sensitive file systems should only be mounted as drives.
+
+
+Why is the DLL not installed in the Windows system directories?::
 
     It is true that this would make it convenient to load the DLL, because the Windows loader looks into the Windows system directories when it loads DLL's. However, in the opinion of the WinFsp author, software that does not ship with the OS should not be installing components in the system directories.
 +
 There are a few alternative methods to overcome this problem. WinFsp recommends marking the WinFsp DLL as "delay load" and then using `FspLoad` to dynamically load the DLL during process initialization. For more information see the WinFsp Tutorial.
 
 
-Does WinFsp provide debugging symbols? [@netheril96]::
+Does WinFsp provide debugging symbols?::
 
     Public debugging symbols are already included in the installer. You need to install the "Developer" feature; the symbols can be found in the `sym` directory under the WinFsp installation directory.
 
 
-Is there a maximum number of concurrent file systems? [@efeat]::
+Is there a maximum number of concurrent file systems?::
 
     WinFsp does not have a hard limit of how many file systems can be created or how many processes can create file systems.
 +
@@ -43,7 +50,7 @@ Which version of FUSE does WinFsp-FUSE support?::
     Currently it supports FUSE 2.8.
 
 
-FUSE on UNIX systems mounts file systems over an existing directory. When mounting a WinFsp-FUSE file system on a directory, the directory is created and later deleted when the file system goes away. What is the reason for this incompatibility? [@efeat]::
+FUSE on UNIX systems mounts file systems over an existing directory. When mounting a WinFsp-FUSE file system on a directory, the directory is created and later deleted when the file system goes away. What is the reason for this incompatibility?::
 
     It would be preferrable if WinFsp-FUSE behaved like FUSE on UNIX in this instance. However there are a number of reasons that this is not the case.
 +
@@ -54,3 +61,12 @@ With this in mind here are the reasons for the current WinFsp-FUSE behavior:
 - Symmetry with mounting on a drive. On Windows drives are created when the file system comes into existence and deleted when it is gone.
 - Inability to mount over a non-empty directory on Windows. On FUSE/UNIX this is possible, but not on Windows because NTFS disallows the creation of (mountpoint) reparse points on non-empty directories.
 - Most importantly: inability to guarantee that the mount point will cease to exist if the file system crashes. WinFsp attempts to guarantee that all resources used by a file system will get cleaned up. This is certainly true for the kernel-mode FSD, but an attempt is made to do so also in user mode. For this reason, drive symbolic links are marked as temporary and (importantly for our discussion) mount directories are opened with `FILE_FLAG_DELETE_ON_CLOSE`. There is no way to guarantee the removal of a reparse point in the same way.
+
+
+WinFsp-FUSE does not have the ability to support multiple file systems from within the same process. Why?::
+
+    The core WinFsp layer supports multiple file systems in the same process either simultaneously or one after another. However this is not the case with WinFsp-FUSE (i.e. the FUSE layer of WinFsp).
++
+File systems in Windows often need to be run as services. For this reason the WinFsp-FUSE layer provides both file system and Windows service API functionality. This way a WinFsp-FUSE file system can easily become a Windows service. There is a problem: once a Windows process starts acting as a service and then stops being a service, it cannot become a service again.
++
+Having FUSE file systems being able to act as Windows services is valuable. Therefore this is not a limitation that can easily be fixed as FUSE file systems would lose the "free" ability to act as Windows services.
