@@ -4,7 +4,7 @@
 
 Before submitting this issue please review this checklist. Ideally all checkmarks should be checked upon submitting. (Use an x inside square brackets like so: [x])
 
-- [ ] **Issue type**: Please consider posting only bug reports or enhancement requests. Questions are better in the [WinFsp Google Group](https://groups.google.com/forum/#!forum/winfsp).
+- [ ] **Issue type**: Please consider posting only bug reports or enhancement requests. Questions are better in the [WinFsp Google Group](https://groups.google.com/forum/#!forum/winfsp). Please also consult the [WinFsp Frequently Asked Questions](https://github.com/billziss-gh/winfsp/wiki/Frequently-Asked-Questions).
 - [ ] **No Duplicate**: Ensure that your issue has not been filed before. (Check open and closed issues.)
 - [ ] **Description**: Provide a descriptive title and a detailed explanation of the problem you are experiencing (for a bug report) or you are trying to solve (for an enhancement request).
 - [ ] **Reproduce**: For bug reports provide detailed information on how to reproduce the problem. For enhancement requests you do not need to provide this information, unless you find it relevant.
