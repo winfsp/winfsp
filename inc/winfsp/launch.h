@@ -2,7 +2,7 @@
  * @file winfsp/launch.h
  * WinFsp Launch API.
  *
- * In order to use the WinFsp API the user mode file system must include &lt;winfsp/winfsp.h&gt;
+ * In order to use the WinFsp Launch API a program must include &lt;winfsp/launch.h&gt;
  * and link with the winfsp_x64.dll (or winfsp_x86.dll) library.
  *
  * @copyright 2015-2018 Bill Zissimopoulos
@@ -43,7 +43,7 @@ extern "C" {
  */
 #define FSP_LAUNCH_PIPE_SDDL            "O:SYG:SYD:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRDCCR;;;WD)"
 
- /*
+/*
  * The default service instance SDDL gives full access to LocalSystem and Administrators.
  * The only possible service instance rights are as follows:
  *     RP   SERVICE_START
@@ -131,7 +131,7 @@ FSP_API NTSTATUS FspLaunchCallLauncherPipe(
  *     reported through PLauncherError.
  */
 FSP_API NTSTATUS FspLaunchStart(
-    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv0,
+    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv,
     BOOLEAN HasSecret,
     PULONG PLauncherError);
 /**
@@ -202,10 +202,13 @@ FSP_API NTSTATUS FspLaunchGetNameList(
     PULONG PLauncherError);
 
 /**
- * @group Registry
+ * @group Service Registry
  */
 #pragma warning(push)
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
+/**
+ * Service registry record.
+ */
 typedef struct _FSP_LAUNCH_REG_RECORD
 {
     PWSTR Agent;
@@ -221,12 +224,48 @@ typedef struct _FSP_LAUNCH_REG_RECORD
     UINT8 Buffer[];
 } FSP_LAUNCH_REG_RECORD;
 #pragma warning(pop)
+/**
+ * Add/change/delete a service registry record.
+ *
+ * @param ClassName
+ *     The service class name.
+ * @param Record
+ *     The record to set in the registry. If NULL, the registry record is deleted.
+ * @return
+ *     STATUS_SUCCESS or error code.
+ */
 FSP_API NTSTATUS FspLaunchRegSetRecord(
     PWSTR ClassName,
     const FSP_LAUNCH_REG_RECORD *Record);
+/**
+ * Get a service registry record.
+ *
+ * @param ClassName
+ *     The service class name.
+ * @param Agent
+ *     The name of the agent that is retrieving the service record. This API matches
+ *     the supplied Agent against the Agent in the service record and it only returns
+ *     the record if they match. Pass NULL to match any Agent.
+ * @param PRecord
+ *     Pointer to a record pointer. Memory for the service record will be allocated
+ *     and a pointer to it will be stored at this address. This memory must be later
+ *     freed using FspLaunchRegFreeRecord.
+ * @return
+ *     STATUS_SUCCESS or error code.
+ * @see
+ *     FspLaunchRegFreeRecord
+ */
 FSP_API NTSTATUS FspLaunchRegGetRecord(
     PWSTR ClassName, PWSTR Agent,
     FSP_LAUNCH_REG_RECORD **PRecord);
+/**
+ * Free a service registry record.
+ *
+ * @param Record
+ *     The service record to free.
+ * @see
+ *     FspLaunchRegGetRecord
+ */
 FSP_API VOID FspLaunchRegFreeRecord(
     FSP_LAUNCH_REG_RECORD *Record);
 
