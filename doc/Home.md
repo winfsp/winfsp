@@ -9,7 +9,7 @@ The documentation available here discusses various aspects of WinFsp.
 ## Programming
 
 - The [[Tutorial|WinFsp-Tutorial]] describes how to create a simple, but complete file system in C/C++.
-- The [[API Reference|winfsp.h]] describes the native WinFsp API. This external [[link|http://www.secfs.net/winfsp/apiref/]] may be easier to browse for some people.
+- The [[API Reference|WinFsp-API-winfsp.h]] describes the native WinFsp API. This external [[link|http://www.secfs.net/winfsp/apiref/]] may be easier to browse for some people.
 - There is also a FUSE compatibility layer for native Windows and Cygwin. See fuse.h in the source repository.
 - This [[document|Native-API-vs-FUSE]] discusses the need for both a native API and FUSE and gives some pointers on which one to choose.
 

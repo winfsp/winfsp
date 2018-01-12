@@ -10,3 +10,8 @@ if [[ $# -eq 0 ]]; then
 fi
 
 "$PRETTYDOC" -f $1 -t -H=--outer-names-only -o doc inc/winfsp/winfsp.h inc/winfsp/launch.h
+
+if [[ "$1" == "asciidoc" ]]; then
+    mv doc/winfsp.h.asciidoc doc/WinFsp-API-winfsp.h.asciidoc
+    mv doc/launch.h.asciidoc doc/WinFsp-API-launch.h.asciidoc
+fi
