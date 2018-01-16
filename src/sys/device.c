@@ -63,6 +63,8 @@ VOID FspFsvolDeviceGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_I
 BOOLEAN FspFsvolDeviceTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject);
+static NTSTATUS FspFsmupDeviceInit(PDEVICE_OBJECT DeviceObject);
+static VOID FspFsmupDeviceFini(PDEVICE_OBJECT DeviceObject);
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
@@ -94,6 +96,8 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceCompareContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceAllocateContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceFreeContextByName)
+#pragma alloc_text(PAGE, FspFsmupDeviceInit)
+#pragma alloc_text(PAGE, FspFsmupDeviceFini)
 #pragma alloc_text(PAGE, FspDeviceCopyList)
 #pragma alloc_text(PAGE, FspDeviceDeleteList)
 #pragma alloc_text(PAGE, FspDeviceDeleteAll)
@@ -117,6 +121,9 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
     {
     case FspFsvolDeviceExtensionKind:
         DeviceExtensionSize = sizeof(FSP_FSVOL_DEVICE_EXTENSION);
+        break;
+    case FspFsmupDeviceExtensionKind:
+        DeviceExtensionSize = sizeof(FSP_FSMUP_DEVICE_EXTENSION);
         break;
     case FspFsvrtDeviceExtensionKind:
     case FspFsctlDeviceExtensionKind:
@@ -173,6 +180,9 @@ NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject)
     case FspFsvolDeviceExtensionKind:
         Result = FspFsvolDeviceInit(DeviceObject);
         break;
+    case FspFsmupDeviceExtensionKind:
+        Result = FspFsmupDeviceInit(DeviceObject);
+        break;
     case FspFsvrtDeviceExtensionKind:
     case FspFsctlDeviceExtensionKind:
         Result = STATUS_SUCCESS;
@@ -198,6 +208,9 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
     {
     case FspFsvolDeviceExtensionKind:
         FspFsvolDeviceFini(DeviceObject);
+        break;
+    case FspFsmupDeviceExtensionKind:
+        FspFsmupDeviceFini(DeviceObject);
         break;
     case FspFsvrtDeviceExtensionKind:
     case FspFsctlDeviceExtensionKind:
@@ -874,6 +887,37 @@ VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject)
     KeAcquireSpinLock(&FsvolDeviceExtension->InfoSpinLock, &Irql);
     FsvolDeviceExtension->InfoExpirationTime = 0;
     KeReleaseSpinLock(&FsvolDeviceExtension->InfoSpinLock, Irql);
+}
+
+static NTSTATUS FspFsmupDeviceInit(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    FSP_FSMUP_DEVICE_EXTENSION *FsmupDeviceExtension = FspFsmupDeviceExtension(DeviceObject);
+
+    /* initialize our prefix table */
+    ExInitializeResourceLite(&FsmupDeviceExtension->PrefixTableResource);
+    RtlInitializeUnicodePrefix(&FsmupDeviceExtension->PrefixTable);
+    FsmupDeviceExtension->InitDonePfxTab = 1;
+
+    return STATUS_SUCCESS;
+}
+
+static VOID FspFsmupDeviceFini(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    FSP_FSMUP_DEVICE_EXTENSION *FsmupDeviceExtension = FspFsmupDeviceExtension(DeviceObject);
+
+    if (FsmupDeviceExtension->InitDonePfxTab)
+    {
+        /*
+         * Normally we would have to finalize our prefix table. This is not necessary as all
+         * prefixes will be gone if this code ever gets reached.
+         */
+        ASSERT(0 == RtlNextUnicodePrefix(&FsmupDeviceExtension->PrefixTable, TRUE));
+        ExDeleteResourceLite(&FsmupDeviceExtension->PrefixTableResource);
+    }
 }
 
 NTSTATUS FspDeviceCopyList(

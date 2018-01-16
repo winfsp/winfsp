@@ -21,7 +21,6 @@ NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspVolumeCreateNoLock(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-static WORKER_THREAD_ROUTINE FspVolumeCreateRegisterMup;
 VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static VOID FspVolumeDeleteNoLock(
@@ -31,8 +30,6 @@ NTSTATUS FspVolumeMount(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspVolumeMountNoLock(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-NTSTATUS FspVolumeRedirQueryPathEx(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetNameList(
@@ -49,13 +46,11 @@ NTSTATUS FspVolumeWork(
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspVolumeCreate)
 #pragma alloc_text(PAGE, FspVolumeCreateNoLock)
-#pragma alloc_text(PAGE, FspVolumeCreateRegisterMup)
 // ! #pragma alloc_text(PAGE, FspVolumeDelete)
 // ! #pragma alloc_text(PAGE, FspVolumeDeleteNoLock)
 // ! #pragma alloc_text(PAGE, FspVolumeDeleteDelayed)
 // ! #pragma alloc_text(PAGE, FspVolumeMount)
 // ! #pragma alloc_text(PAGE, FspVolumeMountNoLock)
-#pragma alloc_text(PAGE, FspVolumeRedirQueryPathEx)
 #pragma alloc_text(PAGE, FspVolumeGetName)
 #pragma alloc_text(PAGE, FspVolumeGetNameList)
 #pragma alloc_text(PAGE, FspVolumeGetNameListNoLock)
@@ -66,13 +61,6 @@ NTSTATUS FspVolumeWork(
 
 #define PREFIXW                         L"" FSP_FSCTL_VOLUME_PARAMS_PREFIX
 #define PREFIXW_SIZE                    (sizeof PREFIXW - sizeof(WCHAR))
-
-typedef struct
-{
-    PDEVICE_OBJECT FsvolDeviceObject;
-    NTSTATUS Result;
-    FSP_SYNCHRONOUS_WORK_ITEM SynchronousWorkItem;
-} FSP_CREATE_VOLUME_REGISTER_MUP_WORK_ITEM;
 
 NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
@@ -106,11 +94,11 @@ static NTSTATUS FspVolumeCreateNoLock(
     GUID Guid;
     UNICODE_STRING DeviceSddl;
     UNICODE_STRING VolumeName;
+    UNICODE_STRING FsmupDeviceName;
     WCHAR VolumeNameBuf[FSP_FSCTL_VOLUME_NAME_SIZE / sizeof(WCHAR)];
     PDEVICE_OBJECT FsvolDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
-    FSP_CREATE_VOLUME_REGISTER_MUP_WORK_ITEM RegisterMupWorkItem;
 
     /* check parameters */
     if (PREFIXW_SIZE + sizeof(FSP_FSCTL_VOLUME_PARAMS) * sizeof(WCHAR) > FileObject->FileName.Length)
@@ -225,6 +213,7 @@ static NTSTATUS FspVolumeCreateNoLock(
     FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     FsvolDeviceExtension->FsctlDeviceObject = FsctlDeviceObject;
     FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
+    FsvolDeviceExtension->FsvolDeviceObject = FsvolDeviceObject;
     FsvolDeviceExtension->VolumeParams = VolumeParams;
     if (FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType)
         RtlInitUnicodeString(&FsvolDeviceExtension->VolumePrefix,
@@ -245,24 +234,20 @@ static NTSTATUS FspVolumeCreateNoLock(
         FspDeviceDereference(FsvolDeviceObject);
     }
 
-    /* do we need to register with MUP? */
+    /* do we need to register with fsmup? */
     if (0 == FsvrtDeviceObject)
     {
-        /*
-         * Turns out we cannot call FsRtlRegisterUncProviderEx when the PreviousMode
-         * is UserMode! So we need to somehow switch to KernelMode prior to issuing
-         * the FsRtlRegisterUncProviderEx call. There seems to be no straightforward
-         * way to switch the PreviousMode (no ExSetPreviousMode). So we do it indirectly
-         * by executing a synchronous work item (FspExecuteSynchronousWorkItem).
-         */
-        RtlZeroMemory(&RegisterMupWorkItem, sizeof RegisterMupWorkItem);
-        RegisterMupWorkItem.FsvolDeviceObject = FsvolDeviceObject;
-        FspInitializeSynchronousWorkItem(&RegisterMupWorkItem.SynchronousWorkItem,
-            FspVolumeCreateRegisterMup, &RegisterMupWorkItem);
-        FspExecuteSynchronousWorkItem(&RegisterMupWorkItem.SynchronousWorkItem);
-        Result = RegisterMupWorkItem.Result;
+        if (!FspMupRegister(FspFsmupDeviceObject, FsvolDeviceObject))
+        {
+            FspDeviceDereference(FsvolDeviceObject);
+            return STATUS_OBJECT_NAME_COLLISION;
+        }
+
+        RtlInitUnicodeString(&FsmupDeviceName, L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME);
+        Result = IoCreateSymbolicLink(&FsvolDeviceExtension->VolumeName, &FsmupDeviceName);
         if (!NT_SUCCESS(Result))
         {
+            FspMupUnregister(FspFsmupDeviceObject, FsvolDeviceObject);
             FspDeviceDereference(FsvolDeviceObject);
             return Result;
         }
@@ -273,18 +258,6 @@ static NTSTATUS FspVolumeCreateNoLock(
 
     Irp->IoStatus.Information = FILE_OPENED;
     return STATUS_SUCCESS;
-}
-
-static VOID FspVolumeCreateRegisterMup(PVOID Context)
-{
-    PAGED_CODE();
-
-    FSP_CREATE_VOLUME_REGISTER_MUP_WORK_ITEM *RegisterMupWorkItem = Context;
-    PDEVICE_OBJECT FsvolDeviceObject = RegisterMupWorkItem->FsvolDeviceObject;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-
-    RegisterMupWorkItem->Result = FsRtlRegisterUncProviderEx(&FsvolDeviceExtension->MupHandle,
-        &FsvolDeviceExtension->VolumeName, FsvolDeviceObject, 0);
 }
 
 VOID FspVolumeDelete(
@@ -333,7 +306,7 @@ static VOID FspVolumeDeleteNoLock(
     /* stop the I/O queue */
     FspIoqStop(FsvolDeviceExtension->Ioq);
 
-    /* do we have a virtual disk device or a MUP handle? */
+    /* do we have a virtual disk device or are we registered with fsmup? */
     if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
     {
         PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
@@ -391,10 +364,10 @@ static VOID FspVolumeDeleteNoLock(
             FspQueueDelayedWorkItem(&FsvolDeviceExtension->DeleteVolumeDelayedWorkItem, Delay);
         }
     }
-    else if (0 != FsvolDeviceExtension->MupHandle)
+    else
     {
-        FsRtlDeregisterUncProvider(FsvolDeviceExtension->MupHandle);
-        FsvolDeviceExtension->MupHandle = 0;
+        IoDeleteSymbolicLink(&FsvolDeviceExtension->VolumeName);
+        FspMupUnregister(FspFsmupDeviceObject, FsvolDeviceObject);
     }
 
     /* release the volume device object */
@@ -513,49 +486,6 @@ static NTSTATUS FspVolumeMountNoLock(
 
     Irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;
-}
-
-NTSTATUS FspVolumeRedirQueryPathEx(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
-{
-    PAGED_CODE();
-
-    ASSERT(IRP_MJ_DEVICE_CONTROL == IrpSp->MajorFunction);
-    ASSERT(IOCTL_REDIR_QUERY_PATH_EX == IrpSp->Parameters.DeviceIoControl.IoControlCode);
-
-    if (KernelMode != Irp->RequestorMode)
-        return STATUS_INVALID_DEVICE_REQUEST;
-
-    /* check parameters */
-    ULONG InputBufferLength = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
-    ULONG OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
-    QUERY_PATH_REQUEST_EX *QueryPathRequest = IrpSp->Parameters.DeviceIoControl.Type3InputBuffer;
-    QUERY_PATH_RESPONSE *QueryPathResponse = Irp->UserBuffer;
-    if (sizeof(QUERY_PATH_REQUEST_EX) > InputBufferLength ||
-        0 == QueryPathRequest || 0 == QueryPathResponse)
-        return STATUS_INVALID_PARAMETER;
-    if (sizeof(QUERY_PATH_RESPONSE) > OutputBufferLength)
-        return STATUS_BUFFER_TOO_SMALL;
-
-    NTSTATUS Result;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-
-    Result = STATUS_BAD_NETWORK_PATH;
-    if (!FspIoqStopped(FsvolDeviceExtension->Ioq))
-    {
-        if (0 < FsvolDeviceExtension->VolumePrefix.Length &&
-            FspFsvolDeviceVolumePrefixInString(FsvolDeviceObject, &QueryPathRequest->PathName) &&
-            (QueryPathRequest->PathName.Length == FsvolDeviceExtension->VolumePrefix.Length ||
-                '\\' == QueryPathRequest->PathName.Buffer[FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR)]))
-        {
-            QueryPathResponse->LengthAccepted = FsvolDeviceExtension->VolumePrefix.Length;
-
-            Irp->IoStatus.Information = 0;
-            Result = STATUS_SUCCESS;
-        }
-    }
-
-    return Result;
 }
 
 NTSTATUS FspVolumeGetName(

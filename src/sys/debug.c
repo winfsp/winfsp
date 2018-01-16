@@ -281,6 +281,8 @@ const char *DeviceExtensionKindSym(UINT32 Kind)
     {
     case FspFsctlDeviceExtensionKind:
         return "Ctl";
+    case FspFsmupDeviceExtensionKind:
+        return "Mup";
     case FspFsvrtDeviceExtensionKind:
         return "Vrt";
     case FspFsvolDeviceExtensionKind:

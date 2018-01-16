@@ -44,45 +44,6 @@ NTSTATUS DriverEntry(
 {
     FSP_ENTER_DRV();
 
-    FspDriverMultiVersionInitialize();
-
-    Result = FspProcessBufferInitialize();
-    if (!NT_SUCCESS(Result))
-        FSP_RETURN();
-
-    FspDriverObject = DriverObject;
-    ExInitializeResourceLite(&FspDeviceGlobalResource);
-
-    /* create the file system control device objects */
-    UNICODE_STRING DeviceSddl;
-    UNICODE_STRING DeviceName;
-    RtlInitUnicodeString(&DeviceSddl, L"" FSP_FSCTL_DEVICE_SDDL);
-    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
-    Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
-        &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
-        &DeviceSddl, &FspFsctlDeviceClassGuid,
-        &FspFsctlDiskDeviceObject);
-    if (!NT_SUCCESS(Result))
-    {
-        FspProcessBufferFinalize();
-        FSP_RETURN();
-    }
-    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
-    Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
-        &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
-        &DeviceSddl, &FspFsctlDeviceClassGuid,
-        &FspFsctlNetDeviceObject);
-    if (!NT_SUCCESS(Result))
-    {
-        FspDeviceDelete(FspFsctlDiskDeviceObject);
-        FspProcessBufferFinalize();
-        FSP_RETURN();
-    }
-    Result = FspDeviceInitialize(FspFsctlDiskDeviceObject);
-    ASSERT(STATUS_SUCCESS == Result);
-    Result = FspDeviceInitialize(FspFsctlNetDeviceObject);
-    ASSERT(STATUS_SUCCESS == Result);
-
     /* setup the driver object */
 #if defined(FSP_UNLOAD)
     DriverObject->DriverUnload = FspUnload;
@@ -127,7 +88,6 @@ NTSTATUS DriverEntry(
     FspIopCompleteFunction[IRP_MJ_DIRECTORY_CONTROL] = FspFsvolDirectoryControlComplete;
     FspIopCompleteFunction[IRP_MJ_FILE_SYSTEM_CONTROL] = FspFsvolFileSystemControlComplete;
     FspIopCompleteFunction[IRP_MJ_DEVICE_CONTROL] = FspFsvolDeviceControlComplete;
-    FspIopCompleteFunction[IRP_MJ_SHUTDOWN] = FspFsvolShutdownComplete;
     FspIopCompleteFunction[IRP_MJ_LOCK_CONTROL] = FspFsvolLockControlComplete;
     FspIopCompleteFunction[IRP_MJ_CLEANUP] = FspFsvolCleanupComplete;
     FspIopCompleteFunction[IRP_MJ_QUERY_SECURITY] = FspFsvolQuerySecurityComplete;
@@ -169,9 +129,58 @@ NTSTATUS DriverEntry(
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access FastIoDispatch")
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
+    BOOLEAN InitDoneGRes = FALSE, InitDonePsBuf = FALSE;
+    UNICODE_STRING DeviceSddl;
+    UNICODE_STRING DeviceName;
+
+    FspDriverObject = DriverObject;
+    ExInitializeResourceLite(&FspDeviceGlobalResource);
+    InitDoneGRes = TRUE;
+
+    FspDriverMultiVersionInitialize();
+
+    Result = FspProcessBufferInitialize();
+    if (!NT_SUCCESS(Result))
+        goto exit;
+    InitDonePsBuf = TRUE;
+
+    /* create the file system control device objects */
+    RtlInitUnicodeString(&DeviceSddl, L"" FSP_FSCTL_DEVICE_SDDL);
+    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
+    Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
+        &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
+        &DeviceSddl, &FspFsctlDeviceClassGuid,
+        &FspFsctlDiskDeviceObject);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
+    Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
+        &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
+        &DeviceSddl, &FspFsctlDeviceClassGuid,
+        &FspFsctlNetDeviceObject);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+    Result = FspDeviceCreate(FspFsmupDeviceExtensionKind, 0,
+        FILE_DEVICE_NETWORK_FILE_SYSTEM, FILE_REMOTE_DEVICE,
+        &FspFsmupDeviceObject);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+    Result = FspDeviceInitialize(FspFsctlDiskDeviceObject);
+    ASSERT(STATUS_SUCCESS == Result);
+    Result = FspDeviceInitialize(FspFsctlNetDeviceObject);
+    ASSERT(STATUS_SUCCESS == Result);
+    Result = FspDeviceInitialize(FspFsmupDeviceObject);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME);
+    Result = FsRtlRegisterUncProviderEx(&FspMupHandle,
+        &DeviceName, FspFsmupDeviceObject, 0);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
     /*
      * Register our "disk" device as a file system. We do not register our "net" device
-     * as a file system, but we register with the MUP instead at a later time.
+     * as a file system; we register with the MUP instead.
      *
      * Please note that the call below makes our driver unloadable. In fact the driver
      * remains unloadable even if we issue an IoUnregisterFileSystem() call immediately
@@ -179,6 +188,23 @@ NTSTATUS DriverEntry(
      * extra reference to our device somewhere.
      */
     IoRegisterFileSystem(FspFsctlDiskDeviceObject);
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result))
+    {
+        if (0 != FspFsmupDeviceObject)
+            FspDeviceDelete(FspFsmupDeviceObject);
+        if (0 != FspFsctlNetDeviceObject)
+            FspDeviceDelete(FspFsctlNetDeviceObject);
+        if (0 != FspFsctlDiskDeviceObject)
+            FspDeviceDelete(FspFsctlDiskDeviceObject);
+        if (InitDonePsBuf)
+            FspProcessBufferFinalize();
+        if (InitDoneGRes)
+            ExDeleteResourceLite(&FspDeviceGlobalResource);
+    }
 
 #pragma prefast(suppress:28175, "We are in DriverEntry: ok to access DriverName")
     FSP_LEAVE_DRV("DriverName=\"%wZ\", RegistryPath=\"%wZ\"",
@@ -213,6 +239,7 @@ VOID FspUnload(
 
     FspFsctlDiskDeviceObject = 0;
     FspFsctlNetDeviceObject = 0;
+    FspFsmupDeviceObject = 0;
     //FspDeviceDeleteAll();
 
     ExDeleteResourceLite(&FspDeviceGlobalResource);
@@ -229,6 +256,8 @@ VOID FspUnload(
 PDRIVER_OBJECT FspDriverObject;
 PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 PDEVICE_OBJECT FspFsctlNetDeviceObject;
+PDEVICE_OBJECT FspFsmupDeviceObject;
+HANDLE FspMupHandle;
 FAST_IO_DISPATCH FspFastIoDispatch;
 CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 

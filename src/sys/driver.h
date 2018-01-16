@@ -180,6 +180,8 @@ VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result);
 #define FSP_LEAVE_DRV(fmt, ...)         \
     FSP_LEAVE_(FSP_DEBUGLOG_(fmt, " = %s", __VA_ARGS__, NtStatusSym(Result))); return Result
 #define FSP_ENTER_MJ(...)               \
+    if (FspFsmupDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind)\
+        return FspMupHandleIrp(DeviceObject, Irp);\
     NTSTATUS Result = STATUS_SUCCESS;   \
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);\
     BOOLEAN fsp_device_deref = FALSE;   \
@@ -328,7 +330,6 @@ FSP_IOPREP_DISPATCH FspFsvolSetInformationPrepare;
 FSP_IOCMPL_DISPATCH FspFsvolSetInformationComplete;
 FSP_IOCMPL_DISPATCH FspFsvolSetSecurityComplete;
 FSP_IOCMPL_DISPATCH FspFsvolSetVolumeInformationComplete;
-FSP_IOCMPL_DISPATCH FspFsvolShutdownComplete;
 FSP_IOPREP_DISPATCH FspFsvolWritePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolWriteComplete;
 
@@ -1007,6 +1008,7 @@ typedef struct
 enum
 {
     FspFsctlDeviceExtensionKind = '\0ltC',  /* file system control device (e.g. \Device\WinFsp.Disk) */
+    FspFsmupDeviceExtensionKind = '\0puM',  /* our own MUP device (linked to \Device\WinFsp.Mup) */
     FspFsvrtDeviceExtensionKind = '\0trV',  /* virtual volume device (e.g. \Device\Volume{GUID}) */
     FspFsvolDeviceExtensionKind = '\0loV',  /* file system volume device (unnamed) */
 };
@@ -1023,11 +1025,12 @@ typedef struct
         InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1, InitDoneNotify:1, InitDoneStat:1;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
-    HANDLE MupHandle;
+    PDEVICE_OBJECT FsvolDeviceObject;
     PVPB SwapVpb;
     FSP_DELAYED_WORK_ITEM DeleteVolumeDelayedWorkItem;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     UNICODE_STRING VolumePrefix;
+    UNICODE_PREFIX_TABLE_ENTRY VolumePrefixEntry;
     FSP_IOQ *Ioq;
     FSP_META_CACHE *SecurityCache;
     FSP_META_CACHE *DirInfoCache;
@@ -1049,6 +1052,13 @@ typedef struct
     LIST_ENTRY NotifyList;
     FSP_STATISTICS *Statistics;
 } FSP_FSVOL_DEVICE_EXTENSION;
+typedef struct
+{
+    FSP_DEVICE_EXTENSION Base;
+    UINT32 InitDonePfxTab:1;
+    ERESOURCE PrefixTableResource;
+    UNICODE_PREFIX_TABLE PrefixTable;
+} FSP_FSMUP_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
@@ -1058,6 +1068,12 @@ static inline
 FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
     ASSERT(FspFsvolDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
+    return DeviceObject->DeviceExtension;
+}
+static inline
+FSP_FSMUP_DEVICE_EXTENSION *FspFsmupDeviceExtension(PDEVICE_OBJECT DeviceObject)
+{
+    ASSERT(FspFsmupDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
     return DeviceObject->DeviceExtension;
 }
 NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
@@ -1156,6 +1172,14 @@ BOOLEAN FspQueryDirectoryIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
 }
 #endif
 
+/* fsmup */
+BOOLEAN FspMupRegister(
+    PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
+VOID FspMupUnregister(
+    PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
+NTSTATUS FspMupHandleIrp(
+    PDEVICE_OBJECT FsmupDeviceObject, PIRP Irp);
+
 /* volume management */
 #define FspVolumeTransactEarlyTimeout   (1 * 10000ULL)
 NTSTATUS FspVolumeCreate(
@@ -1164,8 +1188,6 @@ VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeMount(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
-NTSTATUS FspVolumeRedirQueryPathEx(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetNameList(
@@ -1559,6 +1581,8 @@ FSP_MV_CcCoherencyFlushAndPurgeCache(
 extern PDRIVER_OBJECT FspDriverObject;
 extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
 extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
+extern PDEVICE_OBJECT FspFsmupDeviceObject;
+extern HANDLE FspMupHandle;
 extern FAST_IO_DISPATCH FspFastIoDispatch;
 extern CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];

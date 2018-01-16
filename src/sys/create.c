@@ -164,6 +164,8 @@ static NTSTATUS FspFsvolCreateNoLock(
 #pragma prefast(disable:28175, "We are a filesystem: ok to access Vpb")
             FileObject->Vpb = FsvolDeviceExtension->FsvrtDeviceObject->Vpb;
 
+        FileObject->FsContext2 = FsvolDeviceObject;
+
         Irp->IoStatus.Information = FILE_OPENED;
         return STATUS_SUCCESS;
     }

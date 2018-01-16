@@ -33,15 +33,7 @@ static NTSTATUS FspFsvolDeviceControl(
 {
     PAGED_CODE();
 
-    NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
-    switch (IrpSp->Parameters.DeviceIoControl.IoControlCode)
-    {
-    case IOCTL_REDIR_QUERY_PATH_EX :
-        Result = FspVolumeRedirQueryPathEx(DeviceObject, Irp, IrpSp);
-        break;
-    }
-
-    return Result;
+    return STATUS_INVALID_DEVICE_REQUEST;
 }
 
 NTSTATUS FspFsvolDeviceControlComplete(
