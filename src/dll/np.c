@@ -1043,6 +1043,13 @@ NTSTATUS FspNpRegister(VOID)
     if (ERROR_SUCCESS != RegResult)
         goto close_and_exit;
 
+    RegResult = RegSetValueExW(RegKey,
+        L"DeviceName", 0, REG_SZ,
+        (PVOID)L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME,
+        sizeof L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME);
+    if (ERROR_SUCCESS != RegResult)
+        goto close_and_exit;
+
     RegCloseKey(RegKey);
 
     RegResult = RegOpenKeyExW(
