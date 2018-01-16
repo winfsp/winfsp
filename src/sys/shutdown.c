@@ -28,6 +28,7 @@ NTSTATUS FspShutdown(
 {
     FSP_ENTER_MJ(PAGED_CODE());
 
+    (PVOID)IrpSp;
     FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
 
     FSP_LEAVE_MJ("%s", "");
