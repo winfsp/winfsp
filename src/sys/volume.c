@@ -237,10 +237,11 @@ static NTSTATUS FspVolumeCreateNoLock(
     /* do we need to register with fsmup? */
     if (0 == FsvrtDeviceObject)
     {
-        if (!FspMupRegister(FspFsmupDeviceObject, FsvolDeviceObject))
+        Result = FspMupRegister(FspFsmupDeviceObject, FsvolDeviceObject);
+        if (!NT_SUCCESS(Result))
         {
             FspDeviceDereference(FsvolDeviceObject);
-            return STATUS_OBJECT_NAME_COLLISION;
+            return Result;
         }
 
         RtlInitUnicodeString(&FsmupDeviceName, L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME);

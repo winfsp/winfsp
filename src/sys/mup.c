@@ -17,7 +17,25 @@
 
 #include <sys/driver.h>
 
-BOOLEAN FspMupRegister(
+/*
+ * FSP_MUP_PREFIX_CLASS
+ *
+ * Define the following macro to claim "class" prefixes during prefix
+ * resolution. A "class" prefix is of the form \ClassName. The alternative
+ * is a "full" prefix, which is of the form \ClassName\InstanceName.
+ *
+ * Claiming a class prefix has advantages and disadvantages. The main
+ * advantage is that by claiming a \ClassName prefix, paths such as
+ * \ClassName\IPC$ will be handled by WinFsp, thus speeding up prefix
+ * resolution for all \ClassName prefixed names. The disadvantage is
+ * it is no longer possible for WinFsp and another redirector to handle
+ * instances ("shares") under the same \ClassName prefix.
+ */
+#define FSP_MUP_PREFIX_CLASS
+
+static NTSTATUS FspMupGetClassName(
+    PUNICODE_STRING Prefix, PUNICODE_STRING ClassName);
+NTSTATUS FspMupRegister(
     PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
 VOID FspMupUnregister(
     PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
@@ -27,27 +45,103 @@ static NTSTATUS FspMupRedirQueryPathEx(
     PDEVICE_OBJECT FsmupDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspMupGetClassName)
 #pragma alloc_text(PAGE, FspMupRegister)
 #pragma alloc_text(PAGE, FspMupUnregister)
 #pragma alloc_text(PAGE, FspMupHandleIrp)
 #pragma alloc_text(PAGE, FspMupRedirQueryPathEx)
 #endif
 
-BOOLEAN FspMupRegister(
+typedef struct _FSP_MUP_CLASS
+{
+    LONG RefCount;
+    UNICODE_STRING Name;
+    UNICODE_PREFIX_TABLE_ENTRY Entry;
+    WCHAR Buffer[];
+} FSP_MUP_CLASS;
+
+static NTSTATUS FspMupGetClassName(
+    PUNICODE_STRING VolumePrefix, PUNICODE_STRING ClassName)
+{
+    PAGED_CODE();
+
+    RtlZeroMemory(ClassName, sizeof *ClassName);
+
+    if (L'\\' == VolumePrefix->Buffer[0])
+        for (PWSTR P = VolumePrefix->Buffer + 1,
+            EndP = VolumePrefix->Buffer + VolumePrefix->Length / sizeof(WCHAR);
+            EndP > P; P++)
+        {
+            if (L'\\' == *P)
+            {
+                ClassName->Buffer = VolumePrefix->Buffer;
+                ClassName->Length = (USHORT)((P - ClassName->Buffer) * sizeof(WCHAR));
+                ClassName->MaximumLength = ClassName->Length;
+                return STATUS_SUCCESS;
+            }
+        }
+
+    return STATUS_INVALID_PARAMETER;
+}
+
+NTSTATUS FspMupRegister(
     PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject)
 {
     PAGED_CODE();
 
-    BOOLEAN Result;
+    NTSTATUS Result;
+    BOOLEAN Success;
     FSP_FSMUP_DEVICE_EXTENSION *FsmupDeviceExtension = FspFsmupDeviceExtension(FsmupDeviceObject);
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PUNICODE_PREFIX_TABLE_ENTRY ClassEntry;
+    UNICODE_STRING ClassName;
+    FSP_MUP_CLASS *Class = 0;
+
+    Result = FspMupGetClassName(&FsvolDeviceExtension->VolumePrefix, &ClassName);
+    ASSERT(NT_SUCCESS(Result));
+
+    Class = FspAlloc(sizeof *Class + ClassName.Length);
+    if (0 == Class)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    RtlZeroMemory(Class, sizeof *Class);
+    Class->RefCount = 1;
+    Class->Name.Length = ClassName.Length;
+    Class->Name.MaximumLength = ClassName.MaximumLength;
+    Class->Name.Buffer = Class->Buffer;
+    RtlCopyMemory(Class->Buffer, ClassName.Buffer, ClassName.Length);
 
     ExAcquireResourceExclusiveLite(&FsmupDeviceExtension->PrefixTableResource, TRUE);
-    Result = RtlInsertUnicodePrefix(&FsmupDeviceExtension->PrefixTable,
+    Success = RtlInsertUnicodePrefix(&FsmupDeviceExtension->PrefixTable,
         &FsvolDeviceExtension->VolumePrefix, &FsvolDeviceExtension->VolumePrefixEntry);
-    if (Result)
+    if (Success)
+    {
         FspDeviceReference(FsvolDeviceObject);
+
+        ClassEntry = RtlFindUnicodePrefix(&FsmupDeviceExtension->ClassTable,
+            &Class->Name, 0);
+        if (0 == ClassEntry)
+        {
+            Success = RtlInsertUnicodePrefix(&FsmupDeviceExtension->ClassTable,
+                &Class->Name, &Class->Entry);
+            ASSERT(Success);
+            Class = 0;
+        }
+        else
+            CONTAINING_RECORD(ClassEntry, FSP_MUP_CLASS, Entry)->RefCount++;
+
+        Result = STATUS_SUCCESS;
+    }
+    else
+        Result = STATUS_OBJECT_NAME_COLLISION;
     ExReleaseResourceLite(&FsmupDeviceExtension->PrefixTableResource);
+
+exit:
+    if (0 != Class)
+        FspFree(Class);
 
     return Result;
 }
@@ -57,13 +151,39 @@ VOID FspMupUnregister(
 {
     PAGED_CODE();
 
+    NTSTATUS Result;
     FSP_FSMUP_DEVICE_EXTENSION *FsmupDeviceExtension = FspFsmupDeviceExtension(FsmupDeviceObject);
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PUNICODE_PREFIX_TABLE_ENTRY PrefixEntry;
+    PUNICODE_PREFIX_TABLE_ENTRY ClassEntry;
+    UNICODE_STRING ClassName;
+    FSP_MUP_CLASS *Class;
+
+    Result = FspMupGetClassName(&FsvolDeviceExtension->VolumePrefix, &ClassName);
+    ASSERT(NT_SUCCESS(Result));
 
     ExAcquireResourceExclusiveLite(&FsmupDeviceExtension->PrefixTableResource, TRUE);
-    RtlRemoveUnicodePrefix(&FsmupDeviceExtension->PrefixTable,
-        &FsvolDeviceExtension->VolumePrefixEntry);
-    FspDeviceDereference(FsvolDeviceObject);
+    PrefixEntry = RtlFindUnicodePrefix(&FsmupDeviceExtension->PrefixTable,
+        &FsvolDeviceExtension->VolumePrefix, 0);
+    if (0 != PrefixEntry)
+    {
+        RtlRemoveUnicodePrefix(&FsmupDeviceExtension->PrefixTable,
+            &FsvolDeviceExtension->VolumePrefixEntry);
+        FspDeviceDereference(FsvolDeviceObject);
+
+        ClassEntry = RtlFindUnicodePrefix(&FsmupDeviceExtension->ClassTable,
+            &ClassName, 0);
+        if (0 != ClassEntry)
+        {
+            Class = CONTAINING_RECORD(ClassEntry, FSP_MUP_CLASS, Entry);
+            if (0 == --Class->RefCount)
+            {
+                RtlRemoveUnicodePrefix(&FsmupDeviceExtension->ClassTable,
+                    ClassEntry);
+                FspFree(Class);
+            }
+        }
+    }
     ExReleaseResourceLite(&FsmupDeviceExtension->PrefixTableResource);
 }
 
@@ -76,7 +196,7 @@ NTSTATUS FspMupHandleIrp(
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PDEVICE_OBJECT FsvolDeviceObject = 0;
-    PUNICODE_PREFIX_TABLE_ENTRY Entry;
+    PUNICODE_PREFIX_TABLE_ENTRY PrefixEntry;
     BOOLEAN DeviceDeref = FALSE;
     NTSTATUS Result;
 
@@ -106,11 +226,11 @@ NTSTATUS FspMupHandleIrp(
             FileObject = FileObject->RelatedFileObject;
 
         ExAcquireResourceExclusiveLite(&FsmupDeviceExtension->PrefixTableResource, TRUE);
-        Entry = RtlFindUnicodePrefix(&FsmupDeviceExtension->PrefixTable,
+        PrefixEntry = RtlFindUnicodePrefix(&FsmupDeviceExtension->PrefixTable,
             &FileObject->FileName, 0);
-        if (0 != Entry)
+        if (0 != PrefixEntry)
         {
-            FsvolDeviceObject = CONTAINING_RECORD(Entry,
+            FsvolDeviceObject = CONTAINING_RECORD(PrefixEntry,
                 FSP_FSVOL_DEVICE_EXTENSION, VolumePrefixEntry)->FsvolDeviceObject;
             FspDeviceReference(FsvolDeviceObject);
             DeviceDeref = TRUE;
@@ -168,6 +288,30 @@ NTSTATUS FspMupHandleIrp(
 
         switch (IrpSp->MajorFunction)
         {
+        case IRP_MJ_CREATE:
+            /*
+             * For CREATE requests we return STATUS_BAD_NETWORK_PATH. Here is why.
+             *
+             * When a file \ClassName\InstanceName\Path is opened by an application, this request
+             * first goes to MUP. The MUP gives DFS a first chance to handle the request and if
+             * that fails the MUP proceeds with prefix resolution. The DFS attempts to open the
+             * file \ClassName\IPC$, this results in a prefix resolution for \ClassName\IPC$
+             * through a recursive MUP call! If this resolution fails the DFS returns to the MUP,
+             * which now attempts prefix resolution for \ClassName\InstanceName\Path.
+             *
+             * Under the new fsmup design we respond to IOCTL_REDIR_QUERY_PATH_EX by handling all
+             * paths with a \ClassName prefix (that we know). This way we ensure that we will get
+             * all opens for paths with a \ClassName prefix and avoid delays for requests of
+             * \ClassName\IPC$, which if left unhandled will be forwarded to all network
+             * redirectors.
+             *
+             * In order to successfully short-circuit requests for \ClassName\IPC$ we must also
+             * return STATUS_BAD_NETWORK_PATH in CREATE. This makes DFS think that prefix
+             * resolution failed and does not complain if it cannot open \ClassName\IPC$. Other
+             * error codes cause DFS to completely fail the open issued by the application.
+             */
+            Irp->IoStatus.Status = STATUS_BAD_NETWORK_PATH;
+            break;
         case IRP_MJ_CLEANUP:
         case IRP_MJ_CLOSE:
             /*
@@ -236,9 +380,26 @@ static NTSTATUS FspMupRedirQueryPathEx(
 
     NTSTATUS Result;
     FSP_FSMUP_DEVICE_EXTENSION *FsmupDeviceExtension = FspFsmupDeviceExtension(FsmupDeviceObject);
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
     PUNICODE_PREFIX_TABLE_ENTRY Entry;
-    PDEVICE_OBJECT FsvolDeviceObject = 0;
+
+#if defined(FSP_MUP_PREFIX_CLASS)
+    UNICODE_STRING ClassName;
+
+    Result = FspMupGetClassName(&QueryPathRequest->PathName, &ClassName);
+    if (!NT_SUCCESS(Result))
+        return STATUS_BAD_NETWORK_PATH;
+
+    Result = STATUS_BAD_NETWORK_PATH;
+    ExAcquireResourceExclusiveLite(&FsmupDeviceExtension->PrefixTableResource, TRUE);
+    Entry = RtlFindUnicodePrefix(&FsmupDeviceExtension->ClassTable, &ClassName, 0);
+    if (0 != Entry)
+    {
+        QueryPathResponse->LengthAccepted = ClassName.Length;
+        Result = STATUS_SUCCESS;
+    }
+    ExReleaseResourceLite(&FsmupDeviceExtension->PrefixTableResource);
+#else
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
     Result = STATUS_BAD_NETWORK_PATH;
     ExAcquireResourceExclusiveLite(&FsmupDeviceExtension->PrefixTableResource, TRUE);
@@ -247,11 +408,11 @@ static NTSTATUS FspMupRedirQueryPathEx(
     if (0 != Entry)
     {
         FsvolDeviceExtension = CONTAINING_RECORD(Entry, FSP_FSVOL_DEVICE_EXTENSION, VolumePrefixEntry);
-        FsvolDeviceObject = FsvolDeviceExtension->FsvolDeviceObject;
         if (!FspIoqStopped(FsvolDeviceExtension->Ioq))
         {
             if (0 < FsvolDeviceExtension->VolumePrefix.Length &&
-                FspFsvolDeviceVolumePrefixInString(FsvolDeviceObject, &QueryPathRequest->PathName) &&
+                FspFsvolDeviceVolumePrefixInString(
+                    FsvolDeviceExtension->FsvolDeviceObject, &QueryPathRequest->PathName) &&
                 (QueryPathRequest->PathName.Length == FsvolDeviceExtension->VolumePrefix.Length ||
                     '\\' == QueryPathRequest->PathName.Buffer[FsvolDeviceExtension->VolumePrefix.Length / sizeof(WCHAR)]))
             {
@@ -261,6 +422,7 @@ static NTSTATUS FspMupRedirQueryPathEx(
         }
     }
     ExReleaseResourceLite(&FsmupDeviceExtension->PrefixTableResource);
+#endif
 
     return Result;
 }

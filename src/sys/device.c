@@ -898,6 +898,7 @@ static NTSTATUS FspFsmupDeviceInit(PDEVICE_OBJECT DeviceObject)
     /* initialize our prefix table */
     ExInitializeResourceLite(&FsmupDeviceExtension->PrefixTableResource);
     RtlInitializeUnicodePrefix(&FsmupDeviceExtension->PrefixTable);
+    RtlInitializeUnicodePrefix(&FsmupDeviceExtension->ClassTable);
     FsmupDeviceExtension->InitDonePfxTab = 1;
 
     return STATUS_SUCCESS;
@@ -916,6 +917,7 @@ static VOID FspFsmupDeviceFini(PDEVICE_OBJECT DeviceObject)
          * prefixes will be gone if this code ever gets reached.
          */
         ASSERT(0 == RtlNextUnicodePrefix(&FsmupDeviceExtension->PrefixTable, TRUE));
+        ASSERT(0 == RtlNextUnicodePrefix(&FsmupDeviceExtension->ClassTable, TRUE));
         ExDeleteResourceLite(&FsmupDeviceExtension->PrefixTableResource);
     }
 }

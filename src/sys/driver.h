@@ -1058,6 +1058,7 @@ typedef struct
     UINT32 InitDonePfxTab:1;
     ERESOURCE PrefixTableResource;
     UNICODE_PREFIX_TABLE PrefixTable;
+    UNICODE_PREFIX_TABLE ClassTable;
 } FSP_FSMUP_DEVICE_EXTENSION;
 static inline
 FSP_DEVICE_EXTENSION *FspDeviceExtension(PDEVICE_OBJECT DeviceObject)
@@ -1173,7 +1174,7 @@ BOOLEAN FspQueryDirectoryIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
 #endif
 
 /* fsmup */
-BOOLEAN FspMupRegister(
+NTSTATUS FspMupRegister(
     PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
 VOID FspMupUnregister(
     PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
