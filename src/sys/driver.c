@@ -237,6 +237,8 @@ VOID FspUnload(
 {
     FSP_ENTER_VOID(PAGED_CODE());
 
+    FsRtlDeregisterUncProvider(FspMupHandle);
+
     FspFsctlDiskDeviceObject = 0;
     FspFsctlNetDeviceObject = 0;
     FspFsmupDeviceObject = 0;
