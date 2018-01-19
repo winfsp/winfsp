@@ -247,14 +247,13 @@ static WCHAR FspNpGetDriveLetter(PDWORD PLogicalDrives, PWSTR VolumeName)
     return 0;
 }
 
-static DWORD FspNpGetCredentialsKind(PWSTR RemoteName, PDWORD PCredentialsKind)
+static DWORD FspNpGetRemoteInfo(PWSTR RemoteName, PDWORD PCredentialsKind)
 {
-    HKEY RegKey = 0;
-    DWORD NpResult, RegSize;
-    DWORD Credentials;
     PWSTR ClassName, InstanceName;
     ULONG ClassNameLen, InstanceNameLen;
     WCHAR ClassNameBuf[sizeof(((FSP_FSCTL_VOLUME_PARAMS *)0)->Prefix) / sizeof(WCHAR)];
+    FSP_LAUNCH_REG_RECORD *Record;
+    NTSTATUS Result;
 
     *PCredentialsKind = FSP_NP_CREDENTIALS_NONE;
 
@@ -267,34 +266,22 @@ static DWORD FspNpGetCredentialsKind(PWSTR RemoteName, PDWORD PCredentialsKind)
     memcpy(ClassNameBuf, ClassName, ClassNameLen * sizeof(WCHAR));
     ClassNameBuf[ClassNameLen] = '\0';
 
-    NpResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" FSP_LAUNCH_REGKEY,
-        0, FSP_LAUNCH_REGKEY_WOW64 | KEY_READ, &RegKey);
-    if (ERROR_SUCCESS != NpResult)
-        goto exit;
+    Result = FspLaunchRegGetRecord(ClassNameBuf, L"" FSP_NP_NAME, &Record);
+    if (!NT_SUCCESS(Result))
+        return WN_NO_NETWORK;
 
-    RegSize = sizeof Credentials;
-    Credentials = 0; /* default is NO credentials */
-    NpResult = RegGetValueW(RegKey, ClassNameBuf, L"Credentials", RRF_RT_REG_DWORD, 0,
-        &Credentials, &RegSize);
-    if (ERROR_SUCCESS != NpResult && ERROR_FILE_NOT_FOUND != NpResult)
-        goto exit;
-
-    switch (Credentials)
+    switch (Record->Credentials)
     {
     case FSP_NP_CREDENTIALS_NONE:
     case FSP_NP_CREDENTIALS_PASSWORD:
     case FSP_NP_CREDENTIALS_USERPASS:
-        *PCredentialsKind = Credentials;
+        *PCredentialsKind = Record->Credentials;
         break;
     }
 
-    NpResult = ERROR_SUCCESS;
+    FspLaunchRegFreeRecord(Record);
 
-exit:
-    if (0 != RegKey)
-        RegCloseKey(RegKey);
-
-    return NpResult;
+    return WN_SUCCESS;
 }
 
 static DWORD FspNpGetCredentials(
@@ -409,7 +396,7 @@ DWORD APIENTRY NPGetConnection(
 
     Result = FspNpGetVolumeList(&VolumeListBuf, &VolumeListSize);
     if (!NT_SUCCESS(Result))
-        return WN_OUT_OF_MEMORY;
+        return WN_NOT_CONNECTED;
 
     NpResult = WN_NOT_CONNECTED;
     for (P = VolumeListBuf, VolumeListBufEnd = (PVOID)((PUINT8)P + VolumeListSize), VolumeName = P;
@@ -502,7 +489,9 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
             return WN_ALREADY_CONNECTED;
     }
 
-    FspNpGetCredentialsKind(lpRemoteName, &CredentialsKind);
+    NpResult = FspNpGetRemoteInfo(lpRemoteName, &CredentialsKind);
+    if (WN_SUCCESS != NpResult)
+        return NpResult;
 
 #if defined(FSP_NP_CREDENTIAL_MANAGER)
     /* if we need credentials and none were passed check with the credential manager */
@@ -686,7 +675,9 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
             return NpResult;
     }
 
-    FspNpGetCredentialsKind(RemoteName, &CredentialsKind);
+    NpResult = FspNpGetRemoteInfo(RemoteName, &CredentialsKind);
+    if (WN_SUCCESS != NpResult)
+        return NpResult;
     if (FSP_NP_CREDENTIALS_NONE == CredentialsKind)
         return WN_CANCEL;
 
