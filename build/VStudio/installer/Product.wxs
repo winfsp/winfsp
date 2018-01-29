@@ -272,6 +272,9 @@
                 <Component Id="C.winfsp.h">
                     <File Name="winfsp.h" KeyPath="yes" />
                 </Component>
+                <Component Id="C.launch.h">
+                    <File Name="launch.h" KeyPath="yes" />
+                </Component>
                 <!--Component Id="C.winfsp.hpp">
                     <File Name="winfsp.hpp" KeyPath="yes" />
                 </Component-->
@@ -482,6 +485,7 @@
         <ComponentGroup Id="C.WinFsp.inc">
             <ComponentRef Id="C.fsctl.h" />
             <ComponentRef Id="C.winfsp.h" />
+            <ComponentRef Id="C.launch.h" />
             <!--ComponentRef Id="C.winfsp.hpp" /-->
             <ComponentRef Id="C.fuse.h" />
             <ComponentRef Id="C.fuse_common.h" />
