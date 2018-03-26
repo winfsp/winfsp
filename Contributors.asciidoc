@@ -54,6 +54,7 @@ This CONTRIBUTOR AGREEMENT applies to any contribution that you make to the WinF
 CONTRIBUTOR LIST
 ----------------
 |===
+|Ben Rubson                                                     |ben.rubson at gmail.com
 |Bill Zissimopoulos                                             |billziss at navimatics.com
 |Fritz Elfert                                                   |fritz-github at fritz-elfert.de
 |John Oberschelp                                                |john at oberschelp.net
