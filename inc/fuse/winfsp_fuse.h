@@ -388,7 +388,7 @@ static inline int fsp_fuse_set_signal_handlers(void *se)
 
 static inline char *fsp_fuse_conv_to_win_path(const char *path)
 {
-    void *cygwin_create_path(unsigned, const void *);
+    char *cygwin_create_path(unsigned, const void *);
     return cygwin_create_path(
         0/*CCP_POSIX_TO_WIN_A*/ | 0x100/*CCP_RELATIVE*/,
         path);
