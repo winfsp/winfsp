@@ -1,6 +1,21 @@
 = Changelog
 
 
+v1.3B3 (2018.1 B3)::
+
+Changes since v1.2POST1:
+
+* Multiple Launcher changes:
+** New `FspLaunch` API. File systems can be started, stopped, queried and listed using `FspLaunchStart`, `FspLaunchStop`, `FspLaunchGetInfo` and `FspLaunchGetNameList`. The API is available in <winfsp/launch.h>
+** New Launcher registry settings `RunAs` and `WorkDirectory`. `RunAs` allows the laucher to launch a file system process under the service accounts LocalService and NetworkService. `WorkDirectory` can be used to specify the work directory for a newly launched file system process.
+* The FSD (File System Driver) and its interaction with the Windows MUP (Multiple UNC Provider) has been changed. In practice this eliminates the delays experienced when right-clicking on a WinFsp-backed network drive in the Windows Explorer. (GitHub issue #87.)
+* The WinFsp network provider is now added first in the provider order list. Previously it was added last. (GitHub PR #131; thanks @felfert.)
+* The WinFsp installer now uses the Wix `Provides` dependency extension to provide a `WinFsp` dependency key. (GitHub PR #129; thanks @felfert.)
+* New FUSE `create_umask` option. (GitHub issue #138.)
+* Fix C++ compilation error for WinFsp-FUSE. (GitHub PR #154; thanks @benrubson.)
+* *NOTE*: Prior v1.3 betas run the MEMFS sample file systems under the LocalService account. This is no longer the case: going forward the MEMFS file systems will be running under the LocalSystem account (as in v1.2POST1).
+
+
 v1.3B2 (2018.1 B2)::
 
 Changes since v1.2POST1:
