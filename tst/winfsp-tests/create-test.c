@@ -1204,7 +1204,7 @@ void create_namelen_test(void)
 }
 
 FSP_FILE_SYSTEM_OPERATION *create_pid_CreateOp;
-UINT32 create_pid_Pass, create_pid_Fail;
+volatile UINT32 create_pid_Pass, create_pid_Fail;
 
 NTSTATUS create_pid_Create(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
@@ -1239,6 +1239,9 @@ void create_pid_dotest(ULONG Flags, PWSTR Prefix)
     CloseHandle(Handle);
 
     memfs_stop(memfs);
+
+    if (!(0 < create_pid_Pass && 0 == create_pid_Fail))
+        tlib_printf("create_pid_Pass=%u, create_pid_Fail=%u", create_pid_Pass, create_pid_Fail);
 
     ASSERT(0 < create_pid_Pass && 0 == create_pid_Fail);
 }
