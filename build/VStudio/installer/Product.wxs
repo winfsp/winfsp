@@ -190,10 +190,6 @@
                             Value="-i -F NTFS -n 65536 -s 67108864 -u %1 -m %2" />
                         <RegistryValue
                             Type="string"
-                            Name="RunAs"
-                            Value="LocalService" />
-                        <RegistryValue
-                            Type="string"
                             Name="Security"
                             Value="D:P(A;;RPWPLC;;;WD)" />
                         <RegistryValue
@@ -220,10 +216,6 @@
                             Value="-i -F NTFS -n 65536 -s 67108864 -u %1 -m %2" />
                         <RegistryValue
                             Type="string"
-                            Name="RunAs"
-                            Value="LocalService" />
-                        <RegistryValue
-                            Type="string"
                             Name="Security"
                             Value="D:P(A;;RPWPLC;;;WD)" />
                         <RegistryValue
@@ -248,10 +240,6 @@
                             Type="string"
                             Name="CommandLine"
                             Value="-i -F NTFS -n 65536 -s 67108864 -u %1 -m %2" />
-                        <RegistryValue
-                            Type="string"
-                            Name="RunAs"
-                            Value="LocalService" />
                         <RegistryValue
                             Type="string"
                             Name="Security"
