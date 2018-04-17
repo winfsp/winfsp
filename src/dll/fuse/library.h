@@ -35,6 +35,7 @@ struct fuse
 {
     struct fsp_fuse_env *env;
     int set_umask, umask;
+    int set_create_umask, create_umask;
     int set_uid, uid;
     int set_gid, gid;
     int rellinks;

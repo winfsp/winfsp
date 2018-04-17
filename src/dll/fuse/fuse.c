@@ -34,6 +34,7 @@ struct fsp_fuse_core_opt_data
     int help, debug;
     HANDLE DebugLogHandle;
     int set_umask, umask,
+        set_create_umask, create_umask,
         set_uid, uid,
         set_gid, gid,
         set_attr_timeout, attr_timeout,
@@ -69,6 +70,8 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FUSE_OPT_KEY("noauto_cache", FUSE_OPT_KEY_DISCARD),
     FSP_FUSE_CORE_OPT("umask=", set_umask, 1),
     FSP_FUSE_CORE_OPT("umask=%o", umask, 0),
+    FSP_FUSE_CORE_OPT("create_umask=", set_create_umask, 1),
+    FSP_FUSE_CORE_OPT("create_umask=%o", create_umask, 0),
     FSP_FUSE_CORE_OPT("uid=", set_uid, 1),
     FSP_FUSE_CORE_OPT("uid=%d", uid, 0),
     FSP_FUSE_CORE_OPT("gid=", set_gid, 1),
@@ -472,6 +475,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
         FspServiceLog(EVENTLOG_ERROR_TYPE, L""
             FSP_FUSE_LIBRARY_NAME " options:\n"
             "    -o umask=MASK              set file permissions (octal)\n"
+            "    -o create_umask=MASK       set newly created file permissions (octal)\n"
             "    -o uid=N                   set file owner (-1 for mounting user id)\n"
             "    -o gid=N                   set file group (-1 for mounting user group)\n"
             "    -o rellinks                interpret absolute symlinks as volume relative\n"
@@ -628,6 +632,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
 
     f->env = env;
     f->set_umask = opt_data.set_umask; f->umask = opt_data.umask;
+    f->set_create_umask = opt_data.set_create_umask; f->create_umask = opt_data.create_umask;
     f->set_uid = opt_data.set_uid; f->uid = opt_data.uid;
     f->set_gid = opt_data.set_gid; f->gid = opt_data.gid;
     f->rellinks = opt_data.rellinks;
