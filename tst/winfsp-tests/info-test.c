@@ -1513,7 +1513,7 @@ void rename_standby_test(void)
 }
 
 FSP_FILE_SYSTEM_OPERATION *rename_pid_SetInformationOp;
-UINT32 rename_pid_Pass, rename_pid_Fail;
+volatile UINT32 rename_pid_Pass, rename_pid_Fail;
 
 NTSTATUS rename_pid_SetInformation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
@@ -1569,6 +1569,9 @@ void rename_pid_dotest(ULONG Flags, PWSTR Prefix)
     ASSERT(Success);
 
     memfs_stop(memfs);
+
+    if (!(0 < rename_pid_Pass && 0 == rename_pid_Fail))
+        tlib_printf("rename_pid_Pass=%u, rename_pid_Fail=%u", rename_pid_Pass, rename_pid_Fail);
 
     ASSERT(0 < rename_pid_Pass && 0 == rename_pid_Fail);
 }
