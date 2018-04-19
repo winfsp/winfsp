@@ -154,7 +154,8 @@ typedef struct
     UINT32 PassQueryDirectoryPattern:1;     /* pass Pattern during QueryDirectory operations */
     UINT32 AlwaysUseDoubleBuffering:1;
     UINT32 PassQueryDirectoryFileName:1;    /* pass FileName during QueryDirectory (GetDirInfoByName) */
-    UINT32 KmReservedFlags:2;
+    UINT32 FlushAndPurgeOnCleanup:1;        /* keeps file off "standby" list */
+    UINT32 KmReservedFlags:1;
     /* user-mode flags */
     UINT32 UmFileContextIsUserContext2:1;   /* user mode: FileContext parameter is UserContext2 */
     UINT32 UmFileContextIsFullContext:1;    /* user mode: FileContext parameter is FullContext */

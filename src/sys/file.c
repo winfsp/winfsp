@@ -789,9 +789,9 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
     PAGED_CODE();
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     LARGE_INTEGER TruncateSize, *PTruncateSize = 0;
-    BOOLEAN DeletePending;
-    BOOLEAN DeletedFromContextTable = FALSE;
+    BOOLEAN DeletePending, DeletedFromContextTable = FALSE, SingleHandle = FALSE;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
@@ -816,6 +816,8 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
     ASSERT(0 < FileNode->HandleCount);
     if (0 == --FileNode->HandleCount)
     {
+        SingleHandle = TRUE;
+
         DeletePending = 0 != FileNode->DeletePending;
         MemoryBarrier();
 
@@ -832,7 +834,7 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
              * We now have to deal with the scenario where there are cleaned up,
              * but unclosed streams for this file still in the context table.
              */
-            if (FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.NamedStreams &&
+            if (FsvolDeviceExtension->VolumeParams.NamedStreams &&
                 0 == FileNode->MainFileNode)
             {
                 BOOLEAN StreamDeletedFromContextTable;
@@ -869,8 +871,6 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 
         if (DeletePending || FileNode->TruncateOnClose)
         {
-            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-                FspFsvolDeviceExtension(FsvolDeviceObject);
             UINT64 AllocationUnit =
                 FsvolDeviceExtension->VolumeParams.SectorSize *
                 FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
@@ -890,6 +890,14 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
     }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    if (SingleHandle && FsvolDeviceExtension->VolumeParams.FlushAndPurgeOnCleanup)
+    {
+        IO_STATUS_BLOCK IoStatus;
+
+        FspCcFlushCache(FileObject->SectionObjectPointer, 0, 0, &IoStatus);
+        CcPurgeCacheSection(FileObject->SectionObjectPointer, 0, 0, TRUE);
+    }
 
     CcUninitializeCacheMap(FileObject, PTruncateSize, 0);
 
