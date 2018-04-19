@@ -39,7 +39,8 @@ struct fsp_fuse_core_opt_data
         set_gid, gid,
         set_attr_timeout, attr_timeout,
         rellinks;
-    int set_FileInfoTimeout;
+    int set_FileInfoTimeout,
+        set_FlushAndPurgeOnCleanup;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     UINT16 VolumeLabelLength;
     WCHAR VolumeLabel[sizeof ((FSP_FSCTL_VOLUME_INFO *)0)->VolumeLabel / sizeof(WCHAR)];
@@ -99,6 +100,7 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("VolumeSerialNumber=%lx", VolumeParams.VolumeSerialNumber, 0),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=", set_FileInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=%d", VolumeParams.FileInfoTimeout, 0),
+    FSP_FUSE_CORE_OPT("FlushAndPurgeOnCleanup=", set_FlushAndPurgeOnCleanup, 1),
     FUSE_OPT_KEY("UNC=", 'U'),
     FUSE_OPT_KEY("--UNC=", 'U'),
     FUSE_OPT_KEY("VolumePrefix=", 'U'),
@@ -487,11 +489,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "\n"
             FSP_FUSE_LIBRARY_NAME " advanced options:\n"
             "    -o FileInfoTimeout=N       metadata timeout (millis, -1 for data caching)\n"
-            "    -o SectorSize=N            (512-4096, deflt: 4096)\n"
-            "    -o SectorsPerAllocationUnit=N  (deflt: 1)\n"
-            "    -o MaxComponentLength=N    (deflt: 255)\n"
-            "    -o VolumeCreationTime=T    (FILETIME hex format)\n"
-            "    -o VolumeSerialNumber=N    (32-bit wide)\n"
+            "    -o FlushAndPurgeOnCleanup  flush and purge cache on cleanup\n"
             );
         opt_data->help = 1;
         return 1;
@@ -613,6 +611,8 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
 
     if (!opt_data.set_FileInfoTimeout && opt_data.set_attr_timeout)
         opt_data.VolumeParams.FileInfoTimeout = opt_data.set_attr_timeout * 1000;
+    if (opt_data.set_FlushAndPurgeOnCleanup)
+        opt_data.VolumeParams.FlushAndPurgeOnCleanup = TRUE;
     opt_data.VolumeParams.CaseSensitiveSearch = TRUE;
     opt_data.VolumeParams.CasePreservedNames = TRUE;
     opt_data.VolumeParams.PersistentAcls = TRUE;
