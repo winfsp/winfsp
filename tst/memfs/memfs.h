@@ -28,9 +28,11 @@ typedef struct _MEMFS MEMFS;
 
 enum
 {
-    MemfsDisk                           = 0x00,
-    MemfsNet                            = 0x01,
-    MemfsCaseInsensitive                = 0x80,
+    MemfsDisk                           = 0x00000000,
+    MemfsNet                            = 0x00000001,
+    MemfsDeviceMask                     = 0x0000000f,
+    MemfsCaseInsensitive                = 0x80000000,
+    MemfsFlushAndPurgeOnCleanup         = 0x40000000,
 };
 
 #define MemfsCreate(Flags, FileInfoTimeout, MaxFileNodes, MaxFileSize,             VolumePrefix, RootSddl, PMemfs)\

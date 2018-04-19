@@ -1959,7 +1959,8 @@ NTSTATUS MemfsCreateFunnel(
     NTSTATUS Result;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     BOOLEAN CaseInsensitive = !!(Flags & MemfsCaseInsensitive);
-    PWSTR DevicePath = (Flags & MemfsNet) ?
+    BOOLEAN FlushAndPurgeOnCleanup = !!(Flags & MemfsFlushAndPurgeOnCleanup);
+    PWSTR DevicePath = MemfsNet == (Flags & MemfsDeviceMask) ?
         L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME;
     UINT64 AllocationUnit;
     MEMFS *Memfs;
@@ -2025,6 +2026,7 @@ NTSTATUS MemfsCreateFunnel(
 #if defined(MEMFS_DIRINFO_BY_NAME)
     VolumeParams.PassQueryDirectoryFileName = 1;
 #endif
+    VolumeParams.FlushAndPurgeOnCleanup = FlushAndPurgeOnCleanup;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
     wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),

@@ -36,7 +36,9 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
     NTSTATUS Result;
 
     Result = MemfsCreateFunnel(
-        (OptCaseInsensitive ? MemfsCaseInsensitive : 0) | Flags,
+        Flags |
+            (OptCaseInsensitive ? MemfsCaseInsensitive : 0) |
+            (OptFlushAndPurgeOnCleanup ? MemfsFlushAndPurgeOnCleanup : 0),
         FileInfoTimeout,
         1024,
         1024 * 1024,

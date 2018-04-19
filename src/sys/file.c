@@ -891,8 +891,11 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
+    /* Flush and purge on last Cleanup. Keeps files off the "standby" list. (GitHub issue #104) */
     if (SingleHandle && FsvolDeviceExtension->VolumeParams.FlushAndPurgeOnCleanup)
     {
+        /* NOTE: Do not use FspFileNodeFlushAndPurgeCache. It does not seem to work well! */
+
         IO_STATUS_BLOCK IoStatus;
 
         FspCcFlushCache(FileObject->SectionObjectPointer, 0, 0, &IoStatus);
