@@ -31,6 +31,7 @@ cd R: >nul 2>nul || (echo === Unable to find drive R: >&2 & goto fail)
 set dfl_tests=^
     winfsp-tests-x64 ^
     winfsp-tests-x64-case-randomize ^
+    winfsp-tests-x64-flushpurge ^
     winfsp-tests-x64-mountpoint-drive ^
     winfsp-tests-x64-mountpoint-dir ^
     winfsp-tests-x64-no-traverse ^
@@ -48,6 +49,7 @@ set dfl_tests=^
     fscrash-x64 ^
     winfsp-tests-x86 ^
     winfsp-tests-x86-case-randomize ^
+    winfsp-tests-x86-flushpurge ^
     winfsp-tests-x86-mountpoint-drive ^
     winfsp-tests-x86-mountpoint-dir ^
     winfsp-tests-x86-no-traverse ^
@@ -167,6 +169,11 @@ winfsp-tests-x64 --case-randomize
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:winfsp-tests-x64-flushpurge
+winfsp-tests-x64 --flush-and-purge-on-cleanup
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :winfsp-tests-x64-mountpoint-drive
 winfsp-tests-x64 --mountpoint=X: --resilient
 if !ERRORLEVEL! neq 0 goto fail
@@ -194,6 +201,11 @@ exit /b 0
 
 :winfsp-tests-x86-case-randomize
 winfsp-tests-x86 --case-randomize
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-x86-flushpurge
+winfsp-tests-x86 --flush-and-purge-on-cleanup
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 

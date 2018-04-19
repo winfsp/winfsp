@@ -304,12 +304,14 @@ static void exec_rename_dir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTime
 
     ASSERT(CreateDirectoryW(Dir1Path, 0));
 
-    ExecHelper(FilePath, 1000, &Process);
+    ExecHelper(FilePath, 2000, &Process);
+
+    Sleep(1000); /* give time for file handles to be closed (FlushAndPurgeOnCleanup) */
 
     ASSERT(MoveFileExW(Dir1Path, Dir2Path, MOVEFILE_REPLACE_EXISTING));
     ASSERT(MoveFileExW(Dir2Path, Dir1Path, MOVEFILE_REPLACE_EXISTING));
 
-    WaitHelper(Process, 1000);
+    WaitHelper(Process, 2000);
 
     ASSERT(DeleteFileW(FilePath));
 
