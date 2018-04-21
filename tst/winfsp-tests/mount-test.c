@@ -61,11 +61,40 @@ void mount_open_device_test(void)
         mount_open_device_dotest(L"WinFsp.Net");
 }
 
+void mount_create_volume_v0_dotest(PWSTR DeviceName)
+{
+    NTSTATUS Result;
+    BOOL Success;
+    FSP_FSCTL_VOLUME_PARAMS_V0 VolumeParams = { 0 };
+    WCHAR VolumeName[MAX_PATH];
+    HANDLE VolumeHandle;
+
+    VolumeParams.SectorSize = 16384;
+    VolumeParams.VolumeSerialNumber = 0x12345678;
+    wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), L"\\winfsp-tests\\share");
+    Result = FspFsctlCreateVolume(DeviceName, (FSP_FSCTL_VOLUME_PARAMS *)&VolumeParams,
+        VolumeName, sizeof VolumeName, &VolumeHandle);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumeName, 15));
+    ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
+
+    Success = CloseHandle(VolumeHandle);
+    ASSERT(Success);
+}
+
+void mount_create_volume_v0_test(void)
+{
+    if (WinFspDiskTests)
+        mount_create_volume_v0_dotest(L"WinFsp.Disk");
+    if (WinFspNetTests)
+        mount_create_volume_v0_dotest(L"WinFsp.Net");
+}
+
 void mount_create_volume_dotest(PWSTR DeviceName)
 {
     NTSTATUS Result;
     BOOL Success;
-    FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams = { .Version = sizeof VolumeParams };
     WCHAR VolumeName[MAX_PATH];
     HANDLE VolumeHandle;
 
@@ -341,6 +370,7 @@ void mount_tests(void)
 
     TEST_OPT(mount_invalid_test);
     TEST_OPT(mount_open_device_test);
+    TEST_OPT(mount_create_volume_v0_test);
     TEST_OPT(mount_create_volume_test);
     TEST_OPT(mount_volume_cancel_test);
     TEST_OPT(mount_volume_transact_test);

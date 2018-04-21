@@ -346,7 +346,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     FsvolDeviceExtension->InitDoneIoq = 1;
 
     /* create our security meta cache */
-    SecurityTimeout.QuadPart = FspTimeoutFromMillis(FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
+    SecurityTimeout.QuadPart = FspTimeoutFromMillis(FsvolDeviceExtension->VolumeParams.SecurityTimeout);
         /* convert millis to nanos */
     Result = FspMetaCacheCreate(
         FspFsvolDeviceSecurityCacheCapacity, FspFsvolDeviceSecurityCacheItemSizeMax, &SecurityTimeout,
@@ -356,7 +356,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     FsvolDeviceExtension->InitDoneSec = 1;
 
     /* create our directory meta cache */
-    DirInfoTimeout.QuadPart = FspTimeoutFromMillis(FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
+    DirInfoTimeout.QuadPart = FspTimeoutFromMillis(FsvolDeviceExtension->VolumeParams.DirInfoTimeout);
         /* convert millis to nanos */
     Result = FspMetaCacheCreate(
         FspFsvolDeviceDirInfoCacheCapacity, FspFsvolDeviceDirInfoCacheItemSizeMax, &DirInfoTimeout,
@@ -366,7 +366,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     FsvolDeviceExtension->InitDoneDir = 1;
 
     /* create our stream info meta cache */
-    StreamInfoTimeout.QuadPart = FspTimeoutFromMillis(FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
+    StreamInfoTimeout.QuadPart = FspTimeoutFromMillis(FsvolDeviceExtension->VolumeParams.StreamInfoTimeout);
         /* convert millis to nanos */
     Result = FspMetaCacheCreate(
         FspFsvolDeviceStreamInfoCacheCapacity, FspFsvolDeviceStreamInfoCacheItemSizeMax, &StreamInfoTimeout,
@@ -873,7 +873,7 @@ VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VO
     KeAcquireSpinLock(&FsvolDeviceExtension->InfoSpinLock, &Irql);
     FsvolDeviceExtension->VolumeInfo = VolumeInfoNp;
     FsvolDeviceExtension->InfoExpirationTime = FspExpirationTimeFromMillis(
-        FsvolDeviceExtension->VolumeParams.FileInfoTimeout);
+        FsvolDeviceExtension->VolumeParams.VolumeInfoTimeout);
     KeReleaseSpinLock(&FsvolDeviceExtension->InfoSpinLock, Irql);
 }
 

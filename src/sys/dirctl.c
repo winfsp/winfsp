@@ -551,7 +551,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
         FsvolDeviceExtension->VolumeParams.MaxComponentLength * sizeof(WCHAR);
     QueryDirectoryLengthMin = FSP_FSCTL_ALIGN_UP(QueryDirectoryLengthMin, 8);
     ASSERT(QueryDirectoryLengthMin < FspFsvolQueryDirectoryLengthMax);
-    if (0 != FsvolDeviceExtension->VolumeParams.FileInfoTimeout &&
+    if (0 != FsvolDeviceExtension->VolumeParams.DirInfoTimeout &&
         0 == FileDesc->DirectoryMarker.Buffer)
     {
         if (PatternIsFileName)

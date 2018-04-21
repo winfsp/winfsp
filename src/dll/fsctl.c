@@ -31,7 +31,7 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
 {
     NTSTATUS Result;
     PWSTR DeviceRoot;
-    SIZE_T DeviceRootSize, DevicePathSize;
+    SIZE_T DeviceRootSize, DevicePathSize, VolumeParamsSize;
     WCHAR DevicePathBuf[MAX_PATH + sizeof *VolumeParams], *DevicePathPtr, *DevicePathEnd;
     HANDLE VolumeHandle = INVALID_HANDLE_VALUE;
     DWORD Bytes;
@@ -55,8 +55,11 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     memcpy(DevicePathPtr, DevicePath, DevicePathSize);
     DevicePathPtr = (PVOID)((PUINT8)DevicePathPtr + DevicePathSize);
     memcpy(DevicePathPtr, PREFIXW, PREFIXW_SIZE);
+    VolumeParamsSize = 0 == VolumeParams->Version ?
+        sizeof(FSP_FSCTL_VOLUME_PARAMS_V0) :
+        VolumeParams->Version;
     DevicePathPtr = (PVOID)((PUINT8)DevicePathPtr + PREFIXW_SIZE);
-    DevicePathEnd = (PVOID)((PUINT8)DevicePathPtr + sizeof *VolumeParams * sizeof(WCHAR));
+    DevicePathEnd = (PVOID)((PUINT8)DevicePathPtr + VolumeParamsSize * sizeof(WCHAR));
     for (PUINT8 VolumeParamsPtr = (PVOID)VolumeParams;
         DevicePathEnd > DevicePathPtr; DevicePathPtr++, VolumeParamsPtr++)
     {

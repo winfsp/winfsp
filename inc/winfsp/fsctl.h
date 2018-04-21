@@ -124,44 +124,64 @@ enum
     FspFsctlIrpCapacityMaximum = 1000,
     FspFsctlIrpCapacityDefault = 1000,
 };
+#define FSP_FSCTL_VOLUME_PARAMS_V0_FIELD_DEFN\
+    UINT16 Version;                     /* set to 0 or sizeof(FSP_FSCTL_VOLUME_PARAMS) */\
+    /* volume information */\
+    UINT16 SectorSize;\
+    UINT16 SectorsPerAllocationUnit;\
+    UINT16 MaxComponentLength;          /* maximum file name component length (bytes) */\
+    UINT64 VolumeCreationTime;\
+    UINT32 VolumeSerialNumber;\
+    /* I/O timeouts, capacity, etc. */\
+    UINT32 TransactTimeout;             /* FSP_FSCTL_TRANSACT timeout (millis; 1 sec - 10 sec) */\
+    UINT32 IrpTimeout;                  /* pending IRP timeout (millis; 1 min - 10 min) */\
+    UINT32 IrpCapacity;                 /* maximum number of pending IRP's (100 - 1000)*/\
+    UINT32 FileInfoTimeout;             /* FileInfo/Security/VolumeInfo timeout (millis) */\
+    /* FILE_FS_ATTRIBUTE_INFORMATION::FileSystemAttributes */\
+    UINT32 CaseSensitiveSearch:1;       /* file system supports case-sensitive file names */\
+    UINT32 CasePreservedNames:1;        /* file system preserves the case of file names */\
+    UINT32 UnicodeOnDisk:1;             /* file system supports Unicode in file names */\
+    UINT32 PersistentAcls:1;            /* file system preserves and enforces access control lists */\
+    UINT32 ReparsePoints:1;             /* file system supports reparse points */\
+    UINT32 ReparsePointsAccessCheck:1;  /* file system performs reparse point access checks */\
+    UINT32 NamedStreams:1;              /* file system supports named streams */\
+    UINT32 HardLinks:1;                 /* unimplemented; set to 0 */\
+    UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */\
+    UINT32 ReadOnlyVolume:1;\
+    /* kernel-mode flags */\
+    UINT32 PostCleanupWhenModifiedOnly:1;   /* post Cleanup when a file was modified/deleted */\
+    UINT32 PassQueryDirectoryPattern:1;     /* pass Pattern during QueryDirectory operations */\
+    UINT32 AlwaysUseDoubleBuffering:1;\
+    UINT32 PassQueryDirectoryFileName:1;    /* pass FileName during QueryDirectory (GetDirInfoByName) */\
+    UINT32 FlushAndPurgeOnCleanup:1;        /* keeps file off "standby" list */\
+    UINT32 KmReservedFlags:1;\
+    /* user-mode flags */\
+    UINT32 UmFileContextIsUserContext2:1;   /* user mode: FileContext parameter is UserContext2 */\
+    UINT32 UmFileContextIsFullContext:1;    /* user mode: FileContext parameter is FullContext */\
+    UINT32 UmReservedFlags:14;\
+    WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */\
+    WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
+#define FSP_FSCTL_VOLUME_PARAMS_V1_FIELD_DEFN\
+    /* additional fields; specify .Version == sizeof(FSP_FSCTL_VOLUME_PARAMS) */\
+    UINT32 VolumeInfoTimeoutValid:1;    /* VolumeInfoTimeout field is valid */\
+    UINT32 DirInfoTimeoutValid:1;       /* DirInfoTimeout field is valid */\
+    UINT32 SecurityTimeoutValid:1;      /* SecurityTimeout field is valid*/\
+    UINT32 StreamInfoTimeoutValid:1;    /* StreamInfoTimeout field is valid */\
+    UINT32 KmAdditionalReservedFlags:28;\
+    UINT32 VolumeInfoTimeout;           /* volume info timeout (millis); overrides FileInfoTimeout */\
+    UINT32 DirInfoTimeout;              /* dir info timeout (millis); overrides FileInfoTimeout */\
+    UINT32 SecurityTimeout;             /* security info timeout (millis); overrides FileInfoTimeout */\
+    UINT32 StreamInfoTimeout;           /* stream info timeout (millis); overrides FileInfoTimeout */\
+    UINT32 Reserved32[3];\
+    UINT64 Reserved64[2];
 typedef struct
 {
-    UINT16 Version;                     /* set to 0 */
-    /* volume information */
-    UINT16 SectorSize;
-    UINT16 SectorsPerAllocationUnit;
-    UINT16 MaxComponentLength;          /* maximum file name component length (bytes) */
-    UINT64 VolumeCreationTime;
-    UINT32 VolumeSerialNumber;
-    /* I/O timeouts, capacity, etc. */
-    UINT32 TransactTimeout;             /* FSP_FSCTL_TRANSACT timeout (millis; 1 sec - 10 sec) */
-    UINT32 IrpTimeout;                  /* pending IRP timeout (millis; 1 min - 10 min) */
-    UINT32 IrpCapacity;                 /* maximum number of pending IRP's (100 - 1000)*/
-    UINT32 FileInfoTimeout;             /* FileInfo/Security/VolumeInfo timeout (millis) */
-    /* FILE_FS_ATTRIBUTE_INFORMATION::FileSystemAttributes */
-    UINT32 CaseSensitiveSearch:1;       /* file system supports case-sensitive file names */
-    UINT32 CasePreservedNames:1;        /* file system preserves the case of file names */
-    UINT32 UnicodeOnDisk:1;             /* file system supports Unicode in file names */
-    UINT32 PersistentAcls:1;            /* file system preserves and enforces access control lists */
-    UINT32 ReparsePoints:1;             /* file system supports reparse points */
-    UINT32 ReparsePointsAccessCheck:1;  /* file system performs reparse point access checks */
-    UINT32 NamedStreams:1;              /* file system supports named streams */
-    UINT32 HardLinks:1;                 /* unimplemented; set to 0 */
-    UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */
-    UINT32 ReadOnlyVolume:1;
-    /* kernel-mode flags */
-    UINT32 PostCleanupWhenModifiedOnly:1;   /* post Cleanup when a file was modified/deleted */
-    UINT32 PassQueryDirectoryPattern:1;     /* pass Pattern during QueryDirectory operations */
-    UINT32 AlwaysUseDoubleBuffering:1;
-    UINT32 PassQueryDirectoryFileName:1;    /* pass FileName during QueryDirectory (GetDirInfoByName) */
-    UINT32 FlushAndPurgeOnCleanup:1;        /* keeps file off "standby" list */
-    UINT32 KmReservedFlags:1;
-    /* user-mode flags */
-    UINT32 UmFileContextIsUserContext2:1;   /* user mode: FileContext parameter is UserContext2 */
-    UINT32 UmFileContextIsFullContext:1;    /* user mode: FileContext parameter is FullContext */
-    UINT32 UmReservedFlags:14;
-    WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */
-    WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
+    FSP_FSCTL_VOLUME_PARAMS_V0_FIELD_DEFN
+} FSP_FSCTL_VOLUME_PARAMS_V0;
+typedef struct
+{
+    FSP_FSCTL_VOLUME_PARAMS_V0_FIELD_DEFN
+    FSP_FSCTL_VOLUME_PARAMS_V1_FIELD_DEFN
 } FSP_FSCTL_VOLUME_PARAMS;
 typedef struct
 {

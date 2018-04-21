@@ -101,17 +101,25 @@ static NTSTATUS FspVolumeCreateNoLock(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
     /* check parameters */
-    if (PREFIXW_SIZE + sizeof(FSP_FSCTL_VOLUME_PARAMS) * sizeof(WCHAR) > FileObject->FileName.Length)
+    if (PREFIXW_SIZE + sizeof(FSP_FSCTL_VOLUME_PARAMS_V0) * sizeof(WCHAR) > FileObject->FileName.Length)
         return STATUS_INVALID_PARAMETER;
 
     /* copy the VolumeParams */
     for (USHORT Index = 0, Length = sizeof(FSP_FSCTL_VOLUME_PARAMS); Length > Index; Index++)
     {
+        if (PREFIXW_SIZE / sizeof(WCHAR) + Index >= FileObject->FileName.Length / sizeof(WCHAR))
+            break;
+
         WCHAR Value = FileObject->FileName.Buffer[PREFIXW_SIZE / sizeof(WCHAR) + Index];
         if (0xF000 != (Value & 0xFF00))
             return STATUS_INVALID_PARAMETER;
         ((PUINT8)&VolumeParams)[Index] = Value & 0xFF;
     }
+
+    /* check VolumeParams size */
+    if (0 != VolumeParams.Version &&
+        PREFIXW_SIZE + VolumeParams.Version * sizeof(WCHAR) != FileObject->FileName.Length)
+        return STATUS_INVALID_PARAMETER;
 
     /* check the VolumeParams */
     if (0 == VolumeParams.SectorSize)
@@ -133,6 +141,28 @@ static NTSTATUS FspVolumeCreateNoLock(
     if (FspFsctlIrpCapacityMinimum > VolumeParams.IrpCapacity ||
         VolumeParams.IrpCapacity > FspFsctlIrpCapacityMaximum)
         VolumeParams.IrpCapacity = FspFsctlIrpCapacityDefault;
+    if (sizeof(FSP_FSCTL_VOLUME_PARAMS_V0) >= VolumeParams.Version)
+    {
+        VolumeParams.VolumeInfoTimeout = VolumeParams.FileInfoTimeout;
+        VolumeParams.DirInfoTimeout = VolumeParams.FileInfoTimeout;
+        VolumeParams.SecurityTimeout = VolumeParams.FileInfoTimeout;
+        VolumeParams.StreamInfoTimeout = VolumeParams.FileInfoTimeout;
+    }
+    else
+    {
+        if (!VolumeParams.VolumeInfoTimeoutValid)
+            VolumeParams.VolumeInfoTimeout = VolumeParams.FileInfoTimeout;
+        if (!VolumeParams.DirInfoTimeoutValid)
+            VolumeParams.DirInfoTimeout = VolumeParams.FileInfoTimeout;
+        if (!VolumeParams.SecurityTimeoutValid)
+            VolumeParams.SecurityTimeout = VolumeParams.FileInfoTimeout;
+        if (!VolumeParams.StreamInfoTimeoutValid)
+            VolumeParams.StreamInfoTimeout = VolumeParams.FileInfoTimeout;
+    }
+    VolumeParams.VolumeInfoTimeoutValid = 1;
+    VolumeParams.DirInfoTimeoutValid = 1;
+    VolumeParams.SecurityTimeoutValid = 1;
+    VolumeParams.StreamInfoTimeoutValid = 1;
     if (FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType)
     {
         VolumeParams.Prefix[sizeof VolumeParams.Prefix / sizeof(WCHAR) - 1] = L'\0';
