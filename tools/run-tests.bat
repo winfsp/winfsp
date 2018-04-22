@@ -82,6 +82,8 @@ set opt_tests=^
     sample-passthrough-fuse-x86 ^
     sample-fsx-passthrough-fuse-x86 ^
     sample-passthrough-dotnet ^
+    compat-v1.2-memfs-x64 ^
+    compat-v1.2-memfs-x86 ^
     compat-v1.1-passthrough-fuse-x64 ^
     compat-v1.1-passthrough-fuse-x86 ^
     avast-tests-x64 ^
@@ -769,6 +771,41 @@ echo net use L: /delete
 net use L: /delete
 call "%ProjRoot%\tools\fsreg" -u %1
 rmdir /s/q "%TMP%\%1"
+exit /b !RunSampleTestExit!
+
+:compat-v1.2-memfs-x64
+copy "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-*.dll" "%ProjRoot%\tst\compat\v1.2\memfs"
+call :__run_compat_memfs_test compat-memfs v1.2\memfs\memfs-x64 winfsp-tests-x64
+if !ERRORLEVEL! neq 0 goto fail
+del "%ProjRoot%\tst\compat\v1.2\memfs\winfsp-*.dll"
+exit /b 0
+
+:compat-v1.2-memfs-x86
+copy "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-*.dll" "%ProjRoot%\tst\compat\v1.2\memfs"
+call :__run_compat_memfs_test compat-memfs v1.2\memfs\memfs-x86 winfsp-tests-x86
+if !ERRORLEVEL! neq 0 goto fail
+del "%ProjRoot%\tst\compat\v1.2\memfs\winfsp-*.dll"
+exit /b 0
+
+:__run_compat_memfs_test
+set RunSampleTestExit=0
+call "%ProjRoot%\tools\fsreg" %1 "%ProjRoot%\tst\compat\%2.exe" ^
+    "-i -F NTFS -n 65536 -s 67108864 -u %%%%1 -m %%%%2" "D:P(A;;RPWPLC;;;WD)"
+echo net use L: "\\%1\share"
+net use L: "\\%1\share"
+if !ERRORLEVEL! neq 0 goto fail
+echo net use ^| findstr L:
+net use | findstr L:
+pushd >nul
+cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
+L:
+"%ProjRoot%\build\VStudio\build\%Configuration%\%3.exe" ^
+    --external --resilient --share-prefix="\%1\share"
+if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
+popd
+echo net use L: /delete
+net use L: /delete
+call "%ProjRoot%\tools\fsreg" -u %1
 exit /b !RunSampleTestExit!
 
 :compat-v1.1-passthrough-fuse-x64

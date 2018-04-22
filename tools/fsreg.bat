@@ -18,6 +18,7 @@ if not X%1==X-u (
 
 	reg add !RegKey!\!fsname! /v Executable /t REG_SZ /d !fsexec! /f /reg:32
 	reg add !RegKey!\!fsname! /v CommandLine /t REG_SZ /d !fscmdl! /f /reg:32
+	reg add !RegKey!\!fsname! /v JobControl /t REG_DWORD /d 1 /f /reg:32
 	if not X!fssecu!==X reg add !RegKey!\!fsname! /v Security /t REG_SZ /d !fssecu! /f /reg:32
 ) else (
 	set unreg=1
