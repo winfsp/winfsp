@@ -39,6 +39,7 @@ struct fuse
     int set_uid, uid;
     int set_gid, gid;
     int rellinks;
+    unsigned ThreadCount;
     struct fuse_operations ops;
     void *data;
     unsigned conn_want;

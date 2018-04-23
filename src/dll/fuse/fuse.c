@@ -43,6 +43,7 @@ struct fsp_fuse_core_opt_data
         set_DirInfoTimeout,
         set_VolumeInfoTimeout,
         set_KeepFileCache;
+    unsigned ThreadCount;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     UINT16 VolumeLabelLength;
     WCHAR VolumeLabel[sizeof ((FSP_FSCTL_VOLUME_INFO *)0)->VolumeLabel / sizeof(WCHAR)];
@@ -107,6 +108,7 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=", set_VolumeInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=%d", VolumeParams.VolumeInfoTimeout, 0),
     FSP_FUSE_CORE_OPT("KeepFileCache=", set_KeepFileCache, 1),
+    FSP_FUSE_CORE_OPT("ThreadCount=%u", ThreadCount, 0),
     FUSE_OPT_KEY("UNC=", 'U'),
     FUSE_OPT_KEY("--UNC=", 'U'),
     FUSE_OPT_KEY("VolumePrefix=", 'U'),
@@ -424,7 +426,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         }
     }
 
-    Result = FspFileSystemStartDispatcher(f->FileSystem, 0);
+    Result = FspFileSystemStartDispatcher(f->FileSystem, f->ThreadCount);
     if (!NT_SUCCESS(Result))
     {
         FspServiceLog(EVENTLOG_ERROR_TYPE,
@@ -499,6 +501,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o DirInfoTimeout=N        directory info timeout (millis)\n"
             "    -o VolumeInfoTimeout=N     volume info timeout (millis)\n"
             "    -o KeepFileCache           do not discard cache when files are closed\n"
+            "    -o ThreadCount             number of file system dispatcher threads\n"
             );
         opt_data->help = 1;
         return 1;
@@ -651,6 +654,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     f->set_uid = opt_data.set_uid; f->uid = opt_data.uid;
     f->set_gid = opt_data.set_gid; f->gid = opt_data.gid;
     f->rellinks = opt_data.rellinks;
+    f->ThreadCount = opt_data.ThreadCount;
     memcpy(&f->ops, ops, opsize);
     f->data = data;
     f->DebugLog = opt_data.debug ? -1 : 0;
