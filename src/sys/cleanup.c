@@ -123,6 +123,8 @@ static NTSTATUS FspFsvolCleanup(
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;
 
+    FspFileNodeCleanupFlush(FileNode, FileObject);
+
     if (Request->Req.Cleanup.Delete ||
         Request->Req.Cleanup.SetAllocationSize ||
         Request->Req.Cleanup.SetArchiveBit ||
@@ -228,10 +230,9 @@ static VOID FspFsvolCleanupRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Co
 
     ASSERT(FileNode == FileDesc->FileNode);
 
-    FspFileNodeCleanupComplete(FileNode, FileObject);
-
     FspFileNodeReleaseOwner(FileNode, Pgio, Request);
 
+    FspFileNodeCleanupComplete(FileNode, FileObject);
     if (!FileNode->IsDirectory)
         FspFileNodeOplockCheck(FileNode, Irp);
     SetFlag(FileObject->Flags, FO_CLEANUP_COMPLETE);

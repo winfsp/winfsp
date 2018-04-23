@@ -37,6 +37,7 @@ NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     UINT32 GrantedAccess, UINT32 ShareAccess,
     FSP_FILE_NODE **POpenedFileNode, PULONG PSharingViolationReason);
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG PCleanupFlags);
+VOID FspFileNodeCleanupFlush(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     PFILE_OBJECT FileObject,    /* non-0 to remove share access */
@@ -121,6 +122,7 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 #pragma alloc_text(PAGE, FspFileNodeReleaseOwnerF)
 #pragma alloc_text(PAGE, FspFileNodeOpen)
 #pragma alloc_text(PAGE, FspFileNodeCleanup)
+#pragma alloc_text(PAGE, FspFileNodeCleanupFlush)
 #pragma alloc_text(PAGE, FspFileNodeCleanupComplete)
 #pragma alloc_text(PAGE, FspFileNodeClose)
 #pragma alloc_text(PAGE, FspFileNodeFlushAndPurgeCache)
@@ -772,6 +774,59 @@ VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG
     *PCleanupFlags = SingleHandle ? DeletePending | (SetAllocationSize << 1) : 0;
 }
 
+VOID FspFileNodeCleanupFlush(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
+{
+    /*
+     * Optionally flush the FileNode during Cleanup.
+     *
+     * The FileNode must be acquired exclusive (Full) when calling this function.
+     */
+
+    PAGED_CODE();
+
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+
+    if (!FsvolDeviceExtension->VolumeParams.FlushAndPurgeOnCleanup)
+        return; /* nothing to do! */
+
+    BOOLEAN DeletePending, SingleHandle;
+    LARGE_INTEGER TruncateSize, *PTruncateSize = 0;
+
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+
+    DeletePending = 0 != FileNode->DeletePending;
+    MemoryBarrier();
+
+    SingleHandle = 1 == FileNode->HandleCount;
+
+    if (SingleHandle && FileNode->TruncateOnClose)
+    {
+        /*
+         * Even when the FileInfo is expired, this is the best guess for a file size
+         * without asking the user-mode file system.
+         */
+        TruncateSize = FileNode->Header.FileSize;
+        PTruncateSize = &TruncateSize;
+    }
+
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    /* Flush and purge on last Cleanup. Keeps files off the "standby" list. (GitHub issue #104) */
+    if (SingleHandle && !DeletePending)
+    {
+        IO_STATUS_BLOCK IoStatus;
+        LARGE_INTEGER ZeroOffset = { 0 };
+
+        if (0 != PTruncateSize && 0 == PTruncateSize->HighPart)
+            FspCcFlushCache(FileObject->SectionObjectPointer, &ZeroOffset, PTruncateSize->LowPart,
+                &IoStatus);
+        else
+            FspCcFlushCache(FileObject->SectionObjectPointer, 0, 0,
+                &IoStatus);
+    }
+}
+
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
 {
     /*
@@ -791,7 +846,7 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     LARGE_INTEGER TruncateSize, *PTruncateSize = 0;
-    BOOLEAN DeletePending = FALSE, DeletedFromContextTable = FALSE, SingleHandle = FALSE;
+    BOOLEAN DeletePending, DeletedFromContextTable = FALSE, SingleHandle = FALSE;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
@@ -915,22 +970,8 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
          * So we deem this difference in behavior ok and desirable.
          */
 
-        if (!DeletePending)
-        {
-            /* NOTE: Do not use FspFileNodeFlushAndPurgeCache. It does not work well in CLEANUP! */
-
-            IO_STATUS_BLOCK IoStatus;
-            LARGE_INTEGER ZeroOffset = { 0 };
-
-            if (0 != PTruncateSize && 0 == PTruncateSize->HighPart)
-                FspCcFlushCache(FileObject->SectionObjectPointer, &ZeroOffset, PTruncateSize->LowPart,
-                    &IoStatus);
-            else
-                FspCcFlushCache(FileObject->SectionObjectPointer, 0, 0,
-                    &IoStatus);
-        }
-
-        CcPurgeCacheSection(FileObject->SectionObjectPointer, 0, 0, TRUE);
+        TruncateSize.QuadPart = 0;
+        PTruncateSize = &TruncateSize;
     }
 
     CcUninitializeCacheMap(FileObject, PTruncateSize, 0);
