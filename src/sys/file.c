@@ -894,10 +894,31 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
     /* Flush and purge on last Cleanup. Keeps files off the "standby" list. (GitHub issue #104) */
     if (SingleHandle && FsvolDeviceExtension->VolumeParams.FlushAndPurgeOnCleanup)
     {
-        /* NOTE: Do not use FspFileNodeFlushAndPurgeCache. It does not seem to work well! */
+        /*
+         * There is an important difference in behavior with respect to DeletePending when
+         * FlushAndPurgeOnCleanup is FALSE vs when it is TRUE.
+         *
+         * With FlushAndPurgeOnCleanup==FALSE (the default), the WinFsp FSD preserves data
+         * and allows a deleted file to have memory-mapped I/O done on it after the CLEANUP
+         * completes. It is up to the user mode file system to decide whether to handle
+         * this scenario or not. The MEMFS reference file system does.
+         *
+         * With FlushAndPurgeOnCleanup==TRUE, the FSD simply purges the cache section (if any),
+         * which means that CACHED DATA WILL BE LOST. This is desirable, because we do not want
+         * to unnecessarily flush data that are soon going to be deleted.
+         *
+         * This could affect a program that does memory-mapped I/O on a deleted file that has
+         * been CloseHandle'd. Tests have shown that even NTFS cannot properly handle this
+         * scenario in all cases (for example, when the file is not cached), so it is unlikely
+         * that there are any useful programs out there that do this.
+         *
+         * So we deem this difference in behavior ok and desirable.
+         */
 
         if (!DeletePending)
         {
+            /* NOTE: Do not use FspFileNodeFlushAndPurgeCache. It does not work well in CLEANUP! */
+
             IO_STATUS_BLOCK IoStatus;
             LARGE_INTEGER ZeroOffset = { 0 };
 
