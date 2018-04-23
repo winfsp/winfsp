@@ -42,7 +42,7 @@ struct fsp_fuse_core_opt_data
     int set_FileInfoTimeout,
         set_DirInfoTimeout,
         set_VolumeInfoTimeout,
-        set_FlushAndPurgeOnCleanup;
+        set_KeepFileCache;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     UINT16 VolumeLabelLength;
     WCHAR VolumeLabel[sizeof ((FSP_FSCTL_VOLUME_INFO *)0)->VolumeLabel / sizeof(WCHAR)];
@@ -106,7 +106,7 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("DirInfoTimeout=%d", VolumeParams.DirInfoTimeout, 0),
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=", set_VolumeInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=%d", VolumeParams.VolumeInfoTimeout, 0),
-    FSP_FUSE_CORE_OPT("FlushAndPurgeOnCleanup=", set_FlushAndPurgeOnCleanup, 1),
+    FSP_FUSE_CORE_OPT("KeepFileCache=", set_KeepFileCache, 1),
     FUSE_OPT_KEY("UNC=", 'U'),
     FUSE_OPT_KEY("--UNC=", 'U'),
     FUSE_OPT_KEY("VolumePrefix=", 'U'),
@@ -498,7 +498,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o FileInfoTimeout=N       metadata timeout (millis, -1 for data caching)\n"
             "    -o DirInfoTimeout=N        directory info timeout (millis)\n"
             "    -o VolumeInfoTimeout=N     volume info timeout (millis)\n"
-            "    -o FlushAndPurgeOnCleanup  flush and purge cache on cleanup\n"
+            "    -o KeepFileCache           do not discard cache when files are closed\n"
             );
         opt_data->help = 1;
         return 1;
@@ -580,7 +580,8 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.env = env;
     opt_data.DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
     opt_data.VolumeParams.Version = sizeof(FSP_FSCTL_VOLUME_PARAMS);
-    opt_data.VolumeParams.FileInfoTimeout = 1000;   /* default FileInfoTimeout for FUSE file systems */
+    opt_data.VolumeParams.FileInfoTimeout = 1000;
+    opt_data.VolumeParams.FlushAndPurgeOnCleanup = TRUE;
 
     if (-1 == fsp_fuse_opt_parse(env, args, &opt_data, fsp_fuse_core_opts, fsp_fuse_core_opt_proc))
         return 0;
@@ -625,8 +626,8 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         opt_data.VolumeParams.DirInfoTimeoutValid = 1;
     if (opt_data.set_VolumeInfoTimeout)
         opt_data.VolumeParams.VolumeInfoTimeoutValid = 1;
-    if (opt_data.set_FlushAndPurgeOnCleanup)
-        opt_data.VolumeParams.FlushAndPurgeOnCleanup = TRUE;
+    if (opt_data.set_KeepFileCache)
+        opt_data.VolumeParams.FlushAndPurgeOnCleanup = FALSE;
     opt_data.VolumeParams.CaseSensitiveSearch = TRUE;
     opt_data.VolumeParams.CasePreservedNames = TRUE;
     opt_data.VolumeParams.PersistentAcls = TRUE;
