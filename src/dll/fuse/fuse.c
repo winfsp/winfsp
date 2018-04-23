@@ -620,7 +620,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     }
 
     if (!opt_data.set_FileInfoTimeout && opt_data.set_attr_timeout)
-        opt_data.VolumeParams.FileInfoTimeout = opt_data.set_attr_timeout * 1000;
+        opt_data.VolumeParams.FileInfoTimeout = opt_data.attr_timeout * 1000;
     if (opt_data.set_DirInfoTimeout)
         opt_data.VolumeParams.DirInfoTimeoutValid = 1;
     if (opt_data.set_VolumeInfoTimeout)
