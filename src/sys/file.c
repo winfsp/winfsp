@@ -791,7 +791,7 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     LARGE_INTEGER TruncateSize, *PTruncateSize = 0;
-    BOOLEAN DeletePending, DeletedFromContextTable = FALSE, SingleHandle = FALSE;
+    BOOLEAN DeletePending = FALSE, DeletedFromContextTable = FALSE, SingleHandle = FALSE;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
@@ -896,9 +896,19 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
     {
         /* NOTE: Do not use FspFileNodeFlushAndPurgeCache. It does not seem to work well! */
 
-        IO_STATUS_BLOCK IoStatus;
+        if (!DeletePending)
+        {
+            IO_STATUS_BLOCK IoStatus;
+            LARGE_INTEGER ZeroOffset = { 0 };
 
-        FspCcFlushCache(FileObject->SectionObjectPointer, 0, 0, &IoStatus);
+            if (0 != PTruncateSize && 0 == PTruncateSize->HighPart)
+                FspCcFlushCache(FileObject->SectionObjectPointer, &ZeroOffset, PTruncateSize->LowPart,
+                    &IoStatus);
+            else
+                FspCcFlushCache(FileObject->SectionObjectPointer, 0, 0,
+                    &IoStatus);
+        }
+
         CcPurgeCacheSection(FileObject->SectionObjectPointer, 0, 0, TRUE);
     }
 
