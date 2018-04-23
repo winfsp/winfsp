@@ -40,6 +40,8 @@ struct fsp_fuse_core_opt_data
         set_attr_timeout, attr_timeout,
         rellinks;
     int set_FileInfoTimeout,
+        set_DirInfoTimeout,
+        set_VolumeInfoTimeout,
         set_FlushAndPurgeOnCleanup;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     UINT16 VolumeLabelLength;
@@ -100,6 +102,10 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("VolumeSerialNumber=%lx", VolumeParams.VolumeSerialNumber, 0),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=", set_FileInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("FileInfoTimeout=%d", VolumeParams.FileInfoTimeout, 0),
+    FSP_FUSE_CORE_OPT("DirInfoTimeout=", set_DirInfoTimeout, 1),
+    FSP_FUSE_CORE_OPT("DirInfoTimeout=%d", VolumeParams.DirInfoTimeout, 0),
+    FSP_FUSE_CORE_OPT("VolumeInfoTimeout=", set_VolumeInfoTimeout, 1),
+    FSP_FUSE_CORE_OPT("VolumeInfoTimeout=%d", VolumeParams.VolumeInfoTimeout, 0),
     FSP_FUSE_CORE_OPT("FlushAndPurgeOnCleanup=", set_FlushAndPurgeOnCleanup, 1),
     FUSE_OPT_KEY("UNC=", 'U'),
     FUSE_OPT_KEY("--UNC=", 'U'),
@@ -473,7 +479,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
     default:
         return 1;
     case 'h':
-        /* Note: The limit on FspServiceLog messages is 1024 bytes. This is getting close. */
+        /* Note: The limit on FspServiceLog messages is 1024 bytes. */
         FspServiceLog(EVENTLOG_ERROR_TYPE, L""
             FSP_FUSE_LIBRARY_NAME " options:\n"
             "    -o umask=MASK              set file permissions (octal)\n"
@@ -486,9 +492,12 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "        --VolumePrefix=UNC     set UNC prefix (\\Server\\Share)\n"
             "    -o FileSystemName=NAME     set file system name\n"
             "    -o DebugLog=FILE           debug log file (requires -d)\n"
-            "\n"
+            );
+        FspServiceLog(EVENTLOG_ERROR_TYPE, L""
             FSP_FUSE_LIBRARY_NAME " advanced options:\n"
             "    -o FileInfoTimeout=N       metadata timeout (millis, -1 for data caching)\n"
+            "    -o DirInfoTimeout=N        directory info timeout (millis)\n"
+            "    -o VolumeInfoTimeout=N     volume info timeout (millis)\n"
             "    -o FlushAndPurgeOnCleanup  flush and purge cache on cleanup\n"
             );
         opt_data->help = 1;
@@ -570,6 +579,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     memset(&opt_data, 0, sizeof opt_data);
     opt_data.env = env;
     opt_data.DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
+    opt_data.VolumeParams.Version = sizeof(FSP_FSCTL_VOLUME_PARAMS);
     opt_data.VolumeParams.FileInfoTimeout = 1000;   /* default FileInfoTimeout for FUSE file systems */
 
     if (-1 == fsp_fuse_opt_parse(env, args, &opt_data, fsp_fuse_core_opts, fsp_fuse_core_opt_proc))
@@ -611,6 +621,10 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
 
     if (!opt_data.set_FileInfoTimeout && opt_data.set_attr_timeout)
         opt_data.VolumeParams.FileInfoTimeout = opt_data.set_attr_timeout * 1000;
+    if (opt_data.set_DirInfoTimeout)
+        opt_data.VolumeParams.DirInfoTimeoutValid = 1;
+    if (opt_data.set_VolumeInfoTimeout)
+        opt_data.VolumeParams.VolumeInfoTimeoutValid = 1;
     if (opt_data.set_FlushAndPurgeOnCleanup)
         opt_data.VolumeParams.FlushAndPurgeOnCleanup = TRUE;
     opt_data.VolumeParams.CaseSensitiveSearch = TRUE;
