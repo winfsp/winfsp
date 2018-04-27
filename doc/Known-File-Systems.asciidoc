@@ -4,6 +4,7 @@ This document contains a list of known file systems and file system libraries th
 
 == File Systems
 
+- https://github.com/vgough/encfs[EncFS] - an Encrypted Filesystem for FUSE
 - https://github.com/ihaveamac/fuse-3ds[fuse-3ds] - FUSE Filesystem Python scripts for Nintendo 3DS files
 - https://github.com/FrKaram/KS2.Drive[KS2.Drive] - Mount a webDAV/AOS server as a local drive
 - https://github.com/billziss-gh/nfs-win[nfs-win] - NFS for Windows
