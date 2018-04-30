@@ -1650,7 +1650,8 @@ static int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
     memset(DirInfo, 0, sizeof *DirInfo);
     DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + SizeW * sizeof(WCHAR));
 
-    if (dh->ReaddirPlus && 0 != stbuf)
+    if (dh->ReaddirPlus && 0 != stbuf &&
+        0120000/* S_IFLNK */ != (stbuf->st_mode & 0170000))
     {
         UINT32 Uid, Gid, Mode;
         NTSTATUS Result0;
