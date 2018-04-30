@@ -711,14 +711,16 @@ static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
 
     Result = fsp_fuse_intf_GetSecurityEx(FileSystem, PosixPath, 0,
         PFileAttributes, SecurityDescriptorBuf, PSecurityDescriptorSize);
-    if (!NT_SUCCESS(Result))
+    if (!NT_SUCCESS(Result) &&
+        STATUS_OBJECT_NAME_NOT_FOUND != Result &&
+        STATUS_OBJECT_PATH_NOT_FOUND != Result)
         goto exit;
 
     if (FSP_FUSE_HAS_SYMLINKS(f) &&
         FspFileSystemFindReparsePoint(FileSystem, fsp_fuse_intf_GetReparsePointByName, 0,
             FileName, PFileAttributes))
         Result = STATUS_REPARSE;
-    else
+    else if (NT_SUCCESS(Result))
         Result = STATUS_SUCCESS;
 
 exit:
