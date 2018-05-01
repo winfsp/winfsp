@@ -8,6 +8,10 @@ Changes since v1.2POST1:
 * Multiple Launcher changes:
 ** New `FspLaunch` API. File systems can be started, stopped, queried and listed using `FspLaunchStart`, `FspLaunchStop`, `FspLaunchGetInfo` and `FspLaunchGetNameList`. The API is available in <winfsp/launch.h>
 ** New Launcher registry settings `RunAs` and `WorkDirectory`. `RunAs` allows the laucher to launch a file system process under the service accounts LocalService and NetworkService. `WorkDirectory` can be used to specify the work directory for a newly launched file system process.
+* `FSP_FSCTL_VOLUME_PARAMS::FlushAndPurgeOnCleanup` limits the time that Windows keeps files open after an application has closed them. This purges the cache on the last `CloseHandle`, which is a performance drawback.
+** This is now the default behavior on FUSE. To revert to the previous behavior of keeping files open indefinitely use `-o KeepFileCache`.
+* `FSP_FSCTL_VOLUME_PARAMS` has been extended with fine-grained timeouts: `VolumeInfoTimeout`, `DirInfoTimeout`, `SecurityTimeout`, `StreamInfoTimeout`. Set `FSP_FSCTL_VOLUME_PARAMS::Version == sizeof(FSP_FSCTL_VOLUME_PARAMS)` to access the new fields.
+** New FUSE optons `VolumeInfoTimeout`, `DirInfoTimeout` complement the existing `FileInfoTimeout`.
 * The FSD (File System Driver) and its interaction with the Windows MUP (Multiple UNC Provider) has been changed. In practice this eliminates the delays experienced when right-clicking on a WinFsp-backed network drive in the Windows Explorer. (GitHub issue #87.)
 * The WinFsp network provider is now added first in the provider order list. Previously it was added last. (GitHub PR #131; thanks @felfert.)
 * The WinFsp installer now uses the Wix `Provides` dependency extension to provide a `WinFsp` dependency key. (GitHub PR #129; thanks @felfert.)
