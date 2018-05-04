@@ -1,6 +1,13 @@
 = Changelog
 
 
+v1.4B1 (2018.2 B1)::
+
+Changes since v1.3:
+
+* New `Control` file system operation allows sending custom control codes to the file system using the Windows `DeviceIoControl` API.
+
+
 v1.3 (2018.1)::
 
 Changes since v1.2POST1:
