@@ -822,12 +822,41 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     NTSTATUS (*GetDirInfoByName)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext, PWSTR FileName,
         FSP_FSCTL_DIR_INFO *DirInfo);
+    /**
+     * Process control code.
+     *
+     * This function is called when a program uses the DeviceIoControl API.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param FileContext
+     *     The file context of the file or directory to be controled.
+     * @param ControlCode
+     *     The control code for the operation. This code must have a DeviceType with bit
+     *     0x8000 set and must have a TransferType of METHOD_BUFFERED.
+     * @param InputBuffer
+     *     Pointer to a buffer that contains the input data.
+     * @param InputBufferLength
+     *     Input data length.
+     * @param Buffer
+     *     Pointer to a buffer that will receive the output data.
+     * @param Length
+     *     Output data length.
+     * @param PBytesTransferred [out]
+     *     Pointer to a memory location that will receive the actual number of bytes transferred.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     */
+    NTSTATUS (*Control)(FSP_FILE_SYSTEM *FileSystem,
+        PVOID FileContext, UINT32 ControlCode,
+        PVOID InputBuffer, ULONG InputBufferLength,
+        PVOID OutputBuffer, ULONG OutputBufferLength, PULONG PBytesTransferred);
 
     /*
      * This ensures that this interface will always contain 64 function pointers.
      * Please update when changing the interface as it is important for future compatibility.
      */
-    NTSTATUS (*Reserved[39])();
+    NTSTATUS (*Reserved[38])();
 } FSP_FILE_SYSTEM_INTERFACE;
 FSP_FSCTL_STATIC_ASSERT(sizeof(FSP_FILE_SYSTEM_INTERFACE) == 64 * sizeof(NTSTATUS (*)()),
     "FSP_FILE_SYSTEM_INTERFACE must have 64 entries.");
@@ -1140,6 +1169,8 @@ FSP_API NTSTATUS FspFileSystemOpSetVolumeInformation(FSP_FILE_SYSTEM *FileSystem
 FSP_API NTSTATUS FspFileSystemOpQueryDirectory(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+FSP_API NTSTATUS FspFileSystemOpDeviceControl(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
