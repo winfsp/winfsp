@@ -838,9 +838,9 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Pointer to a buffer that contains the input data.
      * @param InputBufferLength
      *     Input data length.
-     * @param Buffer
+     * @param OutputBuffer
      *     Pointer to a buffer that will receive the output data.
-     * @param Length
+     * @param OutputBufferLength
      *     Output data length.
      * @param PBytesTransferred [out]
      *     Pointer to a memory location that will receive the actual number of bytes transferred.
