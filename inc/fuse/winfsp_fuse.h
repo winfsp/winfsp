@@ -53,6 +53,17 @@ extern "C" {
 #endif
 #endif
 
+#define FSP_FUSE_DEVICE_TYPE            (0x8000 | 'W' | 'F' * 0x100) /* DeviceIoControl -> ioctl */
+#define FSP_FUSE_CTLCODE_FROM_IOCTL(cmd)\
+    (FSP_FUSE_DEVICE_TYPE << 16) | (((c) & 0x0fff) << 2)
+#define FSP_FUSE_IOCTL(cmd, isiz, osiz) \
+    (                                   \
+        (((osiz) != 0) << 31) |         \
+        (((isiz) != 0) << 30) |         \
+        (((isiz) | (osiz)) << 16) |     \
+        (cmd)                           \
+    )
+
 /*
  * FUSE uses a number of types (notably: struct stat) that are OS specific.
  * Furthermore there are sometimes multiple definitions of the same type even

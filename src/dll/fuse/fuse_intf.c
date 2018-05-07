@@ -2125,6 +2125,47 @@ static NTSTATUS fsp_fuse_intf_DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_ACCESS_DENIED;
 }
 
+static NTSTATUS fsp_fuse_intf_Control(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode, UINT32 ControlCode,
+    PVOID InputBuffer, ULONG InputBufferLength,
+    PVOID OutputBuffer, ULONG OutputBufferLength, PULONG PBytesTransferred)
+{
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc = FileNode;
+    struct fuse_file_info fi;
+    int cmd;
+    int err;
+
+    if (0 == f->ops.ioctl)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    if (FSP_FUSE_DEVICE_TYPE != DEVICE_TYPE_FROM_CTL_CODE(ControlCode))
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    if (0 != InputBufferLength && 0 != OutputBufferLength &&
+        InputBufferLength != OutputBufferLength)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    /* construct a Linux compatible ioctl code */
+    cmd = FSP_FUSE_IOCTL((ControlCode >> 2) & 0xfff, InputBufferLength, OutputBufferLength);
+
+    if (0 == OutputBufferLength)
+        err = f->ops.ioctl(filedesc->PosixPath, cmd, 0, &fi, 0, InputBuffer);
+    else
+    {
+        if (0 != InputBufferLength)
+            // OutputBuffer points to Response->Buffer which is FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX long
+            memcpy(OutputBuffer, InputBuffer, InputBufferLength);
+        err = f->ops.ioctl(filedesc->PosixPath, cmd, 0, &fi, 0, OutputBuffer);
+    }
+
+    return fsp_fuse_ntstatus_from_errno(f->env, err);
+}
+
 FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
 {
     fsp_fuse_intf_GetVolumeInfo,
@@ -2152,6 +2193,7 @@ FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
     fsp_fuse_intf_DeleteReparsePoint,
     0,
     fsp_fuse_intf_GetDirInfoByName,
+    fsp_fuse_intf_Control,
 };
 
 /*
