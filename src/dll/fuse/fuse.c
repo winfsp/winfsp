@@ -376,6 +376,15 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
                     &f->VolumeParams.VolumeCreationTime);
         }
     }
+    if (0 != f->ops.readlink)
+    {
+        char buf[FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR)];
+        int err;
+
+        /* this should always fail with ENOSYS or EINVAL */
+        err = f->ops.readlink("/", buf, sizeof buf);
+        f->has_symlinks = -ENOSYS != err;
+    }
 
     /* the FSD does not currently limit these VolumeParams fields; do so here! */
     if (f->VolumeParams.SectorSize < FSP_FUSE_SECTORSIZE_MIN ||

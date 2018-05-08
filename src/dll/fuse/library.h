@@ -29,7 +29,7 @@
 #define FSP_FUSE_CONTEXT_FROM_HDR(h)    \
     (struct fuse_context *)((PUINT8)(h) + sizeof(struct fsp_fuse_context_header))
 
-#define FSP_FUSE_HAS_SYMLINKS(f)        (0 != (f)->ops.readlink)
+#define FSP_FUSE_HAS_SYMLINKS(f)        ((f)->has_symlinks)
 
 struct fuse
 {
@@ -44,6 +44,7 @@ struct fuse
     void *data;
     unsigned conn_want;
     BOOLEAN fsinit;
+    BOOLEAN has_symlinks;
     UINT32 DebugLog;
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
