@@ -87,7 +87,7 @@ struct fuse_operations
     /* _ */ unsigned int flag_nopath:1;
     /* _ */ unsigned int flag_utime_omit_ok:1;
     /* _ */ unsigned int flag_reserved:29;
-    /* _ */ int (*ioctl)(const char *path, int cmd, void *arg, struct fuse_file_info *fi,
+    /* S */ int (*ioctl)(const char *path, int cmd, void *arg, struct fuse_file_info *fi,
         unsigned int flags, void *data);
     /* _ */ int (*poll)(const char *path, struct fuse_file_info *fi,
         struct fuse_pollhandle *ph, unsigned *reventsp);

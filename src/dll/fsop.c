@@ -1247,6 +1247,30 @@ FSP_API NTSTATUS FspFileSystemOpFileSystemControl(FSP_FILE_SYSTEM *FileSystem,
     return Result;
 }
 
+FSP_API NTSTATUS FspFileSystemOpDeviceControl(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    NTSTATUS Result;
+    ULONG BytesTransferred;
+
+    if (0 == FileSystem->Interface->Control)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    Result = FileSystem->Interface->Control(FileSystem,
+        (PVOID)ValOfFileContext(Request->Req.DeviceControl),
+        Request->Req.DeviceControl.IoControlCode,
+        Request->Buffer, Request->Req.DeviceControl.Buffer.Size,
+        Response->Buffer, Request->Req.DeviceControl.OutputLength/* FSD guarantees correct size! */,
+        &BytesTransferred);
+    if (!NT_SUCCESS(Result))
+        return STATUS_BUFFER_OVERFLOW != Result ? Result : STATUS_BUFFER_TOO_SMALL;
+
+    Response->Size = (UINT16)(sizeof *Response + BytesTransferred);
+    Response->Rsp.DeviceControl.Buffer.Offset = 0;
+    Response->Rsp.DeviceControl.Buffer.Size = (UINT16)BytesTransferred;
+    return STATUS_SUCCESS;
+}
+
 FSP_API NTSTATUS FspFileSystemOpQuerySecurity(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {

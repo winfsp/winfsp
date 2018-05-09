@@ -56,6 +56,11 @@ FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
 #define MEMFS_SLOWIO
 
 /*
+ * Define the MEMFS_CONTROL macro to include DeviceControl support.
+ */
+#define MEMFS_CONTROL
+
+/*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
  * a check for the Write buffer to ensure that it is read-only.
  *
@@ -1895,6 +1900,38 @@ static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM *FileSystem,
 }
 #endif
 
+#if defined(MEMFS_CONTROL)
+static NTSTATUS Control(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileContext, UINT32 ControlCode,
+    PVOID InputBuffer, ULONG InputBufferLength,
+    PVOID OutputBuffer, ULONG OutputBufferLength, PULONG PBytesTransferred)
+{
+    /* MEMFS also supports encryption! See below :) */
+    if (CTL_CODE(0x8000 + 'M', 'R', METHOD_BUFFERED, FILE_ANY_ACCESS) == ControlCode)
+    {
+        if (OutputBufferLength != InputBufferLength)
+            return STATUS_INVALID_PARAMETER;
+
+        for (PUINT8 P = (PUINT8)InputBuffer, Q = (PUINT8)OutputBuffer, EndP = P + InputBufferLength;
+            EndP > P; P++, Q++)
+        {
+            if (('A' <= *P && *P <= 'M') || ('a' <= *P && *P <= 'm'))
+                *Q = *P + 13;
+            else
+            if (('N' <= *P && *P <= 'Z') || ('n' <= *P && *P <= 'z'))
+                *Q = *P - 13;
+            else
+                *Q = *P;
+        }
+
+        *PBytesTransferred = InputBufferLength;
+        return STATUS_SUCCESS;
+    }
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+#endif
+
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
     GetVolumeInfo,
@@ -1934,6 +1971,11 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 #endif
 #if defined(MEMFS_DIRINFO_BY_NAME)
     GetDirInfoByName,
+#else
+    0,
+#endif
+#if defined(MEMFS_CONTROL)
+    Control,
 #else
     0,
 #endif
@@ -2028,6 +2070,9 @@ NTSTATUS MemfsCreateFunnel(
     VolumeParams.PassQueryDirectoryFileName = 1;
 #endif
     VolumeParams.FlushAndPurgeOnCleanup = FlushAndPurgeOnCleanup;
+#if defined(MEMFS_CONTROL)
+    VolumeParams.DeviceControl = 1;
+#endif
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
     wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),

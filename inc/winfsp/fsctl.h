@@ -82,6 +82,8 @@ FSP_FSCTL_STATIC_ASSERT(FSP_FSCTL_VOLUME_NAME_SIZEMAX <= 260 * sizeof(WCHAR),
 #define FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(T)  ((HANDLE)((T) & 0xffffffff))
 #define FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(T)     ((UINT32)(((T) >> 32) & 0xffffffff))
 
+#define FSP_FSCTL_DEVICECONTROL_SIZEMAX (4 * 1024)  /* must be < FSP_FSCTL_TRANSACT_{REQ,RSP}_SIZEMAX */
+
 /* marshalling */
 #pragma warning(push)
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
@@ -154,11 +156,13 @@ enum
     UINT32 AlwaysUseDoubleBuffering:1;\
     UINT32 PassQueryDirectoryFileName:1;    /* pass FileName during QueryDirectory (GetDirInfoByName) */\
     UINT32 FlushAndPurgeOnCleanup:1;        /* keeps file off "standby" list */\
-    UINT32 KmReservedFlags:1;\
+    UINT32 DeviceControl:1;                 /* support user-mode ioctl handling */\
     /* user-mode flags */\
     UINT32 UmFileContextIsUserContext2:1;   /* user mode: FileContext parameter is UserContext2 */\
     UINT32 UmFileContextIsFullContext:1;    /* user mode: FileContext parameter is FullContext */\
-    UINT32 UmReservedFlags:14;\
+    UINT32 UmReservedFlags:6;\
+    /* additional kernel-mode flags */\
+    UINT32 KmReservedFlags:8;\
     WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */\
     WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
 #define FSP_FSCTL_VOLUME_PARAMS_V1_FIELD_DEFN\
@@ -384,6 +388,14 @@ typedef struct
         {
             UINT64 UserContext;
             UINT64 UserContext2;
+            UINT32 IoControlCode;
+            FSP_FSCTL_TRANSACT_BUF Buffer;
+            UINT32 OutputLength;
+        } DeviceControl;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
         } QuerySecurity;
         struct
         {
@@ -465,6 +477,10 @@ typedef struct
         {
             FSP_FSCTL_TRANSACT_BUF Buffer;
         } FileSystemControl;
+        struct
+        {
+            FSP_FSCTL_TRANSACT_BUF Buffer;
+        } DeviceControl;
         struct
         {
             FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;

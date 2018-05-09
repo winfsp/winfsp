@@ -1020,6 +1020,35 @@ namespace Fsp
                 return ExceptionHandler(FileSystem, ex);
             }
         }
+        private static Int32 Control(
+            IntPtr FileSystemPtr,
+            ref FullContext FullContext,
+            UInt32 ControlCode,
+            IntPtr InputBuffer, UInt32 InputBufferLength,
+            IntPtr OutputBuffer, UInt32 OutputBufferLength,
+            out UInt32 PBytesTransferred)
+        {
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
+            try
+            {
+                Object FileNode, FileDesc;
+                Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
+                return FileSystem.Control(
+                    FileNode,
+                    FileDesc,
+                    ControlCode,
+                    InputBuffer,
+                    InputBufferLength,
+                    OutputBuffer,
+                    OutputBufferLength,
+                    out PBytesTransferred);
+            }
+            catch (Exception ex)
+            {
+                PBytesTransferred = default(UInt32);
+                return ExceptionHandler(FileSystem, ex);
+            }
+        }
 
         static FileSystemHost()
         {
@@ -1048,6 +1077,7 @@ namespace Fsp
             _FileSystemInterface.DeleteReparsePoint = DeleteReparsePoint;
             _FileSystemInterface.GetStreamInfo = GetStreamInfo;
             _FileSystemInterface.GetDirInfoByName = GetDirInfoByName;
+            _FileSystemInterface.Control = Control;
 
             _FileSystemInterfacePtr = Marshal.AllocHGlobal(FileSystemInterface.Size);
             Marshal.StructureToPtr(_FileSystemInterface, _FileSystemInterfacePtr, false);

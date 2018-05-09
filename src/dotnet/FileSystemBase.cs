@@ -966,6 +966,49 @@ namespace Fsp
             FileInfo = default(FileInfo);
             return STATUS_INVALID_DEVICE_REQUEST;
         }
+        /// <summary>
+        /// Processes a control code.
+        /// </summary>
+        /// <remarks>
+        /// This function is called when a program uses the DeviceIoControl API.
+        /// </remarks>
+        /// <param name="FileNode">
+        /// The file node of the file or directory to be controled.
+        /// </param>
+        /// <param name="FileDesc">
+        /// The file descriptor of the file or directory to be controled.
+        /// </param>
+        /// <param name="ControlCode">
+        /// The control code for the operation. This code must have a DeviceType with bit
+        /// 0x8000 set and must have a TransferType of METHOD_BUFFERED.
+        /// </param>
+        /// <param name="InputBuffer">
+        /// Pointer to a buffer that contains the input data.
+        /// </param>
+        /// <param name="InputBufferLength">
+        /// Input data length.
+        /// </param>
+        /// <param name="OutputBuffer">
+        ///  Pointer to a buffer that will receive the output data.
+        /// </param>
+        /// <param name="OutputBufferLength">
+        /// Output data length.
+        /// </param>
+        /// <param name="BytesTransferred">
+        /// Receives the actual number of bytes transferred.
+        /// </param>
+        /// <returns>STATUS_SUCCESS or error code.</returns>
+        public virtual Int32 Control(
+            Object FileNode,
+            Object FileDesc,
+            UInt32 ControlCode,
+            IntPtr InputBuffer, UInt32 InputBufferLength,
+            IntPtr OutputBuffer, UInt32 OutputBufferLength,
+            out UInt32 BytesTransferred)
+        {
+            BytesTransferred = default(UInt32);
+            return STATUS_INVALID_DEVICE_REQUEST;
+        }
 
         /* helpers */
         /// <summary>

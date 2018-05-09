@@ -457,6 +457,14 @@ namespace Fsp.Interop
                 ref FullContext FullContext,
                 [MarshalAs(UnmanagedType.LPWStr)] String FileName,
                 out DirInfo DirInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 Control(
+                IntPtr FileSystem,
+                ref FullContext FullContext,
+                UInt32 ControlCode,
+                IntPtr InputBuffer, UInt32 InputBufferLength,
+                IntPtr OutputBuffer, UInt32 OutputBufferLength,
+                out UInt32 PBytesTransferred);
         }
 
         internal static int Size = IntPtr.Size * 64;
@@ -486,7 +494,8 @@ namespace Fsp.Interop
         internal Proto.DeleteReparsePoint DeleteReparsePoint;
         internal Proto.GetStreamInfo GetStreamInfo;
         internal Proto.GetDirInfoByName GetDirInfoByName;
-        /* NTSTATUS (*Reserved[39])(); */
+        internal Proto.Control Control;
+        /* NTSTATUS (*Reserved[38])(); */
     }
 
     [SuppressUnmanagedCodeSecurity]
