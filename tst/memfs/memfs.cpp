@@ -222,11 +222,16 @@ int MemfsFileNameCompare(PWSTR a0, int alen, PWSTR b0, int blen, BOOLEAN CaseIns
 
     if (CaseInsensitive)
     {
-        /* better Unicode comparison when case-insensitive */
+        /*
+         * Turns out that CompareStringW does not like characters such as '\x1' and '\x2'.
+         * Disabling this.
+         */
+#if 0
         res = CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE, a, alen, b, blen);
         if (0 != res)
             res -= 2;
         else
+#endif
             res = _wcsnicmp(a, b, len);
     }
     else
