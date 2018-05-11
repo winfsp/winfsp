@@ -150,97 +150,67 @@ UINT64 MemfsGetSystemTime(VOID)
 }
 
 static inline
-int MemfsFileNameCompare(PWSTR a0, int alen, PWSTR b0, int blen, BOOLEAN CaseInsensitive)
+int MemfsFileNameCompare(PWSTR a, int alen, PWSTR b, int blen, BOOLEAN CaseInsensitive)
 {
-    /*
-     * HACKFIX GITHUB ISSUE #103
-     *
-     * MEMFS stores the whole file system in a single map. This was to keep the file system
-     * "simple", but in retrospect it was probably a bad decision as it creates multiple problems.
-     *
-     * One of these problems was what caused GitHub issue #103. A directory that had both "Firefox"
-     * and "Firefox64" subdirectories in it would cause directory listings of "Firefox" to fail,
-     * because "Firefox\\" (and "Firefox:") comes *after* "Firefox64" in case-sensitive or
-     * case-insensitive order!
-     *
-     * The hackfix is this: copy our input strings into temporary buffers and then translate ':' to
-     * '\x1' and '\\' to '\x2' so they always order the FileName map properly.
-     */
-
-    WCHAR a[MEMFS_MAX_PATH], b[MEMFS_MAX_PATH];
-    int len, res;
+    PWSTR p, endp, partp, q, endq, partq;
+    WCHAR c, d;
+    int plen, qlen, len, res;
 
     if (-1 == alen)
-    {
-        PWSTR p = a0, q = a;
-        for (; *p; p++, q++)
-            if (L':' == *p)
-                *q = L'\x1';
-            else if (L'\\' == *p)
-                *q = L'\x2';
-            else
-                *q = *p;
-        alen = (int)(p - a0);
-    }
-    else
-    {
-        PWSTR p = a0, q = a;
-        for (PWSTR endp = p + alen; endp > p; p++, q++)
-            if (L':' == *p)
-                *q = L'\x1';
-            else if (L'\\' == *p)
-                *q = L'\x2';
-            else
-                *q = *p;
-    }
-
+        alen = lstrlenW(a);
     if (-1 == blen)
-    {
-        PWSTR p = b0, q = b;
-        for (; *p; p++, q++)
-            if (L':' == *p)
-                *q = L'\x1';
-            else if (L'\\' == *p)
-                *q = L'\x2';
-            else
-                *q = *p;
-        blen = (int)(p - b0);
-    }
-    else
-    {
-        PWSTR p = b0, q = b;
-        for (PWSTR endp = p + blen; endp > p; p++, q++)
-            if (L':' == *p)
-                *q = L'\x1';
-            else if (L'\\' == *p)
-                *q = L'\x2';
-            else
-                *q = *p;
-    }
+        blen = lstrlenW(b);
 
-    len = alen < blen ? alen : blen;
-
-    if (CaseInsensitive)
+    for (p = a, endp = p + alen, q = b, endq = q + blen; endp > p && endq > q;)
     {
-        /*
-         * Turns out that CompareStringW does not like characters such as '\x1' and '\x2'.
-         * Disabling this.
-         */
-#if 0
-        res = CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE, a, alen, b, blen);
+        c = d = 0;
+        for (; endp > p && (L':' == *p || L'\\' == *p); p++)
+            c = *p;
+        for (; endq > q && (L':' == *q || L'\\' == *q); q++)
+            d = *q;
+
+        if (L':' == c)
+            c = 1;
+        else if (L'\\' == c)
+            c = 2;
+        if (L':' == d)
+            d = 1;
+        else if (L'\\' == d)
+            d = 2;
+
+        res = c - d;
         if (0 != res)
-            res -= 2;
+            return res;
+
+        for (partp = p; endp > p && L':' != *p && L'\\' != *p; p++)
+            ;
+        for (partq = q; endq > q && L':' != *q && L'\\' != *q; q++)
+            ;
+
+        plen = (int)(p - partp);
+        qlen = (int)(q - partq);
+
+        len = plen < qlen ? plen : qlen;
+
+        if (CaseInsensitive)
+        {
+            res = CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE, partp, plen, partq, qlen);
+            if (0 != res)
+                res -= 2;
+            else
+                res = _wcsnicmp(partp, partq, len);
+        }
         else
-#endif
-            res = _wcsnicmp(a, b, len);
+            res = wcsncmp(partp, partq, len);
+
+        if (0 == res)
+            res = plen - qlen;
+
+        if (0 != res)
+            return res;
     }
-    else
-        res = wcsncmp(a, b, len);
 
-    if (0 == res)
-        res = alen - blen;
-
-    return res;
+    return -(endp <= p) + (endq <= q);
 }
 
 static inline
