@@ -43,6 +43,7 @@ namespace Fsp.Interop
         internal const UInt32 PassQueryDirectoryPattern = 0x00000800;
         internal const UInt32 AlwaysUseDoubleBuffering = 0x00001000;
         internal const UInt32 PassQueryDirectoryFileName = 0x00002000;
+        internal const UInt32 FlushAndPurgeOnCleanup = 0x00004000;
         internal const UInt32 UmFileContextIsUserContext2 = 0x00010000;
         internal const UInt32 UmFileContextIsFullContext = 0x00020000;
         internal const int PrefixSize = 192;
@@ -903,17 +904,17 @@ namespace Fsp.Interop
             Byte[] ModificationDescriptorBytes)
         {
             fixed (Byte *S = SecurityDescriptorBytes)
-                fixed (Byte *M = ModificationDescriptorBytes)
-                {
-                    IntPtr SecurityDescriptor;
-                    Int32 Result = FspSetSecurityDescriptor(
-                        (IntPtr)S, SecurityInformation, (IntPtr)M, out SecurityDescriptor);
-                    if (0 > Result)
-                        return null;
-                    SecurityDescriptorBytes = MakeSecurityDescriptor(SecurityDescriptor);
-                    FspDeleteSecurityDescriptor(SecurityDescriptor, _FspSetSecurityDescriptorPtr);
-                    return SecurityDescriptorBytes;
-                }
+            fixed (Byte *M = ModificationDescriptorBytes)
+            {
+                IntPtr SecurityDescriptor;
+                Int32 Result = FspSetSecurityDescriptor(
+                    (IntPtr)S, SecurityInformation, (IntPtr)M, out SecurityDescriptor);
+                if (0 > Result)
+                    return null;
+                SecurityDescriptorBytes = MakeSecurityDescriptor(SecurityDescriptor);
+                FspDeleteSecurityDescriptor(SecurityDescriptor, _FspSetSecurityDescriptorPtr);
+                return SecurityDescriptorBytes;
+            }
         }
 
         internal unsafe static Int32 CopyReparsePoint(
@@ -953,10 +954,10 @@ namespace Fsp.Interop
             Byte[] ReplaceReparseData)
         {
             fixed (Byte *C = CurrentReparseData)
-                fixed (Byte *R = ReplaceReparseData)
-                    return _FspFileSystemCanReplaceReparsePoint(
-                        (IntPtr)C, (UIntPtr)CurrentReparseData.Length,
-                        (IntPtr)R, (UIntPtr)ReplaceReparseData.Length);
+            fixed (Byte *R = ReplaceReparseData)
+                return _FspFileSystemCanReplaceReparsePoint(
+                    (IntPtr)C, (UIntPtr)CurrentReparseData.Length,
+                    (IntPtr)R, (UIntPtr)ReplaceReparseData.Length);
         }
 
         internal static Int32 SetDebugLogFile(String FileName)
@@ -977,6 +978,15 @@ namespace Fsp.Interop
                 return FspNtStatusFromWin32((UInt32)Marshal.GetLastWin32Error());
             Api.FspDebugLogSetHandle(Handle);
             return 0/*STATUS_SUCCESS*/;
+        }
+
+        internal static Version GetFspVersion()
+        {
+            UInt32 Version = 0, VersionMajor, VersionMinor;
+            FspVersion(out Version);
+            VersionMajor = Version >> 16;
+            VersionMinor = Version & 0xFFFF;
+            return new System.Version((Int32)VersionMajor, (Int32)VersionMinor);
         }
 
         /* initialization */

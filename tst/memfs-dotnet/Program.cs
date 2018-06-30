@@ -70,7 +70,7 @@ namespace memfs
             {
                 FileInfo FileInfo = MainFileNode.FileInfo;
                 FileInfo.FileAttributes &= ~(UInt32)FileAttributes.Directory;
-                    /* named streams cannot be directories */
+                /* named streams cannot be directories */
                 FileInfo.AllocationSize = this.FileInfo.AllocationSize;
                 FileInfo.FileSize = this.FileInfo.FileSize;
                 return FileInfo;
@@ -255,6 +255,7 @@ namespace memfs
             Host.NamedStreams = true;
             Host.PostCleanupWhenModifiedOnly = true;
             Host.PassQueryDirectoryFileName = true;
+            Host.FlushAndPurgeOnCleanup = true;
             return STATUS_SUCCESS;
         }
 
@@ -1066,40 +1067,40 @@ namespace memfs
                         break;
                     switch (Arg[1])
                     {
-                    case '?':
-                        throw new CommandLineUsageException();
-                    case 'D':
-                        argtos(Args, ref I, ref DebugLogFile);
-                        break;
-                    case 'd':
-                        argtol(Args, ref I, ref DebugFlags);
-                        break;
-                    case 'F':
-                        argtos(Args, ref I, ref FileSystemName);
-                        break;
-                    case 'i':
-                        CaseInsensitive = true;
-                        break;
-                    case 'm':
-                        argtos(Args, ref I, ref MountPoint);
-                        break;
-                    case 'n':
-                        argtol(Args, ref I, ref MaxFileNodes);
-                        break;
-                    case 'S':
-                        argtos(Args, ref I, ref RootSddl);
-                        break;
-                    case 's':
-                        argtol(Args, ref I, ref MaxFileSize);
-                        break;
-                    case 't':
-                        argtol(Args, ref I, ref FileInfoTimeout);
-                        break;
-                    case 'u':
-                        argtos(Args, ref I, ref VolumePrefix);
-                        break;
-                    default:
-                        throw new CommandLineUsageException();
+                        case '?':
+                            throw new CommandLineUsageException();
+                        case 'D':
+                            argtos(Args, ref I, ref DebugLogFile);
+                            break;
+                        case 'd':
+                            argtol(Args, ref I, ref DebugFlags);
+                            break;
+                        case 'F':
+                            argtos(Args, ref I, ref FileSystemName);
+                            break;
+                        case 'i':
+                            CaseInsensitive = true;
+                            break;
+                        case 'm':
+                            argtos(Args, ref I, ref MountPoint);
+                            break;
+                        case 'n':
+                            argtol(Args, ref I, ref MaxFileNodes);
+                            break;
+                        case 'S':
+                            argtos(Args, ref I, ref RootSddl);
+                            break;
+                        case 's':
+                            argtol(Args, ref I, ref MaxFileSize);
+                            break;
+                        case 't':
+                            argtol(Args, ref I, ref FileInfoTimeout);
+                            break;
+                        case 'u':
+                            argtos(Args, ref I, ref VolumePrefix);
+                            break;
+                        default:
+                            throw new CommandLineUsageException();
                     }
                 }
 
