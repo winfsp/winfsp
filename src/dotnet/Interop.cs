@@ -954,10 +954,10 @@ namespace Fsp.Interop
             Byte[] ReplaceReparseData)
         {
             fixed (Byte *C = CurrentReparseData)
-            fixed (Byte *R = ReplaceReparseData)
-               return _FspFileSystemCanReplaceReparsePoint(
-                   (IntPtr)C, (UIntPtr)CurrentReparseData.Length,
-                   (IntPtr)R, (UIntPtr)ReplaceReparseData.Length);
+                fixed (Byte *R = ReplaceReparseData)
+                   return _FspFileSystemCanReplaceReparsePoint(
+                       (IntPtr)C, (UIntPtr)CurrentReparseData.Length,
+                       (IntPtr)R, (UIntPtr)ReplaceReparseData.Length);
         }
 
         internal static Int32 SetDebugLogFile(String FileName)
