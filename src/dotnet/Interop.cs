@@ -955,9 +955,9 @@ namespace Fsp.Interop
         {
             fixed (Byte *C = CurrentReparseData)
                 fixed (Byte *R = ReplaceReparseData)
-                   return _FspFileSystemCanReplaceReparsePoint(
-                       (IntPtr)C, (UIntPtr)CurrentReparseData.Length,
-                       (IntPtr)R, (UIntPtr)ReplaceReparseData.Length);
+                  return _FspFileSystemCanReplaceReparsePoint(
+                      (IntPtr)C, (UIntPtr)CurrentReparseData.Length,
+                      (IntPtr)R, (UIntPtr)ReplaceReparseData.Length);
         }
 
         internal static Int32 SetDebugLogFile(String FileName)
