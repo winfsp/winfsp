@@ -255,7 +255,6 @@ namespace memfs
             Host.NamedStreams = true;
             Host.PostCleanupWhenModifiedOnly = true;
             Host.PassQueryDirectoryFileName = true;
-            Host.FlushAndPurgeOnCleanup = true;
             return STATUS_SUCCESS;
         }
 

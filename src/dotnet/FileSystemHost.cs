@@ -353,10 +353,10 @@ namespace Fsp
             return Api.SetDebugLogFile(FileName);
         }
         /// <summary>
-        /// Return the installed version for WinFSP
+        /// Return the installed version of WinFsp.
         /// </summary>
         /// <returns></returns>
-        public static Version GetFspVersion()
+        public static Version Version()
         {
             return Api.GetFspVersion();
         }

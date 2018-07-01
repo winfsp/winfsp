@@ -955,9 +955,9 @@ namespace Fsp.Interop
         {
             fixed (Byte *C = CurrentReparseData)
             fixed (Byte *R = ReplaceReparseData)
-                return _FspFileSystemCanReplaceReparsePoint(
-                    (IntPtr)C, (UIntPtr)CurrentReparseData.Length,
-                    (IntPtr)R, (UIntPtr)ReplaceReparseData.Length);
+               return _FspFileSystemCanReplaceReparsePoint(
+                   (IntPtr)C, (UIntPtr)CurrentReparseData.Length,
+                   (IntPtr)R, (UIntPtr)ReplaceReparseData.Length);
         }
 
         internal static Int32 SetDebugLogFile(String FileName)
@@ -982,11 +982,9 @@ namespace Fsp.Interop
 
         internal static Version GetFspVersion()
         {
-            UInt32 Version = 0, VersionMajor, VersionMinor;
+            UInt32 Version = 0;
             FspVersion(out Version);
-            VersionMajor = Version >> 16;
-            VersionMinor = Version & 0xFFFF;
-            return new System.Version((Int32)VersionMajor, (Int32)VersionMinor);
+            return new System.Version((Int32)Version >> 16, (Int32)Version & 0xFFFF);
         }
 
         /* initialization */
