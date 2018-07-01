@@ -904,17 +904,17 @@ namespace Fsp.Interop
             Byte[] ModificationDescriptorBytes)
         {
             fixed (Byte *S = SecurityDescriptorBytes)
-            fixed (Byte *M = ModificationDescriptorBytes)
-            {
-                IntPtr SecurityDescriptor;
-                Int32 Result = FspSetSecurityDescriptor(
-                    (IntPtr)S, SecurityInformation, (IntPtr)M, out SecurityDescriptor);
-                if (0 > Result)
-                    return null;
-                SecurityDescriptorBytes = MakeSecurityDescriptor(SecurityDescriptor);
-                FspDeleteSecurityDescriptor(SecurityDescriptor, _FspSetSecurityDescriptorPtr);
-                return SecurityDescriptorBytes;
-            }
+                fixed (Byte *M = ModificationDescriptorBytes)
+                {
+                    IntPtr SecurityDescriptor;
+                    Int32 Result = FspSetSecurityDescriptor(
+                        (IntPtr)S, SecurityInformation, (IntPtr)M, out SecurityDescriptor);
+                    if (0 > Result)
+                        return null;
+                    SecurityDescriptorBytes = MakeSecurityDescriptor(SecurityDescriptor);
+                    FspDeleteSecurityDescriptor(SecurityDescriptor, _FspSetSecurityDescriptorPtr);
+                    return SecurityDescriptorBytes;
+                }
         }
 
         internal unsafe static Int32 CopyReparsePoint(
