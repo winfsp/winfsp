@@ -70,7 +70,7 @@ namespace memfs
             {
                 FileInfo FileInfo = MainFileNode.FileInfo;
                 FileInfo.FileAttributes &= ~(UInt32)FileAttributes.Directory;
-                /* named streams cannot be directories */
+                    /* named streams cannot be directories */
                 FileInfo.AllocationSize = this.FileInfo.AllocationSize;
                 FileInfo.FileSize = this.FileInfo.FileSize;
                 return FileInfo;
