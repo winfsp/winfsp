@@ -75,6 +75,8 @@ set opt_tests=^
     ifstest-memfs-x64-disk ^
     ifstest-memfs-x86-disk ^
     ifstest-memfs-dotnet-disk ^
+    sample-airfs-x64 ^
+    sample-airfs-x86 ^
     sample-passthrough-x64 ^
     sample-passthrough-x86 ^
     sample-passthrough-fuse-x64 ^
@@ -649,6 +651,16 @@ for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* /z /v ^| findst
 if not X!IfsTestFound!==XYES set IfsTestExit=1
 exit /b !IfsTestExit!
 
+:sample-airfs-x64
+call :__run_sample_test airfs x64 airfs-x64 winfsp-tests-x64 NOEXCL
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-airfs-x86
+call :__run_sample_test airfs x86 airfs-x86 winfsp-tests-x86 NOEXCL
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :sample-passthrough-x64
 call :__run_sample_test passthrough x64 passthrough-x64 winfsp-tests-x64
 if !ERRORLEVEL! neq 0 goto fail
@@ -709,10 +721,15 @@ net use | findstr L:
 pushd >nul
 cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
-"%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
-    --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
-    -create_allocation_test -getfileinfo_name_test -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test ^
-    -reparse* -stream* %~5
+if X%5==XNOEXCL (
+    "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
+        --external --resilient
+) else (
+    "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
+        --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
+        -create_allocation_test -getfileinfo_name_test -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test ^
+        -reparse* -stream* %~5
+)
 if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
 popd
 echo net use L: /delete
