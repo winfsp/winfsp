@@ -355,10 +355,9 @@ namespace Fsp
         /// <summary>
         /// Return the installed version of WinFsp.
         /// </summary>
-        /// <returns></returns>
         public static Version Version()
         {
-            return Api.GetFspVersion();
+            return Api.GetVersion();
         }
 
         /* FSP_FILE_SYSTEM_INTERFACE */

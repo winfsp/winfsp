@@ -980,7 +980,7 @@ namespace Fsp.Interop
             return 0/*STATUS_SUCCESS*/;
         }
 
-        internal static Version GetFspVersion()
+        internal static Version GetVersion()
         {
             UInt32 Version = 0;
             FspVersion(out Version);
