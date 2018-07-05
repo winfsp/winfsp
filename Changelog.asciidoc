@@ -1,6 +1,15 @@
 = Changelog
 
 
+v1.4B2 (2018.2 B2)::
+
+Changes since v1.3:
+
+* New `Control` file system operation allows sending custom control codes to the file system using the Windows `DeviceIoControl` API.
+* `FlushAndPurgeOnCleanup` has now been added to the .NET API. (GitHub PR #176; thanks @FrKaram.)
+* New sample file system "airfs" contributed by @JohnOberschelp.
+
+
 v1.4B1 (2018.2 B1)::
 
 Changes since v1.3:
