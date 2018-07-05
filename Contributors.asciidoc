@@ -56,9 +56,9 @@ CONTRIBUTOR LIST
 |===
 |Ben Rubson                                                     |ben.rubson at gmail.com
 |Bill Zissimopoulos                                             |billziss at navimatics.com
+|Francois Karam (KS2, http://www.ks2.fr)                        |francois.karam at ks2.fr
 |Fritz Elfert                                                   |fritz-github at fritz-elfert.de
 |John Oberschelp                                                |john at oberschelp.net
 |Sam Kelly (DuroSoft Technologies LLC, https://durosoft.com)    |sam at durosoft.com
 |Tobias Urlaub                                                  |saibotu at outlook.de
-|Francois Karam (KS2, http://www.ks2.fr)                        |francois.karam at ks2.fr
 |===
