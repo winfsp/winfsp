@@ -194,6 +194,11 @@ namespace Fsp
             get { return 0 != (_VolumeParams.Flags & VolumeParams.PassQueryDirectoryFileName); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.PassQueryDirectoryFileName : 0); }
         }
+        public Boolean FlushAndPurgeOnCleanup
+        {
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.FlushAndPurgeOnCleanup); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.FlushAndPurgeOnCleanup : 0); }
+        }
         /// <summary>
         /// Gets or sets the prefix for a network file system.
         /// </summary>
@@ -346,6 +351,14 @@ namespace Fsp
         public static Int32 SetDebugLogFile(String FileName)
         {
             return Api.SetDebugLogFile(FileName);
+        }
+        /// <summary>
+        /// Return the installed version of WinFsp.
+        /// </summary>
+        /// <returns></returns>
+        public static Version Version()
+        {
+            return Api.GetFspVersion();
         }
 
         /* FSP_FILE_SYSTEM_INTERFACE */

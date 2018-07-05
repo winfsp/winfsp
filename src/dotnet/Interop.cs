@@ -43,6 +43,7 @@ namespace Fsp.Interop
         internal const UInt32 PassQueryDirectoryPattern = 0x00000800;
         internal const UInt32 AlwaysUseDoubleBuffering = 0x00001000;
         internal const UInt32 PassQueryDirectoryFileName = 0x00002000;
+        internal const UInt32 FlushAndPurgeOnCleanup = 0x00004000;
         internal const UInt32 UmFileContextIsUserContext2 = 0x00010000;
         internal const UInt32 UmFileContextIsFullContext = 0x00020000;
         internal const int PrefixSize = 192;
@@ -977,6 +978,13 @@ namespace Fsp.Interop
                 return FspNtStatusFromWin32((UInt32)Marshal.GetLastWin32Error());
             Api.FspDebugLogSetHandle(Handle);
             return 0/*STATUS_SUCCESS*/;
+        }
+
+        internal static Version GetFspVersion()
+        {
+            UInt32 Version = 0;
+            FspVersion(out Version);
+            return new System.Version((Int32)Version >> 16, (Int32)Version & 0xFFFF);
         }
 
         /* initialization */
