@@ -14,6 +14,12 @@
  * accordance with the commercial license agreement provided with the
  * software.
  */
+/*
+ * Airfs is based on Memfs with changes contributed by John Oberschelp.
+ * The contributed changes are under joint copyright by Bill Zissimopoulos
+ * and John Oberschelp per the Contributor Agreement found at the
+ * root of this project.
+ */
 
 #include <winfsp/winfsp.h>
 #include <sddl.h>
