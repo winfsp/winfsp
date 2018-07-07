@@ -347,6 +347,20 @@
                     <File Id="FILE.memfs_dotnet.Program.cs" Name="Program.cs" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="SMPDIR.airfs" Name="airfs">
+                <Component Id="C.airfs.cpp">
+                    <File Name="airfs.cpp" KeyPath="yes" />
+                </Component>
+                <Component Id="C.airfs.sln">
+                    <File Name="airfs.sln" KeyPath="yes" />
+                </Component>
+                <Component Id="C.airfs.vcxproj">
+                    <File Name="airfs.vcxproj" KeyPath="yes" />
+                </Component>
+                <Component Id="C.airfs.vcxproj.filters">
+                    <File Name="airfs.vcxproj.filters" KeyPath="yes" />
+                </Component>
+            </Directory>
             <Directory Id="SMPDIR.passthrough" Name="passthrough">
                 <Component Id="C.passthrough.c">
                     <File Name="passthrough.c" KeyPath="yes" />
@@ -498,6 +512,10 @@
             <ComponentRef Id="C.memfs.h" />
             <ComponentRef Id="C.memfs.cpp" />
             <ComponentRef Id="C.memfs_main.c" />
+            <ComponentRef Id="C.airfs.cpp" />
+            <ComponentRef Id="C.airfs.sln" />
+            <ComponentRef Id="C.airfs.vcxproj" />
+            <ComponentRef Id="C.airfs.vcxproj.filters" />
             <ComponentRef Id="C.passthrough.c" />
             <ComponentRef Id="C.passthrough.sln" />
             <ComponentRef Id="C.passthrough.vcxproj" />
