@@ -652,12 +652,12 @@ if not X!IfsTestFound!==XYES set IfsTestExit=1
 exit /b !IfsTestExit!
 
 :sample-airfs-x64
-call :__run_sample_test airfs x64 airfs-x64 winfsp-tests-x64 NOEXCL
+call :__run_sample_disk_test airfs x64 airfs-x64 winfsp-tests-x64 NOEXCL
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-airfs-x86
-call :__run_sample_test airfs x86 airfs-x86 winfsp-tests-x86 NOEXCL
+call :__run_sample_disk_test airfs x86 airfs-x86 winfsp-tests-x86 NOEXCL
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -706,6 +706,36 @@ exit /b 0
 call :__run_sample_fsx_fuse_test passthrough-fuse x86 passthrough-fuse-x86 fsx
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
+
+:__run_sample_disk_test
+set RunSampleTestExit=0
+call %ProjRoot%\tools\build-sample %Configuration% %2 %1 "%TMP%\%1"
+if !ERRORLEVEL! neq 0 goto fail
+mkdir "%TMP%\%1\test"
+call "%ProjRoot%\tools\fsreg" %1 "%TMP%\%1\build\%Configuration%\%3.exe" "-u %%%%1 -m %%%%2" "D:P(A;;RPWPLC;;;WD)"
+echo launchctl-x64 start %1 testdsk "" L:
+launchctl-x64 start %1 testdsk "" L: >nul
+waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
+pushd >nul
+cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
+L:
+if X%5==XNOEXCL (
+    "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
+        --external --resilient
+) else (
+    "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
+        --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
+        -create_allocation_test -getfileinfo_name_test -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test ^
+        -reparse* -stream* %~5
+)
+if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
+popd
+echo launchctl-x64 stop %1 testdsk
+launchctl-x64 stop %1 testdsk >nul
+waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
+call "%ProjRoot%\tools\fsreg" -u %1
+rmdir /s/q "%TMP%\%1"
+exit /b !RunSampleTestExit!
 
 :__run_sample_test
 set RunSampleTestExit=0
