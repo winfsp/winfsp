@@ -712,7 +712,7 @@ set RunSampleTestExit=0
 call %ProjRoot%\tools\build-sample %Configuration% %2 %1 "%TMP%\%1"
 if !ERRORLEVEL! neq 0 goto fail
 mkdir "%TMP%\%1\test"
-call "%ProjRoot%\tools\fsreg" %1 "%TMP%\%1\build\%Configuration%\%3.exe" "-u %%%%1 -m %%%%2" "D:P(A;;RPWPLC;;;WD)"
+call "%ProjRoot%\tools\fsreg" %1 "%TMP%\%1\build\%Configuration%\%3.exe" "-i -u %%%%1 -m %%%%2" "D:P(A;;RPWPLC;;;WD)"
 echo launchctl-x64 start %1 testdsk "" L:
 launchctl-x64 start %1 testdsk "" L: >nul
 waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
@@ -721,7 +721,7 @@ cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
 if X%5==XNOEXCL (
     "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
-        --external --resilient --case-insensitive-cmp
+        --external --resilient
 ) else (
     "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
         --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
