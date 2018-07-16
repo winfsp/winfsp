@@ -383,7 +383,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
         /* this should always fail with ENOSYS or EINVAL */
         err = f->ops.readlink("/", buf, sizeof buf);
-        f->has_symlinks = -ENOSYS != err;
+        f->has_symlinks = -enosys(f->env) != err;
     }
 
     /* the FSD does not currently limit these VolumeParams fields; do so here! */

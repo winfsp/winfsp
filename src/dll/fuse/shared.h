@@ -1,5 +1,5 @@
 /**
- * @file dll/fuse3/library.h
+ * @file dll/fuse/shared.h
  *
  * @copyright 2015-2018 Bill Zissimopoulos
  */
@@ -15,22 +15,9 @@
  * software.
  */
 
-#ifndef WINFSP_DLL_FUSE3_LIBRARY_H_INCLUDED
-#define WINFSP_DLL_FUSE3_LIBRARY_H_INCLUDED
+#ifndef WINFSP_DLL_FUSE_SHARED_H_INCLUDED
+#define WINFSP_DLL_FUSE_SHARED_H_INCLUDED
 
-#include <dll/library.h>
-#include <dll/fuse/shared.h>
-#include <fuse/fuse.h>
-#undef FUSE_H_
-#undef FUSE_COMMON_H_
-#undef FUSE_MAJOR_VERSION
-#undef FUSE_MINOR_VERSION
-#undef fuse_main
-#include <fuse3/fuse.h>
-
-struct fuse3
-{
-    struct fuse3_operations ops;
-};
+#define enosys(env)                     ('C' == (env)->environment ? 88 : 40)
 
 #endif

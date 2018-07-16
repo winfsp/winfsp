@@ -77,6 +77,9 @@
     <ClInclude Include="..\..\src\dll\fuse3\library.h">
       <Filter>Source\fuse3</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\dll\fuse\shared.h">
+      <Filter>Source\fuse</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\dll\library.c">
