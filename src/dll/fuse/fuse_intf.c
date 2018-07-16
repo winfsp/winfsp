@@ -266,7 +266,7 @@ loopend:;
         if (0 != f->ops.getattr)
             err = f->ops.getattr(PosixHiddenPath, (void *)&stbuf);
         else
-            err = -ENOSYS;
+            err = -enosys(f->env);
     } while (0 == err && 0 < --maxtries);
 
     if (0 == err)
@@ -308,7 +308,7 @@ static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
         if (0 != f->ops.getattr)
             err = f->ops.getattr(PosixDotPath, (void *)&stbuf);
         else
-            err = -ENOSYS;
+            err = -enosys(f->env);
 
         MemFree(PosixDotPath);
 
