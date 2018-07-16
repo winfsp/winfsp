@@ -19,9 +19,9 @@
 #define WINFSP_DLL_FUSE_LIBRARY_H_INCLUDED
 
 #include <dll/library.h>
-#include <dll/fuse/shared.h>
 #include <fuse/fuse.h>
 #include <fuse/fuse_opt.h>
+#include <dll/fuse/shared.h>
 
 #define FSP_FUSE_LIBRARY_NAME           LIBRARY_NAME "-FUSE"
 

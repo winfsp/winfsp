@@ -122,35 +122,6 @@ static struct fuse_opt fsp_fuse_core_opts[] =
 static INIT_ONCE fsp_fuse_initonce = INIT_ONCE_STATIC_INIT;
 static DWORD fsp_fuse_tlskey = TLS_OUT_OF_INDEXES;
 
-struct fsp_fuse_obj_hdr
-{
-    void (*dtor)(void *);
-    __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 ObjectBuf[];
-};
-
-static inline void *fsp_fuse_obj_alloc(struct fsp_fuse_env *env, size_t size)
-{
-    struct fsp_fuse_obj_hdr *hdr;
-
-    hdr = env->memalloc(sizeof(struct fsp_fuse_obj_hdr) + size);
-    if (0 == hdr)
-        return 0;
-
-    hdr->dtor = env->memfree;
-    memset(hdr->ObjectBuf, 0, size);
-    return hdr->ObjectBuf;
-}
-
-static inline void fsp_fuse_obj_free(void *obj)
-{
-    if (0 == obj)
-        return;
-
-    struct fsp_fuse_obj_hdr *hdr = (PVOID)((PUINT8)obj - sizeof(struct fsp_fuse_obj_hdr));
-
-    hdr->dtor(hdr);
-}
-
 static BOOL WINAPI fsp_fuse_initialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {

@@ -19,7 +19,6 @@
 #define WINFSP_DLL_FUSE3_LIBRARY_H_INCLUDED
 
 #include <dll/library.h>
-#include <dll/fuse/shared.h>
 #include <fuse/fuse.h>
 #undef FUSE_H_
 #undef FUSE_COMMON_H_
@@ -27,6 +26,7 @@
 #undef FUSE_MINOR_VERSION
 #undef fuse_main
 #include <fuse3/fuse.h>
+#include <dll/fuse/shared.h>
 
 struct fuse3
 {
