@@ -20,6 +20,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\inc\fuse3\fuse.h" />
+    <ClInclude Include="..\..\inc\fuse3\fuse_common.h" />
+    <ClInclude Include="..\..\inc\fuse3\fuse_opt.h" />
+    <ClInclude Include="..\..\inc\fuse3\winfsp_fuse.h" />
     <ClInclude Include="..\..\inc\fuse\fuse.h" />
     <ClInclude Include="..\..\inc\fuse\fuse_common.h" />
     <ClInclude Include="..\..\inc\fuse\fuse_opt.h" />
@@ -28,6 +32,7 @@
     <ClInclude Include="..\..\inc\winfsp\launch.h" />
     <ClInclude Include="..\..\inc\winfsp\winfsp.h" />
     <ClInclude Include="..\..\inc\winfsp\winfsp.hpp" />
+    <ClInclude Include="..\..\src\dll\fuse3\library.h" />
     <ClInclude Include="..\..\src\dll\fuse\library.h" />
     <ClInclude Include="..\..\src\dll\library.h" />
     <ClInclude Include="..\..\src\shared\minimal.h" />
@@ -35,6 +40,8 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\dll\dirbuf.c" />
     <ClCompile Include="..\..\src\dll\eventlog.c" />
+    <ClCompile Include="..\..\src\dll\fuse3\fuse2to3.c" />
+    <ClCompile Include="..\..\src\dll\fuse3\fuse3.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse_compat.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse_intf.c" />
