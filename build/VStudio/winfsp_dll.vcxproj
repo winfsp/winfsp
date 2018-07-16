@@ -34,7 +34,6 @@
     <ClInclude Include="..\..\inc\winfsp\winfsp.hpp" />
     <ClInclude Include="..\..\src\dll\fuse3\library.h" />
     <ClInclude Include="..\..\src\dll\fuse\library.h" />
-    <ClInclude Include="..\..\src\dll\fuse\shared.h" />
     <ClInclude Include="..\..\src\dll\library.h" />
     <ClInclude Include="..\..\src\shared\minimal.h" />
   </ItemGroup>

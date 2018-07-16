@@ -21,7 +21,6 @@
 #include <dll/library.h>
 #include <fuse/fuse.h>
 #include <fuse/fuse_opt.h>
-#include <dll/fuse/shared.h>
 
 #define FSP_FUSE_LIBRARY_NAME           LIBRARY_NAME "-FUSE"
 
@@ -31,6 +30,8 @@
     (struct fuse_context *)((PUINT8)(h) + sizeof(struct fsp_fuse_context_header))
 
 #define FSP_FUSE_HAS_SYMLINKS(f)        ((f)->has_symlinks)
+
+#define ENOSYS_(env)                    ('C' == (env)->environment ? 88 : 40)
 
 struct fuse
 {
@@ -102,5 +103,36 @@ NTSTATUS fsp_fuse_get_token_uidgid(
 #define NFS_SPECFILE_BLK                0x00000000004b4c42
 #define NFS_SPECFILE_LNK                0x00000000014b4e4c
 #define NFS_SPECFILE_SOCK               0x000000004B434F53
+
+/* FUSE obj alloc/free */
+
+struct fsp_fuse_obj_hdr
+{
+    void (*dtor)(void *);
+    __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 ObjectBuf[];
+};
+
+static inline void *fsp_fuse_obj_alloc(struct fsp_fuse_env *env, size_t size)
+{
+    struct fsp_fuse_obj_hdr *hdr;
+
+    hdr = env->memalloc(sizeof(struct fsp_fuse_obj_hdr) + size);
+    if (0 == hdr)
+        return 0;
+
+    hdr->dtor = env->memfree;
+    memset(hdr->ObjectBuf, 0, size);
+    return hdr->ObjectBuf;
+}
+
+static inline void fsp_fuse_obj_free(void *obj)
+{
+    if (0 == obj)
+        return;
+
+    struct fsp_fuse_obj_hdr *hdr = (PVOID)((PUINT8)obj - sizeof(struct fsp_fuse_obj_hdr));
+
+    hdr->dtor(hdr);
+}
 
 #endif
