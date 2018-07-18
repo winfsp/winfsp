@@ -280,8 +280,11 @@ static int fuse2to3_fsyncdir(const char *path, int datasync, struct fuse_file_in
 static void *fuse2to3_init(struct fuse_conn_info *conn)
 {
     struct fuse_context *context = fsp_fuse_get_context_internal();
+    struct fuse3 *f3 = context->private_data;
     struct fuse *f = context->fuse;
-    struct fuse3 *f3 = FSP_FUSE_HDR_FROM_CONTEXT(context)->fuse3;
+
+    FSP_FUSE_HDR_FROM_CONTEXT(context)->fuse3 = f3;
+    context->private_data = f->data = f3->data;
 
     struct fuse3_conn_info conn3;
     fuse2to3_conn3from2(&conn3, conn);
@@ -457,48 +460,143 @@ static int fuse2to3_fallocate(const char *path, int mode, fuse_off_t off, fuse_o
     return res;
 }
 
-static struct fuse_operations fuse2to3_ops =
+FSP_FUSE_API struct fuse3 *fsp_fuse3_new_30(struct fsp_fuse_env *env,
+    struct fuse_args *args,
+    const struct fuse3_operations *ops, size_t opsize, void *data)
 {
-    .getattr = fuse2to3_getattr,
-    .readlink = fuse2to3_readlink,
-    .mknod = fuse2to3_mknod,
-    .mkdir = fuse2to3_mkdir,
-    .unlink = fuse2to3_unlink,
-    .rmdir = fuse2to3_rmdir,
-    .symlink = fuse2to3_symlink,
-    .rename = fuse2to3_rename,
-    .link = fuse2to3_link,
-    .chmod = fuse2to3_chmod,
-    .chown = fuse2to3_chown,
-    .truncate = fuse2to3_truncate,
-    .open = fuse2to3_open,
-    .read = fuse2to3_read,
-    .write = fuse2to3_write,
-    .statfs = fuse2to3_statfs,
-    .flush = fuse2to3_flush,
-    .release = fuse2to3_release,
-    .fsync = fuse2to3_fsync,
-    .setxattr = fuse2to3_setxattr,
-    .getxattr = fuse2to3_getxattr,
-    .listxattr = fuse2to3_listxattr,
-    .removexattr = fuse2to3_removexattr,
-    .opendir = fuse2to3_opendir,
-    .readdir = fuse2to3_readdir,
-    .releasedir = fuse2to3_releasedir,
-    .fsyncdir = fuse2to3_fsyncdir,
-    .init = fuse2to3_init,
-    .destroy = fuse2to3_destroy,
-    .access = fuse2to3_access,
-    .create = fuse2to3_create,
-    .ftruncate = fuse2to3_ftruncate,
-    .fgetattr = fuse2to3_fgetattr,
-    .lock = fuse2to3_lock,
-    .utimens = fuse2to3_utimens,
-    .bmap = fuse2to3_bmap,
-    .ioctl = fuse2to3_ioctl,
-    .poll = fuse2to3_poll,
-    .write_buf = fuse2to3_write_buf,
-    .read_buf = fuse2to3_read_buf,
-    .flock = fuse2to3_flock,
-    .fallocate = fuse2to3_fallocate,
-};
+    return 0;
+}
+
+FSP_FUSE_API struct fuse3 *fsp_fuse3_new(struct fsp_fuse_env *env,
+    struct fuse_args *args,
+    const struct fuse3_operations *ops, size_t opsize, void *data)
+{
+    struct fuse3 *f3 = 0;
+
+    if (opsize > sizeof(struct fuse3_operations))
+        opsize = sizeof(struct fuse3_operations);
+
+    f3 = fsp_fuse_obj_alloc(env, sizeof *f3);
+    if (0 == f3)
+        goto fail;
+
+    for (int argi = 0; args->argc > argi; argi++)
+        if (-1 == fsp_fuse_opt_add_arg(env, &f3->args, args->argv[argi]))
+            goto fail;
+
+    memcpy(&f3->ops, ops, opsize);
+    f3->data = data;
+
+    return f3;
+
+fail:
+    if (0 != f3)
+        fsp_fuse3_destroy(env, f3);
+
+    return 0;
+}
+
+FSP_FUSE_API void fsp_fuse3_destroy(struct fsp_fuse_env *env,
+    struct fuse3 *f3)
+{
+    if (0 != f3->fuse)
+        fsp_fuse_destroy(env, f3->fuse);
+
+    fsp_fuse_opt_free_args(env, &f3->args);
+
+    fsp_fuse_obj_free(f3);
+}
+
+FSP_FUSE_API int fsp_fuse3_mount(struct fsp_fuse_env *env,
+    struct fuse3 *f3, const char *mountpoint)
+{
+    struct fuse_chan *ch = 0;
+    struct fuse *f = 0;
+    struct fuse_operations fuse2to3_ops =
+    {
+        .getattr = 0 != f3->ops.getattr ? fuse2to3_getattr : 0,
+        .readlink = 0 != f3->ops.readlink ? fuse2to3_readlink : 0,
+        .mknod = 0 != f3->ops.mknod ? fuse2to3_mknod : 0,
+        .mkdir = 0 != f3->ops.mkdir ? fuse2to3_mkdir : 0,
+        .unlink = 0 != f3->ops.unlink ? fuse2to3_unlink : 0,
+        .rmdir = 0 != f3->ops.rmdir ? fuse2to3_rmdir : 0,
+        .symlink = 0 != f3->ops.symlink ? fuse2to3_symlink : 0,
+        .rename = 0 != f3->ops.rename ? fuse2to3_rename : 0,
+        .link = 0 != f3->ops.link ? fuse2to3_link : 0,
+        .chmod = 0 != f3->ops.chmod ? fuse2to3_chmod : 0,
+        .chown = 0 != f3->ops.chown ? fuse2to3_chown : 0,
+        .truncate = 0 != f3->ops.truncate ? fuse2to3_truncate : 0,
+        .open = 0 != f3->ops.open ? fuse2to3_open : 0,
+        .read = 0 != f3->ops.read ? fuse2to3_read : 0,
+        .write = 0 != f3->ops.write ? fuse2to3_write : 0,
+        .statfs = 0 != f3->ops.statfs ? fuse2to3_statfs : 0,
+        .flush = 0 != f3->ops.flush ? fuse2to3_flush : 0,
+        .release = 0 != f3->ops.release ? fuse2to3_release : 0,
+        .fsync = 0 != f3->ops.fsync ? fuse2to3_fsync : 0,
+        .setxattr = 0 != f3->ops.setxattr ? fuse2to3_setxattr : 0,
+        .getxattr = 0 != f3->ops.getxattr ? fuse2to3_getxattr : 0,
+        .listxattr = 0 != f3->ops.listxattr ? fuse2to3_listxattr : 0,
+        .removexattr = 0 != f3->ops.removexattr ? fuse2to3_removexattr : 0,
+        .opendir = 0 != f3->ops.opendir ? fuse2to3_opendir : 0,
+        .readdir = 0 != f3->ops.readdir ? fuse2to3_readdir : 0,
+        .releasedir = 0 != f3->ops.releasedir ? fuse2to3_releasedir : 0,
+        .fsyncdir = 0 != f3->ops.fsyncdir ? fuse2to3_fsyncdir : 0,
+        .init = 0 != f3->ops.init ? fuse2to3_init : 0,
+        .destroy = 0 != f3->ops.destroy ? fuse2to3_destroy : 0,
+        .access = 0 != f3->ops.access ? fuse2to3_access : 0,
+        .create = 0 != f3->ops.create ? fuse2to3_create : 0,
+        .ftruncate = 0 != f3->ops.truncate ? fuse2to3_ftruncate : 0,
+        .fgetattr = 0 != f3->ops.getattr ? fuse2to3_fgetattr : 0,
+        .lock = 0 != f3->ops.lock ? fuse2to3_lock : 0,
+        .utimens = 0 != f3->ops.utimens ? fuse2to3_utimens : 0,
+        .bmap = 0 != f3->ops.bmap ? fuse2to3_bmap : 0,
+        .ioctl = 0 != f3->ops.ioctl ? fuse2to3_ioctl : 0,
+        .poll = 0 != f3->ops.poll ? fuse2to3_poll : 0,
+        .write_buf = 0 != f3->ops.write_buf ? fuse2to3_write_buf : 0,
+        .read_buf = 0 != f3->ops.read_buf ? fuse2to3_read_buf : 0,
+        .flock = 0 != f3->ops.flock ? fuse2to3_flock : 0,
+        .fallocate = 0 != f3->ops.fallocate ? fuse2to3_fallocate : 0,
+    };
+
+    ch = fsp_fuse_mount(env, mountpoint, &f3->args);
+    if (0 == ch)
+        goto fail;
+
+    f = fsp_fuse_new(env, ch, &f3->args, &fuse2to3_ops, sizeof fuse2to3_ops, f3);
+    if (0 == f)
+        goto fail;
+
+    /*
+     * Free the fuse_chan which is no longer needed. Note that this behavior is WinFsp-FUSE
+     * specific, because WinFsp-FUSE only allocates/frees fuse_chan memory during fuse_mount/
+     * fuse_unmount and does not perform any actual mounting/unmounting. This would not work
+     * on a different FUSE implementation.
+     *
+     * (Store mountpoint and ch inside struct fuse3 so that they can be freed during fuse_destroy
+     * in that case.)
+     */
+    fsp_fuse_unmount(env, mountpoint, ch);
+
+    /* Free the args which are no longer needed. */
+    fsp_fuse_opt_free_args(env, &f3->args);
+
+    f3->fuse = f;
+
+    return 0;
+
+fail:
+    if (0 != f)
+        fsp_fuse_destroy(env, f);
+
+    if (0 != ch)
+        fsp_fuse_unmount(env, mountpoint, ch);
+
+    return -1;
+}
+
+FSP_FUSE_API void fsp_fuse3_unmount(struct fsp_fuse_env *env,
+    struct fuse3 *f3)
+{
+    fsp_fuse_destroy(env, f3->fuse);
+    f3->fuse = 0;
+}

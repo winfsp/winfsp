@@ -29,36 +29,6 @@ FSP_FUSE_API void fsp_fuse3_lib_help(struct fsp_fuse_env *env,
 {
 }
 
-FSP_FUSE_API struct fuse3 *fsp_fuse3_new_30(struct fsp_fuse_env *env,
-    struct fuse_args *args,
-    const struct fuse3_operations *ops, size_t opsize, void *data)
-{
-    return 0;
-}
-
-FSP_FUSE_API struct fuse3 *fsp_fuse3_new(struct fsp_fuse_env *env,
-    struct fuse_args *args,
-    const struct fuse3_operations *ops, size_t opsize, void *data)
-{
-    return 0;
-}
-
-FSP_FUSE_API void fsp_fuse3_destroy(struct fsp_fuse_env *env,
-    struct fuse3 *f)
-{
-}
-
-FSP_FUSE_API int fsp_fuse3_mount(struct fsp_fuse_env *env,
-    struct fuse3 *f, const char *mountpoint)
-{
-    return 0;
-}
-
-FSP_FUSE_API void fsp_fuse3_unmount(struct fsp_fuse_env *env,
-    struct fuse3 *f)
-{
-}
-
 FSP_FUSE_API int fsp_fuse3_loop(struct fsp_fuse_env *env,
     struct fuse3 *f)
 {

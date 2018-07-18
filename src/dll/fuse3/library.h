@@ -28,7 +28,10 @@
 
 struct fuse3
 {
+    struct fuse_args args;
     struct fuse3_operations ops;
+    void *data;
+    struct fuse *fuse;
 };
 
 #endif
