@@ -25,9 +25,9 @@
 #define FSP_FUSE_LIBRARY_NAME           LIBRARY_NAME "-FUSE"
 
 #define FSP_FUSE_HDR_FROM_CONTEXT(c)    \
-    (struct fsp_fuse_context_header *)((PUINT8)(c) - sizeof(struct fsp_fuse_context_header))
+    ((struct fsp_fuse_context_header *)((PUINT8)(c) - sizeof(struct fsp_fuse_context_header)))
 #define FSP_FUSE_CONTEXT_FROM_HDR(h)    \
-    (struct fuse_context *)((PUINT8)(h) + sizeof(struct fsp_fuse_context_header))
+    ((struct fuse_context *)((PUINT8)(h) + sizeof(struct fsp_fuse_context_header)))
 
 #define FSP_FUSE_HAS_SYMLINKS(f)        ((f)->has_symlinks)
 
@@ -61,6 +61,7 @@ struct fuse
 struct fsp_fuse_context_header
 {
     char *PosixPath;
+    struct fuse3 *fuse3;
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 ContextBuf[];
 };
 
@@ -88,6 +89,9 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+
+int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
+    const struct fuse_stat *stbuf, fuse_off_t off);
 
 extern FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf;
 
@@ -134,5 +138,7 @@ static inline void fsp_fuse_obj_free(void *obj)
 
     hdr->dtor(hdr);
 }
+
+struct fuse_context *fsp_fuse_get_context_internal(void);
 
 #endif

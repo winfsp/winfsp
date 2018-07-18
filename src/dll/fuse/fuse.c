@@ -759,6 +759,11 @@ FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env)
     return context;
 }
 
+struct fuse_context *fsp_fuse_get_context_internal(void)
+{
+    return TlsGetValue(fsp_fuse_tlskey);
+}
+
 FSP_FUSE_API int32_t fsp_fuse_ntstatus_from_errno(struct fsp_fuse_env *env,
     int err)
 {

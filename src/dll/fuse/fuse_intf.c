@@ -1617,7 +1617,8 @@ exit:
     return Result;
 }
 
-static int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
+/* !static: used by fuse2to3 */
+int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
     const struct fuse_stat *stbuf, fuse_off_t off)
 {
     struct fuse_dirhandle *dh = buf;
