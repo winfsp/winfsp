@@ -143,7 +143,7 @@ struct fuse3_session;
 struct fuse3_pollhandle;
 struct fuse3_conn_info_opts;
 
-FSP_FUSE_API struct fuse3_conn_info_opts* FSP_FUSE_API_NAME(fsp_fuse3_parse_conn_info_opts)(
+FSP_FUSE_API struct fuse3_conn_info_opts *FSP_FUSE_API_NAME(fsp_fuse3_parse_conn_info_opts)(
     struct fsp_fuse_env *env,
     struct fuse_args *args);
 FSP_FUSE_API void FSP_FUSE_API_NAME(fsp_fuse3_apply_conn_info_opts)(struct fsp_fuse_env *env,

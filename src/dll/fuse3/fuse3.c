@@ -75,11 +75,12 @@ FSP_FUSE_API struct fuse3_context *fsp_fuse3_get_context(struct fsp_fuse_env *en
     return (struct fuse3_context *)fsp_fuse_get_context(env);
 }
 
-FSP_FUSE_API struct fuse3_conn_info_opts* fsp_fuse3_parse_conn_info_opts(
+FSP_FUSE_API struct fuse3_conn_info_opts *fsp_fuse3_parse_conn_info_opts(
     struct fsp_fuse_env *env,
     struct fuse_args *args)
 {
-    return 0;
+    static int dummy;
+    return (struct fuse3_conn_info_opts *)&dummy;
 }
 
 FSP_FUSE_API void fsp_fuse3_apply_conn_info_opts(struct fsp_fuse_env *env,
