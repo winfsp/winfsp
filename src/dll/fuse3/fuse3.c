@@ -27,6 +27,17 @@ FSP_FUSE_API int fsp_fuse3_main_real(struct fsp_fuse_env *env,
 FSP_FUSE_API void fsp_fuse3_lib_help(struct fsp_fuse_env *env,
     struct fuse_args *args)
 {
+    char *helpargv[] =
+    {
+        "UNKNOWN",
+        "-h",
+        0
+    };
+    struct fuse_args helpargs = FUSE_ARGS_INIT(2, helpargv);
+    struct fsp_fuse_core_opt_data opt_data;
+
+    memset(&opt_data, 0, sizeof opt_data);
+    fsp_fuse_core_opt_parse(env, &helpargs, &opt_data, /*help=*/1);
 }
 
 FSP_FUSE_API int fsp_fuse3_loop(struct fsp_fuse_env *env,
