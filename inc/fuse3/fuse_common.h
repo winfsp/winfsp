@@ -88,8 +88,8 @@ struct fuse3_file_info
 
 struct fuse3_loop_config
 {
-    int clone_fd;                       /* ignored */
-    unsigned int max_idle_threads;      /* ignored */
+    int clone_fd;
+    unsigned int max_idle_threads;
 };
 
 struct fuse3_conn_info

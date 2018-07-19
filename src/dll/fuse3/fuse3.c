@@ -30,31 +30,38 @@ FSP_FUSE_API void fsp_fuse3_lib_help(struct fsp_fuse_env *env,
 }
 
 FSP_FUSE_API int fsp_fuse3_loop(struct fsp_fuse_env *env,
-    struct fuse3 *f)
+    struct fuse3 *f3)
 {
-    return 0;
+    return 0 == fsp_fuse_loop(env, f3->fuse) ? 0 : -EINVAL/* same on MSVC and Cygwin */;
 }
 
 FSP_FUSE_API int fsp_fuse3_loop_mt_31(struct fsp_fuse_env *env,
-    struct fuse3 *f, int clone_fd)
+    struct fuse3 *f3, int clone_fd)
 {
-    return 0;
+    return 0 == fsp_fuse_loop_mt(env, f3->fuse) ? 0 : -EINVAL/* same on MSVC and Cygwin */;
 }
 
 FSP_FUSE_API int fsp_fuse3_loop_mt(struct fsp_fuse_env *env,
-    struct fuse3 *f, struct fuse3_loop_config *config)
+    struct fuse3 *f3, struct fuse3_loop_config *config)
 {
-    return 0;
+    return 0 == fsp_fuse_loop_mt(env, f3->fuse) ? 0 : -EINVAL/* same on MSVC and Cygwin */;
 }
 
 FSP_FUSE_API void fsp_fuse3_exit(struct fsp_fuse_env *env,
-    struct fuse3 *f)
+    struct fuse3 *f3)
 {
+    fsp_fuse_exit(env, f3->fuse);
 }
 
 FSP_FUSE_API struct fuse3_context *fsp_fuse3_get_context(struct fsp_fuse_env *env)
 {
-    return 0;
+    FSP_FSCTL_STATIC_ASSERT(
+        sizeof(struct fuse_context) == sizeof(struct fuse3_context),
+        "incompatible structs fuse_context and fuse3_context");
+    FSP_FSCTL_STATIC_ASSERT(FIELD_OFFSET(
+        struct fuse_context, private_data) == FIELD_OFFSET(struct fuse3_context, private_data),
+        "incompatible structs fuse_context and fuse3_context");
+    return (struct fuse3_context *)fsp_fuse_get_context(env);
 }
 
 FSP_FUSE_API struct fuse3_conn_info_opts* fsp_fuse3_parse_conn_info_opts(
