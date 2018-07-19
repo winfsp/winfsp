@@ -21,7 +21,58 @@ FSP_FUSE_API int fsp_fuse3_main_real(struct fsp_fuse_env *env,
     int argc, char *argv[],
     const struct fuse3_operations *ops, size_t opsize, void *data)
 {
-    return 0;
+    struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
+    char *mountpoint = 0;
+    int multithreaded = 0;
+    int foreground = 0;
+    struct fuse3 *f3 = 0;
+    int mounted = 0;
+    int signal_handlers = 0;
+    int result;
+
+    result = fsp_fuse_parse_cmdline(env, &args, &mountpoint, &multithreaded, &foreground);
+    if (-1 == result)
+        goto exit;
+
+    f3 = fsp_fuse3_new_30(env, &args, ops, opsize, data);
+    if (0 == f3)
+    {
+        result = -1;
+        goto exit;
+    }
+
+    result = fsp_fuse3_mount(env, f3, mountpoint);
+    if (-1 == result)
+        goto exit;
+    mounted = 0;
+
+    result = env->daemonize(foreground);
+    if (-1 == result)
+        goto exit;
+
+    result = env->set_signal_handlers(f3);
+    if (-1 == result)
+        goto exit;
+    signal_handlers = 1;
+
+    result = multithreaded ? fsp_fuse3_loop_mt(env, f3, 0) : fsp_fuse3_loop(env, f3);
+
+exit:
+    if (signal_handlers)
+        env->set_signal_handlers(0);
+
+    if (mounted)
+        fsp_fuse3_unmount(env, f3);
+
+    if (0 != f3)
+        fsp_fuse3_destroy(env, f3);
+
+    env->memfree(mountpoint);
+
+    fsp_fuse_opt_free_args(env, &args);
+
+    /* main() style return: 0 success, 1 error */
+    return !!result;
 }
 
 FSP_FUSE_API void fsp_fuse3_lib_help(struct fsp_fuse_env *env,
