@@ -141,4 +141,32 @@ static inline void fsp_fuse_obj_free(void *obj)
 
 struct fuse_context *fsp_fuse_get_context_internal(void);
 
+struct fsp_fuse_core_opt_data
+{
+    struct fsp_fuse_env *env;
+    int help, debug;
+    HANDLE DebugLogHandle;
+    int set_umask, umask,
+        set_create_umask, create_umask,
+        set_uid, uid,
+        set_gid, gid,
+        set_attr_timeout, attr_timeout,
+        rellinks;
+    int set_FileInfoTimeout,
+        set_DirInfoTimeout,
+        set_VolumeInfoTimeout,
+        set_KeepFileCache;
+    unsigned ThreadCount;
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    UINT16 VolumeLabelLength;
+    WCHAR VolumeLabel[sizeof ((FSP_FSCTL_VOLUME_INFO *)0)->VolumeLabel / sizeof(WCHAR)];
+};
+FSP_FSCTL_STATIC_ASSERT(
+    sizeof ((struct fuse *)0)->VolumeLabel == sizeof ((struct fsp_fuse_core_opt_data *)0)->VolumeLabel,
+    "fuse::VolumeLabel and fsp_fuse_core_opt_data::VolumeLabel: sizeof must be same.");
+
+int fsp_fuse_core_opt_parse(struct fsp_fuse_env *env,
+    struct fuse_args *args, struct fsp_fuse_core_opt_data *opt_data,
+    int help);
+
 #endif

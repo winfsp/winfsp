@@ -27,30 +27,7 @@ struct fuse_chan
 };
 
 #define FSP_FUSE_CORE_OPT(n, f, v)      { n, offsetof(struct fsp_fuse_core_opt_data, f), v }
-
-struct fsp_fuse_core_opt_data
-{
-    struct fsp_fuse_env *env;
-    int help, debug;
-    HANDLE DebugLogHandle;
-    int set_umask, umask,
-        set_create_umask, create_umask,
-        set_uid, uid,
-        set_gid, gid,
-        set_attr_timeout, attr_timeout,
-        rellinks;
-    int set_FileInfoTimeout,
-        set_DirInfoTimeout,
-        set_VolumeInfoTimeout,
-        set_KeepFileCache;
-    unsigned ThreadCount;
-    FSP_FSCTL_VOLUME_PARAMS VolumeParams;
-    UINT16 VolumeLabelLength;
-    WCHAR VolumeLabel[sizeof ((FSP_FSCTL_VOLUME_INFO *)0)->VolumeLabel / sizeof(WCHAR)];
-};
-FSP_FSCTL_STATIC_ASSERT(
-    sizeof ((struct fuse *)0)->VolumeLabel == sizeof ((struct fsp_fuse_core_opt_data *)0)->VolumeLabel,
-    "fuse::VolumeLabel and fsp_fuse_core_opt_data::VolumeLabel: sizeof must be same.");
+#define FSP_FUSE_CORE_OPT_NOHELP_IDX    4
 
 static struct fuse_opt fsp_fuse_core_opts[] =
 {
@@ -546,6 +523,18 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
     }
 }
 
+int fsp_fuse_core_opt_parse(struct fsp_fuse_env *env,
+    struct fuse_args *args, struct fsp_fuse_core_opt_data *opt_data,
+    int help)
+{
+    if (help)
+        return fsp_fuse_opt_parse(env, args, opt_data,
+            fsp_fuse_core_opts, fsp_fuse_core_opt_proc);
+    else
+        return fsp_fuse_opt_parse(env, args, opt_data,
+            fsp_fuse_core_opts + FSP_FUSE_CORE_OPT_NOHELP_IDX, fsp_fuse_core_opt_proc);
+}
+
 FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     struct fuse_chan *ch, struct fuse_args *args,
     const struct fuse_operations *ops, size_t opsize, void *data)
@@ -566,7 +555,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.FileInfoTimeout = 1000;
     opt_data.VolumeParams.FlushAndPurgeOnCleanup = TRUE;
 
-    if (-1 == fsp_fuse_opt_parse(env, args, &opt_data, fsp_fuse_core_opts, fsp_fuse_core_opt_proc))
+    if (-1 == fsp_fuse_core_opt_parse(env, args, &opt_data, /*help=*/1))
         return 0;
     if (opt_data.help)
         return 0;

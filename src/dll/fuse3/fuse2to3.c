@@ -460,17 +460,44 @@ static int fuse2to3_fallocate(const char *path, int mode, fuse_off_t off, fuse_o
     return res;
 }
 
-FSP_FUSE_API struct fuse3 *fsp_fuse3_new_30(struct fsp_fuse_env *env,
-    struct fuse_args *args,
-    const struct fuse3_operations *ops, size_t opsize, void *data)
+static int fsp_fuse3_copy_args(struct fsp_fuse_env *env,
+    const struct fuse_args *args,
+    struct fuse_args *outargs)
 {
+    outargs->argc = 0;
+    outargs->argv = 0;
+    outargs->allocated = 0;
+
+    for (int argi = 0; args->argc > argi; argi++)
+        if (-1 == fsp_fuse_opt_add_arg(env, outargs, args->argv[argi]))
+            goto fail;
+
     return 0;
+
+fail:
+    fsp_fuse_opt_free_args(env, outargs);
+
+    return -1;
 }
 
-FSP_FUSE_API struct fuse3 *fsp_fuse3_new(struct fsp_fuse_env *env,
+static struct fuse3 *fsp_fuse3_new_common(struct fsp_fuse_env *env,
     struct fuse_args *args,
-    const struct fuse3_operations *ops, size_t opsize, void *data)
+    const struct fuse3_operations *ops, size_t opsize, void *data,
+    int help)
 {
+    /* preflight args */
+    struct fsp_fuse_core_opt_data opt_data;
+    struct fuse_args pfargs;
+    memset(&opt_data, 0, sizeof opt_data);
+    if (-1 == fsp_fuse3_copy_args(env, args, &pfargs))
+        return 0;
+    int optres = fsp_fuse_core_opt_parse(env, &pfargs, &opt_data, /*help=*/1);
+    fsp_fuse_opt_free_args(env, &pfargs);
+    if (-1 == optres)
+        return 0;
+    if (opt_data.help)
+        return 0;
+
     struct fuse3 *f3 = 0;
 
     if (opsize > sizeof(struct fuse3_operations))
@@ -480,10 +507,8 @@ FSP_FUSE_API struct fuse3 *fsp_fuse3_new(struct fsp_fuse_env *env,
     if (0 == f3)
         goto fail;
 
-    for (int argi = 0; args->argc > argi; argi++)
-        if (-1 == fsp_fuse_opt_add_arg(env, &f3->args, args->argv[argi]))
-            goto fail;
-
+    if (-1 == fsp_fuse3_copy_args(env, args, &f3->args))
+        goto fail;
     memcpy(&f3->ops, ops, opsize);
     f3->data = data;
 
@@ -494,6 +519,20 @@ fail:
         fsp_fuse3_destroy(env, f3);
 
     return 0;
+}
+
+FSP_FUSE_API struct fuse3 *fsp_fuse3_new_30(struct fsp_fuse_env *env,
+    struct fuse_args *args,
+    const struct fuse3_operations *ops, size_t opsize, void *data)
+{
+    return fsp_fuse3_new_common(env, args, ops, opsize, data, /*help=*/1);
+}
+
+FSP_FUSE_API struct fuse3 *fsp_fuse3_new(struct fsp_fuse_env *env,
+    struct fuse_args *args,
+    const struct fuse3_operations *ops, size_t opsize, void *data)
+{
+    return fsp_fuse3_new_common(env, args, ops, opsize, data, /*help=*/0);
 }
 
 FSP_FUSE_API void fsp_fuse3_destroy(struct fsp_fuse_env *env,
