@@ -192,6 +192,7 @@ void fuse3_pollhandle_destroy(struct fuse3_pollhandle *ph),
 FSP_FUSE_SYM(
 size_t fuse3_buf_size(const struct fuse3_bufvec *bufv),
 {
+    (void)bufv;
     return 0;
 })
 
@@ -199,6 +200,9 @@ FSP_FUSE_SYM(
 ssize_t fuse3_buf_copy(struct fuse3_bufvec *dst, struct fuse3_bufvec *src,
     enum fuse3_buf_copy_flags flags),
 {
+    (void)dst;
+    (void)src;
+    (void)flags;
     return 0;
 })
 
