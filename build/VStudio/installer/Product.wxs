@@ -281,6 +281,20 @@
                     <File Name="winfsp_fuse.h" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="INCDIR.fuse3" Name="fuse3">
+                <Component Id="C.fuse3.h">
+                    <File Id="fuse3.h" Name="fuse.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.fuse3_common.h">
+                    <File Id="fuse3_common.h" Name="fuse_common.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.fuse3_opt.h">
+                    <File Id="fuse3_opt.h" Name="fuse_opt.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.winfsp_fuse3.h">
+                    <File Id="winfsp_fuse3.h" Name="winfsp_fuse.h" KeyPath="yes" />
+                </Component>
+            </Directory>
         </DirectoryRef>
         <DirectoryRef Id="LIBDIR" FileSource="..\build\$(var.Configuration)">
             <Component Id="C.winfsp_x64.lib">
@@ -306,6 +320,26 @@
                     Id="FILE.fuse_x86.pc"
                     Name="fuse.pc"
                     Source="..\build\$(var.Configuration)\fuse-x86.pc"
+                    KeyPath="yes" />
+                <Condition>NOT VersionNT64</Condition>
+            </Component>
+
+            <!-- On Win64 copy fuse3-x64.pc -->
+            <Component Id="C.fuse3_x64.pc" Guid="FE59E3BA-E5EA-4822-80B1-19A1DE6B62C7">
+                <File
+                    Id="FILE.fuse3_x64.pc"
+                    Name="fuse3.pc"
+                    Source="..\build\$(var.Configuration)\fuse3-x64.pc"
+                    KeyPath="yes" />
+                <Condition>VersionNT64</Condition>
+            </Component>
+
+            <!-- On Win32 copy fuse3-x86.pc -->
+            <Component Id="C.fuse3_x86.pc" Guid="176205D0-07EA-4DFC-947F-18E89ABDAFAB">
+                <File
+                    Id="FILE.fuse3_x86.pc"
+                    Name="fuse3.pc"
+                    Source="..\build\$(var.Configuration)\fuse3-x86.pc"
                     KeyPath="yes" />
                 <Condition>NOT VersionNT64</Condition>
             </Component>
@@ -493,12 +527,18 @@
             <ComponentRef Id="C.fuse_common.h" />
             <ComponentRef Id="C.fuse_opt.h" />
             <ComponentRef Id="C.winfsp_fuse.h" />
+            <ComponentRef Id="C.fuse3.h" />
+            <ComponentRef Id="C.fuse3_common.h" />
+            <ComponentRef Id="C.fuse3_opt.h" />
+            <ComponentRef Id="C.winfsp_fuse3.h" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.lib">
             <ComponentRef Id="C.winfsp_x64.lib" />
             <ComponentRef Id="C.winfsp_x86.lib" />
             <ComponentRef Id="C.fuse_x64.pc" />
             <ComponentRef Id="C.fuse_x86.pc" />
+            <ComponentRef Id="C.fuse3_x64.pc" />
+            <ComponentRef Id="C.fuse3_x86.pc" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.opt.fuse">
             <ComponentRef Id="C.fuse.tar.xz.x64" />

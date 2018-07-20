@@ -86,6 +86,29 @@ copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(Platfor
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)fuse-$(PlatformTarget).pc</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
     </CustomBuild>
+    <CustomBuild Include="..\..\src\dll\fuse3\fuse3.pc.in">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse3-$(PlatformTarget).pc
+copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(PlatformTarget).pc &gt;nul</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse3-$(PlatformTarget).pc
+copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(PlatformTarget).pc &gt;nul</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse3-$(PlatformTarget).pc
+copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(PlatformTarget).pc &gt;nul</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse3-$(PlatformTarget).pc
+copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(PlatformTarget).pc &gt;nul</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Writing fuse3-$(PlatformTarget).pc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Writing fuse3-$(PlatformTarget).pc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Writing fuse3-$(PlatformTarget).pc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Writing fuse3-$(PlatformTarget).pc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)fuse3-$(PlatformTarget).pc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)fuse3-$(PlatformTarget).pc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)fuse3-$(PlatformTarget).pc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)fuse3-$(PlatformTarget).pc</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkObjects>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkObjects>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+    </CustomBuild>
     <None Include="..\..\src\dll\library.def" />
   </ItemGroup>
   <ItemGroup>

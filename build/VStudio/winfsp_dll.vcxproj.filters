@@ -166,5 +166,8 @@
     <CustomBuild Include="..\..\src\dll\fuse\fuse.pc.in">
       <Filter>Source\fuse</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\..\src\dll\fuse3\fuse3.pc.in">
+      <Filter>Source\fuse3</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
