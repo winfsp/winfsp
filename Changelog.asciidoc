@@ -5,7 +5,7 @@ v1.4B2 (2018.2 B2)::
 
 Changes since v1.3:
 
-* FUSE3 API (version 3.2) is now available. The FUSE2 API (version 2.8) remains also supported.
+* FUSE3 API (version 3.2) is now available. The FUSE2 API (version 2.8) also remains supported.
 * New `Control` file system operation allows sending custom control codes to the file system using the Windows `DeviceIoControl` API.
 * `FlushAndPurgeOnCleanup` has now been added to the .NET API. (GitHub PR #176; thanks @FrKaram.)
 * New sample file system "airfs" contributed by @JohnOberschelp.
