@@ -27,30 +27,7 @@ struct fuse_chan
 };
 
 #define FSP_FUSE_CORE_OPT(n, f, v)      { n, offsetof(struct fsp_fuse_core_opt_data, f), v }
-
-struct fsp_fuse_core_opt_data
-{
-    struct fsp_fuse_env *env;
-    int help, debug;
-    HANDLE DebugLogHandle;
-    int set_umask, umask,
-        set_create_umask, create_umask,
-        set_uid, uid,
-        set_gid, gid,
-        set_attr_timeout, attr_timeout,
-        rellinks;
-    int set_FileInfoTimeout,
-        set_DirInfoTimeout,
-        set_VolumeInfoTimeout,
-        set_KeepFileCache;
-    unsigned ThreadCount;
-    FSP_FSCTL_VOLUME_PARAMS VolumeParams;
-    UINT16 VolumeLabelLength;
-    WCHAR VolumeLabel[sizeof ((FSP_FSCTL_VOLUME_INFO *)0)->VolumeLabel / sizeof(WCHAR)];
-};
-FSP_FSCTL_STATIC_ASSERT(
-    sizeof ((struct fuse *)0)->VolumeLabel == sizeof ((struct fsp_fuse_core_opt_data *)0)->VolumeLabel,
-    "fuse::VolumeLabel and fsp_fuse_core_opt_data::VolumeLabel: sizeof must be same.");
+#define FSP_FUSE_CORE_OPT_NOHELP_IDX    4
 
 static struct fuse_opt fsp_fuse_core_opts[] =
 {
@@ -121,35 +98,6 @@ static struct fuse_opt fsp_fuse_core_opts[] =
 
 static INIT_ONCE fsp_fuse_initonce = INIT_ONCE_STATIC_INIT;
 static DWORD fsp_fuse_tlskey = TLS_OUT_OF_INDEXES;
-
-struct fsp_fuse_obj_hdr
-{
-    void (*dtor)(void *);
-    __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 ObjectBuf[];
-};
-
-static inline void *fsp_fuse_obj_alloc(struct fsp_fuse_env *env, size_t size)
-{
-    struct fsp_fuse_obj_hdr *hdr;
-
-    hdr = env->memalloc(sizeof(struct fsp_fuse_obj_hdr) + size);
-    if (0 == hdr)
-        return 0;
-
-    hdr->dtor = env->memfree;
-    memset(hdr->ObjectBuf, 0, size);
-    return hdr->ObjectBuf;
-}
-
-static inline void fsp_fuse_obj_free(void *obj)
-{
-    if (0 == obj)
-        return;
-
-    struct fsp_fuse_obj_hdr *hdr = (PVOID)((PUINT8)obj - sizeof(struct fsp_fuse_obj_hdr));
-
-    hdr->dtor(hdr);
-}
 
 static BOOL WINAPI fsp_fuse_initialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
@@ -383,7 +331,7 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
         /* this should always fail with ENOSYS or EINVAL */
         err = f->ops.readlink("/", buf, sizeof buf);
-        f->has_symlinks = -ENOSYS != err;
+        f->has_symlinks = -ENOSYS_(f->env) != err;
     }
 
     /* the FSD does not currently limit these VolumeParams fields; do so here! */
@@ -575,6 +523,18 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
     }
 }
 
+int fsp_fuse_core_opt_parse(struct fsp_fuse_env *env,
+    struct fuse_args *args, struct fsp_fuse_core_opt_data *opt_data,
+    int help)
+{
+    if (help)
+        return fsp_fuse_opt_parse(env, args, opt_data,
+            fsp_fuse_core_opts, fsp_fuse_core_opt_proc);
+    else
+        return fsp_fuse_opt_parse(env, args, opt_data,
+            fsp_fuse_core_opts + FSP_FUSE_CORE_OPT_NOHELP_IDX, fsp_fuse_core_opt_proc);
+}
+
 FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     struct fuse_chan *ch, struct fuse_args *args,
     const struct fuse_operations *ops, size_t opsize, void *data)
@@ -595,7 +555,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.FileInfoTimeout = 1000;
     opt_data.VolumeParams.FlushAndPurgeOnCleanup = TRUE;
 
-    if (-1 == fsp_fuse_opt_parse(env, args, &opt_data, fsp_fuse_core_opts, fsp_fuse_core_opt_proc))
+    if (-1 == fsp_fuse_core_opt_parse(env, args, &opt_data, /*help=*/1))
         return 0;
     if (opt_data.help)
         return 0;
@@ -786,6 +746,11 @@ FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env)
     }
 
     return context;
+}
+
+struct fuse_context *fsp_fuse_get_context_internal(void)
+{
+    return TlsGetValue(fsp_fuse_tlskey);
 }
 
 FSP_FUSE_API int32_t fsp_fuse_ntstatus_from_errno(struct fsp_fuse_env *env,

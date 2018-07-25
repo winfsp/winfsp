@@ -25,11 +25,13 @@
 #define FSP_FUSE_LIBRARY_NAME           LIBRARY_NAME "-FUSE"
 
 #define FSP_FUSE_HDR_FROM_CONTEXT(c)    \
-    (struct fsp_fuse_context_header *)((PUINT8)(c) - sizeof(struct fsp_fuse_context_header))
+    ((struct fsp_fuse_context_header *)((PUINT8)(c) - sizeof(struct fsp_fuse_context_header)))
 #define FSP_FUSE_CONTEXT_FROM_HDR(h)    \
-    (struct fuse_context *)((PUINT8)(h) + sizeof(struct fsp_fuse_context_header))
+    ((struct fuse_context *)((PUINT8)(h) + sizeof(struct fsp_fuse_context_header)))
 
 #define FSP_FUSE_HAS_SYMLINKS(f)        ((f)->has_symlinks)
+
+#define ENOSYS_(env)                    ('C' == (env)->environment ? 88 : 40)
 
 struct fuse
 {
@@ -54,6 +56,7 @@ struct fuse
     FSP_FILE_SYSTEM *FileSystem;
     FSP_SERVICE *Service; /* weak */
     volatile int exited;
+    struct fuse3 *fuse3;
 };
 
 struct fsp_fuse_context_header
@@ -87,6 +90,11 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
 NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 
+int fsp_fuse_intf_CanDeleteAddDirInfo(void *buf, const char *name,
+    const struct fuse_stat *stbuf, fuse_off_t off);
+int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
+    const struct fuse_stat *stbuf, fuse_off_t off);
+
 extern FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf;
 
 NTSTATUS fsp_fuse_get_token_uidgid(
@@ -101,5 +109,66 @@ NTSTATUS fsp_fuse_get_token_uidgid(
 #define NFS_SPECFILE_BLK                0x00000000004b4c42
 #define NFS_SPECFILE_LNK                0x00000000014b4e4c
 #define NFS_SPECFILE_SOCK               0x000000004B434F53
+
+/* FUSE obj alloc/free */
+
+struct fsp_fuse_obj_hdr
+{
+    void (*dtor)(void *);
+    __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 ObjectBuf[];
+};
+
+static inline void *fsp_fuse_obj_alloc(struct fsp_fuse_env *env, size_t size)
+{
+    struct fsp_fuse_obj_hdr *hdr;
+
+    hdr = env->memalloc(sizeof(struct fsp_fuse_obj_hdr) + size);
+    if (0 == hdr)
+        return 0;
+
+    hdr->dtor = env->memfree;
+    memset(hdr->ObjectBuf, 0, size);
+    return hdr->ObjectBuf;
+}
+
+static inline void fsp_fuse_obj_free(void *obj)
+{
+    if (0 == obj)
+        return;
+
+    struct fsp_fuse_obj_hdr *hdr = (PVOID)((PUINT8)obj - sizeof(struct fsp_fuse_obj_hdr));
+
+    hdr->dtor(hdr);
+}
+
+struct fuse_context *fsp_fuse_get_context_internal(void);
+
+struct fsp_fuse_core_opt_data
+{
+    struct fsp_fuse_env *env;
+    int help, debug;
+    HANDLE DebugLogHandle;
+    int set_umask, umask,
+        set_create_umask, create_umask,
+        set_uid, uid,
+        set_gid, gid,
+        set_attr_timeout, attr_timeout,
+        rellinks;
+    int set_FileInfoTimeout,
+        set_DirInfoTimeout,
+        set_VolumeInfoTimeout,
+        set_KeepFileCache;
+    unsigned ThreadCount;
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    UINT16 VolumeLabelLength;
+    WCHAR VolumeLabel[sizeof ((FSP_FSCTL_VOLUME_INFO *)0)->VolumeLabel / sizeof(WCHAR)];
+};
+FSP_FSCTL_STATIC_ASSERT(
+    sizeof ((struct fuse *)0)->VolumeLabel == sizeof ((struct fsp_fuse_core_opt_data *)0)->VolumeLabel,
+    "fuse::VolumeLabel and fsp_fuse_core_opt_data::VolumeLabel: sizeof must be same.");
+
+int fsp_fuse_core_opt_parse(struct fsp_fuse_env *env,
+    struct fuse_args *args, struct fsp_fuse_core_opt_data *opt_data,
+    int help);
 
 #endif

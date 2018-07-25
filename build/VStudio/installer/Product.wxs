@@ -281,6 +281,20 @@
                     <File Name="winfsp_fuse.h" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="INCDIR.fuse3" Name="fuse3">
+                <Component Id="C.fuse3.h">
+                    <File Id="fuse3.h" Name="fuse.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.fuse3_common.h">
+                    <File Id="fuse3_common.h" Name="fuse_common.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.fuse3_opt.h">
+                    <File Id="fuse3_opt.h" Name="fuse_opt.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.winfsp_fuse3.h">
+                    <File Id="winfsp_fuse3.h" Name="winfsp_fuse.h" KeyPath="yes" />
+                </Component>
+            </Directory>
         </DirectoryRef>
         <DirectoryRef Id="LIBDIR" FileSource="..\build\$(var.Configuration)">
             <Component Id="C.winfsp_x64.lib">
@@ -306,6 +320,26 @@
                     Id="FILE.fuse_x86.pc"
                     Name="fuse.pc"
                     Source="..\build\$(var.Configuration)\fuse-x86.pc"
+                    KeyPath="yes" />
+                <Condition>NOT VersionNT64</Condition>
+            </Component>
+
+            <!-- On Win64 copy fuse3-x64.pc -->
+            <Component Id="C.fuse3_x64.pc" Guid="FE59E3BA-E5EA-4822-80B1-19A1DE6B62C7">
+                <File
+                    Id="FILE.fuse3_x64.pc"
+                    Name="fuse3.pc"
+                    Source="..\build\$(var.Configuration)\fuse3-x64.pc"
+                    KeyPath="yes" />
+                <Condition>VersionNT64</Condition>
+            </Component>
+
+            <!-- On Win32 copy fuse3-x86.pc -->
+            <Component Id="C.fuse3_x86.pc" Guid="176205D0-07EA-4DFC-947F-18E89ABDAFAB">
+                <File
+                    Id="FILE.fuse3_x86.pc"
+                    Name="fuse3.pc"
+                    Source="..\build\$(var.Configuration)\fuse3-x86.pc"
                     KeyPath="yes" />
                 <Condition>NOT VersionNT64</Condition>
             </Component>
@@ -415,6 +449,32 @@
                     <File Name="README.md" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="SMPDIR.passthrough_fuse3" Name="passthrough-fuse3">
+                <Component Id="C.passthrough_fuse3.c">
+                    <File Name="passthrough-fuse3.c" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse3.winposix.c">
+                    <File Id="F.passthrough_fuse3.winposix.c" Name="winposix.c" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse3.winposix.h">
+                    <File Id="F.passthrough_fuse3.winposix.h" Name="winposix.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse3.sln">
+                    <File Name="passthrough-fuse3.sln" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse3.vcxproj">
+                    <File Name="passthrough-fuse3.vcxproj" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse3.vcxproj.filters">
+                    <File Name="passthrough-fuse3.vcxproj.filters" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse3.Makefile">
+                    <File Id="F.passthrough_fuse3.Makefile" Name="Makefile" KeyPath="yes" />
+                </Component>
+                <Component Id="C.passthrough_fuse3.README.md">
+                    <File Id="F.passthrough_fuse3.README.md" Name="README.md" KeyPath="yes" />
+                </Component>
+            </Directory>
             <Directory Id="SMPDIR.passthrough_dotnet" Name="passthrough-dotnet">
                 <Component Id="C.passthrough_dotnet.Program.cs">
                     <File Id="FILE.passthrough_dotnet.Program.cs" Name="Program.cs" KeyPath="yes" />
@@ -493,12 +553,18 @@
             <ComponentRef Id="C.fuse_common.h" />
             <ComponentRef Id="C.fuse_opt.h" />
             <ComponentRef Id="C.winfsp_fuse.h" />
+            <ComponentRef Id="C.fuse3.h" />
+            <ComponentRef Id="C.fuse3_common.h" />
+            <ComponentRef Id="C.fuse3_opt.h" />
+            <ComponentRef Id="C.winfsp_fuse3.h" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.lib">
             <ComponentRef Id="C.winfsp_x64.lib" />
             <ComponentRef Id="C.winfsp_x86.lib" />
             <ComponentRef Id="C.fuse_x64.pc" />
             <ComponentRef Id="C.fuse_x86.pc" />
+            <ComponentRef Id="C.fuse3_x64.pc" />
+            <ComponentRef Id="C.fuse3_x86.pc" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.opt.fuse">
             <ComponentRef Id="C.fuse.tar.xz.x64" />
@@ -532,6 +598,14 @@
             <ComponentRef Id="C.passthrough_fuse.vcxproj.filters" />
             <ComponentRef Id="C.passthrough_fuse.Makefile" />
             <ComponentRef Id="C.passthrough_fuse.README.md" />
+            <ComponentRef Id="C.passthrough_fuse3.c" />
+            <ComponentRef Id="C.passthrough_fuse3.winposix.c" />
+            <ComponentRef Id="C.passthrough_fuse3.winposix.h" />
+            <ComponentRef Id="C.passthrough_fuse3.sln" />
+            <ComponentRef Id="C.passthrough_fuse3.vcxproj" />
+            <ComponentRef Id="C.passthrough_fuse3.vcxproj.filters" />
+            <ComponentRef Id="C.passthrough_fuse3.Makefile" />
+            <ComponentRef Id="C.passthrough_fuse3.README.md" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.sym">
             <ComponentRef Id="C.winfsp_x64.sys.pdb" />

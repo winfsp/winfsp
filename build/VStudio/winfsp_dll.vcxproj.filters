@@ -21,6 +21,12 @@
     <Filter Include="Source\fuse">
       <UniqueIdentifier>{518cce17-85cd-489c-b4be-920a84c1d73c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Include\fuse3">
+      <UniqueIdentifier>{12afd2f1-f5ec-4008-b6ef-89cc626019ea}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\fuse3">
+      <UniqueIdentifier>{96091a7b-3923-4a74-9491-3ee230c688f9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h">
@@ -55,6 +61,21 @@
     </ClInclude>
     <ClInclude Include="..\..\inc\winfsp\launch.h">
       <Filter>Include\winfsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\inc\fuse3\fuse.h">
+      <Filter>Include\fuse3</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\inc\fuse3\fuse_common.h">
+      <Filter>Include\fuse3</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\inc\fuse3\fuse_opt.h">
+      <Filter>Include\fuse3</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\inc\fuse3\winfsp_fuse.h">
+      <Filter>Include\fuse3</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\dll\fuse3\library.h">
+      <Filter>Source\fuse3</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -121,6 +142,12 @@
     <ClCompile Include="..\..\src\dll\launch.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\dll\fuse3\fuse3.c">
+      <Filter>Source\fuse3</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\dll\fuse3\fuse2to3.c">
+      <Filter>Source\fuse3</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\library.def">
@@ -138,6 +165,9 @@
   <ItemGroup>
     <CustomBuild Include="..\..\src\dll\fuse\fuse.pc.in">
       <Filter>Source\fuse</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\dll\fuse3\fuse3.pc.in">
+      <Filter>Source\fuse3</Filter>
     </CustomBuild>
   </ItemGroup>
 </Project>

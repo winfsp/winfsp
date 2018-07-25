@@ -266,7 +266,7 @@ loopend:;
         if (0 != f->ops.getattr)
             err = f->ops.getattr(PosixHiddenPath, (void *)&stbuf);
         else
-            err = -ENOSYS;
+            err = -ENOSYS_(f->env);
     } while (0 == err && 0 < --maxtries);
 
     if (0 == err)
@@ -308,7 +308,7 @@ static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
         if (0 != f->ops.getattr)
             err = f->ops.getattr(PosixDotPath, (void *)&stbuf);
         else
-            err = -ENOSYS;
+            err = -ENOSYS_(f->env);
 
         MemFree(PosixDotPath);
 
@@ -1427,7 +1427,8 @@ static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-static int fsp_fuse_intf_CanDeleteAddDirInfo(void *buf, const char *name,
+/* !static: used by fuse2to3 */
+int fsp_fuse_intf_CanDeleteAddDirInfo(void *buf, const char *name,
     const struct fuse_stat *stbuf, fuse_off_t off)
 {
     struct fuse_dirhandle *dh = buf;
@@ -1617,7 +1618,8 @@ exit:
     return Result;
 }
 
-static int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
+/* !static: used by fuse2to3 */
+int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
     const struct fuse_stat *stbuf, fuse_off_t off)
 {
     struct fuse_dirhandle *dh = buf;
