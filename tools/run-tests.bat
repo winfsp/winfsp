@@ -83,6 +83,10 @@ set opt_tests=^
     sample-fsx-passthrough-fuse-x64 ^
     sample-passthrough-fuse-x86 ^
     sample-fsx-passthrough-fuse-x86 ^
+    sample-passthrough-fuse3-x64 ^
+    sample-fsx-passthrough-fuse3-x64 ^
+    sample-passthrough-fuse3-x86 ^
+    sample-fsx-passthrough-fuse3-x86 ^
     sample-passthrough-dotnet ^
     compat-v1.2-memfs-x64 ^
     compat-v1.2-memfs-x86 ^
@@ -707,6 +711,28 @@ call :__run_sample_fsx_fuse_test passthrough-fuse x86 passthrough-fuse-x86 fsx
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:sample-passthrough-fuse3-x64
+call :__run_sample_fuse_test passthrough-fuse3 x64 passthrough-fuse3-x64 winfsp-tests-x64 ^
+    "-create_fileattr_test -setfileinfo_test"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-passthrough-fuse3-x86
+call :__run_sample_fuse_test passthrough-fuse3 x86 passthrough-fuse3-x86 winfsp-tests-x86 ^
+    "-create_fileattr_test -setfileinfo_test"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-fsx-passthrough-fuse3-x64
+call :__run_sample_fsx_fuse_test passthrough-fuse3 x64 passthrough-fuse3-x64 fsx
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-fsx-passthrough-fuse3-x86
+call :__run_sample_fsx_fuse_test passthrough-fuse3 x86 passthrough-fuse3-x86 fsx
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :__run_sample_disk_test
 set RunSampleTestExit=0
 call %ProjRoot%\tools\build-sample %Configuration% %2 %1 "%TMP%\%1"
@@ -784,11 +810,16 @@ net use | findstr L:
 pushd >nul
 cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
-"%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
-    --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
-    -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
-    -getfileinfo_name_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -querydir_namelen_test -exec_rename_dir_test ^
-    -reparse* -stream*
+if X%5==XNOEXCL (
+    "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
+        --external --resilient
+) else (
+    "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
+        --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
+        -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
+        -getfileinfo_name_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -querydir_namelen_test -exec_rename_dir_test ^
+        -reparse* -stream* %~5
+)
 if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
 popd
 echo net use L: /delete
