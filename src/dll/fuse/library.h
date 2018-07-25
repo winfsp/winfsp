@@ -56,12 +56,12 @@ struct fuse
     FSP_FILE_SYSTEM *FileSystem;
     FSP_SERVICE *Service; /* weak */
     volatile int exited;
+    struct fuse3 *fuse3;
 };
 
 struct fsp_fuse_context_header
 {
     char *PosixPath;
-    struct fuse3 *fuse3;
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 ContextBuf[];
 };
 

@@ -19,7 +19,7 @@
 
 static inline struct fuse3 *fuse2to3_getfuse3(void)
 {
-    return FSP_FUSE_HDR_FROM_CONTEXT(fsp_fuse_get_context_internal())->fuse3;
+    return fsp_fuse_get_context_internal()->fuse->fuse3;
 }
 
 static inline void fuse2to3_fi2from3(struct fuse_file_info *fi, struct fuse3_file_info *fi3)
@@ -280,11 +280,8 @@ static int fuse2to3_fsyncdir(const char *path, int datasync, struct fuse_file_in
 static void *fuse2to3_init(struct fuse_conn_info *conn)
 {
     struct fuse_context *context = fsp_fuse_get_context_internal();
-    struct fuse3 *f3 = context->private_data;
     struct fuse *f = context->fuse;
-
-    FSP_FUSE_HDR_FROM_CONTEXT(context)->fuse3 = f3;
-    context->private_data = f->data = f3->data;
+    struct fuse3 *f3 = f->fuse3;
 
     struct fuse3_conn_info conn3;
     fuse2to3_conn3from2(&conn3, conn);
@@ -602,7 +599,7 @@ FSP_FUSE_API int fsp_fuse3_mount(struct fsp_fuse_env *env,
     if (0 == ch)
         goto fail;
 
-    f = fsp_fuse_new(env, ch, &f3->args, &fuse2to3_ops, sizeof fuse2to3_ops, f3);
+    f = fsp_fuse_new(env, ch, &f3->args, &fuse2to3_ops, sizeof fuse2to3_ops, f3->data);
     if (0 == f)
         goto fail;
 
@@ -620,6 +617,7 @@ FSP_FUSE_API int fsp_fuse3_mount(struct fsp_fuse_env *env,
     /* Free the args which are no longer needed. */
     fsp_fuse_opt_free_args(env, &f3->args);
 
+    f->fuse3 = f3;
     f3->fuse = f;
 
     return 0;
