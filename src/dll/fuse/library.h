@@ -90,6 +90,8 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
 NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 
+int fsp_fuse_intf_CanDeleteAddDirInfo(void *buf, const char *name,
+    const struct fuse_stat *stbuf, fuse_off_t off);
 int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
     const struct fuse_stat *stbuf, fuse_off_t off);
 

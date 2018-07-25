@@ -235,6 +235,13 @@ static int fuse2to3_opendir(const char *path, struct fuse_file_info *fi)
     return res;
 }
 
+static int fuse2to3_candel_filldir(void *buf, const char *name,
+    const struct fuse_stat *stbuf, fuse_off_t off,
+    enum fuse3_fill_dir_flags flags)
+{
+    return fsp_fuse_intf_CanDeleteAddDirInfo(buf, name, 0, off);
+}
+
 static int fuse2to3_filldir(void *buf, const char *name,
     const struct fuse_stat *stbuf, fuse_off_t off,
     enum fuse3_fill_dir_flags flags)
@@ -251,8 +258,17 @@ static int fuse2to3_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     struct fuse_dirhandle *dh = buf;
     struct fuse3_file_info fi3;
     fuse2to3_fi3from2(&fi3, fi);
-    int res = f3->ops.readdir(path, buf, &fuse2to3_filldir, off, &fi3,
-        dh->ReaddirPlus ? FUSE_READDIR_PLUS : 0);
+    int res;
+    if (fsp_fuse_intf_CanDeleteAddDirInfo == filler)
+        res = f3->ops.readdir(path, buf, &fuse2to3_candel_filldir, off, &fi3, 0);
+    else if (fsp_fuse_intf_AddDirInfo == filler)
+        res = f3->ops.readdir(path, buf, &fuse2to3_filldir, off, &fi3,
+            dh->ReaddirPlus ? FUSE_READDIR_PLUS : 0);
+    else
+    {
+        FspDebugLog("fuse2to3_readdir = -ENOSYS (internal error: unknown filler)\n");
+        res = -ENOSYS_(f3->fuse->env);
+    }
     fuse2to3_fi2from3(fi, &fi3);
     return res;
 }

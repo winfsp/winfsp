@@ -1427,7 +1427,8 @@ static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
-static int fsp_fuse_intf_CanDeleteAddDirInfo(void *buf, const char *name,
+/* !static: used by fuse2to3 */
+int fsp_fuse_intf_CanDeleteAddDirInfo(void *buf, const char *name,
     const struct fuse_stat *stbuf, fuse_off_t off)
 {
     struct fuse_dirhandle *dh = buf;
