@@ -233,9 +233,7 @@ inline void DereferenceNode(AIRFS_ Airfs, NODE_ Node)
 void GetFileInfo(NODE_ Node, FSP_FSCTL_FILE_INFO *FileInfo)
 {
 #if defined(AIRFS_NAMED_STREAMS)
-    if (!Node->IsAStream)
-        *FileInfo = Node->FileInfo;
-    else
+    if (Node->IsAStream)
     {
         *FileInfo = Node->Parent->FileInfo;
         FileInfo->FileAttributes &= ~FILE_ATTRIBUTE_DIRECTORY;
@@ -243,9 +241,9 @@ void GetFileInfo(NODE_ Node, FSP_FSCTL_FILE_INFO *FileInfo)
         FileInfo->AllocationSize = Node->FileInfo.AllocationSize;
         FileInfo->FileSize = Node->FileInfo.FileSize;
     }
-#else
-    *FileInfo = Node->FileInfo;
+    else
 #endif
+        *FileInfo = Node->FileInfo;
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -295,8 +293,7 @@ void DeleteAllNodes(AIRFS_ Airfs)
             {
                 for (auto Iter = Node->Streams->begin(); Iter != Node->Streams->end(); )
                 {
-                    NODE_ Stream = *Iter;
-                    Iter++;
+                    NODE_ Stream = *Iter++;
                     DeleteNode(Airfs, Stream);
                 }
                 delete Node->Streams;
@@ -412,17 +409,10 @@ NTSTATUS FindNode(AIRFS_ Airfs, PWSTR Name, PWSTR *BaseName,
 //////////////////////////////////////////////////////////////////////
 #if defined(AIRFS_NAMED_STREAMS)
 
-BOOLEAN AddStreamInfo(NODE_ Node, PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+BOOLEAN AddStreamInfo(NODE_ Node, PWSTR StreamName, PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
     UINT8 StreamInfoBuf[sizeof(FSP_FSCTL_STREAM_INFO) + sizeof Node->Name];
     FSP_FSCTL_STREAM_INFO *StreamInfo = (FSP_FSCTL_STREAM_INFO *)StreamInfoBuf;
-    PWSTR StreamName;
-
-    StreamName = wcschr(Node->Name, L':');
-    if (StreamName)
-        StreamName++;
-    else
-        StreamName = L"";
 
     StreamInfo->Size = (UINT16)(sizeof(FSP_FSCTL_STREAM_INFO) + wcslen(StreamName) * sizeof(WCHAR));
     StreamInfo->StreamSize = Node->FileInfo.FileSize;
@@ -485,7 +475,14 @@ void RemoveNode(AIRFS_ Airfs, NODE_ Node)
 
 #if defined(AIRFS_NAMED_STREAMS)
     if (Node->IsAStream)
-        Parent->Streams->erase(Node);
+    {
+        if (Parent->Streams)
+        {
+            auto found = Parent->Streams->find(Node);
+            if (found != Parent->Streams->end())
+                Parent->Streams->erase(found);
+        }
+    }
     else
 #endif
         Parent->Children->erase(Node);
@@ -988,11 +985,10 @@ NTSTATUS ApiOverwrite(FSP_FILE_SYSTEM *FileSystem, PVOID Node0, UINT32 FileAttri
     {
         for (auto Iter = Node->Streams->begin(); Iter != Node->Streams->end(); )
         {
-            NODE_ Stream = *Iter;
+            NODE_ Stream = *Iter++;
             LONG RefCount = Stream->RefCount;
             MemoryBarrier();
-            Iter++;
-            if (RefCount <= 2)
+            if (RefCount <= 1)
             {
                 RemoveNode(Airfs, Stream);
             }
@@ -1073,8 +1069,7 @@ void ApiCleanup(FSP_FILE_SYSTEM *FileSystem, PVOID Node0, PWSTR Name, ULONG Flag
         {
             for (auto Iter = Node->Streams->begin(); Iter != Node->Streams->end(); )
             {
-                NODE_ Stream = *Iter;
-                Iter++;
+                NODE_ Stream = *Iter++;
                 DeleteNode(Airfs, Stream);
             }
             delete Node->Streams;
@@ -1314,10 +1309,7 @@ NTSTATUS ApiRename(FSP_FILE_SYSTEM *FileSystem, PVOID Node0, PWSTR Name,
 
         if (NewNode->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
             return STATUS_ACCESS_DENIED;
-    }
 
-    if (NewNode && Node != NewNode)
-    {
         ReferenceNode(NewNode);
         RemoveNode(Airfs, NewNode);
         DereferenceNode(Airfs, NewNode);
@@ -1595,19 +1587,18 @@ NTSTATUS ApiGetStreamInfo(FSP_FILE_SYSTEM *FileSystem, PVOID Node0,
 {
     NODE_ Node = (NODE_) Node0;
 
-    if (Node->IsAStream)
-        Node = Node->Parent;
+    if (Node->IsAStream) Node = Node->Parent;
 
-    if (!(Node->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
-        !AddStreamInfo(Node, Buffer, Length, PBytesTransferred))
-        return STATUS_SUCCESS;
+    if (!(Node->FileInfo.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+        if (!AddStreamInfo(Node, L"", Buffer, Length, PBytesTransferred))
+            return STATUS_SUCCESS;
 
-    // TODO: how to handle out-of-response-buffer-space condition?
     if (Node->Streams)
     {
-        for (auto Iter = Node->Streams->begin(); Iter != Node->Streams->end(); )
+        // TODO: how to handle out-of-response-buffer-space condition?
+        for (auto Iter = Node->Streams->begin(); Iter != Node->Streams->end(); ++Iter)
         {
-            BOOLEAN added = AddStreamInfo(*Iter, Buffer, Length, PBytesTransferred);
+            BOOLEAN added = AddStreamInfo(*Iter, (*Iter)->Name, Buffer, Length, PBytesTransferred);
             if (!added) goto done;
         }
     }
@@ -1978,7 +1969,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         L"" PROGNAME, FileInfoTimeout, MaxNodes, MaxFileSize,
         RootSddl ? L" -S " : L"", RootSddl ? RootSddl : L"",
         VolumePrefix && L'\0' != VolumePrefix[0] ? L" -u " : L"",
-            VolumePrefix && L'\0' != VolumePrefix[0] ? VolumePrefix : L"",
+        VolumePrefix && L'\0' != VolumePrefix[0] ? VolumePrefix : L"",
         MountPoint ? L" -m " : L"", MountPoint ? MountPoint : L"");
 
     Service->UserContext = Airfs;
