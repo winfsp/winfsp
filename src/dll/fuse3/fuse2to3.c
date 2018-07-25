@@ -56,7 +56,7 @@ static inline void fuse2to3_conn3from2(struct fuse3_conn_info *conn3, struct fus
     conn3->max_write = conn->max_write;
     conn3->max_read = conn->max_write;
     conn3->max_readahead = conn->max_readahead;
-    conn3->capable = conn->capable;
+    conn3->capable = (conn->capable & ~FSP_FUSE_CAP_READDIR_PLUS) | FUSE_CAP_READDIRPLUS;
     conn3->want = conn->want;
 }
 
@@ -321,7 +321,8 @@ static void *fuse2to3_init(struct fuse_conn_info *conn)
 
     conn->max_write = conn3.max_write;
     conn->max_readahead = conn3.max_readahead;
-    conn->want = conn3.want;
+    conn->want = 0 != (conn3.want & FUSE_CAP_READDIRPLUS) ? FSP_FUSE_CAP_READDIR_PLUS : 0;
+    conn->want |= conn3.want & ~FUSE_CAP_READDIRPLUS;
 
     return res;
 }

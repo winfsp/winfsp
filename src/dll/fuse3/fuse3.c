@@ -44,7 +44,7 @@ FSP_FUSE_API int fsp_fuse3_main_real(struct fsp_fuse_env *env,
     result = fsp_fuse3_mount(env, f3, mountpoint);
     if (-1 == result)
         goto exit;
-    mounted = 0;
+    mounted = 1;
 
     result = env->daemonize(foreground);
     if (-1 == result)
