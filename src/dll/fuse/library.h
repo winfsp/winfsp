@@ -33,6 +33,14 @@
 
 #define ENOSYS_(env)                    ('C' == (env)->environment ? 88 : 40)
 
+/* NFS reparse points */
+#define NFS_SPECFILE_FIFO               0x000000004F464946
+#define NFS_SPECFILE_CHR                0x0000000000524843
+#define NFS_SPECFILE_BLK                0x00000000004b4c42
+#define NFS_SPECFILE_LNK                0x00000000014b4e4c
+#define NFS_SPECFILE_SOCK               0x000000004B434F53
+
+/* FUSE internal struct's */
 struct fuse
 {
     struct fsp_fuse_env *env;
@@ -58,13 +66,11 @@ struct fuse
     volatile int exited;
     struct fuse3 *fuse3;
 };
-
 struct fsp_fuse_context_header
 {
     char *PosixPath;
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 ContextBuf[];
 };
-
 struct fsp_fuse_file_desc
 {
     char *PosixPath;
@@ -73,7 +79,6 @@ struct fsp_fuse_file_desc
     UINT64 FileHandle;
     PVOID DirBuffer;
 };
-
 struct fuse_dirhandle
 {
     /* ReadDirectory */
@@ -85,39 +90,12 @@ struct fuse_dirhandle
     BOOLEAN DotFiles, HasChild;
 };
 
-NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
-NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
-    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
-
-int fsp_fuse_intf_CanDeleteAddDirInfo(void *buf, const char *name,
-    const struct fuse_stat *stbuf, fuse_off_t off);
-int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
-    const struct fuse_stat *stbuf, fuse_off_t off);
-
-extern FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf;
-
-NTSTATUS fsp_fuse_get_token_uidgid(
-    HANDLE Token,
-    TOKEN_INFORMATION_CLASS UserOrOwnerClass, /* TokenUser|TokenOwner */
-    PUINT32 PUid, PUINT32 PGid);
-
-/* NFS reparse points */
-
-#define NFS_SPECFILE_FIFO               0x000000004F464946
-#define NFS_SPECFILE_CHR                0x0000000000524843
-#define NFS_SPECFILE_BLK                0x00000000004b4c42
-#define NFS_SPECFILE_LNK                0x00000000014b4e4c
-#define NFS_SPECFILE_SOCK               0x000000004B434F53
-
 /* FUSE obj alloc/free */
-
 struct fsp_fuse_obj_hdr
 {
     void (*dtor)(void *);
     __declspec(align(MEMORY_ALLOCATION_ALIGNMENT)) UINT8 ObjectBuf[];
 };
-
 static inline void *fsp_fuse_obj_alloc(struct fsp_fuse_env *env, size_t size)
 {
     struct fsp_fuse_obj_hdr *hdr;
@@ -130,7 +108,6 @@ static inline void *fsp_fuse_obj_alloc(struct fsp_fuse_env *env, size_t size)
     memset(hdr->ObjectBuf, 0, size);
     return hdr->ObjectBuf;
 }
-
 static inline void fsp_fuse_obj_free(void *obj)
 {
     if (0 == obj)
@@ -141,8 +118,14 @@ static inline void fsp_fuse_obj_free(void *obj)
     hdr->dtor(hdr);
 }
 
-struct fuse_context *fsp_fuse_get_context_internal(void);
+/* fsp_fuse_get_context_internal */
+extern DWORD fsp_fuse_tlskey;
+static inline struct fuse_context *fsp_fuse_get_context_internal(void)
+{
+    return TlsGetValue(fsp_fuse_tlskey);
+}
 
+/* fsp_fuse_core_opt_parse */
 struct fsp_fuse_core_opt_data
 {
     struct fsp_fuse_env *env;
@@ -166,9 +149,23 @@ struct fsp_fuse_core_opt_data
 FSP_FSCTL_STATIC_ASSERT(
     sizeof ((struct fuse *)0)->VolumeLabel == sizeof ((struct fsp_fuse_core_opt_data *)0)->VolumeLabel,
     "fuse::VolumeLabel and fsp_fuse_core_opt_data::VolumeLabel: sizeof must be same.");
-
 int fsp_fuse_core_opt_parse(struct fsp_fuse_env *env,
     struct fuse_args *args, struct fsp_fuse_core_opt_data *opt_data,
     int help);
+
+/* misc public symbols */
+NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+NTSTATUS fsp_fuse_op_leave(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+int fsp_fuse_intf_CanDeleteAddDirInfo(void *buf, const char *name,
+    const struct fuse_stat *stbuf, fuse_off_t off);
+int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
+    const struct fuse_stat *stbuf, fuse_off_t off);
+NTSTATUS fsp_fuse_get_token_uidgid(
+    HANDLE Token,
+    TOKEN_INFORMATION_CLASS UserOrOwnerClass, /* TokenUser|TokenOwner */
+    PUINT32 PUid, PUINT32 PGid);
+extern FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf;
 
 #endif
