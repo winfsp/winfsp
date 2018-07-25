@@ -721,8 +721,7 @@ cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
 if X%5==XNOEXCL (
     "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
-        --external --resilient ^
-        -stream_create_overwrite_test -stream_getstreaminfo_test
+        --external --resilient
 ) else (
     "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
         --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
