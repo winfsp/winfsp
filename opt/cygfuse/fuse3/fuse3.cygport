@@ -9,6 +9,8 @@ HOMEPAGE="http://www.secfs.net/winfsp/"
 SRC_URI=${CYGPORT_SRC_URI:-"https://github.com/billziss-gh/winfsp/archive/master.tar.gz"}
 SRC_DIR=${CYGPORT_SRC_DIR:-winfsp-master}
 
+REQUIRES="fuse"
+
 src_compile()
 {
     lndirs
