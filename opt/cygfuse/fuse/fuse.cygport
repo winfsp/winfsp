@@ -2,8 +2,8 @@ NAME="fuse"
 VERSION=2.8
 RELEASE=9
 CATEGORY="Utils"
-SUMMARY="WinFsp-FUSE compatibility layer"
-DESCRIPTION="WinFsp-FUSE enables FUSE file systems to be run on Cygwin."
+SUMMARY="WinFsp FUSE compatibility layer"
+DESCRIPTION="Enables FUSE file systems to be run on Cygwin."
 HOMEPAGE="http://www.secfs.net/winfsp/"
 
 SRC_URI=${CYGPORT_SRC_URI:-"https://github.com/billziss-gh/winfsp/archive/master.tar.gz"}
