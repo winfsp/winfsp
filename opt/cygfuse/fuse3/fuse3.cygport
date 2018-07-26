@@ -1,0 +1,35 @@
+NAME="fuse3"
+VERSION=3.2
+RELEASE=1
+CATEGORY="Utils"
+SUMMARY="WinFsp FUSE3 compatibility layer"
+DESCRIPTION="Enables FUSE3 file systems to be run on Cygwin."
+HOMEPAGE="http://www.secfs.net/winfsp/"
+
+SRC_URI=${CYGPORT_SRC_URI:-"https://github.com/billziss-gh/winfsp/archive/master.tar.gz"}
+SRC_DIR=${CYGPORT_SRC_DIR:-winfsp-master}
+
+src_compile()
+{
+    lndirs
+    cd ${B}/opt/cygfuse/fuse3
+    make
+}
+
+src_install()
+{
+    cd ${B}/inc/fuse3
+    includeinto fuse3
+    doinclude fuse.h
+    doinclude fuse_common.h
+    doinclude fuse_opt.h
+    doinclude winfsp_fuse.h
+
+    cd ${B}/opt/cygfuse/fuse3/build/$(ARCH)
+    dobin cygfuse-${VERSION}.dll
+    dolib libfuse-${VERSION}.dll.a
+    dosym libfuse-${VERSION}.dll.a /usr/lib/libfuse3.dll.a
+    dopkgconfig fuse3.pc
+}
+
+RESTRICT="strip postinst-doc"

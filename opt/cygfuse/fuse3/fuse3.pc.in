@@ -1,0 +1,9 @@
+prefix=/usr
+incdir=${prefix}/include/fuse3
+
+Name: fuse
+Description: WinFsp FUSE3 compatible API
+Version: @Version@
+URL: http://www.secfs.net/winfsp/
+Libs: -lfuse-@Version@
+Cflags: -I"${incdir}" -DCYGFUSE
