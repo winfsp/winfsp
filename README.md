@@ -33,7 +33,7 @@ The project source code is organized as follows:
 * [build/VStudio](build/VStudio): WinFsp solution and project files.
 * [doc](doc): The WinFsp design documents and additional documentation can be found here.
 * [ext/tlib](ext/tlib): A small test library originally from the secfs (Secure Cloud File System) project.
-* [ext/test](ext/test): Submodule pointing to the secfs.test project, which contains a number of tools for testing Windows and POSIX file systems.
+* ext/test: Submodule pointing to the secfs.test project, which contains a number of tools for testing Windows and POSIX file systems.
 * [inc/fuse](inc/fuse): Public headers for the FUSE compatibility layer.
 * [inc/fuse3](inc/fuse3): Public headers for the FUSE3 compatibility layer.
 * [inc/winfsp](inc/winfsp): Public headers for the WinFsp API.
