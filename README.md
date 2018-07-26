@@ -30,25 +30,24 @@ WinFsp consists of a kernel mode FSD (File System Driver) and a user mode DLL (D
 
 The project source code is organized as follows:
 
-* `build/VStudio`: WinFsp solution and project files.
-* `doc`: The WinFsp design documents and additional documentation can be found here.
-* `ext/tlib`: A small test library originally from the secfs (Secure Cloud File System) project.
-* `ext/test`: Submodule pointing to the secfs.test project, which contains a number of tools for testing Windows and POSIX file systems.
-* `inc/fuse`: Public headers for the FUSE compatibility layer.
-* `inc/fuse3`: Public headers for the FUSE3 compatibility layer.
-* `inc/winfsp`: Public headers for the WinFsp API.
-* `src/dll`: Source code to the WinFsp DLL.
-* `src/dll/fuse`: Source code to the FUSE compatibility layer.
-* `src/dll/fuse3`: Source code to the FUSE3 compatibility layer.
-* `src/dotnet`: Source code to the .NET layer.
-* `src/fsptool`: Source code to fsptool command line utility.
-* `src/launcher`: Source code to the launcher service and the launchctl utility.
-* `src/sys`: Source code to the WinFsp FSD.
-* `opt/cygfuse`: Source code for the Cygwin FUSE package.
-* `tst/memfs*`: Source code to an example file system written in C/C++ (memfs) or C# (memfs-dotnet).
-* `tst/passthrough*`: Source code to additional example file systems.
-* `tst/winfsp-tests`: WinFsp test suite.
-* `tools`: Various tools for building and testing WinFsp.
+* [build/VStudio](build/VStudio): WinFsp solution and project files.
+* [doc](doc): The WinFsp design documents and additional documentation can be found here.
+* [ext/tlib](ext/tlib): A small test library originally from the secfs (Secure Cloud File System) project.
+* [ext/test](ext/test): Submodule pointing to the secfs.test project, which contains a number of tools for testing Windows and POSIX file systems.
+* [inc/fuse](inc/fuse): Public headers for the FUSE compatibility layer.
+* [inc/fuse3](inc/fuse3): Public headers for the FUSE3 compatibility layer.
+* [inc/winfsp](inc/winfsp): Public headers for the WinFsp API.
+* [src/dll](src/dll): Source code to the WinFsp DLL.
+* [src/dll/fuse](src/dll/fuse): Source code to the FUSE compatibility layer.
+* [src/dll/fuse3](src/dll/fuse3): Source code to the FUSE3 compatibility layer.
+* [src/dotnet](src/dotnet): Source code to the .NET layer.
+* [src/fsptool](src/fsptool): Source code to fsptool command line utility.
+* [src/launcher](src/launcher): Source code to the launcher service and the launchctl utility.
+* [src/sys](src/sys): Source code to the WinFsp FSD.
+* [opt/cygfuse](opt/cygfuse): Source code for the FUSE for Cygwin package.
+* [tst](tst): Source code to example file systems and test suites.
+* [tst/winfsp-tests](tst/winfsp-tests): WinFsp test suite.
+* [tools](tools): Various tools for building and testing WinFsp.
 
 ## Building and Running
 
