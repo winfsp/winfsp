@@ -1,5 +1,5 @@
 /**
- * @file cygfuse/cygfuse.c
+ * @file fuse/cygfuse.c
  *
  * @copyright 2015-2018 Bill Zissimopoulos
  */

@@ -1,6 +1,6 @@
 NAME="fuse"
 VERSION=2.8
-RELEASE=8
+RELEASE=9
 CATEGORY="Utils"
 SUMMARY="WinFsp-FUSE compatibility layer"
 DESCRIPTION="WinFsp-FUSE enables FUSE file systems to be run on Cygwin."
@@ -12,7 +12,7 @@ SRC_DIR=${CYGPORT_SRC_DIR:-winfsp-master}
 src_compile()
 {
     lndirs
-    cd ${B}/opt/cygfuse
+    cd ${B}/opt/cygfuse/fuse
     make
 }
 
@@ -25,7 +25,7 @@ src_install()
     doinclude fuse_opt.h
     doinclude winfsp_fuse.h
 
-    cd ${B}/opt/cygfuse
+    cd ${B}/opt/cygfuse/fuse/build/$(ARCH)
     dobin cygfuse-${VERSION}.dll
     dolib libfuse-${VERSION}.dll.a
     dosym libfuse-${VERSION}.dll.a /usr/lib/libfuse.dll.a
