@@ -146,7 +146,9 @@ FSP_FUSE_API int fsp_fuse3_version(struct fsp_fuse_env *env)
 
 FSP_FUSE_API const char *fsp_fuse3_pkgversion(struct fsp_fuse_env *env)
 {
-#define STR(x)                          #x
+#define STR(x)                          STR_(x)
+#define STR_(x)                         #x
     return STR(FUSE_MAJOR_VERSION) "." STR(FUSE_MINOR_VERSION);
+#undef STR_
 #undef STR
 }
