@@ -251,7 +251,7 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
 
         /* ENTER CONSOLE MODE! */
 
-        /* create/reset the console mode event and console control handler */
+        /* create the console mode event and console control handler */
         if (0 == FspServiceConsoleModeEvent)
         {
             FspServiceConsoleModeEvent = CreateEventW(0, TRUE, FALSE, 0);
@@ -267,12 +267,14 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
                 goto console_mode_exit;
             }
         }
+#if 0
         else
         {
             ResetEvent(FspServiceConsoleModeEvent);
             FspServiceConsoleCtrlHandlerDisabled = 0;
             MemoryBarrier();
         }
+#endif
 
         /* prepare the command line arguments */
         Argv = CommandLineToArgvW(GetCommandLineW(), &Argc);
