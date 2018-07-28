@@ -148,6 +148,9 @@
     <ClCompile Include="..\..\src\dll\fuse3\fuse2to3.c">
       <Filter>Source\fuse3</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\dll\fuse\fuse_loop.c">
+      <Filter>Source\fuse</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\library.def">
