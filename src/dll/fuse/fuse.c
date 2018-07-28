@@ -223,16 +223,28 @@ FSP_FUSE_API int fsp_fuse_is_lib_option(struct fsp_fuse_env *env,
     return fsp_fuse_opt_match(env, fsp_fuse_core_opts, opt);
 }
 
-static void fsp_fuse_cleanup(struct fuse *f);
+static INIT_ONCE fsp_fuse_svconce = INIT_ONCE_STATIC_INIT;
+static HANDLE fsp_fuse_svcthread;
 
-static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
+static DWORD WINAPI fsp_fuse_svcmain(PVOID Context)
 {
-    struct fuse *f = Service->UserContext;
+    return FspServiceRun(FspDiagIdent(), 0, 0, 0);
+}
+
+static BOOL WINAPI fsp_fuse_svcinit(
+    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
+{
+    fsp_fuse_svcthread = CreateThread(0, 0, fsp_fuse_svcmain, 0, 0, 0);
+    return TRUE;
+}
+
+static void fsp_fuse_loop_cleanup(struct fuse *f);
+
+static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
+{
     struct fuse_context *context;
     struct fuse_conn_info conn;
     NTSTATUS Result;
-
-    f->Service = Service;
 
     context = fsp_fuse_get_context(f->env);
     if (0 == context)
@@ -394,23 +406,19 @@ static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     return STATUS_SUCCESS;
 
 fail:
-    fsp_fuse_cleanup(f);
+    fsp_fuse_loop_cleanup(f);
 
     return Result;
 }
 
-static NTSTATUS fsp_fuse_svcstop(FSP_SERVICE *Service)
+static void fsp_fuse_loop_stop(struct fuse *f)
 {
-    struct fuse *f = Service->UserContext;
-
     FspFileSystemStopDispatcher(f->FileSystem);
 
-    fsp_fuse_cleanup(f);
-
-    return STATUS_SUCCESS;
+    fsp_fuse_loop_cleanup(f);
 }
 
-static void fsp_fuse_cleanup(struct fuse *f)
+static void fsp_fuse_loop_cleanup(struct fuse *f)
 {
     if (0 != f->FileSystem)
     {
@@ -424,8 +432,40 @@ static void fsp_fuse_cleanup(struct fuse *f)
             f->ops.destroy(f->data);
         f->fsinit = FALSE;
     }
+}
 
-    f->Service = 0;
+FSP_FUSE_API NTSTATUS fsp_fuse_loop_internal(struct fuse *f)
+{
+    HANDLE WaitObjects[2];
+    DWORD WaitResult;
+    NTSTATUS Result;
+
+    Result = fsp_fuse_loop_start(f);
+    if (!NT_SUCCESS(Result))
+    {
+        /* emulate WinFsp-FUSE v1.3 behavior! */
+        FspServiceLog(EVENTLOG_ERROR_TYPE,
+            L"The service %s has failed to start (Status=%lx).", FspDiagIdent(), Result);
+        return Result;
+    }
+
+    InitOnceExecuteOnce(&fsp_fuse_svconce, fsp_fuse_svcinit, 0, 0);
+    if (0 == fsp_fuse_svcthread)
+    {
+        fsp_fuse_loop_stop(f);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    /* if either the service thread dies or our event gets signaled, stop the loop */
+    WaitObjects[0] = fsp_fuse_svcthread;
+    WaitObjects[1] = f->LoopEvent;
+    WaitResult = WaitForMultipleObjects(2, WaitObjects, FALSE, INFINITE);
+    if (WAIT_OBJECT_0 != WaitResult && WAIT_OBJECT_0 + 1 != WaitResult)
+        Result = FspNtStatusFromWin32(GetLastError());
+
+    fsp_fuse_loop_stop(f);
+
+    return Result;
 }
 
 static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
@@ -638,6 +678,10 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         goto fail;
     memcpy(f->MountPoint, ch->MountPoint, Size);
 
+    f->LoopEvent = CreateEventW(0, TRUE, FALSE, 0);
+    if (0 == f->LoopEvent)
+        goto fail;
+
     Result = FspFileSystemPreflight(
         f->VolumeParams.Prefix[0] ? L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME,
         '*' != f->MountPoint[0] || '\0' != f->MountPoint[1] ? f->MountPoint : 0);
@@ -685,7 +729,10 @@ fail:
 FSP_FUSE_API void fsp_fuse_destroy(struct fsp_fuse_env *env,
     struct fuse *f)
 {
-    fsp_fuse_cleanup(f);
+    fsp_fuse_loop_cleanup(f);
+
+    if (0 != f->LoopEvent)
+        CloseHandle(f->LoopEvent);
 
     fsp_fuse_obj_free(f->MountPoint);
 
@@ -696,23 +743,20 @@ FSP_FUSE_API int fsp_fuse_loop(struct fsp_fuse_env *env,
     struct fuse *f)
 {
     f->OpGuardStrategy = FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE;
-    return 0 == FspServiceRunEx(FspDiagIdent(), fsp_fuse_svcstart, fsp_fuse_svcstop, 0, f) ?
-        0 : -1;
+    return NT_SUCCESS(fsp_fuse_loop_internal(f)) ? 0 : -1;
 }
 
 FSP_FUSE_API int fsp_fuse_loop_mt(struct fsp_fuse_env *env,
     struct fuse *f)
 {
     f->OpGuardStrategy = FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_FINE;
-    return 0 == FspServiceRunEx(FspDiagIdent(), fsp_fuse_svcstart, fsp_fuse_svcstop, 0, f) ?
-        0 : -1;
+    return NT_SUCCESS(fsp_fuse_loop_internal(f)) ? 0 : -1;
 }
 
 FSP_FUSE_API void fsp_fuse_exit(struct fsp_fuse_env *env,
     struct fuse *f)
 {
-    if (0 != f->Service)
-        FspServiceStop(f->Service);
+    SetEvent(f->LoopEvent);
     f->exited = 1;
 }
 

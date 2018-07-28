@@ -182,6 +182,7 @@ LONG WINAPI UnhandledExceptionHandler(struct _EXCEPTION_POINTERS *ExceptionInfo)
 int main(int argc, char *argv[])
 {
     TESTSUITE(fuse_opt_tests);
+    TESTSUITE(fuse_tests);
     TESTSUITE(posix_tests);
     TESTSUITE(eventlog_tests);
     TESTSUITE(path_tests);

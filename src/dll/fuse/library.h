@@ -61,8 +61,8 @@ struct fuse
     UINT16 VolumeLabelLength;
     WCHAR VolumeLabel[sizeof ((FSP_FSCTL_VOLUME_INFO *)0)->VolumeLabel / sizeof(WCHAR)];
     PWSTR MountPoint;
+    HANDLE LoopEvent;
     FSP_FILE_SYSTEM *FileSystem;
-    FSP_SERVICE *Service; /* weak */
     volatile int exited;
     struct fuse3 *fuse3;
 };
