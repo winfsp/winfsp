@@ -24,7 +24,9 @@
 #define FUSE_COMMON_H_
 
 #include "winfsp_fuse.h"
+#if !defined(WINFSP_DLL_INTERNAL)
 #include "fuse_opt.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
