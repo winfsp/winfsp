@@ -47,7 +47,7 @@ As of the commits required to fix issue #55, there is however a hash table insid
 
 Which version of FUSE does WinFsp-FUSE support?::
 
-    Currently it supports FUSE 2.8.
+    It supports both the FUSE 2.8 and FUSE 3.2 API's. For the FUSE 2.8 API include `<fuse/fuse.h>`. For the FUSE 3.2 API include `<fuse3/fuse.h>`.
 
 
 FUSE on UNIX systems mounts file systems over an existing directory. When mounting a WinFsp-FUSE file system on a directory, the directory is created and later deleted when the file system goes away. What is the reason for this incompatibility?::
@@ -65,8 +65,4 @@ With this in mind here are the reasons for the current WinFsp-FUSE behavior:
 
 WinFsp-FUSE does not have the ability to support multiple file systems from within the same process. Why?::
 
-    The core WinFsp layer supports multiple file systems in the same process either simultaneously or one after another. However this is not the case with WinFsp-FUSE (i.e. the FUSE layer of WinFsp).
-+
-File systems in Windows often need to be run as services. For this reason the WinFsp-FUSE layer provides both file system and Windows service API functionality. This way a WinFsp-FUSE file system can easily become a Windows service. There is a problem: once a Windows process starts acting as a service and then stops being a service, it cannot become a service again.
-+
-Having FUSE file systems being able to act as Windows services is valuable. Therefore this is not a limitation that can easily be fixed as FUSE file systems would lose the "free" ability to act as Windows services.
+    This is supported as of WinFsp 2018.2 B2. Prior versions of WinFsp-FUSE did not have this capability.
