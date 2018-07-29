@@ -23,9 +23,19 @@
 static INIT_ONCE fsp_fuse_svconce = INIT_ONCE_STATIC_INIT;
 static HANDLE fsp_fuse_svcthread;
 
+static NTSTATUS fsp_fuse_svcstart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
+{
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS fsp_fuse_svcstop(FSP_SERVICE *Service)
+{
+    return STATUS_SUCCESS;
+}
+
 static DWORD WINAPI fsp_fuse_svcmain(PVOID Context)
 {
-    return FspServiceRun(FspDiagIdent(), 0, 0, 0);
+    return FspServiceRun(FspDiagIdent(), fsp_fuse_svcstart, fsp_fuse_svcstop, 0);
 }
 
 static BOOL WINAPI fsp_fuse_svcinit(
