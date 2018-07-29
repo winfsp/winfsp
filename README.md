@@ -8,13 +8,13 @@
 <p align="center">
     <b>Download</b><br>
     <a href="https://github.com/billziss-gh/winfsp/releases/latest">
-        <img src="https://img.shields.io/github/release/billziss-gh/winfsp.svg?label=stable"/>
+        <img src="https://img.shields.io/github/release/billziss-gh/winfsp.svg?label=stable&style=for-the-badge"/>
     </a>
     <a href="https://github.com/billziss-gh/winfsp/releases">
-        <img src="https://img.shields.io/github/release/billziss-gh/winfsp/all.svg?label=latest&colorB=e52e4b"/>
+        <img src="https://img.shields.io/github/release/billziss-gh/winfsp/all.svg?label=latest&colorB=e52e4b&style=for-the-badge"/>
     </a>
     <a href="https://chocolatey.org/packages/winfsp">
-        <img src="https://img.shields.io/badge/choco-install%20winfsp-black.svg?&style=flat-square"/>
+        <img src="https://img.shields.io/badge/choco-install%20winfsp-black.svg?style=for-the-badge"/>
     </a>
     <br/>
     <b>Quick Links</b><br/>
