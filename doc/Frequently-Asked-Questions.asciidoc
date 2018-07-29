@@ -65,4 +65,6 @@ With this in mind here are the reasons for the current WinFsp-FUSE behavior:
 
 WinFsp-FUSE does not have the ability to support multiple file systems from within the same process. Why?::
 
-    This is supported as of WinFsp 2018.2 B2. Prior versions of WinFsp-FUSE did not have this capability.
+    This is supported as of WinFsp 2018.2 B2.
++
+The core WinFsp layer always supported multiple file systems in the same process either simultaneously or one after another. However this was not the case with WinFsp-FUSE (i.e. the FUSE layer of WinFsp) prior to version 2018.2 B2. This limitation has been rectified as of WinFsp 2018 B2.
