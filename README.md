@@ -1,24 +1,74 @@
-# WinFsp - Windows File System Proxy
+<h1 align="center">
+    WinFsp &middot; Windows File System Proxy
+    <a href="https://twitter.com/intent/tweet?url=https%3A%2F%2Fgithub.com%2Fbillziss-gh%2Fwinfsp&text=Do%20you%20want%20to%20write%20a%20file%20system%20on%20Windows%3F%20WinFsp%20is%20well%20tested%2C%20very%20fast%20and%20easy%20to%20use%21&hashtags=windows%2Cfilesystem">
+        <img src="https://img.shields.io/twitter/url/http/shields.io.svg?style=social&label=Share"/>
+    </a>
+</h1>
 
-![WinFsp Demo](http://www.secfs.net/winfsp/files/cap.gif)
+<p align="center">
+    <b>Download</b><br>
+    <a href="https://github.com/billziss-gh/winfsp/releases/latest">
+        <img src="https://img.shields.io/github/release/billziss-gh/winfsp.svg?label=stable"/>
+    </a>
+    <a href="https://github.com/billziss-gh/winfsp/releases">
+        <img src="https://img.shields.io/github/release/billziss-gh/winfsp/all.svg?label=latest&colorB=e52e4b"/>
+    </a>
+    <a href="https://chocolatey.org/packages/winfsp">
+        <img src="https://img.shields.io/badge/choco-install%20winfsp-black.svg?&style=flat-square"/>
+    </a>
+    <br/>
+    <b>Quick Links</b><br/>
+    <a href="#benefits">Benefits</a> |
+    <a href="https://github.com/billziss-gh/winfsp/wiki">Wiki</a> |
+    <a href="https://groups.google.com/forum/#!forum/winfsp">Questions</a> |
+    <a href="https://twitter.com/BZissimopoulos">Author's Twitter</a>
+    <br/>
+    <br/>
+    <a href="https://ci.appveyor.com/project/billziss-gh/winfsp">
+        <img src="https://img.shields.io/appveyor/ci/billziss-gh/winfsp.svg"/>
+    </a>
+    <br/>
+    <br/>
+</p>
 
+<p align="center">
+    WinFsp is a set of software components for Windows computers that allows the creation of user mode file systems. In this sense it is similar to FUSE (Filesystem in Userspace), which provides the same functionality on UNIX-like computers.
+    <br/>
+    <br/>
+    <img src="http://www.secfs.net/winfsp/files/cap.gif" height="450"/>
+</p>
 
-<a href="https://github.com/billziss-gh/winfsp/releases/latest"><img src="http://www.secfs.net/winfsp/resources/Download-WinFsp.png" alt="Download WinFsp Installer" width="244" height="34"></a>
-&emsp;
-<a href="https://chocolatey.org/packages/winfsp"><img src="http://www.secfs.net/winfsp/resources/Choco-WinFsp.png" alt="choco install winfsp" width="244" height="34"></a>
+## Benefits
 
+### Stability
 
+WinFsp is very stable. There are no known kernel mode crashes and it does not suffer from resource leaks or similar problems. WinFsp owes this stability to its [Design](doc/WinFsp-Design.asciidoc) and its rigorous [Testing Regime](doc/WinFsp-Testing.asciidoc).
 
-WinFsp is a set of software components for Windows computers that allows the creation of user mode file systems. In this sense it is similar to FUSE (Filesystem in Userspace), which provides the same functionality on UNIX-like computers.
+### Performance
 
-Some of the benefits of using WinFsp are listed below:
+WinFsp outperforms its competition and in many scenarios performs as well as NTFS. Read more about its [Performance](doc/WinFsp-Performance-Testing.asciidoc).
 
-* Very well-tested and stable. Read about its [Testing Strategy](doc/WinFsp-Testing.asciidoc).
-* Very fast. Read about its [Performance](doc/WinFsp-Performance-Testing.asciidoc).
-* Strives for compatibility with NTFS. Read about its [Compatibility](doc/NTFS-Compatibility.asciidoc ).
-* Easy to understand but comprehensive API. Consult the [API Reference](http://www.secfs.net/winfsp/apiref/). There is also a simple [Tutorial](doc/WinFsp-Tutorial.asciidoc).
-* FUSE 2.8 and FUSE 3.2 compatibility layers for native Windows and Cygwin. See [fuse/fuse.h](inc/fuse/fuse.h) and [fuse3/fuse.h](inc/fuse3/fuse.h).
-* .NET layer for managed development. See [src/dotnet](src/dotnet).
+<p align="center">
+    <img src="doc/WinFsp-Performance-Testing/file_tests.png" height="300"/>
+    <img src="doc/WinFsp-Performance-Testing/rdwr_tests.png" height="300"/>
+</p>
+
+### Compatibility
+
+WinFsp strives for compatibility with NTFS and file system correctness. For the full details see the [Compatibility](doc/NTFS-Compatibility.asciidoc) document.
+
+### Easy to Use
+
+WinFsp has an easy to use but comprehensive API.
+
+* This simple [Tutorial](doc/WinFsp-Tutorial.asciidoc) explains how to build a file system.
+* Consult the [API Reference](http://www.secfs.net/winfsp/apiref/) for native development.
+* Includes .NET layer for managed development. See [src/dotnet](src/dotnet).
+* Includes FUSE 2.8 compatibility layer: [fuse/fuse.h](inc/fuse/fuse.h)
+* Includes FUSE 3.2 compatibility layer: [fuse3/fuse.h](inc/fuse3/fuse.h)
+
+### Other Benefits
+
 * Signed drivers provided on every release.
 * Available under the [GPLv3](License.txt) license with a special exception for Free/Libre and Open Source Software.
 
@@ -26,28 +76,29 @@ To learn more about WinFsp, please visit its website: http://www.secfs.net/winfs
 
 ## Project Organization
 
-WinFsp consists of a kernel mode FSD (File System Driver) and a user mode DLL (Dynamic Link Library). The FSD interfaces with NTOS (the Windows kernel) and handles all interactions necessary to present itself as a file system driver to NTOS. The DLL interfaces with the FSD and presents an easy to use API for creating user mode file systems.
-
 The project source code is organized as follows:
 
-* [build/VStudio](build/VStudio): WinFsp solution and project files.
-* [doc](doc): The WinFsp design documents and additional documentation can be found here.
-* [ext/tlib](ext/tlib): A small test library originally from the secfs (Secure Cloud File System) project.
-* ext/test: Submodule pointing to the secfs.test project, which contains a number of tools for testing Windows and POSIX file systems.
-* [inc/fuse](inc/fuse): Public headers for the FUSE compatibility layer.
-* [inc/fuse3](inc/fuse3): Public headers for the FUSE3 compatibility layer.
-* [inc/winfsp](inc/winfsp): Public headers for the WinFsp API.
-* [src/dll](src/dll): Source code to the WinFsp DLL.
-* [src/dll/fuse](src/dll/fuse): Source code to the FUSE compatibility layer.
-* [src/dll/fuse3](src/dll/fuse3): Source code to the FUSE3 compatibility layer.
-* [src/dotnet](src/dotnet): Source code to the .NET layer.
-* [src/fsptool](src/fsptool): Source code to fsptool command line utility.
-* [src/launcher](src/launcher): Source code to the launcher service and the launchctl utility.
-* [src/sys](src/sys): Source code to the WinFsp FSD.
-* [opt/cygfuse](opt/cygfuse): Source code for the FUSE for Cygwin package.
-* [tst](tst): Source code to example file systems and test suites.
-* [tst/winfsp-tests](tst/winfsp-tests): WinFsp test suite.
-* [tools](tools): Various tools for building and testing WinFsp.
+* :file_folder: [build/VStudio](build/VStudio): WinFsp solution and project files.
+* :file_folder: [doc](doc): The WinFsp design documents and additional documentation can be found here.
+* :file_folder: [ext](ext): External dependencies.
+    * :file_folder: [ext/tlib](ext/tlib): A small test library originally from the secfs (Secure Cloud File System) project.
+    * :file_folder: ext/test: Submodule pointing to the secfs.test project, which contains a number of tools for testing Windows and POSIX file systems.
+* :file_folder: [inc](inc): Public headers.
+    * :file_folder: [inc/fuse](inc/fuse): Public headers for the FUSE compatibility layer.
+    * :file_folder: [inc/fuse3](inc/fuse3): Public headers for the FUSE3 compatibility layer.
+    * :file_folder: [inc/winfsp](inc/winfsp): Public headers for the WinFsp API.
+* :file_folder: [src](src): WinFsp source code.
+    * :file_folder: [src/dll](src/dll): Source code to the WinFsp DLL.
+    * :file_folder: [src/dll/fuse](src/dll/fuse): Source code to the FUSE compatibility layer.
+    * :file_folder: [src/dll/fuse3](src/dll/fuse3): Source code to the FUSE3 compatibility layer.
+    * :file_folder: [src/dotnet](src/dotnet): Source code to the .NET layer.
+    * :file_folder: [src/fsptool](src/fsptool): Source code to fsptool command line utility.
+    * :file_folder: [src/launcher](src/launcher): Source code to the launcher service and the launchctl utility.
+    * :file_folder: [src/sys](src/sys): Source code to the WinFsp FSD.
+* :file_folder: [opt/cygfuse](opt/cygfuse): Source code to the FUSE for Cygwin package.
+* :file_folder: [tst](tst): Source code to example file systems and test suites.
+    * :file_folder: [tst/winfsp-tests](tst/winfsp-tests): WinFsp test suite.
+* :file_folder: [tools](tools): Various tools for building and testing WinFsp.
 
 ## Building and Running
 
