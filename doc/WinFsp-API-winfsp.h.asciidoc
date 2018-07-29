@@ -178,6 +178,43 @@ VOID ( *Close)(
 - _FileContext_ - The file context of the file or directory to be closed.
 
 
+*Control* - Process control code.
+
+[source,c]
+----
+NTSTATUS ( *Control)(
+    FSP_FILE_SYSTEM *FileSystem, 
+    PVOID FileContext,
+    UINT32 ControlCode, 
+    PVOID InputBuffer,
+    ULONG InputBufferLength, 
+    PVOID OutputBuffer,
+    ULONG OutputBufferLength,
+    PULONG PBytesTransferred);  
+----
+
+*Parameters*
+
+- _FileSystem_ - The file system on which this request is posted.
+- _FileContext_ - The file context of the file or directory to be controled.
+- _ControlCode_ - The control code for the operation. This code must have a DeviceType with bit
+0x8000 set and must have a TransferType of METHOD$$_$$BUFFERED.
+- _InputBuffer_ - Pointer to a buffer that contains the input data.
+- _InputBufferLength_ - Input data length.
+- _OutputBuffer_ - Pointer to a buffer that will receive the output data.
+- _OutputBufferLength_ - Output data length.
+- _PBytesTransferred_ - [out]
+Pointer to a memory location that will receive the actual number of bytes transferred.
+
+*Return Value*
+
+STATUS$$_$$SUCCESS or error code.
+
+*Discussion*
+
+This function is called when a program uses the DeviceIoControl API.
+
+
 *Create* - Create new file or directory.
 
 [source,c]
