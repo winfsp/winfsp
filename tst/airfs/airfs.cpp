@@ -38,9 +38,13 @@ FSP_FSCTL_STATIC_ASSERT(AIRFS_MAX_PATH > MAX_PATH,
 #define AIRFS_NAMED_STREAMS         //  Include alternate data streams support.
 #define AIRFS_DIRINFO_BY_NAME       //  Include GetDirInfoByName.
 #define AIRFS_SLOWIO                //  Include delayed I/O response support.
+#define AIRFS_CONTROL               //  Include DeviceIoControl support.
 
-#define AIRFS_SECTOR_SIZE                 512
-#define AIRFS_SECTORS_PER_ALLOCATION_UNIT   1
+
+#define SECTOR_SIZE                   512
+#define SECTORS_PER_ALLOCATION_UNIT     1
+#define ALLOCATION_UNIT             ( SECTOR_SIZE * SECTORS_PER_ALLOCATION_UNIT )
+#define IN_ALLOCATION_UNITS(bytes)  (((bytes) + ALLOCATION_UNIT - 1) / ALLOCATION_UNIT * ALLOCATION_UNIT)
 
 enum
 {
@@ -289,7 +293,7 @@ void DeleteAllNodes(AIRFS_ Airfs)
         else
         {
 #if defined(AIRFS_NAMED_STREAMS)
-			if (Node->Streams)
+            if (Node->Streams)
             {
                 for (auto Iter = Node->Streams->begin(); Iter != Node->Streams->end(); )
                 {
@@ -334,7 +338,7 @@ NTSTATUS FindNode(AIRFS_ Airfs, PWSTR Name, PWSTR *BaseName,
     {
         //  Isolate the next base name.
         for (fm = to+1; *fm == L'\\'; fm++) {}
-		for (to = fm; *to != L'\0' && *to != L'\\'; to++)
+        for (to = fm; *to != L'\0' && *to != L'\\'; to++)
             if (*to == ':'){Colon = to; break;}
         if (*to == 0) break;
         *to = 0;
@@ -660,10 +664,11 @@ NTSTATUS SetAllocSize(FSP_FILE_SYSTEM *FileSystem, NODE_ Node,
 {
     AIRFS_ Airfs = (AIRFS_) FileSystem->UserContext;
 
+    RequestedAllocSize = IN_ALLOCATION_UNITS(RequestedAllocSize);
+
     if (Node->FileInfo.AllocationSize != RequestedAllocSize)
     {
-        if (RequestedAllocSize > Airfs->MaxFileSize)
-            return STATUS_DISK_FULL;
+        if (RequestedAllocSize > Airfs->MaxFileSize) return STATUS_DISK_FULL;
 
         //  Reallocate only if the file is made smaller, or if it will not fit in the actual memory footprint.
         size_t ActualSize = AirfsHeapSize(Node->FileData);
@@ -671,7 +676,7 @@ NTSTATUS SetAllocSize(FSP_FILE_SYSTEM *FileSystem, NODE_ Node,
         {
             //  If the file grow request was modest, guess that it might happen again, and grow the file by 50%.
             if (RequestedAllocSize > Node->FileInfo.AllocationSize && RequestedAllocSize <= ActualSize + ActualSize / 8)
-                RequestedAllocSize = (ActualSize + ActualSize / 2 + 7) ^ 7;
+                RequestedAllocSize = IN_ALLOCATION_UNITS(ActualSize + ActualSize / 2);
 
             PVOID FileData = AirfsHeapRealloc(Node->FileData, (size_t)RequestedAllocSize);
             if (!FileData && RequestedAllocSize > 0)
@@ -697,10 +702,7 @@ NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, NODE_ Node,
     {
         if (Node->FileInfo.AllocationSize < RequestedFileSize)
         {
-            UINT64 AllocationUnit = AIRFS_SECTOR_SIZE * AIRFS_SECTORS_PER_ALLOCATION_UNIT;
-            UINT64 AllocationSize = (RequestedFileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
-
-            NTSTATUS Result = SetAllocSize(FileSystem, Node, AllocationSize);
+            NTSTATUS Result = SetAllocSize(FileSystem, Node, RequestedFileSize);
             if (!NT_SUCCESS(Result))
                 return Result;
         }
@@ -1054,11 +1056,7 @@ void ApiCleanup(FSP_FILE_SYSTEM *FileSystem, PVOID Node0, PWSTR Name, ULONG Flag
 
     if (Flags & FspCleanupSetAllocationSize)
     {
-        UINT64 AllocationUnit = AIRFS_SECTOR_SIZE * AIRFS_SECTORS_PER_ALLOCATION_UNIT;
-        UINT64 AllocationSize = (Node->FileInfo.FileSize + AllocationUnit - 1) /
-            AllocationUnit * AllocationUnit;
-
-        SetAllocSize(FileSystem, Node, AllocationSize);
+        SetAllocSize(FileSystem, Node, Node->FileInfo.FileSize);
     }
 
     if ((Flags & FspCleanupDelete) && !NodeHasChildren(Node))
@@ -1419,9 +1417,9 @@ NTSTATUS ApiReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID Node0,
     {
         NODE_ Node = *Iter;
         if (!AddDirInfo(Node, Node->Name, Buffer, Length, PBytesTransferred))
-		{
+        {
             goto bufferReady;
-    	}
+        }
     }
     FspFileSystemAddDirInfo(0, Buffer, Length, PBytesTransferred);
 
@@ -1611,6 +1609,32 @@ NTSTATUS ApiGetStreamInfo(FSP_FILE_SYSTEM *FileSystem, PVOID Node0,
 
 #endif
 //////////////////////////////////////////////////////////////////////
+#if defined(AIRFS_CONTROL)
+
+NTSTATUS ApiControl(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileContext, UINT32 ControlCode,
+    PVOID InputBuffer, ULONG InputBufferLength,
+    PVOID OutputBuffer, ULONG OutputBufferLength, PULONG PBytesTransferred)
+{
+    //  Trivial example: change upper to lower case and vice versa.
+    if (CTL_CODE(0x8000 + 'A', 'C', METHOD_BUFFERED, FILE_ANY_ACCESS) == ControlCode)
+    {
+        if (OutputBufferLength != InputBufferLength) return STATUS_INVALID_PARAMETER;
+        for (ULONG i = 0; i < InputBufferLength; i++)
+        {
+            char c = ((char*)InputBuffer)[i];
+            if ((c|0x20) >= 'a' && (c|0x20) <= 'z') c ^= 0x20;
+            ((char*)OutputBuffer)[i] = c;
+        }
+        *PBytesTransferred = InputBufferLength;
+        return STATUS_SUCCESS;
+    }
+
+    return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+#endif
+//////////////////////////////////////////////////////////////////////
 
 FSP_FILE_SYSTEM_INTERFACE AirfsInterface =
 {
@@ -1651,6 +1675,11 @@ FSP_FILE_SYSTEM_INTERFACE AirfsInterface =
 #endif
 #if defined(AIRFS_DIRINFO_BY_NAME)
     ApiGetDirInfoByName,
+#else
+    0,
+#endif
+#if defined(AIRFS_CONTROL)
+    ApiControl,
 #else
     0,
 #endif
@@ -1711,7 +1740,6 @@ NTSTATUS AirfsCreate(
     BOOLEAN FlushAndPurgeOnCleanup = !!(Flags & AirfsFlushAndPurgeOnCleanup);
     PWSTR DevicePath = AirfsNet == (Flags & AirfsDeviceMask) ?
         L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME;
-    UINT64 AllocationUnit;
     AIRFS_ Airfs;
     NODE_ RootNode;
     PSECURITY_DESCRIPTOR RootSecurity;
@@ -1737,8 +1765,7 @@ NTSTATUS AirfsCreate(
 
     memset(Airfs, 0, sizeof *Airfs);
     Airfs->MaxNodes = MaxNodes;
-    AllocationUnit = AIRFS_SECTOR_SIZE * AIRFS_SECTORS_PER_ALLOCATION_UNIT;
-    Airfs->MaxFileSize = (ULONG)((MaxFileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit);
+    Airfs->MaxFileSize = IN_ALLOCATION_UNITS(MaxFileSize);
 
 #ifdef AIRFS_SLOWIO
     Airfs->SlowioMaxDelay = SlowioMaxDelay;
@@ -1750,8 +1777,8 @@ NTSTATUS AirfsCreate(
 
     memset(&VolumeParams, 0, sizeof VolumeParams);
     VolumeParams.Version = sizeof FSP_FSCTL_VOLUME_PARAMS;
-    VolumeParams.SectorSize = AIRFS_SECTOR_SIZE;
-    VolumeParams.SectorsPerAllocationUnit = AIRFS_SECTORS_PER_ALLOCATION_UNIT;
+    VolumeParams.SectorSize = SECTOR_SIZE;
+    VolumeParams.SectorsPerAllocationUnit = SECTORS_PER_ALLOCATION_UNIT;
     VolumeParams.VolumeCreationTime = GetSystemTime();
     VolumeParams.VolumeSerialNumber = (UINT32)(GetSystemTime() / (10000 * 1000));
     VolumeParams.FileInfoTimeout = FileInfoTimeout;
@@ -1769,6 +1796,9 @@ NTSTATUS AirfsCreate(
     VolumeParams.PassQueryDirectoryFileName = 1;
 #endif
     VolumeParams.FlushAndPurgeOnCleanup = FlushAndPurgeOnCleanup;
+#if defined(AIRFS_CONTROL)
+    VolumeParams.DeviceControl = 1;
+#endif
     if (VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
     wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),
@@ -1998,7 +2028,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         "    -R RarefyDelay      [adjust the rarity of pending slow IO]\n"
         "    -F FileSystemName\n"
         "    -S RootSddl         [file rights: FA, etc; NO generic rights: GA, etc.]\n"
-        "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
+        "    -u \\Server\\Share  [UNC prefix (single backslash)]\n"
         "    -m MountPoint       [X:|* (required if no UNC prefix)]\n";
 
     fail(usage, L"" PROGNAME);
@@ -2010,7 +2040,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
 NTSTATUS SvcStop(FSP_SERVICE *Service)
 {
-    AIRFS_ Airfs = (AIRFS_)  Service->UserContext;
+    AIRFS_ Airfs = (AIRFS_) Service->UserContext;
     
     AirfsStop(Airfs);
     AirfsDelete(Airfs);
