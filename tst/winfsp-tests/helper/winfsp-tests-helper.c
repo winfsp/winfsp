@@ -74,17 +74,17 @@ static long long wcstoint(const wchar_t *p, int base, int is_signed)
 
 int wmain(int argc, wchar_t **argv)
 {
-	HANDLE Event;
-	ULONG Timeout;
+    HANDLE Event;
+    ULONG Timeout;
 
-	if (argc != 3)
-		return 1;
+    if (argc != 3)
+        return 1;
 
-	Event = (HANDLE)(UINT_PTR)wcstoint(argv[1], 16, 0);
-	Timeout = wcstoint(argv[2], 16, 0);
+    Event = (HANDLE)(UINT_PTR)wcstoint(argv[1], 16, 0);
+    Timeout = wcstoint(argv[2], 16, 0);
 
-	SetEvent(Event);
-	CloseHandle(Event);
+    SetEvent(Event);
+    CloseHandle(Event);
 
     Sleep(Timeout);
 

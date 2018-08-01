@@ -41,16 +41,16 @@ extern "C" {
 
 struct fuse_opt
 {
-	const char *templ;
-	unsigned int offset;
-	int value;
+    const char *templ;
+    unsigned int offset;
+    int value;
 };
 
 struct fuse_args
 {
-	int argc;
-	char **argv;
-	int allocated;
+    int argc;
+    char **argv;
+    int allocated;
 };
 
 typedef int (*fuse_opt_proc_t)(void *data, const char *arg, int key,
