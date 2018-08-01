@@ -53,6 +53,10 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
     struct fuse_conn_info conn;
     NTSTATUS Result;
 
+    f->LoopEvent = CreateEventW(0, TRUE, FALSE, 0);
+    if (0 == f->LoopEvent)
+        goto fail;
+
     context = fsp_fuse_get_context(f->env);
     if (0 == context)
     {
@@ -239,6 +243,12 @@ static void fsp_fuse_loop_cleanup(struct fuse *f)
             f->ops.destroy(f->data);
         f->fsinit = FALSE;
     }
+
+    if (0 != f->LoopEvent)
+    {
+        CloseHandle(f->LoopEvent);
+        f->LoopEvent = 0;
+    }
 }
 
 static NTSTATUS fsp_fuse_loop_internal(struct fuse *f)
@@ -264,11 +274,15 @@ static NTSTATUS fsp_fuse_loop_internal(struct fuse *f)
     }
 
     /* if either the service thread dies or our event gets signaled, stop the loop */
-    WaitObjects[0] = fsp_fuse_svcthread;
-    WaitObjects[1] = f->LoopEvent;
-    WaitResult = WaitForMultipleObjects(2, WaitObjects, FALSE, INFINITE);
-    if (WAIT_OBJECT_0 != WaitResult && WAIT_OBJECT_0 + 1 != WaitResult)
-        Result = FspNtStatusFromWin32(GetLastError());
+    Result = STATUS_SUCCESS;
+    if (!f->exited)
+    {
+        WaitObjects[0] = fsp_fuse_svcthread;
+        WaitObjects[1] = f->LoopEvent;
+        WaitResult = WaitForMultipleObjects(2, WaitObjects, FALSE, INFINITE);
+        if (WAIT_OBJECT_0 != WaitResult && WAIT_OBJECT_0 + 1 != WaitResult)
+            Result = FspNtStatusFromWin32(GetLastError());
+    }
 
     fsp_fuse_loop_stop(f);
 

@@ -430,10 +430,6 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         goto fail;
     memcpy(f->MountPoint, ch->MountPoint, Size);
 
-    f->LoopEvent = CreateEventW(0, TRUE, FALSE, 0);
-    if (0 == f->LoopEvent)
-        goto fail;
-
     Result = FspFileSystemPreflight(
         f->VolumeParams.Prefix[0] ? L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME,
         '*' != f->MountPoint[0] || '\0' != f->MountPoint[1] ? f->MountPoint : 0);
@@ -481,9 +477,6 @@ fail:
 FSP_FUSE_API void fsp_fuse_destroy(struct fsp_fuse_env *env,
     struct fuse *f)
 {
-    if (0 != f->LoopEvent)
-        CloseHandle(f->LoopEvent);
-
     fsp_fuse_obj_free(f->MountPoint);
 
     fsp_fuse_obj_free(f);
@@ -492,7 +485,8 @@ FSP_FUSE_API void fsp_fuse_destroy(struct fsp_fuse_env *env,
 FSP_FUSE_API void fsp_fuse_exit(struct fsp_fuse_env *env,
     struct fuse *f)
 {
-    SetEvent(f->LoopEvent);
+    if (0 != f->LoopEvent)
+        SetEvent(f->LoopEvent);
     f->exited = 1;
 }
 
