@@ -1616,14 +1616,16 @@ NTSTATUS ApiControl(FSP_FILE_SYSTEM *FileSystem,
     PVOID InputBuffer, ULONG InputBufferLength,
     PVOID OutputBuffer, ULONG OutputBufferLength, PULONG PBytesTransferred)
 {
-    //  Trivial example: change upper to lower case and vice versa.
-    if (CTL_CODE(0x8000 + 'A', 'C', METHOD_BUFFERED, FILE_ANY_ACCESS) == ControlCode)
+    //  Trivial example: Perform a ROT13 translation on alphas.
+    if (CTL_CODE(0x8000 + 'M', 'R', METHOD_BUFFERED, FILE_ANY_ACCESS) == ControlCode)
     {
         if (OutputBufferLength != InputBufferLength) return STATUS_INVALID_PARAMETER;
         for (ULONG i = 0; i < InputBufferLength; i++)
         {
             char c = ((char*)InputBuffer)[i];
-            if ((c|0x20) >= 'a' && (c|0x20) <= 'z') c ^= 0x20;
+            if (('A' <= c && c <= 'M') || ('a' <= c && c <= 'm')) c += 13;
+            else
+            if (('N' <= c && c <= 'Z') || ('n' <= c && c <= 'z')) c -= 13;
             ((char*)OutputBuffer)[i] = c;
         }
         *PBytesTransferred = InputBufferLength;
