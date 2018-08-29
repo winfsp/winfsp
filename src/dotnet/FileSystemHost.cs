@@ -1065,6 +1065,28 @@ namespace Fsp
                 return ExceptionHandler(FileSystem, ex);
             }
         }
+        private static Int32 SetDelete(
+            IntPtr FileSystemPtr,
+            ref FullContext FullContext,
+            String FileName,
+            Boolean DeleteFile)
+        {
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
+            try
+            {
+                Object FileNode, FileDesc;
+                Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
+                return FileSystem.SetDelete(
+                    FileNode,
+                    FileDesc,
+                    FileName,
+                    DeleteFile);
+            }
+            catch (Exception ex)
+            {
+                return ExceptionHandler(FileSystem, ex);
+            }
+        }
 
         static FileSystemHost()
         {
@@ -1094,6 +1116,7 @@ namespace Fsp
             _FileSystemInterface.GetStreamInfo = GetStreamInfo;
             _FileSystemInterface.GetDirInfoByName = GetDirInfoByName;
             _FileSystemInterface.Control = Control;
+            _FileSystemInterface.SetDelete = SetDelete;
 
             _FileSystemInterfacePtr = Marshal.AllocHGlobal(FileSystemInterface.Size);
             Marshal.StructureToPtr(_FileSystemInterface, _FileSystemInterfacePtr, false);

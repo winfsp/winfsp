@@ -384,6 +384,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @see
      *     Close
      *     CanDelete
+     *     SetDelete
      */
     VOID (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext, PWSTR FileName, ULONG Flags);
@@ -567,6 +568,9 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * This function gets called when Win32 API's such as DeleteFile or RemoveDirectory are used.
      * It does not get called when a file or directory is opened with FILE_DELETE_ON_CLOSE.
      *
+     * NOTE: If both CanDelete and SetDelete are defined, SetDelete takes precedence. However
+     * most file systems need only implement the CanDelete operation.
+     *
      * @param FileSystem
      *     The file system on which this request is posted.
      * @param FileContext
@@ -577,6 +581,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     STATUS_SUCCESS or error code.
      * @see
      *     Cleanup
+     *     SetDelete
      */
     NTSTATUS (*CanDelete)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext, PWSTR FileName);
@@ -855,12 +860,46 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         PVOID FileContext, UINT32 ControlCode,
         PVOID InputBuffer, ULONG InputBufferLength,
         PVOID OutputBuffer, ULONG OutputBufferLength, PULONG PBytesTransferred);
+    /**
+     * Set the file delete flag.
+     *
+     * This function sets a flag to indicates whether the FSD file should delete a file
+     * when it is closed. This function does not need to perform access checks, but may
+     * performs tasks such as check for empty directories, etc.
+     *
+     * This function should <b>NEVER</b> delete the file or directory in question. Deletion should
+     * happen during Cleanup with the FspCleanupDelete flag set.
+     *
+     * This function gets called when Win32 API's such as DeleteFile or RemoveDirectory are used.
+     * It does not get called when a file or directory is opened with FILE_DELETE_ON_CLOSE.
+     *
+     * NOTE: If both CanDelete and SetDelete are defined, SetDelete takes precedence. However
+     * most file systems need only implement the CanDelete operation.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param FileContext
+     *     The file context of the file or directory to set the delete flag for.
+     * @param FileName
+     *     The name of the file or directory to set the delete flag for.
+     * @param DeleteFile
+     *     If set to TRUE the FSD indicates that the file will be deleted on Cleanup; otherwise
+     *     it will not be deleted. It is legal to receive multiple SetDelete calls for the same
+     *     file with different DeleteFile parameters.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     * @see
+     *     Cleanup
+     *     CanDelete
+     */
+    NTSTATUS (*SetDelete)(FSP_FILE_SYSTEM *FileSystem,
+        PVOID FileContext, PWSTR FileName, BOOLEAN DeleteFile);
 
     /*
      * This ensures that this interface will always contain 64 function pointers.
      * Please update when changing the interface as it is important for future compatibility.
      */
-    NTSTATUS (*Reserved[38])();
+    NTSTATUS (*Reserved[37])();
 } FSP_FILE_SYSTEM_INTERFACE;
 FSP_FSCTL_STATIC_ASSERT(sizeof(FSP_FILE_SYSTEM_INTERFACE) == 64 * sizeof(NTSTATUS (*)()),
     "FSP_FILE_SYSTEM_INTERFACE must have 64 entries.");

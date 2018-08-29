@@ -470,6 +470,11 @@ namespace Fsp.Interop
                 IntPtr InputBuffer, UInt32 InputBufferLength,
                 IntPtr OutputBuffer, UInt32 OutputBufferLength,
                 out UInt32 PBytesTransferred);
+            internal delegate Int32 SetDelete(
+                IntPtr FileSystem,
+                ref FullContext FullContext,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                [MarshalAs(UnmanagedType.U1)] Boolean DeleteFile);
         }
 
         internal static int Size = IntPtr.Size * 64;
@@ -500,7 +505,8 @@ namespace Fsp.Interop
         internal Proto.GetStreamInfo GetStreamInfo;
         internal Proto.GetDirInfoByName GetDirInfoByName;
         internal Proto.Control Control;
-        /* NTSTATUS (*Reserved[38])(); */
+        internal Proto.SetDelete SetDelete;
+        /* NTSTATUS (*Reserved[37])(); */
     }
 
     [SuppressUnmanagedCodeSecurity]

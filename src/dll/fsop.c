@@ -1047,13 +1047,22 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
                 break;
             }
         }
-        if (0 != FileSystem->Interface->CanDelete)
+        if (0 != FileSystem->Interface->SetDelete)
+        {
+            Result = FileSystem->Interface->SetDelete(FileSystem,
+                (PVOID)ValOfFileContext(Request->Req.SetInformation),
+                (PWSTR)Request->Buffer,
+                Request->Req.SetInformation.Info.Disposition.Delete);
+        }
+        else if (0 != FileSystem->Interface->CanDelete)
+        {
             if (Request->Req.SetInformation.Info.Disposition.Delete)
                 Result = FileSystem->Interface->CanDelete(FileSystem,
                     (PVOID)ValOfFileContext(Request->Req.SetInformation),
                     (PWSTR)Request->Buffer);
             else
                 Result = STATUS_SUCCESS;
+        }
         break;
     case 10/*FileRenameInformation*/:
         if (0 != FileSystem->Interface->Rename)

@@ -341,6 +341,7 @@ namespace Fsp
         /// These flags determine whether the file was modified and whether to delete the file.
         /// </param>
         /// <seealso cref="CanDelete"/>
+        /// <seealso cref="SetDelete"/>
         /// <seealso cref="Close"/>
         public virtual void Cleanup(
             Object FileNode,
@@ -595,6 +596,22 @@ namespace Fsp
         /// <summary>
         /// Determines whether a file or directory can be deleted.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This function tests whether a file or directory can be safely deleted. This function does
+        /// not need to perform access checks, but may performs tasks such as check for empty
+        /// directories, etc.
+        /// </para><para>
+        /// This function should <b>NEVER</b> delete the file or directory in question. Deletion should
+        /// happen during Cleanup with the FspCleanupDelete flag set.
+        /// </para><para>
+        /// This function gets called when Win32 API's such as DeleteFile or RemoveDirectory are used.
+        /// It does not get called when a file or directory is opened with FILE_DELETE_ON_CLOSE.
+        /// </para><para>
+        /// NOTE: If both CanDelete and SetDelete are defined, SetDelete takes precedence. However
+        /// most file systems need only implement the CanDelete operation.
+        /// </para>
+        /// </remarks>
         /// <param name="FileNode">
         /// The file node of the file or directory to test for deletion.
         /// </param>
@@ -606,6 +623,7 @@ namespace Fsp
         /// </param>
         /// <returns>STATUS_SUCCESS or error code.</returns>
         /// <seealso cref="Cleanup"/>
+        /// <seealso cref="SetDelete"/>
         public virtual Int32 CanDelete(
             Object FileNode,
             Object FileDesc,
@@ -1011,6 +1029,50 @@ namespace Fsp
             out UInt32 BytesTransferred)
         {
             BytesTransferred = default(UInt32);
+            return STATUS_INVALID_DEVICE_REQUEST;
+        }
+        /// <summary>
+        /// Sets the file delete flag.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This function sets a flag to indicates whether the FSD file should delete a file
+        /// when it is closed. This function does not need to perform access checks, but may
+        /// performs tasks such as check for empty directories, etc.
+        /// </para><para>
+        /// This function should <b>NEVER</b> delete the file or directory in question. Deletion should
+        /// happen during Cleanup with the FspCleanupDelete flag set.
+        /// </para><para>
+        /// This function gets called when Win32 API's such as DeleteFile or RemoveDirectory are used.
+        /// It does not get called when a file or directory is opened with FILE_DELETE_ON_CLOSE.
+        /// </para><para>
+        /// NOTE: If both CanDelete and SetDelete are defined, SetDelete takes precedence. However
+        /// most file systems need only implement the CanDelete operation.
+        /// </para>
+        /// </remarks>
+        /// <param name="FileNode">
+        /// The file node of the file or directory to set the delete flag for.
+        /// </param>
+        /// <param name="FileDesc">
+        /// The file descriptor of the file or directory to set the delete flag for.
+        /// </param>
+        /// <param name="FileName">
+        /// The name of the file or directory to set the delete flag for.
+        /// </param>
+        /// <param name="DeleteFile">
+        /// If set to TRUE the FSD indicates that the file will be deleted on Cleanup; otherwise
+        /// it will not be deleted. It is legal to receive multiple SetDelete calls for the same
+        /// file with different DeleteFile parameters.
+        /// </param>
+        /// <returns>STATUS_SUCCESS or error code.</returns>
+        /// <seealso cref="Cleanup"/>
+        /// <seealso cref="CanDelete"/>
+        public virtual Int32 SetDelete(
+            Object FileNode,
+            Object FileDesc,
+            String FileName,
+            Boolean DeleteFile)
+        {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
 
