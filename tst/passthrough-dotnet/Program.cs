@@ -311,6 +311,7 @@ namespace passthrough
             Host.PersistentAcls = true;
             Host.PostCleanupWhenModifiedOnly = true;
             Host.PassQueryDirectoryPattern = true;
+            Host.FlushAndPurgeOnCleanup = true;
             Host.VolumeCreationTime = (UInt64)File.GetCreationTimeUtc(_Path).ToFileTimeUtc();
             Host.VolumeSerialNumber = 0;
             return STATUS_SUCCESS;
