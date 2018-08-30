@@ -754,26 +754,6 @@ namespace Fsp
                 return ExceptionHandler(FileSystem, ex);
             }
         }
-        private static Int32 CanDelete(
-            IntPtr FileSystemPtr,
-            ref FullContext FullContext,
-            String FileName)
-        {
-            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
-            try
-            {
-                Object FileNode, FileDesc;
-                Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return FileSystem.CanDelete(
-                    FileNode,
-                    FileDesc,
-                    FileName);
-            }
-            catch (Exception ex)
-            {
-                return ExceptionHandler(FileSystem, ex);
-            }
-        }
         private static Int32 Rename(
             IntPtr FileSystemPtr,
             ref FullContext FullContext,
@@ -1109,7 +1089,6 @@ namespace Fsp
             _FileSystemInterface.GetFileInfo = GetFileInfo;
             _FileSystemInterface.SetBasicInfo = SetBasicInfo;
             _FileSystemInterface.SetFileSize = SetFileSize;
-            _FileSystemInterface.CanDelete = CanDelete;
             _FileSystemInterface.Rename = Rename;
             _FileSystemInterface.GetSecurity = GetSecurity;
             _FileSystemInterface.SetSecurity = SetSecurity;

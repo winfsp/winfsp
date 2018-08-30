@@ -1073,7 +1073,10 @@ namespace Fsp
             String FileName,
             Boolean DeleteFile)
         {
-            return STATUS_INVALID_DEVICE_REQUEST;
+            if (DeleteFile)
+                return CanDelete(FileNode, FileDesc, FileName);
+            else
+                return STATUS_SUCCESS;
         }
 
         /* helpers */
