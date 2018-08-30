@@ -48,6 +48,7 @@ namespace Fsp.Interop
         internal const UInt32 AlwaysUseDoubleBuffering = 0x00001000;
         internal const UInt32 PassQueryDirectoryFileName = 0x00002000;
         internal const UInt32 FlushAndPurgeOnCleanup = 0x00004000;
+        internal const UInt32 DeviceControl = 0x00008000;
         internal const UInt32 UmFileContextIsUserContext2 = 0x00010000;
         internal const UInt32 UmFileContextIsFullContext = 0x00020000;
         internal const int PrefixSize = 192;
