@@ -471,6 +471,7 @@ namespace Fsp.Interop
                 IntPtr InputBuffer, UInt32 InputBufferLength,
                 IntPtr OutputBuffer, UInt32 OutputBufferLength,
                 out UInt32 PBytesTransferred);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 SetDelete(
                 IntPtr FileSystem,
                 ref FullContext FullContext,
