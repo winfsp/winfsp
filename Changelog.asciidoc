@@ -1,13 +1,25 @@
 = Changelog
 
 
-v1.4B2 (2018.2 B2)::
+v1.4B3 (2018.2 B3)::
 
 Changes since v1.3:
 
 * FUSE3 API (version 3.2) is now available. The FUSE2 API (version 2.8) also remains supported.
 * New `Control` file system operation allows sending custom control codes to the file system using the Windows `DeviceIoControl` API. FUSE `ioctl` is also supported.
 * New `SetDelete` file system operation can optionally be used instead of `CanDelete`. `SetDelete` or `CanDelete` are used to handle the file "disposition" flag, which determines if a file is marked for deletion. See the relevant documentation for more details.
+* `FlushAndPurgeOnCleanup` has now been added to the .NET API. (GitHub PR #176; thanks @FrKaram.)
+* New sample file system "airfs" contributed by @JohnOberschelp. Airfs is an in-memory file system like Memfs on which it is based on; it has received substantial improvements in how the file name space is maintained and has been modified to use modern C++ techniques by John.
+* New sample file system "passthrough-fuse3" passes all operations to an underlying file system. This file system is built using the FUSE3 API. It builds and runs on both Windows and Cygwin.
+* The FUSE layer now supports multiple file systems within a single process. This is a long standing problem that has been fixed. (GitHub issue #135.)
+
+
+v1.4B2 (2018.2 B2)::
+
+Changes since v1.3:
+
+* FUSE3 API (version 3.2) is now available. The FUSE2 API (version 2.8) also remains supported.
+* New `Control` file system operation allows sending custom control codes to the file system using the Windows `DeviceIoControl` API. FUSE `ioctl` is also supported.
 * `FlushAndPurgeOnCleanup` has now been added to the .NET API. (GitHub PR #176; thanks @FrKaram.)
 * New sample file system "airfs" contributed by @JohnOberschelp. Airfs is an in-memory file system like Memfs on which it is based on; it has received substantial improvements in how the file name space is maintained and has been modified to use modern C++ techniques by John.
 * New sample file system "passthrough-fuse3" passes all operations to an underlying file system. This file system is built using the FUSE3 API. It builds and runs on both Windows and Cygwin.
