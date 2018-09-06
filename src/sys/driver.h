@@ -1452,28 +1452,6 @@ NTSTATUS FspMainFileOpen(
 NTSTATUS FspMainFileClose(
     HANDLE MainFileHandle,
     PFILE_OBJECT MainFileObject);
-static __forceinline
-BOOLEAN FspMainFileOpenCheck(PIRP Irp)
-{
-    extern const GUID FspMainFileOpenEcpGuid;
-    NTSTATUS Result;
-    PECP_LIST ExtraCreateParameters = 0;
-    PVOID ExtraCreateParameter = 0;
-
-    Result = FsRtlGetEcpListFromIrp(Irp, &ExtraCreateParameters);
-    if (!NT_SUCCESS(Result) || 0 == ExtraCreateParameters)
-        return FALSE;
-
-    Result = FsRtlFindExtraCreateParameter(ExtraCreateParameters,
-        &FspMainFileOpenEcpGuid, &ExtraCreateParameter, 0);
-    if (!NT_SUCCESS(Result) || 0 == ExtraCreateParameter)
-        return FALSE;
-
-    if (FsRtlIsEcpFromUserMode(ExtraCreateParameter))
-        return FALSE;
-
-    return TRUE;
-}
 #define FspFileNodeAcquireShared(N,F)   FspFileNodeAcquireSharedF(N, FspFileNodeAcquire ## F)
 #define FspFileNodeTryAcquireShared(N,F)    FspFileNodeTryAcquireSharedF(N, FspFileNodeAcquire ## F, FALSE)
 #define FspFileNodeAcquireExclusive(N,F)    FspFileNodeAcquireExclusiveF(N, FspFileNodeAcquire ## F)

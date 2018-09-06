@@ -126,8 +126,32 @@ static NTSTATUS FspFsvolCreate(
 {
     PAGED_CODE();
 
-    NTSTATUS Result = STATUS_SUCCESS;
-    BOOLEAN MainFileOpen = FspMainFileOpenCheck(Irp);
+    NTSTATUS Result;
+    PECP_LIST ExtraCreateParameters;
+    PVOID ExtraCreateParameter;
+    BOOLEAN MainFileOpen = FALSE;
+
+    /*
+     * Check if the IRP has ECP's.
+     *
+     * We do this check for the following reason:
+     *
+     *   - To determine whether this is a "main file open", i.e. the opening
+     *     of the main file for a stream. In this case this is a reentrant open
+     *     and we should be careful not to try to acquire the rename resource,
+     *     which is already acquired (otherwise DEADLOCK).
+     */
+    ExtraCreateParameters = 0;
+    Result = FsRtlGetEcpListFromIrp(Irp, &ExtraCreateParameters);
+    if (NT_SUCCESS(Result) && 0 != ExtraCreateParameters)
+    {
+        ExtraCreateParameter = 0;
+        MainFileOpen =
+            NT_SUCCESS(FsRtlFindExtraCreateParameter(ExtraCreateParameters,
+                &FspMainFileOpenEcpGuid, &ExtraCreateParameter, 0)) &&
+            0 != ExtraCreateParameter &&
+            !FsRtlIsEcpFromUserMode(ExtraCreateParameter);
+    }
 
     if (!MainFileOpen)
     {
