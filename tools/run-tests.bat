@@ -34,6 +34,7 @@ set dfl_tests=^
     winfsp-tests-x64-flushpurge ^
     winfsp-tests-x64-mountpoint-drive ^
     winfsp-tests-x64-mountpoint-dir ^
+    winfsp-tests-x64-mountpoint-dir-case-sensitive ^
     winfsp-tests-x64-no-traverse ^
     winfsp-tests-x64-oplock ^
     winfsp-tests-x64-external ^
@@ -52,6 +53,7 @@ set dfl_tests=^
     winfsp-tests-x86-flushpurge ^
     winfsp-tests-x86-mountpoint-drive ^
     winfsp-tests-x86-mountpoint-dir ^
+    winfsp-tests-x86-mountpoint-dir-case-sensitive ^
     winfsp-tests-x86-no-traverse ^
     winfsp-tests-x86-oplock ^
     winfsp-tests-x86-external ^
@@ -192,6 +194,11 @@ winfsp-tests-x64 --mountpoint=mymnt --case-insensitive
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:winfsp-tests-x64-mountpoint-dir-case-sensitive
+winfsp-tests-x64 --mountpoint=mymnt
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :winfsp-tests-x64-no-traverse
 winfsp-tests-x64 --no-traverse
 if !ERRORLEVEL! neq 0 goto fail
@@ -224,6 +231,11 @@ exit /b 0
 
 :winfsp-tests-x86-mountpoint-dir
 winfsp-tests-x86 --mountpoint=mymnt --case-insensitive
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-x86-mountpoint-dir-case-sensitive
+winfsp-tests-x86 --mountpoint=mymnt
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 

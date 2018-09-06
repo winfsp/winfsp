@@ -69,6 +69,16 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspCreate)
 #endif
 
+/*
+ * FSP_CREATE_REPARSE_POINT_ECP
+ *
+ * Define this macro to include code to fix file name case after crossing
+ * a reparse point as per http://online.osr.com/ShowThread.cfm?link=287522.
+ * Fixing this problem requires undocumented information; for this reason
+ * this fix is EXPERIMENTAL.
+ */
+#define FSP_CREATE_REPARSE_POINT_ECP
+
 #define PREFIXW                         L"" FSP_FSCTL_VOLUME_PARAMS_PREFIX
 #define PREFIXW_SIZE                    (sizeof PREFIXW - sizeof(WCHAR))
 
@@ -140,6 +150,12 @@ static NTSTATUS FspFsvolCreate(
      *     of the main file for a stream. In this case this is a reentrant open
      *     and we should be careful not to try to acquire the rename resource,
      *     which is already acquired (otherwise DEADLOCK).
+     *
+     *   - To determine whether this is an open after crossing a reparse point
+     *     (e.g. when the file system is mounted as a directory). Unfortunately
+     *     Windows does not preserve file name case in this case and sends us
+     *     UPPERCASE file names, which results in all kinds of problems, esp.
+     *     for case-sensitive file systems.
      */
     ExtraCreateParameters = 0;
     Result = FsRtlGetEcpListFromIrp(Irp, &ExtraCreateParameters);
@@ -151,6 +167,51 @@ static NTSTATUS FspFsvolCreate(
                 &FspMainFileOpenEcpGuid, &ExtraCreateParameter, 0)) &&
             0 != ExtraCreateParameter &&
             !FsRtlIsEcpFromUserMode(ExtraCreateParameter);
+
+#if defined(FSP_CREATE_REPARSE_POINT_ECP)
+        // {73d5118a-88ba-439f-92f4-46d38952d250}
+        static const GUID FspReparsePointEcpGuid =
+            { 0x73d5118a, 0x88ba, 0x439f, { 0x92, 0xf4, 0x46, 0xd3, 0x89, 0x52, 0xd2, 0x50 } };
+        typedef struct _REPARSE_POINT_ECP
+        {
+            USHORT UnparsedNameLength;
+            USHORT Flags;
+            USHORT DeviceNameLength;
+            PVOID Reserved;
+            UNICODE_STRING Name;
+        } REPARSE_POINT_ECP;
+        REPARSE_POINT_ECP *ReparsePointEcp;
+
+        ExtraCreateParameter = 0;
+        ReparsePointEcp =
+            NT_SUCCESS(FsRtlFindExtraCreateParameter(ExtraCreateParameters,
+                &FspReparsePointEcpGuid, &ExtraCreateParameter, 0)) &&
+            0 != ExtraCreateParameter &&
+            !FsRtlIsEcpFromUserMode(ExtraCreateParameter) ?
+                ExtraCreateParameter : 0;
+        if (0 != ReparsePointEcp)
+        {
+            //DEBUGLOG("%hu %wZ", ReparsePointEcp->UnparsedNameLength, ReparsePointEcp->Name);
+
+            UNICODE_STRING FileName = IrpSp->FileObject->FileName;
+            if (0 != ReparsePointEcp->UnparsedNameLength &&
+                FileName.Length == ReparsePointEcp->UnparsedNameLength &&
+                ReparsePointEcp->Name.Length > ReparsePointEcp->UnparsedNameLength)
+            {
+                /*
+                 * If the ReparsePointEcp name and our file name differ only in case,
+                 * go ahead and overwrite our file name.
+                 */
+
+                UNICODE_STRING UnparsedName;
+                UnparsedName.Length = UnparsedName.MaximumLength = ReparsePointEcp->UnparsedNameLength;
+                UnparsedName.Buffer = (PWCH)((UINT8 *)ReparsePointEcp->Name.Buffer +
+                    (ReparsePointEcp->Name.Length - UnparsedName.Length));
+                if (0 == FspFileNameCompare(&UnparsedName, &FileName, TRUE, 0))
+                    RtlMoveMemory(FileName.Buffer, UnparsedName.Buffer, UnparsedName.Length);
+            }
+        }
+#endif
     }
 
     if (!MainFileOpen)
