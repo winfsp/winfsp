@@ -17,7 +17,9 @@ Disconnecting (unmapping) a network drive does not work.::
 
 Case-sensitive file systems do not work properly when mounted as a directory.::
 
-    Windows and WinFsp support case-sensitive file systems. These file systems work properly when mounted as a drive. Unfortunately when a file system is mounted as a directory over NTFS, Windows expects it to be case-insensitive and will UPPERCASE many of the file names sent to the file system.
+    This is fixed as of WinFsp 2018.2 B3.
++
+Windows and WinFsp support case-sensitive file systems. These file systems work properly when mounted as a drive. Unfortunately when a file system is mounted as a directory over NTFS, Windows expects it to be case-insensitive and will UPPERCASE many of the file names sent to the file system.
 +
 This is an unfortunate but well understood Windows limitation. Case-sensitive file systems should only be mounted as drives.
 
@@ -67,4 +69,4 @@ WinFsp-FUSE does not have the ability to support multiple file systems from with
 
     This is supported as of WinFsp 2018.2 B2.
 +
-The core WinFsp layer always supported multiple file systems in the same process either simultaneously or one after another. However this was not the case with WinFsp-FUSE (i.e. the FUSE layer of WinFsp) prior to version 2018.2 B2. This limitation has been rectified as of WinFsp 2018 B2.
+The core WinFsp layer always supported multiple file systems in the same process either simultaneously or one after another. However this was not the case with WinFsp-FUSE (i.e. the FUSE layer of WinFsp) prior to version 2018.2 B2. This limitation has been rectified as of WinFsp 2018.2 B2.
