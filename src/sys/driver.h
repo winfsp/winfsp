@@ -1577,6 +1577,7 @@ extern const GUID FspMainFileOpenEcpGuid;
 extern ULONG FspProcessorCount;
 extern FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
 extern ULONG FspMvMdlMappingNoWrite;
+extern BOOLEAN HasReparsePointCaseSensitivityFix;
 
 /*
  * Fixes
