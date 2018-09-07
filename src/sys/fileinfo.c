@@ -1775,6 +1775,11 @@ BOOLEAN FspFastIoQueryBasicInfo(
 {
     FSP_ENTER_BOOL(PAGED_CODE());
 
+#if DBG
+    if (!DEBUGTEST(50))
+        FSP_RETURN(Result = FALSE);
+#endif
+
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
 
@@ -1807,6 +1812,11 @@ BOOLEAN FspFastIoQueryStandardInfo(
     PIO_STATUS_BLOCK PIoStatus, PDEVICE_OBJECT DeviceObject)
 {
     FSP_ENTER_BOOL(PAGED_CODE());
+
+#if DBG
+    if (!DEBUGTEST(50))
+        FSP_RETURN(Result = FALSE);
+#endif
 
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
@@ -1841,6 +1851,11 @@ BOOLEAN FspFastIoQueryNetworkOpenInfo(
 {
     FSP_ENTER_BOOL(PAGED_CODE());
 
+#if DBG
+    if (!DEBUGTEST(50))
+        FSP_RETURN(Result = FALSE);
+#endif
+
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
 
@@ -1872,6 +1887,11 @@ BOOLEAN FspFastIoQueryOpen(
     PIRP Irp, PFILE_NETWORK_OPEN_INFORMATION Info, PDEVICE_OBJECT DeviceObject)
 {
     FSP_ENTER_BOOL(PAGED_CODE());
+
+#if DBG
+    if (!DEBUGTEST(50))
+        FSP_RETURN(Result = FALSE);
+#endif
 
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
