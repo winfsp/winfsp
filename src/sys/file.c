@@ -61,6 +61,8 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
+BOOLEAN FspFileNodeTryGetFileInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
+    PUNICODE_STRING FileName, FSP_FSCTL_FILE_INFO *FileInfo);
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose);
 BOOLEAN FspFileNodeTrySetFileInfoOnOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
@@ -136,6 +138,7 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 #pragma alloc_text(PAGE, FspFileNodeRename)
 #pragma alloc_text(PAGE, FspFileNodeGetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeTryGetFileInfo)
+#pragma alloc_text(PAGE, FspFileNodeTryGetFileInfoByName)
 #pragma alloc_text(PAGE, FspFileNodeSetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeTrySetFileInfoOnOpen)
 #pragma alloc_text(PAGE, FspFileNodeTrySetFileInfo)
@@ -1638,6 +1641,32 @@ BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *
 
     FspFileNodeGetFileInfo(FileNode, FileInfo);
     return TRUE;
+}
+
+BOOLEAN FspFileNodeTryGetFileInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
+    PUNICODE_STRING FileName, FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    PAGED_CODE();
+
+    FSP_FILE_NODE *FileNode;
+    BOOLEAN Result;
+
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+    FileNode = FspFsvolDeviceLookupContextByName(FsvolDeviceObject, FileName);
+    if (0 != FileNode)
+        FspFileNodeReference(FileNode);
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    Result = FALSE;
+    if (0 != FileNode)
+    {
+        FspFileNodeAcquireShared(FileNode, Main);
+        Result = FspFileNodeTryGetFileInfo(FileNode, FileInfo);
+        FspFileNodeRelease(FileNode, Main);
+        FspFileNodeDereference(FileNode);
+    }
+
+    return Result;
 }
 
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,

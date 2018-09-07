@@ -122,7 +122,7 @@ NTSTATUS DriverEntry(
     //FspFastIoDispatch.FastIoWriteCompressed = 0;
     //FspFastIoDispatch.MdlReadCompleteCompressed = 0;
     //FspFastIoDispatch.MdlWriteCompleteCompressed = 0;
-    //FspFastIoDispatch.FastIoQueryOpen = 0;
+    FspFastIoDispatch.FastIoQueryOpen = FspFastIoQueryOpen;
     FspFastIoDispatch.ReleaseForModWrite = FspReleaseForModWrite;
     FspFastIoDispatch.AcquireForCcFlush = FspAcquireForCcFlush;
     FspFastIoDispatch.ReleaseForCcFlush = FspReleaseForCcFlush;

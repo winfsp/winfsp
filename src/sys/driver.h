@@ -341,6 +341,7 @@ FSP_IOCMPL_DISPATCH FspFsvolWriteComplete;
 FAST_IO_QUERY_BASIC_INFO FspFastIoQueryBasicInfo;
 FAST_IO_QUERY_STANDARD_INFO FspFastIoQueryStandardInfo;
 FAST_IO_QUERY_NETWORK_OPEN_INFO FspFastIoQueryNetworkOpenInfo;
+FAST_IO_QUERY_OPEN FspFastIoQueryOpen;
 FAST_IO_CHECK_IF_POSSIBLE FspFastIoCheckIfPossible;
 FAST_IO_ACQUIRE_FILE FspAcquireFileForNtCreateSection;
 FAST_IO_RELEASE_FILE FspReleaseFileForNtCreateSection;
@@ -1385,6 +1386,8 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
+BOOLEAN FspFileNodeTryGetFileInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
+    PUNICODE_STRING FileName, FSP_FSCTL_FILE_INFO *FileInfo);
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose);
 BOOLEAN FspFileNodeTrySetFileInfoOnOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
