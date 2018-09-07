@@ -169,7 +169,7 @@ static NTSTATUS FspFsvolCreate(
             !FsRtlIsEcpFromUserMode(ExtraCreateParameter);
 
 #if defined(FSP_CREATE_REPARSE_POINT_ECP)
-        if (!HasReparsePointCaseSensitivityFix)
+        if (!FspHasReparsePointCaseSensitivityFix)
         {
             // {73d5118a-88ba-439f-92f4-46d38952d250}
             static const GUID FspReparsePointEcpGuid =

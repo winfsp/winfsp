@@ -235,7 +235,7 @@ static VOID FspDriverMultiVersionInitialize(VOID)
         FspMvMdlMappingNoWrite = MdlMappingNoWrite;
 
     if (RtlIsNtDdiVersionAvailable(0x0A000005/*NTDDI_WIN10_RS4*/))
-        HasReparsePointCaseSensitivityFix = TRUE;
+        FspHasReparsePointCaseSensitivityFix = TRUE;
 }
 
 #if defined(FSP_UNLOAD)
@@ -273,4 +273,4 @@ CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 ULONG FspProcessorCount;
 FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;
 ULONG FspMvMdlMappingNoWrite = 0;
-BOOLEAN HasReparsePointCaseSensitivityFix = FALSE;
+BOOLEAN FspHasReparsePointCaseSensitivityFix = FALSE;
