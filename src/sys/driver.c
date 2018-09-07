@@ -102,8 +102,8 @@ NTSTATUS DriverEntry(
     FspFastIoDispatch.FastIoCheckIfPossible = FspFastIoCheckIfPossible;
     //FspFastIoDispatch.FastIoRead = 0;
     //FspFastIoDispatch.FastIoWrite = 0;
-    //FspFastIoDispatch.FastIoQueryBasicInfo = 0;
-    //FspFastIoDispatch.FastIoQueryStandardInfo = 0;
+    FspFastIoDispatch.FastIoQueryBasicInfo = FspFastIoQueryBasicInfo;
+    FspFastIoDispatch.FastIoQueryStandardInfo = FspFastIoQueryStandardInfo;
     //FspFastIoDispatch.FastIoLock = 0;
     //FspFastIoDispatch.FastIoUnlockSingle = 0;
     //FspFastIoDispatch.FastIoUnlockAll = 0;
@@ -112,7 +112,7 @@ NTSTATUS DriverEntry(
     FspFastIoDispatch.AcquireFileForNtCreateSection = FspAcquireFileForNtCreateSection;
     FspFastIoDispatch.ReleaseFileForNtCreateSection = FspReleaseFileForNtCreateSection;
     //FspFastIoDispatch.FastIoDetachDevice = 0;
-    //FspFastIoDispatch.FastIoQueryNetworkOpenInfo = 0;
+    FspFastIoDispatch.FastIoQueryNetworkOpenInfo = FspFastIoQueryNetworkOpenInfo;
     FspFastIoDispatch.AcquireForModWrite = FspAcquireForModWrite;
     //FspFastIoDispatch.MdlRead = 0;
     //FspFastIoDispatch.MdlReadComplete = 0;

@@ -81,6 +81,9 @@ FSP_IOCMPL_DISPATCH FspFsvolSetInformationComplete;
 static FSP_IOP_REQUEST_FINI FspFsvolSetInformationRequestFini;
 FSP_DRIVER_DISPATCH FspQueryInformation;
 FSP_DRIVER_DISPATCH FspSetInformation;
+FAST_IO_QUERY_BASIC_INFO FspFastIoQueryBasicInfo;
+FAST_IO_QUERY_STANDARD_INFO FspFastIoQueryStandardInfo;
+FAST_IO_QUERY_NETWORK_OPEN_INFO FspFastIoQueryNetworkOpenInfo;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQueryAllInformation)
@@ -112,6 +115,9 @@ FSP_DRIVER_DISPATCH FspSetInformation;
 #pragma alloc_text(PAGE, FspFsvolSetInformationRequestFini)
 #pragma alloc_text(PAGE, FspQueryInformation)
 #pragma alloc_text(PAGE, FspSetInformation)
+#pragma alloc_text(PAGE, FspFastIoQueryBasicInfo)
+#pragma alloc_text(PAGE, FspFastIoQueryStandardInfo)
+#pragma alloc_text(PAGE, FspFastIoQueryNetworkOpenInfo)
 #endif
 
 enum
@@ -1759,4 +1765,97 @@ NTSTATUS FspSetInformation(
     FSP_LEAVE_MJ("%s, FileObject=%p",
         FileInformationClassSym(IrpSp->Parameters.SetFile.FileInformationClass),
         IrpSp->FileObject);
+}
+
+BOOLEAN FspFastIoQueryBasicInfo(
+    PFILE_OBJECT FileObject, BOOLEAN Wait, PFILE_BASIC_INFORMATION Info,
+    PIO_STATUS_BLOCK PIoStatus, PDEVICE_OBJECT DeviceObject)
+{
+    FSP_ENTER_BOOL(PAGED_CODE());
+
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+
+    if (!FspFileNodeIsValid(FileNode))
+        FSP_RETURN(Result = FALSE);
+
+    FspFileNodeAcquireShared(FileNode, Main);
+    Result = FspFileNodeTryGetFileInfo(FileNode, &FileInfoBuf);
+    FspFileNodeRelease(FileNode, Main);
+    if (Result)
+    {
+        
+        PVOID Buffer = Info;
+        PVOID BufferEnd = (PUINT8)Info + sizeof Info;
+        NTSTATUS Result0 = FspFsvolQueryBasicInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
+        if (!NT_SUCCESS(Result0))
+            FSP_RETURN(Result = FALSE);
+
+        PIoStatus->Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Info);
+        PIoStatus->Status = Result0;
+    }
+
+    FSP_LEAVE_BOOL("FileObject=%p", FileObject);
+}
+
+BOOLEAN FspFastIoQueryStandardInfo(
+    PFILE_OBJECT FileObject, BOOLEAN Wait, PFILE_STANDARD_INFORMATION Info,
+    PIO_STATUS_BLOCK PIoStatus, PDEVICE_OBJECT DeviceObject)
+{
+    FSP_ENTER_BOOL(PAGED_CODE());
+
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+
+    if (!FspFileNodeIsValid(FileNode))
+        FSP_RETURN(Result = FALSE);
+
+    FspFileNodeAcquireShared(FileNode, Main);
+    Result = FspFileNodeTryGetFileInfo(FileNode, &FileInfoBuf);
+    FspFileNodeRelease(FileNode, Main);
+    if (Result)
+    {
+        
+        PVOID Buffer = Info;
+        PVOID BufferEnd = (PUINT8)Info + sizeof Info;
+        NTSTATUS Result0 = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
+        if (!NT_SUCCESS(Result0))
+            FSP_RETURN(Result = FALSE);
+
+        PIoStatus->Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Info);
+        PIoStatus->Status = Result0;
+    }
+
+    FSP_LEAVE_BOOL("FileObject=%p", FileObject);
+}
+
+BOOLEAN FspFastIoQueryNetworkOpenInfo(
+    PFILE_OBJECT FileObject, BOOLEAN Wait, PFILE_NETWORK_OPEN_INFORMATION Info,
+    PIO_STATUS_BLOCK PIoStatus, PDEVICE_OBJECT DeviceObject)
+{
+    FSP_ENTER_BOOL(PAGED_CODE());
+
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+
+    if (!FspFileNodeIsValid(FileNode))
+        FSP_RETURN(Result = FALSE);
+
+    FspFileNodeAcquireShared(FileNode, Main);
+    Result = FspFileNodeTryGetFileInfo(FileNode, &FileInfoBuf);
+    FspFileNodeRelease(FileNode, Main);
+    if (Result)
+    {
+        
+        PVOID Buffer = Info;
+        PVOID BufferEnd = (PUINT8)Info + sizeof Info;
+        NTSTATUS Result0 = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
+        if (!NT_SUCCESS(Result0))
+            FSP_RETURN(Result = FALSE);
+
+        PIoStatus->Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Info);
+        PIoStatus->Status = Result0;
+    }
+
+    FSP_LEAVE_BOOL("FileObject=%p", FileObject);
 }

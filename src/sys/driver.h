@@ -338,6 +338,9 @@ FSP_IOPREP_DISPATCH FspFsvolWritePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolWriteComplete;
 
 /* fast I/O and resource acquisition callbacks */
+FAST_IO_QUERY_BASIC_INFO FspFastIoQueryBasicInfo;
+FAST_IO_QUERY_STANDARD_INFO FspFastIoQueryStandardInfo;
+FAST_IO_QUERY_NETWORK_OPEN_INFO FspFastIoQueryNetworkOpenInfo;
 FAST_IO_CHECK_IF_POSSIBLE FspFastIoCheckIfPossible;
 FAST_IO_ACQUIRE_FILE FspAcquireFileForNtCreateSection;
 FAST_IO_RELEASE_FILE FspReleaseFileForNtCreateSection;
