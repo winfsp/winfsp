@@ -1897,6 +1897,10 @@ BOOLEAN FspFastIoQueryOpen(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
 
+    if (0 != FileObject->RelatedFileObject)
+        /* sorry, no can do relative opens in here */
+        FSP_RETURN(Result = FALSE);
+
     Result = FspFileNodeTryGetFileInfoByName(IrpSp->DeviceObject, &FileObject->FileName, &FileInfoBuf);
     if (Result)
     {
