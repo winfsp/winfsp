@@ -208,6 +208,11 @@ namespace Fsp
             get { return 0 != (_VolumeParams.Flags & VolumeParams.DeviceControl); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.DeviceControl : 0); }
         }
+        public Boolean AllowOpenInKernelMode
+        {
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.AllowOpenInKernelMode); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.AllowOpenInKernelMode : 0); }
+        }
         /// <summary>
         /// Gets or sets the prefix for a network file system.
         /// </summary>

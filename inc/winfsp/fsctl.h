@@ -166,7 +166,8 @@ enum
     UINT32 UmFileContextIsFullContext:1;    /* user mode: FileContext parameter is FullContext */\
     UINT32 UmReservedFlags:6;\
     /* additional kernel-mode flags */\
-    UINT32 KmReservedFlags:8;\
+    UINT32 AllowOpenInKernelMode:1;         /* allow kernel mode to open files when possible */\
+    UINT32 KmReservedFlags:7;\
     WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */\
     WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
 #define FSP_FSCTL_VOLUME_PARAMS_V1_FIELD_DEFN\

@@ -51,6 +51,7 @@ namespace Fsp.Interop
         internal const UInt32 DeviceControl = 0x00008000;
         internal const UInt32 UmFileContextIsUserContext2 = 0x00010000;
         internal const UInt32 UmFileContextIsFullContext = 0x00020000;
+        internal const UInt32 AllowOpenInKernelMode = 0x01000000;
         internal const int PrefixSize = 192;
         internal const int FileSystemNameSize = 16;
 

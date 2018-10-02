@@ -1897,11 +1897,20 @@ BOOLEAN FspFastIoQueryOpen(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
 
-    if (0 != FileObject->RelatedFileObject)
-        /* sorry, no can do relative opens in here */
+    DeviceObject = IrpSp->DeviceObject;
+
+    if (FspFsvolDeviceExtensionKind != FspDeviceExtension(DeviceObject)->Kind)
         FSP_RETURN(Result = FALSE);
 
-    Result = FspFileNodeTryGetFileInfoByName(IrpSp->DeviceObject, &FileObject->FileName, &FileInfoBuf);
+    /* do we allow kernel mode opens? */
+    if (!FspFsvolDeviceExtension(DeviceObject)->VolumeParams.AllowOpenInKernelMode)
+        FSP_RETURN(Result = FALSE);
+
+    /* is this a relative file open? */
+    if (0 != FileObject->RelatedFileObject)
+        FSP_RETURN(Result = FALSE);
+
+    Result = FspFileNodeTryGetFileInfoByName(DeviceObject, &FileObject->FileName, &FileInfoBuf);
     if (Result)
     {
         PVOID Buffer = Info;
