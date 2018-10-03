@@ -699,7 +699,7 @@ exit /b 0
 
 :sample-passthrough-dotnet
 call :__run_sample_test passthrough-dotnet anycpu passthrough-dotnet winfsp-tests-x64 ^
-    "-create_backup_test -create_restore_test -create_namelen_test -delete_access_test -querydir_namelen_test"
+    "-create_backup_test -create_restore_test -create_namelen_test -getfileattr_test -delete_access_test -querydir_namelen_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -828,7 +828,7 @@ if X%5==XNOEXCL (
     "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
         --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
         -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
-        -getfileinfo_name_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -querydir_namelen_test -exec_rename_dir_test ^
+        -getfileattr_test -getfileinfo_name_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -querydir_namelen_test -exec_rename_dir_test ^
         -reparse* -stream* %~5
 )
 if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
