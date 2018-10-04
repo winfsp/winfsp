@@ -62,6 +62,19 @@ static void file_overwrite_test(void)
 {
     file_create_dotest(CREATE_ALWAYS);
 }
+static void file_attr_test(void)
+{
+    WCHAR FileName[MAX_PATH];
+    DWORD FileAttributes;
+
+    for (ULONG ListIndex = 0; OptListCount > ListIndex; ListIndex++)
+        for (ULONG Index = 0; OptFileCount > Index; Index++)
+        {
+            StringCbPrintfW(FileName, sizeof FileName, L"fsbench-file%lu", Index);
+            FileAttributes = GetFileAttributesW(FileName);
+            ASSERT(INVALID_FILE_ATTRIBUTES != FileAttributes);
+        }
+}
 static void file_list_test(void)
 {
     HANDLE Handle;
@@ -155,6 +168,7 @@ static void file_tests(void)
     TEST(file_create_test);
     TEST(file_open_test);
     TEST(file_overwrite_test);
+    TEST(file_attr_test);
     TEST(file_list_test);
     TEST(file_list_single_test);
     TEST(file_list_none_test);
