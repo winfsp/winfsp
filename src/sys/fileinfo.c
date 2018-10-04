@@ -1910,7 +1910,7 @@ BOOLEAN FspFastIoQueryOpen(
     if (0 != FileObject->RelatedFileObject)
         FSP_RETURN(Result = FALSE);
 
-    Result = FspFileNodeTryGetFileInfoByName(DeviceObject, &FileObject->FileName, &FileInfoBuf);
+    Result = FspFileNodeTryGetFileInfoByName(DeviceObject, Irp, &FileObject->FileName, &FileInfoBuf);
     if (Result)
     {
         PVOID Buffer = Info;

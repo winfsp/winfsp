@@ -96,7 +96,11 @@ enum
     RequestFileObject                   = 2,
     RequestState                        = 3,
 
-    /* RequestState */
+    /* TryOpen RequestState */
+    RequestFlushImage                   = 1,
+    RequestAcceptsSecurityDescriptor    = 2,
+
+    /* Overwrite RequestState */
     RequestPending                      = 0,
     RequestProcessing                   = 1,
 };
@@ -601,6 +605,9 @@ static NTSTATUS FspFsvolCreateNoLock(
     Request->Req.Create.CaseSensitive = CaseSensitive;
     Request->Req.Create.HasTrailingBackslash = HasTrailingBackslash;
     Request->Req.Create.NamedStream = MainFileName.Length;
+
+    Request->Req.Create.AcceptsSecurityDescriptor = 0 == Request->Req.Create.NamedStream &&
+        !!FsvolDeviceExtension->VolumeParams.AllowOpenInKernelMode;
 
     ASSERT(
         0 == StreamPart.Length && 0 == MainFileName.Length ||
@@ -1110,7 +1117,8 @@ NTSTATUS FspFsvolCreateComplete(
          * A Reserved request is a special request used when retrying a file open.
          */
 
-        BOOLEAN FlushImage = 0 != FspIopRequestContext(Request, RequestState);
+        BOOLEAN FlushImage =
+            0 != (RequestFlushImage & (UINT_PTR)FspIopRequestContext(Request, RequestState));
 
         Result = FspFsvolCreateTryOpen(Irp, Response, FileNode, FileDesc, FileObject, FlushImage);
     }
@@ -1178,7 +1186,9 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
         FspIopRequestContext(Request, RequestDeviceObject) = RequestDeviceObjectValue;
         FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
         FspIopRequestContext(Request, RequestFileObject) = FileObject;
-        FspIopRequestContext(Request, RequestState) = (PVOID)(UINT_PTR)FlushImage;
+        FspIopRequestContext(Request, RequestState) = (PVOID)(UINT_PTR)(
+            (FlushImage ? RequestFlushImage : 0) |
+            (Request->Req.Create.AcceptsSecurityDescriptor ? RequestAcceptsSecurityDescriptor : 0));
     }
 
     Result = STATUS_SUCCESS;
@@ -1199,8 +1209,28 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
         return Result;
     }
 
+    PSECURITY_DESCRIPTOR OpenDescriptor = 0;
+    ULONG OpenDescriptorSize = 0;
+    if (0 != (RequestAcceptsSecurityDescriptor &
+            (UINT_PTR)FspIopRequestContext(Request, RequestState)) &&
+        Response->Rsp.Create.Opened.HasSecurityDescriptor &&
+        0 < Response->Rsp.Create.Opened.SecurityDescriptor.Size &&
+        Response->Buffer +
+            Response->Rsp.Create.Opened.SecurityDescriptor.Offset +
+            Response->Rsp.Create.Opened.SecurityDescriptor.Size <=
+            (PUINT8)Response + Response->Size &&
+        RtlValidRelativeSecurityDescriptor(
+            (PUINT8)Response->Buffer +
+                Response->Rsp.Create.Opened.SecurityDescriptor.Offset,
+            Response->Rsp.Create.Opened.SecurityDescriptor.Size, 0))
+    {
+        OpenDescriptor = (PSECURITY_DESCRIPTOR)(Response->Buffer +
+            Response->Rsp.Create.Opened.SecurityDescriptor.Offset);
+        OpenDescriptorSize = Response->Rsp.Create.Opened.SecurityDescriptor.Size;
+    }
+
     /*
-     * FspFileNodeTrySetFileInfoOnOpen sets the FileNode's metadata to values reported
+     * FspFileNodeTrySetFileInfoAndSecurityOnOpen sets the FileNode's metadata to values reported
      * by the user mode file system. It does so only if the file is not already open; the
      * reason is that there is a subtle race condition otherwise.
      *
@@ -1231,12 +1261,13 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
      * example, Explorer often opens files to get information about them and may inappropriately
      * update the FSD view of the file size during WRITE's.
      *
-     * FspFileNodeTrySetFileInfoOnOpen attempts to mitigate this problem by only updating the
-     * FileInfo if the file is not already open. This avoids placing stale information in the
+     * FspFileNodeTrySetFileInfoAndSecurityOnOpen attempts to mitigate this problem by only updating
+     * the FileInfo if the file is not already open. This avoids placing stale information in the
      * FileNode.
      */
 
-    FspFileNodeTrySetFileInfoOnOpen(FileNode, FileObject, &Response->Rsp.Create.Opened.FileInfo,
+    FspFileNodeTrySetFileInfoAndSecurityOnOpen(FileNode, FileObject,
+        &Response->Rsp.Create.Opened.FileInfo, OpenDescriptor, OpenDescriptorSize,
         FILE_CREATED == Response->IoStatus.Information);
 
     if (FlushImage)

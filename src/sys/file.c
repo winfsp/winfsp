@@ -61,12 +61,14 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
-BOOLEAN FspFileNodeTryGetFileInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
+BOOLEAN FspFileNodeTryGetFileInfoByName(PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp,
     PUNICODE_STRING FileName, FSP_FSCTL_FILE_INFO *FileInfo);
 VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose);
-BOOLEAN FspFileNodeTrySetFileInfoOnOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
-    const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose);
+BOOLEAN FspFileNodeTrySetFileInfoAndSecurityOnOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
+    const FSP_FSCTL_FILE_INFO *FileInfo,
+    const PSECURITY_DESCRIPTOR SecurityDescriptor, ULONG SecurityDescriptorSize,
+    BOOLEAN TruncateOnClose);
 BOOLEAN FspFileNodeTrySetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     const FSP_FSCTL_FILE_INFO *FileInfo, ULONG InfoChangeNumber);
 VOID FspFileNodeInvalidateFileInfo(FSP_FILE_NODE *FileNode);
@@ -140,7 +142,7 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 #pragma alloc_text(PAGE, FspFileNodeTryGetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeTryGetFileInfoByName)
 #pragma alloc_text(PAGE, FspFileNodeSetFileInfo)
-#pragma alloc_text(PAGE, FspFileNodeTrySetFileInfoOnOpen)
+#pragma alloc_text(PAGE, FspFileNodeTrySetFileInfoAndSecurityOnOpen)
 #pragma alloc_text(PAGE, FspFileNodeTrySetFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeInvalidateFileInfo)
 #pragma alloc_text(PAGE, FspFileNodeReferenceSecurity)
@@ -1643,13 +1645,32 @@ BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *
     return TRUE;
 }
 
-BOOLEAN FspFileNodeTryGetFileInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
+BOOLEAN FspFileNodeTryGetFileInfoByName(PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp,
     PUNICODE_STRING FileName, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     PAGED_CODE();
 
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
+    ACCESS_MASK DesiredAccess = AccessState->RemainingDesiredAccess;
+    ACCESS_MASK GrantedAccess = AccessState->PreviouslyGrantedAccess;
+    KPROCESSOR_MODE RequestorMode =
+        FlagOn(IrpSp->Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
+    BOOLEAN HasTraversePrivilege =
+        BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
     FSP_FILE_NODE *FileNode;
+    PVOID SecurityBuffer;
     BOOLEAN Result;
+
+    if (UserMode == RequestorMode)
+    {
+        /* user mode: allow only FILE_READ_ATTRIBUTES with traverse privilege */
+        if (FILE_READ_ATTRIBUTES != DesiredAccess || !HasTraversePrivilege)
+            return FALSE;
+    }
+    else
+        /* kernel mode: anything goes! */
+        DesiredAccess = 0;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
     FileNode = FspFsvolDeviceLookupContextByName(FsvolDeviceObject, FileName);
@@ -1661,7 +1682,34 @@ BOOLEAN FspFileNodeTryGetFileInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
     if (0 != FileNode)
     {
         FspFileNodeAcquireShared(FileNode, Main);
-        Result = FspFileNodeTryGetFileInfo(FileNode, FileInfo);
+
+        if (0 != DesiredAccess)
+        {
+            ASSERT(FILE_READ_ATTRIBUTES == DesiredAccess);
+
+            if (FspFileNodeReferenceSecurity(FileNode, &SecurityBuffer, 0))
+            {
+                NTSTATUS AccessStatus;
+                Result = SeAccessCheck(
+                    SecurityBuffer,
+                    &AccessState->SubjectSecurityContext,
+                    TRUE,
+                    DesiredAccess,
+                    GrantedAccess,
+                    0,
+                    IoGetFileObjectGenericMapping(),
+                    RequestorMode,
+                    &GrantedAccess,
+                    &AccessStatus);
+
+                FspFileNodeDereferenceSecurity(SecurityBuffer);
+
+                Result = Result && FspFileNodeTryGetFileInfo(FileNode, FileInfo);
+            }
+        }
+        else
+            Result = FspFileNodeTryGetFileInfo(FileNode, FileInfo);
+
         FspFileNodeRelease(FileNode, Main);
         FspFileNodeDereference(FileNode);
     }
@@ -1779,8 +1827,10 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     }
 }
 
-BOOLEAN FspFileNodeTrySetFileInfoOnOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
-    const FSP_FSCTL_FILE_INFO *FileInfo, BOOLEAN TruncateOnClose)
+BOOLEAN FspFileNodeTrySetFileInfoAndSecurityOnOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
+    const FSP_FSCTL_FILE_INFO *FileInfo,
+    const PSECURITY_DESCRIPTOR SecurityDescriptor, ULONG SecurityDescriptorSize,
+    BOOLEAN TruncateOnClose)
 {
     PAGED_CODE();
 
@@ -1813,6 +1863,8 @@ BOOLEAN FspFileNodeTrySetFileInfoOnOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT Cc
     }
 
     FspFileNodeSetFileInfo(FileNode, CcFileObject, FileInfo, TruncateOnClose);
+    if (0 != SecurityDescriptor)
+        FspFileNodeSetSecurity(FileNode, SecurityDescriptor, SecurityDescriptorSize);
     return TRUE;
 }
 

@@ -242,7 +242,8 @@ NTSTATUS FspFileSystemCreateCheck(FSP_FILE_SYSTEM *FileSystem,
 static inline
 NTSTATUS FspFileSystemOpenCheck(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response,
-    BOOLEAN AllowTraverseCheck, PUINT32 PGrantedAccess)
+    BOOLEAN AllowTraverseCheck, PUINT32 PGrantedAccess,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor)
 {
     NTSTATUS Result;
     UINT32 GrantedAccess;
@@ -257,10 +258,11 @@ NTSTATUS FspFileSystemOpenCheck(FSP_FILE_SYSTEM *FileSystem,
      * requested in DesiredAccess.
      */
 
-    Result = FspAccessCheck(FileSystem, Request, FALSE, AllowTraverseCheck,
+    Result = FspAccessCheckEx(FileSystem, Request, FALSE, AllowTraverseCheck,
         Request->Req.Create.DesiredAccess |
             ((Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE) ? DELETE : 0),
-        &GrantedAccess);
+        &GrantedAccess,
+        Request->Req.Create.AcceptsSecurityDescriptor ? PSecurityDescriptor : 0);
     if (STATUS_REPARSE == Result)
         Result = FspFileSystemCallResolveReparsePoints(FileSystem, Request, Response, GrantedAccess);
     else if (NT_SUCCESS(Result))
@@ -391,21 +393,40 @@ NTSTATUS FspFileSystemRenameCheck(FSP_FILE_SYSTEM *FileSystem,
     return Result;
 }
 
+static inline
+VOID FspFileSystemOpCreate_SetOpenDescriptor(FSP_FSCTL_TRANSACT_RSP *Response,
+    PSECURITY_DESCRIPTOR OpenDescriptor)
+{
+    FSP_FSCTL_TRANSACT_BUF Buf;
+    Buf.Offset = FSP_FSCTL_DEFAULT_ALIGN_UP(Response->Rsp.Create.Opened.FileName.Size);
+    Buf.Size = (UINT16)GetSecurityDescriptorLength(OpenDescriptor);
+
+    if (FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX >= Buf.Offset + Buf.Size)
+    {
+        Response->Size += Buf.Offset + Buf.Size;
+        Response->Rsp.Create.Opened.SecurityDescriptor.Offset = Buf.Offset;
+        Response->Rsp.Create.Opened.SecurityDescriptor.Size = Buf.Size;
+        Response->Rsp.Create.Opened.HasSecurityDescriptor = 1;
+        memcpy(Response->Buffer + Buf.Offset, OpenDescriptor, Buf.Size);
+    }
+}
+
 static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
     UINT32 GrantedAccess;
-    PSECURITY_DESCRIPTOR ParentDescriptor, ObjectDescriptor;
+    PSECURITY_DESCRIPTOR ParentDescriptor;
     FSP_FSCTL_TRANSACT_FULL_CONTEXT FullContext;
     FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
+    PSECURITY_DESCRIPTOR OpenDescriptor = 0;
 
     Result = FspFileSystemCreateCheck(FileSystem, Request, Response, TRUE,
         &GrantedAccess, &ParentDescriptor);
     if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
         return Result;
 
-    Result = FspCreateSecurityDescriptor(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
+    Result = FspCreateSecurityDescriptor(FileSystem, Request, ParentDescriptor, &OpenDescriptor);
     FspDeleteSecurityDescriptor(ParentDescriptor, FspAccessCheckEx);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -417,17 +438,25 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
     OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
     Result = FileSystem->Interface->Create(FileSystem,
         (PWSTR)Request->Buffer, Request->Req.Create.CreateOptions, GrantedAccess,
-        Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
+        Request->Req.Create.FileAttributes, OpenDescriptor, Request->Req.Create.AllocationSize,
         AddrOfFileContext(FullContext), &OpenFileInfo.FileInfo);
-    FspDeleteSecurityDescriptor(ObjectDescriptor, FspCreateSecurityDescriptor);
     if (!NT_SUCCESS(Result))
+    {
+        FspDeleteSecurityDescriptor(OpenDescriptor, FspCreateSecurityDescriptor);
         return Result;
+    }
 
     if (FSP_FSCTL_TRANSACT_PATH_SIZEMAX >= OpenFileInfo.NormalizedNameSize)
     {
         Response->Size = (UINT16)(sizeof *Response + OpenFileInfo.NormalizedNameSize);
         Response->Rsp.Create.Opened.FileName.Offset = 0;
         Response->Rsp.Create.Opened.FileName.Size = (UINT16)OpenFileInfo.NormalizedNameSize;
+    }
+
+    if (0 != OpenDescriptor)
+    {
+        FspFileSystemOpCreate_SetOpenDescriptor(Response, OpenDescriptor);
+        FspDeleteSecurityDescriptor(OpenDescriptor, FspCreateSecurityDescriptor);
     }
 
     Response->IoStatus.Information = FILE_CREATED;
@@ -445,8 +474,10 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
     UINT32 GrantedAccess;
     FSP_FSCTL_TRANSACT_FULL_CONTEXT FullContext;
     FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
+    PSECURITY_DESCRIPTOR OpenDescriptor = 0;
 
-    Result = FspFileSystemOpenCheck(FileSystem, Request, Response, TRUE, &GrantedAccess);
+    Result = FspFileSystemOpenCheck(FileSystem, Request, Response, TRUE, &GrantedAccess,
+        &OpenDescriptor);
     if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
         return Result;
 
@@ -459,13 +490,22 @@ static NTSTATUS FspFileSystemOpCreate_FileOpen(FSP_FILE_SYSTEM *FileSystem,
         (PWSTR)Request->Buffer, Request->Req.Create.CreateOptions, GrantedAccess,
         AddrOfFileContext(FullContext), &OpenFileInfo.FileInfo);
     if (!NT_SUCCESS(Result))
+    {
+        FspDeleteSecurityDescriptor(OpenDescriptor, FspAccessCheckEx);
         return Result;
+    }
 
     if (FSP_FSCTL_TRANSACT_PATH_SIZEMAX >= OpenFileInfo.NormalizedNameSize)
     {
         Response->Size = (UINT16)(sizeof *Response + OpenFileInfo.NormalizedNameSize);
         Response->Rsp.Create.Opened.FileName.Offset = 0;
         Response->Rsp.Create.Opened.FileName.Size = (UINT16)OpenFileInfo.NormalizedNameSize;
+    }
+
+    if (0 != OpenDescriptor)
+    {
+        FspFileSystemOpCreate_SetOpenDescriptor(Response, OpenDescriptor);
+        FspDeleteSecurityDescriptor(OpenDescriptor, FspAccessCheckEx);
     }
 
     Response->IoStatus.Information = FILE_OPENED;
@@ -481,12 +521,14 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
 {
     NTSTATUS Result;
     UINT32 GrantedAccess;
-    PSECURITY_DESCRIPTOR ParentDescriptor, ObjectDescriptor;
+    PSECURITY_DESCRIPTOR ParentDescriptor;
     FSP_FSCTL_TRANSACT_FULL_CONTEXT FullContext;
     FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
+    PSECURITY_DESCRIPTOR OpenDescriptor = 0;
     BOOLEAN Create = FALSE;
 
-    Result = FspFileSystemOpenCheck(FileSystem, Request, Response, TRUE, &GrantedAccess);
+    Result = FspFileSystemOpenCheck(FileSystem, Request, Response, TRUE, &GrantedAccess,
+        &OpenDescriptor);
     if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
     {
         if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
@@ -506,6 +548,9 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
             AddrOfFileContext(FullContext), &OpenFileInfo.FileInfo);
         if (!NT_SUCCESS(Result))
         {
+            FspDeleteSecurityDescriptor(OpenDescriptor, FspAccessCheckEx);
+            OpenDescriptor = 0;
+
             if (STATUS_OBJECT_NAME_NOT_FOUND != Result)
                 return Result;
             Create = TRUE;
@@ -519,7 +564,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         if (!NT_SUCCESS(Result) || STATUS_REPARSE == Result)
             return Result;
 
-        Result = FspCreateSecurityDescriptor(FileSystem, Request, ParentDescriptor, &ObjectDescriptor);
+        Result = FspCreateSecurityDescriptor(FileSystem, Request, ParentDescriptor, &OpenDescriptor);
         FspDeleteSecurityDescriptor(ParentDescriptor, FspAccessCheckEx);
         if (!NT_SUCCESS(Result))
             return Result;
@@ -531,11 +576,13 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
         Result = FileSystem->Interface->Create(FileSystem,
             (PWSTR)Request->Buffer, Request->Req.Create.CreateOptions, GrantedAccess,
-            Request->Req.Create.FileAttributes, ObjectDescriptor, Request->Req.Create.AllocationSize,
+            Request->Req.Create.FileAttributes, OpenDescriptor, Request->Req.Create.AllocationSize,
             AddrOfFileContext(FullContext), &OpenFileInfo.FileInfo);
-        FspDeleteSecurityDescriptor(ObjectDescriptor, FspCreateSecurityDescriptor);
         if (!NT_SUCCESS(Result))
+        {
+            FspDeleteSecurityDescriptor(OpenDescriptor, FspCreateSecurityDescriptor);
             return Result;
+        }
     }
 
     if (FSP_FSCTL_TRANSACT_PATH_SIZEMAX >= OpenFileInfo.NormalizedNameSize)
@@ -543,6 +590,13 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
         Response->Size = (UINT16)(sizeof *Response + OpenFileInfo.NormalizedNameSize);
         Response->Rsp.Create.Opened.FileName.Offset = 0;
         Response->Rsp.Create.Opened.FileName.Size = (UINT16)OpenFileInfo.NormalizedNameSize;
+    }
+
+    if (0 != OpenDescriptor)
+    {
+        FspFileSystemOpCreate_SetOpenDescriptor(Response, OpenDescriptor);
+        FspDeleteSecurityDescriptor(OpenDescriptor, Create ?
+            (NTSTATUS (*)())FspCreateSecurityDescriptor : (NTSTATUS (*)())FspAccessCheckEx);
     }
 
     Response->IoStatus.Information = Create ? FILE_CREATED : FILE_OPENED;

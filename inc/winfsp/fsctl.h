@@ -269,7 +269,8 @@ typedef struct
             UINT32 OpenTargetDirectory:1;   /* open target dir and report FILE_{EXISTS,DOES_NOT_EXIST} */
             UINT32 CaseSensitive:1;         /* FileName comparisons should be case-sensitive */
             UINT32 HasTrailingBackslash:1;  /* FileName had trailing backslash */
-            UINT32 ReservedFlags:25;
+            UINT32 AcceptsSecurityDescriptor:1;
+            UINT32 ReservedFlags:24;
             UINT16 NamedStream;             /* request targets named stream; colon offset in FileName */
         } Create;
         struct
@@ -440,9 +441,11 @@ typedef struct
                 UINT64 UserContext;     /* user context associated with file node */
                 UINT64 UserContext2;    /* user context associated with file descriptor (handle) */
                 UINT32 GrantedAccess;   /* FILE_{READ_DATA,WRITE_DATA,etc.} */
+                FSP_FSCTL_TRANSACT_BUF SecurityDescriptor;
                 FSP_FSCTL_FILE_INFO FileInfo;
                 FSP_FSCTL_TRANSACT_BUF FileName;
                 UINT32 DisableCache:1;
+                UINT32 HasSecurityDescriptor:1;
             } Opened;
             /* IoStatus.Status == STATUS_REPARSE */
             struct
