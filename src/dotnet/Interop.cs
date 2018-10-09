@@ -929,6 +929,26 @@ namespace Fsp.Interop
                     return SecurityDescriptorBytes;
                 }
         }
+        internal unsafe static Int32 ModifySecurityDescriptorEx(
+            Byte[] SecurityDescriptorBytes,
+            UInt32 SecurityInformation,
+            Byte[] ModificationDescriptorBytes,
+            ref Byte[] ModifiedDescriptorBytes)
+        {
+            fixed (Byte *S = SecurityDescriptorBytes)
+                fixed (Byte *M = ModificationDescriptorBytes)
+                {
+                    IntPtr SecurityDescriptor;
+                    Int32 Result = FspSetSecurityDescriptor(
+                        (IntPtr)S, SecurityInformation, (IntPtr)M, out SecurityDescriptor);
+                    if (0 > Result)
+                        return Result;
+                    SecurityDescriptorBytes = MakeSecurityDescriptor(SecurityDescriptor);
+                    FspDeleteSecurityDescriptor(SecurityDescriptor, _FspSetSecurityDescriptorPtr);
+                    ModifiedDescriptorBytes = SecurityDescriptorBytes;
+                    return 0/*STATUS_SUCCESS*/;
+                }
+        }
 
         internal unsafe static Int32 CopyReparsePoint(
             Byte[] ReparseData,

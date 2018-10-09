@@ -783,10 +783,8 @@ namespace memfs
             if (null != FileNode.MainFileNode)
                 FileNode = FileNode.MainFileNode;
 
-            FileNode.FileSecurity = ModifySecurityDescriptor(
-                FileNode.FileSecurity, Sections, SecurityDescriptor);
-
-            return STATUS_SUCCESS;
+            return ModifySecurityDescriptorEx(FileNode.FileSecurity, Sections, SecurityDescriptor,
+                ref FileNode.FileSecurity);
         }
 
         public override Boolean ReadDirectoryEntry(

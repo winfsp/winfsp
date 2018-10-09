@@ -707,7 +707,7 @@ namespace Fsp
         /// Describes the modifications to apply to the file or directory security descriptor.
         /// </param>
         /// <returns>STATUS_SUCCESS or error code.</returns>
-        /// <seealso cref="ModifySecurityDescriptor"/>
+        /// <seealso cref="ModifySecurityDescriptorEx"/>
         public virtual Int32 SetSecurity(
             Object FileNode,
             Object FileDesc,
@@ -1105,7 +1105,7 @@ namespace Fsp
             return (int)Api.FspFileSystemOperationProcessId();
         }
         /// <summary>
-        /// Modifies a security descriptor.
+        /// Modifies a security descriptor. [OBSOLETE]
         /// </summary>
         /// <remarks>
         /// This is a helper for implementing the SetSecurity operation.
@@ -1121,6 +1121,7 @@ namespace Fsp
         /// </param>
         /// <returns>The modified security descriptor.</returns>
         /// <seealso cref="SetSecurity"/>
+        [Obsolete("use ModifySecurityDescriptorEx")]
         public static byte[] ModifySecurityDescriptor(
             Byte[] SecurityDescriptor,
             AccessControlSections Sections,
@@ -1139,6 +1140,47 @@ namespace Fsp
                 SecurityDescriptor,
                 SecurityInformation,
                 ModificationDescriptor);
+        }
+        /// <summary>
+        /// Modifies a security descriptor.
+        /// </summary>
+        /// <remarks>
+        /// This is a helper for implementing the SetSecurity operation.
+        /// </remarks>
+        /// <param name="SecurityDescriptor">
+        /// The original security descriptor.
+        /// </param>
+        /// <param name="Sections">
+        /// Describes what parts of the file or directory security descriptor should be modified.
+        /// </param>
+        /// <param name="ModificationDescriptor">
+        /// Describes the modifications to apply to the file or directory security descriptor.
+        /// </param>
+        /// <param name="ModifiedDescriptor">
+        /// The modified security descriptor. This parameter is modified only on success.
+        /// </param>
+        /// <returns>STATUS_SUCCESS or error code.</returns>
+        /// <seealso cref="SetSecurity"/>
+        public static Int32 ModifySecurityDescriptorEx(
+            Byte[] SecurityDescriptor,
+            AccessControlSections Sections,
+            Byte[] ModificationDescriptor,
+            ref Byte[] ModifiedDescriptor)
+        {
+            UInt32 SecurityInformation = 0;
+            if (0 != (Sections & AccessControlSections.Owner))
+                SecurityInformation |= 1/*OWNER_SECURITY_INFORMATION*/;
+            if (0 != (Sections & AccessControlSections.Group))
+                SecurityInformation |= 2/*GROUP_SECURITY_INFORMATION*/;
+            if (0 != (Sections & AccessControlSections.Access))
+                SecurityInformation |= 4/*DACL_SECURITY_INFORMATION*/;
+            if (0 != (Sections & AccessControlSections.Audit))
+                SecurityInformation |= 8/*SACL_SECURITY_INFORMATION*/;
+            return Api.ModifySecurityDescriptorEx(
+                SecurityDescriptor,
+                SecurityInformation,
+                ModificationDescriptor,
+                ref ModifiedDescriptor);
         }
         public Int32 SeekableReadDirectory(
             Object FileNode,
