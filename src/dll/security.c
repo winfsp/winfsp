@@ -341,26 +341,25 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
 
     if (Request->Req.Create.UserMode)
     {
-        if (0 != (FileAttributes & FILE_ATTRIBUTE_READONLY))
+        if (FILE_ATTRIBUTE_READONLY == (FileAttributes & (FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_DIRECTORY)) &&
+            (DesiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_ADD_SUBDIRECTORY | FILE_DELETE_CHILD)))
         {
-            if (DesiredAccess &
-                (FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_ADD_SUBDIRECTORY | FILE_DELETE_CHILD))
-            {
-                Result = STATUS_ACCESS_DENIED;
-                goto exit;
-            }
-            if (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
-            {
-                Result = STATUS_CANNOT_DELETE;
-                goto exit;
-            }
+            Result = STATUS_ACCESS_DENIED;
+            goto exit;
+        }
+
+        if (FILE_ATTRIBUTE_READONLY == (FileAttributes & FILE_ATTRIBUTE_READONLY) &&
+            Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
+        {
+            Result = STATUS_CANNOT_DELETE;
+            goto exit;
         }
 
         if (0 == SecurityDescriptorSize)
             *PGrantedAccess = (MAXIMUM_ALLOWED & DesiredAccess) ?
                 FspFileGenericMapping.GenericAll : DesiredAccess;
 
-        if (0 != (FileAttributes & FILE_ATTRIBUTE_READONLY) &&
+        if (FILE_ATTRIBUTE_READONLY == (FileAttributes & (FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_DIRECTORY)) &&
             0 != (MAXIMUM_ALLOWED & DesiredAccess))
             *PGrantedAccess &= ~(FILE_WRITE_DATA | FILE_APPEND_DATA |
                 FILE_ADD_SUBDIRECTORY | FILE_DELETE_CHILD);
