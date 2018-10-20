@@ -349,7 +349,7 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
         }
 
         if (FILE_ATTRIBUTE_READONLY == (FileAttributes & FILE_ATTRIBUTE_READONLY) &&
-            Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE)
+            (Request->Req.Create.CreateOptions & FILE_DELETE_ON_CLOSE))
         {
             Result = STATUS_CANNOT_DELETE;
             goto exit;
