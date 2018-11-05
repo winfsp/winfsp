@@ -725,13 +725,13 @@ exit /b 0
 
 :sample-passthrough-fuse3-x64
 call :__run_sample_fuse_test passthrough-fuse3 x64 passthrough-fuse3-x64 winfsp-tests-x64 ^
-    "-create_fileattr_test -setfileinfo_test"
+    "-create_fileattr_test -create_readonlydir_test -setfileinfo_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-fuse3-x86
 call :__run_sample_fuse_test passthrough-fuse3 x86 passthrough-fuse3-x86 winfsp-tests-x86 ^
-    "-create_fileattr_test -setfileinfo_test"
+    "-create_fileattr_test -create_readonlydir_test -setfileinfo_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
