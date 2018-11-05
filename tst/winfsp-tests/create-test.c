@@ -352,6 +352,58 @@ static void create_fileattr_test(void)
         create_fileattr_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+static void create_readonlydir_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    HANDLE Handle;
+    BOOLEAN Success;
+    DWORD FileAttributes;
+    WCHAR DirPath[MAX_PATH], FilePath[MAX_PATH];
+
+    StringCbPrintfW(DirPath, sizeof DirPath, L"%s%s\\dir0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir0\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(DirPath, 0);
+    ASSERT(Success);
+
+    Success = SetFileAttributesW(DirPath, FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_READONLY);
+    ASSERT(Success);
+
+    FileAttributes = GetFileAttributesW(DirPath);
+    ASSERT((FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_READONLY) == FileAttributes);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    Success = RemoveDirectoryW(DirPath);
+    TEST(create_fileattr_test);
+
+    memfs_stop(memfs);
+}
+
+static void create_readonlydir_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        create_readonlydir_dotest(-1, DirBuf);
+    }
+    if (WinFspDiskTests)
+        create_readonlydir_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        create_readonlydir_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
 void create_related_dotest(ULONG Flags, PWSTR Prefix)
 {
     void *memfs = memfs_start(Flags);
@@ -1265,6 +1317,7 @@ void create_tests(void)
 {
     TEST(create_test);
     TEST(create_fileattr_test);
+    TEST(create_readonlydir_test);
     TEST(create_related_test);
     TEST(create_allocation_test);
     TEST(create_sd_test);
