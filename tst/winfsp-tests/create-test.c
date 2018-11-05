@@ -385,7 +385,17 @@ static void create_readonlydir_dotest(ULONG Flags, PWSTR Prefix)
     ASSERT(Success);
 
     Success = RemoveDirectoryW(DirPath);
-    TEST(create_fileattr_test);
+    ASSERT(!Success);
+    ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+    Success = SetFileAttributesW(DirPath, FILE_ATTRIBUTE_DIRECTORY);
+    ASSERT(Success);
+
+    FileAttributes = GetFileAttributesW(DirPath);
+    ASSERT(FILE_ATTRIBUTE_DIRECTORY == FileAttributes);
+
+    Success = RemoveDirectoryW(DirPath);
+    ASSERT(Success);
 
     memfs_stop(memfs);
 }
