@@ -725,13 +725,13 @@ exit /b 0
 
 :sample-passthrough-fuse3-x64
 call :__run_sample_fuse_test passthrough-fuse3 x64 passthrough-fuse3-x64 winfsp-tests-x64 ^
-    "-create_fileattr_test -setfileinfo_test"
+    "-create_fileattr_test -create_readonlydir_test -setfileinfo_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-fuse3-x86
 call :__run_sample_fuse_test passthrough-fuse3 x86 passthrough-fuse3-x86 winfsp-tests-x86 ^
-    "-create_fileattr_test -setfileinfo_test"
+    "-create_fileattr_test -create_readonlydir_test -setfileinfo_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -923,7 +923,7 @@ cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
 L:
 "%ProjRoot%\build\VStudio\build\%Configuration%\%3.exe" ^
     --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
-    -create_fileattr_test -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
+    -create_fileattr_test -create_readonlydir_test -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
     -getfileattr_test -getfileinfo_name_test -setfileinfo_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -querydir_namelen_test -exec_rename_dir_test ^
     -reparse* -stream*
 if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
