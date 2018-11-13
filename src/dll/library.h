@@ -47,6 +47,7 @@
 VOID FspWksidFinalize(BOOLEAN Dynamic);
 VOID FspPosixFinalize(BOOLEAN Dynamic);
 VOID FspEventLogFinalize(BOOLEAN Dynamic);
+VOID FspFileSystemFinalize(BOOLEAN Dynamic);
 VOID FspServiceFinalize(BOOLEAN Dynamic);
 VOID fsp_fuse_finalize(BOOLEAN Dynamic);
 VOID fsp_fuse_finalize_thread(VOID);
