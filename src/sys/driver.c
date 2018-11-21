@@ -169,6 +169,21 @@ NTSTATUS DriverEntry(
         &FspFsmupDeviceObject);
     if (!NT_SUCCESS(Result))
         goto exit;
+
+#if DBG
+    /*
+     * Fix GitHub issue #177. All credit for the investigation of this issue
+     * and the suggested steps to reproduce and work around the problem goes
+     * to GitHub user @thinkport.
+     *
+     * On debug builds set DO_LOW_PRIORITY_FILESYSTEM to place the file system
+     * at the end of the file system list during IoRegisterFileSystem below.
+     * This allows us to test the behavior of our Fsvrt devices when foreign
+     * file systems attempt to use them for mounting.
+     */
+    SetFlag(FspFsctlDiskDeviceObject->Flags, DO_LOW_PRIORITY_FILESYSTEM);
+#endif
+
     Result = FspDeviceInitialize(FspFsctlDiskDeviceObject);
     ASSERT(STATUS_SUCCESS == Result);
     Result = FspDeviceInitialize(FspFsctlNetDeviceObject);
