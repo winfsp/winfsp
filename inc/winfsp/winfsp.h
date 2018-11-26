@@ -1795,6 +1795,10 @@ FSP_API NTSTATUS FspCallNamedPipeSecurely(PWSTR PipeName,
     PVOID InBuffer, ULONG InBufferSize, PVOID OutBuffer, ULONG OutBufferSize,
     PULONG PBytesTransferred, ULONG Timeout,
     PSID Sid);
+FSP_API NTSTATUS FspCallNamedPipeSecurelyEx(PWSTR PipeName,
+    PVOID InBuffer, ULONG InBufferSize, PVOID OutBuffer, ULONG OutBufferSize,
+    PULONG PBytesTransferred, ULONG Timeout, BOOLEAN AllowImpersonation,
+    PSID Sid);
 FSP_API NTSTATUS FspVersion(PUINT32 PVersion);
 
 /*

@@ -68,6 +68,16 @@ FSP_API NTSTATUS FspCallNamedPipeSecurely(PWSTR PipeName,
     PULONG PBytesTransferred, ULONG Timeout,
     PSID Sid)
 {
+    return FspCallNamedPipeSecurelyEx(PipeName,
+        InBuffer, InBufferSize, OutBuffer, OutBufferSize, PBytesTransferred, Timeout,
+        FALSE, Sid);
+}
+
+FSP_API NTSTATUS FspCallNamedPipeSecurelyEx(PWSTR PipeName,
+    PVOID InBuffer, ULONG InBufferSize, PVOID OutBuffer, ULONG OutBufferSize,
+    PULONG PBytesTransferred, ULONG Timeout, BOOLEAN AllowImpersonation,
+    PSID Sid)
+{
     NTSTATUS Result;
     HANDLE Pipe = INVALID_HANDLE_VALUE;
     DWORD PipeMode;
@@ -75,7 +85,8 @@ FSP_API NTSTATUS FspCallNamedPipeSecurely(PWSTR PipeName,
     Pipe = CreateFileW(PipeName,
         GENERIC_READ | FILE_WRITE_DATA | FILE_WRITE_ATTRIBUTES,
         FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
-        SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, 0);
+        SECURITY_SQOS_PRESENT | (AllowImpersonation ? SECURITY_IMPERSONATION : SECURITY_IDENTIFICATION),
+        0);
     if (INVALID_HANDLE_VALUE == Pipe)
     {
         if (ERROR_PIPE_BUSY != GetLastError())
@@ -89,7 +100,8 @@ FSP_API NTSTATUS FspCallNamedPipeSecurely(PWSTR PipeName,
         Pipe = CreateFileW(PipeName,
             GENERIC_READ | FILE_WRITE_DATA | FILE_WRITE_ATTRIBUTES,
             FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
-            SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, 0);
+            SECURITY_SQOS_PRESENT | (AllowImpersonation ? SECURITY_IMPERSONATION : SECURITY_IDENTIFICATION),
+            0);
         if (INVALID_HANDLE_VALUE == Pipe)
         {
             Result = FspNtStatusFromWin32(GetLastError());

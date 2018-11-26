@@ -23,7 +23,18 @@
 
 FSP_API NTSTATUS FspLaunchCallLauncherPipe(
     WCHAR Command, ULONG Argc, PWSTR *Argv, ULONG *Argl,
-    PWSTR Buffer, PULONG PSize, PULONG PLauncherError)
+    PWSTR Buffer, PULONG PSize,
+    PULONG PLauncherError)
+{
+    return FspLaunchCallLauncherPipeEx(
+        Command, Argc, Argv, Argl, Buffer, PSize, FALSE, PLauncherError);
+}
+
+FSP_API NTSTATUS FspLaunchCallLauncherPipeEx(
+    WCHAR Command, ULONG Argc, PWSTR *Argv, ULONG *Argl,
+    PWSTR Buffer, PULONG PSize,
+    BOOLEAN AllowImpersonation,
+    PULONG PLauncherError)
 {
     PWSTR PipeBuf = 0, P;
     ULONG Length, BytesTransferred;
@@ -53,9 +64,9 @@ FSP_API NTSTATUS FspLaunchCallLauncherPipe(
             memcpy(P, Argv[I], Length * sizeof(WCHAR)); P += Length; *P++ = L'\0';
         }
 
-    Result = FspCallNamedPipeSecurely(L"" FSP_LAUNCH_PIPE_NAME,
+    Result = FspCallNamedPipeSecurelyEx(L"" FSP_LAUNCH_PIPE_NAME,
         PipeBuf, (ULONG)(P - PipeBuf) * sizeof(WCHAR), PipeBuf, FSP_LAUNCH_PIPE_BUFFER_SIZE,
-        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, FSP_LAUNCH_PIPE_OWNER);
+        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, AllowImpersonation, FSP_LAUNCH_PIPE_OWNER);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -102,8 +113,17 @@ exit:
 }
 
 FSP_API NTSTATUS FspLaunchStart(
+    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv,
+    BOOLEAN HasSecret,
+    PULONG PLauncherError)
+{
+    return FspLaunchStartEx(ClassName, InstanceName, Argc, Argv, HasSecret, FALSE, PLauncherError);
+}
+
+FSP_API NTSTATUS FspLaunchStartEx(
     PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv0,
     BOOLEAN HasSecret,
+    BOOLEAN AllowImpersonation,
     PULONG PLauncherError)
 {
     PWSTR Argv[9 + 2];
@@ -115,9 +135,9 @@ FSP_API NTSTATUS FspLaunchStart(
     Argv[1] = InstanceName;
     memcpy(Argv + 2, Argv0, Argc * sizeof(PWSTR));
 
-    return FspLaunchCallLauncherPipe(
+    return FspLaunchCallLauncherPipeEx(
         HasSecret ? FspLaunchCmdStartWithSecret : FspLaunchCmdStart,
-        Argc + 2, Argv, 0, 0, 0, PLauncherError);
+        Argc + 2, Argv, 0, 0, 0, AllowImpersonation, PLauncherError);
 }
 
 FSP_API NTSTATUS FspLaunchStop(
