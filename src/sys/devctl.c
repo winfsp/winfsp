@@ -21,6 +21,8 @@
 
 #include <sys/driver.h>
 
+static NTSTATUS FspFsvrtDeviceControl(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolDeviceControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolDeviceControlComplete;
@@ -28,6 +30,7 @@ static FSP_IOP_REQUEST_FINI FspFsvolDeviceControlRequestFini;
 FSP_DRIVER_DISPATCH FspDeviceControl;
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspFsvrtDeviceControl)
 #pragma alloc_text(PAGE, FspFsvolDeviceControl)
 #pragma alloc_text(PAGE, FspFsvolDeviceControlComplete)
 #pragma alloc_text(PAGE, FspFsvolDeviceControlRequestFini)
@@ -38,6 +41,28 @@ enum
 {
     RequestFileNode                     = 0,
 };
+
+static NTSTATUS FspFsvrtDeviceControl(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    /*
+     * Fix GitHub issue #177. All credit for the investigation of this issue
+     * and the suggested steps to reproduce and work around the problem goes
+     * to GitHub user @thinkport.
+     *
+     * When Windows attempts to mount a new volume it iterates over all disk file
+     * systems registered with IoRegisterFileSystem. Foreign (i.e. non-WinFsp) file
+     * systems would in some cases attempt to mount our Fsvrt volume device by
+     * sending it unknown IOCTL codes, which would then be failed with
+     * STATUS_INVALID_DEVICE_REQUEST. Unfortunately the file systems would then
+     * report this error code to the I/O Manager, which would cause it to abort the
+     * mounting process completely and thus WinFsp would never get a chance to
+     * mount its own volume device!
+     */
+    return STATUS_UNRECOGNIZED_VOLUME;
+}
 
 static NTSTATUS FspFsvolDeviceControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
@@ -155,6 +180,8 @@ NTSTATUS FspDeviceControl(
     {
     case FspFsvolDeviceExtensionKind:
         FSP_RETURN(Result = FspFsvolDeviceControl(DeviceObject, Irp, IrpSp));
+    case FspFsvrtDeviceExtensionKind:
+        FSP_RETURN(Result = FspFsvrtDeviceControl(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }
