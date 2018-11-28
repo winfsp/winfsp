@@ -111,7 +111,43 @@ enum
  */
 FSP_API NTSTATUS FspLaunchCallLauncherPipe(
     WCHAR Command, ULONG Argc, PWSTR *Argv, ULONG *Argl,
-    PWSTR Buffer, PULONG PSize, PULONG PLauncherError);
+    PWSTR Buffer, PULONG PSize,
+    PULONG PLauncherError);
+/**
+ * Call launcher pipe.
+ *
+ * This function is used to send a command to the launcher and receive a response.
+ *
+ * @param Command
+ *     Launcher command to send. For example, the 'L' launcher command instructs
+ *     the launcher to list all running service instances.
+ * @param Argc
+ *     Command argument count. May be 0.
+ * @param Argv
+ *     Command argument array. May be NULL.
+ * @param Argl
+ *     Command argument length array. May be NULL. If this is NULL all command arguments
+ *     are assumed to be NULL-terminated strings. It is also possible for specific arguments
+ *     to be NULL-terminated; in this case pass -1 in the corresponding Argl position.
+ * @param Buffer
+ *     Buffer that receives the command response. May be NULL.
+ * @param PSize
+ *     Pointer to a ULONG. On input it contains the size of the Buffer. On output it
+ *     contains the number of bytes transferred. May be NULL.
+ * @param AllowImpersonation
+ *     Allow caller to be impersonated by launcher.
+ * @param PLauncherError
+ *     Receives the launcher error if any. This is always a Win32 error code. May not be NULL.
+ * @return
+ *     STATUS_SUCCESS if the command is sent successfully to the launcher, even if the launcher
+ *     returns an error. Other status codes indicate a communication error. Launcher errors are
+ *     reported through PLauncherError.
+ */
+FSP_API NTSTATUS FspLaunchCallLauncherPipeEx(
+    WCHAR Command, ULONG Argc, PWSTR *Argv, ULONG *Argl,
+    PWSTR Buffer, PULONG PSize,
+    BOOLEAN AllowImpersonation,
+    PULONG PLauncherError);
 /**
  * Start a service instance.
  *
@@ -137,6 +173,35 @@ FSP_API NTSTATUS FspLaunchCallLauncherPipe(
 FSP_API NTSTATUS FspLaunchStart(
     PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv,
     BOOLEAN HasSecret,
+    PULONG PLauncherError);
+/**
+ * Start a service instance.
+ *
+ * @param ClassName
+ *     Class name of the service instance to start.
+ * @param InstanceName
+ *     Instance name of the service instance to start.
+ * @param Argc
+ *     Service instance argument count. May be 0.
+ * @param Argv
+ *     Service instance argument array. May be NULL.
+ * @param HasSecret
+ *     Whether the last argument in Argv is assumed to be a secret (e.g. password) or not.
+ *     Secrets are passed to service instances through standard input rather than the command
+ *     line.
+ * @param AllowImpersonation
+ *     Allow caller to be impersonated by launcher.
+ * @param PLauncherError
+ *     Receives the launcher error if any. This is always a Win32 error code. May not be NULL.
+ * @return
+ *     STATUS_SUCCESS if the command is sent successfully to the launcher, even if the launcher
+ *     returns an error. Other status codes indicate a communication error. Launcher errors are
+ *     reported through PLauncherError.
+ */
+FSP_API NTSTATUS FspLaunchStartEx(
+    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv,
+    BOOLEAN HasSecret,
+    BOOLEAN AllowImpersonation,
     PULONG PLauncherError);
 /**
  * Stop a service instance.

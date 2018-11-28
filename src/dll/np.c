@@ -179,12 +179,14 @@ static inline BOOLEAN FspNpParseRemoteUserName(PWSTR RemoteName,
 
 static inline DWORD FspNpCallLauncherPipe(
     WCHAR Command, ULONG Argc, PWSTR *Argv, ULONG *Argl,
-    PWSTR Buffer, PULONG PSize)
+    PWSTR Buffer, PULONG PSize,
+    BOOLEAN AllowImpersonation)
 {
     NTSTATUS Result;
     ULONG ErrorCode;
 
-    Result = FspLaunchCallLauncherPipe(Command, Argc, Argv, Argl, Buffer, PSize, &ErrorCode);
+    Result = FspLaunchCallLauncherPipeEx(Command, Argc, Argv, Argl, Buffer, PSize, AllowImpersonation,
+        &ErrorCode);
     return !NT_SUCCESS(Result) ?
         WN_NO_NETWORK :
         (ERROR_BROKEN_PIPE == ErrorCode ? WN_NO_NETWORK : ErrorCode);
@@ -251,7 +253,8 @@ static WCHAR FspNpGetDriveLetter(PDWORD PLogicalDrives, PWSTR VolumeName)
     return 0;
 }
 
-static DWORD FspNpGetRemoteInfo(PWSTR RemoteName, PDWORD PCredentialsKind)
+static DWORD FspNpGetRemoteInfo(PWSTR RemoteName,
+    PDWORD PCredentialsKind, PBOOLEAN PAllowImpersonation)
 {
     PWSTR ClassName, InstanceName;
     ULONG ClassNameLen, InstanceNameLen;
@@ -260,6 +263,7 @@ static DWORD FspNpGetRemoteInfo(PWSTR RemoteName, PDWORD PCredentialsKind)
     NTSTATUS Result;
 
     *PCredentialsKind = FSP_NP_CREDENTIALS_NONE;
+    *PAllowImpersonation = FALSE;
 
     if (!FspNpParseRemoteName(RemoteName,
         &ClassName, &ClassNameLen, &InstanceName, &InstanceNameLen))
@@ -282,6 +286,9 @@ static DWORD FspNpGetRemoteInfo(PWSTR RemoteName, PDWORD PCredentialsKind)
         *PCredentialsKind = Record->Credentials;
         break;
     }
+
+    *PAllowImpersonation = 0 != Record->RunAs &&
+        L'.' == Record->RunAs[0] && L'\0' == Record->RunAs[1];
 
     FspLaunchRegFreeRecord(Record);
 
@@ -464,6 +471,7 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
     PWSTR ClassName, InstanceName, RemoteName, P;
     ULONG ClassNameLen, InstanceNameLen;
     DWORD CredentialsKind;
+    BOOLEAN AllowImpersonation;
     ULONG Argc;
     PWSTR Argv[6];
     ULONG Argl[6];
@@ -493,7 +501,7 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
             return WN_ALREADY_CONNECTED;
     }
 
-    NpResult = FspNpGetRemoteInfo(lpRemoteName, &CredentialsKind);
+    NpResult = FspNpGetRemoteInfo(lpRemoteName, &CredentialsKind, &AllowImpersonation);
     if (WN_SUCCESS != NpResult)
         return NpResult;
 
@@ -550,7 +558,8 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
 
     NpResult = FspNpCallLauncherPipe(
         FSP_NP_CREDENTIALS_NONE != CredentialsKind ? FspLaunchCmdStartWithSecret : FspLaunchCmdStart,
-        Argc, Argv, Argl, 0, 0);
+        Argc, Argv, Argl, 0, 0,
+        AllowImpersonation);
     switch (NpResult)
     {
     case WN_SUCCESS:
@@ -602,7 +611,8 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
 
                 if (WN_SUCCESS != FspNpCallLauncherPipe(
                     FspLaunchCmdGetInfo,
-                    Argc, Argv, Argl, 0, 0))
+                    Argc, Argv, Argl, 0, 0,
+                    FALSE))
                 {
                     /* looks like the file system is gone! */
                     NpResult = WN_NO_NETWORK;
@@ -660,6 +670,7 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
     DWORD NpResult;
     PWSTR RemoteName = lpNetResource->lpRemoteName;
     DWORD CredentialsKind;
+    BOOLEAN AIDummy;
     WCHAR UserName[CREDUI_MAX_USERNAME_LENGTH + 1], Password[CREDUI_MAX_PASSWORD_LENGTH + 1];
 #if defined(FSP_NP_CREDENTIAL_MANAGER)
     BOOL Save = TRUE;
@@ -679,7 +690,7 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
             return NpResult;
     }
 
-    NpResult = FspNpGetRemoteInfo(RemoteName, &CredentialsKind);
+    NpResult = FspNpGetRemoteInfo(RemoteName, &CredentialsKind, &AIDummy);
     if (WN_SUCCESS != NpResult)
         return NpResult;
     if (FSP_NP_CREDENTIALS_NONE == CredentialsKind)
@@ -766,7 +777,8 @@ DWORD APIENTRY NPCancelConnection(LPWSTR lpName, BOOL fForce)
 
     NpResult = FspNpCallLauncherPipe(
         FspLaunchCmdStop,
-        Argc, Argv, Argl, 0, 0);
+        Argc, Argv, Argl, 0, 0,
+        FALSE);
     switch (NpResult)
     {
     case WN_SUCCESS:

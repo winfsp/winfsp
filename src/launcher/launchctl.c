@@ -72,8 +72,8 @@ static int call_pipe_and_report(PWSTR PipeBuf, ULONG SendSize, ULONG RecvSize)
     NTSTATUS Result;
     DWORD LastError, BytesTransferred;
 
-    Result = FspCallNamedPipeSecurely(L"" FSP_LAUNCH_PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
-        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, FSP_LAUNCH_PIPE_OWNER);
+    Result = FspCallNamedPipeSecurelyEx(L"" FSP_LAUNCH_PIPE_NAME, PipeBuf, SendSize, PipeBuf, RecvSize,
+        &BytesTransferred, NMPWAIT_USE_DEFAULT_WAIT, TRUE, FSP_LAUNCH_PIPE_OWNER);
     LastError = FspWin32FromNtStatus(Result);
 
     if (0 != LastError)
