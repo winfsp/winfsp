@@ -23,6 +23,9 @@
 #include <npapi.h>
 #include <wincred.h>
 
+#define _NTDEF_
+#include <ntsecapi.h>
+
 #define FSP_NP_NAME                     LIBRARY_NAME ".Np"
 #define FSP_NP_TYPE                     ' spF'  /* pick a value hopefully not in use */
 #define FSP_NP_ADDCONNECTION_TIMEOUT    15000
@@ -253,8 +256,50 @@ static WCHAR FspNpGetDriveLetter(PDWORD PLogicalDrives, PWSTR VolumeName)
     return 0;
 }
 
+static NTSTATUS FspNpGetAuthPackage(PWSTR AuthPackageName, PULONG PAuthPackage)
+{
+    HANDLE LsaHandle;
+    BOOLEAN LsaHandleValid = FALSE;
+    CHAR LsaAuthPackageNameBuf[127]; /* "The package name must not exceed 127 bytes in length." */
+    LSA_STRING LsaAuthPackageName;
+    ULONG AuthPackage;
+    NTSTATUS Result;
+
+    *PAuthPackage = 0;
+
+    Result = LsaConnectUntrusted(&LsaHandle);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+    LsaHandleValid = TRUE;
+
+    LsaAuthPackageName.MaximumLength = sizeof LsaAuthPackageNameBuf;
+    LsaAuthPackageName.Buffer = LsaAuthPackageNameBuf;
+    LsaAuthPackageName.Length = WideCharToMultiByte(CP_UTF8, 0,
+        AuthPackageName, lstrlenW(AuthPackageName),
+        LsaAuthPackageNameBuf, sizeof LsaAuthPackageNameBuf,
+        0, 0);
+    if (0 == LsaAuthPackageName.Length)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    Result = LsaLookupAuthenticationPackage(LsaHandle, &LsaAuthPackageName, &AuthPackage);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    *PAuthPackage = AuthPackage;
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (LsaHandleValid)
+        LsaDeregisterLogonProcess(LsaHandle);
+
+    return Result;
+}
+
 static DWORD FspNpGetRemoteInfo(PWSTR RemoteName,
-    PDWORD PCredentialsKind, PBOOLEAN PAllowImpersonation)
+    PDWORD PAuthPackage, PDWORD PCredentialsKind, PBOOLEAN PAllowImpersonation)
 {
     PWSTR ClassName, InstanceName;
     ULONG ClassNameLen, InstanceNameLen;
@@ -262,8 +307,14 @@ static DWORD FspNpGetRemoteInfo(PWSTR RemoteName,
     FSP_LAUNCH_REG_RECORD *Record;
     NTSTATUS Result;
 
-    *PCredentialsKind = FSP_NP_CREDENTIALS_NONE;
-    *PAllowImpersonation = FALSE;
+    if (0 != PAuthPackage)
+        *PAuthPackage = 0;
+
+    if (0 != PCredentialsKind)
+        *PCredentialsKind = FSP_NP_CREDENTIALS_NONE;
+
+    if (0 != PAllowImpersonation)
+        *PAllowImpersonation = FALSE;
 
     if (!FspNpParseRemoteName(RemoteName,
         &ClassName, &ClassNameLen, &InstanceName, &InstanceNameLen))
@@ -278,17 +329,35 @@ static DWORD FspNpGetRemoteInfo(PWSTR RemoteName,
     if (!NT_SUCCESS(Result))
         return WN_NO_NETWORK;
 
-    switch (Record->Credentials)
+    if (0 != PAuthPackage)
     {
-    case FSP_NP_CREDENTIALS_NONE:
-    case FSP_NP_CREDENTIALS_PASSWORD:
-    case FSP_NP_CREDENTIALS_USERPASS:
-        *PCredentialsKind = Record->Credentials;
-        break;
+        if (0 != Record->AuthPackage)
+        {
+            ULONG AuthPackage = 0;
+
+            Result = FspNpGetAuthPackage(Record->AuthPackage, &AuthPackage);
+            if (!NT_SUCCESS(Result))
+                return WN_NO_NETWORK;
+
+            *PAuthPackage = AuthPackage + 1;            /* ensure non-0 (Negotiate AuthPackage == 0) */
+        }
+        else if (0 != Record->AuthPackageId)
+            *PAuthPackage = Record->AuthPackageId + 1;  /* ensure non-0 (Negotiate AuthPackage == 0) */
     }
 
-    *PAllowImpersonation = 0 != Record->RunAs &&
-        L'.' == Record->RunAs[0] && L'\0' == Record->RunAs[1];
+    if (0 != PCredentialsKind)
+        switch (Record->Credentials)
+        {
+        case FSP_NP_CREDENTIALS_NONE:
+        case FSP_NP_CREDENTIALS_PASSWORD:
+        case FSP_NP_CREDENTIALS_USERPASS:
+            *PCredentialsKind = Record->Credentials;
+            break;
+        }
+
+    if (0 != PAllowImpersonation)
+        *PAllowImpersonation = 0 != Record->RunAs &&
+            L'.' == Record->RunAs[0] && L'\0' == Record->RunAs[1];
 
     FspLaunchRegFreeRecord(Record);
 
@@ -297,7 +366,7 @@ static DWORD FspNpGetRemoteInfo(PWSTR RemoteName,
 
 static DWORD FspNpGetCredentials(
     HWND hwndOwner, PWSTR Caption, DWORD PrevNpResult,
-    DWORD CredentialsKind,
+    DWORD AuthPackage0, DWORD CredentialsKind,
     PBOOL PSave,
     PWSTR UserName, ULONG UserNameSize/* in chars */,
     PWSTR Password, ULONG PasswordSize/* in chars */)
@@ -324,7 +393,7 @@ static DWORD FspNpGetCredentials(
         (FSP_NP_CREDENTIALS_PASSWORD == CredentialsKind ? 0/*CREDUI_FLAGS_KEEP_USERNAME*/ : 0));
 #else
     WCHAR Domain[CREDUI_MAX_DOMAIN_TARGET_LENGTH + 1];
-    ULONG AuthPackage = 0;
+    ULONG AuthPackage = 0 != AuthPackage0 ? AuthPackage0 - 1 : 0;
     PVOID InAuthBuf = 0, OutAuthBuf = 0;
     ULONG InAuthSize, OutAuthSize, DomainSize;
 
@@ -353,7 +422,8 @@ static DWORD FspNpGetCredentials(
 
     NpResult = CredUIPromptForWindowsCredentialsW(&UiInfo, PrevNpResult,
         &AuthPackage, InAuthBuf, InAuthSize, &OutAuthBuf, &OutAuthSize, PSave,
-        CREDUIWIN_GENERIC | (0 != PSave ? CREDUIWIN_CHECKBOX : 0));
+        (0 != AuthPackage0 ? CREDUIWIN_AUTHPACKAGE_ONLY : CREDUIWIN_GENERIC) |
+            (0 != PSave ? CREDUIWIN_CHECKBOX : 0));
     if (ERROR_SUCCESS != NpResult)
         goto exit;
 
@@ -501,7 +571,7 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
             return WN_ALREADY_CONNECTED;
     }
 
-    NpResult = FspNpGetRemoteInfo(lpRemoteName, &CredentialsKind, &AllowImpersonation);
+    NpResult = FspNpGetRemoteInfo(lpRemoteName, 0, &CredentialsKind, &AllowImpersonation);
     if (WN_SUCCESS != NpResult)
         return NpResult;
 
@@ -669,8 +739,7 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
 {
     DWORD NpResult;
     PWSTR RemoteName = lpNetResource->lpRemoteName;
-    DWORD CredentialsKind;
-    BOOLEAN AIDummy;
+    DWORD AuthPackage, CredentialsKind;
     WCHAR UserName[CREDUI_MAX_USERNAME_LENGTH + 1], Password[CREDUI_MAX_PASSWORD_LENGTH + 1];
 #if defined(FSP_NP_CREDENTIAL_MANAGER)
     BOOL Save = TRUE;
@@ -690,7 +759,7 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
             return NpResult;
     }
 
-    NpResult = FspNpGetRemoteInfo(RemoteName, &CredentialsKind, &AIDummy);
+    NpResult = FspNpGetRemoteInfo(RemoteName, &AuthPackage, &CredentialsKind, 0);
     if (WN_SUCCESS != NpResult)
         return NpResult;
     if (FSP_NP_CREDENTIALS_NONE == CredentialsKind)
@@ -706,7 +775,7 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
     {
         NpResult = FspNpGetCredentials(
             hwndOwner, RemoteName, NpResult,
-            CredentialsKind,
+            AuthPackage, CredentialsKind,
 #if defined(FSP_NP_CREDENTIAL_MANAGER)
             &Save,
 #else

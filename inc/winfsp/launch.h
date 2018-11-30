@@ -286,10 +286,12 @@ typedef struct _FSP_LAUNCH_REG_RECORD
     PWSTR WorkDirectory;
     PWSTR RunAs;
     PWSTR Security;
-    PVOID Reserved0[6];
+    PWSTR AuthPackage;
+    PVOID Reserved0[5];
     ULONG JobControl;
     ULONG Credentials;
-    ULONG Reserved1[6];
+    ULONG AuthPackageId;
+    ULONG Reserved1[5];
     UINT8 Buffer[];
 } FSP_LAUNCH_REG_RECORD;
 #pragma warning(pop)
