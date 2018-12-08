@@ -222,7 +222,7 @@ copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(Platf
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;version.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
@@ -250,7 +250,7 @@ copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(Platf
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;version.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
@@ -281,7 +281,7 @@ copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(Platf
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;version.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
@@ -312,7 +312,7 @@ copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(Platf
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;version.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
