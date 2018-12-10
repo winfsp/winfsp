@@ -1,7 +1,7 @@
 = Changelog
 
 
-v1.4 (2018.2)::
+v1.4B4 (2018.2 B4)::
 
 Changes since v1.3:
 
@@ -13,7 +13,9 @@ Changes since v1.3:
 * New sample file system "passthrough-fuse3" passes all operations to an underlying file system. This file system is built using the FUSE3 API. It builds and runs on both Windows and Cygwin.
 * The FUSE layer now supports multiple file systems within a single process. This is a long standing problem that has been fixed. (GitHub issue #135.)
 * The FSD includes a fix for a Windows problem: that case-sensitive file systems do not work properly when mounted as directories. See FAQ entry #3.
+* The FSD includes a fix for a rare but serious problem. (GitHub issue #177. Thanks @thinkport.)
 * The FSD includes a fix for an incompatibility with DrWeb Antivirus. (GitHub issue #192)
+* The DLL includes a fix for an errorenous `STATUS_ACCESS_DENIED` on read-only directories. (GitHub issue #190. Thanks @alfaunits.)
 
 
 v1.4B3 (2018.2 B3)::
