@@ -2168,6 +2168,7 @@ static NTSTATUS fsp_fuse_intf_Control(FSP_FILE_SYSTEM *FileSystem,
             memcpy(OutputBuffer, InputBuffer, InputBufferLength);
         err = f->ops.ioctl(filedesc->PosixPath, cmd, 0, &fi, 0, OutputBuffer);
     }
+    *PBytesTransferred = OutputBufferLength;
 
     return fsp_fuse_ntstatus_from_errno(f->env, err);
 }
