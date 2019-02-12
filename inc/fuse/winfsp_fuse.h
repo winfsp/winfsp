@@ -59,7 +59,7 @@ extern "C" {
 
 #define FSP_FUSE_DEVICE_TYPE            (0x8000 | 'W' | 'F' * 0x100) /* DeviceIoControl -> ioctl */
 #define FSP_FUSE_CTLCODE_FROM_IOCTL(cmd)\
-    (FSP_FUSE_DEVICE_TYPE << 16) | (((c) & 0x0fff) << 2)
+    (FSP_FUSE_DEVICE_TYPE << 16) | (((cmd) & 0x0fff) << 2)
 #define FSP_FUSE_IOCTL(cmd, isiz, osiz) \
     (                                   \
         (((osiz) != 0) << 31) |         \
