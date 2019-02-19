@@ -1,7 +1,7 @@
 = Changelog
 
 
-v1.4 (2019.2)::
+v1.4.19049 (2019.2)::
 
 Changes since v1.3:
 
