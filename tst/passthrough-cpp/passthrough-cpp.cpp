@@ -268,6 +268,7 @@ NTSTATUS Ptfs::Init(PVOID Host0)
     Host->SetPassQueryDirectoryPattern(TRUE);
     Host->SetVolumeCreationTime(_CreationTime);
     Host->SetVolumeSerialNumber(0);
+    Host->SetFlushAndPurgeOnCleanup(TRUE);
     return STATUS_SUCCESS;
 }
 
