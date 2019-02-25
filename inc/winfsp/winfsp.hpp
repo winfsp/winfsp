@@ -612,6 +612,14 @@ public:
     {
         _VolumeParams.PassQueryDirectoryPattern = !!PassQueryDirectoryPattern;
     }
+    BOOLEAN FlushAndPurgeOnCleanup()
+    {
+        return _VolumeParams.FlushAndPurgeOnCleanup;
+    }
+    VOID SetFlushAndPurgeOnCleanup(BOOLEAN FlushAndPurgeOnCleanup)
+    {
+        _VolumeParams.FlushAndPurgeOnCleanup = !!FlushAndPurgeOnCleanup;
+    }
     PWSTR Prefix()
     {
         return _VolumeParams.Prefix;
