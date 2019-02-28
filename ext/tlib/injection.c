@@ -1,7 +1,7 @@
 /**
  * @file tlib/injection.c
  *
- * @copyright 2014-2018 Bill Zissimopoulos
+ * @copyright 2014-2019 Bill Zissimopoulos
  */
 
 #include <tlib/injection.h>
