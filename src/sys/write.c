@@ -219,6 +219,13 @@ static NTSTATUS FspFsvolWriteCached(
         }
     }
 
+    /* double-check that the end offset is <= than the file size and fail if not */
+    if (WriteEndOffset > (UINT64)CcGetFileSizePointer(FileObject)->QuadPart)
+    {
+        FspFileNodeRelease(FileNode, Main);
+        return STATUS_INTERNAL_ERROR;
+    }
+
     /*
      * From this point forward we must jump to the CLEANUP label on failure.
      */
