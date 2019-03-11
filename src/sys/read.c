@@ -150,7 +150,7 @@ static NTSTATUS FspFsvolReadCached(
         FspFileNodeRelease(FileNode, Main);
         return STATUS_END_OF_FILE;
     }
-    if (ReadLength > (ULONG)(FileInfo.FileSize - ReadOffset.QuadPart))
+    if ((UINT64)ReadLength > FileInfo.FileSize - ReadOffset.QuadPart)
         ReadLength = (ULONG)(FileInfo.FileSize - ReadOffset.QuadPart);
 
     /* initialize cache if not already initialized! */
