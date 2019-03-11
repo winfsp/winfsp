@@ -29,6 +29,9 @@
     </a>
     <br/>
     <br/>
+    <b>Check out my new kernel project <a href="https://github.com/billziss-gh/winspd">WinSpd</a>.</b>
+    <br/>
+    <br/>
 </p>
 
 <p align="center">
