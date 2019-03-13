@@ -1186,13 +1186,34 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
 FSP_API NTSTATUS FspFileSystemOpQueryEa(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    NTSTATUS Result;
+    SIZE_T EaSize;
+
+    if (0 == FileSystem->Interface->GetEa)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    EaSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
+    Result = FileSystem->Interface->GetEa(FileSystem,
+        (PVOID)ValOfFileContext(Request->Req.QueryEa),
+        (PVOID)Response->Buffer, &EaSize);
+    if (!NT_SUCCESS(Result))
+        return STATUS_BUFFER_OVERFLOW != Result ? Result : STATUS_EA_LIST_INCONSISTENT;
+
+    Response->Size = (UINT16)(sizeof *Response + EaSize);
+    Response->Rsp.QueryEa.Ea.Offset = 0;
+    Response->Rsp.QueryEa.Ea.Size = (UINT16)EaSize;
+    return STATUS_SUCCESS;
 }
 
 FSP_API NTSTATUS FspFileSystemOpSetEa(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
-    return STATUS_INVALID_DEVICE_REQUEST;
+    if (0 == FileSystem->Interface->SetEa)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    return FileSystem->Interface->SetEa(FileSystem,
+        (PVOID)ValOfFileContext(Request->Req.SetEa),
+        (PVOID)Request->Buffer, Request->Req.SetEa.Ea.Size);
 }
 
 FSP_API NTSTATUS FspFileSystemOpQueryVolumeInformation(FSP_FILE_SYSTEM *FileSystem,
