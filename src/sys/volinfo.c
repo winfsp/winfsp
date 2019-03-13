@@ -96,7 +96,7 @@ static NTSTATUS FspFsvolQueryFsAttributeInformation(
         (FsvolDeviceExtension->VolumeParams.ReparsePoints ? FILE_SUPPORTS_REPARSE_POINTS : 0) |
         (FsvolDeviceExtension->VolumeParams.NamedStreams ? FILE_NAMED_STREAMS : 0) |
         //(FsvolDeviceExtension->VolumeParams.HardLinks ? FILE_SUPPORTS_HARD_LINKS : 0) |
-        //(FsvolDeviceExtension->VolumeParams.ExtendedAttributes ? FILE_SUPPORTS_EXTENDED_ATTRIBUTES : 0) |
+        (FsvolDeviceExtension->VolumeParams.ExtendedAttributes ? FILE_SUPPORTS_EXTENDED_ATTRIBUTES : 0) |
         (FsvolDeviceExtension->VolumeParams.ReadOnlyVolume ? FILE_READ_ONLY_VOLUME : 0);
     Info->MaximumComponentNameLength = FsvolDeviceExtension->VolumeParams.MaxComponentLength;
 

@@ -24,6 +24,7 @@
 BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, ULONG MaxComponentLength,
     PUNICODE_STRING StreamPart, PULONG StreamType);
 BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Pattern, ULONG MaxComponentLength);
+BOOLEAN FspEaNameIsValid(PSTRING Name);
 VOID FspFileNameSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 NTSTATUS FspFileNameInExpression(
     PUNICODE_STRING Expression,
@@ -35,6 +36,7 @@ NTSTATUS FspFileNameInExpression(
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFileNameIsValid)
 #pragma alloc_text(PAGE, FspFileNameIsValidPattern)
+#pragma alloc_text(PAGE, FspEaNameIsValid)
 #pragma alloc_text(PAGE, FspFileNameSuffix)
 #pragma alloc_text(PAGE, FspFileNameInExpression)
 #endif
@@ -187,6 +189,37 @@ BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Path, ULONG MaxComponentLength
     /* path component cannot be longer than MaxComponentLength */
     if ((ULONG)(PathPtr - ComponentPtr) > MaxComponentLength)
         return FALSE;
+
+    return TRUE;
+}
+
+BOOLEAN FspEaNameIsValid(PSTRING Name)
+{
+    PAGED_CODE();
+
+    /* see FastFat's FatIsEaNameValid */
+
+    if (0 == Name->Length || Name->Length > 254)
+        return FALSE;
+
+    PSTR NameEnd, NamePtr;
+    CHAR Char;
+
+    NamePtr = Name->Buffer;
+    NameEnd = NamePtr + Name->Length;
+
+    while (NameEnd > NamePtr)
+    {
+        Char = *NamePtr;
+
+        if (FsRtlIsLeadDbcsCharacter(Char))
+            NamePtr++;
+        else
+        if (!FsRtlIsAnsiCharacterLegalFat(Char, FALSE))
+            return FALSE;
+
+        NamePtr++;
+    }
 
     return TRUE;
 }

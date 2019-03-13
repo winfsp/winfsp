@@ -317,7 +317,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     LARGE_INTEGER IrpTimeout;
-    LARGE_INTEGER SecurityTimeout, DirInfoTimeout, StreamInfoTimeout;
+    LARGE_INTEGER SecurityTimeout, DirInfoTimeout, StreamInfoTimeout, EaTimeout;
 
     /*
      * Volume device initialization is a mess, because of the different ways of
@@ -378,6 +378,16 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     if (!NT_SUCCESS(Result))
         return Result;
     FsvolDeviceExtension->InitDoneStrm = 1;
+
+    /* create our EA meta cache */
+    EaTimeout.QuadPart = FspTimeoutFromMillis(FsvolDeviceExtension->VolumeParams.EaTimeout);
+        /* convert millis to nanos */
+    Result = FspMetaCacheCreate(
+        FspFsvolDeviceEaCacheCapacity, FspFsvolDeviceEaCacheItemSizeMax, &EaTimeout,
+        &FsvolDeviceExtension->EaCache);
+    if (!NT_SUCCESS(Result))
+        return Result;
+    FsvolDeviceExtension->InitDoneEa = 1;
 
     /* initialize the FSRTL Notify mechanism */
     Result = FspNotifyInitializeSync(&FsvolDeviceExtension->NotifySync);
@@ -448,6 +458,10 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
             FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList);
         FspNotifyUninitializeSync(&FsvolDeviceExtension->NotifySync);
     }
+
+    /* delete the EA meta cache */
+    if (FsvolDeviceExtension->InitDoneEa)
+        FspMetaCacheDelete(FsvolDeviceExtension->EaCache);
 
     /* delete the stream info meta cache */
     if (FsvolDeviceExtension->InitDoneStrm)

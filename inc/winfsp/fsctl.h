@@ -152,7 +152,7 @@ enum
     UINT32 ReparsePointsAccessCheck:1;  /* file system performs reparse point access checks */\
     UINT32 NamedStreams:1;              /* file system supports named streams */\
     UINT32 HardLinks:1;                 /* unimplemented; set to 0 */\
-    UINT32 ExtendedAttributes:1;        /* unimplemented; set to 0 */\
+    UINT32 ExtendedAttributes:1;        /* file system supports extended attributes */\
     UINT32 ReadOnlyVolume:1;\
     /* kernel-mode flags */\
     UINT32 PostCleanupWhenModifiedOnly:1;   /* post Cleanup when a file was modified/deleted */\
@@ -167,6 +167,7 @@ enum
     UINT32 UmReservedFlags:6;\
     /* additional kernel-mode flags */\
     UINT32 AllowOpenInKernelMode:1;         /* allow kernel mode to open files when possible */\
+    UINT32 CasePreservedExtendedAttributes:1;   /* preserve case of EA (default is UPPERCASE) */\
     UINT32 KmReservedFlags:7;\
     WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */\
     WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
@@ -176,12 +177,14 @@ enum
     UINT32 DirInfoTimeoutValid:1;       /* DirInfoTimeout field is valid */\
     UINT32 SecurityTimeoutValid:1;      /* SecurityTimeout field is valid*/\
     UINT32 StreamInfoTimeoutValid:1;    /* StreamInfoTimeout field is valid */\
+    UINT32 EaTimeoutValid:1;            /* EaTimeout field is valid */\
     UINT32 KmAdditionalReservedFlags:28;\
     UINT32 VolumeInfoTimeout;           /* volume info timeout (millis); overrides FileInfoTimeout */\
     UINT32 DirInfoTimeout;              /* dir info timeout (millis); overrides FileInfoTimeout */\
     UINT32 SecurityTimeout;             /* security info timeout (millis); overrides FileInfoTimeout */\
     UINT32 StreamInfoTimeout;           /* stream info timeout (millis); overrides FileInfoTimeout */\
-    UINT32 Reserved32[3];\
+    UINT32 EaTimeout;                   /* EA timeout (millis); overrides FileInfoTimeout */\
+    UINT32 Reserved32[2];\
     UINT64 Reserved64[2];
 typedef struct
 {
@@ -261,7 +264,7 @@ typedef struct
             UINT32 DesiredAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             UINT32 GrantedAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             UINT32 ShareAccess;         /* FILE_SHARE_{READ,WRITE,DELETE} */
-            FSP_FSCTL_TRANSACT_BUF Ea;  /* reserved; not currently implemented */
+            FSP_FSCTL_TRANSACT_BUF Ea;  /* extended attributes buffer */
             UINT32 UserMode:1;          /* request originated in user mode */
             UINT32 HasTraversePrivilege:1;  /* requestor has TOKEN_HAS_TRAVERSE_PRIVILEGE */
             UINT32 HasBackupPrivilege:1;    /* requestor has TOKEN_HAS_BACKUP_PRIVILEGE */
@@ -280,6 +283,7 @@ typedef struct
             UINT32 FileAttributes;      /* file attributes for overwritten/superseded files */
             UINT64 AllocationSize;      /* allocation size for overwritten/superseded files */
             UINT32 Supersede:1;         /* 0: FILE_OVERWRITE operation, 1: FILE_SUPERSEDE operation */
+            FSP_FSCTL_TRANSACT_BUF Ea;  /* extended attributes buffer */
         } Overwrite;
         struct
         {
@@ -355,6 +359,17 @@ typedef struct
                 } Rename;
             } Info;
         } SetInformation;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+        } QueryEa;
+        struct
+        {
+            UINT64 UserContext;
+            UINT64 UserContext2;
+            FSP_FSCTL_TRANSACT_BUF Ea;
+        } SetEa;
         struct
         {
             UINT64 UserContext;
@@ -469,6 +484,14 @@ typedef struct
         {
             FSP_FSCTL_FILE_INFO FileInfo;       /* valid: File{Allocation,Basic,EndOfFile}Information */
         } SetInformation;
+        struct
+        {
+            FSP_FSCTL_TRANSACT_BUF Ea;
+        } QueryEa;
+        struct
+        {
+            FSP_FSCTL_TRANSACT_BUF Ea;          /* Size==0 means no extended atttributed returned */
+        } SetEa;
         struct
         {
             FSP_FSCTL_FILE_INFO FileInfo;       /* valid when flushing file (not volume) */

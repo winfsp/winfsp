@@ -89,6 +89,10 @@ VOID FspFileNodeSetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size
 BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG StreamInfoChangeNumber);
 VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode);
+BOOLEAN FspFileNodeReferenceEa(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
+VOID FspFileNodeSetEa(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
+BOOLEAN FspFileNodeTrySetEa(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
+    ULONG EaChangeNumber);
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action,
     BOOLEAN InvalidateCaches);
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
@@ -158,6 +162,9 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 // !#pragma alloc_text(PAGE, FspFileNodeSetStreamInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeTrySetStreamInfo)
 // !#pragma alloc_text(PAGE, FspFileNodeInvalidateStreamInfo)
+#pragma alloc_text(PAGE, FspFileNodeReferenceEa)
+#pragma alloc_text(PAGE, FspFileNodeSetEa)
+#pragma alloc_text(PAGE, FspFileNodeTrySetEa)
 #pragma alloc_text(PAGE, FspFileNodeNotifyChange)
 #pragma alloc_text(PAGE, FspFileNodeProcessLockIrp)
 #pragma alloc_text(PAGE, FspFileNodeCompleteLockIrp)
@@ -361,6 +368,7 @@ VOID FspFileNodeDelete(FSP_FILE_NODE *FileNode)
 
     FsRtlTeardownPerStreamContexts(&FileNode->Header);
 
+    FspMetaCacheInvalidateItem(FsvolDeviceExtension->EaCache, FileNode->Ea);
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->StreamInfoCache, FileNode->NonPaged->StreamInfo);
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->DirInfoCache, FileNode->NonPaged->DirInfo);
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->SecurityCache, FileNode->Security);
@@ -2113,6 +2121,48 @@ VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode)
     KeReleaseSpinLock(&NonPaged->NpInfoSpinLock, Irql);
 
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->StreamInfoCache, StreamInfo);
+}
+
+BOOLEAN FspFileNodeReferenceEa(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize)
+{
+    PAGED_CODE();
+
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+
+    return FspMetaCacheReferenceItemBuffer(FsvolDeviceExtension->EaCache,
+        FileNode->Ea, PBuffer, PSize);
+}
+
+VOID FspFileNodeSetEa(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size)
+{
+    PAGED_CODE();
+
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
+
+    FspMetaCacheInvalidateItem(FsvolDeviceExtension->EaCache, FileNode->Ea);
+    FileNode->Ea = 0 != Buffer ?
+        FspMetaCacheAddItem(FsvolDeviceExtension->EaCache, Buffer, Size) : 0;
+    FileNode->EaChangeNumber++;
+}
+
+BOOLEAN FspFileNodeTrySetEa(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
+    ULONG EaChangeNumber)
+{
+    PAGED_CODE();
+
+    if (FspFileNodeEaChangeNumber(FileNode) != EaChangeNumber)
+        return FALSE;
+
+    FspFileNodeSetEa(FileNode, Buffer, Size);
+    return TRUE;
 }
 
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action,

@@ -85,6 +85,18 @@ typedef struct _REPARSE_DATA_BUFFER
 } REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
 #endif
 
+/*
+ * The FILE_FULL_EA_INFORMATION definitions are missing from the user mode headers.
+ */
+typedef struct _FILE_FULL_EA_INFORMATION
+{
+    ULONG NextEntryOffset;
+    UCHAR Flags;
+    UCHAR EaNameLength;
+    USHORT EaValueLength;
+    CHAR EaName[1];
+} FILE_FULL_EA_INFORMATION, *PFILE_FULL_EA_INFORMATION;
+
 /**
  * @group File System
  *
@@ -894,12 +906,131 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      */
     NTSTATUS (*SetDelete)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext, PWSTR FileName, BOOLEAN DeleteFile);
+    /**
+     * Create new file or directory.
+     *
+     * This function works like Create, except that it also accepts EA (extended attributes).
+     *
+     * NOTE: If both Create and CreateEx are defined, CreateEx takes precedence.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param FileName
+     *     The name of the file or directory to be created.
+     * @param CreateOptions
+     *     Create options for this request. This parameter has the same meaning as the
+     *     CreateOptions parameter of the NtCreateFile API. User mode file systems should typically
+     *     only be concerned with the flag FILE_DIRECTORY_FILE, which is an instruction to create a
+     *     directory rather than a file. Some file systems may also want to pay attention to the
+     *     FILE_NO_INTERMEDIATE_BUFFERING and FILE_WRITE_THROUGH flags, although these are
+     *     typically handled by the FSD component.
+     * @param GrantedAccess
+     *     Determines the specific access rights that have been granted for this request. Upon
+     *     receiving this call all access checks have been performed and the user mode file system
+     *     need not perform any additional checks. However this parameter may be useful to a user
+     *     mode file system; for example the WinFsp-FUSE layer uses this parameter to determine
+     *     which flags to use in its POSIX open() call.
+     * @param FileAttributes
+     *     File attributes to apply to the newly created file or directory.
+     * @param SecurityDescriptor
+     *     Security descriptor to apply to the newly created file or directory. This security
+     *     descriptor will always be in self-relative format. Its length can be retrieved using the
+     *     Windows GetSecurityDescriptorLength API. Will be NULL for named streams.
+     * @param AllocationSize
+     *     Allocation size for the newly created file.
+     * @param Ea
+     *     Extended attributes buffer.
+     * @param EaLength
+     *     Extended attributes buffer length.
+     * @param PFileContext [out]
+     *     Pointer that will receive the file context on successful return from this call.
+     * @param FileInfo [out]
+     *     Pointer to a structure that will receive the file information on successful return
+     *     from this call. This information includes file attributes, file times, etc.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     */
+    NTSTATUS (*CreateEx)(FSP_FILE_SYSTEM *FileSystem,
+        PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
+        UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
+        PFILE_FULL_EA_INFORMATION Ea, SIZE_T EaLength,
+        PVOID *PFileContext, FSP_FSCTL_FILE_INFO *FileInfo);
+    /**
+     * Overwrite a file.
+     *
+     * This function works like Overwrite, except that it also accepts EA (extended attributes).
+     *
+     * NOTE: If both Overwrite and OverwriteEx are defined, OverwriteEx takes precedence.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param FileContext
+     *     The file context of the file to overwrite.
+     * @param FileAttributes
+     *     File attributes to apply to the overwritten file.
+     * @param ReplaceFileAttributes
+     *     When TRUE the existing file attributes should be replaced with the new ones.
+     *     When FALSE the existing file attributes should be merged (or'ed) with the new ones.
+     * @param AllocationSize
+     *     Allocation size for the overwritten file.
+     * @param Ea
+     *     Extended attributes buffer.
+     * @param EaLength
+     *     Extended attributes buffer length.
+     * @param FileInfo [out]
+     *     Pointer to a structure that will receive the file information on successful return
+     *     from this call. This information includes file attributes, file times, etc.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     */
+    NTSTATUS (*OverwriteEx)(FSP_FILE_SYSTEM *FileSystem,
+        PVOID FileContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
+        PFILE_FULL_EA_INFORMATION Ea, SIZE_T EaLength,
+        FSP_FSCTL_FILE_INFO *FileInfo);
+    /**
+     * Get extended attributes.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param FileContext
+     *     The file context of the file to get extended attributes for.
+     * @param Ea
+     *     Extended attributes buffer.
+     * @param EaLength [in,out]
+     *     Extended attributes buffer length.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     * @see
+     *     SetEa
+     */
+    NTSTATUS (*GetEa)(FSP_FILE_SYSTEM *FileSystem,
+        PVOID FileContext,
+        PFILE_FULL_EA_INFORMATION Ea, PSIZE_T PEaLength);
+    /**
+     * Set extended attributes.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param FileContext
+     *     The file context of the file to set extended attributes for.
+     * @param Ea
+     *     Extended attributes buffer.
+     * @param EaLength
+     *     Extended attributes buffer length.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     * @see
+     *     GetEa
+     */
+    NTSTATUS (*SetEa)(FSP_FILE_SYSTEM *FileSystem,
+        PVOID FileContext,
+        PFILE_FULL_EA_INFORMATION Ea, SIZE_T EaLength);
 
     /*
      * This ensures that this interface will always contain 64 function pointers.
      * Please update when changing the interface as it is important for future compatibility.
      */
-    NTSTATUS (*Reserved[37])();
+    NTSTATUS (*Reserved[33])();
 } FSP_FILE_SYSTEM_INTERFACE;
 FSP_FSCTL_STATIC_ASSERT(sizeof(FSP_FILE_SYSTEM_INTERFACE) == 64 * sizeof(NTSTATUS (*)()),
     "FSP_FILE_SYSTEM_INTERFACE must have 64 entries.");
@@ -1202,6 +1333,10 @@ FSP_API NTSTATUS FspFileSystemOpWrite(FSP_FILE_SYSTEM *FileSystem,
 FSP_API NTSTATUS FspFileSystemOpQueryInformation(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+FSP_API NTSTATUS FspFileSystemOpQueryEa(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
+FSP_API NTSTATUS FspFileSystemOpSetEa(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
 FSP_API NTSTATUS FspFileSystemOpFlushBuffers(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response);
