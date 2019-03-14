@@ -1078,6 +1078,120 @@ namespace Fsp
             else
                 return STATUS_SUCCESS;
         }
+        public virtual Int32 CreateEx(
+            String FileName,
+            UInt32 CreateOptions,
+            UInt32 GrantedAccess,
+            UInt32 FileAttributes,
+            Byte[] SecurityDescriptor,
+            UInt64 AllocationSize,
+            IntPtr Ea,
+            UInt32 EaLength,
+            out Object FileNode,
+            out Object FileDesc,
+            out FileInfo FileInfo,
+            out String NormalizedName)
+        {
+            Int32 Result;
+            Result = Create(
+                FileName,
+                CreateOptions,
+                GrantedAccess,
+                FileAttributes,
+                SecurityDescriptor,
+                AllocationSize,
+                out FileNode,
+                out FileDesc,
+                out FileInfo,
+                out NormalizedName);
+            if (0 > Result)
+                return Result;
+            if (IntPtr.Zero != Ea)
+                Result = SetEa(FileNode, FileDesc, Ea, EaLength); /* ignore Result */
+            return STATUS_SUCCESS;
+        }
+        public virtual Int32 OverwriteEx(
+            Object FileNode,
+            Object FileDesc,
+            UInt32 FileAttributes,
+            Boolean ReplaceFileAttributes,
+            UInt64 AllocationSize,
+            IntPtr Ea,
+            UInt32 EaLength,
+            out FileInfo FileInfo)
+        {
+            Int32 Result;
+            Result = Overwrite(
+                FileNode,
+                FileDesc,
+                FileAttributes,
+                ReplaceFileAttributes,
+                AllocationSize,
+                out FileInfo);
+            if (0 > Result)
+                return Result;
+            if (IntPtr.Zero != Ea)
+                Result = SetEa(FileNode, FileDesc, Ea, EaLength); /* ignore Result */
+            return STATUS_SUCCESS;
+        }
+        public virtual Int32 GetEa(
+            Object FileNode,
+            Object FileDesc,
+            IntPtr Ea,
+            UInt32 EaLength,
+            out UInt32 BytesTransferred)
+        {
+            Object Context = null;
+            String EaName;
+            Byte[] EaValue;
+            Boolean NeedEa;
+            FullEaInformation EaInfo = new FullEaInformation();
+            BytesTransferred = default(UInt32);
+            while (GetEaEntry(FileNode, FileDesc, ref Context, out EaName, out EaValue, out NeedEa))
+            {
+                EaInfo.Set(EaName, EaValue, NeedEa);
+                if (!Api.FspFileSystemAddEa(ref EaInfo, Ea, EaLength, out BytesTransferred))
+                    return STATUS_SUCCESS;
+            }
+            Api.FspFileSystemEndEa(Ea, EaLength, out BytesTransferred);
+            return STATUS_SUCCESS;
+        }
+        public virtual Boolean GetEaEntry(
+            Object FileNode,
+            Object FileDesc,
+            ref Object Context,
+            out String EaName,
+            out Byte[] EaValue,
+            out Boolean NeedEa)
+        {
+            EaName = default(String);
+            EaValue = default(Byte[]);
+            NeedEa = default(Boolean);
+            return false;
+        }
+        public virtual Int32 SetEa(
+            Object FileNode,
+            Object FileDesc,
+            IntPtr Ea,
+            UInt32 EaLength)
+        {
+            return Api.FspFileSystemEnumerateEa(
+                FileNode,
+                FileDesc,
+                this.SetEaEntry,
+                Ea,
+                EaLength);
+        }
+        public virtual Int32 SetEaEntry(
+            Object FileNode,
+            Object FileDesc,
+            ref Object Context,
+            String EaName,
+            Byte[] EaValue,
+            Boolean NeedEa)
+        {
+            return STATUS_INVALID_DEVICE_REQUEST;
+        }
 
         /* helpers */
         /// <summary>
