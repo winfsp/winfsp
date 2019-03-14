@@ -88,6 +88,9 @@ typedef struct _REPARSE_DATA_BUFFER
 /*
  * The FILE_FULL_EA_INFORMATION definitions are missing from the user mode headers.
  */
+#if !defined(FILE_NEED_EA)
+#define FILE_NEED_EA                    0x00000080
+#endif
 typedef struct _FILE_FULL_EA_INFORMATION
 {
     ULONG NextEntryOffset;
@@ -953,7 +956,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     NTSTATUS (*CreateEx)(FSP_FILE_SYSTEM *FileSystem,
         PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
         UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
-        PFILE_FULL_EA_INFORMATION Ea, SIZE_T EaLength,
+        PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength,
         PVOID *PFileContext, FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Overwrite a file.
@@ -985,7 +988,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      */
     NTSTATUS (*OverwriteEx)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
-        PFILE_FULL_EA_INFORMATION Ea, SIZE_T EaLength,
+        PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength,
         FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Get extended attributes.
@@ -996,16 +999,19 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     The file context of the file to get extended attributes for.
      * @param Ea
      *     Extended attributes buffer.
-     * @param EaLength [in,out]
+     * @param EaLength
      *     Extended attributes buffer length.
+     * @param PBytesTransferred [out]
+     *     Pointer to a memory location that will receive the actual number of bytes transferred.
      * @return
      *     STATUS_SUCCESS or error code.
      * @see
      *     SetEa
+     *     FspFileSystemAddEa
      */
     NTSTATUS (*GetEa)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext,
-        PFILE_FULL_EA_INFORMATION Ea, PSIZE_T PEaLength);
+        PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength, PULONG PBytesTransferred);
     /**
      * Set extended attributes.
      *
@@ -1024,7 +1030,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      */
     NTSTATUS (*SetEa)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext,
-        PFILE_FULL_EA_INFORMATION Ea, SIZE_T EaLength);
+        PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength);
 
     /*
      * This ensures that this interface will always contain 64 function pointers.
@@ -1568,6 +1574,56 @@ FSP_API NTSTATUS FspFileSystemCanReplaceReparsePoint(
  */
 FSP_API BOOLEAN FspFileSystemAddStreamInfo(FSP_FSCTL_STREAM_INFO *StreamInfo,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
+/**
+ * Enumerate extended attributes in a buffer.
+ *
+ * This is a helper for implementing the CreateEx and SetEa operations in file systems
+ * that support extended attributes.
+ *
+ * @param FileSystem
+ *     The file system object.
+ * @param EnumerateEa
+ *     Pointer to function that receives a single extended attribute. The function
+ *     should return STATUS_SUCCESS or an error code if unsuccessful.
+ * @param Context
+ *     User context to supply to EnumEa.
+ * @param Ea
+ *     Extended attributes buffer.
+ * @param EaLength
+ *     Extended attributes buffer length.
+ * @return
+ *     STATUS_SUCCESS or error code from EnumerateEa.
+ */
+FSP_API NTSTATUS FspFileSystemEnumerateEa(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*EnumerateEa)(
+        FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+        PFILE_FULL_EA_INFORMATION SingleEa),
+    PVOID Context,
+    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength);
+/**
+ * Add extended attribute to a buffer.
+ *
+ * This is a helper for implementing the GetEa operation.
+ *
+ * @param SingleEa
+ *     The extended attribute to add. A value of NULL acts as an EOF marker for a GetEa
+ *     operation.
+ * @param Ea
+ *     Pointer to a buffer that will receive the extended attribute. This should contain
+ *     the same value passed to the GetEa Ea parameter.
+ * @param EaLength
+ *     Length of buffer. This should contain the same value passed to the GetEa
+ *     EaLength parameter.
+ * @param PBytesTransferred [out]
+ *     Pointer to a memory location that will receive the actual number of bytes stored. This should
+ *     contain the same value passed to the GetEa PBytesTransferred parameter.
+ * @return
+ *     TRUE if the extended attribute was added, FALSE if there was not enough space to add it.
+ * @see
+ *     GetEa
+ */
+FSP_API BOOLEAN FspFileSystemAddEa(PFILE_FULL_EA_INFORMATION SingleEa,
+    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength, PULONG PBytesTransferred);
 
 /*
  * Directory buffering

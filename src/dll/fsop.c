@@ -1187,21 +1187,21 @@ FSP_API NTSTATUS FspFileSystemOpQueryEa(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
     NTSTATUS Result;
-    SIZE_T EaSize;
+    ULONG BytesTransferred;
 
     if (0 == FileSystem->Interface->GetEa)
         return STATUS_INVALID_DEVICE_REQUEST;
 
-    EaSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
+    BytesTransferred = 0;
     Result = FileSystem->Interface->GetEa(FileSystem,
         (PVOID)ValOfFileContext(Request->Req.QueryEa),
-        (PVOID)Response->Buffer, &EaSize);
+        (PVOID)Response->Buffer, FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX, &BytesTransferred);
     if (!NT_SUCCESS(Result))
         return STATUS_BUFFER_OVERFLOW != Result ? Result : STATUS_EA_LIST_INCONSISTENT;
 
-    Response->Size = (UINT16)(sizeof *Response + EaSize);
+    Response->Size = (UINT16)(sizeof *Response + BytesTransferred);
     Response->Rsp.QueryEa.Ea.Offset = 0;
-    Response->Rsp.QueryEa.Ea.Size = (UINT16)EaSize;
+    Response->Rsp.QueryEa.Ea.Size = (UINT16)BytesTransferred;
     return STATUS_SUCCESS;
 }
 
@@ -1796,4 +1796,56 @@ FSP_API BOOLEAN FspFileSystemAddStreamInfo(FSP_FSCTL_STREAM_INFO *StreamInfo,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
     return FspFileSystemAddXxxInfo(StreamInfo, Buffer, Length, PBytesTransferred);
+}
+
+FSP_API NTSTATUS FspFileSystemEnumerateEa(FSP_FILE_SYSTEM *FileSystem,
+    NTSTATUS (*EnumerateEa)(
+        FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+        PFILE_FULL_EA_INFORMATION SingleEa),
+    PVOID Context,
+    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength)
+{
+    PFILE_FULL_EA_INFORMATION EaEnd = (PVOID)((PUINT8)Ea + EaLength);
+    NTSTATUS Result;
+
+    Result = STATUS_SUCCESS;
+    for (;
+        EaEnd > Ea && 0 != Ea->NextEntryOffset;
+        Ea = (PVOID)((PUINT8)Ea + Ea->NextEntryOffset))
+    {
+        Result = EnumerateEa(FileSystem, Context, Ea);
+        if (!NT_SUCCESS(Result))
+            break;
+    }
+
+    return Result;
+}
+
+FSP_API BOOLEAN FspFileSystemAddEa(PFILE_FULL_EA_INFORMATION SingleEa,
+    PFILE_FULL_EA_INFORMATION Ea, ULONG Length, PULONG PBytesTransferred)
+{
+    if (0 != SingleEa)
+    {
+        PUINT8 EaEnd = (PUINT8)Ea + Length;
+        ULONG EaLength = sizeof *SingleEa + SingleEa->EaNameLength + SingleEa->EaValueLength;
+
+        Ea = (PVOID)((PUINT8)Ea + *PBytesTransferred);
+        if ((PUINT8)Ea + EaLength > EaEnd)
+            return FALSE;
+
+        memcpy(Ea, SingleEa, EaLength);
+        Ea->NextEntryOffset = FSP_FSCTL_ALIGN_UP(EaLength, sizeof(ULONG));
+        *PBytesTransferred += EaLength;
+    }
+    else if (sizeof *SingleEa <= *PBytesTransferred)
+    {
+        PUINT8 EaEnd = (PUINT8)Ea + *PBytesTransferred;
+
+        while (EaEnd > (PUINT8)Ea + Ea->NextEntryOffset)
+            Ea = (PVOID)((PUINT8)Ea + Ea->NextEntryOffset);
+
+        Ea->NextEntryOffset = 0;
+    }
+
+    return TRUE;
 }
