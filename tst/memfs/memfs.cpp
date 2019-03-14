@@ -2317,6 +2317,9 @@ NTSTATUS MemfsCreateFunnel(
 #if defined(MEMFS_CONTROL)
     VolumeParams.DeviceControl = 1;
 #endif
+#if defined(MEMFS_EA)
+    VolumeParams.ExtendedAttributes = 1;
+#endif
     VolumeParams.AllowOpenInKernelMode = 1;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
