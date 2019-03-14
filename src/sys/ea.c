@@ -502,6 +502,23 @@ static NTSTATUS FspFsvolSetEa(
     if (!NT_SUCCESS(Result))
         return Result;
 
+    for (PFILE_FULL_EA_INFORMATION Ea = Buffer, EaEnd = (PVOID)((PUINT8)Ea + Length);
+        EaEnd > Ea && 0 != Ea->NextEntryOffset;
+        Ea = (PVOID)((PUINT8)Ea + Ea->NextEntryOffset))
+    {
+        STRING Name;
+
+        Name.Length = Name.MaximumLength = Ea->EaNameLength;
+        Name.Buffer = Ea->EaName;
+
+        if (!FspEaNameIsValid(&Name))
+        {
+            Result = STATUS_INVALID_EA_NAME;
+            Irp->IoStatus.Information = (ULONG)((PUINT8)Ea - (PUINT8)Buffer);
+            return Result;
+        }
+    }
+
     FspFileNodeAcquireExclusive(FileNode, Full);
 
     Result = FspIopCreateRequestEx(Irp, 0, Length, FspFsvolSetEaRequestFini,
