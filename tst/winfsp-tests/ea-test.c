@@ -70,6 +70,7 @@ static void ea_create_dotest(ULONG Flags, PWSTR Prefix)
     FspFileSystemAddEa(&SingleEa.V, &Ea.V, sizeof Ea, &EaLength);
 
     memset(&SingleEa, 0, sizeof SingleEa);
+    SingleEa.V.Flags = FILE_NEED_EA;
     SingleEa.V.EaNameLength = (UCHAR)strlen("nameTwo");
     SingleEa.V.EaValueLength = (USHORT)strlen("second");
     lstrcpyA(SingleEa.V.EaName, "nameTwo");
@@ -89,11 +90,34 @@ static void ea_create_dotest(ULONG Flags, PWSTR Prefix)
     UnicodePath.MaximumLength = sizeof UnicodePathBuf;
     UnicodePath.Buffer = UnicodePathBuf;
     InitializeObjectAttributes(&Obja, &UnicodePath, 0, DirHandle, 0);
+
     Result = NtCreateFile(&FileHandle,
         FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
         &LargeZero, FILE_ATTRIBUTE_NORMAL, 0,
-        FILE_CREATE, FILE_DELETE_ON_CLOSE,
+        FILE_CREATE, FILE_NO_EA_KNOWLEDGE,
         &Ea, EaLength);
+    ASSERT(STATUS_ACCESS_DENIED == Result);
+
+    Result = NtCreateFile(&FileHandle,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
+        &LargeZero, FILE_ATTRIBUTE_NORMAL, 0,
+        FILE_CREATE, 0,
+        &Ea, EaLength);
+    ASSERT(STATUS_SUCCESS == Result);
+    CloseHandle(FileHandle);
+
+    Result = NtCreateFile(&FileHandle,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
+        &LargeZero, FILE_ATTRIBUTE_NORMAL, 0,
+        FILE_OPEN, FILE_NO_EA_KNOWLEDGE,
+        0, 0);
+    ASSERT(STATUS_ACCESS_DENIED == Result);
+
+    Result = NtCreateFile(&FileHandle,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
+        &LargeZero, FILE_ATTRIBUTE_NORMAL, 0,
+        FILE_OPEN, FILE_DELETE_ON_CLOSE,
+        0, 0);
     ASSERT(STATUS_SUCCESS == Result);
     CloseHandle(FileHandle);
 

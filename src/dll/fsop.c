@@ -1807,7 +1807,7 @@ FSP_API NTSTATUS FspFileSystemEnumerateEa(FSP_FILE_SYSTEM *FileSystem,
 {
     NTSTATUS Result = STATUS_SUCCESS;
     for (PFILE_FULL_EA_INFORMATION EaEnd = (PVOID)((PUINT8)Ea + EaLength);
-        EaEnd > Ea; FSP_NEXT_EA(Ea, EaEnd))
+        EaEnd > Ea; Ea = FSP_NEXT_EA(Ea, EaEnd))
     {
         Result = EnumerateEa(FileSystem, Context, Ea);
         if (!NT_SUCCESS(Result))

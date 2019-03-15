@@ -306,7 +306,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     if (0 != EaBuffer)
     {
         /* does the file system support EA? */
-        if (FsvolDeviceExtension->VolumeParams.ExtendedAttributes)
+        if (!FsvolDeviceExtension->VolumeParams.ExtendedAttributes)
             return STATUS_EAS_NOT_SUPPORTED;
 
         /* do we need EA knowledge? */
