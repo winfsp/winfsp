@@ -167,9 +167,9 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(0 == Context.EaCount[2]);
 }
 
-static void ea_create_dotest(ULONG Flags, PWSTR Prefix)
+static void ea_create_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
-    void *memfs = memfs_start(Flags);
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
 
     HANDLE DirHandle, FileHandle;
     NTSTATUS Result;
@@ -253,12 +253,18 @@ static void ea_create_test(void)
     {
         WCHAR DirBuf[MAX_PATH];
         GetTestDirectory(DirBuf);
-        ea_create_dotest(-1, DirBuf);
+        ea_create_dotest(-1, DirBuf, 0);
     }
     if (WinFspDiskTests)
-        ea_create_dotest(MemfsDisk, 0);
+    {
+        ea_create_dotest(MemfsDisk, 0, 0);
+        ea_create_dotest(MemfsDisk, 0, 1000);
+    }
     if (WinFspNetTests)
-        ea_create_dotest(MemfsNet, L"\\\\memfs\\share");
+    {
+        ea_create_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        ea_create_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
 }
 
 void ea_tests(void)
