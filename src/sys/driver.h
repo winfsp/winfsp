@@ -573,6 +573,8 @@ NTSTATUS FspOplockFsctrl(
     FspNotifyFullChangeDirectory(NS, NL, FC, 0, 0, FALSE, 0, 0, 0, 0)
 #define FspNotifyReportChange(NS, NL, FN, FO, NP, F, A)\
     FspNotifyFullReportChange(NS, NL, (PSTRING)(FN), FO, 0, (PSTRING)(NP), F, A, 0)
+#define FSP_NEXT_EA(Ea, EaEnd)          \
+    (0 != (Ea)->NextEntryOffset ? (PVOID)((PUINT8)(Ea) + (Ea)->NextEntryOffset) : (EaEnd))
 
 /* utility: synchronous work queue */
 typedef struct

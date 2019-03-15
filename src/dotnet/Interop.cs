@@ -908,9 +908,10 @@ namespace Fsp.Interop
             FullEaInformation *EndP = (FullEaInformation *)(Ea.ToInt64() + EaLength);
             Int32 Result;
             Result = 0/*STATUS_SUCCESS*/;
-            for (;
-                EndP > P && 0 != P->NextEntryOffset;
-                P = (FullEaInformation *)(((IntPtr)P).ToInt64() + P->NextEntryOffset))
+            for (; EndP > P;
+                P = 0 != P->NextEntryOffset ?
+                    (FullEaInformation *)(((IntPtr)P).ToInt64() + P->NextEntryOffset) :
+                    EndP)
             {
                 String EaName = Marshal.PtrToStringAnsi((IntPtr)P->EaName, P->EaNameLength);
                 Byte[] EaValue = new Byte[P->EaValueLength];

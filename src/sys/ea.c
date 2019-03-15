@@ -97,17 +97,13 @@ static VOID FspFsvolQueryEaGetCopy(
     IoStatus->Status = STATUS_SUCCESS;
     IoStatus->Information = 0;
     DstBuf = DstBufBgn, PrevDstBuf = 0;
-    for (GetBuf = GetBufBgn;
-        GetBufEnd > GetBuf && 0 != GetBuf->NextEntryOffset;
-        GetBuf = (PVOID)((PUINT8)GetBuf + GetBuf->NextEntryOffset))
+    for (GetBuf = GetBufBgn; GetBufEnd > GetBuf; GetBuf = FSP_NEXT_EA(GetBuf, GetBufEnd))
     {
         GetName.Length = GetName.MaximumLength = GetBuf->EaNameLength;
         GetName.Buffer = GetBuf->EaName;
 
         /* ignore duplicate names */
-        for (Get = GetBufBgn;
-            GetBuf > Get;
-            Get = (PVOID)((PUINT8)Get + Get->NextEntryOffset))
+        for (Get = GetBufBgn; GetBuf > Get; Get = (PVOID)((PUINT8)Get + Get->NextEntryOffset))
         {
             Name.Length = Name.MaximumLength = Get->EaNameLength;
             Name.Buffer = Get->EaName;
@@ -126,9 +122,7 @@ static VOID FspFsvolQueryEaGetCopy(
         }
 
         Src = GetBuf;
-        for (SrcBuf = SrcBufBgn;
-            SrcBufEnd > SrcBuf && 0 != SrcBuf->NextEntryOffset;
-            SrcBuf = (PVOID)((PUINT8)SrcBuf + SrcBuf->NextEntryOffset))
+        for (SrcBuf = SrcBufBgn; SrcBufEnd > SrcBuf; SrcBuf = FSP_NEXT_EA(SrcBuf, SrcBufEnd))
         {
             Name.Length = Name.MaximumLength = SrcBuf->EaNameLength;
             Name.Buffer = SrcBuf->EaName;
@@ -201,18 +195,14 @@ static VOID FspFsvolQueryEaIndexCopy(
         return;
     }
 
-    for (SrcBuf = SrcBufBgn;
-        EaIndex < *PEaIndex &&
-        SrcBufEnd > SrcBuf && 0 != SrcBuf->NextEntryOffset;
-        SrcBuf = (PVOID)((PUINT8)SrcBuf + SrcBuf->NextEntryOffset), EaIndex++)
+    for (SrcBuf = SrcBufBgn; EaIndex < *PEaIndex && SrcBufEnd > SrcBuf;
+        SrcBuf = FSP_NEXT_EA(SrcBuf, SrcBufEnd), EaIndex++)
         ;
 
     IoStatus->Status = STATUS_SUCCESS;
     IoStatus->Information = 0;
     DstBuf = DstBufBgn, PrevDstBuf = 0;
-    for (;
-        SrcBufEnd > SrcBuf && 0 != SrcBuf->NextEntryOffset;
-        SrcBuf = (PVOID)((PUINT8)SrcBuf + SrcBuf->NextEntryOffset), EaIndex++)
+    for (; SrcBufEnd > SrcBuf; SrcBuf = FSP_NEXT_EA(SrcBuf, SrcBufEnd), EaIndex++)
     {
         if ((PUINT8)DstBuf + FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) > (PUINT8)DstBufEnd)
             break;
@@ -256,7 +246,7 @@ static VOID FspFsvolQueryEaIndexCopy(
         if (SrcBufBgn == SrcBuf)
             IoStatus->Status = IndexSpecified ?
                 STATUS_NONEXISTENT_EA_ENTRY : STATUS_NO_EAS_ON_FILE;
-        else if (SrcBufEnd > SrcBuf && 0 != SrcBuf->NextEntryOffset)
+        else if (SrcBufEnd > SrcBuf)
             IoStatus->Status = STATUS_BUFFER_TOO_SMALL;
         else
             IoStatus->Status = IndexSpecified && *PEaIndex != EaIndex ?
@@ -503,8 +493,7 @@ static NTSTATUS FspFsvolSetEa(
         return Result;
 
     for (PFILE_FULL_EA_INFORMATION Ea = Buffer, EaEnd = (PVOID)((PUINT8)Ea + Length);
-        EaEnd > Ea && 0 != Ea->NextEntryOffset;
-        Ea = (PVOID)((PUINT8)Ea + Ea->NextEntryOffset))
+        EaEnd > Ea; Ea = FSP_NEXT_EA(Ea, EaEnd))
     {
         STRING Name;
 

@@ -1805,19 +1805,14 @@ FSP_API NTSTATUS FspFileSystemEnumerateEa(FSP_FILE_SYSTEM *FileSystem,
     PVOID Context,
     PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength)
 {
-    PFILE_FULL_EA_INFORMATION EaEnd = (PVOID)((PUINT8)Ea + EaLength);
-    NTSTATUS Result;
-
-    Result = STATUS_SUCCESS;
-    for (;
-        EaEnd > Ea && 0 != Ea->NextEntryOffset;
-        Ea = (PVOID)((PUINT8)Ea + Ea->NextEntryOffset))
+    NTSTATUS Result = STATUS_SUCCESS;
+    for (PFILE_FULL_EA_INFORMATION EaEnd = (PVOID)((PUINT8)Ea + EaLength);
+        EaEnd > Ea; FSP_NEXT_EA(Ea, EaEnd))
     {
         Result = EnumerateEa(FileSystem, Context, Ea);
         if (!NT_SUCCESS(Result))
             break;
     }
-
     return Result;
 }
 
