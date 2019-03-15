@@ -450,7 +450,94 @@ static void ea_create_test(void)
     }
 }
 
+static void ea_getset_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE DirHandle, FileHandle;
+    NTSTATUS Result;
+    BOOLEAN Success;
+    IO_STATUS_BLOCK Iosb;
+    WCHAR FilePath[MAX_PATH];
+    union
+    {
+        FILE_FULL_EA_INFORMATION V;
+        UINT8 B[512];
+    } Ea;
+    ULONG EaLength = 0;
+
+    ea_init_ea(&Ea.V, sizeof Ea, &EaLength);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    DirHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != DirHandle);
+
+    Result = NtSetEaFile(DirHandle, &Iosb, &Ea, EaLength);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(0 == Iosb.Information);
+    ea_check_ea(DirHandle);
+
+    CloseHandle(DirHandle);
+
+    DirHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE == DirHandle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    FileHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != FileHandle);
+
+    Result = NtSetEaFile(FileHandle, &Iosb, &Ea, EaLength);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(0 == Iosb.Information);
+    ea_check_ea(FileHandle);
+
+    CloseHandle(FileHandle);
+
+    FileHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE == FileHandle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    memfs_stop(memfs);
+}
+
+static void ea_getset_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        ea_getset_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        ea_getset_dotest(MemfsDisk, 0, 0);
+        ea_getset_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        ea_getset_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        ea_getset_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 void ea_tests(void)
 {
-    TEST(ea_create_test);
+    TEST_OPT(ea_create_test);
+    TEST_OPT(ea_getset_test);
 }
