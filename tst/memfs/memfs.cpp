@@ -441,10 +441,11 @@ NTSTATUS MemfsFileNodeSetEa(
     if (0 != Ea->EaValueLength)
     {
         FileNodeEa = (FILE_FULL_EA_INFORMATION *)malloc(
-            sizeof *FileNodeEa + Ea->EaNameLength + Ea->EaValueLength);
+            FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + Ea->EaNameLength + 1 + Ea->EaValueLength);
         if (0 == FileNodeEa)
             return STATUS_INSUFFICIENT_RESOURCES;
-        memcpy(FileNodeEa, Ea, sizeof *FileNodeEa + Ea->EaNameLength + Ea->EaValueLength);
+        memcpy(FileNodeEa, Ea,
+            FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + Ea->EaNameLength + 1 + Ea->EaValueLength);
         FileNodeEa->NextEntryOffset = 0;
     }
 

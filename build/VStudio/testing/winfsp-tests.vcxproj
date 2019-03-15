@@ -185,6 +185,7 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\devctl-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\dirbuf-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\dirctl-test.c" />
+    <ClCompile Include="..\..\..\tst\winfsp-tests\ea-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\eventlog-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\exec-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\flush-test.c" />

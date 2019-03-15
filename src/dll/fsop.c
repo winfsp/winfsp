@@ -1826,18 +1826,19 @@ FSP_API BOOLEAN FspFileSystemAddEa(PFILE_FULL_EA_INFORMATION SingleEa,
 {
     if (0 != SingleEa)
     {
+        PUINT8 EaPtr = (PUINT8)Ea + FSP_FSCTL_ALIGN_UP(*PBytesTransferred, sizeof(ULONG));
         PUINT8 EaEnd = (PUINT8)Ea + Length;
-        ULONG EaLength = sizeof *SingleEa + SingleEa->EaNameLength + SingleEa->EaValueLength;
+        ULONG EaLen = FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) +
+            SingleEa->EaNameLength + 1 + SingleEa->EaValueLength;
 
-        Ea = (PVOID)((PUINT8)Ea + *PBytesTransferred);
-        if ((PUINT8)Ea + EaLength > EaEnd)
+        if (EaEnd < EaPtr + EaLen)
             return FALSE;
 
-        memcpy(Ea, SingleEa, EaLength);
-        Ea->NextEntryOffset = FSP_FSCTL_ALIGN_UP(EaLength, sizeof(ULONG));
-        *PBytesTransferred += EaLength;
+        memcpy(EaPtr, SingleEa, EaLen);
+        ((PFILE_FULL_EA_INFORMATION)EaPtr)->NextEntryOffset = FSP_FSCTL_ALIGN_UP(EaLen, sizeof(ULONG));
+        *PBytesTransferred = (ULONG)(EaPtr + EaLen - (PUINT8)Ea);
     }
-    else if (sizeof *SingleEa <= *PBytesTransferred)
+    else if ((ULONG)FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) <= *PBytesTransferred)
     {
         PUINT8 EaEnd = (PUINT8)Ea + *PBytesTransferred;
 
