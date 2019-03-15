@@ -59,24 +59,24 @@ static void ea_init_ea(
     } SingleEa;
 
     memset(&SingleEa, 0, sizeof SingleEa);
-    SingleEa.V.EaNameLength = (UCHAR)strlen("name1");
+    SingleEa.V.EaNameLength = (UCHAR)strlen("Aname1");
     SingleEa.V.EaValueLength = (USHORT)strlen("first");
-    lstrcpyA(SingleEa.V.EaName, "name1");
+    lstrcpyA(SingleEa.V.EaName, "Aname1");
     memcpy(SingleEa.V.EaName + SingleEa.V.EaNameLength + 1, "first", SingleEa.V.EaValueLength);
     FspFileSystemAddEa(&SingleEa.V, Ea, EaLength, PBytesTransferred);
 
     memset(&SingleEa, 0, sizeof SingleEa);
     SingleEa.V.Flags = FILE_NEED_EA;
-    SingleEa.V.EaNameLength = (UCHAR)strlen("nameTwo");
+    SingleEa.V.EaNameLength = (UCHAR)strlen("bnameTwo");
     SingleEa.V.EaValueLength = (USHORT)strlen("second");
-    lstrcpyA(SingleEa.V.EaName, "nameTwo");
+    lstrcpyA(SingleEa.V.EaName, "bnameTwo");
     memcpy(SingleEa.V.EaName + SingleEa.V.EaNameLength + 1, "second", SingleEa.V.EaValueLength);
     FspFileSystemAddEa(&SingleEa.V, Ea, EaLength, PBytesTransferred);
 
     memset(&SingleEa, 0, sizeof SingleEa);
-    SingleEa.V.EaNameLength = (UCHAR)strlen("n3");
+    SingleEa.V.EaNameLength = (UCHAR)strlen("Cn3");
     SingleEa.V.EaValueLength = (USHORT)strlen("third");
-    lstrcpyA(SingleEa.V.EaName, "n3");
+    lstrcpyA(SingleEa.V.EaName, "Cn3");
     memcpy(SingleEa.V.EaName + SingleEa.V.EaNameLength + 1, "third", SingleEa.V.EaValueLength);
     FspFileSystemAddEa(&SingleEa.V, Ea, EaLength, PBytesTransferred);
 
@@ -95,25 +95,25 @@ static NTSTATUS ea_check_ea_enumerate(
 {
     struct ea_check_ea_context *Context = Context0;
 
-    if (0 == strcmp(SingleEa->EaName, "NAME1"))
+    if (0 == strcmp(SingleEa->EaName, "ANAME1"))
     {
-        ASSERT(SingleEa->EaNameLength == (UCHAR)strlen("NAME1"));
+        ASSERT(SingleEa->EaNameLength == (UCHAR)strlen("ANAME1"));
         ASSERT(SingleEa->EaValueLength == (UCHAR)strlen("first"));
         ASSERT(0 == memcmp(SingleEa->EaName + SingleEa->EaNameLength + 1, "first", SingleEa->EaValueLength));
         Context->EaCount[0]++;
     }
 
-    if (0 == strcmp(SingleEa->EaName, "NAMETWO"))
+    if (0 == strcmp(SingleEa->EaName, "BNAMETWO"))
     {
-        ASSERT(SingleEa->EaNameLength == (UCHAR)strlen("NAMETWO"));
+        ASSERT(SingleEa->EaNameLength == (UCHAR)strlen("BNAMETWO"));
         ASSERT(SingleEa->EaValueLength == (UCHAR)strlen("second"));
         ASSERT(0 == memcmp(SingleEa->EaName + SingleEa->EaNameLength + 1, "second", SingleEa->EaValueLength));
         Context->EaCount[1]++;
     }
 
-    if (0 == strcmp(SingleEa->EaName, "N3"))
+    if (0 == strcmp(SingleEa->EaName, "CN3"))
     {
-        ASSERT(SingleEa->EaNameLength == (UCHAR)strlen("N3"));
+        ASSERT(SingleEa->EaNameLength == (UCHAR)strlen("CN3"));
         ASSERT(SingleEa->EaValueLength == (UCHAR)strlen("third"));
         ASSERT(0 == memcmp(SingleEa->EaName + SingleEa->EaNameLength + 1, "third", SingleEa->EaValueLength));
         Context->EaCount[2]++;
@@ -152,8 +152,8 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(1 == Context.EaCount[2]);
 
     memset(&GetEa, 0, sizeof GetEa);
-    GetEa.V.EaNameLength = (UCHAR)strlen("nameTwo");
-    lstrcpyA(GetEa.V.EaName, "nameTwo");
+    GetEa.V.EaNameLength = (UCHAR)strlen("bnameTwo");
+    lstrcpyA(GetEa.V.EaName, "bnameTwo");
     EaLength = FIELD_OFFSET(FILE_GET_EA_INFORMATION, EaName) + GetEa.V.EaNameLength + 1;
 
     memset(&Context, 0, sizeof Context);
@@ -165,6 +165,54 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(0 == Context.EaCount[0]);
     ASSERT(1 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
+
+    memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb,
+        &Ea, (ULONG)(FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + strlen("Aname1") + 1 + strlen("first")),
+        FALSE, 0, 0, 0, TRUE);
+    ASSERT(STATUS_BUFFER_OVERFLOW == Result);
+    Result = FspFileSystemEnumerateEa(0, ea_check_ea_enumerate, &Context, &Ea.V, (ULONG)Iosb.Information);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(1 == Context.Count);
+    ASSERT(1 == Context.EaCount[0]);
+    ASSERT(0 == Context.EaCount[1]);
+    ASSERT(0 == Context.EaCount[2]);
+
+    memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb,
+        &Ea, (ULONG)(FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + strlen("Aname1") + 1 + strlen("first")),
+        FALSE, 0, 0, 0, TRUE);
+    ASSERT(STATUS_BUFFER_OVERFLOW == Result);
+    Result = FspFileSystemEnumerateEa(0, ea_check_ea_enumerate, &Context, &Ea.V, (ULONG)Iosb.Information);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(1 == Context.Count);
+    ASSERT(1 == Context.EaCount[0]);
+    ASSERT(0 == Context.EaCount[1]);
+    ASSERT(0 == Context.EaCount[2]);
+
+    memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb,
+        &Ea, (ULONG)(FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + strlen("bnameTwo") + 1 + strlen("bnameTwo")),
+        FALSE, 0, 0, 0, FALSE);
+    ASSERT(STATUS_BUFFER_OVERFLOW == Result);
+    Result = FspFileSystemEnumerateEa(0, ea_check_ea_enumerate, &Context, &Ea.V, (ULONG)Iosb.Information);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(1 == Context.Count);
+    ASSERT(0 == Context.EaCount[0]);
+    ASSERT(1 == Context.EaCount[1]);
+    ASSERT(0 == Context.EaCount[2]);
+
+    memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb,
+        &Ea, (ULONG)(FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + strlen("Cn3") + 1 + strlen("third")),
+        FALSE, 0, 0, 0, FALSE);
+    ASSERT(STATUS_SUCCESS == Result);
+    Result = FspFileSystemEnumerateEa(0, ea_check_ea_enumerate, &Context, &Ea.V, (ULONG)Iosb.Information);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(1 == Context.Count);
+    ASSERT(0 == Context.EaCount[0]);
+    ASSERT(0 == Context.EaCount[1]);
+    ASSERT(1 == Context.EaCount[2]);
 }
 
 static void ea_create_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
