@@ -142,6 +142,43 @@ static void ea_check_ea(HANDLE Handle)
     ULONG EaIndex;
     struct ea_check_ea_context Context;
 
+    memset(&GetEa, 0, sizeof GetEa);
+    GetEa.V.EaNameLength = (UCHAR)strlen("bnameTwo");
+    lstrcpyA(GetEa.V.EaName, "bnameTwo");
+    EaLength = FIELD_OFFSET(FILE_GET_EA_INFORMATION, EaName) + GetEa.V.EaNameLength + 1;
+
+    memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, &GetEa.V, EaLength, 0, FALSE);
+    ASSERT(STATUS_SUCCESS == Result);
+    Result = FspFileSystemEnumerateEa(0, ea_check_ea_enumerate, &Context, &Ea.V, (ULONG)Iosb.Information);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(1 == Context.Count);
+    ASSERT(0 == Context.EaCount[0]);
+    ASSERT(1 == Context.EaCount[1]);
+    ASSERT(0 == Context.EaCount[2]);
+
+    memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb,
+        &Ea, (ULONG)(FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + strlen("bnameTwo") + 1),
+        FALSE, &GetEa.V, EaLength, 0, FALSE);
+    ASSERT(STATUS_BUFFER_OVERFLOW == Result);
+    ASSERT(0 == Iosb.Information);
+
+    memset(&GetEa, 0, sizeof GetEa);
+    GetEa.V.EaNameLength = (UCHAR)strlen("nonexistent");
+    lstrcpyA(GetEa.V.EaName, "nonexistent");
+    EaLength = FIELD_OFFSET(FILE_GET_EA_INFORMATION, EaName) + GetEa.V.EaNameLength + 1;
+
+    memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, &GetEa.V, EaLength, 0, FALSE);
+    ASSERT(STATUS_SUCCESS == Result);
+    Result = FspFileSystemEnumerateEa(0, ea_check_ea_enumerate, &Context, &Ea.V, (ULONG)Iosb.Information);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(1 == Context.Count);
+    ASSERT(0 == Context.EaCount[0]);
+    ASSERT(0 == Context.EaCount[1]);
+    ASSERT(0 == Context.EaCount[2]);
+
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, 0, 0, 0, FALSE);
     ASSERT(STATUS_SUCCESS == Result);
@@ -175,28 +212,6 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(0 == Context.EaCount[0]);
     ASSERT(1 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
-
-    memset(&GetEa, 0, sizeof GetEa);
-    GetEa.V.EaNameLength = (UCHAR)strlen("bnameTwo");
-    lstrcpyA(GetEa.V.EaName, "bnameTwo");
-    EaLength = FIELD_OFFSET(FILE_GET_EA_INFORMATION, EaName) + GetEa.V.EaNameLength + 1;
-
-    memset(&Context, 0, sizeof Context);
-    Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, &GetEa.V, EaLength, 0, FALSE);
-    ASSERT(STATUS_SUCCESS == Result);
-    Result = FspFileSystemEnumerateEa(0, ea_check_ea_enumerate, &Context, &Ea.V, (ULONG)Iosb.Information);
-    ASSERT(STATUS_SUCCESS == Result);
-    ASSERT(1 == Context.Count);
-    ASSERT(0 == Context.EaCount[0]);
-    ASSERT(1 == Context.EaCount[1]);
-    ASSERT(0 == Context.EaCount[2]);
-
-    memset(&Context, 0, sizeof Context);
-    Result = NtQueryEaFile(Handle, &Iosb,
-        &Ea, (ULONG)(FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + strlen("bnameTwo") + 1),
-        FALSE, &GetEa.V, EaLength, 0, FALSE);
-    ASSERT(STATUS_BUFFER_OVERFLOW == Result);
-    ASSERT(0 == Iosb.Information);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb,
