@@ -314,8 +314,7 @@ static NTSTATUS FspFsvolCreateNoLock(
             return STATUS_ACCESS_DENIED;
 
         /* is the EA buffer valid? */
-        Irp->IoStatus.Information = 0;
-        Result = IoCheckEaBufferValidity(EaBuffer, EaLength, (PULONG)&Irp->IoStatus.Information);
+        Result = FspEaBufferAndNamesValid(EaBuffer, EaLength, (PULONG)&Irp->IoStatus.Information);
         if (!NT_SUCCESS(Result))
             return Result;
     }

@@ -506,30 +506,11 @@ static NTSTATUS FspFsvolSetEa(
     Result = FspBufferUserBuffer(Irp, Length, IoReadAccess);
     if (!NT_SUCCESS(Result))
         return Result;
-
     Buffer = Irp->AssociatedIrp.SystemBuffer;
 
-    Irp->IoStatus.Information = 0;
-    Result = IoCheckEaBufferValidity(Buffer, Length,
-        (PULONG)&Irp->IoStatus.Information);
+    Result = FspEaBufferAndNamesValid(Buffer, Length, (PULONG)&Irp->IoStatus.Information);
     if (!NT_SUCCESS(Result))
         return Result;
-
-    for (PFILE_FULL_EA_INFORMATION Ea = Buffer, EaEnd = (PVOID)((PUINT8)Ea + Length);
-        EaEnd > Ea; Ea = FSP_NEXT_EA(Ea, EaEnd))
-    {
-        STRING Name;
-
-        Name.Length = Name.MaximumLength = Ea->EaNameLength;
-        Name.Buffer = Ea->EaName;
-
-        if (!FspEaNameIsValid(&Name))
-        {
-            Result = STATUS_INVALID_EA_NAME;
-            Irp->IoStatus.Information = (ULONG)((PUINT8)Ea - (PUINT8)Buffer);
-            return Result;
-        }
-    }
 
     FspFileNodeAcquireExclusive(FileNode, Full);
 
