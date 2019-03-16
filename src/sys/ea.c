@@ -90,12 +90,12 @@ static VOID FspFsvolQueryEaGetCopy(
     PFILE_FULL_EA_INFORMATION SrcBuf, SrcBufEnd = (PVOID)((PUINT8)SrcBufBgn + SrcSize);
     PFILE_FULL_EA_INFORMATION DstBuf, DstBufEnd = (PVOID)((PUINT8)DstBufBgn + DstSize);
     PFILE_FULL_EA_INFORMATION PrevDstBuf;
-    PVOID Src;
+    PFILE_FULL_EA_INFORMATION Src;
     STRING GetName, Name;
     ULONG CopyLength;
 
-    IoStatus->Status = STATUS_SUCCESS;
     IoStatus->Information = 0;
+
     DstBuf = DstBufBgn, PrevDstBuf = 0;
     for (GetBuf = GetBufBgn; GetBufEnd > GetBuf; GetBuf = FSP_NEXT_EA(GetBuf, GetBufEnd))
     {
@@ -118,10 +118,10 @@ static VOID FspFsvolQueryEaGetCopy(
         {
             IoStatus->Status = STATUS_INVALID_EA_NAME;
             IoStatus->Information = (ULONG)((PUINT8)GetBuf - (PUINT8)GetBufBgn);
-            break;
+            return;
         }
 
-        Src = GetBuf;
+        Src = 0;
         for (SrcBuf = SrcBufBgn; SrcBufEnd > SrcBuf; SrcBuf = FSP_NEXT_EA(SrcBuf, SrcBufEnd))
         {
             Name.Length = Name.MaximumLength = SrcBuf->EaNameLength;
@@ -134,21 +134,29 @@ static VOID FspFsvolQueryEaGetCopy(
             }
         }
 
-        if (GetBuf != Src)
+        if (0 != Src)
             CopyLength = FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) +
-                ((PFILE_FULL_EA_INFORMATION)Src)->EaNameLength + 1 +
-                ((PFILE_FULL_EA_INFORMATION)Src)->EaValueLength;
+                Src->EaNameLength + 1 + Src->EaValueLength;
         else
             CopyLength = FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) +
-                ((PFILE_GET_EA_INFORMATION)Src)->EaNameLength + 1;
+                GetBuf->EaNameLength + 1;
 
         if ((PUINT8)DstBuf + CopyLength > (PUINT8)DstBufEnd)
         {
             IoStatus->Status = STATUS_BUFFER_OVERFLOW;
-            break;
+            IoStatus->Information = 0;
+            return;
         }
 
-        RtlMoveMemory(DstBuf, Src, CopyLength);
+        if (0 != Src)
+            RtlMoveMemory(DstBuf, Src, CopyLength);
+        else
+        {
+            DstBuf->Flags = 0;
+            DstBuf->EaNameLength = GetBuf->EaNameLength;
+            DstBuf->EaValueLength = 0;
+            RtlCopyMemory(DstBuf->EaName, GetBuf->EaName, GetBuf->EaNameLength + 1);
+        }
         DstBuf->NextEntryOffset = 0;
         if (!CasePreservedExtendedAttributes)
         {
@@ -159,16 +167,14 @@ static VOID FspFsvolQueryEaGetCopy(
         if (0 != PrevDstBuf)
             PrevDstBuf->NextEntryOffset = (ULONG)((PUINT8)DstBuf - (PUINT8)PrevDstBuf);
         PrevDstBuf = DstBuf;
-        DstBuf = (PVOID)((PUINT8)DstBuf + CopyLength);
+        IoStatus->Information = (ULONG)((PUINT8)DstBuf - (PUINT8)DstBufBgn + CopyLength);
+        DstBuf = (PVOID)((PUINT8)DstBuf + FSP_FSCTL_ALIGN_UP(CopyLength, sizeof(ULONG)));
 
         if (ReturnSingleEntry)
             break;
-
-        DstBuf = (PVOID)FSP_FSCTL_ALIGN_UP((UINT_PTR)DstBuf, sizeof(ULONG));
     }
 
-    IoStatus->Information = NT_SUCCESS(IoStatus->Status) ?
-        (ULONG)((PUINT8)DstBuf - (PUINT8)DstBufBgn) : 0;
+    IoStatus->Status = STATUS_SUCCESS;
 }
 
 static VOID FspFsvolQueryEaIndexCopy(
@@ -196,25 +202,25 @@ static VOID FspFsvolQueryEaIndexCopy(
     }
 
     for (SrcBuf = SrcBufBgn; EaIndex < *PEaIndex && SrcBufEnd > SrcBuf;
-        SrcBuf = FSP_NEXT_EA(SrcBuf, SrcBufEnd), EaIndex++)
-        ;
+        SrcBuf = FSP_NEXT_EA(SrcBuf, SrcBufEnd))
+        EaIndex++;
 
-    IoStatus->Status = STATUS_SUCCESS;
     IoStatus->Information = 0;
-    DstBuf = DstBufBgn, PrevDstBuf = 0;
-    for (; SrcBufEnd > SrcBuf; SrcBuf = FSP_NEXT_EA(SrcBuf, SrcBufEnd), EaIndex++)
-    {
-        if ((PUINT8)DstBuf + FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) > (PUINT8)DstBufEnd)
-            break;
 
+    DstBuf = DstBufBgn, PrevDstBuf = 0;
+    for (; SrcBufEnd > SrcBuf; SrcBuf = FSP_NEXT_EA(SrcBuf, SrcBufEnd))
+    {
         CopyLength = FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) +
             ((PFILE_FULL_EA_INFORMATION)SrcBuf)->EaNameLength + 1 +
             ((PFILE_FULL_EA_INFORMATION)SrcBuf)->EaValueLength;
 
         if ((PUINT8)DstBuf + CopyLength > (PUINT8)DstBufEnd)
         {
-            CopyLength = (ULONG)((PUINT8)DstBufEnd - (PUINT8)DstBuf);
-            IoStatus->Status = STATUS_BUFFER_OVERFLOW;
+            if (0 != PrevDstBuf)
+                break;
+            IoStatus->Status = STATUS_BUFFER_TOO_SMALL;
+            IoStatus->Information = 0;
+            return;
         }
 
         RtlMoveMemory(DstBuf, SrcBuf, CopyLength);
@@ -228,29 +234,44 @@ static VOID FspFsvolQueryEaIndexCopy(
         if (0 != PrevDstBuf)
             PrevDstBuf->NextEntryOffset = (ULONG)((PUINT8)DstBuf - (PUINT8)PrevDstBuf);
         PrevDstBuf = DstBuf;
-        DstBuf = (PVOID)((PUINT8)DstBuf + CopyLength);
+        IoStatus->Information = (ULONG)((PUINT8)DstBuf - (PUINT8)DstBufBgn + CopyLength);
+        DstBuf = (PVOID)((PUINT8)DstBuf + FSP_FSCTL_ALIGN_UP(CopyLength, sizeof(ULONG)));
 
-        if (!NT_SUCCESS(IoStatus->Status) || ReturnSingleEntry)
+        EaIndex++;
+
+        if (ReturnSingleEntry)
             break;
-
-        DstBuf = (PVOID)FSP_FSCTL_ALIGN_UP((UINT_PTR)DstBuf, sizeof(ULONG));
     }
 
-    if (0 != PrevDstBuf)
+    if (IndexSpecified)
     {
-        *PEaIndex = EaIndex;
-        IoStatus->Information = (ULONG)((PUINT8)DstBuf - (PUINT8)DstBufBgn);
+        if (0 != PrevDstBuf)
+        {
+            *PEaIndex = EaIndex;
+            IoStatus->Status = SrcBufEnd > SrcBuf && !ReturnSingleEntry ?
+                STATUS_BUFFER_OVERFLOW : STATUS_SUCCESS;
+        }
+        else
+        {
+            IoStatus->Status = *PEaIndex == EaIndex ?
+                STATUS_NO_MORE_EAS : STATUS_NONEXISTENT_EA_ENTRY;
+            IoStatus->Information = 0;
+        }
     }
     else
     {
-        if (SrcBufBgn == SrcBuf)
-            IoStatus->Status = IndexSpecified ?
-                STATUS_NONEXISTENT_EA_ENTRY : STATUS_NO_EAS_ON_FILE;
-        else if (SrcBufEnd > SrcBuf)
-            IoStatus->Status = STATUS_BUFFER_TOO_SMALL;
+        if (0 != PrevDstBuf)
+        {
+            *PEaIndex = EaIndex;
+            IoStatus->Status = SrcBufEnd > SrcBuf && !ReturnSingleEntry ?
+                STATUS_BUFFER_OVERFLOW : STATUS_SUCCESS;
+        }
         else
-            IoStatus->Status = IndexSpecified && *PEaIndex != EaIndex ?
-                STATUS_NONEXISTENT_EA_ENTRY : STATUS_NO_MORE_EAS;
+        {
+            IoStatus->Status = SrcBufBgn == SrcBuf ?
+                STATUS_NO_EAS_ON_FILE : STATUS_NO_MORE_EAS;
+            IoStatus->Information = 0;
+        }
     }
 }
 
@@ -446,6 +467,8 @@ NTSTATUS FspFsvolQueryEaComplete(
     }
 
     FspFileNodeRelease(FileNode, Main);
+
+    Result = Irp->IoStatus.Status;
 
     FSP_LEAVE_IOC("FileObject=%p",
         IrpSp->FileObject);
