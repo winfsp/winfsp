@@ -119,6 +119,13 @@ static NTSTATUS ea_check_ea_enumerate(
         Context->EaCount[2]++;
     }
 
+    if (0 == strcmp(SingleEa->EaName, "NONEXISTENT"))
+    {
+        ASSERT(SingleEa->EaNameLength == (UCHAR)strlen("NONEXISTENT"));
+        ASSERT(SingleEa->EaValueLength == 0);
+        Context->EaCount[3]++;
+    }
+
     Context->Count++;
 
     return STATUS_SUCCESS;
@@ -156,6 +163,7 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(0 == Context.EaCount[0]);
     ASSERT(1 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb,
@@ -178,6 +186,7 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(0 == Context.EaCount[0]);
     ASSERT(0 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
+    ASSERT(1 == Context.EaCount[3]);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, 0, 0, 0, FALSE);
@@ -188,6 +197,7 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(1 == Context.EaCount[0]);
     ASSERT(1 == Context.EaCount[1]);
     ASSERT(1 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, 0, 0, 0, FALSE);
@@ -202,6 +212,7 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(1 == Context.EaCount[0]);
     ASSERT(0 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, TRUE, 0, 0, 0, FALSE);
@@ -212,6 +223,7 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(0 == Context.EaCount[0]);
     ASSERT(1 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb,
@@ -230,6 +242,7 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(1 == Context.EaCount[0]);
     ASSERT(0 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb,
@@ -242,6 +255,7 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(1 == Context.EaCount[0]);
     ASSERT(0 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb,
@@ -260,6 +274,7 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(0 == Context.EaCount[0]);
     ASSERT(1 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb,
@@ -278,6 +293,7 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(0 == Context.EaCount[0]);
     ASSERT(0 == Context.EaCount[1]);
     ASSERT(1 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, 0, 0, 0, FALSE);
@@ -309,6 +325,7 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(1 == Context.EaCount[0]);
     ASSERT(0 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
 
     memset(&Context, 0, sizeof Context);
     EaIndex = 2;
@@ -329,6 +346,7 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(0 == Context.EaCount[0]);
     ASSERT(1 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
 
     memset(&Context, 0, sizeof Context);
     EaIndex = 3;
@@ -349,6 +367,7 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(0 == Context.EaCount[0]);
     ASSERT(0 == Context.EaCount[1]);
     ASSERT(1 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
 
     memset(&Context, 0, sizeof Context);
     EaIndex = 4;
