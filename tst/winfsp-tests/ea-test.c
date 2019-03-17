@@ -117,6 +117,36 @@ static void ea_init_bad_ea(
     FspFileSystemAddEa(0, Ea, EaLength, PBytesTransferred);
 }
 
+BOOLEAN AddGetEa(PFILE_GET_EA_INFORMATION SingleEa,
+    PFILE_GET_EA_INFORMATION Ea, ULONG Length, PULONG PBytesTransferred)
+{
+    if (0 != SingleEa)
+    {
+        PUINT8 EaPtr = (PUINT8)Ea + FSP_FSCTL_ALIGN_UP(*PBytesTransferred, sizeof(ULONG));
+        PUINT8 EaEnd = (PUINT8)Ea + Length;
+        ULONG EaLen = FIELD_OFFSET(FILE_GET_EA_INFORMATION, EaName) +
+            SingleEa->EaNameLength + 1;
+
+        if (EaEnd < EaPtr + EaLen)
+            return FALSE;
+
+        memcpy(EaPtr, SingleEa, EaLen);
+        ((PFILE_GET_EA_INFORMATION)EaPtr)->NextEntryOffset = FSP_FSCTL_ALIGN_UP(EaLen, sizeof(ULONG));
+        *PBytesTransferred = (ULONG)(EaPtr + EaLen - (PUINT8)Ea);
+    }
+    else if ((ULONG)FIELD_OFFSET(FILE_GET_EA_INFORMATION, EaName) <= *PBytesTransferred)
+    {
+        PUINT8 EaEnd = (PUINT8)Ea + *PBytesTransferred;
+
+        while (EaEnd > (PUINT8)Ea + Ea->NextEntryOffset)
+            Ea = (PVOID)((PUINT8)Ea + Ea->NextEntryOffset);
+
+        Ea->NextEntryOffset = 0;
+    }
+
+    return TRUE;
+}
+
 struct ea_check_ea_context
 {
     ULONG Count;
@@ -177,16 +207,23 @@ static void ea_check_ea(HANDLE Handle)
     union
     {
         FILE_GET_EA_INFORMATION V;
-        UINT8 B[128];
+        UINT8 B[512];
     } GetEa;
+    union
+    {
+        FILE_GET_EA_INFORMATION V;
+        UINT8 B[128];
+    } SingleGetEa;
     ULONG EaLength = 0;
     ULONG EaIndex;
     struct ea_check_ea_context Context;
 
-    memset(&GetEa, 0, sizeof GetEa);
-    GetEa.V.EaNameLength = (UCHAR)strlen("bnameTwo");
-    lstrcpyA(GetEa.V.EaName, "bnameTwo");
-    EaLength = FIELD_OFFSET(FILE_GET_EA_INFORMATION, EaName) + GetEa.V.EaNameLength + 1;
+    EaLength = 0;
+    memset(&SingleGetEa, 0, sizeof SingleGetEa);
+    SingleGetEa.V.EaNameLength = (UCHAR)strlen("bnameTwo");
+    lstrcpyA(SingleGetEa.V.EaName, "bnameTwo");
+    AddGetEa(&SingleGetEa.V, &GetEa.V, sizeof GetEa, &EaLength);
+    AddGetEa(0, &GetEa.V, sizeof GetEa, &EaLength);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, &GetEa.V, EaLength, 0, FALSE);
@@ -206,10 +243,12 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(STATUS_BUFFER_OVERFLOW == Result);
     ASSERT(0 == Iosb.Information);
 
-    memset(&GetEa, 0, sizeof GetEa);
-    GetEa.V.EaNameLength = (UCHAR)strlen("nonexistent");
-    lstrcpyA(GetEa.V.EaName, "nonexistent");
-    EaLength = FIELD_OFFSET(FILE_GET_EA_INFORMATION, EaName) + GetEa.V.EaNameLength + 1;
+    EaLength = 0;
+    memset(&SingleGetEa, 0, sizeof SingleGetEa);
+    SingleGetEa.V.EaNameLength = (UCHAR)strlen("nonexistent");
+    lstrcpyA(SingleGetEa.V.EaName, "nonexistent");
+    AddGetEa(&SingleGetEa.V, &GetEa.V, sizeof GetEa, &EaLength);
+    AddGetEa(0, &GetEa.V, sizeof GetEa, &EaLength);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, &GetEa.V, EaLength, 0, FALSE);
@@ -219,6 +258,28 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(1 == Context.Count);
     ASSERT(0 == Context.EaCount[0]);
     ASSERT(0 == Context.EaCount[1]);
+    ASSERT(0 == Context.EaCount[2]);
+    ASSERT(1 == Context.EaCount[3]);
+
+    EaLength = 0;
+    memset(&SingleGetEa, 0, sizeof SingleGetEa);
+    SingleGetEa.V.EaNameLength = (UCHAR)strlen("bnameTwo");
+    lstrcpyA(SingleGetEa.V.EaName, "bnameTwo");
+    AddGetEa(&SingleGetEa.V, &GetEa.V, sizeof GetEa, &EaLength);
+    memset(&SingleGetEa, 0, sizeof SingleGetEa);
+    SingleGetEa.V.EaNameLength = (UCHAR)strlen("nonexistent");
+    lstrcpyA(SingleGetEa.V.EaName, "nonexistent");
+    AddGetEa(&SingleGetEa.V, &GetEa.V, sizeof GetEa, &EaLength);
+    AddGetEa(0, &GetEa.V, sizeof GetEa, &EaLength);
+
+    memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, &GetEa.V, EaLength, 0, FALSE);
+    ASSERT(STATUS_SUCCESS == Result);
+    Result = FspFileSystemEnumerateEa(0, ea_check_ea_enumerate, &Context, &Ea.V, (ULONG)Iosb.Information);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(2 == Context.Count);
+    ASSERT(0 == Context.EaCount[0]);
+    ASSERT(1 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
     ASSERT(1 == Context.EaCount[3]);
 
