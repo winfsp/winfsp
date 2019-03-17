@@ -83,6 +83,40 @@ static void ea_init_ea(
     FspFileSystemAddEa(0, Ea, EaLength, PBytesTransferred);
 }
 
+static void ea_init_bad_ea(
+    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength, PULONG PBytesTransferred)
+{
+    union
+    {
+        FILE_FULL_EA_INFORMATION V;
+        UINT8 B[128];
+    } SingleEa;
+
+    memset(&SingleEa, 0, sizeof SingleEa);
+    SingleEa.V.EaNameLength = (UCHAR)strlen("Aname1");
+    SingleEa.V.EaValueLength = (USHORT)strlen("first");
+    lstrcpyA(SingleEa.V.EaName, "Aname1");
+    memcpy(SingleEa.V.EaName + SingleEa.V.EaNameLength + 1, "first", SingleEa.V.EaValueLength);
+    FspFileSystemAddEa(&SingleEa.V, Ea, EaLength, PBytesTransferred);
+
+    memset(&SingleEa, 0, sizeof SingleEa);
+    SingleEa.V.Flags = FILE_NEED_EA;
+    SingleEa.V.EaNameLength = (UCHAR)strlen("bnameTwo*");
+    SingleEa.V.EaValueLength = (USHORT)strlen("second");
+    lstrcpyA(SingleEa.V.EaName, "bnameTwo*");
+    memcpy(SingleEa.V.EaName + SingleEa.V.EaNameLength + 1, "second", SingleEa.V.EaValueLength);
+    FspFileSystemAddEa(&SingleEa.V, Ea, EaLength, PBytesTransferred);
+
+    memset(&SingleEa, 0, sizeof SingleEa);
+    SingleEa.V.EaNameLength = (UCHAR)strlen("Cn3");
+    SingleEa.V.EaValueLength = (USHORT)strlen("third");
+    lstrcpyA(SingleEa.V.EaName, "Cn3");
+    memcpy(SingleEa.V.EaName + SingleEa.V.EaNameLength + 1, "third", SingleEa.V.EaValueLength);
+    FspFileSystemAddEa(&SingleEa.V, Ea, EaLength, PBytesTransferred);
+
+    FspFileSystemAddEa(0, Ea, EaLength, PBytesTransferred);
+}
+
 struct ea_check_ea_context
 {
     ULONG Count;
@@ -402,7 +436,7 @@ static void ea_create_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         FILE_FULL_EA_INFORMATION V;
         UINT8 B[512];
     } Ea;
-    ULONG EaLength = 0;
+    ULONG EaLength;
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
@@ -415,12 +449,22 @@ static void ea_create_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != DirHandle);
 
-    ea_init_ea(&Ea.V, sizeof Ea, &EaLength);
-
     UnicodePath.Length = (USHORT)wcslen(UnicodePathBuf) * sizeof(WCHAR);
     UnicodePath.MaximumLength = sizeof UnicodePathBuf;
     UnicodePath.Buffer = UnicodePathBuf;
     InitializeObjectAttributes(&Obja, &UnicodePath, 0, DirHandle, 0);
+
+    EaLength = 0;
+    ea_init_bad_ea(&Ea.V, sizeof Ea, &EaLength);
+    Result = NtCreateFile(&FileHandle,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
+        &LargeZero, FILE_ATTRIBUTE_NORMAL, 0,
+        FILE_CREATE, 0,
+        &Ea, EaLength);
+    ASSERT(STATUS_INVALID_EA_NAME == Result);
+
+    EaLength = 0;
+    ea_init_ea(&Ea.V, sizeof Ea, &EaLength);
 
     Result = NtCreateFile(&FileHandle,
         FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
@@ -498,9 +542,7 @@ static void ea_getset_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         FILE_FULL_EA_INFORMATION V;
         UINT8 B[512];
     } Ea;
-    ULONG EaLength = 0;
-
-    ea_init_ea(&Ea.V, sizeof Ea, &EaLength);
+    ULONG EaLength;
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
@@ -513,6 +555,13 @@ static void ea_getset_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != DirHandle);
 
+    EaLength = 0;
+    ea_init_bad_ea(&Ea.V, sizeof Ea, &EaLength);
+    Result = NtSetEaFile(DirHandle, &Iosb, &Ea, EaLength);
+    ASSERT(STATUS_INVALID_EA_NAME == Result);
+
+    EaLength = 0;
+    ea_init_ea(&Ea.V, sizeof Ea, &EaLength);
     Result = NtSetEaFile(DirHandle, &Iosb, &Ea, EaLength);
     ASSERT(STATUS_SUCCESS == Result);
     ASSERT(0 == Iosb.Information);
@@ -534,6 +583,13 @@ static void ea_getset_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != FileHandle);
 
+    EaLength = 0;
+    ea_init_bad_ea(&Ea.V, sizeof Ea, &EaLength);
+    Result = NtSetEaFile(FileHandle, &Iosb, &Ea, EaLength);
+    ASSERT(STATUS_INVALID_EA_NAME == Result);
+
+    EaLength = 0;
+    ea_init_ea(&Ea.V, sizeof Ea, &EaLength);
     Result = NtSetEaFile(FileHandle, &Iosb, &Ea, EaLength);
     ASSERT(STATUS_SUCCESS == Result);
     ASSERT(0 == Iosb.Information);
