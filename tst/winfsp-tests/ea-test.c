@@ -283,6 +283,28 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(0 == Context.EaCount[2]);
     ASSERT(1 == Context.EaCount[3]);
 
+    EaLength = 0;
+    memset(&SingleGetEa, 0, sizeof SingleGetEa);
+    SingleGetEa.V.EaNameLength = (UCHAR)strlen("bnameTwo");
+    lstrcpyA(SingleGetEa.V.EaName, "bnameTwo");
+    AddGetEa(&SingleGetEa.V, &GetEa.V, sizeof GetEa, &EaLength);
+    memset(&SingleGetEa, 0, sizeof SingleGetEa);
+    SingleGetEa.V.EaNameLength = (UCHAR)strlen("bnameTwo");
+    lstrcpyA(SingleGetEa.V.EaName, "bnameTwo");
+    AddGetEa(&SingleGetEa.V, &GetEa.V, sizeof GetEa, &EaLength);
+    AddGetEa(0, &GetEa.V, sizeof GetEa, &EaLength);
+
+    memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, &GetEa.V, EaLength, 0, FALSE);
+    ASSERT(STATUS_SUCCESS == Result);
+    Result = FspFileSystemEnumerateEa(0, ea_check_ea_enumerate, &Context, &Ea.V, (ULONG)Iosb.Information);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(1 == Context.Count);
+    ASSERT(0 == Context.EaCount[0]);
+    ASSERT(1 == Context.EaCount[1]);
+    ASSERT(0 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
+
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, 0, 0, 0, FALSE);
     ASSERT(STATUS_SUCCESS == Result);
