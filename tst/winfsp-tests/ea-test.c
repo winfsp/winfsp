@@ -285,6 +285,35 @@ static void ea_check_ea(HANDLE Handle)
 
     EaLength = 0;
     memset(&SingleGetEa, 0, sizeof SingleGetEa);
+    SingleGetEa.V.EaNameLength = (UCHAR)strlen("Aname1");
+    lstrcpyA(SingleGetEa.V.EaName, "Aname1");
+    AddGetEa(&SingleGetEa.V, &GetEa.V, sizeof GetEa, &EaLength);
+    memset(&SingleGetEa, 0, sizeof SingleGetEa);
+    SingleGetEa.V.EaNameLength = (UCHAR)strlen("bnameTwo");
+    lstrcpyA(SingleGetEa.V.EaName, "bnameTwo");
+    AddGetEa(&SingleGetEa.V, &GetEa.V, sizeof GetEa, &EaLength);
+    AddGetEa(0, &GetEa.V, sizeof GetEa, &EaLength);
+
+    memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, &GetEa.V, EaLength, 0, FALSE);
+    ASSERT(STATUS_SUCCESS == Result);
+    Result = FspFileSystemEnumerateEa(0, ea_check_ea_enumerate, &Context, &Ea.V, (ULONG)Iosb.Information);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(2 == Context.Count);
+    ASSERT(1 == Context.EaCount[0]);
+    ASSERT(1 == Context.EaCount[1]);
+    ASSERT(0 == Context.EaCount[2]);
+    ASSERT(0 == Context.EaCount[3]);
+
+    memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb,
+        &Ea, (ULONG)(FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + strlen("Aname1") + 1 + strlen("first")),
+        FALSE, &GetEa.V, EaLength, 0, FALSE);
+    ASSERT(STATUS_BUFFER_OVERFLOW == Result);
+    ASSERT(0 == Iosb.Information);
+
+    EaLength = 0;
+    memset(&SingleGetEa, 0, sizeof SingleGetEa);
     SingleGetEa.V.EaNameLength = (UCHAR)strlen("bnameTwo");
     lstrcpyA(SingleGetEa.V.EaName, "bnameTwo");
     AddGetEa(&SingleGetEa.V, &GetEa.V, sizeof GetEa, &EaLength);
@@ -304,6 +333,21 @@ static void ea_check_ea(HANDLE Handle)
     ASSERT(1 == Context.EaCount[1]);
     ASSERT(0 == Context.EaCount[2]);
     ASSERT(0 == Context.EaCount[3]);
+
+    EaLength = 0;
+    memset(&SingleGetEa, 0, sizeof SingleGetEa);
+    SingleGetEa.V.EaNameLength = (UCHAR)strlen("bnameTwo");
+    lstrcpyA(SingleGetEa.V.EaName, "bnameTwo");
+    AddGetEa(&SingleGetEa.V, &GetEa.V, sizeof GetEa, &EaLength);
+    memset(&SingleGetEa, 0, sizeof SingleGetEa);
+    SingleGetEa.V.EaNameLength = (UCHAR)strlen("bnameTwo*");
+    lstrcpyA(SingleGetEa.V.EaName, "bnameTwo*");
+    AddGetEa(&SingleGetEa.V, &GetEa.V, sizeof GetEa, &EaLength);
+    AddGetEa(0, &GetEa.V, sizeof GetEa, &EaLength);
+
+    memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, &GetEa.V, EaLength, 0, FALSE);
+    ASSERT(STATUS_INVALID_EA_NAME == Result);
 
     memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, 0, 0, 0, FALSE);
