@@ -55,6 +55,12 @@ namespace memfs
         }
     }
 
+    struct EaValueData
+    {
+        public Byte[] EaValue;
+        public Boolean NeedEa;
+    }
+
     class FileNode
     {
         public FileNode(String FileName)
@@ -80,6 +86,13 @@ namespace memfs
                 return FileInfo;
             }
         }
+        public SortedDictionary<String, EaValueData> GetEaMap(Boolean Force)
+        {
+            FileNode FileNode = null == MainFileNode ? this : MainFileNode;
+            if (null == EaMap && Force)
+                EaMap = new SortedDictionary<String, EaValueData>(StringComparer.OrdinalIgnoreCase);
+            return EaMap;
+        }
 
         private static UInt64 IndexNumber = 1;
         public String FileName;
@@ -87,6 +100,7 @@ namespace memfs
         public Byte[] FileSecurity;
         public Byte[] FileData;
         public Byte[] ReparseData;
+        private SortedDictionary<String, EaValueData> EaMap;
         public FileNode MainFileNode;
         public int OpenCount;
     }
@@ -309,13 +323,15 @@ namespace memfs
             return STATUS_SUCCESS;
         }
 
-        public override Int32 Create(
+        public override Int32 CreateEx(
             String FileName,
             UInt32 CreateOptions,
             UInt32 GrantedAccess,
             UInt32 FileAttributes,
             Byte[] SecurityDescriptor,
             UInt64 AllocationSize,
+            IntPtr Ea,
+            UInt32 EaLength,
             out Object FileNode0,
             out Object FileDesc,
             out FileInfo FileInfo,
@@ -352,6 +368,12 @@ namespace memfs
             FileNode.FileInfo.FileAttributes = 0 != (FileAttributes & (UInt32)System.IO.FileAttributes.Directory) ?
                 FileAttributes : FileAttributes | (UInt32)System.IO.FileAttributes.Archive;
             FileNode.FileSecurity = SecurityDescriptor;
+            if (IntPtr.Zero != Ea)
+            {
+                Result = SetEa(FileNode, null, Ea, EaLength);
+                if (0 > Result)
+                    return Result;
+            }
             if (0 != AllocationSize)
             {
                 Result = SetFileSizeInternal(FileNode, AllocationSize, true);
@@ -393,6 +415,18 @@ namespace memfs
                 return Result;
             }
 
+            if (0 != (CreateOptions & FILE_NO_EA_KNOWLEDGE) &&
+                null == FileNode.MainFileNode)
+            {
+                SortedDictionary<String, EaValueData> EaMap = FileNode.GetEaMap(false);
+                if (null != EaMap)
+                {
+                    foreach (KeyValuePair<String, EaValueData> Pair in EaMap)
+                        if (Pair.Value.NeedEa)
+                            return STATUS_ACCESS_DENIED;
+                }
+            }
+
             Interlocked.Increment(ref FileNode.OpenCount);
             FileNode0 = FileNode;
             FileInfo = FileNode.GetFileInfo();
@@ -401,12 +435,14 @@ namespace memfs
             return STATUS_SUCCESS;
         }
 
-        public override Int32 Overwrite(
+        public override Int32 OverwriteEx(
             Object FileNode0,
             Object FileDesc,
             UInt32 FileAttributes,
             Boolean ReplaceFileAttributes,
             UInt64 AllocationSize,
+            IntPtr Ea,
+            UInt32 EaLength,
             out FileInfo FileInfo)
         {
             FileInfo = default(FileInfo);
@@ -422,6 +458,13 @@ namespace memfs
                     continue; /* should not happen */
                 if (0 == StreamNode.OpenCount)
                     FileNodeMap.Remove(StreamNode);
+            }
+
+            if (IntPtr.Zero != Ea)
+            {
+                Result = SetEa(FileNode, null, Ea, EaLength);
+                if (0 > Result)
+                    return Result;
             }
 
             Result = SetFileSizeInternal(FileNode, AllocationSize, true);
@@ -1018,6 +1061,62 @@ namespace memfs
             StreamSize = default(UInt64);
             StreamAllocationSize = default(UInt64);
             return false;
+        }
+        public override Boolean GetEaEntry(
+            Object FileNode0,
+            Object FileDesc,
+            ref Object Context,
+            out String EaName,
+            out Byte[] EaValue,
+            out Boolean NeedEa)
+        {
+            FileNode FileNode = (FileNode)FileNode0;
+            IEnumerator<KeyValuePair<String, EaValueData>> Enumerator =
+                (IEnumerator<KeyValuePair<String, EaValueData>>)Context;
+
+            if (null == Enumerator)
+            {
+                SortedDictionary<String, EaValueData> EaMap = FileNode.GetEaMap(false);
+                if (null == EaMap)
+                {
+                    EaName = default(String);
+                    EaValue = default(Byte[]);
+                    NeedEa = default(Boolean);
+                    return false;
+                }
+
+                Context = Enumerator = EaMap.GetEnumerator();
+            }
+
+            while (Enumerator.MoveNext())
+            {
+                KeyValuePair<String, EaValueData> Pair = Enumerator.Current;
+                EaName = Pair.Key;
+                EaValue = Pair.Value.EaValue;
+                NeedEa = Pair.Value.NeedEa;
+                return true;
+            }
+
+            EaName = default(String);
+            EaValue = default(Byte[]);
+            NeedEa = default(Boolean);
+            return false;
+        }
+        public override Int32 SetEaEntry(
+            Object FileNode0,
+            Object FileDesc,
+            ref Object Context,
+            String EaName,
+            Byte[] EaValue,
+            Boolean NeedEa)
+        {
+            FileNode FileNode = (FileNode)FileNode0;
+            SortedDictionary<String, EaValueData> EaMap = FileNode.GetEaMap(true);
+            EaValueData Data;
+            Data.EaValue = EaValue;
+            Data.NeedEa = NeedEa;
+            EaMap[EaName] = Data;
+            return STATUS_SUCCESS;
         }
 
         private FileNodeMap FileNodeMap;

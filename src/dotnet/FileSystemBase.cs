@@ -1092,8 +1092,7 @@ namespace Fsp
             out FileInfo FileInfo,
             out String NormalizedName)
         {
-            Int32 Result;
-            Result = Create(
+            return Create(
                 FileName,
                 CreateOptions,
                 GrantedAccess,
@@ -1104,11 +1103,6 @@ namespace Fsp
                 out FileDesc,
                 out FileInfo,
                 out NormalizedName);
-            if (0 > Result)
-                return Result;
-            if (IntPtr.Zero != Ea)
-                Result = SetEa(FileNode, FileDesc, Ea, EaLength); /* ignore Result */
-            return STATUS_SUCCESS;
         }
         public virtual Int32 OverwriteEx(
             Object FileNode,
@@ -1120,19 +1114,13 @@ namespace Fsp
             UInt32 EaLength,
             out FileInfo FileInfo)
         {
-            Int32 Result;
-            Result = Overwrite(
+            return Overwrite(
                 FileNode,
                 FileDesc,
                 FileAttributes,
                 ReplaceFileAttributes,
                 AllocationSize,
                 out FileInfo);
-            if (0 > Result)
-                return Result;
-            if (IntPtr.Zero != Ea)
-                Result = SetEa(FileNode, FileDesc, Ea, EaLength); /* ignore Result */
-            return STATUS_SUCCESS;
         }
         public virtual Int32 GetEa(
             Object FileNode,
