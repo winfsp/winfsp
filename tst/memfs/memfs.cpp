@@ -283,12 +283,12 @@ typedef struct _MEMFS_FILE_NODE
     SIZE_T ReparseDataSize;
     PVOID ReparseData;
 #endif
+#if defined(MEMFS_EA)
+    MEMFS_FILE_NODE_EA_MAP *EaMap;
+#endif
     volatile LONG RefCount;
 #if defined(MEMFS_NAMED_STREAMS)
     struct _MEMFS_FILE_NODE *MainFileNode;
-#endif
-#if defined(MEMFS_EA)
-    MEMFS_FILE_NODE_EA_MAP *EaMap;
 #endif
 } MEMFS_FILE_NODE;
 
