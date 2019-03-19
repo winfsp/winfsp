@@ -460,6 +460,9 @@ namespace memfs
                     FileNodeMap.Remove(StreamNode);
             }
 
+            SortedDictionary<String, EaValueData> EaMap = FileNode.GetEaMap(false);
+            if (null != EaMap)
+                EaMap.Clear();
             if (IntPtr.Zero != Ea)
             {
                 Result = SetEa(FileNode, null, Ea, EaLength);

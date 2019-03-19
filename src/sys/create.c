@@ -1171,8 +1171,16 @@ NTSTATUS FspFsvolCreateComplete(
         if (0 == FileNode->MainFileNode)
             FspFileNodeOverwriteStreams(FileNode);
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Overwrite.FileInfo, TRUE);
+        if (0 == FileNode->MainFileNode && FsvolDeviceExtension->VolumeParams.ExtendedAttributes)
+        {
+            /* invalidate any existing EA and increment the EA change count */
+            FspFileNodeSetEa(FileNode, 0, 0);
+            FileNode->EaChangeCount++;
+        }
         FspFileNodeNotifyChange(FileNode,
-            FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE,
+            FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE |
+                (0 == FileNode->MainFileNode && FsvolDeviceExtension->VolumeParams.ExtendedAttributes ?
+                    FILE_NOTIFY_CHANGE_EA : 0),
             FILE_ACTION_MODIFIED,
             FALSE);
 
