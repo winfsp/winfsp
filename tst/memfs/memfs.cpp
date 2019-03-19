@@ -348,7 +348,7 @@ NTSTATUS MemfsFileNodeCreate(PWSTR FileName, MEMFS_FILE_NODE **PFileNode)
 
 #if defined(MEMFS_EA)
 static inline
-VOID MemfsFileNodeDeleteAllEa(MEMFS_FILE_NODE *FileNode)
+VOID MemfsFileNodeDeleteEaMap(MEMFS_FILE_NODE *FileNode)
 {
     if (0 != FileNode->EaMap)
     {
@@ -356,6 +356,7 @@ VOID MemfsFileNodeDeleteAllEa(MEMFS_FILE_NODE *FileNode)
             p != q; ++p)
             free(p->second);
         delete FileNode->EaMap;
+        FileNode->EaMap = 0;
     }
 }
 #endif
@@ -364,7 +365,7 @@ static inline
 VOID MemfsFileNodeDelete(MEMFS_FILE_NODE *FileNode)
 {
 #if defined(MEMFS_EA)
-    MemfsFileNodeDeleteAllEa(FileNode);
+    MemfsFileNodeDeleteEaMap(FileNode);
 #endif
 #if defined(MEMFS_REPARSE_POINTS)
     free(FileNode->ReparseData);
@@ -1252,7 +1253,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
 #endif
 
 #if defined(MEMFS_EA)
-    MemfsFileNodeDeleteAllEa(FileNode);
+    MemfsFileNodeDeleteEaMap(FileNode);
     if (0 != Ea)
     {
         Result = FspFileSystemEnumerateEa(FileSystem, MemfsFileNodeSetEa, FileNode, Ea, EaLength);

@@ -914,9 +914,13 @@ namespace Fsp.Interop
                     EndP)
             {
                 String EaName = Marshal.PtrToStringAnsi((IntPtr)P->EaName, P->EaNameLength);
-                Byte[] EaValue = new Byte[P->EaValueLength];
-                Marshal.Copy((IntPtr)(((IntPtr)P->EaName).ToInt64() + P->EaNameLength + 1),
-                    EaValue, 0, P->EaValueLength);
+                Byte[] EaValue = null;
+                if (0 != P->EaValueLength)
+                {
+                    EaValue = new Byte[P->EaValueLength];
+                    Marshal.Copy((IntPtr)(((IntPtr)P->EaName).ToInt64() + P->EaNameLength + 1),
+                        EaValue, 0, P->EaValueLength);
+                }
                 Boolean NeedEa = 0 != (0x80/*FILE_NEED_EA*/ & P->Flags);
                 Result = EnumerateEa(FileNode, FileDesc, ref Context, EaName, EaValue, NeedEa);
                 if (0 > Result)

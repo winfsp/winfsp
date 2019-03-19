@@ -646,10 +646,6 @@ static void ea_check_ea2(HANDLE Handle)
     struct ea_check_ea_context Context;
 
     memset(&Context, 0, sizeof Context);
-    Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, 0, 0, 0, FALSE);
-    ASSERT(STATUS_EA_CORRUPT_ERROR == Result);
-
-    memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, 0, 0, 0, TRUE);
     ASSERT(STATUS_SUCCESS == Result);
     Result = FspFileSystemEnumerateEa(0, ea_check_ea2_enumerate, &Context, &Ea.V, (ULONG)Iosb.Information);
@@ -771,6 +767,103 @@ static void ea_create_test(void)
     }
 }
 
+static void ea_overwrite_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE DirHandle, FileHandle;
+    NTSTATUS Result;
+    BOOLEAN Success;
+    WCHAR FilePath[MAX_PATH];
+    WCHAR UnicodePathBuf[MAX_PATH] = L"file2";
+    UNICODE_STRING UnicodePath;
+    OBJECT_ATTRIBUTES Obja;
+    IO_STATUS_BLOCK Iosb;
+    LARGE_INTEGER LargeZero = { 0 };
+    union
+    {
+        FILE_FULL_EA_INFORMATION V;
+        UINT8 B[512];
+    } Ea;
+    ULONG EaLength;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    DirHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != DirHandle);
+
+    UnicodePath.Length = (USHORT)wcslen(UnicodePathBuf) * sizeof(WCHAR);
+    UnicodePath.MaximumLength = sizeof UnicodePathBuf;
+    UnicodePath.Buffer = UnicodePathBuf;
+    InitializeObjectAttributes(&Obja, &UnicodePath, 0, DirHandle, 0);
+
+    Result = NtCreateFile(&FileHandle,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
+        &LargeZero, FILE_ATTRIBUTE_NORMAL, 0,
+        FILE_CREATE, 0,
+        0, 0);
+    ASSERT(STATUS_SUCCESS == Result);
+    CloseHandle(FileHandle);
+
+    EaLength = 0;
+    ea_init_ea(&Ea.V, sizeof Ea, &EaLength);
+    Result = NtCreateFile(&FileHandle,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
+        &LargeZero, FILE_ATTRIBUTE_NORMAL, 0,
+        FILE_OVERWRITE, 0,
+        &Ea, EaLength);
+    ASSERT(STATUS_SUCCESS == Result);
+    ea_check_ea(FileHandle);
+    CloseHandle(FileHandle);
+
+    EaLength = 0;
+    ea_init_ea2(&Ea.V, sizeof Ea, &EaLength);
+    Result = NtCreateFile(&FileHandle,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
+        &LargeZero, FILE_ATTRIBUTE_NORMAL, 0,
+        FILE_OVERWRITE, FILE_DELETE_ON_CLOSE,
+        &Ea, EaLength);
+    ASSERT(STATUS_SUCCESS == Result);
+    ea_check_ea2(FileHandle);
+    CloseHandle(FileHandle);
+
+    CloseHandle(DirHandle);
+
+    DirHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE == DirHandle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+    memfs_stop(memfs);
+}
+
+static void ea_overwrite_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        ea_overwrite_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        ea_overwrite_dotest(MemfsDisk, 0, 0);
+        ea_overwrite_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        ea_overwrite_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        ea_overwrite_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 static void ea_getset_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -815,6 +908,8 @@ static void ea_getset_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     Result = NtSetEaFile(DirHandle, &Iosb, &Ea, EaLength);
     ASSERT(STATUS_SUCCESS == Result);
     ASSERT(0 == Iosb.Information);
+    Result = NtQueryEaFile(DirHandle, &Iosb, &Ea, sizeof Ea, FALSE, 0, 0, 0, FALSE);
+    ASSERT(STATUS_EA_CORRUPT_ERROR == Result);
     ea_check_ea2(DirHandle);
 
     CloseHandle(DirHandle);
@@ -850,6 +945,8 @@ static void ea_getset_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     Result = NtSetEaFile(FileHandle, &Iosb, &Ea, EaLength);
     ASSERT(STATUS_SUCCESS == Result);
     ASSERT(0 == Iosb.Information);
+    Result = NtQueryEaFile(FileHandle, &Iosb, &Ea, sizeof Ea, FALSE, 0, 0, 0, FALSE);
+    ASSERT(STATUS_EA_CORRUPT_ERROR == Result);
     ea_check_ea2(FileHandle);
 
     CloseHandle(FileHandle);
@@ -886,5 +983,6 @@ static void ea_getset_test(void)
 void ea_tests(void)
 {
     TEST_OPT(ea_create_test);
+    TEST_OPT(ea_overwrite_test);
     TEST_OPT(ea_getset_test);
 }

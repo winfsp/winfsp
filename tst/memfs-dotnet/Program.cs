@@ -1115,10 +1115,15 @@ namespace memfs
         {
             FileNode FileNode = (FileNode)FileNode0;
             SortedDictionary<String, EaValueData> EaMap = FileNode.GetEaMap(true);
-            EaValueData Data;
-            Data.EaValue = EaValue;
-            Data.NeedEa = NeedEa;
-            EaMap[EaName] = Data;
+            if (null != EaValue)
+            {
+                EaValueData Data;
+                Data.EaValue = EaValue;
+                Data.NeedEa = NeedEa;
+                EaMap[EaName] = Data;
+            }
+            else
+                EaMap.Remove(EaName);
             return STATUS_SUCCESS;
         }
 
