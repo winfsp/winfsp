@@ -273,6 +273,7 @@ namespace memfs
             Host.NamedStreams = true;
             Host.PostCleanupWhenModifiedOnly = true;
             Host.PassQueryDirectoryFileName = true;
+            Host.ExtendedAttributes = true;
             return STATUS_SUCCESS;
         }
 

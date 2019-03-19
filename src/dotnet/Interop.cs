@@ -295,12 +295,12 @@ namespace Fsp.Interop
 
             fixed (Byte *P = EaName)
             {
-                int I = 0;
+                int I = 0, J = 0;
                 for (; NameLength > I; I++)
                     P[I] = (Byte)Name[I];
-                P[I] = 0;
-                for (; ValueLength > I; I++)
-                    P[I] = Value[I];
+                P[I++] = 0;
+                for (; ValueLength > J; J++)
+                    P[I + J] = Value[J];
             }
         }
     }
