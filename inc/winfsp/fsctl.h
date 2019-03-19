@@ -168,7 +168,7 @@ enum
     /* additional kernel-mode flags */\
     UINT32 AllowOpenInKernelMode:1;         /* allow kernel mode to open files when possible */\
     UINT32 CasePreservedExtendedAttributes:1;   /* preserve case of EA (default is UPPERCASE) */\
-    UINT32 KmReservedFlags:7;\
+    UINT32 KmReservedFlags:6;\
     WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */\
     WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
 #define FSP_FSCTL_VOLUME_PARAMS_V1_FIELD_DEFN\
@@ -178,7 +178,7 @@ enum
     UINT32 SecurityTimeoutValid:1;      /* SecurityTimeout field is valid*/\
     UINT32 StreamInfoTimeoutValid:1;    /* StreamInfoTimeout field is valid */\
     UINT32 EaTimeoutValid:1;            /* EaTimeout field is valid */\
-    UINT32 KmAdditionalReservedFlags:28;\
+    UINT32 KmAdditionalReservedFlags:27;\
     UINT32 VolumeInfoTimeout;           /* volume info timeout (millis); overrides FileInfoTimeout */\
     UINT32 DirInfoTimeout;              /* dir info timeout (millis); overrides FileInfoTimeout */\
     UINT32 SecurityTimeout;             /* security info timeout (millis); overrides FileInfoTimeout */\
@@ -190,11 +190,15 @@ typedef struct
 {
     FSP_FSCTL_VOLUME_PARAMS_V0_FIELD_DEFN
 } FSP_FSCTL_VOLUME_PARAMS_V0;
+FSP_FSCTL_STATIC_ASSERT(456 == sizeof(FSP_FSCTL_VOLUME_PARAMS_V0),
+    "sizeof(FSP_FSCTL_VOLUME_PARAMS_V0) must be exactly 456.");
 typedef struct
 {
     FSP_FSCTL_VOLUME_PARAMS_V0_FIELD_DEFN
     FSP_FSCTL_VOLUME_PARAMS_V1_FIELD_DEFN
 } FSP_FSCTL_VOLUME_PARAMS;
+FSP_FSCTL_STATIC_ASSERT(504 == sizeof(FSP_FSCTL_VOLUME_PARAMS),
+    "sizeof(FSP_FSCTL_VOLUME_PARAMS) is currently 504. Update this assertion check if it changes.");
 typedef struct
 {
     UINT64 TotalSize;
