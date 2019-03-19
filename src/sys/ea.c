@@ -285,6 +285,7 @@ static VOID FspFsvolQueryEaCopy(
     PAGED_CODE();
 
     PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     BOOLEAN RestartScan = BooleanFlagOn(IrpSp->Flags, SL_RESTART_SCAN);
     BOOLEAN IndexSpecified = BooleanFlagOn(IrpSp->Flags, SL_INDEX_SPECIFIED);
@@ -292,6 +293,8 @@ static VOID FspFsvolQueryEaCopy(
     PFILE_GET_EA_INFORMATION EaList = IrpSp->Parameters.QueryEa.EaList;
     ULONG EaListLength = IrpSp->Parameters.QueryEa.EaListLength;
     ULONG EaIndex;
+
+    ASSERT(FileNode == FileDesc->FileNode);
 
     if (0 != EaList)
     {
@@ -305,6 +308,15 @@ static VOID FspFsvolQueryEaCopy(
     }
     else
     {
+        if (!IndexSpecified &&
+            !RestartScan &&
+            0 != FileDesc->EaIndex &&
+            FileNode->EaChangeCount != FileDesc->EaChangeCount)
+        {
+            IoStatus->Status = STATUS_EA_CORRUPT_ERROR;
+            IoStatus->Information = 0;
+            return;
+        }
         if (IndexSpecified)
             EaIndex = IrpSp->Parameters.QueryEa.EaIndex;
         else if (RestartScan)
@@ -319,7 +331,10 @@ static VOID FspFsvolQueryEaCopy(
             DstBufBgn, DstSize,
             IoStatus);
         if (NT_SUCCESS(IoStatus->Status) || STATUS_BUFFER_OVERFLOW == IoStatus->Status)
+        {
             FileDesc->EaIndex = EaIndex;
+            FileDesc->EaChangeCount = FileNode->EaChangeCount;
+        }
     }
 }
 
@@ -575,6 +590,8 @@ NTSTATUS FspFsvolSetEaComplete(
         /* invalidate the cached EA */
         FspFileNodeSetEa(FileNode, 0, 0);
     }
+
+    FileNode->EaChangeCount++;
 
     FspFileNodeNotifyChange(FileNode, FILE_NOTIFY_CHANGE_EA, FILE_ACTION_MODIFIED, FALSE);
 

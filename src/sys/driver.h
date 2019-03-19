@@ -1288,6 +1288,7 @@ typedef struct FSP_FILE_NODE
     ULONG StreamInfoChangeNumber;
     UINT64 Ea;
     ULONG EaChangeNumber;
+    ULONG EaChangeCount;
     BOOLEAN TruncateOnClose;
     FILE_LOCK FileLock;
 #if (NTDDI_VERSION < NTDDI_WIN8)
@@ -1327,6 +1328,7 @@ typedef struct
     UINT64 DirInfo;
     ULONG DirInfoCacheHint;
     ULONG EaIndex;
+    ULONG EaChangeCount;
     /* stream support */
     HANDLE MainFileHandle;
     PFILE_OBJECT MainFileObject;

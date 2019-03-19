@@ -646,6 +646,10 @@ static void ea_check_ea2(HANDLE Handle)
     struct ea_check_ea_context Context;
 
     memset(&Context, 0, sizeof Context);
+    Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, 0, 0, 0, FALSE);
+    ASSERT(STATUS_EA_CORRUPT_ERROR == Result);
+
+    memset(&Context, 0, sizeof Context);
     Result = NtQueryEaFile(Handle, &Iosb, &Ea, sizeof Ea, FALSE, 0, 0, 0, TRUE);
     ASSERT(STATUS_SUCCESS == Result);
     Result = FspFileSystemEnumerateEa(0, ea_check_ea2_enumerate, &Context, &Ea.V, (ULONG)Iosb.Information);
