@@ -83,6 +83,8 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("FileInfoTimeout=%d", VolumeParams.FileInfoTimeout, 0),
     FSP_FUSE_CORE_OPT("DirInfoTimeout=", set_DirInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("DirInfoTimeout=%d", VolumeParams.DirInfoTimeout, 0),
+    FSP_FUSE_CORE_OPT("EaTimeout=", set_EaTimeout, 1),
+    FSP_FUSE_CORE_OPT("EaTimeout=%d", VolumeParams.EaTimeout, 0),
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=", set_VolumeInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=%d", VolumeParams.VolumeInfoTimeout, 0),
     FSP_FUSE_CORE_OPT("KeepFileCache=", set_KeepFileCache, 1),
@@ -252,6 +254,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             FSP_FUSE_LIBRARY_NAME " advanced options:\n"
             "    -o FileInfoTimeout=N       metadata timeout (millis, -1 for data caching)\n"
             "    -o DirInfoTimeout=N        directory info timeout (millis)\n"
+            "    -o EaTimeout=N             extended attribute timeout (millis)\n"
             "    -o VolumeInfoTimeout=N     volume info timeout (millis)\n"
             "    -o KeepFileCache           do not discard cache when files are closed\n"
             "    -o ThreadCount             number of file system dispatcher threads\n"
@@ -392,6 +395,8 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         opt_data.VolumeParams.FileInfoTimeout = opt_data.attr_timeout * 1000;
     if (opt_data.set_DirInfoTimeout)
         opt_data.VolumeParams.DirInfoTimeoutValid = 1;
+    if (opt_data.set_EaTimeout)
+        opt_data.VolumeParams.EaTimeoutValid = 1;
     if (opt_data.set_VolumeInfoTimeout)
         opt_data.VolumeParams.VolumeInfoTimeoutValid = 1;
     if (opt_data.set_KeepFileCache)

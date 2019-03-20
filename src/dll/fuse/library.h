@@ -143,6 +143,7 @@ struct fsp_fuse_core_opt_data
         rellinks;
     int set_FileInfoTimeout,
         set_DirInfoTimeout,
+        set_EaTimeout,
         set_VolumeInfoTimeout,
         set_KeepFileCache;
     unsigned ThreadCount;

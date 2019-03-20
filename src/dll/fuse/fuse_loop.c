@@ -160,6 +160,9 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
         err = f->ops.readlink("/", buf, sizeof buf);
         f->has_symlinks = -ENOSYS_(f->env) != err;
     }
+    if (0 != f->ops.listxattr && 0 != f->ops.getxattr &&
+        0 != f->ops.setxattr && 0 != f->ops.removexattr)
+        f->VolumeParams.ExtendedAttributes = 1;
 
     /* the FSD does not currently limit these VolumeParams fields; do so here! */
     if (f->VolumeParams.SectorSize < FSP_FUSE_SECTORSIZE_MIN ||

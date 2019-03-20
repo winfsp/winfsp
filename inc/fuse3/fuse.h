@@ -106,11 +106,11 @@ struct fuse3_operations
     /* S */ int (*flush)(const char *path, struct fuse3_file_info *fi);
     /* S */ int (*release)(const char *path, struct fuse3_file_info *fi);
     /* S */ int (*fsync)(const char *path, int datasync, struct fuse3_file_info *fi);
-    /* _ */ int (*setxattr)(const char *path, const char *name, const char *value, size_t size,
+    /* S */ int (*setxattr)(const char *path, const char *name, const char *value, size_t size,
         int flags);
-    /* _ */ int (*getxattr)(const char *path, const char *name, char *value, size_t size);
-    /* _ */ int (*listxattr)(const char *path, char *namebuf, size_t size);
-    /* _ */ int (*removexattr)(const char *path, const char *name);
+    /* S */ int (*getxattr)(const char *path, const char *name, char *value, size_t size);
+    /* S */ int (*listxattr)(const char *path, char *namebuf, size_t size);
+    /* S */ int (*removexattr)(const char *path, const char *name);
     /* S */ int (*opendir)(const char *path, struct fuse3_file_info *fi);
     /* S */ int (*readdir)(const char *path, void *buf, fuse3_fill_dir_t filler, fuse_off_t off,
         struct fuse3_file_info *fi, enum fuse3_readdir_flags);
