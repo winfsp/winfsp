@@ -452,11 +452,16 @@ enum
 BOOLEAN FspFileNameIsValid(PUNICODE_STRING Path, ULONG MaxComponentLength,
     PUNICODE_STRING StreamPart, PULONG StreamType);
 BOOLEAN FspFileNameIsValidPattern(PUNICODE_STRING Pattern, ULONG MaxComponentLength);
+BOOLEAN FspEaNameIsValid(PSTRING Name);
 VOID FspFileNameSuffix(PUNICODE_STRING Path, PUNICODE_STRING Remain, PUNICODE_STRING Suffix);
 #if 0
 NTSTATUS FspFileNameUpcase(
     PUNICODE_STRING DestinationName,
     PUNICODE_STRING SourceName,
+    PCWCH UpcaseTable);
+VOID FspEaNameUpcase(
+    PSTRING DestinationName,
+    PSTRING SourceName,
     PCWCH UpcaseTable);
 LONG FspFileNameCompare(
     PUNICODE_STRING Name1,
@@ -470,6 +475,7 @@ BOOLEAN FspFileNameIsPrefix(
     PCWCH UpcaseTable);
 #else
 #define FspFileNameUpcase(D,S,U)        (ASSERT(0 == (U)), RtlUpcaseUnicodeString(D,S,FALSE))
+#define FspEaNameUpcase(D,S,U)          (ASSERT(0 == (U)), RtlUpperString(D,S))
 #define FspFileNameCompare(N1,N2,I,U)   (ASSERT(0 == (U)), RtlCompareUnicodeString(N1,N2,I))
 #define FspFileNameIsPrefix(N1,N2,I,U)  (ASSERT(0 == (U)), RtlPrefixUnicodeString(N1,N2,I))
 #endif
@@ -509,6 +515,10 @@ NTSTATUS FspCcFlushCache(PSECTION_OBJECT_POINTERS SectionObjectPointer,
 NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
     PSECURITY_DESCRIPTOR SecurityDescriptor, PULONG PLength,
     PSECURITY_DESCRIPTOR ObjectsSecurityDescriptor);
+NTSTATUS FspEaBufferAndNamesValid(
+    PFILE_FULL_EA_INFORMATION Buffer,
+    ULONG Length,
+    PULONG PErrorOffset);
 NTSTATUS FspNotifyInitializeSync(PNOTIFY_SYNC *NotifySync);
 NTSTATUS FspNotifyFullChangeDirectory(
     PNOTIFY_SYNC NotifySync,
@@ -567,6 +577,8 @@ NTSTATUS FspOplockFsctrl(
     FspNotifyFullChangeDirectory(NS, NL, FC, 0, 0, FALSE, 0, 0, 0, 0)
 #define FspNotifyReportChange(NS, NL, FN, FO, NP, F, A)\
     FspNotifyFullReportChange(NS, NL, (PSTRING)(FN), FO, 0, (PSTRING)(NP), F, A, 0)
+#define FSP_NEXT_EA(Ea, EaEnd)          \
+    (0 != (Ea)->NextEntryOffset ? (PVOID)((PUINT8)(Ea) + (Ea)->NextEntryOffset) : (EaEnd))
 
 /* utility: synchronous work queue */
 typedef struct
@@ -997,6 +1009,8 @@ enum
     FspFsvolDeviceDirInfoCacheItemSizeMax = FSP_FSCTL_ALIGN_UP(16384, PAGE_SIZE),
     FspFsvolDeviceStreamInfoCacheCapacity = 100,
     FspFsvolDeviceStreamInfoCacheItemSizeMax = FSP_FSCTL_ALIGN_UP(16384, PAGE_SIZE),
+    FspFsvolDeviceEaCacheCapacity = 100,
+    FspFsvolDeviceEaCacheItemSizeMax = FSP_FSCTL_ALIGN_UP(16384, PAGE_SIZE),
 };
 typedef struct
 {
@@ -1029,7 +1043,7 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
-    UINT32 InitDoneFsvrt:1, InitDoneIoq:1, InitDoneSec:1, InitDoneDir:1, InitDoneStrm:1,
+    UINT32 InitDoneFsvrt:1, InitDoneIoq:1, InitDoneSec:1, InitDoneDir:1, InitDoneStrm:1, InitDoneEa:1,
         InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1, InitDoneNotify:1, InitDoneStat:1;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
@@ -1043,6 +1057,7 @@ typedef struct
     FSP_META_CACHE *SecurityCache;
     FSP_META_CACHE *DirInfoCache;
     FSP_META_CACHE *StreamInfoCache;
+    FSP_META_CACHE *EaCache;
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;
     BOOLEAN ExpirationInProgress;
@@ -1271,6 +1286,9 @@ typedef struct FSP_FILE_NODE
     ULONG SecurityChangeNumber;
     ULONG DirInfoChangeNumber;
     ULONG StreamInfoChangeNumber;
+    UINT64 Ea;
+    ULONG EaChangeNumber;
+    ULONG EaChangeCount;
     BOOLEAN TruncateOnClose;
     FILE_LOCK FileLock;
 #if (NTDDI_VERSION < NTDDI_WIN8)
@@ -1309,6 +1327,8 @@ typedef struct
     UNICODE_STRING DirectoryMarker;
     UINT64 DirInfo;
     ULONG DirInfoCacheHint;
+    ULONG EaIndex;
+    ULONG EaChangeCount;
     /* stream support */
     HANDLE MainFileHandle;
     PFILE_OBJECT MainFileObject;
@@ -1439,6 +1459,17 @@ ULONG FspFileNodeStreamInfoChangeNumber(FSP_FILE_NODE *FileNode)
     return FileNode->StreamInfoChangeNumber;
 }
 VOID FspFileNodeInvalidateStreamInfo(FSP_FILE_NODE *FileNode);
+BOOLEAN FspFileNodeReferenceEa(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
+VOID FspFileNodeSetEa(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
+BOOLEAN FspFileNodeTrySetEa(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
+    ULONG EaChangeNumber);
+static inline
+ULONG FspFileNodeEaChangeNumber(FSP_FILE_NODE *FileNode)
+{
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+    return FileNode->EaChangeNumber;
+}
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action,
     BOOLEAN InvalidateCaches);
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
@@ -1471,6 +1502,7 @@ NTSTATUS FspMainFileClose(
 #define FspFileNodeDereferenceSecurity(P)   FspMetaCacheDereferenceItemBuffer(P)
 #define FspFileNodeDereferenceDirInfo(P)    FspMetaCacheDereferenceItemBuffer(P)
 #define FspFileNodeDereferenceStreamInfo(P) FspMetaCacheDereferenceItemBuffer(P)
+#define FspFileNodeDereferenceEa(P)         FspMetaCacheDereferenceItemBuffer(P)
 #define FspFileNodeUnlockAll(N,F,P)     FsRtlFastUnlockAll(&(N)->FileLock, F, P, N)
 #if (NTDDI_VERSION < NTDDI_WIN8)
 #define FspFileNodeAddrOfOplock(N)      (&(N)->Oplock)

@@ -65,6 +65,11 @@ FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
 #define MEMFS_CONTROL
 
 /*
+ * Define the MEMFS_EA macro to include extended attributes support.
+ */
+#define MEMFS_EA
+
+/*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
  * a check for the Write buffer to ensure that it is read-only.
  *
@@ -237,6 +242,36 @@ BOOLEAN MemfsFileNameHasPrefix(PWSTR a, PWSTR b, BOOLEAN CaseInsensitive)
 #endif
 }
 
+#if defined(MEMFS_EA)
+static inline
+int MemfsEaNameCompare(PSTR a, PSTR b)
+{
+    /* EA names are always case-insensitive in MEMFS (to be inline with NTFS) */
+
+    int res;
+
+    res = CompareStringA(LOCALE_INVARIANT, NORM_IGNORECASE, a, -1, b, -1);
+    if (0 != res)
+        res -= 2;
+    else
+        res = _stricmp(a, b);
+
+    return res;
+}
+
+struct MEMFS_FILE_NODE_EA_LESS
+{
+    MEMFS_FILE_NODE_EA_LESS()
+    {
+    }
+    bool operator()(PSTR a, PSTR b) const
+    {
+        return 0 > MemfsEaNameCompare(a, b);
+    }
+};
+typedef std::map<PSTR, FILE_FULL_EA_INFORMATION *, MEMFS_FILE_NODE_EA_LESS> MEMFS_FILE_NODE_EA_MAP;
+#endif
+
 typedef struct _MEMFS_FILE_NODE
 {
     WCHAR FileName[MEMFS_MAX_PATH];
@@ -247,6 +282,9 @@ typedef struct _MEMFS_FILE_NODE
 #if defined(MEMFS_REPARSE_POINTS)
     SIZE_T ReparseDataSize;
     PVOID ReparseData;
+#endif
+#if defined(MEMFS_EA)
+    MEMFS_FILE_NODE_EA_MAP *EaMap;
 #endif
     volatile LONG RefCount;
 #if defined(MEMFS_NAMED_STREAMS)
@@ -308,9 +346,27 @@ NTSTATUS MemfsFileNodeCreate(PWSTR FileName, MEMFS_FILE_NODE **PFileNode)
     return STATUS_SUCCESS;
 }
 
+#if defined(MEMFS_EA)
+static inline
+VOID MemfsFileNodeDeleteEaMap(MEMFS_FILE_NODE *FileNode)
+{
+    if (0 != FileNode->EaMap)
+    {
+        for (MEMFS_FILE_NODE_EA_MAP::iterator p = FileNode->EaMap->begin(), q = FileNode->EaMap->end();
+            p != q; ++p)
+            free(p->second);
+        delete FileNode->EaMap;
+        FileNode->EaMap = 0;
+    }
+}
+#endif
+
 static inline
 VOID MemfsFileNodeDelete(MEMFS_FILE_NODE *FileNode)
 {
+#if defined(MEMFS_EA)
+    MemfsFileNodeDeleteEaMap(FileNode);
+#endif
 #if defined(MEMFS_REPARSE_POINTS)
     free(FileNode->ReparseData);
 #endif
@@ -350,6 +406,121 @@ VOID MemfsFileNodeGetFileInfo(MEMFS_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *Fi
     *FileInfo = FileNode->FileInfo;
 #endif
 }
+
+#if defined(MEMFS_EA)
+static inline
+NTSTATUS MemfsFileNodeGetEaMap(MEMFS_FILE_NODE *FileNode, MEMFS_FILE_NODE_EA_MAP **PEaMap)
+{
+#if defined(MEMFS_NAMED_STREAMS)
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+#endif
+
+    *PEaMap = FileNode->EaMap;
+    if (0 != *PEaMap)
+        return STATUS_SUCCESS;
+
+    try
+    {
+        *PEaMap = FileNode->EaMap = new MEMFS_FILE_NODE_EA_MAP(MEMFS_FILE_NODE_EA_LESS());
+        return STATUS_SUCCESS;
+    }
+    catch (...)
+    {
+        *PEaMap = 0;
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+}
+
+static inline
+NTSTATUS MemfsFileNodeSetEa(
+    FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+    PFILE_FULL_EA_INFORMATION Ea)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)Context;
+    MEMFS_FILE_NODE_EA_MAP *EaMap;
+    FILE_FULL_EA_INFORMATION *FileNodeEa = 0;
+    MEMFS_FILE_NODE_EA_MAP::iterator p;
+    NTSTATUS Result;
+
+    Result = MemfsFileNodeGetEaMap(FileNode, &EaMap);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (0 != Ea->EaValueLength)
+    {
+        FileNodeEa = (FILE_FULL_EA_INFORMATION *)malloc(
+            FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + Ea->EaNameLength + 1 + Ea->EaValueLength);
+        if (0 == FileNodeEa)
+            return STATUS_INSUFFICIENT_RESOURCES;
+        memcpy(FileNodeEa, Ea,
+            FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + Ea->EaNameLength + 1 + Ea->EaValueLength);
+        FileNodeEa->NextEntryOffset = 0;
+    }
+
+    p = EaMap->find(Ea->EaName);
+    if (p != EaMap->end())
+    {
+        free(p->second);
+        EaMap->erase(p);
+    }
+
+    if (0 != Ea->EaValueLength)
+    {
+        try
+        {
+            EaMap->insert(MEMFS_FILE_NODE_EA_MAP::value_type(FileNodeEa->EaName, FileNodeEa));
+            return STATUS_SUCCESS;
+        }
+        catch (...)
+        {
+            free(FileNodeEa);
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    return STATUS_SUCCESS;
+}
+
+static inline
+BOOLEAN MemfsFileNodeNeedEa(MEMFS_FILE_NODE *FileNode)
+{
+#if defined(MEMFS_NAMED_STREAMS)
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+#endif
+
+    if (0 != FileNode->EaMap)
+    {
+        for (MEMFS_FILE_NODE_EA_MAP::iterator p = FileNode->EaMap->begin(), q = FileNode->EaMap->end();
+            p != q; ++p)
+            if (0 != (p->second->Flags & FILE_NEED_EA))
+                return TRUE;
+    }
+
+    return FALSE;
+}
+
+static inline
+BOOLEAN MemfsFileNodeEnumerateEa(MEMFS_FILE_NODE *FileNode,
+    BOOLEAN (*EnumFn)(PFILE_FULL_EA_INFORMATION Ea, PVOID), PVOID Context)
+{
+#if defined(MEMFS_NAMED_STREAMS)
+    if (0 != FileNode->MainFileNode)
+        FileNode = FileNode->MainFileNode;
+#endif
+
+    if (0 != FileNode->EaMap)
+    {
+        for (MEMFS_FILE_NODE_EA_MAP::iterator p = FileNode->EaMap->begin(), q = FileNode->EaMap->end();
+            p != q; ++p)
+            if (!EnumFn(p->second, Context))
+                return FALSE;
+    }
+
+    return TRUE;
+}
+#endif
 
 static inline
 VOID MemfsFileNodeMapDump(MEMFS_FILE_NODE_MAP *FileNodeMap)
@@ -869,6 +1040,9 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
     UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
+#if defined(MEMFS_EA)
+    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength,
+#endif
     PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
@@ -948,6 +1122,18 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         memcpy(FileNode->FileSecurity, SecurityDescriptor, FileNode->FileSecuritySize);
     }
 
+#if defined(MEMFS_EA)
+    if (0 != Ea)
+    {
+        Result = FspFileSystemEnumerateEa(FileSystem, MemfsFileNodeSetEa, FileNode, Ea, EaLength);
+        if (!NT_SUCCESS(Result))
+        {
+            MemfsFileNodeDelete(FileNode);
+            return Result;
+        }
+    }
+#endif
+
     FileNode->FileInfo.AllocationSize = AllocationSize;
     if (0 != FileNode->FileInfo.AllocationSize)
     {
@@ -1005,6 +1191,22 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
         return Result;
     }
 
+#if defined(MEMFS_EA)
+    /* if the OP specified no EA's check the need EA count, but only if accessing main stream */
+    if (0 != (CreateOptions & FILE_NO_EA_KNOWLEDGE)
+#if defined(MEMFS_NAMED_STREAMS)
+        && (0 == FileNode->MainFileNode)
+#endif
+        )
+    {
+        if (MemfsFileNodeNeedEa(FileNode))
+        {
+            Result = STATUS_ACCESS_DENIED;
+            return Result;
+        }
+    }
+#endif
+
     MemfsFileNodeReference(FileNode);
     *PFileNode = FileNode;
     MemfsFileNodeGetFileInfo(FileNode, FileInfo);
@@ -1025,6 +1227,9 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
 
 static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize,
+#if defined(MEMFS_EA)
+    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength,
+#endif
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
@@ -1045,6 +1250,16 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
             MemfsFileNodeMapRemove(Memfs->FileNodeMap, Context.FileNodes[Index]);
     }
     MemfsFileNodeMapEnumerateFree(&Context);
+#endif
+
+#if defined(MEMFS_EA)
+    MemfsFileNodeDeleteEaMap(FileNode);
+    if (0 != Ea)
+    {
+        Result = FspFileSystemEnumerateEa(FileSystem, MemfsFileNodeSetEa, FileNode, Ea, EaLength);
+        if (!NT_SUCCESS(Result))
+            return Result;
+    }
 #endif
 
     Result = SetFileSizeInternal(FileSystem, FileNode, AllocationSize, TRUE);
@@ -1881,7 +2096,7 @@ static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM *FileSystem,
 
 #if defined(MEMFS_CONTROL)
 static NTSTATUS Control(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileContext, UINT32 ControlCode,
+    PVOID FileNode, UINT32 ControlCode,
     PVOID InputBuffer, ULONG InputBufferLength,
     PVOID OutputBuffer, ULONG OutputBufferLength, PULONG PBytesTransferred)
 {
@@ -1911,14 +2126,63 @@ static NTSTATUS Control(FSP_FILE_SYSTEM *FileSystem,
 }
 #endif
 
+#if defined(MEMFS_EA)
+typedef struct _MEMFS_GET_EA_CONTEXT
+{
+    PFILE_FULL_EA_INFORMATION Ea;
+    ULONG EaLength;
+    PULONG PBytesTransferred;
+} MEMFS_GET_EA_CONTEXT;
+
+static BOOLEAN GetEaEnumFn(PFILE_FULL_EA_INFORMATION Ea, PVOID Context0)
+{
+    MEMFS_GET_EA_CONTEXT *Context = (MEMFS_GET_EA_CONTEXT *)Context0;
+
+    return FspFileSystemAddEa(Ea,
+        Context->Ea, Context->EaLength, Context->PBytesTransferred);
+}
+
+static NTSTATUS GetEa(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode0,
+    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength, PULONG PBytesTransferred)
+{
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    MEMFS_GET_EA_CONTEXT Context;
+
+    Context.Ea = Ea;
+    Context.EaLength = EaLength;
+    Context.PBytesTransferred = PBytesTransferred;
+
+    if (MemfsFileNodeEnumerateEa(FileNode, GetEaEnumFn, &Context))
+        FspFileSystemAddEa(0, Ea, EaLength, PBytesTransferred);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS SetEa(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode,
+    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength)
+{
+    return FspFileSystemEnumerateEa(FileSystem, MemfsFileNodeSetEa, FileNode, Ea, EaLength);
+}
+#endif
+
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
     GetVolumeInfo,
     SetVolumeLabel,
     GetSecurityByName,
+#if defined(MEMFS_EA)
+    0,
+#else
     Create,
+#endif
     Open,
+#if defined(MEMFS_EA)
+    0,
+#else
     Overwrite,
+#endif
     Cleanup,
     Close,
     Read,
@@ -1956,6 +2220,18 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 #if defined(MEMFS_CONTROL)
     Control,
 #else
+    0,
+#endif
+    0,
+#if defined(MEMFS_EA)
+    Create,
+    Overwrite,
+    GetEa,
+    SetEa
+#else
+    0,
+    0,
+    0,
     0,
 #endif
 };
@@ -2051,6 +2327,9 @@ NTSTATUS MemfsCreateFunnel(
     VolumeParams.FlushAndPurgeOnCleanup = FlushAndPurgeOnCleanup;
 #if defined(MEMFS_CONTROL)
     VolumeParams.DeviceControl = 1;
+#endif
+#if defined(MEMFS_EA)
+    VolumeParams.ExtendedAttributes = 1;
 #endif
     VolumeParams.AllowOpenInKernelMode = 1;
     if (0 != VolumePrefix)

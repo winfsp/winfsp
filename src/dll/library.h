@@ -92,4 +92,7 @@ static inline BOOLEAN FspPathIsDrive(PWSTR FileName)
         L':' == FileName[1] && L'\0' == FileName[2];
 }
 
+#define FSP_NEXT_EA(Ea, EaEnd)          \
+    (0 != (Ea)->NextEntryOffset ? (PVOID)((PUINT8)(Ea) + (Ea)->NextEntryOffset) : (EaEnd))
+
 #endif

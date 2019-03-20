@@ -151,6 +151,7 @@ static NTSTATUS FspVolumeCreateNoLock(
         VolumeParams.DirInfoTimeout = VolumeParams.FileInfoTimeout;
         VolumeParams.SecurityTimeout = VolumeParams.FileInfoTimeout;
         VolumeParams.StreamInfoTimeout = VolumeParams.FileInfoTimeout;
+        VolumeParams.EaTimeout = VolumeParams.FileInfoTimeout;
     }
     else
     {
@@ -162,11 +163,14 @@ static NTSTATUS FspVolumeCreateNoLock(
             VolumeParams.SecurityTimeout = VolumeParams.FileInfoTimeout;
         if (!VolumeParams.StreamInfoTimeoutValid)
             VolumeParams.StreamInfoTimeout = VolumeParams.FileInfoTimeout;
+        if (!VolumeParams.EaTimeoutValid)
+            VolumeParams.EaTimeout = VolumeParams.FileInfoTimeout;
     }
     VolumeParams.VolumeInfoTimeoutValid = 1;
     VolumeParams.DirInfoTimeoutValid = 1;
     VolumeParams.SecurityTimeoutValid = 1;
     VolumeParams.StreamInfoTimeoutValid = 1;
+    VolumeParams.EaTimeoutValid = 1;
     if (FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType)
     {
         VolumeParams.Prefix[sizeof VolumeParams.Prefix / sizeof(WCHAR) - 1] = L'\0';

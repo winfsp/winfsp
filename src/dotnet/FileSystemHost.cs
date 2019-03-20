@@ -183,6 +183,14 @@ namespace Fsp
             get { return 0 != (_VolumeParams.Flags & VolumeParams.NamedStreams); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.NamedStreams : 0); }
         }
+        /// <summary>
+        /// Gets or sets a value that determines whether the file system supports extended attributes.
+        /// </summary>
+        public Boolean ExtendedAttributes
+        {
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.ExtendedAttributes); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.ExtendedAttributes : 0); }
+        }
         public Boolean PostCleanupWhenModifiedOnly
         {
             get { return 0 != (_VolumeParams.Flags & VolumeParams.PostCleanupWhenModifiedOnly); }
@@ -464,6 +472,8 @@ namespace Fsp
             UInt32 FileAttributes,
             IntPtr SecurityDescriptor,
             UInt64 AllocationSize,
+            IntPtr Ea,
+            UInt32 EaLength,
             ref FullContext FullContext,
             ref OpenFileInfo OpenFileInfo)
         {
@@ -473,13 +483,15 @@ namespace Fsp
                 Object FileNode, FileDesc;
                 String NormalizedName;
                 Int32 Result;
-                Result = FileSystem.Create(
+                Result = FileSystem.CreateEx(
                     FileName,
                     CreateOptions,
                     GrantedAccess,
                     FileAttributes,
                     Api.MakeSecurityDescriptor(SecurityDescriptor),
                     AllocationSize,
+                    Ea,
+                    EaLength,
                     out FileNode,
                     out FileDesc,
                     out OpenFileInfo.FileInfo,
@@ -538,6 +550,8 @@ namespace Fsp
             UInt32 FileAttributes,
             Boolean ReplaceFileAttributes,
             UInt64 AllocationSize,
+            IntPtr Ea,
+            UInt32 EaLength,
             out FileInfo FileInfo)
         {
             FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
@@ -545,12 +559,14 @@ namespace Fsp
             {
                 Object FileNode, FileDesc;
                 Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return FileSystem.Overwrite(
+                return FileSystem.OverwriteEx(
                     FileNode,
                     FileDesc,
                     FileAttributes,
                     ReplaceFileAttributes,
                     AllocationSize,
+                    Ea,
+                    EaLength,
                     out FileInfo);
             }
             catch (Exception ex)
@@ -1077,15 +1093,62 @@ namespace Fsp
                 return ExceptionHandler(FileSystem, ex);
             }
         }
+        private static Int32 GetEa(
+            IntPtr FileSystemPtr,
+            ref FullContext FullContext,
+            IntPtr Ea,
+            UInt32 EaLength,
+            out UInt32 PBytesTransferred)
+        {
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
+            try
+            {
+                Object FileNode, FileDesc;
+                Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
+                return FileSystem.GetEa(
+                    FileNode,
+                    FileDesc,
+                    Ea,
+                    EaLength,
+                    out PBytesTransferred);
+            }
+            catch (Exception ex)
+            {
+                PBytesTransferred = default(UInt32);
+                return ExceptionHandler(FileSystem, ex);
+            }
+        }
+        private static Int32 SetEa(
+            IntPtr FileSystemPtr,
+            ref FullContext FullContext,
+            IntPtr Ea,
+            UInt32 EaLength)
+        {
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
+            try
+            {
+                Object FileNode, FileDesc;
+                Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
+                return FileSystem.SetEa(
+                    FileNode,
+                    FileDesc,
+                    Ea,
+                    EaLength);
+            }
+            catch (Exception ex)
+            {
+                return ExceptionHandler(FileSystem, ex);
+            }
+        }
 
         static FileSystemHost()
         {
             _FileSystemInterface.GetVolumeInfo = GetVolumeInfo;
             _FileSystemInterface.SetVolumeLabel = SetVolumeLabel;
             _FileSystemInterface.GetSecurityByName = GetSecurityByName;
-            _FileSystemInterface.Create = Create;
+            _FileSystemInterface.CreateEx = Create;
             _FileSystemInterface.Open = Open;
-            _FileSystemInterface.Overwrite = Overwrite;
+            _FileSystemInterface.OverwriteEx = Overwrite;
             _FileSystemInterface.Cleanup = Cleanup;
             _FileSystemInterface.Close = Close;
             _FileSystemInterface.Read = Read;
@@ -1106,6 +1169,8 @@ namespace Fsp
             _FileSystemInterface.GetDirInfoByName = GetDirInfoByName;
             _FileSystemInterface.Control = Control;
             _FileSystemInterface.SetDelete = SetDelete;
+            _FileSystemInterface.GetEa = GetEa;
+            _FileSystemInterface.SetEa = SetEa;
 
             _FileSystemInterfacePtr = Marshal.AllocHGlobal(FileSystemInterface.Size);
             Marshal.StructureToPtr(_FileSystemInterface, _FileSystemInterfacePtr, false);

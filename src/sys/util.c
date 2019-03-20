@@ -49,6 +49,10 @@ NTSTATUS FspCcFlushCache(PSECTION_OBJECT_POINTERS SectionObjectPointer,
 NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
     PSECURITY_DESCRIPTOR SecurityDescriptor, PULONG PLength,
     PSECURITY_DESCRIPTOR ObjectsSecurityDescriptor);
+NTSTATUS FspEaBufferAndNamesValid(
+    PFILE_FULL_EA_INFORMATION Buffer,
+    ULONG Length,
+    PULONG PErrorOffset);
 NTSTATUS FspNotifyInitializeSync(PNOTIFY_SYNC *NotifySync);
 NTSTATUS FspNotifyFullChangeDirectory(
     PNOTIFY_SYNC NotifySync,
@@ -129,6 +133,7 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #pragma alloc_text(PAGE, FspCcMdlWriteComplete)
 #pragma alloc_text(PAGE, FspCcFlushCache)
 #pragma alloc_text(PAGE, FspQuerySecurityDescriptorInfo)
+#pragma alloc_text(PAGE, FspEaBufferAndNamesValid)
 #pragma alloc_text(PAGE, FspNotifyInitializeSync)
 #pragma alloc_text(PAGE, FspNotifyFullChangeDirectory)
 #pragma alloc_text(PAGE, FspNotifyFullReportChange)
@@ -576,6 +581,39 @@ NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation
     }
 
     return STATUS_BUFFER_TOO_SMALL == Result ? STATUS_BUFFER_OVERFLOW : Result;
+}
+
+NTSTATUS FspEaBufferAndNamesValid(
+    PFILE_FULL_EA_INFORMATION Buffer,
+    ULONG Length,
+    PULONG PErrorOffset)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+
+    *PErrorOffset = 0;
+
+    Result = IoCheckEaBufferValidity(Buffer, Length, PErrorOffset);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    for (PFILE_FULL_EA_INFORMATION Ea = Buffer, EaEnd = (PVOID)((PUINT8)Ea + Length);
+        EaEnd > Ea; Ea = FSP_NEXT_EA(Ea, EaEnd))
+    {
+        STRING Name;
+
+        Name.Length = Name.MaximumLength = Ea->EaNameLength;
+        Name.Buffer = Ea->EaName;
+
+        if (!FspEaNameIsValid(&Name))
+        {
+            *PErrorOffset = (ULONG)((PUINT8)Ea - (PUINT8)Buffer);
+            return STATUS_INVALID_EA_NAME;
+        }
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS FspNotifyInitializeSync(PNOTIFY_SYNC *NotifySync)

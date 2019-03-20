@@ -278,7 +278,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     ACCESS_MASK GrantedAccess = AccessState->PreviouslyGrantedAccess;
     USHORT ShareAccess = IrpSp->Parameters.Create.ShareAccess;
     PFILE_FULL_EA_INFORMATION EaBuffer = Irp->AssociatedIrp.SystemBuffer;
-    //ULONG EaLength = IrpSp->Parameters.Create.EaLength;
+    ULONG EaLength = IrpSp->Parameters.Create.EaLength;
     ULONG Flags = IrpSp->Flags;
     KPROCESSOR_MODE RequestorMode =
         FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
@@ -302,9 +302,22 @@ static NTSTATUS FspFsvolCreateNoLock(
     if (FlagOn(CreateOptions, FILE_OPEN_BY_FILE_ID))
         return STATUS_NOT_IMPLEMENTED;
 
-    /* no EA support currently */
+    /* was an EA buffer specified? */
     if (0 != EaBuffer)
-        return STATUS_EAS_NOT_SUPPORTED;
+    {
+        /* does the file system support EA? */
+        if (!FsvolDeviceExtension->VolumeParams.ExtendedAttributes)
+            return STATUS_EAS_NOT_SUPPORTED;
+
+        /* do we need EA knowledge? */
+        if (FlagOn(CreateOptions, FILE_NO_EA_KNOWLEDGE))
+            return STATUS_ACCESS_DENIED;
+
+        /* is the EA buffer valid? */
+        Result = FspEaBufferAndNamesValid(EaBuffer, EaLength, (PULONG)&Irp->IoStatus.Information);
+        if (!NT_SUCCESS(Result))
+            return Result;
+    }
 
     /* cannot open a paging file */
     if (FlagOn(Flags, SL_OPEN_PAGING_FILE))
@@ -541,6 +554,10 @@ static NTSTATUS FspFsvolCreateNoLock(
         SecurityDescriptorSize = 0;
         FileAttributes = 0;
 
+        /* cannot set EA on named stream */
+        EaBuffer = 0;
+        EaLength = 0;
+
         /* remember the main file node */
         ASSERT(0 == FileNode->MainFileNode);
         FileNode->MainFileNode = FileDesc->MainFileObject->FsContext;
@@ -558,7 +575,9 @@ static NTSTATUS FspFsvolCreateNoLock(
     }
 
     /* create the user-mode file system request */
-    Result = FspIopCreateRequestEx(Irp, &FileNode->FileName, SecurityDescriptorSize,
+    Result = FspIopCreateRequestEx(Irp, &FileNode->FileName,
+        0 != EaBuffer ?
+            FSP_FSCTL_DEFAULT_ALIGN_UP(SecurityDescriptorSize) + EaLength : SecurityDescriptorSize,
         FspFsvolCreateRequestFini, &Request);
     if (!NT_SUCCESS(Result))
     {
@@ -584,19 +603,22 @@ static NTSTATUS FspFsvolCreateNoLock(
     FspIopRequestContext(Request, RequestFileDesc) = FileDesc;
 
     /* populate the Create request */
+#define NEXTOFS(B)                      ((B).Offset + FSP_FSCTL_DEFAULT_ALIGN_UP((B).Size))
     Request->Kind = FspFsctlTransactCreateKind;
     Request->Req.Create.CreateOptions = CreateOptions;
     Request->Req.Create.FileAttributes = FileAttributes;
-    Request->Req.Create.SecurityDescriptor.Offset = 0 == SecurityDescriptorSize ? 0 :
-        FSP_FSCTL_DEFAULT_ALIGN_UP(Request->FileName.Size);
+    Request->Req.Create.SecurityDescriptor.Offset = 0 != SecurityDescriptorSize ?
+        NEXTOFS(Request->FileName) : 0;
     Request->Req.Create.SecurityDescriptor.Size = (UINT16)SecurityDescriptorSize;
     Request->Req.Create.AllocationSize = AllocationSize;
     Request->Req.Create.AccessToken = 0;
     Request->Req.Create.DesiredAccess = DesiredAccess;
     Request->Req.Create.GrantedAccess = GrantedAccess;
     Request->Req.Create.ShareAccess = ShareAccess;
-    Request->Req.Create.Ea.Offset = 0;
-    Request->Req.Create.Ea.Size = 0;
+    Request->Req.Create.Ea.Offset = 0 != EaBuffer ?
+        (0 != Request->Req.Create.SecurityDescriptor.Offset ?
+            NEXTOFS(Request->Req.Create.SecurityDescriptor) : NEXTOFS(Request->FileName)) : 0;
+    Request->Req.Create.Ea.Size = 0 != EaBuffer ? (UINT16)EaLength : 0;
     Request->Req.Create.UserMode = UserMode == RequestorMode;
     Request->Req.Create.HasTraversePrivilege = HasTraversePrivilege;
     Request->Req.Create.HasBackupPrivilege = HasBackupPrivilege;
@@ -605,6 +627,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     Request->Req.Create.CaseSensitive = CaseSensitive;
     Request->Req.Create.HasTrailingBackslash = HasTrailingBackslash;
     Request->Req.Create.NamedStream = MainFileName.Length;
+#undef APPEND
 
     Request->Req.Create.AcceptsSecurityDescriptor = 0 == Request->Req.Create.NamedStream &&
         !!FsvolDeviceExtension->VolumeParams.AllowOpenInKernelMode;
@@ -617,6 +640,11 @@ static NTSTATUS FspFsvolCreateNoLock(
     if (0 != SecurityDescriptorSize)
         RtlCopyMemory(Request->Buffer + Request->Req.Create.SecurityDescriptor.Offset,
             SecurityDescriptor, SecurityDescriptorSize);
+
+    /* copy the EA buffer (if any) into the request */
+    if (0 != EaBuffer)
+        RtlCopyMemory(Request->Buffer + Request->Req.Create.Ea.Offset,
+            EaBuffer, EaLength);
 
     /* fix FileNode->FileName if we are doing SL_OPEN_TARGET_DIRECTORY */
     if (Request->Req.Create.OpenTargetDirectory)
@@ -1081,6 +1109,7 @@ NTSTATUS FspFsvolCreateComplete(
             }
 
             PVOID RequestDeviceObjectValue = FspIopRequestContext(Request, RequestDeviceObject);
+            FSP_FSCTL_TRANSACT_BUF Ea = Request->Req.Create.Ea;
 
             /* disassociate the FileDesc momentarily from the Request */
             FspIopRequestContext(Request, RequestDeviceObject) = 0;
@@ -1101,6 +1130,7 @@ NTSTATUS FspFsvolCreateComplete(
             Request->Req.Overwrite.FileAttributes = FileAttributes;
             Request->Req.Overwrite.AllocationSize = AllocationSize;
             Request->Req.Overwrite.Supersede = FILE_SUPERSEDED == Response->IoStatus.Information;
+            Request->Req.Overwrite.Ea = Ea;
 
             /*
              * Post it as BestEffort.
@@ -1141,8 +1171,16 @@ NTSTATUS FspFsvolCreateComplete(
         if (0 == FileNode->MainFileNode)
             FspFileNodeOverwriteStreams(FileNode);
         FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.Overwrite.FileInfo, TRUE);
+        if (0 == FileNode->MainFileNode && FsvolDeviceExtension->VolumeParams.ExtendedAttributes)
+        {
+            /* invalidate any existing EA and increment the EA change count */
+            FspFileNodeSetEa(FileNode, 0, 0);
+            FileNode->EaChangeCount++;
+        }
         FspFileNodeNotifyChange(FileNode,
-            FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE,
+            FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE |
+                (0 == FileNode->MainFileNode && FsvolDeviceExtension->VolumeParams.ExtendedAttributes ?
+                    FILE_NOTIFY_CHANGE_EA : 0),
             FILE_ACTION_MODIFIED,
             FALSE);
 
