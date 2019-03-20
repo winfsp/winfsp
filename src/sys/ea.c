@@ -343,12 +343,17 @@ static NTSTATUS FspFsvolQueryEa(
 {
     PAGED_CODE();
 
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+
+    /* do we support Ea? */
+    if (!FsvolDeviceExtension->VolumeParams.ExtendedAttributes)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
     /* is this a valid FileObject? */
     if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
         return STATUS_INVALID_DEVICE_REQUEST;
 
     NTSTATUS Result;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
@@ -503,6 +508,12 @@ static NTSTATUS FspFsvolSetEa(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+
+    /* do we support Ea? */
+    if (!FsvolDeviceExtension->VolumeParams.ExtendedAttributes)
+        return STATUS_INVALID_DEVICE_REQUEST;
 
     /* is this a valid FileObject? */
     if (!FspFileNodeIsValid(IrpSp->FileObject->FsContext))
