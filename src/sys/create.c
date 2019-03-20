@@ -627,7 +627,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     Request->Req.Create.CaseSensitive = CaseSensitive;
     Request->Req.Create.HasTrailingBackslash = HasTrailingBackslash;
     Request->Req.Create.NamedStream = MainFileName.Length;
-#undef APPEND
+#undef NEXTOFS
 
     Request->Req.Create.AcceptsSecurityDescriptor = 0 == Request->Req.Create.NamedStream &&
         !!FsvolDeviceExtension->VolumeParams.AllowOpenInKernelMode;
