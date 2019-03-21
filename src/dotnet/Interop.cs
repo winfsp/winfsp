@@ -196,6 +196,10 @@ namespace Fsp.Interop
         /// Not currently implemented. Set to 0.
         /// </summary>
         public UInt32 HardLinks;
+        /// <summary>
+        /// The extended attribute size of the file.
+        /// </summary>
+        public UInt32 EaSize;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -274,7 +278,13 @@ namespace Fsp.Interop
     [StructLayout(LayoutKind.Sequential)]
     internal struct FullEaInformation
     {
-        internal const int EaNameSize = 16384 - 8;
+        internal const int EaNameSize = 15 * 1024;
+            /* Set this to a value smaller than 16384 with sufficient space for additional data.
+             * This should really be:
+             *     FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX - FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName)
+             */
+        internal static int EaNameOffset =
+            (int)Marshal.OffsetOf(typeof(FullEaInformation), "EaName");
 
         internal UInt32 NextEntryOffset;
         internal Byte Flags;
@@ -302,6 +312,14 @@ namespace Fsp.Interop
                 for (; ValueLength > J; J++)
                     P[I + J] = Value[J];
             }
+        }
+        internal static UInt32 Size(String Name, Byte[] Value, Boolean NeedEa)
+        {
+            int NameLength = 254 < Name.Length ? 254 : Name.Length;
+            int ValueLength = EaNameSize - Name.Length - 1 < Value.Length ?
+                EaNameSize - Name.Length - 1 : Value.Length;
+
+            return (UInt32)((EaNameOffset + NameLength + 1 + ValueLength + 3) & ~3);
         }
     }
 

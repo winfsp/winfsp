@@ -1445,6 +1445,13 @@ namespace Fsp
                 return self.ExceptionHandler(ex);
             }
         }
+        public static UInt32 GetEaEntrySize(
+            String EaName,
+            Byte[] EaValue,
+            Boolean NeedEa)
+        {
+            return FullEaInformation.Size(EaName, EaValue, NeedEa);
+        }
     }
 
 }
