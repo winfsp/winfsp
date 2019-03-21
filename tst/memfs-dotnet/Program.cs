@@ -463,7 +463,10 @@ namespace memfs
 
             SortedDictionary<String, EaValueData> EaMap = FileNode.GetEaMap(false);
             if (null != EaMap)
+            {
                 EaMap.Clear();
+                FileNode.FileInfo.EaSize = 0;
+            }
             if (IntPtr.Zero != Ea)
             {
                 Result = SetEa(FileNode, null, Ea, EaLength);
@@ -1116,15 +1119,21 @@ namespace memfs
         {
             FileNode FileNode = (FileNode)FileNode0;
             SortedDictionary<String, EaValueData> EaMap = FileNode.GetEaMap(true);
+            EaValueData Data;
+            UInt32 EaSizePlus = 0, EaSizeMinus = 0;
             if (null != EaValue)
             {
-                EaValueData Data;
                 Data.EaValue = EaValue;
                 Data.NeedEa = NeedEa;
                 EaMap[EaName] = Data;
+                EaSizePlus = GetEaEntrySize(EaName, EaValue, NeedEa);
             }
-            else
+            else if (EaMap.TryGetValue(EaName, out Data))
+            {
+                EaSizeMinus = GetEaEntrySize(EaName, Data.EaValue, Data.NeedEa);
                 EaMap.Remove(EaName);
+            }
+            FileNode.FileInfo.EaSize = FileNode.FileInfo.EaSize + EaSizePlus - EaSizeMinus;
             return STATUS_SUCCESS;
         }
 

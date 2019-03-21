@@ -357,6 +357,7 @@ VOID MemfsFileNodeDeleteEaMap(MEMFS_FILE_NODE *FileNode)
             free(p->second);
         delete FileNode->EaMap;
         FileNode->EaMap = 0;
+        FileNode->FileInfo.EaSize = 0;
     }
 }
 #endif
@@ -441,6 +442,7 @@ NTSTATUS MemfsFileNodeSetEa(
     MEMFS_FILE_NODE_EA_MAP *EaMap;
     FILE_FULL_EA_INFORMATION *FileNodeEa = 0;
     MEMFS_FILE_NODE_EA_MAP::iterator p;
+    ULONG EaSizePlus = 0, EaSizeMinus = 0;
     NTSTATUS Result;
 
     Result = MemfsFileNodeGetEaMap(FileNode, &EaMap);
@@ -449,18 +451,20 @@ NTSTATUS MemfsFileNodeSetEa(
 
     if (0 != Ea->EaValueLength)
     {
-        FileNodeEa = (FILE_FULL_EA_INFORMATION *)malloc(
-            FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + Ea->EaNameLength + 1 + Ea->EaValueLength);
+        EaSizePlus = FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) +
+            Ea->EaNameLength + 1 + Ea->EaValueLength;
+        FileNodeEa = (FILE_FULL_EA_INFORMATION *)malloc(EaSizePlus);
         if (0 == FileNodeEa)
             return STATUS_INSUFFICIENT_RESOURCES;
-        memcpy(FileNodeEa, Ea,
-            FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + Ea->EaNameLength + 1 + Ea->EaValueLength);
+        memcpy(FileNodeEa, Ea, EaSizePlus);
         FileNodeEa->NextEntryOffset = 0;
     }
 
     p = EaMap->find(Ea->EaName);
     if (p != EaMap->end())
     {
+        EaSizeMinus = FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) +
+            p->second->EaNameLength + 1 + p->second->EaValueLength;
         free(p->second);
         EaMap->erase(p);
     }
@@ -470,7 +474,6 @@ NTSTATUS MemfsFileNodeSetEa(
         try
         {
             EaMap->insert(MEMFS_FILE_NODE_EA_MAP::value_type(FileNodeEa->EaName, FileNodeEa));
-            return STATUS_SUCCESS;
         }
         catch (...)
         {
@@ -478,6 +481,10 @@ NTSTATUS MemfsFileNodeSetEa(
             return STATUS_INSUFFICIENT_RESOURCES;
         }
     }
+
+    FileNode->FileInfo.EaSize = FileNode->FileInfo.EaSize
+        + FSP_FSCTL_ALIGN_UP(EaSizePlus, sizeof(ULONG))
+        - FSP_FSCTL_ALIGN_UP(EaSizeMinus, sizeof(ULONG));
 
     return STATUS_SUCCESS;
 }
