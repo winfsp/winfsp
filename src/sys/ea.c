@@ -440,8 +440,9 @@ NTSTATUS FspFsvolQueryEaComplete(
             Result = STATUS_EA_LIST_INCONSISTENT;
             FSP_RETURN();
         }
-        Irp->IoStatus.Information = 0;
-        Result = IoCheckEaBufferValidity((PVOID)Response->Buffer, Response->Rsp.QueryEa.Ea.Size,
+        Result = FspEaBufferFromFileSystemValidate(
+            (PVOID)Response->Buffer, /* FspEaBufferFromFileSystemValidate may alter the buffer! */
+            Response->Rsp.QueryEa.Ea.Size,
             (PULONG)&Irp->IoStatus.Information);
         if (!NT_SUCCESS(Result))
             FSP_RETURN();
@@ -534,7 +535,8 @@ static NTSTATUS FspFsvolSetEa(
         return Result;
     Buffer = Irp->AssociatedIrp.SystemBuffer;
 
-    Result = FspEaBufferAndNamesValid(Buffer, Length, (PULONG)&Irp->IoStatus.Information);
+    Result = FspEaBufferFromOriginatingProcessValidate(
+        Buffer, Length, (PULONG)&Irp->IoStatus.Information);
     if (!NT_SUCCESS(Result))
         return Result;
 
@@ -583,8 +585,9 @@ NTSTATUS FspFsvolSetEaComplete(
         Response->Buffer + Response->Rsp.SetEa.Ea.Size <=
             (PUINT8)Response + Response->Size)
     {
-        Irp->IoStatus.Information = 0;
-        Result = IoCheckEaBufferValidity((PVOID)Response->Buffer, Response->Rsp.QueryEa.Ea.Size,
+        Result = FspEaBufferFromFileSystemValidate(
+            (PVOID)Response->Buffer, /* FspEaBufferFromFileSystemValidate may alter the buffer! */
+            Response->Rsp.SetEa.Ea.Size,
             (PULONG)&Irp->IoStatus.Information);
         Valid = NT_SUCCESS(Result);
     }

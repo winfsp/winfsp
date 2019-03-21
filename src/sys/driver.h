@@ -515,7 +515,11 @@ NTSTATUS FspCcFlushCache(PSECTION_OBJECT_POINTERS SectionObjectPointer,
 NTSTATUS FspQuerySecurityDescriptorInfo(SECURITY_INFORMATION SecurityInformation,
     PSECURITY_DESCRIPTOR SecurityDescriptor, PULONG PLength,
     PSECURITY_DESCRIPTOR ObjectsSecurityDescriptor);
-NTSTATUS FspEaBufferAndNamesValid(
+NTSTATUS FspEaBufferFromOriginatingProcessValidate(
+    PFILE_FULL_EA_INFORMATION Buffer,
+    ULONG Length,
+    PULONG PErrorOffset);
+NTSTATUS FspEaBufferFromFileSystemValidate(
     PFILE_FULL_EA_INFORMATION Buffer,
     ULONG Length,
     PULONG PErrorOffset);
