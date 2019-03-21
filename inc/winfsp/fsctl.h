@@ -206,6 +206,8 @@ typedef struct
     UINT16 VolumeLabelLength;
     WCHAR VolumeLabel[32];
 } FSP_FSCTL_VOLUME_INFO;
+FSP_FSCTL_STATIC_ASSERT(88 == sizeof(FSP_FSCTL_VOLUME_INFO),
+    "sizeof(FSP_FSCTL_VOLUME_INFO) must be exactly 88.");
 typedef struct
 {
     UINT32 FileAttributes;
@@ -218,13 +220,18 @@ typedef struct
     UINT64 ChangeTime;
     UINT64 IndexNumber;
     UINT32 HardLinks;                   /* unimplemented: set to 0 */
+    UINT32 EaSize;
 } FSP_FSCTL_FILE_INFO;
+FSP_FSCTL_STATIC_ASSERT(72 == sizeof(FSP_FSCTL_FILE_INFO),
+    "sizeof(FSP_FSCTL_FILE_INFO) must be exactly 72.");
 typedef struct
 {
     FSP_FSCTL_FILE_INFO FileInfo;
     PWSTR NormalizedName;
     UINT16 NormalizedNameSize;
 } FSP_FSCTL_OPEN_FILE_INFO;
+FSP_FSCTL_STATIC_ASSERT(88 == sizeof(FSP_FSCTL_OPEN_FILE_INFO),
+    "sizeof(FSP_FSCTL_OPEN_FILE_INFO) must be exactly 88.");
 typedef struct
 {
     UINT16 Size;
@@ -233,6 +240,8 @@ typedef struct
         /* make struct as big as FILE_ID_BOTH_DIR_INFORMATION; allows for in-place copying */
     WCHAR FileNameBuf[];
 } FSP_FSCTL_DIR_INFO;
+FSP_FSCTL_STATIC_ASSERT(104 == sizeof(FSP_FSCTL_DIR_INFO),
+    "sizeof(FSP_FSCTL_DIR_INFO) must be exactly 104.");
 typedef struct
 {
     UINT16 Size;
@@ -240,6 +249,8 @@ typedef struct
     UINT64 StreamAllocationSize;
     WCHAR StreamNameBuf[];
 } FSP_FSCTL_STREAM_INFO;
+FSP_FSCTL_STATIC_ASSERT(24 == sizeof(FSP_FSCTL_STREAM_INFO),
+    "sizeof(FSP_FSCTL_STREAM_INFO) must be exactly 24.");
 typedef struct
 {
     UINT64 UserContext;

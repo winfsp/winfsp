@@ -31,7 +31,8 @@ static NTSTATUS FspFsvolQueryBasicInformation(PFILE_OBJECT FileObject,
     PVOID *PBuffer, PVOID BufferEnd,
     const FSP_FSCTL_FILE_INFO *FileInfo);
 static NTSTATUS FspFsvolQueryEaInformation(PFILE_OBJECT FileObject,
-    PVOID *PBuffer, PVOID BufferEnd);
+    PVOID *PBuffer, PVOID BufferEnd,
+    const FSP_FSCTL_FILE_INFO *FileInfo);
 static NTSTATUS FspFsvolQueryInternalInformation(PFILE_OBJECT FileObject,
     PVOID *PBuffer, PVOID BufferEnd);
 static NTSTATUS FspFsvolQueryNameInformation(PFILE_OBJECT FileObject,
@@ -175,7 +176,9 @@ static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
 
     Info->InternalInformation.IndexNumber.QuadPart = FileNode->IndexNumber;
 
-    Info->EaInformation.EaSize = 0;
+    Info->EaInformation.EaSize =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject)->VolumeParams.ExtendedAttributes ?
+            FileInfo->EaSize : 0;
 
     Info->PositionInformation.CurrentByteOffset = FileObject->CurrentByteOffset;
 
@@ -236,20 +239,25 @@ static NTSTATUS FspFsvolQueryBasicInformation(PFILE_OBJECT FileObject,
 }
 
 static NTSTATUS FspFsvolQueryEaInformation(PFILE_OBJECT FileObject,
-    PVOID *PBuffer, PVOID BufferEnd)
+    PVOID *PBuffer, PVOID BufferEnd,
+    const FSP_FSCTL_FILE_INFO *FileInfo)
 {
     PAGED_CODE();
 
     PFILE_EA_INFORMATION Info = (PFILE_EA_INFORMATION)*PBuffer;
 
-    if ((PVOID)(Info + 1) > BufferEnd)
-        return STATUS_BUFFER_TOO_SMALL;
+    if (0 == FileInfo)
+    {
+        if ((PVOID)(Info + 1) > BufferEnd)
+            return STATUS_BUFFER_TOO_SMALL;
 
-    /*
-     * No EA support currently. We must nevertheless respond to this query
-     * or SRV2 gets unhappy. Just tell them that we have 0 EA's.
-     */
-    Info->EaSize = 0;
+        return STATUS_SUCCESS;
+    }
+
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    Info->EaSize =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject)->VolumeParams.ExtendedAttributes ?
+            FileInfo->EaSize : 0;
 
     *PBuffer = (PVOID)(Info + 1);
 
@@ -679,9 +687,8 @@ static NTSTATUS FspFsvolQueryInformation(
         Result = STATUS_INVALID_PARAMETER;  /* no compression support */
         return Result;
     case FileEaInformation:
-        Result = FspFsvolQueryEaInformation(FileObject, &Buffer, BufferEnd);
-        Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
-        return Result;
+        Result = FspFsvolQueryEaInformation(FileObject, &Buffer, BufferEnd, 0);
+        break;
     case FileHardLinkInformation:
         Result = STATUS_NOT_SUPPORTED;  /* no hard link support */
         return Result;
@@ -732,6 +739,9 @@ static NTSTATUS FspFsvolQueryInformation(
             break;
         case FileBasicInformation:
             Result = FspFsvolQueryBasicInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
+            break;
+        case FileEaInformation:
+            Result = FspFsvolQueryEaInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
             break;
         case FileNetworkOpenInformation:
             Result = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
@@ -839,6 +849,9 @@ NTSTATUS FspFsvolQueryInformationComplete(
         break;
     case FileBasicInformation:
         Result = FspFsvolQueryBasicInformation(FileObject, &Buffer, BufferEnd, FileInfo);
+        break;
+    case FileEaInformation:
+        Result = FspFsvolQueryEaInformation(FileObject, &Buffer, BufferEnd, FileInfo);
         break;
     case FileNetworkOpenInformation:
         Result = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, FileInfo);

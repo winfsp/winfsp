@@ -25,6 +25,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
     PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
     PUNICODE_STRING DirectoryMarker, PUNICODE_STRING DirectoryMarkerOut,
     FILE_INFORMATION_CLASS FileInformationClass, BOOLEAN ReturnSingleEntry,
+    BOOLEAN ReturnEaSize,
     FSP_FSCTL_DIR_INFO **PDirInfo, ULONG DirInfoSize,
     PVOID DestBuf, PULONG PDestLen);
 static NTSTATUS FspFsvolQueryDirectoryCopyCache(
@@ -88,6 +89,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
     PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
     PUNICODE_STRING DirectoryMarker, PUNICODE_STRING DirectoryMarkerOut,
     FILE_INFORMATION_CLASS FileInformationClass, BOOLEAN ReturnSingleEntry,
+    BOOLEAN ReturnEaSize,
     FSP_FSCTL_DIR_INFO **PDirInfo, ULONG DirInfoSize,
     PVOID DestBuf, PULONG PDestLen)
 {
@@ -226,12 +228,12 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     break;
                 case FileFullDirectoryInformation:
                     FILL_INFO(FILE_FULL_DIR_INFORMATION,
-                        Info->EaSize = 0;
+                        Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;
                     );
                     break;
                 case FileIdFullDirectoryInformation:
                     FILL_INFO(FILE_ID_FULL_DIR_INFORMATION,
-                        Info->EaSize = 0;
+                        Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;
                         Info->FileId.QuadPart = DirInfo->FileInfo.IndexNumber;
                     );
                     break;
@@ -240,14 +242,14 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     break;
                 case FileBothDirectoryInformation:
                     FILL_INFO(FILE_BOTH_DIR_INFORMATION,
-                        Info->EaSize = 0;
+                        Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;
                         Info->ShortNameLength = 0;
                         RtlZeroMemory(Info->ShortName, sizeof Info->ShortName);
                     );
                     break;
                 case FileIdBothDirectoryInformation:
                     FILL_INFO(FILE_ID_BOTH_DIR_INFORMATION,
-                        Info->EaSize = 0;
+                        Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;
                         Info->ShortNameLength = 0;
                         RtlZeroMemory(Info->ShortName, sizeof Info->ShortName);
                         Info->FileId.QuadPart = DirInfo->FileInfo.IndexNumber;
@@ -321,6 +323,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopyCache(
     Result = FspFsvolQueryDirectoryCopy(DirectoryPattern, CaseInsensitive,
         0 != FileDesc->DirInfoCacheHint ? 0 : &FileDesc->DirectoryMarker, &DirectoryMarker,
         FileInformationClass, ReturnSingleEntry,
+        !!FspFsvolDeviceExtension(FileNode->FsvolDeviceObject)->VolumeParams.ExtendedAttributes,
         &DirInfo, DirInfoSize,
         DestBuf, PDestLen);
 
@@ -354,6 +357,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     BOOLEAN CaseInsensitive = !FileDesc->CaseSensitive;
     PUNICODE_STRING DirectoryPattern = &FileDesc->DirectoryPattern;
     UNICODE_STRING DirectoryMarker = FileDesc->DirectoryMarker;
+    FSP_FILE_NODE *FileNode = FileDesc->FileNode;
 
     FSP_FSCTL_STATIC_ASSERT(
         FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) >=
@@ -363,6 +367,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     Result = FspFsvolQueryDirectoryCopy(DirectoryPattern, CaseInsensitive,
         0, &DirectoryMarker,
         FileInformationClass, ReturnSingleEntry,
+        !!FspFsvolDeviceExtension(FileNode->FsvolDeviceObject)->VolumeParams.ExtendedAttributes,
         &DirInfo, DirInfoSize,
         DestBuf, PDestLen);
 
