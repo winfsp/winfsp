@@ -253,7 +253,7 @@ exit /b 0
 M:
 fltmc instances -v M: | findstr aswSnx >nul
 if !ERRORLEVEL! neq 0 (
-    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient +*
 ) else (
     REM Avast present
     "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient ^
@@ -320,7 +320,7 @@ exit /b 0
 O:
 fltmc instances -v O: | findstr aswSnx >nul
 if !ERRORLEVEL! neq 0 (
-    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --resilient
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --resilient +*
 ) else (
     REM Avast present
     "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" --external --resilient ^
@@ -449,7 +449,7 @@ exit /b 0
 Q:
 fltmc instances -v Q: | findstr aswSnx >nul
 if !ERRORLEVEL! neq 0 (
-    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient +*
 ) else (
     REM Avast present
     "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" --external --resilient ^
