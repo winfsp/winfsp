@@ -175,37 +175,37 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x64-case-randomize
-winfsp-tests-x64 --case-randomize
+winfsp-tests-x64 --case-randomize * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x64-flushpurge
-winfsp-tests-x64 --flush-and-purge-on-cleanup
+winfsp-tests-x64 --flush-and-purge-on-cleanup * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x64-mountpoint-drive
-winfsp-tests-x64 --mountpoint=X: --resilient
+winfsp-tests-x64 --mountpoint=X: --resilient * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x64-mountpoint-dir
-winfsp-tests-x64 --mountpoint=mymnt --case-insensitive
+winfsp-tests-x64 --mountpoint=mymnt --case-insensitive * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x64-mountpoint-dir-case-sensitive
-winfsp-tests-x64 --mountpoint=mymnt
+winfsp-tests-x64 --mountpoint=mymnt * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x64-no-traverse
-winfsp-tests-x64 --no-traverse
+winfsp-tests-x64 --no-traverse * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x64-oplock
-winfsp-tests-x64 --oplock=filter --resilient
+winfsp-tests-x64 --oplock=filter --resilient * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -215,37 +215,37 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-case-randomize
-winfsp-tests-x86 --case-randomize
+winfsp-tests-x86 --case-randomize * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-flushpurge
-winfsp-tests-x86 --flush-and-purge-on-cleanup
+winfsp-tests-x86 --flush-and-purge-on-cleanup * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-mountpoint-drive
-winfsp-tests-x86 --mountpoint=X: --resilient
+winfsp-tests-x86 --mountpoint=X: --resilient * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-mountpoint-dir
-winfsp-tests-x86 --mountpoint=mymnt --case-insensitive
+winfsp-tests-x86 --mountpoint=mymnt --case-insensitive * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-mountpoint-dir-case-sensitive
-winfsp-tests-x86 --mountpoint=mymnt
+winfsp-tests-x86 --mountpoint=mymnt * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-no-traverse
-winfsp-tests-x86 --no-traverse
+winfsp-tests-x86 --no-traverse * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-oplock
-winfsp-tests-x86 --oplock=filter --resilient
+winfsp-tests-x86 --oplock=filter --resilient * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
