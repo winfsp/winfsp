@@ -229,11 +229,17 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                 case FileFullDirectoryInformation:
                     FILL_INFO(FILE_FULL_DIR_INFORMATION,
                         Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;
+                        /* magic computations are courtesy of NTFS */
+                        if (0 != Info->EaSize)
+                            Info->EaSize += 4;
                     );
                     break;
                 case FileIdFullDirectoryInformation:
                     FILL_INFO(FILE_ID_FULL_DIR_INFORMATION,
                         Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;
+                        /* magic computations are courtesy of NTFS */
+                        if (0 != Info->EaSize)
+                            Info->EaSize += 4;
                         Info->FileId.QuadPart = DirInfo->FileInfo.IndexNumber;
                     );
                     break;
@@ -243,6 +249,9 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                 case FileBothDirectoryInformation:
                     FILL_INFO(FILE_BOTH_DIR_INFORMATION,
                         Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;
+                        /* magic computations are courtesy of NTFS */
+                        if (0 != Info->EaSize)
+                            Info->EaSize += 4;
                         Info->ShortNameLength = 0;
                         RtlZeroMemory(Info->ShortName, sizeof Info->ShortName);
                     );
@@ -250,6 +259,9 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                 case FileIdBothDirectoryInformation:
                     FILL_INFO(FILE_ID_BOTH_DIR_INFORMATION,
                         Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;
+                        /* magic computations are courtesy of NTFS */
+                        if (0 != Info->EaSize)
+                            Info->EaSize += 4;
                         Info->ShortNameLength = 0;
                         RtlZeroMemory(Info->ShortName, sizeof Info->ShortName);
                         Info->FileId.QuadPart = DirInfo->FileInfo.IndexNumber;
