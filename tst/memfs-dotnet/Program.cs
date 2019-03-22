@@ -371,7 +371,7 @@ namespace memfs
             FileNode.FileSecurity = SecurityDescriptor;
             if (IntPtr.Zero != Ea)
             {
-                Result = SetEa(FileNode, null, Ea, EaLength);
+                Result = SetEaEntries(FileNode, null, Ea, EaLength);
                 if (0 > Result)
                     return Result;
             }
@@ -469,7 +469,7 @@ namespace memfs
             }
             if (IntPtr.Zero != Ea)
             {
-                Result = SetEa(FileNode, null, Ea, EaLength);
+                Result = SetEaEntries(FileNode, null, Ea, EaLength);
                 if (0 > Result)
                     return Result;
             }
@@ -1121,17 +1121,17 @@ namespace memfs
             SortedDictionary<String, EaValueData> EaMap = FileNode.GetEaMap(true);
             EaValueData Data;
             UInt32 EaSizePlus = 0, EaSizeMinus = 0;
+            if (EaMap.TryGetValue(EaName, out Data))
+            {
+                EaSizeMinus = GetEaEntrySize(EaName, Data.EaValue, Data.NeedEa);
+                EaMap.Remove(EaName);
+            }
             if (null != EaValue)
             {
                 Data.EaValue = EaValue;
                 Data.NeedEa = NeedEa;
                 EaMap[EaName] = Data;
                 EaSizePlus = GetEaEntrySize(EaName, EaValue, NeedEa);
-            }
-            else if (EaMap.TryGetValue(EaName, out Data))
-            {
-                EaSizeMinus = GetEaEntrySize(EaName, Data.EaValue, Data.NeedEa);
-                EaMap.Remove(EaName);
             }
             FileNode.FileInfo.EaSize = FileNode.FileInfo.EaSize + EaSizePlus - EaSizeMinus;
             return STATUS_SUCCESS;

@@ -1122,7 +1122,8 @@ namespace Fsp
             IntPtr FileSystemPtr,
             ref FullContext FullContext,
             IntPtr Ea,
-            UInt32 EaLength)
+            UInt32 EaLength,
+            out FileInfo FileInfo)
         {
             FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
             try
@@ -1133,10 +1134,12 @@ namespace Fsp
                     FileNode,
                     FileDesc,
                     Ea,
-                    EaLength);
+                    EaLength,
+                    out FileInfo);
             }
             catch (Exception ex)
             {
+                FileInfo = default(FileInfo);
                 return ExceptionHandler(FileSystem, ex);
             }
         }

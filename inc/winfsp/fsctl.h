@@ -230,8 +230,6 @@ typedef struct
     PWSTR NormalizedName;
     UINT16 NormalizedNameSize;
 } FSP_FSCTL_OPEN_FILE_INFO;
-FSP_FSCTL_STATIC_ASSERT(88 == sizeof(FSP_FSCTL_OPEN_FILE_INFO),
-    "sizeof(FSP_FSCTL_OPEN_FILE_INFO) must be exactly 88.");
 typedef struct
 {
     UINT16 Size;
@@ -505,6 +503,7 @@ typedef struct
         } QueryEa;
         struct
         {
+            FSP_FSCTL_FILE_INFO FileInfo;
             FSP_FSCTL_TRANSACT_BUF Ea;          /* Size==0 means no extended atttributed returned */
         } SetEa;
         struct

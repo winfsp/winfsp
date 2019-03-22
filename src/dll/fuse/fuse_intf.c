@@ -2289,16 +2289,29 @@ static NTSTATUS fsp_fuse_intf_SetEaEntry(
 
 static NTSTATUS fsp_fuse_intf_SetEa(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileDesc,
-    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength)
+    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc = FileDesc;
+    UINT32 Uid, Gid, Mode;
+    struct fuse_file_info fi;
+    NTSTATUS Result;
 
     if (0 == f->ops.setxattr || 0 == f->ops.removexattr)
         return STATUS_INVALID_DEVICE_REQUEST;
 
-    return FspFileSystemEnumerateEa(FileSystem,
+    Result = FspFileSystemEnumerateEa(FileSystem,
         fsp_fuse_intf_SetEaEntry, filedesc->PosixPath, Ea, EaLength);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    memset(&fi, 0, sizeof fi);
+    fi.flags = filedesc->OpenFlags;
+    fi.fh = filedesc->FileHandle;
+
+    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+        &Uid, &Gid, &Mode, FileInfo);
 }
 
 FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =

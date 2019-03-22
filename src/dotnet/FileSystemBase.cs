@@ -1161,14 +1161,21 @@ namespace Fsp
             Object FileNode,
             Object FileDesc,
             IntPtr Ea,
-            UInt32 EaLength)
+            UInt32 EaLength,
+            out FileInfo FileInfo)
         {
-            return Api.FspFileSystemEnumerateEa(
+            Int32 Result;
+            Result = SetEaEntries(
                 FileNode,
                 FileDesc,
-                this.SetEaEntry,
                 Ea,
                 EaLength);
+            if (0 > Result)
+            {
+                FileInfo = default(FileInfo);
+                return Result;
+            }
+            return GetFileInfo(FileNode, FileDesc, out FileInfo);
         }
         public virtual Int32 SetEaEntry(
             Object FileNode,
@@ -1445,12 +1452,25 @@ namespace Fsp
                 return self.ExceptionHandler(ex);
             }
         }
+        public Int32 SetEaEntries(
+            Object FileNode,
+            Object FileDesc,
+            IntPtr Ea,
+            UInt32 EaLength)
+        {
+            return Api.FspFileSystemEnumerateEa(
+                FileNode,
+                FileDesc,
+                this.SetEaEntry,
+                Ea,
+                EaLength);
+        }
         public static UInt32 GetEaEntrySize(
             String EaName,
             Byte[] EaValue,
             Boolean NeedEa)
         {
-            return FullEaInformation.Size(EaName, EaValue, NeedEa);
+            return FullEaInformation.PackedSize(EaName, EaValue, NeedEa);
         }
     }
 

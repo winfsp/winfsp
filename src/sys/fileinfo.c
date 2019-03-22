@@ -179,6 +179,9 @@ static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
     Info->EaInformation.EaSize =
         FspFsvolDeviceExtension(FileNode->FsvolDeviceObject)->VolumeParams.ExtendedAttributes ?
             FileInfo->EaSize : 0;
+    /* magic computations are courtesy of NTFS */
+    if (0 != Info->EaInformation.EaSize)
+        Info->EaInformation.EaSize += 4;
 
     Info->PositionInformation.CurrentByteOffset = FileObject->CurrentByteOffset;
 
@@ -258,6 +261,9 @@ static NTSTATUS FspFsvolQueryEaInformation(PFILE_OBJECT FileObject,
     Info->EaSize =
         FspFsvolDeviceExtension(FileNode->FsvolDeviceObject)->VolumeParams.ExtendedAttributes ?
             FileInfo->EaSize : 0;
+    /* magic computations are courtesy of NTFS */
+    if (0 != Info->EaSize)
+        Info->EaSize += 4;
 
     *PBuffer = (PVOID)(Info + 1);
 

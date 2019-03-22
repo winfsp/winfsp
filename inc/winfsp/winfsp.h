@@ -1023,6 +1023,9 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Extended attributes buffer.
      * @param EaLength
      *     Extended attributes buffer length.
+     * @param FileInfo [out]
+     *     Pointer to a structure that will receive the file information on successful return
+     *     from this call. This information includes file attributes, file times, etc.
      * @return
      *     STATUS_SUCCESS or error code.
      * @see
@@ -1030,7 +1033,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      */
     NTSTATUS (*SetEa)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext,
-        PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength);
+        PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength,
+        FSP_FSCTL_FILE_INFO *FileInfo);
 
     /*
      * This ensures that this interface will always contain 64 function pointers.
@@ -1624,6 +1628,20 @@ FSP_API NTSTATUS FspFileSystemEnumerateEa(FSP_FILE_SYSTEM *FileSystem,
  */
 FSP_API BOOLEAN FspFileSystemAddEa(PFILE_FULL_EA_INFORMATION SingleEa,
     PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength, PULONG PBytesTransferred);
+/**
+ * Get extended attribute "packed" size. This computation matches what NTFS reports.
+ *
+ * @param SingleEa
+ *     The extended attribute to get the size for.
+ * @return
+ *     The packed size of the extended attribute.
+ */
+static inline
+UINT32 FspFileSystemGetEaPackedSize(PFILE_FULL_EA_INFORMATION SingleEa)
+{
+    /* magic computations are courtesy of NTFS */
+    return 5 + SingleEa->EaNameLength + SingleEa->EaValueLength;
+}
 
 /*
  * Directory buffering

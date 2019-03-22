@@ -1208,12 +1208,22 @@ FSP_API NTSTATUS FspFileSystemOpQueryEa(FSP_FILE_SYSTEM *FileSystem,
 FSP_API NTSTATUS FspFileSystemOpSetEa(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
+    NTSTATUS Result;
+    FSP_FSCTL_FILE_INFO FileInfo;
+
     if (0 == FileSystem->Interface->SetEa)
         return STATUS_INVALID_DEVICE_REQUEST;
 
-    return FileSystem->Interface->SetEa(FileSystem,
+    memset(&FileInfo, 0, sizeof FileInfo);
+    Result = FileSystem->Interface->SetEa(FileSystem,
         (PVOID)ValOfFileContext(Request->Req.SetEa),
-        (PVOID)Request->Buffer, Request->Req.SetEa.Ea.Size);
+        (PVOID)Request->Buffer, Request->Req.SetEa.Ea.Size,
+        &FileInfo);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    memcpy(&Response->Rsp.SetEa.FileInfo, &FileInfo, sizeof FileInfo);
+    return STATUS_SUCCESS;
 }
 
 FSP_API NTSTATUS FspFileSystemOpQueryVolumeInformation(FSP_FILE_SYSTEM *FileSystem,

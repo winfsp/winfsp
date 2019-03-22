@@ -578,9 +578,11 @@ NTSTATUS FspFsvolSetEaComplete(
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
-    BOOLEAN Valid;
+    BOOLEAN EaValid;
 
-    Valid = FALSE;
+    FspFileNodeSetFileInfo(FileNode, FileObject, &Response->Rsp.SetEa.FileInfo, FALSE);
+
+    EaValid = FALSE;
     if (0 < Response->Rsp.SetEa.Ea.Size &&
         Response->Buffer + Response->Rsp.SetEa.Ea.Size <=
             (PUINT8)Response + Response->Size)
@@ -589,19 +591,17 @@ NTSTATUS FspFsvolSetEaComplete(
             (PVOID)Response->Buffer, /* FspEaBufferFromFileSystemValidate may alter the buffer! */
             Response->Rsp.SetEa.Ea.Size,
             (PULONG)&Irp->IoStatus.Information);
-        Valid = NT_SUCCESS(Result);
+        EaValid = NT_SUCCESS(Result);
     }
-
-    /* if the EA buffer that we got back is valid */
-    if (Valid)
+    if (EaValid)
     {
-        /* update the cached EA */
+        /* if the EA buffer that we got back is valid, update the cached EA */
         FspFileNodeSetEa(FileNode,
             Response->Buffer, Response->Rsp.SetEa.Ea.Size);
     }
     else
     {
-        /* invalidate the cached EA */
+        /* if the EA buffer that we got back is not valid, invalidate the cached EA */
         FspFileNodeSetEa(FileNode, 0, 0);
     }
 

@@ -458,13 +458,15 @@ NTSTATUS MemfsFileNodeSetEa(
             return STATUS_INSUFFICIENT_RESOURCES;
         memcpy(FileNodeEa, Ea, EaSizePlus);
         FileNodeEa->NextEntryOffset = 0;
+
+        EaSizePlus = FspFileSystemGetEaPackedSize(Ea);
     }
 
     p = EaMap->find(Ea->EaName);
     if (p != EaMap->end())
     {
-        EaSizeMinus = FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) +
-            p->second->EaNameLength + 1 + p->second->EaValueLength;
+        EaSizeMinus = FspFileSystemGetEaPackedSize(Ea);
+
         free(p->second);
         EaMap->erase(p);
     }
@@ -482,9 +484,7 @@ NTSTATUS MemfsFileNodeSetEa(
         }
     }
 
-    FileNode->FileInfo.EaSize = FileNode->FileInfo.EaSize
-        + FSP_FSCTL_ALIGN_UP(EaSizePlus, sizeof(ULONG))
-        - FSP_FSCTL_ALIGN_UP(EaSizeMinus, sizeof(ULONG));
+    FileNode->FileInfo.EaSize = FileNode->FileInfo.EaSize + EaSizePlus - EaSizeMinus;
 
     return STATUS_SUCCESS;
 }
@@ -2167,10 +2167,20 @@ static NTSTATUS GetEa(FSP_FILE_SYSTEM *FileSystem,
 }
 
 static NTSTATUS SetEa(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileNode,
-    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength)
+    PVOID FileNode0,
+    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength,
+    FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    return FspFileSystemEnumerateEa(FileSystem, MemfsFileNodeSetEa, FileNode, Ea, EaLength);
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+    NTSTATUS Result;
+
+    Result = FspFileSystemEnumerateEa(FileSystem, MemfsFileNodeSetEa, FileNode, Ea, EaLength);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    MemfsFileNodeGetFileInfo(FileNode, FileInfo);
+
+    return STATUS_SUCCESS;
 }
 #endif
 

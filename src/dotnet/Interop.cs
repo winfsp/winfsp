@@ -283,8 +283,6 @@ namespace Fsp.Interop
              * This should really be:
              *     FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX - FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName)
              */
-        internal static int EaNameOffset =
-            (int)Marshal.OffsetOf(typeof(FullEaInformation), "EaName");
 
         internal UInt32 NextEntryOffset;
         internal Byte Flags;
@@ -313,13 +311,14 @@ namespace Fsp.Interop
                     P[I + J] = Value[J];
             }
         }
-        internal static UInt32 Size(String Name, Byte[] Value, Boolean NeedEa)
+        internal static UInt32 PackedSize(String Name, Byte[] Value, Boolean NeedEa)
         {
             int NameLength = 254 < Name.Length ? 254 : Name.Length;
             int ValueLength = EaNameSize - Name.Length - 1 < Value.Length ?
                 EaNameSize - Name.Length - 1 : Value.Length;
 
-            return (UInt32)((EaNameOffset + NameLength + 1 + ValueLength + 3) & ~3);
+            /* magic computations are courtesy of NTFS */
+            return (UInt32)(5 + NameLength + ValueLength);
         }
     }
 
@@ -566,7 +565,8 @@ namespace Fsp.Interop
                 IntPtr FileSystem,
                 ref FullContext FullContext,
                 IntPtr Ea,
-                UInt32 EaLength);
+                UInt32 EaLength,
+                out FileInfo FileInfo);
         }
 
         internal static int Size = IntPtr.Size * 64;
