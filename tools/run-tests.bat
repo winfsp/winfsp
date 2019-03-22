@@ -580,6 +580,8 @@ rem FileInformation.LinkInformationTest: WinFsp does not support hard links
 rem FileInformation.StreamStandardInformationTest: test requires FileLinkInformation support (no hard links)
 call :__ifstest %1 /g FileInformation -t LinkInformationTest -t StreamStandardInformationTest /r %3
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+call :__ifstest %1 /g EaInformation
+if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /g DirectoryInformation
 if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
 call :__ifstest %1 /g FileLocking
@@ -618,7 +620,7 @@ set IfsTestExit=0
 (SET LF=^
 %=this line is empty=%
 )
-for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* /z /v ^| findstr /n "^"') do (
+for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* /v ^| findstr /n "^"') do (
     set IfsTestLine=%%l
     set IfsTestLine=!IfsTestLine:*:=!
 
