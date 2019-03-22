@@ -78,6 +78,7 @@ namespace passthrough
                 FileInfo.ChangeTime = FileInfo.LastWriteTime;
                 FileInfo.IndexNumber = 0;
                 FileInfo.HardLinks = 0;
+                FileInfo.EaSize = 0;
             }
             public Int32 GetFileInfo(out FileInfo FileInfo)
             {
@@ -98,6 +99,7 @@ namespace passthrough
                     FileInfo.ChangeTime = FileInfo.LastWriteTime;
                     FileInfo.IndexNumber = 0;
                     FileInfo.HardLinks = 0;
+                    FileInfo.EaSize = 0;
                 }
                 else
                     GetFileInfoFromFileSystemInfo(DirInfo, out FileInfo);
