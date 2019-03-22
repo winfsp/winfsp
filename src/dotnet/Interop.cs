@@ -196,10 +196,28 @@ namespace Fsp.Interop
         /// Not currently implemented. Set to 0.
         /// </summary>
         public UInt32 HardLinks;
+
         /// <summary>
         /// The extended attribute size of the file.
         /// </summary>
-        public UInt32 EaSize;
+        public UInt32 EaSize
+        {
+            get { return GetEaSize(); }
+            set { SetEaSize(value); }
+        }
+
+        internal static int EaSizeOffset =
+            (int)Marshal.OffsetOf(typeof(FileInfo), "HardLinks") + 4;
+        internal unsafe UInt32 GetEaSize()
+        {
+            fixed (FileInfo *P = &this)
+                return *(UInt32 *)((Int64)(IntPtr)P + EaSizeOffset);
+        }
+        internal unsafe void SetEaSize(UInt32 value)
+        {
+            fixed (FileInfo *P = &this)
+                *(UInt32 *)((Int64)(IntPtr)P + EaSizeOffset) = value;
+        }
     }
 
     [StructLayout(LayoutKind.Sequential)]
