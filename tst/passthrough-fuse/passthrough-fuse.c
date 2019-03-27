@@ -175,6 +175,36 @@ static int ptfs_fsync(const char *path, int datasync, struct fuse_file_info *fi)
     return -1 != fsync(fd) ? 0 : -errno;
 }
 
+static int ptfs_setxattr(const char *path, const char *name, const char *value, size_t size, int flags)
+{
+    ptfs_impl_fullpath(path);
+
+    return -1 != lsetxattr(path, name, value, size, flags) ? 0 : -errno;
+}
+
+static int ptfs_getxattr(const char *path, const char *name, char *value, size_t size)
+{
+    ptfs_impl_fullpath(path);
+
+    int nb;
+    return -1 != (nb = lgetxattr(path, name, value, size)) ? nb : -errno;
+}
+
+static int ptfs_listxattr(const char *path, char *namebuf, size_t size)
+{
+    ptfs_impl_fullpath(path);
+
+    int nb;
+    return -1 != (nb = llistxattr(path, namebuf, size)) ? nb : -errno;
+}
+
+static int ptfs_removexattr(const char *path, const char *name)
+{
+    ptfs_impl_fullpath(path);
+
+    return -1 != lremovexattr(path, name) ? 0 : -errno;
+}
+
 static int ptfs_opendir(const char *path, struct fuse_file_info *fi)
 {
     ptfs_impl_fullpath(path);
@@ -300,6 +330,10 @@ static struct fuse_operations ptfs_ops =
     .statfs = ptfs_statfs,
     .release = ptfs_release,
     .fsync = ptfs_fsync,
+    .setxattr = ptfs_setxattr,
+    .getxattr = ptfs_getxattr,
+    .listxattr = ptfs_listxattr,
+    .removexattr = ptfs_removexattr,
     .opendir = ptfs_opendir,
     .readdir = ptfs_readdir,
     .releasedir = ptfs_releasedir,

@@ -438,6 +438,9 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
     FspPosixUnixTimeToFileTime((void *)&stbuf.st_ctim, &FileInfo->ChangeTime);
     FileInfo->IndexNumber = stbuf.st_ino;
 
+    FileInfo->HardLinks = 0;
+    FileInfo->EaSize = 0;
+
     return STATUS_SUCCESS;
 }
 
@@ -2263,7 +2266,10 @@ static NTSTATUS fsp_fuse_intf_GetEa(FSP_FILE_SYSTEM *FileSystem,
         PrevEa = Ea;
 
         *PBytesTransferred = (ULONG)((PUINT8)EaValue - (PUINT8)Ea0 + valuesize);
-        Ea = (PVOID)((PUINT8)EaValue + FSP_FSCTL_ALIGN_UP(valuesize, sizeof(ULONG)));
+        Ea = (PVOID)((PUINT8)Ea +
+            FSP_FSCTL_ALIGN_UP(
+                FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + namesize + valuesize,
+                sizeof(ULONG)));
     }
 
     return STATUS_SUCCESS;
