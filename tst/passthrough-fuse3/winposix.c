@@ -33,6 +33,33 @@
 #include <fuse.h>
 #include "winposix.h"
 
+#pragma comment(lib, "ntdll.lib")
+
+typedef struct _FILE_GET_EA_INFORMATION
+{
+    ULONG NextEntryOffset;
+    UCHAR EaNameLength;
+    CHAR EaName[1];
+} FILE_GET_EA_INFORMATION, *PFILE_GET_EA_INFORMATION;
+
+NTSYSAPI NTSTATUS NTAPI NtQueryEaFile(
+    IN HANDLE               FileHandle,
+    OUT PIO_STATUS_BLOCK    IoStatusBlock,
+    OUT PVOID               Buffer,
+    IN ULONG                Length,
+    IN BOOLEAN              ReturnSingleEntry,
+    IN PVOID                EaList OPTIONAL,
+    IN ULONG                EaListLength,
+    IN PULONG               EaIndex OPTIONAL,
+    IN BOOLEAN              RestartScan);
+NTSYSAPI NTSTATUS NTAPI NtSetEaFile(
+    IN HANDLE               FileHandle,
+    OUT PIO_STATUS_BLOCK    IoStatusBlock,
+    IN PVOID                EaBuffer,
+    IN ULONG                EaBufferSize);
+#define NEXT_EA(Ea, EaEnd)              \
+    (0 != (Ea)->NextEntryOffset ? (PVOID)((PUINT8)(Ea) + (Ea)->NextEntryOffset) : (EaEnd))
+
 struct _DIR
 {
     HANDLE h, fh;
@@ -417,6 +444,233 @@ int rename(const char *oldpath, const char *newpath)
         return error();
 
     return 0;
+}
+
+static int lsetea(const char *path, PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength)
+{
+    HANDLE h = CreateFileA(path,
+        FILE_WRITE_EA | SYNCHRONIZE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == h)
+        return error();
+
+    IO_STATUS_BLOCK Iosb;
+    NTSTATUS Status = NtSetEaFile(h, &Iosb, Ea, EaLength);
+
+    CloseHandle(h);
+
+    if (!NT_SUCCESS(Status))
+        switch (Status)
+        {
+        case STATUS_INVALID_EA_NAME:
+        case STATUS_EA_LIST_INCONSISTENT:
+        case STATUS_EA_CORRUPT_ERROR:
+        case STATUS_NONEXISTENT_EA_ENTRY:
+        case STATUS_NO_MORE_EAS:
+        case STATUS_NO_EAS_ON_FILE:
+            errno = EINVAL;
+            return -1;
+        default:
+            SetLastError(RtlNtStatusToDosError(Status));
+            return error();
+        }
+
+    return 0;
+}
+
+static int lgetea(const char *path,
+    PFILE_GET_EA_INFORMATION GetEa, ULONG GetEaLength,
+    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength)
+{
+    HANDLE h = CreateFileA(path,
+        FILE_READ_EA | SYNCHRONIZE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == h)
+        return error();
+
+    IO_STATUS_BLOCK Iosb;
+    NTSTATUS Status = NtQueryEaFile(h, &Iosb, Ea, EaLength, FALSE, GetEa, GetEaLength, 0, TRUE);
+
+    CloseHandle(h);
+
+    if (!NT_SUCCESS(Status))
+        switch (Status)
+        {
+        case STATUS_INVALID_EA_NAME:
+        case STATUS_EA_LIST_INCONSISTENT:
+        case STATUS_EA_CORRUPT_ERROR:
+        case STATUS_NONEXISTENT_EA_ENTRY:
+        case STATUS_NO_MORE_EAS:
+            errno = EINVAL;
+            return -1;
+        case STATUS_NO_EAS_ON_FILE:
+            if (0 == GetEa)
+                return 0;
+            else
+            {
+                errno = ENODATA;
+                return -1;
+            }
+        default:
+            SetLastError(RtlNtStatusToDosError(Status));
+            return error();
+        }
+    else if (0 == GetEa &&
+        (FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) > Iosb.Information || 0 == Ea->EaValueLength))
+    {
+        errno = ENODATA;
+        return -1;
+    }
+
+    return (ULONG)Iosb.Information;
+}
+
+int lsetxattr(const char *path, const char *name, const void *value, size_t size, int flags)
+{
+    union
+    {
+        FILE_FULL_EA_INFORMATION V;
+        UINT8 B[1024];
+    } EaBuf;
+    PFILE_FULL_EA_INFORMATION Ea = &EaBuf.V;
+    ULONG EaLength;
+
+    size_t namelen = strlen(name);
+    if (254 < namelen || 0xffff < size)
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    EaLength = (ULONG)(FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + namelen + 1 + size);
+    if (sizeof EaBuf < EaLength)
+    {
+        Ea = malloc(EaLength); /* sets errno */
+        if (0 == Ea)
+            return -1;
+    }
+
+    memset(Ea, 0, sizeof(FILE_FULL_EA_INFORMATION));
+    Ea->EaNameLength = (UCHAR)namelen;
+    Ea->EaValueLength = (USHORT)size;
+    memcpy(Ea->EaName, name, namelen + 1);
+    memcpy(Ea->EaName + namelen + 1, value, size);
+
+    int res = lsetea(path, Ea, EaLength); /* sets errno */
+
+    if (&EaBuf.V != Ea)
+        free(Ea);
+
+    return res;
+}
+
+int lgetxattr(const char *path, const char *name, void *value, size_t size0)
+{
+    size_t size = 0 == size0 || 0xffff < size0 ? 0xffff : size0;
+    union
+    {
+        FILE_GET_EA_INFORMATION V;
+        UINT8 B[FIELD_OFFSET(FILE_GET_EA_INFORMATION, EaName) + 255];
+    } GetEaBuf;
+    PFILE_GET_EA_INFORMATION GetEa = &GetEaBuf.V;
+    union
+    {
+        FILE_FULL_EA_INFORMATION V;
+        UINT8 B[1024];
+    } EaBuf;
+    PFILE_FULL_EA_INFORMATION Ea = &EaBuf.V;
+    ULONG GetEaLength, EaLength;
+
+    size_t namelen = strlen(name);
+    if (254 < namelen)
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    EaLength = (ULONG)(FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + namelen + 1 + size);
+    if (sizeof EaBuf < EaLength)
+    {
+        Ea = malloc(EaLength); /* sets errno */
+        if (0 == Ea)
+            return -1;
+    }
+
+    GetEaLength = (ULONG)(FIELD_OFFSET(FILE_GET_EA_INFORMATION, EaName) + namelen + 1);
+    memset(GetEa, 0, sizeof(FILE_GET_EA_INFORMATION));
+    GetEa->EaNameLength = (UCHAR)namelen;
+    memcpy(GetEa->EaName, name, namelen + 1);
+
+    int res = lgetea(path, GetEa, GetEaLength, Ea, EaLength);
+    if (0 < res)
+    {
+        res = Ea->EaValueLength;
+        if (0 == size0)
+            ;
+        else if (res <= size0)
+            memcpy(value, Ea->EaName + Ea->EaNameLength + 1, res);
+        else
+        {
+            errno = ERANGE;
+            res = -1;
+        }
+    }
+    else if (0 == res) /* should not happen! */
+    {
+    }
+
+    if (&EaBuf.V != Ea)
+        free(Ea);
+
+    return res;
+}
+
+int llistxattr(const char *path, char *namebuf, size_t size)
+{
+    PFILE_FULL_EA_INFORMATION Ea = 0;
+    ULONG EaLength;
+
+    EaLength = (ULONG)(FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) + 254 + 1 + 0xffff);
+    Ea = malloc(EaLength); /* sets errno */
+    if (0 == Ea)
+        return -1;
+
+    int res = lgetea(path, 0, 0, Ea, EaLength);
+    if (0 < res)
+    {
+        PFILE_FULL_EA_INFORMATION EaEnd = (PVOID)((PUINT8)Ea + res);
+        res = 0;
+        for (PFILE_FULL_EA_INFORMATION EaPtr = Ea; EaEnd > EaPtr; EaPtr = NEXT_EA(EaPtr, EaEnd))
+            res += EaPtr->EaNameLength + 1;
+
+        if (0 == size)
+            ;
+        else if (res <= size)
+        {
+            char *p = namebuf;
+            for (PFILE_FULL_EA_INFORMATION EaPtr = Ea; EaEnd > EaPtr; EaPtr = NEXT_EA(EaPtr, EaEnd))
+            {
+                memcpy(p, EaPtr->EaName, EaPtr->EaNameLength + 1);
+                p += EaPtr->EaNameLength + 1;
+            }
+        }
+        else
+        {
+            errno = ERANGE;
+            res = -1;
+        }
+    }
+
+    free(Ea);
+
+    return res;
+}
+
+int lremovexattr(const char *path, const char *name)
+{
+    return lsetxattr(path, name, 0, 0, 0);
 }
 
 int mkdir(const char *path, fuse_mode_t mode)

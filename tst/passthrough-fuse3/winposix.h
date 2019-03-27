@@ -64,6 +64,11 @@ int setcrtime(const char *path, const struct fuse_timespec *tv);
 int unlink(const char *path);
 int rename(const char *oldpath, const char *newpath);
 
+int lsetxattr(const char *path, const char *name, const void *value, size_t size, int flags);
+int lgetxattr(const char *path, const char *name, void *value, size_t size);
+int llistxattr(const char *path, char *namebuf, size_t size);
+int lremovexattr(const char *path, const char *name);
+
 int mkdir(const char *path, fuse_mode_t mode);
 int rmdir(const char *path);
 
