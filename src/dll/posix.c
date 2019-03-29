@@ -190,7 +190,7 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
                 Uid - 0x30000);
         }
     }
-    else if (0x100000 <= Uid && Uid < 0x200000)
+    else if (0x100000 <= Uid && Uid < 0x300000)
     {
         if (0 != FspPrimaryDomainSid &&
             5 == FspPrimaryDomainSid->IdentifierAuthority.Value[5] &&
