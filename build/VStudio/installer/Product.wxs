@@ -348,18 +348,18 @@
             <Directory Id="OPTDIR.cygfuse" Name="cygfuse" FileSource="..\..\..\opt\cygfuse\dist">
                 <Directory Id="OPTDIR.cygfuse.x64" Name="x64">
                     <Component Id="C.fuse.tar.xz.x64">
-                        <File Id="FILE.fuse.tar.xz.x64" Name="fuse-2.8-9.tar.xz" KeyPath="yes" />
+                        <File Id="FILE.fuse.tar.xz.x64" Name="fuse-2.8-10.tar.xz" KeyPath="yes" />
                     </Component>
                     <Component Id="C.fuse3.tar.xz.x64">
-                        <File Id="FILE.fuse3.tar.xz.x64" Name="fuse3-3.2-1.tar.xz" KeyPath="yes" />
+                        <File Id="FILE.fuse3.tar.xz.x64" Name="fuse3-3.2-2.tar.xz" KeyPath="yes" />
                     </Component>
                 </Directory>
                 <Directory Id="OPTDIR.cygfuse.x86" Name="x86">
                     <Component Id="C.fuse.tar.xz.x86">
-                        <File Id="FILE.fuse.tar.xz.x86" Name="fuse-2.8-9.tar.xz" KeyPath="yes" />
+                        <File Id="FILE.fuse.tar.xz.x86" Name="fuse-2.8-10.tar.xz" KeyPath="yes" />
                     </Component>
                     <Component Id="C.fuse3.tar.xz.x86">
-                        <File Id="FILE.fuse3.tar.xz.x86" Name="fuse3-3.2-1.tar.xz" KeyPath="yes" />
+                        <File Id="FILE.fuse3.tar.xz.x86" Name="fuse3-3.2-2.tar.xz" KeyPath="yes" />
                     </Component>
                 </Directory>
                 <Component Id="C.fuse.install.sh">
