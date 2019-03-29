@@ -1,6 +1,16 @@
 = Changelog
 
 
+v1.5B1 (2019.3 B1)::
+
+Changes since v1.4:
+
+* Extended attribute support has been added for all WinFsp API's: native, .NET, FUSE2 and FUSE3.
+* Initial FastIO support has been added. FastIO operations are enabled on cache-enabled file systems with the notable exception of `FastIoQueryOpen`, which allows opening files in kernel mode; this operation requires the file system to specify the `FSP_FSCTL_VOLUME_PARAMS::AllowOpenInKernelMode` flag.
+* Fixes for very large (> 4GiB) files. (Thanks @dworkin.)
+* A fix for an invalid UID to SID mapping on domains with a lot of users. (Thanks @sganis.)
+* A fix on the C++ layer. (Thanks @colatkinson.)
+
 v1.4.19049 (2019.2)::
 
 Changes since v1.3:
