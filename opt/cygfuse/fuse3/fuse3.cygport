@@ -1,6 +1,6 @@
 NAME="fuse3"
 VERSION=3.2
-RELEASE=1
+RELEASE=2
 CATEGORY="Utils"
 SUMMARY="WinFsp FUSE3 compatibility layer"
 DESCRIPTION="Enables FUSE3 file systems to be run on Cygwin."
