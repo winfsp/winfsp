@@ -301,7 +301,7 @@ static NTSTATUS FspFsvolQueryNameInformation(PFILE_OBJECT FileObject,
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
 
-    if ((PVOID)(Info + 1) > BufferEnd)
+    if ((PVOID)((PUINT8)Info + FIELD_OFFSET(FILE_NAME_INFORMATION, FileName)) > BufferEnd)
         return STATUS_BUFFER_TOO_SMALL;
 
     FspFileNodeAcquireShared(FileNode, Main);
