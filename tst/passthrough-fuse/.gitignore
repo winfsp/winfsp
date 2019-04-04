@@ -3,5 +3,7 @@ build
 *.suo
 *.vcproj.*
 *.vcxproj.user
+*.VC.db
+*.VC.opendb
 *.exe
 *.install
