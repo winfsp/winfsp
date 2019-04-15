@@ -209,6 +209,7 @@ int main(int argc, char *argv[])
     TESTSUITE(ea_tests);
     TESTSUITE(stream_tests);
     TESTSUITE(oplock_tests);
+    TESTSUITE(wsl_tests);
 
     atexit(exiting);
     signal(SIGABRT, abort_handler);

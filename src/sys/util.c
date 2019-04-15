@@ -26,7 +26,10 @@ NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK Desir
     PULONG PFileNameIndex, PFILE_OBJECT *PFileObject, PDEVICE_OBJECT *PDeviceObject);
 NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
-static NTSTATUS FspSendSetInformationIrpCompletion(
+NTSTATUS FspSendQueryEaIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
+    PFILE_GET_EA_INFORMATION GetEa, ULONG GetEaLength,
+    PFILE_FULL_EA_INFORMATION Ea, PULONG PEaLength);
+static NTSTATUS FspSendIrpCompletion(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context0);
 NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspLockUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
@@ -124,6 +127,7 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #pragma alloc_text(PAGE, FspCreateGuid)
 #pragma alloc_text(PAGE, FspGetDeviceObjectPointer)
 #pragma alloc_text(PAGE, FspSendSetInformationIrp)
+#pragma alloc_text(PAGE, FspSendQueryEaIrp)
 #pragma alloc_text(PAGE, FspBufferUserBuffer)
 #pragma alloc_text(PAGE, FspLockUserBuffer)
 #pragma alloc_text(PAGE, FspMapLockedPagesInUserMode)
@@ -275,7 +279,7 @@ typedef struct
 {
     IO_STATUS_BLOCK IoStatus;
     KEVENT Event;
-} FSP_SEND_SET_INFORMATION_IRP_CONTEXT;
+} FSP_SEND_IRP_CONTEXT;
 
 NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length)
@@ -289,7 +293,7 @@ NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT File
     NTSTATUS Result;
     PIRP Irp;
     PIO_STACK_LOCATION IrpSp;
-    FSP_SEND_SET_INFORMATION_IRP_CONTEXT Context;
+    FSP_SEND_IRP_CONTEXT Context;
 
     if (0 == DeviceObject)
         DeviceObject = IoGetRelatedDeviceObject(FileObject);
@@ -304,9 +308,9 @@ NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT File
     IrpSp->MajorFunction = IRP_MJ_SET_INFORMATION;
     IrpSp->FileObject = FileObject;
     IrpSp->Parameters.SetFile.FileInformationClass = FileInformationClass;
-    IrpSp->Parameters.SetFile.Length = FileInformationClass;
+    IrpSp->Parameters.SetFile.Length = Length;
 
-    IoSetCompletionRoutine(Irp, FspSendSetInformationIrpCompletion, &Context, TRUE, TRUE, TRUE);
+    IoSetCompletionRoutine(Irp, FspSendIrpCompletion, &Context, TRUE, TRUE, TRUE);
 
     KeInitializeEvent(&Context.Event, NotificationEvent, FALSE);
     Result = IoCallDriver(DeviceObject, Irp);
@@ -316,12 +320,58 @@ NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT File
     return NT_SUCCESS(Result) ? Context.IoStatus.Status : Result;
 }
 
-static NTSTATUS FspSendSetInformationIrpCompletion(
+NTSTATUS FspSendQueryEaIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
+    PFILE_GET_EA_INFORMATION GetEa, ULONG GetEaLength,
+    PFILE_FULL_EA_INFORMATION Ea, PULONG PEaLength)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    PIRP Irp;
+    PIO_STACK_LOCATION IrpSp;
+    FSP_SEND_IRP_CONTEXT Context;
+    ULONG EaLength = *PEaLength;
+
+    *PEaLength = 0;
+
+    if (0 == DeviceObject)
+        DeviceObject = IoGetRelatedDeviceObject(FileObject);
+
+    Irp = IoAllocateIrp(DeviceObject->StackSize, FALSE);
+    if (0 == Irp)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    IrpSp = IoGetNextIrpStackLocation(Irp);
+    Irp->RequestorMode = KernelMode;
+    Irp->AssociatedIrp.SystemBuffer = Ea;
+    IrpSp->MajorFunction = IRP_MJ_QUERY_EA;
+    IrpSp->FileObject = FileObject;
+    IrpSp->Parameters.QueryEa.Length = EaLength;
+    IrpSp->Parameters.QueryEa.EaList = GetEa;
+    IrpSp->Parameters.QueryEa.EaListLength = GetEaLength;
+
+    IoSetCompletionRoutine(Irp, FspSendIrpCompletion, &Context, TRUE, TRUE, TRUE);
+
+    KeInitializeEvent(&Context.Event, NotificationEvent, FALSE);
+    Result = IoCallDriver(DeviceObject, Irp);
+    if (STATUS_PENDING == Result)
+        KeWaitForSingleObject(&Context.Event, Executive, KernelMode, FALSE, 0);
+
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (NT_SUCCESS(Context.IoStatus.Status))
+        *PEaLength = (ULONG)Context.IoStatus.Information;
+
+    return Context.IoStatus.Status;
+}
+
+static NTSTATUS FspSendIrpCompletion(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context0)
 {
     // !PAGED_CODE();
 
-    FSP_SEND_SET_INFORMATION_IRP_CONTEXT *Context = Context0;
+    FSP_SEND_IRP_CONTEXT *Context = Context0;
 
     Context->IoStatus = Irp->IoStatus;
     KeSetEvent(&Context->Event, 1, FALSE);

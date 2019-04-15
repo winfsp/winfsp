@@ -208,6 +208,7 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\timeout-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\version-test.c" />
     <ClCompile Include="..\..\..\tst\winfsp-tests\winfsp-tests.c" />
+    <ClCompile Include="..\..\..\tst\winfsp-tests\wsl-test.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\ext\tlib\testsuite.h" />

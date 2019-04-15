@@ -494,6 +494,9 @@ NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK Desir
     PULONG PFileNameIndex, PFILE_OBJECT *PFileObject, PDEVICE_OBJECT *PDeviceObject);
 NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
+NTSTATUS FspSendQueryEaIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
+    PFILE_GET_EA_INFORMATION GetEa, ULONG GetEaLength,
+    PFILE_FULL_EA_INFORMATION Ea, PULONG PEaLength);
 NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspLockUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress, ULONG ExtraPriorityFlags);
@@ -1636,4 +1639,24 @@ LOGICAL RtlEqualMemory(const VOID *Source1, const VOID *Source2, SIZE_T Length)
     return Length == RtlCompareMemory(Source1, Source2, Length);
 }
 
+typedef struct _FILE_STAT_LX_INFORMATION
+{
+    LARGE_INTEGER FileId;
+    LARGE_INTEGER CreationTime;
+    LARGE_INTEGER LastAccessTime;
+    LARGE_INTEGER LastWriteTime;
+    LARGE_INTEGER ChangeTime;
+    LARGE_INTEGER AllocationSize;
+    LARGE_INTEGER EndOfFile;
+    ULONG FileAttributes;
+    ULONG ReparseTag;
+    ULONG NumberOfLinks;
+    ACCESS_MASK EffectiveAccess;
+    ULONG LxFlags;
+    ULONG LxUid;
+    ULONG LxGid;
+    ULONG LxMode;
+    ULONG LxDeviceIdMajor;
+    ULONG LxDeviceIdMinor;
+} FILE_STAT_LX_INFORMATION, *PFILE_STAT_LX_INFORMATION;
 #endif
