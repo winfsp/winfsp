@@ -429,6 +429,15 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
     }
     if (StatEx)
         FileInfo->FileAttributes |= fsp_fuse_intf_MapFlagsToFileAttributes(stbuf.st_flags);
+    if (f->dot_hidden)
+    {
+        const char *basename = PosixPath;
+        for (const char *p = PosixPath; '\0' != *p; p++)
+            if ('/' == *p)
+                basename = p + 1;
+        if ('.' == basename[0])
+            FileInfo->FileAttributes |= FILE_ATTRIBUTE_HIDDEN;
+    }
     FileInfo->FileSize = stbuf.st_size;
     FileInfo->AllocationSize =
         (FileInfo->FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
@@ -1712,7 +1721,7 @@ int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
         UINT32 Uid, Gid, Mode;
         NTSTATUS Result0;
 
-        Result0 = fsp_fuse_intf_GetFileInfoFunnel(dh->FileSystem, 0, 0, stbuf,
+        Result0 = fsp_fuse_intf_GetFileInfoFunnel(dh->FileSystem, name, 0, stbuf,
             &Uid, &Gid, &Mode, 0, &DirInfo->FileInfo);
         if (NT_SUCCESS(Result0))
             DirInfo->Padding[0] = 1; /* HACK: remember that the FileInfo is valid */

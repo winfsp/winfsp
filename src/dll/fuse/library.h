@@ -53,6 +53,7 @@ struct fuse
     int set_uid, uid;
     int set_gid, gid;
     int rellinks;
+    int dot_hidden;
     unsigned ThreadCount;
     struct fuse_operations ops;
     void *data;
@@ -140,7 +141,8 @@ struct fsp_fuse_core_opt_data
         set_uid, uid,
         set_gid, gid,
         set_attr_timeout, attr_timeout,
-        rellinks;
+        rellinks,
+        dot_hidden;
     int set_FileInfoTimeout,
         set_DirInfoTimeout,
         set_EaTimeout,
