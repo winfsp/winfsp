@@ -1639,7 +1639,22 @@ LOGICAL RtlEqualMemory(const VOID *Source1, const VOID *Source2, SIZE_T Length)
     return Length == RtlCompareMemory(Source1, Source2, Length);
 }
 
-typedef struct _FILE_STAT_LX_INFORMATION
+/* FILE_STAT_INFORMATION and FILE_STAT_LX_INFORMATION are missings on some WDK's. */
+typedef struct
+{
+    LARGE_INTEGER FileId;
+    LARGE_INTEGER CreationTime;
+    LARGE_INTEGER LastAccessTime;
+    LARGE_INTEGER LastWriteTime;
+    LARGE_INTEGER ChangeTime;
+    LARGE_INTEGER AllocationSize;
+    LARGE_INTEGER EndOfFile;
+    ULONG FileAttributes;
+    ULONG ReparseTag;
+    ULONG NumberOfLinks;
+    ACCESS_MASK EffectiveAccess;
+} FSP_FILE_STAT_INFORMATION, *PFSP_FILE_STAT_INFORMATION;
+typedef struct
 {
     LARGE_INTEGER FileId;
     LARGE_INTEGER CreationTime;
@@ -1658,5 +1673,5 @@ typedef struct _FILE_STAT_LX_INFORMATION
     ULONG LxMode;
     ULONG LxDeviceIdMajor;
     ULONG LxDeviceIdMinor;
-} FILE_STAT_LX_INFORMATION, *PFILE_STAT_LX_INFORMATION;
+} FSP_FILE_STAT_LX_INFORMATION, *PFSP_FILE_STAT_LX_INFORMATION;
 #endif

@@ -435,7 +435,7 @@ static NTSTATUS FspFsvolQueryStatInformation(PFILE_OBJECT FileObject,
 {
     PAGED_CODE();
 
-    PFILE_STAT_INFORMATION Info = (PFILE_STAT_INFORMATION)*PBuffer;
+    PFSP_FILE_STAT_INFORMATION Info = (PFSP_FILE_STAT_INFORMATION)*PBuffer;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
 
@@ -473,7 +473,7 @@ static NTSTATUS FspFsvolQueryStatLxInformation(PFILE_OBJECT FileObject,
 {
     PAGED_CODE();
 
-    PFILE_STAT_LX_INFORMATION Info = (PFILE_STAT_LX_INFORMATION)*PBuffer;
+    PFSP_FILE_STAT_LX_INFORMATION Info = (PFSP_FILE_STAT_LX_INFORMATION)*PBuffer;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
 
@@ -528,7 +528,7 @@ static NTSTATUS FspFsvolQueryStatLxInformationEa(
     PAGED_CODE();
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    PFILE_STAT_LX_INFORMATION Info = (PFILE_STAT_LX_INFORMATION)*PBuffer;
+    PFSP_FILE_STAT_LX_INFORMATION Info = (PFSP_FILE_STAT_LX_INFORMATION)*PBuffer;
     union
     {
         FILE_GET_EA_INFORMATION V;
