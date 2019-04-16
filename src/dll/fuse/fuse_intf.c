@@ -429,7 +429,7 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
     }
     if (StatEx)
         FileInfo->FileAttributes |= fsp_fuse_intf_MapFlagsToFileAttributes(stbuf.st_flags);
-    if (f->dot_hidden)
+    if (f->dothidden)
     {
         const char *basename = PosixPath;
         for (const char *p = PosixPath; '\0' != *p; p++)

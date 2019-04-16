@@ -71,8 +71,8 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("rellinks", rellinks, 1),
     FSP_FUSE_CORE_OPT("norellinks", rellinks, 0),
 
-    FSP_FUSE_CORE_OPT("dot_hidden", dot_hidden, 1),
-    FSP_FUSE_CORE_OPT("nodot_hidden", dot_hidden, 0),
+    FSP_FUSE_CORE_OPT("dothidden", dothidden, 1),
+    FSP_FUSE_CORE_OPT("nodothidden", dothidden, 0),
 
     FUSE_OPT_KEY("fstypename=", 'F'),
     FUSE_OPT_KEY("volname=", 'v'),
@@ -247,7 +247,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o uid=N                   set file owner (-1 for mounting user id)\n"
             "    -o gid=N                   set file group (-1 for mounting user group)\n"
             "    -o rellinks                interpret absolute symlinks as volume relative\n"
-            "    -o dot_hidden              dot files have the Windows hidden file attrib\n"
+            "    -o dothidden               dot files have the Windows hidden file attrib\n"
             "    -o volname=NAME            set volume label\n"
             "    -o VolumePrefix=UNC        set UNC prefix (/Server/Share)\n"
             "        --VolumePrefix=UNC     set UNC prefix (\\Server\\Share)\n"
@@ -429,7 +429,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     f->set_uid = opt_data.set_uid; f->uid = opt_data.uid;
     f->set_gid = opt_data.set_gid; f->gid = opt_data.gid;
     f->rellinks = opt_data.rellinks;
-    f->dot_hidden = opt_data.dot_hidden;
+    f->dothidden = opt_data.dothidden;
     f->ThreadCount = opt_data.ThreadCount;
     memcpy(&f->ops, ops, opsize);
     f->data = data;
