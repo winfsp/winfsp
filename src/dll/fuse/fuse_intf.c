@@ -794,8 +794,22 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
             goto exit;
     }
     Mode &= ~context->umask;
-    if (f->set_create_umask)
-        Mode = 0777 & ~f->create_umask;
+    if (CreateOptions & FILE_DIRECTORY_FILE)
+    {
+        if (f->set_create_dir_umask)
+            Mode = 0777 & ~f->create_dir_umask;
+        else
+        if (f->set_create_umask)
+            Mode = 0777 & ~f->create_umask;
+    }
+    else
+    {
+        if (f->set_create_file_umask)
+            Mode = 0777 & ~f->create_file_umask;
+        else
+        if (f->set_create_umask)
+            Mode = 0777 & ~f->create_umask;
+    }
 
     memset(&fi, 0, sizeof fi);
     if ('C' == f->env->environment) /* Cygwin */
