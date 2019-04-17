@@ -4,7 +4,7 @@ setlocal
 
 set DebugWorkspace=winfsp
 set DebugPort=50000
-set DebugKey=win8.debug.net.key
+set DebugKey=1.1.1.1
 
 set RegKey="HKLM\SOFTWARE\Microsoft\Windows Kits\Installed Roots"
 set RegVal="KitsRoot10"

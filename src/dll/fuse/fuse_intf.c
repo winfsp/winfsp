@@ -429,6 +429,15 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
     }
     if (StatEx)
         FileInfo->FileAttributes |= fsp_fuse_intf_MapFlagsToFileAttributes(stbuf.st_flags);
+    if (f->dothidden)
+    {
+        const char *basename = PosixPath;
+        for (const char *p = PosixPath; '\0' != *p; p++)
+            if ('/' == *p)
+                basename = p + 1;
+        if ('.' == basename[0])
+            FileInfo->FileAttributes |= FILE_ATTRIBUTE_HIDDEN;
+    }
     FileInfo->FileSize = stbuf.st_size;
     FileInfo->AllocationSize =
         (FileInfo->FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
@@ -785,8 +794,22 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
             goto exit;
     }
     Mode &= ~context->umask;
-    if (f->set_create_umask)
-        Mode = 0777 & ~f->create_umask;
+    if (CreateOptions & FILE_DIRECTORY_FILE)
+    {
+        if (f->set_create_dir_umask)
+            Mode = 0777 & ~f->create_dir_umask;
+        else
+        if (f->set_create_umask)
+            Mode = 0777 & ~f->create_umask;
+    }
+    else
+    {
+        if (f->set_create_file_umask)
+            Mode = 0777 & ~f->create_file_umask;
+        else
+        if (f->set_create_umask)
+            Mode = 0777 & ~f->create_umask;
+    }
 
     memset(&fi, 0, sizeof fi);
     if ('C' == f->env->environment) /* Cygwin */
@@ -1712,7 +1735,7 @@ int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
         UINT32 Uid, Gid, Mode;
         NTSTATUS Result0;
 
-        Result0 = fsp_fuse_intf_GetFileInfoFunnel(dh->FileSystem, 0, 0, stbuf,
+        Result0 = fsp_fuse_intf_GetFileInfoFunnel(dh->FileSystem, name, 0, stbuf,
             &Uid, &Gid, &Mode, 0, &DirInfo->FileInfo);
         if (NT_SUCCESS(Result0))
             DirInfo->Padding[0] = 1; /* HACK: remember that the FileInfo is valid */

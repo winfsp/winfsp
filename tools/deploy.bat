@@ -5,6 +5,7 @@ setlocal
 set CONFIG=Debug
 set SUFFIX=x64
 set TARGET_MACHINE=WIN8DBG
+if not X%1==X set TARGET_MACHINE=%1
 set TARGET_ACCOUNT=\Users\%USERNAME%\Downloads\winfsp\
 set TARGET=\\%TARGET_MACHINE%%TARGET_ACCOUNT%
 

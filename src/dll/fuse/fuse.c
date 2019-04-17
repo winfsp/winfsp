@@ -54,6 +54,10 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("umask=%o", umask, 0),
     FSP_FUSE_CORE_OPT("create_umask=", set_create_umask, 1),
     FSP_FUSE_CORE_OPT("create_umask=%o", create_umask, 0),
+    FSP_FUSE_CORE_OPT("create_file_umask=", set_create_file_umask, 1),
+    FSP_FUSE_CORE_OPT("create_file_umask=%o", create_file_umask, 0),
+    FSP_FUSE_CORE_OPT("create_dir_umask=", set_create_dir_umask, 1),
+    FSP_FUSE_CORE_OPT("create_dir_umask=%o", create_dir_umask, 0),
     FSP_FUSE_CORE_OPT("uid=", set_uid, 1),
     FSP_FUSE_CORE_OPT("uid=%d", uid, 0),
     FSP_FUSE_CORE_OPT("gid=", set_gid, 1),
@@ -70,6 +74,9 @@ static struct fuse_opt fsp_fuse_core_opts[] =
 
     FSP_FUSE_CORE_OPT("rellinks", rellinks, 1),
     FSP_FUSE_CORE_OPT("norellinks", rellinks, 0),
+
+    FSP_FUSE_CORE_OPT("dothidden", dothidden, 1),
+    FSP_FUSE_CORE_OPT("nodothidden", dothidden, 0),
 
     FUSE_OPT_KEY("fstypename=", 'F'),
     FUSE_OPT_KEY("volname=", 'v'),
@@ -241,9 +248,12 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             FSP_FUSE_LIBRARY_NAME " options:\n"
             "    -o umask=MASK              set file permissions (octal)\n"
             "    -o create_umask=MASK       set newly created file permissions (octal)\n"
+            "        -o create_file_umask=MASK      for files only\n"
+            "        -o create_dir_umask=MASK       for directories only\n"
             "    -o uid=N                   set file owner (-1 for mounting user id)\n"
             "    -o gid=N                   set file group (-1 for mounting user group)\n"
             "    -o rellinks                interpret absolute symlinks as volume relative\n"
+            "    -o dothidden               dot files have the Windows hidden file attrib\n"
             "    -o volname=NAME            set volume label\n"
             "    -o VolumePrefix=UNC        set UNC prefix (/Server/Share)\n"
             "        --VolumePrefix=UNC     set UNC prefix (\\Server\\Share)\n"
@@ -422,9 +432,12 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     f->env = env;
     f->set_umask = opt_data.set_umask; f->umask = opt_data.umask;
     f->set_create_umask = opt_data.set_create_umask; f->create_umask = opt_data.create_umask;
+    f->set_create_file_umask = opt_data.set_create_file_umask; f->create_file_umask = opt_data.create_file_umask;
+    f->set_create_dir_umask = opt_data.set_create_dir_umask; f->create_dir_umask = opt_data.create_dir_umask;
     f->set_uid = opt_data.set_uid; f->uid = opt_data.uid;
     f->set_gid = opt_data.set_gid; f->gid = opt_data.gid;
     f->rellinks = opt_data.rellinks;
+    f->dothidden = opt_data.dothidden;
     f->ThreadCount = opt_data.ThreadCount;
     memcpy(&f->ops, ops, opsize);
     f->data = data;

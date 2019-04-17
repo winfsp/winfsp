@@ -50,9 +50,12 @@ struct fuse
     struct fsp_fuse_env *env;
     int set_umask, umask;
     int set_create_umask, create_umask;
+    int set_create_file_umask, create_file_umask;
+    int set_create_dir_umask, create_dir_umask;
     int set_uid, uid;
     int set_gid, gid;
     int rellinks;
+    int dothidden;
     unsigned ThreadCount;
     struct fuse_operations ops;
     void *data;
@@ -137,10 +140,13 @@ struct fsp_fuse_core_opt_data
     HANDLE DebugLogHandle;
     int set_umask, umask,
         set_create_umask, create_umask,
+        set_create_file_umask, create_file_umask,
+        set_create_dir_umask, create_dir_umask,
         set_uid, uid,
         set_gid, gid,
         set_attr_timeout, attr_timeout,
-        rellinks;
+        rellinks,
+        dothidden;
     int set_FileInfoTimeout,
         set_DirInfoTimeout,
         set_EaTimeout,
