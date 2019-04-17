@@ -921,7 +921,7 @@ static NTSTATUS FspFsvolQueryInformation(
     case FileStandardInformation:
         Result = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd, 0);
         break;
-    case FileStatInformation:
+    case 68/*FileStatInformation*/:
         Result = FspFsvolQueryStatInformation(FileObject, &Buffer, BufferEnd, 0);
         break;
     case 70/*FileStatLxInformation*/:
@@ -974,7 +974,7 @@ static NTSTATUS FspFsvolQueryInformation(
         case FileStandardInformation:
             Result = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
             break;
-        case FileStatInformation:
+        case 68/*FileStatInformation*/:
             Result = FspFsvolQueryStatInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
             break;
         case 70/*FileStatLxInformation*/:
@@ -1090,7 +1090,7 @@ NTSTATUS FspFsvolQueryInformationComplete(
     case FileStandardInformation:
         Result = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd, FileInfo);
         break;
-    case FileStatInformation:
+    case 68/*FileStatInformation*/:
         Result = FspFsvolQueryStatInformation(FileObject, &Buffer, BufferEnd, FileInfo);
         break;
     case 70/*FileStatLxInformation*/:
