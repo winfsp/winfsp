@@ -146,7 +146,9 @@ static void wsl_stat_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     }
     else
     {
-        ASSERT(STATUS_INVALID_INFO_CLASS == Result);
+        ASSERT(
+            STATUS_INVALID_INFO_CLASS == Result ||
+            STATUS_NOT_IMPLEMENTED == Result/* value returned under WOW64 */);
         FspDebugLog(__FUNCTION__ ": only works in Win10 with WSLinux\n");
     }
 
