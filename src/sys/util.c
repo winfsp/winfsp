@@ -344,6 +344,7 @@ NTSTATUS FspSendQueryEaIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     IrpSp = IoGetNextIrpStackLocation(Irp);
     Irp->RequestorMode = KernelMode;
     Irp->AssociatedIrp.SystemBuffer = Ea;
+    Irp->UserBuffer = Ea;
     IrpSp->MajorFunction = IRP_MJ_QUERY_EA;
     IrpSp->FileObject = FileObject;
     IrpSp->Parameters.QueryEa.Length = EaLength;

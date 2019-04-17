@@ -94,62 +94,67 @@ static void wsl_stat_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
-    Result = NtQueryInformationFile(Handle, &IoStatus, &StatInfo, sizeof StatInfo,
-        68/*FileStatInformation*/);
-    if (STATUS_SUCCESS == Result)
+    for (int repeat = 0; 2 > repeat; repeat++)
     {
-        ASSERT(STATUS_SUCCESS == Result);
-        if (-1 != Flags)
-            ASSERT(
-                TimeLo <= StatInfo.CreationTime.QuadPart &&
-                TimeHi >  StatInfo.CreationTime.QuadPart);
-        ASSERT(
-            TimeLo <= StatInfo.LastAccessTime.QuadPart &&
-            TimeHi >  StatInfo.LastAccessTime.QuadPart);
-        ASSERT(
-            TimeLo <= StatInfo.LastWriteTime.QuadPart &&
-            TimeHi >  StatInfo.LastWriteTime.QuadPart);
-        ASSERT(
-            TimeLo <= StatInfo.ChangeTime.QuadPart &&
-            TimeHi >  StatInfo.ChangeTime.QuadPart);
-        ASSERT(0 == StatInfo.AllocationSize.QuadPart);
-        ASSERT(0 == StatInfo.EndOfFile.QuadPart);
-        //ASSERT(FILE_ATTRIBUTE_ARCHIVE == StatInfo.FileAttributes);
-        ASSERT(0 == StatInfo.ReparseTag);
-        ASSERT(1 == StatInfo.NumberOfLinks);
-        //tlib_printf("%lx %lx", FILE_GENERIC_READ | FILE_GENERIC_WRITE, StatInfo.EffectiveAccess);
-        //ASSERT((FILE_GENERIC_READ | FILE_GENERIC_WRITE) == StatInfo.EffectiveAccess);
+        /* repeat this test to ensure that any caches are tested */
 
-        Result = NtQueryInformationFile(Handle, &IoStatus, &StatLxInfo, sizeof StatLxInfo,
-            70/*FileStatLxInformation*/);
-        ASSERT(STATUS_SUCCESS == Result);
-        if (-1 != Flags)
+        Result = NtQueryInformationFile(Handle, &IoStatus, &StatInfo, sizeof StatInfo,
+            68/*FileStatInformation*/);
+        if (STATUS_SUCCESS == Result)
+        {
+            ASSERT(STATUS_SUCCESS == Result);
+            if (-1 != Flags)
+                ASSERT(
+                    TimeLo <= StatInfo.CreationTime.QuadPart &&
+                    TimeHi >  StatInfo.CreationTime.QuadPart);
             ASSERT(
-                TimeLo <= StatLxInfo.CreationTime.QuadPart &&
-                TimeHi >  StatLxInfo.CreationTime.QuadPart);
-        ASSERT(
-            TimeLo <= StatLxInfo.LastAccessTime.QuadPart &&
-            TimeHi >  StatLxInfo.LastAccessTime.QuadPart);
-        ASSERT(
-            TimeLo <= StatLxInfo.LastWriteTime.QuadPart &&
-            TimeHi >  StatLxInfo.LastWriteTime.QuadPart);
-        ASSERT(
-            TimeLo <= StatLxInfo.ChangeTime.QuadPart &&
-            TimeHi >  StatLxInfo.ChangeTime.QuadPart);
-        ASSERT(0 == StatLxInfo.AllocationSize.QuadPart);
-        ASSERT(0 == StatLxInfo.EndOfFile.QuadPart);
-        //ASSERT(FILE_ATTRIBUTE_ARCHIVE == StatLxInfo.FileAttributes);
-        ASSERT(0 == StatLxInfo.ReparseTag);
-        ASSERT(1 == StatLxInfo.NumberOfLinks);
-        //tlib_printf("%lx %lx", FILE_GENERIC_READ | FILE_GENERIC_WRITE, StatLxInfo.EffectiveAccess);
-        //ASSERT((FILE_GENERIC_READ | FILE_GENERIC_WRITE) == StatLxInfo.EffectiveAccess);
-    }
-    else
-    {
-        ASSERT(
-            STATUS_INVALID_INFO_CLASS == Result ||
-            STATUS_NOT_IMPLEMENTED == Result/* value returned under WOW64 */);
-        FspDebugLog(__FUNCTION__ ": only works in Win10 with WSLinux\n");
+                TimeLo <= StatInfo.LastAccessTime.QuadPart &&
+                TimeHi >  StatInfo.LastAccessTime.QuadPart);
+            ASSERT(
+                TimeLo <= StatInfo.LastWriteTime.QuadPart &&
+                TimeHi >  StatInfo.LastWriteTime.QuadPart);
+            ASSERT(
+                TimeLo <= StatInfo.ChangeTime.QuadPart &&
+                TimeHi >  StatInfo.ChangeTime.QuadPart);
+            ASSERT(0 == StatInfo.AllocationSize.QuadPart);
+            ASSERT(0 == StatInfo.EndOfFile.QuadPart);
+            //ASSERT(FILE_ATTRIBUTE_ARCHIVE == StatInfo.FileAttributes);
+            ASSERT(0 == StatInfo.ReparseTag);
+            ASSERT(1 == StatInfo.NumberOfLinks);
+            //tlib_printf("%lx %lx", FILE_GENERIC_READ | FILE_GENERIC_WRITE, StatInfo.EffectiveAccess);
+            //ASSERT((FILE_GENERIC_READ | FILE_GENERIC_WRITE) == StatInfo.EffectiveAccess);
+
+            Result = NtQueryInformationFile(Handle, &IoStatus, &StatLxInfo, sizeof StatLxInfo,
+                70/*FileStatLxInformation*/);
+            ASSERT(STATUS_SUCCESS == Result);
+            if (-1 != Flags)
+                ASSERT(
+                    TimeLo <= StatLxInfo.CreationTime.QuadPart &&
+                    TimeHi >  StatLxInfo.CreationTime.QuadPart);
+            ASSERT(
+                TimeLo <= StatLxInfo.LastAccessTime.QuadPart &&
+                TimeHi >  StatLxInfo.LastAccessTime.QuadPart);
+            ASSERT(
+                TimeLo <= StatLxInfo.LastWriteTime.QuadPart &&
+                TimeHi >  StatLxInfo.LastWriteTime.QuadPart);
+            ASSERT(
+                TimeLo <= StatLxInfo.ChangeTime.QuadPart &&
+                TimeHi >  StatLxInfo.ChangeTime.QuadPart);
+            ASSERT(0 == StatLxInfo.AllocationSize.QuadPart);
+            ASSERT(0 == StatLxInfo.EndOfFile.QuadPart);
+            //ASSERT(FILE_ATTRIBUTE_ARCHIVE == StatLxInfo.FileAttributes);
+            ASSERT(0 == StatLxInfo.ReparseTag);
+            ASSERT(1 == StatLxInfo.NumberOfLinks);
+            //tlib_printf("%lx %lx", FILE_GENERIC_READ | FILE_GENERIC_WRITE, StatLxInfo.EffectiveAccess);
+            //ASSERT((FILE_GENERIC_READ | FILE_GENERIC_WRITE) == StatLxInfo.EffectiveAccess);
+        }
+        else
+        {
+            ASSERT(
+                STATUS_INVALID_INFO_CLASS == Result ||
+                STATUS_NOT_IMPLEMENTED == Result/* value returned under WOW64 */);
+            FspDebugLog(__FUNCTION__ ": only works in Win10 with WSLinux\n");
+        }
     }
 
     CloseHandle(Handle);
