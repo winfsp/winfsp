@@ -15,7 +15,7 @@ for %%f in (winfsp-%SUFFIX%.sys winfsp-%SUFFIX%.dll winfsp-tests-%SUFFIX%.exe fs
 	copy build\VStudio\build\%CONFIG%\%%f %TARGET% >nul
 )
 copy tools\ifstest.bat %TARGET% >nul
-echo sc create WinFsp type=filesys binPath=%%~dp0%DRIVER% >%TARGET%sc-create.bat
+echo sc create WinFsp type=filesys binPath=%%~dp0winfsp-%SUFFIX%.sys >%TARGET%sc-create.bat
 echo sc start WinFsp >%TARGET%sc-start.bat
 echo sc stop WinFsp >%TARGET%sc-stop.bat
 echo sc delete WinFsp >%TARGET%sc-delete.bat
