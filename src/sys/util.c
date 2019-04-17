@@ -683,6 +683,10 @@ NTSTATUS FspEaBufferFromFileSystemValidate(
 
     *PErrorOffset = 0;
 
+    /* EA buffers from the user mode file system are allowed to have zero length */
+    if (0 == Length)
+        return STATUS_SUCCESS;
+
     /* EA buffers from the user mode file system are allowed to end with NextEntryOffset != 0 */
     for (PFILE_FULL_EA_INFORMATION Ea = Buffer, EaEnd = (PVOID)((PUINT8)Ea + Length);
         EaEnd > Ea; Ea = FSP_NEXT_EA(Ea, EaEnd))
