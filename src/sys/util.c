@@ -26,6 +26,10 @@ NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK Desir
     PULONG PFileNameIndex, PFILE_OBJECT *PFileObject, PDEVICE_OBJECT *PDeviceObject);
 NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
+NTSTATUS FspSendQuerySecurityIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
+    SECURITY_INFORMATION SecurityInformation,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    PULONG PLength);
 NTSTATUS FspSendQueryEaIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     PFILE_GET_EA_INFORMATION GetEa, ULONG GetEaLength,
     PFILE_FULL_EA_INFORMATION Ea, PULONG PEaLength);
@@ -127,6 +131,7 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #pragma alloc_text(PAGE, FspCreateGuid)
 #pragma alloc_text(PAGE, FspGetDeviceObjectPointer)
 #pragma alloc_text(PAGE, FspSendSetInformationIrp)
+#pragma alloc_text(PAGE, FspSendQuerySecurityIrp)
 #pragma alloc_text(PAGE, FspSendQueryEaIrp)
 #pragma alloc_text(PAGE, FspBufferUserBuffer)
 #pragma alloc_text(PAGE, FspLockUserBuffer)
@@ -317,7 +322,49 @@ NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT File
     if (STATUS_PENDING == Result)
         KeWaitForSingleObject(&Context.Event, Executive, KernelMode, FALSE, 0);
 
-    return NT_SUCCESS(Result) ? Context.IoStatus.Status : Result;
+    return Context.IoStatus.Status;
+}
+
+NTSTATUS FspSendQuerySecurityIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
+    SECURITY_INFORMATION SecurityInformation,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    PULONG PLength)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    PIRP Irp;
+    PIO_STACK_LOCATION IrpSp;
+    FSP_SEND_IRP_CONTEXT Context;
+    ULONG Length = *PLength;
+
+    *PLength = 0;
+
+    if (0 == DeviceObject)
+        DeviceObject = IoGetRelatedDeviceObject(FileObject);
+
+    Irp = IoAllocateIrp(DeviceObject->StackSize, FALSE);
+    if (0 == Irp)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    IrpSp = IoGetNextIrpStackLocation(Irp);
+    Irp->RequestorMode = KernelMode;
+    Irp->AssociatedIrp.SystemBuffer = SecurityDescriptor;
+    Irp->UserBuffer = SecurityDescriptor;
+    IrpSp->MajorFunction = IRP_MJ_QUERY_SECURITY;
+    IrpSp->FileObject = FileObject;
+    IrpSp->Parameters.QuerySecurity.SecurityInformation = SecurityInformation;
+    IrpSp->Parameters.QuerySecurity.Length = Length;
+
+    IoSetCompletionRoutine(Irp, FspSendIrpCompletion, &Context, TRUE, TRUE, TRUE);
+
+    KeInitializeEvent(&Context.Event, NotificationEvent, FALSE);
+    Result = IoCallDriver(DeviceObject, Irp);
+    if (STATUS_PENDING == Result)
+        KeWaitForSingleObject(&Context.Event, Executive, KernelMode, FALSE, 0);
+
+    *PLength = (ULONG)Context.IoStatus.Information;
+    return Context.IoStatus.Status;
 }
 
 NTSTATUS FspSendQueryEaIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
@@ -358,12 +405,7 @@ NTSTATUS FspSendQueryEaIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     if (STATUS_PENDING == Result)
         KeWaitForSingleObject(&Context.Event, Executive, KernelMode, FALSE, 0);
 
-    if (!NT_SUCCESS(Result))
-        return Result;
-
-    if (NT_SUCCESS(Context.IoStatus.Status))
-        *PEaLength = (ULONG)Context.IoStatus.Information;
-
+    *PEaLength = (ULONG)Context.IoStatus.Information;
     return Context.IoStatus.Status;
 }
 

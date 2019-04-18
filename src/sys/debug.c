@@ -252,6 +252,8 @@ const char *FileInformationClassSym(FILE_INFORMATION_CLASS FileInformationClass)
     SYM(FileReplaceCompletionInformation)
     SYM(FileHardLinkFullIdInformation)
     SYM(FileIdExtdBothDirectoryInformation)
+    case 68: return "FileStatInformation";
+    case 70: return "FileStatLxInformation";
     default:
         return "FILE_INFORMATION_CLASS:Unknown";
     }
