@@ -6,3 +6,4 @@ build
 *.csproj.user
 *.VC.db
 *.VC.opendb
+.vs
