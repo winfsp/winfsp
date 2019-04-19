@@ -441,9 +441,6 @@ static NTSTATUS FspFsvolQueryStatBaseInformation(PFILE_OBJECT FileObject,
 
     PFSP_FILE_STAT_INFORMATION Info = (PFSP_FILE_STAT_INFORMATION)*PBuffer;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
-
-    ASSERT(FileNode == FileDesc->FileNode);
 
     if (0 == FileInfo)
     {
@@ -478,9 +475,6 @@ static NTSTATUS FspFsvolQueryStatLxBaseInformation(PFILE_OBJECT FileObject,
 
     PFSP_FILE_STAT_LX_INFORMATION Info = (PFSP_FILE_STAT_LX_INFORMATION)*PBuffer;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
-    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
-
-    ASSERT(FileNode == FileDesc->FileNode);
 
     if (0 == FileInfo)
     {
