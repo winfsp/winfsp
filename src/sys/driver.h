@@ -1578,7 +1578,7 @@ NTSTATUS FspFileNodeOplockCheckAsyncEx(
         CompletionRoutine,
         PostIrpRoutine);
 #if DBG
-    if (STATUS_SUCCESS == Result && DEBUGTEST(10))
+    if (DEBUGTEST_EX(STATUS_SUCCESS == Result, 10, FALSE))
     {
         Irp->IoStatus.Status = STATUS_SUCCESS;
         Irp->IoStatus.Information = 0;
