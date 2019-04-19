@@ -109,6 +109,10 @@ In order to build WinFsp you will need the following:
 
 * Visual Studio 2015
 * Windows Driver Kit (WDK) 10
+    - **NOTE**: When using the latest WDK (Windows 10.0.18362.1) with Visual Studio 2015 you may get an error about a missing task `ValidateNTTargetVersion`. The fix is to edit the file `\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets` and modify the `UsingTask` line for `ValidateNTTargetVersion` as follows:
+    ```
+    <UsingTask TaskName="ValidateNTTargetVersion" AssemblyFile="$(WDKContentRoot)build\bin\Microsoft.DriverKit.Build.Tasks.16.0.dll"/>
+    ```
 * [Wix toolset](http://wixtoolset.org)
 
 To fully build WinFsp (including the installer) you must use `tools\build.bat`. By default it builds a Release build, but you can choose either the Debug or Release configuration by using the syntax:
