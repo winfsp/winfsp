@@ -212,7 +212,7 @@ for /f "delims=" %%l in (%(FullPath)) do (
     echo !line! &gt;&gt;$(OutDir)driver-$(PlatformTarget).inf
 )
 
-stampinf -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
+stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkObjects>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
@@ -225,7 +225,7 @@ for /f "delims=" %%l in (%(FullPath)) do (
     echo !line! &gt;&gt;$(OutDir)driver-$(PlatformTarget).inf
 )
 
-stampinf -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
+stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkObjects>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
@@ -238,7 +238,7 @@ for /f "delims=" %%l in (%(FullPath)) do (
     echo !line! &gt;&gt;$(OutDir)driver-$(PlatformTarget).inf
 )
 
-stampinf -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
+stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
@@ -251,7 +251,7 @@ for /f "delims=" %%l in (%(FullPath)) do (
     echo !line! &gt;&gt;$(OutDir)driver-$(PlatformTarget).inf
 )
 
-stampinf -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
+stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Writing driver-$(PlatformTarget).inf</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)driver-$(PlatformTarget).inf</Outputs>
