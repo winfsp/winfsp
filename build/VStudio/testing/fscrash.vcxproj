@@ -23,7 +23,7 @@
     <ProjectGuid>{10757011-749D-4954-873B-AE38D8145472}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>fscrash</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

@@ -23,7 +23,7 @@
     <ProjectGuid>{AA7190E8-877F-4827-8CDD-E0D85F83C8C1}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>memfs</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
     <ProjectName>memfs</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

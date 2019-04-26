@@ -22,7 +22,7 @@
     <ProjectGuid>{5E99498C-D30C-48EF-A04A-7977C0305FAC}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>passthroughfuse3</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

@@ -22,7 +22,7 @@
     <ProjectGuid>{CA441CE7-C4DE-4B5E-AA72-D4D483413EF0}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>airfs</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

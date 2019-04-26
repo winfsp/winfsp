@@ -23,7 +23,7 @@
     <ProjectGuid>{262DF8CC-E7A8-4460-A22C-683CBA322C32}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>winfsptests</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
