@@ -107,7 +107,7 @@ The project source code is organized as follows:
 
 In order to build WinFsp you will need the following:
 
-* Visual Studio 2015
+* Visual Studio 2015 - 2019
 * Windows Driver Kit (WDK) 10
     - **NOTE**: When using the latest WDK (Windows 10.0.18362.1) with Visual Studio 2015 you may get an error about a missing task `ValidateNTTargetVersion`. The fix is to edit the file `\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets` and modify the `UsingTask` line for `ValidateNTTargetVersion` as follows:
         ```
