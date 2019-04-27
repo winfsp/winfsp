@@ -981,10 +981,16 @@ static NTSTATUS FspFsvolQueryInformation(
         Result = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd, 0);
         break;
     case 68/*FileStatInformation*/:
-        Result = FspFsvolQueryStatBaseInformation(FileObject, &Buffer, BufferEnd, 0);
+        if (FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.WslFeatures)
+            Result = FspFsvolQueryStatBaseInformation(FileObject, &Buffer, BufferEnd, 0);
+        else
+            Result = STATUS_INVALID_PARAMETER;
         break;
     case 70/*FileStatLxInformation*/:
-        Result = FspFsvolQueryStatLxBaseInformation(FileObject, &Buffer, BufferEnd, 0);
+        if (FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.WslFeatures)
+            Result = FspFsvolQueryStatLxBaseInformation(FileObject, &Buffer, BufferEnd, 0);
+        else
+            Result = STATUS_INVALID_PARAMETER;
         break;
     default:
         Result = STATUS_INVALID_PARAMETER;

@@ -221,6 +221,11 @@ namespace Fsp
             get { return 0 != (_VolumeParams.Flags & VolumeParams.AllowOpenInKernelMode); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.AllowOpenInKernelMode : 0); }
         }
+        public Boolean WslFeatures
+        {
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.WslFeatures); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.WslFeatures : 0); }
+        }
         /// <summary>
         /// Gets or sets the prefix for a network file system.
         /// </summary>
@@ -472,8 +477,9 @@ namespace Fsp
             UInt32 FileAttributes,
             IntPtr SecurityDescriptor,
             UInt64 AllocationSize,
-            IntPtr Ea,
-            UInt32 EaLength,
+            IntPtr ExtraBuffer,
+            UInt32 ExtraLength,
+            Boolean ExtraBufferIsReparsePoint,
             ref FullContext FullContext,
             ref OpenFileInfo OpenFileInfo)
         {
@@ -490,8 +496,9 @@ namespace Fsp
                     FileAttributes,
                     Api.MakeSecurityDescriptor(SecurityDescriptor),
                     AllocationSize,
-                    Ea,
-                    EaLength,
+                    ExtraBuffer,
+                    ExtraLength,
+                    ExtraBufferIsReparsePoint,
                     out FileNode,
                     out FileDesc,
                     out OpenFileInfo.FileInfo,

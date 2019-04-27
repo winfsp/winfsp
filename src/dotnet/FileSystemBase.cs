@@ -1085,8 +1085,9 @@ namespace Fsp
             UInt32 FileAttributes,
             Byte[] SecurityDescriptor,
             UInt64 AllocationSize,
-            IntPtr Ea,
-            UInt32 EaLength,
+            IntPtr ExtraBuffer,
+            UInt32 ExtraLength,
+            Boolean ExtraBufferIsReparsePoint,
             out Object FileNode,
             out Object FileDesc,
             out FileInfo FileInfo,
@@ -1389,6 +1390,16 @@ namespace Fsp
             {
                 Handle.Free();
             }
+        }
+        /// <summary>
+        /// Makes a byte array that contains a reparse point.
+        /// </summary>
+        /// <returns>The reparse point byte array.</returns>
+        public static Byte[] MakeReparsePoint(
+            IntPtr Buffer,
+            UInt32 Size)
+        {
+            return Api.MakeReparsePoint(Buffer, (UIntPtr)Size);
         }
         /// <summary>
         /// Gets the reparse tag from reparse data.

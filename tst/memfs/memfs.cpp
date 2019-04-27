@@ -70,6 +70,11 @@ FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
 #define MEMFS_EA
 
 /*
+ * Define the MEMFS_WSL macro to include WSLinux support.
+ */
+#define MEMFS_WSL
+
+ /*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
  * a check for the Write buffer to ensure that it is read-only.
  *
@@ -1047,8 +1052,8 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
     UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
-#if defined(MEMFS_EA)
-    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength,
+#if defined(MEMFS_EA) || defined(MEMFS_WSL)
+    PVOID ExtraBuffer, ULONG ExtraLength, BOOLEAN ExtraBufferIsReparsePoint,
 #endif
     PVOID *PFileNode, FSP_FSCTL_FILE_INFO *FileInfo)
 {
@@ -1129,15 +1134,43 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         memcpy(FileNode->FileSecurity, SecurityDescriptor, FileNode->FileSecuritySize);
     }
 
-#if defined(MEMFS_EA)
-    if (0 != Ea)
+#if defined(MEMFS_EA) || defined(MEMFS_WSL)
+    if (0 != ExtraBuffer)
     {
-        Result = FspFileSystemEnumerateEa(FileSystem, MemfsFileNodeSetEa, FileNode, Ea, EaLength);
-        if (!NT_SUCCESS(Result))
+#if defined(MEMFS_EA)
+        if (!ExtraBufferIsReparsePoint)
         {
-            MemfsFileNodeDelete(FileNode);
-            return Result;
+            Result = FspFileSystemEnumerateEa(FileSystem, MemfsFileNodeSetEa, FileNode,
+                (PFILE_FULL_EA_INFORMATION)ExtraBuffer, ExtraLength);
+            if (!NT_SUCCESS(Result))
+            {
+                MemfsFileNodeDelete(FileNode);
+                return Result;
+            }
         }
+#endif
+#if defined(MEMFS_WSL)
+        if (ExtraBufferIsReparsePoint)
+        {
+#if defined(MEMFS_REPARSE_POINTS)
+            FileNode->ReparseDataSize = ExtraLength;
+            FileNode->ReparseData = malloc(ExtraLength);
+            if (0 == FileNode->ReparseData && 0 != ExtraLength)
+            {
+                MemfsFileNodeDelete(FileNode);
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
+
+            FileNode->FileInfo.FileAttributes |= FILE_ATTRIBUTE_REPARSE_POINT;
+            FileNode->FileInfo.ReparseTag = *(PULONG)ExtraBuffer;
+                /* the first field in a reparse buffer is the reparse tag */
+            memcpy(FileNode->ReparseData, ExtraBuffer, ExtraLength);
+#else
+            MemfsFileNodeDelete(FileNode);
+            return STATUS_INVALID_PARAMETER;
+#endif
+        }
+#endif
     }
 #endif
 
@@ -2189,7 +2222,7 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     GetVolumeInfo,
     SetVolumeLabel,
     GetSecurityByName,
-#if defined(MEMFS_EA)
+#if defined(MEMFS_EA) || defined(MEMFS_WSL)
     0,
 #else
     Create,
@@ -2240,8 +2273,10 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     0,
 #endif
     0,
-#if defined(MEMFS_EA)
+#if defined(MEMFS_EA) || defined(MEMFS_WSL)
     Create,
+#endif
+#if defined(MEMFS_EA)
     Overwrite,
     GetEa,
     SetEa
@@ -2347,6 +2382,9 @@ NTSTATUS MemfsCreateFunnel(
 #endif
 #if defined(MEMFS_EA)
     VolumeParams.ExtendedAttributes = 1;
+#endif
+#if defined(MEMFS_WSL)
+    VolumeParams.WslFeatures = 1;
 #endif
     VolumeParams.AllowOpenInKernelMode = 1;
     if (0 != VolumePrefix)

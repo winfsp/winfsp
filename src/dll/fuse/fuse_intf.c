@@ -752,7 +752,7 @@ exit:
 static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
     UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
-    PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength,
+    PVOID ExtraBuffer, ULONG ExtraLength, BOOLEAN ExtraBufferIsReparsePoint,
     PVOID *PFileDesc, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse *f = FileSystem->UserContext;
@@ -766,12 +766,21 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     int err;
     NTSTATUS Result;
 
-    if (0 != Ea)
+    if (0 != ExtraBuffer)
     {
-        if (0 == f->ops.listxattr || 0 == f->ops.getxattr ||
-            0 == f->ops.setxattr || 0 == f->ops.removexattr)
+        if (!ExtraBufferIsReparsePoint)
         {
-            Result = STATUS_EAS_NOT_SUPPORTED;
+            if (0 == f->ops.listxattr || 0 == f->ops.getxattr ||
+                0 == f->ops.setxattr || 0 == f->ops.removexattr)
+            {
+                Result = STATUS_EAS_NOT_SUPPORTED;
+                goto exit;
+            }
+        }
+        else
+        {
+            /* !!!: revisit */
+            Result = STATUS_INVALID_PARAMETER;
             goto exit;
         }
     }
@@ -889,12 +898,21 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
             goto exit;
     }
 
-    if (0 != Ea)
+    if (0 != ExtraBuffer)
     {
-        Result = FspFileSystemEnumerateEa(FileSystem,
-            fsp_fuse_intf_SetEaEntry, contexthdr->PosixPath, Ea, EaLength);
-        if (!NT_SUCCESS(Result))
+        if (!ExtraBufferIsReparsePoint)
+        {
+            Result = FspFileSystemEnumerateEa(FileSystem,
+                fsp_fuse_intf_SetEaEntry, contexthdr->PosixPath, ExtraBuffer, ExtraLength);
+            if (!NT_SUCCESS(Result))
+                goto exit;
+        }
+        else
+        {
+            /* !!!: revisit: WslFeatures, GetFileInfoFunnel, GetReparsePointEx, SetReparsePoint */
+            Result = STATUS_INVALID_PARAMETER;
             goto exit;
+        }
     }
     /*
      * Ignore fuse_file_info::direct_io, fuse_file_info::keep_cache.

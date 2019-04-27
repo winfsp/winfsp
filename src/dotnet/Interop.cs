@@ -53,6 +53,7 @@ namespace Fsp.Interop
         internal const UInt32 UmFileContextIsFullContext = 0x00020000;
         internal const UInt32 AllowOpenInKernelMode = 0x01000000;
         internal const UInt32 CasePreservedExtendedAttributes = 0x02000000;
+        internal const UInt32 WslFeatures = 0x04000000;
         internal const int PrefixSize = 192;
         internal const int FileSystemNameSize = 16;
 
@@ -557,8 +558,9 @@ namespace Fsp.Interop
                 UInt32 FileAttributes,
                 IntPtr SecurityDescriptor,
                 UInt64 AllocationSize,
-                IntPtr Ea,
-                UInt32 EaLength,
+                IntPtr ExtraBuffer,
+                UInt32 ExtraLength,
+                [MarshalAs(UnmanagedType.U1)] Boolean ExtraBufferIsReparsePoint,
                 ref FullContext FullContext,
                 ref OpenFileInfo OpenFileInfo);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]

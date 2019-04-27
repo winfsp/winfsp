@@ -912,7 +912,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     /**
      * Create new file or directory.
      *
-     * This function works like Create, except that it also accepts EA (extended attributes).
+     * This function works like Create, except that it also accepts an extra buffer that
+     * may contain extended attributes or a reparse point.
      *
      * NOTE: If both Create and CreateEx are defined, CreateEx takes precedence.
      *
@@ -941,10 +942,12 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Windows GetSecurityDescriptorLength API. Will be NULL for named streams.
      * @param AllocationSize
      *     Allocation size for the newly created file.
-     * @param Ea
-     *     Extended attributes buffer.
-     * @param EaLength
-     *     Extended attributes buffer length.
+     * @param ExtraBuffer
+     *     Extended attributes or reparse point buffer.
+     * @param ExtraLength
+     *     Extended attributes or reparse point buffer length.
+     * @param ExtraBufferIsReparsePoint
+     *     FALSE: extra buffer is extended attributes; TRUE: extra buffer is reparse point.
      * @param PFileContext [out]
      *     Pointer that will receive the file context on successful return from this call.
      * @param FileInfo [out]
@@ -956,7 +959,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     NTSTATUS (*CreateEx)(FSP_FILE_SYSTEM *FileSystem,
         PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess,
         UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize,
-        PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength,
+        PVOID ExtraBuffer, ULONG ExtraLength, BOOLEAN ExtraBufferIsReparsePoint,
         PVOID *PFileContext, FSP_FSCTL_FILE_INFO *FileInfo);
     /**
      * Overwrite a file.

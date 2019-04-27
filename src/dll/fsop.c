@@ -443,6 +443,7 @@ static NTSTATUS FspFileSystemOpCreate_FileCreate(FSP_FILE_SYSTEM *FileSystem,
             0 != Request->Req.Create.Ea.Size ?
                 (PVOID)(Request->Buffer + Request->Req.Create.Ea.Offset) : 0,
             Request->Req.Create.Ea.Size,
+            Request->Req.Create.EaIsReparsePoint,
             AddrOfFileContext(FullContext), &OpenFileInfo.FileInfo);
     else
         Result = FileSystem->Interface->Create(FileSystem,
@@ -590,6 +591,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenIf(FSP_FILE_SYSTEM *FileSystem,
                 0 != Request->Req.Create.Ea.Size ?
                     (PVOID)(Request->Buffer + Request->Req.Create.Ea.Offset) : 0,
                 Request->Req.Create.Ea.Size,
+                Request->Req.Create.EaIsReparsePoint,
                 AddrOfFileContext(FullContext), &OpenFileInfo.FileInfo);
         else
             Result = FileSystem->Interface->Create(FileSystem,
@@ -724,6 +726,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOverwriteIf(FSP_FILE_SYSTEM *FileSyste
                 0 != Request->Req.Create.Ea.Size ?
                     (PVOID)(Request->Buffer + Request->Req.Create.Ea.Offset) : 0,
                 Request->Req.Create.Ea.Size,
+                Request->Req.Create.EaIsReparsePoint,
                 AddrOfFileContext(FullContext), &OpenFileInfo.FileInfo);
         else
             Result = FileSystem->Interface->Create(FileSystem,

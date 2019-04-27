@@ -274,6 +274,7 @@ namespace memfs
             Host.PostCleanupWhenModifiedOnly = true;
             Host.PassQueryDirectoryFileName = true;
             Host.ExtendedAttributes = true;
+            Host.WslFeatures = true;
             return STATUS_SUCCESS;
         }
 
@@ -331,8 +332,9 @@ namespace memfs
             UInt32 FileAttributes,
             Byte[] SecurityDescriptor,
             UInt64 AllocationSize,
-            IntPtr Ea,
-            UInt32 EaLength,
+            IntPtr ExtraBuffer,
+            UInt32 ExtraLength,
+            Boolean ExtraBufferIsReparsePoint,
             out Object FileNode0,
             out Object FileDesc,
             out FileInfo FileInfo,
@@ -369,11 +371,21 @@ namespace memfs
             FileNode.FileInfo.FileAttributes = 0 != (FileAttributes & (UInt32)System.IO.FileAttributes.Directory) ?
                 FileAttributes : FileAttributes | (UInt32)System.IO.FileAttributes.Archive;
             FileNode.FileSecurity = SecurityDescriptor;
-            if (IntPtr.Zero != Ea)
+            if (IntPtr.Zero != ExtraBuffer)
             {
-                Result = SetEaEntries(FileNode, null, Ea, EaLength);
-                if (0 > Result)
-                    return Result;
+                if (!ExtraBufferIsReparsePoint)
+                {
+                    Result = SetEaEntries(FileNode, null, ExtraBuffer, ExtraLength);
+                    if (0 > Result)
+                        return Result;
+                }
+                else
+                {
+                    Byte[] ReparseData = MakeReparsePoint(ExtraBuffer, ExtraLength);
+                    FileNode.FileInfo.FileAttributes |= (UInt32)System.IO.FileAttributes.ReparsePoint;
+                    FileNode.FileInfo.ReparseTag = GetReparseTag(ReparseData);
+                    FileNode.ReparseData = ReparseData;
+                }
             }
             if (0 != AllocationSize)
             {

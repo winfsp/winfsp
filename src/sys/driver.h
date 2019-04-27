@@ -1678,4 +1678,39 @@ typedef struct
     ULONG LxDeviceIdMajor;
     ULONG LxDeviceIdMinor;
 } FSP_FILE_STAT_LX_INFORMATION, *PFSP_FILE_STAT_LX_INFORMATION;
+
+/* ATOMIC_CREATE_ECP_CONTEXT is missing on some WDK's */
+#define ATOMIC_CREATE_ECP_IN_FLAG_REPARSE_POINT_SPECIFIED   0x0002
+#define ATOMIC_CREATE_ECP_OUT_FLAG_REPARSE_POINT_SET        0x0002
+#define ATOMIC_CREATE_ECP_IN_FLAG_BEST_EFFORT               0x0100
+typedef struct
+{
+    LARGE_INTEGER CreationTime;
+    LARGE_INTEGER LastAccessTime;
+    LARGE_INTEGER LastWriteTime;
+    LARGE_INTEGER ChangeTime;
+} FSP_FILE_TIMESTAMPS, *PFSP_FILE_TIMESTAMPS;
+typedef struct
+{
+    USHORT Size;
+    USHORT InFlags;
+    USHORT OutFlags;
+    USHORT ReparseBufferLength;
+    PREPARSE_DATA_BUFFER ReparseBuffer;
+    LONGLONG FileSize;
+    LONGLONG ValidDataLength;
+    PFSP_FILE_TIMESTAMPS FileTimestamps;
+    ULONG FileAttributes;
+    ULONG UsnSourceInfo;
+    USN Usn;
+    ULONG SuppressFileAttributeInheritanceMask;
+    ULONG InOpFlags;
+    ULONG OutOpFlags;
+    ULONG InGenFlags;
+    ULONG OutGenFlags;
+    ULONG CaseSensitiveFlagsMask;
+    ULONG InCaseSensitiveFlags;
+    ULONG OutCaseSensitiveFlags;
+} FSP_ATOMIC_CREATE_ECP_CONTEXT, *PFSP_ATOMIC_CREATE_ECP_CONTEXT;
+
 #endif

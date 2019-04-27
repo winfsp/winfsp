@@ -168,7 +168,8 @@ enum
     /* additional kernel-mode flags */\
     UINT32 AllowOpenInKernelMode:1;         /* allow kernel mode to open files when possible */\
     UINT32 CasePreservedExtendedAttributes:1;   /* preserve case of EA (default is UPPERCASE) */\
-    UINT32 KmReservedFlags:6;\
+    UINT32 WslFeatures:1;                   /* support features required for WSLinux */\
+    UINT32 KmReservedFlags:5;\
     WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */\
     WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
 #define FSP_FSCTL_VOLUME_PARAMS_V1_FIELD_DEFN\
@@ -277,7 +278,7 @@ typedef struct
             UINT32 DesiredAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             UINT32 GrantedAccess;       /* FILE_{READ_DATA,WRITE_DATA,etc.} */
             UINT32 ShareAccess;         /* FILE_SHARE_{READ,WRITE,DELETE} */
-            FSP_FSCTL_TRANSACT_BUF Ea;  /* extended attributes buffer */
+            FSP_FSCTL_TRANSACT_BUF Ea;  /* extended attributes or reparse point buffer */
             UINT32 UserMode:1;          /* request originated in user mode */
             UINT32 HasTraversePrivilege:1;  /* requestor has TOKEN_HAS_TRAVERSE_PRIVILEGE */
             UINT32 HasBackupPrivilege:1;    /* requestor has TOKEN_HAS_BACKUP_PRIVILEGE */
@@ -286,6 +287,7 @@ typedef struct
             UINT32 CaseSensitive:1;         /* FileName comparisons should be case-sensitive */
             UINT32 HasTrailingBackslash:1;  /* FileName had trailing backslash */
             UINT32 AcceptsSecurityDescriptor:1;
+            UINT32 EaIsReparsePoint:1;      /* Ea buffer is reparse point */
             UINT32 ReservedFlags:24;
             UINT16 NamedStream;             /* request targets named stream; colon offset in FileName */
         } Create;
