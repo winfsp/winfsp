@@ -381,6 +381,89 @@ namespace Fsp
         {
             return Api.GetVersion();
         }
+        /// <summary>
+        /// Returns a RequestHint to reference the current operation asynchronously.
+        /// </summary>
+        public UInt64 GetOperationRequestHint()
+        {
+            return Api.FspFileSystemGetOperationRequestHint();
+        }
+        /// <summary>
+        /// Asynchronously complete a Write operation.
+        /// </summary>
+        /// <param name="RequestHint">
+        /// A reference to the operation to complete.
+        /// </param>
+        /// <param name="Status">
+        /// STATUS_SUCCESS or error code.
+        /// </param>
+        /// <param name="BytesTransferred">
+        /// The number of bytes written.
+        /// </param>
+        /// <param name="FileInfo">
+        /// Updated file information.
+        /// </param>
+        public void SendWriteResponse(UInt64 RequestHint, UInt32 Status, UInt32 BytesTransferred, ref FileInfo FileInfo)
+        {
+            var Response = new FspFsctlTransactRsp()
+            {
+                Size = 128,
+                Kind = (UInt32) FspFsctlTransact.WriteKind,
+                Hint = RequestHint
+            };
+            Response.IoStatus.Information = BytesTransferred;
+            Response.IoStatus.Status = Status;
+            Response.WriteFileInfo = FileInfo;
+            Api.FspFileSystemSendResponse(_FileSystemPtr, ref Response);
+        }
+        /// <summary>
+        /// Asynchronously complete a Read operation.
+        /// </summary>
+        /// <param name="RequestHint">
+        /// A reference to the operation to complete.
+        /// </param>
+        /// <param name="Status">
+        /// STATUS_SUCCESS or error code.
+        /// </param>
+        /// <param name="BytesTransferred">
+        /// Number of bytes read.
+        /// </param>
+        public void SendReadResponse(UInt64 RequestHint, UInt32 Status, UInt32 BytesTransferred)
+        {
+            var Response = new FspFsctlTransactRsp()
+            {
+                Size = 128,
+                Kind = (UInt32) FspFsctlTransact.ReadKind,
+                Hint = RequestHint
+            };
+            Response.IoStatus.Information = BytesTransferred;
+            Response.IoStatus.Status = Status;
+            Api.FspFileSystemSendResponse(_FileSystemPtr, ref Response);
+        }
+        /// <summary>
+        /// Asynchronously complete a ReadDirectory operation.
+        /// </summary>
+        /// <param name="RequestHint">
+        /// A reference to the operation to complete.
+        /// </param>
+        /// <param name="Status">
+        /// STATUS_SUCCESS or error code.
+        /// </param>
+        /// <param name="BytesTransferred">
+        /// Number of bytes read.
+        /// </param>
+        public void SendReadDirectoryResponse(UInt64 RequestHint, UInt32 Status, UInt32 BytesTransferred)
+        {
+            var Response = new FspFsctlTransactRsp()
+            {
+                Size = 128,
+                Kind = (UInt32) FspFsctlTransact.QueryDirectoryKind,
+                Hint = RequestHint
+            };
+            Response.IoStatus.Information = BytesTransferred;
+            Response.IoStatus.Status = Status;
+            Api.FspFileSystemSendResponse(_FileSystemPtr, ref Response);
+        }
 
         /* FSP_FILE_SYSTEM_INTERFACE */
         private static Byte[] ByteBufferNotNull = new Byte[0];
