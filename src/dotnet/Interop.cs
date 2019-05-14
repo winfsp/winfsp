@@ -725,7 +725,7 @@ namespace Fsp.Interop
                 IntPtr FileSystem,
                 ref FspFsctlTransactRsp Response);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-            internal delegate ref FspFileSystemOperationContext FspFileSystemGetOperationContext();
+            internal unsafe delegate FspFileSystemOperationContext *FspFileSystemGetOperationContext();
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate IntPtr FspFileSystemMountPointF(
                 IntPtr FileSystem);
@@ -961,9 +961,7 @@ namespace Fsp.Interop
         }
         internal static unsafe UInt64 FspFileSystemGetOperationRequestHint()
         {
-            FspFileSystemOperationContext Context = FspFileSystemGetOperationContext();
-            FspFsctlTransactReq Request = *Context.Request;
-            return Request.Hint;
+            return FspFileSystemGetOperationContext()->Request->Hint;
         }
         internal static unsafe Boolean FspFileSystemAddDirInfo(
             ref DirInfo DirInfo,
