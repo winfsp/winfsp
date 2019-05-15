@@ -403,7 +403,7 @@ namespace Fsp
         /// <param name="FileInfo">
         /// Updated file information.
         /// </param>
-        public void SendWriteResponse(UInt64 RequestHint, UInt32 Status, UInt32 BytesTransferred, ref FileInfo FileInfo)
+        public void SendWriteResponse(UInt64 RequestHint, Int32 Status, UInt32 BytesTransferred, ref FileInfo FileInfo)
         {
             var Response = new FspFsctlTransactRsp()
             {
@@ -412,7 +412,7 @@ namespace Fsp
                 Hint = RequestHint
             };
             Response.IoStatus.Information = BytesTransferred;
-            Response.IoStatus.Status = Status;
+            Response.IoStatus.Status = (UInt32) Status;
             Response.WriteFileInfo = FileInfo;
             Api.FspFileSystemSendResponse(_FileSystemPtr, ref Response);
         }
@@ -428,7 +428,7 @@ namespace Fsp
         /// <param name="BytesTransferred">
         /// Number of bytes read.
         /// </param>
-        public void SendReadResponse(UInt64 RequestHint, UInt32 Status, UInt32 BytesTransferred)
+        public void SendReadResponse(UInt64 RequestHint, Int32 Status, UInt32 BytesTransferred)
         {
             var Response = new FspFsctlTransactRsp()
             {
@@ -437,7 +437,7 @@ namespace Fsp
                 Hint = RequestHint
             };
             Response.IoStatus.Information = BytesTransferred;
-            Response.IoStatus.Status = Status;
+            Response.IoStatus.Status = (UInt32) Status;
             Api.FspFileSystemSendResponse(_FileSystemPtr, ref Response);
         }
         /// <summary>
@@ -452,7 +452,7 @@ namespace Fsp
         /// <param name="BytesTransferred">
         /// Number of bytes read.
         /// </param>
-        public void SendReadDirectoryResponse(UInt64 RequestHint, UInt32 Status, UInt32 BytesTransferred)
+        public void SendReadDirectoryResponse(UInt64 RequestHint, Int32 Status, UInt32 BytesTransferred)
         {
             var Response = new FspFsctlTransactRsp()
             {
@@ -461,7 +461,7 @@ namespace Fsp
                 Hint = RequestHint
             };
             Response.IoStatus.Information = BytesTransferred;
-            Response.IoStatus.Status = Status;
+            Response.IoStatus.Status = (UInt32) Status;
             Api.FspFileSystemSendResponse(_FileSystemPtr, ref Response);
         }
 
