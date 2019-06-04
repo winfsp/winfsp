@@ -1291,7 +1291,7 @@ namespace Fsp
                 ModificationDescriptor,
                 ref ModifiedDescriptor);
         }
-        public Int32 SeekableReadDirectory(
+        public virtual Int32 SeekableReadDirectory(
             Object FileNode,
             Object FileDesc,
             String Pattern,
