@@ -71,6 +71,7 @@ set dfl_tests=^
     winfsp-tests-dotnet-external-share ^
     fsx-memfs-dotnet-disk ^
     fsx-memfs-dotnet-net ^
+    fsx-memfs-dotnet-slowio ^
     winfstest-memfs-dotnet-disk ^
     winfstest-memfs-dotnet-net
 set opt_tests=^
@@ -495,6 +496,11 @@ exit /b 0
 
 :fsx-memfs-x86-slowio
 call :__run_fsx_memfs_slowio_test memfs32-slowio memfs-x86
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:fsx-memfs-dotnet-slowio
+call :__run_fsx_memfs_slowio_test memfs.net-slowio memfs-dotnet-msil
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
