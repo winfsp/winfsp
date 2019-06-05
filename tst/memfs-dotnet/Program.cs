@@ -637,7 +637,7 @@ namespace memfs
             SlowioSnooze();
 
             UInt32 BytesTransferred;
-            var Status = base.SeekableReadDirectory(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, out BytesTransferred);
+            var Status = SeekableReadDirectory(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, out BytesTransferred);
             Host.SendReadDirectoryResponse(RequestHint, Status, BytesTransferred);
         }
 #endif
@@ -1019,7 +1019,7 @@ namespace memfs
         }
 
 #if MEMFS_SLOWIO
-        public override int SeekableReadDirectory(
+        public override int ReadDirectory(
             Object FileNode0,
             Object FileDesc,
             String Pattern,
@@ -1037,7 +1037,7 @@ namespace memfs
                 return STATUS_PENDING;
             }
 
-            return base.SeekableReadDirectory(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, out BytesTransferred);
+            return SeekableReadDirectory(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, out BytesTransferred);
         }
 #endif
 
