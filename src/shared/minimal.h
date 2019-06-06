@@ -72,6 +72,7 @@ NTSYSAPI VOID NTAPI RtlMoveMemory(VOID *Destination, CONST VOID *Source, DWORD L
 
 #pragma function(memset)
 #pragma function(memcpy)
+#pragma function(memmove)
 static inline
 void *memset(void *dst, int val, size_t siz)
 {
