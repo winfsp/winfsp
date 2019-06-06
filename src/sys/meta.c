@@ -103,7 +103,7 @@ static inline FSP_META_CACHE_ITEM *FspMetaCacheRemoveExpiredItemAtDpcLevel(FSP_M
     if (Head == Entry)
         return 0;
     FSP_META_CACHE_ITEM *Item = CONTAINING_RECORD(Entry, FSP_META_CACHE_ITEM, ListEntry);
-    if (!FspExpirationTimeValid2(Item->ExpirationTime, ExpirationTime))
+    if (FspExpirationTimeValid2(Item->ExpirationTime, ExpirationTime))
         return 0;
     ULONG HashIndex = Item->ItemIndex % MetaCache->ItemBucketCount;
     for (FSP_META_CACHE_ITEM **P = (PVOID)&MetaCache->ItemBuckets[HashIndex]; *P; P = &(*P)->DictNext)
@@ -202,7 +202,7 @@ UINT64 FspMetaCacheAddItem(FSP_META_CACHE *MetaCache, PCVOID Buffer, ULONG Size)
 {
     if (0 == MetaCache)
         return 0;
-    FSP_META_CACHE_ITEM *Item;
+    FSP_META_CACHE_ITEM *Item, *ExpiredItem = 0;
     FSP_META_CACHE_ITEM_BUFFER *ItemBuffer;
     UINT64 ItemIndex = 0;
     KIRQL Irql;
@@ -236,12 +236,14 @@ UINT64 FspMetaCacheAddItem(FSP_META_CACHE *MetaCache, PCVOID Buffer, ULONG Size)
     }
     KeAcquireSpinLock(&MetaCache->SpinLock, &Irql);
     if (MetaCache->ItemCount >= MetaCache->MetaCapacity)
-        FspMetaCacheRemoveExpiredItemAtDpcLevel(MetaCache, (UINT64)-1LL);
+        ExpiredItem = FspMetaCacheRemoveExpiredItemAtDpcLevel(MetaCache, (UINT64)-1LL);
     ItemIndex = MetaCache->ItemIndex;
     ItemIndex = (UINT64)-1LL == ItemIndex ? 1 : ItemIndex + 1;
     MetaCache->ItemIndex = Item->ItemIndex = ItemIndex;
     FspMetaCacheAddItemAtDpcLevel(MetaCache, Item);
     KeReleaseSpinLock(&MetaCache->SpinLock, Irql);
+    if (0 != ExpiredItem)
+        FspMetaCacheDereferenceItem(ExpiredItem);
     return ItemIndex;
 }
 

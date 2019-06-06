@@ -261,8 +261,78 @@ void setsecurity_test(void)
     }
 }
 
+void security_stress_meta_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+#define NumFiles                        200/* 2*FspFsvolDeviceSecurityCacheCapacity */
+
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handles[NumFiles];
+    WCHAR FilePath[MAX_PATH];
+    BOOL Success;
+    DWORD Length;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    for (int j = 0; NumFiles > j; j++)
+    {
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file%d",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), j + 1);
+        Handles[j] = CreateFileW(FilePath, GENERIC_ALL, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handles[j]);
+    }
+
+    for (int j = 0; NumFiles > j; j++)
+    {
+        Success = GetKernelObjectSecurity(Handles[j],
+            OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+            0, 0, &Length);
+        ASSERT(!Success);
+        ASSERT(ERROR_INSUFFICIENT_BUFFER == GetLastError());
+    }
+
+    for (int j = 0; NumFiles > j; j++)
+    {
+        Success = CloseHandle(Handles[j]);
+        ASSERT(Success);
+    }
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Success = RemoveDirectoryW(FilePath);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+
+#undef NumFiles
+}
+
+void security_stress_meta_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        security_stress_meta_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        security_stress_meta_dotest(MemfsDisk, 0, 0);
+        security_stress_meta_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        security_stress_meta_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        security_stress_meta_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 void security_tests(void)
 {
     TEST(getsecurity_test);
     TEST(setsecurity_test);
+    TEST_OPT(security_stress_meta_test);
 }
