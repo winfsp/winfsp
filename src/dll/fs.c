@@ -24,6 +24,8 @@
 enum
 {
     FspFileSystemDispatcherThreadCountMin = 2,
+    FspFileSystemDispatcherDefaultThreadCountMin = 4,
+    FspFileSystemDispatcherDefaultThreadCountMax = 16,
 };
 
 static FSP_FILE_SYSTEM_INTERFACE FspFileSystemNullInterface;
@@ -636,6 +638,11 @@ FSP_API NTSTATUS FspFileSystemStartDispatcher(FSP_FILE_SYSTEM *FileSystem, ULONG
 
         for (ThreadCount = 0; 0 != ProcessMask; ProcessMask >>= 1)
             ThreadCount += ProcessMask & 1;
+
+        if (ThreadCount < FspFileSystemDispatcherDefaultThreadCountMin)
+            ThreadCount = FspFileSystemDispatcherDefaultThreadCountMin;
+        else if (ThreadCount > FspFileSystemDispatcherDefaultThreadCountMax)
+            ThreadCount = FspFileSystemDispatcherDefaultThreadCountMax;
     }
 
     if (ThreadCount < FspFileSystemDispatcherThreadCountMin)
