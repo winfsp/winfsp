@@ -1216,7 +1216,6 @@ NTSTATUS FspMupHandleIrp(
     PDEVICE_OBJECT FsmupDeviceObject, PIRP Irp);
 
 /* volume management */
-#define FspVolumeTransactEarlyTimeout   (1 * 10000ULL)
 NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 VOID FspVolumeDelete(

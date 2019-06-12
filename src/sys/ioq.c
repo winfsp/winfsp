@@ -688,6 +688,12 @@ BOOLEAN FspIoqRetryCompleteIrp(FSP_IOQ *Ioq, PIRP Irp, NTSTATUS *PResult)
     Result = FspCsqInsertIrpEx(&Ioq->RetriedIoCsq, Irp, 0, 0);
     if (NT_SUCCESS(Result))
     {
+        /* wake up a waiter */
+        KIRQL Irql;
+        KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
+        FspIoqEventSet(&Ioq->PendingIrpEvent);
+        KeReleaseSpinLock(&Ioq->SpinLock, Irql);
+
         if (0 != PResult)
             *PResult = STATUS_PENDING;
         return TRUE;

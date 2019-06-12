@@ -132,7 +132,9 @@ static NTSTATUS FspVolumeCreateNoLock(
         VolumeParams.SectorsPerAllocationUnit = 1;
     if (0 == VolumeParams.MaxComponentLength)
         VolumeParams.MaxComponentLength = 255;
-    if (FspFsctlTransactTimeoutMinimum > VolumeParams.TransactTimeout ||
+    if (0 == VolumeParams.TransactTimeout)
+        VolumeParams.TransactTimeout = 24 * 60 * 60 * 1000; /* 1 day */
+    else if (FspFsctlTransactTimeoutMinimum > VolumeParams.TransactTimeout ||
         VolumeParams.TransactTimeout > FspFsctlTransactTimeoutMaximum)
         VolumeParams.TransactTimeout = FspFsctlTransactTimeoutDefault;
     if (FspFsctlIrpTimeoutMinimum > VolumeParams.IrpTimeout ||
@@ -770,17 +772,17 @@ NTSTATUS FspVolumeTransact(
 
     /* wait for an IRP to arrive */
     KeQuerySystemTime(&Timeout);
-    Timeout.QuadPart += 0 == RepostedIrp ?
-        FsvolDeviceExtension->VolumeParams.TransactTimeout * 10000ULL :
-        FspVolumeTransactEarlyTimeout;
+    Timeout.QuadPart += FsvolDeviceExtension->VolumeParams.TransactTimeout * 10000ULL;
         /* convert millis to nanos and add to absolute time */
-    while (0 == (PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, 0, &Timeout, Irp)))
+    if (0 == (PendingIrp = FspIoqNextPendingIrp(FsvolDeviceExtension->Ioq, 0, &Timeout, Irp)))
     {
         if (FspIoqStopped(FsvolDeviceExtension->Ioq))
         {
             Result = STATUS_CANCELLED;
             goto exit;
         }
+
+        PendingIrp = FspIoqTimeout;
     }
     if (FspIoqTimeout == PendingIrp || FspIoqCancelled == PendingIrp)
     {

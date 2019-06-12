@@ -121,7 +121,7 @@ enum
 {
     FspFsctlTransactTimeoutMinimum = 1000,
     FspFsctlTransactTimeoutMaximum = 10000,
-    FspFsctlTransactTimeoutDefault = 1000,
+    FspFsctlTransactTimeoutDefault = 1000,  /* DEPRECATED: default is unspecified */
     FspFsctlIrpTimeoutMinimum = 60000,
     FspFsctlIrpTimeoutMaximum = 600000,
     FspFsctlIrpTimeoutDefault = 300000,
@@ -139,7 +139,7 @@ enum
     UINT64 VolumeCreationTime;\
     UINT32 VolumeSerialNumber;\
     /* I/O timeouts, capacity, etc. */\
-    UINT32 TransactTimeout;             /* FSP_FSCTL_TRANSACT timeout (millis; 1 sec - 10 sec) */\
+    UINT32 TransactTimeout;             /* DEPRECATED: (millis; 1 sec - 10 sec) */\
     UINT32 IrpTimeout;                  /* pending IRP timeout (millis; 1 min - 10 min) */\
     UINT32 IrpCapacity;                 /* maximum number of pending IRP's (100 - 1000)*/\
     UINT32 FileInfoTimeout;             /* FileInfo/Security/VolumeInfo timeout (millis) */\
