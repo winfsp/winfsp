@@ -51,7 +51,7 @@ typedef struct
     UINT32 DeviceExtensionOffset;
 } FSP_FSEXT_PROVIDER;
 
-FSP_DDI_DEF(NTSTATUS, FspFsextRegisterProvider, FSP_FSEXT_PROVIDER *Provider)
+FSP_DDI_DEF(NTSTATUS, FspFsextProviderRegister, FSP_FSEXT_PROVIDER *Provider)
 
 FSP_DDI_DEF(NTSTATUS, FspPosixMapSidToUid, PSID Sid, PUINT32 PUid)
 FSP_DDI_DEF(NTSTATUS, FspPosixMapWindowsToPosixPathEx, PWSTR WindowsPath, char **PPosixPath,

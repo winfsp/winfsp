@@ -104,12 +104,18 @@
     <ClCompile Include="..\..\src\sys\mup.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\sys\fsext.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\sys\driver.h">
       <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h">
+      <Filter>Include\winfsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\opt\fsext\inc\winfsp\fsext.h">
       <Filter>Include\winfsp</Filter>
     </ClInclude>
   </ItemGroup>
