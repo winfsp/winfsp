@@ -1,0 +1,6 @@
+// tools\impdef.bat lib\winfsp.impdef lib\winfsp-x64.lib
+// tools\impdef.bat lib\winfsp.impdef lib\winfsp-x86.lib
+
+#define FSP_DDI_DEF(RetType, Name, ...) __declspec(dllexport) RetType NTAPI Name ( __VA_ARGS__ ) {}
+#include <ntifs.h>
+#include <winfsp/fsext.h>

@@ -588,7 +588,7 @@ static inline FSP_FSCTL_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
     return NextResponse <= ResponseBufEnd ? (FSP_FSCTL_TRANSACT_RSP *)NextResponse : 0;
 }
 
-#if !defined(WINFSP_SYS_INTERNAL)
+#if !defined(_KERNEL_MODE)
 FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
     PWCHAR VolumeNameBuf, SIZE_T VolumeNameSize,
