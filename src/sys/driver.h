@@ -29,6 +29,7 @@
 #include <ntstrsafe.h>
 #include <wdmsec.h>
 #include <winfsp/fsctl.h>
+#include <winfsp/fsext.h>
 
 /* disable warnings */
 #pragma warning(disable:4100)           /* unreferenced formal parameter */
@@ -1085,6 +1086,7 @@ typedef struct
     PNOTIFY_SYNC NotifySync;
     LIST_ENTRY NotifyList;
     FSP_STATISTICS *Statistics;
+    FSP_FSCTL_DECLSPEC_ALIGN UINT8 FsextData[];
 } FSP_FSVOL_DEVICE_EXTENSION;
 typedef struct
 {
@@ -1175,6 +1177,9 @@ VOID FspDeviceGlobalUnlock(VOID)
     STATUS_VOLUME_DISMOUNTED
     //(FILE_DEVICE_DISK_FILE_SYSTEM == (DeviceObject)->DeviceType ?\
     //    STATUS_VOLUME_DISMOUNTED : STATUS_DEVICE_NOT_CONNECTED)
+
+/* fsext */
+FSP_FSEXT_PROVIDER *FspFsextProvider(VOID);
 
 /* process buffers conditional usage */
 static inline

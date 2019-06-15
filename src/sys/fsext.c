@@ -22,7 +22,37 @@
 #include <sys/driver.h>
 #include <winfsp/fsext.h>
 
+static KSPIN_LOCK FsextSpinLock = 0;
+FSP_FSEXT_PROVIDER *FsextProvider;
+
+FSP_FSEXT_PROVIDER *FspFsextProvider(VOID)
+{
+    FSP_FSEXT_PROVIDER *Provider;
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&FsextSpinLock, &Irql);
+    Provider = FsextProvider;
+    KeReleaseSpinLock(&FsextSpinLock, Irql);
+
+    return Provider;
+}
+
 NTSTATUS FspFsextProviderRegister(FSP_FSEXT_PROVIDER *Provider)
 {
-    return STATUS_TOO_LATE;
+    NTSTATUS Result;
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&FsextSpinLock, &Irql);
+    if (0 != FsextProvider)
+    {
+        Result = STATUS_TOO_LATE;
+        goto exit;
+    }
+    Provider->DeviceExtensionOffset = FIELD_OFFSET(FSP_FSVOL_DEVICE_EXTENSION, FsextData);
+    FsextProvider = Provider;
+    Result = STATUS_SUCCESS;
+exit:
+    KeReleaseSpinLock(&FsextSpinLock, Irql);
+
+    return Result;
 }
