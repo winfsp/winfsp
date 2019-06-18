@@ -1,5 +1,5 @@
 /**
- * @file dll/posix.c
+ * @file ku/posix.c
  * POSIX Interop.
  *
  * This file provides routines for Windows/POSIX interoperability. It is based
@@ -32,15 +32,67 @@
  * associated repository.
  */
 
-#include <dll/library.h>
-#include <aclapi.h>
-#define _NTDEF_
-#include <ntsecapi.h>
+#include <ku/library.h>
 
+FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid);
+FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid);
 static PISID FspPosixCreateSid(BYTE Authority, ULONG Count, ...);
+FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)());
+FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
+    UINT32 Uid, UINT32 Gid, UINT32 Mode,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor);
+FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    PUINT32 PUid, PUINT32 PGid, PUINT32 PMode);
+FSP_API NTSTATUS FspPosixMapWindowsToPosixPathEx(PWSTR WindowsPath, char **PPosixPath,
+    BOOLEAN Translate);
+FSP_API NTSTATUS FspPosixMapPosixToWindowsPathEx(const char *PosixPath, PWSTR *PWindowsPath,
+    BOOLEAN Translate);
+FSP_API VOID FspPosixDeletePath(void *Path);
+FSP_API VOID FspPosixEncodeWindowsPath(PWSTR WindowsPath, ULONG Size);
+FSP_API VOID FspPosixDecodeWindowsPath(PWSTR WindowsPath, ULONG Size);
 
-static INIT_ONCE FspPosixInitOnce = INIT_ONCE_STATIC_INIT;
-union
+#if defined(_KERNEL_MODE)
+#ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspPosixMapUidToSid)
+#pragma alloc_text(PAGE, FspPosixMapSidToUid)
+#pragma alloc_text(PAGE, FspPosixCreateSid)
+#pragma alloc_text(PAGE, FspDeleteSid)
+#pragma alloc_text(PAGE, FspPosixMapPermissionsToSecurityDescriptor)
+#pragma alloc_text(PAGE, FspPosixMapSecurityDescriptorToPermissions)
+#pragma alloc_text(PAGE, FspPosixMapWindowsToPosixPathEx)
+#pragma alloc_text(PAGE, FspPosixMapPosixToWindowsPathEx)
+#pragma alloc_text(PAGE, FspPosixDeletePath)
+#pragma alloc_text(PAGE, FspPosixEncodeWindowsPath)
+#pragma alloc_text(PAGE, FspPosixDecodeWindowsPath)
+#endif
+#endif
+
+static union
+{
+    SID V;
+    UINT8 B[sizeof(SID) - sizeof(DWORD) + (1 * sizeof(DWORD))];
+} FspWorldSidBuf =
+{
+    /* S-1-1-0 */
+    .V.Revision = SID_REVISION,
+    .V.SubAuthorityCount = 1,
+    .V.IdentifierAuthority.Value[5] = 1,
+    .V.SubAuthority[0] = 0,
+};
+static union
+{
+    SID V;
+    UINT8 B[sizeof(SID) - sizeof(DWORD) + (1 * sizeof(DWORD))];
+} FspAuthUsersSidBuf =
+{
+    /* S-1-5-11 */
+    .V.Revision = SID_REVISION,
+    .V.SubAuthorityCount = 1,
+    .V.IdentifierAuthority.Value[5] = 5,
+    .V.SubAuthority[0] = 11,
+};
+static union
 {
     SID V;
     UINT8 B[sizeof(SID) - sizeof(DWORD) + (1 * sizeof(DWORD))];
@@ -52,11 +104,15 @@ union
     .V.IdentifierAuthority.Value[5] = 0,
     .V.SubAuthority[0] = 65534,
 };
-static PISID FspAccountDomainSid, FspPrimaryDomainSid;
 
+#define FspWorldSid                     (&FspWorldSidBuf.V)
+#define FspAuthUsersSid                 (&FspAuthUsersSidBuf.V)
 #define FspUnmappedSid                  (&FspUnmappedSidBuf.V)
 #define FspUnmappedUid                  (65534)
 
+static PISID FspAccountDomainSid, FspPrimaryDomainSid;
+static INIT_ONCE FspPosixInitOnce = INIT_ONCE_STATIC_INIT;
+#if !defined(_KERNEL_MODE)
 static BOOL WINAPI FspPosixInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
@@ -120,9 +176,79 @@ VOID FspPosixFinalize(BOOLEAN Dynamic)
         MemFree(FspPrimaryDomainSid);
     }
 }
+#else
+ULONG NTAPI FspPosixInitialize(
+    PRTL_RUN_ONCE RunOnce, PVOID Parameter, PVOID *Context)
+{
+    static union
+    {
+        SID V;
+        UINT8 B[SECURITY_MAX_SID_SIZE];
+    } FspAccountDomainSidBuf;
+    static union
+    {
+        SID V;
+        UINT8 B[SECURITY_MAX_SID_SIZE];
+    } FspPrimaryDomainSidBuf;
+    UNICODE_STRING Path;
+    UNICODE_STRING Name;
+    union
+    {
+        KEY_VALUE_PARTIAL_INFORMATION V;
+        UINT8 B[FIELD_OFFSET(KEY_VALUE_PARTIAL_INFORMATION, Data) + SECURITY_MAX_SID_SIZE];
+    } Value;
+    ULONG Length;
+    NTSTATUS Result;
+
+    RtlInitUnicodeString(&Path, L"\\Machine\\SECURITY\\Policy\\PolAcDmS");
+    RtlZeroMemory(&Name, sizeof Name);
+    Length = sizeof Value;
+    Result = FspRegistryGetValue(&Path, &Name, &Value.V, &Length);
+    if (STATUS_SUCCESS == Result /*!NT_SUCCESS*/ && REG_NONE == Value.V.Type &&
+        sizeof(SID) <= Value.V.DataLength && RtlValidSid((PSID)&Value.V.Data))
+    {
+        RtlCopyMemory(&FspAccountDomainSidBuf.V, &Value.V.Data, Value.V.DataLength);
+        FspAccountDomainSid = &FspAccountDomainSidBuf.V;
+    }
+
+    RtlInitUnicodeString(&Path, L"\\Machine\\SECURITY\\Policy\\PolPrDmS");
+    RtlZeroMemory(&Name, sizeof Name);
+    Length = sizeof Value;
+    Result = FspRegistryGetValue(&Path, &Name, &Value.V, &Length);
+    if (STATUS_SUCCESS == Result /*!NT_SUCCESS*/ && REG_NONE == Value.V.Type &&
+        sizeof(SID) <= Value.V.DataLength && RtlValidSid((PSID)&Value.V.Data))
+    {
+        RtlCopyMemory(&FspPrimaryDomainSidBuf.V, &Value.V.Data, Value.V.DataLength);
+        FspPrimaryDomainSid = &FspPrimaryDomainSidBuf.V;
+    }
+
+    return TRUE;
+}
+#endif
+
+static inline BOOLEAN FspPosixIsRelativeSid(PISID Sid1, PISID Sid2)
+{
+    if (Sid1->Revision != Sid2->Revision)
+        return FALSE;
+    if (Sid1->IdentifierAuthority.Value[0] != Sid2->IdentifierAuthority.Value[0] ||
+        Sid1->IdentifierAuthority.Value[1] != Sid2->IdentifierAuthority.Value[1] ||
+        Sid1->IdentifierAuthority.Value[2] != Sid2->IdentifierAuthority.Value[2] ||
+        Sid1->IdentifierAuthority.Value[3] != Sid2->IdentifierAuthority.Value[3] ||
+        Sid1->IdentifierAuthority.Value[4] != Sid2->IdentifierAuthority.Value[4] ||
+        Sid1->IdentifierAuthority.Value[5] != Sid2->IdentifierAuthority.Value[5])
+        return FALSE;
+    if (Sid1->SubAuthorityCount + 1 != Sid2->SubAuthorityCount)
+        return FALSE;
+    for (ULONG I = 0; Sid1->SubAuthorityCount > I; I++)
+        if (Sid1->SubAuthority[I] != Sid2->SubAuthority[I])
+            return FALSE;
+    return TRUE;
+}
 
 FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
 {
+    FSP_KU_CODE;
+
     InitOnceExecuteOnce(&FspPosixInitOnce, FspPosixInitialize, 0, 0);
 
     *PSid = 0;
@@ -221,7 +347,7 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
      *     S-1-X-Y                             <=> uid/gid: 0x10000 + 0x100 * X + Y
      */
     else if (0x10000 <= Uid && Uid < 0x11000)
-        *PSid = FspPosixCreateSid((Uid - 0x10000) >> 8, 1, (Uid - 0x10000) & 0xff);
+        *PSid = FspPosixCreateSid((BYTE)((Uid - 0x10000) >> 8), 1, (Uid - 0x10000) & 0xff);
 
     /* [IDMAP]
      * Other well-known SIDs in the NT_AUTHORITY domain (S-1-5-X-RID):
@@ -238,13 +364,15 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
 
 FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
 {
+    FSP_KU_CODE;
+
     InitOnceExecuteOnce(&FspPosixInitOnce, FspPosixInitialize, 0, 0);
 
     BYTE Authority;
     BYTE Count;
     UINT32 SubAuthority0, Rid;
 
-    *PUid = -1;
+    *PUid = (UINT32)-1;
 
     if (!IsValidSid(Sid) || 0 == (Count = *GetSidSubAuthorityCount(Sid)))
         return STATUS_INVALID_SID;
@@ -298,12 +426,11 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
              * has PrimaryDomainSid == AccountDomainSid.
              */
 
-            BOOL EqualDomains = FALSE;
             if (0 != FspPrimaryDomainSid &&
-                EqualDomainSid(FspPrimaryDomainSid, Sid, &EqualDomains) && EqualDomains)
+                FspPosixIsRelativeSid(FspPrimaryDomainSid, Sid))
                 *PUid = 0x100000 + Rid;
             else if (0 != FspAccountDomainSid &&
-                EqualDomainSid(FspAccountDomainSid, Sid, &EqualDomains) && EqualDomains)
+                FspPosixIsRelativeSid(FspAccountDomainSid, Sid))
                 *PUid = 0x30000 + Rid;
 
             /*
@@ -348,6 +475,8 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
 
 static PISID FspPosixCreateSid(BYTE Authority, ULONG Count, ...)
 {
+    FSP_KU_CODE;
+
     PISID Sid;
     SID_IDENTIFIER_AUTHORITY IdentifierAuthority;
     va_list ap;
@@ -370,6 +499,8 @@ static PISID FspPosixCreateSid(BYTE Authority, ULONG Count, ...)
 
 FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)())
 {
+    FSP_KU_CODE;
+
     if (FspUnmappedSid == Sid)
         ;
     else if ((NTSTATUS (*)())FspPosixMapUidToSid == CreateFunc)
@@ -439,7 +570,9 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     UINT32 Uid, UINT32 Gid, UINT32 Mode,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor)
 {
-    PSID OwnerSid = 0, GroupSid = 0, WorldSid = 0;
+    FSP_KU_CODE;
+
+    PSID OwnerSid = 0, GroupSid = 0;
     UINT32 OwnerPerm, OwnerDeny, GroupPerm, GroupDeny, WorldPerm;
     PACL Acl = 0;
     SECURITY_DESCRIPTOR SecurityDescriptor;
@@ -456,13 +589,6 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     Result = FspPosixMapUidToSid(Gid, &GroupSid);
     if (!NT_SUCCESS(Result))
         goto exit;
-
-    WorldSid = FspWksidGet(WinWorldSid);
-    if (0 == WorldSid)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
 
     OwnerPerm = (Mode & 0700) >> 6;
     GroupPerm = (Mode & 0070) >> 3;
@@ -502,7 +628,7 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
         sizeof(ACCESS_DENIED_ACE) * (!!OwnerDeny + !!GroupDeny);
     Size += GetLengthSid(OwnerSid) - sizeof(DWORD);
     Size += GetLengthSid(GroupSid) - sizeof(DWORD);
-    Size += GetLengthSid(WorldSid) - sizeof(DWORD);
+    Size += GetLengthSid(FspWorldSid) - sizeof(DWORD);
     if (OwnerDeny)
         Size += GetLengthSid(OwnerSid) - sizeof(DWORD);
     if (GroupDeny)
@@ -546,7 +672,7 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
 
     if (!AddAccessAllowedAce(Acl, ACL_REVISION,
         FspPosixDefaultPerm | FspPosixMapPermissionToAccessMask(Mode, WorldPerm),
-        WorldSid))
+        FspWorldSid))
         goto lasterror;
 
     if (!InitializeSecurityDescriptor(&SecurityDescriptor, SECURITY_DESCRIPTOR_REVISION))
@@ -621,7 +747,9 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
     PSECURITY_DESCRIPTOR SecurityDescriptor,
     PUINT32 PUid, PUINT32 PGid, PUINT32 PMode)
 {
-    PSID OwnerSid = 0, GroupSid = 0, WorldSid = 0, AuthUsersSid = 0;
+    FSP_KU_CODE;
+
+    PSID OwnerSid = 0, GroupSid = 0;
     BOOL Defaulted, DaclPresent;
     PACL Acl = 0;
     ACL_SIZE_INFORMATION AclSizeInfo;
@@ -653,20 +781,6 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
 
     if (0 != Acl)
     {
-        WorldSid = FspWksidGet(WinWorldSid);
-        if (0 == WorldSid)
-        {
-            Result = STATUS_INSUFFICIENT_RESOURCES;
-            goto exit;
-        }
-
-        AuthUsersSid = FspWksidGet(WinAuthenticatedUserSid);
-        if (0 == AuthUsersSid)
-        {
-            Result = STATUS_INSUFFICIENT_RESOURCES;
-            goto exit;
-        }
-
         OwnerAllow = OwnerDeny = GroupAllow = GroupDeny = WorldAllow = WorldDeny = 0;
 
         if (!GetAclInformation(Acl, &AclSizeInfo, sizeof AclSizeInfo, AclSizeInformation))
@@ -701,7 +815,7 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
              * add the allowed or denied access right bits into the "owner", "group"
              * and "other" collections.
              */
-            if (EqualSid(WorldSid, AceSid) || EqualSid(AuthUsersSid, AceSid))
+            if (EqualSid(FspWorldSid, AceSid) || EqualSid(FspAuthUsersSid, AceSid))
             {
                 /* [PERMS]
                  * If this is an access-denied ACE, then add each access right to the set
@@ -812,6 +926,8 @@ static UINT32 FspPosixInvalidPathChars[4] =
 FSP_API NTSTATUS FspPosixMapWindowsToPosixPathEx(PWSTR WindowsPath, char **PPosixPath,
     BOOLEAN Translate)
 {
+    FSP_KU_CODE;
+
     NTSTATUS Result;
     ULONG Size;
     char *PosixPath = 0, *p, *q;
@@ -874,6 +990,8 @@ lasterror:
 FSP_API NTSTATUS FspPosixMapPosixToWindowsPathEx(const char *PosixPath, PWSTR *PWindowsPath,
     BOOLEAN Translate)
 {
+    FSP_KU_CODE;
+
     NTSTATUS Result;
     ULONG Size;
     PWSTR WindowsPath = 0, p;
@@ -925,11 +1043,15 @@ lasterror:
 
 FSP_API VOID FspPosixDeletePath(void *Path)
 {
+    FSP_KU_CODE;
+
     MemFree(Path);
 }
 
 FSP_API VOID FspPosixEncodeWindowsPath(PWSTR WindowsPath, ULONG Size)
 {
+    FSP_KU_CODE;
+
     for (PWSTR p = WindowsPath, endp = p + Size; endp > p; p++)
     {
         WCHAR c = *p;
@@ -944,6 +1066,8 @@ FSP_API VOID FspPosixEncodeWindowsPath(PWSTR WindowsPath, ULONG Size)
 
 FSP_API VOID FspPosixDecodeWindowsPath(PWSTR WindowsPath, ULONG Size)
 {
+    FSP_KU_CODE;
+
     for (PWSTR p = WindowsPath, endp = p + Size; endp > p; p++)
     {
         WCHAR c = *p;

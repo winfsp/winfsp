@@ -24,6 +24,8 @@
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
     PULONG PFileNameIndex, PFILE_OBJECT *PFileObject, PDEVICE_OBJECT *PDeviceObject);
+NTSTATUS FspRegistryGetValue(PUNICODE_STRING Path, PUNICODE_STRING ValueName,
+    PKEY_VALUE_PARTIAL_INFORMATION ValueInformation, PULONG PValueInformationLength);
 NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     FILE_INFORMATION_CLASS FileInformationClass, PVOID FileInformation, ULONG Length);
 NTSTATUS FspSendQuerySecurityIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
@@ -130,6 +132,7 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspCreateGuid)
 #pragma alloc_text(PAGE, FspGetDeviceObjectPointer)
+#pragma alloc_text(PAGE, FspRegistryGetValue)
 #pragma alloc_text(PAGE, FspSendSetInformationIrp)
 #pragma alloc_text(PAGE, FspSendQuerySecurityIrp)
 #pragma alloc_text(PAGE, FspSendQueryEaIrp)
@@ -276,6 +279,37 @@ NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK Desir
         }
         ZwClose(Handle);
     }
+
+    return Result;
+}
+
+NTSTATUS FspRegistryGetValue(PUNICODE_STRING Path, PUNICODE_STRING ValueName,
+    PKEY_VALUE_PARTIAL_INFORMATION ValueInformation, PULONG PValueInformationLength)
+{
+    PAGED_CODE();
+
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    HANDLE Handle = 0;
+    NTSTATUS Result;
+
+    InitializeObjectAttributes(&ObjectAttributes,
+        Path, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, 0, 0);
+
+    Result = ZwOpenKey(&Handle, KEY_QUERY_VALUE, &ObjectAttributes);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = ZwQueryValueKey(Handle, ValueName,
+        KeyValuePartialInformation, ValueInformation,
+        *PValueInformationLength, PValueInformationLength);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (0 != Handle)
+        ZwClose(Handle);
 
     return Result;
 }

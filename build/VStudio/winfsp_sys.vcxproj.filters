@@ -12,6 +12,9 @@
     <Filter Include="Include\winfsp">
       <UniqueIdentifier>{904f0df1-2fb8-4f84-aa46-fa929488c39a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\ku">
+      <UniqueIdentifier>{235076b8-290c-4dec-b005-71d9b8e8cba7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\sys\driver.c">
@@ -107,6 +110,9 @@
     <ClCompile Include="..\..\src\sys\fsext.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ku\posix.c">
+      <Filter>Source\ku</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\sys\driver.h">
@@ -117,6 +123,9 @@
     </ClInclude>
     <ClInclude Include="..\..\opt\fsext\inc\winfsp\fsext.h">
       <Filter>Include\winfsp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ku\library.h">
+      <Filter>Source\ku</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

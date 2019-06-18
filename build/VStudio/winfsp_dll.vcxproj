@@ -35,6 +35,7 @@
     <ClInclude Include="..\..\src\dll\fuse3\library.h" />
     <ClInclude Include="..\..\src\dll\fuse\library.h" />
     <ClInclude Include="..\..\src\dll\library.h" />
+    <ClInclude Include="..\..\src\ku\library.h" />
     <ClInclude Include="..\..\src\shared\minimal.h" />
   </ItemGroup>
   <ItemGroup>
@@ -51,7 +52,6 @@
     <ClCompile Include="..\..\src\dll\fuse\fuse_opt.c" />
     <ClCompile Include="..\..\src\dll\launch.c" />
     <ClCompile Include="..\..\src\dll\np.c" />
-    <ClCompile Include="..\..\src\dll\posix.c" />
     <ClCompile Include="..\..\src\dll\security.c" />
     <ClCompile Include="..\..\src\dll\debug.c" />
     <ClCompile Include="..\..\src\dll\fsctl.c" />
@@ -63,6 +63,7 @@
     <ClCompile Include="..\..\src\dll\service.c" />
     <ClCompile Include="..\..\src\dll\util.c" />
     <ClCompile Include="..\..\src\dll\wksid.c" />
+    <ClCompile Include="..\..\src\ku\posix.c" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\dll\fuse\fuse.pc.in">

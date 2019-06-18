@@ -27,6 +27,9 @@
     <Filter Include="Source\fuse3">
       <UniqueIdentifier>{96091a7b-3923-4a74-9491-3ee230c688f9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\ku">
+      <UniqueIdentifier>{613cce77-2428-4f9a-9187-f37e009253c1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h">
@@ -77,6 +80,9 @@
     <ClInclude Include="..\..\src\dll\fuse3\library.h">
       <Filter>Source\fuse3</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ku\library.h">
+      <Filter>Source\ku</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\dll\library.c">
@@ -124,9 +130,6 @@
     <ClCompile Include="..\..\src\dll\fuse\fuse_main.c">
       <Filter>Source\fuse</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\dll\posix.c">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\dll\fuse\fuse_intf.c">
       <Filter>Source\fuse</Filter>
     </ClCompile>
@@ -153,6 +156,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\dll\fuse3\fuse3_compat.c">
       <Filter>Source\fuse3</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ku\posix.c">
+      <Filter>Source\ku</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

@@ -51,10 +51,43 @@ typedef struct
     UINT32 DeviceExtensionOffset;
 } FSP_FSEXT_PROVIDER;
 
-FSP_DDI_DEF(NTSTATUS, FspFsextProviderRegister, FSP_FSEXT_PROVIDER *Provider)
+FSP_DDI_DEF(NTSTATUS, FspFsextProviderRegister,
+    FSP_FSEXT_PROVIDER *Provider)
 
-FSP_DDI_DEF(NTSTATUS, FspPosixMapSidToUid, PSID Sid, PUINT32 PUid)
-FSP_DDI_DEF(NTSTATUS, FspPosixMapWindowsToPosixPathEx, PWSTR WindowsPath, char **PPosixPath,
+FSP_DDI_DEF(NTSTATUS, FspPosixMapUidToSid,
+    UINT32 Uid,
+    PSID *PSid)
+FSP_DDI_DEF(NTSTATUS, FspPosixMapSidToUid,
+    PSID Sid,
+    PUINT32 PUid)
+FSP_DDI_DEF(VOID, FspDeleteSid,
+    PSID Sid,
+    NTSTATUS (*CreateFunc)())
+FSP_DDI_DEF(NTSTATUS, FspPosixMapPermissionsToSecurityDescriptor,
+    UINT32 Uid,
+    UINT32 Gid,
+    UINT32 Mode,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor)
+FSP_DDI_DEF(NTSTATUS, FspPosixMapSecurityDescriptorToPermissions,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    PUINT32 PUid,
+    PUINT32 PGid,
+    PUINT32 PMode)
+FSP_DDI_DEF(NTSTATUS, FspPosixMapWindowsToPosixPathEx,
+    PWSTR WindowsPath,
+    char **PPosixPath,
     BOOLEAN Translate)
+FSP_DDI_DEF(NTSTATUS, FspPosixMapPosixToWindowsPathEx,
+    const char *PosixPath,
+    PWSTR *PWindowsPath,
+    BOOLEAN Translate)
+FSP_DDI_DEF(VOID, FspPosixDeletePath,
+    void *Path)
+FSP_DDI_DEF(VOID, FspPosixEncodeWindowsPath,
+    PWSTR WindowsPath,
+    ULONG Size)
+FSP_DDI_DEF(VOID, FspPosixDecodeWindowsPath,
+    PWSTR WindowsPath,
+    ULONG Size)
 
 #endif
