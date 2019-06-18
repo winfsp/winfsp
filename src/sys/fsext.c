@@ -25,7 +25,7 @@
 static KSPIN_LOCK FsextSpinLock = 0;
 FSP_FSEXT_PROVIDER *FsextProvider;
 
-FSP_FSEXT_PROVIDER *FspFsextProvider(VOID)
+FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 ControlCode)
 {
     FSP_FSEXT_PROVIDER *Provider;
     KIRQL Irql;

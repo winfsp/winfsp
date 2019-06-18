@@ -43,10 +43,10 @@ typedef struct
     /* in */
     UINT32 DeviceTransactCode;
     UINT32 DeviceExtensionSize;
-    NTSTATUS (*DeviceInit)(PDEVICE_OBJECT DeviceObject);
+    NTSTATUS (*DeviceInit)(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_PARAMS *VolumeParams);
     VOID (*DeviceFini)(PDEVICE_OBJECT DeviceObject);
     VOID (*DeviceExpirationRoutine)(PDEVICE_OBJECT DeviceObject, UINT64 ExpirationTime);
-    NTSTATUS (*DeviceTransact)(PIRP Irp, PDEVICE_OBJECT DeviceObject);
+    NTSTATUS (*DeviceTransact)(PDEVICE_OBJECT DeviceObject, PIRP Irp);
     /* out */
     UINT32 DeviceExtensionOffset;
 } FSP_FSEXT_PROVIDER;

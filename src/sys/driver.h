@@ -1056,7 +1056,8 @@ typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
     UINT32 InitDoneFsvrt:1, InitDoneIoq:1, InitDoneSec:1, InitDoneDir:1, InitDoneStrm:1, InitDoneEa:1,
-        InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1, InitDoneNotify:1, InitDoneStat:1;
+        InitDoneCtxTab:1, InitDoneTimer:1, InitDoneInfo:1, InitDoneNotify:1, InitDoneStat:1,
+        InitDoneFsext;
     PDEVICE_OBJECT FsctlDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     PDEVICE_OBJECT FsvolDeviceObject;
@@ -1179,7 +1180,7 @@ VOID FspDeviceGlobalUnlock(VOID)
     //    STATUS_VOLUME_DISMOUNTED : STATUS_DEVICE_NOT_CONNECTED)
 
 /* fsext */
-FSP_FSEXT_PROVIDER *FspFsextProvider(VOID);
+FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 ControlCode);
 
 /* process buffers conditional usage */
 static inline

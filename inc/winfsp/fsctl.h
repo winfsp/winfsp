@@ -65,6 +65,10 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_STOP                  \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'S', METHOD_BUFFERED, FILE_ANY_ACCESS)
 
+/* fsctl internal device codes (usable only in-kernel) */
+#define FSP_FSCTL_TRANSACT_INTERNAL     \
+    CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'I', METHOD_NEITHER, FILE_ANY_ACCESS)
+
 #define FSP_FSCTL_VOLUME_PARAMS_PREFIX  "\\VolumeParams="
 
 #define FSP_FSCTL_VOLUME_NAME_SIZE      (64 * sizeof(WCHAR))
@@ -83,7 +87,7 @@ FSP_FSCTL_STATIC_ASSERT(FSP_FSCTL_VOLUME_NAME_SIZEMAX <= 260 * sizeof(WCHAR),
 #define FSP_FSCTL_TRANSACT_BATCH_BUFFER_SIZEMIN (64 * 1024)
 #define FSP_FSCTL_TRANSACT_BUFFER_SIZEMIN       FSP_FSCTL_TRANSACT_REQ_SIZEMAX
 
-#define FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(T)  ((HANDLE)((T) & 0xffffffff))
+#define FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(T)  ((HANDLE)((UINT_PTR)((T) & 0xffffffff)))
 #define FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(T)     ((UINT32)(((T) >> 32) & 0xffffffff))
 
 #define FSP_FSCTL_DEVICECONTROL_SIZEMAX (4 * 1024)  /* must be < FSP_FSCTL_TRANSACT_{REQ,RSP}_SIZEMAX */
@@ -185,7 +189,8 @@ enum
     UINT32 SecurityTimeout;             /* security info timeout (millis); overrides FileInfoTimeout */\
     UINT32 StreamInfoTimeout;           /* stream info timeout (millis); overrides FileInfoTimeout */\
     UINT32 EaTimeout;                   /* EA timeout (millis); overrides FileInfoTimeout */\
-    UINT32 Reserved32[2];\
+    UINT32 FsextControlCode;\
+    UINT32 Reserved32[1];\
     UINT64 Reserved64[2];
 typedef struct
 {

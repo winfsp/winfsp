@@ -86,12 +86,40 @@ static NTSTATUS FspFsctlFileSystemControl(
             break;
         case FSP_FSCTL_TRANSACT:
         case FSP_FSCTL_TRANSACT_BATCH:
+        case FSP_FSCTL_TRANSACT_INTERNAL:
             if (0 != IrpSp->FileObject->FsContext2)
                 Result = FspVolumeTransact(FsctlDeviceObject, Irp, IrpSp);
             break;
         case FSP_FSCTL_STOP:
             if (0 != IrpSp->FileObject->FsContext2)
                 Result = FspVolumeStop(FsctlDeviceObject, Irp, IrpSp);
+            break;
+        case 0:
+            /* ensure that 0 != IrpSp->Parameters.FileSystemControl.FsControlCode in default: case */
+            break;
+        default:
+            if (0 != IrpSp->FileObject->FsContext2)
+            {
+                PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+                if (!FspDeviceReference(FsvolDeviceObject))
+                {
+                    Result = STATUS_CANCELLED;
+                    break;
+                }
+
+                FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(
+                    FsvolDeviceObject);
+                if (IrpSp->Parameters.FileSystemControl.FsControlCode ==
+                    FsvolDeviceExtension->VolumeParams.FsextControlCode)
+                {
+                    FSP_FSEXT_PROVIDER *Provider = FspFsextProvider(
+                        FsvolDeviceExtension->VolumeParams.FsextControlCode);
+                    if (0 != Provider)
+                        Result = Provider->DeviceTransact(FsvolDeviceObject, Irp);
+                }
+
+                FspDeviceDereference(FsvolDeviceObject);
+            }
             break;
         }
         break;
