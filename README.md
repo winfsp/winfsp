@@ -96,6 +96,7 @@ The project source code is organized as follows:
     * :file_folder: [src/dll/fuse3](src/dll/fuse3): Source code to the FUSE3 compatibility layer.
     * :file_folder: [src/dotnet](src/dotnet): Source code to the .NET layer.
     * :file_folder: [src/fsptool](src/fsptool): Source code to fsptool command line utility.
+    * :file_folder: [src/ku](src/ku): Source code that can be used from kernel or user mode.
     * :file_folder: [src/launcher](src/launcher): Source code to the launcher service and the launchctl utility.
     * :file_folder: [src/sys](src/sys): Source code to the WinFsp FSD.
 * :file_folder: [opt/cygfuse](opt/cygfuse): Source code to the FUSE for Cygwin package.
