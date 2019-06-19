@@ -113,7 +113,7 @@ static NTSTATUS FspFsctlFileSystemControl(
                     FsvolDeviceExtension->VolumeParams.FsextControlCode)
                 {
                     FSP_FSEXT_PROVIDER *Provider = FspFsextProvider(
-                        FsvolDeviceExtension->VolumeParams.FsextControlCode);
+                        FsvolDeviceExtension->VolumeParams.FsextControlCode, 0);
                     if (0 != Provider)
                         Result = Provider->DeviceTransact(FsvolDeviceObject, Irp);
                 }

@@ -329,13 +329,18 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     if (0 != FsvolDeviceExtension->VolumeParams.FsextControlCode)
     {
         FSP_FSEXT_PROVIDER *Provider = FspFsextProvider(
-            FsvolDeviceExtension->VolumeParams.FsextControlCode);
+            FsvolDeviceExtension->VolumeParams.FsextControlCode, &Result);
         if (0 != Provider)
         {
             Result = Provider->DeviceInit(DeviceObject, &FsvolDeviceExtension->VolumeParams);
             if (!NT_SUCCESS(Result))
                 return Result;
             FsvolDeviceExtension->InitDoneFsext = 1;
+        }
+        else
+        {
+            ASSERT(!NT_SUCCESS(Result));
+            return Result;
         }
     }
 
@@ -519,7 +524,7 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
     if (FsvolDeviceExtension->InitDoneFsext)
     {
         FSP_FSEXT_PROVIDER *Provider = FspFsextProvider(
-            FsvolDeviceExtension->VolumeParams.FsextControlCode);
+            FsvolDeviceExtension->VolumeParams.FsextControlCode, 0);
         if (0 != Provider)
             Provider->DeviceFini(DeviceObject);
     }
@@ -573,7 +578,7 @@ static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
     if (0 != FsvolDeviceExtension->VolumeParams.FsextControlCode)
     {
         FSP_FSEXT_PROVIDER *Provider = FspFsextProvider(
-            FsvolDeviceExtension->VolumeParams.FsextControlCode);
+            FsvolDeviceExtension->VolumeParams.FsextControlCode, 0);
         if (0 != Provider)
             Provider->DeviceExpirationRoutine(DeviceObject, InterruptTime);
     }

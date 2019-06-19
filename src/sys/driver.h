@@ -37,6 +37,12 @@
 
 #define DRIVER_NAME                     FSP_FSCTL_DRIVER_NAME
 
+#if _WIN64
+#define FSP_REGKEY                      "\\Registry\\Machine\\Software\\WOW6432Node\\WinFsp"
+#else
+#define FSP_REGKEY                      "\\Registry\\Machine\\Software\\WinFsp"
+#endif
+
 /* IoCreateDeviceSecure default SDDL's */
 #define FSP_FSCTL_DEVICE_SDDL           "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;WD)"
     /* System:GENERIC_ALL, Administrators:GENERIC_ALL, World:GENERIC_READ */
@@ -1182,7 +1188,7 @@ VOID FspDeviceGlobalUnlock(VOID)
     //    STATUS_VOLUME_DISMOUNTED : STATUS_DEVICE_NOT_CONNECTED)
 
 /* fsext */
-FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 ControlCode);
+FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 ControlCode, PNTSTATUS PLoadResult);
 
 /* process buffers conditional usage */
 static inline

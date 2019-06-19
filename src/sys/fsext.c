@@ -25,7 +25,7 @@
 static KSPIN_LOCK FsextSpinLock = 0;
 FSP_FSEXT_PROVIDER *FsextProvider;
 
-FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 ControlCode)
+FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 ControlCode, PNTSTATUS PLoadResult)
 {
     FSP_FSEXT_PROVIDER *Provider;
     KIRQL Irql;
@@ -33,6 +33,61 @@ FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 ControlCode)
     KeAcquireSpinLock(&FsextSpinLock, &Irql);
     Provider = FsextProvider;
     KeReleaseSpinLock(&FsextSpinLock, Irql);
+
+    if (0 != PLoadResult)
+    {
+        if (0 == Provider)
+        {
+            WCHAR Buf[64 + 256];
+            UNICODE_STRING Path;
+            UNICODE_STRING Name;
+            union
+            {
+                KEY_VALUE_PARTIAL_INFORMATION V;
+                UINT8 B[FIELD_OFFSET(KEY_VALUE_PARTIAL_INFORMATION, Data) + 256];
+            } Value;
+            ULONG Length;
+            NTSTATUS Result;
+
+            RtlInitUnicodeString(&Path, L"" FSP_REGKEY "\\Fsext");
+            RtlInitEmptyUnicodeString(&Name, Buf, sizeof Buf);
+            Result = RtlUnicodeStringPrintf(&Name, L"%08x", ControlCode);
+            ASSERT(NT_SUCCESS(Result));
+            Length = sizeof Value;
+            Result = FspRegistryGetValue(&Path, &Name, &Value.V, &Length);
+            if (STATUS_SUCCESS != Result/*!NT_SUCCESS*/)
+            {
+                if (STATUS_BUFFER_OVERFLOW == Result)
+                    Result = STATUS_BUFFER_TOO_SMALL;
+
+                *PLoadResult = Result;
+                return 0;
+            }
+            if (REG_SZ != Value.V.Type)
+            {
+                *PLoadResult = STATUS_OBJECT_NAME_NOT_FOUND;
+                return 0;
+            }
+
+            RtlInitEmptyUnicodeString(&Path, Buf, sizeof Buf);
+            Result = RtlUnicodeStringPrintf(&Path,
+                L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\%s", Value.V.Data);
+            ASSERT(NT_SUCCESS(Result));
+
+            Result = ZwLoadDriver(&Path);
+            if (!NT_SUCCESS(Result) && STATUS_IMAGE_ALREADY_LOADED != Result)
+            {
+                *PLoadResult = Result;
+                return 0;
+            }
+
+            KeAcquireSpinLock(&FsextSpinLock, &Irql);
+            Provider = FsextProvider;
+            KeReleaseSpinLock(&FsextSpinLock, Irql);
+        }
+
+        *PLoadResult = 0 != Provider ? STATUS_SUCCESS : STATUS_OBJECT_NAME_NOT_FOUND;
+    }
 
     return Provider;
 }
@@ -43,14 +98,18 @@ NTSTATUS FspFsextProviderRegister(FSP_FSEXT_PROVIDER *Provider)
     KIRQL Irql;
 
     KeAcquireSpinLock(&FsextSpinLock, &Irql);
+
     if (0 != FsextProvider)
     {
         Result = STATUS_TOO_LATE;
         goto exit;
     }
+
     Provider->DeviceExtensionOffset = FIELD_OFFSET(FSP_FSVOL_DEVICE_EXTENSION, FsextData);
     FsextProvider = Provider;
+
     Result = STATUS_SUCCESS;
+
 exit:
     KeReleaseSpinLock(&FsextSpinLock, Irql);
 
