@@ -287,6 +287,20 @@ namespace memfs
             return STATUS_SUCCESS;
         }
 
+#if MEMFS_SLOWIO
+        public override int Mounted(object Host)
+        {
+            SlowioTasksRunning = 0;
+            return STATUS_SUCCESS;
+        }
+
+        public override void Unmounted(object Host)
+        {
+            while (SlowioTasksRunning != 0)
+                Thread.Sleep(1000);
+        }
+#endif
+
         public override Int32 GetVolumeInfo(
             out VolumeInfo VolumeInfo)
         {
@@ -592,7 +606,7 @@ namespace memfs
             Thread.Sleep(TimeSpan.FromMilliseconds(Millis));
         }
 
-        void SlowioReadTask(
+        private void SlowioReadTask(
             Object FileNode0,
             IntPtr Buffer,
             UInt64 Offset,
@@ -606,9 +620,10 @@ namespace memfs
             Marshal.Copy(FileNode.FileData, (int)Offset, Buffer, (int)BytesTransferred);
 
             Host.SendReadResponse(RequestHint, STATUS_SUCCESS, BytesTransferred);
+            Interlocked.Decrement(ref SlowioTasksRunning);
         }
 
-        void SlowioWriteTask(
+        private void SlowioWriteTask(
             Object FileNode0,
             IntPtr Buffer,
             UInt64 Offset,
@@ -623,9 +638,10 @@ namespace memfs
             Marshal.Copy(Buffer, FileNode.FileData, (int)Offset, (int)BytesTransferred);
 
             Host.SendWriteResponse(RequestHint, STATUS_SUCCESS, BytesTransferred, ref FileInfo);
+            Interlocked.Decrement(ref SlowioTasksRunning);
         }
 
-        void SlowioReadDirectoryTask(
+        private void SlowioReadDirectoryTask(
             Object FileNode0,
             Object FileDesc,
             String Pattern,
@@ -638,7 +654,9 @@ namespace memfs
 
             UInt32 BytesTransferred;
             var Status = SeekableReadDirectory(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, out BytesTransferred);
+
             Host.SendReadDirectoryResponse(RequestHint, Status, BytesTransferred);
+            Interlocked.Decrement(ref SlowioTasksRunning);
         }
 #endif
 
@@ -667,10 +685,18 @@ namespace memfs
             if (SlowioReturnPending())
             {
                 var Hint = Host.GetOperationRequestHint();
-                Task.Run(() => SlowioReadTask(FileNode0, Buffer, Offset, EndOffset, Hint)).ConfigureAwait(false);
+                try
+                {
+                    Interlocked.Increment(ref SlowioTasksRunning);
+                    Task.Run(() => SlowioReadTask(FileNode0, Buffer, Offset, EndOffset, Hint)).ConfigureAwait(false);
 
-                BytesTransferred = 0;
-                return STATUS_PENDING;
+                    BytesTransferred = 0;
+                    return STATUS_PENDING;
+                }
+                catch (Exception)
+                {
+                    Interlocked.Decrement(ref SlowioTasksRunning);
+                }
             }
 #endif
 
@@ -727,11 +753,19 @@ namespace memfs
             if (SlowioReturnPending())
             {
                 var hint = Host.GetOperationRequestHint();
-                Task.Run(() => SlowioWriteTask(FileNode0, Buffer, Offset, EndOffset, hint)).ConfigureAwait(false);
+                try
+                {
+                    Interlocked.Increment(ref SlowioTasksRunning);
+                    Task.Run(() => SlowioWriteTask(FileNode0, Buffer, Offset, EndOffset, hint)).ConfigureAwait(false);
 
-                BytesTransferred = 0;
-                FileInfo = default(FileInfo);
-                return STATUS_PENDING;
+                    BytesTransferred = 0;
+                    FileInfo = default(FileInfo);
+                    return STATUS_PENDING;
+                }
+                catch (Exception)
+                {
+                    Interlocked.Decrement(ref SlowioTasksRunning);
+                }
             }
 #endif
 
@@ -1031,10 +1065,18 @@ namespace memfs
             if (SlowioReturnPending())
             {
                 var Hint = Host.GetOperationRequestHint();
-                Task.Run(() => SlowioReadDirectoryTask(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, Hint));
-                BytesTransferred = 0;
+                try
+                {
+                    Interlocked.Increment(ref SlowioTasksRunning);
+                    Task.Run(() => SlowioReadDirectoryTask(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, Hint));
+                    BytesTransferred = 0;
 
-                return STATUS_PENDING;
+                    return STATUS_PENDING;
+                }
+                catch (Exception)
+                {
+                    Interlocked.Decrement(ref SlowioTasksRunning);
+                }
             }
 
             return SeekableReadDirectory(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, out BytesTransferred);
@@ -1282,6 +1324,7 @@ namespace memfs
         private UInt64 SlowioMaxDelay;
         private UInt64 SlowioPercentDelay;
         private UInt64 SlowioRarefyDelay;
+        private volatile Int32 SlowioTasksRunning;
         private String VolumeLabel;
     }
 
