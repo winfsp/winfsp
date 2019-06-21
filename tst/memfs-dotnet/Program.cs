@@ -19,12 +19,17 @@
  * associated repository.
  */
 
+#define MEMFS_SLOWIO
+
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Threading;
+#if MEMFS_SLOWIO
+using System.Threading.Tasks;
+#endif
 
 using Fsp;
 using VolumeInfo = Fsp.Interop.VolumeInfo;
@@ -232,15 +237,20 @@ namespace memfs
 
     class Memfs : FileSystemBase
     {
+        private FileSystemHost Host;
         public const UInt16 MEMFS_SECTOR_SIZE = 512;
         public const UInt16 MEMFS_SECTORS_PER_ALLOCATION_UNIT = 1;
 
         public Memfs(
-            Boolean CaseInsensitive, UInt32 MaxFileNodes, UInt32 MaxFileSize, String RootSddl)
+            Boolean CaseInsensitive, UInt32 MaxFileNodes, UInt32 MaxFileSize, String RootSddl,
+            UInt64 SlowioMaxDelay, UInt64 SlowioPercentDelay, UInt64 SlowioRarefyDelay)
         {
             this.FileNodeMap = new FileNodeMap(CaseInsensitive);
             this.MaxFileNodes = MaxFileNodes;
             this.MaxFileSize = MaxFileSize;
+            this.SlowioMaxDelay = SlowioMaxDelay;
+            this.SlowioPercentDelay = SlowioPercentDelay;
+            this.SlowioRarefyDelay = SlowioRarefyDelay;
 
             /*
              * Create root directory.
@@ -259,7 +269,7 @@ namespace memfs
 
         public override Int32 Init(Object Host0)
         {
-            FileSystemHost Host = (FileSystemHost)Host0;
+            Host = (FileSystemHost)Host0;
             Host.SectorSize = Memfs.MEMFS_SECTOR_SIZE;
             Host.SectorsPerAllocationUnit = Memfs.MEMFS_SECTORS_PER_ALLOCATION_UNIT;
             Host.VolumeCreationTime = (UInt64)DateTime.Now.ToFileTimeUtc();
@@ -277,6 +287,20 @@ namespace memfs
             Host.WslFeatures = true;
             return STATUS_SUCCESS;
         }
+
+#if MEMFS_SLOWIO
+        public override int Mounted(object Host)
+        {
+            SlowioTasksRunning = 0;
+            return STATUS_SUCCESS;
+        }
+
+        public override void Unmounted(object Host)
+        {
+            while (SlowioTasksRunning != 0)
+                Thread.Sleep(1000);
+        }
+#endif
 
         public override Int32 GetVolumeInfo(
             out VolumeInfo VolumeInfo)
@@ -561,6 +585,93 @@ namespace memfs
             Interlocked.Decrement(ref FileNode.OpenCount);
         }
 
+#if MEMFS_SLOWIO
+        private UInt64 Hash(UInt64 X)
+        {
+            X = (X ^ (X >> 30)) * 0xbf58476d1ce4e5b9ul;
+            X = (X ^ (X >> 27)) * 0x94d049bb133111ebul;
+            X = X ^ (X >> 31);
+            return X;
+        }
+
+        private static int Spin = 0;
+
+        private UInt64 PseudoRandom(UInt64 To)
+        {
+            /* John Oberschelp's PRNG */
+            Interlocked.Increment(ref Spin);
+            return Hash((UInt64)Spin) % To;
+        }
+
+        private bool SlowioReturnPending()
+        {
+            if (0 == SlowioMaxDelay)
+            {
+                return false;
+            }
+            return PseudoRandom(100) < SlowioPercentDelay;
+        }
+
+        private void SlowioSnooze()
+        {
+            double Millis = PseudoRandom(SlowioMaxDelay + 1) >> (int) PseudoRandom(SlowioRarefyDelay + 1);
+            Thread.Sleep(TimeSpan.FromMilliseconds(Millis));
+        }
+
+        private void SlowioReadTask(
+            Object FileNode0,
+            IntPtr Buffer,
+            UInt64 Offset,
+            UInt64 EndOffset,
+            UInt64 RequestHint)
+        {
+            SlowioSnooze();
+
+            UInt32 BytesTransferred = (UInt32)(EndOffset - Offset);
+            FileNode FileNode = (FileNode)FileNode0;
+            Marshal.Copy(FileNode.FileData, (int)Offset, Buffer, (int)BytesTransferred);
+
+            Host.SendReadResponse(RequestHint, STATUS_SUCCESS, BytesTransferred);
+            Interlocked.Decrement(ref SlowioTasksRunning);
+        }
+
+        private void SlowioWriteTask(
+            Object FileNode0,
+            IntPtr Buffer,
+            UInt64 Offset,
+            UInt64 EndOffset,
+            UInt64 RequestHint)
+        {
+            SlowioSnooze();
+
+            UInt32 BytesTransferred = (UInt32)(EndOffset - Offset);
+            FileNode FileNode = (FileNode)FileNode0;
+            FileInfo FileInfo = FileNode.GetFileInfo();
+            Marshal.Copy(Buffer, FileNode.FileData, (int)Offset, (int)BytesTransferred);
+
+            Host.SendWriteResponse(RequestHint, STATUS_SUCCESS, BytesTransferred, ref FileInfo);
+            Interlocked.Decrement(ref SlowioTasksRunning);
+        }
+
+        private void SlowioReadDirectoryTask(
+            Object FileNode0,
+            Object FileDesc,
+            String Pattern,
+            String Marker,
+            IntPtr Buffer,
+            UInt32 Length,
+            UInt64 RequestHint)
+        {
+            SlowioSnooze();
+
+            UInt32 BytesTransferred;
+            var Status = SeekableReadDirectory(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, out BytesTransferred);
+
+            Host.SendReadDirectoryResponse(RequestHint, Status, BytesTransferred);
+            Interlocked.Decrement(ref SlowioTasksRunning);
+        }
+#endif
+
         public override Int32 Read(
             Object FileNode0,
             Object FileDesc,
@@ -581,6 +692,25 @@ namespace memfs
             EndOffset = Offset + Length;
             if (EndOffset > FileNode.FileInfo.FileSize)
                 EndOffset = FileNode.FileInfo.FileSize;
+
+#if MEMFS_SLOWIO
+            if (SlowioReturnPending())
+            {
+                var Hint = Host.GetOperationRequestHint();
+                try
+                {
+                    Interlocked.Increment(ref SlowioTasksRunning);
+                    Task.Run(() => SlowioReadTask(FileNode0, Buffer, Offset, EndOffset, Hint)).ConfigureAwait(false);
+
+                    BytesTransferred = 0;
+                    return STATUS_PENDING;
+                }
+                catch (Exception)
+                {
+                    Interlocked.Decrement(ref SlowioTasksRunning);
+                }
+            }
+#endif
 
             BytesTransferred = (UInt32)(EndOffset - Offset);
             Marshal.Copy(FileNode.FileData, (int)Offset, Buffer, (int)BytesTransferred);
@@ -630,6 +760,26 @@ namespace memfs
                     }
                 }
             }
+
+#if MEMFS_SLOWIO
+            if (SlowioReturnPending())
+            {
+                var hint = Host.GetOperationRequestHint();
+                try
+                {
+                    Interlocked.Increment(ref SlowioTasksRunning);
+                    Task.Run(() => SlowioWriteTask(FileNode0, Buffer, Offset, EndOffset, hint)).ConfigureAwait(false);
+
+                    BytesTransferred = 0;
+                    FileInfo = default(FileInfo);
+                    return STATUS_PENDING;
+                }
+                catch (Exception)
+                {
+                    Interlocked.Decrement(ref SlowioTasksRunning);
+                }
+            }
+#endif
 
             BytesTransferred = (UInt32)(EndOffset - Offset);
             Marshal.Copy(Buffer, FileNode.FileData, (int)Offset, (int)BytesTransferred);
@@ -914,6 +1064,37 @@ namespace memfs
             return false;
         }
 
+#if MEMFS_SLOWIO
+        public override int ReadDirectory(
+            Object FileNode0,
+            Object FileDesc,
+            String Pattern,
+            String Marker,
+            IntPtr Buffer,
+            UInt32 Length,
+            out UInt32 BytesTransferred)
+        {
+            if (SlowioReturnPending())
+            {
+                var Hint = Host.GetOperationRequestHint();
+                try
+                {
+                    Interlocked.Increment(ref SlowioTasksRunning);
+                    Task.Run(() => SlowioReadDirectoryTask(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, Hint));
+                    BytesTransferred = 0;
+
+                    return STATUS_PENDING;
+                }
+                catch (Exception)
+                {
+                    Interlocked.Decrement(ref SlowioTasksRunning);
+                }
+            }
+
+            return SeekableReadDirectory(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, out BytesTransferred);
+        }
+#endif
+
         public override int GetDirInfoByName(
             Object ParentNode0,
             Object FileDesc,
@@ -1152,6 +1333,10 @@ namespace memfs
         private FileNodeMap FileNodeMap;
         private UInt32 MaxFileNodes;
         private UInt32 MaxFileSize;
+        private UInt64 SlowioMaxDelay;
+        private UInt64 SlowioPercentDelay;
+        private UInt64 SlowioRarefyDelay;
+        private volatile Int32 SlowioTasksRunning;
         private String VolumeLabel;
     }
 
@@ -1182,6 +1367,9 @@ namespace memfs
                 UInt32 FileInfoTimeout = unchecked((UInt32)(-1));
                 UInt32 MaxFileNodes = 1024;
                 UInt32 MaxFileSize = 16 * 1024 * 1024;
+                UInt32 SlowioMaxDelay = 0;
+                UInt32 SlowioPercentDelay = 0;
+                UInt32 SlowioRarefyDelay = 0;
                 String FileSystemName = null;
                 String VolumePrefix = null;
                 String MountPoint = null;
@@ -1214,9 +1402,18 @@ namespace memfs
                     case 'm':
                         argtos(Args, ref I, ref MountPoint);
                         break;
+                    case 'M':
+                        argtol(Args, ref I, ref SlowioMaxDelay);
+                        break;
                     case 'n':
                         argtol(Args, ref I, ref MaxFileNodes);
                         break;
+                    case 'P':
+                        argtol(Args, ref I, ref SlowioPercentDelay);
+                        break;
+                    case 'R':
+                       argtol(Args, ref I, ref SlowioRarefyDelay);
+                       break;
                     case 'S':
                         argtos(Args, ref I, ref RootSddl);
                         break;
@@ -1245,7 +1442,8 @@ namespace memfs
                         throw new CommandLineUsageException("cannot open debug log file");
 
                 Host = new FileSystemHost(Memfs = new Memfs(
-                    CaseInsensitive, MaxFileNodes, MaxFileSize, RootSddl));
+                    CaseInsensitive, MaxFileNodes, MaxFileSize, RootSddl,
+                    SlowioMaxDelay, SlowioPercentDelay, SlowioRarefyDelay));
                 Host.FileInfoTimeout = FileInfoTimeout;
                 Host.Prefix = VolumePrefix;
                 Host.FileSystemName = null != FileSystemName ? FileSystemName : "-MEMFS";
@@ -1274,6 +1472,9 @@ namespace memfs
                     "    -t FileInfoTimeout  [millis]\n" +
                     "    -n MaxFileNodes\n" +
                     "    -s MaxFileSize      [bytes]\n" +
+                    "    -M MaxDelay         [maximum slow IO delay in millis]\n" +
+                    "    -P PercentDelay     [percent of slow IO to make pending]\n" +
+                    "    -R RarefyDelay      [adjust the rarity of pending slow IO]\n" +
                     "    -F FileSystemName\n" +
                     "    -S RootSddl         [file rights: FA, etc; NO generic rights: GA, etc.]\n" +
                     "    -u \\Server\\Share    [UNC prefix (single backslash)]\n" +
