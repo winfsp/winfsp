@@ -272,6 +272,7 @@ static NTSTATUS FspVolumeCreateNoLock(
         if (0 != FsvrtDeviceObject)
             FspDeviceDereference(FsvrtDeviceObject);
         FspDeviceDereference(FsvolDeviceObject);
+        return Result;
     }
 
     /* do we need to register with fsmup? */
