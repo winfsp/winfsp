@@ -25,7 +25,7 @@
 static KSPIN_LOCK FsextSpinLock = 0;
 FSP_FSEXT_PROVIDER *FsextProvider;
 
-FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 ControlCode, PNTSTATUS PLoadResult)
+FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 FsextControlCode, PNTSTATUS PLoadResult)
 {
     FSP_FSEXT_PROVIDER *Provider;
     KIRQL Irql;
@@ -33,6 +33,8 @@ FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 ControlCode, PNTSTATUS PLoadResult)
     KeAcquireSpinLock(&FsextSpinLock, &Irql);
     Provider = FsextProvider;
     KeReleaseSpinLock(&FsextSpinLock, Irql);
+    if (0 != Provider && FsextControlCode != Provider->DeviceTransactCode)
+        Provider = 0;
 
     if (0 != PLoadResult)
     {
@@ -51,15 +53,12 @@ FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 ControlCode, PNTSTATUS PLoadResult)
 
             RtlInitUnicodeString(&Path, L"" FSP_REGKEY "\\Fsext");
             RtlInitEmptyUnicodeString(&Name, Buf, sizeof Buf);
-            Result = RtlUnicodeStringPrintf(&Name, L"%08x", ControlCode);
+            Result = RtlUnicodeStringPrintf(&Name, L"%08x", FsextControlCode);
             ASSERT(NT_SUCCESS(Result));
             Length = sizeof Value;
             Result = FspRegistryGetValue(&Path, &Name, &Value.V, &Length);
-            if (STATUS_SUCCESS != Result/*!NT_SUCCESS*/)
+            if (!NT_SUCCESS(Result))
             {
-                if (STATUS_BUFFER_OVERFLOW == Result)
-                    Result = STATUS_BUFFER_TOO_SMALL;
-
                 *PLoadResult = Result;
                 return 0;
             }
@@ -84,6 +83,8 @@ FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 ControlCode, PNTSTATUS PLoadResult)
             KeAcquireSpinLock(&FsextSpinLock, &Irql);
             Provider = FsextProvider;
             KeReleaseSpinLock(&FsextSpinLock, Irql);
+            if (0 != Provider && FsextControlCode != Provider->DeviceTransactCode)
+                Provider = 0;
         }
 
         *PLoadResult = 0 != Provider ? STATUS_SUCCESS : STATUS_OBJECT_NAME_NOT_FOUND;

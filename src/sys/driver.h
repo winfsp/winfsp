@@ -1188,7 +1188,7 @@ VOID FspDeviceGlobalUnlock(VOID)
     //    STATUS_VOLUME_DISMOUNTED : STATUS_DEVICE_NOT_CONNECTED)
 
 /* fsext */
-FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 ControlCode, PNTSTATUS PLoadResult);
+FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 FsextControlCode, PNTSTATUS PLoadResult);
 
 /* process buffers conditional usage */
 static inline

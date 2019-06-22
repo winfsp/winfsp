@@ -100,6 +100,7 @@ static NTSTATUS FspVolumeCreateNoLock(
     UNICODE_STRING VolumeName;
     UNICODE_STRING FsmupDeviceName;
     WCHAR VolumeNameBuf[FSP_FSCTL_VOLUME_NAME_SIZE / sizeof(WCHAR)];
+    FSP_FSEXT_PROVIDER *Provider = 0;
     PDEVICE_OBJECT FsvolDeviceObject;
     PDEVICE_OBJECT FsvrtDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
@@ -209,6 +210,14 @@ static NTSTATUS FspVolumeCreateNoLock(
     VolumeParams.AlwaysUseDoubleBuffering = 1;
 #endif
 
+    /* load any fsext provider */
+    if (0 != VolumeParams.FsextControlCode)
+    {
+        Provider = FspFsextProvider(VolumeParams.FsextControlCode, &Result);
+        if (0 == Provider)
+            return Result;
+    }
+
     /* create volume guid */
     Result = FspCreateGuid(&Guid);
     if (!NT_SUCCESS(Result))
@@ -226,7 +235,8 @@ static NTSTATUS FspVolumeCreateNoLock(
     VolumeName.MaximumLength = VolumeName.Length;
 
     /* create the volume (and virtual disk) device(s) */
-    Result = FspDeviceCreate(FspFsvolDeviceExtensionKind, 0,
+    Result = FspDeviceCreate(FspFsvolDeviceExtensionKind,
+        0 == Provider ? 0 : Provider->DeviceExtensionSize,
         FsctlDeviceObject->DeviceType,
         FILE_DEVICE_DISK_FILE_SYSTEM == FsctlDeviceObject->DeviceType ? 0 : FILE_REMOTE_DEVICE,
         &FsvolDeviceObject);

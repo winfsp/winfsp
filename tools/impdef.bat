@@ -10,7 +10,7 @@ set infile=%infile:/=\%
 set outfile=%2
 set outfile=%outfile:/=\%
 set workdir=!infile!.work
-set workbase=!workdir!\%~n1
+set workbase=!workdir!\%~n2
 set outarch=%~n2
 set outarch=%outarch:~-3%
 

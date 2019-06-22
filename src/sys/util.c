@@ -306,6 +306,7 @@ NTSTATUS FspRegistryGetValue(PUNICODE_STRING Path, PUNICODE_STRING ValueName,
         goto exit;
 
     Result = STATUS_SUCCESS;
+        /* NOTE: also converts STATUS_BUFFER_OVERFLOW to STATUS_SUCCESS */
 
 exit:
     if (0 != Handle)

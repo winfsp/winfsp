@@ -329,7 +329,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     if (0 != FsvolDeviceExtension->VolumeParams.FsextControlCode)
     {
         FSP_FSEXT_PROVIDER *Provider = FspFsextProvider(
-            FsvolDeviceExtension->VolumeParams.FsextControlCode, &Result);
+            FsvolDeviceExtension->VolumeParams.FsextControlCode, 0);
         if (0 != Provider)
         {
             Result = Provider->DeviceInit(DeviceObject, &FsvolDeviceExtension->VolumeParams);
@@ -338,10 +338,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
             FsvolDeviceExtension->InitDoneFsext = 1;
         }
         else
-        {
-            ASSERT(!NT_SUCCESS(Result));
-            return Result;
-        }
+            return STATUS_OBJECT_NAME_NOT_FOUND;
     }
 
     /* is there a virtual disk? */
