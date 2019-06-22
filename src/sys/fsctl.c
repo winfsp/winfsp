@@ -94,12 +94,13 @@ static NTSTATUS FspFsctlFileSystemControl(
             if (0 != IrpSp->FileObject->FsContext2)
                 Result = FspVolumeStop(FsctlDeviceObject, Irp, IrpSp);
             break;
-        case 0:
-            /* ensure that 0 != IrpSp->Parameters.FileSystemControl.FsControlCode in default: case */
-            break;
         default:
-            if (0 != IrpSp->FileObject->FsContext2)
-                Result = FspVolumeTransactFsext(FsctlDeviceObject, Irp, IrpSp);
+            if (CTL_CODE(0, 0xC00, 0, 0) ==
+                (IrpSp->Parameters.FileSystemControl.FsControlCode & CTL_CODE(0, 0xC00, 0, 0)))
+            {
+                if (0 != IrpSp->FileObject->FsContext2)
+                    Result = FspVolumeTransactFsext(FsctlDeviceObject, Irp, IrpSp);
+            }
             break;
         }
         break;

@@ -924,6 +924,8 @@ NTSTATUS FspVolumeTransactFsext(
 
     ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
     ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
+    ASSERT(CTL_CODE(0, 0xC00, 0, 0) ==
+        (IrpSp->Parameters.FileSystemControl.FsControlCode & CTL_CODE(0, 0xC00, 0, 0)));
     ASSERT(0 != IrpSp->FileObject->FsContext2);
 
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
