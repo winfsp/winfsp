@@ -99,27 +99,7 @@ static NTSTATUS FspFsctlFileSystemControl(
             break;
         default:
             if (0 != IrpSp->FileObject->FsContext2)
-            {
-                PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
-                if (!FspDeviceReference(FsvolDeviceObject))
-                {
-                    Result = STATUS_CANCELLED;
-                    break;
-                }
-
-                FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(
-                    FsvolDeviceObject);
-                if (IrpSp->Parameters.FileSystemControl.FsControlCode ==
-                    FsvolDeviceExtension->VolumeParams.FsextControlCode)
-                {
-                    FSP_FSEXT_PROVIDER *Provider = FspFsextProvider(
-                        FsvolDeviceExtension->VolumeParams.FsextControlCode, 0);
-                    if (0 != Provider)
-                        Result = Provider->DeviceTransact(FsvolDeviceObject, Irp);
-                }
-
-                FspDeviceDereference(FsvolDeviceObject);
-            }
+                Result = FspVolumeTransactFsext(FsctlDeviceObject, Irp, IrpSp);
             break;
         }
         break;

@@ -42,6 +42,8 @@ static NTSTATUS FspVolumeGetNameListNoLock(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeTransact(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeTransactFsext(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeStop(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeWork(
@@ -59,6 +61,7 @@ NTSTATUS FspVolumeWork(
 #pragma alloc_text(PAGE, FspVolumeGetNameList)
 #pragma alloc_text(PAGE, FspVolumeGetNameListNoLock)
 #pragma alloc_text(PAGE, FspVolumeTransact)
+#pragma alloc_text(PAGE, FspVolumeTransactFsext)
 #pragma alloc_text(PAGE, FspVolumeStop)
 #pragma alloc_text(PAGE, FspVolumeWork)
 #endif
@@ -911,6 +914,34 @@ NTSTATUS FspVolumeTransact(
 exit:
     IoSetTopLevelIrp(TopLevelIrp);
     FspDeviceDereference(FsvolDeviceObject);
+    return Result;
+}
+
+NTSTATUS FspVolumeTransactFsext(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
+    ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
+    ASSERT(0 != IrpSp->FileObject->FsContext2);
+
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+    if (!FspDeviceReference(FsvolDeviceObject))
+        return STATUS_CANCELLED;
+
+    NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
+    if (IrpSp->Parameters.FileSystemControl.FsControlCode ==
+        FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.FsextControlCode)
+    {
+        FSP_FSEXT_PROVIDER *Provider = FspFsextProvider(
+            IrpSp->Parameters.FileSystemControl.FsControlCode, 0);
+        if (0 != Provider)
+            Result = Provider->DeviceTransact(FsvolDeviceObject, Irp);
+    }
+
+    FspDeviceDereference(FsvolDeviceObject);
+
     return Result;
 }
 
