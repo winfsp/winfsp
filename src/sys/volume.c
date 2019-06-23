@@ -668,9 +668,6 @@ NTSTATUS FspVolumeTransact(
         FSP_FSCTL_TRANSACT == IrpSp->Parameters.FileSystemControl.FsControlCode ||
         FSP_FSCTL_TRANSACT_BATCH == IrpSp->Parameters.FileSystemControl.FsControlCode ||
         FSP_FSCTL_TRANSACT_INTERNAL == IrpSp->Parameters.FileSystemControl.FsControlCode);
-    ASSERT(
-        METHOD_BUFFERED == (IrpSp->Parameters.FileSystemControl.FsControlCode & 3) ||
-        METHOD_OUT_DIRECT == (IrpSp->Parameters.FileSystemControl.FsControlCode & 3));
     ASSERT(0 != IrpSp->FileObject->FsContext2);
 
     /* check parameters */
