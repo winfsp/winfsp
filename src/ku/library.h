@@ -170,7 +170,7 @@ static inline int FspKuWideCharToMultiByte(
     NTSTATUS Result;
     ULONG ByteCount;
     if (-1 == cchWideChar)
-        cchWideChar = (int)wcslen(lpWideCharStr);
+        cchWideChar = (int)wcslen(lpWideCharStr) + 1;
     Result = RtlUnicodeToUTF8N(
         lpMultiByteStr, cbMultiByte, &ByteCount,
         lpWideCharStr, cchWideChar * sizeof(WCHAR));
@@ -195,7 +195,7 @@ static inline int FspKuMultiByteToWideChar(
     NTSTATUS Result;
     ULONG ByteCount;
     if (-1 == cbMultiByte)
-        cbMultiByte = (int)strlen(lpMultiByteStr);
+        cbMultiByte = (int)strlen(lpMultiByteStr) + 1;
     Result = RtlUTF8ToUnicodeN(
         lpWideCharStr, cchWideChar * sizeof(WCHAR), &ByteCount,
         lpMultiByteStr, cbMultiByte);

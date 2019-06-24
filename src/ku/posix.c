@@ -200,22 +200,22 @@ ULONG NTAPI FspPosixInitialize(
     ULONG Length;
     NTSTATUS Result;
 
-    RtlInitUnicodeString(&Path, L"\\Machine\\SECURITY\\Policy\\PolAcDmS");
+    RtlInitUnicodeString(&Path, L"\\Registry\\Machine\\SECURITY\\Policy\\PolAcDmS");
     RtlZeroMemory(&Name, sizeof Name);
     Length = sizeof Value;
     Result = FspRegistryGetValue(&Path, &Name, &Value.V, &Length);
-    if (STATUS_SUCCESS == Result /*!NT_SUCCESS*/ && REG_NONE == Value.V.Type &&
+    if (NT_SUCCESS(Result) && REG_NONE == Value.V.Type &&
         sizeof(SID) <= Value.V.DataLength && RtlValidSid((PSID)&Value.V.Data))
     {
         RtlCopyMemory(&FspAccountDomainSidBuf.V, &Value.V.Data, Value.V.DataLength);
         FspAccountDomainSid = &FspAccountDomainSidBuf.V;
     }
 
-    RtlInitUnicodeString(&Path, L"\\Machine\\SECURITY\\Policy\\PolPrDmS");
+    RtlInitUnicodeString(&Path, L"\\Registry\\Machine\\SECURITY\\Policy\\PolPrDmS");
     RtlZeroMemory(&Name, sizeof Name);
     Length = sizeof Value;
     Result = FspRegistryGetValue(&Path, &Name, &Value.V, &Length);
-    if (STATUS_SUCCESS == Result /*!NT_SUCCESS*/ && REG_NONE == Value.V.Type &&
+    if (NT_SUCCESS(Result) && REG_NONE == Value.V.Type &&
         sizeof(SID) <= Value.V.DataLength && RtlValidSid((PSID)&Value.V.Data))
     {
         RtlCopyMemory(&FspPrimaryDomainSidBuf.V, &Value.V.Data, Value.V.DataLength);
