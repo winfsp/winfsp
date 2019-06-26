@@ -6,7 +6,7 @@ setlocal EnableDelayedExpansion
 set MsiName="WinFsp - Windows File System Proxy"
 set CrossCert="%~dp0DigiCert High Assurance EV Root CA.crt"
 set Issuer="DigiCert"
-set Subject="Navimatics Corporation"
+set Subject="Navimatics LLC"
 
 set Configuration=Release
 set SignedPackage=
