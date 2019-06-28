@@ -847,6 +847,8 @@ static NTSTATUS FspFsvolQueryInformationEffectiveAccess(
     PDEVICE_OBJECT FsvolDeviceObject, PFILE_OBJECT FileObject,
     PACCESS_MASK PEffectiveAccess)
 {
+    PAGED_CODE();
+
     union
     {
         SECURITY_DESCRIPTOR V;
@@ -2117,7 +2119,7 @@ BOOLEAN FspFastIoQueryBasicInfo(
         if (Result)
         {
             PVOID Buffer = Info;
-            PVOID BufferEnd = (PUINT8)Info + sizeof Info;
+            PVOID BufferEnd = (PUINT8)Info + sizeof *Info;
             NTSTATUS Result0 = FspFsvolQueryBasicInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
             if (!NT_SUCCESS(Result0))
                 FSP_RETURN(Result = FALSE);
@@ -2155,7 +2157,7 @@ BOOLEAN FspFastIoQueryStandardInfo(
         if (Result)
         {
             PVOID Buffer = Info;
-            PVOID BufferEnd = (PUINT8)Info + sizeof Info;
+            PVOID BufferEnd = (PUINT8)Info + sizeof *Info;
             NTSTATUS Result0 = FspFsvolQueryStandardInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
             if (!NT_SUCCESS(Result0))
                 FSP_RETURN(Result = FALSE);
@@ -2193,7 +2195,7 @@ BOOLEAN FspFastIoQueryNetworkOpenInfo(
         if (Result)
         {
             PVOID Buffer = Info;
-            PVOID BufferEnd = (PUINT8)Info + sizeof Info;
+            PVOID BufferEnd = (PUINT8)Info + sizeof *Info;
             NTSTATUS Result0 = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
             if (!NT_SUCCESS(Result0))
                 FSP_RETURN(Result = FALSE);
@@ -2237,7 +2239,7 @@ BOOLEAN FspFastIoQueryOpen(
     if (Result)
     {
         PVOID Buffer = Info;
-        PVOID BufferEnd = (PUINT8)Info + sizeof Info;
+        PVOID BufferEnd = (PUINT8)Info + sizeof *Info;
         NTSTATUS Result0 = FspFsvolQueryNetworkOpenInformation(FileObject, &Buffer, BufferEnd, &FileInfoBuf);
         if (!NT_SUCCESS(Result0))
             FSP_RETURN(Result = FALSE);

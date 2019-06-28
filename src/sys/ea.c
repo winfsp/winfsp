@@ -55,6 +55,7 @@ FSP_DRIVER_DISPATCH FspSetEa;
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvolQueryEaGetCopy)
 #pragma alloc_text(PAGE, FspFsvolQueryEaIndexCopy)
+#pragma alloc_text(PAGE, FspFsvolQueryEaCopy)
 #pragma alloc_text(PAGE, FspFsvolQueryEa)
 #pragma alloc_text(PAGE, FspFsvolQueryEaComplete)
 #pragma alloc_text(PAGE, FspFsvolQueryEaRequestFini)
