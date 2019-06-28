@@ -350,9 +350,9 @@ NTSTATUS FspSendSetInformationIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT File
     IrpSp->Parameters.SetFile.FileInformationClass = FileInformationClass;
     IrpSp->Parameters.SetFile.Length = Length;
 
+    KeInitializeEvent(&Context.Event, NotificationEvent, FALSE);
     IoSetCompletionRoutine(Irp, FspSendIrpCompletion, &Context, TRUE, TRUE, TRUE);
 
-    KeInitializeEvent(&Context.Event, NotificationEvent, FALSE);
     Result = IoCallDriver(DeviceObject, Irp);
     if (STATUS_PENDING == Result)
         KeWaitForSingleObject(&Context.Event, Executive, KernelMode, FALSE, 0);
@@ -391,9 +391,9 @@ NTSTATUS FspSendQuerySecurityIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileO
     IrpSp->Parameters.QuerySecurity.SecurityInformation = SecurityInformation;
     IrpSp->Parameters.QuerySecurity.Length = Length;
 
+    KeInitializeEvent(&Context.Event, NotificationEvent, FALSE);
     IoSetCompletionRoutine(Irp, FspSendIrpCompletion, &Context, TRUE, TRUE, TRUE);
 
-    KeInitializeEvent(&Context.Event, NotificationEvent, FALSE);
     Result = IoCallDriver(DeviceObject, Irp);
     if (STATUS_PENDING == Result)
         KeWaitForSingleObject(&Context.Event, Executive, KernelMode, FALSE, 0);
@@ -433,9 +433,9 @@ NTSTATUS FspSendQueryEaIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     IrpSp->Parameters.QueryEa.EaList = GetEa;
     IrpSp->Parameters.QueryEa.EaListLength = GetEaLength;
 
+    KeInitializeEvent(&Context.Event, NotificationEvent, FALSE);
     IoSetCompletionRoutine(Irp, FspSendIrpCompletion, &Context, TRUE, TRUE, TRUE);
 
-    KeInitializeEvent(&Context.Event, NotificationEvent, FALSE);
     Result = IoCallDriver(DeviceObject, Irp);
     if (STATUS_PENDING == Result)
         KeWaitForSingleObject(&Context.Event, Executive, KernelMode, FALSE, 0);

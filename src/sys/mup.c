@@ -275,6 +275,7 @@ NTSTATUS FspMupHandleIrp(
             if (FspFileNodeIsValid(FileObject->FsContext))
                 FsvolDeviceObject = ((FSP_FILE_NODE *)FileObject->FsContext)->FsvolDeviceObject;
             else if (0 != FileObject->FsContext2 &&
+#pragma prefast(disable:28175, "We are a filesystem: ok to access DeviceObject->Type")
                 3 == ((PDEVICE_OBJECT)FileObject->FsContext2)->Type &&
                 0 != ((PDEVICE_OBJECT)FileObject->FsContext2)->DeviceExtension &&
                 FspFsvolDeviceExtensionKind == FspDeviceExtension((PDEVICE_OBJECT)FileObject->FsContext2)->Kind)

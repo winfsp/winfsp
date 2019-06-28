@@ -70,7 +70,7 @@ FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 FsextControlCode, PNTSTATUS PLoadRes
 
             RtlInitEmptyUnicodeString(&Path, Buf, sizeof Buf);
             Result = RtlUnicodeStringPrintf(&Path,
-                L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\%s", Value.V.Data);
+                L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\%s", (PWSTR)Value.V.Data);
             ASSERT(NT_SUCCESS(Result));
 
             Result = ZwLoadDriver(&Path);
