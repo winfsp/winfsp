@@ -354,6 +354,7 @@ static inline UINT32 fsp_fuse_intf_MapFlagsToFileAttributes(uint32_t flags)
     return FileAttributes;
 }
 
+#define FUSE_FILE_INFO(IsDirectory, fi) ((IsDirectory) ? 0 : (fi))
 #define fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, fi, PUid, PGid, PMode, FileInfo)\
     fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi, 0, PUid, PGid, PMode, 0, FileInfo)
 static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
@@ -922,7 +923,8 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
      * Ignore fuse_file_info::nonseekable.
      */
 
-    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, contexthdr->PosixPath, &fi,
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, contexthdr->PosixPath,
+        FUSE_FILE_INFO(CreateOptions & FILE_DIRECTORY_FILE, &fi),
         &Uid, &Gid, &Mode, &FileInfoBuf);
     if (!NT_SUCCESS(Result))
         goto exit;
@@ -1137,7 +1139,8 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
             return Result;
     }
 
-    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+        FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &Uid, &Gid, &Mode, FileInfo);
 }
 
@@ -1268,7 +1271,8 @@ static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
 
-    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+        FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &Uid, &Gid, &Mode, &FileInfoBuf);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -1348,7 +1352,8 @@ static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return Result;
 
-    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+        FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &Uid, &Gid, &Mode, &FileInfoBuf);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -1371,7 +1376,8 @@ static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
 
-    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+        FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &Uid, &Gid, &Mode, FileInfo);
 }
 
@@ -1409,7 +1415,8 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     {
         if (0 == LastAccessTime || 0 == LastWriteTime)
         {
-            Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+            Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+                FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
                 &Uid, &Gid, &Mode, &FileInfoBuf);
             if (!NT_SUCCESS(Result))
                 return Result;
@@ -1456,7 +1463,8 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
             return Result;
     }
 
-    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+        FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &Uid, &Gid, &Mode, FileInfo);
 }
 
@@ -1483,7 +1491,8 @@ static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
 
-    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+        FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &Uid, &Gid, &Mode, &FileInfoBuf);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -1630,7 +1639,8 @@ static NTSTATUS fsp_fuse_intf_GetSecurity(FSP_FILE_SYSTEM *FileSystem,
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
 
-    return fsp_fuse_intf_GetSecurityEx(FileSystem, filedesc->PosixPath, &fi,
+    return fsp_fuse_intf_GetSecurityEx(FileSystem, filedesc->PosixPath,
+        FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &FileAttributes, SecurityDescriptorBuf, PSecurityDescriptorSize);
 }
 
@@ -1654,8 +1664,9 @@ static NTSTATUS fsp_fuse_intf_SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
 
-    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi, &Uid, &Gid, &Mode,
-        &FileInfo);
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+        FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
+        &Uid, &Gid, &Mode, &FileInfo);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -2013,7 +2024,9 @@ static NTSTATUS fsp_fuse_intf_GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
 
-    return fsp_fuse_intf_GetReparsePointEx(FileSystem, filedesc->PosixPath, &fi, Buffer, PSize);
+    return fsp_fuse_intf_GetReparsePointEx(FileSystem, filedesc->PosixPath,
+        FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
+        Buffer, PSize);
 }
 
 static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
@@ -2084,7 +2097,8 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
 
-    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+        FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &Uid, &Gid, &Mode, &FileInfo);
     if (!NT_SUCCESS(Result))
         return Result;
@@ -2357,7 +2371,8 @@ static NTSTATUS fsp_fuse_intf_SetEa(FSP_FILE_SYSTEM *FileSystem,
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
 
-    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, &fi,
+    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+        FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &Uid, &Gid, &Mode, FileInfo);
 }
 
