@@ -40,6 +40,7 @@ namespace Fsp
         /// <param name="FileSystem">The file system to host.</param>
         public FileSystemHost(FileSystemBase FileSystem)
         {
+            _VolumeParams.Version = (UInt16)Marshal.SizeOf(_VolumeParams);
             _VolumeParams.Flags = VolumeParams.UmFileContextIsFullContext;
             _FileSystem = FileSystem;
         }
@@ -124,6 +125,86 @@ namespace Fsp
         {
             get { return _VolumeParams.FileInfoTimeout; }
             set { _VolumeParams.FileInfoTimeout = value; }
+        }
+        /// <summary>
+        /// Gets or sets the volume information timeout.
+        /// </summary>
+        public UInt32 VolumeInfoTimeout
+        {
+            get
+            {
+                return 0 != (_VolumeParams.AdditionalFlags & VolumeParams.VolumeInfoTimeoutValid) ?
+                    _VolumeParams.VolumeInfoTimeout : _VolumeParams.FileInfoTimeout;
+            }
+            set
+            {
+                _VolumeParams.AdditionalFlags |= VolumeParams.VolumeInfoTimeoutValid;
+                _VolumeParams.VolumeInfoTimeout = value;
+            }
+        }
+        /// <summary>
+        /// Gets or sets the directory information timeout.
+        /// </summary>
+        public UInt32 DirInfoTimeout
+        {
+            get
+            {
+                return 0 != (_VolumeParams.AdditionalFlags & VolumeParams.DirInfoTimeoutValid) ?
+                    _VolumeParams.DirInfoTimeout : _VolumeParams.FileInfoTimeout;
+            }
+            set
+            {
+                _VolumeParams.AdditionalFlags |= VolumeParams.DirInfoTimeoutValid;
+                _VolumeParams.DirInfoTimeout = value;
+            }
+        }
+        /// <summary>
+        /// Gets or sets the security information timeout.
+        /// </summary>
+        public UInt32 SecurityTimeout
+        {
+            get
+            {
+                return 0 != (_VolumeParams.AdditionalFlags & VolumeParams.SecurityTimeoutValid) ?
+                    _VolumeParams.SecurityTimeout : _VolumeParams.FileInfoTimeout;
+            }
+            set
+            {
+                _VolumeParams.AdditionalFlags |= VolumeParams.SecurityTimeoutValid;
+                _VolumeParams.SecurityTimeout = value;
+            }
+        }
+        /// <summary>
+        /// Gets or sets the stream information timeout.
+        /// </summary>
+        public UInt32 StreamInfoTimeout
+        {
+            get
+            {
+                return 0 != (_VolumeParams.AdditionalFlags & VolumeParams.StreamInfoTimeoutValid) ?
+                    _VolumeParams.StreamInfoTimeout : _VolumeParams.FileInfoTimeout;
+            }
+            set
+            {
+                _VolumeParams.AdditionalFlags |= VolumeParams.StreamInfoTimeoutValid;
+                _VolumeParams.StreamInfoTimeout = value;
+            }
+        }
+        /// <summary>
+        /// Gets or sets the EA information timeout.
+        /// </summary>
+        public UInt32 EaTimeout
+        {
+            get
+            {
+                return 0 != (_VolumeParams.AdditionalFlags & VolumeParams.EaTimeoutValid) ?
+                    _VolumeParams.EaTimeout : _VolumeParams.FileInfoTimeout;
+            }
+            set
+            {
+                _VolumeParams.AdditionalFlags |= VolumeParams.EaTimeoutValid;
+                _VolumeParams.EaTimeout = value;
+            }
         }
         /// <summary>
         /// Gets or sets a value that determines whether the file system is case sensitive.
@@ -279,8 +360,41 @@ namespace Fsp
         /// A value of 0 disables all debug logging.
         /// A value of -1 enables all debug logging.
         /// </param>
-        /// <returns></returns>
+        /// <returns>STATUS_SUCCESS or error code.</returns>
         public Int32 Mount(String MountPoint,
+            Byte[] SecurityDescriptor = null,
+            Boolean Synchronized = false,
+            UInt32 DebugLog = 0)
+        {
+            return MountEx(MountPoint, 0, SecurityDescriptor, Synchronized, DebugLog);
+        }
+        /// <summary>
+        /// Mounts a file system.
+        /// </summary>
+        /// <param name="MountPoint">
+        /// The mount point for the new file system. A value of null means that
+        /// the file system should use the next available drive letter counting
+        /// downwards from Z: as its mount point.
+        /// </param>
+        /// <param name="ThreadCount">
+        /// Number of threads to use to service file system requests. A value
+        /// of 0 means that the default number of threads should be used.
+        /// </param>
+        /// <param name="SecurityDescriptor">
+        /// Security descriptor to use if mounting on (newly created) directory.
+        /// A value of null means the directory should be created with default
+        /// security.
+        /// </param>
+        /// <param name="Synchronized">
+        /// If true file system operations are synchronized using an exclusive lock.
+        /// </param>
+        /// <param name="DebugLog">
+        /// A value of 0 disables all debug logging.
+        /// A value of -1 enables all debug logging.
+        /// </param>
+        /// <returns>STATUS_SUCCESS or error code.</returns>
+        public Int32 MountEx(String MountPoint,
+            UInt32 ThreadCount,
             Byte[] SecurityDescriptor = null,
             Boolean Synchronized = false,
             UInt32 DebugLog = 0)
@@ -320,7 +434,7 @@ namespace Fsp
                 }
                 if (0 <= Result)
                 {
-                    Result = Api.FspFileSystemStartDispatcher(_FileSystemPtr, 0);
+                    Result = Api.FspFileSystemStartDispatcher(_FileSystemPtr, ThreadCount);
                     if (0 > Result)
                         try
                         {
@@ -394,6 +508,28 @@ namespace Fsp
             return Api.FspFileSystemGetOperationRequestHint();
         }
         /// <summary>
+        /// Asynchronously complete a Read operation.
+        /// </summary>
+        /// <param name="RequestHint">
+        /// A reference to the operation to complete.
+        /// </param>
+        /// <param name="Status">
+        /// STATUS_SUCCESS or error code.
+        /// </param>
+        /// <param name="BytesTransferred">
+        /// Number of bytes read.
+        /// </param>
+        public void SendReadResponse(UInt64 RequestHint, Int32 Status, UInt32 BytesTransferred)
+        {
+            FspFsctlTransactRsp Response = default(FspFsctlTransactRsp);
+            Response.Size = 128;
+            Response.Kind = (UInt32)FspFsctlTransact.ReadKind;
+            Response.Hint = RequestHint;
+            Response.IoStatus.Information = BytesTransferred;
+            Response.IoStatus.Status = (UInt32)Status;
+            Api.FspFileSystemSendResponse(_FileSystemPtr, ref Response);
+        }
+        /// <summary>
         /// Asynchronously complete a Write operation.
         /// </summary>
         /// <param name="RequestHint">
@@ -410,39 +546,13 @@ namespace Fsp
         /// </param>
         public void SendWriteResponse(UInt64 RequestHint, Int32 Status, UInt32 BytesTransferred, ref FileInfo FileInfo)
         {
-            var Response = new FspFsctlTransactRsp()
-            {
-                Size = 128,
-                Kind = (UInt32) FspFsctlTransact.WriteKind,
-                Hint = RequestHint
-            };
+            FspFsctlTransactRsp Response = default(FspFsctlTransactRsp);
+            Response.Size = 128;
+            Response.Kind = (UInt32)FspFsctlTransact.WriteKind;
+            Response.Hint = RequestHint;
             Response.IoStatus.Information = BytesTransferred;
-            Response.IoStatus.Status = (UInt32) Status;
+            Response.IoStatus.Status = (UInt32)Status;
             Response.WriteFileInfo = FileInfo;
-            Api.FspFileSystemSendResponse(_FileSystemPtr, ref Response);
-        }
-        /// <summary>
-        /// Asynchronously complete a Read operation.
-        /// </summary>
-        /// <param name="RequestHint">
-        /// A reference to the operation to complete.
-        /// </param>
-        /// <param name="Status">
-        /// STATUS_SUCCESS or error code.
-        /// </param>
-        /// <param name="BytesTransferred">
-        /// Number of bytes read.
-        /// </param>
-        public void SendReadResponse(UInt64 RequestHint, Int32 Status, UInt32 BytesTransferred)
-        {
-            var Response = new FspFsctlTransactRsp()
-            {
-                Size = 128,
-                Kind = (UInt32) FspFsctlTransact.ReadKind,
-                Hint = RequestHint
-            };
-            Response.IoStatus.Information = BytesTransferred;
-            Response.IoStatus.Status = (UInt32) Status;
             Api.FspFileSystemSendResponse(_FileSystemPtr, ref Response);
         }
         /// <summary>
@@ -459,14 +569,12 @@ namespace Fsp
         /// </param>
         public void SendReadDirectoryResponse(UInt64 RequestHint, Int32 Status, UInt32 BytesTransferred)
         {
-            var Response = new FspFsctlTransactRsp()
-            {
-                Size = 128,
-                Kind = (UInt32) FspFsctlTransact.QueryDirectoryKind,
-                Hint = RequestHint
-            };
+            FspFsctlTransactRsp Response = default(FspFsctlTransactRsp);
+            Response.Size = 128;
+            Response.Kind = (UInt32)FspFsctlTransact.QueryDirectoryKind;
+            Response.Hint = RequestHint;
             Response.IoStatus.Information = BytesTransferred;
-            Response.IoStatus.Status = (UInt32) Status;
+            Response.IoStatus.Status = (UInt32)Status;
             Api.FspFileSystemSendResponse(_FileSystemPtr, ref Response);
         }
 

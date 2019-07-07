@@ -57,6 +57,12 @@ namespace Fsp.Interop
         internal const int PrefixSize = 192;
         internal const int FileSystemNameSize = 16;
 
+        internal const UInt32 VolumeInfoTimeoutValid = 0x00000001;
+        internal const UInt32 DirInfoTimeoutValid = 0x00000002;
+        internal const UInt32 SecurityTimeoutValid = 0x00000004;
+        internal const UInt32 StreamInfoTimeoutValid = 0x00000008;
+        internal const UInt32 EaTimeoutValid = 0x00000010;
+
         internal UInt16 Version;
         internal UInt16 SectorSize;
         internal UInt16 SectorsPerAllocationUnit;
@@ -70,6 +76,15 @@ namespace Fsp.Interop
         internal UInt32 Flags;
         internal unsafe fixed UInt16 Prefix[PrefixSize];
         internal unsafe fixed UInt16 FileSystemName[FileSystemNameSize];
+        internal UInt32 AdditionalFlags;
+        internal UInt32 VolumeInfoTimeout;
+        internal UInt32 DirInfoTimeout;
+        internal UInt32 SecurityTimeout;
+        internal UInt32 StreamInfoTimeout;
+        internal UInt32 EaTimeout;
+        internal UInt32 FsextControlCode;
+        internal unsafe fixed UInt32 Reserved32[1];
+        internal unsafe fixed UInt64 Reserved64[2];
 
         internal unsafe String GetPrefix()
         {
