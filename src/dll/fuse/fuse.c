@@ -103,6 +103,15 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FUSE_OPT_KEY("FileSystemName=", 'F'),
     FUSE_OPT_KEY("--FileSystemName=", 'F'),
 
+    FSP_FUSE_CORE_OPT("UserName=", set_uid, 1),
+    FUSE_OPT_KEY("UserName=", 'u'),
+    FSP_FUSE_CORE_OPT("--UserName=", set_uid, 1),
+    FUSE_OPT_KEY("--UserName=", 'u'),
+    FSP_FUSE_CORE_OPT("GroupName=", set_gid, 1),
+    FUSE_OPT_KEY("GroupName=", 'g'),
+    FSP_FUSE_CORE_OPT("--GroupName=", set_gid, 1),
+    FUSE_OPT_KEY("--GroupName=", 'g'),
+
     FUSE_OPT_END,
 };
 
@@ -233,6 +242,43 @@ FSP_FUSE_API int fsp_fuse_is_lib_option(struct fsp_fuse_env *env,
     return fsp_fuse_opt_match(env, fsp_fuse_core_opts, opt);
 }
 
+static int fsp_fuse_username_to_uid(const char *username, int *puid)
+{
+    union
+    {
+        SID V;
+        UINT8 B[SECURITY_MAX_SID_SIZE];
+    } SidBuf;
+    char Name[256], Domn[256];
+    DWORD SidSize, NameSize, DomnSize;
+    SID_NAME_USE Use;
+    UINT32 Uid;
+    NTSTATUS Result;
+
+    *puid = 0;
+
+    NameSize = lstrlenA(username) + 1;
+    if (sizeof Name / sizeof Name[0] < NameSize)
+        return -1;
+    memcpy(Name, username, NameSize);
+    for (PSTR P = Name, EndP = P + NameSize; EndP > P; P++)
+        if ('+' == *P)
+            *P = '\\';
+
+    SidSize = sizeof SidBuf;
+    DomnSize = sizeof Domn / sizeof Domn[0];
+    if (!LookupAccountNameA(0, Name, &SidBuf, &SidSize, Domn, &DomnSize, &Use))
+        return -1;
+
+    Result = FspPosixMapSidToUid(&SidBuf, &Uid);
+    if (!NT_SUCCESS(Result))
+        return -1;
+
+    *puid = Uid;
+
+    return 0;
+}
+
 static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
     struct fuse_args *outargs)
 {
@@ -321,6 +367,28 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             [sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR) - 1] = L'\0';
         memcpy(opt_data->VolumeParams.FileSystemName, L"FUSE-", 5 * sizeof(WCHAR));
         return 0;
+    case 'u':
+        if ('U' == arg[0])
+            arg += sizeof "UserName=" - 1;
+        else if ('U' == arg[2])
+            arg += sizeof "--UserName=" - 1;
+        if (-1 == fsp_fuse_username_to_uid(arg, &opt_data->uid))
+        {
+            opt_data->username_to_uid_result = -1;
+            return -1;
+        }
+        return 0;
+    case 'g':
+        if ('G' == arg[0])
+            arg += sizeof "GroupName=" - 1;
+        else if ('G' == arg[2])
+            arg += sizeof "--GroupName=" - 1;
+        if (-1 == fsp_fuse_username_to_uid(arg, &opt_data->gid))
+        {
+            opt_data->username_to_uid_result = -1;
+            return -1;
+        }
+        return 0;
     case 'v':
         arg += sizeof "volname=" - 1;
         opt_data->VolumeLabelLength = (UINT16)(sizeof(WCHAR) *
@@ -365,7 +433,14 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.FlushAndPurgeOnCleanup = TRUE;
 
     if (-1 == fsp_fuse_core_opt_parse(env, args, &opt_data, /*help=*/1))
+    {
+        if (-1 == opt_data.username_to_uid_result)
+        {
+            ErrorMessage = L": invalid user or group name.";
+            goto fail;
+        }
         return 0;
+    }
     if (opt_data.help)
         return 0;
 

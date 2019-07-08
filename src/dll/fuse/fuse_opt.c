@@ -216,11 +216,13 @@ static int fsp_fuse_opt_call_proc(struct fsp_fuse_env *env,
             goto exit;
     }
 
+    result = 0;
+
 exit:
     if (0 != fullarg)
         env->memfree(fullarg);
 
-    return 0;
+    return result;
 }
 
 static int fsp_fuse_opt_process_arg(struct fsp_fuse_env *env,

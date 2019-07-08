@@ -142,7 +142,7 @@ struct fsp_fuse_core_opt_data
         set_create_umask, create_umask,
         set_create_file_umask, create_file_umask,
         set_create_dir_umask, create_dir_umask,
-        set_uid, uid,
+        set_uid, uid, username_to_uid_result,
         set_gid, gid,
         set_attr_timeout, attr_timeout,
         rellinks,
