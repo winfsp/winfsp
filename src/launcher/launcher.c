@@ -503,24 +503,19 @@ static SVC_INSTANCE *SvcInstanceLookup(PWSTR ClassName, PWSTR InstanceName)
     return 0;
 }
 
-static ULONG SvcInstanceArgumentLength(PWSTR Arg)
+static inline ULONG SvcInstanceArgumentLength(PWSTR Arg, PWSTR Pattern)
 {
-    ULONG Length;
+    PWSTR PathTransform(PWSTR Dest, PWSTR Arg, PWSTR Pattern);
 
-    Length = 2; /* for beginning and ending quotes */
-    for (PWSTR P = Arg; *P; P++)
-        if (L'"' != *P)
-            Length++;
-
-    return Length;
+    return 2 + (ULONG)(UINT_PTR)PathTransform(0, Arg, Pattern);
 }
 
-static PWSTR SvcInstanceArgumentCopy(PWSTR Dest, PWSTR Arg)
+static inline PWSTR SvcInstanceArgumentCopy(PWSTR Dest, PWSTR Arg, PWSTR Pattern)
 {
+    PWSTR PathTransform(PWSTR Dest, PWSTR Arg, PWSTR Pattern);
+
     *Dest++ = L'"';
-    for (PWSTR P = Arg; *P; P++)
-        if (L'"' != *P)
-            *Dest++ = *P;
+    Dest = PathTransform(Dest, Arg, Pattern);
     *Dest++ = L'"';
 
     return Dest;
@@ -532,6 +527,7 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
     PWSTR NewString = 0, P, Q;
     PWSTR EmptyArg = L"";
     ULONG Length;
+    PWSTR Pattern;
 
     *PNewString = 0;
 
@@ -541,24 +537,36 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
         switch (*P)
         {
         case L'%':
+            Pattern = 0;
             P++;
+            if (L'\\' == *P)
+            {
+                Pattern = ++P;
+                while (!(L'\0' == *P ||
+                    (L'0' <= *P && *P <= '9') ||
+                    (L'A' <= *P && *P <= 'Z')))
+                    P++;
+            }
             if (L'0' <= *P && *P <= '9')
             {
                 if (Argc > (ULONG)(*P - L'0'))
-                    Length += SvcInstanceArgumentLength(Argv[*P - L'0']);
+                    Length += SvcInstanceArgumentLength(Argv[*P - L'0'], Pattern);
                 else
-                    Length += SvcInstanceArgumentLength(EmptyArg);
+                    Length += SvcInstanceArgumentLength(EmptyArg, 0);
             }
             else
             if (L'U' == *P)
             {
                 if (0 != SvcInstanceUserName())
-                    Length += SvcInstanceArgumentLength(SvcInstanceUserName());
+                    Length += SvcInstanceArgumentLength(SvcInstanceUserName(), Pattern);
                 else
-                    Length += SvcInstanceArgumentLength(EmptyArg);
+                    Length += SvcInstanceArgumentLength(EmptyArg, 0);
             }
             else
+            if (*P)
                 Length++;
+            else
+                P--;
             break;
         default:
             Length++;
@@ -575,24 +583,36 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String, ULONG Argc, PWSTR *Arg
         switch (*P)
         {
         case L'%':
+            Pattern = 0;
             P++;
+            if (L'\\' == *P)
+            {
+                Pattern = ++P;
+                while (!(L'\0' == *P ||
+                    (L'0' <= *P && *P <= '9') ||
+                    (L'A' <= *P && *P <= 'Z')))
+                    P++;
+            }
             if (L'0' <= *P && *P <= '9')
             {
                 if (Argc > (ULONG)(*P - L'0'))
-                    Q = SvcInstanceArgumentCopy(Q, Argv[*P - L'0']);
+                    Q = SvcInstanceArgumentCopy(Q, Argv[*P - L'0'], Pattern);
                 else
-                    Q = SvcInstanceArgumentCopy(Q, EmptyArg);
+                    Q = SvcInstanceArgumentCopy(Q, EmptyArg, 0);
             }
             else
             if (L'U' == *P)
             {
                 if (0 != SvcInstanceUserName())
-                    Q = SvcInstanceArgumentCopy(Q, SvcInstanceUserName());
+                    Q = SvcInstanceArgumentCopy(Q, SvcInstanceUserName(), Pattern);
                 else
-                    Q = SvcInstanceArgumentCopy(Q, EmptyArg);
+                    Q = SvcInstanceArgumentCopy(Q, EmptyArg, 0);
             }
             else
+            if (*P)
                 *Q++ = *P;
+            else
+                P--;
             break;
         default:
             *Q++ = *P;

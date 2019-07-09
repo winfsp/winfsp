@@ -186,6 +186,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\launcher\launcher.c" />
+    <ClCompile Include="..\..\..\src\launcher\ptrans.c" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\winfsp_dll.vcxproj">
