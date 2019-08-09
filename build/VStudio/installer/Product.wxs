@@ -391,6 +391,12 @@
                 <Component Id="C.airfs.cpp">
                     <File Name="airfs.cpp" KeyPath="yes" />
                 </Component>
+                <Component Id="C.persistence.cpp">
+                    <File Name="persistence.cpp" KeyPath="yes" />
+                </Component>
+                <Component Id="C.common.h">
+                    <File Name="common.h" KeyPath="yes" />
+                </Component>
                 <Component Id="C.airfs.sln">
                     <File Name="airfs.sln" KeyPath="yes" />
                 </Component>
@@ -587,6 +593,8 @@
             <ComponentRef Id="C.memfs.cpp" />
             <ComponentRef Id="C.memfs_main.c" />
             <ComponentRef Id="C.airfs.cpp" />
+            <ComponentRef Id="C.persistence.cpp" />
+            <ComponentRef Id="C.common.h" />
             <ComponentRef Id="C.airfs.sln" />
             <ComponentRef Id="C.airfs.vcxproj" />
             <ComponentRef Id="C.airfs.vcxproj.filters" />
