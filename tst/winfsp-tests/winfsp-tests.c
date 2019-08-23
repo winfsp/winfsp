@@ -211,6 +211,7 @@ int main(int argc, char *argv[])
     TESTSUITE(stream_tests);
     TESTSUITE(oplock_tests);
     TESTSUITE(wsl_tests);
+    TESTSUITE(volpath_tests);
 
     atexit(exiting);
     signal(SIGABRT, abort_handler);
