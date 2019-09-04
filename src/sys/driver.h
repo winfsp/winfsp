@@ -493,6 +493,9 @@ NTSTATUS FspFileNameInExpression(
     PWCH UpcaseTable,
     PBOOLEAN PResult);
 
+/* UUID5 creation (ku) */
+NTSTATUS FspUuid5Make(const UUID *Namespace, const VOID *Buffer, ULONG Size, UUID *Uuid);
+
 /* utility */
 PVOID FspAllocatePoolMustSucceed(POOL_TYPE PoolType, SIZE_T Size, ULONG Tag);
 PVOID FspAllocateIrpMustSucceed(CCHAR StackSize);
