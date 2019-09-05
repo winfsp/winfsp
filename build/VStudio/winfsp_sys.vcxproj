@@ -176,6 +176,7 @@
     <ClCompile Include="..\..\src\sys\ioq.c" />
     <ClCompile Include="..\..\src\sys\lockctl.c" />
     <ClCompile Include="..\..\src\sys\meta.c" />
+    <ClCompile Include="..\..\src\sys\mountdev.c" />
     <ClCompile Include="..\..\src\sys\mup.c" />
     <ClCompile Include="..\..\src\sys\name.c" />
     <ClCompile Include="..\..\src\sys\psbuffer.c" />

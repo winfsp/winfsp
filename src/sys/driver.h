@@ -26,6 +26,7 @@
 
 #define POOL_NX_OPTIN                   1
 #include <ntifs.h>
+#include <mountdev.h>
 #include <ntstrsafe.h>
 #include <wdmsec.h>
 #include <winfsp/fsctl.h>
@@ -1103,6 +1104,14 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
+    LONG IsMountdev;
+    GUID UniqueId;
+    UNICODE_STRING VolumeName;
+    WCHAR VolumeNameBuf[FSP_FSCTL_VOLUME_NAME_SIZE / sizeof(WCHAR)];
+} FSP_FSVRT_DEVICE_EXTENSION;
+typedef struct
+{
+    FSP_DEVICE_EXTENSION Base;
     UINT32 InitDonePfxTab:1;
     ERESOURCE PrefixTableResource;
     UNICODE_PREFIX_TABLE PrefixTable;
@@ -1117,6 +1126,12 @@ static inline
 FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
     ASSERT(FspFsvolDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
+    return DeviceObject->DeviceExtension;
+}
+static inline
+FSP_FSVRT_DEVICE_EXTENSION *FspFsvrtDeviceExtension(PDEVICE_OBJECT DeviceObject)
+{
+    ASSERT(FspFsvrtDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
     return DeviceObject->DeviceExtension;
 }
 static inline
@@ -1223,6 +1238,19 @@ BOOLEAN FspQueryDirectoryIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
     return FspReadIrpShouldUseProcessBuffer(Irp, BufferSize);
 }
 #endif
+
+/* mountdev */
+NTSTATUS FspMountdevQueryDeviceName(
+    PDEVICE_OBJECT FsvrtDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspMountdevQueryUniqueId(
+    PDEVICE_OBJECT FsvrtDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+BOOLEAN FspMountdevDeviceControl(
+    PDEVICE_OBJECT FsvrtDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    PNTSTATUS PResult);
+NTSTATUS FspMountdevMake(
+    PDEVICE_OBJECT FsvrtDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
+VOID FspMountdevFini(
+    PDEVICE_OBJECT FsvrtDeviceObject);
 
 /* fsmup */
 NTSTATUS FspMupRegister(

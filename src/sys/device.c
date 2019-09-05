@@ -67,6 +67,8 @@ VOID FspFsvolDeviceGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_I
 BOOLEAN FspFsvolDeviceTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject);
+static NTSTATUS FspFsvrtDeviceInit(PDEVICE_OBJECT DeviceObject);
+static VOID FspFsvrtDeviceFini(PDEVICE_OBJECT DeviceObject);
 static NTSTATUS FspFsmupDeviceInit(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsmupDeviceFini(PDEVICE_OBJECT DeviceObject);
 NTSTATUS FspDeviceCopyList(
@@ -100,6 +102,8 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceCompareContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceAllocateContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceFreeContextByName)
+#pragma alloc_text(PAGE, FspFsvrtDeviceInit)
+#pragma alloc_text(PAGE, FspFsvrtDeviceFini)
 #pragma alloc_text(PAGE, FspFsmupDeviceInit)
 #pragma alloc_text(PAGE, FspFsmupDeviceFini)
 #pragma alloc_text(PAGE, FspDeviceCopyList)
@@ -126,10 +130,12 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
     case FspFsvolDeviceExtensionKind:
         DeviceExtensionSize = sizeof(FSP_FSVOL_DEVICE_EXTENSION);
         break;
+    case FspFsvrtDeviceExtensionKind:
+        DeviceExtensionSize = sizeof(FSP_FSVRT_DEVICE_EXTENSION);
+        break;
     case FspFsmupDeviceExtensionKind:
         DeviceExtensionSize = sizeof(FSP_FSMUP_DEVICE_EXTENSION);
         break;
-    case FspFsvrtDeviceExtensionKind:
     case FspFsctlDeviceExtensionKind:
         DeviceExtensionSize = sizeof(FSP_DEVICE_EXTENSION);
         break;
@@ -184,10 +190,12 @@ NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject)
     case FspFsvolDeviceExtensionKind:
         Result = FspFsvolDeviceInit(DeviceObject);
         break;
+    case FspFsvrtDeviceExtensionKind:
+        Result = FspFsvrtDeviceInit(DeviceObject);
+        break;
     case FspFsmupDeviceExtensionKind:
         Result = FspFsmupDeviceInit(DeviceObject);
         break;
-    case FspFsvrtDeviceExtensionKind:
     case FspFsctlDeviceExtensionKind:
         Result = STATUS_SUCCESS;
         break;
@@ -213,10 +221,12 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
     case FspFsvolDeviceExtensionKind:
         FspFsvolDeviceFini(DeviceObject);
         break;
+    case FspFsvrtDeviceExtensionKind:
+        FspFsvrtDeviceFini(DeviceObject);
+        break;
     case FspFsmupDeviceExtensionKind:
         FspFsmupDeviceFini(DeviceObject);
         break;
-    case FspFsvrtDeviceExtensionKind:
     case FspFsctlDeviceExtensionKind:
         break;
     default:
@@ -938,6 +948,20 @@ VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject)
     KeAcquireSpinLock(&FsvolDeviceExtension->InfoSpinLock, &Irql);
     FsvolDeviceExtension->InfoExpirationTime = 0;
     KeReleaseSpinLock(&FsvolDeviceExtension->InfoSpinLock, Irql);
+}
+
+static NTSTATUS FspFsvrtDeviceInit(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    return STATUS_SUCCESS;
+}
+
+static VOID FspFsvrtDeviceFini(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    FspMountdevFini(DeviceObject);
 }
 
 static NTSTATUS FspFsmupDeviceInit(PDEVICE_OBJECT DeviceObject)

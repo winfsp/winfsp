@@ -43,9 +43,14 @@ enum
 };
 
 static NTSTATUS FspFsvrtDeviceControl(
-    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+    PDEVICE_OBJECT FsvrtDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     PAGED_CODE();
+
+    NTSTATUS Result;
+
+    if (FspMountdevDeviceControl(FsvrtDeviceObject, Irp, IrpSp, &Result))
+        return Result;
 
     /*
      * Fix GitHub issue #177. All credit for the investigation of this issue
@@ -72,6 +77,19 @@ static NTSTATUS FspFsvolDeviceControl(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     ULONG IoControlCode = IrpSp->Parameters.DeviceIoControl.IoControlCode;
+    NTSTATUS Result;
+
+    if (FspMountdevDeviceControl(FsvolDeviceExtension->FsvrtDeviceObject, Irp, IrpSp, &Result))
+        return Result;
+
+    /*
+     * Possibly forward the IOCTL request to the user mode file system. The rules are:
+     *
+     * - File system must support DeviceControl.
+     * - Only IOCTL with custom devices (see DEVICE_TYPE_FROM_CTL_CODE) and
+     *   METHOD_BUFFERED will be forwarded.
+     */
+
 
     /* do we support DeviceControl? */
     if (!FsvolDeviceExtension->VolumeParams.DeviceControl)
@@ -90,7 +108,6 @@ static NTSTATUS FspFsvolDeviceControl(
     if (!FspFileNodeIsValid(FileObject->FsContext))
         return STATUS_INVALID_PARAMETER;
 
-    NTSTATUS Result;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     PVOID InputBuffer = Irp->AssociatedIrp.SystemBuffer;
