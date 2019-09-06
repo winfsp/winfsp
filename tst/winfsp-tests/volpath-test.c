@@ -104,7 +104,7 @@ static void volpath_mount_dotest(ULONG Flags, PWSTR Prefix, PWSTR MountPoint)
     HANDLE Handle;
     BOOLEAN Success, VolumePathNameSuccess[8];
     WCHAR FilePath[MAX_PATH];
-    WCHAR VolumePathName[MAX_PATH];
+    WCHAR VolumePathName[MAX_PATH], VolumeName[MAX_PATH];
 
     Result = FspFileSystemSetMountPoint(MemfsFileSystem(memfs), MountPoint);
     ASSERT(NT_SUCCESS(Result));
@@ -129,16 +129,19 @@ static void volpath_mount_dotest(ULONG Flags, PWSTR Prefix, PWSTR MountPoint)
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     VolumePathNameSuccess[0] = GetVolumePathNameW(FilePath, VolumePathName, MAX_PATH);
+    VolumePathNameSuccess[4] = GetVolumeNameForVolumeMountPointW(VolumePathName, VolumeName, MAX_PATH);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     VolumePathNameSuccess[1] = GetVolumePathNameW(FilePath, VolumePathName, MAX_PATH);
+    VolumePathNameSuccess[5] = GetVolumeNameForVolumeMountPointW(VolumePathName, VolumeName, MAX_PATH);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file2",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
 
     VolumePathNameSuccess[2] = GetVolumePathNameW(FilePath, VolumePathName, MAX_PATH);
+    VolumePathNameSuccess[6] = GetVolumeNameForVolumeMountPointW(VolumePathName, VolumeName, MAX_PATH);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file2",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
@@ -152,10 +155,20 @@ static void volpath_mount_dotest(ULONG Flags, PWSTR Prefix, PWSTR MountPoint)
     Success = RemoveDirectoryW(FilePath);
     ASSERT(Success);
 
+    FspFileSystemRemoveMountPoint(MemfsFileSystem(memfs));
+
     memfs_stop(memfs);
 
-    ASSERT(VolumePathNameSuccess[0] == VolumePathNameSuccess[1]);
-    ASSERT(VolumePathNameSuccess[1] == VolumePathNameSuccess[2]);
+    ASSERT(VolumePathNameSuccess[0]);
+    ASSERT(VolumePathNameSuccess[1]);
+    ASSERT(VolumePathNameSuccess[2]);
+
+    if (MemfsNet != Flags)
+    {
+        ASSERT(VolumePathNameSuccess[4]);
+        ASSERT(VolumePathNameSuccess[5]);
+        ASSERT(VolumePathNameSuccess[6]);
+    }
 }
 
 static void volpath_mount_test(void)

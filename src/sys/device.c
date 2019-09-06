@@ -67,8 +67,6 @@ VOID FspFsvolDeviceGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_I
 BOOLEAN FspFsvolDeviceTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject);
-static NTSTATUS FspFsvrtDeviceInit(PDEVICE_OBJECT DeviceObject);
-static VOID FspFsvrtDeviceFini(PDEVICE_OBJECT DeviceObject);
 static NTSTATUS FspFsmupDeviceInit(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsmupDeviceFini(PDEVICE_OBJECT DeviceObject);
 NTSTATUS FspDeviceCopyList(
@@ -102,8 +100,6 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceCompareContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceAllocateContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceFreeContextByName)
-#pragma alloc_text(PAGE, FspFsvrtDeviceInit)
-#pragma alloc_text(PAGE, FspFsvrtDeviceFini)
 #pragma alloc_text(PAGE, FspFsmupDeviceInit)
 #pragma alloc_text(PAGE, FspFsmupDeviceFini)
 #pragma alloc_text(PAGE, FspDeviceCopyList)
@@ -191,7 +187,7 @@ NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject)
         Result = FspFsvolDeviceInit(DeviceObject);
         break;
     case FspFsvrtDeviceExtensionKind:
-        Result = FspFsvrtDeviceInit(DeviceObject);
+        Result = STATUS_SUCCESS;
         break;
     case FspFsmupDeviceExtensionKind:
         Result = FspFsmupDeviceInit(DeviceObject);
@@ -222,7 +218,6 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
         FspFsvolDeviceFini(DeviceObject);
         break;
     case FspFsvrtDeviceExtensionKind:
-        FspFsvrtDeviceFini(DeviceObject);
         break;
     case FspFsmupDeviceExtensionKind:
         FspFsmupDeviceFini(DeviceObject);
@@ -948,20 +943,6 @@ VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject)
     KeAcquireSpinLock(&FsvolDeviceExtension->InfoSpinLock, &Irql);
     FsvolDeviceExtension->InfoExpirationTime = 0;
     KeReleaseSpinLock(&FsvolDeviceExtension->InfoSpinLock, Irql);
-}
-
-static NTSTATUS FspFsvrtDeviceInit(PDEVICE_OBJECT DeviceObject)
-{
-    PAGED_CODE();
-
-    return STATUS_SUCCESS;
-}
-
-static VOID FspFsvrtDeviceFini(PDEVICE_OBJECT DeviceObject)
-{
-    PAGED_CODE();
-
-    FspMountdevFini(DeviceObject);
 }
 
 static NTSTATUS FspFsmupDeviceInit(PDEVICE_OBJECT DeviceObject)

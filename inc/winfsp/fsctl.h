@@ -601,7 +601,7 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     PWCHAR VolumeNameBuf, SIZE_T VolumeNameSize,
     PHANDLE PVolumeHandle);
 FSP_API NTSTATUS FspFsctlMakeMountdev(HANDLE VolumeHandle,
-    BOOLEAN Persistent);
+    BOOLEAN Persistent, GUID *UniqueId);
 FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     PVOID ResponseBuf, SIZE_T ResponseBufSize,
     PVOID RequestBuf, SIZE_T *PRequestBufSize,

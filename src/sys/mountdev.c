@@ -154,7 +154,7 @@ NTSTATUS FspMountdevMake(
 
     if (0 != InterlockedCompareExchange(&FsvrtDeviceExtension->IsMountdev, 0, 0))
         return Persistent == FsvrtDeviceExtension->Persistent ?
-            STATUS_SUCCESS : STATUS_ACCESS_DENIED;
+            STATUS_TOO_LATE : STATUS_ACCESS_DENIED;
 
     FsvrtDeviceExtension->Persistent = Persistent;
 
@@ -188,4 +188,39 @@ exit:
 VOID FspMountdevFini(
     PDEVICE_OBJECT FsvrtDeviceObject)
 {
+    PAGED_CODE();
+
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
+    PVOID Buffer = 0;
+    ULONG Length = 4096;
+    MOUNTMGR_MOUNT_POINT *MountPoint;
+    NTSTATUS Result;
+
+    if (0 == InterlockedCompareExchange(&FsvrtDeviceExtension->IsMountdev, 0, 0))
+        return;
+
+    if (FsvrtDeviceExtension->Persistent)
+        /* if the mountdev is marked as persistent do not purge the MountManager */
+        return;
+
+    Buffer = FspAllocNonPaged(Length);
+    if (0 == Buffer)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    MountPoint = Buffer;
+    RtlZeroMemory(MountPoint, sizeof *MountPoint);
+    MountPoint->UniqueIdOffset = sizeof(MOUNTMGR_MOUNT_POINT);
+    MountPoint->UniqueIdLength = sizeof FsvrtDeviceExtension->UniqueId;
+    RtlCopyMemory((PUINT8)MountPoint + MountPoint->UniqueIdOffset,
+        &FsvrtDeviceExtension->UniqueId, MountPoint->UniqueIdLength);
+
+    Result = FspSendMountmgrDeviceControlIrp(IOCTL_MOUNTMGR_DELETE_POINTS,
+        Buffer, MountPoint->UniqueIdOffset + MountPoint->UniqueIdLength, &Length);
+
+exit:
+    if (0 != Buffer)
+        FspFree(Buffer);
 }

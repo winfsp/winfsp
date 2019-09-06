@@ -455,12 +455,19 @@ static NTSTATUS FspFileSystemSetMountPoint_Mountmgr(PWSTR MountPoint, PWSTR Volu
         USHORT DeviceNameLength;
     } MOUNTMGR_CREATE_POINT_INPUT;
 
+    GUID UniqueId;
     MOUNTMGR_CREATE_POINT_INPUT *Input = 0;
     ULONG VolumeNameSize, InputSize;
+    HKEY RegKey;
+    LONG RegResult;
+    WCHAR RegValueName[MAX_PATH];
+    UINT8 RegValueData[sizeof UniqueId];
+    DWORD RegValueNameSize, RegValueDataSize;
+    DWORD RegType;
     NTSTATUS Result;
 
     /* transform our volume into one that can be used by the MountManager */
-    Result = FspFsctlMakeMountdev(VolumeHandle, FALSE);
+    Result = FspFsctlMakeMountdev(VolumeHandle, FALSE, &UniqueId);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -492,6 +499,36 @@ static NTSTATUS FspFileSystemSetMountPoint_Mountmgr(PWSTR MountPoint, PWSTR Volu
         Input, InputSize, 0, 0);
     if (!NT_SUCCESS(Result))
         goto exit;
+
+    /* HACK: delete the MountManager registry entries */
+    RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"System\\MountedDevices",
+        0, KEY_READ | KEY_WRITE, &RegKey);
+    if (ERROR_SUCCESS == RegResult)
+    {
+        for (DWORD I = 0;; I++)
+        {
+            RegValueNameSize = MAX_PATH;
+            RegValueDataSize = sizeof RegValueData;
+            RegResult = RegEnumValueW(RegKey,
+                I, RegValueName, &RegValueNameSize, 0, &RegType, RegValueData, &RegValueDataSize);
+            if (ERROR_NO_MORE_ITEMS == RegResult)
+                break;
+            else if (ERROR_SUCCESS != RegResult)
+                continue;
+
+            if (REG_BINARY == RegType &&
+                sizeof RegValueData == RegValueDataSize &&
+                InlineIsEqualGUID((GUID *)&RegValueData, &UniqueId))
+            {
+                RegResult = RegDeleteValueW(RegKey, RegValueName);
+                if (ERROR_SUCCESS == RegResult)
+                    /* reset index after modifying key; only safe way to use RegEnumValueW with modifications */
+                    I = -1;
+            }
+        }
+
+        RegCloseKey(RegKey);
+    }
 
     Result = STATUS_SUCCESS;
 

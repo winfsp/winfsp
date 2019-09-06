@@ -514,6 +514,8 @@ NTSTATUS FspSendQuerySecurityIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileO
 NTSTATUS FspSendQueryEaIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     PFILE_GET_EA_INFORMATION GetEa, ULONG GetEaLength,
     PFILE_FULL_EA_INFORMATION Ea, PULONG PEaLength);
+NTSTATUS FspSendMountmgrDeviceControlIrp(ULONG IoControlCode,
+    PVOID SystemBuffer, ULONG InputBufferLength, PULONG POutputBufferLength);
 NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspLockUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress, ULONG ExtraPriorityFlags);
