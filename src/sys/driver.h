@@ -1105,6 +1105,7 @@ typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
     LONG IsMountdev;
+    BOOLEAN Persistent;
     GUID UniqueId;
     UNICODE_STRING VolumeName;
     WCHAR VolumeNameBuf[FSP_FSCTL_VOLUME_NAME_SIZE / sizeof(WCHAR)];
@@ -1248,7 +1249,8 @@ BOOLEAN FspMountdevDeviceControl(
     PDEVICE_OBJECT FsvrtDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
     PNTSTATUS PResult);
 NTSTATUS FspMountdevMake(
-    PDEVICE_OBJECT FsvrtDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
+    PDEVICE_OBJECT FsvrtDeviceObject, PDEVICE_OBJECT FsvolDeviceObject,
+    BOOLEAN Persistent);
 VOID FspMountdevFini(
     PDEVICE_OBJECT FsvrtDeviceObject);
 
@@ -1266,6 +1268,8 @@ NTSTATUS FspVolumeCreate(
 VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeMount(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeMakeMountdev(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);

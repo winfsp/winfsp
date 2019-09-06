@@ -96,7 +96,7 @@ static void volpath_test(void)
         volpath_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
-static void volpath_mount_dotest(ULONG Flags, PWSTR Prefix)
+static void volpath_mount_dotest(ULONG Flags, PWSTR Prefix, PWSTR MountPoint)
 {
     void *memfs = memfs_start(Flags);
 
@@ -106,7 +106,7 @@ static void volpath_mount_dotest(ULONG Flags, PWSTR Prefix)
     WCHAR FilePath[MAX_PATH];
     WCHAR VolumePathName[MAX_PATH];
 
-    Result = FspFileSystemSetMountPoint(MemfsFileSystem(memfs), 0);
+    Result = FspFileSystemSetMountPoint(MemfsFileSystem(memfs), MountPoint);
     ASSERT(NT_SUCCESS(Result));
 
     Prefix = FspFileSystemMountPoint(MemfsFileSystem(memfs));
@@ -168,9 +168,14 @@ static void volpath_mount_test(void)
         return;
 
     if (WinFspDiskTests)
-        volpath_mount_dotest(MemfsDisk, 0);
+    {
+        //volpath_mount_dotest(MemfsDisk, 0, 0);
+        volpath_mount_dotest(MemfsDisk, 0, L"\\\\.\\m:");
+    }
     if (WinFspNetTests)
-        volpath_mount_dotest(MemfsNet, L"\\\\memfs\\share");
+    {
+        volpath_mount_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+    }
 }
 
 void volpath_tests(void)

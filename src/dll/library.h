@@ -91,6 +91,21 @@ static inline BOOLEAN FspPathIsDrive(PWSTR FileName)
         ) &&
         L':' == FileName[1] && L'\0' == FileName[2];
 }
+static inline BOOLEAN FspPathIsMountmgrMountPoint(PWSTR FileName)
+{
+    return
+        (
+            L'\\' == FileName[0] &&
+            L'\\' == FileName[1] &&
+            (L'?' == FileName[2] || L'.' == FileName[2]) &&
+            L'\\' == FileName[3]
+        ) &&
+        (
+            (L'A' <= FileName[4] && FileName[4] <= L'Z') ||
+            (L'a' <= FileName[4] && FileName[4] <= L'z')
+        ) &&
+        L':' == FileName[5];
+}
 
 #define FSP_NEXT_EA(Ea, EaEnd)          \
     (0 != (Ea)->NextEntryOffset ? (PVOID)((PUINT8)(Ea) + (Ea)->NextEntryOffset) : (EaEnd))

@@ -34,6 +34,10 @@ NTSTATUS FspVolumeMount(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspVolumeMountNoLock(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeMakeMountdev(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeMakeMountdevNoLock(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetNameList(
@@ -57,6 +61,8 @@ NTSTATUS FspVolumeWork(
 // ! #pragma alloc_text(PAGE, FspVolumeDeleteDelayed)
 // ! #pragma alloc_text(PAGE, FspVolumeMount)
 // ! #pragma alloc_text(PAGE, FspVolumeMountNoLock)
+#pragma alloc_text(PAGE, FspVolumeMakeMountdev)
+#pragma alloc_text(PAGE, FspVolumeMakeMountdevNoLock)
 #pragma alloc_text(PAGE, FspVolumeGetName)
 #pragma alloc_text(PAGE, FspVolumeGetNameList)
 #pragma alloc_text(PAGE, FspVolumeGetNameListNoLock)
@@ -541,6 +547,41 @@ static NTSTATUS FspVolumeMountNoLock(
 
     Irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;
+}
+
+NTSTATUS FspVolumeMakeMountdev(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result;
+    FspDeviceGlobalLock();
+    Result = FspVolumeMakeMountdevNoLock(FsctlDeviceObject, Irp, IrpSp);
+    FspDeviceGlobalUnlock();
+    return Result;
+}
+
+NTSTATUS FspVolumeMakeMountdevNoLock(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
+    ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
+    ASSERT(FSP_FSCTL_MOUNTDEV == IrpSp->Parameters.FileSystemControl.FsControlCode);
+    ASSERT(0 != IrpSp->FileObject->FsContext2);
+
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+    ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
+    PVOID InputBuffer = Irp->AssociatedIrp.SystemBuffer;
+    BOOLEAN Persistent = 0 < InputBufferLength ? !!*(PBOOLEAN)InputBuffer : FALSE;
+
+    if (0 == FsvrtDeviceObject)
+        return STATUS_INVALID_PARAMETER;
+
+    return FspMountdevMake(FsvrtDeviceObject, FsvolDeviceObject, Persistent);
 }
 
 NTSTATUS FspVolumeGetName(
