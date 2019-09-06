@@ -158,15 +158,21 @@ NTSTATUS FspMountdevMake(
 
     FsvrtDeviceExtension->Persistent = Persistent;
 
-    /* make UUID v5 from the fsvrt device GUID and a unique string derived from the VolumeParams */
-    RtlInitEmptyUnicodeString(&String, StringBuf, sizeof StringBuf);
-    Result = RtlUnicodeStringPrintf(&String,
-        L"%s:%08lx:%08lx",
-        FsvolDeviceExtension->VolumeParams.FileSystemName,
-        FsvolDeviceExtension->VolumeParams.VolumeSerialNumber,
-        FsvolDeviceExtension->VolumeParams.VolumeCreationTime);
-    ASSERT(NT_SUCCESS(Result));
-    Result = FspUuid5Make(&FspFsvrtDeviceClassGuid, String.Buffer, String.Length, &Guid);
+    if (Persistent)
+    {
+        /* make UUID v5 from the fsvrt device GUID and a unique string derived from VolumeParams */
+        RtlInitEmptyUnicodeString(&String, StringBuf, sizeof StringBuf);
+        Result = RtlUnicodeStringPrintf(&String,
+            L"%s:%08lx:%08lx",
+            FsvolDeviceExtension->VolumeParams.FileSystemName,
+            FsvolDeviceExtension->VolumeParams.VolumeSerialNumber,
+            FsvolDeviceExtension->VolumeParams.VolumeCreationTime);
+        ASSERT(NT_SUCCESS(Result));
+        Result = FspUuid5Make(&FspFsvrtDeviceClassGuid, String.Buffer, String.Length, &Guid);
+    }
+    else
+        /* create volume guid */
+        Result = FspCreateGuid(&Guid);
     if (!NT_SUCCESS(Result))
         goto exit;
 
