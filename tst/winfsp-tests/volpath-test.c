@@ -84,12 +84,14 @@ static void volpath_dotest(ULONG Flags, PWSTR Prefix)
 
 static void volpath_test(void)
 {
-    if (NtfsTests)
-    {
-        WCHAR DirBuf[MAX_PATH];
-        GetTestDirectory(DirBuf);
-        volpath_dotest(-1, DirBuf);
-    }
+    /*
+     * GetVolumePathName is not reliable on WinFsp file systems
+     * when *not* using the MountManager and therefore disable
+     * this test when using a non-MountManager mount point.
+     */
+    if (!NtfsTests && !OptMountPoint)
+        TEST(volpath_test);
+
     if (WinFspDiskTests)
         volpath_dotest(MemfsDisk, 0);
     if (WinFspNetTests)
@@ -182,8 +184,30 @@ static void volpath_mount_test(void)
 
     if (WinFspDiskTests)
     {
+        WCHAR MountPoint[7];
+        DWORD Drives;
+        WCHAR Drive;
+
+        MountPoint[0] = L'\\';
+        MountPoint[1] = L'\\';
+        MountPoint[2] = L'.';
+        MountPoint[3] = L'\\';
+        MountPoint[4] = L'C';
+        MountPoint[5] = L':';
+        MountPoint[6] = L'\0';
+
+        Drives = GetLogicalDrives();
+        ASSERT(0 != Drives);
+
+        for (Drive = 'Z'; 'A' <= Drive; Drive--)
+            if (0 == (Drives & (1 << (Drive - 'A'))))
+                break;
+        ASSERT('A' <= Drive);
+
+        MountPoint[4] = Drive;
+
         //volpath_mount_dotest(MemfsDisk, 0, 0);
-        volpath_mount_dotest(MemfsDisk, 0, L"\\\\.\\m:");
+        volpath_mount_dotest(MemfsDisk, 0, MountPoint);
     }
     if (WinFspNetTests)
     {
@@ -193,7 +217,13 @@ static void volpath_mount_test(void)
 
 void volpath_tests(void)
 {
-    TEST(volpath_test);
+    /*
+     * GetVolumePathName is not reliable on WinFsp file systems
+     * when *not* using the MountManager and therefore disable
+     * this test when using a non-MountManager mount point.
+     */
+    if (!NtfsTests && !OptMountPoint)
+        TEST(volpath_test);
 
     /*
      * This test does FspFileSystemSetMountPoint and therefore
