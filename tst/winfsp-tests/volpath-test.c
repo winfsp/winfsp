@@ -90,7 +90,7 @@ static void volpath_test(void)
      * this test when using a non-MountManager mount point.
      */
     if (!NtfsTests && !OptMountPoint)
-        TEST(volpath_test);
+        return;
 
     if (WinFspDiskTests)
         volpath_dotest(MemfsDisk, 0);
