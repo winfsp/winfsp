@@ -16,11 +16,11 @@ init:
 
 install:
 - ps: |
-	  # Hack to make WDK 1903 work on VS2015.
-	  # See https://github.com/appveyor-tests/WDK-10.0.14393.0/blob/31cf12217fe0c92b218c70d7027dfe145be4f4cb/appveyor.yml#L7
-	  [xml]$targets = get-content "C:\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets"
+    # Hack to make WDK 1903 work on VS2015.
+    # See https://github.com/appveyor-tests/WDK-10.0.14393.0/blob/31cf12217fe0c92b218c70d7027dfe145be4f4cb/appveyor.yml#L7
+    [xml]$targets = get-content "C:\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets"
     $usingTask = $targets.ChildNodes[1].UsingTask | ? {$_.TaskName -eq "ValidateNTTargetVersion"}
-	  $usingTask.AssemblyFile = '$(WDKContentRoot)build\bin\Microsoft.DriverKit.Build.Tasks.16.0.dll'
+    $usingTask.AssemblyFile = '$(WDKContentRoot)build\bin\Microsoft.DriverKit.Build.Tasks.16.0.dll'
     $targets.Save("C:\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets")
 - git submodule update --init --recursive
 - appveyor AddMessage "Change boot configuration and reboot" -Category Information
