@@ -27,6 +27,7 @@
 #define POOL_NX_OPTIN                   1
 #include <ntifs.h>
 #include <mountdev.h>
+#include <ntddstor.h>
 #include <ntstrsafe.h>
 #include <wdmsec.h>
 #include <winfsp/fsctl.h>
@@ -1106,6 +1107,7 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
+    UINT16 SectorSize;
     LONG IsMountdev;
     BOOLEAN Persistent;
     GUID UniqueId;

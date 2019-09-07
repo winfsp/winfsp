@@ -23,6 +23,9 @@
 
 static NTSTATUS FspFsvrtDeviceControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static BOOLEAN FspFsvrtDeviceControlStorageQuery(
+    PDEVICE_OBJECT FsvrtDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    PNTSTATUS PResult);
 static NTSTATUS FspFsvolDeviceControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolDeviceControlComplete;
@@ -31,6 +34,7 @@ FSP_DRIVER_DISPATCH FspDeviceControl;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsvrtDeviceControl)
+#pragma alloc_text(PAGE, FspFsvrtDeviceControlStorageQuery)
 #pragma alloc_text(PAGE, FspFsvolDeviceControl)
 #pragma alloc_text(PAGE, FspFsvolDeviceControlComplete)
 #pragma alloc_text(PAGE, FspFsvolDeviceControlRequestFini)
@@ -48,6 +52,9 @@ static NTSTATUS FspFsvrtDeviceControl(
     PAGED_CODE();
 
     NTSTATUS Result;
+
+    if (FspFsvrtDeviceControlStorageQuery(FsvrtDeviceObject, Irp, IrpSp, &Result))
+        return Result;
 
     if (FspMountdevDeviceControl(FsvrtDeviceObject, Irp, IrpSp, &Result))
         return Result;
@@ -69,6 +76,62 @@ static NTSTATUS FspFsvrtDeviceControl(
     return STATUS_UNRECOGNIZED_VOLUME;
 }
 
+static BOOLEAN FspFsvrtDeviceControlStorageQuery(
+    PDEVICE_OBJECT FsvrtDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    PNTSTATUS PResult)
+{
+    PAGED_CODE();
+
+    /*
+     * SQL Server insists on sending us storage level IOCTL's even though
+     * WinFsp file systems are not on top of a real disk. So bite the bullet
+     * and implement some of those storage IOCTL's to make SQL Server happy.
+     */
+
+    if (IOCTL_STORAGE_QUERY_PROPERTY != IrpSp->Parameters.DeviceIoControl.IoControlCode ||
+        sizeof(STORAGE_PROPERTY_QUERY) > IrpSp->Parameters.DeviceIoControl.InputBufferLength)
+        return FALSE;
+
+    PSTORAGE_PROPERTY_QUERY Query = Irp->AssociatedIrp.SystemBuffer;
+    switch (Query->PropertyId)
+    {
+    case StorageAccessAlignmentProperty:
+        if (PropertyExistsQuery == Query->QueryType)
+            *PResult = STATUS_SUCCESS;
+        else if (PropertyStandardQuery == Query->QueryType)
+        {
+            FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
+            PSTORAGE_ACCESS_ALIGNMENT_DESCRIPTOR Descriptor = Irp->AssociatedIrp.SystemBuffer;
+            ULONG OutputBufferLength = IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
+
+            if (sizeof(STORAGE_DESCRIPTOR_HEADER) > OutputBufferLength)
+                *PResult = STATUS_BUFFER_TOO_SMALL;
+            else if (sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR) > OutputBufferLength)
+            {
+                Descriptor->Version = sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR);
+                Descriptor->Size = sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR);
+                Irp->IoStatus.Information = sizeof(STORAGE_DESCRIPTOR_HEADER);
+                *PResult = STATUS_SUCCESS;
+            }
+            else
+            {
+                RtlZeroMemory(Descriptor, sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR));
+                Descriptor->Version = sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR);
+                Descriptor->Size = sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR);
+                Descriptor->BytesPerLogicalSector = FsvrtDeviceExtension->SectorSize;
+                Descriptor->BytesPerPhysicalSector = FsvrtDeviceExtension->SectorSize;
+                Irp->IoStatus.Information = sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR);
+                *PResult = STATUS_SUCCESS;
+            }
+        }
+        else
+            *PResult = STATUS_NOT_SUPPORTED;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
 static NTSTATUS FspFsvolDeviceControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -79,11 +142,6 @@ static NTSTATUS FspFsvolDeviceControl(
     ULONG IoControlCode = IrpSp->Parameters.DeviceIoControl.IoControlCode;
     NTSTATUS Result;
 
-#if 0
-    if (FspMountdevDeviceControl(FsvolDeviceExtension->FsvrtDeviceObject, Irp, IrpSp, &Result))
-        return Result;
-#endif
-
     /*
      * Possibly forward the IOCTL request to the user mode file system. The rules are:
      *
@@ -91,7 +149,6 @@ static NTSTATUS FspFsvolDeviceControl(
      * - Only IOCTL with custom devices (see DEVICE_TYPE_FROM_CTL_CODE) and
      *   METHOD_BUFFERED will be forwarded.
      */
-
 
     /* do we support DeviceControl? */
     if (!FsvolDeviceExtension->VolumeParams.DeviceControl)

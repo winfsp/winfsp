@@ -281,7 +281,11 @@ static NTSTATUS FspVolumeCreateNoLock(
     if (NT_SUCCESS(Result))
     {
         if (0 != FsvrtDeviceObject)
+        {
+            FspFsvrtDeviceExtension(FsvrtDeviceObject)->SectorSize =
+                FsvolDeviceExtension->VolumeParams.SectorSize;
             Result = FspDeviceInitialize(FsvrtDeviceObject);
+        }
     }
     if (!NT_SUCCESS(Result))
     {
