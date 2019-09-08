@@ -126,10 +126,12 @@ NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
     case FspFsvolDeviceExtensionKind:
         DeviceExtensionSize = sizeof(FSP_FSVOL_DEVICE_EXTENSION);
         break;
+    case FspFsvrtDeviceExtensionKind:
+        DeviceExtensionSize = sizeof(FSP_FSVRT_DEVICE_EXTENSION);
+        break;
     case FspFsmupDeviceExtensionKind:
         DeviceExtensionSize = sizeof(FSP_FSMUP_DEVICE_EXTENSION);
         break;
-    case FspFsvrtDeviceExtensionKind:
     case FspFsctlDeviceExtensionKind:
         DeviceExtensionSize = sizeof(FSP_DEVICE_EXTENSION);
         break;
@@ -184,10 +186,12 @@ NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject)
     case FspFsvolDeviceExtensionKind:
         Result = FspFsvolDeviceInit(DeviceObject);
         break;
+    case FspFsvrtDeviceExtensionKind:
+        Result = STATUS_SUCCESS;
+        break;
     case FspFsmupDeviceExtensionKind:
         Result = FspFsmupDeviceInit(DeviceObject);
         break;
-    case FspFsvrtDeviceExtensionKind:
     case FspFsctlDeviceExtensionKind:
         Result = STATUS_SUCCESS;
         break;
@@ -213,10 +217,11 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
     case FspFsvolDeviceExtensionKind:
         FspFsvolDeviceFini(DeviceObject);
         break;
+    case FspFsvrtDeviceExtensionKind:
+        break;
     case FspFsmupDeviceExtensionKind:
         FspFsmupDeviceFini(DeviceObject);
         break;
-    case FspFsvrtDeviceExtensionKind:
     case FspFsctlDeviceExtensionKind:
         break;
     default:

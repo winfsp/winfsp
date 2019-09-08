@@ -188,6 +188,7 @@ int main(int argc, char *argv[])
     TESTSUITE(fuse_opt_tests);
     TESTSUITE(fuse_tests);
     TESTSUITE(posix_tests);
+    TESTSUITE(uuid5_tests);
     TESTSUITE(eventlog_tests);
     TESTSUITE(path_tests);
     TESTSUITE(dirbuf_tests);
@@ -211,6 +212,7 @@ int main(int argc, char *argv[])
     TESTSUITE(stream_tests);
     TESTSUITE(oplock_tests);
     TESTSUITE(wsl_tests);
+    TESTSUITE(volpath_tests);
 
     atexit(exiting);
     signal(SIGABRT, abort_handler);

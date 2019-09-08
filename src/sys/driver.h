@@ -26,6 +26,8 @@
 
 #define POOL_NX_OPTIN                   1
 #include <ntifs.h>
+#include <mountdev.h>
+#include <ntddstor.h>
 #include <ntstrsafe.h>
 #include <wdmsec.h>
 #include <winfsp/fsctl.h>
@@ -493,6 +495,9 @@ NTSTATUS FspFileNameInExpression(
     PWCH UpcaseTable,
     PBOOLEAN PResult);
 
+/* UUID5 creation (ku) */
+NTSTATUS FspUuid5Make(const UUID *Namespace, const VOID *Buffer, ULONG Size, UUID *Uuid);
+
 /* utility */
 PVOID FspAllocatePoolMustSucceed(POOL_TYPE PoolType, SIZE_T Size, ULONG Tag);
 PVOID FspAllocateIrpMustSucceed(CCHAR StackSize);
@@ -510,6 +515,8 @@ NTSTATUS FspSendQuerySecurityIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileO
 NTSTATUS FspSendQueryEaIrp(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
     PFILE_GET_EA_INFORMATION GetEa, ULONG GetEaLength,
     PFILE_FULL_EA_INFORMATION Ea, PULONG PEaLength);
+NTSTATUS FspSendMountmgrDeviceControlIrp(ULONG IoControlCode,
+    PVOID SystemBuffer, ULONG InputBufferLength, PULONG POutputBufferLength);
 NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspLockUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress, ULONG ExtraPriorityFlags);
@@ -1100,6 +1107,16 @@ typedef struct
 typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
+    UINT16 SectorSize;
+    LONG IsMountdev;
+    BOOLEAN Persistent;
+    GUID UniqueId;
+    UNICODE_STRING VolumeName;
+    WCHAR VolumeNameBuf[FSP_FSCTL_VOLUME_NAME_SIZE / sizeof(WCHAR)];
+} FSP_FSVRT_DEVICE_EXTENSION;
+typedef struct
+{
+    FSP_DEVICE_EXTENSION Base;
     UINT32 InitDonePfxTab:1;
     ERESOURCE PrefixTableResource;
     UNICODE_PREFIX_TABLE PrefixTable;
@@ -1114,6 +1131,12 @@ static inline
 FSP_FSVOL_DEVICE_EXTENSION *FspFsvolDeviceExtension(PDEVICE_OBJECT DeviceObject)
 {
     ASSERT(FspFsvolDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
+    return DeviceObject->DeviceExtension;
+}
+static inline
+FSP_FSVRT_DEVICE_EXTENSION *FspFsvrtDeviceExtension(PDEVICE_OBJECT DeviceObject)
+{
+    ASSERT(FspFsvrtDeviceExtensionKind == ((FSP_DEVICE_EXTENSION *)DeviceObject->DeviceExtension)->Kind);
     return DeviceObject->DeviceExtension;
 }
 static inline
@@ -1221,6 +1244,20 @@ BOOLEAN FspQueryDirectoryIrpShouldUseProcessBuffer(PIRP Irp, SIZE_T BufferSize)
 }
 #endif
 
+/* mountdev */
+NTSTATUS FspMountdevQueryDeviceName(
+    PDEVICE_OBJECT FsvrtDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspMountdevQueryUniqueId(
+    PDEVICE_OBJECT FsvrtDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+BOOLEAN FspMountdevDeviceControl(
+    PDEVICE_OBJECT FsvrtDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    PNTSTATUS PResult);
+NTSTATUS FspMountdevMake(
+    PDEVICE_OBJECT FsvrtDeviceObject, PDEVICE_OBJECT FsvolDeviceObject,
+    BOOLEAN Persistent);
+VOID FspMountdevFini(
+    PDEVICE_OBJECT FsvrtDeviceObject);
+
 /* fsmup */
 NTSTATUS FspMupRegister(
     PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
@@ -1235,6 +1272,8 @@ NTSTATUS FspVolumeCreate(
 VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeMount(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeMakeMountdev(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);

@@ -34,6 +34,8 @@ NTSTATUS FspVolumeMount(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspVolumeMountNoLock(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeMakeMountdev(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetNameList(
@@ -57,6 +59,7 @@ NTSTATUS FspVolumeWork(
 // ! #pragma alloc_text(PAGE, FspVolumeDeleteDelayed)
 // ! #pragma alloc_text(PAGE, FspVolumeMount)
 // ! #pragma alloc_text(PAGE, FspVolumeMountNoLock)
+#pragma alloc_text(PAGE, FspVolumeMakeMountdev)
 #pragma alloc_text(PAGE, FspVolumeGetName)
 #pragma alloc_text(PAGE, FspVolumeGetNameList)
 #pragma alloc_text(PAGE, FspVolumeGetNameListNoLock)
@@ -278,7 +281,11 @@ static NTSTATUS FspVolumeCreateNoLock(
     if (NT_SUCCESS(Result))
     {
         if (0 != FsvrtDeviceObject)
+        {
+            FspFsvrtDeviceExtension(FsvrtDeviceObject)->SectorSize =
+                FsvolDeviceExtension->VolumeParams.SectorSize;
             Result = FspDeviceInitialize(FsvrtDeviceObject);
+        }
     }
     if (!NT_SUCCESS(Result))
     {
@@ -321,9 +328,21 @@ VOID FspVolumeDelete(
     // !PAGED_CODE();
 
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
     FSP_FILE_NODE **FileNodes;
     ULONG FileNodeCount, Index;
     NTSTATUS Result;
+
+    /*
+     * If we have an fsvrt that is a mountdev, finalize it now! Finalizing a mountdev
+     * involves interaction with the MountManager, which tries to open our devices.
+     * So if we delay this interaction and we do it during final fsvrt teardown (i.e.
+     * FspDeviceDelete time) we will fail such opens with STATUS_CANCELLED, which will
+     * confuse the MountManager.
+     */
+    if (0 != FsvrtDeviceObject)
+        FspMountdevFini(FsvrtDeviceObject);
 
     FspDeviceReference(FsvolDeviceObject);
 
@@ -541,6 +560,81 @@ static NTSTATUS FspVolumeMountNoLock(
 
     Irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;
+}
+
+NTSTATUS FspVolumeMakeMountdev(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
+    ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
+    ASSERT(FSP_FSCTL_MOUNTDEV == IrpSp->Parameters.FileSystemControl.FsControlCode);
+    ASSERT(0 != IrpSp->FileObject->FsContext2);
+
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+    ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
+    ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+    BOOLEAN Persistent = 0 < InputBufferLength ? !!*(PBOOLEAN)Irp->AssociatedIrp.SystemBuffer : FALSE;
+    MOUNTMGR_QUERY_AUTO_MOUNT QueryAutoMount;
+    MOUNTMGR_SET_AUTO_MOUNT SetAutoMount;
+    union
+    {
+        MOUNTMGR_TARGET_NAME V;
+        UINT8 B[FIELD_OFFSET(MOUNTMGR_TARGET_NAME, DeviceName) + FSP_FSCTL_VOLUME_NAME_SIZEMAX];
+    } TargetName;
+    ULONG Length;
+    NTSTATUS Result;
+
+    if (0 == FsvrtDeviceObject)
+        return STATUS_INVALID_PARAMETER;
+    if (sizeof(GUID) > OutputBufferLength)
+        return STATUS_INVALID_PARAMETER;
+
+    FspDeviceGlobalLock();
+
+    Result = FspMountdevMake(FsvrtDeviceObject, FsvolDeviceObject, Persistent);
+    if (NT_SUCCESS(Result))
+    {
+        Length = sizeof QueryAutoMount;
+        Result = FspSendMountmgrDeviceControlIrp(IOCTL_MOUNTMGR_QUERY_AUTO_MOUNT,
+            &QueryAutoMount, 0, &Length);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        SetAutoMount.NewState = 0;
+        Result = FspSendMountmgrDeviceControlIrp(IOCTL_MOUNTMGR_SET_AUTO_MOUNT,
+            &SetAutoMount, sizeof SetAutoMount, 0);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        TargetName.V.DeviceNameLength = FsvolDeviceExtension->VolumeName.Length;
+        RtlCopyMemory(TargetName.V.DeviceName,
+            FsvolDeviceExtension->VolumeName.Buffer, FsvolDeviceExtension->VolumeName.Length);
+        Result = FspSendMountmgrDeviceControlIrp(IOCTL_MOUNTMGR_VOLUME_ARRIVAL_NOTIFICATION,
+            &TargetName.V, FIELD_OFFSET(MOUNTMGR_TARGET_NAME, DeviceName) + TargetName.V.DeviceNameLength, 0);
+
+        SetAutoMount.NewState = QueryAutoMount.CurrentState;
+        FspSendMountmgrDeviceControlIrp(IOCTL_MOUNTMGR_SET_AUTO_MOUNT,
+            &SetAutoMount, sizeof SetAutoMount, 0);
+    }
+    else if (STATUS_TOO_LATE == Result)
+        Result = STATUS_SUCCESS;
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer,
+        &FspFsvrtDeviceExtension(FsvrtDeviceObject)->UniqueId, sizeof(GUID));
+
+    Irp->IoStatus.Information = sizeof(GUID);
+    Result = STATUS_SUCCESS;
+
+exit:
+    FspDeviceGlobalUnlock();
+
+    return Result;
 }
 
 NTSTATUS FspVolumeGetName(

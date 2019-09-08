@@ -93,7 +93,9 @@ FSP_API NTSTATUS FspFileSystemPreflight(PWSTR DevicePath,
         Result = STATUS_SUCCESS;
     else
     {
-        if (FspPathIsDrive(MountPoint))
+        if (FspPathIsMountmgrMountPoint(MountPoint))
+            Result = STATUS_SUCCESS; /* cannot check with the mount manager, assume success */
+        else if (FspPathIsDrive(MountPoint))
             Result = QueryDosDeviceW(MountPoint, TargetPath, MAX_PATH) ?
                 STATUS_OBJECT_NAME_COLLISION : STATUS_SUCCESS;
         else
@@ -218,6 +220,48 @@ static NTSTATUS FspFileSystemLauncherDefineDosDevice(
 
     Result = FspLaunchCallLauncherPipe(FspLaunchCmdDefineDosDevice, 2, Argv, 0, 0, 0, &ErrorCode);
     return !NT_SUCCESS(Result) ? Result : FspNtStatusFromWin32(ErrorCode);
+}
+
+static NTSTATUS FspFileSystemMountmgrControl(ULONG IoControlCode,
+    PVOID InputBuffer, ULONG InputBufferLength, PVOID OutputBuffer, PULONG POutputBufferLength)
+{
+    HANDLE MgrHandle = INVALID_HANDLE_VALUE;
+    DWORD Bytes = 0;
+    NTSTATUS Result;
+
+    if (0 == POutputBufferLength)
+        POutputBufferLength = &Bytes;
+
+    MgrHandle = CreateFileW(L"\\\\.\\MountPointManager",
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        0,
+        OPEN_EXISTING,
+        0,
+        0);
+    if (INVALID_HANDLE_VALUE == MgrHandle)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    if (!DeviceIoControl(MgrHandle,
+        IoControlCode,
+        InputBuffer, InputBufferLength, OutputBuffer, *POutputBufferLength,
+        &Bytes, 0))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    *POutputBufferLength = Bytes;
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (INVALID_HANDLE_VALUE != MgrHandle)
+        CloseHandle(MgrHandle);
+
+    return Result;
 }
 
 static NTSTATUS FspFileSystemSetMountPoint_Drive(PWSTR MountPoint, PWSTR VolumeName,
@@ -395,6 +439,105 @@ exit:
     return Result;
 }
 
+static NTSTATUS FspFileSystemSetMountPoint_Mountmgr(PWSTR MountPoint, PWSTR VolumeName,
+    HANDLE VolumeHandle)
+{
+    /* only support drives for now! (format: \\.\X:) */
+    if (L'\0' != MountPoint[6])
+        return STATUS_INVALID_PARAMETER;
+
+    /* mountmgr.h */
+    typedef struct
+    {
+        USHORT SymbolicLinkNameOffset;
+        USHORT SymbolicLinkNameLength;
+        USHORT DeviceNameOffset;
+        USHORT DeviceNameLength;
+    } MOUNTMGR_CREATE_POINT_INPUT;
+
+    GUID UniqueId;
+    MOUNTMGR_CREATE_POINT_INPUT *Input = 0;
+    ULONG VolumeNameSize, InputSize;
+    HKEY RegKey;
+    LONG RegResult;
+    WCHAR RegValueName[MAX_PATH];
+    UINT8 RegValueData[sizeof UniqueId];
+    DWORD RegValueNameSize, RegValueDataSize;
+    DWORD RegType;
+    NTSTATUS Result;
+
+    /* transform our volume into one that can be used by the MountManager */
+    Result = FspFsctlMakeMountdev(VolumeHandle, FALSE, &UniqueId);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    VolumeNameSize = lstrlenW(VolumeName) * sizeof(WCHAR);
+    InputSize = sizeof *Input + sizeof L"\\DosDevices\\X:" - sizeof(WCHAR) + VolumeNameSize;
+
+    Input = MemAlloc(InputSize);
+    if (0 == Input)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    memset(Input, 0, sizeof *Input);
+    Input->SymbolicLinkNameOffset = sizeof *Input;
+    Input->SymbolicLinkNameLength = sizeof L"\\DosDevices\\X:" - sizeof(WCHAR);
+    Input->DeviceNameOffset = Input->SymbolicLinkNameOffset + Input->SymbolicLinkNameLength;
+    Input->DeviceNameLength = (USHORT)VolumeNameSize;
+    memcpy((PUINT8)Input + Input->SymbolicLinkNameOffset,
+        L"\\DosDevices\\X:", Input->SymbolicLinkNameLength);
+    ((PWCHAR)((PUINT8)Input + Input->SymbolicLinkNameOffset))[12] = MountPoint[4] & ~0x20;
+        /* convert to uppercase */
+    memcpy((PUINT8)Input + Input->DeviceNameOffset,
+        VolumeName, Input->DeviceNameLength);
+
+    Result = FspFileSystemMountmgrControl(
+        CTL_CODE('m', 0, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS),
+            /* IOCTL_MOUNTMGR_CREATE_POINT */
+        Input, InputSize, 0, 0);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    /* HACK: delete the MountManager registry entries */
+    RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"System\\MountedDevices",
+        0, KEY_READ | KEY_WRITE, &RegKey);
+    if (ERROR_SUCCESS == RegResult)
+    {
+        for (DWORD I = 0;; I++)
+        {
+            RegValueNameSize = MAX_PATH;
+            RegValueDataSize = sizeof RegValueData;
+            RegResult = RegEnumValueW(RegKey,
+                I, RegValueName, &RegValueNameSize, 0, &RegType, RegValueData, &RegValueDataSize);
+            if (ERROR_NO_MORE_ITEMS == RegResult)
+                break;
+            else if (ERROR_SUCCESS != RegResult)
+                continue;
+
+            if (REG_BINARY == RegType &&
+                sizeof RegValueData == RegValueDataSize &&
+                InlineIsEqualGUID((GUID *)&RegValueData, &UniqueId))
+            {
+                RegResult = RegDeleteValueW(RegKey, RegValueName);
+                if (ERROR_SUCCESS == RegResult)
+                    /* reset index after modifying key; only safe way to use RegEnumValueW with modifications */
+                    I = -1;
+            }
+        }
+
+        RegCloseKey(RegKey);
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    MemFree(Input);
+
+    return Result;
+}
+
 FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint)
 {
     return FspFileSystemSetMountPointEx(FileSystem, MountPoint, 0);
@@ -450,7 +593,10 @@ FSP_API NTSTATUS FspFileSystemSetMountPointEx(FSP_FILE_SYSTEM *FileSystem, PWSTR
         memcpy(P, MountPoint, L);
         MountPoint = P;
 
-        if (FspPathIsDrive(MountPoint))
+        if (FspPathIsMountmgrMountPoint(MountPoint))
+            Result = FspFileSystemSetMountPoint_Mountmgr(MountPoint, FileSystem->VolumeName,
+                FileSystem->VolumeHandle);
+        else if (FspPathIsDrive(MountPoint))
             Result = FspFileSystemSetMountPoint_Drive(MountPoint, FileSystem->VolumeName,
                 &MountHandle);
         else
@@ -495,12 +641,80 @@ static VOID FspFileSystemRemoveMountPoint_Directory(HANDLE MountHandle)
     CloseHandle(MountHandle);
 }
 
+static VOID FspFileSystemRemoveMountPoint_Mountmgr(PWSTR MountPoint)
+{
+    /* mountmgr.h */
+    typedef struct
+    {
+        ULONG SymbolicLinkNameOffset;
+        USHORT SymbolicLinkNameLength;
+        USHORT Reserved1;
+        ULONG UniqueIdOffset;
+        USHORT UniqueIdLength;
+        USHORT Reserved2;
+        ULONG DeviceNameOffset;
+        USHORT DeviceNameLength;
+        USHORT Reserved3;
+    } MOUNTMGR_MOUNT_POINT;
+    typedef struct
+    {
+        ULONG Size;
+        ULONG NumberOfMountPoints;
+        MOUNTMGR_MOUNT_POINT MountPoints[1];
+    } MOUNTMGR_MOUNT_POINTS;
+
+    MOUNTMGR_MOUNT_POINT *Input = 0;
+    MOUNTMGR_MOUNT_POINTS *Output = 0;
+    ULONG InputSize, OutputSize;
+    NTSTATUS Result;
+
+    InputSize = sizeof *Input + sizeof L"\\DosDevices\\X:" - sizeof(WCHAR);
+    OutputSize = 4096;
+
+    Input = MemAlloc(InputSize);
+    if (0 == Input)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    Output = MemAlloc(OutputSize);
+    if (0 == Output)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    memset(Input, 0, sizeof *Input);
+    Input->SymbolicLinkNameOffset = sizeof *Input;
+    Input->SymbolicLinkNameLength = sizeof L"\\DosDevices\\X:" - sizeof(WCHAR);
+    memcpy((PUINT8)Input + Input->SymbolicLinkNameOffset,
+        L"\\DosDevices\\X:", Input->SymbolicLinkNameLength);
+    ((PWCHAR)((PUINT8)Input + Input->SymbolicLinkNameOffset))[12] = MountPoint[4] & ~0x20;
+        /* convert to uppercase */
+
+    Result = FspFileSystemMountmgrControl(
+        CTL_CODE('m', 1, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS),
+            /* IOCTL_MOUNTMGR_DELETE_POINTS */
+        Input, InputSize, Output, &OutputSize);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    MemFree(Output);
+    MemFree(Input);
+}
+
 FSP_API VOID FspFileSystemRemoveMountPoint(FSP_FILE_SYSTEM *FileSystem)
 {
     if (0 == FileSystem->MountPoint)
         return;
 
-    if (FspPathIsDrive(FileSystem->MountPoint))
+    if (FspPathIsMountmgrMountPoint(FileSystem->MountPoint))
+        FspFileSystemRemoveMountPoint_Mountmgr(FileSystem->MountPoint);
+    else if (FspPathIsDrive(FileSystem->MountPoint))
         FspFileSystemRemoveMountPoint_Drive(FileSystem->MountPoint, FileSystem->VolumeName,
             FileSystem->MountHandle);
     else

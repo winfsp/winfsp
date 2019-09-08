@@ -107,6 +107,20 @@ exit:
     return Result;
 }
 
+FSP_API NTSTATUS FspFsctlMakeMountdev(HANDLE VolumeHandle,
+    BOOLEAN Persistent, GUID *UniqueId)
+{
+    DWORD Bytes;
+
+    if (!DeviceIoControl(VolumeHandle,
+        FSP_FSCTL_MOUNTDEV,
+        &Persistent, sizeof Persistent, UniqueId, sizeof *UniqueId,
+        &Bytes, 0))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return STATUS_SUCCESS;
+}
+
 FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     PVOID ResponseBuf, SIZE_T ResponseBufSize,
     PVOID RequestBuf, SIZE_T *PRequestBufSize,

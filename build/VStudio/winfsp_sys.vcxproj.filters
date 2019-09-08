@@ -113,6 +113,12 @@
     <ClCompile Include="..\..\src\ku\posix.c">
       <Filter>Source\ku</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ku\uuid5.c">
+      <Filter>Source\ku</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\sys\mountdev.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\sys\driver.h">

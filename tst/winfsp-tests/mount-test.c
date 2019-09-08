@@ -319,6 +319,15 @@ void mount_preflight_dotest(PWSTR DeviceName)
     MountPoint[2] = L'\0';
 
     GetTestDirectory(DirBuf);
+    /*
+     * Mount points starting with \\?\X: or \\.\X: are now considered MountManager mountpoints.
+     * So skip the \\?\ prefix to avoid this problem.
+     */
+    if (L'\\' == DirBuf[0] &&
+        L'\\' == DirBuf[1] &&
+        (L'?' == DirBuf[2] || L'.' == DirBuf[2]) &&
+        L'\\' == DirBuf[3])
+        memmove(DirBuf, DirBuf + 4, (wcslen(DirBuf + 4) + 1) * sizeof(WCHAR));
 
     Drives = GetLogicalDrives();
     ASSERT(0 != Drives);
