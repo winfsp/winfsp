@@ -447,6 +447,24 @@ static NTSTATUS FspFileSystemSetMountPoint_Mountmgr(PWSTR MountPoint, PWSTR Volu
         return STATUS_INVALID_PARAMETER;
 
     /* mountmgr.h */
+    typedef enum
+    {
+        Disabled = 0,
+        Enabled,
+    } MOUNTMGR_AUTO_MOUNT_STATE;
+    typedef struct
+    {
+        MOUNTMGR_AUTO_MOUNT_STATE CurrentState;
+    } MOUNTMGR_QUERY_AUTO_MOUNT;
+    typedef struct
+    {
+        MOUNTMGR_AUTO_MOUNT_STATE NewState;
+    } MOUNTMGR_SET_AUTO_MOUNT;
+    typedef struct
+    {
+        USHORT DeviceNameLength;
+        WCHAR DeviceName[1];
+    } MOUNTMGR_TARGET_NAME;
     typedef struct
     {
         USHORT SymbolicLinkNameOffset;
@@ -456,8 +474,11 @@ static NTSTATUS FspFileSystemSetMountPoint_Mountmgr(PWSTR MountPoint, PWSTR Volu
     } MOUNTMGR_CREATE_POINT_INPUT;
 
     GUID UniqueId;
-    MOUNTMGR_CREATE_POINT_INPUT *Input = 0;
-    ULONG VolumeNameSize, InputSize;
+    MOUNTMGR_QUERY_AUTO_MOUNT QueryAutoMount;
+    MOUNTMGR_SET_AUTO_MOUNT SetAutoMount;
+    MOUNTMGR_TARGET_NAME *TargetName = 0;
+    MOUNTMGR_CREATE_POINT_INPUT *CreatePointInput = 0;
+    ULONG VolumeNameSize, QueryAutoMountSize, TargetNameSize, CreatePointInputSize;
     HKEY RegKey;
     LONG RegResult;
     WCHAR RegValueName[MAX_PATH];
@@ -472,31 +493,83 @@ static NTSTATUS FspFileSystemSetMountPoint_Mountmgr(PWSTR MountPoint, PWSTR Volu
         goto exit;
 
     VolumeNameSize = lstrlenW(VolumeName) * sizeof(WCHAR);
-    InputSize = sizeof *Input + sizeof L"\\DosDevices\\X:" - sizeof(WCHAR) + VolumeNameSize;
+    QueryAutoMountSize = sizeof QueryAutoMount;
+    TargetNameSize = FIELD_OFFSET(MOUNTMGR_TARGET_NAME, DeviceName) + VolumeNameSize;
+    CreatePointInputSize = sizeof *CreatePointInput +
+        sizeof L"\\DosDevices\\X:" - sizeof(WCHAR) + VolumeNameSize;
 
-    Input = MemAlloc(InputSize);
-    if (0 == Input)
+    TargetName = MemAlloc(TargetNameSize);
+    if (0 == TargetName)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
         goto exit;
     }
 
-    memset(Input, 0, sizeof *Input);
-    Input->SymbolicLinkNameOffset = sizeof *Input;
-    Input->SymbolicLinkNameLength = sizeof L"\\DosDevices\\X:" - sizeof(WCHAR);
-    Input->DeviceNameOffset = Input->SymbolicLinkNameOffset + Input->SymbolicLinkNameLength;
-    Input->DeviceNameLength = (USHORT)VolumeNameSize;
-    memcpy((PUINT8)Input + Input->SymbolicLinkNameOffset,
-        L"\\DosDevices\\X:", Input->SymbolicLinkNameLength);
-    ((PWCHAR)((PUINT8)Input + Input->SymbolicLinkNameOffset))[12] = MountPoint[4] & ~0x20;
-        /* convert to uppercase */
-    memcpy((PUINT8)Input + Input->DeviceNameOffset,
-        VolumeName, Input->DeviceNameLength);
+    CreatePointInput = MemAlloc(CreatePointInputSize);
+    if (0 == CreatePointInput)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
 
+    /* query the current AutoMount value and save it */
+    Result = FspFileSystemMountmgrControl(
+        CTL_CODE('m', 15, METHOD_BUFFERED, FILE_ANY_ACCESS),
+            /* IOCTL_MOUNTMGR_QUERY_AUTO_MOUNT */
+        0, 0, &QueryAutoMount, &QueryAutoMountSize);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    /* disable AutoMount */
+    SetAutoMount.NewState = 0;
+    Result = FspFileSystemMountmgrControl(
+        CTL_CODE('m', 16, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS),
+            /* IOCTL_MOUNTMGR_SET_AUTO_MOUNT */
+        &SetAutoMount, sizeof SetAutoMount, 0, 0);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    /* announce volume arrival */
+    memset(TargetName, 0, sizeof *TargetName);
+    TargetName->DeviceNameLength = (USHORT)VolumeNameSize;
+    memcpy(TargetName->DeviceName,
+        VolumeName, TargetName->DeviceNameLength);
+    Result = FspFileSystemMountmgrControl(
+        CTL_CODE('m', 11, METHOD_BUFFERED, FILE_READ_ACCESS),
+            /* IOCTL_MOUNTMGR_VOLUME_ARRIVAL_NOTIFICATION */
+        TargetName, TargetNameSize, 0, 0);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    /* reset the AutoMount value to the saved one */
+    SetAutoMount.NewState = QueryAutoMount.CurrentState;
+    FspFileSystemMountmgrControl(
+        CTL_CODE('m', 16, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS),
+            /* IOCTL_MOUNTMGR_SET_AUTO_MOUNT */
+        &SetAutoMount, sizeof SetAutoMount, 0, 0);
+#if 0
+    if (!NT_SUCCESS(Result))
+        goto exit;
+#endif
+
+    /* create mount point */
+    memset(CreatePointInput, 0, sizeof *CreatePointInput);
+    CreatePointInput->SymbolicLinkNameOffset = sizeof *CreatePointInput;
+    CreatePointInput->SymbolicLinkNameLength = sizeof L"\\DosDevices\\X:" - sizeof(WCHAR);
+    CreatePointInput->DeviceNameOffset =
+        CreatePointInput->SymbolicLinkNameOffset + CreatePointInput->SymbolicLinkNameLength;
+    CreatePointInput->DeviceNameLength = (USHORT)VolumeNameSize;
+    memcpy((PUINT8)CreatePointInput + CreatePointInput->SymbolicLinkNameOffset,
+        L"\\DosDevices\\X:", CreatePointInput->SymbolicLinkNameLength);
+    ((PWCHAR)((PUINT8)CreatePointInput + CreatePointInput->SymbolicLinkNameOffset))[12] =
+        MountPoint[4] & ~0x20;
+        /* convert to uppercase */
+    memcpy((PUINT8)CreatePointInput + CreatePointInput->DeviceNameOffset,
+        VolumeName, CreatePointInput->DeviceNameLength);
     Result = FspFileSystemMountmgrControl(
         CTL_CODE('m', 0, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS),
             /* IOCTL_MOUNTMGR_CREATE_POINT */
-        Input, InputSize, 0, 0);
+        CreatePointInput, CreatePointInputSize, 0, 0);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -533,7 +606,8 @@ static NTSTATUS FspFileSystemSetMountPoint_Mountmgr(PWSTR MountPoint, PWSTR Volu
     Result = STATUS_SUCCESS;
 
 exit:
-    MemFree(Input);
+    MemFree(CreatePointInput);
+    MemFree(TargetName);
 
     return Result;
 }
@@ -692,7 +766,6 @@ static VOID FspFileSystemRemoveMountPoint_Mountmgr(PWSTR MountPoint)
         L"\\DosDevices\\X:", Input->SymbolicLinkNameLength);
     ((PWCHAR)((PUINT8)Input + Input->SymbolicLinkNameOffset))[12] = MountPoint[4] & ~0x20;
         /* convert to uppercase */
-
     Result = FspFileSystemMountmgrControl(
         CTL_CODE('m', 1, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS),
             /* IOCTL_MOUNTMGR_DELETE_POINTS */

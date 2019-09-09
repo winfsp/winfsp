@@ -159,7 +159,67 @@ static void volpath_mount_dotest(ULONG Flags, PWSTR Prefix, PWSTR MountPoint)
 
     FspFileSystemRemoveMountPoint(MemfsFileSystem(memfs));
 
-    memfs_stop(memfs);
+    ASSERT(VolumePathNameSuccess[0]);
+    ASSERT(VolumePathNameSuccess[1]);
+    ASSERT(VolumePathNameSuccess[2]);
+
+    if (MemfsNet != Flags)
+    {
+        ASSERT(VolumePathNameSuccess[4]);
+        ASSERT(VolumePathNameSuccess[5]);
+        ASSERT(VolumePathNameSuccess[6]);
+    }
+
+    Result = FspFileSystemSetMountPoint(MemfsFileSystem(memfs), MountPoint);
+    ASSERT(NT_SUCCESS(Result));
+
+    Prefix = FspFileSystemMountPoint(MemfsFileSystem(memfs));
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file2",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    VolumePathNameSuccess[0] = GetVolumePathNameW(FilePath, VolumePathName, MAX_PATH);
+    VolumePathNameSuccess[4] = GetVolumeNameForVolumeMountPointW(VolumePathName, VolumeName, MAX_PATH);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    VolumePathNameSuccess[1] = GetVolumePathNameW(FilePath, VolumePathName, MAX_PATH);
+    VolumePathNameSuccess[5] = GetVolumeNameForVolumeMountPointW(VolumePathName, VolumeName, MAX_PATH);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file2",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    VolumePathNameSuccess[2] = GetVolumePathNameW(FilePath, VolumePathName, MAX_PATH);
+    VolumePathNameSuccess[6] = GetVolumeNameForVolumeMountPointW(VolumePathName, VolumeName, MAX_PATH);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file2",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = RemoveDirectoryW(FilePath);
+    ASSERT(Success);
+
+    FspFileSystemRemoveMountPoint(MemfsFileSystem(memfs));
 
     ASSERT(VolumePathNameSuccess[0]);
     ASSERT(VolumePathNameSuccess[1]);
@@ -171,6 +231,8 @@ static void volpath_mount_dotest(ULONG Flags, PWSTR Prefix, PWSTR MountPoint)
         ASSERT(VolumePathNameSuccess[5]);
         ASSERT(VolumePathNameSuccess[6]);
     }
+
+    memfs_stop(memfs);
 }
 
 static void volpath_mount_test(void)

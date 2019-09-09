@@ -578,14 +578,6 @@ NTSTATUS FspVolumeMakeMountdev(
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     BOOLEAN Persistent = 0 < InputBufferLength ? !!*(PBOOLEAN)Irp->AssociatedIrp.SystemBuffer : FALSE;
-    MOUNTMGR_QUERY_AUTO_MOUNT QueryAutoMount;
-    MOUNTMGR_SET_AUTO_MOUNT SetAutoMount;
-    union
-    {
-        MOUNTMGR_TARGET_NAME V;
-        UINT8 B[FIELD_OFFSET(MOUNTMGR_TARGET_NAME, DeviceName) + FSP_FSCTL_VOLUME_NAME_SIZEMAX];
-    } TargetName;
-    ULONG Length;
     NTSTATUS Result;
 
     if (0 == FsvrtDeviceObject)
@@ -596,34 +588,11 @@ NTSTATUS FspVolumeMakeMountdev(
     FspDeviceGlobalLock();
 
     Result = FspMountdevMake(FsvrtDeviceObject, FsvolDeviceObject, Persistent);
-    if (NT_SUCCESS(Result))
-    {
-        Length = sizeof QueryAutoMount;
-        Result = FspSendMountmgrDeviceControlIrp(IOCTL_MOUNTMGR_QUERY_AUTO_MOUNT,
-            &QueryAutoMount, 0, &Length);
-        if (!NT_SUCCESS(Result))
-            goto exit;
-
-        SetAutoMount.NewState = 0;
-        Result = FspSendMountmgrDeviceControlIrp(IOCTL_MOUNTMGR_SET_AUTO_MOUNT,
-            &SetAutoMount, sizeof SetAutoMount, 0);
-        if (!NT_SUCCESS(Result))
-            goto exit;
-
-        TargetName.V.DeviceNameLength = FsvolDeviceExtension->VolumeName.Length;
-        RtlCopyMemory(TargetName.V.DeviceName,
-            FsvolDeviceExtension->VolumeName.Buffer, FsvolDeviceExtension->VolumeName.Length);
-        Result = FspSendMountmgrDeviceControlIrp(IOCTL_MOUNTMGR_VOLUME_ARRIVAL_NOTIFICATION,
-            &TargetName.V, FIELD_OFFSET(MOUNTMGR_TARGET_NAME, DeviceName) + TargetName.V.DeviceNameLength, 0);
-
-        SetAutoMount.NewState = QueryAutoMount.CurrentState;
-        FspSendMountmgrDeviceControlIrp(IOCTL_MOUNTMGR_SET_AUTO_MOUNT,
-            &SetAutoMount, sizeof SetAutoMount, 0);
-    }
-    else if (STATUS_TOO_LATE == Result)
-        Result = STATUS_SUCCESS;
     if (!NT_SUCCESS(Result))
-        goto exit;
+    {
+        if (STATUS_TOO_LATE != Result)
+            goto exit;
+    }
 
     RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer,
         &FspFsvrtDeviceExtension(FsvrtDeviceObject)->UniqueId, sizeof(GUID));
