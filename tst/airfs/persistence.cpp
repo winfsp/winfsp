@@ -84,11 +84,12 @@ void Airprint (const char * format, ...)
 //  Rubbertree (because it is flexible!)
 //  Implements a sorted set of elements, using a binary tree.
 //  Has a function, Near, that finds nodes at or adjacent to a key.
-//  Has an equal branch for trees that require handling equivalent
-//  nodes, like Airfs' memory heap manager.
 //  Attach, Find, and Near use splay to improve random access times.
 //  First, Last, Next, and Prev do not, to improve sequential access times.
-//  Replacing Where<NODE_> with NODE_ would make it a pointer-based tree.
+//  Replacing each Where<NODE_> with NODE_ would make this a pointer-based tree.
+//  In addition to Left, Right, and Parent references, each node has an Equal
+//  reference that may be used to keep "equivalent" nodes. This is used by
+//  our memory heap manager's tree of available memory blocks, sorted by size.
 
 //--------------------------------------------------------------------
 
@@ -531,15 +532,15 @@ NTSTATUS StorageSetFileCapacity(AIRFS_ Airfs, NODE_ Node, int64_t minimumRequire
 
 //--------------------------------------------------------------------
 
-NTSTATUS StorageStartup(AIRFS_ &Airfs, WCHAR* MapName, WCHAR* VolumeName, int64_t VolumeLength)
+NTSTATUS StorageStartup(AIRFS_ &Airfs, WCHAR* MapName, WCHAR* StorageFileName, int64_t VolumeLength)
 {
     HANDLE MapFileHandle = INVALID_HANDLE_VALUE;
     Airfs = 0;
 
     //  Open.
-    if (*VolumeName)
+    if (*StorageFileName)
     {
-        MapFileHandle = CreateFileW(VolumeName, GENERIC_READ|GENERIC_WRITE|GENERIC_EXECUTE, 0, NULL, OPEN_ALWAYS, NULL, NULL);
+        MapFileHandle = CreateFileW(StorageFileName, GENERIC_READ|GENERIC_WRITE|GENERIC_EXECUTE, 0, NULL, OPEN_ALWAYS, NULL, NULL);
         if (MapFileHandle == INVALID_HANDLE_VALUE) return GetLastErrorAsStatus();
     }
 
@@ -555,8 +556,6 @@ NTSTATUS StorageStartup(AIRFS_ &Airfs, WCHAR* MapName, WCHAR* VolumeName, int64_
     Airfs = (AIRFS_) MappedAddress;
     Airfs->MapFileHandle = MapFileHandle;
     Airfs->MapHandle = MapHandle;
-    wcscpy_s(Airfs->VolumeName, 256, VolumeName);  //  Use "" for a memory-only page file.
-    wcscpy_s(Airfs->MapName, 256, MapName);
     Airfs->VolumeLength = VolumeLength;
 
     return 0;
@@ -571,23 +570,21 @@ NTSTATUS StorageShutdown(AIRFS_ Airfs)
     HANDLE M = Airfs->MapHandle;
     HANDLE F = Airfs->MapFileHandle;
 
-    if (Airfs)
+    Ok = FlushViewOfFile(Airfs, 0);  if (!Ok && !Result) Result = GetLastErrorAsStatus();
+    if (F != INVALID_HANDLE_VALUE)
     {
-        Ok = FlushViewOfFile(Airfs, 0);  if (!Ok && !Result) Result = GetLastErrorAsStatus();
-        if (F != INVALID_HANDLE_VALUE)
-        {
-            Ok = FlushFileBuffers(F);    if (!Ok && !Result) Result = GetLastErrorAsStatus();
-        }
-        Ok = UnmapViewOfFile(Airfs);     if (!Ok && !Result) Result = GetLastErrorAsStatus();
+        Ok = FlushFileBuffers(F);    if (!Ok && !Result) Result = GetLastErrorAsStatus();
+        //  TODO: Set and write a flag something like Airfs->UpdatesCompleted here?
     }
+    Ok = UnmapViewOfFile(Airfs);     if (!Ok && !Result) Result = GetLastErrorAsStatus();
     
     if (M)
     {
-        Ok = CloseHandle(M);             if (!Ok && !Result) Result = GetLastErrorAsStatus();
+        Ok = CloseHandle(M);         if (!Ok && !Result) Result = GetLastErrorAsStatus();
     }
     if (F != INVALID_HANDLE_VALUE)
     {
-        Ok = CloseHandle(F);             if (!Ok && !Result) Result = GetLastErrorAsStatus();
+        Ok = CloseHandle(F);         if (!Ok && !Result) Result = GetLastErrorAsStatus();
     }
 
     return Result;

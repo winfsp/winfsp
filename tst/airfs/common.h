@@ -80,7 +80,7 @@ static int64_t wcstoll_default(wchar_t *w, int64_t deflt)
 //  Where<T> Class: This class manages an offset within our memory-mapped 
 //  volume to another location within our memory-mapped volume. Because it is
 //  a self-relative offset, this delta is constant regardless of where in
-//  memory the file system is mapped, so we can always reoptain its address. 
+//  memory the file system is mapped, so we can always reobtain its address. 
 //  A delta of 0 is the special case for "null".
 //
 
@@ -130,8 +130,6 @@ typedef struct
     UINT16       filler1,filler2,filler3;
     UINT32       CaseInsensitive;
     UINT32       filler4;
-    WCHAR        MapName[256];
-    WCHAR        VolumeName[256];  //  Use "" for a memory-only page file.
     int64_t      VolumeLength;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     FSP_FILE_SYSTEM *FileSystem;
@@ -197,11 +195,11 @@ NODE_ Last   (NODE_ start);
 NODE_ Next   (NODE_);
 NODE_ Prev   (NODE_);
 
-NTSTATUS StorageStartup         (AIRFS_ &, WCHAR* MapName, WCHAR* VolumeName, int64_t Length);
+NTSTATUS StorageStartup         (AIRFS_ &, WCHAR* MapName, WCHAR* StorageFileName, int64_t Length);
 NTSTATUS StorageShutdown        (AIRFS_);
-void*    StorageAllocate        (AIRFS_ Airfs, int64_t RequestedSize);
-void*    StorageReallocate      (AIRFS_ Airfs, void* Reallocate, int64_t RequestedSize);
-void     StorageFree            (AIRFS_ Airfs, void* Release);
+void*    StorageAllocate        (AIRFS_, int64_t RequestedSize);
+void*    StorageReallocate      (AIRFS_, void* Reallocate, int64_t RequestedSize);
+void     StorageFree            (AIRFS_, void* Release);
 NTSTATUS StorageSetFileCapacity (AIRFS_, NODE_, int64_t MinimumRequiredCapacity);
 void     StorageAccessFile      (StorageFileAccessType, NODE_, int64_t Offset, int64_t NumBytes, char* Address);
 

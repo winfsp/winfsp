@@ -1139,7 +1139,7 @@ void AirfsDelete(AIRFS_ Airfs)
 //////////////////////////////////////////////////////////////////////
 
 NTSTATUS AirfsCreate(
-    PWSTR VolumeName,
+    PWSTR StorageFileName,
     PWSTR MapName,
     ULONG Flags,
     ULONG FileInfoTimeout,
@@ -1160,12 +1160,12 @@ NTSTATUS AirfsCreate(
 
     *PAirfs = 0;
 
-    boolean VolumeExists = *VolumeName && (_waccess(VolumeName, 0) != -1);
+    boolean StorageFileExists = *StorageFileName && (_waccess(StorageFileName, 0) != -1);
 
-    Result = StorageStartup(Airfs, MapName, VolumeName, VolumeSize);
+    Result = StorageStartup(Airfs, MapName, StorageFileName, VolumeSize);
     if (Result) return Result;
 
-    boolean ShouldFormat = !VolumeExists || memcmp(Airfs->VolumeLabel, L"AIRFS", 10);
+    boolean ShouldFormat = !StorageFileExists || memcmp(Airfs->Signature, "Airfs\0\0\0", 8);
 
     if (ShouldFormat)
     {
@@ -1177,10 +1177,10 @@ NTSTATUS AirfsCreate(
             &RootSecurity, &RootSecuritySize))
             return GetLastErrorAsStatus();
 
-        Airfs->VolumeName[0] = 0;
         Airfs->VolumeSize = ROUND_DOWN(VolumeSize, ALLOCATION_UNIT);
-
         Airfs->CaseInsensitive = CaseInsensitive;
+        Airfs->VolumeLabelLength = sizeof L"AIRFS" - sizeof WCHAR;
+        memcpy(Airfs->VolumeLabel, L"AIRFS", Airfs->VolumeLabelLength);
 
         FSP_FSCTL_VOLUME_PARAMS V;
         memset(&V, 0, sizeof V);
@@ -1205,9 +1205,6 @@ NTSTATUS AirfsCreate(
         wcscpy_s(V.FileSystemName, sizeof V.FileSystemName / sizeof WCHAR,
             FileSystemName ? FileSystemName : L"-AIRFS");
         Airfs->VolumeParams = V;
-
-        Airfs->VolumeLabelLength = sizeof L"AIRFS" - sizeof WCHAR;
-        memcpy(Airfs->VolumeLabel, L"AIRFS", Airfs->VolumeLabelLength);
 
         //  Set up the available storage in chunks.
         Airfs->FreeSize = 0;
@@ -1278,7 +1275,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     ULONG Flags = AirfsDisk;
     ULONG OtherFlags = 0;
     ULONG FileInfoTimeout = INFINITE;
-    PWSTR VolumeName = L"";
+    PWSTR StorageFileName = L"";
     PWSTR MapName = L"";
     UINT64 VolumeSize = 16LL * 1024 * 1024;
     PWSTR FileSystemName = 0;
@@ -1302,7 +1299,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         case L'F': ARG_TO_S(FileSystemName); break;
         case L'i': OtherFlags = AirfsCaseInsensitive; break;
         case L'm': ARG_TO_S(MountPoint); break;
-        case L'N': ARG_TO_S(VolumeName);  break;
+        case L'N': ARG_TO_S(StorageFileName);  break;
         case L'n': ARG_TO_S(MapName);  break;
         case L'S': ARG_TO_S(RootSddl); break;
         case L's': ARG_TO_8(VolumeSize); break;
@@ -1345,7 +1342,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     }
 
     Result = AirfsCreate(
-        VolumeName,
+        StorageFileName,
         MapName,
         Flags | OtherFlags,
         FileInfoTimeout,
@@ -1386,12 +1383,12 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     WCHAR buffer[1024];
     _snwprintf_s(buffer, 1024, L"%S%S%s%S%s -t %ld -s %lld%S%s%S%s%S%s",
         PROGNAME, 
-        *VolumeName   ? " -N " : "", *VolumeName   ? VolumeName   : L"", 
-        *MapName      ? " -n " : "", *MapName      ? MapName      : L"",
+        *StorageFileName ? " -N " : "", *StorageFileName ? StorageFileName : L"", 
+        *MapName         ? " -n " : "", *MapName         ? MapName         : L"",
         FileInfoTimeout, VolumeSize,
-        RootSddl      ? " -S " : "", RootSddl      ? RootSddl     : L"",
-        *VolumePrefix ? " -u " : "", *VolumePrefix ? VolumePrefix : L"",
-        MountPoint    ? " -m " : "", MountPoint    ? MountPoint   : L"");
+        RootSddl         ? " -S " : "", RootSddl         ? RootSddl        : L"",
+        *VolumePrefix    ? " -u " : "", *VolumePrefix    ? VolumePrefix    : L"",
+        MountPoint       ? " -m " : "", MountPoint       ? MountPoint      : L"");
     INFO(buffer);
 
     Service->UserContext = Airfs;
@@ -1416,11 +1413,11 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         "    -i                  [case insensitive file system]\n"
         "    -m MountPoint       [X:|* (required if no UNC prefix)]\n"
         "    -n MapName          [(ex) \"Local\\Airfs\"]\n"
-        "    -N VolumeName       [\"\": in memory only]\n"
+        "    -N StorageFileName  [\"\": in memory only]\n"
         "    -s VolumeSize       [bytes]\n"
         "    -S RootSddl         [file rights: FA, etc; NO generic rights: GA, etc.]\n"
         "    -t FileInfoTimeout  [millis]\n"
-        "    -u \\Server\\Share  [UNC prefix (single backslash)]\n";
+        "    -u \\Server\\Share    [UNC prefix (single backslash)]\n";
 
     FAIL(usage, L"" PROGNAME);
 
