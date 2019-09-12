@@ -18,10 +18,6 @@ Disconnecting (unmapping) a network drive does not work.::
 Case-sensitive file systems do not work properly when mounted as a directory.::
 
     This is fixed as of WinFsp 2018.2 B3.
-+
-Windows and WinFsp support case-sensitive file systems. These file systems work properly when mounted as a drive. Unfortunately when a file system is mounted as a directory over NTFS, Windows expects it to be case-insensitive and will UPPERCASE many of the file names sent to the file system.
-+
-This is an unfortunate but well understood Windows limitation. Case-sensitive file systems should only be mounted as drives.
 
 
 Why is the DLL not installed in the Windows system directories?::
@@ -68,5 +64,10 @@ With this in mind here are the reasons for the current WinFsp-FUSE behavior:
 WinFsp-FUSE does not have the ability to support multiple file systems from within the same process. Why?::
 
     This is supported as of WinFsp 2018.2 B2.
+
+
+I have problems getting permissions to work properly in a WinFsp-FUSE file system. Can you help?::
+
+    The WinFsp-FUSE layer includes a built-in command line option that can help: `-o uid=-1`. This instructs the WinFsp-FUSE layer to present all file system files as if they are owned by the user that launched the file system.
 +
-The core WinFsp layer always supported multiple file systems in the same process either simultaneously or one after another. However this was not the case with WinFsp-FUSE (i.e. the FUSE layer of WinFsp) prior to version 2018.2 B2. This limitation has been rectified as of WinFsp 2018.2 B2.
+Alternatives include `-o uid=-1,gid=-1`, which presents files as owned by the user *and* group that launched the file system and `-o uid=-1,gid=11`, which presents files as owned by the user that launched the file system and the group "Authenticated Users". (The `fsptool` utility in the `bin` subdirectory of the WinFsp installation directory can be used to convert Windows accounts/SID's to UID's and vice versa.)
