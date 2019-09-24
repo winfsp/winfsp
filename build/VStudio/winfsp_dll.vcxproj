@@ -51,6 +51,7 @@
     <ClCompile Include="..\..\src\dll\fuse\fuse_main.c" />
     <ClCompile Include="..\..\src\dll\fuse\fuse_opt.c" />
     <ClCompile Include="..\..\src\dll\launch.c" />
+    <ClCompile Include="..\..\src\dll\mount.c" />
     <ClCompile Include="..\..\src\dll\np.c" />
     <ClCompile Include="..\..\src\dll\security.c" />
     <ClCompile Include="..\..\src\dll\debug.c" />

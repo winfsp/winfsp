@@ -610,6 +610,20 @@ FSP_API NTSTATUS FspFsctlStop(HANDLE VolumeHandle);
 FSP_API NTSTATUS FspFsctlGetVolumeList(PWSTR DevicePath,
     PWCHAR VolumeListBuf, PSIZE_T PVolumeListSize);
 FSP_API NTSTATUS FspFsctlPreflight(PWSTR DevicePath);
+
+typedef struct
+{
+    /* in */
+    HANDLE VolumeHandle;                /* volume handle returned by FspFsctlCreateVolume */
+    PWSTR VolumeName;                   /* volume name returned by FspFsctlCreateVolume */
+    PSECURITY_DESCRIPTOR Security;      /* optional: security descriptor for directories */
+    UINT64 Reserved;                    /* reserved for future use */
+    /* in/out */
+    PWSTR MountPoint;                   /* FspMountSet sets drive in buffer when passed "*:" */
+    HANDLE MountHandle;                 /* FspMountSet sets, FspMountRemove uses */
+} FSP_MOUNT_DESC;
+FSP_API NTSTATUS FspMountSet(FSP_MOUNT_DESC *Desc);
+FSP_API NTSTATUS FspMountRemove(FSP_MOUNT_DESC *Desc);
 #endif
 
 #ifdef __cplusplus
