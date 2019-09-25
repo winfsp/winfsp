@@ -360,12 +360,11 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
         else if ('F' == arg[2])
             arg += sizeof "--FileSystemName=" - 1;
         if (0 == MultiByteToWideChar(CP_UTF8, 0, arg, -1,
-            opt_data->VolumeParams.FileSystemName + 5,
-            sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR) - 5))
+            opt_data->VolumeParams.FileSystemName,
+            sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR)))
             return -1;
         opt_data->VolumeParams.FileSystemName
             [sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR) - 1] = L'\0';
-        memcpy(opt_data->VolumeParams.FileSystemName, L"FUSE-", 5 * sizeof(WCHAR));
         return 0;
     case 'u':
         if ('U' == arg[0])
