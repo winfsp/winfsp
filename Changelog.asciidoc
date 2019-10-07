@@ -23,7 +23,7 @@ Changes since v1.4:
 * [FUSE] FUSE has new `-o UserName=DOMAIN+USERNAME` and `-o GroupName=DOMAIN+GROUPNAME` options. These function like the `-o uid=UID` and `-o gid=GID` options, but accept Windows user and groups names.
 * [FUSE] FUSE has new `-o dothidden` option that is used to add the Windows hidden file attribute to files that start with a dot.
 * [FUSE] FUSE has new `-o create_file_umask=nnn` and `-o create_dir_umask=nnn` options that allow for more control than the `-o create_umask=nnn` option.
-* [FUSE] FUSE has new `--ExactFileSystemName=FSNAME` options that removes the "FUSE-" prefix from the file system name. (Use with caution: see discussion in PR #251.) (Thanks @johntyner.)
+* [FUSE] FUSE has new `--ExactFileSystemName=FSNAME` option that removes the "FUSE-" prefix from the file system name. (Use with caution: see discussion in PR #251.) (Thanks @johntyner.)
 * [.NET] The .NET API now supports asynchronous handling of `Read`, `Write` and `ReadDirectory`. (Thanks @dworkin.)
 * [.NET] The .NET API now supports fine-grained timeouts (`VolumeInfoTimeout`, `DirInfoTimeout`, etc).
 * [.NET] The .NET API has new method `FileSystemHost.MountEx` that adds a `ThreadCount` parameter.
