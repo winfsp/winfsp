@@ -1,0 +1,10 @@
+build
+*.ncb
+*.suo
+*.vcproj.*
+*.vcxproj.user
+*.VC.db
+*.VC.opendb
+.vs
+*.exe
+*.install
