@@ -102,6 +102,8 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FUSE_OPT_KEY("--VolumePrefix=", 'U'),
     FUSE_OPT_KEY("FileSystemName=", 'F'),
     FUSE_OPT_KEY("--FileSystemName=", 'F'),
+    FUSE_OPT_KEY("ExactFileSystemName=", 'E'),
+    FUSE_OPT_KEY("--ExactFileSystemName=", 'E'),
 
     FSP_FUSE_CORE_OPT("UserName=", set_uid, 1),
     FUSE_OPT_KEY("UserName=", 'u'),
@@ -366,6 +368,18 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
         opt_data->VolumeParams.FileSystemName
             [sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR) - 1] = L'\0';
         memcpy(opt_data->VolumeParams.FileSystemName, L"FUSE-", 5 * sizeof(WCHAR));
+        return 0;
+    case 'E':
+        if ('E' == arg[0])
+            arg += sizeof "ExactFileSystemName=" - 1;
+        else if ('E' == arg[2])
+            arg += sizeof "--ExactFileSystemName=" - 1;
+        if (0 == MultiByteToWideChar(CP_UTF8, 0, arg, -1,
+            opt_data->VolumeParams.FileSystemName,
+            sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR)))
+            return -1;
+        opt_data->VolumeParams.FileSystemName
+            [sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR) - 1] = L'\0';
         return 0;
     case 'u':
         if ('U' == arg[0])
