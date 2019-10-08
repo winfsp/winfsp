@@ -78,6 +78,10 @@ set opt_tests=^
     ifstest-memfs-x64-disk ^
     ifstest-memfs-x86-disk ^
     ifstest-memfs-dotnet-disk ^
+    sample-memfs-fuse3-x64 ^
+    sample-fsx-memfs-fuse3-x64 ^
+    sample-memfs-fuse3-x86 ^
+    sample-fsx-memfs-fuse3-x86 ^
     sample-airfs-x64 ^
     sample-airfs-x86 ^
     sample-passthrough-x64 ^
@@ -674,6 +678,28 @@ for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* /v ^| findstr /
 )
 if not X!IfsTestFound!==XYES set IfsTestExit=1
 exit /b !IfsTestExit!
+
+:sample-memfs-fuse3-x64
+call :__run_sample_fuse_test memfs-fuse3 x64 memfs-fuse3-x64 winfsp-tests-x64 ^
+    "-create_fileattr_test -create_readonlydir_test -setfileinfo_test"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-memfs-fuse3-x86
+call :__run_sample_fuse_test memfs-fuse3 x86 memfs-fuse3-x86 winfsp-tests-x86 ^
+    "-create_fileattr_test -create_readonlydir_test -setfileinfo_test"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-fsx-memfs-fuse3-x64
+call :__run_sample_fsx_fuse_test memfs-fuse3 x64 memfs-fuse3-x64 fsx
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-fsx-memfs-fuse3-x86
+call :__run_sample_fsx_fuse_test memfs-fuse3 x86 memfs-fuse3-x86 fsx
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
 
 :sample-airfs-x64
 call :__run_sample_disk_test airfs x64 airfs-x64 winfsp-tests-x64 NOEXCL
