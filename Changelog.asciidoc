@@ -28,6 +28,7 @@ Changes since v1.4:
 * [.NET] The .NET API now supports fine-grained timeouts (`VolumeInfoTimeout`, `DirInfoTimeout`, etc).
 * [.NET] The .NET API has new method `FileSystemHost.MountEx` that adds a `ThreadCount` parameter.
 * [LAUNCH] The Launcher can now rewrite path arguments passed to file systems during launching using "Path Transformation Language". See commit a73f1b95592617ac7484e16c2e642573a4d65644 for more.
+* [MEMFS] A new memfs FUSE3 file system written in C++ has been added. See `tst/memfs-fuse3`.
 * [AIRFS] John Oberschelp has done some fantastic work adding persistence to the airfs file system. (Thanks @JohnOberschelp.)
 * [FIX] Fixes for very large (> 4GiB) files. (Thanks @dworkin.)
 * [FIX] A fix for how FUSE handles the return value from `opendir`. (GitHub issue billziss-gh/sshfs-win#54)
