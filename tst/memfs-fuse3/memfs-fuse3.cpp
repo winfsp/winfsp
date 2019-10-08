@@ -29,7 +29,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <fuse3/fuse.h>
+#include <fuse.h>
 #include "compat.h"
 
 class memfs
@@ -153,7 +153,7 @@ private:
             return -ENOENT;
         if (S_IFLNK != (node->stat.st_mode & S_IFMT))
             return EINVAL;
-        size = std::min(size - 1, node->data.size());
+        size = (std::min)(size - 1, node->data.size());
         std::memcpy(buf, node->data.data(), size);
         buf[size] = '\0';
         return 0;
@@ -306,7 +306,7 @@ private:
         auto node = self->get_node(path, fi);
         if (!node)
             return -ENOENT;
-        fuse_off_t endoff = std::min(
+        fuse_off_t endoff = (std::min)(
             off + static_cast<fuse_off_t>(size), static_cast<fuse_off_t>(node->data.size()));
         if (off > endoff)
             return 0;
@@ -335,7 +335,8 @@ private:
 
     static int statfs(const char *path, struct fuse_statvfs *stbuf)
     {
-        return -ENOSYS;
+        std::memset(stbuf, 0, sizeof *stbuf);
+        return 0;
     }
 
     static int flush(const char *path, struct fuse_file_info *fi)
@@ -450,7 +451,7 @@ private:
         filler(buf, ".", &node->stat, 0, FUSE_FILL_DIR_PLUS);
         filler(buf, "..", nullptr, 0, FUSE_FILL_DIR_PLUS);
         for (auto elem : node->childmap)
-            if (!filler(buf, elem.first.c_str(), &elem.second->stat, 0, FUSE_FILL_DIR_PLUS))
+            if (0 != filler(buf, elem.first.c_str(), &elem.second->stat, 0, FUSE_FILL_DIR_PLUS))
                 break;
         return 0;
     }
@@ -553,7 +554,7 @@ private:
             return -ENOENT;
         if (!dir && S_IFDIR == (node->stat.st_mode & S_IFMT))
             return -EISDIR;
-        if (dir && S_IFDIR == (node->stat.st_mode & S_IFMT))
+        if (dir && S_IFDIR != (node->stat.st_mode & S_IFMT))
             return -ENOTDIR;
         if (0 < node->childmap.size())
             return -ENOTEMPTY;
@@ -570,7 +571,7 @@ private:
             return -ENOENT;
         if (!dir && S_IFDIR == (node->stat.st_mode & S_IFMT))
             return -EISDIR;
-        if (dir && S_IFDIR == (node->stat.st_mode & S_IFMT))
+        if (dir && S_IFDIR != (node->stat.st_mode & S_IFMT))
             return -ENOTDIR;
         // A file descriptor is a raw pointer to a shared_ptr.
         // This has the effect of incrementing the shared_ptr

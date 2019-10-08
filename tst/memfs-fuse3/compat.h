@@ -22,6 +22,13 @@
 #ifndef COMPAT_H_INCLUDED
 #define COMPAT_H_INCLUDED
 
+#if defined(_WIN32) && defined(FSP_FUSE_SYM)
+#include <winfsp/winfsp.h>
+#undef fuse_main
+#define fuse_main(argc, argv, ops, data)\
+    (FspLoad(0), fuse_main_real(argc, argv, ops, sizeof *(ops), data))
+#endif
+
 #if !defined(_WIN32) && !defined(fuse_stat)
 
 #define fuse_uid_t                      uid_t
