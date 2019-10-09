@@ -128,8 +128,12 @@ private:
         auto now = system_clock::now();
         auto sec = floor<seconds>(now);
         auto nsec = floor<nanoseconds>(now) - floor<nanoseconds>(sec);
-        return fuse_timespec{ sec.time_since_epoch().count(), nsec.count() };
-            /* std::chrono epoch is UNIX epoch in C++20 */
+        return fuse_timespec
+        {
+            static_cast<decltype(fuse_timespec::tv_sec)>(sec.time_since_epoch().count()),
+                /* std::chrono epoch is UNIX epoch in C++20 */
+            static_cast<decltype(fuse_timespec::tv_nsec)>(nsec.count()),
+        };
     }
 
     static memfs *getself()
