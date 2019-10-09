@@ -20,8 +20,8 @@
  */
 
 #include <cerrno>
+#include <chrono>
 #include <cstring>
-#include <ctime>
 #include <algorithm>
 #include <memory>
 #include <mutex>
@@ -124,8 +124,12 @@ private:
 
     static fuse_timespec now()
     {
-        fuse_timespec ts = { static_cast<decltype(ts.tv_sec)>(std::time(0)) };
-        return ts;
+        using namespace std::chrono;
+        auto now = system_clock::now();
+        auto sec = floor<seconds>(now);
+        auto nsec = floor<nanoseconds>(now) - floor<nanoseconds>(sec);
+        return fuse_timespec{ sec.time_since_epoch().count(), nsec.count() };
+            /* std::chrono epoch is UNIX epoch in C++20 */
     }
 
     static memfs *getself()
