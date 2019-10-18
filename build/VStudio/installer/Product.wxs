@@ -369,6 +369,23 @@
                     <File Name="uninstall.sh" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="OPTDIR.fsext" Name="fsext" FileSource="..\..\..\opt\fsext">
+                <Directory Id="OPTDIR.fsext.inc" Name="inc">
+                    <Directory Id="OPTDIR.fsext.inc.winfsp" Name="winfsp">
+                        <Component Id="C.fsext.h">
+                            <File Name="fsext.h" KeyPath="yes" />
+                        </Component>
+                    </Directory>
+                </Directory>
+                <Directory Id="OPTDIR.fsext.lib" Name="lib">
+                    <Component Id="C.fsext.winfsp_x64.lib">
+                        <File Id="FILE.fsext.winfsp_x64.lib" Name="winfsp-x64.lib" KeyPath="yes" />
+                    </Component>
+                    <Component Id="C.fsext.winfsp_x86.lib">
+                        <File Id="FILE.fsext.winfsp_x86.lib" Name="winfsp-x86.lib" KeyPath="yes" />
+                    </Component>
+                </Directory>
+            </Directory>
         </DirectoryRef>
         <DirectoryRef Id="SMPDIR" FileSource="..\..\..\tst">
             <Directory Id="SMPDIR.memfs" Name="memfs">
@@ -609,6 +626,11 @@
             <ComponentRef Id="C.fuse.install.sh" />
             <ComponentRef Id="C.fuse.uninstall.sh" />
         </ComponentGroup>
+        <ComponentGroup Id="C.WinFsp.opt.fsext">
+            <ComponentRef Id="C.fsext.h" />
+            <ComponentRef Id="C.fsext.winfsp_x64.lib" />
+            <ComponentRef Id="C.fsext.winfsp_x86.lib" />
+        </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.smp">
             <ComponentRef Id="C.memfs_x64.exe" />
             <ComponentRef Id="C.memfs_x86.exe" />
@@ -731,6 +753,16 @@
                 <ComponentGroupRef Id="C.WinFsp.smp" />
                 <ComponentGroupRef Id="C.WinFsp.smp.net" />
                 <ComponentGroupRef Id="C.WinFsp.sym" />
+            </Feature>
+            <Feature
+                Id="F.KernelDeveloper"
+                Level="1000"
+                Title="Kernel Developer"
+                Description="Additional files needed for in-kernel development."
+                AllowAdvertise="no"
+                InstallDefault="local"
+                Absent="allow">
+                <ComponentGroupRef Id="C.WinFsp.opt.fsext" />
             </Feature>
             <Feature
                 Id="F.Cygfuse"
