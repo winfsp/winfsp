@@ -22,8 +22,41 @@
 #include <sys/driver.h>
 #include <winfsp/fsext.h>
 
+/*
+ * Maximum number of allowed fsext providers. This must be kept small,
+ * because we do a linear search to find the provider. If this changes
+ * the data structure used to store providers (currently 2 parallel
+ * arrays) must be revisited.
+ */
+#define FSP_FSEXT_PROVIDER_COUNTMAX     4
+
 static KSPIN_LOCK FsextSpinLock = 0;
-FSP_FSEXT_PROVIDER *FsextProvider;
+static UINT32 FsextControlCodes[FSP_FSEXT_PROVIDER_COUNTMAX];
+static FSP_FSEXT_PROVIDER *FsextProviders[FSP_FSEXT_PROVIDER_COUNTMAX];
+
+static inline
+FSP_FSEXT_PROVIDER *FspFsextProviderGet(UINT32 FsextControlCode)
+{
+#if 0
+    for (ULONG I = 0; FSP_FSEXT_PROVIDER_COUNTMAX > I; I++)
+        if (FsextControlCode == FsextControlCodes[I])
+            return FsextProviders[I];
+#else
+    /* unroll by hand */
+    FSP_FSCTL_STATIC_ASSERT(4 == FSP_FSEXT_PROVIDER_COUNTMAX,
+        "unrolled loop expects FsextProviders to have 4 elements");
+    if (FsextControlCode == FsextControlCodes[0])
+        return FsextProviders[0];
+    if (FsextControlCode == FsextControlCodes[1])
+        return FsextProviders[1];
+    if (FsextControlCode == FsextControlCodes[2])
+        return FsextProviders[2];
+    if (FsextControlCode == FsextControlCodes[3])
+        return FsextProviders[3];
+#endif
+
+    return 0;
+}
 
 FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 FsextControlCode, PNTSTATUS PLoadResult)
 {
@@ -31,10 +64,9 @@ FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 FsextControlCode, PNTSTATUS PLoadRes
     KIRQL Irql;
 
     KeAcquireSpinLock(&FsextSpinLock, &Irql);
-    Provider = FsextProvider;
+    Provider = FspFsextProviderGet(FsextControlCode);
     KeReleaseSpinLock(&FsextSpinLock, Irql);
-    if (0 != Provider && FsextControlCode != Provider->DeviceTransactCode)
-        Provider = 0;
+    ASSERT(0 == Provider || FsextControlCode == Provider->DeviceTransactCode);
 
     if (0 != PLoadResult)
     {
@@ -81,10 +113,9 @@ FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 FsextControlCode, PNTSTATUS PLoadRes
             }
 
             KeAcquireSpinLock(&FsextSpinLock, &Irql);
-            Provider = FsextProvider;
+            Provider = FspFsextProviderGet(FsextControlCode);
             KeReleaseSpinLock(&FsextSpinLock, Irql);
-            if (0 != Provider && FsextControlCode != Provider->DeviceTransactCode)
-                Provider = 0;
+            ASSERT(0 == Provider || FsextControlCode == Provider->DeviceTransactCode);
         }
 
         *PLoadResult = 0 != Provider ? STATUS_SUCCESS : STATUS_OBJECT_NAME_NOT_FOUND;
@@ -100,18 +131,17 @@ NTSTATUS FspFsextProviderRegister(FSP_FSEXT_PROVIDER *Provider)
 
     KeAcquireSpinLock(&FsextSpinLock, &Irql);
 
-    if (0 != FsextProvider)
-    {
-        Result = STATUS_TOO_LATE;
-        goto exit;
-    }
+    Result = STATUS_TOO_LATE;
+    for (ULONG I = 0; FSP_FSEXT_PROVIDER_COUNTMAX > I; I++)
+        if (0 == FsextControlCodes[I])
+        {
+            Provider->DeviceExtensionOffset = FIELD_OFFSET(FSP_FSVOL_DEVICE_EXTENSION, FsextData);
+            FsextControlCodes[I] = Provider->DeviceTransactCode;
+            FsextProviders[I] = Provider;
+            Result = STATUS_SUCCESS;
+            break;
+        }
 
-    Provider->DeviceExtensionOffset = FIELD_OFFSET(FSP_FSVOL_DEVICE_EXTENSION, FsextData);
-    FsextProvider = Provider;
-
-    Result = STATUS_SUCCESS;
-
-exit:
     KeReleaseSpinLock(&FsextSpinLock, Irql);
 
     return Result;
