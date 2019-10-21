@@ -1026,6 +1026,22 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     }
     else
     {
+        /*
+         * In Windows, Go clears any write-related flags when O_APPEND is specified.
+         * This causes WinFSP to think that any O_APPEND requests are actually read-only.
+         * Adding an additional check for the FILE_APPEND_DATA flag ensures the request
+         * is sent with at least O_WRONLY and O_APPEND set.
+         */
+        if (GrantedAccess & FILE_APPEND_DATA)
+        {
+            if (fi.flags == 0)
+            {
+                fi.flags = 1; // Need O_WRONLY as a bare minimum in order to append
+            }
+
+            fi.flags |= 8; /*O_APPEND*/
+        }
+
         if (0 != f->ops.open)
         {
             err = f->ops.open(contexthdr->PosixPath, &fi);
