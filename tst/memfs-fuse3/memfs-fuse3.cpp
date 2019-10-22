@@ -77,7 +77,9 @@ public:
             0, // lock
             utimens,
             0, // bmap
+#if 0
             ioctl,
+#endif
         };
         return fuse_main(argc, argv, &ops, this);
     }
@@ -497,11 +499,13 @@ private:
         return 0;
     }
 
+#if 0
     static int ioctl(const char *path, int cmd, void *arg, struct fuse_file_info *fi,
         unsigned int flags, void *data)
     {
         return -ENOSYS;
     }
+#endif
 
     std::tuple<std::shared_ptr<node_t>, std::string, std::shared_ptr<node_t>>
         lookup_node(const char *path, node_t *ancestor = nullptr)
