@@ -1026,6 +1026,20 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     }
     else
     {
+        /*
+         * Some Windows applications (notably Go programs) specify FILE_APPEND_DATA without
+         * FILE_WRITE_DATA when opening files for appending. This caused the WinFsp-FUSE layer
+         * to erroneously pass O_RDONLY to the FUSE file system in such cases. We add a test
+         * for FILE_APPEND_DATA to ensure that either O_WRONLY or O_RDWR is specified and that
+         * the O_APPEND flag is set.
+         */
+        if (GrantedAccess & FILE_APPEND_DATA)
+        {
+            if (fi.flags == 0)
+                fi.flags = 1; /* need O_WRONLY as a bare minimum in order to append */
+            fi.flags |= 8/*O_APPEND*/;
+        }
+
         if (0 != f->ops.open)
         {
             err = f->ops.open(contexthdr->PosixPath, &fi);
