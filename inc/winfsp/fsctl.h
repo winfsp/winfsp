@@ -96,7 +96,7 @@ FSP_FSCTL_STATIC_ASSERT(FSP_FSCTL_VOLUME_NAME_SIZEMAX <= 260 * sizeof(WCHAR),
 
 /* marshalling */
 #pragma warning(push)
-#pragma warning(disable:4200)           /* zero-sized array in struct/union */
+#pragma warning(disable:4200 4201)      /* zero-sized array in struct/union; nameless struct/union */
 enum
 {
     FspFsctlTransactReservedKind = 0,
@@ -175,7 +175,8 @@ enum
     UINT32 AllowOpenInKernelMode:1;         /* allow kernel mode to open files when possible */\
     UINT32 CasePreservedExtendedAttributes:1;   /* preserve case of EA (default is UPPERCASE) */\
     UINT32 WslFeatures:1;                   /* support features required for WSLinux */\
-    UINT32 KmReservedFlags:5;\
+    UINT32 DirectoryMarkerAsNextOffset:1;   /* directory marker is next offset instead of last name */\
+    UINT32 KmReservedFlags:4;\
     WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */\
     WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
 #define FSP_FSCTL_VOLUME_PARAMS_V1_FIELD_DEFN\
@@ -242,8 +243,12 @@ typedef struct
 {
     UINT16 Size;
     FSP_FSCTL_FILE_INFO FileInfo;
-    UINT8 Padding[24];
-        /* make struct as big as FILE_ID_BOTH_DIR_INFORMATION; allows for in-place copying */
+    union
+    {
+        UINT64 NextOffset;
+        UINT8 Padding[24];
+            /* make struct as big as FILE_ID_BOTH_DIR_INFORMATION; allows for in-place copying */
+    } DUMMYUNIONNAME;
     WCHAR FileNameBuf[];
 } FSP_FSCTL_DIR_INFO;
 FSP_FSCTL_STATIC_ASSERT(104 == sizeof(FSP_FSCTL_DIR_INFO),

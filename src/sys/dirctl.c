@@ -24,6 +24,7 @@
 static NTSTATUS FspFsvolQueryDirectoryCopy(
     PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
     PUNICODE_STRING DirectoryMarker, PUNICODE_STRING DirectoryMarkerOut,
+    PUINT64 DirectoryMarkerAsNextOffset,
     FILE_INFORMATION_CLASS FileInformationClass, BOOLEAN ReturnSingleEntry,
     BOOLEAN ReturnEaSize,
     FSP_FSCTL_DIR_INFO **PDirInfo, ULONG DirInfoSize,
@@ -88,6 +89,7 @@ enum
 static NTSTATUS FspFsvolQueryDirectoryCopy(
     PUNICODE_STRING DirectoryPattern, BOOLEAN CaseInsensitive,
     PUNICODE_STRING DirectoryMarker, PUNICODE_STRING DirectoryMarkerOut,
+    PUINT64 DirectoryMarkerAsNextOffset,
     FILE_INFORMATION_CLASS FileInformationClass, BOOLEAN ReturnSingleEntry,
     BOOLEAN ReturnEaSize,
     FSP_FSCTL_DIR_INFO **PDirInfo, ULONG DirInfoSize,
@@ -130,6 +132,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
     PVOID PrevDestBuf = 0;
     ULONG BaseInfoLen, CopyLength;
     UNICODE_STRING FileName;
+    UINT64 DirectoryNextOffset;
 
     *PDestLen = 0;
 
@@ -176,12 +179,21 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
             FileName.MaximumLength = (USHORT)(DirInfoSize - sizeof(FSP_FSCTL_DIR_INFO));
             FileName.Buffer = DirInfo->FileNameBuf;
 
+            DirectoryNextOffset = DirInfo->NextOffset;
+
             if (0 != DirectoryMarker && 0 != DirectoryMarker->Buffer &&
                 !DirectoryMarkerFound)
             {
-                DirectoryMarkerFound = 0 == FspFileNameCompare(
-                    &FileName, DirectoryMarker, CaseInsensitive, 0);
-                continue;
+                if (0 == DirectoryMarkerAsNextOffset)
+                {
+                    DirectoryMarkerFound = 0 == FspFileNameCompare(
+                        &FileName, DirectoryMarker, CaseInsensitive, 0);
+                }
+                else
+                {
+                    ASSERT(sizeof(UINT64) == DirectoryMarker->Length);
+                    DirectoryMarkerFound = DirectoryNextOffset == *(PUINT64)DirectoryMarker->Buffer;
+                }
             }
 
             /* CopyLength is the same as FileName.Length except on STATUS_BUFFER_OVERFLOW */
@@ -272,8 +284,16 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     break;
                 }
 
-                DirectoryMarkerOut->Length = DirectoryMarkerOut->MaximumLength = FileName.Length;
-                DirectoryMarkerOut->Buffer = (PVOID)((PUINT8)DestBuf + BaseInfoLen);
+                if (0 == DirectoryMarkerAsNextOffset)
+                {
+                    DirectoryMarkerOut->Length = DirectoryMarkerOut->MaximumLength = FileName.Length;
+                    DirectoryMarkerOut->Buffer = (PVOID)((PUINT8)DestBuf + BaseInfoLen);
+                }
+                else
+                {
+                    DirectoryMarkerOut->Length = DirectoryMarkerOut->MaximumLength = sizeof(UINT64);
+                    DirectoryMarkerOut->Buffer = (PVOID)DirectoryMarkerAsNextOffset;
+                }
 
                 DestBuf = (PVOID)((PUINT8)DestBuf +
                     FSP_FSCTL_ALIGN_UP(BaseInfoLen + CopyLength, sizeof(LONGLONG)));
@@ -283,7 +303,15 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     Loop = FALSE;
             }
             else
-                *DirectoryMarkerOut = FileName;
+            {
+                if (0 == DirectoryMarkerAsNextOffset)
+                    *DirectoryMarkerOut = FileName;
+                else
+                {
+                    DirectoryMarkerOut->Length = DirectoryMarkerOut->MaximumLength = sizeof(UINT64);
+                    DirectoryMarkerOut->Buffer = (PVOID)DirectoryMarkerAsNextOffset;
+                }
+            }
         }
     }
     except (EXCEPTION_EXECUTE_HANDLER)
@@ -323,9 +351,12 @@ static NTSTATUS FspFsvolQueryDirectoryCopyCache(
     FileDesc->DirInfo = FileNode->NonPaged->DirInfo;
 
     NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
     BOOLEAN CaseInsensitive = !FileDesc->CaseSensitive;
     PUNICODE_STRING DirectoryPattern = &FileDesc->DirectoryPattern;
     UNICODE_STRING DirectoryMarker = FileDesc->DirectoryMarker;
+    UINT64 DirectoryMarkerAsNextOffset = 0;
     PUINT8 DirInfoBgn = (PUINT8)DirInfo;
     PUINT8 DirInfoEnd = (PUINT8)DirInfo + DirInfoSize;
 
@@ -334,8 +365,10 @@ static NTSTATUS FspFsvolQueryDirectoryCopyCache(
 
     Result = FspFsvolQueryDirectoryCopy(DirectoryPattern, CaseInsensitive,
         0 != FileDesc->DirInfoCacheHint ? 0 : &FileDesc->DirectoryMarker, &DirectoryMarker,
+        FsvolDeviceExtension->VolumeParams.DirectoryMarkerAsNextOffset ?
+            &DirectoryMarkerAsNextOffset : 0,
         FileInformationClass, ReturnSingleEntry,
-        !!FspFsvolDeviceExtension(FileNode->FsvolDeviceObject)->VolumeParams.ExtendedAttributes,
+        !!FsvolDeviceExtension->VolumeParams.ExtendedAttributes,
         &DirInfo, DirInfoSize,
         DestBuf, PDestLen);
 
@@ -366,10 +399,13 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
     PAGED_CODE();
 
     NTSTATUS Result;
+    FSP_FILE_NODE *FileNode = FileDesc->FileNode;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+        FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
     BOOLEAN CaseInsensitive = !FileDesc->CaseSensitive;
     PUNICODE_STRING DirectoryPattern = &FileDesc->DirectoryPattern;
     UNICODE_STRING DirectoryMarker = FileDesc->DirectoryMarker;
-    FSP_FILE_NODE *FileNode = FileDesc->FileNode;
+    UINT64 DirectoryMarkerAsNextOffset = 0;
 
     FSP_FSCTL_STATIC_ASSERT(
         FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) >=
@@ -378,8 +414,10 @@ static NTSTATUS FspFsvolQueryDirectoryCopyInPlace(
 
     Result = FspFsvolQueryDirectoryCopy(DirectoryPattern, CaseInsensitive,
         0, &DirectoryMarker,
+        FsvolDeviceExtension->VolumeParams.DirectoryMarkerAsNextOffset ?
+            &DirectoryMarkerAsNextOffset : 0,
         FileInformationClass, ReturnSingleEntry,
-        !!FspFsvolDeviceExtension(FileNode->FsvolDeviceObject)->VolumeParams.ExtendedAttributes,
+        !!FsvolDeviceExtension->VolumeParams.ExtendedAttributes,
         &DirInfo, DirInfoSize,
         DestBuf, PDestLen);
 
