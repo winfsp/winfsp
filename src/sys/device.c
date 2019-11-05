@@ -340,6 +340,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
             Result = Provider->DeviceInit(DeviceObject, &FsvolDeviceExtension->VolumeParams);
             if (!NT_SUCCESS(Result))
                 return Result;
+            FsvolDeviceExtension->Provider = Provider;
             FsvolDeviceExtension->InitDoneFsext = 1;
         }
         else
@@ -525,10 +526,8 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
     /* finalize any fsext provider */
     if (FsvolDeviceExtension->InitDoneFsext)
     {
-        FSP_FSEXT_PROVIDER *Provider = FspFsextProvider(
-            FsvolDeviceExtension->VolumeParams.FsextControlCode, 0);
-        if (0 != Provider)
-            Provider->DeviceFini(DeviceObject);
+        if (0 != FsvolDeviceExtension->Provider)
+            FsvolDeviceExtension->Provider->DeviceFini(DeviceObject);
     }
 }
 
@@ -577,13 +576,8 @@ static VOID FspFsvolDeviceExpirationRoutine(PVOID Context)
     FspMetaCacheInvalidateExpired(FsvolDeviceExtension->DirInfoCache, InterruptTime);
     FspMetaCacheInvalidateExpired(FsvolDeviceExtension->StreamInfoCache, InterruptTime);
     /* run any fsext provider expiration routine */
-    if (0 != FsvolDeviceExtension->VolumeParams.FsextControlCode)
-    {
-        FSP_FSEXT_PROVIDER *Provider = FspFsextProvider(
-            FsvolDeviceExtension->VolumeParams.FsextControlCode, 0);
-        if (0 != Provider)
-            Provider->DeviceExpirationRoutine(DeviceObject, InterruptTime);
-    }
+    if (0 != FsvolDeviceExtension->Provider)
+        FsvolDeviceExtension->Provider->DeviceExpirationRoutine(DeviceObject, InterruptTime);
     FspIoqRemoveExpired(FsvolDeviceExtension->Ioq, InterruptTime);
 
     KeAcquireSpinLock(&FsvolDeviceExtension->ExpirationLock, &Irql);

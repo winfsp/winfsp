@@ -1079,6 +1079,7 @@ typedef struct
     PVPB SwapVpb;
     FSP_DELAYED_WORK_ITEM DeleteVolumeDelayedWorkItem;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    FSP_FSEXT_PROVIDER *Provider;
     UNICODE_STRING VolumePrefix;
     UNICODE_PREFIX_TABLE_ENTRY VolumePrefixEntry;
     FSP_IOQ *Ioq;

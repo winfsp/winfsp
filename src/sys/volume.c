@@ -992,14 +992,13 @@ NTSTATUS FspVolumeTransactFsext(
     if (!FspDeviceReference(FsvolDeviceObject))
         return STATUS_CANCELLED;
 
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
     if (IrpSp->Parameters.FileSystemControl.FsControlCode ==
-        FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.FsextControlCode)
+        FsvolDeviceExtension->VolumeParams.FsextControlCode)
     {
-        FSP_FSEXT_PROVIDER *Provider = FspFsextProvider(
-            IrpSp->Parameters.FileSystemControl.FsControlCode, 0);
-        if (0 != Provider)
-            Result = Provider->DeviceTransact(FsvolDeviceObject, Irp);
+        if (0 != FsvolDeviceExtension->Provider)
+            Result = FsvolDeviceExtension->Provider->DeviceTransact(FsvolDeviceObject, Irp);
     }
 
     FspDeviceDereference(FsvolDeviceObject);
