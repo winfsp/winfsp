@@ -293,6 +293,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                 {
                     DirectoryMarkerOut->Length = DirectoryMarkerOut->MaximumLength = sizeof(UINT64);
                     DirectoryMarkerOut->Buffer = (PVOID)DirectoryMarkerAsNextOffset;
+                    *DirectoryMarkerAsNextOffset = DirectoryNextOffset;
                 }
 
                 DestBuf = (PVOID)((PUINT8)DestBuf +
@@ -310,6 +311,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                 {
                     DirectoryMarkerOut->Length = DirectoryMarkerOut->MaximumLength = sizeof(UINT64);
                     DirectoryMarkerOut->Buffer = (PVOID)DirectoryMarkerAsNextOffset;
+                    *DirectoryMarkerAsNextOffset = DirectoryNextOffset;
                 }
             }
         }
