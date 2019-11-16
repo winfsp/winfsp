@@ -1,6 +1,42 @@
 = Changelog
 
 
+v1.5B4 (2019.3 B4)::
+
+Changes since v1.4:
+
+* [GEN] WinFsp file systems can now be used by WSLinux. File systems must enable this support by setting the `FSP_FSCTL_VOLUME_PARAMS::WslFeatures` bit. Use the command `sudo mount -t drvfs x: /mnt/x` to mount.
+* [GEN] Extended attribute support has been added for all WinFsp API's: native, .NET, FUSE2 and FUSE3.
+* [GEN] Mount Manager support has been added and it works for current and new file systems:
+** If the file system mountpoint is in the syntax `\\.\X:` then the Mount Manager is used.
+** If the file system mountpoint is in the syntax `X:` then `DefineDosDeviceW` is used (i.e. same as today).
+** If the file system mountpoint is in the syntax `X:\DIR` then a reparse point is used and the file system is mounted as a directory (i.e. same as today).
+** Caveats:
+*** It requires Administrator access. This is because opening the `\\.\MountPointManager` device requires Administrator access.
+*** It currently works with drives (`\\.\X:`) but not directories (`\\.\X:\DIR`).
+*** Mount Manager drives created by WinFsp are transient. WinFsp takes various steps to ensure that this is the case.
+*** Mount Manager drives are global and are visible across Terminal Services sessions (they go into the `\GLOBAL??` portion of the NT namespace).
+* [FSD] Support for kernel-mode file systems on top of WinFsp has been added. See `FspFsextProvider`. This is in preparation for WinFuse - FUSE for Windows and WSLinux.
+* [FSD] FastIO support has been added. FastIO operations are enabled on cache-enabled file systems with the notable exception of `FastIoQueryOpen`, which allows opening files in kernel mode; this operation requires the file system to specify the `FSP_FSCTL_VOLUME_PARAMS::AllowOpenInKernelMode` flag.
+* [FSD] Support for `FileFsSectorSizeInformation` and `IOCTL_STORAGE_QUERY_PROPERTY / StorageAccessAlignmentProperty` has been added.
+* [DLL] The `FspFileSystemStartDispatcher` default number of threads (`ThreadCount==0`) has been changed. See commit 3902874ac93fe40685d9761f46a96358ba24f24c for more.
+* [FUSE] FUSE has new `-o UserName=DOMAIN+USERNAME` and `-o GroupName=DOMAIN+GROUPNAME` options. These function like the `-o uid=UID` and `-o gid=GID` options, but accept Windows user and groups names.
+* [FUSE] FUSE has new `-o dothidden` option that is used to add the Windows hidden file attribute to files that start with a dot.
+* [FUSE] FUSE has new `-o create_file_umask=nnn` and `-o create_dir_umask=nnn` options that allow for more control than the `-o create_umask=nnn` option.
+* [FUSE] FUSE has new `--ExactFileSystemName=FSNAME` option that removes the "FUSE-" prefix from the file system name. (Use with caution: see discussion in PR #251.) (Thanks @johntyner.)
+* [.NET] The .NET API now supports asynchronous handling of `Read`, `Write` and `ReadDirectory`. (Thanks @dworkin.)
+* [.NET] The .NET API now supports fine-grained timeouts (`VolumeInfoTimeout`, `DirInfoTimeout`, etc).
+* [.NET] The .NET API has new method `FileSystemHost.MountEx` that adds a `ThreadCount` parameter.
+* [LAUNCH] The Launcher can now rewrite path arguments passed to file systems during launching using "Path Transformation Language". See commit a73f1b95592617ac7484e16c2e642573a4d65644 for more.
+* [MEMFS] A new memfs FUSE3 file system written in C++ has been added. See `tst/memfs-fuse3`.
+* [AIRFS] John Oberschelp has done some fantastic work adding persistence to the airfs file system. (Thanks @JohnOberschelp.)
+* [FIX] Fixes for very large (> 4GiB) files. (Thanks @dworkin.)
+* [FIX] A fix for how FUSE handles the return value from `opendir`. (GitHub issue billziss-gh/sshfs-win#54)
+* [FIX] A fix for an invalid UID to SID mapping on domains with a lot of users. (Thanks @sganis.)
+* [FIX] A fix on the C++ layer. (Thanks @colatkinson.)
+* Other fixes and improvements.
+
+
 v1.5B3 (2019.3 B3)::
 
 Changes since v1.4:
