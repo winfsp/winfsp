@@ -53,6 +53,9 @@ typedef struct
 
 FSP_DDI_DEF(NTSTATUS, FspFsextProviderRegister,
     FSP_FSEXT_PROVIDER *Provider)
+FSP_DDI_DEF(NTSTATUS, FspFsextProviderTransact,
+    PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject,
+    FSP_FSCTL_TRANSACT_RSP *Response, FSP_FSCTL_TRANSACT_REQ **PRequest)
 
 FSP_DDI_DEF(NTSTATUS, FspPosixMapUidToSid,
     UINT32 Uid,
