@@ -83,17 +83,22 @@ for %%f in (build\%Configuration%\winfsp-*.msi) do (
 
 if not %signfail%==0 echo SIGNING FAILED! The product has been successfully built, but not signed.
 
+for %%f in (build\%Configuration%\winfsp-*.msi) do set Version=%%~nf
+set Version=!Version:winfsp-=!
+
 where /q choco.exe
 if %ERRORLEVEL% equ 0 (
-    for %%f in (build\%Configuration%\winfsp-*.msi) do set Version=%%~nf
-    set Version=!Version:winfsp-=!
-
     copy ..\choco\* build\%Configuration%
     copy ..\choco\LICENSE.TXT /B + ..\..\License.txt /B build\%Configuration%\LICENSE.txt /B
     certutil -hashfile build\%Configuration%\winfsp-!Version!.msi SHA256 >>build\%Configuration%\VERIFICATION.txt
     choco pack build\%Configuration%\winfsp.nuspec --version=!Version! --outputdirectory=build\%Configuration%
     if errorlevel 1 goto fail
 )
+
+pushd build\%Configuration%
+powershell -command "Compress-Archive -Path winfsp-tests-*.exe,..\..\..\..\License.txt,..\..\..\..\tst\winfsp-tests\README.md -DestinationPath winfsp-tests-!Version!.zip"
+if errorlevel 1 goto fail
+popd
 
 exit /b 0
 
