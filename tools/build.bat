@@ -86,6 +86,13 @@ if not %signfail%==0 echo SIGNING FAILED! The product has been successfully buil
 for %%f in (build\%Configuration%\winfsp-*.msi) do set Version=%%~nf
 set Version=!Version:winfsp-=!
 
+if X%SignedPackage%==X (
+    pushd build\%Configuration%
+    powershell -command "Compress-Archive -Path winfsp-tests-*.exe,..\..\..\..\License.txt,..\..\..\..\tst\winfsp-tests\README.md -DestinationPath winfsp-tests-!Version!.zip"
+    if errorlevel 1 goto fail
+    popd
+)
+
 where /q choco.exe
 if %ERRORLEVEL% equ 0 (
     copy ..\choco\* build\%Configuration%
@@ -94,11 +101,6 @@ if %ERRORLEVEL% equ 0 (
     choco pack build\%Configuration%\winfsp.nuspec --version=!Version! --outputdirectory=build\%Configuration%
     if errorlevel 1 goto fail
 )
-
-pushd build\%Configuration%
-powershell -command "Compress-Archive -Path winfsp-tests-*.exe,..\..\..\..\License.txt,..\..\..\..\tst\winfsp-tests\README.md -DestinationPath winfsp-tests-!Version!.zip"
-if errorlevel 1 goto fail
-popd
 
 exit /b 0
 
