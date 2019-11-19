@@ -725,6 +725,20 @@ lasterror:
     goto exit;
 }
 
+static inline ACCESS_MASK FspPosixCanonicalizeAccessMask(ACCESS_MASK AccessMask)
+{
+    PGENERIC_MAPPING Mapping = FspGetFileGenericMapping();
+    if (AccessMask & GENERIC_READ)
+        AccessMask |= Mapping->GenericRead;
+    if (AccessMask & GENERIC_WRITE)
+        AccessMask |= Mapping->GenericWrite;
+    if (AccessMask & GENERIC_EXECUTE)
+        AccessMask |= Mapping->GenericExecute;
+    if (AccessMask & GENERIC_ALL)
+        AccessMask |= Mapping->GenericAll;
+    return AccessMask & ~(GENERIC_READ | GENERIC_WRITE | GENERIC_EXECUTE | GENERIC_ALL);
+}
+
 static inline UINT32 FspPosixMapAccessMaskToPermission(ACCESS_MASK AccessMask)
 {
     /* [PERMS]
@@ -749,6 +763,14 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
 {
     FSP_KU_CODE;
 
+    BOOLEAN OwnerOptional = (UINT_PTR)PUid & 1;
+    PUid = (PVOID)((UINT_PTR)PUid & ~1);
+    UINT32 OrigUid = *PUid;
+
+    BOOLEAN GroupOptional = (UINT_PTR)PGid & 1;
+    PGid = (PVOID)((UINT_PTR)PGid & ~1);
+    UINT32 OrigGid = *PGid;
+
     PSID OwnerSid = 0, GroupSid = 0;
     BOOL Defaulted, DaclPresent;
     PACL Acl = 0;
@@ -757,6 +779,7 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
     PSID AceSid;
     DWORD AceAccessMask;
     DWORD OwnerAllow, OwnerDeny, GroupAllow, GroupDeny, WorldAllow, WorldDeny;
+    UINT32 AceUid = 0;
     UINT32 Uid, Gid, Mode;
     NTSTATUS Result;
 
@@ -771,13 +794,23 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
     if (!GetSecurityDescriptorDacl(SecurityDescriptor, &DaclPresent, &Acl, &Defaulted))
         goto lasterror;
 
-    Result = FspPosixMapSidToUid(OwnerSid, &Uid);
-    if (!NT_SUCCESS(Result))
-        goto exit;
+    if (0 == OwnerSid && OwnerOptional)
+        Uid = OrigUid;
+    else
+    {
+        Result = FspPosixMapSidToUid(OwnerSid, &Uid);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
 
-    Result = FspPosixMapSidToUid(GroupSid, &Gid);
-    if (!NT_SUCCESS(Result))
-        goto exit;
+    if (0 == GroupSid && GroupOptional)
+        Gid = OrigGid;
+    else
+    {
+        Result = FspPosixMapSidToUid(GroupSid, &Gid);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
 
     if (0 != Acl)
     {
@@ -810,6 +843,8 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
             else
                 continue;
 
+            AceAccessMask = FspPosixCanonicalizeAccessMask(AceAccessMask);
+
             /* [PERMS]
              * If the ACE contains the Authenticated Users SID or the World SID then
              * add the allowed or denied access right bits into the "owner", "group"
@@ -840,6 +875,9 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
             }
             else
             {
+                if (0 == OwnerSid || 0 == GroupSid)
+                    FspPosixMapSidToUid(AceSid, &AceUid);
+
                 /* [PERMS]
                  * Note that if the file owner and file group SIDs are the same,
                  * then the access rights are saved in both the "owner" and "group"
@@ -851,7 +889,7 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
                  * in the "group" collection as appropriate in the corresponding set of
                  * granted or denied rights (as described above).
                  */
-                if (EqualSid(GroupSid, AceSid))
+                if (0 != GroupSid ? EqualSid(GroupSid, AceSid) : (Gid == AceUid))
                 {
                     if (ACCESS_ALLOWED_ACE_TYPE == Ace->AceType)
                         GroupAllow |= AceAccessMask & ~GroupDeny;
@@ -864,7 +902,7 @@ FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
                  * in the "owner" collection as appropriate in the corresponding set of
                  * granted or denied rights (as described above).
                  */
-                if (EqualSid(OwnerSid, AceSid))
+                if (0 != OwnerSid ? EqualSid(OwnerSid, AceSid) : (Uid == AceUid))
                 {
                     if (ACCESS_ALLOWED_ACE_TYPE == Ace->AceType)
                         OwnerAllow |= AceAccessMask & ~OwnerDeny;

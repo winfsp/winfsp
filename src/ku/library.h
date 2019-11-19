@@ -207,6 +207,11 @@ static inline int FspKuMultiByteToWideChar(
     return ByteCount / sizeof(WCHAR);
 }
 
+static inline PGENERIC_MAPPING FspGetFileGenericMapping(VOID)
+{
+    return IoGetFileObjectGenericMapping();
+}
+
 static inline void *MemAlloc(size_t Size)
 {
     return FspAlloc(Size);
