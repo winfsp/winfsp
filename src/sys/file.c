@@ -1337,8 +1337,9 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
                 !MmFlushImageSection(&DescendantFileNode->NonPaged->SectionObjectPointers,
                     MmFlushForDelete)))
             {
-                /* release the FileNode in case of failure! */
+                /* release the FileNode and rename lock in case of failure! */
                 FspFileNodeReleaseF(FileNode, AcquireFlags);
+                FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
 
                 Result = STATUS_ACCESS_DENIED;
                 goto exit;
@@ -1441,8 +1442,9 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
 
     if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result || !NT_SUCCESS(Result))
     {
-        /* release the FileNode so that we can safely wait without deadlocks */
+        /* release the FileNode and rename lock so that we can safely wait without deadlocks */
         FspFileNodeReleaseF(FileNode, AcquireFlags);
+        FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
 
         /* wait for oplock breaks to finish */
         for (
@@ -1488,8 +1490,9 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
 
         if (DescendantFileNode != FileNode && 0 < DescendantFileNode->HandleCount)
         {
-            /* release the FileNode in case of failure! */
+            /* release the FileNode and rename lock in case of failure! */
             FspFileNodeReleaseF(FileNode, AcquireFlags);
+            FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
 
             Result = STATUS_ACCESS_DENIED;
             break;

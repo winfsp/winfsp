@@ -1576,8 +1576,8 @@ static NTSTATUS FspFsvolSetRenameInformation(
         ASSERT(TargetFileNode->IsDirectory);
     }
 
-    FspFsvolDeviceFileRenameAcquireExclusive(FsvolDeviceObject);
 retry:
+    FspFsvolDeviceFileRenameAcquireExclusive(FsvolDeviceObject);
     FspFileNodeAcquireExclusive(FileNode, Full);
 
     if (0 == Request)
@@ -1651,13 +1651,13 @@ retry:
     Result = FspFileNodeRenameCheck(FsvolDeviceObject, Irp,
         FileNode, FspFileNodeAcquireFull,
         &FileNode->FileName, TRUE);
-    /* FspFileNodeRenameCheck releases FileNode with STATUS_OPLOCK_BREAK_IN_PROGRESS or failure */
+    /* FspFileNodeRenameCheck releases FileNode and rename lock on failure */
     if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result)
         goto retry;
     if (!NT_SUCCESS(Result))
     {
         Result = STATUS_ACCESS_DENIED;
-        goto rename_unlock_exit;
+        goto exit;
     }
 
     if (0 != FspFileNameCompare(&FileNode->FileName, &NewFileName, !FileDesc->CaseSensitive, 0))
@@ -1665,13 +1665,13 @@ retry:
         Result = FspFileNodeRenameCheck(FsvolDeviceObject, Irp,
             FileNode, FspFileNodeAcquireFull,
             &NewFileName, FALSE);
-        /* FspFileNodeRenameCheck releases FileNode with STATUS_OPLOCK_BREAK_IN_PROGRESS or failure */
+        /* FspFileNodeRenameCheck releases FileNode and rename lock on failure */
         if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result)
             goto retry;
         if (!NT_SUCCESS(Result))
         {
             Result = STATUS_ACCESS_DENIED;
-            goto rename_unlock_exit;
+            goto exit;
         }
     }
     else
@@ -1713,9 +1713,9 @@ retry:
 
 unlock_exit:
     FspFileNodeRelease(FileNode, Full);
-rename_unlock_exit:
     FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
 
+exit:
     return Result;
 }
 
