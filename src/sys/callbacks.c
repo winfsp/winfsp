@@ -308,7 +308,7 @@ VOID FspPropagateTopFlags(PIRP Irp, PIRP TopLevelIrp)
         {
             DEBUGBREAK_EX(iorecu);
 
-            FspIrpSetTopFlags(Irp, FspIrpFlags(TopLevelIrp));
+            FspIrpSetTopFlags(Irp, FspIrpTopFlags(TopLevelIrp) | FspIrpFlags(TopLevelIrp));
         }
     }
 }
