@@ -134,7 +134,9 @@ BOOL WINAPI ResilientRemoveDirectoryW(
     else
     {
         for (ULONG MaxTries = DeleteMaxTries;
-            !Success && ERROR_SHARING_VIOLATION == GetLastError() && 0 != MaxTries;
+            !Success &&
+            (ERROR_SHARING_VIOLATION == GetLastError() || ERROR_DIR_NOT_EMPTY == GetLastError()) &&
+            0 != MaxTries;
             MaxTries--)
         {
             Sleep(DeleteSleepTimeout);
