@@ -1,7 +1,7 @@
 /**
  * @file tlib/injected/allfunc.h
  *
- * @copyright 2014-2019 Bill Zissimopoulos
+ * @copyright 2014-2020 Bill Zissimopoulos
  */
 
 #ifndef TLIB_INJECTED_ALLFUNC_H_INCLUDED
