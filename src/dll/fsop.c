@@ -760,7 +760,7 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     NTSTATUS Result;
     WCHAR Root[2] = L"\\";
     PWSTR Parent, Suffix;
-    UINT32 GrantedAccess;
+    UINT32 CreateOptions, GrantedAccess;
     FSP_FSCTL_TRANSACT_FULL_CONTEXT FullContext;
     FSP_FSCTL_OPEN_FILE_INFO OpenFileInfo;
     UINT32 Information;
@@ -775,8 +775,10 @@ static NTSTATUS FspFileSystemOpCreate_FileOpenTargetDirectory(FSP_FILE_SYSTEM *F
     OpenFileInfo.NormalizedName = (PVOID)Response->Buffer;
     OpenFileInfo.NormalizedNameSize = FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX;
     FspPathSuffix((PWSTR)Request->Buffer, &Parent, &Suffix, Root);
+    CreateOptions =
+        (Request->Req.Create.CreateOptions | FILE_DIRECTORY_FILE) & ~FILE_NON_DIRECTORY_FILE;
     Result = FileSystem->Interface->Open(FileSystem,
-        Parent, Request->Req.Create.CreateOptions, GrantedAccess,
+        Parent, CreateOptions, GrantedAccess,
         AddrOfFileContext(FullContext), &OpenFileInfo.FileInfo);
     FspPathCombine((PWSTR)Request->Buffer, Suffix);
     if (!NT_SUCCESS(Result))
