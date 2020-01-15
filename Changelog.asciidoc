@@ -1,5 +1,11 @@
 = Changelog
 
+v1.6B1 (2020.1 B1)::
+
+Changes since v1.5:
+
+* [FIX] Fix how rename target directories are opened (use `FILE_DIRECTORY_FILE`). (See PR #270. Thanks @hammerg.)
+
 
 v1.5 (2019.3)::
 
