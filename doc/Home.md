@@ -12,6 +12,7 @@ The documentation available here discusses various aspects of WinFsp.
 - The [[API Reference|WinFsp-API-winfsp.h]] describes the native WinFsp API. This external [[link|http://www.secfs.net/winfsp/apiref/]] may be easier to browse for some people.
 - There is also a FUSE compatibility layer for native Windows and Cygwin. See fuse.h in the source repository.
 - This [[document|Native-API-vs-FUSE]] discusses the need for both a native API and FUSE and gives some pointers on which one to choose.
+- Since release 2019.3 WinFsp supports development of file systems in kernel mode. This [[document|WinFsp-Kernel-Mode-File-Systems]] discusses how to write such file systems.
 
 ## Design
 
