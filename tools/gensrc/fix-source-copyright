@@ -11,7 +11,7 @@ if [[ $# -eq 0 ]]; then
 fi
 
 if [[ "$(uname -s)" == Darwin* ]]; then
-    git grep -lz "$@" | xargs -0 sed -E -i "" -e "s/$MATCH/$SUBST/"
+    find "$@" -type f -print0 | xargs -0 sed -E -i "" -e "s/$MATCH/$SUBST/"
 else
-    git grep -lz "$@" | xargs -0 sed -E -i""  -e "s/$MATCH/$SUBST/"
+    find "$@" -type f -print0 | xargs -0 sed -E -i""  -e "s/$MATCH/$SUBST/"
 fi
