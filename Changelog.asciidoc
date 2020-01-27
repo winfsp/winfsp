@@ -1,9 +1,10 @@
 = Changelog
 
-v1.6B1 (2020.1 B1)::
+v1.6 (2020)::
 
 Changes since v1.5:
 
+* [FIX] Do no pass `O_APPEND` flag to FUSE file systems, which would result in data corruption under some circumstances. (See PR #272. Thanks @pfrejo.)
 * [FIX] Fix how rename target directories are opened (use `FILE_DIRECTORY_FILE`). (See PR #270. Thanks @hammerg.)
 
 
