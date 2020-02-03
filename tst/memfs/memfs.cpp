@@ -35,6 +35,12 @@ FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
     "MEMFS_MAX_PATH must be greater than MAX_PATH.");
 
 /*
+ * Define the MEMFS_STANDALONE macro when building MEMFS as a standalone file system.
+ * This macro should be defined in the Visual Studio project settings, Makefile, etc.
+ */
+//#define MEMFS_STANDALONE
+
+/*
  * Define the MEMFS_NAME_NORMALIZATION macro to include name normalization support.
  */
 #define MEMFS_NAME_NORMALIZATION
@@ -74,7 +80,15 @@ FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
  */
 #define MEMFS_WSL
 
- /*
+/*
+ * Define the MEMFS_REJECT_EARLY_IRP macro to reject IRP's sent
+ * to the file system prior to FSP_FSCTL_TRANSACT.
+ */
+#if defined(MEMFS_STANDALONE)
+#define MEMFS_REJECT_EARLY_IRP
+#endif
+
+/*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
  * a check for the Write buffer to ensure that it is read-only.
  *
@@ -2387,6 +2401,9 @@ NTSTATUS MemfsCreateFunnel(
     VolumeParams.WslFeatures = 1;
 #endif
     VolumeParams.AllowOpenInKernelMode = 1;
+#if defined(MEMFS_REJECT_EARLY_IRP)
+    VolumeParams.RejectIrpPriorToTransact = 1;
+#endif
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
     wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),

@@ -1082,6 +1082,7 @@ typedef struct
     FSP_FSEXT_PROVIDER *Provider;
     UNICODE_STRING VolumePrefix;
     UNICODE_PREFIX_TABLE_ENTRY VolumePrefixEntry;
+    LONG ReadyToAcceptIrp;
     FSP_IOQ *Ioq;
     FSP_META_CACHE *SecurityCache;
     FSP_META_CACHE *DirInfoCache;
@@ -1181,6 +1182,22 @@ VOID FspFsvolDeviceGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_I
 BOOLEAN FspFsvolDeviceTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject);
+static inline
+BOOLEAN FspFsvolDeviceReadyToAcceptIrp(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    if (!FsvolDeviceExtension->VolumeParams.RejectIrpPriorToTransact)
+        return TRUE;
+    return 0 != InterlockedCompareExchange(&FsvolDeviceExtension->ReadyToAcceptIrp, 0, 0);
+}
+static inline
+VOID FspFsvolDeviceSetReadyToAcceptIrp(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    if (!FsvolDeviceExtension->VolumeParams.RejectIrpPriorToTransact)
+        return;
+    InterlockedExchange(&FsvolDeviceExtension->ReadyToAcceptIrp, 1);
+}
 static inline
 BOOLEAN FspFsvolDeviceVolumePrefixInString(PDEVICE_OBJECT DeviceObject, PUNICODE_STRING String)
 {

@@ -277,6 +277,8 @@ static NTSTATUS FspVolumeCreateNoLock(
     RtlInitEmptyUnicodeString(&FsvolDeviceExtension->VolumeName,
         FsvolDeviceExtension->VolumeNameBuf, sizeof FsvolDeviceExtension->VolumeNameBuf);
     RtlCopyUnicodeString(&FsvolDeviceExtension->VolumeName, &VolumeName);
+    if (!FsvolDeviceExtension->VolumeParams.RejectIrpPriorToTransact)
+        FsvolDeviceExtension->ReadyToAcceptIrp = 1;
     Result = FspDeviceInitialize(FsvolDeviceObject);
     if (NT_SUCCESS(Result))
     {
@@ -766,6 +768,8 @@ NTSTATUS FspVolumeTransact(
 
     if (!FspDeviceReference(FsvolDeviceObject))
         return STATUS_CANCELLED;
+
+    FspFsvolDeviceSetReadyToAcceptIrp(FsvolDeviceObject);
 
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);

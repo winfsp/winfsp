@@ -284,6 +284,9 @@ static NTSTATUS FspFsvolCreateNoLock(
         return STATUS_SUCCESS;
     }
 
+    if (!FspFsvolDeviceReadyToAcceptIrp(FsvolDeviceObject))
+        return STATUS_CANCELLED;
+
     PACCESS_STATE AccessState = IrpSp->Parameters.Create.SecurityContext->AccessState;
     ULONG CreateDisposition = (IrpSp->Parameters.Create.Options >> 24) & 0xff;
     ULONG CreateOptions = IrpSp->Parameters.Create.Options;

@@ -176,7 +176,8 @@ enum
     UINT32 CasePreservedExtendedAttributes:1;   /* preserve case of EA (default is UPPERCASE) */\
     UINT32 WslFeatures:1;                   /* support features required for WSLinux */\
     UINT32 DirectoryMarkerAsNextOffset:1;   /* directory marker is next offset instead of last name */\
-    UINT32 KmReservedFlags:4;\
+    UINT32 RejectIrpPriorToTransact:1;      /* reject IRP's prior to first FSP_FSCTL_TRANSACT */\
+    UINT32 KmReservedFlags:3;\
     WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */\
     WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
 #define FSP_FSCTL_VOLUME_PARAMS_V1_FIELD_DEFN\
