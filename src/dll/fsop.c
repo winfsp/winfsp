@@ -1748,8 +1748,14 @@ reparse_data_exit:
         return IO_REPARSE_TAG_SYMLINK != ReparseData->ReparseTag ?
             STATUS_IO_REPARSE_DATA_INVALID : STATUS_REPARSE_POINT_NOT_RESOLVED;
 
+    if (IO_REPARSE_TAG_MOUNT_POINT == ReparseData->ReparseTag)
+        RemainderPathSize = lstrlenW(RemainderPath) * sizeof(WCHAR);
+
     *PSize = ReparseDataSize;
     memcpy(Buffer, ReparseData, ReparseDataSize);
+
+    if (IO_REPARSE_TAG_MOUNT_POINT == ReparseData->ReparseTag)
+        OutputReparseData->Reserved = RemainderPathSize;
 
     PIoStatus->Status = STATUS_REPARSE;
     PIoStatus->Information = ReparseData->ReparseTag;
