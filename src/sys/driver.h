@@ -1186,7 +1186,7 @@ static inline
 BOOLEAN FspFsvolDeviceReadyToAcceptIrp(PDEVICE_OBJECT DeviceObject)
 {
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    if (!FsvolDeviceExtension->VolumeParams.RejectIrpPriorToTransact)
+    if (!FsvolDeviceExtension->VolumeParams.RejectIrpPriorToTransact0)
         return TRUE;
     return 0 != InterlockedCompareExchange(&FsvolDeviceExtension->ReadyToAcceptIrp, 0, 0);
 }
@@ -1194,7 +1194,7 @@ static inline
 VOID FspFsvolDeviceSetReadyToAcceptIrp(PDEVICE_OBJECT DeviceObject)
 {
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    if (!FsvolDeviceExtension->VolumeParams.RejectIrpPriorToTransact)
+    if (!FsvolDeviceExtension->VolumeParams.RejectIrpPriorToTransact0)
         return;
     InterlockedExchange(&FsvolDeviceExtension->ReadyToAcceptIrp, 1);
 }

@@ -2402,7 +2402,7 @@ NTSTATUS MemfsCreateFunnel(
 #endif
     VolumeParams.AllowOpenInKernelMode = 1;
 #if defined(MEMFS_REJECT_EARLY_IRP)
-    VolumeParams.RejectIrpPriorToTransact = 1;
+    VolumeParams.RejectIrpPriorToTransact0 = 1;
 #endif
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
