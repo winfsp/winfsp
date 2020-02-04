@@ -274,7 +274,7 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
     TlsSetValue(FspFileSystemTlsKey, &OperationContext);
 
     Result = FspFsctlTransact(FileSystem->VolumeHandle, 0, 0, 0, 0, FALSE);
-        /* send a TRANSACT0 to inform the FSD that the dispatcher is ready */
+        /* send a Transact0 to inform the FSD that the dispatcher is ready */
     if (!NT_SUCCESS(Result))
         goto exit;
 

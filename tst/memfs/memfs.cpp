@@ -82,7 +82,7 @@ FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
 
 /*
  * Define the MEMFS_REJECT_EARLY_IRP macro to reject IRP's sent
- * to the file system prior to FSP_FSCTL_TRANSACT.
+ * to the file system prior to the dispatcher being started.
  */
 #if defined(MEMFS_STANDALONE)
 #define MEMFS_REJECT_EARLY_IRP
