@@ -286,8 +286,10 @@ static NTSTATUS FspFsvolQueryVolumeInformation(
 {
     PAGED_CODE();
 
+#if defined(FSP_DEVICE_REJECT_EARLY_IRP)
     if (!FspFsvolDeviceReadyToAcceptIrp(FsvolDeviceObject))
         return STATUS_CANCELLED;
+#endif
 
     NTSTATUS Result;
     PUINT8 Buffer = Irp->AssociatedIrp.SystemBuffer;
@@ -417,8 +419,10 @@ static NTSTATUS FspFsvolSetVolumeInformation(
 {
     PAGED_CODE();
 
+#if defined(FSP_DEVICE_REJECT_EARLY_IRP)
     if (!FspFsvolDeviceReadyToAcceptIrp(FsvolDeviceObject))
         return STATUS_CANCELLED;
+#endif
 
     NTSTATUS Result;
     FS_INFORMATION_CLASS FsInformationClass = IrpSp->Parameters.SetVolume.FsInformationClass;
