@@ -1,5 +1,13 @@
 = Changelog
 
+v1.7B1 (2020.1 B1)::
+
+Changes since v1.6:
+
+* [FIX] Workaround an incompatibility with Avast Antivirus. (GitHub issue #221.)
+* [FIX] Fix junction (mount point reparse point) handling. (GitHub issue #269.)
+
+
 v1.6 (2020)::
 
 Changes since v1.5:
