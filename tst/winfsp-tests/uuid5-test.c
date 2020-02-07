@@ -25,7 +25,7 @@
 #include "winfsp-tests.h"
 
 #pragma comment(lib, "bcrypt.lib")
-#include <ku/uuid5.c>
+#include <shared/ku/uuid5.c>
 
 static void uuid5_test(void)
 {

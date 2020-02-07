@@ -1,5 +1,5 @@
 /**
- * @file ku/posix.c
+ * @file shared/ku/posix.c
  * POSIX Interop.
  *
  * This file provides routines for Windows/POSIX interoperability. It is based
@@ -32,7 +32,7 @@
  * associated repository.
  */
 
-#include <ku/library.h>
+#include <shared/ku/library.h>
 
 FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid);
 FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid);

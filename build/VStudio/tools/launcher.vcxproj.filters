@@ -5,11 +5,11 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="Include">
-      <UniqueIdentifier>{11e7c0f2-7782-43ee-84fa-9e56efbe39de}</UniqueIdentifier>
+    <Filter Include="Source\shared">
+      <UniqueIdentifier>{ebc5d08c-dcc6-4889-a482-84cefda188cd}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Include\shared">
-      <UniqueIdentifier>{d83ea433-d9f7-494c-90b9-3a8997483cd9}</UniqueIdentifier>
+    <Filter Include="Source\shared\um">
+      <UniqueIdentifier>{574d211e-3e2c-4551-bc78-4786f33c4093}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -21,13 +21,13 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\src\shared\minimal.h">
-      <Filter>Include\shared</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="..\..\..\src\launcher\launcher-version.rc">
       <Filter>Source</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\src\shared\um\minimal.h">
+      <Filter>Source\shared\um</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -5,9 +5,11 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="Include">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    <Filter Include="Source\shared">
+      <UniqueIdentifier>{bd82112e-6494-4345-b35b-25eae56d5127}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\shared\um">
+      <UniqueIdentifier>{dd21736e-dbea-4f24-8178-1903412e01f2}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -19,5 +21,10 @@
     <ResourceCompile Include="..\..\..\src\fsptool\fsptool-version.rc">
       <Filter>Source</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\src\shared\um\minimal.h">
+      <Filter>Source\shared\um</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

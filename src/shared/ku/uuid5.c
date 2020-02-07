@@ -1,5 +1,5 @@
 /**
- * @file dll/uuid5.c
+ * @file shared/ku/uuid5.c
  *
  * @copyright 2015-2020 Bill Zissimopoulos
  */
@@ -19,7 +19,7 @@
  * associated repository.
  */
 
-#include <ku/library.h>
+#include <shared/ku/library.h>
 #include <bcrypt.h>
 
 /*

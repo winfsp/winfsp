@@ -20,7 +20,7 @@
  */
 
 #include <winfsp/launch.h>
-#include <shared/minimal.h>
+#include <shared/um/minimal.h>
 #include <aclapi.h>
 #include <sddl.h>
 #include <userenv.h>

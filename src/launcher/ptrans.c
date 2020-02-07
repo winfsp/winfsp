@@ -62,7 +62,7 @@
  */
 
 #include <winfsp/launch.h>
-#include <shared/minimal.h>
+#include <shared/um/minimal.h>
 
 static PWSTR PathCopy(PWSTR Dest, PWSTR Arg, PWSTR ArgEnd, BOOLEAN WriteDest, WCHAR Replacement)
 {

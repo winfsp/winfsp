@@ -20,7 +20,7 @@
  */
 
 #include <winfsp/launch.h>
-#include <shared/minimal.h>
+#include <shared/um/minimal.h>
 
 #define PROGNAME                        "launchctl"
 

@@ -183,6 +183,9 @@
   <ItemGroup>
     <ResourceCompile Include="..\..\..\src\fsptool\fsptool-version.rc" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\src\shared\um\minimal.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

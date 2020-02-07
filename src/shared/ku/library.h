@@ -1,5 +1,5 @@
 /**
- * @file ku/library.h
+ * @file shared/ku/library.h
  *
  * @copyright 2015-2020 Bill Zissimopoulos
  */
@@ -19,8 +19,8 @@
  * associated repository.
  */
 
-#ifndef WINFSP_KU_LIBRARY_H_INCLUDED
-#define WINFSP_KU_LIBRARY_H_INCLUDED
+#ifndef WINFSP_SHARED_KU_LIBRARY_H_INCLUDED
+#define WINFSP_SHARED_KU_LIBRARY_H_INCLUDED
 
 #if !defined(_KERNEL_MODE)
 

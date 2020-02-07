@@ -12,9 +12,6 @@
     <Filter Include="Include\winfsp">
       <UniqueIdentifier>{1d6501f4-cebd-4a00-a774-deb782b59fb5}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Include\shared">
-      <UniqueIdentifier>{c7b83307-0aa0-4593-b2d4-26ff2f1edfc6}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Include\fuse">
       <UniqueIdentifier>{0e7ab1b1-bfca-4439-accb-45a909be9cad}</UniqueIdentifier>
     </Filter>
@@ -27,8 +24,14 @@
     <Filter Include="Source\fuse3">
       <UniqueIdentifier>{96091a7b-3923-4a74-9491-3ee230c688f9}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\ku">
-      <UniqueIdentifier>{613cce77-2428-4f9a-9187-f37e009253c1}</UniqueIdentifier>
+    <Filter Include="Source\shared">
+      <UniqueIdentifier>{a099cca5-e40c-4f99-baff-b5399dac5406}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\shared\um">
+      <UniqueIdentifier>{c2e11b62-74a0-41af-9f5b-0846fe81563c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\shared\ku">
+      <UniqueIdentifier>{7963f853-656a-4fd7-b8df-e586c3fe3dab}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -40,9 +43,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\dll\library.h">
       <Filter>Source</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\shared\minimal.h">
-      <Filter>Include\shared</Filter>
     </ClInclude>
     <ClInclude Include="..\..\inc\fuse\fuse.h">
       <Filter>Include\fuse</Filter>
@@ -80,8 +80,11 @@
     <ClInclude Include="..\..\src\dll\fuse3\library.h">
       <Filter>Source\fuse3</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ku\library.h">
-      <Filter>Source\ku</Filter>
+    <ClInclude Include="..\..\src\shared\um\minimal.h">
+      <Filter>Source\shared\um</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\shared\ku\library.h">
+      <Filter>Source\shared\ku</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -157,11 +160,11 @@
     <ClCompile Include="..\..\src\dll\fuse3\fuse3_compat.c">
       <Filter>Source\fuse3</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ku\posix.c">
-      <Filter>Source\ku</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\dll\mount.c">
       <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\shared\ku\posix.c">
+      <Filter>Source\shared\ku</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

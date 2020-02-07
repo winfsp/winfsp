@@ -1,5 +1,5 @@
 /**
- * @file shared/minimal.h
+ * @file shared/um/minimal.h
  *
  * @copyright 2015-2020 Bill Zissimopoulos
  */
@@ -19,8 +19,8 @@
  * associated repository.
  */
 
-#ifndef WINFSP_SHARED_MINIMAL_H_INCLUDED
-#define WINFSP_SHARED_MINIMAL_H_INCLUDED
+#ifndef WINFSP_SHARED_UM_MINIMAL_H_INCLUDED
+#define WINFSP_SHARED_UM_MINIMAL_H_INCLUDED
 
 /*
  * Eliminate dependency on the MSVCRT libraries.
