@@ -33,7 +33,9 @@
 #include <winfsp/fsctl.h>
 #include <winfsp/fsext.h>
 
-/* disable warnings */
+#define FSP_CFG_REJECT_EARLY_IRP
+
+ /* disable warnings */
 #pragma warning(disable:4100)           /* unreferenced formal parameter */
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
 
@@ -1028,7 +1030,6 @@ NTSTATUS FspStatisticsCopy(FSP_STATISTICS *Statistics, PVOID Buffer, PULONG PLen
 #define FspStatisticsAdd(S,F,V)         ((S)->F += (V))
 
 /* device management */
-#define FSP_DEVICE_REJECT_EARLY_IRP
 enum
 {
     FspFsvolDeviceSecurityCacheCapacity = 100,
@@ -1083,7 +1084,7 @@ typedef struct
     FSP_FSEXT_PROVIDER *Provider;
     UNICODE_STRING VolumePrefix;
     UNICODE_PREFIX_TABLE_ENTRY VolumePrefixEntry;
-#if defined(FSP_DEVICE_REJECT_EARLY_IRP)
+#if defined(FSP_CFG_REJECT_EARLY_IRP)
     LONG ReadyToAcceptIrp;
 #endif
     FSP_IOQ *Ioq;
@@ -1185,7 +1186,7 @@ VOID FspFsvolDeviceGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_I
 BOOLEAN FspFsvolDeviceTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject);
-#if defined(FSP_DEVICE_REJECT_EARLY_IRP)
+#if defined(FSP_CFG_REJECT_EARLY_IRP)
 static inline
 BOOLEAN FspFsvolDeviceReadyToAcceptIrp(PDEVICE_OBJECT DeviceObject)
 {

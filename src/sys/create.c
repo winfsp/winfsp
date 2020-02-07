@@ -284,7 +284,7 @@ static NTSTATUS FspFsvolCreateNoLock(
         return STATUS_SUCCESS;
     }
 
-#if defined(FSP_DEVICE_REJECT_EARLY_IRP)
+#if defined(FSP_CFG_REJECT_EARLY_IRP)
     if (!FspFsvolDeviceReadyToAcceptIrp(FsvolDeviceObject))
         return STATUS_CANCELLED;
 #endif

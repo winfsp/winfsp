@@ -273,10 +273,12 @@ static DWORD WINAPI FspFileSystemDispatcherThread(PVOID FileSystem0)
     OperationContext.Response = Response;
     TlsSetValue(FspFileSystemTlsKey, &OperationContext);
 
+#if defined(FSP_CFG_REJECT_EARLY_IRP)
     Result = FspFsctlTransact(FileSystem->VolumeHandle, 0, 0, 0, 0, FALSE);
         /* send a Transact0 to inform the FSD that the dispatcher is ready */
     if (!NT_SUCCESS(Result))
         goto exit;
+#endif
 
     memset(Response, 0, sizeof *Response);
     for (;;)

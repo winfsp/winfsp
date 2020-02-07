@@ -286,7 +286,7 @@ static NTSTATUS FspFsvolQueryVolumeInformation(
 {
     PAGED_CODE();
 
-#if defined(FSP_DEVICE_REJECT_EARLY_IRP)
+#if defined(FSP_CFG_REJECT_EARLY_IRP)
     if (!FspFsvolDeviceReadyToAcceptIrp(FsvolDeviceObject))
         return STATUS_CANCELLED;
 #endif
@@ -419,7 +419,7 @@ static NTSTATUS FspFsvolSetVolumeInformation(
 {
     PAGED_CODE();
 
-#if defined(FSP_DEVICE_REJECT_EARLY_IRP)
+#if defined(FSP_CFG_REJECT_EARLY_IRP)
     if (!FspFsvolDeviceReadyToAcceptIrp(FsvolDeviceObject))
         return STATUS_CANCELLED;
 #endif

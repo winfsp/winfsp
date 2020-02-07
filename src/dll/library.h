@@ -28,6 +28,8 @@
 #include <shared/minimal.h>
 #include <strsafe.h>
 
+#define FSP_CFG_REJECT_EARLY_IRP
+
 #define LIBRARY_NAME                    "WinFsp"
 
 /* DEBUGLOG */
