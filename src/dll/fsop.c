@@ -1755,7 +1755,7 @@ reparse_data_exit:
     memcpy(Buffer, ReparseData, ReparseDataSize);
 
     if (IO_REPARSE_TAG_MOUNT_POINT == ReparseData->ReparseTag)
-        OutputReparseData->Reserved = RemainderPathSize;
+        OutputReparseData->Reserved = (USHORT)RemainderPathSize;
 
     PIoStatus->Status = STATUS_REPARSE;
     PIoStatus->Information = ReparseData->ReparseTag;
