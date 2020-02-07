@@ -33,9 +33,9 @@
 #include <winfsp/fsctl.h>
 #include <winfsp/fsext.h>
 
-#define FSP_CFG_REJECT_EARLY_IRP
+#include <shared/ku/config.h>
 
- /* disable warnings */
+/* disable warnings */
 #pragma warning(disable:4100)           /* unreferenced formal parameter */
 #pragma warning(disable:4200)           /* zero-sized array in struct/union */
 

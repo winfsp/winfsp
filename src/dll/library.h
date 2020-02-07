@@ -28,7 +28,7 @@
 #include <shared/um/minimal.h>
 #include <strsafe.h>
 
-#define FSP_CFG_REJECT_EARLY_IRP
+#include <shared/ku/config.h>
 
 #define LIBRARY_NAME                    "WinFsp"
 

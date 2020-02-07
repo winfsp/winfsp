@@ -86,6 +86,9 @@
     <ClInclude Include="..\..\src\shared\ku\library.h">
       <Filter>Source\shared\ku</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\shared\ku\config.h">
+      <Filter>Source\shared\ku</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\dll\library.c">

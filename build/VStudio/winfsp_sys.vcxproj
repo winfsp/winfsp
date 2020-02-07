@@ -193,6 +193,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\inc\winfsp\fsctl.h" />
     <ClInclude Include="..\..\opt\fsext\inc\winfsp\fsext.h" />
+    <ClInclude Include="..\..\src\shared\ku\config.h" />
     <ClInclude Include="..\..\src\shared\ku\library.h" />
     <ClInclude Include="..\..\src\sys\driver.h" />
   </ItemGroup>

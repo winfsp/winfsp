@@ -35,6 +35,7 @@
     <ClInclude Include="..\..\src\dll\fuse3\library.h" />
     <ClInclude Include="..\..\src\dll\fuse\library.h" />
     <ClInclude Include="..\..\src\dll\library.h" />
+    <ClInclude Include="..\..\src\shared\ku\config.h" />
     <ClInclude Include="..\..\src\shared\ku\library.h" />
     <ClInclude Include="..\..\src\shared\um\minimal.h" />
   </ItemGroup>
