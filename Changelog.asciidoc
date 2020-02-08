@@ -1,5 +1,15 @@
 = Changelog
 
+v1.7B2 (2020.1 B2)::
+
+Changes since v1.6:
+
+* [FIX] Work around an incompatibility with Avast Antivirus.
+** Native and .NET file systems that experience this problem should set the flag `RejectIrpPriorToTransact0` in `FSP_FSCTL_VOLUME_PARAMS` to `1`. This is only required when mounting on a directory with Avast Antivirus present.
+** FUSE file systems do not need to do anything special as this flag is always enabled.
+* [FIX] Fix junction (mount point reparse point) handling. (GitHub issue #269.)
+
+
 v1.7B1 (2020.1 B1)::
 
 Changes since v1.6:
