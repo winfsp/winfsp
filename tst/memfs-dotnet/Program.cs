@@ -285,6 +285,7 @@ namespace memfs
             Host.PassQueryDirectoryFileName = true;
             Host.ExtendedAttributes = true;
             Host.WslFeatures = true;
+            Host.RejectIrpPriorToTransact0 = true;
             return STATUS_SUCCESS;
         }
 

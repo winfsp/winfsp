@@ -54,6 +54,7 @@ namespace Fsp.Interop
         internal const UInt32 AllowOpenInKernelMode = 0x01000000;
         internal const UInt32 CasePreservedExtendedAttributes = 0x02000000;
         internal const UInt32 WslFeatures = 0x04000000;
+        internal const UInt32 RejectIrpPriorToTransact0 = 0x10000000;
         internal const int PrefixSize = 192;
         internal const int FileSystemNameSize = 16;
 

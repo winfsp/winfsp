@@ -307,6 +307,11 @@ namespace Fsp
             get { return 0 != (_VolumeParams.Flags & VolumeParams.WslFeatures); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.WslFeatures : 0); }
         }
+        public Boolean RejectIrpPriorToTransact0
+        {
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.RejectIrpPriorToTransact0); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.RejectIrpPriorToTransact0 : 0); }
+        }
         /// <summary>
         /// Gets or sets the prefix for a network file system.
         /// </summary>
