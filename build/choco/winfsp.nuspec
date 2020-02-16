@@ -52,6 +52,6 @@ To verify installation:
         <file src="chocolateyInstall.ps1" target="tools" />
         <file src="chocolateyUninstall.ps1" target="tools" />
         <file src="chocolateyHelper.ps1" target="tools" />
-        <file src="winfsp-$version$.msi" target="tools" />
+        <file src="winfsp-$MsiVersion$.msi" target="tools" />
     </files>
 </package>
