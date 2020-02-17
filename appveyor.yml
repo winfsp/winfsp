@@ -35,7 +35,7 @@ build_script:
 - tools\build.bat %CONFIGURATION%
 
 test_script:
-- choco install winfsp -s build\VStudio\build\%CONFIGURATION% -y
+- choco install winfsp -s build\VStudio\build\%CONFIGURATION% -y --pre
 - if %TESTING%==Func appveyor DownloadFile http://www.secfs.net/winfsp/resources/Test.Filter.Driver.zip && 7z x Test.Filter.Driver.zip
 - if %TESTING%==Func start /wait msiexec /i "Test.Filter.Driver\HCK Filter.Driver Content-x86_en-us.msi" /qn
 - if %TESTING%==Func tools\nmake-ext-test.bat %CONFIGURATION%
