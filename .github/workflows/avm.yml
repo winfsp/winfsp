@@ -1,0 +1,15 @@
+name: avm
+
+on:
+  schedule:
+  - cron: '0 2,8,14,20 * * *'
+
+jobs:
+  scan:
+    runs-on: [windows-latest]
+    steps:
+    - uses: billziss-gh/avm@v1
+      with:
+        files: |
+            https://github.com/billziss-gh/winfsp/releases/download/v1.6/winfsp-1.6.20027.msi
+            https://github.com/billziss-gh/winfsp/releases/download/v1.7B1/winfsp-1.7.20038.msi
