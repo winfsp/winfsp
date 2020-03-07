@@ -1,0 +1,81 @@
+= WinFsp Debugging Setup
+
+In this article I will describe the debugging setup used for WinFsp. Note that my debugging setup is somewhat peculiar, because all development and debugging is done on a Mac computer using two Windows virtual machines: one for development and one for debugging! However my description below should work for a one or two virtual machine setup.
+
+WinFsp is being developed on Windows 10 and debugged and tested on Windows 8 (although it should run correctly on Windows Vista and higher). You will need some virtualization software (I use VirtualBox 5), you will also need a fresh installation of Windows and to configure it properly for kernel debugging and running test signed drivers:
+
+* Create a Windows VM with a descriptive name (e.g. Win8DBG). Mine has a single CPU and just 2GB of memory.
+* Configure your VM for Host Only Networking. This will be used for WinDbg debugging and for deploying WinFsp.
+* Install Windows 8 on Win8DBG. Windows 8 is the minimum version of Windows that supports kernel network debugging.
+* I would recommend not to install your virtualization software guest additions to minimize issues with your debugging VM.
+* Configure Win8DBG for running test signed drivers:
++
+----
+bcdedit.exe -set testsigning on
+----
+* Configure Win8DBG for debugging over the network:
++
+----
+bcdedit /debug on
+bcdedit /dbgsettings net hostip:W.X.Y.Z port:NNNN key:KKKK
+----
+** Note that if you configure your VM with multiple network adapters you must also specify the correct `busparams` argument. You can find the correct `busparams` from the Windows Device Manager. For example, here are the settings on one of my VM's:
++
+----
+>bcdedit /dbgsettings
+busparams               0.8.0
+key                     1.1.1.1
+debugtype               NET
+hostip                  192.168.56.11
+port                    50000
+dhcp                    Yes
+The operation completed successfully.
+----
+* Enable DbgPrint on Win8DBG. Create the following key/value in the registry:
++
+----
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Debug Print Filter]
+"DEFAULT"=dword:0000000f
+----
+* Create a directory on Win8DBG where you will be deploying WinFsp. I use a subdirectory of the Downloads directory:
++
+----
+C:\Users\USERNAME\Downloads\winfsp
+----
+* Make the directory available outside the VM using Windows networking. You can use this new Windows share as an easy means to deploy WinFsp.
++
+----
+copy build\VStudio\build\Debug\winfsp-x64.sys \\Win8DBG\Users\USERNAME\Downloads\winfsp
+----
+* Enable Driver Verifier for WinFsp on Win8DBG. The easiest way to do so is to run `verifier` from the command line.
+* For faster edit-compile-test cycles I strongly recommend to use your virtualization software snapshot feature. For example, in my Win8DBG VM after I set it up exactly how I wanted it, I took a snapshot while the VM was running. Now whenever I want to test WinFsp, I restart that same snapshot and within 3-4 seconds I have a new VM ready for use. Even more importantly whenever there is a hard crash on the VM (happens a lot when developing Windows drivers) I can simply close the crashed VM and restart a new one.
+* On your development machine configure WinDbg to use the Microsoft public symbol servers. From the main menu select File > Symbol File Path and enter:
++
+----
+SRV*C:\Users\USERNAME\AppData\Local\Temp\SymbolCache*http://msdl.microsoft.com/download/symbols
+----
+* You can now run WinDbg and from the main menu select File > Kernel Debug, then enter the appropriate port number and key. Alternatively you can use the following windbg command line:
++
+----
+windbg -k net:port=NNNN,key=KKKK
+----
+* Checkout the `tools/deploy.bat` and `tools/debug.bat` batch files in the source distribution to see how I deploy and debug WinFsp.
+
+== Debugging a user mode process from kernel mode WinDbg
+
+In order to debug a user mode process from a kernel mode WinDbg session, break into the debugger and issue the following commands:
+
+----
+kd> !gflag +ksl
+kd> sxe ld MODULE-NAME.exe
+----
+
+Restart the debugger and it will break within process creation. You can now set a breakpoint at your process wmain (or main, etc.):
+
+----
+kd> bp MODULE_NAME!wmain
+----
+
+Restart the debugger and it will stop at your program's entry point.

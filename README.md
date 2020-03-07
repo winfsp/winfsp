@@ -120,7 +120,7 @@ To fully build WinFsp (including the installer) you must use `tools\build.bat`. 
 
     tools\build.bat CONFIGURATION
 
-If you build the driver yourself it will not be signed and Windows will refuse to load it unless you enable "testsigning". You can enable "testsigning" using the command `bcdedit.exe -set testsigning on`. For more information see this [document](http://www.secfs.net/winfsp/develop/debug/).
+If you build the driver yourself it will not be signed and Windows will refuse to load it unless you enable "testsigning". You can enable "testsigning" using the command `bcdedit.exe -set testsigning on`. For more information see this [document](doc/WinFsp-Debugging-Setup.asciidoc).
 
 WinFsp is designed to run on Windows 7 and above. It has been tested on the following platforms:
 
