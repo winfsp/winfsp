@@ -1866,7 +1866,20 @@ static NTSTATUS fsp_fuse_intf_FixDirInfo(FSP_FILE_SYSTEM *FileSystem,
             Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, 0,
                 &Uid, &Gid, &Mode, &DirInfo->FileInfo);
             if (!NT_SUCCESS(Result))
-                goto exit;
+            {
+                /*
+                 * readdir/getdir gave us a name, but when we went to get
+                 * information about it, we got an error. set file info to
+                 * 0 and mark the entry as hidden. this allows successful
+                 * entries to still be returned to the caller.
+                 */
+                Uid = -1;
+                Gid = -1;
+                Mode = 0;
+                memset(&DirInfo->FileInfo, 0, sizeof(DirInfo->FileInfo));
+                DirInfo->FileInfo.FileAttributes = FILE_ATTRIBUTE_HIDDEN;
+                Result = STATUS_SUCCESS;
+            }
 
             if (0 != PosixPathEnd)
                 *PosixPathEnd = SavedPathChar;
