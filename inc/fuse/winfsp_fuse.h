@@ -362,7 +362,7 @@ static inline int fsp_fuse_set_signal_handlers(void *se)
     static pthread_t sigthr;
     struct sigaction oldsa, newsa;
 
-    # memset instead of ={0} to avoid a GCC -Wmissing-field-initializers warning
+    // memset instead of initializer to avoid GCC -Wmissing-field-initializers warning
     memset(&newsa, 0, sizeof newsa);
 
     if (0 != se)
