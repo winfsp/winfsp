@@ -32,6 +32,12 @@ install:
 
 build_script:
 - appveyor AddMessage "Reboot complete" -Category Information
+# build cygfuse
+- C:\cygwin64\setup-x86_64.exe -qnNd -P cygport
+- C:\cygwin64\bin\bash --login -c "make -C '%CD%\opt\cygfuse' dist"
+- C:\cygwin\setup-x86.exe -qnNd -P cygport
+- C:\cygwin\bin\bash --login -c "make -C '%CD%\opt\cygfuse' dist"
+# build winfsp
 - tools\build.bat %CONFIGURATION%
 
 test_script:
