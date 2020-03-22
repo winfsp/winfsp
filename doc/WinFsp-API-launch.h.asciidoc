@@ -1,5 +1,5 @@
 = winfsp/launch.h
-:author: (C) 2015-2018 Bill Zissimopoulos
+:author: (C) 2015-2020 Bill Zissimopoulos
 :toc: preamble
 :toc-title:
 
@@ -22,7 +22,7 @@ FSP_API NTSTATUS FspLaunchCallLauncherPipe(
     PWSTR *Argv,
     ULONG *Argl, 
     PWSTR Buffer,
-    PULONG PSize,
+    PULONG PSize, 
     PULONG PLauncherError);  
 ----
 
@@ -38,6 +38,47 @@ to be NULL-terminated; in this case pass -1 in the corresponding Argl position.
 - _Buffer_ - Buffer that receives the command response. May be NULL.
 - _PSize_ - Pointer to a ULONG. On input it contains the size of the Buffer. On output it
 contains the number of bytes transferred. May be NULL.
+- _PLauncherError_ - Receives the launcher error if any. This is always a Win32 error code. May not be NULL.
+
+*Return Value*
+
+STATUS$$_$$SUCCESS if the command is sent successfully to the launcher, even if the launcher
+returns an error. Other status codes indicate a communication error. Launcher errors are
+reported through PLauncherError.
+
+*Discussion*
+
+This function is used to send a command to the launcher and receive a response.
+
+
+*FspLaunchCallLauncherPipeEx* - Call launcher pipe.
+
+[source,c]
+----
+FSP_API NTSTATUS FspLaunchCallLauncherPipeEx( 
+    WCHAR Command,
+    ULONG Argc,
+    PWSTR *Argv,
+    ULONG *Argl, 
+    PWSTR Buffer,
+    PULONG PSize, 
+    BOOLEAN AllowImpersonation, 
+    PULONG PLauncherError);  
+----
+
+*Parameters*
+
+- _Command_ - Launcher command to send. For example, the 'L' launcher command instructs
+the launcher to list all running service instances.
+- _Argc_ - Command argument count. May be 0.
+- _Argv_ - Command argument array. May be NULL.
+- _Argl_ - Command argument length array. May be NULL. If this is NULL all command arguments
+are assumed to be NULL-terminated strings. It is also possible for specific arguments
+to be NULL-terminated; in this case pass -1 in the corresponding Argl position.
+- _Buffer_ - Buffer that receives the command response. May be NULL.
+- _PSize_ - Pointer to a ULONG. On input it contains the size of the Buffer. On output it
+contains the number of bytes transferred. May be NULL.
+- _AllowImpersonation_ - Allow caller to be impersonated by launcher.
 - _PLauncherError_ - Receives the launcher error if any. This is always a Win32 error code. May not be NULL.
 
 *Return Value*
@@ -137,6 +178,39 @@ FSP_API NTSTATUS FspLaunchStart(
 - _HasSecret_ - Whether the last argument in Argv is assumed to be a secret (e.g. password) or not.
 Secrets are passed to service instances through standard input rather than the command
 line.
+- _PLauncherError_ - Receives the launcher error if any. This is always a Win32 error code. May not be NULL.
+
+*Return Value*
+
+STATUS$$_$$SUCCESS if the command is sent successfully to the launcher, even if the launcher
+returns an error. Other status codes indicate a communication error. Launcher errors are
+reported through PLauncherError.
+
+
+*FspLaunchStartEx* - Start a service instance.
+
+[source,c]
+----
+FSP_API NTSTATUS FspLaunchStartEx( 
+    PWSTR ClassName,
+    PWSTR InstanceName,
+    ULONG Argc,
+    PWSTR *Argv, 
+    BOOLEAN HasSecret, 
+    BOOLEAN AllowImpersonation, 
+    PULONG PLauncherError);  
+----
+
+*Parameters*
+
+- _ClassName_ - Class name of the service instance to start.
+- _InstanceName_ - Instance name of the service instance to start.
+- _Argc_ - Service instance argument count. May be 0.
+- _Argv_ - Service instance argument array. May be NULL.
+- _HasSecret_ - Whether the last argument in Argv is assumed to be a secret (e.g. password) or not.
+Secrets are passed to service instances through standard input rather than the command
+line.
+- _AllowImpersonation_ - Allow caller to be impersonated by launcher.
 - _PLauncherError_ - Receives the launcher error if any. This is always a Win32 error code. May not be NULL.
 
 *Return Value*
@@ -251,10 +325,12 @@ typedef struct _FSP_LAUNCH_REG_RECORD {
     PWSTR WorkDirectory; 
     PWSTR RunAs; 
     PWSTR Security; 
-    PVOID Reserved0[6]; 
+    PWSTR AuthPackage; 
+    PVOID Reserved0[5]; 
     ULONG JobControl; 
     ULONG Credentials; 
-    ULONG Reserved1[6]; 
+    ULONG AuthPackageId; 
+    ULONG Reserved1[5]; 
     UINT8 Buffer[]; 
 } FSP_LAUNCH_REG_RECORD;  
 ----

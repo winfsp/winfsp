@@ -1,5 +1,5 @@
 = winfsp/winfsp.h
-:author: (C) 2015-2018 Bill Zissimopoulos
+:author: (C) 2015-2020 Bill Zissimopoulos
 :toc: preamble
 :toc-title:
 
@@ -87,9 +87,13 @@ happen during Cleanup with the FspCleanupDelete flag set.
 This function gets called when Win32 API's such as DeleteFile or RemoveDirectory are used.
 It does not get called when a file or directory is opened with FILE$$_$$DELETE$$_$$ON$$_$$CLOSE.
 
+NOTE: If both CanDelete and SetDelete are defined, SetDelete takes precedence. However
+most file systems need only implement the CanDelete operation.
+
 *See Also*
 
 - Cleanup
+- SetDelete
 
 
 *Cleanup* - Cleanup a file.
@@ -161,6 +165,7 @@ the file was modified/deleted.
 
 - Close
 - CanDelete
+- SetDelete
 
 
 *Close* - Close a file.
@@ -262,6 +267,66 @@ from this call. This information includes file attributes, file times, etc.
 STATUS$$_$$SUCCESS or error code.
 
 
+*CreateEx* - Create new file or directory.
+
+[source,c]
+----
+NTSTATUS ( *CreateEx)(
+    FSP_FILE_SYSTEM *FileSystem, 
+    PWSTR FileName,
+    UINT32 CreateOptions,
+    UINT32 GrantedAccess, 
+    UINT32 FileAttributes,
+    PSECURITY_DESCRIPTOR SecurityDescriptor,
+    UINT64 AllocationSize, 
+    PVOID ExtraBuffer,
+    ULONG ExtraLength,
+    BOOLEAN ExtraBufferIsReparsePoint, 
+    PVOID *PFileContext,
+    FSP_FSCTL_FILE_INFO *FileInfo);  
+----
+
+*Parameters*
+
+- _FileSystem_ - The file system on which this request is posted.
+- _FileName_ - The name of the file or directory to be created.
+- _CreateOptions_ - Create options for this request. This parameter has the same meaning as the
+CreateOptions parameter of the NtCreateFile API. User mode file systems should typically
+only be concerned with the flag FILE$$_$$DIRECTORY$$_$$FILE, which is an instruction to create a
+directory rather than a file. Some file systems may also want to pay attention to the
+FILE$$_$$NO$$_$$INTERMEDIATE$$_$$BUFFERING and FILE$$_$$WRITE$$_$$THROUGH flags, although these are
+typically handled by the FSD component.
+- _GrantedAccess_ - Determines the specific access rights that have been granted for this request. Upon
+receiving this call all access checks have been performed and the user mode file system
+need not perform any additional checks. However this parameter may be useful to a user
+mode file system; for example the WinFsp-FUSE layer uses this parameter to determine
+which flags to use in its POSIX open() call.
+- _FileAttributes_ - File attributes to apply to the newly created file or directory.
+- _SecurityDescriptor_ - Security descriptor to apply to the newly created file or directory. This security
+descriptor will always be in self-relative format. Its length can be retrieved using the
+Windows GetSecurityDescriptorLength API. Will be NULL for named streams.
+- _AllocationSize_ - Allocation size for the newly created file.
+- _ExtraBuffer_ - Extended attributes or reparse point buffer.
+- _ExtraLength_ - Extended attributes or reparse point buffer length.
+- _ExtraBufferIsReparsePoint_ - FALSE: extra buffer is extended attributes; TRUE: extra buffer is reparse point.
+- _PFileContext_ - [out]
+Pointer that will receive the file context on successful return from this call.
+- _FileInfo_ - [out]
+Pointer to a structure that will receive the file information on successful return
+from this call. This information includes file attributes, file times, etc.
+
+*Return Value*
+
+STATUS$$_$$SUCCESS or error code.
+
+*Discussion*
+
+This function works like Create, except that it also accepts an extra buffer that
+may contain extended attributes or a reparse point.
+
+NOTE: If both Create and CreateEx are defined, CreateEx takes precedence.
+
+
 *DeleteReparsePoint* - Delete reparse point.
 
 [source,c]
@@ -340,6 +405,37 @@ attributes, file times, etc.
 *Return Value*
 
 STATUS$$_$$SUCCESS or error code.
+
+
+*GetEa* - Get extended attributes.
+
+[source,c]
+----
+NTSTATUS ( *GetEa)(
+    FSP_FILE_SYSTEM *FileSystem, 
+    PVOID FileContext, 
+    PFILE_FULL_EA_INFORMATION Ea,
+    ULONG EaLength,
+    PULONG PBytesTransferred);  
+----
+
+*Parameters*
+
+- _FileSystem_ - The file system on which this request is posted.
+- _FileContext_ - The file context of the file to get extended attributes for.
+- _Ea_ - Extended attributes buffer.
+- _EaLength_ - Extended attributes buffer length.
+- _PBytesTransferred_ - [out]
+Pointer to a memory location that will receive the actual number of bytes transferred.
+
+*Return Value*
+
+STATUS$$_$$SUCCESS or error code.
+
+*See Also*
+
+- SetEa
+- FspFileSystemAddEa
 
 
 *GetFileInfo* - Get file or directory information.
@@ -581,6 +677,46 @@ from this call. This information includes file attributes, file times, etc.
 STATUS$$_$$SUCCESS or error code.
 
 
+*OverwriteEx* - Overwrite a file.
+
+[source,c]
+----
+NTSTATUS ( *OverwriteEx)(
+    FSP_FILE_SYSTEM *FileSystem, 
+    PVOID FileContext,
+    UINT32 FileAttributes,
+    BOOLEAN ReplaceFileAttributes,
+    UINT64 AllocationSize, 
+    PFILE_FULL_EA_INFORMATION Ea,
+    ULONG EaLength, 
+    FSP_FSCTL_FILE_INFO *FileInfo);  
+----
+
+*Parameters*
+
+- _FileSystem_ - The file system on which this request is posted.
+- _FileContext_ - The file context of the file to overwrite.
+- _FileAttributes_ - File attributes to apply to the overwritten file.
+- _ReplaceFileAttributes_ - When TRUE the existing file attributes should be replaced with the new ones.
+When FALSE the existing file attributes should be merged (or'ed) with the new ones.
+- _AllocationSize_ - Allocation size for the overwritten file.
+- _Ea_ - Extended attributes buffer.
+- _EaLength_ - Extended attributes buffer length.
+- _FileInfo_ - [out]
+Pointer to a structure that will receive the file information on successful return
+from this call. This information includes file attributes, file times, etc.
+
+*Return Value*
+
+STATUS$$_$$SUCCESS or error code.
+
+*Discussion*
+
+This function works like Overwrite, except that it also accepts EA (extended attributes).
+
+NOTE: If both Overwrite and OverwriteEx are defined, OverwriteEx takes precedence.
+
+
 *Read* - Read a file.
 
 [source,c]
@@ -773,6 +909,82 @@ from this call. This information includes file attributes, file times, etc.
 *Return Value*
 
 STATUS$$_$$SUCCESS or error code.
+
+
+*SetDelete* - Set the file delete flag.
+
+[source,c]
+----
+NTSTATUS ( *SetDelete)(
+    FSP_FILE_SYSTEM *FileSystem, 
+    PVOID FileContext,
+    PWSTR FileName,
+    BOOLEAN DeleteFile);  
+----
+
+*Parameters*
+
+- _FileSystem_ - The file system on which this request is posted.
+- _FileContext_ - The file context of the file or directory to set the delete flag for.
+- _FileName_ - The name of the file or directory to set the delete flag for.
+- _DeleteFile_ - If set to TRUE the FSD indicates that the file will be deleted on Cleanup; otherwise
+it will not be deleted. It is legal to receive multiple SetDelete calls for the same
+file with different DeleteFile parameters.
+
+*Return Value*
+
+STATUS$$_$$SUCCESS or error code.
+
+*Discussion*
+
+This function sets a flag to indicates whether the FSD file should delete a file
+when it is closed. This function does not need to perform access checks, but may
+performs tasks such as check for empty directories, etc.
+
+This function should *NEVER* delete the file or directory in question. Deletion should
+happen during Cleanup with the FspCleanupDelete flag set.
+
+This function gets called when Win32 API's such as DeleteFile or RemoveDirectory are used.
+It does not get called when a file or directory is opened with FILE$$_$$DELETE$$_$$ON$$_$$CLOSE.
+
+NOTE: If both CanDelete and SetDelete are defined, SetDelete takes precedence. However
+most file systems need only implement the CanDelete operation.
+
+*See Also*
+
+- Cleanup
+- CanDelete
+
+
+*SetEa* - Set extended attributes.
+
+[source,c]
+----
+NTSTATUS ( *SetEa)(
+    FSP_FILE_SYSTEM *FileSystem, 
+    PVOID FileContext, 
+    PFILE_FULL_EA_INFORMATION Ea,
+    ULONG EaLength, 
+    FSP_FSCTL_FILE_INFO *FileInfo);  
+----
+
+*Parameters*
+
+- _FileSystem_ - The file system on which this request is posted.
+- _FileContext_ - The file context of the file to set extended attributes for.
+- _Ea_ - Extended attributes buffer.
+- _EaLength_ - Extended attributes buffer length.
+- _FileInfo_ - [out]
+Pointer to a structure that will receive the file information on successful return
+from this call. This information includes file attributes, file times, etc.
+
+*Return Value*
+
+STATUS$$_$$SUCCESS or error code.
+
+*See Also*
+
+- GetEa
 
 
 *SetFileSize* - Set file/allocation size.
@@ -1016,6 +1228,42 @@ This is a helper for implementing the ReadDirectory operation.
 - ReadDirectory
 
 
+*FspFileSystemAddEa* - Add extended attribute to a buffer.
+
+[source,c]
+----
+FSP_API BOOLEAN FspFileSystemAddEa(
+    PFILE_FULL_EA_INFORMATION SingleEa, 
+    PFILE_FULL_EA_INFORMATION Ea,
+    ULONG EaLength,
+    PULONG PBytesTransferred);  
+----
+
+*Parameters*
+
+- _SingleEa_ - The extended attribute to add. A value of NULL acts as an EOF marker for a GetEa
+operation.
+- _Ea_ - Pointer to a buffer that will receive the extended attribute. This should contain
+the same value passed to the GetEa Ea parameter.
+- _EaLength_ - Length of buffer. This should contain the same value passed to the GetEa
+EaLength parameter.
+- _PBytesTransferred_ - [out]
+Pointer to a memory location that will receive the actual number of bytes stored. This should
+contain the same value passed to the GetEa PBytesTransferred parameter.
+
+*Return Value*
+
+TRUE if the extended attribute was added, FALSE if there was not enough space to add it.
+
+*Discussion*
+
+This is a helper for implementing the GetEa operation.
+
+*See Also*
+
+- GetEa
+
+
 *FspFileSystemAddStreamInfo* - Add named stream information to a buffer.
 
 [source,c]
@@ -1124,6 +1372,40 @@ FSP_API VOID FspFileSystemDelete(
 - _FileSystem_ - The file system object.
 
 
+*FspFileSystemEnumerateEa* - Enumerate extended attributes in a buffer.
+
+[source,c]
+----
+FSP_API NTSTATUS FspFileSystemEnumerateEa(
+    FSP_FILE_SYSTEM *FileSystem, 
+    NTSTATUS (*EnumerateEa)( 
+        FSP_FILE_SYSTEM *FileSystem,
+        PVOID Context, 
+        PFILE_FULL_EA_INFORMATION SingleEa), 
+    PVOID Context, 
+    PFILE_FULL_EA_INFORMATION Ea,
+    ULONG EaLength);  
+----
+
+*Parameters*
+
+- _FileSystem_ - The file system object.
+- _EnumerateEa_ - Pointer to function that receives a single extended attribute. The function
+should return STATUS$$_$$SUCCESS or an error code if unsuccessful.
+- _Context_ - User context to supply to EnumEa.
+- _Ea_ - Extended attributes buffer.
+- _EaLength_ - Extended attributes buffer length.
+
+*Return Value*
+
+STATUS$$_$$SUCCESS or error code from EnumerateEa.
+
+*Discussion*
+
+This is a helper for implementing the CreateEx and SetEa operations in file systems
+that support extended attributes.
+
+
 *FspFileSystemFindReparsePoint* - Find reparse point in file name.
 
 [source,c]
@@ -1172,6 +1454,23 @@ that support reparse points.
 *See Also*
 
 - GetSecurityByName
+
+
+*FspFileSystemGetEaPackedSize* - Get extended attribute "packed" size. This computation matches what NTFS reports.
+
+[source,c]
+----
+static inline UINT32 FspFileSystemGetEaPackedSize(
+    PFILE_FULL_EA_INFORMATION SingleEa) 
+----
+
+*Parameters*
+
+- _SingleEa_ - The extended attribute to get the size for.
+
+*Return Value*
+
+The packed size of the extended attribute.
 
 
 *FspFileSystemGetOpenFileInfo* - Get open information buffer.
