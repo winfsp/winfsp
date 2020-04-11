@@ -234,6 +234,7 @@ static NTSTATUS FspFsvolReadNonCached(
     ULONG ReadLength = IrpSp->Parameters.Read.Length;
     ULONG ReadKey = IrpSp->Parameters.Read.Key;
     BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
+    FSP_FSCTL_FILE_INFO FileInfo;
     FSP_FSCTL_TRANSACT_REQ *Request;
     BOOLEAN Success;
 
@@ -294,6 +295,19 @@ static NTSTATUS FspFsvolReadNonCached(
             FspFileNodeRelease(FileNode, Full);
             return Result;
         }
+    }
+
+    /* trim ReadLength during CreateProcess; resolve bugcheck for filesystem that reports incorrect size */
+    if (FileNode->Tls.CreateSection)
+    {
+        FspFileNodeGetFileInfo(FileNode, &FileInfo);
+        if ((UINT64)ReadOffset.QuadPart >= FileInfo.FileSize)
+        {
+            FspFileNodeRelease(FileNode, Full);
+            return STATUS_END_OF_FILE;
+        }
+        if ((UINT64)ReadLength > FileInfo.FileSize - ReadOffset.QuadPart)
+            ReadLength = (ULONG)(FileInfo.FileSize - ReadOffset.QuadPart);
     }
 
     /* convert FileNode to shared */

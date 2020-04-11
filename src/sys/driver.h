@@ -1392,6 +1392,7 @@ typedef struct FSP_FILE_NODE
             PIRP TopLevelIrp;
             UINT32 TopFlags;
         } CcFlush;
+        BOOLEAN CreateSection;
     } Tls;
     /* read-only after creation (and insertion in the ContextTable) */
     PDEVICE_OBJECT FsvolDeviceObject;

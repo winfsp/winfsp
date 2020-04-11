@@ -78,6 +78,7 @@ VOID FspAcquireFileForNtCreateSection(
 {
     /* Callers:
      *     CcWriteBehind
+     *     MmCreateSection and friends
      */
 
     FSP_ENTER_VOID(PAGED_CODE());
@@ -85,6 +86,8 @@ VOID FspAcquireFileForNtCreateSection(
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
     FspFileNodeAcquireExclusive(FileNode, Full);
+    ASSERT(FALSE == FileNode->Tls.CreateSection);
+    FileNode->Tls.CreateSection = TRUE;
 
     FSP_LEAVE_VOID("FileObject=%p", FileObject);
 }
@@ -94,12 +97,14 @@ VOID FspReleaseFileForNtCreateSection(
 {
     /* Callers:
      *     CcWriteBehind
+     *     MmCreateSection and friends
      */
 
     FSP_ENTER_VOID(PAGED_CODE());
 
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
+    FileNode->Tls.CreateSection = FALSE;
     FspFileNodeRelease(FileNode, Full);
 
     FSP_LEAVE_VOID("FileObject=%p", FileObject);
