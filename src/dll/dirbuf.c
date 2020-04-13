@@ -335,6 +335,18 @@ FSP_API VOID FspFileSystemReleaseDirectoryBuffer(PVOID *PDirBuffer)
 
     FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = *PDirBuffer;
 
+    /* eliminate invalidated entries from the index */
+    PULONG Index = (PULONG)(DirBuffer->Buffer + DirBuffer->HiMark);
+    ULONG Count = (DirBuffer->Capacity - DirBuffer->HiMark) / sizeof(ULONG);
+    ULONG I, J;
+    for (I = Count - 1, J = Count; I < Count; I--)
+    {
+        if (FspFileSystemDirectoryBufferEntryInvalid == Index[I])
+            continue;
+        Index[--J] = Index[I];
+    }
+    DirBuffer->HiMark = (ULONG)((PUINT8)&Index[J] - DirBuffer->Buffer);
+
     FspFileSystemSortDirectoryBuffer(DirBuffer);
 
     ReleaseSRWLockExclusive(&DirBuffer->Lock);

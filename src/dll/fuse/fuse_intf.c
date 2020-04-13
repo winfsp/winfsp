@@ -1866,7 +1866,8 @@ static NTSTATUS fsp_fuse_intf_FixDirInfo(FSP_FILE_SYSTEM *FileSystem,
             Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, 0,
                 &Uid, &Gid, &Mode, &DirInfo->FileInfo);
             if (!NT_SUCCESS(Result))
-                goto exit;
+                /* mark the directory buffer entry as invalid */
+                *Index = FspFileSystemDirectoryBufferEntryInvalid;
 
             if (0 != PosixPathEnd)
                 *PosixPathEnd = SavedPathChar;

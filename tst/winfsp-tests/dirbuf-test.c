@@ -145,7 +145,7 @@ static void dirbuf_dots_test(void)
     FspFileSystemDeleteDirectoryBuffer(&DirBuffer);
 }
 
-static void dirbuf_fill_dotest(unsigned seed, ULONG Count)
+static void dirbuf_fill_dotest(unsigned seed, ULONG Count, ULONG InvalidCount)
 {
     PVOID DirBuffer = 0;
     NTSTATUS Result;
@@ -201,6 +201,51 @@ static void dirbuf_fill_dotest(unsigned seed, ULONG Count)
         ASSERT(Success);
         ASSERT(STATUS_SUCCESS == Result);
     }
+
+#if 1
+    {
+        ASSERT(Count > InvalidCount);
+
+#if !defined(FspFileSystemDirectoryBufferEntryInvalid)
+        const ULONG FspFileSystemDirectoryBufferEntryInvalid = ((ULONG)-1);
+#endif
+        typedef struct
+        {
+            SRWLOCK Lock;
+            ULONG Capacity, LoMark, HiMark;
+            PUINT8 Buffer;
+        } FSP_FILE_SYSTEM_DIRECTORY_BUFFER;
+        FSP_FILE_SYSTEM_DIRECTORY_BUFFER *PeekDirBuffer = DirBuffer;
+        PUINT8 PeekBuffer = PeekDirBuffer->Buffer;
+        PULONG PeekIndex = (PULONG)(PeekDirBuffer->Buffer + PeekDirBuffer->HiMark);
+        ULONG PeekCount = (PeekDirBuffer->Capacity - PeekDirBuffer->HiMark) / sizeof(ULONG);
+
+        ASSERT(Count == PeekCount);
+
+        for (ULONG I = 0; InvalidCount > I; I++)
+        {
+            for (;;)
+            {
+                N = rand() % PeekCount;
+                if (FspFileSystemDirectoryBufferEntryInvalid == PeekIndex[N])
+                    continue;
+
+                DirInfo = (PVOID)(PeekBuffer + PeekIndex[N]);
+                memcpy(CurrFileName, DirInfo->FileNameBuf, DirInfo->Size - sizeof *DirInfo);
+                CurrFileName[(DirInfo->Size - sizeof *DirInfo) / sizeof(WCHAR)] = L'\0';
+
+                /* do not invalidate dot entries as they are used in testing below */
+                if (0 == wcscmp(CurrFileName, L".") || 0 == wcscmp(CurrFileName, L".."))
+                    continue;
+
+                PeekIndex[N] = FspFileSystemDirectoryBufferEntryInvalid;
+                break;
+            }
+        }
+
+        Count -= InvalidCount;
+    }
+#endif
 
     FspFileSystemReleaseDirectoryBuffer(&DirBuffer);
 
@@ -303,19 +348,32 @@ static void dirbuf_fill_test(void)
 {
     unsigned seed = (unsigned)time(0);
 
-    dirbuf_fill_dotest(1485473509, 10);
+    dirbuf_fill_dotest(1485473509, 10, 0);
+    dirbuf_fill_dotest(1485473509, 10, 3);
 
     for (ULONG I = 0; 10000 > I; I++)
-        dirbuf_fill_dotest(seed + I, 10);
+    {
+        dirbuf_fill_dotest(seed + I, 10, 0);
+        dirbuf_fill_dotest(seed + I, 10, 3);
+    }
 
     for (ULONG I = 0; 1000 > I; I++)
-        dirbuf_fill_dotest(seed + I, 100);
+    {
+        dirbuf_fill_dotest(seed + I, 100, 0);
+        dirbuf_fill_dotest(seed + I, 100, 30);
+    }
 
     for (ULONG I = 0; 100 > I; I++)
-        dirbuf_fill_dotest(seed + I, 1000);
+    {
+        dirbuf_fill_dotest(seed + I, 1000, 0);
+        dirbuf_fill_dotest(seed + I, 1000, 300);
+    }
 
     for (ULONG I = 0; 10 > I; I++)
-        dirbuf_fill_dotest(seed + I, 10000);
+    {
+        dirbuf_fill_dotest(seed + I, 10000, 0);
+        dirbuf_fill_dotest(seed + I, 10000, 3000);
+    }
 }
 
 void dirbuf_tests(void)

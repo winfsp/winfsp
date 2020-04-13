@@ -66,6 +66,7 @@ PSID FspWksidGet(WELL_KNOWN_SID_TYPE WellKnownSidType);
 
 PWSTR FspDiagIdent(VOID);
 
+#define FspFileSystemDirectoryBufferEntryInvalid ((ULONG)-1)
 VOID FspFileSystemPeekInDirectoryBuffer(PVOID *PDirBuffer,
     PUINT8 *PBuffer, PULONG *PIndex, PULONG PCount);
 
