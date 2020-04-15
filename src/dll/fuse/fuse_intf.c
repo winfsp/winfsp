@@ -1738,9 +1738,9 @@ static VOID fsp_fuse_intf_LogBadDirInfo(
     const char *PosixPath, const char *PosixName, const char *Message)
 {
     static LONG Count = 0;
-    LONG NewCount;
+    ULONG NewCount;
 
-    NewCount = InterlockedIncrement(&Count);
+    NewCount = (ULONG)InterlockedIncrement(&Count);
 
     /* log only the first 5 such warnings to avoid warning overload */
     if (5 >= NewCount)
