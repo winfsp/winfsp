@@ -455,6 +455,8 @@ static VOID CALLBACK KillProcessWait(PVOID Context, BOOLEAN Timeout)
 typedef struct
 {
     LONG RefCount;
+    LIST_ENTRY ListEntry;
+    HANDLE ClientToken;
     PWSTR ClassName;
     PWSTR InstanceName;
     PWSTR CommandLine;
@@ -463,15 +465,23 @@ typedef struct
     HANDLE Process;
     HANDLE ProcessWait;
     HANDLE StdioHandles[2];
-    LIST_ENTRY ListEntry;
+    DWORD Recovery;
+    ULONG Argc;
+    PWSTR *Argv;
+    BOOLEAN HasSecret;
+    BOOLEAN Started, Stopped;
     WCHAR Buffer[];
 } SVC_INSTANCE;
 
+static HANDLE SvcJob;
 static CRITICAL_SECTION SvcInstanceLock;
 static HANDLE SvcInstanceEvent;
 static LIST_ENTRY SvcInstanceList = { &SvcInstanceList, &SvcInstanceList };
 
 static VOID CALLBACK SvcInstanceTerminated(PVOID Context, BOOLEAN Timeout);
+NTSTATUS SvcInstanceStart(HANDLE ClientToken,
+    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv, HANDLE Job,
+    BOOLEAN HasSecret);
 
 static SVC_INSTANCE *SvcInstanceLookup(PWSTR ClassName, PWSTR InstanceName)
 {
@@ -879,13 +889,14 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
 {
     SVC_INSTANCE *SvcInstance = 0;
     PWSTR ClientUserName = 0;
+    DWORD ClientTokenInformation = -1;
     HKEY RegKey = 0;
     DWORD RegResult, RegSize;
     DWORD ClassNameSize, InstanceNameSize;
     WCHAR Executable[MAX_PATH], CommandLineBuf[512], WorkDirectory[MAX_PATH],
         SecurityBuf[512], RunAsBuf[64];
     PWSTR CommandLine, Security;
-    DWORD JobControl, Credentials;
+    DWORD Credentials, JobControl, Recovery;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0, NewSecurityDescriptor;
     PWSTR Argv[10];
     PROCESS_INFORMATION ProcessInfo;
@@ -912,8 +923,9 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
-    if (0 != ClientToken)
-        GetTokenUserName(ClientToken, &ClientUserName);
+    Result = GetTokenUserName(ClientToken, &ClientUserName);
+    if (!NT_SUCCESS(Result))
+        goto exit;
 
     RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" FSP_LAUNCH_REGKEY,
         0, FSP_LAUNCH_REGKEY_WOW64 | KEY_READ, &RegKey);
@@ -1003,6 +1015,16 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
+    RegSize = sizeof Recovery;
+    Recovery = 0;
+    RegResult = RegGetValueW(RegKey, ClassName, L"Recovery", RRF_RT_REG_DWORD, 0,
+        &Recovery, &RegSize);
+    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
+    {
+        Result = FspNtStatusFromWin32(RegResult);
+        goto exit;
+    }
+
     RegCloseKey(RegKey);
     RegKey = 0;
 
@@ -1042,8 +1064,20 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
+    /* ClientToken: protect from CloseHandle; do not inherit */
+    if (!GetHandleInformation(ClientToken, &ClientTokenInformation) ||
+        !SetHandleInformation(ClientToken,
+            HANDLE_FLAG_PROTECT_FROM_CLOSE | HANDLE_FLAG_INHERIT,
+            HANDLE_FLAG_PROTECT_FROM_CLOSE | 0))
+    {
+        ClientTokenInformation = -1;
+        Result = FspNtStatusFromWin32(RegResult);
+        goto exit;
+    }
+
     memset(SvcInstance, 0, sizeof *SvcInstance);
     SvcInstance->RefCount = 2;
+    SvcInstance->ClientToken = ClientToken;
     memcpy(SvcInstance->Buffer, ClassName, ClassNameSize);
     memcpy(SvcInstance->Buffer + ClassNameSize / sizeof(WCHAR), InstanceName, InstanceNameSize);
     SvcInstance->ClassName = SvcInstance->Buffer;
@@ -1051,6 +1085,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     SvcInstance->SecurityDescriptor = SecurityDescriptor;
     SvcInstance->StdioHandles[0] = INVALID_HANDLE_VALUE;
     SvcInstance->StdioHandles[1] = INVALID_HANDLE_VALUE;
+    SvcInstance->Recovery = Recovery;
 
     Result = SvcInstanceReplaceArguments(CommandLine,
         Argc, Argv,
@@ -1105,6 +1140,11 @@ exit:
         if (0 != ProcessInfo.hThread)
             CloseHandle(ProcessInfo.hThread);
 
+        if (-1 != ClientTokenInformation)
+            SetHandleInformation(ClientToken,
+                HANDLE_FLAG_PROTECT_FROM_CLOSE | HANDLE_FLAG_INHERIT,
+                ClientTokenInformation);
+
         if (0 != SvcInstance)
         {
             if (INVALID_HANDLE_VALUE != SvcInstance->StdioHandles[0])
@@ -1149,6 +1189,19 @@ static VOID SvcInstanceRelease(SVC_INSTANCE *SvcInstance)
         SetEvent(SvcInstanceEvent);
     LeaveCriticalSection(&SvcInstanceLock);
 
+    SetHandleInformation(SvcInstance->ClientToken,
+        HANDLE_FLAG_PROTECT_FROM_CLOSE,
+        0);
+
+    if (1 == SvcInstance->Recovery && SvcInstance->Started && !SvcInstance->Stopped)
+        SvcInstanceStart(SvcInstance->ClientToken,
+            SvcInstance->ClassName, SvcInstance->InstanceName,
+            SvcInstance->Argc, SvcInstance->Argv,
+            SvcJob,
+            SvcInstance->HasSecret);
+
+    MemFree(SvcInstance->Argv);
+
     if (INVALID_HANDLE_VALUE != SvcInstance->StdioHandles[0])
         CloseHandle(SvcInstance->StdioHandles[0]);
     if (INVALID_HANDLE_VALUE != SvcInstance->StdioHandles[1])
@@ -1162,6 +1215,18 @@ static VOID SvcInstanceRelease(SVC_INSTANCE *SvcInstance)
     LocalFree(SvcInstance->SecurityDescriptor);
 
     MemFree(SvcInstance->CommandLine);
+
+    /*
+     * NOTE:
+     * New instances store the ClientToken and protect it from CloseHandle.
+     * This results in an unhandled exception when running under a debugger.
+     * Such exceptions can be ignored.
+     *
+     * See MSDN CloseHandle for details:
+     * https://docs.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle
+     */
+    CloseHandle(SvcInstance->ClientToken);
+
     MemFree(SvcInstance);
 }
 
@@ -1175,7 +1240,7 @@ static VOID CALLBACK SvcInstanceTerminated(PVOID Context, BOOLEAN Timeout)
     SvcInstanceRelease(SvcInstance);
 }
 
-NTSTATUS SvcInstanceStart(HANDLE ClientToken,
+static NTSTATUS SvcInstanceStartWithArgvCopy(HANDLE ClientToken,
     PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv, HANDLE Job,
     BOOLEAN HasSecret)
 {
@@ -1265,11 +1330,54 @@ exit:
         SvcInstance->StdioHandles[1] = INVALID_HANDLE_VALUE;
     }
 
+    if (NT_SUCCESS(Result))
+    {
+        SvcInstance->Argc = Argc;
+        SvcInstance->Argv = Argv;
+        SvcInstance->HasSecret = HasSecret;
+        SvcInstance->Started = TRUE;
+    }
+
     SvcInstanceRelease(SvcInstance);
 
     if (STATUS_TIMEOUT == Result)
         /* convert to an error! */
         Result = 0x80070000 | ERROR_TIMEOUT;
+
+    return Result;
+}
+
+NTSTATUS SvcInstanceStart(HANDLE ClientToken,
+    PWSTR ClassName, PWSTR InstanceName, ULONG Argc, PWSTR *Argv, HANDLE Job,
+    BOOLEAN HasSecret)
+{
+    DWORD ArgvSize;
+    PWSTR *ArgvCopy;
+    NTSTATUS Result;
+
+    ArgvSize = 0;
+    for (ULONG I = 0; Argc > I; I++)
+        ArgvSize += (lstrlenW(Argv[I]) + 1) * sizeof(WCHAR);
+
+    ArgvCopy = MemAlloc(Argc * sizeof(PWSTR) + ArgvSize);
+    if (0 == ArgvCopy)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    ArgvSize = 0;
+    for (ULONG I = 0; Argc > I; I++)
+    {
+        ULONG L = (lstrlenW(Argv[I]) + 1) * sizeof(WCHAR);
+        ArgvCopy[I] = (PWSTR)((PUINT8)ArgvCopy + Argc * sizeof(PWSTR) + ArgvSize);
+        memcpy(ArgvCopy[I], Argv[I], L);
+        ArgvSize += L;
+    }
+
+    Result = SvcInstanceStartWithArgvCopy(ClientToken,
+        ClassName, InstanceName, Argc, ArgvCopy, Job,
+        HasSecret);
+
+    if (!NT_SUCCESS(Result))
+        MemFree(ArgvCopy);
 
     return Result;
 }
@@ -1293,6 +1401,7 @@ NTSTATUS SvcInstanceStop(HANDLE ClientToken,
     if (!NT_SUCCESS(Result))
         goto exit;
 
+    SvcInstance->Stopped = TRUE;
     KillProcess(SvcInstance->ProcessId, SvcInstance->Process, LAUNCHER_KILL_TIMEOUT);
 
     Result = STATUS_SUCCESS;
@@ -1394,6 +1503,7 @@ NTSTATUS SvcInstanceStopAndWaitAll(VOID)
     {
         SvcInstance = CONTAINING_RECORD(ListEntry, SVC_INSTANCE, ListEntry);
 
+        SvcInstance->Stopped = TRUE;
         KillProcess(SvcInstance->ProcessId, SvcInstance->Process, LAUNCHER_KILL_TIMEOUT);
     }
 
@@ -1451,7 +1561,7 @@ NTSTATUS SvcDefineDosDevice(HANDLE ClientToken,
     return STATUS_SUCCESS;
 }
 
-static HANDLE SvcJob, SvcThread, SvcEvent;
+static HANDLE SvcThread, SvcEvent;
 static DWORD SvcThreadId;
 static HANDLE SvcPipe = INVALID_HANDLE_VALUE;
 static OVERLAPPED SvcOverlapped;
@@ -1698,6 +1808,15 @@ static DWORD WINAPI SvcPipeServer(PVOID Context)
 
         SvcPipeTransact(ClientToken, PipeBuf, &BytesTransferred);
 
+        /*
+         * NOTE:
+         * New instances store the ClientToken and protect it from CloseHandle.
+         * This results in an unhandled exception when running under a debugger.
+         * Such exceptions can be ignored.
+         *
+         * See MSDN CloseHandle for details:
+         * https://docs.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle
+         */
         CloseHandle(ClientToken);
 
         LastError = SvcPipeWaitResult(
