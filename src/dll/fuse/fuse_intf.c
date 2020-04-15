@@ -1734,6 +1734,21 @@ exit:
     return Result;
 }
 
+static VOID fsp_fuse_intf_LogBadDirInfo(
+    const char *PosixPath, const char *PosixName, const char *Message)
+{
+    static LONG Count = 0;
+    LONG NewCount;
+
+    NewCount = InterlockedIncrement(&Count);
+
+    /* log only the first 5 such warnings to avoid warning overload */
+    if (5 >= NewCount)
+        FspDebugLog("%S[TID=%04lx]: WARN: readdir(\"%s\"): name=\"%s\": %s\n",
+            FspDiagIdent(), GetCurrentThreadId(),
+            PosixPath, PosixName, Message);
+}
+
 /* !static: used by fuse2to3 */
 int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
     const struct fuse_stat *stbuf, fuse_off_t off)
@@ -1759,13 +1774,19 @@ int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
 
     SizeA = lstrlenA(name);
     if (SizeA > 255)
-        /* ignore bad filenames; should we return error code? */
+    {
+        fsp_fuse_intf_LogBadDirInfo(filedesc->PosixPath, name,
+            "too long");
         return 0;
+    }
 
     SizeW = MultiByteToWideChar(CP_UTF8, 0, name, SizeA, DirInfo->FileNameBuf, 255);
     if (0 == SizeW)
-        /* ignore bad filenames; should we return error code? */
+    {
+        fsp_fuse_intf_LogBadDirInfo(filedesc->PosixPath, name,
+            "MultiByteToWideChar failed");
         return 0;
+    }
 
     memset(DirInfo, 0, sizeof *DirInfo);
     DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + SizeW * sizeof(WCHAR));
@@ -1866,8 +1887,12 @@ static NTSTATUS fsp_fuse_intf_FixDirInfo(FSP_FILE_SYSTEM *FileSystem,
             Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, 0,
                 &Uid, &Gid, &Mode, &DirInfo->FileInfo);
             if (!NT_SUCCESS(Result))
+            {
                 /* mark the directory buffer entry as invalid */
                 *Index = FspFileSystemDirectoryBufferEntryInvalid;
+                fsp_fuse_intf_LogBadDirInfo(filedesc->PosixPath, PosixName,
+                    "getattr failed");
+            }
 
             if (0 != PosixPathEnd)
                 *PosixPathEnd = SavedPathChar;
