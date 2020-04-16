@@ -274,6 +274,7 @@ FSP_API NTSTATUS FspLaunchRegSetRecord(
         SETFIELDI(JobControl, ~0); /* JobControl default is 1; but we treat as without default */
         SETFIELDI(Credentials, 0);
         SETFIELDI(AuthPackageId, 0);
+        SETFIELDI(Recovery, 0);
     }
     else
     {
@@ -426,6 +427,7 @@ FSP_API NTSTATUS FspLaunchRegGetRecord(
     GETFIELDI(JobControl);
     GETFIELDI(Credentials);
     GETFIELDI(AuthPackageId);
+    GETFIELDI(Recovery);
 
     if (0 == Record->Executable)
     {
@@ -459,6 +461,7 @@ FSP_API NTSTATUS FspLaunchRegGetRecord(
     Record->JobControl = RecordBuf.JobControl;
     Record->Credentials = RecordBuf.Credentials;
     Record->AuthPackageId = RecordBuf.AuthPackageId;
+    Record->Recovery = RecordBuf.Recovery;
 
     *PRecord = Record;
     Result = STATUS_SUCCESS;

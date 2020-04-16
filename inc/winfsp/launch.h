@@ -291,7 +291,8 @@ typedef struct _FSP_LAUNCH_REG_RECORD
     ULONG JobControl;
     ULONG Credentials;
     ULONG AuthPackageId;
-    ULONG Reserved1[5];
+    ULONG Recovery;
+    ULONG Reserved1[4];
     UINT8 Buffer[];
 } FSP_LAUNCH_REG_RECORD;
 #pragma warning(pop)
