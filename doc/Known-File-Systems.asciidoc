@@ -4,9 +4,11 @@ This document contains a list of known file systems and file system libraries th
 
 == File Systems
 
+- https://github.com/wesley1975/blobfs-win[blobfs-win] - The native porting of the blobfs on the windows platform, blobfs can help you mount the Azure Blob storage as the local disk driver, no matter it is a Linux system or a Windows system.
 - https://github.com/vgough/encfs[EncFS] - an Encrypted Filesystem for FUSE
 - https://github.com/lowleveldesign/fsmemfs[fsmemfs] - Memory File System written in F#
 - https://github.com/ihaveamac/fuse-3ds[fuse-3ds] - FUSE Filesystem Python scripts for Nintendo 3DS files
+- https://github.com/sganis/golddrive[golddrive] - Windows ssh network drive
 - https://github.com/FrKaram/KS2.Drive[KS2.Drive] - Mount a webDAV/AOS server as a local drive
 - https://github.com/billziss-gh/nfs-win[nfs-win] - NFS for Windows
 - https://github.com/ncw/rclone[rclone] - rsync for cloud storage
@@ -14,6 +16,7 @@ This document contains a list of known file systems and file system libraries th
 - https://github.com/billziss-gh/redditfs[redditfs] - ls -l /r/programming
 - https://github.com/netheril96/securefs[securefs] - Filesystem in userspace (FUSE) with transparent authenticated encryption
 - https://github.com/billziss-gh/sshfs-win[sshfs-win] - SSHFS for Windows
+- https://github.com/emoose/xbox-winfsp[xbox-winfsp] - Adds native support to Windows for the FATX, STFS & GDFX (aka XGD/XDVDFS) Xbox filesystems.
 - https://github.com/UtrechtUniversity/YodaDrive[YodaDrive] - Mount a Yoda drive as a local drive
 
 == File System Libraries
@@ -22,4 +25,5 @@ This document contains a list of known file systems and file system libraries th
 - https://github.com/DuroSoft/fuse-bindings[Nodejs: fuse-bindings] - Fully maintained FUSE bindings for Node that aims to cover the entire FUSE api
 - https://github.com/SerCeMan/jnr-fuse[Java: jnr-fuse] - FUSE implementation in Java using Java Native Runtime (JNR)
 - https://github.com/billziss-gh/fusepy[Python: fusepy] - Simple ctypes bindings for FUSE
+- https://github.com/pleiszenburg/refuse[Python: refuse] - Simple cross-plattform ctypes bindings for libfuse / FUSE for macOS / WinFsp
 - https://github.com/Scille/winfspy[Python: winfspy] - WinFSP binding for Python
