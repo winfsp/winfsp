@@ -863,7 +863,7 @@ exit:
     {
         if (INVALID_HANDLE_VALUE != ParentHandles[0])
             CloseHandle(ParentHandles[0]);
-        if (INVALID_HANDLE_VALUE != ParentHandles[0])
+        if (INVALID_HANDLE_VALUE != ParentHandles[1])
             CloseHandle(ParentHandles[1]);
     }
     else if (0 != StdioHandles)
