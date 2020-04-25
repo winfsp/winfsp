@@ -283,6 +283,7 @@ copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(Platf
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
       <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
+      <AdditionalOptions>/PDBALTPATH:$(TargetFileName).pdb %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -313,6 +314,7 @@ copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(Platf
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
       <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
+      <AdditionalOptions>/PDBALTPATH:$(TargetFileName).pdb %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
