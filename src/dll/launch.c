@@ -271,6 +271,7 @@ FSP_API NTSTATUS FspLaunchRegSetRecord(
         SETFIELD(RunAs);
         SETFIELD(Security);
         SETFIELD(AuthPackage);
+        SETFIELD(Stderr);
         SETFIELDI(JobControl, ~0); /* JobControl default is 1; but we treat as without default */
         SETFIELDI(Credentials, 0);
         SETFIELDI(AuthPackageId, 0);
@@ -424,6 +425,7 @@ FSP_API NTSTATUS FspLaunchRegGetRecord(
     GETFIELD(RunAs);
     GETFIELD(Security);
     GETFIELD(AuthPackage);
+    GETFIELD(Stderr);
     GETFIELDI(JobControl);
     GETFIELDI(Credentials);
     GETFIELDI(AuthPackageId);
@@ -458,6 +460,8 @@ FSP_API NTSTATUS FspLaunchRegGetRecord(
         (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.Security - RegBuf)) : 0;
     Record->AuthPackage = 0 != RecordBuf.AuthPackage ?
         (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.AuthPackage - RegBuf)) : 0;
+    Record->Stderr = 0 != RecordBuf.Stderr ?
+        (PVOID)(Record->Buffer + ((PUINT8)RecordBuf.Stderr - RegBuf)) : 0;
     Record->JobControl = RecordBuf.JobControl;
     Record->Credentials = RecordBuf.Credentials;
     Record->AuthPackageId = RecordBuf.AuthPackageId;

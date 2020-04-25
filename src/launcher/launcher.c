@@ -464,7 +464,7 @@ typedef struct
     DWORD ProcessId;
     HANDLE Process;
     HANDLE ProcessWait;
-    HANDLE StdioHandles[2];
+    HANDLE StdioHandles[3];
     DWORD Recovery;
     ULONG Argc;
     PWSTR *Argv;
@@ -502,27 +502,28 @@ static SVC_INSTANCE *SvcInstanceLookup(PWSTR ClassName, PWSTR InstanceName)
     return 0;
 }
 
-static inline ULONG SvcInstanceArgumentLength(PWSTR Arg, PWSTR Pattern)
+static inline ULONG SvcInstanceArgumentLength(PWSTR Arg, PWSTR Pattern, BOOLEAN Quote)
 {
     PWSTR PathTransform(PWSTR Dest, PWSTR Arg, PWSTR Pattern);
 
-    return 2 + (ULONG)(UINT_PTR)PathTransform(0, Arg, Pattern);
+    return (Quote ? 2 : 0) + (ULONG)((UINT_PTR)PathTransform(0, Arg, Pattern) / sizeof(WCHAR));
 }
 
-static inline PWSTR SvcInstanceArgumentCopy(PWSTR Dest, PWSTR Arg, PWSTR Pattern)
+static inline PWSTR SvcInstanceArgumentCopy(PWSTR Dest, PWSTR Arg, PWSTR Pattern, BOOLEAN Quote)
 {
     PWSTR PathTransform(PWSTR Dest, PWSTR Arg, PWSTR Pattern);
 
-    *Dest++ = L'"';
+    if (Quote)
+        *Dest++ = L'"';
     Dest = PathTransform(Dest, Arg, Pattern);
-    *Dest++ = L'"';
+    if (Quote)
+        *Dest++ = L'"';
 
     return Dest;
 }
 
 static NTSTATUS SvcInstanceReplaceArguments(PWSTR String,
-    ULONG Argc, PWSTR *Argv,
-    PWSTR UserName,
+    ULONG Argc, PWSTR *Argv, PWSTR *Varv, BOOLEAN Quote,
     PWSTR *PNewString)
 {
     PWSTR NewString = 0, P, Q;
@@ -544,24 +545,24 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String,
             {
                 Pattern = ++P;
                 while (!(L'\0' == *P ||
-                    (L'0' <= *P && *P <= '9') ||
-                    (L'A' <= *P && *P <= 'Z')))
+                    (L'0' <= *P && *P <= L'9') ||
+                    (L'A' <= *P && *P <= L'Z')))
                     P++;
             }
-            if (L'0' <= *P && *P <= '9')
+            if (L'0' <= *P && *P <= L'9')
             {
                 if (Argc > (ULONG)(*P - L'0'))
-                    Length += SvcInstanceArgumentLength(Argv[*P - L'0'], Pattern);
+                    Length += SvcInstanceArgumentLength(Argv[*P - L'0'], Pattern, Quote);
                 else
-                    Length += SvcInstanceArgumentLength(EmptyArg, 0);
+                    Length += SvcInstanceArgumentLength(EmptyArg, 0, Quote);
             }
             else
-            if (L'U' == *P)
+            if (L'A' <= *P && *P <= L'Z')
             {
-                if (0 != UserName)
-                    Length += SvcInstanceArgumentLength(UserName, Pattern);
+                if (0 != Varv[*P - L'A'])
+                    Length += SvcInstanceArgumentLength(Varv[*P - L'A'], Pattern, Quote);
                 else
-                    Length += SvcInstanceArgumentLength(EmptyArg, 0);
+                    Length += SvcInstanceArgumentLength(EmptyArg, 0, Quote);
             }
             else
             if (*P)
@@ -590,24 +591,24 @@ static NTSTATUS SvcInstanceReplaceArguments(PWSTR String,
             {
                 Pattern = ++P;
                 while (!(L'\0' == *P ||
-                    (L'0' <= *P && *P <= '9') ||
-                    (L'A' <= *P && *P <= 'Z')))
+                    (L'0' <= *P && *P <= L'9') ||
+                    (L'A' <= *P && *P <= L'Z')))
                     P++;
             }
-            if (L'0' <= *P && *P <= '9')
+            if (L'0' <= *P && *P <= L'9')
             {
                 if (Argc > (ULONG)(*P - L'0'))
-                    Q = SvcInstanceArgumentCopy(Q, Argv[*P - L'0'], Pattern);
+                    Q = SvcInstanceArgumentCopy(Q, Argv[*P - L'0'], Pattern, Quote);
                 else
-                    Q = SvcInstanceArgumentCopy(Q, EmptyArg, 0);
+                    Q = SvcInstanceArgumentCopy(Q, EmptyArg, 0, Quote);
             }
             else
-            if (L'U' == *P)
+            if (L'A' <= *P && *P <= L'Z')
             {
-                if (0 != UserName)
-                    Q = SvcInstanceArgumentCopy(Q, UserName, Pattern);
+                if (0 != Varv[*P - L'A'])
+                    Q = SvcInstanceArgumentCopy(Q, Varv[*P - L'A'], Pattern, Quote);
                 else
-                    Q = SvcInstanceArgumentCopy(Q, EmptyArg, 0);
+                    Q = SvcInstanceArgumentCopy(Q, EmptyArg, 0, Quote);
             }
             else
             if (*P)
@@ -718,14 +719,15 @@ static NTSTATUS SvcInstanceAccessCheck(HANDLE ClientToken, ULONG DesiredAccess,
 
 static NTSTATUS SvcInstanceCreateProcess(PWSTR UserName, HANDLE ClientToken,
     PWSTR Executable, PWSTR CommandLine, PWSTR WorkDirectory,
-    HANDLE StdioHandles[2],
+    HANDLE StdioHandles[2], HANDLE StderrHandle,
     PPROCESS_INFORMATION ProcessInfo)
 {
     WCHAR WorkDirectoryBuf[MAX_PATH];
     STARTUPINFOEXW StartupInfoEx;
-    HANDLE ChildHandles[3] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE, 0/* DO NOT CLOSE!*/ };
+    HANDLE ChildHandles[3] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE/* NO CLOSE!*/ };
     HANDLE ParentHandles[2] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE };
     PPROC_THREAD_ATTRIBUTE_LIST AttrList = 0;
+    BOOLEAN InitDoneAttrList = FALSE;
     SIZE_T Size;
     NTSTATUS Result;
 
@@ -748,7 +750,7 @@ static NTSTATUS SvcInstanceCreateProcess(PWSTR UserName, HANDLE ClientToken,
     memset(&StartupInfoEx, 0, sizeof StartupInfoEx);
     StartupInfoEx.StartupInfo.cb = sizeof StartupInfoEx.StartupInfo;
 
-    if (0 != StdioHandles)
+    if (0 != StdioHandles || INVALID_HANDLE_VALUE != StderrHandle)
     {
         /*
          * Create child process and redirect stdin/stdout. Do *not* inherit other handles.
@@ -757,23 +759,30 @@ static NTSTATUS SvcInstanceCreateProcess(PWSTR UserName, HANDLE ClientToken,
          *     https://blogs.msdn.microsoft.com/oldnewthing/20111216-00/?p=8873/
          */
 
-        /* create stdin read/write ends; make them inheritable */
-        if (!CreateOverlappedPipe(&ChildHandles[0], &ParentHandles[0],
-            0, TRUE, FALSE, 0, 0))
+        if (0 != StdioHandles)
         {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
+            /* create stdin read/write ends; make them inheritable */
+            if (!CreateOverlappedPipe(&ChildHandles[0], &ParentHandles[0],
+                0, TRUE, FALSE, 0, 0))
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
         }
 
-        /* create stdout read/write ends; make them inheritable */
-        if (!CreateOverlappedPipe(&ParentHandles[1], &ChildHandles[1],
-            0, FALSE, TRUE, FILE_FLAG_OVERLAPPED, 0))
+        if (0 != StdioHandles)
         {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
+            /* create stdout read/write ends; make them inheritable */
+            if (!CreateOverlappedPipe(&ParentHandles[1], &ChildHandles[1],
+                0, FALSE, TRUE, FILE_FLAG_OVERLAPPED, 0))
+            {
+                Result = FspNtStatusFromWin32(GetLastError());
+                goto exit;
+            }
         }
 
-        ChildHandles[2] = GetStdHandle(STD_ERROR_HANDLE);
+        if (INVALID_HANDLE_VALUE != StderrHandle)
+            ChildHandles[2] = StderrHandle;
 
         Size = 0;
         if (!InitializeProcThreadAttributeList(0, 1, 0, &Size) &&
@@ -795,10 +804,14 @@ static NTSTATUS SvcInstanceCreateProcess(PWSTR UserName, HANDLE ClientToken,
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
         }
+        InitDoneAttrList = TRUE;
 
-        /* only the child ends of stdin/stdout are actually inherited */
+        /* only the child ends of stdin/stdout/stderr are actually inherited */
         if (!UpdateProcThreadAttribute(AttrList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-            ChildHandles, sizeof ChildHandles, 0, 0))
+            0 != StdioHandles ? ChildHandles : ChildHandles + 2,
+            ((0 != StdioHandles ? 2 : 0) + (INVALID_HANDLE_VALUE != StderrHandle ? 1 : 0)) *
+                sizeof ChildHandles[0],
+            0, 0))
         {
             Result = FspNtStatusFromWin32(GetLastError());
             goto exit;
@@ -877,6 +890,8 @@ exit:
     if (INVALID_HANDLE_VALUE != ChildHandles[1])
         CloseHandle(ChildHandles[1]);
 
+    if (InitDoneAttrList)
+        DeleteProcThreadAttributeList(AttrList);
     MemFree(AttrList);
 
     return Result;
@@ -888,13 +903,16 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     SVC_INSTANCE **PSvcInstance)
 {
     SVC_INSTANCE *SvcInstance = 0;
-    PWSTR ClientUserName = 0;
+    PWSTR Argv[10];
+    PWSTR Varv[26];
+    SYSTEMTIME SystemTime;
+    PWSTR ClientUserName = 0, StderrFileName = 0;
     DWORD ClientTokenInformation = -1;
+    SECURITY_ATTRIBUTES StderrSecurityAttributes = { sizeof(SECURITY_ATTRIBUTES), 0, TRUE };
     FSP_LAUNCH_REG_RECORD *Record = 0;
-    WCHAR CommandLine[512], Security[512];
+    WCHAR CurrentTime[32], CommandLine[512], Security[512];
     DWORD Length, ClassNameSize, InstanceNameSize;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0, NewSecurityDescriptor;
-    PWSTR Argv[10];
     PROCESS_INFORMATION ProcessInfo;
     NTSTATUS Result;
 
@@ -906,6 +924,8 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     Argv[0] = 0;
     Argc++;
 
+    memset(Varv, 0, sizeof Varv);
+
     memset(&ProcessInfo, 0, sizeof ProcessInfo);
 
     EnterCriticalSection(&SvcInstanceLock);
@@ -916,9 +936,17 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
+    GetSystemTime(&SystemTime);
+    wsprintfW(CurrentTime, L"%04hu%02hu%02huT%02hu%02hu%02hu.%03huZ",
+        SystemTime.wYear, SystemTime.wMonth, SystemTime.wDay,
+        SystemTime.wHour, SystemTime.wMinute, SystemTime.wSecond,
+        SystemTime.wMilliseconds);
+    Varv[L'T' - L'A'] = CurrentTime;
+
     Result = GetTokenUserName(ClientToken, &ClientUserName);
     if (!NT_SUCCESS(Result))
         goto exit;
+    Varv[L'U' - L'A'] = ClientUserName;
 
     Result = FspLaunchRegGetRecord(ClassName, 0, &Record);
     if (!NT_SUCCESS(Result))
@@ -1007,14 +1035,35 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     SvcInstance->SecurityDescriptor = SecurityDescriptor;
     SvcInstance->StdioHandles[0] = INVALID_HANDLE_VALUE;
     SvcInstance->StdioHandles[1] = INVALID_HANDLE_VALUE;
+    SvcInstance->StdioHandles[2] = INVALID_HANDLE_VALUE;
     SvcInstance->Recovery = Record->Recovery;
 
-    Result = SvcInstanceReplaceArguments(CommandLine,
-        Argc, Argv,
-        ClientUserName,
+    Result = SvcInstanceReplaceArguments(CommandLine, Argc, Argv, Varv, TRUE,
         &SvcInstance->CommandLine);
     if (!NT_SUCCESS(Result))
         goto exit;
+
+    if (0 != Record->Stderr)
+    {
+        Result = SvcInstanceReplaceArguments(Record->Stderr, Argc, Argv, Varv, FALSE,
+            &StderrFileName);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        SvcInstance->StdioHandles[2] = CreateFileW(
+            StderrFileName,
+            FILE_APPEND_DATA,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            &StderrSecurityAttributes,
+            OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            0);
+        if (INVALID_HANDLE_VALUE == SvcInstance->StdioHandles[2])
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+    }
 
     Result = SvcInstanceCreateProcess(
         Record->RunAs,
@@ -1023,6 +1072,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         SvcInstance->CommandLine,
         Record->WorkDirectory,
         RedirectStdio ? SvcInstance->StdioHandles : 0,
+        SvcInstance->StdioHandles[2],
         &ProcessInfo);
     if (!NT_SUCCESS(Result))
         goto exit;
@@ -1078,6 +1128,8 @@ exit:
                 CloseHandle(SvcInstance->StdioHandles[0]);
             if (INVALID_HANDLE_VALUE != SvcInstance->StdioHandles[1])
                 CloseHandle(SvcInstance->StdioHandles[1]);
+            if (INVALID_HANDLE_VALUE != SvcInstance->StdioHandles[2])
+                CloseHandle(SvcInstance->StdioHandles[2]);
 
             if (0 != SvcInstance->ProcessWait)
                 UnregisterWaitEx(SvcInstance->ProcessWait, 0);
@@ -1096,6 +1148,7 @@ exit:
     if (0 != Record)
         FspLaunchRegFreeRecord(Record);
 
+    MemFree(StderrFileName);
     MemFree(ClientUserName);
 
     LeaveCriticalSection(&SvcInstanceLock);
@@ -1133,6 +1186,8 @@ static VOID SvcInstanceRelease(SVC_INSTANCE *SvcInstance)
         CloseHandle(SvcInstance->StdioHandles[0]);
     if (INVALID_HANDLE_VALUE != SvcInstance->StdioHandles[1])
         CloseHandle(SvcInstance->StdioHandles[1]);
+    if (INVALID_HANDLE_VALUE != SvcInstance->StdioHandles[2])
+        CloseHandle(SvcInstance->StdioHandles[2]);
 
     if (0 != SvcInstance->ProcessWait)
         UnregisterWaitEx(SvcInstance->ProcessWait, 0);
@@ -1255,6 +1310,11 @@ exit:
     {
         CloseHandle(SvcInstance->StdioHandles[1]);
         SvcInstance->StdioHandles[1] = INVALID_HANDLE_VALUE;
+    }
+    if (INVALID_HANDLE_VALUE != SvcInstance->StdioHandles[2])
+    {
+        CloseHandle(SvcInstance->StdioHandles[2]);
+        SvcInstance->StdioHandles[2] = INVALID_HANDLE_VALUE;
     }
 
     if (NT_SUCCESS(Result))

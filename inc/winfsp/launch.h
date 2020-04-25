@@ -287,7 +287,8 @@ typedef struct _FSP_LAUNCH_REG_RECORD
     PWSTR RunAs;
     PWSTR Security;
     PWSTR AuthPackage;
-    PVOID Reserved0[5];
+    PWSTR Stderr;
+    PVOID Reserved0[4];
     ULONG JobControl;
     ULONG Credentials;
     ULONG AuthPackageId;
