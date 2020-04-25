@@ -1065,10 +1065,8 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
             FILE_ATTRIBUTE_NORMAL,
             0);
         if (INVALID_HANDLE_VALUE == SvcInstance->StdioHandles[2])
-        {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
-        }
+            FspServiceLog(EVENTLOG_WARNING_TYPE,
+                L"Ignorning error: cannot create stderr file = %ld", GetLastError());
     }
 
     Result = SvcInstanceCreateProcess(
