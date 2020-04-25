@@ -890,22 +890,15 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     SVC_INSTANCE *SvcInstance = 0;
     PWSTR ClientUserName = 0;
     DWORD ClientTokenInformation = -1;
-    HKEY RegKey = 0;
-    DWORD RegResult, RegSize;
-    DWORD ClassNameSize, InstanceNameSize;
-    WCHAR Executable[MAX_PATH], CommandLineBuf[512], WorkDirectory[MAX_PATH],
-        SecurityBuf[512], RunAsBuf[64];
-    PWSTR CommandLine, Security;
-    DWORD Credentials, JobControl, Recovery;
+    FSP_LAUNCH_REG_RECORD *Record = 0;
+    WCHAR CommandLine[512], Security[512];
+    DWORD Length, ClassNameSize, InstanceNameSize;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0, NewSecurityDescriptor;
     PWSTR Argv[10];
     PROCESS_INFORMATION ProcessInfo;
     NTSTATUS Result;
 
     *PSvcInstance = 0;
-
-    lstrcpyW(CommandLineBuf, L"%0 ");
-    lstrcpyW(SecurityBuf, L"O:SYG:SY");
 
     if (Argc > sizeof Argv / sizeof Argv[0] - 1)
         Argc = sizeof Argv / sizeof Argv[0] - 1;
@@ -927,111 +920,44 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"" FSP_LAUNCH_REGKEY,
-        0, FSP_LAUNCH_REGKEY_WOW64 | KEY_READ, &RegKey);
-    if (ERROR_SUCCESS != RegResult)
-    {
-        Result = FspNtStatusFromWin32(RegResult);
+    Result = FspLaunchRegGetRecord(ClassName, 0, &Record);
+    if (!NT_SUCCESS(Result))
         goto exit;
-    }
 
-    RegSize = sizeof Credentials;
-    Credentials = 0;
-    RegResult = RegGetValueW(RegKey, ClassName, L"Credentials", RRF_RT_REG_DWORD, 0,
-        &Credentials, &RegSize);
-    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
-    {
-        Result = FspNtStatusFromWin32(RegResult);
-        goto exit;
-    }
-    if ((!RedirectStdio && 0 != Credentials) ||
-        ( RedirectStdio && 0 == Credentials))
+    if ((!RedirectStdio && 0 != Record->Credentials) ||
+        ( RedirectStdio && 0 == Record->Credentials))
     {
         Result = STATUS_DEVICE_CONFIGURATION_ERROR;
         goto exit;
     }
 
-    RegSize = sizeof Executable;
-    Executable[0] = L'\0';
-    RegResult = RegGetValueW(RegKey, ClassName, L"Executable", RRF_RT_REG_SZ, 0,
-        Executable, &RegSize);
-    if (ERROR_SUCCESS != RegResult)
-    {
-        Result = FspNtStatusFromWin32(RegResult);
-        goto exit;
-    }
-    Argv[0] = Executable;
+    Argv[0] = Record->Executable;
 
-    CommandLine = CommandLineBuf + lstrlenW(CommandLineBuf);
-    RegSize = (DWORD)(sizeof CommandLineBuf - (CommandLine - CommandLineBuf) * sizeof(WCHAR));
-    RegResult = RegGetValueW(RegKey, ClassName, L"CommandLine", RRF_RT_REG_SZ, 0,
-        CommandLine, &RegSize);
-    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
+    lstrcpyW(CommandLine, L"%0 ");
+    if (0 != Record->CommandLine)
     {
-        Result = FspNtStatusFromWin32(RegResult);
-        goto exit;
-    }
-    if (ERROR_FILE_NOT_FOUND == RegResult)
-        CommandLine[-1] = L'\0';
-    CommandLine = CommandLineBuf;
-
-    RegSize = sizeof WorkDirectory;
-    WorkDirectory[0] = L'\0';
-    RegResult = RegGetValueW(RegKey, ClassName, L"WorkDirectory", RRF_RT_REG_SZ, 0,
-        WorkDirectory, &RegSize);
-    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
-    {
-        Result = FspNtStatusFromWin32(RegResult);
-        goto exit;
+        Length = lstrlenW(CommandLine);
+        lstrcpynW(CommandLine + Length, Record->CommandLine,
+            sizeof CommandLine / sizeof(WCHAR) - Length);
+        CommandLine[sizeof CommandLine / sizeof(WCHAR) - 1] = L'\0';
     }
 
-    Security = SecurityBuf + lstrlenW(SecurityBuf);
-    RegSize = (DWORD)(sizeof SecurityBuf - (Security - SecurityBuf) * sizeof(WCHAR));
-    RegResult = RegGetValueW(RegKey, ClassName, L"Security", RRF_RT_REG_SZ, 0,
-        Security, &RegSize);
-    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
+    lstrcpyW(Security, L"O:SYG:SY");
+    if (0 != Record->Security)
     {
-        Result = FspNtStatusFromWin32(RegResult);
-        goto exit;
+        if (L'D' == Record->Security[0] && L':' == Record->Security[1])
+            Length = lstrlenW(Security);
+        else
+            Length = 0;
+        lstrcpynW(Security + Length, Record->Security,
+            sizeof Security / sizeof(WCHAR) - Length);
+        Security[sizeof Security / sizeof(WCHAR) - 1] = L'\0';
     }
-
-    RegSize = sizeof RunAsBuf;
-    RunAsBuf[0] = L'\0';
-    RegResult = RegGetValueW(RegKey, ClassName, L"RunAs", RRF_RT_REG_SZ, 0,
-        RunAsBuf, &RegSize);
-    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
+    else
     {
-        Result = FspNtStatusFromWin32(RegResult);
-        goto exit;
+        Length = lstrlenW(Security);
+        lstrcpyW(Security + Length, L"" FSP_LAUNCH_SERVICE_DEFAULT_SDDL);
     }
-
-    RegSize = sizeof JobControl;
-    JobControl = 1; /* default is YES! */
-    RegResult = RegGetValueW(RegKey, ClassName, L"JobControl", RRF_RT_REG_DWORD, 0,
-        &JobControl, &RegSize);
-    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
-    {
-        Result = FspNtStatusFromWin32(RegResult);
-        goto exit;
-    }
-
-    RegSize = sizeof Recovery;
-    Recovery = 0;
-    RegResult = RegGetValueW(RegKey, ClassName, L"Recovery", RRF_RT_REG_DWORD, 0,
-        &Recovery, &RegSize);
-    if (ERROR_SUCCESS != RegResult && ERROR_FILE_NOT_FOUND != RegResult)
-    {
-        Result = FspNtStatusFromWin32(RegResult);
-        goto exit;
-    }
-
-    RegCloseKey(RegKey);
-    RegKey = 0;
-
-    if (L'\0' == Security[0])
-        lstrcpyW(Security, L"" FSP_LAUNCH_SERVICE_DEFAULT_SDDL);
-    if (L'D' == Security[0] && L':' == Security[1])
-        Security = SecurityBuf;
 
     if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(Security, SDDL_REVISION_1,
         &SecurityDescriptor, 0))
@@ -1039,8 +965,6 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
     }
-
-    //FspDebugLogSD(__FUNCTION__ ": SDDL = %s\n", SecurityDescriptor);
 
     Result = SvcInstanceAccessCheck(ClientToken, SERVICE_START, SecurityDescriptor);
     if (!NT_SUCCESS(Result))
@@ -1051,8 +975,6 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     LocalFree(SecurityDescriptor);
     SecurityDescriptor = NewSecurityDescriptor;
-
-    //FspDebugLogSD(__FUNCTION__ ": SDDL = %s\n", SecurityDescriptor);
 
     ClassNameSize = (lstrlenW(ClassName) + 1) * sizeof(WCHAR);
     InstanceNameSize = (lstrlenW(InstanceName) + 1) * sizeof(WCHAR);
@@ -1071,7 +993,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
             HANDLE_FLAG_PROTECT_FROM_CLOSE | 0))
     {
         ClientTokenInformation = -1;
-        Result = FspNtStatusFromWin32(RegResult);
+        Result = FspNtStatusFromWin32(GetLastError());
         goto exit;
     }
 
@@ -1085,7 +1007,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     SvcInstance->SecurityDescriptor = SecurityDescriptor;
     SvcInstance->StdioHandles[0] = INVALID_HANDLE_VALUE;
     SvcInstance->StdioHandles[1] = INVALID_HANDLE_VALUE;
-    SvcInstance->Recovery = Recovery;
+    SvcInstance->Recovery = Record->Recovery;
 
     Result = SvcInstanceReplaceArguments(CommandLine,
         Argc, Argv,
@@ -1094,9 +1016,14 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Result = SvcInstanceCreateProcess(L'\0' != RunAsBuf[0] ? RunAsBuf : 0, ClientToken,
-        Executable, SvcInstance->CommandLine, L'\0' != WorkDirectory[0] ? WorkDirectory : 0,
-        RedirectStdio ? SvcInstance->StdioHandles : 0, &ProcessInfo);
+    Result = SvcInstanceCreateProcess(
+        Record->RunAs,
+        ClientToken,
+        Record->Executable,
+        SvcInstance->CommandLine,
+        Record->WorkDirectory,
+        RedirectStdio ? SvcInstance->StdioHandles : 0,
+        &ProcessInfo);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -1110,7 +1037,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
         goto exit;
     }
 
-    if (0 != Job && JobControl)
+    if (0 != Job && Record->JobControl)
     {
         if (!AssignProcessToJobObject(Job, SvcInstance->Process))
             FspServiceLog(EVENTLOG_WARNING_TYPE,
@@ -1166,8 +1093,8 @@ exit:
         }
     }
 
-    if (0 != RegKey)
-        RegCloseKey(RegKey);
+    if (0 != Record)
+        FspLaunchRegFreeRecord(Record);
 
     MemFree(ClientUserName);
 
