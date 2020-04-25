@@ -910,7 +910,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     DWORD ClientTokenInformation = -1;
     SECURITY_ATTRIBUTES StderrSecurityAttributes = { sizeof(SECURITY_ATTRIBUTES), 0, TRUE };
     FSP_LAUNCH_REG_RECORD *Record = 0;
-    WCHAR CurrentTime[32], CommandLine[512], Security[512];
+    WCHAR CurrentTime[32], UserProfileDir[MAX_PATH], CommandLine[512], Security[512];
     DWORD Length, ClassNameSize, InstanceNameSize;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0, NewSecurityDescriptor;
     PROCESS_INFORMATION ProcessInfo;
@@ -947,6 +947,12 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     if (!NT_SUCCESS(Result))
         goto exit;
     Varv[L'U' - L'A'] = ClientUserName;
+
+    Length = MAX_PATH;
+    if (!GetUserProfileDirectoryW(ClientToken, UserProfileDir, &Length))
+        /* store an invalid filename; any attempt to use it will fail */
+        lstrcpyW(UserProfileDir, L":INVALID:");
+    Varv[L'P' - L'A'] = UserProfileDir;
 
     Result = FspLaunchRegGetRecord(ClassName, 0, &Record);
     if (!NT_SUCCESS(Result))
