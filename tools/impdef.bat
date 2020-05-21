@@ -19,7 +19,7 @@ set cdef=/D_AMD64_
 if /i X%outarch%==Xx86 set arch=x86
 if /i X%outarch%==Xx86 set cdef=/D_X86_
 
-call "%VS140COMNTOOLS%\..\..\VC\vcvarsall.bat" !arch!
+call "%~dp0vcvarsall.bat" !arch!
 set INCLUDE=%~dp0..\opt\fsext\inc;%~dp0..\inc;!WindowsSdkDir!Include\!WindowsSDKVersion!km\crt;!WindowsSdkDir!Include\!WindowsSDKVersion!km;!WindowsSdkDir!Include\!WindowsSDKVersion!km\shared;!INCLUDE!
 
 if exist !workdir! rmdir /s/q !workdir!

@@ -10,7 +10,7 @@ if not X%4==X set ProjDir=%~4
 
 if X!ProjDir!==X (echo usage: build-sample Config Arch Sample ProjDir >&2 & goto fail)
 
-call "%VS140COMNTOOLS%\..\..\VC\vcvarsall.bat" x64
+call "%~dp0vcvarsall.bat" x64
 
 if X!FSP_SAMPLE_DIR!==X (
 	set RegKey="HKLM\SOFTWARE\WinFsp"

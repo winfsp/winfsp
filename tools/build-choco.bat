@@ -19,7 +19,7 @@ if X%~nx0==Xbuild-choco.bat (
     goto :choco
 )
 
-call "%VS140COMNTOOLS%\..\..\VC\vcvarsall.bat" x64
+call "%~dp0vcvarsall.bat" x64
 
 if not X%SignedPackage%==X (
     if not exist "%~dp0..\build\VStudio\build\%Configuration%\winfsp-*.msi" (echo previous build not found >&2 & exit /b 1)
