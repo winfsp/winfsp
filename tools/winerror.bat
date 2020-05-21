@@ -11,4 +11,9 @@ for /f "tokens=2,*" %%i in ('reg query %RegKey% /v %RegVal% ^| findstr %RegVal%'
     set KitRoot=%%j
 )
 
-findstr /R /I "\<0*[Xx]*%1[Ll]*\>" "%KitRoot%Include\10.0.10586.0\shared\%~n0.h"
+set KitVer=10.0.10586.0
+for /f "tokens=*" %%i in ('dir /ad/b "%KitRoot%Include\10.*"') do (
+    set KitVer=%%i
+)
+
+findstr /R /I "\<0*[Xx]*%1[Ll]*\>" "%KitRoot%Include\%KitVer%\shared\%~n0.h"
