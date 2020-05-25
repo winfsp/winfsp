@@ -1959,6 +1959,9 @@ void query_winfsp_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, BOOLE
 
 void query_winfsp_test(void)
 {
+    if (OptShareName)
+        return;
+
     if (NtfsTests)
     {
         WCHAR DirBuf[MAX_PATH], DriveBuf[3];
@@ -1996,5 +1999,6 @@ void info_tests(void)
         TEST(rename_pid_test);
     TEST(getvolinfo_test);
     TEST(setvolinfo_test);
-    TEST(query_winfsp_test);
+    if (!OptShareName)
+        TEST(query_winfsp_test);
 }
