@@ -1959,15 +1959,9 @@ void query_winfsp_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, BOOLE
 
 void query_winfsp_test(void)
 {
-    if (OptShareName)
+    if (NtfsTests)
         return;
 
-    if (NtfsTests)
-    {
-        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
-        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
-        query_winfsp_dotest(-1, DriveBuf, 0, FALSE);
-    }
     if (WinFspDiskTests)
         query_winfsp_dotest(MemfsDisk, 0, 0, TRUE);
     if (WinFspNetTests)
@@ -1999,6 +1993,6 @@ void info_tests(void)
         TEST(rename_pid_test);
     TEST(getvolinfo_test);
     TEST(setvolinfo_test);
-    if (!OptShareName)
+    if (!NtfsTests)
         TEST(query_winfsp_test);
 }
