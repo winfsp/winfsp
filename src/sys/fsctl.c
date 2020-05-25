@@ -698,6 +698,10 @@ static NTSTATUS FspFsvolFileSystemControl(
         case FSP_FSCTL_WORK_BEST_EFFORT:
             Result = FspVolumeWork(FsvolDeviceObject, Irp, IrpSp);
             break;
+        case FSP_FSCTL_QUERY_WINFSP:
+            Irp->IoStatus.Information = 0;
+            Result = STATUS_SUCCESS;
+            break;
         case FSCTL_GET_REPARSE_POINT:
             Result = FspFsvolFileSystemControlReparsePoint(FsvolDeviceObject, Irp, IrpSp, FALSE);
             break;

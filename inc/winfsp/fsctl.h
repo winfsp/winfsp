@@ -71,6 +71,10 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 #define FSP_FSCTL_TRANSACT_INTERNAL     \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'I', METHOD_NEITHER, FILE_ANY_ACCESS)
 
+/* fsvol device codes */
+#define FSP_FSCTL_QUERY_WINFSP          \
+    CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + '?', METHOD_BUFFERED, FILE_ANY_ACCESS)
+
 #define FSP_FSCTL_VOLUME_PARAMS_PREFIX  "\\VolumeParams="
 
 #define FSP_FSCTL_VOLUME_NAME_SIZE      (64 * sizeof(WCHAR))

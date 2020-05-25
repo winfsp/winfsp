@@ -1930,6 +1930,47 @@ void setvolinfo_test(void)
     }
 }
 
+void query_winfsp_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, BOOLEAN ExpectWinFsp)
+{
+    void* memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    WCHAR FilePath[MAX_PATH];
+    HANDLE Handle;
+    DWORD BytesTransferred;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    if (ExpectWinFsp)
+        ASSERT(DeviceIoControl(Handle, FSP_FSCTL_QUERY_WINFSP, 0, 0, 0, 0, &BytesTransferred, 0));
+    else
+        ASSERT(!DeviceIoControl(Handle, FSP_FSCTL_QUERY_WINFSP, 0, 0, 0, 0, &BytesTransferred, 0) &&
+            ERROR_INVALID_FUNCTION == GetLastError());
+
+    CloseHandle(Handle);
+
+    memfs_stop(memfs);
+}
+
+void query_winfsp_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        query_winfsp_dotest(-1, DriveBuf, 0, FALSE);
+    }
+    if (WinFspDiskTests)
+        query_winfsp_dotest(MemfsDisk, 0, 0, TRUE);
+    if (WinFspNetTests)
+        query_winfsp_dotest(MemfsNet, L"\\\\memfs\\share", 0, TRUE);
+}
+
 void info_tests(void)
 {
     if (!OptShareName)
@@ -1955,4 +1996,5 @@ void info_tests(void)
         TEST(rename_pid_test);
     TEST(getvolinfo_test);
     TEST(setvolinfo_test);
+    TEST(query_winfsp_test);
 }
