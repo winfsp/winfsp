@@ -237,7 +237,7 @@ static VOID FspDriverMultiVersionInitialize(VOID)
 #pragma prefast(suppress:30035, "FspDriverMultiVersionInitialize is called from DriverEntry")
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
 
-    if (RtlIsNtDdiVersionAvailable(NTDDI_WIN7))
+    if (FspIsNtDdiVersionAvailable(NTDDI_WIN7))
     {
         UNICODE_STRING Name;
 
@@ -246,10 +246,10 @@ static VOID FspDriverMultiVersionInitialize(VOID)
             (FSP_MV_CcCoherencyFlushAndPurgeCache *)(UINT_PTR)MmGetSystemRoutineAddress(&Name);
     }
 
-    if (RtlIsNtDdiVersionAvailable(NTDDI_WIN8))
+    if (FspIsNtDdiVersionAvailable(NTDDI_WIN8))
         FspMvMdlMappingNoWrite = MdlMappingNoWrite;
 
-    if (RtlIsNtDdiVersionAvailable(0x0A000005/*NTDDI_WIN10_RS4*/))
+    if (FspIsNtDdiVersionAvailable(NTDDI_WIN10_RS4))
         FspHasReparsePointCaseSensitivityFix = TRUE;
 }
 

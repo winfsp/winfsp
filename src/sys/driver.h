@@ -503,6 +503,7 @@ NTSTATUS FspUuid5Make(const UUID *Namespace, const VOID *Buffer, ULONG Size, UUI
 /* utility */
 PVOID FspAllocatePoolMustSucceed(POOL_TYPE PoolType, SIZE_T Size, ULONG Tag);
 PVOID FspAllocateIrpMustSucceed(CCHAR StackSize);
+BOOLEAN FspIsNtDdiVersionAvailable(ULONG RequestedVersion);
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
     PULONG PFileNameIndex, PFILE_OBJECT *PFileObject, PDEVICE_OBJECT *PDeviceObject);

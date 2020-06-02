@@ -21,6 +21,7 @@
 
 #include <sys/driver.h>
 
+BOOLEAN FspIsNtDdiVersionAvailable(ULONG Version);
 NTSTATUS FspCreateGuid(GUID *Guid);
 NTSTATUS FspGetDeviceObjectPointer(PUNICODE_STRING ObjectName, ACCESS_MASK DesiredAccess,
     PULONG PFileNameIndex, PFILE_OBJECT *PFileObject, PDEVICE_OBJECT *PDeviceObject);
@@ -132,6 +133,7 @@ PVOID FspIrpHookContext(PVOID Context);
 NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspIsNtDdiVersionAvailable)
 #pragma alloc_text(PAGE, FspCreateGuid)
 #pragma alloc_text(PAGE, FspGetDeviceObjectPointer)
 #pragma alloc_text(PAGE, FspRegistryGetValue)
@@ -221,6 +223,75 @@ PVOID FspAllocateIrpMustSucceed(CCHAR StackSize)
         Delay.QuadPart = n > i ? Delays[i] : Delays[n - 1];
         KeDelayExecutionThread(KernelMode, FALSE, &Delay);
     }
+}
+
+BOOLEAN FspIsNtDdiVersionAvailable(ULONG RequestedVersion)
+{
+    PAGED_CODE();
+
+    static ULONG Version;
+
+    if (0 == Version)
+    {
+        RTL_OSVERSIONINFOEXW VersionInfo;
+        ULONG TempVersion;
+
+        RtlZeroMemory(&VersionInfo, sizeof VersionInfo);
+        VersionInfo.dwOSVersionInfoSize = sizeof VersionInfo;
+        RtlGetVersion((PVOID)&VersionInfo);
+
+        TempVersion =
+            ((UINT8)VersionInfo.dwMajorVersion << 24) |
+            ((UINT8)VersionInfo.dwMinorVersion << 16) |
+            ((UINT8)VersionInfo.wServicePackMajor << 8);
+
+        if (10 <= VersionInfo.dwMajorVersion)
+        {
+            /* see https://docs.microsoft.com/en-us/windows/release-information/ */
+            static struct
+            {
+                ULONG BuildNumber;
+                ULONG Subver;
+            } Builds[] =
+            {
+                { 10240, SUBVER(NTDDI_WIN10) },
+                { 10586, SUBVER(NTDDI_WIN10_TH2) },
+                { 14393, SUBVER(NTDDI_WIN10_RS1) },
+                { 15063, SUBVER(NTDDI_WIN10_RS2) },
+                { 16299, SUBVER(NTDDI_WIN10_RS3) },
+                { 17134, SUBVER(NTDDI_WIN10_RS4) },
+                { 17763, SUBVER(NTDDI_WIN10_RS5) },
+                { 18362, SUBVER(NTDDI_WIN10_19H1) },
+                { 18363, SUBVER(NTDDI_WIN10_19H1) },
+                { 19041, 9 },
+                { (ULONG)-1, 10 },
+            };
+            int Lo = 0, Hi = sizeof Builds / sizeof Builds[0] - 1, Mi;
+
+            while (Lo <= Hi)
+            {
+                Mi = (unsigned)(Lo + Hi) >> 1;
+
+                if (Builds[Mi].BuildNumber < VersionInfo.dwBuildNumber)
+                    Lo = Mi + 1;
+                else if (Builds[Mi].BuildNumber > VersionInfo.dwBuildNumber)
+                    Hi = Mi - 1;
+                else
+                {
+                    Lo = Mi;
+                    break;
+                }
+            }
+            Mi = Lo;
+
+            TempVersion |= (UINT8)Builds[Mi].Subver;
+        }
+
+        /* thread-safe because multiple threads will compute same value */
+        InterlockedExchange((PVOID)&Version, TempVersion);
+    }
+
+    return RequestedVersion <= Version;
 }
 
 NTSTATUS FspCreateGuid(GUID *Guid)
