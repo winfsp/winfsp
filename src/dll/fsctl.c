@@ -242,6 +242,22 @@ static NTSTATUS FspFsctlStartService(VOID)
     DWORD LastError;
     NTSTATUS Result;
 
+    /* Determine if we are running inside container.
+     *
+     * See https://github.com/microsoft/perfview/blob/V1.9.65/src/TraceEvent/TraceEventSession.cs#L525
+     * See https://stackoverflow.com/a/50748300
+     */
+    LastError = RegGetValueW(
+        HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Control",
+        L"ContainerType",
+        RRF_RT_REG_DWORD, 0,
+        0, 0);
+    if (ERROR_SUCCESS == LastError)
+    {
+        Result = STATUS_SUCCESS;
+        goto exit;
+    }
+
     ScmHandle = OpenSCManagerW(0, 0, 0);
     if (0 == ScmHandle)
     {

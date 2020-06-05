@@ -21,26 +21,16 @@
 
 #include <sys/driver.h>
 
-/*
- * Define the following macro to include FspUnload.
- *
- * Note that this driver is no longer unloadable.
- * See the comments in DriverEntry as to why!
- */
-//#define FSP_UNLOAD
-
 DRIVER_INITIALIZE DriverEntry;
 static VOID FspDriverMultiVersionInitialize(VOID);
-#if defined(FSP_UNLOAD)
-DRIVER_UNLOAD FspUnload;
-#endif
+static NTSTATUS FspDriverInitializeDevices(VOID);
+static VOID FspDriverFinalizeDevices(VOID);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(INIT, DriverEntry)
 #pragma alloc_text(INIT, FspDriverMultiVersionInitialize)
-#if defined(FSP_UNLOAD)
-#pragma alloc_text(PAGE, FspUnload)
-#endif
+#pragma alloc_text(PAGE, FspDriverInitializeDevices)
+#pragma alloc_text(PAGE, FspDriverFinalizeDevices)
 #endif
 
 NTSTATUS DriverEntry(
@@ -49,9 +39,6 @@ NTSTATUS DriverEntry(
     FSP_ENTER_DRV();
 
     /* setup the driver object */
-#if defined(FSP_UNLOAD)
-    DriverObject->DriverUnload = FspUnload;
-#endif
     DriverObject->MajorFunction[IRP_MJ_CREATE] = FspCreate;
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = FspClose;
     DriverObject->MajorFunction[IRP_MJ_READ] = FspRead;
@@ -133,94 +120,41 @@ NTSTATUS DriverEntry(
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access FastIoDispatch")
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
-    BOOLEAN InitDoneGRes = FALSE, InitDonePsBuf = FALSE;
-    UNICODE_STRING DeviceSddl;
-    UNICODE_STRING DeviceName;
+    BOOLEAN InitDoneGRes = FALSE, InitDoneSilo = FALSE, InitDonePsBuf = FALSE,
+        InitDoneDevices = FALSE;
 
     FspDriverObject = DriverObject;
+    FspDriverMultiVersionInitialize();
+
     ExInitializeResourceLite(&FspDeviceGlobalResource);
     InitDoneGRes = TRUE;
 
-    FspDriverMultiVersionInitialize();
+    Result = FspSiloInitialize(FspDriverInitializeDevices, FspDriverFinalizeDevices);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+    InitDoneSilo = TRUE;
 
     Result = FspProcessBufferInitialize();
     if (!NT_SUCCESS(Result))
         goto exit;
     InitDonePsBuf = TRUE;
 
-    /* create the file system control device objects */
-    RtlInitUnicodeString(&DeviceSddl, L"" FSP_FSCTL_DEVICE_SDDL);
-    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
-    Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
-        &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
-        &DeviceSddl, &FspFsctlDeviceClassGuid,
-        &FspFsctlDiskDeviceObject);
+    Result = FspDriverInitializeDevices();
     if (!NT_SUCCESS(Result))
         goto exit;
-    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
-    Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
-        &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
-        &DeviceSddl, &FspFsctlDeviceClassGuid,
-        &FspFsctlNetDeviceObject);
-    if (!NT_SUCCESS(Result))
-        goto exit;
-    Result = FspDeviceCreate(FspFsmupDeviceExtensionKind, 0,
-        FILE_DEVICE_NETWORK_FILE_SYSTEM, FILE_REMOTE_DEVICE,
-        &FspFsmupDeviceObject);
-    if (!NT_SUCCESS(Result))
-        goto exit;
-
-#if DBG
-    /*
-     * Fix GitHub issue #177. All credit for the investigation of this issue
-     * and the suggested steps to reproduce and work around the problem goes
-     * to GitHub user @thinkport.
-     *
-     * On debug builds set DO_LOW_PRIORITY_FILESYSTEM to place the file system
-     * at the end of the file system list during IoRegisterFileSystem below.
-     * This allows us to test the behavior of our Fsvrt devices when foreign
-     * file systems attempt to use them for mounting.
-     */
-    SetFlag(FspFsctlDiskDeviceObject->Flags, DO_LOW_PRIORITY_FILESYSTEM);
-#endif
-
-    Result = FspDeviceInitialize(FspFsctlDiskDeviceObject);
-    ASSERT(STATUS_SUCCESS == Result);
-    Result = FspDeviceInitialize(FspFsctlNetDeviceObject);
-    ASSERT(STATUS_SUCCESS == Result);
-    Result = FspDeviceInitialize(FspFsmupDeviceObject);
-    ASSERT(STATUS_SUCCESS == Result);
-
-    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME);
-    Result = FsRtlRegisterUncProviderEx(&FspMupHandle,
-        &DeviceName, FspFsmupDeviceObject, 0);
-    if (!NT_SUCCESS(Result))
-        goto exit;
-
-    /*
-     * Register our "disk" device as a file system. We do not register our "net" device
-     * as a file system; we register with the MUP instead.
-     *
-     * Please note that the call below makes our driver unloadable. In fact the driver
-     * remains unloadable even if we issue an IoUnregisterFileSystem() call immediately
-     * after our IoRegisterFileSystem() call! Some system component appears to keep an
-     * extra reference to our device somewhere.
-     */
-    IoRegisterFileSystem(FspFsctlDiskDeviceObject);
+    InitDoneDevices = TRUE;
 
     Result = STATUS_SUCCESS;
 
 exit:
     if (!NT_SUCCESS(Result))
     {
-        if (0 != FspFsmupDeviceObject)
-            FspDeviceDelete(FspFsmupDeviceObject);
-        if (0 != FspFsctlNetDeviceObject)
-            FspDeviceDelete(FspFsctlNetDeviceObject);
-        if (0 != FspFsctlDiskDeviceObject)
-            FspDeviceDelete(FspFsctlDiskDeviceObject);
+        if (InitDoneDevices)
+            FspDriverFinalizeDevices();
         if (InitDonePsBuf)
             FspProcessBufferFinalize();
+        if (InitDoneSilo)
+            FspSiloFinalize();
         if (InitDoneGRes)
             ExDeleteResourceLite(&FspDeviceGlobalResource);
     }
@@ -253,35 +187,157 @@ static VOID FspDriverMultiVersionInitialize(VOID)
         FspHasReparsePointCaseSensitivityFix = TRUE;
 }
 
-#if defined(FSP_UNLOAD)
-VOID FspUnload(
-    PDRIVER_OBJECT DriverObject)
+static NTSTATUS FspDriverInitializeDevices(VOID)
 {
-    FSP_ENTER_VOID(PAGED_CODE());
+    PAGED_CODE();
 
-    FsRtlDeregisterUncProvider(FspMupHandle);
+    FSP_SILO_GLOBALS *Globals;
+    UNICODE_STRING DeviceSddl;
+    UNICODE_STRING DeviceName;
+    GUID Guid;
+    NTSTATUS Result;
 
-    FspFsctlDiskDeviceObject = 0;
-    FspFsctlNetDeviceObject = 0;
-    FspFsmupDeviceObject = 0;
-    //FspDeviceDeleteAll();
+    FspSiloGetGlobals(&Globals);
+    ASSERT(0 != Globals);
 
-    ExDeleteResourceLite(&FspDeviceGlobalResource);
-    FspDriverObject = 0;
+    /* create the file system control device objects */
+    RtlInitUnicodeString(&DeviceSddl, L"" FSP_FSCTL_DEVICE_SDDL);
+    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
+    Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
+        &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
+        &DeviceSddl, &FspFsctlDeviceClassGuid,
+        &Globals->FsctlDiskDeviceObject);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
+    Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
+        &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
+        &DeviceSddl, &FspFsctlDeviceClassGuid,
+        &Globals->FsctlNetDeviceObject);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+    Result = FspDeviceCreate(FspFsmupDeviceExtensionKind, 0,
+        FILE_DEVICE_NETWORK_FILE_SYSTEM, FILE_REMOTE_DEVICE,
+        &Globals->FsmupDeviceObject);
+    if (!NT_SUCCESS(Result))
+        goto exit;
 
-    FspProcessBufferFinalize();
-
-#pragma prefast(suppress:28175, "We are in DriverUnload: ok to access DriverName")
-    FSP_LEAVE_VOID("DriverName=\"%wZ\"",
-        &DriverObject->DriverName);
-}
+#if DBG
+    /*
+     * Fix GitHub issue #177. All credit for the investigation of this issue
+     * and the suggested steps to reproduce and work around the problem goes
+     * to GitHub user @thinkport.
+     *
+     * On debug builds set DO_LOW_PRIORITY_FILESYSTEM to place the file system
+     * at the end of the file system list during IoRegisterFileSystem below.
+     * This allows us to test the behavior of our Fsvrt devices when foreign
+     * file systems attempt to use them for mounting.
+     */
+    SetFlag(Globals->FsctlDiskDeviceObject->Flags, DO_LOW_PRIORITY_FILESYSTEM);
 #endif
 
+    Result = FspDeviceInitialize(Globals->FsctlDiskDeviceObject);
+    ASSERT(STATUS_SUCCESS == Result);
+    Result = FspDeviceInitialize(Globals->FsctlNetDeviceObject);
+    ASSERT(STATUS_SUCCESS == Result);
+    Result = FspDeviceInitialize(Globals->FsmupDeviceObject);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    FspSiloGetContainerId(&Guid);
+    RtlInitEmptyUnicodeString(&DeviceName,
+        Globals->FsmupDeviceNameBuf, sizeof Globals->FsmupDeviceNameBuf);
+    Result = RtlUnicodeStringPrintf(&DeviceName,
+        0 == ((PULONG)&Guid)[0] && 0 == ((PULONG)&Guid)[1] &&
+        0 == ((PULONG)&Guid)[2] && 0 == ((PULONG)&Guid)[3] ?
+            L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME :
+            L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME "{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+        Guid.Data1, Guid.Data2, Guid.Data3,
+        Guid.Data4[0], Guid.Data4[1], Guid.Data4[2], Guid.Data4[3],
+        Guid.Data4[4], Guid.Data4[5], Guid.Data4[6], Guid.Data4[7]);
+    ASSERT(NT_SUCCESS(Result));
+    DeviceName.MaximumLength = DeviceName.Length;
+    Result = FsRtlRegisterUncProviderEx(&Globals->MupHandle,
+        &DeviceName, Globals->FsmupDeviceObject, 0);
+    if (!NT_SUCCESS(Result))
+    {
+        Globals->MupHandle = 0;
+        goto exit;
+    }
+
+    /*
+     * Register our "disk" device as a file system. We do not register our "net" device
+     * as a file system; we register with the MUP instead.
+     */
+    IoRegisterFileSystem(Globals->FsctlDiskDeviceObject);
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result))
+    {
+        if (0 != Globals->MupHandle)
+        {
+            FsRtlDeregisterUncProvider(Globals->MupHandle);
+            Globals->MupHandle = 0;
+        }
+        if (0 != Globals->FsmupDeviceObject)
+        {
+            FspDeviceDelete(Globals->FsmupDeviceObject);
+            Globals->FsmupDeviceObject = 0;
+        }
+        if (0 != Globals->FsctlNetDeviceObject)
+        {
+            FspDeviceDelete(Globals->FsctlNetDeviceObject);
+            Globals->FsctlNetDeviceObject = 0;
+        }
+        if (0 != Globals->FsctlDiskDeviceObject)
+        {
+            FspDeviceDelete(Globals->FsctlDiskDeviceObject);
+            Globals->FsctlDiskDeviceObject = 0;
+        }
+    }
+
+    FspSiloDereferenceGlobals(Globals);
+
+    return Result;
+}
+
+static VOID FspDriverFinalizeDevices(VOID)
+{
+    PAGED_CODE();
+
+    FSP_SILO_GLOBALS *Globals;
+
+    FspSiloGetGlobals(&Globals);
+    ASSERT(0 != Globals);
+
+    IoUnregisterFileSystem(Globals->FsctlDiskDeviceObject);
+
+    if (0 != Globals->MupHandle)
+    {
+        FsRtlDeregisterUncProvider(Globals->MupHandle);
+        Globals->MupHandle = 0;
+    }
+    if (0 != Globals->FsmupDeviceObject)
+    {
+        FspDeviceDelete(Globals->FsmupDeviceObject);
+        Globals->FsmupDeviceObject = 0;
+    }
+    if (0 != Globals->FsctlNetDeviceObject)
+    {
+        FspDeviceDelete(Globals->FsctlNetDeviceObject);
+        Globals->FsctlNetDeviceObject = 0;
+    }
+    if (0 != Globals->FsctlDiskDeviceObject)
+    {
+        FspDeviceDelete(Globals->FsctlDiskDeviceObject);
+        Globals->FsctlDiskDeviceObject = 0;
+    }
+
+    FspSiloDereferenceGlobals(Globals);
+}
+
 PDRIVER_OBJECT FspDriverObject;
-PDEVICE_OBJECT FspFsctlDiskDeviceObject;
-PDEVICE_OBJECT FspFsctlNetDeviceObject;
-PDEVICE_OBJECT FspFsmupDeviceObject;
-HANDLE FspMupHandle;
 FAST_IO_DISPATCH FspFastIoDispatch;
 CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 

@@ -24,11 +24,13 @@
 NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspVolumeCreateNoLock(
-    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    FSP_SILO_GLOBALS *Globals);
 VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static VOID FspVolumeDeleteNoLock(
-    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    FSP_SILO_GLOBALS *Globals);
 static WORKER_THREAD_ROUTINE FspVolumeDeleteDelayed;
 NTSTATUS FspVolumeMount(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
@@ -77,15 +79,25 @@ NTSTATUS FspVolumeCreate(
 {
     PAGED_CODE();
 
+    FSP_SILO_GLOBALS *Globals;
     NTSTATUS Result;
+
+    FspSiloGetGlobals(&Globals);
+    ASSERT(0 != Globals);
+
     FspDeviceGlobalLock();
-    Result = FspVolumeCreateNoLock(FsctlDeviceObject, Irp, IrpSp);
+    Result = FspVolumeCreateNoLock(FsctlDeviceObject, Irp, IrpSp,
+        Globals);
     FspDeviceGlobalUnlock();
+
+    FspSiloDereferenceGlobals(Globals);
+
     return Result;
 }
 
 static NTSTATUS FspVolumeCreateNoLock(
-    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    FSP_SILO_GLOBALS *Globals)
 {
     PAGED_CODE();
 
@@ -302,18 +314,18 @@ static NTSTATUS FspVolumeCreateNoLock(
     /* do we need to register with fsmup? */
     if (0 == FsvrtDeviceObject)
     {
-        Result = FspMupRegister(FspFsmupDeviceObject, FsvolDeviceObject);
+        Result = FspMupRegister(Globals->FsmupDeviceObject, FsvolDeviceObject);
         if (!NT_SUCCESS(Result))
         {
             FspDeviceDereference(FsvolDeviceObject);
             return Result;
         }
 
-        RtlInitUnicodeString(&FsmupDeviceName, L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME);
+        RtlInitUnicodeString(&FsmupDeviceName, Globals->FsmupDeviceNameBuf);
         Result = IoCreateSymbolicLink(&FsvolDeviceExtension->VolumeName, &FsmupDeviceName);
         if (!NT_SUCCESS(Result))
         {
-            FspMupUnregister(FspFsmupDeviceObject, FsvolDeviceObject);
+            FspMupUnregister(Globals->FsmupDeviceObject, FsvolDeviceObject);
             FspDeviceDereference(FsvolDeviceObject);
             return Result;
         }
@@ -331,6 +343,7 @@ VOID FspVolumeDelete(
 {
     // !PAGED_CODE();
 
+    FSP_SILO_GLOBALS *Globals;
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
@@ -350,9 +363,15 @@ VOID FspVolumeDelete(
 
     FspDeviceReference(FsvolDeviceObject);
 
+    FspSiloGetGlobals(&Globals);
+    ASSERT(0 != Globals);
+
     FspDeviceGlobalLock();
-    FspVolumeDeleteNoLock(FsctlDeviceObject, Irp, IrpSp);
+    FspVolumeDeleteNoLock(FsctlDeviceObject, Irp, IrpSp,
+        Globals);
     FspDeviceGlobalUnlock();
+
+    FspSiloDereferenceGlobals(Globals);
 
     /*
      * Call MmForceSectionClosed on active files to ensure that Mm removes them from Standby List.
@@ -370,7 +389,8 @@ VOID FspVolumeDelete(
 }
 
 static VOID FspVolumeDeleteNoLock(
-    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    FSP_SILO_GLOBALS *Globals)
 {
     // !PAGED_CODE();
 
@@ -445,7 +465,7 @@ static VOID FspVolumeDeleteNoLock(
     else
     {
         IoDeleteSymbolicLink(&FsvolDeviceExtension->VolumeName);
-        FspMupUnregister(FspFsmupDeviceObject, FsvolDeviceObject);
+        FspMupUnregister(Globals->FsmupDeviceObject, FsvolDeviceObject);
     }
 
     /* release the volume device object */

@@ -122,6 +122,9 @@
     <ClCompile Include="..\..\src\shared\ku\uuid5.c">
       <Filter>Source\shared\ku</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\sys\silo.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\sys\driver.h">

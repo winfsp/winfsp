@@ -652,6 +652,23 @@ VOID FspIrpHookReset(PIRP Irp);
 PVOID FspIrpHookContext(PVOID Context);
 NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 
+/* silos */
+typedef struct
+{
+    PDEVICE_OBJECT FsctlDiskDeviceObject;
+    PDEVICE_OBJECT FsctlNetDeviceObject;
+    PDEVICE_OBJECT FsmupDeviceObject;
+    HANDLE MupHandle;
+    WCHAR FsmupDeviceNameBuf[64];
+} FSP_SILO_GLOBALS;
+typedef NTSTATUS (*FSP_SILO_INIT_CALLBACK)(VOID);
+typedef VOID (*FSP_SILO_FINI_CALLBACK)(VOID);
+NTSTATUS FspSiloGetGlobals(FSP_SILO_GLOBALS **PGlobals);
+VOID FspSiloDereferenceGlobals(FSP_SILO_GLOBALS *Globals);
+VOID FspSiloGetContainerId(GUID *ContainerId);
+NTSTATUS FspSiloInitialize(FSP_SILO_INIT_CALLBACK Init, FSP_SILO_FINI_CALLBACK Fini);
+VOID FspSiloFinalize(VOID);
+
 /* process buffers */
 #define FspProcessBufferSizeMax         (64 * 1024)
 NTSTATUS FspProcessBufferInitialize(VOID);
@@ -1069,6 +1086,7 @@ typedef struct
     KSPIN_LOCK SpinLock;
     LONG RefCount;
     UINT32 Kind;
+    GUID SiloContainerId;
 } FSP_DEVICE_EXTENSION;
 typedef struct
 {
@@ -1695,10 +1713,6 @@ FSP_MV_CcCoherencyFlushAndPurgeCache(
 
 /* extern */
 extern PDRIVER_OBJECT FspDriverObject;
-extern PDEVICE_OBJECT FspFsctlDiskDeviceObject;
-extern PDEVICE_OBJECT FspFsctlNetDeviceObject;
-extern PDEVICE_OBJECT FspFsmupDeviceObject;
-extern HANDLE FspMupHandle;
 extern FAST_IO_DISPATCH FspFastIoDispatch;
 extern CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
