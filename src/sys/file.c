@@ -2283,6 +2283,10 @@ VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc)
 {
     PAGED_CODE();
 
+    if (0 != FileDesc->Buffer) {
+        FspFree(FileDesc->Buffer);
+    }
+
     FspMainFileClose(FileDesc->MainFileHandle, FileDesc->MainFileObject);
 
     if (0 != FileDesc->DirectoryPattern.Buffer &&

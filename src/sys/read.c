@@ -55,6 +55,8 @@ enum
 };
 FSP_FSCTL_STATIC_ASSERT(RequestCookie == RequestSafeMdl, "");
 
+#define READAHEAD (1<<16)
+
 static NTSTATUS FspFsvolRead(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -312,6 +314,33 @@ static NTSTATUS FspFsvolReadNonCached(
 
     /* convert FileNode to shared */
     FspFileNodeConvertExclusiveToShared(FileNode, Full);
+    
+    if (0 != FileDesc->Buffer && FileDesc->BufferOffset.QuadPart <= ReadOffset.QuadPart
+            && ReadOffset.QuadPart+ReadLength <= FileDesc->BufferOffset.QuadPart+FileDesc->BufferSize) {
+        PVOID SystemAddress = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
+
+        try
+        {
+            RtlCopyMemory(SystemAddress, (PUINT8)(FileDesc->Buffer)+ReadOffset.QuadPart-FileDesc->BufferOffset.QuadPart,
+                    ReadLength);
+        }
+        except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            Result = GetExceptionCode();
+            Result = FsRtlIsNtstatusExpected(Result) ? STATUS_INVALID_USER_BUFFER : Result;
+            return Result;
+        }
+        Irp->IoStatus.Information = ReadLength;
+        FileDesc->LastOffset.QuadPart = ReadOffset.QuadPart+ReadLength;
+
+        BOOLEAN SynchronousIo = BooleanFlagOn(FileObject->Flags, FO_SYNCHRONOUS_IO);
+        if (0 == FspIrpTopFlags(Irp))
+        {
+            if (SynchronousIo && !PagingIo)
+                FileObject->CurrentByteOffset.QuadPart = ReadOffset.QuadPart + ReadLength;
+        }
+        return STATUS_SUCCESS;
+    }
 
     Request = FspIrpRequest(Irp);
     if (0 == Request)
@@ -340,6 +369,11 @@ static NTSTATUS FspFsvolReadNonCached(
     Request->Req.Read.Offset = ReadOffset.QuadPart;
     Request->Req.Read.Length = ReadLength;
     Request->Req.Read.Key = ReadKey;
+    
+    if (ReadLength <= READAHEAD/2 && ReadOffset.QuadPart == FileDesc->LastOffset.QuadPart) {
+        // turn on readahead for continious read
+        Request->Req.Read.Length = READAHEAD;
+    }
 
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestIrp) = Irp;
@@ -445,6 +479,10 @@ NTSTATUS FspFsvolReadComplete(
     }
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    LARGE_INTEGER ReadOffset = IrpSp->Parameters.Read.ByteOffset;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
+    ULONG Got = Response->IoStatus.Information;
 
     if (Response->IoStatus.Information > Request->Req.Read.Length)
         FSP_RETURN(Result = STATUS_INTERNAL_ERROR);
@@ -453,11 +491,30 @@ NTSTATUS FspFsvolReadComplete(
     {
         PVOID Address = FspIopRequestContext(Request, RequestAddress);
         PVOID SystemAddress = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
+        
+        ULONG Count = MmGetMdlByteCount(Irp->MdlAddress);
+        if (Got > Count && Got <= READAHEAD) {
+            // readahead enabled
+            if (0 == FileDesc->Buffer) {
+                FileDesc->Buffer = FspAlloc(READAHEAD);
+            }
+           
+            if (0 != FileDesc->Buffer) {
+                try {
+                    RtlCopyMemory(FileDesc->Buffer, Address, Got);
+                    FileDesc->BufferOffset.QuadPart = ReadOffset.QuadPart;
+                    FileDesc->BufferSize = Got;
+                } except (EXCEPTION_EXECUTE_HANDLER) {
+                    FileDesc->BufferSize = 0;
+                }
+            }
+            Got = Count;
+        }
 
         ASSERT(0 != Address);
         try
         {
-            RtlCopyMemory(SystemAddress, Address, Response->IoStatus.Information);
+            RtlCopyMemory(SystemAddress, Address, Got);
         }
         except (EXCEPTION_EXECUTE_HANDLER)
         {
@@ -474,8 +531,6 @@ NTSTATUS FspFsvolReadComplete(
             FspSafeMdlCopyBack(SafeMdl);
     }
 
-    PFILE_OBJECT FileObject = IrpSp->FileObject;
-    LARGE_INTEGER ReadOffset = IrpSp->Parameters.Read.ByteOffset;
     BOOLEAN PagingIo = BooleanFlagOn(Irp->Flags, IRP_PAGING_IO);
     BOOLEAN SynchronousIo = BooleanFlagOn(FileObject->Flags, FO_SYNCHRONOUS_IO);
 
@@ -484,8 +539,7 @@ NTSTATUS FspFsvolReadComplete(
     {
         /* update the current file offset if synchronous I/O (and not paging I/O) */
         if (SynchronousIo && !PagingIo)
-            FileObject->CurrentByteOffset.QuadPart =
-                ReadOffset.QuadPart + Response->IoStatus.Information;
+            FileObject->CurrentByteOffset.QuadPart = ReadOffset.QuadPart + Got;
 
         FspIopResetRequest(Request, 0);
     }
@@ -495,7 +549,8 @@ NTSTATUS FspFsvolReadComplete(
         FspIopResetRequest(Request, 0);
     }
 
-    Irp->IoStatus.Information = Response->IoStatus.Information;
+    Irp->IoStatus.Information = Got;
+    FileDesc->LastOffset.QuadPart = ReadOffset.QuadPart + Got;
     Result = STATUS_SUCCESS;
 
     FSP_LEAVE_IOC(

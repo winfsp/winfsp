@@ -1423,6 +1423,11 @@ typedef struct
     /* stream support */
     HANDLE MainFileHandle;
     PFILE_OBJECT MainFileObject;
+    /* readahead */
+    PVOID  Buffer;
+    ULONG  BufferSize;
+    LARGE_INTEGER LastOffset;
+    LARGE_INTEGER BufferOffset;
 } FSP_FILE_DESC;
 NTSTATUS FspFileNodeCopyActiveList(PDEVICE_OBJECT DeviceObject,
     FSP_FILE_NODE ***PFileNodes, PULONG PFileNodeCount);
