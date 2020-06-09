@@ -1,0 +1,73 @@
+= WinFsp Container Support
+
+WinFsp gained support for Windows Containers in release 2020.1 B1. This document discusses this new functionality and explains how user mode file systems can take advantage of it.
+
+NOTE: WinFsp support for Windows Containers is at this time highly experimental. It may change substantially in the future or eliminated altogether.
+
+== Windows Containers
+
+Containers are a technology for deployment and execution of applications in an isolated environment. Applications deployed inside a container cannot be affected by or affect applications in other containers or in the host operating system.
+
+Containers on Windows provide isolation via one of two modes:
+
+- The _Hyper-V_ isolation mode where a container runs in its own virtual machine and has its own kernel.
+
+- The _process_ isolation mode where a container runs in a "silo" inside the host operating system's kernel. This is the same model used in containers for Linux.
+
+WinFsp supports containers that use the process isolation mode in versions of Windows 10 1809 and later.
+
+=== Server Silos
+
+Containers using the process isolation mode are called _server silos_. Server silos are built on top of kernel job objects that have been extended with additional capabities useful for containers. Most importantly each server silo has its own object namespace root directory that is distinct from the host's object namespace root directory. This allows for all named kernel objects inside a server silo to be isolated from named objects in other server silos or the host.
+
+The Windows kernel provides a number of DDI's (Device Driver Interfaces) to enable kernel drivers to work with server silos. The WinFsp FSD uses these DDI's to monitor silo creation and termination and manage its own devices within the silo's object namespace.
+
+=== Docker
+
+In order to manage containers on Windows a version of Docker for Windows is needed. In order to use server silos and process isolation with Docker the switch `--isolation=process` must be used when creating a container:
+
+----
+docker run --isolation=process ...
+----
+
+== Containerized User Mode File Systems
+
+The WinFsp 2020.1 B1 release gained the ability for user mode file systems to run inside a server silo container and expose a file system either within the container or to the host operating system. This allows for user mode file systems to be containerized.
+
+There are a few considerations that must be taken into account when deploying a user mode file system in a container:
+
+* When using WinFsp with containers the process isolation mode must be used.
+
+* WinFsp currently supports the Windows Server Core and Windows base images. Work is underway for Nano Server compatibility.
+
+* User mode file systems that run in a container cannot start the FSD, because containers disallow driver loading. (Usually the WinFsp DLL automatically starts the WinFsp FSD when it is not already running, but this is not possible within a container.)
++
+To work around this problem start the FSD outside the container. For example, the FSD can be started in the host using the `sc.exe` utility.
++
+----
+sc.exe start winfsp
+----
++
+Once the FSD has been started it will monitor server silo creation and termination and will set things up so that containerized user mode file systems will be able to interface with it.
+
+* WinFsp file systems typically use the registry to locate and load the WinFsp DLL (see `FspLoad` in `winfsp/winfsp.h`). However the registry inside a container does not contain any WinFsp entries. The easiest workaround is to hardcode the location of the WinFsp installation within the container, which will also hardcode the location of the WinFsp DLL.
+
+* During development it is sometimes useful to bind mount the WinFsp installation directory into the container. For example:
++
+----
+docker run -it --rm --isolation=process "-vC:\Program Files (x86)\WinFsp:C:\Program Files (x86)\WinFsp:RO" mcr.microsoft.com/windows/servercore:2004 cmd.exe
+----
+
+* When a WinFsp based file system is mounted as a disk file system within a container, it is only visible within that container. For example, the drive `Z:` below and associated file system volume will be accessible only within the container:
++
+----
+memfs-x64 -i -F NTFS -m Z:
+----
+
+* When a WinFsp based file system is mounted as a network file system within a container, the file system becomes accessible **outside** the container via its UNC prefix. For example, while the drive `Y:` below will be accessible only within the container, the file system volume will be accessible from both the container and the host via the UNC prefix `\\memfs\share`.
++
+----
+memfs-x64 -i -F NTFS -m Y: -u \memfs\share
+----
++
+The reason that this happens is that server silo containers share the same MUP device object with the host. The MUP (Multiple UNC Provider) is the Windows kernel component responsible for resolving UNC prefixes. It is unclear at this time whether this "leak" from the container to the host via the shared MUP is intentional or whether it is an unintended consequence. I note that the server silo MUP entry in the object namespace is a symbolic link, which suggests that the shared MUP device object was a conscious decision by Microsoft.
