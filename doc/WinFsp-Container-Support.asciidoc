@@ -1,6 +1,6 @@
 = WinFsp Container Support
 
-WinFsp gained support for Windows Containers in release 2020.1 B1. This document discusses this new functionality and explains how user mode file systems can take advantage of it.
+WinFsp gained support for Windows Containers in release 2020.2 B1. This document discusses this new functionality and explains how user mode file systems can take advantage of it.
 
 NOTE: WinFsp support for Windows Containers is at this time highly experimental. It may change substantially in the future or eliminated altogether.
 
@@ -32,7 +32,7 @@ docker run --isolation=process ...
 
 == Containerized User Mode File Systems
 
-The WinFsp 2020.1 B1 release gained the ability for user mode file systems to run inside a server silo container and expose a file system either within the container or to the host operating system. This allows for user mode file systems to be containerized.
+The WinFsp 2020.2 B1 release gained the ability for user mode file systems to run inside a server silo container and expose a file system either within the container or to the host operating system. This allows for user mode file systems to be containerized.
 
 There are a few considerations that must be taken into account when deploying a user mode file system in a container:
 
