@@ -16,14 +16,6 @@ if not X%2==X set Chkpnt=%2
 ) > %~dp0..\build\VStudio\build\%Config%\deploy-setup.bat
 
 set Files=
-for %%f in (winfsp-%Suffix%.sys winfsp-%Suffix%.dll winfsp-tests-%Suffix%.exe memfs-%Suffix%.exe) do (
-    if [!Files!] == [] (
-        set Files='%~dp0..\build\VStudio\build\%Config%\%%f'
-    ) else (
-        set Files=!Files!,'%~dp0..\build\VStudio\build\%Config%\%%f'
-    )
-)
-set Files=
 for %%f in (
     %~dp0..\build\VStudio\build\%Config%\
         winfsp-%Suffix%.sys
