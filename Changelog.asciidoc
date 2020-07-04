@@ -1,5 +1,21 @@
 = Changelog
 
+
+v1.8B1 (2020.2 B1)::
+
+Changes since v1.7:
+
+* [FSD] WinFsp now supports Windows containers. See the link:doc/WinFsp-Container-Support.asciidoc[WinFsp Container Support] document for details.
+* [FSD] The `FSP_FSCTL_QUERY_WINFSP` code provides a simple method to determine if
+the file system backing a file is a WinFsp file system. To use issue a
++
+----
+DeviceIoControl(Handle, FSP_FSCTL_QUERY_WINFSP, 0, 0, 0, 0, &Bytes, 0)
+----
++
+If the return value is TRUE this is a WinFsp file system.
+
+
 v1.7B2 (2020.1 B2)::
 
 Changes since v1.6:
