@@ -16,6 +16,20 @@ DeviceIoControl(Handle, FSP_FSCTL_QUERY_WINFSP, 0, 0, 0, 0, &Bytes, 0)
 If the return value is TRUE this is a WinFsp file system.
 
 
+v1.7 (2020.1)::
+
+Changes since v1.6:
+
+* [FUSE] FUSE invalid directory entries no longer break the entire directory listing. Such invalid directory entries are logged. (GitHub PR #292.)
+* [LAUNCH] The Launcher can now restart file systems that have crashed. Set `Recovery=1` in the file system's registry entry.
+* [LAUNCH] The Launcher can now redirect file system standard error output. Set `Stderr=PATH` in the file system's registry entry.
+* [FIX] Work around a problem in CreateProcess/CreateSection that allowed a faulty or malicious file system to bugcheck Windows.
+* [FIX] Work around an incompatibility with Avast Antivirus.
+** Native and .NET file systems that experience this problem should set the flag `RejectIrpPriorToTransact0` in `FSP_FSCTL_VOLUME_PARAMS` to `1`. This is only required when mounting on a directory with Avast Antivirus present.
+** FUSE file systems do not need to do anything special as this flag is always enabled.
+* [FIX] Fix junction (mount point reparse point) handling. (GitHub issue #269.)
+
+
 v1.7B2 (2020.1 B2)::
 
 Changes since v1.6:
