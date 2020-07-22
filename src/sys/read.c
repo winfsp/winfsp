@@ -249,9 +249,9 @@ static NTSTATUS FspFsvolReadNonCached(
     if (!NT_SUCCESS(Result))
         return Result;
 
-    /* acquire FileNode exclusive Full */
+    /* acquire FileNode shared Full */
     Success = DEBUGTEST(90) &&
-        FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireFull, CanWait);
+        FspFileNodeTryAcquireSharedF(FileNode, FspFileNodeAcquireFull, CanWait);
     if (!Success)
         return FspWqRepostIrpWorkItem(Irp, FspFsvolReadNonCached, 0);
 
@@ -280,21 +280,21 @@ static NTSTATUS FspFsvolReadNonCached(
     /* if this is a non-cached transfer on a cached file then flush the file */
     if (!PagingIo && 0 != FileObject->SectionObjectPointer->DataSectionObject)
     {
+        FspFileNodeRelease(FileNode, Full);
         if (!CanWait)
-        {
-            FspFileNodeRelease(FileNode, Full);
             return FspWqRepostIrpWorkItem(Irp, FspFsvolReadNonCached, 0);
-        }
 
+        /* need to acquire exclusive for flushing */
+        FspFileNodeAcquireExclusive(FileNode, Full);
         Result = FspFileNodeFlushAndPurgeCache(FileNode,
             IrpSp->Parameters.Read.ByteOffset.QuadPart,
             IrpSp->Parameters.Read.Length,
             FALSE);
+        FspFileNodeRelease(FileNode, Full);
         if (!NT_SUCCESS(Result))
-        {
-            FspFileNodeRelease(FileNode, Full);
             return Result;
-        }
+
+        FspFileNodeAcquireShared(FileNode, Full);
     }
 
     /* trim ReadLength during CreateProcess; resolve bugcheck for filesystem that reports incorrect size */
@@ -309,9 +309,6 @@ static NTSTATUS FspFsvolReadNonCached(
         if ((UINT64)ReadLength > FileInfo.FileSize - ReadOffset.QuadPart)
             ReadLength = (ULONG)(FileInfo.FileSize - ReadOffset.QuadPart);
     }
-
-    /* convert FileNode to shared */
-    FspFileNodeConvertExclusiveToShared(FileNode, Full);
 
     Request = FspIrpRequest(Irp);
     if (0 == Request)
