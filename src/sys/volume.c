@@ -965,6 +965,7 @@ NTSTATUS FspVolumeTransact(
                 if (0 != InternalBuffer)
                 {
                     ASSERT(FSP_FSCTL_TRANSACT_INTERNAL == ControlCode);
+                    *(PVOID *)OutputBuffer = 0;
                     FspFree(InternalBuffer);
                 }
                 FspIopCompleteCanceledIrp(PendingIrp);
