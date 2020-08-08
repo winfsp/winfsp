@@ -16,7 +16,8 @@ DeviceIoControl(Handle, FSP_FSCTL_QUERY_WINFSP, 0, 0, 0, 0, &Bytes, 0)
 +
 If the return value is TRUE this is a WinFsp file system.
 
-* [FSD] WinFsp now allows concurrent READs for the same file to be sent to the user mode file system. Prior to this fix the FSD would inadvertently serialize READ requests for the same file. See GitHub issue #291 for more details.
+* [FSD] A fix regarding concurrency of READs on the same file: WinFsp was supposed to allow concurrent READ requests on the same file (e.g. two concurrent overlapped `ReadFile` requests on the same `HANDLE`) to be handled concurrently by the file system; unfortunately due to a problem in recent versions of WinFsp READ requests on the same file were serialized. This problem has now been fixed. See GitHub issue #291 for more details.
+** *NOTE*: It may be that some file system was inadvertently relying on WinFsp's implicit serialization of READs in this case. Please test your file system thoroughly against this version, especially with regard to READ serialization. Related XKCD: https://imgs.xkcd.com/comics/workflow.png
 
 
 v1.8B1 (2020.2 B1)::
