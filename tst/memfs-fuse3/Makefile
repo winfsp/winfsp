@@ -10,9 +10,9 @@ cygfuse3: memfs-cygfuse3
 winfsp-fuse3: memfs-winfsp-fuse3
 
 memfs-cygfuse3: memfs-fuse3.cpp
-	g++ $^ -o $@ -g -Wall `pkg-config fuse3 --cflags --libs`
+	g++ $^ -o $@ -g -Wall -std=gnu++17 `pkg-config fuse3 --cflags --libs`
 
 memfs-winfsp-fuse3: export PKG_CONFIG_PATH=$(PWD)/winfsp.install/lib
 memfs-winfsp-fuse3: memfs-fuse3.cpp
 	ln -nsf "`regtool --wow32 get '/HKLM/Software/WinFsp/InstallDir' | cygpath -au -f -`" winfsp.install
-	g++ $^ -o $@ -g -Wall `pkg-config fuse3 --cflags --libs`
+	g++ $^ -o $@ -g -Wall -std=gnu++17 `pkg-config fuse3 --cflags --libs`
