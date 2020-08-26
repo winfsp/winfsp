@@ -121,8 +121,8 @@ proc parseLog(path: string, processReq: proc(req: Req), processRsp: proc(rsp: Rs
 type
     Stat = ref object
         ototal: int                     # open total
+        omulti: int                     # multiplicate open total
         oerror: int                     # open error total
-        mtotal: int                     # multiplicate open total
         rtotal: int                     # read total
         rbytes: uint64                  # read bytes
         rerror: int                     # read error total
@@ -172,8 +172,8 @@ proc processRsp(rsp: Rsp) =
                     aggr.ototal += 1
                     stat.ocount += 1
                     if 2 == stat.ocount:
-                        stat.mtotal += 1
-                        aggr.mtotal += 1
+                        stat.omulti += 1
+                        aggr.omulti += 1
                 else:
                     var stat = stattab.mgetOrPut(filename, Stat())
                     stat.oerror += 1
@@ -181,13 +181,12 @@ proc processRsp(rsp: Rsp) =
         of "Read":
             var filename = filetab[req.context]
             var stat = stattab.mgetOrPut(filename, Stat())
-            if 0 == rsp.status:
+            if 0 == rsp.status or 0xC0000011u32 == rsp.status:
                 stat.rtotal += 1
                 stat.rbytes += rsp.inform
                 aggr.rtotal += 1
                 aggr.rbytes += rsp.inform
-            elif 0xC0000011u32 != rsp.status:
-                echo &"{rsp.status:X}"
+            else:
                 stat.rerror += 1
                 aggr.rerror += 1
         of "Write":
@@ -284,10 +283,10 @@ proc main =
         case s
         of "ototal":
             dumpstat ototal
+        of "omulti":
+            dumpstat omulti
         of "oerror":
             dumpstat oerror
-        of "mtotal":
-            dumpstat mtotal
         of "rtotal":
             dumpstat rtotal
         of "rbytes":
