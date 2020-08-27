@@ -124,9 +124,11 @@ type
         omulti: int                     # multiplicate open total
         oerror: int                     # open error total
         rtotal: int                     # read total
+        rnoaln: int                     # non-aligned read total
         rbytes: uint64                  # read bytes
         rerror: int                     # read error total
         wtotal: int                     # write total
+        wnoaln: int                     # non-aligned write total
         wbytes: uint64                  # write bytes
         werror: int                     # write error total
         dtotal: int                     # query directory total
@@ -182,10 +184,21 @@ proc processRsp(rsp: Rsp) =
             var filename = filetab[req.context]
             var stat = stattab.mgetOrPut(filename, Stat())
             if 0 == rsp.status or 0xC0000011u32 == rsp.status:
+                var oarg = getArg(req.args, "Offset")
+                var larg = getArg(req.args, "Length")
+                var hi, lo: uint32
+                var offset: uint64
+                var length: uint
+                if scanf(oarg, "${parseHex[uint32]}:${parseHex[uint32]}", hi, lo):
+                    offset = uint64(hi) * 0x100000000u64 + uint64(lo)
+                discard scanf(larg, "${parseUint}", length)
                 stat.rtotal += 1
                 stat.rbytes += rsp.inform
                 aggr.rtotal += 1
                 aggr.rbytes += rsp.inform
+                if 0 != offset mod 4096 or 0 != length mod 4096:
+                    stat.rnoaln += 1
+                    aggr.rnoaln += 1
             else:
                 stat.rerror += 1
                 aggr.rerror += 1
@@ -193,10 +206,21 @@ proc processRsp(rsp: Rsp) =
             var filename = filetab[req.context]
             var stat = stattab.mgetOrPut(filename, Stat())
             if 0 == rsp.status:
+                var oarg = getArg(req.args, "Offset")
+                var larg = getArg(req.args, "Length")
+                var hi, lo: uint32
+                var offset: uint64
+                var length: uint
+                if scanf(oarg, "${parseHex[uint32]}:${parseHex[uint32]}", hi, lo):
+                    offset = uint64(hi) * 0x100000000u64 + uint64(lo)
+                discard scanf(larg, "${parseUint}", length)
                 stat.wtotal += 1
                 stat.wbytes += rsp.inform
                 aggr.wtotal += 1
                 aggr.wbytes += rsp.inform
+                if 0 != offset mod 4096 or 0 != length mod 4096:
+                    stat.wnoaln += 1
+                    aggr.wnoaln += 1
             else:
                 stat.werror += 1
                 aggr.werror += 1
@@ -289,12 +313,16 @@ proc main =
             dumpstat oerror
         of "rtotal":
             dumpstat rtotal
+        of "rnoaln":
+            dumpstat rnoaln
         of "rbytes":
             dumpstat rbytes
         of "rerror":
             dumpstat rerror
         of "wtotal":
             dumpstat wtotal
+        of "wnoaln":
+            dumpstat wnoaln
         of "wbytes":
             dumpstat wbytes
         of "werror":
