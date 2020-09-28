@@ -1589,6 +1589,10 @@ retry:
 
         Suffix.Length = (USHORT)Info->FileNameLength;
         Suffix.Buffer = Info->FileName;
+        /* remove any trailing backslash */
+        if (sizeof(WCHAR) * 2/* not empty or root */ <= Suffix.Length &&
+            L'\\' == Suffix.Buffer[Suffix.Length / sizeof(WCHAR) - 1])
+            Suffix.Length -= sizeof(WCHAR);
         /* if there is a backslash anywhere in the NewFileName get its suffix */
         for (PWSTR P = Suffix.Buffer, EndP = P + Suffix.Length / sizeof(WCHAR); EndP > P; P++)
             if (L'\\' == *P)
