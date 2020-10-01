@@ -1589,7 +1589,7 @@ retry:
 
         Suffix.Length = (USHORT)Info->FileNameLength;
         Suffix.Buffer = Info->FileName;
-        /* remove any trailing backslash */
+        /* remove any trailing backslash; NTFS allows it for both directories AND files! */
         if (sizeof(WCHAR) * 2/* not empty or root */ <= Suffix.Length &&
             L'\\' == Suffix.Buffer[Suffix.Length / sizeof(WCHAR) - 1])
             Suffix.Length -= sizeof(WCHAR);

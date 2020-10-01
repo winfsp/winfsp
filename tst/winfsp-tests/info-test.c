@@ -1025,6 +1025,76 @@ void rename_test(void)
     }
 }
 
+static void rename_backslash_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR Dir1Path[MAX_PATH];
+    WCHAR Dir2Path[MAX_PATH];
+    WCHAR File0Path[MAX_PATH];
+    WCHAR File1Path[MAX_PATH];
+
+    StringCbPrintfW(Dir1Path, sizeof Dir1Path, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(Dir2Path, sizeof Dir2Path, L"%s%s\\dir2\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File0Path, sizeof File0Path, L"%s%s\\dir1\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File1Path, sizeof File1Path, L"%s%s\\dir1\\file1\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(Dir1Path, 0);
+    ASSERT(Success);
+
+    Handle = CreateFileW(File0Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    Success = MoveFileExW(File0Path, File1Path, 0);
+    ASSERT(Success);
+
+    Success = MoveFileExW(Dir1Path, Dir2Path, 0);
+    ASSERT(Success);
+
+    StringCbPrintfW(File1Path, sizeof File1Path, L"%s%s\\dir2\\file1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = DeleteFileW(File1Path);
+    ASSERT(Success);
+
+    Success = RemoveDirectoryW(Dir2Path);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+void rename_backslash_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        rename_backslash_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        rename_backslash_dotest(MemfsDisk, 0, 0);
+        rename_backslash_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        rename_backslash_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        rename_backslash_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 static void rename_open_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -1982,6 +2052,7 @@ void info_tests(void)
         TEST(delete_mmap_test);
     TEST(delete_standby_test);
     TEST(rename_test);
+    TEST(rename_backslash_test);
     TEST(rename_open_test);
     TEST(rename_caseins_test);
     if (!OptShareName)
