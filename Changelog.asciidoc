@@ -1,6 +1,27 @@
 = Changelog
 
 
+v1.8B3 (2020.2 B2)::
+
+Changes since v1.7:
+
+* [FSD] WinFsp now supports Windows containers. See the link:doc/WinFsp-Container-Support.asciidoc[WinFsp Container Support] document for details.
+
+* [FSD] The `FSP_FSCTL_QUERY_WINFSP` code provides a simple method to determine if
+the file system backing a file is a WinFsp file system. To use issue a
++
+----
+DeviceIoControl(Handle, FSP_FSCTL_QUERY_WINFSP, 0, 0, 0, 0, &Bytes, 0)
+----
++
+If the return value is TRUE this is a WinFsp file system.
+
+* [FSD] A fix regarding concurrency of READs on the same file: WinFsp was supposed to allow concurrent READ requests on the same file (e.g. two concurrent overlapped `ReadFile` requests on the same `HANDLE`) to be handled concurrently by the file system; unfortunately due to a problem in recent versions of WinFsp READ requests on the same file were serialized. This problem has now been fixed. See GitHub issue #291 for more details.
+** *NOTE*: It may be that some file system was inadvertently relying on WinFsp's implicit serialization of READs in this case. Please test your file system thoroughly against this version, especially with regard to READ serialization. Related XKCD: https://imgs.xkcd.com/comics/workflow.png
+
+* [FSD] When renaming files or directories NTFS allows the target name to contain a backslash at the end (even for files!) whereas WinFsp did not. This problem has been fixed and a test has been added in `winfsp-tests`.
+
+
 v1.8B2 (2020.2 B2)::
 
 Changes since v1.7:
