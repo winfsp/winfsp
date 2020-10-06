@@ -66,6 +66,8 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 't', METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
 #define FSP_FSCTL_STOP                  \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'S', METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define FSP_FSCTL_NOTIFY                \
+    CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'n', METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 /* fsctl internal device codes (usable only in-kernel) */
 #define FSP_FSCTL_TRANSACT_INTERNAL     \
@@ -267,6 +269,15 @@ typedef struct
 } FSP_FSCTL_STREAM_INFO;
 FSP_FSCTL_STATIC_ASSERT(24 == sizeof(FSP_FSCTL_STREAM_INFO),
     "sizeof(FSP_FSCTL_STREAM_INFO) must be exactly 24.");
+typedef struct
+{
+    UINT16 Size;
+    UINT32 Filter;
+    UINT32 Action;
+    WCHAR FileNameBuf[];
+} FSP_FSCTL_NOTIFY_INFO;
+FSP_FSCTL_STATIC_ASSERT(12 == sizeof(FSP_FSCTL_NOTIFY_INFO),
+    "sizeof(FSP_FSCTL_NOTIFY_INFO) must be exactly 12.");
 typedef struct
 {
     UINT64 UserContext;
@@ -617,6 +628,8 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     PVOID RequestBuf, SIZE_T *PRequestBufSize,
     BOOLEAN Batch);
 FSP_API NTSTATUS FspFsctlStop(HANDLE VolumeHandle);
+FSP_API NTSTATUS FspFsctlNotify(HANDLE VolumeHandle,
+    FSP_FSCTL_NOTIFY_INFO *NotifyInfo, SIZE_T Size);
 FSP_API NTSTATUS FspFsctlGetVolumeList(PWSTR DevicePath,
     PWCHAR VolumeListBuf, PSIZE_T PVolumeListSize);
 FSP_API NTSTATUS FspFsctlPreflight(PWSTR DevicePath);

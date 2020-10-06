@@ -432,6 +432,12 @@ FSP_API FSP_FILE_SYSTEM_OPERATION_CONTEXT *FspFileSystemGetOperationContext(VOID
     return (FSP_FILE_SYSTEM_OPERATION_CONTEXT *)TlsGetValue(FspFileSystemTlsKey);
 }
 
+FSP_API NTSTATUS FspFileSystemNotify(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_NOTIFY_INFO *NotifyInfo, SIZE_T Size)
+{
+    return FspFsctlNotify(FileSystem->VolumeHandle, NotifyInfo, Size);
+}
+
 /*
  * Out-of-Line
  */

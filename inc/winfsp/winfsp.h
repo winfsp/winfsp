@@ -1187,6 +1187,20 @@ FSP_API VOID FspFileSystemStopDispatcher(FSP_FILE_SYSTEM *FileSystem);
 FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP *Response);
 /**
+ * Notify Windows that the file system has file changes.
+ *
+ * @param FileSystem
+ *     The file system object.
+ * @param NotifyInfo
+ *     Buffer containing information about file changes.
+ * @param Size
+ *     Size of buffer.
+ * @return
+ *     STATUS_SUCCESS or error code.
+ */
+FSP_API NTSTATUS FspFileSystemNotify(FSP_FILE_SYSTEM *FileSystem,
+    FSP_FSCTL_NOTIFY_INFO *NotifyInfo, SIZE_T Size);
+/**
  * Get the current operation context.
  *
  * This function may be used only when servicing one of the FSP_FILE_SYSTEM_INTERFACE operations.

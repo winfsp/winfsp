@@ -161,6 +161,25 @@ FSP_API NTSTATUS FspFsctlStop(HANDLE VolumeHandle)
     return STATUS_SUCCESS;
 }
 
+FSP_API NTSTATUS FspFsctlNotify(HANDLE VolumeHandle,
+    FSP_FSCTL_NOTIFY_INFO *NotifyInfo, SIZE_T Size)
+{
+    NTSTATUS Result = STATUS_SUCCESS;
+    DWORD Bytes = 0;
+
+    if (!DeviceIoControl(VolumeHandle,
+        FSP_FSCTL_NOTIFY,
+        NotifyInfo, (DWORD)Size, 0, 0,
+        &Bytes, 0))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+exit:
+    return Result;
+}
+
 FSP_API NTSTATUS FspFsctlGetVolumeList(PWSTR DevicePath,
     PWCHAR VolumeListBuf, PSIZE_T PVolumeListSize)
 {
