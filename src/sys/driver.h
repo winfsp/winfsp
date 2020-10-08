@@ -1361,8 +1361,10 @@ typedef struct
     FAST_MUTEX HeaderFastMutex;
     SECTION_OBJECT_POINTERS SectionObjectPointers;
     KSPIN_LOCK NpInfoSpinLock;          /* allows to invalidate non-page Info w/o resources acquired */
+    UINT64 Security;
     UINT64 DirInfo;
     UINT64 StreamInfo;
+    UINT64 Ea;
 } FSP_FILE_NODE_NONPAGED;
 typedef struct FSP_FILE_NODE
 {
@@ -1393,11 +1395,9 @@ typedef struct FSP_FILE_NODE
     UINT64 ChangeTime;
     UINT32 EaSize;
     ULONG FileInfoChangeNumber;
-    UINT64 Security;
     ULONG SecurityChangeNumber;
     ULONG DirInfoChangeNumber;
     ULONG StreamInfoChangeNumber;
-    UINT64 Ea;
     ULONG EaChangeNumber;
     ULONG EaChangeCount;
     BOOLEAN TruncateOnClose;
@@ -1542,6 +1542,7 @@ BOOLEAN FspFileNodeReferenceSecurity(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, P
 VOID FspFileNodeSetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetSecurity(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG SecurityChangeNumber);
+VOID FspFileNodeInvalidateSecurity(FSP_FILE_NODE *FileNode);
 static inline
 ULONG FspFileNodeSecurityChangeNumber(FSP_FILE_NODE *FileNode)
 {
@@ -1575,6 +1576,7 @@ BOOLEAN FspFileNodeReferenceEa(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG 
 VOID FspFileNodeSetEa(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetEa(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG EaChangeNumber);
+VOID FspFileNodeInvalidateEa(FSP_FILE_NODE *FileNode);
 static inline
 ULONG FspFileNodeEaChangeNumber(FSP_FILE_NODE *FileNode)
 {
@@ -1584,6 +1586,9 @@ ULONG FspFileNodeEaChangeNumber(FSP_FILE_NODE *FileNode)
 }
 VOID FspFileNodeNotifyChange(FSP_FILE_NODE *FileNode, ULONG Filter, ULONG Action,
     BOOLEAN InvalidateCaches);
+VOID FspFileNodeInvalidateCachesAndNotifyChangeByName(PDEVICE_OBJECT FsvolDeviceObject,
+    PUNICODE_STRING FileName, ULONG Filter, ULONG Action,
+    BOOLEAN InvalidateParentCaches);
 NTSTATUS FspFileNodeProcessLockIrp(FSP_FILE_NODE *FileNode, PIRP Irp);
 NTSTATUS FspFileDescCreate(FSP_FILE_DESC **PFileDesc);
 VOID FspFileDescDelete(FSP_FILE_DESC *FileDesc);
