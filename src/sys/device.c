@@ -41,7 +41,9 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject);
 static IO_TIMER_ROUTINE FspFsvolDeviceTimerRoutine;
 static WORKER_THREAD_ROUTINE FspFsvolDeviceExpirationRoutine;
 VOID FspFsvolDeviceFileRenameAcquireShared(PDEVICE_OBJECT DeviceObject);
+BOOLEAN FspFsvolDeviceFileRenameTryAcquireShared(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameAcquireExclusive(PDEVICE_OBJECT DeviceObject);
+BOOLEAN FspFsvolDeviceFileRenameTryAcquireExclusive(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameSetOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
 VOID FspFsvolDeviceFileRenameRelease(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameReleaseOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
@@ -83,7 +85,9 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceInit)
 #pragma alloc_text(PAGE, FspFsvolDeviceFini)
 #pragma alloc_text(PAGE, FspFsvolDeviceFileRenameAcquireShared)
+#pragma alloc_text(PAGE, FspFsvolDeviceFileRenameTryAcquireShared)
 #pragma alloc_text(PAGE, FspFsvolDeviceFileRenameAcquireExclusive)
+#pragma alloc_text(PAGE, FspFsvolDeviceFileRenameTryAcquireExclusive)
 #pragma alloc_text(PAGE, FspFsvolDeviceFileRenameSetOwner)
 #pragma alloc_text(PAGE, FspFsvolDeviceFileRenameRelease)
 #pragma alloc_text(PAGE, FspFsvolDeviceFileRenameReleaseOwner)
@@ -596,6 +600,15 @@ VOID FspFsvolDeviceFileRenameAcquireShared(PDEVICE_OBJECT DeviceObject)
     ExAcquireResourceSharedLite(&FsvolDeviceExtension->FileRenameResource, TRUE);
 }
 
+BOOLEAN FspFsvolDeviceFileRenameTryAcquireShared(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+
+    return ExAcquireResourceSharedLite(&FsvolDeviceExtension->FileRenameResource, FALSE);
+}
+
 VOID FspFsvolDeviceFileRenameAcquireExclusive(PDEVICE_OBJECT DeviceObject)
 {
     PAGED_CODE();
@@ -603,6 +616,15 @@ VOID FspFsvolDeviceFileRenameAcquireExclusive(PDEVICE_OBJECT DeviceObject)
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
 
     ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->FileRenameResource, TRUE);
+}
+
+BOOLEAN FspFsvolDeviceFileRenameTryAcquireExclusive(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+
+    return ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->FileRenameResource, FALSE);
 }
 
 VOID FspFsvolDeviceFileRenameSetOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner)

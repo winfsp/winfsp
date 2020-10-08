@@ -211,6 +211,7 @@ int main(int argc, char *argv[])
     TESTSUITE(ea_tests);
     TESTSUITE(stream_tests);
     TESTSUITE(oplock_tests);
+    TESTSUITE(notify_tests);
     TESTSUITE(wsl_tests);
     TESTSUITE(volpath_tests);
 

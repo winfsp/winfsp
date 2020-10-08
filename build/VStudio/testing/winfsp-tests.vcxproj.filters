@@ -109,6 +109,9 @@
     <ClCompile Include="..\..\..\tst\winfsp-tests\uuid5-test.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\tst\winfsp-tests\notify-test.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\ext\tlib\testsuite.h">

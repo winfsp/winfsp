@@ -1124,6 +1124,7 @@ typedef struct
     KSPIN_LOCK InfoSpinLock;
     UINT64 InfoExpirationTime;
     FSP_FSCTL_VOLUME_INFO VolumeInfo;
+    LONG VolumeNotifyLock;
     PNOTIFY_SYNC NotifySync;
     LIST_ENTRY NotifyList;
     FSP_STATISTICS *Statistics;
@@ -1182,7 +1183,9 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceReference(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDereference(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameAcquireShared(PDEVICE_OBJECT DeviceObject);
+BOOLEAN FspFsvolDeviceFileRenameTryAcquireShared(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameAcquireExclusive(PDEVICE_OBJECT DeviceObject);
+BOOLEAN FspFsvolDeviceFileRenameTryAcquireExclusive(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameSetOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
 VOID FspFsvolDeviceFileRenameRelease(PDEVICE_OBJECT DeviceObject);
 VOID FspFsvolDeviceFileRenameReleaseOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
