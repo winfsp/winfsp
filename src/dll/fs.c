@@ -432,6 +432,52 @@ FSP_API FSP_FILE_SYSTEM_OPERATION_CONTEXT *FspFileSystemGetOperationContext(VOID
     return (FSP_FILE_SYSTEM_OPERATION_CONTEXT *)TlsGetValue(FspFileSystemTlsKey);
 }
 
+FSP_API NTSTATUS FspFileSystemNotifyBegin(FSP_FILE_SYSTEM *FileSystem, ULONG Timeout)
+{
+    static const ULONG Delays[] =
+    {
+         10/*ms*/,
+         10/*ms*/,
+         50/*ms*/,
+         50/*ms*/,
+        100/*ms*/,
+        100/*ms*/,
+        300/*ms*/,
+    };
+    ULONG Total = 0, Delay;
+    NTSTATUS Result;
+
+    for (ULONG i = 0, n = sizeof(Delays) / sizeof(Delays[0]);; i++)
+    {
+        Result = FspFsctlNotify(FileSystem->VolumeHandle, 0, 0);
+        if (STATUS_CANT_WAIT != Result)
+            return Result;
+
+        Delay = n > i ? Delays[i] : Delays[n - 1];
+        if (INFINITE == Timeout)
+            Sleep(Delay);
+        else
+        {
+            if (Total >= Timeout)
+                break;
+            if (Total + Delay > Timeout)
+                Delay = Timeout - Total;
+            Total += Delay;
+            Sleep(Delay);
+        }
+    }
+
+    return Result;
+}
+
+FSP_API NTSTATUS FspFileSystemNotifyEnd(FSP_FILE_SYSTEM *FileSystem)
+{
+    FSP_FSCTL_NOTIFY_INFO NotifyInfo;
+
+    memset(&NotifyInfo, 0, sizeof NotifyInfo);
+    return FspFsctlNotify(FileSystem->VolumeHandle, &NotifyInfo, sizeof NotifyInfo.Size);
+}
+
 FSP_API NTSTATUS FspFileSystemNotify(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_NOTIFY_INFO *NotifyInfo, SIZE_T Size)
 {

@@ -111,11 +111,52 @@ void notify_abandon_rename_test(void)
         notify_abandon_rename_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+static
+void notify_timeout_dotest(ULONG Flags)
+{
+    void *memfs = memfs_start(Flags);
+    FSP_FILE_SYSTEM *FileSystem = MemfsFileSystem(memfs);
+    NTSTATUS Result;
+
+    Result = FspFsctlNotify(FileSystem->VolumeHandle, 0, 0);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    Result = FspFileSystemNotifyBegin(FileSystem, 0);
+    ASSERT(STATUS_CANT_WAIT == Result);
+
+    Result = FspFileSystemNotifyBegin(FileSystem, 9);
+    ASSERT(STATUS_CANT_WAIT == Result);
+
+    Result = FspFileSystemNotifyBegin(FileSystem, 10);
+    ASSERT(STATUS_CANT_WAIT == Result);
+
+    Result = FspFileSystemNotifyBegin(FileSystem, 11);
+    ASSERT(STATUS_CANT_WAIT == Result);
+
+    Result = FspFileSystemNotifyBegin(FileSystem, 20);
+    ASSERT(STATUS_CANT_WAIT == Result);
+
+    Result = FspFileSystemNotifyBegin(FileSystem, 1000);
+    ASSERT(STATUS_CANT_WAIT == Result);
+
+    memfs_stop(memfs);
+}
+
+static
+void notify_timeout_test(void)
+{
+    if (WinFspDiskTests)
+        notify_timeout_dotest(MemfsDisk);
+    if (WinFspNetTests)
+        notify_timeout_dotest(MemfsNet);
+}
+
 void notify_tests(void)
 {
     if (!OptExternal)
     {
         TEST(notify_abandon_test);
         TEST(notify_abandon_rename_test);
+        TEST(notify_timeout_test);
     }
 }

@@ -1187,7 +1187,47 @@ FSP_API VOID FspFileSystemStopDispatcher(FSP_FILE_SYSTEM *FileSystem);
 FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_RSP *Response);
 /**
+ * Begin notifying Windows that the file system has file changes.
+ *
+ * A file system that wishes to notify Windows about file changes must
+ * first issue an FspFileSystemBegin call, followed by 0 or more
+ * FspFileSystemNotify calls, followed by an FspFileSystemNotifyEnd call.
+ *
+ * This operation blocks concurrent file rename operations. File rename
+ * operations may interfere with file notification, because a file being
+ * notified may also be concurrently renamed. After all file change
+ * notifications have been issued, you must make sure to call
+ * FspFileSystemNotifyEnd to allow file rename operations to proceed.
+ *
+ * @param FileSystem
+ *     The file system object.
+ * @return
+ *     STATUS_SUCCESS or error code. The error code STATUS_CANT_WAIT means that
+ *     a file rename operation is currently in progress and the operation must be
+ *     retried at a later time.
+ */
+FSP_API NTSTATUS FspFileSystemNotifyBegin(FSP_FILE_SYSTEM *FileSystem, ULONG Timeout);
+/**
+ * End notifying Windows that the file system has file changes.
+ *
+ * A file system that wishes to notify Windows about file changes must
+ * first issue an FspFileSystemBegin call, followed by 0 or more
+ * FspFileSystemNotify calls, followed by an FspFileSystemNotifyEnd call.
+ *
+ * This operation allows any blocked file rename operations to proceed.
+ *
+ * @param FileSystem
+ *     The file system object.
+ * @return
+ *     STATUS_SUCCESS or error code.
+ */
+FSP_API NTSTATUS FspFileSystemNotifyEnd(FSP_FILE_SYSTEM *FileSystem);
+/**
  * Notify Windows that the file system has file changes.
+ *
+ * A file system that wishes to notify Windows about file changes must
+ * first issue an FspFileSystemBegin call, followed by 0 or more
+ * FspFileSystemNotify calls, followed by an FspFileSystemNotifyEnd call.
  *
  * @param FileSystem
  *     The file system object.
