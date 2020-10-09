@@ -1218,6 +1218,9 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
         FileName.Length =
         FileName.MaximumLength = (USHORT)(NotifyInfoSize - sizeof(FSP_FSCTL_NOTIFY_INFO));
         FileName.Buffer = NotifyInfo->FileNameBuf;
+        if (sizeof(WCHAR) * 2/* not empty or root */ <= FileName.Length &&
+            L'\\' == FileName.Buffer[FileName.Length / sizeof(WCHAR) - 1])
+            FileName.Length -= sizeof(WCHAR);
 
         if (!FspFileNameIsValid(&FileName, FsvolDeviceExtension->VolumeParams.MaxComponentLength,
             FsvolDeviceExtension->VolumeParams.NamedStreams ? &StreamPart : 0,
@@ -1249,8 +1252,7 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
             Result = RtlAppendUnicodeStringToString(&FullFileName, &AbsFileName);
             if (NT_SUCCESS(Result))
             {
-                if (sizeof(WCHAR) * 2/* not empty or root */ <= AbsFileName.Length &&
-                    L'\\' != AbsFileName.Buffer[AbsFileName.Length / sizeof(WCHAR) - 1])
+                if (sizeof(WCHAR) * 2/* not empty or root */ <= AbsFileName.Length)
                     Result = RtlAppendUnicodeToString(&FullFileName, L"\\");
             }
             if (NT_SUCCESS(Result))
