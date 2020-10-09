@@ -254,6 +254,92 @@ void notify_change_test(void)
         notify_change_dotest(MemfsNet);
 }
 
+static
+void notify_open_change_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+    FSP_FILE_SYSTEM *FileSystem = MemfsFileSystem(memfs);
+
+    HANDLE DirHandle, FileHandle;
+    WCHAR FilePath[MAX_PATH];
+    DWORD Bytes;
+    union
+    {
+        FSP_FSCTL_NOTIFY_INFO V;
+        UINT8 B[sizeof(FSP_FSCTL_NOTIFY_INFO) + MAX_PATH * sizeof(WCHAR)];
+    } NotifyInfo;
+    PWSTR FileName;
+    BOOL Success;
+    NTSTATUS Result;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    DirHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != DirHandle);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir1\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    FileHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != FileHandle);
+
+    Success = WriteFile(FileHandle, "foobar", 6, &Bytes, 0);
+    ASSERT(Success);
+
+    Result = FspFileSystemNotifyBegin(FileSystem, 1000);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    FileName = L"\\dir1";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = 0;
+    NotifyInfo.V.Action = 0;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+    Result = FspFileSystemNotify(FileSystem, &NotifyInfo.V, NotifyInfo.V.Size);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    FileName = L"\\dir1\\file0";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = 0;
+    NotifyInfo.V.Action = 0;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+    Result = FspFileSystemNotify(FileSystem, &NotifyInfo.V, NotifyInfo.V.Size);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    Result = FspFileSystemNotifyEnd(FileSystem);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    CloseHandle(FileHandle);
+
+    CloseHandle(DirHandle);
+
+    memfs_stop(memfs);
+}
+
+static
+void notify_open_change_test(void)
+{
+    if (WinFspDiskTests)
+    {
+        notify_open_change_dotest(MemfsDisk, 0, 0);
+        notify_open_change_dotest(MemfsDisk, 0, 1000);
+        notify_open_change_dotest(MemfsDisk, 0, INFINITE);
+    }
+    if (WinFspNetTests)
+    {
+        notify_open_change_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        notify_open_change_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+        notify_open_change_dotest(MemfsNet, L"\\\\memfs\\share", INFINITE);
+    }
+}
+
 void notify_tests(void)
 {
     if (!OptExternal)
@@ -262,5 +348,6 @@ void notify_tests(void)
         TEST(notify_abandon_rename_test);
         TEST(notify_timeout_test);
         TEST(notify_change_test);
+        TEST(notify_open_change_test);
     }
 }
