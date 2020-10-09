@@ -151,6 +151,109 @@ void notify_timeout_test(void)
         notify_timeout_dotest(MemfsNet);
 }
 
+static
+void notify_change_dotest(ULONG Flags)
+{
+    void *memfs = memfs_start(Flags);
+    FSP_FILE_SYSTEM *FileSystem = MemfsFileSystem(memfs);
+    union
+    {
+        FSP_FSCTL_NOTIFY_INFO V;
+        UINT8 B[1024];
+    } Buffer;
+    ULONG Length = 0;
+    union
+    {
+        FSP_FSCTL_NOTIFY_INFO V;
+        UINT8 B[sizeof(FSP_FSCTL_NOTIFY_INFO) + MAX_PATH * sizeof(WCHAR)];
+    } NotifyInfo;
+    PWSTR FileName;
+    NTSTATUS Result;
+
+    Result = FspFileSystemNotifyBegin(FileSystem, 0);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    FileName = L"\\";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = 0;
+    NotifyInfo.V.Action = 0;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+    FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
+
+    FileName = L"bar";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = 0;
+    NotifyInfo.V.Action = 0;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+    FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
+
+    FileName = L"baz";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = 0;
+    NotifyInfo.V.Action = 0;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+    FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
+
+    FileName = L"\\foo";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = 0;
+    NotifyInfo.V.Action = 0;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+    FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
+
+    FileName = L"bar";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = 0;
+    NotifyInfo.V.Action = 0;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+    FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
+
+    FileName = L"baz";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = 0;
+    NotifyInfo.V.Action = 0;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+    FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
+
+    FileName = L"\\foo\\";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = 0;
+    NotifyInfo.V.Action = 0;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+    FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
+
+    FileName = L"bar";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = 0;
+    NotifyInfo.V.Action = 0;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+    FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
+
+    FileName = L"baz";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = 0;
+    NotifyInfo.V.Action = 0;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+    FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
+
+    Result = FspFileSystemNotify(FileSystem, &Buffer.V, Length);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    Result = FspFileSystemNotifyEnd(FileSystem);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    memfs_stop(memfs);
+}
+
+static
+void notify_change_test(void)
+{
+    if (WinFspDiskTests)
+        notify_change_dotest(MemfsDisk);
+    if (WinFspNetTests)
+        notify_change_dotest(MemfsNet);
+}
+
 void notify_tests(void)
 {
     if (!OptExternal)
@@ -158,5 +261,6 @@ void notify_tests(void)
         TEST(notify_abandon_test);
         TEST(notify_abandon_rename_test);
         TEST(notify_timeout_test);
+        TEST(notify_change_test);
     }
 }

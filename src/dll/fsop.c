@@ -1866,3 +1866,9 @@ FSP_API BOOLEAN FspFileSystemAddEa(PFILE_FULL_EA_INFORMATION SingleEa,
 
     return TRUE;
 }
+
+FSP_API BOOLEAN FspFileSystemAddNotifyInfo(FSP_FSCTL_NOTIFY_INFO *NotifyInfo,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+{
+    return FspFileSystemAddXxxInfo(NotifyInfo, Buffer, Length, PBytesTransferred);
+}

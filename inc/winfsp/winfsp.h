@@ -1699,6 +1699,28 @@ UINT32 FspFileSystemGetEaPackedSize(PFILE_FULL_EA_INFORMATION SingleEa)
     /* magic computations are courtesy of NTFS */
     return 5 + SingleEa->EaNameLength + SingleEa->EaValueLength;
 }
+/**
+ * Add notify information to a buffer.
+ *
+ * This is a helper for filling a buffer to use with FspFileSystemNotify.
+ *
+ * @param NotifyInfo
+ *     The notify information to add.
+ * @param Buffer
+ *     Pointer to a buffer that will receive the notify information.
+ * @param Length
+ *     Length of buffer.
+ * @param PBytesTransferred [out]
+ *     Pointer to a memory location that will receive the actual number of bytes stored. This should
+ *     be initialized to 0 prior to the first call to FspFileSystemAddNotifyInfo for a particular
+ *     buffer.
+ * @return
+ *     TRUE if the notify information was added, FALSE if there was not enough space to add it.
+ * @see
+ *     FspFileSystemNotify
+ */
+FSP_API BOOLEAN FspFileSystemAddNotifyInfo(FSP_FSCTL_NOTIFY_INFO *NotifyInfo,
+    PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
 
 /*
  * Directory buffering

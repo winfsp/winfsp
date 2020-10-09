@@ -1068,10 +1068,10 @@ NTSTATUS FspVolumeStop(
 
 typedef struct
 {
-    PDEVICE_OBJECT FsvolDeviceObject;
-    PVOID InputBuffer;
-    ULONG InputBufferLength;
     WORK_QUEUE_ITEM WorkItem;
+    PDEVICE_OBJECT FsvolDeviceObject;
+    ULONG InputBufferLength;
+    FSP_FSCTL_DECLSPEC_ALIGN UINT8 InputBuffer[];
 } FSP_VOLUME_NOTIFY_WORK_ITEM;
 
 NTSTATUS FspVolumeNotify(
@@ -1108,17 +1108,9 @@ NTSTATUS FspVolumeNotify(
     if (!FspDeviceReference(FsvolDeviceObject))
         return STATUS_CANCELLED;
 
-    NotifyWorkItem = FspAllocNonPaged(sizeof *NotifyWorkItem);
+    NotifyWorkItem = FspAllocNonPaged(
+        FIELD_OFFSET(FSP_VOLUME_NOTIFY_WORK_ITEM, InputBuffer) + InputBufferLength);
     if (0 == NotifyWorkItem)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto fail;
-    }
-
-    NotifyWorkItem->FsvolDeviceObject = FsvolDeviceObject;
-
-    NotifyWorkItem->InputBuffer = FspAllocNonPaged(InputBufferLength);
-    if (0 == NotifyWorkItem->InputBuffer)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
         goto fail;
@@ -1138,17 +1130,14 @@ NTSTATUS FspVolumeNotify(
     }
 
     ExInitializeWorkItem(&NotifyWorkItem->WorkItem, FspVolumeNotifyWork, NotifyWorkItem);
+    NotifyWorkItem->FsvolDeviceObject = FsvolDeviceObject;
     ExQueueWorkItem(&NotifyWorkItem->WorkItem, DelayedWorkQueue);
 
     return STATUS_SUCCESS;
 
 fail:
     if (0 != NotifyWorkItem)
-    {
-        if (0 != NotifyWorkItem->InputBuffer)
-            FspFree(NotifyWorkItem->InputBuffer);
         FspFree(NotifyWorkItem);
-    }
 
     FspDeviceDereference(FsvolDeviceObject);
 
@@ -1202,7 +1191,7 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
     FSP_VOLUME_NOTIFY_WORK_ITEM *NotifyWorkItem = NotifyWorkItem0;
     PDEVICE_OBJECT FsvolDeviceObject = NotifyWorkItem->FsvolDeviceObject;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    FSP_FSCTL_NOTIFY_INFO *NotifyInfo = NotifyWorkItem->InputBuffer;
+    FSP_FSCTL_NOTIFY_INFO *NotifyInfo = (PVOID)NotifyWorkItem->InputBuffer;
     PUINT8 NotifyInfoEnd = (PUINT8)NotifyInfo + NotifyWorkItem->InputBufferLength;
     ULONG NotifyInfoSize;
     UNICODE_STRING FileName = { 0 }, StreamPart = { 0 }, AbsFileName = { 0 }, FullFileName = { 0 };
@@ -1217,6 +1206,7 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
 
         if (sizeof(FSP_FSCTL_NOTIFY_INFO) > NotifyInfoSize)
         {
+            /* !!!: we should wait until all pending notify work is done! */
             if (1 == InterlockedCompareExchange(&FsvolDeviceExtension->VolumeNotifyLock, 0, 1))
                 FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject, FsvolDeviceObject);
             break;
@@ -1257,7 +1247,7 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
             if (NT_SUCCESS(Result))
             {
                 if (sizeof(WCHAR) * 2/* not empty or root */ <= AbsFileName.Length &&
-                    L'\\' == AbsFileName.Buffer[AbsFileName.Length / sizeof(WCHAR) - 1])
+                    L'\\' != AbsFileName.Buffer[AbsFileName.Length / sizeof(WCHAR) - 1])
                     Result = RtlAppendUnicodeToString(&FullFileName, L"\\");
             }
             if (NT_SUCCESS(Result))
@@ -1273,7 +1263,6 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
     if (0 != FullFileName.Buffer)
         FspFree(FullFileName.Buffer);
 
-    FspFree(NotifyWorkItem->InputBuffer);
     FspFree(NotifyWorkItem);
 
     FspDeviceDereference(FsvolDeviceObject);
