@@ -175,64 +175,64 @@ void notify_change_dotest(ULONG Flags)
 
     FileName = L"\\";
     NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
-    NotifyInfo.V.Filter = 0;
-    NotifyInfo.V.Action = 0;
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_WRITE;
+    NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
     FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
 
     FileName = L"bar";
     NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
-    NotifyInfo.V.Filter = 0;
-    NotifyInfo.V.Action = 0;
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_WRITE;
+    NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
     FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
 
     FileName = L"baz";
     NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
-    NotifyInfo.V.Filter = 0;
-    NotifyInfo.V.Action = 0;
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_WRITE;
+    NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
     FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
 
     FileName = L"\\foo";
     NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
-    NotifyInfo.V.Filter = 0;
-    NotifyInfo.V.Action = 0;
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_WRITE;
+    NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
     FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
 
     FileName = L"bar";
     NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
-    NotifyInfo.V.Filter = 0;
-    NotifyInfo.V.Action = 0;
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_WRITE;
+    NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
     FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
 
     FileName = L"baz";
     NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
-    NotifyInfo.V.Filter = 0;
-    NotifyInfo.V.Action = 0;
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_WRITE;
+    NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
     FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
 
     FileName = L"\\foo\\";
     NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
-    NotifyInfo.V.Filter = 0;
-    NotifyInfo.V.Action = 0;
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_WRITE;
+    NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
     FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
 
     FileName = L"bar";
     NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
-    NotifyInfo.V.Filter = 0;
-    NotifyInfo.V.Action = 0;
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_WRITE;
+    NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
     FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
 
     FileName = L"baz";
     NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
-    NotifyInfo.V.Filter = 0;
-    NotifyInfo.V.Action = 0;
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_WRITE;
+    NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
     FspFileSystemAddNotifyInfo(&NotifyInfo.V, &Buffer, sizeof Buffer, &Length);
 
@@ -299,16 +299,16 @@ void notify_open_change_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 
     FileName = L"\\dir1";
     NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
-    NotifyInfo.V.Filter = 0;
-    NotifyInfo.V.Action = 0;
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_WRITE;
+    NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
     Result = FspFileSystemNotify(FileSystem, &NotifyInfo.V, NotifyInfo.V.Size);
     ASSERT(STATUS_SUCCESS == Result);
 
     FileName = L"\\dir1\\file0";
     NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
-    NotifyInfo.V.Filter = 0;
-    NotifyInfo.V.Action = 0;
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_WRITE;
+    NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
     Result = FspFileSystemNotify(FileSystem, &NotifyInfo.V, NotifyInfo.V.Size);
     ASSERT(STATUS_SUCCESS == Result);

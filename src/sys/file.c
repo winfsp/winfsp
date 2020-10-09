@@ -2412,7 +2412,7 @@ VOID FspFileNodeInvalidateCachesAndNotifyChangeByName(PDEVICE_OBJECT FsvolDevice
                 FspFsvolDeviceInvalidateVolumeInfo(FsvolDeviceObject);
                 if (!IsStream)
                 {
-                    if (sizeof(WCHAR) == FileNode->FileName.Length && L'\\' == FileNode->FileName.Buffer[0])
+                    if (sizeof(WCHAR) == FileName->Length && L'\\' == FileName->Buffer[0])
                         ; /* root does not have a parent */
                     else
                         FspFileNodeInvalidateDirInfoByName(FsvolDeviceObject, &Parent);
