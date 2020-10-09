@@ -131,6 +131,12 @@ NTSTATUS FspIrpHook(PIRP Irp, PIO_COMPLETION_ROUTINE CompletionRoutine, PVOID Ow
 VOID FspIrpHookReset(PIRP Irp);
 PVOID FspIrpHookContext(PVOID Context);
 NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
+VOID FspWgroupInitialize(FSP_WGROUP *Wgroup);
+VOID FspWgroupIncrement(FSP_WGROUP *Wgroup);
+VOID FspWgroupDecrement(FSP_WGROUP *Wgroup);
+VOID FspWgroupSignalPermanently(FSP_WGROUP *Wgroup);
+NTSTATUS FspWgroupWait(FSP_WGROUP *Wgroup,
+    KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, PLARGE_INTEGER PTimeout);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspIsNtDdiVersionAvailable)
@@ -176,6 +182,11 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #pragma alloc_text(PAGE, FspIrpHookReset)
 // !#pragma alloc_text(PAGE, FspIrpHookContext)
 // !#pragma alloc_text(PAGE, FspIrpHookNext)
+// !#pragma alloc_text(PAGE, FspWgroupInitialize)
+// !#pragma alloc_text(PAGE, FspWgroupIncrement)
+// !#pragma alloc_text(PAGE, FspWgroupDecrement)
+// !#pragma alloc_text(PAGE, FspWgroupSignalPermanently)
+// !#pragma alloc_text(PAGE, FspWgroupWait)
 #endif
 
 static const LONG Delays[] =
@@ -1487,4 +1498,57 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context)
         FspFree(HookContext);
 
     return Result;
+}
+
+VOID FspWgroupInitialize(FSP_WGROUP *Wgroup)
+{
+    // !PAGED_CODE();
+
+    KeInitializeEvent(&Wgroup->Event, NotificationEvent, TRUE);
+    Wgroup->Count = 0;
+    KeInitializeSpinLock(&Wgroup->SpinLock);
+}
+
+VOID FspWgroupIncrement(FSP_WGROUP *Wgroup)
+{
+    // !PAGED_CODE();
+
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&Wgroup->SpinLock, &Irql);
+    if (0 <= Wgroup->Count && 1 == ++Wgroup->Count)
+        KeClearEvent(&Wgroup->Event);
+    KeReleaseSpinLock(&Wgroup->SpinLock, Irql);
+}
+
+VOID FspWgroupDecrement(FSP_WGROUP *Wgroup)
+{
+    // !PAGED_CODE();
+
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&Wgroup->SpinLock, &Irql);
+    if (0 < Wgroup->Count && 0 == --Wgroup->Count)
+        KeSetEvent(&Wgroup->Event, 1, FALSE);
+    KeReleaseSpinLock(&Wgroup->SpinLock, Irql);
+}
+
+VOID FspWgroupSignalPermanently(FSP_WGROUP *Wgroup)
+{
+    // !PAGED_CODE();
+
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&Wgroup->SpinLock, &Irql);
+    Wgroup->Count = -1;
+    KeSetEvent(&Wgroup->Event, 1, FALSE);
+    KeReleaseSpinLock(&Wgroup->SpinLock, Irql);
+}
+
+NTSTATUS FspWgroupWait(FSP_WGROUP *Wgroup,
+    KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, PLARGE_INTEGER PTimeout)
+{
+    // !PAGED_CODE();
+
+    return KeWaitForSingleObject(&Wgroup->Event, Executive, WaitMode, Alertable, PTimeout);
 }

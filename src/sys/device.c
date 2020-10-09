@@ -415,10 +415,11 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
         return Result;
     FsvolDeviceExtension->InitDoneEa = 1;
 
-    /* initialize the FSRTL Notify mechanism */
+    /* initialize the Volume Notify and FSRTL Notify mechanisms */
     Result = FspNotifyInitializeSync(&FsvolDeviceExtension->NotifySync);
     if (!NT_SUCCESS(Result))
         return Result;
+    FspWgroupInitialize(&FsvolDeviceExtension->VolumeNotifyWgroup);
     InitializeListHead(&FsvolDeviceExtension->NotifyList);
     FsvolDeviceExtension->InitDoneNotify = 1;
 
@@ -477,7 +478,7 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
     if (FsvolDeviceExtension->InitDoneStat)
         FspStatisticsDelete(FsvolDeviceExtension->Statistics);
 
-    /* uninitialize the FSRTL Notify mechanism */
+    /* uninitialize the Volume Notify and FSRTL Notify mechanisms */
     if (FsvolDeviceExtension->InitDoneNotify)
     {
         FspNotifyCleanupAll(
