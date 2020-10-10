@@ -79,6 +79,17 @@ extern "C" {
 #define UF_ARCHIVE                      FSP_FUSE_UF_ARCHIVE
 #endif
 
+/* notify extension */
+#define FSP_FUSE_NOTIFY_MKDIR           0x0001
+#define FSP_FUSE_NOTIFY_RMDIR           0x0002
+#define FSP_FUSE_NOTIFY_CREATE          0x0004
+#define FSP_FUSE_NOTIFY_UNLINK          0x0008
+#define FSP_FUSE_NOTIFY_CHMOD           0x0010
+#define FSP_FUSE_NOTIFY_CHOWN           0x0020
+#define FSP_FUSE_NOTIFY_UTIME           0x0040
+#define FSP_FUSE_NOTIFY_CHFLAGS         0x0080
+#define FSP_FUSE_NOTIFY_TRUNCATE        0x0100
+
 struct fuse_file_info
 {
     int flags;

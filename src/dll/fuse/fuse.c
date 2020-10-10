@@ -610,6 +610,99 @@ FSP_FUSE_API int FSP_FUSE_API_NAME(fsp_fuse_exited)(struct fsp_fuse_env *env,
     return f->exited;
 }
 
+FSP_FUSE_API int fsp_fuse_notify(struct fsp_fuse_env *env,
+    struct fuse *f, const char *path, uint32_t action)
+{
+    PWSTR Path = 0;
+    int PathLength;
+    union
+    {
+        FSP_FSCTL_NOTIFY_INFO V;
+        UINT8 B[sizeof(FSP_FSCTL_NOTIFY_INFO) + FSP_FSCTL_TRANSACT_PATH_SIZEMAX];
+    } NotifyInfo;
+    NTSTATUS Result;
+    int result;
+
+    Result = FspPosixMapPosixToWindowsPath(path, &Path);
+    if (!NT_SUCCESS(Result))
+    {
+        result = -ENOMEM;
+        goto exit;
+    }
+
+    PathLength = lstrlenW(Path);
+    if (FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR) <= PathLength)
+    {
+        result = -ENAMETOOLONG;
+        goto exit;
+    }
+
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + PathLength * sizeof(WCHAR));
+    NotifyInfo.V.Filter = 0;
+    NotifyInfo.V.Action = 0;
+    memcpy(NotifyInfo.V.FileNameBuf, Path, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+
+    if (action & FSP_FUSE_NOTIFY_MKDIR)
+    {
+        NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_DIR_NAME;
+        NotifyInfo.V.Action = FILE_ACTION_ADDED;
+    }
+    else if (action & FSP_FUSE_NOTIFY_RMDIR)
+    {
+        NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_DIR_NAME;
+        NotifyInfo.V.Action = FILE_ACTION_REMOVED;
+    }
+    else if (action & FSP_FUSE_NOTIFY_CREATE)
+    {
+        NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_FILE_NAME;
+        NotifyInfo.V.Action = FILE_ACTION_REMOVED;
+    }
+    else if (action & FSP_FUSE_NOTIFY_UNLINK)
+    {
+        NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_FILE_NAME;
+        NotifyInfo.V.Action = FILE_ACTION_REMOVED;
+    }
+
+    if (action & (FSP_FUSE_NOTIFY_CHMOD | FSP_FUSE_NOTIFY_CHOWN))
+    {
+        NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_SECURITY;
+        NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
+    }
+
+    if (action & FSP_FUSE_NOTIFY_UTIME)
+    {
+        NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_ACCESS | FILE_NOTIFY_CHANGE_LAST_WRITE;
+        NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
+    }
+
+    if (action & FSP_FUSE_NOTIFY_CHFLAGS)
+    {
+        NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_ATTRIBUTES;
+        NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
+    }
+
+    if (action & FSP_FUSE_NOTIFY_TRUNCATE)
+    {
+        NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_SIZE;
+        NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
+    }
+
+    Result = FspFileSystemNotify(f->FileSystem, &NotifyInfo.V, NotifyInfo.V.Size);
+    if (!NT_SUCCESS(Result))
+    {
+        result = -ENOMEM;
+        goto exit;
+    }
+
+    result = 0;
+
+exit:
+    if (0 != Path)
+        FspPosixDeletePath(Path);
+
+    return result;
+}
+
 FSP_FUSE_API struct fuse_context *fsp_fuse_get_context(struct fsp_fuse_env *env)
 {
     struct fuse_context *context;
