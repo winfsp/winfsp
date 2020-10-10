@@ -21,6 +21,7 @@
 
 #define WINFSP_TESTS_NO_HOOKS
 #include "winfsp-tests.h"
+#include <winfsp/winfsp.h>
 
 #define FILENAMEBUF_SIZE                1024
 
@@ -105,6 +106,75 @@ static VOID PrepareFileName(PCWSTR FileName, PWSTR FileNameBuf)
         memmove(FileNameBuf + L2, OptShareName, L3 * sizeof(WCHAR));
         memmove(FileNameBuf + L2 + L3, FileNameBuf + FILENAMEBUF_SIZE - L1, L1 * sizeof(WCHAR));
     }
+}
+
+typedef struct
+{
+    HANDLE VolumeHandle;
+    FSP_FSCTL_NOTIFY_INFO *NotifyInfo;
+} MAYBE_NOTIFY_DATA;
+
+static DWORD WINAPI MaybeNotifyRoutine(PVOID Context)
+{
+    MAYBE_NOTIFY_DATA *NotifyData = Context;
+
+    /*
+     * The supplied VolumeHandle may be invalid or refer to the wrong object.
+     * This is ok because:
+     *
+     * - If the VolumeHandle is invalid, Windows will catch it and will fail the operation.
+     * - If the VolumeHandle refers to the wrong object, the FspFsctlNotify "should" fail
+     * because of an unknown DeviceIoControl code.
+     * - If the VolumeHandle refers to the wrong file system, it is still ok if we send an
+     * extraneous notify.
+     */
+
+    FspFsctlNotify(NotifyData->VolumeHandle,
+        NotifyData->NotifyInfo, NotifyData->NotifyInfo->Size);
+
+    HeapFree(GetProcessHeap(), 0, NotifyData->NotifyInfo);
+    HeapFree(GetProcessHeap(), 0, NotifyData);
+
+    return 0;
+}
+
+static VOID MaybeNotify(PWSTR FileName, ULONG Filter, ULONG Action)
+{
+    static WCHAR DevicePrefix[] =
+        L"\\\\?\\GLOBALROOT\\Device\\Volume{01234567-0123-0123-0101-010101010101}";
+    static WCHAR MemfsSharePrefix[] =
+        L"\\\\memfs\\share";
+    MAYBE_NOTIFY_DATA *NotifyData;
+    FSP_FSCTL_NOTIFY_INFO *NotifyInfo;
+    size_t L;
+
+    if (!OptNotify || OptExternal || 0 == memfs_handle)
+        return;
+
+    if (0 == wcsncmp(FileName, DevicePrefix, wcschr(DevicePrefix, L'{') - DevicePrefix))
+        FileName += wcslen(DevicePrefix);
+    else if (0 == mywcscmp(
+        FileName, (int)wcslen(MemfsSharePrefix), MemfsSharePrefix, (int)wcslen(MemfsSharePrefix)))
+        FileName += wcslen(MemfsSharePrefix);
+    else
+        return;
+
+    L = wcslen(FileName);
+    NotifyData = HeapAlloc(GetProcessHeap(), 0, sizeof *NotifyData);
+    NotifyInfo = HeapAlloc(GetProcessHeap(), 0, sizeof *NotifyInfo + L * sizeof(WCHAR));
+    if (0 == NotifyData || 0 == NotifyInfo)
+        ABORT("cannot malloc notify data");
+
+    NotifyInfo->Size = (UINT16)(sizeof *NotifyInfo + L * sizeof(WCHAR));
+    NotifyInfo->Filter = Filter;
+    NotifyInfo->Action = Action;
+    memcpy(NotifyInfo->FileNameBuf, FileName, L * sizeof(WCHAR));
+
+    NotifyData->VolumeHandle = memfs_handle;
+    NotifyData->NotifyInfo = NotifyInfo;
+
+    if (!QueueUserWorkItem(MaybeNotifyRoutine, NotifyData, 0))
+        ABORT("cannot queue notify data");
 }
 
 typedef struct
@@ -210,6 +280,9 @@ HANDLE WINAPI HookCreateFileW(
 
     PrepareFileName(lpFileName, FileNameBuf);
 
+    MaybeNotify(FileNameBuf,
+        FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_ACTION_MODIFIED);
+
     MaybeRequestOplock(FileNameBuf);
 
     MaybeAdjustTraversePrivilege(FALSE);
@@ -241,6 +314,9 @@ BOOL WINAPI HookSetFileAttributesW(
 
     PrepareFileName(lpFileName, FileNameBuf);
 
+    MaybeNotify(FileNameBuf,
+        FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_ACTION_MODIFIED);
+
     MaybeAdjustTraversePrivilege(FALSE);
     Success = SetFileAttributesW(FileNameBuf, dwFileAttributes);
     MaybeAdjustTraversePrivilege(TRUE);
@@ -256,6 +332,9 @@ BOOL WINAPI HookCreateDirectoryW(
 
     PrepareFileName(lpPathName, FileNameBuf);
 
+    MaybeNotify(FileNameBuf,
+        FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_ACTION_MODIFIED);
+
     MaybeAdjustTraversePrivilege(FALSE);
     Success = CreateDirectoryW(FileNameBuf, lpSecurityAttributes);
     MaybeAdjustTraversePrivilege(TRUE);
@@ -269,6 +348,9 @@ BOOL WINAPI HookDeleteFileW(
     BOOL Success;
 
     PrepareFileName(lpFileName, FileNameBuf);
+
+    MaybeNotify(FileNameBuf,
+        FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_ACTION_MODIFIED);
 
     MaybeRequestOplock(FileNameBuf);
 
@@ -286,6 +368,9 @@ BOOL WINAPI HookRemoveDirectoryW(
     BOOL Success;
 
     PrepareFileName(lpPathName, FileNameBuf);
+
+    MaybeNotify(FileNameBuf,
+        FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_ACTION_MODIFIED);
 
     MaybeAdjustTraversePrivilege(FALSE);
     Success = (OptResilient ? ResilientRemoveDirectoryW : RemoveDirectoryW)(
@@ -305,6 +390,13 @@ BOOL WINAPI HookMoveFileExW(
 
     PrepareFileName(lpExistingFileName, OldFileNameBuf);
     PrepareFileName(lpNewFileName, NewFileNameBuf);
+
+    MaybeNotify(OldFileNameBuf,
+        FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_ACTION_MODIFIED);
+    if (OptCaseInsensitive ?
+        _wcsicmp(OldFileNameBuf, NewFileNameBuf) : wcscmp(OldFileNameBuf, NewFileNameBuf))
+        MaybeNotify(NewFileNameBuf,
+            FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_ACTION_MODIFIED);
 
     MaybeRequestOplock(OldFileNameBuf);
     if (OptCaseInsensitive ?
@@ -326,6 +418,9 @@ HANDLE WINAPI HookFindFirstFileW(
 
     PrepareFileName(lpFileName, FileNameBuf);
 
+    MaybeNotify(FileNameBuf,
+        FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_ACTION_MODIFIED);
+
     MaybeAdjustTraversePrivilege(FALSE);
     Handle = FindFirstFileW(FileNameBuf, lpFindFileData);
     MaybeAdjustTraversePrivilege(TRUE);
@@ -342,6 +437,9 @@ HANDLE WINAPI HookFindFirstStreamW(
     HANDLE Handle;
 
     PrepareFileName(lpFileName, FileNameBuf);
+
+    MaybeNotify(FileNameBuf,
+        FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_ACTION_MODIFIED);
 
     MaybeAdjustTraversePrivilege(FALSE);
     Handle = FindFirstStreamW(FileNameBuf, InfoLevel, lpFindStreamData, dwFlags);
@@ -426,6 +524,9 @@ BOOL WINAPI HookSetCurrentDirectoryW(
 
     PrepareFileName(lpPathName, FileNameBuf);
 
+    MaybeNotify(FileNameBuf,
+        FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_ACTION_MODIFIED);
+
     MaybeAdjustTraversePrivilege(FALSE);
     Success = SetCurrentDirectoryW(FileNameBuf);
     MaybeAdjustTraversePrivilege(TRUE);
@@ -448,6 +549,9 @@ BOOL WINAPI HookCreateProcessW(
     BOOL Success;
 
     PrepareFileName(lpApplicationName, FileNameBuf);
+
+    MaybeNotify(FileNameBuf,
+        FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_ACTION_MODIFIED);
 
     MaybeAdjustTraversePrivilege(FALSE);
     Success = CreateProcessW(FileNameBuf,

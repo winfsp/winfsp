@@ -342,12 +342,12 @@ void notify_open_change_test(void)
 
 void notify_tests(void)
 {
-    if (!OptExternal)
-    {
-        TEST(notify_abandon_test);
-        TEST(notify_abandon_rename_test);
-        TEST(notify_timeout_test);
-        TEST(notify_change_test);
-        TEST(notify_open_change_test);
-    }
+    if (OptExternal || OptNotify)
+        return;
+
+    TEST(notify_abandon_test);
+    TEST(notify_abandon_rename_test);
+    TEST(notify_timeout_test);
+    TEST(notify_change_test);
+    TEST(notify_open_change_test);
 }

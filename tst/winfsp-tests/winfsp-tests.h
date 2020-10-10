@@ -159,6 +159,7 @@ extern BOOLEAN OptCaseInsensitiveCmp;
 extern BOOLEAN OptCaseInsensitive;
 extern BOOLEAN OptCaseRandomize;
 extern BOOLEAN OptFlushAndPurgeOnCleanup;
+extern BOOLEAN OptNotify;
 extern WCHAR OptOplock;
 extern WCHAR OptMountPointBuf[], *OptMountPoint;
 extern WCHAR OptShareNameBuf[], *OptShareName, *OptShareTarget;
@@ -168,3 +169,4 @@ extern HANDLE OptNoTraverseToken;
     extern LUID OptNoTraverseLuid;
 
 extern int memfs_running;
+extern HANDLE memfs_handle;

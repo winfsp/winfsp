@@ -27,6 +27,7 @@
 #include "winfsp-tests.h"
 
 int memfs_running;
+HANDLE memfs_handle;
 
 void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
 {
@@ -66,6 +67,7 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
     ASSERT(NT_SUCCESS(Result));
 
     memfs_running = 1;
+    memfs_handle = MemfsFileSystem(Memfs)->VolumeHandle;
 
     return Memfs;
 }
@@ -77,6 +79,7 @@ void *memfs_start(ULONG Flags)
 
 void memfs_stop(void *data)
 {
+    memfs_handle = 0;
     memfs_running = 0;
 
     if (0 == data)

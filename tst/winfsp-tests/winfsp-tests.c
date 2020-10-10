@@ -38,6 +38,7 @@ BOOLEAN OptCaseInsensitiveCmp = FALSE;
 BOOLEAN OptCaseInsensitive = FALSE;
 BOOLEAN OptCaseRandomize = FALSE;
 BOOLEAN OptFlushAndPurgeOnCleanup = FALSE;
+BOOLEAN OptNotify = FALSE;
 WCHAR OptOplock = 0;
 WCHAR OptMountPointBuf[MAX_PATH], *OptMountPoint;
 WCHAR OptShareNameBuf[MAX_PATH], *OptShareName, *OptShareTarget;
@@ -257,6 +258,11 @@ int main(int argc, char *argv[])
             else if (0 == strcmp("--flush-and-purge-on-cleanup", a))
             {
                 OptFlushAndPurgeOnCleanup = TRUE;
+                rmarg(argv, argc, argi);
+            }
+            else if (0 == strcmp("--notify", a))
+            {
+                OptNotify = TRUE;
                 rmarg(argv, argc, argi);
             }
             else if (0 == strcmp("--oplock=batch", a))
