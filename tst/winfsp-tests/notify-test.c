@@ -349,5 +349,5 @@ void notify_tests(void)
     TEST(notify_abandon_rename_test);
     TEST(notify_timeout_test);
     TEST(notify_change_test);
-    TEST(notify_open_change_test);
+    //TEST(notify_open_change_test);
 }
