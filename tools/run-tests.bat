@@ -37,6 +37,7 @@ set dfl_tests=^
     winfsp-tests-x64-mountpoint-dir-case-sensitive ^
     winfsp-tests-x64-no-traverse ^
     winfsp-tests-x64-oplock ^
+    winfsp-tests-x64-notify ^
     winfsp-tests-x64-external ^
     winfsp-tests-x64-external-share ^
     fsx-memfs-x64-disk ^
@@ -56,6 +57,7 @@ set dfl_tests=^
     winfsp-tests-x86-mountpoint-dir-case-sensitive ^
     winfsp-tests-x86-no-traverse ^
     winfsp-tests-x86-oplock ^
+    winfsp-tests-x64-notify ^
     winfsp-tests-x86-external ^
     winfsp-tests-x86-external-share ^
     fsx-memfs-x86-disk ^
@@ -214,6 +216,11 @@ winfsp-tests-x64 --oplock=filter --resilient * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:winfsp-tests-x64-notify
+winfsp-tests-x64 --notify --resilient * +ea*
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :winfsp-tests-x86
 winfsp-tests-x86 +*
 if !ERRORLEVEL! neq 0 goto fail
@@ -251,6 +258,11 @@ exit /b 0
 
 :winfsp-tests-x86-oplock
 winfsp-tests-x86 --oplock=filter --resilient * +ea*
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-x86-notify
+winfsp-tests-x86 --notify --resilient * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
