@@ -340,6 +340,110 @@ void notify_open_change_test(void)
     }
 }
 
+static
+unsigned __stdcall notify_dirnotify_dotest_thread(void *FileSystem0)
+{
+    FspDebugLog(__FUNCTION__ "\n");
+
+    FSP_FILE_SYSTEM *FileSystem = FileSystem0;
+    union
+    {
+        FSP_FSCTL_NOTIFY_INFO V;
+        UINT8 B[sizeof(FSP_FSCTL_NOTIFY_INFO) + MAX_PATH * sizeof(WCHAR)];
+    } NotifyInfo;
+    PWSTR FileName;
+    NTSTATUS Result;
+
+    Sleep(1000); /* wait for ReadDirectoryChangesW */
+
+    FileName = L"\\Directory\\Subdirectory\\file0";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_FILE_NAME;
+    NotifyInfo.V.Action = FILE_ACTION_ADDED;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+    Result = FspFileSystemNotify(FileSystem, &NotifyInfo.V, NotifyInfo.V.Size);
+
+    return Result;
+}
+
+static
+void notify_dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+    FSP_FILE_SYSTEM *FileSystem = MemfsFileSystem(memfs);
+
+    WCHAR FilePath[MAX_PATH];
+    HANDLE Handle;
+    BOOL Success;
+    HANDLE Thread;
+    DWORD ExitCode;
+    DWORD BytesTransferred;
+    PFILE_NOTIFY_INFORMATION NotifyInfo;
+
+    NotifyInfo = malloc(4096);
+    ASSERT(0 != NotifyInfo);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\Directory",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        FILE_LIST_DIRECTORY, FILE_SHARE_READ, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Thread = (HANDLE)_beginthreadex(0, 0, notify_dirnotify_dotest_thread, FileSystem, 0, 0);
+    ASSERT(0 != Thread);
+
+    Success = ReadDirectoryChangesW(Handle,
+        NotifyInfo, 4096, TRUE, FILE_NOTIFY_CHANGE_FILE_NAME, &BytesTransferred, 0, 0);
+    ASSERT(Success);
+    ASSERT(0 < BytesTransferred);
+
+    ASSERT(FILE_ACTION_ADDED == NotifyInfo->Action);
+    ASSERT(wcslen(L"Subdirectory\\file0") * sizeof(WCHAR) == NotifyInfo->FileNameLength);
+    ASSERT(0 == mywcscmp(L"Subdirectory\\file0", -1,
+        NotifyInfo->FileName, NotifyInfo->FileNameLength / sizeof(WCHAR)));
+
+    ASSERT(0 == NotifyInfo->NextEntryOffset);
+
+    WaitForSingleObject(Thread, INFINITE);
+    GetExitCodeThread(Thread, &ExitCode);
+    CloseHandle(Thread);
+    ASSERT(STATUS_SUCCESS == ExitCode);
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Success = RemoveDirectoryW(FilePath);
+    ASSERT(Success);
+
+    free(NotifyInfo);
+
+    memfs_stop(memfs);
+}
+
+static
+void notify_dirnotify_test(void)
+{
+    if (WinFspDiskTests && !OptNoTraverseToken
+        /* WinFsp does not support change notifications without traverse privilege */)
+    {
+        notify_dirnotify_dotest(MemfsDisk, 0, 0);
+        notify_dirnotify_dotest(MemfsDisk, 0, 1000);
+        notify_dirnotify_dotest(MemfsDisk, 0, INFINITE);
+    }
+    if (WinFspNetTests && !OptNoTraverseToken
+        /* WinFsp does not support change notifications without traverse privilege */)
+    {
+        notify_dirnotify_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        notify_dirnotify_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+        notify_dirnotify_dotest(MemfsNet, L"\\\\memfs\\share", INFINITE);
+    }
+}
+
 void notify_tests(void)
 {
     if (OptExternal || OptNotify)
@@ -350,4 +454,5 @@ void notify_tests(void)
     TEST(notify_timeout_test);
     TEST(notify_change_test);
     //TEST(notify_open_change_test);
+    TEST(notify_dirnotify_test);
 }
