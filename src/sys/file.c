@@ -2332,25 +2332,12 @@ VOID FspFileNodeInvalidateCachesAndNotifyChangeByName(PDEVICE_OBJECT FsvolDevice
     {
         FspFileNodeAcquireExclusive(FileNode, Full);
 
-        PFILE_OBJECT CcFileObject =
-            CcGetFileObjectFromSectionPtrsRef(&FileNode->NonPaged->SectionObjectPointers);
-        if (0 != CcFileObject)
+        if (0 != FileNode->NonPaged->SectionObjectPointers.DataSectionObject)
         {
             IO_STATUS_BLOCK IoStatus;
-            CACHE_UNINITIALIZE_EVENT UninitializeEvent;
-
-            FspCcFlushCache(CcFileObject->SectionObjectPointer, 0, 0, &IoStatus);
-            CcPurgeCacheSection(CcFileObject->SectionObjectPointer, 0, 0, TRUE);
-            if (0 != CcFileObject->SectionObjectPointer->SharedCacheMap)
-            {
-                UninitializeEvent.Next = 0;
-                KeInitializeEvent(&UninitializeEvent.Event, NotificationEvent, FALSE);
-                BOOLEAN CacheStopped = CcUninitializeCacheMap(CcFileObject, 0, &UninitializeEvent);
-                (VOID)CacheStopped; ASSERT(CacheStopped);
-                KeWaitForSingleObject(&UninitializeEvent.Event, Executive, KernelMode, FALSE, 0);
-            }
-
-            ObDereferenceObject(CcFileObject);
+            FspCcFlushCache(&FileNode->NonPaged->SectionObjectPointers, 0, 0, &IoStatus);
+            if (NT_SUCCESS(IoStatus.Status))
+                CcPurgeCacheSection(&FileNode->NonPaged->SectionObjectPointers, 0, 0, FALSE);
         }
 
         FspFileNodeInvalidateFileInfo(FileNode);
@@ -2362,6 +2349,7 @@ VOID FspFileNodeInvalidateCachesAndNotifyChangeByName(PDEVICE_OBJECT FsvolDevice
         FspFileNodeNotifyChange(FileNode, Filter, Action, InvalidateParentCaches);
 
         FspFileNodeRelease(FileNode, Full);
+
         FspFileNodeDereference(FileNode);
     }
     else
