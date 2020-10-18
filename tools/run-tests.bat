@@ -57,7 +57,7 @@ set dfl_tests=^
     winfsp-tests-x86-mountpoint-dir-case-sensitive ^
     winfsp-tests-x86-no-traverse ^
     winfsp-tests-x86-oplock ^
-    winfsp-tests-x64-notify ^
+    winfsp-tests-x86-notify ^
     winfsp-tests-x86-external ^
     winfsp-tests-x86-external-share ^
     fsx-memfs-x86-disk ^
