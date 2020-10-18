@@ -428,15 +428,17 @@ void notify_dirnotify_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 static
 void notify_dirnotify_test(void)
 {
-    if (WinFspDiskTests && !OptNoTraverseToken
-        /* WinFsp does not support change notifications without traverse privilege */)
+    if (WinFspDiskTests &&
+        !OptNoTraverseToken /* WinFsp does not support change notifications w/o traverse privilege */ &&
+        !OptCaseRandomize)
     {
         notify_dirnotify_dotest(MemfsDisk, 0, 0);
         notify_dirnotify_dotest(MemfsDisk, 0, 1000);
         notify_dirnotify_dotest(MemfsDisk, 0, INFINITE);
     }
-    if (WinFspNetTests && !OptNoTraverseToken
-        /* WinFsp does not support change notifications without traverse privilege */)
+    if (WinFspNetTests &&
+        !OptNoTraverseToken /* WinFsp does not support change notifications w/o traverse privilege */ &&
+        !OptCaseRandomize)
     {
         notify_dirnotify_dotest(MemfsNet, L"\\\\memfs\\share", 0);
         notify_dirnotify_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
@@ -454,5 +456,5 @@ void notify_tests(void)
     TEST(notify_timeout_test);
     TEST(notify_change_test);
     TEST(notify_open_change_test);
-    //TEST(notify_dirnotify_test);
+    TEST(notify_dirnotify_test);
 }
