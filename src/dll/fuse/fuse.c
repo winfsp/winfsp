@@ -655,7 +655,7 @@ FSP_FUSE_API int fsp_fuse_notify(struct fsp_fuse_env *env,
     else if (action & FSP_FUSE_NOTIFY_CREATE)
     {
         NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_FILE_NAME;
-        NotifyInfo.V.Action = FILE_ACTION_REMOVED;
+        NotifyInfo.V.Action = FILE_ACTION_ADDED;
     }
     else if (action & FSP_FUSE_NOTIFY_UNLINK)
     {
@@ -665,26 +665,30 @@ FSP_FUSE_API int fsp_fuse_notify(struct fsp_fuse_env *env,
 
     if (action & (FSP_FUSE_NOTIFY_CHMOD | FSP_FUSE_NOTIFY_CHOWN))
     {
-        NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_SECURITY;
-        NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
+        NotifyInfo.V.Filter |= FILE_NOTIFY_CHANGE_SECURITY;
+        if (0 == NotifyInfo.V.Action)
+            NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     }
 
     if (action & FSP_FUSE_NOTIFY_UTIME)
     {
-        NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_ACCESS | FILE_NOTIFY_CHANGE_LAST_WRITE;
-        NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
+        NotifyInfo.V.Filter |= FILE_NOTIFY_CHANGE_LAST_ACCESS | FILE_NOTIFY_CHANGE_LAST_WRITE;
+        if (0 == NotifyInfo.V.Action)
+            NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     }
 
     if (action & FSP_FUSE_NOTIFY_CHFLAGS)
     {
-        NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_ATTRIBUTES;
-        NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
+        NotifyInfo.V.Filter |= FILE_NOTIFY_CHANGE_ATTRIBUTES;
+        if (0 == NotifyInfo.V.Action)
+            NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     }
 
     if (action & FSP_FUSE_NOTIFY_TRUNCATE)
     {
-        NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_SIZE;
-        NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
+        NotifyInfo.V.Filter |= FILE_NOTIFY_CHANGE_SIZE;
+        if (0 == NotifyInfo.V.Action)
+            NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
     }
 
     Result = FspFileSystemNotify(f->FileSystem, &NotifyInfo.V, NotifyInfo.V.Size);
