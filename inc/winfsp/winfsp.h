@@ -1229,6 +1229,18 @@ FSP_API NTSTATUS FspFileSystemNotifyEnd(FSP_FILE_SYSTEM *FileSystem);
  * first issue an FspFileSystemBegin call, followed by 0 or more
  * FspFileSystemNotify calls, followed by an FspFileSystemNotifyEnd call.
  *
+ * Note that FspFileSystemNotify requires file names to be normalized. A
+ * normalized file name is one that contains the correct case of all characters
+ * in the file name.
+ *
+ * For case-sensitive file systems all file names are normalized by definition.
+ * For case-insensitive file systems that implement file name normalization,
+ * a normalized file name is the one that the file system specifies in the
+ * response to Create or Open (see also FspFileSystemGetOpenFileInfo). For
+ * case-insensitive file systems that do not implement file name normalization
+ * a normalized file name is the upper case version of the file name used
+ * to open the file.
+ *
  * @param FileSystem
  *     The file system object.
  * @param NotifyInfo

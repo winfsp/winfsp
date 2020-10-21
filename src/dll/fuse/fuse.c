@@ -642,6 +642,18 @@ FSP_FUSE_API int fsp_fuse_notify(struct fsp_fuse_env *env,
     NotifyInfo.V.Action = 0;
     memcpy(NotifyInfo.V.FileNameBuf, Path, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
 
+    if (!f->VolumeParams.CaseSensitiveSearch)
+    {
+        /*
+         * Case-insensitive FUSE file systems do not normalize open file names, which means
+         * that the FSD automatically normalizes file names internally by uppercasing them.
+         *
+         * The FspFileSystemNotify API requires normalized names, so upper case the file name
+         * here in the case of case-insensitive file systems.
+         */
+        CharUpperBuffW(NotifyInfo.V.FileNameBuf, PathLength);
+    }
+
     if (action & FSP_FUSE_NOTIFY_MKDIR)
     {
         NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_DIR_NAME;
