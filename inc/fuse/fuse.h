@@ -245,9 +245,8 @@ int fuse_interrupted(void),
 FSP_FUSE_SYM(
 int fuse_invalidate(struct fuse *f, const char *path),
 {
-    (void)f;
-    (void)path;
-    return -EINVAL;
+    return FSP_FUSE_API_CALL(fsp_fuse_notify)
+        (fsp_fuse_env(), f, path, 0);
 })
 
 FSP_FUSE_SYM(
