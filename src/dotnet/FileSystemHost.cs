@@ -582,6 +582,75 @@ namespace Fsp
             Response.IoStatus.Status = (UInt32)Status;
             Api.FspFileSystemSendResponse(_FileSystemPtr, ref Response);
         }
+        /// <summary>
+        /// Begin notifying Windows that the file system has file changes.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A file system that wishes to notify Windows about file changes must
+        /// first issue an FspFileSystemBegin call, followed by 0 or more
+        /// FspFileSystemNotify calls, followed by an FspFileSystemNotifyEnd call.
+        /// </para><para>
+        /// This operation blocks concurrent file rename operations. File rename
+        /// operations may interfere with file notification, because a file being
+        /// notified may also be concurrently renamed. After all file change
+        /// notifications have been issued, you must make sure to call
+        /// FspFileSystemNotifyEnd to allow file rename operations to proceed.
+        /// </para>
+        /// </remarks>
+        /// <returns>
+        /// STATUS_SUCCESS or error code. The error code STATUS_CANT_WAIT means that
+        /// a file rename operation is currently in progress and the operation must be
+        /// retried at a later time.
+        /// </returns>
+        public Int32 NotifyBegin(UInt32 Timeout)
+        {
+            return Api.FspFileSystemNotifyBegin(_FileSystemPtr, Timeout);
+        }
+        /// <summary>
+        /// End notifying Windows that the file system has file changes.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A file system that wishes to notify Windows about file changes must
+        /// first issue an FspFileSystemBegin call, followed by 0 or more
+        /// FspFileSystemNotify calls, followed by an FspFileSystemNotifyEnd call.
+        /// </para><para>
+        /// This operation allows any blocked file rename operations to proceed.
+        /// </para>
+        /// </remarks>
+        /// <returns>STATUS_SUCCESS or error code.</returns>
+        public Int32 NotifyEnd()
+        {
+            return Api.FspFileSystemNotifyEnd(_FileSystemPtr);
+        }
+        /// <summary>
+        /// Notify Windows that the file system has file changes.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A file system that wishes to notify Windows about file changes must
+        /// first issue an FspFileSystemBegin call, followed by 0 or more
+        /// FspFileSystemNotify calls, followed by an FspFileSystemNotifyEnd call.
+        /// </para><para>
+        /// Note that FspFileSystemNotify requires file names to be normalized. A
+        /// normalized file name is one that contains the correct case of all characters
+        /// in the file name.
+        /// </para><para>
+        /// For case-sensitive file systems all file names are normalized by definition.
+        /// For case-insensitive file systems that implement file name normalization,
+        /// a normalized file name is the one that the file system specifies in the
+        /// response to Create or Open (see also FspFileSystemGetOpenFileInfo). For
+        /// case-insensitive file systems that do not implement file name normalization
+        /// a normalized file name is the upper case version of the file name used
+        /// to open the file.
+        /// </para>
+        /// </remarks>
+        /// <returns>STATUS_SUCCESS or error code.</returns>
+        public Int32 Notify(NotifyInfo[] NotifyInfoArray)
+        {
+            return Api.FspFileSystemNotify(_FileSystemPtr, NotifyInfoArray);
+        }
 
         /* FSP_FILE_SYSTEM_INTERFACE */
         private static Byte[] ByteBufferNotNull = new Byte[0];
