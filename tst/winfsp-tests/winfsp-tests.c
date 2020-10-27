@@ -20,6 +20,7 @@
  */
 
 #include <windows.h>
+#include <dbghelp.h>
 #include <lm.h>
 #include <signal.h>
 #include <tlib/testsuite.h>
@@ -177,12 +178,32 @@ LONG WINAPI UnhandledExceptionHandler(struct _EXCEPTION_POINTERS *ExceptionInfo)
 {
     if (0 != ExceptionInfo && 0 != ExceptionInfo->ExceptionRecord)
     {
-        static CHAR Buf[64];
-        static DWORD Bytes;
-        wsprintfA(Buf, "\nEXCEPTION 0x%lx at 0x%p\n",
-            ExceptionInfo->ExceptionRecord->ExceptionCode,
-            ExceptionInfo->ExceptionRecord->ExceptionAddress);
-        WriteFile(GetStdHandle(STD_ERROR_HANDLE), Buf, lstrlenA(Buf), &Bytes, 0);
+        static CHAR OutBuf[128];
+        static union
+        {
+            SYMBOL_INFO V;
+            UINT8 Buf[sizeof(SYMBOL_INFO) + 64];
+        } Info;
+        LARGE_INTEGER Large;
+        Info.V.SizeOfStruct = sizeof(SYMBOL_INFO);
+        Info.V.MaxNameLen = 64;
+        if (SymFromAddr(GetCurrentProcess(),
+            (DWORD64)ExceptionInfo->ExceptionRecord->ExceptionAddress,
+            &Large.QuadPart,
+            &Info.V))
+        {
+            wsprintfA(OutBuf, "\nEXCEPTION 0x%lX at %s+0x%lX\n",
+                ExceptionInfo->ExceptionRecord->ExceptionCode,
+                Info.V.Name,
+                Large.LowPart);
+        }
+        else
+        {
+            wsprintfA(OutBuf, "\nEXCEPTION 0x%lX at 0x%p\n",
+                ExceptionInfo->ExceptionRecord->ExceptionCode,
+                ExceptionInfo->ExceptionRecord->ExceptionAddress);
+        }
+        WriteFile(GetStdHandle(STD_ERROR_HANDLE), OutBuf, lstrlenA(OutBuf), &Large.LowPart, 0);
     }
 
     exiting();
@@ -225,6 +246,8 @@ int main(int argc, char *argv[])
     TESTSUITE(notify_tests);
     TESTSUITE(wsl_tests);
     TESTSUITE(volpath_tests);
+
+    SymInitialize(GetCurrentProcess(), 0, TRUE);
 
     atexit(exiting);
     signal(SIGABRT, abort_handler);
