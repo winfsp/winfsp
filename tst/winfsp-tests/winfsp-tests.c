@@ -192,10 +192,11 @@ LONG WINAPI UnhandledExceptionHandler(struct _EXCEPTION_POINTERS *ExceptionInfo)
             &Large.QuadPart,
             &Info.V))
         {
-            wsprintfA(OutBuf, "\nEXCEPTION 0x%lX at %s+0x%lX\n",
+            wsprintfA(OutBuf, "\nEXCEPTION 0x%lX at %s+0x%lX(0x%p)\n",
                 ExceptionInfo->ExceptionRecord->ExceptionCode,
                 Info.V.Name,
-                Large.LowPart);
+                Large.LowPart,
+                ExceptionInfo->ExceptionRecord->ExceptionAddress);
         }
         else
         {
