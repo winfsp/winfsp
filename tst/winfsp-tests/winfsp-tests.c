@@ -175,6 +175,16 @@ static void abort_handler(int sig)
 
 LONG WINAPI UnhandledExceptionHandler(struct _EXCEPTION_POINTERS *ExceptionInfo)
 {
+    if (0 != ExceptionInfo && 0 != ExceptionInfo->ExceptionRecord)
+    {
+        static CHAR Buf[64];
+        static DWORD Bytes;
+        wsprintfA(Buf, "\nEXCEPTION 0x%lx at 0x%p\n",
+            ExceptionInfo->ExceptionRecord->ExceptionCode,
+            ExceptionInfo->ExceptionRecord->ExceptionAddress);
+        WriteFile(GetStdHandle(STD_ERROR_HANDLE), Buf, lstrlenA(Buf), &Bytes, 0);
+    }
+
     exiting();
     return EXCEPTION_EXECUTE_HANDLER;
 }
