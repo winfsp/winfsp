@@ -1,6 +1,8 @@
 version: '{build}'
 
 environment:
+  # Disable the winfsp-tests built-in exception filter to allow WER to collect dumps.
+  WINFSP_TESTS_EXCEPTION_FILTER_DISABLE: 1
   matrix:
   - CONFIGURATION: Debug
     TESTING: Func
@@ -15,18 +17,25 @@ init:
 #- ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
 
 install:
+# Hack to make WDK 1903 work on VS2015.
+# See https://github.com/appveyor-tests/WDK-10.0.14393.0/blob/31cf12217fe0c92b218c70d7027dfe145be4f4cb/appveyor.yml#L7
 - ps: |
-    # Hack to make WDK 1903 work on VS2015.
-    # See https://github.com/appveyor-tests/WDK-10.0.14393.0/blob/31cf12217fe0c92b218c70d7027dfe145be4f4cb/appveyor.yml#L7
     [xml]$targets = get-content "C:\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets"
     $usingTask = $targets.ChildNodes[1].UsingTask | ? {$_.TaskName -eq "ValidateNTTargetVersion"}
     $usingTask.AssemblyFile = '$(WDKContentRoot)build\bin\Microsoft.DriverKit.Build.Tasks.16.0.dll'
     $targets.Save("C:\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets")
+# Submodules
 - git submodule update --init --recursive
+# Kernel and user mode dumps
+- if exist %SystemRoot%\memory.dmp del %SystemRoot%\memory.dmp
+- if exist C:\projects\LocalDumps rmdir /s/q C:\projects\LocalDumps
+- mkdir C:\projects\LocalDumps
+- reg add "HKLM\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpFolder /t REG_EXPAND_SZ /d C:\projects\LocalDumps /f
+- reg add "HKLM\Software\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpType /t REG_DWORD /d 2 /f
+# Boot configuration
 - appveyor AddMessage "Change boot configuration and reboot" -Category Information
 - bcdedit /set testsigning on
 - if %TESTING%==Func verifier /standard /driver winfsp-x64.sys
-- if exist %SystemRoot%\memory.dmp del %SystemRoot%\memory.dmp
 - ps: Restart-Computer -Force
 - ps: Start-Sleep -s 60
 
@@ -53,9 +62,11 @@ test_script:
 - if %TESTING%==Avast tools\run-tests.bat %CONFIGURATION% avast-tests
 - if %TESTING%==Perf tools\run-perf-tests.bat %CONFIGURATION% baseline > perf-tests.csv && type perf-tests.csv & appveyor PushArtifact perf-tests.csv
 - choco uninstall winfsp -y
-- if exist %SystemRoot%\memory.dmp exit 1
 
 on_finish:
-- if exist %SystemRoot%\memory.dmp (7z a memory.dmp.zip %SystemRoot%\memory.dmp && appveyor PushArtifact memory.dmp.zip)
 - verifier /query
+- if exist %SystemRoot%\memory.dmp (7z a km.dmp.zip %SystemRoot%\memory.dmp && appveyor PushArtifact km.dmp.zip)
+- dir /a/b C:\projects\LocalDumps | findstr "^" && (7z a um.dmp.zip C:\projects\LocalDumps && appveyor PushArtifact um.dmp.zip) || ver>nul
+- if exist *.dmp.zip (7z a sym.pdb.zip build\VStudio\build\%CONFIGURATION%\*.pdb && appveyor PushArtifact sym.pdb.zip)
+- if exist *.dmp.zip exit 1
 #- ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
