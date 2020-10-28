@@ -252,7 +252,9 @@ int main(int argc, char *argv[])
 
     atexit(exiting);
     signal(SIGABRT, abort_handler);
-    SetUnhandledExceptionFilter(UnhandledExceptionHandler);
+#pragma warning(suppress: 4996)
+    if (0 == getenv("WINFSP_TESTS_EXCEPTION_FILTER_DISABLE"))
+        SetUnhandledExceptionFilter(UnhandledExceptionHandler);
 
     for (int argi = 1; argc > argi; argi++)
     {
