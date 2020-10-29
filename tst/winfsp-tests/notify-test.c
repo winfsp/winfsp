@@ -262,7 +262,6 @@ void notify_open_change_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 
     HANDLE DirHandle, FileHandle;
     WCHAR FilePath[MAX_PATH];
-    DWORD Bytes;
     union
     {
         FSP_FSCTL_NOTIFY_INFO V;
@@ -291,8 +290,9 @@ void notify_open_change_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         FILE_ATTRIBUTE_NORMAL, 0);
     ASSERT(INVALID_HANDLE_VALUE != FileHandle);
 
-    Success = WriteFile(FileHandle, "foobar", 6, &Bytes, 0);
-    ASSERT(Success);
+    //DWORD Bytes;
+    //Success = WriteFile(FileHandle, "foobar", 6, &Bytes, 0);
+    //ASSERT(Success);
 
     Result = FspFileSystemNotifyBegin(FileSystem, 1000);
     ASSERT(STATUS_SUCCESS == Result);
