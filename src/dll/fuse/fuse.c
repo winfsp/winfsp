@@ -186,6 +186,28 @@ FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(struct fsp_fuse_env *env,
     }
     else if (
         (
+            '\\' == mountpoint[0] &&
+            '\\' == mountpoint[1] &&
+            ('?' == mountpoint[2] || '.' == mountpoint[2]) &&
+            '\\' == mountpoint[3]
+        ) &&
+        (
+            ('A' <= mountpoint[4] && mountpoint[4] <= 'Z') ||
+            ('a' <= mountpoint[4] && mountpoint[4] <= 'z')
+        ) &&
+        ':' == mountpoint[5] && '\0' == mountpoint[6])
+    {
+        MountPointBuf[0] = '\\';
+        MountPointBuf[1] = '\\';
+        MountPointBuf[2] = mountpoint[2];
+        MountPointBuf[3] = '\\';
+        MountPointBuf[4] = mountpoint[4];
+        MountPointBuf[5] = ':';
+        MountPointBuf[6] = '\0';
+        Size = 7 * sizeof(WCHAR);
+    }
+    else if (
+        (
             ('A' <= mountpoint[0] && mountpoint[0] <= 'Z') ||
             ('a' <= mountpoint[0] && mountpoint[0] <= 'z')
         ) &&
