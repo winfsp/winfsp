@@ -608,6 +608,13 @@ NTSTATUS FspBufferUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation)
     if (0 == Length || 0 != Irp->AssociatedIrp.SystemBuffer)
         return STATUS_SUCCESS;
 
+    if (KernelMode == Irp->RequestorMode &&
+        (PUINT8)MM_SYSTEM_RANGE_START <= (PUINT8)Irp->UserBuffer)
+    {
+        Irp->AssociatedIrp.SystemBuffer = Irp->UserBuffer;
+        return STATUS_SUCCESS;
+    }
+
     PVOID SystemBuffer = FspAllocNonPagedExternal(Length);
     if (0 == SystemBuffer)
         return STATUS_INSUFFICIENT_RESOURCES;
