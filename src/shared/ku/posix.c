@@ -111,8 +111,89 @@ static union
 #define FspUnmappedUid                  (65534)
 
 static PISID FspAccountDomainSid, FspPrimaryDomainSid;
+static struct
+{
+    PSID DomainSid;
+    PWSTR NetbiosDomainName;
+    PWSTR DnsDomainName;
+    ULONG TrustPosixOffset;
+} *FspTrustedDomains;
+ULONG FspTrustedDomainCount;
 static INIT_ONCE FspPosixInitOnce = INIT_ONCE_STATIC_INIT;
 #if !defined(_KERNEL_MODE)
+static unsigned wcstoint(const wchar_t *p, const wchar_t **endp, int base)
+{
+    unsigned v;
+    int maxdig, maxalp;
+
+    maxdig = 10 < base ? '9' : (base - 1) + '0';
+    maxalp = 10 < base ? (base - 1 - 10) + 'a' : 0;
+
+    for (v = 0; *p; p++)
+    {
+        int c = *p;
+
+        if ('0' <= c && c <= maxdig)
+            v = base * v + (c - '0');
+        else
+        {
+            c |= 0x20;
+            if ('a' <= c && c <= maxalp)
+                v = base * v + (c - 'a') + 10;
+            else
+                break;
+        }
+    }
+
+    if (0 != endp)
+        *endp = (wchar_t *)p;
+
+    return v;
+}
+
+static ULONG FspPosixInitializeTrustPosixOffsets(VOID)
+{
+    PVOID Ldap = 0;
+    PWSTR DefaultNamingContext = 0;
+    PWSTR TrustPosixOffsetString = 0;
+    ULONG LdapResult;
+
+    LdapResult = FspLdapConnect(0/* default LDAP server */, &Ldap);
+    if (0 != LdapResult)
+        goto exit;
+
+    LdapResult = FspLdapGetDefaultNamingContext(Ldap, &DefaultNamingContext);
+    if (0 != LdapResult)
+        goto exit;
+
+    /* get the "trustPosixOffset" for each trusted domain */
+    for (ULONG I = 0; FspTrustedDomainCount > I; I++)
+    {
+        MemFree(TrustPosixOffsetString);
+        LdapResult = FspLdapGetTrustPosixOffset(Ldap,
+            DefaultNamingContext, FspTrustedDomains[I].DnsDomainName, &TrustPosixOffsetString);
+        if (0 == LdapResult)
+            FspTrustedDomains[I].TrustPosixOffset = wcstoint(TrustPosixOffsetString, 0, 10);
+    }
+
+    LdapResult = 0;
+
+exit:
+    MemFree(TrustPosixOffsetString);
+    MemFree(DefaultNamingContext);
+    if (0 != Ldap)
+        FspLdapClose(Ldap);
+
+    /* if the "trustPosixOffset" looks wrong, fix it up using Cygwin magic value 0xfe500000 */
+    for (ULONG I = 0; FspTrustedDomainCount > I; I++)
+    {
+        if (0x100000 > FspTrustedDomains[I].TrustPosixOffset)
+            FspTrustedDomains[I].TrustPosixOffset = 0xfe500000;
+    }
+
+    return LdapResult;
+}
+
 static BOOL WINAPI FspPosixInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
@@ -120,8 +201,10 @@ static BOOL WINAPI FspPosixInitialize(
     LSA_HANDLE PolicyHandle = 0;
     PPOLICY_ACCOUNT_DOMAIN_INFO AccountDomainInfo = 0;
     PPOLICY_DNS_DOMAIN_INFO PrimaryDomainInfo = 0;
+    PDS_DOMAIN_TRUSTSW TrustedDomains = 0;
+    ULONG TrustedDomainCount, RealTrustedDomainCount;
     BYTE Count;
-    ULONG Size;
+    ULONG Size, Temp;
     NTSTATUS Result;
 
     Result = LsaOpenPolicy(0, &Obja, POLICY_VIEW_LOCAL_INFORMATION, &PolicyHandle);
@@ -148,9 +231,103 @@ static BOOL WINAPI FspPosixInitialize(
         FspPrimaryDomainSid = MemAlloc(Size);
         if (0 != FspPrimaryDomainSid)
             memcpy(FspPrimaryDomainSid, PrimaryDomainInfo->Sid, Size);
+
+        if (ERROR_SUCCESS == DsEnumerateDomainTrustsW(
+            0, DS_DOMAIN_DIRECT_INBOUND | DS_DOMAIN_DIRECT_OUTBOUND | DS_DOMAIN_IN_FOREST,
+            &TrustedDomains, &TrustedDomainCount))
+        {
+            RealTrustedDomainCount = 0;
+            for (ULONG I = 0; TrustedDomainCount > I; I++)
+            {
+                if (0 == TrustedDomains[I].DomainSid ||
+                    (0 == TrustedDomains[I].NetbiosDomainName &&
+                        0 == TrustedDomains[I].DnsDomainName) ||
+                    EqualSid(TrustedDomains[I].DomainSid, FspPrimaryDomainSid))
+                    continue;
+                if (0 != TrustedDomains[I].DomainSid)
+                {
+                    Size = FSP_FSCTL_DEFAULT_ALIGN_UP(Size);
+                    Size += GetLengthSid(TrustedDomains[I].DomainSid);
+                }
+                if (0 != TrustedDomains[I].NetbiosDomainName)
+                {
+                    Size = FSP_FSCTL_ALIGN_UP(Size, sizeof(WCHAR));
+                    Size += (lstrlenW(TrustedDomains[I].NetbiosDomainName) + 1) * sizeof(WCHAR);
+                }
+                if (0 != TrustedDomains[I].DnsDomainName)
+                {
+                    Size = FSP_FSCTL_ALIGN_UP(Size, sizeof(WCHAR));
+                    Size += (lstrlenW(TrustedDomains[I].DnsDomainName) + 1) * sizeof(WCHAR);
+                }
+                RealTrustedDomainCount++;
+            }
+            Size = FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof FspTrustedDomains[0] * RealTrustedDomainCount) + Size;
+            if (0 < Size)
+            {
+                FspTrustedDomains = MemAlloc(Size);
+                if (0 != FspTrustedDomains)
+                {
+                    Size = FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof FspTrustedDomains[0] * RealTrustedDomainCount);
+                    for (ULONG I = 0, J = 0; TrustedDomainCount > I; I++)
+                    {
+                        if (0 == TrustedDomains[I].DomainSid ||
+                            (0 == TrustedDomains[I].NetbiosDomainName &&
+                                0 == TrustedDomains[I].DnsDomainName) ||
+                            EqualSid(TrustedDomains[I].DomainSid, FspPrimaryDomainSid))
+                            continue;
+                        FspTrustedDomains[J].DomainSid = 0;
+                        FspTrustedDomains[J].NetbiosDomainName = 0;
+                        FspTrustedDomains[J].DnsDomainName = 0;
+                        FspTrustedDomains[J].TrustPosixOffset = 0;
+                        if (0 != TrustedDomains[I].DomainSid)
+                        {
+                            Size = FSP_FSCTL_DEFAULT_ALIGN_UP(Size);
+                            Size += (Temp = GetLengthSid(TrustedDomains[I].DomainSid));
+                            FspTrustedDomains[J].DomainSid =
+                                (PVOID)((PUINT8)FspTrustedDomains + Size);
+                            memcpy(FspTrustedDomains[J].DomainSid,
+                                TrustedDomains[I].DomainSid, Temp);
+                        }
+                        if (0 != TrustedDomains[I].NetbiosDomainName)
+                        {
+                            Size = FSP_FSCTL_ALIGN_UP(Size, sizeof(WCHAR));
+                            Size += (Temp = (lstrlenW(TrustedDomains[I].NetbiosDomainName) + 1) * sizeof(WCHAR));
+                            FspTrustedDomains[J].NetbiosDomainName =
+                                (PVOID)((PUINT8)FspTrustedDomains + Size);
+                            memcpy(FspTrustedDomains[J].NetbiosDomainName,
+                                TrustedDomains[I].NetbiosDomainName, Temp);
+                        }
+                        if (0 != TrustedDomains[I].DnsDomainName)
+                        {
+                            Size = FSP_FSCTL_ALIGN_UP(Size, sizeof(WCHAR));
+                            Size += (Temp = (lstrlenW(TrustedDomains[I].DnsDomainName) + 1) * sizeof(WCHAR));
+                            FspTrustedDomains[J].DnsDomainName =
+                                (PVOID)((PUINT8)FspTrustedDomains + Size);
+                            memcpy(FspTrustedDomains[J].DnsDomainName,
+                                TrustedDomains[I].DnsDomainName, Temp);
+                        }
+                        if (0 == FspTrustedDomains[J].NetbiosDomainName)
+                            FspTrustedDomains[J].NetbiosDomainName =
+                                FspTrustedDomains[J].DnsDomainName;
+                        else
+                        if (0 == FspTrustedDomains[J].DnsDomainName)
+                            FspTrustedDomains[J].DnsDomainName =
+                                FspTrustedDomains[J].NetbiosDomainName;
+                        J++;
+                    }
+                    FspTrustedDomainCount = RealTrustedDomainCount;
+                }
+            }
+        }
     }
 
+    if (0 < FspTrustedDomainCount)
+        FspPosixInitializeTrustPosixOffsets();
+
 exit:
+    if (0 != TrustedDomains)
+        NetApiBufferFree(TrustedDomains);
+
     if (0 != PrimaryDomainInfo)
         LsaFreeMemory(PrimaryDomainInfo);
 
@@ -172,6 +349,7 @@ VOID FspPosixFinalize(BOOLEAN Dynamic)
 
     if (Dynamic)
     {
+        MemFree(FspTrustedDomains);
         MemFree(FspAccountDomainSid);
         MemFree(FspPrimaryDomainSid);
     }
@@ -318,7 +496,8 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
     }
     else if (0x100000 <= Uid && Uid < 0xff000000)
     {
-        if (0 != FspPrimaryDomainSid &&
+        if ((Uid < 0x300000 || 0 == FspTrustedDomainCount) &&
+            0 != FspPrimaryDomainSid &&
             5 == FspPrimaryDomainSid->IdentifierAuthority.Value[5] &&
             4 == FspPrimaryDomainSid->SubAuthorityCount)
         {
@@ -329,11 +508,30 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
                 FspPrimaryDomainSid->SubAuthority[3],
                 Uid - 0x100000);
         }
+        else
+        {
+            PISID DomainSid = 0;
+            ULONG TrustPosixOffset = 0;
+            for (ULONG I = 0; FspTrustedDomainCount > I; I++)
+            {
+                if (FspTrustedDomains[I].TrustPosixOffset <= Uid &&
+                    FspTrustedDomains[I].TrustPosixOffset > TrustPosixOffset)
+                {
+                    DomainSid = FspTrustedDomains[I].DomainSid;
+                    TrustPosixOffset = FspTrustedDomains[I].TrustPosixOffset;
+                }
+            }
+            if (0 != DomainSid)
+            {
+                *PSid = FspPosixCreateSid(5, 5,
+                    21,
+                    DomainSid->SubAuthority[1],
+                    DomainSid->SubAuthority[2],
+                    DomainSid->SubAuthority[3],
+                    Uid - TrustPosixOffset);
+            }
+        }
     }
-    /*
-     * I am sorry, I am not going to bother with all that trustPosixOffset stuff.
-     * But if you need it, I accept patches :)
-     */
 
     /* [IDMAP]
      * Mandatory Labels:
@@ -432,11 +630,15 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
             else if (0 != FspAccountDomainSid &&
                 FspPosixIsRelativeSid(FspAccountDomainSid, Sid))
                 *PUid = 0x30000 + Rid;
-
-            /*
-             * I am sorry, I am not going to bother with all that trustPosixOffset stuff.
-             * But if you need it, I accept patches :)
-             */
+            else
+                for (ULONG I = 0; FspTrustedDomainCount > I; I++)
+                {
+                    if (FspPosixIsRelativeSid(FspTrustedDomains[I].DomainSid, Sid))
+                    {
+                        *PUid = FspTrustedDomains[I].TrustPosixOffset + Rid;
+                        break;
+                    }
+                }
         }
 
         /* [IDMAP]

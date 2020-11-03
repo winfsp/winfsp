@@ -64,6 +64,13 @@ NTSTATUS FspEventLogUnregister(VOID);
 PSID FspWksidNew(WELL_KNOWN_SID_TYPE WellKnownSidType, PNTSTATUS PResult);
 PSID FspWksidGet(WELL_KNOWN_SID_TYPE WellKnownSidType);
 
+ULONG FspLdapConnect(PWSTR HostName, PVOID *PLdap);
+VOID FspLdapClose(PVOID Ldap);
+ULONG FspLdapGetValue(PVOID Ldap, PWSTR Base, ULONG Scope, PWSTR Filter, PWSTR Attribute,
+    PWSTR *PValue);
+ULONG FspLdapGetDefaultNamingContext(PVOID Ldap, PWSTR *PValue);
+ULONG FspLdapGetTrustPosixOffset(PVOID Ldap, PWSTR Context, PWSTR Domain, PWSTR *PValue);
+
 PWSTR FspDiagIdent(VOID);
 
 #define FspFileSystemDirectoryBufferEntryInvalid ((ULONG)-1)

@@ -26,6 +26,8 @@
 
 #include <dll/library.h>
 #include <aclapi.h>
+#include <dsgetdc.h>
+#include <lm.h>
 #define _NTDEF_
 #include <ntsecapi.h>
 
