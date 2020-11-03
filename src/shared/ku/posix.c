@@ -121,10 +121,37 @@ static struct
 ULONG FspTrustedDomainCount;
 static INIT_ONCE FspPosixInitOnce = INIT_ONCE_STATIC_INIT;
 #if !defined(_KERNEL_MODE)
-static unsigned wcstoint(const wchar_t *p, const wchar_t **endp, int base)
+static long long wcstoint(const wchar_t* p, int base, int is_signed)
 {
-    unsigned v;
-    int maxdig, maxalp;
+    long long v;
+    int maxdig, maxalp, sign = +1;
+
+    if (is_signed)
+    {
+        if ('+' == *p)
+            p++;
+        else if ('-' == *p)
+            p++, sign = -1;
+    }
+
+    if (0 == base)
+    {
+        if ('0' == *p)
+        {
+            p++;
+            if ('x' == *p || 'X' == *p)
+            {
+                p++;
+                base = 16;
+            }
+            else
+                base = 8;
+        }
+        else
+        {
+            base = 10;
+        }
+    }
 
     maxdig = 10 < base ? '9' : (base - 1) + '0';
     maxalp = 10 < base ? (base - 1 - 10) + 'a' : 0;
@@ -145,10 +172,7 @@ static unsigned wcstoint(const wchar_t *p, const wchar_t **endp, int base)
         }
     }
 
-    if (0 != endp)
-        *endp = (wchar_t *)p;
-
-    return v;
+    return sign * v;
 }
 
 static ULONG FspPosixInitializeTrustPosixOffsets(VOID)
@@ -173,7 +197,7 @@ static ULONG FspPosixInitializeTrustPosixOffsets(VOID)
         LdapResult = FspLdapGetTrustPosixOffset(Ldap,
             DefaultNamingContext, FspTrustedDomains[I].DnsDomainName, &TrustPosixOffsetString);
         if (0 == LdapResult)
-            FspTrustedDomains[I].TrustPosixOffset = wcstoint(TrustPosixOffsetString, 0, 10);
+            FspTrustedDomains[I].TrustPosixOffset = (ULONG)wcstoint(TrustPosixOffsetString, 10, 1);
     }
 
     LdapResult = 0;
@@ -236,6 +260,7 @@ static BOOL WINAPI FspPosixInitialize(
             0, DS_DOMAIN_DIRECT_INBOUND | DS_DOMAIN_DIRECT_OUTBOUND | DS_DOMAIN_IN_FOREST,
             &TrustedDomains, &TrustedDomainCount))
         {
+            Size = 0;
             RealTrustedDomainCount = 0;
             for (ULONG I = 0; TrustedDomainCount > I; I++)
             {
@@ -262,7 +287,7 @@ static BOOL WINAPI FspPosixInitialize(
                 RealTrustedDomainCount++;
             }
             Size = FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof FspTrustedDomains[0] * RealTrustedDomainCount) + Size;
-            if (0 < Size)
+            if (0 < RealTrustedDomainCount)
             {
                 FspTrustedDomains = MemAlloc(Size);
                 if (0 != FspTrustedDomains)
@@ -282,27 +307,27 @@ static BOOL WINAPI FspPosixInitialize(
                         if (0 != TrustedDomains[I].DomainSid)
                         {
                             Size = FSP_FSCTL_DEFAULT_ALIGN_UP(Size);
-                            Size += (Temp = GetLengthSid(TrustedDomains[I].DomainSid));
                             FspTrustedDomains[J].DomainSid =
                                 (PVOID)((PUINT8)FspTrustedDomains + Size);
+                            Size += (Temp = GetLengthSid(TrustedDomains[I].DomainSid));
                             memcpy(FspTrustedDomains[J].DomainSid,
                                 TrustedDomains[I].DomainSid, Temp);
                         }
                         if (0 != TrustedDomains[I].NetbiosDomainName)
                         {
                             Size = FSP_FSCTL_ALIGN_UP(Size, sizeof(WCHAR));
-                            Size += (Temp = (lstrlenW(TrustedDomains[I].NetbiosDomainName) + 1) * sizeof(WCHAR));
                             FspTrustedDomains[J].NetbiosDomainName =
                                 (PVOID)((PUINT8)FspTrustedDomains + Size);
+                            Size += (Temp = (lstrlenW(TrustedDomains[I].NetbiosDomainName) + 1) * sizeof(WCHAR));
                             memcpy(FspTrustedDomains[J].NetbiosDomainName,
                                 TrustedDomains[I].NetbiosDomainName, Temp);
                         }
                         if (0 != TrustedDomains[I].DnsDomainName)
                         {
                             Size = FSP_FSCTL_ALIGN_UP(Size, sizeof(WCHAR));
-                            Size += (Temp = (lstrlenW(TrustedDomains[I].DnsDomainName) + 1) * sizeof(WCHAR));
                             FspTrustedDomains[J].DnsDomainName =
                                 (PVOID)((PUINT8)FspTrustedDomains + Size);
+                            Size += (Temp = (lstrlenW(TrustedDomains[I].DnsDomainName) + 1) * sizeof(WCHAR));
                             memcpy(FspTrustedDomains[J].DnsDomainName,
                                 TrustedDomains[I].DnsDomainName, Temp);
                         }
