@@ -579,6 +579,7 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     PSECURITY_DESCRIPTOR RelativeSecurityDescriptor = 0;
     ULONG Size;
     NTSTATUS Result;
+    ACCESS_MASK GroupMask, WorldMask;
 
     *PSecurityDescriptor = 0;
 
@@ -624,11 +625,18 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     OwnerDeny |= (OwnerPerm ^ WorldPerm) & WorldPerm;
     GroupDeny = (GroupPerm ^ WorldPerm) & WorldPerm;
 
-    Size = sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE) * 3 +
+    GroupMask = FspPosixMapPermissionToAccessMask(Mode, GroupPerm);
+    WorldMask = FspPosixMapPermissionToAccessMask(Mode, WorldPerm);
+
+    Size = sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE) +
         sizeof(ACCESS_DENIED_ACE) * (!!OwnerDeny + !!GroupDeny);
     Size += GetLengthSid(OwnerSid) - sizeof(DWORD);
-    Size += GetLengthSid(GroupSid) - sizeof(DWORD);
-    Size += GetLengthSid(FspWorldSid) - sizeof(DWORD);
+    if(GroupMask > 0)
+        Size += sizeof(ACCESS_ALLOWED_ACE);
+        Size += GetLengthSid(GroupSid) - sizeof(DWORD);
+    if (WorldMask > 0)
+        Size += sizeof(ACCESS_ALLOWED_ACE);
+        Size += GetLengthSid(FspWorldSid) - sizeof(DWORD);
     if (OwnerDeny)
         Size += GetLengthSid(OwnerSid) - sizeof(DWORD);
     if (GroupDeny)
@@ -658,10 +666,13 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
             goto lasterror;
     }
 
-    if (!AddAccessAllowedAce(Acl, ACL_REVISION,
-        FspPosixDefaultPerm | FspPosixMapPermissionToAccessMask(Mode, GroupPerm),
-        GroupSid))
-        goto lasterror;
+    // Before adding Permission, ensure we have some to add. Unless, we add the FspPosixDefaultPerm, but can cause problems with software that check that only owner can have access to a file (namely openssh).
+    if (GroupMask > 0){
+        if (!AddAccessAllowedAce(Acl, ACL_REVISION,
+            FspPosixDefaultPerm | GroupMask,
+            GroupSid))
+            goto lasterror;
+    }
     if (GroupDeny)
     {
         if (!AddAccessDeniedAce(Acl, ACL_REVISION,
@@ -669,11 +680,15 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
             GroupSid))
             goto lasterror;
     }
-
-    if (!AddAccessAllowedAce(Acl, ACL_REVISION,
-        FspPosixDefaultPerm | FspPosixMapPermissionToAccessMask(Mode, WorldPerm),
-        FspWorldSid))
-        goto lasterror;
+    
+    // Before adding Permission, ensure we have some to add. Unless, we add the FspPosixDefaultPerm, but can cause problems with software that check that only owner can have access to a file (namely openssh).
+    if (WorldMask > 0)
+    {
+        if (!AddAccessAllowedAce(Acl, ACL_REVISION,
+            FspPosixDefaultPerm | WorldMask,
+            FspWorldSid))
+            goto lasterror;
+    }
 
     if (!InitializeSecurityDescriptor(&SecurityDescriptor, SECURITY_DESCRIPTOR_REVISION))
         goto lasterror;
