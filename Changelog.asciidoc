@@ -1,6 +1,18 @@
 = Changelog
 
 
+v1.9B1 (2021 Beta1)::
+
+Changes since v1.8:
+
+* [NEW] WinFsp now supports file change notifications and cache invalidations. This functionality is offered via the following new API's:
+** Native API: `FspFileSystemNotify`
+** FUSE API: `fuse_notify`
+** .NET API: `FileSystemHost.Notify`
+
+* [FIX] WinFsp-FUSE correctly maps SID's from trusted domains to POSIX UID's in a multi-domain environment (using the "trustPosixOffset" attribute). Previously WinFsp-FUSE only handled SID's from the primary domain correctly.
+
+
 v1.8 (2020.2)::
 
 Changes since v1.7:
