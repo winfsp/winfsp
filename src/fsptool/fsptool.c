@@ -55,36 +55,6 @@ static void printlog(HANDLE h, const char *format, ...)
     va_end(ap);
 }
 
-static unsigned wcstoint(const wchar_t *p, const wchar_t **endp, int base)
-{
-    unsigned v;
-    int maxdig, maxalp;
-
-    maxdig = 10 < base ? '9' : (base - 1) + '0';
-    maxalp = 10 < base ? (base - 1 - 10) + 'a' : 0;
-
-    for (v = 0; *p; p++)
-    {
-        int c = *p;
-
-        if ('0' <= c && c <= maxdig)
-            v = base * v + (c - '0');
-        else
-        {
-            c |= 0x20;
-            if ('a' <= c && c <= maxalp)
-                v = base * v + (c - 'a') + 10;
-            else
-                break;
-        }
-    }
-
-    if (0 != endp)
-        *endp = (wchar_t *)p;
-
-    return v;
-}
-
 static void usage(void)
 {
     fatal(ERROR_INVALID_PARAMETER,
@@ -380,7 +350,7 @@ static NTSTATUS id_uid(PWSTR UidStr)
     UINT32 Uid;
     NTSTATUS Result;
 
-    Uid = wcstoint(UidStr, &UidStr, 10);
+    Uid = wcstouint(UidStr, &UidStr, 10, 0);
     if (L'\0' != *UidStr)
         return STATUS_INVALID_PARAMETER;
 
@@ -525,13 +495,13 @@ static NTSTATUS perm_mode(PWSTR PermStr)
     UINT32 Uid, Gid, Mode;
     NTSTATUS Result;
 
-    Uid = wcstoint(PermStr, &PermStr, 10);
+    Uid = wcstouint(PermStr, &PermStr, 10, 0);
     if (L':' != *PermStr)
         return STATUS_INVALID_PARAMETER;
-    Gid = wcstoint(PermStr + 1, &PermStr, 10);
+    Gid = wcstouint(PermStr + 1, &PermStr, 10, 0);
     if (L':' != *PermStr)
         return STATUS_INVALID_PARAMETER;
-    Mode = wcstoint(PermStr + 1, &PermStr, 8);
+    Mode = wcstouint(PermStr + 1, &PermStr, 8, 0);
     if (L'\0' != *PermStr)
         return STATUS_INVALID_PARAMETER;
 

@@ -30,60 +30,6 @@
 #define fsp_fuse_opt_match_exact        ((const char *)1)   /* exact option match */
 #define fsp_fuse_opt_match_next         ((const char *)2)   /* option match, value is next arg */
 
-static long long strtoint(const char *p, int base, int is_signed)
-{
-    long long v;
-    int maxdig, maxalp, sign = +1;
-
-    if (is_signed)
-    {
-        if ('+' == *p)
-            p++;
-        else if ('-' == *p)
-            p++, sign = -1;
-    }
-
-    if (0 == base)
-    {
-        if ('0' == *p)
-        {
-            p++;
-            if ('x' == *p || 'X' == *p)
-            {
-                p++;
-                base = 16;
-            }
-            else
-                base = 8;
-        }
-        else
-        {
-            base = 10;
-        }
-    }
-
-    maxdig = 10 < base ? '9' : (base - 1) + '0';
-    maxalp = 10 < base ? (base - 1 - 10) + 'a' : 0;
-
-    for (v = 0; *p; p++)
-    {
-        int c = *p;
-
-        if ('0' <= c && c <= maxdig)
-            v = base * v + (c - '0');
-        else
-        {
-            c |= 0x20;
-            if ('a' <= c && c <= maxalp)
-                v = base * v + (c - 'a') + 10;
-            else
-                break;
-        }
-    }
-
-    return sign * v;
-}
-
 static void fsp_fuse_opt_match_templ(
     const char *templ, const char **pspec,
     const char **parg)
@@ -281,19 +227,19 @@ static int fsp_fuse_opt_process_arg(struct fsp_fuse_env *env,
                 z++;
                 break;
             case 'd':
-                llv = strtoint(argl, 10, 1);
+                llv = strtollint(argl, 0, 10, 1);
                 goto ivar;
             case 'i':
-                llv = strtoint(argl, 0, 1);
+                llv = strtollint(argl, 0, 0, 1);
                 goto ivar;
             case 'o':
-                llv = strtoint(argl, 8, 0);
+                llv = strtollint(argl, 0, 8, 0);
                 goto ivar;
             case 'u':
-                llv = strtoint(argl, 10, 0);
+                llv = strtollint(argl, 0, 10, 0);
                 goto ivar;
             case 'x': case 'X':
-                llv = strtoint(argl, 16, 0);
+                llv = strtollint(argl, 0, 16, 0);
             ivar:
                 if (z)
                     VAR(data, opt, size_t) = (size_t)llv;

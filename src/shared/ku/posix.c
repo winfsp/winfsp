@@ -121,60 +121,6 @@ static struct
 ULONG FspTrustedDomainCount;
 static INIT_ONCE FspPosixInitOnce = INIT_ONCE_STATIC_INIT;
 #if !defined(_KERNEL_MODE)
-static long long wcstoint(const wchar_t* p, int base, int is_signed)
-{
-    long long v;
-    int maxdig, maxalp, sign = +1;
-
-    if (is_signed)
-    {
-        if ('+' == *p)
-            p++;
-        else if ('-' == *p)
-            p++, sign = -1;
-    }
-
-    if (0 == base)
-    {
-        if ('0' == *p)
-        {
-            p++;
-            if ('x' == *p || 'X' == *p)
-            {
-                p++;
-                base = 16;
-            }
-            else
-                base = 8;
-        }
-        else
-        {
-            base = 10;
-        }
-    }
-
-    maxdig = 10 < base ? '9' : (base - 1) + '0';
-    maxalp = 10 < base ? (base - 1 - 10) + 'a' : 0;
-
-    for (v = 0; *p; p++)
-    {
-        int c = *p;
-
-        if ('0' <= c && c <= maxdig)
-            v = base * v + (c - '0');
-        else
-        {
-            c |= 0x20;
-            if ('a' <= c && c <= maxalp)
-                v = base * v + (c - 'a') + 10;
-            else
-                break;
-        }
-    }
-
-    return sign * v;
-}
-
 static ULONG FspPosixInitializeTrustPosixOffsets(VOID)
 {
     PVOID Ldap = 0;
@@ -197,7 +143,7 @@ static ULONG FspPosixInitializeTrustPosixOffsets(VOID)
         LdapResult = FspLdapGetTrustPosixOffset(Ldap,
             DefaultNamingContext, FspTrustedDomains[I].DnsDomainName, &TrustPosixOffsetString);
         if (0 == LdapResult)
-            FspTrustedDomains[I].TrustPosixOffset = (ULONG)wcstoint(TrustPosixOffsetString, 10, 1);
+            FspTrustedDomains[I].TrustPosixOffset = wcstouint(TrustPosixOffsetString, 0, 10, 1);
     }
 
     LdapResult = 0;

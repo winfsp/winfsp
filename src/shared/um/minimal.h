@@ -130,6 +130,62 @@ WINFSP_SHARED_MINIMAL_STRNCMP(invariant_wcsnicmp, wchar_t, invariant_toupper)
 #undef WINFSP_SHARED_MINIMAL_STRCMP
 #undef WINFSP_SHARED_MINIMAL_STRNCMP
 
+#define WINFSP_SHARED_MINIMAL_STRTOINT(NAME, CTYPE, ITYPE)\
+    static inline\
+    ITYPE NAME(const CTYPE *p, const CTYPE **endp, int base, int is_signed)\
+    {\
+        ITYPE v;\
+        int maxdig, maxalp, sign = +1;\
+        if (is_signed)\
+        {\
+            if ('+' == *p)\
+                p++;\
+            else if ('-' == *p)\
+                p++, sign = -1;\
+        }\
+        if (0 == base)\
+        {\
+            if ('0' == *p)\
+            {\
+                p++;\
+                if ('x' == *p || 'X' == *p)\
+                {\
+                    p++;\
+                    base = 16;\
+                }\
+                else\
+                    base = 8;\
+            }\
+            else\
+            {\
+                base = 10;\
+            }\
+        }\
+        maxdig = 10 < base ? '9' : (base - 1) + '0';\
+        maxalp = 10 < base ? (base - 1 - 10) + 'a' : 0;\
+        for (v = 0; *p; p++)\
+        {\
+            int c = *p;\
+            if ('0' <= c && c <= maxdig)\
+                v = base * v + (c - '0');\
+            else\
+            {\
+                c |= 0x20;\
+                if ('a' <= c && c <= maxalp)\
+                    v = base * v + (c - 'a') + 10;\
+                else\
+                    break;\
+            }\
+        }\
+        if (0 != endp)\
+            *endp = (CTYPE *)p;\
+        return sign * v;\
+    }
+WINFSP_SHARED_MINIMAL_STRTOINT(strtouint, char, unsigned int)
+WINFSP_SHARED_MINIMAL_STRTOINT(strtollint, char, long long int)
+WINFSP_SHARED_MINIMAL_STRTOINT(wcstouint, wchar_t, unsigned int)
+WINFSP_SHARED_MINIMAL_STRTOINT(wcstollint, wchar_t, long long int)
+
 static inline void *MemAlloc(size_t Size)
 {
     return HeapAlloc(GetProcessHeap(), 0, Size);
