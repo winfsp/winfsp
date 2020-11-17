@@ -13,3 +13,4 @@ jobs:
         files: |
             https://github.com/billziss-gh/winfsp/releases/download/v1.6/winfsp-1.6.20027.msi
             https://github.com/billziss-gh/winfsp/releases/download/v1.7B1/winfsp-1.7.20038.msi
+            https://github.com/billziss-gh/winfsp/releases/download/v1.8/winfsp-1.8.20304.msi
