@@ -338,14 +338,55 @@ namespace Fsp.Interop
     }
 
     /// <summary>
+    /// Enumeration of all the possible values for NotifyInfo.Action
+    /// </summary>
+    public enum NotifyInfoAction : UInt32
+    {
+        FileActionAdded = 1,
+        FileActionRemoved = 2,
+        FileActionModified = 3,
+        FileActionRenamedOldName = 4,
+        FileActionRenamedNewName = 5,
+        FileActionAddedStream = 6,
+        FileActionRemovedStream = 7,
+        FileActionModifiedStream = 8,
+        FileActionRemovedByDelete = 9,
+        FileActionIdNotTunnelled = 10,
+        FileActionTunnelledIdCollision = 11,
+    }
+
+
+    /// <summary>
+    /// Enumeration of all the possible values for NotifyInfo.Filter
+    /// </summary>
+    [Flags]
+    public enum NotifyInfoFilter : UInt32
+    {
+        FileNotifyNone              = 0x00000,
+        FileNotifyChangeFileName    = 0x00001,
+        FileNotifyChangeDirName     = 0x00002,
+        FileNotifyChangeName        = FileNotifyChangeFileName | FileNotifyChangeDirName,
+        FileNotifyChangeAttributes  = 0x00004,
+        FileNotifyChangeSize        = 0x00008,
+        FileNotifyChangeLastWrite   = 0x00010,
+        FileNotifyChangeLastAccess  = 0x00020,
+        FileNotifyChangeCreation    = 0x00040,
+        FileNotifyChangeEa          = 0x00080,
+        FileNotifyChangeSecurity    = 0x00100,
+        FileNotifyChangeStreamName  = 0x00200,
+        FileNotifyChangeStreamSize  = 0x00400,
+        FileNotifyChangeStreamWrite = 0x00800,
+    }
+
+    /// <summary>
     /// Contains file change notification information.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct NotifyInfo
     {
         public String FileName;
-        public UInt32 Action;
-        public UInt32 Filter;
+        public NotifyInfoAction Action;
+        public NotifyInfoFilter Filter;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -1158,8 +1199,8 @@ namespace Fsp.Interop
                 for (int I = 0; NotifyInfoArray.Length > I; I++)
                 {
                     NotifyInfoInternal Internal = default(NotifyInfoInternal);
-                    Internal.Action = NotifyInfoArray[I].Action;
-                    Internal.Filter = NotifyInfoArray[I].Filter;
+                    Internal.Action = (UInt32)NotifyInfoArray[I].Action;
+                    Internal.Filter = (UInt32)NotifyInfoArray[I].Filter;
                     Internal.SetFileNameBuf(NotifyInfoArray[I].FileName);
                     FspFileSystemAddNotifyInfo(
                         ref Internal, (IntPtr)P, (UInt32)Length, out BytesTransferred);
