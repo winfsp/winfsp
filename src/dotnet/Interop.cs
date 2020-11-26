@@ -342,17 +342,17 @@ namespace Fsp.Interop
     /// </summary>
     public enum NotifyInfoAction : UInt32
     {
-        FileActionAdded = 1,
-        FileActionRemoved = 2,
-        FileActionModified = 3,
-        FileActionRenamedOldName = 4,
-        FileActionRenamedNewName = 5,
-        FileActionAddedStream = 6,
-        FileActionRemovedStream = 7,
-        FileActionModifiedStream = 8,
-        FileActionRemovedByDelete = 9,
-        FileActionIdNotTunnelled = 10,
-        FileActionTunnelledIdCollision = 11,
+        Added = 1,
+        Removed = 2,
+        Modified = 3,
+        RenamedOldName = 4,
+        RenamedNewName = 5,
+        AddedStream = 6,
+        RemovedStream = 7,
+        ModifiedStream = 8,
+        RemovedByDelete = 9,
+        IdNotTunnelled = 10,
+        TunnelledIdCollision = 11,
     }
 
 
@@ -362,20 +362,20 @@ namespace Fsp.Interop
     [Flags]
     public enum NotifyInfoFilter : UInt32
     {
-        FileNotifyNone              = 0x00000,
-        FileNotifyChangeFileName    = 0x00001,
-        FileNotifyChangeDirName     = 0x00002,
-        FileNotifyChangeName        = FileNotifyChangeFileName | FileNotifyChangeDirName,
-        FileNotifyChangeAttributes  = 0x00004,
-        FileNotifyChangeSize        = 0x00008,
-        FileNotifyChangeLastWrite   = 0x00010,
-        FileNotifyChangeLastAccess  = 0x00020,
-        FileNotifyChangeCreation    = 0x00040,
-        FileNotifyChangeEa          = 0x00080,
-        FileNotifyChangeSecurity    = 0x00100,
-        FileNotifyChangeStreamName  = 0x00200,
-        FileNotifyChangeStreamSize  = 0x00400,
-        FileNotifyChangeStreamWrite = 0x00800,
+        None              = 0x00000,
+        ChangeFileName    = 0x00001,
+        ChangeDirName     = 0x00002,
+        ChangeName        = ChangeFileName | ChangeDirName,
+        ChangeAttributes  = 0x00004,
+        ChangeSize        = 0x00008,
+        ChangeLastWrite   = 0x00010,
+        ChangeLastAccess  = 0x00020,
+        ChangeCreation    = 0x00040,
+        ChangeEa          = 0x00080,
+        ChangeSecurity    = 0x00100,
+        ChangeStreamName  = 0x00200,
+        ChangeStreamSize  = 0x00400,
+        ChangeStreamWrite = 0x00800,
     }
 
     /// <summary>
