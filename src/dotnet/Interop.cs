@@ -340,7 +340,7 @@ namespace Fsp.Interop
     /// <summary>
     /// Enumeration of all the possible values for NotifyInfo.Action
     /// </summary>
-    public enum NotifyInfoAction : UInt32
+    public enum NotifyAction : UInt32
     {
         Added = 1,
         Removed = 2,
@@ -360,7 +360,7 @@ namespace Fsp.Interop
     /// Enumeration of all the possible values for NotifyInfo.Filter
     /// </summary>
     [Flags]
-    public enum NotifyInfoFilter : UInt32
+    public enum NotifyFilter : UInt32
     {
         None              = 0x00000,
         ChangeFileName    = 0x00001,
@@ -385,8 +385,8 @@ namespace Fsp.Interop
     public struct NotifyInfo
     {
         public String FileName;
-        public NotifyInfoAction Action;
-        public NotifyInfoFilter Filter;
+        public NotifyAction Action;
+        public NotifyFilter Filter;
     }
 
     [StructLayout(LayoutKind.Sequential)]
