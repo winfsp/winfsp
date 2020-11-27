@@ -54,6 +54,7 @@ This CONTRIBUTOR AGREEMENT applies to any contribution that you make to the WinF
 CONTRIBUTOR LIST
 ----------------
 |===
+|Alberto Alonso                                                 |alberto at alonso.xyz
 |Ben Rubson                                                     |ben.rubson at gmail.com
 |Bill Zissimopoulos                                             |billziss at navimatics.com
 |Brett Dutro                                                    |brett.dutro at gmail.com
