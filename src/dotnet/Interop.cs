@@ -1188,10 +1188,11 @@ namespace Fsp.Interop
             int Length = 0;
             for (int I = 0; NotifyInfoArray.Length > I; I++)
             {
-                Length = (Length + 7) & ~7; // align to next qword boundary
                 Length += NotifyInfoInternal.FileNameBufOffset +
                     NotifyInfoArray[I].FileName.Length * 2;
+                Length = (Length + 7) & ~7; // align to next qword boundary
             }
+
             Byte[] Buffer = new Byte[Length];
             UInt32 BytesTransferred = default(UInt32);
             fixed (Byte *P = Buffer)
