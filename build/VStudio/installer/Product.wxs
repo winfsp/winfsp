@@ -538,6 +538,20 @@
                     <File Name="passthrough-dotnet.csproj" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="SMPDIR.notifyfs" Name="notifyfs">
+                <Component Id="C.notifyfs.c">
+                    <File Name="notifyfs.c" KeyPath="yes" />
+                </Component>
+                <Component Id="C.notifyfs.sln">
+                    <File Name="notifyfs.sln" KeyPath="yes" />
+                </Component>
+                <Component Id="C.notifyfs.vcxproj">
+                    <File Name="notifyfs.vcxproj" KeyPath="yes" />
+                </Component>
+                <Component Id="C.notifyfs.vcxproj.filters">
+                    <File Name="notifyfs.vcxproj.filters" KeyPath="yes" />
+                </Component>
+            </Directory>
         </DirectoryRef>
         <DirectoryRef Id="SYMDIR">
             <Component Id="C.winfsp_x64.sys.pdb">
@@ -674,6 +688,10 @@
             <ComponentRef Id="C.passthrough_fuse3.vcxproj.filters" />
             <ComponentRef Id="C.passthrough_fuse3.Makefile" />
             <ComponentRef Id="C.passthrough_fuse3.README.md" />
+            <ComponentRef Id="C.notifyfs.c" />
+            <ComponentRef Id="C.notifyfs.sln" />
+            <ComponentRef Id="C.notifyfs.vcxproj" />
+            <ComponentRef Id="C.notifyfs.vcxproj.filters" />
         </ComponentGroup>
         <ComponentGroup Id="C.WinFsp.sym">
             <ComponentRef Id="C.winfsp_x64.sys.pdb" />
