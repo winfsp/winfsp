@@ -247,18 +247,6 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     UINT32 Count = FileCount(Notifyfs);
     UINT32 Index;
 
-    if (0 == Marker)
-    {
-        if (!AddDirInfo(L".", 0, Buffer, Length, PBytesTransferred))
-            return STATUS_SUCCESS;
-    }
-    if (0 == Marker || (L'.' == Marker[0] && L'\0' == Marker[1]))
-    {
-        if (!AddDirInfo(L"..", 0, Buffer, Length, PBytesTransferred))
-            return STATUS_SUCCESS;
-        Marker = 0;
-    }
-
     Index = 0 == Marker ? 1 : wcstoul(Marker, 0, 10) + 1;
     for (; Count >= Index; Index++)
         if (!AddDirInfo(0, Index, Buffer, Length, PBytesTransferred))
