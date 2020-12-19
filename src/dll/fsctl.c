@@ -254,12 +254,15 @@ FSP_API NTSTATUS FspFsctlPreflight(PWSTR DevicePath)
 
 static NTSTATUS FspFsctlStartService(VOID)
 {
+    static SRWLOCK Lock = SRWLOCK_INIT;
     PWSTR DriverName = L"" FSP_FSCTL_DRIVER_NAME;
     SC_HANDLE ScmHandle = 0;
     SC_HANDLE SvcHandle = 0;
     SERVICE_STATUS ServiceStatus;
     DWORD LastError;
     NTSTATUS Result;
+
+    AcquireSRWLockExclusive(&Lock);
 
     /* Determine if we are running inside container.
      *
@@ -330,6 +333,8 @@ exit:
         CloseServiceHandle(SvcHandle);
     if (0 != ScmHandle)
         CloseServiceHandle(ScmHandle);
+
+    ReleaseSRWLockExclusive(&Lock);
 
     return Result;
 }
