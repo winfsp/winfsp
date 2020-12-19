@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30717.126
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "notifyfs-dotnet", "notifyfs-dotnet.csproj", "{DA7C383A-D10F-4FB0-BDCB-E7A7C5D068AA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DA7C383A-D10F-4FB0-BDCB-E7A7C5D068AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DA7C383A-D10F-4FB0-BDCB-E7A7C5D068AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DA7C383A-D10F-4FB0-BDCB-E7A7C5D068AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DA7C383A-D10F-4FB0-BDCB-E7A7C5D068AA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {18D87005-09CA-40CF-9B51-139B486AB8D0}
+	EndGlobalSection
+EndGlobal

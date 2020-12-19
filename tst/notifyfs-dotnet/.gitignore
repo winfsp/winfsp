@@ -1,0 +1,9 @@
+build
+*.ncb
+*.suo
+*.vcproj.*
+*.vcxproj.user
+*.csproj.user
+*.VC.db
+*.VC.opendb
+.vs
