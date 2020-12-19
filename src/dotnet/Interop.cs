@@ -315,7 +315,7 @@ namespace Fsp.Interop
     {
         internal const int FileNameBufSize = 1024 * 2/*FSP_FSCTL_TRANSACT_PATH_SIZEMAX*/;
         internal static int FileNameBufOffset =
-            (int)Marshal.OffsetOf(typeof(DirInfo), "FileNameBuf");
+            (int)Marshal.OffsetOf(typeof(NotifyInfoInternal), "FileNameBuf");
 
         internal UInt16 Size;
         internal UInt32 Filter;
