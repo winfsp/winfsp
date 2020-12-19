@@ -552,6 +552,17 @@
                     <File Name="notifyfs.vcxproj.filters" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="SMPDIR.notifyfs_dotnet" Name="notifyfs-dotnet">
+                <Component Id="C.notifyfs_dotnet.Program.cs">
+                    <File Id="FILE.notifyfs_dotnet.Program.cs" Name="Program.cs" KeyPath="yes" />
+                </Component>
+                <Component Id="C.notifyfs_dotnet.sln">
+                    <File Name="notifyfs-dotnet.sln" KeyPath="yes" />
+                </Component>
+                <Component Id="C.notifyfs_dotnet.csproj">
+                    <File Name="notifyfs-dotnet.csproj" KeyPath="yes" />
+                </Component>
+            </Directory>
         </DirectoryRef>
         <DirectoryRef Id="SYMDIR">
             <Component Id="C.winfsp_x64.sys.pdb">
@@ -721,6 +732,9 @@
             <ComponentRef Id="C.passthrough_dotnet.Program.cs" />
             <ComponentRef Id="C.passthrough_dotnet.sln" />
             <ComponentRef Id="C.passthrough_dotnet.csproj" />
+            <ComponentRef Id="C.notifyfs_dotnet.Program.cs" />
+            <ComponentRef Id="C.notifyfs_dotnet.sln" />
+            <ComponentRef Id="C.notifyfs_dotnet.csproj" />
         </ComponentGroup>
 
         <Feature
