@@ -303,6 +303,63 @@ static int fsp_fuse_username_to_uid(const char *username, int *puid)
     return 0;
 }
 
+static int fsp_fuse_utf8towcs_trunc(
+    const char *Str, int StrLen,
+    PWSTR Wcs, int WcsLen)
+{
+    if (0 == StrLen)
+        return 0;
+
+    int Size = MultiByteToWideChar(CP_UTF8, 0, Str, StrLen, Wcs, WcsLen);
+    if (0 != Size)
+        return Size;
+
+    if (0 == WcsLen)
+        return 0;
+
+    PWSTR Buf = 0;
+
+    Size = MultiByteToWideChar(CP_UTF8, 0, Str, StrLen, 0, 0);
+    if (0 == Size)
+        goto exit;
+
+    Buf = MemAlloc(Size * sizeof(WCHAR));
+    if (0 == Buf)
+    {
+        SetLastError(ERROR_NO_SYSTEM_RESOURCES);
+        Size = 0;
+        goto exit;
+    }
+
+    Size = MultiByteToWideChar(CP_UTF8, 0, Str, StrLen, Buf, Size);
+    if (0 == Size)
+        goto exit;
+
+    if (-1 == StrLen)
+    {
+        if (Size >= WcsLen)
+        {
+            Size = WcsLen - 1;
+            memcpy(Wcs, Buf, Size * sizeof(WCHAR));
+            Wcs[Size] = L'\0';
+            Size++;
+        }
+        else
+            memcpy(Wcs, Buf, Size * sizeof(WCHAR));
+    }
+    else
+    {
+        if (Size >= WcsLen)
+            Size = WcsLen;
+        memcpy(Wcs, Buf, Size * sizeof(WCHAR));
+    }
+
+exit:
+    MemFree(Buf);
+
+    return Size;
+}
+
 static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
     struct fuse_args *outargs)
 {
@@ -367,7 +424,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             arg += sizeof "VolumePrefix=" - 1;
         else if ('V' == arg[2])
             arg += sizeof "--VolumePrefix=" - 1;
-        if (0 == MultiByteToWideChar(CP_UTF8, 0, arg, -1,
+        if (0 == fsp_fuse_utf8towcs_trunc(arg, -1,
             opt_data->VolumeParams.Prefix, sizeof opt_data->VolumeParams.Prefix / sizeof(WCHAR)))
             return -1;
         opt_data->VolumeParams.Prefix
@@ -383,7 +440,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             arg += sizeof "FileSystemName=" - 1;
         else if ('F' == arg[2])
             arg += sizeof "--FileSystemName=" - 1;
-        if (0 == MultiByteToWideChar(CP_UTF8, 0, arg, -1,
+        if (0 == fsp_fuse_utf8towcs_trunc(arg, -1,
             opt_data->VolumeParams.FileSystemName + 5,
             sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR) - 5))
             return -1;
@@ -396,7 +453,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             arg += sizeof "ExactFileSystemName=" - 1;
         else if ('E' == arg[2])
             arg += sizeof "--ExactFileSystemName=" - 1;
-        if (0 == MultiByteToWideChar(CP_UTF8, 0, arg, -1,
+        if (0 == fsp_fuse_utf8towcs_trunc(arg, -1,
             opt_data->VolumeParams.FileSystemName,
             sizeof opt_data->VolumeParams.FileSystemName / sizeof(WCHAR)))
             return -1;
@@ -428,7 +485,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
     case 'v':
         arg += sizeof "volname=" - 1;
         opt_data->VolumeLabelLength = (UINT16)(sizeof(WCHAR) *
-            MultiByteToWideChar(CP_UTF8, 0, arg, lstrlenA(arg),
+            fsp_fuse_utf8towcs_trunc(arg, lstrlenA(arg),
             opt_data->VolumeLabel, sizeof opt_data->VolumeLabel / sizeof(WCHAR)));
         if (0 == opt_data->VolumeLabelLength)
             return -1;
