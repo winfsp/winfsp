@@ -742,7 +742,7 @@ DWORD APIENTRY NPAddConnection3(HWND hwndOwner,
     DWORD AuthPackage, CredentialsKind;
     WCHAR UserName[CREDUI_MAX_USERNAME_LENGTH + 1], Password[CREDUI_MAX_PASSWORD_LENGTH + 1];
 #if defined(FSP_NP_CREDENTIAL_MANAGER)
-    BOOL Save = TRUE;
+    BOOL Save = FALSE;
 #endif
 
     //dwFlags |= CONNECT_INTERACTIVE | CONNECT_PROMPT; /* TESTING ONLY! */
