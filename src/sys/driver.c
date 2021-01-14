@@ -38,6 +38,8 @@ NTSTATUS DriverEntry(
 {
     FSP_ENTER_DRV();
 
+    FSP_TRACE_INIT();
+
     /* setup the driver object */
     DriverObject->MajorFunction[IRP_MJ_CREATE] = FspCreate;
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = FspClose;
@@ -157,6 +159,8 @@ exit:
             FspSiloFinalize();
         if (InitDoneGRes)
             ExDeleteResourceLite(&FspDeviceGlobalResource);
+
+        FSP_TRACE_FINI();
     }
 
 #pragma prefast(suppress:28175, "We are in DriverEntry: ok to access DriverName")

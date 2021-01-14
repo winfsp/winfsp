@@ -22,6 +22,10 @@
 #include <sys/driver.h>
 
 #if DBG
+
+#undef STATUS_INSUFFICIENT_RESOURCES
+#define STATUS_INSUFFICIENT_RESOURCES   ((NTSTATUS)0xC000009AL)
+
 #define SYM(x)                          case x: return #x;
 #define SYMBRC(x)                       case x: return "[" #x "]";
 
@@ -330,4 +334,5 @@ VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result)
         NtStatusSym(Result),
         (LONGLONG)Irp->IoStatus.Information);
 }
+
 #endif

@@ -147,6 +147,40 @@ VOID FspDebugLogIrp(const char *func, PIRP Irp, NTSTATUS Result);
 #define DEBUGTEST_EX(C, Percent, Deflt) (Deflt)
 #endif
 
+/* trace */
+#if FSP_TRACE_ENABLED
+VOID FspTraceInitialize(VOID);
+VOID FspTraceFinalize(VOID);
+VOID FspTrace(const char *file, int line, const char *func);
+VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Status);
+#define FSP_TRACE_INIT()                \
+    (FspTraceInitialize(), FSP_TRACE())
+#define FSP_TRACE_FINI()                \
+    (FSP_TRACE(), FspTraceFinalize())
+#define FSP_TRACE()                     \
+    FspTrace(                           \
+        __FILE__,                       \
+        __LINE__,                       \
+        __FUNCTION__)
+#define FSP_TRACE_NTSTATUS(Status)      \
+    FspTraceNtStatus(                   \
+        __FILE__,                       \
+        __LINE__,                       \
+        __FUNCTION__,                   \
+        Status)
+#else
+#define FSP_TRACE_INIT()                \
+    ((VOID)0)
+#define FSP_TRACE_FINI()                \
+    ((VOID)0)
+#define FSP_TRACE()                     \
+    ((VOID)0)
+#define FSP_TRACE_NTSTATUS(Result)      \
+    ((VOID)0)
+#endif
+#undef STATUS_INSUFFICIENT_RESOURCES
+#define STATUS_INSUFFICIENT_RESOURCES   (FSP_TRACE_NTSTATUS(0xC000009AL), (NTSTATUS)0xC000009AL)
+
 /* FSP_ENTER/FSP_LEAVE */
 #if DBG
 #define FSP_DEBUGLOG_(fmt, rfmt, ...)   \
