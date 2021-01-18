@@ -84,8 +84,9 @@ static NTSTATUS FspFsvolClose(
     FspFileDescDelete(FileDesc); /* this will also close the MainFileObject if any */
     FspFileNodeDereference(FileNode);
 
-    /* if we are closing files in the context of a rename make it synchronous */
-    if (FspFsvolDeviceFileRenameIsAcquiredExclusive(FsvolDeviceObject))
+    /* if closing in the context of a rename or IOQ is above the watermark make it synchronous */
+    if (FspFsvolDeviceFileRenameIsAcquiredExclusive(FsvolDeviceObject) ||
+        FspIoqPendingAboveWatermark(FspFsvolDeviceExtension(FsvolDeviceObject)->Ioq, 50))
     {
         /* acquire ownership of the Request */
         Request->Hint = (UINT_PTR)Irp;

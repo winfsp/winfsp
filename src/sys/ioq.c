@@ -643,6 +643,16 @@ ULONG FspIoqPendingIrpCount(FSP_IOQ *Ioq)
     return Result;
 }
 
+BOOLEAN FspIoqPendingAboveWatermark(FSP_IOQ *Ioq, ULONG Watermark)
+{
+    BOOLEAN Result;
+    KIRQL Irql;
+    KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
+    Result = Watermark < 100 * Ioq->PendingIrpCount / Ioq->PendingIrpCapacity;
+    KeReleaseSpinLock(&Ioq->SpinLock, Irql);
+    return Result;
+}
+
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp)
 {
     NTSTATUS Result;

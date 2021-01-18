@@ -953,6 +953,7 @@ BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN BestEffort, NTSTATUS *PR
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout,
     PIRP CancellableIrp);
 ULONG FspIoqPendingIrpCount(FSP_IOQ *Ioq);
+BOOLEAN FspIoqPendingAboveWatermark(FSP_IOQ *Ioq, ULONG Watermark);
 BOOLEAN FspIoqStartProcessingIrp(FSP_IOQ *Ioq, PIRP Irp);
 PIRP FspIoqEndProcessingIrp(FSP_IOQ *Ioq, UINT_PTR IrpHint);
 ULONG FspIoqProcessIrpCount(FSP_IOQ *Ioq);
