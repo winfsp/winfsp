@@ -61,7 +61,7 @@ VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Sta
         LowPagedPoolCondition = 0 != FspLowPagedPoolCondition.Event &&
             !!KeReadStateEvent(FspLowPagedPoolCondition.Event);
         DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_TRACE_LEVEL,
-            DRIVER_NAME ": %s[%s:%d]: STATUS_INSUFFICIENT_RESOURCE (Memory=%c%c%c)\n",
+            DRIVER_NAME ": %s[%s:%d]: STATUS_INSUFFICIENT_RESOURCES (Memory=%c%c%c)\n",
             func, file, line,
             LowMemoryCondition ? 'M' : '-',
             LowNonPagedPoolCondition ? 'N' : '-',
