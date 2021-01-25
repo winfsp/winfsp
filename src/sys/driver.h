@@ -154,9 +154,9 @@ VOID FspTraceFinalize(VOID);
 VOID FspTrace(const char *file, int line, const char *func);
 VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Status);
 #define FSP_TRACE_INIT()                \
-    (FspTraceInitialize(), FSP_TRACE())
+    FspTraceInitialize()
 #define FSP_TRACE_FINI()                \
-    (FSP_TRACE(), FspTraceFinalize())
+    FspTraceFinalize()
 #define FSP_TRACE()                     \
     FspTrace(                           \
         __FILE__,                       \

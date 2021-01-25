@@ -126,10 +126,14 @@ VOID FspTraceInitialize(VOID)
     OPEN_EVENT(LowPagedPoolCondition);
 
 #undef OPEN_EVENT
+
+    FSP_TRACE();
 }
 
 VOID FspTraceFinalize(VOID)
 {
+    FSP_TRACE();
+
 #define CLOSE_EVENT(NAME)               \
     (FspCloseEvent(Fsp ## NAME.Event, Fsp ## NAME.Handle), Fsp ## NAME.Event = 0, Fsp ## NAME.Handle = 0)
 
