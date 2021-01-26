@@ -25,7 +25,7 @@
 
 #include "winfsp-tests.h"
 
-void posix_map_sid_test(void)
+static void posix_map_sid_test(void)
 {
     struct
     {
@@ -171,7 +171,7 @@ void posix_map_sid_test(void)
     LocalFree(map[sizeof map / sizeof map[0] - 1].SidStr);
 }
 
-void posix_map_sd_test(void)
+static void posix_map_sd_test(void)
 {
     struct
     {
@@ -237,7 +237,93 @@ void posix_map_sd_test(void)
     }
 }
 
-void posix_map_path_test(void)
+static void posix_merge_sd_test(void)
+{
+    struct
+    {
+        UINT32 Uid, Gid, Mode;
+        PWSTR ExistingSddl;
+        PWSTR Sddl;
+    } map[] =
+    {
+        {
+            18, 544, 00000,
+            0,
+            L"O:SYG:BAD:P(A;;0x1f0198;;;SY)(A;;0x120088;;;BA)(A;;0x120088;;;WD)"
+        },
+        {
+            18, 544, 00000,
+            L"",
+            L"O:SYG:BA"
+        },
+        {
+            18, 544, 00000,
+            L"O:WD",
+            L"O:WDG:BA"
+        },
+        {
+            18, 544, 00000,
+            L"G:WD",
+            L"O:SYG:WD"
+        },
+        {
+            18, 544, 00000,
+            L"O:WDG:WD",
+            L"O:WDG:WD"
+        },
+        {
+            18, 544, 00000,
+            L"D:P",
+            L"O:SYG:BAD:P"
+        },
+        {
+            18, 544, 00000,
+            L"D:P(A;;FA;;;SY)",
+            L"O:SYG:BAD:P(A;;FA;;;SY)"
+        },
+        {
+            18, 544, 00000,
+            L"O:WDG:WDD:P(A;;FA;;;SY)",
+            L"O:WDG:WDD:P(A;;FA;;;SY)"
+        },
+    };
+    NTSTATUS Result;
+    BOOL Success;
+    PSECURITY_DESCRIPTOR ExistingSecurityDescriptor, SecurityDescriptor;
+    PWSTR Sddl;
+
+    for (size_t i = 0; sizeof map / sizeof map[0] > i; i++)
+    {
+        if (0 != map[i].ExistingSddl)
+        {
+            Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                map[i].ExistingSddl, SDDL_REVISION_1,
+                &ExistingSecurityDescriptor, 0);
+            ASSERT(Success);
+        }
+        else
+            ExistingSecurityDescriptor = 0;
+
+        Result = FspPosixMergePermissionsToSecurityDescriptor(
+            map[i].Uid, map[i].Gid, map[i].Mode, ExistingSecurityDescriptor, &SecurityDescriptor);
+        ASSERT(NT_SUCCESS(Result));
+
+        Success = ConvertSecurityDescriptorToStringSecurityDescriptorW(
+            SecurityDescriptor, SDDL_REVISION_1,
+            OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+            &Sddl, 0);
+        ASSERT(Success);
+        ASSERT(0 == wcscmp(map[i].Sddl, Sddl));
+        LocalFree(Sddl);
+
+        FspDeleteSecurityDescriptor(SecurityDescriptor,
+            FspPosixMergePermissionsToSecurityDescriptor);
+
+        LocalFree(ExistingSecurityDescriptor);
+    }
+}
+
+static void posix_map_path_test(void)
 {
     struct
     {
@@ -274,5 +360,6 @@ void posix_tests(void)
 
     TEST(posix_map_sid_test);
     TEST(posix_map_sd_test);
+    TEST(posix_merge_sd_test);
     TEST(posix_map_path_test);
 }

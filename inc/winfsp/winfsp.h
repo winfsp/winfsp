@@ -1826,6 +1826,10 @@ FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)());
 FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     UINT32 Uid, UINT32 Gid, UINT32 Mode,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor);
+FSP_API NTSTATUS FspPosixMergePermissionsToSecurityDescriptor(
+    UINT32 Uid, UINT32 Gid, UINT32 Mode,
+    PSECURITY_DESCRIPTOR ExistingSecurityDescriptor,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor);
 FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
     PSECURITY_DESCRIPTOR SecurityDescriptor,
     PUINT32 PUid, PUINT32 PGid, PUINT32 PMode);

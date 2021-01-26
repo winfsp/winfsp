@@ -472,7 +472,8 @@ static NTSTATUS fsp_fuse_intf_GetSecurityEx(FSP_FILE_SYSTEM *FileSystem,
 
     if (0 != PSecurityDescriptorSize)
     {
-        Result = FspPosixMapPermissionsToSecurityDescriptor(Uid, Gid, Mode, &SecurityDescriptor);
+        Result = FspPosixMergePermissionsToSecurityDescriptor(Uid, Gid, Mode, f->FileSecurity,
+            &SecurityDescriptor);
         if (!NT_SUCCESS(Result))
             goto exit;
 
@@ -498,7 +499,7 @@ static NTSTATUS fsp_fuse_intf_GetSecurityEx(FSP_FILE_SYSTEM *FileSystem,
 exit:
     if (0 != SecurityDescriptor)
         FspDeleteSecurityDescriptor(SecurityDescriptor,
-            FspPosixMapPermissionsToSecurityDescriptor);
+            FspPosixMergePermissionsToSecurityDescriptor);
 
     return Result;
 }
@@ -1682,7 +1683,8 @@ static NTSTATUS fsp_fuse_intf_SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Result = FspPosixMapPermissionsToSecurityDescriptor(Uid, Gid, Mode, &SecurityDescriptor);
+    Result = FspPosixMergePermissionsToSecurityDescriptor(Uid, Gid, Mode, f->FileSecurity,
+        &SecurityDescriptor);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -1729,7 +1731,7 @@ exit:
 
     if (0 != SecurityDescriptor)
         FspDeleteSecurityDescriptor(SecurityDescriptor,
-            FspPosixMapPermissionsToSecurityDescriptor);
+            FspPosixMergePermissionsToSecurityDescriptor);
 
     return Result;
 }

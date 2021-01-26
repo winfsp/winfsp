@@ -72,6 +72,8 @@ struct fuse
     FSP_FILE_SYSTEM *FileSystem;
     volatile int exited;
     struct fuse3 *fuse3;
+    PSECURITY_DESCRIPTOR FileSecurity;
+    FSP_FSCTL_DECLSPEC_ALIGN UINT8 FileSecurityBuf[];
 };
 struct fsp_fuse_context_header
 {
@@ -156,6 +158,8 @@ struct fsp_fuse_core_opt_data
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     UINT16 VolumeLabelLength;
     WCHAR VolumeLabel[sizeof ((FSP_FSCTL_VOLUME_INFO *)0)->VolumeLabel / sizeof(WCHAR)];
+    ULONG FileSecuritySize;
+    FSP_FSCTL_DECLSPEC_ALIGN UINT8 FileSecurityBuf[1024];
 };
 FSP_FSCTL_STATIC_ASSERT(
     sizeof ((struct fuse *)0)->VolumeLabel == sizeof ((struct fsp_fuse_core_opt_data *)0)->VolumeLabel,

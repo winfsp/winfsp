@@ -488,7 +488,8 @@ FSP_API VOID FspDeleteSecurityDescriptor(PSECURITY_DESCRIPTOR SecurityDescriptor
         return;
 
     if ((NTSTATUS (*)())FspAccessCheckEx == CreateFunc ||
-        (NTSTATUS (*)())FspPosixMapPermissionsToSecurityDescriptor == CreateFunc)
+        (NTSTATUS (*)())FspPosixMapPermissionsToSecurityDescriptor == CreateFunc ||
+        (NTSTATUS (*)())FspPosixMergePermissionsToSecurityDescriptor == CreateFunc)
         MemFree(SecurityDescriptor);
     else
     if ((NTSTATUS (*)())FspCreateSecurityDescriptor == CreateFunc ||

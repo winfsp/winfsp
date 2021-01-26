@@ -41,6 +41,10 @@ FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)());
 FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     UINT32 Uid, UINT32 Gid, UINT32 Mode,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor);
+FSP_API NTSTATUS FspPosixMergePermissionsToSecurityDescriptor(
+    UINT32 Uid, UINT32 Gid, UINT32 Mode,
+    PSECURITY_DESCRIPTOR ExistingSecurityDescriptor,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor);
 FSP_API NTSTATUS FspPosixMapSecurityDescriptorToPermissions(
     PSECURITY_DESCRIPTOR SecurityDescriptor,
     PUINT32 PUid, PUINT32 PGid, PUINT32 PMode);
@@ -59,6 +63,7 @@ FSP_API VOID FspPosixDecodeWindowsPath(PWSTR WindowsPath, ULONG Size);
 #pragma alloc_text(PAGE, FspPosixCreateSid)
 #pragma alloc_text(PAGE, FspDeleteSid)
 #pragma alloc_text(PAGE, FspPosixMapPermissionsToSecurityDescriptor)
+#pragma alloc_text(PAGE, FspPosixMergePermissionsToSecurityDescriptor)
 #pragma alloc_text(PAGE, FspPosixMapSecurityDescriptorToPermissions)
 #pragma alloc_text(PAGE, FspPosixMapWindowsToPosixPathEx)
 #pragma alloc_text(PAGE, FspPosixMapPosixToWindowsPathEx)
@@ -884,6 +889,101 @@ exit:
         MemFree(RelativeSecurityDescriptor);
 
     MemFree(Acl);
+
+    if (0 != GroupSid)
+        FspDeleteSid(GroupSid, FspPosixMapUidToSid);
+
+    if (0 != OwnerSid)
+        FspDeleteSid(OwnerSid, FspPosixMapUidToSid);
+
+    return Result;
+
+lasterror:
+    Result = FspNtStatusFromWin32(GetLastError());
+    goto exit;
+}
+
+FSP_API NTSTATUS FspPosixMergePermissionsToSecurityDescriptor(
+    UINT32 Uid, UINT32 Gid, UINT32 Mode,
+    PSECURITY_DESCRIPTOR ExistingSecurityDescriptor,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor)
+{
+    FSP_KU_CODE;
+
+    if (0 == ExistingSecurityDescriptor)
+        return FspPosixMapPermissionsToSecurityDescriptor(Uid, Gid, Mode, PSecurityDescriptor);
+
+    PSID ExistingOwnerSid = 0, ExistingGroupSid = 0;
+    BOOL Defaulted, ExistingDaclPresent;
+    PACL ExistingAcl = 0;
+    PSID OwnerSid = 0, GroupSid = 0;
+    SECURITY_DESCRIPTOR SecurityDescriptor;
+    PSECURITY_DESCRIPTOR RelativeSecurityDescriptor = 0;
+    ULONG Size;
+    NTSTATUS Result;
+
+    *PSecurityDescriptor = 0;
+
+    if (!GetSecurityDescriptorOwner(ExistingSecurityDescriptor, &ExistingOwnerSid, &Defaulted))
+        goto lasterror;
+    if (!GetSecurityDescriptorGroup(ExistingSecurityDescriptor, &ExistingGroupSid, &Defaulted))
+        goto lasterror;
+    if (!GetSecurityDescriptorDacl(ExistingSecurityDescriptor, &ExistingDaclPresent, &ExistingAcl, &Defaulted))
+        goto lasterror;
+
+    if (0 == ExistingOwnerSid)
+    {
+        Result = FspPosixMapUidToSid(Uid, &OwnerSid);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+        ExistingOwnerSid = OwnerSid;
+    }
+
+    if (0 == ExistingGroupSid)
+    {
+        Result = FspPosixMapUidToSid(Gid, &GroupSid);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+        ExistingGroupSid = GroupSid;
+    }
+
+    if (!InitializeSecurityDescriptor(&SecurityDescriptor, SECURITY_DESCRIPTOR_REVISION))
+        goto lasterror;
+
+    if (!SetSecurityDescriptorOwner(&SecurityDescriptor, ExistingOwnerSid, FALSE))
+        goto lasterror;
+    if (!SetSecurityDescriptorGroup(&SecurityDescriptor, ExistingGroupSid, FALSE))
+        goto lasterror;
+    if (0 != ExistingAcl)
+    {
+        if (!SetSecurityDescriptorControl(&SecurityDescriptor, SE_DACL_PROTECTED, SE_DACL_PROTECTED))
+            goto lasterror;
+        if (!SetSecurityDescriptorDacl(&SecurityDescriptor, TRUE, ExistingAcl, FALSE))
+            goto lasterror;
+    }
+
+    Size = 0;
+    if (!MakeSelfRelativeSD(&SecurityDescriptor, 0, &Size) &&
+        ERROR_INSUFFICIENT_BUFFER != GetLastError())
+        goto lasterror;
+
+    RelativeSecurityDescriptor = MemAlloc(Size);
+    if (0 == RelativeSecurityDescriptor)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    if (!MakeSelfRelativeSD(&SecurityDescriptor, RelativeSecurityDescriptor, &Size))
+        goto lasterror;
+
+    *PSecurityDescriptor = RelativeSecurityDescriptor;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result))
+        MemFree(RelativeSecurityDescriptor);
 
     if (0 != GroupSid)
         FspDeleteSid(GroupSid, FspPosixMapUidToSid);
