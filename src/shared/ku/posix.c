@@ -123,9 +123,12 @@ static struct
     PWSTR DnsDomainName;
     ULONG TrustPosixOffset;
 } *FspTrustedDomains;
-ULONG FspTrustedDomainCount;
+static ULONG FspTrustedDomainCount;
+static BOOLEAN FspDistinctPermsForSameOwnerGroup;
 static INIT_ONCE FspPosixInitOnce = INIT_ONCE_STATIC_INIT;
+
 #if !defined(_KERNEL_MODE)
+
 static ULONG FspPosixInitializeTrustPosixOffsets(VOID)
 {
     PVOID Ldap = 0;
@@ -167,6 +170,28 @@ exit:
     }
 
     return LdapResult;
+}
+
+static VOID FspPosixInitializeFromRegistry(VOID)
+{
+    HKEY RegKey;
+    LONG Result;
+    DWORD Size;
+    DWORD DistinctPermsForSameOwnerGroup;
+
+    DistinctPermsForSameOwnerGroup = 0;
+
+    Result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\WinFsp",
+        0, KEY_READ | KEY_WOW64_32KEY, &RegKey);
+    if (ERROR_SUCCESS == Result)
+    {
+        Size = sizeof DistinctPermsForSameOwnerGroup;
+        Result = RegGetValueW(RegKey, 0, L"DistinctPermsForSameOwnerGroup",
+            RRF_RT_REG_DWORD, 0, &DistinctPermsForSameOwnerGroup, &Size);
+        RegCloseKey(RegKey);
+    }
+
+    FspDistinctPermsForSameOwnerGroup = !!DistinctPermsForSameOwnerGroup;
 }
 
 static BOOL WINAPI FspPosixInitialize(
@@ -300,6 +325,8 @@ static BOOL WINAPI FspPosixInitialize(
     if (0 < FspTrustedDomainCount)
         FspPosixInitializeTrustPosixOffsets();
 
+    FspPosixInitializeFromRegistry();
+
 exit:
     if (0 != TrustedDomains)
         NetApiBufferFree(TrustedDomains);
@@ -330,7 +357,9 @@ VOID FspPosixFinalize(BOOLEAN Dynamic)
         MemFree(FspPrimaryDomainSid);
     }
 }
+
 #else
+
 ULONG NTAPI FspPosixInitialize(
     PRTL_RUN_ONCE RunOnce, PVOID Parameter, PVOID *Context)
 {
@@ -376,8 +405,12 @@ ULONG NTAPI FspPosixInitialize(
         FspPrimaryDomainSid = &FspPrimaryDomainSidBuf.V;
     }
 
+    /* always enable permissive permissions for same owner group in kernel mode */
+    FspDistinctPermsForSameOwnerGroup = TRUE;
+
     return TRUE;
 }
+
 #endif
 
 static inline BOOLEAN FspPosixIsRelativeSid(PISID Sid1, PISID Sid2)
@@ -778,7 +811,7 @@ FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
      * bits are different?. In this case, the most restrictive permissions
      * are chosen and assigned to both ACEs.
      */
-    if (EqualSid(OwnerSid, GroupSid))
+    if (!FspDistinctPermsForSameOwnerGroup && EqualSid(OwnerSid, GroupSid))
         OwnerPerm = GroupPerm = OwnerPerm & GroupPerm;
 
     /* [PERMS]
