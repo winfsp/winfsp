@@ -1,6 +1,30 @@
 = Changelog
 
 
+v1.9 (2021)::
+
+Changes since v1.8:
+
+* [NEW] WinFsp now supports file change notifications and cache invalidations. This functionality is offered via the following new API's:
+** Native API: `FspFileSystemNotify`
+** FUSE API: `fuse_notify`
+** .NET API: `FileSystemHost.Notify`
+
+* [NEW] A native file system (notifyfs) and a .NET file system (notifyfs-dotnet) have been added to showcase the new file change notification API.
+
+* [NEW] A new WinFsp-FUSE option `FileSecurity` has been added that allows the complete specification of file security descriptors using SDDL. (See GitHub issue https://github.com/rclone/rclone/issues/4717#issuecomment-767723287.)
+
+* [FIX] The FSD now correctly handles a rare situation where receiving too many CLOSE calls from the OS (e.g. when caching thousands of files) could result in a bogus "insufficient resources" error. (See commit 0af0bfbe7c45e353d693a2a45965d99fa81f2163.)
+
+* [FIX] WinFsp-FUSE correctly maps SID's from trusted domains to POSIX UID's in a multi-domain environment (using the "trustPosixOffset" attribute). Previously WinFsp-FUSE only handled SID's from the primary domain correctly.
+
+* [FIX] WinFsp-FUSE options such as `volname`, `VolumePrefix`, `FileSystemName`, `ExactFileSystemName` are now truncated when too long. (See GitHub issue #311.)
+
+* [FIX] The WinFsp driver is now started in a thread-safe manner if it is not already running. (See GitHub issue billziss-gh/cgofuse#51.)
+
+* [FIX] Credentials entered in the Credentials dialog (when mapping network drives) are no longer saved by default. (See GitHub PR #342. Thanks @gaotxg.)
+
+
 v1.9B2 (2021 Beta2)::
 
 Changes since v1.8:
