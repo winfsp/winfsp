@@ -1288,10 +1288,31 @@ static NTSTATUS FspFsvolSetBasicInformation(PFILE_OBJECT FileObject,
         }
 
         Request->Req.SetInformation.Info.Basic.FileAttributes = FileAttributes;
-        Request->Req.SetInformation.Info.Basic.CreationTime = Info->CreationTime.QuadPart;
-        Request->Req.SetInformation.Info.Basic.LastAccessTime = Info->LastAccessTime.QuadPart;
-        Request->Req.SetInformation.Info.Basic.LastWriteTime = Info->LastWriteTime.QuadPart;
-        Request->Req.SetInformation.Info.Basic.ChangeTime = Info->ChangeTime.QuadPart;
+
+        /*
+         * From FILE_BASIC_INFORMATION (https://tinyurl.com/hwex4bd9):
+         *
+         * The file system updates the values of the LastAccessTime,
+         * LastWriteTime, and ChangeTime members as appropriate after an I/O
+         * operation is performed on a file. A driver or application can
+         * request that the file system not update one or more of these
+         * members for I/O operations that are performed on the caller's file
+         * handle by setting the appropriate members to -1. The caller can set
+         * one, all, or any other combination of these three members to -1.
+         * Only the members that are set to -1 will be unaffected by I/O
+         * operations on the file handle; the other members will be updated as
+         * appropriate.
+         *
+         * GitHub issue #362
+         */
+        Request->Req.SetInformation.Info.Basic.CreationTime =
+            -1 != Info->CreationTime.QuadPart ? Info->CreationTime.QuadPart : 0;
+        Request->Req.SetInformation.Info.Basic.LastAccessTime =
+            -1 != Info->LastAccessTime.QuadPart ? Info->LastAccessTime.QuadPart : 0;
+        Request->Req.SetInformation.Info.Basic.LastWriteTime =
+            -1 != Info->LastWriteTime.QuadPart ? Info->LastWriteTime.QuadPart : 0;
+        Request->Req.SetInformation.Info.Basic.ChangeTime =
+            -1 != Info->ChangeTime.QuadPart ? Info->ChangeTime.QuadPart : 0;
     }
     else
     {
