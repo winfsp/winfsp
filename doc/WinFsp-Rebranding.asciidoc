@@ -20,7 +20,7 @@ The properties that control branding are the following:
 
 * `MyCopyright`: This is the product's copyright.
 
-* `MyFspFsctlDeviceClassGuid`, `MyFspFsvrtDeviceClassGuid`: When creating devices the FSD needs to assign GUID classes to them; it uses the GUIDs specified by these properties. You MUST change these GUIDs when rebranding or your product and "official" WinFsp releases may interfere with each other. From the Visual Studio main menu use Tools > Create GUID and select option "3. static const struct GUID" to produce GUIDs in the correct format.
+* `MyFspFsctlDeviceClassGuid`, `MyFspFsvrtDeviceClassGuid`: When creating devices the FSD needs to assign GUID classes to them; it uses the GUIDs specified by these properties. You MUST change these GUIDs when rebranding; otherwise your product and "official" WinFsp releases may interfere with each other. From the Visual Studio main menu use Tools > Create GUID and select option "3. static const struct GUID" to produce GUIDs in the correct format.
 
 === Versioning
 
@@ -56,4 +56,4 @@ Currently WinFsp does not support rebranding of the following components:
 
 Additional limitations:
 
-* The default installer (in file `build\VStudio\installer\Product.wxs`) contains a number of GUIDs. These MUST be changed if the default installer is used by a rebranded product or installation of your product and "official" WinFsp releases may interfere with each other. At this time this can only be done manually; it may be automated in the future via a script.
+* The default installer (in file `build\VStudio\installer\Product.wxs`) contains a number of GUIDs. These MUST be changed if the default installer is used by a rebranded product; otherwise installation of your product and "official" WinFsp releases may interfere with each other. There is a Python script at `tools\gensrc\wixguid.py` that can help with this.
