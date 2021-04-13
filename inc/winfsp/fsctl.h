@@ -53,8 +53,18 @@ extern "C" {
 #define FSP_FSCTL_NET_DEVICE_NAME       FSP_FSCTL_DRIVER_NAME ".Net"
 #define FSP_FSCTL_MUP_DEVICE_NAME       FSP_FSCTL_DRIVER_NAME ".Mup"
 
+#if defined(MyFspFsctlDeviceClassGuid)
 extern const __declspec(selectany) GUID FspFsctlDeviceClassGuid = MyFspFsctlDeviceClassGuid;
+#else
+extern const __declspec(selectany) GUID FspFsctlDeviceClassGuid =
+    { 0x6f9d25fa, 0x6dee, 0x4a9d, { 0x80, 0xf5, 0xe9, 0x8e, 0x14, 0xf3, 0x5e, 0x54 } };
+#endif
+#if defined(MyFspFsvrtDeviceClassGuid)
 extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid = MyFspFsvrtDeviceClassGuid;
+#else
+extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
+    { 0xb48171c3, 0xdd50, 0x4852, { 0x83, 0xa3, 0x34, 0x4c, 0x50, 0xd9, 0x3b, 0x17 } };
+#endif
 
 /* alignment macros */
 #define FSP_FSCTL_ALIGN_UP(x, s)        (((x) + ((s) - 1L)) & ~((s) - 1L))
