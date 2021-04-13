@@ -1,0 +1,59 @@
+= WinFsp Rebranding
+
+If you have a commercial WinFsp license and wish to produce a rebranded version of WinFsp, you can follow the instructions in this document.
+
+== Overview
+
+The WinFsp build is controlled by the file `build\VStudio\version.properties`. The file contains properties that control the final build output in a number of ways. Some of the properties in this file control how the final build product is branded, others how it is versioned, etc.
+
+=== Branding
+
+The properties that control branding are the following:
+
+* `MyProductName`: This is the overall product name. It should be a short name without spaces. For example: `MyCompanyFSP`. The default value is `WinFsp`.
+
+* `MyProductFileName`: This is the file name that will be used for the primary WinFsp components. For example: if you use `mycompanyfsp` the FSD will be named `mycompanyfsp-x64.sys` and `mycompanyfsp-x86.sys`, the DLL will be named `mycompanyfsp-x64.dll` and `mycompanyfsp-x86.dll`, etc. The default value is `winfsp`. (Note that due to a limitation the WinFsp .NET implementation assumes that `MyProductFileName` is the lowercase version of `MyProductName`.)
+
+* `MyDescription`: This is a longer product description. For example: `MyCompany File System Proxy`. The default value is `Windows File System Proxy`.
+
+* `MyCompanyName`: This is the company name.
+
+* `MyCopyright`: This is the product's copyright.
+
+* `MyFspFsctlDeviceClassGuid`, `MyFspFsvrtDeviceClassGuid`: When creating devices the FSD needs to assign GUID classes to them; it uses the GUIDs specified by these properties. You MUST change these GUIDs when rebranding or your product and "official" WinFsp releases may interfere with each other. From the Visual Studio main menu use Tools > Create GUID and select option "3. static const struct GUID" to produce GUIDs in the correct format.
+
+=== Versioning
+
+The properties that control versioning are the following:
+
+* `MyCanonicalVersion`: This is the "canonical" (i.e. non-marketing) version of the product. WinFsp uses a `major.minor.build` versioning scheme. The `major.minor` portion of the version comes from this property; build numbers are computed automatically from the current date.
+
+** Some WinFsp components check that canonical versions of different components match. For example, the WinFsp .NET implementation checks that its major version matches the one from the WinFsp DLL.
+
+* `MyProductVersion`: This is the product (i.e. marketing) version of the product. WinFsp uses the release year as the product version; it also adds a point release for subsequent releases (thus 2021 is the first release in 2021, and 2021.1 is the second release, etc). This property may be an arbitrary string.
+
+* `MyProductStage`: This specifies the kind of the build. Allowed values are `Beta`, `RC` (Release Candidate) and `Gold` (Final).
+
+== Limitations
+
+Currently WinFsp supports rebranding of the core WinFsp components:
+
+* The WinFsp FSD (File System Driver).
+
+* The WinFsp DLL (user mode DLL). This includes the DLL import libraries.
+
+* The WinFsp Launcher (Windows service that allows for easy launching of file systems).
+
+Currently WinFsp does not support rebranding of the following components:
+
+* Development files such as header files, samples, etc. These are not end-user visible and therefore are not necessary to be rebranded.
+
+* WinFsp test suites.
+
+* FUSE for Cygwin.
+
+* Chocolatey builds.
+
+Additional limitations:
+
+* The default installer (in file `build\VStudio\installer\Product.wxs`) contains a number of GUIDs. These MUST be changed if the default installer is used by a rebranded product or installation of your product and "official" WinFsp releases may interfere with each other. At this time this can only be done manually; it may be automated in the future via a script.
