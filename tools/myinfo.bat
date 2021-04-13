@@ -10,6 +10,10 @@ for /F "tokens=2,3,4 delims=<>" %%a in (%~dp0..\build\VStudio\version.properties
             set MyDescription=%%b
         ) else if "%%a"=="MyCompanyName" (
             set MyCompanyName=%%b
+        ) else if "%%a"=="MyProductVersion" (
+            set MyProductVersion=%%b
+        ) else if "%%a"=="MyProductStage" (
+            set MyProductStage=%%b
         )
     )
 )
@@ -18,3 +22,5 @@ echo MyProductName=%MyProductName%
 echo MyProductFileName=%MyProductFileName%
 echo MyDescription=%MyDescription%
 echo MyCompanyName=%MyCompanyName%
+echo MyProductVersion=%MyProductVersion%
+echo MyProductStage=%MyProductStage%

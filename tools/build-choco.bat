@@ -105,13 +105,10 @@ if X%SignedPackage%==X (
 
 :choco
 if not exist "build\%Configuration%\%MyProductFileName%-*.msi" (echo installer msi not found >&2 & exit /b 1)
+if not X!MyProductName!==XWinFsp (echo skipping choco build for !MyProductName! >&2 & exit /b 0)
 set Version=
 for %%f in (build\%Configuration%\%MyProductFileName%-*.msi) do set Version=%%~nf
 set Version=!Version:%MyProductFileName%-=!
-set ProductStage=
-for /f "delims=<> tokens=3" %%i in ('findstr "<MyProductStage>" version.properties') do (
-    set MyProductStage=%%i
-)
 set PackageVersion=!Version!
 if not X!MyProductStage!==XGold (
     set PackageVersion=!Version!-pre
