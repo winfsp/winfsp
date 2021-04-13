@@ -23,9 +23,9 @@ BEGIN
             VALUE "CompanyName", STR(MyCompanyName)
             VALUE "FileDescription", STR(MyDescription)
             VALUE "FileVersion", STR(MyFullVersion)
-            VALUE "InternalName", "winfsp.dll"
+            VALUE "InternalName", STR(MyProductFileName) ".dll"
             VALUE "LegalCopyright", STR(MyCopyright)
-            VALUE "OriginalFilename", "winfsp.dll"
+            VALUE "OriginalFilename", STR(MyProductFileName) ".dll"
             VALUE "ProductName", STR(MyProductName)
             VALUE "ProductVersion", STR(MyProductVersion)
         END

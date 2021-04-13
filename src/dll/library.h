@@ -30,7 +30,7 @@
 
 #include <shared/ku/config.h>
 
-#define LIBRARY_NAME                    "WinFsp"
+#define LIBRARY_NAME                    FSP_FSCTL_PRODUCT_NAME
 
 /* DEBUGLOG */
 #if !defined(NDEBUG)

@@ -35,17 +35,26 @@ extern "C" {
 #define FSP_FSCTL_STATIC_ASSERT(e,m)    static_assert(1,"")
 #endif
 
-#define FSP_FSCTL_DRIVER_NAME           "WinFsp"
-#define FSP_FSCTL_DISK_DEVICE_NAME      "WinFsp.Disk"
-#define FSP_FSCTL_NET_DEVICE_NAME       "WinFsp.Net"
-#define FSP_FSCTL_MUP_DEVICE_NAME       "WinFsp.Mup"
+#define FSP_FSCTL_STR(x)                FSP_FSCTL_STR_(x)
+#define FSP_FSCTL_STR_(x)               #x
+#if defined(MyProductName)
+#define FSP_FSCTL_PRODUCT_NAME          FSP_FSCTL_STR(MyProductName)
+#else
+#define FSP_FSCTL_PRODUCT_NAME          "WinFsp"
+#endif
+#if defined(MyProductFileName)
+#define FSP_FSCTL_PRODUCT_FILE_NAME     FSP_FSCTL_STR(MyProductFileName)
+#else
+#define FSP_FSCTL_PRODUCT_FILE_NAME     "winfsp"
+#endif
 
-// {6F9D25FA-6DEE-4A9D-80F5-E98E14F35E54}
-extern const __declspec(selectany) GUID FspFsctlDeviceClassGuid =
-    { 0x6f9d25fa, 0x6dee, 0x4a9d, { 0x80, 0xf5, 0xe9, 0x8e, 0x14, 0xf3, 0x5e, 0x54 } };
-// {B48171C3-DD50-4852-83A3-344C50D93B17}
-extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
-    { 0xb48171c3, 0xdd50, 0x4852, { 0x83, 0xa3, 0x34, 0x4c, 0x50, 0xd9, 0x3b, 0x17 } };
+#define FSP_FSCTL_DRIVER_NAME           FSP_FSCTL_PRODUCT_NAME
+#define FSP_FSCTL_DISK_DEVICE_NAME      FSP_FSCTL_DRIVER_NAME ".Disk"
+#define FSP_FSCTL_NET_DEVICE_NAME       FSP_FSCTL_DRIVER_NAME ".Net"
+#define FSP_FSCTL_MUP_DEVICE_NAME       FSP_FSCTL_DRIVER_NAME ".Mup"
+
+extern const __declspec(selectany) GUID FspFsctlDeviceClassGuid = MyFspFsctlDeviceClassGuid;
+extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid = MyFspFsvrtDeviceClassGuid;
 
 /* alignment macros */
 #define FSP_FSCTL_ALIGN_UP(x, s)        (((x) + ((s) - 1L)) & ~((s) - 1L))

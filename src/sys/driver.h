@@ -42,9 +42,9 @@
 #define DRIVER_NAME                     FSP_FSCTL_DRIVER_NAME
 
 #if _WIN64
-#define FSP_REGKEY                      "\\Registry\\Machine\\Software\\WOW6432Node\\WinFsp"
+#define FSP_REGKEY                      "\\Registry\\Machine\\Software\\WOW6432Node\\" FSP_FSCTL_PRODUCT_NAME
 #else
-#define FSP_REGKEY                      "\\Registry\\Machine\\Software\\WinFsp"
+#define FSP_REGKEY                      "\\Registry\\Machine\\Software\\" FSP_FSCTL_PRODUCT_NAME
 #endif
 
 /* IoCreateDeviceSecure default SDDL's */

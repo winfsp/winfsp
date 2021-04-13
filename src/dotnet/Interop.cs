@@ -1425,13 +1425,17 @@ namespace Fsp.Interop
         }
 
         /* initialization */
+        internal static String ProductName = "WinFsp";
+        internal static String ProductFileName = "winfsp";
         private static IntPtr LoadDll()
         {
             String DllPath = null;
-            String DllName = 8 == IntPtr.Size ? "winfsp-x64.dll" : "winfsp-x86.dll";
+            String DllName = 8 == IntPtr.Size ?
+                ProductFileName + "-x64.dll" :
+                ProductFileName + "-x86.dll";
             String KeyName = 8 == IntPtr.Size ?
-                "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\WinFsp" :
-                "HKEY_LOCAL_MACHINE\\Software\\WinFsp";
+                "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\" + ProductName :
+                "HKEY_LOCAL_MACHINE\\Software\\" + ProductName;
             IntPtr Module;
             Module = LoadLibraryW(DllName);
             if (IntPtr.Zero == Module)
@@ -1525,6 +1529,15 @@ namespace Fsp.Interop
             if (Debugger.IsAttached)
                 Debugger.Break();
 #endif
+            object[] attributes = Assembly.GetExecutingAssembly().GetCustomAttributes(
+                typeof(AssemblyProductAttribute), false);
+            if (null != attributes &&
+                0 < attributes.Length &&
+                null != attributes[0] as AssemblyProductAttribute)
+            {
+                ProductName = (attributes[0] as AssemblyProductAttribute).Product;
+                ProductFileName = ProductName.ToLowerInvariant();
+            }
             LoadProto(LoadDll());
             CheckVersion();
         }

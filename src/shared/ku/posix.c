@@ -181,7 +181,7 @@ static VOID FspPosixInitializeFromRegistry(VOID)
 
     DistinctPermsForSameOwnerGroup = 0;
 
-    Result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\WinFsp",
+    Result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\" FSP_FSCTL_PRODUCT_NAME,
         0, KEY_READ | KEY_WOW64_32KEY, &RegKey);
     if (ERROR_SUCCESS == Result)
     {

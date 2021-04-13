@@ -20,7 +20,7 @@
             AllowSameVersionUpgrades="no"
             DisallowUpgradeErrorMessage="An older version of $(var.MyProductName) is already installed. You must uninstall it before you can install this version."
             DowngradeErrorMessage="A newer version of $(var.MyProductName) is already installed." />
-        <Media Id="1" Cabinet="WinFsp.cab" EmbedCab="yes" />
+        <Media Id="1" Cabinet="$(var.MyProductName).cab" EmbedCab="yes" />
 
         <Property Id="P.LauncherName">$(var.MyProductName).Launcher</Property>
         <Property Id="P.LauncherRegistryKey">Software\$(var.MyProductName)\Services</Property>
@@ -36,7 +36,7 @@
 
         <Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="ProgramFilesFolder">
-                <Directory Id="INSTALLDIR" Name="WinFsp">
+                <Directory Id="INSTALLDIR" Name="$(var.MyProductName)">
                     <Directory Id="BINDIR" Name="bin" />
                     <Directory Id="INCDIR" Name="inc" />
                     <Directory Id="LIBDIR" Name="lib" />
@@ -55,54 +55,54 @@
                     Name="InstallDir"
                     Type="string"
                     Value="[INSTALLDIR]" />
-                <dep:Provides Key="WinFsp" />
+                <dep:Provides Key="$(var.MyProductName)" />
             </Component>
             <Component Id="C.License.txt">
                 <File Name="License.txt" Source="..\..\..\License.txt" KeyPath="yes" />
             </Component>
         </DirectoryRef>
         <DirectoryRef Id="BINDIR" FileSource="..\build\$(var.Configuration)">
-            <Component Id="C.winfsp_x64.sys">
-                <File Name="winfsp-x64.sys" KeyPath="yes" />
+            <Component Id="C.$(var.MyProductFileName)_x64.sys">
+                <File Name="$(var.MyProductFileName)-x64.sys" KeyPath="yes" />
             </Component>
-            <Component Id="C.winfsp_x86.sys">
-                <File Name="winfsp-x86.sys" KeyPath="yes" />
-            </Component>
-
-            <!-- On Win64 register winfsp-x64.dll -->
-            <Component Id="C.winfsp_x64.dll.selfreg" Guid="F0A67746-1A9C-4976-8EC0-882E9407FA6D">
-                <File Id="FILE.winfsp_x64.dll.selfreg" Name="winfsp-x64.dll" KeyPath="yes" SelfRegCost="1" />
-                <Condition>VersionNT64</Condition>
-            </Component>
-            <Component Id="C.winfsp_x86.dll" Guid="950492FB-12F7-4E27-9124-8325A2BC9927">
-                <File Name="winfsp-x86.dll" KeyPath="yes" />
-                <Condition>VersionNT64</Condition>
+            <Component Id="C.$(var.MyProductFileName)_x86.sys">
+                <File Name="$(var.MyProductFileName)-x86.sys" KeyPath="yes" />
             </Component>
 
-            <!-- On Win32 register winfsp-x86.dll -->
-            <Component Id="C.winfsp_x64.dll" Guid="4D6E7A8E-0CA6-49BE-B312-1EDADE725756">
-                <File Name="winfsp-x64.dll" KeyPath="yes" />
+            <!-- On Win64 register $(var.MyProductFileName)-x64.dll -->
+            <Component Id="C.$(var.MyProductFileName)_x64.dll.selfreg" Guid="F0A67746-1A9C-4976-8EC0-882E9407FA6D">
+                <File Id="FILE.$(var.MyProductFileName)_x64.dll.selfreg" Name="$(var.MyProductFileName)-x64.dll" KeyPath="yes" SelfRegCost="1" />
+                <Condition>VersionNT64</Condition>
+            </Component>
+            <Component Id="C.$(var.MyProductFileName)_x86.dll" Guid="950492FB-12F7-4E27-9124-8325A2BC9927">
+                <File Name="$(var.MyProductFileName)-x86.dll" KeyPath="yes" />
+                <Condition>VersionNT64</Condition>
+            </Component>
+
+            <!-- On Win32 register $(var.MyProductFileName)-x86.dll -->
+            <Component Id="C.$(var.MyProductFileName)_x64.dll" Guid="4D6E7A8E-0CA6-49BE-B312-1EDADE725756">
+                <File Name="$(var.MyProductFileName)-x64.dll" KeyPath="yes" />
                 <Condition>NOT VersionNT64</Condition>
             </Component>
-            <Component Id="C.winfsp_x86.dll.selfreg" Guid="F0DEF7A6-AF55-419F-A58A-DF4018C6FA73">
-                <File Id="FILE.winfsp_x86.dll.selfreg" Name="winfsp-x86.dll" KeyPath="yes" SelfRegCost="1" />
+            <Component Id="C.$(var.MyProductFileName)_x86.dll.selfreg" Guid="F0DEF7A6-AF55-419F-A58A-DF4018C6FA73">
+                <File Id="FILE.$(var.MyProductFileName)_x86.dll.selfreg" Name="$(var.MyProductFileName)-x86.dll" KeyPath="yes" SelfRegCost="1" />
                 <Condition>NOT VersionNT64</Condition>
             </Component>
 
             <!-- install assembly -->
-            <Component Id="C.winfsp_msil.dll" Guid="0D8BA6AE-9F87-402B-AE1A-95B0AE3BE179">
-                <File Id="FILE.winfsp_msil.dll" Name="winfsp-msil.dll" KeyPath="yes" />
+            <Component Id="C.$(var.MyProductFileName)_msil.dll" Guid="0D8BA6AE-9F87-402B-AE1A-95B0AE3BE179">
+                <File Id="FILE.$(var.MyProductFileName)_msil.dll" Name="$(var.MyProductFileName)-msil.dll" KeyPath="yes" />
             </Component>
-            <Component Id="C.winfsp_msil.xml" Guid="1657F707-C112-454C-91AE-0FDEBBF454AB">
-                <File Id="FILE.winfsp_msil.xml" Name="winfsp-msil.xml" KeyPath="yes" />
+            <Component Id="C.$(var.MyProductFileName)_msil.xml" Guid="1657F707-C112-454C-91AE-0FDEBBF454AB">
+                <File Id="FILE.$(var.MyProductFileName)_msil.xml" Name="$(var.MyProductFileName)-msil.xml" KeyPath="yes" />
             </Component>
             <!--
-            <Component Id="C.winfsp_msil.dll.GAC" Guid="6469467D-8C90-4889-8138-4028F9DA6E85">
-                <File Id="FILE.winfsp_msil.dll.GAC" Name="winfsp-msil.dll" KeyPath="yes" Assembly=".net" />
+            <Component Id="C.$(var.MyProductFileName)_msil.dll.GAC" Guid="6469467D-8C90-4889-8138-4028F9DA6E85">
+                <File Id="FILE.$(var.MyProductFileName)_msil.dll.GAC" Name="$(var.MyProductFileName)-msil.dll" KeyPath="yes" Assembly=".net" />
             </Component>
-            <Component Id="C.policy.winfsp_msil.dll.GAC">
-                <File Name="policy.1.0.winfsp-msil.dll" KeyPath="yes" Assembly=".net" />
-                <File Name="policy.1.0.winfsp-msil.config" KeyPath="no" />
+            <Component Id="C.policy.$(var.MyProductFileName)_msil.dll.GAC">
+                <File Name="policy.1.0.$(var.MyProductFileName)-msil.dll" KeyPath="yes" Assembly=".net" />
+                <File Name="policy.1.0.$(var.MyProductFileName)-msil.config" KeyPath="no" />
             </Component>
             -->
 
@@ -297,11 +297,11 @@
             </Directory>
         </DirectoryRef>
         <DirectoryRef Id="LIBDIR" FileSource="..\build\$(var.Configuration)">
-            <Component Id="C.winfsp_x64.lib">
-                <File Name="winfsp-x64.lib" KeyPath="yes" />
+            <Component Id="C.$(var.MyProductFileName)_x64.lib">
+                <File Name="$(var.MyProductFileName)-x64.lib" KeyPath="yes" />
             </Component>
-            <Component Id="C.winfsp_x86.lib">
-                <File Name="winfsp-x86.lib" KeyPath="yes" />
+            <Component Id="C.$(var.MyProductFileName)_x86.lib">
+                <File Name="$(var.MyProductFileName)-x86.lib" KeyPath="yes" />
             </Component>
 
             <!-- On Win64 copy fuse-x64.pc -->
@@ -565,17 +565,17 @@
             </Directory>
         </DirectoryRef>
         <DirectoryRef Id="SYMDIR">
-            <Component Id="C.winfsp_x64.sys.pdb">
-                <File Name="winfsp-x64.sys.pdb" Source="..\build\$(var.Configuration)\winfsp-x64.sys.public.pdb" KeyPath="yes" />
+            <Component Id="C.$(var.MyProductFileName)_x64.sys.pdb">
+                <File Name="$(var.MyProductFileName)-x64.sys.pdb" Source="..\build\$(var.Configuration)\$(var.MyProductFileName)-x64.sys.public.pdb" KeyPath="yes" />
             </Component>
-            <Component Id="C.winfsp_x86.sys.pdb">
-                <File Name="winfsp-x86.sys.pdb" Source="..\build\$(var.Configuration)\winfsp-x86.sys.public.pdb" KeyPath="yes" />
+            <Component Id="C.$(var.MyProductFileName)_x86.sys.pdb">
+                <File Name="$(var.MyProductFileName)-x86.sys.pdb" Source="..\build\$(var.Configuration)\$(var.MyProductFileName)-x86.sys.public.pdb" KeyPath="yes" />
             </Component>
-            <Component Id="C.winfsp_x64.dll.pdb">
-                <File Name="winfsp-x64.dll.pdb" Source="..\build\$(var.Configuration)\winfsp-x64.dll.public.pdb" KeyPath="yes" />
+            <Component Id="C.$(var.MyProductFileName)_x64.dll.pdb">
+                <File Name="$(var.MyProductFileName)-x64.dll.pdb" Source="..\build\$(var.Configuration)\$(var.MyProductFileName)-x64.dll.public.pdb" KeyPath="yes" />
             </Component>
-            <Component Id="C.winfsp_x86.dll.pdb">
-                <File Name="winfsp-x86.dll.pdb" Source="..\build\$(var.Configuration)\winfsp-x86.dll.public.pdb" KeyPath="yes" />
+            <Component Id="C.$(var.MyProductFileName)_x86.dll.pdb">
+                <File Name="$(var.MyProductFileName)-x86.dll.pdb" Source="..\build\$(var.Configuration)\$(var.MyProductFileName)-x86.dll.public.pdb" KeyPath="yes" />
             </Component>
             <Component Id="C.launcher_x64.pdb">
                 <File Name="launcher-x64.pdb" Source="..\build\$(var.Configuration)\launcher-x64.public.pdb" KeyPath="yes" />
@@ -603,13 +603,13 @@
             </Component>
         </DirectoryRef>
 
-        <ComponentGroup Id="C.WinFsp.bin">
-            <ComponentRef Id="C.winfsp_x64.sys" />
-            <ComponentRef Id="C.winfsp_x86.sys" />
-            <ComponentRef Id="C.winfsp_x64.dll.selfreg" />
-            <ComponentRef Id="C.winfsp_x86.dll" />
-            <ComponentRef Id="C.winfsp_x64.dll" />
-            <ComponentRef Id="C.winfsp_x86.dll.selfreg" />
+        <ComponentGroup Id="C.$(var.MyProductName).bin">
+            <ComponentRef Id="C.$(var.MyProductFileName)_x64.sys" />
+            <ComponentRef Id="C.$(var.MyProductFileName)_x86.sys" />
+            <ComponentRef Id="C.$(var.MyProductFileName)_x64.dll.selfreg" />
+            <ComponentRef Id="C.$(var.MyProductFileName)_x86.dll" />
+            <ComponentRef Id="C.$(var.MyProductFileName)_x64.dll" />
+            <ComponentRef Id="C.$(var.MyProductFileName)_x86.dll.selfreg" />
             <ComponentRef Id="C.launcher_x64.exe.svcinst" />
             <ComponentRef Id="C.launcher_x86.exe" />
             <ComponentRef Id="C.launcher_x64.exe" />
@@ -621,7 +621,7 @@
             <ComponentRef Id="C.diag.bat" />
             <ComponentRef Id="C.fsreg.bat" />
         </ComponentGroup>
-        <ComponentGroup Id="C.WinFsp.inc">
+        <ComponentGroup Id="C.$(var.MyProductName).inc">
             <ComponentRef Id="C.fsctl.h" />
             <ComponentRef Id="C.winfsp.h" />
             <ComponentRef Id="C.launch.h" />
@@ -635,15 +635,15 @@
             <ComponentRef Id="C.fuse3_opt.h" />
             <ComponentRef Id="C.winfsp_fuse3.h" />
         </ComponentGroup>
-        <ComponentGroup Id="C.WinFsp.lib">
-            <ComponentRef Id="C.winfsp_x64.lib" />
-            <ComponentRef Id="C.winfsp_x86.lib" />
+        <ComponentGroup Id="C.$(var.MyProductName).lib">
+            <ComponentRef Id="C.$(var.MyProductFileName)_x64.lib" />
+            <ComponentRef Id="C.$(var.MyProductFileName)_x86.lib" />
             <ComponentRef Id="C.fuse_x64.pc" />
             <ComponentRef Id="C.fuse_x86.pc" />
             <ComponentRef Id="C.fuse3_x64.pc" />
             <ComponentRef Id="C.fuse3_x86.pc" />
         </ComponentGroup>
-        <ComponentGroup Id="C.WinFsp.opt.fuse">
+        <ComponentGroup Id="C.$(var.MyProductName).opt.fuse">
             <ComponentRef Id="C.fuse.tar.xz.x64" />
             <ComponentRef Id="C.fuse.tar.xz.x86" />
             <ComponentRef Id="C.fuse3.tar.xz.x64" />
@@ -651,12 +651,12 @@
             <ComponentRef Id="C.fuse.install.sh" />
             <ComponentRef Id="C.fuse.uninstall.sh" />
         </ComponentGroup>
-        <ComponentGroup Id="C.WinFsp.opt.fsext">
+        <ComponentGroup Id="C.$(var.MyProductName).opt.fsext">
             <ComponentRef Id="C.fsext.h" />
             <ComponentRef Id="C.fsext.winfsp_x64.lib" />
             <ComponentRef Id="C.fsext.winfsp_x86.lib" />
         </ComponentGroup>
-        <ComponentGroup Id="C.WinFsp.smp">
+        <ComponentGroup Id="C.$(var.MyProductName).smp">
             <ComponentRef Id="C.memfs_x64.exe" />
             <ComponentRef Id="C.memfs_x86.exe" />
             <ComponentRef Id="C.memfs.h" />
@@ -704,11 +704,11 @@
             <ComponentRef Id="C.notifyfs.vcxproj" />
             <ComponentRef Id="C.notifyfs.vcxproj.filters" />
         </ComponentGroup>
-        <ComponentGroup Id="C.WinFsp.sym">
-            <ComponentRef Id="C.winfsp_x64.sys.pdb" />
-            <ComponentRef Id="C.winfsp_x86.sys.pdb" />
-            <ComponentRef Id="C.winfsp_x86.dll.pdb" />
-            <ComponentRef Id="C.winfsp_x64.dll.pdb" />
+        <ComponentGroup Id="C.$(var.MyProductName).sym">
+            <ComponentRef Id="C.$(var.MyProductFileName)_x64.sys.pdb" />
+            <ComponentRef Id="C.$(var.MyProductFileName)_x86.sys.pdb" />
+            <ComponentRef Id="C.$(var.MyProductFileName)_x86.dll.pdb" />
+            <ComponentRef Id="C.$(var.MyProductFileName)_x64.dll.pdb" />
             <ComponentRef Id="C.launcher_x86.pdb" />
             <ComponentRef Id="C.launcher_x64.pdb" />
             <ComponentRef Id="C.launchctl_x64.pdb" />
@@ -718,15 +718,15 @@
             <ComponentRef Id="C.memfs_x64.pdb" />
             <ComponentRef Id="C.memfs_x86.pdb" />
         </ComponentGroup>
-        <ComponentGroup Id="C.WinFsp.net">
-            <ComponentRef Id="C.winfsp_msil.dll" />
-            <ComponentRef Id="C.winfsp_msil.xml" />
+        <ComponentGroup Id="C.$(var.MyProductName).net">
+            <ComponentRef Id="C.$(var.MyProductFileName)_msil.dll" />
+            <ComponentRef Id="C.$(var.MyProductFileName)_msil.xml" />
             <!--
-            <ComponentRef Id="C.winfsp_msil.dll.GAC" />
-            <ComponentRef Id="C.policy.winfsp_msil.dll.GAC" />
+            <ComponentRef Id="C.$(var.MyProductFileName)_msil.dll.GAC" />
+            <ComponentRef Id="C.policy.$(var.MyProductFileName)_msil.dll.GAC" />
             -->
         </ComponentGroup>
-        <ComponentGroup Id="C.WinFsp.smp.net">
+        <ComponentGroup Id="C.$(var.MyProductName).smp.net">
             <ComponentRef Id="C.memfs_dotnet_msil.exe" />
             <ComponentRef Id="C.memfs_dotnet.Program.cs" />
             <ComponentRef Id="C.passthrough_dotnet.Program.cs" />
@@ -757,8 +757,8 @@
                 AllowAdvertise="no"
                 InstallDefault="local"
                 Absent="disallow">
-                <ComponentGroupRef Id="C.WinFsp.bin" />
-                <ComponentGroupRef Id="C.WinFsp.net" />
+                <ComponentGroupRef Id="C.$(var.MyProductName).bin" />
+                <ComponentGroupRef Id="C.$(var.MyProductName).net" />
             </Feature>
             <!--
             <Feature
@@ -769,7 +769,7 @@
                 AllowAdvertise="no"
                 InstallDefault="local"
                 Absent="allow">
-                <ComponentGroupRef Id="C.WinFsp.net" />
+                <ComponentGroupRef Id="C.$(var.MyProductName).net" />
             </Feature>
             -->
             <Feature
@@ -780,11 +780,11 @@
                 AllowAdvertise="no"
                 InstallDefault="local"
                 Absent="allow">
-                <ComponentGroupRef Id="C.WinFsp.inc" />
-                <ComponentGroupRef Id="C.WinFsp.lib" />
-                <ComponentGroupRef Id="C.WinFsp.smp" />
-                <ComponentGroupRef Id="C.WinFsp.smp.net" />
-                <ComponentGroupRef Id="C.WinFsp.sym" />
+                <ComponentGroupRef Id="C.$(var.MyProductName).inc" />
+                <ComponentGroupRef Id="C.$(var.MyProductName).lib" />
+                <ComponentGroupRef Id="C.$(var.MyProductName).smp" />
+                <ComponentGroupRef Id="C.$(var.MyProductName).smp.net" />
+                <ComponentGroupRef Id="C.$(var.MyProductName).sym" />
             </Feature>
             <Feature
                 Id="F.KernelDeveloper"
@@ -794,7 +794,7 @@
                 AllowAdvertise="no"
                 InstallDefault="local"
                 Absent="allow">
-                <ComponentGroupRef Id="C.WinFsp.opt.fsext" />
+                <ComponentGroupRef Id="C.$(var.MyProductName).opt.fsext" />
             </Feature>
             <Feature
                 Id="F.Cygfuse"
@@ -804,7 +804,7 @@
                 AllowAdvertise="no"
                 InstallDefault="local"
                 Absent="allow">
-                <ComponentGroupRef Id="C.WinFsp.opt.fuse" />
+                <ComponentGroupRef Id="C.$(var.MyProductName).opt.fuse" />
             </Feature>
         </Feature>
 

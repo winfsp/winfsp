@@ -2112,9 +2112,9 @@ static inline
 NTSTATUS FspLoad(PVOID *PModule)
 {
 #if defined(_WIN64)
-#define FSP_DLLNAME                     "winfsp-x64.dll"
+#define FSP_DLLNAME                     FSP_FSCTL_PRODUCT_FILE_NAME "-x64.dll"
 #else
-#define FSP_DLLNAME                     "winfsp-x86.dll"
+#define FSP_DLLNAME                     FSP_FSCTL_PRODUCT_FILE_NAME "-x86.dll"
 #endif
 #define FSP_DLLPATH                     "bin\\" FSP_DLLNAME
 
@@ -2142,7 +2142,7 @@ NTSTATUS FspLoad(PVOID *PModule)
     Module = LoadLibraryW(L"" FSP_DLLNAME);
     if (0 == Module)
     {
-        Result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\WinFsp",
+        Result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\" FSP_FSCTL_PRODUCT_NAME,
             0, KEY_READ | KEY_WOW64_32KEY, &RegKey);
         if (ERROR_SUCCESS == Result)
         {

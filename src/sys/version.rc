@@ -23,9 +23,9 @@ BEGIN
             VALUE "CompanyName", STR(MyCompanyName)
             VALUE "FileDescription", STR(MyDescription)
             VALUE "FileVersion", STR(MyFullVersion)
-            VALUE "InternalName", "winfsp.sys"
+            VALUE "InternalName", STR(MyProductFileName) ".sys"
             VALUE "LegalCopyright", STR(MyCopyright)
-            VALUE "OriginalFilename", "winfsp.sys"
+            VALUE "OriginalFilename", STR(MyProductFileName) ".sys"
             VALUE "ProductName", STR(MyProductName)
             VALUE "ProductVersion", STR(MyProductVersion)
         END

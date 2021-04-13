@@ -649,7 +649,7 @@ public:
     NTSTATUS Preflight(PWSTR MountPoint)
     {
         return FspFileSystemPreflight(
-            _VolumeParams.Prefix[0] ? L"WinFsp.Net" : L"WinFsp.Disk",
+            _VolumeParams.Prefix[0] ? L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME,
             MountPoint);
     }
     NTSTATUS Mount(PWSTR MountPoint,
@@ -669,7 +669,7 @@ public:
         if (!NT_SUCCESS(Result))
             return Result;
         Result = FspFileSystemCreate(
-            _VolumeParams.Prefix[0] ? L"WinFsp.Net" : L"WinFsp.Disk",
+            _VolumeParams.Prefix[0] ? L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME,
             &_VolumeParams, Interface(), &_FileSystemPtr);
         if (!NT_SUCCESS(Result))
             return Result;

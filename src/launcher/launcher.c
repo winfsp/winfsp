@@ -25,7 +25,7 @@
 #include <sddl.h>
 #include <userenv.h>
 
-#define PROGNAME                        "WinFsp.Launcher"
+#define PROGNAME                        FSP_FSCTL_PRODUCT_NAME ".Launcher"
 
 static NTSTATUS (NTAPI *SvcNtOpenSymbolicLinkObject)(
     PHANDLE LinkHandle,
