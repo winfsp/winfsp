@@ -38,7 +38,7 @@ VOID FspFileNodeSetOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 VOID FspFileNodeReleaseF(FSP_FILE_NODE *FileNode, ULONG Flags);
 VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner);
 NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    UINT32 GrantedAccess, UINT32 ShareAccess,
+    UINT32 GrantedAccess, UINT32 AdditionalGrantedAccess, UINT32 ShareAccess,
     FSP_FILE_NODE **POpenedFileNode, PULONG PSharingViolationReason);
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG PCleanupFlags);
 VOID FspFileNodeCleanupFlush(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
@@ -588,7 +588,7 @@ VOID FspFileNodeReleaseOwnerF(FSP_FILE_NODE *FileNode, ULONG Flags, PVOID Owner)
 }
 
 NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    UINT32 GrantedAccess, UINT32 ShareAccess,
+    UINT32 GrantedAccess, UINT32 AdditionalGrantedAccess, UINT32 ShareAccess,
     FSP_FILE_NODE **POpenedFileNode, PULONG PSharingViolationReason)
 {
     /*
@@ -711,6 +711,14 @@ NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
         }
 
         /* share access check */
+        if (0 != AdditionalGrantedAccess)
+        {
+            /* Additional share check for FILE_OVERWRITE*, FILE_SUPERSEDE. Fixes GitHub issue #364. */
+            Result = IoCheckShareAccess(GrantedAccess | AdditionalGrantedAccess, ShareAccess, FileObject,
+                &OpenedFileNode->ShareAccess, FALSE);
+            if (!NT_SUCCESS(Result))
+                goto exit;
+        }
         Result = IoCheckShareAccess(GrantedAccess, ShareAccess, FileObject,
             &OpenedFileNode->ShareAccess, TRUE);
         if (!NT_SUCCESS(Result))

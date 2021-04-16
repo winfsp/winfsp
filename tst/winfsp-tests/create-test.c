@@ -1131,6 +1131,45 @@ void create_share_dotest(ULONG Flags, PWSTR Prefix)
         ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
 
         CloseHandle(Handle1);
+
+        /* GitHub issue #364 */
+        Handle1 = CreateFileW(FilePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+        Handle2 = CreateFileW(FilePath, GENERIC_READ, FILE_SHARE_READ, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+        CloseHandle(Handle1);
+
+        /* from winfstest */
+        Handle1 = CreateFileW(FilePath, GENERIC_READ, FILE_SHARE_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+        Handle2 = CreateFileW(FilePath, GENERIC_WRITE, FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+        Handle2 = CreateFileW(FilePath, GENERIC_WRITE, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
+        Handle2 = CreateFileW(FilePath, DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+        Handle2 = CreateFileW(FilePath, DELETE, FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+        CloseHandle(Handle1);
+
+        /* from winfstest */
+        Handle1 = CreateFileW(FilePath, DELETE, FILE_SHARE_DELETE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+        Handle2 = CreateFileW(FilePath, GENERIC_WRITE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+        Handle2 = CreateFileW(FilePath, DELETE, FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
+        Handle2 = CreateFileW(FilePath, DELETE, FILE_SHARE_DELETE, 0, OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+        CloseHandle(Handle2);
+        CloseHandle(Handle1);
     }
 
     Handle1 = CreateFileW(FilePath,

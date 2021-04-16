@@ -1556,7 +1556,7 @@ VOID FspFileNodeReleaseForeign(FSP_FILE_NODE *FileNode)
     ExReleaseResourceLite(FileNode->Header.Resource);
 }
 NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
-    UINT32 GrantedAccess, UINT32 ShareAccess,
+    UINT32 GrantedAccess, UINT32 AdditionalGrantedAccess, UINT32 ShareAccess,
     FSP_FILE_NODE **POpenedFileNode, PULONG PSharingViolationReason);
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG PCleanupFlags);
 VOID FspFileNodeCleanupFlush(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);

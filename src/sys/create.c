@@ -1051,8 +1051,21 @@ NTSTATUS FspFsvolCreateComplete(
         }
 
         /* open the FileNode */
+        UINT32 AdditionalGrantedAccess = 0;
+        switch ((IrpSp->Parameters.Create.Options >> 24) & 0xff)
+        {
+        case FILE_OVERWRITE: case FILE_OVERWRITE_IF:
+            /* Additional granted access for share check. Fixes GitHub issue #364. */
+            AdditionalGrantedAccess = FILE_WRITE_DATA;
+            break;
+        case FILE_SUPERSEDE:
+            /* Additional granted access for share check. Fixes GitHub issue #364. */
+            AdditionalGrantedAccess = DELETE;
+            break;
+        }
         Result = FspFileNodeOpen(FileNode, FileObject,
-            Response->Rsp.Create.Opened.GrantedAccess, IrpSp->Parameters.Create.ShareAccess,
+            Response->Rsp.Create.Opened.GrantedAccess, AdditionalGrantedAccess,
+            IrpSp->Parameters.Create.ShareAccess,
             &OpenedFileNode, &SharingViolationReason);
         if (!NT_SUCCESS(Result))
         {
