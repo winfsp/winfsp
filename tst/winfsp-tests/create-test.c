@@ -1140,6 +1140,7 @@ void create_share_dotest(ULONG Flags, PWSTR Prefix)
         ASSERT(ERROR_SHARING_VIOLATION == GetLastError());
         CloseHandle(Handle1);
 
+#if 0
         /* from winfstest */
         Handle1 = CreateFileW(FilePath, GENERIC_READ, FILE_SHARE_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
         ASSERT(INVALID_HANDLE_VALUE != Handle1);
@@ -1170,6 +1171,7 @@ void create_share_dotest(ULONG Flags, PWSTR Prefix)
         ASSERT(INVALID_HANDLE_VALUE != Handle2);
         CloseHandle(Handle2);
         CloseHandle(Handle1);
+#endif
     }
 
     Handle1 = CreateFileW(FilePath,
