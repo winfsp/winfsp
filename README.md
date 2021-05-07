@@ -1,8 +1,8 @@
 <h1 align="center">
+    <img src="art/winfsp-glow.png" width="256"/>
+    <br/>
+    <br/>
     WinFsp &middot; Windows File System Proxy
-    <a href="https://twitter.com/intent/tweet?url=https%3A%2F%2Fgithub.com%2Fbillziss-gh%2Fwinfsp&text=Do%20you%20want%20to%20write%20a%20file%20system%20on%20Windows%3F%20WinFsp%20is%20well%20tested%2C%20very%20fast%20and%20easy%20to%20use%21&hashtags=windows%2Cfilesystem">
-        <img src="https://img.shields.io/twitter/url/http/shields.io.svg?style=social&label=Share"/>
-    </a>
 </h1>
 
 <p align="center">
@@ -17,24 +17,12 @@
         <img src="https://img.shields.io/badge/choco-install%20winfsp-black.svg?style=for-the-badge"/>
     </a>
     <br/>
-    <b>Quick Links</b><br/>
-    <a href="#benefits">Benefits</a> |
-    <a href="https://github.com/billziss-gh/winfsp/wiki">Wiki</a> |
-    <a href="https://groups.google.com/forum/#!forum/winfsp">Questions</a> |
-    <a href="https://twitter.com/BZissimopoulos">Author's Twitter</a>
-    <br/>
     <br/>
     <a href="https://ci.appveyor.com/project/billziss-gh/winfsp">
         <img src="https://img.shields.io/appveyor/ci/billziss-gh/winfsp.svg"/>
     </a>
     <br/>
     <br/>
-    <b>Check out my new kernel driver project <a href="https://github.com/billziss-gh/winspd">WinSpd</a>.</b>
-    <br/>
-    <br/>
-</p>
-
-<p align="center">
     WinFsp is a set of software components for Windows computers that allows the creation of user mode file systems. In this sense it is similar to FUSE (Filesystem in Userspace), which provides the same functionality on UNIX-like computers.
     <br/>
     <br/>
