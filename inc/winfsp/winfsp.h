@@ -91,6 +91,7 @@ typedef struct _REPARSE_DATA_BUFFER
 #if !defined(FILE_NEED_EA)
 #define FILE_NEED_EA                    0x00000080
 #endif
+#if !defined(__MINGW32__)
 typedef struct _FILE_FULL_EA_INFORMATION
 {
     ULONG NextEntryOffset;
@@ -99,6 +100,7 @@ typedef struct _FILE_FULL_EA_INFORMATION
     USHORT EaValueLength;
     CHAR EaName[1];
 } FILE_FULL_EA_INFORMATION, *PFILE_FULL_EA_INFORMATION;
+#endif
 
 /**
  * @group File System
