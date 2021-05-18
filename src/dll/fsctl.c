@@ -161,6 +161,16 @@ FSP_API NTSTATUS FspFsctlStop(HANDLE VolumeHandle)
     return STATUS_SUCCESS;
 }
 
+FSP_API NTSTATUS FspFsctlStop0(HANDLE VolumeHandle)
+{
+    DWORD Bytes;
+
+    if (!DeviceIoControl(VolumeHandle, FSP_FSCTL_STOP0, 0, 0, 0, 0, &Bytes, 0))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return STATUS_SUCCESS;
+}
+
 FSP_API NTSTATUS FspFsctlNotify(HANDLE VolumeHandle,
     FSP_FSCTL_NOTIFY_INFO *NotifyInfo, SIZE_T Size)
 {

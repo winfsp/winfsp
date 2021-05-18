@@ -95,6 +95,28 @@ static NTSTATUS FspFsctlFileSystemControl(
                 Result = FspVolumeTransact(FsctlDeviceObject, Irp, IrpSp);
             break;
         case FSP_FSCTL_STOP:
+        case FSP_FSCTL_STOP0:
+            /* Fix GitHub issue #369
+             *
+             * The original WinFsp protocol for shutting down a file system was to issue
+             * an FSP_FSCTL_STOP control code to the fsctl device. This would set the IOQ
+             * to the "stopped" state and would also cancel all active IRP's. Cancelation
+             * of IRP's would sometimes free buffers that may have still been in use by
+             * the user mode file system threads; hence access violation.
+             *
+             * To fix this problem a new control code FSP_FSCTL_STOP0 is introduced. The
+             * new file system shutdown protocol is backwards compatible with the original
+             * one and works as follows:
+             *
+             * - First the file system process issues an FSP_FSCTL_STOP0 control code which
+             * sets the IOQ to the "stopped" state but does NOT cancel IRP's.
+             *
+             * - Then the file system process waits for its dispatcher threads to complete
+             * (see FspFileSystemStopDispatcher).
+             *
+             * - Finally the file system process issues an FSP_FSCTL_STOP control code
+             * which stops the (already stopped) IOQ and cancels all IRP's.
+             */
             if (0 != IrpSp->FileObject->FsContext2)
                 Result = FspVolumeStop(FsctlDeviceObject, Irp, IrpSp);
             break;

@@ -349,7 +349,7 @@ exit:
 
     FspFileSystemSetDispatcherResult(FileSystem, Result);
 
-    FspFsctlStop(FileSystem->VolumeHandle);
+    FspFsctlStop0(FileSystem->VolumeHandle);
 
     if (0 != DispatcherThread)
     {
@@ -398,11 +398,13 @@ FSP_API VOID FspFileSystemStopDispatcher(FSP_FILE_SYSTEM *FileSystem)
     if (0 == FileSystem->DispatcherThread)
         return;
 
-    FspFsctlStop(FileSystem->VolumeHandle);
+    FspFsctlStop0(FileSystem->VolumeHandle);
 
     WaitForSingleObject(FileSystem->DispatcherThread, INFINITE);
     CloseHandle(FileSystem->DispatcherThread);
     FileSystem->DispatcherThread = 0;
+
+    FspFsctlStop(FileSystem->VolumeHandle);
 }
 
 FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
@@ -423,7 +425,7 @@ FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,
     {
         FspFileSystemSetDispatcherResult(FileSystem, Result);
 
-        FspFsctlStop(FileSystem->VolumeHandle);
+        FspFsctlStop0(FileSystem->VolumeHandle);
     }
 }
 

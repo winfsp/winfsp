@@ -526,12 +526,12 @@ NTSTATUS FspIoqCreate(
 
 VOID FspIoqDelete(FSP_IOQ *Ioq)
 {
-    FspIoqStop(Ioq);
+    FspIoqStop(Ioq, TRUE);
     FspIoqEventFinalize(&Ioq->PendingIrpEvent);
     FspFree(Ioq);
 }
 
-VOID FspIoqStop(FSP_IOQ *Ioq)
+VOID FspIoqStop(FSP_IOQ *Ioq, BOOLEAN CancelIrps)
 {
     KIRQL Irql;
     KeAcquireSpinLock(&Ioq->SpinLock, &Irql);
@@ -540,13 +540,16 @@ VOID FspIoqStop(FSP_IOQ *Ioq)
     FspIoqEventSet(&Ioq->PendingIrpEvent);
         /* equivalent to FspIoqPendingResetSynch(Ioq) */
     KeReleaseSpinLock(&Ioq->SpinLock, Irql);
-    PIRP Irp;
-    while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, 0)))
-        Ioq->CompleteCanceledIrp(Irp);
-    while (0 != (Irp = FspCsqRemoveNextIrp(&Ioq->ProcessIoCsq, 0)))
-        Ioq->CompleteCanceledIrp(Irp);
-    while (0 != (Irp = FspCsqRemoveNextIrp(&Ioq->RetriedIoCsq, 0)))
-        Ioq->CompleteCanceledIrp(Irp);
+    if (CancelIrps)
+    {
+        PIRP Irp;
+        while (0 != (Irp = IoCsqRemoveNextIrp(&Ioq->PendingIoCsq, 0)))
+            Ioq->CompleteCanceledIrp(Irp);
+        while (0 != (Irp = FspCsqRemoveNextIrp(&Ioq->ProcessIoCsq, 0)))
+            Ioq->CompleteCanceledIrp(Irp);
+        while (0 != (Irp = FspCsqRemoveNextIrp(&Ioq->RetriedIoCsq, 0)))
+            Ioq->CompleteCanceledIrp(Irp);
+    }
 }
 
 BOOLEAN FspIoqStopped(FSP_IOQ *Ioq)

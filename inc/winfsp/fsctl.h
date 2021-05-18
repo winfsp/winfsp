@@ -85,6 +85,8 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 't', METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
 #define FSP_FSCTL_STOP                  \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'S', METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define FSP_FSCTL_STOP0                 \
+    CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 's', METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSP_FSCTL_NOTIFY                \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'n', METHOD_NEITHER, FILE_ANY_ACCESS)
 
@@ -647,6 +649,7 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     PVOID RequestBuf, SIZE_T *PRequestBufSize,
     BOOLEAN Batch);
 FSP_API NTSTATUS FspFsctlStop(HANDLE VolumeHandle);
+FSP_API NTSTATUS FspFsctlStop0(HANDLE VolumeHandle);
 FSP_API NTSTATUS FspFsctlNotify(HANDLE VolumeHandle,
     FSP_FSCTL_NOTIFY_INFO *NotifyInfo, SIZE_T Size);
 FSP_API NTSTATUS FspFsctlGetVolumeList(PWSTR DevicePath,

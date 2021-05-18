@@ -410,7 +410,7 @@ static VOID FspVolumeDeleteNoLock(
     IrpSp->FileObject->FsContext2 = 0;
 
     /* stop the I/O queue */
-    FspIoqStop(FsvolDeviceExtension->Ioq);
+    FspIoqStop(FsvolDeviceExtension->Ioq, TRUE);
 
     /* do we have a virtual disk device or are we registered with fsmup? */
     if (0 != FsvolDeviceExtension->FsvrtDeviceObject)
@@ -1001,7 +1001,7 @@ NTSTATUS FspVolumeTransact(
             if (!FspFsctlTransactCanProduceRequest(Request, BufferEnd))
                 break;
         }
-        
+
         if (0 >= LoopCount--) /* upper bound on loop guarantees forward progress! */
             break;
 
@@ -1056,13 +1056,37 @@ NTSTATUS FspVolumeStop(
 
     ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
     ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
-    ASSERT(FSP_FSCTL_STOP == IrpSp->Parameters.FileSystemControl.FsControlCode);
+    ASSERT(
+        FSP_FSCTL_STOP == IrpSp->Parameters.FileSystemControl.FsControlCode ||
+        FSP_FSCTL_STOP0 == IrpSp->Parameters.FileSystemControl.FsControlCode);
     ASSERT(0 != IrpSp->FileObject->FsContext2);
 
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
 
-    FspIoqStop(FsvolDeviceExtension->Ioq);
+    /* Fix GitHub issue #369
+     *
+     * The original WinFsp protocol for shutting down a file system was to issue
+     * an FSP_FSCTL_STOP control code to the fsctl device. This would set the IOQ
+     * to the "stopped" state and would also cancel all active IRP's. Cancelation
+     * of IRP's would sometimes free buffers that may have still been in use by
+     * the user mode file system threads; hence access violation.
+     *
+     * To fix this problem a new control code FSP_FSCTL_STOP0 is introduced. The
+     * new file system shutdown protocol is backwards compatible with the original
+     * one and works as follows:
+     *
+     * - First the file system process issues an FSP_FSCTL_STOP0 control code which
+     * sets the IOQ to the "stopped" state but does NOT cancel IRP's.
+     *
+     * - Then the file system process waits for its dispatcher threads to complete
+     * (see FspFileSystemStopDispatcher).
+     *
+     * - Finally the file system process issues an FSP_FSCTL_STOP control code
+     * which stops the (already stopped) IOQ and cancels all IRP's.
+     */
+    FspIoqStop(FsvolDeviceExtension->Ioq,
+        FSP_FSCTL_STOP == IrpSp->Parameters.FileSystemControl.FsControlCode);
 
     return STATUS_SUCCESS;
 }
