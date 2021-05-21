@@ -1,7 +1,7 @@
 /**
  * @file dll/fuse3/library.h
  *
- * @copyright 2015-2020 Bill Zissimopoulos
+ * @copyright 2015-2021 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.

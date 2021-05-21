@@ -1,7 +1,7 @@
 /**
  * @file tlib/injected/curlfunc.c
  *
- * @copyright 2014-2020 Bill Zissimopoulos
+ * @copyright 2014-2021 Bill Zissimopoulos
  */
 
 #include <tlib/injected/curlfunc.h>
