@@ -1,6 +1,6 @@
 = Known File Systems and File System Libraries
 
-This document contains a list of known file systems and file system libraries that run on WinFsp. Please contact the WinFsp project to have your file system solution added to this list.
+This document contains a list of known open-source file systems and file system libraries that run on WinFsp. Please contact the WinFsp project to have your file system solution added to this list.
 
 == File Systems
 
@@ -9,13 +9,16 @@ This document contains a list of known file systems and file system libraries th
 - https://github.com/lowleveldesign/fsmemfs[fsmemfs] - Memory File System written in F#
 - https://github.com/ihaveamac/fuse-3ds[fuse-3ds] - FUSE Filesystem Python scripts for Nintendo 3DS files
 - https://github.com/sganis/golddrive[golddrive] - Windows ssh network drive
+- https://github.com/billziss-gh/hubfs[hubfs] - File system for GitHub
 - https://github.com/FrKaram/KS2.Drive[KS2.Drive] - Mount a webDAV/AOS server as a local drive
 - https://github.com/billziss-gh/nfs-win[nfs-win] - NFS for Windows
+- https://github.com/billziss-gh/objfs[objfs] - Object Storage File System
 - https://github.com/ncw/rclone[rclone] - rsync for cloud storage
 - https://github.com/hasse69/rar2fs[rar2fs] - FUSE file system for reading RAR archives
 - https://github.com/billziss-gh/redditfs[redditfs] - ls -l /r/programming
 - https://github.com/netheril96/securefs[securefs] - Filesystem in userspace (FUSE) with transparent authenticated encryption
 - https://github.com/billziss-gh/sshfs-win[sshfs-win] - SSHFS for Windows
+- https://github.com/printpagestopdf/WordpressDrive[WordpressDrive] - Windows Userspace Filesystem based on WinFsp that presents a Wordpress Site as a Windows Drive
 - https://github.com/emoose/xbox-winfsp[xbox-winfsp] - Adds native support to Windows for the FATX, STFS & GDFX (aka XGD/XDVDFS) Xbox filesystems.
 - https://github.com/UtrechtUniversity/YodaDrive[YodaDrive] - Mount a Yoda drive as a local drive
 
