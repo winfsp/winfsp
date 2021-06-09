@@ -951,12 +951,12 @@ exit:
             if (CreateOptions & FILE_DIRECTORY_FILE)
             {
                 if (0 != f->ops.releasedir)
-                    f->ops.releasedir(filedesc->PosixPath, &fi);
+                    f->ops.releasedir(contexthdr->PosixPath, &fi);
             }
             else
             {
                 if (0 != f->ops.release)
-                    f->ops.release(filedesc->PosixPath, &fi);
+                    f->ops.release(contexthdr->PosixPath, &fi);
             }
         }
 
