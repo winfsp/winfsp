@@ -119,7 +119,7 @@ any character between 0 and 31
 
 POSIX only has two reserved characters: slash (`/`) and `NUL`.
 
-So how do we map between the two? Luckily this problem has been solved before by "Services for Macintosh" (SFM), "Services for UNIX" (SFU) and Gygwin. The solution involves the use of the Unicode "private use area". When mapping a POSIX path to Windows, if we encounter any of the Windows reserved characters we simply map it to the Unicode range U+F000 - U+F0FF. The reverse mapping from Windows to POSIX is obvious.
+So how do we map between the two? Luckily this problem has been solved before by "Services for Macintosh" (SFM), "Services for UNIX" (SFU) and Cygwin. The solution involves the use of the Unicode "private use area". When mapping a POSIX path to Windows, if we encounter any of the Windows reserved characters we simply map it to the Unicode range U+F000 - U+F0FF. The reverse mapping from Windows to POSIX is obvious.
 
 === Mapping Security
 
