@@ -28,6 +28,29 @@ static NTSTATUS (NTAPI *FspNtMakeTemporaryObject)(
     HANDLE Handle);
 static NTSTATUS (NTAPI *FspNtClose)(
     HANDLE Handle);
+static BOOLEAN FspMountDoNotUseLauncher;
+
+static VOID FspMountInitializeFromRegistry(VOID)
+{
+    HKEY RegKey;
+    LONG Result;
+    DWORD Size;
+    DWORD MountDoNotUseLauncher;
+
+    MountDoNotUseLauncher = 0;
+
+    Result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\" FSP_FSCTL_PRODUCT_NAME,
+        0, KEY_READ | KEY_WOW64_32KEY, &RegKey);
+    if (ERROR_SUCCESS == Result)
+    {
+        Size = sizeof MountDoNotUseLauncher;
+        Result = RegGetValueW(RegKey, 0, L"MountDoNotUseLauncher",
+            RRF_RT_REG_DWORD, 0, &MountDoNotUseLauncher, &Size);
+        RegCloseKey(RegKey);
+    }
+
+    FspMountDoNotUseLauncher = !!MountDoNotUseLauncher;
+}
 
 static BOOL WINAPI FspMountInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
@@ -48,6 +71,8 @@ static BOOL WINAPI FspMountInitialize(
             FspNtClose = 0;
         }
     }
+
+    FspMountInitializeFromRegistry();
 
     return TRUE;
 }
@@ -366,7 +391,7 @@ static NTSTATUS FspMountSet_Drive(PWSTR VolumeName, PWSTR MountPoint, PHANDLE PM
 
     Result = FspServiceContextCheck(0, &IsLocalSystem);
     IsServiceContext = NT_SUCCESS(Result) && !IsLocalSystem;
-    if (IsServiceContext)
+    if (IsServiceContext && !FspMountDoNotUseLauncher)
     {
         /*
          * If the current process is in the service context but not LocalSystem,
