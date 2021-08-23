@@ -40,7 +40,7 @@ WinFsp does not support the following NTFS features:
 This section lists incompatibilites with NTFS in those features that they both support:
 
 - WinFsp supports case sensitive and case insensitive file systems. However it does not support case sensitive lookups on a case insensitive file system (+SL_CASE_SENSITIVE+).
-- NTFS updates the file size information in the directory entry when a file is cleaned up. WinFsp file systems do not (and probably should not attempt to) replicate this behavior. [Related article: https://blogs.msdn.microsoft.com/oldnewthing/20111226-00/?p=8813]
+- NTFS updates the file size information in the directory entry when a file is cleaned up. WinFsp file systems do not (and probably should not attempt to) replicate this behavior. [Related article: https://devblogs.microsoft.com/oldnewthing/20111226-00/?p=8813]
 - NTFS supports change notifications on streams (these are mostly undocumented). WinFsp supports them as well but it differs from NTFS in that it issues a single notification when a file with streams is deleted; NTFS appears to issue one notification per deleted stream.
 - WinFsp does not support renaming a stream.
 - NTFS allows for enumeration and change notifications of all reparse points by opening a special NTFS-only "directory" that "contains" all reparse points (+\$Extend\$Reparse:$R:$INDEX_ALLOCATION+). WinFsp does not support this feature.
