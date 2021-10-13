@@ -119,6 +119,17 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
             DirInfo->FileInfo.FileAttributes : FILE_ATTRIBUTE_NORMAL;\
         __VA_ARGS__\
         )
+#define FILL_INFO_EASIZE()\
+    if (!FlagOn(DirInfo->FileInfo.FileAttributes, FILE_ATTRIBUTE_REPARSE_POINT))\
+    {\
+        Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;\
+        /* magic computations are courtesy of NTFS */\
+        if (0 != Info->EaSize)\
+            Info->EaSize += 4;\
+    }\
+    else\
+        /* Fix GitHub issue #380: turns out that the EaSize field is also used for the reparse tag */\
+        Info->EaSize = DirInfo->FileInfo.ReparseTag
 
     PAGED_CODE();
 
@@ -240,18 +251,12 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     break;
                 case FileFullDirectoryInformation:
                     FILL_INFO(FILE_FULL_DIR_INFORMATION,
-                        Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;
-                        /* magic computations are courtesy of NTFS */
-                        if (0 != Info->EaSize)
-                            Info->EaSize += 4;
+                        FILL_INFO_EASIZE();
                     );
                     break;
                 case FileIdFullDirectoryInformation:
                     FILL_INFO(FILE_ID_FULL_DIR_INFORMATION,
-                        Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;
-                        /* magic computations are courtesy of NTFS */
-                        if (0 != Info->EaSize)
-                            Info->EaSize += 4;
+                        FILL_INFO_EASIZE();
                         Info->FileId.QuadPart = DirInfo->FileInfo.IndexNumber;
                     );
                     break;
@@ -260,20 +265,14 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     break;
                 case FileBothDirectoryInformation:
                     FILL_INFO(FILE_BOTH_DIR_INFORMATION,
-                        Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;
-                        /* magic computations are courtesy of NTFS */
-                        if (0 != Info->EaSize)
-                            Info->EaSize += 4;
+                        FILL_INFO_EASIZE();
                         Info->ShortNameLength = 0;
                         RtlZeroMemory(Info->ShortName, sizeof Info->ShortName);
                     );
                     break;
                 case FileIdBothDirectoryInformation:
                     FILL_INFO(FILE_ID_BOTH_DIR_INFORMATION,
-                        Info->EaSize = ReturnEaSize ? DirInfo->FileInfo.EaSize : 0;
-                        /* magic computations are courtesy of NTFS */
-                        if (0 != Info->EaSize)
-                            Info->EaSize += 4;
+                        FILL_INFO_EASIZE();
                         Info->ShortNameLength = 0;
                         RtlZeroMemory(Info->ShortName, sizeof Info->ShortName);
                         Info->FileId.QuadPart = DirInfo->FileInfo.IndexNumber;
@@ -331,6 +330,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
 
     return Result;
 
+#undef FILL_INFO_EASIZE
 #undef FILL_INFO
 #undef FILL_INFO_BASE
 }
