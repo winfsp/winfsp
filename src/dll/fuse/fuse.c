@@ -96,6 +96,7 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=", set_VolumeInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=%d", VolumeParams.VolumeInfoTimeout, 0),
     FSP_FUSE_CORE_OPT("KeepFileCache=", set_KeepFileCache, 1),
+    FSP_FUSE_CORE_OPT("LegacyUnlinkRename=", set_LegacyUnlinkRename, 1),
     FSP_FUSE_CORE_OPT("ThreadCount=%u", ThreadCount, 0),
     FUSE_OPT_KEY("UNC=", 'U'),
     FUSE_OPT_KEY("--UNC=", 'U'),
@@ -421,6 +422,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o EaTimeout=N             extended attribute timeout (millis)\n"
             "    -o VolumeInfoTimeout=N     volume info timeout (millis)\n"
             "    -o KeepFileCache           do not discard cache when files are closed\n"
+            "    -o LegacyUnlinkRename      do not support new POSIX unlink/rename\n"
             "    -o ThreadCount             number of file system dispatcher threads\n"
             );
         opt_data->help = 1;
@@ -563,6 +565,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.Version = sizeof(FSP_FSCTL_VOLUME_PARAMS);
     opt_data.VolumeParams.FileInfoTimeout = 1000;
     opt_data.VolumeParams.FlushAndPurgeOnCleanup = TRUE;
+    opt_data.VolumeParams.SupportsPosixUnlinkRename = TRUE;
 
     if (-1 == fsp_fuse_core_opt_parse(env, args, &opt_data, /*help=*/1))
     {
@@ -623,6 +626,8 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         opt_data.VolumeParams.VolumeInfoTimeoutValid = 1;
     if (opt_data.set_KeepFileCache)
         opt_data.VolumeParams.FlushAndPurgeOnCleanup = FALSE;
+    if (opt_data.set_LegacyUnlinkRename)
+        opt_data.VolumeParams.SupportsPosixUnlinkRename = FALSE;
     opt_data.VolumeParams.CaseSensitiveSearch = TRUE;
     opt_data.VolumeParams.CasePreservedNames = TRUE;
     opt_data.VolumeParams.PersistentAcls = TRUE;

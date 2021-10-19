@@ -153,7 +153,8 @@ struct fsp_fuse_core_opt_data
         set_DirInfoTimeout,
         set_EaTimeout,
         set_VolumeInfoTimeout,
-        set_KeepFileCache;
+        set_KeepFileCache,
+        set_LegacyUnlinkRename;
     unsigned ThreadCount;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     UINT16 VolumeLabelLength;
