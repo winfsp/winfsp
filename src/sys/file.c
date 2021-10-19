@@ -43,6 +43,7 @@ NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG PCleanupFlags);
 VOID FspFileNodeCleanupFlush(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
+VOID FspFileNodePosixDelete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     PFILE_OBJECT FileObject,    /* non-0 to remove share access */
     BOOLEAN HandleCleanup);     /* TRUE to decrement handle count */
@@ -141,6 +142,7 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 #pragma alloc_text(PAGE, FspFileNodeCleanup)
 #pragma alloc_text(PAGE, FspFileNodeCleanupFlush)
 #pragma alloc_text(PAGE, FspFileNodeCleanupComplete)
+#pragma alloc_text(PAGE, FspFileNodePosixDelete)
 #pragma alloc_text(PAGE, FspFileNodeClose)
 #pragma alloc_text(PAGE, FspFileNodeFlushAndPurgeCache)
 #pragma alloc_text(PAGE, FspFileNodeOverwriteStreams)
@@ -909,7 +911,7 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
         DeletePending = 0 != FileNode->DeletePending;
         MemoryBarrier();
 
-        if (DeletePending)
+        if (DeletePending && !FileNode->PosixDelete)
         {
             FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName,
                 &DeletedFromContextTable);
@@ -1011,6 +1013,66 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 
     if (DeletedFromContextTable)
         FspFileNodeDereference(FileNode);
+}
+
+VOID FspFileNodePosixDelete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
+{
+    /*
+     * Perform a POSIX delete of a FileNode. This removes the FileNode from the Context table.
+     *
+     * The FileNode must be acquired exclusive (Main or Full) when calling this function.
+     */
+
+    PAGED_CODE();
+
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    BOOLEAN DeletedFromContextTable = FALSE;
+
+    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
+
+    FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName,
+        &DeletedFromContextTable);
+    ASSERT(DeletedFromContextTable);
+
+    FileNode->OpenCount = 0;
+
+    if (FsvolDeviceExtension->VolumeParams.NamedStreams &&
+        0 == FileNode->MainFileNode)
+    {
+        BOOLEAN StreamDeletedFromContextTable;
+        USHORT FileNameLength = FileNode->FileName.Length;
+
+        GATHER_DESCENDANTS(&FileNode->FileName, FALSE,
+            if (DescendantFileNode->FileName.Length > FileNameLength &&
+                L'\\' == DescendantFileNode->FileName.Buffer[FileNameLength / sizeof(WCHAR)])
+                break;
+            ASSERT(FileNode != DescendantFileNode);
+            ASSERT(0 != DescendantFileNode->OpenCount);
+            );
+
+        for (
+            DescendantFileNodeIndex = 0;
+            DescendantFileNodeCount > DescendantFileNodeIndex;
+            DescendantFileNodeIndex++)
+        {
+            DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
+
+            FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &DescendantFileNode->FileName,
+                &StreamDeletedFromContextTable);
+            if (StreamDeletedFromContextTable)
+            {
+                DescendantFileNode->OpenCount = 0;
+                FspFileNodeDereference(DescendantFileNode);
+            }
+        }
+
+        SCATTER_DESCENDANTS(FALSE);
+    }
+
+    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
+
+    FspFileNodeDereference(FileNode);
 }
 
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,

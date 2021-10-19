@@ -1462,6 +1462,7 @@ typedef struct FSP_FILE_NODE
     ULONG EaChangeNumber;
     ULONG EaChangeCount;
     BOOLEAN TruncateOnClose;
+    BOOLEAN PosixDelete;
     FILE_LOCK FileLock;
 #if (NTDDI_VERSION < NTDDI_WIN8)
     OPLOCK Oplock;
@@ -1561,6 +1562,7 @@ NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG PCleanupFlags);
 VOID FspFileNodeCleanupFlush(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
+VOID FspFileNodePosixDelete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     PFILE_OBJECT FileObject,    /* non-0 to remove share access */
     BOOLEAN HandleCleanup);     /* TRUE to decrement handle count */

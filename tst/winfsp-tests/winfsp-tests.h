@@ -159,6 +159,7 @@ extern BOOLEAN OptCaseInsensitiveCmp;
 extern BOOLEAN OptCaseInsensitive;
 extern BOOLEAN OptCaseRandomize;
 extern BOOLEAN OptFlushAndPurgeOnCleanup;
+extern BOOLEAN OptLegacyUnlinkRename;
 extern BOOLEAN OptNotify;
 extern WCHAR OptOplock;
 extern WCHAR OptMountPointBuf[], *OptMountPoint;

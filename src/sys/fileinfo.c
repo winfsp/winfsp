@@ -1441,7 +1441,8 @@ static NTSTATUS FspFsvolSetDispositionInformation(
 
     NTSTATUS Result;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
-    PFILE_DISPOSITION_INFORMATION Info = (PFILE_DISPOSITION_INFORMATION)Irp->AssociatedIrp.SystemBuffer;
+    FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.SetFile.FileInformationClass;
+    UINT32 DispositionFlags;
     ULONG Length = IrpSp->Parameters.SetFile.Length;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
@@ -1449,9 +1450,34 @@ static NTSTATUS FspFsvolSetDispositionInformation(
     BOOLEAN Success;
 
     ASSERT(FileNode == FileDesc->FileNode);
+    ASSERT(
+        FileDispositionInformation == FileInformationClass ||
+        FileDispositionInformationEx == FileInformationClass);
 
-    if (sizeof(FILE_DISPOSITION_INFORMATION) > Length)
-        return STATUS_INVALID_PARAMETER;
+    if (FileDispositionInformation == FileInformationClass)
+    {
+        if (sizeof(FILE_DISPOSITION_INFORMATION) > Length)
+            return STATUS_INVALID_PARAMETER;
+        DispositionFlags = !!((PFILE_DISPOSITION_INFORMATION)Irp->AssociatedIrp.SystemBuffer)->DeleteFile;
+        DispositionFlags |= FILE_DISPOSITION_FORCE_IMAGE_SECTION_CHECK;
+            // old-school delete always did image section check; see below
+    }
+    else
+    {
+        if (!FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.SupportsPosixUnlinkRename)
+            return STATUS_INVALID_PARAMETER;
+        if (sizeof(FILE_DISPOSITION_INFORMATION_EX) > Length)
+            return STATUS_INVALID_PARAMETER;
+        DispositionFlags = ((PFILE_DISPOSITION_INFORMATION_EX)Irp->AssociatedIrp.SystemBuffer)->Flags;
+
+        /* !!!: REVISIT:
+         * For now we cannot handle the FILE_DISPOSITION_ON_CLOSE flag,
+         * as we need to understand the semantics better.
+         */
+        if (FlagOn(DispositionFlags, FILE_DISPOSITION_ON_CLOSE))
+            return STATUS_INVALID_PARAMETER;
+    }
+
     if (FileNode->IsRootDirectory)
         /* cannot delete root directory */
         return STATUS_CANNOT_DELETE;
@@ -1459,7 +1485,7 @@ static NTSTATUS FspFsvolSetDispositionInformation(
 retry:
     FspFileNodeAcquireExclusive(FileNode, Full);
 
-    if (Info->DeleteFile)
+    if (FlagOn(DispositionFlags, FILE_DISPOSITION_DELETE))
     {
         /*
          * Perform oplock check.
@@ -1487,14 +1513,39 @@ retry:
         if (!NT_SUCCESS(Result))
             goto unlock_exit;
 
-        /* make sure no process is mapping the file as an image */
-        Success = MmFlushImageSection(FileObject->SectionObjectPointer, MmFlushForDelete);
-        if (!Success)
+        if (FlagOn(DispositionFlags, FILE_DISPOSITION_FORCE_IMAGE_SECTION_CHECK))
         {
-            Result = STATUS_CANNOT_DELETE;
-            goto unlock_exit;
+            /* make sure no process is mapping the file as an image */
+            Success = MmFlushImageSection(FileObject->SectionObjectPointer, MmFlushForDelete);
+            if (!Success)
+            {
+                Result = STATUS_CANNOT_DELETE;
+                goto unlock_exit;
+            }
+        }
+
+        if (FlagOn(DispositionFlags, FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE))
+        {
+            /* if FileDesc does not have FILE_WRITE_ATTRIBUTE access, remove IGNORE_READONLY_ATTRIBUTE */
+            if (!FlagOn(FileDesc->GrantedAccess, FILE_WRITE_ATTRIBUTES))
+                DispositionFlags &= ~FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE;
         }
     }
+
+    if (FileNode->PosixDelete)
+    {
+        Result = STATUS_SUCCESS;
+        goto unlock_exit;
+    }
+
+    if (FlagOn(DispositionFlags, FILE_DISPOSITION_DELETE))
+        DispositionFlags &=
+            FILE_DISPOSITION_DO_NOT_DELETE |
+            FILE_DISPOSITION_DELETE |
+            FILE_DISPOSITION_POSIX_SEMANTICS |
+            FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE;
+    else
+        DispositionFlags = FILE_DISPOSITION_DO_NOT_DELETE;
 
     Result = FspIopCreateRequestEx(Irp, &FileNode->FileName, 0,
         FspFsvolSetInformationRequestFini, &Request);
@@ -1504,8 +1555,8 @@ retry:
     Request->Kind = FspFsctlTransactSetInformationKind;
     Request->Req.SetInformation.UserContext = FileNode->UserContext;
     Request->Req.SetInformation.UserContext2 = FileDesc->UserContext2;
-    Request->Req.SetInformation.FileInformationClass = FileDispositionInformation;
-    Request->Req.SetInformation.Info.Disposition.Delete = Info->DeleteFile;
+    Request->Req.SetInformation.FileInformationClass = FileInformationClass;
+    Request->Req.SetInformation.Info.DispositionEx.Flags = DispositionFlags;
 
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestFileNode) = FileNode;
@@ -1525,23 +1576,51 @@ static NTSTATUS FspFsvolSetDispositionInformationSuccess(
 
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
-    PFILE_DISPOSITION_INFORMATION Info = (PFILE_DISPOSITION_INFORMATION)Irp->AssociatedIrp.SystemBuffer;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    UINT32 DispositionFlags = Request->Req.SetInformation.Info.DispositionEx.Flags;
+    BOOLEAN DeleteFile = BooleanFlagOn(DispositionFlags, FILE_DISPOSITION_DELETE);
 
-    FileNode->DeletePending = Info->DeleteFile;
-    FileObject->DeletePending = Info->DeleteFile;
+    FileNode->DeletePending = DeleteFile;
+    FileObject->DeletePending = DeleteFile;
 
-    /* fastfat does this, although it seems unnecessary */
-#if 1
-    if (FileNode->IsDirectory && Info->DeleteFile)
+    if (FlagOn(DispositionFlags, FILE_DISPOSITION_POSIX_SEMANTICS))
     {
-        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-            FspFsvolDeviceExtension(IrpSp->DeviceObject);
-        FspNotifyDeletePending(
-            FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList, FileNode);
+        ASSERT(DeleteFile);
+
+        FileNode->PosixDelete = TRUE;
+
+        if (FileNode->IsDirectory)
+        {
+            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+                FspFsvolDeviceExtension(IrpSp->DeviceObject);
+            FspNotifyDeletePending(
+                FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList, FileNode);
+        }
+
+        /* send the appropriate notification; also invalidate dirinfo/etc. caches */
+        ULONG NotifyFilter, NotifyAction;
+        NotifyFilter = FileNode->IsDirectory ?
+            FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME;
+        NotifyAction = FILE_ACTION_REMOVED;
+        FspFileNodeNotifyChange(FileNode, NotifyFilter, NotifyAction, TRUE);
+
+        /* perform POSIX delete: remove file node from the context table */
+        FspFileNodePosixDelete(FileNode, FileObject);
     }
-#endif
+    else
+    {
+        /* fastfat does this, although it seems unnecessary */
+    #if 1
+        if (FileNode->IsDirectory && DeleteFile)
+        {
+            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+                FspFsvolDeviceExtension(IrpSp->DeviceObject);
+            FspNotifyDeletePending(
+                FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList, FileNode);
+        }
+    #endif
+    }
 
     FspIopRequestContext(Request, RequestFileNode) = 0;
     FspFileNodeReleaseOwner(FileNode, Full, Request);
@@ -1796,10 +1875,15 @@ static NTSTATUS FspFsvolSetInformation(
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.SetFile.FileInformationClass;
 
     /* special case FileDispositionInformation/FileRenameInformation */
-    if (FileDispositionInformation == FileInformationClass)
+    switch (FileInformationClass)
+    {
+    case FileDispositionInformation:
+    case FileDispositionInformationEx:
         return FspFsvolSetDispositionInformation(FsvolDeviceObject, Irp, IrpSp);
-    if (FileRenameInformation == FileInformationClass)
+    case FileRenameInformation:
+    //case FileRenameInformationEx:
         return FspFsvolSetRenameInformation(FsvolDeviceObject, Irp, IrpSp);
+    }
 
     NTSTATUS Result;
     PFILE_OBJECT FileObject = IrpSp->FileObject;
@@ -1997,10 +2081,15 @@ NTSTATUS FspFsvolSetInformationComplete(
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.SetFile.FileInformationClass;
 
     /* special case FileDispositionInformation/FileRenameInformation */
-    if (FileDispositionInformation == FileInformationClass)
+    switch (FileInformationClass)
+    {
+    case FileDispositionInformation:
+    case FileDispositionInformationEx:
         FSP_RETURN(Result = FspFsvolSetDispositionInformationSuccess(Irp, Response));
-    if (FileRenameInformation == FileInformationClass)
+    case FileRenameInformation:
+    //case FileRenameInformationEx:
         FSP_RETURN(Result = FspFsvolSetRenameInformationSuccess(Irp, Response));
+    }
 
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;

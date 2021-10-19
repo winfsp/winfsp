@@ -32,6 +32,7 @@ set dfl_tests=^
     winfsp-tests-x64 ^
     winfsp-tests-x64-case-randomize ^
     winfsp-tests-x64-flushpurge ^
+    winfsp-tests-x64-legacy-unlink-rename ^
     winfsp-tests-x64-mountpoint-drive ^
     winfsp-tests-x64-mountpoint-dir ^
     winfsp-tests-x64-mountpoint-dir-case-sensitive ^
@@ -52,6 +53,7 @@ set dfl_tests=^
     winfsp-tests-x86 ^
     winfsp-tests-x86-case-randomize ^
     winfsp-tests-x86-flushpurge ^
+    winfsp-tests-x86-legacy-unlink-rename ^
     winfsp-tests-x86-mountpoint-drive ^
     winfsp-tests-x86-mountpoint-dir ^
     winfsp-tests-x86-mountpoint-dir-case-sensitive ^
@@ -191,6 +193,11 @@ winfsp-tests-x64 --flush-and-purge-on-cleanup * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:winfsp-tests-x64-legacy-unlink-rename
+winfsp-tests-x64 --legacy-unlink-rename * +ea*
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :winfsp-tests-x64-mountpoint-drive
 winfsp-tests-x64 --mountpoint=X: --resilient * +ea*
 if !ERRORLEVEL! neq 0 goto fail
@@ -233,6 +240,11 @@ exit /b 0
 
 :winfsp-tests-x86-flushpurge
 winfsp-tests-x86 --flush-and-purge-on-cleanup * +ea*
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-x86-legacy-unlink-rename
+winfsp-tests-x86 --legacy-unlink-rename * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 

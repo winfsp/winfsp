@@ -82,21 +82,21 @@ static NTSTATUS FspFsvolCleanup(
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request;
     ULONG CleanupFlags;
-    BOOLEAN DeletePending, SetAllocationSize, FileModified;
+    BOOLEAN Delete, SetAllocationSize, FileModified;
 
     ASSERT(FileNode == FileDesc->FileNode);
 
     FspFileNodeAcquireExclusive(FileNode, Main);
 
     FspFileNodeCleanup(FileNode, FileObject, &CleanupFlags);
-    DeletePending = CleanupFlags & 1;
+    Delete = (CleanupFlags & 1) && !FileNode->PosixDelete;
     SetAllocationSize = !!(CleanupFlags & 2);
     FileModified = BooleanFlagOn(FileObject->Flags, FO_FILE_MODIFIED);
 
     /* if this is a directory inform the FSRTL Notify mechanism */
     if (FileNode->IsDirectory)
     {
-        if (DeletePending)
+        if (Delete)
             FspNotifyDeletePending(
                 FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList, FileNode);
 
@@ -108,12 +108,12 @@ static NTSTATUS FspFsvolCleanup(
     FspFileNodeUnlockAll(FileNode, FileObject, IoGetRequestorProcess(Irp));
 
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLEANUP cannot fail */
-    FspIopCreateRequestMustSucceedEx(Irp, DeletePending ? &FileNode->FileName : 0, 0,
+    FspIopCreateRequestMustSucceedEx(Irp, Delete ? &FileNode->FileName : 0, 0,
         FspFsvolCleanupRequestFini, &Request);
     Request->Kind = FspFsctlTransactCleanupKind;
     Request->Req.Cleanup.UserContext = FileNode->UserContext;
     Request->Req.Cleanup.UserContext2 = FileDesc->UserContext2;
-    Request->Req.Cleanup.Delete = DeletePending;
+    Request->Req.Cleanup.Delete = Delete;
     Request->Req.Cleanup.SetAllocationSize = SetAllocationSize;
     Request->Req.Cleanup.SetArchiveBit = (FileModified || FileDesc->DidSetSecurity) &&
         !FileDesc->DidSetFileAttributes;
@@ -170,7 +170,12 @@ NTSTATUS FspFsvolCleanupComplete(
     ASSERT(FileNode == FileDesc->FileNode);
 
     /* send the appropriate notification; also invalidate dirinfo/etc. caches */
-    if (Request->Req.Cleanup.Delete)
+    if (FileNode->PosixDelete)
+    {
+        NotifyFilter = 0;
+        NotifyAction = 0;
+    }
+    else if (Request->Req.Cleanup.Delete)
     {
         NotifyFilter = FileNode->IsDirectory ?
             FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME;

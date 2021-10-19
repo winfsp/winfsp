@@ -89,6 +89,13 @@ FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
 #endif
 
 /*
+ * Define the MEMFS_DELETE macro to include new Delete support
+ * (instead of Cleanup/FspCleanupDelete). This is required to
+ * properly support POSIX unlink/rename.
+ */
+#define MEMFS_DELETE
+
+/*
  * Define the DEBUG_BUFFER_CHECK macro on Windows 8 or above. This includes
  * a check for the Write buffer to ensure that it is read-only.
  *
@@ -965,6 +972,8 @@ void SlowioReadDirectoryThread(
  * FSP_FILE_SYSTEM_INTERFACE
  */
 
+static NTSTATUS Delete(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode0, PWSTR FileName, ULONG Flags);
 #if defined(MEMFS_REPARSE_POINTS)
 static NTSTATUS GetReparsePointByName(
     FSP_FILE_SYSTEM *FileSystem, PVOID Context,
@@ -1347,7 +1356,9 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     MEMFS_FILE_NODE *MainFileNode = FileNode;
 #endif
 
+#if !defined(MEMFS_DELETE)
     assert(0 != Flags); /* FSP_FSCTL_VOLUME_PARAMS::PostCleanupWhenModifiedOnly ensures this */
+#endif
 
     if (Flags & FspCleanupSetArchiveBit)
     {
@@ -1376,21 +1387,10 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
         SetFileSizeInternal(FileSystem, FileNode, AllocationSize, TRUE);
     }
 
-    if ((Flags & FspCleanupDelete) && !MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
-    {
-#if defined(MEMFS_NAMED_STREAMS)
-        MEMFS_FILE_NODE_MAP_ENUM_CONTEXT Context = { FALSE };
-        ULONG Index;
-
-        MemfsFileNodeMapEnumerateNamedStreams(Memfs->FileNodeMap, FileNode,
-            MemfsFileNodeMapEnumerateFn, &Context);
-        for (Index = 0; Context.Count > Index; Index++)
-            MemfsFileNodeMapRemove(Memfs->FileNodeMap, Context.FileNodes[Index]);
-        MemfsFileNodeMapEnumerateFree(&Context);
+#if !defined(MEMFS_DELETE)
+    if (Flags & FspCleanupDelete)
+        Delete(FileSystem, FileNode0, FileName, -1);
 #endif
-
-        MemfsFileNodeMapRemove(Memfs->FileNodeMap, FileNode);
-    }
 }
 
 static VOID Close(FSP_FILE_SYSTEM *FileSystem,
@@ -1651,17 +1651,13 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+#if !defined(MEMFS_DELETE)
 static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0, PWSTR FileName)
 {
-    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
-    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
-
-    if (MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
-        return STATUS_DIRECTORY_NOT_EMPTY;
-
-    return STATUS_SUCCESS;
+    return Delete(FileSystem, FileNode0, FileName, FILE_DISPOSITION_DELETE);
 }
+#endif
 
 static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileNode0,
@@ -2231,6 +2227,54 @@ static NTSTATUS SetEa(FSP_FILE_SYSTEM *FileSystem,
 }
 #endif
 
+static NTSTATUS Delete(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileNode0, PWSTR FileName, ULONG Flags)
+{
+    MEMFS *Memfs = (MEMFS *)FileSystem->UserContext;
+    MEMFS_FILE_NODE *FileNode = (MEMFS_FILE_NODE *)FileNode0;
+
+    switch (Flags)
+    {
+    case FILE_DISPOSITION_DO_NOT_DELETE:
+        // set file disposition flag: do not delete file at Cleanup
+        return STATUS_SUCCESS;
+
+    case FILE_DISPOSITION_DELETE:
+        // set file disposition flag: delete file at Cleanup
+        if (MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
+            return STATUS_DIRECTORY_NOT_EMPTY;
+        return STATUS_SUCCESS;
+
+    case FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS:
+        // delete file now; open handles to file remain valid
+        /* fallthrough */
+
+    case -1:
+        // delete file now; called during Cleanup
+        if (MemfsFileNodeMapHasChild(Memfs->FileNodeMap, FileNode))
+            return STATUS_DIRECTORY_NOT_EMPTY;
+        else
+        {
+#if defined(MEMFS_NAMED_STREAMS)
+            MEMFS_FILE_NODE_MAP_ENUM_CONTEXT Context = { FALSE };
+            ULONG Index;
+
+            MemfsFileNodeMapEnumerateNamedStreams(Memfs->FileNodeMap, FileNode,
+                MemfsFileNodeMapEnumerateFn, &Context);
+            for (Index = 0; Context.Count > Index; Index++)
+                MemfsFileNodeMapRemove(Memfs->FileNodeMap, Context.FileNodes[Index]);
+            MemfsFileNodeMapEnumerateFree(&Context);
+#endif
+
+            MemfsFileNodeMapRemove(Memfs->FileNodeMap, FileNode);
+            return STATUS_SUCCESS;
+        }
+
+    default:
+        return STATUS_INVALID_PARAMETER;
+    }
+}
+
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
     GetVolumeInfo,
@@ -2255,7 +2299,11 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
     GetFileInfo,
     SetBasicInfo,
     SetFileSize,
+#if !defined(MEMFS_DELETE)
     CanDelete,
+#else
+    0,
+#endif
     Rename,
     GetSecurity,
     SetSecurity,
@@ -2293,11 +2341,15 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 #if defined(MEMFS_EA)
     Overwrite,
     GetEa,
-    SetEa
+    SetEa,
 #else
     0,
     0,
     0,
+#endif
+#if defined(MEMFS_DELETE)
+    Delete,
+#else
     0,
 #endif
 };
@@ -2323,6 +2375,7 @@ NTSTATUS MemfsCreateFunnel(
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     BOOLEAN CaseInsensitive = !!(Flags & MemfsCaseInsensitive);
     BOOLEAN FlushAndPurgeOnCleanup = !!(Flags & MemfsFlushAndPurgeOnCleanup);
+    BOOLEAN SupportsPosixUnlinkRename = !(Flags & MemfsLegacyUnlinkRename);
     PWSTR DevicePath = MemfsNet == (Flags & MemfsDeviceMask) ?
         L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME;
     UINT64 AllocationUnit;
@@ -2404,6 +2457,7 @@ NTSTATUS MemfsCreateFunnel(
 #if defined(MEMFS_REJECT_EARLY_IRP)
     VolumeParams.RejectIrpPriorToTransact0 = 1;
 #endif
+    VolumeParams.SupportsPosixUnlinkRename = SupportsPosixUnlinkRename;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
     wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),

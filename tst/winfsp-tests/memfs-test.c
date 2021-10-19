@@ -43,7 +43,8 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
     Result = MemfsCreateFunnel(
         Flags |
             (OptCaseInsensitive ? MemfsCaseInsensitive : 0) |
-            (OptFlushAndPurgeOnCleanup ? MemfsFlushAndPurgeOnCleanup : 0),
+            (OptFlushAndPurgeOnCleanup ? MemfsFlushAndPurgeOnCleanup : 0) |
+            (OptLegacyUnlinkRename ? MemfsLegacyUnlinkRename : 0),
         FileInfoTimeout,
         1024,
         1024 * 1024,
