@@ -55,6 +55,7 @@ namespace Fsp.Interop
         internal const UInt32 CasePreservedExtendedAttributes = 0x02000000;
         internal const UInt32 WslFeatures = 0x04000000;
         internal const UInt32 RejectIrpPriorToTransact0 = 0x10000000;
+        internal const UInt32 SupportsPosixUnlinkRename = 0x20000000;
         internal const int PrefixSize = 192;
         internal const int FileSystemNameSize = 16;
 
@@ -741,6 +742,12 @@ namespace Fsp.Interop
                 IntPtr Ea,
                 UInt32 EaLength,
                 out FileInfo FileInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 Delete(
+                IntPtr FileSystem,
+                ref FullContext FullContext,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                UInt32 Flags);
         }
 
         internal static int Size = IntPtr.Size * 64;
@@ -776,7 +783,8 @@ namespace Fsp.Interop
         internal Proto.OverwriteEx OverwriteEx;
         internal Proto.GetEa GetEa;
         internal Proto.SetEa SetEa;
-        /* NTSTATUS (*Reserved[33])(); */
+        internal Proto.Delete Delete;
+        /* NTSTATUS (*Reserved[32])(); */
     }
 
     [SuppressUnmanagedCodeSecurity]
