@@ -1448,6 +1448,9 @@ namespace Fsp
             _FileSystemInterface.SetEa = SetEa;
 
             _FileSystemInterfacePtr = Marshal.AllocHGlobal(FileSystemInterface.Size);
+            /* Marshal.AllocHGlobal does not zero memory; we must do it ourselves! */
+            for (int Offset = 0; FileSystemInterface.Size > Offset; Offset += IntPtr.Size)
+                Marshal.WriteIntPtr(_FileSystemInterfacePtr, Offset, IntPtr.Zero);
             Marshal.StructureToPtr(_FileSystemInterface, _FileSystemInterfacePtr, false);
         }
 
