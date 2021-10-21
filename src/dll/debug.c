@@ -477,6 +477,18 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                     UserContextBuf),
                 Request->Req.SetInformation.Info.Disposition.Delete ? "Delete" : "Undelete");
             break;
+        case 64/*FileDispositionInformationEx*/:
+            FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [DispositionEx] %s%S%s%s, "
+                "Flags=%lx\n",
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
+                Request->FileName.Size ? "\"" : "",
+                Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
+                Request->FileName.Size ? "\", " : "",
+                FspDebugLogUserContextString(
+                    Request->Req.SetInformation.UserContext, Request->Req.SetInformation.UserContext2,
+                    UserContextBuf),
+                Request->Req.SetInformation.Info.DispositionEx.Flags);
+            break;
         case 10/*FileRenameInformation*/:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [Rename] %s%S%s%s, "
                 "NewFileName=\"%S\", AccessToken=%p[PID=%lx]\n",
@@ -490,6 +502,21 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset),
                 FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.SetInformation.Info.Rename.AccessToken),
                 FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(Request->Req.SetInformation.Info.Rename.AccessToken));
+            break;
+        case 65/*FileRenameInformationEx*/:
+            FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [RenameEx] %s%S%s%s, "
+                "NewFileName=\"%S\", AccessToken=%p[PID=%lx], Flags=%lx\n",
+                FspDiagIdent(), GetCurrentThreadId(), (PVOID)Request->Hint,
+                Request->FileName.Size ? "\"" : "",
+                Request->FileName.Size ? (PWSTR)Request->Buffer : L"",
+                Request->FileName.Size ? "\", " : "",
+                FspDebugLogUserContextString(
+                    Request->Req.SetInformation.UserContext, Request->Req.SetInformation.UserContext2,
+                    UserContextBuf),
+                (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset),
+                FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.SetInformation.Info.Rename.AccessToken),
+                FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(Request->Req.SetInformation.Info.Rename.AccessToken),
+                Request->Req.SetInformation.Info.RenameEx.Flags);
             break;
         default:
             FspDebugLog("%S[TID=%04lx]: %p: >>SetInformation [INVALID] %s%S%s%s\n",
