@@ -1639,7 +1639,9 @@ static NTSTATUS FspFsvolSetRenameInformation(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     PFILE_OBJECT TargetFileObject = IrpSp->Parameters.SetFile.FileObject;
+    FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.SetFile.FileInformationClass;
     BOOLEAN ReplaceIfExists = IrpSp->Parameters.SetFile.ReplaceIfExists;
+    UINT32 RenameFlags = !!ReplaceIfExists;
     PFILE_RENAME_INFORMATION Info = (PFILE_RENAME_INFORMATION)Irp->AssociatedIrp.SystemBuffer;
     ULONG Length = IrpSp->Parameters.SetFile.Length;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
@@ -1654,11 +1656,21 @@ static NTSTATUS FspFsvolSetRenameInformation(
     PSECURITY_SUBJECT_CONTEXT SecuritySubjectContext = 0;
 
     ASSERT(FileNode == FileDesc->FileNode);
+    ASSERT(
+        FileRenameInformation == FileInformationClass ||
+        FileRenameInformationEx == FileInformationClass);
 
     if (sizeof(FILE_RENAME_INFORMATION) > Length)
         return STATUS_INVALID_PARAMETER;
     if (sizeof(WCHAR) > Info->FileNameLength)
         return STATUS_INVALID_PARAMETER;
+    if (FileRenameInformationEx == FileInformationClass)
+    {
+        if (!FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.SupportsPosixUnlinkRename)
+            return STATUS_INVALID_PARAMETER;
+        RenameFlags |= Info->Flags &
+            (FILE_RENAME_POSIX_SEMANTICS | FILE_RENAME_IGNORE_READONLY_ATTRIBUTE);
+    }
     if (FileNode->IsRootDirectory)
         /* cannot rename root directory */
         return STATUS_INVALID_PARAMETER;
@@ -1736,13 +1748,14 @@ retry:
         Request->Kind = FspFsctlTransactSetInformationKind;
         Request->Req.SetInformation.UserContext = FileNode->UserContext;
         Request->Req.SetInformation.UserContext2 = FileDesc->UserContext2;
-        Request->Req.SetInformation.FileInformationClass = FileRenameInformation;
+        Request->Req.SetInformation.FileInformationClass = FileInformationClass;
         Request->Req.SetInformation.Info.Rename.NewFileName.Offset = Request->FileName.Size;
         Request->Req.SetInformation.Info.Rename.NewFileName.Size = NewFileName.Length + sizeof(WCHAR);
+        Request->Req.SetInformation.Info.RenameEx.Flags = RenameFlags;
     }
 
     /*
-     * Special rules for renaming open files:
+     * Special rules for renaming open files without POSIX semantics:
      * -   A file cannot be renamed if it has any open handles,
      *     unless it is only open because of a batch opportunistic lock (oplock)
      *     and the batch oplock can be broken immediately.
@@ -1754,13 +1767,15 @@ retry:
 
     Result = FspFileNodeRenameCheck(FsvolDeviceObject, Irp,
         FileNode, FspFileNodeAcquireFull,
-        &FileNode->FileName, TRUE);
+        &FileNode->FileName, TRUE,
+        0 != (FILE_RENAME_POSIX_SEMANTICS & RenameFlags));
     /* FspFileNodeRenameCheck releases FileNode and rename lock on failure */
     if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result)
         goto retry;
     if (!NT_SUCCESS(Result))
     {
-        Result = STATUS_ACCESS_DENIED;
+        if (STATUS_SHARING_VIOLATION != Result)
+            Result = STATUS_ACCESS_DENIED;
         goto exit;
     }
 
@@ -1768,13 +1783,15 @@ retry:
     {
         Result = FspFileNodeRenameCheck(FsvolDeviceObject, Irp,
             FileNode, FspFileNodeAcquireFull,
-            &NewFileName, FALSE);
+            &NewFileName, FALSE,
+            0 != (FILE_RENAME_POSIX_SEMANTICS & RenameFlags));
         /* FspFileNodeRenameCheck releases FileNode and rename lock on failure */
         if (STATUS_OPLOCK_BREAK_IN_PROGRESS == Result)
             goto retry;
         if (!NT_SUCCESS(Result))
         {
-            Result = STATUS_ACCESS_DENIED;
+            if (STATUS_SHARING_VIOLATION != Result)
+                Result = STATUS_ACCESS_DENIED;
             goto exit;
         }
     }
@@ -1881,7 +1898,7 @@ static NTSTATUS FspFsvolSetInformation(
     case FileDispositionInformationEx:
         return FspFsvolSetDispositionInformation(FsvolDeviceObject, Irp, IrpSp);
     case FileRenameInformation:
-    //case FileRenameInformationEx:
+    case FileRenameInformationEx:
         return FspFsvolSetRenameInformation(FsvolDeviceObject, Irp, IrpSp);
     }
 
@@ -2008,8 +2025,10 @@ NTSTATUS FspFsvolSetInformationPrepare(
     PAGED_CODE();
 
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.SetFile.FileInformationClass;
 
-    if (FileRenameInformation != IrpSp->Parameters.SetFile.FileInformationClass ||
+    if ((FileRenameInformation != FileInformationClass &&
+        FileRenameInformationEx != FileInformationClass) ||
         0 == FspIopRequestContext(Request, RequestSubjectContextOrAccessToken))
         return STATUS_SUCCESS;
 
@@ -2087,7 +2106,7 @@ NTSTATUS FspFsvolSetInformationComplete(
     case FileDispositionInformationEx:
         FSP_RETURN(Result = FspFsvolSetDispositionInformationSuccess(Irp, Response));
     case FileRenameInformation:
-    //case FileRenameInformationEx:
+    case FileRenameInformationEx:
         FSP_RETURN(Result = FspFsvolSetRenameInformationSuccess(Irp, Response));
     }
 

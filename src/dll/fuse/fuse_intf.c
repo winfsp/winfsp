@@ -141,7 +141,8 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
         AccessToken = Request->Req.Create.AccessToken;
     }
     else if (FspFsctlTransactSetInformationKind == Request->Kind &&
-        10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass)
+        (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass ||
+        65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass))
     {
         FileName = (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset);
         AccessToken = Request->Req.SetInformation.Info.Rename.AccessToken;

@@ -1459,7 +1459,8 @@ UINT32 FspFileSystemOperationProcessId(VOID)
     case FspFsctlTransactCreateKind:
         return FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(Request->Req.Create.AccessToken);
     case FspFsctlTransactSetInformationKind:
-        if (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass)
+        if (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass ||
+            65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass)
             return FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(Request->Req.SetInformation.Info.Rename.AccessToken);
         /* fall through! */
     default:

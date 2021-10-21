@@ -1784,6 +1784,179 @@ void rename_pid_dotest(ULONG Flags, PWSTR Prefix)
     ASSERT(0 < rename_pid_Pass);// && 0 == rename_pid_Fail);
 }
 
+static void rename_ex_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    BOOLEAN Success;
+    DWORD FileSystemFlags;
+
+    Success = GetVolumeInformationW(L"C:\\",
+        0, 0,
+        0, 0, &FileSystemFlags,
+        0, 0);
+    if (!Success || 0 == (FileSystemFlags & FILE_SUPPORTS_POSIX_UNLINK_RENAME))
+        /* skip this test if the system lacks FILE_SUPPORTS_POSIX_UNLINK_RENAME capability */
+        return;
+
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    NTSYSCALLAPI NTSTATUS NTAPI
+    NtSetInformationFile(
+        HANDLE FileHandle,
+        PIO_STATUS_BLOCK IoStatusBlock,
+        PVOID FileInformation,
+        ULONG Length,
+        FILE_INFORMATION_CLASS FileInformationClass);
+    typedef struct
+    {
+        ULONG Flags;
+        HANDLE RootDirectory;
+        ULONG FileNameLength;
+        WCHAR FileName[1];
+    } FILE_RENAME_INFORMATION, *PFILE_RENAME_INFORMATION;
+
+    HANDLE Handle0, Handle1, Handle2;
+    WCHAR File0Path[MAX_PATH];
+    WCHAR File2Path[MAX_PATH];
+    union
+    {
+        FILE_RENAME_INFORMATION I;
+        UINT8 B[sizeof(FILE_RENAME_INFORMATION) + MAX_PATH * sizeof(WCHAR)];
+    } RenameInfo;
+    IO_STATUS_BLOCK IoStatus;
+
+    StringCbPrintfW(File0Path, sizeof File0Path, L"%s%s\\",
+        VolPrefix ? L"" : L"\\\\?\\GLOBALROOT", VolPrefix ? VolPrefix : memfs_volumename(memfs));
+
+    Success = GetVolumeInformationW(File0Path,
+        0, 0,
+        0, 0, &FileSystemFlags,
+        0, 0);
+    ASSERT(Success);
+    if (0 != (FileSystemFlags & FILE_SUPPORTS_POSIX_UNLINK_RENAME))
+    {
+        StringCbPrintfW(File0Path, sizeof File0Path, L"%s%s\\file0",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        StringCbPrintfW(File2Path, sizeof File2Path, L"%s%s\\file2",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        Handle0 = CreateFileW(File0Path,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+            CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle0);
+        CloseHandle(Handle0);
+
+        Handle0 = CreateFileW(File0Path,
+            DELETE, 0, 0,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle0);
+
+        Handle1 = CreateFileW(File0Path,
+            FILE_READ_ATTRIBUTES, 0, 0,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        memset(&RenameInfo.I, 0, sizeof RenameInfo.I);
+        RenameInfo.I.Flags = 2/*FILE_RENAME_POSIX_SEMANTICS*/;
+        RenameInfo.I.FileNameLength = (ULONG)(wcslen(L"file2") * sizeof(WCHAR));
+        memcpy(RenameInfo.I.FileName, L"file2", RenameInfo.I.FileNameLength);
+        IoStatus.Status = NtSetInformationFile(
+            Handle0, &IoStatus,
+            &RenameInfo.I, FIELD_OFFSET(FILE_RENAME_INFORMATION, FileName) + RenameInfo.I.FileNameLength,
+            65/*FileRenameInformationEx*/);
+        ASSERT(0 == IoStatus.Status);
+
+        Handle2 = CreateFileW(File2Path,
+            FILE_READ_ATTRIBUTES, 0, 0,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle2);
+
+        CloseHandle(Handle2);
+        CloseHandle(Handle1);
+        CloseHandle(Handle0);
+
+        Handle0 = CreateFileW(File0Path,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+            CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle0);
+        CloseHandle(Handle0);
+
+        Handle1 = CreateFileW(File0Path,
+            GENERIC_READ | GENERIC_WRITE, 0, 0,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        Handle2 = CreateFileW(File2Path,
+            DELETE, 0, 0,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle0);
+
+        memset(&RenameInfo.I, 0, sizeof RenameInfo.I);
+        RenameInfo.I.Flags = 3/*FILE_RENAME_REPLACE_IF_EXISTS|FILE_RENAME_POSIX_SEMANTICS*/;
+        RenameInfo.I.FileNameLength = (ULONG)(wcslen(L"file0") * sizeof(WCHAR));
+        memcpy(RenameInfo.I.FileName, L"file0", RenameInfo.I.FileNameLength);
+        IoStatus.Status = NtSetInformationFile(
+            Handle2, &IoStatus,
+            &RenameInfo.I, FIELD_OFFSET(FILE_RENAME_INFORMATION, FileName) + RenameInfo.I.FileNameLength,
+            65/*FileRenameInformationEx*/);
+        ASSERT(STATUS_SHARING_VIOLATION == IoStatus.Status);
+
+        CloseHandle(Handle2);
+        CloseHandle(Handle1);
+
+        Handle1 = CreateFileW(File0Path,
+            FILE_READ_ATTRIBUTES, 0, 0,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        Handle2 = CreateFileW(File2Path,
+            DELETE, 0, 0,
+            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle0);
+
+        memset(&RenameInfo.I, 0, sizeof RenameInfo.I);
+        RenameInfo.I.Flags = 3/*FILE_RENAME_REPLACE_IF_EXISTS|FILE_RENAME_POSIX_SEMANTICS*/;
+        RenameInfo.I.FileNameLength = (ULONG)(wcslen(L"file0") * sizeof(WCHAR));
+        memcpy(RenameInfo.I.FileName, L"file0", RenameInfo.I.FileNameLength);
+        IoStatus.Status = NtSetInformationFile(
+            Handle2, &IoStatus,
+            &RenameInfo.I, FIELD_OFFSET(FILE_RENAME_INFORMATION, FileName) + RenameInfo.I.FileNameLength,
+            65/*FileRenameInformationEx*/);
+        ASSERT(0 == IoStatus.Status);
+
+        CloseHandle(Handle2);
+        CloseHandle(Handle1);
+
+        Success = DeleteFileW(File0Path);
+        ASSERT(Success);
+    }
+
+    memfs_stop(memfs);
+}
+
+void rename_ex_test(void)
+{
+    if (OptLegacyUnlinkRename)
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        rename_ex_dotest(-1, DriveBuf, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        rename_ex_dotest(MemfsDisk, 0, 0, 0);
+        rename_ex_dotest(MemfsDisk, 0, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        rename_ex_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 0);
+        rename_ex_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000);
+    }
+}
+
 void rename_pid_test(void)
 {
     if (NtfsTests)
@@ -2060,6 +2233,8 @@ void info_tests(void)
     if (!OptShareName)
         TEST(rename_mmap_test);
     TEST(rename_standby_test);
+    if (!OptLegacyUnlinkRename)
+        TEST(rename_ex_test);
     if (!NtfsTests)
         TEST(rename_pid_test);
     TEST(getvolinfo_test);

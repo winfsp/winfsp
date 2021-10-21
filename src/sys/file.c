@@ -58,7 +58,8 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
     PUNICODE_STRING StreamFileName);
 NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
     FSP_FILE_NODE *FileNode, ULONG AcquireFlags,
-    PUNICODE_STRING FileName, BOOLEAN CheckingOldName);
+    PUNICODE_STRING FileName, BOOLEAN CheckingOldName,
+    BOOLEAN PosixRename);
 VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName);
 VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo);
@@ -1355,7 +1356,8 @@ NTSTATUS FspFileNodeCheckBatchOplocksOnAllStreams(
 
 NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp,
     FSP_FILE_NODE *FileNode, ULONG AcquireFlags,
-    PUNICODE_STRING FileName, BOOLEAN CheckingOldName)
+    PUNICODE_STRING FileName, BOOLEAN CheckingOldName,
+    BOOLEAN PosixRename)
 {
     PAGED_CODE();
 
@@ -1389,7 +1391,7 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
      * "rename" resource exclusively, which disallows new Opens.
      */
 
-    if (!CheckingOldName)
+    if (!PosixRename && !CheckingOldName)
     {
         /* replaced file cannot be a directory or mapped as an image */
         for (
@@ -1568,11 +1570,32 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
 
         if (DescendantFileNode != FileNode && 0 < DescendantFileNode->HandleCount)
         {
+            /*
+             * If we are doing a POSIX rename, then it is ok if we have open handles,
+             * provided that we do not have sharing violations.
+             *
+             * Check our share access:
+             *
+             * - If all openers are allowing FILE_SHARE_DELETE.
+             * - And all named streams openers are allowing FILE_SHARE_DELETE.
+             *
+             * Then we are good to go.
+             *
+             * (WinFsp cannot rename streams and there is no need to check MainFileDenyDeleteCount).
+             *
+             * NOTE: These are derived rules. AFAIK there is no documentation on how NTFS
+             * does this in the case of POSIX rename.
+             */
+            if (PosixRename &&
+                DescendantFileNode->ShareAccess.OpenCount == DescendantFileNode->ShareAccess.SharedDelete &&
+                0 == DescendantFileNode->StreamDenyDeleteCount)
+                continue;
+
             /* release the FileNode and rename lock in case of failure! */
             FspFileNodeReleaseF(FileNode, AcquireFlags);
             FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
 
-            Result = STATUS_ACCESS_DENIED;
+            Result = PosixRename ? STATUS_SHARING_VIOLATION : STATUS_ACCESS_DENIED;
             break;
         }
     }
@@ -1661,14 +1684,14 @@ VOID FspFileNodeRename(FSP_FILE_NODE *FileNode, PUNICODE_STRING NewFileName)
         if (!Inserted)
         {
             /*
-             * Handle files that have been Cleanup'ed but not Close'd.
+             * Handle files that have been replaced after a Rename.
              * For example, this can happen when the user has mapped and closed a file
-             * or immediately after breaking a Batch oplock.
+             * or immediately after breaking a Batch oplock or
+             * when doing a POSIX rename.
              */
 
             ASSERT(FspFileNodeIsValid(InsertedFileNode));
             ASSERT(DescendantFileNode != InsertedFileNode);
-            ASSERT(0 == InsertedFileNode->HandleCount);
             ASSERT(0 != InsertedFileNode->OpenCount);
 
             InsertedFileNode->OpenCount = 0;

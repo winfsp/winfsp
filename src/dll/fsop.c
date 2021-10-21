@@ -383,7 +383,10 @@ NTSTATUS FspFileSystemRenameCheck(FSP_FILE_SYSTEM *FileSystem,
         Request->Req.SetInformation.Info.Rename.NewFileName.Size;
     CreateRequest->Kind = FspFsctlTransactCreateKind;
     CreateRequest->Req.Create.CreateOptions =
-        FILE_DELETE_ON_CLOSE |          /* force read-only check! */
+        (65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass &&
+        0 != (0x40/*IGNORE_READONLY_ATTRIBUTE*/ & Request->Req.SetInformation.Info.RenameEx.Flags) ?
+            0 :
+            FILE_DELETE_ON_CLOSE) |     /* force read-only check! */
         FILE_OPEN_REPARSE_POINT;        /* allow rename over reparse point */
     CreateRequest->Req.Create.AccessToken = Request->Req.SetInformation.Info.Rename.AccessToken;
     CreateRequest->Req.Create.UserMode = TRUE;

@@ -426,6 +426,12 @@ typedef struct
                     FSP_FSCTL_TRANSACT_BUF NewFileName;
                     UINT64 AccessToken; /* request access token (PID,HANDLE) */
                 } Rename;
+                struct
+                {
+                    FSP_FSCTL_TRANSACT_BUF NewFileName;
+                    UINT64 AccessToken; /* request access token (PID,HANDLE) */
+                    UINT32 Flags;
+                } RenameEx;
             } Info;
         } SetInformation;
         struct
