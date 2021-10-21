@@ -1793,7 +1793,7 @@ static void rename_ex_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG F
         0, 0,
         0, 0, &FileSystemFlags,
         0, 0);
-    if (!Success || 0 == (FileSystemFlags & FILE_SUPPORTS_POSIX_UNLINK_RENAME))
+    if (!Success || 0 == (FileSystemFlags & 0x400/*FILE_SUPPORTS_POSIX_UNLINK_RENAME*/))
         /* skip this test if the system lacks FILE_SUPPORTS_POSIX_UNLINK_RENAME capability */
         return;
 
@@ -1832,7 +1832,7 @@ static void rename_ex_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG F
         0, 0, &FileSystemFlags,
         0, 0);
     ASSERT(Success);
-    if (0 != (FileSystemFlags & FILE_SUPPORTS_POSIX_UNLINK_RENAME))
+    if (0 != (FileSystemFlags & 0x400/*FILE_SUPPORTS_POSIX_UNLINK_RENAME*/))
     {
         StringCbPrintfW(File0Path, sizeof File0Path, L"%s%s\\file0",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
