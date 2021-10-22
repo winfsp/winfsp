@@ -69,7 +69,7 @@ The new `Delete` operation follows the general pattern below:
 
 [source,c]
 ----
-NTSTATUS (*Delete)(FSP_FILE_SYSTEM *FileSystem,
+NTSTATUS Delete(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext, PWSTR FileName, ULONG Flags)
 {
     switch (Flags)
@@ -98,7 +98,7 @@ A sensible implementation of `Delete` might look something similar to the follow
 
 [source,c]
 ----
-NTSTATUS (*Delete)(FSP_FILE_SYSTEM *FileSystem,
+NTSTATUS Delete(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext, PWSTR FileName, ULONG Flags)
 {
     switch (Flags)
