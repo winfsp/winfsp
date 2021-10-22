@@ -17,13 +17,14 @@ WinFsp supports the following NTFS features:
 - Opportunistic locks.
 - Open, create, close, delete, query named streams.
 - Reparse points with special support for symbolic links.
+- Extended attributes.
+- Traditional Windows and POSIX semantics for delete and rename.
 
 == Unsupported features
 
 WinFsp does not support the following NTFS features:
 
 - Hard links. Rather rarely used on Windows. However it might be worthwhile to implement them for WinFsp.
-- Extended attributes. Although popular with POSIX file systems, they are severely hampered and rarely used on Windows. They are also not exposed via the Win32 API.
 - Short file names. Short file names are a relic of the past. WinFsp made a conscious decision not to support them.
 - Paging files. Providing paging file support via a user mode file system is impossible for a number of reasons.
 - Object ID's. Opening files by ID (+FILE_OPEN_BY_FILE_ID+) is not supported.
