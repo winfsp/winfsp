@@ -1090,7 +1090,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * This function gets called in all file deletion scenarios:
      * <ul>
      * <li>When the DeleteFile or RemoveDirectory API's are used.</li>
-     * <li>When the SetInformationByHandle API with FileDispositionInfo or FileDispositionInfoEx is used.
+     * <li>When the SetInformationByHandle API with FileDispositionInfo or FileDispositionInfoEx is used.</li>
      * <li>When a file is opened using FILE_DELETE_ON_CLOSE.</li>
      * <li>Etc.</li>
      * </ul>
