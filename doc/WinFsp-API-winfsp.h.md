@@ -83,6 +83,8 @@ STATUS\_SUCCESS or error code.
 
 **Discussion**
 
+(NOTE: use of this function is not recommended; use Delete instead.)
+
 This function tests whether a file or directory can be safely deleted. This function does
 not need to perform access checks, but may performs tasks such as check for empty
 directories, etc.
@@ -100,6 +102,7 @@ most file systems need only implement the CanDelete operation.
 
 - Cleanup
 - SetDelete
+- Delete
 
 
 </blockquote>
@@ -128,6 +131,9 @@ VOID ( *Cleanup)(
 - _Flags_ \- These flags determine whether the file was modified and whether to delete the file.
 
 **Discussion**
+
+(NOTE: use of this function with the FspCleanupDelete flag is not recommended;
+use Delete instead.)
 
 When CreateFile is used to open or create a file the kernel creates a kernel mode file
 object (type FILE\_OBJECT) and a handle for it, which it returns to user-mode. The handle may
@@ -179,6 +185,7 @@ the file was modified/deleted.
 - Close
 - CanDelete
 - SetDelete
+- Delete
 
 
 </blockquote>
@@ -366,6 +373,90 @@ This function works like Create, except that it also accepts an extra buffer tha
 may contain extended attributes or a reparse point.
 
 NOTE: If both Create and CreateEx are defined, CreateEx takes precedence.
+
+
+</blockquote>
+</details>
+
+<details>
+<summary>
+<b>Delete</b> - Set the file delete flag or delete a file.
+</summary>
+<blockquote>
+<br/>
+
+```c
+NTSTATUS ( *Delete)(
+    FSP_FILE_SYSTEM *FileSystem, 
+    PVOID FileContext,
+    PWSTR FileName,
+    ULONG Flags);  
+```
+
+**Parameters**
+
+- _FileSystem_ \- The file system on which this request is posted.
+- _FileContext_ \- The file context of the file or directory to set the delete flag for.
+- _FileName_ \- The name of the file or directory to set the delete flag for.
+- _Flags_ \- File disposition flags
+
+**Return Value**
+
+STATUS\_SUCCESS or error code.
+
+**Discussion**
+
+This function replaces CanDelete, SetDelete and uses of Cleanup with the FspCleanupDelete flag
+and is recommended for use in all new code.
+
+Due to the complexity of file deletion in the Windows file system this function is used
+in many scenarios. Its usage is controlled by the Flags parameter:
+
+- FILE\_DISPOSITION\_DO\_NOT\_DELETE: Unmark the file for deletion.
+Do **NOT** delete the file either now or at Cleanup time.
+
+
+- FILE\_DISPOSITION\_DELETE: Mark the file for deletion,
+but do **NOT** delete the file. The file will be deleted at Cleanup time
+(via a call to Delete with Flags = -1).
+This function does not need to perform access checks, but may
+performs tasks such as check for empty directories, etc.
+
+
+- FILE\_DISPOSITION\_DELETE | FILE\_DISPOSITION\_POSIX\_SEMANTICS: Delete the file**NOW** using POSIX semantics. Open user mode handles to the file remain valid.
+This case will be received only when FSP\_FSCTL\_VOLUME\_PARAMS :: SupportsPosixUnlinkRename is set.
+
+
+- -1: Delete the file **NOW** using regular Windows semantics.
+Called during Cleanup with no open user mode handles remaining.
+If a file system implements Delete, Cleanup should **NOT** be used for deletion anymore.
+
+
+
+This function gets called in all file deletion scenarios:
+
+- When the DeleteFile or RemoveDirectory API's are used.
+
+
+- When the SetInformationByHandle API with FileDispositionInfo or FileDispositionInfoEx is used.
+
+
+- When a file is opened using FILE\_DELETE\_ON\_CLOSE.
+
+
+- Etc.
+
+
+
+NOTE: Delete takes precedence over CanDelete, SetDelete and Cleanup with the FspCleanupDelete flag.
+This means that if Delete is defined, CanDelete and SetDelete will never be called and
+Cleanup will never be called with the FspCleanupDelete flag.
+
+**See Also**
+
+- Cleanup
+- CanDelete
+- SetDelete
 
 
 </blockquote>
@@ -1111,6 +1202,8 @@ STATUS\_SUCCESS or error code.
 
 **Discussion**
 
+(NOTE: use of this function is not recommended; use Delete instead.)
+
 This function sets a flag to indicates whether the FSD file should delete a file
 when it is closed. This function does not need to perform access checks, but may
 performs tasks such as check for empty directories, etc.
@@ -1128,6 +1221,7 @@ most file systems need only implement the CanDelete operation.
 
 - Cleanup
 - CanDelete
+- Delete
 
 
 </blockquote>
@@ -1509,6 +1603,47 @@ This is a helper for implementing the GetEa operation.
 
 <details>
 <summary>
+<b>FspFileSystemAddNotifyInfo</b> - Add notify information to a buffer.
+</summary>
+<blockquote>
+<br/>
+
+```c
+FSP_API BOOLEAN FspFileSystemAddNotifyInfo(
+    FSP_FSCTL_NOTIFY_INFO *NotifyInfo, 
+    PVOID Buffer,
+    ULONG Length,
+    PULONG PBytesTransferred);  
+```
+
+**Parameters**
+
+- _NotifyInfo_ \- The notify information to add.
+- _Buffer_ \- Pointer to a buffer that will receive the notify information.
+- _Length_ \- Length of buffer.
+- _PBytesTransferred_ \- [out]
+Pointer to a memory location that will receive the actual number of bytes stored. This should
+be initialized to 0 prior to the first call to FspFileSystemAddNotifyInfo for a particular
+buffer.
+
+**Return Value**
+
+TRUE if the notify information was added, FALSE if there was not enough space to add it.
+
+**Discussion**
+
+This is a helper for filling a buffer to use with FspFileSystemNotify.
+
+**See Also**
+
+- FspFileSystemNotify
+
+
+</blockquote>
+</details>
+
+<details>
+<summary>
 <b>FspFileSystemAddStreamInfo</b> - Add named stream information to a buffer.
 </summary>
 <blockquote>
@@ -1849,6 +1984,123 @@ The current operation context.
 This function may be used only when servicing one of the FSP\_FILE\_SYSTEM\_INTERFACE operations.
 The current operation context is stored in thread local storage. It allows access to the
 Request and Response associated with this operation.
+
+
+</blockquote>
+</details>
+
+<details>
+<summary>
+<b>FspFileSystemNotify</b> - Notify Windows that the file system has file changes.
+</summary>
+<blockquote>
+<br/>
+
+```c
+FSP_API NTSTATUS FspFileSystemNotify(
+    FSP_FILE_SYSTEM *FileSystem, 
+    FSP_FSCTL_NOTIFY_INFO *NotifyInfo,
+    SIZE_T Size);  
+```
+
+**Parameters**
+
+- _FileSystem_ \- The file system object.
+- _NotifyInfo_ \- Buffer containing information about file changes.
+- _Size_ \- Size of buffer.
+
+**Return Value**
+
+STATUS\_SUCCESS or error code.
+
+**Discussion**
+
+A file system that wishes to notify Windows about file changes must
+first issue an FspFileSystemBegin call, followed by 0 or more
+FspFileSystemNotify calls, followed by an FspFileSystemNotifyEnd call.
+
+Note that FspFileSystemNotify requires file names to be normalized. A
+normalized file name is one that contains the correct case of all characters
+in the file name.
+
+For case-sensitive file systems all file names are normalized by definition.
+For case-insensitive file systems that implement file name normalization,
+a normalized file name is the one that the file system specifies in the
+response to Create or Open (see also FspFileSystemGetOpenFileInfo). For
+case-insensitive file systems that do not implement file name normalization
+a normalized file name is the upper case version of the file name used
+to open the file.
+
+
+</blockquote>
+</details>
+
+<details>
+<summary>
+<b>FspFileSystemNotifyBegin</b> - Begin notifying Windows that the file system has file changes.
+</summary>
+<blockquote>
+<br/>
+
+```c
+FSP_API NTSTATUS FspFileSystemNotifyBegin(
+    FSP_FILE_SYSTEM *FileSystem,
+    ULONG Timeout);  
+```
+
+**Parameters**
+
+- _FileSystem_ \- The file system object.
+
+**Return Value**
+
+STATUS\_SUCCESS or error code. The error code STATUS\_CANT\_WAIT means that
+a file rename operation is currently in progress and the operation must be
+retried at a later time.
+
+**Discussion**
+
+A file system that wishes to notify Windows about file changes must
+first issue an FspFileSystemBegin call, followed by 0 or more
+FspFileSystemNotify calls, followed by an FspFileSystemNotifyEnd call.
+
+This operation blocks concurrent file rename operations. File rename
+operations may interfere with file notification, because a file being
+notified may also be concurrently renamed. After all file change
+notifications have been issued, you must make sure to call
+FspFileSystemNotifyEnd to allow file rename operations to proceed.
+
+
+</blockquote>
+</details>
+
+<details>
+<summary>
+<b>FspFileSystemNotifyEnd</b> - End notifying Windows that the file system has file changes.
+</summary>
+<blockquote>
+<br/>
+
+```c
+FSP_API NTSTATUS FspFileSystemNotifyEnd(
+    FSP_FILE_SYSTEM *FileSystem);  
+```
+
+**Parameters**
+
+- _FileSystem_ \- The file system object.
+
+**Return Value**
+
+STATUS\_SUCCESS or error code.
+
+**Discussion**
+
+A file system that wishes to notify Windows about file changes must
+first issue an FspFileSystemBegin call, followed by 0 or more
+FspFileSystemNotify calls, followed by an FspFileSystemNotifyEnd call.
+
+This operation allows any blocked file rename operations to proceed.
 
 
 </blockquote>
@@ -2613,7 +2865,7 @@ in a clean manner by calling this function.
 <br/>
 <p align="center">
 <sub>
-Copyright © 2015-2020 Bill Zissimopoulos
+Copyright © 2015-2021 Bill Zissimopoulos
 <br/>
 Generated with <a href="https://github.com/billziss-gh/prettydoc">prettydoc</a>
 </sub>

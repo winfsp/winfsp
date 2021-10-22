@@ -397,11 +397,13 @@ typedef struct _FSP_LAUNCH_REG_RECORD {
     PWSTR RunAs; 
     PWSTR Security; 
     PWSTR AuthPackage; 
-    PVOID Reserved0[5]; 
+    PWSTR Stderr; 
+    PVOID Reserved0[4]; 
     ULONG JobControl; 
     ULONG Credentials; 
     ULONG AuthPackageId; 
-    ULONG Reserved1[5]; 
+    ULONG Recovery; 
+    ULONG Reserved1[4]; 
     UINT8 Buffer[]; 
 } FSP_LAUNCH_REG_RECORD;  
 ```
@@ -414,7 +416,7 @@ typedef struct _FSP_LAUNCH_REG_RECORD {
 <br/>
 <p align="center">
 <sub>
-Copyright © 2015-2020 Bill Zissimopoulos
+Copyright © 2015-2021 Bill Zissimopoulos
 <br/>
 Generated with <a href="https://github.com/billziss-gh/prettydoc">prettydoc</a>
 </sub>
