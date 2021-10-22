@@ -1,0 +1,124 @@
+= WinFsp Delete Redesign
+
+WinFsp has had its Delete functionality redesigned in release 2021.1 Beta3. This redesign unifies all Windows file deletion semantics under a single file system operation that also supports the new POSIX semantics introduced in Windows 10 Redstone 1. The new Delete design is recommended for new file systems, however existing file systems will continue to work without any changes.
+
+== Background
+
+In this section we discuss how file deletion worked in Windows traditionally as well as the changes introduced in recent versions of Windows 10.
+
+=== Traditional File Deletion
+
+The traditional method for deleting a file or directory on Windows involves the following steps:
+
+- Open the file using https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntopenfile[`NtOpenFile`] (or equivalent) with `DELETE` access.
+- Set the "disposition" flag on the file handle using https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntsetinformationfile[`NtSetInformationFile`] with `FileDispositionInformation`. This only marks the file for deletion and does not delete the file.
+- Close the file using https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntclose[`NtClose`] (or equivalent). Provided that there are no other open handles to the file, the file is actually deleted at this stage.
+
+This is the method that https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-deletefilew[`DeleteFileW`] and https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-removedirectoryw[`RemoveDirectoryW`] use to delete a file or directory.
+
+An alternative method involves the `FILE_DELETE_ON_CLOSE` flag:
+
+- Open the file using https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntopenfile[`NtOpenFile`] (or equivalent) with the `FILE_DELETE_ON_CLOSE` option.
+- Close the file using https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntclose[`NtClose`] (or equivalent). Provided that there are no other open handles to the file, the file is actually deleted at this stage.
+
+This alternative method does not set the disposition flag and therefore does not have chance to perform any associated checks. An important disposition flag check is whether a directory is empty: attempting to remove a non-empty directory using `FILE_DELETE_ON_CLOSE` will fail silently, because there is no way to communicate a file deletion error from `NtClose`.
+
+In order to better understand those scenarios let's examine what happens within the kernel and the file system driver (FSD).
+
+When the kernel receives a file API call such as `NtOpenFile`, it packages the call arguments into a data structure called an "I/O Request Packet" (IRP) and forwards it to the appropriate FSD. Each IRP contains a field that describes its function, for example, `IRP_MJ_CREATE` for `NtOpenFile` and `IRP_MJ_SET_INFORMATION` for `NtSetInformationFile`.
+
+With this knowledge we can now examine what happens in the `DeleteFileW` / `RemoveDirectoryW` scenario:
+
+- Open the file using `NtOpenFile`: The kernel creates an https://docs.microsoft.com/en-us/windows-hardware/drivers/ifs/irp-mj-create[`IRP_MJ_CREATE`] IRP, places inside it a newly created https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_file_object[`FILE_OBJECT`] and forwards it to the FSD. If opening the file succeeds, the kernel will also create a `HANDLE` that is used to refer to this `FILE_OBJECT`; if opening the file fails, this `FILE_OBJECT` will be destroyed.
+- Set the "disposition" flag on the file handle using `NtSetInformationFile` with `FileDispositionInformation`: The kernel creates an https://docs.microsoft.com/en-us/windows-hardware/drivers/ifs/irp-mj-set-information[`IRP_MJ_SET_INFORMATION`] IRP and passes the `FileDispositionInformation` information in it. The FSD performs some checks (e.g. if a directory is empty) and if they succeed it marks the file for deletion.
+- Close the file using `NtClose`: The kernel creates an https://docs.microsoft.com/en-us/windows-hardware/drivers/ifs/irp-mj-cleanup[`IRP_MJ_CLEANUP`] IRP, which denotes that all ``HANDLE``s that refer to a `FILE_OBJECT` are closed. (It is possible to have multiple ``HANDLE``s to the same `FILE_OBJECT` by using an API such as https://docs.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle[`DuplicateHandle`].) The FSD checks and if this is the last `FILE_OBJECT` cleaned up for the file and if the file is marked for deletion, it deletes the file. Traditionally there was no way to return an error from `IRP_MJ_CLEANUP`.
+- Notice that while the file is closed from the perspective of user mode, it is not closed from the perspective of kernel mode. The kernel and the FSD maintain both a handle count and a reference count for the `FILE_OBJECT`. When the handle count goes to `0` then an `IRP_MJ_CLEANUP` IRP is issued (see above). When the reference count goes to `0` then a different https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/irp-mj-close[`IRP_MJ_CLOSE`] IRP is issued to the FSD. This signifies to the FSD that the `FILE_OBJECT` is going away and the file is fully closed (including from the kernel perspective). There is no way to return an error from `IRP_MJ_CLOSE`.
+
+The situation is similar in the `FILE_DELETE_ON_CLOSE` scenario, with the important difference that the FSD marks the file for deletion immediately upon receiving the `IRP_MJ_CREATE` IRP and that it never receives the `IRP_MJ_SET_INFORMATION` IRP. As before the actual deletion happens in `IRP_MJ_CLEANUP` and only when the last `HANDLE` to the file is closed.
+
+Some important takeaways:
+
+- It is possible for a file to already be open when a `DeleteFileW` / `RemoveDirectoryW` (or equivalent sequence of `NtOpenFile`, `NtSetInformationFile`, `NtClose`, etc.) is executed. This means that the file may NOT be deleted upon return from the `DeleteFileW` / `RemoveDirectoryW` call even though these API's report success. **Traditionally a successful return from `DeleteFileW` / `RemoveDirectory` signifies only that the file or directory has been successfully marked for deletion and not that it has been deleted!**
+- The `NtClose` call does not return error codes from `IRP_MJ_CLEANUP`. This means that it is impossible for user mode to know whether a file marked for deletion was deleted or not.
+- The `FILE_OBJECT` remains valid even after a file has been deleted in `IRP_MJ_CLEANUP`. It is therefore possible to receive additional I/O (e.g. read/write) on the file. Many Windows file systems (including at least some versions of NTFS) do not handle this case very well.
+
+=== File Deletion in Recent Versions of Windows 10
+
+In Windows 10 Redstone 1 Microsoft introduced the `FileDispositionInformationEx` information class. This new information class can be used to request POSIX semantics for file deletion during the `NtSetInformationFile` call. POSIX semantics for file deletion mean that when a file is deleted any open handles to it remain valid and can be used for I/O such as read/write.
+
+Some time later (unclear exactly when) Microsoft changed the `DeleteFileW` / `RemoveDirectoryW` API's to use the `FileDispositionInformationEx` information class and only if this fails (e.g. because the file system is not capable) fall back to the old `FileDispositionInformation` information class. With this change `DeleteFileW` and `RemoveDirectoryW` actually delete the file or directory rather than simply mark it for deletion. (This change is in general a good thing, but can create incompatibility problems for applications that expect the traditional behavior.)
+
+Let's examine the `DeleteFileW` / `RemoveDirectoryW` scenario again:
+
+- Open the file using `NtOpenFile`: The kernel creates an https://docs.microsoft.com/en-us/windows-hardware/drivers/ifs/irp-mj-create[`IRP_MJ_CREATE`] IRP, places inside it a newly created https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_file_object[`FILE_OBJECT`] and forwards it to the FSD. If opening the file succeeds, the kernel will also create a `HANDLE` that is used to refer to this `FILE_OBJECT`; if opening the file fails, this `FILE_OBJECT` will be destroyed.
+- Intruct the file system to delete the file with POSIX semantics using `NtSetInformationFile` with `FileDispositionInformationEx`. The kernel creates an https://docs.microsoft.com/en-us/windows-hardware/drivers/ifs/irp-mj-set-information[`IRP_MJ_SET_INFORMATION`] IRP and passes the `FileDispositionInformationEx` information in it. The FSD performs some checks (e.g. if a directory is empty) and if they succeed it deletes the file or directory (as opposed to simply mark it for deletion).
+- Close the file using `NtClose`. The kernel creates an https://docs.microsoft.com/en-us/windows-hardware/drivers/ifs/irp-mj-cleanup[`IRP_MJ_CLEANUP`] IRP, which denotes that all ``HANDLE``s that refer to a `FILE_OBJECT` are closed. The FSD has already deleted the file and does not need to do anything else.
+- As before an `IRP_MJ_CLOSE` IRP will also be sent to the FSD eventually.
+
+Notice that the actual file deletion happens during `NtSetInformationFile` and the return code from this API reports on the success or failure of the file deletion. Thus we no longer have the problems discussed earlier and `DeleteFileW` / `RemoveDirectoryW` correctly report whether the file was deleted or not.
+
+== WinFsp Support for POSIX Unlink
+
+WinFsp gained support for POSIX Unlink (`FileDispositionInformationEx`) and POSIX Rename (`FileRenameInformationEx`) in release 2021.1 Beta3. To enable this support a native or .NET file system must set the `SupportsPosixUnlinkRename` flag when the file system is created. FUSE file systems have this flag enabled by default (but can be disabled with the command line option `-o LegacyUnlinkRename`).
+
+The POSIX Unlink support spurred some changes in the WinFsp native and .NET API's with regards to file deletion. The WinFsp FUSE layer transparently supports these changes.
+
+Prior to release 2021.1 Beta3, user mode file systems handled file deletion by implementing `CanDelete` / `SetDelete` to check the file disposition flag and `Cleanup` with the `FspCleanupDelete` flag to perform the actual file deletion. From release 2021.1 Beta3 forward the recommended method is to use the new `Delete` file system operation to handle all aspects of file deletion.
+
+The new `Delete` operation follows the general pattern below:
+
+[source,c]
+----
+NTSTATUS (*Delete)(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileContext, PWSTR FileName, ULONG Flags)
+{
+    switch (Flags)
+    {
+    case FILE_DISPOSITION_DO_NOT_DELETE:
+        // set file disposition flag: do not delete file at Cleanup time
+
+    case FILE_DISPOSITION_DELETE:
+        // set file disposition flag: delete file at Cleanup time
+
+    case FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS:
+        // delete file now; open handles to file remain valid
+
+    case -1:
+        // delete file now; called during Cleanup time
+
+    default:
+        return STATUS_INVALID_PARAMETER;
+    }
+}
+----
+
+As can be seen the `Delete` operation handles marking (`FILE_DISPOSITION_DELETE`) and unmarking (`FILE_DISPOSITION_DO_NOT_DELETE`) a file for deletion, performing file deletion with POSIX semantics (`FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS`) and performing file deletion with traditional Windows semantics (`-1`). If the Delete operation is defined it is used instead of `CanDelete` / `SetDelete` and `Cleanup` with the `FspCleanupDelete` flag, even if these operations are also defined.
+
+A sensible implementation of `Delete` might look something similar to the following:
+
+[source,c]
+----
+NTSTATUS (*Delete)(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileContext, PWSTR FileName, ULONG Flags)
+{
+    switch (Flags)
+    {
+    case FILE_DISPOSITION_DO_NOT_DELETE:
+        return STATUS_SUCCESS;
+
+    case FILE_DISPOSITION_DELETE:
+        if (IsNotEmptyDirectory(FileSystem, FileContext))
+            return STATUS_DIRECTORY_NOT_EMPTY;
+        return STATUS_SUCCESS;
+
+    case FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS:
+    case -1:
+        if (IsNotEmptyDirectory(FileSystem, FileContext))
+            return STATUS_DIRECTORY_NOT_EMPTY;
+        return RealDeleteFileOrDirectory(FileSystem, FileContext);
+
+    default:
+        return STATUS_INVALID_PARAMETER;
+    }
+}
+----
