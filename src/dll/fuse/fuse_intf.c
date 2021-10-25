@@ -1620,6 +1620,10 @@ static NTSTATUS fsp_fuse_intf_Delete(FSP_FILE_SYSTEM *FileSystem,
                     Result = STATUS_INVALID_DEVICE_REQUEST;
             }
 
+            /* when doing unlink/rmdir convert EPERM/EACCES to STATUS_CANNOT_DELETE */
+            if (STATUS_ACCESS_DENIED == Result)
+                Result = STATUS_CANNOT_DELETE;
+
             return Result;
         }
 
