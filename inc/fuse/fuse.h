@@ -79,7 +79,7 @@ struct fuse_operations
     /* S */ int (*fsyncdir)(const char *path, int datasync, struct fuse_file_info *fi);
     /* S */ void *(*init)(struct fuse_conn_info *conn);
     /* S */ void (*destroy)(void *data);
-    /* _ */ int (*access)(const char *path, int mask);
+    /* S */ int (*access)(const char *path, int mask);
     /* S */ int (*create)(const char *path, fuse_mode_t mode, struct fuse_file_info *fi);
     /* S */ int (*ftruncate)(const char *path, fuse_off_t off, struct fuse_file_info *fi);
     /* S */ int (*fgetattr)(const char *path, struct fuse_stat *stbuf, struct fuse_file_info *fi);

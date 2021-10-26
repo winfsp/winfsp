@@ -54,6 +54,7 @@ extern "C" {
 #define FSP_FUSE_CAP_READDIR_PLUS       (1 << 21)   /* file system supports enhanced readdir */
 #define FSP_FUSE_CAP_READ_ONLY          (1 << 22)   /* file system is marked read-only */
 #define FSP_FUSE_CAP_STAT_EX            (1 << 23)   /* file system supports fuse_stat_ex */
+#define FSP_FUSE_CAP_DELETE_ACCESS      (1 << 24)   /* file system supports access with DELETE_OK */
 #define FSP_FUSE_CAP_CASE_INSENSITIVE   FUSE_CAP_CASE_INSENSITIVE
 
 #define FUSE_IOCTL_COMPAT               (1 << 0)
@@ -78,6 +79,9 @@ extern "C" {
 #if !defined(UF_ARCHIVE)
 #define UF_ARCHIVE                      FSP_FUSE_UF_ARCHIVE
 #endif
+
+/* delete access */
+#define FSP_FUSE_DELETE_OK              0x40000000
 
 /* notify extension */
 #define FSP_FUSE_NOTIFY_MKDIR           0x0001

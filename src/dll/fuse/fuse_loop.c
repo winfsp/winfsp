@@ -88,6 +88,7 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
         FSP_FUSE_CAP_READDIR_PLUS |
         FSP_FUSE_CAP_READ_ONLY |
         FSP_FUSE_CAP_STAT_EX |
+        FSP_FUSE_CAP_DELETE_ACCESS |
         FSP_FUSE_CAP_CASE_INSENSITIVE;
     if (0 != f->ops.init)
     {

@@ -991,6 +991,19 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     int err;
     NTSTATUS Result;
 
+    if (0 != (CreateOptions & FILE_DELETE_ON_CLOSE) &&
+        0 != (f->conn_want & FSP_FUSE_CAP_DELETE_ACCESS) && 0 != f->ops.access)
+    {
+        err = f->ops.access(contexthdr->PosixPath, FSP_FUSE_DELETE_OK);
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        if (!NT_SUCCESS(Result) && STATUS_INVALID_DEVICE_REQUEST != Result)
+        {
+            if (STATUS_ACCESS_DENIED == Result)
+                Result = STATUS_CANNOT_DELETE;
+            goto exit;
+        }
+    }
+
     Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, contexthdr->PosixPath, 0,
         &Uid, &Gid, &Mode, &FileInfoBuf);
     if (!NT_SUCCESS(Result))
@@ -1583,49 +1596,63 @@ static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
 static NTSTATUS fsp_fuse_intf_Delete(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileDesc, PWSTR FileName, ULONG Flags)
 {
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc = FileDesc;
+    int err;
+    NTSTATUS Result;
+
     switch (Flags)
     {
     case FILE_DISPOSITION_DO_NOT_DELETE:
         return STATUS_SUCCESS;
 
     case FILE_DISPOSITION_DELETE:
-        return fsp_fuse_intf_CanDelete(FileSystem, FileDesc, FileName);
+        Result = STATUS_SUCCESS;
+        if (0 != (f->conn_want & FSP_FUSE_CAP_DELETE_ACCESS) && 0 != f->ops.access)
+        {
+            err = f->ops.access(filedesc->PosixPath, FSP_FUSE_DELETE_OK);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+            if (STATUS_INVALID_DEVICE_REQUEST == Result)
+                Result = STATUS_SUCCESS;
+        }
+
+        if (NT_SUCCESS(Result))
+            Result = fsp_fuse_intf_CanDelete(FileSystem, FileDesc, FileName);
+
+        /* when doing unlink/rmdir convert EPERM/EACCES to STATUS_CANNOT_DELETE */
+        if (STATUS_ACCESS_DENIED == Result)
+            Result = STATUS_CANNOT_DELETE;
+
+        return Result;
 
     case FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS:
     case -1:
+        if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
         {
-            struct fuse *f = FileSystem->UserContext;
-            struct fsp_fuse_file_desc *filedesc = FileDesc;
-            int err;
-            NTSTATUS Result = STATUS_SUCCESS;
-
-            if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
+            if (0 != f->ops.rmdir)
             {
-                if (0 != f->ops.rmdir)
-                {
-                    err = f->ops.rmdir(filedesc->PosixPath);
-                    Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-                }
-                else
-                    Result = STATUS_INVALID_DEVICE_REQUEST;
+                err = f->ops.rmdir(filedesc->PosixPath);
+                Result = fsp_fuse_ntstatus_from_errno(f->env, err);
             }
             else
-            {
-                if (0 != f->ops.unlink)
-                {
-                    err = f->ops.unlink(filedesc->PosixPath);
-                    Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-                }
-                else
-                    Result = STATUS_INVALID_DEVICE_REQUEST;
-            }
-
-            /* when doing unlink/rmdir convert EPERM/EACCES to STATUS_CANNOT_DELETE */
-            if (STATUS_ACCESS_DENIED == Result)
-                Result = STATUS_CANNOT_DELETE;
-
-            return Result;
+                Result = STATUS_INVALID_DEVICE_REQUEST;
         }
+        else
+        {
+            if (0 != f->ops.unlink)
+            {
+                err = f->ops.unlink(filedesc->PosixPath);
+                Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+            }
+            else
+                Result = STATUS_INVALID_DEVICE_REQUEST;
+        }
+
+        /* when doing unlink/rmdir convert EPERM/EACCES to STATUS_CANNOT_DELETE */
+        if (STATUS_ACCESS_DENIED == Result)
+            Result = STATUS_CANNOT_DELETE;
+
+        return Result;
 
     default:
         return STATUS_INVALID_PARAMETER;
