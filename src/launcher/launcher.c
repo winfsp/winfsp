@@ -1321,7 +1321,7 @@ exit:
         SvcInstance->StdioHandles[2] = INVALID_HANDLE_VALUE;
     }
 
-    if (NT_SUCCESS(Result))
+    if (NT_SUCCESS(Result) && STATUS_TIMEOUT != Result)
     {
         SvcInstance->Argc = Argc;
         SvcInstance->Argv = Argv;
