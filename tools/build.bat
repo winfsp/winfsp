@@ -76,7 +76,7 @@ if X%SignedPackage%==X (
     echo driver-x86.inf >>driver.ddf
     echo %MyProductFileName%-x86.sys >>driver.ddf
     makecab /F driver.ddf
-    signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /t http://timestamp.digicert.com driver.cab
+    signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha256 /tr http://timestamp.digicert.com /td sha256 driver.cab
     if errorlevel 1 set /a signfail=signfail+1
     popd
 )
