@@ -117,6 +117,7 @@ WinFsp is designed to run on Windows 7 and above. It has been tested on the foll
 * Windows Server 2012
 * Windows 10 Pro
 * Windows Server 2016
+* Windows 11 Pro
 
 ## How to Help
 
