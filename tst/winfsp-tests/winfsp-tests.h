@@ -132,6 +132,24 @@ BOOL WINAPI ResilientDeleteFileW(
 BOOL WINAPI ResilientRemoveDirectoryW(
     LPCWSTR lpPathName);
 
+static inline
+BOOLEAN BestEffortCreateSymbolicLinkW(
+    PWSTR SymlinkFileName,
+    PWSTR TargetFileName,
+    DWORD Flags)
+{
+    BOOLEAN Success = CreateSymbolicLinkW(
+        SymlinkFileName,
+        TargetFileName,
+        Flags | SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE);
+    if (!Success && ERROR_INVALID_PARAMETER == GetLastError())
+        Success = CreateSymbolicLinkW(
+            SymlinkFileName,
+            TargetFileName,
+            Flags & ~SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE);
+    return Success;
+}
+
 typedef struct
 {
     BOOLEAN Disposition;
@@ -154,6 +172,7 @@ extern int WinFspDiskTests;
 extern int WinFspNetTests;
 
 extern BOOLEAN OptExternal;
+extern BOOLEAN OptFuseExternal;
 extern BOOLEAN OptResilient;
 extern BOOLEAN OptCaseInsensitiveCmp;
 extern BOOLEAN OptCaseInsensitive;

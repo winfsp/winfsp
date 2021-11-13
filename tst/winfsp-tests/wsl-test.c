@@ -184,5 +184,8 @@ static void wsl_stat_test(void)
 
 void wsl_tests(void)
 {
+    if (OptFuseExternal)
+        return;
+
     TEST_OPT(wsl_stat_test);
 }

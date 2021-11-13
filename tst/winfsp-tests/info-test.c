@@ -2213,10 +2213,11 @@ void query_winfsp_test(void)
 
 void info_tests(void)
 {
-    if (!OptShareName)
+    if (!OptFuseExternal && !OptShareName)
         TEST(getfileattr_test);
     TEST(getfileinfo_test);
-    TEST(getfileinfo_name_test);
+    if (!OptFuseExternal)
+        TEST(getfileinfo_name_test);
     TEST(setfileinfo_test);
     TEST(delete_test);
     TEST(delete_access_test);

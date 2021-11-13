@@ -1370,9 +1370,10 @@ void create_tests(void)
     TEST(create_fileattr_test);
     TEST(create_readonlydir_test);
     TEST(create_related_test);
-    TEST(create_allocation_test);
+    if (!OptFuseExternal)
+        TEST(create_allocation_test);
     TEST(create_sd_test);
-    if (!OptNoTraverseToken && !OptShareName)
+    if (!OptFuseExternal && !OptNoTraverseToken && !OptShareName)
         TEST(create_notraverse_test);
     TEST(create_backup_test);
     TEST(create_restore_test);

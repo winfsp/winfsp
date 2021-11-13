@@ -333,6 +333,7 @@ void security_stress_meta_test(void)
 void security_tests(void)
 {
     TEST(getsecurity_test);
-    TEST(setsecurity_test);
+    if (!OptFuseExternal)
+        TEST(setsecurity_test);
     TEST_OPT(security_stress_meta_test);
 }

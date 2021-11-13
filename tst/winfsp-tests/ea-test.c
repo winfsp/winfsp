@@ -170,7 +170,11 @@ static NTSTATUS ea_check_ea_enumerate(
 
     if (0 == strcmp(SingleEa->EaName, "BNAMETWO"))
     {
-        ASSERT(FILE_NEED_EA == SingleEa->Flags);
+        if (!OptFuseExternal)
+        {
+            /* FUSE has no concept of FILE_NEED_EA */
+            ASSERT(FILE_NEED_EA == SingleEa->Flags);
+        }
         ASSERT(SingleEa->EaNameLength == (UCHAR)strlen("BNAMETWO"));
         ASSERT(SingleEa->EaValueLength == (UCHAR)strlen("second"));
         ASSERT(0 == memcmp(SingleEa->EaName + SingleEa->EaNameLength + 1, "second", SingleEa->EaValueLength));
@@ -720,12 +724,17 @@ static void ea_create_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     ASSERT(STATUS_SUCCESS == Result);
     CloseHandle(FileHandle);
 
-    Result = NtCreateFile(&FileHandle,
-        FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
-        &LargeZero, FILE_ATTRIBUTE_NORMAL, 0,
-        FILE_OPEN, FILE_NO_EA_KNOWLEDGE,
-        0, 0);
-    ASSERT(STATUS_ACCESS_DENIED == Result);
+    if (!OptFuseExternal)
+    {
+        /* FUSE has no concept of FILE_NEED_EA */
+
+        Result = NtCreateFile(&FileHandle,
+            FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,
+            &LargeZero, FILE_ATTRIBUTE_NORMAL, 0,
+            FILE_OPEN, FILE_NO_EA_KNOWLEDGE,
+            0, 0);
+        ASSERT(STATUS_ACCESS_DENIED == Result);
+    }
 
     Result = NtCreateFile(&FileHandle,
         FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE, &Obja, &Iosb,

@@ -192,20 +192,25 @@ static void reparse_nfs_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         0, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
 
-    ReparseDataBuf.D.ReparseDataLength = 0;
+    if (!OptFuseExternal)
+    {
+        /* FUSE cannot delete reparse points */
 
-    Success = DeviceIoControl(Handle, FSCTL_DELETE_REPARSE_POINT,
-        &ReparseDataBuf, REPARSE_DATA_BUFFER_HEADER_SIZE + ReparseDataBuf.D.ReparseDataLength,
-        0, 0,
-        &Bytes, 0);
-    ASSERT(Success);
+        ReparseDataBuf.D.ReparseDataLength = 0;
 
-    Success = DeviceIoControl(Handle, FSCTL_GET_REPARSE_POINT,
-        0, 0,
-        &ReparseDataBuf, sizeof ReparseDataBuf,
-        &Bytes, 0);
-    ASSERT(!Success);
-    ASSERT(ERROR_NOT_A_REPARSE_POINT == GetLastError());
+        Success = DeviceIoControl(Handle, FSCTL_DELETE_REPARSE_POINT,
+            &ReparseDataBuf, REPARSE_DATA_BUFFER_HEADER_SIZE + ReparseDataBuf.D.ReparseDataLength,
+            0, 0,
+            &Bytes, 0);
+        ASSERT(Success);
+
+        Success = DeviceIoControl(Handle, FSCTL_GET_REPARSE_POINT,
+            0, 0,
+            &ReparseDataBuf, sizeof ReparseDataBuf,
+            &Bytes, 0);
+        ASSERT(!Success);
+        ASSERT(ERROR_NOT_A_REPARSE_POINT == GetLastError());
+    }
 
     CloseHandle(Handle);
 
@@ -241,7 +246,7 @@ static void reparse_symlink_dotest0(ULONG Flags, PWSTR Prefix,
     PUINT8 NameInfoBuf[sizeof(FILE_NAME_INFO) + MAX_PATH];
     PFILE_NAME_INFO PNameInfo = (PVOID)NameInfoBuf;
 
-    Success = CreateSymbolicLinkW(LinkPath, TargetPath, 0);
+    Success = BestEffortCreateSymbolicLinkW(LinkPath, TargetPath, 0);
     if (Success)
     {
         Handle = CreateFileW(FilePath,
@@ -401,7 +406,7 @@ static BOOL my_symlink_fn(ULONG Flags, PWSTR Prefix, void *memfs, PWSTR LinkName
         StringCbPrintfW(FilePath, sizeof FilePath, L"%s",
             FileName);
 
-    return CreateSymbolicLinkW(LinkPath,
+    return BestEffortCreateSymbolicLinkW(LinkPath,
         -1 == Flags && L'\\' == FileName[0] ? FilePath + 6 : FilePath,
         SymlinkFlags);
 }
@@ -422,7 +427,57 @@ static BOOL my_namecheck_fn(ULONG Flags, PWSTR Prefix, void *memfs, PWSTR FileNa
         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
         0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
     if (INVALID_HANDLE_VALUE == Handle)
-        return FALSE;
+    {
+        /*
+         * Prior to Windows 11 it used to be the case that NTFS open with FILE_FLAG_BACKUP_SEMANTICS
+         * did not care about SYMLINK/SYMLINKD difference!
+         *
+         * On Windows 11 this no longer appears to be true. In order to keep this test around, we perform
+         * an alternative name check in this case.
+         */
+
+        if (-1 == Flags && (ERROR_ACCESS_DENIED == GetLastError() || ERROR_DIRECTORY == GetLastError()))
+            ; /* Windows 11: if NTFS and appropriate error then ignore */
+        else
+            return FALSE;
+
+        Handle = CreateFileW(FilePath, FILE_READ_ATTRIBUTES,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
+        if (INVALID_HANDLE_VALUE == Handle)
+            return FALSE;
+
+        union
+        {
+            REPARSE_DATA_BUFFER D;
+            UINT8 B[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
+        } ReparseDataBuf;
+        DWORD Bytes;
+        BOOL Success;
+
+        Success = DeviceIoControl(Handle, FSCTL_GET_REPARSE_POINT,
+            0, 0,
+            &ReparseDataBuf, sizeof ReparseDataBuf,
+            &Bytes, 0);
+        if (Success)
+        {
+            Success = Success &&
+                ReparseDataBuf.D.ReparseTag == IO_REPARSE_TAG_SYMLINK;
+            Success = Success &&
+                ReparseDataBuf.D.SymbolicLinkReparseBuffer.SubstituteNameLength ==
+                    wcslen(ExpectedPath + 6) * sizeof(WCHAR);
+            Success = Success &&
+                0 == mywcscmp(
+                    ExpectedPath + 6,
+                    -1,
+                    ReparseDataBuf.D.SymbolicLinkReparseBuffer.PathBuffer +
+                        ReparseDataBuf.D.SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR),
+                    ReparseDataBuf.D.SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(WCHAR));
+        }
+
+        CloseHandle(Handle);
+        return Success;
+    }
 
     if (GetFileInformationByHandleEx(Handle, FileNameInfo, PNameInfo, sizeof NameInfoBuf))
     {
@@ -500,7 +555,11 @@ static void reparse_symlink_relative_dotest(ULONG Flags, PWSTR Prefix, ULONG Fil
     my_failcheck(L"\\loop");
     ASSERT(ERROR_CANT_RESOLVE_FILENAME == GetLastError());
 
-    /* NTFS open with FILE_FLAG_BACKUP_SEMANTICS does not care about SYMLINK/SYMLINKD difference! */
+    /*
+     * NTFS open with FILE_FLAG_BACKUP_SEMANTICS does not care about SYMLINK/SYMLINKD difference!
+     *
+     * UPDATE: Appears to no longer be true on Windows 11!
+     */
     my_namecheck(L"\\lf", L"\\1");
     my_namecheck(L"\\ld", L"\\1\\1.1\\1.1.1");
 
@@ -555,7 +614,8 @@ void reparse_symlink_relative_test(void)
 
 void reparse_tests(void)
 {
-    TEST(reparse_guid_test);
+    if (!OptFuseExternal)
+        TEST(reparse_guid_test);
     TEST(reparse_nfs_test);
     TEST(reparse_symlink_test);
     TEST(reparse_symlink_relative_test);

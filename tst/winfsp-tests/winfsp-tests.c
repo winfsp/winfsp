@@ -34,6 +34,7 @@ int WinFspDiskTests = 1;
 int WinFspNetTests = 1;
 
 BOOLEAN OptExternal = FALSE;
+BOOLEAN OptFuseExternal = FALSE;
 BOOLEAN OptResilient = FALSE;
 BOOLEAN OptCaseInsensitiveCmp = FALSE;
 BOOLEAN OptCaseInsensitive = FALSE;
@@ -265,6 +266,15 @@ int main(int argc, char *argv[])
             if (0 == strcmp("--ntfs", a) || 0 == strcmp("--external", a))
             {
                 OptExternal = TRUE;
+                NtfsTests = 1;
+                WinFspDiskTests = 0;
+                WinFspNetTests = 0;
+                rmarg(argv, argc, argi);
+            }
+            else if (0 == strcmp("--fuse-external", a))
+            {
+                OptExternal = TRUE;
+                OptFuseExternal = TRUE;
                 NtfsTests = 1;
                 WinFspDiskTests = 0;
                 WinFspNetTests = 0;

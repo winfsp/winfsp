@@ -2287,6 +2287,9 @@ void stream_dirnotify_test(void)
 
 void stream_tests(void)
 {
+    if (OptFuseExternal)
+        return;
+
     TEST(stream_create_test);
     if (!OptOplock)
         TEST(stream_create_overwrite_test);
