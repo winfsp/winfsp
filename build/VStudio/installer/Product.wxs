@@ -399,6 +399,29 @@
                     <File Name="memfs-main.c" KeyPath="yes" />
                 </Component>
             </Directory>
+            <Directory Id="SMPDIR.memfs_fuse" Name="memfs-fuse">
+                <Component Id="C.memfs_fuse.cpp">
+                    <File Name="memfs-fuse.cpp" KeyPath="yes" />
+                </Component>
+                <Component Id="C.memfs_fuse.compat.h">
+                    <File Id="F.memfs_fuse.compat.h" Name="compat.h" KeyPath="yes" />
+                </Component>
+                <Component Id="C.memfs_fuse.sln">
+                    <File Name="memfs-fuse.sln" KeyPath="yes" />
+                </Component>
+                <Component Id="C.memfs_fuse.vcxproj">
+                    <File Name="memfs-fuse.vcxproj" KeyPath="yes" />
+                </Component>
+                <Component Id="C.memfs_fuse.vcxproj.filters">
+                    <File Name="memfs-fuse.vcxproj.filters" KeyPath="yes" />
+                </Component>
+                <Component Id="C.memfs_fuse.Makefile">
+                    <File Id="F.memfs_fuse.Makefile" Name="Makefile" KeyPath="yes" />
+                </Component>
+                <Component Id="C.memfs_fuse.README.md">
+                    <File Id="F.memfsx_fuse.README.md" Name="README.md" KeyPath="yes" />
+                </Component>
+            </Directory>
             <Directory Id="SMPDIR.memfs_fuse3" Name="memfs-fuse3">
                 <Component Id="C.memfs_fuse3.cpp">
                     <File Name="memfs-fuse3.cpp" KeyPath="yes" />
@@ -662,6 +685,13 @@
             <ComponentRef Id="C.memfs.h" />
             <ComponentRef Id="C.memfs.cpp" />
             <ComponentRef Id="C.memfs_main.c" />
+            <ComponentRef Id="C.memfs_fuse.cpp" />
+            <ComponentRef Id="C.memfs_fuse.compat.h" />
+            <ComponentRef Id="C.memfs_fuse.sln" />
+            <ComponentRef Id="C.memfs_fuse.vcxproj" />
+            <ComponentRef Id="C.memfs_fuse.vcxproj.filters" />
+            <ComponentRef Id="C.memfs_fuse.Makefile" />
+            <ComponentRef Id="C.memfs_fuse.README.md" />
             <ComponentRef Id="C.memfs_fuse3.cpp" />
             <ComponentRef Id="C.memfs_fuse3.compat.h" />
             <ComponentRef Id="C.memfs_fuse3.sln" />
