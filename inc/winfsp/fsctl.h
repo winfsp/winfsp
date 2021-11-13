@@ -197,7 +197,8 @@ enum
     /* user-mode flags */\
     UINT32 UmFileContextIsUserContext2:1;   /* user mode: FileContext parameter is UserContext2 */\
     UINT32 UmFileContextIsFullContext:1;    /* user mode: FileContext parameter is FullContext */\
-    UINT32 UmReservedFlags:6;\
+    UINT32 UmNoReparsePointsDirCheck:1;     /* user mode: no dir option check for reparse points */\
+    UINT32 UmReservedFlags:5;\
     /* additional kernel-mode flags */\
     UINT32 AllowOpenInKernelMode:1;         /* allow kernel mode to open files when possible */\
     UINT32 CasePreservedExtendedAttributes:1;   /* preserve case of EA (default is UPPERCASE) */\

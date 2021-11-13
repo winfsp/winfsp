@@ -160,6 +160,29 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
         /* this should always fail with ENOSYS or EINVAL */
         err = f->ops.readlink("/", buf, sizeof buf);
         f->has_symlinks = -ENOSYS_(f->env) != err;
+
+        if (f->has_symlinks)
+        {
+            /*
+             * Determine if the file system supports "/." queries.
+             *
+             * Symlinks on Windows are differentiated as "file" symlinks or "directory" symlinks.
+             * When we need to make the distinction we can follow one of two techniques:
+             *
+             * - Slashdot technique: We issue a getattr(path + "/.") and check the stat result.
+             * In general this is not a getattr() query that FUSE file systems are expected
+             * to handle. For this reason we issue a getattr("/.") below to determine
+             * if the file system handles this kind of query against the root directory.
+             *
+             * - Resolve technique: If the file system cannot handle slashdot queries, we resolve
+             * the path using readlink on each path component, then issue getattr on the resolved
+             * path and check the stat result.
+             */
+            struct fuse_stat_ex stbuf;
+            memset(&stbuf, 0, sizeof stbuf);
+            err = f->ops.getattr("/.", (void *)&stbuf);
+            f->has_slashdot = 0 == err && 0040000 == (stbuf.st_mode & 0170000);
+        }
     }
     if (0 != f->ops.listxattr && 0 != f->ops.getxattr &&
         0 != f->ops.setxattr && 0 != f->ops.removexattr)

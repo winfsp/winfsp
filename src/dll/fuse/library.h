@@ -34,6 +34,7 @@
     ((struct fuse_context *)((PUINT8)(h) + sizeof(struct fsp_fuse_context_header)))
 
 #define FSP_FUSE_HAS_SYMLINKS(f)        ((f)->has_symlinks)
+#define FSP_FUSE_HAS_SLASHDOT(f)        ((f)->has_slashdot)
 
 #define ENOSYS_(env)                    ('C' == (env)->environment ? 88 : 40)
 
@@ -61,7 +62,7 @@ struct fuse
     void *data;
     unsigned conn_want;
     BOOLEAN fsinit;
-    BOOLEAN has_symlinks;
+    BOOLEAN has_symlinks, has_slashdot;
     UINT32 DebugLog;
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;

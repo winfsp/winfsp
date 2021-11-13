@@ -1143,7 +1143,13 @@ typedef struct _FSP_FILE_SYSTEM
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     SRWLOCK OpGuardLock;
     BOOLEAN UmFileContextIsUserContext2, UmFileContextIsFullContext;
+    UINT16 UmNoReparsePointsDirCheck:1;
+    UINT16 UmReservedFlags:15;
 } FSP_FILE_SYSTEM;
+FSP_FSCTL_STATIC_ASSERT(
+    (4 == sizeof(PVOID) && 660 == sizeof(FSP_FILE_SYSTEM)) ||
+    (8 == sizeof(PVOID) && 792 == sizeof(FSP_FILE_SYSTEM)),
+    "sizeof(FSP_FILE_SYSTEM) must be exactly 660 in 32-bit and 792 in 64-bit.");
 typedef struct _FSP_FILE_SYSTEM_OPERATION_CONTEXT
 {
     FSP_FSCTL_TRANSACT_REQ *Request;

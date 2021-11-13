@@ -325,6 +325,13 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
             goto exit;
         }
 
+        /*
+         * We allow some file systems (notably FUSE) to open reparse points
+         * regardless of the FILE_DIRECTORY_FILE / FILE_NON_DIRECTORY_FILE options.
+         */
+        if (0 != (FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) && FileSystem->UmNoReparsePointsDirCheck)
+            goto skip_reparse_dir_check;
+
         if ((Request->Req.Create.CreateOptions & FILE_DIRECTORY_FILE) &&
             0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
         {
@@ -337,6 +344,9 @@ FSP_API NTSTATUS FspAccessCheckEx(FSP_FILE_SYSTEM *FileSystem,
             Result = STATUS_FILE_IS_A_DIRECTORY;
             goto exit;
         }
+
+    skip_reparse_dir_check:
+        ;
     }
 
     if (Request->Req.Create.UserMode)
