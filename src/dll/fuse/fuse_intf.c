@@ -347,7 +347,7 @@ static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
         PWSTR WindowsPath = 0, P;
         char *PosixResolvedPath = 0;
         UINT32 ReparsePointIndex;
-        UINT32 ResolvedFileAttributes = -1;
+        UINT32 ResolveFileAttributes[2] = { FILE_ATTRIBUTE_REPARSE_POINT, -1 };
         IO_STATUS_BLOCK IoStatus;
         union
         {
@@ -371,7 +371,7 @@ static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
 
         ReparseDataSize = sizeof ReparseDataBuf - sizeof(WCHAR)/* leave space for term-0 */;
         Result = FspFileSystemResolveReparsePoints(FileSystem,
-            fsp_fuse_intf_GetReparsePointByName, &ResolvedFileAttributes,
+            fsp_fuse_intf_GetReparsePointByName, ResolveFileAttributes,
             WindowsPath, ReparsePointIndex, TRUE,
             &IoStatus, &ReparseDataBuf,
             &ReparseDataSize);
@@ -384,9 +384,9 @@ static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
             goto exit;
         }
 
-        if (-1 != ResolvedFileAttributes)
+        if (-1 != ResolveFileAttributes[1])
         {
-            Result = (FILE_ATTRIBUTE_DIRECTORY & ResolvedFileAttributes) ?
+            Result = (FILE_ATTRIBUTE_DIRECTORY & ResolveFileAttributes[1]) ?
                 STATUS_SUCCESS : STATUS_UNSUCCESSFUL;
             goto exit;
         }
@@ -658,7 +658,7 @@ exit:
 
 static NTSTATUS fsp_fuse_intf_GetReparsePointEx(FSP_FILE_SYSTEM *FileSystem,
     const char *PosixPath, struct fuse_file_info *fi,
-    PVOID Buffer, PSIZE_T PSize, PUINT32 PResolvedFileAttributes)
+    PVOID Buffer, PSIZE_T PSize, PUINT32 PResolveFileAttributes)
 {
     struct fuse *f = FileSystem->UserContext;
     UINT32 Uid, Gid, Mode, Dev;
@@ -668,6 +668,16 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointEx(FSP_FILE_SYSTEM *FileSystem,
     SIZE_T Size;
     NTSTATUS Result;
 
+    if (0 != PResolveFileAttributes && FILE_ATTRIBUTE_REPARSE_POINT == PResolveFileAttributes[0])
+    {
+        Mode = 0120000;
+        memset(&FileInfo, 0, sizeof FileInfo);
+        FileInfo.FileAttributes = PResolveFileAttributes[0];
+        FileInfo.ReparseTag = IO_REPARSE_TAG_SYMLINK;
+        PResolveFileAttributes[0] = 0;
+        goto skip_getattr;
+    }
+
     Result = fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi, 0,
         &Uid, &Gid, &Mode, &Dev, FALSE, &FileInfo);
     if (!NT_SUCCESS(Result))
@@ -675,11 +685,12 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointEx(FSP_FILE_SYSTEM *FileSystem,
 
     if (0 == (FILE_ATTRIBUTE_REPARSE_POINT & FileInfo.FileAttributes))
     {
-        if (0 != PResolvedFileAttributes)
-            *PResolvedFileAttributes = FileInfo.FileAttributes;
+        if (0 != PResolveFileAttributes)
+            PResolveFileAttributes[1] = FileInfo.FileAttributes;
         return STATUS_NOT_A_REPARSE_POINT;
     }
 
+skip_getattr:
     if (0 == Buffer)
         return STATUS_SUCCESS;
 
