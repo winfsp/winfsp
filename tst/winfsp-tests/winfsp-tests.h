@@ -141,12 +141,12 @@ BOOLEAN BestEffortCreateSymbolicLinkW(
     BOOLEAN Success = CreateSymbolicLinkW(
         SymlinkFileName,
         TargetFileName,
-        Flags | SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE);
+        Flags | 2/*SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE*/);
     if (!Success && ERROR_INVALID_PARAMETER == GetLastError())
         Success = CreateSymbolicLinkW(
             SymlinkFileName,
             TargetFileName,
-            Flags & ~SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE);
+            Flags & ~2/*SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE*/);
     return Success;
 }
 
