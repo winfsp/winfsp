@@ -135,9 +135,9 @@ for %%f in (%tests%) do (
     )
 
     pushd %cd%
-    set "begtime=%time: =0%"
+    set "begtime=!time: =0!"
     call :%%f
-    set "endtime=%time: =0%"
+    set "endtime=!time: =0!"
     popd
 
     REM see https://stackoverflow.com/a/9935540
