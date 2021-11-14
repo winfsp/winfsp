@@ -148,7 +148,7 @@ for %%f in (%tests%) do (
     if !ERRORLEVEL! neq 0 (
         set /a testfail=testfail+1
 
-        echo === Failed %%f (!duration! ms)
+        echo === Failed %%f ^(!duration! ms^)
 
         if defined APPVEYOR (
             appveyor UpdateTest "%%f" -FileName None -Framework None -Outcome Failed -Duration !duration!
@@ -156,7 +156,7 @@ for %%f in (%tests%) do (
     ) else (
         set /a testpass=testpass+1
 
-        echo === Passed %%f (!duration! ms)
+        echo === Passed %%f ^(!duration! ms^)
 
         if defined APPVEYOR (
             appveyor UpdateTest "%%f" -FileName None -Framework None -Outcome Passed -Duration !duration!
