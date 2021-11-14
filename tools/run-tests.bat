@@ -135,24 +135,31 @@ for %%f in (%tests%) do (
     )
 
     pushd %cd%
+    set "begtime=%time: =0%"
     call :%%f
+    set "endtime=%time: =0%"
     popd
+
+    REM see https://stackoverflow.com/a/9935540
+    set "endtimecalc=!endtime:%time:~8,1%=%%100)*100+1!" & set "begtimecalc=!begtime:%time:~8,1%=%%100)*100+1!"
+    set /A "duration=((((10!endtimecalc:%time:~2,1%=%%100)*60+1!%%100)-((((10!begtimecalc:%time:~2,1%=%%100)*60+1!%%100), duration-=(duration>>31)*24*60*60*100"
+    set /A "duration=10*duration"
 
     if !ERRORLEVEL! neq 0 (
         set /a testfail=testfail+1
 
-        echo === Failed %%f
+        echo === Failed %%f (!duration! ms)
 
         if defined APPVEYOR (
-            appveyor UpdateTest "%%f" -FileName None -Framework None -Outcome Failed -Duration 0
+            appveyor UpdateTest "%%f" -FileName None -Framework None -Outcome Failed -Duration !duration!
         )
     ) else (
         set /a testpass=testpass+1
 
-        echo === Passed %%f
+        echo === Passed %%f (!duration! ms)
 
         if defined APPVEYOR (
-            appveyor UpdateTest "%%f" -FileName None -Framework None -Outcome Passed -Duration 0
+            appveyor UpdateTest "%%f" -FileName None -Framework None -Outcome Passed -Duration !duration!
         )
     )
     echo:
