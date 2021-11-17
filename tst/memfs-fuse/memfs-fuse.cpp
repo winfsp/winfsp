@@ -43,39 +43,71 @@ public:
     {
         static fuse_operations ops =
         {
-            .getattr = getattr,
-            .readlink = readlink,
-            .mknod = mknod,
-            .mkdir = mkdir,
-            .unlink = unlink,
-            .rmdir = rmdir,
-            .symlink = symlink,
-            .rename = rename,
-            .link = link,
-            .chmod = chmod,
-            .chown = chown,
-            .truncate = truncate,
-            .open = open,
-            .read = read,
-            .write = write,
-            .statfs = statfs,
-            .flush = flush,
-            .release = release,
-            .setxattr = setxattr,
-            .getxattr = getxattr,
-            .listxattr = listxattr,
-            .removexattr = removexattr,
-            .opendir = opendir,
-            .readdir = readdir,
-            .releasedir = releasedir,
-            .init = init,
-            .ftruncate = ftruncate,
-            .fgetattr = fgetattr,
-            .utimens = utimens,
-            .setcrtime = setcrtime,
+            getattr,
+            0, // getdir
+            readlink,
+            mknod,
+            mkdir,
+            unlink,
+            rmdir,
+            symlink,
+            rename,
+            link,
+            chmod,
+            chown,
+            truncate,
+            0, // utime
+            open,
+            read,
+            write,
+            statfs,
+            flush,
+            release,
+            0, // fsync
+            setxattr,
+            getxattr,
+            listxattr,
+            removexattr,
+            opendir,
+            readdir,
+            releasedir,
+            0, // fsyncdir
+            init,
+            0, // destroy
+            0, // access
+            0, // create
+            ftruncate,
+            fgetattr,
+            0, // lock
+            utimens,
+            0, // bmap
+            0, // flag_nullpath_ok
+            0, // flag_nopath
+            0, // flag_utime_omit_ok
+            0, // flag_reserved
+            0, // ioctl
+            0, // poll
+            0, // write_buf
+            0, // read_buf
+            0, // flock
+            0, // fallocate
+            0, // reserved00
+            0, // reserved01
+            0, // reserved02
+            0, // statfs_x
+            0, // setvolname
+            0, // exchange
+            0, // getxtimes
+            0, // setbkuptime
+            0, // setchgtime
+            setcrtime,
 #if defined(FSP_FUSE_USE_STAT_EX)
-            .chflags = chflags,
+            chflags,
+#else
+            0, // chflags
 #endif
+            0, // setattr_x
+            0, // fsetattr_x
         };
         return fuse_main(argc, argv, &ops, this);
     }

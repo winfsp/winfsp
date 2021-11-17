@@ -104,7 +104,6 @@
       <AdditionalIncludeDirectories>$(MSBuildProgramFiles32)\WinFsp\inc\fuse;$(MSBuildProgramFiles32)\WinFsp\inc</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <DisableSpecificWarnings>4018</DisableSpecificWarnings>
-      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -124,7 +123,6 @@
       <AdditionalIncludeDirectories>$(MSBuildProgramFiles32)\WinFsp\inc\fuse;$(MSBuildProgramFiles32)\WinFsp\inc</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <DisableSpecificWarnings>4018</DisableSpecificWarnings>
-      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -146,7 +144,6 @@
       <AdditionalIncludeDirectories>$(MSBuildProgramFiles32)\WinFsp\inc\fuse;$(MSBuildProgramFiles32)\WinFsp\inc</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <DisableSpecificWarnings>4018</DisableSpecificWarnings>
-      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -170,7 +167,6 @@
       <AdditionalIncludeDirectories>$(MSBuildProgramFiles32)\WinFsp\inc\fuse;$(MSBuildProgramFiles32)\WinFsp\inc</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <DisableSpecificWarnings>4018</DisableSpecificWarnings>
-      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
