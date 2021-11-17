@@ -715,12 +715,12 @@ if not X!IfsTestFound!==XYES set IfsTestExit=1
 exit /b !IfsTestExit!
 
 :sample-memfs-fuse-x64
-call :__run_sample_fuse_test memfs-fuse x64 memfs-fuse-x64 winfsp-tests-x64
+call :__run_sample_fuse_test memfs-fuse x64 memfs-fuse-x64 winfsp-tests-x64 "+*"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-memfs-fuse-x86
-call :__run_sample_fuse_test memfs-fuse x86 memfs-fuse-x86 winfsp-tests-x86
+call :__run_sample_fuse_test memfs-fuse x86 memfs-fuse-x86 winfsp-tests-x86 "+*"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -736,13 +736,13 @@ exit /b 0
 
 :sample-memfs-fuse3-x64
 call :__run_sample_fuse_test memfs-fuse3 x64 memfs-fuse3-x64 winfsp-tests-x64 ^
-    "-create_fileattr_test -create_readonlydir_test -setfileinfo_test"
+    "+* -create_fileattr_test -create_readonlydir_test -setfileinfo_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-memfs-fuse3-x86
 call :__run_sample_fuse_test memfs-fuse3 x86 memfs-fuse3-x86 winfsp-tests-x86 ^
-    "-create_fileattr_test -create_readonlydir_test -setfileinfo_test"
+    "+* -create_fileattr_test -create_readonlydir_test -setfileinfo_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
