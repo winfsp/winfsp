@@ -141,6 +141,7 @@ for %%f in (%tests%) do (
     pushd %cd%
     set "begtime=!time: =0!"
     call :%%f
+    set ERRORLEVEL_save=!ERRORLEVEL!
     set "endtime=!time: =0!"
     popd
 
@@ -149,7 +150,7 @@ for %%f in (%tests%) do (
     set /A "duration=((((10!endtimecalc:%time:~2,1%=%%100)*60+1!%%100)-((((10!begtimecalc:%time:~2,1%=%%100)*60+1!%%100), duration-=(duration>>31)*24*60*60*100"
     set /A "duration=10*duration"
 
-    if !ERRORLEVEL! neq 0 (
+    if !ERRORLEVEL_save! neq 0 (
         set /a testfail=testfail+1
 
         echo === Failed %%f ^(!duration! ms^)
@@ -736,13 +737,13 @@ exit /b 0
 
 :sample-memfs-fuse3-x64
 call :__run_sample_fuse_test memfs-fuse3 x64 memfs-fuse3-x64 winfsp-tests-x64 ^
-    "+* -create_fileattr_test -create_readonlydir_test -setfileinfo_test"
+    "+* -create_fileattr_test -create_readonlydir_test -setfileinfo_test -delete_access_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-memfs-fuse3-x86
 call :__run_sample_fuse_test memfs-fuse3 x86 memfs-fuse3-x86 winfsp-tests-x86 ^
-    "+* -create_fileattr_test -create_readonlydir_test -setfileinfo_test"
+    "+* -create_fileattr_test -create_readonlydir_test -setfileinfo_test -delete_access_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -901,7 +902,7 @@ call %ProjRoot%\tools\build-sample %Configuration% %2 %1 "%TMP%\%1"
 if !ERRORLEVEL! neq 0 goto fail
 mkdir "%TMP%\%1\test"
 call "%ProjRoot%\tools\fsreg" %1 "%TMP%\%1\build\%Configuration%\%3.exe" ^
-    "-ouid=11,gid=65792 --VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
+    "-orellinks,uid=11,gid=65792 --VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
 echo net use L: "\\%1\%TMP::=$%\%1\test"
 net use L: "\\%1\%TMP::=$%\%1\test"
 if !ERRORLEVEL! neq 0 goto fail
