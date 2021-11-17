@@ -43,7 +43,6 @@ set dfl_tests=^
     winfsp-tests-x64-external-share ^
     fsx-memfs-x64-disk ^
     fsx-memfs-x64-net ^
-    fsx-memfs-x64-slowio ^
     standby-memfs-x64-disk ^
     standby-memfs-x64-net ^
     net-use-memfs-x64 ^
@@ -64,7 +63,6 @@ set dfl_tests=^
     winfsp-tests-x86-external-share ^
     fsx-memfs-x86-disk ^
     fsx-memfs-x86-net ^
-    fsx-memfs-x86-slowio ^
     standby-memfs-x86-disk ^
     standby-memfs-x86-net ^
     net-use-memfs-x86 ^
@@ -75,13 +73,16 @@ set dfl_tests=^
     winfsp-tests-dotnet-external-share ^
     fsx-memfs-dotnet-disk ^
     fsx-memfs-dotnet-net ^
-    fsx-memfs-dotnet-slowio ^
     winfstest-memfs-dotnet-disk ^
     winfstest-memfs-dotnet-net
 set opt_tests=^
     ifstest-memfs-x64-disk ^
     ifstest-memfs-x86-disk ^
     ifstest-memfs-dotnet-disk ^
+    sample-memfs-fuse-x64 ^
+    sample-fsx-memfs-fuse-x64 ^
+    sample-memfs-fuse-x86 ^
+    sample-fsx-memfs-fuse-x86 ^
     sample-memfs-fuse3-x64 ^
     sample-fsx-memfs-fuse3-x64 ^
     sample-memfs-fuse3-x86 ^
@@ -99,6 +100,9 @@ set opt_tests=^
     sample-passthrough-fuse3-x86 ^
     sample-fsx-passthrough-fuse3-x86 ^
     sample-passthrough-dotnet ^
+    slowio-fsx-memfs-x64 ^
+    slowio-fsx-memfs-x86 ^
+    slowio-fsx-memfs-dotnet ^
     compat-v1.2-memfs-x64 ^
     compat-v1.2-memfs-x86 ^
     compat-v1.1-passthrough-fuse-x64 ^
@@ -524,17 +528,17 @@ if !ERRORLEVEL! neq 0 goto fail
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:fsx-memfs-x64-slowio
+:slowio-fsx-memfs-x64
 call :__run_fsx_memfs_slowio_test memfs64-slowio memfs-x64
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:fsx-memfs-x86-slowio
+:slowio-fsx-memfs-x86
 call :__run_fsx_memfs_slowio_test memfs32-slowio memfs-x86
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:fsx-memfs-dotnet-slowio
+:slowio-fsx-memfs-dotnet
 call :__run_fsx_memfs_slowio_test memfs.net-slowio memfs-dotnet-msil
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
@@ -710,6 +714,26 @@ for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* /v ^| findstr /
 if not X!IfsTestFound!==XYES set IfsTestExit=1
 exit /b !IfsTestExit!
 
+:sample-memfs-fuse-x64
+call :__run_sample_fuse_test memfs-fuse x64 memfs-fuse-x64 winfsp-tests-x64
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-memfs-fuse-x86
+call :__run_sample_fuse_test memfs-fuse x86 memfs-fuse-x86 winfsp-tests-x86
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-fsx-memfs-fuse-x64
+call :__run_sample_fsx_fuse_test memfs-fuse x64 memfs-fuse-x64 fsx
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-fsx-memfs-fuse-x86
+call :__run_sample_fsx_fuse_test memfs-fuse x86 memfs-fuse-x86 fsx
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
 :sample-memfs-fuse3-x64
 call :__run_sample_fuse_test memfs-fuse3 x64 memfs-fuse3-x64 winfsp-tests-x64 ^
     "-create_fileattr_test -create_readonlydir_test -setfileinfo_test"
@@ -769,12 +793,12 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-fuse-x64
-call :__run_sample_fuse_test passthrough-fuse x64 passthrough-fuse-x64 winfsp-tests-x64
+call :__run_sample_fuse_oldtest passthrough-fuse x64 passthrough-fuse-x64 winfsp-tests-x64
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-fuse-x86
-call :__run_sample_fuse_test passthrough-fuse x86 passthrough-fuse-x86 winfsp-tests-x86
+call :__run_sample_fuse_oldtest passthrough-fuse x86 passthrough-fuse-x86 winfsp-tests-x86
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -789,13 +813,13 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-fuse3-x64
-call :__run_sample_fuse_test passthrough-fuse3 x64 passthrough-fuse3-x64 winfsp-tests-x64 ^
+call :__run_sample_fuse_oldtest passthrough-fuse3 x64 passthrough-fuse3-x64 winfsp-tests-x64 ^
     "-create_fileattr_test -create_readonlydir_test -setfileinfo_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-passthrough-fuse3-x86
-call :__run_sample_fuse_test passthrough-fuse3 x86 passthrough-fuse3-x86 winfsp-tests-x86 ^
+call :__run_sample_fuse_oldtest passthrough-fuse3 x86 passthrough-fuse3-x86 winfsp-tests-x86 ^
     "-create_fileattr_test -create_readonlydir_test -setfileinfo_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
@@ -872,6 +896,31 @@ rmdir /s/q "%TMP%\%1"
 exit /b !RunSampleTestExit!
 
 :__run_sample_fuse_test
+set RunSampleTestExit=0
+call %ProjRoot%\tools\build-sample %Configuration% %2 %1 "%TMP%\%1"
+if !ERRORLEVEL! neq 0 goto fail
+mkdir "%TMP%\%1\test"
+call "%ProjRoot%\tools\fsreg" %1 "%TMP%\%1\build\%Configuration%\%3.exe" ^
+    "-ouid=11,gid=65792 --VolumePrefix=%%%%1 %%%%2" "D:P(A;;RPWPLC;;;WD)"
+echo net use L: "\\%1\%TMP::=$%\%1\test"
+net use L: "\\%1\%TMP::=$%\%1\test"
+if !ERRORLEVEL! neq 0 goto fail
+echo net use ^| findstr L:
+net use | findstr L:
+pushd >nul
+cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
+L:
+"%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
+    --fuse-external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" %~5
+if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
+popd
+echo net use L: /delete
+net use L: /delete
+call "%ProjRoot%\tools\fsreg" -u %1
+rmdir /s/q "%TMP%\%1"
+exit /b !RunSampleTestExit!
+
+:__run_sample_fuse_oldtest
 set RunSampleTestExit=0
 call %ProjRoot%\tools\build-sample %Configuration% %2 %1 "%TMP%\%1"
 if !ERRORLEVEL! neq 0 goto fail
