@@ -1,6 +1,48 @@
 = Changelog
 
 
+v1.10B4 (2022 Beta4)::
+
+Changes since v1.9:
+
+* [NEW] Official Windows 11 support.
+
+* [NEW] WinFsp has had its Delete functionality redesigned in release 2021.1 Beta3. This redesign unifies all Windows file deletion semantics under a single file system operation that also supports the new POSIX semantics introduced in Windows 10 Redstone 1. The new Delete design is recommended for new file systems, however existing file systems will continue to work without any changes. See https://github.com/billziss-gh/winfsp/wiki/WinFsp-Delete-Redesign for more information.
+
+* [NEW] Support for `FileDispositionInformationEx` and `FileRenameInformationEx` has been added (see above).
+
+* [NEW] WinFsp now supports rebranding of the build products. This is primarily useful to commercial licensees. See https://github.com/billziss-gh/winfsp/wiki/WinFsp-Rebranding for more information.
+
+* [NEW] WinFsp-FUSE has a new capability `FSP_FUSE_CAP_DELETE_ACCESS`. If this capability is specified WinFsp will call the FUSE `access` method with the WinFsp-specific flag `FSP_FUSE_DELETE_OK` to check whether the deletion should be allowed. This can be used to disallow deletion of files and directories that would normally be allowed under the FUSE/POSIX model.
+
+* [NEW] WinFsp-FUSE has a new method for determining file access in the case where the user's primary SID (Windows Security Identifier) and group SID are the same (for example, this can happen when someone uses a Microsoft account as their primary login).
+** Previously when the user SID and group SID were the same WinFsp-FUSE looked at the UNIX permissions for the owner and the UNIX permissions for the group and used the MOST restrictive permissions, which often resulted in inadvertent "access denied" errors. (For example, if the owner permission was `rw-` and the group permission was `---` the result was `---` and therefore access denied).
+** Going forward this behavior will change. The user and group mode permissions will not be considered together even in the case where the user SID and group SID are the same. This will resolve the access denied errors.
+** However to preserve backward compatibility (there might be some file systems that rely on the old behavior) we will do so in stages. For release v1.10 (2021.1) there is a new registry setting under `HKLM\SOFTWARE\WinFsp` (or `HKLM\SOFTWARE\WOW6432Node\WinFsp` on a 64-bit system) called `DistinctPermsForSameOwnerGroup`, which if set to 1 will direct WinFsp-FUSE to use the new behavior. The default value is 0 which directs WinFsp-FUSE to use the old behavior. This default will change in a future release.
+
+* [NEW] A new registry setting under `HKLM\SOFTWARE\WinFsp` (or `HKLM\SOFTWARE\WOW6432Node\WinFsp` on a 64-bit system) called `MountDoNotUseLauncher` has been introduced, which if set to 1 will disable the use of the Launcher during mounting. The default value is 0 which allows the use of the Launcher during mounting in those rare cases when necessary. (In general the Launcher is not necessary for mounting. However when running a file system in the Windows Service context (session 0) under an account that is not LocalSystem (e.g. `NT AUTHORITY\NETWORK SERVICE`), the Launcher is used to create global drives.)
+
+* [NEW] A new sample memfs-fuse file system written in C++ has been added. This file system uses all FUSE2 features offered by WinFsp-FUSE, passes all file system tests (that can be passed by a FUSE2 file system) and will act as the reference WinFsp-FUSE file system going forward.
+
+* [FIX] File share access when overwriting a file (e.g. when using `TRUNCATE_EXISTING`) is now done in a manner compatible with NTFS (previously there were cases when overwriting a file where behavior diverged from the NTFS one). (See GitHub issue #364.)
+
+* [FIX] The FSD will now report a file's reparse tag in the `EaSize` field of `FILE_FULL_DIR_INFORMATION` and friends. This fixes problems such as `cmd.exe` not recognizing symlinks in a `dir` command. (See GitHub issue #380.)
+
+* [FIX] Fixed a problem in the file system shutdown protocol which resolves an occasional access violation in the user mode file system process. Previously it was possible for a file system to crash when stopping itself using `FspFileSystemStopDispatcher`; this problem has been rectified. (See GitHub issue #369.)
+
+* [FIX] Improved symlink support for FUSE file systems. Notably:
+
+** FUSE file systems now support converting a directory to a symlink reparse point.
+
+** The determination of whether a symlink is a file or directory (necessary because the Windows file system makes this distinction) is now possible for file systems that do not support slashdot (`/.`) queries. (A slashdot query is one like `getattr("/PATH/.")`; such queries are not normally expected to be resolved by FUSE file systems.)
+
+* [FIX] Fixed a problem in the FUSE layer where in some rare circumstances the `release` operation could be called with an uninitialized `path` argument. (See GitHub issue billziss-gh/cgofuse#58 and commit f51bdef53427d1bba688fb6c768792fdc22ffc7b).
+
+* [FIX] Fixed a potential problem when launching file system instances using the Launcher. (See GitHub issue #356.)
+
+* [FIX] The `winfsp.h` header no longer defines `FILE_FULL_EA_INFORMATION` when compiled under mingw. This is because the mingw tool chain already includes a definition of this type. (GitHub PR #371. Thanks @lemourin.)
+
+
 v1.10B3 (2021.1 Beta3)::
 
 Changes since v1.9:
