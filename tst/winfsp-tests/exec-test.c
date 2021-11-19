@@ -200,6 +200,27 @@ static void exec_delete_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     ASSERT(!DeleteFileW(FilePath));
     ASSERT(ERROR_ACCESS_DENIED == GetLastError());
 
+    {
+        MY_FILE_DISPOSITION_INFO_EX DispositionInfo;
+        HANDLE Handle;
+        BOOLEAN Success;
+        Handle = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_DELETE, 0,
+            OPEN_EXISTING, 0, 0);
+        if (INVALID_HANDLE_VALUE != Handle)
+        {
+            DispositionInfo.Disposition = FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS;
+            Success = SetFileInformationByHandle(Handle,
+                21/*FileDispositionInfoEx*/, &DispositionInfo, sizeof DispositionInfo);
+            ASSERT(!Success);
+            ASSERT(
+                ERROR_INVALID_PARAMETER == GetLastError() ||
+                ERROR_ACCESS_DENIED == GetLastError());
+            Success = CloseHandle(Handle);
+            ASSERT(Success);
+        }
+    }
+
     WaitHelper(Process, 1000);
 
     ASSERT(DeleteFileW(FilePath));

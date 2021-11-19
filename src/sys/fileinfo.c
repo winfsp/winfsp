@@ -1513,15 +1513,25 @@ retry:
         if (!NT_SUCCESS(Result))
             goto unlock_exit;
 
-        if (FlagOn(DispositionFlags, FILE_DISPOSITION_FORCE_IMAGE_SECTION_CHECK))
+        /*
+         * Make sure no process is mapping the file as an image.
+         *
+         * NOTE:
+         *     Turns out that NTFS always does this test, even when
+         *     FILE_DISPOSITION_FORCE_IMAGE_SECTION_CHECK has been specified.
+         *     If MmFlushImageSection fails (e.g. an actively running EXE) then
+         *     it only allows the deletion to go through when a secondary hard
+         *     link is being deleted.
+         *
+         *     Since WinFsp does not support hard links, we will go ahead and
+         *     ignore the FILE_DISPOSITION_FORCE_IMAGE_SECTION_CHECK flag and
+         *     always respect the result of MmFlushImageSection.
+         */
+        Success = MmFlushImageSection(FileObject->SectionObjectPointer, MmFlushForDelete);
+        if (!Success)
         {
-            /* make sure no process is mapping the file as an image */
-            Success = MmFlushImageSection(FileObject->SectionObjectPointer, MmFlushForDelete);
-            if (!Success)
-            {
-                Result = STATUS_CANNOT_DELETE;
-                goto unlock_exit;
-            }
+            Result = STATUS_CANNOT_DELETE;
+            goto unlock_exit;
         }
 
         if (FlagOn(DispositionFlags, FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE))

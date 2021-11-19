@@ -154,6 +154,10 @@ typedef struct
 {
     BOOLEAN Disposition;
 } MY_FILE_DISPOSITION_INFO;
+typedef struct
+{
+    UINT32 Disposition;
+} MY_FILE_DISPOSITION_INFO_EX;
 
 void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout);
 void *memfs_start(ULONG Flags);
