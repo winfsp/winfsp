@@ -156,7 +156,7 @@ typedef struct
 } MY_FILE_DISPOSITION_INFO;
 typedef struct
 {
-    UINT32 Disposition;
+    ULONG Flags;
 } MY_FILE_DISPOSITION_INFO_EX;
 
 void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout);
