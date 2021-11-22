@@ -1348,6 +1348,28 @@ namespace Fsp
                 return ExceptionHandler(FileSystem, ex);
             }
         }
+        private static Int32 SetDelete(
+            IntPtr FileSystemPtr,
+            ref FullContext FullContext,
+            String FileName,
+            Boolean DeleteFile)
+        {
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
+            try
+            {
+                Object FileNode, FileDesc;
+                Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
+                return FileSystem.SetDelete(
+                    FileNode,
+                    FileDesc,
+                    FileName,
+                    DeleteFile);
+            }
+            catch (Exception ex)
+            {
+                return ExceptionHandler(FileSystem, ex);
+            }
+        }
         private static Int32 GetEa(
             IntPtr FileSystemPtr,
             ref FullContext FullContext,
@@ -1398,28 +1420,6 @@ namespace Fsp
                 return ExceptionHandler(FileSystem, ex);
             }
         }
-        private static Int32 Delete(
-            IntPtr FileSystemPtr,
-            ref FullContext FullContext,
-            String FileName,
-            UInt32 Flags)
-        {
-            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
-            try
-            {
-                Object FileNode, FileDesc;
-                Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
-                return FileSystem.Delete(
-                    FileNode,
-                    FileDesc,
-                    FileName,
-                    Flags);
-            }
-            catch (Exception ex)
-            {
-                return ExceptionHandler(FileSystem, ex);
-            }
-        }
 
         static FileSystemHost()
         {
@@ -1448,9 +1448,9 @@ namespace Fsp
             _FileSystemInterface.GetStreamInfo = GetStreamInfo;
             _FileSystemInterface.GetDirInfoByName = GetDirInfoByName;
             _FileSystemInterface.Control = Control;
+            _FileSystemInterface.SetDelete = SetDelete;
             _FileSystemInterface.GetEa = GetEa;
             _FileSystemInterface.SetEa = SetEa;
-            _FileSystemInterface.Delete = Delete;
 
             _FileSystemInterfacePtr = Marshal.AllocHGlobal(FileSystemInterface.Size);
             /* Marshal.AllocHGlobal does not zero memory; we must do it ourselves! */

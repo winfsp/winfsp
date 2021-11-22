@@ -57,14 +57,6 @@ namespace Fsp
         public const UInt32 CleanupSetLastWriteTime = 0x40;
         public const UInt32 CleanupSetChangeTime = 0x80;
 
-        /* Disposition */
-        public const UInt32 FILE_DISPOSITION_DO_NOT_DELETE = 0x00000000;
-        public const UInt32 FILE_DISPOSITION_DELETE = 0x00000001;
-        public const UInt32 FILE_DISPOSITION_POSIX_SEMANTICS = 0x00000002;
-        public const UInt32 FILE_DISPOSITION_FORCE_IMAGE_SECTION_CHECK = 0x00000004;
-        public const UInt32 FILE_DISPOSITION_ON_CLOSE = 0x00000008;
-        public const UInt32 FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE = 0x00000010;
-
         /* NTSTATUS */
         public const Int32 STATUS_SUCCESS = unchecked((Int32)0x00000000);
         public const Int32 STATUS_WAIT_1 = unchecked((Int32)0x00000001);

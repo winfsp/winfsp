@@ -564,6 +564,19 @@ namespace memfs
                     AllocationUnit * AllocationUnit;
                 SetFileSizeInternal(FileNode, AllocationSize, true);
             }
+
+            if (0 != (Flags & CleanupDelete) && !FileNodeMap.HasChild(FileNode))
+            {
+                List<String> StreamFileNames = new List<String>(FileNodeMap.GetStreamFileNames(FileNode));
+                foreach (String StreamFileName in StreamFileNames)
+                {
+                    FileNode StreamNode = FileNodeMap.Get(StreamFileName);
+                    if (null == StreamNode)
+                        continue; /* should not happen */
+                    FileNodeMap.Remove(StreamNode);
+                }
+                FileNodeMap.Remove(FileNode);
+            }
         }
 
         public override void Close(
@@ -904,6 +917,19 @@ namespace memfs
                     FileNode.FileInfo.FileSize = NewSize;
                 }
             }
+
+            return STATUS_SUCCESS;
+        }
+
+        public override Int32 CanDelete(
+            Object FileNode0,
+            Object FileDesc,
+            String FileName)
+        {
+            FileNode FileNode = (FileNode)FileNode0;
+
+            if (FileNodeMap.HasChild(FileNode))
+                return STATUS_DIRECTORY_NOT_EMPTY;
 
             return STATUS_SUCCESS;
         }
@@ -1304,45 +1330,6 @@ namespace memfs
             }
             FileNode.FileInfo.EaSize = FileNode.FileInfo.EaSize + EaSizePlus - EaSizeMinus;
             return STATUS_SUCCESS;
-        }
-        public override Int32 Delete(
-            Object FileNode0,
-            Object FileDesc,
-            String FileName,
-            UInt32 Flags)
-        {
-            FileNode FileNode = (FileNode)FileNode0;
-
-            switch (Flags)
-            {
-            case FILE_DISPOSITION_DO_NOT_DELETE:
-                return STATUS_SUCCESS;
-
-            case FILE_DISPOSITION_DELETE:
-                if (FileNodeMap.HasChild(FileNode))
-                    return STATUS_DIRECTORY_NOT_EMPTY;
-                return STATUS_SUCCESS;
-
-            case FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS:
-            case ~(UInt32)0:
-                if (FileNodeMap.HasChild(FileNode))
-                    return STATUS_DIRECTORY_NOT_EMPTY;
-
-                List<String> StreamFileNames = new List<String>(FileNodeMap.GetStreamFileNames(FileNode));
-                foreach (String StreamFileName in StreamFileNames)
-                {
-                    FileNode StreamNode = FileNodeMap.Get(StreamFileName);
-                    if (null == StreamNode)
-                        continue; /* should not happen */
-                    FileNodeMap.Remove(StreamNode);
-                }
-
-                FileNodeMap.Remove(FileNode);
-                return STATUS_SUCCESS;
-
-            default:
-                return STATUS_INVALID_PARAMETER;
-            }
         }
 
         private FileNodeMap FileNodeMap;

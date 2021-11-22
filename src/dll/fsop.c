@@ -1001,20 +1001,11 @@ FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
 
     if (Request->Req.Cleanup.Delete && 0 != FileSystem->Interface->Delete)
     {
-        NTSTATUS Result = FileSystem->Interface->Delete(FileSystem,
+        FileSystem->Interface->Delete(FileSystem,
             (PVOID)ValOfFileContext(Request->Req.Cleanup),
             0 != Request->FileName.Size ? (PWSTR)Request->Buffer : 0,
             (ULONG)-1);
-        /*
-         * If Delete returns STATUS_NOT_IMPLEMENTED it means that it is unable
-         * to handle file deletion during the Cleanup phase. In this case we
-         * will handle file deletion in Cleanup with the FspCleanupDelete flag.
-         *
-         * This is necessary for file systems like the .NET layer where Delete
-         * may be implemented but unable to handle all file deletion cases.
-         */
-        if (STATUS_NOT_IMPLEMENTED != Result)
-            CleanupFlags &= ~FspCleanupDelete;
+        CleanupFlags &= ~FspCleanupDelete;
     }
 
     if (0 != FileSystem->Interface->Cleanup)

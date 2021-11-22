@@ -289,9 +289,6 @@ namespace Fsp
         /// </summary>
         /// <remarks>
         /// <para>
-        /// (NOTE: use of this function with the CleanupDelete flag is not recommended;
-        /// use Delete instead.)
-        /// </para><para>
         /// When CreateFile is used to open or create a file the kernel creates a kernel mode file
         /// object (type FILE_OBJECT) and a handle for it, which it returns to user-mode. The handle may
         /// be duplicated (using DuplicateHandle), but all duplicate handles always refer to the same
@@ -345,7 +342,6 @@ namespace Fsp
         /// </param>
         /// <seealso cref="CanDelete"/>
         /// <seealso cref="SetDelete"/>
-        /// <seealso cref="Delete"/>
         /// <seealso cref="Close"/>
         public virtual void Cleanup(
             Object FileNode,
@@ -602,8 +598,6 @@ namespace Fsp
         /// </summary>
         /// <remarks>
         /// <para>
-        /// (NOTE: use of this function is not recommended; use Delete instead.)
-        /// </para><para>
         /// This function tests whether a file or directory can be safely deleted. This function does
         /// not need to perform access checks, but may performs tasks such as check for empty
         /// directories, etc.
@@ -630,7 +624,6 @@ namespace Fsp
         /// <returns>STATUS_SUCCESS or error code.</returns>
         /// <seealso cref="Cleanup"/>
         /// <seealso cref="SetDelete"/>
-        /// <seealso cref="Delete"/>
         public virtual Int32 CanDelete(
             Object FileNode,
             Object FileDesc,
@@ -1043,8 +1036,6 @@ namespace Fsp
         /// </summary>
         /// <remarks>
         /// <para>
-        /// (NOTE: use of this function is not recommended; use Delete instead.)
-        /// </para><para>
         /// This function sets a flag to indicates whether the FSD file should delete a file
         /// when it is closed. This function does not need to perform access checks, but may
         /// performs tasks such as check for empty directories, etc.
@@ -1076,7 +1067,6 @@ namespace Fsp
         /// <returns>STATUS_SUCCESS or error code.</returns>
         /// <seealso cref="Cleanup"/>
         /// <seealso cref="CanDelete"/>
-        /// <seealso cref="Delete"/>
         public virtual Int32 SetDelete(
             Object FileNode,
             Object FileDesc,
@@ -1197,85 +1187,6 @@ namespace Fsp
             Boolean NeedEa)
         {
             return STATUS_INVALID_DEVICE_REQUEST;
-        }
-        /// <summary>
-        /// Sets the file delete flag or deletes a file or directory.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// This function replaces CanDelete, SetDelete and uses of Cleanup with the CleanupDelete flag
-        /// and is recommended for use in all new code.
-        /// </para><para>
-        /// Due to the complexity of file deletion in the Windows file system this function is used
-        /// in many scenarios. Its usage is controlled by the Flags parameter:
-        /// <list>
-        /// <item>FILE_DISPOSITION_DO_NOT_DELETE: Unmark the file for deletion.
-        /// Do <b>NOT</b> delete the file either now or at Cleanup time.</item>
-        /// <item>FILE_DISPOSITION_DELETE: Mark the file for deletion,
-        /// but do <b>NOT</b> delete the file. The file will be deleted at Cleanup time
-        /// (via a call to Delete with Flags = -1).
-        /// This function does not need to perform access checks, but may
-        /// performs tasks such as check for empty directories, etc.</item>
-        /// <item>FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS: Delete the file
-        /// <b>NOW</b> using POSIX semantics. Open user mode handles to the file remain valid.
-        /// This case will be received only when SupportsPosixUnlinkRename is set.</item>
-        /// <item>-1: Delete the file <b>NOW</b> using regular Windows semantics.
-        /// Called during Cleanup with no open user mode handles remaining.
-        /// If a file system implements Delete, Cleanup should <b>NOT</b> be used for deletion anymore.</item>
-        /// </list>
-        /// </para><para>
-        /// This function gets called in all file deletion scenarios:
-        /// <list>
-        /// <item>When the DeleteFile or RemoveDirectory API's are used.</item>
-        /// <item>When the SetInformationByHandle API with FileDispositionInfo or FileDispositionInfoEx is used.</item>
-        /// <item>When a file is opened using FILE_DELETE_ON_CLOSE.</item>
-        /// <item>Etc.</item>
-        /// </list>
-        /// </para><para>
-        /// NOTE: Delete takes precedence over CanDelete, SetDelete and Cleanup with the CleanupDelete flag.
-        /// This means that if Delete is defined, CanDelete and SetDelete will never be called and
-        /// Cleanup will never be called with the CleanupDelete flag.
-        /// </para>
-        /// </remarks>
-        /// <param name="FileNode">
-        /// The file node of the file or directory.
-        /// </param>
-        /// <param name="FileDesc">
-        /// The file descriptor of the file or directory.
-        /// </param>
-        /// <param name="FileName">
-        /// The name of the file or directory.
-        /// </param>
-        /// <param name="Flags">
-        /// File disposition flags.
-        /// </param>
-        /// <returns>STATUS_SUCCESS or error code.</returns>
-        /// <seealso cref="Cleanup"/>
-        /// <seealso cref="CanDelete"/>
-        /// <seealso cref="SetDelete"/>
-        public virtual Int32 Delete(
-            Object FileNode,
-            Object FileDesc,
-            String FileName,
-            UInt32 Flags)
-        {
-            switch (Flags)
-            {
-            case FILE_DISPOSITION_DO_NOT_DELETE:
-                return SetDelete(FileNode, FileDesc, FileName, false);
-
-            case FILE_DISPOSITION_DELETE:
-                return SetDelete(FileNode, FileDesc, FileName, true);
-
-            case FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS:
-                return STATUS_INVALID_PARAMETER;
-
-            case ~(UInt32)0:
-                return STATUS_NOT_IMPLEMENTED;
-
-            default:
-                return STATUS_INVALID_PARAMETER;
-            }
         }
 
         /* helpers */

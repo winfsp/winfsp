@@ -743,11 +743,7 @@ namespace Fsp.Interop
                 UInt32 EaLength,
                 out FileInfo FileInfo);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-            internal delegate Int32 Delete(
-                IntPtr FileSystem,
-                ref FullContext FullContext,
-                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
-                UInt32 Flags);
+            internal delegate Int32 Obsolete0();
         }
 
         internal static int Size = IntPtr.Size * 64;
@@ -783,8 +779,8 @@ namespace Fsp.Interop
         internal Proto.OverwriteEx OverwriteEx;
         internal Proto.GetEa GetEa;
         internal Proto.SetEa SetEa;
-        internal Proto.Delete Delete;
-        /* NTSTATUS (*Reserved[32])(); */
+        internal Proto.Obsolete0 Obsolete0;
+        /* NTSTATUS (*Reserved[33])(); */
     }
 
     [SuppressUnmanagedCodeSecurity]
