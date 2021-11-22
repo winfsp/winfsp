@@ -57,9 +57,7 @@ FSP_API NTSTATUS FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
                 (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass ||
-                65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass ||
-                (64/*FileDispositionInformationEx*/ == Request->Req.SetInformation.FileInformationClass &&
-                    3/*DELETE|POSIX_SEMANTICS*/ == (3 & Request->Req.SetInformation.Info.DispositionEx.Flags)))) ||
+                65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass)) ||
             FspFsctlTransactSetVolumeInformationKind == Request->Kind ||
             (FspFsctlTransactFlushBuffersKind == Request->Kind &&
                 0 == Request->Req.FlushBuffers.UserContext &&
@@ -71,8 +69,7 @@ FSP_API NTSTATUS FspFileSystemOpEnter(FSP_FILE_SYSTEM *FileSystem,
         if (FspFsctlTransactCreateKind == Request->Kind ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
                 (13/*FileDispositionInformation*/ == Request->Req.SetInformation.FileInformationClass ||
-                (64/*FileDispositionInformationEx*/ == Request->Req.SetInformation.FileInformationClass &&
-                    3/*DELETE|POSIX_SEMANTICS*/ != (3 & Request->Req.SetInformation.Info.DispositionEx.Flags)))) ||
+                64/*FileDispositionInformationEx*/ == Request->Req.SetInformation.FileInformationClass)) ||
             FspFsctlTransactQueryDirectoryKind == Request->Kind ||
             FspFsctlTransactQueryVolumeInformationKind == Request->Kind)
         {
@@ -101,9 +98,7 @@ FSP_API NTSTATUS FspFileSystemOpLeave(FSP_FILE_SYSTEM *FileSystem,
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
                 (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass ||
-                65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass ||
-                (64/*FileDispositionInformationEx*/ == Request->Req.SetInformation.FileInformationClass &&
-                    3/*DELETE|POSIX_SEMANTICS*/ == (3 & Request->Req.SetInformation.Info.DispositionEx.Flags)))) ||
+                65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass)) ||
             FspFsctlTransactSetVolumeInformationKind == Request->Kind ||
             (FspFsctlTransactFlushBuffersKind == Request->Kind &&
                 0 == Request->Req.FlushBuffers.UserContext &&
@@ -115,8 +110,7 @@ FSP_API NTSTATUS FspFileSystemOpLeave(FSP_FILE_SYSTEM *FileSystem,
         if (FspFsctlTransactCreateKind == Request->Kind ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
                 (13/*FileDispositionInformation*/ == Request->Req.SetInformation.FileInformationClass ||
-                (64/*FileDispositionInformationEx*/ == Request->Req.SetInformation.FileInformationClass &&
-                    3/*DELETE|POSIX_SEMANTICS*/ != (3 & Request->Req.SetInformation.Info.DispositionEx.Flags)))) ||
+                64/*FileDispositionInformationEx*/ == Request->Req.SetInformation.FileInformationClass)) ||
             FspFsctlTransactQueryDirectoryKind == Request->Kind ||
             FspFsctlTransactQueryVolumeInformationKind == Request->Kind)
         {
@@ -991,28 +985,16 @@ FSP_API NTSTATUS FspFileSystemOpOverwrite(FSP_FILE_SYSTEM *FileSystem,
 FSP_API NTSTATUS FspFileSystemOpCleanup(FSP_FILE_SYSTEM *FileSystem,
     FSP_FSCTL_TRANSACT_REQ *Request, FSP_FSCTL_TRANSACT_RSP *Response)
 {
-    ULONG CleanupFlags =
-        (0 != Request->Req.Cleanup.Delete ? FspCleanupDelete : 0) |
-        (0 != Request->Req.Cleanup.SetAllocationSize ? FspCleanupSetAllocationSize : 0) |
-        (0 != Request->Req.Cleanup.SetArchiveBit ? FspCleanupSetArchiveBit : 0) |
-        (0 != Request->Req.Cleanup.SetLastAccessTime ? FspCleanupSetLastAccessTime : 0) |
-        (0 != Request->Req.Cleanup.SetLastWriteTime ? FspCleanupSetLastWriteTime : 0) |
-        (0 != Request->Req.Cleanup.SetChangeTime ? FspCleanupSetChangeTime : 0);
-
-    if (Request->Req.Cleanup.Delete && 0 != FileSystem->Interface->Delete)
-    {
-        FileSystem->Interface->Delete(FileSystem,
-            (PVOID)ValOfFileContext(Request->Req.Cleanup),
-            0 != Request->FileName.Size ? (PWSTR)Request->Buffer : 0,
-            (ULONG)-1);
-        CleanupFlags &= ~FspCleanupDelete;
-    }
-
     if (0 != FileSystem->Interface->Cleanup)
         FileSystem->Interface->Cleanup(FileSystem,
             (PVOID)ValOfFileContext(Request->Req.Cleanup),
             0 != Request->FileName.Size ? (PWSTR)Request->Buffer : 0,
-            CleanupFlags);
+            (0 != Request->Req.Cleanup.Delete ? FspCleanupDelete : 0) |
+            (0 != Request->Req.Cleanup.SetAllocationSize ? FspCleanupSetAllocationSize : 0) |
+            (0 != Request->Req.Cleanup.SetArchiveBit ? FspCleanupSetArchiveBit : 0) |
+            (0 != Request->Req.Cleanup.SetLastAccessTime ? FspCleanupSetLastAccessTime : 0) |
+            (0 != Request->Req.Cleanup.SetLastWriteTime ? FspCleanupSetLastWriteTime : 0) |
+            (0 != Request->Req.Cleanup.SetChangeTime ? FspCleanupSetChangeTime : 0));
 
     return STATUS_SUCCESS;
 }
@@ -1171,17 +1153,7 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
                 break;
             }
         }
-        if (0 != FileSystem->Interface->Delete)
-        {
-            Result = FileSystem->Interface->Delete(FileSystem,
-                (PVOID)ValOfFileContext(Request->Req.SetInformation),
-                (PWSTR)Request->Buffer,
-                Request->Req.SetInformation.Info.DispositionEx.Flags & 3/*DELETE|POSIX_SEMANTICS*/);
-        }
-        else if (0 != (2/*POSIX_SEMANTICS*/ & Request->Req.SetInformation.Info.DispositionEx.Flags))
-            /* only FSP_FILE_SYSTEM_INTERFACE::Delete can do POSIX semantics; return error if unimplemented */
-            Result = STATUS_INVALID_PARAMETER;
-        else if (0 != FileSystem->Interface->SetDelete)
+        if (0 != FileSystem->Interface->SetDelete)
         {
             Result = FileSystem->Interface->SetDelete(FileSystem,
                 (PVOID)ValOfFileContext(Request->Req.SetInformation),

@@ -209,7 +209,7 @@ static void exec_delete_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
             OPEN_EXISTING, 0, 0);
         if (INVALID_HANDLE_VALUE != Handle)
         {
-            DispositionInfo.Flags = FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS;
+            DispositionInfo.Flags = 3/*FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS*/;
             Success = SetFileInformationByHandle(Handle,
                 21/*FileDispositionInfoEx*/, &DispositionInfo, sizeof DispositionInfo);
             ASSERT(!Success);

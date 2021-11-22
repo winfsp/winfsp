@@ -48,19 +48,6 @@ extern "C" {
 #endif
 
 /*
- * The FILE_DISPOSITION_* definitions appear to be missing from the user mode headers.
- */
-#if !defined(FILE_DISPOSITION_DELETE)
-#define FILE_DISPOSITION_DO_NOT_DELETE  0x00000000
-#define FILE_DISPOSITION_DELETE         0x00000001
-#define FILE_DISPOSITION_POSIX_SEMANTICS 0x00000002
-/* remaining flags are not needed for user mode file systems but included for completeness */
-#define FILE_DISPOSITION_FORCE_IMAGE_SECTION_CHECK 0x00000004
-#define FILE_DISPOSITION_ON_CLOSE       0x00000008
-#define FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE 0x00000010
-#endif
-
-/*
  * The REPARSE_DATA_BUFFER definitions appear to be missing from the user mode headers.
  */
 #if !defined(SYMLINK_FLAG_RELATIVE)
@@ -361,9 +348,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     /**
      * Cleanup a file.
      *
-     * (NOTE: use of this function with the FspCleanupDelete flag is not recommended;
-     * use Delete instead.)
-     *
      * When CreateFile is used to open or create a file the kernel creates a kernel mode file
      * object (type FILE_OBJECT) and a handle for it, which it returns to user-mode. The handle may
      * be duplicated (using DuplicateHandle), but all duplicate handles always refer to the same
@@ -418,7 +402,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      *     Close
      *     CanDelete
      *     SetDelete
-     *     Delete
      */
     VOID (*Cleanup)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext, PWSTR FileName, ULONG Flags);
@@ -592,8 +575,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     /**
      * Determine whether a file or directory can be deleted.
      *
-     * (NOTE: use of this function is not recommended; use Delete instead.)
-     *
      * This function tests whether a file or directory can be safely deleted. This function does
      * not need to perform access checks, but may performs tasks such as check for empty
      * directories, etc.
@@ -618,7 +599,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @see
      *     Cleanup
      *     SetDelete
-     *     Delete
      */
     NTSTATUS (*CanDelete)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext, PWSTR FileName);
@@ -900,8 +880,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     /**
      * Set the file delete flag.
      *
-     * (NOTE: use of this function is not recommended; use Delete instead.)
-     *
      * This function sets a flag to indicates whether the FSD file should delete a file
      * when it is closed. This function does not need to perform access checks, but may
      * performs tasks such as check for empty directories, etc.
@@ -930,7 +908,6 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @see
      *     Cleanup
      *     CanDelete
-     *     Delete
      */
     NTSTATUS (*SetDelete)(FSP_FILE_SYSTEM *FileSystem,
         PVOID FileContext, PWSTR FileName, BOOLEAN DeleteFile);
@@ -1063,59 +1040,8 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
         PVOID FileContext,
         PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength,
         FSP_FSCTL_FILE_INFO *FileInfo);
-    /**
-     * Set the file delete flag or delete a file.
-     *
-     * This function replaces CanDelete, SetDelete and uses of Cleanup with the FspCleanupDelete flag
-     * and is recommended for use in all new code.
-     *
-     * Due to the complexity of file deletion in the Windows file system this function is used
-     * in many scenarios. Its usage is controlled by the Flags parameter:
-     * <ul>
-     * <li>FILE_DISPOSITION_DO_NOT_DELETE: Unmark the file for deletion.
-     * Do <b>NOT</b> delete the file either now or at Cleanup time.</li>
-     * <li>FILE_DISPOSITION_DELETE: Mark the file for deletion,
-     * but do <b>NOT</b> delete the file. The file will be deleted at Cleanup time
-     * (via a call to Delete with Flags = -1).
-     * This function does not need to perform access checks, but may
-     * performs tasks such as check for empty directories, etc.</li>
-     * <li>FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS: Delete the file
-     * <b>NOW</b> using POSIX semantics. Open user mode handles to the file remain valid.
-     * This case will be received only when FSP_FSCTL_VOLUME_PARAMS :: SupportsPosixUnlinkRename is set.</li>
-     * <li>-1: Delete the file <b>NOW</b> using regular Windows semantics.
-     * Called during Cleanup with no open user mode handles remaining.
-     * If a file system implements Delete, Cleanup should <b>NOT</b> be used for deletion anymore.</li>
-     * </ul>
-     *
-     * This function gets called in all file deletion scenarios:
-     * <ul>
-     * <li>When the DeleteFile or RemoveDirectory API's are used.</li>
-     * <li>When the SetInformationByHandle API with FileDispositionInfo or FileDispositionInfoEx is used.</li>
-     * <li>When a file is opened using FILE_DELETE_ON_CLOSE.</li>
-     * <li>Etc.</li>
-     * </ul>
-     *
-     * NOTE: Delete takes precedence over CanDelete, SetDelete and Cleanup with the FspCleanupDelete flag.
-     * This means that if Delete is defined, CanDelete and SetDelete will never be called and
-     * Cleanup will never be called with the FspCleanupDelete flag.
-     *
-     * @param FileSystem
-     *     The file system on which this request is posted.
-     * @param FileContext
-     *     The file context of the file or directory to set the delete flag for.
-     * @param FileName
-     *     The name of the file or directory to set the delete flag for.
-     * @param Flags
-     *     File disposition flags
-     * @return
-     *     STATUS_SUCCESS or error code.
-     * @see
-     *     Cleanup
-     *     CanDelete
-     *     SetDelete
-     */
-    NTSTATUS (*Delete)(FSP_FILE_SYSTEM *FileSystem,
-        PVOID FileContext, PWSTR FileName, ULONG Flags);
+
+    NTSTATUS (*Obsolete0)(VOID);
 
     /*
      * This ensures that this interface will always contain 64 function pointers.
