@@ -42,9 +42,7 @@ VOID fsp_fuse_op_enter_lock(FSP_FILE_SYSTEM *FileSystem,
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
                 (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass ||
-                65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass ||
-                (64/*FileDispositionInformationEx*/ == Request->Req.SetInformation.FileInformationClass &&
-                    3/*DELETE|POSIX_SEMANTICS*/ == (3 & Request->Req.SetInformation.Info.DispositionEx.Flags)))) ||
+                65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass)) ||
             FspFsctlTransactSetVolumeInformationKind == Request->Kind ||
             (FspFsctlTransactFlushBuffersKind == Request->Kind &&
                 0 == Request->Req.FlushBuffers.UserContext &&
@@ -59,8 +57,7 @@ VOID fsp_fuse_op_enter_lock(FSP_FILE_SYSTEM *FileSystem,
         if (FspFsctlTransactCreateKind == Request->Kind ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
                 (13/*FileDispositionInformation*/ == Request->Req.SetInformation.FileInformationClass ||
-                (64/*FileDispositionInformationEx*/ == Request->Req.SetInformation.FileInformationClass &&
-                    3/*DELETE|POSIX_SEMANTICS*/ != (3 & Request->Req.SetInformation.Info.DispositionEx.Flags)))) ||
+                64/*FileDispositionInformationEx*/ == Request->Req.SetInformation.FileInformationClass)) ||
             FspFsctlTransactQueryDirectoryKind == Request->Kind ||
             FspFsctlTransactQueryVolumeInformationKind == Request->Kind ||
             /* FSCTL_GET_REPARSE_POINT may access namespace */
@@ -91,9 +88,7 @@ VOID fsp_fuse_op_leave_unlock(FSP_FILE_SYSTEM *FileSystem,
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
                 (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass ||
-                65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass ||
-                (64/*FileDispositionInformationEx*/ == Request->Req.SetInformation.FileInformationClass &&
-                    3/*DELETE|POSIX_SEMANTICS*/ == (3 & Request->Req.SetInformation.Info.DispositionEx.Flags)))) ||
+                65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass)) ||
             FspFsctlTransactSetVolumeInformationKind == Request->Kind ||
             (FspFsctlTransactFlushBuffersKind == Request->Kind &&
                 0 == Request->Req.FlushBuffers.UserContext &&
@@ -108,8 +103,7 @@ VOID fsp_fuse_op_leave_unlock(FSP_FILE_SYSTEM *FileSystem,
         if (FspFsctlTransactCreateKind == Request->Kind ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
                 (13/*FileDispositionInformation*/ == Request->Req.SetInformation.FileInformationClass ||
-                (64/*FileDispositionInformationEx*/ == Request->Req.SetInformation.FileInformationClass &&
-                    3/*DELETE|POSIX_SEMANTICS*/ != (3 & Request->Req.SetInformation.Info.DispositionEx.Flags)))) ||
+                64/*FileDispositionInformationEx*/ == Request->Req.SetInformation.FileInformationClass)) ||
             FspFsctlTransactQueryDirectoryKind == Request->Kind ||
             FspFsctlTransactQueryVolumeInformationKind == Request->Kind ||
             /* FSCTL_GET_REPARSE_POINT may access namespace */
@@ -1275,6 +1269,50 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
         &Uid, &Gid, &Mode, FileInfo);
 }
 
+static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileDesc, PWSTR FileName, ULONG Flags)
+{
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc = FileDesc;
+
+    /*
+     * In Windows a DeleteFile/RemoveDirectory is the sequence of the following:
+     *     Create(FILE_OPEN)
+     *     SetInformation(Disposition)
+     *     Cleanup
+     *     Close
+     *
+     * The FSD maintains a count of how many handles are currently open for a file. When the
+     * last handle is closed *and* the disposition flag is set the FSD sends us a Cleanup with
+     * the Delete flag set.
+     *
+     * Notice that when we receive a Cleanup with Delete set there can be no open handles other
+     * than ours. [Even if there is a concurrent Open of this file, the FSD will fail it with
+     * STATUS_DELETE_PENDING.] This means that we do not need to worry about the hard_remove
+     * FUSE option and can safely remove the file at this time.
+     *
+     *
+     * NOTE:
+     *
+     * Since WinFsp 2022 Beta4 (v1.10B4) it is possible to handle handles open other than ours
+     * because of the new POSIX unlink semantics. Although we still do not provide the hard_remove
+     * option, file systems that would need the hard_remove option can instead use the
+     * LegacyUnlinkRename option to opt out of the POSIX unlink semantics.
+     */
+
+    if (Flags & FspCleanupDelete)
+        if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
+        {
+            if (0 != f->ops.rmdir)
+                f->ops.rmdir(filedesc->PosixPath);
+        }
+        else
+        {
+            if (0 != f->ops.unlink)
+                f->ops.unlink(filedesc->PosixPath);
+        }
+}
+
 static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileDesc)
 {
@@ -1657,6 +1695,19 @@ static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
     struct fuse_dirhandle dh;
     int err;
 
+    if (0 != (f->conn_want & FSP_FUSE_CAP_DELETE_ACCESS) && 0 != f->ops.access)
+    {
+        NTSTATUS Result;
+        err = f->ops.access(filedesc->PosixPath, FSP_FUSE_DELETE_OK);
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        if (!NT_SUCCESS(Result) && STATUS_INVALID_DEVICE_REQUEST != Result)
+        {
+            if (STATUS_ACCESS_DENIED == Result)
+                Result = STATUS_CANNOT_DELETE;
+            return Result;
+        }
+    }
+
     if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
     {
         /* check that directory is empty! */
@@ -1685,72 +1736,6 @@ static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
     }
 
     return STATUS_SUCCESS;
-}
-
-static NTSTATUS fsp_fuse_intf_Delete(FSP_FILE_SYSTEM *FileSystem,
-    PVOID FileDesc, PWSTR FileName, ULONG Flags)
-{
-    struct fuse *f = FileSystem->UserContext;
-    struct fsp_fuse_file_desc *filedesc = FileDesc;
-    int err;
-    NTSTATUS Result;
-
-    switch (Flags)
-    {
-    case FILE_DISPOSITION_DO_NOT_DELETE:
-        return STATUS_SUCCESS;
-
-    case FILE_DISPOSITION_DELETE:
-        Result = STATUS_SUCCESS;
-        if (0 != (f->conn_want & FSP_FUSE_CAP_DELETE_ACCESS) && 0 != f->ops.access)
-        {
-            err = f->ops.access(filedesc->PosixPath, FSP_FUSE_DELETE_OK);
-            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-            if (STATUS_INVALID_DEVICE_REQUEST == Result)
-                Result = STATUS_SUCCESS;
-        }
-
-        if (NT_SUCCESS(Result))
-            Result = fsp_fuse_intf_CanDelete(FileSystem, FileDesc, FileName);
-
-        /* when doing unlink/rmdir convert EPERM/EACCES to STATUS_CANNOT_DELETE */
-        if (STATUS_ACCESS_DENIED == Result)
-            Result = STATUS_CANNOT_DELETE;
-
-        return Result;
-
-    case FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS:
-    case -1:
-        if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
-        {
-            if (0 != f->ops.rmdir)
-            {
-                err = f->ops.rmdir(filedesc->PosixPath);
-                Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-            }
-            else
-                Result = STATUS_INVALID_DEVICE_REQUEST;
-        }
-        else
-        {
-            if (0 != f->ops.unlink)
-            {
-                err = f->ops.unlink(filedesc->PosixPath);
-                Result = fsp_fuse_ntstatus_from_errno(f->env, err);
-            }
-            else
-                Result = STATUS_INVALID_DEVICE_REQUEST;
-        }
-
-        /* when doing unlink/rmdir convert EPERM/EACCES to STATUS_CANNOT_DELETE */
-        if (STATUS_ACCESS_DENIED == Result)
-            Result = STATUS_CANNOT_DELETE;
-
-        return Result;
-
-    default:
-        return STATUS_INVALID_PARAMETER;
-    }
 }
 
 static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
@@ -2596,7 +2581,7 @@ FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
     0,
     fsp_fuse_intf_Open,
     0,
-    0,
+    fsp_fuse_intf_Cleanup,
     fsp_fuse_intf_Close,
     fsp_fuse_intf_Read,
     fsp_fuse_intf_Write,
@@ -2604,7 +2589,7 @@ FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
     fsp_fuse_intf_GetFileInfo,
     fsp_fuse_intf_SetBasicInfo,
     fsp_fuse_intf_SetFileSize,
-    0,
+    fsp_fuse_intf_CanDelete,
     fsp_fuse_intf_Rename,
     fsp_fuse_intf_GetSecurity,
     fsp_fuse_intf_SetSecurity,
@@ -2621,7 +2606,6 @@ FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
     fsp_fuse_intf_Overwrite,
     fsp_fuse_intf_GetEa,
     fsp_fuse_intf_SetEa,
-    fsp_fuse_intf_Delete,
 };
 
 /*
