@@ -894,6 +894,242 @@ void delete_standby_test(void)
     }
 }
 
+static void delete_ex_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    BOOLEAN Success;
+    DWORD FileSystemFlags;
+
+    Success = GetVolumeInformationW(L"C:\\",
+        0, 0,
+        0, 0, &FileSystemFlags,
+        0, 0);
+    if (!Success || 0 == (FileSystemFlags & 0x400/*FILE_SUPPORTS_POSIX_UNLINK_RENAME*/))
+        /* skip this test if the system lacks FILE_SUPPORTS_POSIX_UNLINK_RENAME capability */
+        return;
+
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    NTSYSCALLAPI NTSTATUS NTAPI
+    NtSetInformationFile(
+        HANDLE FileHandle,
+        PIO_STATUS_BLOCK IoStatusBlock,
+        PVOID FileInformation,
+        ULONG Length,
+        FILE_INFORMATION_CLASS FileInformationClass);
+    typedef struct
+    {
+        ULONG Flags;
+    } FILE_DISPOSITION_INFORMATION_EX, *PFILE_DISPOSITION_INFORMATION_EX;
+
+    HANDLE Handle0, Handle1, Handle2, FindHandle;
+    WCHAR FilePath[MAX_PATH];
+    WIN32_FIND_DATAW FindData;
+    FILE_DISPOSITION_INFORMATION_EX DispositionInfo;
+    IO_STATUS_BLOCK IoStatus;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        VolPrefix ? L"" : L"\\\\?\\GLOBALROOT", VolPrefix ? VolPrefix : memfs_volumename(memfs));
+
+    Success = GetVolumeInformationW(FilePath,
+        0, 0,
+        0, 0, &FileSystemFlags,
+        0, 0);
+    ASSERT(Success);
+    if (0 != (FileSystemFlags & 0x400/*FILE_SUPPORTS_POSIX_UNLINK_RENAME*/))
+    {
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        /* POSIX Semantics / Ignore Readonly */
+
+        Handle0 = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+            CREATE_NEW, FILE_ATTRIBUTE_READONLY, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle0);
+
+        Handle1 = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+            OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        memset(&DispositionInfo, 0, sizeof DispositionInfo);
+        DispositionInfo.Flags = 3; /* DELETE | POSIX_SEMANTICS */
+        IoStatus.Status = NtSetInformationFile(
+            Handle1, &IoStatus,
+            &DispositionInfo, sizeof DispositionInfo,
+            64/*FileDispositionInformationEx*/);
+        ASSERT(STATUS_CANNOT_DELETE == IoStatus.Status);
+
+        memset(&DispositionInfo, 0, sizeof DispositionInfo);
+        DispositionInfo.Flags = 0x13; /* DELETE | POSIX_SEMANTICS | IGNORE_READONLY_ATTRIBUTE */
+        IoStatus.Status = NtSetInformationFile(
+            Handle1, &IoStatus,
+            &DispositionInfo, sizeof DispositionInfo,
+            64/*FileDispositionInformationEx*/);
+        ASSERT(0 == IoStatus.Status);
+
+        FindHandle = FindFirstFileW(FilePath, &FindData);
+        ASSERT(INVALID_HANDLE_VALUE != FindHandle);
+        ASSERT(0 == mywcscmp(FindData.cFileName, 4, L"file", 4));
+        FindClose(FindHandle);
+
+        Handle2 = CreateFileW(FilePath,
+            0, 0, 0,
+            OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_ACCESS_DENIED == GetLastError());
+
+        CloseHandle(Handle1);
+
+        FindHandle = FindFirstFileW(FilePath, &FindData);
+        ASSERT(INVALID_HANDLE_VALUE == FindHandle);
+        ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+        Handle2 = CreateFileW(FilePath,
+            0, 0, 0,
+            OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE == Handle2);
+        ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+
+        memset(&DispositionInfo, 0, sizeof DispositionInfo);
+        DispositionInfo.Flags = 0; /* DO_NOT_DELETE */
+        IoStatus.Status = NtSetInformationFile(
+            Handle0, &IoStatus,
+            &DispositionInfo, sizeof DispositionInfo,
+            64/*FileDispositionInformationEx*/);
+        ASSERT(STATUS_ACCESS_DENIED == IoStatus.Status);
+
+        memset(&DispositionInfo, 0, sizeof DispositionInfo);
+        DispositionInfo.Flags = 1; /* DELETE */
+        IoStatus.Status = NtSetInformationFile(
+            Handle0, &IoStatus,
+            &DispositionInfo, sizeof DispositionInfo,
+            64/*FileDispositionInformationEx*/);
+        ASSERT(STATUS_ACCESS_DENIED == IoStatus.Status);
+
+        CloseHandle(Handle0);
+
+        /* POSIX Semantics / Set/Reset */
+
+        Handle0 = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+            CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle0);
+
+        Handle1 = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+            OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        memset(&DispositionInfo, 0, sizeof DispositionInfo);
+        DispositionInfo.Flags = 3; /* DELETE | POSIX_SEMANTICS */
+        IoStatus.Status = NtSetInformationFile(
+            Handle1, &IoStatus,
+            &DispositionInfo, sizeof DispositionInfo,
+            64/*FileDispositionInformationEx*/);
+        ASSERT(STATUS_SUCCESS == IoStatus.Status);
+
+        memset(&DispositionInfo, 0, sizeof DispositionInfo);
+        DispositionInfo.Flags = 0; /* DO_NOT_DELETE */
+        IoStatus.Status = NtSetInformationFile(
+            Handle1, &IoStatus,
+            &DispositionInfo, sizeof DispositionInfo,
+            64/*FileDispositionInformationEx*/);
+        ASSERT(STATUS_SUCCESS == IoStatus.Status);
+
+        CloseHandle(Handle1);
+
+        FindHandle = FindFirstFileW(FilePath, &FindData);
+        ASSERT(INVALID_HANDLE_VALUE != FindHandle);
+        ASSERT(0 == mywcscmp(FindData.cFileName, 4, L"file", 4));
+        FindClose(FindHandle);
+
+        Handle1 = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+            OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        memset(&DispositionInfo, 0, sizeof DispositionInfo);
+        DispositionInfo.Flags = 3; /* DELETE | POSIX_SEMANTICS */
+        IoStatus.Status = NtSetInformationFile(
+            Handle1, &IoStatus,
+            &DispositionInfo, sizeof DispositionInfo,
+            64/*FileDispositionInformationEx*/);
+        ASSERT(STATUS_SUCCESS == IoStatus.Status);
+
+        CloseHandle(Handle1);
+
+        CloseHandle(Handle0);
+
+#if 0
+        /* On Close */
+
+        Handle0 = CreateFileW(FilePath,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+            CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle0);
+
+        memset(&DispositionInfo, 0, sizeof DispositionInfo);
+        DispositionInfo.Flags = 8; /* DO_NOT_DELETE | ON_CLOSE */
+        IoStatus.Status = NtSetInformationFile(
+            Handle0, &IoStatus,
+            &DispositionInfo, sizeof DispositionInfo,
+            64/*FileDispositionInformationEx*/);
+        ASSERT(0 == IoStatus.Status);
+
+        CloseHandle(Handle0);
+
+        Handle0 = CreateFileW(FilePath,
+            DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+            OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle0);
+
+        memset(&DispositionInfo, 0, sizeof DispositionInfo);
+        DispositionInfo.Flags = 9; /* DELETE | ON_CLOSE */;
+        IoStatus.Status = NtSetInformationFile(
+            Handle0, &IoStatus,
+            &DispositionInfo, sizeof DispositionInfo,
+            64/*FileDispositionInformationEx*/);
+        ASSERT(STATUS_NOT_SUPPORTED == IoStatus.Status);
+
+        memset(&DispositionInfo, 0, sizeof DispositionInfo);
+        DispositionInfo.Flags = 3; /* DELETE | POSIX_SEMANTICS */;
+        IoStatus.Status = NtSetInformationFile(
+            Handle0, &IoStatus,
+            &DispositionInfo, sizeof DispositionInfo,
+            64/*FileDispositionInformationEx*/);
+        ASSERT(0 == IoStatus.Status);
+
+        CloseHandle(Handle0);
+#endif
+    }
+
+    memfs_stop(memfs);
+}
+
+void delete_ex_test(void)
+{
+    if (OptLegacyUnlinkRename)
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH], DriveBuf[3];
+        GetTestDirectoryAndDrive(DirBuf, DriveBuf);
+        delete_ex_dotest(-1, DriveBuf, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        delete_ex_dotest(MemfsDisk, 0, 0, 0);
+        delete_ex_dotest(MemfsDisk, 0, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        delete_ex_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 0);
+        delete_ex_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000);
+    }
+}
+
 static void rename_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -2225,6 +2461,8 @@ void info_tests(void)
     if (!OptShareName)
         TEST(delete_mmap_test);
     TEST(delete_standby_test);
+    if (!OptLegacyUnlinkRename)
+        TEST(delete_ex_test);
     TEST(rename_test);
     TEST(rename_backslash_test);
     TEST(rename_open_test);

@@ -1492,7 +1492,7 @@ typedef struct
     UINT64 UserContext2;
     UINT32 GrantedAccess;
     UINT32
-        CaseSensitive:1, HasTraversePrivilege:1, DeleteOnClose:1,
+        CaseSensitive:1, HasTraversePrivilege:1, DeleteOnClose:1, PosixDelete:1,
         DidSetMetadata:1,
         DidSetFileAttributes:1, DidSetReparsePoint:1, DidSetSecurity:1,
         DidSetCreationTime:1, DidSetLastAccessTime:1, DidSetLastWriteTime:1, DidSetChangeTime:1,
@@ -1561,8 +1561,7 @@ NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     FSP_FILE_NODE **POpenedFileNode, PULONG PSharingViolationReason);
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG PCleanupFlags);
 VOID FspFileNodeCleanupFlush(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
-VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
-VOID FspFileNodePosixDelete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
+VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, BOOLEAN Delete);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     PFILE_OBJECT FileObject,    /* non-0 to remove share access */
     BOOLEAN HandleCleanup);     /* TRUE to decrement handle count */

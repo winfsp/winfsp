@@ -1460,7 +1460,7 @@ static NTSTATUS FspFsvolSetDispositionInformation(
             return STATUS_INVALID_PARAMETER;
         DispositionFlags = !!((PFILE_DISPOSITION_INFORMATION)Irp->AssociatedIrp.SystemBuffer)->DeleteFile;
         DispositionFlags |= FILE_DISPOSITION_FORCE_IMAGE_SECTION_CHECK;
-            // old-school delete always did image section check; see below
+            // old-school delete does image section check
     }
     else
     {
@@ -1470,12 +1470,9 @@ static NTSTATUS FspFsvolSetDispositionInformation(
             return STATUS_INVALID_PARAMETER;
         DispositionFlags = ((PFILE_DISPOSITION_INFORMATION_EX)Irp->AssociatedIrp.SystemBuffer)->Flags;
 
-        /* !!!: REVISIT:
-         * For now we cannot handle the FILE_DISPOSITION_ON_CLOSE flag,
-         * as we need to understand the semantics better.
-         */
+        /* WinFsp does not support the FILE_DISPOSITION_ON_CLOSE flag */
         if (FlagOn(DispositionFlags, FILE_DISPOSITION_ON_CLOSE))
-            return STATUS_INVALID_PARAMETER;
+            return STATUS_NOT_SUPPORTED;
     }
 
     if (FileNode->IsRootDirectory)
@@ -1484,6 +1481,12 @@ static NTSTATUS FspFsvolSetDispositionInformation(
 
 retry:
     FspFileNodeAcquireExclusive(FileNode, Full);
+
+    if (FileNode->PosixDelete)
+    {
+        Result = STATUS_ACCESS_DENIED;
+        goto unlock_exit;
+    }
 
     if (FlagOn(DispositionFlags, FILE_DISPOSITION_DELETE))
     {
@@ -1534,18 +1537,25 @@ retry:
             goto unlock_exit;
         }
 
+        /*
+         * The documentation states:
+         *     A return value of STATUS_CANNOT_DELETE indicates that either the file is read-only,
+         *     or there's an existing mapped view to the file. Specifying FILE_DISPOSITION_IGNORE_-
+         *     READONLY_ATTRIBUTE avoids this return value due to the file being read-only, provided
+         *     the caller has FILE_WRITE_ATTRIBUTES access to the file (the access that would be
+         *     required to clear the read-only attribute).
+         *
+         * This appears to be incorrect with NTFS on Win10 and Win11. See:
+         *     https://github.com/MicrosoftDocs/windows-driver-docs-ddi/issues/1216
+         */
+#if 0
         if (FlagOn(DispositionFlags, FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE))
         {
             /* if FileDesc does not have FILE_WRITE_ATTRIBUTE access, remove IGNORE_READONLY_ATTRIBUTE */
             if (!FlagOn(FileDesc->GrantedAccess, FILE_WRITE_ATTRIBUTES))
                 DispositionFlags &= ~FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE;
         }
-    }
-
-    if (FileNode->PosixDelete)
-    {
-        Result = STATUS_SUCCESS;
-        goto unlock_exit;
+#endif
     }
 
     if (FlagOn(DispositionFlags, FILE_DISPOSITION_DELETE))
@@ -1587,50 +1597,29 @@ static NTSTATUS FspFsvolSetDispositionInformationSuccess(
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     UINT32 DispositionFlags = Request->Req.SetInformation.Info.DispositionEx.Flags;
-    BOOLEAN DeleteFile = BooleanFlagOn(DispositionFlags, FILE_DISPOSITION_DELETE);
+    BOOLEAN Delete = BooleanFlagOn(DispositionFlags, FILE_DISPOSITION_DELETE);
 
-    FileNode->DeletePending = DeleteFile;
-    FileObject->DeletePending = DeleteFile;
+    FileNode->DeletePending = Delete;
+    FileObject->DeletePending = Delete;
 
-    if (FlagOn(DispositionFlags, FILE_DISPOSITION_POSIX_SEMANTICS))
+    if (!Delete)
+        FileDesc->PosixDelete = FALSE;
+    else if (FlagOn(DispositionFlags, FILE_DISPOSITION_POSIX_SEMANTICS))
+        FileDesc->PosixDelete = TRUE;
+
+    /* fastfat does this, although it seems unnecessary */
+#if 1
+    if (FileNode->IsDirectory && Delete)
     {
-        ASSERT(DeleteFile);
-
-        FileNode->PosixDelete = TRUE;
-
-        if (FileNode->IsDirectory)
-        {
-            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-                FspFsvolDeviceExtension(IrpSp->DeviceObject);
-            FspNotifyDeletePending(
-                FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList, FileNode);
-        }
-
-        /* send the appropriate notification; also invalidate dirinfo/etc. caches */
-        ULONG NotifyFilter, NotifyAction;
-        NotifyFilter = FileNode->IsDirectory ?
-            FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME;
-        NotifyAction = FILE_ACTION_REMOVED;
-        FspFileNodeNotifyChange(FileNode, NotifyFilter, NotifyAction, TRUE);
-
-        /* perform POSIX delete: remove file node from the context table */
-        FspFileNodePosixDelete(FileNode, FileObject);
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
+            FspFsvolDeviceExtension(IrpSp->DeviceObject);
+        FspNotifyDeletePending(
+            FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList, FileNode);
     }
-    else
-    {
-        /* fastfat does this, although it seems unnecessary */
-    #if 1
-        if (FileNode->IsDirectory && DeleteFile)
-        {
-            FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
-                FspFsvolDeviceExtension(IrpSp->DeviceObject);
-            FspNotifyDeletePending(
-                FsvolDeviceExtension->NotifySync, &FsvolDeviceExtension->NotifyList, FileNode);
-        }
-    #endif
-    }
+#endif
 
     FspIopRequestContext(Request, RequestFileNode) = 0;
     FspFileNodeReleaseOwner(FileNode, Full, Request);

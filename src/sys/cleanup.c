@@ -89,7 +89,7 @@ static NTSTATUS FspFsvolCleanup(
     FspFileNodeAcquireExclusive(FileNode, Main);
 
     FspFileNodeCleanup(FileNode, FileObject, &CleanupFlags);
-    Delete = (CleanupFlags & 1) && !FileNode->PosixDelete;
+    Delete = CleanupFlags & 1;
     SetAllocationSize = !!(CleanupFlags & 2);
     FileModified = BooleanFlagOn(FileObject->Flags, FO_FILE_MODIFIED);
 
@@ -170,16 +170,16 @@ NTSTATUS FspFsvolCleanupComplete(
     ASSERT(FileNode == FileDesc->FileNode);
 
     /* send the appropriate notification; also invalidate dirinfo/etc. caches */
-    if (FileNode->PosixDelete)
-    {
-        NotifyFilter = 0;
-        NotifyAction = 0;
-    }
-    else if (Request->Req.Cleanup.Delete)
+    if (Request->Req.Cleanup.Delete)
     {
         NotifyFilter = FileNode->IsDirectory ?
             FILE_NOTIFY_CHANGE_DIR_NAME : FILE_NOTIFY_CHANGE_FILE_NAME;
         NotifyAction = FILE_ACTION_REMOVED;
+    }
+    else if (FileNode->PosixDelete)
+    {
+        NotifyFilter = 0;
+        NotifyAction = 0;
     }
     else
     {
@@ -241,7 +241,7 @@ static VOID FspFsvolCleanupRequestFini(FSP_FSCTL_TRANSACT_REQ *Request, PVOID Co
 
     FspFileNodeReleaseOwner(FileNode, Pgio, Request);
 
-    FspFileNodeCleanupComplete(FileNode, FileObject);
+    FspFileNodeCleanupComplete(FileNode, FileObject, !!Request->Req.Cleanup.Delete);
     if (!FileNode->IsDirectory)
         FspFileNodeOplockCheck(FileNode, Irp);
     SetFlag(FileObject->Flags, FO_CLEANUP_COMPLETE);

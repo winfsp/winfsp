@@ -42,8 +42,7 @@ NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
     FSP_FILE_NODE **POpenedFileNode, PULONG PSharingViolationReason);
 VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG PCleanupFlags);
 VOID FspFileNodeCleanupFlush(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
-VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
-VOID FspFileNodePosixDelete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject);
+VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, BOOLEAN Delete);
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,
     PFILE_OBJECT FileObject,    /* non-0 to remove share access */
     BOOLEAN HandleCleanup);     /* TRUE to decrement handle count */
@@ -143,7 +142,6 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 #pragma alloc_text(PAGE, FspFileNodeCleanup)
 #pragma alloc_text(PAGE, FspFileNodeCleanupFlush)
 #pragma alloc_text(PAGE, FspFileNodeCleanupComplete)
-#pragma alloc_text(PAGE, FspFileNodePosixDelete)
 #pragma alloc_text(PAGE, FspFileNodeClose)
 #pragma alloc_text(PAGE, FspFileNodeFlushAndPurgeCache)
 #pragma alloc_text(PAGE, FspFileNodeOverwriteStreams)
@@ -792,7 +790,7 @@ VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG
 
     PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
-    BOOLEAN DeletePending, SetAllocationSize, SingleHandle;
+    BOOLEAN DeletePending, Delete, SetAllocationSize, SingleHandle;
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
@@ -807,7 +805,19 @@ VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
 
-    *PCleanupFlags = SingleHandle ? DeletePending | (SetAllocationSize << 1) : 0;
+    Delete = FALSE;
+    if (!FileNode->PosixDelete)
+    {
+        if (FileDesc->PosixDelete)
+        {
+            FileNode->PosixDelete = TRUE;
+            Delete = TRUE;
+        }
+        else if (SingleHandle)
+            Delete = DeletePending;
+    }
+
+    *PCleanupFlags = SingleHandle ? Delete | (SetAllocationSize << 1) : Delete;
 }
 
 VOID FspFileNodeCleanupFlush(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
@@ -863,7 +873,7 @@ VOID FspFileNodeCleanupFlush(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
     }
 }
 
-VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
+VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, BOOLEAN Delete)
 {
     /*
      * Complete the cleanup of a FileNode. Remove its share access and
@@ -904,6 +914,52 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 
     IoRemoveShareAccess(FileObject, &FileNode->ShareAccess);
 
+    if (Delete)
+    {
+        FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName,
+            &DeletedFromContextTable);
+        ASSERT(DeletedFromContextTable);
+
+        FileNode->OpenCount = 0;
+
+        /*
+         * We now have to deal with the scenario where there are cleaned up,
+         * but unclosed streams for this file still in the context table.
+         */
+        if (FsvolDeviceExtension->VolumeParams.NamedStreams &&
+            0 == FileNode->MainFileNode)
+        {
+            BOOLEAN StreamDeletedFromContextTable;
+            USHORT FileNameLength = FileNode->FileName.Length;
+
+            GATHER_DESCENDANTS(&FileNode->FileName, FALSE,
+                if (DescendantFileNode->FileName.Length > FileNameLength &&
+                    L'\\' == DescendantFileNode->FileName.Buffer[FileNameLength / sizeof(WCHAR)])
+                    break;
+                ASSERT(FileNode != DescendantFileNode);
+                ASSERT(0 != DescendantFileNode->OpenCount);
+                );
+
+            for (
+                DescendantFileNodeIndex = 0;
+                DescendantFileNodeCount > DescendantFileNodeIndex;
+                DescendantFileNodeIndex++)
+            {
+                DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
+
+                FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &DescendantFileNode->FileName,
+                    &StreamDeletedFromContextTable);
+                if (StreamDeletedFromContextTable)
+                {
+                    DescendantFileNode->OpenCount = 0;
+                    FspFileNodeDereference(DescendantFileNode);
+                }
+            }
+
+            SCATTER_DESCENDANTS(FALSE);
+        }
+    }
+
     ASSERT(0 < FileNode->HandleCount);
     if (0 == --FileNode->HandleCount)
     {
@@ -912,53 +968,8 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
         DeletePending = 0 != FileNode->DeletePending;
         MemoryBarrier();
 
-        if (DeletePending && !FileNode->PosixDelete)
-        {
-            FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName,
-                &DeletedFromContextTable);
-            ASSERT(DeletedFromContextTable);
-
-            FileNode->OpenCount = 0;
+        if (DeletePending)
             FileNode->Header.FileSize.QuadPart = 0;
-
-            /*
-             * We now have to deal with the scenario where there are cleaned up,
-             * but unclosed streams for this file still in the context table.
-             */
-            if (FsvolDeviceExtension->VolumeParams.NamedStreams &&
-                0 == FileNode->MainFileNode)
-            {
-                BOOLEAN StreamDeletedFromContextTable;
-                USHORT FileNameLength = FileNode->FileName.Length;
-
-                GATHER_DESCENDANTS(&FileNode->FileName, FALSE,
-                    if (DescendantFileNode->FileName.Length > FileNameLength &&
-                        L'\\' == DescendantFileNode->FileName.Buffer[FileNameLength / sizeof(WCHAR)])
-                        break;
-                    ASSERT(FileNode != DescendantFileNode);
-                    ASSERT(0 != DescendantFileNode->OpenCount);
-                    ASSERT(0 == DescendantFileNode->HandleCount);
-                    );
-
-                for (
-                    DescendantFileNodeIndex = 0;
-                    DescendantFileNodeCount > DescendantFileNodeIndex;
-                    DescendantFileNodeIndex++)
-                {
-                    DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
-
-                    FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &DescendantFileNode->FileName,
-                        &StreamDeletedFromContextTable);
-                    if (StreamDeletedFromContextTable)
-                    {
-                        DescendantFileNode->OpenCount = 0;
-                        FspFileNodeDereference(DescendantFileNode);
-                    }
-                }
-
-                SCATTER_DESCENDANTS(FALSE);
-            }
-        }
 
         if (DeletePending || FileNode->TruncateOnClose)
         {
@@ -1014,66 +1025,6 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 
     if (DeletedFromContextTable)
         FspFileNodeDereference(FileNode);
-}
-
-VOID FspFileNodePosixDelete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
-{
-    /*
-     * Perform a POSIX delete of a FileNode. This removes the FileNode from the Context table.
-     *
-     * The FileNode must be acquired exclusive (Main or Full) when calling this function.
-     */
-
-    PAGED_CODE();
-
-    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    BOOLEAN DeletedFromContextTable = FALSE;
-
-    FspFsvolDeviceLockContextTable(FsvolDeviceObject);
-
-    FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &FileNode->FileName,
-        &DeletedFromContextTable);
-    ASSERT(DeletedFromContextTable);
-
-    FileNode->OpenCount = 0;
-
-    if (FsvolDeviceExtension->VolumeParams.NamedStreams &&
-        0 == FileNode->MainFileNode)
-    {
-        BOOLEAN StreamDeletedFromContextTable;
-        USHORT FileNameLength = FileNode->FileName.Length;
-
-        GATHER_DESCENDANTS(&FileNode->FileName, FALSE,
-            if (DescendantFileNode->FileName.Length > FileNameLength &&
-                L'\\' == DescendantFileNode->FileName.Buffer[FileNameLength / sizeof(WCHAR)])
-                break;
-            ASSERT(FileNode != DescendantFileNode);
-            ASSERT(0 != DescendantFileNode->OpenCount);
-            );
-
-        for (
-            DescendantFileNodeIndex = 0;
-            DescendantFileNodeCount > DescendantFileNodeIndex;
-            DescendantFileNodeIndex++)
-        {
-            DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
-
-            FspFsvolDeviceDeleteContextByName(FsvolDeviceObject, &DescendantFileNode->FileName,
-                &StreamDeletedFromContextTable);
-            if (StreamDeletedFromContextTable)
-            {
-                DescendantFileNode->OpenCount = 0;
-                FspFileNodeDereference(DescendantFileNode);
-            }
-        }
-
-        SCATTER_DESCENDANTS(FALSE);
-    }
-
-    FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);
-
-    FspFileNodeDereference(FileNode);
 }
 
 VOID FspFileNodeClose(FSP_FILE_NODE *FileNode,

@@ -1158,11 +1158,11 @@ FSP_API NTSTATUS FspFileSystemOpSetInformation(FSP_FILE_SYSTEM *FileSystem,
             Result = FileSystem->Interface->SetDelete(FileSystem,
                 (PVOID)ValOfFileContext(Request->Req.SetInformation),
                 (PWSTR)Request->Buffer,
-                Request->Req.SetInformation.Info.Disposition.Delete);
+                0 != (1/*DELETE*/ & Request->Req.SetInformation.Info.DispositionEx.Flags));
         }
         else if (0 != FileSystem->Interface->CanDelete)
         {
-            if (Request->Req.SetInformation.Info.Disposition.Delete)
+            if (0 != (1/*DELETE*/ & Request->Req.SetInformation.Info.DispositionEx.Flags))
                 Result = FileSystem->Interface->CanDelete(FileSystem,
                     (PVOID)ValOfFileContext(Request->Req.SetInformation),
                     (PWSTR)Request->Buffer);
