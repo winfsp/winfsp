@@ -1484,7 +1484,7 @@ retry:
 
     if (FileNode->PosixDelete)
     {
-        Result = STATUS_ACCESS_DENIED;
+        Result = STATUS_FILE_DELETED;
         goto unlock_exit;
     }
 

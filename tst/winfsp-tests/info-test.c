@@ -943,7 +943,7 @@ static void delete_ex_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG F
         /* POSIX Semantics / Ignore Readonly */
 
         Handle0 = CreateFileW(FilePath,
-            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+            GENERIC_READ | GENERIC_WRITE | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
             CREATE_NEW, FILE_ATTRIBUTE_READONLY, 0);
         ASSERT(INVALID_HANDLE_VALUE != Handle0);
 
@@ -997,7 +997,7 @@ static void delete_ex_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG F
             Handle0, &IoStatus,
             &DispositionInfo, sizeof DispositionInfo,
             64/*FileDispositionInformationEx*/);
-        ASSERT(STATUS_ACCESS_DENIED == IoStatus.Status);
+        ASSERT(STATUS_FILE_DELETED == IoStatus.Status);
 
         memset(&DispositionInfo, 0, sizeof DispositionInfo);
         DispositionInfo.Flags = 1; /* DELETE */
@@ -1005,7 +1005,7 @@ static void delete_ex_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG F
             Handle0, &IoStatus,
             &DispositionInfo, sizeof DispositionInfo,
             64/*FileDispositionInformationEx*/);
-        ASSERT(STATUS_ACCESS_DENIED == IoStatus.Status);
+        ASSERT(STATUS_FILE_DELETED == IoStatus.Status);
 
         CloseHandle(Handle0);
 
