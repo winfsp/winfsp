@@ -1342,7 +1342,7 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
      * "rename" resource exclusively, which disallows new Opens.
      */
 
-    if (!PosixRename && !CheckingOldName)
+    if (!CheckingOldName)
     {
         /* replaced file cannot be a directory or mapped as an image */
         for (

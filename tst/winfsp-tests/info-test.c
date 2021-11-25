@@ -2049,6 +2049,10 @@ static void rename_ex_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG F
         ULONG FileNameLength;
         WCHAR FileName[1];
     } FILE_RENAME_INFORMATION, *PFILE_RENAME_INFORMATION;
+    typedef struct
+    {
+        ULONG Flags;
+    } FILE_DISPOSITION_INFORMATION_EX, *PFILE_DISPOSITION_INFORMATION_EX;
 
     HANDLE Handle0, Handle1, Handle2;
     WCHAR File0Path[MAX_PATH];
@@ -2058,6 +2062,7 @@ static void rename_ex_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG F
         FILE_RENAME_INFORMATION I;
         UINT8 B[sizeof(FILE_RENAME_INFORMATION) + MAX_PATH * sizeof(WCHAR)];
     } RenameInfo;
+    FILE_DISPOSITION_INFORMATION_EX DispositionInfo;
     IO_STATUS_BLOCK IoStatus;
 
     StringCbPrintfW(File0Path, sizeof File0Path, L"%s%s\\",
@@ -2075,6 +2080,8 @@ static void rename_ex_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG F
 
         StringCbPrintfW(File2Path, sizeof File2Path, L"%s%s\\file2",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+        /* File Test */
 
         Handle0 = CreateFileW(File0Path,
             GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
@@ -2128,6 +2135,16 @@ static void rename_ex_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG F
         ASSERT(INVALID_HANDLE_VALUE != Handle0);
 
         memset(&RenameInfo.I, 0, sizeof RenameInfo.I);
+        RenameInfo.I.Flags = 1/*FILE_RENAME_REPLACE_IF_EXISTS*/;
+        RenameInfo.I.FileNameLength = (ULONG)(wcslen(L"file0") * sizeof(WCHAR));
+        memcpy(RenameInfo.I.FileName, L"file0", RenameInfo.I.FileNameLength);
+        IoStatus.Status = NtSetInformationFile(
+            Handle2, &IoStatus,
+            &RenameInfo.I, FIELD_OFFSET(FILE_RENAME_INFORMATION, FileName) + RenameInfo.I.FileNameLength,
+            10/*FileRenameInformation*/);
+        ASSERT(STATUS_ACCESS_DENIED == IoStatus.Status);
+
+        memset(&RenameInfo.I, 0, sizeof RenameInfo.I);
         RenameInfo.I.Flags = 3/*FILE_RENAME_REPLACE_IF_EXISTS|FILE_RENAME_POSIX_SEMANTICS*/;
         RenameInfo.I.FileNameLength = (ULONG)(wcslen(L"file0") * sizeof(WCHAR));
         memcpy(RenameInfo.I.FileName, L"file0", RenameInfo.I.FileNameLength);
@@ -2165,6 +2182,40 @@ static void rename_ex_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG F
 
         Success = DeleteFileW(File0Path);
         ASSERT(Success);
+
+        /* Deleted File Test */
+
+        Handle0 = CreateFileW(File0Path,
+            GENERIC_READ | GENERIC_WRITE | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+            CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle0);
+
+        Handle1 = CreateFileW(File0Path,
+            DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+            OPEN_EXISTING, 0, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle1);
+
+        memset(&DispositionInfo, 0, sizeof DispositionInfo);
+        DispositionInfo.Flags = 3; /* DELETE | POSIX_SEMANTICS */
+        IoStatus.Status = NtSetInformationFile(
+            Handle1, &IoStatus,
+            &DispositionInfo, sizeof DispositionInfo,
+            64/*FileDispositionInformationEx*/);
+        ASSERT(0 == IoStatus.Status);
+
+        CloseHandle(Handle1);
+
+        memset(&RenameInfo.I, 0, sizeof RenameInfo.I);
+        RenameInfo.I.Flags = 2/*FILE_RENAME_POSIX_SEMANTICS*/;
+        RenameInfo.I.FileNameLength = (ULONG)(wcslen(L"file2") * sizeof(WCHAR));
+        memcpy(RenameInfo.I.FileName, L"file2", RenameInfo.I.FileNameLength);
+        IoStatus.Status = NtSetInformationFile(
+            Handle0, &IoStatus,
+            &RenameInfo.I, FIELD_OFFSET(FILE_RENAME_INFORMATION, FileName) + RenameInfo.I.FileNameLength,
+            65/*FileRenameInformationEx*/);
+        ASSERT(STATUS_ACCESS_DENIED == IoStatus.Status);
+
+        CloseHandle(Handle0);
     }
 
     memfs_stop(memfs);

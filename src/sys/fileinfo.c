@@ -1691,6 +1691,12 @@ retry:
     FspFsvolDeviceFileRenameAcquireExclusive(FsvolDeviceObject);
     FspFileNodeAcquireExclusive(FileNode, Full);
 
+    if (FileNode->PosixDelete)
+    {
+        Result = STATUS_ACCESS_DENIED;
+        goto unlock_exit;
+    }
+
     if (0 == Request)
     {
         if (0 != TargetFileNode)
