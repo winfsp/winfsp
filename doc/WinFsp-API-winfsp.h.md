@@ -151,7 +151,7 @@ deleted during Cleanup.
 If the file system supports POSIX unlink (FSP\_FSCTL\_VOLUME\_PARAMS ::
 SupportsPosixUnlinkRename), then a Cleanup / FspCleanupDelete operation may arrive while
 there are other open file handles for this particular file node. If the file system does not
-support POISX unlink, then a Cleanup / FspCleanupDelete operation will always be the last
+support POSIX unlink, then a Cleanup / FspCleanupDelete operation will always be the last
 outstanding cleanup for this particular file node.
 
 
