@@ -148,7 +148,11 @@ a file or directory in Windows is a three-stage process where the file is first 
 tested to see if the delete can proceed and if the answer is positive the file is then
 deleted during Cleanup.
 
-When this flag is set, this is the last outstanding cleanup for this particular file node.
+If the file system supports POSIX unlink (FSP\_FSCTL\_VOLUME\_PARAMS ::
+SupportsPosixUnlinkRename), then a Cleanup / FspCleanupDelete operation may arrive while
+there are other open file handles for this particular file node. If the file system does not
+support POISX unlink, then a Cleanup / FspCleanupDelete operation will always be the last
+outstanding cleanup for this particular file node.
 
 
 - FspCleanupSetAllocationSize -
