@@ -83,8 +83,6 @@ STATUS\_SUCCESS or error code.
 
 **Discussion**
 
-(NOTE: use of this function is not recommended; use Delete instead.)
-
 This function tests whether a file or directory can be safely deleted. This function does
 not need to perform access checks, but may performs tasks such as check for empty
 directories, etc.
@@ -102,7 +100,6 @@ most file systems need only implement the CanDelete operation.
 
 - Cleanup
 - SetDelete
-- Delete
 
 
 </blockquote>
@@ -131,9 +128,6 @@ VOID ( *Cleanup)(
 - _Flags_ \- These flags determine whether the file was modified and whether to delete the file.
 
 **Discussion**
-
-(NOTE: use of this function with the FspCleanupDelete flag is not recommended;
-use Delete instead.)
 
 When CreateFile is used to open or create a file the kernel creates a kernel mode file
 object (type FILE\_OBJECT) and a handle for it, which it returns to user-mode. The handle may
@@ -185,7 +179,6 @@ the file was modified/deleted.
 - Close
 - CanDelete
 - SetDelete
-- Delete
 
 
 </blockquote>
@@ -373,90 +366,6 @@ This function works like Create, except that it also accepts an extra buffer tha
 may contain extended attributes or a reparse point.
 
 NOTE: If both Create and CreateEx are defined, CreateEx takes precedence.
-
-
-</blockquote>
-</details>
-
-<details>
-<summary>
-<b>Delete</b> - Set the file delete flag or delete a file.
-</summary>
-<blockquote>
-<br/>
-
-```c
-NTSTATUS ( *Delete)(
-    FSP_FILE_SYSTEM *FileSystem, 
-    PVOID FileContext,
-    PWSTR FileName,
-    ULONG Flags);  
-```
-
-**Parameters**
-
-- _FileSystem_ \- The file system on which this request is posted.
-- _FileContext_ \- The file context of the file or directory to set the delete flag for.
-- _FileName_ \- The name of the file or directory to set the delete flag for.
-- _Flags_ \- File disposition flags
-
-**Return Value**
-
-STATUS\_SUCCESS or error code.
-
-**Discussion**
-
-This function replaces CanDelete, SetDelete and uses of Cleanup with the FspCleanupDelete flag
-and is recommended for use in all new code.
-
-Due to the complexity of file deletion in the Windows file system this function is used
-in many scenarios. Its usage is controlled by the Flags parameter:
-
-- FILE\_DISPOSITION\_DO\_NOT\_DELETE: Unmark the file for deletion.
-Do **NOT** delete the file either now or at Cleanup time.
-
-
-- FILE\_DISPOSITION\_DELETE: Mark the file for deletion,
-but do **NOT** delete the file. The file will be deleted at Cleanup time
-(via a call to Delete with Flags = -1).
-This function does not need to perform access checks, but may
-performs tasks such as check for empty directories, etc.
-
-
-- FILE\_DISPOSITION\_DELETE | FILE\_DISPOSITION\_POSIX\_SEMANTICS: Delete the file**NOW** using POSIX semantics. Open user mode handles to the file remain valid.
-This case will be received only when FSP\_FSCTL\_VOLUME\_PARAMS :: SupportsPosixUnlinkRename is set.
-
-
-- -1: Delete the file **NOW** using regular Windows semantics.
-Called during Cleanup with no open user mode handles remaining.
-If a file system implements Delete, Cleanup should **NOT** be used for deletion anymore.
-
-
-
-This function gets called in all file deletion scenarios:
-
-- When the DeleteFile or RemoveDirectory API's are used.
-
-
-- When the SetInformationByHandle API with FileDispositionInfo or FileDispositionInfoEx is used.
-
-
-- When a file is opened using FILE\_DELETE\_ON\_CLOSE.
-
-
-- Etc.
-
-
-
-NOTE: Delete takes precedence over CanDelete, SetDelete and Cleanup with the FspCleanupDelete flag.
-This means that if Delete is defined, CanDelete and SetDelete will never be called and
-Cleanup will never be called with the FspCleanupDelete flag.
-
-**See Also**
-
-- Cleanup
-- CanDelete
-- SetDelete
 
 
 </blockquote>
@@ -1202,8 +1111,6 @@ STATUS\_SUCCESS or error code.
 
 **Discussion**
 
-(NOTE: use of this function is not recommended; use Delete instead.)
-
 This function sets a flag to indicates whether the FSD file should delete a file
 when it is closed. This function does not need to perform access checks, but may
 performs tasks such as check for empty directories, etc.
@@ -1221,7 +1128,6 @@ most file systems need only implement the CanDelete operation.
 
 - Cleanup
 - CanDelete
-- Delete
 
 
 </blockquote>

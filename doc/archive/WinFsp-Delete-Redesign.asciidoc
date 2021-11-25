@@ -1,3 +1,5 @@
+*INVALID: The information presented in this document is invalid and should not be used.*
+
 = WinFsp Delete Redesign
 
 WinFsp has had its Delete functionality redesigned in release 2021.1 Beta3. This redesign unifies all Windows file deletion semantics under a single file system operation that also supports the new POSIX semantics introduced in Windows 10 Redstone 1. The new Delete design is recommended for new file systems, however existing file systems will continue to work without any changes.
