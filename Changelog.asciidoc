@@ -3,13 +3,16 @@
 
 v1.10B4 (2022 Beta4)::
 
+--
+Changes since v1.10B3:
+
+* The Delete functionality introduced in release 2021.1 Beta3 (v1.10B3) has been reverted. For more information see this thread: https://groups.google.com/g/winfsp/c/1VYgTp1JpSI
+
 Changes since v1.9:
 
 * [NEW] Official Windows 11 support.
 
-* [NEW] WinFsp has had its Delete functionality redesigned in release 2021.1 Beta3. This redesign unifies all Windows file deletion semantics under a single file system operation that also supports the new POSIX semantics introduced in Windows 10 Redstone 1. The new Delete design is recommended for new file systems, however existing file systems will continue to work without any changes. See https://github.com/billziss-gh/winfsp/wiki/WinFsp-Delete-Redesign for more information.
-
-* [NEW] Support for `FileDispositionInformationEx` and `FileRenameInformationEx` has been added (see above).
+* [NEW] Support for `FileDispositionInformationEx` and `FileRenameInformationEx` has been added.
 
 * [NEW] WinFsp now supports rebranding of the build products. This is primarily useful to commercial licensees. See https://github.com/billziss-gh/winfsp/wiki/WinFsp-Rebranding for more information.
 
@@ -41,7 +44,7 @@ Changes since v1.9:
 * [FIX] Fixed a potential problem when launching file system instances using the Launcher. (See GitHub issue #356.)
 
 * [FIX] The `winfsp.h` header no longer defines `FILE_FULL_EA_INFORMATION` when compiled under mingw. This is because the mingw tool chain already includes a definition of this type. (GitHub PR #371. Thanks @lemourin.)
-
+--
 
 v1.10B3 (2021.1 Beta3)::
 
