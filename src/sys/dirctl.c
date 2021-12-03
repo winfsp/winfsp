@@ -463,7 +463,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     PVOID DirInfoBuffer;
     ULONG DirInfoSize;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
-    BOOLEAN PassQueryDirectoryPattern, PatternIsFileName;
+    BOOLEAN PassQueryDirectoryPattern, PatternIsWild, PatternIsFileName;
     BOOLEAN Success;
 
     ASSERT(FileNode == FileDesc->FileNode);
@@ -520,6 +520,14 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
         return Result;
     }
 
+    /* if the pattern does not contain wildcards and we already returned a result, bail now! */
+    PatternIsWild = FsRtlDoesNameContainWildCards(&FileDesc->DirectoryPattern);
+    if (!PatternIsWild && FileDesc->DirectoryHasSuchFile)
+    {
+        FspFileNodeRelease(FileNode, Full);
+        return STATUS_NO_MORE_FILES;
+    }
+
     /* see if the required information is still in the cache and valid! */
     if (FspFileNodeReferenceDirInfo(FileNode, &DirInfoBuffer, &DirInfoSize))
     {
@@ -545,19 +553,10 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
 
     /* special handling when pattern is filename */
     PatternIsFileName = FsvolDeviceExtension->VolumeParams.PassQueryDirectoryFileName &&
-        !FsRtlDoesNameContainWildCards(&FileDesc->DirectoryPattern);
+        !PatternIsWild;
     PassQueryDirectoryPattern = PatternIsFileName ||
         (FsvolDeviceExtension->VolumeParams.PassQueryDirectoryPattern &&
             FspFileDescDirectoryPatternMatchAll != FileDesc->DirectoryPattern.Buffer);
-    if (PatternIsFileName &&
-        0 != FileDesc->DirectoryMarker.Buffer &&
-        0 == FspFileNameCompare(&FileDesc->DirectoryPattern, &FileDesc->DirectoryMarker,
-            !FileDesc->CaseSensitive, 0))
-    {
-        FspFileNodeRelease(FileNode, Full);
-        return !FileDesc->DirectoryHasSuchFile ?
-            STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES;
-    }
 
     /* probe and lock the user buffer */
     Result = FspLockUserBuffer(Irp, Length, IoWriteAccess);
