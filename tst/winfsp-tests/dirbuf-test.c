@@ -376,6 +376,94 @@ static void dirbuf_fill_test(void)
     }
 }
 
+static void dirbuf_boundary_dotest(PWSTR Marker, ULONG ExpectI, ULONG ExpectN, ...)
+{
+    PVOID DirBuffer = 0;
+    NTSTATUS Result;
+    BOOLEAN Success;
+    union
+    {
+        UINT8 B[sizeof(FSP_FSCTL_DIR_INFO) + MAX_PATH * sizeof(WCHAR)];
+        FSP_FSCTL_DIR_INFO D;
+    } DirInfoBuf;
+    FSP_FSCTL_DIR_INFO *DirInfo = &DirInfoBuf.D, *DirInfoEnd;
+    UINT8 Buffer[1024];
+    ULONG Length, BytesTransferred;
+    WCHAR CurrFileName[MAX_PATH];
+    ULONG N;
+    PWSTR Name;
+    va_list Names0, Names1;
+
+    va_start(Names0, ExpectN);
+    va_copy(Names1, Names0);
+
+    Length = sizeof Buffer;
+
+    Result = STATUS_UNSUCCESSFUL;
+    Success = FspFileSystemAcquireDirectoryBuffer(&DirBuffer, FALSE, &Result);
+    ASSERT(Success);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    while (0 != (Name = va_arg(Names0, PWSTR)))
+    {
+        memset(&DirInfoBuf, 0, sizeof DirInfoBuf);
+        DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + wcslen(Name) * sizeof(WCHAR));
+        wcscpy_s(DirInfo->FileNameBuf, MAX_PATH, Name);
+        Success = FspFileSystemFillDirectoryBuffer(&DirBuffer, DirInfo, &Result);
+        ASSERT(Success);
+        ASSERT(STATUS_SUCCESS == Result);
+    }
+
+    FspFileSystemReleaseDirectoryBuffer(&DirBuffer);
+
+    BytesTransferred = 0;
+    FspFileSystemReadDirectoryBuffer(&DirBuffer, Marker, Buffer, Length, &BytesTransferred);
+
+    for (N = 0; ExpectI > N; N++)
+        va_arg(Names1, PWSTR);
+
+    for (N = 0,
+        DirInfo = (PVOID)Buffer, DirInfoEnd = (PVOID)(Buffer + BytesTransferred);
+        DirInfoEnd > DirInfo && 0 != DirInfo->Size;
+        DirInfo = (PVOID)((PUINT8)DirInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(DirInfo->Size)), N++)
+    {
+        memcpy(CurrFileName, DirInfo->FileNameBuf, DirInfo->Size - sizeof *DirInfo);
+        CurrFileName[(DirInfo->Size - sizeof *DirInfo) / sizeof(WCHAR)] = L'\0';
+
+        Name = va_arg(Names1, PWSTR);
+        ASSERT(0 == wcscmp(CurrFileName, Name));
+    }
+    ASSERT(ExpectN == N);
+
+    FspFileSystemDeleteDirectoryBuffer(&DirBuffer);
+
+    va_end(Names1);
+    va_end(Names0);
+}
+
+static void dirbuf_boundary_test(void)
+{
+    dirbuf_boundary_dotest(L"A", 0, 0, 0);
+
+    dirbuf_boundary_dotest(L"A", 0, 1, L"B", 0);
+    dirbuf_boundary_dotest(L"B", 0, 0, L"B", 0);
+    dirbuf_boundary_dotest(L"C", 0, 0, L"B", 0);
+
+    dirbuf_boundary_dotest(L"A", 0, 2, L"B", L"D", 0);
+    dirbuf_boundary_dotest(L"B", 1, 1, L"B", L"D", 0);
+    dirbuf_boundary_dotest(L"C", 1, 1, L"B", L"D", 0);
+    dirbuf_boundary_dotest(L"D", 0, 0, L"B", L"D", 0);
+    dirbuf_boundary_dotest(L"E", 0, 0, L"B", L"D", 0);
+
+    dirbuf_boundary_dotest(L"A", 0, 3, L"B", L"D", L"F", 0);
+    dirbuf_boundary_dotest(L"B", 1, 2, L"B", L"D", L"F", 0);
+    dirbuf_boundary_dotest(L"C", 1, 2, L"B", L"D", L"F", 0);
+    dirbuf_boundary_dotest(L"D", 2, 1, L"B", L"D", L"F", 0);
+    dirbuf_boundary_dotest(L"E", 2, 1, L"B", L"D", L"F", 0);
+    dirbuf_boundary_dotest(L"F", 0, 0, L"B", L"D", L"F", 0);
+    dirbuf_boundary_dotest(L"G", 0, 0, L"B", L"D", L"F", 0);
+}
+
 void dirbuf_tests(void)
 {
     if (OptExternal)
@@ -384,4 +472,5 @@ void dirbuf_tests(void)
     TEST(dirbuf_empty_test);
     TEST(dirbuf_dots_test);
     TEST(dirbuf_fill_test);
+    TEST(dirbuf_boundary_test);
 }

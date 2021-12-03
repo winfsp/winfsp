@@ -50,7 +50,7 @@ static VOID PrepareFileName(PCWSTR FileName, PWSTR FileNameBuf)
         else if (testalpha(FileNameBuf[0]) && L':' == FileNameBuf[1] && L'\\' == FileNameBuf[2])
             P = FileNameBuf + 2;
         else
-            ABORT("unknown filename format");
+            P = FileNameBuf;
 
         for (EndP = P + wcslen(P); EndP > P; P++)
             if (testalpha(*P) && myrand() <= (TogglePercent) * 0x7fff / 100)
@@ -71,7 +71,7 @@ static VOID PrepareFileName(PCWSTR FileName, PWSTR FileNameBuf)
         else if (testalpha(FileNameBuf[0]) && L':' == FileNameBuf[1] && L'\\' == FileNameBuf[2])
             ABORT("--mountpoint not supported with NTFS");
         else
-            ABORT("unknown filename format");
+            P = FileNameBuf;
 
         L1 = wcslen(P) + 1;
         L2 = wcslen(OptMountPoint);
@@ -96,7 +96,7 @@ static VOID PrepareFileName(PCWSTR FileName, PWSTR FileNameBuf)
             /* NTFS testing can only been done when the whole drive is being shared */
             P = FileNameBuf + 2;
         else
-            ABORT("unknown filename format");
+            P = FileNameBuf;
 
         L1 = wcslen(P) + 1;
         L2 = wcslen(OptShareComputer);

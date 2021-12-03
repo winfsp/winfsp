@@ -889,6 +889,10 @@ if X%5==XNOEXCL (
         -reparse* -stream* %~5
 )
 if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
+"%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
+    --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
+    +querydir_single_test
+if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
 popd
 echo net use L: /delete
 net use L: /delete

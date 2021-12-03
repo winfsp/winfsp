@@ -269,6 +269,93 @@ void querydir_test(void)
     }
 }
 
+static void querydir_single_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG SleepTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR CurrentDirectory[MAX_PATH], FileName[MAX_PATH];
+    WIN32_FIND_DATAW FindData;
+
+    StringCbPrintfW(FileName, sizeof FileName, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Success = GetCurrentDirectoryW(MAX_PATH, CurrentDirectory);
+    ASSERT(Success);
+
+    Success = SetCurrentDirectoryW(FileName);
+    ASSERT(Success);
+
+    for (ULONG Index = 0; 1000 > Index; Index++)
+    {
+        StringCbPrintfW(FileName, sizeof FileName, L"xxxxxxx-file%lu", Index);
+        Handle = CreateFileW(FileName,
+            GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+            0,
+            CREATE_NEW, FILE_ATTRIBUTE_NORMAL,
+            0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        Success = CloseHandle(Handle);
+        ASSERT(Success);
+    }
+
+    Handle = FindFirstFileW(L"*", &FindData);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    do
+    {
+    } while (FindNextFileW(Handle, &FindData));
+    Success = FindClose(Handle);
+    ASSERT(Success);
+
+    for (ULONG Index = 0; 1000 > Index; Index++)
+    {
+        StringCbPrintfW(FileName, sizeof FileName, L"xxxxxxx-file%lu", Index);
+        Handle = FindFirstFileW(FileName, &FindData);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        do
+        {
+        } while (FindNextFileW(Handle, &FindData));
+        Success = FindClose(Handle);
+        ASSERT(Success);
+    }
+
+    for (ULONG Index = 0; 1000 > Index; Index++)
+    {
+        StringCbPrintfW(FileName, sizeof FileName, L"xxxxxxx-file%lu", Index);
+        Success = DeleteFileW(FileName);
+        ASSERT(Success);
+    }
+
+    Success = RealSetCurrentDirectoryW(CurrentDirectory);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+void querydir_single_test(void)
+{
+    if (OptShareName)
+        return;
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        querydir_single_dotest(-1, DirBuf, 0, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        querydir_single_dotest(MemfsDisk, 0, 0, 0);
+        querydir_single_dotest(MemfsDisk, 0, 1000, 0);
+    }
+    if (WinFspNetTests)
+    {
+        querydir_single_dotest(MemfsNet, L"\\\\memfs\\share", 0, 0);
+        querydir_single_dotest(MemfsNet, L"\\\\memfs\\share", 1000, 0);
+    }
+}
+
 void querydir_expire_cache_test(void)
 {
     if (WinFspDiskTests)
@@ -645,6 +732,8 @@ void dirnotify_test(void)
 void dirctl_tests(void)
 {
     TEST(querydir_test);
+    if (!OptShareName)
+        TEST_OPT(querydir_single_test);
     TEST(querydir_expire_cache_test);
     if (!OptShareName)
         TEST(querydir_buffer_overflow_test);

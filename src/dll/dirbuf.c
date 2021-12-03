@@ -114,7 +114,7 @@ static BOOLEAN FspFileSystemSearchDirectoryBuffer(FSP_FILE_SYSTEM_DIRECTORY_BUFF
         }
     }
 
-    *PIndexNum = Lo;
+    *PIndexNum = Hi;
     return FALSE;
 }
 
