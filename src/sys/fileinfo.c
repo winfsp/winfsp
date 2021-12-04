@@ -83,6 +83,8 @@ static NTSTATUS FspFsvolSetDispositionInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolSetDispositionInformationSuccess(
     PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
+static NTSTATUS FspFsvolSetDispositionInformationFailure(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 static NTSTATUS FspFsvolSetRenameInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolSetRenameInformationSuccess(
@@ -125,6 +127,7 @@ FAST_IO_QUERY_OPEN FspFastIoQueryOpen;
 #pragma alloc_text(PAGE, FspFsvolSetPositionInformation)
 #pragma alloc_text(PAGE, FspFsvolSetDispositionInformation)
 #pragma alloc_text(PAGE, FspFsvolSetDispositionInformationSuccess)
+#pragma alloc_text(PAGE, FspFsvolSetDispositionInformationFailure)
 #pragma alloc_text(PAGE, FspFsvolSetRenameInformation)
 #pragma alloc_text(PAGE, FspFsvolSetRenameInformationSuccess)
 #pragma alloc_text(PAGE, FspFsvolSetInformation)
@@ -1567,6 +1570,27 @@ retry:
     else
         DispositionFlags = FILE_DISPOSITION_DO_NOT_DELETE;
 
+    /*
+     * DeleteFileW and RemoveDirectoryW in recent versions of Windows 10 have been changed to
+     * perform a FileDispositionInformationEx with POSIX semantics and if that fails to retry
+     * with FileDispositionInformation. Unfortunately this is done even for legitimate error
+     * codes such as STATUS_DIRECTORY_NOT_EMPTY.
+     *
+     * This means that user mode file systems have to do unnecessary CanDelete checks even when
+     * they support FileDispositionInformationEx. The extra check incurs extra context switches,
+     * and in some cases it may also be costly to compute (e.g. FUSE).
+     *
+     * We optimize this away by storing the status of the last CanDelete check in the FileDesc
+     * and then continue returning the same status code for all checks for the same FileDesc.
+     */
+    if (FILE_DISPOSITION_DELETE == (DispositionFlags & ~FILE_DISPOSITION_POSIX_SEMANTICS) &&
+        STATUS_SUCCESS != FileDesc->DispositionStatus)
+    {
+        Result = FileDesc->DispositionStatus;
+        goto unlock_exit;
+    }
+    FileDesc->DispositionStatus = STATUS_SUCCESS;
+
     Result = FspIopCreateRequestEx(Irp, &FileNode->FileName, 0,
         FspFsvolSetInformationRequestFini, &Request);
     if (!NT_SUCCESS(Result))
@@ -1627,6 +1651,44 @@ static NTSTATUS FspFsvolSetDispositionInformationSuccess(
     Irp->IoStatus.Information = 0;
 
     return STATUS_SUCCESS;
+}
+
+static NTSTATUS FspFsvolSetDispositionInformationFailure(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
+    FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    UINT32 DispositionFlags = Request->Req.SetInformation.Info.DispositionEx.Flags;
+
+    /*
+     * DeleteFileW and RemoveDirectoryW in recent versions of Windows 10 have been changed to
+     * perform a FileDispositionInformationEx with POSIX semantics and if that fails to retry
+     * with FileDispositionInformation. Unfortunately this is done even for legitimate error
+     * codes such as STATUS_DIRECTORY_NOT_EMPTY.
+     *
+     * This means that user mode file systems have to do unnecessary CanDelete checks even when
+     * they support FileDispositionInformationEx. The extra check incurs extra context switches,
+     * and in some cases it may also be costly to compute (e.g. FUSE).
+     *
+     * We optimize this away by storing the status of the last CanDelete check in the FileDesc
+     * and then continue returning the same status code for all checks for the same FileDesc.
+     */
+    switch (Response->IoStatus.Status)
+    {
+    case STATUS_ACCESS_DENIED:
+    case STATUS_DIRECTORY_NOT_EMPTY:
+    case STATUS_CANNOT_DELETE:
+        if (FILE_DISPOSITION_DELETE == (DispositionFlags & ~FILE_DISPOSITION_POSIX_SEMANTICS))
+            FileDesc->DispositionStatus = Response->IoStatus.Status;
+        break;
+    }
+
+    Irp->IoStatus.Information = 0;
+    return Response->IoStatus.Status;
 }
 
 static NTSTATUS FspFsvolSetRenameInformation(
@@ -2095,14 +2157,22 @@ NTSTATUS FspFsvolSetInformationComplete(
 {
     FSP_ENTER_IOC(PAGED_CODE());
 
+    FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.SetFile.FileInformationClass;
+
     if (!NT_SUCCESS(Response->IoStatus.Status))
     {
+        /* special case FileDispositionInformation */
+        switch (FileInformationClass)
+        {
+        case FileDispositionInformation:
+        case FileDispositionInformationEx:
+            FSP_RETURN(Result = FspFsvolSetDispositionInformationFailure(Irp, Response));
+        }
+
         Irp->IoStatus.Information = 0;
         Result = Response->IoStatus.Status;
         FSP_RETURN();
     }
-
-    FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.SetFile.FileInformationClass;
 
     /* special case FileDispositionInformation/FileRenameInformation */
     switch (FileInformationClass)
