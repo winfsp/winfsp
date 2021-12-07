@@ -44,12 +44,14 @@ if X%SignedPackage%==X (
         if exist "%%d" rmdir /s/q "%%d"
     )
 
+    devenv winfsp.sln /build "%Configuration%|ARM64"
+    if errorlevel 1 goto fail
     devenv winfsp.sln /build "%Configuration%|x64"
     if errorlevel 1 goto fail
     devenv winfsp.sln /build "%Configuration%|x86"
     if errorlevel 1 goto fail
 
-    for %%f in (build\%Configuration%\%MyProductFileName%-x64.sys build\%Configuration%\%MyProductFileName%-x86.sys) do (
+    for %%f in (build\%Configuration%\%MyProductFileName%-a64.sys build\%Configuration%\%MyProductFileName%-x64.sys build\%Configuration%\%MyProductFileName%-x86.sys) do (
         signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha1 /t http://timestamp.digicert.com %%f
         if errorlevel 1 set /a signfail=signfail+1
         signtool sign /as /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha256 /tr http://timestamp.digicert.com /td sha256 %%f
@@ -69,6 +71,9 @@ if X%SignedPackage%==X (
     echo .Set Compress=on >>driver.ddf
     echo .Set CabinetNameTemplate=driver.cab >>driver.ddf
     echo .Set DiskDirectory1=. >>driver.ddf
+    echo .Set DestinationDir=a64 >>driver.ddf
+    echo driver-a64.inf >>driver.ddf
+    echo %MyProductFileName%-a64.sys >>driver.ddf
     echo .Set DestinationDir=x64 >>driver.ddf
     echo driver-x64.inf >>driver.ddf
     echo %MyProductFileName%-x64.sys >>driver.ddf

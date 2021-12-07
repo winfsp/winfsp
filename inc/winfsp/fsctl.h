@@ -66,6 +66,22 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
     { 0xb48171c3, 0xdd50, 0x4852, { 0x83, 0xa3, 0x34, 0x4c, 0x50, 0xd9, 0x3b, 0x17 } };
 #endif
 
+/* locations */
+#define FSP_FSCTL_PRODUCT_REGKEY        "Software\\" FSP_FSCTL_PRODUCT_NAME
+#define FSP_FSCTL_PRODUCT_REGKEY_WOW64  KEY_WOW64_32KEY
+#if defined(_ARM64_)
+#define FSP_FSCTL_PRODUCT_FULL_REGKEY   "Software\\WOW6432Node\\" FSP_FSCTL_PRODUCT_NAME
+#define FSP_FSCTL_PRODUCT_FILE_ARCH     "a64"
+#elif defined(_AMD64_)
+#define FSP_FSCTL_PRODUCT_FULL_REGKEY   "Software\\WOW6432Node\\" FSP_FSCTL_PRODUCT_NAME
+#define FSP_FSCTL_PRODUCT_FILE_ARCH     "x64"
+#elif defined(_X86_)
+#define FSP_FSCTL_PRODUCT_FULL_REGKEY   "Software\\" FSP_FSCTL_PRODUCT_NAME
+#define FSP_FSCTL_PRODUCT_FILE_ARCH     "x86"
+#else
+#error unknown architecture
+#endif
+
 /* alignment macros */
 #define FSP_FSCTL_ALIGN_UP(x, s)        (((x) + ((s) - 1L)) & ~((s) - 1L))
 #define FSP_FSCTL_DEFAULT_ALIGNMENT     8

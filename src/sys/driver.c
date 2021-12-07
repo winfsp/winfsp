@@ -123,7 +123,7 @@ NTSTATUS DriverEntry(
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
     BOOLEAN InitDoneGRes = FALSE, InitDoneSilo = FALSE, InitDonePsBuf = FALSE,
-        InitDoneDevices = FALSE;
+        InitDoneTimers = FALSE, InitDoneDevices = FALSE;
 
     FspDriverObject = DriverObject;
     FspDriverMultiVersionInitialize();
@@ -141,6 +141,11 @@ NTSTATUS DriverEntry(
         goto exit;
     InitDonePsBuf = TRUE;
 
+    Result = FspDeviceInitializeAllTimers();
+    if (!NT_SUCCESS(Result))
+        goto exit;
+    InitDoneTimers = TRUE;
+
     Result = FspDriverInitializeDevices();
     if (!NT_SUCCESS(Result))
         goto exit;
@@ -153,6 +158,8 @@ exit:
     {
         if (InitDoneDevices)
             FspDriverFinalizeDevices();
+        if (InitDoneTimers)
+            FspDeviceFinalizeAllTimers();
         if (InitDonePsBuf)
             FspProcessBufferFinalize();
         if (InitDoneSilo)

@@ -1433,18 +1433,30 @@ namespace Fsp.Interop
         internal static String ProductFileName = "winfsp";
         private static IntPtr LoadDll()
         {
-            String DllPath = null;
-            String DllName = 8 == IntPtr.Size ?
-                ProductFileName + "-x64.dll" :
-                ProductFileName + "-x86.dll";
-            String KeyName = 8 == IntPtr.Size ?
-                "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\" + ProductName :
-                "HKEY_LOCAL_MACHINE\\Software\\" + ProductName;
+            String RegPath, DllName, DllPath;
+            SYSTEM_INFO SystemInfo;
+            GetSystemInfo(out SystemInfo);
+            switch ((UInt32)SystemInfo.wProcessorArchitecture)
+            {
+            case SYSTEM_INFO.PROCESSOR_ARCHITECTURE_ARM64:
+                RegPath = "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\" + ProductName;
+                DllName = ProductFileName + "-a64.dll";
+                break;
+            case SYSTEM_INFO.PROCESSOR_ARCHITECTURE_AMD64:
+                RegPath = "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\" + ProductName;
+                DllName = ProductFileName + "-x64.dll";
+                break;
+            case SYSTEM_INFO.PROCESSOR_ARCHITECTURE_INTEL:
+            default:
+                RegPath = "HKEY_LOCAL_MACHINE\\SOFTWARE\\" + ProductName;
+                DllName = ProductFileName + "-x86.dll";
+                break;
+            }
             IntPtr Module;
             Module = LoadLibraryW(DllName);
             if (IntPtr.Zero == Module)
             {
-                DllPath = Microsoft.Win32.Registry.GetValue(KeyName, "InstallDir", null) as String;
+                DllPath = Microsoft.Win32.Registry.GetValue(RegPath, "InstallDir", null) as String;
                 if (null != DllPath)
                 {
                     DllPath = Path.Combine(DllPath, Path.Combine("bin", DllName));
@@ -1546,6 +1558,39 @@ namespace Fsp.Interop
             CheckVersion();
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SYSTEM_INFO
+        {
+            internal const UInt32 PROCESSOR_ARCHITECTURE_INTEL = 0;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_MIPS = 1;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_ALPHA = 2;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_PPC = 3;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_SHX = 4;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_ARM = 5;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_IA64 = 6;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_ALPHA64 = 7;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_MSIL = 8;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_AMD64 = 9;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_IA32_ON_WIN64 = 10;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_NEUTRAL = 11;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_ARM64 = 12;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_ARM32_ON_WIN64 = 13;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_IA32_ON_ARM64 = 14;
+            internal const UInt32 PROCESSOR_ARCHITECTURE_UNKNOWN = 0xFFFF;
+
+            internal UInt16 wProcessorArchitecture;
+            internal UInt16 wReserved;
+            internal UInt32 dwPageSize;
+            internal IntPtr lpMinimumApplicationAddress;
+            internal IntPtr lpMaximumApplicationAddress;
+            internal IntPtr dwActiveProcessorMask;
+            internal UInt32 dwNumberOfProcessors;
+            internal UInt32 dwProcessorType;
+            internal UInt32 dwAllocationGranularity;
+            internal UInt16 wProcessorLevel;
+            internal UInt16 wProcessorRevision;
+        }
+
         [DllImport("kernel32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true)]
         private static extern IntPtr LoadLibraryW(
             [MarshalAs(UnmanagedType.LPWStr)] String DllName);
@@ -1553,6 +1598,9 @@ namespace Fsp.Interop
         private static extern IntPtr GetProcAddress(
             IntPtr hModule,
             [MarshalAs(UnmanagedType.LPStr)] String lpProcName);
+        [DllImport("kernel32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = false)]
+        private static extern void GetSystemInfo(
+            out SYSTEM_INFO SystemInfo);
         [DllImport("advapi32.dll", CallingConvention = CallingConvention.StdCall)]
         private static extern UInt32 GetSecurityDescriptorLength(IntPtr SecurityDescriptor);
         [DllImport("kernel32.dll", CallingConvention = CallingConvention.StdCall, SetLastError = true)]
