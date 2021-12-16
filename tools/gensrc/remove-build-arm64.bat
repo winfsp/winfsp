@@ -3,7 +3,12 @@
 setlocal
 setlocal EnableDelayedExpansion
 
-cd %~dp0..\..
+if "%1"=="" (
+    cd %~dp0..\..
+) else (
+    cd "%1"
+)
+
 for /r %%f in (*.vcxproj) do (
     echo %%f
     powershell -NoProfile -ExecutionPolicy Bypass -Command "& '%~dp0remove-vcxproj-config.ps1' -Path '%%f' -ProjectConfiguration '|ARM64'

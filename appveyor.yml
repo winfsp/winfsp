@@ -47,7 +47,7 @@ build_script:
 #- C:\cygwin\setup-x86.exe -qnNd -P cygport
 #- C:\cygwin\bin\bash --login -c "make -C '%CD%\opt\cygfuse' dist"
 # remove ARM64 project configurations to build in VS2015
-- tools\gensrc\remove-all-arm64.bat
+- tools\gensrc\remove-build-arm64.bat
 # build winfsp
 - tools\build.bat %CONFIGURATION%
 
