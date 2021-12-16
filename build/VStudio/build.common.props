@@ -30,6 +30,6 @@
     </PropertyGroup>
 
     <PropertyGroup>
-        <ForceImportAfterCppProps>$(MsbuildThisFileDirectory)\After.props</ForceImportAfterCppProps>
+        <ForceImportAfterCppProps>$(MsbuildThisFileDirectory)\build.aftercpp.props</ForceImportAfterCppProps>
     </PropertyGroup>
 </Project>
