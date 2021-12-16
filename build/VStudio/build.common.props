@@ -1,7 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <Import Project="$(MsbuildThisFileDirectory)\version.properties" />
-
     <ItemDefinitionGroup>
         <ClCompile>
             <PreprocessorDefinitions>NTDDI_VERSION=0x06010000;_WIN32_WINNT=0x0601;MyProductName=$(MyProductName);MyProductFileName=$(MyProductFileName);MyDescription=$(MyDescription);MyCompanyName=$(MyCompanyName);MyCopyright=$(MyCopyright);MyProductVersion=$(MyProductVersion);MyProductStage=$(MyProductStage);MyVersion=$(MyVersion);MyVersionWithCommas=$(MyVersionWithCommas);MyFullVersion=$(MyFullVersion);MyFspFsctlDeviceClassGuid=$(MyFspFsctlDeviceClassGuid);MyFspFsvrtDeviceClassGuid=$(MyFspFsvrtDeviceClassGuid)</PreprocessorDefinitions>
@@ -27,9 +26,5 @@
     </ItemDefinitionGroup>
     <PropertyGroup>
         <SpectreMitigation>false</SpectreMitigation>
-    </PropertyGroup>
-
-    <PropertyGroup>
-        <ForceImportAfterCppProps>$(MsbuildThisFileDirectory)\build.aftercpp.props</ForceImportAfterCppProps>
     </PropertyGroup>
 </Project>
