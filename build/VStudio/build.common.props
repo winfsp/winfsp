@@ -13,6 +13,9 @@
         <ClCompile>
             <DisableSpecificWarnings>4996</DisableSpecificWarnings>
         </ClCompile>
+        <DriverSign>
+            <FileDigestAlgorithm>sha256</FileDigestAlgorithm>
+        </DriverSign>
     </ItemDefinitionGroup>
     <ItemDefinitionGroup Condition="'$(DefaultPlatformToolset)'=='v140'">
         <Link>
