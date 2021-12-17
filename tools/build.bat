@@ -26,9 +26,15 @@ if X%~nx0==Xbuild-choco.bat (
 
 set BuildArm64=yes
 if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
-    echo WARNING: APPVEYOR BUILD ON UNSUPPORTED VERSION OF VISUAL STUDIO.
-    echo:
     set BuildArm64=no
+)
+if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" (
+    set BuildArm64=no
+)
+if X%BuildArm64%==Xno (
+    echo WARNING: APPVEYOR BUILD ON UNSUPPORTED VERSION OF VISUAL STUDIO.
+    echo WARNING: ARM64 BUILD PRODUCTS ARE COPIES OF X64 BUILD PRODUCTS.
+    echo:
 )
 
 call "%~dp0vcvarsall.bat" x64
@@ -60,11 +66,8 @@ if X%SignedPackage%==X (
     devenv winfsp.sln /build "%Configuration%|x86"
     if errorlevel 1 goto fail
     if X%BuildArm64%==Xno (
-        echo:
-        echo WARNING: APPVEYOR BUILD ON UNSUPPORTED VERSION OF VISUAL STUDIO.
-        echo WARNING: ARM64 BUILD PRODUCTS ARE COPIES OF X64 BUILD PRODUCTS.
-        echo:
         copy build\%Configuration%\*-x64.* build\%Configuration%\*-a64.* >nul
+        if errorlevel 1 goto fail
     )
 
     for %%f in (build\%Configuration%\%MyProductFileName%-a64.sys build\%Configuration%\%MyProductFileName%-x64.sys build\%Configuration%\%MyProductFileName%-x86.sys) do (
