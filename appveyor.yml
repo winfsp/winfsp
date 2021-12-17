@@ -37,6 +37,7 @@ install:
       $usingTask = $targets.ChildNodes[1].UsingTask | ? {$_.TaskName -eq "ValidateNTTargetVersion"}
       $usingTask.AssemblyFile = '$(WDKContentRoot)build\bin\Microsoft.DriverKit.Build.Tasks.16.0.dll'
       $targets.Save("C:\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets")
+      Add-AppveyorMessage "Hack to make WDK 1903 work on VS2015"
     }
 # Submodules
 - git submodule update --init --recursive
