@@ -506,7 +506,7 @@ static void delete_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     ASSERT(INVALID_HANDLE_VALUE != Handle);
     CloseHandle(Handle);
 
-    Success = RemoveDirectoryW(Dir1Path);
+    Success = RealRemoveDirectoryW(Dir1Path);
     ASSERT(!Success);
     ASSERT(ERROR_DIR_NOT_EMPTY == GetLastError());
 
