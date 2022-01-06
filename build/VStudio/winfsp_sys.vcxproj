@@ -1,10 +1,18 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="version.properties" />
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), build.common.props))/build.common.props" />
   <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
       <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Release|Win32">
       <Configuration>Release</Configuration>
@@ -55,10 +63,26 @@
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>WDM</DriverType>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <KernelBufferOverflowLib>$(DDK_LIB_PATH)\BufferOverflowFastFailK.lib</KernelBufferOverflowLib>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
     <KernelBufferOverflowLib>$(DDK_LIB_PATH)\BufferOverflowK.lib</KernelBufferOverflowLib>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <KernelBufferOverflowLib>$(DDK_LIB_PATH)\BufferOverflowFastFailK.lib</KernelBufferOverflowLib>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>WDM</DriverType>
@@ -73,31 +97,45 @@
   <PropertyGroup />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(PlatformTarget)\</IntDir>
-    <TargetName>$(MyProductFileName)-$(PlatformTarget)</TargetName>
+    <TargetName>$(MyProductFileName)-$(MyProductFileArch)</TargetName>
     <EnableInf2cat>false</EnableInf2cat>
+    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(MyProductFileArch)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(PlatformTarget)\</IntDir>
-    <TargetName>$(MyProductFileName)-$(PlatformTarget)</TargetName>
+    <TargetName>$(MyProductFileName)-$(MyProductFileArch)</TargetName>
     <EnableInf2cat>false</EnableInf2cat>
+    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(MyProductFileArch)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(PlatformTarget)\</IntDir>
-    <TargetName>$(MyProductFileName)-$(PlatformTarget)</TargetName>
+    <TargetName>$(MyProductFileName)-$(MyProductFileArch)</TargetName>
     <EnableInf2cat>false</EnableInf2cat>
+    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(MyProductFileArch)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <TargetName>$(MyProductFileName)-$(MyProductFileArch)</TargetName>
+    <EnableInf2cat>false</EnableInf2cat>
+    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(MyProductFileArch)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(PlatformTarget)\</IntDir>
-    <TargetName>$(MyProductFileName)-$(PlatformTarget)</TargetName>
+    <TargetName>$(MyProductFileName)-$(MyProductFileArch)</TargetName>
     <EnableInf2cat>false</EnableInf2cat>
+    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(MyProductFileArch)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <TargetName>$(MyProductFileName)-$(MyProductFileArch)</TargetName>
+    <EnableInf2cat>false</EnableInf2cat>
+    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(MyProductFileArch)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -142,10 +180,39 @@
       <ImportLibrary>$(OutDir)$(TargetName)$(TargetExt).lib</ImportLibrary>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\..\src;..\..\opt\fsext\inc;..\..\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions> _WIN64;_ARM64_;ARM64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>cng.lib;wdmsec.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <GenerateMapFile>true</GenerateMapFile>
+      <ProgramDatabaseFile>$(OutDir)$(TargetFileName).pdb</ProgramDatabaseFile>
+      <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
+      <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
+      <ImportLibrary>$(OutDir)$(TargetName)$(TargetExt).lib</ImportLibrary>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>..\..\src;..\..\opt\fsext\inc;..\..\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions> _WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>cng.lib;wdmsec.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <GenerateMapFile>true</GenerateMapFile>
+      <ProgramDatabaseFile>$(OutDir)$(TargetFileName).pdb</ProgramDatabaseFile>
+      <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
+      <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
+      <AdditionalOptions>/PDBALTPATH:$(TargetFileName).pdb %(AdditionalOptions)</AdditionalOptions>
+      <ImportLibrary>$(OutDir)$(TargetName)$(TargetExt).lib</ImportLibrary>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\..\src;..\..\opt\fsext\inc;..\..\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions> _WIN64;_ARM64_;ARM64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalDependencies>cng.lib;wdmsec.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -180,6 +247,7 @@
     <ClCompile Include="..\..\src\sys\fsext.c" />
     <ClCompile Include="..\..\src\sys\iop.c" />
     <ClCompile Include="..\..\src\sys\ioq.c" />
+    <ClCompile Include="..\..\src\sys\devtimer.c" />
     <ClCompile Include="..\..\src\sys\lockctl.c" />
     <ClCompile Include="..\..\src\sys\meta.c" />
     <ClCompile Include="..\..\src\sys\mountdev.c" />
@@ -210,7 +278,9 @@
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_X86_=1;i386=1;STD_CALL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_X86_=1;i386=1;STD_CALL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_WIN64;_AMD64_=1;AMD64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">_WIN64;_ARM64_=1;ARM64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_WIN64;_AMD64_=1;AMD64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">_WIN64;_ARM64_=1;ARM64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
@@ -218,64 +288,94 @@
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
-set CatalogFile=driver-$(PlatformTarget).cat
+set CatalogFile=driver-$(MyProductFileArch).cat
 
 setlocal EnableDelayedExpansion
-if exist $(OutDir)driver-$(PlatformTarget).inf del $(OutDir)driver-$(PlatformTarget).inf
+if exist $(OutDir)driver-$(MyProductFileArch).inf del $(OutDir)driver-$(MyProductFileArch).inf
 for /f "delims=" %%l in (%(FullPath)) do (
     set line=%%l
-    echo !line! &gt;&gt;$(OutDir)driver-$(PlatformTarget).inf
+    echo !line! &gt;&gt;$(OutDir)driver-$(MyProductFileArch).inf
 )
 
-stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
+stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(MyProductFileArch).inf</Command>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkObjects>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
-set CatalogFile=driver-$(PlatformTarget).cat
+set CatalogFile=driver-$(MyProductFileArch).cat
 
 setlocal EnableDelayedExpansion
-if exist $(OutDir)driver-$(PlatformTarget).inf del $(OutDir)driver-$(PlatformTarget).inf
+if exist $(OutDir)driver-$(MyProductFileArch).inf del $(OutDir)driver-$(MyProductFileArch).inf
 for /f "delims=" %%l in (%(FullPath)) do (
     set line=%%l
-    echo !line! &gt;&gt;$(OutDir)driver-$(PlatformTarget).inf
+    echo !line! &gt;&gt;$(OutDir)driver-$(MyProductFileArch).inf
 )
 
-stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
+stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(MyProductFileArch).inf</Command>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkObjects>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
-set CatalogFile=driver-$(PlatformTarget).cat
+set CatalogFile=driver-$(MyProductFileArch).cat
 
 setlocal EnableDelayedExpansion
-if exist $(OutDir)driver-$(PlatformTarget).inf del $(OutDir)driver-$(PlatformTarget).inf
+if exist $(OutDir)driver-$(MyProductFileArch).inf del $(OutDir)driver-$(MyProductFileArch).inf
 for /f "delims=" %%l in (%(FullPath)) do (
     set line=%%l
-    echo !line! &gt;&gt;$(OutDir)driver-$(PlatformTarget).inf
+    echo !line! &gt;&gt;$(OutDir)driver-$(MyProductFileArch).inf
 )
 
-stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
+stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(MyProductFileArch).inf</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">set DriverFile=$(TargetFileName)
+set Provider="$(MyCompanyName)"
+set CatalogFile=driver-$(MyProductFileArch).cat
+
+setlocal EnableDelayedExpansion
+if exist $(OutDir)driver-$(MyProductFileArch).inf del $(OutDir)driver-$(MyProductFileArch).inf
+for /f "delims=" %%l in (%(FullPath)) do (
+    set line=%%l
+    echo !line! &gt;&gt;$(OutDir)driver-$(MyProductFileArch).inf
+)
+
+stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(MyProductFileArch).inf</Command>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">false</LinkObjects>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
-set CatalogFile=driver-$(PlatformTarget).cat
+set CatalogFile=driver-$(MyProductFileArch).cat
 
 setlocal EnableDelayedExpansion
-if exist $(OutDir)driver-$(PlatformTarget).inf del $(OutDir)driver-$(PlatformTarget).inf
+if exist $(OutDir)driver-$(MyProductFileArch).inf del $(OutDir)driver-$(MyProductFileArch).inf
 for /f "delims=" %%l in (%(FullPath)) do (
     set line=%%l
-    echo !line! &gt;&gt;$(OutDir)driver-$(PlatformTarget).inf
+    echo !line! &gt;&gt;$(OutDir)driver-$(MyProductFileArch).inf
 )
 
-stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(PlatformTarget).inf</Command>
+stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(MyProductFileArch).inf</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">set DriverFile=$(TargetFileName)
+set Provider="$(MyCompanyName)"
+set CatalogFile=driver-$(MyProductFileArch).cat
+
+setlocal EnableDelayedExpansion
+if exist $(OutDir)driver-$(MyProductFileArch).inf del $(OutDir)driver-$(MyProductFileArch).inf
+for /f "delims=" %%l in (%(FullPath)) do (
+    set line=%%l
+    echo !line! &gt;&gt;$(OutDir)driver-$(MyProductFileArch).inf
+)
+
+stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(MyProductFileArch).inf</Command>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Writing driver-$(PlatformTarget).inf</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)driver-$(PlatformTarget).inf</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Writing driver-$(PlatformTarget).inf</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)driver-$(PlatformTarget).inf</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Writing driver-$(PlatformTarget).inf</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)driver-$(PlatformTarget).inf</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Writing driver-$(PlatformTarget).inf</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)driver-$(PlatformTarget).inf</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Writing driver-$(MyProductFileArch).inf</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)driver-$(MyProductFileArch).inf</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Writing driver-$(MyProductFileArch).inf</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)driver-$(MyProductFileArch).inf</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Writing driver-$(MyProductFileArch).inf</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Writing driver-$(MyProductFileArch).inf</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)driver-$(MyProductFileArch).inf</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">$(OutDir)driver-$(MyProductFileArch).inf</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Writing driver-$(MyProductFileArch).inf</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Writing driver-$(MyProductFileArch).inf</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)driver-$(MyProductFileArch).inf</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">$(OutDir)driver-$(MyProductFileArch).inf</Outputs>
     </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

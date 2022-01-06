@@ -16,6 +16,8 @@ set outarch=%outarch:~-3%
 
 set arch=x64
 set cdef=/D_AMD64_
+if /i X%outarch%==Xa64 set arch=x64_arm64
+if /i X%outarch%==Xa64 set cdef=/D_ARM64_
 if /i X%outarch%==Xx86 set arch=x86
 if /i X%outarch%==Xx86 set cdef=/D_X86_
 

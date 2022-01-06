@@ -24,6 +24,13 @@ if X%~nx0==Xbuild-choco.bat (
     goto :choco
 )
 
+set BuildArm64=yes
+if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
+    echo WARNING: APPVEYOR BUILD ON UNSUPPORTED VERSION OF VISUAL STUDIO.
+    echo:
+    set BuildArm64=no
+)
+
 call "%~dp0vcvarsall.bat" x64
 
 if not X%SignedPackage%==X (
@@ -44,12 +51,23 @@ if X%SignedPackage%==X (
         if exist "%%d" rmdir /s/q "%%d"
     )
 
+    if X%BuildArm64%==Xyes (
+        devenv winfsp.sln /build "%Configuration%|ARM64"
+        if errorlevel 1 goto fail
+    )
     devenv winfsp.sln /build "%Configuration%|x64"
     if errorlevel 1 goto fail
     devenv winfsp.sln /build "%Configuration%|x86"
     if errorlevel 1 goto fail
+    if X%BuildArm64%==Xno (
+        echo:
+        echo WARNING: APPVEYOR BUILD ON UNSUPPORTED VERSION OF VISUAL STUDIO.
+        echo WARNING: ARM64 BUILD PRODUCTS ARE COPIES OF X64 BUILD PRODUCTS.
+        echo:
+        copy build\%Configuration%\*-x64.* build\%Configuration%\*-a64.* >nul
+    )
 
-    for %%f in (build\%Configuration%\%MyProductFileName%-x64.sys build\%Configuration%\%MyProductFileName%-x86.sys) do (
+    for %%f in (build\%Configuration%\%MyProductFileName%-a64.sys build\%Configuration%\%MyProductFileName%-x64.sys build\%Configuration%\%MyProductFileName%-x86.sys) do (
         signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha1 /t http://timestamp.digicert.com %%f
         if errorlevel 1 set /a signfail=signfail+1
         signtool sign /as /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha256 /tr http://timestamp.digicert.com /td sha256 %%f
@@ -69,6 +87,9 @@ if X%SignedPackage%==X (
     echo .Set Compress=on >>driver.ddf
     echo .Set CabinetNameTemplate=driver.cab >>driver.ddf
     echo .Set DiskDirectory1=. >>driver.ddf
+    echo .Set DestinationDir=a64 >>driver.ddf
+    echo driver-a64.inf >>driver.ddf
+    echo %MyProductFileName%-a64.sys >>driver.ddf
     echo .Set DestinationDir=x64 >>driver.ddf
     echo driver-x64.inf >>driver.ddf
     echo %MyProductFileName%-x64.sys >>driver.ddf

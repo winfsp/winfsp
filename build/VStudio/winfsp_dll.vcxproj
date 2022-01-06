@@ -1,10 +1,18 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="version.properties" />
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), build.common.props))/build.common.props" />
   <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
       <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
     </ProjectConfiguration>
     <ProjectConfiguration Include="Release|Win32">
       <Configuration>Release</Configuration>
@@ -71,49 +79,69 @@
   <ItemGroup>
     <CustomBuild Include="..\..\src\dll\fuse\fuse.pc.in">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse-$(PlatformTarget).pc
-copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(PlatformTarget).pc &gt;nul</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Writing fuse-$(PlatformTarget).pc</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)fuse-$(PlatformTarget).pc</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">echo arch=$(MyProductFileArch) &gt;$(OutDir)fuse-$(MyProductFileArch).pc
+copy /b $(OutDir)fuse-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse-$(MyProductFileArch).pc &gt;nul</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Writing fuse-$(MyProductFileArch).pc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)fuse-$(MyProductFileArch).pc</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkObjects>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse-$(PlatformTarget).pc
-copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(PlatformTarget).pc &gt;nul</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Writing fuse-$(PlatformTarget).pc</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)fuse-$(PlatformTarget).pc</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">echo arch=$(MyProductFileArch) &gt;$(OutDir)fuse-$(MyProductFileArch).pc
+copy /b $(OutDir)fuse-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse-$(MyProductFileArch).pc &gt;nul</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Writing fuse-$(MyProductFileArch).pc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)fuse-$(MyProductFileArch).pc</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkObjects>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse-$(PlatformTarget).pc
-copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(PlatformTarget).pc &gt;nul</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Writing fuse-$(PlatformTarget).pc</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)fuse-$(PlatformTarget).pc</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo arch=$(MyProductFileArch) &gt;$(OutDir)fuse-$(MyProductFileArch).pc
+copy /b $(OutDir)fuse-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse-$(MyProductFileArch).pc &gt;nul</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">echo arch=$(MyProductFileArch) &gt;$(OutDir)fuse-$(MyProductFileArch).pc
+copy /b $(OutDir)fuse-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse-$(MyProductFileArch).pc &gt;nul</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Writing fuse-$(MyProductFileArch).pc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Writing fuse-$(MyProductFileArch).pc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)fuse-$(MyProductFileArch).pc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">$(OutDir)fuse-$(MyProductFileArch).pc</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse-$(PlatformTarget).pc
-copy /b $(OutDir)fuse-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse-$(PlatformTarget).pc &gt;nul</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Writing fuse-$(PlatformTarget).pc</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)fuse-$(PlatformTarget).pc</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">false</LinkObjects>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo arch=$(MyProductFileArch) &gt;$(OutDir)fuse-$(MyProductFileArch).pc
+copy /b $(OutDir)fuse-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse-$(MyProductFileArch).pc &gt;nul</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">echo arch=$(MyProductFileArch) &gt;$(OutDir)fuse-$(MyProductFileArch).pc
+copy /b $(OutDir)fuse-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse-$(MyProductFileArch).pc &gt;nul</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Writing fuse-$(MyProductFileArch).pc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Writing fuse-$(MyProductFileArch).pc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)fuse-$(MyProductFileArch).pc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">$(OutDir)fuse-$(MyProductFileArch).pc</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">false</LinkObjects>
     </CustomBuild>
     <CustomBuild Include="..\..\src\dll\fuse3\fuse3.pc.in">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse3-$(PlatformTarget).pc
-copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(PlatformTarget).pc &gt;nul</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse3-$(PlatformTarget).pc
-copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(PlatformTarget).pc &gt;nul</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse3-$(PlatformTarget).pc
-copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(PlatformTarget).pc &gt;nul</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo arch=$(PlatformTarget) &gt;$(OutDir)fuse3-$(PlatformTarget).pc
-copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(PlatformTarget).pc &gt;nul</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Writing fuse3-$(PlatformTarget).pc</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Writing fuse3-$(PlatformTarget).pc</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Writing fuse3-$(PlatformTarget).pc</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Writing fuse3-$(PlatformTarget).pc</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)fuse3-$(PlatformTarget).pc</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)fuse3-$(PlatformTarget).pc</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)fuse3-$(PlatformTarget).pc</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)fuse3-$(PlatformTarget).pc</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">echo arch=$(MyProductFileArch) &gt;$(OutDir)fuse3-$(MyProductFileArch).pc
+copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(MyProductFileArch).pc &gt;nul</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">echo arch=$(MyProductFileArch) &gt;$(OutDir)fuse3-$(MyProductFileArch).pc
+copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(MyProductFileArch).pc &gt;nul</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">echo arch=$(MyProductFileArch) &gt;$(OutDir)fuse3-$(MyProductFileArch).pc
+copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(MyProductFileArch).pc &gt;nul</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">echo arch=$(MyProductFileArch) &gt;$(OutDir)fuse3-$(MyProductFileArch).pc
+copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(MyProductFileArch).pc &gt;nul</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">echo arch=$(MyProductFileArch) &gt;$(OutDir)fuse3-$(MyProductFileArch).pc
+copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(MyProductFileArch).pc &gt;nul</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">echo arch=$(MyProductFileArch) &gt;$(OutDir)fuse3-$(MyProductFileArch).pc
+copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(MyProductFileArch).pc &gt;nul</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Writing fuse3-$(MyProductFileArch).pc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Writing fuse3-$(MyProductFileArch).pc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Writing fuse3-$(MyProductFileArch).pc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Writing fuse3-$(MyProductFileArch).pc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Writing fuse3-$(MyProductFileArch).pc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Writing fuse3-$(MyProductFileArch).pc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)fuse3-$(MyProductFileArch).pc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)fuse3-$(MyProductFileArch).pc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)fuse3-$(MyProductFileArch).pc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">$(OutDir)fuse3-$(MyProductFileArch).pc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)fuse3-$(MyProductFileArch).pc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">$(OutDir)fuse3-$(MyProductFileArch).pc</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkObjects>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkObjects>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">false</LinkObjects>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">false</LinkObjects>
     </CustomBuild>
     <None Include="..\..\src\dll\library.def" />
   </ItemGroup>
@@ -123,7 +151,9 @@ copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(Platf
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -153,7 +183,20 @@ copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(Platf
     <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
@@ -174,33 +217,51 @@ copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(Platf
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <TargetName>$(MyProductFileName)-$(MyProductFileArch)</TargetName>
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(PlatformTarget)\</IntDir>
-    <TargetName>$(MyProductFileName)-$(PlatformTarget)</TargetName>
+    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(MyProductFileArch)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <TargetName>$(MyProductFileName)-$(MyProductFileArch)</TargetName>
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(PlatformTarget)\</IntDir>
-    <TargetName>$(MyProductFileName)-$(PlatformTarget)</TargetName>
+    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(MyProductFileArch)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <LinkIncremental>true</LinkIncremental>
+    <TargetName>$(MyProductFileName)-$(MyProductFileArch)</TargetName>
+    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(MyProductFileArch)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <TargetName>$(MyProductFileName)-$(MyProductFileArch)</TargetName>
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(PlatformTarget)\</IntDir>
-    <TargetName>$(MyProductFileName)-$(PlatformTarget)</TargetName>
+    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(MyProductFileArch)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <TargetName>$(MyProductFileName)-$(MyProductFileArch)</TargetName>
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(PlatformTarget)\</IntDir>
-    <TargetName>$(MyProductFileName)-$(PlatformTarget)</TargetName>
+    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(MyProductFileArch)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <LinkIncremental>false</LinkIncremental>
+    <TargetName>$(MyProductFileName)-$(MyProductFileArch)</TargetName>
+    <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(ProjectName).build\$(Configuration)\$(MyProductFileArch)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -230,6 +291,33 @@ copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(Platf
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;_USRDLL;WINFSPDLL_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>
+      </SDLCheck>
+      <AdditionalIncludeDirectories>..\..\src;..\..\inc</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <AdditionalOptions>
+      </AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <ProgramDatabaseFile>$(OutDir)$(TargetFileName).pdb</ProgramDatabaseFile>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
+      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib;netapi32.lib;wldap32.lib</AdditionalDependencies>
+      <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <ClCompile>
       <PrecompiledHeader>
       </PrecompiledHeader>
@@ -288,6 +376,37 @@ copy /b $(OutDir)fuse3-$(PlatformTarget).pc + %(FullPath) $(OutDir)fuse3-$(Platf
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;_USRDLL;WINFSPDLL_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>
+      </SDLCheck>
+      <AdditionalIncludeDirectories>..\..\src;..\..\inc</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <AdditionalOptions>
+      </AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <ProgramDatabaseFile>$(OutDir)$(TargetFileName).pdb</ProgramDatabaseFile>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
+      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib;netapi32.lib;wldap32.lib</AdditionalDependencies>
+      <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
+      <AdditionalOptions>/PDBALTPATH:$(TargetFileName).pdb %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <PrecompiledHeader>

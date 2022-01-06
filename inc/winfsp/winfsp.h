@@ -2126,11 +2126,7 @@ FSP_API NTSTATUS FspVersion(PUINT32 PVersion);
 static inline
 NTSTATUS FspLoad(PVOID *PModule)
 {
-#if defined(_WIN64)
-#define FSP_DLLNAME                     FSP_FSCTL_PRODUCT_FILE_NAME "-x64.dll"
-#else
-#define FSP_DLLNAME                     FSP_FSCTL_PRODUCT_FILE_NAME "-x86.dll"
-#endif
+#define FSP_DLLNAME                     FSP_FSCTL_PRODUCT_FILE_NAME "-" FSP_FSCTL_PRODUCT_FILE_ARCH ".dll"
 #define FSP_DLLPATH                     "bin\\" FSP_DLLNAME
 
     WINADVAPI
@@ -2147,7 +2143,6 @@ NTSTATUS FspLoad(PVOID *PModule)
 
     WCHAR PathBuf[MAX_PATH];
     DWORD Size;
-    HKEY RegKey;
     LONG Result;
     HMODULE Module;
 
@@ -2157,15 +2152,9 @@ NTSTATUS FspLoad(PVOID *PModule)
     Module = LoadLibraryW(L"" FSP_DLLNAME);
     if (0 == Module)
     {
-        Result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\" FSP_FSCTL_PRODUCT_NAME,
-            0, KEY_READ | KEY_WOW64_32KEY, &RegKey);
-        if (ERROR_SUCCESS == Result)
-        {
-            Size = sizeof PathBuf - sizeof L"" FSP_DLLPATH + sizeof(WCHAR);
-            Result = RegGetValueW(RegKey, 0, L"InstallDir",
-                RRF_RT_REG_SZ, 0, PathBuf, &Size);
-            RegCloseKey(RegKey);
-        }
+        Size = sizeof PathBuf - sizeof L"" FSP_DLLPATH + sizeof(WCHAR);
+        Result = RegGetValueW(HKEY_LOCAL_MACHINE, L"" FSP_FSCTL_PRODUCT_FULL_REGKEY, L"InstallDir",
+            RRF_RT_REG_SZ, 0, PathBuf, &Size);
         if (ERROR_SUCCESS != Result)
             return STATUS_OBJECT_NAME_NOT_FOUND;
 
@@ -2180,8 +2169,8 @@ NTSTATUS FspLoad(PVOID *PModule)
 
     return STATUS_SUCCESS;
 
-#undef FSP_DLLNAME
 #undef FSP_DLLPATH
+#undef FSP_DLLNAME
 }
 
 #ifdef __cplusplus

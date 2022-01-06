@@ -32,24 +32,17 @@ static BOOLEAN FspMountDoNotUseLauncher;
 
 static VOID FspMountInitializeFromRegistry(VOID)
 {
-    HKEY RegKey;
-    LONG Result;
-    DWORD Size;
     DWORD MountDoNotUseLauncher;
+    DWORD Size;
+    LONG Result;
 
     MountDoNotUseLauncher = 0;
-
-    Result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\" FSP_FSCTL_PRODUCT_NAME,
-        0, KEY_READ | KEY_WOW64_32KEY, &RegKey);
+    Size = sizeof MountDoNotUseLauncher;
+    Result = RegGetValueW(HKEY_LOCAL_MACHINE, L"" FSP_FSCTL_PRODUCT_FULL_REGKEY,
+        L"MountDoNotUseLauncher",
+        RRF_RT_REG_DWORD, 0, &MountDoNotUseLauncher, &Size);
     if (ERROR_SUCCESS == Result)
-    {
-        Size = sizeof MountDoNotUseLauncher;
-        Result = RegGetValueW(RegKey, 0, L"MountDoNotUseLauncher",
-            RRF_RT_REG_DWORD, 0, &MountDoNotUseLauncher, &Size);
-        RegCloseKey(RegKey);
-    }
-
-    FspMountDoNotUseLauncher = !!MountDoNotUseLauncher;
+        FspMountDoNotUseLauncher = !!MountDoNotUseLauncher;
 }
 
 static BOOL WINAPI FspMountInitialize(

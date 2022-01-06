@@ -174,24 +174,17 @@ exit:
 
 static VOID FspPosixInitializeFromRegistry(VOID)
 {
-    HKEY RegKey;
-    LONG Result;
-    DWORD Size;
     DWORD DistinctPermsForSameOwnerGroup;
+    DWORD Size;
+    LONG Result;
 
     DistinctPermsForSameOwnerGroup = 0;
-
-    Result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\" FSP_FSCTL_PRODUCT_NAME,
-        0, KEY_READ | KEY_WOW64_32KEY, &RegKey);
+    Size = sizeof DistinctPermsForSameOwnerGroup;
+    Result = RegGetValueW(HKEY_LOCAL_MACHINE, L"" FSP_FSCTL_PRODUCT_FULL_REGKEY,
+        L"DistinctPermsForSameOwnerGroup",
+        RRF_RT_REG_DWORD, 0, &DistinctPermsForSameOwnerGroup, &Size);
     if (ERROR_SUCCESS == Result)
-    {
-        Size = sizeof DistinctPermsForSameOwnerGroup;
-        Result = RegGetValueW(RegKey, 0, L"DistinctPermsForSameOwnerGroup",
-            RRF_RT_REG_DWORD, 0, &DistinctPermsForSameOwnerGroup, &Size);
-        RegCloseKey(RegKey);
-    }
-
-    FspDistinctPermsForSameOwnerGroup = !!DistinctPermsForSameOwnerGroup;
+        FspDistinctPermsForSameOwnerGroup = !!DistinctPermsForSameOwnerGroup;
 }
 
 static BOOL WINAPI FspPosixInitialize(

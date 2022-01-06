@@ -442,13 +442,13 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
 
     /* initialize our timer routine and start our expiration timer */
 #pragma prefast(suppress:28133, "We are a filesystem: we do not have AddDevice")
-    Result = IoInitializeTimer(DeviceObject, FspFsvolDeviceTimerRoutine, 0);
+    Result = FspDeviceInitializeTimer(DeviceObject, FspFsvolDeviceTimerRoutine, 0);
     if (!NT_SUCCESS(Result))
         return Result;
     KeInitializeSpinLock(&FsvolDeviceExtension->ExpirationLock);
     ExInitializeWorkItem(&FsvolDeviceExtension->ExpirationWorkItem,
         FspFsvolDeviceExpirationRoutine, DeviceObject);
-    IoStartTimer(DeviceObject);
+    FspDeviceStartTimer(DeviceObject);
     FsvolDeviceExtension->InitDoneTimer = 1;
 
     /* initialize the volume information */
@@ -472,7 +472,7 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
      * references our DeviceObject before queueing work items.
      */
     if (FsvolDeviceExtension->InitDoneTimer)
-        IoStopTimer(DeviceObject);
+        FspDeviceStopTimer(DeviceObject);
 
     /* delete the file system statistics */
     if (FsvolDeviceExtension->InitDoneStat)

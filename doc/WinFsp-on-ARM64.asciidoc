@@ -1,0 +1,39 @@
+= WinFsp on ARM64
+
+This document summarizes the changes made to WinFsp to support Windows on ARM64. With these changes WinFsp runs natively in the ARM64 environment, while maintaining backwards compatibility.
+
+== Build System
+
+* Visual Studio 2019 or later is required to build WinFsp. Visual Studio 2015 builds are no longer possible because of lack of ARM64 support.
+** The script `tools\gensrc\remove-build-arm64.bat` can be used to remove the ARM64 configuration from the project files. This allows WinFsp to be built with Visual Studio 2015, but without ARM64 support. This is a hack to support AppVeyor builds on Server 2012 images that have only Visual Studio 2015 installed.
+* Build configuration is now done by the file `build.common.props` located in `build\VStudio`.
+* Product configuration (`MyProductName`, etc.) is still done by the file `version.properties` located in `build\VStudio`. Non-product configuration portions of the file have migrated to `build.common.props`, which includes `version.properties`.
+* Project files under `build\VStudio` have been updated to support ARM64 builds.
+
+== Include Files
+
+* The macros `FSP_FSCTL_PRODUCT_FULL_REGKEY` and `FSP_FSCTL_PRODUCT_FILE_ARCH` have been added to header file `inc\winfsp\fsctl.h`:
+** `FSP_FSCTL_PRODUCT_FULL_REGKEY`: The full registry path for WinFsp.
+** `FSP_FSCTL_PRODUCT_FILE_ARCH`: The expected computer architecture suffix to use for file names (`a64` for ARM64, `x64` for x64, `x86` for x86).
+
+== File System Driver
+
+* The `IoInitializeTimer`, `IoStartTimer` and `IoStopTimer` DDI's are missing from Windows on ARM64 (https://social.msdn.microsoft.com/Forums/en-US/e1f4dbbd-a3f1-40a4-8f8b-e12a04b1b074/is-iostarttimer-universal[link]). The same functionality is now implemented within WinFsp in file `src\sys\devtimer.c`
+
+== Samples
+
+* The sample project files have been updated to support ARM64 builds.
+
+== Installer
+
+* The installer has been retrofitted to support native installation on ARM64, x64 and x86 environments.
+* The installer remains a single MSI file that supports all architectures.
+** NOTE: The current technique for detecting OS architecture relies on reading the registry value `PROCESSOR_ARCHITECTURE` from key `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`. This may be fragile and a better technique may be required.
+* Files are installed in `\Program Files (x86)\WinFsp` on ARM64 and x64 Windows and `\Program Files` on x86 Windows.
+* Registry settings are placed in `HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\WinFsp` on ARM64 and x64 Windows and `HKEY_LOCAL_MACHINE\SOFTWARE\WinFsp` on x86 Windows.
+* Files for all architectures are always installed regardless of OS architecture. For example, all of `winfsp-a64.dll`, `winfsp-x64.dll` and `winfsp-x86.dll` are found in the `bin` subdirectory on ARM64, x64 and x86 Windows.
+* WinFsp supports x86 file systems on x86 Windows, x86 and x64 file systems on x64 Windows and x86, x64 and ARM64 file systems on ARM64 Windows.
+
+== License
+
+* The special exception for FLOSS to GPLv3 has been updated to mention that linking to `winfsp-a64.dll` is also allowed.

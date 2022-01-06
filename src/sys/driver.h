@@ -1118,6 +1118,13 @@ enum
 };
 typedef struct
 {
+    LIST_ENTRY ListEntry;
+    PIO_TIMER_ROUTINE TimerRoutine;
+    PDEVICE_OBJECT DeviceObject;
+    PVOID Context;
+} FSP_DEVICE_TIMER;
+typedef struct
+{
     PUNICODE_STRING FileName;
     PVOID Context;
 } FSP_DEVICE_CONTEXT_BY_NAME_TABLE_ELEMENT_DATA;
@@ -1144,6 +1151,8 @@ typedef struct
     LONG RefCount;
     UINT32 Kind;
     GUID SiloContainerId;
+    /* IoTimer emulation */
+    FSP_DEVICE_TIMER DeviceTimer;
 } FSP_DEVICE_EXTENSION;
 typedef struct
 {
@@ -1295,6 +1304,12 @@ NTSTATUS FspDeviceCopyList(
 VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
 VOID FspDeviceDeleteAll(VOID);
+NTSTATUS FspDeviceInitializeAllTimers(VOID);
+VOID FspDeviceFinalizeAllTimers(VOID);
+NTSTATUS FspDeviceInitializeTimer(PDEVICE_OBJECT DeviceObject,
+    PIO_TIMER_ROUTINE TimerRoutine, PVOID Context);
+VOID FspDeviceStartTimer(PDEVICE_OBJECT DeviceObject);
+VOID FspDeviceStopTimer(PDEVICE_OBJECT DeviceObject);
 static inline
 VOID FspDeviceGlobalLock(VOID)
 {
