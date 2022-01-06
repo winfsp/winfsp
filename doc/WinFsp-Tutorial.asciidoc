@@ -11,6 +11,8 @@ endif::[]
 
 In this tutorial we describe the process of creating a simple user mode file system using WinFsp. The file system we will create is called "passthrough", because it simply passes through the file system operations requested by the kernel to an underlying file system (usually NTFS).
 
+NOTE: The file system that we build in this tutorial is suitable for education purposes. If you are looking for a production quality pass through file system please see the `ntptfs` sample.
+
 == Prerequisites
 
 This tutorial assumes that you have WinFsp and Visual Studio 2015 installed. The WinFsp installer can be downloaded from the WinFsp GitHub repository: https://github.com/billziss-gh/winfsp. The Microsoft Visual Studio Community 2015 can be downloaded for free from Microsoft's web site.
