@@ -52,6 +52,11 @@ BOOL WINAPI HookDeleteFileW(
     LPCWSTR lpFileName);
 BOOL WINAPI HookRemoveDirectoryW(
     LPCWSTR lpPathName);
+static inline BOOL RealRemoveDirectoryW(
+    LPCWSTR lpPathName)
+{
+    return RemoveDirectoryW(lpPathName);
+}
 BOOL WINAPI HookMoveFileExW(
     LPCWSTR lpExistingFileName,
     LPCWSTR lpNewFileName,
