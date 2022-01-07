@@ -124,7 +124,7 @@ static struct
     ULONG TrustPosixOffset;
 } *FspTrustedDomains;
 static ULONG FspTrustedDomainCount;
-static BOOLEAN FspDistinctPermsForSameOwnerGroup;
+static BOOLEAN FspDistinctPermsForSameOwnerGroup = TRUE;
 static INIT_ONCE FspPosixInitOnce = INIT_ONCE_STATIC_INIT;
 
 #if !defined(_KERNEL_MODE)
