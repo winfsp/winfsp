@@ -1,7 +1,7 @@
 /**
  * @file dll/fuse3/fuse2to3.c
  *
- * @copyright 2015-2021 Bill Zissimopoulos
+ * @copyright 2015-2022 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.

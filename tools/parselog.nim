@@ -2,7 +2,7 @@
 #
 # parse WinFsp debug logs
 #
-# @copyright 2015-2021 Bill Zissimopoulos
+# @copyright 2015-2022 Bill Zissimopoulos
 
 import algorithm
 import macros
