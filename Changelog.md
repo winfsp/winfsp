@@ -3,4 +3,4 @@
 
 ## v1.10 (2022)
 
-Prior changes are recorded in `Changelog-upto-v1.10.asciidoc`.
+Prior changes are recorded in `doc/archive/Changelog-upto-v1.10.asciidoc`.
