@@ -3,15 +3,27 @@ version: '{build}'
 environment:
   # Disable the winfsp-tests built-in exception filter to allow WER to collect dumps.
   WINFSP_TESTS_EXCEPTION_FILTER_DISABLE: 1
+
   matrix:
-  - CONFIGURATION: Debug
+  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+    CONFIGURATION: Debug
     TESTING: Func
-  - CONFIGURATION: Release
+  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+    CONFIGURATION: Release
+    TESTING: Func
+  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+    CONFIGURATION: Release
+    TESTING: Func
+  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+    CONFIGURATION: Release
     TESTING: Func
   #- CONFIGURATION: Release
   #  TESTING: Avast
   #- CONFIGURATION: Release
   #  TESTING: Perf
+
+matrix:
+  fast_finish: true
 
 init:
 #- ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
@@ -20,10 +32,13 @@ install:
 # Hack to make WDK 1903 work on VS2015.
 # See https://github.com/appveyor-tests/WDK-10.0.14393.0/blob/31cf12217fe0c92b218c70d7027dfe145be4f4cb/appveyor.yml#L7
 - ps: |
-    [xml]$targets = get-content "C:\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets"
-    $usingTask = $targets.ChildNodes[1].UsingTask | ? {$_.TaskName -eq "ValidateNTTargetVersion"}
-    $usingTask.AssemblyFile = '$(WDKContentRoot)build\bin\Microsoft.DriverKit.Build.Tasks.16.0.dll'
-    $targets.Save("C:\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets")
+    if ($env:APPVEYOR_BUILD_WORKER_IMAGE -eq "Visual Studio 2015") {
+      [xml]$targets = get-content "C:\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets"
+      $usingTask = $targets.ChildNodes[1].UsingTask | ? {$_.TaskName -eq "ValidateNTTargetVersion"}
+      $usingTask.AssemblyFile = '$(WDKContentRoot)build\bin\Microsoft.DriverKit.Build.Tasks.16.0.dll'
+      $targets.Save("C:\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets")
+      Add-AppveyorMessage "Hack to make WDK 1903 work on VS2015"
+    }
 # Submodules
 - git submodule update --init --recursive
 # Kernel and user mode dumps
@@ -35,7 +50,7 @@ install:
 # Boot configuration
 - appveyor AddMessage "Change boot configuration and reboot" -Category Information
 - bcdedit /set testsigning on
-- if %TESTING%==Func verifier /standard /driver winfsp-x64.sys
+- if %TESTING%==Func verifier /standard /driver winfsp-x64.sys & exit 0
 - ps: Restart-Computer -Force
 - ps: Start-Sleep -s 60
 
@@ -46,8 +61,9 @@ build_script:
 #- C:\cygwin64\bin\bash --login -c "make -C '%CD%\opt\cygfuse' dist"
 #- C:\cygwin\setup-x86.exe -qnNd -P cygport
 #- C:\cygwin\bin\bash --login -c "make -C '%CD%\opt\cygfuse' dist"
-# remove ARM64 project configurations to build in VS2015
-- tools\gensrc\remove-build-arm64.bat
+# remove ARM64 project configurations to build in VS2015/VS2017
+- if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" tools\gensrc\remove-build-arm64.bat
+- if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" tools\gensrc\remove-build-arm64.bat
 # build winfsp
 - tools\build.bat %CONFIGURATION%
 
