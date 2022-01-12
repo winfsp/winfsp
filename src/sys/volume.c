@@ -1227,6 +1227,8 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
     BOOLEAN Unlock = FALSE;
     NTSTATUS Result;
 
+    FspFsvolDeviceFileRenameAcquireShared(FsvolDeviceObject);
+
     /* iterate over notify information and invalidate/notify each file */
     for (; (PUINT8)NotifyInfo + sizeof(NotifyInfo->Size) <= NotifyInfoEnd;
         NotifyInfo = (PVOID)((PUINT8)NotifyInfo + FSP_FSCTL_DEFAULT_ALIGN_UP(NotifyInfoSize)))
@@ -1288,6 +1290,8 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
                     FALSE);
         }
     }
+
+    FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
 
     if (0 != FullFileName.Buffer)
         FspFree(FullFileName.Buffer);
