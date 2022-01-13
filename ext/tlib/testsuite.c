@@ -201,16 +201,23 @@ void tlib_run_tests(int argc, char *argv[])
 }
 void tlib__assert(const char *func, const char *file, int line, const char *expr)
 {
+    char extra_buf[256] = "";
 #if defined(_WIN64) || defined(_WIN32)
+    long __stdcall RtlGetLastNtStatus(void);
+    unsigned long __stdcall RtlGetLastWin32Error(void);
+    snprintf(extra_buf, sizeof extra_buf,
+        " (err=%lx:%lu)",
+        RtlGetLastNtStatus(),
+        RtlGetLastWin32Error());
     const char *p = strrchr(file, '\\');
 #else
     const char *p = strrchr(file, '/');
 #endif
     file = 0 != p ? p + 1 : file;
     if (0 == func)
-        test_printf("%sASSERT(%s) failed at: %s:%d\n", assert_buf, expr, file, line);
+        test_printf("%sASSERT(%s) failed at: %s:%d%s\n", assert_buf, expr, file, line, extra_buf);
     else
-        test_printf("%sASSERT(%s) failed at %s:%d:%s\n", assert_buf, expr, file, line, func);
+        test_printf("%sASSERT(%s) failed at %s:%d:%s%s\n", assert_buf, expr, file, line, func, extra_buf);
     if (0 != test_jmp)
         longjmp(*test_jmp, 1);
 }
