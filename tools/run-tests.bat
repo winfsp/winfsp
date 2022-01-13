@@ -182,7 +182,12 @@ waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 5 2>nul
 set /a total=testpass+testfail
 echo === Total: %testpass%/%total%
 call :leak-test
-if !ERRORLEVEL! neq 0 goto fail
+if !ERRORLEVEL! neq 0 (
+    rem Retry leak-test with delay. Some test systems (AppVeyor VS2019) take time before memfree.
+    waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 20 2>nul
+    call :leak-test
+    if !ERRORLEVEL! neq 0 goto fail
+)
 if not %testfail%==0 goto fail
 
 exit /b 0
@@ -746,13 +751,13 @@ exit /b 0
 
 :sample-memfs-fuse3-x64
 call :__run_sample_fuse_test memfs-fuse3 x64 memfs-fuse3-x64 winfsp-tests-x64 ^
-    "+* -create_fileattr_test -create_readonlydir_test -setfileinfo_test -delete_access_test"
+    "+* -create_fileattr_test -create_readonlydir_test -setfileinfo_test -delete_access_test -delete_ex_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :sample-memfs-fuse3-x86
 call :__run_sample_fuse_test memfs-fuse3 x86 memfs-fuse3-x86 winfsp-tests-x86 ^
-    "+* -create_fileattr_test -create_readonlydir_test -setfileinfo_test -delete_access_test"
+    "+* -create_fileattr_test -create_readonlydir_test -setfileinfo_test -delete_access_test -delete_ex_test"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
@@ -963,7 +968,7 @@ if X%5==XNOEXCL (
     "%ProjRoot%\build\VStudio\build\%Configuration%\%4.exe" ^
         --external --resilient --case-insensitive-cmp --share-prefix="\%1\%TMP::=$%\%1\test" ^
         -create_allocation_test -create_notraverse_test -create_backup_test -create_restore_test -create_namelen_test ^
-        -getfileattr_test -getfileinfo_name_test -delete_access_test -delete_mmap_test -rename_flipflop_test -rename_mmap_test -setsecurity_test -querydir_namelen_test -exec_rename_dir_test ^
+        -getfileattr_test -getfileinfo_name_test -delete_access_test -delete_mmap_test -delete_ex_test -rename_flipflop_test -rename_mmap_test -rename_ex_test -setsecurity_test -querydir_namelen_test -exec_rename_dir_test ^
         -reparse* -stream* %~5
 )
 if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
