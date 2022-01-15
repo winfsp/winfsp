@@ -155,6 +155,31 @@ void notify_timeout_test(void)
 #endif
 
 static
+void notify_multiple_end_dotest(ULONG Flags)
+{
+    void *memfs = memfs_start(Flags);
+    FSP_FILE_SYSTEM *FileSystem = MemfsFileSystem(memfs);
+    NTSTATUS Result;
+
+    Result = FspFileSystemNotifyEnd(FileSystem);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    Result = FspFileSystemNotifyEnd(FileSystem);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    memfs_stop(memfs);
+}
+
+static
+void notify_multiple_end_test(void)
+{
+    if (WinFspDiskTests)
+        notify_multiple_end_dotest(MemfsDisk);
+    if (WinFspNetTests)
+        notify_multiple_end_dotest(MemfsNet);
+}
+
+static
 void notify_change_dotest(ULONG Flags)
 {
     void *memfs = memfs_start(Flags);
@@ -460,6 +485,7 @@ void notify_tests(void)
 #if 0
     TEST(notify_timeout_test);
 #endif
+    TEST(notify_multiple_end_test);
     TEST(notify_change_test);
     TEST(notify_open_change_test);
     TEST(notify_dirnotify_test);
