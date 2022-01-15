@@ -1190,8 +1190,8 @@ typedef struct
     KSPIN_LOCK InfoSpinLock;
     UINT64 InfoExpirationTime;
     FSP_FSCTL_VOLUME_INFO VolumeInfo;
-    LONG VolumeNotifyLock;
-    FSP_WGROUP VolumeNotifyWgroup;
+    FAST_MUTEX VolumeNotifyMutex;
+    LONG VolumeNotifyCount;
     PNOTIFY_SYNC NotifySync;
     LIST_ENTRY NotifyList;
     FSP_STATISTICS *Statistics;

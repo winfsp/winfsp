@@ -38,7 +38,7 @@ void notify_abandon_dotest(ULONG Flags)
     ASSERT(STATUS_SUCCESS == Result);
 
     Result = FspFsctlNotify(FileSystem->VolumeHandle, 0, 0);
-    ASSERT(STATUS_CANT_WAIT == Result);
+    ASSERT(STATUS_SUCCESS == Result);
 
     memfs_stop(memfs);
 }
@@ -111,6 +111,8 @@ void notify_abandon_rename_test(void)
         notify_abandon_rename_dotest(MemfsNet, L"\\\\memfs\\share");
 }
 
+/* OBSOLETE: it is now possible to have multiple outstanding NotifyBegin() calls. */
+#if 0
 static
 void notify_timeout_dotest(ULONG Flags)
 {
@@ -150,6 +152,7 @@ void notify_timeout_test(void)
     if (WinFspNetTests)
         notify_timeout_dotest(MemfsNet);
 }
+#endif
 
 static
 void notify_change_dotest(ULONG Flags)
@@ -453,7 +456,10 @@ void notify_tests(void)
 
     TEST(notify_abandon_test);
     TEST(notify_abandon_rename_test);
+/* OBSOLETE: it is now possible to have multiple outstanding NotifyBegin() calls. */
+#if 0
     TEST(notify_timeout_test);
+#endif
     TEST(notify_change_test);
     TEST(notify_open_change_test);
     TEST(notify_dirnotify_test);

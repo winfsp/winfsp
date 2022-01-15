@@ -419,7 +419,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     Result = FspNotifyInitializeSync(&FsvolDeviceExtension->NotifySync);
     if (!NT_SUCCESS(Result))
         return Result;
-    FspWgroupInitialize(&FsvolDeviceExtension->VolumeNotifyWgroup);
+    ExInitializeFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
     InitializeListHead(&FsvolDeviceExtension->NotifyList);
     FsvolDeviceExtension->InitDoneNotify = 1;
 

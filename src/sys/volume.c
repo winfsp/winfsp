@@ -476,10 +476,12 @@ static VOID FspVolumeDeleteNoLock(
         FspMupUnregister(Globals->FsmupDeviceObject, FsvolDeviceObject);
     }
 
-    /* release the volume notify lock if held (so that any pending rename will abort) */
-    FspWgroupSignalPermanently(&FsvolDeviceExtension->VolumeNotifyWgroup);
-    if (1 == InterlockedCompareExchange(&FsvolDeviceExtension->VolumeNotifyLock, 0, 1))
-        FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject, FsvolDeviceObject);
+    ExAcquireFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
+    if (1 <= FsvolDeviceExtension->VolumeNotifyCount)
+        FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject,
+            &FsvolDeviceExtension->VolumeNotifyCount);
+    FsvolDeviceExtension->VolumeNotifyCount = -1;
+    ExReleaseFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
 
     /* release the volume device object */
     FspDeviceDereference(FsvolDeviceObject);
@@ -1122,7 +1124,6 @@ NTSTATUS FspVolumeNotify(
     ASSERT(0 != IrpSp->FileObject->FsContext2);
 
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PVOID InputBuffer = IrpSp->Parameters.FileSystemControl.Type3InputBuffer;
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     FSP_VOLUME_NOTIFY_WORK_ITEM *NotifyWorkItem = 0;
@@ -1158,7 +1159,6 @@ NTSTATUS FspVolumeNotify(
     ExInitializeWorkItem(&NotifyWorkItem->WorkItem, FspVolumeNotifyWork, NotifyWorkItem);
     NotifyWorkItem->FsvolDeviceObject = FsvolDeviceObject;
 
-    FspWgroupIncrement(&FsvolDeviceExtension->VolumeNotifyWgroup);
     ExQueueWorkItem(&NotifyWorkItem->WorkItem, DelayedWorkQueue);
 
     return STATUS_SUCCESS;
@@ -1177,11 +1177,6 @@ static NTSTATUS FspVolumeNotifyLock(
 {
     PAGED_CODE();
 
-    NTSTATUS Result;
-
-    if (!FspDeviceReference(FsvolDeviceObject))
-        return STATUS_CANCELLED;
-
     /*
      * Acquire the rename lock shared to disallow concurrent RENAME's.
      *
@@ -1190,19 +1185,28 @@ static NTSTATUS FspVolumeNotifyLock(
      * that the file is not open and not invalidate its caches, whereas the
      * file has simply changed name.
      */
-    Result = STATUS_CANT_WAIT;
-    if (FspFsvolDeviceFileRenameTryAcquireShared(FsvolDeviceObject))
-    {
-        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
 
-        if (0 == InterlockedCompareExchange(&FsvolDeviceExtension->VolumeNotifyLock, 1, 0))
+    if (!FspDeviceReference(FsvolDeviceObject))
+        return STATUS_CANCELLED;
+
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    NTSTATUS Result = STATUS_SUCCESS;
+
+    ExAcquireFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
+    if (0 == FsvolDeviceExtension->VolumeNotifyCount)
+    {
+        if (FspFsvolDeviceFileRenameTryAcquireShared(FsvolDeviceObject))
         {
-            FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject, FsvolDeviceObject);
-            Result = STATUS_SUCCESS;
+            FspFsvolDeviceFileRenameSetOwner(FsvolDeviceObject,
+                &FsvolDeviceExtension->VolumeNotifyCount);
+            FsvolDeviceExtension->VolumeNotifyCount++;
         }
         else
-            FspFsvolDeviceFileRenameRelease(FsvolDeviceObject);
+            Result = STATUS_CANT_WAIT;
     }
+    else if (0 < FsvolDeviceExtension->VolumeNotifyCount)
+        FsvolDeviceExtension->VolumeNotifyCount++;
+    ExReleaseFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
 
     FspDeviceDereference(FsvolDeviceObject);
 
@@ -1297,13 +1301,19 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
         FspFree(FullFileName.Buffer);
 
     FspFree(NotifyWorkItem);
-
-    FspWgroupDecrement(&FsvolDeviceExtension->VolumeNotifyWgroup);
+    
     if (Unlock)
     {
-        FspWgroupWait(&FsvolDeviceExtension->VolumeNotifyWgroup, KernelMode, FALSE, 0);
-        if (1 == InterlockedCompareExchange(&FsvolDeviceExtension->VolumeNotifyLock, 0, 1))
-            FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject, FsvolDeviceObject);
+        ExAcquireFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
+        if (1 == FsvolDeviceExtension->VolumeNotifyCount)
+        {
+            FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject,
+                &FsvolDeviceExtension->VolumeNotifyCount);
+            FsvolDeviceExtension->VolumeNotifyCount--;
+        }
+        else if (1 < FsvolDeviceExtension->VolumeNotifyCount)
+            FsvolDeviceExtension->VolumeNotifyCount--;
+        ExReleaseFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
     }
 
     FspDeviceDereference(FsvolDeviceObject);
