@@ -686,28 +686,6 @@ VOID FspIrpHookReset(PIRP Irp);
 PVOID FspIrpHookContext(PVOID Context);
 NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 
-/* utility: wait groups
- *
- * A Wait Group is a synchronization primitive that encapsulates a counter.
- * A Wait Group is considered signaled when the counter is 0 and non-signaled
- * when the counter is non-0. (Wait Group functionality is similar to Golang's
- * sync.WaitGroup.)
- *
- * Wait Groups must always be allocated in non-paged storage.
- */
-typedef struct
-{
-    KEVENT Event;
-    LONG Count;
-    KSPIN_LOCK SpinLock;
-} FSP_WGROUP;
-VOID FspWgroupInitialize(FSP_WGROUP *Wgroup);
-VOID FspWgroupIncrement(FSP_WGROUP *Wgroup);
-VOID FspWgroupDecrement(FSP_WGROUP *Wgroup);
-VOID FspWgroupSignalPermanently(FSP_WGROUP *Wgroup);
-NTSTATUS FspWgroupWait(FSP_WGROUP *Wgroup,
-    KPROCESSOR_MODE WaitMode, BOOLEAN Alertable, PLARGE_INTEGER PTimeout);
-
 /* silos */
 typedef struct
 {
