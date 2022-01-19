@@ -19,6 +19,7 @@ This document summarizes the changes made to WinFsp to support Windows on ARM64.
 == File System Driver
 
 * The `IoInitializeTimer`, `IoStartTimer` and `IoStopTimer` DDI's are missing from Windows on ARM64 (https://social.msdn.microsoft.com/Forums/en-US/e1f4dbbd-a3f1-40a4-8f8b-e12a04b1b074/is-iostarttimer-universal[link]). The same functionality is now implemented within WinFsp in file `src\sys\devtimer.c`
+* The FSD (and other WinFsp components) used a number of memory barriers primarily for the purpose of lock-free access of certain variables. Most of these memory barriers have been removed and replaced with "interlocked" loads/stores so that any such accesses would continue to be correct under ARM64, which has weaker consistency guarantees than x86/x64. The new `FspInterlocked*` calls are implemented in `inc/winfsp/fsctl.h` and are used by both kernel and user mode code.
 
 == Samples
 
