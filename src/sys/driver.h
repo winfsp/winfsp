@@ -1521,6 +1521,16 @@ VOID FspFileNodeDereference(FSP_FILE_NODE *FileNode)
     if (0 == RefCount)
         FspFileNodeDelete(FileNode);
 }
+static inline
+BOOLEAN FspFileNodeDeletePending(FSP_FILE_NODE *FileNode)
+{
+    return 0 != FspInterlockedLoad32((INT32 *)&FileNode->DeletePending);
+}
+static inline
+VOID FspFileNodeSetDeletePending(FSP_FILE_NODE *FileNode, BOOLEAN Delete)
+{
+    FspInterlockedStore32((INT32 *)&FileNode->DeletePending, Delete);
+}
 VOID FspFileNodeAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags);
 BOOLEAN FspFileNodeTryAcquireSharedF(FSP_FILE_NODE *FileNode, ULONG Flags, BOOLEAN Wait);
 VOID FspFileNodeAcquireExclusiveF(FSP_FILE_NODE *FileNode, ULONG Flags);

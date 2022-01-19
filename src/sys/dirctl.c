@@ -753,8 +753,7 @@ static NTSTATUS FspFsvolNotifyChangeDirectory(
         return STATUS_ACCESS_DENIED;
 
     /* stop now if the directory is pending deletion */
-    DeletePending = 0 != FileNode->DeletePending;
-    MemoryBarrier();
+    DeletePending = FspFileNodeDeletePending(FileNode);
     if (DeletePending)
         return STATUS_DELETE_PENDING;
 

@@ -618,8 +618,7 @@ NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
      */
     if (0 != FileNode->MainFileNode)
     {
-        DeletePending = 0 != FileNode->MainFileNode->DeletePending;
-        MemoryBarrier();
+        DeletePending = FspFileNodeDeletePending(FileNode->MainFileNode);
         if (DeletePending)
         {
             Result = STATUS_DELETE_PENDING;
@@ -669,8 +668,7 @@ NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
         ASSERT(OpenedFileNode != FileNode);
         ASSERT(OpenedFileNode->MainFileNode == FileNode->MainFileNode);
 
-        DeletePending = 0 != OpenedFileNode->DeletePending;
-        MemoryBarrier();
+        DeletePending = FspFileNodeDeletePending(OpenedFileNode);
         if (DeletePending)
         {
             Result = STATUS_DELETE_PENDING;
@@ -795,9 +793,8 @@ VOID FspFileNodeCleanup(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject, PULONG
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
     if (FileDesc->DeleteOnClose)
-        FileNode->DeletePending = TRUE;
-    DeletePending = 0 != FileNode->DeletePending;
-    MemoryBarrier();
+        FspFileNodeSetDeletePending(FileNode, TRUE);
+    DeletePending = FspFileNodeDeletePending(FileNode);
 
     SetAllocationSize = !DeletePending && FileNode->TruncateOnClose;
 
@@ -841,8 +838,7 @@ VOID FspFileNodeCleanupFlush(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject)
 
     FspFsvolDeviceLockContextTable(FsvolDeviceObject);
 
-    DeletePending = 0 != FileNode->DeletePending;
-    MemoryBarrier();
+    DeletePending = FspFileNodeDeletePending(FileNode);
 
     SingleHandle = 1 == FileNode->HandleCount;
 
@@ -965,8 +961,7 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
     {
         SingleHandle = TRUE;
 
-        DeletePending = 0 != FileNode->DeletePending;
-        MemoryBarrier();
+        DeletePending = FspFileNodeDeletePending(FileNode);
 
         if (DeletePending)
             FileNode->Header.FileSize.QuadPart = 0;
@@ -1179,7 +1174,7 @@ VOID FspFileNodeOverwriteStreams(FSP_FILE_NODE *FileNode)
         DescendantFileNodeIndex++)
     {
         DescendantFileNode = DescendantFileNodes[DescendantFileNodeIndex];
-        DescendantFileNode->DeletePending = TRUE;
+        FspFileNodeSetDeletePending(DescendantFileNode, TRUE);
     }
 
     FspFsvolDeviceUnlockContextTable(FsvolDeviceObject);

@@ -1298,8 +1298,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem,
         MemfsFileNodeMapEnumerateFn, &Context);
     for (Index = 0; Context.Count > Index; Index++)
     {
-        LONG RefCount = Context.FileNodes[Index]->RefCount;
-        MemoryBarrier();
+        LONG RefCount = FspInterlockedLoad32((INT32 *)&Context.FileNodes[Index]->RefCount);
         if (2 >= RefCount)
             MemfsFileNodeMapRemove(Memfs->FileNodeMap, Context.FileNodes[Index]);
     }

@@ -177,8 +177,7 @@ static NTSTATUS FspFsvolQueryAllInformation(PFILE_OBJECT FileObject,
         return FspFsvolQueryNameInformation(FileObject, PBuffer, BufferEnd);
     }
 
-    DeletePending = 0 != FileNode->DeletePending;
-    MemoryBarrier();
+    DeletePending = FspFileNodeDeletePending(FileNode);
 
     Info->BasicInformation.CreationTime.QuadPart = FileInfo->CreationTime;
     Info->BasicInformation.LastAccessTime.QuadPart = FileInfo->LastAccessTime;
@@ -422,8 +421,7 @@ static NTSTATUS FspFsvolQueryStandardInformation(PFILE_OBJECT FileObject,
         return STATUS_SUCCESS;
     }
 
-    DeletePending = 0 != FileNode->DeletePending;
-    MemoryBarrier();
+    DeletePending = FspFileNodeDeletePending(FileNode);
 
     Info->AllocationSize.QuadPart = FileInfo->AllocationSize;
     Info->EndOfFile.QuadPart = FileInfo->FileSize;
@@ -1626,7 +1624,7 @@ static NTSTATUS FspFsvolSetDispositionInformationSuccess(
     UINT32 DispositionFlags = Request->Req.SetInformation.Info.DispositionEx.Flags;
     BOOLEAN Delete = BooleanFlagOn(DispositionFlags, FILE_DISPOSITION_DELETE);
 
-    FileNode->DeletePending = Delete;
+    FspFileNodeSetDeletePending(FileNode, Delete);
     FileObject->DeletePending = Delete;
 
     if (!Delete)

@@ -503,8 +503,7 @@ static NTSTATUS FspFsvolFileSystemControlOplock(
     {
         BOOLEAN DeletePending;
 
-        DeletePending = 0 != FileNode->DeletePending;
-        MemoryBarrier();
+        DeletePending = FspFileNodeDeletePending(FileNode);
         if (DeletePending)
         {
             Result = STATUS_DELETE_PENDING;

@@ -275,8 +275,7 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
         else
         {
             ResetEvent(FspServiceConsoleModeEvent);
-            FspServiceConsoleCtrlHandlerDisabled = 0;
-            MemoryBarrier();
+            FspInterlockedStore32((INT32 *)&FspServiceConsoleCtrlHandlerDisabled, 0);
         }
 #endif
 
@@ -326,8 +325,7 @@ FSP_API NTSTATUS FspServiceLoop(FSP_SERVICE *Service)
          *
          * What we do instead is disable our handler by setting a variable.
          */
-        FspServiceConsoleCtrlHandlerDisabled = 1;
-        MemoryBarrier();
+        FspInterlockedStore32((INT32 *)&FspServiceConsoleCtrlHandlerDisabled, 1);
     }
 
     Result = STATUS_SUCCESS;
@@ -517,8 +515,7 @@ static DWORD WINAPI FspServiceConsoleModeThread(PVOID Context)
 /* expose FspServiceConsoleCtrlHandler so it can be used from fsp_fuse_signal_handler */
 BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType)
 {
-    UINT32 Disabled = FspServiceConsoleCtrlHandlerDisabled;
-    MemoryBarrier();
+    UINT32 Disabled = FspInterlockedLoad32((INT32 *)&FspServiceConsoleCtrlHandlerDisabled);
     if (Disabled)
         return FALSE;
 

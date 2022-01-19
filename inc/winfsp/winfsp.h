@@ -1348,9 +1348,7 @@ static inline
 VOID FspFileSystemGetDispatcherResult(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS *PDispatcherResult)
 {
-    /* 32-bit reads are atomic */
-    *PDispatcherResult = FileSystem->DispatcherResult;
-    MemoryBarrier();
+    *PDispatcherResult = FspInterlockedLoad32((INT32 *)&FileSystem->DispatcherResult);
 }
 FSP_API VOID FspFileSystemGetDispatcherResultF(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS *PDispatcherResult);

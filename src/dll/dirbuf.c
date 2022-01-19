@@ -227,8 +227,7 @@ static inline VOID FspFileSystemSortDirectoryBuffer(FSP_FILE_SYSTEM_DIRECTORY_BU
 FSP_API BOOLEAN FspFileSystemAcquireDirectoryBuffer(PVOID *PDirBuffer,
     BOOLEAN Reset, PNTSTATUS PResult)
 {
-    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = *PDirBuffer;
-    MemoryBarrier();
+    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = FspInterlockedLoadPointer(PDirBuffer);
 
     if (0 == DirBuffer)
     {
@@ -243,10 +242,9 @@ FSP_API BOOLEAN FspFileSystemAcquireDirectoryBuffer(PVOID *PDirBuffer,
         AcquireSRWLockExclusive(&NewDirBuffer->Lock);
 
         AcquireSRWLockExclusive(&CreateLock);
-        DirBuffer = *PDirBuffer;
-        MemoryBarrier();
+        DirBuffer = FspInterlockedLoadPointer(PDirBuffer);
         if (0 == DirBuffer)
-            *PDirBuffer = DirBuffer = NewDirBuffer;
+            FspInterlockedStorePointer(PDirBuffer, DirBuffer = NewDirBuffer);
         ReleaseSRWLockExclusive(&CreateLock);
 
         if (DirBuffer == NewDirBuffer)
@@ -274,7 +272,7 @@ FSP_API BOOLEAN FspFileSystemFillDirectoryBuffer(PVOID *PDirBuffer,
 {
     /* assume that FspFileSystemAcquireDirectoryBuffer has been called */
 
-    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = *PDirBuffer;
+    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = FspInterlockedLoadPointer(PDirBuffer);
     ULONG Capacity, LoMark, HiMark;
     PUINT8 Buffer;
 
@@ -333,7 +331,7 @@ FSP_API VOID FspFileSystemReleaseDirectoryBuffer(PVOID *PDirBuffer)
 {
     /* assume that FspFileSystemAcquireDirectoryBuffer has been called */
 
-    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = *PDirBuffer;
+    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = FspInterlockedLoadPointer(PDirBuffer);
 
     /* eliminate invalidated entries from the index */
     PULONG Index = (PULONG)(DirBuffer->Buffer + DirBuffer->HiMark);
@@ -356,8 +354,7 @@ FSP_API VOID FspFileSystemReadDirectoryBuffer(PVOID *PDirBuffer,
     PWSTR Marker,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
-    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = *PDirBuffer;
-    MemoryBarrier();
+    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = FspInterlockedLoadPointer(PDirBuffer);
 
     if (0 != DirBuffer)
     {
@@ -396,14 +393,13 @@ FSP_API VOID FspFileSystemReadDirectoryBuffer(PVOID *PDirBuffer,
 
 FSP_API VOID FspFileSystemDeleteDirectoryBuffer(PVOID *PDirBuffer)
 {
-    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = *PDirBuffer;
-    MemoryBarrier();
+    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = FspInterlockedLoadPointer(PDirBuffer);
 
     if (0 != DirBuffer)
     {
         MemFree(DirBuffer->Buffer);
         MemFree(DirBuffer);
-        *PDirBuffer = 0;
+        FspInterlockedStorePointer(PDirBuffer, 0);
     }
 }
 
@@ -412,7 +408,7 @@ VOID FspFileSystemPeekInDirectoryBuffer(PVOID *PDirBuffer,
 {
     /* assume that FspFileSystemAcquireDirectoryBuffer has been called */
 
-    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = *PDirBuffer;
+    FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = FspInterlockedLoadPointer(PDirBuffer);
 
     *PBuffer = DirBuffer->Buffer;
     *PIndex = (PULONG)(DirBuffer->Buffer + DirBuffer->HiMark);
