@@ -122,10 +122,12 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
                 FsAttributeMask |= PtfsNamedStreams;
             else if (0 == _wcsicmp(L"ExtendedAttributes", OptionString))
                 FsAttributeMask |= PtfsExtendedAttributes;
-            else if (0 == _wcsicmp(L"FlushAndPurgeOnCleanup", OptionString))
-                FsAttributeMask |= PtfsFlushAndPurgeOnCleanup;
             else if (0 == _wcsicmp(L"WslFeatures", OptionString))
                 FsAttributeMask |= PtfsWslFeatures;
+            else if (0 == _wcsicmp(L"FlushAndPurgeOnCleanup", OptionString))
+                FsAttributeMask |= PtfsFlushAndPurgeOnCleanup;
+            else if (0 == _wcsicmp(L"SetAllocationSizeOnCleanup", OptionString))
+                FsAttributeMask |= PtfsSetAllocationSizeOnCleanup;
             else
                 goto usage;
             break;
@@ -247,6 +249,7 @@ usage:
         "    -o ExtendedAttributes\n"
         "    -o WslFeatures\n"
         "    -o FlushAndPurgeOnCleanup\n"
+        "    -o SetAllocationSizeOnCleanup\n"
         "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
         "    -p Directory        [directory to expose as pass through file system]\n"
         "    -m MountPoint       [X:|*|directory]\n";

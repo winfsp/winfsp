@@ -343,6 +343,7 @@ exit:
 static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext, PWSTR FileName, ULONG Flags)
 {
+    PTFS *Ptfs = FileSystemContext;
     HANDLE Handle = FileContextHandle;
 
     if (Flags & FspCleanupDelete)
@@ -352,6 +353,32 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem,
 
         /* this will make all future uses of Handle to fail with STATUS_INVALID_HANDLE */
         FileContextHandle = 0;
+    }
+    else if ((Flags & FspCleanupSetAllocationSize) &&
+        (Ptfs->FsAttributeMask & PtfsSetAllocationSizeOnCleanup))
+    {
+        IO_STATUS_BLOCK Iosb;
+        FILE_STANDARD_INFORMATION FileStdInfo;
+        FILE_ALLOCATION_INFORMATION FileAllocInfo;
+        NTSTATUS Result;
+
+        Result = NtQueryInformationFile(
+            Handle,
+            &Iosb,
+            &FileStdInfo,
+            sizeof FileStdInfo,
+            5/*FileStandardInformation*/);
+        if (NT_SUCCESS(Result))
+        {
+            FileAllocInfo.AllocationSize.QuadPart = FileStdInfo.EndOfFile.QuadPart;
+
+            Result = NtSetInformationFile(
+                Handle,
+                &Iosb,
+                &FileAllocInfo,
+                sizeof FileAllocInfo,
+                19/*FileAllocationInformation*/);
+        }
     }
 }
 
@@ -1138,6 +1165,15 @@ NTSTATUS PtfsCreate(
         goto exit;
 
     FsAttributeMask &= PtfsAttributesMask;
+    FsAttrInfo.V.FileSystemAttributes &=
+        FILE_CASE_PRESERVED_NAMES |
+        FILE_UNICODE_ON_DISK |
+        FILE_PERSISTENT_ACLS |
+        ((FsAttributeMask & PtfsReparsePoints) ? FILE_SUPPORTS_REPARSE_POINTS : 0) |
+        ((FsAttributeMask & PtfsNamedStreams) ? FILE_NAMED_STREAMS : 0) |
+        ((FsAttributeMask & PtfsExtendedAttributes) ? FILE_SUPPORTS_EXTENDED_ATTRIBUTES : 0) |
+        FILE_SUPPORTS_POSIX_UNLINK_RENAME |
+        FILE_READ_ONLY_VOLUME;
 
     memset(&VolumeParams, 0, sizeof VolumeParams);
     VolumeParams.SectorSize = (UINT16)FsSizeInfo.BytesPerSector;
@@ -1150,20 +1186,15 @@ NTSTATUS PtfsCreate(
     VolumeParams.CasePreservedNames = !!(FsAttrInfo.V.FileSystemAttributes & FILE_CASE_PRESERVED_NAMES);
     VolumeParams.UnicodeOnDisk = !!(FsAttrInfo.V.FileSystemAttributes & FILE_UNICODE_ON_DISK);
     VolumeParams.PersistentAcls = !!(FsAttrInfo.V.FileSystemAttributes & FILE_PERSISTENT_ACLS);
-    VolumeParams.ReparsePoints = (FsAttributeMask & PtfsReparsePoints) ?
-        !!(FsAttrInfo.V.FileSystemAttributes & FILE_SUPPORTS_REPARSE_POINTS) : 0;
-    VolumeParams.NamedStreams = (FsAttributeMask & PtfsNamedStreams) ?
-        !!(FsAttrInfo.V.FileSystemAttributes & FILE_NAMED_STREAMS) : 0;
-    VolumeParams.ExtendedAttributes = (FsAttributeMask & PtfsExtendedAttributes) ?
-        !!(FsAttrInfo.V.FileSystemAttributes & FILE_SUPPORTS_EXTENDED_ATTRIBUTES) : 0;
+    VolumeParams.ReparsePoints = !!(FsAttrInfo.V.FileSystemAttributes & FILE_SUPPORTS_REPARSE_POINTS);
+    VolumeParams.NamedStreams = !!(FsAttrInfo.V.FileSystemAttributes & FILE_NAMED_STREAMS);
+    VolumeParams.ExtendedAttributes = !!(FsAttrInfo.V.FileSystemAttributes & FILE_SUPPORTS_EXTENDED_ATTRIBUTES);
     VolumeParams.SupportsPosixUnlinkRename = !!(FsAttrInfo.V.FileSystemAttributes & FILE_SUPPORTS_POSIX_UNLINK_RENAME);
     VolumeParams.ReadOnlyVolume = !!(FsAttrInfo.V.FileSystemAttributes & FILE_READ_ONLY_VOLUME);
     VolumeParams.PostCleanupWhenModifiedOnly = 1;
     VolumeParams.PassQueryDirectoryPattern = 1;
-    VolumeParams.FlushAndPurgeOnCleanup = (FsAttributeMask & PtfsFlushAndPurgeOnCleanup) ?
-        1 : 0;
-    VolumeParams.WslFeatures = (FsAttributeMask & PtfsWslFeatures) ?
-        1 : 0;
+    VolumeParams.FlushAndPurgeOnCleanup = !!(FsAttributeMask & PtfsFlushAndPurgeOnCleanup);
+    VolumeParams.WslFeatures = !!(FsAttributeMask & PtfsWslFeatures);
     VolumeParams.AllowOpenInKernelMode = 1;
     VolumeParams.RejectIrpPriorToTransact0 = 1;
     VolumeParams.UmFileContextIsUserContext2 = 1;
@@ -1194,6 +1225,7 @@ NTSTATUS PtfsCreate(
     Ptfs->FileSystem = FileSystem;
     Ptfs->RootHandle = RootHandle;
     Ptfs->RootPrefixLength = FileAllInfo.NameInformation.FileNameLength;
+    Ptfs->FsAttributeMask = FsAttributeMask;
     Ptfs->FsAttributes = FsAttrInfo.V.FileSystemAttributes;
     Ptfs->AllocationUnit = VolumeParams.SectorSize * VolumeParams.SectorsPerAllocationUnit;
     FileSystem->UserContext = Ptfs;

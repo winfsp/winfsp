@@ -41,20 +41,23 @@ enum
     PtfsReparsePoints = 0x00000010,
     PtfsNamedStreams = 0x00000040,
     PtfsExtendedAttributes = 0x00000100,
-    PtfsFlushAndPurgeOnCleanup = 0x00004000,
     PtfsWslFeatures = 0x04000000,
+    PtfsFlushAndPurgeOnCleanup = 0x00004000,
+    PtfsSetAllocationSizeOnCleanup = 0x00010000,                // reuse UmFileContextIsUserContext2
     PtfsAttributesMask =
         PtfsReparsePoints |
         PtfsNamedStreams |
         PtfsExtendedAttributes |
+        PtfsWslFeatures |
         PtfsFlushAndPurgeOnCleanup |
-        PtfsWslFeatures,
+        PtfsSetAllocationSizeOnCleanup,
 };
 typedef struct
 {
     FSP_FILE_SYSTEM *FileSystem;
     HANDLE RootHandle;
     ULONG RootPrefixLength;
+    ULONG FsAttributeMask;
     ULONG FsAttributes;
     UINT64 AllocationUnit;
 } PTFS;
