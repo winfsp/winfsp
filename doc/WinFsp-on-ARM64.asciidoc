@@ -7,7 +7,7 @@ This document summarizes the changes made to WinFsp to support Windows on ARM64.
 * Visual Studio 2019 or later is required to build WinFsp. Visual Studio 2015 builds are no longer possible because of lack of ARM64 support.
 ** The script `tools\gensrc\remove-build-arm64.bat` can be used to remove the ARM64 configuration from the project files. This allows WinFsp to be built with Visual Studio 2015, but without ARM64 support. This is a hack to support AppVeyor builds on Server 2012 images that have only Visual Studio 2015 installed.
 * Build configuration is now done by the file `build.common.props` located in `build\VStudio`.
-* Product configuration (`MyProductName`, etc.) is still done by the file `version.properties` located in `build\VStudio`. Non-product configuration portions of the file have migrated to `build.common.props`, which includes `version.properties`.
+* Product configuration (`MyProductName`, etc.) is done by the file `build.version.props` located in `build\VStudio`. This file was previously named `version.properties`.
 * Project files under `build\VStudio` have been updated to support ARM64 builds.
 
 == Include Files

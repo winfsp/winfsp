@@ -4,7 +4,7 @@ If you have a commercial WinFsp license and wish to produce a rebranded version 
 
 == Overview
 
-The WinFsp build is controlled by the file `build\VStudio\version.properties`. The file contains properties that control the final build output in a number of ways. Some of the properties in this file control how the final build product is branded, others how it is versioned, etc.
+The WinFsp build is controlled by the file `build\VStudio\build.version.props`. The file contains properties that control the final build output in a number of ways. Some of the properties in this file control how the final build product is branded, others how it is versioned, etc.
 
 === Branding
 

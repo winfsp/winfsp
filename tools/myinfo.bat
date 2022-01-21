@@ -1,6 +1,6 @@
 @echo off
 
-for /F "tokens=2,3,4 delims=<>" %%a in (%~dp0..\build\VStudio\version.properties) do (
+for /F "tokens=2,3,4 delims=<>" %%a in (%~dp0..\build\VStudio\build.version.props) do (
     if "/%%a"=="%%c" (
         if "%%a"=="MyProductName" (
             set MyProductName=%%b
