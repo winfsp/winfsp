@@ -153,13 +153,6 @@ static NTSTATUS CreateEx(FSP_FILE_SYSTEM *FileSystem,
     UINT32 MaximumAccess = IsDirectory ? GrantedAccess : MAXIMUM_ALLOWED;
     NTSTATUS Result;
 
-    if (ExtraBufferIsReparsePoint)
-    {
-        /* no support for WSL */
-        Result = STATUS_INVALID_PARAMETER;
-        goto exit;
-    }
-
     CreateOptions &=
         FILE_DIRECTORY_FILE |
         FILE_NON_DIRECTORY_FILE |
@@ -197,6 +190,21 @@ static NTSTATUS CreateEx(FSP_FILE_SYSTEM *FileSystem,
         }
     if (!NT_SUCCESS(Result))
         goto exit;
+
+    if (ExtraBufferIsReparsePoint)
+    {
+        /* this can happen on a WSL mount */
+        Result = LfsFsControlFile(
+            Handle,
+            FSCTL_SET_REPARSE_POINT,
+            ExtraBuffer,
+            (ULONG)ExtraLength,
+            0,
+            0,
+            &ExtraLength);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
 
     Result = LfsGetFileInfo(Handle, Ptfs->RootPrefixLength, FileInfo);
     if (!NT_SUCCESS(Result))
@@ -1153,6 +1161,8 @@ NTSTATUS PtfsCreate(
     VolumeParams.PostCleanupWhenModifiedOnly = 1;
     VolumeParams.PassQueryDirectoryPattern = 1;
     VolumeParams.FlushAndPurgeOnCleanup = (FsAttributeMask & PtfsFlushAndPurgeOnCleanup) ?
+        1 : 0;
+    VolumeParams.WslFeatures = (FsAttributeMask & PtfsWslFeatures) ?
         1 : 0;
     VolumeParams.AllowOpenInKernelMode = 1;
     VolumeParams.RejectIrpPriorToTransact0 = 1;

@@ -124,6 +124,8 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
                 FsAttributeMask |= PtfsExtendedAttributes;
             else if (0 == _wcsicmp(L"FlushAndPurgeOnCleanup", OptionString))
                 FsAttributeMask |= PtfsFlushAndPurgeOnCleanup;
+            else if (0 == _wcsicmp(L"WslFeatures", OptionString))
+                FsAttributeMask |= PtfsWslFeatures;
             else
                 goto usage;
             break;
@@ -243,6 +245,7 @@ usage:
         "    -o ReparsePoints\n"
         "    -o NamedStreams\n"
         "    -o ExtendedAttributes\n"
+        "    -o WslFeatures\n"
         "    -o FlushAndPurgeOnCleanup\n"
         "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
         "    -p Directory        [directory to expose as pass through file system]\n"

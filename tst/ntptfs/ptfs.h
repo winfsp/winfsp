@@ -42,11 +42,13 @@ enum
     PtfsNamedStreams = 0x00000040,
     PtfsExtendedAttributes = 0x00000100,
     PtfsFlushAndPurgeOnCleanup = 0x00004000,
+    PtfsWslFeatures = 0x04000000,
     PtfsAttributesMask =
         PtfsReparsePoints |
         PtfsNamedStreams |
         PtfsExtendedAttributes |
-        PtfsFlushAndPurgeOnCleanup,
+        PtfsFlushAndPurgeOnCleanup |
+        PtfsWslFeatures,
 };
 typedef struct
 {
