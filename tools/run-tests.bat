@@ -79,6 +79,12 @@ set opt_tests=^
     ifstest-memfs-x64-disk ^
     ifstest-memfs-x86-disk ^
     ifstest-memfs-dotnet-disk ^
+    sample-ntptfs-x64 ^
+    sample-fsx-ntptfs-x64 ^
+    sample-ifstest-ntptfs-x64 ^
+    sample-ntptfs-x86 ^
+    sample-fsx-ntptfs-x86 ^
+    sample-ifstest-ntptfs-x86 ^
     sample-memfs-fuse-x64 ^
     sample-fsx-memfs-fuse-x64 ^
     sample-memfs-fuse-x86 ^
@@ -670,6 +676,81 @@ for %%d in (!IfsTestDirectories!) do  (
 )
 exit /b !IfsTestMemfsExit!
 
+:__ifstest-ntptfs
+%1
+set IfsTestDirectories=^
+    securit^
+    opcreatg^
+    opcreatp^
+    closedel^
+    volinfo^
+    fileinfo^
+    dirinfo^
+    filelock^
+    oplocks^
+    chgnotif^
+    readwr^
+    seccache^
+    reparspt^
+    estream
+set IfsTestNtptfsExit=0
+call :__ifstest %1 /g Security
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+rem OpenCreateGeneral.FileOpenByIDTest: FILE_OPEN_BY_FILE_ID not implemented
+rem OpenCreateGeneral.OpenVolumeTest: volume handles can be opened/closed but no other support
+call :__ifstest %1 /d %2 /g OpenCreateGeneral -t FileOpenByIDTest -t OpenVolumeTest
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+call :__ifstest %1 /g OpenCreateParameters
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+rem CloseCleanupDelete.UpdateOnCloseTest: WinFsp updates size information in directories immediately
+rem CloseCleanupDelete.TunnelingTest: short names and tunneling not supported
+call :__ifstest %1 /g CloseCleanupDelete -t UpdateOnCloseTest -t TunnelingTest
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+call :__ifstest %1 /g VolumeInformation
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+rem FileInformation.LinkInformationTest: WinFsp does not support hard links
+rem FileInformation.StreamStandardInformationTest: test requires FileLinkInformation support (no hard links)
+call :__ifstest %1 /g FileInformation -t LinkInformationTest -t StreamStandardInformationTest /r %3
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+call :__ifstest %1 /g EaInformation
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+call :__ifstest %1 /g DirectoryInformation
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+call :__ifstest %1 /g FileLocking
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+call :__ifstest %1 /g OpLocks
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+call :__ifstest %1 /g ChangeNotification
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+call :__ifstest %1 /g ReadWrite
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+call :__ifstest %1 /g SectionsCaching
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+rem ReparsePoints.SetPointEASNotSupportedTest: EA's not supported
+rem ReparsePoints.EnumReparsePointsTest: enumeration of reparse points not supported
+rem ReparsePoints.ChangeNotificationReparseTest: change notifications of reparse points not supported
+rem ReparsePoints.SetPointIoReparseDataInvalidTest:
+rem     This test succeeds on Server 2012 and fails on Server 2016/2019.
+rem     Investigation on Server 2019 showed that the FSCTL_SET_REPARSE_POINT
+rem     input buffer length was 23 instead of less than
+rem     REPARSE_DATA_BUFFER_HEADER_SIZE(==8) like ifstest claims. This
+rem     suggests that WinFsp is not the problem here, but perhaps some OS
+rem     changes between Server 2012 and Server 2016. NOTE that we are still
+rem     using the ifstest from Server 2012 HCK, which may account for the
+rem     difference.
+call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest -t SetPointIoReparseDataInvalidTest /c
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+rem IfsTest ReparsePoints seems to have a bug in that it cannot handle STATUS_PENDING for FSCTL_GET_REPARSE_POINT
+rmdir /s/q reparspt
+rem StreamEnhancements.StreamRenameTest: WinFsp does not support stream renaming
+rem StreamEnhancements.StreamNotifyNameTest: WinFsp does not notify when streams are deleted because main file is deleted
+call :__ifstest %1 /g StreamEnhancements -t StreamRenameTest -t StreamNotifyNameTest
+if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+for %%d in (!IfsTestDirectories!) do  (
+    if exist %%d (echo :ifstest directory %%d still exists & set IfsTestNtptfsExit=1)
+)
+exit /b !IfsTestNtptfsExit!
+
 :__ifstest
 set IfsTestFound=
 set IfsTestName=
@@ -728,6 +809,48 @@ for /F "delims=" %%l in ('call "%ProjRoot%\tools\ifstest.bat" %* /v ^| findstr /
 )
 if not X!IfsTestFound!==XYES set IfsTestExit=1
 exit /b !IfsTestExit!
+
+:sample-ntptfs-x64
+call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" ^
+    "--external --resilient +* -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test -stream_rename_flipflop_test"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-ntptfs-x86
+call :__run_sample_ntptfs_test ntptfs x86 ntptfs-x86 ^
+    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" ^
+    "--external --resilient +* -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test -stream_rename_flipflop_test"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-fsx-ntptfs-x64
+call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
+    "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" ^
+    "-N 5000 test xxxxxx"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-fsx-ntptfs-x86
+call :__run_sample_ntptfs_test ntptfs x86 ntptfs-x86 ^
+    "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" ^
+    "-N 5000 test xxxxxx"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-ifstest-ntptfs-x64
+call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
+    call ^
+    ":__ifstest-ntptfs L: \Device\WinFsp.Disk C:"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:sample-ifstest-ntptfs-x86
+call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
+    call ^
+    ":__ifstest-ntptfs L: \Device\WinFsp.Disk C:"
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
 
 :sample-memfs-fuse-x64
 call :__run_sample_fuse_test memfs-fuse x64 memfs-fuse-x64 winfsp-tests-x64 "+*"
@@ -848,6 +971,28 @@ exit /b 0
 call :__run_sample_fsx_fuse_test passthrough-fuse3 x86 passthrough-fuse3-x86 fsx
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
+
+:__run_sample_ntptfs_test
+set RunSampleTestExit=0
+call %ProjRoot%\tools\build-sample %Configuration% %2 %1 "%TMP%\%1"
+if !ERRORLEVEL! neq 0 goto fail
+mkdir "%TMP%\%1\test"
+call "%ProjRoot%\tools\fsreg" %1 "%TMP%\%1\build\%Configuration%\%3.exe" "-p %%%%1 -m %%%%2 -o ExtraFeatures -o SetAllocationSizeOnCleanup" "D:P(A;;RPWPLC;;;WD)"
+echo launchctl-x64 start %1 testdsk "%TMP%\%1\test" L:
+launchctl-x64 start %1 testdsk "%TMP%\%1\test" L: >nul
+waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
+pushd >nul
+cd L: >nul 2>nul || (echo Unable to find drive L: >&2 & goto fail)
+L:
+%4 %~5
+if !ERRORLEVEL! neq 0 set RunSampleTestExit=1
+popd
+echo launchctl-x64 stop %1 testdsk
+launchctl-x64 stop %1 testdsk >nul
+waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 3 2>nul
+call "%ProjRoot%\tools\fsreg" -u %1
+rmdir /s/q "%TMP%\%1"
+exit /b !RunSampleTestExit!
 
 :__run_sample_disk_test
 set RunSampleTestExit=0
