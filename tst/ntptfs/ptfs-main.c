@@ -116,7 +116,13 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
             break;
         case L'o':
             argtos(OptionString);
-            if (0 == _wcsicmp(L"ReparsePoints", OptionString))
+            if (0 == _wcsicmp(L"ExtraFeatures", OptionString))
+                FsAttributeMask |=
+                    PtfsReparsePoints |
+                    PtfsNamedStreams |
+                    PtfsExtendedAttributes |
+                    PtfsWslFeatures;
+            else if (0 == _wcsicmp(L"ReparsePoints", OptionString))
                 FsAttributeMask |= PtfsReparsePoints;
             else if (0 == _wcsicmp(L"NamedStreams", OptionString))
                 FsAttributeMask |= PtfsNamedStreams;
@@ -244,12 +250,11 @@ usage:
         "    -d DebugFlags       [-1: enable all debug logs]\n"
         "    -D DebugLogFile     [file path; use - for stderr]\n"
         "    -t FileInfoTimeout  [millis]\n"
-        "    -o ReparsePoints\n"
-        "    -o NamedStreams\n"
-        "    -o ExtendedAttributes\n"
-        "    -o WslFeatures\n"
-        "    -o FlushAndPurgeOnCleanup\n"
-        "    -o SetAllocationSizeOnCleanup\n"
+        "    -o ExtraFeatures    [extra Windows file system features]\n"
+        "        -o ReparsePoints\n"
+        "        -o NamedStreams\n"
+        "        -o ExtendedAttributes\n"
+        "        -o WslFeatures\n"
         "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
         "    -p Directory        [directory to expose as pass through file system]\n"
         "    -m MountPoint       [X:|*|directory]\n";
