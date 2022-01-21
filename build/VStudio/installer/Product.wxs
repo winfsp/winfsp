@@ -587,14 +587,14 @@
                 <Component Id="C.ptfs_main.c">
                     <File Name="ptfs-main.c" KeyPath="yes" />
                 </Component>
-                <Component Id="C.ptfs.sln">
-                    <File Name="ptfs.sln" KeyPath="yes" />
+                <Component Id="C.ntptfs.sln">
+                    <File Name="ntptfs.sln" KeyPath="yes" />
                 </Component>
-                <Component Id="C.ptfs.vcxproj">
-                    <File Name="ptfs.vcxproj" KeyPath="yes" />
+                <Component Id="C.ntptfs.vcxproj">
+                    <File Name="ntptfs.vcxproj" KeyPath="yes" />
                 </Component>
-                <Component Id="C.ptfs.vcxproj.filters">
-                    <File Name="ptfs.vcxproj.filters" KeyPath="yes" />
+                <Component Id="C.ntptfs.vcxproj.filters">
+                    <File Name="ntptfs.vcxproj.filters" KeyPath="yes" />
                 </Component>
             </Directory>
             <Directory Id="SMPDIR.airfs" Name="airfs">
@@ -885,9 +885,9 @@
             <ComponentRef Id="C.ptfs.c" />
             <ComponentRef Id="C.lfs.c" />
             <ComponentRef Id="C.ptfs_main.c" />
-            <ComponentRef Id="C.ptfs.sln" />
-            <ComponentRef Id="C.ptfs.vcxproj" />
-            <ComponentRef Id="C.ptfs.vcxproj.filters" />
+            <ComponentRef Id="C.ntptfs.sln" />
+            <ComponentRef Id="C.ntptfs.vcxproj" />
+            <ComponentRef Id="C.ntptfs.vcxproj.filters" />
             <ComponentRef Id="C.airfs.cpp" />
             <ComponentRef Id="C.persistence.cpp" />
             <ComponentRef Id="C.common.h" />
