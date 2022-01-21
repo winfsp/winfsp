@@ -150,7 +150,7 @@ NTSTATUS LfsGetFileInfo(
     FileInfo->ChangeTime = FileAllInfo.V.BasicInformation.ChangeTime.QuadPart;
     FileInfo->IndexNumber = FileAllInfo.V.InternalInformation.IndexNumber.QuadPart;
     FileInfo->HardLinks = 0;
-    FileInfo->EaSize = FileAllInfo.V.EaInformation.EaSize;
+    FileInfo->EaSize = LfsGetEaSize(FileAllInfo.V.EaInformation.EaSize);
 
     if (0 != OpenFileInfo &&
         OpenFileInfo->NormalizedNameSize > sizeof(WCHAR) + FileAllInfo.V.NameInformation.FileNameLength &&

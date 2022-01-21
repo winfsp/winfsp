@@ -127,6 +127,11 @@ NTSTATUS LfsFsControlFile(
     PVOID OutputBuffer,
     ULONG OutputBufferLength,
     PULONG PBytesTransferred);
+static inline
+ULONG LfsGetEaSize(ULONG EaSize)
+{
+    return 0 != EaSize ? EaSize - 4 : 0;
+}
 
 
 /*

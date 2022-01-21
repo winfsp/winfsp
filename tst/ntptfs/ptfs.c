@@ -736,7 +736,7 @@ static inline VOID CopyQueryInfoToDirInfo(
     DirInfo->FileInfo.IndexNumber = QueryInfo->FileId.QuadPart;
     DirInfo->FileInfo.HardLinks = 0;
     DirInfo->FileInfo.EaSize = 0 != (FILE_ATTRIBUTE_REPARSE_POINT & QueryInfo->FileAttributes) ?
-        0 : QueryInfo->EaSize;
+        0 : LfsGetEaSize(QueryInfo->EaSize);
 }
 
 static NTSTATUS BufferedReadDirectory(FSP_FILE_SYSTEM *FileSystem,
