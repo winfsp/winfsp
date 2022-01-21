@@ -55,6 +55,7 @@ enum
 typedef struct
 {
     FSP_FILE_SYSTEM *FileSystem;
+    BOOLEAN HasSecurityPrivilege;
     HANDLE RootHandle;
     ULONG RootPrefixLength;
     ULONG FsAttributeMask;

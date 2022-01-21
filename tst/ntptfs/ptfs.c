@@ -92,7 +92,8 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
 
     Result = LfsOpenFile(
         &Handle,
-        READ_CONTROL,
+        READ_CONTROL |
+            (Ptfs->HasSecurityPrivilege ? ACCESS_SYSTEM_SECURITY : 0),
         Ptfs->RootHandle,
         FileName,
         FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT);
@@ -121,7 +122,8 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     {
         Result = NtQuerySecurityObject(
             Handle,
-            OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+            OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION |
+                (Ptfs->HasSecurityPrivilege ? SACL_SECURITY_INFORMATION : 0),
             SecurityDescriptor,
             (ULONG)*PSecurityDescriptorSize,
             &SecurityDescriptorSizeNeeded);
@@ -160,7 +162,8 @@ static NTSTATUS CreateEx(FSP_FILE_SYSTEM *FileSystem,
 
     Result = LfsCreateFile(
         &Handle,
-        MaximumAccess,
+        MaximumAccess |
+            (Ptfs->HasSecurityPrivilege ? ACCESS_SYSTEM_SECURITY : 0),
         Ptfs->RootHandle,
         FileName,
         SecurityDescriptor,
@@ -176,7 +179,8 @@ static NTSTATUS CreateEx(FSP_FILE_SYSTEM *FileSystem,
         case STATUS_INVALID_PARAMETER:
             Result = LfsCreateFile(
                 &Handle,
-                GrantedAccess,
+                GrantedAccess |
+                    (Ptfs->HasSecurityPrivilege ? ACCESS_SYSTEM_SECURITY : 0),
                 Ptfs->RootHandle,
                 FileName,
                 SecurityDescriptor,
@@ -255,7 +259,8 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
 
     Result = LfsOpenFile(
         &Handle,
-        MaximumAccess,
+        MaximumAccess |
+            (Ptfs->HasSecurityPrivilege ? ACCESS_SYSTEM_SECURITY : 0),
         Ptfs->RootHandle,
         FileName,
         FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT | CreateOptions);
@@ -268,7 +273,8 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
         case STATUS_INVALID_PARAMETER:
             Result = LfsOpenFile(
                 &Handle,
-                GrantedAccess,
+                GrantedAccess |
+                    (Ptfs->HasSecurityPrivilege ? ACCESS_SYSTEM_SECURITY : 0),
                 Ptfs->RootHandle,
                 FileName,
                 FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT | CreateOptions);
@@ -687,13 +693,15 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileContext,
     PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
 {
+    PTFS *Ptfs = FileSystemContext;
     HANDLE Handle = FileContextHandle;
     ULONG SecurityDescriptorSizeNeeded;
     NTSTATUS Result;
 
     Result = NtQuerySecurityObject(
         Handle,
-        OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+        OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION |
+            (Ptfs->HasSecurityPrivilege ? SACL_SECURITY_INFORMATION : 0),
         SecurityDescriptor,
         (ULONG)*PSecurityDescriptorSize,
         &SecurityDescriptorSizeNeeded);
@@ -1121,6 +1129,9 @@ NTSTATUS PtfsCreate(
 {
     PTFS *Ptfs = 0;
     FSP_FILE_SYSTEM *FileSystem = 0;
+    BOOL HasSecurityPrivilege = FALSE;
+    PRIVILEGE_SET PrivilegeSet;
+    HANDLE ProcessToken;
     HANDLE RootHandle = INVALID_HANDLE_VALUE;
     IO_STATUS_BLOCK Iosb;
     union
@@ -1134,6 +1145,16 @@ NTSTATUS PtfsCreate(
     NTSTATUS Result;
 
     *PPtfs = 0;
+
+    if (LookupPrivilegeValueW(0, SE_SECURITY_NAME, &PrivilegeSet.Privilege[0].Luid) &&
+        OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &ProcessToken))
+    {
+        PrivilegeSet.PrivilegeCount = 1;
+        PrivilegeSet.Control = PRIVILEGE_SET_ALL_NECESSARY;
+        PrivilegeSet.Privilege[0].Attributes = 0;
+        PrivilegeCheck(ProcessToken, &PrivilegeSet, &HasSecurityPrivilege);
+        CloseHandle(ProcessToken);
+    }
 
     RootHandle = CreateFileW(
         RootPath,
@@ -1234,6 +1255,7 @@ NTSTATUS PtfsCreate(
     memset(Ptfs, 0, sizeof *Ptfs);
 
     Ptfs->FileSystem = FileSystem;
+    Ptfs->HasSecurityPrivilege = HasSecurityPrivilege;
     Ptfs->RootHandle = RootHandle;
     Ptfs->RootPrefixLength = FileAllInfo.NameInformation.FileNameLength;
     Ptfs->FsAttributeMask = FsAttributeMask;

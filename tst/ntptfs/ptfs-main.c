@@ -200,7 +200,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
         FspDebugLogSetHandle(DebugLogHandle);
     }
 
-    EnablePrivileges(SE_BACKUP_NAME, SE_RESTORE_NAME, SE_CREATE_SYMBOLIC_LINK_NAME, 0);
+    EnablePrivileges(SE_SECURITY_NAME, SE_BACKUP_NAME, SE_RESTORE_NAME, SE_CREATE_SYMBOLIC_LINK_NAME, 0);
 
     Result = PtfsCreate(
         RootPath,
