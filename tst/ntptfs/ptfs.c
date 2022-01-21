@@ -654,13 +654,15 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
         65/*FileRenameInformationEx*/);
     if (!NT_SUCCESS(Result))
     {
-        if (STATUS_OBJECT_NAME_COLLISION == Result && ReplaceIfExists && !PosixReplaceIfExists)
+        switch (Result)
         {
-            Result = STATUS_ACCESS_DENIED;
+        case STATUS_OBJECT_NAME_COLLISION:
+            if (ReplaceIfExists && !PosixReplaceIfExists)
+                Result = STATUS_ACCESS_DENIED;
+            goto exit;
+        case STATUS_ACCESS_DENIED:
             goto exit;
         }
-        if (STATUS_INVALID_PARAMETER != Result)
-            goto exit;
 
         FileRenInfo.V.Flags = 0;
         FileRenInfo.V.ReplaceIfExists = ReplaceIfExists;
