@@ -1064,12 +1064,20 @@ static NTSTATUS SetEa(FSP_FILE_SYSTEM *FileSystem,
 {
     HANDLE Handle = FileContextHandle;
     IO_STATUS_BLOCK Iosb;
+    NTSTATUS Result;
 
-    return NtSetEaFile(
+    Result = NtSetEaFile(
         Handle,
         &Iosb,
         Ea,
         EaLength);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = LfsGetFileInfo(Handle, -1, FileInfo);
+
+exit:
+    return Result;
 }
 
 static FSP_FILE_SYSTEM_INTERFACE PtfsInterface =
