@@ -587,6 +587,9 @@
                 <Component Id="C.ptfs_main.c">
                     <File Name="ptfs-main.c" KeyPath="yes" />
                 </Component>
+                <Component Id="C.ptfs.h">
+                    <File Name="ptfs.h" KeyPath="yes" />
+                </Component>
                 <Component Id="C.ntptfs.sln">
                     <File Name="ntptfs.sln" KeyPath="yes" />
                 </Component>
@@ -885,6 +888,7 @@
             <ComponentRef Id="C.ptfs.c" />
             <ComponentRef Id="C.lfs.c" />
             <ComponentRef Id="C.ptfs_main.c" />
+            <ComponentRef Id="C.ptfs.h" />
             <ComponentRef Id="C.ntptfs.sln" />
             <ComponentRef Id="C.ntptfs.vcxproj" />
             <ComponentRef Id="C.ntptfs.vcxproj.filters" />
