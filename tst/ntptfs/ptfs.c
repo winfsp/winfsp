@@ -1172,7 +1172,7 @@ NTSTATUS PtfsCreate(
         ((FsAttributeMask & PtfsReparsePoints) ? FILE_SUPPORTS_REPARSE_POINTS : 0) |
         ((FsAttributeMask & PtfsNamedStreams) ? FILE_NAMED_STREAMS : 0) |
         ((FsAttributeMask & PtfsExtendedAttributes) ? FILE_SUPPORTS_EXTENDED_ATTRIBUTES : 0) |
-        FILE_SUPPORTS_POSIX_UNLINK_RENAME |
+        0x00000400/*FILE_SUPPORTS_POSIX_UNLINK_RENAME*/ |
         FILE_READ_ONLY_VOLUME;
 
     memset(&VolumeParams, 0, sizeof VolumeParams);
@@ -1189,7 +1189,8 @@ NTSTATUS PtfsCreate(
     VolumeParams.ReparsePoints = !!(FsAttrInfo.V.FileSystemAttributes & FILE_SUPPORTS_REPARSE_POINTS);
     VolumeParams.NamedStreams = !!(FsAttrInfo.V.FileSystemAttributes & FILE_NAMED_STREAMS);
     VolumeParams.ExtendedAttributes = !!(FsAttrInfo.V.FileSystemAttributes & FILE_SUPPORTS_EXTENDED_ATTRIBUTES);
-    VolumeParams.SupportsPosixUnlinkRename = !!(FsAttrInfo.V.FileSystemAttributes & FILE_SUPPORTS_POSIX_UNLINK_RENAME);
+    VolumeParams.SupportsPosixUnlinkRename = !!(FsAttrInfo.V.FileSystemAttributes & 0x00000400
+        /*FILE_SUPPORTS_POSIX_UNLINK_RENAME*/);
     VolumeParams.ReadOnlyVolume = !!(FsAttrInfo.V.FileSystemAttributes & FILE_READ_ONLY_VOLUME);
     VolumeParams.PostCleanupWhenModifiedOnly = 1;
     VolumeParams.PassQueryDirectoryPattern = 1;
