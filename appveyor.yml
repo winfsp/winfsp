@@ -11,9 +11,9 @@ environment:
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
     CONFIGURATION: Release
     TESTING: Func
-  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
-    CONFIGURATION: Release
-    TESTING: Func
+#  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+#    CONFIGURATION: Release
+#    TESTING: Func
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
     CONFIGURATION: Release
     TESTING: Func
