@@ -746,6 +746,14 @@ rem StreamEnhancements.StreamRenameTest: WinFsp does not support stream renaming
 rem StreamEnhancements.StreamNotifyNameTest: WinFsp does not notify when streams are deleted because main file is deleted
 call :__ifstest %1 /g StreamEnhancements -t StreamRenameTest -t StreamNotifyNameTest
 if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+rem Ifstest likes to remove test directories using DELETE_ON_CLOSE.
+rem On older versions of Windows NTPTFS cannot do POSIX delete and
+rem if any component in the system (e.g. AntiVirus) keeps a file
+rem in the directory momentarily open, then the directory cannot
+rem be removed (and it fails silently). For this reason do not check
+rem if directory/file removal succeeded on OS'es without POSIX delete.
+if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" exit /b !IfsTestNtptfsExit!
+if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" exit /b !IfsTestNtptfsExit!
 for %%d in (!IfsTestDirectories!) do  (
     if exist %%d (echo :ifstest directory %%d still exists & set IfsTestNtptfsExit=1)
 )
