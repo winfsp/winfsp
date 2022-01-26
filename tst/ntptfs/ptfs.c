@@ -162,8 +162,11 @@ static NTSTATUS CreateEx(FSP_FILE_SYSTEM *FileSystem,
 
     /* WORKAROUND:
      *
-     * WOW64 appears to have a bug in some versions of the OS, where NtQueryDirectoryFile may fail
-     * if called on a directory that has been opened without FILE_SYNCHRONOUS_IO_NONALERT.
+     * WOW64 appears to have a bug in some versions of the OS (seen on Win10 1909 and
+     * Server 2012 R2), where NtQueryDirectoryFile may produce garbage if called on a
+     * directory that has been opened without FILE_SYNCHRONOUS_IO_NONALERT. (Garbage:
+     * after a STATUS_PENDING has been waited, Iosb.Information reports bytes transferred
+     * but the buffer does not get filled).
      *
      * So make sure to always open directories in a synchronous manner.
      */
@@ -273,8 +276,11 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
 
     /* WORKAROUND:
      *
-     * WOW64 appears to have a bug in some versions of the OS, where NtQueryDirectoryFile may fail
-     * if called on a directory that has been opened without FILE_SYNCHRONOUS_IO_NONALERT.
+     * WOW64 appears to have a bug in some versions of the OS (seen on Win10 1909 and
+     * Server 2012 R2), where NtQueryDirectoryFile may produce garbage if called on a
+     * directory that has been opened without FILE_SYNCHRONOUS_IO_NONALERT. (Garbage:
+     * after a STATUS_PENDING has been waited, Iosb.Information reports bytes transferred
+     * but the buffer does not get filled).
      *
      * So make sure to always open directories in a synchronous manner.
      */
