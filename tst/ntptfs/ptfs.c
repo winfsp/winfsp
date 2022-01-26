@@ -160,6 +160,20 @@ static NTSTATUS CreateEx(FSP_FILE_SYSTEM *FileSystem,
         FILE_NON_DIRECTORY_FILE |
         FILE_NO_EA_KNOWLEDGE;
 
+    /* WORKAROUND:
+     *
+     * WOW64 appears to have a bug in some versions of the OS, where NtQueryDirectoryFile may fail
+     * if called on a directory that has been opened without FILE_SYNCHRONOUS_IO_NONALERT.
+     *
+     * So make sure to always open directories in a synchronous manner.
+     */
+    if (IsDirectory)
+    {
+        MaximumAccess |= SYNCHRONIZE;
+        //GrantedAccess |= SYNCHRONIZE;
+        CreateOptions |= FILE_SYNCHRONOUS_IO_NONALERT;
+    }
+
     Result = LfsCreateFile(
         &Handle,
         MaximumAccess |
@@ -256,6 +270,20 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
         FILE_DIRECTORY_FILE |
         FILE_NON_DIRECTORY_FILE |
         FILE_NO_EA_KNOWLEDGE;
+
+    /* WORKAROUND:
+     *
+     * WOW64 appears to have a bug in some versions of the OS, where NtQueryDirectoryFile may fail
+     * if called on a directory that has been opened without FILE_SYNCHRONOUS_IO_NONALERT.
+     *
+     * So make sure to always open directories in a synchronous manner.
+     */
+    if (IsDirectory)
+    {
+        MaximumAccess |= SYNCHRONIZE;
+        //GrantedAccess |= SYNCHRONIZE;
+        CreateOptions |= FILE_SYNCHRONOUS_IO_NONALERT;
+    }
 
     Result = LfsOpenFile(
         &Handle,
@@ -787,6 +815,10 @@ static NTSTATUS BufferedReadDirectory(FSP_FILE_SYSTEM *FileSystem,
                 ;
                 QueryInfo = (FILE_ID_BOTH_DIR_INFORMATION *)((PUINT8)QueryInfo + QueryNext))
             {
+                if (QueryBuffer + BytesTransferred <
+                    (PUINT8)QueryInfo + FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName))
+                    break;
+
                 QueryNext = QueryInfo->NextEntryOffset;
 
                 CopyQueryInfoToDirInfo(QueryInfo, &DirInfo.V);
@@ -993,7 +1025,8 @@ static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM *FileSystem,
         ;
         QueryInfo = (FILE_STREAM_INFORMATION *)((PUINT8)QueryInfo + QueryNext))
     {
-        if (Iosb.Information <= (ULONG)((PUINT8)QueryInfo - QueryBuffer))
+        if (QueryBuffer + Iosb.Information <
+            (PUINT8)QueryInfo + FIELD_OFFSET(FILE_STREAM_INFORMATION, StreamName))
             break;
 
         QueryNext = QueryInfo->NextEntryOffset;
