@@ -817,7 +817,7 @@ static NTSTATUS BufferedReadDirectory(FSP_FILE_SYSTEM *FileSystem,
             {
                 if (QueryBuffer + BytesTransferred <
                     (PUINT8)QueryInfo + FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName))
-                    break;
+                    goto done;
 
                 QueryNext = QueryInfo->NextEntryOffset;
 
