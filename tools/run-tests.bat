@@ -663,8 +663,13 @@ rem     suggests that WinFsp is not the problem here, but perhaps some OS
 rem     changes between Server 2012 and Server 2016. NOTE that we are still
 rem     using the ifstest from Server 2012 HCK, which may account for the
 rem     difference.
-call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest -t SetPointIoReparseDataInvalidTest /c
-if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
+    call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest /c
+    if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+) else (
+    call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest -t SetPointIoReparseDataInvalidTest /c
+    if !ERRORLEVEL! neq 0 set IfsTestMemfsExit=1
+)
 rem IfsTest ReparsePoints seems to have a bug in that it cannot handle STATUS_PENDING for FSCTL_GET_REPARSE_POINT
 rmdir /s/q reparspt
 rem StreamEnhancements.StreamRenameTest: WinFsp does not support stream renaming
@@ -710,12 +715,32 @@ call :__ifstest %1 /g VolumeInformation
 if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
 rem FileInformation.LinkInformationTest: WinFsp does not support hard links
 rem FileInformation.StreamStandardInformationTest: test requires FileLinkInformation support (no hard links)
-call :__ifstest %1 /g FileInformation -t LinkInformationTest -t StreamStandardInformationTest /r %3
-if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
-call :__ifstest %1 /g EaInformation
-if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
-call :__ifstest %1 /g DirectoryInformation
-if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+rem On platforms other than Server 2012 disable EA testing because of EaSize mismatch.
+if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
+    call :__ifstest %1 /g FileInformation -t LinkInformationTest -t StreamStandardInformationTest /r %3
+    if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+) else (
+    call :__ifstest %1 /g FileInformation -t LinkInformationTest -t StreamStandardInformationTest /z /r %3
+    if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+)
+rem EaInformation.SetEaInformationTest:
+rem     This test fails on Server 2016/2019, because of EaSize mismatch. The reported EaSize
+rem     depends on the OS version and is not a WinFsp problem .(The same test fails on NTFS.)
+if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
+    call :__ifstest %1 /g EaInformation
+    if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+) else (
+    call :__ifstest %1 /g EaInformation -t SetEaInformationTest
+    if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+)
+rem On platforms other than Server 2012 disable EA testing because of EaSize mismatch.
+if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
+    call :__ifstest %1 /g DirectoryInformation
+    if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+) else (
+    call :__ifstest %1 /g DirectoryInformation /z
+    if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+)
 call :__ifstest %1 /g FileLocking
 if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
 call :__ifstest %1 /g OpLocks
@@ -738,8 +763,13 @@ rem     suggests that WinFsp is not the problem here, but perhaps some OS
 rem     changes between Server 2012 and Server 2016. NOTE that we are still
 rem     using the ifstest from Server 2012 HCK, which may account for the
 rem     difference.
-call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest -t SetPointIoReparseDataInvalidTest /c
-if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
+    call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest /c
+    if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+) else (
+    call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest -t SetPointIoReparseDataInvalidTest /c
+    if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+)
 rem IfsTest ReparsePoints seems to have a bug in that it cannot handle STATUS_PENDING for FSCTL_GET_REPARSE_POINT
 rmdir /s/q reparspt
 rem StreamEnhancements.StreamRenameTest: WinFsp does not support stream renaming
