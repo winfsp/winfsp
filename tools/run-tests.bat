@@ -123,7 +123,7 @@ for %%f in (%dfl_tests%) do (
         set tests=!tests! %%f
     ) else (
         set test=%%f
-        if not "X!test:%2=!"=="X!test!" set tests=!tests! %%f
+        if "X%2!test:%2=!"=="X!test!" set tests=!tests! %%f
     )
 )
 for %%f in (%opt_tests%) do (
@@ -131,7 +131,7 @@ for %%f in (%opt_tests%) do (
         rem
     ) else (
         set test=%%f
-        if not "X!test:%2=!"=="X!test!" set tests=!tests! %%f
+        if "X%2!test:%2=!"=="X!test!" set tests=!tests! %%f
     )
 )
 
