@@ -19,12 +19,93 @@
  * associated repository.
  */
 
+#define WIN32_NO_STATUS
 #include <windows.h>
+#undef WIN32_NO_STATUS
+#include <winternl.h>
+#pragma warning(push)
+#pragma warning(disable:4005)           /* macro redefinition */
+#include <ntstatus.h>
+#pragma warning(pop)
 
 #define DeleteMaxTries                  30
 #define DeleteSleepTimeout              300
 
 static VOID WaitDeletePending(PCWSTR FileName);
+
+NTSTATUS NTAPI ResilientNtCreateFile(
+    PHANDLE PFileHandle,
+    ACCESS_MASK DesiredAccess,
+    POBJECT_ATTRIBUTES ObjectAttributes,
+    PIO_STATUS_BLOCK IoStatusBlock,
+    PLARGE_INTEGER AllocationSize,
+    ULONG FileAttributes,
+    ULONG ShareAccess,
+    ULONG CreateDisposition,
+    ULONG CreateOptions,
+    PVOID EaBuffer,
+    ULONG EaLength)
+{
+    DWORD LastError = GetLastError(); /* preserve last error */
+    NTSTATUS Result;
+
+    Result = NtCreateFile(
+        PFileHandle,
+        DesiredAccess,
+        ObjectAttributes,
+        IoStatusBlock,
+        AllocationSize,
+        FileAttributes,
+        ShareAccess,
+        CreateDisposition,
+        CreateOptions,
+        EaBuffer,
+        EaLength);
+
+    if (NT_SUCCESS(Result) &&
+        (FILE_DELETE_ON_CLOSE & CreateOptions))
+    {
+        /* HACK: remember FILE_DELETE_ON_CLOSE through HANDLE_FLAG_PROTECT_FROM_CLOSE */
+        SetHandleInformation(*PFileHandle,
+            HANDLE_FLAG_PROTECT_FROM_CLOSE, HANDLE_FLAG_PROTECT_FROM_CLOSE);
+    }
+
+    SetLastError(LastError);
+    return Result;
+}
+
+NTSTATUS NTAPI ResilientNtClose(
+    HANDLE Handle)
+{
+    DWORD LastError = GetLastError(); /* preserve last error */
+    NTSTATUS Result;
+    DWORD HandleFlags = 0, FileNameLen;
+    WCHAR FileNameBuf[sizeof "\\\\?\\GLOBALROOT" - 1 + 1024] = L"\\\\?\\GLOBALROOT";
+
+    if (GetHandleInformation(Handle, &HandleFlags) &&
+        (HANDLE_FLAG_PROTECT_FROM_CLOSE & HandleFlags))
+    {
+        SetHandleInformation(Handle,
+            HANDLE_FLAG_PROTECT_FROM_CLOSE, 0);
+        FileNameLen = GetFinalPathNameByHandle(Handle,
+            FileNameBuf + sizeof "\\\\?\\GLOBALROOT" - 1, 1023,
+            FILE_NAME_OPENED | VOLUME_NAME_NT);
+        if (0 == FileNameLen || FileNameLen >= 1024)
+            HandleFlags = 0;
+    }
+
+    Result = NtClose(
+        Handle);
+
+    if (NT_SUCCESS(Result))
+    {
+        if (HANDLE_FLAG_PROTECT_FROM_CLOSE & HandleFlags)
+            WaitDeletePending(FileNameBuf);
+    }
+
+    SetLastError(LastError);
+    return Result;
+}
 
 HANDLE WINAPI ResilientCreateFileW(
     LPCWSTR lpFileName,

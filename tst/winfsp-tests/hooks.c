@@ -19,6 +19,15 @@
  * associated repository.
  */
 
+#define WIN32_NO_STATUS
+#include <windows.h>
+#undef WIN32_NO_STATUS
+#include <winternl.h>
+#pragma warning(push)
+#pragma warning(disable:4005)           /* macro redefinition */
+#include <ntstatus.h>
+#pragma warning(pop)
+
 #define WINFSP_TESTS_NO_HOOKS
 #include "winfsp-tests.h"
 #include <winfsp/winfsp.h>
@@ -264,6 +273,40 @@ static VOID MaybeAdjustTraversePrivilege(BOOL Enable)
 
         SetLastError(LastError);
     }
+}
+
+NTSTATUS NTAPI HookNtCreateFile(
+    PHANDLE FileHandle,
+    ACCESS_MASK DesiredAccess,
+    POBJECT_ATTRIBUTES ObjectAttributes,
+    PIO_STATUS_BLOCK IoStatusBlock,
+    PLARGE_INTEGER AllocationSize,
+    ULONG FileAttributes,
+    ULONG ShareAccess,
+    ULONG CreateDisposition,
+    ULONG CreateOptions,
+    PVOID EaBuffer,
+    ULONG EaLength)
+{
+    return (OptResilient ? ResilientNtCreateFile : NtCreateFile)(
+        FileHandle,
+        DesiredAccess,
+        ObjectAttributes,
+        IoStatusBlock,
+        AllocationSize,
+        FileAttributes,
+        ShareAccess,
+        CreateDisposition,
+        CreateOptions,
+        EaBuffer,
+        EaLength);
+}
+
+NTSTATUS NTAPI HookNtClose(
+    HANDLE Handle)
+{
+    return (OptResilient ? ResilientNtClose : NtClose)(
+        Handle);
 }
 
 HANDLE WINAPI HookCreateFileW(

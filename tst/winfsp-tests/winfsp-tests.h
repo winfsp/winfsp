@@ -32,6 +32,22 @@
 #define testalpha(c)                    ('a' <= ((c) | 0x20) && ((c) | 0x20) <= 'z')
 #define togglealpha(c)                  ((c) ^ 0x20)
 
+#if defined (_WINTERNL_)
+NTSTATUS NTAPI HookNtCreateFile(
+    PHANDLE FileHandle,
+    ACCESS_MASK DesiredAccess,
+    POBJECT_ATTRIBUTES ObjectAttributes,
+    PIO_STATUS_BLOCK IoStatusBlock,
+    PLARGE_INTEGER AllocationSize,
+    ULONG FileAttributes,
+    ULONG ShareAccess,
+    ULONG CreateDisposition,
+    ULONG CreateOptions,
+    PVOID EaBuffer,
+    ULONG EaLength);
+NTSTATUS NTAPI HookNtClose(
+    HANDLE Handle);
+#endif
 HANDLE WINAPI HookCreateFileW(
     LPCWSTR lpFileName,
     DWORD dwDesiredAccess,
@@ -106,6 +122,8 @@ BOOL WINAPI HookCreateProcessW(
     LPSTARTUPINFOW lpStartupInfo,
     LPPROCESS_INFORMATION lpProcessInformation);
 #if !defined(WINFSP_TESTS_NO_HOOKS)
+#define NtCreateFile HookNtCreateFile
+#define NtClose HookNtClose
 #define CreateFileW HookCreateFileW
 #define CloseHandle HookCloseHandle
 #define SetFileAttributesW HookSetFileAttributesW
@@ -122,6 +140,22 @@ BOOL WINAPI HookCreateProcessW(
 #define CreateProcessW HookCreateProcessW
 #endif
 
+#if defined (_WINTERNL_)
+NTSTATUS NTAPI ResilientNtCreateFile(
+    PHANDLE FileHandle,
+    ACCESS_MASK DesiredAccess,
+    POBJECT_ATTRIBUTES ObjectAttributes,
+    PIO_STATUS_BLOCK IoStatusBlock,
+    PLARGE_INTEGER AllocationSize,
+    ULONG FileAttributes,
+    ULONG ShareAccess,
+    ULONG CreateDisposition,
+    ULONG CreateOptions,
+    PVOID EaBuffer,
+    ULONG EaLength);
+NTSTATUS NTAPI ResilientNtClose(
+    HANDLE Handle);
+#endif
 HANDLE WINAPI ResilientCreateFileW(
     LPCWSTR lpFileName,
     DWORD dwDesiredAccess,
