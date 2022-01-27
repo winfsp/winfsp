@@ -1,5 +1,7 @@
 version: '{build}'
 
+skip_tags: true
+
 environment:
   # Disable the winfsp-tests built-in exception filter to allow WER to collect dumps.
   WINFSP_TESTS_EXCEPTION_FILTER_DISABLE: 1
@@ -11,9 +13,9 @@ environment:
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
     CONFIGURATION: Release
     TESTING: Func
-#  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
-#    CONFIGURATION: Release
-#    TESTING: Func
+  #- APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+  #  CONFIGURATION: Release
+  #  TESTING: Func
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
     CONFIGURATION: Release
     TESTING: Func
@@ -22,11 +24,8 @@ environment:
   #- CONFIGURATION: Release
   #  TESTING: Perf
 
-matrix:
-  fast_finish: true
-
 init:
-#- ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
+- ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
 
 install:
 # Hack to make WDK 1903 work on VS2015.
