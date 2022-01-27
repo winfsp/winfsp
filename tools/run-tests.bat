@@ -41,13 +41,13 @@ set dfl_tests=^
     winfsp-tests-x64-notify ^
     winfsp-tests-x64-external ^
     winfsp-tests-x64-external-share ^
-    fsx-memfs-x64-disk ^
-    fsx-memfs-x64-net ^
-    standby-memfs-x64-disk ^
-    standby-memfs-x64-net ^
-    net-use-memfs-x64 ^
-    winfstest-memfs-x64-disk ^
-    winfstest-memfs-x64-net ^
+    memfs-x64-disk-fsx ^
+    memfs-x64-net-fsx ^
+    memfs-x64-disk-standby ^
+    memfs-x64-net-standby ^
+    memfs-x64-net-use ^
+    memfs-x64-disk-winfstest ^
+    memfs-x64-net-winfstest ^
     fscrash-x64 ^
     winfsp-tests-x86 ^
     winfsp-tests-x86-case-randomize ^
@@ -61,54 +61,50 @@ set dfl_tests=^
     winfsp-tests-x86-notify ^
     winfsp-tests-x86-external ^
     winfsp-tests-x86-external-share ^
-    fsx-memfs-x86-disk ^
-    fsx-memfs-x86-net ^
-    standby-memfs-x86-disk ^
-    standby-memfs-x86-net ^
-    net-use-memfs-x86 ^
-    winfstest-memfs-x86-disk ^
-    winfstest-memfs-x86-net ^
+    memfs-x86-disk-fsx ^
+    memfs-x86-net-fsx ^
+    memfs-x86-disk-standby ^
+    memfs-x86-net-standby ^
+    memfs-x86-net-use ^
+    memfs-x86-disk-winfstest ^
+    memfs-x86-net-winfstest ^
     fscrash-x86 ^
     winfsp-tests-dotnet-external ^
     winfsp-tests-dotnet-external-share ^
-    fsx-memfs-dotnet-disk ^
-    fsx-memfs-dotnet-net ^
-    winfstest-memfs-dotnet-disk ^
-    winfstest-memfs-dotnet-net
+    memfs-dotnet-disk-fsx ^
+    memfs-dotnet-net-fsx ^
+    memfs-dotnet-disk-winfstest ^
+    memfs-dotnet-net-winfstest
 set opt_tests=^
     ifstest-memfs-x64-disk ^
     ifstest-memfs-x86-disk ^
     ifstest-memfs-dotnet-disk ^
     sample-ntptfs-x64 ^
-    sample-fsx-ntptfs-x64 ^
-    sample-ifstest-ntptfs-x64 ^
+    sample-ntptfs-x64-fsx ^
+    sample-ntptfs-x64-ifstest ^
     sample-ntptfs-x86 ^
-    sample-fsx-ntptfs-x86 ^
-    sample-ifstest-ntptfs-x86 ^
+    sample-ntptfs-x86-fsx ^
+    sample-ntptfs-x86-ifstest ^
     sample-memfs-fuse-x64 ^
-    sample-fsx-memfs-fuse-x64 ^
+    sample-memfs-fuse-x64-fsx ^
     sample-memfs-fuse-x86 ^
-    sample-fsx-memfs-fuse-x86 ^
+    sample-memfs-fuse-x86-fsx ^
     sample-memfs-fuse3-x64 ^
-    sample-fsx-memfs-fuse3-x64 ^
+    sample-memfs-fuse3-x64-fsx ^
     sample-memfs-fuse3-x86 ^
-    sample-fsx-memfs-fuse3-x86 ^
+    sample-memfs-fuse3-x86-fsx ^
     sample-airfs-x64 ^
     sample-airfs-x86 ^
     sample-passthrough-x64 ^
     sample-passthrough-x86 ^
     sample-passthrough-fuse-x64 ^
-    sample-fsx-passthrough-fuse-x64 ^
     sample-passthrough-fuse-x86 ^
-    sample-fsx-passthrough-fuse-x86 ^
     sample-passthrough-fuse3-x64 ^
-    sample-fsx-passthrough-fuse3-x64 ^
     sample-passthrough-fuse3-x86 ^
-    sample-fsx-passthrough-fuse3-x86 ^
     sample-passthrough-dotnet ^
-    slowio-fsx-memfs-x64 ^
-    slowio-fsx-memfs-x86 ^
-    slowio-fsx-memfs-dotnet ^
+    slowio-memfs-x64-fsx ^
+    slowio-memfs-x86-fsx ^
+    slowio-memfs-dotnet-fsx ^
     compat-v1.2-memfs-x64 ^
     compat-v1.2-memfs-x86 ^
     compat-v1.1-passthrough-fuse-x64 ^
@@ -328,7 +324,7 @@ if !ERRORLEVEL! neq 0 (
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:fsx-memfs-x64-disk
+:memfs-x64-disk-fsx
 M:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
@@ -336,7 +332,7 @@ if !ERRORLEVEL! neq 0 goto fail
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:fsx-memfs-x64-net
+:memfs-x64-net-fsx
 N:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
@@ -344,19 +340,19 @@ if !ERRORLEVEL! neq 0 goto fail
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:standby-memfs-x64-disk
+:memfs-x64-disk-standby
 M:
 copy "%ProjRoot%\build\VStudio\build\%Configuration%\*"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:standby-memfs-x64-net
+:memfs-x64-net-standby
 N:
 copy "%ProjRoot%\build\VStudio\build\%Configuration%\*"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:net-use-memfs-x64
+:memfs-x64-net-use
 echo net use L: \\memfs64\share
 net use L: \\memfs64\share
 if !ERRORLEVEL! neq 0 goto fail
@@ -395,7 +391,7 @@ if !ERRORLEVEL! neq 0 (
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:fsx-memfs-x86-disk
+:memfs-x86-disk-fsx
 O:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
@@ -403,7 +399,7 @@ if !ERRORLEVEL! neq 0 goto fail
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:fsx-memfs-x86-net
+:memfs-x86-net-fsx
 P:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
@@ -411,19 +407,19 @@ if !ERRORLEVEL! neq 0 goto fail
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:standby-memfs-x86-disk
+:memfs-x86-disk-standby
 O:
 copy "%ProjRoot%\build\VStudio\build\%Configuration%\*"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:standby-memfs-x86-net
+:memfs-x86-net-standby
 P:
 copy "%ProjRoot%\build\VStudio\build\%Configuration%\*"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:net-use-memfs-x86
+:memfs-x86-net-use
 echo net use L: \\memfs32\share
 net use L: \\memfs32\share
 if !ERRORLEVEL! neq 0 goto fail
@@ -435,25 +431,25 @@ net use L: /delete
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:winfstest-memfs-x64-disk
+:memfs-x64-disk-winfstest
 M:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:winfstest-memfs-x64-net
+:memfs-x64-net-winfstest
 N:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:winfstest-memfs-x86-disk
+:memfs-x86-disk-winfstest
 O:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:winfstest-memfs-x86-net
+:memfs-x86-net-winfstest
 P:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
@@ -524,7 +520,7 @@ if !ERRORLEVEL! neq 0 (
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:fsx-memfs-dotnet-disk
+:memfs-dotnet-disk-fsx
 Q:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
@@ -532,7 +528,7 @@ if !ERRORLEVEL! neq 0 goto fail
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:fsx-memfs-dotnet-net
+:memfs-dotnet-net-fsx
 R:
 "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" -N 5000 test xxxxxx
 if !ERRORLEVEL! neq 0 goto fail
@@ -540,17 +536,17 @@ if !ERRORLEVEL! neq 0 goto fail
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:slowio-fsx-memfs-x64
+:slowio-memfs-x64-fsx
 call :__run_fsx_memfs_slowio_test memfs64-slowio memfs-x64
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:slowio-fsx-memfs-x86
+:slowio-memfs-x86-fsx
 call :__run_fsx_memfs_slowio_test memfs32-slowio memfs-x86
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:slowio-fsx-memfs-dotnet
+:slowio-memfs-dotnet-fsx
 call :__run_fsx_memfs_slowio_test memfs.net-slowio memfs-dotnet-msil
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
@@ -574,13 +570,13 @@ net use L: /delete
 call "%ProjRoot%\tools\fsreg" -u %1
 exit /b !RunSampleTestExit!
 
-:winfstest-memfs-dotnet-disk
+:memfs-dotnet-disk-winfstest
 Q:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:winfstest-memfs-dotnet-net
+:memfs-dotnet-net-winfstest
 R:
 call "%ProjRoot%\ext\test\winfstest\run-winfstest.bat"
 if !ERRORLEVEL! neq 0 goto fail
@@ -862,28 +858,28 @@ call :__run_sample_ntptfs_test ntptfs x86 ntptfs-x86 ^
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:sample-fsx-ntptfs-x64
+:sample-ntptfs-x64-fsx
 call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
     "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" ^
     "-N 5000 test xxxxxx"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:sample-fsx-ntptfs-x86
+:sample-ntptfs-x86-fsx
 call :__run_sample_ntptfs_test ntptfs x86 ntptfs-x86 ^
     "%ProjRoot%\ext\test\fstools\src\fsx\fsx.exe" ^
     "-N 5000 test xxxxxx"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:sample-ifstest-ntptfs-x64
+:sample-ntptfs-x64-ifstest
 call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
     call ^
     ":__ifstest-ntptfs L: \Device\WinFsp.Disk C:"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:sample-ifstest-ntptfs-x86
+:sample-ntptfs-x86-ifstest
 call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
     call ^
     ":__ifstest-ntptfs L: \Device\WinFsp.Disk C:"
@@ -900,12 +896,12 @@ call :__run_sample_fuse_test memfs-fuse x86 memfs-fuse-x86 winfsp-tests-x86 "+*"
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:sample-fsx-memfs-fuse-x64
+:sample-memfs-fuse-x64-fsx
 call :__run_sample_fsx_fuse_test memfs-fuse x64 memfs-fuse-x64 fsx
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:sample-fsx-memfs-fuse-x86
+:sample-memfs-fuse-x86-fsx
 call :__run_sample_fsx_fuse_test memfs-fuse x86 memfs-fuse-x86 fsx
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
@@ -922,12 +918,12 @@ call :__run_sample_fuse_test memfs-fuse3 x86 memfs-fuse3-x86 winfsp-tests-x86 ^
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:sample-fsx-memfs-fuse3-x64
+:sample-memfs-fuse3-x64-fsx
 call :__run_sample_fsx_fuse_test memfs-fuse3 x64 memfs-fuse3-x64 fsx
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:sample-fsx-memfs-fuse3-x86
+:sample-memfs-fuse3-x86-fsx
 call :__run_sample_fsx_fuse_test memfs-fuse3 x86 memfs-fuse3-x86 fsx
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
@@ -978,12 +974,12 @@ call :__run_sample_fuse_oldtest passthrough-fuse x86 passthrough-fuse-x86 winfsp
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:sample-fsx-passthrough-fuse-x64
+:sample-passthrough-fuse-x64-fsx
 call :__run_sample_fsx_fuse_test passthrough-fuse x64 passthrough-fuse-x64 fsx
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:sample-fsx-passthrough-fuse-x86
+:sample-passthrough-fuse-x86-fsx
 call :__run_sample_fsx_fuse_test passthrough-fuse x86 passthrough-fuse-x86 fsx
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
@@ -1000,12 +996,12 @@ call :__run_sample_fuse_oldtest passthrough-fuse3 x86 passthrough-fuse3-x86 winf
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:sample-fsx-passthrough-fuse3-x64
+:sample-passthrough-fuse3-x64-fsx
 call :__run_sample_fsx_fuse_test passthrough-fuse3 x64 passthrough-fuse3-x64 fsx
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
-:sample-fsx-passthrough-fuse3-x86
+:sample-passthrough-fuse3-x86-fsx
 call :__run_sample_fsx_fuse_test passthrough-fuse3 x86 passthrough-fuse3-x86 fsx
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
