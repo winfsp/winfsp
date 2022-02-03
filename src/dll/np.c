@@ -863,6 +863,99 @@ DWORD APIENTRY NPCancelConnection(LPWSTR lpName, BOOL fForce)
     return NpResult;
 }
 
+DWORD APIENTRY NPGetUniversalName(
+    LPCWSTR lpLocalPath,
+    DWORD dwInfoLevel,
+    LPVOID lpBuffer,
+    LPDWORD lpBufferSize)
+{
+    DWORD NpResult;
+    WCHAR LocalNameBuf[3];
+    PCWSTR RemainLocalPath;
+    WCHAR RemoteNameBuf[sizeof(((FSP_FSCTL_VOLUME_PARAMS *)0)->Prefix) / sizeof(WCHAR)];
+    DWORD RemoteNameSize, RemainLocalPathSize, RequiredBufferSize;
+
+    if (UNIVERSAL_NAME_INFO_LEVEL != dwInfoLevel &&
+        REMOTE_NAME_INFO_LEVEL != dwInfoLevel)
+        return WN_BAD_LEVEL;
+
+    if (0 == lpLocalPath ||
+        L'\0' == lpLocalPath[0] ||
+        L':' != lpLocalPath[1] ||
+        (L'\0' != lpLocalPath[2] && L'\\' != lpLocalPath[2]))
+        return WN_BAD_LOCALNAME;
+
+    LocalNameBuf[0] = lpLocalPath[0];
+    LocalNameBuf[1] = L':';
+    LocalNameBuf[2] = L'\0';
+    RemainLocalPath = lpLocalPath + 2;
+
+    RemoteNameSize = sizeof RemoteNameBuf / sizeof(WCHAR);
+    NpResult = NPGetConnection(LocalNameBuf, RemoteNameBuf, &RemoteNameSize);
+    if (WN_SUCCESS != NpResult)
+        return NpResult;
+
+    RemoteNameSize = lstrlenW(RemoteNameBuf) * sizeof(WCHAR);
+    RemainLocalPathSize = lstrlenW(RemainLocalPath) * sizeof(WCHAR) + sizeof(WCHAR)/* term-0 */;
+
+    if (UNIVERSAL_NAME_INFO_LEVEL == dwInfoLevel)
+    {
+        RequiredBufferSize = sizeof(UNIVERSAL_NAME_INFOW) +
+            /* UniversalName */ RemoteNameSize + RemainLocalPathSize;
+
+        if (RequiredBufferSize > *lpBufferSize)
+        {
+            *lpBufferSize = RequiredBufferSize;
+            NpResult = WN_MORE_DATA;
+            goto exit;
+        }
+
+        LPUNIVERSAL_NAME_INFOW Info = lpBuffer;
+        memset(Info, 0, sizeof *Info);
+        Info->lpUniversalName = (PVOID)(Info + 1);
+        memcpy(Info->lpUniversalName, RemoteNameBuf, RemoteNameSize);
+        memcpy((PUINT8)Info->lpUniversalName + RemoteNameSize, RemainLocalPath,
+            RemainLocalPathSize);
+
+        NpResult = WN_SUCCESS;
+    }
+    else if (REMOTE_NAME_INFO_LEVEL == dwInfoLevel)
+    {
+        RequiredBufferSize = sizeof(REMOTE_NAME_INFOW) +
+            /* UniversalName */ RemoteNameSize + RemainLocalPathSize +
+            /* ConnectionName */RemoteNameSize + sizeof(WCHAR) +
+            /* RemainingPath */ RemainLocalPathSize;
+
+        if (RequiredBufferSize > *lpBufferSize)
+        {
+            *lpBufferSize = RequiredBufferSize;
+            NpResult = WN_MORE_DATA;
+            goto exit;
+        }
+
+        LPREMOTE_NAME_INFOW Info = lpBuffer;
+        memset(Info, 0, sizeof *Info);
+        Info->lpUniversalName = (PVOID)(Info + 1);
+        Info->lpConnectionName = (PVOID)((PUINT8)Info->lpUniversalName +
+            RemoteNameSize + RemainLocalPathSize);
+        Info->lpRemainingPath = (PVOID)((PUINT8)Info->lpConnectionName +
+            RemoteNameSize + sizeof(WCHAR));
+        memcpy(Info->lpUniversalName, RemoteNameBuf, RemoteNameSize);
+        memcpy((PUINT8)Info->lpUniversalName + RemoteNameSize, RemainLocalPath,
+            RemainLocalPathSize);
+        memcpy(Info->lpConnectionName, RemoteNameBuf, RemoteNameSize + sizeof(WCHAR));
+        memcpy(Info->lpRemainingPath, RemainLocalPath, RemainLocalPathSize);
+
+        NpResult = WN_SUCCESS;
+    }
+    else
+        /* should not happen! */
+        NpResult = WN_BAD_LEVEL;
+
+exit:
+    return NpResult;
+}
+
 typedef struct
 {
     DWORD Signature;                    /* cheap and cheerful! */
