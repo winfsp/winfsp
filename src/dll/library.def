@@ -9,3 +9,4 @@ EXPORTS
     NPOpenEnum          PRIVATE
     NPEnumResource      PRIVATE
     NPCloseEnum         PRIVATE
+    NPGetUniversalName  PRIVATE
