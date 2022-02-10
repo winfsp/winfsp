@@ -762,6 +762,9 @@ rem     difference.
 if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
     call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest /c
     if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
+) else if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" (
+    call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest -t SetPointIoReparseTagMismatchTest -t SetPointAttributeConflictTest /c
+    if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
 ) else (
     call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest -t SetPointIoReparseDataInvalidTest /c
     if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
@@ -845,17 +848,45 @@ if not X!IfsTestFound!==XYES set IfsTestExit=1
 exit /b !IfsTestExit!
 
 :sample-ntptfs-x64
-call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
-    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" ^
-    "--external --resilient +* -rename_flipflop_test -exec_rename_dir_test -stream_rename_flipflop_test"
-if !ERRORLEVEL! neq 0 goto fail
+if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
+    rem need POSIX delete for rename_mmap
+    call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
+        "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" ^
+        "--external --resilient +* -rename_flipflop_test -rename_mmap -exec_rename_dir_test -stream_rename_flipflop_test"
+    if !ERRORLEVEL! neq 0 goto fail
+) else if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" (
+    rem need POSIX delete for rename_mmap
+    call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
+        "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" ^
+        "--external --resilient +* -rename_flipflop_test -rename_mmap -exec_rename_dir_test -stream_rename_flipflop_test"
+    if !ERRORLEVEL! neq 0 goto fail
+) else (
+    call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
+        "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" ^
+        "--external --resilient +* -rename_flipflop_test -exec_rename_dir_test -stream_rename_flipflop_test"
+    if !ERRORLEVEL! neq 0 goto fail
+)
 exit /b 0
 
 :sample-ntptfs-x86
-call :__run_sample_ntptfs_test ntptfs x86 ntptfs-x86 ^
-    "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" ^
-    "--external --resilient +* -rename_flipflop_test -exec_rename_dir_test -stream_rename_flipflop_test"
-if !ERRORLEVEL! neq 0 goto fail
+if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
+    rem need POSIX delete for rename_mmap
+    call :__run_sample_ntptfs_test ntptfs x86 ntptfs-x86 ^
+        "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" ^
+        "--external --resilient +* -rename_flipflop_test -rename_mmap -exec_rename_dir_test -stream_rename_flipflop_test"
+    if !ERRORLEVEL! neq 0 goto fail
+) else if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" (
+    rem need POSIX delete for rename_mmap
+    call :__run_sample_ntptfs_test ntptfs x86 ntptfs-x86 ^
+        "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" ^
+        "--external --resilient +* -rename_flipflop_test -rename_mmap -exec_rename_dir_test -stream_rename_flipflop_test"
+    if !ERRORLEVEL! neq 0 goto fail
+) else (
+    call :__run_sample_ntptfs_test ntptfs x86 ntptfs-x86 ^
+        "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" ^
+        "--external --resilient +* -rename_flipflop_test -exec_rename_dir_test -stream_rename_flipflop_test"
+    if !ERRORLEVEL! neq 0 goto fail
+)
 exit /b 0
 
 :sample-ntptfs-x64-fsx
