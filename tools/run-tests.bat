@@ -849,16 +849,16 @@ exit /b !IfsTestExit!
 
 :sample-ntptfs-x64
 if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
-    rem need POSIX delete for rename_mmap
+    rem need POSIX delete for rename_mmap_test
     call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
         "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" ^
-        "--external --resilient +* -rename_flipflop_test -rename_mmap -exec_rename_dir_test -stream_rename_flipflop_test"
+        "--external --resilient +* -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test -stream_rename_flipflop_test"
     if !ERRORLEVEL! neq 0 goto fail
 ) else if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" (
-    rem need POSIX delete for rename_mmap
+    rem need POSIX delete for rename_mmap_test
     call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
         "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x64.exe" ^
-        "--external --resilient +* -rename_flipflop_test -rename_mmap -exec_rename_dir_test -stream_rename_flipflop_test"
+        "--external --resilient +* -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test -stream_rename_flipflop_test"
     if !ERRORLEVEL! neq 0 goto fail
 ) else (
     call :__run_sample_ntptfs_test ntptfs x64 ntptfs-x64 ^
@@ -870,16 +870,16 @@ exit /b 0
 
 :sample-ntptfs-x86
 if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
-    rem need POSIX delete for rename_mmap
+    rem need POSIX delete for rename_mmap_test
     call :__run_sample_ntptfs_test ntptfs x86 ntptfs-x86 ^
         "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" ^
-        "--external --resilient +* -rename_flipflop_test -rename_mmap -exec_rename_dir_test -stream_rename_flipflop_test"
+        "--external --resilient +* -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test -stream_rename_flipflop_test"
     if !ERRORLEVEL! neq 0 goto fail
 ) else if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" (
-    rem need POSIX delete for rename_mmap
+    rem need POSIX delete for rename_mmap_test
     call :__run_sample_ntptfs_test ntptfs x86 ntptfs-x86 ^
         "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-tests-x86.exe" ^
-        "--external --resilient +* -rename_flipflop_test -rename_mmap -exec_rename_dir_test -stream_rename_flipflop_test"
+        "--external --resilient +* -rename_flipflop_test -rename_mmap_test -exec_rename_dir_test -stream_rename_flipflop_test"
     if !ERRORLEVEL! neq 0 goto fail
 ) else (
     call :__run_sample_ntptfs_test ntptfs x86 ntptfs-x86 ^
