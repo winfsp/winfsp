@@ -763,7 +763,7 @@ if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
     call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest /c
     if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
 ) else if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" (
-    call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest -t SetPointIoReparseTagMismatchTest -t SetPointAttributeConflictTest /c
+    call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest -t SetPointIoReparseDataInvalidTest -t SetPointIoReparseTagMismatchTest -t SetPointAttributeConflictTest /c
     if !ERRORLEVEL! neq 0 set IfsTestNtptfsExit=1
 ) else (
     call :__ifstest %1 /g ReparsePoints -t SetPointEASNotSupportedTest -t EnumReparsePointsTest -t ChangeNotificationReparseTest -t SetPointIoReparseDataInvalidTest /c
