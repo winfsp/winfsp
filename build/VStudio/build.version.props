@@ -23,6 +23,9 @@
         <MyProductVersion>2022+ARM64 Beta1</MyProductVersion>
         <MyProductStage>Beta</MyProductStage>
 
+        <MyCrossCert>DigiCert High Assurance EV Root CA.crt</MyCrossCert>
+        <MyCertIssuer>DigiCert</MyCertIssuer>
+
         <MyVersion>$(MyCanonicalVersion).$(MyBuildNumber)</MyVersion>
         <MyVersionWithCommas>$(MyVersion.Replace('.',',')),0</MyVersionWithCommas>
         <MyFullVersion>$(MyCanonicalVersion).$(MyBuildNumber).$(MyGitRevision)</MyFullVersion>

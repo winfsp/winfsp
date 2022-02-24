@@ -14,6 +14,10 @@ for /F "tokens=2,3,4 delims=<>" %%a in (%~dp0..\build\VStudio\build.version.prop
             set MyProductVersion=%%b
         ) else if "%%a"=="MyProductStage" (
             set MyProductStage=%%b
+        ) else if "%%a"=="MyCrossCert" (
+            set MyCrossCert=%%b
+        ) else if "%%a"=="MyCertIssuer" (
+            set MyCertIssuer=%%b
         )
     )
 )
@@ -24,3 +28,5 @@ echo MyDescription=%MyDescription%
 echo MyCompanyName=%MyCompanyName%
 echo MyProductVersion=%MyProductVersion%
 echo MyProductStage=%MyProductStage%
+echo MyCrossCert=%MyCrossCert%
+echo MyCertIssuer=%MyCertIssuer%

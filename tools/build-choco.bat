@@ -6,8 +6,8 @@ setlocal EnableDelayedExpansion
 call "%~dp0myinfo.bat"
 
 set MsiName="%MyProductName% - %MyDescription%"
-set CrossCert="%~dp0DigiCert High Assurance EV Root CA.crt"
-set Issuer="DigiCert"
+set CrossCert="%~dp0%MyCrossCert%"
+set Issuer="%MyCertIssuer%"
 set Subject="%MyCompanyName%"
 
 set Configuration=Release
