@@ -1,6 +1,6 @@
 = Queued Events - Windows kernel events with IOCP scheduling characteristics
 
-In this article I am discussing _Queued Events_. _Queued Events_ are a Windows kernel synchronization mechanism that I invented for https://github.com/billziss-gh/winfsp[WinFsp - FUSE for Windows]. _Queued Events_ behave like kernel Synchronization Events (i.e. Win32 auto-reset events), but provide scheduling characteristics similar to those of I/O Completion Ports.
+In this article I am discussing _Queued Events_. _Queued Events_ are a Windows kernel synchronization mechanism that I invented for https://github.com/winfsp/winfsp[WinFsp - FUSE for Windows]. _Queued Events_ behave like kernel Synchronization Events (i.e. Win32 auto-reset events), but provide scheduling characteristics similar to those of I/O Completion Ports.
 
 == The Problem
 
@@ -92,7 +92,7 @@ We now have to consider what happens when we have one EventSet concurrently with
 
 NOTE: _Queued Events_ cannot cleanly support an EventClear operation. The obvious choice of using KeRemoveQueue with a 0 timeout is insufficient because it would associate the current thread with the KQUEUE and that is not desirable. KeRundownQueue cannot be used either because it disassociates all threads from the KQUEUE.
 
-The complete implementation of _Queued Events_ within WinFsp can be found here: https://github.com/billziss-gh/winfsp/blob/v1.1/src/sys/driver.h#L655-L795
+The complete implementation of _Queued Events_ within WinFsp can be found here: https://github.com/winfsp/winfsp/blob/v1.1/src/sys/driver.h#L655-L795
 
 == Queued Events Scheduling Characteristics
 
@@ -102,4 +102,3 @@ Queued Events encapsulate KQUEUE's and therefore inherit their scheduling charac
 - They limit the number of threads that can be satisfied concurrently.
 
 These characteristics are desirable because they reduce the number of context switches thus speeding up the WinFsp IPC implementation. Performance testing immediately after the incorporation of _Queued Events_ into WinFsp showed significant performance improvements; profiling with xperf showed that context switches among file system threads were now a relatively rare event!
-

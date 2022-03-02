@@ -3,7 +3,7 @@
 
 ## v1.11B1 (2022+ARM64 Beta1)
 
-- [NEW] ARM64 support! For details see [WinFsp on ARM64](https://github.com/billziss-gh/winfsp/wiki/WinFsp-on-ARM64).
+- [NEW] ARM64 support! For details see [WinFsp on ARM64](https://github.com/winfsp/winfsp/wiki/WinFsp-on-ARM64).
 
 - [NEW] New `ntptfs` sample file system. This is a production quality pass through file system and should be used instead of the original `passthrough` file system that was developed for education purposes only.
 

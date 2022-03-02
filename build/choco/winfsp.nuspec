@@ -3,20 +3,20 @@
     <metadata>
         <id>winfsp</id>
         <version>$version$</version>
-        <packageSourceUrl>https://github.com/billziss-gh/winfsp/tree/master/build/choco</packageSourceUrl>
+        <packageSourceUrl>https://github.com/winfsp/winfsp/tree/master/build/choco</packageSourceUrl>
         <owners>Bill Zissimopoulos</owners>
 
         <title>WinFsp</title>
         <authors>Bill Zissimopoulos</authors>
-        <projectUrl>https://github.com/billziss-gh/winfsp</projectUrl>
-        <iconUrl>https://github.com/billziss-gh/winfsp/raw/master/art/winfsp-solid.png</iconUrl>
+        <projectUrl>https://github.com/winfsp/winfsp</projectUrl>
+        <iconUrl>https://github.com/winfsp/winfsp/raw/master/art/winfsp-solid.png</iconUrl>
         <copyright>Bill Zissimopoulos</copyright>
-        <licenseUrl>https://github.com/billziss-gh/winfsp/blob/master/License.txt</licenseUrl>
+        <licenseUrl>https://github.com/winfsp/winfsp/blob/master/License.txt</licenseUrl>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
-        <projectSourceUrl>https://github.com/billziss-gh/winfsp</projectSourceUrl>
-        <docsUrl>https://github.com/billziss-gh/winfsp/tree/master/doc</docsUrl>
+        <projectSourceUrl>https://github.com/winfsp/winfsp</projectSourceUrl>
+        <docsUrl>https://github.com/winfsp/winfsp/tree/master/doc</docsUrl>
         <mailingListUrl>https://groups.google.com/forum/#!forum/winfsp</mailingListUrl>
-        <bugTrackerUrl>https://github.com/billziss-gh/winfsp/issues</bugTrackerUrl>
+        <bugTrackerUrl>https://github.com/winfsp/winfsp/issues</bugTrackerUrl>
         <tags>driver filesystem fuse gplv3 windows-kernel admin</tags>
         <summary>Windows File System Proxy - FUSE for Windows</summary>
         <description>
@@ -39,7 +39,7 @@ To verify installation:
 * For Cygwin: `net use m: '\\memfs64\share'`
 * To delete the drive: `net use m: /delete`
         </description>
-        <releaseNotes>https://github.com/billziss-gh/winfsp/blob/master/Changelog.asciidoc</releaseNotes>
+        <releaseNotes>https://github.com/winfsp/winfsp/blob/master/Changelog.md</releaseNotes>
 
         <!--<dependencies>
             <dependency id="chocolatey-uninstall.extension" />

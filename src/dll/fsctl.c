@@ -429,7 +429,7 @@ static NTSTATUS FspFsctlFixServiceSecurity(HANDLE SvcHandle)
              * required rights are not there if GetEffectiveRightsFromAclW fails; the worst
              * that can happen is that the rights get added twice (which is benign).
              *
-             * See https://github.com/billziss-gh/winfsp/issues/62
+             * See https://github.com/winfsp/winfsp/issues/62
              */
             AccessRights = 0;
     }

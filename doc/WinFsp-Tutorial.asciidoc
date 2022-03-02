@@ -15,7 +15,7 @@ NOTE: The file system that we build in this tutorial is suitable for education p
 
 == Prerequisites
 
-This tutorial assumes that you have WinFsp and Visual Studio 2015 installed. The WinFsp installer can be downloaded from the WinFsp GitHub repository: https://github.com/billziss-gh/winfsp. The Microsoft Visual Studio Community 2015 can be downloaded for free from Microsoft's web site.
+This tutorial assumes that you have WinFsp and Visual Studio 2015 installed. The WinFsp installer can be downloaded from the WinFsp GitHub repository: https://github.com/winfsp/winfsp. The Microsoft Visual Studio Community 2015 can be downloaded for free from Microsoft's web site.
 
 When installing WinFsp make sure to choose "Developer" to ensure that all necessary header and library files are included in the installation.
 

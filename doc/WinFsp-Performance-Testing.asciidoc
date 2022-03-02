@@ -15,9 +15,9 @@ ifndef::env-browser[image::WinFsp-Performance-Testing/rdwr_tests.png[]]
 
 == Fsbench
 
-All testing was performed using a new performance test suite developed as part of WinFsp, called https://github.com/billziss-gh/winfsp/blob/master/tst/fsbench/fsbench.c[fsbench]. Fsbench was developed because it allows the creation of tests that are important to file system developers; for example, it can answer questions of the type: "how long does it take to delete 1000 files" or "how long does it take to list a directory with 10000 files in it".
+All testing was performed using a new performance test suite developed as part of WinFsp, called https://github.com/winfsp/winfsp/blob/master/tst/fsbench/fsbench.c[fsbench]. Fsbench was developed because it allows the creation of tests that are important to file system developers; for example, it can answer questions of the type: "how long does it take to delete 1000 files" or "how long does it take to list a directory with 10000 files in it".
 
-Fsbench is based on the https://github.com/billziss-gh/winfsp/tree/master/ext/tlib[tlib] library, originally from the *secfs* project. Tlib is usually used to develop regression test suites in C/C++, but can be also used to create performance tests. 
+Fsbench is based on the https://github.com/winfsp/winfsp/tree/master/ext/tlib[tlib] library, originally from the *secfs* project. Tlib is usually used to develop regression test suites in C/C++, but can be also used to create performance tests.
 
 Fsbench currently includes the following tests:
 

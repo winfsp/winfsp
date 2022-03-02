@@ -1,7 +1,7 @@
 @echo off
 
 REM This script is used to fix GitHub issue #162:
-REM     https://github.com/billziss-gh/winfsp/issues/162
+REM     https://github.com/winfsp/winfsp/issues/162
 REM
 REM It works as follows:
 REM

@@ -7,11 +7,11 @@
 
 <p align="center">
     <b>Download</b><br>
-    <a href="https://github.com/billziss-gh/winfsp/releases/latest">
-        <img src="https://img.shields.io/github/release/billziss-gh/winfsp.svg?label=stable&style=for-the-badge"/>
+    <a href="https://github.com/winfsp/winfsp/releases/latest">
+        <img src="https://img.shields.io/github/release/winfsp/winfsp.svg?label=stable&style=for-the-badge"/>
     </a>
-    <a href="https://github.com/billziss-gh/winfsp/releases">
-        <img src="https://img.shields.io/github/release/billziss-gh/winfsp/all.svg?label=latest&colorB=e52e4b&style=for-the-badge"/>
+    <a href="https://github.com/winfsp/winfsp/releases">
+        <img src="https://img.shields.io/github/release/winfsp/winfsp/all.svg?label=latest&colorB=e52e4b&style=for-the-badge"/>
     </a>
     <a href="https://chocolatey.org/packages/winfsp">
         <img src="https://img.shields.io/badge/choco-install%20winfsp-black.svg?style=for-the-badge"/>
@@ -125,7 +125,7 @@ I am looking for help in the following areas:
 
 * If you have a file system that runs on FUSE please consider porting it to WinFsp. WinFsp has a native API, but it also has a FUSE (high-level) API.
 * If you are working with a language other than C/C++ (e.g. Delphi, Java, etc.) and you are interested in porting/wrapping WinFsp I would love to hear from you.
-* There are a number of outstanding issues listed in the [GitHub repository](https://github.com/billziss-gh/winfsp/issues). Many of these require knowledge of Windows kernel-mode and an understanding of the internals of WinFsp so they are not for the faint of heart.
+* There are a number of outstanding issues listed in the [GitHub repository](https://github.com/winfsp/winfsp/issues). Many of these require knowledge of Windows kernel-mode and an understanding of the internals of WinFsp so they are not for the faint of heart.
 
 In all cases I can provide ideas and/or support.
 
