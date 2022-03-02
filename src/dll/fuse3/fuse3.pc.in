@@ -5,6 +5,6 @@ implib=${prefix}/bin/winfsp-${arch}.dll
 Name: fuse3
 Description: WinFsp FUSE3 compatible API
 Version: 3.2
-URL: http://www.secfs.net/winfsp/
+URL: https://winfsp.dev
 Libs: "${implib}"
 Cflags: -I"${incdir}"

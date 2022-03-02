@@ -4,7 +4,7 @@ RELEASE=10
 CATEGORY="Utils"
 SUMMARY="WinFsp FUSE compatibility layer"
 DESCRIPTION="Enables FUSE file systems to be run on Cygwin."
-HOMEPAGE="http://www.secfs.net/winfsp/"
+HOMEPAGE="https://winfsp.dev"
 
 SRC_URI=${CYGPORT_SRC_URI:-"https://github.com/billziss-gh/winfsp/archive/master.tar.gz"}
 SRC_DIR=${CYGPORT_SRC_DIR:-winfsp-master}

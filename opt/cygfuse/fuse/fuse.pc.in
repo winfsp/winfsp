@@ -4,6 +4,6 @@ incdir=${prefix}/include/fuse
 Name: fuse
 Description: WinFsp FUSE compatible API
 Version: @Version@
-URL: http://www.secfs.net/winfsp/
+URL: https://winfsp.dev
 Libs: -lfuse-@Version@
 Cflags: -I"${incdir}" -DCYGFUSE

@@ -53,7 +53,7 @@ WinFsp strives for compatibility with NTFS and file system correctness. For the 
 WinFsp has an easy to use but comprehensive API.
 
 * This simple [Tutorial](doc/WinFsp-Tutorial.asciidoc) explains how to build a file system.
-* Consult the [API Reference](http://www.secfs.net/winfsp/apiref/) for native development.
+* Consult the [API Reference](https://winfsp.dev/apiref) for native development.
 * Includes .NET layer for managed development. See [src/dotnet](src/dotnet).
 * Includes FUSE 2.8 compatibility layer: [fuse/fuse.h](inc/fuse/fuse.h)
 * Includes FUSE 3.2 compatibility layer: [fuse3/fuse.h](inc/fuse3/fuse.h)
@@ -63,7 +63,7 @@ WinFsp has an easy to use but comprehensive API.
 * Signed drivers provided on every release.
 * Available under the [GPLv3](License.txt) license with a special exception for Free/Libre and Open Source Software.
 
-To learn more about WinFsp, please visit its website: http://www.secfs.net/winfsp/
+To learn more about WinFsp, please visit its website: https://winfsp.dev
 
 ## Project Organization
 

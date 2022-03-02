@@ -6,7 +6,7 @@ This document compares the "native" WinFsp API to the FUSE API and provides a ra
 
 WinFsp provides two different but conceptually similar API's for the same purpose of implementing a user mode file system:
 
-- The WinFsp API, which is documented in the include file `inc/winfsp/winfsp.h` (and online at http://www.secfs.net/winfsp/apiref/). This API consists of the `FSP_FILE_SYSTEM_INTERFACE` "class" and the `FspFileSystem*` functions.
+- The WinFsp API, which is documented in the include file `inc/winfsp/winfsp.h` (and online at https://winfsp.dev/apiref). This API consists of the `FSP_FILE_SYSTEM_INTERFACE` "class" and the `FspFileSystem*` functions.
 - The FUSE (high-level) API, which is the well understood API from the FUSE project originally by Miklos Szeredi.
 
 Given the similarities between the two API's some questions naturally arise:
