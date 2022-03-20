@@ -342,7 +342,7 @@ NTSTATUS FspFileNodeCreate(PDEVICE_OBJECT DeviceObject,
     RtlZeroMemory(FileNode, sizeof *FileNode + ExtraSize);
     FileNode->Header.NodeTypeCode = FspFileNodeFileKind;
     FileNode->Header.NodeByteSize = sizeof *FileNode;
-    FileNode->Header.IsFastIoPossible = FastIoIsNotPossible;
+    FileNode->Header.IsFastIoPossible = FastIoIsQuestionable;
     FileNode->Header.Resource = &NonPaged->Resource;
     FileNode->Header.PagingIoResource = &NonPaged->PagingIoResource;
     FileNode->Header.ValidDataLength.QuadPart = MAXLONGLONG;

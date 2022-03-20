@@ -304,6 +304,43 @@ VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Sta
         }                               \
     );                                  \
     return Result
+#define FSP_ENTER_FIO(...)              \
+    PDEVICE_OBJECT FsvolDeviceObject;   \
+    if (FspFsmupDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind)\
+    {                                   \
+        FsvolDeviceObject = FspMupGetFsvolDeviceObject(FileObject);\
+        if (0 == FsvolDeviceObject)     \
+        {                               \
+            IoStatus->Status = STATUS_INVALID_DEVICE_REQUEST;\
+            IoStatus->Information = 0;  \
+            return TRUE;                \
+        }                               \
+    }                                   \
+    else                                \
+        FsvolDeviceObject = DeviceObject;\
+    BOOLEAN Result = TRUE;              \
+    BOOLEAN fsp_device_deref = FALSE;   \
+    FSP_ENTER_(ioentr, __VA_ARGS__);    \
+    do                                  \
+    {                                   \
+        ASSERT(0 == IoGetTopLevelIrp()); \
+        IoSetTopLevelIrp((PIRP)FSRTL_FAST_IO_TOP_LEVEL_IRP); \
+        if (!FspDeviceReference(FsvolDeviceObject))\
+        {                               \
+            IoStatus->Status = STATUS_CANCELLED;\
+            IoStatus->Information = 0;  \
+            goto fsp_leave_label;       \
+        }                               \
+        fsp_device_deref = TRUE;        \
+    } while (0,0)
+#define FSP_LEAVE_FIO(fmt, ...)         \
+    FSP_LEAVE_(                         \
+        FSP_DEBUGLOG_(fmt, " = %s", __VA_ARGS__, Result ? "TRUE" : "FALSE");\
+        if (fsp_device_deref)           \
+            FspDeviceDereference(FsvolDeviceObject);\
+        IoSetTopLevelIrp(0);            \
+    );                                  \
+    return Result
 #define FSP_ENTER_BOOL(...)             \
     BOOLEAN Result = TRUE; FSP_ENTER_(iocall, __VA_ARGS__)
 #define FSP_LEAVE_BOOL(fmt, ...)        \
@@ -383,6 +420,8 @@ FSP_IOPREP_DISPATCH FspFsvolWritePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolWriteComplete;
 
 /* fast I/O and resource acquisition callbacks */
+FAST_IO_READ FspFastIoRead;
+FAST_IO_WRITE FspFastIoWrite;
 FAST_IO_QUERY_BASIC_INFO FspFastIoQueryBasicInfo;
 FAST_IO_QUERY_STANDARD_INFO FspFastIoQueryStandardInfo;
 FAST_IO_QUERY_NETWORK_OPEN_INFO FspFastIoQueryNetworkOpenInfo;
@@ -1360,6 +1399,8 @@ NTSTATUS FspMupRegister(
     PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
 VOID FspMupUnregister(
     PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
+PDEVICE_OBJECT FspMupGetFsvolDeviceObject(
+    PFILE_OBJECT FileObject);
 NTSTATUS FspMupHandleIrp(
     PDEVICE_OBJECT FsmupDeviceObject, PIRP Irp);
 

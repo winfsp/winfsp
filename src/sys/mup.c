@@ -43,6 +43,8 @@ NTSTATUS FspMupRegister(
     PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
 VOID FspMupUnregister(
     PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
+PDEVICE_OBJECT FspMupGetFsvolDeviceObject(
+    PFILE_OBJECT FileObject);
 NTSTATUS FspMupHandleIrp(
     PDEVICE_OBJECT FsmupDeviceObject, PIRP Irp);
 static NTSTATUS FspMupRedirQueryPathEx(
@@ -52,6 +54,7 @@ static NTSTATUS FspMupRedirQueryPathEx(
 #pragma alloc_text(PAGE, FspMupGetClassName)
 #pragma alloc_text(PAGE, FspMupRegister)
 #pragma alloc_text(PAGE, FspMupUnregister)
+#pragma alloc_text(PAGE, FspMupGetFsvolDeviceObject)
 #pragma alloc_text(PAGE, FspMupHandleIrp)
 #pragma alloc_text(PAGE, FspMupRedirQueryPathEx)
 #endif
@@ -191,6 +194,27 @@ VOID FspMupUnregister(
     ExReleaseResourceLite(&FsmupDeviceExtension->PrefixTableResource);
 }
 
+PDEVICE_OBJECT FspMupGetFsvolDeviceObject(
+    PFILE_OBJECT FileObject)
+{
+    PAGED_CODE();
+
+    PDEVICE_OBJECT FsvolDeviceObject = 0;
+
+    ASSERT(0 != FileObject);
+
+    if (FspFileNodeIsValid(FileObject->FsContext))
+        FsvolDeviceObject = ((FSP_FILE_NODE*)FileObject->FsContext)->FsvolDeviceObject;
+    else if (0 != FileObject->FsContext2 &&
+#pragma prefast(disable:28175, "We are a filesystem: ok to access DeviceObject->Type")
+        IO_TYPE_DEVICE == ((PDEVICE_OBJECT)FileObject->FsContext2)->Type &&
+        0 != ((PDEVICE_OBJECT)FileObject->FsContext2)->DeviceExtension &&
+        FspFsvolDeviceExtensionKind == FspDeviceExtension((PDEVICE_OBJECT)FileObject->FsContext2)->Kind)
+        FsvolDeviceObject = (PDEVICE_OBJECT)FileObject->FsContext2;
+
+    return FsvolDeviceObject;
+}
+
 NTSTATUS FspMupHandleIrp(
     PDEVICE_OBJECT FsmupDeviceObject, PIRP Irp)
 {
@@ -276,7 +300,7 @@ NTSTATUS FspMupHandleIrp(
                 FsvolDeviceObject = ((FSP_FILE_NODE *)FileObject->FsContext)->FsvolDeviceObject;
             else if (0 != FileObject->FsContext2 &&
 #pragma prefast(disable:28175, "We are a filesystem: ok to access DeviceObject->Type")
-                3 == ((PDEVICE_OBJECT)FileObject->FsContext2)->Type &&
+                IO_TYPE_DEVICE == ((PDEVICE_OBJECT)FileObject->FsContext2)->Type &&
                 0 != ((PDEVICE_OBJECT)FileObject->FsContext2)->DeviceExtension &&
                 FspFsvolDeviceExtensionKind == FspDeviceExtension((PDEVICE_OBJECT)FileObject->FsContext2)->Kind)
                 FsvolDeviceObject = (PDEVICE_OBJECT)FileObject->FsContext2;

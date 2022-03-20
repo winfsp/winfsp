@@ -89,8 +89,8 @@ NTSTATUS DriverEntry(
     /* setup fast I/O and resource acquisition */
     FspFastIoDispatch.SizeOfFastIoDispatch = sizeof FspFastIoDispatch;
     FspFastIoDispatch.FastIoCheckIfPossible = FspFastIoCheckIfPossible;
-    //FspFastIoDispatch.FastIoRead = 0;
-    //FspFastIoDispatch.FastIoWrite = 0;
+    FspFastIoDispatch.FastIoRead = FspFastIoRead;
+    FspFastIoDispatch.FastIoWrite = FspFastIoWrite;
     FspFastIoDispatch.FastIoQueryBasicInfo = FspFastIoQueryBasicInfo;
     FspFastIoDispatch.FastIoQueryStandardInfo = FspFastIoQueryStandardInfo;
     //FspFastIoDispatch.FastIoLock = 0;

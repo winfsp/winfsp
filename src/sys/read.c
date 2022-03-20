@@ -21,6 +21,7 @@
 
 #include <sys/driver.h>
 
+FAST_IO_READ FspFastIoRead;
 static NTSTATUS FspFsvolRead(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolReadCached(
@@ -35,6 +36,7 @@ static FSP_IOP_REQUEST_FINI FspFsvolReadNonCachedRequestFini;
 FSP_DRIVER_DISPATCH FspRead;
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspFastIoRead)
 #pragma alloc_text(PAGE, FspFsvolRead)
 #pragma alloc_text(PAGE, FspFsvolReadCached)
 #pragma alloc_text(PAGE, FspFsvolReadNonCached)
@@ -54,6 +56,107 @@ enum
     RequestProcess                      = 3,
 };
 FSP_FSCTL_STATIC_ASSERT(RequestCookie == RequestSafeMdl, "");
+
+BOOLEAN FspFastIoRead(
+    PFILE_OBJECT FileObject,
+    PLARGE_INTEGER ByteOffset,
+    ULONG Length,
+    BOOLEAN CanWait,
+    ULONG Key,
+    PVOID UserBuffer,
+    PIO_STATUS_BLOCK IoStatus,
+    PDEVICE_OBJECT DeviceObject)
+{
+    FSP_ENTER_FIO(PAGED_CODE());
+
+    IoStatus->Status = STATUS_SUCCESS;
+    IoStatus->Information = 0;
+
+    if (!FspFileNodeIsValid(FileObject->FsContext))
+    {
+        IoStatus->Status = STATUS_INVALID_DEVICE_REQUEST;
+        FSP_RETURN(Result = TRUE);
+    }
+
+    FSP_FILE_NODE* FileNode = FileObject->FsContext;
+    LARGE_INTEGER ReadOffset = *ByteOffset;
+    ULONG ReadLength = Length;
+    FSP_FSCTL_FILE_INFO FileInfo;
+
+    /* only regular files can be read */
+    if (FileNode->IsDirectory)
+    {
+        IoStatus->Status = STATUS_INVALID_PARAMETER;
+        FSP_RETURN(Result = TRUE);
+    }
+
+    /* do we have anything to read? */
+    if (0 == ReadLength)
+        FSP_RETURN(Result = TRUE);
+
+    /* does the file support caching? */
+    if (!FlagOn(FileObject->Flags, FO_CACHE_SUPPORTED))
+        FSP_RETURN(Result = FALSE);
+
+    /* try to acquire the FileNode Main shared */
+    Result = DEBUGTEST(90) &&
+        FspFileNodeTryAcquireSharedF(FileNode, FspFileNodeAcquireMain, CanWait);
+    if (!Result)
+        FSP_RETURN(Result = FALSE);
+
+    /* is the file actually cached? */
+    if (0 == FileObject->PrivateCacheMap)
+    {
+        FspFileNodeRelease(FileNode, Main);
+        FSP_RETURN(Result = FALSE);
+    }
+
+    /* does the file have oplocks or file locks? */
+    Result =
+        FsRtlOplockIsFastIoPossible(FspFileNodeAddrOfOplock(FileNode)) &&
+        !FsRtlAreThereCurrentFileLocks(&FileNode->FileLock);
+    if (!Result)
+    {
+        FspFileNodeRelease(FileNode, Main);
+        FSP_RETURN(Result = FALSE);
+    }
+
+    /* trim ReadLength; the cache manager does not tolerate reads beyond file size */
+    ASSERT(FspTimeoutInfinity32 ==
+        FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.FileInfoTimeout);
+    FspFileNodeGetFileInfo(FileNode, &FileInfo);
+    if ((UINT64)ReadOffset.QuadPart >= FileInfo.FileSize)
+    {
+        FspFileNodeRelease(FileNode, Main);
+        IoStatus->Status = STATUS_END_OF_FILE;
+        FSP_RETURN(Result = TRUE);
+    }
+    if ((UINT64)ReadLength > FileInfo.FileSize - ReadOffset.QuadPart)
+        ReadLength = (ULONG)(FileInfo.FileSize - ReadOffset.QuadPart);
+
+    NTSTATUS Result0 =
+        FspCcCopyRead(FileObject, &ReadOffset, ReadLength, CanWait, UserBuffer, IoStatus);
+    if (!NT_SUCCESS(Result0))
+    {
+        IoStatus->Status = Result0;
+        IoStatus->Information = 0;
+        FspFileNodeRelease(FileNode, Main);
+        FSP_RETURN(Result = TRUE);
+    }
+    Result = STATUS_SUCCESS == Result0;
+
+    SetFlag(FileObject->Flags, FO_FILE_FAST_IO_READ);
+    if (Result)
+        FileObject->CurrentByteOffset.QuadPart = ReadOffset.QuadPart + ReadLength;
+
+    FspFileNodeRelease(FileNode, Main);
+
+    FSP_LEAVE_FIO(
+        "FileObject=%p, UserBuffer=%p, CanWait=%d, "
+        "Key=%#lx, ByteOffset=%#lx:%#lx, Length=%ld",
+        FileObject, UserBuffer, CanWait,
+        Key, ByteOffset->HighPart, ByteOffset->LowPart, Length);
+}
 
 static NTSTATUS FspFsvolRead(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)

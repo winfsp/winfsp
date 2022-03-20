@@ -66,11 +66,17 @@ BOOLEAN FspFastIoCheckIfPossible(
     PIO_STATUS_BLOCK IoStatus,
     PDEVICE_OBJECT DeviceObject)
 {
+#if 1
+    ASSERT(FALSE);
+    return FALSE;
+
+#else
     FSP_ENTER_BOOL(PAGED_CODE());
 
     Result = FALSE;
 
     FSP_LEAVE_BOOL("FileObject=%p", FileObject);
+#endif
 }
 
 VOID FspAcquireFileForNtCreateSection(
@@ -299,9 +305,16 @@ VOID FspPropagateTopFlags(PIRP Irp, PIRP TopLevelIrp)
 
     if ((PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG >= TopLevelIrp)
     {
+        /*
+         * FAST I/O only acquires the Main lock.
+         * Other (non-IRP) top levels acquire the Full lock.
+         */
         DEBUGBREAK_EX(iorecu);
 
-        FspIrpSetTopFlags(Irp, FspFileNodeAcquireFull);
+        FspIrpSetTopFlags(Irp,
+            (PIRP)FSRTL_FAST_IO_TOP_LEVEL_IRP == TopLevelIrp ?
+            FspFileNodeAcquireMain :
+            FspFileNodeAcquireFull);
     }
     else if ((PIRP)MM_SYSTEM_RANGE_START <= TopLevelIrp && IO_TYPE_IRP == TopLevelIrp->Type)
     {
