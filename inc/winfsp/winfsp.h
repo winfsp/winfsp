@@ -1750,6 +1750,8 @@ FSP_API BOOLEAN FspFileSystemAddNotifyInfo(FSP_FSCTL_NOTIFY_INFO *NotifyInfo,
 /*
  * Directory buffering
  */
+FSP_API BOOLEAN FspFileSystemAcquireDirectoryBufferEx(PVOID* PDirBuffer,
+    BOOLEAN Reset, ULONG CapacityHint, PNTSTATUS PResult);
 FSP_API BOOLEAN FspFileSystemAcquireDirectoryBuffer(PVOID *PDirBuffer,
     BOOLEAN Reset, PNTSTATUS PResult);
 FSP_API BOOLEAN FspFileSystemFillDirectoryBuffer(PVOID *PDirBuffer,

@@ -21,6 +21,11 @@
 
 #include <dll/library.h>
 
+#define FspFileSystemDirectoryBufferLoBound     (256)
+#define FspFileSystemDirectoryBufferHiBound     (1024 * 1024)
+#define FspFileSystemDirectoryBufferLoFactor    (4)
+#define FspFileSystemDirectoryBufferHiFactor    (2)
+
 #define RETURN(R, B)                    \
     do                                  \
     {                                   \
@@ -32,7 +37,7 @@
 typedef struct
 {
     SRWLOCK Lock;
-    ULONG Capacity, LoMark, HiMark;
+    ULONG InitialCapacity, Capacity, LoMark, HiMark;
     PUINT8 Buffer;
 } FSP_FILE_SYSTEM_DIRECTORY_BUFFER;
 
@@ -179,11 +184,14 @@ static VOID FspFileSystemQSortDirectoryBuffer(PUINT8 Buffer, PULONG Index, int l
     {
         while (r > l)
         {
-#if 0
+#if 1
             exch(Index[(l + r) / 2], Index[r - 1]);
             compexch(Index[l], Index[r - 1]);
             compexch(Index[l], Index[r]);
             compexch(Index[r - 1], Index[r]);
+
+            if (r - 1 <= l + 1)
+                break;
 
             i = FspFileSystemPartitionDirectoryBuffer(Buffer, Index, l + 1, r - 1);
 #else
@@ -224,8 +232,8 @@ static inline VOID FspFileSystemSortDirectoryBuffer(FSP_FILE_SYSTEM_DIRECTORY_BU
     FspFileSystemQSortDirectoryBuffer(Buffer, Index, 0, Count - 1);
 }
 
-FSP_API BOOLEAN FspFileSystemAcquireDirectoryBuffer(PVOID *PDirBuffer,
-    BOOLEAN Reset, PNTSTATUS PResult)
+FSP_API BOOLEAN FspFileSystemAcquireDirectoryBufferEx(PVOID* PDirBuffer,
+    BOOLEAN Reset, ULONG CapacityHint, PNTSTATUS PResult)
 {
     FSP_FILE_SYSTEM_DIRECTORY_BUFFER *DirBuffer = FspInterlockedLoadPointer(PDirBuffer);
 
@@ -234,10 +242,20 @@ FSP_API BOOLEAN FspFileSystemAcquireDirectoryBuffer(PVOID *PDirBuffer,
         static SRWLOCK CreateLock = SRWLOCK_INIT;
         FSP_FILE_SYSTEM_DIRECTORY_BUFFER *NewDirBuffer;
 
+        /* compute next (or equal) power of 2; ensure fits within bounds */
+        ULONG bitidx;
+        if (_BitScanReverse(&bitidx, CapacityHint - 1))
+            CapacityHint = (1 << (1 + bitidx));
+        CapacityHint = FspFileSystemDirectoryBufferLoBound > CapacityHint ?
+            FspFileSystemDirectoryBufferLoBound : CapacityHint;
+        CapacityHint = FspFileSystemDirectoryBufferHiBound < CapacityHint ?
+            FspFileSystemDirectoryBufferHiBound : CapacityHint;
+
         NewDirBuffer = MemAlloc(sizeof *NewDirBuffer);
         if (0 == NewDirBuffer)
             RETURN(STATUS_INSUFFICIENT_RESOURCES, FALSE);
         memset(NewDirBuffer, 0, sizeof *NewDirBuffer);
+        NewDirBuffer->InitialCapacity = CapacityHint;
         InitializeSRWLock(&NewDirBuffer->Lock);
         AcquireSRWLockExclusive(&NewDirBuffer->Lock);
 
@@ -265,6 +283,12 @@ FSP_API BOOLEAN FspFileSystemAcquireDirectoryBuffer(PVOID *PDirBuffer,
     }
 
     RETURN(STATUS_SUCCESS, FALSE);
+}
+
+FSP_API BOOLEAN FspFileSystemAcquireDirectoryBuffer(PVOID *PDirBuffer,
+    BOOLEAN Reset, PNTSTATUS PResult)
+{
+    return FspFileSystemAcquireDirectoryBufferEx(PDirBuffer, Reset, 0, PResult);
 }
 
 FSP_API BOOLEAN FspFileSystemFillDirectoryBuffer(PVOID *PDirBuffer,
@@ -301,7 +325,7 @@ FSP_API BOOLEAN FspFileSystemFillDirectoryBuffer(PVOID *PDirBuffer,
 
         if (0 == Buffer)
         {
-            Buffer = MemAlloc(Capacity = 512);
+            Buffer = MemAlloc(Capacity = DirBuffer->InitialCapacity);
             if (0 == Buffer)
                 RETURN(STATUS_INSUFFICIENT_RESOURCES, FALSE);
 
@@ -309,7 +333,9 @@ FSP_API BOOLEAN FspFileSystemFillDirectoryBuffer(PVOID *PDirBuffer,
         }
         else
         {
-            Buffer = MemRealloc(Buffer, Capacity = DirBuffer->Capacity * 2);
+            ULONG Factor = FspFileSystemDirectoryBufferHiBound > DirBuffer->Capacity ?
+                FspFileSystemDirectoryBufferLoFactor : FspFileSystemDirectoryBufferHiFactor;
+            Buffer = MemRealloc(Buffer, Capacity = DirBuffer->Capacity * Factor);
             if (0 == Buffer)
                 RETURN(STATUS_INSUFFICIENT_RESOURCES, FALSE);
 

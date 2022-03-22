@@ -21,6 +21,7 @@
 
 #include <winfsp/winfsp.h>
 #include <tlib/testsuite.h>
+#include <strsafe.h>
 #include <time.h>
 
 #include "winfsp-tests.h"
@@ -145,7 +146,7 @@ static void dirbuf_dots_test(void)
     FspFileSystemDeleteDirectoryBuffer(&DirBuffer);
 }
 
-static void dirbuf_fill_dotest(unsigned seed, ULONG Count, ULONG InvalidCount)
+static void dirbuf_fill_dotest(unsigned seed, ULONG Count, ULONG InvalidCount, BOOLEAN Presort)
 {
     PVOID DirBuffer = 0;
     NTSTATUS Result;
@@ -162,6 +163,7 @@ static void dirbuf_fill_dotest(unsigned seed, ULONG Count, ULONG InvalidCount)
     ULONG DotIndex = Count / 3, DotDotIndex = Count / 3 * 2;
     WCHAR Marker[MAX_PATH];
     ULONG N, MarkerIndex, MarkerLength;
+    UINT64 PresortIndex = 0;
 
     srand(seed);
 
@@ -189,11 +191,17 @@ static void dirbuf_fill_dotest(unsigned seed, ULONG Count, ULONG InvalidCount)
             DirInfo->FileNameBuf[0] = L'.';
             DirInfo->FileNameBuf[1] = L'.';
         }
-        else
+        else if (!Presort)
         {
             N = 24 + rand() % (32 - 24);
             for (ULONG J = 0; N > J; J++)
                 DirInfo->FileNameBuf[J] = 'A' + rand() % 26;
+        }
+        else
+        {
+            N = 24;
+            StringCbPrintfW(DirInfo->FileNameBuf, 64, L"FILEFILE%016llx", PresortIndex);
+            PresortIndex++;
         }
         DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + N * sizeof(WCHAR));
 
@@ -212,7 +220,7 @@ static void dirbuf_fill_dotest(unsigned seed, ULONG Count, ULONG InvalidCount)
         typedef struct
         {
             SRWLOCK Lock;
-            ULONG Capacity, LoMark, HiMark;
+            ULONG InitialCapacity, Capacity, LoMark, HiMark;
             PUINT8 Buffer;
         } FSP_FILE_SYSTEM_DIRECTORY_BUFFER;
         FSP_FILE_SYSTEM_DIRECTORY_BUFFER *PeekDirBuffer = DirBuffer;
@@ -348,31 +356,60 @@ static void dirbuf_fill_test(void)
 {
     unsigned seed = (unsigned)time(0);
 
-    dirbuf_fill_dotest(1485473509, 10, 0);
-    dirbuf_fill_dotest(1485473509, 10, 3);
+    dirbuf_fill_dotest(1485473509, 10, 0, FALSE);
+    dirbuf_fill_dotest(1485473509, 10, 3, FALSE);
 
     for (ULONG I = 0; 10000 > I; I++)
     {
-        dirbuf_fill_dotest(seed + I, 10, 0);
-        dirbuf_fill_dotest(seed + I, 10, 3);
+        dirbuf_fill_dotest(seed + I, 10, 0, FALSE);
+        dirbuf_fill_dotest(seed + I, 10, 3, FALSE);
     }
 
     for (ULONG I = 0; 1000 > I; I++)
     {
-        dirbuf_fill_dotest(seed + I, 100, 0);
-        dirbuf_fill_dotest(seed + I, 100, 30);
+        dirbuf_fill_dotest(seed + I, 100, 0, FALSE);
+        dirbuf_fill_dotest(seed + I, 100, 30, FALSE);
     }
 
     for (ULONG I = 0; 100 > I; I++)
     {
-        dirbuf_fill_dotest(seed + I, 1000, 0);
-        dirbuf_fill_dotest(seed + I, 1000, 300);
+        dirbuf_fill_dotest(seed + I, 1000, 0, FALSE);
+        dirbuf_fill_dotest(seed + I, 1000, 300, FALSE);
     }
 
     for (ULONG I = 0; 10 > I; I++)
     {
-        dirbuf_fill_dotest(seed + I, 10000, 0);
-        dirbuf_fill_dotest(seed + I, 10000, 3000);
+        dirbuf_fill_dotest(seed + I, 10000, 0, FALSE);
+        dirbuf_fill_dotest(seed + I, 10000, 3000, FALSE);
+    }
+}
+
+static void dirbuf_presort_fill_test(void)
+{
+    unsigned seed = (unsigned)time(0);
+
+    for (ULONG I = 0; 10000 > I; I++)
+    {
+        dirbuf_fill_dotest(seed + I, 10, 0, TRUE);
+        dirbuf_fill_dotest(seed + I, 10, 3, TRUE);
+    }
+
+    for (ULONG I = 0; 1000 > I; I++)
+    {
+        dirbuf_fill_dotest(seed + I, 100, 0, TRUE);
+        dirbuf_fill_dotest(seed + I, 100, 30, TRUE);
+    }
+
+    for (ULONG I = 0; 100 > I; I++)
+    {
+        dirbuf_fill_dotest(seed + I, 1000, 0, TRUE);
+        dirbuf_fill_dotest(seed + I, 1000, 300, TRUE);
+    }
+
+    for (ULONG I = 0; 10 > I; I++)
+    {
+        dirbuf_fill_dotest(seed + I, 10000, 0, FALSE);
+        dirbuf_fill_dotest(seed + I, 10000, 3000, FALSE);
     }
 }
 
@@ -472,5 +509,6 @@ void dirbuf_tests(void)
     TEST(dirbuf_empty_test);
     TEST(dirbuf_dots_test);
     TEST(dirbuf_fill_test);
+    TEST(dirbuf_presort_fill_test);
     TEST(dirbuf_boundary_test);
 }

@@ -24,12 +24,14 @@
 #define FileSystemContext               ((PTFS *)(FileSystem)->UserContext)
 #define FileContextHandle               (((FILE_CONTEXT *)(FileContext))->Handle)
 #define FileContextIsDirectory          (((FILE_CONTEXT *)(FileContext))->IsDirectory)
+#define FileContextDirFileSize          (((FILE_CONTEXT *)(FileContext))->DirFileSize)
 #define FileContextDirBuffer            (&((FILE_CONTEXT *)(FileContext))->DirBuffer)
 
 typedef struct
 {
     HANDLE Handle;
     BOOLEAN IsDirectory;
+    ULONG DirFileSize;
     PVOID DirBuffer;
 } FILE_CONTEXT;
 
@@ -241,6 +243,7 @@ static NTSTATUS CreateEx(FSP_FILE_SYSTEM *FileSystem,
     memset(FileContext, 0, sizeof *FileContext);
     FileContext->Handle = Handle;
     FileContext->IsDirectory = IsDirectory;
+    FileContext->DirFileSize = (ULONG)FileInfo->FileSize;
     *PFileContext = FileContext;
 
     Result = STATUS_SUCCESS;
@@ -331,6 +334,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     memset(FileContext, 0, sizeof *FileContext);
     FileContext->Handle = Handle;
     FileContext->IsDirectory = IsDirectory;
+    FileContext->DirFileSize = (ULONG)FileInfo->FileSize;
     *PFileContext = FileContext;
 
     Result = STATUS_SUCCESS;
@@ -787,6 +791,18 @@ static NTSTATUS BufferedReadDirectory(FSP_FILE_SYSTEM *FileSystem,
 {
     PTFS *Ptfs = FileSystemContext;
     HANDLE Handle = FileContextHandle;
+    ULONG CapacityHint = FileContextDirFileSize;
+        /*
+         * An analysis of the relationship between the required buffer capacity and the
+         * NTFS directory size (as reported by FileStandardInformation) showed the ratio
+         * between the two to be between 0.5 and 1 with some outliers outside those bounds.
+         * (For this analysis file names of average length of 4 or 24 were used and NTFS
+         * had 8.3 file names disabled.)
+         *
+         * We use the NTFS directory size as our capacity hint (i.e. ratio of 1), which
+         * means that we may overestimate the required buffer capacity in most cases.
+         * This is ok since our goal is to improve performance.
+         */
     PVOID PDirBuffer = FileContextDirBuffer;
     BOOLEAN RestartScan;
     ULONG BytesTransferred;
@@ -801,7 +817,7 @@ static NTSTATUS BufferedReadDirectory(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result, DirBufferResult;
 
     DirBufferResult = STATUS_SUCCESS;
-    if (FspFileSystemAcquireDirectoryBuffer(PDirBuffer, 0 == Marker, &DirBufferResult))
+    if (FspFileSystemAcquireDirectoryBufferEx(PDirBuffer, 0 == Marker, CapacityHint, &DirBufferResult))
     {
         for (RestartScan = TRUE;; RestartScan = FALSE)
         {
