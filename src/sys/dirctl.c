@@ -865,6 +865,8 @@ NTSTATUS FspFsvolDirectoryControlPrepare(
     PVOID Address;
     PEPROCESS Process;
 
+    ASSERT(FspProcessBufferSizeMax >= Request->Req.QueryDirectory.Length);
+
     Result = FspProcessBufferAcquire(Request->Req.QueryDirectory.Length, &Cookie, &Address);
     if (!NT_SUCCESS(Result))
         return Result;

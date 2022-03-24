@@ -1127,7 +1127,7 @@ enum
     FspFsvolDeviceSecurityCacheCapacity = 100,
     FspFsvolDeviceSecurityCacheItemSizeMax = 4096,
     FspFsvolDeviceDirInfoCacheCapacity = 100,
-    FspFsvolDeviceDirInfoCacheItemSizeMax = FSP_FSCTL_ALIGN_UP(16384, PAGE_SIZE),
+    FspFsvolDeviceDirInfoCacheItemSizeMax = FSP_FSCTL_ALIGN_UP(FspProcessBufferSizeMax, PAGE_SIZE),
     FspFsvolDeviceStreamInfoCacheCapacity = 100,
     FspFsvolDeviceStreamInfoCacheItemSizeMax = FSP_FSCTL_ALIGN_UP(16384, PAGE_SIZE),
     FspFsvolDeviceEaCacheCapacity = 100,

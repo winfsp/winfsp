@@ -46,7 +46,7 @@ static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, UL
         ASSERT(Success);
     }
 
-    for (int j = 1; 100 >= j; j++)
+    for (int j = 1; 400 >= j; j++)
     {
         StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\fileABCDEFGHIJKLMNOPQRSTUVXWYZfile%d",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), j);
@@ -90,7 +90,7 @@ static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, UL
         } while (FindNextFileW(Handle, &FindData));
         ASSERT(ERROR_NO_MORE_FILES == GetLastError());
 
-        ASSERT(110 == FileCount);
+        ASSERT(410 == FileCount);
 
         Success = FindClose(Handle);
         ASSERT(Success);
@@ -194,8 +194,8 @@ static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, UL
     } while (FindNextFileW(Handle, &FindData));
     ASSERT(ERROR_NO_MORE_FILES == GetLastError());
 
-    ASSERT(100 == FileCount);
-    ASSERT(101 * 100 / 2 == FileTotal);
+    ASSERT(400 == FileCount);
+    ASSERT(401 * 400 / 2 == FileTotal);
 
     Success = FindClose(Handle);
     ASSERT(Success);
@@ -224,7 +224,7 @@ static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, UL
         ASSERT(Success);
     }
 
-    for (int j = 1; 100 >= j; j++)
+    for (int j = 1; 400 >= j; j++)
     {
         StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\fileABCDEFGHIJKLMNOPQRSTUVXWYZfile%d",
             Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), j);
