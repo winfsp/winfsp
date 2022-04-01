@@ -2404,6 +2404,7 @@ NTSTATUS MemfsCreateFunnel(
     VolumeParams.RejectIrpPriorToTransact0 = 1;
 #endif
     VolumeParams.SupportsPosixUnlinkRename = SupportsPosixUnlinkRename;
+    VolumeParams.PostDispositionForDirOnly = 1;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
     wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),

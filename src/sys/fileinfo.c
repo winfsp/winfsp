@@ -1435,12 +1435,30 @@ static NTSTATUS FspFsvolSetPositionInformation(PFILE_OBJECT FileObject,
     return STATUS_SUCCESS;
 }
 
+static inline FspFsvolSetDispositionInformationFlags(
+    PFILE_OBJECT FileObject,
+    FSP_FILE_NODE *FileNode,
+    FSP_FILE_DESC *FileDesc,
+    UINT32 DispositionFlags)
+{
+    BOOLEAN Delete = BooleanFlagOn(DispositionFlags, FILE_DISPOSITION_DELETE);
+
+    FspFileNodeSetDeletePending(FileNode, Delete);
+    FileObject->DeletePending = Delete;
+
+    if (!Delete)
+        FileDesc->PosixDelete = FALSE;
+    else if (FlagOn(DispositionFlags, FILE_DISPOSITION_POSIX_SEMANTICS))
+        FileDesc->PosixDelete = TRUE;
+}
+
 static NTSTATUS FspFsvolSetDispositionInformation(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
     PAGED_CODE();
 
     NTSTATUS Result;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_OBJECT FileObject = IrpSp->FileObject;
     FILE_INFORMATION_CLASS FileInformationClass = IrpSp->Parameters.SetFile.FileInformationClass;
     UINT32 DispositionFlags;
@@ -1465,7 +1483,7 @@ static NTSTATUS FspFsvolSetDispositionInformation(
     }
     else
     {
-        if (!FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeParams.SupportsPosixUnlinkRename)
+        if (!FsvolDeviceExtension->VolumeParams.SupportsPosixUnlinkRename)
             return STATUS_INVALID_PARAMETER;
         if (sizeof(FILE_DISPOSITION_INFORMATION_EX) > Length)
             return STATUS_INVALID_PARAMETER;
@@ -1589,6 +1607,29 @@ retry:
     }
     FileDesc->DispositionStatus = STATUS_SUCCESS;
 
+    if (!FileNode->IsDirectory && FsvolDeviceExtension->VolumeParams.PostDispositionForDirOnly)
+    {
+        if (FILE_DISPOSITION_DELETE ==
+            (DispositionFlags & (FILE_DISPOSITION_DELETE | FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE)))
+        {
+            FSP_FSCTL_FILE_INFO FileInfoBuf;
+            if (!FspFileNodeTryGetFileInfo(FileNode, &FileInfoBuf))
+                goto slow;
+
+            if (0 != (FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_READONLY))
+            {
+                Result = STATUS_CANNOT_DELETE;
+                goto unlock_exit;
+            }
+        }
+
+        FspFsvolSetDispositionInformationFlags(FileObject, FileNode, FileDesc, DispositionFlags);
+
+        Result = STATUS_SUCCESS;
+        goto unlock_exit;
+    }
+slow:;
+
     Result = FspIopCreateRequestEx(Irp, &FileNode->FileName, 0,
         FspFsvolSetInformationRequestFini, &Request);
     if (!NT_SUCCESS(Result))
@@ -1622,19 +1663,12 @@ static NTSTATUS FspFsvolSetDispositionInformationSuccess(
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
     UINT32 DispositionFlags = Request->Req.SetInformation.Info.DispositionEx.Flags;
-    BOOLEAN Delete = BooleanFlagOn(DispositionFlags, FILE_DISPOSITION_DELETE);
 
-    FspFileNodeSetDeletePending(FileNode, Delete);
-    FileObject->DeletePending = Delete;
-
-    if (!Delete)
-        FileDesc->PosixDelete = FALSE;
-    else if (FlagOn(DispositionFlags, FILE_DISPOSITION_POSIX_SEMANTICS))
-        FileDesc->PosixDelete = TRUE;
+    FspFsvolSetDispositionInformationFlags(FileObject, FileNode, FileDesc, DispositionFlags);
 
     /* fastfat does this, although it seems unnecessary */
 #if 1
-    if (FileNode->IsDirectory && Delete)
+    if (FileNode->IsDirectory && FlagOn(DispositionFlags, FILE_DISPOSITION_DELETE))
     {
         FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
             FspFsvolDeviceExtension(IrpSp->DeviceObject);
