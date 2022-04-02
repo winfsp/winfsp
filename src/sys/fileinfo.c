@@ -1607,7 +1607,7 @@ retry:
     }
     FileDesc->DispositionStatus = STATUS_SUCCESS;
 
-    if (!FileNode->IsDirectory && FsvolDeviceExtension->VolumeParams.PostDispositionForDirOnly)
+    if (!FileNode->IsDirectory && FsvolDeviceExtension->VolumeParams.PostDispositionWhenNecessaryOnly)
     {
         if (FILE_DISPOSITION_DELETE ==
             (DispositionFlags & (FILE_DISPOSITION_DELETE | FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE)))
@@ -1615,7 +1615,6 @@ retry:
             FSP_FSCTL_FILE_INFO FileInfoBuf;
             if (!FspFileNodeTryGetFileInfo(FileNode, &FileInfoBuf))
                 goto slow;
-
             if (0 != (FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_READONLY))
             {
                 Result = STATUS_CANNOT_DELETE;
@@ -1627,8 +1626,8 @@ retry:
 
         Result = STATUS_SUCCESS;
         goto unlock_exit;
-    }
 slow:;
+    }
 
     Result = FspIopCreateRequestEx(Irp, &FileNode->FileName, 0,
         FspFsvolSetInformationRequestFini, &Request);

@@ -282,6 +282,7 @@ namespace memfs
             Host.ReparsePointsAccessCheck = false;
             Host.NamedStreams = true;
             Host.PostCleanupWhenModifiedOnly = true;
+            Host.PostDispositionWhenNecessaryOnly = true;
             Host.PassQueryDirectoryFileName = true;
             Host.ExtendedAttributes = true;
             Host.WslFeatures = true;

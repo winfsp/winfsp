@@ -184,6 +184,8 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
             f->has_slashdot = 0 == err && 0040000 == (stbuf.st_mode & 0170000);
         }
     }
+    if (0 == (f->conn_want & FSP_FUSE_CAP_DELETE_ACCESS) || 0 == f->ops.access)
+        f->VolumeParams.PostDispositionWhenNecessaryOnly = 1;
     if (0 != f->ops.listxattr && 0 != f->ops.getxattr &&
         0 != f->ops.setxattr && 0 != f->ops.removexattr)
         f->VolumeParams.ExtendedAttributes = 1;

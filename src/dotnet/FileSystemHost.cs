@@ -277,6 +277,11 @@ namespace Fsp
             get { return 0 != (_VolumeParams.Flags & VolumeParams.PostCleanupWhenModifiedOnly); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.PostCleanupWhenModifiedOnly : 0); }
         }
+        public Boolean PostDispositionWhenNecessaryOnly
+        {
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.PostDispositionWhenNecessaryOnly); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.PostDispositionWhenNecessaryOnly : 0); }
+        }
         public Boolean PassQueryDirectoryPattern
         {
             get { return 0 != (_VolumeParams.Flags & VolumeParams.PassQueryDirectoryPattern); }
