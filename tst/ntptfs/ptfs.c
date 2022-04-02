@@ -1279,7 +1279,7 @@ NTSTATUS PtfsCreate(
         /*FILE_SUPPORTS_POSIX_UNLINK_RENAME*/);
     VolumeParams.ReadOnlyVolume = !!(FsAttrInfo.V.FileSystemAttributes & FILE_READ_ONLY_VOLUME);
     VolumeParams.PostCleanupWhenModifiedOnly = 1;
-    VolumeParams.PostDispositionForDirOnly = 1;
+    VolumeParams.PostDispositionWhenNecessaryOnly = 1;
     VolumeParams.PassQueryDirectoryPattern = 1;
     VolumeParams.FlushAndPurgeOnCleanup = !!(FsAttributeMask & PtfsFlushAndPurgeOnCleanup);
     VolumeParams.WslFeatures = !!(FsAttributeMask & PtfsWslFeatures);
