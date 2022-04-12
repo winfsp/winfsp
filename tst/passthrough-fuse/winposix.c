@@ -212,6 +212,28 @@ int open(const char *path, int oflag, ...)
     return (int)(intptr_t)h;
 }
 
+int fgetpath(int fd, char *buf, size_t size)
+{
+    HANDLE h = (HANDLE)(intptr_t)fd;
+    union
+    {
+        FILE_NAME_INFO V;
+        UINT8 B[FIELD_OFFSET(FILE_NAME_INFO, FileName) + FSP_FSCTL_TRANSACT_PATH_SIZEMAX];
+    } NameInfo;
+
+    if (!GetFileInformationByHandleEx(h, FileNormalizedNameInfo, &NameInfo, sizeof NameInfo))
+        return error();
+
+    FspPosixEncodeWindowsPath(NameInfo.V.FileName, NameInfo.V.FileNameLength / sizeof(WCHAR));
+    size = WideCharToMultiByte(CP_UTF8, 0,
+        NameInfo.V.FileName, NameInfo.V.FileNameLength / sizeof(WCHAR), buf, (int)(size - 1), 0, 0);
+    if (0 == size)
+        return error();
+    buf[size] = '\0';
+
+    return 0;
+}
+
 int fstat(int fd, struct fuse_stat *stbuf)
 {
     HANDLE h = (HANDLE)(intptr_t)fd;
@@ -301,6 +323,22 @@ int close(int fd)
         return error();
 
     return 0;
+}
+
+int getpath(const char *path, char *buf, size_t size)
+{
+    HANDLE h = CreateFileA(path,
+        FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == h)
+        return error();
+
+    int res = fgetpath((int)(intptr_t)h, buf, size);
+
+    CloseHandle(h);
+
+    return res;
 }
 
 int lstat(const char *path, struct fuse_stat *stbuf)

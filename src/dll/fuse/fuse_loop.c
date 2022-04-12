@@ -95,9 +95,9 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
         context->private_data = f->data = f->ops.init(&conn);
         f->VolumeParams.ReadOnlyVolume = 0 != (conn.want & FSP_FUSE_CAP_READ_ONLY);
         f->VolumeParams.CaseSensitiveSearch = 0 == (conn.want & FSP_FUSE_CAP_CASE_INSENSITIVE);
-        if (!f->VolumeParams.CaseSensitiveSearch)
+        if (!f->VolumeParams.CaseSensitiveSearch && 0 == f->ops.getpath)
             /*
-             * Disable GetDirInfoByName when file system is case-insensitive.
+             * Disable GetDirInfoByName when file system is case-insensitive and getpath == 0.
              * The reason is that Windows always sends us queries with uppercase
              * file names in GetDirInfoByName and we have no way in FUSE to normalize
              * those file names when embedding them in FSP_FSCTL_DIR_INFO.

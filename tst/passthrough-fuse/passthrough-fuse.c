@@ -24,6 +24,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <fuse.h>
 
@@ -59,6 +60,7 @@
 typedef struct
 {
     const char *rootdir;
+    size_t rootlen;
 } PTFS;
 
 static int ptfs_getattr(const char *path, struct fuse_stat *stbuf)
@@ -294,6 +296,43 @@ static int ptfs_utimens(const char *path, const struct fuse_timespec tv[2])
 #endif
 
 #if defined(_WIN64) || defined(_WIN32)
+static int ptfs_getpath(const char *path, char *buf, size_t size,
+    struct fuse_file_info *fi)
+{
+    if (0 == fi)
+    {
+        ptfs_impl_fullpath(path);
+
+        if (-1 == getpath(path, buf, size))
+            return errno;
+    }
+    else
+    {
+        int fd = fi_fd(fi);
+
+        if (-1 == fgetpath(fd, buf, size))
+            return errno;
+    }
+
+    PTFS *ptfs = fuse_get_context()->private_data;
+    size = strlen(buf);
+    if (size > ptfs->rootlen)
+    {
+        size -= ptfs->rootlen;
+        memmove(buf, buf + ptfs->rootlen, size);
+        buf[size] = '\0';
+    }
+    else
+    {
+        buf[0] = '/';
+        buf[1] = '\0';
+    }
+
+    return 0;
+}
+#endif
+
+#if defined(_WIN64) || defined(_WIN32)
 static int ptfs_setcrtime(const char *path, const struct fuse_timespec *tv)
 {
     ptfs_impl_fullpath(path);
@@ -343,6 +382,9 @@ static struct fuse_operations ptfs_ops =
     .fgetattr = ptfs_fgetattr,
 #if defined(PTFS_UTIMENS)
     .utimens = ptfs_utimens,
+#endif
+#if defined(_WIN64) || defined(_WIN32)
+    .getpath = ptfs_getpath,
 #endif
 #if defined(_WIN64) || defined(_WIN32)
     .setcrtime = ptfs_setcrtime,
@@ -412,6 +454,18 @@ int main(int argc, char *argv[])
 
     if (0 == ptfs.rootdir)
         usage();
+
+#if defined(_WIN64) || defined(_WIN32)
+    {
+        char buf[PATH_MAX];
+        if (-1 != getpath(ptfs.rootdir, buf, sizeof buf))
+        {
+            ptfs.rootlen = strlen(buf);
+            if (1 == ptfs.rootlen)
+                ptfs.rootlen = 0;
+        }
+    }
+#endif
 
     return fuse_main(argc, argv, &ptfs_ops, &ptfs);
 }

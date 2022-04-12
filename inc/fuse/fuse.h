@@ -103,8 +103,10 @@ struct fuse_operations
     /* _ */ int (*flock)(const char *path, struct fuse_file_info *, int op);
     /* _ */ int (*fallocate)(const char *path, int mode, fuse_off_t off, fuse_off_t len,
         struct fuse_file_info *fi);
+    /* WinFsp */
+    /* S */ int (*getpath)(const char *path, char *buf, size_t size,
+        struct fuse_file_info *fi);
     /* OSXFUSE */
-    /* _ */ int (*reserved00)();
     /* _ */ int (*reserved01)();
     /* _ */ int (*reserved02)();
     /* _ */ int (*statfs_x)(const char *path, struct fuse_statfs *stbuf);

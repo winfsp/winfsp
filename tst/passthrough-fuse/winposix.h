@@ -46,6 +46,7 @@ char *realpath(const char *path, char *resolved);
 int statvfs(const char *path, struct fuse_statvfs *stbuf);
 
 int open(const char *path, int oflag, ...);
+int fgetpath(int fd, char *buf, size_t size);
 int fstat(int fd, struct fuse_stat *stbuf);
 int ftruncate(int fd, fuse_off_t size);
 int pread(int fd, void *buf, size_t nbyte, fuse_off_t offset);
@@ -53,6 +54,7 @@ int pwrite(int fd, const void *buf, size_t nbyte, fuse_off_t offset);
 int fsync(int fd);
 int close(int fd);
 
+int getpath(const char *path, char *buf, size_t size);
 int lstat(const char *path, struct fuse_stat *stbuf);
 int chmod(const char *path, fuse_mode_t mode);
 int lchown(const char *path, fuse_uid_t uid, fuse_gid_t gid);
