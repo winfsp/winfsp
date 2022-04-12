@@ -402,6 +402,10 @@ static void usage(void)
 
 int main(int argc, char *argv[])
 {
+#if defined(_WIN64) || defined(_WIN32)
+    WinFspLoad();
+#endif
+
     PTFS ptfs = { 0 };
 
     if (3 <= argc && '-' != argv[argc - 2][0] && '-' != argv[argc - 1][0])
