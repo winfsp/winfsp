@@ -215,18 +215,16 @@ int open(const char *path, int oflag, ...)
 int fgetpath(int fd, char *buf, size_t size)
 {
     HANDLE h = (HANDLE)(intptr_t)fd;
-    union
-    {
-        FILE_NAME_INFO V;
-        UINT8 B[FIELD_OFFSET(FILE_NAME_INFO, FileName) + FSP_FSCTL_TRANSACT_PATH_SIZEMAX];
-    } NameInfo;
+    WCHAR FileName[FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR)];
+    DWORD FileNameLength;
 
-    if (!GetFileInformationByHandleEx(h, FileNormalizedNameInfo, &NameInfo, sizeof NameInfo))
+    FileNameLength = GetFinalPathNameByHandleW(h, FileName, sizeof FileName / sizeof(WCHAR),
+        VOLUME_NAME_NONE | FILE_NAME_NORMALIZED);
+    if (0 == FileNameLength)
         return error();
 
-    FspPosixEncodeWindowsPath(NameInfo.V.FileName, NameInfo.V.FileNameLength / sizeof(WCHAR));
-    size = WideCharToMultiByte(CP_UTF8, 0,
-        NameInfo.V.FileName, NameInfo.V.FileNameLength / sizeof(WCHAR), buf, (int)(size - 1), 0, 0);
+    FspPosixEncodeWindowsPath(FileName, FileNameLength);
+    size = WideCharToMultiByte(CP_UTF8, 0, FileName, FileNameLength, buf, (int)(size - 1), 0, 0);
     if (0 == size)
         return error();
     buf[size] = '\0';
