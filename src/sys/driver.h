@@ -306,8 +306,9 @@ VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Sta
     return Result
 #define FSP_ENTER_FIO(...)              \
     PDEVICE_OBJECT FsvolDeviceObject;   \
-    if (FspFsmupDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind)\
+    switch (FspDeviceExtension(DeviceObject)->Kind)\
     {                                   \
+    case FspFsmupDeviceExtensionKind:   \
         FsvolDeviceObject = FspMupGetFsvolDeviceObject(FileObject);\
         if (0 == FsvolDeviceObject)     \
         {                               \
@@ -315,9 +316,13 @@ VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Sta
             IoStatus->Information = 0;  \
             return TRUE;                \
         }                               \
-    }                                   \
-    else                                \
+        break;                          \
+    case FspFsvolDeviceExtensionKind:   \
         FsvolDeviceObject = DeviceObject;\
+        break;                          \
+    default:                            \
+        return FALSE;                   \
+    }                                   \
     BOOLEAN Result = TRUE;              \
     BOOLEAN fsp_device_deref = FALSE;   \
     FSP_ENTER_(ioentr, __VA_ARGS__);    \
