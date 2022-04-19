@@ -30,25 +30,25 @@ pushd fsbench
 set OptFiles=1000 2000 3000 4000 5000
 if X%2==Xbaseline set OptFiles=10000
 for %%a in (%OptFiles%) do (
-    call :csv %%a "%fsbench% --files=%%a file_*"
+    call :csv %%a "%fsbench% --empty-cache --files=%%a file_*"
 )
 
 set OptRdwrCc=100 200 300 400 500
 if X%2==Xbaseline set OptRdwrCc=1000
 for %%a in (%OptRdwrCc%) do (
-    call :csv %%a "%fsbench% --rdwr-cc=%%a rdwr_cc_*"
+    call :csv %%a "%fsbench% --empty-cache --rdwr-cc=%%a rdwr_cc_*"
 )
 
 set OptRdwrNc=100 200 300 400 500
 if X%2==Xbaseline set OptRdwrNc=100
 for %%a in (%OptRdwrNc%) do (
-    call :csv %%a "%fsbench% --rdwr-nc=%%a rdwr_nc_*"
+    call :csv %%a "%fsbench% --empty-cache --rdwr-nc=%%a rdwr_nc_*"
 )
 
 set OptMmap=100 200 300 400 500
 if X%2==Xbaseline set OptMmap=1000
 for %%a in (%OptMmap%) do (
-    call :csv %%a "%fsbench% --mmap=%%a mmap_*"
+    call :csv %%a "%fsbench% --empty-cache --mmap=%%a mmap_*"
 )
 
 popd

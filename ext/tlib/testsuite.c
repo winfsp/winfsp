@@ -48,25 +48,51 @@ void tlib_add_test_opt(const char *name, void (*fn)(void))
     add_test_to_list(name, fn, 1, &test_tail);
 }
 
+struct hook
+{
+    void (*fn)(const char *name, void (*fn)(void), int v);
+    struct hook *next;
+};
+static struct hook hook_sentinel = { .next = &hook_sentinel };
+static struct hook *hook_tail = &hook_sentinel;
+static void add_hook_to_list(void (*fn)(void), struct hook **tail)
+{
+    struct hook *hook = calloc(1, sizeof *hook);
+    hook->fn = fn;
+    hook->next = (*tail)->next;
+    (*tail)->next = hook;
+    (*tail) = hook;
+}
+void tlib_add_hook(void (*fn)(const char *name, void (*fn)(void), int v))
+{
+    add_hook_to_list(fn, &hook_tail);
+}
+
 static FILE *tlib_out, *tlib_err;
 static jmp_buf test_jmp_buf, *test_jmp;
 static char assert_buf[256];
 static void test_printf(const char *fmt, ...);
 static double run_test(struct test *test)
 {
+    double res;
+    for (struct hook *hook = hook_tail->next->next; 0 != hook->fn; hook = hook->next)
+        hook->fn(test->name, test->fn, +1);
 #if defined(_WIN64) || defined(_WIN32)
     #pragma comment(lib, "winmm.lib")
     unsigned long __stdcall timeGetTime(void);
     unsigned long t0 = timeGetTime();
     test->fn();
     unsigned long t1 = timeGetTime();
-    return (t1 - t0) / 1000.0;
+    res = (t1 - t0) / 1000.0;
 #else
     time_t t0 = time(0);
     test->fn();
     time_t t1 = time(0);
-    return difftime(t1, t0);
+    res = difftime(t1, t0);
 #endif
+    for (struct hook *hook = hook_tail->next->next; 0 != hook->fn; hook = hook->next)
+        hook->fn(test->name, test->fn, -1);
+    return res;
 }
 static void do_test_default(struct test *test, int testno)
 {

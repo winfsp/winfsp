@@ -23,6 +23,7 @@
 #include <strsafe.h>
 #include <tlib/testsuite.h>
 
+static BOOLEAN OptEmptyCache = FALSE;
 static ULONG OptFileCount = 1000;
 static ULONG OptListCount = 100;
 static ULONG OptRdwrFileSize = 4096 * 1024;
@@ -398,6 +399,64 @@ static void mmap_tests(void)
     TEST(mmap_read_test);
 }
 
+static void EmptyCache(const char *name, void (*fn)(void), int v)
+{
+    NTSYSCALLAPI NTSTATUS NTAPI
+    NtSetSystemInformation(
+        ULONG SystemInformationClass,
+        PVOID SystemInformation,
+        ULONG SystemInformationLength);
+
+    if (+1 == v) /* setup */
+    {
+        /* flush the file system cache (requires SE_INCREASE_QUOTA_NAME) */
+        ASSERT(SetSystemFileCacheSize((SIZE_T)-1, (SIZE_T)-1, 0));
+
+        /* flush/purge the standby list (requires SE_PROF_SINGLE_PROCESS_NAME) */
+        ULONG Command;
+        Command = 3 /*MemoryFlushModifiedList*/;
+        ASSERT(0 == NtSetSystemInformation(80 /*SystemMemoryListInformation*/, &Command, sizeof Command));
+        Command = 4 /*MemoryPurgeStandbyList*/;
+        ASSERT(0 == NtSetSystemInformation(80 /*SystemMemoryListInformation*/, &Command, sizeof Command));
+    }
+    else
+    if (-1 == v) /* teardown */
+    {
+    }
+}
+static DWORD EnablePrivilegesForEmptyCache(VOID)
+{
+    union
+    {
+        TOKEN_PRIVILEGES P;
+        UINT8 B[sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES)];
+    } Privileges;
+    HANDLE Token;
+
+    Privileges.P.PrivilegeCount = 2;
+    Privileges.P.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    Privileges.P.Privileges[1].Attributes = SE_PRIVILEGE_ENABLED;
+
+    if (!LookupPrivilegeValueW(0, SE_PROF_SINGLE_PROCESS_NAME, &Privileges.P.Privileges[0].Luid) ||
+        !LookupPrivilegeValueW(0, SE_INCREASE_QUOTA_NAME, &Privileges.P.Privileges[1].Luid))
+        return GetLastError();
+
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &Token))
+        return GetLastError();
+
+    if (!AdjustTokenPrivileges(Token, FALSE, &Privileges.P, 0, 0, 0) ||
+        ERROR_NOT_ALL_ASSIGNED == GetLastError())
+    {
+        CloseHandle(Token);
+
+        return GetLastError();
+    }
+
+    CloseHandle(Token);
+
+    return ERROR_SUCCESS;
+}
+
 #define rmarg(argv, argc, argi)         \
     argc--,                             \
     memmove(argv + argi, argv + argi + 1, (argc - argi) * sizeof(char *)),\
@@ -414,7 +473,12 @@ int main(int argc, char *argv[])
         const char *a = argv[argi];
         if ('-' == a[0])
         {
-            if (0 == strncmp("--files=", a, sizeof "--files=" - 1))
+            if (0 == strcmp("--empty-cache", a))
+            {
+                OptEmptyCache = TRUE;
+                rmarg(argv, argc, argi);
+            }
+            else if (0 == strncmp("--files=", a, sizeof "--files=" - 1))
             {
                 OptFileCount = strtoul(a + sizeof "--files=" - 1, 0, 10);
                 rmarg(argv, argc, argi);
@@ -440,6 +504,16 @@ int main(int argc, char *argv[])
                 rmarg(argv, argc, argi);
             }
         }
+    }
+
+    if (OptEmptyCache)
+    {
+        if (0 != EnablePrivilegesForEmptyCache())
+        {
+            tlib_printf("ABORT: cannot enable privileges required for empty cache\n");
+            abort();
+        }
+        TESTHOOK(EmptyCache);
     }
 
     tlib_run_tests(argc, argv);
