@@ -196,7 +196,7 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
         f->VolumeParams.SectorSize = FSP_FUSE_SECTORSIZE_MAX;
     if (f->VolumeParams.SectorsPerAllocationUnit == 0)
         f->VolumeParams.SectorsPerAllocationUnit = 1;
-    if (f->VolumeParams.MaxComponentLength > 255)
+    if (f->VolumeParams.MaxComponentLength == 0 || f->VolumeParams.MaxComponentLength > 255)
         f->VolumeParams.MaxComponentLength = 255;
 
     if (0 == f->VolumeParams.VolumeCreationTime)
