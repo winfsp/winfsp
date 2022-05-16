@@ -21,6 +21,8 @@
 
 #include <sys/driver.h>
 
+static NTSTATUS FspFsctlDeviceControl(
+    PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvrtDeviceControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static BOOLEAN FspFsvrtDeviceControlStorageQuery(
@@ -33,6 +35,7 @@ static FSP_IOP_REQUEST_FINI FspFsvolDeviceControlRequestFini;
 FSP_DRIVER_DISPATCH FspDeviceControl;
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspFsctlDeviceControl)
 #pragma alloc_text(PAGE, FspFsvrtDeviceControl)
 #pragma alloc_text(PAGE, FspFsvrtDeviceControlStorageQuery)
 #pragma alloc_text(PAGE, FspFsvolDeviceControl)
@@ -45,6 +48,25 @@ enum
 {
     RequestFileNode                     = 0,
 };
+
+static NTSTATUS FspFsctlDeviceControl(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    NTSTATUS Result = STATUS_INVALID_DEVICE_REQUEST;
+    switch (IrpSp->Parameters.DeviceIoControl.IoControlCode)
+    {
+    case FSP_IOCTL_TRANSACT:
+    case FSP_IOCTL_TRANSACT_BATCH:
+    case FSP_IOCTL_TRANSACT_INTERNAL:
+        if (0 != IrpSp->FileObject->FsContext2)
+            Result = FspVolumeTransact(FsctlDeviceObject, Irp, IrpSp);
+        break;
+    }
+
+    return Result;
+}
 
 static NTSTATUS FspFsvrtDeviceControl(
     PDEVICE_OBJECT FsvrtDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
@@ -258,6 +280,8 @@ NTSTATUS FspDeviceControl(
         FSP_RETURN(Result = FspFsvolDeviceControl(DeviceObject, Irp, IrpSp));
     case FspFsvrtDeviceExtensionKind:
         FSP_RETURN(Result = FspFsvrtDeviceControl(DeviceObject, Irp, IrpSp));
+    case FspFsctlDeviceExtensionKind:
+        FSP_RETURN(Result = FspFsctlDeviceControl(DeviceObject, Irp, IrpSp));
     default:
         FSP_RETURN(Result = STATUS_INVALID_DEVICE_REQUEST);
     }

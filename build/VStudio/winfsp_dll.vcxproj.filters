@@ -94,7 +94,7 @@
     <ClCompile Include="..\..\src\dll\library.c">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\dll\debug.c">
+    <ClCompile Include="..\..\src\dll\debuglog.c">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\dll\ntstatus.c">
@@ -170,6 +170,9 @@
       <Filter>Source\shared\ku</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\dll\ldap.c">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\dll\debug.c">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

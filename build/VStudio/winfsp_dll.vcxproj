@@ -48,6 +48,7 @@
     <ClInclude Include="..\..\src\shared\um\minimal.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\dll\debug.c" />
     <ClCompile Include="..\..\src\dll\dirbuf.c" />
     <ClCompile Include="..\..\src\dll\eventlog.c" />
     <ClCompile Include="..\..\src\dll\fuse3\fuse2to3.c" />
@@ -64,7 +65,7 @@
     <ClCompile Include="..\..\src\dll\mount.c" />
     <ClCompile Include="..\..\src\dll\np.c" />
     <ClCompile Include="..\..\src\dll\security.c" />
-    <ClCompile Include="..\..\src\dll\debug.c" />
+    <ClCompile Include="..\..\src\dll\debuglog.c" />
     <ClCompile Include="..\..\src\dll\fsctl.c" />
     <ClCompile Include="..\..\src\dll\fsop.c" />
     <ClCompile Include="..\..\src\dll\library.c" />

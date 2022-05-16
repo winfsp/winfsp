@@ -97,8 +97,12 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'L', METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSP_FSCTL_TRANSACT              \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'T', METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define FSP_IOCTL_TRANSACT              \
+    CTL_CODE(0x8000 | ('F'<<8) | 'W', 0x800 + 'T', METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSP_FSCTL_TRANSACT_BATCH        \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 't', METHOD_OUT_DIRECT, FILE_ANY_ACCESS)
+#define FSP_IOCTL_TRANSACT_BATCH        \
+    CTL_CODE(0x8000 | ('F'<<8) | 'W', 0x800 + 't', METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSP_FSCTL_STOP                  \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'S', METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSP_FSCTL_STOP0                 \
@@ -109,6 +113,8 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 /* fsctl internal device codes (usable only in-kernel) */
 #define FSP_FSCTL_TRANSACT_INTERNAL     \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'I', METHOD_NEITHER, FILE_ANY_ACCESS)
+#define FSP_IOCTL_TRANSACT_INTERNAL     \
+    CTL_CODE(0x8000 | ('F'<<8) | 'W', 0x800 + 'I', METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 /* fsvol device codes */
 #define FSP_FSCTL_QUERY_WINFSP          \

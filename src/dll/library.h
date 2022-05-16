@@ -46,6 +46,15 @@
 #define DEBUGLOGSID(fmt, Sid)           ((void)0)
 #endif
 
+/* DEBUGTEST */
+#if !defined(NDEBUG)
+ULONG DebugRandom(VOID);
+#define DEBUGTEST(Percent)              \
+    (DebugRandom() <= (Percent) * 0x7fff / 100)
+#else
+#define DEBUGTEST(Percent)              (TRUE)
+#endif
+
 VOID FspWksidFinalize(BOOLEAN Dynamic);
 VOID FspPosixFinalize(BOOLEAN Dynamic);
 VOID FspEventLogFinalize(BOOLEAN Dynamic);

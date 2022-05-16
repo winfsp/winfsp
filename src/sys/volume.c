@@ -764,12 +764,24 @@ NTSTATUS FspVolumeTransact(
 {
     PAGED_CODE();
 
-    ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
-    ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
     ASSERT(
-        FSP_FSCTL_TRANSACT == IrpSp->Parameters.FileSystemControl.FsControlCode ||
-        FSP_FSCTL_TRANSACT_BATCH == IrpSp->Parameters.FileSystemControl.FsControlCode ||
-        FSP_FSCTL_TRANSACT_INTERNAL == IrpSp->Parameters.FileSystemControl.FsControlCode);
+        (
+            IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction &&
+            IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction &&
+            (
+                FSP_FSCTL_TRANSACT == IrpSp->Parameters.FileSystemControl.FsControlCode ||
+                FSP_FSCTL_TRANSACT_BATCH == IrpSp->Parameters.FileSystemControl.FsControlCode ||
+                FSP_FSCTL_TRANSACT_INTERNAL == IrpSp->Parameters.FileSystemControl.FsControlCode
+            )
+        ) ||
+        (
+            IRP_MJ_DEVICE_CONTROL == IrpSp->MajorFunction &&
+            (
+                FSP_IOCTL_TRANSACT == IrpSp->Parameters.FileSystemControl.FsControlCode ||
+                FSP_IOCTL_TRANSACT_BATCH == IrpSp->Parameters.FileSystemControl.FsControlCode ||
+                FSP_IOCTL_TRANSACT_INTERNAL == IrpSp->Parameters.FileSystemControl.FsControlCode
+            )
+        ));
     ASSERT(0 != IrpSp->FileObject->FsContext2);
 
     /* check parameters */
@@ -779,7 +791,7 @@ NTSTATUS FspVolumeTransact(
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID InputBuffer = 0;
     PVOID OutputBuffer = 0;
-    if (FSP_FSCTL_TRANSACT_INTERNAL == ControlCode)
+    if (0x800 + 'I' /*FSP_xxCTL_TRANSACT_INTERNAL*/ == ((ControlCode >> 2) & 0xfff))
     {
         InputBuffer = IrpSp->Parameters.FileSystemControl.Type3InputBuffer;
         if (KernelMode != Irp->RequestorMode)
@@ -796,9 +808,9 @@ NTSTATUS FspVolumeTransact(
             FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_RSP)) > InputBufferLength)
             return STATUS_INVALID_PARAMETER;
         if (0 != OutputBufferLength &&
-            ((FSP_FSCTL_TRANSACT == ControlCode &&
+            ((0x800 + 'T' /*FSP_xxCTL_TRANSACT*/ == ((ControlCode >> 2) & 0xfff) &&
                 FSP_FSCTL_TRANSACT_BUFFER_SIZEMIN > OutputBufferLength) ||
-            (FSP_FSCTL_TRANSACT_BATCH == ControlCode &&
+            (0x800 + 't' /*FSP_xxCTL_TRANSACT_BATCH*/ == ((ControlCode >> 2) & 0xfff) &&
                 FSP_FSCTL_TRANSACT_BATCH_BUFFER_SIZEMIN > OutputBufferLength)))
             return STATUS_BUFFER_TOO_SMALL;
     }

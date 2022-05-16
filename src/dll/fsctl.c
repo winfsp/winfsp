@@ -127,6 +127,7 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     BOOLEAN Batch)
 {
     NTSTATUS Result = STATUS_SUCCESS;
+    DWORD ControlCode;
     DWORD Bytes = 0;
 
     if (0 != PRequestBufSize)
@@ -135,8 +136,12 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
         *PRequestBufSize = 0;
     }
 
+    ControlCode = Batch ?
+        (DEBUGTEST(50) ? FSP_IOCTL_TRANSACT_BATCH : FSP_FSCTL_TRANSACT_BATCH) :
+        (DEBUGTEST(50) ? FSP_IOCTL_TRANSACT : FSP_FSCTL_TRANSACT);
+
     if (!DeviceIoControl(VolumeHandle,
-        Batch ? FSP_FSCTL_TRANSACT_BATCH : FSP_FSCTL_TRANSACT,
+        ControlCode,
         ResponseBuf, (DWORD)ResponseBufSize, RequestBuf, Bytes,
         &Bytes, 0))
     {
