@@ -425,6 +425,7 @@ FSP_IOPREP_DISPATCH FspFsvolWritePrepare;
 FSP_IOCMPL_DISPATCH FspFsvolWriteComplete;
 
 /* fast I/O and resource acquisition callbacks */
+FAST_IO_DEVICE_CONTROL FspFastIoDeviceControl;
 FAST_IO_READ FspFastIoRead;
 FAST_IO_WRITE FspFastIoWrite;
 FAST_IO_QUERY_BASIC_INFO FspFastIoQueryBasicInfo;
@@ -687,6 +688,8 @@ NTSTATUS FspOplockFsctrl(
     FspNotifyFullReportChange(NS, NL, (PSTRING)(FN), FO, 0, (PSTRING)(NP), F, A, 0)
 #define FSP_NEXT_EA(Ea, EaEnd)          \
     (0 != (Ea)->NextEntryOffset ? (PVOID)((PUINT8)(Ea) + (Ea)->NextEntryOffset) : (EaEnd))
+#define FSP_FUNCTION_FROM_CTL_CODE(ControlCode)\
+    (((ControlCode) >> 2) & 0xfff)
 
 /* utility: synchronous work queue */
 typedef struct
@@ -926,7 +929,7 @@ retry:
     {
         if (PsIsThreadTerminating(PsGetCurrentThread()))
             return STATUS_THREAD_IS_TERMINATING;
-        if (0 != Irp && Irp->Cancel)
+        if (0 != Irp && ((PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG >= Irp || Irp->Cancel))
             return STATUS_CANCELLED;
         if (0 != ExpirationTime)
         {
@@ -1424,6 +1427,15 @@ NTSTATUS FspVolumeGetNameList(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeTransact(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeFastTransact(
+    PDEVICE_OBJECT FsvolDeviceObject,
+    ULONG ControlCode,
+    PVOID InputBuffer,
+    ULONG InputBufferLength,
+    PVOID OutputBuffer,
+    ULONG OutputBufferLength,
+    PIO_STATUS_BLOCK IoStatus,
+    PIRP Irp);
 NTSTATUS FspVolumeTransactFsext(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeStop(

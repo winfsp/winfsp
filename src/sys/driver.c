@@ -97,7 +97,7 @@ NTSTATUS DriverEntry(
     //FspFastIoDispatch.FastIoUnlockSingle = 0;
     //FspFastIoDispatch.FastIoUnlockAll = 0;
     //FspFastIoDispatch.FastIoUnlockAllByKey = 0;
-    //FspFastIoDispatch.FastIoDeviceControl = 0;
+    FspFastIoDispatch.FastIoDeviceControl = FspFastIoDeviceControl;
     FspFastIoDispatch.AcquireFileForNtCreateSection = FspAcquireFileForNtCreateSection;
     FspFastIoDispatch.ReleaseFileForNtCreateSection = FspReleaseFileForNtCreateSection;
     //FspFastIoDispatch.FastIoDetachDevice = 0;

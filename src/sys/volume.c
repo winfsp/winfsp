@@ -46,6 +46,15 @@ static NTSTATUS FspVolumeGetNameListNoLock(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeTransact(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeFastTransact(
+    PDEVICE_OBJECT FsvolDeviceObject,
+    ULONG ControlCode,
+    PVOID InputBuffer,
+    ULONG InputBufferLength,
+    PVOID OutputBuffer,
+    ULONG OutputBufferLength,
+    PIO_STATUS_BLOCK IoStatus,
+    PIRP Irp);
 NTSTATUS FspVolumeTransactFsext(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeStop(
@@ -71,6 +80,7 @@ NTSTATUS FspVolumeWork(
 #pragma alloc_text(PAGE, FspVolumeGetNameList)
 #pragma alloc_text(PAGE, FspVolumeGetNameListNoLock)
 #pragma alloc_text(PAGE, FspVolumeTransact)
+#pragma alloc_text(PAGE, FspVolumeFastTransact)
 #pragma alloc_text(PAGE, FspVolumeTransactFsext)
 #pragma alloc_text(PAGE, FspVolumeStop)
 #pragma alloc_text(PAGE, FspVolumeNotify)
@@ -787,11 +797,12 @@ NTSTATUS FspVolumeTransact(
     /* check parameters */
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
     ULONG ControlCode = IrpSp->Parameters.FileSystemControl.FsControlCode;
+    ULONG ControlFunction = FSP_FUNCTION_FROM_CTL_CODE(ControlCode);
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
     PVOID InputBuffer = 0;
     PVOID OutputBuffer = 0;
-    if (0x800 + 'I' /*FSP_xxCTL_TRANSACT_INTERNAL*/ == ((ControlCode >> 2) & 0xfff))
+    if (FSP_FUNCTION_FROM_CTL_CODE(FSP_FSCTL_TRANSACT_INTERNAL) == ControlFunction)
     {
         InputBuffer = IrpSp->Parameters.FileSystemControl.Type3InputBuffer;
         if (KernelMode != Irp->RequestorMode)
@@ -808,12 +819,35 @@ NTSTATUS FspVolumeTransact(
             FSP_FSCTL_DEFAULT_ALIGN_UP(sizeof(FSP_FSCTL_TRANSACT_RSP)) > InputBufferLength)
             return STATUS_INVALID_PARAMETER;
         if (0 != OutputBufferLength &&
-            ((0x800 + 'T' /*FSP_xxCTL_TRANSACT*/ == ((ControlCode >> 2) & 0xfff) &&
+            ((FSP_FUNCTION_FROM_CTL_CODE(FSP_FSCTL_TRANSACT) == ControlFunction &&
                 FSP_FSCTL_TRANSACT_BUFFER_SIZEMIN > OutputBufferLength) ||
-            (0x800 + 't' /*FSP_xxCTL_TRANSACT_BATCH*/ == ((ControlCode >> 2) & 0xfff) &&
+            (FSP_FUNCTION_FROM_CTL_CODE(FSP_FSCTL_TRANSACT_BATCH) == ControlFunction &&
                 FSP_FSCTL_TRANSACT_BATCH_BUFFER_SIZEMIN > OutputBufferLength)))
             return STATUS_BUFFER_TOO_SMALL;
     }
+
+    return FspVolumeFastTransact(
+        FsvolDeviceObject,
+        ControlCode,
+        InputBuffer,
+        InputBufferLength,
+        OutputBuffer,
+        OutputBufferLength,
+        &Irp->IoStatus,
+        Irp);
+}
+
+NTSTATUS FspVolumeFastTransact(
+    PDEVICE_OBJECT FsvolDeviceObject,
+    ULONG ControlCode,
+    PVOID InputBuffer,
+    ULONG InputBufferLength,
+    PVOID OutputBuffer,
+    ULONG OutputBufferLength,
+    PIO_STATUS_BLOCK IoStatus,
+    PIRP Irp)
+{
+    PAGED_CODE();
 
     if (!FspDeviceReference(FsvolDeviceObject))
         return STATUS_CANCELLED;
@@ -825,6 +859,7 @@ NTSTATUS FspVolumeTransact(
 
     NTSTATUS Result;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    ULONG ControlFunction = FSP_FUNCTION_FROM_CTL_CODE(ControlCode);
     PUINT8 BufferEnd;
     FSP_FSCTL_TRANSACT_RSP *Response, *NextResponse;
     FSP_FSCTL_TRANSACT_REQ *Request, *PendingIrpRequest;
@@ -894,27 +929,30 @@ NTSTATUS FspVolumeTransact(
         }
     }
 
-    /* were we sent an output buffer? */
-    switch (ControlCode & 3)
+    if ((PIRP)FSRTL_MAX_TOP_LEVEL_IRP_FLAG < Irp)
     {
-    case METHOD_NEITHER:
-        OutputBuffer = Irp->UserBuffer;
-        break;
-    case METHOD_OUT_DIRECT:
-        if (0 != Irp->MdlAddress)
-            OutputBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
-        break;
-    case METHOD_BUFFERED:
-        if (0 != OutputBufferLength)
-            OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
-        break;
-    default:
-        ASSERT(0);
-        break;
+        /* were we sent an output buffer? */
+        switch (ControlCode & 3)
+        {
+        case METHOD_NEITHER:
+            OutputBuffer = Irp->UserBuffer;
+            break;
+        case METHOD_OUT_DIRECT:
+            if (0 != Irp->MdlAddress)
+                OutputBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
+            break;
+        case METHOD_BUFFERED:
+            if (0 != OutputBufferLength)
+                OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
+            break;
+        default:
+            ASSERT(0);
+            break;
+        }
     }
     if (0 == OutputBuffer)
     {
-        Irp->IoStatus.Information = 0;
+        IoStatus->Information = 0;
         Result = STATUS_SUCCESS;
         goto exit;
     }
@@ -935,7 +973,7 @@ NTSTATUS FspVolumeTransact(
     }
     if (FspIoqTimeout == PendingIrp || FspIoqCancelled == PendingIrp)
     {
-        Irp->IoStatus.Information = 0;
+        IoStatus->Information = 0;
         Result = FspIoqTimeout == PendingIrp ? STATUS_SUCCESS : STATUS_CANCELLED;
         goto exit;
     }
@@ -944,7 +982,7 @@ NTSTATUS FspVolumeTransact(
     RepostedIrp = 0;
     Request = OutputBuffer;
     BufferEnd = (PUINT8)OutputBuffer + OutputBufferLength;
-    ASSERT(FSP_FSCTL_TRANSACT_INTERNAL == ControlCode ?
+    ASSERT(FSP_FUNCTION_FROM_CTL_CODE(FSP_FSCTL_TRANSACT_INTERNAL) == ControlFunction ?
         TRUE :
         FspFsctlTransactCanProduceRequest(Request, BufferEnd));
     LoopCount = FspIoqPendingIrpCount(FsvolDeviceExtension->Ioq);
@@ -967,7 +1005,7 @@ NTSTATUS FspVolumeTransact(
             FspIopCompleteIrp(PendingIrp, Result);
         else
         {
-            if (FSP_FSCTL_TRANSACT_INTERNAL == ControlCode)
+            if (FSP_FUNCTION_FROM_CTL_CODE(FSP_FSCTL_TRANSACT_INTERNAL) == ControlFunction)
             {
                 InternalBuffer = FspAllocatePoolMustSucceed(
                     PagedPool, PendingIrpRequest->Size, FSP_ALLOC_EXTERNAL_TAG);
@@ -991,7 +1029,7 @@ NTSTATUS FspVolumeTransact(
                 ASSERT(FspIoqStopped(FsvolDeviceExtension->Ioq));
                 if (0 != InternalBuffer)
                 {
-                    ASSERT(FSP_FSCTL_TRANSACT_INTERNAL == ControlCode);
+                    ASSERT(FSP_FUNCTION_FROM_CTL_CODE(FSP_FSCTL_TRANSACT_INTERNAL) == ControlFunction);
                     *(PVOID *)OutputBuffer = 0;
                     FspFree(InternalBuffer);
                 }
@@ -1001,14 +1039,14 @@ NTSTATUS FspVolumeTransact(
             }
 
             /* are we doing single request or batch mode? */
-            if (FSP_FSCTL_TRANSACT_INTERNAL == ControlCode)
+            if (FSP_FUNCTION_FROM_CTL_CODE(FSP_FSCTL_TRANSACT_INTERNAL) == ControlFunction)
             {
-                Irp->IoStatus.Information = sizeof(PVOID);
+                IoStatus->Information = sizeof(PVOID);
                 Result = STATUS_SUCCESS;
                 goto exit;
             }
             else
-            if (FSP_FSCTL_TRANSACT == ControlCode)
+            if (FSP_FUNCTION_FROM_CTL_CODE(FSP_FSCTL_TRANSACT) == ControlFunction)
                 break;
 
             /* check that we have enough space before pulling the next pending IRP off the queue */
@@ -1025,7 +1063,7 @@ NTSTATUS FspVolumeTransact(
             break;
     }
 
-    Irp->IoStatus.Information = (PUINT8)Request - (PUINT8)OutputBuffer;
+    IoStatus->Information = (PUINT8)Request - (PUINT8)OutputBuffer;
     Result = STATUS_SUCCESS;
 
 exit:

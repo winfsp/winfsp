@@ -21,6 +21,7 @@
 
 #include <sys/driver.h>
 
+FAST_IO_DEVICE_CONTROL FspFastIoDeviceControl;
 static NTSTATUS FspFsctlDeviceControl(
     PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvrtDeviceControl(
@@ -35,6 +36,7 @@ static FSP_IOP_REQUEST_FINI FspFsvolDeviceControlRequestFini;
 FSP_DRIVER_DISPATCH FspDeviceControl;
 
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspFastIoDeviceControl)
 #pragma alloc_text(PAGE, FspFsctlDeviceControl)
 #pragma alloc_text(PAGE, FspFsvrtDeviceControl)
 #pragma alloc_text(PAGE, FspFsvrtDeviceControlStorageQuery)
@@ -48,6 +50,62 @@ enum
 {
     RequestFileNode                     = 0,
 };
+
+BOOLEAN FspFastIoDeviceControl(
+    PFILE_OBJECT FileObject,
+    BOOLEAN CanWait,
+    PVOID InputBuffer,
+    ULONG InputBufferLength,
+    PVOID OutputBuffer,
+    ULONG OutputBufferLength,
+    ULONG IoControlCode,
+    PIO_STATUS_BLOCK IoStatus,
+    PDEVICE_OBJECT DeviceObject)
+{
+    FSP_ENTER_BOOL(PAGED_CODE());
+        /* cannot use FSP_ENTER_FIO() because it only supports fsvol devices */
+
+    Result = DEBUGTEST(50) &&
+        CanWait &&
+        FSP_IOCTL_TRANSACT == IoControlCode &&
+        FspFsctlDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind;
+    if (!Result)
+        FSP_RETURN();
+
+#if 0
+    PDEVICE_OBJECT FsctlDeviceObject = DeviceObject;
+    if (!FspDeviceReference(FsctlDeviceObject))
+    {
+        IoStatus->Status = STATUS_CANCELLED;
+        IoStatus->Information = 0;
+        FSP_RETURN();
+    }
+#endif
+
+    ASSERT(0 == IoGetTopLevelIrp());
+    IoSetTopLevelIrp((PIRP)FSRTL_FAST_IO_TOP_LEVEL_IRP);
+
+    IoStatus->Status = FspVolumeFastTransact(
+        FileObject->FsContext2,
+        IoControlCode,
+        InputBuffer,
+        InputBufferLength,
+        OutputBuffer,
+        OutputBufferLength,
+        IoStatus,
+        (PIRP)FSRTL_FAST_IO_TOP_LEVEL_IRP);
+
+    IoSetTopLevelIrp(0);
+
+#if 0
+    FspDeviceDereference(FsctlDeviceObject);
+#endif
+
+    FSP_LEAVE_BOOL(
+        "%s, FileObject=%p",
+        IoctlCodeSym(IoControlCode),
+        FileObject);
+}
 
 static NTSTATUS FspFsctlDeviceControl(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
