@@ -1446,7 +1446,7 @@ NTSTATUS FspVolumeWork(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 
 /* file objects */
-#define FSP_FILE_NODE_NO_PGIO
+//#define FSP_FILE_NODE_NO_PGIO
 #define FspFileNodeKind(FileNode)       \
     (((FSP_FILE_NODE *)FileNode)->Header.NodeTypeCode)
 #define FspFileNodeIsValid(FileNode)    \
