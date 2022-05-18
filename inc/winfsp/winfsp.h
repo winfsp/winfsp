@@ -1835,6 +1835,7 @@ NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
 /*
  * POSIX Interop
  */
+FSP_API NTSTATUS FspPosixSetUidMap(UINT32 Uid[], PSID Sid[], ULONG Count);
 FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid);
 FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid);
 FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)());

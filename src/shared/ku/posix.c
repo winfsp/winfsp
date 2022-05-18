@@ -34,6 +34,7 @@
 
 #include <shared/ku/library.h>
 
+FSP_API NTSTATUS FspPosixSetUidMap(UINT32 Uid[], PSID Sid[], ULONG Count);
 FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid);
 FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid);
 static PISID FspPosixCreateSid(BYTE Authority, ULONG Count, ...);
@@ -58,6 +59,7 @@ FSP_API VOID FspPosixDecodeWindowsPath(PWSTR WindowsPath, ULONG Size);
 
 #if defined(_KERNEL_MODE)
 #ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, FspPosixSetUidMap)
 #pragma alloc_text(PAGE, FspPosixMapUidToSid)
 #pragma alloc_text(PAGE, FspPosixMapSidToUid)
 #pragma alloc_text(PAGE, FspPosixCreateSid)
@@ -345,6 +347,8 @@ VOID FspPosixFinalize(BOOLEAN Dynamic)
 
     if (Dynamic)
     {
+        FspPosixSetUidMap(0, 0, 0);
+
         MemFree(FspTrustedDomains);
         MemFree(FspAccountDomainSid);
         MemFree(FspPrimaryDomainSid);
@@ -425,6 +429,52 @@ static inline BOOLEAN FspPosixIsRelativeSid(PISID Sid1, PISID Sid2)
     return TRUE;
 }
 
+static UINT32 FspPosixUidMap_Uid[8];
+static PSID FspPosixUidMap_Sid[8];
+static ULONG FspPosixUidMap_Cnt = 0;
+
+FSP_API NTSTATUS FspPosixSetUidMap(UINT32 Uid[], PSID Sid[], ULONG Count)
+{
+    FSP_KU_CODE;
+
+    NTSTATUS Result;
+
+    if (sizeof FspPosixUidMap_Uid / sizeof FspPosixUidMap_Uid[0] < Count)
+        Count = sizeof FspPosixUidMap_Uid / sizeof FspPosixUidMap_Uid[0];
+
+    for (ULONG I = 0; FspPosixUidMap_Cnt > I; I++)
+    {
+        MemFree(FspPosixUidMap_Sid[I]);
+        FspPosixUidMap_Uid[I] = 0;
+        FspPosixUidMap_Sid[I] = 0;
+    }
+
+    FspPosixUidMap_Cnt = 0;
+    for (ULONG I = 0; Count > I; I++)
+    {
+        ULONG L = GetLengthSid(Sid[I]);
+        PSID S = MemAlloc(L);
+        if (0 == S)
+        {
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+            goto exit;
+        }
+
+        FspPosixUidMap_Uid[I] = Uid[I];
+        FspPosixUidMap_Sid[I] = S;
+        memcpy(S, Sid[I], L);
+        FspPosixUidMap_Cnt = I + 1;
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result))
+        FspPosixSetUidMap(0, 0, 0);
+
+    return Result;
+}
+
 FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
 {
     FSP_KU_CODE;
@@ -432,6 +482,20 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
     InitOnceExecuteOnce(&FspPosixInitOnce, FspPosixInitialize, 0, 0);
 
     *PSid = 0;
+
+    /*
+     * UidMap overrides default UID <-> SID mapping.
+     */
+    for (ULONG I = 0; FspPosixUidMap_Cnt > I; I++)
+        if (FspPosixUidMap_Uid[I] == Uid)
+        {
+            ULONG L = GetLengthSid(FspPosixUidMap_Sid[I]);
+            PSID S = MemAlloc(L);
+            if (0 != S)
+                memcpy(S, FspPosixUidMap_Sid[I], L);
+            *PSid = S;
+            goto exit;
+        }
 
     /*
      * UID namespace partitioning (from [IDMAP] rules):
@@ -556,6 +620,7 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
     else if (FspUnmappedUid != Uid && 0x1000 <= Uid && Uid < 0x100000)
         *PSid = FspPosixCreateSid(5, 2, Uid >> 12, Uid & 0xfff);
 
+exit:
     if (0 == *PSid)
         *PSid = FspUnmappedSid;
 
@@ -576,6 +641,16 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
 
     if (!IsValidSid(Sid) || 0 == (Count = *GetSidSubAuthorityCount(Sid)))
         return STATUS_INVALID_SID;
+
+    /*
+     * UidMap overrides default UID <-> SID mapping.
+     */
+    for (ULONG I = 0; FspPosixUidMap_Cnt > I; I++)
+        if (EqualSid(FspPosixUidMap_Sid[I], Sid))
+        {
+            *PUid = FspPosixUidMap_Uid[I];
+            goto exit;
+        }
 
     Authority = GetSidIdentifierAuthority(Sid)->Value[5];
     SubAuthority0 = 2 <= Count ? *GetSidSubAuthority(Sid, 0) : 0;
@@ -671,6 +746,7 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
         *PUid = 0x10000 + 0x100 * Authority + Rid;
     }
 
+exit:
     if (-1 == *PUid)
         *PUid = FspUnmappedUid;
 
