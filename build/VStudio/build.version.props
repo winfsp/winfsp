@@ -20,7 +20,7 @@
 
         <MyCanonicalVersion>1.11</MyCanonicalVersion>
 
-        <MyProductVersion>2022+ARM64 Beta2</MyProductVersion>
+        <MyProductVersion>2022+ARM64 Beta3</MyProductVersion>
         <MyProductStage>Beta</MyProductStage>
 
         <MyCrossCert>DigiCert High Assurance EV Root CA.crt</MyCrossCert>
