@@ -14,6 +14,8 @@
 
     The `getpath` operation allows a case-insensitive file system to report the correct case of a file path. For example, `getpath` can be used to report that the actual path of a file opened as `/PATH/TO/FILE` is really `/Path/To/File`. This capability is important for some Windows file system scenarios and can sometimes result in a performance improvement.
 
+- [NEW] New `ntptfs` sample file system. This is a production quality pass through file system and should be used instead of the original `passthrough` file system that was developed for education purposes only.
+
 - [NEW] Many performance improvements:
 
     - A new `PostDispositionForDirOnly` setting has been added to `FSP_FSCTL_VOLUME_PARAMS`. This allows a file system to declare that it does not want to see `SetInformation/Disposition` requests for files (such requests will still be sent for directories, because a file system is supposed to check if a directory is empty before deletion). This makes file (not directory) deletion faster. This optimization should be safe to enable for most file systems. FUSE file systems get this optimization for free.
@@ -26,13 +28,13 @@
 
     - The user mode directory buffering mechanism (`FspFileSystemAcquireDirectoryBuffer`) has been improved. The mechanism uses the quick-sort algorithm internally which can exhibit bad performance when sorting already sorted data. The quick-sort algorithm has been improved with the use use of median of three partitioning, which alleviates this problem.
 
-- [NEW] All executables (`*.exe,*.dll,*.sys`) in the WinFsp installation `bin` folder are now signed.
-
-- [NEW] The default value for the registry setting `DistinctPermsForSameOwnerGroup` has been changed from 0 to 1.
-
-- [NEW] New `ntptfs` sample file system. This is a production quality pass through file system and should be used instead of the original `passthrough` file system that was developed for education purposes only.
-
 - [FIX] The WinFsp Network Provider now implements `NPGetUniversalName`. This fixes problems with some apps (e.g. Photos app).
+
+- [FIX] WinFsp-FUSE now supports Azure AD accounts when specifying the `-o uid=-1` option. In addition a new option `-o uidmap=UID:SID` allows the specification of arbitrary UID<->SID or UID<->UserName mappings.
+
+- [FIX] All executables (`*.exe,*.dll,*.sys`) in the WinFsp installation `bin` folder are now signed.
+
+- [FIX] The default value for the registry setting `DistinctPermsForSameOwnerGroup` has been changed from 0 to 1.
 
 - [BUILD] Product configuration (`MyProductName`, etc.) is done by the file `build.version.props` located in `build\VStudio`. This file was previously named `version.properties`.
 
