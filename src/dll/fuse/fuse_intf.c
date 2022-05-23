@@ -1028,7 +1028,7 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
         {
             Result = FspFileSystemEnumerateEa(FileSystem,
                 fsp_fuse_intf_SetEaEntry, contexthdr->PosixPath, ExtraBuffer, ExtraLength);
-            if (!NT_SUCCESS(Result))
+            if (!NT_SUCCESS(Result) && STATUS_INVALID_DEVICE_REQUEST != Result)
                 goto exit;
         }
         else
@@ -1256,7 +1256,7 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
 
         Result = FspFileSystemEnumerateEa(FileSystem,
             fsp_fuse_intf_SetEaEntry, filedesc->PosixPath, Ea, EaLength);
-        if (!NT_SUCCESS(Result))
+        if (!NT_SUCCESS(Result) && STATUS_INVALID_DEVICE_REQUEST != Result)
             return Result;
     }
 

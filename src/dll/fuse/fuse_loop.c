@@ -188,7 +188,15 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
         f->VolumeParams.PostDispositionWhenNecessaryOnly = 1;
     if (0 != f->ops.listxattr && 0 != f->ops.getxattr &&
         0 != f->ops.setxattr && 0 != f->ops.removexattr)
-        f->VolumeParams.ExtendedAttributes = 1;
+    {
+        char buf[1024];
+        int err;
+
+        /* if this fails with ENOSYS, then no EA support */
+        err = f->ops.getxattr("/",
+            "non-existant-a11ec902d22f4ec49003af15282d3b00", buf, sizeof buf);
+        f->VolumeParams.ExtendedAttributes = -ENOSYS_(f->env) != err;
+    }
 
     /* the FSD does not currently limit these VolumeParams fields; do so here! */
     if (f->VolumeParams.SectorSize < FSP_FUSE_SECTORSIZE_MIN ||
