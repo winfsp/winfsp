@@ -94,6 +94,9 @@ extern "C" {
 #define FSP_FUSE_NOTIFY_CHFLAGS         0x0080
 #define FSP_FUSE_NOTIFY_TRUNCATE        0x0100
 
+/* getpath extension */
+#define FSP_FUSE_HAS_GETPATH            1
+
 struct fuse_file_info
 {
     int flags;
