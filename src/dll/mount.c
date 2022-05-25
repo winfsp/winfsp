@@ -20,6 +20,7 @@
  */
 
 #include <dll/library.h>
+#include <dbt.h>
 
 static INIT_ONCE FspMountInitOnce = INIT_ONCE_STATIC_INIT;
 static NTSTATUS (NTAPI *FspNtOpenSymbolicLinkObject)(
@@ -28,21 +29,30 @@ static NTSTATUS (NTAPI *FspNtMakeTemporaryObject)(
     HANDLE Handle);
 static NTSTATUS (NTAPI *FspNtClose)(
     HANDLE Handle);
-static BOOLEAN FspMountDoNotUseLauncher;
+static BOOLEAN FspMountDoNotUseLauncherValue;
+static BOOLEAN FspMountBroadcastDriveChangeValue;
 
 static VOID FspMountInitializeFromRegistry(VOID)
 {
-    DWORD MountDoNotUseLauncher;
+    DWORD Value;
     DWORD Size;
     LONG Result;
 
-    MountDoNotUseLauncher = 0;
-    Size = sizeof MountDoNotUseLauncher;
+    Value = 0;
+    Size = sizeof Value;
     Result = RegGetValueW(HKEY_LOCAL_MACHINE, L"" FSP_FSCTL_PRODUCT_FULL_REGKEY,
         L"MountDoNotUseLauncher",
-        RRF_RT_REG_DWORD, 0, &MountDoNotUseLauncher, &Size);
+        RRF_RT_REG_DWORD, 0, &Value, &Size);
     if (ERROR_SUCCESS == Result)
-        FspMountDoNotUseLauncher = !!MountDoNotUseLauncher;
+        FspMountDoNotUseLauncherValue = !!Value;
+
+    Value = 0;
+    Size = sizeof Value;
+    Result = RegGetValueW(HKEY_LOCAL_MACHINE, L"" FSP_FSCTL_PRODUCT_FULL_REGKEY,
+        L"MountBroadcastDriveChange",
+        RRF_RT_REG_DWORD, 0, &Value, &Size);
+    if (ERROR_SUCCESS == Result)
+        FspMountBroadcastDriveChangeValue = !!Value;
 }
 
 static BOOL WINAPI FspMountInitialize(
@@ -375,6 +385,46 @@ static NTSTATUS FspLauncherDefineDosDevice(
     return !NT_SUCCESS(Result) ? Result : FspNtStatusFromWin32(ErrorCode);
 }
 
+static VOID FspMountBroadcastDriveChange(PWSTR MountPoint, WPARAM WParam)
+{
+    /*
+     * DefineDosDeviceW (either directly or via the CSRSS) broadcasts a WM_DEVICECHANGE message
+     * when a drive is added/removed. Unfortunately on some systems this broadcast fails. The
+     * result is that Explorer does not receive the WM_DEVICECHANGE notification and does not
+     * become aware of the drive change. This results in only minor UI issues for local drives,
+     * but more seriously it makes network drives inaccessible from some Explorer windows.
+     *
+     * The problem is that BroadcastSystemMessage can hang indefinitely when supplied the flags
+     * NOHANG | FORCEIFHUNG | NOTIMEOUTIFNOTHUNG. The NOTIMEOUTIFNOTHUNG flag instructs the BSM
+     * API to not timeout an app that is not considered hung; however an app that is not hung may
+     * still fail to respond to a broadcasted message indefinitely. This can result in the BSM
+     * API never returning ("hanging").
+     *
+     * To resolve this we simply call BroadcastSystemMessage without NOTIMEOUTIFNOTHUNG.
+     */
+
+    BOOLEAN IsLocalSystem;
+    DEV_BROADCAST_VOLUME DriveChange;
+    DWORD Flags, Recipients;
+
+    FspServiceContextCheck(0, &IsLocalSystem);
+
+    memset(&DriveChange, 0, sizeof DriveChange);
+    DriveChange.dbcv_size = sizeof DriveChange;
+    DriveChange.dbcv_devicetype = DBT_DEVTYP_VOLUME;
+    DriveChange.dbcv_flags = DBTF_NET;
+    DriveChange.dbcv_unitmask = 1 << (MountPoint[0] - 'a');
+
+    Flags = BSF_NOHANG | BSF_FORCEIFHUNG;
+    Recipients = BSM_APPLICATIONS | (IsLocalSystem ? BSM_ALLDESKTOPS : 0);
+    BroadcastSystemMessageW(
+        Flags,
+        &Recipients,
+        WM_DEVICECHANGE,
+        WParam,
+        (LPARAM)&DriveChange);
+}
+
 static NTSTATUS FspMountSet_Drive(PWSTR VolumeName, PWSTR MountPoint, PHANDLE PMountHandle)
 {
     NTSTATUS Result;
@@ -384,7 +434,7 @@ static NTSTATUS FspMountSet_Drive(PWSTR VolumeName, PWSTR MountPoint, PHANDLE PM
 
     Result = FspServiceContextCheck(0, &IsLocalSystem);
     IsServiceContext = NT_SUCCESS(Result) && !IsLocalSystem;
-    if (IsServiceContext && !FspMountDoNotUseLauncher)
+    if (IsServiceContext && !FspMountDoNotUseLauncherValue)
     {
         /*
          * If the current process is in the service context but not LocalSystem,
@@ -402,6 +452,13 @@ static NTSTATUS FspMountSet_Drive(PWSTR VolumeName, PWSTR MountPoint, PHANDLE PM
     {
         if (!DefineDosDeviceW(DDD_RAW_TARGET_PATH, MountPoint, VolumeName))
             return FspNtStatusFromWin32(GetLastError());
+
+        /*
+         * On some systems DefineDosDeviceW fails to properly broadcast the WM_DEVICECHANGE
+         * notification. So use a workaround. See comments in FspMountBroadcastDriveChange.
+         */
+        if (FspMountBroadcastDriveChangeValue)
+            FspMountBroadcastDriveChange(MountPoint, DBT_DEVICEARRIVAL);
     }
 
     if (0 != FspNtOpenSymbolicLinkObject)
@@ -457,8 +514,17 @@ static NTSTATUS FspMountRemove_Drive(PWSTR VolumeName, PWSTR MountPoint, HANDLE 
          */
         Result = FspLauncherDefineDosDevice(L'-', MountPoint, VolumeName);
     else
+    {
         Result = DefineDosDeviceW(DDD_RAW_TARGET_PATH | DDD_REMOVE_DEFINITION | DDD_EXACT_MATCH_ON_REMOVE,
             MountPoint, VolumeName) ? STATUS_SUCCESS : FspNtStatusFromWin32(GetLastError());
+
+        /*
+         * On some systems DefineDosDeviceW fails to properly broadcast the WM_DEVICECHANGE
+         * notification. So use a workaround. See comments in FspMountBroadcastDriveChange.
+         */
+        if (FspMountBroadcastDriveChangeValue)
+            FspMountBroadcastDriveChange(MountPoint, DBT_DEVICEREMOVECOMPLETE);
+    }
 
     if (0 != MountHandle)
         FspNtClose(MountHandle);
