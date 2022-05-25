@@ -400,7 +400,9 @@ static VOID FspMountBroadcastDriveChange(PWSTR MountPoint, WPARAM WParam)
      * still fail to respond to a broadcasted message indefinitely. This can result in the BSM
      * API never returning ("hanging").
      *
-     * To resolve this we simply call BroadcastSystemMessage without NOTIMEOUTIFNOTHUNG.
+     * To resolve this we simply call BroadcastSystemMessage with BSF_POSTMESSAGE. (It would work
+     * with BSF_NOHANG | BSF_FORCEIFHUNG and without NOTIMEOUTIFNOTHUNG, but BSF_POSTMESSAGE is
+     * faster).
      */
 
     BOOLEAN IsLocalSystem;
@@ -415,7 +417,7 @@ static VOID FspMountBroadcastDriveChange(PWSTR MountPoint, WPARAM WParam)
     DriveChange.dbcv_flags = DBTF_NET;
     DriveChange.dbcv_unitmask = 1 << (MountPoint[0] - 'a');
 
-    Flags = BSF_NOHANG | BSF_FORCEIFHUNG;
+    Flags = BSF_POSTMESSAGE;
     Recipients = BSM_APPLICATIONS | (IsLocalSystem ? BSM_ALLDESKTOPS : 0);
     BroadcastSystemMessageW(
         Flags,
