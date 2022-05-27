@@ -26,6 +26,12 @@
 #define PREFIXW                         L"" FSP_FSCTL_VOLUME_PARAMS_PREFIX
 #define PREFIXW_SIZE                    (sizeof PREFIXW - sizeof(WCHAR))
 
+static INIT_ONCE FspFsctlServiceVersionInitOnce = INIT_ONCE_STATIC_INIT;
+static ULONG FspFsctlServiceVersionValue;
+static DWORD FspFsctlTransactCode = FSP_FSCTL_TRANSACT;
+static DWORD FspFsctlTransactBatchCode = FSP_FSCTL_TRANSACT_BATCH;
+
+static VOID FspFsctlServiceVersion(PUINT32 PVersion);
 static NTSTATUS FspFsctlStartService(VOID);
 
 FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
@@ -75,6 +81,9 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     Result = FspFsctlStartService();
     if (!NT_SUCCESS(Result))
         return Result;
+
+    /* initialize FspFsctlTransactCode */
+    FspFsctlServiceVersion(0);
 
     VolumeHandle = CreateFileW(DevicePathBuf,
         0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
@@ -136,9 +145,15 @@ FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
         *PRequestBufSize = 0;
     }
 
+    /*
+     * During file system volume creation FspFsctlCreateVolume called FspFsctlServiceVersion
+     * which examined the version of the driver in use and initialized the variables
+     * FspFsctlTransactCode and FspFsctlTransactBatchCode with either the new
+     * FSP_IOCTL_TRANSACT* codes or the old FSP_FSCTL_TRANSACT* codes.
+     */
     ControlCode = Batch ?
-        (DEBUGTEST(50) ? FSP_IOCTL_TRANSACT_BATCH : FSP_FSCTL_TRANSACT_BATCH) :
-        (DEBUGTEST(50) ? FSP_IOCTL_TRANSACT : FSP_FSCTL_TRANSACT);
+        (DEBUGTEST(50) ? FspFsctlTransactBatchCode : FSP_FSCTL_TRANSACT_BATCH) :
+        (DEBUGTEST(50) ? FspFsctlTransactCode : FSP_FSCTL_TRANSACT);
 
     if (!DeviceIoControl(VolumeHandle,
         ControlCode,
@@ -265,6 +280,79 @@ FSP_API NTSTATUS FspFsctlPreflight(PWSTR DevicePath)
         return Result;
 
     return STATUS_SUCCESS;
+}
+
+static BOOL WINAPI FspFsctlServiceVersionInitialize(
+    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
+{
+    PWSTR DriverName = L"" FSP_FSCTL_DRIVER_NAME;
+    PWSTR ModuleFileName;
+    SC_HANDLE ScmHandle = 0;
+    SC_HANDLE SvcHandle = 0;
+    QUERY_SERVICE_CONFIGW *ServiceConfig = 0;
+    DWORD Size;
+
+    ScmHandle = OpenSCManagerW(0, 0, 0);
+    if (0 == ScmHandle)
+        goto exit;
+
+    SvcHandle = OpenServiceW(ScmHandle, DriverName, SERVICE_QUERY_CONFIG);
+    if (0 == SvcHandle)
+        goto exit;
+
+    if (QueryServiceConfig(SvcHandle, 0, 0, &Size) ||
+        ERROR_INSUFFICIENT_BUFFER != GetLastError())
+        goto exit;
+
+    ServiceConfig = MemAlloc(Size);
+    if (0 == ServiceConfig)
+        goto exit;
+
+    if (!QueryServiceConfig(SvcHandle, ServiceConfig, Size, &Size))
+        goto exit;
+
+    ModuleFileName = ServiceConfig->lpBinaryPathName;
+    if (L'\\' == ModuleFileName[0] &&
+        L'?'  == ModuleFileName[1] &&
+        L'?'  == ModuleFileName[2] &&
+        L'\\' == ModuleFileName[3])
+    {
+        if (L'U'  == ModuleFileName[4] &&
+            L'N'  == ModuleFileName[5] &&
+            L'C'  == ModuleFileName[6] &&
+            L'\\' == ModuleFileName[7])
+        {
+            ModuleFileName[6] = L'\\';
+            ModuleFileName = ModuleFileName + 6;
+        }
+        else
+            ModuleFileName = ModuleFileName + 4;
+    }
+
+    FspGetModuleVersion(ModuleFileName, &FspFsctlServiceVersionValue);
+
+    if (0x0001000b /*v1.11*/ <= FspFsctlServiceVersionValue)
+    {
+        FspFsctlTransactCode = FSP_IOCTL_TRANSACT;
+        FspFsctlTransactBatchCode = FSP_IOCTL_TRANSACT_BATCH;
+    }
+
+exit:
+    MemFree(ServiceConfig);
+    if (0 != SvcHandle)
+        CloseServiceHandle(SvcHandle);
+    if (0 != ScmHandle)
+        CloseServiceHandle(ScmHandle);
+
+    return TRUE;
+}
+
+static VOID FspFsctlServiceVersion(PUINT32 PVersion)
+{
+    InitOnceExecuteOnce(&FspFsctlServiceVersionInitOnce, FspFsctlServiceVersionInitialize, 0, 0);
+
+    if (0 != PVersion)
+        *PVersion = FspFsctlServiceVersionValue;
 }
 
 static NTSTATUS FspFsctlStartService(VOID)
