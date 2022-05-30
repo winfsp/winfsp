@@ -185,7 +185,22 @@ UINT64 MemfsGetSystemTime(VOID)
 static inline
 unsigned MemfsUpperChar(unsigned c)
 {
-    return (c - 'a' <= 'z' - 'a') ? (c & ~0x20) : c;
+    /*
+     * Bit-twiddling upper case char:
+     *
+     * - Let signbit(x) = x & 0x100 (treat bit 0x100 as "signbit").
+     * - 'A' <= c && c <= 'Z' <=> s = signbit(c - 'A') ^ signbit(c - ('Z' + 1)) == 1
+     *     - c >= 'A' <=> c - 'A' >= 0      <=> signbit(c - 'A') = 0
+     *     - c <= 'Z' <=> c - ('Z' + 1) < 0 <=> signbit(c - ('Z' + 1)) = 1
+     * - Bit 0x20 = 0x100 >> 3 toggles uppercase to lowercase and vice-versa.
+     *
+     * This is actually faster than `(c - 'a' <= 'z' - 'a') ? (c & ~0x20) : c`, even
+     * when compiled using cmov conditional moves at least on this system (i7-1065G7).
+     *
+     * See https://godbolt.org/z/ebv131Wrh
+     */
+    unsigned s = ((c - 'a') ^ (c - ('z' + 1))) & 0x100;
+    return c & ~(s >> 3);
 }
 
 static inline
