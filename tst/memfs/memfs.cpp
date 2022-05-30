@@ -183,6 +183,36 @@ UINT64 MemfsGetSystemTime(VOID)
 }
 
 static inline
+unsigned MemfsUpperChar(unsigned c)
+{
+    return (c - 'a' <= 'z' - 'a') ? (c & ~0x20) : c;
+}
+
+static inline
+int MemfsWcsnicmp(const wchar_t *s0, const wchar_t *t0, int n)
+{
+    /* Use fast loop for ASCII and fall back to CompareStringW for general case. */
+    const wchar_t *s = s0;
+    const wchar_t *t = t0;
+    int v = 0;
+    for (const void *e = t + n; e > (const void *)t; ++s, ++t)
+    {
+        unsigned sc = *s, tc = *t;
+        if (0xffffff80 & (sc | tc))
+        {
+            v = CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE, s0, n, t0, n);
+            if (0 != v)
+                return v - 2;
+            else
+                return _wcsnicmp(s, t, n);
+        }
+        if (0 != (v = MemfsUpperChar(sc) - MemfsUpperChar(tc)) || !tc)
+            break;
+    }
+    return v;/*(0 < v) - (0 > v);*/
+}
+
+static inline
 int MemfsFileNameCompare(PWSTR a, int alen, PWSTR b, int blen, BOOLEAN CaseInsensitive)
 {
     PWSTR p, endp, partp, q, endq, partq;
@@ -226,13 +256,7 @@ int MemfsFileNameCompare(PWSTR a, int alen, PWSTR b, int blen, BOOLEAN CaseInsen
         len = plen < qlen ? plen : qlen;
 
         if (CaseInsensitive)
-        {
-            res = CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE, partp, plen, partq, qlen);
-            if (0 != res)
-                res -= 2;
-            else
-                res = _wcsnicmp(partp, partq, len);
-        }
+            res = MemfsWcsnicmp(partp, partq, len);
         else
             res = wcsncmp(partp, partq, len);
 
