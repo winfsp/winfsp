@@ -566,7 +566,7 @@ BOOLEAN FspFileNameIsPrefix(
 #else
 #define FspFileNameUpcase(D,S,U)        (ASSERT(0 == (U)), RtlUpcaseUnicodeString(D,S,FALSE))
 #define FspEaNameUpcase(D,S,U)          (ASSERT(0 == (U)), RtlUpperString(D,S))
-#define FspFileNameCompare(N1,N2,I,U)   (ASSERT(0 == (U)), RtlCompareUnicodeString(N1,N2,I))
+#define FspFileNameCompare(N1,N2,I,U)   (ASSERT(0 == (U)), FspCompareUnicodeString(N1,N2,I))
 #define FspFileNameIsPrefix(N1,N2,I,U)  (ASSERT(0 == (U)), RtlPrefixUnicodeString(N1,N2,I))
 #endif
 NTSTATUS FspFileNameInExpression(
@@ -732,6 +732,12 @@ NTSTATUS FspIrpHook(PIRP Irp, PIO_COMPLETION_ROUTINE CompletionRoutine, PVOID Ow
 VOID FspIrpHookReset(PIRP Irp);
 PVOID FspIrpHookContext(PVOID Context);
 NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
+
+/* utility: string compare */
+LONG FspCompareUnicodeString(
+    PCUNICODE_STRING String1,
+    PCUNICODE_STRING String2,
+    BOOLEAN CaseInsensitive);
 
 /* silos */
 typedef struct

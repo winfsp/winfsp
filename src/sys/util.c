@@ -131,6 +131,10 @@ NTSTATUS FspIrpHook(PIRP Irp, PIO_COMPLETION_ROUTINE CompletionRoutine, PVOID Ow
 VOID FspIrpHookReset(PIRP Irp);
 PVOID FspIrpHookContext(PVOID Context);
 NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
+LONG FspCompareUnicodeString(
+    PCUNICODE_STRING String1,
+    PCUNICODE_STRING String2,
+    BOOLEAN CaseInsensitive);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspIsNtDdiVersionAvailable)
@@ -174,6 +178,7 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context);
 #pragma alloc_text(PAGE, FspSafeMdlDelete)
 #pragma alloc_text(PAGE, FspIrpHook)
 #pragma alloc_text(PAGE, FspIrpHookReset)
+#pragma alloc_text(PAGE, FspCompareUnicodeString)
 #endif
 
 static const LONG Delays[] =
@@ -1493,3 +1498,82 @@ NTSTATUS FspIrpHookNext(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context)
 
     return Result;
 }
+
+static inline
+USHORT FspUpcaseAscii(USHORT c)
+{
+    /*
+     * Bit-twiddling upper case char:
+     *
+     * - Let signbit(x) = x & 0x100 (treat bit 0x100 as "signbit").
+     * - 'A' <= c && c <= 'Z' <=> s = signbit(c - 'A') ^ signbit(c - ('Z' + 1)) == 1
+     *     - c >= 'A' <=> c - 'A' >= 0      <=> signbit(c - 'A') = 0
+     *     - c <= 'Z' <=> c - ('Z' + 1) < 0 <=> signbit(c - ('Z' + 1)) = 1
+     * - Bit 0x20 = 0x100 >> 3 toggles uppercase to lowercase and vice-versa.
+     *
+     * This is actually faster than `(c - 'a' <= 'z' - 'a') ? (c & ~0x20) : c`, even
+     * when compiled using cmov conditional moves at least on this system (i7-1065G7).
+     *
+     * See https://godbolt.org/z/ebv131Wrh
+     */
+    USHORT s = ((c - 'a') ^ (c - ('z' + 1))) & 0x100;
+    return c & ~(s >> 3);
+}
+
+#if DBG
+static
+LONG FspCompareUnicodeStringReal(
+    PCUNICODE_STRING S1,
+    PCUNICODE_STRING S2,
+    BOOLEAN CaseInsensitive)
+#else
+LONG FspCompareUnicodeString(
+    PCUNICODE_STRING S1,
+    PCUNICODE_STRING S2,
+    BOOLEAN CaseInsensitive)
+#endif
+{
+    PAGED_CODE();
+
+    LONG LResult = S1->Length - S2->Length;
+    PWCH P1 = S1->Buffer;
+    PWCH P2 = S2->Buffer;
+    PWCH EndP1 = P1 + (0 >= LResult ? S1->Length : S2->Length) / sizeof(WCHAR);
+
+    if (CaseInsensitive)
+    {
+        for (; EndP1 != P1; ++P1, ++P2)
+        {
+            USHORT C1 = *P1, C2 = *P2;
+            if (0xff80 & (C1 | C2))
+                return RtlCompareUnicodeString(S1, S2, TRUE);
+            C1 = FspUpcaseAscii(C1);
+            C2 = FspUpcaseAscii(C2);
+            if (C1 != C2)
+                return C1 - C2;
+        }
+    }
+    else
+    {
+        for (; EndP1 != P1; ++P1, ++P2)
+        {
+            USHORT C1 = *P1, C2 = *P2;
+            if (C1 != C2)
+                return C1 - C2;
+        }
+    }
+
+    return LResult;
+}
+#if DBG
+LONG FspCompareUnicodeString(
+    PCUNICODE_STRING S1,
+    PCUNICODE_STRING S2,
+    BOOLEAN CaseInsensitive)
+{
+    LONG Result0 = FspCompareUnicodeStringReal(S1, S2, CaseInsensitive);
+    LONG Result1 = RtlCompareUnicodeString(S1, S2, CaseInsensitive);
+    ASSERT((0 < Result0) - (0 > Result0) == (0 < Result1) - (0 > Result1));
+    return Result0;
+}
+#endif
