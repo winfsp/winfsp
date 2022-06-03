@@ -407,7 +407,7 @@ static VOID FspMountBroadcastDriveChange(PWSTR MountPoint, WPARAM WParam)
 
     BOOLEAN IsLocalSystem;
     DEV_BROADCAST_VOLUME DriveChange;
-    DWORD Flags, Recipients;
+    DWORD Recipients;
 
     FspServiceContextCheck(0, &IsLocalSystem);
 
@@ -415,12 +415,11 @@ static VOID FspMountBroadcastDriveChange(PWSTR MountPoint, WPARAM WParam)
     DriveChange.dbcv_size = sizeof DriveChange;
     DriveChange.dbcv_devicetype = DBT_DEVTYP_VOLUME;
     DriveChange.dbcv_flags = DBTF_NET;
-    DriveChange.dbcv_unitmask = 1 << (MountPoint[0] - 'a');
+    DriveChange.dbcv_unitmask = 1 << ((MountPoint[0] | 0x20) - 'a');
 
-    Flags = BSF_POSTMESSAGE;
     Recipients = BSM_APPLICATIONS | (IsLocalSystem ? BSM_ALLDESKTOPS : 0);
     BroadcastSystemMessageW(
-        Flags,
+        BSF_POSTMESSAGE,
         &Recipients,
         WM_DEVICECHANGE,
         WParam,
