@@ -103,7 +103,7 @@ static void file_list_single_test(void)
     WCHAR FileName[MAX_PATH];
     WIN32_FIND_DATAW FindData;
 
-    for (ULONG ListIndex = 0; OptListCount > ListIndex; ListIndex++)
+    for (ULONG OpenIndex = 0; OptOpenCount > OpenIndex; OpenIndex++)
         for (ULONG Index = 0; OptFileCount > Index; Index++)
         {
             StringCbPrintfW(FileName, sizeof FileName, L"fsbench-file%lu", Index);
@@ -122,7 +122,7 @@ static void file_list_none_test(void)
     WCHAR FileName[MAX_PATH];
     WIN32_FIND_DATAW FindData;
 
-    for (ULONG ListIndex = 0; OptListCount > ListIndex; ListIndex++)
+    for (ULONG OpenIndex = 0; OptOpenCount > OpenIndex; OpenIndex++)
         for (ULONG Index = 0; OptFileCount > Index; Index++)
         {
             StringCbPrintfW(FileName, sizeof FileName, L"{5F849D7F-73AF-49AC-B7C3-657B36EAD5C4}");

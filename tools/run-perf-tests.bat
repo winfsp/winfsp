@@ -34,10 +34,10 @@ for %%a in (%OptFiles%) do (
 )
 
 %fsbench% --empty-cache=C --files=1000 file_create_test >nul
-set OptOpen=1 25 50 75 100
+set OptOpen=10 20 30 40 50
 if X%2==Xbaseline set OptOpen=100
 for %%a in (%OptOpen%) do (
-    call :csv "open." %%a "%fsbench% --empty-cache=C --files=1000 --open=%%a file_open_test file_attr_test"
+    call :csv "iter." %%a "%fsbench% --empty-cache=C --files=1000 --open=%%a file_open_test file_attr_test file_list_single_test file_list_none_test"
 )
 %fsbench% --empty-cache=C --files=1000 file_delete_test >nul
 
