@@ -28,6 +28,12 @@
 
     - The user mode directory buffering mechanism (`FspFileSystemAcquireDirectoryBuffer`) has been improved. The mechanism uses the quick-sort algorithm internally which can exhibit bad performance when sorting already sorted data. The quick-sort algorithm has been improved with the use use of median of three partitioning, which alleviates this problem.
 
+- [NEW] A new registry setting under `HKLM\SOFTWARE\WinFsp` (or `HKLM\SOFTWARE\WOW6432Node\WinFsp` on a 64-bit system) called `MountBroadcastDriveChange` has been introduced, which if set to 1 will broadcast an additional "drive change" message to all top-level windows (including Explorer) during mounting and unmounting.
+
+    - Normally the Windows infrastructure broadcasts a `WM_DEVICECHANGE` message whenever a drive gets added/removed. In some rare systems it is possible for this message to get lost or stalled. The workaround for these rare systems is to enable this registry setting, in which case WinFsp will broadcast the `WM_DEVICECHANGE` using a slightly different but more reliable method than the one Windows uses.
+
+    - For more details see source code comments at [`FspMountBroadcastDriveChange`](https://github.com/winfsp/winfsp/blob/v1.11B3/src/dll/mount.c#L390-L406).
+
 - [FIX] The WinFsp Network Provider now implements `NPGetUniversalName`. This fixes problems with some apps (e.g. Photos app).
 
 - [FIX] WinFsp-FUSE now supports Azure AD accounts when specifying the `-o uid=-1` option. In addition a new option `-o uidmap=UID:SID` allows the specification of arbitrary UID<->SID or UID<->UserName mappings.
