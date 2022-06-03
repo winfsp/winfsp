@@ -30,25 +30,33 @@ pushd fsbench
 set OptFiles=1000 2000 3000 4000 5000
 if X%2==Xbaseline set OptFiles=10000
 for %%a in (%OptFiles%) do (
-    call :csv %%a "%fsbench% --empty-cache=C --files=%%a file_*"
+    call :csv "" %%a "%fsbench% --empty-cache=C --files=%%a --open=1 file_*"
 )
+
+%fsbench% --empty-cache=C --files=1000 file_create_test >nul
+set OptOpen=1 25 50 75 100
+if X%2==Xbaseline set OptOpen=100
+for %%a in (%OptOpen%) do (
+    call :csv "open." %%a "%fsbench% --empty-cache=C --files=1000 --open=%%a file_open_test file_attr_test"
+)
+%fsbench% --empty-cache=C --files=1000 file_delete_test >nul
 
 set OptRdwrCc=100 200 300 400 500
 if X%2==Xbaseline set OptRdwrCc=1000
 for %%a in (%OptRdwrCc%) do (
-    call :csv %%a "%fsbench% --empty-cache=C --rdwr-cc=%%a rdwr_cc_*"
+    call :csv "" %%a "%fsbench% --empty-cache=C --rdwr-cc=%%a rdwr_cc_*"
 )
 
 set OptRdwrNc=100 200 300 400 500
 if X%2==Xbaseline set OptRdwrNc=100
 for %%a in (%OptRdwrNc%) do (
-    call :csv %%a "%fsbench% --empty-cache=C --rdwr-nc=%%a rdwr_nc_*"
+    call :csv "" %%a "%fsbench% --empty-cache=C --rdwr-nc=%%a rdwr_nc_*"
 )
 
 set OptMmap=100 200 300 400 500
 if X%2==Xbaseline set OptMmap=1000
 for %%a in (%OptMmap%) do (
-    call :csv %%a "%fsbench% --empty-cache=C --mmap=%%a mmap_*"
+    call :csv "" %%a "%fsbench% --empty-cache=C --mmap=%%a mmap_*"
 )
 
 popd
@@ -66,15 +74,16 @@ exit /b 0
 exit /b 1
 
 :csv
-set Iter=%1
-for /F "tokens=1,2,3" %%i in ('%2') do (
+set Prfx=%~1
+set Iter=%2
+for /F "tokens=1,2,3" %%i in ('%3') do (
     if %%j==OK (
         set Name=%%i
         set Name=!Name:.=!
         set Time=%%k
         set Time=!Time:s=!
 
-        echo !Name!,!Iter!,!Time!
+        echo !Prfx!!Name!,!Iter!,!Time!
     )
 )
 exit /b 0

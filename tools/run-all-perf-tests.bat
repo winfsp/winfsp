@@ -21,6 +21,11 @@ set ntptfs="%ProjRoot%\tst\ntptfs\build\Release\ntptfs-x64.exe"
 if not exist %memfs% echo cannot find memfs >&2 & goto fail
 if not exist %ntptfs% echo cannot find ntptfs >&2 & goto fail
 
+fsutil 8dot3name query C:
+
+echo:
+echo Performing performance testing...
+
 mkdir C:\t
 pushd C:\t
 for /l %%i in (1,1,%Count%) do (
