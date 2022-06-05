@@ -1,0 +1,192 @@
+= Performance Testing
+:caption:
+
+This document discusses performance testing for WinFsp. The goal of this performance testing is to discover optimization opportunities for WinFsp and compare its performance to that of NTFS and Dokany.
+
+== Executive Summary
+
+This performance testing shows that WinFsp has excellent performance in all tested scenarios. It outperforms NTFS in most scenarios (an unfair comparison as NTFS is a disk file system and WinFsp is tested with an in-memory file system). It also outperforms Dokany in all scenarios, often by an order of magnitude.
+
+ifdef::env-browser[chart::bar[data-uri="WinFsp-Performance-Testing/file_tests.csv",file="WinFsp-Performance-Testing/file_tests.png",opt="y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/file_tests.png[]]
+
+ifdef::env-browser[chart::bar[data-uri="WinFsp-Performance-Testing/rdwr_tests.csv",file="WinFsp-Performance-Testing/rdwr_tests.png",opt="y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/rdwr_tests.png[]]
+
+== Fsbench
+
+All testing was performed using a new performance test suite developed as part of WinFsp, called https://github.com/winfsp/winfsp/blob/master/tst/fsbench/fsbench.c[fsbench]. Fsbench was developed because it allows the creation of tests that are important to file system developers; for example, it can answer questions of the type: "how long does it take to delete 1000 files" or "how long does it take to list a directory with 10000 files in it".
+
+Fsbench is based on the https://github.com/winfsp/winfsp/tree/master/ext/tlib[tlib] library, originally from the *secfs* project. Tlib is usually used to develop regression test suites in C/C++, but can be also used to create performance tests.
+
+Fsbench currently includes the following tests:
+
+[width="100%",cols="20%,60%,20%",options="header"]
+|===
+|Test               |Measures performance of                        |Parameters
+|file_create_test   |CreateFileW(CREATE_NEW) / CloseHandle          |file count
+|file_open_test     |CreateFileW(OPEN_EXISTING) / CloseHandle       |file count
+|file_overwrite_test|CreateFileW(CREATE_ALWAYS) / CloseHandle with existing files|file count
+|file_list_test     |FindFirstFileW / FindNextFile / FindClose      |iterations
+|file_delete_test   |DeleteFileW                                    |file count
+|file_mkdir_test    |CreateDirectoryW                               |file count
+|file_rmdir_test    |RemoveDirectoryW                               |file count
+|rdwr_cc_write_page_test    |WriteFile (1 page; cached)             |iterations
+|rdwr_cc_read_page_test     |ReadFile (1 page; cached)              |iterations
+|rdwr_nc_write_page_test    |WriteFile (1 page; non-cached)         |iterations
+|rdwr_nc_read_page_test     |ReadFile (1 page; non-cached)          |iterations
+|rdwr_cc_write_large_test   |WriteFile (16 pages; cached)           |iterations
+|rdwr_cc_read_large_test    |ReadFile (16 pages; cached)            |iterations
+|rdwr_nc_write_large_test   |WriteFile (16 pages; non-cached)       |iterations
+|rdwr_nc_read_large_test    |ReadFile (16 pages; non-cached)        |iterations
+|mmap_write_test    |Memory mapped write test                       |iterations
+|mmap_write_test    |Memory mapped read test                        |iterations
+|===
+
+== Tested File Systems
+
+=== NTFS
+
+The comparison to NTFS is very important to establish a baseline. It is also very misleading because NTFS is a disk file system and MEMFS (either the WinFsp or Dokany variants) is an in memory file system. The tests will show that MEMFS is faster than NTFS. This should not be taken to mean that we are trying to make the (obvious) claim that an in memory file system is faster than a disk file system, but to show that the approach of writing a file system in user mode is a valid proposition and can be efficient.
+
+=== WinFsp/MEMFS
+
+MEMFS is the file system used to test WinFsp and shipped as a sample bundled with the WinFsp installer. MEMFS is a simple in memory file system and as such is very fast under most conditions. This is desirable because our goal with this performance testing is to measure the speed of the WinFsp system components rather the performance of a complex user mode file system. MEMFS has minimal overhead and is ideal for this purpose.
+
+WinFsp/MEMFS can be run in different configurations, which enable or disable WinFsp caching features. The tested configurations were:
+
+- An infinite FileInfoTimeout, which enables caching of metadata and data.
+- A FileInfoTimeout of 1s (second), which enables caching of metadata but disables caching of data.
+- A FileInfoTimeout of 0, which completely disables caching.
+
+The WinFsp git commit at the time of testing was d804f5674d76f11ea86d14f4bcb1157e6e40e719.
+
+=== Dokany/MEMFS
+
+To achieve fairness when comparing Dokany to WinFsp the MEMFS file system has been ported to Dokany. Substantial care was taken to ensure that WinFsp/MEMFS and Dokany/MEMFS perform equally well, so that the performance of the Dokany FSD and user-mode components can be measured and compared accurately.
+
+The Dokany/MEMFS project has its own https://github.com/billziss-gh/memfs-dokany[repository]. The project comes without a license, which means that it may not be used for any purpose other than as a reference.
+
+The Dokany version used for testing was 1.0.1. The Dokany/MEMFS git commit was 27a678d7c0d5ee2fb3fb2ecc8e38210857ae941c.
+
+== Test Environment
+
+Tests were performed on an idle computer/VM. There was a reboot of both the computer and VM before each file system was tested. Each test was run twice and the smaller time value chosen. The assumption is that even in a seemingly idle desktop system there is some activity which will affect the results; the smaller value is the preferred one to use because it reflects the time when there is less or no other activity.
+
+The test environment was as follows:
+----
+MacBook Pro (Retina, 13-inch, Early 2015)
+3.1 GHz Intel Core i7
+16 GB 1867 MHz DDR3
+500 GB SSD
+
+VirtualBox Version 5.0.20 r106931
+1 CPU
+4 GB RAM
+80 GB Dynamically allocated differencing storage
+
+Windows 10 (64-bit) Version 1511 (OS Build 10586.420)
+----
+
+== Test Results
+
+In the graphs below we use consistent coloring to quickly identify a file system. Red is used for NTFS, yellow for WinFsp/MEMFS with a FileInfoTimeout of 0, green for WinFsp/MEMFS with a FileInfoTimeout of 1, light blue for WinFsp/MEMFS with an infinite FileInfoTimeout and deep blue for Dokany/MEMFS.
+
+In all tests lower times are better (the file system is faster).
+
+=== File Tests
+
+These tests measure the performance of creating, opening, overwriting and listing files and directories.
+
+==== file_create_test
+
+This test measures the performance of CreateFileW(CREATE_NEW) / CloseHandle. WinFsp has the best performance here. Dokany follows and NTFS is last as it has to actually update its data structures on disk.
+
+ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/file_create_test.csv",file="WinFsp-Performance-Testing/file_create_test.png",opt="x-label=file count,y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/file_create_test.png[]]
+
+==== file_open_test
+
+This test measures the performance of CreateFileW(OPEN_EXISTING) / CloseHandle. WinFsp again has the best (although uneven) performance, followed by NTFS and then Dokany.
+
+WinFsp appears to have very uneven performance here. In particular notice that opening 1000 files is slower than opening 2000 files, which makes no sense! I suspect that the test observes an initial acquisition of resouces when the test first starts, which is not necessary when the test runs for 2000 files at a later time. This uneven performance should probably be investigated in the future.
+
+ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/file_open_test.csv",file="WinFsp-Performance-Testing/file_open_test.png",opt="x-label=file count,y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/file_open_test.png[]]
+
+==== file_overwrite_test
+
+This test measures the performance of CreateFileW(CREATE_ALWAYS) / CloseHandle. WinFsp is fastest, followed by NTFS and then Dokany.
+
+ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/file_overwrite_test.csv",file="WinFsp-Performance-Testing/file_overwrite_test.png",opt="x-label=file count,y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/file_overwrite_test.png[]]
+
+==== file_list_test
+
+This test measures the performance of FindFirstFileW / FindNextFile / FindClose. NTFS wins this scenario, likely because it can satisfy the list operation from cache. WinFsp has overall good performance. Dokany appears to show slightly quadratic performance in this scenario.
+
+ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/file_list_test.csv",file="WinFsp-Performance-Testing/file_list_test.png",opt="x-label=file count,y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/file_list_test.png[]]
+
+==== file_delete_test
+
+This test measures the performance of DeleteFileW. WinFsp has the best performance, followed by Dokany and NTFS with very similar performance.
+
+ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/file_delete_test.csv",file="WinFsp-Performance-Testing/file_delete_test.png",opt="x-label=file count,y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/file_delete_test.png[]]
+
+=== Read/Write Tests
+
+These tests measure the performance of cached, non-cached and memory-mapped I/O.
+
+==== rdwr_cc_write_page_test
+
+This test measures the performance of cached WriteFile with 1 page writes. NTFS and WinFsp with an infinite FileInfoTimeout have the best performance, with a clear edge to NTFS (likely because of its use of FastIO, which WinFsp does not currently support). WinFsp with a FileInfoTimeout of 0 or 1 performance is next, because WinFsp does not use the NTOS Cache Manager in this scenario. Dokany performance is last.
+
+ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/rdwr_cc_write_page_test.csv",file="WinFsp-Performance-Testing/rdwr_cc_write_page_test.png",opt="x-label=iterations,y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/rdwr_cc_write_page_test.png[]]
+
+==== rdwr_cc_read_page_test
+
+This test measures the performance of cached ReadFile with 1 page reads. The results here are very similar to the rdwr_cc_write_page_test case and similar comments apply.
+
+ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/rdwr_cc_read_page_test.csv",file="WinFsp-Performance-Testing/rdwr_cc_read_page_test.png",opt="x-label=iterations,y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/rdwr_cc_read_page_test.png[]]
+
+==== rdwr_nc_write_page_test
+
+This test measures the performance of non-cached WriteFile with 1 page writes. WinFsp has the best performance, followed by Dokany. NTFS shows bad performance, which of course make sense as we are asking it to write all data to the disk.
+
+ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/rdwr_nc_write_page_test.csv",file="WinFsp-Performance-Testing/rdwr_nc_write_page_test.png",opt="x-label=iterations,y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/rdwr_nc_write_page_test.png[]]
+
+==== rdwr_nc_read_page_test
+
+This test measures the performance of non-cached ReadFile with 1 page reads. The results here are very similar to the rdwr_nc_write_page_test case and similar comments apply.
+
+ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/rdwr_nc_read_page_test.csv",file="WinFsp-Performance-Testing/rdwr_nc_read_page_test.png",opt="x-label=iterations,y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/rdwr_nc_read_page_test.png[]]
+
+==== mmap_write_test
+
+This test measures the performance of memory mapped writes. NTFS and WinFsp seem to have identical performance here, which actually makes sense because memory mapped I/O is effectively always cached and most of the actual I/O is done asynchronously by the system.
+
+There are no results for Dokany as it seems to (still) not support memory mapped files:
+
+----
+Y:\>c:\Users\billziss\Projects\winfsp\build\VStudio\build\Release\fsbench-x64.exe --mmap=100 mmap*
+mmap_write_test........................ KO
+    ASSERT(0 != Mapping) failed at fsbench.c:226:mmap_dotest
+----
+
+ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/mmap_write_test.csv",file="WinFsp-Performance-Testing/mmap_write_test.png",opt="x-label=iterations,y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/mmap_write_test.png[]]
+
+==== mmap_read_test
+
+This test measures the performance of memory mapped reads. Again NTFS and WinFsp seem to have identical performance here.
+
+There are no results for Dokany as it faces the same issue as with mmap_write_test.
+
+ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/mmap_read_test.csv",file="WinFsp-Performance-Testing/mmap_read_test.png",opt="x-label=iterations,y-label=time"]]
+ifndef::env-browser[image::WinFsp-Performance-Testing/mmap_read_test.png[]]
