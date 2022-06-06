@@ -32,7 +32,7 @@ For the NTFS file system we use the default configuration as it ships with Windo
 
 Note that the sequential nature of the tests represents a worst case scenario for WinFsp. The reason is that a single file system operation may require a roundtrip to the user mode file system and such a roundtrip requires two process context switches (i.e. address space and thread switches): one context switch to carry the file system request to the user mode file system and one context switch to carry the response back to the originating process. WinFsp performs better when multiple processes issue file system operations concurrently, because multiple requests are queued in its internal queues and multiple requests can be handled in a single context switch.
 
-For more information refer to the link:WinFsp-Performance-Testing/analysis.ipynb[Performance Testing Analysis] notebook. This notebook together with the `run-all-perf-tests.bat` script can be used for replication and independent verification of the results presented in this document.
+For more information refer to the link:WinFsp-Performance-Testing/WinFsp-Performance-Testing-Analysis.ipynb[Performance Testing Analysis] notebook. This notebook together with the `run-all-perf-tests.bat` script can be used for replication and independent verification of the results presented in this document.
 
 The test environment for the results presented in this document is as follows:
 ----
