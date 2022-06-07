@@ -394,6 +394,39 @@ struct FspMountBroadcastDriveChangeData
 
 static DWORD WINAPI FspMountBroadcastDriveChangeThread(PVOID Data0)
 {
+    struct FspMountBroadcastDriveChangeData *Data = Data0;
+    HMODULE Module = Data->Module;
+    WPARAM WParam = Data->WParam;
+    PWSTR MountPoint = Data->MountPoint;
+    BOOLEAN IsLocalSystem;
+    DEV_BROADCAST_VOLUME DriveChange;
+    DWORD Recipients;
+
+    FspServiceContextCheck(0, &IsLocalSystem);
+
+    memset(&DriveChange, 0, sizeof DriveChange);
+    DriveChange.dbcv_size = sizeof DriveChange;
+    DriveChange.dbcv_devicetype = DBT_DEVTYP_VOLUME;
+    DriveChange.dbcv_flags = DBTF_NET;
+    DriveChange.dbcv_unitmask = 1 << ((MountPoint[0] | 0x20) - 'a');
+
+    Recipients = BSM_APPLICATIONS | (IsLocalSystem ? BSM_ALLDESKTOPS : 0);
+    BroadcastSystemMessageW(
+        BSF_POSTMESSAGE,
+        &Recipients,
+        WM_DEVICECHANGE,
+        WParam,
+        (LPARAM)&DriveChange);
+
+    MemFree(Data);
+
+    FreeLibraryAndExitThread(Module, 0);
+
+    return 0;
+}
+
+static NTSTATUS FspMountBroadcastDriveChange(PWSTR MountPoint, WPARAM WParam)
+{
     /*
      * DefineDosDeviceW (either directly or via the CSRSS) broadcasts a WM_DEVICECHANGE message
      * when a drive is added/removed. Unfortunately on some systems this broadcast fails. The
@@ -409,37 +442,9 @@ static DWORD WINAPI FspMountBroadcastDriveChangeThread(PVOID Data0)
      *
      * To resolve this we simply call BroadcastSystemMessage with BSF_POSTMESSAGE. (It would work
      * with BSF_NOHANG | BSF_FORCEIFHUNG and without NOTIMEOUTIFNOTHUNG, but BSF_POSTMESSAGE is
-     * faster).
+     * faster). We do this in a separate thread to avoid blocking caller's thread.
      */
 
-    struct FspMountBroadcastDriveChangeData *Data = Data0;
-    BOOLEAN IsLocalSystem;
-    DEV_BROADCAST_VOLUME DriveChange;
-    DWORD Recipients;
-
-    FspServiceContextCheck(0, &IsLocalSystem);
-
-    memset(&DriveChange, 0, sizeof DriveChange);
-    DriveChange.dbcv_size = sizeof DriveChange;
-    DriveChange.dbcv_devicetype = DBT_DEVTYP_VOLUME;
-    DriveChange.dbcv_flags = DBTF_NET;
-    DriveChange.dbcv_unitmask = 1 << ((Data->MountPoint[0] | 0x20) - 'a');
-
-    Recipients = BSM_APPLICATIONS | (IsLocalSystem ? BSM_ALLDESKTOPS : 0);
-    BroadcastSystemMessageW(
-        BSF_POSTMESSAGE,
-        &Recipients,
-        WM_DEVICECHANGE,
-        Data->WParam,
-        (LPARAM)&DriveChange);
-
-    FreeLibraryAndExitThread(Data->Module, 0);
-
-    return 0;
-}
-
-static NTSTATUS FspMountBroadcastDriveChange(PWSTR MountPoint, WPARAM WParam)
-{
     NTSTATUS Result;
     HMODULE Module;
     HANDLE Thread;
