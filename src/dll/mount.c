@@ -385,7 +385,14 @@ static NTSTATUS FspLauncherDefineDosDevice(
     return !NT_SUCCESS(Result) ? Result : FspNtStatusFromWin32(ErrorCode);
 }
 
-static VOID FspMountBroadcastDriveChange(PWSTR MountPoint, WPARAM WParam)
+struct FspMountBroadcastDriveChangeData
+{
+    HMODULE Module;
+    WPARAM WParam;
+    WCHAR MountPoint[];
+};
+
+static DWORD WINAPI FspMountBroadcastDriveChangeThread(PVOID Data0)
 {
     /*
      * DefineDosDeviceW (either directly or via the CSRSS) broadcasts a WM_DEVICECHANGE message
@@ -405,6 +412,7 @@ static VOID FspMountBroadcastDriveChange(PWSTR MountPoint, WPARAM WParam)
      * faster).
      */
 
+    struct FspMountBroadcastDriveChangeData *Data = Data0;
     BOOLEAN IsLocalSystem;
     DEV_BROADCAST_VOLUME DriveChange;
     DWORD Recipients;
@@ -415,15 +423,68 @@ static VOID FspMountBroadcastDriveChange(PWSTR MountPoint, WPARAM WParam)
     DriveChange.dbcv_size = sizeof DriveChange;
     DriveChange.dbcv_devicetype = DBT_DEVTYP_VOLUME;
     DriveChange.dbcv_flags = DBTF_NET;
-    DriveChange.dbcv_unitmask = 1 << ((MountPoint[0] | 0x20) - 'a');
+    DriveChange.dbcv_unitmask = 1 << ((Data->MountPoint[0] | 0x20) - 'a');
 
     Recipients = BSM_APPLICATIONS | (IsLocalSystem ? BSM_ALLDESKTOPS : 0);
     BroadcastSystemMessageW(
         BSF_POSTMESSAGE,
         &Recipients,
         WM_DEVICECHANGE,
-        WParam,
+        Data->WParam,
         (LPARAM)&DriveChange);
+
+    FreeLibraryAndExitThread(Data->Module, 0);
+
+    return 0;
+}
+
+static NTSTATUS FspMountBroadcastDriveChange(PWSTR MountPoint, WPARAM WParam)
+{
+    NTSTATUS Result;
+    HMODULE Module;
+    HANDLE Thread;
+    struct FspMountBroadcastDriveChangeData *Data = 0;
+    int Size;
+
+    if (!GetModuleHandleExW(
+        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+        (PVOID)FspMountBroadcastDriveChangeThread,
+        &Module))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    Size = (lstrlenW(MountPoint) + 1) * sizeof(WCHAR);
+    Data = MemAlloc(sizeof *Data + Size);
+    if (0 == Data)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    Data->Module = Module;
+    Data->WParam = WParam;
+    memcpy(Data->MountPoint, MountPoint, Size);
+
+    Thread = CreateThread(0, 0, FspMountBroadcastDriveChangeThread, Data, 0, 0);
+    if (0 == Thread)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+    CloseHandle(Thread);
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result))
+    {
+        MemFree(Data);
+        FreeLibrary(Module);
+    }
+
+    return Result;
 }
 
 static NTSTATUS FspMountSet_Drive(PWSTR VolumeName, PWSTR MountPoint, PHANDLE PMountHandle)
