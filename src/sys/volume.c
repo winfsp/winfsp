@@ -417,7 +417,6 @@ static VOID FspVolumeDeleteNoLock(
 
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    IrpSp->FileObject->FsContext2 = 0;
 
     /* stop the I/O queue */
     FspIoqStop(FsvolDeviceExtension->Ioq, TRUE);

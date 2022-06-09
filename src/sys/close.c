@@ -43,6 +43,9 @@ static NTSTATUS FspFsctlClose(
 {
     PAGED_CODE();
 
+    if (0 != IrpSp->FileObject->FsContext2)
+        FspDeviceDereference(IrpSp->FileObject->FsContext2);
+
     Irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;
 }

@@ -116,7 +116,11 @@ static NTSTATUS FspFsctlCreate(
     if (0 == FileObject->RelatedFileObject &&
         PREFIXW_SIZE <= FileObject->FileName.Length &&
         RtlEqualMemory(PREFIXW, FileObject->FileName.Buffer, PREFIXW_SIZE))
+    {
         Result = FspVolumeCreate(DeviceObject, Irp, IrpSp);
+        if (NT_SUCCESS(Result) && 0 != IrpSp->FileObject->FsContext2)
+            FspDeviceReference(IrpSp->FileObject->FsContext2);
+    }
     else
     {
         Result = STATUS_SUCCESS;
