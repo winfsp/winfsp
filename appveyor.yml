@@ -73,6 +73,7 @@ test_script:
 - if %TESTING%==Func 7z x Test.Filter.Driver.zip.001
 - if %TESTING%==Func start /wait msiexec /i "Test.Filter.Driver\HCK Filter.Driver Content-x86_en-us.msi" /qn
 - if %TESTING%==Func tools\nmake-ext-test.bat %CONFIGURATION%
+- ps: . "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\gflags.exe" /k +spp *
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION%
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% ifstest
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% sample
