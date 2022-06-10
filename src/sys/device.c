@@ -410,6 +410,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     FsvolDeviceExtension->InitDoneStat = 1;
 
     /* initialize our context table */
+    ExInitializeResourceLite(&FsvolDeviceExtension->VolumeDeleteResource);
     ExInitializeResourceLite(&FsvolDeviceExtension->FileRenameResource);
     ExInitializeResourceLite(&FsvolDeviceExtension->ContextTableResource);
     InitializeListHead(&FsvolDeviceExtension->ContextList);
@@ -495,6 +496,7 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
 
         ExDeleteResourceLite(&FsvolDeviceExtension->ContextTableResource);
         ExDeleteResourceLite(&FsvolDeviceExtension->FileRenameResource);
+        ExDeleteResourceLite(&FsvolDeviceExtension->VolumeDeleteResource);
     }
 
     /* is there a virtual disk? */

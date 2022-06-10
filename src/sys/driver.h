@@ -1211,6 +1211,8 @@ typedef struct
     KSPIN_LOCK ExpirationLock;
     WORK_QUEUE_ITEM ExpirationWorkItem;
     BOOLEAN ExpirationInProgress;
+    ERESOURCE VolumeDeleteResource;
+    BOOLEAN VolumeDeleted;
     ERESOURCE FileRenameResource;
     ERESOURCE ContextTableResource;
     LIST_ENTRY ContextList;

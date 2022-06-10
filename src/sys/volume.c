@@ -369,6 +369,9 @@ VOID FspVolumeDelete(
     ULONG FileNodeCount, Index;
     NTSTATUS Result;
 
+    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->VolumeDeleteResource, TRUE);
+    FsvolDeviceExtension->VolumeDeleted = TRUE;
+
     /*
      * If we have an fsvrt that is a mountdev, finalize it now! Finalizing a mountdev
      * involves interaction with the MountManager, which tries to open our devices.
@@ -402,6 +405,8 @@ VOID FspVolumeDelete(
 
         FspFileNodeDeleteList(FileNodes, FileNodeCount);
     }
+
+    ExReleaseResourceLite(&FsvolDeviceExtension->VolumeDeleteResource);
 
     FspDeviceDereference(FsvolDeviceObject);
 }
@@ -1184,6 +1189,14 @@ NTSTATUS FspVolumeNotify(
     if (!FspDeviceReference(FsvolDeviceObject))
         return STATUS_CANCELLED;
 
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    ExAcquireResourceSharedLite(&FsvolDeviceExtension->VolumeDeleteResource, TRUE);
+    if (FsvolDeviceExtension->VolumeDeleted)
+    {
+        Result = STATUS_CANCELLED;
+        goto fail;
+    }
+
     NotifyWorkItem = FspAllocNonPaged(
         FIELD_OFFSET(FSP_VOLUME_NOTIFY_WORK_ITEM, InputBuffer) + InputBufferLength);
     if (0 == NotifyWorkItem)
@@ -1205,6 +1218,9 @@ NTSTATUS FspVolumeNotify(
         goto fail;
     }
 
+    ExSetResourceOwnerPointer(&FsvolDeviceExtension->VolumeDeleteResource,
+        (PVOID)((UINT_PTR)NotifyWorkItem | 3));
+
     ExInitializeWorkItem(&NotifyWorkItem->WorkItem, FspVolumeNotifyWork, NotifyWorkItem);
     NotifyWorkItem->FsvolDeviceObject = FsvolDeviceObject;
 
@@ -1215,6 +1231,8 @@ NTSTATUS FspVolumeNotify(
 fail:
     if (0 != NotifyWorkItem)
         FspFree(NotifyWorkItem);
+
+    ExReleaseResourceLite(&FsvolDeviceExtension->VolumeDeleteResource);
 
     FspDeviceDereference(FsvolDeviceObject);
 
@@ -1364,6 +1382,9 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
             FsvolDeviceExtension->VolumeNotifyCount--;
         ExReleaseFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
     }
+
+    ExReleaseResourceForThreadLite(&FsvolDeviceExtension->VolumeDeleteResource,
+        (ERESOURCE_THREAD)((UINT_PTR)NotifyWorkItem | 3));
 
     FspDeviceDereference(FsvolDeviceObject);
 
