@@ -1283,6 +1283,41 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceReference(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDereference(PDEVICE_OBJECT DeviceObject);
 static inline
+VOID FspFsvolDeviceVolumeDeleteAcquireShared(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    ExAcquireResourceSharedLite(&FsvolDeviceExtension->VolumeDeleteResource, TRUE);
+}
+static inline
+VOID FspFsvolDeviceVolumeDeleteAcquireExclusive(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->VolumeDeleteResource, TRUE);
+}
+static inline
+VOID FspFsvolDeviceVolumeDeleteSetOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    Owner = (PVOID)((UINT_PTR)Owner | 3);
+    ExSetResourceOwnerPointer(&FsvolDeviceExtension->VolumeDeleteResource, Owner);
+}
+static inline
+VOID FspFsvolDeviceVolumeDeleteRelease(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    ExReleaseResourceLite(&FsvolDeviceExtension->VolumeDeleteResource);
+}
+static inline
+VOID FspFsvolDeviceVolumeDeleteReleaseOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    Owner = (PVOID)((UINT_PTR)Owner | 3);
+    if (ExIsResourceAcquiredLite(&FsvolDeviceExtension->VolumeDeleteResource))
+        ExReleaseResourceLite(&FsvolDeviceExtension->VolumeDeleteResource);
+    else
+        ExReleaseResourceForThreadLite(&FsvolDeviceExtension->VolumeDeleteResource, (ERESOURCE_THREAD)Owner);
+}
+static inline
 VOID FspFsvolDeviceFileRenameAcquireShared(PDEVICE_OBJECT DeviceObject)
 {
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);

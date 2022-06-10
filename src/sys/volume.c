@@ -369,7 +369,7 @@ VOID FspVolumeDelete(
     ULONG FileNodeCount, Index;
     NTSTATUS Result;
 
-    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->VolumeDeleteResource, TRUE);
+    FspFsvolDeviceVolumeDeleteAcquireExclusive(FsvolDeviceObject);
     FsvolDeviceExtension->VolumeDeleted = TRUE;
 
     /*
@@ -406,7 +406,7 @@ VOID FspVolumeDelete(
         FspFileNodeDeleteList(FileNodes, FileNodeCount);
     }
 
-    ExReleaseResourceLite(&FsvolDeviceExtension->VolumeDeleteResource);
+    FspFsvolDeviceVolumeDeleteRelease(FsvolDeviceObject);
 
     FspDeviceDereference(FsvolDeviceObject);
 }
@@ -1189,9 +1189,8 @@ NTSTATUS FspVolumeNotify(
     if (!FspDeviceReference(FsvolDeviceObject))
         return STATUS_CANCELLED;
 
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    ExAcquireResourceSharedLite(&FsvolDeviceExtension->VolumeDeleteResource, TRUE);
-    if (FsvolDeviceExtension->VolumeDeleted)
+    FspFsvolDeviceVolumeDeleteAcquireShared(FsvolDeviceObject);
+    if (FspFsvolDeviceExtension(FsvolDeviceObject)->VolumeDeleted)
     {
         Result = STATUS_CANCELLED;
         goto fail;
@@ -1218,8 +1217,7 @@ NTSTATUS FspVolumeNotify(
         goto fail;
     }
 
-    ExSetResourceOwnerPointer(&FsvolDeviceExtension->VolumeDeleteResource,
-        (PVOID)((UINT_PTR)NotifyWorkItem | 3));
+    FspFsvolDeviceVolumeDeleteSetOwner(FsvolDeviceObject, NotifyWorkItem);
 
     ExInitializeWorkItem(&NotifyWorkItem->WorkItem, FspVolumeNotifyWork, NotifyWorkItem);
     NotifyWorkItem->FsvolDeviceObject = FsvolDeviceObject;
@@ -1232,7 +1230,7 @@ fail:
     if (0 != NotifyWorkItem)
         FspFree(NotifyWorkItem);
 
-    ExReleaseResourceLite(&FsvolDeviceExtension->VolumeDeleteResource);
+    FspFsvolDeviceVolumeDeleteRelease(FsvolDeviceObject);
 
     FspDeviceDereference(FsvolDeviceObject);
 
@@ -1383,8 +1381,7 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
         ExReleaseFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
     }
 
-    ExReleaseResourceForThreadLite(&FsvolDeviceExtension->VolumeDeleteResource,
-        (ERESOURCE_THREAD)((UINT_PTR)NotifyWorkItem | 3));
+    FspFsvolDeviceVolumeDeleteReleaseOwner(FsvolDeviceObject, NotifyWorkItem);
 
     FspDeviceDereference(FsvolDeviceObject);
 
