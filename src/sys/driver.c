@@ -122,14 +122,13 @@ NTSTATUS DriverEntry(
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access FastIoDispatch")
     DriverObject->FastIoDispatch = &FspFastIoDispatch;
 
-    BOOLEAN InitDoneGRes = FALSE, InitDoneSilo = FALSE, InitDonePsBuf = FALSE,
+    BOOLEAN InitDoneSilo = FALSE, InitDonePsBuf = FALSE,
         InitDoneTimers = FALSE, InitDoneDevices = FALSE;
 
     FspDriverObject = DriverObject;
     FspDriverMultiVersionInitialize();
 
-    ExInitializeResourceLite(&FspDeviceGlobalResource);
-    InitDoneGRes = TRUE;
+    ExInitializeFastMutex(&FspDeviceGlobalMutex);
 
     Result = FspSiloInitialize(FspDriverInitializeDevices, FspDriverFinalizeDevices);
     if (!NT_SUCCESS(Result))
@@ -164,8 +163,6 @@ exit:
             FspProcessBufferFinalize();
         if (InitDoneSilo)
             FspSiloFinalize();
-        if (InitDoneGRes)
-            ExDeleteResourceLite(&FspDeviceGlobalResource);
 
         FSP_TRACE_FINI();
     }

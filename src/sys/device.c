@@ -412,7 +412,7 @@ static NTSTATUS FspFsvolDeviceInit(PDEVICE_OBJECT DeviceObject)
     /* initialize our context table */
     ExInitializeResourceLite(&FsvolDeviceExtension->VolumeDeleteResource);
     ExInitializeResourceLite(&FsvolDeviceExtension->FileRenameResource);
-    ExInitializeResourceLite(&FsvolDeviceExtension->ContextTableResource);
+    ExInitializeFastMutex(&FsvolDeviceExtension->ContextTableMutex);
     InitializeListHead(&FsvolDeviceExtension->ContextList);
     RtlInitializeGenericTableAvl(&FsvolDeviceExtension->ContextByNameTable,
         FspFsvolDeviceCompareContextByName,
@@ -494,7 +494,6 @@ static VOID FspFsvolDeviceFini(PDEVICE_OBJECT DeviceObject)
          * to enumerate and delete all entries in the ContextTable.
          */
 
-        ExDeleteResourceLite(&FsvolDeviceExtension->ContextTableResource);
         ExDeleteResourceLite(&FsvolDeviceExtension->FileRenameResource);
         ExDeleteResourceLite(&FsvolDeviceExtension->VolumeDeleteResource);
     }
@@ -856,7 +855,7 @@ static NTSTATUS FspFsmupDeviceInit(PDEVICE_OBJECT DeviceObject)
     FSP_FSMUP_DEVICE_EXTENSION *FsmupDeviceExtension = FspFsmupDeviceExtension(DeviceObject);
 
     /* initialize our prefix table */
-    ExInitializeResourceLite(&FsmupDeviceExtension->PrefixTableResource);
+    ExInitializeFastMutex(&FsmupDeviceExtension->PrefixTableMutex);
     RtlInitializeUnicodePrefix(&FsmupDeviceExtension->PrefixTable);
     RtlInitializeUnicodePrefix(&FsmupDeviceExtension->ClassTable);
     FsmupDeviceExtension->InitDonePfxTab = 1;
@@ -878,7 +877,6 @@ static VOID FspFsmupDeviceFini(PDEVICE_OBJECT DeviceObject)
          */
         ASSERT(0 == RtlNextUnicodePrefix(&FsmupDeviceExtension->PrefixTable, TRUE));
         ASSERT(0 == RtlNextUnicodePrefix(&FsmupDeviceExtension->ClassTable, TRUE));
-        ExDeleteResourceLite(&FsmupDeviceExtension->PrefixTableResource);
     }
 }
 
@@ -936,4 +934,4 @@ VOID FspDeviceDeleteAll(VOID)
     FspDeviceDeleteList(DeviceObjects, DeviceObjectCount);
 }
 
-ERESOURCE FspDeviceGlobalResource;
+FAST_MUTEX FspDeviceGlobalMutex;

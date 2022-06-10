@@ -121,7 +121,7 @@ NTSTATUS FspMupRegister(
     Class->Name.Buffer = Class->Buffer;
     RtlCopyMemory(Class->Buffer, ClassName.Buffer, ClassName.Length);
 
-    ExAcquireResourceExclusiveLite(&FsmupDeviceExtension->PrefixTableResource, TRUE);
+    FspFsmupDeviceLockPrefixTable(FsmupDeviceObject);
     Success = RtlInsertUnicodePrefix(&FsmupDeviceExtension->PrefixTable,
         &FsvolDeviceExtension->VolumePrefix, &FsvolDeviceExtension->VolumePrefixEntry);
     if (Success)
@@ -144,7 +144,7 @@ NTSTATUS FspMupRegister(
     }
     else
         Result = STATUS_OBJECT_NAME_COLLISION;
-    ExReleaseResourceLite(&FsmupDeviceExtension->PrefixTableResource);
+    FspFsmupDeviceUnlockPrefixTable(FsmupDeviceObject);
 
 exit:
     if (0 != Class)
@@ -169,7 +169,7 @@ VOID FspMupUnregister(
     Result = FspMupGetClassName(&FsvolDeviceExtension->VolumePrefix, &ClassName);
     ASSERT(NT_SUCCESS(Result));
 
-    ExAcquireResourceExclusiveLite(&FsmupDeviceExtension->PrefixTableResource, TRUE);
+    FspFsmupDeviceLockPrefixTable(FsmupDeviceObject);
     PrefixEntry = RtlFindUnicodePrefix(&FsmupDeviceExtension->PrefixTable,
         &FsvolDeviceExtension->VolumePrefix, 0);
     if (0 != PrefixEntry)
@@ -191,7 +191,7 @@ VOID FspMupUnregister(
             }
         }
     }
-    ExReleaseResourceLite(&FsmupDeviceExtension->PrefixTableResource);
+    FspFsmupDeviceUnlockPrefixTable(FsmupDeviceObject);
 }
 
 PDEVICE_OBJECT FspMupGetFsvolDeviceObject(
@@ -253,7 +253,7 @@ NTSTATUS FspMupHandleIrp(
         if (0 != FileObject->RelatedFileObject)
             FileObject = FileObject->RelatedFileObject;
 
-        ExAcquireResourceExclusiveLite(&FsmupDeviceExtension->PrefixTableResource, TRUE);
+        FspFsmupDeviceLockPrefixTable(FsmupDeviceObject);
         PrefixEntry = RtlFindUnicodePrefix(&FsmupDeviceExtension->PrefixTable,
             &FileObject->FileName, 0);
         if (0 != PrefixEntry)
@@ -263,7 +263,7 @@ NTSTATUS FspMupHandleIrp(
             FspDeviceReference(FsvolDeviceObject);
             DeviceDeref = TRUE;
         }
-        ExReleaseResourceLite(&FsmupDeviceExtension->PrefixTableResource);
+        FspFsmupDeviceUnlockPrefixTable(FsmupDeviceObject);
         break;
 
     case IRP_MJ_DEVICE_CONTROL:
@@ -419,19 +419,19 @@ static NTSTATUS FspMupRedirQueryPathEx(
         return STATUS_BAD_NETWORK_PATH;
 
     Result = STATUS_BAD_NETWORK_PATH;
-    ExAcquireResourceExclusiveLite(&FsmupDeviceExtension->PrefixTableResource, TRUE);
+    FspFsmupDeviceLockPrefixTable(FsmupDeviceObject);
     Entry = RtlFindUnicodePrefix(&FsmupDeviceExtension->ClassTable, &ClassName, 0);
     if (0 != Entry)
     {
         QueryPathResponse->LengthAccepted = ClassName.Length;
         Result = STATUS_SUCCESS;
     }
-    ExReleaseResourceLite(&FsmupDeviceExtension->PrefixTableResource);
+    FspFsmupDeviceUnlockPrefixTable(FsmupDeviceObject);
 #else
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
     Result = STATUS_BAD_NETWORK_PATH;
-    ExAcquireResourceExclusiveLite(&FsmupDeviceExtension->PrefixTableResource, TRUE);
+    FspFsmupDeviceLockPrefixTable(FsmupDeviceObject);
     Entry = RtlFindUnicodePrefix(&FsmupDeviceExtension->PrefixTable,
         &QueryPathRequest->PathName, 0);
     if (0 != Entry)
@@ -450,7 +450,7 @@ static NTSTATUS FspMupRedirQueryPathEx(
             }
         }
     }
-    ExReleaseResourceLite(&FsmupDeviceExtension->PrefixTableResource);
+    FspFsmupDeviceUnlockPrefixTable(FsmupDeviceObject);
 #endif
 
     return Result;

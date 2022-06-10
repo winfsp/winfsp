@@ -1214,7 +1214,7 @@ typedef struct
     ERESOURCE VolumeDeleteResource;
     BOOLEAN VolumeDeleted;
     ERESOURCE FileRenameResource;
-    ERESOURCE ContextTableResource;
+    FAST_MUTEX ContextTableMutex;
     LIST_ENTRY ContextList;
     RTL_AVL_TABLE ContextByNameTable;
     PVOID ContextByNameTableElementStorage;
@@ -1244,7 +1244,7 @@ typedef struct
 {
     FSP_DEVICE_EXTENSION Base;
     UINT32 InitDonePfxTab:1;
-    ERESOURCE PrefixTableResource;
+    FAST_MUTEX PrefixTableMutex;
     UNICODE_PREFIX_TABLE PrefixTable;
     UNICODE_PREFIX_TABLE ClassTable;
 } FSP_FSMUP_DEVICE_EXTENSION;
@@ -1374,13 +1374,13 @@ static inline
 VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject)
 {
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->ContextTableResource, TRUE);
+    ExAcquireFastMutexUnsafe(&FsvolDeviceExtension->ContextTableMutex);
 }
 static inline
 VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject)
 {
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
-    ExReleaseResourceLite(&FsvolDeviceExtension->ContextTableResource);
+    ExReleaseFastMutexUnsafe(&FsvolDeviceExtension->ContextTableMutex);
 }
 NTSTATUS FspFsvolDeviceCopyContextList(PDEVICE_OBJECT DeviceObject,
     PVOID **PContexts, PULONG PContextCount);
@@ -1434,6 +1434,18 @@ BOOLEAN FspFsvolDeviceVolumePrefixInString(PDEVICE_OBJECT DeviceObject, PUNICODE
     return RtlPrefixUnicodeString(&FspFsvolDeviceExtension(DeviceObject)->VolumePrefix, String,
         TRUE);
 }
+static inline
+VOID FspFsmupDeviceLockPrefixTable(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSMUP_DEVICE_EXTENSION *FsmupDeviceExtension = FspFsmupDeviceExtension(DeviceObject);
+    ExAcquireFastMutexUnsafe(&FsmupDeviceExtension->PrefixTableMutex);
+}
+static inline
+VOID FspFsmupDeviceUnlockPrefixTable(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSMUP_DEVICE_EXTENSION *FsmupDeviceExtension = FspFsmupDeviceExtension(DeviceObject);
+    ExReleaseFastMutexUnsafe(&FsmupDeviceExtension->PrefixTableMutex);
+}
 NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
@@ -1448,14 +1460,14 @@ VOID FspDeviceStopTimer(PDEVICE_OBJECT DeviceObject);
 static inline
 VOID FspDeviceGlobalLock(VOID)
 {
-    extern ERESOURCE FspDeviceGlobalResource;
-    ExAcquireResourceExclusiveLite(&FspDeviceGlobalResource, TRUE);
+    extern FAST_MUTEX FspDeviceGlobalMutex;
+    ExAcquireFastMutexUnsafe(&FspDeviceGlobalMutex);
 }
 static inline
 VOID FspDeviceGlobalUnlock(VOID)
 {
-    extern ERESOURCE FspDeviceGlobalResource;
-    ExReleaseResourceLite(&FspDeviceGlobalResource);
+    extern FAST_MUTEX FspDeviceGlobalMutex;
+    ExReleaseFastMutexUnsafe(&FspDeviceGlobalMutex);
 }
 #define FspFsvolDeviceStatistics(DeviceObject)\
     FspStatistics(FspFsvolDeviceExtension(DeviceObject)->Statistics)
@@ -1596,7 +1608,7 @@ typedef struct FSP_FILE_NODE
     /* interlocked access */
     LONG RefCount;
     UINT32 DeletePending;
-    /* locked under FSP_FSVOL_DEVICE_EXTENSION::ContextTableResource */
+    /* locked under FSP_FSVOL_DEVICE_EXTENSION::ContextTableMutex */
     LONG ActiveCount;                   /* CREATE w/o CLOSE count */
     LONG OpenCount;                     /* ContextTable ref count */
     LONG HandleCount;                   /* HANDLE count (CREATE/CLEANUP) */
@@ -1960,7 +1972,7 @@ extern FAST_IO_DISPATCH FspFastIoDispatch;
 extern CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
 extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
-extern ERESOURCE FspDeviceGlobalResource;
+extern FAST_MUTEX FspDeviceGlobalMutex;
 extern WCHAR FspFileDescDirectoryPatternMatchAll[];
 extern const GUID FspMainFileOpenEcpGuid;
 extern ULONG FspProcessorCount;
