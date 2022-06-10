@@ -490,12 +490,12 @@ static VOID FspVolumeDeleteNoLock(
         FspMupUnregister(Globals->FsmupDeviceObject, FsvolDeviceObject);
     }
 
-    ExAcquireFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
+    FspFsvolDeviceLockVolumeNotify(FsvolDeviceObject);
     if (1 <= FsvolDeviceExtension->VolumeNotifyCount)
         FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject,
             &FsvolDeviceExtension->VolumeNotifyCount);
     FsvolDeviceExtension->VolumeNotifyCount = -1;
-    ExReleaseFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
+    FspFsvolDeviceUnlockVolumeNotify(FsvolDeviceObject);
 
     /* release the volume device object */
     FspDeviceDereference(FsvolDeviceObject);
@@ -1257,7 +1257,7 @@ static NTSTATUS FspVolumeNotifyLock(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     NTSTATUS Result = STATUS_SUCCESS;
 
-    ExAcquireFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
+    FspFsvolDeviceLockVolumeNotify(FsvolDeviceObject);
     if (0 == FsvolDeviceExtension->VolumeNotifyCount)
     {
         if (FspFsvolDeviceFileRenameTryAcquireShared(FsvolDeviceObject))
@@ -1271,7 +1271,7 @@ static NTSTATUS FspVolumeNotifyLock(
     }
     else if (0 < FsvolDeviceExtension->VolumeNotifyCount)
         FsvolDeviceExtension->VolumeNotifyCount++;
-    ExReleaseFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
+    FspFsvolDeviceUnlockVolumeNotify(FsvolDeviceObject);
 
     FspDeviceDereference(FsvolDeviceObject);
 
@@ -1369,7 +1369,7 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
     
     if (Unlock)
     {
-        ExAcquireFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
+        FspFsvolDeviceLockVolumeNotify(FsvolDeviceObject);
         if (1 == FsvolDeviceExtension->VolumeNotifyCount)
         {
             FspFsvolDeviceFileRenameReleaseOwner(FsvolDeviceObject,
@@ -1378,7 +1378,7 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
         }
         else if (1 < FsvolDeviceExtension->VolumeNotifyCount)
             FsvolDeviceExtension->VolumeNotifyCount--;
-        ExReleaseFastMutex(&FsvolDeviceExtension->VolumeNotifyMutex);
+        FspFsvolDeviceUnlockVolumeNotify(FsvolDeviceObject);
     }
 
     FspFsvolDeviceVolumeDeleteReleaseOwner(FsvolDeviceObject, NotifyWorkItem);
