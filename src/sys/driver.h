@@ -1280,16 +1280,71 @@ NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceReference(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDereference(PDEVICE_OBJECT DeviceObject);
-VOID FspFsvolDeviceFileRenameAcquireShared(PDEVICE_OBJECT DeviceObject);
-BOOLEAN FspFsvolDeviceFileRenameTryAcquireShared(PDEVICE_OBJECT DeviceObject);
-VOID FspFsvolDeviceFileRenameAcquireExclusive(PDEVICE_OBJECT DeviceObject);
-BOOLEAN FspFsvolDeviceFileRenameTryAcquireExclusive(PDEVICE_OBJECT DeviceObject);
-VOID FspFsvolDeviceFileRenameSetOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
-VOID FspFsvolDeviceFileRenameRelease(PDEVICE_OBJECT DeviceObject);
-VOID FspFsvolDeviceFileRenameReleaseOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner);
-BOOLEAN FspFsvolDeviceFileRenameIsAcquiredExclusive(PDEVICE_OBJECT DeviceObject);
-VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject);
-VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject);
+static inline
+VOID FspFsvolDeviceFileRenameAcquireShared(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    ExAcquireResourceSharedLite(&FsvolDeviceExtension->FileRenameResource, TRUE);
+}
+static inline
+BOOLEAN FspFsvolDeviceFileRenameTryAcquireShared(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    return ExAcquireResourceSharedLite(&FsvolDeviceExtension->FileRenameResource, FALSE);
+}
+static inline
+VOID FspFsvolDeviceFileRenameAcquireExclusive(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->FileRenameResource, TRUE);
+}
+static inline
+BOOLEAN FspFsvolDeviceFileRenameTryAcquireExclusive(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    return ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->FileRenameResource, FALSE);
+}
+static inline
+VOID FspFsvolDeviceFileRenameSetOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    Owner = (PVOID)((UINT_PTR)Owner | 3);
+    ExSetResourceOwnerPointer(&FsvolDeviceExtension->FileRenameResource, Owner);
+}
+static inline
+VOID FspFsvolDeviceFileRenameRelease(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    ExReleaseResourceLite(&FsvolDeviceExtension->FileRenameResource);
+}
+static inline
+VOID FspFsvolDeviceFileRenameReleaseOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    Owner = (PVOID)((UINT_PTR)Owner | 3);
+    if (ExIsResourceAcquiredLite(&FsvolDeviceExtension->FileRenameResource))
+        ExReleaseResourceLite(&FsvolDeviceExtension->FileRenameResource);
+    else
+        ExReleaseResourceForThreadLite(&FsvolDeviceExtension->FileRenameResource, (ERESOURCE_THREAD)Owner);
+}
+static inline
+BOOLEAN FspFsvolDeviceFileRenameIsAcquiredExclusive(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    return ExIsResourceAcquiredExclusiveLite(&FsvolDeviceExtension->FileRenameResource);
+}
+static inline
+VOID FspFsvolDeviceLockContextTable(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->ContextTableResource, TRUE);
+}
+static inline
+VOID FspFsvolDeviceUnlockContextTable(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    ExReleaseResourceLite(&FsvolDeviceExtension->ContextTableResource);
+}
 NTSTATUS FspFsvolDeviceCopyContextList(PDEVICE_OBJECT DeviceObject,
     PVOID **PContexts, PULONG PContextCount);
 NTSTATUS FspFsvolDeviceCopyContextByNameList(PDEVICE_OBJECT DeviceObject,
