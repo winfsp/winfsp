@@ -1,141 +1,96 @@
-<h1 align="center">
-    <img src="art/winfsp-glow.png" width="256"/>
-    <br/>
-    <br/>
-    WinFsp &middot; Windows File System Proxy
-</h1>
+<h1 align="center">WinFsp &middot; Windows File System Proxy</h1>
 
 <p align="center">
-    <b>Download</b><br>
+    <img src="art/winfsp-glow.png" width="128"/>
+    <br/>
+    <br/>
+    <i>WinFsp enables developers to write their own file systems (i.e. "Windows drives") as user mode programs and without any knowledge of Windows kernel programming. It is similar to FUSE (Filesystem in Userspace) for Linux and other UNIX-like computers.</i>
+    <br/>
+    <br/>
+    <a href="https://winfsp.dev"><b>winfsp.dev</b></a>
+    <br/>
+    <br/>
     <a href="https://github.com/winfsp/winfsp/releases/latest">
-        <img src="https://img.shields.io/github/release/winfsp/winfsp.svg?label=stable&style=for-the-badge"/>
+        <img src="https://img.shields.io/github/release/winfsp/winfsp.svg?label=stable&style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0ODAgNDgwIj48cGF0aCBkPSJNMzg3LjAwMiAyMDEuMDAxQzM3Mi45OTggMTMyLjAwMiAzMTIuOTk4IDgwIDI0MCA4MGMtNTcuOTk4IDAtMTA3Ljk5OCAzMi45OTgtMTMyLjk5OCA4MS4wMDFDNDcuMDAyIDE2Ny4wMDIgMCAyMTcuOTk4IDAgMjgwYzAgNjUuOTk2IDUzLjk5OSAxMjAgMTIwIDEyMGgyNjBjNTUgMCAxMDAtNDUgMTAwLTEwMCAwLTUyLjk5OC00MC45OTYtOTYuMDAxLTkyLjk5OC05OC45OTl6TTIwOCAyNTJ2LTc2aDY0djc2aDY4TDI0MCAzNTIgMTQwIDI1Mmg2OHoiIGZpbGw9IiNmZmYiLz48L3N2Zz4="/>
     </a>
     <a href="https://github.com/winfsp/winfsp/releases">
-        <img src="https://img.shields.io/github/release/winfsp/winfsp/all.svg?label=latest&colorB=e52e4b&style=for-the-badge"/>
+        <img src="https://img.shields.io/github/release/winfsp/winfsp/all.svg?label=latest&colorB=e52e4b&style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0ODAgNDgwIj48cGF0aCBkPSJNMzg3LjAwMiAyMDEuMDAxQzM3Mi45OTggMTMyLjAwMiAzMTIuOTk4IDgwIDI0MCA4MGMtNTcuOTk4IDAtMTA3Ljk5OCAzMi45OTgtMTMyLjk5OCA4MS4wMDFDNDcuMDAyIDE2Ny4wMDIgMCAyMTcuOTk4IDAgMjgwYzAgNjUuOTk2IDUzLjk5OSAxMjAgMTIwIDEyMGgyNjBjNTUgMCAxMDAtNDUgMTAwLTEwMCAwLTUyLjk5OC00MC45OTYtOTYuMDAxLTkyLjk5OC05OC45OTl6TTIwOCAyNTJ2LTc2aDY0djc2aDY4TDI0MCAzNTIgMTQwIDI1Mmg2OHoiIGZpbGw9IiNmZmYiLz48L3N2Zz4="/>
     </a>
     <a href="https://chocolatey.org/packages/winfsp">
         <img src="https://img.shields.io/badge/choco-install%20winfsp-black.svg?style=for-the-badge"/>
     </a>
     <br/>
     <br/>
-    <a href="https://ci.appveyor.com/project/billziss-gh/winfsp">
-        <img src="https://img.shields.io/appveyor/ci/billziss-gh/winfsp.svg"/>
-    </a>
-    <br/>
-    <br/>
-    WinFsp is a set of software components for Windows computers that allows the creation of user mode file systems. In this sense it is similar to FUSE (Filesystem in Userspace), which provides the same functionality on UNIX-like computers.
-    <br/>
-    <br/>
     <img src="doc/cap.gif" height="450"/>
+    <br/>
+    <br/>
 </p>
+
+<hr/>
+
+## Overview
+
+WinFsp is system software that provides runtime and development support for custom file systems on Windows computers. Typically any information or storage may be organized and presented as a file system via WinFsp, with the benefit being that the information can be accessed via the standand Windows file API’s by any Windows application.
+
+The core WinFsp consists of a kernel mode file system driver (FSD) and a user mode DLL that provides an API for developers. This API allows developers to handle Windows file system functions easily. For example, when an application attempts to open a file, WinFsp will call an `Open` function with the necessary information.
+
+The WinFsp package also includes development resources and additional tools to help with developing and managing user mode file systems.
 
 ## Benefits
 
-### Stability
+**Stability**: Stable software without any known kernel mode crashes, resource leaks or similar problems. WinFsp owes this stability to its [Design](doc/WinFsp-Design.asciidoc) and its rigorous [Testing Regime](doc/WinFsp-Testing.asciidoc).
 
-WinFsp is very stable. There are no known kernel mode crashes and it does not suffer from resource leaks or similar problems. WinFsp owes this stability to its [Design](doc/WinFsp-Design.asciidoc) and its rigorous [Testing Regime](doc/WinFsp-Testing.asciidoc).
+**Correctness**: Strives for file system correctness and compatibility with NTFS. For details see the [Compatibility](doc/NTFS-Compatibility.asciidoc) document.
 
-### Performance
-
-WinFsp outperforms its competition and in many scenarios performs as well as NTFS. Read more about its [Performance](doc/WinFsp-Performance-Testing.asciidoc).
+**Performance**: Has excellent performance that rivals or exceeds that of NTFS in many file system scenarios. Read more about its [Performance](doc/WinFsp-Performance-Testing.asciidoc).
 
 <p align="center">
     <img src="doc/WinFsp-Performance-Testing/file_tests.png" height="300"/>
     <img src="doc/WinFsp-Performance-Testing/rdwr_tests.png" height="300"/>
 </p>
 
-### Compatibility
+**Wide support**: Supports Windows 7 to Windows 11 and the x86, x64 and ARM64 architectures.
 
-WinFsp strives for compatibility with NTFS and file system correctness. For the full details see the [Compatibility](doc/NTFS-Compatibility.asciidoc) document.
+**Flexible API**: Flexible, comprehensive and easy to use API. This [Tutorial](doc/WinFsp-Tutorial.asciidoc) explains how to build a file system.
 
-### Easy to Use
+- Native [API Reference](https://winfsp.dev/apiref)
 
-WinFsp has an easy to use but comprehensive API.
+- .NET layer for managed development. See [src/dotnet](src/dotnet)
 
-* This simple [Tutorial](doc/WinFsp-Tutorial.asciidoc) explains how to build a file system.
-* Consult the [API Reference](https://winfsp.dev/apiref) for native development.
-* Includes .NET layer for managed development. See [src/dotnet](src/dotnet).
-* Includes FUSE 2.8 compatibility layer: [fuse/fuse.h](inc/fuse/fuse.h)
-* Includes FUSE 3.2 compatibility layer: [fuse3/fuse.h](inc/fuse3/fuse.h)
+- FUSE 2.8 compatibility layer: [fuse/fuse.h](inc/fuse/fuse.h)
 
-### Other Benefits
+- FUSE 3.2 compatibility layer: [fuse3/fuse.h](inc/fuse3/fuse.h)
 
-* Signed drivers provided on every release.
-* Available under the [GPLv3](License.txt) license with a special exception for Free/Libre and Open Source Software.
+- Wrapper libraries for other languages and environments also exist. See the [Known File Systems and File System Libraries](doc/Known-File-Systems.asciidoc) document.
 
-To learn more about WinFsp, please visit its website: https://winfsp.dev
+**Shell integration**: Provides facilities to integrate user mode file systems with the Windows shell. See the [Service Architecture](doc/WinFsp-Service-Architecture.asciidoc) document.
 
-## Project Organization
+**Self-contained**: Self-contained software without external dependencies.
 
-The project source code is organized as follows:
+**Widely used**: Used in many open-source and commercial applications with millions of installations (estimated: the WinFsp project does not track its users).
 
-* :file_folder: [build/VStudio](build/VStudio): WinFsp solution and project files.
-* :file_folder: [doc](doc): The WinFsp design documents and additional documentation can be found here.
-* :file_folder: [ext](ext): External dependencies.
-    * :file_folder: [ext/tlib](ext/tlib): A small test library originally from the secfs (Secure Cloud File System) project.
-    * :file_folder: ext/test: Submodule pointing to the secfs.test project, which contains a number of tools for testing Windows and POSIX file systems.
-* :file_folder: [inc](inc): Public headers.
-    * :file_folder: [inc/fuse](inc/fuse): Public headers for the FUSE compatibility layer.
-    * :file_folder: [inc/fuse3](inc/fuse3): Public headers for the FUSE3 compatibility layer.
-    * :file_folder: [inc/winfsp](inc/winfsp): Public headers for the WinFsp API.
-* :file_folder: [src](src): WinFsp source code.
-    * :file_folder: [src/dll](src/dll): Source code to the WinFsp DLL.
-    * :file_folder: [src/dll/fuse](src/dll/fuse): Source code to the FUSE compatibility layer.
-    * :file_folder: [src/dll/fuse3](src/dll/fuse3): Source code to the FUSE3 compatibility layer.
-    * :file_folder: [src/dotnet](src/dotnet): Source code to the .NET layer.
-    * :file_folder: [src/fsptool](src/fsptool): Source code to fsptool command line utility.
-    * :file_folder: [src/ku](src/ku): Source code that can be used from kernel or user mode.
-    * :file_folder: [src/launcher](src/launcher): Source code to the launcher service and the launchctl utility.
-    * :file_folder: [src/sys](src/sys): Source code to the WinFsp FSD.
-* :file_folder: [opt/cygfuse](opt/cygfuse): Source code to the FUSE for Cygwin package.
-* :file_folder: [tst](tst): Source code to example file systems and test suites.
-    * :file_folder: [tst/winfsp-tests](tst/winfsp-tests): WinFsp test suite.
-* :file_folder: [tools](tools): Various tools for building and testing WinFsp.
+**Flexible licensing**: Available under the [GPLv3](License.txt) license with a special exception for Free/Libre and Open Source Software. A commercial license is also available. Please contact Bill Zissimopoulos \<billziss at navimatics.com> for more details.
 
-## Building and Running
+## Installation
 
-In order to build WinFsp you will need the following:
+Download and run the [WinFsp installer](https://github.com/winfsp/winfsp/releases/latest).
 
-* Visual Studio 2015 - 2019
-* Windows Driver Kit (WDK) 10
-    - **NOTE**: When using the latest WDK (Windows 10.0.18362.1) with Visual Studio 2015 you may get an error about a missing task `ValidateNTTargetVersion`. The fix is to edit the file `\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets` and modify the `UsingTask` line for `ValidateNTTargetVersion` as follows:
-        ```
-        <UsingTask TaskName="ValidateNTTargetVersion" AssemblyFile="$(WDKContentRoot)build\bin\Microsoft.DriverKit.Build.Tasks.16.0.dll"/>
-        ```
-* [Wix toolset](http://wixtoolset.org)
+In the installer select the option to install the developer files. These include the MEMFS sample file system, but also header and library files that let you develop your own user-mode file system.
 
-To fully build WinFsp (including the installer) you must use `tools\build.bat`. By default it builds a Release build, but you can choose either the Debug or Release configuration by using the syntax:
+You should not need to reboot, unless WinFsp was already running on your system.
 
-    tools\build.bat CONFIGURATION
+<img src="doc/WinFsp-Tutorial/Installer.png" height="290"/>
 
-If you build the driver yourself it will not be signed and Windows will refuse to load it unless you enable "testsigning". You can enable "testsigning" using the command `bcdedit.exe -set testsigning on`. For more information see this [document](doc/WinFsp-Debugging-Setup.asciidoc).
+## Resources
 
-WinFsp is designed to run on Windows 7 and above. It has been tested on the following platforms:
+**Documentation**:
 
-* Windows 7 Enterprise
-* Windows 8 Pro
-* Windows Server 2012
-* Windows 10 Pro
-* Windows Server 2016
-* Windows 11 Pro
+- Project [wiki](https://github.com/winfsp/winfsp/wiki) (most up-to-date)
 
-## How to Help
+- Project [website](https://winfsp.dev/doc/)
 
-I am looking for help in the following areas:
-
-* If you have a file system that runs on FUSE please consider porting it to WinFsp. WinFsp has a native API, but it also has a FUSE (high-level) API.
-* If you are working with a language other than C/C++ (e.g. Delphi, Java, etc.) and you are interested in porting/wrapping WinFsp I would love to hear from you.
-* There are a number of outstanding issues listed in the [GitHub repository](https://github.com/winfsp/winfsp/issues). Many of these require knowledge of Windows kernel-mode and an understanding of the internals of WinFsp so they are not for the faint of heart.
-
-In all cases I can provide ideas and/or support.
-
-## Where to Discuss
-
-If you wish to discuss WinFsp there are now two options:
+**Discuss**:
 
 - [WinFsp Google Group](https://groups.google.com/forum/#!forum/winfsp)
+
 - [Author's Twitter](https://twitter.com/BZissimopoulos)
-
-## License
-
-WinFsp is available under the [GPLv3](License.txt) license with a special exception for Free/Libre and Open Source Software. A commercial license is also available. Please contact Bill Zissimopoulos \<billziss at navimatics.com> for more details.
