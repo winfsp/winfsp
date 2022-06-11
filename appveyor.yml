@@ -1,6 +1,13 @@
 version: '{build}'
 
 skip_tags: true
+skip_commits:
+  files:
+  - README.md
+  - Changelog.md
+  - Contributors.asciidoc
+  - art/**
+  - doc/**
 
 environment:
   # Disable the winfsp-tests built-in exception filter to allow WER to collect dumps.
