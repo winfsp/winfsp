@@ -53,7 +53,7 @@ The WinFsp package also includes development resources and additional tools to h
 
 **Flexible API**: Flexible, comprehensive and easy to use API. This [Tutorial](doc/WinFsp-Tutorial.asciidoc) explains how to build a file system.
 
-- Native [API Reference](https://winfsp.dev/apiref)
+- Native [API Reference](doc/WinFsp-API-winfsp.h.md)
 
 - .NET layer for managed development. See [src/dotnet](src/dotnet)
 
