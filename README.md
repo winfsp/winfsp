@@ -30,13 +30,13 @@
 
 ## Overview
 
-WinFsp is system software that provides runtime and development support for custom file systems on Windows computers. Typically any information or storage may be organized and presented as a file system via WinFsp, with the benefit being that the information can be accessed via the standand Windows file API’s by any Windows application.
+WinFsp is a platform that provides development and runtime support for custom file systems on Windows computers. Typically any information or storage may be organized and presented as a file system via WinFsp, with the benefit being that the information can be accessed via the standand Windows file API’s by any Windows application.
 
-The core WinFsp consists of a kernel mode file system driver (FSD) and a user mode DLL that provides an API for developers. This API allows developers to handle Windows file system functions easily. For example, when an application attempts to open a file, WinFsp will call an `Open` function with the necessary information.
+The core WinFsp consists of a kernel mode file system driver (FSD) and a user mode DLL. The FSD interfaces with the Windows kernel and handles all interactions necessary to present itself as a file system driver. The DLL interfaces with the FSD and presents an API that can be used to handle file system functions. For example, when an application attempts to open a file, the file system receives an `Open` call with the necessary information.
 
-The WinFsp package also includes development resources and additional tools to help with developing and managing user mode file systems.
+Using WinFsp to build a file system has many benefits:
 
-## Benefits
+**Easy development**: Developing kernel mode file systems for Windows is a notoriously difficult task. WinFsp makes file system development relatively painless. This [Tutorial](doc/WinFsp-Tutorial.asciidoc) explains how to build a file system.
 
 **Stability**: Stable software without any known kernel mode crashes, resource leaks or similar problems. WinFsp owes this stability to its [Design](doc/WinFsp-Design.asciidoc) and its rigorous [Testing Regime](doc/WinFsp-Testing.asciidoc).
 
@@ -51,17 +51,7 @@ The WinFsp package also includes development resources and additional tools to h
 
 **Wide support**: Supports Windows 7 to Windows 11 and the x86, x64 and ARM64 architectures.
 
-**Flexible API**: Flexible, comprehensive and easy to use API. This [Tutorial](doc/WinFsp-Tutorial.asciidoc) explains how to build a file system.
-
-- Native [API Reference](doc/WinFsp-API-winfsp.h.md)
-
-- .NET layer for managed development. See [src/dotnet](src/dotnet)
-
-- FUSE 2.8 compatibility layer: [fuse/fuse.h](inc/fuse/fuse.h)
-
-- FUSE 3.2 compatibility layer: [fuse3/fuse.h](inc/fuse3/fuse.h)
-
-- Wrapper libraries for other languages and environments also exist. See the [Known File Systems and File System Libraries](doc/Known-File-Systems.asciidoc) document.
+**Flexible API**: Includes Native, FUSE2, FUSE3 and .NET API's.
 
 **Shell integration**: Provides facilities to integrate user mode file systems with the Windows shell. See the [Service Architecture](doc/WinFsp-Service-Architecture.asciidoc) document.
 
@@ -73,23 +63,51 @@ The WinFsp package also includes development resources and additional tools to h
 
 ## Installation
 
-Download and run the [WinFsp installer](https://github.com/winfsp/winfsp/releases/latest).
-
-In the installer select the option to install the developer files. These include the MEMFS sample file system, but also header and library files that let you develop your own user-mode file system.
-
-You should not need to reboot, unless WinFsp was already running on your system.
+Download and run the [WinFsp installer](https://github.com/winfsp/winfsp/releases/latest). In the installer select the option to install the "Developer" files. These include the MEMFS sample file system, but also header and library files that let you develop your own user-mode file system.
 
 <img src="doc/WinFsp-Tutorial/Installer.png" height="290"/>
+
+### Launch a file system for testing
+
+You can test WinFsp by launching MEMFS from the command line:
+
+```
+billziss@xps ⟩ ~ ⟩ net use X: \\memfs64\test
+The command completed successfully.
+
+billziss@xps ⟩ ~ ⟩ X:
+billziss@xps ⟩ X:\ ⟩ echo "hello world" > hello.txt
+billziss@xps ⟩ X:\ ⟩ dir
+
+
+    Directory: X:\
+
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-a----         6/12/2022   5:15 PM             28 hello.txt
+
+
+billziss@xps ⟩ X:\ ⟩ type hello.txt
+hello world
+billziss@xps ⟩ X:\ ⟩ cd ~
+billziss@xps ⟩ ~ ⟩ net use X: /delete
+X: was deleted successfully.
+```
+
+MEMFS (and all file systems that use the WinFsp Launcher as documented in the [Service Architecture](doc/WinFsp-Service-Architecture.asciidoc) document) can also be launched from Explorer using the "Map Network Drive" functionality.
 
 ## Resources
 
 **Documentation**:
 
-- Project [wiki](https://github.com/winfsp/winfsp/wiki) (most up-to-date)
+- [Tutorial](doc/WinFsp-Tutorial.asciidoc)
 
-- Project [website](https://winfsp.dev/doc/)
+- [API Reference](doc/WinFsp-API-winfsp.h.md)
 
-**Discuss**:
+- [Project wiki](https://github.com/winfsp/winfsp/wiki)
+
+**Discussion**:
 
 - [WinFsp Google Group](https://groups.google.com/forum/#!forum/winfsp)
 
