@@ -1,0 +1,59 @@
+= WinFsp Building
+
+This document provides instructions on building WinFsp and describes the WinFsp project structure.
+
+== Building
+
+In order to build WinFsp you will need the following:
+
+* Visual Studio 2019
+* Windows Driver Kit (WDK)
+* https://wixtoolset.org[Wix toolset]
+
+Use the command `tools\build.bat Release` to produce a full build (including the installer). However the resulting product will not be properly signed and Windows will refuse to load the WinFsp driver, unless you enable testsigning with `bcdedit -set testsigning on`.
+
+Producing a fully functional build requires an EV certificate and a Partner Center for Windows Hardware account. Assuming you have those, the steps to produce a full build are as follows:
+
+* Produce a build signed with your EV certificate using `tools\build.bat Release`.
+* Upload the signed `driver.cab` file to Microsoft for "attestation signing".
+* Download the now Microsoft-signed `driver.cab` file and extract it into a folder (e.g. `signed-drivers`).
+* Re-run the build using `tools\build.bat Release PATH\TO\signed-drivers`
+
+== Versioning
+
+WinFsp versioning (and branding) is controlled by the file `build\VStudio\build.version.props`. See the link:WinFsp-Rebranding.asciidoc[WinFsp Rebranding] document for details.
+
+== Project Structure
+
+The WinFsp project is structured as follows:
+
+* 📁 https://github.com/winfsp/winfsp/tree/master/art[art]: Project logo and other art.
+* 📁 https://github.com/winfsp/winfsp/tree/master/build[build]: Project build files.
+** 📁 https://github.com/winfsp/winfsp/tree/master/build/choco[choco]: Chocolatey package files.
+** 📁 https://github.com/winfsp/winfsp/tree/master/build/VStudio[VStudio]: Visual Studio solution and project files.
+* 📁 https://github.com/winfsp/winfsp/tree/master/doc[doc]: Project documentation.
+* 📁 https://github.com/winfsp/winfsp/tree/master/ext[ext]: External dependencies.
+** 📁 https://github.com/winfsp/winfsp/tree/master/ext/tlib[tlib]: Test library for C originally from the secfs project.
+** 📁 https://github.com/winfsp/winfsp/tree/master/ext/test[test]: Submodule containing additional file system testing tools.
+* 📁 https://github.com/winfsp/winfsp/tree/master/inc[inc]: Public headers.
+** 📁 https://github.com/winfsp/winfsp/tree/master/inc/fuse[fuse]: Public headers for the FUSE compatibility layer.
+** 📁 https://github.com/winfsp/winfsp/tree/master/inc/fuse3[fuse3]: Public headers for the FUSE3 compatibility layer.
+** 📁 https://github.com/winfsp/winfsp/tree/master/inc/winfsp[winfsp]: Public headers for the WinFsp API.
+* 📁 https://github.com/winfsp/winfsp/tree/master/opt[opt]: Additional source code and files.
+** 📁 https://github.com/winfsp/winfsp/tree/master/opt/cygfuse[cygfuse]: Source code for the FUSE for Cygwin package.
+** 📁 https://github.com/winfsp/winfsp/tree/master/opt/fsext[fsext]: Source code for the fsext package.
+* 📁 https://github.com/winfsp/winfsp/tree/master/src[src]: Project source code.
+** 📁 https://github.com/winfsp/winfsp/tree/master/src/dll[dll]: Source code for the WinFsp DLL.
+*** 📁 https://github.com/winfsp/winfsp/tree/master/src/dll/fuse[fuse]: Source code for the FUSE compatibility layer.
+*** 📁 https://github.com/winfsp/winfsp/tree/master/src/dll/fuse3[fuse3]: Source code for the FUSE3 compatibility layer.
+** 📁 https://github.com/winfsp/winfsp/tree/master/src/dotnet[dotnet]: Source code for the .NET layer.
+** 📁 https://github.com/winfsp/winfsp/tree/master/src/fsptool[fsptool]: Source code for the fsptool command line utility.
+** 📁 https://github.com/winfsp/winfsp/tree/master/src/launcher[launcher]: Source code for the launcher and the launchctl utility.
+** 📁 https://github.com/winfsp/winfsp/tree/master/src/shared[shared]: Shared source code.
+*** 📁 https://github.com/winfsp/winfsp/tree/master/src/shared/ku[ku]: Shared source code for kernel and user mode.
+*** 📁 https://github.com/winfsp/winfsp/tree/master/src/shared/um[um]: Shared source code for user mode only.
+** 📁 https://github.com/winfsp/winfsp/tree/master/src/sys[sys]: Source code for the WinFsp FSD.
+* 📁 https://github.com/winfsp/winfsp/tree/master/tools[tools]: Tools for building and testing WinFsp.
+* 📁 https://github.com/winfsp/winfsp/tree/master/tst[tst]: Source code for example file systems and test suites.
+** 📁 https://github.com/winfsp/winfsp/tree/master/tst/memfs[memfs]: The MEMFS reference file system.
+** 📁 https://github.com/winfsp/winfsp/tree/master/tst/winfsp-tests[winfsp-tests]: The primary WinFsp test suite.

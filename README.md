@@ -105,6 +105,8 @@ MEMFS (and all file systems that use the WinFsp Launcher as documented in the [S
 
 - [API Reference](doc/WinFsp-API-winfsp.h.md)
 
+- [Building](doc/WinFsp-Building.asciidoc)
+
 - [Project wiki](https://github.com/winfsp/winfsp/wiki)
 
 **Discussion**:
