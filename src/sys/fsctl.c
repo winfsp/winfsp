@@ -81,6 +81,10 @@ static NTSTATUS FspFsctlFileSystemControl(
             if (0 != IrpSp->FileObject->FsContext2)
                 Result = FspVolumeMakeMountdev(FsctlDeviceObject, Irp, IrpSp);
             break;
+        case FSP_FSCTL_MOUNTMGR:
+            if (0 != IrpSp->FileObject->FsContext2)
+                Result = FspVolumeUseMountmgr(FsctlDeviceObject, Irp, IrpSp);
+            break;
         case FSP_FSCTL_VOLUME_NAME:
             if (0 != IrpSp->FileObject->FsContext2)
                 Result = FspVolumeGetName(FsctlDeviceObject, Irp, IrpSp);

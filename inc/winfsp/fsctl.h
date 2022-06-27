@@ -91,6 +91,8 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
 /* fsctl device codes */
 #define FSP_FSCTL_MOUNTDEV              \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'M', METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define FSP_FSCTL_MOUNTMGR              \
+    CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'm', METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSP_FSCTL_VOLUME_NAME           \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'N', METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define FSP_FSCTL_VOLUME_LIST           \
@@ -679,6 +681,8 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     PHANDLE PVolumeHandle);
 FSP_API NTSTATUS FspFsctlMakeMountdev(HANDLE VolumeHandle,
     BOOLEAN Persistent, GUID *UniqueId);
+FSP_API NTSTATUS FspFsctlUseMountmgr(HANDLE VolumeHandle,
+    PWSTR MountPoint);
 FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     PVOID ResponseBuf, SIZE_T ResponseBufSize,
     PVOID RequestBuf, SIZE_T *PRequestBufSize,

@@ -1232,13 +1232,18 @@ typedef struct
 } FSP_FSVOL_DEVICE_EXTENSION;
 typedef struct
 {
+    /* read-only after creation (and insertion in the ContextTable) */
     FSP_DEVICE_EXTENSION Base;
     UINT16 SectorSize;
-    LONG IsMountdev;
-    BOOLEAN Persistent;
-    GUID UniqueId;
     UNICODE_STRING VolumeName;
     WCHAR VolumeNameBuf[FSP_FSCTL_VOLUME_NAME_SIZE / sizeof(WCHAR)];
+    FAST_MUTEX MountMutex;
+    /* interlocked access */
+    LONG IsMountdev;
+    /* protected under MountMutex */
+    BOOLEAN Persistent;
+    GUID UniqueId;
+    UNICODE_STRING MountPoint;
 } FSP_FSVRT_DEVICE_EXTENSION;
 typedef struct
 {
@@ -1435,6 +1440,18 @@ BOOLEAN FspFsvolDeviceVolumePrefixInString(PDEVICE_OBJECT DeviceObject, PUNICODE
         TRUE);
 }
 static inline
+VOID FspFsvrtDeviceLockMount(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
+    ExAcquireFastMutexUnsafe(&FsvrtDeviceExtension->MountMutex);
+}
+static inline
+VOID FspFsvrtDeviceUnlockMount(PDEVICE_OBJECT DeviceObject)
+{
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
+    ExReleaseFastMutexUnsafe(&FsvrtDeviceExtension->MountMutex);
+}
+static inline
 VOID FspFsmupDeviceLockPrefixTable(PDEVICE_OBJECT DeviceObject)
 {
     FSP_FSMUP_DEVICE_EXTENSION *FsmupDeviceExtension = FspFsmupDeviceExtension(DeviceObject);
@@ -1524,6 +1541,16 @@ NTSTATUS FspMountdevMake(
 VOID FspMountdevFini(
     PDEVICE_OBJECT FsvrtDeviceObject);
 
+/* mountmgr */
+NTSTATUS FspMountmgrCreateDrive(
+    PUNICODE_STRING VolumeName, GUID *UniqueId, PUNICODE_STRING MountPoint);
+NTSTATUS FspMountmgrDeleteDrive(
+    PUNICODE_STRING MountPoint);
+NTSTATUS FspMountmgrNotifyCreateDirectory(
+    PUNICODE_STRING VolumeName, GUID *UniqueId, PUNICODE_STRING MountPoint);
+NTSTATUS FspMountmgrNotifyDeleteDirectory(
+    PUNICODE_STRING VolumeName, PUNICODE_STRING MountPoint);
+
 /* fsmup */
 NTSTATUS FspMupRegister(
     PDEVICE_OBJECT FsmupDeviceObject, PDEVICE_OBJECT FsvolDeviceObject);
@@ -1542,6 +1569,8 @@ VOID FspVolumeDelete(
 NTSTATUS FspVolumeMount(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeMakeMountdev(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeUseMountmgr(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);

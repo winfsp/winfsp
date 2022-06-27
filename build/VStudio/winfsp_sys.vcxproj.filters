@@ -131,6 +131,9 @@
     <ClCompile Include="..\..\src\sys\devtimer.c">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\shared\ku\mountmgr.c">
+      <Filter>Source\shared\ku</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\sys\driver.h">

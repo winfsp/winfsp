@@ -38,6 +38,8 @@ static NTSTATUS FspVolumeMountNoLock(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeMakeMountdev(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+NTSTATUS FspVolumeUseMountmgr(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetName(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 NTSTATUS FspVolumeGetNameList(
@@ -76,6 +78,7 @@ NTSTATUS FspVolumeWork(
 // ! #pragma alloc_text(PAGE, FspVolumeMount)
 // ! #pragma alloc_text(PAGE, FspVolumeMountNoLock)
 #pragma alloc_text(PAGE, FspVolumeMakeMountdev)
+#pragma alloc_text(PAGE, FspVolumeUseMountmgr)
 #pragma alloc_text(PAGE, FspVolumeGetName)
 #pragma alloc_text(PAGE, FspVolumeGetNameList)
 #pragma alloc_text(PAGE, FspVolumeGetNameListNoLock)
@@ -316,8 +319,12 @@ static NTSTATUS FspVolumeCreateNoLock(
     {
         if (0 != FsvrtDeviceObject)
         {
-            FspFsvrtDeviceExtension(FsvrtDeviceObject)->SectorSize =
-                FsvolDeviceExtension->VolumeParams.SectorSize;
+            FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
+            FsvrtDeviceExtension->SectorSize = FsvolDeviceExtension->VolumeParams.SectorSize;
+            RtlInitEmptyUnicodeString(&FsvrtDeviceExtension->VolumeName,
+                FsvrtDeviceExtension->VolumeNameBuf, sizeof FsvrtDeviceExtension->VolumeNameBuf);
+            RtlCopyUnicodeString(&FsvrtDeviceExtension->VolumeName, &FsvolDeviceExtension->VolumeName);
+
             Result = FspDeviceInitialize(FsvrtDeviceObject);
         }
     }
@@ -638,7 +645,7 @@ NTSTATUS FspVolumeMakeMountdev(
     if (sizeof(GUID) > OutputBufferLength)
         return STATUS_INVALID_PARAMETER;
 
-    FspDeviceGlobalLock();
+    FspFsvrtDeviceLockMount(FsvrtDeviceObject);
 
     Result = FspMountdevMake(FsvrtDeviceObject, FsvolDeviceObject, Persistent);
     if (!NT_SUCCESS(Result))
@@ -654,7 +661,147 @@ NTSTATUS FspVolumeMakeMountdev(
     Result = STATUS_SUCCESS;
 
 exit:
-    FspDeviceGlobalUnlock();
+    FspFsvrtDeviceUnlockMount(FsvrtDeviceObject);
+
+    return Result;
+}
+
+NTSTATUS FspVolumeUseMountmgr(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
+    ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
+    ASSERT(FSP_FSCTL_MOUNTMGR == IrpSp->Parameters.FileSystemControl.FsControlCode);
+    ASSERT(0 != IrpSp->FileObject->FsContext2);
+
+    PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+    ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
+    NTSTATUS Result;
+
+    if (0 == FsvrtDeviceObject)
+        return STATUS_INVALID_PARAMETER; /* cannot only use fsvrt with mount manager */
+    if (1024 * sizeof(WCHAR) < InputBufferLength)
+        return STATUS_INVALID_PARAMETER; /* disallow very long paths */
+
+    FspFsvrtDeviceLockMount(FsvrtDeviceObject);
+
+    if (0 < InputBufferLength)
+    {
+        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
+        PWCHAR MountPointBuf = Irp->AssociatedIrp.SystemBuffer;
+        UNICODE_STRING RegPath;
+        UNICODE_STRING RegName;
+        union
+        {
+            KEY_VALUE_PARTIAL_INFORMATION V;
+            UINT8 B[FIELD_OFFSET(KEY_VALUE_PARTIAL_INFORMATION, Data) + sizeof(ULONG)];
+        } RegValue;
+        ULONG RegLength;
+        BOOLEAN Persistent = FALSE;
+
+        if (!(
+            2 * sizeof(WCHAR) <= InputBufferLength &&
+            (
+                (L'A' <= MountPointBuf[0] && MountPointBuf[0] <= L'Z') ||
+                (L'a' <= MountPointBuf[0] && MountPointBuf[0] <= L'z')
+            ) &&
+            L':' == MountPointBuf[1]
+            ))
+        {
+            Result = STATUS_INVALID_PARAMETER;
+            goto exit;
+        }
+
+        if (0 != FsvrtDeviceExtension->MountPoint.Buffer)
+        {
+            Result = STATUS_INVALID_PARAMETER;
+            goto exit;
+        }
+
+        RtlInitUnicodeString(&RegPath, L"" FSP_REGKEY);
+        RtlInitUnicodeString(&RegName, L"MountUseMountmgrFromFSD");
+        RegLength = sizeof RegValue;
+        Result = FspRegistryGetValue(&RegPath, &RegName, &RegValue.V, &RegLength);
+        if (!NT_SUCCESS(Result) || REG_DWORD != RegValue.V.Type || 1 != *(PULONG)&RegValue.V.Data)
+        {
+            Result = STATUS_ACCESS_DENIED;
+            goto exit;
+        }
+
+        Result = FspMountdevMake(FsvrtDeviceObject, FsvolDeviceObject, Persistent);
+        if (!NT_SUCCESS(Result))
+        {
+            if (STATUS_TOO_LATE != Result)
+                goto exit;
+        }
+
+        FsvrtDeviceExtension->MountPoint.Buffer = FspAllocNonPaged(InputBufferLength);
+        if (0 == FsvrtDeviceExtension->MountPoint.Buffer)
+        {
+            Result = STATUS_INSUFFICIENT_RESOURCES;
+            goto exit;
+        }
+        FsvrtDeviceExtension->MountPoint.Length =
+            FsvrtDeviceExtension->MountPoint.MaximumLength = (USHORT)InputBufferLength;
+        RtlCopyMemory(FsvrtDeviceExtension->MountPoint.Buffer, MountPointBuf, InputBufferLength);
+
+        if (2 * sizeof(WCHAR) == FsvrtDeviceExtension->MountPoint.Length)
+            Result = FspMountmgrCreateDrive(
+                &FsvrtDeviceExtension->VolumeName,
+                &FsvrtDeviceExtension->UniqueId,
+                &FsvrtDeviceExtension->MountPoint);
+        else
+            Result = FspMountmgrNotifyCreateDirectory(
+                &FsvrtDeviceExtension->VolumeName,
+                &FsvrtDeviceExtension->UniqueId,
+                &FsvrtDeviceExtension->MountPoint);
+        if (!NT_SUCCESS(Result))
+        {
+            FspFree(FsvrtDeviceExtension->MountPoint.Buffer);
+            FsvrtDeviceExtension->MountPoint.Buffer = 0;
+            FsvrtDeviceExtension->MountPoint.Length =
+                FsvrtDeviceExtension->MountPoint.MaximumLength = 0;
+            goto exit;
+        }
+
+        Irp->IoStatus.Information = 0;
+        Result = STATUS_SUCCESS;
+
+    }
+    else
+    {
+        FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
+
+        if (0 == FsvrtDeviceExtension->MountPoint.Buffer)
+        {
+            Result = STATUS_INVALID_PARAMETER;
+            goto exit;
+        }
+
+        if (2 * sizeof(WCHAR) == FsvrtDeviceExtension->MountPoint.Length)
+            Result = FspMountmgrDeleteDrive(
+                &FsvrtDeviceExtension->MountPoint);
+        else
+            Result = FspMountmgrNotifyDeleteDirectory(
+                &FsvrtDeviceExtension->VolumeName,
+                &FsvrtDeviceExtension->MountPoint);
+        /* ignore Result */
+
+        FspFree(FsvrtDeviceExtension->MountPoint.Buffer);
+        FsvrtDeviceExtension->MountPoint.Buffer = 0;
+        FsvrtDeviceExtension->MountPoint.Length =
+            FsvrtDeviceExtension->MountPoint.MaximumLength = 0;
+
+        Irp->IoStatus.Information = 0;
+        Result = STATUS_SUCCESS;
+    }
+
+exit:
+    FspFsvrtDeviceUnlockMount(FsvrtDeviceObject);
 
     return Result;
 }

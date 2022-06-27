@@ -130,6 +130,22 @@ FSP_API NTSTATUS FspFsctlMakeMountdev(HANDLE VolumeHandle,
     return STATUS_SUCCESS;
 }
 
+FSP_API NTSTATUS FspFsctlUseMountmgr(HANDLE VolumeHandle,
+    PWSTR MountPoint)
+{
+    DWORD Bytes;
+
+    Bytes = 0 != MountPoint ? lstrlenW(MountPoint) * sizeof(WCHAR) : 0;
+
+    if (!DeviceIoControl(VolumeHandle,
+        FSP_FSCTL_MOUNTMGR,
+        MountPoint, Bytes, 0, 0,
+        &Bytes, 0))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return STATUS_SUCCESS;
+}
+
 FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
     PVOID ResponseBuf, SIZE_T ResponseBufSize,
     PVOID RequestBuf, SIZE_T *PRequestBufSize,

@@ -138,7 +138,7 @@ NTSTATUS FspMountdevMake(
      * be mounted using the MountManager.
      *
      * This function requires protection against concurrency. In general this
-     * is achieved by acquiring the GlobalDeviceLock.
+     * is achieved by the caller acquiring the MountMutex.
      */
 
     PAGED_CODE();
@@ -178,11 +178,6 @@ NTSTATUS FspMountdevMake(
 
     /* initialize the fsvrt device extension */
     RtlCopyMemory(&FsvrtDeviceExtension->UniqueId, &Guid, sizeof Guid);
-    RtlInitEmptyUnicodeString(&FsvrtDeviceExtension->VolumeName,
-        FsvrtDeviceExtension->VolumeNameBuf, sizeof FsvrtDeviceExtension->VolumeNameBuf);
-    RtlCopyUnicodeString(&FsvrtDeviceExtension->VolumeName, &FsvolDeviceExtension->VolumeName);
-
-    /* mark the fsvrt device as initialized */
     InterlockedIncrement(&FspFsvrtDeviceExtension(FsvrtDeviceObject)->IsMountdev);
 
     Result = STATUS_SUCCESS;

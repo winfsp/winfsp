@@ -59,6 +59,8 @@ VOID FspFsvolDeviceGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_I
 BOOLEAN FspFsvolDeviceTryGetVolumeInfo(PDEVICE_OBJECT DeviceObject, FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VOLUME_INFO *VolumeInfo);
 VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject);
+static NTSTATUS FspFsvrtDeviceInit(PDEVICE_OBJECT DeviceObject);
+static VOID FspFsvrtDeviceFini(PDEVICE_OBJECT DeviceObject);
 static NTSTATUS FspFsmupDeviceInit(PDEVICE_OBJECT DeviceObject);
 static VOID FspFsmupDeviceFini(PDEVICE_OBJECT DeviceObject);
 NTSTATUS FspDeviceCopyList(
@@ -84,6 +86,8 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsvolDeviceCompareContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceAllocateContextByName)
 #pragma alloc_text(PAGE, FspFsvolDeviceFreeContextByName)
+#pragma alloc_text(PAGE, FspFsvrtDeviceInit)
+#pragma alloc_text(PAGE, FspFsvrtDeviceFini)
 #pragma alloc_text(PAGE, FspFsmupDeviceInit)
 #pragma alloc_text(PAGE, FspFsmupDeviceFini)
 #pragma alloc_text(PAGE, FspDeviceCopyList)
@@ -171,7 +175,7 @@ NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject)
         Result = FspFsvolDeviceInit(DeviceObject);
         break;
     case FspFsvrtDeviceExtensionKind:
-        Result = STATUS_SUCCESS;
+        Result = FspFsvrtDeviceInit(DeviceObject);
         break;
     case FspFsmupDeviceExtensionKind:
         Result = FspFsmupDeviceInit(DeviceObject);
@@ -202,6 +206,7 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
         FspFsvolDeviceFini(DeviceObject);
         break;
     case FspFsvrtDeviceExtensionKind:
+        FspFsvrtDeviceFini(DeviceObject);
         break;
     case FspFsmupDeviceExtensionKind:
         FspFsmupDeviceFini(DeviceObject);
@@ -846,6 +851,27 @@ VOID FspFsvolDeviceInvalidateVolumeInfo(PDEVICE_OBJECT DeviceObject)
     KeAcquireSpinLock(&FsvolDeviceExtension->InfoSpinLock, &Irql);
     FsvolDeviceExtension->InfoExpirationTime = 0;
     KeReleaseSpinLock(&FsvolDeviceExtension->InfoSpinLock, Irql);
+}
+
+static NTSTATUS FspFsvrtDeviceInit(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
+
+    ExInitializeFastMutex(&FsvrtDeviceExtension->MountMutex);
+
+    return STATUS_SUCCESS;
+}
+
+static VOID FspFsvrtDeviceFini(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(DeviceObject);
+
+    if (0 != FsvrtDeviceExtension->MountPoint.Buffer)
+        FspFree(FsvrtDeviceExtension->MountPoint.Buffer);
 }
 
 static NTSTATUS FspFsmupDeviceInit(PDEVICE_OBJECT DeviceObject)

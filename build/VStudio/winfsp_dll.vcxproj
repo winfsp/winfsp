@@ -75,6 +75,7 @@
     <ClCompile Include="..\..\src\dll\service.c" />
     <ClCompile Include="..\..\src\dll\util.c" />
     <ClCompile Include="..\..\src\dll\wksid.c" />
+    <ClCompile Include="..\..\src\shared\ku\mountmgr.c" />
     <ClCompile Include="..\..\src\shared\ku\posix.c" />
   </ItemGroup>
   <ItemGroup>

@@ -73,6 +73,15 @@ NTSTATUS FspEventLogUnregister(VOID);
 PSID FspWksidNew(WELL_KNOWN_SID_TYPE WellKnownSidType, PNTSTATUS PResult);
 PSID FspWksidGet(WELL_KNOWN_SID_TYPE WellKnownSidType);
 
+NTSTATUS FspMountmgrCreateDrive(
+    PUNICODE_STRING VolumeName, GUID *UniqueId, PUNICODE_STRING MountPoint);
+NTSTATUS FspMountmgrDeleteDrive(
+    PUNICODE_STRING MountPoint);
+NTSTATUS FspMountmgrNotifyCreateDirectory(
+    PUNICODE_STRING VolumeName, GUID *UniqueId, PUNICODE_STRING MountPoint);
+NTSTATUS FspMountmgrNotifyDeleteDirectory(
+    PUNICODE_STRING VolumeName, PUNICODE_STRING MountPoint);
+
 ULONG FspLdapConnect(PWSTR HostName, PVOID *PLdap);
 VOID FspLdapClose(PVOID Ldap);
 ULONG FspLdapGetValue(PVOID Ldap, PWSTR Base, ULONG Scope, PWSTR Filter, PWSTR Attribute,

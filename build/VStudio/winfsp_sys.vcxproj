@@ -228,6 +228,7 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\shared\ku\mountmgr.c" />
     <ClCompile Include="..\..\src\shared\ku\posix.c" />
     <ClCompile Include="..\..\src\shared\ku\uuid5.c" />
     <ClCompile Include="..\..\src\sys\cleanup.c" />
