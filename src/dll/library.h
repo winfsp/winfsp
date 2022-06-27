@@ -126,6 +126,12 @@ static inline BOOLEAN FspPathIsMountmgrMountPoint(PWSTR FileName)
         ) &&
         L':' == FileName[5];
 }
+static inline BOOLEAN FspPathIsMountmgrDrive(PWSTR FileName)
+{
+    return
+        FspPathIsMountmgrMountPoint(FileName) &&
+        L'\0' == FileName[6];
+}
 
 #define FSP_NEXT_EA(Ea, EaEnd)          \
     (0 != (Ea)->NextEntryOffset ? (PVOID)((PUINT8)(Ea) + (Ea)->NextEntryOffset) : (EaEnd))

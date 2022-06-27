@@ -122,12 +122,8 @@ exit:
     return Result;
 }
 
-static NTSTATUS FspMountSet_Mountmgr(HANDLE VolumeHandle, PWSTR VolumeName, PWSTR MountPoint)
+static NTSTATUS FspMountmgrMakeMountdev(HANDLE VolumeHandle, PWSTR VolumeName, GUID *UniqueId)
 {
-    /* only support drives for now! (format: \\.\X:) */
-    if (L'\0' != MountPoint[6])
-        return STATUS_INVALID_PARAMETER;
-
     /* mountmgr.h */
     typedef enum
     {
@@ -147,48 +143,24 @@ static NTSTATUS FspMountSet_Mountmgr(HANDLE VolumeHandle, PWSTR VolumeName, PWST
         USHORT DeviceNameLength;
         WCHAR DeviceName[1];
     } MOUNTMGR_TARGET_NAME;
-    typedef struct
-    {
-        USHORT SymbolicLinkNameOffset;
-        USHORT SymbolicLinkNameLength;
-        USHORT DeviceNameOffset;
-        USHORT DeviceNameLength;
-    } MOUNTMGR_CREATE_POINT_INPUT;
 
-    GUID UniqueId;
     MOUNTMGR_QUERY_AUTO_MOUNT QueryAutoMount;
     MOUNTMGR_SET_AUTO_MOUNT SetAutoMount;
     MOUNTMGR_TARGET_NAME *TargetName = 0;
-    MOUNTMGR_CREATE_POINT_INPUT *CreatePointInput = 0;
-    ULONG VolumeNameSize, QueryAutoMountSize, TargetNameSize, CreatePointInputSize;
-    HKEY RegKey;
-    LONG RegResult;
-    WCHAR RegValueName[MAX_PATH];
-    UINT8 RegValueData[sizeof UniqueId];
-    DWORD RegValueNameSize, RegValueDataSize;
-    DWORD RegType;
+    ULONG VolumeNameSize, QueryAutoMountSize, TargetNameSize;
     NTSTATUS Result;
 
     /* transform our volume into one that can be used by the MountManager */
-    Result = FspFsctlMakeMountdev(VolumeHandle, FALSE, &UniqueId);
+    Result = FspFsctlMakeMountdev(VolumeHandle, FALSE, UniqueId);
     if (!NT_SUCCESS(Result))
         goto exit;
 
     VolumeNameSize = lstrlenW(VolumeName) * sizeof(WCHAR);
     QueryAutoMountSize = sizeof QueryAutoMount;
     TargetNameSize = FIELD_OFFSET(MOUNTMGR_TARGET_NAME, DeviceName) + VolumeNameSize;
-    CreatePointInputSize = sizeof *CreatePointInput +
-        sizeof L"\\DosDevices\\X:" - sizeof(WCHAR) + VolumeNameSize;
 
     TargetName = MemAlloc(TargetNameSize);
     if (0 == TargetName)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
-
-    CreatePointInput = MemAlloc(CreatePointInputSize);
-    if (0 == CreatePointInput)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
         goto exit;
@@ -229,10 +201,145 @@ static NTSTATUS FspMountSet_Mountmgr(HANDLE VolumeHandle, PWSTR VolumeName, PWST
         CTL_CODE('m', 16, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS),
             /* IOCTL_MOUNTMGR_SET_AUTO_MOUNT */
         &SetAutoMount, sizeof SetAutoMount, 0, 0);
-#if 0
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    MemFree(TargetName);
+
+    return Result;
+}
+
+static NTSTATUS FspMountmgrNotify(PWSTR VolumeName, PWSTR MountPoint, BOOLEAN Created)
+{
+    /* mountmgr.h */
+    typedef struct
+    {
+        USHORT SourceVolumeNameOffset;
+        USHORT SourceVolumeNameLength;
+        USHORT TargetVolumeNameOffset;
+        USHORT TargetVolumeNameLength;
+    } MOUNTMGR_VOLUME_MOUNT_POINT;
+
+    MOUNTMGR_VOLUME_MOUNT_POINT *VolumeMountPoint = 0;
+    ULONG VolumeNameSize, MountPointSize, VolumeMountPointSize;
+    NTSTATUS Result;
+
+    VolumeNameSize = lstrlenW(VolumeName) * sizeof(WCHAR);
+    MountPointSize = lstrlenW(MountPoint) * sizeof(WCHAR);
+    VolumeMountPointSize = sizeof *VolumeMountPoint +
+        sizeof L"\\DosDevices\\" - sizeof(WCHAR) + MountPointSize + VolumeNameSize;
+
+    VolumeMountPoint = MemAlloc(VolumeMountPointSize);
+    if (0 == VolumeMountPoint)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    /* notify volume mount point created/deleted */
+    memset(VolumeMountPoint, 0, sizeof *VolumeMountPoint);
+    VolumeMountPoint->SourceVolumeNameOffset = sizeof *VolumeMountPoint;
+    VolumeMountPoint->SourceVolumeNameLength = (USHORT)(
+        sizeof L"\\DosDevices\\" - sizeof(WCHAR) + MountPointSize);
+    VolumeMountPoint->TargetVolumeNameOffset =
+        VolumeMountPoint->SourceVolumeNameOffset + VolumeMountPoint->SourceVolumeNameLength;
+    VolumeMountPoint->TargetVolumeNameLength = (USHORT)VolumeNameSize;
+    memcpy((PUINT8)VolumeMountPoint + VolumeMountPoint->SourceVolumeNameOffset,
+        L"\\DosDevices\\", sizeof L"\\DosDevices\\" - sizeof(WCHAR));
+    memcpy((PUINT8)VolumeMountPoint +
+        VolumeMountPoint->SourceVolumeNameOffset + (sizeof L"\\DosDevices\\" - sizeof(WCHAR)),
+        MountPoint, MountPointSize);
+    memcpy((PUINT8)VolumeMountPoint + VolumeMountPoint->TargetVolumeNameOffset,
+        VolumeName, VolumeNameSize);
+    Result = FspMountmgrControl(
+        Created ?
+            CTL_CODE('m', 6, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS) :
+                /* IOCTL_MOUNTMGR_VOLUME_MOUNT_POINT_CREATED */
+            CTL_CODE('m', 7, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS),
+                /* IOCTL_MOUNTMGR_VOLUME_MOUNT_POINT_DELETED */
+        VolumeMountPoint, VolumeMountPointSize, 0, 0);
     if (!NT_SUCCESS(Result))
         goto exit;
-#endif
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    MemFree(VolumeMountPoint);
+
+    return Result;
+}
+
+static VOID FspMountmgrDeleteRegistry(GUID *UniqueId)
+{
+    HKEY RegKey;
+    LONG RegResult;
+    WCHAR RegValueName[MAX_PATH];
+    UINT8 RegValueData[sizeof *UniqueId];
+    DWORD RegValueNameSize, RegValueDataSize;
+    DWORD RegType;
+
+    /* HACK: delete the MountManager registry entries */
+    RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"System\\MountedDevices",
+        0, KEY_READ | KEY_WRITE, &RegKey);
+    if (ERROR_SUCCESS == RegResult)
+    {
+        for (DWORD I = 0;; I++)
+        {
+            RegValueNameSize = MAX_PATH;
+            RegValueDataSize = sizeof RegValueData;
+            RegResult = RegEnumValueW(RegKey,
+                I, RegValueName, &RegValueNameSize, 0, &RegType, RegValueData, &RegValueDataSize);
+            if (ERROR_NO_MORE_ITEMS == RegResult)
+                break;
+            else if (ERROR_SUCCESS != RegResult)
+                continue;
+
+            if (REG_BINARY == RegType &&
+                sizeof RegValueData == RegValueDataSize &&
+                InlineIsEqualGUID((GUID *)&RegValueData, UniqueId))
+            {
+                RegResult = RegDeleteValueW(RegKey, RegValueName);
+                if (ERROR_SUCCESS == RegResult)
+                    /* reset index after modifying key; only safe way to use RegEnumValueW with modifications */
+                    I = -1;
+            }
+        }
+
+        RegCloseKey(RegKey);
+    }
+}
+
+static NTSTATUS FspMountSet_MountmgrDrive(HANDLE VolumeHandle, PWSTR VolumeName, PWSTR MountPoint)
+{
+    /* mountmgr.h */
+    typedef struct
+    {
+        USHORT SymbolicLinkNameOffset;
+        USHORT SymbolicLinkNameLength;
+        USHORT DeviceNameOffset;
+        USHORT DeviceNameLength;
+    } MOUNTMGR_CREATE_POINT_INPUT;
+
+    GUID UniqueId;
+    MOUNTMGR_CREATE_POINT_INPUT *CreatePointInput = 0;
+    ULONG VolumeNameSize, CreatePointInputSize;
+    NTSTATUS Result;
+
+    Result = FspMountmgrMakeMountdev(VolumeHandle, VolumeName, &UniqueId);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    VolumeNameSize = lstrlenW(VolumeName) * sizeof(WCHAR);
+    CreatePointInputSize = sizeof *CreatePointInput +
+        sizeof L"\\DosDevices\\X:" - sizeof(WCHAR) + VolumeNameSize;
+
+    CreatePointInput = MemAlloc(CreatePointInputSize);
+    if (0 == CreatePointInput)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
 
     /* create mount point */
     memset(CreatePointInput, 0, sizeof *CreatePointInput);
@@ -255,46 +362,54 @@ static NTSTATUS FspMountSet_Mountmgr(HANDLE VolumeHandle, PWSTR VolumeName, PWST
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    /* HACK: delete the MountManager registry entries */
-    RegResult = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"System\\MountedDevices",
-        0, KEY_READ | KEY_WRITE, &RegKey);
-    if (ERROR_SUCCESS == RegResult)
-    {
-        for (DWORD I = 0;; I++)
-        {
-            RegValueNameSize = MAX_PATH;
-            RegValueDataSize = sizeof RegValueData;
-            RegResult = RegEnumValueW(RegKey,
-                I, RegValueName, &RegValueNameSize, 0, &RegType, RegValueData, &RegValueDataSize);
-            if (ERROR_NO_MORE_ITEMS == RegResult)
-                break;
-            else if (ERROR_SUCCESS != RegResult)
-                continue;
-
-            if (REG_BINARY == RegType &&
-                sizeof RegValueData == RegValueDataSize &&
-                InlineIsEqualGUID((GUID *)&RegValueData, &UniqueId))
-            {
-                RegResult = RegDeleteValueW(RegKey, RegValueName);
-                if (ERROR_SUCCESS == RegResult)
-                    /* reset index after modifying key; only safe way to use RegEnumValueW with modifications */
-                    I = -1;
-            }
-        }
-
-        RegCloseKey(RegKey);
-    }
+    FspMountmgrDeleteRegistry(&UniqueId);
 
     Result = STATUS_SUCCESS;
 
 exit:
     MemFree(CreatePointInput);
-    MemFree(TargetName);
 
     return Result;
 }
 
-static NTSTATUS FspMountRemove_Mountmgr(PWSTR MountPoint)
+static NTSTATUS FspMountSet_Directory(PWSTR VolumeName, PWSTR MountPoint,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, PHANDLE PMountHandle);
+static NTSTATUS FspMountRemove_Directory(HANDLE MountHandle);
+static NTSTATUS FspMountSet_MountmgrDirectory(HANDLE VolumeHandle, PWSTR VolumeName, PWSTR MountPoint,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, PHANDLE PMountHandle)
+{
+    GUID UniqueId;
+    HANDLE MountHandle = INVALID_HANDLE_VALUE;
+    NTSTATUS Result;
+
+    *PMountHandle = 0;
+
+    Result = FspMountSet_Directory(VolumeName, MountPoint + 4, SecurityDescriptor, &MountHandle);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = FspMountmgrMakeMountdev(VolumeHandle, VolumeName, &UniqueId);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = FspMountmgrNotify(VolumeName, MountPoint + 4, TRUE);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    FspMountmgrDeleteRegistry(&UniqueId);
+
+    *PMountHandle = MountHandle;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (!NT_SUCCESS(Result) && INVALID_HANDLE_VALUE != MountHandle)
+        FspMountRemove_Directory(MountHandle);
+
+    return Result;
+}
+
+static NTSTATUS FspMountRemove_MountmgrDrive(PWSTR MountPoint)
 {
     /* mountmgr.h */
     typedef struct
@@ -358,6 +473,22 @@ exit:
     MemFree(Output);
     MemFree(Input);
 
+    return Result;
+}
+
+static NTSTATUS FspMountRemove_MountmgrDirectory(PWSTR VolumeName, PWSTR MountPoint, HANDLE MountHandle)
+{
+    NTSTATUS Result;
+
+    FspMountmgrNotify(VolumeName, MountPoint + 4, FALSE);
+
+    Result = FspMountRemove_Directory(MountHandle);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    Result = STATUS_SUCCESS;
+
+exit:
     return Result;
 }
 
@@ -740,8 +871,11 @@ FSP_API NTSTATUS FspMountSet(FSP_MOUNT_DESC *Desc)
         Desc->MountPoint[0] = L'*';
         return STATUS_NO_SUCH_DEVICE;
     }
+    else if (FspPathIsMountmgrDrive(Desc->MountPoint))
+        return FspMountSet_MountmgrDrive(Desc->VolumeHandle, Desc->VolumeName, Desc->MountPoint);
     else if (FspPathIsMountmgrMountPoint(Desc->MountPoint))
-        return FspMountSet_Mountmgr(Desc->VolumeHandle, Desc->VolumeName, Desc->MountPoint);
+        return FspMountSet_MountmgrDirectory(Desc->VolumeHandle, Desc->VolumeName, Desc->MountPoint,
+            Desc->Security, &Desc->MountHandle);
     else if (FspPathIsDrive(Desc->MountPoint))
         return FspMountSet_Drive(Desc->VolumeName, Desc->MountPoint,
             &Desc->MountHandle);
@@ -754,8 +888,10 @@ FSP_API NTSTATUS FspMountRemove(FSP_MOUNT_DESC *Desc)
 {
     InitOnceExecuteOnce(&FspMountInitOnce, FspMountInitialize, 0, 0);
 
-    if (FspPathIsMountmgrMountPoint(Desc->MountPoint))
-        return FspMountRemove_Mountmgr(Desc->MountPoint);
+    if (FspPathIsMountmgrDrive(Desc->MountPoint))
+        return FspMountRemove_MountmgrDrive(Desc->MountPoint);
+    else if (FspPathIsMountmgrMountPoint(Desc->MountPoint))
+        return FspMountRemove_MountmgrDirectory(Desc->VolumeName, Desc->MountPoint, Desc->MountHandle);
     else if (FspPathIsDrive(Desc->MountPoint))
         return FspMountRemove_Drive(Desc->VolumeName, Desc->MountPoint, Desc->MountHandle);
     else
