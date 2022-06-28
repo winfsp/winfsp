@@ -36,6 +36,10 @@ set dfl_tests=^
     winfsp-tests-x64-mountpoint-drive ^
     winfsp-tests-x64-mountpoint-dir ^
     winfsp-tests-x64-mountpoint-dir-case-sensitive ^
+    winfsp-tests-x64-mountmgr-drive ^
+    winfsp-tests-x64-mountmgr-dir ^
+    winfsp-tests-x64-mountmgrfsd-drive ^
+    winfsp-tests-x64-mountmgrfsd-dir ^
     winfsp-tests-x64-no-traverse ^
     winfsp-tests-x64-oplock ^
     winfsp-tests-x64-notify ^
@@ -56,6 +60,10 @@ set dfl_tests=^
     winfsp-tests-x86-mountpoint-drive ^
     winfsp-tests-x86-mountpoint-dir ^
     winfsp-tests-x86-mountpoint-dir-case-sensitive ^
+    winfsp-tests-x86-mountmgr-drive ^
+    winfsp-tests-x86-mountmgr-dir ^
+    winfsp-tests-x86-mountmgrfsd-drive ^
+    winfsp-tests-x86-mountmgrfsd-dir ^
     winfsp-tests-x86-no-traverse ^
     winfsp-tests-x86-oplock ^
     winfsp-tests-x86-notify ^
@@ -232,6 +240,30 @@ winfsp-tests-x64 --mountpoint=mymnt * +ea*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
+:winfsp-tests-x64-mountmgr-drive
+winfsp-tests-x64 --mountpoint=\\.\X: --resilient * +ea*
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-x64-mountmgr-dir
+winfsp-tests-x64 --mountpoint=\\.\%cd%\mnt --resilient * +ea*
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-x64-mountmgrfsd-drive
+reg add HKLM\Software\WinFsp /v MountUseMountmgrFromFSD /t REG_DWORD /d 1 /f /reg:32
+winfsp-tests-x64 --mountpoint=\\.\X: --resilient * +ea*
+if !ERRORLEVEL! neq 0 goto fail
+reg delete HKLM\Software\WinFsp /v MountUseMountmgrFromFSD /f /reg:32
+exit /b 0
+
+:winfsp-tests-x64-mountmgrfsd-dir
+reg add HKLM\Software\WinFsp /v MountUseMountmgrFromFSD /t REG_DWORD /d 1 /f /reg:32
+winfsp-tests-x64 --mountpoint=\\.\%cd%\mnt --resilient * +ea*
+if !ERRORLEVEL! neq 0 goto fail
+reg delete HKLM\Software\WinFsp /v MountUseMountmgrFromFSD /f /reg:32
+exit /b 0
+
 :winfsp-tests-x64-no-traverse
 winfsp-tests-x64 --no-traverse * +ea*
 if !ERRORLEVEL! neq 0 goto fail
@@ -280,6 +312,30 @@ exit /b 0
 :winfsp-tests-x86-mountpoint-dir-case-sensitive
 winfsp-tests-x86 --mountpoint=mymnt * +ea*
 if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-x86-mountmgr-drive
+winfsp-tests-x86 --mountpoint=\\.\X: --resilient * +ea*
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-x86-mountmgr-dir
+winfsp-tests-x86 --mountpoint=\\.\%cd%\mnt --resilient * +ea*
+if !ERRORLEVEL! neq 0 goto fail
+exit /b 0
+
+:winfsp-tests-x86-mountmgrfsd-drive
+reg add HKLM\Software\WinFsp /v MountUseMountmgrFromFSD /t REG_DWORD /d 1 /f /reg:32
+winfsp-tests-x86 --mountpoint=\\.\X: --resilient * +ea*
+if !ERRORLEVEL! neq 0 goto fail
+reg delete HKLM\Software\WinFsp /v MountUseMountmgrFromFSD /f /reg:32
+exit /b 0
+
+:winfsp-tests-x86-mountmgrfsd-dir
+reg add HKLM\Software\WinFsp /v MountUseMountmgrFromFSD /t REG_DWORD /d 1 /f /reg:32
+winfsp-tests-x86 --mountpoint=\\.\%cd%\mnt --resilient * +ea*
+if !ERRORLEVEL! neq 0 goto fail
+reg delete HKLM\Software\WinFsp /v MountUseMountmgrFromFSD /f /reg:32
 exit /b 0
 
 :winfsp-tests-x86-no-traverse
