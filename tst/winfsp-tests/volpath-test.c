@@ -89,7 +89,7 @@ static void volpath_test(void)
      * when *not* using the MountManager and therefore disable
      * this test when using a non-MountManager mount point.
      */
-    if (!NtfsTests && !OptMountPoint)
+    if (NtfsTests || OptMountPoint)
         return;
 
     if (WinFspDiskTests)
@@ -107,8 +107,15 @@ static void volpath_mount_dotest(ULONG Flags, PWSTR Prefix, PWSTR MountPoint)
     BOOLEAN Success, VolumePathNameSuccess[8];
     WCHAR FilePath[MAX_PATH];
     WCHAR VolumePathName[MAX_PATH], VolumeName[MAX_PATH];
+    WCHAR FinalPath[MAX_PATH];
+    DWORD FinalResult;
 
     Result = FspFileSystemSetMountPoint(MemfsFileSystem(memfs), MountPoint);
+    if (STATUS_ACCESS_DENIED == Result)
+    {
+        FspDebugLog(__FUNCTION__ ": need Administrator\n");
+        goto exit;
+    }
     ASSERT(NT_SUCCESS(Result));
 
     Prefix = FspFileSystemMountPoint(MemfsFileSystem(memfs));
@@ -125,6 +132,9 @@ static void volpath_mount_dotest(ULONG Flags, PWSTR Prefix, PWSTR MountPoint)
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
+    FinalResult = GetFinalPathNameByHandleW(
+        Handle, FinalPath, MAX_PATH - 1, VOLUME_NAME_DOS | FILE_NAME_OPENED);
+    ASSERT(0 != FinalResult && FinalResult < MAX_PATH);
     CloseHandle(Handle);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
@@ -187,6 +197,9 @@ static void volpath_mount_dotest(ULONG Flags, PWSTR Prefix, PWSTR MountPoint)
     Handle = CreateFileW(FilePath,
         GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
     ASSERT(INVALID_HANDLE_VALUE != Handle);
+    FinalResult = GetFinalPathNameByHandleW(
+        Handle, FinalPath, MAX_PATH - 1, VOLUME_NAME_DOS | FILE_NAME_OPENED);
+    ASSERT(0 != FinalResult && FinalResult < MAX_PATH);
     CloseHandle(Handle);
 
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
@@ -232,6 +245,7 @@ static void volpath_mount_dotest(ULONG Flags, PWSTR Prefix, PWSTR MountPoint)
         ASSERT(VolumePathNameSuccess[6]);
     }
 
+exit:
     memfs_stop(memfs);
 }
 
@@ -270,6 +284,24 @@ static void volpath_mount_test(void)
 
         //volpath_mount_dotest(MemfsDisk, 0, 0);
         volpath_mount_dotest(MemfsDisk, 0, MountPoint);
+
+        WCHAR DirBuf[MAX_PATH];
+        int DirBufLen;
+        GetTestDirectory(DirBuf);
+        ASSERT(
+            L'\\' == DirBuf[0] &&
+            L'\\' == DirBuf[1] &&
+            L'?'  == DirBuf[2] &&
+            L'\\' == DirBuf[3]);
+        DirBuf[2] = '.';
+        DirBufLen = lstrlenW(DirBuf);
+        ASSERT(MAX_PATH >= DirBufLen + 5);
+        DirBuf[DirBufLen++] = L'\\';
+        DirBuf[DirBufLen++] = L'm';
+        DirBuf[DirBufLen++] = L'n';
+        DirBuf[DirBufLen++] = L't';
+        DirBuf[DirBufLen++] = L'\0';
+        volpath_mount_dotest(MemfsDisk, 0, DirBuf);
     }
     if (WinFspNetTests)
     {
