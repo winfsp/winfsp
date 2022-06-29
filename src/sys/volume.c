@@ -249,6 +249,11 @@ static NTSTATUS FspVolumeCreateNoLock(
     VolumeParams.AlwaysUseDoubleBuffering = 1;
 #endif
 
+    /*
+     * Hardcode the RejectIrpPriorToTransact0 = 1 setting.
+     */
+    VolumeParams.RejectIrpPriorToTransact0 = 1;
+
     /* load any fsext provider */
     if (0 != VolumeParams.FsextControlCode)
     {

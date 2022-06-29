@@ -228,7 +228,7 @@ enum
     UINT32 CasePreservedExtendedAttributes:1;   /* preserve case of EA (default is UPPERCASE) */\
     UINT32 WslFeatures:1;                   /* support features required for WSLinux */\
     UINT32 DirectoryMarkerAsNextOffset:1;   /* directory marker is next offset instead of last name */\
-    UINT32 RejectIrpPriorToTransact0:1;     /* reject IRP's prior to FspFsctlTransact with 0 buffers */\
+    UINT32 RejectIrpPriorToTransact0:1;     /* DEPRECATED: reject IRP's prior to FspFsctlTransact0 */\
     UINT32 SupportsPosixUnlinkRename:1;     /* file system supports POSIX-style unlink and rename */\
     UINT32 PostDispositionWhenNecessaryOnly:1;  /* post Disposition for dirs or READONLY attr check */\
     UINT32 KmReservedFlags:1;\

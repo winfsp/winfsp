@@ -67,6 +67,9 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
     Result = MemfsStart(Memfs);
     ASSERT(NT_SUCCESS(Result));
 
+    Result = FspFsctlTransact(MemfsFileSystem(Memfs)->VolumeHandle, 0, 0, 0, 0, FALSE);
+    ASSERT(NT_SUCCESS(Result));
+
     memfs_running = 1;
     memfs_handle = MemfsFileSystem(Memfs)->VolumeHandle;
 
