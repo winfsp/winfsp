@@ -141,6 +141,12 @@ static NTSTATUS FspMountSet_MountmgrDirectory(HANDLE VolumeHandle, PWSTR VolumeN
     {
         /* use MountManager from FSD and exit */
         Result = FspFsctlUseMountmgr(VolumeHandle, MountPoint + 4);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        *PMountHandle = MountHandle;
+
+        Result = STATUS_SUCCESS;
         goto exit;
     }
 
