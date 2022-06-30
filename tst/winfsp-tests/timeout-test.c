@@ -187,6 +187,8 @@ void timeout_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
     ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumeName, 15));
     ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
+    Result = FspFsctlTransact(VolumeHandle, 0, 0, 0, 0, FALSE);
+    ASSERT(NT_SUCCESS(Result));
 
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 RequestBuf[FSP_FSCTL_TRANSACT_BATCH_BUFFER_SIZEMIN];
     FSP_FSCTL_DECLSPEC_ALIGN UINT8 ResponseBuf[FSP_FSCTL_TRANSACT_RSP_SIZEMAX];
@@ -223,6 +225,8 @@ void timeout_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
     ASSERT(0 != Request->Hint);
     ASSERT(FspFsctlTransactCreateKind == Request->Kind ||
         FspFsctlTransactQueryVolumeInformationKind == Request->Kind);
+    /* since we made RejectIrpPriorToTransact0 mandatory the assertions below do not hold */
+#if 0
     if (FspFsctlTransactCreateKind == Request->Kind)
     {
         ASSERT(FILE_CREATE == ((Request->Req.Create.CreateOptions >> 24) & 0xff));
@@ -239,6 +243,7 @@ void timeout_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
         ASSERT(!Request->Req.Create.OpenTargetDirectory);
         ASSERT(!Request->Req.Create.CaseSensitive);
     }
+#endif
 
     ResponseBufSize = 0;
     RequestBufSize = sizeof RequestBuf;

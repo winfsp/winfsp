@@ -215,6 +215,9 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
     ASSERT(0 == wcsncmp(L"\\Device\\Volume{", VolumeName, 15));
     ASSERT(INVALID_HANDLE_VALUE != VolumeHandle);
 
+    Result = FspFsctlTransact(VolumeHandle, 0, 0, 0, 0, FALSE);
+    ASSERT(NT_SUCCESS(Result));
+
     StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
         Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : VolumeName);
     Thread = (HANDLE)_beginthreadex(0, 0, mount_volume_transact_dotest_thread, FilePath, 0, 0);
@@ -246,6 +249,8 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
     ASSERT(0 != Request->Hint);
     ASSERT(FspFsctlTransactCreateKind == Request->Kind ||
         FspFsctlTransactQueryVolumeInformationKind == Request->Kind);
+    /* since we made RejectIrpPriorToTransact0 mandatory the assertions below do not hold */
+#if 0
     if (FspFsctlTransactCreateKind == Request->Kind)
     {
         ASSERT(FILE_CREATE == ((Request->Req.Create.CreateOptions >> 24) & 0xff));
@@ -265,6 +270,7 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
         ASSERT((wcslen((PVOID)Request->Buffer) + 1) * sizeof(WCHAR) == Request->FileName.Size);
         ASSERT(0 == mywcscmp((PVOID)Request->Buffer, -1, L"\\file0", -1));
     }
+#endif
 
     ASSERT(FspFsctlTransactCanProduceResponse(Response, ResponseBufEnd));
 
@@ -294,7 +300,8 @@ void mount_volume_transact_dotest(PWSTR DeviceName, PWSTR Prefix)
     GetExitCodeThread(Thread, &ExitCode);
     CloseHandle(Thread);
 
-    ASSERT(ERROR_ACCESS_DENIED == ExitCode || ERROR_OPERATION_ABORTED == ExitCode);
+    ASSERT(0 != ExitCode);
+    //ASSERT(ERROR_ACCESS_DENIED == ExitCode || ERROR_OPERATION_ABORTED == ExitCode);
 }
 
 void mount_volume_transact_test(void)
