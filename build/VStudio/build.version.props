@@ -23,7 +23,7 @@
         <MyProductVersion>2023</MyProductVersion>
         <MyProductStage>Beta</MyProductStage>
 
-        <MyCrossCert>DigiCert High Assurance EV Root CA.crt</MyCrossCert>
+        <MyCrossCert>DigiCertGlobalG3CodeSigningECCSHA3842021CA1.cer</MyCrossCert>
         <MyCertIssuer>DigiCert</MyCertIssuer>
 
         <MyVersion>$(MyCanonicalVersion).$(MyBuildNumber)</MyVersion>
