@@ -71,6 +71,8 @@ Primary registry key used to store WinFsp settings. On a 64-bit system (x64 or A
 
 * `MountDoNotUseLauncher (REG_DWORD)`: A value of 1 disallows the use of the Launcher for drive mounting. The default value of 0 allows use of the Launcher for drive mounting when necessary. In general the Launcher is not necessary for mounting. However when running a file system in the Windows Service context (session 0) under an account that is not LocalSystem (e.g. `NT AUTHORITY\NETWORK SERVICE`), the Launcher is used to create global drives.
 
+* `MountUseMountmgrFromFSD (REG_DWORD)`: A value of 1 instructs WinFsp to use the Mount Manager from the FSD (File System Driver) which runs in kernel mode. The default value of 0 instructs WinFsp to use the Mount Manager from the DLL which runs in user mode. Using the Mount Manager from user mode requires Administrator access and this setting allows a file system to circumvent the Administrator access requirement. This setting is not recommended for general use.
+
 </blockquote>
 </details>
 
