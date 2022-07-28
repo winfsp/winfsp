@@ -1,6 +1,11 @@
 # Changelog
 
 
+## v1.12 (2023)
+
+- [NEW] A new registry setting `MountUseMountmgrFromFSD` has been added. See [WinFsp Registry Settings](https://github.com/winfsp/winfsp/wiki/WinFsp-Registry-Settings) for details.
+
+
 ## v1.11 (2022+ARM64)
 
 - [NEW] ARM64 support! For details see [WinFsp on ARM64](https://github.com/winfsp/winfsp/wiki/WinFsp-on-ARM64).
