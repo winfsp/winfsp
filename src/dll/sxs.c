@@ -22,7 +22,7 @@
 #include <dll/library.h>
 
 static INIT_ONCE FspSxsIdentInitOnce = INIT_ONCE_STATIC_INIT;
-static WCHAR FspSxsIdentBuf[32 + 1] = L"";
+static WCHAR FspSxsIdentBuf[32 + 2] = L"";
 
 static BOOL WINAPI FspSxsIdentInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
@@ -31,8 +31,8 @@ static BOOL WINAPI FspSxsIdentInitialize(
     WCHAR Path[MAX_PATH];
     DWORD Size;
     HANDLE Handle = INVALID_HANDLE_VALUE;
-    CHAR Buffer[ARRAYSIZE(FspSxsIdentBuf) - 1];
-    WCHAR WBuffer[ARRAYSIZE(FspSxsIdentBuf) - 1];
+    CHAR Buffer[ARRAYSIZE(FspSxsIdentBuf) - 2];
+    WCHAR WBuffer[ARRAYSIZE(FspSxsIdentBuf) - 2];
 
     if (0 == GetModuleFileNameW(DllInstance, Path, MAX_PATH))
         goto exit;
@@ -93,8 +93,9 @@ static BOOL WINAPI FspSxsIdentInitialize(
     if (0 == Size)
         goto exit;
 
-    memcpy(FspSxsIdentBuf, WBuffer, Size * sizeof(WCHAR));
-    FspSxsIdentBuf[Size] = L'\0';
+    FspSxsIdentBuf[0] = L'-';
+    memcpy(FspSxsIdentBuf + 1, WBuffer, Size * sizeof(WCHAR));
+    FspSxsIdentBuf[1 + Size] = L'\0';
 
 exit:
     if (INVALID_HANDLE_VALUE != Handle)
@@ -104,6 +105,12 @@ exit:
 }
 
 PWSTR FspSxsIdent(VOID)
+{
+    InitOnceExecuteOnce(&FspSxsIdentInitOnce, FspSxsIdentInitialize, 0, 0);
+    return FspSxsIdentBuf + 1;
+}
+
+PWSTR FspSxsSuffix(VOID)
 {
     InitOnceExecuteOnce(&FspSxsIdentInitOnce, FspSxsIdentInitialize, 0, 0);
     return FspSxsIdentBuf;

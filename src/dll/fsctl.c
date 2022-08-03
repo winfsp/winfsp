@@ -308,7 +308,7 @@ static BOOL WINAPI FspFsctlServiceVersionInitialize(
     QUERY_SERVICE_CONFIGW *ServiceConfig = 0;
     DWORD Size;
 
-    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsIdent());
+    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsSuffix());
 
     ScmHandle = OpenSCManagerW(0, 0, 0);
     if (0 == ScmHandle)
@@ -383,7 +383,7 @@ static NTSTATUS FspFsctlStartService(VOID)
     DWORD LastError;
     NTSTATUS Result;
 
-    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsIdent());
+    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsSuffix());
 
     AcquireSRWLockExclusive(&Lock);
 
@@ -588,7 +588,7 @@ NTSTATUS FspFsctlRegister(VOID)
     SERVICE_DESCRIPTION ServiceDescription;
     NTSTATUS Result;
 
-    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsIdent());
+    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsSuffix());
 
     if (0 == GetModuleFileNameW(DllInstance, DriverPath, MAX_PATH))
         return FspNtStatusFromWin32(GetLastError());
@@ -677,7 +677,7 @@ NTSTATUS FspFsctlUnregister(VOID)
     DWORD LastError;
     NTSTATUS Result;
 
-    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsIdent());
+    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsSuffix());
 
     ScmHandle = OpenSCManagerW(0, 0, SC_MANAGER_CREATE_SERVICE);
         /*
