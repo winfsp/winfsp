@@ -73,6 +73,7 @@
     <ClCompile Include="..\..\src\dll\ntstatus.c" />
     <ClCompile Include="..\..\src\dll\path.c" />
     <ClCompile Include="..\..\src\dll\service.c" />
+    <ClCompile Include="..\..\src\dll\sxs.c" />
     <ClCompile Include="..\..\src\dll\util.c" />
     <ClCompile Include="..\..\src\dll\wksid.c" />
     <ClCompile Include="..\..\src\shared\ku\mountmgr.c" />

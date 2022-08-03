@@ -178,6 +178,9 @@
     <ClCompile Include="..\..\src\shared\ku\mountmgr.c">
       <Filter>Source\shared\ku</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\dll\sxs.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\dll\library.def">

@@ -70,6 +70,8 @@ NTSTATUS FspNpUnregister(VOID);
 NTSTATUS FspEventLogRegister(VOID);
 NTSTATUS FspEventLogUnregister(VOID);
 
+PWSTR FspSxsIdent(VOID);
+
 PSID FspWksidNew(WELL_KNOWN_SID_TYPE WellKnownSidType, PNTSTATUS PResult);
 PSID FspWksidGet(WELL_KNOWN_SID_TYPE WellKnownSidType);
 

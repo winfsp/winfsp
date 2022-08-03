@@ -301,12 +301,14 @@ FSP_API NTSTATUS FspFsctlPreflight(PWSTR DevicePath)
 static BOOL WINAPI FspFsctlServiceVersionInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
-    PWSTR DriverName = L"" FSP_FSCTL_DRIVER_NAME;
+    WCHAR DriverName[256];
     PWSTR ModuleFileName;
     SC_HANDLE ScmHandle = 0;
     SC_HANDLE SvcHandle = 0;
     QUERY_SERVICE_CONFIGW *ServiceConfig = 0;
     DWORD Size;
+
+    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsIdent());
 
     ScmHandle = OpenSCManagerW(0, 0, 0);
     if (0 == ScmHandle)
@@ -374,12 +376,14 @@ static VOID FspFsctlServiceVersion(PUINT32 PVersion)
 static NTSTATUS FspFsctlStartService(VOID)
 {
     static SRWLOCK Lock = SRWLOCK_INIT;
-    PWSTR DriverName = L"" FSP_FSCTL_DRIVER_NAME;
+    WCHAR DriverName[256];
     SC_HANDLE ScmHandle = 0;
     SC_HANDLE SvcHandle = 0;
     SERVICE_STATUS ServiceStatus;
     DWORD LastError;
     NTSTATUS Result;
+
+    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsIdent());
 
     AcquireSRWLockExclusive(&Lock);
 
@@ -575,7 +579,7 @@ exit:
 NTSTATUS FspFsctlRegister(VOID)
 {
     extern HINSTANCE DllInstance;
-    PWSTR DriverName = L"" FSP_FSCTL_DRIVER_NAME;
+    WCHAR DriverName[256];
     WCHAR DriverPath[MAX_PATH];
     DWORD Size;
     SC_HANDLE ScmHandle = 0;
@@ -583,6 +587,8 @@ NTSTATUS FspFsctlRegister(VOID)
     PVOID VersionInfo = 0;
     SERVICE_DESCRIPTION ServiceDescription;
     NTSTATUS Result;
+
+    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsIdent());
 
     if (0 == GetModuleFileNameW(DllInstance, DriverPath, MAX_PATH))
         return FspNtStatusFromWin32(GetLastError());
@@ -623,7 +629,7 @@ NTSTATUS FspFsctlRegister(VOID)
     }
     else
     {
-        SvcHandle = CreateServiceW(ScmHandle, DriverName, DriverName,
+        SvcHandle = CreateServiceW(ScmHandle, DriverName, L"" FSP_FSCTL_DRIVER_NAME,
             SERVICE_CHANGE_CONFIG | READ_CONTROL | WRITE_DAC,
             SERVICE_FILE_SYSTEM_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, DriverPath,
             0, 0, 0, 0, 0);
@@ -665,11 +671,13 @@ exit:
 
 NTSTATUS FspFsctlUnregister(VOID)
 {
-    PWSTR DriverName = L"" FSP_FSCTL_DRIVER_NAME;
+    WCHAR DriverName[256];
     SC_HANDLE ScmHandle = 0;
     SC_HANDLE SvcHandle = 0;
     DWORD LastError;
     NTSTATUS Result;
+
+    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsIdent());
 
     ScmHandle = OpenSCManagerW(0, 0, SC_MANAGER_CREATE_SERVICE);
         /*
