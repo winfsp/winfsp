@@ -21,13 +21,24 @@
 
 #include <sys/driver.h>
 
+/*
+ * Define the following macro to include FspUnload and make the driver unloadable.
+ */
+#define FSP_UNLOAD
+
 DRIVER_INITIALIZE DriverEntry;
+#if defined(FSP_UNLOAD)
+DRIVER_UNLOAD FspUnload;
+#endif
 static VOID FspDriverMultiVersionInitialize(VOID);
 static NTSTATUS FspDriverInitializeDevices(VOID);
 static VOID FspDriverFinalizeDevices(VOID);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(INIT, DriverEntry)
+#if defined(FSP_UNLOAD)
+#pragma alloc_text(PAGE, FspUnload)
+#endif
 #pragma alloc_text(INIT, FspDriverMultiVersionInitialize)
 #pragma alloc_text(PAGE, FspDriverInitializeDevices)
 #pragma alloc_text(PAGE, FspDriverFinalizeDevices)
@@ -40,7 +51,12 @@ NTSTATUS DriverEntry(
 
     FSP_TRACE_INIT();
 
+    FspSxsIdentInitialize(&DriverObject->DriverName);
+
     /* setup the driver object */
+#if defined(FSP_UNLOAD)
+    DriverObject->DriverUnload = FspUnload;
+#endif
     DriverObject->MajorFunction[IRP_MJ_CREATE] = FspCreate;
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = FspClose;
     DriverObject->MajorFunction[IRP_MJ_READ] = FspRead;
@@ -172,6 +188,26 @@ exit:
         &DriverObject->DriverName, RegistryPath);
 }
 
+#if defined(FSP_UNLOAD)
+VOID FspUnload(
+    PDRIVER_OBJECT DriverObject)
+{
+    FSP_ENTER_VOID(PAGED_CODE());
+
+    FspDeviceFinalizeAllTimers();
+
+    FspProcessBufferFinalize();
+
+    FspSiloFinalize();
+
+    FSP_TRACE_FINI();
+
+#pragma prefast(suppress:28175, "We are in DriverUnload: ok to access DriverName")
+    FSP_LEAVE_VOID("DriverName=\"%wZ\"",
+        &DriverObject->DriverName);
+}
+#endif
+
 static VOID FspDriverMultiVersionInitialize(VOID)
 {
     FspProcessorCount = KeQueryActiveProcessorCount(0);
@@ -202,6 +238,8 @@ static NTSTATUS FspDriverInitializeDevices(VOID)
     FSP_SILO_GLOBALS *Globals;
     UNICODE_STRING DeviceSddl;
     UNICODE_STRING DeviceName;
+    WCHAR DeviceNameBuf[128];
+    UNICODE_STRING SymlinkName;
     GUID Guid;
     NTSTATUS Result;
 
@@ -210,20 +248,46 @@ static NTSTATUS FspDriverInitializeDevices(VOID)
 
     /* create the file system control device objects */
     RtlInitUnicodeString(&DeviceSddl, L"" FSP_FSCTL_DEVICE_SDDL);
-    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
+    RtlInitEmptyUnicodeString(&DeviceName, DeviceNameBuf, sizeof DeviceNameBuf);
+    Result = RtlUnicodeStringPrintf(&DeviceName,
+        L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME "%wZ",
+        FspSxsSuffix());
+    ASSERT(NT_SUCCESS(Result));
     Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
         &DeviceName, FILE_DEVICE_DISK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
         &DeviceSddl, &FspFsctlDeviceClassGuid,
         &Globals->FsctlDiskDeviceObject);
     if (!NT_SUCCESS(Result))
         goto exit;
-    RtlInitUnicodeString(&DeviceName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
+    if (0 != FspSxsIdent()->Length)
+    {
+        /* \Device\WinFsp.Disk SxS symlink */
+        RtlInitUnicodeString(&SymlinkName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
+        Result = IoCreateSymbolicLink(&SymlinkName, &DeviceName);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+        Globals->InitDoneSymlinkDisk = 1;
+    }
+    RtlInitEmptyUnicodeString(&DeviceName, DeviceNameBuf, sizeof DeviceNameBuf);
+    Result = RtlUnicodeStringPrintf(&DeviceName,
+        L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME "%wZ",
+        FspSxsSuffix());
+    ASSERT(NT_SUCCESS(Result));
     Result = FspDeviceCreateSecure(FspFsctlDeviceExtensionKind, 0,
         &DeviceName, FILE_DEVICE_NETWORK_FILE_SYSTEM, FILE_DEVICE_SECURE_OPEN,
         &DeviceSddl, &FspFsctlDeviceClassGuid,
         &Globals->FsctlNetDeviceObject);
     if (!NT_SUCCESS(Result))
         goto exit;
+    if (0 != FspSxsIdent()->Length)
+    {
+        /* \Device\WinFsp.Net SxS symlink */
+        RtlInitUnicodeString(&SymlinkName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
+        Result = IoCreateSymbolicLink(&SymlinkName, &DeviceName);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+        Globals->InitDoneSymlinkNet = 1;
+    }
     Result = FspDeviceCreate(FspFsmupDeviceExtensionKind, 0,
         FILE_DEVICE_NETWORK_FILE_SYSTEM, FILE_REMOTE_DEVICE,
         &Globals->FsmupDeviceObject);
@@ -257,8 +321,9 @@ static NTSTATUS FspDriverInitializeDevices(VOID)
     Result = RtlUnicodeStringPrintf(&DeviceName,
         0 == ((PULONG)&Guid)[0] && 0 == ((PULONG)&Guid)[1] &&
         0 == ((PULONG)&Guid)[2] && 0 == ((PULONG)&Guid)[3] ?
-            L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME :
-            L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME "{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+            L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME "%wZ":
+            L"\\Device\\" FSP_FSCTL_MUP_DEVICE_NAME "%wZ{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+        FspSxsSuffix(),
         Guid.Data1, Guid.Data2, Guid.Data3,
         Guid.Data4[0], Guid.Data4[1], Guid.Data4[2], Guid.Data4[3],
         Guid.Data4[4], Guid.Data4[5], Guid.Data4[6], Guid.Data4[7]);
@@ -293,10 +358,22 @@ exit:
             FspDeviceDelete(Globals->FsmupDeviceObject);
             Globals->FsmupDeviceObject = 0;
         }
+        if (Globals->InitDoneSymlinkNet)
+        {
+            RtlInitUnicodeString(&SymlinkName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
+            IoDeleteSymbolicLink(&SymlinkName);
+            Globals->InitDoneSymlinkNet = 0;
+        }
         if (0 != Globals->FsctlNetDeviceObject)
         {
             FspDeviceDelete(Globals->FsctlNetDeviceObject);
             Globals->FsctlNetDeviceObject = 0;
+        }
+        if (Globals->InitDoneSymlinkDisk)
+        {
+            RtlInitUnicodeString(&SymlinkName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
+            IoDeleteSymbolicLink(&SymlinkName);
+            Globals->InitDoneSymlinkDisk = 0;
         }
         if (0 != Globals->FsctlDiskDeviceObject)
         {
@@ -315,6 +392,7 @@ static VOID FspDriverFinalizeDevices(VOID)
     PAGED_CODE();
 
     FSP_SILO_GLOBALS *Globals;
+    UNICODE_STRING SymlinkName;
 
     FspSiloGetGlobals(&Globals);
     ASSERT(0 != Globals);
@@ -331,10 +409,22 @@ static VOID FspDriverFinalizeDevices(VOID)
         FspDeviceDelete(Globals->FsmupDeviceObject);
         Globals->FsmupDeviceObject = 0;
     }
+    if (Globals->InitDoneSymlinkNet)
+    {
+        RtlInitUnicodeString(&SymlinkName, L"\\Device\\" FSP_FSCTL_NET_DEVICE_NAME);
+        IoDeleteSymbolicLink(&SymlinkName);
+        Globals->InitDoneSymlinkNet = 0;
+    }
     if (0 != Globals->FsctlNetDeviceObject)
     {
         FspDeviceDelete(Globals->FsctlNetDeviceObject);
         Globals->FsctlNetDeviceObject = 0;
+    }
+    if (Globals->InitDoneSymlinkDisk)
+    {
+        RtlInitUnicodeString(&SymlinkName, L"\\Device\\" FSP_FSCTL_DISK_DEVICE_NAME);
+        IoDeleteSymbolicLink(&SymlinkName);
+        Globals->InitDoneSymlinkDisk = 0;
     }
     if (0 != Globals->FsctlDiskDeviceObject)
     {

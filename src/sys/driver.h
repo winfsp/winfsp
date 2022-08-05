@@ -739,6 +739,11 @@ LONG FspCompareUnicodeString(
     PCUNICODE_STRING String2,
     BOOLEAN CaseInsensitive);
 
+/* SxS */
+VOID FspSxsIdentInitialize(PUNICODE_STRING DriverName);
+PUNICODE_STRING FspSxsIdent(VOID);
+PUNICODE_STRING FspSxsSuffix(VOID);
+
 /* silos */
 typedef struct
 {
@@ -746,7 +751,8 @@ typedef struct
     PDEVICE_OBJECT FsctlNetDeviceObject;
     PDEVICE_OBJECT FsmupDeviceObject;
     HANDLE MupHandle;
-    WCHAR FsmupDeviceNameBuf[64];
+    WCHAR FsmupDeviceNameBuf[128];
+    UINT32 InitDoneSymlinkDisk:1, InitDoneSymlinkNet:1;
 } FSP_SILO_GLOBALS;
 typedef NTSTATUS (*FSP_SILO_INIT_CALLBACK)(VOID);
 typedef VOID (*FSP_SILO_FINI_CALLBACK)(VOID);

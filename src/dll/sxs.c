@@ -93,7 +93,7 @@ static BOOL WINAPI FspSxsIdentInitialize(
     if (0 == Size)
         goto exit;
 
-    FspSxsIdentBuf[0] = L'-';
+    FspSxsIdentBuf[0] = L'+';
     memcpy(FspSxsIdentBuf + 1, WBuffer, Size * sizeof(WCHAR));
     FspSxsIdentBuf[1 + Size] = L'\0';
 

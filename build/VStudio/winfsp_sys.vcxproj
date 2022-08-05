@@ -260,6 +260,7 @@
     <ClCompile Include="..\..\src\sys\shutdown.c" />
     <ClCompile Include="..\..\src\sys\silo.c" />
     <ClCompile Include="..\..\src\sys\statistics.c" />
+    <ClCompile Include="..\..\src\sys\sxs.c" />
     <ClCompile Include="..\..\src\sys\trace.c" />
     <ClCompile Include="..\..\src\sys\util.c" />
     <ClCompile Include="..\..\src\sys\volinfo.c" />

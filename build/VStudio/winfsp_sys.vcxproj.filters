@@ -134,6 +134,9 @@
     <ClCompile Include="..\..\src\shared\ku\mountmgr.c">
       <Filter>Source\shared\ku</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\sys\sxs.c">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\sys\driver.h">
