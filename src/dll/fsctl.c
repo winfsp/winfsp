@@ -32,7 +32,6 @@ static DWORD FspFsctlTransactCode = FSP_FSCTL_TRANSACT;
 static DWORD FspFsctlTransactBatchCode = FSP_FSCTL_TRANSACT_BATCH;
 
 static VOID FspFsctlServiceVersion(PUINT32 PVersion);
-static NTSTATUS FspFsctlStartService(VOID);
 
 FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
@@ -298,6 +297,56 @@ FSP_API NTSTATUS FspFsctlPreflight(PWSTR DevicePath)
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS FspFsctlUnload(PWSTR DevicePath)
+{
+    NTSTATUS Result;
+    PWSTR DeviceRoot;
+    SIZE_T DeviceRootSize, DevicePathSize;
+    WCHAR DevicePathBuf[MAX_PATH], *DevicePathPtr;
+    HANDLE VolumeHandle = INVALID_HANDLE_VALUE;
+    DWORD Bytes;
+
+    /* check lengths; everything must fit within MAX_PATH */
+    DeviceRoot = L'\\' == DevicePath[0] ? GLOBALROOT : GLOBALROOT "\\Device\\";
+    DeviceRootSize = lstrlenW(DeviceRoot) * sizeof(WCHAR);
+    DevicePathSize = lstrlenW(DevicePath) * sizeof(WCHAR);
+    if (DeviceRootSize + DevicePathSize + sizeof(WCHAR) > sizeof DevicePathBuf)
+        return STATUS_INVALID_PARAMETER;
+
+    /* prepare the device path to be opened */
+    DevicePathPtr = DevicePathBuf;
+    memcpy(DevicePathPtr, DeviceRoot, DeviceRootSize);
+    DevicePathPtr = (PVOID)((PUINT8)DevicePathPtr + DeviceRootSize);
+    memcpy(DevicePathPtr, DevicePath, DevicePathSize);
+    DevicePathPtr = (PVOID)((PUINT8)DevicePathPtr + DevicePathSize);
+    *DevicePathPtr = L'\0';
+
+    VolumeHandle = CreateFileW(DevicePathBuf,
+        0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
+    if (INVALID_HANDLE_VALUE == VolumeHandle)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        if (STATUS_OBJECT_PATH_NOT_FOUND == Result ||
+            STATUS_OBJECT_NAME_NOT_FOUND == Result)
+            Result = STATUS_NO_SUCH_DEVICE;
+        goto exit;
+    }
+
+    if (!DeviceIoControl(VolumeHandle, FSP_FSCTL_UNLOAD, 0, 0, 0, 0, &Bytes, 0))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (INVALID_HANDLE_VALUE != VolumeHandle)
+        CloseHandle(VolumeHandle);
+
+    return Result;
+}
+
 static BOOL WINAPI FspFsctlServiceVersionInitialize(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
 {
@@ -373,9 +422,24 @@ static VOID FspFsctlServiceVersion(PUINT32 PVersion)
         *PVersion = FspFsctlServiceVersionValue;
 }
 
-static NTSTATUS FspFsctlStartService(VOID)
+static SRWLOCK FspFsctlStartStopServiceLock = SRWLOCK_INIT;
+
+static BOOLEAN FspFsctlRunningInContainer(VOID)
 {
-    static SRWLOCK Lock = SRWLOCK_INIT;
+    /* Determine if we are running inside container.
+     *
+     * See https://github.com/microsoft/perfview/blob/V1.9.65/src/TraceEvent/TraceEventSession.cs#L525
+     * See https://stackoverflow.com/a/50748300
+     */
+    return ERROR_SUCCESS == RegGetValueW(
+        HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Control",
+        L"ContainerType",
+        RRF_RT_REG_DWORD, 0,
+        0, 0);
+}
+
+FSP_API NTSTATUS FspFsctlStartService(VOID)
+{
     WCHAR DriverName[256];
     SC_HANDLE ScmHandle = 0;
     SC_HANDLE SvcHandle = 0;
@@ -385,19 +449,9 @@ static NTSTATUS FspFsctlStartService(VOID)
 
     wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsSuffix());
 
-    AcquireSRWLockExclusive(&Lock);
+    AcquireSRWLockExclusive(&FspFsctlStartStopServiceLock);
 
-    /* Determine if we are running inside container.
-     *
-     * See https://github.com/microsoft/perfview/blob/V1.9.65/src/TraceEvent/TraceEventSession.cs#L525
-     * See https://stackoverflow.com/a/50748300
-     */
-    LastError = RegGetValueW(
-        HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Control",
-        L"ContainerType",
-        RRF_RT_REG_DWORD, 0,
-        0, 0);
-    if (ERROR_SUCCESS == LastError)
+    if (FspFsctlRunningInContainer())
     {
         Result = STATUS_SUCCESS;
         goto exit;
@@ -457,7 +511,97 @@ exit:
     if (0 != ScmHandle)
         CloseServiceHandle(ScmHandle);
 
-    ReleaseSRWLockExclusive(&Lock);
+    ReleaseSRWLockExclusive(&FspFsctlStartStopServiceLock);
+
+    return Result;
+}
+
+FSP_API NTSTATUS FspFsctlStopService(VOID)
+{
+    WCHAR DriverName[256];
+    HANDLE ThreadToken = 0, ProcessToken = 0;
+    BOOL DidSetThreadToken = FALSE, DidAdjustTokenPrivileges = FALSE;
+    TOKEN_PRIVILEGES Privileges, PreviousPrivileges;
+    PRIVILEGE_SET RequiredPrivileges;
+    DWORD PreviousPrivilegesLength;
+    BOOL PrivilegeCheckResult;
+    NTSTATUS Result;
+
+    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsSuffix());
+
+    AcquireSRWLockExclusive(&FspFsctlStartStopServiceLock);
+
+    if (FspFsctlRunningInContainer())
+    {
+        Result = STATUS_SUCCESS;
+        goto exit;
+    }
+
+    /* enable and check SeLoadDriverPrivilege required for FSP_FSCTL_UNLOAD */
+    if (!OpenThreadToken(GetCurrentThread(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, TRUE, &ThreadToken))
+    {
+        if (!OpenProcessToken(GetCurrentProcess(), MAXIMUM_ALLOWED, &ProcessToken) ||
+            !DuplicateToken(ProcessToken, SecurityDelegation, &ThreadToken) ||
+            !SetThreadToken(0, ThreadToken))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+        DidSetThreadToken = TRUE;
+        CloseHandle(ThreadToken);
+        ThreadToken = 0;
+        if (!OpenThreadToken(GetCurrentThread(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, TRUE, &ThreadToken))
+        {
+            Result = FspNtStatusFromWin32(GetLastError());
+            goto exit;
+        }
+    }
+    if (!LookupPrivilegeValueW(0, SE_LOAD_DRIVER_NAME, &Privileges.Privileges[0].Luid))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+    Privileges.PrivilegeCount = 1;
+    Privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    if (!AdjustTokenPrivileges(ThreadToken, FALSE,
+        &Privileges, sizeof PreviousPrivileges, &PreviousPrivileges, &PreviousPrivilegesLength))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+    DidAdjustTokenPrivileges = 0 == GetLastError();
+    RequiredPrivileges.PrivilegeCount = 1;
+    RequiredPrivileges.Control = PRIVILEGE_SET_ALL_NECESSARY;
+    RequiredPrivileges.Privilege[0].Attributes = 0;
+    RequiredPrivileges.Privilege[0].Luid = Privileges.Privileges[0].Luid;
+    if (!PrivilegeCheck(ThreadToken, &RequiredPrivileges, &PrivilegeCheckResult))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+    if (!PrivilegeCheckResult)
+    {
+        Result = STATUS_PRIVILEGE_NOT_HELD;
+        goto exit;
+    }
+
+    Result = FspFsctlUnload(L"" FSP_FSCTL_DISK_DEVICE_NAME);
+    if (!NT_SUCCESS(Result) && STATUS_NO_SUCH_DEVICE != Result)
+        goto exit;
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (DidAdjustTokenPrivileges)
+        AdjustTokenPrivileges(ThreadToken, FALSE, &PreviousPrivileges, 0, 0, 0);
+    if (DidSetThreadToken)
+        SetThreadToken(0, 0);
+    if (0 != ThreadToken)
+        CloseHandle(ThreadToken);
+    if (0 != ProcessToken)
+        CloseHandle(ProcessToken);
+
+    ReleaseSRWLockExclusive(&FspFsctlStartStopServiceLock);
 
     return Result;
 }
@@ -465,7 +609,9 @@ exit:
 static NTSTATUS FspFsctlFixServiceSecurity(HANDLE SvcHandle)
 {
     /*
-     * This function adds an ACE that allows Everyone to start a service.
+     * This function adds two ACE's:
+     * - An ACE that allows Everyone to start a service.
+     * - An ACE that denies Everyone (including Administrators) to stop a service.
      */
 
     PSID WorldSid;

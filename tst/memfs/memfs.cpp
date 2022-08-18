@@ -41,6 +41,11 @@ FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
 //#define MEMFS_STANDALONE
 
 /*
+ * Define the MEMFS_DISPATCHER_STOPPED macro to include DispatcherStopped support.
+ */
+#define MEMFS_DISPATCHER_STOPPED
+
+/*
  * Define the MEMFS_NAME_NORMALIZATION macro to include name normalization support.
  */
 #define MEMFS_NAME_NORMALIZATION
@@ -2269,6 +2274,14 @@ static NTSTATUS SetEa(FSP_FILE_SYSTEM *FileSystem,
 }
 #endif
 
+#if defined(MEMFS_DISPATCHER_STOPPED)
+static void DispatcherStopped(FSP_FILE_SYSTEM *FileSystem,
+    BOOLEAN Normally)
+{
+    //FspDebugLog(__FUNCTION__ ": Normally=%d\n", Normally);
+}
+#endif
+
 static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 {
     GetVolumeInfo,
@@ -2335,6 +2348,12 @@ static FSP_FILE_SYSTEM_INTERFACE MemfsInterface =
 #else
     0,
     0,
+    0,
+#endif
+    0,
+#if defined(MEMFS_DISPATCHER_STOPPED)
+    DispatcherStopped,
+#else
     0,
 #endif
 };

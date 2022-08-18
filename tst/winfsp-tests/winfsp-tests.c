@@ -220,6 +220,7 @@ LONG WINAPI UnhandledExceptionHandler(struct _EXCEPTION_POINTERS *ExceptionInfo)
     argv[argc] = 0
 int main(int argc, char *argv[])
 {
+    TESTSUITE(load_unload_tests);
     TESTSUITE(fuse_opt_tests);
     TESTSUITE(fuse_tests);
     TESTSUITE(posix_tests);

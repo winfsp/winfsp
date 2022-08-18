@@ -128,6 +128,9 @@ static NTSTATUS FspFsctlFileSystemControl(
             if (0 != IrpSp->FileObject->FsContext2)
                 Result = FspVolumeNotify(FsctlDeviceObject, Irp, IrpSp);
             break;
+        case FSP_FSCTL_UNLOAD:
+            Result = FspDriverUnload(FsctlDeviceObject, Irp, IrpSp);
+            break;
         default:
             if (CTL_CODE(0, 0xC00, 0, 0) ==
                 (IrpSp->Parameters.FileSystemControl.FsControlCode & CTL_CODE(0, 0xC00, 0, 0)))

@@ -358,6 +358,21 @@ exit:
         CloseHandle(DispatcherThread);
     }
 
+    if (GetCurrentThreadId() == GetThreadId(FileSystem->DispatcherThread))
+    {
+        if (0 != FileSystem->Interface->DispatcherStopped)
+        {
+            /* Normally = !!FileSystem->DispatcherStopping */
+            BOOLEAN Normally = !!(
+                _InterlockedOr16(
+                    (PVOID)((PUINT8)&FileSystem->UmFileContextIsFullContext +
+                        sizeof(FileSystem->UmFileContextIsFullContext)),
+                    0) &
+                0x8000);
+            FileSystem->Interface->DispatcherStopped(FileSystem, Normally);
+        }
+    }
+
     return Result;
 }
 
@@ -399,6 +414,12 @@ FSP_API VOID FspFileSystemStopDispatcher(FSP_FILE_SYSTEM *FileSystem)
     if (0 == FileSystem->DispatcherThread)
         return;
 
+    /* FileSystem->DispatcherStopping = 1 */
+    _InterlockedOr16(
+        (PVOID)((PUINT8)&FileSystem->UmFileContextIsFullContext +
+            sizeof(FileSystem->UmFileContextIsFullContext)),
+        0x8000);
+
     FspFsctlStop0(FileSystem->VolumeHandle);
 
     WaitForSingleObject(FileSystem->DispatcherThread, INFINITE);
@@ -406,6 +427,12 @@ FSP_API VOID FspFileSystemStopDispatcher(FSP_FILE_SYSTEM *FileSystem)
     FileSystem->DispatcherThread = 0;
 
     FspFsctlStop(FileSystem->VolumeHandle);
+
+    /* FileSystem->DispatcherStopping = 0 */
+    _InterlockedAnd16(
+        (PVOID)((PUINT8)&FileSystem->UmFileContextIsFullContext +
+            sizeof(FileSystem->UmFileContextIsFullContext)),
+        0x7fff);
 }
 
 FSP_API VOID FspFileSystemSendResponse(FSP_FILE_SYSTEM *FileSystem,

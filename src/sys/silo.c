@@ -123,6 +123,11 @@ static FSP_SILO_GLOBALS FspSiloHostGlobals;
     }
 #define CALL(n)                         (FspSilo ## n)
 
+BOOLEAN FspSiloIsHost(VOID)
+{
+    return !FspSiloInitDone || 0 == CALL(PsGetCurrentServerSilo)();
+}
+
 NTSTATUS FspSiloGetGlobals(FSP_SILO_GLOBALS **PGlobals)
 {
     FSP_PESILO Silo;

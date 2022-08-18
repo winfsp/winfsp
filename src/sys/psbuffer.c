@@ -123,6 +123,27 @@ NTSTATUS FspProcessBufferInitialize(VOID)
 VOID FspProcessBufferFinalize(VOID)
 {
     PsSetCreateProcessNotifyRoutine(FspProcessBufferNotifyRoutine, TRUE);
+
+    /*
+     * Free any items in our process hash table.
+     * Any virtual memory was released when the corresponding processes went away.
+     */
+    for (ULONG HashIndex = 0; ProcessBufferBucketCount > HashIndex; HashIndex++)
+    {
+        for (FSP_PROCESS_BUFFER_ITEM *Item = ProcessBufferBuckets[HashIndex], *DictNext; Item; Item = DictNext)
+        {
+            for (FSP_PROCESS_BUFFER_LIST_ENTRY *P = Item->BufferList, *Next; P; P = Next)
+            {
+                Next = P->Next;
+                FspFree(P);
+            }
+
+            DictNext = Item->DictNext;
+            FspFree(Item);
+        }
+
+        ProcessBufferBuckets[HashIndex] = 0;
+    }
 }
 
 static VOID FspProcessBufferNotifyRoutine(HANDLE ParentId, HANDLE ProcessId, BOOLEAN Create)

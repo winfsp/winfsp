@@ -21,27 +21,23 @@
 
 #include <sys/driver.h>
 
-/*
- * Define the following macro to include FspUnload and make the driver unloadable.
- */
-#define FSP_UNLOAD
-
 DRIVER_INITIALIZE DriverEntry;
-#if defined(FSP_UNLOAD)
-DRIVER_UNLOAD FspUnload;
-#endif
+static DRIVER_UNLOAD DriverUnload;
 static VOID FspDriverMultiVersionInitialize(VOID);
 static NTSTATUS FspDriverInitializeDevices(VOID);
 static VOID FspDriverFinalizeDevices(VOID);
+static VOID FspDriverFinalizeDevicesEx(BOOLEAN DeleteDevices);
+NTSTATUS FspDriverUnload(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(INIT, DriverEntry)
-#if defined(FSP_UNLOAD)
-#pragma alloc_text(PAGE, FspUnload)
-#endif
+#pragma alloc_text(PAGE, DriverUnload)
 #pragma alloc_text(INIT, FspDriverMultiVersionInitialize)
 #pragma alloc_text(PAGE, FspDriverInitializeDevices)
 #pragma alloc_text(PAGE, FspDriverFinalizeDevices)
+#pragma alloc_text(PAGE, FspDriverFinalizeDevicesEx)
+#pragma alloc_text(PAGE, FspDriverUnload)
 #endif
 
 NTSTATUS DriverEntry(
@@ -54,9 +50,7 @@ NTSTATUS DriverEntry(
     FspSxsIdentInitialize(&DriverObject->DriverName);
 
     /* setup the driver object */
-#if defined(FSP_UNLOAD)
-    DriverObject->DriverUnload = FspUnload;
-#endif
+    DriverObject->DriverUnload = DriverUnload;
     DriverObject->MajorFunction[IRP_MJ_CREATE] = FspCreate;
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = FspClose;
     DriverObject->MajorFunction[IRP_MJ_READ] = FspRead;
@@ -144,6 +138,7 @@ NTSTATUS DriverEntry(
     FspDriverObject = DriverObject;
     FspDriverMultiVersionInitialize();
 
+    ExInitializeFastMutex(&FspDriverUnloadMutex);
     ExInitializeFastMutex(&FspDeviceGlobalMutex);
 
     Result = FspSiloInitialize(FspDriverInitializeDevices, FspDriverFinalizeDevices);
@@ -188,11 +183,12 @@ exit:
         &DriverObject->DriverName, RegistryPath);
 }
 
-#if defined(FSP_UNLOAD)
-VOID FspUnload(
+VOID DriverUnload(
     PDRIVER_OBJECT DriverObject)
 {
     FSP_ENTER_VOID(PAGED_CODE());
+
+    FspDriverFinalizeDevices();
 
     FspDeviceFinalizeAllTimers();
 
@@ -206,7 +202,6 @@ VOID FspUnload(
     FSP_LEAVE_VOID("DriverName=\"%wZ\"",
         &DriverObject->DriverName);
 }
-#endif
 
 static VOID FspDriverMultiVersionInitialize(VOID)
 {
@@ -342,12 +337,25 @@ static NTSTATUS FspDriverInitializeDevices(VOID)
      * as a file system; we register with the MUP instead.
      */
     IoRegisterFileSystem(Globals->FsctlDiskDeviceObject);
+    Globals->InitDoneRegisterDisk = 1;
+
+    /*
+     * Reference primary device objects to allow for IoDeleteDevice during FspDriverUnload.
+     */
+    ObReferenceObject(Globals->FsctlDiskDeviceObject);
+    ObReferenceObject(Globals->FsctlNetDeviceObject);
+    ObReferenceObject(Globals->FsmupDeviceObject);
 
     Result = STATUS_SUCCESS;
 
 exit:
     if (!NT_SUCCESS(Result))
     {
+        if (Globals->InitDoneRegisterDisk)
+        {
+            IoUnregisterFileSystem(Globals->FsctlDiskDeviceObject);
+            Globals->InitDoneRegisterDisk = 0;
+        }
         if (0 != Globals->MupHandle)
         {
             FsRtlDeregisterUncProvider(Globals->MupHandle);
@@ -391,14 +399,24 @@ static VOID FspDriverFinalizeDevices(VOID)
 {
     PAGED_CODE();
 
+    FspDriverFinalizeDevicesEx(TRUE);
+}
+
+static VOID FspDriverFinalizeDevicesEx(BOOLEAN DeleteDevices)
+{
+    PAGED_CODE();
+
     FSP_SILO_GLOBALS *Globals;
     UNICODE_STRING SymlinkName;
 
     FspSiloGetGlobals(&Globals);
     ASSERT(0 != Globals);
 
-    IoUnregisterFileSystem(Globals->FsctlDiskDeviceObject);
-
+    if (Globals->InitDoneRegisterDisk)
+    {
+        IoUnregisterFileSystem(Globals->FsctlDiskDeviceObject);
+        Globals->InitDoneRegisterDisk = 0;
+    }
     if (0 != Globals->MupHandle)
     {
         FsRtlDeregisterUncProvider(Globals->MupHandle);
@@ -406,8 +424,14 @@ static VOID FspDriverFinalizeDevices(VOID)
     }
     if (0 != Globals->FsmupDeviceObject)
     {
-        FspDeviceDelete(Globals->FsmupDeviceObject);
-        Globals->FsmupDeviceObject = 0;
+        if (DeleteDevices)
+        {
+            FspDeviceDelete(Globals->FsmupDeviceObject);
+            ObDereferenceObject(Globals->FsmupDeviceObject);
+            Globals->FsmupDeviceObject = 0;
+        }
+        else
+            FspDeviceDoIoDeleteDevice(Globals->FsmupDeviceObject);
     }
     if (Globals->InitDoneSymlinkNet)
     {
@@ -417,8 +441,14 @@ static VOID FspDriverFinalizeDevices(VOID)
     }
     if (0 != Globals->FsctlNetDeviceObject)
     {
-        FspDeviceDelete(Globals->FsctlNetDeviceObject);
-        Globals->FsctlNetDeviceObject = 0;
+        if (DeleteDevices)
+        {
+            FspDeviceDelete(Globals->FsctlNetDeviceObject);
+            ObDereferenceObject(Globals->FsctlNetDeviceObject);
+            Globals->FsctlNetDeviceObject = 0;
+        }
+        else
+            FspDeviceDoIoDeleteDevice(Globals->FsctlNetDeviceObject);
     }
     if (Globals->InitDoneSymlinkDisk)
     {
@@ -428,16 +458,84 @@ static VOID FspDriverFinalizeDevices(VOID)
     }
     if (0 != Globals->FsctlDiskDeviceObject)
     {
-        FspDeviceDelete(Globals->FsctlDiskDeviceObject);
-        Globals->FsctlDiskDeviceObject = 0;
+        if (DeleteDevices)
+        {
+            FspDeviceDelete(Globals->FsctlDiskDeviceObject);
+            ObDereferenceObject(Globals->FsctlDiskDeviceObject);
+            Globals->FsctlDiskDeviceObject = 0;
+        }
+        else
+            FspDeviceDoIoDeleteDevice(Globals->FsctlDiskDeviceObject);
     }
 
     FspSiloDereferenceGlobals(Globals);
 }
 
+NTSTATUS FspDriverUnload(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    ASSERT(IRP_MJ_FILE_SYSTEM_CONTROL == IrpSp->MajorFunction);
+    ASSERT(IRP_MN_USER_FS_REQUEST == IrpSp->MinorFunction);
+    ASSERT(FSP_FSCTL_UNLOAD == IrpSp->Parameters.FileSystemControl.FsControlCode);
+
+    NTSTATUS Result;
+    UNICODE_STRING DriverServiceName, DriverName, Remain;
+    WCHAR DriverServiceNameBuf[64 + 256];
+    PDEVICE_OBJECT *DeviceObjects = 0;
+    ULONG DeviceObjectCount = 0;
+
+    if (!FspSiloIsHost())
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    if (!SeSinglePrivilegeCheck(RtlConvertLongToLuid(SE_LOAD_DRIVER_PRIVILEGE), UserMode))
+        return STATUS_PRIVILEGE_NOT_HELD;
+
+    ExAcquireFastMutexUnsafe(&FspDriverUnloadMutex);
+
+    if (!FspDriverUnloadDone)
+    {
+        FspFileNameSuffix(&FspDriverObject->DriverName, &Remain, &DriverName);
+        RtlInitEmptyUnicodeString(&DriverServiceName, DriverServiceNameBuf, sizeof DriverServiceNameBuf);
+        Result = RtlUnicodeStringPrintf(&DriverServiceName,
+            L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\%wZ", &DriverName);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+        Result = ZwUnloadDriver(&DriverServiceName);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        FspDriverFinalizeDevicesEx(FALSE);
+
+        Result = FspDeviceCopyList(&DeviceObjects, &DeviceObjectCount);
+        if (NT_SUCCESS(Result))
+        {
+            for (ULONG I = 0; DeviceObjectCount > I; I++)
+            {
+                FSP_DEVICE_EXTENSION *DeviceExtension = FspDeviceExtension(DeviceObjects[I]);
+                if (FspFsvolDeviceExtensionKind == DeviceExtension->Kind)
+                    FspIoqStop(((FSP_FSVOL_DEVICE_EXTENSION *)DeviceExtension)->Ioq, FALSE);
+            }
+            FspDeviceDeleteList(DeviceObjects, DeviceObjectCount);
+        }
+
+        FspDriverUnloadDone = TRUE;
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    ExReleaseFastMutexUnsafe(&FspDriverUnloadMutex);
+
+    return Result;
+}
+
 PDRIVER_OBJECT FspDriverObject;
 FAST_IO_DISPATCH FspFastIoDispatch;
 CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
+FAST_MUTEX FspDriverUnloadMutex;
+BOOLEAN FspDriverUnloadDone;
 
 ULONG FspProcessorCount;
 FSP_MV_CcCoherencyFlushAndPurgeCache *FspMvCcCoherencyFlushAndPurgeCache;

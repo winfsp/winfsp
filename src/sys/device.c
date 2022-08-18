@@ -30,6 +30,7 @@ NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
     PDEVICE_OBJECT *PDeviceObject);
 NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
+VOID FspDeviceDoIoDeleteDevice(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceReference(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDereference(PDEVICE_OBJECT DeviceObject);
 _IRQL_requires_(DISPATCH_LEVEL)
@@ -67,13 +68,13 @@ NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
-VOID FspDeviceDeleteAll(VOID);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspDeviceCreateSecure)
 #pragma alloc_text(PAGE, FspDeviceCreate)
 #pragma alloc_text(PAGE, FspDeviceInitialize)
 #pragma alloc_text(PAGE, FspDeviceDelete)
+#pragma alloc_text(PAGE, FspDeviceDoIoDeleteDevice)
 #pragma alloc_text(PAGE, FspFsvolDeviceInit)
 #pragma alloc_text(PAGE, FspFsvolDeviceFini)
 #pragma alloc_text(PAGE, FspFsvolDeviceCopyContextList)
@@ -92,7 +93,6 @@ VOID FspDeviceDeleteAll(VOID);
 #pragma alloc_text(PAGE, FspFsmupDeviceFini)
 #pragma alloc_text(PAGE, FspDeviceCopyList)
 #pragma alloc_text(PAGE, FspDeviceDeleteList)
-#pragma alloc_text(PAGE, FspDeviceDeleteAll)
 #endif
 
 NTSTATUS FspDeviceCreateSecure(UINT32 Kind, ULONG ExtraSize,
@@ -218,13 +218,23 @@ VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject)
         return;
     }
 
+    FspDeviceDoIoDeleteDevice(DeviceObject);
+
 #if DBG
 #pragma prefast(suppress:28175, "Debugging only: ok to access DeviceObject->Size")
     RtlFillMemory(&DeviceExtension->Kind,
         (PUINT8)DeviceObject + DeviceObject->Size - (PUINT8)&DeviceExtension->Kind, 0xBD);
 #endif
+}
 
-    IoDeleteDevice(DeviceObject);
+VOID FspDeviceDoIoDeleteDevice(PDEVICE_OBJECT DeviceObject)
+{
+    PAGED_CODE();
+
+    FSP_DEVICE_EXTENSION *DeviceExtension = FspDeviceExtension(DeviceObject);
+
+    if (0 == InterlockedCompareExchange(&DeviceExtension->DidIoDeleteDevice, 1, 0))
+        IoDeleteDevice(DeviceObject);
 }
 
 BOOLEAN FspDeviceReference(PDEVICE_OBJECT DeviceObject)
@@ -940,24 +950,6 @@ VOID FspDeviceDeleteList(
         ObDereferenceObject(DeviceObjects[i]);
 
     FspFree(DeviceObjects);
-}
-
-VOID FspDeviceDeleteAll(VOID)
-{
-    PAGED_CODE();
-
-    NTSTATUS Result;
-    PDEVICE_OBJECT *DeviceObjects = 0;
-    ULONG DeviceObjectCount = 0;
-
-    Result = FspDeviceCopyList(&DeviceObjects, &DeviceObjectCount);
-    if (!NT_SUCCESS(Result))
-        return;
-
-    for (ULONG i = 0; DeviceObjectCount > i; i++)
-        FspDeviceDelete(DeviceObjects[i]);
-
-    FspDeviceDeleteList(DeviceObjects, DeviceObjectCount);
 }
 
 FAST_MUTEX FspDeviceGlobalMutex;

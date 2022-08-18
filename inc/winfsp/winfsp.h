@@ -1047,11 +1047,14 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
 
     NTSTATUS (*Obsolete0)(VOID);
 
+    VOID (*DispatcherStopped)(FSP_FILE_SYSTEM *FileSystem,
+        BOOLEAN Normally);
+
     /*
      * This ensures that this interface will always contain 64 function pointers.
      * Please update when changing the interface as it is important for future compatibility.
      */
-    NTSTATUS (*Reserved[32])();
+    NTSTATUS (*Reserved[31])();
 } FSP_FILE_SYSTEM_INTERFACE;
 FSP_FSCTL_STATIC_ASSERT(sizeof(FSP_FILE_SYSTEM_INTERFACE) == 64 * sizeof(NTSTATUS (*)()),
     "FSP_FILE_SYSTEM_INTERFACE must have 64 entries.");
@@ -1074,7 +1077,8 @@ typedef struct _FSP_FILE_SYSTEM
     SRWLOCK OpGuardLock;
     BOOLEAN UmFileContextIsUserContext2, UmFileContextIsFullContext;
     UINT16 UmNoReparsePointsDirCheck:1;
-    UINT16 UmReservedFlags:15;
+    UINT16 UmReservedFlags:14;
+    UINT16 DispatcherStopping:1;
 } FSP_FILE_SYSTEM;
 FSP_FSCTL_STATIC_ASSERT(
     (4 == sizeof(PVOID) && 660 == sizeof(FSP_FILE_SYSTEM)) ||

@@ -55,6 +55,7 @@ NTSTATUS FspDeviceInitializeAllTimers(VOID)
 VOID FspDeviceFinalizeAllTimers(VOID)
 {
     KeCancelTimer(&FspDeviceTimer);
+    KeFlushQueuedDpcs();
 
 #if DBG
     KIRQL Irql;

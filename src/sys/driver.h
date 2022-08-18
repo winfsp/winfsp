@@ -364,6 +364,10 @@ VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Sta
 /* missing typedef */
 typedef const void *PCVOID;
 
+/* driver unload */
+NTSTATUS FspDriverUnload(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+
 /* driver major functions */
 _Function_class_(DRIVER_DISPATCH)
 _IRQL_requires_max_(APC_LEVEL)
@@ -752,10 +756,11 @@ typedef struct
     PDEVICE_OBJECT FsmupDeviceObject;
     HANDLE MupHandle;
     WCHAR FsmupDeviceNameBuf[128];
-    UINT32 InitDoneSymlinkDisk:1, InitDoneSymlinkNet:1;
+    UINT32 InitDoneSymlinkDisk:1, InitDoneSymlinkNet:1, InitDoneRegisterDisk:1;
 } FSP_SILO_GLOBALS;
 typedef NTSTATUS (*FSP_SILO_INIT_CALLBACK)(VOID);
 typedef VOID (*FSP_SILO_FINI_CALLBACK)(VOID);
+BOOLEAN FspSiloIsHost(VOID);
 NTSTATUS FspSiloGetGlobals(FSP_SILO_GLOBALS **PGlobals);
 VOID FspSiloDereferenceGlobals(FSP_SILO_GLOBALS *Globals);
 VOID FspSiloGetContainerId(GUID *ContainerId);
@@ -1188,8 +1193,8 @@ typedef struct
     LONG RefCount;
     UINT32 Kind;
     GUID SiloContainerId;
-    /* IoTimer emulation */
-    FSP_DEVICE_TIMER DeviceTimer;
+    FSP_DEVICE_TIMER DeviceTimer;       /* IoTimer emulation */
+    LONG DidIoDeleteDevice;
 } FSP_DEVICE_EXTENSION;
 typedef struct
 {
@@ -1291,6 +1296,7 @@ NTSTATUS FspDeviceCreate(UINT32 Kind, ULONG ExtraSize,
     PDEVICE_OBJECT *PDeviceObject);
 NTSTATUS FspDeviceInitialize(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDelete(PDEVICE_OBJECT DeviceObject);
+VOID FspDeviceDoIoDeleteDevice(PDEVICE_OBJECT DeviceObject);
 BOOLEAN FspDeviceReference(PDEVICE_OBJECT DeviceObject);
 VOID FspDeviceDereference(PDEVICE_OBJECT DeviceObject);
 static inline
@@ -1473,7 +1479,6 @@ NTSTATUS FspDeviceCopyList(
     PDEVICE_OBJECT **PDeviceObjects, PULONG PDeviceObjectCount);
 VOID FspDeviceDeleteList(
     PDEVICE_OBJECT *DeviceObjects, ULONG DeviceObjectCount);
-VOID FspDeviceDeleteAll(VOID);
 NTSTATUS FspDeviceInitializeAllTimers(VOID);
 VOID FspDeviceFinalizeAllTimers(VOID);
 NTSTATUS FspDeviceInitializeTimer(PDEVICE_OBJECT DeviceObject,
@@ -2005,6 +2010,8 @@ FSP_MV_CcCoherencyFlushAndPurgeCache(
 extern PDRIVER_OBJECT FspDriverObject;
 extern FAST_IO_DISPATCH FspFastIoDispatch;
 extern CACHE_MANAGER_CALLBACKS FspCacheManagerCallbacks;
+extern FAST_MUTEX FspDriverUnloadMutex;
+extern BOOLEAN FspDriverUnloadDone;
 extern FSP_IOPREP_DISPATCH *FspIopPrepareFunction[];
 extern FSP_IOCMPL_DISPATCH *FspIopCompleteFunction[];
 extern FAST_MUTEX FspDeviceGlobalMutex;
