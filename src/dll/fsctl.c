@@ -617,8 +617,7 @@ static NTSTATUS FspFsctlFixServiceSecurity(HANDLE SvcHandle)
     PSID WorldSid;
     PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
     PSECURITY_DESCRIPTOR NewSecurityDescriptor = 0;
-    EXPLICIT_ACCESSW AccessEntry;
-    ACCESS_MASK AccessRights;
+    EXPLICIT_ACCESSW AccessEntries[2];
     PACL Dacl;
     BOOL DaclPresent, DaclDefaulted;
     DWORD Size;
@@ -663,54 +662,40 @@ static NTSTATUS FspFsctlFixServiceSecurity(HANDLE SvcHandle)
         goto exit;
     }
 
-    /* prepare an EXPLICIT_ACCESS for the SERVICE_QUERY_STATUS | SERVICE_START right for Everyone */
-    AccessEntry.grfAccessPermissions = SERVICE_QUERY_STATUS | SERVICE_START;
-    AccessEntry.grfAccessMode = GRANT_ACCESS;
-    AccessEntry.grfInheritance = NO_INHERITANCE;
-    AccessEntry.Trustee.pMultipleTrustee = 0;
-    AccessEntry.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
-    AccessEntry.Trustee.TrusteeForm = TRUSTEE_IS_SID;
-    AccessEntry.Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
-    AccessEntry.Trustee.ptstrName = WorldSid;
+    /* prepare an EXPLICIT_ACCESS for the SERVICE_QUERY_STATUS | SERVICE_START rights for Everyone */
+    AccessEntries[0].grfAccessPermissions = SERVICE_QUERY_STATUS | SERVICE_START;
+    AccessEntries[0].grfAccessMode = GRANT_ACCESS;
+    AccessEntries[0].grfInheritance = NO_INHERITANCE;
+    AccessEntries[0].Trustee.pMultipleTrustee = 0;
+    AccessEntries[0].Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
+    AccessEntries[0].Trustee.TrusteeForm = TRUSTEE_IS_SID;
+    AccessEntries[0].Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
+    AccessEntries[0].Trustee.ptstrName = WorldSid;
 
-    /* get the effective rights for Everyone */
-    AccessRights = 0;
-    if (DaclPresent && 0 != Dacl)
+    /* prepare an EXPLICIT_ACCESS to deny the SERVICE_STOP right to Everyone */
+    AccessEntries[1].grfAccessPermissions = SERVICE_STOP;
+    AccessEntries[1].grfAccessMode = DENY_ACCESS;
+    AccessEntries[1].grfInheritance = NO_INHERITANCE;
+    AccessEntries[1].Trustee.pMultipleTrustee = 0;
+    AccessEntries[1].Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
+    AccessEntries[1].Trustee.TrusteeForm = TRUSTEE_IS_SID;
+    AccessEntries[1].Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
+    AccessEntries[1].Trustee.ptstrName = WorldSid;
+
+    /* create a new security descriptor with the new access */
+    LastError = BuildSecurityDescriptorW(0, 0, 2, AccessEntries, 0, 0, SecurityDescriptor,
+        &Size, &NewSecurityDescriptor);
+    if (0 != LastError)
     {
-        LastError = GetEffectiveRightsFromAclW(Dacl, &AccessEntry.Trustee, &AccessRights);
-        if (0 != LastError)
-            /*
-             * Apparently GetEffectiveRightsFromAclW can fail with ERROR_CIRCULAR_DEPENDENCY
-             * in some rare circumstances. Calling GetEffectiveRightsFromAclW is not essential
-             * in this instance. It is only done to check whether the "Everyone/World" SID
-             * already has the access required to start the FSD; if it does not have those
-             * rights already they are added. It is probably safe to just assume that the
-             * required rights are not there if GetEffectiveRightsFromAclW fails; the worst
-             * that can happen is that the rights get added twice (which is benign).
-             *
-             * See https://github.com/winfsp/winfsp/issues/62
-             */
-            AccessRights = 0;
+        Result = FspNtStatusFromWin32(LastError);
+        goto exit;
     }
 
-    /* do we have the required access rights? */
-    if (AccessEntry.grfAccessPermissions != (AccessRights & AccessEntry.grfAccessPermissions))
+    /* set the new service security descriptor DACL */
+    if (!SetServiceObjectSecurity(SvcHandle, DACL_SECURITY_INFORMATION, NewSecurityDescriptor))
     {
-        /* create a new security descriptor with the new access */
-        LastError = BuildSecurityDescriptorW(0, 0, 1, &AccessEntry, 0, 0, SecurityDescriptor,
-            &Size, &NewSecurityDescriptor);
-        if (0 != LastError)
-        {
-            Result = FspNtStatusFromWin32(LastError);
-            goto exit;
-        }
-
-        /* set the new service security descriptor DACL */
-        if (!SetServiceObjectSecurity(SvcHandle, DACL_SECURITY_INFORMATION, NewSecurityDescriptor))
-        {
-            Result = FspNtStatusFromWin32(GetLastError());
-            goto exit;
-        }
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
     }
 
     Result = STATUS_SUCCESS;
