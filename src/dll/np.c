@@ -1152,15 +1152,34 @@ DWORD APIENTRY NPCloseEnum(HANDLE hEnum)
 NTSTATUS FspNpRegister(VOID)
 {
     extern HINSTANCE DllInstance;
-    WCHAR ProviderPath[MAX_PATH];
+    WCHAR DllPath[MAX_PATH], ProviderPath[MAX_PATH];
+    PWSTR VersionInfoPath;
+    BOOLEAN HasPercent;
     WCHAR RegBuffer[1024];
     PWSTR P, Part;
     DWORD RegResult, RegType, RegBufferSize, RegBufferOffset;
     HKEY RegKey;
     BOOLEAN FoundProvider;
+    NTSTATUS Result;
 
-    if (0 == GetModuleFileNameW(DllInstance, ProviderPath, MAX_PATH))
-        return FspNtStatusFromWin32(GetLastError());
+    VersionInfoPath = ProviderPath;
+    HasPercent = FALSE;
+    for (P = L"" MyNpRegisterPath; *P; P++)
+        if ('%' == *P)
+        {
+            HasPercent = TRUE;
+            break;
+        }
+    if (HasPercent)
+    {
+        VersionInfoPath = DllPath;
+        if (0 == GetModuleFileNameW(DllInstance, DllPath, MAX_PATH))
+            return FspNtStatusFromWin32(GetLastError());
+    }
+
+    Result = FspGetModuleFileName(DllInstance, ProviderPath, MAX_PATH, L"" MyNpRegisterPath);
+    if (!NT_SUCCESS(Result))
+        return Result;
 
     RegResult = RegCreateKeyExW(
         HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services\\" FSP_NP_NAME,
@@ -1187,12 +1206,12 @@ NTSTATUS FspNpRegister(VOID)
         DWORD Size;
         PWSTR Description;
 
-        Size = GetFileVersionInfoSizeW(ProviderPath, &Size/*dummy*/);
+        Size = GetFileVersionInfoSizeW(VersionInfoPath, &Size/*dummy*/);
         if (0 < Size)
         {
             VersionInfo = MemAlloc(Size);
             if (0 != VersionInfo &&
-                GetFileVersionInfoW(ProviderPath, 0, Size, VersionInfo) &&
+                GetFileVersionInfoW(VersionInfoPath, 0, Size, VersionInfo) &&
                 VerQueryValueW(VersionInfo, L"\\StringFileInfo\\040904b0\\FileDescription",
                     &Description, &Size))
             {
@@ -1208,7 +1227,8 @@ NTSTATUS FspNpRegister(VOID)
         goto close_and_exit;
 
     RegResult = RegSetValueExW(RegKey,
-        L"ProviderPath", 0, REG_SZ, (PVOID)ProviderPath, (lstrlenW(ProviderPath) + 1) * sizeof(WCHAR));
+        L"ProviderPath", 0, HasPercent ? REG_EXPAND_SZ : REG_SZ,
+        (PVOID)ProviderPath, (lstrlenW(ProviderPath) + 1) * sizeof(WCHAR));
     if (ERROR_SUCCESS != RegResult)
         goto close_and_exit;
 

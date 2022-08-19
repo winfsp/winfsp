@@ -288,7 +288,7 @@ copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(My
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib;netapi32.lib;wldap32.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);credui.lib;netapi32.lib;rpcrt4.lib;secur32.lib;shlwapi.lib;version.lib;wldap32.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
@@ -315,7 +315,7 @@ copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(My
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib;netapi32.lib;wldap32.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);credui.lib;netapi32.lib;rpcrt4.lib;secur32.lib;shlwapi.lib;version.lib;wldap32.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
@@ -342,7 +342,7 @@ copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(My
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib;netapi32.lib;wldap32.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);credui.lib;netapi32.lib;rpcrt4.lib;secur32.lib;shlwapi.lib;version.lib;wldap32.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
     </Link>
   </ItemDefinitionGroup>
@@ -372,7 +372,7 @@ copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(My
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib;netapi32.lib;wldap32.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);credui.lib;netapi32.lib;rpcrt4.lib;secur32.lib;shlwapi.lib;version.lib;wldap32.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
       <AdditionalOptions>/PDBALTPATH:$(TargetFileName).pdb %(AdditionalOptions)</AdditionalOptions>
     </Link>
@@ -403,7 +403,7 @@ copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(My
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib;netapi32.lib;wldap32.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);credui.lib;netapi32.lib;rpcrt4.lib;secur32.lib;shlwapi.lib;version.lib;wldap32.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
       <AdditionalOptions>/PDBALTPATH:$(TargetFileName).pdb %(AdditionalOptions)</AdditionalOptions>
     </Link>
@@ -434,7 +434,7 @@ copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(My
       <MapFileName>$(OutDir)$(TargetFileName).map</MapFileName>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>..\..\src\dll\library.def</ModuleDefinitionFile>
-      <AdditionalDependencies>%(AdditionalDependencies);rpcrt4.lib;credui.lib;secur32.lib;version.lib;netapi32.lib;wldap32.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);credui.lib;netapi32.lib;rpcrt4.lib;secur32.lib;shlwapi.lib;version.lib;wldap32.lib</AdditionalDependencies>
       <StripPrivateSymbols>$(OutDir)$(TargetFileName).public.pdb</StripPrivateSymbols>
       <AdditionalOptions>/PDBALTPATH:$(TargetFileName).pdb %(AdditionalOptions)</AdditionalOptions>
     </Link>

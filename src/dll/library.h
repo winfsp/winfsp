@@ -91,6 +91,11 @@ ULONG FspLdapGetTrustPosixOffset(PVOID Ldap, PWSTR Context, PWSTR Domain, PWSTR 
 
 PWSTR FspDiagIdent(VOID);
 NTSTATUS FspGetModuleVersion(PWSTR ModuleFileName, PUINT32 PVersion);
+NTSTATUS FspGetModuleFileName(
+    HMODULE Module,
+    PWSTR FileName,
+    ULONG Size,
+    PWSTR RelativePath);
 
 #define FspFileSystemDirectoryBufferEntryInvalid ((ULONG)-1)
 VOID FspFileSystemPeekInDirectoryBuffer(PVOID *PDirBuffer,

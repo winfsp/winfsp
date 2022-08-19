@@ -21,6 +21,7 @@
 
 #include <dll/library.h>
 #include <aclapi.h>
+#include <shlwapi.h>
 
 static INIT_ONCE FspDiagIdentInitOnce = INIT_ONCE_STATIC_INIT;
 static WCHAR FspDiagIdentBuf[20] = L"UNKNOWN";
@@ -245,6 +246,36 @@ NTSTATUS FspGetModuleVersion(PWSTR ModuleFileName, PUINT32 PVersion)
         return STATUS_UNSUCCESSFUL;
 
     *PVersion = Version;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS FspGetModuleFileName(
+    HMODULE Module,
+    PWSTR FileName,
+    ULONG Size,
+    PWSTR RelativePath)
+{
+    if (MAX_PATH > Size)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    if (0 != RelativePath &&
+        L'\0' != RelativePath[0] &&
+        (L'.' != RelativePath[0] || L'\0' != RelativePath[1]))
+    {
+        WCHAR Temp[MAX_PATH];
+
+        if (0 == GetModuleFileNameW(Module, Temp, MAX_PATH))
+            return FspNtStatusFromWin32(GetLastError());
+
+        if (0 == PathCombineW(FileName, Temp, RelativePath))
+            return STATUS_UNSUCCESSFUL;
+    }
+    else
+    {
+        if (0 == GetModuleFileNameW(Module, FileName, MAX_PATH))
+            return FspNtStatusFromWin32(GetLastError());
+    }
 
     return STATUS_SUCCESS;
 }
