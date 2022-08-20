@@ -24,8 +24,7 @@
 static INIT_ONCE FspSxsIdentInitOnce = INIT_ONCE_STATIC_INIT;
 static WCHAR FspSxsIdentBuf[32 + 2] = L"";
 
-static BOOL WINAPI FspSxsIdentInitialize(
-    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
+static BOOLEAN FspSxsIdentInitializeFromFile(VOID)
 {
     extern HINSTANCE DllInstance;
     WCHAR Path[MAX_PATH];
@@ -33,6 +32,7 @@ static BOOL WINAPI FspSxsIdentInitialize(
     HANDLE Handle = INVALID_HANDLE_VALUE;
     CHAR Buffer[ARRAYSIZE(FspSxsIdentBuf) - 2];
     WCHAR WBuffer[ARRAYSIZE(FspSxsIdentBuf) - 2];
+    BOOLEAN Result = FALSE;
 
     if (0 == GetModuleFileNameW(DllInstance, Path, MAX_PATH))
         goto exit;
@@ -97,10 +97,89 @@ static BOOL WINAPI FspSxsIdentInitialize(
     memcpy(FspSxsIdentBuf + 1, WBuffer, Size * sizeof(WCHAR));
     FspSxsIdentBuf[1 + Size] = L'\0';
 
+    Result = TRUE;
+
 exit:
     if (INVALID_HANDLE_VALUE != Handle)
         CloseHandle(Handle);
 
+    return Result;
+}
+
+static BOOLEAN FspSxsIdentInitializeFromDirectory(VOID)
+{
+    extern HINSTANCE DllInstance;
+    WCHAR Path[MAX_PATH];
+    HANDLE Handle = INVALID_HANDLE_VALUE;
+    WCHAR FinalPath[MAX_PATH];
+    PWCHAR P, EndP, Q, EndQ;
+    PWCHAR Ident = 0;
+    BOOLEAN Result = FALSE;
+
+    if (0 == GetModuleFileNameW(DllInstance, Path, MAX_PATH))
+        goto exit;
+
+    Handle = CreateFileW(
+        Path,
+        0,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING,
+        0,
+        0);
+    if (INVALID_HANDLE_VALUE == Handle)
+        goto exit;
+
+    if (!GetFinalPathNameByHandleW(Handle, FinalPath, MAX_PATH, VOLUME_NAME_NONE))
+        goto exit;
+
+    EndP = FinalPath + lstrlenW(FinalPath);
+    for (P = EndP - 1; FinalPath <= P; P--)
+    {
+        if (L'\\' == *P &&
+            P + 9 < EndP &&
+            (L'S' == P[1] || L's' == P[1]) &&
+            (L'X' == P[2] || L'x' == P[2]) &&
+            (L'S' == P[3] || L's' == P[3]) &&
+            L'\\' == P[4] &&
+            (L'S' == P[5] || L's' == P[5]) &&
+            (L'X' == P[6] || L'x' == P[6]) &&
+            (L'S' == P[7] || L's' == P[7]) &&
+            L'.'  == P[8] &&
+            L'\\' != P[9])
+        {
+            Ident = P + 9;
+            break;
+        }
+    }
+    if (0 == Ident)
+        goto exit;
+
+    FspSxsIdentBuf[0] = L'+';
+    EndQ = FspSxsIdentBuf + (ARRAYSIZE(FspSxsIdentBuf) - 1);
+    for (P = Ident, Q = FspSxsIdentBuf + 1; EndP > P && EndQ > Q && L'\\' != *P; P++, Q++)
+        *Q = *P;
+    *Q = L'\0';
+
+    Result = TRUE;
+
+exit:
+    if (INVALID_HANDLE_VALUE != Handle)
+        CloseHandle(Handle);
+
+    return Result;
+}
+
+static BOOL WINAPI FspSxsIdentInitialize(
+    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
+{
+    if (FspSxsIdentInitializeFromFile())
+        goto exit;
+
+    if (FspSxsIdentInitializeFromDirectory())
+        goto exit;
+
+exit:
     return TRUE;
 }
 
@@ -114,4 +193,22 @@ PWSTR FspSxsSuffix(VOID)
 {
     InitOnceExecuteOnce(&FspSxsIdentInitOnce, FspSxsIdentInitialize, 0, 0);
     return FspSxsIdentBuf;
+}
+
+PWSTR FspSxsAppendSuffix(PWCHAR Buffer, SIZE_T Size, PWSTR Ident)
+{
+    PWSTR Suffix;
+    SIZE_T IdentSize, SuffixSize;
+
+    Suffix = FspSxsSuffix();
+    IdentSize = lstrlenW(Ident) * sizeof(WCHAR);
+    SuffixSize = lstrlenW(Suffix) * sizeof(WCHAR);
+    if (Size < IdentSize + SuffixSize + sizeof(WCHAR))
+        return L"<INVALID>";
+
+    memcpy(Buffer, Ident, IdentSize);
+    memcpy((PUINT8)Buffer + IdentSize, Suffix, SuffixSize);
+    *(PWCHAR)((PUINT8)Buffer + IdentSize + SuffixSize) = L'\0';
+
+    return Buffer;
 }

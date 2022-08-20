@@ -38,12 +38,15 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     PWCHAR VolumeNameBuf, SIZE_T VolumeNameSize,
     PHANDLE PVolumeHandle)
 {
-    NTSTATUS Result;
+    WCHAR SxsDevicePathBuf[MAX_PATH];
     PWSTR DeviceRoot;
     SIZE_T DeviceRootSize, DevicePathSize, VolumeParamsSize;
     WCHAR DevicePathBuf[MAX_PATH + sizeof *VolumeParams], *DevicePathPtr, *DevicePathEnd;
     HANDLE VolumeHandle = INVALID_HANDLE_VALUE;
     DWORD Bytes;
+    NTSTATUS Result;
+
+    DevicePath = FspSxsAppendSuffix(SxsDevicePathBuf, sizeof SxsDevicePathBuf, DevicePath);
 
     if (sizeof(WCHAR) <= VolumeNameSize)
         VolumeNameBuf[0] = L'\0';
@@ -228,12 +231,15 @@ exit:
 FSP_API NTSTATUS FspFsctlGetVolumeList(PWSTR DevicePath,
     PWCHAR VolumeListBuf, PSIZE_T PVolumeListSize)
 {
-    NTSTATUS Result;
+    WCHAR SxsDevicePathBuf[MAX_PATH];
     PWSTR DeviceRoot;
     SIZE_T DeviceRootSize, DevicePathSize;
     WCHAR DevicePathBuf[MAX_PATH], *DevicePathPtr;
     HANDLE VolumeHandle = INVALID_HANDLE_VALUE;
     DWORD Bytes;
+    NTSTATUS Result;
+
+    DevicePath = FspSxsAppendSuffix(SxsDevicePathBuf, sizeof SxsDevicePathBuf, DevicePath);
 
     /* check lengths; everything must fit within MAX_PATH */
     DeviceRoot = L'\\' == DevicePath[0] ? GLOBALROOT : GLOBALROOT "\\Device\\";
@@ -299,12 +305,15 @@ FSP_API NTSTATUS FspFsctlPreflight(PWSTR DevicePath)
 
 static NTSTATUS FspFsctlUnload(PWSTR DevicePath)
 {
-    NTSTATUS Result;
+    WCHAR SxsDevicePathBuf[MAX_PATH];
     PWSTR DeviceRoot;
     SIZE_T DeviceRootSize, DevicePathSize;
     WCHAR DevicePathBuf[MAX_PATH], *DevicePathPtr;
     HANDLE VolumeHandle = INVALID_HANDLE_VALUE;
     DWORD Bytes;
+    NTSTATUS Result;
+
+    DevicePath = FspSxsAppendSuffix(SxsDevicePathBuf, sizeof SxsDevicePathBuf, DevicePath);
 
     /* check lengths; everything must fit within MAX_PATH */
     DeviceRoot = L'\\' == DevicePath[0] ? GLOBALROOT : GLOBALROOT "\\Device\\";
@@ -357,7 +366,7 @@ static BOOL WINAPI FspFsctlServiceVersionInitialize(
     QUERY_SERVICE_CONFIGW *ServiceConfig = 0;
     DWORD Size;
 
-    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsSuffix());
+    FspSxsAppendSuffix(DriverName, sizeof DriverName, L"" FSP_FSCTL_DRIVER_NAME);
 
     ScmHandle = OpenSCManagerW(0, 0, 0);
     if (0 == ScmHandle)
@@ -447,7 +456,7 @@ FSP_API NTSTATUS FspFsctlStartService(VOID)
     DWORD LastError;
     NTSTATUS Result;
 
-    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsSuffix());
+    FspSxsAppendSuffix(DriverName, sizeof DriverName, L"" FSP_FSCTL_DRIVER_NAME);
 
     AcquireSRWLockExclusive(&FspFsctlStartStopServiceLock);
 
@@ -527,7 +536,7 @@ FSP_API NTSTATUS FspFsctlStopService(VOID)
     BOOL PrivilegeCheckResult;
     NTSTATUS Result;
 
-    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsSuffix());
+    FspSxsAppendSuffix(DriverName, sizeof DriverName, L"" FSP_FSCTL_DRIVER_NAME);
 
     AcquireSRWLockExclusive(&FspFsctlStartStopServiceLock);
 
@@ -719,7 +728,7 @@ NTSTATUS FspFsctlRegister(VOID)
     SERVICE_DESCRIPTION ServiceDescription;
     NTSTATUS Result;
 
-    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsSuffix());
+    FspSxsAppendSuffix(DriverName, sizeof DriverName, L"" FSP_FSCTL_DRIVER_NAME);
 
     if (0 == GetModuleFileNameW(DllInstance, DriverPath, MAX_PATH))
         return FspNtStatusFromWin32(GetLastError());
@@ -808,7 +817,7 @@ NTSTATUS FspFsctlUnregister(VOID)
     DWORD LastError;
     NTSTATUS Result;
 
-    wsprintfW(DriverName, L"" FSP_FSCTL_DRIVER_NAME "%s", FspSxsSuffix());
+    FspSxsAppendSuffix(DriverName, sizeof DriverName, L"" FSP_FSCTL_DRIVER_NAME);
 
     ScmHandle = OpenSCManagerW(0, 0, SC_MANAGER_CREATE_SERVICE);
         /*
