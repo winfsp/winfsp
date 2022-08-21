@@ -183,7 +183,7 @@ exit:
     return TRUE;
 }
 
-PWSTR FspSxsIdent(VOID)
+FSP_API PWSTR FspSxsIdent(VOID)
 {
     InitOnceExecuteOnce(&FspSxsIdentInitOnce, FspSxsIdentInitialize, 0, 0);
     return FspSxsIdentBuf + 1;

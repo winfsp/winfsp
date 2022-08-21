@@ -61,11 +61,11 @@ static void usage(void)
         "usage: %s COMMAND ARGS\n"
         "\n"
         "commands:\n"
+        "    ver                             print version\n"
         "    lsvol                           list file system devices (volumes)\n"
-        //"    list                            list running file system processes\n"
-        //"    kill                            kill file system process\n"
         "    id [NAME|SID|UID]               print user id\n"
-        "    perm [PATH|SDDL|UID:GID:MODE]   print permissions\n",
+        "    perm [PATH|SDDL|UID:GID:MODE]   print permissions\n"
+        "    unload                          unload driver (requires load driver priv)\n",
         PROGNAME);
 }
 
@@ -235,6 +235,29 @@ NTSTATUS FspToolGetSidFromName(PWSTR Name, PSID *PSid)
     *PSid = Sid;
 
     return STATUS_SUCCESS;
+}
+
+static int ver(int argc, wchar_t **argv)
+{
+    if (1 != argc)
+        usage();
+
+    NTSTATUS Result;
+    UINT32 Version;
+    PWSTR SxsIdent;
+
+    Result = FspVersion(&Version);
+    if (!NT_SUCCESS(Result))
+        return FspWin32FromNtStatus(Result);
+
+    SxsIdent = FspSxsIdent();
+
+    if (L'\0' == SxsIdent[0])
+        info("%u.%u", Version >> 16, Version & 0xFFFF);
+    else
+        info("%u.%u (SxS=%S)", Version >> 16, Version & 0xFFFF, SxsIdent);
+
+    return 0;
 }
 
 static NTSTATUS lsvol_dev(PWSTR DeviceName)
@@ -541,6 +564,20 @@ static int perm(int argc, wchar_t **argv)
     return FspWin32FromNtStatus(Result);
 }
 
+static int unload(int argc, wchar_t **argv)
+{
+    if (1 != argc)
+        usage();
+
+    NTSTATUS Result;
+
+    Result = FspFsctlStopService();
+    if (!NT_SUCCESS(Result))
+        return FspWin32FromNtStatus(Result);
+
+    return 0;
+}
+
 int wmain(int argc, wchar_t **argv)
 {
     argc--;
@@ -549,6 +586,9 @@ int wmain(int argc, wchar_t **argv)
     if (0 == argc)
         usage();
 
+    if (0 == invariant_wcscmp(L"ver", argv[0]))
+        return ver(argc, argv);
+    else
     if (0 == invariant_wcscmp(L"lsvol", argv[0]))
         return lsvol(argc, argv);
     else
@@ -557,6 +597,9 @@ int wmain(int argc, wchar_t **argv)
     else
     if (0 == invariant_wcscmp(L"perm", argv[0]))
         return perm(argc, argv);
+    else
+    if (0 == invariant_wcscmp(L"unload", argv[0]))
+        return unload(argc, argv);
     else
         usage();
 

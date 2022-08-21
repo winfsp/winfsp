@@ -2124,6 +2124,7 @@ FSP_API NTSTATUS FspCallNamedPipeSecurelyEx(PWSTR PipeName,
     PULONG PBytesTransferred, ULONG Timeout, BOOLEAN AllowImpersonation,
     PSID Sid);
 FSP_API NTSTATUS FspVersion(PUINT32 PVersion);
+FSP_API PWSTR FspSxsIdent(VOID);
 
 /*
  * Delay load

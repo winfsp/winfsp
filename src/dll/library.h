@@ -70,7 +70,6 @@ NTSTATUS FspNpUnregister(VOID);
 NTSTATUS FspEventLogRegister(VOID);
 NTSTATUS FspEventLogUnregister(VOID);
 
-PWSTR FspSxsIdent(VOID);
 PWSTR FspSxsSuffix(VOID);
 PWSTR FspSxsAppendSuffix(PWCHAR Buffer, SIZE_T Size, PWSTR Ident);
 
