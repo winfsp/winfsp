@@ -40,5 +40,9 @@ void load_unload_tests(void)
     if (OptExternal)
         return;
 
-    TEST_OPT(load_unload_test);
+    /*
+     * An attempt to unload the driver while other tests are executing can make all tests fail.
+     * For this reason we do not enable this test, except when doing specialized testing.
+     */
+    //TEST_OPT(load_unload_test);
 }
