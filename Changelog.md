@@ -1,9 +1,11 @@
 # Changelog
 
 
-## v1.12 (2023)
+## v1.12B1 (2022.2)
 
 - [NEW] A new registry setting `MountUseMountmgrFromFSD` has been added. See [WinFsp Registry Settings](https://github.com/winfsp/winfsp/wiki/WinFsp-Registry-Settings) for details.
+
+- [BUILD] Product configuration for the relative paths to the File System Driver, Network Provider and EventLog is now possible via the file `build.version.props` located in `build\VStudio`.
 
 
 ## v1.11 (2022+ARM64)
