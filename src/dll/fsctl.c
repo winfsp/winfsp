@@ -730,8 +730,9 @@ NTSTATUS FspFsctlRegister(VOID)
 
     FspSxsAppendSuffix(DriverName, sizeof DriverName, L"" FSP_FSCTL_DRIVER_NAME);
 
-    if (0 == GetModuleFileNameW(DllInstance, DriverPath, MAX_PATH))
-        return FspNtStatusFromWin32(GetLastError());
+    Result = FspGetModuleFileName(DllInstance, DriverPath, MAX_PATH, L"" MyFsctlRegisterPath);
+    if (!NT_SUCCESS(Result))
+        return Result;
 
     Size = lstrlenW(DriverPath);
     if (4 < Size &&
@@ -744,6 +745,14 @@ NTSTATUS FspFsctlRegister(VOID)
         DriverPath[Size - 3] = L's';
         DriverPath[Size - 2] = L'y';
         DriverPath[Size - 1] = L's';
+    }
+    else if (4 < Size &&
+        (L'.' == DriverPath[Size - 4]) &&
+        (L'S' == DriverPath[Size - 3] || L's' == DriverPath[Size - 3]) &&
+        (L'Y' == DriverPath[Size - 2] || L'y' == DriverPath[Size - 2]) &&
+        (L'S' == DriverPath[Size - 1] || L's' == DriverPath[Size - 1]) &&
+        (L'\0' == DriverPath[Size]))
+    {
     }
     else
         /* should not happen! */
