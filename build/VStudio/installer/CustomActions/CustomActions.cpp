@@ -25,6 +25,41 @@
 #include <wcautil.h>
 #include <strutil.h>
 
+UINT __stdcall InstanceID(MSIHANDLE MsiHandle)
+{
+#if 0
+    WCHAR MessageBuf[64];
+    wsprintfW(MessageBuf, L"PID=%ld", GetCurrentProcessId());
+    MessageBoxW(0, MessageBuf, L"" __FUNCTION__ " Break", MB_OK);
+#endif
+
+    HRESULT hr = S_OK;
+    UINT err = ERROR_SUCCESS;
+    SYSTEMTIME SystemTime;
+    WCHAR Result[32+1];
+
+    hr = WcaInitialize(MsiHandle, __FUNCTION__);
+    ExitOnFailure(hr, "Failed to initialize");
+
+    WcaLog(LOGMSG_STANDARD, "Initialized");
+
+    GetSystemTime(&SystemTime);
+    wsprintfW(Result, L"%04u%02u%02uT%02u%02u%02uZ",
+        SystemTime.wYear,
+        SystemTime.wMonth,
+        SystemTime.wDay,
+        SystemTime.wHour,
+        SystemTime.wMinute,
+        SystemTime.wSecond);
+    Sleep(1000);
+
+    WcaSetProperty(L"" __FUNCTION__, Result);
+
+LExit:
+    err = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
+    return WcaFinalize(err);
+}
+
 UINT __stdcall ServiceRunning(MSIHANDLE MsiHandle)
 {
 #if 0
