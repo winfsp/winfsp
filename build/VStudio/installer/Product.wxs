@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+
+<!-- The UpgradeCode of the old WinFsp installer that did not support upgrades. -->
+<?define OldVersionUpgradeCode="82F812D9-4083-4EF1-8BC8-0F1EDA05B46B"?>
+
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
     xmlns:dep="http://schemas.microsoft.com/wix/DependencyExtension">
     <Product
@@ -7,7 +11,7 @@
         Manufacturer="$(var.MyCompanyName)"
         Version="$(var.MyVersion)"
         Language="1033"
-        UpgradeCode="82F812D9-4083-4EF1-8BC8-0F1EDA05B46B">
+        UpgradeCode="5466A3D8-3AA1-4240-B6A0-3A051940A3EC">
 
         <Package
             Description="$(var.MyProductName) - $(var.MyDescription)"
@@ -21,6 +25,14 @@
             DisallowUpgradeErrorMessage="An older version of $(var.MyProductName) is already installed. You must uninstall it before you can install this version."
             DowngradeErrorMessage="A newer version of $(var.MyProductName) is already installed." />
         <Media Id="1" Cabinet="$(var.MyProductName).cab" EmbedCab="yes" />
+
+        <!-- Determine if the old WinFsp installer that did not support upgrades is installed. -->
+        <Property Id="OLDVERSIONINSTALLED">
+            <ProductSearch UpgradeCode="$(var.OldVersionUpgradeCode)" Minimum="0.0.0.0" />
+        </Property>
+        <Condition Message="An older version of $(var.MyProductName) is already installed. You must uninstall it before you can install this version.">
+            NOT OLDVERSIONINSTALLED
+        </Condition>
 
         <Property Id="OSARCH" Secure="yes" Value="AMD64">
             <RegistrySearch
@@ -51,13 +63,12 @@
                     <Directory Id="LIBDIR" Name="lib" />
                     <Directory Id="OPTDIR" Name="opt" />
                     <Directory Id="SMPDIR" Name="samples" />
-                    <Directory Id="SYMDIR" Name="sym" />
                 </Directory>
             </Directory>
         </Directory>
 
         <DirectoryRef Id="INSTALLDIR">
-            <Component Id="C.INSTALLDIR" Guid="{F876F26E-5016-4AC6-93B3-653C0312A6CE}">
+            <Component Id="C.INSTALLDIR" Guid="C086521F-8552-43D1-AAE2-CDD579F66FDD">
                 <RegistryValue
                     Root="HKLM"
                     Key="[P.RegistryKey]"
@@ -82,56 +93,56 @@
             </Component>
 
             <!-- On WinArm64 register $(var.MyProductFileName)-a64.dll -->
-            <Component Id="C.$(var.MyProductFileName)_a64.dll.a64" Guid="86FB483B-0910-458E-93B4-3CCB66D27AF0">
+            <Component Id="C.$(var.MyProductFileName)_a64.dll.a64" Guid="2A7E68EB-D05F-4DD8-ABF2-EB8CB09697F0">
                 <File Id="FILE.$(var.MyProductFileName)_a64.dll.a64" Name="$(var.MyProductFileName)-a64.dll" KeyPath="yes" SelfRegCost="1" />
                 <Condition><![CDATA[OSARCH = "ARM64"]]></Condition>
             </Component>
-            <Component Id="C.$(var.MyProductFileName)_x64.dll.a64" Guid="941FAE3E-A650-4BAC-97F5-F8C6E98DB5D2">
+            <Component Id="C.$(var.MyProductFileName)_x64.dll.a64" Guid="EA5ED4FB-FC72-4D27-9802-88D84DAE61B4">
                 <File Id="FILE.$(var.MyProductFileName)_x64.dll.a64" Name="$(var.MyProductFileName)-x64.dll" KeyPath="yes" />
                 <Condition><![CDATA[OSARCH = "ARM64"]]></Condition>
             </Component>
-            <Component Id="C.$(var.MyProductFileName)_x86.dll.a64" Guid="C312214D-F9A3-40EB-B2C3-4FAF5BF3F938">
+            <Component Id="C.$(var.MyProductFileName)_x86.dll.a64" Guid="2A9BD712-2F96-4794-8A58-929E39F3F3CC">
                 <File Id="FILE.$(var.MyProductFileName)_x86.dll.a64" Name="$(var.MyProductFileName)-x86.dll" KeyPath="yes" />
                 <Condition><![CDATA[OSARCH = "ARM64"]]></Condition>
             </Component>
 
             <!-- On Win64 register $(var.MyProductFileName)-x64.dll -->
-            <Component Id="C.$(var.MyProductFileName)_a64.dll.x64" Guid="4ABB46C2-A8E3-49E8-B051-05DBF2B351AE">
+            <Component Id="C.$(var.MyProductFileName)_a64.dll.x64" Guid="026DA201-43E1-450C-9687-8A684FBF2D2D">
                 <File Id="FILE.$(var.MyProductFileName)_a64.dll.x64" Name="$(var.MyProductFileName)-a64.dll" KeyPath="yes" />
                 <Condition><![CDATA[OSARCH = "AMD64"]]></Condition>
             </Component>
-            <Component Id="C.$(var.MyProductFileName)_x64.dll.x64" Guid="F0A67746-1A9C-4976-8EC0-882E9407FA6D">
+            <Component Id="C.$(var.MyProductFileName)_x64.dll.x64" Guid="89201BAF-5812-4ECE-91CD-12EDFFF11CB1">
                 <File Id="FILE.$(var.MyProductFileName)_x64.dll.x64" Name="$(var.MyProductFileName)-x64.dll" KeyPath="yes" SelfRegCost="1" />
                 <Condition><![CDATA[OSARCH = "AMD64"]]></Condition>
             </Component>
-            <Component Id="C.$(var.MyProductFileName)_x86.dll.x64" Guid="950492FB-12F7-4E27-9124-8325A2BC9927">
+            <Component Id="C.$(var.MyProductFileName)_x86.dll.x64" Guid="E6EE48A4-6BC7-4135-9A2F-FBBA30DE80BE">
                 <File Id="FILE.$(var.MyProductFileName)_x86.dll.x64" Name="$(var.MyProductFileName)-x86.dll" KeyPath="yes" />
                 <Condition><![CDATA[OSARCH = "AMD64"]]></Condition>
             </Component>
 
             <!-- On Win32 register $(var.MyProductFileName)-x86.dll -->
-            <Component Id="C.$(var.MyProductFileName)_a64.dll.x86" Guid="071C0EB2-A0EB-46A1-B5B0-124F60ECD6B3">
+            <Component Id="C.$(var.MyProductFileName)_a64.dll.x86" Guid="2B264958-DECC-4B32-9BB2-DE32D6B6BE77">
                 <File Id="FILE.$(var.MyProductFileName)_a64.dll.x86" Name="$(var.MyProductFileName)-a64.dll" KeyPath="yes" />
                 <Condition><![CDATA[OSARCH = "x86"]]></Condition>
             </Component>
-            <Component Id="C.$(var.MyProductFileName)_x64.dll.x86" Guid="4D6E7A8E-0CA6-49BE-B312-1EDADE725756">
+            <Component Id="C.$(var.MyProductFileName)_x64.dll.x86" Guid="29FB908F-1D36-4789-9778-4CE2E9C19CEA">
                 <File Id="FILE.$(var.MyProductFileName)_x64.dll.x86" Name="$(var.MyProductFileName)-x64.dll" KeyPath="yes" />
                 <Condition><![CDATA[OSARCH = "x86"]]></Condition>
             </Component>
-            <Component Id="C.$(var.MyProductFileName)_x86.dll.x86" Guid="F0DEF7A6-AF55-419F-A58A-DF4018C6FA73">
+            <Component Id="C.$(var.MyProductFileName)_x86.dll.x86" Guid="80E87D91-69A8-4942-ABC1-36652B1CA700">
                 <File Id="FILE.$(var.MyProductFileName)_x86.dll.x86" Name="$(var.MyProductFileName)-x86.dll" KeyPath="yes" SelfRegCost="1" />
                 <Condition><![CDATA[OSARCH = "x86"]]></Condition>
             </Component>
 
             <!-- install assembly -->
-            <Component Id="C.$(var.MyProductFileName)_msil.dll" Guid="0D8BA6AE-9F87-402B-AE1A-95B0AE3BE179">
+            <Component Id="C.$(var.MyProductFileName)_msil.dll" Guid="1772CDE5-4B2F-48CF-B2DA-CA43818053A8">
                 <File Id="FILE.$(var.MyProductFileName)_msil.dll" Name="$(var.MyProductFileName)-msil.dll" KeyPath="yes" />
             </Component>
-            <Component Id="C.$(var.MyProductFileName)_msil.xml" Guid="1657F707-C112-454C-91AE-0FDEBBF454AB">
+            <Component Id="C.$(var.MyProductFileName)_msil.xml" Guid="C76745D2-51FA-4028-B827-3F2F3F763751">
                 <File Id="FILE.$(var.MyProductFileName)_msil.xml" Name="$(var.MyProductFileName)-msil.xml" KeyPath="yes" />
             </Component>
             <!--
-            <Component Id="C.$(var.MyProductFileName)_msil.dll.GAC" Guid="6469467D-8C90-4889-8138-4028F9DA6E85">
+            <Component Id="C.$(var.MyProductFileName)_msil.dll.GAC" Guid="D86F8764-2FCC-43DA-A174-23E0FD6D45B7">
                 <File Id="FILE.$(var.MyProductFileName)_msil.dll.GAC" Name="$(var.MyProductFileName)-msil.dll" KeyPath="yes" Assembly=".net" />
             </Component>
             <Component Id="C.policy.$(var.MyProductFileName)_msil.dll.GAC">
@@ -141,7 +152,7 @@
             -->
 
             <!-- On WinArm64 ServiceInstall launcher-a64.exe -->
-            <Component Id="C.launcher_a64.exe.a64" Guid="E37E6D75-C44B-4189-8E86-CE5A3E0B0626">
+            <Component Id="C.launcher_a64.exe.a64" Guid="D8B657EA-7B08-48D1-B5F7-76CFB68E1BD5">
                 <File Id="FILE.launcher_a64.exe.a64" Name="launcher-a64.exe" KeyPath="yes" />
                 <ServiceInstall
                     Id="launcher_a64.exe.a64"
@@ -158,21 +169,21 @@
                     Remove="uninstall" />
                 <Condition><![CDATA[OSARCH = "ARM64"]]></Condition>
             </Component>
-            <Component Id="C.launcher_x64.exe.a64" Guid="CF5F3EEE-F739-4F50-9938-13C0D2CD9C7A">
+            <Component Id="C.launcher_x64.exe.a64" Guid="3EFC0561-6EA2-4E7E-B707-C2EA706CFBA0">
                 <File Id="FILE.launcher_x64.exe.a64" Name="launcher-x64.exe" KeyPath="yes" />
                 <Condition><![CDATA[OSARCH = "ARM64"]]></Condition>
             </Component>
-            <Component Id="C.launcher_x86.exe.a64" Guid="D5E9FF96-9E00-46BA-8719-BC49CF35BBE6">
+            <Component Id="C.launcher_x86.exe.a64" Guid="69F16682-10AE-4FC4-9007-8D80CE0D8388">
                 <File Id="FILE.launcher_x86.exe.a64" Name="launcher-x86.exe" KeyPath="yes" />
                 <Condition><![CDATA[OSARCH = "ARM64"]]></Condition>
             </Component>
 
             <!-- On Win64 ServiceInstall launcher-x64.exe -->
-            <Component Id="C.launcher_a64.exe.x64" Guid="10A3F0F9-6555-4071-9C93-EA50E4B3F115">
+            <Component Id="C.launcher_a64.exe.x64" Guid="29760ACE-69CD-4061-8C0C-8A6E72D23A45">
                 <File Id="FILE.launcher_a64.exe.x64" Name="launcher-a64.exe" KeyPath="yes" />
                 <Condition><![CDATA[OSARCH = "AMD64"]]></Condition>
             </Component>
-            <Component Id="C.launcher_x64.exe.x64" Guid="2AB4E729-F7CB-4B4A-BE81-6C0C3B3194FC">
+            <Component Id="C.launcher_x64.exe.x64" Guid="36ACBA60-1C92-4D2A-B497-CD4FB13A042F">
                 <File Id="FILE.launcher_x64.exe.x64" Name="launcher-x64.exe" KeyPath="yes" />
                 <ServiceInstall
                     Id="launcher_x64.exe.x64"
@@ -189,21 +200,21 @@
                     Remove="uninstall" />
                 <Condition><![CDATA[OSARCH = "AMD64"]]></Condition>
             </Component>
-            <Component Id="C.launcher_x86.exe.x64" Guid="C5B6D411-8A6A-4944-8C4F-7D9FB9A72826">
+            <Component Id="C.launcher_x86.exe.x64" Guid="98F17F67-AC1D-4E16-A147-B7AE113E3CB3">
                 <File Id="FILE.launcher_x86.exe.x64" Name="launcher-x86.exe" KeyPath="yes" />
                 <Condition><![CDATA[OSARCH = "AMD64"]]></Condition>
             </Component>
 
             <!-- On Win32 ServiceInstall launcher-x86.exe -->
-            <Component Id="C.launcher_a64.exe.x86" Guid="5048AEF5-9DE2-406E-A2EA-F237BAD13286">
+            <Component Id="C.launcher_a64.exe.x86" Guid="9024A9FE-7445-4241-ADA3-82A57C92719A">
                 <File Id="FILE.launcher_a64.exe.x86" Name="launcher-a64.exe" KeyPath="yes" />
                 <Condition><![CDATA[OSARCH = "x86"]]></Condition>
             </Component>
-            <Component Id="C.launcher_x64.exe.x86" Guid="88CDBE92-8B67-485A-838F-FA4AD37F306F">
+            <Component Id="C.launcher_x64.exe.x86" Guid="A85DA9CD-26AA-460E-950D-CA9692B87465">
                 <File Id="FILE.launcher_x64.exe.x86" Name="launcher-x64.exe" KeyPath="yes" />
                 <Condition><![CDATA[OSARCH = "x86"]]></Condition>
             </Component>
-            <Component Id="C.launcher_x86.exe.x86" Guid="E995D906-0273-4758-9B26-99A3A8CD143A">
+            <Component Id="C.launcher_x86.exe.x86" Guid="01FCCF6B-9F4B-4F29-8149-489470FFD449">
                 <File Id="FILE.launcher_x86.exe.x86" Name="launcher-x86.exe" KeyPath="yes" />
                 <ServiceInstall
                     Id="launcher_x86.exe.x86"
@@ -221,23 +232,23 @@
                 <Condition><![CDATA[OSARCH = "x86"]]></Condition>
             </Component>
 
-            <Component Id="C.launchctl_a64.exe" Guid="B9B5CF8E-317D-40EE-A208-BC46A2A99BAB">
+            <Component Id="C.launchctl_a64.exe" Guid="A7D830DD-20D2-48BF-85B6-E306BCCAFD2D">
                 <File Name="launchctl-a64.exe" KeyPath="yes" />
             </Component>
-            <Component Id="C.launchctl_x64.exe" Guid="2753623B-66F1-4514-B9C7-F879178DFF49">
+            <Component Id="C.launchctl_x64.exe" Guid="CCC8974A-4CD0-443E-840D-1C92535BBD04">
                 <File Name="launchctl-x64.exe" KeyPath="yes" />
             </Component>
-            <Component Id="C.launchctl_x86.exe" Guid="EBDEC4FB-07BB-47CA-BFFF-EB854CA2D22D">
+            <Component Id="C.launchctl_x86.exe" Guid="6E382342-10D4-4274-8FA9-F1B44C40C277">
                 <File Name="launchctl-x86.exe" KeyPath="yes" />
             </Component>
 
-            <Component Id="C.fsptool_a64.exe" Guid="F75A8B14-000C-4933-AD83-EC0D1D3AD3CA">
+            <Component Id="C.fsptool_a64.exe" Guid="8ACEB970-CAD5-491D-8CE8-12675CC0E812">
                 <File Name="fsptool-a64.exe" KeyPath="yes" />
             </Component>
-            <Component Id="C.fsptool_x64.exe" Guid="013FE508-097D-4433-9C60-717F5446E7F4">
+            <Component Id="C.fsptool_x64.exe" Guid="35EE49E2-9565-4FA2-A0AC-D51FD94FA380">
                 <File Name="fsptool-x64.exe" KeyPath="yes" />
             </Component>
-            <Component Id="C.fsptool_x86.exe" Guid="6C16DC2C-E12F-49FB-A665-3AF0475487AD">
+            <Component Id="C.fsptool_x86.exe" Guid="0E6D5742-D500-4E24-A0FA-E6316DB70D8B">
                 <File Name="fsptool-x86.exe" KeyPath="yes" />
             </Component>
 
@@ -409,7 +420,7 @@
             </Component>
 
             <!-- On WinArm64 copy fuse-a64.pc -->
-            <Component Id="C.fuse_a64.pc" Guid="74E6E9BD-AF16-4635-AE52-84B33E4E196E">
+            <Component Id="C.fuse_a64.pc" Guid="776C28B5-DA1A-4EB6-96E6-3D22FE1573AC">
                 <File
                     Id="FILE.fuse_a64.pc"
                     Name="fuse.pc"
@@ -419,7 +430,7 @@
             </Component>
 
             <!-- On Win64 copy fuse-x64.pc -->
-            <Component Id="C.fuse_x64.pc" Guid="407395D2-D076-411E-B1D0-D97E21E11A3C">
+            <Component Id="C.fuse_x64.pc" Guid="89D39F6E-2994-4E6F-ACB6-5B544057C051">
                 <File
                     Id="FILE.fuse_x64.pc"
                     Name="fuse.pc"
@@ -429,7 +440,7 @@
             </Component>
 
             <!-- On Win32 copy fuse-x86.pc -->
-            <Component Id="C.fuse_x86.pc" Guid="0568EBCB-782E-4C17-9B64-BAFCC43F64ED">
+            <Component Id="C.fuse_x86.pc" Guid="75637ECD-B3EC-4A19-98B7-9AFAB0722D9A">
                 <File
                     Id="FILE.fuse_x86.pc"
                     Name="fuse.pc"
@@ -439,7 +450,7 @@
             </Component>
 
             <!-- On WinArm64 copy fuse3-x64.pc -->
-            <Component Id="C.fuse3_a64.pc" Guid="2B6444DB-25E5-45B4-BC61-157D3B992F2B">
+            <Component Id="C.fuse3_a64.pc" Guid="5A69B633-11E4-46E4-8D08-BED1BE7BF4F0">
                 <File
                     Id="FILE.fuse3_a64.pc"
                     Name="fuse3.pc"
@@ -449,7 +460,7 @@
             </Component>
 
             <!-- On Win64 copy fuse3-x64.pc -->
-            <Component Id="C.fuse3_x64.pc" Guid="FE59E3BA-E5EA-4822-80B1-19A1DE6B62C7">
+            <Component Id="C.fuse3_x64.pc" Guid="EEAF35B5-5D6C-47D6-BEE3-5E44DD5A294B">
                 <File
                     Id="FILE.fuse3_x64.pc"
                     Name="fuse3.pc"
@@ -459,7 +470,7 @@
             </Component>
 
             <!-- On Win32 copy fuse3-x86.pc -->
-            <Component Id="C.fuse3_x86.pc" Guid="176205D0-07EA-4DFC-947F-18E89ABDAFAB">
+            <Component Id="C.fuse3_x86.pc" Guid="476CF5E5-2B8E-4D75-B1A5-FFA8C3DAECB2">
                 <File
                     Id="FILE.fuse3_x86.pc"
                     Name="fuse3.pc"
@@ -737,62 +748,6 @@
                 </Component>
             </Directory>
         </DirectoryRef>
-        <DirectoryRef Id="SYMDIR">
-            <Component Id="C.$(var.MyProductFileName)_a64.sys.pdb">
-                <File Name="$(var.MyProductFileName)-a64.sys.pdb" Source="..\build\$(var.Configuration)\$(var.MyProductFileName)-a64.sys.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.$(var.MyProductFileName)_x64.sys.pdb">
-                <File Name="$(var.MyProductFileName)-x64.sys.pdb" Source="..\build\$(var.Configuration)\$(var.MyProductFileName)-x64.sys.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.$(var.MyProductFileName)_x86.sys.pdb">
-                <File Name="$(var.MyProductFileName)-x86.sys.pdb" Source="..\build\$(var.Configuration)\$(var.MyProductFileName)-x86.sys.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.$(var.MyProductFileName)_a64.dll.pdb">
-                <File Name="$(var.MyProductFileName)-a64.dll.pdb" Source="..\build\$(var.Configuration)\$(var.MyProductFileName)-a64.dll.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.$(var.MyProductFileName)_x64.dll.pdb">
-                <File Name="$(var.MyProductFileName)-x64.dll.pdb" Source="..\build\$(var.Configuration)\$(var.MyProductFileName)-x64.dll.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.$(var.MyProductFileName)_x86.dll.pdb">
-                <File Name="$(var.MyProductFileName)-x86.dll.pdb" Source="..\build\$(var.Configuration)\$(var.MyProductFileName)-x86.dll.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.launcher_a64.pdb">
-                <File Name="launcher-a64.pdb" Source="..\build\$(var.Configuration)\launcher-a64.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.launcher_x64.pdb">
-                <File Name="launcher-x64.pdb" Source="..\build\$(var.Configuration)\launcher-x64.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.launcher_x86.pdb">
-                <File Name="launcher-x86.pdb" Source="..\build\$(var.Configuration)\launcher-x86.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.launchctl_a64.pdb">
-                <File Name="launchctl-a64.pdb" Source="..\build\$(var.Configuration)\launchctl-a64.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.launchctl_x64.pdb">
-                <File Name="launchctl-x64.pdb" Source="..\build\$(var.Configuration)\launchctl-x64.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.launchctl_x86.pdb">
-                <File Name="launchctl-x86.pdb" Source="..\build\$(var.Configuration)\launchctl-x86.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.fsptool_a64.pdb">
-                <File Name="fsptool-a64.pdb" Source="..\build\$(var.Configuration)\fsptool-a64.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.fsptool_x64.pdb">
-                <File Name="fsptool-x64.pdb" Source="..\build\$(var.Configuration)\fsptool-x64.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.fsptool_x86.pdb">
-                <File Name="fsptool-x86.pdb" Source="..\build\$(var.Configuration)\fsptool-x86.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.memfs_a64.pdb">
-                <File Name="memfs-a64.pdb" Source="..\build\$(var.Configuration)\memfs-a64.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.memfs_x64.pdb">
-                <File Name="memfs-x64.pdb" Source="..\build\$(var.Configuration)\memfs-x64.public.pdb" KeyPath="yes" />
-            </Component>
-            <Component Id="C.memfs_x86.pdb">
-                <File Name="memfs-x86.pdb" Source="..\build\$(var.Configuration)\memfs-x86.public.pdb" KeyPath="yes" />
-            </Component>
-        </DirectoryRef>
 
         <ComponentGroup Id="C.$(var.MyProductName).bin">
             <ComponentRef Id="C.$(var.MyProductFileName)_a64.sys" />
@@ -927,26 +882,6 @@
             <ComponentRef Id="C.notifyfs.vcxproj" />
             <ComponentRef Id="C.notifyfs.vcxproj.filters" />
         </ComponentGroup>
-        <ComponentGroup Id="C.$(var.MyProductName).sym">
-            <ComponentRef Id="C.$(var.MyProductFileName)_a64.sys.pdb" />
-            <ComponentRef Id="C.$(var.MyProductFileName)_x64.sys.pdb" />
-            <ComponentRef Id="C.$(var.MyProductFileName)_x86.sys.pdb" />
-            <ComponentRef Id="C.$(var.MyProductFileName)_a64.dll.pdb" />
-            <ComponentRef Id="C.$(var.MyProductFileName)_x64.dll.pdb" />
-            <ComponentRef Id="C.$(var.MyProductFileName)_x86.dll.pdb" />
-            <ComponentRef Id="C.launcher_a64.pdb" />
-            <ComponentRef Id="C.launcher_x64.pdb" />
-            <ComponentRef Id="C.launcher_x86.pdb" />
-            <ComponentRef Id="C.launchctl_a64.pdb" />
-            <ComponentRef Id="C.launchctl_x64.pdb" />
-            <ComponentRef Id="C.launchctl_x86.pdb" />
-            <ComponentRef Id="C.fsptool_a64.pdb" />
-            <ComponentRef Id="C.fsptool_x64.pdb" />
-            <ComponentRef Id="C.fsptool_x86.pdb" />
-            <ComponentRef Id="C.memfs_a64.pdb" />
-            <ComponentRef Id="C.memfs_x64.pdb" />
-            <ComponentRef Id="C.memfs_x86.pdb" />
-        </ComponentGroup>
         <ComponentGroup Id="C.$(var.MyProductName).net">
             <ComponentRef Id="C.$(var.MyProductFileName)_msil.dll" />
             <ComponentRef Id="C.$(var.MyProductFileName)_msil.xml" />
@@ -1013,7 +948,6 @@
                 <ComponentGroupRef Id="C.$(var.MyProductName).lib" />
                 <ComponentGroupRef Id="C.$(var.MyProductName).smp" />
                 <ComponentGroupRef Id="C.$(var.MyProductName).smp.net" />
-                <ComponentGroupRef Id="C.$(var.MyProductName).sym" />
             </Feature>
             <Feature
                 Id="F.KernelDeveloper"
