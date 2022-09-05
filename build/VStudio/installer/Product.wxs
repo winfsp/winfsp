@@ -42,7 +42,6 @@
                 Type="raw" />
         </Property>
 
-        <Property Id="P.LauncherName">$(var.MyProductName).Launcher</Property>
         <Property Id="P.LauncherRegistryKey">Software\$(var.MyProductName)\Services</Property>
         <Property Id="P.RegistryKey">Software\$(var.MyProductName)</Property>
         <Property Id="INSTALLDIR">
@@ -184,14 +183,14 @@
                 <File Id="FILE.launcher_a64.exe.a64" Name="launcher-a64.exe" KeyPath="yes" />
                 <ServiceInstall
                     Id="launcher_a64.exe.a64"
-                    Name="[P.LauncherName]"
+                    Name="$(var.MyProductName).Launcher"
                     Description="$(var.MyDescription)"
                     Type="ownProcess"
                     Start="auto"
                     ErrorControl="ignore" />
                 <ServiceControl
                     Id="launcher_a64.exe.a64"
-                    Name="[P.LauncherName]"
+                    Name="$(var.MyProductName).Launcher"
                     Start="install"
                     Stop="both"
                     Remove="uninstall" />
@@ -215,14 +214,14 @@
                 <File Id="FILE.launcher_x64.exe.x64" Name="launcher-x64.exe" KeyPath="yes" />
                 <ServiceInstall
                     Id="launcher_x64.exe.x64"
-                    Name="[P.LauncherName]"
+                    Name="$(var.MyProductName).Launcher"
                     Description="$(var.MyDescription)"
                     Type="ownProcess"
                     Start="auto"
                     ErrorControl="ignore" />
                 <ServiceControl
                     Id="launcher_x64.exe.x64"
-                    Name="[P.LauncherName]"
+                    Name="$(var.MyProductName).Launcher"
                     Start="install"
                     Stop="both"
                     Remove="uninstall" />
@@ -246,14 +245,14 @@
                 <File Id="FILE.launcher_x86.exe.x86" Name="launcher-x86.exe" KeyPath="yes" />
                 <ServiceInstall
                     Id="launcher_x86.exe.x86"
-                    Name="[P.LauncherName]"
+                    Name="$(var.MyProductName).Launcher"
                     Description="$(var.MyDescription)"
                     Type="ownProcess"
                     Start="auto"
                     ErrorControl="ignore" />
                 <ServiceControl
                     Id="launcher_x86.exe.x86"
-                    Name="[P.LauncherName]"
+                    Name="$(var.MyProductName).Launcher"
                     Start="install"
                     Stop="both"
                     Remove="uninstall" />
