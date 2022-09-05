@@ -33,6 +33,7 @@
             NOT OLDVERSIONINSTALLED
         </Condition>
 
+        <!-- Determine OS architecture. -->
         <Property Id="OSARCH" Secure="yes" Value="AMD64">
             <RegistrySearch
                 Id="R.OSARCH"
@@ -41,9 +42,10 @@
                 Name="PROCESSOR_ARCHITECTURE"
                 Type="raw" />
         </Property>
-
-        <Property Id="P.LauncherRegistryKey">Software\$(var.MyProductName)\Services</Property>
+        
+        <!-- Setup INSTALLDIR and SXSDIR from the registry or defaults. -->
         <Property Id="P.RegistryKey">Software\$(var.MyProductName)</Property>
+        <Property Id="P.LauncherRegistryKey">Software\$(var.MyProductName)\Services</Property>
         <Property Id="INSTALLDIR">
             <RegistrySearch
                 Id="R.INSTALLDIR"
@@ -66,7 +68,8 @@
         <SetProperty Id="SXSDIR" Value="[INSTALLDIR]SxS\sxs.[InstanceID]\" After="SetINSTALLDIR">
             NOT SXSDIR
         </SetProperty>
-
+        
+        <!-- Setup directory structure. -->
         <Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="ProgramFilesFolder">
                 <Directory Id="INSTALLDIR" Name="DYNAMIC">
