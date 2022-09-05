@@ -19,10 +19,9 @@
             Compressed="yes"
             InstallScope="perMachine" />
         <MajorUpgrade
-            Disallow="yes"
+            Disallow="no"
             AllowDowngrades="no"
             AllowSameVersionUpgrades="no"
-            DisallowUpgradeErrorMessage="An older version of $(var.MyProductName) is already installed. You must uninstall it before you can install this version."
             DowngradeErrorMessage="A newer version of $(var.MyProductName) is already installed." />
         <Media Id="1" Cabinet="$(var.MyProductName).cab" EmbedCab="yes" />
 
@@ -54,11 +53,29 @@
                 Name="InstallDir"
                 Type="raw" />
         </Property>
+        <Property Id="SXSDIR">
+            <RegistrySearch
+                Id="R.SXSDIR"
+                Root="HKLM"
+                Key="[P.RegistryKey]"
+                Name="SxsDir"
+                Type="raw" />
+        </Property>
+		<SetProperty Id="INSTALLDIR" Value="[ProgramFilesFolder]$(var.MyProductName)\" After="CostInitialize">
+			NOT INSTALLDIR
+		</SetProperty>
+		<SetProperty Id="SXSDIR" Value="[INSTALLDIR]SxS\sxs.[InstanceID]\" After="SetINSTALLDIR">
+			NOT SXSDIR
+		</SetProperty>
 
-        <Directory Id="TARGETDIR" Name="SourceDir">
+		<Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="ProgramFilesFolder">
-                <Directory Id="INSTALLDIR" Name="$(var.MyProductName)">
-                    <Directory Id="BINDIR" Name="bin" />
+                <Directory Id="INSTALLDIR" Name="DYNAMIC">
+                    <Directory Id="SXSBASEDIR" Name="SxS">
+                        <Directory Id="SXSDIR" Name="DYNAMIC">
+                            <Directory Id="BINDIR" Name="bin" />
+                        </Directory>
+                    </Directory>
                     <Directory Id="INCDIR" Name="inc" />
                     <Directory Id="LIBDIR" Name="lib" />
                     <Directory Id="OPTDIR" Name="opt" />
@@ -67,7 +84,7 @@
             </Directory>
         </Directory>
 
-        <DirectoryRef Id="INSTALLDIR">
+		<DirectoryRef Id="INSTALLDIR">
             <Component Id="C.INSTALLDIR" Guid="C086521F-8552-43D1-AAE2-CDD579F66FDD">
                 <RegistryValue
                     Root="HKLM"
@@ -81,7 +98,18 @@
                 <File Name="License.txt" Source="..\..\..\License.txt" KeyPath="yes" />
             </Component>
         </DirectoryRef>
-        <DirectoryRef Id="BINDIR" FileSource="..\build\$(var.Configuration)">
+		<DirectoryRef Id="SXSDIR">
+			<Component Id="C.SXSDIR" Guid="0F09CD39-1137-4DB8-A783-27B1F51353D1">
+				<RegistryValue
+                    Root="HKLM"
+                    Key="[P.RegistryKey]"
+                    Name="SxsDir"
+                    Type="string"
+                    Value="[SXSDIR]"
+					KeyPath="yes" />
+			</Component>
+		</DirectoryRef>
+		<DirectoryRef Id="BINDIR" FileSource="..\build\$(var.Configuration)">
             <Component Id="C.$(var.MyProductFileName)_a64.sys">
                 <File Name="$(var.MyProductFileName)-a64.sys" KeyPath="yes" />
             </Component>
@@ -913,7 +941,8 @@
             Absent="disallow">
             <ComponentRef Id="C.INSTALLDIR" />
             <ComponentRef Id="C.License.txt" />
-            <Feature
+			<ComponentRef Id="C.SXSDIR" />
+			<Feature
                 Id="F.User"
                 Level="1"
                 Title="Core"
@@ -992,27 +1021,16 @@
 
         <Binary Id="CustomActions" SourceFile="..\build\$(var.Configuration)\CustomActions.dll" />
         <CustomAction
-            Id="Params.ServiceRunning"
-            Property="ServiceRunning"
-            Value="$(var.MyProductName)" />
-        <CustomAction
-            Id="Action.ServiceRunning"
+            Id="Action.InstanceID"
             BinaryKey="CustomActions"
-            DllEntry="ServiceRunning"
-            Execute="immediate"
-            Return="ignore" />
-        <CustomAction
-            Id="Action.ServiceRunning.Error"
-            Error="The $(var.MyProductName) service appears to be running. If you just uninstalled $(var.MyProductName) please restart your computer. If you are running a development version of $(var.MyProductName) please remove it before proceeding." />
+            DllEntry="InstanceID"
+            Execute="firstSequence"
+            Return="check" />
         <InstallExecuteSequence>
-            <Custom Action="Params.ServiceRunning" Before="Action.ServiceRunning" />
-            <Custom Action="Action.ServiceRunning" Before="LaunchConditions" />
-            <Custom Action="Action.ServiceRunning.Error" After="Action.ServiceRunning">
-                <![CDATA[NOT Installed AND (0 <> ServiceRunning)]]>
-            </Custom>
-            <ScheduleReboot After="RemoveFiles">
-                <![CDATA[(REMOVE ~= "ALL") AND (0 <> ServiceRunning)]]>
-            </ScheduleReboot>
+            <Custom Action="Action.InstanceID" Before="AppSearch" />
         </InstallExecuteSequence>
+        <InstallUISequence>
+            <Custom Action="Action.InstanceID" Before="AppSearch" />
+		</InstallUISequence>
     </Product>
 </Wix>
