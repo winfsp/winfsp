@@ -51,7 +51,14 @@ UINT __stdcall InstanceID(MSIHANDLE MsiHandle)
         SystemTime.wHour,
         SystemTime.wMinute,
         SystemTime.wSecond);
-    Sleep(1000);
+
+    /*
+     * Sleep 1 second to ensure timestamp uniqueness.
+     *
+     * Note that this assumes that time is monotonic and users do not change time.
+     * Disable for now as it is assumed that the installation takes more than 1 second to complete.
+     */
+    //Sleep(1000);
 
     WcaSetProperty(L"" __FUNCTION__, Result);
 
@@ -79,7 +86,7 @@ UINT __stdcall ServiceRunning(MSIHANDLE MsiHandle)
     hr = WcaInitialize(MsiHandle, __FUNCTION__);
     ExitOnFailure(hr, "Failed to initialize");
 
-    WcaGetProperty(L"" __FUNCTION__, &ServiceName);
+    hr = WcaGetProperty(L"" __FUNCTION__, &ServiceName);
     ExitOnFailure(hr, "Failed to get ServiceName");
 
     WcaLog(LOGMSG_STANDARD, "Initialized: \"%S\"", ServiceName);

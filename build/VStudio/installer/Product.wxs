@@ -29,7 +29,7 @@
         <Property Id="OLDVERSIONINSTALLED">
             <ProductSearch UpgradeCode="$(var.OldVersionUpgradeCode)" Minimum="0.0.0.0" />
         </Property>
-        <Condition Message="An older version of $(var.MyProductName) is already installed. You must uninstall it before you can install this version.">
+        <Condition Message="An older version of $(var.MyProductName) that cannot be upgraded is already installed. You must uninstall it before you can install this version.">
             NOT OLDVERSIONINSTALLED
         </Condition>
 
@@ -1020,8 +1020,11 @@
                 Value="WelcomeDlg"
                 Order="10">NOT Installed</Publish>
         </UI>
-
+        
+        <!-- Custom Actions -->
         <Binary Id="CustomActions" SourceFile="..\build\$(var.Configuration)\CustomActions.dll" />
+
+        <!-- InstanceID computes a unique per-installer-run ID -->
         <CustomAction
             Id="Action.InstanceID"
             BinaryKey="CustomActions"
@@ -1034,5 +1037,39 @@
         <InstallUISequence>
             <Custom Action="Action.InstanceID" Before="AppSearch" />
         </InstallUISequence>
+
+        <!-- ServiceRunning determines if the old driver (that did not support unload) is running. -->
+        <CustomAction
+            Id="Params.ServiceRunning"
+            Property="ServiceRunning"
+            Value="$(var.MyProductName)" />
+        <CustomAction
+            Id="Action.ServiceRunning"
+            BinaryKey="CustomActions"
+            DllEntry="ServiceRunning"
+            Execute="immediate"
+            Return="ignore" />
+        <CustomAction
+            Id="Action.ServiceRunning.Error"
+            Error="A component from an older version of $(var.MyProductName) that cannot be upgraded appears to be running. If you just uninstalled an older version of $(var.MyProductName) please restart your computer." />
+        <InstallExecuteSequence>
+            <Custom Action="Params.ServiceRunning" Before="Action.ServiceRunning" />
+            <Custom Action="Action.ServiceRunning" After="AppSearch">
+                <![CDATA[NOT Installed AND (0 <> ServiceRunning)]]>
+            </Custom>
+            <Custom Action="Action.ServiceRunning.Error" After="Action.ServiceRunning">
+                <![CDATA[NOT Installed AND (0 <> ServiceRunning)]]>
+            </Custom>
+        </InstallExecuteSequence>
+        <InstallUISequence>
+            <Custom Action="Params.ServiceRunning" Before="Action.ServiceRunning" />
+            <Custom Action="Action.ServiceRunning" After="AppSearch">
+                <![CDATA[NOT Installed AND (0 <> ServiceRunning)]]>
+            </Custom>
+            <Custom Action="Action.ServiceRunning.Error" After="Action.ServiceRunning">
+                <![CDATA[NOT Installed AND (0 <> ServiceRunning)]]>
+            </Custom>
+        </InstallUISequence>
+
     </Product>
 </Wix>
