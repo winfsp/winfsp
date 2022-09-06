@@ -21,9 +21,12 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <shellapi.h>
 #include <msiquery.h>
 #include <wcautil.h>
 #include <strutil.h>
+
+static HINSTANCE DllInstance;
 
 UINT __stdcall InstanceID(MSIHANDLE MsiHandle)
 {
@@ -112,12 +115,218 @@ LExit:
     return WcaFinalize(err);
 }
 
+UINT __stdcall DeferredAction(MSIHANDLE MsiHandle)
+{
+#if 0
+    WCHAR MessageBuf[64];
+    wsprintfW(MessageBuf, L"PID=%ld", GetCurrentProcessId());
+    MessageBoxW(0, MessageBuf, L"" __FUNCTION__ " Break", MB_OK);
+#endif
+
+    HRESULT hr = S_OK;
+    UINT err = ERROR_SUCCESS;
+    PWSTR CommandLine = 0;
+    PWSTR *Argv;
+    int Argc;
+    CHAR ProcName[64];
+    FARPROC Proc;
+
+    hr = WcaInitialize(MsiHandle, __FUNCTION__);
+    ExitOnFailure(hr, "Failed to initialize");
+
+    hr = WcaGetProperty(L"CustomActionData", &CommandLine);
+    ExitOnFailure(hr, "Failed to get CommandLine");
+
+    WcaLog(LOGMSG_STANDARD, "Initialized: \"%S\"", CommandLine);
+
+    Argv = CommandLineToArgvW(CommandLine, &Argc);
+    ExitOnNullWithLastError(Argv, hr, "Failed to CommandLineToArgvW");
+
+    if (0 < Argc)
+    {
+        if (0 == WideCharToMultiByte(CP_UTF8, 0, Argv[0], -1, ProcName, sizeof ProcName, 0, 0))
+            ExitWithLastError(hr, "Failed to WideCharToMultiByte");
+
+        Proc = GetProcAddress(DllInstance, ProcName);
+        ExitOnNullWithLastError(Proc, hr, "Failed to GetProcAddress");
+
+        err = ((HRESULT (*)(int, PWSTR *))Proc)(Argc, Argv);
+        ExitOnWin32Error(err, hr, "Failed to %S", ProcName);
+    }
+    else
+    {
+        hr = E_INVALIDARG;
+        ExitOnFailure(hr, "Failed to get arguments");
+    }
+
+LExit:
+    LocalFree(Argv);
+    ReleaseStr(CommandLine);
+
+    err = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
+    return WcaFinalize(err);
+}
+
+static DWORD CreateSymlink(PWSTR Symlink, PWSTR Target);
+static DWORD RemoveFile(PWSTR FileName);
+
+DWORD InstallSymlinks(int Argc, PWSTR *Argv)
+{
+    /* usage: InstallSymlinks SourceDir TargetDir Name... */
+
+    DWORD Result;
+    PWSTR SourceDir, TargetDir;
+    WCHAR SourcePath[MAX_PATH], TargetPath[MAX_PATH];
+    int SourceDirLen, TargetDirLen, Len;
+
+    if (4 > Argc)
+    {
+        Result = ERROR_INVALID_PARAMETER;
+        goto exit;
+    }
+
+    SourceDir = Argv[1];
+    TargetDir = Argv[2];
+    SourceDirLen = lstrlenW(SourceDir);
+    TargetDirLen = lstrlenW(TargetDir);
+
+    for (int Argi = 3; Argc > Argi; Argi++)
+    {
+        Len = lstrlenW(Argv[Argi]);
+        if (MAX_PATH < SourceDirLen + Len + 1 || MAX_PATH < TargetDirLen + Len + 1)
+        {
+            Result = ERROR_FILENAME_EXCED_RANGE;
+            goto exit;
+        }
+
+        memcpy(SourcePath, SourceDir, SourceDirLen * sizeof(WCHAR));
+        memcpy(SourcePath + SourceDirLen, Argv[Argi], Len * sizeof(WCHAR));
+        SourcePath[SourceDirLen + Len] = L'\0';
+
+        memcpy(TargetPath, TargetDir, TargetDirLen * sizeof(WCHAR));
+        memcpy(TargetPath + TargetDirLen, Argv[Argi], Len * sizeof(WCHAR));
+        TargetPath[TargetDirLen + Len] = L'\0';
+
+        Result = CreateSymlink(SourcePath, TargetPath);
+#if 0
+    WCHAR MessageBuf[1024];
+    wsprintfW(MessageBuf, L"CreateSymlink(\"%s\", \"%s\") = %lu", SourcePath, TargetPath, Result);
+    MessageBoxW(0, MessageBuf, L"TRACE", MB_OK);
+#endif
+        if (ERROR_SUCCESS != Result)
+            goto exit;
+    }
+
+    Result = ERROR_SUCCESS;
+
+exit:
+    return Result;
+}
+
+DWORD RemoveFiles(int Argc, PWSTR *Argv)
+{
+    /* usage: RemoveFiles Dir Name... */
+
+    DWORD Result;
+    PWSTR Dir;
+    WCHAR Path[MAX_PATH];
+    int DirLen, Len;
+
+    if (3 > Argc)
+    {
+        Result = ERROR_INVALID_PARAMETER;
+        goto exit;
+    }
+
+    Dir = Argv[1];
+    DirLen = lstrlenW(Dir);
+
+    for (int Argi = 2; Argc > Argi; Argi++)
+    {
+        Len = lstrlenW(Argv[Argi]);
+        if (MAX_PATH < DirLen + Len + 1)
+        {
+            Result = ERROR_FILENAME_EXCED_RANGE;
+            goto exit;
+        }
+
+        memcpy(Path, Dir, DirLen * sizeof(WCHAR));
+        memcpy(Path + DirLen, Argv[Argi], Len * sizeof(WCHAR));
+        Path[DirLen + Len] = L'\0';
+
+        Result = RemoveFile(Path);
+#if 0
+    WCHAR MessageBuf[1024];
+    wsprintfW(MessageBuf, L"RemoveFile(\"%s\") = %lu", Path, Result);
+    MessageBoxW(0, MessageBuf, L"TRACE", MB_OK);
+#endif
+        if (ERROR_SUCCESS != Result)
+            goto exit;
+    }
+
+    Result = ERROR_SUCCESS;
+
+exit:
+    return Result;
+}
+
+static DWORD CreateSymlink(PWSTR Symlink, PWSTR Target)
+{
+    DWORD Result;
+    DWORD FileAttributes, Flags;
+
+    FileAttributes = GetFileAttributesW(Target);
+    if (INVALID_FILE_ATTRIBUTES == FileAttributes)
+    {
+        Result = GetLastError();
+        goto exit;
+    }
+    Flags = 0 != (FileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
+
+    RemoveFile(Symlink);
+
+    if (!CreateSymbolicLinkW(Symlink, Target, Flags))
+    {
+        Result = GetLastError();
+        goto exit;
+    }
+
+    Result = ERROR_SUCCESS;
+
+exit:
+    return Result;
+}
+
+static DWORD RemoveFile(PWSTR FileName)
+{
+    DWORD Result;
+
+    if (!RemoveDirectoryW(FileName))
+    {
+        Result = GetLastError();
+        if (ERROR_DIRECTORY != Result)
+            goto exit;
+
+        if (!DeleteFileW(FileName))
+        {
+            Result = GetLastError();
+            goto exit;
+        }
+    }
+
+    Result = ERROR_SUCCESS;
+
+exit:
+    return Result;
+}
+
 extern "C"
 BOOL WINAPI DllMain(HINSTANCE Instance, DWORD Reason, PVOID Reserved)
 {
     switch(Reason)
     {
     case DLL_PROCESS_ATTACH:
+        DllInstance = Instance;
         WcaGlobalInitialize(Instance);
         break;
     case DLL_PROCESS_DETACH:

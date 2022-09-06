@@ -1,3 +1,6 @@
 EXPORTS
     InstanceID
     ServiceRunning
+    DeferredAction
+    InstallSymlinks
+    RemoveFiles

@@ -42,7 +42,7 @@
                 Name="PROCESSOR_ARCHITECTURE"
                 Type="raw" />
         </Property>
-        
+
         <!-- Setup INSTALLDIR and SXSDIR from the registry or defaults. -->
         <Property Id="P.RegistryKey">Software\$(var.MyProductName)</Property>
         <Property Id="P.LauncherRegistryKey">Software\$(var.MyProductName)\Services</Property>
@@ -68,7 +68,7 @@
         <SetProperty Id="SXSDIR" Value="[INSTALLDIR]SxS\sxs.[InstanceID]\" After="SetINSTALLDIR">
             NOT SXSDIR
         </SetProperty>
-        
+
         <!-- Setup directory structure. -->
         <Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="ProgramFilesFolder">
@@ -1020,7 +1020,7 @@
                 Value="WelcomeDlg"
                 Order="10">NOT Installed</Publish>
         </UI>
-        
+
         <!-- Custom Actions -->
         <Binary Id="CustomActions" SourceFile="..\build\$(var.Configuration)\CustomActions.dll" />
 
@@ -1071,5 +1071,89 @@
             </Custom>
         </InstallUISequence>
 
+        <!-- InstallSymlinks installs SxS symlinks -->
+        <SetProperty
+            Id="Deferred.InstallSymlinks"
+            Value='InstallSymlinks "[INSTALLDIR]\" "[SXSDIR]\" bin'
+            Before="Deferred.InstallSymlinks"
+            Sequence="execute" />
+        <CustomAction
+            Id="Deferred.InstallSymlinks"
+            BinaryKey="CustomActions"
+            DllEntry="DeferredAction"
+            Execute="deferred"
+            Impersonate="no"
+            Return="check" />
+        <SetProperty
+            Id="Rollback.InstallSymlinks"
+            Value='RemoveFiles "[INSTALLDIR]\" bin'
+            Before="Rollback.InstallSymlinks"
+            Sequence="execute" />
+        <CustomAction
+            Id="Rollback.InstallSymlinks"
+            BinaryKey="CustomActions"
+            DllEntry="DeferredAction"
+            Execute="rollback"
+            Impersonate="no"
+            Return="ignore" />
+        <InstallExecuteSequence>
+            <!--
+                deferred: `InstallSymlinks` on install or repair
+                rollback: `RemoveSymlinks` on install only
+            -->
+            <Custom Action="Rollback.InstallSymlinks" After="InstallFiles">
+                NOT Installed
+            </Custom>
+            <Custom Action="Deferred.InstallSymlinks" After="Rollback.InstallSymlinks">
+                ((NOT Installed) OR REINSTALL)
+            </Custom>
+        </InstallExecuteSequence>
+
+        <!-- RemoveSymlinks removes SxS symlinks -->
+        <SetProperty
+            Id="Deferred.RemoveSymlinks"
+            Value='RemoveFiles "[INSTALLDIR]\" bin'
+            Before="Deferred.RemoveSymlinks"
+            Sequence="execute" />
+        <CustomAction
+            Id="Deferred.RemoveSymlinks"
+            BinaryKey="CustomActions"
+            DllEntry="DeferredAction"
+            Execute="deferred"
+            Impersonate="no"
+            Return="ignore" />
+        <SetProperty
+            Id="Rollback.RemoveSymlinks"
+            Value='InstallSymlinks "[INSTALLDIR]\" "[SXSDIR]\" bin'
+            Before="Rollback.RemoveSymlinks"
+            Sequence="execute" />
+        <CustomAction
+            Id="Rollback.RemoveSymlinks"
+            BinaryKey="CustomActions"
+            DllEntry="DeferredAction"
+            Execute="rollback"
+            Impersonate="no"
+            Return="check" />
+        <InstallExecuteSequence>
+            <!--
+                deferred: `RemoveSymlinks` on uninstall
+                rollback: `InstallSymlinks` on uninstall
+            -->
+            <Custom Action="Rollback.RemoveSymlinks" Before="RemoveFiles">
+                REMOVE
+            </Custom>
+            <Custom Action="Deferred.RemoveSymlinks" After="Rollback.RemoveSymlinks">
+                REMOVE
+            </Custom>
+        </InstallExecuteSequence>
+
+        <!--
+            Specify WIXFAILWHENDEFERRED=1 on the msiexec cmdline for rollback testing.
+            See http://tinyurl.com/yxkaywek
+        -->
+        <!--
+        <Property Id="WIXFAILWHENDEFERRED" Value="0" Secure="yes" />
+        <CustomActionRef Id="WixFailWhenDeferred" />
+        -->
     </Product>
 </Wix>
