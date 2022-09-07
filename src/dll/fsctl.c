@@ -828,6 +828,8 @@ NTSTATUS FspFsctlUnregister(VOID)
 
     FspSxsAppendSuffix(DriverName, sizeof DriverName, L"" FSP_FSCTL_DRIVER_NAME);
 
+    FspFsctlStopService();
+
     ScmHandle = OpenSCManagerW(0, 0, SC_MANAGER_CREATE_SERVICE);
         /*
          * The SC_MANAGER_CREATE_SERVICE access right is not strictly needed here,
