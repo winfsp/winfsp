@@ -46,7 +46,7 @@
         <!-- Setup INSTALLDIR and SXSDIR from the registry or defaults. -->
         <Property Id="P.RegistryKey">Software\$(var.MyProductName)</Property>
         <Property Id="P.LauncherRegistryKey">Software\$(var.MyProductName)\Services</Property>
-        <Property Id="INSTALLDIR">
+        <Property Id="INSTALLDIR" Secure="yes">
             <RegistrySearch
                 Id="R.INSTALLDIR"
                 Root="HKLM"
@@ -54,7 +54,7 @@
                 Name="InstallDir"
                 Type="raw" />
         </Property>
-        <Property Id="SXSDIR">
+        <Property Id="SXSDIR" Secure="yes">
             <RegistrySearch
                 Id="R.SXSDIR"
                 Root="HKLM"
@@ -1105,7 +1105,7 @@
                 NOT Installed
             </Custom>
             <Custom Action="Deferred.InstallSymlinks" After="Rollback.InstallSymlinks">
-                ((NOT Installed) OR REINSTALL)
+                (NOT Installed) OR REINSTALL
             </Custom>
         </InstallExecuteSequence>
 
