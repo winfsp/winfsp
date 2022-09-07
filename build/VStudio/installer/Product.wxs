@@ -21,7 +21,7 @@
         <MajorUpgrade
             Disallow="no"
             AllowDowngrades="no"
-            AllowSameVersionUpgrades="no"
+            AllowSameVersionUpgrades="yes"
             DowngradeErrorMessage="A newer version of $(var.MyProductName) is already installed." />
         <Media Id="1" Cabinet="$(var.MyProductName).cab" EmbedCab="yes" />
 
