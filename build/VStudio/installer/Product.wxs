@@ -1140,10 +1140,10 @@
                 rollback: `InstallSymlinks` on uninstall
             -->
             <Custom Action="Rollback.RemoveSymlinks" Before="RemoveFiles">
-                REMOVE
+                REMOVE ~= "ALL"
             </Custom>
             <Custom Action="Deferred.RemoveSymlinks" After="Rollback.RemoveSymlinks">
-                REMOVE
+                REMOVE ~= "ALL"
             </Custom>
         </InstallExecuteSequence>
 
