@@ -66,7 +66,7 @@
             NOT INSTALLDIR
         </SetProperty>
         <SetProperty Id="SXSDIR" Value="[INSTALLDIR]SxS\sxs.[InstanceID]\" After="SetINSTALLDIR">
-            NOT SXSDIR
+            ((NOT SXSDIR) OR WIX_UPGRADE_DETECTED) AND InstanceID
         </SetProperty>
 
         <!-- Setup directory structure. -->
