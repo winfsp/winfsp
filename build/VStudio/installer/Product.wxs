@@ -1054,8 +1054,8 @@
             Error="A component from an older version of $(var.MyProductName) that cannot be upgraded appears to be running. If you just uninstalled an older version of $(var.MyProductName) please restart your computer." />
         <InstallExecuteSequence>
             <Custom Action="Params.ServiceRunning" Before="Action.ServiceRunning" />
-            <Custom Action="Action.ServiceRunning" After="AppSearch">
-                <![CDATA[NOT Installed AND (0 <> ServiceRunning)]]>
+            <Custom Action="Action.ServiceRunning" After="LaunchConditions">
+                <![CDATA[NOT Installed]]>
             </Custom>
             <Custom Action="Action.ServiceRunning.Error" After="Action.ServiceRunning">
                 <![CDATA[NOT Installed AND (0 <> ServiceRunning)]]>
@@ -1063,8 +1063,8 @@
         </InstallExecuteSequence>
         <InstallUISequence>
             <Custom Action="Params.ServiceRunning" Before="Action.ServiceRunning" />
-            <Custom Action="Action.ServiceRunning" After="AppSearch">
-                <![CDATA[NOT Installed AND (0 <> ServiceRunning)]]>
+            <Custom Action="Action.ServiceRunning" After="LaunchConditions">
+                <![CDATA[NOT Installed]]>
             </Custom>
             <Custom Action="Action.ServiceRunning.Error" After="Action.ServiceRunning">
                 <![CDATA[NOT Installed AND (0 <> ServiceRunning)]]>
