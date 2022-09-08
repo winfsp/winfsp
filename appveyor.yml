@@ -72,10 +72,10 @@ build_script:
 - if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" tools\gensrc\remove-build-arm64.bat
 # build winfsp
 - tools\build.bat %CONFIGURATION%
-- tools\sxsident.bat > build\VStudio\build\%CONFIGURATION%\winfsp.sxs
 
 test_script:
 - choco install winfsp -s build\VStudio\build\%CONFIGURATION% -y --pre
+- tools\sxsident.bat > build\VStudio\build\%CONFIGURATION%\winfsp.sxs
 - if %TESTING%==Func appveyor DownloadFile https://winfsp.dev/assets/pvt/Test.Filter.Driver.zip.001
 - if %TESTING%==Func appveyor DownloadFile https://winfsp.dev/assets/pvt/Test.Filter.Driver.zip.002
 - if %TESTING%==Func 7z x Test.Filter.Driver.zip.001
