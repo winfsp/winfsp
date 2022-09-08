@@ -1271,6 +1271,7 @@ exit /b !RunSampleTestExit!
 
 :compat-v1.2-memfs-x64
 copy "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-*.dll" "%ProjRoot%\tst\compat\v1.2\memfs"
+call "%ProjRoot%\tools\sxsident.bat" > "%ProjRoot%\tst\compat\v1.2\memfs\winfsp.sxs"
 call :__run_compat_memfs_test compat-memfs v1.2\memfs\memfs-x64 winfsp-tests-x64
 if !ERRORLEVEL! neq 0 goto fail
 del "%ProjRoot%\tst\compat\v1.2\memfs\winfsp-*.dll"
@@ -1278,6 +1279,7 @@ exit /b 0
 
 :compat-v1.2-memfs-x86
 copy "%ProjRoot%\build\VStudio\build\%Configuration%\winfsp-*.dll" "%ProjRoot%\tst\compat\v1.2\memfs"
+call "%ProjRoot%\tools\sxsident.bat" > "%ProjRoot%\tst\compat\v1.2\memfs\winfsp.sxs"
 call :__run_compat_memfs_test compat-memfs v1.2\memfs\memfs-x86 winfsp-tests-x86
 if !ERRORLEVEL! neq 0 goto fail
 del "%ProjRoot%\tst\compat\v1.2\memfs\winfsp-*.dll"
