@@ -151,7 +151,7 @@ UINT __stdcall DeferredAction(MSIHANDLE MsiHandle)
         ExitOnNullWithLastError(Proc, hr, "Failed to GetProcAddress");
 
         err = ((HRESULT (*)(int, PWSTR *))Proc)(Argc, Argv);
-        ExitOnWin32Error(err, hr, "Failed to %S", ProcName);
+        ExitOnWin32Error(err, hr, "Failed to %s", ProcName);
     }
     else
     {
