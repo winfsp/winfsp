@@ -3,4 +3,5 @@ EXPORTS
     ServiceRunning
     DeferredAction
     InstallSymlinks
+    InstallJunctions
     RemoveFiles

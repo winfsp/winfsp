@@ -167,14 +167,17 @@ LExit:
     return WcaFinalize(err);
 }
 
-static DWORD CreateSymlink(PWSTR Symlink, PWSTR Target);
+static DWORD MakeSymlink(PWSTR Symlink, PWSTR Target);
+static DWORD MakeJunction(PWSTR Junction, PWSTR Target);
+static DWORD CreateJunction(PWSTR Junction, PWSTR Target);
 static DWORD RemoveFile(PWSTR FileName);
 
 DWORD InstallSymlinks(int Argc, PWSTR *Argv)
 {
-    /* usage: InstallSymlinks SourceDir TargetDir Name... */
+    /* usage: InstallSymlinks/InstallJunctions SourceDir TargetDir Name... */
 
     DWORD Result;
+    BOOL Junctions;
     PWSTR SourceDir, TargetDir;
     WCHAR SourcePath[MAX_PATH], TargetPath[MAX_PATH];
     int SourceDirLen, TargetDirLen, Len;
@@ -185,6 +188,7 @@ DWORD InstallSymlinks(int Argc, PWSTR *Argv)
         goto exit;
     }
 
+    Junctions = 0 == lstrcmpW(L"InstallJunctions", Argv[0]);
     SourceDir = Argv[1];
     TargetDir = Argv[2];
     SourceDirLen = lstrlenW(SourceDir);
@@ -207,10 +211,13 @@ DWORD InstallSymlinks(int Argc, PWSTR *Argv)
         memcpy(TargetPath + TargetDirLen, Argv[Argi], Len * sizeof(WCHAR));
         TargetPath[TargetDirLen + Len] = L'\0';
 
-        Result = CreateSymlink(SourcePath, TargetPath);
+        if (!Junctions)
+            Result = MakeSymlink(SourcePath, TargetPath);
+        else
+            Result = MakeJunction(SourcePath, TargetPath);
 #if 0
     WCHAR MessageBuf[1024];
-    wsprintfW(MessageBuf, L"CreateSymlink(\"%s\", \"%s\") = %lu", SourcePath, TargetPath, Result);
+    wsprintfW(MessageBuf, L"MakeSymlink(\"%s\", \"%s\") = %lu", SourcePath, TargetPath, Result);
     MessageBoxW(0, MessageBuf, L"TRACE", MB_OK);
 #endif
         if (ERROR_SUCCESS != Result)
@@ -221,6 +228,11 @@ DWORD InstallSymlinks(int Argc, PWSTR *Argv)
 
 exit:
     return Result;
+}
+
+DWORD InstallJunctions(int Argc, PWSTR *Argv)
+{
+    return InstallSymlinks(Argc, Argv);
 }
 
 DWORD RemoveFiles(int Argc, PWSTR *Argv)
@@ -270,10 +282,12 @@ exit:
     return Result;
 }
 
-static DWORD CreateSymlink(PWSTR Symlink, PWSTR Target)
+static DWORD MakeSymlink(PWSTR Symlink, PWSTR Target)
 {
     DWORD Result;
     DWORD FileAttributes, Flags;
+
+    RemoveFile(Symlink);
 
     FileAttributes = GetFileAttributesW(Target);
     if (INVALID_FILE_ATTRIBUTES == FileAttributes)
@@ -283,9 +297,161 @@ static DWORD CreateSymlink(PWSTR Symlink, PWSTR Target)
     }
     Flags = 0 != (FileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
 
-    RemoveFile(Symlink);
-
     if (!CreateSymbolicLinkW(Symlink, Target, Flags))
+    {
+        Result = GetLastError();
+        RemoveFile(Symlink);
+        goto exit;
+    }
+
+    Result = ERROR_SUCCESS;
+
+exit:
+    return Result;
+}
+
+static DWORD MakeJunction(PWSTR Junction, PWSTR Target)
+{
+    DWORD Result;
+    DWORD FileAttributes;
+
+    RemoveFile(Junction);
+
+    FileAttributes = GetFileAttributesW(Target);
+    if (INVALID_FILE_ATTRIBUTES == FileAttributes)
+    {
+        Result = GetLastError();
+        goto exit;
+    }
+    if (0 == (FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+        Result = ERROR_DIRECTORY;
+        goto exit;
+    }
+
+    Result = CreateJunction(Junction, Target);
+    if (ERROR_SUCCESS != Result)
+    {
+        RemoveFile(Junction);
+        goto exit;
+    }
+
+    Result = ERROR_SUCCESS;
+
+exit:
+    return Result;
+}
+
+static DWORD CreateJunction(PWSTR Junction, PWSTR Target)
+{
+    /*
+     * The REPARSE_DATA_BUFFER definitions appear to be missing from the user mode headers.
+     */
+    typedef struct _REPARSE_DATA_BUFFER
+    {
+        ULONG ReparseTag;
+        USHORT ReparseDataLength;
+        USHORT Reserved;
+        union
+        {
+            struct
+            {
+                USHORT SubstituteNameOffset;
+                USHORT SubstituteNameLength;
+                USHORT PrintNameOffset;
+                USHORT PrintNameLength;
+                ULONG Flags;
+                WCHAR PathBuffer[1];
+            } SymbolicLinkReparseBuffer;
+            struct
+            {
+                USHORT SubstituteNameOffset;
+                USHORT SubstituteNameLength;
+                USHORT PrintNameOffset;
+                USHORT PrintNameLength;
+                WCHAR PathBuffer[1];
+            } MountPointReparseBuffer;
+            struct
+            {
+                UCHAR DataBuffer[1];
+            } GenericReparseBuffer;
+        } DUMMYUNIONNAME;
+    } REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
+    const LONG REPARSE_DATA_BUFFER_HEADER_SIZE =
+        FIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer);
+    const DWORD FSCTL_SET_REPARSE_POINT = 0x000900a4;
+
+    DWORD Result;
+    HANDLE Handle = INVALID_HANDLE_VALUE;
+    USHORT TargetLength, ReparseDataLength;
+    PREPARSE_DATA_BUFFER ReparseData = 0;
+    PWSTR PathBuffer;
+    DWORD Bytes;
+
+    if (!(
+        ((L'A' <= Target[0] && Target[0] <= L'Z') || (L'a' <= Target[0] && Target[0] <= L'z')) &&
+        L':' == Target[1]
+        ))
+    {
+        Result = ERROR_INVALID_NAME;
+        goto exit;
+    }
+
+    Handle = CreateFileW(Junction,
+        FILE_WRITE_ATTRIBUTES,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        CREATE_NEW,
+        FILE_ATTRIBUTE_DIRECTORY |
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_POSIX_SEMANTICS,
+        0);
+    if (INVALID_HANDLE_VALUE == Handle)
+    {
+        Result = GetLastError();
+        goto exit;
+    }
+
+    TargetLength = (USHORT)lstrlenW(Target) * sizeof(WCHAR);
+    ReparseDataLength = (USHORT)(
+        FIELD_OFFSET(REPARSE_DATA_BUFFER, MountPointReparseBuffer.PathBuffer) -
+        FIELD_OFFSET(REPARSE_DATA_BUFFER, MountPointReparseBuffer)) +
+        4 * sizeof(WCHAR) + 2 * (TargetLength + sizeof(WCHAR));
+    ReparseData = (PREPARSE_DATA_BUFFER)
+        HeapAlloc(GetProcessHeap(), 0, REPARSE_DATA_BUFFER_HEADER_SIZE + ReparseDataLength);
+    if (0 == ReparseData)
+    {
+        Result = ERROR_NO_SYSTEM_RESOURCES;
+        goto exit;
+    }
+
+    ReparseData->ReparseTag = IO_REPARSE_TAG_MOUNT_POINT;
+    ReparseData->ReparseDataLength = ReparseDataLength;
+    ReparseData->Reserved = 0;
+    ReparseData->MountPointReparseBuffer.SubstituteNameOffset = 0;
+    ReparseData->MountPointReparseBuffer.SubstituteNameLength =
+        4 * sizeof(WCHAR) + TargetLength;
+    ReparseData->MountPointReparseBuffer.PrintNameOffset =
+        ReparseData->MountPointReparseBuffer.SubstituteNameLength + sizeof(WCHAR);
+    ReparseData->MountPointReparseBuffer.PrintNameLength =
+        TargetLength;
+
+    PathBuffer = ReparseData->MountPointReparseBuffer.PathBuffer;
+    PathBuffer[0] = L'\\';
+    PathBuffer[1] = L'?';
+    PathBuffer[2] = L'?';
+    PathBuffer[3] = L'\\';
+    memcpy(PathBuffer + 4, Target, TargetLength);
+    PathBuffer[4 + TargetLength / sizeof(WCHAR)] = L'\0';
+
+    PathBuffer = ReparseData->MountPointReparseBuffer.PathBuffer +
+        (ReparseData->MountPointReparseBuffer.PrintNameOffset) / sizeof(WCHAR);
+    memcpy(PathBuffer, Target, TargetLength);
+    PathBuffer[TargetLength / sizeof(WCHAR)] = L'\0';
+
+    if (!DeviceIoControl(Handle, FSCTL_SET_REPARSE_POINT,
+        ReparseData, REPARSE_DATA_BUFFER_HEADER_SIZE + ReparseData->ReparseDataLength,
+        0, 0,
+        &Bytes, 0))
     {
         Result = GetLastError();
         goto exit;
@@ -294,6 +460,12 @@ static DWORD CreateSymlink(PWSTR Symlink, PWSTR Target)
     Result = ERROR_SUCCESS;
 
 exit:
+    if (INVALID_HANDLE_VALUE != Handle)
+        CloseHandle(Handle);
+
+    if (0 != ReparseData)
+        HeapFree(GetProcessHeap(), 0, ReparseData);
+
     return Result;
 }
 

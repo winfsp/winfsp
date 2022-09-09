@@ -1074,7 +1074,7 @@
         <!-- InstallSymlinks installs SxS symlinks -->
         <SetProperty
             Id="Deferred.InstallSymlinks"
-            Value='InstallSymlinks "[INSTALLDIR]\" "[SXSDIR]\" bin'
+            Value='InstallJunctions "[INSTALLDIR]\" "[SXSDIR]\" bin'
             Before="Deferred.InstallSymlinks"
             Sequence="execute" />
         <CustomAction
@@ -1124,7 +1124,7 @@
             Return="ignore" />
         <SetProperty
             Id="Rollback.RemoveSymlinks"
-            Value='InstallSymlinks "[INSTALLDIR]\" "[SXSDIR]\" bin'
+            Value='InstallJunctions "[INSTALLDIR]\" "[SXSDIR]\" bin'
             Before="Rollback.RemoveSymlinks"
             Sequence="execute" />
         <CustomAction
