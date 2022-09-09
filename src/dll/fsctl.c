@@ -778,7 +778,7 @@ NTSTATUS FspFsctlRegister(VOID)
     }
     else
     {
-        SvcHandle = CreateServiceW(ScmHandle, DriverName, L"" FSP_FSCTL_DRIVER_NAME,
+        SvcHandle = CreateServiceW(ScmHandle, DriverName, DriverName,
             SERVICE_CHANGE_CONFIG | READ_CONTROL | WRITE_DAC,
             SERVICE_FILE_SYSTEM_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, DriverPath,
             0, 0, 0, 0, 0);
