@@ -524,10 +524,9 @@ exit:
 
 static VOID FspFsctlStartService_EnumFn(PVOID Context, PWSTR ServiceName, BOOLEAN Running)
 {
-    PWSTR *PDriverName = Context;
-    if (0 == *PDriverName ||
-        0 > invariant_wcscmp(*PDriverName, ServiceName))
-        *PDriverName = ServiceName;
+    PWSTR DriverName = Context;
+    if (0 > invariant_wcscmp(DriverName, ServiceName))
+        lstrcpyW(DriverName, ServiceName);
 }
 
 FSP_API NTSTATUS FspFsctlStartService(VOID)
@@ -549,17 +548,18 @@ FSP_API NTSTATUS FspFsctlStartService(VOID)
         /* non-SxS mode */
 
         NTSTATUS Result;
-        PWSTR DriverName = 0;
+        WCHAR DriverName[256];
 
         Result = FspFsctlStartServiceByName(L"" FSP_FSCTL_DRIVER_NAME);
-        if (NT_SUCCESS(Result))
+        if (NT_SUCCESS(Result) || STATUS_NO_SUCH_DEVICE != Result)
             return Result;
 
         /* DO NOT CLOBBER Result. We will return it if our best effort below fails. */
 
-        FspFsctlEnumServices(FspFsctlStartService_EnumFn, &DriverName);
+        DriverName[0] = L'\0';
+        FspFsctlEnumServices(FspFsctlStartService_EnumFn, DriverName);
 
-        if (0 == DriverName || !NT_SUCCESS(FspFsctlStartServiceByName(DriverName)))
+        if (L'\0' == DriverName[0] || !NT_SUCCESS(FspFsctlStartServiceByName(DriverName)))
             return Result;
 
         return STATUS_SUCCESS;
