@@ -447,16 +447,13 @@ static BOOLEAN FspFsctlRunningInContainer(VOID)
         0, 0);
 }
 
-FSP_API NTSTATUS FspFsctlStartService(VOID)
+static NTSTATUS FspFsctlStartServiceByName(PWSTR DriverName)
 {
-    WCHAR DriverName[256];
     SC_HANDLE ScmHandle = 0;
     SC_HANDLE SvcHandle = 0;
     SERVICE_STATUS ServiceStatus;
     DWORD LastError;
     NTSTATUS Result;
-
-    FspSxsAppendSuffix(DriverName, sizeof DriverName, L"" FSP_FSCTL_DRIVER_NAME);
 
     AcquireSRWLockExclusive(&FspFsctlStartStopServiceLock);
 
@@ -523,6 +520,58 @@ exit:
     ReleaseSRWLockExclusive(&FspFsctlStartStopServiceLock);
 
     return Result;
+}
+
+static VOID FspFsctlStartService_EnumFn(PVOID Context, PWSTR ServiceName, BOOLEAN Running)
+{
+    PWSTR *PDriverName = Context;
+    if (0 == *PDriverName ||
+        0 > invariant_wcscmp(*PDriverName, ServiceName))
+        *PDriverName = ServiceName;
+}
+
+FSP_API NTSTATUS FspFsctlStartService(VOID)
+{
+    /*
+     * With the introduction of side-by-side (SxS) FSD installations,
+     * we revisit how the FSD is started:
+     *
+     * - If the DLL is started in non-SxS mode, we first try to start
+     * the non-SxS FSD. If that fails we then enumerate all SxS FSD's
+     * and make a best guess on which one to start.
+     *
+     * - If the DLL is started in SxS mode, we only attempt to start
+     * the associated SxS FSD.
+     */
+
+    if (L'\0' == FspSxsIdent()[0])
+    {
+        /* non-SxS mode */
+
+        NTSTATUS Result;
+        PWSTR DriverName = 0;
+
+        Result = FspFsctlStartServiceByName(L"" FSP_FSCTL_DRIVER_NAME);
+        if (NT_SUCCESS(Result))
+            return Result;
+
+        /* DO NOT CLOBBER Result. We will return it if our best effort below fails. */
+
+        FspFsctlEnumServices(FspFsctlStartService_EnumFn, &DriverName);
+
+        if (0 == DriverName || !NT_SUCCESS(FspFsctlStartServiceByName(DriverName)))
+            return Result;
+
+        return STATUS_SUCCESS;
+    }
+    else
+    {
+        /* SxS mode */
+
+        WCHAR DriverName[256];
+        FspSxsAppendSuffix(DriverName, sizeof DriverName, L"" FSP_FSCTL_DRIVER_NAME);
+        return FspFsctlStartServiceByName(DriverName);
+    }
 }
 
 FSP_API NTSTATUS FspFsctlStopService(VOID)
@@ -611,6 +660,75 @@ exit:
         CloseHandle(ProcessToken);
 
     ReleaseSRWLockExclusive(&FspFsctlStartStopServiceLock);
+
+    return Result;
+}
+
+FSP_API NTSTATUS FspFsctlEnumServices(
+    VOID (*EnumFn)(PVOID Context, PWSTR ServiceName, BOOLEAN Running),
+    PVOID Context)
+{
+    SC_HANDLE ScmHandle = 0;
+    LPENUM_SERVICE_STATUSW Services = 0;
+    DWORD Size, ServiceCount;
+    DWORD LastError;
+    NTSTATUS Result;
+
+    ScmHandle = OpenSCManagerW(0, 0, SC_MANAGER_ENUMERATE_SERVICE);
+    if (0 == ScmHandle)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    if (!EnumServicesStatusW(ScmHandle,
+        SERVICE_FILE_SYSTEM_DRIVER, SERVICE_STATE_ALL, 0, 0, &Size, &ServiceCount, 0))
+    {
+        LastError = GetLastError();
+        if (ERROR_MORE_DATA != LastError)
+        {
+            Result = FspNtStatusFromWin32(LastError);
+            goto exit;
+        }
+    }
+    if (0 == Size)
+    {
+        Result = STATUS_SUCCESS;
+        goto exit;
+    }
+
+    Services = MemAlloc(Size);
+    if (0 == Services)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    if (!EnumServicesStatusW(ScmHandle,
+        SERVICE_FILE_SYSTEM_DRIVER, SERVICE_STATE_ALL, Services, Size, &Size, &ServiceCount, 0))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    for (DWORD I = 0; ServiceCount > I; I++)
+    {
+        if (0 != invariant_wcsicmp(Services[I].lpServiceName, L"" FSP_FSCTL_DRIVER_NAME) &&
+            0 != invariant_wcsnicmp(Services[I].lpServiceName,
+            L"" FSP_FSCTL_DRIVER_NAME FSP_SXS_SEPARATOR_STRING,
+            sizeof(FSP_FSCTL_DRIVER_NAME FSP_SXS_SEPARATOR_STRING) - 1))
+            continue;
+        EnumFn(Context,
+            Services[I].lpServiceName,
+            SERVICE_STOPPED != Services[I].ServiceStatus.dwCurrentState);
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    MemFree(Services);
+    if (0 != ScmHandle)
+        CloseServiceHandle(ScmHandle);
 
     return Result;
 }

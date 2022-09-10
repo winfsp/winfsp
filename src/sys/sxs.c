@@ -42,7 +42,7 @@ VOID FspSxsIdentInitialize(PUNICODE_STRING DriverName)
     {
         if (L'\\' == *P)
             break;
-        if (L'+' == *P)
+        if (FSP_SXS_SEPARATOR_CHAR == *P)
         {
             Ident = P;
             break;

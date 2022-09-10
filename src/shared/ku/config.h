@@ -30,4 +30,10 @@
  */
 #define FSP_CFG_REJECT_EARLY_IRP
 
+/*
+ * SxS separator. The '+' in "WinFsp+20220906T173701Z".
+ */
+#define FSP_SXS_SEPARATOR_CHAR			'+'
+#define FSP_SXS_SEPARATOR_STRING		"+"
+
 #endif

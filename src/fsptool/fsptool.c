@@ -65,6 +65,7 @@ static void usage(void)
         "    lsvol                           list file system devices (volumes)\n"
         "    id [NAME|SID|UID]               print user id\n"
         "    perm [PATH|SDDL|UID:GID:MODE]   print permissions\n"
+        "    lsdrv                           list drivers\n"
         "    unload                          unload driver (requires load driver priv)\n",
         PROGNAME);
 }
@@ -564,6 +565,25 @@ static int perm(int argc, wchar_t **argv)
     return FspWin32FromNtStatus(Result);
 }
 
+static VOID lsdrv_enumfn(PVOID Context, PWSTR ServiceName, BOOLEAN Running)
+{
+    info("%-4s%S", Running ? "R" : "-", ServiceName);
+}
+
+static int lsdrv(int argc, wchar_t **argv)
+{
+    if (1 != argc)
+        usage();
+
+    NTSTATUS Result;
+
+    Result = FspFsctlEnumServices(lsdrv_enumfn, 0);
+    if (!NT_SUCCESS(Result))
+        return FspWin32FromNtStatus(Result);
+
+    return 0;
+}
+
 static int unload(int argc, wchar_t **argv)
 {
     if (1 != argc)
@@ -597,6 +617,9 @@ int wmain(int argc, wchar_t **argv)
     else
     if (0 == invariant_wcscmp(L"perm", argv[0]))
         return perm(argc, argv);
+    else
+    if (0 == invariant_wcscmp(L"lsdrv", argv[0]))
+        return lsdrv(argc, argv);
     else
     if (0 == invariant_wcscmp(L"unload", argv[0]))
         return unload(argc, argv);

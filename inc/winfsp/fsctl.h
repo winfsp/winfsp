@@ -698,6 +698,9 @@ FSP_API NTSTATUS FspFsctlGetVolumeList(PWSTR DevicePath,
 FSP_API NTSTATUS FspFsctlPreflight(PWSTR DevicePath);
 FSP_API NTSTATUS FspFsctlStartService(VOID);
 FSP_API NTSTATUS FspFsctlStopService(VOID);
+FSP_API NTSTATUS FspFsctlEnumServices(
+    VOID (*EnumFn)(PVOID Context, PWSTR ServiceName, BOOLEAN Running),
+    PVOID Context);
 
 typedef struct
 {

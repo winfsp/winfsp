@@ -93,7 +93,7 @@ static BOOLEAN FspSxsIdentInitializeFromFile(VOID)
     if (0 == Size)
         goto exit;
 
-    FspSxsIdentBuf[0] = L'+';
+    FspSxsIdentBuf[0] = FSP_SXS_SEPARATOR_CHAR;
     memcpy(FspSxsIdentBuf + 1, WBuffer, Size * sizeof(WCHAR));
     FspSxsIdentBuf[1 + Size] = L'\0';
 
@@ -155,7 +155,7 @@ static BOOLEAN FspSxsIdentInitializeFromDirectory(VOID)
     if (0 == Ident)
         goto exit;
 
-    FspSxsIdentBuf[0] = L'+';
+    FspSxsIdentBuf[0] = FSP_SXS_SEPARATOR_CHAR;
     EndQ = FspSxsIdentBuf + (ARRAYSIZE(FspSxsIdentBuf) - 1);
     for (P = Ident, Q = FspSxsIdentBuf + 1; EndP > P && EndQ > Q && L'\\' != *P; P++, Q++)
         *Q = *P;
