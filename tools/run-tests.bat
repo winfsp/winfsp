@@ -315,25 +315,25 @@ if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-mountmgr-drive
-winfsp-tests-x86 --mountpoint=\\.\X: --resilient * +ea*
+winfsp-tests-x86 --mountpoint=\\.\X: --resilient * +ea* -exec*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-mountmgr-dir
-winfsp-tests-x86 --mountpoint=\\.\%cd%\mnt --resilient * +ea*
+winfsp-tests-x86 --mountpoint=\\.\%cd%\mnt --resilient * +ea* -exec*
 if !ERRORLEVEL! neq 0 goto fail
 exit /b 0
 
 :winfsp-tests-x86-mountmgrfsd-drive
 reg add HKLM\Software\WinFsp /v MountUseMountmgrFromFSD /t REG_DWORD /d 1 /f /reg:32
-winfsp-tests-x86 --mountpoint=\\.\X: --resilient * +ea*
+winfsp-tests-x86 --mountpoint=\\.\X: --resilient * +ea* -exec*
 if !ERRORLEVEL! neq 0 goto fail
 reg delete HKLM\Software\WinFsp /v MountUseMountmgrFromFSD /f /reg:32
 exit /b 0
 
 :winfsp-tests-x86-mountmgrfsd-dir
 reg add HKLM\Software\WinFsp /v MountUseMountmgrFromFSD /t REG_DWORD /d 1 /f /reg:32
-winfsp-tests-x86 --mountpoint=\\.\%cd%\mnt --resilient * +ea*
+winfsp-tests-x86 --mountpoint=\\.\%cd%\mnt --resilient * +ea* -exec*
 if !ERRORLEVEL! neq 0 goto fail
 reg delete HKLM\Software\WinFsp /v MountUseMountmgrFromFSD /f /reg:32
 exit /b 0
