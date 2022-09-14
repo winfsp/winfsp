@@ -1,7 +1,9 @@
 # Changelog
 
 
-## v1.12B1 (2022.2)
+## v1.12B1 (2022.2 Beta1)
+
+- [NEW] WinFsp now supports mounting as directory using the Mount Manager. Use the syntax `\\.\C:\Path\To\Mount\Directory`.
 
 - [NEW] A new registry setting `MountUseMountmgrFromFSD` has been added. See [WinFsp Registry Settings](https://github.com/winfsp/winfsp/wiki/WinFsp-Registry-Settings) for details.
 
