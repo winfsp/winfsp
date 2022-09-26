@@ -180,7 +180,7 @@ FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(struct fsp_fuse_env *env,
     const char *mountpoint, struct fuse_args *args)
 {
     struct fuse_chan *ch = 0;
-    WCHAR TempMountPointBuf[MAX_PATH], MountPointBuf[MAX_PATH];
+    WCHAR TempMountPointBuf[MAX_PATH], MountPointBuf[MAX_PATH + 4];
     int Size;
 
     if (0 == mountpoint || '\0' == mountpoint[0] ||
@@ -211,6 +211,33 @@ FSP_FUSE_API struct fuse_chan *fsp_fuse_mount(struct fsp_fuse_env *env,
         MountPointBuf[5] = ':';
         MountPointBuf[6] = '\0';
         Size = 7 * sizeof(WCHAR);
+    }
+    else if (
+        (
+            '\\' == mountpoint[0] &&
+            '\\' == mountpoint[1] &&
+            ('?' == mountpoint[2] || '.' == mountpoint[2]) &&
+            '\\' == mountpoint[3]
+        ) &&
+        (
+            ('A' <= mountpoint[4] && mountpoint[4] <= 'Z') ||
+            ('a' <= mountpoint[4] && mountpoint[4] <= 'z')
+        ) &&
+        ':' == mountpoint[5] && '\\' == mountpoint[6])
+    {
+        MountPointBuf[0] = '\\';
+        MountPointBuf[1] = '\\';
+        MountPointBuf[2] = mountpoint[2];
+        MountPointBuf[3] = '\\';
+
+        Size = 0;
+        if (0 != MultiByteToWideChar(CP_UTF8, 0, mountpoint + 4, -1, TempMountPointBuf, MAX_PATH))
+            Size = GetFullPathNameW(TempMountPointBuf, MAX_PATH, MountPointBuf + 4, 0);
+
+        if (0 == Size || MAX_PATH <= Size)
+            goto fail;
+
+        Size = (Size + 4 + 1) * sizeof(WCHAR);
     }
     else if (
         (
