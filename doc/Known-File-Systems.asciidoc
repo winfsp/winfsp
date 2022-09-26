@@ -34,3 +34,4 @@ This document contains a list of known open-source file systems and file system 
 - https://github.com/billziss-gh/fusepy[Python: fusepy] - Simple ctypes bindings for FUSE
 - https://github.com/pleiszenburg/refuse[Python: refuse] - Simple cross-plattform ctypes bindings for libfuse / FUSE for macOS / WinFsp
 - https://github.com/Scille/winfspy[Python: winfspy] - WinFSP binding for Python
+- https://github.com/SnowflakePowered/winfsp-rs[Rust: winfsp-rs] - WinFSP binding for Rust
