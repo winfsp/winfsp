@@ -68,6 +68,7 @@ CONTRIBUTOR LIST
 |John Tyner                                                     |jtyner at gmail.com
 |Paweł Wegner (Google LLC, https://google.com)                  |lemourin at google.com
 |Pedro Frejo (Arpa System, https://arpasystem.com)              |pedro.frejo at arpasystem.com
+|Ronny Chan                                                     |ronny at ronnychan.ca
 |Sam Kelly (DuroSoft Technologies LLC, https://durosoft.com)    |sam at durosoft.com
 |Santiago Ganis                                                 |sganis at gmail.com
 |Tobias Urlaub                                                  |saibotu at outlook.de
