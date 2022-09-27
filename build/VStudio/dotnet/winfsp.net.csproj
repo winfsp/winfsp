@@ -9,6 +9,7 @@
     <RootNamespace>Fsp</RootNamespace>
     <AssemblyName>$(MyProductFileName)-msil</AssemblyName>
     <FileAlignment>512</FileAlignment>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -71,6 +72,10 @@
     <Copyright>$(MyCopyright)</Copyright>
     <AssemblyVersion>$(MyAssemblyVersion)</AssemblyVersion>
     <FileVersion>$(MyVersion)</FileVersion>
+    
+    <!-- NuGet metadata -->
+    <PackageId>$(MyProductFileName)-msil</PackageId>
+    <Version>$(MyVersion)</Version>
   </PropertyGroup>
 
   <PropertyGroup>
