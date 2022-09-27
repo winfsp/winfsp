@@ -7,13 +7,18 @@ set Config=Debug
 set Suffix=x64
 set Deploy=C:\Deploy\winfsp
 set Target=Win10DBG
-set Chkpnt=winfsp
+set Chkpnt=docker+winfsp
+set CImage=mcr.microsoft.com/windows/servercore:1909
 if not X%1==X set Target=%1
 if not X%2==X set Chkpnt=%2
 
 (
     echo regsvr32 /s winfsp-x64.dll
 ) > %~dp0..\build\VStudio\build\%Config%\deploy-setup.bat
+
+(
+    echo docker run -it --rm --isolation=process -v%Deploy%:%Deploy%:RO %CImage% cmd.exe
+) > %~dp0..\build\VStudio\build\%Config%\docker-run.bat
 
 set Files=
 for %%f in (
@@ -23,6 +28,7 @@ for %%f in (
         winfsp-tests-%Suffix%.exe
         memfs-%Suffix%.exe
         deploy-setup.bat
+        docker-run.bat
     ) do (
     set File=%%~f
     if [!File:~-1!] == [\] (

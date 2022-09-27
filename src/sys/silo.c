@@ -22,9 +22,11 @@
 #include <sys/driver.h>
 
 NTSTATUS FspSiloInitialize(FSP_SILO_INIT_CALLBACK Init, FSP_SILO_FINI_CALLBACK Fini);
+NTSTATUS FspSiloPostInitialize(VOID);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(INIT, FspSiloInitialize)
+#pragma alloc_text(INIT, FspSiloPostInitialize)
 #endif
 
 typedef PEJOB FSP_PESILO;
@@ -293,15 +295,11 @@ NTSTATUS FspSiloInitialize(FSP_SILO_INIT_CALLBACK Init, FSP_SILO_FINI_CALLBACK F
             if (!NT_SUCCESS(Result))
                 goto exit;
 
-            Result = CALL(PsStartSiloMonitor)(Monitor);
-            if (!NT_SUCCESS(Result))
-                goto exit;
-
             FspSiloMonitor = Monitor;
             FspSiloInitCallback = Init;
             FspSiloFiniCallback = Fini;
-
             FspSiloInitDone = TRUE;
+
             Result = STATUS_SUCCESS;
 
         exit:
@@ -316,10 +314,23 @@ NTSTATUS FspSiloInitialize(FSP_SILO_INIT_CALLBACK Init, FSP_SILO_FINI_CALLBACK F
     return Result;
 }
 
+NTSTATUS FspSiloPostInitialize(VOID)
+{
+    if (!FspSiloInitDone)
+        return STATUS_SUCCESS;
+
+    return CALL(PsStartSiloMonitor)(FspSiloMonitor);
+}
+
 VOID FspSiloFinalize(VOID)
 {
     if (!FspSiloInitDone)
         return;
 
     CALL(PsUnregisterSiloMonitor)(FspSiloMonitor);
+
+    FspSiloMonitor = 0;
+    FspSiloInitCallback = 0;
+    FspSiloFiniCallback = 0;
+    FspSiloInitDone = FALSE;
 }

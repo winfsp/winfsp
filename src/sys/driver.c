@@ -150,6 +150,10 @@ NTSTATUS DriverEntry(
         goto exit;
     InitDoneDevices = TRUE;
 
+    Result = FspSiloPostInitialize();
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
     Result = STATUS_SUCCESS;
 
 exit:
