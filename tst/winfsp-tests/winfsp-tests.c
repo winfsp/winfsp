@@ -32,6 +32,7 @@
 int NtfsTests = 0;
 int WinFspDiskTests = 1;
 int WinFspNetTests = 1;
+int RunningInContainer = 0;
 
 BOOLEAN OptExternal = FALSE;
 BOOLEAN OptFuseExternal = FALSE;
@@ -258,6 +259,12 @@ int main(int argc, char *argv[])
     if (0 == getenv("WINFSP_TESTS_EXCEPTION_FILTER_DISABLE"))
         SetUnhandledExceptionFilter(UnhandledExceptionHandler);
 
+    RunningInContainer = ERROR_SUCCESS == RegGetValueW(
+        HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Control",
+        L"ContainerType",
+        RRF_RT_REG_DWORD, 0,
+        0, 0);
+
     for (int argi = 1; argc > argi; argi++)
     {
         const char *a = argv[argi];
@@ -266,6 +273,7 @@ int main(int argc, char *argv[])
             if (0 == strcmp("--ntfs", a) || 0 == strcmp("--external", a))
             {
                 OptExternal = TRUE;
+                OptFuseExternal = FALSE;
                 NtfsTests = 1;
                 WinFspDiskTests = 0;
                 WinFspNetTests = 0;
@@ -403,6 +411,10 @@ int main(int argc, char *argv[])
 
     if (!NtfsTests && OptShareName)
         ABORT("option --share requires --ntfs/--external");
+
+    if (RunningInContainer)
+        /* container: disable network file system tests */
+        WinFspNetTests = 0;
 
     DisableBackupRestorePrivileges();
 

@@ -158,7 +158,10 @@ static void posix_map_sid_test(void)
 
     CloseHandle(Token);
 
-    for (size_t i = 0; sizeof map / sizeof map[0] > i; i++)
+    size_t n = sizeof map / sizeof map[0];
+    if (RunningInContainer)
+        n -= 2; /* container: disable tests for "user manager\containeradministrator" */
+    for (size_t i = 0; n > i; i++)
     {
         Success = ConvertStringSidToSidW(map[i].SidStr, &Sid0);
         ASSERT(Success);

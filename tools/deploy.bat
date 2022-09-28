@@ -17,7 +17,7 @@ if not X%2==X set Chkpnt=%2
 ) > %~dp0..\build\VStudio\build\%Config%\deploy-setup.bat
 
 (
-    echo docker run -it --rm --isolation=process -v%Deploy%:%Deploy%:RO %CImage% cmd.exe
+    echo docker run -it --rm --isolation=process -v%Deploy%:%Deploy%:RW %CImage% cmd.exe /k cd %Deploy%
 ) > %~dp0..\build\VStudio\build\%Config%\docker-run.bat
 
 set Files=
