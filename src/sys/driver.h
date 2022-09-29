@@ -765,6 +765,7 @@ NTSTATUS FspSiloGetGlobals(FSP_SILO_GLOBALS **PGlobals);
 VOID FspSiloDereferenceGlobals(FSP_SILO_GLOBALS *Globals);
 VOID FspSiloGetContainerId(GUID *ContainerId);
 NTSTATUS FspSiloInitialize(FSP_SILO_INIT_CALLBACK Init, FSP_SILO_FINI_CALLBACK Fini);
+NTSTATUS FspSiloPostInitialize(VOID);
 VOID FspSiloFinalize(VOID);
 
 /* process buffers */

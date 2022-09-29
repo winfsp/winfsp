@@ -254,8 +254,13 @@ static void volpath_mount_test(void)
     /*
      * This test does FspFileSystemSetMountPoint and therefore
      * cannot be used with --external or --mountpoint.
+     *
+     * Also the MountMgr appears to be buggy and fail with spurious
+     * STATUS_NOT_SUPPORTED and STATUS_INVALID_PARAMETER error codes
+     * under Windows Containers (at least with ServerCore 1909). So
+     * disable if RunningInContainer.
      */
-    if (NtfsTests || OptMountPoint)
+    if (NtfsTests || OptMountPoint || RunningInContainer)
         return;
 
     if (WinFspDiskTests)
@@ -322,7 +327,12 @@ void volpath_tests(void)
     /*
      * This test does FspFileSystemSetMountPoint and therefore
      * cannot be used with --external or --mountpoint.
+     *
+     * Also the MountMgr appears to be buggy and fail with spurious
+     * STATUS_NOT_SUPPORTED and STATUS_INVALID_PARAMETER error codes
+     * under Windows Containers (at least with ServerCore 1909). So
+     * disable if RunningInContainer.
      */
-    if (!NtfsTests && !OptMountPoint)
+    if (!NtfsTests && !OptMountPoint && !RunningInContainer)
         TEST(volpath_mount_test);
 }

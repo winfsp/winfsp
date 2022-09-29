@@ -213,6 +213,7 @@ VOID GetTestDirectoryEx(PWSTR DirBuf, ULONG DirBufSize, PWSTR DriveBuf);
 extern int NtfsTests;
 extern int WinFspDiskTests;
 extern int WinFspNetTests;
+extern int RunningInContainer;
 
 extern BOOLEAN OptExternal;
 extern BOOLEAN OptFuseExternal;

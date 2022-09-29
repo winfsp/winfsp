@@ -17,19 +17,25 @@ environment:
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
     CONFIGURATION: Debug
     TESTING: Func
+    DOCKER_TESTING: None
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
     CONFIGURATION: Release
     TESTING: Func
+    DOCKER_TESTING: None
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
     CONFIGURATION: Release
     TESTING: Func
+    DOCKER_TESTING: None
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
     CONFIGURATION: Release
     TESTING: Func
+    DOCKER_TESTING: Func
   #- CONFIGURATION: Release
   #  TESTING: Avast
+  #  DOCKER_TESTING: None
   #- CONFIGURATION: Release
   #  TESTING: Perf
+  #  DOCKER_TESTING: None
 
 init:
 - ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
@@ -81,6 +87,7 @@ test_script:
 - if %TESTING%==Func start /wait msiexec /i "Test.Filter.Driver\HCK Filter.Driver Content-x86_en-us.msi" /qn
 - if %TESTING%==Func tools\nmake-ext-test.bat %CONFIGURATION%
 #- ps: . "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\gflags.exe" /k +spp *
+- if %DOCKER_TESTING%==Func docker run -d --name=Container0 --isolation=process "-vC:\Program Files (x86)\WinFsp:C:\Program Files (x86)\WinFsp:RO" "-vC:\projects:C:\projects:RO" mcr.microsoft.com/windows/servercore:ltsc2019 cmd.exe /c waitfor 7BF47D72F6664550B03248ECFE77C7DD
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION%
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% ifstest
 - if %TESTING%==Func tools\run-tests.bat %CONFIGURATION% sample
@@ -88,6 +95,9 @@ test_script:
 - if %TESTING%==Avast choco install avastfreeantivirus && fltmc instances -v "C:"
 - if %TESTING%==Avast tools\run-tests.bat %CONFIGURATION% avast-tests
 - if %TESTING%==Perf tools\run-perf-tests.bat %CONFIGURATION% baseline > perf-tests.csv && type perf-tests.csv & appveyor PushArtifact perf-tests.csv
+- if %DOCKER_TESTING%==Func docker exec Container0 cmd.exe /c C:\projects\winfsp\build\VStudio\build\%CONFIGURATION%\winfsp-tests-x64.exe +*
+#- if %DOCKER_TESTING%==Func docker run -d --name=Container1 --isolation=process "-vC:\Program Files (x86)\WinFsp:C:\Program Files (x86)\WinFsp:RO" "-vC:\projects:C:\projects:RO" mcr.microsoft.com/windows/servercore:ltsc2019 cmd.exe /c waitfor 7BF47D72F6664550B03248ECFE77C7DD
+#- if %DOCKER_TESTING%==Func docker exec Container1 cmd.exe /c C:\projects\winfsp\build\VStudio\build\%CONFIGURATION%\winfsp-tests-x64.exe +*
 - choco uninstall winfsp -y
 
 on_finish:
