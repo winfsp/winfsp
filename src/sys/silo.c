@@ -283,6 +283,9 @@ NTSTATUS FspSiloInitialize(FSP_SILO_INIT_CALLBACK Init, FSP_SILO_FINI_CALLBACK F
 {
     NTSTATUS Result = STATUS_SUCCESS;
 
+    ExInitializeFastMutex(&FspSiloListMutex);
+    InitializeListHead(&FspSiloList);
+
     if (FspIsNtDdiVersionAvailable(NTDDI_WIN10_RS5))
     {
         ULONG Fail = 0;
@@ -320,9 +323,6 @@ NTSTATUS FspSiloInitialize(FSP_SILO_INIT_CALLBACK Init, FSP_SILO_FINI_CALLBACK F
             Result = CALL(PsRegisterSiloMonitor)(&Registration, &Monitor);
             if (!NT_SUCCESS(Result))
                 goto exit;
-
-            ExInitializeFastMutex(&FspSiloListMutex);
-            InitializeListHead(&FspSiloList);
 
             FspSiloMonitor = Monitor;
             FspSiloInitCallback = Init;
