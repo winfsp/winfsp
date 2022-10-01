@@ -27,6 +27,7 @@ for %%f in (
         winfsp-%Suffix%.dll
         winfsp-tests-%Suffix%.exe
         memfs-%Suffix%.exe
+        fsptool-%Suffix%.exe
         deploy-setup.bat
         docker-run.bat
     ) do (

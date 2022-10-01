@@ -751,6 +751,8 @@ PUNICODE_STRING FspSxsSuffix(VOID);
 /* silos */
 typedef struct
 {
+    PVOID Silo;
+    LIST_ENTRY ListEntry;
     PDEVICE_OBJECT FsctlDiskDeviceObject;
     PDEVICE_OBJECT FsctlNetDeviceObject;
     PDEVICE_OBJECT FsmupDeviceObject;
@@ -760,6 +762,7 @@ typedef struct
 } FSP_SILO_GLOBALS;
 typedef NTSTATUS (*FSP_SILO_INIT_CALLBACK)(VOID);
 typedef VOID (*FSP_SILO_FINI_CALLBACK)(VOID);
+typedef VOID (*FSP_SILO_ENUM_CALLBACK)(VOID);
 BOOLEAN FspSiloIsHost(VOID);
 NTSTATUS FspSiloGetGlobals(FSP_SILO_GLOBALS **PGlobals);
 VOID FspSiloDereferenceGlobals(FSP_SILO_GLOBALS *Globals);
@@ -767,6 +770,7 @@ VOID FspSiloGetContainerId(GUID *ContainerId);
 NTSTATUS FspSiloInitialize(FSP_SILO_INIT_CALLBACK Init, FSP_SILO_FINI_CALLBACK Fini);
 NTSTATUS FspSiloPostInitialize(VOID);
 VOID FspSiloFinalize(VOID);
+VOID FspSiloEnumerate(FSP_SILO_ENUM_CALLBACK EnumFn);
 
 /* process buffers */
 #define FspProcessBufferSizeMax         (64 * 1024)

@@ -110,6 +110,9 @@ static FSP_SILO_INIT_CALLBACK FspSiloInitCallback;
 static FSP_SILO_FINI_CALLBACK FspSiloFiniCallback;
 static BOOLEAN FspSiloInitDone = FALSE;
 
+static FAST_MUTEX FspSiloListMutex;
+static LIST_ENTRY FspSiloList;
+
 static FSP_SILO_GLOBALS FspSiloHostGlobals;
 
 #define FSP_SILO_MONITOR_REGISTRATION_VERSION 1
@@ -196,6 +199,7 @@ static NTSTATUS NTAPI FspSiloMonitorCreateCallback(FSP_PESILO Silo)
     if (!NT_SUCCESS(Result))
         goto exit;
     RtlZeroMemory(Globals, sizeof(FSP_SILO_GLOBALS));
+    Globals->Silo = Silo;
 
     /* PsInsertSiloContext adds reference to Globals */
     Result = CALL(PsInsertSiloContext)(Silo, ContextSlot, Globals);
@@ -203,12 +207,19 @@ static NTSTATUS NTAPI FspSiloMonitorCreateCallback(FSP_PESILO Silo)
         goto exit;
     Inserted = TRUE;
 
+    ExAcquireFastMutexUnsafe(&FspSiloListMutex);
+
     if (0 != FspSiloInitCallback)
     {
         FSP_PESILO PreviousSilo = CALL(PsAttachSiloToCurrentThread)(Silo);
         Result = FspSiloInitCallback();
         CALL(PsDetachSiloFromCurrentThread)(PreviousSilo);
     }
+
+    if (NT_SUCCESS(Result))
+        InsertTailList(&FspSiloList, &Globals->ListEntry);
+
+    ExReleaseFastMutexUnsafe(&FspSiloListMutex);
 
 exit:
     if (!NT_SUCCESS(Result))
@@ -244,6 +255,10 @@ static VOID NTAPI FspSiloMonitorTerminateCallback(FSP_PESILO Silo)
     Result = CALL(PsGetSiloContext)(Silo, ContextSlot, &Globals);
     if (!NT_SUCCESS(Result))
         return;
+
+    ExAcquireFastMutexUnsafe(&FspSiloListMutex);
+
+    RemoveEntryList(&Globals->ListEntry);
     CALL(PsDereferenceSiloContext)(Globals);
     Globals = 0;
 
@@ -253,6 +268,8 @@ static VOID NTAPI FspSiloMonitorTerminateCallback(FSP_PESILO Silo)
         FspSiloFiniCallback();
         CALL(PsDetachSiloFromCurrentThread)(PreviousSilo);
     }
+
+    ExReleaseFastMutexUnsafe(&FspSiloListMutex);
 
     /* PsRemoveSiloContext removes reference to Globals (possibly freeing it) */
     CALL(PsRemoveSiloContext)(Silo, ContextSlot, 0);
@@ -300,6 +317,9 @@ NTSTATUS FspSiloInitialize(FSP_SILO_INIT_CALLBACK Init, FSP_SILO_FINI_CALLBACK F
             if (!NT_SUCCESS(Result))
                 goto exit;
 
+            ExInitializeFastMutex(&FspSiloListMutex);
+            InitializeListHead(&FspSiloList);
+
             FspSiloMonitor = Monitor;
             FspSiloInitCallback = Init;
             FspSiloFiniCallback = Fini;
@@ -334,8 +354,43 @@ VOID FspSiloFinalize(VOID)
 
     CALL(PsUnregisterSiloMonitor)(FspSiloMonitor);
 
+#if DBG
+    ExAcquireFastMutexUnsafe(&FspSiloListMutex);
+    ASSERT(IsListEmpty(&FspSiloList));
+    ExReleaseFastMutexUnsafe(&FspSiloListMutex);
+#endif
+
     FspSiloMonitor = 0;
     FspSiloInitCallback = 0;
     FspSiloFiniCallback = 0;
     FspSiloInitDone = FALSE;
+}
+
+VOID FspSiloEnumerate(FSP_SILO_ENUM_CALLBACK EnumFn)
+{
+    KAPC_STATE ApcState;
+    PLIST_ENTRY ListEntry;
+    FSP_SILO_GLOBALS *Globals;
+
+    ExAcquireFastMutexUnsafe(&FspSiloListMutex);
+
+    if (!IsListEmpty(&FspSiloList))
+    {
+        KeStackAttachProcess(PsInitialSystemProcess, &ApcState);
+
+        for (ListEntry = FspSiloList.Flink;
+            &FspSiloList != ListEntry;
+            ListEntry = ListEntry->Flink)
+        {
+            Globals = CONTAINING_RECORD(ListEntry, FSP_SILO_GLOBALS, ListEntry);
+
+            FSP_PESILO PreviousSilo = CALL(PsAttachSiloToCurrentThread)(Globals->Silo);
+            EnumFn();
+            CALL(PsDetachSiloFromCurrentThread)(PreviousSilo);
+        }
+
+        KeUnstackDetachProcess(&ApcState);
+    }
+
+    ExReleaseFastMutexUnsafe(&FspSiloListMutex);
 }

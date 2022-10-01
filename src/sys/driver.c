@@ -26,6 +26,7 @@ static DRIVER_UNLOAD DriverUnload;
 static VOID FspDriverMultiVersionInitialize(VOID);
 static NTSTATUS FspDriverInitializeDevices(VOID);
 static VOID FspDriverFinalizeDevices(VOID);
+static VOID FspDriverFinalizeDevicesForUnload(VOID);
 static VOID FspDriverFinalizeDevicesEx(BOOLEAN DeleteDevices);
 NTSTATUS FspDriverUnload(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
@@ -36,6 +37,7 @@ NTSTATUS FspDriverUnload(
 #pragma alloc_text(INIT, FspDriverMultiVersionInitialize)
 #pragma alloc_text(PAGE, FspDriverInitializeDevices)
 #pragma alloc_text(PAGE, FspDriverFinalizeDevices)
+#pragma alloc_text(PAGE, FspDriverFinalizeDevicesForUnload)
 #pragma alloc_text(PAGE, FspDriverFinalizeDevicesEx)
 #pragma alloc_text(PAGE, FspDriverUnload)
 #endif
@@ -406,6 +408,13 @@ static VOID FspDriverFinalizeDevices(VOID)
     FspDriverFinalizeDevicesEx(TRUE);
 }
 
+static VOID FspDriverFinalizeDevicesForUnload(VOID)
+{
+    PAGED_CODE();
+
+    FspDriverFinalizeDevicesEx(FALSE);
+}
+
 static VOID FspDriverFinalizeDevicesEx(BOOLEAN DeleteDevices)
 {
     PAGED_CODE();
@@ -510,7 +519,8 @@ NTSTATUS FspDriverUnload(
         if (!NT_SUCCESS(Result))
             goto exit;
 
-        FspDriverFinalizeDevicesEx(FALSE);
+        FspSiloEnumerate(FspDriverFinalizeDevicesForUnload);
+        FspDriverFinalizeDevicesForUnload();
 
         Result = FspDeviceCopyList(&DeviceObjects, &DeviceObjectCount);
         if (NT_SUCCESS(Result))
