@@ -61,12 +61,13 @@ static void usage(void)
         "usage: %s COMMAND ARGS\n"
         "\n"
         "commands:\n"
-        "    ver                             print version\n"
         "    lsvol                           list file system devices (volumes)\n"
         "    id [NAME|SID|UID]               print user id\n"
         "    perm [PATH|SDDL|UID:GID:MODE]   print permissions\n"
         "    lsdrv                           list drivers\n"
-        "    unload                          unload driver (requires load driver priv)\n",
+        "    load                            load driver\n"
+        "    unload                          unload driver (requires load driver priv)\n"
+        "    ver                             print version\n",
         PROGNAME);
 }
 
@@ -279,7 +280,7 @@ static NTSTATUS lsvol_dev(PWSTR DeviceName)
         if (L'\0' == *P)
         {
             Drive[0] = FspToolGetDriveLetter(&LogicalDrives, VolumeName);
-            info("%-4S%S", Drive[0] ? Drive : L"", VolumeName);
+            info("%-4S%S", Drive[0] ? Drive : L"-", VolumeName);
             VolumeName = P + 1;
         }
 
@@ -584,6 +585,19 @@ static int lsdrv(int argc, wchar_t **argv)
     return 0;
 }
 
+static int load(int argc, wchar_t **argv)
+{
+    if (1 != argc)
+        usage();
+
+    NTSTATUS Result;
+
+    Result = FspFsctlStartService();
+    if (!NT_SUCCESS(Result))
+        return FspWin32FromNtStatus(Result);
+
+    return 0;
+}
 static int unload(int argc, wchar_t **argv)
 {
     if (1 != argc)
@@ -620,6 +634,9 @@ int wmain(int argc, wchar_t **argv)
     else
     if (0 == invariant_wcscmp(L"lsdrv", argv[0]))
         return lsdrv(argc, argv);
+    else
+    if (0 == invariant_wcscmp(L"load", argv[0]))
+        return load(argc, argv);
     else
     if (0 == invariant_wcscmp(L"unload", argv[0]))
         return unload(argc, argv);
