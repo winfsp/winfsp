@@ -207,6 +207,7 @@ static NTSTATUS NTAPI FspSiloMonitorCreateCallback(FSP_PESILO Silo)
         goto exit;
     Inserted = TRUE;
 
+    FsRtlEnterFileSystem();
     ExAcquireFastMutexUnsafe(&FspSiloListMutex);
 
     if (0 != FspSiloInitCallback)
@@ -220,6 +221,7 @@ static NTSTATUS NTAPI FspSiloMonitorCreateCallback(FSP_PESILO Silo)
         InsertTailList(&FspSiloList, &Globals->ListEntry);
 
     ExReleaseFastMutexUnsafe(&FspSiloListMutex);
+    FsRtlExitFileSystem();
 
 exit:
     if (!NT_SUCCESS(Result))
@@ -256,6 +258,7 @@ static VOID NTAPI FspSiloMonitorTerminateCallback(FSP_PESILO Silo)
     if (!NT_SUCCESS(Result))
         return;
 
+    FsRtlEnterFileSystem();
     ExAcquireFastMutexUnsafe(&FspSiloListMutex);
 
     RemoveEntryList(&Globals->ListEntry);
@@ -270,6 +273,7 @@ static VOID NTAPI FspSiloMonitorTerminateCallback(FSP_PESILO Silo)
     }
 
     ExReleaseFastMutexUnsafe(&FspSiloListMutex);
+    FsRtlExitFileSystem();
 
     /* PsRemoveSiloContext removes reference to Globals (possibly freeing it) */
     CALL(PsRemoveSiloContext)(Silo, ContextSlot, 0);
@@ -355,9 +359,11 @@ VOID FspSiloFinalize(VOID)
     CALL(PsUnregisterSiloMonitor)(FspSiloMonitor);
 
 #if DBG
+    FsRtlEnterFileSystem();
     ExAcquireFastMutexUnsafe(&FspSiloListMutex);
     ASSERT(IsListEmpty(&FspSiloList));
     ExReleaseFastMutexUnsafe(&FspSiloListMutex);
+    FsRtlExitFileSystem();
 #endif
 
     FspSiloMonitor = 0;
@@ -372,6 +378,7 @@ VOID FspSiloEnumerate(FSP_SILO_ENUM_CALLBACK EnumFn)
     PLIST_ENTRY ListEntry;
     FSP_SILO_GLOBALS *Globals;
 
+    FsRtlEnterFileSystem();
     ExAcquireFastMutexUnsafe(&FspSiloListMutex);
 
     if (!IsListEmpty(&FspSiloList))
@@ -393,4 +400,5 @@ VOID FspSiloEnumerate(FSP_SILO_ENUM_CALLBACK EnumFn)
     }
 
     ExReleaseFastMutexUnsafe(&FspSiloListMutex);
+    FsRtlExitFileSystem();
 }
