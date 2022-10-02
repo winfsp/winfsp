@@ -1182,7 +1182,6 @@ typedef struct
     KSPIN_LOCK SpinLock;
     LONG RefCount;
     UINT32 Kind;
-    GUID SiloContainerId;
     /* IoTimer emulation */
     FSP_DEVICE_TIMER DeviceTimer;
 } FSP_DEVICE_EXTENSION;
