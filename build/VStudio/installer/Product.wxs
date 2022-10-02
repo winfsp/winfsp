@@ -373,7 +373,7 @@
                 </RegistryKey>
             </Component>
             <Component Id="C.memfs_dotnet_msil.exe">
-                <File Name="memfs-dotnet-msil.exe" KeyPath="yes" />
+                <File Name="memfs-dotnet-msil.exe" Source="..\build\$(var.Configuration)\memfs-dotnet\net452\" KeyPath="yes" />
                 <RegistryKey
                     Root="HKLM"
                     Key="[P.LauncherRegistryKey]">

@@ -1,0 +1,11 @@
+<Project>
+  <Choose>
+    <When Condition="$(MSBuildProjectName)=='memfs-dotnet'">
+        <PropertyGroup>
+	    <OutputPath>$(SolutionDir)build\$(Configuration)\$(MSBuildProjectName)</OutputPath>
+        <BaseIntermediateOutputPath>$(SolutionDir)build\$(MSBuildProjectName).build\</BaseIntermediateOutputPath>
+        <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
+      </PropertyGroup>
+    </When>
+  </Choose>
+</Project>
