@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.SDK">
+<Project Sdk="Microsoft.NET.SDK">
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), build.common.props))/build.common.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>

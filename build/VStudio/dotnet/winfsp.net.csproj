@@ -9,25 +9,9 @@
     <RootNamespace>Fsp</RootNamespace>
     <AssemblyName>$(MyProductFileName)-msil</AssemblyName>
     <FileAlignment>512</FileAlignment>
+	<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	<DocumentationFile>$(BaseIntermediateOutputPath)$(Configuration)\$(MyProductFileName)-msil.xml</DocumentationFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <DocumentationFile>$(BaseIntermediateOutputPath)$(Configuration)\$(MyProductFileName)-msil.xml</DocumentationFile>
-    <NoWarn>1591</NoWarn>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <DocumentationFile>$(BaseIntermediateOutputPath)$(Configuration)\$(MyProductFileName)-msil.xml</DocumentationFile>
     <NoWarn>1591</NoWarn>
   </PropertyGroup>
   <PropertyGroup>

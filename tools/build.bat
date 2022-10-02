@@ -27,6 +27,7 @@ if X%~nx0==Xbuild-choco.bat (
 set BuildArm64=yes
 if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
     set BuildArm64=no
+    set UseDotnetSdk=yes
 )
 if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" (
     set BuildArm64=no
@@ -55,6 +56,13 @@ set signfail=0
 if X%SignedPackage%==X (
     if exist build\ for /R build\ %%d in (%Configuration%) do (
         if exist "%%d" rmdir /s/q "%%d"
+    )
+	
+    if X%UseDotnetSdk%==Xyes (
+        dotnet build ./dotnet/ -c "%Configuration%" -p:SolutionDir=..\
+        if errorlevel 1 goto fail
+        dotnet build ./testing/memfs-dotnet.csproj -c "%Configuration%" -p:SolutionDir=..\
+        if errorlevel 1 goto fail
     )
 
     if X%BuildArm64%==Xyes (
