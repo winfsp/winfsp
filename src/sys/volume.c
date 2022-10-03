@@ -113,6 +113,57 @@ NTSTATUS FspVolumeCreate(
 
     FspSiloDereferenceGlobals(Globals);
 
+    if (NT_SUCCESS(Result))
+    {
+        /*
+         * If we have an fsvrt device, mount it NOW via opening the volume. This ensures
+         * that the fsvrt is mounted by the correct fsvol device early on and remedies
+         * a rare case where NTFS crashes the system when it attempts to mount our fsvrt.
+         *
+         * We use IoCreateFileEx with FILE_READ_DATA to ensure that the I/O Manager will
+         * mount the fsvrt device.
+         *
+         * We ignore the IoCreateFileEx return code as it is only used for its side effect
+         * of mounting the fsvrt. In the unlikely event that IoCreateFileEx fails, the
+         * system will retry the mount when a file is accessed, etc.
+         */
+
+        PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+        PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+        OBJECT_ATTRIBUTES ObjectAttributes;
+        IO_STATUS_BLOCK IoStatus;
+        HANDLE Handle;
+
+        if (0 != FsvrtDeviceObject)
+        {
+            InitializeObjectAttributes(
+                &ObjectAttributes,
+                &FsvolDeviceExtension->VolumeName,
+                OBJ_KERNEL_HANDLE,
+                0/*RootDirectory*/,
+                0/*SecurityDescriptor*/);
+            IoStatus.Status = IoCreateFileEx(
+                &Handle,
+                FILE_READ_DATA,
+                &ObjectAttributes,
+                &IoStatus,
+                0/*AllocationSize*/,
+                0/*FileAttributes*/,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                FILE_OPEN,
+                0/*CreateOptions*/,
+                0/*EaBuffer*/,
+                0/*EaLength*/,
+                CreateFileTypeNone,
+                0/*InternalParameters*/,
+                0/*Options*/,
+                0/*DriverContext*/);
+            if (NT_SUCCESS(IoStatus.Status))
+                ObCloseHandle(Handle, KernelMode);
+        }
+    }
+
     return Result;
 }
 
