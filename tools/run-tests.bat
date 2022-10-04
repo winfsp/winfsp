@@ -47,32 +47,32 @@ set dfl_tests=^
     winfsp-tests-x64-external-share ^
     memfs-x64-disk-fsx ^
     memfs-x64-net-fsx ^
-    memfs-x64-disk-standby ^
-    memfs-x64-net-standby ^
+    RETIRED-memfs-x64-disk-standby ^
+    RETIRED-memfs-x64-net-standby ^
     memfs-x64-net-use ^
     memfs-x64-disk-winfstest ^
     memfs-x64-net-winfstest ^
     fscrash-x64 ^
     winfsp-tests-x86 ^
-    winfsp-tests-x86-case-randomize ^
-    winfsp-tests-x86-flushpurge ^
-    winfsp-tests-x86-legacy-unlink-rename ^
-    winfsp-tests-x86-mountpoint-drive ^
-    winfsp-tests-x86-mountpoint-dir ^
-    winfsp-tests-x86-mountpoint-dir-case-sensitive ^
-    winfsp-tests-x86-mountmgr-drive ^
-    winfsp-tests-x86-mountmgr-dir ^
-    winfsp-tests-x86-mountmgrfsd-drive ^
-    winfsp-tests-x86-mountmgrfsd-dir ^
-    winfsp-tests-x86-no-traverse ^
-    winfsp-tests-x86-oplock ^
-    winfsp-tests-x86-notify ^
+    RETIRED-winfsp-tests-x86-case-randomize ^
+    RETIRED-winfsp-tests-x86-flushpurge ^
+    RETIRED-winfsp-tests-x86-legacy-unlink-rename ^
+    RETIRED-winfsp-tests-x86-mountpoint-drive ^
+    RETIRED-winfsp-tests-x86-mountpoint-dir ^
+    RETIRED-winfsp-tests-x86-mountpoint-dir-case-sensitive ^
+    RETIRED-winfsp-tests-x86-mountmgr-drive ^
+    RETIRED-winfsp-tests-x86-mountmgr-dir ^
+    RETIRED-winfsp-tests-x86-mountmgrfsd-drive ^
+    RETIRED-winfsp-tests-x86-mountmgrfsd-dir ^
+    RETIRED-winfsp-tests-x86-no-traverse ^
+    RETIRED-winfsp-tests-x86-oplock ^
+    RETIRED-winfsp-tests-x86-notify ^
     winfsp-tests-x86-external ^
     winfsp-tests-x86-external-share ^
     memfs-x86-disk-fsx ^
     memfs-x86-net-fsx ^
-    memfs-x86-disk-standby ^
-    memfs-x86-net-standby ^
+    RETIRED-memfs-x86-disk-standby ^
+    RETIRED-memfs-x86-net-standby ^
     memfs-x86-net-use ^
     memfs-x86-disk-winfstest ^
     memfs-x86-net-winfstest ^
@@ -123,19 +123,24 @@ set opt_tests=^
 
 set tests=
 for %%f in (%dfl_tests%) do (
-    if X%2==X (
-        set tests=!tests! %%f
-    ) else (
-        set test=%%f
-        if "X%2!test:%2=!"=="X!test!" set tests=!tests! %%f
+    set test=%%f
+    if NOT "XRETIRED-!test:RETIRED-=!"=="X!test!" (
+        if X%2==X (
+            set tests=!tests! %%f
+        ) else (
+            if "X%2!test:%2=!"=="X!test!" set tests=!tests! %%f
+        )
     )
 )
 for %%f in (%opt_tests%) do (
-    if X%2==X (
-        rem
-    ) else (
-        set test=%%f
-        if "X%2!test:%2=!"=="X!test!" set tests=!tests! %%f
+    set test=%%f
+    if NOT "XRETIRED-!test:RETIRED-=!"=="X!test!" (
+        if X%2==X (
+            rem
+        ) else (
+            set test=%%f
+            if "X%2!test:%2=!"=="X!test!" set tests=!tests! %%f
+        )
     )
 )
 
@@ -159,11 +164,12 @@ for %%f in (%tests%) do (
     set "endtimecalc=!endtime:%time:~8,1%=%%100)*100+1!" & set "begtimecalc=!begtime:%time:~8,1%=%%100)*100+1!"
     set /A "duration=((((10!endtimecalc:%time:~2,1%=%%100)*60+1!%%100)-((((10!begtimecalc:%time:~2,1%=%%100)*60+1!%%100), duration-=(duration>>31)*24*60*60*100"
     set /A "duration=10*duration"
+    set /A "durationSec=duration/1000"
 
     if !ERRORLEVEL_save! neq 0 (
         set /a testfail=testfail+1
 
-        echo === Failed %%f ^(!duration! ms^)
+        echo === Failed %%f ^(!durationSec!s^)
 
         if defined APPVEYOR (
             appveyor UpdateTest "%%f" -FileName None -Framework None -Outcome Failed -Duration !duration!
@@ -171,7 +177,7 @@ for %%f in (%tests%) do (
     ) else (
         set /a testpass=testpass+1
 
-        echo === Passed %%f ^(!duration! ms^)
+        echo === Passed %%f ^(!durationSec!s^)
 
         if defined APPVEYOR (
             appveyor UpdateTest "%%f" -FileName None -Framework None -Outcome Passed -Duration !duration!
