@@ -1475,7 +1475,7 @@ NTSTATUS FspFileNodeRenameCheck(PDEVICE_OBJECT FsvolDeviceObject, PIRP OplockIrp
             {
                 Result = NT_SUCCESS(Result) ? STATUS_OPLOCK_BREAK_IN_PROGRESS : Result;
                 DescendantFileNodes[DescendantFileNodeIndex] =
-                    (PVOID)((UINT_PTR)DescendantFileNode | 2);
+                    (PVOID)((UINT_PTR)DescendantFileNode | 4);
             }
             else
                 Result = STATUS_ACCESS_DENIED;
