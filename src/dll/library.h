@@ -93,6 +93,12 @@ ULONG FspLdapGetDefaultNamingContext(PVOID Ldap, PWSTR *PValue);
 ULONG FspLdapGetTrustPosixOffset(PVOID Ldap, PWSTR Context, PWSTR Domain, PWSTR *PValue);
 
 PWSTR FspDiagIdent(VOID);
+HANDLE FspCreateDirectoryFileW(
+    PWSTR FileName,
+    DWORD DesiredAccess,
+    DWORD ShareAccess,
+    PSECURITY_ATTRIBUTES SecurityAttributes,
+    DWORD FlagsAndAttributes);
 NTSTATUS FspGetModuleVersion(PWSTR ModuleFileName, PUINT32 PVersion);
 NTSTATUS FspGetModuleFileName(
     HMODULE Module,
