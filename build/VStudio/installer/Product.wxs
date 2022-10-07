@@ -24,6 +24,11 @@
             AllowSameVersionUpgrades="yes"
             DowngradeErrorMessage="A newer version of $(var.MyProductName) is already installed." />
         <Media Id="1" Cabinet="$(var.MyProductName).cab" EmbedCab="yes" />
+        
+        <!-- Determine if we are on Win7 or above. -->
+        <Condition Message="$(var.MyProductName) requires Windows version 7 or higher in order to be installed.">
+            <![CDATA[Installed OR (VersionNT >= 601)]]>
+        </Condition>
 
         <!-- Determine if the old WinFsp installer that did not support upgrades is installed. -->
         <Property Id="OLDVERSIONINSTALLED">
