@@ -64,6 +64,145 @@ PWSTR FspDiagIdent(VOID)
     return FspDiagIdentBuf;
 }
 
+static INIT_ONCE FspCreateDirectoryFileInitOnce = INIT_ONCE_STATIC_INIT;
+static NTSTATUS (NTAPI *FspNtCreateFile)(
+    PHANDLE FileHandle,
+    ACCESS_MASK DesiredAccess,
+    POBJECT_ATTRIBUTES ObjectAttributes,
+    PIO_STATUS_BLOCK IoStatusBlock,
+    PLARGE_INTEGER AllocationSize,
+    ULONG FileAttributes,
+    ULONG ShareAccess,
+    ULONG CreateDisposition,
+    ULONG CreateOptions,
+    PVOID EaBuffer,
+    ULONG EaLength);
+
+static BOOL WINAPI FspCreateDirectoryFileInitialize(
+    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context)
+{
+    HANDLE Handle;
+
+    Handle = GetModuleHandleW(L"ntdll.dll");
+    if (0 != Handle)
+        FspNtCreateFile = (PVOID)GetProcAddress(Handle, "NtCreateFile");
+
+    return TRUE;
+}
+
+HANDLE FspCreateDirectoryFileW(
+    PWSTR FileName,
+    DWORD DesiredAccess,
+    DWORD ShareAccess,
+    PSECURITY_ATTRIBUTES SecurityAttributes,
+    DWORD FlagsAndAttributes)
+{
+    InitOnceExecuteOnce(&FspCreateDirectoryFileInitOnce, FspCreateDirectoryFileInitialize, 0, 0);
+    if (0 == FspNtCreateFile)
+    {
+        SetLastError(ERROR_INVALID_FUNCTION);
+        return INVALID_HANDLE_VALUE;
+    }
+
+    HANDLE Handle = INVALID_HANDLE_VALUE, ParentHandle = INVALID_HANDLE_VALUE;
+    PWSTR FullFileName = 0;
+    WCHAR *FilePart, FilePartChar;
+    DWORD Length;
+    UNICODE_STRING UFullFileName;
+    OBJECT_ATTRIBUTES Obja;
+    ULONG CreateFlags;
+    IO_STATUS_BLOCK IoStatus;
+
+    Length = GetFullPathNameW(FileName, 0, 0, 0);
+    if (0 == Length)
+        goto exit;
+
+    FullFileName = MemAlloc((Length + 1) * sizeof(WCHAR));
+    if (0 == FullFileName)
+    {
+        SetLastError(ERROR_NO_SYSTEM_RESOURCES);
+        goto exit;
+    }
+
+    Length = GetFullPathNameW(FileName, Length + 1, FullFileName, &FilePart);
+    if (0 == Length)
+        goto exit;
+
+    FilePartChar = *FilePart;
+    *FilePart = L'\0';
+
+    ParentHandle = CreateFileW(
+        FullFileName,
+        0,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        0);
+    if (INVALID_HANDLE_VALUE == ParentHandle)
+        goto exit;
+
+    *FilePart = FilePartChar;
+
+    UFullFileName.Length = UFullFileName.MaximumLength = (USHORT)(lstrlenW(FilePart) * sizeof(WCHAR));
+    UFullFileName.Buffer = FilePart;
+
+    memset(&Obja, 0, sizeof Obja);
+    Obja.Length = sizeof Obja;
+    Obja.ObjectName = &UFullFileName;
+    Obja.Attributes =
+        (!(FlagsAndAttributes & FILE_FLAG_POSIX_SEMANTICS) ? OBJ_CASE_INSENSITIVE : 0) |
+        (SecurityAttributes->bInheritHandle ? OBJ_INHERIT : 0);
+    Obja.RootDirectory = ParentHandle;
+    Obja.SecurityDescriptor = SecurityAttributes->lpSecurityDescriptor;
+
+    DesiredAccess |=
+        SYNCHRONIZE |
+        FILE_READ_ATTRIBUTES |
+        ((FlagsAndAttributes & FILE_FLAG_DELETE_ON_CLOSE) ? DELETE : 0);
+
+    CreateFlags =
+        FILE_DIRECTORY_FILE |
+        ((FlagsAndAttributes & FILE_FLAG_WRITE_THROUGH) ? FILE_WRITE_THROUGH : 0) |
+        ((FlagsAndAttributes & FILE_FLAG_OVERLAPPED) ? FILE_SYNCHRONOUS_IO_NONALERT : 0) |
+        ((FlagsAndAttributes & FILE_FLAG_NO_BUFFERING) ? FILE_NO_INTERMEDIATE_BUFFERING : 0) |
+        ((FlagsAndAttributes & FILE_FLAG_RANDOM_ACCESS) ? FILE_RANDOM_ACCESS : 0) |
+        ((FlagsAndAttributes & FILE_FLAG_SEQUENTIAL_SCAN) ? FILE_SEQUENTIAL_ONLY : 0) |
+        ((FlagsAndAttributes & FILE_FLAG_DELETE_ON_CLOSE) ? FILE_DELETE_ON_CLOSE : 0) |
+        ((FlagsAndAttributes & FILE_FLAG_BACKUP_SEMANTICS) ? FILE_OPEN_FOR_BACKUP_INTENT : 0) |
+        ((FlagsAndAttributes & FILE_FLAG_OPEN_REPARSE_POINT) ? FILE_OPEN_REPARSE_POINT : 0) |
+        ((FlagsAndAttributes & FILE_FLAG_OPEN_NO_RECALL) ? FILE_OPEN_NO_RECALL : 0);
+
+    IoStatus.Status = FspNtCreateFile(
+        &Handle,
+        DesiredAccess,
+        &Obja,
+        &IoStatus,
+        0,
+        FlagsAndAttributes & (0x7fff & ~FILE_ATTRIBUTE_DIRECTORY),
+        ShareAccess,
+        FILE_CREATE,
+        CreateFlags,
+        0,
+        0);
+    if (!NT_SUCCESS(IoStatus.Status))
+    {
+        SetLastError(FspWin32FromNtStatus(IoStatus.Status));
+        Handle = INVALID_HANDLE_VALUE;
+        goto exit;
+    }
+
+    SetLastError(0);
+
+exit:
+    if (INVALID_HANDLE_VALUE != ParentHandle)
+        CloseHandle(ParentHandle);
+
+    MemFree(FullFileName);
+
+    return Handle;
+}
+
 FSP_API NTSTATUS FspCallNamedPipeSecurely(PWSTR PipeName,
     PVOID InBuffer, ULONG InBufferSize, PVOID OutBuffer, ULONG OutBufferSize,
     PULONG PBytesTransferred, ULONG Timeout,
