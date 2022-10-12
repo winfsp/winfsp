@@ -124,7 +124,7 @@ function Check-Prerequisites {
 
     # check winfsp.sym
     if (!(Test-Path "$ProjectRoot\..\winfsp.sym" -ErrorAction SilentlyContinue)) {
-        Write-Stderr "error: cannot find repository winfsp.sym"
+        Write-Stderr "error: cannot find winfsp.sym repository"
         exit 1
     }
 
@@ -133,7 +133,7 @@ function Check-Prerequisites {
     $SymDirty = Git-Dirty
     Pop-Location
     if ($SymDirty) {
-        Write-Stderr "error: repository winfsp.sym is dirty"
+        Write-Stderr "error: winfsp.sym repository is dirty"
         exit 1
     }
 
@@ -178,6 +178,10 @@ function Build-AssetsPhase1 {
     Task -ScriptBlock {
         Push-Location "$ProjectRoot"
         tools\build.bat Release
+        if ($LastExitCode -ne 0) {
+            Write-Stderr "error: cannot build assets"
+            exit 1
+        }
         Pop-Location
 
         Write-Stdout @"
@@ -209,6 +213,10 @@ function Build-AssetsPhase2 {
 
         Push-Location "$ProjectRoot"
         tools\build.bat Release $SignedPackage
+        if ($LastExitCode -ne 0) {
+            Write-Stderr "error: cannot build assets"
+            exit 1
+        }
         Pop-Location
 
         Write-Stdout @"
@@ -244,6 +252,10 @@ $($ReleaseInfo.Text -join "`n")
 "@
 
         gh release create $ReleaseInfo.Tag --draft --title "WinFsp $($ReleaseInfo.ProductVersion)" --notes "$ReleaseNotes" $PrereleaseOpt (Resolve-Path "$ProjectRoot\build\VStudio\build\Release\winfsp*.msi") (Resolve-Path "$ProjectRoot\build\VStudio\build\Release\winfsp-tests*.zip")
+        if ($LastExitCode -ne 0) {
+            Write-Stderr "error: cannot create GitHub release"
+            exit 1
+        }
 
         Write-Stdout @"
 
@@ -263,12 +275,24 @@ function Upload-Symbols {
         $SymHasTag = Git-LogGrep $ReleaseInfo.Tag
         Pop-Location
         if ($SymHasTag) {
-            Write-Stderr "warning: repository winfsp.sym already has commit for tag $($ReleaseInfo.Tag)"
+            Write-Stderr "warning: winfsp.sym repository already has commit for tag $($ReleaseInfo.Tag)"
         } else {
             Push-Location "$ProjectRoot\..\winfsp.sym"
             .\tools\symadd.ps1 ..\winfsp\build\VStudio\build\Release -PdbKind Private
+            if ($LastExitCode -ne 0) {
+                Write-Stderr "error: cannot add files to winfsp.sym repository"
+                exit 1
+            }
             git add .
+            if ($LastExitCode -ne 0) {
+                Write-Stderr "error: cannot add files to winfsp.sym repository staging area"
+                exit 1
+            }
             git commit -m $ReleaseInfo.Tag
+            if ($LastExitCode -ne 0) {
+                Write-Stderr "error: cannot commit files to winfsp.sym repository"
+                exit 1
+            }
             Pop-Location
 
             Write-Stdout @"
@@ -287,6 +311,10 @@ function Make-ChocoRelease {
 
         Push-Location "$ProjectRoot\build\VStudio\build\Release"
         choco push
+        if ($LastExitCode -ne 0) {
+            Write-Stderr "error: cannot push to Chocolatey"
+            exit 1
+        }
         Pop-Location
 
         Write-Stdout @"
