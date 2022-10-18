@@ -1,6 +1,21 @@
 # Changelog
 
 
+## v1.12 (2022.2)
+
+- [NEW] WinFsp now supports mounting as directory using the Mount Manager. Use the syntax `\\.\C:\Path\To\Mount\Directory`.
+
+- [NEW] A new registry setting `MountUseMountmgrFromFSD` has been added. See [WinFsp Registry Settings](https://github.com/winfsp/winfsp/wiki/WinFsp-Registry-Settings) for details.
+
+- [FIX] A problem with Windows containers has been fixed. (GitHub issue #438.)
+
+- [FIX] File systems can now be mounted as directories on ARM64. (GitHub issue #448.)
+
+- [FIX] The passthrough file system now reports correct `IndexNumber`. (GitHub issue #325.)
+
+- [BUILD] Product configuration for the relative paths to the File System Driver, Network Provider and EventLog is now possible via the file `build.version.props` located in `build\VStudio`.
+
+
 ## v1.12B2 (2022.2 Beta2)
 
 - [NEW] WinFsp now supports mounting as directory using the Mount Manager. Use the syntax `\\.\C:\Path\To\Mount\Directory`.
