@@ -81,6 +81,9 @@
     <!-- NuGet metadata -->
     <PackageId>$(MyProductFileName)-msil</PackageId>
     <Version>$(MyVersion)</Version>
+    <Description>$(MyDescription)</Description>
+    <Authors>$(MyCompanyName)</Authors>
+    <Company>$(MyCompanyName)</Company>
   </PropertyGroup>
 
   <PropertyGroup>
