@@ -6,6 +6,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <RootNamespace>Fsp</RootNamespace>
     <AssemblyName>$(MyProductFileName)-msil</AssemblyName>
     <FileAlignment>512</FileAlignment>
