@@ -231,10 +231,6 @@ function Make-GitHubRelease {
     Task -ScriptBlock {
         Check-Assets
 
-        if ((Resolve-Path "$ProjectRoot\build\VStudio\build\Release\winfsp*.msi") -match "\\winfsp-(.+)\.msi") {
-            $Version = $matches[1]
-        }
-
         $DownloadColor = "blue"
         $PrereleaseOpt = ""
         if ($ReleaseInfo.Prerelease) {
@@ -242,16 +238,34 @@ function Make-GitHubRelease {
             $PrereleaseOpt = "-p"
         }
 
+        $MsiFile = Resolve-Path "$ProjectRoot\build\VStudio\build\Release\winfsp*.msi"
+        $ZipFile = Resolve-Path "$ProjectRoot\build\VStudio\build\Release\winfsp-tests*.zip"
+        $MsiName = Split-Path -Leaf $MsiFile
+        $ZipName = Split-Path -Leaf $ZipFile
+        $MsiHash = (Get-FileHash -Algorithm SHA256 $MsiFile).Hash
+        $ZipHash = (Get-FileHash -Algorithm SHA256 $ZipFile).Hash
+
+        if ($MsiName -match "winfsp-(.+)\.msi") {
+            $Version = $matches[1]
+        }
+
         $ReleaseNotes = @"
 [![Download WinFsp](https://img.shields.io/badge/-Download%20WinFsp-$DownloadColor.svg?style=for-the-badge&labelColor=grey&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0ODAgNDgwIj48cGF0aCBkPSJNMzg3LjAwMiAyMDEuMDAxQzM3Mi45OTggMTMyLjAwMiAzMTIuOTk4IDgwIDI0MCA4MGMtNTcuOTk4IDAtMTA3Ljk5OCAzMi45OTgtMTMyLjk5OCA4MS4wMDFDNDcuMDAyIDE2Ny4wMDIgMCAyMTcuOTk4IDAgMjgwYzAgNjUuOTk2IDUzLjk5OSAxMjAgMTIwIDEyMGgyNjBjNTUgMCAxMDAtNDUgMTAwLTEwMCAwLTUyLjk5OC00MC45OTYtOTYuMDAxLTkyLjk5OC05OC45OTl6TTIwOCAyNTJ2LTc2aDY0djc2aDY4TDI0MCAzNTIgMTQwIDI1Mmg2OHoiIGZpbGw9IiNmZmYiLz48L3N2Zz4=)](https://github.com/winfsp/winfsp/releases/download/$($ReleaseInfo.Tag)/winfsp-$Version.msi)
 
-[VirusTotal Scan Results]()
-
 ## CHANGES SINCE WINFSP $($ReleaseInfo.PreviousProductVersion)
 $($ReleaseInfo.Text -join "`n")
+<details>
+<summary>
+<b>BUILD HASHES (SHA256)</b>
+<p/>
+</summary>
+
+- **``$MsiName``**: $MsiHash
+- **``$ZipName``**: $ZipHash
+</details>
 "@
 
-        gh release create $ReleaseInfo.Tag --draft --title "WinFsp $($ReleaseInfo.ProductVersion)" --notes "$ReleaseNotes" $PrereleaseOpt (Resolve-Path "$ProjectRoot\build\VStudio\build\Release\winfsp*.msi") (Resolve-Path "$ProjectRoot\build\VStudio\build\Release\winfsp-tests*.zip")
+        gh release create $ReleaseInfo.Tag --draft --title "WinFsp $($ReleaseInfo.ProductVersion)" --notes "$ReleaseNotes" $PrereleaseOpt $MsiFile $ZipFile
         if ($LastExitCode -ne 0) {
             Write-Stderr "error: cannot create GitHub release"
             exit 1
