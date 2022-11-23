@@ -1,6 +1,23 @@
 # Changelog
 
 
+## v2.0B1 (2023 Beta1)
+
+This release is a major version change for WinFsp (from 1.x to 2.x). There are no backwards incompatible API changes in this release, but nevertheless enough things change that warrant a version change.
+
+The major new feature of this release is that it allows uninstallation and reinstallation of WinFsp **without reboot**. Going forward installers named `winfsp-2.x.y.msi` can be uninstalled and reinstalled without reboot. Furthermore a later version `winfsp-2.x.y.msi` installer can be used to upgrade over an earlier version `winfsp-2.x.y.msi` installer. However note that a `winfsp-2.x.y.msi` installer cannot be used to upgrade over a "legacy" `winfsp-1.x.y.msi` installer; you will still need to uninstall the "old" `winfsp-1.x.y.msi` installer, potentially reboot and then install the "new" `winfsp-2.x.y.msi` installer.
+
+Some changes that may be visible to file system developers are listed below:
+
+- WinFsp executable files are now installed by default in the directory `C:\Program Files (x86)\WinFsp\SxS\sxs.<InstanceID>\bin`. The previous directory `C:\Program Files (x86)\WinFsp\bin` is now a junction that points to the above directory.
+
+- The WinFsp driver name is no longer `winfsp`, but rather a name such as `winfsp+<InstanceID>`. This means that managing the driver using the `sc.exe` utility is no longer as easy.
+
+- The `fsptool` utility has been updated with new commands `lsdrv`, `load`, `unload` and `ver`. The `lsdrv`, `load` and `unload` commands can be used to manage the driver from the command line. This is rarely necessary, but may be useful for troubleshooting purposes.
+
+- The WinFsp symbols directory has been removed. If you are looking for WinFsp symbols you can find them at https://github.com/winfsp/winfsp.sym
+
+
 ## v1.12 (2022.2)
 
 - [NEW] WinFsp now supports mounting as directory using the Mount Manager. Use the syntax `\\.\C:\Path\To\Mount\Directory`.
