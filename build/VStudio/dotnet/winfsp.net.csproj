@@ -1,42 +1,42 @@
-﻿<Project>
+<Project>
   <PropertyGroup>
     <BaseIntermediateOutputPath>$(SolutionDir)build\$(MSBuildProjectName).build\</BaseIntermediateOutputPath>
   </PropertyGroup>
   <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), build.common.props))/build.common.props" />
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net35</TargetFrameworks>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <OutputType>Library</OutputType>
     <ProjectName>winfsp.net</ProjectName>
-    <ImplicitUsings>disable</ImplicitUsings>
-    <Nullable>disable</Nullable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <PlatformTarget>AnyCPU</PlatformTarget>
     <RootNamespace>Fsp</RootNamespace>
     <AssemblyName>$(MyProductFileName)-msil</AssemblyName>
+    <TargetFrameworks>netstandard2.0;net35</TargetFrameworks>
     <FileAlignment>512</FileAlignment>
-    <OutputPath>$(SolutionDir)build\$(Configuration)\$(MSBuildProjectName)</OutputPath>
-    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
-	<GenerateDocumentationFile>true</GenerateDocumentationFile>
-	<DocumentationFile>$(BaseIntermediateOutputPath)$(Configuration)\$(MyProductFileName)-msil.xml</DocumentationFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <NoWarn>1591</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
+    <OutputPath>$(SolutionDir)build\$(Configuration)\$(MSBuildProjectName)</OutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DocumentationFile>$(BaseIntermediateOutputPath)$(Configuration)\$(MyProductFileName)-msil.xml</DocumentationFile>
     <NoWarn>1591</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
+    <OutputPath>$(SolutionDir)build\$(Configuration)\$(MSBuildProjectName)</OutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DocumentationFile>$(BaseIntermediateOutputPath)$(Configuration)\$(MyProductFileName)-msil.xml</DocumentationFile>
     <NoWarn>1591</NoWarn>
   </PropertyGroup>
@@ -74,7 +74,6 @@
       <Version>5.0.0</Version>
     </PackageReference>
   </ItemGroup>
-
   <PropertyGroup>
     <AssemblyName>$(MyProductFileName)-msil</AssemblyName>
     <AssemblyTitle>$(MyDescription)</AssemblyTitle>
@@ -82,15 +81,13 @@
     <Copyright>$(MyCopyright)</Copyright>
     <AssemblyVersion>$(MyAssemblyVersion)</AssemblyVersion>
     <FileVersion>$(MyVersion)</FileVersion>
-
     <!-- NuGet metadata -->
     <PackageId>$(MyProductFileName)-msil</PackageId>
     <Version>$(MyVersion)</Version>
     <Description>$(MyDescription)</Description>
-    <Authors>$(MyCompanyName)</Authors>
+    <Authors>$(MyCopyright)</Authors>
     <Company>$(MyCompanyName)</Company>
   </PropertyGroup>
-
   <PropertyGroup>
     <PostBuildEvent>exit /b 0
 
@@ -101,8 +98,8 @@ set MyAssemblyVersion=$(MyAssemblyVersion)
 setlocal EnableDelayedExpansion
 if exist $(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config del $(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config
 for /f "delims=" %25%25l in ($(ProjectDir)winfsp.net.policy.config) do (
-set line=%25%25l
-echo !line! &gt;&gt;$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config
+    set line=%25%25l
+    echo !line! &gt;&gt;$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config
 )
 
 "$(MSBuildProgramFiles32)\Microsoft SDKs\Windows\v7.0A\Bin\al.exe" /product:"$(MyProductName)" /title:"$(MyDescription)" /company:"$(MyCompanyName)" /copyright:"$(MyCopyright)" /version:"$(MyAssemblyPolicyVersion)" /fileversion:"$(MyVersion)" /link:$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config /out:$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).dll /keyfile:$(ProjectDir)$(ProjectName).snk
