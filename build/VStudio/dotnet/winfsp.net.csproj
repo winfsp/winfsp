@@ -1,4 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project>
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(SolutionDir)build\$(MSBuildProjectName).build\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), build.common.props))/build.common.props" />
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net35</TargetFrameworks>
@@ -78,7 +82,7 @@
     <Copyright>$(MyCopyright)</Copyright>
     <AssemblyVersion>$(MyAssemblyVersion)</AssemblyVersion>
     <FileVersion>$(MyVersion)</FileVersion>
-    
+
     <!-- NuGet metadata -->
     <PackageId>$(MyProductFileName)-msil</PackageId>
     <Version>$(MyVersion)</Version>
@@ -104,4 +108,5 @@ echo !line! &gt;&gt;$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).con
 "$(MSBuildProgramFiles32)\Microsoft SDKs\Windows\v7.0A\Bin\al.exe" /product:"$(MyProductName)" /title:"$(MyDescription)" /company:"$(MyCompanyName)" /copyright:"$(MyCopyright)" /version:"$(MyAssemblyPolicyVersion)" /fileversion:"$(MyVersion)" /link:$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).config /out:$(OutDir)policy.$(MyAssemblyPolicyVersion).$(TargetName).dll /keyfile:$(ProjectDir)$(ProjectName).snk
 </PostBuildEvent>
   </PropertyGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>

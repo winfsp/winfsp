@@ -1,4 +1,8 @@
-<Project Sdk="Microsoft.NET.SDK">
+<Project>
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(SolutionDir)build\$(MSBuildProjectName).build\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), build.common.props))/build.common.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -34,4 +38,5 @@
   <ItemGroup>
     <Compile Include="..\..\..\tst\memfs-dotnet\Program.cs" />
   </ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>
