@@ -66,6 +66,7 @@ CONTRIBUTOR LIST
 |Gal Hammer (Red Hat, https://www.redhat.com)                   |ghammer at redhat.com
 |John Oberschelp                                                |john at oberschelp.net
 |John Tyner                                                     |jtyner at gmail.com
+|Konstantinos Karakostas                                        |noiredev at protonmail.com
 |Paweł Wegner (Google LLC, https://google.com)                  |lemourin at google.com
 |Pedro Frejo (Arpa System, https://arpasystem.com)              |pedro.frejo at arpasystem.com
 |Ronny Chan                                                     |ronny at ronnychan.ca

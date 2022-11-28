@@ -171,10 +171,10 @@
 
             <!-- install assembly -->
             <Component Id="C.$(var.MyProductFileName)_msil.dll" Guid="1772CDE5-4B2F-48CF-B2DA-CA43818053A8">
-                <File Id="FILE.$(var.MyProductFileName)_msil.dll" Name="$(var.MyProductFileName)-msil.dll" KeyPath="yes" />
+                <File Id="FILE.$(var.MyProductFileName)_msil.dll" Source="..\build\$(var.Configuration)\$(var.MyProductFileName).net\net35\" Name="$(var.MyProductFileName)-msil.dll" KeyPath="yes" />
             </Component>
             <Component Id="C.$(var.MyProductFileName)_msil.xml" Guid="C76745D2-51FA-4028-B827-3F2F3F763751">
-                <File Id="FILE.$(var.MyProductFileName)_msil.xml" Name="$(var.MyProductFileName)-msil.xml" KeyPath="yes" />
+                <File Id="FILE.$(var.MyProductFileName)_msil.xml" Source="..\build\$(var.Configuration)\$(var.MyProductFileName).net\net35\" Name="$(var.MyProductFileName)-msil.xml" KeyPath="yes" />
             </Component>
             <!--
             <Component Id="C.$(var.MyProductFileName)_msil.dll.GAC" Guid="D86F8764-2FCC-43DA-A174-23E0FD6D45B7">
@@ -373,7 +373,7 @@
                 </RegistryKey>
             </Component>
             <Component Id="C.memfs_dotnet_msil.exe">
-                <File Name="memfs-dotnet-msil.exe" KeyPath="yes" />
+                <File Name="memfs-dotnet-msil.exe" Source="..\build\$(var.Configuration)\memfs-dotnet\net452\" KeyPath="yes" />
                 <RegistryKey
                     Root="HKLM"
                     Key="[P.LauncherRegistryKey]">
