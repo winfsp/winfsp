@@ -15,11 +15,15 @@
     <FileAlignment>512</FileAlignment>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>$(SolutionDir)build\$(Configuration)\$(MSBuildProjectName)</OutputPath>
+    <OutputPath>$(SolutionDir)build\$(Configuration)\</OutputPath>
     <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
@@ -31,7 +35,7 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>$(SolutionDir)build\$(Configuration)\$(MSBuildProjectName)</OutputPath>
+    <OutputPath>$(SolutionDir)build\$(Configuration)\</OutputPath>
     <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
@@ -82,7 +86,7 @@
     <AssemblyVersion>$(MyAssemblyVersion)</AssemblyVersion>
     <FileVersion>$(MyVersion)</FileVersion>
     <!-- NuGet metadata -->
-    <PackageId>$(MyProductFileName)-msil</PackageId>
+    <PackageId>$(MyProductFileName).net</PackageId>
     <Version>$(MyVersion)</Version>
     <Description>$(MyDescription)</Description>
     <Authors>$(MyCopyright)</Authors>
