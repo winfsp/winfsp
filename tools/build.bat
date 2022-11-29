@@ -57,13 +57,6 @@ if X%SignedPackage%==X (
     if exist build\ for /R build\ %%d in (%Configuration%) do (
         if exist "%%d" rmdir /s/q "%%d"
     )
-	
-    if X%UseDotnetSdk%==Xyes (
-        dotnet build ./dotnet/ -c "%Configuration%" -p:SolutionDir=..\
-        if errorlevel 1 goto fail
-        dotnet build ./testing/memfs-dotnet.csproj -c "%Configuration%" -p:SolutionDir=..\
-        if errorlevel 1 goto fail
-    )
 
     if X%BuildArm64%==Xyes (
         devenv winfsp.sln /build "%Configuration%|ARM64"
@@ -75,6 +68,13 @@ if X%SignedPackage%==X (
     if errorlevel 1 goto fail
     if X%BuildArm64%==Xno (
         copy build\%Configuration%\*-x64.* build\%Configuration%\*-a64.* >nul
+        if errorlevel 1 goto fail
+    )
+
+    if X%UseDotnetSdk%==Xyes (
+        dotnet build ./dotnet/winfsp.net.csproj -c "%Configuration%" -p:Platform=AnyCPU -p:SolutionDir="%cd%"\
+        if errorlevel 1 goto fail
+        dotnet build ./testing/memfs-dotnet.csproj -c "%Configuration%" -p:Platform=AnyCPU -p:SolutionDir="%cd%"\
         if errorlevel 1 goto fail
     )
 
