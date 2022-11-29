@@ -43,8 +43,11 @@ call "%~dp0vcvarsall.bat" x64
 if not X%SignedPackage%==X (
     if not exist "%~dp0..\build\VStudio\build\%Configuration%\%MyProductFileName%-*.msi" (echo previous build not found >&2 & exit /b 1)
     if not exist "%SignedPackage%" (echo signed package not found >&2 & exit /b 1)
+    set Version=
+    for %%f in (build\%Configuration%\%MyProductFileName%-*.msi) do set Version=%%~nf
+    set Version=!Version:%MyProductFileName%-=!
     del "%~dp0..\build\VStudio\build\%Configuration%\%MyProductFileName%-*.msi"
-    if exist "%~dp0..\build\VStudio\build\%Configuration%\winfsp.*.nupkg" del "%~dp0..\build\VStudio\build\%Configuration%\winfsp.*.nupkg"
+    if exist "%~dp0..\build\VStudio\build\%Configuration%\winfsp.!Version!.nupkg" del "%~dp0..\build\VStudio\build\%Configuration%\winfsp.!Version!.nupkg"
     for /R "%SignedPackage%" %%f in (*.sys) do (
         copy "%%f" "%~dp0..\build\VStudio\build\%Configuration%" >nul
     )
