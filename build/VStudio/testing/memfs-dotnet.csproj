@@ -1,19 +1,23 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project>
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(SolutionDir)build\$(MSBuildProjectName).build\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), build.common.props))/build.common.props" />
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{4920E350-D496-4652-AE98-6C4208AEC1D8}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <ProjectName>memfs-dotnet</ProjectName>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>memfs</RootNamespace>
     <AssemblyName>memfs-dotnet-msil</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFramework>net452</TargetFramework>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -21,7 +25,6 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>$(SolutionDir)build\$(Configuration)\</OutputPath>
-    <BaseIntermediateOutputPath>$(SolutionDir)build\$(ProjectName).build\</BaseIntermediateOutputPath>
     <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
@@ -33,32 +36,16 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>$(SolutionDir)build\$(Configuration)\</OutputPath>
-    <BaseIntermediateOutputPath>$(SolutionDir)build\$(ProjectName).build\</BaseIntermediateOutputPath>
     <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\</IntermediateOutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System" />
+    <ProjectReference Include="..\dotnet\winfsp.net.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\..\tst\memfs-dotnet\Program.cs">
-      <Link>Program.cs</Link>
-    </Compile>
+    <Compile Include="..\..\..\tst\memfs-dotnet\Program.cs" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\dotnet\winfsp.net.csproj">
-      <Project>{94580219-cc8d-4fe5-a3be-437b0b3481e1}</Project>
-      <Name>winfsp.net</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>

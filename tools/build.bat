@@ -27,6 +27,7 @@ if X%~nx0==Xbuild-choco.bat (
 set BuildArm64=yes
 if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
     set BuildArm64=no
+    set UseDotnetSdk=yes
 )
 if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" (
     set BuildArm64=no
@@ -42,8 +43,11 @@ call "%~dp0vcvarsall.bat" x64
 if not X%SignedPackage%==X (
     if not exist "%~dp0..\build\VStudio\build\%Configuration%\%MyProductFileName%-*.msi" (echo previous build not found >&2 & exit /b 1)
     if not exist "%SignedPackage%" (echo signed package not found >&2 & exit /b 1)
+    set Version=
+    for %%f in (build\%Configuration%\%MyProductFileName%-*.msi) do set Version=%%~nf
+    set Version=!Version:%MyProductFileName%-=!
     del "%~dp0..\build\VStudio\build\%Configuration%\%MyProductFileName%-*.msi"
-    if exist "%~dp0..\build\VStudio\build\%Configuration%\winfsp.*.nupkg" del "%~dp0..\build\VStudio\build\%Configuration%\winfsp.*.nupkg"
+    if exist "%~dp0..\build\VStudio\build\%Configuration%\winfsp.!Version!.nupkg" del "%~dp0..\build\VStudio\build\%Configuration%\winfsp.!Version!.nupkg"
     for /R "%SignedPackage%" %%f in (*.sys) do (
         copy "%%f" "%~dp0..\build\VStudio\build\%Configuration%" >nul
     )
@@ -67,6 +71,13 @@ if X%SignedPackage%==X (
     if errorlevel 1 goto fail
     if X%BuildArm64%==Xno (
         copy build\%Configuration%\*-x64.* build\%Configuration%\*-a64.* >nul
+        if errorlevel 1 goto fail
+    )
+
+    if X%UseDotnetSdk%==Xyes (
+        dotnet build ./dotnet/winfsp.net.csproj -c "%Configuration%" -p:Platform=AnyCPU -p:SolutionDir="%cd%"\
+        if errorlevel 1 goto fail
+        dotnet build ./testing/memfs-dotnet.csproj -c "%Configuration%" -p:Platform=AnyCPU -p:SolutionDir="%cd%"\
         if errorlevel 1 goto fail
     )
 

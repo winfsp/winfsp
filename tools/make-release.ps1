@@ -161,9 +161,15 @@ function Check-Assets {
         exit 1
     }
 
+    # check winfsp.net.nupkg
+    if (!(Test-Path "$ProjectRoot\build\VStudio\build\Release\winfsp.net.*.nupkg" -ErrorAction SilentlyContinue)) {
+        Write-Stderr "error: cannot find winfsp.net.*.nupkg"
+        exit 1
+    }
+
     # check winfsp.nupkg
-    if (!(Test-Path "$ProjectRoot\build\VStudio\build\Release\winfsp*.nupkg" -ErrorAction SilentlyContinue)) {
-        Write-Stderr "error: cannot find winfsp*.nupkg"
+    if (!(Test-Path "$ProjectRoot\build\VStudio\build\Release\winfsp.*.nupkg" -ErrorAction SilentlyContinue)) {
+        Write-Stderr "error: cannot find winfsp.*.nupkg"
         exit 1
     }
 
@@ -324,7 +330,7 @@ function Make-ChocoRelease {
         Check-Assets
 
         Push-Location "$ProjectRoot\build\VStudio\build\Release"
-        choco push
+        choco push (Resolve-Path winfsp.[0-9]*.nupkg)
         if ($LastExitCode -ne 0) {
             Write-Stderr "error: cannot push to Chocolatey"
             exit 1

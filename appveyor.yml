@@ -51,6 +51,11 @@ install:
       $targets.Save("C:\Program Files (x86)\Windows Kits\10\build\WindowsDriver.Common.targets")
       Add-AppveyorMessage "Hack to make WDK 1903 work on VS2015"
     }
+# Install .NET SDK on VS2015 image
+- ps: |
+    if ($env:APPVEYOR_BUILD_WORKER_IMAGE -eq "Visual Studio 2015") {
+        & ([scriptblock]::Create((New-Object System.Net.WebClient).DownloadString('https://dot.net/v1/dotnet-install.ps1'))) -InstallDir "C:\dotnet"
+    }
 # Submodules
 - git submodule update --init --recursive
 # Kernel and user mode dumps
@@ -76,6 +81,9 @@ build_script:
 # remove ARM64 project configurations to build in VS2015/VS2017
 - if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" tools\gensrc\remove-build-arm64.bat
 - if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" tools\gensrc\remove-build-arm64.bat
+# remove .NET library from solution for VS2015 and use the .NET SDK instead
+- if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" tools\gensrc\remove-build-dotnet.bat build\VStudio
+- if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" set PATH=C:\dotnet;%PATH%
 # build winfsp
 - tools\build.bat %CONFIGURATION%
 
