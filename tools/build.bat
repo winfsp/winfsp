@@ -83,6 +83,14 @@ if X%SignedPackage%==X (
     popd
 
     pushd build\%Configuration%
+    mkdir unsigned
+    for %%f in (!signfiles!) do (
+        copy "%%f" unsigned >nul
+    )
+    pushd unsigned
+    signtool remove /q /s !signfiles!
+    if errorlevel 1 set /a signfail=signfail+1
+    popd
     echo .OPTION EXPLICIT >driver.ddf
     echo .Set CabinetFileCountThreshold=0 >>driver.ddf
     echo .Set FolderFileCountThreshold=0 >>driver.ddf
@@ -97,13 +105,13 @@ if X%SignedPackage%==X (
     echo .Set DiskDirectory1=. >>driver.ddf
     echo .Set DestinationDir=a64 >>driver.ddf
     echo driver-a64.inf >>driver.ddf
-    echo %MyProductFileName%-a64.sys >>driver.ddf
+    echo unsigned\%MyProductFileName%-a64.sys >>driver.ddf
     echo .Set DestinationDir=x64 >>driver.ddf
     echo driver-x64.inf >>driver.ddf
-    echo %MyProductFileName%-x64.sys >>driver.ddf
+    echo unsigned\%MyProductFileName%-x64.sys >>driver.ddf
     echo .Set DestinationDir=x86 >>driver.ddf
     echo driver-x86.inf >>driver.ddf
-    echo %MyProductFileName%-x86.sys >>driver.ddf
+    echo unsigned\%MyProductFileName%-x86.sys >>driver.ddf
     makecab /F driver.ddf
     signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha256 /tr http://timestamp.digicert.com /td sha256 driver.cab
     if errorlevel 1 set /a signfail=signfail+1

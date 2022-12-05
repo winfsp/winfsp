@@ -1,9 +1,9 @@
 # Changelog
 
 
-## v1.12.22335 (2022.2 Update1)
+## v1.12.22339 (2022.2 Update1)
 
-*Note: This release (`v1.12.22335`) is the same as the previous release (`v1.12`) except that release assets have been signed with SHA-256 only. Prior to this release, assets were signed with both SHA-256 and SHA-1. (This change was necessary to fix a problem in older versions of Windows such as Windows 7.)*
+*Note: This release (`v1.12.22339`) is the same as the previous release (`v1.12`) except that: (1) the kernel-mode drivers are now digitally signed only with the Microsoft Attestation signature, and that: (2) no release assets are digitally signed with SHA-1. (This change was necessary to fix a problem in older versions of Windows such as Windows 7.)*
 
 - [NEW] WinFsp now supports mounting as directory using the Mount Manager. Use the syntax `\\.\C:\Path\To\Mount\Directory`.
 
