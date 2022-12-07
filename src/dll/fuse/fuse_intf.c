@@ -2000,7 +2000,7 @@ static NTSTATUS fsp_fuse_intf_FixDirInfo(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
 
     SizeA = lstrlenA(filedesc->PosixPath);
-    PosixPath = MemAlloc(SizeA + 1 + 255 + 1);
+    PosixPath = MemAlloc(SizeA + 1 + 1020 + 1);
     if (0 == PosixPath)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
@@ -2049,7 +2049,7 @@ static NTSTATUS fsp_fuse_intf_FixDirInfo(FSP_FILE_SYSTEM *FileSystem,
             else
             {
                 PosixPathEnd = 0;
-                SizeA = WideCharToMultiByte(CP_UTF8, 0, DirInfo->FileNameBuf, SizeW, PosixName, 255, 0, 0);
+                SizeA = WideCharToMultiByte(CP_UTF8, 0, DirInfo->FileNameBuf, SizeW, PosixName, 1020, 0, 0);
                 if (0 == SizeA)
                 {
                     /* this should never happen because we just converted using MultiByteToWideChar */
