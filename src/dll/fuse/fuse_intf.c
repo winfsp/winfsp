@@ -1939,7 +1939,7 @@ int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
     }
 
     SizeA = lstrlenA(name);
-    if (SizeA > 255)
+    if (SizeA > 1020)
     {
         fsp_fuse_intf_LogBadDirInfo(filedesc->PosixPath, name,
             "too long");
@@ -1952,6 +1952,15 @@ int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
         fsp_fuse_intf_LogBadDirInfo(filedesc->PosixPath, name,
             "MultiByteToWideChar failed");
         return 0;
+    }
+    else if (255 == SizeW)
+    {
+        if (255 < MultiByteToWideChar(CP_UTF8, 0, name, SizeA, NULL, 0))
+        {
+            fsp_fuse_intf_LogBadDirInfo(filedesc->PosixPath, name,
+                "too long");
+            return 0;
+        }
     }
 
     memset(DirInfo, 0, sizeof *DirInfo);
