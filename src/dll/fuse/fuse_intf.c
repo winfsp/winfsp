@@ -1939,7 +1939,7 @@ int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
     }
 
     SizeA = lstrlenA(name);
-    if (SizeA > 255)
+    if (SizeA > 255 * 4)
     {
         fsp_fuse_intf_LogBadDirInfo(filedesc->PosixPath, name,
             "too long");
@@ -1952,6 +1952,15 @@ int fsp_fuse_intf_AddDirInfo(void *buf, const char *name,
         fsp_fuse_intf_LogBadDirInfo(filedesc->PosixPath, name,
             "MultiByteToWideChar failed");
         return 0;
+    }
+    else if (255 == SizeW)
+    {
+        if (255 < MultiByteToWideChar(CP_UTF8, 0, name, SizeA, NULL, 0))
+        {
+            fsp_fuse_intf_LogBadDirInfo(filedesc->PosixPath, name,
+                "too long");
+            return 0;
+        }
     }
 
     memset(DirInfo, 0, sizeof *DirInfo);
@@ -1991,7 +2000,7 @@ static NTSTATUS fsp_fuse_intf_FixDirInfo(FSP_FILE_SYSTEM *FileSystem,
     NTSTATUS Result;
 
     SizeA = lstrlenA(filedesc->PosixPath);
-    PosixPath = MemAlloc(SizeA + 1 + 255 + 1);
+    PosixPath = MemAlloc(SizeA + 1 + 255 * 4 + 1);
     if (0 == PosixPath)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
@@ -2040,7 +2049,7 @@ static NTSTATUS fsp_fuse_intf_FixDirInfo(FSP_FILE_SYSTEM *FileSystem,
             else
             {
                 PosixPathEnd = 0;
-                SizeA = WideCharToMultiByte(CP_UTF8, 0, DirInfo->FileNameBuf, SizeW, PosixName, 255, 0, 0);
+                SizeA = WideCharToMultiByte(CP_UTF8, 0, DirInfo->FileNameBuf, SizeW, PosixName, 255 * 4, 0, 0);
                 if (0 == SizeA)
                 {
                     /* this should never happen because we just converted using MultiByteToWideChar */
