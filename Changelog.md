@@ -18,6 +18,23 @@ Some changes that may be visible to file system developers are listed below:
 - The WinFsp symbols directory has been removed. If you are looking for WinFsp symbols you can find them at https://github.com/winfsp/winfsp.sym
 
 
+## v1.12.22339 (2022.2 Update1)
+
+*Note: This release (`v1.12.22339`) is the same as the previous release (`v1.12`) except that: (1) the kernel-mode drivers are now digitally signed only with the Microsoft Attestation signature, and that: (2) no release assets are digitally signed with SHA-1. (This change was necessary to fix a problem in older versions of Windows such as Windows 7.)*
+
+- [NEW] WinFsp now supports mounting as directory using the Mount Manager. Use the syntax `\\.\C:\Path\To\Mount\Directory`.
+
+- [NEW] A new registry setting `MountUseMountmgrFromFSD` has been added. See [WinFsp Registry Settings](https://github.com/winfsp/winfsp/wiki/WinFsp-Registry-Settings) for details.
+
+- [FIX] A problem with Windows containers has been fixed. (GitHub issue #438.)
+
+- [FIX] File systems can now be mounted as directories on ARM64. (GitHub issue #448.)
+
+- [FIX] The passthrough file system now reports correct `IndexNumber`. (GitHub issue #325.)
+
+- [BUILD] Product configuration for the relative paths to the File System Driver, Network Provider and EventLog is now possible via the file `build.version.props` located in `build\VStudio`.
+
+
 ## v1.12 (2022.2)
 
 - [NEW] WinFsp now supports mounting as directory using the Mount Manager. Use the syntax `\\.\C:\Path\To\Mount\Directory`.

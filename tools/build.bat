@@ -89,13 +89,19 @@ if X%SignedPackage%==X (
         launchctl-a64.exe launchctl-x64.exe launchctl-x86.exe^
         fsptool-a64.exe fsptool-x64.exe fsptool-x86.exe^
         memfs-a64.exe memfs-x64.exe memfs-x86.exe memfs-dotnet-msil.exe
-    signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha1 /t http://timestamp.digicert.com !signfiles!
-    if errorlevel 1 set /a signfail=signfail+1
-    signtool sign /as /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha256 /tr http://timestamp.digicert.com /td sha256 !signfiles!
+    signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha256 /tr http://timestamp.digicert.com /td sha256 !signfiles!
     if errorlevel 1 set /a signfail=signfail+1
     popd
 
     pushd build\%Configuration%
+    mkdir unsigned
+    for %%f in (!signfiles!) do (
+        copy "%%f" unsigned >nul
+    )
+    pushd unsigned
+    signtool remove /q /s !signfiles!
+    if errorlevel 1 set /a signfail=signfail+1
+    popd
     echo .OPTION EXPLICIT >driver.ddf
     echo .Set CabinetFileCountThreshold=0 >>driver.ddf
     echo .Set FolderFileCountThreshold=0 >>driver.ddf
@@ -110,13 +116,13 @@ if X%SignedPackage%==X (
     echo .Set DiskDirectory1=. >>driver.ddf
     echo .Set DestinationDir=a64 >>driver.ddf
     echo driver-a64.inf >>driver.ddf
-    echo %MyProductFileName%-a64.sys >>driver.ddf
+    echo unsigned\%MyProductFileName%-a64.sys >>driver.ddf
     echo .Set DestinationDir=x64 >>driver.ddf
     echo driver-x64.inf >>driver.ddf
-    echo %MyProductFileName%-x64.sys >>driver.ddf
+    echo unsigned\%MyProductFileName%-x64.sys >>driver.ddf
     echo .Set DestinationDir=x86 >>driver.ddf
     echo driver-x86.inf >>driver.ddf
-    echo %MyProductFileName%-x86.sys >>driver.ddf
+    echo unsigned\%MyProductFileName%-x86.sys >>driver.ddf
     makecab /F driver.ddf
     signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha256 /tr http://timestamp.digicert.com /td sha256 driver.cab
     if errorlevel 1 set /a signfail=signfail+1
@@ -127,10 +133,8 @@ devenv winfsp.sln /build "Installer.%Configuration%|x86"
 if errorlevel 1 goto fail
 
 for %%f in (build\%Configuration%\%MyProductFileName%-*.msi) do (
-    signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha1 /t http://timestamp.digicert.com /d %MsiName% %%f
+    signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d %MsiName% %%f
     if errorlevel 1 set /a signfail=signfail+1
-    REM signtool sign /ac %CrossCert% /i %Issuer% /n %Subject% /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d %MsiName% %%f
-    REM if errorlevel 1 set /a signfail=signfail+1
 )
 
 if not %signfail%==0 echo SIGNING FAILED! The product has been successfully built, but not signed.
