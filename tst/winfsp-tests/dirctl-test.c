@@ -576,6 +576,40 @@ static void querydir_namelen_dotest(ULONG Flags, PWSTR Prefix, PWSTR Drive)
     ASSERT(INVALID_HANDLE_VALUE == Handle);
     ASSERT(ERROR_INVALID_NAME == GetLastError());
 
+    for (P = FilePathBgn, EndP = P + MaxComponentLength - 1; EndP > P; P++)
+        *P = (P - FilePathBgn) % 10 + 0x3041;
+    *P = L'\0';
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    querydir_namelen_exists(FilePath);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    for (P = FilePathBgn, EndP = P + MaxComponentLength; EndP > P; P++)
+        *P = (P - FilePathBgn) % 10 + 0x3041;
+    *P = L'\0';
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    querydir_namelen_exists(FilePath);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    for (P = FilePathBgn, EndP = P + MaxComponentLength + 1; EndP > P; P++)
+        *P = (P - FilePathBgn) % 10 + 0x3041;
+    *P = L'\0';
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_INVALID_NAME == GetLastError());
+
     memfs_stop(memfs);
 }
 
