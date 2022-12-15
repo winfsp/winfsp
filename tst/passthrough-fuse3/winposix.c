@@ -167,7 +167,7 @@ char *realpath(const char *path, char *resolved)
     return result;
 }
 
-int uncpath(const char* path, WCHAR* buf, int nchar)
+int uncpath(const char *path, WCHAR *buf, int nchar)
 {
     if (4 < nchar &&
         0 < MultiByteToWideChar(CP_UTF8, 0, path, -1, &buf[4], nchar - 4))
