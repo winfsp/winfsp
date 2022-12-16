@@ -52,7 +52,7 @@
 #define fi_setdirp(fi, dirp)            (fi_setfh(fi, dirp, fi_dirbit))
 
 #define ptfs_impl_fullpath(n)           \
-    char full ## n[PATH_MAX];           \
+    char full ## n[PATH_MAX * 4];       \
     if (!concat_path(((PTFS *)fuse_get_context()->private_data), n, full ## n))\
         return -ENAMETOOLONG;           \
     n = full ## n
