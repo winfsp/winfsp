@@ -195,7 +195,7 @@ enum
     UINT32 SectorSize;\
     UINT16 SectorsPerAllocationUnit;\
     UINT16 MaxComponentLength;          /* maximum file name component length (bytes) */\
-    UINT64 VolumeCreationTime;\
+    UINT32 VolumeCreationTime;\
     UINT32 VolumeSerialNumber;\
     /* I/O timeouts, capacity, etc. */\
     UINT32 TransactTimeout;             /* DEPRECATED: (millis; 1 sec - 10 sec) */\
@@ -256,15 +256,15 @@ typedef struct
 {
     FSP_FSCTL_VOLUME_PARAMS_V0_FIELD_DEFN
 } FSP_FSCTL_VOLUME_PARAMS_V0;
-FSP_FSCTL_STATIC_ASSERT(464 == sizeof(FSP_FSCTL_VOLUME_PARAMS_V0),
-    "sizeof(FSP_FSCTL_VOLUME_PARAMS_V0) must be exactly 464.");
+FSP_FSCTL_STATIC_ASSERT(456 == sizeof(FSP_FSCTL_VOLUME_PARAMS_V0),
+    "sizeof(FSP_FSCTL_VOLUME_PARAMS_V0) must be exactly 456.");
 typedef struct
 {
     FSP_FSCTL_VOLUME_PARAMS_V0_FIELD_DEFN
     FSP_FSCTL_VOLUME_PARAMS_V1_FIELD_DEFN
 } FSP_FSCTL_VOLUME_PARAMS;
-FSP_FSCTL_STATIC_ASSERT(512 == sizeof(FSP_FSCTL_VOLUME_PARAMS),
-    "sizeof(FSP_FSCTL_VOLUME_PARAMS) is currently 512. Update this assertion check if it changes.");
+FSP_FSCTL_STATIC_ASSERT(504 == sizeof(FSP_FSCTL_VOLUME_PARAMS),
+    "sizeof(FSP_FSCTL_VOLUME_PARAMS) is currently 504. Update this assertion check if it changes.");
 typedef struct
 {
     UINT64 TotalSize;
