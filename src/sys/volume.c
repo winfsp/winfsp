@@ -349,12 +349,12 @@ static NTSTATUS FspVolumeCreateNoLock(
             return Result;
         }
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
-        FsvrtDeviceObject->SectorSize = VolumeParams.SectorSize;
+        FsvrtDeviceObject->SectorSize = (USHORT)VolumeParams.SectorSize;
     }
     else
         FsvrtDeviceObject = 0;
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
-    FsvolDeviceObject->SectorSize = VolumeParams.SectorSize;
+    FsvolDeviceObject->SectorSize = (USHORT)VolumeParams.SectorSize;
     FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     FsvolDeviceExtension->FsctlDeviceObject = FsctlDeviceObject;
     FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
