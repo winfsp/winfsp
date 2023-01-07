@@ -218,7 +218,7 @@ static NTSTATUS FspVolumeCreateNoLock(
 
     /* check the VolumeParams */
     if (0 == VolumeParams.SectorSize)
-        VolumeParams.SectorSize = 9;
+        VolumeParams.SectorSize = 512;
     if (0 == VolumeParams.SectorsPerAllocationUnit)
         VolumeParams.SectorsPerAllocationUnit = 1;
     if (0 == VolumeParams.MaxComponentLength)
