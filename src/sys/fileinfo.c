@@ -1214,10 +1214,11 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
         FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
             FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
         LARGE_INTEGER AllocationSize = Info->AllocationSize;
+        UINT64 s = 2;
         UINT64 AllocationUnit;
         BOOLEAN Success;
 
-        AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+        AllocationUnit = s << FsvolDeviceExtension->VolumeParams.SectorSize *
             FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
         AllocationSize.QuadPart = (AllocationSize.QuadPart + AllocationUnit - 1) /
             AllocationUnit * AllocationUnit;

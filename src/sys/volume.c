@@ -376,7 +376,7 @@ static NTSTATUS FspVolumeCreateNoLock(
         if (0 != FsvrtDeviceObject)
         {
             FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
-            FsvrtDeviceExtension->SectorSize = FsvolDeviceExtension->VolumeParams.SectorSize;
+            FsvrtDeviceExtension->SectorSize = 2 << FsvolDeviceExtension->VolumeParams.SectorSize;
             RtlInitEmptyUnicodeString(&FsvrtDeviceExtension->VolumeName,
                 FsvrtDeviceExtension->VolumeNameBuf, sizeof FsvrtDeviceExtension->VolumeNameBuf);
             RtlCopyUnicodeString(&FsvrtDeviceExtension->VolumeName, &FsvolDeviceExtension->VolumeName);
