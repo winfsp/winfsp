@@ -494,17 +494,11 @@ public:
     /* properties */
     UINT32 SectorSize()
     {
-        return 2 << _VolumeParams.SectorSize;
+        return _VolumeParams.SectorSize;
     }
     VOID SetSectorSize(UINT32 SectorSize)
     {
-        UINT16 i = 0;
-        UINT32 s = SectorSize;
-        while (s > 2) {
-            s = s >> 1;
-            i++;
-        }
-        _VolumeParams.SectorSize = i;
+        _VolumeParams.SectorSize = SectorSize;
     }
     UINT16 SectorsPerAllocationUnit()
     {
