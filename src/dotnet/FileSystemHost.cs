@@ -83,8 +83,8 @@ namespace Fsp
         /// </summary>
         public UInt32 SectorSize
         {
-            get { return (UInt32)Math.Pow(2, _VolumeParams.SectorSize); }
-            set { UInt16 i = 0; while (value > 2) value >>= 1; i++; ; _VolumeParams.SectorSize = i; }
+            get { return _VolumeParams.SectorSize; }
+            set { _VolumeParams.SectorSize = value; }
         }
         /// <summary>
         /// Gets or sets the sectors per allocation unit used by the file system.
