@@ -192,10 +192,10 @@ enum
 #define FSP_FSCTL_VOLUME_PARAMS_V0_FIELD_DEFN\
     UINT16 Version;                     /* set to 0 or sizeof(FSP_FSCTL_VOLUME_PARAMS) */\
     /* volume information */\
-    UINT32 SectorSize;\
+    UINT16 SectorSize;\
     UINT16 SectorsPerAllocationUnit;\
     UINT16 MaxComponentLength;          /* maximum file name component length (bytes) */\
-    UINT32 VolumeCreationTime;\
+    UINT64 VolumeCreationTime;\
     UINT32 VolumeSerialNumber;\
     /* I/O timeouts, capacity, etc. */\
     UINT32 TransactTimeout;             /* DEPRECATED: (millis; 1 sec - 10 sec) */\

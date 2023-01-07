@@ -218,7 +218,7 @@ static NTSTATUS FspVolumeCreateNoLock(
 
     /* check the VolumeParams */
     if (0 == VolumeParams.SectorSize)
-        VolumeParams.SectorSize = 512;
+        VolumeParams.SectorSize = 9;
     if (0 == VolumeParams.SectorsPerAllocationUnit)
         VolumeParams.SectorsPerAllocationUnit = 1;
     if (0 == VolumeParams.MaxComponentLength)
@@ -349,12 +349,12 @@ static NTSTATUS FspVolumeCreateNoLock(
             return Result;
         }
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
-        FsvrtDeviceObject->SectorSize = (USHORT)VolumeParams.SectorSize;
+        FsvrtDeviceObject->SectorSize = 2 << VolumeParams.SectorSize;
     }
     else
         FsvrtDeviceObject = 0;
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
-    FsvolDeviceObject->SectorSize = (USHORT)VolumeParams.SectorSize;
+    FsvolDeviceObject->SectorSize = 2 << VolumeParams.SectorSize;
     FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     FsvolDeviceExtension->FsctlDeviceObject = FsctlDeviceObject;
     FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
@@ -376,7 +376,7 @@ static NTSTATUS FspVolumeCreateNoLock(
         if (0 != FsvrtDeviceObject)
         {
             FSP_FSVRT_DEVICE_EXTENSION *FsvrtDeviceExtension = FspFsvrtDeviceExtension(FsvrtDeviceObject);
-            FsvrtDeviceExtension->SectorSize = FsvolDeviceExtension->VolumeParams.SectorSize;
+            FsvrtDeviceExtension->SectorSize = 2 << FsvolDeviceExtension->VolumeParams.SectorSize;
             RtlInitEmptyUnicodeString(&FsvrtDeviceExtension->VolumeName,
                 FsvrtDeviceExtension->VolumeNameBuf, sizeof FsvrtDeviceExtension->VolumeNameBuf);
             RtlCopyUnicodeString(&FsvrtDeviceExtension->VolumeName, &FsvolDeviceExtension->VolumeName);

@@ -21,7 +21,8 @@
 
 #include <dll/fuse/library.h>
 
-#define FSP_FUSE_SECTORSIZE_MIN         512
+#define FSP_FUSE_SECTORSIZE_MIN         9
+#define FSP_FUSE_SECTORSIZE_MAX         32
 
 static INIT_ONCE fsp_fuse_svconce = INIT_ONCE_STATIC_INIT;
 static HANDLE fsp_fuse_svcthread;
@@ -117,12 +118,18 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
             goto fail;
         }
-
-        if (0 == f->VolumeParams.SectorSize && 0 != stbuf.f_frsize)
-            f->VolumeParams.SectorSize = (UINT32)stbuf.f_frsize;
+        UINT16 i = 0;
+        UINT32 s = (UINT32)stbuf.f_frsize;
+        if (0 == f->VolumeParams.SectorSize && 0 != stbuf.f_frsize) {
+            while (s > 2) {
+                s = s >> 1;
+                i++;
+            }
+            f->VolumeParams.SectorSize = i;
+        }
 #if 0
         if (0 == f->VolumeParams.SectorsPerAllocationUnit && 0 != stbuf.f_frsize)
-            f->VolumeParams.SectorsPerAllocationUnit = (UINT32)(stbuf.f_bsize / stbuf.f_frsize);
+            f->VolumeParams.SectorsPerAllocationUnit = (UINT16)(stbuf.f_bsize / stbuf.f_frsize);
 #endif
         if (0 == f->VolumeParams.MaxComponentLength)
             f->VolumeParams.MaxComponentLength = (UINT16)stbuf.f_namemax;
@@ -198,6 +205,14 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
     }
 
     /* the FSD does not currently limit these VolumeParams fields; do so here! */
+    UINT16 i = 0;
+    if (f->VolumeParams.SectorSize > 32) {
+        while (f->VolumeParams.SectorSize > 2) {
+            f->VolumeParams.SectorSize = f->VolumeParams.SectorSize >> 1;
+            i++;
+        }
+        f->VolumeParams.SectorSize = i;
+    }
     if (f->VolumeParams.SectorSize < FSP_FUSE_SECTORSIZE_MIN)
         f->VolumeParams.SectorSize = FSP_FUSE_SECTORSIZE_MIN;
     if (f->VolumeParams.SectorsPerAllocationUnit == 0)

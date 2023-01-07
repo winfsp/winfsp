@@ -984,8 +984,9 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 
         if (DeletePending || FileNode->TruncateOnClose)
         {
+            UINT64 s = 2;
             UINT64 AllocationUnit =
-                FsvolDeviceExtension->VolumeParams.SectorSize *
+                s << FsvolDeviceExtension->VolumeParams.SectorSize *
                 FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
 
             /*
@@ -1801,9 +1802,10 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
         FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
     UINT64 AllocationSize = FileInfo->AllocationSize > FileInfo->FileSize ?
         FileInfo->AllocationSize : FileInfo->FileSize;
+    UINT64 s = 2;
     UINT64 AllocationUnit;
 
-    AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+    AllocationUnit = s << FsvolDeviceExtension->VolumeParams.SectorSize *
         FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
     AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
@@ -1924,9 +1926,10 @@ BOOLEAN FspFileNodeTrySetFileInfoAndSecurityOnOpen(FSP_FILE_NODE *FileNode, PFIL
                 FspFsvolDeviceExtension(FileNode->FsvolDeviceObject);
             UINT64 AllocationSize = FileInfo->AllocationSize > FileInfo->FileSize ?
                 FileInfo->AllocationSize : FileInfo->FileSize;
+            UINT64 s = 2;
             UINT64 AllocationUnit;
 
-            AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
+            AllocationUnit = s << FsvolDeviceExtension->VolumeParams.SectorSize *
                 FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
             AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
