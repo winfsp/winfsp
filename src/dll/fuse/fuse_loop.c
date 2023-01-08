@@ -21,7 +21,7 @@
 
 #include <dll/fuse/library.h>
 
-#define FSP_FUSE_SECTORSIZE_MIN         9
+#define FSP_FUSE_SECTORSIZE_MIN         8
 #define FSP_FUSE_SECTORSIZE_MAX         32
 
 static INIT_ONCE fsp_fuse_svconce = INIT_ONCE_STATIC_INIT;
