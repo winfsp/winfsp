@@ -81,7 +81,7 @@ namespace Fsp
         /// <summary>
         /// Gets or sets the sector size used by the file system.
         /// </summary>
-        public UInt32 SectorSize
+        public UInt16 SectorSize
         {
             get { return _VolumeParams.SectorSize; }
             set { _VolumeParams.SectorSize = value; }

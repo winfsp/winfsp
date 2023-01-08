@@ -67,7 +67,7 @@ namespace Fsp.Interop
         internal const UInt32 EaTimeoutValid = 0x00000010;
 
         internal UInt16 Version;
-        internal UInt32 SectorSize;
+        internal UInt16 SectorSize;
         internal UInt16 SectorsPerAllocationUnit;
         internal UInt16 MaxComponentLength;
         internal UInt64 VolumeCreationTime;
