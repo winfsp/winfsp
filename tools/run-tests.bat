@@ -13,12 +13,12 @@ cd build\VStudio
 if not exist build\%Configuration% echo === No tests found >&2 & goto fail
 cd build\%Configuration%
 
-launchctl-x64 start memfs64 testdsk ""            M:
-launchctl-x64 start memfs64 testnet \memfs64\test N:
-launchctl-x64 start memfs32 testdsk ""            O:
-launchctl-x64 start memfs32 testnet \memfs32\test P:
-launchctl-x64 start memfs-dotnet testdsk ""                 Q:
-launchctl-x64 start memfs-dotnet testnet \memfs-dotnet\test R:
+launchctl-x64 start memfs64 testdsk ""            M: >nul
+launchctl-x64 start memfs64 testnet \memfs64\test N: >nul
+launchctl-x64 start memfs32 testdsk ""            O: >nul
+launchctl-x64 start memfs32 testnet \memfs32\test P: >nul
+launchctl-x64 start memfs-dotnet testdsk ""                 Q: >nul
+launchctl-x64 start memfs-dotnet testnet \memfs-dotnet\test R: >nul
 rem Cannot use timeout under cygwin/mintty: "Input redirection is not supported"
 waitfor 7BF47D72F6664550B03248ECFE77C7DD /t 5 2>nul
 cd M: >nul 2>nul || (echo === Unable to find drive M: >&2 & goto fail)
