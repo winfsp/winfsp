@@ -270,7 +270,7 @@ namespace memfs
         public override Int32 Init(Object Host0)
         {
             Host = (FileSystemHost)Host0;
-            Host.SectorSize = Memfs.MEMFS_SECTOR_SIZE;
+            Host.SectorSize = 8;//Memfs.MEMFS_SECTOR_SIZE;
             Host.SectorsPerAllocationUnit = Memfs.MEMFS_SECTORS_PER_ALLOCATION_UNIT;
             Host.VolumeCreationTime = (UInt64)DateTime.Now.ToFileTimeUtc();
             Host.VolumeSerialNumber = (UInt32)(Host.VolumeCreationTime / (10000 * 1000));
