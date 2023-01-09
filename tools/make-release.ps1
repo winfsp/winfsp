@@ -325,6 +325,26 @@ Push the winfsp.sym repository to GitHub.
     }
 }
 
+function Make-NugetRelease {
+    Task -ScriptBlock {
+        Check-Assets
+
+        Push-Location "$ProjectRoot\build\VStudio\build\Release"
+        nuget push (Resolve-Path winfsp.net.[0-9]*.nupkg) -Source https://api.nuget.org/v3/index.json
+        if ($LastExitCode -ne 0) {
+            Write-Stderr "error: cannot push to Nuget"
+            exit 1
+        }
+        Pop-Location
+
+        Write-Stdout @"
+
+Nuget release for $($ReleaseInfo.Tag) has been pushed.
+
+"@
+    }
+}
+
 function Make-ChocoRelease {
     Task -ScriptBlock {
         Check-Assets
@@ -358,4 +378,5 @@ Build-AssetsPhase1
 Build-AssetsPhase2
 Make-GitHubRelease
 Upload-Symbols
+Make-NugetRelease
 Make-ChocoRelease
