@@ -1,6 +1,31 @@
 # Changelog
 
 
+## v2.0B2 (2023 Beta2)
+
+This release is a major version change for WinFsp (from 1.x to 2.x). There are no backwards incompatible API changes in this release, but nevertheless enough things change that warrant a version change.
+
+The major new feature of this release is that it allows uninstallation and reinstallation of WinFsp **without reboot**. Going forward installers named `winfsp-2.x.y.msi` can be uninstalled and reinstalled without reboot. Furthermore a later version `winfsp-2.x.y.msi` installer can be used to upgrade over an earlier version `winfsp-2.x.y.msi` installer. However note that a `winfsp-2.x.y.msi` installer cannot be used to upgrade over a "legacy" `winfsp-1.x.y.msi` installer; you will still need to uninstall the "old" `winfsp-1.x.y.msi` installer, potentially reboot and then install the "new" `winfsp-2.x.y.msi` installer.
+
+Changes visible to file system developers are listed below:
+
+- WinFsp executable files are now installed by default in the directory `C:\Program Files (x86)\WinFsp\SxS\sxs.<InstanceID>\bin`. The previous directory `C:\Program Files (x86)\WinFsp\bin` is now a junction that points to the above directory.
+
+- The WinFsp driver name is no longer `winfsp`, but rather a name such as `winfsp+<InstanceID>`. This means that managing the driver using the `sc.exe` utility is no longer as easy.
+
+- The `fsptool` utility has been updated with new commands `lsdrv`, `load`, `unload` and `ver`. The `lsdrv`, `load` and `unload` commands can be used to manage the driver from the command line. This is rarely necessary, but may be useful for troubleshooting purposes.
+
+- Prior to this release the WinFsp driver would never unmount a file system volume unless the user mode file system requested the unmount. From this release onward it is possible for the WinFsp driver to unmount a file system volume, without a user mode file system request. This is to allow for the driver to be unloaded.
+
+    A new operation `DispatcherStopped` has been added to `FSP_FILE_SYSTEM_INTERFACE`, which is sent after the file system volume has been unmounted and the file system dispatcher has been stopped. This can happen because of a user mode file system request via `FspFileSystemStopDispatcher` or because of driver unload. The `DispatcherStopped` operation includes a `Normally` parameter, which is `TRUE` for normal file system shutdown via `FspFileSystemStopDispatcher` and `FALSE` otherwise.
+
+- WinFsp now offers a .NET library that targets .NET Framework 3.5 (as before) and one that targets .NET Standard 2.0. This is due to work by @Noire001 in PR #451.
+
+- FUSE now supports path components up to 255 characters long (previously it was 255 bytes). This is due to work by @zeho11 in PR #474.
+
+- The WinFsp symbols directory has been removed. If you are looking for WinFsp symbols you can find them at https://github.com/winfsp/winfsp.sym
+
+
 ## v2.0B1 (2023 Beta1)
 
 This release is a major version change for WinFsp (from 1.x to 2.x). There are no backwards incompatible API changes in this release, but nevertheless enough things change that warrant a version change.
