@@ -406,6 +406,11 @@ FSP_API NTSTATUS FspFileSystemStartDispatcher(FSP_FILE_SYSTEM *FileSystem, ULONG
     if (0 == FileSystem->DispatcherThread)
         return FspNtStatusFromWin32(GetLastError());
 
+#if defined(FSP_CFG_REJECT_EARLY_IRP)
+    FspFsctlTransact(FileSystem->VolumeHandle, 0, 0, 0, 0, FALSE);
+        /* send a Transact0 to inform the FSD that the dispatcher is _almost_ ready */
+#endif
+
     return STATUS_SUCCESS;
 }
 
