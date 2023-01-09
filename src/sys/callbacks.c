@@ -154,8 +154,16 @@ NTSTATUS FspReleaseForModWrite(
 
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
 
+    /*
+     * In some rare cases and under load the mapped page writer's TopLevelIrp
+     * may be trashed by some outside component (observed on Windows 10 1909).
+     */
+    PIRP TopLevelIrp = IoGetTopLevelIrp();
+    IoSetTopLevelIrp((PIRP)FSRTL_MOD_WRITE_TOP_LEVEL_IRP);
+
     FspFileNodeRelease(FileNode, Full);
-    ASSERT((PIRP)FSRTL_MOD_WRITE_TOP_LEVEL_IRP == IoGetTopLevelIrp());
+
+    IoSetTopLevelIrp(TopLevelIrp);
 
     FSP_LEAVE("FileObject=%p", FileObject);
 }
