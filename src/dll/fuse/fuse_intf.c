@@ -489,7 +489,7 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
     if (0 != PDev)
         *PDev = stbuf.st_rdev;
 
-    AllocationUnit = ((UINT64)2 << f->VolumeParams.SectorSize) *
+    AllocationUnit = f->VolumeParams.SectorSize *
         (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
     switch (stbuf.st_mode & 0170000)
     {
@@ -1462,7 +1462,7 @@ static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
 
     *PBytesTransferred = bytes;
 
-    AllocationUnit = ((UINT64)2 << f->VolumeParams.SectorSize) *
+    AllocationUnit = f->VolumeParams.SectorSize *
         (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
     if (Offset + bytes > FileInfoBuf.FileSize)
         FileInfoBuf.FileSize = Offset + bytes;
@@ -1681,7 +1681,7 @@ static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
         if (!NT_SUCCESS(Result))
             return Result;
 
-        AllocationUnit = ((UINT64)2 << f->VolumeParams.SectorSize) *
+        AllocationUnit = f->VolumeParams.SectorSize *
             (UINT64)f->VolumeParams.SectorsPerAllocationUnit;
         FileInfoBuf.FileSize = NewSize;
         FileInfoBuf.AllocationSize =
