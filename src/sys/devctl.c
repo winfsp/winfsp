@@ -198,8 +198,8 @@ static BOOLEAN FspFsvrtDeviceControlStorageQuery(
                 RtlZeroMemory(Descriptor, sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR));
                 Descriptor->Version = sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR);
                 Descriptor->Size = sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR);
-                Descriptor->BytesPerLogicalSector = ((UINT32)2 << FsvrtDeviceExtension->SectorSize);
-                Descriptor->BytesPerPhysicalSector = ((UINT32)2 << FsvrtDeviceExtension->SectorSize);
+                Descriptor->BytesPerLogicalSector = FsvrtDeviceExtension->SectorSize;
+                Descriptor->BytesPerPhysicalSector = FsvrtDeviceExtension->SectorSize;
                 Irp->IoStatus.Information = sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR);
                 *PResult = STATUS_SUCCESS;
             }
