@@ -119,15 +119,8 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
             goto fail;
         }
 
-        UINT16 i = 0;
-        UINT32 s = (UINT32)stbuf.f_frsize;
-        if (0 == f->VolumeParams.SectorSize && 0 != stbuf.f_frsize) {
-            while (s > 2) {
-                s = s >> 1;
-                i++;
-            }
-            f->VolumeParams.SectorSize = i;
-        }
+        if (0 == f->VolumeParams.SectorSize && 0 != stbuf.f_frsize)
+            f->VolumeParams.SectorSize = (UINT16)stbuf.f_frsize;
 #if 0
         if (0 == f->VolumeParams.SectorsPerAllocationUnit && 0 != stbuf.f_frsize)
             f->VolumeParams.SectorsPerAllocationUnit = (UINT16)(stbuf.f_bsize / stbuf.f_frsize);
