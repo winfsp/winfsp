@@ -178,8 +178,8 @@ static NTSTATUS FspFsvolQueryFsFullSizeInformation(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_FS_FULL_SIZE_INFORMATION Info = (PFILE_FS_FULL_SIZE_INFORMATION)*PBuffer;
     UINT64 AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize;
-    if (FsvolDeviceExtension->VolumeParams.SectorSize < 0)
-        AllocationUnit = ((UINT64)2 << -FsvolDeviceExtension->VolumeParams.SectorSize);
+    if (FsvolDeviceExtension->VolumeParams.SectorSize > 16384)
+        AllocationUnit = ((UINT64)2 << (FsvolDeviceExtension->VolumeParams.SectorSize-16384));
     AllocationUnit *= FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
 
     Info->TotalAllocationUnits.QuadPart = VolumeInfo->TotalSize / AllocationUnit;
@@ -187,8 +187,8 @@ static NTSTATUS FspFsvolQueryFsFullSizeInformation(
     Info->ActualAvailableAllocationUnits.QuadPart = VolumeInfo->FreeSize / AllocationUnit;
     Info->SectorsPerAllocationUnit = FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
     Info->BytesPerSector = FsvolDeviceExtension->VolumeParams.SectorSize;
-    if (FsvolDeviceExtension->VolumeParams.SectorSize < 0)
-        Info->BytesPerSector = ((UINT32)2 << -FsvolDeviceExtension->VolumeParams.SectorSize);
+    if (FsvolDeviceExtension->VolumeParams.SectorSize > 16384)
+        Info->BytesPerSector = ((UINT32)2 << (FsvolDeviceExtension->VolumeParams.SectorSize-16384));
 
     *PBuffer += sizeof(FILE_FS_FULL_SIZE_INFORMATION);
 
@@ -212,12 +212,12 @@ static NTSTATUS FspFsvolQueryFsSectorSizeInformation(
         Info->PhysicalBytesPerSectorForPerformance =
         Info->FileSystemEffectivePhysicalBytesPerSectorForAtomicity =
             FsvolDeviceExtension->VolumeParams.SectorSize;
-    if (FsvolDeviceExtension->VolumeParams.SectorSize < 0) {
+    if (FsvolDeviceExtension->VolumeParams.SectorSize > 16384) {
         Info->LogicalBytesPerSector =
             Info->PhysicalBytesPerSectorForAtomicity =
             Info->PhysicalBytesPerSectorForPerformance =
             Info->FileSystemEffectivePhysicalBytesPerSectorForAtomicity =
-                ((UINT32)2 << -FsvolDeviceExtension->VolumeParams.SectorSize);
+                ((UINT32)2 << (FsvolDeviceExtension->VolumeParams.SectorSize-16384));
     }
 
     Info->Flags =
@@ -246,16 +246,16 @@ static NTSTATUS FspFsvolQueryFsSizeInformation(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_FS_SIZE_INFORMATION Info = (PFILE_FS_SIZE_INFORMATION)*PBuffer;
     UINT64 AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize;
-    if (FsvolDeviceExtension->VolumeParams.SectorSize < 0)
-        AllocationUnit = ((UINT64)2 << -FsvolDeviceExtension->VolumeParams.SectorSize);
+    if (FsvolDeviceExtension->VolumeParams.SectorSize > 16384)
+        AllocationUnit = ((UINT64)2 << (FsvolDeviceExtension->VolumeParams.SectorSize-16384));
     AllocationUnit *= FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
 
     Info->TotalAllocationUnits.QuadPart = VolumeInfo->TotalSize / AllocationUnit;
     Info->AvailableAllocationUnits.QuadPart = VolumeInfo->FreeSize / AllocationUnit;
     Info->SectorsPerAllocationUnit = FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
     Info->BytesPerSector = FsvolDeviceExtension->VolumeParams.SectorSize;
-    if (FsvolDeviceExtension->VolumeParams.SectorSize < 0)
-        Info->BytesPerSector = ((UINT32)2 << -FsvolDeviceExtension->VolumeParams.SectorSize);
+    if (FsvolDeviceExtension->VolumeParams.SectorSize > 16384)
+        Info->BytesPerSector = ((UINT32)2 << (FsvolDeviceExtension->VolumeParams.SectorSize-16384));
 
     *PBuffer += sizeof(FILE_FS_SIZE_INFORMATION);
 

@@ -985,8 +985,8 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
         if (DeletePending || FileNode->TruncateOnClose)
         {
             UINT64 AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize;
-            if (FsvolDeviceExtension->VolumeParams.SectorSize < 0)
-                AllocationUnit = ((UINT64)2 << -FsvolDeviceExtension->VolumeParams.SectorSize);
+            if (FsvolDeviceExtension->VolumeParams.SectorSize > 16384)
+                AllocationUnit = ((UINT64)2 << (FsvolDeviceExtension->VolumeParams.SectorSize-16384));
             AllocationUnit *= FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
 
             /*
@@ -1805,8 +1805,8 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     UINT64 AllocationUnit;
 
     AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize;
-    if (FsvolDeviceExtension->VolumeParams.SectorSize < 0)
-        AllocationUnit = ((UINT64)2 << -FsvolDeviceExtension->VolumeParams.SectorSize);
+    if (FsvolDeviceExtension->VolumeParams.SectorSize > 16384)
+        AllocationUnit = ((UINT64)2 << (FsvolDeviceExtension->VolumeParams.SectorSize-16384));
     AllocationUnit *= FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
     AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
@@ -1930,8 +1930,8 @@ BOOLEAN FspFileNodeTrySetFileInfoAndSecurityOnOpen(FSP_FILE_NODE *FileNode, PFIL
             UINT64 AllocationUnit;
 
             AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize;
-            if (FsvolDeviceExtension->VolumeParams.SectorSize < 0)
-                AllocationUnit = ((UINT64)2 << -FsvolDeviceExtension->VolumeParams.SectorSize);
+            if (FsvolDeviceExtension->VolumeParams.SectorSize > 16384)
+                AllocationUnit = ((UINT64)2 << (FsvolDeviceExtension->VolumeParams.SectorSize-16384));
             AllocationUnit *= FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
             AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
