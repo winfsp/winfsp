@@ -118,6 +118,7 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
             goto fail;
         }
+
         UINT16 i = 0;
         UINT32 s = (UINT32)stbuf.f_frsize;
         if (0 == f->VolumeParams.SectorSize && 0 != stbuf.f_frsize) {

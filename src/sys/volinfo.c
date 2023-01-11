@@ -202,6 +202,7 @@ static NTSTATUS FspFsvolQueryFsSectorSizeInformation(
 
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     PFILE_FS_SECTOR_SIZE_INFORMATION Info = (PFILE_FS_SECTOR_SIZE_INFORMATION)*PBuffer;
+
     Info->LogicalBytesPerSector =
         Info->PhysicalBytesPerSectorForAtomicity =
         Info->PhysicalBytesPerSectorForPerformance =
