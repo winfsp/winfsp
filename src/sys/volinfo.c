@@ -211,13 +211,13 @@ static NTSTATUS FspFsvolQueryFsSectorSizeInformation(
         Info->PhysicalBytesPerSectorForAtomicity =
         Info->PhysicalBytesPerSectorForPerformance =
         Info->FileSystemEffectivePhysicalBytesPerSectorForAtomicity =
-        FsvolDeviceExtension->VolumeParams.SectorSize;
+            FsvolDeviceExtension->VolumeParams.SectorSize;
     if (FsvolDeviceExtension->VolumeParams.SectorSize < 0) {
         Info->LogicalBytesPerSector =
             Info->PhysicalBytesPerSectorForAtomicity =
             Info->PhysicalBytesPerSectorForPerformance =
             Info->FileSystemEffectivePhysicalBytesPerSectorForAtomicity =
-            ((UINT32)2 << -FsvolDeviceExtension->VolumeParams.SectorSize);
+                ((UINT32)2 << -FsvolDeviceExtension->VolumeParams.SectorSize);
     }
 
     Info->Flags =
