@@ -1217,8 +1217,10 @@ static NTSTATUS FspFsvolSetAllocationInformation(PFILE_OBJECT FileObject,
         UINT64 AllocationUnit;
         BOOLEAN Success;
 
-        AllocationUnit = ((UINT64)2 << FsvolDeviceExtension->VolumeParams.SectorSize) *
-            FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+        AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize;
+        if (FsvolDeviceExtension->VolumeParams.SectorSize < 0)
+            AllocationUnit = ((UINT64)2 << -FsvolDeviceExtension->VolumeParams.SectorSize);
+        AllocationUnit *= FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
         AllocationSize.QuadPart = (AllocationSize.QuadPart + AllocationUnit - 1) /
             AllocationUnit * AllocationUnit;
         Request->Req.SetInformation.Info.Allocation.AllocationSize = AllocationSize.QuadPart;

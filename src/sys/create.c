@@ -410,8 +410,10 @@ static NTSTATUS FspFsvolCreateNoLock(
     }
 
     /* align allocation size */
-    AllocationUnit = ((UINT64)2 << FsvolDeviceExtension->VolumeParams.SectorSize) *
-        FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+    AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize;
+    if (FsvolDeviceExtension->VolumeParams.SectorSize < 0)
+        AllocationUnit = ((UINT64)2 << -FsvolDeviceExtension->VolumeParams.SectorSize);
+    AllocationUnit *= FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
     AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
     /* according to fastfat, filenames that begin with two backslashes are ok */

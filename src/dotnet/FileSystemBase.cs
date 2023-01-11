@@ -550,7 +550,7 @@ namespace Fsp
         /// <list>
         /// <item>
         /// Allocation size must always be aligned to the allocation unit boundary. The allocation
-        /// unit is the product 2**SectorSize * SectorsPerAllocationUnit. The FSD will always send
+        /// unit is the product SectorSize * SectorsPerAllocationUnit. The FSD will always send
         /// properly aligned allocation sizes when setting the allocation size.
         /// </item>
         /// <item>

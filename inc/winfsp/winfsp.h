@@ -549,7 +549,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * The rules regarding file/allocation size are:
      * <ul>
      * <li>Allocation size must always be aligned to the allocation unit boundary. The allocation
-     * unit is the product <code>(UINT64)2**SectorSize * (UINT64)SectorsPerAllocationUnit</code> from
+     * unit is the product <code>(UINT64)SectorSize * (UINT64)SectorsPerAllocationUnit</code> from
      * the FSP_FSCTL_VOLUME_PARAMS structure. The FSD will always send properly aligned allocation
      * sizes when setting the allocation size.</li>
      * <li>Allocation size is always greater or equal to the file size.</li>
