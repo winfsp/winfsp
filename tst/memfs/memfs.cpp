@@ -2429,7 +2429,6 @@ NTSTATUS MemfsCreateFunnel(
 
     memset(&VolumeParams, 0, sizeof VolumeParams);
     VolumeParams.Version = sizeof FSP_FSCTL_VOLUME_PARAMS;
-    VolumeParams.Reserved32 = MEMFS_SECTOR_SIZE;
     VolumeParams.SectorSize = MEMFS_SECTOR_SIZE;
     VolumeParams.SectorsPerAllocationUnit = MEMFS_SECTORS_PER_ALLOCATION_UNIT;
     VolumeParams.VolumeCreationTime = MemfsGetSystemTime();
