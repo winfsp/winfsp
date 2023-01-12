@@ -22,6 +22,7 @@
 #include <dll/fuse/library.h>
 
 #define FSP_FUSE_SECTORSIZE_MIN         512
+#define FSP_FUSE_SECTORSIZE_MID         32768
 #define FSP_FUSE_SECTORSIZE_MAX         2147483648
 
 static INIT_ONCE fsp_fuse_svconce = INIT_ONCE_STATIC_INIT;
@@ -204,7 +205,7 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
     if (f->VolumeParams.Reserved32 < FSP_FUSE_SECTORSIZE_MIN ||
         f->VolumeParams.Reserved32 > FSP_FUSE_SECTORSIZE_MAX) {
         f->VolumeParams.Reserved32 = FSP_FUSE_SECTORSIZE_MAX;
-        f->VolumeParams.SectorSize = (UINT16)FSP_FUSE_SECTORSIZE_MAX;
+        f->VolumeParams.SectorSize = FSP_FUSE_SECTORSIZE_MID;
     }
     if (f->VolumeParams.SectorsPerAllocationUnit == 0)
         f->VolumeParams.SectorsPerAllocationUnit = 1;
