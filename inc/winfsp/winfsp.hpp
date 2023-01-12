@@ -492,11 +492,11 @@ public:
     }
 
     /* properties */
-    INT16 SectorSize()
+    UINT32 SectorSize()
     {
         return _VolumeParams.SectorSize;
     }
-    VOID SetSectorSize(INT16 SectorSize)
+    VOID SetSectorSize(UINT32 SectorSize)
     {
         _VolumeParams.SectorSize = SectorSize;
     }

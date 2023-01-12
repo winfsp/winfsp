@@ -1249,7 +1249,7 @@ typedef struct
 {
     /* read-only after creation (and insertion in the ContextTable) */
     FSP_DEVICE_EXTENSION Base;
-    UINT16 SectorSize;
+    UINT32 SectorSize;
     UNICODE_STRING VolumeName;
     WCHAR VolumeNameBuf[FSP_FSCTL_VOLUME_NAME_SIZE / sizeof(WCHAR)];
     FAST_MUTEX MountMutex;

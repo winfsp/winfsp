@@ -84,6 +84,7 @@ static struct fuse_opt fsp_fuse_core_opts[] =
 
     FUSE_OPT_KEY("uidmap=", 'm'),
 
+    FSP_FUSE_CORE_OPT("SectorSize=%hu", VolumeParams.Reserved32, 4096),
     FSP_FUSE_CORE_OPT("SectorSize=%hu", VolumeParams.SectorSize, 4096),
     FSP_FUSE_CORE_OPT("SectorsPerAllocationUnit=%hu", VolumeParams.SectorsPerAllocationUnit, 1),
     FSP_FUSE_CORE_OPT("MaxComponentLength=%hu", VolumeParams.MaxComponentLength, 0),

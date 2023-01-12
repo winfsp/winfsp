@@ -238,7 +238,7 @@ namespace memfs
     class Memfs : FileSystemBase
     {
         private FileSystemHost Host;
-        public const Int16 MEMFS_SECTOR_SIZE = 512;
+        public const UInt16 MEMFS_SECTOR_SIZE = 512;
         public const UInt16 MEMFS_SECTORS_PER_ALLOCATION_UNIT = 1;
 
         public Memfs(

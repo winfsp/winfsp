@@ -192,7 +192,7 @@ enum
 #define FSP_FSCTL_VOLUME_PARAMS_V0_FIELD_DEFN\
     UINT16 Version;                     /* set to 0 or sizeof(FSP_FSCTL_VOLUME_PARAMS) */\
     /* volume information */\
-    INT16 SectorSize;\
+    UINT16 SectorSize;\
     UINT16 SectorsPerAllocationUnit;\
     UINT16 MaxComponentLength;          /* maximum file name component length (bytes) */\
     UINT64 VolumeCreationTime;\
@@ -250,7 +250,7 @@ enum
     UINT32 StreamInfoTimeout;           /* stream info timeout (millis); overrides FileInfoTimeout */\
     UINT32 EaTimeout;                   /* EA timeout (millis); overrides FileInfoTimeout */\
     UINT32 FsextControlCode;\
-    UINT32 Reserved32[1];\
+    UINT32 Reserved32;\
     UINT64 Reserved64[2];
 typedef struct
 {

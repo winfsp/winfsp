@@ -984,10 +984,9 @@ VOID FspFileNodeCleanupComplete(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject
 
         if (DeletePending || FileNode->TruncateOnClose)
         {
-            UINT64 AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize;
-            if (FsvolDeviceExtension->VolumeParams.SectorSize > 16384)
-                AllocationUnit = ((UINT64)2 << (FsvolDeviceExtension->VolumeParams.SectorSize-16384));
-            AllocationUnit *= FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+            UINT64 AllocationUnit =
+                FsvolDeviceExtension->VolumeParams.Reserved32 *
+                FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
 
             /*
              * Even when the FileInfo is expired, this is the best guess for a file size
@@ -1804,10 +1803,8 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
         FileInfo->AllocationSize : FileInfo->FileSize;
     UINT64 AllocationUnit;
 
-    AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize;
-    if (FsvolDeviceExtension->VolumeParams.SectorSize > 16384)
-        AllocationUnit = ((UINT64)2 << (FsvolDeviceExtension->VolumeParams.SectorSize-16384));
-    AllocationUnit *= FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+    AllocationUnit = FsvolDeviceExtension->VolumeParams.Reserved32 *
+        FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
     AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
     if (TruncateOnClose)
@@ -1929,10 +1926,8 @@ BOOLEAN FspFileNodeTrySetFileInfoAndSecurityOnOpen(FSP_FILE_NODE *FileNode, PFIL
                 FileInfo->AllocationSize : FileInfo->FileSize;
             UINT64 AllocationUnit;
 
-            AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize;
-            if (FsvolDeviceExtension->VolumeParams.SectorSize > 16384)
-                AllocationUnit = ((UINT64)2 << (FsvolDeviceExtension->VolumeParams.SectorSize-16384));
-            AllocationUnit *= FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+            AllocationUnit = FsvolDeviceExtension->VolumeParams.Reserved32 *
+                FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
             AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
             if ((UINT64)FileNode->Header.AllocationSize.QuadPart != AllocationSize ||

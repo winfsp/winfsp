@@ -684,10 +684,8 @@ static NTSTATUS FspFsvolFileSystemControlGetRetrievalPointers(
     RetrievalPointers.Extents[0].NextVcn.QuadPart = 0;
     RetrievalPointers.Extents[0].Lcn.QuadPart = -1LL;
 
-    AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize;
-    if (FsvolDeviceExtension->VolumeParams.SectorSize > 16384)
-        AllocationUnit = ((UINT64)2 << (FsvolDeviceExtension->VolumeParams.SectorSize-16384));
-    AllocationUnit *= FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
+    AllocationUnit = FsvolDeviceExtension->VolumeParams.Reserved32 *
+        FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
 
     FspFileNodeAcquireShared(FileNode, Main);
     RetrievalPointers.Extents[0].NextVcn.QuadPart =
