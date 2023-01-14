@@ -69,7 +69,7 @@ void mount_create_volume_v0_dotest(PWSTR DeviceName)
 {
     NTSTATUS Result;
     BOOL Success;
-    FSP_FSCTL_VOLUME_PARAMS_V0 VolumeParams = { 0 };
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
     WCHAR VolumeName[MAX_PATH];
     HANDLE VolumeHandle;
 

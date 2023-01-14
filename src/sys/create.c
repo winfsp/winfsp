@@ -410,7 +410,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     }
 
     /* align allocation size */
-    AllocationUnit = FsvolDeviceExtension->VolumeParams.Reserved32 *
+    AllocationUnit = FsvolDeviceExtension->VolumeParams.SectorSize *
         FsvolDeviceExtension->VolumeParams.SectorsPerAllocationUnit;
     AllocationSize = (AllocationSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
