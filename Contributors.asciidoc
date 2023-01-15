@@ -55,6 +55,7 @@ CONTRIBUTOR LIST
 ----------------
 |===
 |Alberto Alonso                                                 |alberto at alonso.xyz
+|Anthony Kerr                                                   |akerr at teo129.ml
 |Ben Rubson                                                     |ben.rubson at gmail.com
 |Bill Zissimopoulos                                             |billziss at navimatics.com
 |Brett Dutro                                                    |brett.dutro at gmail.com
