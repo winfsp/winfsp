@@ -461,7 +461,7 @@ int main(int argc, char *argv[])
 
 #if defined(_WIN64) || defined(_WIN32)
     {
-        char buf[PATH_MAX * 4];
+        char buf[PATH_MAX];
         if (-1 != getpath(ptfs.rootdir, buf, sizeof buf))
         {
             ptfs.rootlen = strlen(buf);
