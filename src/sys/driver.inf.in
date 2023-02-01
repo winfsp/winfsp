@@ -8,7 +8,7 @@ Provider = !Provider!
 [DestinationDirs]
 DefaultDestDir = 12
 
-[DefaultInstall]
+[DefaultInstall.!ArchDecoration!]
 CopyFiles = Driver.CopyFiles
 
 [Driver.CopyFiles]

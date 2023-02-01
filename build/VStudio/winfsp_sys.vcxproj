@@ -291,6 +291,9 @@
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
 set CatalogFile=driver-$(MyProductFileArch).cat
+if "$(MyProductFileArch)"=="a64" set ArchDecoration=ntarm64
+if "$(MyProductFileArch)"=="x64" set ArchDecoration=ntamd64
+if "$(MyProductFileArch)"=="x86" set ArchDecoration=ntx86
 
 setlocal EnableDelayedExpansion
 if exist $(OutDir)driver-$(MyProductFileArch).inf del $(OutDir)driver-$(MyProductFileArch).inf
@@ -304,6 +307,9 @@ stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(MyProductFileArch).inf</Comma
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
 set CatalogFile=driver-$(MyProductFileArch).cat
+if "$(MyProductFileArch)"=="a64" set ArchDecoration=ntarm64
+if "$(MyProductFileArch)"=="x64" set ArchDecoration=ntamd64
+if "$(MyProductFileArch)"=="x86" set ArchDecoration=ntx86
 
 setlocal EnableDelayedExpansion
 if exist $(OutDir)driver-$(MyProductFileArch).inf del $(OutDir)driver-$(MyProductFileArch).inf
@@ -317,6 +323,9 @@ stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(MyProductFileArch).inf</Comma
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
 set CatalogFile=driver-$(MyProductFileArch).cat
+if "$(MyProductFileArch)"=="a64" set ArchDecoration=ntarm64
+if "$(MyProductFileArch)"=="x64" set ArchDecoration=ntamd64
+if "$(MyProductFileArch)"=="x86" set ArchDecoration=ntx86
 
 setlocal EnableDelayedExpansion
 if exist $(OutDir)driver-$(MyProductFileArch).inf del $(OutDir)driver-$(MyProductFileArch).inf
@@ -329,6 +338,9 @@ stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(MyProductFileArch).inf</Comma
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
 set CatalogFile=driver-$(MyProductFileArch).cat
+if "$(MyProductFileArch)"=="a64" set ArchDecoration=ntarm64
+if "$(MyProductFileArch)"=="x64" set ArchDecoration=ntamd64
+if "$(MyProductFileArch)"=="x86" set ArchDecoration=ntx86
 
 setlocal EnableDelayedExpansion
 if exist $(OutDir)driver-$(MyProductFileArch).inf del $(OutDir)driver-$(MyProductFileArch).inf
@@ -343,6 +355,9 @@ stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(MyProductFileArch).inf</Comma
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
 set CatalogFile=driver-$(MyProductFileArch).cat
+if "$(MyProductFileArch)"=="a64" set ArchDecoration=ntarm64
+if "$(MyProductFileArch)"=="x64" set ArchDecoration=ntamd64
+if "$(MyProductFileArch)"=="x86" set ArchDecoration=ntx86
 
 setlocal EnableDelayedExpansion
 if exist $(OutDir)driver-$(MyProductFileArch).inf del $(OutDir)driver-$(MyProductFileArch).inf
@@ -355,6 +370,9 @@ stampinf -d * -v $(MyVersion) -f $(OutDir)driver-$(MyProductFileArch).inf</Comma
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">set DriverFile=$(TargetFileName)
 set Provider="$(MyCompanyName)"
 set CatalogFile=driver-$(MyProductFileArch).cat
+if "$(MyProductFileArch)"=="a64" set ArchDecoration=ntarm64
+if "$(MyProductFileArch)"=="x64" set ArchDecoration=ntamd64
+if "$(MyProductFileArch)"=="x86" set ArchDecoration=ntx86
 
 setlocal EnableDelayedExpansion
 if exist $(OutDir)driver-$(MyProductFileArch).inf del $(OutDir)driver-$(MyProductFileArch).inf
