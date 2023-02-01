@@ -19,9 +19,13 @@ Changes visible to file system developers are listed below:
 
     A new operation `DispatcherStopped` has been added to `FSP_FILE_SYSTEM_INTERFACE`, which is sent after the file system volume has been unmounted and the file system dispatcher has been stopped. This can happen because of a user mode file system request via `FspFileSystemStopDispatcher` or because of driver unload. The `DispatcherStopped` operation includes a `Normally` parameter, which is `TRUE` for normal file system shutdown via `FspFileSystemStopDispatcher` and `FALSE` otherwise.
 
+    Native file systems that use the `FspService` infrastructure can use the `FspFileSystemStopServiceIfNecessary` API to handle the `DispatcherStopped` operation (see the MEMFS and NTPTFS samples). FUSE file systems get this functionality for free. .NET file systems that use the `Service` class infrastructure also get this functionality for free.
+
 - WinFsp now offers a .NET library that targets .NET Framework 3.5 (as before) and one that targets .NET Standard 2.0. This is due to work by @Noire001 in PR #451.
 
 - FUSE now supports path components up to 255 characters long (previously it was 255 bytes). This is due to work by @zeho11 in PR #474.
+
+    - The FUSE passthrough file systems have been updated to support long paths. This is also due to work by @zeho11.
 
 - The WinFsp symbols directory has been removed. If you are looking for WinFsp symbols you can find them at https://github.com/winfsp/winfsp.sym
 
