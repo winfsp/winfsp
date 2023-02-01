@@ -121,7 +121,7 @@ char *realpath(const char *path, char *resolved)
 
     if (0 == resolved)
     {
-        result = malloc(PATH_MAX * 4); /* sets errno */
+        result = malloc(PATH_MAX); /* sets errno */
         if (0 == result)
             return 0;
     }
@@ -131,21 +131,48 @@ char *realpath(const char *path, char *resolved)
     int err = 0;
     WCHAR PathBuf[PATH_MAX];
     WCHAR ResultBuf[PATH_MAX];
-    if (0 < MultiByteToWideChar(CP_UTF8, 0, path, -1, PathBuf, PATH_MAX))
+    PWSTR ResultBufBgn = &ResultBuf[6];
+    if (0 == MultiByteToWideChar(CP_UTF8, 0, path, -1, PathBuf, PATH_MAX))
+        err = GetLastError();
+    else
     {
-        DWORD len = GetFullPathNameW(PathBuf, PATH_MAX, ResultBuf, 0);
+        DWORD len = GetFullPathNameW(PathBuf, PATH_MAX - 6, ResultBufBgn, 0);
         if (0 == len)
             err = GetLastError();
-        else if (PATH_MAX < len)
+        else if (PATH_MAX - 6 < len)
             err = ERROR_INVALID_PARAMETER;
-        WideCharToMultiByte(CP_UTF8, 0, ResultBuf, -1, result, PATH_MAX * 4, 0, 0);
+        else
+        {
+            if (0 == WideCharToMultiByte(CP_UTF8, 0, ResultBufBgn, -1, result, PATH_MAX, 0, 0))
+                err = GetLastError();
+            else
+            {
+                if (L'\\' == ResultBufBgn[0] && L'\\' == ResultBufBgn[1])
+                {
+                    ResultBufBgn = ResultBuf;
+                    ResultBufBgn[0] = L'\\';
+                    ResultBufBgn[1] = L'\\';
+                    ResultBufBgn[2] = L'?';
+                    ResultBufBgn[3] = L'\\';
+                    ResultBufBgn[4] = L'U';
+                    ResultBufBgn[5] = L'N';
+                    ResultBufBgn[6] = L'C';
+                }
+                else
+                {
+                    ResultBufBgn = &ResultBuf[2];
+                    ResultBufBgn[0] = L'\\';
+                    ResultBufBgn[1] = L'\\';
+                    ResultBufBgn[2] = L'?';
+                    ResultBufBgn[3] = L'\\';
+                }
+            }
+        }
     }
-    else
-        err = GetLastError();
 
     if (0 == err)
     {
-        HANDLE h = CreateFileW(ResultBuf,
+        HANDLE h = CreateFileW(ResultBufBgn,
             FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
             0,
             OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
@@ -163,32 +190,66 @@ char *realpath(const char *path, char *resolved)
         errno = maperror(err);
         result = 0;
     }
-
     return result;
 }
 
-int uncpath(const char *path, WCHAR *buf, int nchar)
+static int uncpath(const char *path, WCHAR *buf, int nchar)
 {
-    if (4 < nchar &&
-        0 < MultiByteToWideChar(CP_UTF8, 0, path, -1, &buf[4], nchar - 4))
+    PWSTR BufP = 0;
+    if ('\\' == path[0] && '\\' == path[1])
     {
-        buf[0] = L'\\';
-        buf[1] = L'\\';
-        buf[2] = L'?';
-        buf[3] = L'\\';
-        int i = 4;
-        while (buf[i])
+        if (8 < nchar &&
+            0 < MultiByteToWideChar(CP_UTF8, 0, &path[2], -1, &buf[8], nchar - 8))
         {
-            if (L'/' == buf[i])
-                buf[i] = L'\\';
-            i++;
+            BufP = &buf[8];
+            buf[0] = L'\\';
+            buf[1] = L'\\';
+            buf[2] = L'?';
+            buf[3] = L'\\';
+            buf[4] = L'U';
+            buf[5] = L'N';
+            buf[6] = L'C';
+            buf[7] = L'\\';
         }
-        return 1;
+    }
+    else
+    {
+        if (4 < nchar &&
+            0 < MultiByteToWideChar(CP_UTF8, 0, path, -1, &buf[4], nchar - 4))
+        {
+            BufP = &buf[4];
+            buf[0] = L'\\';
+            buf[1] = L'\\';
+            buf[2] = L'?';
+            buf[3] = L'\\';
+        }
     }
 
-    if (0 < nchar)
-        buf[0] = 0;
-    return 0;
+    if (0 == BufP)
+    {
+        if (0 < nchar)
+            buf[0] = 0;
+        return 0;
+    }
+
+    PWSTR P = BufP;
+    while (*BufP)
+    {
+        if (L'/' == *BufP || L'\\' == *BufP)
+        {
+            while (L'/' == BufP[1] || L'\\' == BufP[1])
+                BufP++;
+        }
+        if (L'/' == *BufP)
+            *P = L'\\';
+        else if (P != BufP)
+            *P = *BufP;
+        BufP++;
+        P++;
+    }
+    if (P != BufP)
+        *P = 0;
+    return 1;
 }
 
 int statvfs(const char *path, struct fuse_statvfs *stbuf)
