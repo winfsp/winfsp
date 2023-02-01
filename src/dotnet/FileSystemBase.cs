@@ -1188,6 +1188,39 @@ namespace Fsp
         {
             return STATUS_INVALID_DEVICE_REQUEST;
         }
+        /// <summary>
+        /// Inform the file system that its dispatcher has been stopped.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Prior to WinFsp v2.0 the FSD would never unmount a file system volume unless
+        /// the user mode file system requested the unmount. Since WinFsp v2.0 it is possible
+        /// for the FSD to unmount a file system volume without an explicit user mode file system
+        /// request. For example, this happens when the FSD is being uninstalled.
+        /// </para><para>
+        /// A user mode file system can use this operation to determine when its dispatcher
+        /// has been stopped. The Normally parameter can be used to determine why the dispatcher
+        /// was stopped: it is TRUE when the file system is being stopped normally (i.e. via the
+        /// native FspFileSystemStopDispatcher) and FALSE otherwise.
+        /// </para><para>
+        /// A file system that uses the Service class infrastructure may use the
+        /// StopServiceIfNecessary method to correctly handle all cases. The base implementation
+        /// of this method calls the StopServiceIfNecessary method.
+        /// </para><para>
+        /// This operation is the last one that a file system will receive.
+        /// </para>
+        /// </remarks>
+        /// <param name="Normally">
+        /// TRUE if the file system is being stopped via the native FspFileSystemStopDispatcher.
+        /// FALSE if the file system is being stopped because of another reason such
+        /// as driver unload/uninstall.
+        /// </param>
+        /// <seealso cref="StopServiceIfNecessary"/>
+        public virtual void DispatcherStopped(
+            Boolean Normally)
+        {
+            StopServiceIfNecessary(Normally);
+        }
 
         /* helpers */
         /// <summary>
@@ -1482,6 +1515,10 @@ namespace Fsp
             Boolean NeedEa)
         {
             return FullEaInformation.PackedSize(EaName, EaValue, NeedEa);
+        }
+        public void StopServiceIfNecessary(Boolean Normally)
+        {
+            Api.FspFileSystemStopServiceIfNecessary(IntPtr.Zero, Normally);
         }
     }
 

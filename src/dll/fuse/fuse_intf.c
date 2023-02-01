@@ -2635,6 +2635,17 @@ static NTSTATUS fsp_fuse_intf_SetEa(FSP_FILE_SYSTEM *FileSystem,
         &Uid, &Gid, &Mode, FileInfo);
 }
 
+static VOID fsp_fuse_intf_DispatcherStopped(FSP_FILE_SYSTEM *FileSystem,
+    BOOLEAN Normally)
+{
+    if (Normally)
+        return;
+
+    struct fuse *f = FileSystem->UserContext;
+
+    fsp_fuse_exit(f->env, f);
+}
+
 FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
 {
     fsp_fuse_intf_GetVolumeInfo,
@@ -2668,6 +2679,8 @@ FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
     fsp_fuse_intf_Overwrite,
     fsp_fuse_intf_GetEa,
     fsp_fuse_intf_SetEa,
+    0,
+    fsp_fuse_intf_DispatcherStopped,
 };
 
 /*

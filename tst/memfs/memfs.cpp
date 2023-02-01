@@ -2275,10 +2275,10 @@ static NTSTATUS SetEa(FSP_FILE_SYSTEM *FileSystem,
 #endif
 
 #if defined(MEMFS_DISPATCHER_STOPPED)
-static void DispatcherStopped(FSP_FILE_SYSTEM *FileSystem,
+static VOID DispatcherStopped(FSP_FILE_SYSTEM *FileSystem,
     BOOLEAN Normally)
 {
-    //FspDebugLog(__FUNCTION__ ": Normally=%d\n", Normally);
+    FspFileSystemStopServiceIfNecessary(FileSystem, Normally);
 }
 #endif
 

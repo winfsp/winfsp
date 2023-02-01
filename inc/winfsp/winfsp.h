@@ -1047,6 +1047,41 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
 
     NTSTATUS (*Obsolete0)(VOID);
 
+    /**
+     * Inform the file system that its dispatcher has been stopped.
+     *
+     * Prior to WinFsp v2.0 the FSD would never unmount a file system volume unless
+     * the user mode file system requested the unmount. Since WinFsp v2.0 it is possible
+     * for the FSD to unmount a file system volume without an explicit user mode file system
+     * request. For example, this happens when the FSD is being uninstalled.
+     *
+     * A user mode file system can use this operation to determine when its dispatcher
+     * has been stopped. The Normally parameter can be used to determine why the dispatcher
+     * was stopped: it is TRUE when the file system is being stopped via
+     * FspFileSystemStopDispatcher and FALSE otherwise.
+     *
+     * When the file system receives a request with Normally == TRUE it need not take any
+     * extra steps. This case is the same as for pre-v2.0 versions: since the file system
+     * stopped the dispatcher via FspFileSystemStopDispatcher, it will likely exit its
+     * process soon.
+     *
+     * When the file system receives a request with Normally == FALSE it may need to take
+     * extra steps to exit its process as this is not done by default.
+     *
+     * A file system that uses the FspService infrastructure may use the
+     * FspFileSystemStopServiceIfNecessary API to correctly handle all cases.
+     *
+     * This operation is the last one that a file system will receive.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param Normally
+     *     TRUE if the file system is being stopped via FspFileSystemStopDispatcher.
+     *     FALSE if the file system is being stopped because of another reason such
+     *     as driver unload/uninstall.
+     * @see
+     *     FspFileSystemStopServiceIfNecessary
+     */
     VOID (*DispatcherStopped)(FSP_FILE_SYSTEM *FileSystem,
         BOOLEAN Normally);
 
@@ -1112,7 +1147,7 @@ FSP_API NTSTATUS FspFileSystemPreflight(PWSTR DevicePath,
  * @param VolumeParams
  *     Volume parameters for the newly created file system.
  * @param Interface
- *     A pointer to the actual operations that actually implement this user mode file system.
+ *     A pointer to the operations that implement this user mode file system.
  * @param PFileSystem [out]
  *     Pointer that will receive the file system object created on successful return from this
  *     call.
@@ -1750,6 +1785,23 @@ UINT32 FspFileSystemGetEaPackedSize(PFILE_FULL_EA_INFORMATION SingleEa)
  */
 FSP_API BOOLEAN FspFileSystemAddNotifyInfo(FSP_FSCTL_NOTIFY_INFO *NotifyInfo,
     PVOID Buffer, ULONG Length, PULONG PBytesTransferred);
+/**
+ * Stop a file system service, if any.
+ *
+ * This is a helper for implementing the DispatcherStopped operation, but only for file systems
+ * that use the FspService infrastructure.
+ *
+ * @param FileSystem
+ *     The file system object.
+ * @param Normally
+ *     TRUE if the file system is being stopped via FspFileSystemStopDispatcher.
+ *     FALSE if the file system is being stopped because of another reason such
+ *     as driver unload/uninstall.
+ * @see
+ *     DispatcherStopped
+ */
+FSP_API VOID FspFileSystemStopServiceIfNecessary(FSP_FILE_SYSTEM *FileSystem,
+    BOOLEAN Normally);
 
 /*
  * Directory buffering
@@ -2046,6 +2098,8 @@ FSP_API ULONG FspServiceGetExitCode(FSP_SERVICE *Service);
  * This function starts and runs a service. It executes the Windows StartServiceCtrlDispatcher API
  * to connect the service process to the Service Control Manager. If the Service Control Manager is
  * not available (and console mode is allowed) it will enter console mode.
+ *
+ * This function should be called once per process.
  *
  * @param Service
  *     The service object.

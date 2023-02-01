@@ -745,6 +745,10 @@ namespace Fsp.Interop
                 out FileInfo FileInfo);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 Obsolete0();
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void DispatcherStopped(
+                IntPtr FileSystem,
+                [MarshalAs(UnmanagedType.U1)] Boolean Normally);
         }
 
         internal static int Size = IntPtr.Size * 64;
@@ -781,6 +785,7 @@ namespace Fsp.Interop
         internal Proto.GetEa GetEa;
         internal Proto.SetEa SetEa;
         internal Proto.Obsolete0 Obsolete0;
+        internal Proto.DispatcherStopped DispatcherStopped;
         /* NTSTATUS (*Reserved[33])(); */
     }
 
@@ -906,6 +911,10 @@ namespace Fsp.Interop
                 IntPtr Buffer,
                 UInt32 Length,
                 out UInt32 PBytesTransferred);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate void FspFileSystemStopServiceIfNecessary(
+                IntPtr FileSystem,
+                [MarshalAs(UnmanagedType.U1)] Boolean Normally);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             [return: MarshalAs(UnmanagedType.U1)]
             internal delegate Boolean FspFileSystemAcquireDirectoryBuffer(
@@ -1048,6 +1057,7 @@ namespace Fsp.Interop
         internal static Proto.FspFileSystemAddStreamInfo _FspFileSystemAddStreamInfo;
         internal static Proto.FspFileSystemAddEa _FspFileSystemAddEa;
         internal static Proto.FspFileSystemAddNotifyInfo _FspFileSystemAddNotifyInfo;
+        internal static Proto.FspFileSystemStopServiceIfNecessary FspFileSystemStopServiceIfNecessary;
         internal static Proto.FspFileSystemAcquireDirectoryBuffer FspFileSystemAcquireDirectoryBuffer;
         internal static Proto.FspFileSystemFillDirectoryBuffer FspFileSystemFillDirectoryBuffer;
         internal static Proto.FspFileSystemReleaseDirectoryBuffer FspFileSystemReleaseDirectoryBuffer;
@@ -1506,6 +1516,7 @@ namespace Fsp.Interop
             _FspFileSystemAddStreamInfo = GetEntryPoint<Proto.FspFileSystemAddStreamInfo>(Module);
             _FspFileSystemAddEa = GetEntryPoint<Proto.FspFileSystemAddEa>(Module);
             _FspFileSystemAddNotifyInfo = GetEntryPoint<Proto.FspFileSystemAddNotifyInfo>(Module);
+            FspFileSystemStopServiceIfNecessary = GetEntryPoint<Proto.FspFileSystemStopServiceIfNecessary>(Module);
             FspFileSystemAcquireDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemAcquireDirectoryBuffer>(Module);
             FspFileSystemFillDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemFillDirectoryBuffer>(Module);
             FspFileSystemReleaseDirectoryBuffer = GetEntryPoint<Proto.FspFileSystemReleaseDirectoryBuffer>(Module);

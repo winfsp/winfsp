@@ -110,6 +110,7 @@ NTSTATUS FspGetModuleFileName(
 VOID FspFileSystemPeekInDirectoryBuffer(PVOID *PDirBuffer,
     PUINT8 *PBuffer, PULONG *PIndex, PULONG PCount);
 
+VOID FspServiceStopLoop(VOID);
 BOOL WINAPI FspServiceConsoleCtrlHandler(DWORD CtrlType);
 
 static inline ULONG FspPathSuffixIndex(PWSTR FileName)

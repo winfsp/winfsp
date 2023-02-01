@@ -1426,6 +1426,21 @@ namespace Fsp
             }
         }
 
+        private static void DispatcherStopped(
+            IntPtr FileSystemPtr,
+            Boolean Normally)
+        {
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
+            try
+            {
+                FileSystem.DispatcherStopped(Normally);
+            }
+            catch (Exception ex)
+            {
+                ExceptionHandler(FileSystem, ex);
+            }
+        }
+
         static FileSystemHost()
         {
             _FileSystemInterface.GetVolumeInfo = GetVolumeInfo;
@@ -1456,6 +1471,7 @@ namespace Fsp
             _FileSystemInterface.SetDelete = SetDelete;
             _FileSystemInterface.GetEa = GetEa;
             _FileSystemInterface.SetEa = SetEa;
+            _FileSystemInterface.DispatcherStopped = DispatcherStopped;
 
             _FileSystemInterfacePtr = Marshal.AllocHGlobal(FileSystemInterface.Size);
             /* Marshal.AllocHGlobal does not zero memory; we must do it ourselves! */

@@ -1143,6 +1143,12 @@ exit:
     return Result;
 }
 
+static VOID DispatcherStopped(FSP_FILE_SYSTEM *FileSystem,
+    BOOLEAN Normally)
+{
+    FspFileSystemStopServiceIfNecessary(FileSystem, Normally);
+}
+
 static FSP_FILE_SYSTEM_INTERFACE PtfsInterface =
 {
     .GetVolumeInfo = GetVolumeInfo,
@@ -1171,6 +1177,7 @@ static FSP_FILE_SYSTEM_INTERFACE PtfsInterface =
     .GetStreamInfo = GetStreamInfo,
     .GetEa = GetEa,
     .SetEa = SetEa,
+    .DispatcherStopped = DispatcherStopped,
 };
 
 NTSTATUS PtfsCreate(

@@ -1883,3 +1883,12 @@ FSP_API BOOLEAN FspFileSystemAddNotifyInfo(FSP_FSCTL_NOTIFY_INFO *NotifyInfo,
 {
     return FspFileSystemAddXxxInfo(NotifyInfo, Buffer, Length, PBytesTransferred);
 }
+
+FSP_API VOID FspFileSystemStopServiceIfNecessary(FSP_FILE_SYSTEM *FileSystem,
+    BOOLEAN Normally)
+{
+    /* NOTE: .NET calls us with a zero FileSystem pointer! */
+    if (Normally)
+        return;
+    FspServiceStopLoop();
+}
