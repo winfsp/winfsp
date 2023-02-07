@@ -68,6 +68,27 @@ function Get-ReleaseInfo ($Tag) {
     }
 }
 
+function Get-HwapiCredentials {
+    $Credentials = (& "$ProjectRoot\tools\wincred.ps1" get "Hardware Dashboard API")
+    if ($Credentials) {
+        try { $Credentials = ConvertFrom-Json $Credentials[1] } catch {;}
+    }
+    if ($Credentials -and $Credentials.TenantId -and $Credentials.ClientId -and $Credentials.ClientId) {
+        return $Credentials
+    }
+}
+
+function Start-Sdcm {
+    Start-Job -ArgumentList $args -ScriptBlock {
+        $env:SDCM_CREDS_TENANTID = $using:HwapiCredentials.TenantId
+        $env:SDCM_CREDS_CLIENTID = $using:HwapiCredentials.ClientId
+        $env:SDCM_CREDS_KEY = $using:HwapiCredentials.Key
+        $env:SDCM_CREDS_URL = "https://manage.devcenter.microsoft.com"
+        $env:SDCM_CREDS_URLPREFIX = "v2.0/my"
+        & "$using:ProjectRoot\..\winfsp.sdcm\SurfaceDevCenterManager\bin\Debug\sdcm.exe" -creds envonly @args
+    } | Receive-Job -Wait -AutoRemoveJob
+}
+
 function Get-FileVersion ($FileName) {
     return [System.Diagnostics.FileVersionInfo]::GetVersionInfo($FileName).FileVersion
 }
@@ -93,6 +114,12 @@ function Check-Prerequisites {
     # check git.exe
     if (!(Get-Command "git.exe" -ErrorAction SilentlyContinue)) {
         Write-Stderr "error: cannot find git.exe"
+        exit 1
+    }
+
+    # check scdm.exe
+    if (!(Get-Command "$ProjectRoot\..\winfsp.sdcm\SurfaceDevCenterManager\bin\Debug\sdcm.exe" -ErrorAction SilentlyContinue)) {
+        Write-Stderr "error: cannot find sdcm.exe"
         exit 1
     }
 
@@ -137,6 +164,17 @@ function Check-Prerequisites {
         exit 1
     }
 
+    # check hardware dashboard api credentials
+    $script:HwapiCredentials = Get-HwapiCredentials
+    if (!$script:HwapiCredentials) {
+        Write-Stderr "error: cannot get Hardware Dashboard API credentials"
+        Write-Stderr '    The expected format of the credentials is as follows:'
+        Write-Stderr '    TargetName: Hardware Dashboard API'
+        Write-Stderr '    UserName: Credentials'
+        Write-Stderr '    Password: {"TenantId":"TENANTID","ClientId":"CLIENTID","Key":"KEY"}'
+        exit 1
+    }
+
     if ($State -contains $Name) {
         if (!($State -contains "$Tag-$CommitCount-g$Commit")) {
             Write-Stderr "error: invalid state for tag $Tag"
@@ -149,6 +187,12 @@ function Check-Prerequisites {
 }
 
 function Check-Assets {
+    # check driver.cab
+    if (!(Test-Path "$ProjectRoot\build\VStudio\build\Release\driver.cab" -ErrorAction SilentlyContinue)) {
+        Write-Stderr "error: cannot find driver.cab"
+        exit 1
+    }
+
     # check winfsp.msi
     if (!(Test-Path "$ProjectRoot\build\VStudio\build\Release\winfsp*.msi" -ErrorAction SilentlyContinue)) {
         Write-Stderr "error: cannot find winfsp*.msi"
@@ -192,8 +236,215 @@ function Build-AssetsPhase1 {
 
         Write-Stdout @"
 
-Upload file driver.cab to Microsoft Partner Center for attestation signing.
-When the file has been signed, download and extract to ~\Downloads\drivers
+Assets have been built but are not properly signed.
+Signable assets are ready for submission to the hardware dashboard.
+
+"@
+    }
+}
+
+function Submit-AssetsToHwapi {
+    Task -ScriptBlock {
+        Check-Assets
+
+        $MsiFile = Resolve-Path "$ProjectRoot\build\VStudio\build\Release\winfsp*.msi"
+        $MsiName = Split-Path -Leaf $MsiFile
+        if ($MsiName -match "winfsp-(.+)\.msi") {
+            $Version = $matches[1]
+        }
+        if (!$Version) {
+            Write-Stderr "error: cannot determine version for winfsp.msi"
+            exit 1
+        }
+
+        $DocRequestedSignatures = @()
+        $Documentation = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MicrosoftDocs/windows-driver-docs/staging/windows-driver-docs-pr/dashboard/get-product-data.md"
+        $Documentation = $Documentation.Content
+        $List = $false
+        foreach ($Line in $Documentation -Split "`n") {
+            if ($Line -match "^### List of Operating System Codes") {
+                $List = $true
+            } elseif ($Line -match "^###") {
+                $List = $false
+            } elseif ($List -and $Line -cmatch "\| *(WINDOWS_v100_[^| ]+) *\|") {
+                $DocRequestedSignatures += $matches[1]
+            }
+        }
+        if ($DocRequestedSignatures.length -lt 32) {
+            Write-Stderr "error: cannot determine signatures to request"
+            Write-Stderr '    Does the document at the URL below still contain a "List of Operating System Codes":'
+            Write-Stderr "    https://raw.githubusercontent.com/MicrosoftDocs/windows-driver-docs/staging/windows-driver-docs-pr/dashboard/get-product-data.md"
+            exit 1
+        }
+
+        # start with the base signatures and add any new ones found in the docs
+        $RequestedSignatures = @(
+            "WINDOWS_v100_TH2_FULL"
+            "WINDOWS_v100_X64_TH2_FULL"
+            "WINDOWS_v100_RS1_FULL"
+            "WINDOWS_v100_X64_RS1_FULL"
+            "WINDOWS_v100_RS2_FULL"
+            "WINDOWS_v100_X64_RS2_FULL"
+            "WINDOWS_v100_RS3_FULL"
+            "WINDOWS_v100_X64_RS3_FULL"
+            "WINDOWS_v100_ARM64_RS3_FULL"
+            "WINDOWS_v100_RS4_FULL"
+            "WINDOWS_v100_X64_RS4_FULL"
+            "WINDOWS_v100_ARM64_RS4_FULL"
+            "WINDOWS_v100_RS5_FULL"
+            "WINDOWS_v100_X64_RS5_FULL"
+            "WINDOWS_v100_ARM64_RS5_FULL"
+            "WINDOWS_v100_19H1_FULL"
+            "WINDOWS_v100_X64_19H1_FULL"
+            "WINDOWS_v100_ARM64_19H1_FULL"
+            "WINDOWS_v100_VB_FULL"
+            "WINDOWS_v100_X64_VB_FULL"
+            "WINDOWS_v100_ARM64_VB_FULL"
+            "WINDOWS_v100_X64_CO_FULL"
+            "WINDOWS_v100_ARM64_CO_FULL"
+            "WINDOWS_v100_X64_NI_FULL"
+            "WINDOWS_v100_ARM64_NI_FULL"
+        )
+        foreach ($Signature in $DocRequestedSignatures) {
+            if ($RequestedSignatures -contains $Signature) {
+                continue
+            }
+            if ($Signature.Contains("_SERVER_")) {
+                continue
+            }
+            if ($Signature -eq "WINDOWS_v100_TH1_FULL") {
+                continue
+            }
+            if ($Signature -eq "WINDOWS_v100_X64_TH1_FULL") {
+                continue
+            }
+            $RequestedSignatures += $Signature
+            Write-Stdout "New doc signature: $Signature"
+        }
+
+        $CreateProduct = @{
+            createType = "product"
+            createProduct = @{
+                productName = "winfsp-$Version"
+                testHarness = "attestation"
+                deviceType = "internalExternal"
+                requestedSignatures = $RequestedSignatures
+                # deviceMetaDataIds = $null
+                # firmwareVersion = "0"
+                # isTestSign = $false
+                # isFlightSign = $false
+                # markettingNames = $null
+                # selectedProductTypes = $null
+                # additionalAttributes = $null
+            }
+        }
+        $CreateSubmission = @{
+            createType = "submission"
+            createSubmission = @{
+                name = "winfsp-$Version"
+                type = "initial"
+            }
+        }
+        New-Item "$ProjectRoot\build\VStudio\build\Release\hwapi" -Type Directory -ErrorAction SilentlyContinue >$null
+        ConvertTo-Json $CreateProduct | Out-File -Encoding Ascii "$ProjectRoot\build\VStudio\build\Release\hwapi\CreateProduct.json"
+        ConvertTo-Json $CreateSubmission | Out-File -Encoding Ascii "$ProjectRoot\build\VStudio\build\Release\hwapi\CreateSubmission.json"
+
+        Start-Sdcm -create "$ProjectRoot\build\VStudio\build\Release\hwapi\CreateProduct.json" | Tee-Object -Variable Output
+        if ($LastExitCode -ne 0) {
+            Write-Stderr "error: cannot create product on hardware dashboard"
+            exit 1
+        }
+        if (-not ([string]$Output -match "--- Product: (\d+)")) {
+            Write-Stderr "error: cannot get product id from hardware dashboard"
+            exit 1
+        }
+        $ProductId = $matches[1]
+
+        Start-Sdcm -create "$ProjectRoot\build\VStudio\build\Release\hwapi\CreateSubmission.json" -productid $ProductId  | Tee-Object -Variable Output
+        if ($LastExitCode -ne 0) {
+            Write-Stderr "error: cannot create submission on hardware dashboard"
+            exit 1
+        }
+        if (-not ([string]$Output -match "---- Submission: (\d+)")) {
+            Write-Stderr "error: cannot get submission id from hardware dashboard"
+            exit 1
+        }
+        $SubmissionId = $matches[1]
+
+        Set-Content "$ProjectRoot\build\VStudio\build\Release\hwapi\ProductId" -Value $ProductId
+        Set-Content "$ProjectRoot\build\VStudio\build\Release\hwapi\SubmissionId" -Value $SubmissionId
+
+        Write-Stdout @"
+
+Product submission has been prepared on hardware dashboard.
+
+"@
+    }
+}
+
+function Upload-AssetsToHwapi {
+    Task -ScriptBlock {
+        Check-Assets
+
+        $ProductId = Get-Content "$ProjectRoot\build\VStudio\build\Release\hwapi\ProductId"
+        $SubmissionId = Get-Content "$ProjectRoot\build\VStudio\build\Release\hwapi\SubmissionId"
+
+        Start-Sdcm -upload "$ProjectRoot\build\VStudio\build\Release\driver.cab" -productid $ProductId -submissionid $SubmissionId
+        if ($LastExitCode -ne 0) {
+            Write-Stderr "error: cannot upload driver.cab to hardware dashboard"
+            exit 1
+        }
+
+        Start-Sdcm -commit -productid $ProductId -submissionid $SubmissionId
+        if ($LastExitCode -ne 0) {
+            Write-Stderr "error: cannot commit submission to hardware dashboard"
+            exit 1
+        }
+
+        Write-Stdout @"
+
+Signable assets have been uploaded to the hardware dashboard.
+
+"@
+    }
+}
+
+function Download-AssetsFromHwapi {
+    Task -ScriptBlock {
+        Check-Assets
+
+        $ProductId = Get-Content "$ProjectRoot\build\VStudio\build\Release\hwapi\ProductId"
+        $SubmissionId = Get-Content "$ProjectRoot\build\VStudio\build\Release\hwapi\SubmissionId"
+
+        Remove-Item -Force "$ProjectRoot\build\VStudio\build\Release\hwapi\Signed-$SubmissionId.zip" -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force "$ProjectRoot\build\VStudio\build\Release\hwapi\drivers" -ErrorAction SilentlyContinue
+
+        Start-Sdcm -download "$ProjectRoot\build\VStudio\build\Release\hwapi\Signed-$SubmissionId.zip" -productid $ProductId -submissionid $SubmissionId
+        if ($LastExitCode -ne 0) {
+            Write-Stderr "error: cannot download signed drivers from hardware dashboard"
+            exit 1
+        }
+
+        if (!(Test-Path "$ProjectRoot\build\VStudio\build\Release\hwapi\Signed-$SubmissionId.zip" -ErrorAction SilentlyContinue)) {
+            Write-Stderr "error: cannot download signed drivers from hardware dashboard"
+            exit 1
+        }
+
+        $ExpandError = ""
+        Expand-Archive "$ProjectRoot\build\VStudio\build\Release\hwapi\Signed-$SubmissionId.zip" -DestinationPath "$ProjectRoot\build\VStudio\build\Release\hwapi" -ErrorVariable ExpandError
+        if ($ExpandError) {
+            Write-Stderr "error: cannot expand signed drivers archive"
+            exit 1
+        }
+
+        if (!(Test-Path "$ProjectRoot\build\VStudio\build\Release\hwapi\drivers" -ErrorAction SilentlyContinue)) {
+            Write-Stderr "error: cannot expand signed drivers archive"
+            exit 1
+        }
+
+        Write-Stdout @"
+
+Signable assets have been downloaded and can be used to complete the build.
 
 "@
     }
@@ -204,16 +455,16 @@ function Build-AssetsPhase2 {
         Check-Assets
 
         # check signed drivers folder
-        if (!(Test-Path ~\Downloads\drivers -ErrorAction SilentlyContinue)) {
-            Write-Stderr "error: cannot find ~\Downloads\drivers"
+        if (!(Test-Path "$ProjectRoot\build\VStudio\build\Release\hwapi\drivers" -ErrorAction SilentlyContinue)) {
+            Write-Stderr "error: cannot find hwapi\drivers"
             exit 1
         }
 
-        $SignedPackage = Resolve-Path ~\Downloads\drivers
+        $SignedPackage = Resolve-Path "$ProjectRoot\build\VStudio\build\Release\hwapi\drivers"
 
         $VerX64 = Get-FileVersion "$ProjectRoot\build\VStudio\build\Release\winfsp-x64.sys"
         if ($VerX64 -ne (Get-FileVersion "$SignedPackage\x64\winfsp-x64.sys")) {
-            Write-Stderr "error: incompatible versions in ~\Downloads\drivers"
+            Write-Stderr "error: incompatible versions in hwapi\drivers"
             exit 1
         }
 
@@ -375,8 +626,12 @@ Check-Prerequisites
 
 # Workflow tasks
 Build-AssetsPhase1
+Submit-AssetsToHwapi
+Upload-AssetsToHwapi
+Download-AssetsFromHwapi
 Build-AssetsPhase2
 Make-GitHubRelease
 Upload-Symbols
 Make-NugetRelease
 Make-ChocoRelease
+Write-Stdout "ALL COMPLETE"
