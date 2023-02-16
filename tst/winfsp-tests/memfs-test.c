@@ -48,9 +48,9 @@ void *memfs_start_ex(ULONG Flags, ULONG FileInfoTimeout)
         FileInfoTimeout,
         1024,
         1024 * 1024,
-        50, /*SlowioMaxDelay*/
-        10, /*SlowioPercentDelay*/
-        5,  /*SlowioRarefyDelay*/
+        (Flags & MemfsNoSlowio) ? 0 : 50, /*SlowioMaxDelay*/
+        (Flags & MemfsNoSlowio) ? 0 : 10, /*SlowioPercentDelay*/
+        (Flags & MemfsNoSlowio) ? 0 : 5,  /*SlowioRarefyDelay*/
         0,
         MemfsNet == Flags ? L"\\memfs\\share" : 0,
         0,

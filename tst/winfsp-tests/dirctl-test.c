@@ -28,6 +28,52 @@
 
 #include "winfsp-tests.h"
 
+typedef struct _FILE_FULL_DIR_INFORMATION
+{
+    ULONG NextEntryOffset;
+    ULONG FileIndex;
+    LARGE_INTEGER CreationTime;
+    LARGE_INTEGER LastAccessTime;
+    LARGE_INTEGER LastWriteTime;
+    LARGE_INTEGER ChangeTime;
+    LARGE_INTEGER EndOfFile;
+    LARGE_INTEGER AllocationSize;
+    ULONG FileAttributes;
+    ULONG FileNameLength;
+    ULONG EaSize;
+    WCHAR FileName[1];
+} FILE_FULL_DIR_INFORMATION, *PFILE_FULL_DIR_INFORMATION;
+
+typedef struct _FILE_DIRECTORY_INFORMATION
+{
+    ULONG NextEntryOffset;
+    ULONG FileIndex;
+    LARGE_INTEGER CreationTime;
+    LARGE_INTEGER LastAccessTime;
+    LARGE_INTEGER LastWriteTime;
+    LARGE_INTEGER ChangeTime;
+    LARGE_INTEGER EndOfFile;
+    LARGE_INTEGER AllocationSize;
+    ULONG FileAttributes;
+    ULONG FileNameLength;
+    WCHAR FileName[1];
+} FILE_DIRECTORY_INFORMATION, *PFILE_DIRECTORY_INFORMATION;
+
+NTSTATUS
+NTAPI
+NtQueryDirectoryFile (
+    HANDLE FileHandle,
+    HANDLE Event,
+    PIO_APC_ROUTINE ApcRoutine,
+    PVOID ApcContext,
+    PIO_STATUS_BLOCK IoStatusBlock,
+    PVOID FileInformation,
+    ULONG Length,
+    FILE_INFORMATION_CLASS FileInformationClass,
+    BOOLEAN ReturnSingleEntry,
+    PUNICODE_STRING FileName,
+    BOOLEAN RestartScan);
+
 static void querydir_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG SleepTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -269,6 +315,212 @@ void querydir_test(void)
     }
 }
 
+static inline size_t hash_chars(const wchar_t *s, size_t length)
+{
+    /* djb2: see http://www.cse.yorku.ca/~oz/hash.html */
+    size_t h = 5381;
+    for (const wchar_t *t = s + length; t > s; ++s)
+        h = 33 * h + *s;
+    return h;
+}
+static NTSTATUS querydir_nodup_dotest_thread_loop(void *FilePath)
+{
+    NTSTATUS Result;
+    void *Buffer = 0;
+    HANDLE Handle = INVALID_HANDLE_VALUE;
+    IO_STATUS_BLOCK IoStatus;
+    size_t hash[64], hash_count = 0;
+
+    Buffer = malloc(4096);
+    if (0 == Buffer)
+    {
+        Result = STATUS_INSUFFICIENT_RESOURCES;
+        goto exit;
+    }
+
+    Handle = CreateFileW(
+        FilePath,
+        FILE_LIST_DIRECTORY,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        0);
+    if (INVALID_HANDLE_VALUE == Handle)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    for (;;)
+    {
+        Result = NtQueryDirectoryFile(
+            Handle,
+            0, 0, 0,
+            &IoStatus,
+            Buffer,
+            4096,
+            2/*FileFullDirectoryInformation*/,
+            FALSE,
+            0,
+            FALSE);
+        if (STATUS_NO_MORE_FILES == Result)
+            break;
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        for (FILE_FULL_DIR_INFORMATION *DirInfo = Buffer;;
+            DirInfo = (PVOID)((PUINT8)DirInfo + DirInfo->NextEntryOffset))
+        {
+            size_t h = hash_chars(DirInfo->FileName, DirInfo->FileNameLength / sizeof(WCHAR));
+            for (size_t i = 0; hash_count > i; i++)
+                if (hash[i] == h)
+                {
+                    WCHAR FileName[256];
+                    memcpy(FileName, DirInfo->FileName, DirInfo->FileNameLength);
+                    FileName[DirInfo->FileNameLength / sizeof(WCHAR)] = L'\0';
+                    FspDebugLog(__FUNCTION__ ": duplicate \"%S\"\n", FileName);
+                    Result = STATUS_UNSUCCESSFUL;
+                    goto exit;
+                }
+            if (sizeof hash / sizeof hash[0] > hash_count)
+                hash[hash_count++] = h;
+            if (0 == DirInfo->NextEntryOffset)
+                break;
+        }
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    if (INVALID_HANDLE_VALUE != Handle)
+        CloseHandle(Handle);
+
+    free(Buffer);
+
+    return Result;
+}
+static unsigned __stdcall querydir_nodup_dotest_thread(void *FilePath)
+{
+    FspDebugLog(__FUNCTION__ ": \"%S\"\n", FilePath);
+
+    NTSTATUS Result;
+
+    for (size_t i = 0; 5000 > i; i++)
+    {
+        Result = querydir_nodup_dotest_thread_loop(FilePath);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+    }
+
+    Result = STATUS_SUCCESS;
+
+exit:
+    return Result;
+}
+
+static void querydir_nodup_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    static WCHAR *FileNames[] =
+    {
+        L"Extensions.cs",
+        L"JsonSchema.cs",
+        L"JsonSchemaBuilder.cs",
+        L"JsonSchemaConstants.cs",
+        L"JsonSchemaException.cs",
+        L"JsonSchemaGenerator.cs",
+        L"JsonSchemaModel.cs",
+        L"JsonSchemaModelBuilder.cs",
+        L"JsonSchemaNode.cs",
+        L"JsonSchemaNodeCollection.cs",
+        L"JsonSchemaResolver.cs",
+        L"JsonSchemaType.cs",
+        L"JsonSchemaWriter.cs",
+        L"UndefinedSchemaIdHandling.cs",
+        L"ValidationEventArgs.cs",
+        L"ValidationEventHandler.cs",
+    };
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR FilePath[MAX_PATH];
+    HANDLE Threads[2];
+    DWORD ExitCode;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    for (size_t i = 0; sizeof FileNames / sizeof FileNames[0] > i; i++)
+    {
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir0\\%s",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), FileNames[i]);
+        Handle = CreateFileW(FilePath, GENERIC_ALL, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        ASSERT(INVALID_HANDLE_VALUE != Handle);
+        Success = CloseHandle(Handle);
+        ASSERT(Success);
+    }
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    for (size_t i = 0; sizeof Threads / sizeof Threads[0] > i; i++)
+    {
+        Threads[i] = (HANDLE)_beginthreadex(0, 0, querydir_nodup_dotest_thread, FilePath, 0, 0);
+        ASSERT(0 != Threads[i]);
+    }
+    for (size_t i = 0; sizeof Threads / sizeof Threads[0] > i; i++)
+    {
+        WaitForSingleObject(Threads[i], INFINITE);
+        GetExitCodeThread(Threads[i], &ExitCode);
+        CloseHandle(Threads[i]);
+        ASSERT(0 == ExitCode);
+    }
+
+    for (size_t i = 0; sizeof FileNames / sizeof FileNames[0] > i; i++)
+    {
+        StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir0\\%s",
+            Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs), FileNames[i]);
+        Success = DeleteFileW(FilePath);
+        ASSERT(Success);
+    }
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\dir0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    Success = RemoveDirectoryW(FilePath);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+static void querydir_nodup_test(void)
+{
+    /*
+     * Test GitHub issue #475. Credit for the investigation and reproduction
+     * of this issue goes to GitHub user @hach-que.
+     */
+
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        querydir_nodup_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        querydir_nodup_dotest(MemfsDisk | MemfsNoSlowio, 0, 0);
+        querydir_nodup_dotest(MemfsDisk | MemfsNoSlowio, 0, 1000);
+    }
+#if 0
+    if (WinFspNetTests)
+    {
+        querydir_nodup_dotest(MemfsNet | MemfsNoSlowio, L"\\\\memfs\\share", 0);
+        querydir_nodup_dotest(MemfsNet | MemfsNoSlowio, L"\\\\memfs\\share", 1000);
+    }
+#endif
+}
+
 static void querydir_single_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG SleepTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -367,36 +619,6 @@ void querydir_expire_cache_test(void)
         querydir_dotest(MemfsNet, L"\\\\memfs\\share", 500, 750);
     }
 }
-
-typedef struct _FILE_DIRECTORY_INFORMATION {
-    ULONG NextEntryOffset;
-    ULONG FileIndex;
-    LARGE_INTEGER CreationTime;
-    LARGE_INTEGER LastAccessTime;
-    LARGE_INTEGER LastWriteTime;
-    LARGE_INTEGER ChangeTime;
-    LARGE_INTEGER EndOfFile;
-    LARGE_INTEGER AllocationSize;
-    ULONG FileAttributes;
-    ULONG FileNameLength;
-    WCHAR FileName[1];
-} FILE_DIRECTORY_INFORMATION, *PFILE_DIRECTORY_INFORMATION;
-
-NTSTATUS
-NTAPI
-NtQueryDirectoryFile (
-    _In_ HANDLE FileHandle,
-    _In_opt_ HANDLE Event,
-    _In_opt_ PIO_APC_ROUTINE ApcRoutine,
-    _In_opt_ PVOID ApcContext,
-    _Out_ PIO_STATUS_BLOCK IoStatusBlock,
-    _Out_writes_bytes_(Length) PVOID FileInformation,
-    _In_ ULONG Length,
-    _In_ FILE_INFORMATION_CLASS FileInformationClass,
-    _In_ BOOLEAN ReturnSingleEntry,
-    _In_opt_ PUNICODE_STRING FileName,
-    _In_ BOOLEAN RestartScan
-    );
 
 static void querydir_buffer_overflow_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout, ULONG SleepTimeout)
 {
@@ -766,6 +988,7 @@ void dirnotify_test(void)
 void dirctl_tests(void)
 {
     TEST(querydir_test);
+    TEST_OPT(querydir_nodup_test);
     if (!OptShareName)
         TEST_OPT(querydir_single_test);
     TEST(querydir_expire_cache_test);

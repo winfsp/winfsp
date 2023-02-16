@@ -205,6 +205,7 @@ static NTSTATUS FspFsvolQueryDirectoryCopy(
                     ASSERT(sizeof(UINT64) == DirectoryMarker->Length);
                     DirectoryMarkerFound = DirectoryNextOffset == *(PUINT64)DirectoryMarker->Buffer;
                 }
+                continue;
             }
 
             /* CopyLength is the same as FileName.Length except on STATUS_BUFFER_OVERFLOW */
