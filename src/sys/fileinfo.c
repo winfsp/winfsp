@@ -33,6 +33,8 @@ static NTSTATUS FspFsvolQueryBasicInformation(PFILE_OBJECT FileObject,
 static NTSTATUS FspFsvolQueryEaInformation(PFILE_OBJECT FileObject,
     PVOID *PBuffer, PVOID BufferEnd,
     const FSP_FSCTL_FILE_INFO *FileInfo);
+static NTSTATUS FspFsvolQueryIdInformation(PFILE_OBJECT FileObject,
+    PVOID *PBuffer, PVOID BufferEnd);
 static NTSTATUS FspFsvolQueryInternalInformation(PFILE_OBJECT FileObject,
     PVOID *PBuffer, PVOID BufferEnd);
 static NTSTATUS FspFsvolQueryNameInformation(PFILE_OBJECT FileObject,
@@ -106,6 +108,7 @@ FAST_IO_QUERY_OPEN FspFastIoQueryOpen;
 #pragma alloc_text(PAGE, FspFsvolQueryAttributeTagInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryBasicInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryEaInformation)
+#pragma alloc_text(PAGE, FspFsvolQueryIdInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryInternalInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryNameInformation)
 #pragma alloc_text(PAGE, FspFsvolQueryNetworkOpenInformation)
@@ -282,6 +285,32 @@ static NTSTATUS FspFsvolQueryEaInformation(PFILE_OBJECT FileObject,
     /* magic computations are courtesy of NTFS */
     if (0 != Info->EaSize)
         Info->EaSize += 4;
+
+    *PBuffer = (PVOID)(Info + 1);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS FspFsvolQueryIdInformation(PFILE_OBJECT FileObject,
+    PVOID *PBuffer, PVOID BufferEnd)
+{
+    PAGED_CODE();
+
+    PFILE_ID_INFORMATION Info = (PFILE_ID_INFORMATION)*PBuffer;
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    PDEVICE_OBJECT FsvolDeviceObject = FileNode->FsvolDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+    union
+    {
+        UINT64 IndexNumber;
+        FILE_ID_128 FileId;
+    } FileIdBuf = { .IndexNumber = FileNode->IndexNumber };
+
+    if ((PVOID)(Info + 1) > BufferEnd)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    Info->VolumeSerialNumber = FsvolDeviceExtension->VolumeParams.VolumeSerialNumber;
+    Info->FileId = FileIdBuf.FileId;
 
     *PBuffer = (PVOID)(Info + 1);
 
@@ -960,6 +989,10 @@ static NTSTATUS FspFsvolQueryInformation(
         break;
     case FileHardLinkInformation:
         Result = STATUS_NOT_SUPPORTED;  /* no hard link support */
+        return Result;
+    case FileIdInformation:
+        Result = FspFsvolQueryIdInformation(FileObject, &Buffer, BufferEnd);
+        Irp->IoStatus.Information = (UINT_PTR)((PUINT8)Buffer - (PUINT8)Irp->AssociatedIrp.SystemBuffer);
         return Result;
     case FileInternalInformation:
         Result = FspFsvolQueryInternalInformation(FileObject, &Buffer, BufferEnd);

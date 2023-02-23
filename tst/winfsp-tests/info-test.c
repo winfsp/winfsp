@@ -273,6 +273,28 @@ void getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     ASSERT(0 == FileInfo.nFileSizeLow && 0 == FileInfo.nFileSizeHigh);
     ASSERT(1 == FileInfo.nNumberOfLinks);
 
+    if (-1 != Flags)
+    {
+        /* WinFsp file systems respond to FileIdInformation queries with the IndexNumber zero-extended */
+        struct
+        {
+            /* FILE_ID_INFO is missing from old version of SDK that we are still using */
+            ULONGLONG VolumeSerialNumber;
+            UINT8 FileId[16];
+        } IdInfo;
+        union
+        {
+            UINT64 IndexNumber;
+            UINT8 FileId[16];
+        } ExpectedFileId = { 0 };
+        Success = GetFileInformationByHandleEx(Handle, 0x12/*FileIdInfo*/, &IdInfo, sizeof IdInfo);
+        if (Success)
+        {
+            ExpectedFileId.IndexNumber = ((UINT64)FileInfo.nFileIndexHigh << 32) | (UINT64)FileInfo.nFileIndexLow;
+            ASSERT(0 == memcmp(&ExpectedFileId.FileId, &IdInfo.FileId, sizeof IdInfo.FileId));
+        }
+    }
+
     CloseHandle(Handle);
 
     memfs_stop(memfs);
