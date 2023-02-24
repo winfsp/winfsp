@@ -731,6 +731,7 @@ static NTSTATUS FspFsvolFileSystemControl(
             Result = FspVolumeWork(FsvolDeviceObject, Irp, IrpSp);
             break;
         case FSP_FSCTL_QUERY_WINFSP:
+        case FSCTL_IS_VOLUME_MOUNTED:
             Irp->IoStatus.Information = 0;
             Result = STATUS_SUCCESS;
             break;
