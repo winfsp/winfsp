@@ -543,7 +543,7 @@ function Upload-Symbols {
 
         # check winfsp.sym git log
         Push-Location "$ProjectRoot\..\winfsp.sym"
-        $SymHasTag = Git-LogGrep $ReleaseInfo.Tag
+        $SymHasTag = Git-LogGrep "^$($ReleaseInfo.Tag)$"
         Pop-Location
         if ($SymHasTag) {
             Write-Stderr "warning: winfsp.sym repository already has commit for tag $($ReleaseInfo.Tag)"
