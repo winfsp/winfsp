@@ -41,6 +41,9 @@
         <MyFspFsctlDeviceClassGuid>{ 0x6f9d25fa, 0x6dee, 0x4a9d, { 0x80, 0xf5, 0xe9, 0x8e, 0x14, 0xf3, 0x5e, 0x54 } }</MyFspFsctlDeviceClassGuid>
         <MyFspFsvrtDeviceClassGuid>{ 0xb48171c3, 0xdd50, 0x4852, { 0x83, 0xa3, 0x34, 0x4c, 0x50, 0xd9, 0x3b, 0x17 } }</MyFspFsvrtDeviceClassGuid>
 
+        <!-- FSD load/unload logging; set to 1 to enable -->
+        <MyFsdLoadLogging>0</MyFsdLoadLogging>
+
         <!--
             Configure paths used for registration via DllRegisterServer:
 

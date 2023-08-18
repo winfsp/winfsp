@@ -47,6 +47,11 @@ NTSTATUS DriverEntry(
 {
     FSP_ENTER_DRV();
 
+#if MyFsdLoadLogging
+    DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_TRACE_LEVEL,
+        DRIVER_NAME ": %s: %wZ\n", __func__, DriverObject->DriverName);
+#endif
+
     FSP_TRACE_INIT();
 
     FspSxsIdentInitialize(&DriverObject->DriverName);
@@ -203,6 +208,11 @@ VOID DriverUnload(
     FspSiloFinalize();
 
     FSP_TRACE_FINI();
+
+#if MyFsdLoadLogging
+    DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_TRACE_LEVEL,
+        DRIVER_NAME ": %s: %wZ\n", __func__, DriverObject->DriverName);
+#endif
 
 #pragma prefast(suppress:28175, "We are in DriverUnload: ok to access DriverName")
     FSP_LEAVE_VOID("DriverName=\"%wZ\"",
