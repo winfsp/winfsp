@@ -31,8 +31,6 @@ static ULONG FspFsctlServiceVersionValue;
 static DWORD FspFsctlTransactCode = FSP_FSCTL_TRANSACT;
 static DWORD FspFsctlTransactBatchCode = FSP_FSCTL_TRANSACT_BATCH;
 
-static VOID FspFsctlServiceVersion(PUINT32 PVersion);
-
 FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
     PWCHAR VolumeNameBuf, SIZE_T VolumeNameSize,
@@ -423,12 +421,14 @@ exit:
     return TRUE;
 }
 
-static VOID FspFsctlServiceVersion(PUINT32 PVersion)
+FSP_API NTSTATUS FspFsctlServiceVersion(PUINT32 PVersion)
 {
     InitOnceExecuteOnce(&FspFsctlServiceVersionInitOnce, FspFsctlServiceVersionInitialize, 0, 0);
 
     if (0 != PVersion)
         *PVersion = FspFsctlServiceVersionValue;
+
+    return 0 != FspFsctlServiceVersionValue ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL;
 }
 
 static SRWLOCK FspFsctlStartStopServiceLock = SRWLOCK_INIT;
