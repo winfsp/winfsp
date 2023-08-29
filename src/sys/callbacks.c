@@ -324,7 +324,9 @@ VOID FspPropagateTopFlags(PIRP Irp, PIRP TopLevelIrp)
             FspFileNodeAcquireMain :
             FspFileNodeAcquireFull);
     }
-    else if ((PIRP)MM_SYSTEM_RANGE_START <= TopLevelIrp && IO_TYPE_IRP == TopLevelIrp->Type)
+    else if ((PIRP)MM_SYSTEM_RANGE_START <= TopLevelIrp &&
+        IO_TYPE_IRP == TopLevelIrp->Type &&
+        TopLevelIrp->CurrentLocation <= TopLevelIrp->StackCount)
     {
         PFILE_OBJECT FileObject = IoGetCurrentIrpStackLocation(Irp)->FileObject;
         PFILE_OBJECT TopLevelFileObject = IoGetCurrentIrpStackLocation(TopLevelIrp)->FileObject;
