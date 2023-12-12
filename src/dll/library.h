@@ -106,6 +106,21 @@ NTSTATUS FspGetModuleFileName(
     ULONG Size,
     PWSTR RelativePath);
 
+typedef struct
+{
+    SRWLOCK Lock;
+    HANDLE Handle;
+    UINT64 Offset;
+} FSP_ADAPTIVE_LOCK;
+#define FSP_ADAPTIVE_LOCK_INIT          { SRWLOCK_INIT, INVALID_HANDLE_VALUE, 0 }
+VOID FspAdaptiveLockAcquire(
+    FSP_ADAPTIVE_LOCK *Lock,
+    PWSTR FileName,
+    UINT64 Offset,
+    DWORD Timeout);
+VOID FspAdaptiveLockRelease(
+    FSP_ADAPTIVE_LOCK *Lock);
+
 #define FspFileSystemDirectoryBufferEntryInvalid ((ULONG)-1)
 VOID FspFileSystemPeekInDirectoryBuffer(PVOID *PDirBuffer,
     PUINT8 *PBuffer, PULONG *PIndex, PULONG PCount);

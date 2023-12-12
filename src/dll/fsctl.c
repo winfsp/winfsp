@@ -431,7 +431,23 @@ FSP_API NTSTATUS FspFsctlServiceVersion(PUINT32 PVersion)
     return 0 != FspFsctlServiceVersionValue ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL;
 }
 
-static SRWLOCK FspFsctlStartStopServiceLock = SRWLOCK_INIT;
+static FSP_ADAPTIVE_LOCK FspFsctlStartStopServiceLock = FSP_ADAPTIVE_LOCK_INIT;
+static VOID FspFsctlStartStopServiceLockAcquire(VOID)
+{
+    extern HINSTANCE DllInstance;
+    WCHAR DllPath[MAX_PATH];
+    PWSTR FileName = 0;
+
+    if (0 != GetModuleFileNameW(DllInstance, DllPath, MAX_PATH))
+        FileName = DllPath;
+
+    FspAdaptiveLockAcquire(&FspFsctlStartStopServiceLock,
+        FileName, 0xfffffffffffffff0ull, (10 + 1) * 1000);
+}
+static VOID FspFsctlStartStopServiceLockRelease(VOID)
+{
+    FspAdaptiveLockRelease(&FspFsctlStartStopServiceLock);
+}
 
 static BOOLEAN FspFsctlRunningInContainer(VOID)
 {
@@ -455,7 +471,7 @@ static NTSTATUS FspFsctlStartServiceByName(PWSTR DriverName)
     DWORD LastError;
     NTSTATUS Result;
 
-    AcquireSRWLockExclusive(&FspFsctlStartStopServiceLock);
+    FspFsctlStartStopServiceLockAcquire();
 
     if (FspFsctlRunningInContainer())
     {
@@ -517,7 +533,7 @@ exit:
     if (0 != ScmHandle)
         CloseServiceHandle(ScmHandle);
 
-    ReleaseSRWLockExclusive(&FspFsctlStartStopServiceLock);
+    FspFsctlStartStopServiceLockRelease();
 
     return Result;
 }
@@ -587,7 +603,7 @@ FSP_API NTSTATUS FspFsctlStopService(VOID)
 
     FspSxsAppendSuffix(DriverName, sizeof DriverName, L"" FSP_FSCTL_DRIVER_NAME);
 
-    AcquireSRWLockExclusive(&FspFsctlStartStopServiceLock);
+    FspFsctlStartStopServiceLockAcquire();
 
     if (FspFsctlRunningInContainer())
     {
@@ -659,7 +675,7 @@ exit:
     if (0 != ProcessToken)
         CloseHandle(ProcessToken);
 
-    ReleaseSRWLockExclusive(&FspFsctlStartStopServiceLock);
+    FspFsctlStartStopServiceLockRelease();
 
     return Result;
 }

@@ -418,3 +418,74 @@ NTSTATUS FspGetModuleFileName(
 
     return STATUS_SUCCESS;
 }
+
+VOID FspAdaptiveLockAcquire(
+    FSP_ADAPTIVE_LOCK *Lock,
+    PWSTR FileName,
+    UINT64 Offset,
+    DWORD Timeout)
+{
+    AcquireSRWLockExclusive(&Lock->Lock);
+
+    if (0 != FileName)
+    {
+        HANDLE Handle;
+        DWORD BytesTransferred;
+        OVERLAPPED Overlapped;
+        BOOL Success;
+
+        Handle = CreateFileW(
+            FileName,
+            FILE_READ_DATA,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            0,
+            OPEN_EXISTING,
+            FILE_FLAG_OVERLAPPED,
+            0);
+        if (INVALID_HANDLE_VALUE != Handle)
+        {
+            memset(&Overlapped, 0, sizeof Overlapped);
+            Overlapped.Offset = ((PLARGE_INTEGER)&Offset)->LowPart;
+            Overlapped.OffsetHigh = ((PLARGE_INTEGER)&Offset)->HighPart;
+
+            Success = LockFileEx(
+                Handle,
+                LOCKFILE_EXCLUSIVE_LOCK, 0,
+                1, 0,
+                &Overlapped);
+            if (Success || ERROR_IO_PENDING == GetLastError())
+            {
+                Success = FALSE;
+                if (WAIT_OBJECT_0 == WaitForSingleObject(Handle, Timeout))
+                    Success = GetOverlappedResult(Handle, &Overlapped, &BytesTransferred, TRUE);
+            }
+
+            if (Success)
+            {
+                Lock->Handle = Handle;
+                Lock->Offset = Offset;
+            }
+            else
+                CloseHandle(Handle);
+        }
+    }
+}
+
+VOID FspAdaptiveLockRelease(
+    FSP_ADAPTIVE_LOCK *Lock)
+{
+    if (INVALID_HANDLE_VALUE != Lock->Handle)
+    {
+        HANDLE Handle = Lock->Handle;
+        LARGE_INTEGER LargeOffset = *(PLARGE_INTEGER)&Lock->Offset;
+
+        UnlockFile(Handle, LargeOffset.LowPart, LargeOffset.HighPart, 1, 0);
+
+        CloseHandle(Handle);
+
+        Lock->Handle = INVALID_HANDLE_VALUE;
+        Lock->Offset = 0;
+    }
+
+    ReleaseSRWLockExclusive(&Lock->Lock);
+}
