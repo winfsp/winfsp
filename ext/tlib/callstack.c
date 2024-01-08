@@ -1,7 +1,7 @@
 /**
  * @file tlib/callstack.c
  *
- * @copyright 2014-2022 Bill Zissimopoulos
+ * @copyright 2014-2024 Bill Zissimopoulos
  */
 
 #include <tlib/callstack.h>

@@ -1,7 +1,7 @@
 /**
  * @file dll/mount.c
  *
- * @copyright 2015-2022 Bill Zissimopoulos
+ * @copyright 2015-2024 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.

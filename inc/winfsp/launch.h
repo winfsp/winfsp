@@ -5,7 +5,7 @@
  * In order to use the WinFsp Launch API a program must include &lt;winfsp/launch.h&gt;
  * and link with the winfsp_x64.dll (or winfsp_x86.dll) library.
  *
- * @copyright 2015-2022 Bill Zissimopoulos
+ * @copyright 2015-2024 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
