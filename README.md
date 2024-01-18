@@ -24,7 +24,7 @@
 
 ## Overview
 
-WinFsp is a platform that provides development and runtime support for custom file systems on Windows computers. Typically any information or storage may be organized and presented as a file system via WinFsp, with the benefit being that the information can be accessed via the standand Windows file API’s by any Windows application.
+WinFsp is a platform that provides development and runtime support for custom file systems on Windows computers. Typically any information or storage may be organized and presented as a file system via WinFsp, with the benefit being that the information can be accessed via the standard Windows file APIs by any Windows application.
 
 The core WinFsp consists of a kernel mode file system driver (FSD) and a user mode DLL. The FSD interfaces with the Windows kernel and handles all interactions necessary to present itself as a file system driver. The DLL interfaces with the FSD and presents an API that can be used to handle file system functions. For example, when an application attempts to open a file, the file system receives an `Open` call with the necessary information.
 
@@ -45,7 +45,7 @@ Using WinFsp to build a file system has many benefits:
 
 **Wide support**: Supports Windows 7 to Windows 11 and the x86, x64 and ARM64 architectures.
 
-**Flexible API**: Includes Native, FUSE2, FUSE3 and .NET API's.
+**Flexible API**: Includes Native, FUSE2, FUSE3 and .NET APIs.
 
 **Shell integration**: Provides facilities to integrate user mode file systems with the Windows shell. See the [Service Architecture](doc/WinFsp-Service-Architecture.asciidoc) document.
 
