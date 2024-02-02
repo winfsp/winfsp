@@ -86,7 +86,7 @@ struct fsp_fuse_file_desc
     char *PosixPath;
     BOOLEAN IsDirectory, IsReparsePoint;
     int OpenFlags;
-    UINT64 FileHandle;
+    UINT_PTR FileHandle;
     PVOID DirBuffer;
 };
 struct fuse_dirhandle

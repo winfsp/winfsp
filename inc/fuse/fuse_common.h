@@ -107,7 +107,7 @@ struct fuse_file_info
     unsigned int flush:1;
     unsigned int nonseekable:1;
     unsigned int padding:28;
-    uint64_t fh;
+    uintptr_t fh;
     uint64_t lock_owner;
 };
 

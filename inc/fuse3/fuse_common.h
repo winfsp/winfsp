@@ -87,7 +87,7 @@ struct fuse3_file_info
     unsigned int nonseekable:1;
     unsigned int flock_release:1;
     unsigned int padding:27;
-    uint64_t fh;
+    uintptr_t fh;
     uint64_t lock_owner;
     uint32_t poll_events;
 };
