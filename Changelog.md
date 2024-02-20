@@ -1,6 +1,13 @@
 # Changelog
 
 
+## v2.1B1 (2024 Beta1)
+
+- [FIX] Fixes a rare BSOD on recent versions of Windows. See commit a482183 for details.
+
+- [FIX] Fixes a racing issue with two processes competing to start the FSD discovered during testing.
+
+
 ## v2.0 (2023)
 
 This release is a major version change for WinFsp (from 1.x to 2.x). There are no backwards incompatible API changes in this release, but nevertheless enough things change that warrant a version change.
