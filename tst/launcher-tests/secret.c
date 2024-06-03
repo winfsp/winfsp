@@ -16,7 +16,14 @@ int main()
 {
     char pass[256];
 
-    gets(pass);
+    fgets(pass, sizeof pass, stdin);
+    for (char *p = pass; *p; p++)
+        if ('\n' == *p)
+        {
+            *p = '\0';
+            break;
+        }
+
     if (0 == strcmp("foobar", pass))
     {
         puts("OK");
