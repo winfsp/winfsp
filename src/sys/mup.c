@@ -250,7 +250,7 @@ NTSTATUS FspMupHandleIrp(
          * Every other CREATE request must be forwarded to the appropriate fsvol device.
          */
 
-        if (0 != FileObject->RelatedFileObject)
+        while (0 != FileObject->RelatedFileObject)
             FileObject = FileObject->RelatedFileObject;
 
         FspFsmupDeviceLockPrefixTable(FsmupDeviceObject);
