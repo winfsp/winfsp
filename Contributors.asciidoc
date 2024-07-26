@@ -67,6 +67,7 @@ CONTRIBUTOR LIST
 |John Oberschelp                                                |john at oberschelp.net
 |John Tyner                                                     |jtyner at gmail.com
 |Konstantinos Karakostas                                        |noiredev at protonmail.com
+|Naoki Ikeguchi                                                 |me at s6n.jp
 |Paweł Wegner (Google LLC, https://google.com)                  |lemourin at google.com
 |Pedro Frejo (Arpa System, https://arpasystem.com)              |pedro.frejo at arpasystem.com
 |Ronny Chan                                                     |ronny at ronnychan.ca
