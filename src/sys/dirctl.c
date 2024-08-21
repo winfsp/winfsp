@@ -348,7 +348,9 @@ static NTSTATUS FspFsvolQueryDirectoryCopyCache(
 
     FSP_FILE_NODE *FileNode = FileDesc->FileNode;
 
-    if (ResetCache || FileDesc->DirInfo != FileNode->NonPaged->DirInfo)
+    if (ResetCache ||
+        FileDesc->DirInfo != FileNode->NonPaged->DirInfo ||
+        FileDesc->DirInfoCacheHint >= DirInfoSize)
         FileDesc->DirInfoCacheHint = 0; /* reset the DirInfo hint if anything looks fishy! */
 
     FileDesc->DirInfo = FileNode->NonPaged->DirInfo;
