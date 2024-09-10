@@ -27,6 +27,7 @@
 #include <stdint.h>
 #if !defined(WINFSP_DLL_INTERNAL)
 #include <stdlib.h>
+#include <string.h>
 #endif
 
 #ifdef __cplusplus
