@@ -1,6 +1,15 @@
 # Changelog
 
 
+## v2.1B2 (2024 Beta2)
+
+- [FIX] Fixes a rare BSOD on recent versions of Windows. See commit a482183 for details.
+
+- [FIX] Fixes a rare problem when using `NtCreateFile` to perform "relative" opens on a network drive (see GitHub issue #561).
+
+- [FIX] Fixes a racing issue with two processes competing to start the FSD discovered during testing.
+
+
 ## v2.1B1 (2024 Beta1)
 
 - [FIX] Fixes a rare BSOD on recent versions of Windows. See commit a482183 for details.
