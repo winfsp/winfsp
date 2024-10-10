@@ -207,6 +207,8 @@ static NTSTATUS FspFsvolSetSecurity(
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     SECURITY_INFORMATION SecurityInformation = IrpSp->Parameters.SetSecurity.SecurityInformation;
     PSECURITY_DESCRIPTOR SecurityDescriptor = IrpSp->Parameters.SetSecurity.SecurityDescriptor;
+    BOOLEAN SecurityDescriptorRelative =
+        BooleanFlagOn(((SECURITY_DESCRIPTOR *)SecurityDescriptor)->Control, SE_SELF_RELATIVE);
     ULONG SecurityDescriptorSize = 0;
 
     ASSERT(FileNode == FileDesc->FileNode);
@@ -216,7 +218,10 @@ static NTSTATUS FspFsvolSetSecurity(
     if (0 == SecurityDescriptor || !RtlValidSecurityDescriptor(SecurityDescriptor))
         return STATUS_INVALID_PARAMETER;
 #endif
-    SecurityDescriptorSize = RtlLengthSecurityDescriptor(SecurityDescriptor);
+    if (SecurityDescriptorRelative)
+        SecurityDescriptorSize = RtlLengthSecurityDescriptor(SecurityDescriptor);
+    else
+        RtlAbsoluteToSelfRelativeSD(SecurityDescriptor, 0, &SecurityDescriptorSize);
 
     FspFileNodeAcquireExclusive(FileNode, Full);
 
@@ -236,7 +241,16 @@ static NTSTATUS FspFsvolSetSecurity(
     Request->Req.SetSecurity.SecurityInformation = SecurityInformation;
     Request->Req.SetSecurity.SecurityDescriptor.Offset = 0;
     Request->Req.SetSecurity.SecurityDescriptor.Size = (UINT16)SecurityDescriptorSize;
-    RtlCopyMemory(Request->Buffer, SecurityDescriptor, SecurityDescriptorSize);
+    if (SecurityDescriptorRelative)
+        RtlCopyMemory(
+            Request->Buffer,
+            SecurityDescriptor,
+            SecurityDescriptorSize);
+    else
+        RtlAbsoluteToSelfRelativeSD(
+            SecurityDescriptor,
+            (PSECURITY_DESCRIPTOR)Request->Buffer,
+            &SecurityDescriptorSize);
 
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestFileNode) = FileNode;
