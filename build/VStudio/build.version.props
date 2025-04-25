@@ -72,5 +72,22 @@
         <MyFsctlRegisterPath>"."</MyFsctlRegisterPath>
         <MyNpRegisterPath>"."</MyNpRegisterPath>
         <MyEventLogRegisterPath>"."</MyEventLogRegisterPath>
+
+        <!--
+            Target SDK/WDK version
+
+            For VS2019 builds (supports Win7/Win8/Win10+ x86/x64/a64):
+                MyTargetPlatformVersion = 10.0.19041.0
+                MyNtddiVersion = 0x06010000
+                MyWin32Version = 0x0601
+
+            For latest SDK/WDK builds (supports Win10+ x64/a64):
+                MyTargetPlatformVersion = $(LatestTargetPlatformVersion)
+                MyNtddiVersion = 0x0A000006
+                MyWin32Version = 0x0A00
+        -->
+        <MyTargetPlatformVersion>10.0.19041.0</MyTargetPlatformVersion>
+        <MyNtddiVersion>0x06010000</MyNtddiVersion>
+        <MyWin32Version>0x0601</MyWin32Version>
     </PropertyGroup>
 </Project>

@@ -31,7 +31,7 @@
     <ProjectGuid>{C4E1E9E5-0959-488E-8C6A-C327CC81BEFB}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>fsbench</RootNamespace>
-    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(MyTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

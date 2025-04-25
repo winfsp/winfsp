@@ -163,7 +163,7 @@ copy /b $(OutDir)fuse3-$(MyProductFileArch).pc + %(FullPath) $(OutDir)fuse3-$(My
     <ProjectGuid>{4A7C0B21-9E10-4C81-92DE-1493EFCF24EB}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>winfspdll</RootNamespace>
-    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>$(MyTargetPlatformVersion)</WindowsTargetPlatformVersion>
     <ProjectName>winfsp.dll</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

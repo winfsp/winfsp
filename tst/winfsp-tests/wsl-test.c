@@ -26,6 +26,12 @@
 
 #include "winfsp-tests.h"
 
+/*
+ * The following symbols were missing from earlier SDKs, but are defined
+ * in latest SDKs. Use the macro LX_FILE_METADATA_HAS_UID to determine if
+ * they are missing and if so define them.
+ */
+#if !defined(LX_FILE_METADATA_HAS_UID)
 typedef struct _FILE_STAT_INFORMATION
 {
     LARGE_INTEGER FileId;
@@ -40,7 +46,6 @@ typedef struct _FILE_STAT_INFORMATION
     ULONG NumberOfLinks;
     ACCESS_MASK EffectiveAccess;
 } FILE_STAT_INFORMATION, *PFILE_STAT_INFORMATION;
-
 typedef struct _FILE_STAT_LX_INFORMATION
 {
     LARGE_INTEGER FileId;
@@ -61,6 +66,7 @@ typedef struct _FILE_STAT_LX_INFORMATION
     ULONG LxDeviceIdMajor;
     ULONG LxDeviceIdMinor;
 } FILE_STAT_LX_INFORMATION, *PFILE_STAT_LX_INFORMATION;
+#endif
 
 NTSTATUS NTAPI NtQueryInformationFile(
     HANDLE FileHandle,
