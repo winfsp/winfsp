@@ -28,9 +28,11 @@ set BuildArm64=yes
 if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2015" (
     set BuildArm64=no
     set UseDotnetSdk=yes
+    set FixWindowsSdk=yes
 )
 if "%APPVEYOR_BUILD_WORKER_IMAGE%"=="Visual Studio 2017" (
     set BuildArm64=no
+    set FixWindowsSdk=yes
 )
 if X%BuildArm64%==Xno (
     echo WARNING: APPVEYOR BUILD ON UNSUPPORTED VERSION OF VISUAL STUDIO.
@@ -59,6 +61,11 @@ set signfail=0
 if X%SignedPackage%==X (
     if exist build\ for /R build\ %%d in (%Configuration%) do (
         if exist "%%d" rmdir /s/q "%%d"
+    )
+
+    if X%FixWindowsSdk%==Xyes (
+        powershell -command "($xml=[xml](Get-Content 'build.version.props')).Project.PropertyGroup.MyTargetPlatformVersion='$(LatestTargetPlatformVersion)'; $xml.Save('build.version.props')"
+        if errorlevel 1 goto fail
     )
 
     if X%BuildArm64%==Xyes (
