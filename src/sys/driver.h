@@ -153,6 +153,7 @@ VOID FspTraceInitialize(VOID);
 VOID FspTraceFinalize(VOID);
 VOID FspTrace(const char *file, int line, const char *func);
 VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Status);
+VOID FspTraceFileNode(const char *file, int line, const char *func, const char *sym, PVOID FileNode);
 #define FSP_TRACE_INIT()                \
     FspTraceInitialize()
 #define FSP_TRACE_FINI()                \
@@ -168,6 +169,13 @@ VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Sta
         __LINE__,                       \
         __FUNCTION__,                   \
         Status)
+#define FSP_TRACE_FILENODE(Sym, FileNode)\
+    FspTraceFileNode(                   \
+        __FILE__,                       \
+        __LINE__,                       \
+        __FUNCTION__,                   \
+        Sym,                            \
+        FileNode)
 #else
 #define FSP_TRACE_INIT()                \
     ((VOID)0)
@@ -176,6 +184,8 @@ VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Sta
 #define FSP_TRACE()                     \
     ((VOID)0)
 #define FSP_TRACE_NTSTATUS(Result)      \
+    ((VOID)0)
+#define FSP_TRACE_FILENODE(Sym, FileNode)\
     ((VOID)0)
 #endif
 #undef STATUS_INSUFFICIENT_RESOURCES
@@ -1927,6 +1937,21 @@ typedef struct
     PVOID PrepareContext;
 } FSP_FILE_NODE_OPLOCK_CONTEXT;
 static inline
+VOID FspFileNodeInitializeOplock(FSP_FILE_NODE *FileNode)
+{
+    FsRtlInitializeOplock(FspFileNodeAddrOfOplock(FileNode));
+}
+static inline
+VOID FspFileNodeUninitializeOplock(FSP_FILE_NODE *FileNode)
+{
+    FsRtlUninitializeOplock(FspFileNodeAddrOfOplock(FileNode));
+}
+static inline
+BOOLEAN FspFileNodeOplockIsFastIoPossible(FSP_FILE_NODE *FileNode)
+{
+    return FsRtlOplockIsFastIoPossible(FspFileNodeAddrOfOplock(FileNode));
+}
+static inline
 NTSTATUS FspFileNodeOplockFsctl(FSP_FILE_NODE *FileNode, PIRP Irp, ULONG OpenCount)
 {
     return FspOplockFsctrl(FspFileNodeAddrOfOplock(FileNode), Irp, OpenCount);
@@ -1997,6 +2022,28 @@ VOID FspFileNodeOplockComplete(PVOID Context, PIRP Irp);
 #define FspFileNodeOplockCheckAsync(FileNode, AcquireFlags, PrepareContext, Irp)\
     FspFileNodeOplockCheckAsyncEx(FileNode, AcquireFlags, (PVOID)(UINT_PTR)PrepareContext, Irp,\
         FspFileNodeOplockComplete,FspFileNodeOplockPrepare)
+#if FSP_TRACE_ENABLED
+#define FspFileNodeInitializeOplock(FileNode)\
+    (FSP_TRACE_FILENODE("FspFileNodeInitializeOplock", FileNode), (FspFileNodeInitializeOplock)(FileNode))
+#define FspFileNodeUninitializeOplock(FileNode)\
+    (FSP_TRACE_FILENODE("FspFileNodeUninitializeOplock", FileNode), (FspFileNodeUninitializeOplock)(FileNode))
+#define FspFileNodeOplockIsFastIoPossible(FileNode)\
+    (FSP_TRACE_FILENODE("FspFileNodeOplockIsFastIoPossible", FileNode), (FspFileNodeOplockIsFastIoPossible)(FileNode))
+#define FspFileNodeOplockFsctl(FileNode, Irp, OpenCount)\
+    (FSP_TRACE_FILENODE("FspFileNodeOplockFsctl", FileNode), (FspFileNodeOplockFsctl)(FileNode, Irp, OpenCount))
+#define FspFileNodeOplockIsBatch(FileNode)\
+    (FSP_TRACE_FILENODE("FspFileNodeOplockIsBatch", FileNode), (FspFileNodeOplockIsBatch)(FileNode))
+#define FspFileNodeOplockIsHandle(FileNode)\
+    (FSP_TRACE_FILENODE("FspFileNodeOplockIsHandle", FileNode), (FspFileNodeOplockIsHandle)(FileNode))
+#define FspFileNodeOplockCheck(FileNode, Irp)\
+    (FSP_TRACE_FILENODE("FspFileNodeOplockCheck", FileNode), (FspFileNodeOplockCheck)(FileNode, Irp))
+#define FspFileNodeOplockCheckEx(FileNode, Irp, Flags)\
+    (FSP_TRACE_FILENODE("FspFileNodeOplockCheckEx", FileNode), (FspFileNodeOplockCheckEx)(FileNode, Irp, Flags))
+#define FspFileNodeOplockBreakHandle(FileNode, Irp, Flags)\
+    (FSP_TRACE_FILENODE("FspFileNodeOplockBreakHandle", FileNode), (FspFileNodeOplockBreakHandle)(FileNode, Irp, Flags))
+#define FspFileNodeOplockCheckAsyncEx(FileNode, AcquireFlags, PrepareContext, Irp, CompletionRoutine, PostIrpRoutine)\
+    (FSP_TRACE_FILENODE("FspFileNodeOplockCheckAsyncEx", FileNode), (FspFileNodeOplockCheckAsyncEx)(FileNode, AcquireFlags, PrepareContext, Irp, CompletionRoutine, PostIrpRoutine))
+#endif
 
 /* multiversion support */
 typedef

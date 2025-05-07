@@ -43,6 +43,19 @@ VOID FspTrace(const char *file, int line, const char *func)
         DRIVER_NAME ": %s[%s:%d]\n", func, file, line);
 }
 
+VOID FspTraceFileNode(const char *file, int line, const char *func, const char *sym, PVOID FileNode)
+{
+    for (const char *p = file; '\0' != *p; p++)
+        if ('\\' == *p)
+            file = p + 1;
+
+    ASSERT(DISPATCH_LEVEL >= KeGetCurrentIrql());
+    DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_TRACE_LEVEL,
+        DRIVER_NAME ": %s[%s:%d]: %s(FileNode=%p[\"%wZ\"])\n",
+        func, file, line,
+        sym, FileNode, ((FSP_FILE_NODE *)FileNode)->FileName);
+}
+
 VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Status)
 {
     for (const char *p = file; '\0' != *p; p++)

@@ -113,7 +113,7 @@ BOOLEAN FspFastIoRead(
 
     /* does the file have oplocks or file locks? */
     Result =
-        FsRtlOplockIsFastIoPossible(FspFileNodeAddrOfOplock(FileNode)) &&
+        FspFileNodeOplockIsFastIoPossible(FileNode) &&
         !FsRtlAreThereCurrentFileLocks(&FileNode->FileLock);
     if (!Result)
     {
