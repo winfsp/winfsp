@@ -75,6 +75,9 @@ static NTSTATUS FspFsvolClose(
 
     ASSERT(FileNode == FileDesc->FileNode);
 
+    if (!FlagOn(FileObject->Flags, FO_CLEANUP_COMPLETE))
+        FspFileNodeOplockCheck(FileNode, Irp);
+
     /* create the user-mode file system request; MustSucceed because IRP_MJ_CLOSE cannot fail */
     FspIopCreateRequestMustSucceed(0, 0, 0, &Request);
     Request->Kind = FspFsctlTransactCloseKind;
