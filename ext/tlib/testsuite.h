@@ -1,7 +1,7 @@
 /**
  * @file tlib/testsuite.h
  *
- * @copyright 2014-2024 Bill Zissimopoulos
+ * @copyright 2014-2025 Bill Zissimopoulos
  */
 
 #ifndef TLIB_TESTSUITE_H_INCLUDED

@@ -1,7 +1,7 @@
 /**
  * @file tlib/testsuite.c
  *
- * @copyright 2014-2024 Bill Zissimopoulos
+ * @copyright 2014-2025 Bill Zissimopoulos
  */
 
 #include <tlib/testsuite.h>

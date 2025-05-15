@@ -1,7 +1,7 @@
 /*
  * dotnet/FileSystemBase+Const.cs
  *
- * Copyright 2015-2024 Bill Zissimopoulos
+ * Copyright 2015-2025 Bill Zissimopoulos
  */
 /*
  * This file is part of WinFsp.
