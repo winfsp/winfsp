@@ -1,6 +1,17 @@
 # Changelog
 
 
+## v2.1 (2025)
+
+- [FIX] Fixes a compatibility problem with certain AntiVirus products (e.g. Trend Micro).
+
+- [FIX] Fixes a couple of rare BSODs on recent versions of Windows 11. See commits a482183, a2cd697 for details.
+
+- [FIX] Fixes a rare problem when using `NtCreateFile` to perform "relative" opens on a network drive (see GitHub issue #561).
+
+- [FIX] Fixes a racing issue with two processes competing to start the FSD discovered during testing.
+
+
 ## v2.1B2 (2024 Beta2)
 
 - [FIX] Fixes a rare BSOD on recent versions of Windows. See commit a482183 for details.
