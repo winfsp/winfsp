@@ -249,22 +249,6 @@ static NTSTATUS FspFsvolWriteCached(
     BOOLEAN ExtendingFile;
     BOOLEAN Success;
 
-    /* should we defer the write? */
-    Success = DEBUGTEST(90) && CcCanIWrite(FileObject, WriteLength, CanWait, Retrying);
-    if (!Success)
-    {
-        Result = FspWqCreateIrpWorkItem(Irp, FspFsvolWriteCached, 0);
-        if (NT_SUCCESS(Result))
-        {
-            IoMarkIrpPending(Irp);
-            CcDeferWrite(FileObject, FspFsvolWriteCachedDeferred, Irp, 0, WriteLength, Retrying);
-
-            return STATUS_PENDING;
-        }
-
-        /* if we are unable to defer we will go ahead and (try to) service the IRP now! */
-    }
-
     /* try to acquire the FileNode Main exclusive */
     Success = DEBUGTEST(90) &&
         FspFileNodeTryAcquireExclusiveF(FileNode, FspFileNodeAcquireMain, CanWait);
@@ -319,6 +303,22 @@ static NTSTATUS FspFsvolWriteCached(
             FspFileNodeRelease(FileNode, Main);
             return Result;
         }
+    }
+
+    /* should we defer the write? */
+    Success = DEBUGTEST(90) && CcCanIWrite(FileObject, WriteLength, CanWait, Retrying);
+    if (!Success)
+    {
+        Result = FspWqCreateIrpWorkItem(Irp, FspFsvolWriteCached, 0);
+        if (NT_SUCCESS(Result))
+        {
+            FspFileNodeRelease(FileNode, Main);
+            IoMarkIrpPending(Irp);
+            CcDeferWrite(FileObject, FspFsvolWriteCachedDeferred, Irp, 0, WriteLength, Retrying);
+            return STATUS_PENDING;
+        }
+
+        /* if we are unable to defer we will go ahead and (try to) service the IRP now! */
     }
 
     /* are we extending the file? */
