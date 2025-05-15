@@ -20,8 +20,8 @@
 
         <MyCanonicalVersion>2.1</MyCanonicalVersion>
 
-        <MyProductVersion>2024 Beta2</MyProductVersion>
-        <MyProductStage>Beta</MyProductStage>
+        <MyProductVersion>2025</MyProductVersion>
+        <MyProductStage>Gold</MyProductStage>
 
         <MyCrossCert>DigiCertGlobalG3CodeSigningECCSHA3842021CA1.cer</MyCrossCert>
         <MyCertIssuer>DigiCert</MyCertIssuer>
