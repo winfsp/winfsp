@@ -2,6 +2,7 @@
 Signature = "$WINDOWS NT$"
 Class = Volume
 ClassGuid = {71a27cdd-812a-11d0-bec7-08002be2092f}
+PnpLockdown = 1
 CatalogFile = !CatalogFile!
 Provider = !Provider!
 
