@@ -60,6 +60,7 @@ CONTRIBUTOR LIST
 |Brett Dutro                                                    |brett.dutro at gmail.com
 |Changjian Gao (Juicedata, https://juicefs.com)                 |gcj at juicedata.io
 |Colin Atkinson (Atakama, https://atakama.com)                  |colin at atakama.com
+|Ethan Chan (Juicedata, https://juicefs.com)                    |ethan at juicedata.io
 |Felix Croes                                                    |felix at dworkin.nl
 |Francois Karam (KS2, http://www.ks2.fr)                        |francois.karam at ks2.fr
 |Fritz Elfert                                                   |fritz-github at fritz-elfert.de
