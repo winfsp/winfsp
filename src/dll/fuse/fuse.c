@@ -98,6 +98,7 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=", set_VolumeInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=%d", VolumeParams.VolumeInfoTimeout, 0),
     FSP_FUSE_CORE_OPT("KeepFileCache=", set_KeepFileCache, 1),
+    FSP_FUSE_CORE_OPT("FlushOnCleanup=", set_FlushOnCleanup, 1),
     FSP_FUSE_CORE_OPT("LegacyUnlinkRename=", set_LegacyUnlinkRename, 1),
     FSP_FUSE_CORE_OPT("ThreadCount=%u", ThreadCount, 0),
     FUSE_OPT_KEY("UNC=", 'U'),
@@ -802,6 +803,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.FileInfoTimeout = 1000;
     opt_data.VolumeParams.FlushAndPurgeOnCleanup = TRUE;
     opt_data.VolumeParams.SupportsPosixUnlinkRename = TRUE;
+    opt_data.VolumeParams.FlushOnCleanup = FALSE;
 
     if (-1 == fsp_fuse_core_opt_parse(env, args, &opt_data, /*help=*/1))
     {
@@ -871,6 +873,8 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         opt_data.VolumeParams.VolumeInfoTimeoutValid = 1;
     if (opt_data.set_KeepFileCache)
         opt_data.VolumeParams.FlushAndPurgeOnCleanup = FALSE;
+    if (opt_data.set_FlushOnCleanup)
+        opt_data.VolumeParams.FlushOnCleanup = TRUE;
     if (opt_data.set_LegacyUnlinkRename)
         opt_data.VolumeParams.SupportsPosixUnlinkRename = FALSE;
     opt_data.VolumeParams.CaseSensitiveSearch = TRUE;

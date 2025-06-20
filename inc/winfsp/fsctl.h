@@ -250,7 +250,8 @@ enum
     UINT32 StreamInfoTimeout;           /* stream info timeout (millis); overrides FileInfoTimeout */\
     UINT32 EaTimeout;                   /* EA timeout (millis); overrides FileInfoTimeout */\
     UINT32 FsextControlCode;\
-    UINT32 Reserved32[1];\
+    UINT32 FlushOnCleanup:1;\
+    UINT32 Reserved32:31;\
     UINT64 Reserved64[2];
 typedef struct
 {

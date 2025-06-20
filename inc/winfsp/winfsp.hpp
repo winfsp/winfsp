@@ -620,6 +620,14 @@ public:
     {
         _VolumeParams.FlushAndPurgeOnCleanup = !!FlushAndPurgeOnCleanup;
     }
+    BOOLEAN FlushOnCleanup()
+    {
+        return _VolumeParams.FlushOnCleanup;
+    }
+    VOID SetFlushOnCleanup(BOOLEAN FlushOnCleanup)
+    {
+        _VolumeParams.FlushOnCleanup = !!FlushOnCleanup;
+    }
     PWSTR Prefix()
     {
         return _VolumeParams.Prefix;
