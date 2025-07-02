@@ -1416,7 +1416,7 @@ FSP_API NTSTATUS FspPosixMapPosixToWindowsPathEx(const char *PosixPath, PWSTR *P
         goto lasterror;
 
     WindowsPath = MemAlloc(Size * sizeof(WCHAR));
-    if (0 == PosixPath)
+    if (0 == WindowsPath)
     {
         Result = STATUS_INSUFFICIENT_RESOURCES;
         goto exit;
