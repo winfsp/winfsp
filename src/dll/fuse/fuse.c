@@ -98,6 +98,7 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=", set_VolumeInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=%d", VolumeParams.VolumeInfoTimeout, 0),
     FSP_FUSE_CORE_OPT("KeepFileCache=", set_KeepFileCache, 1),
+    FSP_FUSE_CORE_OPT("FlushOnCleanup=", set_FlushOnCleanup, 1),
     FSP_FUSE_CORE_OPT("LegacyUnlinkRename=", set_LegacyUnlinkRename, 1),
     FSP_FUSE_CORE_OPT("ThreadCount=%u", ThreadCount, 0),
     FUSE_OPT_KEY("UNC=", 'U'),
@@ -880,7 +881,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.ReparsePointsAccessCheck = FALSE;
     opt_data.VolumeParams.NamedStreams = FALSE;
     opt_data.VolumeParams.ReadOnlyVolume = FALSE;
-    opt_data.VolumeParams.PostCleanupWhenModifiedOnly = TRUE;
+    opt_data.VolumeParams.PostCleanupWhenModifiedOnly = !opt_data.set_FlushOnCleanup;
     opt_data.VolumeParams.PassQueryDirectoryFileName = TRUE;
     opt_data.VolumeParams.DeviceControl = TRUE;
 #if defined(FSP_CFG_REJECT_EARLY_IRP)
@@ -905,6 +906,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     f->rellinks = opt_data.rellinks;
     f->dothidden = opt_data.dothidden;
     f->ThreadCount = opt_data.ThreadCount;
+    f->FlushOnCleanup = !!opt_data.set_FlushOnCleanup;
     memcpy(&f->ops, ops, opsize);
     f->data = data;
     f->DebugLog = opt_data.debug ? -1 : 0;

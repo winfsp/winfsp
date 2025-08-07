@@ -1305,6 +1305,7 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
 {
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc = FileDesc;
+    struct fuse_file_info fi;
 
     /*
      * In Windows a DeleteFile/RemoveDirectory is the sequence of the following:
@@ -1330,6 +1331,14 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
      * option, file systems that would need the hard_remove option can instead use the
      * LegacyUnlinkRename option to opt out of the POSIX unlink semantics.
      */
+
+    if (f->FlushOnCleanup && !filedesc->IsDirectory && !filedesc->IsReparsePoint) {
+        memset(&fi, 0, sizeof fi);
+        fi.flags = filedesc->OpenFlags;
+        fi.fh = filedesc->FileHandle;
+        if (0 != f->ops.flush)
+            f->ops.flush(filedesc->PosixPath, &fi);
+    }
 
     if (Flags & FspCleanupDelete)
         if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
@@ -1366,7 +1375,7 @@ static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
     }
     else
     {
-        if (0 != f->ops.flush)
+        if (!f->FlushOnCleanup && 0 != f->ops.flush)
             f->ops.flush(filedesc->PosixPath, &fi);
         if (0 != f->ops.release)
             f->ops.release(filedesc->PosixPath, &fi);
