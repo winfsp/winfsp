@@ -63,6 +63,7 @@ struct fuse
     unsigned conn_want;
     BOOLEAN fsinit;
     BOOLEAN has_symlinks, has_slashdot;
+    BOOLEAN FlushOnCleanup;
     UINT32 DebugLog;
     FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY OpGuardStrategy;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;

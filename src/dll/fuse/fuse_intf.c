@@ -1332,7 +1332,7 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
      * LegacyUnlinkRename option to opt out of the POSIX unlink semantics.
      */
 
-    if (f->VolumeParams.FlushOnCleanup && !filedesc->IsDirectory && !filedesc->IsReparsePoint) {
+    if (f->FlushOnCleanup && !filedesc->IsDirectory && !filedesc->IsReparsePoint) {
         memset(&fi, 0, sizeof fi);
         fi.flags = filedesc->OpenFlags;
         fi.fh = filedesc->FileHandle;
@@ -1375,7 +1375,7 @@ static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
     }
     else
     {
-        if (0 != f->ops.flush && !f->VolumeParams.FlushOnCleanup)
+        if (!f->FlushOnCleanup && 0 != f->ops.flush)
             f->ops.flush(filedesc->PosixPath, &fi);
         if (0 != f->ops.release)
             f->ops.release(filedesc->PosixPath, &fi);

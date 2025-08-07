@@ -803,7 +803,6 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.FileInfoTimeout = 1000;
     opt_data.VolumeParams.FlushAndPurgeOnCleanup = TRUE;
     opt_data.VolumeParams.SupportsPosixUnlinkRename = TRUE;
-    opt_data.VolumeParams.FlushOnCleanup = FALSE;
 
     if (-1 == fsp_fuse_core_opt_parse(env, args, &opt_data, /*help=*/1))
     {
@@ -873,8 +872,6 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         opt_data.VolumeParams.VolumeInfoTimeoutValid = 1;
     if (opt_data.set_KeepFileCache)
         opt_data.VolumeParams.FlushAndPurgeOnCleanup = FALSE;
-    if (opt_data.set_FlushOnCleanup)
-        opt_data.VolumeParams.FlushOnCleanup = TRUE;
     if (opt_data.set_LegacyUnlinkRename)
         opt_data.VolumeParams.SupportsPosixUnlinkRename = FALSE;
     opt_data.VolumeParams.CaseSensitiveSearch = TRUE;
@@ -884,7 +881,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     opt_data.VolumeParams.ReparsePointsAccessCheck = FALSE;
     opt_data.VolumeParams.NamedStreams = FALSE;
     opt_data.VolumeParams.ReadOnlyVolume = FALSE;
-    opt_data.VolumeParams.PostCleanupWhenModifiedOnly = TRUE;
+    opt_data.VolumeParams.PostCleanupWhenModifiedOnly = !opt_data.set_FlushOnCleanup;
     opt_data.VolumeParams.PassQueryDirectoryFileName = TRUE;
     opt_data.VolumeParams.DeviceControl = TRUE;
 #if defined(FSP_CFG_REJECT_EARLY_IRP)
@@ -909,6 +906,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     f->rellinks = opt_data.rellinks;
     f->dothidden = opt_data.dothidden;
     f->ThreadCount = opt_data.ThreadCount;
+    f->FlushOnCleanup = !!opt_data.set_FlushOnCleanup;
     memcpy(&f->ops, ops, opsize);
     f->data = data;
     f->DebugLog = opt_data.debug ? -1 : 0;

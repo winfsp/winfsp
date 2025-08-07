@@ -134,7 +134,6 @@ static NTSTATUS FspFsvolCleanup(
         Request->Req.Cleanup.SetArchiveBit ||
         Request->Req.Cleanup.SetLastWriteTime ||
         Request->Req.Cleanup.SetChangeTime ||
-        FsvolDeviceExtension->VolumeParams.FlushOnCleanup ||
         !FsvolDeviceExtension->VolumeParams.PostCleanupWhenModifiedOnly)
         /*
          * Note that it is still possible for this request to not be delivered,
