@@ -5,6 +5,7 @@ This document contains a list of known open-source file systems and file system 
 == File Systems
 
 - https://github.com/wesley1975/blobfs-win[blobfs-win] - The native porting of the blobfs on the windows platform, blobfs can help you mount the Azure Blob storage as the local disk driver, no matter it is a Linux system or a Windows system.
+- https://github.com/buildbarn/bb-remote-execution[buildbarn] - A bazel-compatible remote execution service that uses WinFSP to provide a virtual directory for performing builds
 - https://github.com/cryptomator/cryptomator[Cryptomator] - Multi-platform transparent client-side encryption of your files in the cloud
 - https://github.com/vgough/encfs[EncFS] - an Encrypted Filesystem for FUSE
 - https://github.com/lowleveldesign/fsmemfs[fsmemfs] - Memory File System written in F#
@@ -28,6 +29,7 @@ This document contains a list of known open-source file systems and file system 
 == File System Libraries
 
 - https://github.com/winfsp/cgofuse[Go: cgofuse] - Cross-platform FUSE library for Go
+- https://github.com/aegistudio/go-winfsp[Go: go-winfsp] - WinFSP bindings for Go
 - https://github.com/SerCeMan/jnr-fuse[Java: jnr-fuse] - FUSE implementation in Java using Java Native Runtime (JNR)
 - https://github.com/jnr-winfsp-team/jnr-winfsp[Java: jnr-winfsp] - A Java binding for WinFsp using Java Native Runtime (JNR)
 - https://github.com/billziss-gh/fusepy[Python: fusepy] - Simple ctypes bindings for FUSE
