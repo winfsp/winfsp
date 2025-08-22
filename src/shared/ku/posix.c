@@ -127,6 +127,7 @@ static struct
 } *FspTrustedDomains;
 static ULONG FspTrustedDomainCount;
 static BOOLEAN FspDistinctPermsForSameOwnerGroup = TRUE;
+static BOOLEAN FspAddWriteEAPermToPosixWriteBit = FALSE;
 static INIT_ONCE FspPosixInitOnce = INIT_ONCE_STATIC_INIT;
 
 #if !defined(_KERNEL_MODE)
@@ -176,7 +177,7 @@ exit:
 
 static VOID FspPosixInitializeFromRegistry(VOID)
 {
-    DWORD DistinctPermsForSameOwnerGroup;
+    DWORD DistinctPermsForSameOwnerGroup, AddWriteEAPermToPosixWriteBit;
     DWORD Size;
     LONG Result;
 
@@ -187,6 +188,14 @@ static VOID FspPosixInitializeFromRegistry(VOID)
         RRF_RT_REG_DWORD, 0, &DistinctPermsForSameOwnerGroup, &Size);
     if (ERROR_SUCCESS == Result)
         FspDistinctPermsForSameOwnerGroup = !!DistinctPermsForSameOwnerGroup;
+
+    AddWriteEAPermToPosixWriteBit = 0;
+    Size = sizeof AddWriteEAPermToPosixWriteBit;
+    Result = RegGetValueW(HKEY_LOCAL_MACHINE, L"" FSP_FSCTL_PRODUCT_FULL_REGKEY,
+        L"AddWriteEAPermToPosixWriteBit",
+        RRF_RT_REG_DWORD, 0, &AddWriteEAPermToPosixWriteBit, &Size);
+    if (ERROR_SUCCESS == Result)
+        FspAddWriteEAPermToPosixWriteBit = !!AddWriteEAPermToPosixWriteBit;
 }
 
 static BOOL WINAPI FspPosixInitialize(
@@ -842,7 +851,7 @@ static inline ACCESS_MASK FspPosixMapPermissionToAccessMask(UINT32 Mode, UINT32 
 
     return
         ((Perm & 4) ? FILE_READ_DATA : 0) |
-        ((Perm & 2) ? FILE_WRITE_ATTRIBUTES | FILE_WRITE_DATA | FILE_APPEND_DATA | DeleteChild : 0) |
+        ((Perm & 2) ? FILE_WRITE_ATTRIBUTES | FILE_WRITE_DATA | FILE_APPEND_DATA | (FspAddWriteEAPermToPosixWriteBit ? FILE_WRITE_EA : 0) | DeleteChild : 0) |
         ((Perm & 1) ? FILE_EXECUTE : 0);
 }
 
