@@ -39,726 +39,726 @@ namespace memfs
 {
     class Path
     {
-        public static String GetDirectoryName(String Path)
+        public static string GetDirectoryName(string path)
         {
-            int Index = Path.LastIndexOf('\\');
-            if (0 > Index)
-                return Path;
-            else if (0 == Index)
+            int index = path.LastIndexOf('\\');
+            if (0 > index)
+                return path;
+            else if (0 == index)
                 return "\\";
             else
-                return Path.Substring(0, Index);
+                return path.Substring(0, index);
         }
 
-        public static String GetFileName(String Path)
+        public static string GetFileName(string path)
         {
-            int Index = Path.LastIndexOf('\\');
-            if (0 > Index)
-                return Path;
+            int index = path.LastIndexOf('\\');
+            if (0 > index)
+                return path;
             else
-                return Path.Substring(Index + 1);
+                return path.Substring(index + 1);
         }
     }
 
     struct EaValueData
     {
-        public Byte[] EaValue;
-        public Boolean NeedEa;
+        public byte[] eaValue;
+        public bool needEa;
     }
 
     class FileNode
     {
-        public FileNode(String FileName)
+        public FileNode(string fileName)
         {
-            this.FileName = FileName;
-            FileInfo.CreationTime =
-            FileInfo.LastAccessTime =
-            FileInfo.LastWriteTime =
-            FileInfo.ChangeTime = (UInt64)DateTime.Now.ToFileTimeUtc();
-            FileInfo.IndexNumber = IndexNumber++;
+            this.fileName = fileName;
+            fileInfo.CreationTime =
+            fileInfo.LastAccessTime =
+            fileInfo.LastWriteTime =
+            fileInfo.ChangeTime = (ulong)DateTime.Now.ToFileTimeUtc();
+            fileInfo.IndexNumber = indexNumber++;
         }
         public FileInfo GetFileInfo()
         {
-            if (null == MainFileNode)
-                return this.FileInfo;
+            if (null == mainFileNode)
+                return this.fileInfo;
             else
             {
-                FileInfo FileInfo = MainFileNode.FileInfo;
-                FileInfo.FileAttributes &= ~(UInt32)FileAttributes.Directory;
-                    /* named streams cannot be directories */
-                FileInfo.AllocationSize = this.FileInfo.AllocationSize;
-                FileInfo.FileSize = this.FileInfo.FileSize;
-                return FileInfo;
+                FileInfo fileInfo = mainFileNode.fileInfo;
+                fileInfo.FileAttributes &= ~(uint)FileAttributes.Directory;
+                /* named streams cannot be directories */
+                fileInfo.AllocationSize = this.fileInfo.AllocationSize;
+                fileInfo.FileSize = this.fileInfo.FileSize;
+                return fileInfo;
             }
         }
-        public SortedDictionary<String, EaValueData> GetEaMap(Boolean Force)
+        public SortedDictionary<string, EaValueData> GetEaMap(bool Force)
         {
-            FileNode FileNode = null == MainFileNode ? this : MainFileNode;
-            if (null == EaMap && Force)
-                EaMap = new SortedDictionary<String, EaValueData>(StringComparer.OrdinalIgnoreCase);
-            return EaMap;
+            //FileNode fileNode = null == mainFileNode ? this : mainFileNode;
+            if (null == eaMap && Force)
+                eaMap = new SortedDictionary<string, EaValueData>(StringComparer.OrdinalIgnoreCase);
+            return eaMap;
         }
 
-        private static UInt64 IndexNumber = 1;
-        public String FileName;
-        public FileInfo FileInfo;
-        public Byte[] FileSecurity;
-        public Byte[] FileData;
-        public Byte[] ReparseData;
-        private SortedDictionary<String, EaValueData> EaMap;
-        public FileNode MainFileNode;
-        public int OpenCount;
+        private static ulong indexNumber = 1;
+        public string fileName;
+        public FileInfo fileInfo;
+        public byte[] fileSecurity;
+        public byte[] fileData;
+        public byte[] reparseData;
+        private SortedDictionary<string, EaValueData> eaMap;
+        public FileNode mainFileNode;
+        public int openCount;
     }
 
     class FileNodeMap
     {
-        public FileNodeMap(Boolean CaseInsensitive)
+        public FileNodeMap(bool caseInsensitive)
         {
-            this.CaseInsensitive = CaseInsensitive;
-            StringComparer Comparer = CaseInsensitive ?
+            this.caseInsensitive = caseInsensitive;
+            StringComparer comparer = caseInsensitive ?
                 StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-            Set = new SortedSet<String>(Comparer);
-            Map = new Dictionary<String, FileNode>(Comparer);
+            _set = new SortedSet<string>(comparer);
+            _map = new Dictionary<string, FileNode>(comparer);
         }
-        public UInt32 Count()
+        public uint Count()
         {
-            return (UInt32)Map.Count;
+            return (uint)_map.Count;
         }
-        public FileNode Get(String FileName)
+        public FileNode Get(string fileName)
         {
-            FileNode FileNode;
-            return Map.TryGetValue(FileName, out FileNode) ? FileNode : null;
+            FileNode fileNode;
+            return _map.TryGetValue(fileName, out fileNode) ? fileNode : null;
         }
-        public FileNode GetMain(String FileName)
+        public FileNode GetMain(string fileName)
         {
-            int Index = FileName.IndexOf(':');
-            if (0 > Index)
+            int index = fileName.IndexOf(':');
+            if (0 > index)
                 return null;
-            FileNode FileNode;
-            return Map.TryGetValue(FileName.Substring(0, Index), out FileNode) ? FileNode : null;
+            FileNode fileNode;
+            return _map.TryGetValue(fileName.Substring(0, index), out fileNode) ? fileNode : null;
         }
-        public FileNode GetParent(String FileName, ref Int32 Result)
+        public FileNode GetParent(string fileName, ref int result)
         {
-            FileNode FileNode;
-            Map.TryGetValue(Path.GetDirectoryName(FileName), out FileNode);
-            if (null == FileNode)
+            FileNode fileNode;
+            _map.TryGetValue(Path.GetDirectoryName(fileName), out fileNode);
+            if (null == fileNode)
             {
-                Result = FileSystemBase.STATUS_OBJECT_PATH_NOT_FOUND;
+                result = FileSystemBase.STATUS_OBJECT_PATH_NOT_FOUND;
                 return null;
             }
-            if (0 == (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory))
+            if (0 == (fileNode.fileInfo.FileAttributes & (uint)FileAttributes.Directory))
             {
-                Result = FileSystemBase.STATUS_NOT_A_DIRECTORY;
+                result = FileSystemBase.STATUS_NOT_A_DIRECTORY;
                 return null;
             }
-            return FileNode;
+            return fileNode;
         }
-        public void TouchParent(FileNode FileNode)
+        public void TouchParent(FileNode fileNode)
         {
-            if ("\\" == FileNode.FileName)
+            if ("\\" == fileNode.fileName)
                 return;
-            Int32 Result = FileSystemBase.STATUS_SUCCESS;
-            FileNode Parent = GetParent(FileNode.FileName, ref Result);
-            if (null == Parent)
+            int result = FileSystemBase.STATUS_SUCCESS;
+            FileNode parent = GetParent(fileNode.fileName, ref result);
+            if (null == parent)
                 return;
-            Parent.FileInfo.LastAccessTime =
-            Parent.FileInfo.LastWriteTime =
-            Parent.FileInfo.ChangeTime = (UInt64)DateTime.Now.ToFileTimeUtc();
+            parent.fileInfo.LastAccessTime =
+            parent.fileInfo.LastWriteTime =
+            parent.fileInfo.ChangeTime = (ulong)DateTime.Now.ToFileTimeUtc();
         }
-        public void Insert(FileNode FileNode)
+        public void Insert(FileNode fileNode)
         {
-            Set.Add(FileNode.FileName);
-            Map.Add(FileNode.FileName, FileNode);
-            TouchParent(FileNode);
+            _set.Add(fileNode.fileName);
+            _map.Add(fileNode.fileName, fileNode);
+            TouchParent(fileNode);
         }
-        public void Remove(FileNode FileNode)
+        public void Remove(FileNode fileNode)
         {
-            if (Set.Remove(FileNode.FileName))
+            if (_set.Remove(fileNode.fileName))
             {
-                Map.Remove(FileNode.FileName);
-                TouchParent(FileNode);
+                _map.Remove(fileNode.fileName);
+                TouchParent(fileNode);
             }
         }
-        public Boolean HasChild(FileNode FileNode)
+        public bool HasChild(FileNode fileNode)
         {
-            foreach (String Name in GetChildrenFileNames(FileNode, null))
+            foreach (string name in GetChildrenFileNames(fileNode, null))
                 return true;
             return false;
         }
-        public IEnumerable<String> GetChildrenFileNames(FileNode FileNode, String Marker)
+        public IEnumerable<string> GetChildrenFileNames(FileNode fileNode, string marker)
         {
-            String MinName = "\\";
-            String MaxName = "]";
-            if ("\\" != FileNode.FileName)
+            string minName = "\\";
+            string maxName = "]";
+            if ("\\" != fileNode.fileName)
             {
-                MinName = FileNode.FileName + "\\";
-                MaxName = FileNode.FileName + "]";
+                minName = fileNode.fileName + "\\";
+                maxName = fileNode.fileName + "]";
             }
-            if (null != Marker)
-                MinName += Marker;
-            foreach (String Name in Set.GetViewBetween(MinName, MaxName))
-                if (Name != MinName &&
-                    Name.Length > MaxName.Length && -1 == Name.IndexOfAny(Delimiters, MaxName.Length))
-                    yield return Name;
+            if (null != marker)
+                minName += marker;
+            foreach (string name in _set.GetViewBetween(minName, maxName))
+                if (name != minName &&
+                    name.Length > maxName.Length && -1 == name.IndexOfAny(_delimiters, maxName.Length))
+                    yield return name;
         }
-        public IEnumerable<String> GetStreamFileNames(FileNode FileNode)
+        public IEnumerable<string> GetStreamFileNames(FileNode fileNode)
         {
-            String MinName = FileNode.FileName + ":";
-            String MaxName = FileNode.FileName + ";";
-            foreach (String Name in Set.GetViewBetween(MinName, MaxName))
-                if (Name.Length > MinName.Length)
-                    yield return Name;
+            string minName = fileNode.fileName + ":";
+            string maxName = fileNode.fileName + ";";
+            foreach (string name in _set.GetViewBetween(minName, maxName))
+                if (name.Length > minName.Length)
+                    yield return name;
         }
-        public IEnumerable<String> GetDescendantFileNames(FileNode FileNode)
+        public IEnumerable<string> GetDescendantFileNames(FileNode fileNode)
         {
-            yield return FileNode.FileName;
-            String MinName = FileNode.FileName + ":";
-            String MaxName = FileNode.FileName + ";";
-            foreach (String Name in Set.GetViewBetween(MinName, MaxName))
-                if (Name.Length > MinName.Length)
-                    yield return Name;
-            MinName = "\\";
-            MaxName = "]";
-            if ("\\" != FileNode.FileName)
+            yield return fileNode.fileName;
+            string minName = fileNode.fileName + ":";
+            string maxName = fileNode.fileName + ";";
+            foreach (string name in _set.GetViewBetween(minName, maxName))
+                if (name.Length > minName.Length)
+                    yield return name;
+            minName = "\\";
+            maxName = "]";
+            if ("\\" != fileNode.fileName)
             {
-                MinName = FileNode.FileName + "\\";
-                MaxName = FileNode.FileName + "]";
+                minName = fileNode.fileName + "\\";
+                maxName = fileNode.fileName + "]";
             }
-            foreach (String Name in Set.GetViewBetween(MinName, MaxName))
-                if (Name.Length > MinName.Length)
-                    yield return Name;
+            foreach (string name in _set.GetViewBetween(minName, maxName))
+                if (name.Length > minName.Length)
+                    yield return name;
         }
 
-        private static readonly Char[] Delimiters = new Char[] { '\\', ':' };
-        public Boolean CaseInsensitive;
-        private SortedSet<String> Set;
-        private Dictionary<String, FileNode> Map;
+        private static readonly char[] _delimiters = new char[] { '\\', ':' };
+        public bool caseInsensitive;
+        private SortedSet<string> _set;
+        private Dictionary<string, FileNode> _map;
     }
 
     class Memfs : FileSystemBase
     {
-        private FileSystemHost Host;
-        public const UInt16 MEMFS_SECTOR_SIZE = 512;
-        public const UInt16 MEMFS_SECTORS_PER_ALLOCATION_UNIT = 1;
+        private FileSystemHost _host;
+        public const ushort MEMFS_SECTOR_SIZE = 512;
+        public const ushort MEMFS_SECTORS_PER_ALLOCATION_UNIT = 1;
 
         public Memfs(
-            Boolean CaseInsensitive, UInt32 MaxFileNodes, UInt32 MaxFileSize, String RootSddl,
-            UInt64 SlowioMaxDelay, UInt64 SlowioPercentDelay, UInt64 SlowioRarefyDelay)
+            bool caseInsensitive, uint maxFileNodes, uint maxFileSize, string rootSddl,
+            ulong slowioMaxDelay, ulong slowioPercentDelay, ulong slowioRarefyDelay)
         {
-            this.FileNodeMap = new FileNodeMap(CaseInsensitive);
-            this.MaxFileNodes = MaxFileNodes;
-            this.MaxFileSize = MaxFileSize;
-            this.SlowioMaxDelay = SlowioMaxDelay;
-            this.SlowioPercentDelay = SlowioPercentDelay;
-            this.SlowioRarefyDelay = SlowioRarefyDelay;
+            this._fileNodeMap = new FileNodeMap(caseInsensitive);
+            this._maxFileNodes = maxFileNodes;
+            this._maxFileSize = maxFileSize;
+            this._slowioMaxDelay = slowioMaxDelay;
+            this._slowioPercentDelay = slowioPercentDelay;
+            this._slowioRarefyDelay = slowioRarefyDelay;
 
             /*
              * Create root directory.
              */
 
-            FileNode RootNode = new FileNode("\\");
-            RootNode.FileInfo.FileAttributes = (UInt32)FileAttributes.Directory;
-            if (null == RootSddl)
-                RootSddl = "O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;WD)";
-            RawSecurityDescriptor RootSecurityDescriptor = new RawSecurityDescriptor(RootSddl);
-            RootNode.FileSecurity = new Byte[RootSecurityDescriptor.BinaryLength];
-            RootSecurityDescriptor.GetBinaryForm(RootNode.FileSecurity, 0);
+            FileNode rootNode = new FileNode("\\");
+            rootNode.fileInfo.FileAttributes = (uint)FileAttributes.Directory;
+            if (null == rootSddl)
+                rootSddl = "O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;WD)";
+            RawSecurityDescriptor rootSecurityDescriptor = new RawSecurityDescriptor(rootSddl);
+            rootNode.fileSecurity = new byte[rootSecurityDescriptor.BinaryLength];
+            rootSecurityDescriptor.GetBinaryForm(rootNode.fileSecurity, 0);
 
-            FileNodeMap.Insert(RootNode);
+            _fileNodeMap.Insert(rootNode);
         }
 
-        public override Int32 Init(Object Host0)
+        public override int Init(object host0)
         {
-            Host = (FileSystemHost)Host0;
-            Host.SectorSize = Memfs.MEMFS_SECTOR_SIZE;
-            Host.SectorsPerAllocationUnit = Memfs.MEMFS_SECTORS_PER_ALLOCATION_UNIT;
-            Host.VolumeCreationTime = (UInt64)DateTime.Now.ToFileTimeUtc();
-            Host.VolumeSerialNumber = (UInt32)(Host.VolumeCreationTime / (10000 * 1000));
-            Host.CaseSensitiveSearch = !FileNodeMap.CaseInsensitive;
-            Host.CasePreservedNames = true;
-            Host.UnicodeOnDisk = true;
-            Host.PersistentAcls = true;
-            Host.ReparsePoints = true;
-            Host.ReparsePointsAccessCheck = false;
-            Host.NamedStreams = true;
-            Host.PostCleanupWhenModifiedOnly = true;
-            Host.PostDispositionWhenNecessaryOnly = true;
-            Host.PassQueryDirectoryFileName = true;
-            Host.ExtendedAttributes = true;
-            Host.WslFeatures = true;
-            Host.RejectIrpPriorToTransact0 = true;
-            Host.SupportsPosixUnlinkRename = true;
+            _host = (FileSystemHost)host0;
+            _host.SectorSize = Memfs.MEMFS_SECTOR_SIZE;
+            _host.SectorsPerAllocationUnit = Memfs.MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+            _host.VolumeCreationTime = (ulong)DateTime.Now.ToFileTimeUtc();
+            _host.VolumeSerialNumber = (uint)(_host.VolumeCreationTime / (10000 * 1000));
+            _host.CaseSensitiveSearch = !_fileNodeMap.caseInsensitive;
+            _host.CasePreservedNames = true;
+            _host.UnicodeOnDisk = true;
+            _host.PersistentAcls = true;
+            _host.ReparsePoints = true;
+            _host.ReparsePointsAccessCheck = false;
+            _host.NamedStreams = true;
+            _host.PostCleanupWhenModifiedOnly = true;
+            _host.PostDispositionWhenNecessaryOnly = true;
+            _host.PassQueryDirectoryFileName = true;
+            _host.ExtendedAttributes = true;
+            _host.WslFeatures = true;
+            _host.RejectIrpPriorToTransact0 = true;
+            _host.SupportsPosixUnlinkRename = true;
             return STATUS_SUCCESS;
         }
 
 #if MEMFS_SLOWIO
-        public override int Mounted(object Host)
+        public override int Mounted(object host)
         {
-            SlowioTasksRunning = 0;
+            _slowioTasksRunning = 0;
             return STATUS_SUCCESS;
         }
 
-        public override void Unmounted(object Host)
+        public override void Unmounted(object host)
         {
-            while (SlowioTasksRunning != 0)
+            while (_slowioTasksRunning != 0)
                 Thread.Sleep(1000);
         }
 #endif
 
-        public override Int32 GetVolumeInfo(
-            out VolumeInfo VolumeInfo)
+        public override int GetVolumeInfo(
+            out VolumeInfo volumeInfo)
         {
-            VolumeInfo = default(VolumeInfo);
-            VolumeInfo.TotalSize = MaxFileNodes * (UInt64)MaxFileSize;
-            VolumeInfo.FreeSize = (MaxFileNodes - FileNodeMap.Count()) * (UInt64)MaxFileSize;
-            VolumeInfo.SetVolumeLabel(VolumeLabel);
+            volumeInfo = default;
+            volumeInfo.TotalSize = _maxFileNodes * (ulong)_maxFileSize;
+            volumeInfo.FreeSize = (_maxFileNodes - _fileNodeMap.Count()) * (ulong)_maxFileSize;
+            volumeInfo.SetVolumeLabel(_volumeLabel);
             return STATUS_SUCCESS;
         }
 
-        public override Int32 SetVolumeLabel(
-            String VolumeLabel,
-            out VolumeInfo VolumeInfo)
+        public override int SetVolumeLabel(
+            string volumeLabel,
+            out VolumeInfo volumeInfo)
         {
-            this.VolumeLabel = VolumeLabel;
-            return GetVolumeInfo(out VolumeInfo);
+            this._volumeLabel = volumeLabel;
+            return GetVolumeInfo(out volumeInfo);
         }
 
-        public override Int32 GetSecurityByName(
-            String FileName,
-            out UInt32 FileAttributes/* or ReparsePointIndex */,
-            ref Byte[] SecurityDescriptor)
+        public override int GetSecurityByName(
+            string fileName,
+            out uint fileAttributes/* or ReparsePointIndex */,
+            ref byte[] securityDescriptor)
         {
-            FileNode FileNode = FileNodeMap.Get(FileName);
-            if (null == FileNode)
+            FileNode fileNode = _fileNodeMap.Get(fileName);
+            if (null == fileNode)
             {
-                Int32 Result = STATUS_OBJECT_NAME_NOT_FOUND;
-                if (FindReparsePoint(FileName, out FileAttributes))
-                    Result = STATUS_REPARSE;
+                int result = STATUS_OBJECT_NAME_NOT_FOUND;
+                if (FindReparsePoint(fileName, out fileAttributes))
+                    result = STATUS_REPARSE;
                 else
-                    FileNodeMap.GetParent(FileName, ref Result);
-                return Result;
+                    _fileNodeMap.GetParent(fileName, ref result);
+                return result;
             }
 
-            UInt32 FileAttributesMask = ~(UInt32)0;
-            if (null != FileNode.MainFileNode)
+            uint fileAttributesMask = ~(uint)0;
+            if (null != fileNode.mainFileNode)
             {
-                FileAttributesMask = ~(UInt32)System.IO.FileAttributes.Directory;
-                FileNode = FileNode.MainFileNode;
+                fileAttributesMask = ~(uint)System.IO.FileAttributes.Directory;
+                fileNode = fileNode.mainFileNode;
             }
-            FileAttributes = FileNode.FileInfo.FileAttributes & FileAttributesMask;
-            if (null != SecurityDescriptor)
-                SecurityDescriptor = FileNode.FileSecurity;
+            fileAttributes = fileNode.fileInfo.FileAttributes & fileAttributesMask;
+            if (null != securityDescriptor)
+                securityDescriptor = fileNode.fileSecurity;
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 CreateEx(
-            String FileName,
-            UInt32 CreateOptions,
-            UInt32 GrantedAccess,
-            UInt32 FileAttributes,
-            Byte[] SecurityDescriptor,
-            UInt64 AllocationSize,
-            IntPtr ExtraBuffer,
-            UInt32 ExtraLength,
-            Boolean ExtraBufferIsReparsePoint,
-            out Object FileNode0,
-            out Object FileDesc,
-            out FileInfo FileInfo,
-            out String NormalizedName)
+        public override int CreateEx(
+            string fileName,
+            uint createOptions,
+            uint grantedAccess,
+            uint fileAttributes,
+            byte[] securityDescriptor,
+            ulong allocationSize,
+            IntPtr extraBuffer,
+            uint extraLength,
+            bool extraBufferIsReparsePoint,
+            out object fileNode0,
+            out object fileDesc,
+            out FileInfo fileInfo,
+            out string normalizedName)
         {
-            FileNode0 = default(Object);
-            FileDesc = default(Object);
-            FileInfo = default(FileInfo);
-            NormalizedName = default(String);
+            fileNode0 = default;
+            fileDesc = default;
+            fileInfo = default;
+            normalizedName = default;
 
-            FileNode FileNode;
-            FileNode ParentNode;
-            Int32 Result = STATUS_SUCCESS;
+            FileNode fileNode;
+            FileNode parentNode;
+            int result = STATUS_SUCCESS;
 
-            FileNode = FileNodeMap.Get(FileName);
-            if (null != FileNode)
+            fileNode = _fileNodeMap.Get(fileName);
+            if (null != fileNode)
                 return STATUS_OBJECT_NAME_COLLISION;
-            ParentNode = FileNodeMap.GetParent(FileName, ref Result);
-            if (null == ParentNode)
-                return Result;
+            parentNode = _fileNodeMap.GetParent(fileName, ref result);
+            if (null == parentNode)
+                return result;
 
-            if (0 != (CreateOptions & FILE_DIRECTORY_FILE))
-                AllocationSize = 0;
-            if (FileNodeMap.Count() >= MaxFileNodes)
+            if (0 != (createOptions & FILE_DIRECTORY_FILE))
+                allocationSize = 0;
+            if (_fileNodeMap.Count() >= _maxFileNodes)
                 return STATUS_CANNOT_MAKE;
-            if (AllocationSize > MaxFileSize)
+            if (allocationSize > _maxFileSize)
                 return STATUS_DISK_FULL;
 
-            if ("\\" != ParentNode.FileName)
+            if ("\\" != parentNode.fileName)
                 /* normalize name */
-                FileName = ParentNode.FileName + "\\" + Path.GetFileName(FileName);
-            FileNode = new FileNode(FileName);
-            FileNode.MainFileNode = FileNodeMap.GetMain(FileName);
-            FileNode.FileInfo.FileAttributes = 0 != (FileAttributes & (UInt32)System.IO.FileAttributes.Directory) ?
-                FileAttributes : FileAttributes | (UInt32)System.IO.FileAttributes.Archive;
-            FileNode.FileSecurity = SecurityDescriptor;
-            if (IntPtr.Zero != ExtraBuffer)
+                fileName = parentNode.fileName + "\\" + Path.GetFileName(fileName);
+            fileNode = new FileNode(fileName);
+            fileNode.mainFileNode = _fileNodeMap.GetMain(fileName);
+            fileNode.fileInfo.FileAttributes = 0 != (fileAttributes & (uint)System.IO.FileAttributes.Directory) ?
+                fileAttributes : fileAttributes | (uint)System.IO.FileAttributes.Archive;
+            fileNode.fileSecurity = securityDescriptor;
+            if (IntPtr.Zero != extraBuffer)
             {
-                if (!ExtraBufferIsReparsePoint)
+                if (!extraBufferIsReparsePoint)
                 {
-                    Result = SetEaEntries(FileNode, null, ExtraBuffer, ExtraLength);
-                    if (0 > Result)
-                        return Result;
+                    result = SetEaEntries(fileNode, null, extraBuffer, extraLength);
+                    if (0 > result)
+                        return result;
                 }
                 else
                 {
-                    Byte[] ReparseData = MakeReparsePoint(ExtraBuffer, ExtraLength);
-                    FileNode.FileInfo.FileAttributes |= (UInt32)System.IO.FileAttributes.ReparsePoint;
-                    FileNode.FileInfo.ReparseTag = GetReparseTag(ReparseData);
-                    FileNode.ReparseData = ReparseData;
+                    byte[] reparseData = MakeReparsePoint(extraBuffer, extraLength);
+                    fileNode.fileInfo.FileAttributes |= (uint)System.IO.FileAttributes.ReparsePoint;
+                    fileNode.fileInfo.ReparseTag = GetReparseTag(reparseData);
+                    fileNode.reparseData = reparseData;
                 }
             }
-            if (0 != AllocationSize)
+            if (0 != allocationSize)
             {
-                Result = SetFileSizeInternal(FileNode, AllocationSize, true);
-                if (0 > Result)
-                    return Result;
+                result = SetFileSizeInternal(fileNode, allocationSize, true);
+                if (0 > result)
+                    return result;
             }
-            FileNodeMap.Insert(FileNode);
+            _fileNodeMap.Insert(fileNode);
 
-            Interlocked.Increment(ref FileNode.OpenCount);
-            FileNode0 = FileNode;
-            FileInfo = FileNode.GetFileInfo();
-            NormalizedName = FileNode.FileName;
+            Interlocked.Increment(ref fileNode.openCount);
+            fileNode0 = fileNode;
+            fileInfo = fileNode.GetFileInfo();
+            normalizedName = fileNode.fileName;
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 Open(
-            String FileName,
-            UInt32 CreateOptions,
-            UInt32 GrantedAccess,
-            out Object FileNode0,
-            out Object FileDesc,
-            out FileInfo FileInfo,
-            out String NormalizedName)
+        public override int Open(
+            string fileName,
+            uint createOptions,
+            uint grantedAccess,
+            out object fileNode0,
+            out object fileDesc,
+            out FileInfo fileInfo,
+            out string normalizedName)
         {
-            FileNode0 = default(Object);
-            FileDesc = default(Object);
-            FileInfo = default(FileInfo);
-            NormalizedName = default(String);
+            fileNode0 = default;
+            fileDesc = default;
+            fileInfo = default;
+            normalizedName = default;
 
-            FileNode FileNode;
-            Int32 Result;
+            FileNode fileNode;
+            int result;
 
-            FileNode = FileNodeMap.Get(FileName);
-            if (null == FileNode)
+            fileNode = _fileNodeMap.Get(fileName);
+            if (null == fileNode)
             {
-                Result = STATUS_OBJECT_NAME_NOT_FOUND;
-                FileNodeMap.GetParent(FileName, ref Result);
-                return Result;
+                result = STATUS_OBJECT_NAME_NOT_FOUND;
+                _fileNodeMap.GetParent(fileName, ref result);
+                return result;
             }
 
-            if (0 != (CreateOptions & FILE_NO_EA_KNOWLEDGE) &&
-                null == FileNode.MainFileNode)
+            if (0 != (createOptions & FILE_NO_EA_KNOWLEDGE) &&
+                null == fileNode.mainFileNode)
             {
-                SortedDictionary<String, EaValueData> EaMap = FileNode.GetEaMap(false);
-                if (null != EaMap)
+                SortedDictionary<string, EaValueData> eaMap = fileNode.GetEaMap(false);
+                if (null != eaMap)
                 {
-                    foreach (KeyValuePair<String, EaValueData> Pair in EaMap)
-                        if (Pair.Value.NeedEa)
+                    foreach (KeyValuePair<string, EaValueData> pair in eaMap)
+                        if (pair.Value.needEa)
                             return STATUS_ACCESS_DENIED;
                 }
             }
 
-            Interlocked.Increment(ref FileNode.OpenCount);
-            FileNode0 = FileNode;
-            FileInfo = FileNode.GetFileInfo();
-            NormalizedName = FileNode.FileName;
+            Interlocked.Increment(ref fileNode.openCount);
+            fileNode0 = fileNode;
+            fileInfo = fileNode.GetFileInfo();
+            normalizedName = fileNode.fileName;
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 OverwriteEx(
-            Object FileNode0,
-            Object FileDesc,
-            UInt32 FileAttributes,
-            Boolean ReplaceFileAttributes,
-            UInt64 AllocationSize,
-            IntPtr Ea,
-            UInt32 EaLength,
-            out FileInfo FileInfo)
+        public override int OverwriteEx(
+            object fileNode0,
+            object fileDesc,
+            uint fileAttributes,
+            bool replaceFileAttributes,
+            ulong allocationSize,
+            IntPtr ea,
+            uint eaLength,
+            out FileInfo fileInfo)
         {
-            FileInfo = default(FileInfo);
+            fileInfo = default;
 
-            FileNode FileNode = (FileNode)FileNode0;
-            Int32 Result;
+            FileNode fileNode = (FileNode)fileNode0;
+            int result;
 
-            List<String> StreamFileNames = new List<String>(FileNodeMap.GetStreamFileNames(FileNode));
-            foreach (String StreamFileName in StreamFileNames)
+            List<string> streamFileNames = new List<string>(_fileNodeMap.GetStreamFileNames(fileNode));
+            foreach (string streamFileName in streamFileNames)
             {
-                FileNode StreamNode = FileNodeMap.Get(StreamFileName);
-                if (null == StreamNode)
+                FileNode streamNode = _fileNodeMap.Get(streamFileName);
+                if (null == streamNode)
                     continue; /* should not happen */
-                if (0 == StreamNode.OpenCount)
-                    FileNodeMap.Remove(StreamNode);
+                if (0 == streamNode.openCount)
+                    _fileNodeMap.Remove(streamNode);
             }
 
-            SortedDictionary<String, EaValueData> EaMap = FileNode.GetEaMap(false);
-            if (null != EaMap)
+            SortedDictionary<string, EaValueData> eaMap = fileNode.GetEaMap(false);
+            if (null != eaMap)
             {
-                EaMap.Clear();
-                FileNode.FileInfo.EaSize = 0;
+                eaMap.Clear();
+                fileNode.fileInfo.EaSize = 0;
             }
-            if (IntPtr.Zero != Ea)
+            if (IntPtr.Zero != ea)
             {
-                Result = SetEaEntries(FileNode, null, Ea, EaLength);
-                if (0 > Result)
-                    return Result;
+                result = SetEaEntries(fileNode, null, ea, eaLength);
+                if (0 > result)
+                    return result;
             }
 
-            Result = SetFileSizeInternal(FileNode, AllocationSize, true);
-            if (0 > Result)
-                return Result;
-            if (ReplaceFileAttributes)
-                FileNode.FileInfo.FileAttributes = FileAttributes | (UInt32)System.IO.FileAttributes.Archive;
+            result = SetFileSizeInternal(fileNode, allocationSize, true);
+            if (0 > result)
+                return result;
+            if (replaceFileAttributes)
+                fileNode.fileInfo.FileAttributes = fileAttributes | (uint)System.IO.FileAttributes.Archive;
             else
-                FileNode.FileInfo.FileAttributes |= FileAttributes | (UInt32)System.IO.FileAttributes.Archive;
-            FileNode.FileInfo.FileSize = 0;
-            FileNode.FileInfo.LastAccessTime =
-            FileNode.FileInfo.LastWriteTime =
-            FileNode.FileInfo.ChangeTime = (UInt64)DateTime.Now.ToFileTimeUtc();
+                fileNode.fileInfo.FileAttributes |= fileAttributes | (uint)System.IO.FileAttributes.Archive;
+            fileNode.fileInfo.FileSize = 0;
+            fileNode.fileInfo.LastAccessTime =
+            fileNode.fileInfo.LastWriteTime =
+            fileNode.fileInfo.ChangeTime = (ulong)DateTime.Now.ToFileTimeUtc();
 
-            FileInfo = FileNode.GetFileInfo();
+            fileInfo = fileNode.GetFileInfo();
 
             return STATUS_SUCCESS;
         }
 
         public override void Cleanup(
-            Object FileNode0,
-            Object FileDesc,
-            String FileName,
-            UInt32 Flags)
+            object fileNode0,
+            object fileDesc,
+            string fileName,
+            uint flags)
         {
-            FileNode FileNode = (FileNode)FileNode0;
-            FileNode MainFileNode = null != FileNode.MainFileNode ?
-                FileNode.MainFileNode : FileNode;
+            FileNode fileNode = (FileNode)fileNode0;
+            FileNode mainFileNode = null != fileNode.mainFileNode ?
+                fileNode.mainFileNode : fileNode;
 
-            if (0 != (Flags & CleanupSetArchiveBit))
+            if (0 != (flags & CleanupSetArchiveBit))
             {
-                if (0 == (MainFileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory))
-                    MainFileNode.FileInfo.FileAttributes |= (UInt32)FileAttributes.Archive;
+                if (0 == (mainFileNode.fileInfo.FileAttributes & (uint)FileAttributes.Directory))
+                    mainFileNode.fileInfo.FileAttributes |= (uint)FileAttributes.Archive;
             }
 
-            if (0 != (Flags & (CleanupSetLastAccessTime | CleanupSetLastWriteTime | CleanupSetChangeTime)))
+            if (0 != (flags & (CleanupSetLastAccessTime | CleanupSetLastWriteTime | CleanupSetChangeTime)))
             {
-                UInt64 SystemTime = (UInt64)DateTime.Now.ToFileTimeUtc();
+                ulong systemTime = (ulong)DateTime.Now.ToFileTimeUtc();
 
-                if (0 != (Flags & CleanupSetLastAccessTime))
-                    MainFileNode.FileInfo.LastAccessTime = SystemTime;
-                if (0 != (Flags & CleanupSetLastWriteTime))
-                    MainFileNode.FileInfo.LastWriteTime = SystemTime;
-                if (0 != (Flags & CleanupSetChangeTime))
-                    MainFileNode.FileInfo.ChangeTime = SystemTime;
+                if (0 != (flags & CleanupSetLastAccessTime))
+                    mainFileNode.fileInfo.LastAccessTime = systemTime;
+                if (0 != (flags & CleanupSetLastWriteTime))
+                    mainFileNode.fileInfo.LastWriteTime = systemTime;
+                if (0 != (flags & CleanupSetChangeTime))
+                    mainFileNode.fileInfo.ChangeTime = systemTime;
             }
 
-            if (0 != (Flags & CleanupSetAllocationSize))
+            if (0 != (flags & CleanupSetAllocationSize))
             {
-                UInt64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
-                UInt64 AllocationSize = (FileNode.FileInfo.FileSize + AllocationUnit - 1) /
-                    AllocationUnit * AllocationUnit;
-                SetFileSizeInternal(FileNode, AllocationSize, true);
+                ulong allocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+                ulong allocationSize = (fileNode.fileInfo.FileSize + allocationUnit - 1) /
+                    allocationUnit * allocationUnit;
+                SetFileSizeInternal(fileNode, allocationSize, true);
             }
 
-            if (0 != (Flags & CleanupDelete) && !FileNodeMap.HasChild(FileNode))
+            if (0 != (flags & CleanupDelete) && !_fileNodeMap.HasChild(fileNode))
             {
-                List<String> StreamFileNames = new List<String>(FileNodeMap.GetStreamFileNames(FileNode));
-                foreach (String StreamFileName in StreamFileNames)
+                List<string> streamFileNames = new List<string>(_fileNodeMap.GetStreamFileNames(fileNode));
+                foreach (string streamFileName in streamFileNames)
                 {
-                    FileNode StreamNode = FileNodeMap.Get(StreamFileName);
-                    if (null == StreamNode)
+                    FileNode streamNode = _fileNodeMap.Get(streamFileName);
+                    if (null == streamNode)
                         continue; /* should not happen */
-                    FileNodeMap.Remove(StreamNode);
+                    _fileNodeMap.Remove(streamNode);
                 }
-                FileNodeMap.Remove(FileNode);
+                _fileNodeMap.Remove(fileNode);
             }
         }
 
         public override void Close(
-            Object FileNode0,
-            Object FileDesc)
+            object fileNode0,
+            object fileDesc)
         {
-            FileNode FileNode = (FileNode)FileNode0;
-            Interlocked.Decrement(ref FileNode.OpenCount);
+            FileNode fileNode = (FileNode)fileNode0;
+            Interlocked.Decrement(ref fileNode.openCount);
         }
 
 #if MEMFS_SLOWIO
-        private UInt64 Hash(UInt64 X)
+        private ulong Hash(ulong x)
         {
-            X = (X ^ (X >> 30)) * 0xbf58476d1ce4e5b9ul;
-            X = (X ^ (X >> 27)) * 0x94d049bb133111ebul;
-            X = X ^ (X >> 31);
-            return X;
+            x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ul;
+            x = (x ^ (x >> 27)) * 0x94d049bb133111ebul;
+            x = x ^ (x >> 31);
+            return x;
         }
 
-        private static int Spin = 0;
+        private static int s_spin = 0;
 
-        private UInt64 PseudoRandom(UInt64 To)
+        private ulong PseudoRandom(ulong to)
         {
             /* John Oberschelp's PRNG */
-            Interlocked.Increment(ref Spin);
-            return Hash((UInt64)Spin) % To;
+            Interlocked.Increment(ref s_spin);
+            return Hash((ulong)s_spin) % to;
         }
 
         private bool SlowioReturnPending()
         {
-            if (0 == SlowioMaxDelay)
+            if (0 == _slowioMaxDelay)
             {
                 return false;
             }
-            return PseudoRandom(100) < SlowioPercentDelay;
+            return PseudoRandom(100) < _slowioPercentDelay;
         }
 
         private void SlowioSnooze()
         {
-            double Millis = PseudoRandom(SlowioMaxDelay + 1) >> (int) PseudoRandom(SlowioRarefyDelay + 1);
-            Thread.Sleep(TimeSpan.FromMilliseconds(Millis));
+            double millis = PseudoRandom(_slowioMaxDelay + 1) >> (int)PseudoRandom(_slowioRarefyDelay + 1);
+            Thread.Sleep(TimeSpan.FromMilliseconds(millis));
         }
 
         private void SlowioReadTask(
-            Object FileNode0,
-            IntPtr Buffer,
-            UInt64 Offset,
-            UInt64 EndOffset,
-            UInt64 RequestHint)
+            object fileNode0,
+            IntPtr buffer,
+            ulong offset,
+            ulong endOffset,
+            ulong requestHint)
         {
             SlowioSnooze();
 
-            UInt32 BytesTransferred = (UInt32)(EndOffset - Offset);
-            FileNode FileNode = (FileNode)FileNode0;
-            Marshal.Copy(FileNode.FileData, (int)Offset, Buffer, (int)BytesTransferred);
+            uint bytesTransferred = (uint)(endOffset - offset);
+            FileNode fileNode = (FileNode)fileNode0;
+            Marshal.Copy(fileNode.fileData, (int)offset, buffer, (int)bytesTransferred);
 
-            Host.SendReadResponse(RequestHint, STATUS_SUCCESS, BytesTransferred);
-            Interlocked.Decrement(ref SlowioTasksRunning);
+            _host.SendReadResponse(requestHint, STATUS_SUCCESS, bytesTransferred);
+            Interlocked.Decrement(ref _slowioTasksRunning);
         }
 
         private void SlowioWriteTask(
-            Object FileNode0,
-            IntPtr Buffer,
-            UInt64 Offset,
-            UInt64 EndOffset,
-            UInt64 RequestHint)
+            object fileNode0,
+            IntPtr buffer,
+            ulong offset,
+            ulong endOffset,
+            ulong requestHint)
         {
             SlowioSnooze();
 
-            UInt32 BytesTransferred = (UInt32)(EndOffset - Offset);
-            FileNode FileNode = (FileNode)FileNode0;
-            FileInfo FileInfo = FileNode.GetFileInfo();
-            Marshal.Copy(Buffer, FileNode.FileData, (int)Offset, (int)BytesTransferred);
+            uint BytesTransferred = (uint)(endOffset - offset);
+            FileNode fileNode = (FileNode)fileNode0;
+            FileInfo fileInfo = fileNode.GetFileInfo();
+            Marshal.Copy(buffer, fileNode.fileData, (int)offset, (int)BytesTransferred);
 
-            Host.SendWriteResponse(RequestHint, STATUS_SUCCESS, BytesTransferred, ref FileInfo);
-            Interlocked.Decrement(ref SlowioTasksRunning);
+            _host.SendWriteResponse(requestHint, STATUS_SUCCESS, BytesTransferred, ref fileInfo);
+            Interlocked.Decrement(ref _slowioTasksRunning);
         }
 
         private void SlowioReadDirectoryTask(
-            Object FileNode0,
-            Object FileDesc,
-            String Pattern,
-            String Marker,
-            IntPtr Buffer,
-            UInt32 Length,
-            UInt64 RequestHint)
+            object fileNode0,
+            object fileDesc,
+            string pattern,
+            string marker,
+            IntPtr buffer,
+            uint length,
+            ulong requestHint)
         {
             SlowioSnooze();
 
-            UInt32 BytesTransferred;
-            var Status = SeekableReadDirectory(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, out BytesTransferred);
+            uint bytesTransferred;
+            var status = SeekableReadDirectory(fileNode0, fileDesc, pattern, marker, buffer, length, out bytesTransferred);
 
-            Host.SendReadDirectoryResponse(RequestHint, Status, BytesTransferred);
-            Interlocked.Decrement(ref SlowioTasksRunning);
+            _host.SendReadDirectoryResponse(requestHint, status, bytesTransferred);
+            Interlocked.Decrement(ref _slowioTasksRunning);
         }
 #endif
 
-        public override Int32 Read(
-            Object FileNode0,
-            Object FileDesc,
-            IntPtr Buffer,
-            UInt64 Offset,
-            UInt32 Length,
-            out UInt32 BytesTransferred)
+        public override int Read(
+            object fileNode0,
+            object fileDesc,
+            IntPtr buffer,
+            ulong offset,
+            uint length,
+            out uint bytesTransferred)
         {
-            FileNode FileNode = (FileNode)FileNode0;
-            UInt64 EndOffset;
+            FileNode fileNode = (FileNode)fileNode0;
+            ulong endOffset;
 
-            if (Offset >= FileNode.FileInfo.FileSize)
+            if (offset >= fileNode.fileInfo.FileSize)
             {
-                BytesTransferred = default(UInt32);
+                bytesTransferred = default;
                 return STATUS_END_OF_FILE;
             }
 
-            EndOffset = Offset + Length;
-            if (EndOffset > FileNode.FileInfo.FileSize)
-                EndOffset = FileNode.FileInfo.FileSize;
+            endOffset = offset + length;
+            if (endOffset > fileNode.fileInfo.FileSize)
+                endOffset = fileNode.fileInfo.FileSize;
 
 #if MEMFS_SLOWIO
             if (SlowioReturnPending())
             {
-                var Hint = Host.GetOperationRequestHint();
+                var hint = _host.GetOperationRequestHint();
                 try
                 {
-                    Interlocked.Increment(ref SlowioTasksRunning);
-                    Task.Run(() => SlowioReadTask(FileNode0, Buffer, Offset, EndOffset, Hint)).ConfigureAwait(false);
+                    Interlocked.Increment(ref _slowioTasksRunning);
+                    Task.Run(() => SlowioReadTask(fileNode0, buffer, offset, endOffset, hint)).ConfigureAwait(false);
 
-                    BytesTransferred = 0;
+                    bytesTransferred = 0;
                     return STATUS_PENDING;
                 }
                 catch (Exception)
                 {
-                    Interlocked.Decrement(ref SlowioTasksRunning);
+                    Interlocked.Decrement(ref _slowioTasksRunning);
                 }
             }
 #endif
 
-            BytesTransferred = (UInt32)(EndOffset - Offset);
-            Marshal.Copy(FileNode.FileData, (int)Offset, Buffer, (int)BytesTransferred);
+            bytesTransferred = (uint)(endOffset - offset);
+            Marshal.Copy(fileNode.fileData, (int)offset, buffer, (int)bytesTransferred);
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 Write(
-            Object FileNode0,
-            Object FileDesc,
-            IntPtr Buffer,
-            UInt64 Offset,
-            UInt32 Length,
-            Boolean WriteToEndOfFile,
-            Boolean ConstrainedIo,
-            out UInt32 BytesTransferred,
-            out FileInfo FileInfo)
+        public override int Write(
+            object fileNode0,
+            object fileDesc,
+            IntPtr buffer,
+            ulong offset,
+            uint length,
+            bool writeToEndOfFile,
+            bool constrainedIo,
+            out uint bytesTransferred,
+            out FileInfo fileInfo)
         {
-            FileNode FileNode = (FileNode)FileNode0;
-            UInt64 EndOffset;
+            FileNode fileNode = (FileNode)fileNode0;
+            ulong endOffset;
 
-            if (ConstrainedIo)
+            if (constrainedIo)
             {
-                if (Offset >= FileNode.FileInfo.FileSize)
+                if (offset >= fileNode.fileInfo.FileSize)
                 {
-                    BytesTransferred = default(UInt32);
-                    FileInfo = default(FileInfo);
+                    bytesTransferred = default;
+                    fileInfo = default;
                     return STATUS_SUCCESS;
                 }
-                EndOffset = Offset + Length;
-                if (EndOffset > FileNode.FileInfo.FileSize)
-                    EndOffset = FileNode.FileInfo.FileSize;
+                endOffset = offset + length;
+                if (endOffset > fileNode.fileInfo.FileSize)
+                    endOffset = fileNode.fileInfo.FileSize;
             }
             else
             {
-                if (WriteToEndOfFile)
-                    Offset = FileNode.FileInfo.FileSize;
-                EndOffset = Offset + Length;
-                if (EndOffset > FileNode.FileInfo.FileSize)
+                if (writeToEndOfFile)
+                    offset = fileNode.fileInfo.FileSize;
+                endOffset = offset + length;
+                if (endOffset > fileNode.fileInfo.FileSize)
                 {
-                    Int32 Result = SetFileSizeInternal(FileNode, EndOffset, false);
+                    int Result = SetFileSizeInternal(fileNode, endOffset, false);
                     if (0 > Result)
                     {
-                        BytesTransferred = default(UInt32);
-                        FileInfo = default(FileInfo);
+                        bytesTransferred = default;
+                        fileInfo = default;
                         return Result;
                     }
                 }
@@ -767,704 +767,701 @@ namespace memfs
 #if MEMFS_SLOWIO
             if (SlowioReturnPending())
             {
-                var hint = Host.GetOperationRequestHint();
+                var hint = _host.GetOperationRequestHint();
                 try
                 {
-                    Interlocked.Increment(ref SlowioTasksRunning);
-                    Task.Run(() => SlowioWriteTask(FileNode0, Buffer, Offset, EndOffset, hint)).ConfigureAwait(false);
+                    Interlocked.Increment(ref _slowioTasksRunning);
+                    Task.Run(() => SlowioWriteTask(fileNode0, buffer, offset, endOffset, hint)).ConfigureAwait(false);
 
-                    BytesTransferred = 0;
-                    FileInfo = default(FileInfo);
+                    bytesTransferred = 0;
+                    fileInfo = default;
                     return STATUS_PENDING;
                 }
                 catch (Exception)
                 {
-                    Interlocked.Decrement(ref SlowioTasksRunning);
+                    Interlocked.Decrement(ref _slowioTasksRunning);
                 }
             }
 #endif
 
-            BytesTransferred = (UInt32)(EndOffset - Offset);
-            Marshal.Copy(Buffer, FileNode.FileData, (int)Offset, (int)BytesTransferred);
+            bytesTransferred = (uint)(endOffset - offset);
+            Marshal.Copy(buffer, fileNode.fileData, (int)offset, (int)bytesTransferred);
 
-            FileInfo = FileNode.GetFileInfo();
+            fileInfo = fileNode.GetFileInfo();
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 Flush(
-            Object FileNode0,
-            Object FileDesc,
-            out FileInfo FileInfo)
+        public override int Flush(
+            object fileNode0,
+            object fileDesc,
+            out FileInfo fileInfo)
         {
-            FileNode FileNode = (FileNode)FileNode0;
+            FileNode fileNode = (FileNode)fileNode0;
 
             /*  nothing to flush, since we do not cache anything */
-            FileInfo = null != FileNode ? FileNode.GetFileInfo() : default(FileInfo);
+            fileInfo = null != fileNode ? fileNode.GetFileInfo() : default;
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 GetFileInfo(
-            Object FileNode0,
-            Object FileDesc,
-            out FileInfo FileInfo)
+        public override int GetFileInfo(
+            object fileNode0,
+            object fileDesc,
+            out FileInfo fileInfo)
         {
-            FileNode FileNode = (FileNode)FileNode0;
+            FileNode fileNode = (FileNode)fileNode0;
 
-            FileInfo = FileNode.GetFileInfo();
+            fileInfo = fileNode.GetFileInfo();
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 SetBasicInfo(
-            Object FileNode0,
-            Object FileDesc,
-            UInt32 FileAttributes,
-            UInt64 CreationTime,
-            UInt64 LastAccessTime,
-            UInt64 LastWriteTime,
-            UInt64 ChangeTime,
-            out FileInfo FileInfo)
+        public override int SetBasicInfo(
+            object fileNode0,
+            object fileDesc,
+            uint fileAttributes,
+            ulong creationTime,
+            ulong lastAccessTime,
+            ulong lastWriteTime,
+            ulong changeTime,
+            out FileInfo fileInfo)
         {
-            FileNode FileNode = (FileNode)FileNode0;
+            FileNode fileNode = (FileNode)fileNode0;
 
-            if (null != FileNode.MainFileNode)
-                FileNode = FileNode.MainFileNode;
+            if (null != fileNode.mainFileNode)
+                fileNode = fileNode.mainFileNode;
 
-            if (unchecked((UInt32)(-1)) != FileAttributes)
-                FileNode.FileInfo.FileAttributes = FileAttributes;
-            if (0 != CreationTime)
-                FileNode.FileInfo.CreationTime = CreationTime;
-            if (0 != LastAccessTime)
-                FileNode.FileInfo.LastAccessTime = LastAccessTime;
-            if (0 != LastWriteTime)
-                FileNode.FileInfo.LastWriteTime = LastWriteTime;
-            if (0 != ChangeTime)
-                FileNode.FileInfo.ChangeTime = ChangeTime;
+            if (unchecked((uint)(-1)) != fileAttributes)
+                fileNode.fileInfo.FileAttributes = fileAttributes;
+            if (0 != creationTime)
+                fileNode.fileInfo.CreationTime = creationTime;
+            if (0 != lastAccessTime)
+                fileNode.fileInfo.LastAccessTime = lastAccessTime;
+            if (0 != lastWriteTime)
+                fileNode.fileInfo.LastWriteTime = lastWriteTime;
+            if (0 != changeTime)
+                fileNode.fileInfo.ChangeTime = changeTime;
 
-            FileInfo = FileNode.GetFileInfo();
+            fileInfo = fileNode.GetFileInfo();
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 SetFileSize(
-            Object FileNode0,
-            Object FileDesc,
-            UInt64 NewSize,
-            Boolean SetAllocationSize,
-            out FileInfo FileInfo)
+        public override int SetFileSize(
+            object fileNode0,
+            object fileDesc,
+            ulong newSize,
+            bool setAllocationSize,
+            out FileInfo fileInfo)
         {
-            FileNode FileNode = (FileNode)FileNode0;
-            Int32 Result;
+            FileNode fileNode = (FileNode)fileNode0;
+            int result;
 
-            Result = SetFileSizeInternal(FileNode, NewSize, SetAllocationSize);
-            FileInfo = 0 <= Result ? FileNode.GetFileInfo() : default(FileInfo);
+            result = SetFileSizeInternal(fileNode, newSize, setAllocationSize);
+            fileInfo = 0 <= result ? fileNode.GetFileInfo() : default;
 
             return STATUS_SUCCESS;
         }
 
-        private Int32 SetFileSizeInternal(
-            FileNode FileNode,
-            UInt64 NewSize,
-            Boolean SetAllocationSize)
+        private int SetFileSizeInternal(
+            FileNode fileNode,
+            ulong newSize,
+            bool setAllocationSize)
         {
-            if (SetAllocationSize)
+            if (setAllocationSize)
             {
-                if (FileNode.FileInfo.AllocationSize != NewSize)
+                if (fileNode.fileInfo.AllocationSize != newSize)
                 {
-                    if (NewSize > MaxFileSize)
+                    if (newSize > _maxFileSize)
                         return STATUS_DISK_FULL;
 
-                    byte[] FileData = null;
-                    if (0 != NewSize)
+                    byte[] fileData = null;
+                    if (0 != newSize)
                         try
                         {
-                            FileData = new byte[NewSize];
+                            fileData = new byte[newSize];
                         }
                         catch
                         {
                             return STATUS_INSUFFICIENT_RESOURCES;
                         }
-                    int CopyLength = (int)Math.Min(FileNode.FileInfo.AllocationSize, NewSize);
+                    int CopyLength = (int)Math.Min(fileNode.fileInfo.AllocationSize, newSize);
                     if (0 != CopyLength)
-                        Array.Copy(FileNode.FileData, FileData, CopyLength);
+                        Array.Copy(fileNode.fileData, fileData, CopyLength);
 
-                    FileNode.FileData = FileData;
-                    FileNode.FileInfo.AllocationSize = NewSize;
-                    if (FileNode.FileInfo.FileSize > NewSize)
-                        FileNode.FileInfo.FileSize = NewSize;
+                    fileNode.fileData = fileData;
+                    fileNode.fileInfo.AllocationSize = newSize;
+                    if (fileNode.fileInfo.FileSize > newSize)
+                        fileNode.fileInfo.FileSize = newSize;
                 }
             }
             else
             {
-                if (FileNode.FileInfo.FileSize != NewSize)
+                if (fileNode.fileInfo.FileSize != newSize)
                 {
-                    if (FileNode.FileInfo.AllocationSize < NewSize)
+                    if (fileNode.fileInfo.AllocationSize < newSize)
                     {
-                        UInt64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
-                        UInt64 AllocationSize = (NewSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
-                        Int32 Result = SetFileSizeInternal(FileNode, AllocationSize, true);
+                        ulong allocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
+                        ulong allocationSize = (newSize + allocationUnit - 1) / allocationUnit * allocationUnit;
+                        int Result = SetFileSizeInternal(fileNode, allocationSize, true);
                         if (0 > Result)
                             return Result;
                     }
 
-                    if (FileNode.FileInfo.FileSize < NewSize)
+                    if (fileNode.fileInfo.FileSize < newSize)
                     {
-                        int CopyLength = (int)(NewSize - FileNode.FileInfo.FileSize);
-                        if (0 != CopyLength)
-                            Array.Clear(FileNode.FileData, (int)FileNode.FileInfo.FileSize, CopyLength);
+                        int copyLength = (int)(newSize - fileNode.fileInfo.FileSize);
+                        if (0 != copyLength)
+                            Array.Clear(fileNode.fileData, (int)fileNode.fileInfo.FileSize, copyLength);
                     }
-                    FileNode.FileInfo.FileSize = NewSize;
+                    fileNode.fileInfo.FileSize = newSize;
                 }
             }
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 CanDelete(
-            Object FileNode0,
-            Object FileDesc,
-            String FileName)
+        public override int CanDelete(
+            object fileNode0,
+            object fileDesc,
+            string fileName)
         {
-            FileNode FileNode = (FileNode)FileNode0;
+            FileNode FileNode = (FileNode)fileNode0;
 
-            if (FileNodeMap.HasChild(FileNode))
+            if (_fileNodeMap.HasChild(FileNode))
                 return STATUS_DIRECTORY_NOT_EMPTY;
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 Rename(
-            Object FileNode0,
-            Object FileDesc,
-            String FileName,
-            String NewFileName,
-            Boolean ReplaceIfExists)
+        public override int Rename(
+            object fileNode0,
+            object fileDesc,
+            string fileName,
+            string newFileName,
+            bool replaceIfExists)
         {
-            FileNode FileNode = (FileNode)FileNode0;
-            FileNode NewFileNode;
+            FileNode fileNode = (FileNode)fileNode0;
+            FileNode newFileNode;
 
-            NewFileNode = FileNodeMap.Get(NewFileName);
-            if (null != NewFileNode && FileNode != NewFileNode)
+            newFileNode = _fileNodeMap.Get(newFileName);
+            if (null != newFileNode && fileNode != newFileNode)
             {
-                if (!ReplaceIfExists)
+                if (!replaceIfExists)
                     return STATUS_OBJECT_NAME_COLLISION;
-                if (0 != (NewFileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory))
+                if (0 != (newFileNode.fileInfo.FileAttributes & (uint)FileAttributes.Directory))
                     return STATUS_ACCESS_DENIED;
             }
 
-            if (null != NewFileNode && FileNode != NewFileNode)
-                FileNodeMap.Remove(NewFileNode);
+            if (null != newFileNode && fileNode != newFileNode)
+                _fileNodeMap.Remove(newFileNode);
 
-            List<String> DescendantFileNames = new List<String>(FileNodeMap.GetDescendantFileNames(FileNode));
-            foreach (String DescendantFileName in DescendantFileNames)
+            List<string> descendantFileNames = new List<string>(_fileNodeMap.GetDescendantFileNames(fileNode));
+            foreach (string descendantFileName in descendantFileNames)
             {
-                FileNode DescendantFileNode = FileNodeMap.Get(DescendantFileName);
-                if (null == DescendantFileNode)
+                FileNode descendantFileNode = _fileNodeMap.Get(descendantFileName);
+                if (null == descendantFileNode)
                     continue; /* should not happen */
-                FileNodeMap.Remove(DescendantFileNode);
-                DescendantFileNode.FileName =
-                    NewFileName + DescendantFileNode.FileName.Substring(FileName.Length);
-                FileNodeMap.Insert(DescendantFileNode);
+                _fileNodeMap.Remove(descendantFileNode);
+                descendantFileNode.fileName =
+                    newFileName + descendantFileNode.fileName.Substring(fileName.Length);
+                _fileNodeMap.Insert(descendantFileNode);
             }
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 GetSecurity(
-            Object FileNode0,
-            Object FileDesc,
-            ref Byte[] SecurityDescriptor)
+        public override int GetSecurity(
+            object fileNode0,
+            object fileDesc,
+            ref byte[] securityDescriptor)
         {
-            FileNode FileNode = (FileNode)FileNode0;
+            FileNode fileNode = (FileNode)fileNode0;
 
-            if (null != FileNode.MainFileNode)
-                FileNode = FileNode.MainFileNode;
+            if (null != fileNode.mainFileNode)
+                fileNode = fileNode.mainFileNode;
 
-            SecurityDescriptor = FileNode.FileSecurity;
+            securityDescriptor = fileNode.fileSecurity;
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 SetSecurity(
-            Object FileNode0,
-            Object FileDesc,
-            AccessControlSections Sections,
-            Byte[] SecurityDescriptor)
+        public override int SetSecurity(
+            object fileNode0,
+            object fileDesc,
+            AccessControlSections sections,
+            byte[] securityDescriptor)
         {
-            FileNode FileNode = (FileNode)FileNode0;
+            FileNode fileNode = (FileNode)fileNode0;
 
-            if (null != FileNode.MainFileNode)
-                FileNode = FileNode.MainFileNode;
+            if (null != fileNode.mainFileNode)
+                fileNode = fileNode.mainFileNode;
 
-            return ModifySecurityDescriptorEx(FileNode.FileSecurity, Sections, SecurityDescriptor,
-                ref FileNode.FileSecurity);
+            return ModifySecurityDescriptorEx(fileNode.fileSecurity, sections, securityDescriptor,
+                ref fileNode.fileSecurity);
         }
 
-        public override Boolean ReadDirectoryEntry(
-            Object FileNode0,
-            Object FileDesc,
-            String Pattern,
-            String Marker,
-            ref Object Context,
-            out String FileName,
-            out FileInfo FileInfo)
+        public override bool ReadDirectoryEntry(
+            object fileNode0,
+            object fileDesc,
+            string pattern,
+            string marker,
+            ref object context,
+            out string fileName,
+            out FileInfo fileInfo)
         {
-            FileNode FileNode = (FileNode)FileNode0;
-            IEnumerator<String> Enumerator = (IEnumerator<String>)Context;
+            FileNode fileNode = (FileNode)fileNode0;
+            IEnumerator<string> enumerator = (IEnumerator<string>)context;
 
-            if (null == Enumerator)
+            if (null == enumerator)
             {
-                List<String> ChildrenFileNames = new List<String>();
-                if ("\\" != FileNode.FileName)
+                List<string> childrenFileNames = new List<string>();
+                if ("\\" != fileNode.fileName)
                 {
                     /* if this is not the root directory add the dot entries */
-                    if (null == Marker)
-                        ChildrenFileNames.Add(".");
-                    if (null == Marker || "." == Marker)
-                        ChildrenFileNames.Add("..");
+                    if (null == marker)
+                        childrenFileNames.Add(".");
+                    if (null == marker || "." == marker)
+                        childrenFileNames.Add("..");
                 }
-                ChildrenFileNames.AddRange(FileNodeMap.GetChildrenFileNames(FileNode,
-                    "." != Marker && ".." != Marker ? Marker : null));
-                Context = Enumerator = ChildrenFileNames.GetEnumerator();
+                childrenFileNames.AddRange(_fileNodeMap.GetChildrenFileNames(fileNode,
+                    "." != marker && ".." != marker ? marker : null));
+                context = enumerator = childrenFileNames.GetEnumerator();
             }
 
-            while (Enumerator.MoveNext())
+            while (enumerator.MoveNext())
             {
-                String FullFileName = Enumerator.Current;
-                if ("." == FullFileName)
+                string fullFileName = enumerator.Current;
+                if ("." == fullFileName)
                 {
-                    FileName = ".";
-                    FileInfo = FileNode.GetFileInfo();
+                    fileName = ".";
+                    fileInfo = fileNode.GetFileInfo();
                     return true;
                 }
-                else if (".." == FullFileName)
+                else if (".." == fullFileName)
                 {
-                    Int32 Result = STATUS_SUCCESS;
-                    FileNode ParentNode = FileNodeMap.GetParent(FileNode.FileName, ref Result);
+                    int result = STATUS_SUCCESS;
+                    FileNode ParentNode = _fileNodeMap.GetParent(fileNode.fileName, ref result);
                     if (null != ParentNode)
                     {
-                        FileName = "..";
-                        FileInfo = ParentNode.GetFileInfo();
+                        fileName = "..";
+                        fileInfo = ParentNode.GetFileInfo();
                         return true;
                     }
                 }
                 else
                 {
-                    FileNode ChildFileNode = FileNodeMap.Get(FullFileName);
-                    if (null != ChildFileNode)
+                    FileNode childFileNode = _fileNodeMap.Get(fullFileName);
+                    if (null != childFileNode)
                     {
-                        FileName = Path.GetFileName(FullFileName);
-                        FileInfo = ChildFileNode.GetFileInfo();
+                        fileName = Path.GetFileName(fullFileName);
+                        fileInfo = childFileNode.GetFileInfo();
                         return true;
                     }
                 }
             }
 
-            FileName = default(String);
-            FileInfo = default(FileInfo);
+            fileName = default;
+            fileInfo = default;
             return false;
         }
 
 #if MEMFS_SLOWIO
         public override int ReadDirectory(
-            Object FileNode0,
-            Object FileDesc,
-            String Pattern,
-            String Marker,
-            IntPtr Buffer,
-            UInt32 Length,
-            out UInt32 BytesTransferred)
+            object fileNode0,
+            object fileDesc,
+            string pattern,
+            string marker,
+            IntPtr buffer,
+            uint length,
+            out uint bytesTransferred)
         {
             if (SlowioReturnPending())
             {
-                var Hint = Host.GetOperationRequestHint();
+                var hint = _host.GetOperationRequestHint();
                 try
                 {
-                    Interlocked.Increment(ref SlowioTasksRunning);
-                    Task.Run(() => SlowioReadDirectoryTask(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, Hint));
-                    BytesTransferred = 0;
+                    Interlocked.Increment(ref _slowioTasksRunning);
+                    Task.Run(() => SlowioReadDirectoryTask(fileNode0, fileDesc, pattern, marker, buffer, length, hint));
+                    bytesTransferred = 0;
 
                     return STATUS_PENDING;
                 }
                 catch (Exception)
                 {
-                    Interlocked.Decrement(ref SlowioTasksRunning);
+                    Interlocked.Decrement(ref _slowioTasksRunning);
                 }
             }
 
-            return SeekableReadDirectory(FileNode0, FileDesc, Pattern, Marker, Buffer, Length, out BytesTransferred);
+            return SeekableReadDirectory(fileNode0, fileDesc, pattern, marker, buffer, length, out bytesTransferred);
         }
 #endif
 
         public override int GetDirInfoByName(
-            Object ParentNode0,
-            Object FileDesc,
-            String FileName,
-            out String NormalizedName,
-            out FileInfo FileInfo)
+            object parentNode0,
+            object fileDesc,
+            string fileName,
+            out string normalizedName,
+            out FileInfo fileInfo)
         {
-            FileNode ParentNode = (FileNode)ParentNode0;
-            FileNode FileNode;
+            FileNode parentNode = (FileNode)parentNode0;
+            FileNode fileNode;
 
-            FileName =
-                ParentNode.FileName +
-                ("\\" == ParentNode.FileName ? "" : "\\") +
-                Path.GetFileName(FileName);
+            fileName =
+                parentNode.fileName +
+                ("\\" == parentNode.fileName ? "" : "\\") +
+                Path.GetFileName(fileName);
 
-            FileNode = FileNodeMap.Get(FileName);
-            if (null == FileNode)
+            fileNode = _fileNodeMap.Get(fileName);
+            if (null == fileNode)
             {
-                NormalizedName = default(String);
-                FileInfo = default(FileInfo);
+                normalizedName = default;
+                fileInfo = default;
                 return STATUS_OBJECT_NAME_NOT_FOUND;
             }
 
-            NormalizedName = Path.GetFileName(FileNode.FileName);
-            FileInfo = FileNode.FileInfo;
+            normalizedName = Path.GetFileName(fileNode.fileName);
+            fileInfo = fileNode.fileInfo;
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 GetReparsePointByName(
-            String FileName,
-            Boolean IsDirectory,
-            ref Byte[] ReparseData)
+        public override int GetReparsePointByName(
+            string fileName,
+            bool isDirectory,
+            ref byte[] reparseData)
         {
-            FileNode FileNode;
+            FileNode fileNode;
 
-            FileNode = FileNodeMap.Get(FileName);
-            if (null == FileNode)
+            fileNode = _fileNodeMap.Get(fileName);
+            if (null == fileNode)
                 return STATUS_OBJECT_NAME_NOT_FOUND;
 
-            if (0 == (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.ReparsePoint))
+            if (0 == (fileNode.fileInfo.FileAttributes & (uint)FileAttributes.ReparsePoint))
                 return STATUS_NOT_A_REPARSE_POINT;
 
-            ReparseData = FileNode.ReparseData;
+            reparseData = fileNode.reparseData;
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 GetReparsePoint(
-            Object FileNode0,
-            Object FileDesc,
-            String FileName,
-            ref Byte[] ReparseData)
+        public override int GetReparsePoint(
+            object fileNode0,
+            object fileDesc,
+            string fileName,
+            ref byte[] reparseData)
         {
-            FileNode FileNode = (FileNode)FileNode0;
+            FileNode fileNode = (FileNode)fileNode0;
 
-            if (null != FileNode.MainFileNode)
-                FileNode = FileNode.MainFileNode;
+            if (null != fileNode.mainFileNode)
+                fileNode = fileNode.mainFileNode;
 
-            if (0 == (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.ReparsePoint))
+            if (0 == (fileNode.fileInfo.FileAttributes & (uint)FileAttributes.ReparsePoint))
                 return STATUS_NOT_A_REPARSE_POINT;
 
-            ReparseData = FileNode.ReparseData;
+            reparseData = fileNode.reparseData;
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 SetReparsePoint(
-            Object FileNode0,
-            Object FileDesc,
-            String FileName,
-            Byte[] ReparseData)
+        public override int SetReparsePoint(
+            object fileNode0,
+            object fileDesc,
+            string fileName,
+            byte[] reparseData)
         {
-            FileNode FileNode = (FileNode)FileNode0;
+            FileNode fileNode = (FileNode)fileNode0;
 
-            if (null != FileNode.MainFileNode)
-                FileNode = FileNode.MainFileNode;
+            if (null != fileNode.mainFileNode)
+                fileNode = fileNode.mainFileNode;
 
-            if (FileNodeMap.HasChild(FileNode))
+            if (_fileNodeMap.HasChild(fileNode))
                 return STATUS_DIRECTORY_NOT_EMPTY;
 
-            if (null != FileNode.ReparseData)
+            if (null != fileNode.reparseData)
             {
-                Int32 Result = CanReplaceReparsePoint(FileNode.ReparseData, ReparseData);
+                int Result = CanReplaceReparsePoint(fileNode.reparseData, reparseData);
                 if (0 > Result)
                     return Result;
             }
 
-            FileNode.FileInfo.FileAttributes |= (UInt32)FileAttributes.ReparsePoint;
-            FileNode.FileInfo.ReparseTag = GetReparseTag(ReparseData);
-            FileNode.ReparseData = ReparseData;
+            fileNode.fileInfo.FileAttributes |= (uint)FileAttributes.ReparsePoint;
+            fileNode.fileInfo.ReparseTag = GetReparseTag(reparseData);
+            fileNode.reparseData = reparseData;
 
             return STATUS_SUCCESS;
         }
 
-        public override Int32 DeleteReparsePoint(
-            Object FileNode0,
-            Object FileDesc,
-            String FileName,
-            Byte[] ReparseData)
+        public override int DeleteReparsePoint(
+            object fileNode0,
+            object fileDesc,
+            string fileName,
+            byte[] reparseData)
         {
-            FileNode FileNode = (FileNode)FileNode0;
+            FileNode fileNode = (FileNode)fileNode0;
 
-            if (null != FileNode.MainFileNode)
-                FileNode = FileNode.MainFileNode;
+            if (null != fileNode.mainFileNode)
+                fileNode = fileNode.mainFileNode;
 
-            if (null != FileNode.ReparseData)
+            if (null != fileNode.reparseData)
             {
-                Int32 Result = CanReplaceReparsePoint(FileNode.ReparseData, ReparseData);
+                int Result = CanReplaceReparsePoint(fileNode.reparseData, reparseData);
                 if (0 > Result)
                     return Result;
             }
             else
                 return STATUS_NOT_A_REPARSE_POINT;
 
-            FileNode.FileInfo.FileAttributes &= ~(UInt32)FileAttributes.ReparsePoint;
-            FileNode.FileInfo.ReparseTag = 0;
-            FileNode.ReparseData = null;
+            fileNode.fileInfo.FileAttributes &= ~(uint)FileAttributes.ReparsePoint;
+            fileNode.fileInfo.ReparseTag = 0;
+            fileNode.reparseData = null;
 
             return STATUS_SUCCESS;
         }
 
-        public override Boolean GetStreamEntry(
-            Object FileNode0,
-            Object FileDesc,
-            ref Object Context,
-            out String StreamName,
-            out UInt64 StreamSize,
-            out UInt64 StreamAllocationSize)
+        public override bool GetStreamEntry(
+            object fileNode0,
+            object fileDesc,
+            ref object context,
+            out string streamName,
+            out ulong streamSize,
+            out ulong streamAllocationSize)
         {
-            FileNode FileNode = (FileNode)FileNode0;
-            IEnumerator<String> Enumerator = (IEnumerator<String>)Context;
+            FileNode fileNode = (FileNode)fileNode0;
+            IEnumerator<string> enumerator = (IEnumerator<string>)context;
 
-            if (null == Enumerator)
+            if (null == enumerator)
             {
-                if (null != FileNode.MainFileNode)
-                    FileNode = FileNode.MainFileNode;
+                if (null != fileNode.mainFileNode)
+                    fileNode = fileNode.mainFileNode;
 
-                List<String> StreamFileNames = new List<String>();
-                if (0 == (FileNode.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory))
-                    StreamFileNames.Add(FileNode.FileName);
-                StreamFileNames.AddRange(FileNodeMap.GetStreamFileNames(FileNode));
-                Context = Enumerator = StreamFileNames.GetEnumerator();
+                List<string> streamFileNames = new List<string>();
+                if (0 == (fileNode.fileInfo.FileAttributes & (uint)FileAttributes.Directory))
+                    streamFileNames.Add(fileNode.fileName);
+                streamFileNames.AddRange(_fileNodeMap.GetStreamFileNames(fileNode));
+                context = enumerator = streamFileNames.GetEnumerator();
             }
 
-            while (Enumerator.MoveNext())
+            while (enumerator.MoveNext())
             {
-                String FullFileName = Enumerator.Current;
-                FileNode StreamFileNode = FileNodeMap.Get(FullFileName);
-                if (null != StreamFileNode)
+                string fullFileName = enumerator.Current;
+                FileNode streamFileNode = _fileNodeMap.Get(fullFileName);
+                if (null != streamFileNode)
                 {
-                    int Index = FullFileName.IndexOf(':');
-                    if (0 > Index)
-                        StreamName = "";
+                    int index = fullFileName.IndexOf(':');
+                    if (0 > index)
+                        streamName = "";
                     else
-                        StreamName = FullFileName.Substring(Index + 1);
-                    StreamSize = StreamFileNode.FileInfo.FileSize;
-                    StreamAllocationSize = StreamFileNode.FileInfo.AllocationSize;
+                        streamName = fullFileName.Substring(index + 1);
+                    streamSize = streamFileNode.fileInfo.FileSize;
+                    streamAllocationSize = streamFileNode.fileInfo.AllocationSize;
                     return true;
                 }
             }
 
-            StreamName = default(String);
-            StreamSize = default(UInt64);
-            StreamAllocationSize = default(UInt64);
+            streamName = default;
+            streamSize = default;
+            streamAllocationSize = default;
             return false;
         }
-        public override Boolean GetEaEntry(
-            Object FileNode0,
-            Object FileDesc,
-            ref Object Context,
-            out String EaName,
-            out Byte[] EaValue,
-            out Boolean NeedEa)
+        public override bool GetEaEntry(
+            object fileNode0,
+            object fileDesc,
+            ref object context,
+            out string eaName,
+            out byte[] eaValue,
+            out bool needEa)
         {
-            FileNode FileNode = (FileNode)FileNode0;
-            IEnumerator<KeyValuePair<String, EaValueData>> Enumerator =
-                (IEnumerator<KeyValuePair<String, EaValueData>>)Context;
+            FileNode fileNode = (FileNode)fileNode0;
+            IEnumerator<KeyValuePair<string, EaValueData>> enumerator =
+                (IEnumerator<KeyValuePair<string, EaValueData>>)context;
 
-            if (null == Enumerator)
+            if (null == enumerator)
             {
-                SortedDictionary<String, EaValueData> EaMap = FileNode.GetEaMap(false);
-                if (null == EaMap)
+                SortedDictionary<string, EaValueData> eaMap = fileNode.GetEaMap(false);
+                if (null == eaMap)
                 {
-                    EaName = default(String);
-                    EaValue = default(Byte[]);
-                    NeedEa = default(Boolean);
+                    eaName = default;
+                    eaValue = default;
+                    needEa = default;
                     return false;
                 }
 
-                Context = Enumerator = EaMap.GetEnumerator();
+                context = enumerator = eaMap.GetEnumerator();
             }
 
-            while (Enumerator.MoveNext())
+            while (enumerator.MoveNext())
             {
-                KeyValuePair<String, EaValueData> Pair = Enumerator.Current;
-                EaName = Pair.Key;
-                EaValue = Pair.Value.EaValue;
-                NeedEa = Pair.Value.NeedEa;
+                KeyValuePair<string, EaValueData> pair = enumerator.Current;
+                eaName = pair.Key;
+                eaValue = pair.Value.eaValue;
+                needEa = pair.Value.needEa;
                 return true;
             }
 
-            EaName = default(String);
-            EaValue = default(Byte[]);
-            NeedEa = default(Boolean);
+            eaName = default;
+            eaValue = default;
+            needEa = default;
             return false;
         }
-        public override Int32 SetEaEntry(
-            Object FileNode0,
-            Object FileDesc,
-            ref Object Context,
-            String EaName,
-            Byte[] EaValue,
-            Boolean NeedEa)
+        public override int SetEaEntry(
+            object fileNode0,
+            object fileDesc,
+            ref object context,
+            string eaName,
+            byte[] eaValue,
+            bool needEa)
         {
-            FileNode FileNode = (FileNode)FileNode0;
-            SortedDictionary<String, EaValueData> EaMap = FileNode.GetEaMap(true);
-            EaValueData Data;
-            UInt32 EaSizePlus = 0, EaSizeMinus = 0;
-            if (EaMap.TryGetValue(EaName, out Data))
+            FileNode fileNode = (FileNode)fileNode0;
+            SortedDictionary<string, EaValueData> eaMap = fileNode.GetEaMap(true);
+            EaValueData data;
+            uint eaSizePlus = 0, eaSizeMinus = 0;
+            if (eaMap.TryGetValue(eaName, out data))
             {
-                EaSizeMinus = GetEaEntrySize(EaName, Data.EaValue, Data.NeedEa);
-                EaMap.Remove(EaName);
+                eaSizeMinus = GetEaEntrySize(eaName, data.eaValue, data.needEa);
+                eaMap.Remove(eaName);
             }
-            if (null != EaValue)
+            if (null != eaValue)
             {
-                Data.EaValue = EaValue;
-                Data.NeedEa = NeedEa;
-                EaMap[EaName] = Data;
-                EaSizePlus = GetEaEntrySize(EaName, EaValue, NeedEa);
+                data.eaValue = eaValue;
+                data.needEa = needEa;
+                eaMap[eaName] = data;
+                eaSizePlus = GetEaEntrySize(eaName, eaValue, needEa);
             }
-            FileNode.FileInfo.EaSize = FileNode.FileInfo.EaSize + EaSizePlus - EaSizeMinus;
+            fileNode.fileInfo.EaSize = fileNode.fileInfo.EaSize + eaSizePlus - eaSizeMinus;
             return STATUS_SUCCESS;
         }
 
-        private FileNodeMap FileNodeMap;
-        private UInt32 MaxFileNodes;
-        private UInt32 MaxFileSize;
-        private UInt64 SlowioMaxDelay;
-        private UInt64 SlowioPercentDelay;
-        private UInt64 SlowioRarefyDelay;
-        private volatile Int32 SlowioTasksRunning;
-        private String VolumeLabel;
+        private FileNodeMap _fileNodeMap;
+        private uint _maxFileNodes;
+        private uint _maxFileSize;
+        private ulong _slowioMaxDelay;
+        private ulong _slowioPercentDelay;
+        private ulong _slowioRarefyDelay;
+        private volatile int _slowioTasksRunning;
+        private string _volumeLabel;
     }
 
-    class MemfsService : Service
+    public class MemfsService : Service
     {
         private class CommandLineUsageException : Exception
         {
-            public CommandLineUsageException(String Message = null) : base(Message)
-            {
-                HasMessage = null != Message;
-            }
+            public CommandLineUsageException(string message = null) : base(message) { }
 
-            public bool HasMessage;
+            public bool HasMessage => Message != null;
         }
 
-        private const String PROGNAME = "memfs-dotnet";
+        private const string PROGNAME = "memfs-dotnet";
 
         public MemfsService() : base("MemfsService")
         {
         }
-        protected override void OnStart(String[] Args)
+        protected override void OnStart(string[] args)
         {
             try
             {
-                Boolean CaseInsensitive = false;
-                String DebugLogFile = null;
-                UInt32 DebugFlags = 0;
-                UInt32 FileInfoTimeout = unchecked((UInt32)(-1));
-                UInt32 MaxFileNodes = 1024;
-                UInt32 MaxFileSize = 16 * 1024 * 1024;
-                UInt32 SlowioMaxDelay = 0;
-                UInt32 SlowioPercentDelay = 0;
-                UInt32 SlowioRarefyDelay = 0;
-                String FileSystemName = null;
-                String VolumePrefix = null;
-                String MountPoint = null;
-                String RootSddl = null;
-                FileSystemHost Host = null;
-                Memfs Memfs = null;
-                int I;
+                bool caseInsensitive = false;
+                string debugLogFile = null;
+                uint debugFlags = 0;
+                uint fileInfoTimeout = unchecked((uint)-1);
+                uint maxFileNodes = 1024;
+                uint maxFileSize = 16 * 1024 * 1024;
+                uint slowioMaxDelay = 0;
+                uint slowioPercentDelay = 0;
+                uint slowioRarefyDelay = 0;
+                string fileSystemName = null;
+                string volumePrefix = null;
+                string mountPoint = null;
+                string rootSddl = null;
+                FileSystemHost host = null;
+                Memfs memfs = null;
+                int i;
 
-                for (I = 1; Args.Length > I; I++)
+                for (i = 1; args.Length > i; i++)
                 {
-                    String Arg = Args[I];
-                    if ('-' != Arg[0])
+                    string arg = args[i];
+                    if ('-' != arg[0])
                         break;
-                    switch (Arg[1])
+                    switch (arg[1])
                     {
-                    case '?':
-                        throw new CommandLineUsageException();
-                    case 'D':
-                        argtos(Args, ref I, ref DebugLogFile);
-                        break;
-                    case 'd':
-                        argtol(Args, ref I, ref DebugFlags);
-                        break;
-                    case 'F':
-                        argtos(Args, ref I, ref FileSystemName);
-                        break;
-                    case 'i':
-                        CaseInsensitive = true;
-                        break;
-                    case 'm':
-                        argtos(Args, ref I, ref MountPoint);
-                        break;
-                    case 'M':
-                        argtol(Args, ref I, ref SlowioMaxDelay);
-                        break;
-                    case 'n':
-                        argtol(Args, ref I, ref MaxFileNodes);
-                        break;
-                    case 'P':
-                        argtol(Args, ref I, ref SlowioPercentDelay);
-                        break;
-                    case 'R':
-                       argtol(Args, ref I, ref SlowioRarefyDelay);
-                       break;
-                    case 'S':
-                        argtos(Args, ref I, ref RootSddl);
-                        break;
-                    case 's':
-                        argtol(Args, ref I, ref MaxFileSize);
-                        break;
-                    case 't':
-                        argtol(Args, ref I, ref FileInfoTimeout);
-                        break;
-                    case 'u':
-                        argtos(Args, ref I, ref VolumePrefix);
-                        break;
-                    default:
-                        throw new CommandLineUsageException();
+                        case '?':
+                            throw new CommandLineUsageException();
+                        case 'D':
+                            argtos(args, ref i, ref debugLogFile);
+                            break;
+                        case 'd':
+                            argtol(args, ref i, ref debugFlags);
+                            break;
+                        case 'F':
+                            argtos(args, ref i, ref fileSystemName);
+                            break;
+                        case 'i':
+                            caseInsensitive = true;
+                            break;
+                        case 'm':
+                            argtos(args, ref i, ref mountPoint);
+                            break;
+                        case 'M':
+                            argtol(args, ref i, ref slowioMaxDelay);
+                            break;
+                        case 'n':
+                            argtol(args, ref i, ref maxFileNodes);
+                            break;
+                        case 'P':
+                            argtol(args, ref i, ref slowioPercentDelay);
+                            break;
+                        case 'R':
+                            argtol(args, ref i, ref slowioRarefyDelay);
+                            break;
+                        case 'S':
+                            argtos(args, ref i, ref rootSddl);
+                            break;
+                        case 's':
+                            argtol(args, ref i, ref maxFileSize);
+                            break;
+                        case 't':
+                            argtol(args, ref i, ref fileInfoTimeout);
+                            break;
+                        case 'u':
+                            argtos(args, ref i, ref volumePrefix);
+                            break;
+                        default:
+                            throw new CommandLineUsageException();
                     }
                 }
 
-                if (Args.Length > I)
+                if (args.Length > i)
                     throw new CommandLineUsageException();
 
-                if ((null == VolumePrefix || 0 == VolumePrefix.Length) && null == MountPoint)
+                if ((null == volumePrefix || 0 == volumePrefix.Length) && null == mountPoint)
                     throw new CommandLineUsageException();
 
-                if (null != DebugLogFile)
-                    if (0 > FileSystemHost.SetDebugLogFile(DebugLogFile))
+                if (null != debugLogFile)
+                    if (0 > FileSystemHost.SetDebugLogFile(debugLogFile))
                         throw new CommandLineUsageException("cannot open debug log file");
 
-                Host = new FileSystemHost(Memfs = new Memfs(
-                    CaseInsensitive, MaxFileNodes, MaxFileSize, RootSddl,
-                    SlowioMaxDelay, SlowioPercentDelay, SlowioRarefyDelay));
-                Host.FileInfoTimeout = FileInfoTimeout;
-                Host.Prefix = VolumePrefix;
-                Host.FileSystemName = null != FileSystemName ? FileSystemName : "-MEMFS";
-                if (0 > Host.Mount(MountPoint, null, false, DebugFlags))
+                host = new FileSystemHost(memfs = new Memfs(
+                    caseInsensitive, maxFileNodes, maxFileSize, rootSddl,
+                    slowioMaxDelay, slowioPercentDelay, slowioRarefyDelay));
+                host.FileInfoTimeout = fileInfoTimeout;
+                host.Prefix = volumePrefix;
+                host.FileSystemName = null != fileSystemName ? fileSystemName : "-MEMFS";
+                if (0 > host.Mount(mountPoint, null, false, debugFlags))
                     throw new IOException("cannot mount file system");
-                MountPoint = Host.MountPoint();
-                _Host = Host;
+                mountPoint = host.MountPoint();
+                _host = host;
 
-                Log(EVENTLOG_INFORMATION_TYPE, String.Format("{0} -t {1} -n {2} -s {3}{4}{5}{6}{7}{8}{9}",
-                    PROGNAME, (Int32)FileInfoTimeout, MaxFileNodes, MaxFileSize,
-                    null != RootSddl ? " -S " : "", null != RootSddl ? RootSddl : "",
-                    null != VolumePrefix && 0 < VolumePrefix.Length ? " -u " : "",
-                        null != VolumePrefix && 0 < VolumePrefix.Length ? VolumePrefix : "",
-                    null != MountPoint ? " -m " : "", null != MountPoint ? MountPoint : ""));
+                Log(EVENTLOG_INFORMATION_TYPE, string.Format("{0} -t {1} -n {2} -s {3}{4}{5}{6}{7}{8}{9}",
+                    PROGNAME, (int)fileInfoTimeout, maxFileNodes, maxFileSize,
+                    null != rootSddl ? " -S " : "", null != rootSddl ? rootSddl : "",
+                    null != volumePrefix && 0 < volumePrefix.Length ? " -u " : "",
+                        null != volumePrefix && 0 < volumePrefix.Length ? volumePrefix : "",
+                    null != mountPoint ? " -m " : "", null != mountPoint ? mountPoint : ""));
             }
             catch (CommandLineUsageException ex)
             {
-                Log(EVENTLOG_ERROR_TYPE, String.Format(
+                Log(EVENTLOG_ERROR_TYPE, string.Format(
                     "{0}" +
                     "usage: {1} OPTIONS\n" +
                     "\n" +
@@ -1488,33 +1485,33 @@ namespace memfs
             }
             catch (Exception ex)
             {
-                Log(EVENTLOG_ERROR_TYPE, String.Format("{0}", ex.Message));
+                Log(EVENTLOG_ERROR_TYPE, string.Format("{0}", ex.Message));
                 throw;
             }
         }
         protected override void OnStop()
         {
-            _Host.Unmount();
-            _Host = null;
+            _host.Unmount();
+            _host = null;
         }
 
-        private static void argtos(String[] Args, ref int I, ref String V)
+        private static void argtos(string[] args, ref int i, ref string v)
         {
-            if (Args.Length > ++I)
-                V = Args[I];
+            if (args.Length > ++i)
+                v = args[i];
             else
                 throw new CommandLineUsageException();
         }
-        private static void argtol(String[] Args, ref int I, ref UInt32 V)
+        private static void argtol(string[] args, ref int i, ref uint v)
         {
-            Int32 R;
-            if (Args.Length > ++I)
-                V = Int32.TryParse(Args[I], out R) ? (UInt32)R : V;
+            int r;
+            if (args.Length > ++i)
+                v = int.TryParse(args[i], out r) ? (uint)r : v;
             else
                 throw new CommandLineUsageException();
         }
 
-        private FileSystemHost _Host;
+        private FileSystemHost _host;
     }
 
     class Program
