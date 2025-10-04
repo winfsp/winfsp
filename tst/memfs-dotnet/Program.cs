@@ -62,32 +62,32 @@ namespace memfs
 
     struct EaValueData
     {
-        public byte[] eaValue;
-        public bool needEa;
+        public byte[] EaValue;
+        public bool NeedEa;
     }
 
     class FileNode
     {
         public FileNode(string fileName)
         {
-            this.fileName = fileName;
-            fileInfo.CreationTime =
-            fileInfo.LastAccessTime =
-            fileInfo.LastWriteTime =
-            fileInfo.ChangeTime = (ulong)DateTime.Now.ToFileTimeUtc();
-            fileInfo.IndexNumber = indexNumber++;
+            this.FileName = fileName;
+            FileInfo.CreationTime =
+            FileInfo.LastAccessTime =
+            FileInfo.LastWriteTime =
+            FileInfo.ChangeTime = (ulong)DateTime.Now.ToFileTimeUtc();
+            FileInfo.IndexNumber = indexNumber++;
         }
         public FileInfo GetFileInfo()
         {
-            if (null == mainFileNode)
-                return this.fileInfo;
+            if (null == MainFileNode)
+                return this.FileInfo;
             else
             {
-                FileInfo fileInfo = mainFileNode.fileInfo;
+                FileInfo fileInfo = MainFileNode.FileInfo;
                 fileInfo.FileAttributes &= ~(uint)FileAttributes.Directory;
                 /* named streams cannot be directories */
-                fileInfo.AllocationSize = this.fileInfo.AllocationSize;
-                fileInfo.FileSize = this.fileInfo.FileSize;
+                fileInfo.AllocationSize = this.FileInfo.AllocationSize;
+                fileInfo.FileSize = this.FileInfo.FileSize;
                 return fileInfo;
             }
         }
@@ -100,21 +100,21 @@ namespace memfs
         }
 
         private static ulong indexNumber = 1;
-        public string fileName;
-        public FileInfo fileInfo;
-        public byte[] fileSecurity;
-        public byte[] fileData;
-        public byte[] reparseData;
+        public string FileName;
+        public FileInfo FileInfo;
+        public byte[] FileSecurity;
+        public byte[] FileData;
+        public byte[] ReparseData;
         private SortedDictionary<string, EaValueData> eaMap;
-        public FileNode mainFileNode;
-        public int openCount;
+        public FileNode MainFileNode;
+        public int OpenCount;
     }
 
     class FileNodeMap
     {
         public FileNodeMap(bool caseInsensitive)
         {
-            this.caseInsensitive = caseInsensitive;
+            this.CaseInsensitive = caseInsensitive;
             StringComparer comparer = caseInsensitive ?
                 StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
             _set = new SortedSet<string>(comparer);
@@ -146,7 +146,7 @@ namespace memfs
                 result = FileSystemBase.STATUS_OBJECT_PATH_NOT_FOUND;
                 return null;
             }
-            if (0 == (fileNode.fileInfo.FileAttributes & (uint)FileAttributes.Directory))
+            if (0 == (fileNode.FileInfo.FileAttributes & (uint)FileAttributes.Directory))
             {
                 result = FileSystemBase.STATUS_NOT_A_DIRECTORY;
                 return null;
@@ -155,27 +155,27 @@ namespace memfs
         }
         public void TouchParent(FileNode fileNode)
         {
-            if ("\\" == fileNode.fileName)
+            if ("\\" == fileNode.FileName)
                 return;
             int result = FileSystemBase.STATUS_SUCCESS;
-            FileNode parent = GetParent(fileNode.fileName, ref result);
+            FileNode parent = GetParent(fileNode.FileName, ref result);
             if (null == parent)
                 return;
-            parent.fileInfo.LastAccessTime =
-            parent.fileInfo.LastWriteTime =
-            parent.fileInfo.ChangeTime = (ulong)DateTime.Now.ToFileTimeUtc();
+            parent.FileInfo.LastAccessTime =
+            parent.FileInfo.LastWriteTime =
+            parent.FileInfo.ChangeTime = (ulong)DateTime.Now.ToFileTimeUtc();
         }
         public void Insert(FileNode fileNode)
         {
-            _set.Add(fileNode.fileName);
-            _map.Add(fileNode.fileName, fileNode);
+            _set.Add(fileNode.FileName);
+            _map.Add(fileNode.FileName, fileNode);
             TouchParent(fileNode);
         }
         public void Remove(FileNode fileNode)
         {
-            if (_set.Remove(fileNode.fileName))
+            if (_set.Remove(fileNode.FileName))
             {
-                _map.Remove(fileNode.fileName);
+                _map.Remove(fileNode.FileName);
                 TouchParent(fileNode);
             }
         }
@@ -189,10 +189,10 @@ namespace memfs
         {
             string minName = "\\";
             string maxName = "]";
-            if ("\\" != fileNode.fileName)
+            if ("\\" != fileNode.FileName)
             {
-                minName = fileNode.fileName + "\\";
-                maxName = fileNode.fileName + "]";
+                minName = fileNode.FileName + "\\";
+                maxName = fileNode.FileName + "]";
             }
             if (null != marker)
                 minName += marker;
@@ -203,26 +203,26 @@ namespace memfs
         }
         public IEnumerable<string> GetStreamFileNames(FileNode fileNode)
         {
-            string minName = fileNode.fileName + ":";
-            string maxName = fileNode.fileName + ";";
+            string minName = fileNode.FileName + ":";
+            string maxName = fileNode.FileName + ";";
             foreach (string name in _set.GetViewBetween(minName, maxName))
                 if (name.Length > minName.Length)
                     yield return name;
         }
         public IEnumerable<string> GetDescendantFileNames(FileNode fileNode)
         {
-            yield return fileNode.fileName;
-            string minName = fileNode.fileName + ":";
-            string maxName = fileNode.fileName + ";";
+            yield return fileNode.FileName;
+            string minName = fileNode.FileName + ":";
+            string maxName = fileNode.FileName + ";";
             foreach (string name in _set.GetViewBetween(minName, maxName))
                 if (name.Length > minName.Length)
                     yield return name;
             minName = "\\";
             maxName = "]";
-            if ("\\" != fileNode.fileName)
+            if ("\\" != fileNode.FileName)
             {
-                minName = fileNode.fileName + "\\";
-                maxName = fileNode.fileName + "]";
+                minName = fileNode.FileName + "\\";
+                maxName = fileNode.FileName + "]";
             }
             foreach (string name in _set.GetViewBetween(minName, maxName))
                 if (name.Length > minName.Length)
@@ -230,7 +230,7 @@ namespace memfs
         }
 
         private static readonly char[] _delimiters = new char[] { '\\', ':' };
-        public bool caseInsensitive;
+        public bool CaseInsensitive;
         private SortedSet<string> _set;
         private Dictionary<string, FileNode> _map;
     }
@@ -257,12 +257,12 @@ namespace memfs
              */
 
             FileNode rootNode = new FileNode("\\");
-            rootNode.fileInfo.FileAttributes = (uint)FileAttributes.Directory;
+            rootNode.FileInfo.FileAttributes = (uint)FileAttributes.Directory;
             if (null == rootSddl)
                 rootSddl = "O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;WD)";
             RawSecurityDescriptor rootSecurityDescriptor = new RawSecurityDescriptor(rootSddl);
-            rootNode.fileSecurity = new byte[rootSecurityDescriptor.BinaryLength];
-            rootSecurityDescriptor.GetBinaryForm(rootNode.fileSecurity, 0);
+            rootNode.FileSecurity = new byte[rootSecurityDescriptor.BinaryLength];
+            rootSecurityDescriptor.GetBinaryForm(rootNode.FileSecurity, 0);
 
             _fileNodeMap.Insert(rootNode);
         }
@@ -274,7 +274,7 @@ namespace memfs
             _host.SectorsPerAllocationUnit = Memfs.MEMFS_SECTORS_PER_ALLOCATION_UNIT;
             _host.VolumeCreationTime = (ulong)DateTime.Now.ToFileTimeUtc();
             _host.VolumeSerialNumber = (uint)(_host.VolumeCreationTime / (10000 * 1000));
-            _host.CaseSensitiveSearch = !_fileNodeMap.caseInsensitive;
+            _host.CaseSensitiveSearch = !_fileNodeMap.CaseInsensitive;
             _host.CasePreservedNames = true;
             _host.UnicodeOnDisk = true;
             _host.PersistentAcls = true;
@@ -340,14 +340,14 @@ namespace memfs
             }
 
             uint fileAttributesMask = ~(uint)0;
-            if (null != fileNode.mainFileNode)
+            if (null != fileNode.MainFileNode)
             {
                 fileAttributesMask = ~(uint)System.IO.FileAttributes.Directory;
-                fileNode = fileNode.mainFileNode;
+                fileNode = fileNode.MainFileNode;
             }
-            fileAttributes = fileNode.fileInfo.FileAttributes & fileAttributesMask;
+            fileAttributes = fileNode.FileInfo.FileAttributes & fileAttributesMask;
             if (null != securityDescriptor)
-                securityDescriptor = fileNode.fileSecurity;
+                securityDescriptor = fileNode.FileSecurity;
 
             return STATUS_SUCCESS;
         }
@@ -390,14 +390,14 @@ namespace memfs
             if (allocationSize > _maxFileSize)
                 return STATUS_DISK_FULL;
 
-            if ("\\" != parentNode.fileName)
+            if ("\\" != parentNode.FileName)
                 /* normalize name */
-                fileName = parentNode.fileName + "\\" + Path.GetFileName(fileName);
+                fileName = parentNode.FileName + "\\" + Path.GetFileName(fileName);
             fileNode = new FileNode(fileName);
-            fileNode.mainFileNode = _fileNodeMap.GetMain(fileName);
-            fileNode.fileInfo.FileAttributes = 0 != (fileAttributes & (uint)System.IO.FileAttributes.Directory) ?
+            fileNode.MainFileNode = _fileNodeMap.GetMain(fileName);
+            fileNode.FileInfo.FileAttributes = 0 != (fileAttributes & (uint)System.IO.FileAttributes.Directory) ?
                 fileAttributes : fileAttributes | (uint)System.IO.FileAttributes.Archive;
-            fileNode.fileSecurity = securityDescriptor;
+            fileNode.FileSecurity = securityDescriptor;
             if (IntPtr.Zero != extraBuffer)
             {
                 if (!extraBufferIsReparsePoint)
@@ -409,9 +409,9 @@ namespace memfs
                 else
                 {
                     byte[] reparseData = MakeReparsePoint(extraBuffer, extraLength);
-                    fileNode.fileInfo.FileAttributes |= (uint)System.IO.FileAttributes.ReparsePoint;
-                    fileNode.fileInfo.ReparseTag = GetReparseTag(reparseData);
-                    fileNode.reparseData = reparseData;
+                    fileNode.FileInfo.FileAttributes |= (uint)System.IO.FileAttributes.ReparsePoint;
+                    fileNode.FileInfo.ReparseTag = GetReparseTag(reparseData);
+                    fileNode.ReparseData = reparseData;
                 }
             }
             if (0 != allocationSize)
@@ -422,10 +422,10 @@ namespace memfs
             }
             _fileNodeMap.Insert(fileNode);
 
-            Interlocked.Increment(ref fileNode.openCount);
+            Interlocked.Increment(ref fileNode.OpenCount);
             fileNode0 = fileNode;
             fileInfo = fileNode.GetFileInfo();
-            normalizedName = fileNode.fileName;
+            normalizedName = fileNode.FileName;
 
             return STATUS_SUCCESS;
         }
@@ -456,21 +456,21 @@ namespace memfs
             }
 
             if (0 != (createOptions & FILE_NO_EA_KNOWLEDGE) &&
-                null == fileNode.mainFileNode)
+                null == fileNode.MainFileNode)
             {
                 SortedDictionary<string, EaValueData> eaMap = fileNode.GetEaMap(false);
                 if (null != eaMap)
                 {
                     foreach (KeyValuePair<string, EaValueData> pair in eaMap)
-                        if (pair.Value.needEa)
+                        if (pair.Value.NeedEa)
                             return STATUS_ACCESS_DENIED;
                 }
             }
 
-            Interlocked.Increment(ref fileNode.openCount);
+            Interlocked.Increment(ref fileNode.OpenCount);
             fileNode0 = fileNode;
             fileInfo = fileNode.GetFileInfo();
-            normalizedName = fileNode.fileName;
+            normalizedName = fileNode.FileName;
 
             return STATUS_SUCCESS;
         }
@@ -496,7 +496,7 @@ namespace memfs
                 FileNode streamNode = _fileNodeMap.Get(streamFileName);
                 if (null == streamNode)
                     continue; /* should not happen */
-                if (0 == streamNode.openCount)
+                if (0 == streamNode.OpenCount)
                     _fileNodeMap.Remove(streamNode);
             }
 
@@ -504,7 +504,7 @@ namespace memfs
             if (null != eaMap)
             {
                 eaMap.Clear();
-                fileNode.fileInfo.EaSize = 0;
+                fileNode.FileInfo.EaSize = 0;
             }
             if (IntPtr.Zero != ea)
             {
@@ -517,13 +517,13 @@ namespace memfs
             if (0 > result)
                 return result;
             if (replaceFileAttributes)
-                fileNode.fileInfo.FileAttributes = fileAttributes | (uint)System.IO.FileAttributes.Archive;
+                fileNode.FileInfo.FileAttributes = fileAttributes | (uint)System.IO.FileAttributes.Archive;
             else
-                fileNode.fileInfo.FileAttributes |= fileAttributes | (uint)System.IO.FileAttributes.Archive;
-            fileNode.fileInfo.FileSize = 0;
-            fileNode.fileInfo.LastAccessTime =
-            fileNode.fileInfo.LastWriteTime =
-            fileNode.fileInfo.ChangeTime = (ulong)DateTime.Now.ToFileTimeUtc();
+                fileNode.FileInfo.FileAttributes |= fileAttributes | (uint)System.IO.FileAttributes.Archive;
+            fileNode.FileInfo.FileSize = 0;
+            fileNode.FileInfo.LastAccessTime =
+            fileNode.FileInfo.LastWriteTime =
+            fileNode.FileInfo.ChangeTime = (ulong)DateTime.Now.ToFileTimeUtc();
 
             fileInfo = fileNode.GetFileInfo();
 
@@ -537,13 +537,13 @@ namespace memfs
             uint flags)
         {
             FileNode fileNode = (FileNode)fileNode0;
-            FileNode mainFileNode = null != fileNode.mainFileNode ?
-                fileNode.mainFileNode : fileNode;
+            FileNode mainFileNode = null != fileNode.MainFileNode ?
+                fileNode.MainFileNode : fileNode;
 
             if (0 != (flags & CleanupSetArchiveBit))
             {
-                if (0 == (mainFileNode.fileInfo.FileAttributes & (uint)FileAttributes.Directory))
-                    mainFileNode.fileInfo.FileAttributes |= (uint)FileAttributes.Archive;
+                if (0 == (mainFileNode.FileInfo.FileAttributes & (uint)FileAttributes.Directory))
+                    mainFileNode.FileInfo.FileAttributes |= (uint)FileAttributes.Archive;
             }
 
             if (0 != (flags & (CleanupSetLastAccessTime | CleanupSetLastWriteTime | CleanupSetChangeTime)))
@@ -551,17 +551,17 @@ namespace memfs
                 ulong systemTime = (ulong)DateTime.Now.ToFileTimeUtc();
 
                 if (0 != (flags & CleanupSetLastAccessTime))
-                    mainFileNode.fileInfo.LastAccessTime = systemTime;
+                    mainFileNode.FileInfo.LastAccessTime = systemTime;
                 if (0 != (flags & CleanupSetLastWriteTime))
-                    mainFileNode.fileInfo.LastWriteTime = systemTime;
+                    mainFileNode.FileInfo.LastWriteTime = systemTime;
                 if (0 != (flags & CleanupSetChangeTime))
-                    mainFileNode.fileInfo.ChangeTime = systemTime;
+                    mainFileNode.FileInfo.ChangeTime = systemTime;
             }
 
             if (0 != (flags & CleanupSetAllocationSize))
             {
                 ulong allocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
-                ulong allocationSize = (fileNode.fileInfo.FileSize + allocationUnit - 1) /
+                ulong allocationSize = (fileNode.FileInfo.FileSize + allocationUnit - 1) /
                     allocationUnit * allocationUnit;
                 SetFileSizeInternal(fileNode, allocationSize, true);
             }
@@ -585,7 +585,7 @@ namespace memfs
             object fileDesc)
         {
             FileNode fileNode = (FileNode)fileNode0;
-            Interlocked.Decrement(ref fileNode.openCount);
+            Interlocked.Decrement(ref fileNode.OpenCount);
         }
 
 #if MEMFS_SLOWIO
@@ -632,7 +632,7 @@ namespace memfs
 
             uint bytesTransferred = (uint)(endOffset - offset);
             FileNode fileNode = (FileNode)fileNode0;
-            Marshal.Copy(fileNode.fileData, (int)offset, buffer, (int)bytesTransferred);
+            Marshal.Copy(fileNode.FileData, (int)offset, buffer, (int)bytesTransferred);
 
             _host.SendReadResponse(requestHint, STATUS_SUCCESS, bytesTransferred);
             Interlocked.Decrement(ref _slowioTasksRunning);
@@ -650,7 +650,7 @@ namespace memfs
             uint BytesTransferred = (uint)(endOffset - offset);
             FileNode fileNode = (FileNode)fileNode0;
             FileInfo fileInfo = fileNode.GetFileInfo();
-            Marshal.Copy(buffer, fileNode.fileData, (int)offset, (int)BytesTransferred);
+            Marshal.Copy(buffer, fileNode.FileData, (int)offset, (int)BytesTransferred);
 
             _host.SendWriteResponse(requestHint, STATUS_SUCCESS, BytesTransferred, ref fileInfo);
             Interlocked.Decrement(ref _slowioTasksRunning);
@@ -686,15 +686,15 @@ namespace memfs
             FileNode fileNode = (FileNode)fileNode0;
             ulong endOffset;
 
-            if (offset >= fileNode.fileInfo.FileSize)
+            if (offset >= fileNode.FileInfo.FileSize)
             {
                 bytesTransferred = default;
                 return STATUS_END_OF_FILE;
             }
 
             endOffset = offset + length;
-            if (endOffset > fileNode.fileInfo.FileSize)
-                endOffset = fileNode.fileInfo.FileSize;
+            if (endOffset > fileNode.FileInfo.FileSize)
+                endOffset = fileNode.FileInfo.FileSize;
 
 #if MEMFS_SLOWIO
             if (SlowioReturnPending())
@@ -716,7 +716,7 @@ namespace memfs
 #endif
 
             bytesTransferred = (uint)(endOffset - offset);
-            Marshal.Copy(fileNode.fileData, (int)offset, buffer, (int)bytesTransferred);
+            Marshal.Copy(fileNode.FileData, (int)offset, buffer, (int)bytesTransferred);
 
             return STATUS_SUCCESS;
         }
@@ -737,22 +737,22 @@ namespace memfs
 
             if (constrainedIo)
             {
-                if (offset >= fileNode.fileInfo.FileSize)
+                if (offset >= fileNode.FileInfo.FileSize)
                 {
                     bytesTransferred = default;
                     fileInfo = default;
                     return STATUS_SUCCESS;
                 }
                 endOffset = offset + length;
-                if (endOffset > fileNode.fileInfo.FileSize)
-                    endOffset = fileNode.fileInfo.FileSize;
+                if (endOffset > fileNode.FileInfo.FileSize)
+                    endOffset = fileNode.FileInfo.FileSize;
             }
             else
             {
                 if (writeToEndOfFile)
-                    offset = fileNode.fileInfo.FileSize;
+                    offset = fileNode.FileInfo.FileSize;
                 endOffset = offset + length;
-                if (endOffset > fileNode.fileInfo.FileSize)
+                if (endOffset > fileNode.FileInfo.FileSize)
                 {
                     int Result = SetFileSizeInternal(fileNode, endOffset, false);
                     if (0 > Result)
@@ -785,7 +785,7 @@ namespace memfs
 #endif
 
             bytesTransferred = (uint)(endOffset - offset);
-            Marshal.Copy(buffer, fileNode.fileData, (int)offset, (int)bytesTransferred);
+            Marshal.Copy(buffer, fileNode.FileData, (int)offset, (int)bytesTransferred);
 
             fileInfo = fileNode.GetFileInfo();
 
@@ -829,19 +829,19 @@ namespace memfs
         {
             FileNode fileNode = (FileNode)fileNode0;
 
-            if (null != fileNode.mainFileNode)
-                fileNode = fileNode.mainFileNode;
+            if (null != fileNode.MainFileNode)
+                fileNode = fileNode.MainFileNode;
 
             if (unchecked((uint)(-1)) != fileAttributes)
-                fileNode.fileInfo.FileAttributes = fileAttributes;
+                fileNode.FileInfo.FileAttributes = fileAttributes;
             if (0 != creationTime)
-                fileNode.fileInfo.CreationTime = creationTime;
+                fileNode.FileInfo.CreationTime = creationTime;
             if (0 != lastAccessTime)
-                fileNode.fileInfo.LastAccessTime = lastAccessTime;
+                fileNode.FileInfo.LastAccessTime = lastAccessTime;
             if (0 != lastWriteTime)
-                fileNode.fileInfo.LastWriteTime = lastWriteTime;
+                fileNode.FileInfo.LastWriteTime = lastWriteTime;
             if (0 != changeTime)
-                fileNode.fileInfo.ChangeTime = changeTime;
+                fileNode.FileInfo.ChangeTime = changeTime;
 
             fileInfo = fileNode.GetFileInfo();
 
@@ -871,7 +871,7 @@ namespace memfs
         {
             if (setAllocationSize)
             {
-                if (fileNode.fileInfo.AllocationSize != newSize)
+                if (fileNode.FileInfo.AllocationSize != newSize)
                 {
                     if (newSize > _maxFileSize)
                         return STATUS_DISK_FULL;
@@ -886,21 +886,21 @@ namespace memfs
                         {
                             return STATUS_INSUFFICIENT_RESOURCES;
                         }
-                    int CopyLength = (int)Math.Min(fileNode.fileInfo.AllocationSize, newSize);
+                    int CopyLength = (int)Math.Min(fileNode.FileInfo.AllocationSize, newSize);
                     if (0 != CopyLength)
-                        Array.Copy(fileNode.fileData, fileData, CopyLength);
+                        Array.Copy(fileNode.FileData, fileData, CopyLength);
 
-                    fileNode.fileData = fileData;
-                    fileNode.fileInfo.AllocationSize = newSize;
-                    if (fileNode.fileInfo.FileSize > newSize)
-                        fileNode.fileInfo.FileSize = newSize;
+                    fileNode.FileData = fileData;
+                    fileNode.FileInfo.AllocationSize = newSize;
+                    if (fileNode.FileInfo.FileSize > newSize)
+                        fileNode.FileInfo.FileSize = newSize;
                 }
             }
             else
             {
-                if (fileNode.fileInfo.FileSize != newSize)
+                if (fileNode.FileInfo.FileSize != newSize)
                 {
-                    if (fileNode.fileInfo.AllocationSize < newSize)
+                    if (fileNode.FileInfo.AllocationSize < newSize)
                     {
                         ulong allocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
                         ulong allocationSize = (newSize + allocationUnit - 1) / allocationUnit * allocationUnit;
@@ -909,13 +909,13 @@ namespace memfs
                             return Result;
                     }
 
-                    if (fileNode.fileInfo.FileSize < newSize)
+                    if (fileNode.FileInfo.FileSize < newSize)
                     {
-                        int copyLength = (int)(newSize - fileNode.fileInfo.FileSize);
+                        int copyLength = (int)(newSize - fileNode.FileInfo.FileSize);
                         if (0 != copyLength)
-                            Array.Clear(fileNode.fileData, (int)fileNode.fileInfo.FileSize, copyLength);
+                            Array.Clear(fileNode.FileData, (int)fileNode.FileInfo.FileSize, copyLength);
                     }
-                    fileNode.fileInfo.FileSize = newSize;
+                    fileNode.FileInfo.FileSize = newSize;
                 }
             }
 
@@ -950,7 +950,7 @@ namespace memfs
             {
                 if (!replaceIfExists)
                     return STATUS_OBJECT_NAME_COLLISION;
-                if (0 != (newFileNode.fileInfo.FileAttributes & (uint)FileAttributes.Directory))
+                if (0 != (newFileNode.FileInfo.FileAttributes & (uint)FileAttributes.Directory))
                     return STATUS_ACCESS_DENIED;
             }
 
@@ -964,8 +964,8 @@ namespace memfs
                 if (null == descendantFileNode)
                     continue; /* should not happen */
                 _fileNodeMap.Remove(descendantFileNode);
-                descendantFileNode.fileName =
-                    newFileName + descendantFileNode.fileName.Substring(fileName.Length);
+                descendantFileNode.FileName =
+                    newFileName + descendantFileNode.FileName.Substring(fileName.Length);
                 _fileNodeMap.Insert(descendantFileNode);
             }
 
@@ -979,10 +979,10 @@ namespace memfs
         {
             FileNode fileNode = (FileNode)fileNode0;
 
-            if (null != fileNode.mainFileNode)
-                fileNode = fileNode.mainFileNode;
+            if (null != fileNode.MainFileNode)
+                fileNode = fileNode.MainFileNode;
 
-            securityDescriptor = fileNode.fileSecurity;
+            securityDescriptor = fileNode.FileSecurity;
 
             return STATUS_SUCCESS;
         }
@@ -995,11 +995,11 @@ namespace memfs
         {
             FileNode fileNode = (FileNode)fileNode0;
 
-            if (null != fileNode.mainFileNode)
-                fileNode = fileNode.mainFileNode;
+            if (null != fileNode.MainFileNode)
+                fileNode = fileNode.MainFileNode;
 
-            return ModifySecurityDescriptorEx(fileNode.fileSecurity, sections, securityDescriptor,
-                ref fileNode.fileSecurity);
+            return ModifySecurityDescriptorEx(fileNode.FileSecurity, sections, securityDescriptor,
+                ref fileNode.FileSecurity);
         }
 
         public override bool ReadDirectoryEntry(
@@ -1017,7 +1017,7 @@ namespace memfs
             if (null == enumerator)
             {
                 List<string> childrenFileNames = new List<string>();
-                if ("\\" != fileNode.fileName)
+                if ("\\" != fileNode.FileName)
                 {
                     /* if this is not the root directory add the dot entries */
                     if (null == marker)
@@ -1042,7 +1042,7 @@ namespace memfs
                 else if (".." == fullFileName)
                 {
                     int result = STATUS_SUCCESS;
-                    FileNode ParentNode = _fileNodeMap.GetParent(fileNode.fileName, ref result);
+                    FileNode ParentNode = _fileNodeMap.GetParent(fileNode.FileName, ref result);
                     if (null != ParentNode)
                     {
                         fileName = "..";
@@ -1109,8 +1109,8 @@ namespace memfs
             FileNode fileNode;
 
             fileName =
-                parentNode.fileName +
-                ("\\" == parentNode.fileName ? "" : "\\") +
+                parentNode.FileName +
+                ("\\" == parentNode.FileName ? "" : "\\") +
                 Path.GetFileName(fileName);
 
             fileNode = _fileNodeMap.Get(fileName);
@@ -1121,8 +1121,8 @@ namespace memfs
                 return STATUS_OBJECT_NAME_NOT_FOUND;
             }
 
-            normalizedName = Path.GetFileName(fileNode.fileName);
-            fileInfo = fileNode.fileInfo;
+            normalizedName = Path.GetFileName(fileNode.FileName);
+            fileInfo = fileNode.FileInfo;
 
             return STATUS_SUCCESS;
         }
@@ -1138,10 +1138,10 @@ namespace memfs
             if (null == fileNode)
                 return STATUS_OBJECT_NAME_NOT_FOUND;
 
-            if (0 == (fileNode.fileInfo.FileAttributes & (uint)FileAttributes.ReparsePoint))
+            if (0 == (fileNode.FileInfo.FileAttributes & (uint)FileAttributes.ReparsePoint))
                 return STATUS_NOT_A_REPARSE_POINT;
 
-            reparseData = fileNode.reparseData;
+            reparseData = fileNode.ReparseData;
 
             return STATUS_SUCCESS;
         }
@@ -1154,13 +1154,13 @@ namespace memfs
         {
             FileNode fileNode = (FileNode)fileNode0;
 
-            if (null != fileNode.mainFileNode)
-                fileNode = fileNode.mainFileNode;
+            if (null != fileNode.MainFileNode)
+                fileNode = fileNode.MainFileNode;
 
-            if (0 == (fileNode.fileInfo.FileAttributes & (uint)FileAttributes.ReparsePoint))
+            if (0 == (fileNode.FileInfo.FileAttributes & (uint)FileAttributes.ReparsePoint))
                 return STATUS_NOT_A_REPARSE_POINT;
 
-            reparseData = fileNode.reparseData;
+            reparseData = fileNode.ReparseData;
 
             return STATUS_SUCCESS;
         }
@@ -1173,22 +1173,22 @@ namespace memfs
         {
             FileNode fileNode = (FileNode)fileNode0;
 
-            if (null != fileNode.mainFileNode)
-                fileNode = fileNode.mainFileNode;
+            if (null != fileNode.MainFileNode)
+                fileNode = fileNode.MainFileNode;
 
             if (_fileNodeMap.HasChild(fileNode))
                 return STATUS_DIRECTORY_NOT_EMPTY;
 
-            if (null != fileNode.reparseData)
+            if (null != fileNode.ReparseData)
             {
-                int Result = CanReplaceReparsePoint(fileNode.reparseData, reparseData);
+                int Result = CanReplaceReparsePoint(fileNode.ReparseData, reparseData);
                 if (0 > Result)
                     return Result;
             }
 
-            fileNode.fileInfo.FileAttributes |= (uint)FileAttributes.ReparsePoint;
-            fileNode.fileInfo.ReparseTag = GetReparseTag(reparseData);
-            fileNode.reparseData = reparseData;
+            fileNode.FileInfo.FileAttributes |= (uint)FileAttributes.ReparsePoint;
+            fileNode.FileInfo.ReparseTag = GetReparseTag(reparseData);
+            fileNode.ReparseData = reparseData;
 
             return STATUS_SUCCESS;
         }
@@ -1201,21 +1201,21 @@ namespace memfs
         {
             FileNode fileNode = (FileNode)fileNode0;
 
-            if (null != fileNode.mainFileNode)
-                fileNode = fileNode.mainFileNode;
+            if (null != fileNode.MainFileNode)
+                fileNode = fileNode.MainFileNode;
 
-            if (null != fileNode.reparseData)
+            if (null != fileNode.ReparseData)
             {
-                int Result = CanReplaceReparsePoint(fileNode.reparseData, reparseData);
+                int Result = CanReplaceReparsePoint(fileNode.ReparseData, reparseData);
                 if (0 > Result)
                     return Result;
             }
             else
                 return STATUS_NOT_A_REPARSE_POINT;
 
-            fileNode.fileInfo.FileAttributes &= ~(uint)FileAttributes.ReparsePoint;
-            fileNode.fileInfo.ReparseTag = 0;
-            fileNode.reparseData = null;
+            fileNode.FileInfo.FileAttributes &= ~(uint)FileAttributes.ReparsePoint;
+            fileNode.FileInfo.ReparseTag = 0;
+            fileNode.ReparseData = null;
 
             return STATUS_SUCCESS;
         }
@@ -1233,12 +1233,12 @@ namespace memfs
 
             if (null == enumerator)
             {
-                if (null != fileNode.mainFileNode)
-                    fileNode = fileNode.mainFileNode;
+                if (null != fileNode.MainFileNode)
+                    fileNode = fileNode.MainFileNode;
 
                 List<string> streamFileNames = new List<string>();
-                if (0 == (fileNode.fileInfo.FileAttributes & (uint)FileAttributes.Directory))
-                    streamFileNames.Add(fileNode.fileName);
+                if (0 == (fileNode.FileInfo.FileAttributes & (uint)FileAttributes.Directory))
+                    streamFileNames.Add(fileNode.FileName);
                 streamFileNames.AddRange(_fileNodeMap.GetStreamFileNames(fileNode));
                 context = enumerator = streamFileNames.GetEnumerator();
             }
@@ -1254,8 +1254,8 @@ namespace memfs
                         streamName = "";
                     else
                         streamName = fullFileName.Substring(index + 1);
-                    streamSize = streamFileNode.fileInfo.FileSize;
-                    streamAllocationSize = streamFileNode.fileInfo.AllocationSize;
+                    streamSize = streamFileNode.FileInfo.FileSize;
+                    streamAllocationSize = streamFileNode.FileInfo.AllocationSize;
                     return true;
                 }
             }
@@ -1295,8 +1295,8 @@ namespace memfs
             {
                 KeyValuePair<string, EaValueData> pair = enumerator.Current;
                 eaName = pair.Key;
-                eaValue = pair.Value.eaValue;
-                needEa = pair.Value.needEa;
+                eaValue = pair.Value.EaValue;
+                needEa = pair.Value.NeedEa;
                 return true;
             }
 
@@ -1319,17 +1319,17 @@ namespace memfs
             uint eaSizePlus = 0, eaSizeMinus = 0;
             if (eaMap.TryGetValue(eaName, out data))
             {
-                eaSizeMinus = GetEaEntrySize(eaName, data.eaValue, data.needEa);
+                eaSizeMinus = GetEaEntrySize(eaName, data.EaValue, data.NeedEa);
                 eaMap.Remove(eaName);
             }
             if (null != eaValue)
             {
-                data.eaValue = eaValue;
-                data.needEa = needEa;
+                data.EaValue = eaValue;
+                data.NeedEa = needEa;
                 eaMap[eaName] = data;
                 eaSizePlus = GetEaEntrySize(eaName, eaValue, needEa);
             }
-            fileNode.fileInfo.EaSize = fileNode.fileInfo.EaSize + eaSizePlus - eaSizeMinus;
+            fileNode.FileInfo.EaSize = fileNode.FileInfo.EaSize + eaSizePlus - eaSizeMinus;
             return STATUS_SUCCESS;
         }
 
