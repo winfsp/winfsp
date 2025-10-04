@@ -308,7 +308,7 @@ namespace memfs
         public override int GetVolumeInfo(
             out VolumeInfo volumeInfo)
         {
-            volumeInfo = default;
+            volumeInfo = default(VolumeInfo);
             volumeInfo.TotalSize = _maxFileNodes * (ulong)_maxFileSize;
             volumeInfo.FreeSize = (_maxFileNodes - _fileNodeMap.Count()) * (ulong)_maxFileSize;
             volumeInfo.SetVolumeLabel(_volumeLabel);
@@ -367,10 +367,10 @@ namespace memfs
             out FileInfo fileInfo,
             out string normalizedName)
         {
-            fileNode0 = default;
-            fileDesc = default;
-            fileInfo = default;
-            normalizedName = default;
+            fileNode0 = default(FileNode);
+            fileDesc = default(object);
+            fileInfo = default(FileInfo);
+            normalizedName = default(string);
 
             FileNode fileNode;
             FileNode parentNode;
@@ -439,10 +439,10 @@ namespace memfs
             out FileInfo fileInfo,
             out string normalizedName)
         {
-            fileNode0 = default;
-            fileDesc = default;
-            fileInfo = default;
-            normalizedName = default;
+            fileNode0 = default(FileNode);
+            fileDesc = default(object);
+            fileInfo = default(FileInfo);
+            normalizedName = default(string);
 
             FileNode fileNode;
             int result;
@@ -485,7 +485,7 @@ namespace memfs
             uint eaLength,
             out FileInfo fileInfo)
         {
-            fileInfo = default;
+            fileInfo = default(FileInfo);
 
             FileNode fileNode = (FileNode)fileNode0;
             int result;
@@ -688,7 +688,7 @@ namespace memfs
 
             if (offset >= fileNode.FileInfo.FileSize)
             {
-                bytesTransferred = default;
+                bytesTransferred = default(uint);
                 return STATUS_END_OF_FILE;
             }
 
@@ -739,8 +739,8 @@ namespace memfs
             {
                 if (offset >= fileNode.FileInfo.FileSize)
                 {
-                    bytesTransferred = default;
-                    fileInfo = default;
+                    bytesTransferred = default(int);
+                    fileInfo = default(FileInfo);
                     return STATUS_SUCCESS;
                 }
                 endOffset = offset + length;
@@ -757,8 +757,8 @@ namespace memfs
                     int Result = SetFileSizeInternal(fileNode, endOffset, false);
                     if (0 > Result)
                     {
-                        bytesTransferred = default;
-                        fileInfo = default;
+                        bytesTransferred = default(int);
+                        fileInfo = default(FileInfo);
                         return Result;
                     }
                 }
@@ -774,7 +774,7 @@ namespace memfs
                     Task.Run(() => SlowioWriteTask(fileNode0, buffer, offset, endOffset, hint)).ConfigureAwait(false);
 
                     bytesTransferred = 0;
-                    fileInfo = default;
+                    fileInfo = default(FileInfo);
                     return STATUS_PENDING;
                 }
                 catch (Exception)
@@ -800,7 +800,7 @@ namespace memfs
             FileNode fileNode = (FileNode)fileNode0;
 
             /*  nothing to flush, since we do not cache anything */
-            fileInfo = null != fileNode ? fileNode.GetFileInfo() : default;
+            fileInfo = null != fileNode ? fileNode.GetFileInfo() : default(FileInfo);
 
             return STATUS_SUCCESS;
         }
@@ -859,7 +859,7 @@ namespace memfs
             int result;
 
             result = SetFileSizeInternal(fileNode, newSize, setAllocationSize);
-            fileInfo = 0 <= result ? fileNode.GetFileInfo() : default;
+            fileInfo = 0 <= result ? fileNode.GetFileInfo() : default(FileInfo);
 
             return STATUS_SUCCESS;
         }
@@ -1062,8 +1062,8 @@ namespace memfs
                 }
             }
 
-            fileName = default;
-            fileInfo = default;
+            fileName = default(string);
+            fileInfo = default(FileInfo);
             return false;
         }
 
@@ -1116,8 +1116,8 @@ namespace memfs
             fileNode = _fileNodeMap.Get(fileName);
             if (null == fileNode)
             {
-                normalizedName = default;
-                fileInfo = default;
+                normalizedName = default(string);
+                fileInfo = default(FileInfo);
                 return STATUS_OBJECT_NAME_NOT_FOUND;
             }
 
@@ -1260,9 +1260,9 @@ namespace memfs
                 }
             }
 
-            streamName = default;
-            streamSize = default;
-            streamAllocationSize = default;
+            streamName = default(string);
+            streamSize = default(ulong);
+            streamAllocationSize = default(ulong);
             return false;
         }
         public override bool GetEaEntry(
@@ -1282,9 +1282,9 @@ namespace memfs
                 SortedDictionary<string, EaValueData> eaMap = fileNode.GetEaMap(false);
                 if (null == eaMap)
                 {
-                    eaName = default;
-                    eaValue = default;
-                    needEa = default;
+                    eaName = default(string);
+                    eaValue = default(byte[]);
+                    needEa = default(bool);
                     return false;
                 }
 
@@ -1300,9 +1300,9 @@ namespace memfs
                 return true;
             }
 
-            eaName = default;
-            eaValue = default;
-            needEa = default;
+            eaName = default(string);
+            eaValue = default(byte[]);
+            needEa = default(bool);
             return false;
         }
         public override int SetEaEntry(
