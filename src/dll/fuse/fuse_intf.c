@@ -1046,12 +1046,14 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
         goto exit;
 
     /*
-     * Ignore fuse_file_info::direct_io, fuse_file_info::keep_cache.
+     * Ignore fuse_file_info::keep_cache.
      * NOTE: Originally WinFsp did not support disabling the cache manager
      * for an individual file. This is now possible and we should revisit.
      *
      * Ignore fuse_file_info::nonseekable.
      */
+
+    FspFileSystemGetOperationContext()->Response->Rsp.Create.Opened.DisableCache = fi.direct_io;
 
     *PFileDesc = filedesc;
     memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
@@ -1191,12 +1193,14 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
         goto exit;
 
     /*
-     * Ignore fuse_file_info::direct_io, fuse_file_info::keep_cache.
+     * Ignore fuse_file_info::keep_cache.
      * NOTE: Originally WinFsp did not support disabling the cache manager
      * for an individual file. This is now possible and we should revisit.
      *
      * Ignore fuse_file_info::nonseekable.
      */
+
+    FspFileSystemGetOperationContext()->Response->Rsp.Create.Opened.DisableCache = fi.direct_io;
 
     *PFileDesc = filedesc;
     memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
