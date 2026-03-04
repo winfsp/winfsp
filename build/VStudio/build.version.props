@@ -23,7 +23,7 @@
         <MyProductVersion>2025</MyProductVersion>
         <MyProductStage>Gold</MyProductStage>
 
-        <MyCrossCert>DigiCertGlobalG3CodeSigningECCSHA3842021CA1.cer</MyCrossCert>
+        <MyCrossCert>CrossCert.cer</MyCrossCert>
         <MyCertIssuer>DigiCert</MyCertIssuer>
 
         <MyVersion>$(MyCanonicalVersion).$(MyBuildNumber)</MyVersion>
