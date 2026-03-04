@@ -454,6 +454,41 @@ exit:
     return NpResult;
 }
 
+static BOOLEAN FspNpCheckRemoteVolume(PWSTR RemoteName)
+{
+    PWSTR ClassName, InstanceName, P;
+    ULONG ClassNameLen, InstanceNameLen;
+    WCHAR RemoteNameBuf[9 + sizeof(((FSP_FSCTL_VOLUME_PARAMS *)0)->Prefix) / sizeof(WCHAR)];
+    HANDLE Handle;
+    DWORD Bytes;
+    BOOLEAN Result;
+
+    if (!FspNpParseRemoteName(RemoteName,
+        &ClassName, &ClassNameLen, &InstanceName, &InstanceNameLen))
+        return FALSE;
+
+    Result = FALSE;
+
+    P = RemoteNameBuf;
+    *P++ = L'\\'; *P++ = L'\\'; *P++ = L'?'; *P++ = L'\\';
+    *P++ = L'U'; *P++ = L'N'; *P++ = L'C'; *P++ = L'\\';
+    memcpy(P, ClassName, ClassNameLen * sizeof(WCHAR)); P += ClassNameLen; *P++ = L'\\';
+    memcpy(P, InstanceName, InstanceNameLen * sizeof(WCHAR)); P += InstanceNameLen; *P++ = L'\\';
+    *P++ = L'\0';
+
+    Handle = CreateFileW(RemoteNameBuf,
+        FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE != Handle)
+    {
+        /* the file system is up and running; is it WinFsp? */
+        if (DeviceIoControl(Handle, FSP_FSCTL_QUERY_WINFSP, 0, 0, 0, 0, &Bytes, 0))
+            Result = TRUE;
+        CloseHandle(Handle);
+    }
+
+    return Result;
+}
+
 DWORD APIENTRY NPGetConnection(
     LPWSTR lpLocalName, LPWSTR lpRemoteName, LPDWORD lpnBufferLen)
 {
@@ -573,7 +608,16 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
 
     NpResult = FspNpGetRemoteInfo(lpRemoteName, 0, &CredentialsKind, &AllowImpersonation);
     if (WN_SUCCESS != NpResult)
+    {
+        /*
+         * This may still be a WinFsp network file system, but not managed by the Launcher.
+         * So if it is already live, one of ours and we do not need to map a drive, then go
+         * ahead and report success.
+         */
+        if (L'\0' == LocalNameBuf[0] && FspNpCheckRemoteVolume(lpRemoteName))
+            NpResult = WN_SUCCESS;
         return NpResult;
+    }
 
 #if defined(FSP_NP_CREDENTIAL_MANAGER)
     /* if we need credentials and none were passed check with the credential manager */
@@ -718,6 +762,15 @@ DWORD APIENTRY NPAddConnection(LPNETRESOURCEW lpNetResource, LPWSTR lpPassword, 
         }
         else
             /* we are not being asked for a drive mapping, so whatever we have is good! */
+            NpResult = WN_SUCCESS;
+        break;
+    case WN_NO_NETWORK:
+        /*
+         * This may still be a WinFsp network file system, but not managed by the Launcher.
+         * So if it is already live, one of ours and we do not need to map a drive, then go
+         * ahead and report success.
+         */
+        if (L'\0' == LocalNameBuf[0] && FspNpCheckRemoteVolume(lpRemoteName))
             NpResult = WN_SUCCESS;
         break;
     default:
