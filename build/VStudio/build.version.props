@@ -18,10 +18,10 @@
         <MyCompanyName>Navimatics LLC</MyCompanyName>
         <MyCopyright>2015-$([System.DateTime]::Now.ToString(`yyyy`)) Bill Zissimopoulos</MyCopyright>
 
-        <MyCanonicalVersion>2.1</MyCanonicalVersion>
+        <MyCanonicalVersion>2.2</MyCanonicalVersion>
 
-        <MyProductVersion>2025</MyProductVersion>
-        <MyProductStage>Gold</MyProductStage>
+        <MyProductVersion>2026 Beta1</MyProductVersion>
+        <MyProductStage>Beta</MyProductStage>
 
         <MyCrossCert>CrossCert.cer</MyCrossCert>
         <MyCertIssuer>DigiCert</MyCertIssuer>
