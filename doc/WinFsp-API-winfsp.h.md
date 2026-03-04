@@ -409,6 +409,59 @@ STATUS\_SUCCESS or error code.
 
 <details>
 <summary>
+<b>DispatcherStopped</b> - Inform the file system that its dispatcher has been stopped.
+</summary>
+<blockquote>
+<br/>
+
+```c
+VOID ( *DispatcherStopped)(
+    FSP_FILE_SYSTEM *FileSystem, 
+    BOOLEAN Normally);  
+```
+
+**Parameters**
+
+- _FileSystem_ \- The file system on which this request is posted.
+- _Normally_ \- TRUE if the file system is being stopped via FspFileSystemStopDispatcher.
+FALSE if the file system is being stopped because of another reason such
+as driver unload/uninstall.
+
+**Discussion**
+
+Prior to WinFsp v2.0 the FSD would never unmount a file system volume unless
+the user mode file system requested the unmount. Since WinFsp v2.0 it is possible
+for the FSD to unmount a file system volume without an explicit user mode file system
+request. For example, this happens when the FSD is being uninstalled.
+
+A user mode file system can use this operation to determine when its dispatcher
+has been stopped. The Normally parameter can be used to determine why the dispatcher
+was stopped: it is TRUE when the file system is being stopped via
+FspFileSystemStopDispatcher and FALSE otherwise.
+
+When the file system receives a request with Normally == TRUE it need not take any
+extra steps. This case is the same as for pre-v2.0 versions: since the file system
+stopped the dispatcher via FspFileSystemStopDispatcher, it will likely exit its
+process soon.
+
+When the file system receives a request with Normally == FALSE it may need to take
+extra steps to exit its process as this is not done by default.
+
+A file system that uses the FspService infrastructure may use the
+FspFileSystemStopServiceIfNecessary API to correctly handle all cases.
+
+This operation is the last one that a file system will receive.
+
+**See Also**
+
+- FspFileSystemStopServiceIfNecessary
+
+
+</blockquote>
+</details>
+
+<details>
+<summary>
 <b>Flush</b> - Flush a file or volume.
 </summary>
 <blockquote>
@@ -1655,7 +1708,7 @@ FSP_API NTSTATUS FspFileSystemCreate(
 - _DevicePath_ \- The name of the control device for this file system. This must be either
 FSP\_FSCTL\_DISK\_DEVICE\_NAME or FSP\_FSCTL\_NET\_DEVICE\_NAME.
 - _VolumeParams_ \- Volume parameters for the newly created file system.
-- _Interface_ \- A pointer to the actual operations that actually implement this user mode file system.
+- _Interface_ \- A pointer to the operations that implement this user mode file system.
 - _PFileSystem_ \- [out]
 Pointer that will receive the file system object created on successful return from this
 call.
@@ -2314,6 +2367,39 @@ FSP_API VOID FspFileSystemStopDispatcher(
 
 <details>
 <summary>
+<b>FspFileSystemStopServiceIfNecessary</b> - Stop a file system service, if any.
+</summary>
+<blockquote>
+<br/>
+
+```c
+FSP_API VOID FspFileSystemStopServiceIfNecessary(
+    FSP_FILE_SYSTEM *FileSystem, 
+    BOOLEAN Normally);  
+```
+
+**Parameters**
+
+- _FileSystem_ \- The file system object.
+- _Normally_ \- TRUE if the file system is being stopped via FspFileSystemStopDispatcher.
+FALSE if the file system is being stopped because of another reason such
+as driver unload/uninstall.
+
+**Discussion**
+
+This is a helper for implementing the DispatcherStopped operation, but only for file systems
+that use the FspService infrastructure.
+
+**See Also**
+
+- DispatcherStopped
+
+
+</blockquote>
+</details>
+
+<details>
+<summary>
 <b>FspSetSecurityDescriptor</b> - Modify security descriptor.
 </summary>
 <blockquote>
@@ -2651,6 +2737,8 @@ This function starts and runs a service. It executes the Windows StartServiceCtr
 to connect the service process to the Service Control Manager. If the Service Control Manager is
 not available (and console mode is allowed) it will enter console mode.
 
+This function should be called once per process.
+
 
 </blockquote>
 </details>
@@ -2775,7 +2863,7 @@ in a clean manner by calling this function.
 <br/>
 <p align="center">
 <sub>
-Copyright © 2015-2021 Bill Zissimopoulos
+Copyright © 2015-2026 Bill Zissimopoulos
 <br/>
 Generated with <a href="https://github.com/billziss-gh/prettydoc">prettydoc</a>
 </sub>

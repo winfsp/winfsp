@@ -416,7 +416,7 @@ typedef struct _FSP_LAUNCH_REG_RECORD {
 <br/>
 <p align="center">
 <sub>
-Copyright © 2015-2021 Bill Zissimopoulos
+Copyright © 2015-2026 Bill Zissimopoulos
 <br/>
 Generated with <a href="https://github.com/billziss-gh/prettydoc">prettydoc</a>
 </sub>
