@@ -2038,7 +2038,7 @@ LOGICAL RtlEqualMemory(const VOID *Source1, const VOID *Source2, SIZE_T Length)
     return Length == RtlCompareMemory(Source1, Source2, Length);
 }
 
-/* FILE_STAT_INFORMATION and FILE_STAT_LX_INFORMATION are missings on some WDK's. */
+/* FILE_STAT_INFORMATION and FILE_STAT_LX_INFORMATION are missing on some WDK's. */
 typedef struct
 {
     LARGE_INTEGER FileId;
