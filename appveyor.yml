@@ -13,7 +13,7 @@ environment:
   # Disable the winfsp-tests built-in exception filter to allow WER to collect dumps.
   WINFSP_TESTS_EXCEPTION_FILTER_DISABLE: 1
 
-  matrix:
+  matrix:  # https://www.appveyor.com/docs/windows-images-software/
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
     CONFIGURATION: Debug
     TESTING: Func
@@ -27,6 +27,10 @@ environment:
     TESTING: Func
     DOCKER_TESTING: None
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+    CONFIGURATION: Release
+    TESTING: Func
+    DOCKER_TESTING: Func
+  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2022
     CONFIGURATION: Release
     TESTING: Func
     DOCKER_TESTING: Func
