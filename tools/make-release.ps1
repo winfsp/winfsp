@@ -306,6 +306,9 @@ function Submit-AssetsToHwapi {
             "WINDOWS_v100_ARM64_NI_FULL"
             "WINDOWS_v100_X64_GE_FULL"
             "WINDOWS_v100_ARM64_GE_FULL"
+            "WINDOWS_v100_X64_25H2_FULL"
+            "WINDOWS_v100_ARM64_25H2_FULL"
+            "WINDOWS_v100_ARM64_26H1_FULL"
         )
         foreach ($Signature in $DocRequestedSignatures) {
             if ($RequestedSignatures -contains $Signature) {
