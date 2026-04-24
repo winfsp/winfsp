@@ -112,7 +112,7 @@ void tlib_printf(const char *fmt, ...);
  *
  * By default all test cases are executed unless specific test cases are named. By default optional
  * test cases are not executed. To execute a specific test case specify its TESTNAME; if it is an
- * optional test case specify +TESTNAME. To excluse a test case specify -TESTNAME.
+ * optional test case specify +TESTNAME. To exclude a test case specify -TESTNAME.
  *
  * TESTNAME may also contain a single asterisk at the end; for example, mytest* will match all test
  * cases that have names starting with "mytest".

@@ -995,10 +995,10 @@ namespace Fsp
         /// This function is called when a program uses the DeviceIoControl API.
         /// </remarks>
         /// <param name="FileNode">
-        /// The file node of the file or directory to be controled.
+        /// The file node of the file or directory to be controlled.
         /// </param>
         /// <param name="FileDesc">
-        /// The file descriptor of the file or directory to be controled.
+        /// The file descriptor of the file or directory to be controlled.
         /// </param>
         /// <param name="ControlCode">
         /// The control code for the operation. This code must have a DeviceType with bit

@@ -1327,7 +1327,7 @@ NTSTATUS FspVolumeStop(
      *
      * The original WinFsp protocol for shutting down a file system was to issue
      * an FSP_FSCTL_STOP control code to the fsctl device. This would set the IOQ
-     * to the "stopped" state and would also cancel all active IRP's. Cancelation
+     * to the "stopped" state and would also cancel all active IRP's. Cancellation
      * of IRP's would sometimes free buffers that may have still been in use by
      * the user mode file system threads; hence access violation.
      *

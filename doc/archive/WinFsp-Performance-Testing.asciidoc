@@ -109,7 +109,7 @@ ifndef::env-browser[image::WinFsp-Performance-Testing/file_create_test.png[]]
 
 This test measures the performance of CreateFileW(OPEN_EXISTING) / CloseHandle. WinFsp again has the best (although uneven) performance, followed by NTFS and then Dokany.
 
-WinFsp appears to have very uneven performance here. In particular notice that opening 1000 files is slower than opening 2000 files, which makes no sense! I suspect that the test observes an initial acquisition of resouces when the test first starts, which is not necessary when the test runs for 2000 files at a later time. This uneven performance should probably be investigated in the future.
+WinFsp appears to have very uneven performance here. In particular notice that opening 1000 files is slower than opening 2000 files, which makes no sense! I suspect that the test observes an initial acquisition of resources when the test first starts, which is not necessary when the test runs for 2000 files at a later time. This uneven performance should probably be investigated in the future.
 
 ifdef::env-browser[chart::line[data-uri="WinFsp-Performance-Testing/file_open_test.csv",file="WinFsp-Performance-Testing/file_open_test.png",opt="x-label=file count,y-label=time"]]
 ifndef::env-browser[image::WinFsp-Performance-Testing/file_open_test.png[]]
