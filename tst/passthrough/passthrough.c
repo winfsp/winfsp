@@ -626,7 +626,7 @@ static VOID PtfsDelete(PTFS *Ptfs);
 static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UINT32 DebugFlags,
     PTFS **PPtfs)
 {
-    WCHAR FullPath[MAX_PATH];
+    WCHAR FullPath[FULLPATH_SIZE];
     ULONG Length;
     HANDLE Handle;
     FILETIME CreationTime;

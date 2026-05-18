@@ -191,7 +191,7 @@ Ptfs::~Ptfs()
 
 NTSTATUS Ptfs::SetPath(PWSTR Path)
 {
-    WCHAR FullPath[MAX_PATH];
+    WCHAR FullPath[FULLPATH_SIZE];
     ULONG Length;
     HANDLE Handle;
     FILETIME CreationTime;
