@@ -4,6 +4,7 @@ This document contains a list of known open-source file systems and file system 
 
 == File Systems
 
+- https://github.com/dharmatech/9p-winfsp[9p-winfsp] - Experimental native Windows client for mounting Plan 9 9P exports.
 - https://github.com/wesley1975/blobfs-win[blobfs-win] - The native porting of the blobfs on the windows platform, blobfs can help you mount the Azure Blob storage as the local disk driver, no matter it is a Linux system or a Windows system.
 - https://github.com/buildbarn/bb-remote-execution[buildbarn] - A bazel-compatible remote execution service that uses WinFSP to provide a virtual directory for performing builds
 - https://github.com/cryptomator/cryptomator[Cryptomator] - Multi-platform transparent client-side encryption of your files in the cloud
