@@ -1363,6 +1363,24 @@ BOOLEAN FspFsvolDeviceFileRenameTryAcquireExclusive(PDEVICE_OBJECT DeviceObject)
     return ExAcquireResourceExclusiveLite(&FsvolDeviceExtension->FileRenameResource, FALSE);
 }
 static inline
+VOID FspFsvolDeviceFileRenameAcquireSharedStarveExclusive(PDEVICE_OBJECT DeviceObject)
+{
+    /*
+     * Acquire the file rename resource shared, but starve (ignore) any QUEUED
+     * exclusive waiter. Used by FspVolumeNotifyWork: a notify session opened by
+     * FspFileSystemNotifyBegin already holds this resource shared (via owner
+     * pointer) and intentionally defers renames until FspFileSystemNotifyEnd. A
+     * plain ExAcquireResourceSharedLite here would honor a concurrently queued
+     * exclusive rename waiter and block -- but the very work item that blocks is
+     * the one that must run FspFileSystemNotifyEnd processing to release the
+     * session and let that rename proceed, so the two self-deadlock. Starving the
+     * queued exclusive waiter is safe: the rename stays blocked behind the shared
+     * holders either way, so name stability across the notify is preserved.
+     */
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
+    ExAcquireSharedStarveExclusive(&FsvolDeviceExtension->FileRenameResource, TRUE);
+}
+static inline
 VOID FspFsvolDeviceFileRenameSetOwner(PDEVICE_OBJECT DeviceObject, PVOID Owner)
 {
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
