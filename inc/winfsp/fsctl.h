@@ -147,6 +147,8 @@ FSP_FSCTL_STATIC_ASSERT(FSP_FSCTL_VOLUME_NAME_SIZEMAX <= 260 * sizeof(WCHAR),
 
 #define FSP_FSCTL_DEVICECONTROL_SIZEMAX (4 * 1024)  /* must be < FSP_FSCTL_TRANSACT_{REQ,RSP}_SIZEMAX */
 
+#define FSP_FSCTL_NOTIFY_INFO_SIZEMAX   (0x7fffffffU)
+
 /* marshalling */
 #pragma warning(push)
 #pragma warning(disable:4200 4201)      /* zero-sized array in struct/union; nameless struct/union */

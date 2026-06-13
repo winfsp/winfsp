@@ -1389,6 +1389,9 @@ NTSTATUS FspVolumeNotify(
     if (0 == InputBufferLength)
         return FspVolumeNotifyLock(FsvolDeviceObject);
 
+    if (FSP_FSCTL_NOTIFY_INFO_SIZEMAX < InputBufferLength)
+        return STATUS_INVALID_PARAMETER;
+
     if (!FspDeviceReference(FsvolDeviceObject))
         return STATUS_CANCELLED;
 

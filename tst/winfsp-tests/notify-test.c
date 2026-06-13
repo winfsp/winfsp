@@ -28,6 +28,37 @@
 #include "winfsp-tests.h"
 
 static
+void notify_invalid_dotest(ULONG Flags)
+{
+    void *memfs = memfs_start(Flags);
+    FSP_FILE_SYSTEM *FileSystem = MemfsFileSystem(memfs);
+    NTSTATUS Result;
+
+    Result = FspFsctlNotify(FileSystem->VolumeHandle, 0, 1);
+    ASSERT(STATUS_ACCESS_VIOLATION == Result);
+
+    Result = FspFsctlNotify(FileSystem->VolumeHandle, 0, FSP_FSCTL_NOTIFY_INFO_SIZEMAX);
+    ASSERT(STATUS_ACCESS_VIOLATION == Result || STATUS_INSUFFICIENT_RESOURCES == Result);
+
+    Result = FspFsctlNotify(FileSystem->VolumeHandle, 0, FSP_FSCTL_NOTIFY_INFO_SIZEMAX + 1);
+    ASSERT(STATUS_INVALID_PARAMETER == Result);
+
+    Result = FspFsctlNotify(FileSystem->VolumeHandle, 0, 0xffffffffU);
+    ASSERT(STATUS_INVALID_PARAMETER == Result);
+
+    memfs_stop(memfs);
+}
+
+static
+void notify_invalid_test(void)
+{
+    if (WinFspDiskTests)
+        notify_invalid_dotest(MemfsDisk);
+    if (WinFspNetTests)
+        notify_invalid_dotest(MemfsNet);
+}
+
+static
 void notify_abandon_dotest(ULONG Flags)
 {
     void *memfs = memfs_start(Flags);
@@ -479,6 +510,7 @@ void notify_tests(void)
     if (OptExternal || OptNotify)
         return;
 
+    TEST(notify_invalid_test);
     TEST(notify_abandon_test);
     TEST(notify_abandon_rename_test);
 /* OBSOLETE: it is now possible to have multiple outstanding NotifyBegin() calls. */
