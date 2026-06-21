@@ -474,6 +474,95 @@ void notify_dirnotify_test(void)
     }
 }
 
+struct notify_rename_race_params
+{
+    WCHAR Src[MAX_PATH];
+    WCHAR Dst[MAX_PATH];
+    HANDLE StartEvent;
+};
+
+static
+unsigned __stdcall notify_rename_race_dotest_thread(void *Params0)
+{
+    struct notify_rename_race_params *Params = Params0;
+
+    WaitForSingleObject(Params->StartEvent, INFINITE);
+
+    BOOL Success = MoveFileExW(Params->Src, Params->Dst, 0);
+
+    return Success ? 0 : GetLastError();
+}
+
+static
+void notify_rename_race_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+    FSP_FILE_SYSTEM *FileSystem = MemfsFileSystem(memfs);
+    union
+    {
+        FSP_FSCTL_NOTIFY_INFO V;
+        UINT8 B[sizeof(FSP_FSCTL_NOTIFY_INFO) + 2 * sizeof(WCHAR)];
+    } NotifyInfo;
+    struct notify_rename_race_params Params;
+    HANDLE Thread;
+    DWORD ExitCode;
+    NTSTATUS Result;
+    HANDLE Handle;
+    PWSTR FileName;
+
+    StringCbPrintfW(Params.Src, sizeof Params.Src, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+    StringCbPrintfW(Params.Dst, sizeof Params.Dst, L"%s%s\\file0.new",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(Params.Src,
+        GENERIC_READ | GENERIC_WRITE, 0, 0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+
+    FileName = L"\\";
+    NotifyInfo.V.Size = (UINT16)(sizeof(FSP_FSCTL_NOTIFY_INFO) + wcslen(FileName) * sizeof(WCHAR));
+    NotifyInfo.V.Filter = FILE_NOTIFY_CHANGE_LAST_WRITE;
+    NotifyInfo.V.Action = FILE_ACTION_MODIFIED;
+    memcpy(NotifyInfo.V.FileNameBuf, FileName, NotifyInfo.V.Size - sizeof(FSP_FSCTL_NOTIFY_INFO));
+
+    Params.StartEvent = CreateEventW(0, TRUE, FALSE, 0);
+    ASSERT(0 != Params.StartEvent);
+
+    Thread = (HANDLE)_beginthreadex(0, 0, notify_rename_race_dotest_thread, &Params, 0, 0);
+    ASSERT(0 != Thread);
+
+    Result = FspFileSystemNotifyBegin(FileSystem, 1000);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    SetEvent(Params.StartEvent);
+    Sleep(1000); /* wait for rename IRP to enter the kernel and block */
+
+    Result = FspFileSystemNotify(FileSystem, &NotifyInfo.V, NotifyInfo.V.Size);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    Result = FspFileSystemNotifyEnd(FileSystem);
+    ASSERT(STATUS_SUCCESS == Result);
+
+    WaitForSingleObject(Thread, INFINITE);
+    GetExitCodeThread(Thread, &ExitCode);
+    CloseHandle(Thread);
+    ASSERT(STATUS_SUCCESS == ExitCode);
+
+    CloseHandle(Params.StartEvent);
+
+    memfs_stop(memfs);
+}
+
+static
+void notify_rename_race_test(void)
+{
+    if (WinFspDiskTests)
+        notify_rename_race_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        notify_rename_race_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
 void notify_tests(void)
 {
     if (OptExternal || OptNotify)
@@ -489,4 +578,5 @@ void notify_tests(void)
     TEST(notify_change_test);
     TEST(notify_open_change_test);
     TEST(notify_dirnotify_test);
+    TEST(notify_rename_race_test);
 }
