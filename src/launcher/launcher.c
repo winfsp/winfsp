@@ -1066,7 +1066,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
             0);
         if (INVALID_HANDLE_VALUE == SvcInstance->StdioHandles[2])
             FspServiceLog(EVENTLOG_WARNING_TYPE,
-                L"Ignorning error: cannot create stderr file = %ld", GetLastError());
+                L"Ignoring error: cannot create stderr file = %ld", GetLastError());
     }
 
     Result = SvcInstanceCreateProcess(
@@ -1095,7 +1095,7 @@ NTSTATUS SvcInstanceCreate(HANDLE ClientToken,
     {
         if (!AssignProcessToJobObject(Job, SvcInstance->Process))
             FspServiceLog(EVENTLOG_WARNING_TYPE,
-                L"Ignorning error: AssignProcessToJobObject = %ld", GetLastError());
+                L"Ignoring error: AssignProcessToJobObject = %ld", GetLastError());
     }
 
     /*

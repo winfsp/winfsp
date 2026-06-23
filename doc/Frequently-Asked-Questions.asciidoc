@@ -49,7 +49,7 @@ Which version of FUSE does WinFsp-FUSE support?::
 
 FUSE on UNIX systems mounts file systems over an existing directory. When mounting a WinFsp-FUSE file system on a directory, the directory is created and later deleted when the file system goes away. What is the reason for this incompatibility?::
 
-    It would be preferrable if WinFsp-FUSE behaved like FUSE on UNIX in this instance. However there are a number of reasons that this is not the case.
+    It would be preferable if WinFsp-FUSE behaved like FUSE on UNIX in this instance. However there are a number of reasons that this is not the case.
 +
 When mounting over directories in Windows, WinFsp-FUSE uses a special construct called a reparse point. Reparse points are a general mechanism for adding special behavior to files and directories. One of the possible reparse points is the "mountpoint" reparse point (often called "junction"), which converts a directory into a mount point.
 +

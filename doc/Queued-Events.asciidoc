@@ -25,7 +25,7 @@ The kernel portion of an I/O Completion Port is called a https://msdn.microsoft.
 - They have a Last-In First-Out (LIFO) wait discipline.
 - They limit the number of threads that can be satisfied concurrently.
 
-I briefly considered the idea of building _I/O Queues_ directly on top of KQUEUE's, but soon dismissed this idea because _I/O Queues_ are not simple queues but provide additional services, such as IRP cancelation, IRP expiration, etc.
+I briefly considered the idea of building _I/O Queues_ directly on top of KQUEUE's, but soon dismissed this idea because _I/O Queues_ are not simple queues but provide additional services, such as IRP cancellation, IRP expiration, etc.
 
 == Queued Events
 

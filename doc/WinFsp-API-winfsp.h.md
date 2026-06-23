@@ -232,7 +232,7 @@ NTSTATUS ( *Control)(
 **Parameters**
 
 - _FileSystem_ \- The file system on which this request is posted.
-- _FileContext_ \- The file context of the file or directory to be controled.
+- _FileContext_ \- The file context of the file or directory to be controlled.
 - _ControlCode_ \- The control code for the operation. This code must have a DeviceType with bit
 0x8000 set and must have a TransferType of METHOD\_BUFFERED.
 - _InputBuffer_ \- Pointer to a buffer that contains the input data.

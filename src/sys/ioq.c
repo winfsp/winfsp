@@ -85,7 +85,7 @@
  * Unfortunately we cannot use a semaphore in the obvious manner in the FSP_IOQ
  * implementation. The issue is that an FSP_IOQ allows IRP's to be removed from
  * the pending queue when they are cancelled. This means that the semaphore
- * count and the queue count would get out of synch after an IRP cancelation.
+ * count and the queue count would get out of synch after an IRP cancellation.
  * Furthermore when trying to dequeue a pending IRP we do so under conditions
  * which may result in not dequeueing an IRP even if it is present in the queue,
  * which further complicates efforts to keep the semaphore count in synch with
@@ -158,19 +158,19 @@
 /*
  * FSP_IOQ_PROCESS_NO_CANCEL
  *
- * Define this macro to disallow cancelation (other than the FSP_IOQ being stopped)
+ * Define this macro to disallow cancellation (other than the FSP_IOQ being stopped)
  * after an IRP has entered the Processing phase.
  *
  * Once a file-system operation has been started its effects cannot be ignored. Even
  * if the process that originated the operation decides to cancel it, we must correctly
  * inform it of whether the operation was successful or not. We can only do this reliably
- * if we do not allow cancelation after an operation has been started.
+ * if we do not allow cancellation after an operation has been started.
  */
 #if defined(FSP_IOQ_PROCESS_NO_CANCEL)
 static NTSTATUS FspCsqInsertIrpEx(PIO_CSQ Csq, PIRP Irp, PIO_CSQ_IRP_CONTEXT Context, PVOID InsertContext)
 {
     /*
-     * Modelled after IoCsqInsertIrpEx. Does NOT set a cancelation routine.
+     * Modelled after IoCsqInsertIrpEx. Does NOT set a cancellation routine.
      */
 
     NTSTATUS Result;
@@ -230,7 +230,7 @@ static inline VOID FspIoqPendingResetSynch(FSP_IOQ *Ioq)
         FspIoqEventSet(&Ioq->PendingIrpEvent);
     else
         /* list is empty and not stopped; future threads should go to sleep */
-        /* NOTE: this is not stricly necessary! */
+        /* NOTE: this is not strictly necessary! */
         FspIoqEventClear(&Ioq->PendingIrpEvent);
 }
 

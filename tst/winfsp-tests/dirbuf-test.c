@@ -280,7 +280,7 @@ static void dirbuf_fill_dotest(unsigned seed, ULONG Count, ULONG InvalidCount, B
             ASSERT(0 != wcscmp(CurrFileName, L".") && 0 != wcscmp(CurrFileName, L".."));
 
         //ASSERT(wcscmp(PrevFileName, CurrFileName) <= 0);
-            /* filenames are random enought that should not happen in practice */
+            /* filenames are random enough that should not happen in practice */
         ASSERT(wcscmp(PrevFileName, CurrFileName) < 0);
 
         memcpy(PrevFileName, CurrFileName, sizeof CurrFileName);
@@ -311,7 +311,7 @@ static void dirbuf_fill_dotest(unsigned seed, ULONG Count, ULONG InvalidCount, B
         ASSERT(0 != wcscmp(CurrFileName, Marker));
 
         //ASSERT(wcscmp(PrevFileName, CurrFileName) <= 0);
-            /* filenames are random enought that should not happen in practice */
+            /* filenames are random enough that should not happen in practice */
         ASSERT(wcscmp(PrevFileName, CurrFileName) < 0);
 
         memcpy(PrevFileName, CurrFileName, sizeof CurrFileName);
@@ -339,7 +339,7 @@ static void dirbuf_fill_dotest(unsigned seed, ULONG Count, ULONG InvalidCount, B
             ASSERT(0 != wcscmp(CurrFileName, Marker));
 
         //ASSERT(wcscmp(PrevFileName, CurrFileName) <= 0);
-            /* filenames are random enought that should not happen in practice */
+            /* filenames are random enough that should not happen in practice */
         ASSERT(wcscmp(PrevFileName, CurrFileName) < 0);
 
         memcpy(PrevFileName, CurrFileName, sizeof CurrFileName);

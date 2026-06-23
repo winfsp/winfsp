@@ -713,7 +713,7 @@ NTSTATUS FspFileNodeOpen(FSP_FILE_NODE *FileNode, PFILE_OBJECT FileObject,
          *
          * Quote:
          *     Do an extra test for writeable user sections if the user did not allow
-         *     write sharing - this is neccessary since a section may exist with no handles
+         *     write sharing - this is necessary since a section may exist with no handles
          *     open to the file its based against.
          */
         if (!FlagOn(ShareAccess, FILE_SHARE_WRITE) &&
