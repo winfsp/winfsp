@@ -20,7 +20,7 @@
 
         <MyCanonicalVersion>2.2</MyCanonicalVersion>
 
-        <MyProductVersion>2026 Beta1</MyProductVersion>
+        <MyProductVersion>2026 Beta2</MyProductVersion>
         <MyProductStage>Beta</MyProductStage>
 
         <MyCrossCert>CrossCert.cer</MyCrossCert>
