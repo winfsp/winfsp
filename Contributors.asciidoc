@@ -80,4 +80,5 @@ CONTRIBUTOR LIST
 |Victor Gao                                                     |victgm at outlook.com
 |Zeho Huang                                                     |zeho11 at protonmail.com
 |Zhangfen Duan                                                  |lzcgwushuang at 163.com
+|Max Isakov                                                     |max at resilio.com
 |===
