@@ -1,6 +1,23 @@
 # Changelog
 
 
+## v2.2B2 (2026 Beta2)
+
+- [FIX] Fixes vulnerability CVE-2026-3006 discovered by Tay Kiat Loong (GitHub: @Owl4444).
+
+- [FIX] Fixes vulnerability CVE-2026-7162 discovered by Tay Kiat Loong (GitHub: @Owl4444) and uhg (GitHub: @UltimateHG).
+
+- [FIX] Fixes deadlock in the file system notification mechanism with concurrent renames. See fix PR #669 by @yeonsh and test PR #672 by @Maksim-Isakau.
+
+- [FIX] The WinFsp Network Provider provides improved shell support for network file systems not managed by the Launcher. See commit f021496.
+
+- [FUSE] Add FUSE option `FlushOnCleanup`. See PR #614 by @chenjie4255.
+
+- [FUSE] FUSE now respects the `direct_io` flag. See PR #646 by @chenjie4255.
+
+- [FUSE] Add FUSE option `AddWriteEaAccess`. See PR #648 by @chenjie4255.
+
+
 ## v2.2B1 (2026 Beta1)
 
 - [FIX] Fixes vulnerability CVE-2026-3006 discovered by Tay Kiat Loong.
