@@ -78,7 +78,7 @@ errmap.update(fixed)
 
 if "FspNtStatusFromWin32" == sys.argv[1]:
     for w, s in sorted(errmap.items()):
-        print "case %-40s return %s;" % (w + ':', s)
+        print("case %-40s return %s;" % (w + ':', s))
 elif "FspWin32FromNtStatus" == sys.argv[1]:
     for s, w in sorted(pairs):
-        print "case %-40s return %s;" % (s + ':', w)
+        print("case %-40s return %s;" % (s + ':', w))
