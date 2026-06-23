@@ -1502,7 +1502,15 @@ static VOID FspVolumeNotifyWork(PVOID NotifyWorkItem0)
     BOOLEAN Unlock = FALSE;
     NTSTATUS Result;
 
-    FspFsvolDeviceFileRenameAcquireShared(FsvolDeviceObject);
+    /*
+     * Starve queued exclusive (rename) waiters here to avoid a self-deadlock:
+     * the enclosing FspFileSystemNotifyBegin/End session already holds this
+     * resource shared, and a rename that queues exclusive mid-session would
+     * otherwise block this work item -- the same work item that must release
+     * the session (FspVolumeNotifyLock count) and unblock that rename. See
+     * FspFsvolDeviceFileRenameAcquireSharedStarveExclusive.
+     */
+    FspFsvolDeviceFileRenameAcquireSharedStarveExclusive(FsvolDeviceObject);
 
     /* iterate over notify information and invalidate/notify each file */
     for (; (PUINT8)NotifyInfo + sizeof(NotifyInfo->Size) <= NotifyInfoEnd;
