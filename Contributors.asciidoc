@@ -68,6 +68,7 @@ CONTRIBUTOR LIST
 |John Oberschelp                                                |john at oberschelp.net
 |John Tyner                                                     |jtyner at gmail.com
 |Konstantinos Karakostas                                        |noiredev at protonmail.com
+|Max Isakov                                                     |max at resilio.com
 |Naoki Ikeguchi                                                 |me at s6n.jp
 |Paweł Wegner (Google LLC, https://google.com)                  |lemourin at google.com
 |Pedro Frejo (Arpa System, https://arpasystem.com)              |pedro.frejo at arpasystem.com
@@ -80,5 +81,4 @@ CONTRIBUTOR LIST
 |Victor Gao                                                     |victgm at outlook.com
 |Zeho Huang                                                     |zeho11 at protonmail.com
 |Zhangfen Duan                                                  |lzcgwushuang at 163.com
-|Max Isakov                                                     |max at resilio.com
 |===
