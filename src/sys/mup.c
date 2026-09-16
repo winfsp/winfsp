@@ -237,7 +237,8 @@ NTSTATUS FspMupHandleIrp(
          * A CREATE request with an empty file name indicates that the fsmup device
          * is being opened. Check for this case and handle it.
          */
-        if (0 == FileObject->FileName.Length)
+        if (0 == FileObject->FileName.Length &&
+            0 == FileObject->RelatedFileObject)
         {
             Irp->IoStatus.Status = STATUS_SUCCESS;
             Irp->IoStatus.Information = FILE_OPENED;
@@ -250,8 +251,11 @@ NTSTATUS FspMupHandleIrp(
          * Every other CREATE request must be forwarded to the appropriate fsvol device.
          */
 
-        while (0 != FileObject->RelatedFileObject)
-            FileObject = FileObject->RelatedFileObject;
+        if (0 != FileObject->RelatedFileObject)
+        {
+            FsvolDeviceObject = FspMupGetFsvolDeviceObject(FileObject->RelatedFileObject);
+            break;
+        }
 
         FspFsmupDeviceLockPrefixTable(FsmupDeviceObject);
         PrefixEntry = RtlFindUnicodePrefix(&FsmupDeviceExtension->PrefixTable,
