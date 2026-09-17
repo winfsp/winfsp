@@ -64,8 +64,11 @@
 #include <winfsp/launch.h>
 #include <shared/um/minimal.h>
 
-static PWSTR PathCopy(PWSTR Dest, PWSTR Arg, PWSTR ArgEnd, BOOLEAN WriteDest, WCHAR Replacement)
+static PWSTR PathCopy(PWSTR Dest, PWSTR Arg, PWSTR ArgEnd, BOOLEAN WriteDest, WCHAR Replacement,
+    PULONG PTrailingBackslash)
 {
+    ULONG TrailingBackslash = *PTrailingBackslash;
+
     if (0 != Replacement)
     {
         for (PWSTR P = Arg, EndP = (0 != ArgEnd ? ArgEnd : (PWSTR)(UINT_PTR)~0); EndP > P && *P; P++)
@@ -81,12 +84,14 @@ static PWSTR PathCopy(PWSTR Dest, PWSTR Arg, PWSTR ArgEnd, BOOLEAN WriteDest, WC
                 if (WriteDest)
                     *Dest = Replacement;
                 Dest++;
+                TrailingBackslash = L'\\' == Replacement ? TrailingBackslash + 2 : 0;
             }
             else if (L'"' != *P)
             {
                 if (WriteDest)
                     *Dest = *P;
                 Dest++;
+                TrailingBackslash = 0;
             }
     }
     else
@@ -97,8 +102,11 @@ static PWSTR PathCopy(PWSTR Dest, PWSTR Arg, PWSTR ArgEnd, BOOLEAN WriteDest, WC
                 if (WriteDest)
                     *Dest = *P;
                 Dest++;
+                TrailingBackslash = L'\\' == *P ? TrailingBackslash + 1 : 0;
             }
     }
+
+    *PTrailingBackslash = TrailingBackslash;
 
     return Dest;
 }
@@ -110,9 +118,10 @@ static inline BOOLEAN PatternEnd(WCHAR C)
         (L'A' <= C && C <= 'Z');
 }
 
-PWSTR PathTransform(PWSTR Dest, PWSTR Arg, PWSTR Pattern)
+PWSTR PathTransform(PWSTR Dest, PWSTR Arg, PWSTR Pattern, BOOLEAN Quote)
 {
     BOOLEAN WriteDest = 0 != Dest;
+    ULONG TrailingBackslash = 0;
     WCHAR Replacement;
     PWSTR Components[26][2];
     PWSTR Remainder = Arg;
@@ -120,14 +129,17 @@ PWSTR PathTransform(PWSTR Dest, PWSTR Arg, PWSTR Pattern)
     PWSTR P;
 
     if (0 == Pattern)
-        return PathCopy(Dest, Arg, 0, WriteDest, 0);
+    {
+        Dest = PathCopy(Dest, Arg, 0, WriteDest, 0, &TrailingBackslash);
+        goto exit;
+    }
 
     for (ULONG I = 0; 26 > I; I++)
         Components[I][0] = 0;
 
     Replacement = *Pattern++;
     if (PatternEnd(Replacement))
-        return Dest;
+        goto exit;
 
     while (!PatternEnd(*Pattern))
     {
@@ -163,19 +175,28 @@ PWSTR PathTransform(PWSTR Dest, PWSTR Arg, PWSTR Pattern)
                 }
             }
 
-            Dest = PathCopy(Dest, Components[I][0], Components[I][1], WriteDest, Replacement);
+            Dest = PathCopy(Dest, Components[I][0], Components[I][1], WriteDest, Replacement, &TrailingBackslash);
         }
         else
         if (L'_' == *Pattern)
-            Dest = PathCopy(Dest, Remainder, 0, WriteDest, Replacement);
+            Dest = PathCopy(Dest, Remainder, 0, WriteDest, Replacement, &TrailingBackslash);
         else
         {
             if (WriteDest)
                 *Dest = *Pattern;
             Dest++;
+            TrailingBackslash = L'\\' == *Pattern ? TrailingBackslash + 1 : 0;
         }
 
         Pattern++;
+    }
+
+exit:
+    if (Quote && (TrailingBackslash & 1))
+    {
+        if (WriteDest)
+            *Dest = L'\\';
+        Dest++;
     }
 
     return Dest;
