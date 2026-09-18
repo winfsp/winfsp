@@ -68,7 +68,8 @@ BOOLEAN FspFastIoDeviceControl(
     Result = DEBUGTEST(50) &&
         CanWait &&
         FSP_IOCTL_TRANSACT == IoControlCode &&
-        FspFsctlDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind;
+        FspFsctlDeviceExtensionKind == FspDeviceExtension(DeviceObject)->Kind &&
+        0 != FileObject->FsContext2;
     if (!Result)
         FSP_RETURN();
 
