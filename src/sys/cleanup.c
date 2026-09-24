@@ -166,8 +166,19 @@ NTSTATUS FspFsvolCleanupComplete(
     FSP_FILE_NODE *FileNode = FileObject->FsContext;
     FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
     ULONG NotifyFilter, NotifyAction;
+    BOOLEAN MetadataChanged;
 
     ASSERT(FileNode == FileDesc->FileNode);
+
+    MetadataChanged =
+        Request->Req.Cleanup.SetAllocationSize ||
+        Request->Req.Cleanup.SetArchiveBit ||
+        Request->Req.Cleanup.SetLastAccessTime ||
+        Request->Req.Cleanup.SetLastWriteTime ||
+        Request->Req.Cleanup.SetChangeTime;
+
+    if (MetadataChanged)
+        FspFileNodeInvalidateFileInfo(FileNode);
 
     /* send the appropriate notification; also invalidate dirinfo/etc. caches */
     if (Request->Req.Cleanup.Delete)

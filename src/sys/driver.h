@@ -58,6 +58,11 @@
 #define FSP_STATUS_IGNORE_BIT           (0x10000000)
 #define FSP_STATUS_IOQ_POST             (FSP_STATUS_PRIVATE_BIT | 0x0000)
 #define FSP_STATUS_IOQ_POST_BEST_EFFORT (FSP_STATUS_PRIVATE_BIT | 0x0001)
+#define FSP_STATUS_IOQ_POST_PRIORITY    (FSP_STATUS_PRIVATE_BIT | 0x0002)
+
+/* IOQ post flags */
+#define FSP_IOQ_POST_FLAG_BEST_EFFORT   (0x1)
+#define FSP_IOQ_POST_FLAG_PRIORITY      (0x2)
 
 /* misc macros */
 #define FSP_ALLOC_INTERNAL_TAG          'IpsF'
@@ -233,6 +238,7 @@ VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Sta
         return FspMupHandleIrp(DeviceObject, Irp);\
     NTSTATUS Result = STATUS_SUCCESS;   \
     PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);\
+    FspIrpClearContext(Irp);            \
     BOOLEAN fsp_device_deref = FALSE;   \
     PIRP fsp_top_level_irp = IoGetTopLevelIrp();\
     FSP_ENTER_(ioentr, __VA_ARGS__);    \
@@ -253,7 +259,8 @@ VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Sta
         if (STATUS_PENDING != Result && !(FSP_STATUS_IGNORE_BIT & Result))\
         {                               \
             ASSERT(0 == (FSP_STATUS_PRIVATE_BIT & Result) ||\
-                FSP_STATUS_IOQ_POST == Result || FSP_STATUS_IOQ_POST_BEST_EFFORT == Result);\
+                FSP_STATUS_IOQ_POST == Result || FSP_STATUS_IOQ_POST_BEST_EFFORT == Result ||\
+                FSP_STATUS_IOQ_POST_PRIORITY == Result);\
             FSP_DEBUGLOG_("%p, %s%c, %s%s, " fmt, " = %s[%lld]",\
                 Irp,                    \
                 DeviceExtensionKindSym(FspDeviceExtension(IrpSp->DeviceObject)->Kind),\
@@ -267,8 +274,11 @@ VOID FspTraceNtStatus(const char *file, int line, const char *func, NTSTATUS Sta
             {                           \
                 FSP_FSVOL_DEVICE_EXTENSION *fsp_leave_FsvolDeviceExtension =\
                     FspFsvolDeviceExtension(DeviceObject);\
+                ULONG fsp_leave_PostFlags = FSP_STATUS_IOQ_POST_BEST_EFFORT == Result ?\
+                    FSP_IOQ_POST_FLAG_BEST_EFFORT :\
+                    FSP_STATUS_IOQ_POST_PRIORITY == Result ? FSP_IOQ_POST_FLAG_PRIORITY : 0;\
                 if (!FspIoqPostIrpEx(fsp_leave_FsvolDeviceExtension->Ioq, Irp,\
-                    FSP_STATUS_IOQ_POST_BEST_EFFORT == Result, &Result))\
+                    fsp_leave_PostFlags, &Result))\
                 {                       \
                     DEBUGLOG("FspIoqPostIrpEx = %s", NtStatusSym(Result));\
                     FspIopCompleteIrp(Irp, Result);\
@@ -608,6 +618,8 @@ NTSTATUS FspLockUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress, ULONG ExtraPriorityFlags);
 NTSTATUS FspCcInitializeCacheMap(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes,
     BOOLEAN PinAccess, PCACHE_MANAGER_CALLBACKS Callbacks, PVOID CallbackContext);
+NTSTATUS FspCcSetReadAheadGranularity(PFILE_OBJECT FileObject, ULONG Granularity);
+NTSTATUS FspCcSetDirtyPageThreshold(PFILE_OBJECT FileObject, ULONG DirtyPageThreshold);
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
 NTSTATUS FspCcCopyRead(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG Length,
     BOOLEAN Wait, PVOID Buffer, PIO_STATUS_BLOCK IoStatus);
@@ -769,7 +781,10 @@ typedef VOID (*FSP_SILO_FINI_CALLBACK)(VOID);
 typedef VOID (*FSP_SILO_ENUM_CALLBACK)(VOID);
 BOOLEAN FspSiloIsHost(VOID);
 NTSTATUS FspSiloGetGlobals(FSP_SILO_GLOBALS **PGlobals);
+NTSTATUS FspSiloGetGlobalsByContainerId(const GUID *ContainerId, FSP_SILO_GLOBALS **PGlobals);
 VOID FspSiloDereferenceGlobals(FSP_SILO_GLOBALS *Globals);
+BOOLEAN FspSiloAttachGlobals(FSP_SILO_GLOBALS *Globals, PVOID *PPreviousSilo);
+VOID FspSiloDetachGlobals(PVOID PreviousSilo);
 VOID FspSiloGetContainerId(GUID *ContainerId);
 NTSTATUS FspSiloInitialize(FSP_SILO_INIT_CALLBACK Init, FSP_SILO_FINI_CALLBACK Fini);
 NTSTATUS FspSiloPostInitialize(VOID);
@@ -790,6 +805,13 @@ VOID FspProcessBufferRelease(PVOID BufferCookie, PVOID Buffer);
     (*(ULONG *)&(Irp)->Tail.Overlay.DriverContext[0])
 #define FspIrpDictNext(Irp)             \
     (*(PIRP *)&(Irp)->Tail.Overlay.DriverContext[1])
+static inline
+VOID FspIrpClearContext(PIRP Irp)
+{
+    FspIrpTimestamp(Irp) = 0;
+    FspIrpDictNext(Irp) = 0;
+    Irp->Tail.Overlay.DriverContext[2] = 0;
+}
 static inline
 FSP_FSCTL_TRANSACT_REQ *FspIrpRequest(PIRP Irp)
 {
@@ -974,8 +996,9 @@ retry:
 #define FSP_IOQ_PROCESS_NO_CANCEL
 #define FspIoqTimeout                   ((PIRP)1)
 #define FspIoqCancelled                 ((PIRP)2)
-#define FspIoqPostIrp(Q, I, R)          FspIoqPostIrpEx(Q, I, FALSE, R)
-#define FspIoqPostIrpBestEffort(Q, I, R)FspIoqPostIrpEx(Q, I, TRUE, R)
+#define FspIoqPostIrp(Q, I, R)          FspIoqPostIrpEx(Q, I, 0, R)
+#define FspIoqPostIrpBestEffort(Q, I, R)FspIoqPostIrpEx(Q, I, FSP_IOQ_POST_FLAG_BEST_EFFORT, R)
+#define FspIoqPostIrpPriority(Q, I, R)  FspIoqPostIrpEx(Q, I, FSP_IOQ_POST_FLAG_PRIORITY, R)
 typedef struct
 {
     KSPIN_LOCK SpinLock;
@@ -1000,7 +1023,7 @@ VOID FspIoqDelete(FSP_IOQ *Ioq);
 VOID FspIoqStop(FSP_IOQ *Ioq, BOOLEAN CancelIrps);
 BOOLEAN FspIoqStopped(FSP_IOQ *Ioq);
 VOID FspIoqRemoveExpired(FSP_IOQ *Ioq, UINT64 InterruptTime);
-BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN BestEffort, NTSTATUS *PResult);
+BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, ULONG Flags, NTSTATUS *PResult);
 PIRP FspIoqNextPendingIrp(FSP_IOQ *Ioq, PIRP BoundaryIrp, PLARGE_INTEGER Timeout,
     PIRP CancellableIrp);
 ULONG FspIoqPendingIrpCount(FSP_IOQ *Ioq);
@@ -1261,6 +1284,7 @@ typedef struct
     LONG IsMountdev;
     /* protected under MountMutex */
     BOOLEAN Persistent;
+    BOOLEAN StableUniqueId;
     GUID UniqueId;
     UNICODE_STRING MountPoint;
 } FSP_FSVRT_DEVICE_EXTENSION;
@@ -1529,6 +1553,29 @@ VOID FspDeviceGlobalUnlock(VOID)
     STATUS_VOLUME_DISMOUNTED
     //(FILE_DEVICE_DISK_FILE_SYSTEM == (DeviceObject)->DeviceType ?\
     //    STATUS_VOLUME_DISMOUNTED : STATUS_DEVICE_NOT_CONNECTED)
+static inline
+NTSTATUS FspFsvolDeviceSetCacheMapParameters(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT FileObject)
+{
+    FSP_FSCTL_VOLUME_PARAMS *VolumeParams = &FspFsvolDeviceExtension(DeviceObject)->VolumeParams;
+    NTSTATUS Result;
+
+    if (0 != VolumeParams->ReadAheadGranularity)
+    {
+        Result = FspCcSetReadAheadGranularity(FileObject,
+            (ULONG)VolumeParams->ReadAheadGranularity * PAGE_SIZE);
+        if (!NT_SUCCESS(Result))
+            return Result;
+    }
+
+    if (0 != VolumeParams->DirtyPageThreshold)
+    {
+        Result = FspCcSetDirtyPageThreshold(FileObject, VolumeParams->DirtyPageThreshold);
+        if (!NT_SUCCESS(Result))
+            return Result;
+    }
+
+    return STATUS_SUCCESS;
+}
 
 /* fsext */
 FSP_FSEXT_PROVIDER *FspFsextProvider(UINT32 FsextControlCode, PNTSTATUS PLoadResult);
@@ -1574,7 +1621,7 @@ BOOLEAN FspMountdevDeviceControl(
     PNTSTATUS PResult);
 NTSTATUS FspMountdevMake(
     PDEVICE_OBJECT FsvrtDeviceObject, PDEVICE_OBJECT FsvolDeviceObject,
-    BOOLEAN Persistent);
+    BOOLEAN Persistent, BOOLEAN StableUniqueId);
 VOID FspMountdevFini(
     PDEVICE_OBJECT FsvrtDeviceObject);
 
@@ -1695,6 +1742,7 @@ typedef struct FSP_FILE_NODE
     UINT64 LastWriteTime;
     UINT64 ChangeTime;
     UINT32 EaSize;
+    UINT32 HardLinks;
     ULONG FileInfoChangeNumber;
     ULONG SecurityChangeNumber;
     ULONG DirInfoChangeNumber;
@@ -1874,6 +1922,8 @@ ULONG FspFileNodeDirInfoChangeNumber(FSP_FILE_NODE *FileNode)
     return FileNode->DirInfoChangeNumber;
 }
 VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode);
+VOID FspFileNodeInvalidateDirInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
+    PUNICODE_STRING FileName);
 BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
 VOID FspFileNodeSetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetStreamInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,

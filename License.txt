@@ -25,6 +25,12 @@ that such software is covered by the GPLv3.
     [You cannot mix FLOSS and proprietary software while using WinFsp under
     this special exception.]
 
+    For purposes of this condition, "proprietary software" does not include
+    operating system components that are normally distributed with Windows, or
+    compiler, language, and system runtime libraries that are normally
+    distributed with the operating system, compiler, or runtime environment,
+    when used only to run or support the FLOSS software.
+
 Commercial licensing options are also available: Please contact
 Bill Zissimopoulos <billziss at navimatics.com>.
 

@@ -318,7 +318,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
                 OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION |
                 DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION,
                 &Sddl, 0);
-        FspDebugLog("%S[TID=%04lx]: %p: >>Create [%c%c%c%c%c%c] \"%S\", "
+        FspDebugLog("%S[TID=%04lx]: %p: >>Create [%c%c%c%c%c%c%c] \"%S\", "
             "%s, CreateOptions=%lx, FileAttributes=%lx, Security=%s%s%s, "
             "AllocationSize=%lx:%lx, "
             "AccessToken=%p[PID=%lx], DesiredAccess=%lx, GrantedAccess=%lx, "
@@ -330,6 +330,7 @@ FSP_API VOID FspDebugLogRequest(FSP_FSCTL_TRANSACT_REQ *Request)
             Request->Req.Create.HasRestorePrivilege ? 'R' : '-',
             Request->Req.Create.OpenTargetDirectory ? 'D' : '-',
             Request->Req.Create.CaseSensitive ? 'C' : '-',
+            Request->Req.Create.HasTrailingBackslash ? 'S' : '-',
             (PWSTR)Request->Buffer,
             FspDebugLogDispositionString(Request->Req.Create.CreateOptions),
             Request->Req.Create.CreateOptions & 0xffffff,

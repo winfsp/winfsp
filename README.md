@@ -43,7 +43,7 @@ Using WinFsp to build a file system has many benefits:
     <img src="doc/WinFsp-Performance-Testing/rdwr_tests.png" height="300"/>
 </p>
 
-**Wide support**: Supports Windows 7 to Windows 11 and the x86, x64 and ARM64 architectures.
+**Wide support**: Supports Windows 7 to Windows 11 and the x86, x64 and ARM64 architectures. See the [Building](doc/WinFsp-Building.asciidoc) document for notes on legacy Windows and x86 build requirements.
 
 **Flexible API**: Includes Native, FUSE2, FUSE3 and .NET API's.
 

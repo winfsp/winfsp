@@ -51,12 +51,15 @@ namespace Fsp.Interop
         internal const UInt32 DeviceControl = 0x00008000;
         internal const UInt32 UmFileContextIsUserContext2 = 0x00010000;
         internal const UInt32 UmFileContextIsFullContext = 0x00020000;
+        internal const UInt32 UmNoReparsePointsDirCheck = 0x00040000;
+        internal const UInt32 UmDeferAccessCheck = 0x00080000;
         internal const UInt32 AllowOpenInKernelMode = 0x01000000;
         internal const UInt32 CasePreservedExtendedAttributes = 0x02000000;
         internal const UInt32 WslFeatures = 0x04000000;
         internal const UInt32 RejectIrpPriorToTransact0 = 0x10000000;
         internal const UInt32 SupportsPosixUnlinkRename = 0x20000000;
         internal const UInt32 PostDispositionWhenNecessaryOnly = 0x40000000;
+        internal const UInt32 AllowRelSymlinksAcrossFileSystem = 0x80000000;
         internal const int PrefixSize = 192;
         internal const int FileSystemNameSize = 16;
 
@@ -65,6 +68,7 @@ namespace Fsp.Interop
         internal const UInt32 SecurityTimeoutValid = 0x00000004;
         internal const UInt32 StreamInfoTimeoutValid = 0x00000008;
         internal const UInt32 EaTimeoutValid = 0x00000010;
+        internal const UInt32 MountDevPersistentUniqueId = 0x00000020;
 
         internal UInt16 Version;
         internal UInt16 SectorSize;
@@ -86,8 +90,9 @@ namespace Fsp.Interop
         internal UInt32 StreamInfoTimeout;
         internal UInt32 EaTimeout;
         internal UInt32 FsextControlCode;
-        internal unsafe fixed UInt32 Reserved32[1];
-        internal unsafe fixed UInt64 Reserved64[2];
+        internal UInt16 ReadAheadGranularity;
+        internal UInt16 DirtyPageThreshold;
+        internal Guid TargetSiloId;
 
         internal unsafe String GetPrefix()
         {
@@ -628,6 +633,14 @@ namespace Fsp.Interop
                 [MarshalAs(UnmanagedType.LPWStr)] String NewFileName,
                 [MarshalAs(UnmanagedType.U1)] Boolean ReplaceIfExists);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 Link(
+                IntPtr FileSystem,
+                ref FullContext FullContext,
+                [MarshalAs(UnmanagedType.LPWStr)] String FileName,
+                [MarshalAs(UnmanagedType.LPWStr)] String NewFileName,
+                [MarshalAs(UnmanagedType.U1)] Boolean ReplaceIfExists,
+                out FileInfo FileInfo);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate Int32 GetSecurity(
                 IntPtr FileSystem,
                 ref FullContext FullContext,
@@ -786,7 +799,9 @@ namespace Fsp.Interop
         internal Proto.SetEa SetEa;
         internal Proto.Obsolete0 Obsolete0;
         internal Proto.DispatcherStopped DispatcherStopped;
-        /* NTSTATUS (*Reserved[33])(); */
+        internal Proto.Link Link;
+        internal IntPtr QueryAllocatedRanges;
+        /* NTSTATUS (*Reserved[29])(); */
     }
 
     [SuppressUnmanagedCodeSecurity]
@@ -857,7 +872,11 @@ namespace Fsp.Interop
                 IntPtr FileSystem,
                 UInt32 DebugLog);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate UInt32 FspFileSystemOperationShareAccessF();
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate UInt32 FspFileSystemOperationProcessIdF();
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate IntPtr FspFileSystemOperationAccessTokenF();
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             [return: MarshalAs(UnmanagedType.U1)]
             internal delegate Boolean FspFileSystemAddDirInfo(
@@ -999,6 +1018,9 @@ namespace Fsp.Interop
             internal delegate UInt32 FspWin32FromNtStatus(
                 Int32 Status);
             [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+            internal delegate Int32 FspFsctlGetCurrentSiloId(
+                out Guid SiloId);
+            [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
             internal delegate void FspDebugLog(
                 [MarshalAs(UnmanagedType.LPStr)] String Format,
                 [MarshalAs(UnmanagedType.LPStr)] String Message);
@@ -1049,7 +1071,9 @@ namespace Fsp.Interop
         internal static Proto.FspFileSystemMountPointF FspFileSystemMountPoint;
         internal static Proto.FspFileSystemSetOperationGuardStrategyF FspFileSystemSetOperationGuardStrategy;
         internal static Proto.FspFileSystemSetDebugLogF FspFileSystemSetDebugLog;
+        internal static Proto.FspFileSystemOperationShareAccessF FspFileSystemOperationShareAccess;
         internal static Proto.FspFileSystemOperationProcessIdF FspFileSystemOperationProcessId;
+        internal static Proto.FspFileSystemOperationAccessTokenF FspFileSystemOperationAccessToken;
         internal static Proto.FspFileSystemAddDirInfo _FspFileSystemAddDirInfo;
         internal static Proto.FspFileSystemFindReparsePoint FspFileSystemFindReparsePoint;
         internal static Proto.FspFileSystemResolveReparsePoints FspFileSystemResolveReparsePoints;
@@ -1078,6 +1102,7 @@ namespace Fsp.Interop
         internal static Proto.FspVersion FspVersion;
         internal static Proto.FspNtStatusFromWin32 FspNtStatusFromWin32;
         internal static Proto.FspWin32FromNtStatus FspWin32FromNtStatus;
+        internal static Proto.FspFsctlGetCurrentSiloId FspFsctlGetCurrentSiloId;
         internal static Proto.FspDebugLog FspDebugLog;
         internal static Proto.FspDebugLogSetHandle FspDebugLogSetHandle;
 
@@ -1442,6 +1467,8 @@ namespace Fsp.Interop
         /* initialization */
         internal static String ProductName = "WinFsp";
         internal static String ProductFileName = "winfsp";
+        private static Object InitLock = new Object();
+        private static Boolean Initialized;
         private static IntPtr LoadDll()
         {
             String RegPath, DllName, DllPath;
@@ -1487,8 +1514,13 @@ namespace Fsp.Interop
         }
         private static T GetEntryPoint<T>(IntPtr Module)
         {
+#if NETSTANDARD2_0
+            return Marshal.GetDelegateForFunctionPointer<T>(
+                GetEntryPointPtr(Module, typeof(T).Name));
+#else
             return (T)(object)Marshal.GetDelegateForFunctionPointer(
                 GetEntryPointPtr(Module, typeof(T).Name), typeof(T));
+#endif
         }
         private static void LoadProto(IntPtr Module)
         {
@@ -1508,7 +1540,9 @@ namespace Fsp.Interop
             FspFileSystemMountPoint = GetEntryPoint<Proto.FspFileSystemMountPointF>(Module);
             FspFileSystemSetOperationGuardStrategy = GetEntryPoint<Proto.FspFileSystemSetOperationGuardStrategyF>(Module);
             FspFileSystemSetDebugLog = GetEntryPoint<Proto.FspFileSystemSetDebugLogF>(Module);
+            FspFileSystemOperationShareAccess = GetEntryPoint<Proto.FspFileSystemOperationShareAccessF>(Module);
             FspFileSystemOperationProcessId = GetEntryPoint<Proto.FspFileSystemOperationProcessIdF>(Module);
+            FspFileSystemOperationAccessToken = GetEntryPoint<Proto.FspFileSystemOperationAccessTokenF>(Module);
             _FspFileSystemAddDirInfo = GetEntryPoint<Proto.FspFileSystemAddDirInfo>(Module);
             FspFileSystemFindReparsePoint = GetEntryPoint<Proto.FspFileSystemFindReparsePoint>(Module);
             FspFileSystemResolveReparsePoints = GetEntryPoint<Proto.FspFileSystemResolveReparsePoints>(Module);
@@ -1537,37 +1571,64 @@ namespace Fsp.Interop
             FspVersion = GetEntryPoint<Proto.FspVersion>(Module);
             FspNtStatusFromWin32 = GetEntryPoint<Proto.FspNtStatusFromWin32>(Module);
             FspWin32FromNtStatus = GetEntryPoint<Proto.FspWin32FromNtStatus>(Module);
+            FspFsctlGetCurrentSiloId = GetEntryPoint<Proto.FspFsctlGetCurrentSiloId>(Module);
             FspDebugLog = GetEntryPoint<Proto.FspDebugLog>(Module);
             FspDebugLogSetHandle = GetEntryPoint<Proto.FspDebugLogSetHandle>(Module);
         }
         private static void CheckVersion()
         {
-            FileVersionInfo Info;
+            Assembly ThisAssembly = typeof(Api).Assembly;
+            Version InfoVersion;
             UInt32 Version = 0, VersionMajor, VersionMinor;
-            Info = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
+            String Location = ThisAssembly.Location;
+            if (!String.IsNullOrEmpty(Location))
+            {
+                FileVersionInfo Info = FileVersionInfo.GetVersionInfo(Location);
+                InfoVersion = new Version(Info.FileMajorPart, Info.FileMinorPart);
+            }
+            else
+                return; /* NativeAOT has no managed assembly file version to compare. */
             FspVersion(out Version); VersionMajor = Version >> 16; VersionMinor = Version & 0xFFFF;
-            if (Info.FileMajorPart != VersionMajor || Info.FileMinorPart > VersionMinor)
+            if (InfoVersion.Major != VersionMajor || InfoVersion.Minor > VersionMinor)
                 throw new TypeLoadException(String.Format(
                     "incorrect dll version (need {0}.{1}, have {2}.{3})",
-                    Info.FileMajorPart, Info.FileMinorPart, VersionMajor, VersionMinor));
+                    InfoVersion.Major, InfoVersion.Minor, VersionMajor, VersionMinor));
         }
-        static Api()
+        private static void InitProductName()
         {
-#if false //DEBUG
-            if (Debugger.IsAttached)
-                Debugger.Break();
-#endif
-            object[] attributes = Assembly.GetExecutingAssembly().GetCustomAttributes(
-                typeof(AssemblyProductAttribute), false);
-            if (null != attributes &&
-                0 < attributes.Length &&
-                null != attributes[0] as AssemblyProductAttribute)
+            try
             {
-                ProductName = (attributes[0] as AssemblyProductAttribute).Product;
-                ProductFileName = ProductName.ToLowerInvariant();
+                object[] attributes = typeof(Api).Assembly.GetCustomAttributes(
+                    typeof(AssemblyProductAttribute), false);
+                if (null != attributes &&
+                    0 < attributes.Length &&
+                    null != attributes[0] as AssemblyProductAttribute)
+                {
+                    ProductName = (attributes[0] as AssemblyProductAttribute).Product;
+                    ProductFileName = ProductName.ToLowerInvariant();
+                }
             }
-            LoadProto(LoadDll());
-            CheckVersion();
+            catch
+            {
+            }
+        }
+        internal static void Init()
+        {
+            if (Initialized)
+                return;
+            lock (InitLock)
+            {
+                if (Initialized)
+                    return;
+#if false //DEBUG
+                if (Debugger.IsAttached)
+                    Debugger.Break();
+#endif
+                InitProductName();
+                LoadProto(LoadDll());
+                CheckVersion();
+                Initialized = true;
+            }
         }
 
         [StructLayout(LayoutKind.Sequential)]

@@ -31,6 +31,7 @@
 #include <thread>
 
 #define MEMFS_MAX_PATH                  512
+#define MEMFS_DIRTY_PAGE_THRESHOLD      (16 * 1024)
 FSP_FSCTL_STATIC_ASSERT(MEMFS_MAX_PATH > MAX_PATH,
     "MEMFS_MAX_PATH must be greater than MAX_PATH.");
 
@@ -426,6 +427,9 @@ VOID MemfsFileNodeDeleteEaMap(MEMFS_FILE_NODE *FileNode)
 #endif
 
 static inline
+VOID MemfsFileNodeDereference(MEMFS_FILE_NODE *FileNode);
+
+static inline
 VOID MemfsFileNodeDelete(MEMFS_FILE_NODE *FileNode)
 {
 #if defined(MEMFS_EA)
@@ -436,6 +440,10 @@ VOID MemfsFileNodeDelete(MEMFS_FILE_NODE *FileNode)
 #endif
     LargeHeapFree(FileNode->FileData);
     free(FileNode->FileSecurity);
+#if defined(MEMFS_NAMED_STREAMS)
+    if (0 != FileNode->MainFileNode)
+        MemfsFileNodeDereference(FileNode->MainFileNode);
+#endif
     free(FileNode);
 }
 
@@ -628,7 +636,7 @@ static inline
 VOID MemfsFileNodeMapDelete(MEMFS_FILE_NODE_MAP *FileNodeMap)
 {
     for (MEMFS_FILE_NODE_MAP::iterator p = FileNodeMap->begin(), q = FileNodeMap->end(); p != q; ++p)
-        MemfsFileNodeDelete(p->second);
+        MemfsFileNodeDereference(p->second);
 
     delete FileNodeMap;
 }
@@ -1136,7 +1144,11 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 
     ParentNode = MemfsFileNodeMapGetParent(Memfs->FileNodeMap, FileName, &Result);
     if (0 == ParentNode)
+    {
+        if (STATUS_NOT_A_DIRECTORY == Result)
+            Result = STATUS_OBJECT_PATH_NOT_FOUND;
         return Result;
+    }
 
     if (MemfsFileNodeMapCount(Memfs->FileNodeMap) >= Memfs->MaxFileNodes)
         return STATUS_CANNOT_MAKE;
@@ -1175,6 +1187,8 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
 
 #if defined(MEMFS_NAMED_STREAMS)
     FileNode->MainFileNode = MemfsFileNodeMapGetMain(Memfs->FileNodeMap, FileName);
+    if (0 != FileNode->MainFileNode)
+        MemfsFileNodeReference(FileNode->MainFileNode);
 #endif
 
     FileNode->FileInfo.FileAttributes = (FileAttributes & FILE_ATTRIBUTE_DIRECTORY) ?
@@ -2380,6 +2394,8 @@ NTSTATUS MemfsCreateFunnel(
     BOOLEAN CaseInsensitive = !!(Flags & MemfsCaseInsensitive);
     BOOLEAN FlushAndPurgeOnCleanup = !!(Flags & MemfsFlushAndPurgeOnCleanup);
     BOOLEAN SupportsPosixUnlinkRename = !(Flags & MemfsLegacyUnlinkRename);
+    BOOLEAN AllowRelSymlinksAcrossFileSystem =
+        !!(Flags & MemfsAllowRelSymlinksAcrossFileSystem);
     PWSTR DevicePath = MemfsNet == (Flags & MemfsDeviceMask) ?
         L"" FSP_FSCTL_NET_DEVICE_NAME : L"" FSP_FSCTL_DISK_DEVICE_NAME;
     UINT64 AllocationUnit;
@@ -2434,6 +2450,8 @@ NTSTATUS MemfsCreateFunnel(
     VolumeParams.VolumeCreationTime = MemfsGetSystemTime();
     VolumeParams.VolumeSerialNumber = (UINT32)(MemfsGetSystemTime() / (10000 * 1000));
     VolumeParams.FileInfoTimeout = FileInfoTimeout;
+    /* Keep large mapped/cached saves from dirtying too much memory at once. */
+    VolumeParams.DirtyPageThreshold = MEMFS_DIRTY_PAGE_THRESHOLD;
     VolumeParams.CaseSensitiveSearch = !CaseInsensitive;
     VolumeParams.CasePreservedNames = 1;
     VolumeParams.UnicodeOnDisk = 1;
@@ -2463,6 +2481,7 @@ NTSTATUS MemfsCreateFunnel(
     VolumeParams.RejectIrpPriorToTransact0 = 1;
 #endif
     VolumeParams.SupportsPosixUnlinkRename = SupportsPosixUnlinkRename;
+    VolumeParams.AllowRelSymlinksAcrossFileSystem = AllowRelSymlinksAcrossFileSystem;
     if (0 != VolumePrefix)
         wcscpy_s(VolumeParams.Prefix, sizeof VolumeParams.Prefix / sizeof(WCHAR), VolumePrefix);
     wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR),

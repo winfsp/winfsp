@@ -51,7 +51,7 @@ NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     ULONG SlowioMaxDelay = 0;       /* -M: maximum slow IO delay in millis */
     ULONG SlowioPercentDelay = 0;   /* -P: percent of slow IO to make pending */
     ULONG SlowioRarefyDelay = 0;    /* -R: adjust the rarity of pending slow IO */
-    PWSTR FileSystemName = 0;
+    PWSTR FileSystemName = L"NTFS";
     PWSTR MountPoint = 0;
     PWSTR VolumePrefix = 0;
     PWSTR RootSddl = 0;
@@ -215,7 +215,7 @@ usage:
         "    -M MaxDelay         [maximum slow IO delay in millis]\n"
         "    -P PercentDelay     [percent of slow IO to make pending]\n"
         "    -R RarefyDelay      [adjust the rarity of pending slow IO]\n"
-        "    -F FileSystemName\n"
+        "    -F FileSystemName  [default: NTFS]\n"
         "    -S RootSddl         [file rights: FA, etc; NO generic rights: GA, etc.]\n"
         "    -u \\Server\\Share    [UNC prefix (single backslash)]\n"
         "    -m MountPoint       [X:|* (required if no UNC prefix)]\n";

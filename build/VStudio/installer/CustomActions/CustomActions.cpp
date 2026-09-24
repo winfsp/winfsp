@@ -23,6 +23,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <msiquery.h>
+#include <strsafe.h>
 #include <wcautil.h>
 #include <strutil.h>
 
@@ -70,6 +71,48 @@ LExit:
     return WcaFinalize(err);
 }
 
+static VOID SetServiceRunningInfo(PWSTR ServiceName, SC_HANDLE SvcHandle)
+{
+    DWORD Required = 0;
+    LPQUERY_SERVICE_CONFIGW Config = 0;
+    PWSTR DisplayName = L"";
+    PWSTR BinaryPath = L"";
+    WCHAR Info[2048];
+    HRESULT hr;
+
+    WcaSetProperty(L"ServiceRunningInfo", L"");
+
+    if (!QueryServiceConfigW(SvcHandle, 0, 0, &Required) &&
+        ERROR_INSUFFICIENT_BUFFER == GetLastError())
+    {
+        Config = (LPQUERY_SERVICE_CONFIGW)LocalAlloc(LMEM_FIXED, Required);
+        if (0 != Config && QueryServiceConfigW(SvcHandle, Config, Required, &Required))
+        {
+            if (0 != Config->lpDisplayName)
+                DisplayName = Config->lpDisplayName;
+            if (0 != Config->lpBinaryPathName)
+                BinaryPath = Config->lpBinaryPathName;
+        }
+    }
+
+    if (L'\0' != BinaryPath[0])
+        hr = StringCchPrintfW(Info, sizeof Info / sizeof(WCHAR),
+            L" The running service is \"%s\" (display name \"%s\", binary \"%s\")."
+            L" Stop or uninstall the product that installed this service and retry.",
+            ServiceName, DisplayName, BinaryPath);
+    else
+        hr = StringCchPrintfW(Info, sizeof Info / sizeof(WCHAR),
+            L" Run `sc.exe qc %s` to identify the product that installed it, then stop"
+            L" or uninstall that product and retry.",
+            ServiceName);
+
+    if (SUCCEEDED(hr))
+        WcaSetProperty(L"ServiceRunningInfo", Info);
+
+    if (0 != Config)
+        LocalFree(Config);
+}
+
 UINT __stdcall ServiceRunning(MSIHANDLE MsiHandle)
 {
 #if 0
@@ -97,9 +140,13 @@ UINT __stdcall ServiceRunning(MSIHANDLE MsiHandle)
     ScmHandle = OpenSCManagerW(0, 0, 0);
     ExitOnNullWithLastError(ScmHandle, hr, "Failed to open SCM");
 
-    SvcHandle = OpenServiceW(ScmHandle, ServiceName, SERVICE_QUERY_STATUS);
+    SvcHandle = OpenServiceW(ScmHandle, ServiceName, SERVICE_QUERY_STATUS | SERVICE_QUERY_CONFIG);
     if (0 != SvcHandle && QueryServiceStatus(SvcHandle, &ServiceStatus))
+    {
         Result = SERVICE_STOPPED != ServiceStatus.dwCurrentState;
+        if (0 != Result)
+            SetServiceRunningInfo(ServiceName, SvcHandle);
+    }
 
     WcaSetIntProperty(L"" __FUNCTION__, Result);
 

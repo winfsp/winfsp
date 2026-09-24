@@ -44,6 +44,7 @@ namespace Fsp
         /// <param name="ServiceName">The name of the service.</param>
         public Service(String ServiceName)
         {
+            Api.Init();
             Api.FspServiceCreate(ServiceName, _OnStart, _OnStop, null, out _ServicePtr);
             if (IntPtr.Zero != _ServicePtr)
                 Api.SetUserContext(_ServicePtr, this);
@@ -123,6 +124,7 @@ namespace Fsp
         }
         public static void Log(UInt32 Type, String Message)
         {
+            Api.Init();
             Api.FspServiceLog(Type, "%s", Message);
         }
 

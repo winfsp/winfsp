@@ -35,9 +35,14 @@
 #include <shared/ku/library.h>
 
 FSP_API NTSTATUS FspPosixSetUidMap(UINT32 Uid[], PSID Sid[], ULONG Count);
+FSP_API NTSTATUS FspPosixSetAdUidMap(BOOLEAN Enable);
 FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid);
 FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid);
 static PISID FspPosixCreateSid(BYTE Authority, ULONG Count, ...);
+#if !defined(_KERNEL_MODE)
+static NTSTATUS FspPosixMapAdUidToSid(UINT32 Uid, PSID *PSid);
+static NTSTATUS FspPosixMapAdSidToUid(PSID Sid, PUINT32 PUid);
+#endif
 FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)());
 FSP_API NTSTATUS FspPosixMapPermissionsToSecurityDescriptor(
     UINT32 Uid, UINT32 Gid, UINT32 Mode,
@@ -60,6 +65,7 @@ FSP_API VOID FspPosixDecodeWindowsPath(PWSTR WindowsPath, ULONG Size);
 #if defined(_KERNEL_MODE)
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspPosixSetUidMap)
+#pragma alloc_text(PAGE, FspPosixSetAdUidMap)
 #pragma alloc_text(PAGE, FspPosixMapUidToSid)
 #pragma alloc_text(PAGE, FspPosixMapSidToUid)
 #pragma alloc_text(PAGE, FspPosixCreateSid)
@@ -432,6 +438,9 @@ static inline BOOLEAN FspPosixIsRelativeSid(PISID Sid1, PISID Sid2)
 static UINT32 FspPosixUidMap_Uid[8];
 static PSID FspPosixUidMap_Sid[8];
 static ULONG FspPosixUidMap_Cnt = 0;
+#if !defined(_KERNEL_MODE)
+static BOOLEAN FspPosixAdUidMap = FALSE;
+#endif
 
 FSP_API NTSTATUS FspPosixSetUidMap(UINT32 Uid[], PSID Sid[], ULONG Count)
 {
@@ -475,6 +484,82 @@ exit:
     return Result;
 }
 
+FSP_API NTSTATUS FspPosixSetAdUidMap(BOOLEAN Enable)
+{
+    FSP_KU_CODE;
+
+#if !defined(_KERNEL_MODE)
+    FspPosixAdUidMap = !!Enable;
+    return STATUS_SUCCESS;
+#else
+    return STATUS_NOT_SUPPORTED;
+#endif
+}
+
+#if !defined(_KERNEL_MODE)
+
+static NTSTATUS FspPosixMapAdUidToSid(UINT32 Uid, PSID *PSid)
+{
+    PVOID Ldap = 0;
+    PWSTR DefaultNamingContext = 0;
+    ULONG LdapResult;
+
+    *PSid = 0;
+
+    if (FspUnmappedUid == Uid)
+    {
+        *PSid = FspUnmappedSid;
+        return STATUS_SUCCESS;
+    }
+
+    LdapResult = FspLdapConnect(0/* default LDAP server */, &Ldap);
+    if (0 != LdapResult)
+        goto exit;
+
+    LdapResult = FspLdapGetDefaultNamingContext(Ldap, &DefaultNamingContext);
+    if (0 != LdapResult)
+        goto exit;
+
+    LdapResult = FspLdapGetSidByPosixId(Ldap, DefaultNamingContext, L"uidNumber", Uid, PSid);
+    if (0 != LdapResult)
+        LdapResult = FspLdapGetSidByPosixId(Ldap, DefaultNamingContext, L"gidNumber", Uid, PSid);
+
+exit:
+    MemFree(DefaultNamingContext);
+    if (0 != Ldap)
+        FspLdapClose(Ldap);
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS FspPosixMapAdSidToUid(PSID Sid, PUINT32 PUid)
+{
+    PVOID Ldap = 0;
+    PWSTR DefaultNamingContext = 0;
+    ULONG LdapResult;
+
+    LdapResult = FspLdapConnect(0/* default LDAP server */, &Ldap);
+    if (0 != LdapResult)
+        goto exit;
+
+    LdapResult = FspLdapGetDefaultNamingContext(Ldap, &DefaultNamingContext);
+    if (0 != LdapResult)
+        goto exit;
+
+    LdapResult = FspLdapGetPosixIdBySid(Ldap, DefaultNamingContext, Sid, L"uidNumber", PUid);
+    if (0 != LdapResult)
+        LdapResult = FspLdapGetPosixIdBySid(Ldap, DefaultNamingContext, Sid, L"gidNumber", PUid);
+
+exit:
+    MemFree(DefaultNamingContext);
+    if (0 != Ldap)
+        FspLdapClose(Ldap);
+
+    return STATUS_SUCCESS;
+}
+
+#endif
+
 FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
 {
     FSP_KU_CODE;
@@ -496,6 +581,14 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
             *PSid = S;
             goto exit;
         }
+
+#if !defined(_KERNEL_MODE)
+    if (FspPosixAdUidMap)
+    {
+        FspPosixMapAdUidToSid(Uid, PSid);
+        goto exit;
+    }
+#endif
 
     /*
      * UID namespace partitioning (from [IDMAP] rules):
@@ -651,6 +744,14 @@ FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid)
             *PUid = FspPosixUidMap_Uid[I];
             goto exit;
         }
+
+#if !defined(_KERNEL_MODE)
+    if (FspPosixAdUidMap)
+    {
+        FspPosixMapAdSidToUid(Sid, PUid);
+        goto exit;
+    }
+#endif
 
     Authority = GetSidIdentifierAuthority(Sid)->Value[5];
     SubAuthority0 = 2 <= Count ? *GetSidSubAuthority(Sid, 0) : 0;

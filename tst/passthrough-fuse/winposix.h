@@ -65,6 +65,7 @@ int utimensat(int dirfd, const char *path, const struct fuse_timespec times[2], 
 int setcrtime(const char *path, const struct fuse_timespec *tv);
 int unlink(const char *path);
 int rename(const char *oldpath, const char *newpath);
+int link(const char *oldpath, const char *newpath);
 
 int lsetxattr(const char *path, const char *name, const void *value, size_t size, int flags);
 int lgetxattr(const char *path, const char *name, void *value, size_t size);

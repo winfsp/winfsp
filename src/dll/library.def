@@ -10,3 +10,4 @@ EXPORTS
     NPEnumResource      PRIVATE
     NPCloseEnum         PRIVATE
     NPGetUniversalName  PRIVATE
+    NPGetResourceInformation PRIVATE

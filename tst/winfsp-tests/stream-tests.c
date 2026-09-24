@@ -2157,6 +2157,203 @@ void stream_getstreaminfo_expire_cache_test(void)
     }
 }
 
+static void stream_firefoxportable_order_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    HANDLE Handle;
+    BOOL Success, FoundApp;
+    WCHAR RootPath[MAX_PATH];
+    WCHAR FilePath[MAX_PATH];
+    WIN32_FIND_DATAW FindData;
+    DWORD BytesTransferred;
+    BYTE Byte;
+
+    StringCbPrintfW(RootPath, sizeof RootPath, L"%s%s",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable", RootPath);
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable\\App", RootPath);
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable\\App\\Firefox", RootPath);
+    Success = CreateDirectoryW(FilePath, 0);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable\\App\\Firefox\\firefox.exe", RootPath);
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Byte = 0;
+    Success = WriteFile(Handle, &Byte, sizeof Byte, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(sizeof Byte == BytesTransferred);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable_55.0.3_English.paf.exe", RootPath);
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Byte = 0;
+    Success = WriteFile(Handle, &Byte, sizeof Byte, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(sizeof Byte == BytesTransferred);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable_55.0.3_English.paf.exe:Zone.Identifier",
+        RootPath);
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Byte = 0;
+    Success = WriteFile(Handle, &Byte, sizeof Byte, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(sizeof Byte == BytesTransferred);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable\\*", RootPath);
+    Handle = FindFirstFileW(FilePath, &FindData);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    FoundApp = FALSE;
+    do
+    {
+        if (0 == wcscmp(FindData.cFileName, L"App"))
+        {
+            ASSERT(0 != (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
+            FoundApp = TRUE;
+        }
+    } while (FindNextFileW(Handle, &FindData));
+    ASSERT(ERROR_NO_MORE_FILES == GetLastError());
+    ASSERT(FoundApp);
+    Success = FindClose(Handle);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable\\App\\Firefox\\firefox.exe", RootPath);
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable_55.0.3_English.paf.exe:Zone.Identifier",
+        RootPath);
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable_55.0.3_English.paf.exe", RootPath);
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable\\App\\Firefox\\firefox.exe", RootPath);
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable\\App\\Firefox", RootPath);
+    Success = RemoveDirectoryW(FilePath);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable\\App", RootPath);
+    Success = RemoveDirectoryW(FilePath);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\FirefoxPortable", RootPath);
+    Success = RemoveDirectoryW(FilePath);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+static void stream_firefoxportable_order_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        stream_firefoxportable_order_dotest(-1, DirBuf);
+    }
+    if (WinFspDiskTests)
+        stream_firefoxportable_order_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        stream_firefoxportable_order_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
+static void stream_delete_main_with_open_stream_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start(Flags);
+
+    HANDLE Handle, StreamHandle;
+    BOOL Success;
+    WCHAR RootPath[MAX_PATH];
+    WCHAR FilePath[MAX_PATH];
+    BYTE Byte = 0;
+    DWORD BytesTransferred;
+
+    StringCbPrintfW(RootPath, sizeof RootPath, L"%s%s",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\file0", RootPath);
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\file0:stream", RootPath);
+    StreamHandle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != StreamHandle);
+    Success = WriteFile(StreamHandle, &Byte, sizeof Byte, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(sizeof Byte == BytesTransferred);
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\file0", RootPath);
+    Handle = CreateFileW(FilePath,
+        DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Success = CloseHandle(StreamHandle);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE == Handle);
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError() || ERROR_PATH_NOT_FOUND == GetLastError());
+
+    memfs_stop(memfs);
+}
+
+static void stream_delete_main_with_open_stream_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        stream_delete_main_with_open_stream_dotest(-1, DirBuf);
+    }
+    if (WinFspDiskTests)
+        stream_delete_main_with_open_stream_dotest(MemfsDisk, 0);
+    if (WinFspNetTests)
+        stream_delete_main_with_open_stream_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
 static unsigned __stdcall stream_dirnotify_dotest_thread(void *FilePath)
 {
     FspDebugLog(__FUNCTION__ ": \"%S\"\n", FilePath);
@@ -2306,5 +2503,7 @@ void stream_tests(void)
     TEST(stream_setsecurity_test);
     TEST(stream_getstreaminfo_test);
     TEST(stream_getstreaminfo_expire_cache_test);
+    TEST(stream_firefoxportable_order_test);
+    TEST(stream_delete_main_with_open_stream_test);
     TEST(stream_dirnotify_test);
 }

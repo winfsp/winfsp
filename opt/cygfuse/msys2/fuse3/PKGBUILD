@@ -1,0 +1,41 @@
+pkgname=winfsp-fuse3
+pkgver=3.2
+pkgrel=2
+pkgdesc="WinFsp FUSE3 compatibility layer for MSYS2"
+arch=("i686" "x86_64")
+url="https://winfsp.dev"
+license=("GPL-3.0-only")
+depends=("msys2-runtime")
+makedepends=("gcc" "make")
+options=("!strip")
+
+: "${WINFSP_SRC_URI:=https://github.com/winfsp/winfsp/archive/master.tar.gz}"
+: "${WINFSP_SRC_DIR:=winfsp-master}"
+
+source=("${WINFSP_SRC_URI}")
+sha256sums=("SKIP")
+
+build()
+{
+    cd "${srcdir}/${WINFSP_SRC_DIR}/opt/cygfuse/fuse3"
+    make
+}
+
+package()
+{
+    cd "${srcdir}/${WINFSP_SRC_DIR}"
+
+    install -Dm755 "opt/cygfuse/fuse3/build/${CARCH}/cygfuse-${pkgver}.dll" \
+        "${pkgdir}/usr/bin/cygfuse-${pkgver}.dll"
+    install -Dm644 "opt/cygfuse/fuse3/build/${CARCH}/libfuse-${pkgver}.dll.a" \
+        "${pkgdir}/usr/lib/libfuse-${pkgver}.dll.a"
+    install -Dm644 "opt/cygfuse/fuse3/build/${CARCH}/fuse3.pc" \
+        "${pkgdir}/usr/lib/pkgconfig/fuse3.pc"
+
+    ln -s "libfuse-${pkgver}.dll.a" "${pkgdir}/usr/lib/libfuse3.dll.a"
+
+    install -Dm644 inc/fuse3/fuse.h "${pkgdir}/usr/include/fuse3/fuse.h"
+    install -Dm644 inc/fuse3/fuse_common.h "${pkgdir}/usr/include/fuse3/fuse_common.h"
+    install -Dm644 inc/fuse3/fuse_opt.h "${pkgdir}/usr/include/fuse3/fuse_opt.h"
+    install -Dm644 inc/fuse3/winfsp_fuse.h "${pkgdir}/usr/include/fuse3/winfsp_fuse.h"
+}

@@ -36,7 +36,7 @@
 
 - [FIX] Fixes vulnerability CVE-2026-7162 discovered by Tay Kiat Loong (GitHub: @Owl4444) and uhg (GitHub: @UltimateHG).
 
-- [FIX] Fixes deadlock during cached writes under memory pressure. See PR #677 for discussion.
+- [FIX] Fixes deadlock during cached writes under memory pressure. See PR #677 and GitHub issue #620 for discussion.
 
 - [FIX] Fixes deadlock in the file system notification mechanism with concurrent renames. See fix PR #669 by @yeonsh and test PR #672 by @Maksim-Isakau.
 
@@ -47,6 +47,66 @@
 - [FUSE] FUSE now respects the `direct_io` flag. See PR #646 by @chenjie4255.
 
 - [FUSE] Add FUSE option `AddWriteEaAccess`. See PR #648 by @chenjie4255.
+
+- [FUSE] Add FUSE option `WslFeatures` for WSL drvfs support. See GitHub issue #473.
+
+- [FIX] Report driver service start failures with the underlying service exit code. See GitHub issue #477.
+
+- [FIX] Add target container silo support for host-created file systems and `ntptfs -o TargetSiloId=GUID`. See GitHub issue #498.
+
+- [FIX] Improve installer diagnostics when a third-party or older `WinFsp` service blocks setup. See GitHub issue #499.
+
+- [FUSE] Treat ownership changes during file creation as best-effort when the server denies `chown`, avoiding Explorer duplicate-copy retries with SSHFS. See GitHub issue #503.
+
+- [MEMFS] Match NTFS path errors when creating files below an existing file. See GitHub issue #504.
+
+- [FIX] Add regression coverage for `FILE_OPEN_REPARSE_POINT` file opens and include stripped trailing slash state in create debug logs. See GitHub issue #505.
+
+- [.NET] Make native API binding explicit and idempotent for NativeAOT compatibility. See GitHub issue #506.
+
+- [FUSE] Preserve absolute POSIX symlink targets as volume-root relative when using `rellinks`. See GitHub issue #509.
+
+- [FIX] Add a Win32 fallback for directory mount point creation on virtual or pooled volumes that reject the direct native create path. See GitHub issue #512.
+
+- [FIX] Teach the passthrough sample to proxy backing reparse points so junction/symlink chains can be resolved by Windows. See GitHub issue #518.
+
+- [FIX] Sign the installer custom action DLL before embedding it in the MSI to satisfy Windows Smart App Control code integrity policy. See GitHub issue #527.
+
+- [DOC] Clarify Node.js/JavaScript binding status and guidance for third-party WinFsp packages. See GitHub issue #544.
+
+- [FIX] Keep auto-created directory mount points visible and writable until unmount, and remove them explicitly during unmount. See GitHub issue #551.
+
+- [FIX] Report physical UNC names for WinFsp network volumes to avoid Explorer srvsvc/IPC$ fallback delays at copy completion. See GitHub issue #554.
+
+- [FIX] Cover Explorer UNC resource resolution for WinFsp network volumes. See GitHub issue #569.
+
+- [FIX] Prioritize directory queries in the user-mode dispatch queue so listings stay responsive during heavy write workloads. See GitHub issue #588.
+
+- [TEST] Cover loading a companion DLL from WinFsp volumes to guard executable scenarios that depend on same-directory DLL loads. See GitHub issue #599.
+
+- [MEMFS] Report `NTFS` by default from the standalone MEMFS samples so elevated executables work on newer Windows versions. See GitHub issue #611.
+
+- [FIX] Answer MountDev identity IOCTL's on mounted file-system volumes so Shell path lookups remain stable for directory mount points. See GitHub issue #612.
+
+- [FIX] Invalidate cached file metadata after Cleanup updates so kernel-cache volumes report fresh write times after close. See GitHub issue #629.
+
+- [FUSE] Support FUSE3 `lseek` through `FSCTL_QUERY_ALLOCATED_RANGES` for sparse-file range queries. See GitHub issue #632.
+
+- [TEST] Cover final DOS path resolution for MountMgr directory mounts and document the elevated execution requirements. See GitHub issue #641.
+
+- [DOC] Clarify that WinFsp UNC prefixes are local Network Provider names and that remote sharing must use a disk file system exported through the Windows Server service. See GitHub issue #650.
+
+- [FIX] Initialize WinFsp's IRP request context before dispatch so foreign `DriverContext` data on VHDX paging writes is not reused as a request. See GitHub issue #651.
+
+- [NEW] Add an opt-in user-mode access-check deferral flag and FUSE `-o defer_permissions` so file systems can enforce custom POSIX/AD permissions themselves. See GitHub issue #654.
+
+- [FIX] Clarify independent directory info caching and expose `DirInfoTimeout` on the C++ file-system helper so directory metadata can be cached without enabling file data caching. See GitHub issue #665.
+
+- [DOC] Clarify that service-created drive letters are controlled by Windows DOS device namespaces and must be created per user session to be hidden from other users. See GitHub issue #675.
+
+- [NEW] Add an opt-in persistent MountDev unique ID for Mount Manager mounts so reconnect-aware folder monitors can correlate a new volume instance with the prior one. See GitHub issue #678.
+
+- [FIX] Avoid probing optical drives through Mount Manager in the WinFsp Network Provider to prevent Explorer startup stalls when CD/DVD media is present. See GitHub issue #679.
 
 
 ## v2.2B2 (2026 Beta2)

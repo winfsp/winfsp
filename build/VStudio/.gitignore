@@ -7,3 +7,5 @@ build
 *.VC.db
 *.VC.opendb
 .vs
+UpgradeLog*.htm
+wdk-diag-*.log

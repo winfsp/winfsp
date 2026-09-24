@@ -112,7 +112,7 @@ NTSTATUS LfsGetFileInfo(
         FILE_ALL_INFORMATION V;
         UINT8 B[FIELD_OFFSET(FILE_ALL_INFORMATION, NameInformation.FileName) + FSP_FSCTL_TRANSACT_PATH_SIZEMAX];
     } FileAllInfo;
-    FILE_ATTRIBUTE_TAG_INFORMATION FileAttrInfo;
+    FILE_ATTRIBUTE_TAG_INFORMATION FileAttrInfo = { 0 };
     NTSTATUS Result;
 
     Result = NtQueryInformationFile(
@@ -133,7 +133,10 @@ NTSTATUS LfsGetFileInfo(
             &FileAttrInfo,
             sizeof FileAttrInfo,
             35/*FileAttributeTagInformation*/);
-        if (!NT_SUCCESS(Result))
+        if (!NT_SUCCESS(Result) &&
+            STATUS_INVALID_PARAMETER != Result &&
+            STATUS_INVALID_INFO_CLASS != Result &&
+            STATUS_NOT_IMPLEMENTED != Result)
             return Result;
     }
 

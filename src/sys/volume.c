@@ -23,9 +23,13 @@
 
 NTSTATUS FspVolumeCreate(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspVolumeDecodeVolumeParams(
+    PDEVICE_OBJECT FsctlDeviceObject, PFILE_OBJECT FileObject,
+    FSP_FSCTL_VOLUME_PARAMS *PVolumeParams);
 static NTSTATUS FspVolumeCreateNoLock(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
-    FSP_SILO_GLOBALS *Globals);
+    FSP_SILO_GLOBALS *Globals,
+    const FSP_FSCTL_VOLUME_PARAMS *VolumeParams0);
 VOID FspVolumeDelete(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static VOID FspVolumeDeleteNoLock(
@@ -68,10 +72,30 @@ static NTSTATUS FspVolumeNotifyLock(
 static WORKER_THREAD_ROUTINE FspVolumeNotifyWork;
 NTSTATUS FspVolumeWork(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static BOOLEAN FspVolumeHonorAlwaysUseDoubleBuffering(VOID);
+
+static inline UINT16 FspVolumeRoundReadAheadGranularity(UINT16 ReadAheadGranularity)
+{
+    UINT16 Rounded = 1;
+
+    while (Rounded < ReadAheadGranularity && Rounded < 0x8000)
+        Rounded <<= 1;
+
+    return Rounded;
+}
+
+static inline BOOLEAN FspVolumeIsZeroGuid(const GUID *Guid)
+{
+    const ULONG *Data = (const ULONG *)Guid;
+
+    return 0 == Data[0] && 0 == Data[1] && 0 == Data[2] && 0 == Data[3];
+}
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspVolumeCreate)
+#pragma alloc_text(PAGE, FspVolumeDecodeVolumeParams)
 #pragma alloc_text(PAGE, FspVolumeCreateNoLock)
+#pragma alloc_text(PAGE, FspVolumeHonorAlwaysUseDoubleBuffering)
 // ! #pragma alloc_text(PAGE, FspVolumeDelete)
 // ! #pragma alloc_text(PAGE, FspVolumeDeleteNoLock)
 // ! #pragma alloc_text(PAGE, FspVolumeDeleteDelayed)
@@ -95,105 +119,37 @@ NTSTATUS FspVolumeWork(
 #define PREFIXW                         L"" FSP_FSCTL_VOLUME_PARAMS_PREFIX
 #define PREFIXW_SIZE                    (sizeof PREFIXW - sizeof(WCHAR))
 
-NTSTATUS FspVolumeCreate(
-    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+static BOOLEAN FspVolumeHonorAlwaysUseDoubleBuffering(VOID)
 {
     PAGED_CODE();
 
-    FSP_SILO_GLOBALS *Globals;
+    UNICODE_STRING RegPath;
+    UNICODE_STRING RegName;
+    union
+    {
+        KEY_VALUE_PARTIAL_INFORMATION V;
+        UINT8 B[FIELD_OFFSET(KEY_VALUE_PARTIAL_INFORMATION, Data) + sizeof(ULONG)];
+    } RegValue;
+    ULONG RegLength;
     NTSTATUS Result;
 
-    FspSiloGetGlobals(&Globals);
-    ASSERT(0 != Globals);
+    RtlInitUnicodeString(&RegPath, L"" FSP_REGKEY);
+    RtlInitUnicodeString(&RegName, L"HonorAlwaysUseDoubleBuffering");
 
-    FspDeviceGlobalLock();
-    Result = FspVolumeCreateNoLock(FsctlDeviceObject, Irp, IrpSp,
-        Globals);
-    FspDeviceGlobalUnlock();
+    RegLength = sizeof RegValue;
+    Result = FspRegistryGetValue(&RegPath, &RegName, &RegValue.V, &RegLength);
 
-    FspSiloDereferenceGlobals(Globals);
-
-    if (NT_SUCCESS(Result))
-    {
-        /*
-         * If we have an fsvrt device, mount it NOW via opening the volume. This ensures
-         * that the fsvrt is mounted by the correct fsvol device early on and remedies
-         * a rare case where NTFS crashes the system when it attempts to mount our fsvrt.
-         *
-         * We use IoCreateFileEx with FILE_READ_DATA to ensure that the I/O Manager will
-         * mount the fsvrt device.
-         *
-         * We ignore the IoCreateFileEx return code as it is only used for its side effect
-         * of mounting the fsvrt. In the unlikely event that IoCreateFileEx fails, the
-         * system will retry the mount when a file is accessed, etc.
-         */
-
-        PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
-        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-        PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
-        OBJECT_ATTRIBUTES ObjectAttributes;
-        IO_STATUS_BLOCK IoStatus;
-        HANDLE Handle;
-
-        if (0 != FsvrtDeviceObject)
-        {
-            InitializeObjectAttributes(
-                &ObjectAttributes,
-                &FsvolDeviceExtension->VolumeName,
-                OBJ_KERNEL_HANDLE,
-                0/*RootDirectory*/,
-                0/*SecurityDescriptor*/);
-            IoStatus.Status = IoCreateFileEx(
-                &Handle,
-                FILE_READ_DATA,
-                &ObjectAttributes,
-                &IoStatus,
-                0/*AllocationSize*/,
-                0/*FileAttributes*/,
-                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                FILE_OPEN,
-                0/*CreateOptions*/,
-                0/*EaBuffer*/,
-                0/*EaLength*/,
-                CreateFileTypeNone,
-                0/*InternalParameters*/,
-                0/*Options*/,
-                0/*DriverContext*/);
-            if (NT_SUCCESS(IoStatus.Status))
-                ObCloseHandle(Handle, KernelMode);
-        }
-    }
-
-    return Result;
+    return NT_SUCCESS(Result) && REG_DWORD == RegValue.V.Type && 0 != *(PULONG)&RegValue.V.Data;
 }
 
-static NTSTATUS FspVolumeCreateNoLock(
-    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
-    FSP_SILO_GLOBALS *Globals)
+static NTSTATUS FspVolumeDecodeVolumeParams(
+    PDEVICE_OBJECT FsctlDeviceObject, PFILE_OBJECT FileObject,
+    FSP_FSCTL_VOLUME_PARAMS *PVolumeParams)
 {
     PAGED_CODE();
 
-    ASSERT(IRP_MJ_CREATE == IrpSp->MajorFunction);
-    ASSERT(0 == IrpSp->FileObject->RelatedFileObject);
-    ASSERT(PREFIXW_SIZE <= IrpSp->FileObject->FileName.Length &&
-        RtlEqualMemory(PREFIXW, IrpSp->FileObject->FileName.Buffer, PREFIXW_SIZE));
-    ASSERT(
-        FILE_DEVICE_DISK_FILE_SYSTEM == FsctlDeviceObject->DeviceType ||
-        FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType);
-
-    NTSTATUS Result;
-    PFILE_OBJECT FileObject = IrpSp->FileObject;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams = { 0 };
     USHORT PrefixLength = 0;
-    GUID Guid;
-    UNICODE_STRING DeviceSddl;
-    UNICODE_STRING VolumeName;
-    UNICODE_STRING FsmupDeviceName;
-    WCHAR VolumeNameBuf[FSP_FSCTL_VOLUME_NAME_SIZE / sizeof(WCHAR)];
-    FSP_FSEXT_PROVIDER *Provider = 0;
-    PDEVICE_OBJECT FsvolDeviceObject;
-    PDEVICE_OBJECT FsvrtDeviceObject;
-    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
     /* check parameters */
     if (PREFIXW_SIZE + sizeof(FSP_FSCTL_VOLUME_PARAMS_V0) * sizeof(WCHAR) > FileObject->FileName.Length)
@@ -264,6 +220,9 @@ static NTSTATUS FspVolumeCreateNoLock(
     VolumeParams.SecurityTimeoutValid = 1;
     VolumeParams.StreamInfoTimeoutValid = 1;
     VolumeParams.EaTimeoutValid = 1;
+    if (0 != VolumeParams.ReadAheadGranularity)
+        VolumeParams.ReadAheadGranularity =
+            FspVolumeRoundReadAheadGranularity(VolumeParams.ReadAheadGranularity);
     if (FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType)
     {
         VolumeParams.Prefix[sizeof VolumeParams.Prefix / sizeof(WCHAR) - 1] = L'\0';
@@ -292,18 +251,140 @@ static NTSTATUS FspVolumeCreateNoLock(
 
 #if !DBG
     /*
-     * In Release builds we hardcode AlwaysUseDoubleBuffering for Reads as we do not want someone
-     * to use WinFsp to crash Windows.
+     * In Release builds we hardcode AlwaysUseDoubleBuffering for Reads unless an Administrator
+     * enables HKLM\Software\WinFsp\HonorAlwaysUseDoubleBuffering. This keeps the default safe
+     * while allowing trusted deployments to opt into the file system's requested setting.
      *
      * See http://www.osronline.com/showthread.cfm?link=282037
      */
-    VolumeParams.AlwaysUseDoubleBuffering = 1;
+    if (!VolumeParams.AlwaysUseDoubleBuffering && !FspVolumeHonorAlwaysUseDoubleBuffering())
+        VolumeParams.AlwaysUseDoubleBuffering = 1;
 #endif
 
     /*
      * Hardcode the RejectIrpPriorToTransact0 = 1 setting.
      */
     VolumeParams.RejectIrpPriorToTransact0 = 1;
+
+    *PVolumeParams = VolumeParams;
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS FspVolumeCreate(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    FSP_SILO_GLOBALS *Globals;
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+    PVOID PreviousSilo;
+    BOOLEAN AttachedSilo;
+    NTSTATUS Result;
+
+    Result = FspVolumeDecodeVolumeParams(FsctlDeviceObject, IrpSp->FileObject, &VolumeParams);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    if (!FspVolumeIsZeroGuid(&VolumeParams.TargetSiloId))
+        Result = FspSiloGetGlobalsByContainerId(&VolumeParams.TargetSiloId, &Globals);
+    else
+        Result = FspSiloGetGlobals(&Globals);
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    AttachedSilo = FspSiloAttachGlobals(Globals, &PreviousSilo);
+    FspDeviceGlobalLock();
+    Result = FspVolumeCreateNoLock(FsctlDeviceObject, Irp, IrpSp,
+        Globals, &VolumeParams);
+    FspDeviceGlobalUnlock();
+
+    if (NT_SUCCESS(Result))
+    {
+        /*
+         * If we have an fsvrt device, mount it NOW via opening the volume. This ensures
+         * that the fsvrt is mounted by the correct fsvol device early on and remedies
+         * a rare case where NTFS crashes the system when it attempts to mount our fsvrt.
+         *
+         * We use IoCreateFileEx with FILE_READ_DATA to ensure that the I/O Manager will
+         * mount the fsvrt device.
+         *
+         * We ignore the IoCreateFileEx return code as it is only used for its side effect
+         * of mounting the fsvrt. In the unlikely event that IoCreateFileEx fails, the
+         * system will retry the mount when a file is accessed, etc.
+         */
+
+        PDEVICE_OBJECT FsvolDeviceObject = IrpSp->FileObject->FsContext2;
+        FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
+        PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
+        OBJECT_ATTRIBUTES ObjectAttributes;
+        IO_STATUS_BLOCK IoStatus;
+        HANDLE Handle;
+
+        if (0 != FsvrtDeviceObject)
+        {
+            InitializeObjectAttributes(
+                &ObjectAttributes,
+                &FsvolDeviceExtension->VolumeName,
+                OBJ_KERNEL_HANDLE,
+                0/*RootDirectory*/,
+                0/*SecurityDescriptor*/);
+            IoStatus.Status = IoCreateFileEx(
+                &Handle,
+                FILE_READ_DATA,
+                &ObjectAttributes,
+                &IoStatus,
+                0/*AllocationSize*/,
+                0/*FileAttributes*/,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                FILE_OPEN,
+                0/*CreateOptions*/,
+                0/*EaBuffer*/,
+                0/*EaLength*/,
+                CreateFileTypeNone,
+                0/*InternalParameters*/,
+                0/*Options*/,
+                0/*DriverContext*/);
+            if (NT_SUCCESS(IoStatus.Status))
+                ObCloseHandle(Handle, KernelMode);
+        }
+    }
+
+    if (AttachedSilo)
+        FspSiloDetachGlobals(PreviousSilo);
+    FspSiloDereferenceGlobals(Globals);
+
+    return Result;
+}
+
+static NTSTATUS FspVolumeCreateNoLock(
+    PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
+    FSP_SILO_GLOBALS *Globals,
+    const FSP_FSCTL_VOLUME_PARAMS *VolumeParams0)
+{
+    PAGED_CODE();
+
+    ASSERT(IRP_MJ_CREATE == IrpSp->MajorFunction);
+    ASSERT(0 == IrpSp->FileObject->RelatedFileObject);
+    ASSERT(PREFIXW_SIZE <= IrpSp->FileObject->FileName.Length &&
+        RtlEqualMemory(PREFIXW, IrpSp->FileObject->FileName.Buffer, PREFIXW_SIZE));
+    ASSERT(
+        FILE_DEVICE_DISK_FILE_SYSTEM == FsctlDeviceObject->DeviceType ||
+        FILE_DEVICE_NETWORK_FILE_SYSTEM == FsctlDeviceObject->DeviceType);
+
+    NTSTATUS Result;
+    FSP_FSCTL_VOLUME_PARAMS VolumeParams = *VolumeParams0;
+    GUID Guid;
+    UNICODE_STRING DeviceSddl;
+    UNICODE_STRING VolumeName;
+    UNICODE_STRING FsmupDeviceName;
+    WCHAR VolumeNameBuf[FSP_FSCTL_VOLUME_NAME_SIZE / sizeof(WCHAR)];
+    FSP_FSEXT_PROVIDER *Provider = 0;
+    PDEVICE_OBJECT FsvolDeviceObject;
+    PDEVICE_OBJECT FsvrtDeviceObject;
+    PDEVICE_OBJECT VolumeFsctlDeviceObject =
+        FILE_DEVICE_DISK_FILE_SYSTEM == FsctlDeviceObject->DeviceType ?
+            Globals->FsctlDiskDeviceObject : Globals->FsctlNetDeviceObject;
+    FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension;
 
     /* load any fsext provider */
     if (0 != VolumeParams.FsextControlCode)
@@ -356,7 +437,7 @@ static NTSTATUS FspVolumeCreateNoLock(
 #pragma prefast(suppress:28175, "We are a filesystem: ok to access SectorSize")
     FsvolDeviceObject->SectorSize = VolumeParams.SectorSize;
     FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
-    FsvolDeviceExtension->FsctlDeviceObject = FsctlDeviceObject;
+    FsvolDeviceExtension->FsctlDeviceObject = VolumeFsctlDeviceObject;
     FsvolDeviceExtension->FsvrtDeviceObject = FsvrtDeviceObject;
     FsvolDeviceExtension->FsvolDeviceObject = FsvolDeviceObject;
     FsvolDeviceExtension->VolumeParams = VolumeParams;
@@ -413,7 +494,7 @@ static NTSTATUS FspVolumeCreateNoLock(
     }
 
     /* associate the new volume device with our file object */
-    FileObject->FsContext2 = FsvolDeviceObject;
+    IrpSp->FileObject->FsContext2 = FsvolDeviceObject;
 
     Irp->IoStatus.Information = FILE_OPENED;
     return STATUS_SUCCESS;
@@ -430,6 +511,8 @@ VOID FspVolumeDelete(
     PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
     FSP_FILE_NODE **FileNodes;
     ULONG FileNodeCount, Index;
+    PVOID PreviousSilo;
+    BOOLEAN AttachedSilo;
     NTSTATUS Result;
 
     /* stop the I/O queue */
@@ -450,14 +533,22 @@ VOID FspVolumeDelete(
 
     FspDeviceReference(FsvolDeviceObject);
 
-    FspSiloGetGlobals(&Globals);
+    if (!FspVolumeIsZeroGuid(&FsvolDeviceExtension->VolumeParams.TargetSiloId))
+        Result = FspSiloGetGlobalsByContainerId(&FsvolDeviceExtension->VolumeParams.TargetSiloId, &Globals);
+    else
+        Result = FspSiloGetGlobals(&Globals);
+    if (!NT_SUCCESS(Result))
+        FspSiloGetGlobals(&Globals);
     ASSERT(0 != Globals);
 
+    AttachedSilo = FspSiloAttachGlobals(Globals, &PreviousSilo);
     FspDeviceGlobalLock();
     FspVolumeDeleteNoLock(FsctlDeviceObject, Irp, IrpSp,
         Globals);
     FspDeviceGlobalUnlock();
 
+    if (AttachedSilo)
+        FspSiloDetachGlobals(PreviousSilo);
     FspSiloDereferenceGlobals(Globals);
 
     /*
@@ -693,7 +784,7 @@ NTSTATUS FspVolumeMakeMountdev(
     PDEVICE_OBJECT FsvrtDeviceObject = FsvolDeviceExtension->FsvrtDeviceObject;
     ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
     ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
-    BOOLEAN Persistent = 0 < InputBufferLength ? !!*(PBOOLEAN)Irp->AssociatedIrp.SystemBuffer : FALSE;
+    BOOLEAN Persistent = FALSE, StableUniqueId = FALSE;
     NTSTATUS Result;
 
     if (0 == FsvrtDeviceObject)
@@ -701,9 +792,18 @@ NTSTATUS FspVolumeMakeMountdev(
     if (sizeof(GUID) > OutputBufferLength)
         return STATUS_INVALID_PARAMETER;
 
+    if (sizeof(FSP_FSCTL_MOUNTDEV_PARAMS) <= InputBufferLength)
+    {
+        FSP_FSCTL_MOUNTDEV_PARAMS *Params = Irp->AssociatedIrp.SystemBuffer;
+        Persistent = !!Params->Persistent;
+        StableUniqueId = !!Params->StableUniqueId;
+    }
+    else if (0 < InputBufferLength)
+        Persistent = StableUniqueId = !!*(PBOOLEAN)Irp->AssociatedIrp.SystemBuffer;
+
     FspFsvrtDeviceLockMount(FsvrtDeviceObject);
 
-    Result = FspMountdevMake(FsvrtDeviceObject, FsvolDeviceObject, Persistent);
+    Result = FspMountdevMake(FsvrtDeviceObject, FsvolDeviceObject, Persistent, StableUniqueId);
     if (!NT_SUCCESS(Result))
     {
         if (STATUS_TOO_LATE != Result)
@@ -757,7 +857,7 @@ NTSTATUS FspVolumeUseMountmgr(
             UINT8 B[FIELD_OFFSET(KEY_VALUE_PARTIAL_INFORMATION, Data) + sizeof(ULONG)];
         } RegValue;
         ULONG RegLength;
-        BOOLEAN Persistent = FALSE;
+        BOOLEAN StableUniqueId = !!FsvolDeviceExtension->VolumeParams.MountDevPersistentUniqueId;
 
         if (!(
             2 * sizeof(WCHAR) <= InputBufferLength &&
@@ -788,7 +888,7 @@ NTSTATUS FspVolumeUseMountmgr(
             goto exit;
         }
 
-        Result = FspMountdevMake(FsvrtDeviceObject, FsvolDeviceObject, Persistent);
+        Result = FspMountdevMake(FsvrtDeviceObject, FsvolDeviceObject, FALSE, StableUniqueId);
         if (!NT_SUCCESS(Result))
         {
             if (STATUS_TOO_LATE != Result)
@@ -1624,6 +1724,7 @@ NTSTATUS FspVolumeWork(
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(FsvolDeviceObject);
     FSP_FSCTL_TRANSACT_REQ *Request = IrpSp->Parameters.FileSystemControl.Type3InputBuffer;
     BOOLEAN BestEffort = FSP_FSCTL_WORK_BEST_EFFORT == IrpSp->Parameters.FileSystemControl.FsControlCode;
+    ULONG PostFlags = BestEffort ? FSP_IOQ_POST_FLAG_BEST_EFFORT : 0;
 
     ASSERT(0 == Request->Hint);
 
@@ -1636,7 +1737,7 @@ NTSTATUS FspVolumeWork(
      * so that we can disassociate the Request on failure and release ownership
      * back to the caller.
      */
-    if (!FspIoqPostIrpEx(FsvolDeviceExtension->Ioq, Irp, BestEffort, &Result))
+    if (!FspIoqPostIrpEx(FsvolDeviceExtension->Ioq, Irp, PostFlags, &Result))
     {
         Request->Hint = 0;
         FspIrpSetRequest(Irp, 0);

@@ -71,3 +71,17 @@ memfs-x64 -i -F NTFS -m Y: -u \memfs\share
 ----
 +
 The reason that this happens is that server silo containers share the same MUP device object with the host. The MUP (Multiple UNC Provider) is the Windows kernel component responsible for resolving UNC prefixes. It is unclear at this time whether this "leak" from the container to the host via the shared MUP is intentional or whether it is an unintended consequence. I note that the server silo MUP entry in the object namespace is a symbolic link, which suggests that the shared MUP device object was a conscious decision by Microsoft.
+
+== Host-Created File Systems Targeting a Container
+
+Windows Host Compute Service may reject a WinFsp disk file system that is mounted on the host and then passed to a process-isolated container as a host path. In that case the container runtime attempts to attach its filters to an already mounted WinFsp volume and `CreateComputeSystem` may fail with `Do not attach the filter to the volume at this time.`
+
+For process-isolated containers a host service can instead create the WinFsp file system directly in the target container silo. A helper process running inside the container should call `FspFsctlGetCurrentSiloId` (or `.NET` `FileSystemHost.GetCurrentSiloId`) and pass the returned GUID to the host service. The host service then sets `FSP_FSCTL_VOLUME_PARAMS::TargetSiloId` (or `.NET` `FileSystemHost.TargetSiloId`) before mounting the file system.
+
+The `ntptfs` sample exposes this for testing:
+
+----
+ntptfs-x64 -p C:\SomePathOnTheHost -m C:\SomeTargetPathOnTheHost -o TargetSiloId=01234567-89ab-cdef-0123-456789abcdef
+----
+
+A zero GUID keeps the existing behavior and mounts in the caller's current silo. This mechanism requires Windows process isolation; Hyper-V isolated containers have a separate kernel and cannot be targeted by the host driver in this way.

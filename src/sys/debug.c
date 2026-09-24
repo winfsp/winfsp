@@ -39,6 +39,8 @@ const char *NtStatusSym(NTSTATUS Status)
         return "FSP_STATUS_IOQ_POST";
     case FSP_STATUS_IOQ_POST_BEST_EFFORT:
         return "FSP_STATUS_IOQ_POST_BEST_EFFORT";
+    case FSP_STATUS_IOQ_POST_PRIORITY:
+        return "FSP_STATUS_IOQ_POST_PRIORITY";
     default:
         return "NTSTATUS:Unknown";
     }
@@ -177,6 +179,7 @@ const char *IoctlCodeSym(ULONG ControlCode)
     switch (ControlCode)
     {
     SYM(FSP_FSCTL_VOLUME_NAME)
+    SYM(FSP_FSCTL_GET_SILO_ID)
     SYM(FSP_FSCTL_TRANSACT)
     SYM(FSP_FSCTL_TRANSACT_BATCH)
     SYM(FSP_FSCTL_STOP)

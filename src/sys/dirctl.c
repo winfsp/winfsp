@@ -690,7 +690,7 @@ static NTSTATUS FspFsvolQueryDirectoryRetry(
     FspFileNodeSetOwner(FileNode, Full, Request);
     FspIopRequestContext(Request, RequestFileNode) = FileNode;
 
-    return FSP_STATUS_IOQ_POST;
+    return FSP_STATUS_IOQ_POST_PRIORITY;
 }
 
 static NTSTATUS FspFsvolQueryDirectory(
@@ -1001,7 +1001,7 @@ NTSTATUS FspFsvolDirectoryControlComplete(
         FspFileNodeSetOwner(FileNode, Full, Request);
         FspIopRequestContext(Request, RequestFileNode) = FileNode;
 
-        FspIoqPostIrp(FsvolDeviceExtension->Ioq, Irp, &Result);
+        FspIoqPostIrpPriority(FsvolDeviceExtension->Ioq, Irp, &Result);
     }
     else
     {

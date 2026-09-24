@@ -30,7 +30,7 @@ BOOLEAN FspMountdevDeviceControl(
     PNTSTATUS PResult);
 NTSTATUS FspMountdevMake(
     PDEVICE_OBJECT FsvrtDeviceObject, PDEVICE_OBJECT FsvolDeviceObject,
-    BOOLEAN Persistent);
+    BOOLEAN Persistent, BOOLEAN StableUniqueId);
 VOID FspMountdevFini(
     PDEVICE_OBJECT FsvrtDeviceObject);
 
@@ -130,7 +130,7 @@ BOOLEAN FspMountdevDeviceControl(
 
 NTSTATUS FspMountdevMake(
     PDEVICE_OBJECT FsvrtDeviceObject, PDEVICE_OBJECT FsvolDeviceObject,
-    BOOLEAN Persistent)
+    BOOLEAN Persistent, BOOLEAN StableUniqueId)
 {
     /*
      * This function converts the fsvrt device into a mountdev device that
@@ -153,12 +153,15 @@ NTSTATUS FspMountdevMake(
     ASSERT(FsvolDeviceExtension->FsvrtDeviceObject == FsvrtDeviceObject);
 
     if (0 != InterlockedCompareExchange(&FsvrtDeviceExtension->IsMountdev, 0, 0))
-        return Persistent == FsvrtDeviceExtension->Persistent ?
+        return
+            Persistent == FsvrtDeviceExtension->Persistent &&
+            StableUniqueId == FsvrtDeviceExtension->StableUniqueId ?
             STATUS_TOO_LATE : STATUS_ACCESS_DENIED;
 
     FsvrtDeviceExtension->Persistent = Persistent;
+    FsvrtDeviceExtension->StableUniqueId = StableUniqueId;
 
-    if (Persistent)
+    if (StableUniqueId)
     {
         /* make UUID v5 from the fsvrt device GUID and a unique string derived from VolumeParams */
         RtlInitEmptyUnicodeString(&String, StringBuf, sizeof StringBuf);

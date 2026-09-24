@@ -63,6 +63,7 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("uid=%d", uid, 0),
     FSP_FUSE_CORE_OPT("gid=", set_gid, 1),
     FSP_FUSE_CORE_OPT("gid=%d", gid, 0),
+    FSP_FUSE_CORE_OPT("UserOwner", user_owner, 1),
     FUSE_OPT_KEY("entry_timeout", FUSE_OPT_KEY_DISCARD),
     FSP_FUSE_CORE_OPT("attr_timeout=", set_attr_timeout, 1),
     FSP_FUSE_CORE_OPT("attr_timeout=%d", attr_timeout, 0),
@@ -78,6 +79,8 @@ static struct fuse_opt fsp_fuse_core_opts[] =
 
     FSP_FUSE_CORE_OPT("dothidden", dothidden, 1),
     FSP_FUSE_CORE_OPT("nodothidden", dothidden, 0),
+    FSP_FUSE_CORE_OPT("mapchars", nomapchars, 0),
+    FSP_FUSE_CORE_OPT("nomapchars", nomapchars, 1),
 
     FUSE_OPT_KEY("fstypename=", 'F'),
     FUSE_OPT_KEY("volname=", 'v'),
@@ -97,9 +100,15 @@ static struct fuse_opt fsp_fuse_core_opts[] =
     FSP_FUSE_CORE_OPT("EaTimeout=%d", VolumeParams.EaTimeout, 0),
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=", set_VolumeInfoTimeout, 1),
     FSP_FUSE_CORE_OPT("VolumeInfoTimeout=%d", VolumeParams.VolumeInfoTimeout, 0),
+    FSP_FUSE_CORE_OPT("ReadAheadGranularity=%hu", VolumeParams.ReadAheadGranularity, 0),
+    FSP_FUSE_CORE_OPT("DirtyPageThreshold=%hu", VolumeParams.DirtyPageThreshold, 0),
     FSP_FUSE_CORE_OPT("KeepFileCache=", set_KeepFileCache, 1),
     FSP_FUSE_CORE_OPT("FlushOnCleanup=", set_FlushOnCleanup, 1),
     FSP_FUSE_CORE_OPT("LegacyUnlinkRename=", set_LegacyUnlinkRename, 1),
+    FSP_FUSE_CORE_OPT("AllowRelSymlinksAcrossFileSystem", set_AllowRelSymlinksAcrossFileSystem, 1),
+    FSP_FUSE_CORE_OPT("MountDevPersistentUniqueId", set_MountDevPersistentUniqueId, 1),
+    FSP_FUSE_CORE_OPT("WslFeatures", set_WslFeatures, 1),
+    FSP_FUSE_CORE_OPT("defer_permissions", set_defer_permissions, 1),
     FSP_FUSE_CORE_OPT("ThreadCount=%u", ThreadCount, 0),
     FUSE_OPT_KEY("UNC=", 'U'),
     FUSE_OPT_KEY("--UNC=", 'U'),
@@ -480,6 +489,15 @@ static int fsp_fuse_set_uidmap(const char *Spec)
     NTSTATUS Result;
     int res = -1;
 
+    if (0 == invariant_stricmp(Spec, "ad"))
+    {
+        FspPosixSetUidMap(0, 0, 0);
+        Result = FspPosixSetAdUidMap(TRUE);
+        return NT_SUCCESS(Result) ? 0 : -1;
+    }
+
+    FspPosixSetAdUidMap(FALSE);
+
     Len = lstrlenA(Spec);
     if (sizeof Buf <= Len)
         return -1;
@@ -639,6 +657,7 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             "    -o gid=N                   set file group (-1 for mounting user group)\n"
             "    -o rellinks                interpret absolute symlinks as volume relative\n"
             "    -o dothidden               dot files have the Windows hidden file attrib\n"
+            "    -o nomapchars              do not map Windows-illegal filename chars\n"
             "    -o volname=NAME            set volume label\n"
             "    -o VolumePrefix=UNC        set UNC prefix (/Server/Share)\n"
             "        --VolumePrefix=UNC     set UNC prefix (\\Server\\Share)\n"
@@ -647,14 +666,24 @@ static int fsp_fuse_core_opt_proc(void *opt_data0, const char *arg, int key,
             );
         FspServiceLog(EVENTLOG_ERROR_TYPE, L""
             FSP_FUSE_LIBRARY_NAME " advanced options:\n"
-            "    -o FileInfoTimeout=N       metadata timeout (millis, -1 for data caching)\n"
-            "    -o DirInfoTimeout=N        directory info timeout (millis)\n"
+            "    -o FileInfoTimeout=N       file metadata timeout (millis, -1 for data caching)\n"
+            "    -o DirInfoTimeout=N        directory info cache timeout (millis, -1 for infinite)\n"
             "    -o EaTimeout=N             extended attribute timeout (millis)\n"
             "    -o VolumeInfoTimeout=N     volume info timeout (millis)\n"
+            "    -o ReadAheadGranularity=N  read-ahead granularity (pages)\n"
+            "    -o DirtyPageThreshold=N    dirty page threshold (pages)\n"
             "    -o KeepFileCache           do not discard cache when files are closed\n"
             "    -o LegacyUnlinkRename      do not support new POSIX unlink/rename\n"
+            "    -o AllowRelSymlinksAcrossFileSystem\n"
+            "                                allow relative symlinks to cross file systems\n"
+            "    -o MountDevPersistentUniqueId\n"
+            "                                use stable MountDev ID with MountMgr mounts\n"
+            "    -o WslFeatures             enable WSL drvfs metadata queries\n"
             "    -o ThreadCount             number of file system dispatcher threads\n"
+            "    -o UserOwner               use caller user as file owner\n"
             "    -o uidmap=UID:SID[;...]    explicit UID <-> SID map (max 8 entries)\n"
+            "    -o uidmap=ad               use AD uidNumber/gidNumber attributes\n"
+            "    -o defer_permissions        let the FUSE file system check access\n"
             );
         opt_data->help = 1;
         return 1;
@@ -793,6 +822,7 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     struct fsp_fuse_core_opt_data opt_data;
     ULONG Size;
     PWSTR ErrorMessage = L".";
+    WCHAR ErrorMessageBuf[128];
     NTSTATUS Result;
 
     if (opsize > sizeof(struct fuse_operations))
@@ -876,6 +906,17 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
         opt_data.VolumeParams.FlushAndPurgeOnCleanup = FALSE;
     if (opt_data.set_LegacyUnlinkRename)
         opt_data.VolumeParams.SupportsPosixUnlinkRename = FALSE;
+    if (opt_data.set_AllowRelSymlinksAcrossFileSystem)
+        opt_data.VolumeParams.AllowRelSymlinksAcrossFileSystem = TRUE;
+    if (opt_data.set_MountDevPersistentUniqueId)
+        opt_data.VolumeParams.MountDevPersistentUniqueId = TRUE;
+    if (opt_data.set_WslFeatures)
+        opt_data.VolumeParams.WslFeatures = TRUE;
+    if (opt_data.set_defer_permissions)
+        opt_data.VolumeParams.UmDeferAccessCheck = TRUE;
+    if (FIELD_OFFSET(struct fuse_operations, link) + sizeof ops->link <= opsize &&
+        0 != ops->link)
+        opt_data.VolumeParams.HardLinks = TRUE;
     opt_data.VolumeParams.CaseSensitiveSearch = TRUE;
     opt_data.VolumeParams.CasePreservedNames = TRUE;
     opt_data.VolumeParams.PersistentAcls = TRUE;
@@ -905,9 +946,11 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
     f->set_create_dir_umask = opt_data.set_create_dir_umask; f->create_dir_umask = opt_data.create_dir_umask;
     f->set_uid = opt_data.set_uid; f->uid = opt_data.uid;
     f->set_gid = opt_data.set_gid; f->gid = opt_data.gid;
+    f->user_owner = opt_data.user_owner;
     f->add_write_ea_access = opt_data.add_write_ea_access;
     f->rellinks = opt_data.rellinks;
     f->dothidden = opt_data.dothidden;
+    f->nomapchars = opt_data.nomapchars;
     f->ThreadCount = opt_data.ThreadCount;
     f->FlushOnCleanup = !!opt_data.set_FlushOnCleanup;
     memcpy(&f->ops, ops, opsize);
@@ -939,6 +982,10 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
             ErrorMessage = L": access denied.";
             break;
 
+        case STATUS_INSUFFICIENT_RESOURCES:
+            ErrorMessage = L": insufficient system resources.";
+            break;
+
         case STATUS_NO_SUCH_DEVICE:
             ErrorMessage = L": FSD not found.";
             break;
@@ -952,7 +999,9 @@ FSP_FUSE_API struct fuse *fsp_fuse_new(struct fsp_fuse_env *env,
             break;
 
         default:
-            ErrorMessage = L": unspecified error.";
+            wsprintfW(ErrorMessageBuf, L": failed (Status=%08lx, Win32=%lu).",
+                Result, FspWin32FromNtStatus(Result));
+            ErrorMessage = ErrorMessageBuf;
             break;
         }
 
@@ -1007,7 +1056,7 @@ FSP_FUSE_API int fsp_fuse_notify(struct fsp_fuse_env *env,
     NTSTATUS Result;
     int result;
 
-    Result = FspPosixMapPosixToWindowsPath(path, &Path);
+    Result = fsp_fuse_map_posix_to_windows_path(f, path, &Path);
     if (!NT_SUCCESS(Result))
     {
         result = -ENOMEM;

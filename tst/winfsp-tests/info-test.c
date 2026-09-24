@@ -21,12 +21,74 @@
 
 #include <winfsp/winfsp.h>
 #include <tlib/testsuite.h>
+#include <npapi.h>
 #include <sddl.h>
 #include <strsafe.h>
 #include <time.h>
 #include "memfs.h"
 
 #include "winfsp-tests.h"
+
+static BOOLEAN nameinfo_matches(PFILE_NAME_INFO NameInfo, PWSTR ExpectedName)
+{
+    return NameInfo->FileNameLength == wcslen(ExpectedName) * sizeof(WCHAR) &&
+        0 == mywcscmp(ExpectedName, -1, NameInfo->FileName,
+            NameInfo->FileNameLength / sizeof(WCHAR));
+}
+
+static BOOLEAN finalpath_matches(PWSTR ExpectedName, PWSTR FinalPath)
+{
+    PWSTR Suffix = wcsrchr(ExpectedName, L'\\');
+
+    return 0 == wcscmp(ExpectedName, FinalPath) ||
+        (0 != Suffix && 0 == wcscmp(Suffix, FinalPath));
+}
+
+typedef struct
+{
+    USHORT StructureVersion;
+    USHORT StructureSize;
+    ULONG Protocol;
+    USHORT ProtocolMajorVersion;
+    USHORT ProtocolMinorVersion;
+    USHORT ProtocolRevision;
+    USHORT Reserved;
+    ULONG Flags;
+    struct
+    {
+        ULONG Reserved[8];
+    } GenericReserved;
+    union
+    {
+        struct
+        {
+            ULONG Reserved[16];
+        } ProtocolSpecificReserved;
+        struct
+        {
+            struct
+            {
+                ULONG Capabilities;
+            } Server;
+            struct
+            {
+                ULONG Capabilities;
+                ULONG ShareFlags;
+                ULONG CachingFlags;
+                UCHAR ShareType;
+                UCHAR Reserved0[3];
+                ULONG Reserved1;
+            } Share;
+        } Smb2;
+        ULONG Reserved[16];
+    } ProtocolSpecific;
+} FSP_TEST_FILE_REMOTE_PROTOCOL_INFORMATION;
+
+typedef struct
+{
+    ULONG FileNameLength;
+    WCHAR FileName[1];
+} FSP_TEST_FILE_NETWORK_PHYSICAL_NAME_INFORMATION;
 
 void getfileattr_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
@@ -177,6 +239,8 @@ void getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     BY_HANDLE_FILE_INFORMATION FileInfo;
     FILETIME FileTime;
     LONGLONG TimeLo, TimeHi;
+    PWSTR ExpectedName, ExpectedNameAlt = L"\\file0";
+    BOOLEAN AllowAltName;
 
     GetSystemTimeAsFileTime(&FileTime);
     TimeLo = ((PLARGE_INTEGER)&FileTime)->QuadPart;
@@ -227,8 +291,12 @@ void getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     {
         PNameInfo->FileNameLength -= OptSharePrefixLength;
     }
+    ExpectedName = -1 == Flags ? FilePath + 6 : 0 == Prefix ? L"\\file0" : FilePath + 1;
+    AllowAltName = IsExternalDirectoryMount(Flags, Prefix);
     if (-1 == Flags)
-        ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 6) * sizeof(WCHAR));
+        ASSERT(PNameInfo->FileNameLength == wcslen(ExpectedName) * sizeof(WCHAR) ||
+            (AllowAltName &&
+                PNameInfo->FileNameLength == wcslen(ExpectedNameAlt) * sizeof(WCHAR)));
     else if (0 == Prefix)
         ASSERT(PNameInfo->FileNameLength == wcslen(L"\\file0") * sizeof(WCHAR));
     else
@@ -245,13 +313,16 @@ void getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         PNameInfo->FileNameLength -= OptSharePrefixLength;
     }
     if (-1 == Flags)
-        ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 6) * sizeof(WCHAR));
+        ASSERT(PNameInfo->FileNameLength == wcslen(ExpectedName) * sizeof(WCHAR) ||
+            (AllowAltName &&
+                PNameInfo->FileNameLength == wcslen(ExpectedNameAlt) * sizeof(WCHAR)));
     else if (0 == Prefix)
         ASSERT(PNameInfo->FileNameLength == wcslen(L"\\file0") * sizeof(WCHAR));
     else
         ASSERT(PNameInfo->FileNameLength == wcslen(FilePath + 1) * sizeof(WCHAR));
     if (-1 == Flags)
-        ASSERT(0 == mywcscmp(FilePath + 6, -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
+        ASSERT(nameinfo_matches(PNameInfo, ExpectedName) ||
+            (AllowAltName && nameinfo_matches(PNameInfo, ExpectedNameAlt)));
     else if (0 == Prefix)
         ASSERT(0 == mywcscmp(L"\\file0", -1, PNameInfo->FileName, PNameInfo->FileNameLength / sizeof(WCHAR)));
     else
@@ -272,6 +343,30 @@ void getfileinfo_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         TimeHi >  ((PLARGE_INTEGER)&FileInfo.ftLastWriteTime)->QuadPart);
     ASSERT(0 == FileInfo.nFileSizeLow && 0 == FileInfo.nFileSizeHigh);
     ASSERT(1 == FileInfo.nNumberOfLinks);
+
+    if (-1 != Flags)
+    {
+        struct
+        {
+            /* FILE_ID_INFO is missing from the old SDK versions this project still supports. */
+            ULONGLONG VolumeSerialNumber;
+            UINT8 FileId[16];
+        } IdInfo;
+        union
+        {
+            UINT64 IndexNumber;
+            UINT8 FileId[16];
+        } ExpectedFileId;
+
+        memset(&ExpectedFileId, 0, sizeof ExpectedFileId);
+        Success = GetFileInformationByHandleEx(Handle, 0x12/*FileIdInfo*/, &IdInfo, sizeof IdInfo);
+        if (Success)
+        {
+            ExpectedFileId.IndexNumber =
+                ((UINT64)FileInfo.nFileIndexHigh << 32) | (UINT64)FileInfo.nFileIndexLow;
+            ASSERT(0 == memcmp(ExpectedFileId.FileId, IdInfo.FileId, sizeof IdInfo.FileId));
+        }
+    }
 
     CloseHandle(Handle);
 
@@ -298,6 +393,167 @@ void getfileinfo_test(void)
     }
 }
 
+static void gethardlinkinfo_unsupported_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    NTSYSCALLAPI NTSTATUS NTAPI
+    NtQueryInformationFile(
+        HANDLE FileHandle,
+        PIO_STATUS_BLOCK IoStatusBlock,
+        PVOID FileInformation,
+        ULONG Length,
+        FILE_INFORMATION_CLASS FileInformationClass);
+
+    HANDLE Handle;
+    IO_STATUS_BLOCK IoStatus;
+    NTSTATUS Result;
+    WCHAR FilePath[MAX_PATH];
+    UINT8 LinkInfo[64];
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    memset(&LinkInfo, 0, sizeof LinkInfo);
+    Result = NtQueryInformationFile(Handle, &IoStatus,
+        &LinkInfo, sizeof LinkInfo,
+        (FILE_INFORMATION_CLASS)46/*FileHardLinkInformation*/);
+    ASSERT(STATUS_NOT_SUPPORTED == Result);
+
+    ASSERT(CloseHandle(Handle));
+
+    memfs_stop(memfs);
+}
+
+static void gethardlinkinfo_unsupported_test(void)
+{
+    if (WinFspDiskTests)
+    {
+        gethardlinkinfo_unsupported_dotest(MemfsDisk, 0, 0);
+        gethardlinkinfo_unsupported_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        gethardlinkinfo_unsupported_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        gethardlinkinfo_unsupported_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
+static void hardlink_replace_dotest(PWSTR Prefix)
+{
+    NTSYSCALLAPI NTSTATUS NTAPI
+    NtSetInformationFile(
+        HANDLE FileHandle,
+        PIO_STATUS_BLOCK IoStatusBlock,
+        PVOID FileInformation,
+        ULONG Length,
+        FILE_INFORMATION_CLASS FileInformationClass);
+    typedef struct
+    {
+        BOOLEAN ReplaceIfExists;
+        HANDLE RootDirectory;
+        ULONG FileNameLength;
+        WCHAR FileName[1];
+    } FILE_LINK_INFORMATION, *PFILE_LINK_INFORMATION;
+
+    HANDLE DirectoryHandle, SourceHandle, TargetHandle;
+    WCHAR SourcePath[MAX_PATH], TargetPath[MAX_PATH];
+    WCHAR TargetName[] = L"hardlink-target";
+    union
+    {
+        FILE_LINK_INFORMATION I;
+        UINT8 B[sizeof(FILE_LINK_INFORMATION) + sizeof TargetName];
+    } LinkInfo;
+    IO_STATUS_BLOCK IoStatus;
+    BY_HANDLE_FILE_INFORMATION SourceInfo, TargetInfo;
+    DWORD BytesTransferred;
+    CHAR Data;
+    BOOLEAN Success;
+
+    StringCbPrintfW(SourcePath, sizeof SourcePath, L"%s\\hardlink-source", Prefix);
+    StringCbPrintfW(TargetPath, sizeof TargetPath, L"%s\\%s", Prefix, TargetName);
+
+    DirectoryHandle = CreateFileW(Prefix,
+        FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    ASSERT(INVALID_HANDLE_VALUE != DirectoryHandle);
+
+    SourceHandle = CreateFileW(SourcePath,
+        GENERIC_READ | GENERIC_WRITE | DELETE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != SourceHandle);
+    Success = WriteFile(SourceHandle, "S", 1, &BytesTransferred, 0);
+    ASSERT(Success && 1 == BytesTransferred);
+    ASSERT(FlushFileBuffers(SourceHandle));
+
+    TargetHandle = CreateFileW(TargetPath,
+        GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != TargetHandle);
+    Success = WriteFile(TargetHandle, "T", 1, &BytesTransferred, 0);
+    ASSERT(Success && 1 == BytesTransferred);
+    ASSERT(CloseHandle(TargetHandle));
+
+    memset(&LinkInfo, 0, sizeof LinkInfo);
+    LinkInfo.I.RootDirectory = DirectoryHandle;
+    LinkInfo.I.FileNameLength = sizeof TargetName - sizeof(WCHAR);
+    memcpy(LinkInfo.I.FileName, TargetName, LinkInfo.I.FileNameLength);
+
+    IoStatus.Status = NtSetInformationFile(
+        SourceHandle, &IoStatus,
+        &LinkInfo.I, FIELD_OFFSET(FILE_LINK_INFORMATION, FileName) + LinkInfo.I.FileNameLength,
+        11/*FileLinkInformation*/);
+    ASSERT(STATUS_OBJECT_NAME_COLLISION == IoStatus.Status);
+
+    TargetHandle = CreateFileW(TargetPath,
+        GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != TargetHandle);
+    ASSERT(ReadFile(TargetHandle, &Data, 1, &BytesTransferred, 0));
+    ASSERT(1 == BytesTransferred && 'T' == Data);
+    ASSERT(CloseHandle(TargetHandle));
+
+    LinkInfo.I.ReplaceIfExists = TRUE;
+    IoStatus.Status = NtSetInformationFile(
+        SourceHandle, &IoStatus,
+        &LinkInfo.I, FIELD_OFFSET(FILE_LINK_INFORMATION, FileName) + LinkInfo.I.FileNameLength,
+        11/*FileLinkInformation*/);
+    ASSERT(STATUS_SUCCESS == IoStatus.Status);
+
+    TargetHandle = CreateFileW(TargetPath,
+        GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != TargetHandle);
+    ASSERT(ReadFile(TargetHandle, &Data, 1, &BytesTransferred, 0));
+    ASSERT(1 == BytesTransferred && 'S' == Data);
+    ASSERT(GetFileInformationByHandle(SourceHandle, &SourceInfo));
+    ASSERT(GetFileInformationByHandle(TargetHandle, &TargetInfo));
+    ASSERT(SourceInfo.nFileIndexHigh == TargetInfo.nFileIndexHigh);
+    ASSERT(SourceInfo.nFileIndexLow == TargetInfo.nFileIndexLow);
+    ASSERT(2 <= SourceInfo.nNumberOfLinks);
+
+    ASSERT(CloseHandle(TargetHandle));
+    ASSERT(CloseHandle(SourceHandle));
+    ASSERT(CloseHandle(DirectoryHandle));
+    ASSERT(DeleteFileW(TargetPath));
+    ASSERT(DeleteFileW(SourcePath));
+}
+
+static void hardlink_replace_test(void)
+{
+    WCHAR DirBuf[MAX_PATH];
+
+    GetTestDirectory(DirBuf);
+    hardlink_replace_dotest(DirBuf);
+}
+
 void getfileinfo_name_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -310,6 +566,7 @@ void getfileinfo_name_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
     WCHAR FilePath[MAX_PATH];
     WCHAR FinalPath[MAX_PATH];
     DWORD Result;
+    BOOLEAN AllowAltName = IsExternalDirectoryMount(Flags, Prefix);
 
     if (-1 == Flags)
         StringCbPrintfW(OrigPath, sizeof OrigPath, L"%s\\fileFILE",
@@ -352,7 +609,8 @@ void getfileinfo_name_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
         ASSERT(0 == _wcsicmp(OrigPath, FinalPath)); /* use wcsicmp when going through share (?) */
     }
     else
-        ASSERT(0 == wcscmp(OrigPath, FinalPath)); /* don't use mywcscmp */
+        ASSERT(0 == wcscmp(OrigPath, FinalPath) ||
+            (AllowAltName && finalpath_matches(OrigPath, FinalPath))); /* don't use mywcscmp */
 
     if (!OptNoTraverseToken || -1 != Flags)
     {
@@ -369,7 +627,8 @@ void getfileinfo_name_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
                 FinalPath + OptSharePrefixLength / sizeof(WCHAR),
                 (wcslen(FinalPath) + 1) * sizeof(WCHAR) - OptSharePrefixLength);
         }
-        ASSERT(0 == wcscmp(OrigPath, FinalPath)); /* don't use mywcscmp */
+        ASSERT(0 == wcscmp(OrigPath, FinalPath) ||
+            (AllowAltName && finalpath_matches(OrigPath, FinalPath))); /* don't use mywcscmp */
     }
 
     CloseHandle(Handle);
@@ -2510,6 +2769,180 @@ void query_winfsp_test(void)
         query_winfsp_dotest(MemfsNet, L"\\\\memfs\\share", 0, TRUE);
 }
 
+void remote_protocol_dotest(ULONG Flags, PWSTR Prefix, BOOLEAN ExpectRemote)
+{
+    void *memfs = memfs_start_ex(Flags, 0);
+
+    WCHAR FilePath[MAX_PATH];
+    HANDLE Handle;
+    FSP_TEST_FILE_REMOTE_PROTOCOL_INFORMATION RemoteProtocolInfo;
+    BOOL Success;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle = CreateFileW(FilePath,
+        0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    memset(&RemoteProtocolInfo, 0, sizeof RemoteProtocolInfo);
+    Success = GetFileInformationByHandleEx(Handle, 13/*FileRemoteProtocolInfo*/,
+        &RemoteProtocolInfo, sizeof RemoteProtocolInfo);
+    if (ExpectRemote)
+    {
+        ASSERT(Success);
+        ASSERT(4 == RemoteProtocolInfo.StructureVersion);
+        ASSERT(sizeof RemoteProtocolInfo == RemoteProtocolInfo.StructureSize);
+        ASSERT(0x00020000 == RemoteProtocolInfo.Protocol);
+        ASSERT(3 == RemoteProtocolInfo.ProtocolMajorVersion);
+        ASSERT(0 == RemoteProtocolInfo.ProtocolMinorVersion);
+        ASSERT(0 != (RemoteProtocolInfo.Flags & 0x00000001));
+    }
+    else
+    {
+        ASSERT(!Success);
+        ASSERT(ERROR_INVALID_PARAMETER == GetLastError());
+    }
+
+    CloseHandle(Handle);
+
+    memfs_stop(memfs);
+}
+
+void remote_protocol_test(void)
+{
+    if (NtfsTests)
+        return;
+
+    if (WinFspDiskTests)
+        remote_protocol_dotest(MemfsDisk, 0, FALSE);
+    if (WinFspNetTests)
+        remote_protocol_dotest(MemfsNet, L"\\\\memfs\\share", TRUE);
+}
+
+void network_physical_name_dotest(ULONG Flags, PWSTR Prefix)
+{
+    void *memfs = memfs_start_ex(Flags, 0);
+
+    NTSYSCALLAPI NTSTATUS NTAPI
+    NtQueryInformationFile(
+        HANDLE FileHandle,
+        PIO_STATUS_BLOCK IoStatusBlock,
+        PVOID FileInformation,
+        ULONG Length,
+        FILE_INFORMATION_CLASS FileInformationClass);
+
+    WCHAR FilePath[MAX_PATH], ExpectedName[MAX_PATH];
+    HANDLE Handle;
+    IO_STATUS_BLOCK IoStatus;
+    NTSTATUS Result;
+    BOOL Success;
+    union
+    {
+        FSP_TEST_FILE_NETWORK_PHYSICAL_NAME_INFORMATION I;
+        UINT8 B[FIELD_OFFSET(FSP_TEST_FILE_NETWORK_PHYSICAL_NAME_INFORMATION, FileName) +
+            MAX_PATH * sizeof(WCHAR)];
+    } NetworkPhysicalNameInfo;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\file0", Prefix);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    memset(&NetworkPhysicalNameInfo, 0, sizeof NetworkPhysicalNameInfo);
+    Result = NtQueryInformationFile(Handle, &IoStatus,
+        &NetworkPhysicalNameInfo, sizeof(FSP_TEST_FILE_NETWORK_PHYSICAL_NAME_INFORMATION),
+        (FILE_INFORMATION_CLASS)49/*FileNetworkPhysicalNameInformation*/);
+    StringCbPrintfW(ExpectedName, sizeof ExpectedName, L"%s\\file0", Prefix);
+
+    ASSERT(STATUS_BUFFER_OVERFLOW == Result);
+    ASSERT(NetworkPhysicalNameInfo.I.FileNameLength == wcslen(ExpectedName) * sizeof(WCHAR));
+
+    memset(&NetworkPhysicalNameInfo, 0, sizeof NetworkPhysicalNameInfo);
+    Result = NtQueryInformationFile(Handle, &IoStatus,
+        &NetworkPhysicalNameInfo, sizeof NetworkPhysicalNameInfo,
+        (FILE_INFORMATION_CLASS)49/*FileNetworkPhysicalNameInformation*/);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(NetworkPhysicalNameInfo.I.FileNameLength == wcslen(ExpectedName) * sizeof(WCHAR));
+    ASSERT(0 == mywcscmp(ExpectedName, -1,
+        NetworkPhysicalNameInfo.I.FileName,
+        NetworkPhysicalNameInfo.I.FileNameLength / sizeof(WCHAR)));
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+void network_physical_name_test(void)
+{
+    if (NtfsTests)
+        return;
+
+    if (WinFspNetTests)
+        network_physical_name_dotest(MemfsNet, L"\\\\memfs\\share");
+}
+
+void network_resource_information_test(void)
+{
+    if (NtfsTests || !WinFspNetTests)
+        return;
+
+#if defined(_M_ARM64) || defined(_ARM64_)
+#define FSP_TEST_DLL_NAME L"winfsp-a64.dll"
+#elif defined(_M_X64) || defined(_M_AMD64) || defined(_AMD64_)
+#define FSP_TEST_DLL_NAME L"winfsp-x64.dll"
+#elif defined(_M_IX86) || defined(_X86_)
+#define FSP_TEST_DLL_NAME L"winfsp-x86.dll"
+#else
+#error unknown architecture
+#endif
+
+    void *memfs = memfs_start_ex(MemfsNet, 0);
+
+    NETRESOURCEW InputResource = { 0 };
+    NETRESOURCEW *Resource;
+    HMODULE Module;
+    PF_NPGetResourceInformation NpGetResourceInformation;
+    PWSTR System;
+    DWORD BufferSize, Result;
+    UINT8 Buffer[sizeof(NETRESOURCEW) + 512 * sizeof(WCHAR)];
+
+    Module = GetModuleHandleW(FSP_TEST_DLL_NAME);
+    ASSERT(0 != Module);
+    NpGetResourceInformation = (PVOID)GetProcAddress(Module, "NPGetResourceInformation");
+    ASSERT(0 != NpGetResourceInformation);
+
+    InputResource.dwType = RESOURCETYPE_DISK;
+    InputResource.lpRemoteName = L"\\\\memfs\\share\\relative";
+
+    BufferSize = 0;
+    System = 0;
+    Result = NpGetResourceInformation(&InputResource, 0, &BufferSize, &System);
+    ASSERT(WN_MORE_DATA == Result);
+    ASSERT(0 != BufferSize);
+    ASSERT(sizeof Buffer >= BufferSize);
+
+    memset(Buffer, 0, sizeof Buffer);
+    Result = NpGetResourceInformation(&InputResource, Buffer, &BufferSize, &System);
+    ASSERT(WN_SUCCESS == Result);
+
+    Resource = (PVOID)Buffer;
+    ASSERT(RESOURCE_GLOBALNET == Resource->dwScope);
+    ASSERT(RESOURCETYPE_DISK == Resource->dwType);
+    ASSERT(RESOURCEDISPLAYTYPE_SHARE == Resource->dwDisplayType);
+    ASSERT(0 != (Resource->dwUsage & RESOURCEUSAGE_CONNECTABLE));
+    ASSERT(0 == wcscmp(L"\\\\memfs\\share", Resource->lpRemoteName));
+    ASSERT(0 == wcscmp(L"\\relative", System));
+
+    memfs_stop(memfs);
+
+#undef FSP_TEST_DLL_NAME
+}
+
 void info_tests(void)
 {
     if (!OptFuseExternal && !OptShareName)
@@ -2517,6 +2950,10 @@ void info_tests(void)
     TEST(getfileinfo_test);
     if (!OptFuseExternal)
         TEST(getfileinfo_name_test);
+    if (!OptFuseExternal)
+        TEST(gethardlinkinfo_unsupported_test);
+    if (NtfsTests)
+        TEST(hardlink_replace_test);
     TEST(setfileinfo_test);
     TEST(delete_test);
     TEST(delete_access_test);
@@ -2543,4 +2980,10 @@ void info_tests(void)
     TEST(setvolinfo_test);
     if (!NtfsTests)
         TEST(query_winfsp_test);
+    if (!NtfsTests)
+        TEST(remote_protocol_test);
+    if (!NtfsTests)
+        TEST(network_physical_name_test);
+    if (!NtfsTests)
+        TEST(network_resource_information_test);
 }

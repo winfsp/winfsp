@@ -27,6 +27,37 @@
 
 #include "winfsp-tests.h"
 
+static void setsecuritydescriptor_test(void)
+{
+    static PWSTR InputSddl = L"O:SYG:SYD:(A;;GA;;;WD)";
+    static PWSTR ModificationSddl = L"D:(A;;GA;;;SY)(A;;GA;;;BA)";
+    PSECURITY_DESCRIPTOR InputDescriptor, ModificationDescriptor;
+    PSECURITY_DESCRIPTOR SecurityDescriptor = 0;
+    PWSTR ConvertedSddl;
+    NTSTATUS Result;
+    BOOL Success;
+
+    Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(
+        InputSddl, SDDL_REVISION_1, &InputDescriptor, 0);
+    ASSERT(Success);
+    Success = ConvertStringSecurityDescriptorToSecurityDescriptorW(
+        ModificationSddl, SDDL_REVISION_1, &ModificationDescriptor, 0);
+    ASSERT(Success);
+
+    Result = FspSetSecurityDescriptor(InputDescriptor,
+        DACL_SECURITY_INFORMATION, ModificationDescriptor, &SecurityDescriptor);
+    ASSERT(STATUS_SUCCESS == Result);
+    Success = ConvertSecurityDescriptorToStringSecurityDescriptorW(
+        SecurityDescriptor, SDDL_REVISION_1, DACL_SECURITY_INFORMATION, &ConvertedSddl, 0);
+    ASSERT(Success);
+    ASSERT(0 == wcscmp(L"D:(A;;FA;;;SY)(A;;FA;;;BA)", ConvertedSddl));
+
+    LocalFree(ConvertedSddl);
+    FspDeleteSecurityDescriptor(SecurityDescriptor, FspSetSecurityDescriptor);
+    LocalFree(ModificationDescriptor);
+    LocalFree(InputDescriptor);
+}
+
 void getsecurity_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -330,9 +361,59 @@ void security_stress_meta_test(void)
     }
 }
 
+static NTSTATUS defer_access_check_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
+    PWSTR FileName, PUINT32 PFileAttributes,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
+{
+    ASSERT(0 == SecurityDescriptor);
+    ASSERT(0 == PSecurityDescriptorSize);
+
+    if (0 != PFileAttributes)
+        *PFileAttributes =
+            L'\\' == FileName[0] && L'\0' == FileName[1] ?
+                FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_ARCHIVE;
+
+    return STATUS_SUCCESS;
+}
+
+void defer_access_check_test(void)
+{
+    FSP_FILE_SYSTEM_INTERFACE Interface = { 0 };
+    FSP_FILE_SYSTEM FileSystem = { 0 };
+    UINT8 RequestBuf[sizeof(FSP_FSCTL_TRANSACT_REQ) + 64] = { 0 };
+    FSP_FSCTL_TRANSACT_REQ *Request = (PVOID)RequestBuf;
+    PSECURITY_DESCRIPTOR SecurityDescriptor = (PVOID)(UINT_PTR)1;
+    UINT32 GrantedAccess = 0;
+    NTSTATUS Result;
+
+    Interface.GetSecurityByName = defer_access_check_GetSecurityByName;
+    FileSystem.Interface = &Interface;
+    FileSystem.UmDeferAccessCheck = TRUE;
+
+    Request->Kind = FspFsctlTransactCreateKind;
+    Request->Size = sizeof RequestBuf;
+    Request->Req.Create.UserMode = TRUE;
+    wcscpy_s((PWSTR)Request->Buffer, 32, L"\\file0");
+
+    Result = FspAccessCheckEx(&FileSystem, Request, FALSE, TRUE,
+        FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+        &GrantedAccess, &SecurityDescriptor);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT((FILE_GENERIC_READ | FILE_GENERIC_WRITE) == GrantedAccess);
+    ASSERT(0 == SecurityDescriptor);
+
+    GrantedAccess = 0;
+    Result = FspAccessCheckEx(&FileSystem, Request, FALSE, TRUE,
+        MAXIMUM_ALLOWED, &GrantedAccess, 0);
+    ASSERT(STATUS_SUCCESS == Result);
+    ASSERT(FspGetFileGenericMapping()->GenericAll == GrantedAccess);
+}
+
 void security_tests(void)
 {
+    TEST(setsecuritydescriptor_test);
     TEST(getsecurity_test);
+    TEST(defer_access_check_test);
     if (!OptFuseExternal)
         TEST(setsecurity_test);
     TEST_OPT(security_stress_meta_test);

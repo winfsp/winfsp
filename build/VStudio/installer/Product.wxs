@@ -1056,7 +1056,7 @@
             Return="ignore" />
         <CustomAction
             Id="Action.ServiceRunning.Error"
-            Error="A component from an older version of $(var.MyProductName) that cannot be upgraded appears to be running. If you just uninstalled an older version of $(var.MyProductName) please restart your computer." />
+            Error="A running file system driver service named $(var.MyProductName) is blocking setup.[ServiceRunningInfo] This may be caused by an older installation that needs a restart or by a third-party product that bundles a custom $(var.MyProductName)." />
         <InstallExecuteSequence>
             <Custom Action="Params.ServiceRunning" Before="Action.ServiceRunning" />
             <Custom Action="Action.ServiceRunning" After="LaunchConditions">

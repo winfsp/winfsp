@@ -559,6 +559,18 @@ int rename(const char *oldpath, const char *newpath)
     return 0;
 }
 
+int link(const char *oldpath, const char *newpath)
+{
+    WCHAR OldPathBuf[PATH_MAX];
+    WCHAR NewPathBuf[PATH_MAX];
+    uncpath(oldpath, OldPathBuf, PATH_MAX);
+    uncpath(newpath, NewPathBuf, PATH_MAX);
+    if (!CreateHardLinkW(NewPathBuf, OldPathBuf, 0))
+        return error();
+
+    return 0;
+}
+
 static int lsetea(const char *path, PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength)
 {
     WCHAR PathBuf[PATH_MAX];

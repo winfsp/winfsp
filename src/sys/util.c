@@ -45,6 +45,8 @@ NTSTATUS FspLockUserBuffer(PIRP Irp, ULONG Length, LOCK_OPERATION Operation);
 NTSTATUS FspMapLockedPagesInUserMode(PMDL Mdl, PVOID *PAddress, ULONG ExtraPriorityFlags);
 NTSTATUS FspCcInitializeCacheMap(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes,
     BOOLEAN PinAccess, PCACHE_MANAGER_CALLBACKS Callbacks, PVOID CallbackContext);
+NTSTATUS FspCcSetReadAheadGranularity(PFILE_OBJECT FileObject, ULONG Granularity);
+NTSTATUS FspCcSetDirtyPageThreshold(PFILE_OBJECT FileObject, ULONG DirtyPageThreshold);
 NTSTATUS FspCcSetFileSizes(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSizes);
 NTSTATUS FspCcCopyRead(PFILE_OBJECT FileObject, PLARGE_INTEGER FileOffset, ULONG Length,
     BOOLEAN Wait, PVOID Buffer, PIO_STATUS_BLOCK IoStatus);
@@ -152,6 +154,8 @@ LONG FspCompareUnicodeString(
 #pragma alloc_text(PAGE, FspLockUserBuffer)
 #pragma alloc_text(PAGE, FspMapLockedPagesInUserMode)
 #pragma alloc_text(PAGE, FspCcInitializeCacheMap)
+#pragma alloc_text(PAGE, FspCcSetReadAheadGranularity)
+#pragma alloc_text(PAGE, FspCcSetDirtyPageThreshold)
 #pragma alloc_text(PAGE, FspCcSetFileSizes)
 #pragma alloc_text(PAGE, FspCcCopyRead)
 #pragma alloc_text(PAGE, FspCcCopyWrite)
@@ -692,6 +696,36 @@ NTSTATUS FspCcInitializeCacheMap(PFILE_OBJECT FileObject, PCC_FILE_SIZES FileSiz
     try
     {
         CcInitializeCacheMap(FileObject, FileSizes, PinAccess, Callbacks, CallbackContext);
+        return STATUS_SUCCESS;
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return GetExceptionCode();
+    }
+}
+
+NTSTATUS FspCcSetReadAheadGranularity(PFILE_OBJECT FileObject, ULONG Granularity)
+{
+    PAGED_CODE();
+
+    try
+    {
+        CcSetReadAheadGranularity(FileObject, Granularity);
+        return STATUS_SUCCESS;
+    }
+    except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return GetExceptionCode();
+    }
+}
+
+NTSTATUS FspCcSetDirtyPageThreshold(PFILE_OBJECT FileObject, ULONG DirtyPageThreshold)
+{
+    PAGED_CODE();
+
+    try
+    {
+        CcSetDirtyPageThreshold(FileObject, DirtyPageThreshold);
         return STATUS_SUCCESS;
     }
     except (EXCEPTION_EXECUTE_HANDLER)

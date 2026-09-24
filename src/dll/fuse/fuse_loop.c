@@ -237,8 +237,9 @@ static NTSTATUS fsp_fuse_loop_start(struct fuse *f)
 
     if (0 != f->MountPoint)
     {
-        Result = FspFileSystemSetMountPoint(f->FileSystem,
-            L'*' == f->MountPoint[0] && L'\0' == f->MountPoint[1] ? 0 : f->MountPoint);
+        Result = FspFileSystemSetMountPointEx2(f->FileSystem,
+            L'*' == f->MountPoint[0] && L'\0' == f->MountPoint[1] ? 0 : f->MountPoint,
+            0, TRUE);
         if (!NT_SUCCESS(Result))
         {
             FspServiceLog(EVENTLOG_ERROR_TYPE,

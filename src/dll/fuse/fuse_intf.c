@@ -19,7 +19,7 @@
  * associated repository.
  */
 
-#include <dll/fuse/library.h>
+#include <dll/fuse3/library.h>
 
 static NTSTATUS fsp_fuse_intf_GetReparsePointByName(
     FSP_FILE_SYSTEM *FileSystem, PVOID Context,
@@ -42,6 +42,7 @@ VOID fsp_fuse_op_enter_lock(FSP_FILE_SYSTEM *FileSystem,
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
                 (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass ||
+                11/*FileLinkInformation*/ == Request->Req.SetInformation.FileInformationClass ||
                 65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass)) ||
             FspFsctlTransactSetVolumeInformationKind == Request->Kind ||
             (FspFsctlTransactFlushBuffersKind == Request->Kind &&
@@ -88,6 +89,7 @@ VOID fsp_fuse_op_leave_unlock(FSP_FILE_SYSTEM *FileSystem,
                 Request->Req.Cleanup.Delete) ||
             (FspFsctlTransactSetInformationKind == Request->Kind &&
                 (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass ||
+                11/*FileLinkInformation*/ == Request->Req.SetInformation.FileInformationClass ||
                 65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass)) ||
             FspFsctlTransactSetVolumeInformationKind == Request->Kind ||
             (FspFsctlTransactFlushBuffersKind == Request->Kind &&
@@ -148,10 +150,16 @@ NTSTATUS fsp_fuse_op_enter(FSP_FILE_SYSTEM *FileSystem,
         FileName = (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Rename.NewFileName.Offset);
         AccessToken = Request->Req.SetInformation.Info.Rename.AccessToken;
     }
+    else if (FspFsctlTransactSetInformationKind == Request->Kind &&
+        11/*FileLinkInformation*/ == Request->Req.SetInformation.FileInformationClass)
+    {
+        FileName = (PWSTR)(Request->Buffer + Request->Req.SetInformation.Info.Link.NewFileName.Offset);
+        AccessToken = Request->Req.SetInformation.Info.Link.AccessToken;
+    }
 
     if (0 != FileName)
     {
-        Result = FspPosixMapWindowsToPosixPath(FileName, &PosixPath);
+        Result = fsp_fuse_map_windows_to_posix_path(f, FileName, &PosixPath);
         if (FspFsctlTransactCreateKind == Request->Kind && Request->Req.Create.OpenTargetDirectory)
             FspPathCombine((PWSTR)Request->Buffer, Suffix);
         if (!NT_SUCCESS(Result))
@@ -354,7 +362,7 @@ static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
         int err;
         NTSTATUS Result;
 
-        Result = FspPosixMapPosixToWindowsPath(PosixPath, &WindowsPath);
+        Result = fsp_fuse_map_posix_to_windows_path(f, PosixPath, &WindowsPath);
         if (!NT_SUCCESS(Result))
             goto exit;
 
@@ -389,7 +397,7 @@ static BOOLEAN fsp_fuse_intf_CheckSymlinkDirectory(FSP_FILE_SYSTEM *FileSystem,
             ReparseDataBuf.V.SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR));
         P[ReparseDataBuf.V.SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(WCHAR)] = L'\0';
 
-        Result = FspPosixMapWindowsToPosixPath(P, &PosixResolvedPath);
+        Result = fsp_fuse_map_windows_to_posix_path(f, P, &PosixResolvedPath);
         if (!NT_SUCCESS(Result))
             goto exit;
 
@@ -444,6 +452,48 @@ static inline UINT32 fsp_fuse_intf_MapFlagsToFileAttributes(uint32_t flags)
     return FileAttributes;
 }
 
+static NTSTATUS fsp_fuse_intf_GetNfsReparseMode(PREPARSE_DATA_BUFFER ReparseData,
+    PUINT32 PMode, PUINT32 PDev)
+{
+    if (IO_REPARSE_TAG_NFS != ReparseData->ReparseTag ||
+        sizeof(UINT64) > ReparseData->ReparseDataLength)
+        return STATUS_IO_REPARSE_DATA_INVALID;
+
+    switch (*(PUINT64)ReparseData->GenericReparseBuffer.DataBuffer)
+    {
+    case NFS_SPECFILE_FIFO:
+        *PMode = (*PMode & ~0170000) | 0010000;
+        *PDev = 0;
+        return STATUS_SUCCESS;
+
+    case NFS_SPECFILE_SOCK:
+        *PMode = (*PMode & ~0170000) | 0140000;
+        *PDev = 0;
+        return STATUS_SUCCESS;
+
+    case NFS_SPECFILE_CHR:
+        if (sizeof(UINT64) + 2 * sizeof(UINT32) > ReparseData->ReparseDataLength)
+            return STATUS_IO_REPARSE_DATA_INVALID;
+        *PMode = (*PMode & ~0170000) | 0020000;
+        *PDev =
+            (*(PUINT32)(ReparseData->GenericReparseBuffer.DataBuffer +  8) << 16) |
+            (*(PUINT32)(ReparseData->GenericReparseBuffer.DataBuffer + 12));
+        return STATUS_SUCCESS;
+
+    case NFS_SPECFILE_BLK:
+        if (sizeof(UINT64) + 2 * sizeof(UINT32) > ReparseData->ReparseDataLength)
+            return STATUS_IO_REPARSE_DATA_INVALID;
+        *PMode = (*PMode & ~0170000) | 0060000;
+        *PDev =
+            (*(PUINT32)(ReparseData->GenericReparseBuffer.DataBuffer +  8) << 16) |
+            (*(PUINT32)(ReparseData->GenericReparseBuffer.DataBuffer + 12));
+        return STATUS_SUCCESS;
+
+    default:
+        return STATUS_IO_REPARSE_DATA_INVALID;
+    }
+}
+
 #define FUSE_FILE_INFO(IsDirectory, fi) ((IsDirectory) ? 0 : (fi))
 #define fsp_fuse_intf_GetFileInfoEx(FileSystem, PosixPath, fi, PUid, PGid, PMode, FileInfo)\
     fsp_fuse_intf_GetFileInfoFunnel(FileSystem, PosixPath, fi, 0, PUid, PGid, PMode, 0, TRUE, FileInfo)
@@ -480,6 +530,12 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
         stbuf.st_mode = (stbuf.st_mode & 0170000) | (0777 & ~f->umask);
     if (f->set_uid)
         stbuf.st_uid = f->uid;
+    if (f->user_owner)
+    {
+        struct fuse_context *context = fsp_fuse_get_context_internal();
+        if (0 != context && (UINT32)-1 != context->uid)
+            stbuf.st_uid = context->uid;
+    }
     if (f->set_gid)
         stbuf.st_gid = f->gid;
 
@@ -521,6 +577,8 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
     }
     if (StatEx)
         FileInfo->FileAttributes |= fsp_fuse_intf_MapFlagsToFileAttributes(stbuf.st_flags);
+    if (0040000 != (stbuf.st_mode & 0170000) && 0 == (stbuf.st_mode & 0222))
+        FileInfo->FileAttributes |= FILE_ATTRIBUTE_READONLY;
     if (f->dothidden)
     {
         const char *basename = PosixPath;
@@ -539,10 +597,105 @@ static NTSTATUS fsp_fuse_intf_GetFileInfoFunnel(FSP_FILE_SYSTEM *FileSystem,
     FspPosixUnixTimeToFileTime((void *)&stbuf.st_ctim, &FileInfo->ChangeTime);
     FileInfo->IndexNumber = stbuf.st_ino;
 
-    FileInfo->HardLinks = 0;
+    FileInfo->HardLinks = 0 != stbuf.st_nlink ? stbuf.st_nlink : 1;
     FileInfo->EaSize = 0;
 
     return STATUS_SUCCESS;
+}
+
+static inline BOOLEAN fsp_fuse_intf_CanIgnoreCreateChownResult(NTSTATUS Result)
+{
+    return
+        STATUS_ACCESS_DENIED == Result ||
+        STATUS_PRIVILEGE_NOT_HELD == Result ||
+        STATUS_INVALID_OWNER == Result ||
+        STATUS_NOT_SUPPORTED == Result ||
+        STATUS_INVALID_DEVICE_REQUEST == Result;
+}
+
+static BOOLEAN fsp_fuse_intf_GetCachedFileInfo(struct fuse *f,
+    struct fsp_fuse_file_desc *filedesc,
+    PUINT32 PUid, PUINT32 PGid, PUINT32 PMode,
+    FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    UINT32 Timeout = f->VolumeParams.FileInfoTimeout;
+    BOOLEAN Result = FALSE;
+
+    AcquireSRWLockExclusive(&filedesc->FileInfoLock);
+
+    if (!filedesc->FileInfoValid || 0 == Timeout)
+        goto exit;
+
+    if ((UINT32)-1 != Timeout && GetTickCount64() > filedesc->FileInfoExpiration)
+    {
+        filedesc->FileInfoValid = FALSE;
+        goto exit;
+    }
+
+    *PUid = filedesc->FileInfoUid;
+    *PGid = filedesc->FileInfoGid;
+    *PMode = filedesc->FileInfoMode;
+    memcpy(FileInfo, &filedesc->FileInfo, sizeof *FileInfo);
+    Result = TRUE;
+
+exit:
+    ReleaseSRWLockExclusive(&filedesc->FileInfoLock);
+
+    return Result;
+}
+
+static VOID fsp_fuse_intf_SetCachedFileInfo(struct fuse *f,
+    struct fsp_fuse_file_desc *filedesc,
+    UINT32 Uid, UINT32 Gid, UINT32 Mode,
+    FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    UINT32 Timeout = f->VolumeParams.FileInfoTimeout;
+
+    AcquireSRWLockExclusive(&filedesc->FileInfoLock);
+
+    if (0 == Timeout)
+    {
+        filedesc->FileInfoValid = FALSE;
+        goto exit;
+    }
+
+    filedesc->FileInfoUid = Uid;
+    filedesc->FileInfoGid = Gid;
+    filedesc->FileInfoMode = Mode;
+    memcpy(&filedesc->FileInfo, FileInfo, sizeof filedesc->FileInfo);
+    filedesc->FileInfoExpiration =
+        (UINT32)-1 == Timeout ? (UINT64)-1 : GetTickCount64() + Timeout;
+    filedesc->FileInfoValid = TRUE;
+
+exit:
+    ReleaseSRWLockExclusive(&filedesc->FileInfoLock);
+}
+
+static VOID fsp_fuse_intf_InvalidateCachedFileInfo(
+    struct fsp_fuse_file_desc *filedesc)
+{
+    AcquireSRWLockExclusive(&filedesc->FileInfoLock);
+    filedesc->FileInfoValid = FALSE;
+    ReleaseSRWLockExclusive(&filedesc->FileInfoLock);
+}
+
+static NTSTATUS fsp_fuse_intf_GetFileInfoCached(FSP_FILE_SYSTEM *FileSystem,
+    struct fsp_fuse_file_desc *filedesc, struct fuse_file_info *fi,
+    PUINT32 PUid, PUINT32 PGid, PUINT32 PMode,
+    FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    struct fuse *f = FileSystem->UserContext;
+    NTSTATUS Result;
+
+    if (fsp_fuse_intf_GetCachedFileInfo(f, filedesc, PUid, PGid, PMode, FileInfo))
+        return STATUS_SUCCESS;
+
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, fi,
+        PUid, PGid, PMode, FileInfo);
+    if (NT_SUCCESS(Result))
+        fsp_fuse_intf_SetCachedFileInfo(f, filedesc, *PUid, *PGid, *PMode, FileInfo);
+
+    return Result;
 }
 
 static VOID fsp_fuse_intf_AddWriteEaAccess(
@@ -633,12 +786,13 @@ exit:
 }
 
 static NTSTATUS fsp_fuse_intf_GetReparsePointSymlink(FSP_FILE_SYSTEM *FileSystem,
-    const char *PosixPath, PVOID Buffer, PSIZE_T PSize)
+    const char *PosixPath, PVOID Buffer, PSIZE_T PSize, PBOOLEAN PAbsoluteTarget)
 {
     struct fuse *f = FileSystem->UserContext;
     char PosixTargetPath[FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR)];
     PWSTR TargetPath = 0;
     ULONG TargetPathLength;
+    BOOLEAN AbsoluteTarget;
     int err;
     NTSTATUS Result;
 
@@ -654,8 +808,12 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointSymlink(FSP_FILE_SYSTEM *FileSystem
         goto exit;
     }
 
+    AbsoluteTarget = '/' == PosixTargetPath[0];
+    if (0 != PAbsoluteTarget)
+        *PAbsoluteTarget = AbsoluteTarget;
+
     /* is this an absolute path? */
-    if ('/' == PosixTargetPath[0])
+    if (AbsoluteTarget)
     {
         /* we do not support absolute paths without the rellinks option */
         if (!f->rellinks)
@@ -665,7 +823,7 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointSymlink(FSP_FILE_SYSTEM *FileSystem
         }
     }
 
-    Result = FspPosixMapPosixToWindowsPath(PosixTargetPath, &TargetPath);
+    Result = fsp_fuse_map_posix_to_windows_path(f, PosixTargetPath, &TargetPath);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -697,6 +855,7 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointEx(FSP_FILE_SYSTEM *FileSystem,
     PREPARSE_DATA_BUFFER ReparseData;
     USHORT ReparseDataLength;
     SIZE_T Size;
+    BOOLEAN AbsoluteSymlinkTarget;
     NTSTATUS Result;
 
     if (0 != PResolveFileAttributes && FILE_ATTRIBUTE_REPARSE_POINT == PResolveFileAttributes[0])
@@ -799,7 +958,7 @@ skip_getattr:
         Size = *PSize -
             FIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer);
         Result = fsp_fuse_intf_GetReparsePointSymlink(FileSystem, PosixPath,
-            ReparseData->SymbolicLinkReparseBuffer.PathBuffer, &Size);
+            ReparseData->SymbolicLinkReparseBuffer.PathBuffer, &Size, &AbsoluteSymlinkTarget);
         if (!NT_SUCCESS(Result))
             return Result;
 
@@ -808,7 +967,12 @@ skip_getattr:
         ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength = (USHORT)Size;
         ReparseData->SymbolicLinkReparseBuffer.PrintNameOffset = 0;
         ReparseData->SymbolicLinkReparseBuffer.PrintNameLength = (USHORT)Size;
-        ReparseData->SymbolicLinkReparseBuffer.Flags = SYMLINK_FLAG_RELATIVE;
+        /*
+         * Under rellinks absolute POSIX symlinks are mapped to volume-root
+         * Windows paths and must not be resolved relative to the link parent.
+         */
+        ReparseData->SymbolicLinkReparseBuffer.Flags =
+            AbsoluteSymlinkTarget ? 0 : SYMLINK_FLAG_RELATIVE;
         break;
 
     default:
@@ -862,7 +1026,7 @@ static NTSTATUS fsp_fuse_intf_GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     char *PosixPath = 0;
     NTSTATUS Result;
 
-    Result = FspPosixMapWindowsToPosixPath(FileName, &PosixPath);
+    Result = fsp_fuse_map_windows_to_posix_path(f, FileName, &PosixPath);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -898,7 +1062,7 @@ static VOID fsp_fuse_intf_GetOpenFileInfoPath(
     ULONG NormalizedNameSize;
 
     if (0 == f->ops.getpath(PosixPath, PosixNormalizedName, sizeof PosixNormalizedName, fi) &&
-        NT_SUCCESS(FspPosixMapPosixToWindowsPath(PosixNormalizedName, &NormalizedName)))
+        NT_SUCCESS(fsp_fuse_map_posix_to_windows_path(f, PosixNormalizedName, &NormalizedName)))
     {
         NormalizedNameSize = lstrlenW(NormalizedName) * sizeof(WCHAR);
         if (OpenFileInfo->NormalizedNameSize >= NormalizedNameSize)
@@ -919,11 +1083,12 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     struct fuse *f = FileSystem->UserContext;
     struct fuse_context *context = fsp_fuse_get_context(f->env);
     struct fsp_fuse_context_header *contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
-    UINT32 Uid, Gid, Mode;
+    UINT32 Uid, Gid, Mode, Dev;
     FSP_FSCTL_FILE_INFO FileInfoBuf;
     struct fsp_fuse_file_desc *filedesc = 0;
     struct fuse_file_info fi;
     BOOLEAN Opened = FALSE;
+    BOOLEAN CreatedReparsePoint = FALSE;
     int err;
     NTSTATUS Result;
 
@@ -938,12 +1103,6 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
                 goto exit;
             }
         }
-        else
-        {
-            /* !!!: revisit */
-            Result = STATUS_INVALID_PARAMETER;
-            goto exit;
-        }
     }
 
     filedesc = MemAlloc(sizeof *filedesc);
@@ -952,6 +1111,8 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
         Result = STATUS_INSUFFICIENT_RESOURCES;
         goto exit;
     }
+    InitializeSRWLock(&filedesc->FileInfoLock);
+    filedesc->FileInfoValid = FALSE;
 
     Uid = context->uid;
     Gid = context->gid;
@@ -962,6 +1123,8 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
             &Uid, &Gid, &Mode);
         if (!NT_SUCCESS(Result))
             goto exit;
+        if (f->user_owner && (UINT32)-1 != context->uid)
+            Uid = context->uid;
     }
     Mode &= ~context->umask;
     if (CreateOptions & FILE_DIRECTORY_FILE)
@@ -987,7 +1150,36 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     else
         fi.flags = 0x0100 | 0x0400 | 2 /*O_CREAT|O_EXCL|O_RDWR*/;
 
-    if (CreateOptions & FILE_DIRECTORY_FILE)
+    if (ExtraBufferIsReparsePoint)
+    {
+        fuse_uid_t ContextUid;
+        fuse_gid_t ContextGid;
+
+        if (0 == ExtraBuffer || 0 == f->ops.mknod ||
+            (CreateOptions & FILE_DIRECTORY_FILE))
+        {
+            Result = STATUS_INVALID_DEVICE_REQUEST;
+            goto exit;
+        }
+
+        Result = fsp_fuse_intf_GetNfsReparseMode((PREPARSE_DATA_BUFFER)ExtraBuffer,
+            &Mode, &Dev);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        ContextUid = context->uid;
+        ContextGid = context->gid;
+        context->uid = Uid, context->gid = Gid;
+        err = f->ops.mknod(contexthdr->PosixPath, Mode, Dev);
+        context->uid = ContextUid, context->gid = ContextGid;
+        Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        if (!NT_SUCCESS(Result))
+            goto exit;
+
+        fi.fh = -1;
+        CreatedReparsePoint = TRUE;
+    }
+    else if (CreateOptions & FILE_DIRECTORY_FILE)
     {
         if (0 != f->ops.mkdir)
         {
@@ -1014,6 +1206,8 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     }
     else
     {
+        Mode = (Mode & ~0170000) | 0100000; /* S_IFREG */
+
         if (0 != f->ops.create)
         {
             err = f->ops.create(contexthdr->PosixPath, Mode, &fi);
@@ -1028,6 +1222,11 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
                 goto exit;
             }
 
+            if ('C' == f->env->environment) /* Cygwin */
+                fi.flags &= ~(0x0200 | 0x0800) /*O_CREAT|O_EXCL*/;
+            else
+                fi.flags &= ~(0x0100 | 0x0400) /*O_CREAT|O_EXCL*/;
+
             err = f->ops.open(contexthdr->PosixPath, &fi);
             Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         }
@@ -1037,9 +1236,10 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         goto exit;
 
-    Opened = TRUE;
+    Opened = !CreatedReparsePoint;
 
-    if (0 != FileAttributes &&
+    if (!CreatedReparsePoint &&
+        0 != FileAttributes &&
         0 != (f->conn_want & FSP_FUSE_CAP_STAT_EX) && 0 != f->ops.chflags)
     {
         err = f->ops.chflags(contexthdr->PosixPath,
@@ -1055,29 +1255,26 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
     {
         err = f->ops.chown(contexthdr->PosixPath, Uid, Gid);
         Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        /*
+         * On file creation this chown is best-effort. SSHFS/SFTP servers often
+         * deny it after successfully creating the file; failing Create at that
+         * point leaves an empty remote file and makes Explorer retry with a
+         * duplicate name.
+         */
+        if (!NT_SUCCESS(Result) && !fsp_fuse_intf_CanIgnoreCreateChownResult(Result))
+            goto exit;
+    }
+
+    if (0 != ExtraBuffer && !ExtraBufferIsReparsePoint)
+    {
+        Result = FspFileSystemEnumerateEa(FileSystem,
+            fsp_fuse_intf_SetEaEntry, contexthdr->PosixPath, ExtraBuffer, ExtraLength);
         if (!NT_SUCCESS(Result) && STATUS_INVALID_DEVICE_REQUEST != Result)
             goto exit;
     }
 
-    if (0 != ExtraBuffer)
-    {
-        if (!ExtraBufferIsReparsePoint)
-        {
-            Result = FspFileSystemEnumerateEa(FileSystem,
-                fsp_fuse_intf_SetEaEntry, contexthdr->PosixPath, ExtraBuffer, ExtraLength);
-            if (!NT_SUCCESS(Result) && STATUS_INVALID_DEVICE_REQUEST != Result)
-                goto exit;
-        }
-        else
-        {
-            /* !!!: revisit: WslFeatures, GetFileInfoFunnel, GetReparsePointEx, SetReparsePoint */
-            Result = STATUS_INVALID_PARAMETER;
-            goto exit;
-        }
-    }
-
     Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, contexthdr->PosixPath,
-        FUSE_FILE_INFO(CreateOptions & FILE_DIRECTORY_FILE, &fi),
+        CreatedReparsePoint ? 0 : FUSE_FILE_INFO(CreateOptions & FILE_DIRECTORY_FILE, &fi),
         &Uid, &Gid, &Mode, &FileInfoBuf);
     if (!NT_SUCCESS(Result))
         goto exit;
@@ -1094,10 +1291,11 @@ static NTSTATUS fsp_fuse_intf_Create(FSP_FILE_SYSTEM *FileSystem,
 
     filedesc->PosixPath = contexthdr->PosixPath;
     filedesc->IsDirectory = !!(FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_DIRECTORY);
-    filedesc->IsReparsePoint = FALSE;
+    filedesc->IsReparsePoint = CreatedReparsePoint;
     filedesc->OpenFlags = fi.flags;
     filedesc->FileHandle = fi.fh;
     filedesc->DirBuffer = 0;
+    fsp_fuse_intf_SetCachedFileInfo(f, filedesc, Uid, Gid, Mode, &FileInfoBuf);
     contexthdr->PosixPath = 0;
 
     if (!f->VolumeParams.CaseSensitiveSearch && 0 != f->ops.getpath)
@@ -1167,6 +1365,8 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
         Result = STATUS_INSUFFICIENT_RESOURCES;
         goto exit;
     }
+    InitializeSRWLock(&filedesc->FileInfoLock);
+    filedesc->FileInfoValid = FALSE;
 
     memset(&fi, 0, sizeof fi);
     switch (GrantedAccess & (FILE_READ_DATA | FILE_WRITE_DATA))
@@ -1242,6 +1442,7 @@ static NTSTATUS fsp_fuse_intf_Open(FSP_FILE_SYSTEM *FileSystem,
     filedesc->OpenFlags = fi.flags;
     filedesc->FileHandle = fi.fh;
     filedesc->DirBuffer = 0;
+    fsp_fuse_intf_SetCachedFileInfo(f, filedesc, Uid, Gid, Mode, &FileInfoBuf);
     contexthdr->PosixPath = 0;
 
     if (!f->VolumeParams.CaseSensitiveSearch && 0 != f->ops.getpath)
@@ -1271,6 +1472,8 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
 
     if (filedesc->IsDirectory || filedesc->IsReparsePoint)
         return STATUS_ACCESS_DENIED;
+
+    fsp_fuse_intf_InvalidateCachedFileInfo(filedesc);
 
     if (0 != Ea)
     {
@@ -1330,9 +1533,13 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
             return Result;
     }
 
-    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
         FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &Uid, &Gid, &Mode, FileInfo);
+    if (NT_SUCCESS(Result))
+        fsp_fuse_intf_SetCachedFileInfo(f, filedesc, Uid, Gid, Mode, FileInfo);
+
+    return Result;
 }
 
 static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
@@ -1376,6 +1583,8 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
     }
 
     if (Flags & FspCleanupDelete)
+    {
+        fsp_fuse_intf_InvalidateCachedFileInfo(filedesc);
         if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
         {
             if (0 != f->ops.rmdir)
@@ -1386,6 +1595,7 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
             if (0 != f->ops.unlink)
                 f->ops.unlink(filedesc->PosixPath);
         }
+    }
 }
 
 static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
@@ -1479,9 +1689,14 @@ static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
 
-    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
-        FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
-        &Uid, &Gid, &Mode, &FileInfoBuf);
+    if (!WriteToEndOfFile && !ConstrainedIo)
+        Result = fsp_fuse_intf_GetFileInfoCached(FileSystem, filedesc,
+            FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
+            &Uid, &Gid, &Mode, &FileInfoBuf);
+    else
+        Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+            FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
+            &Uid, &Gid, &Mode, &FileInfoBuf);
     if (!NT_SUCCESS(Result))
         return Result;
 
@@ -1514,6 +1729,7 @@ static NTSTATUS fsp_fuse_intf_Write(FSP_FILE_SYSTEM *FileSystem,
         (FileInfoBuf.FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
 
 success:
+    fsp_fuse_intf_SetCachedFileInfo(f, filedesc, Uid, Gid, Mode, &FileInfoBuf);
     memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
 
     return STATUS_SUCCESS;
@@ -1566,6 +1782,7 @@ static NTSTATUS fsp_fuse_intf_Flush(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return Result;
 
+    fsp_fuse_intf_SetCachedFileInfo(f, filedesc, Uid, Gid, Mode, &FileInfoBuf);
     memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
 
     return STATUS_SUCCESS;
@@ -1575,7 +1792,6 @@ static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileDesc,
     FSP_FSCTL_FILE_INFO *FileInfo)
 {
-    struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc = FileDesc;
     UINT32 Uid, Gid, Mode;
     struct fuse_file_info fi;
@@ -1584,7 +1800,7 @@ static NTSTATUS fsp_fuse_intf_GetFileInfo(FSP_FILE_SYSTEM *FileSystem,
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
 
-    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+    return fsp_fuse_intf_GetFileInfoCached(FileSystem, filedesc,
         FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &Uid, &Gid, &Mode, FileInfo);
 }
@@ -1607,6 +1823,8 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
     memset(&fi, 0, sizeof fi);
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
+
+    fsp_fuse_intf_InvalidateCachedFileInfo(filedesc);
 
     if (INVALID_FILE_ATTRIBUTES != FileAttributes &&
         0 != (f->conn_want & FSP_FUSE_CAP_STAT_EX) && 0 != f->ops.chflags)
@@ -1671,9 +1889,13 @@ static NTSTATUS fsp_fuse_intf_SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
             return Result;
     }
 
-    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
         FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &Uid, &Gid, &Mode, FileInfo);
+    if (NT_SUCCESS(Result))
+        fsp_fuse_intf_SetCachedFileInfo(f, filedesc, Uid, Gid, Mode, FileInfo);
+
+    return Result;
 }
 
 static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
@@ -1698,6 +1920,8 @@ static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
     memset(&fi, 0, sizeof fi);
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
+
+    fsp_fuse_intf_InvalidateCachedFileInfo(filedesc);
 
     Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
         FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
@@ -1732,6 +1956,7 @@ static NTSTATUS fsp_fuse_intf_SetFileSize(FSP_FILE_SYSTEM *FileSystem,
             (FileInfoBuf.FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
     }
 
+    fsp_fuse_intf_SetCachedFileInfo(f, filedesc, Uid, Gid, Mode, &FileInfoBuf);
     memcpy(FileInfo, &FileInfoBuf, sizeof FileInfoBuf);
 
     return STATUS_SUCCESS;
@@ -1769,6 +1994,14 @@ static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
     struct fuse_file_info fi;
     struct fuse_dirhandle dh;
     int err;
+
+    if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
+    {
+        if (0 == f->ops.rmdir)
+            return STATUS_INVALID_DEVICE_REQUEST;
+    }
+    else if (0 == f->ops.unlink)
+        return STATUS_INVALID_DEVICE_REQUEST;
 
     if (0 != (f->conn_want & FSP_FUSE_CAP_DELETE_ACCESS) && 0 != f->ops.access)
     {
@@ -1826,6 +2059,9 @@ static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
     int err;
     NTSTATUS Result;
 
+    if (0 == f->ops.rename)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
     Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, contexthdr->PosixPath, 0,
         &Uid, &Gid, &Mode, &FileInfoBuf);
     if (!NT_SUCCESS(Result) &&
@@ -1843,8 +2079,82 @@ static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
             return STATUS_ACCESS_DENIED;
     }
 
+    fsp_fuse_intf_InvalidateCachedFileInfo(filedesc);
+
     err = f->ops.rename(filedesc->PosixPath, contexthdr->PosixPath);
     return fsp_fuse_ntstatus_from_errno(f->env, err);
+}
+
+static NTSTATUS fsp_fuse_intf_Link(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileDesc,
+    PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists,
+    FSP_FSCTL_FILE_INFO *FileInfo)
+{
+    struct fuse *f = FileSystem->UserContext;
+    struct fuse_context *context = fsp_fuse_get_context(f->env);
+    struct fsp_fuse_context_header *contexthdr = FSP_FUSE_HDR_FROM_CONTEXT(context);
+    UINT32 Uid, Gid, Mode;
+    FSP_FSCTL_FILE_INFO FileInfoBuf;
+    struct fsp_fuse_file_desc *filedesc = FileDesc;
+    char *PosixHiddenPath = 0;
+    int err;
+    NTSTATUS Result;
+
+    (void)FileName;
+    (void)NewFileName;
+
+    if (0 == f->ops.link)
+        return STATUS_INVALID_DEVICE_REQUEST;
+    if (filedesc->IsDirectory)
+        return STATUS_FILE_IS_A_DIRECTORY;
+
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, contexthdr->PosixPath, 0,
+        &Uid, &Gid, &Mode, &FileInfoBuf);
+    if (!NT_SUCCESS(Result) &&
+        STATUS_OBJECT_NAME_NOT_FOUND != Result &&
+        STATUS_OBJECT_PATH_NOT_FOUND != Result)
+        return Result;
+
+    if (NT_SUCCESS(Result))
+    {
+        if (!ReplaceIfExists)
+            return STATUS_OBJECT_NAME_COLLISION;
+        if (FileInfoBuf.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            return STATUS_ACCESS_DENIED;
+        if (0 == f->ops.rename || 0 == f->ops.unlink)
+            return STATUS_INVALID_DEVICE_REQUEST;
+
+        Result = fsp_fuse_intf_NewHiddenName(FileSystem,
+            contexthdr->PosixPath, &PosixHiddenPath);
+        if (!NT_SUCCESS(Result))
+            return Result;
+
+        err = f->ops.link(filedesc->PosixPath, PosixHiddenPath);
+        if (0 == err)
+        {
+            err = f->ops.rename(PosixHiddenPath, contexthdr->PosixPath);
+            if (0 != err)
+                f->ops.unlink(PosixHiddenPath);
+        }
+    }
+    else
+        err = f->ops.link(filedesc->PosixPath, contexthdr->PosixPath);
+
+    Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+    if (!NT_SUCCESS(Result))
+        goto exit;
+
+    fsp_fuse_intf_InvalidateCachedFileInfo(filedesc);
+
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath, 0,
+        &Uid, &Gid, &Mode, FileInfo);
+    if (NT_SUCCESS(Result))
+        fsp_fuse_intf_SetCachedFileInfo(f, filedesc, Uid, Gid, Mode, FileInfo);
+
+exit:
+    MemFree(PosixHiddenPath);
+
+    return Result;
 }
 
 static NTSTATUS fsp_fuse_intf_GetSecurity(FSP_FILE_SYSTEM *FileSystem,
@@ -1884,6 +2194,8 @@ static NTSTATUS fsp_fuse_intf_SetSecurity(FSP_FILE_SYSTEM *FileSystem,
     memset(&fi, 0, sizeof fi);
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
+
+    fsp_fuse_intf_InvalidateCachedFileInfo(filedesc);
 
     Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
         FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
@@ -2032,6 +2344,7 @@ static int fsp_fuse_intf_AddDirInfoOld(fuse_dirh_t dh, const char *name,
 static NTSTATUS fsp_fuse_intf_FixDirInfo(FSP_FILE_SYSTEM *FileSystem,
     struct fsp_fuse_file_desc *filedesc)
 {
+    struct fuse *f = FileSystem->UserContext;
     char *PosixPath = 0, *PosixName, *PosixPathEnd, SavedPathChar;
     ULONG SizeA, SizeW;
     PUINT8 Buffer;
@@ -2115,7 +2428,7 @@ static NTSTATUS fsp_fuse_intf_FixDirInfo(FSP_FILE_SYSTEM *FileSystem,
                 *PosixPathEnd = SavedPathChar;
         }
 
-        FspPosixDecodeWindowsPath(DirInfo->FileNameBuf, SizeW);
+        fsp_fuse_decode_windows_path(f, DirInfo->FileNameBuf, SizeW);
     }
 
     Result = STATUS_SUCCESS;
@@ -2203,7 +2516,7 @@ static NTSTATUS fsp_fuse_intf_GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
     if (!filedesc->IsDirectory || filedesc->IsReparsePoint)
         return STATUS_ACCESS_DENIED;
 
-    Result = FspPosixMapWindowsToPosixPath(FileName, &PosixName);
+    Result = fsp_fuse_map_windows_to_posix_path(f, FileName, &PosixName);
     if (!NT_SUCCESS(Result))
     {
         Result = STATUS_OBJECT_NAME_NOT_FOUND; //Result?
@@ -2236,7 +2549,7 @@ static NTSTATUS fsp_fuse_intf_GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
     if (!f->VolumeParams.CaseSensitiveSearch && 0 != f->ops.getpath)
     {
         if (0 == f->ops.getpath(PosixPath, PosixNormalizedName, sizeof PosixNormalizedName, 0) &&
-            NT_SUCCESS(FspPosixMapPosixToWindowsPath(PosixNormalizedName, &NormalizedName)))
+            NT_SUCCESS(fsp_fuse_map_posix_to_windows_path(f, PosixNormalizedName, &NormalizedName)))
         {
             NormalizedNameSuffix = NormalizedName;
             for (PWSTR P = NormalizedNameSuffix; *P; P++)
@@ -2285,7 +2598,7 @@ static NTSTATUS fsp_fuse_intf_GetReparsePointByName(
     char *PosixPath = 0;
     NTSTATUS Result;
 
-    Result = FspPosixMapWindowsToPosixPath(FileName, &PosixPath);
+    Result = fsp_fuse_map_windows_to_posix_path(f, FileName, &PosixPath);
     if (!NT_SUCCESS(Result))
         goto exit;
 
@@ -2386,6 +2699,8 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     if (!NT_SUCCESS(Result))
         return Result;
 
+    fsp_fuse_intf_InvalidateCachedFileInfo(filedesc);
+
     if (IsSymlink)
     {
         if (IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag)
@@ -2422,7 +2737,7 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
          * From this point forward we must jump to the EXIT label on failure.
          */
 
-        Result = FspPosixMapWindowsToPosixPathEx(TargetPath, &PosixTargetPath,
+        Result = fsp_fuse_map_windows_to_posix_path_ex(f, TargetPath, &PosixTargetPath,
             IO_REPARSE_TAG_SYMLINK == ReparseData->ReparseTag);
         if (!NT_SUCCESS(Result))
             goto exit;
@@ -2513,6 +2828,7 @@ static NTSTATUS fsp_fuse_intf_SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     }
     filedesc->IsReparsePoint = TRUE;
     filedesc->FileHandle = -1;
+    fsp_fuse_intf_InvalidateCachedFileInfo(filedesc);
 
     Result = STATUS_SUCCESS;
 
@@ -2665,6 +2981,8 @@ static NTSTATUS fsp_fuse_intf_SetEa(FSP_FILE_SYSTEM *FileSystem,
     if (0 == f->ops.setxattr || 0 == f->ops.removexattr)
         return STATUS_INVALID_DEVICE_REQUEST;
 
+    fsp_fuse_intf_InvalidateCachedFileInfo(filedesc);
+
     Result = FspFileSystemEnumerateEa(FileSystem,
         fsp_fuse_intf_SetEaEntry, filedesc->PosixPath, Ea, EaLength);
     if (!NT_SUCCESS(Result))
@@ -2674,9 +2992,95 @@ static NTSTATUS fsp_fuse_intf_SetEa(FSP_FILE_SYSTEM *FileSystem,
     fi.flags = filedesc->OpenFlags;
     fi.fh = filedesc->FileHandle;
 
-    return fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
+    Result = fsp_fuse_intf_GetFileInfoEx(FileSystem, filedesc->PosixPath,
         FUSE_FILE_INFO(filedesc->IsDirectory, &fi),
         &Uid, &Gid, &Mode, FileInfo);
+    if (NT_SUCCESS(Result))
+        fsp_fuse_intf_SetCachedFileInfo(f, filedesc, Uid, Gid, Mode, FileInfo);
+
+    return Result;
+}
+
+static NTSTATUS fsp_fuse_intf_QueryAllocatedRanges(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileDesc, UINT64 Offset, UINT64 Length,
+    PFILE_ALLOCATED_RANGE_BUFFER AllocatedRanges, ULONG AllocatedRangesLength,
+    PULONG PBytesTransferred)
+{
+    struct fuse *f = FileSystem->UserContext;
+    struct fsp_fuse_file_desc *filedesc = FileDesc;
+    struct fuse3_file_info fi3;
+    ULONG RangeCapacity, Index = 0;
+    UINT64 MaxFuseOffset = 0x7fffffffffffffffULL;
+    UINT64 EndOffset, CurrentOffset;
+    fuse_off_t DataOffset, HoleOffset;
+    int err;
+
+    *PBytesTransferred = 0;
+
+    if (0 == f->fuse3 || 0 == f->fuse3->ops.lseek)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    if (filedesc->IsDirectory || filedesc->IsReparsePoint)
+        return STATUS_ACCESS_DENIED;
+
+    if (0 == Length)
+        return STATUS_SUCCESS;
+
+    if (MaxFuseOffset < Offset || MaxFuseOffset - Offset < Length)
+        return STATUS_INVALID_PARAMETER;
+
+    RangeCapacity = AllocatedRangesLength / sizeof(FILE_ALLOCATED_RANGE_BUFFER);
+    if (0 == RangeCapacity)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    memset(&fi3, 0, sizeof fi3);
+    fi3.flags = filedesc->OpenFlags;
+    fi3.fh = filedesc->FileHandle;
+
+    EndOffset = Offset + Length;
+    CurrentOffset = Offset;
+    while (CurrentOffset < EndOffset && Index < RangeCapacity)
+    {
+        DataOffset = f->fuse3->ops.lseek(filedesc->PosixPath,
+            (fuse_off_t)CurrentOffset, SEEK_DATA, &fi3);
+        if (0 > DataOffset)
+        {
+            err = (int)DataOffset;
+            if (-ENXIO == err)
+                break;
+            return fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+
+        if (EndOffset <= (UINT64)DataOffset)
+            break;
+
+        if ((UINT64)DataOffset < CurrentOffset)
+            return STATUS_INVALID_DEVICE_REQUEST;
+
+        HoleOffset = f->fuse3->ops.lseek(filedesc->PosixPath,
+            DataOffset, SEEK_HOLE, &fi3);
+        if (0 > HoleOffset)
+        {
+            err = (int)HoleOffset;
+            if (-ENXIO == err)
+                HoleOffset = (fuse_off_t)EndOffset;
+            else
+                return fsp_fuse_ntstatus_from_errno(f->env, err);
+        }
+
+        if (HoleOffset <= DataOffset)
+            return STATUS_INVALID_DEVICE_REQUEST;
+
+        AllocatedRanges[Index].FileOffset.QuadPart = DataOffset;
+        AllocatedRanges[Index].Length.QuadPart =
+            (EndOffset < (UINT64)HoleOffset ? EndOffset : (UINT64)HoleOffset) - (UINT64)DataOffset;
+        Index++;
+
+        CurrentOffset = (UINT64)HoleOffset;
+    }
+
+    *PBytesTransferred = Index * sizeof(FILE_ALLOCATED_RANGE_BUFFER);
+    return STATUS_SUCCESS;
 }
 
 static VOID fsp_fuse_intf_DispatcherStopped(FSP_FILE_SYSTEM *FileSystem,
@@ -2725,6 +3129,8 @@ FSP_FILE_SYSTEM_INTERFACE fsp_fuse_intf =
     fsp_fuse_intf_SetEa,
     0,
     fsp_fuse_intf_DispatcherStopped,
+    fsp_fuse_intf_Link,
+    fsp_fuse_intf_QueryAllocatedRanges,
 };
 
 /*

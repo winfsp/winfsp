@@ -131,7 +131,7 @@ typedef NTSTATUS FSP_FILE_SYSTEM_OPERATION(FSP_FILE_SYSTEM *,
  * follows:
  * <ul>
  * <li>EXCL: SetVolumeLabel, Flush(Volume),
- * Create, Cleanup(Delete), SetInformation(Rename)</li>
+ * Create, Cleanup(Delete), SetInformation(Rename,Link)</li>
  * <li>SHRD: GetVolumeInfo, Open, SetInformation(Disposition), ReadDirectory</li>
  * <li>NONE: all other operations</li>
  * </ul>
@@ -1085,12 +1085,74 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
     VOID (*DispatcherStopped)(FSP_FILE_SYSTEM *FileSystem,
         BOOLEAN Normally);
 
+    /**
+     * Creates a hard link to a file.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param FileContext
+     *     The file context of the file to link.
+     * @param FileName
+     *     The current name of the file to link.
+     * @param NewFileName
+     *     The name for the new hard link.
+     * @param ReplaceIfExists
+     *     Whether to replace a file that already exists at NewFileName.
+     * @param FileInfo [out]
+     *     Pointer to a structure that will receive the linked file information on successful
+     *     return from this call. This information includes file attributes, file times, etc.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     */
+    NTSTATUS (*Link)(FSP_FILE_SYSTEM *FileSystem,
+        PVOID FileContext,
+        PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists,
+        FSP_FSCTL_FILE_INFO *FileInfo);
+
+    /**
+     * Query allocated file ranges.
+     *
+     * This operation services FSCTL_QUERY_ALLOCATED_RANGES. File systems that can represent
+     * sparse files should return the allocated ranges that overlap the requested
+     * [Offset, Offset + Length) interval.
+     *
+     * @param FileSystem
+     *     The file system on which this request is posted.
+     * @param FileContext
+     *     The file context of the file to query.
+     * @param Offset
+     *     Start of the range to query.
+     * @param Length
+     *     Length of the range to query.
+     * @param AllocatedRanges
+     *     Pointer to an array of FILE_ALLOCATED_RANGE_BUFFER entries.
+     * @param AllocatedRangesLength
+     *     Length of the AllocatedRanges buffer in bytes.
+     * @param PBytesTransferred [out]
+     *     Pointer to a memory location that will receive the actual number of bytes stored.
+     * @return
+     *     STATUS_SUCCESS or error code.
+     */
+    NTSTATUS (*QueryAllocatedRanges)(FSP_FILE_SYSTEM *FileSystem,
+        PVOID FileContext, UINT64 Offset, UINT64 Length,
+        PFILE_ALLOCATED_RANGE_BUFFER AllocatedRanges, ULONG AllocatedRangesLength,
+        PULONG PBytesTransferred);
+
     /*
      * This ensures that this interface will always contain 64 function pointers.
      * Please update when changing the interface as it is important for future compatibility.
      */
-    NTSTATUS (*Reserved[31])();
+    NTSTATUS (*Reserved[29])();
 } FSP_FILE_SYSTEM_INTERFACE;
+FSP_FSCTL_STATIC_ASSERT(FIELD_OFFSET(FSP_FILE_SYSTEM_INTERFACE, DispatcherStopped) ==
+    32 * sizeof(NTSTATUS (*)()),
+    "FSP_FILE_SYSTEM_INTERFACE existing entries must retain their ABI offsets.");
+FSP_FSCTL_STATIC_ASSERT(FIELD_OFFSET(FSP_FILE_SYSTEM_INTERFACE, Link) ==
+    33 * sizeof(NTSTATUS (*)()),
+    "FSP_FILE_SYSTEM_INTERFACE new entries must consume reserved slots.");
+FSP_FSCTL_STATIC_ASSERT(FIELD_OFFSET(FSP_FILE_SYSTEM_INTERFACE, QueryAllocatedRanges) ==
+    34 * sizeof(NTSTATUS (*)()),
+    "FSP_FILE_SYSTEM_INTERFACE new entries must consume reserved slots in order.");
 FSP_FSCTL_STATIC_ASSERT(sizeof(FSP_FILE_SYSTEM_INTERFACE) == 64 * sizeof(NTSTATUS (*)()),
     "FSP_FILE_SYSTEM_INTERFACE must have 64 entries.");
 typedef struct _FSP_FILE_SYSTEM
@@ -1112,7 +1174,10 @@ typedef struct _FSP_FILE_SYSTEM
     SRWLOCK OpGuardLock;
     BOOLEAN UmFileContextIsUserContext2, UmFileContextIsFullContext;
     UINT16 UmNoReparsePointsDirCheck:1;
-    UINT16 UmReservedFlags:14;
+    UINT16 UmDeferAccessCheck:1;
+    UINT16 AllowRelSymlinksAcrossFileSystem:1;
+    UINT16 MountDevPersistentUniqueId:1;
+    UINT16 UmReservedFlags:11;
     UINT16 DispatcherStopping:1;
 } FSP_FILE_SYSTEM;
 FSP_FSCTL_STATIC_ASSERT(
@@ -1170,10 +1235,21 @@ FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem);
  *
  * This function supports drive letters (X:) or directories as mount points:
  * <ul>
- * <li>Drive letters: Refer to the documentation of the DefineDosDevice Windows API
- * to better understand how they are created.</li>
+ * <li>Drive letters: Local disk file systems are first mounted using the Windows Mount
+ * Manager when possible (this is required by some Windows features such as ISO image
+ * mounting) and otherwise fall back to the DefineDosDevice Windows API. Use the
+ * \\.\X: syntax to require Mount Manager mounting. Drive letter visibility is controlled
+ * by the Windows DOS device namespace. A service-mounted drive letter is normally visible
+ * to all interactive sessions; to make a drive visible only to selected sessions create
+ * the drive letter in each selected user's local DOS device namespace, for example by
+ * running code in that session and calling DefineDosDeviceW. File systems that use Mount
+ * Manager mounting can set FSP_FSCTL_VOLUME_PARAMS::MountDevPersistentUniqueId together
+ * with stable FileSystemName, VolumeSerialNumber and VolumeCreationTime values to help
+ * applications correlate a reconnected volume with its prior instance.</li>
  * <li>Directories: They can be used as mount points for disk based file systems. They cannot
- * be used for network file systems. This is a limitation that Windows imposes on junctions.</li>
+ * be used for network file systems. This is a limitation that Windows imposes on junctions.
+ * The SecurityDescriptor parameter to FspFileSystemSetMountPointEx applies only to newly
+ * created directory mount points and does not restrict drive letter visibility.</li>
  * </ul>
  *
  * @param FileSystem
@@ -1419,9 +1495,27 @@ BOOLEAN FspFileSystemIsOperationCaseSensitive(VOID)
 }
 FSP_API BOOLEAN FspFileSystemIsOperationCaseSensitiveF(VOID);
 /**
+ * Gets the requested share access.
+ *
+ * Valid only during Create and Open requests.
+ */
+static inline
+UINT32 FspFileSystemOperationShareAccess(VOID)
+{
+    FSP_FSCTL_TRANSACT_REQ *Request = FspFileSystemGetOperationContext()->Request;
+    switch (Request->Kind)
+    {
+    case FspFsctlTransactCreateKind:
+        return Request->Req.Create.ShareAccess;
+    default:
+        return 0;
+    }
+}
+FSP_API UINT32 FspFileSystemOperationShareAccessF(VOID);
+/**
  * Gets the originating process ID.
  *
- * Valid only during Create, Open and Rename requests when the target exists.
+ * Valid only during Create, Open, Rename and Link requests when the target exists.
  */
 static inline
 UINT32 FspFileSystemOperationProcessId(VOID)
@@ -1435,12 +1529,41 @@ UINT32 FspFileSystemOperationProcessId(VOID)
         if (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass ||
             65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass)
             return FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(Request->Req.SetInformation.Info.Rename.AccessToken);
+        if (11/*FileLinkInformation*/ == Request->Req.SetInformation.FileInformationClass)
+            return FSP_FSCTL_TRANSACT_REQ_TOKEN_PID(Request->Req.SetInformation.Info.Link.AccessToken);
         /* fall through! */
     default:
         return 0;
     }
 }
 FSP_API UINT32 FspFileSystemOperationProcessIdF(VOID);
+/**
+ * Gets the originating access token.
+ *
+ * Valid only during Create, Open, Rename and Link requests when the target exists.
+ * The returned handle is owned by WinFsp and is valid only during the current
+ * operation callback. Duplicate the handle if it must outlive the callback.
+ */
+static inline
+HANDLE FspFileSystemOperationAccessToken(VOID)
+{
+    FSP_FSCTL_TRANSACT_REQ *Request = FspFileSystemGetOperationContext()->Request;
+    switch (Request->Kind)
+    {
+    case FspFsctlTransactCreateKind:
+        return FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.Create.AccessToken);
+    case FspFsctlTransactSetInformationKind:
+        if (10/*FileRenameInformation*/ == Request->Req.SetInformation.FileInformationClass ||
+            65/*FileRenameInformationEx*/ == Request->Req.SetInformation.FileInformationClass)
+            return FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.SetInformation.Info.Rename.AccessToken);
+        if (11/*FileLinkInformation*/ == Request->Req.SetInformation.FileInformationClass)
+            return FSP_FSCTL_TRANSACT_REQ_TOKEN_HANDLE(Request->Req.SetInformation.Info.Link.AccessToken);
+        /* fall through! */
+    default:
+        return 0;
+    }
+}
+FSP_API HANDLE FspFileSystemOperationAccessTokenF(VOID);
 
 /*
  * Operations
@@ -1858,6 +1981,39 @@ FSP_API NTSTATUS FspSetSecurityDescriptor(
     SECURITY_INFORMATION SecurityInformation,
     PSECURITY_DESCRIPTOR ModificationDescriptor,
     PSECURITY_DESCRIPTOR *PSecurityDescriptor);
+#define FSP_SET_SECURITY_DESCRIPTOR_REJECT_OWNER_CHANGE 1
+/**
+ * Modify security descriptor with options.
+ *
+ * This is a helper for implementing the SetSecurity operation.
+ *
+ * @param InputDescriptor
+ *     The input security descriptor to be modified.
+ * @param SecurityInformation
+ *     Describes what parts of the InputDescriptor should be modified. This should contain
+ *     the same value passed to the SetSecurity SecurityInformation parameter.
+ * @param ModificationDescriptor
+ *     Describes the modifications to apply to the InputDescriptor. This should contain
+ *     the same value passed to the SetSecurity ModificationDescriptor parameter.
+ * @param Flags
+ *     Optional flags. FSP_SET_SECURITY_DESCRIPTOR_REJECT_OWNER_CHANGE returns
+ *     STATUS_INVALID_OWNER when OWNER_SECURITY_INFORMATION attempts to assign
+ *     an owner different from the descriptor's current owner.
+ * @param PSecurityDescriptor [out]
+ *     Pointer to a memory location that will receive the resulting security descriptor.
+ *     This security descriptor can be later freed using FspDeleteSecurityDescriptor.
+ * @return
+ *     STATUS_SUCCESS or error code.
+ * @see
+ *     SetSecurity
+ *     FspDeleteSecurityDescriptor
+ */
+FSP_API NTSTATUS FspSetSecurityDescriptorEx(
+    PSECURITY_DESCRIPTOR InputDescriptor,
+    SECURITY_INFORMATION SecurityInformation,
+    PSECURITY_DESCRIPTOR ModificationDescriptor,
+    UINT32 Flags,
+    PSECURITY_DESCRIPTOR *PSecurityDescriptor);
 /**
  * Delete security descriptor.
  *
@@ -1892,6 +2048,12 @@ NTSTATUS FspAccessCheck(FSP_FILE_SYSTEM *FileSystem,
  * POSIX Interop
  */
 FSP_API NTSTATUS FspPosixSetUidMap(UINT32 Uid[], PSID Sid[], ULONG Count);
+/*
+ * Enables/disables Active Directory RFC2307 uidNumber/gidNumber mapping.
+ * When enabled, SIDs or UID/GID values that do not resolve through AD map to
+ * nfsnobody (65534). This mode is only supported in user mode.
+ */
+FSP_API NTSTATUS FspPosixSetAdUidMap(BOOLEAN Enable);
 FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid);
 FSP_API NTSTATUS FspPosixMapSidToUid(PSID Sid, PUINT32 PUid);
 FSP_API VOID FspDeleteSid(PSID Sid, NTSTATUS (*CreateFunc)());

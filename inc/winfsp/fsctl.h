@@ -113,6 +113,8 @@ extern const __declspec(selectany) GUID FspFsvrtDeviceClassGuid =
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'n', METHOD_NEITHER, FILE_ANY_ACCESS)
 #define FSP_FSCTL_UNLOAD                \
     CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'U', METHOD_NEITHER, FILE_ANY_ACCESS)
+#define FSP_FSCTL_GET_SILO_ID           \
+    CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 0x800 + 'C', METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 /* fsctl internal device codes (usable only in-kernel) */
 #define FSP_FSCTL_TRANSACT_INTERNAL     \
@@ -203,7 +205,7 @@ enum
     UINT32 TransactTimeout;             /* DEPRECATED: (millis; 1 sec - 10 sec) */\
     UINT32 IrpTimeout;                  /* pending IRP timeout (millis; 1 min - 10 min) */\
     UINT32 IrpCapacity;                 /* maximum number of pending IRP's (100 - 1000)*/\
-    UINT32 FileInfoTimeout;             /* FileInfo/Security/VolumeInfo timeout (millis) */\
+    UINT32 FileInfoTimeout;             /* legacy/default metadata timeout (millis) */\
     /* FILE_FS_ATTRIBUTE_INFORMATION::FileSystemAttributes */\
     UINT32 CaseSensitiveSearch:1;       /* file system supports case-sensitive file names */\
     UINT32 CasePreservedNames:1;        /* file system preserves the case of file names */\
@@ -212,13 +214,13 @@ enum
     UINT32 ReparsePoints:1;             /* file system supports reparse points */\
     UINT32 ReparsePointsAccessCheck:1;  /* file system performs reparse point access checks */\
     UINT32 NamedStreams:1;              /* file system supports named streams */\
-    UINT32 HardLinks:1;                 /* unimplemented; set to 0 */\
+    UINT32 HardLinks:1;                 /* file system supports hard links */\
     UINT32 ExtendedAttributes:1;        /* file system supports extended attributes */\
     UINT32 ReadOnlyVolume:1;\
     /* kernel-mode flags */\
     UINT32 PostCleanupWhenModifiedOnly:1;   /* post Cleanup when a file was modified/deleted */\
     UINT32 PassQueryDirectoryPattern:1;     /* pass Pattern during QueryDirectory operations */\
-    UINT32 AlwaysUseDoubleBuffering:1;\
+    UINT32 AlwaysUseDoubleBuffering:1;  /* release builds honor this only with registry opt-in */\
     UINT32 PassQueryDirectoryFileName:1;    /* pass FileName during QueryDirectory (GetDirInfoByName) */\
     UINT32 FlushAndPurgeOnCleanup:1;        /* keeps file off "standby" list */\
     UINT32 DeviceControl:1;                 /* support user-mode ioctl handling */\
@@ -226,7 +228,8 @@ enum
     UINT32 UmFileContextIsUserContext2:1;   /* user mode: FileContext parameter is UserContext2 */\
     UINT32 UmFileContextIsFullContext:1;    /* user mode: FileContext parameter is FullContext */\
     UINT32 UmNoReparsePointsDirCheck:1;     /* user mode: no dir option check for reparse points */\
-    UINT32 UmReservedFlags:5;\
+    UINT32 UmDeferAccessCheck:1;            /* user mode: let the file system enforce access */\
+    UINT32 UmReservedFlags:4;\
     /* additional kernel-mode flags */\
     UINT32 AllowOpenInKernelMode:1;         /* allow kernel mode to open files when possible */\
     UINT32 CasePreservedExtendedAttributes:1;   /* preserve case of EA (default is UPPERCASE) */\
@@ -235,7 +238,7 @@ enum
     UINT32 RejectIrpPriorToTransact0:1;     /* DEPRECATED: reject IRP's prior to FspFsctlTransact0 */\
     UINT32 SupportsPosixUnlinkRename:1;     /* file system supports POSIX-style unlink and rename */\
     UINT32 PostDispositionWhenNecessaryOnly:1;  /* post Disposition for dirs or READONLY attr check */\
-    UINT32 KmReservedFlags:1;\
+    UINT32 AllowRelSymlinksAcrossFileSystem:1;  /* allow relative symlinks to cross file systems */\
     WCHAR Prefix[FSP_FSCTL_VOLUME_PREFIX_SIZE / sizeof(WCHAR)]; /* UNC prefix (\Server\Share) */\
     WCHAR FileSystemName[FSP_FSCTL_VOLUME_FSNAME_SIZE / sizeof(WCHAR)];
 #define FSP_FSCTL_VOLUME_PARAMS_V1_FIELD_DEFN\
@@ -245,15 +248,21 @@ enum
     UINT32 SecurityTimeoutValid:1;      /* SecurityTimeout field is valid*/\
     UINT32 StreamInfoTimeoutValid:1;    /* StreamInfoTimeout field is valid */\
     UINT32 EaTimeoutValid:1;            /* EaTimeout field is valid */\
-    UINT32 KmAdditionalReservedFlags:27;\
+    UINT32 MountDevPersistentUniqueId:1;/* use stable MountDev unique id for MountMgr mounts */\
+    UINT32 KmAdditionalReservedFlags:26;\
     UINT32 VolumeInfoTimeout;           /* volume info timeout (millis); overrides FileInfoTimeout */\
-    UINT32 DirInfoTimeout;              /* dir info timeout (millis); overrides FileInfoTimeout */\
+    UINT32 DirInfoTimeout;              /* dir info cache timeout (millis); overrides FileInfoTimeout */\
     UINT32 SecurityTimeout;             /* security info timeout (millis); overrides FileInfoTimeout */\
     UINT32 StreamInfoTimeout;           /* stream info timeout (millis); overrides FileInfoTimeout */\
     UINT32 EaTimeout;                   /* EA timeout (millis); overrides FileInfoTimeout */\
     UINT32 FsextControlCode;\
-    UINT32 Reserved32[1];\
-    UINT64 Reserved64[2];
+    UINT16 ReadAheadGranularity;        /* read-ahead granularity (pages); 0 for default */\
+    UINT16 DirtyPageThreshold;          /* dirty page threshold (pages); 0 for default */\
+    union\
+    {\
+        GUID TargetSiloId;              /* target silo container id; zero for current silo */\
+        UINT64 Reserved64[2];\
+    };
 typedef struct
 {
     FSP_FSCTL_VOLUME_PARAMS_V0_FIELD_DEFN
@@ -287,7 +296,7 @@ typedef struct
     UINT64 LastWriteTime;
     UINT64 ChangeTime;
     UINT64 IndexNumber;
-    UINT32 HardLinks;                   /* unimplemented: set to 0 */
+    UINT32 HardLinks;                   /* 0 means 1 */
     UINT32 EaSize;
 } FSP_FSCTL_FILE_INFO;
 FSP_FSCTL_STATIC_ASSERT(72 == sizeof(FSP_FSCTL_FILE_INFO),
@@ -460,6 +469,12 @@ typedef struct
                 {
                     FSP_FSCTL_TRANSACT_BUF NewFileName;
                     UINT64 AccessToken; /* request access token (PID,HANDLE) */
+                    UINT32 ReplaceIfExists:1;
+                } Link;
+                struct
+                {
+                    FSP_FSCTL_TRANSACT_BUF NewFileName;
+                    UINT64 AccessToken; /* request access token (PID,HANDLE) */
                     UINT32 Flags;
                 } RenameEx;
             } Info;
@@ -508,6 +523,7 @@ typedef struct
             UINT64 UserContext2;
             UINT32 FsControlCode;
             FSP_FSCTL_TRANSACT_BUF Buffer;
+            UINT32 OutputLength;
             UINT16 TargetOnFileSystem;  /* the target of the symbolic link is on this file system */
         } FileSystemControl;
         struct
@@ -678,6 +694,12 @@ static inline FSP_FSCTL_TRANSACT_RSP *FspFsctlTransactConsumeResponse(
     return NextResponse <= ResponseBufEnd ? (FSP_FSCTL_TRANSACT_RSP *)NextResponse : 0;
 }
 
+typedef struct
+{
+    BOOLEAN Persistent;                 /* do not purge MountMgr points on teardown */
+    BOOLEAN StableUniqueId;             /* derive MountDev unique id from volume params */
+} FSP_FSCTL_MOUNTDEV_PARAMS;
+
 #if !defined(_KERNEL_MODE)
 FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     const FSP_FSCTL_VOLUME_PARAMS *VolumeParams,
@@ -685,6 +707,8 @@ FSP_API NTSTATUS FspFsctlCreateVolume(PWSTR DevicePath,
     PHANDLE PVolumeHandle);
 FSP_API NTSTATUS FspFsctlMakeMountdev(HANDLE VolumeHandle,
     BOOLEAN Persistent, GUID *UniqueId);
+FSP_API NTSTATUS FspFsctlMakeMountdevEx(HANDLE VolumeHandle,
+    BOOLEAN Persistent, BOOLEAN StableUniqueId, GUID *UniqueId);
 FSP_API NTSTATUS FspFsctlUseMountmgr(HANDLE VolumeHandle,
     PWSTR MountPoint);
 FSP_API NTSTATUS FspFsctlTransact(HANDLE VolumeHandle,
@@ -698,6 +722,7 @@ FSP_API NTSTATUS FspFsctlNotify(HANDLE VolumeHandle,
 FSP_API NTSTATUS FspFsctlGetVolumeList(PWSTR DevicePath,
     PWCHAR VolumeListBuf, PSIZE_T PVolumeListSize);
 FSP_API NTSTATUS FspFsctlPreflight(PWSTR DevicePath);
+FSP_API NTSTATUS FspFsctlGetCurrentSiloId(GUID *SiloId);
 FSP_API NTSTATUS FspFsctlServiceVersion(PUINT32 PVersion);
 FSP_API NTSTATUS FspFsctlStartService(VOID);
 FSP_API NTSTATUS FspFsctlStopService(VOID);
@@ -711,7 +736,9 @@ typedef struct
     HANDLE VolumeHandle;                /* volume handle returned by FspFsctlCreateVolume */
     PWSTR VolumeName;                   /* volume name returned by FspFsctlCreateVolume */
     PSECURITY_DESCRIPTOR Security;      /* optional: security descriptor for directories */
-    UINT64 Reserved;                    /* reserved for future use */
+    UINT64 AllowMountOnExistingDirectory:1; /* allow directory mounts over existing directories */
+    UINT64 MountDevPersistentUniqueId:1;/* use stable MountDev unique id for MountMgr mounts */
+    UINT64 Reserved:62;                 /* reserved for future use */
     /* in/out */
     PWSTR MountPoint;                   /* FspMountSet sets drive in buffer when passed "*:" */
     HANDLE MountHandle;                 /* FspMountSet sets, FspMountRemove uses */
@@ -740,6 +767,9 @@ void __iso_volatile_store64(volatile __int64 *, __int64);
 #define FSP_INTERLOCKED__LOAD64(p)      (*(p))
 #define FSP_INTERLOCKED__STORE64(p,v)   (*(p) = (v))
 #endif
+#if (defined(_M_X64) || defined(_M_IX86)) && !defined(_ReadWriteBarrier)
+void _ReadWriteBarrier(void);
+#endif
 static inline INT32 FspInterlockedLoad32(INT32 volatile *p)
 {
 #if defined(_M_ARM64)
@@ -749,7 +779,6 @@ static inline INT32 FspInterlockedLoad32(INT32 volatile *p)
     return v;
 
 #elif defined(_M_X64) || defined(_M_IX86)
-    void _ReadWriteBarrier(void);
     INT32 v = FSP_INTERLOCKED__LOAD32(p);
     _ReadWriteBarrier();
     return v;
@@ -779,13 +808,11 @@ static inline VOID *FspInterlockedLoadPointer(VOID *volatile *p)
     return v;
 
 #elif defined(_M_X64)
-    void _ReadWriteBarrier(void);
     VOID *v = (VOID *)FSP_INTERLOCKED__LOAD64((__int64 volatile *)(p));
     _ReadWriteBarrier();
     return v;
 
 #elif defined(_M_IX86)
-    void _ReadWriteBarrier(void);
     VOID *v = (VOID *)FSP_INTERLOCKED__LOAD32((__int32 volatile *)(p));
     _ReadWriteBarrier();
     return v;

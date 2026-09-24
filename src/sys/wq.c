@@ -153,7 +153,8 @@ static VOID FspWqWorkRoutine(PVOID Context)
     if (STATUS_PENDING != Result && !(FSP_STATUS_IGNORE_BIT & Result))
     {
         ASSERT(0 == (FSP_STATUS_PRIVATE_BIT & Result) ||
-            FSP_STATUS_IOQ_POST == Result || FSP_STATUS_IOQ_POST_BEST_EFFORT == Result);
+            FSP_STATUS_IOQ_POST == Result || FSP_STATUS_IOQ_POST_BEST_EFFORT == Result ||
+            FSP_STATUS_IOQ_POST_PRIORITY == Result);
 
         DEBUGLOGIRP(Irp, Result);
 
@@ -161,8 +162,11 @@ static VOID FspWqWorkRoutine(PVOID Context)
         {
             FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension =
                 FspFsvolDeviceExtension(DeviceObject);
+            ULONG PostFlags = FSP_STATUS_IOQ_POST_BEST_EFFORT == Result ?
+                FSP_IOQ_POST_FLAG_BEST_EFFORT :
+                FSP_STATUS_IOQ_POST_PRIORITY == Result ? FSP_IOQ_POST_FLAG_PRIORITY : 0;
             if (!FspIoqPostIrpEx(FsvolDeviceExtension->Ioq, Irp,
-                FSP_STATUS_IOQ_POST_BEST_EFFORT == Result, &Result))
+                PostFlags, &Result))
             {
                 DEBUGLOG("FspIoqPostIrpEx = %s", NtStatusSym(Result));
                 FspIopCompleteIrp(Irp, Result);

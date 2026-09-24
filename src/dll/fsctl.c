@@ -119,11 +119,21 @@ exit:
 FSP_API NTSTATUS FspFsctlMakeMountdev(HANDLE VolumeHandle,
     BOOLEAN Persistent, GUID *UniqueId)
 {
+    return FspFsctlMakeMountdevEx(VolumeHandle, Persistent, Persistent, UniqueId);
+}
+
+FSP_API NTSTATUS FspFsctlMakeMountdevEx(HANDLE VolumeHandle,
+    BOOLEAN Persistent, BOOLEAN StableUniqueId, GUID *UniqueId)
+{
     DWORD Bytes;
+    FSP_FSCTL_MOUNTDEV_PARAMS Params;
+
+    Params.Persistent = !!Persistent;
+    Params.StableUniqueId = !!StableUniqueId;
 
     if (!DeviceIoControl(VolumeHandle,
         FSP_FSCTL_MOUNTDEV,
-        &Persistent, sizeof Persistent, UniqueId, sizeof *UniqueId,
+        &Params, sizeof Params, UniqueId, sizeof *UniqueId,
         &Bytes, 0))
         return FspNtStatusFromWin32(GetLastError());
 
@@ -276,6 +286,71 @@ FSP_API NTSTATUS FspFsctlGetVolumeList(PWSTR DevicePath,
 
     *PVolumeListSize = Bytes;
     Result = STATUS_SUCCESS;
+
+exit:
+    if (INVALID_HANDLE_VALUE != VolumeHandle)
+        CloseHandle(VolumeHandle);
+
+    return Result;
+}
+
+FSP_API NTSTATUS FspFsctlGetCurrentSiloId(GUID *SiloId)
+{
+    WCHAR SxsDevicePathBuf[MAX_PATH];
+    PWSTR DevicePath = L"" FSP_FSCTL_DISK_DEVICE_NAME;
+    PWSTR DeviceRoot;
+    SIZE_T DeviceRootSize, DevicePathSize;
+    WCHAR DevicePathBuf[MAX_PATH], *DevicePathPtr;
+    HANDLE VolumeHandle = INVALID_HANDLE_VALUE;
+    DWORD Bytes;
+    NTSTATUS Result;
+
+    if (0 == SiloId)
+        return STATUS_INVALID_PARAMETER;
+    memset(SiloId, 0, sizeof *SiloId);
+
+    Result = FspFsctlStartService();
+    if (!NT_SUCCESS(Result))
+        return Result;
+
+    DevicePath = FspSxsAppendSuffix(SxsDevicePathBuf, sizeof SxsDevicePathBuf, DevicePath);
+
+    /* check lengths; everything must fit within MAX_PATH */
+    DeviceRoot = L'\\' == DevicePath[0] ? GLOBALROOT : GLOBALROOT "\\Device\\";
+    DeviceRootSize = lstrlenW(DeviceRoot) * sizeof(WCHAR);
+    DevicePathSize = lstrlenW(DevicePath) * sizeof(WCHAR);
+    if (DeviceRootSize + DevicePathSize + sizeof(WCHAR) > sizeof DevicePathBuf)
+        return STATUS_INVALID_PARAMETER;
+
+    /* prepare the device path to be opened */
+    DevicePathPtr = DevicePathBuf;
+    memcpy(DevicePathPtr, DeviceRoot, DeviceRootSize);
+    DevicePathPtr = (PVOID)((PUINT8)DevicePathPtr + DeviceRootSize);
+    memcpy(DevicePathPtr, DevicePath, DevicePathSize);
+    DevicePathPtr = (PVOID)((PUINT8)DevicePathPtr + DevicePathSize);
+    *DevicePathPtr = L'\0';
+
+    VolumeHandle = CreateFileW(DevicePathBuf,
+        0, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
+    if (INVALID_HANDLE_VALUE == VolumeHandle)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        if (STATUS_OBJECT_PATH_NOT_FOUND == Result ||
+            STATUS_OBJECT_NAME_NOT_FOUND == Result)
+            Result = STATUS_NO_SUCH_DEVICE;
+        goto exit;
+    }
+
+    if (!DeviceIoControl(VolumeHandle, FSP_FSCTL_GET_SILO_ID,
+        0, 0,
+        SiloId, (DWORD)sizeof *SiloId,
+        &Bytes, 0))
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        goto exit;
+    }
+
+    Result = sizeof *SiloId == Bytes ? STATUS_SUCCESS : STATUS_INVALID_PARAMETER;
 
 exit:
     if (INVALID_HANDLE_VALUE != VolumeHandle)
@@ -463,6 +538,25 @@ static BOOLEAN FspFsctlRunningInContainer(VOID)
         0, 0);
 }
 
+static NTSTATUS FspFsctlStartServiceStatusResult(SERVICE_STATUS *ServiceStatus)
+{
+    DWORD ErrorCode = ServiceStatus->dwWin32ExitCode;
+    DWORD ServiceSpecificErrorCode = ServiceStatus->dwServiceSpecificExitCode;
+
+    if (ERROR_SERVICE_SPECIFIC_ERROR == ErrorCode && 0 != ServiceSpecificErrorCode)
+    {
+        if (0xc0000000 == (ServiceSpecificErrorCode & 0xc0000000))
+            return (NTSTATUS)ServiceSpecificErrorCode;
+
+        ErrorCode = ServiceSpecificErrorCode;
+    }
+
+    if (ERROR_SUCCESS != ErrorCode)
+        return FspNtStatusFromWin32(ErrorCode);
+
+    return STATUS_DRIVER_UNABLE_TO_LOAD;
+}
+
 static NTSTATUS FspFsctlStartServiceByName(PWSTR DriverName)
 {
     SC_HANDLE ScmHandle = 0;
@@ -501,7 +595,13 @@ static NTSTATUS FspFsctlStartServiceByName(PWSTR DriverName)
     {
         LastError = GetLastError();
         if (ERROR_SERVICE_ALREADY_RUNNING != LastError)
-            Result = FspNtStatusFromWin32(LastError);
+        {
+            if (ERROR_SERVICE_SPECIFIC_ERROR == LastError &&
+                QueryServiceStatus(SvcHandle, &ServiceStatus))
+                Result = FspFsctlStartServiceStatusResult(&ServiceStatus);
+            else
+                Result = FspNtStatusFromWin32(LastError);
+        }
         else
             Result = STATUS_SUCCESS;
         goto exit;
@@ -521,6 +621,12 @@ static NTSTATUS FspFsctlStartServiceByName(PWSTR DriverName)
         if (SERVICE_RUNNING == ServiceStatus.dwCurrentState)
         {
             Result = STATUS_SUCCESS;
+            break;
+        }
+
+        if (SERVICE_STOPPED == ServiceStatus.dwCurrentState)
+        {
+            Result = FspFsctlStartServiceStatusResult(&ServiceStatus);
             break;
         }
 
@@ -570,12 +676,16 @@ FSP_API NTSTATUS FspFsctlStartService(VOID)
         if (NT_SUCCESS(Result) || STATUS_NO_SUCH_DEVICE != Result)
             return Result;
 
-        /* DO NOT CLOBBER Result. We will return it if our best effort below fails. */
+        /* Return the SxS start error if we find a candidate and it fails. */
 
         DriverName[0] = L'\0';
         FspFsctlEnumServices(FspFsctlStartService_EnumFn, DriverName);
 
-        if (L'\0' == DriverName[0] || !NT_SUCCESS(FspFsctlStartServiceByName(DriverName)))
+        if (L'\0' == DriverName[0])
+            return Result;
+
+        Result = FspFsctlStartServiceByName(DriverName);
+        if (!NT_SUCCESS(Result))
             return Result;
 
         return STATUS_SUCCESS;

@@ -66,6 +66,9 @@ extern "C" {
 #define FUSE_CAP_VOL_RENAME             (1 << 30)   /* reserved (OSXFUSE) */
 #define FUSE_CAP_XTIMES                 (1 << 31)   /* reserved (OSXFUSE) */
 
+#define FSP_FUSE_CAP_READ_ONLY          (1 << 22)   /* file system is marked read-only */
+#define FSP_FUSE_CAP_STAT_EX            (1 << 23)   /* file system supports fuse_stat_ex */
+#define FSP_FUSE_CAP_DELETE_ACCESS      (1 << 24)   /* file system supports access with DELETE_OK */
 #define FSP_FUSE_CAP_CASE_INSENSITIVE   FUSE_CAP_CASE_INSENSITIVE
 
 #define FUSE_IOCTL_COMPAT               (1 << 0)
@@ -73,6 +76,13 @@ extern "C" {
 #define FUSE_IOCTL_RETRY                (1 << 2)
 #define FUSE_IOCTL_DIR                  (1 << 4)
 #define FUSE_IOCTL_MAX_IOV              256
+
+#ifndef SEEK_DATA
+#define SEEK_DATA                       3
+#endif
+#ifndef SEEK_HOLE
+#define SEEK_HOLE                       4
+#endif
 
 #define FUSE_BUFVEC_INIT(s)             \
     ((struct fuse3_bufvec){ 1, 0, 0, { {s, (enum fuse3_buf_flags)0, 0, -1, 0} } })

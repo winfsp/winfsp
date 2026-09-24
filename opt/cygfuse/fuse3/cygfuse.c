@@ -22,6 +22,7 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/cygwin.h>
@@ -96,6 +97,78 @@ static inline int cygfuse_daemon(int nochdir, int noclose)
         return cygfuse_init_fail();
 
 static void *cygfuse_init_fail();
+static void *cygfuse_dlopen_winpath(const char *winpath)
+{
+    char *psxpath;
+    void *h = 0;
+
+    psxpath = (char *)cygwin_create_path(CCP_WIN_A_TO_POSIX | CCP_PROC_CYGDRIVE, winpath);
+    if (0 != psxpath)
+    {
+        h = dlopen(psxpath, RTLD_NOW);
+        free(psxpath);
+    }
+
+    return h;
+}
+
+static void *cygfuse_dlopen_winfsp_at(const char *install)
+{
+    char winpath[260];
+    size_t bytes;
+
+    if (0 == install)
+        return 0;
+
+    bytes = strlen(install);
+    while (0 < bytes && ('\r' == install[bytes - 1] || '\n' == install[bytes - 1]))
+        bytes--;
+    if (0 == bytes)
+        return 0;
+
+    if (sizeof winpath <= bytes + sizeof CYGFUSE_WINFSP_PATH + 1)
+        return 0;
+
+    memcpy(winpath, install, bytes);
+    if ('\\' != winpath[bytes - 1] && '/' != winpath[bytes - 1])
+        winpath[bytes++] = '\\';
+    memcpy(winpath + bytes, CYGFUSE_WINFSP_PATH, sizeof CYGFUSE_WINFSP_PATH);
+
+    return cygfuse_dlopen_winpath(winpath);
+}
+
+static void *cygfuse_dlopen_winfsp_reg(const char *regpath)
+{
+    char install[260];
+    int regfd, bytes;
+
+    regfd = open(regpath, O_RDONLY);
+    if (-1 == regfd)
+        return 0;
+
+    bytes = read(regfd, install, sizeof install - 1);
+    close(regfd);
+    if (-1 == bytes || 0 == bytes)
+        return 0;
+
+    install[bytes] = '\0';
+    return cygfuse_dlopen_winfsp_at(install);
+}
+
+static void *cygfuse_dlopen_winfsp_program_files(const char *name)
+{
+    char install[260];
+    const char *program_files = getenv(name);
+
+    if (0 == program_files)
+        return 0;
+
+    if (sizeof install <= snprintf(install, sizeof install, "%s\\WinFsp", program_files))
+        return 0;
+
+    return cygfuse_dlopen_winfsp_at(install);
+}
+
 static void *cygfuse_init_winfsp()
 {
     void *h;
@@ -103,28 +176,13 @@ static void *cygfuse_init_winfsp()
     h = dlopen(CYGFUSE_WINFSP_NAME, RTLD_NOW);
     if (0 == h)
     {
-        char winpath[260], *psxpath;
-        int regfd, bytes;
-
-        regfd = open("/proc/registry32/HKEY_LOCAL_MACHINE/Software/WinFsp/InstallDir", O_RDONLY);
-        if (-1 == regfd)
-            return cygfuse_init_fail();
-
-        bytes = read(regfd, winpath, sizeof winpath - sizeof CYGFUSE_WINFSP_PATH);
-        close(regfd);
-        if (-1 == bytes || 0 == bytes)
-            return cygfuse_init_fail();
-
-        if ('\0' == winpath[bytes - 1])
-            bytes--;
-        memcpy(winpath + bytes, CYGFUSE_WINFSP_PATH, sizeof CYGFUSE_WINFSP_PATH);
-
-        psxpath = (char *)cygwin_create_path(CCP_WIN_A_TO_POSIX | CCP_PROC_CYGDRIVE, winpath);
-        if (0 == psxpath)
-            return cygfuse_init_fail();
-
-        h = dlopen(psxpath, RTLD_NOW);
-        free(psxpath);
+        h = cygfuse_dlopen_winfsp_reg("/proc/registry32/HKEY_LOCAL_MACHINE/Software/WinFsp/InstallDir");
+        if (0 == h)
+            h = cygfuse_dlopen_winfsp_reg("/proc/registry/HKEY_LOCAL_MACHINE/Software/WinFsp/InstallDir");
+        if (0 == h)
+            h = cygfuse_dlopen_winfsp_program_files("ProgramFiles(x86)");
+        if (0 == h)
+            h = cygfuse_dlopen_winfsp_program_files("ProgramFiles");
         if (0 == h)
             return cygfuse_init_fail();
     }

@@ -53,7 +53,7 @@ struct fuse_operations
     /* S */ int (*rmdir)(const char *path);
     /* S */ int (*symlink)(const char *dstpath, const char *srcpath);
     /* S */ int (*rename)(const char *oldpath, const char *newpath);
-    /* _ */ int (*link)(const char *srcpath, const char *dstpath);
+    /* S */ int (*link)(const char *srcpath, const char *dstpath);
     /* S */ int (*chmod)(const char *path, fuse_mode_t mode);
     /* S */ int (*chown)(const char *path, fuse_uid_t uid, fuse_gid_t gid);
     /* S */ int (*truncate)(const char *path, fuse_off_t size);

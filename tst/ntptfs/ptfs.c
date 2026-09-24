@@ -21,6 +21,8 @@
 
 #include "ptfs.h"
 
+#define DIRTY_PAGE_THRESHOLD            (16 * 1024)
+
 #define FileSystemContext               ((PTFS *)(FileSystem)->UserContext)
 #define FileContextHandle               (((FILE_CONTEXT *)(FileContext))->Handle)
 #define FileContextIsDirectory          (((FILE_CONTEXT *)(FileContext))->IsDirectory)
@@ -81,7 +83,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     PTFS *Ptfs = FileSystemContext;
     HANDLE Handle = 0;
     IO_STATUS_BLOCK Iosb;
-    FILE_ATTRIBUTE_TAG_INFORMATION FileAttrInfo;
+    FILE_BASIC_INFORMATION FileBasicInfo;
     ULONG SecurityDescriptorSizeNeeded;
     NTSTATUS Result;
 
@@ -107,17 +109,17 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
         Result = NtQueryInformationFile(
             Handle,
             &Iosb,
-            &FileAttrInfo,
-            sizeof FileAttrInfo,
-            35/*FileAttributeTagInformation*/);
+            &FileBasicInfo,
+            sizeof FileBasicInfo,
+            4/*FileBasicInformation*/);
         if (!NT_SUCCESS(Result))
             goto exit;
 
-        *PFileAttributes = FileAttrInfo.FileAttributes;
+        *PFileAttributes = FileBasicInfo.FileAttributes;
 
         /* cache FileAttributes for Open */
         FspFileSystemGetOperationContext()->Response->Rsp.Create.Opened.FileInfo.FileAttributes =
-            FileAttrInfo.FileAttributes;
+            FileBasicInfo.FileAttributes;
     }
 
     if (0 != PSecurityDescriptorSize)
@@ -1186,6 +1188,7 @@ NTSTATUS PtfsCreate(
     ULONG FsAttributeMask,
     PWSTR VolumePrefix,
     PWSTR MountPoint,
+    const GUID *TargetSiloId,
     UINT32 DebugFlags,
     PTFS **PPtfs)
 {
@@ -1275,6 +1278,10 @@ NTSTATUS PtfsCreate(
     VolumeParams.VolumeCreationTime = FileAllInfo.BasicInformation.CreationTime.QuadPart;
     VolumeParams.VolumeSerialNumber = 0;
     VolumeParams.FileInfoTimeout = FileInfoTimeout;
+    if (0 != TargetSiloId)
+        VolumeParams.TargetSiloId = *TargetSiloId;
+    /* Keep large mapped/cached saves from dirtying too much memory at once. */
+    VolumeParams.DirtyPageThreshold = DIRTY_PAGE_THRESHOLD;
     VolumeParams.CaseSensitiveSearch = 0;
     VolumeParams.CasePreservedNames = !!(FsAttrInfo.V.FileSystemAttributes & FILE_CASE_PRESERVED_NAMES);
     VolumeParams.UnicodeOnDisk = !!(FsAttrInfo.V.FileSystemAttributes & FILE_UNICODE_ON_DISK);
