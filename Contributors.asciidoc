@@ -56,6 +56,7 @@ CONTRIBUTOR LIST
 |===
 |Alberto Alonso                                                 |alberto at alonso.xyz
 |Ben Rubson                                                     |ben.rubson at gmail.com
+|Benjamin Berman                                                |2229300+doctorpangloss at users.noreply.github.com
 |Bill Zissimopoulos                                             |billziss at navimatics.com
 |Brett Dutro                                                    |brett.dutro at gmail.com
 |Changjian Gao (Juicedata, https://juicefs.com)                 |gcj at juicedata.io

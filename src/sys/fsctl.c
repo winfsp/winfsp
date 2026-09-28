@@ -23,6 +23,9 @@
 
 static NTSTATUS FspFsctlFileSystemControl(
     PDEVICE_OBJECT FsctlDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static UINT16 FspFsvolReparseTargetMountRoot(
+    PDEVICE_OBJECT FsvolDeviceObject, PDEVICE_OBJECT RelatedDeviceObject,
+    PUNICODE_STRING TargetObjectName, ULONG DeviceNameLength);
 static NTSTATUS FspFsvolFileSystemControlReparsePoint(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp,
     BOOLEAN IsWrite);
@@ -47,6 +50,7 @@ FSP_DRIVER_DISPATCH FspFileSystemControl;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, FspFsctlFileSystemControl)
+#pragma alloc_text(PAGE, FspFsvolReparseTargetMountRoot)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlReparsePoint)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlReparsePointComplete)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlOplock)
@@ -146,6 +150,88 @@ static NTSTATUS FspFsctlFileSystemControl(
         break;
     }
 
+    return Result;
+}
+
+static UINT16 FspFsvolReparseTargetMountRoot(
+    PDEVICE_OBJECT FsvolDeviceObject, PDEVICE_OBJECT RelatedDeviceObject,
+    PUNICODE_STRING TargetObjectName, ULONG DeviceNameLength)
+{
+    PAGED_CODE();
+
+    ULONG Start, End, Count = TargetObjectName->Length / sizeof(WCHAR);
+    ULONG DeviceEnd = DeviceNameLength / sizeof(WCHAR);
+    UINT16 Result = 0;
+    PIRP TopLevelIrp;
+    UNICODE_STRING Prefix = *TargetObjectName;
+    PFILE_OBJECT TargetFileObject;
+    PDEVICE_OBJECT TargetDeviceObject;
+    FSP_FILE_NODE *TargetFileNode;
+    OBJECT_ATTRIBUTES Attributes;
+    IO_STATUS_BLOCK IoStatus;
+    HANDLE Handle;
+    NTSTATUS Status;
+
+    if (DeviceEnd >= Count || L'\\' != Prefix.Buffer[DeviceEnd])
+        return 0;
+
+    /* Check the entire suffix before accepting any root. Raw reparse buffers
+     * need not have undergone Win32 path normalization. Never strip a prefix
+     * from a spelling that could escape that root or name another boundary. */
+    for (Start = DeviceEnd + 1; Start < Count; Start = End + 1)
+    {
+        for (End = Start; End < Count && L'\\' != Prefix.Buffer[End]; End++)
+            ;
+        if (End == Start ||
+            (End == Start + 1 && L'.' == Prefix.Buffer[Start]) ||
+            (End == Start + 2 && L'.' == Prefix.Buffer[Start] && L'.' == Prefix.Buffer[Start + 1]))
+            return 0;
+    }
+
+    /* This runs before acquiring the link's FileNode resource. A prefix open
+     * can reenter this file system through a directory junction. */
+    TopLevelIrp = IoGetTopLevelIrp();
+    IoSetTopLevelIrp(0);
+    for (Start = DeviceEnd + 1; Start < Count; Start = End + 1)
+    {
+        for (End = Start; End < Count && L'\\' != Prefix.Buffer[End]; End++)
+            ;
+        /* Do not open the leaf: dangling descendants are valid targets. An
+         * exact-root target is deliberately not converted to an empty name. */
+        if (End == Count)
+            break;
+        Prefix.Length = Prefix.MaximumLength = (USHORT)(End * sizeof(WCHAR));
+        /* These prefixes are directories, not device names. Open them as
+         * directories and follow junctions; IoGetDeviceObjectPointer is a
+         * device-open helper and is not the directory-open contract. */
+        InitializeObjectAttributes(&Attributes, &Prefix,
+            OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, 0, 0);
+        Status = ZwOpenFile(&Handle, FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+            &Attributes, &IoStatus, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT);
+        if (!NT_SUCCESS(Status))
+            break;
+        Status = ObReferenceObjectByHandle(Handle, FILE_READ_ATTRIBUTES,
+            *IoFileObjectType, KernelMode, (PVOID *)&TargetFileObject, 0);
+        ZwClose(Handle);
+        if (!NT_SUCCESS(Status))
+            break;
+        TargetDeviceObject = IoGetRelatedDeviceObject(TargetFileObject);
+        if (RelatedDeviceObject == TargetDeviceObject)
+        {
+            TargetFileNode = TargetFileObject->FsContext;
+            /* Device identity alone is insufficient: an alias into a child
+             * directory would discard that child's path when stripping. */
+            if (FspFileNodeIsValid(TargetFileNode) &&
+                FsvolDeviceObject == TargetFileNode->FsvolDeviceObject &&
+                TargetFileNode->IsRootDirectory)
+                Result = Prefix.Length;
+            ObDereferenceObject(TargetFileObject);
+            break;
+        }
+        ObDereferenceObject(TargetFileObject);
+    }
+    IoSetTopLevelIrp(TopLevelIrp);
     return Result;
 }
 
@@ -309,6 +395,16 @@ static NTSTATUS FspFsvolFileSystemControlReparsePoint(
                                 TargetOnFileSystem = (UINT16)TargetFileNameIndex;
                         }
                     }
+                }
+
+                else if (0 == FsvolDeviceExtension->VolumePrefix.Length &&
+                    IoGetRelatedDeviceObject(FileObject) != TargetDeviceObject)
+                {
+                    /* A local directory mount initially resolves to its host
+                     * disk. Prove the actual root rather than trusting text. */
+                    TargetOnFileSystem = FspFsvolReparseTargetMountRoot(
+                        FsvolDeviceObject, IoGetRelatedDeviceObject(FileObject),
+                        &TargetObjectName, TargetFileNameIndex);
                 }
 
                 ObDereferenceObject(TargetFileObject);
