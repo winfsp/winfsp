@@ -6,7 +6,7 @@ Since release 2019.3 WinFsp supports development of file systems in kernel mode.
 
 The primary goal of WinFsp is to enable the easy creation of *user mode* file systems using an easy to use API. There are however legitimate reasons for wanting to develop a file system as a *kernel mode* driver, but the difficulty of doing so often deters people because Windows kernel file system development is notoriously difficult and has many pitfalls.
 
-Some of the reasons that a kernel mode file system may be preferrable to a user mode one:
+Some of the reasons that a kernel mode file system may be preferable to a user mode one:
 
 * A kernel driver may be able to achieve better performance than user mode processes.
 * A kernel driver may be able to access advanced OS features that are not easily available to user mode processes.
