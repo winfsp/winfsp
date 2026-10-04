@@ -595,6 +595,16 @@ FSP_API NTSTATUS FspPosixMapUidToSid(UINT32 Uid, PSID *PSid)
                     DomainSid->SubAuthority[2],
                     DomainSid->SubAuthority[3],
                     Uid - TrustPosixOffset);
+            } else if (0 != FspAccountDomainSid &&
+                5 == FspAccountDomainSid->IdentifierAuthority.Value[5] &&
+                4 == FspAccountDomainSid->SubAuthorityCount)
+            {
+                *PSid = FspPosixCreateSid(5, 5,
+                    21,
+                    FspPrimaryDomainSid->SubAuthority[1],
+                    FspPrimaryDomainSid->SubAuthority[2],
+                    FspPrimaryDomainSid->SubAuthority[3],
+                    Uid - 0x100000);
             }
         }
     }
