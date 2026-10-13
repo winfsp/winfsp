@@ -1843,6 +1843,9 @@ static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
             return STATUS_ACCESS_DENIED;
     }
 
+    if (0 == f->ops.rename)
+        return STATUS_INVALID_DEVICE_REQUEST;
+
     err = f->ops.rename(filedesc->PosixPath, contexthdr->PosixPath);
     return fsp_fuse_ntstatus_from_errno(f->env, err);
 }
