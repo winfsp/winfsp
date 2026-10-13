@@ -1,6 +1,39 @@
 # Changelog
 
 
+## v2.2B5 (2026 Beta5)
+
+- [FIX] Fixes vulnerability CVE-2026-3006 reported by Tay Kiat Loong (GitHub: @Owl4444).
+
+- [FIX] Fixes vulnerability CVE-2026-7162 reported by Tay Kiat Loong (GitHub: @Owl4444) and uhg (GitHub: @UltimateHG).
+
+- [FIX] Fixes vulnerability reported by Wencheng Xue (GitHub @panwnvda).
+
+- [FIX] Fixes vulnerability reported by Abhinav Agarwal (GitHub @abhinavagarwal07).
+
+- [FIX] Fixes 2 vulnerabilities reported by Johan von Konow.
+
+- [FIX] Fixes deadlock during cached writes under memory pressure. See PR #677 for discussion.
+
+- [FIX] Fixes deadlock in the file system notification mechanism with concurrent renames. See fix PR #669 by @yeonsh and test PR #672 by @Maksim-Isakau.
+
+- [FIX] Fixes deadlock when closing named streams while the file system is being forcibly terminated. See issue #680.
+
+- [FIX] Fixes another complicated deadlock when the file system is being forcibly terminated. See issue #682.
+
+- [FIX] Fixes a problem with `NtCreateFile` and relative opens. See issue #692.
+
+- [FIX] The WinFsp Network Provider provides improved shell support for network file systems not managed by the Launcher. See commit f021496.
+
+- [FIX] Fixes a problem with mounting on a directory with a trailing backslash. See issue #674.
+
+- [FUSE] Add FUSE option `FlushOnCleanup`. See PR #614 by @chenjie4255.
+
+- [FUSE] FUSE now respects the `direct_io` flag. See PR #646 by @chenjie4255.
+
+- [FUSE] Add FUSE option `AddWriteEaAccess`. See PR #648 by @chenjie4255.
+
+
 ## v2.2B4 (2026 Beta4)
 
 - [FIX] Fixes vulnerability CVE-2026-3006 reported by Tay Kiat Loong (GitHub: @Owl4444).
