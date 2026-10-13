@@ -635,7 +635,7 @@ static NTSTATUS FspFsvolQueryStreamInformationCopy(
         {\
             PWSTR StreamName = Info->StreamName;\
             ULONG Length[3];\
-            Length[0] = 0 < CopyLength ? sizeof(WCHAR) : 0;\
+            Length[0] = sizeof(WCHAR) <= CopyLength ? sizeof(WCHAR) : CopyLength;\
             Length[1] = Info->StreamNameLength - STREAM_EXTRA_LENGTH < CopyLength - Length[0] ?\
                 Info->StreamNameLength - STREAM_EXTRA_LENGTH : CopyLength - Length[0];\
             Length[2] = CopyLength - Length[0] - Length[1];\
