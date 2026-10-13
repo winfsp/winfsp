@@ -834,6 +834,8 @@ VOID FspFsvolDeviceSetVolumeInfo(PDEVICE_OBJECT DeviceObject, const FSP_FSCTL_VO
 {
     // !PAGED_CODE();
 
+    ASSERT(VolumeInfo->VolumeLabelLength <= sizeof VolumeInfo->VolumeLabel);
+
     FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension = FspFsvolDeviceExtension(DeviceObject);
     FSP_FSCTL_VOLUME_INFO VolumeInfoNp = *VolumeInfo;
     KIRQL Irql;

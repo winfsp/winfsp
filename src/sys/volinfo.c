@@ -350,6 +350,14 @@ NTSTATUS FspFsvolQueryVolumeInformationComplete(
         FSP_RETURN();
     }
 
+    if (Response->Rsp.QueryVolumeInformation.VolumeInfo.VolumeLabelLength >
+        sizeof Response->Rsp.QueryVolumeInformation.VolumeInfo.VolumeLabel)
+    {
+        Irp->IoStatus.Information = 0;
+        Result = STATUS_INTERNAL_ERROR;
+        FSP_RETURN();
+    }
+
     PDEVICE_OBJECT FsvolDeviceObject = IrpSp->DeviceObject;
     PUINT8 Buffer = Irp->AssociatedIrp.SystemBuffer;
     PUINT8 BufferEnd = Buffer + IrpSp->Parameters.QueryVolume.Length;
@@ -410,7 +418,13 @@ static NTSTATUS FspFsvolSetFsLabelInformation(
         ((PWSTR)Request->Buffer)[Info->VolumeLabelLength / sizeof(WCHAR)] = L'\0';
     }
     else
+    {
+        if (Response->Rsp.SetVolumeInformation.VolumeInfo.VolumeLabelLength >
+            sizeof Response->Rsp.SetVolumeInformation.VolumeInfo.VolumeLabel)
+            return STATUS_INTERNAL_ERROR;
+
         FspFsvolDeviceSetVolumeInfo(FsvolDeviceObject, &Response->Rsp.SetVolumeInformation.VolumeInfo);
+    }
 
     return STATUS_SUCCESS;
 }
