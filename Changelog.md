@@ -11,6 +11,10 @@
 
 - [FIX] Fixes vulnerability reported by Abhinav Agarwal (GitHub @abhinavagarwal07).
 
+- [FIX] Fixes vulnerability reported by Luigino Camastra — AISLE Research.
+
+- [FIX] Fixes vulnerability reported by Anton from RIA Labs.
+
 - [FIX] Fixes 2 vulnerabilities reported by Johan von Konow.
 
 - [FIX] Fixes deadlock during cached writes under memory pressure. See PR #677 for discussion.
