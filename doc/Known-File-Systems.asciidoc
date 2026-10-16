@@ -31,6 +31,8 @@ This document contains a list of known open-source file systems and file system 
 
 == File System Libraries
 
+WinFsp does not currently ship or maintain an official Node.js/JavaScript binding. Node.js users can use a third-party package that targets FUSE/WinFsp, or create a Node-API native addon against the WinFsp native or FUSE API. Third-party projects are not part of WinFsp and should be evaluated independently.
+
 - https://github.com/winfsp/cgofuse[Go: cgofuse] - Cross-platform FUSE library for Go
 - https://github.com/aegistudio/go-winfsp[Go: go-winfsp] - WinFSP bindings for Go
 - https://github.com/SerCeMan/jnr-fuse[Java: jnr-fuse] - FUSE implementation in Java using Java Native Runtime (JNR)

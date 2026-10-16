@@ -270,6 +270,13 @@ static NTSTATUS FspFsvolReadCached(
             FspFileNodeRelease(FileNode, Main);
             return Result;
         }
+
+        Result = FspFsvolDeviceSetCacheMapParameters(FsvolDeviceObject, FileObject);
+        if (!NT_SUCCESS(Result))
+        {
+            FspFileNodeRelease(FileNode, Main);
+            return Result;
+        }
     }
 
     /*

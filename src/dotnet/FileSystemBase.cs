@@ -672,6 +672,39 @@ namespace Fsp
             return STATUS_INVALID_DEVICE_REQUEST;
         }
         /// <summary>
+        /// Creates a hard link to a file.
+        /// </summary>
+        /// <param name="FileNode">
+        /// The file node of the file to link.
+        /// </param>
+        /// <param name="FileDesc">
+        /// The file descriptor of the file to link.
+        /// </param>
+        /// <param name="FileName">
+        /// The current name of the file to link.
+        /// </param>
+        /// <param name="NewFileName">
+        /// The name for the new hard link.
+        /// </param>
+        /// <param name="ReplaceIfExists">
+        /// Whether to replace a file that already exists at NewFileName.
+        /// </param>
+        /// <param name="FileInfo">
+        /// Receives the updated file information.
+        /// </param>
+        /// <returns>STATUS_SUCCESS or error code.</returns>
+        public virtual Int32 Link(
+            Object FileNode,
+            Object FileDesc,
+            String FileName,
+            String NewFileName,
+            Boolean ReplaceIfExists,
+            out FileInfo FileInfo)
+        {
+            FileInfo = default(FileInfo);
+            return STATUS_INVALID_DEVICE_REQUEST;
+        }
+        /// <summary>
         /// Gets file or directory security descriptor.
         /// </summary>
         /// <param name="FileNode">
@@ -1228,6 +1261,7 @@ namespace Fsp
         /// </summary>
         public static Int32 NtStatusFromWin32(UInt32 Error)
         {
+            Api.Init();
             return Api.FspNtStatusFromWin32(Error);
         }
         /// <summary>
@@ -1235,16 +1269,29 @@ namespace Fsp
         /// </summary>
         public static UInt32 Win32FromNtStatus(Int32 Status)
         {
+            Api.Init();
             return Api.FspWin32FromNtStatus(Status);
+        }
+        /// <summary>
+        /// Gets the requested share access.
+        /// </summary>
+        /// <remarks>
+        /// Valid only during Create and Open requests.
+        /// </remarks>
+        public static UInt32 GetOperationShareAccess()
+        {
+            Api.Init();
+            return Api.FspFileSystemOperationShareAccess();
         }
         /// <summary>
         /// Gets the originating process ID.
         /// </summary>
         /// <remarks>
-        /// Valid only during Create, Open and Rename requests when the target exists.
+        /// Valid only during Create, Open, Rename and Link requests when the target exists.
         /// </remarks>
         public static int GetOperationProcessId()
         {
+            Api.Init();
             return (int)Api.FspFileSystemOperationProcessId();
         }
         /// <summary>
@@ -1270,6 +1317,7 @@ namespace Fsp
             AccessControlSections Sections,
             Byte[] ModificationDescriptor)
         {
+            Api.Init();
             UInt32 SecurityInformation = 0;
             if (0 != (Sections & AccessControlSections.Owner))
                 SecurityInformation |= 1/*OWNER_SECURITY_INFORMATION*/;
@@ -1310,6 +1358,7 @@ namespace Fsp
             Byte[] ModificationDescriptor,
             ref Byte[] ModifiedDescriptor)
         {
+            Api.Init();
             UInt32 SecurityInformation = 0;
             if (0 != (Sections & AccessControlSections.Owner))
                 SecurityInformation |= 1/*OWNER_SECURITY_INFORMATION*/;
@@ -1409,6 +1458,7 @@ namespace Fsp
             String FileName,
             out UInt32 ReparsePointIndex)
         {
+            Api.Init();
             GCHandle Handle = GCHandle.Alloc(this, GCHandleType.Normal);
             try
             {
@@ -1466,6 +1516,7 @@ namespace Fsp
             Byte[] CurrentReparseData,
             Byte[] ReplaceReparseData)
         {
+            Api.Init();
             return Api.FspFileSystemCanReplaceReparsePoint(CurrentReparseData, ReplaceReparseData);
         }
         private static Int32 GetReparsePointByName(
@@ -1518,6 +1569,7 @@ namespace Fsp
         }
         public void StopServiceIfNecessary(Boolean Normally)
         {
+            Api.Init();
             Api.FspFileSystemStopServiceIfNecessary(IntPtr.Zero, Normally);
         }
     }

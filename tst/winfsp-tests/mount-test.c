@@ -24,6 +24,7 @@
 #include <process.h>
 #include <strsafe.h>
 
+#include "memfs.h"
 #include "winfsp-tests.h"
 
 void mount_invalid_test(void)
@@ -397,6 +398,57 @@ void mount_preflight_test(void)
         mount_preflight_dotest(L"WinFsp.Net");
 }
 
+void mount_directory_root_test(void)
+{
+    if (!WinFspDiskTests || NtfsTests || OptMountPoint)
+        return;
+
+    void *memfs = memfs_start(MemfsDisk);
+    NTSTATUS Result;
+    HANDLE Handle;
+    BOOL Success;
+    DWORD FileAttributes, BytesTransferred;
+    WCHAR DirBuf[MAX_PATH], MountPoint[MAX_PATH], FilePath[MAX_PATH];
+    BYTE Byte = 0;
+
+    GetTestDirectory(DirBuf);
+    ASSERT(L'\\' == DirBuf[0] && L'\\' == DirBuf[1] && L'?' == DirBuf[2] && L'\\' == DirBuf[3]);
+    StringCbPrintfW(MountPoint, sizeof MountPoint, L"%s\\mnt-%08lx", DirBuf + 4, GetTickCount());
+
+    FileAttributes = GetFileAttributesW(MountPoint);
+    ASSERT(INVALID_FILE_ATTRIBUTES == FileAttributes);
+
+    Result = FspFileSystemSetMountPoint(MemfsFileSystem(memfs), MountPoint);
+    ASSERT(NT_SUCCESS(Result));
+
+    FileAttributes = GetFileAttributesW(MountPoint);
+    ASSERT(INVALID_FILE_ATTRIBUTES != FileAttributes);
+    ASSERT(0 != (FileAttributes & FILE_ATTRIBUTE_DIRECTORY));
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s\\ChangeLog.md", MountPoint);
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Success = WriteFile(Handle, &Byte, sizeof Byte, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT(sizeof Byte == BytesTransferred);
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    FspFileSystemRemoveMountPoint(MemfsFileSystem(memfs));
+
+    FileAttributes = GetFileAttributesW(MountPoint);
+    ASSERT(INVALID_FILE_ATTRIBUTES == FileAttributes);
+
+    memfs_stop(memfs);
+}
+
 void mount_tests(void)
 {
     if (OptExternal || OptOplock)
@@ -409,4 +461,5 @@ void mount_tests(void)
     TEST_OPT(mount_volume_cancel_test);
     TEST_OPT(mount_volume_transact_test);
     TEST_OPT(mount_preflight_test);
+    TEST_OPT(mount_directory_root_test);
 }

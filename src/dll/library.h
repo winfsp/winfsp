@@ -63,6 +63,9 @@ VOID FspServiceFinalize(BOOLEAN Dynamic);
 VOID fsp_fuse_finalize(BOOLEAN Dynamic);
 VOID fsp_fuse_finalize_thread(VOID);
 
+NTSTATUS FspFileSystemSetMountPointEx2(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, BOOLEAN AllowMountOnExistingDirectory);
+
 NTSTATUS FspFsctlRegister(VOID);
 NTSTATUS FspFsctlUnregister(VOID);
 NTSTATUS FspNpRegister(VOID);
@@ -89,8 +92,12 @@ ULONG FspLdapConnect(PWSTR HostName, PVOID *PLdap);
 VOID FspLdapClose(PVOID Ldap);
 ULONG FspLdapGetValue(PVOID Ldap, PWSTR Base, ULONG Scope, PWSTR Filter, PWSTR Attribute,
     PWSTR *PValue);
+ULONG FspLdapGetValueBinary(PVOID Ldap, PWSTR Base, ULONG Scope, PWSTR Filter, PWSTR Attribute,
+    PVOID *PValue, PULONG PValueSize);
 ULONG FspLdapGetDefaultNamingContext(PVOID Ldap, PWSTR *PValue);
 ULONG FspLdapGetTrustPosixOffset(PVOID Ldap, PWSTR Context, PWSTR Domain, PWSTR *PValue);
+ULONG FspLdapGetPosixIdBySid(PVOID Ldap, PWSTR Context, PSID Sid, PWSTR Attribute, PUINT32 PUid);
+ULONG FspLdapGetSidByPosixId(PVOID Ldap, PWSTR Context, PWSTR Attribute, UINT32 Uid, PSID *PSid);
 
 PWSTR FspDiagIdent(VOID);
 HANDLE FspCreateDirectoryFileW(

@@ -73,6 +73,35 @@ static NTSTATUS ExtractHelperProgram(PWSTR FileName)
     return Result;
 }
 
+static NTSTATUS ExtractHelperDll(PWSTR FileName)
+{
+    HANDLE Handle;
+    ULONG BytesTransferred;
+    NTSTATUS Result;
+
+    Handle = CreateFileW(FileName,
+        FILE_WRITE_DATA, FILE_SHARE_WRITE, 0,
+        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+    if (INVALID_HANDLE_VALUE == Handle)
+        return FspNtStatusFromWin32(GetLastError());
+
+    Result = WriteResource(
+        Handle,
+        0,
+#if defined(_WIN64)
+        L"winfsp-tests-helper-dll-x64.dll",
+#elif defined(_WIN32)
+        L"winfsp-tests-helper-dll-x86.dll",
+#else
+#error
+#endif
+        &BytesTransferred);
+
+    CloseHandle(Handle);
+
+    return Result;
+}
+
 static NTSTATUS CreateHelperProcess(PWSTR FileName, ULONG Timeout, PHANDLE PProcess)
 {
     HANDLE Event;
@@ -368,9 +397,53 @@ static void exec_rename_dir_test(void)
     }
 }
 
+static void exec_dll_load_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    WCHAR DllPath[MAX_PATH];
+    NTSTATUS Result;
+    HMODULE Module;
+
+    StringCbPrintfW(DllPath, sizeof DllPath, L"%s%s\\mhypbase.dll",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Result = ExtractHelperDll(DllPath);
+    ASSERT(NT_SUCCESS(Result));
+
+    Module = LoadLibraryW(DllPath);
+    ASSERT(0 != Module);
+
+    ASSERT(FreeLibrary(Module));
+    ASSERT(DeleteFileW(DllPath));
+
+    memfs_stop(memfs);
+}
+
+static void exec_dll_load_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        exec_dll_load_dotest(-1, DirBuf, 0);
+    }
+    if (WinFspDiskTests)
+    {
+        exec_dll_load_dotest(MemfsDisk, 0, 0);
+        exec_dll_load_dotest(MemfsDisk, 0, 1000);
+    }
+    if (WinFspNetTests)
+    {
+        exec_dll_load_dotest(MemfsNet, L"\\\\memfs\\share", 0);
+        exec_dll_load_dotest(MemfsNet, L"\\\\memfs\\share", 1000);
+    }
+}
+
 void exec_tests(void)
 {
     TEST(exec_test);
+    TEST(exec_dll_load_test);
     TEST(exec_delete_test);
     if (!OptShareName)
         TEST(exec_rename_test);

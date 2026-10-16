@@ -62,6 +62,7 @@ public:
 
 public:
     FileSystemBase()
+        : _Host(0), _FileSystemPtr(0)
     {
     }
     virtual ~FileSystemBase()
@@ -222,6 +223,16 @@ public:
     {
         return STATUS_INVALID_DEVICE_REQUEST;
     }
+    virtual NTSTATUS Link(
+        PVOID FileNode,
+        PVOID FileDesc,
+        PWSTR FileName,
+        PWSTR NewFileName,
+        BOOLEAN ReplaceIfExists,
+        FileInfo *FileInfo)
+    {
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
     virtual NTSTATUS GetSecurity(
         PVOID FileNode,
         PVOID FileDesc,
@@ -338,6 +349,18 @@ public:
     static DWORD Win32FromNtStatus(NTSTATUS Status)
     {
         return FspWin32FromNtStatus(Status);
+    }
+    PVOID Host()
+    {
+        return _Host;
+    }
+    FSP_FILE_SYSTEM *FileSystemHandle()
+    {
+        return _FileSystemPtr;
+    }
+    static UINT32 GetOperationShareAccess()
+    {
+        return FspFileSystemOperationShareAccess();
     }
     static VOID DeleteDirectoryBuffer(PVOID *PDirBuffer)
     {
@@ -470,6 +493,21 @@ private:
     }
 
 private:
+    VOID SetHost(PVOID Host)
+    {
+        _Host = Host;
+    }
+    VOID SetFileSystemHandle(FSP_FILE_SYSTEM *FileSystemPtr)
+    {
+        _FileSystemPtr = FileSystemPtr;
+    }
+
+private:
+    friend class FileSystemHost;
+    PVOID _Host;
+    FSP_FILE_SYSTEM *_FileSystemPtr;
+
+private:
     /* disallow copy and assignment */
     FileSystemBase(const FileSystemBase &);
     FileSystemBase &operator=(const FileSystemBase &);
@@ -484,9 +522,12 @@ public:
     {
         Initialize();
         _VolumeParams.UmFileContextIsFullContext = 1;
+        _FileSystem->SetHost(this);
     }
     virtual ~FileSystemHost()
     {
+        _FileSystem->SetHost(0);
+        _FileSystem->SetFileSystemHandle(0);
         if (0 != _FileSystemPtr)
             FspFileSystemDelete(_FileSystemPtr);
     }
@@ -532,6 +573,14 @@ public:
     {
         _VolumeParams.VolumeSerialNumber = VolumeSerialNumber;
     }
+    BOOLEAN MountDevPersistentUniqueId()
+    {
+        return _VolumeParams.MountDevPersistentUniqueId;
+    }
+    VOID SetMountDevPersistentUniqueId(BOOLEAN MountDevPersistentUniqueId)
+    {
+        _VolumeParams.MountDevPersistentUniqueId = !!MountDevPersistentUniqueId;
+    }
     UINT32 FileInfoTimeout()
     {
         return _VolumeParams.FileInfoTimeout;
@@ -539,6 +588,16 @@ public:
     VOID SetFileInfoTimeout(UINT32 FileInfoTimeout)
     {
         _VolumeParams.FileInfoTimeout = FileInfoTimeout;
+    }
+    UINT32 DirInfoTimeout()
+    {
+        return _VolumeParams.DirInfoTimeoutValid ?
+            _VolumeParams.DirInfoTimeout : _VolumeParams.FileInfoTimeout;
+    }
+    VOID SetDirInfoTimeout(UINT32 DirInfoTimeout)
+    {
+        _VolumeParams.DirInfoTimeoutValid = 1;
+        _VolumeParams.DirInfoTimeout = DirInfoTimeout;
     }
     BOOLEAN CaseSensitiveSearch()
     {
@@ -588,6 +647,14 @@ public:
     {
         _VolumeParams.ReparsePointsAccessCheck = !!ReparsePointsAccessCheck;
     }
+    BOOLEAN DeferAccessCheck()
+    {
+        return _VolumeParams.UmDeferAccessCheck;
+    }
+    VOID SetDeferAccessCheck(BOOLEAN DeferAccessCheck)
+    {
+        _VolumeParams.UmDeferAccessCheck = !!DeferAccessCheck;
+    }
     BOOLEAN NamedStreams()
     {
         return _VolumeParams.NamedStreams;
@@ -595,6 +662,14 @@ public:
     VOID SetNamedStreams(BOOLEAN NamedStreams)
     {
         _VolumeParams.NamedStreams = !!NamedStreams;
+    }
+    BOOLEAN HardLinks()
+    {
+        return _VolumeParams.HardLinks;
+    }
+    VOID SetHardLinks(BOOLEAN HardLinks)
+    {
+        _VolumeParams.HardLinks = !!HardLinks;
     }
     BOOLEAN PostCleanupWhenModifiedOnly()
     {
@@ -611,6 +686,14 @@ public:
     VOID SetPassQueryDirectoryPattern(BOOLEAN PassQueryDirectoryPattern)
     {
         _VolumeParams.PassQueryDirectoryPattern = !!PassQueryDirectoryPattern;
+    }
+    BOOLEAN AlwaysUseDoubleBuffering()
+    {
+        return _VolumeParams.AlwaysUseDoubleBuffering;
+    }
+    VOID SetAlwaysUseDoubleBuffering(BOOLEAN AlwaysUseDoubleBuffering)
+    {
+        _VolumeParams.AlwaysUseDoubleBuffering = !!AlwaysUseDoubleBuffering;
     }
     BOOLEAN FlushAndPurgeOnCleanup()
     {
@@ -673,6 +756,7 @@ public:
             &_VolumeParams, Interface(), &_FileSystemPtr);
         if (!NT_SUCCESS(Result))
             return Result;
+        _FileSystem->SetFileSystemHandle(_FileSystemPtr);
         _FileSystemPtr->UserContext = _FileSystem;
         FspFileSystemSetOperationGuardStrategy(_FileSystemPtr, Synchronized ?
             FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE :
@@ -705,6 +789,7 @@ public:
         }
         if (!NT_SUCCESS(Result))
         {
+            _FileSystem->SetFileSystemHandle(0);
             FspFileSystemDelete(_FileSystemPtr);
             _FileSystemPtr = 0;
         }
@@ -722,6 +807,7 @@ public:
             _FileSystem->ExceptionHandler();
         }
         _FileSystemPtr->UserContext = 0;
+        _FileSystem->SetFileSystemHandle(0);
         FspFileSystemDelete(_FileSystemPtr);
         _FileSystemPtr = 0;
     }
@@ -1020,6 +1106,24 @@ private:
                 ReplaceIfExists);
         )
     }
+    static NTSTATUS Link(FSP_FILE_SYSTEM *FileSystem0,
+        PVOID FullContext,
+        PWSTR FileName,
+        PWSTR NewFileName,
+        BOOLEAN ReplaceIfExists,
+        FSP_FSCTL_FILE_INFO *FileInfo)
+    {
+        FileSystemBase *self = (FileSystemBase *)FileSystem0->UserContext;
+        FSP_CPP_EXCEPTION_GUARD(
+            return self->Link(
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext,
+                (PVOID)(UINT_PTR)((FSP_FSCTL_TRANSACT_FULL_CONTEXT *)FullContext)->UserContext2,
+                FileName,
+                NewFileName,
+                ReplaceIfExists,
+                FileInfo);
+        )
+    }
     static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem0,
         PVOID FullContext,
         PSECURITY_DESCRIPTOR SecurityDescriptor,
@@ -1179,6 +1283,16 @@ private:
             SetReparsePoint,
             DeleteReparsePoint,
             GetStreamInfo,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            Link,
         };
         return &_Interface;
     }

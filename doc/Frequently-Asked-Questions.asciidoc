@@ -12,11 +12,32 @@ I am running Windows 7 and I am finding that the installed driver is not signed.
 I cannot run a program located in a WinFsp drive as administrator. I cannot run `regedit.exe` from within a WinFsp drive.::
 
     When running an executable as administrator, the Windows OS seems to require that the name of the file system that is housing the executable is "NTFS". For example, the MEMFS file system with the command line `memfs-x64.exe -i -F NTFS -m X:` works.
++
+Current MEMFS command-line samples report `NTFS` by default; pass `-F -MEMFS` only when you need the diagnostic `WinFsp-MEMFS` name.
++
+For directory mount points use Mount Manager syntax such as `memfs-x64.exe -F NTFS -m \\.\C:\memfs` instead of a plain directory path. Current WinFsp builds keep the mounted file-system volume identity visible to Windows Shell/AppInfo path lookups, so elevated execution can resolve files through the directory mount point as it does through a drive-letter mount.
+
+
+The installer reports that a running WinFsp service is blocking setup, but I never installed WinFsp.::
+
+    Some third-party products bundle custom WinFsp builds and may leave a `WinFsp` service or registry entries behind. Run `sc.exe qc WinFsp` to identify the service binary path. If that is not enough, search `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\SharedDLLs` for `winfsp` entries. Uninstall or stop the product that installed the custom WinFsp before retrying the official WinFsp installer.
 
 
 Disconnecting (unmapping) a network drive does not work.::
 
     You may have Dokany installed. Dokany installs its own Network Provider DLL that unfortunately interferes with the WinFsp handling of network drives. The solution is to change your system's Network Provider order and ensure that the WinFsp Network Provider runs before the Dokany one. Instructions on how to change the Network Provider order can be found in this https://www.interfacett.com/blogs/changing-the-network-provider-order-in-windows-10/[article].
+
+
+Can I share a WinFsp file system that has a UNC prefix with other computers?::
+
+    No. A WinFsp UNC prefix such as `\\memfs64\share` is a local Network Provider/MUP name and is only resolved on the computer that hosts the WinFsp file system. To expose the file system over the network, create a disk file system without a UNC prefix and share the local drive or directory using the Windows Server service (`NetShareAdd`, `net share`, or equivalent).
+
+
+How do I make a drive letter mounted by a Windows service visible only to selected users?::
+
+    Drive letter visibility is controlled by the Windows DOS device namespace, not by the file system security descriptor. When a service creates `Z:` it normally creates a global drive letter that is visible to all interactive sessions.
++
+To show a drive letter only to selected users or sessions, create that drive letter in each selected user's local DOS device namespace. A service can do this by tracking logon/logoff or session-change events, starting or impersonating code in the target session, and calling `DefineDosDeviceW` there. The WinFsp mount security descriptor still controls directory mount point creation and file-system access checks, but it does not hide drive letters from other sessions. If hiding the drive letter is not required, prefer normal file-system access checks, a directory mount point with an appropriate security descriptor, or a local UNC prefix.
 
 
 Why is the DLL not installed in the Windows system directories?::
@@ -65,3 +86,21 @@ I have problems getting permissions to work properly in a WinFsp-FUSE file syste
     The WinFsp-FUSE layer includes a built-in command line option that can help: `-o uid=-1`. This instructs the WinFsp-FUSE layer to present all file system files as if they are owned by the user that launched the file system.
 +
 Alternatives include `-o uid=-1,gid=-1`, which presents files as owned by the user *and* group that launched the file system and `-o uid=-1,gid=11`, which presents files as owned by the user that launched the file system and the group "Authenticated Users". (The `fsptool` utility in the `bin` subdirectory of the WinFsp installation directory can be used to convert Windows accounts/SID's to UID's and vice versa.)
++
+If `fsptool id` reports the current `User` as the logged-in account, but the default `Owner` as `BUILTIN\Administrators`, new files created by Windows may be reported to FUSE as owned by Administrators instead of the caller. Use `-o UserOwner` in this case to force WinFsp-FUSE to use the caller user as the owner for newly created files. For sshfs-win installations this option can be added to the service command line under `HKLM\SOFTWARE\WOW6432Node\WinFsp\Services\sshfs`.
++
+When using SSHFS/SFTP servers that reject ownership changes, WinFsp-FUSE treats the ownership change during file creation as best-effort. The file create succeeds and the actual owner/mode are read back from the server.
+
+
+Can I use a WinFsp-FUSE file system from WSL?::
+
+    Yes. Mount the file system on a drive letter and add `-o WslFeatures` to the WinFsp-FUSE options. The drive can then be mounted from WSL with `sudo mount -t drvfs X: /mnt/x`.
++
+Native WinFsp and .NET file systems use `FSP_FSCTL_VOLUME_PARAMS::WslFeatures` and `FileSystemHost.WslFeatures` for the same opt-in support. The option is not enabled by default because WSL expects Linux metadata queries that not every FUSE file system wants to expose.
+
+
+Why do folder change monitors stop seeing changes after I disconnect and reconnect a WinFsp drive?::
+
+    Directory change notification handles belong to the mounted volume instance. When the file system is disconnected that volume is destroyed, so applications that keep old `ReadDirectoryChangesW` handles must reopen them after reconnect.
++
+For applications that also track Mount Manager volume identity, mount with `\\.\X:` and enable `FSP_FSCTL_VOLUME_PARAMS::MountDevPersistentUniqueId`, `.NET FileSystemHost.MountDevPersistentUniqueId`, or WinFsp-FUSE `-o MountDevPersistentUniqueId`. The file system must provide stable `FileSystemName`, `VolumeSerialNumber` and `VolumeCreationTime` values; otherwise each reconnect is still a new identity. This does not keep old directory-change handles alive, but it gives watchers a stable MountDev unique ID to correlate reconnects.

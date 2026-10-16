@@ -2275,12 +2275,23 @@ STATUS\_SUCCESS or error code.
 
 This function supports drive letters (X:) or directories as mount points:
 
-- Drive letters: Refer to the documentation of the DefineDosDevice Windows API
-to better understand how they are created.
+- Drive letters: Local disk file systems are first mounted using the Windows Mount
+Manager when possible (this is required by some Windows features such as ISO image
+mounting) and otherwise fall back to the DefineDosDevice Windows API. Use the
+`\\.\X:` syntax to require Mount Manager mounting. Drive letter visibility is controlled
+by the Windows DOS device namespace. A service-mounted drive letter is normally visible
+to all interactive sessions; to make a drive visible only to selected sessions create
+the drive letter in each selected user's local DOS device namespace, for example by
+running code in that session and calling DefineDosDeviceW. File systems that use Mount
+Manager mounting can set FSP_FSCTL_VOLUME_PARAMS::MountDevPersistentUniqueId together
+with stable FileSystemName, VolumeSerialNumber and VolumeCreationTime values to help
+applications correlate a reconnected volume with its prior instance.
 
 
 - Directories: They can be used as mount points for disk based file systems. They cannot
 be used for network file systems. This is a limitation that Windows imposes on junctions.
+The SecurityDescriptor parameter to FspFileSystemSetMountPointEx applies only to newly
+created directory mount points and does not restrict drive letter visibility.
 
 
 </blockquote>

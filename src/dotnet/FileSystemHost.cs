@@ -40,6 +40,7 @@ namespace Fsp
         /// <param name="FileSystem">The file system to host.</param>
         public FileSystemHost(FileSystemBase FileSystem)
         {
+            Api.Init();
             _VolumeParams.Version = (UInt16)Marshal.SizeOf(_VolumeParams);
             _VolumeParams.Flags = VolumeParams.UmFileContextIsFullContext;
             _FileSystem = FileSystem;
@@ -117,6 +118,22 @@ namespace Fsp
         {
             get { return _VolumeParams.VolumeSerialNumber; }
             set { _VolumeParams.VolumeSerialNumber = value; }
+        }
+        /// <summary>
+        /// Gets or sets a value that determines whether Mount Manager mounts use a persistent
+        /// MountDev unique ID derived from FileSystemName, VolumeSerialNumber and
+        /// VolumeCreationTime.
+        /// </summary>
+        public Boolean MountDevPersistentUniqueId
+        {
+            get { return 0 != (_VolumeParams.AdditionalFlags & VolumeParams.MountDevPersistentUniqueId); }
+            set
+            {
+                if (value)
+                    _VolumeParams.AdditionalFlags |= VolumeParams.MountDevPersistentUniqueId;
+                else
+                    _VolumeParams.AdditionalFlags &= ~VolumeParams.MountDevPersistentUniqueId;
+            }
         }
         /// <summary>
         /// Gets or sets the file information timeout.
@@ -207,6 +224,22 @@ namespace Fsp
             }
         }
         /// <summary>
+        /// Gets or sets the Cache Manager read-ahead granularity in pages.
+        /// </summary>
+        public UInt16 ReadAheadGranularity
+        {
+            get { return _VolumeParams.ReadAheadGranularity; }
+            set { _VolumeParams.ReadAheadGranularity = value; }
+        }
+        /// <summary>
+        /// Gets or sets the Cache Manager dirty page threshold in pages.
+        /// </summary>
+        public UInt16 DirtyPageThreshold
+        {
+            get { return _VolumeParams.DirtyPageThreshold; }
+            set { _VolumeParams.DirtyPageThreshold = value; }
+        }
+        /// <summary>
         /// Gets or sets a value that determines whether the file system is case sensitive.
         /// </summary>
         public Boolean CaseSensitiveSearch
@@ -265,12 +298,29 @@ namespace Fsp
             set { _VolumeParams.Flags |= (value ? VolumeParams.NamedStreams : 0); }
         }
         /// <summary>
+        /// Gets or sets a value that determines whether the file system supports hard links.
+        /// </summary>
+        public Boolean SupportsHardLinks
+        {
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.HardLinks); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.HardLinks : 0); }
+        }
+        /// <summary>
         /// Gets or sets a value that determines whether the file system supports extended attributes.
         /// </summary>
         public Boolean ExtendedAttributes
         {
             get { return 0 != (_VolumeParams.Flags & VolumeParams.ExtendedAttributes); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.ExtendedAttributes : 0); }
+        }
+        /// <summary>
+        /// Gets or sets a value that determines whether the file system preserves case in
+        /// extended attribute names.
+        /// </summary>
+        public Boolean CasePreservedExtendedAttributes
+        {
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.CasePreservedExtendedAttributes); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.CasePreservedExtendedAttributes : 0); }
         }
         public Boolean PostCleanupWhenModifiedOnly
         {
@@ -287,6 +337,17 @@ namespace Fsp
             get { return 0 != (_VolumeParams.Flags & VolumeParams.PassQueryDirectoryPattern); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.PassQueryDirectoryPattern : 0); }
         }
+        public Boolean AlwaysUseDoubleBuffering
+        {
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.AlwaysUseDoubleBuffering); }
+            set
+            {
+                if (value)
+                    _VolumeParams.Flags |= VolumeParams.AlwaysUseDoubleBuffering;
+                else
+                    _VolumeParams.Flags &= ~VolumeParams.AlwaysUseDoubleBuffering;
+            }
+        }
         public Boolean PassQueryDirectoryFileName
         {
             get { return 0 != (_VolumeParams.Flags & VolumeParams.PassQueryDirectoryFileName); }
@@ -301,6 +362,21 @@ namespace Fsp
         {
             get { return 0 != (_VolumeParams.Flags & VolumeParams.DeviceControl); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.DeviceControl : 0); }
+        }
+        /// <summary>
+        /// Gets or sets a value that determines whether WinFsp defers user-mode access checks
+        /// to the file system implementation.
+        /// </summary>
+        public Boolean DeferAccessCheck
+        {
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.UmDeferAccessCheck); }
+            set
+            {
+                if (value)
+                    _VolumeParams.Flags |= VolumeParams.UmDeferAccessCheck;
+                else
+                    _VolumeParams.Flags &= ~VolumeParams.UmDeferAccessCheck;
+            }
         }
         public Boolean AllowOpenInKernelMode
         {
@@ -322,6 +398,19 @@ namespace Fsp
             get { return 0 != (_VolumeParams.Flags & VolumeParams.SupportsPosixUnlinkRename); }
             set { _VolumeParams.Flags |= (value ? VolumeParams.SupportsPosixUnlinkRename : 0); }
         }
+        public Boolean AllowRelSymlinksAcrossFileSystem
+        {
+            get { return 0 != (_VolumeParams.Flags & VolumeParams.AllowRelSymlinksAcrossFileSystem); }
+            set { _VolumeParams.Flags |= (value ? VolumeParams.AllowRelSymlinksAcrossFileSystem : 0); }
+        }
+        /// <summary>
+        /// Gets or sets the target silo container id for a host-created file system.
+        /// </summary>
+        public Guid TargetSiloId
+        {
+            get { return _VolumeParams.TargetSiloId; }
+            set { _VolumeParams.TargetSiloId = value; }
+        }
         /// <summary>
         /// Gets or sets the prefix for a network file system.
         /// </summary>
@@ -341,6 +430,14 @@ namespace Fsp
 
         /* control */
         /// <summary>
+        /// Gets the current process silo container id, or Guid.Empty when outside a container.
+        /// </summary>
+        public static Int32 GetCurrentSiloId(out Guid SiloId)
+        {
+            Api.Init();
+            return Api.FspFsctlGetCurrentSiloId(out SiloId);
+        }
+        /// <summary>
         /// Checks whether mounting a file system is possible.
         /// </summary>
         /// <param name="MountPoint">
@@ -351,6 +448,7 @@ namespace Fsp
         /// <returns>STATUS_SUCCESS or error code.</returns>
         public Int32 Preflight(String MountPoint)
         {
+            Api.Init();
             return Api.FspFileSystemPreflight(
                 _VolumeParams.IsPrefixEmpty() ? Api.ProductName + ".Disk" : Api.ProductName + ".Net",
                 MountPoint);
@@ -361,12 +459,16 @@ namespace Fsp
         /// <param name="MountPoint">
         /// The mount point for the new file system. A value of null means that
         /// the file system should use the next available drive letter counting
-        /// downwards from Z: as its mount point.
+        /// downwards from Z: as its mount point. Drive letter visibility is
+        /// controlled by the Windows DOS device namespace. A service-mounted
+        /// drive letter is normally visible to all interactive sessions; to
+        /// make a drive visible only to selected sessions create the drive
+        /// letter in each selected user's local DOS device namespace.
         /// </param>
         /// <param name="SecurityDescriptor">
         /// Security descriptor to use if mounting on (newly created) directory.
         /// A value of null means the directory should be created with default
-        /// security.
+        /// security. This parameter does not restrict drive letter visibility.
         /// </param>
         /// <param name="Synchronized">
         /// If true file system operations are synchronized using an exclusive lock.
@@ -389,7 +491,11 @@ namespace Fsp
         /// <param name="MountPoint">
         /// The mount point for the new file system. A value of null means that
         /// the file system should use the next available drive letter counting
-        /// downwards from Z: as its mount point.
+        /// downwards from Z: as its mount point. Drive letter visibility is
+        /// controlled by the Windows DOS device namespace. A service-mounted
+        /// drive letter is normally visible to all interactive sessions; to
+        /// make a drive visible only to selected sessions create the drive
+        /// letter in each selected user's local DOS device namespace.
         /// </param>
         /// <param name="ThreadCount">
         /// Number of threads to use to service file system requests. A value
@@ -398,7 +504,7 @@ namespace Fsp
         /// <param name="SecurityDescriptor">
         /// Security descriptor to use if mounting on (newly created) directory.
         /// A value of null means the directory should be created with default
-        /// security.
+        /// security. This parameter does not restrict drive letter visibility.
         /// </param>
         /// <param name="Synchronized">
         /// If true file system operations are synchronized using an exclusive lock.
@@ -414,6 +520,7 @@ namespace Fsp
             Boolean Synchronized = false,
             UInt32 DebugLog = 0)
         {
+            Api.Init();
             Int32 Result;
             try
             {
@@ -506,6 +613,7 @@ namespace Fsp
         /// <returns>STATUS_SUCCESS or error code.</returns>
         public static Int32 SetDebugLogFile(String FileName)
         {
+            Api.Init();
             return Api.SetDebugLogFile(FileName);
         }
         /// <summary>
@@ -513,6 +621,7 @@ namespace Fsp
         /// </summary>
         public static Version Version()
         {
+            Api.Init();
             return Api.GetVersion();
         }
         /// <summary>
@@ -521,6 +630,31 @@ namespace Fsp
         public UInt64 GetOperationRequestHint()
         {
             return Api.FspFileSystemGetOperationRequestHint();
+        }
+        /// <summary>
+        /// Returns the requested share access for the current Create or Open operation.
+        /// </summary>
+        public UInt32 GetOperationShareAccess()
+        {
+            return Api.FspFileSystemOperationShareAccess();
+        }
+        /// <summary>
+        /// Returns the originating process ID for the current operation.
+        /// </summary>
+        public UInt32 GetOperationProcessId()
+        {
+            return Api.FspFileSystemOperationProcessId();
+        }
+        /// <summary>
+        /// Returns the originating access token for the current operation.
+        /// </summary>
+        /// <remarks>
+        /// The returned handle is owned by WinFsp and is valid only during the current
+        /// operation callback. Duplicate the handle if it must outlive the callback.
+        /// </remarks>
+        public IntPtr GetOperationAccessToken()
+        {
+            return Api.FspFileSystemOperationAccessToken();
         }
         /// <summary>
         /// Asynchronously complete a Read operation.
@@ -1081,6 +1215,33 @@ namespace Fsp
                 return ExceptionHandler(FileSystem, ex);
             }
         }
+        private static Int32 Link(
+            IntPtr FileSystemPtr,
+            ref FullContext FullContext,
+            String FileName,
+            String NewFileName,
+            Boolean ReplaceIfExists,
+            out FileInfo FileInfo)
+        {
+            FileSystemBase FileSystem = (FileSystemBase)Api.GetUserContext(FileSystemPtr);
+            try
+            {
+                Object FileNode, FileDesc;
+                Api.GetFullContext(ref FullContext, out FileNode, out FileDesc);
+                return FileSystem.Link(
+                    FileNode,
+                    FileDesc,
+                    FileName,
+                    NewFileName,
+                    ReplaceIfExists,
+                    out FileInfo);
+            }
+            catch (Exception ex)
+            {
+                FileInfo = default(FileInfo);
+                return ExceptionHandler(FileSystem, ex);
+            }
+        }
         private static Int32 GetSecurity(
             IntPtr FileSystemPtr,
             ref FullContext FullContext,
@@ -1458,6 +1619,7 @@ namespace Fsp
             _FileSystemInterface.SetBasicInfo = SetBasicInfo;
             _FileSystemInterface.SetFileSize = SetFileSize;
             _FileSystemInterface.Rename = Rename;
+            _FileSystemInterface.Link = Link;
             _FileSystemInterface.GetSecurity = GetSecurity;
             _FileSystemInterface.SetSecurity = SetSecurity;
             _FileSystemInterface.ReadDirectory = ReadDirectory;

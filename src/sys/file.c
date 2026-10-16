@@ -83,7 +83,7 @@ VOID FspFileNodeSetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size);
 BOOLEAN FspFileNodeTrySetDirInfo(FSP_FILE_NODE *FileNode, PCVOID Buffer, ULONG Size,
     ULONG DirInfoChangeNumber);
 static VOID FspFileNodeInvalidateDirInfo(FSP_FILE_NODE *FileNode);
-static VOID FspFileNodeInvalidateDirInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
+VOID FspFileNodeInvalidateDirInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
     PUNICODE_STRING FileName);
 VOID FspFileNodeInvalidateParentDirInfo(FSP_FILE_NODE *FileNode);
 BOOLEAN FspFileNodeReferenceStreamInfo(FSP_FILE_NODE *FileNode, PCVOID *PBuffer, PULONG PSize);
@@ -780,7 +780,7 @@ exit:
 
         if (0 == OpenedFileNode->ActiveCount++)
             InsertTailList(&FspFsvolDeviceExtension(FsvolDeviceObject)->ContextList,
-                &FileNode->ActiveEntry);
+                &OpenedFileNode->ActiveEntry);
         OpenedFileNode->OpenCount++;
         OpenedFileNode->HandleCount++;
     }
@@ -1700,6 +1700,7 @@ VOID FspFileNodeGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileIn
     FileInfo->LastWriteTime = FileNode->LastWriteTime;
     FileInfo->ChangeTime = FileNode->ChangeTime;
     FileInfo->EaSize = FileNode->EaSize;
+    FileInfo->HardLinks = FileNode->HardLinks;
 }
 
 BOOLEAN FspFileNodeTryGetFileInfo(FSP_FILE_NODE *FileNode, FSP_FSCTL_FILE_INFO *FileInfo)
@@ -1848,6 +1849,7 @@ VOID FspFileNodeSetFileInfo(FSP_FILE_NODE *FileNode, PFILE_OBJECT CcFileObject,
     MainFileNode->LastWriteTime = FileInfo->LastWriteTime;
     MainFileNode->ChangeTime = FileInfo->ChangeTime;
     MainFileNode->EaSize = FileInfo->EaSize;
+    MainFileNode->HardLinks = FileInfo->HardLinks;
 
     if (0 != CcFileObject)
     {
@@ -2117,7 +2119,7 @@ static VOID FspFileNodeInvalidateDirInfo(FSP_FILE_NODE *FileNode)
     FspMetaCacheInvalidateItem(FsvolDeviceExtension->DirInfoCache, DirInfo);
 }
 
-static VOID FspFileNodeInvalidateDirInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
+VOID FspFileNodeInvalidateDirInfoByName(PDEVICE_OBJECT FsvolDeviceObject,
     PUNICODE_STRING FileName)
 {
     PAGED_CODE();

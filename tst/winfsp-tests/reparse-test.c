@@ -612,6 +612,76 @@ void reparse_symlink_relative_test(void)
     }
 }
 
+static void reparse_symlink_relative_crossfs_dotest(void)
+{
+    WCHAR DirBuf[MAX_PATH], BasePath[MAX_PATH], MountPath[MAX_PATH], OutsidePath[MAX_PATH];
+    WCHAR LinkPath[MAX_PATH], DotDirPath[MAX_PATH], DotLinkPath[MAX_PATH], DotLinkRootPath[MAX_PATH];
+    PWSTR SavedOptMountPoint = OptMountPoint;
+    void *memfs = 0;
+    HANDLE Handle = INVALID_HANDLE_VALUE;
+    BOOL Success;
+
+    GetTestDirectory(DirBuf);
+    StringCbPrintfW(BasePath, sizeof BasePath,
+        L"%s\\reparse454-%08lx", DirBuf, GetCurrentProcessId());
+    StringCbPrintfW(MountPath, sizeof MountPath, L"%s\\mnt", BasePath);
+    StringCbPrintfW(OutsidePath, sizeof OutsidePath, L"%s\\outside", BasePath);
+    StringCbPrintfW(LinkPath, sizeof LinkPath, L"%s\\link", MountPath);
+    StringCbPrintfW(DotDirPath, sizeof DotDirPath, L"%s\\dir", MountPath);
+    StringCbPrintfW(DotLinkPath, sizeof DotLinkPath, L"%s\\dir\\dot", MountPath);
+    StringCbPrintfW(DotLinkRootPath, sizeof DotLinkRootPath, L"%s\\dot", MountPath);
+
+    ASSERT(CreateDirectoryW(BasePath, 0));
+    ASSERT(CreateDirectoryW(MountPath, 0));
+    ASSERT(CreateDirectoryW(OutsidePath, 0));
+
+    OptMountPoint = MountPath;
+    memfs = memfs_start_ex(MemfsDisk | MemfsAllowRelSymlinksAcrossFileSystem, 0);
+    OptMountPoint = SavedOptMountPoint;
+
+    Success = BestEffortCreateSymbolicLinkW(LinkPath, L"..\\outside",
+        SYMBOLIC_LINK_FLAG_DIRECTORY);
+    if (!Success)
+    {
+        ASSERT(ERROR_PRIVILEGE_NOT_HELD == GetLastError());
+        FspDebugLog(__FUNCTION__ ": need SE_CREATE_SYMBOLIC_LINK_PRIVILEGE\n");
+        goto exit;
+    }
+
+    Handle = CreateFileW(LinkPath, FILE_READ_ATTRIBUTES,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+    CloseHandle(Handle);
+    Handle = INVALID_HANDLE_VALUE;
+
+    ASSERT(CreateDirectoryW(DotDirPath, 0));
+    Success = BestEffortCreateSymbolicLinkW(DotLinkPath, L".",
+        SYMBOLIC_LINK_FLAG_DIRECTORY);
+    ASSERT(Success);
+    ASSERT(MoveFileExW(DotLinkPath, DotLinkRootPath, MOVEFILE_REPLACE_EXISTING));
+
+    Handle = CreateFileW(DotLinkRootPath, FILE_READ_ATTRIBUTES,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+exit:
+    if (INVALID_HANDLE_VALUE != Handle)
+        CloseHandle(Handle);
+    OptMountPoint = SavedOptMountPoint;
+    memfs_stop(memfs);
+    RemoveDirectoryW(OutsidePath);
+    RemoveDirectoryW(MountPath);
+    RemoveDirectoryW(BasePath);
+}
+
+void reparse_symlink_relative_crossfs_test(void)
+{
+    if (WinFspDiskTests && !OptFuseExternal)
+        reparse_symlink_relative_crossfs_dotest();
+}
+
 void reparse_tests(void)
 {
     if (!OptFuseExternal)
@@ -619,4 +689,5 @@ void reparse_tests(void)
     TEST(reparse_nfs_test);
     TEST(reparse_symlink_test);
     TEST(reparse_symlink_relative_test);
+    TEST(reparse_symlink_relative_crossfs_test);
 }

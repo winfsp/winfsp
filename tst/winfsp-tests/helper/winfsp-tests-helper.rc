@@ -1,2 +1,4 @@
 winfsp-tests-helper-x64.exe RCDATA "winfsp-tests-helper-x64.exe"
 winfsp-tests-helper-x86.exe RCDATA "winfsp-tests-helper-x86.exe"
+winfsp-tests-helper-dll-x64.dll RCDATA "winfsp-tests-helper-dll-x64.dll"
+winfsp-tests-helper-dll-x86.dll RCDATA "winfsp-tests-helper-dll-x86.dll"

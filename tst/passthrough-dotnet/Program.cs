@@ -34,6 +34,7 @@ namespace passthrough
     class Ptfs : FileSystemBase
     {
         protected const int ALLOCATION_UNIT = 4096;
+        protected const UInt16 DIRTY_PAGE_THRESHOLD = 16 * 1024;
 
         protected static void ThrowIoExceptionWithHResult(Int32 HResult)
         {
@@ -305,6 +306,8 @@ namespace passthrough
             Host.SectorsPerAllocationUnit = 1;
             Host.MaxComponentLength = 255;
             Host.FileInfoTimeout = 1000;
+            /* Keep large mapped/cached saves from dirtying too much memory at once. */
+            Host.DirtyPageThreshold = DIRTY_PAGE_THRESHOLD;
             Host.CaseSensitiveSearch = false;
             Host.CasePreservedNames = true;
             Host.UnicodeOnDisk = true;

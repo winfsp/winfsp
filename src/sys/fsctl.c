@@ -39,6 +39,10 @@ static NTSTATUS FspFsvolFileSystemControlGetStatistics(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 static NTSTATUS FspFsvolFileSystemControlGetRetrievalPointers(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolFileSystemControlQueryAllocatedRanges(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+static NTSTATUS FspFsvolFileSystemControlQueryAllocatedRangesComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response);
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 FSP_IOCMPL_DISPATCH FspFsvolFileSystemControlComplete;
@@ -55,6 +59,8 @@ FSP_DRIVER_DISPATCH FspFileSystemControl;
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlQueryPersistentVolumeState)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlGetStatistics)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlGetRetrievalPointers)
+#pragma alloc_text(PAGE, FspFsvolFileSystemControlQueryAllocatedRanges)
+#pragma alloc_text(PAGE, FspFsvolFileSystemControlQueryAllocatedRangesComplete)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControl)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlComplete)
 #pragma alloc_text(PAGE, FspFsvolFileSystemControlRequestFini)
@@ -91,6 +97,16 @@ static NTSTATUS FspFsctlFileSystemControl(
             break;
         case FSP_FSCTL_VOLUME_LIST:
             Result = FspVolumeGetNameList(FsctlDeviceObject, Irp, IrpSp);
+            break;
+        case FSP_FSCTL_GET_SILO_ID:
+            if (sizeof(GUID) > IrpSp->Parameters.FileSystemControl.OutputBufferLength)
+            {
+                Result = STATUS_BUFFER_TOO_SMALL;
+                break;
+            }
+            FspSiloGetContainerId(Irp->AssociatedIrp.SystemBuffer);
+            Irp->IoStatus.Information = sizeof(GUID);
+            Result = STATUS_SUCCESS;
             break;
         case FSP_FSCTL_TRANSACT:
         case FSP_FSCTL_TRANSACT_BATCH:
@@ -712,6 +728,128 @@ static NTSTATUS FspFsvolFileSystemControlGetRetrievalPointers(
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS FspFsvolFileSystemControlQueryAllocatedRanges(
+    PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+    PAGED_CODE();
+
+    PFILE_OBJECT FileObject = IrpSp->FileObject;
+
+    /* is this a valid FileObject? */
+    if (!FspFileNodeIsValid(FileObject->FsContext))
+        return STATUS_INVALID_DEVICE_REQUEST;
+
+    FSP_FILE_NODE *FileNode = FileObject->FsContext;
+    FSP_FILE_DESC *FileDesc = FileObject->FsContext2;
+    PFILE_ALLOCATED_RANGE_BUFFER InputBuffer = IrpSp->Parameters.FileSystemControl.Type3InputBuffer;
+    PFILE_ALLOCATED_RANGE_BUFFER OutputBuffer = Irp->UserBuffer;
+    ULONG InputBufferLength = IrpSp->Parameters.FileSystemControl.InputBufferLength;
+    ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+    FILE_ALLOCATED_RANGE_BUFFER QueryRange;
+    FSP_FSCTL_TRANSACT_REQ *Request;
+    NTSTATUS Result;
+
+    ASSERT(FileNode == FileDesc->FileNode);
+
+    if (FileNode->IsDirectory)
+        return STATUS_INVALID_PARAMETER;
+
+    if (0 == InputBuffer || 0 == OutputBuffer)
+        return STATUS_INVALID_PARAMETER;
+
+    if (sizeof(FILE_ALLOCATED_RANGE_BUFFER) > InputBufferLength ||
+        sizeof(FILE_ALLOCATED_RANGE_BUFFER) > OutputBufferLength)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    if (UserMode == Irp->RequestorMode)
+    {
+        try
+        {
+            ProbeForRead(InputBuffer, InputBufferLength, sizeof(UCHAR)/*FastFat*/);
+            QueryRange = *InputBuffer;
+        }
+        except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return GetExceptionCode();
+        }
+    }
+    else
+        QueryRange = *InputBuffer;
+
+    if (0 > QueryRange.FileOffset.QuadPart ||
+        0 > QueryRange.Length.QuadPart ||
+        MAXLONGLONG - QueryRange.FileOffset.QuadPart < QueryRange.Length.QuadPart)
+        return STATUS_INVALID_PARAMETER;
+
+    FspFileNodeAcquireShared(FileNode, Full);
+
+    Result = FspIopCreateRequestEx(Irp, 0, sizeof QueryRange,
+        FspFsvolFileSystemControlRequestFini, &Request);
+    if (!NT_SUCCESS(Result))
+    {
+        FspFileNodeRelease(FileNode, Full);
+        return Result;
+    }
+
+    Request->Kind = FspFsctlTransactFileSystemControlKind;
+    Request->Req.FileSystemControl.UserContext = FileNode->UserContext;
+    Request->Req.FileSystemControl.UserContext2 = FileDesc->UserContext2;
+    Request->Req.FileSystemControl.FsControlCode = FSCTL_QUERY_ALLOCATED_RANGES;
+    Request->Req.FileSystemControl.Buffer.Offset = 0;
+    Request->Req.FileSystemControl.Buffer.Size = (UINT16)sizeof QueryRange;
+    Request->Req.FileSystemControl.OutputLength = OutputBufferLength;
+    RtlCopyMemory(Request->Buffer, &QueryRange, sizeof QueryRange);
+
+    FspFileNodeSetOwner(FileNode, Full, Request);
+    FspIopRequestContext(Request, RequestFileNode) = FileNode;
+
+    return FSP_STATUS_IOQ_POST;
+}
+
+static NTSTATUS FspFsvolFileSystemControlQueryAllocatedRangesComplete(
+    PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response)
+{
+    PAGED_CODE();
+
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
+    PFILE_ALLOCATED_RANGE_BUFFER OutputBuffer = Irp->UserBuffer;
+    ULONG OutputBufferLength = IrpSp->Parameters.FileSystemControl.OutputBufferLength;
+    ULONG Size = Response->Rsp.FileSystemControl.Buffer.Size;
+    PCVOID Buffer = Response->Buffer + Response->Rsp.FileSystemControl.Buffer.Offset;
+
+    if (Response->Buffer + Response->Rsp.FileSystemControl.Buffer.Offset + Size >
+        (PUINT8)Response + Response->Size)
+        return STATUS_INTERNAL_ERROR;
+
+    if (0 != Size % sizeof(FILE_ALLOCATED_RANGE_BUFFER))
+        return STATUS_INTERNAL_ERROR;
+
+    if (Size > OutputBufferLength)
+        return STATUS_BUFFER_TOO_SMALL;
+
+    if (UserMode == Irp->RequestorMode)
+    {
+        try
+        {
+            if (0 != Size)
+            {
+                ProbeForWrite(OutputBuffer, Size, sizeof(UCHAR)/*FastFat*/);
+                RtlCopyMemory(OutputBuffer, Buffer, Size);
+            }
+        }
+        except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return GetExceptionCode();
+        }
+    }
+    else if (0 != Size)
+        RtlCopyMemory(OutputBuffer, Buffer, Size);
+
+    Irp->IoStatus.Information = Size;
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS FspFsvolFileSystemControl(
     PDEVICE_OBJECT FsvolDeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
@@ -759,6 +897,9 @@ static NTSTATUS FspFsvolFileSystemControl(
         case FSCTL_GET_RETRIEVAL_POINTERS:
             Result = FspFsvolFileSystemControlGetRetrievalPointers(FsvolDeviceObject, Irp, IrpSp);
             break;
+        case FSCTL_QUERY_ALLOCATED_RANGES:
+            Result = FspFsvolFileSystemControlQueryAllocatedRanges(FsvolDeviceObject, Irp, IrpSp);
+            break;
         }
         break;
     }
@@ -798,6 +939,9 @@ NTSTATUS FspFsvolFileSystemControlComplete(
         case FSCTL_SET_REPARSE_POINT:
         case FSCTL_DELETE_REPARSE_POINT:
             Result = FspFsvolFileSystemControlReparsePointComplete(Irp, Response, TRUE);
+            break;
+        case FSCTL_QUERY_ALLOCATED_RANGES:
+            Result = FspFsvolFileSystemControlQueryAllocatedRangesComplete(Irp, Response);
             break;
         }
         break;

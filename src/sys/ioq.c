@@ -237,12 +237,17 @@ static inline VOID FspIoqPendingResetSynch(FSP_IOQ *Ioq)
 static NTSTATUS FspIoqPendingInsertIrpEx(PIO_CSQ IoCsq, PIRP Irp, PVOID InsertContext)
 {
     FSP_IOQ *Ioq = CONTAINING_RECORD(IoCsq, FSP_IOQ, PendingIoCsq);
+    ULONG Flags = (ULONG)(UINT_PTR)InsertContext;
     if (Ioq->Stopped)
         return STATUS_CANCELLED;
-    if (!InsertContext && Ioq->PendingIrpCapacity <= Ioq->PendingIrpCount)
+    if (!FlagOn(Flags, FSP_IOQ_POST_FLAG_BEST_EFFORT) &&
+        Ioq->PendingIrpCapacity <= Ioq->PendingIrpCount)
         return STATUS_INSUFFICIENT_RESOURCES;
     Ioq->PendingIrpCount++;
-    InsertTailList(&Ioq->PendingIrpList, &Irp->Tail.Overlay.ListEntry);
+    if (FlagOn(Flags, FSP_IOQ_POST_FLAG_PRIORITY))
+        InsertHeadList(&Ioq->PendingIrpList, &Irp->Tail.Overlay.ListEntry);
+    else
+        InsertTailList(&Ioq->PendingIrpList, &Irp->Tail.Overlay.ListEntry);
     FspIoqEventSet(&Ioq->PendingIrpEvent);
         /* equivalent to FspIoqPendingResetSynch(Ioq) */
     return STATUS_SUCCESS;
@@ -274,8 +279,9 @@ static PIRP FspIoqPendingPeekNextIrp(PIO_CSQ IoCsq, PIRP Irp, PVOID PeekContext)
         ULONG ExpirationTime = ((FSP_IOQ_PEEK_CONTEXT *)PeekContext)->ExpirationTime;
         for (;;)
         {
-            if (FspIrpTimestampInfinity != FspIrpTimestamp(Irp))
-                return FspIrpTimestamp(Irp) <= ExpirationTime ? Irp : 0;
+            if (FspIrpTimestampInfinity != FspIrpTimestamp(Irp) &&
+                FspIrpTimestamp(Irp) <= ExpirationTime)
+                return Irp;
             Entry = Entry->Flink;
             if (Head == Entry)
                 return 0;
@@ -579,12 +585,13 @@ VOID FspIoqRemoveExpired(FSP_IOQ *Ioq, UINT64 InterruptTime)
 #endif
 }
 
-BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, BOOLEAN BestEffort, NTSTATUS *PResult)
+BOOLEAN FspIoqPostIrpEx(FSP_IOQ *Ioq, PIRP Irp, ULONG Flags, NTSTATUS *PResult)
 {
     NTSTATUS Result;
-    FspIrpTimestamp(Irp) = BestEffort ? FspIrpTimestampInfinity :
+    FspIrpTimestamp(Irp) = FlagOn(Flags, FSP_IOQ_POST_FLAG_BEST_EFFORT) ?
+        FspIrpTimestampInfinity :
         QueryInterruptTimeInSec() + Ioq->IrpTimeout;
-    Result = IoCsqInsertIrpEx(&Ioq->PendingIoCsq, Irp, 0, (PVOID)BestEffort);
+    Result = IoCsqInsertIrpEx(&Ioq->PendingIoCsq, Irp, 0, (PVOID)(UINT_PTR)Flags);
     if (NT_SUCCESS(Result))
     {
         if (0 != PResult)

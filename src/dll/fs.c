@@ -162,6 +162,10 @@ FSP_API NTSTATUS FspFileSystemCreate(PWSTR DevicePath,
     FileSystem->UmFileContextIsUserContext2 = !!VolumeParams->UmFileContextIsUserContext2;
     FileSystem->UmFileContextIsFullContext = !!VolumeParams->UmFileContextIsFullContext;
     FileSystem->UmNoReparsePointsDirCheck = VolumeParams->UmNoReparsePointsDirCheck;
+    FileSystem->UmDeferAccessCheck = VolumeParams->UmDeferAccessCheck;
+    FileSystem->AllowRelSymlinksAcrossFileSystem =
+        VolumeParams->AllowRelSymlinksAcrossFileSystem;
+    FileSystem->MountDevPersistentUniqueId = VolumeParams->MountDevPersistentUniqueId;
 
     *PFileSystem = FileSystem;
 
@@ -177,11 +181,17 @@ FSP_API VOID FspFileSystemDelete(FSP_FILE_SYSTEM *FileSystem)
 
 FSP_API NTSTATUS FspFileSystemSetMountPoint(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint)
 {
-    return FspFileSystemSetMountPointEx(FileSystem, MountPoint, 0);
+    return FspFileSystemSetMountPointEx2(FileSystem, MountPoint, 0, FALSE);
 }
 
 FSP_API NTSTATUS FspFileSystemSetMountPointEx(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint,
     PSECURITY_DESCRIPTOR SecurityDescriptor)
+{
+    return FspFileSystemSetMountPointEx2(FileSystem, MountPoint, SecurityDescriptor, FALSE);
+}
+
+NTSTATUS FspFileSystemSetMountPointEx2(FSP_FILE_SYSTEM *FileSystem, PWSTR MountPoint,
+    PSECURITY_DESCRIPTOR SecurityDescriptor, BOOLEAN AllowMountOnExistingDirectory)
 {
     if (0 != FileSystem->MountPoint)
         return STATUS_INVALID_PARAMETER;
@@ -194,6 +204,8 @@ FSP_API NTSTATUS FspFileSystemSetMountPointEx(FSP_FILE_SYSTEM *FileSystem, PWSTR
     Desc.VolumeHandle = FileSystem->VolumeHandle;
     Desc.VolumeName = FileSystem->VolumeName;
     Desc.Security = SecurityDescriptor;
+    Desc.AllowMountOnExistingDirectory = AllowMountOnExistingDirectory;
+    Desc.MountDevPersistentUniqueId = FileSystem->MountDevPersistentUniqueId;
 
     if (0 == MountPoint)
         MountPoint = L"*:";
@@ -581,6 +593,16 @@ FSP_API VOID FspFileSystemSetDebugLogF(FSP_FILE_SYSTEM *FileSystem,
 FSP_API BOOLEAN FspFileSystemIsOperationCaseSensitiveF(VOID)
 {
     return FspFileSystemIsOperationCaseSensitive();
+}
+
+FSP_API UINT32 FspFileSystemOperationShareAccessF(VOID)
+{
+    return FspFileSystemOperationShareAccess();
+}
+
+FSP_API HANDLE FspFileSystemOperationAccessTokenF(VOID)
+{
+    return FspFileSystemOperationAccessToken();
 }
 
 FSP_API UINT32 FspFileSystemOperationProcessIdF(VOID)

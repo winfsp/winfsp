@@ -55,9 +55,11 @@ struct fuse
     int set_create_dir_umask, create_dir_umask;
     int set_uid, uid;
     int set_gid, gid;
+    int user_owner;
     int add_write_ea_access;
     int rellinks;
     int dothidden;
+    int nomapchars;
     unsigned ThreadCount;
     struct fuse_operations ops;
     void *data;
@@ -87,9 +89,14 @@ struct fsp_fuse_file_desc
 {
     char *PosixPath;
     BOOLEAN IsDirectory, IsReparsePoint;
+    BOOLEAN FileInfoValid;
+    SRWLOCK FileInfoLock;
     int OpenFlags;
     UINT64 FileHandle;
     PVOID DirBuffer;
+    UINT64 FileInfoExpiration;
+    UINT32 FileInfoUid, FileInfoGid, FileInfoMode;
+    FSP_FSCTL_FILE_INFO FileInfo;
 };
 struct fuse_dirhandle
 {
@@ -101,6 +108,94 @@ struct fuse_dirhandle
     /* CanDelete */
     BOOLEAN DotFiles, HasChild;
 };
+
+static inline NTSTATUS fsp_fuse_map_windows_to_posix_path_ex(struct fuse *f,
+    PWSTR WindowsPath, char **PPosixPath, BOOLEAN Translate)
+{
+    NTSTATUS Result;
+    ULONG Size;
+    char *PosixPath = 0;
+
+    if (!f->nomapchars || !Translate)
+        return FspPosixMapWindowsToPosixPathEx(WindowsPath, PPosixPath, Translate);
+
+    *PPosixPath = 0;
+
+    Size = WideCharToMultiByte(CP_UTF8, 0, WindowsPath, -1, 0, 0, 0, 0);
+    if (0 == Size)
+        return FspNtStatusFromWin32(GetLastError());
+
+    PosixPath = MemAlloc(Size);
+    if (0 == PosixPath)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    Size = WideCharToMultiByte(CP_UTF8, 0, WindowsPath, -1, PosixPath, Size, 0, 0);
+    if (0 == Size)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        MemFree(PosixPath);
+        return Result;
+    }
+
+    for (char *P = PosixPath; *P; P++)
+        if ('\\' == *P)
+            *P = '/';
+
+    *PPosixPath = PosixPath;
+    return STATUS_SUCCESS;
+}
+
+static inline NTSTATUS fsp_fuse_map_windows_to_posix_path(struct fuse *f,
+    PWSTR WindowsPath, char **PPosixPath)
+{
+    return fsp_fuse_map_windows_to_posix_path_ex(f, WindowsPath, PPosixPath, TRUE);
+}
+
+static inline NTSTATUS fsp_fuse_map_posix_to_windows_path(struct fuse *f,
+    const char *PosixPath, PWSTR *PWindowsPath)
+{
+    NTSTATUS Result;
+    ULONG Size;
+    PWSTR WindowsPath = 0;
+
+    if (!f->nomapchars)
+        return FspPosixMapPosixToWindowsPath(PosixPath, PWindowsPath);
+
+    *PWindowsPath = 0;
+
+    Size = MultiByteToWideChar(CP_UTF8, 0, PosixPath, -1, 0, 0);
+    if (0 == Size)
+        return FspNtStatusFromWin32(GetLastError());
+
+    WindowsPath = MemAlloc(Size * sizeof(WCHAR));
+    if (0 == WindowsPath)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    Size = MultiByteToWideChar(CP_UTF8, 0, PosixPath, -1, WindowsPath, Size);
+    if (0 == Size)
+    {
+        Result = FspNtStatusFromWin32(GetLastError());
+        MemFree(WindowsPath);
+        return Result;
+    }
+
+    for (PWSTR P = WindowsPath; *P; P++)
+        if (L'/' == *P)
+            *P = L'\\';
+
+    *PWindowsPath = WindowsPath;
+    return STATUS_SUCCESS;
+}
+
+static inline VOID fsp_fuse_decode_windows_path(struct fuse *f, PWSTR WindowsPath, ULONG Size)
+{
+    if (!f->nomapchars)
+        FspPosixDecodeWindowsPath(WindowsPath, Size);
+    else
+        for (PWSTR P = WindowsPath, EndP = P + Size; EndP > P; P++)
+            if (L'/' == *P)
+                *P = L'\\';
+}
 
 /* FUSE obj alloc/free */
 struct fsp_fuse_obj_hdr
@@ -149,18 +244,24 @@ struct fsp_fuse_core_opt_data
         set_create_dir_umask, create_dir_umask,
         set_uid, uid, username_to_uid_result,
         set_gid, gid,
+        user_owner,
         add_write_ea_access,
         set_uidmap,
         set_attr_timeout, attr_timeout,
         rellinks,
-        dothidden;
+        dothidden,
+        nomapchars;
     int set_FileInfoTimeout,
         set_DirInfoTimeout,
         set_EaTimeout,
         set_VolumeInfoTimeout,
         set_KeepFileCache,
         set_FlushOnCleanup,
-        set_LegacyUnlinkRename;
+        set_LegacyUnlinkRename,
+        set_AllowRelSymlinksAcrossFileSystem,
+        set_MountDevPersistentUniqueId,
+        set_WslFeatures,
+        set_defer_permissions;
     unsigned ThreadCount;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
     UINT16 VolumeLabelLength;

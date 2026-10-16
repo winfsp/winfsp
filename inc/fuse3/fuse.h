@@ -90,7 +90,7 @@ struct fuse3_operations
     /* S */ int (*rmdir)(const char *path);
     /* S */ int (*symlink)(const char *dstpath, const char *srcpath);
     /* S */ int (*rename)(const char *oldpath, const char *newpath, unsigned int flags);
-    /* _ */ int (*link)(const char *srcpath, const char *dstpath);
+    /* S */ int (*link)(const char *srcpath, const char *dstpath);
     /* S */ int (*chmod)(const char *path, fuse_mode_t mode,
         struct fuse3_file_info *fi);
     /* S */ int (*chown)(const char *path, fuse_uid_t uid, fuse_gid_t gid,
@@ -137,6 +137,13 @@ struct fuse3_operations
     /* _ */ int (*flock)(const char *path, struct fuse3_file_info *, int op);
     /* _ */ int (*fallocate)(const char *path, int mode, fuse_off_t off, fuse_off_t len,
         struct fuse3_file_info *fi);
+    /* _ */ ssize_t (*copy_file_range)(const char *path_in, struct fuse3_file_info *fi_in,
+        fuse_off_t offset_in, const char *path_out, struct fuse3_file_info *fi_out,
+        fuse_off_t offset_out, size_t size, int flags);
+    /* S */ fuse_off_t (*lseek)(const char *path, fuse_off_t off, int whence,
+        struct fuse3_file_info *fi);
+    /* WinFsp */
+    /* S */ int (*chflags)(const char *path, uint32_t flags);
 };
 
 struct fuse3_context

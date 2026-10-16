@@ -820,6 +820,67 @@ static void rdwr_mixed_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix, ULONG 
     memfs_stop(memfs);
 }
 
+static void rdwr_cached_cleanup_time_dotest(ULONG Flags, PWSTR VolPrefix, PWSTR Prefix)
+{
+    void *memfs = memfs_start_ex(Flags, INFINITE);
+
+    HANDLE Handle;
+    BOOL Success;
+    WCHAR FilePath[MAX_PATH];
+    BYTE Buffer[4096];
+    DWORD BytesTransferred;
+    SYSTEMTIME SystemTime;
+    FILETIME OldTime;
+    WIN32_FILE_ATTRIBUTE_DATA FileInfo;
+
+    StringCbPrintfW(FilePath, sizeof FilePath, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    memset(Buffer, 'a', sizeof Buffer);
+    memset(&SystemTime, 0, sizeof SystemTime);
+    SystemTime.wYear = 2001;
+    SystemTime.wMonth = 1;
+    SystemTime.wDay = 1;
+    Success = SystemTimeToFileTime(&SystemTime, &OldTime);
+    ASSERT(Success);
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Success = SetFileTime(Handle, &OldTime, &OldTime, &OldTime);
+    ASSERT(Success);
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Success = GetFileAttributesExW(FilePath, GetFileExInfoStandard, &FileInfo);
+    ASSERT(Success);
+    ASSERT(0 == CompareFileTime(&OldTime, &FileInfo.ftLastWriteTime));
+
+    Handle = CreateFileW(FilePath,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle);
+
+    Success = WriteFile(Handle, Buffer, sizeof Buffer, &BytesTransferred, 0);
+    ASSERT(Success);
+    ASSERT((DWORD)sizeof Buffer == BytesTransferred);
+
+    Success = CloseHandle(Handle);
+    ASSERT(Success);
+
+    Success = GetFileAttributesExW(FilePath, GetFileExInfoStandard, &FileInfo);
+    ASSERT(Success);
+    ASSERT(0 > CompareFileTime(&OldTime, &FileInfo.ftLastWriteTime));
+
+    Success = DeleteFileW(FilePath);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
 void rdwr_noncached_test(void)
 {
     if (NtfsTests)
@@ -944,6 +1005,14 @@ void rdwr_cached_overlapped_test(void)
         rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", 1000, 0);
         rdwr_overlapped_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share", INFINITE, 0);
     }
+}
+
+void rdwr_cached_cleanup_time_test(void)
+{
+    if (WinFspDiskTests)
+        rdwr_cached_cleanup_time_dotest(MemfsDisk, 0, 0);
+    if (WinFspNetTests)
+        rdwr_cached_cleanup_time_dotest(MemfsNet, L"\\\\memfs\\share", L"\\\\memfs\\share");
 }
 
 void rdwr_writethru_test(void)
@@ -1125,6 +1194,7 @@ void rdwr_tests(void)
     TEST(rdwr_cached_test);
     TEST(rdwr_cached_append_test);
     TEST(rdwr_cached_overlapped_test);
+    TEST(rdwr_cached_cleanup_time_test);
     TEST(rdwr_writethru_test);
     TEST(rdwr_writethru_append_test);
     TEST(rdwr_writethru_overlapped_test);

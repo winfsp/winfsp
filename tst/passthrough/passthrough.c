@@ -24,6 +24,7 @@
 
 #define PROGNAME                        "passthrough"
 #define ALLOCATION_UNIT                 4096
+#define DIRTY_PAGE_THRESHOLD            (16 * 1024)
 #define FULLPATH_SIZE                   (MAX_PATH + FSP_FSCTL_TRANSACT_PATH_SIZEMAX / sizeof(WCHAR))
 
 #define info(format, ...)               FspServiceLog(EVENTLOG_INFORMATION_TYPE, format, __VA_ARGS__)
@@ -45,15 +46,28 @@ typedef struct
     PVOID DirBuffer;
 } PTFS_FILE_CONTEXT;
 
+static NTSTATUS GetReparsePointByName(
+    FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+    PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize);
+
 static NTSTATUS GetFileInfoInternal(HANDLE Handle, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     BY_HANDLE_FILE_INFORMATION ByHandleFileInfo;
+    FILE_ATTRIBUTE_TAG_INFO AttributeTagInfo;
 
     if (!GetFileInformationByHandle(Handle, &ByHandleFileInfo))
         return FspNtStatusFromWin32(GetLastError());
 
     FileInfo->FileAttributes = ByHandleFileInfo.dwFileAttributes;
     FileInfo->ReparseTag = 0;
+    if (!GetFileInformationByHandleEx(Handle,
+        FileAttributeTagInfo, &AttributeTagInfo, sizeof AttributeTagInfo))
+        return FspNtStatusFromWin32(GetLastError());
+    if (0 != (FILE_ATTRIBUTE_REPARSE_POINT & AttributeTagInfo.FileAttributes))
+    {
+        FileInfo->FileAttributes = AttributeTagInfo.FileAttributes;
+        FileInfo->ReparseTag = AttributeTagInfo.ReparseTag;
+    }
     FileInfo->FileSize =
         ((UINT64)ByHandleFileInfo.nFileSizeHigh << 32) | (UINT64)ByHandleFileInfo.nFileSizeLow;
     FileInfo->AllocationSize = (FileInfo->FileSize + ALLOCATION_UNIT - 1)
@@ -67,6 +81,44 @@ static NTSTATUS GetFileInfoInternal(HANDLE Handle, FSP_FSCTL_FILE_INFO *FileInfo
     FileInfo->HardLinks = 0;
 
     return STATUS_SUCCESS;
+}
+
+static HANDLE CreateFileWithSecurityFallback(PWSTR FileName,
+    DWORD DesiredAccess, DWORD ShareMode, PSECURITY_ATTRIBUTES SecurityAttributes,
+    DWORD CreationDisposition, DWORD FlagsAndAttributes, HANDLE TemplateFile)
+{
+    HANDLE Handle = CreateFileW(FileName,
+        DesiredAccess, ShareMode, SecurityAttributes,
+        CreationDisposition, FlagsAndAttributes, TemplateFile);
+    if (INVALID_HANDLE_VALUE != Handle ||
+        0 == SecurityAttributes || 0 == SecurityAttributes->lpSecurityDescriptor)
+        return Handle;
+
+    DWORD LastError = GetLastError();
+    if (ERROR_INVALID_OWNER != LastError && ERROR_INVALID_PRIMARY_GROUP != LastError)
+    {
+        SetLastError(LastError);
+        return INVALID_HANDLE_VALUE;
+    }
+
+    SECURITY_DESCRIPTOR SecurityDescriptor;
+    SECURITY_ATTRIBUTES RetrySecurityAttributes = *SecurityAttributes;
+    BOOL DaclPresent, DaclDefaulted;
+    PACL Dacl;
+
+    if (!InitializeSecurityDescriptor(&SecurityDescriptor, SECURITY_DESCRIPTOR_REVISION) ||
+        !GetSecurityDescriptorDacl(SecurityAttributes->lpSecurityDescriptor,
+            &DaclPresent, &Dacl, &DaclDefaulted) ||
+        !SetSecurityDescriptorDacl(&SecurityDescriptor, DaclPresent, Dacl, DaclDefaulted))
+    {
+        SetLastError(LastError);
+        return INVALID_HANDLE_VALUE;
+    }
+
+    RetrySecurityAttributes.lpSecurityDescriptor = &SecurityDescriptor;
+    return CreateFileW(FileName,
+        DesiredAccess, ShareMode, &RetrySecurityAttributes,
+        CreationDisposition, FlagsAndAttributes, TemplateFile);
 }
 
 static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem,
@@ -110,9 +162,16 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
     if (!ConcatPath(Ptfs, FileName, FullPath))
         return STATUS_OBJECT_NAME_INVALID;
 
+    if (FspFileSystemFindReparsePoint(FileSystem, GetReparsePointByName, 0,
+        FileName, PFileAttributes))
+    {
+        Result = STATUS_REPARSE;
+        goto exit;
+    }
+
     Handle = CreateFileW(FullPath,
         FILE_READ_ATTRIBUTES | READ_CONTROL, 0, 0,
-        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
     if (INVALID_HANDLE_VALUE == Handle)
     {
         Result = FspNtStatusFromWin32(GetLastError());
@@ -180,6 +239,8 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     CreateFlags = FILE_FLAG_BACKUP_SEMANTICS;
     if (CreateOptions & FILE_DELETE_ON_CLOSE)
         CreateFlags |= FILE_FLAG_DELETE_ON_CLOSE;
+    if (CreateOptions & FILE_OPEN_REPARSE_POINT)
+        CreateFlags |= FILE_FLAG_OPEN_REPARSE_POINT;
 
     if (CreateOptions & FILE_DIRECTORY_FILE)
     {
@@ -198,7 +259,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     if (0 == FileAttributes)
         FileAttributes = FILE_ATTRIBUTE_NORMAL;
 
-    FileContext->Handle = CreateFileW(FullPath,
+    FileContext->Handle = CreateFileWithSecurityFallback(FullPath,
         GrantedAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, &SecurityAttributes,
         CREATE_NEW, CreateFlags | FileAttributes, 0);
     if (INVALID_HANDLE_VALUE == FileContext->Handle)
@@ -232,6 +293,8 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
     CreateFlags = FILE_FLAG_BACKUP_SEMANTICS;
     if (CreateOptions & FILE_DELETE_ON_CLOSE)
         CreateFlags |= FILE_FLAG_DELETE_ON_CLOSE;
+    if (CreateOptions & FILE_OPEN_REPARSE_POINT)
+        CreateFlags |= FILE_FLAG_OPEN_REPARSE_POINT;
 
     FileContext->Handle = CreateFileW(FullPath,
         GrantedAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
@@ -551,7 +614,9 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
                 Length = (ULONG)wcslen(FindData.cFileName);
                 DirInfo->Size = (UINT16)(FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) + Length * sizeof(WCHAR));
                 DirInfo->FileInfo.FileAttributes = FindData.dwFileAttributes;
-                DirInfo->FileInfo.ReparseTag = 0;
+                DirInfo->FileInfo.ReparseTag =
+                    0 != (FILE_ATTRIBUTE_REPARSE_POINT & FindData.dwFileAttributes) ?
+                        FindData.dwReserved0 : 0;
                 DirInfo->FileInfo.FileSize =
                     ((UINT64)FindData.nFileSizeHigh << 32) | (UINT64)FindData.nFileSizeLow;
                 DirInfo->FileInfo.AllocationSize = (DirInfo->FileInfo.FileSize + ALLOCATION_UNIT - 1)
@@ -598,6 +663,134 @@ static NTSTATUS SetDelete(FSP_FILE_SYSTEM *FileSystem,
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS GetReparsePointByName(
+    FSP_FILE_SYSTEM *FileSystem, PVOID Context,
+    PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize)
+{
+    PTFS *Ptfs = (PTFS *)FileSystem->UserContext;
+    WCHAR FullPath[FULLPATH_SIZE];
+    HANDLE Handle = INVALID_HANDLE_VALUE;
+    union
+    {
+        REPARSE_DATA_BUFFER V;
+        UINT8 B[FSP_FSCTL_TRANSACT_RSP_BUFFER_SIZEMAX];
+    } ReparseBuffer;
+    SIZE_T ReparseBufferSize;
+    DWORD BytesTransferred;
+    DWORD LastError;
+    NTSTATUS Result;
+
+    if (!ConcatPath(Ptfs, FileName, FullPath))
+        return STATUS_OBJECT_NAME_INVALID;
+
+    if (0 == Buffer)
+    {
+        Buffer = &ReparseBuffer;
+        PSize = &ReparseBufferSize;
+        ReparseBufferSize = sizeof ReparseBuffer;
+    }
+
+    Handle = CreateFileW(FullPath,
+        FILE_READ_ATTRIBUTES | FILE_READ_EA,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        0,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+        0);
+    if (INVALID_HANDLE_VALUE == Handle)
+        return FspNtStatusFromWin32(GetLastError());
+
+    if (DeviceIoControl(Handle,
+        FSCTL_GET_REPARSE_POINT,
+        0, 0,
+        Buffer, (DWORD)*PSize,
+        &BytesTransferred, 0))
+    {
+        *PSize = BytesTransferred;
+        Result = STATUS_SUCCESS;
+    }
+    else
+    {
+        LastError = GetLastError();
+        Result =
+            ERROR_MORE_DATA == LastError || ERROR_INSUFFICIENT_BUFFER == LastError ?
+                STATUS_BUFFER_TOO_SMALL : FspNtStatusFromWin32(LastError);
+    }
+
+    CloseHandle(Handle);
+
+    return Result;
+}
+
+static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
+    PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent,
+    PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
+{
+    return FspFileSystemResolveReparsePoints(FileSystem, GetReparsePointByName, 0,
+        FileName, ReparsePointIndex, ResolveLastPathComponent,
+        PIoStatus, Buffer, PSize);
+}
+
+static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileContext, PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
+{
+    HANDLE Handle = HandleFromContext(FileContext);
+    DWORD BytesTransferred;
+    DWORD LastError;
+    NTSTATUS Result;
+
+    if (DeviceIoControl(Handle,
+        FSCTL_GET_REPARSE_POINT,
+        0, 0,
+        Buffer, (DWORD)*PSize,
+        &BytesTransferred, 0))
+    {
+        *PSize = BytesTransferred;
+        Result = STATUS_SUCCESS;
+    }
+    else
+    {
+        LastError = GetLastError();
+        Result =
+            ERROR_MORE_DATA == LastError || ERROR_INSUFFICIENT_BUFFER == LastError ?
+                STATUS_BUFFER_TOO_SMALL : FspNtStatusFromWin32(LastError);
+    }
+
+    return Result;
+}
+
+static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileContext, PWSTR FileName, PVOID Buffer, SIZE_T Size)
+{
+    HANDLE Handle = HandleFromContext(FileContext);
+    DWORD BytesTransferred;
+
+    if (!DeviceIoControl(Handle,
+        FSCTL_SET_REPARSE_POINT,
+        Buffer, (DWORD)Size,
+        0, 0,
+        &BytesTransferred, 0))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+    PVOID FileContext, PWSTR FileName, PVOID Buffer, SIZE_T Size)
+{
+    HANDLE Handle = HandleFromContext(FileContext);
+    DWORD BytesTransferred;
+
+    if (!DeviceIoControl(Handle,
+        FSCTL_DELETE_REPARSE_POINT,
+        Buffer, (DWORD)Size,
+        0, 0,
+        &BytesTransferred, 0))
+        return FspNtStatusFromWin32(GetLastError());
+
+    return STATUS_SUCCESS;
+}
+
 static FSP_FILE_SYSTEM_INTERFACE PtfsInterface =
 {
     .GetVolumeInfo = GetVolumeInfo,
@@ -618,6 +811,10 @@ static FSP_FILE_SYSTEM_INTERFACE PtfsInterface =
     .GetSecurity = GetSecurity,
     .SetSecurity = SetSecurity,
     .ReadDirectory = ReadDirectory,
+    .ResolveReparsePoints = ResolveReparsePoints,
+    .GetReparsePoint = GetReparsePoint,
+    .SetReparsePoint = SetReparsePoint,
+    .DeleteReparsePoint = DeleteReparsePoint,
     .SetDelete = SetDelete,
 };
 
@@ -687,10 +884,13 @@ static NTSTATUS PtfsCreate(PWSTR Path, PWSTR VolumePrefix, PWSTR MountPoint, UIN
     VolumeParams.VolumeCreationTime = ((PLARGE_INTEGER)&CreationTime)->QuadPart;
     VolumeParams.VolumeSerialNumber = 0;
     VolumeParams.FileInfoTimeout = 1000;
+    /* Keep large mapped/cached saves from dirtying too much memory at once. */
+    VolumeParams.DirtyPageThreshold = DIRTY_PAGE_THRESHOLD;
     VolumeParams.CaseSensitiveSearch = 0;
     VolumeParams.CasePreservedNames = 1;
     VolumeParams.UnicodeOnDisk = 1;
     VolumeParams.PersistentAcls = 1;
+    VolumeParams.ReparsePoints = 1;
     VolumeParams.PostCleanupWhenModifiedOnly = 1;
     VolumeParams.PassQueryDirectoryPattern = 1;
     VolumeParams.FlushAndPurgeOnCleanup = 1;

@@ -133,6 +133,14 @@ BOOLEAN FspSiloIsHost(VOID)
     return !FspSiloInitDone || 0 == CALL(PsGetCurrentServerSilo)();
 }
 
+static BOOLEAN FspSiloIsZeroContainerId(const GUID *ContainerId)
+{
+    return 0 == ((const ULONG *)ContainerId)[0] &&
+        0 == ((const ULONG *)ContainerId)[1] &&
+        0 == ((const ULONG *)ContainerId)[2] &&
+        0 == ((const ULONG *)ContainerId)[3];
+}
+
 NTSTATUS FspSiloGetGlobals(FSP_SILO_GLOBALS **PGlobals)
 {
     FSP_PESILO Silo;
@@ -160,12 +168,76 @@ NTSTATUS FspSiloGetGlobals(FSP_SILO_GLOBALS **PGlobals)
     return STATUS_SUCCESS;
 }
 
+NTSTATUS FspSiloGetGlobalsByContainerId(const GUID *ContainerId, FSP_SILO_GLOBALS **PGlobals)
+{
+    ULONG ContextSlot;
+    PLIST_ENTRY ListEntry;
+    FSP_SILO_GLOBALS *Globals, *ReferencedGlobals;
+    GUID *SiloContainerId;
+    NTSTATUS Result = STATUS_OBJECT_NAME_NOT_FOUND;
+
+    if (FspSiloIsZeroContainerId(ContainerId))
+    {
+        *PGlobals = &FspSiloHostGlobals;
+        return STATUS_SUCCESS;
+    }
+
+    if (!FspSiloInitDone)
+    {
+        *PGlobals = 0;
+        return STATUS_OBJECT_NAME_NOT_FOUND;
+    }
+
+    ContextSlot = CALL(PsGetSiloMonitorContextSlot)(FspSiloMonitor);
+
+    FsRtlEnterFileSystem();
+    ExAcquireFastMutexUnsafe(&FspSiloListMutex);
+
+    for (ListEntry = FspSiloList.Flink; &FspSiloList != ListEntry; ListEntry = ListEntry->Flink)
+    {
+        Globals = CONTAINING_RECORD(ListEntry, FSP_SILO_GLOBALS, ListEntry);
+        SiloContainerId = CALL(PsGetSiloContainerId)(Globals->Silo);
+        if (0 != SiloContainerId &&
+            RtlEqualMemory(ContainerId, SiloContainerId, sizeof *ContainerId))
+        {
+            Result = CALL(PsGetSiloContext)(Globals->Silo, ContextSlot, &ReferencedGlobals);
+            if (NT_SUCCESS(Result))
+                *PGlobals = ReferencedGlobals;
+            break;
+        }
+    }
+
+    ExReleaseFastMutexUnsafe(&FspSiloListMutex);
+    FsRtlExitFileSystem();
+
+    if (!NT_SUCCESS(Result))
+        *PGlobals = 0;
+
+    return Result;
+}
+
 VOID FspSiloDereferenceGlobals(FSP_SILO_GLOBALS *Globals)
 {
     if (&FspSiloHostGlobals == Globals)
         return;
 
     CALL(PsDereferenceSiloContext)(Globals);
+}
+
+BOOLEAN FspSiloAttachGlobals(FSP_SILO_GLOBALS *Globals, PVOID *PPreviousSilo)
+{
+    *PPreviousSilo = 0;
+
+    if (!FspSiloInitDone || &FspSiloHostGlobals == Globals || 0 == Globals->Silo)
+        return FALSE;
+
+    *PPreviousSilo = CALL(PsAttachSiloToCurrentThread)(Globals->Silo);
+    return TRUE;
+}
+
+VOID FspSiloDetachGlobals(PVOID PreviousSilo)
+{
+    CALL(PsDetachSiloFromCurrentThread)(PreviousSilo);
 }
 
 VOID FspSiloGetContainerId(GUID *ContainerId)

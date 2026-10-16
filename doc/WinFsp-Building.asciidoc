@@ -10,6 +10,10 @@ In order to build WinFsp you will need the following:
 * Windows Driver Kit (WDK)
 * https://wixtoolset.org[Wix toolset]
 
+WinFsp supports Windows 7 through Windows 11 and the x86, x64 and ARM64 architectures. A full compatibility build therefore requires a Visual Studio/WDK combination that can still build the `WindowsKernelModeDriver10.0` platform toolset for x86 and can target pre-Windows 10 systems. Newer WDK installations may omit some of this legacy support; in that case use the last Visual Studio 2019/WDK combination that provides it, or keep a dedicated legacy build environment for x86 and Windows 7/8 validation.
+
+If WinFsp ever has to drop support for an older operating system or x86 in the main build, the last release that supports that platform should be documented and preserved as the recommended legacy baseline. Until then the project files should keep the legacy configurations buildable and the test suite should continue to perform at least basic checks on every supported architecture that is available in the build environment.
+
 Use the command `tools\build.bat Release` to produce a full build (including the installer). However the resulting product will not be properly signed and Windows will refuse to load the WinFsp driver, unless you enable testsigning with `bcdedit -set testsigning on`.
 
 Producing a fully functional build requires an EV certificate and a Partner Center for Windows Hardware account. Assuming you have those, the steps to produce a full build are as follows:

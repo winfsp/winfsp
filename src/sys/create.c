@@ -35,6 +35,10 @@ FSP_IOCMPL_DISPATCH FspFsvolCreateComplete;
 static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Response,
     FSP_FILE_NODE *FileNode, FSP_FILE_DESC *FileDesc, PFILE_OBJECT FileObject,
     BOOLEAN FlushImage);
+static BOOLEAN FspFsvolCreateFileNodeHasMultipleOpens(FSP_FILE_NODE *FileNode);
+static NTSTATUS FspFsvolCreateCheckFileKind(
+    const FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension,
+    ULONG CreateOptions, ULONG FileAttributes);
 static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc);
 static FSP_IOP_REQUEST_FINI FspFsvolCreateRequestFini;
 static FSP_IOP_REQUEST_FINI FspFsvolCreateTryOpenRequestFini;
@@ -58,6 +62,8 @@ FSP_DRIVER_DISPATCH FspCreate;
 #pragma alloc_text(PAGE, FspFsvolCreatePrepare)
 #pragma alloc_text(PAGE, FspFsvolCreateComplete)
 #pragma alloc_text(PAGE, FspFsvolCreateTryOpen)
+#pragma alloc_text(PAGE, FspFsvolCreateFileNodeHasMultipleOpens)
+#pragma alloc_text(PAGE, FspFsvolCreateCheckFileKind)
 #pragma alloc_text(PAGE, FspFsvolCreatePostClose)
 #pragma alloc_text(PAGE, FspFsvolCreateRequestFini)
 #pragma alloc_text(PAGE, FspFsvolCreateTryOpenRequestFini)
@@ -314,7 +320,7 @@ static NTSTATUS FspFsvolCreateNoLock(
     KPROCESSOR_MODE RequestorMode =
         FlagOn(Flags, SL_FORCE_ACCESS_CHECK) ? UserMode : Irp->RequestorMode;
     BOOLEAN CaseSensitive =
-        //BooleanFlagOn(Flags, SL_CASE_SENSITIVE) ||
+        BooleanFlagOn(Flags, SL_CASE_SENSITIVE) ||
         !!FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch;
     BOOLEAN HasTraversePrivilege =
         BooleanFlagOn(AccessState->Flags, TOKEN_HAS_TRAVERSE_PRIVILEGE);
@@ -938,6 +944,23 @@ NTSTATUS FspFsvolCreateComplete(
                     if (!NT_SUCCESS(Result))
                         FSP_RETURN(Result = STATUS_REPARSE_POINT_NOT_RESOLVED);
 
+                    /* let the I/O manager keep mount point context for opted-in relative symlinks */
+                    if (FlagOn(ReparseData->SymbolicLinkReparseBuffer.Flags, SYMLINK_FLAG_RELATIVE) &&
+                        FsvolDeviceExtension->VolumeParams.AllowRelSymlinksAcrossFileSystem)
+                    {
+                        ASSERT(0 == Irp->Tail.Overlay.AuxiliaryBuffer);
+                        Irp->Tail.Overlay.AuxiliaryBuffer = FspAllocNonPagedExternal(
+                            Response->Rsp.Create.Reparse.Buffer.Size);
+                        if (0 == Irp->Tail.Overlay.AuxiliaryBuffer)
+                            FSP_RETURN(Result = STATUS_INSUFFICIENT_RESOURCES);
+
+                        RtlCopyMemory(Irp->Tail.Overlay.AuxiliaryBuffer, ReparseData,
+                            Response->Rsp.Create.Reparse.Buffer.Size);
+
+                        Irp->IoStatus.Information = IO_REPARSE_TAG_SYMLINK;
+                        FSP_RETURN(Result = STATUS_REPARSE);
+                    }
+
                     if (!FlagOn(ReparseData->SymbolicLinkReparseBuffer.Flags, SYMLINK_FLAG_RELATIVE))
                     {
                         RtlZeroMemory(&ReparseTargetPrefix0, sizeof ReparseTargetPrefix0);
@@ -1032,8 +1055,22 @@ NTSTATUS FspFsvolCreateComplete(
         FileDesc->UserContext2 = Response->Rsp.Create.Opened.UserContext2;
         FileDesc->DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
 
+        /*
+         * When GetSecurityByName is not implemented the user-mode access check cannot validate
+         * the directory/non-directory open options before Open. Validate them here with the
+         * attributes returned by Open so that a directory cannot be opened as a file.
+         */
+        Result = FspFsvolCreateCheckFileKind(FsvolDeviceExtension,
+            Request->Req.Create.CreateOptions,
+            Response->Rsp.Create.Opened.FileInfo.FileAttributes);
+        if (!NT_SUCCESS(Result))
+        {
+            FspFsvolCreatePostClose(FileDesc);
+            FSP_RETURN();
+        }
+
         /* handle normalized names */
-        if (!FsvolDeviceExtension->VolumeParams.CaseSensitiveSearch)
+        if (!FileDesc->CaseSensitive)
         {
             /* is there a normalized file name as part of the response? */
             if (0 == Response->Rsp.Create.Opened.FileName.Size)
@@ -1298,7 +1335,9 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     PAGED_CODE();
 
     FSP_FSCTL_TRANSACT_REQ *Request = FspIrpRequest(Irp);
+    PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
     NTSTATUS Result;
+    BOOLEAN SharedOpenCompletion;
     BOOLEAN Success;
 
     if (FspFsctlTransactCreateKind == Request->Kind)
@@ -1321,9 +1360,17 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
             (Request->Req.Create.AcceptsSecurityDescriptor ? RequestAcceptsSecurityDescriptor : 0));
     }
 
+    SharedOpenCompletion =
+        !FlushImage &&
+        FILE_OPENED == Response->IoStatus.Information &&
+        !FlagOn(IrpSp->Parameters.Create.Options, FILE_OPEN_REQUIRING_OPLOCK) &&
+        FspFsvolCreateFileNodeHasMultipleOpens(FileNode);
+
     Result = STATUS_SUCCESS;
     Success = DEBUGTEST(90) &&
-        FspFileNodeTryAcquireExclusive(FileNode, Main) &&
+        (SharedOpenCompletion ?
+            FspFileNodeTryAcquireShared(FileNode, Main) :
+            FspFileNodeTryAcquireExclusive(FileNode, Main)) &&
         FspFsvolCreateOpenOrOverwriteOplock(Irp, Response, &Result);
     if (!Success)
     {
@@ -1337,6 +1384,16 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
 
         FspIopRetryCompleteIrp(Irp, Response, &Result);
         return Result;
+    }
+
+    if (SharedOpenCompletion)
+    {
+        FspFileNodeRelease(FileNode, Main);
+
+        /* SUCCESS! */
+        FspIopRequestContext(Request, RequestFileDesc) = 0;
+        Irp->IoStatus.Information = Response->IoStatus.Information;
+        return Irp->IoStatus.Status; /* get success value from oplock processing */
     }
 
     PSECURITY_DESCRIPTOR OpenDescriptor = 0;
@@ -1408,7 +1465,6 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
         {
             FspFileNodeRelease(FileNode, Main);
 
-            PIO_STACK_LOCATION IrpSp = IoGetCurrentIrpStackLocation(Irp);
             BOOLEAN DeleteOnClose = BooleanFlagOn(IrpSp->Parameters.Create.Options, FILE_DELETE_ON_CLOSE);
 
             if (0 == Request)
@@ -1434,6 +1490,40 @@ static NTSTATUS FspFsvolCreateTryOpen(PIRP Irp, const FSP_FSCTL_TRANSACT_RSP *Re
     FspIopRequestContext(Request, RequestFileDesc) = 0;
     Irp->IoStatus.Information = Response->IoStatus.Information;
     return Irp->IoStatus.Status; /* get success value from oplock processing */
+}
+
+static BOOLEAN FspFsvolCreateFileNodeHasMultipleOpens(FSP_FILE_NODE *FileNode)
+{
+    PAGED_CODE();
+
+    BOOLEAN Result;
+
+    FspFsvolDeviceLockContextTable(FileNode->FsvolDeviceObject);
+    Result = 1 < FileNode->OpenCount;
+    FspFsvolDeviceUnlockContextTable(FileNode->FsvolDeviceObject);
+
+    return Result;
+}
+
+static NTSTATUS FspFsvolCreateCheckFileKind(
+    const FSP_FSVOL_DEVICE_EXTENSION *FsvolDeviceExtension,
+    ULONG CreateOptions, ULONG FileAttributes)
+{
+    PAGED_CODE();
+
+    if (FlagOn(FileAttributes, FILE_ATTRIBUTE_REPARSE_POINT) &&
+        FsvolDeviceExtension->VolumeParams.UmNoReparsePointsDirCheck)
+        return STATUS_SUCCESS;
+
+    if (FlagOn(CreateOptions, FILE_DIRECTORY_FILE) &&
+        !FlagOn(FileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+        return STATUS_NOT_A_DIRECTORY;
+
+    if (FlagOn(CreateOptions, FILE_NON_DIRECTORY_FILE) &&
+        FlagOn(FileAttributes, FILE_ATTRIBUTE_DIRECTORY))
+        return STATUS_FILE_IS_A_DIRECTORY;
+
+    return STATUS_SUCCESS;
 }
 
 static VOID FspFsvolCreatePostClose(FSP_FILE_DESC *FileDesc)

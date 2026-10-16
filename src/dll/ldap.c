@@ -118,6 +118,60 @@ exit:
     return LdapResult;
 }
 
+ULONG FspLdapGetValueBinary(PVOID Ldap0, PWSTR Base, ULONG Scope, PWSTR Filter, PWSTR Attribute,
+    PVOID *PValue, PULONG PValueSize)
+{
+    LDAP *Ldap = Ldap0;
+    PWSTR Attributes[2];
+    LDAPMessage *Message = 0, *Entry;
+    struct berval **Values = 0;
+    PVOID Value;
+    ULONG LdapResult;
+
+    *PValue = 0;
+    *PValueSize = 0;
+
+    Attributes[0] = Attribute;
+    Attributes[1] = 0;
+    LdapResult = ldap_search_sW(Ldap, Base, Scope, Filter, Attributes, 0, &Message);
+    if (LDAP_SUCCESS != LdapResult)
+        goto exit;
+
+    Entry = ldap_first_entry(Ldap, Message);
+    if (0 == Entry)
+    {
+        LdapResult = LDAP_OTHER;
+        goto exit;
+    }
+
+    Values = ldap_get_values_lenW(Ldap, Entry, Attributes[0]);
+    if (0 == Values || 0 == ldap_count_values_len(Values))
+    {
+        LdapResult = LDAP_OTHER;
+        goto exit;
+    }
+
+    Value = MemAlloc(Values[0]->bv_len);
+    if (0 == Value)
+    {
+        LdapResult = LDAP_NO_MEMORY;
+        goto exit;
+    }
+    memcpy(Value, Values[0]->bv_val, Values[0]->bv_len);
+
+    *PValue = Value;
+    *PValueSize = Values[0]->bv_len;
+    LdapResult = LDAP_SUCCESS;
+
+exit:
+    if (0 != Values)
+        ldap_value_free_len(Values);
+    if (0 != Message)
+        ldap_msgfree(Message);
+
+    return LdapResult;
+}
+
 ULONG FspLdapGetDefaultNamingContext(PVOID Ldap, PWSTR *PValue)
 {
     return FspLdapGetValue(Ldap, 0, LDAP_SCOPE_BASE, L"(objectClass=*)", L"defaultNamingContext",
@@ -154,4 +208,80 @@ ULONG FspLdapGetTrustPosixOffset(PVOID Ldap, PWSTR Context, PWSTR Domain, PWSTR 
         Domain);
 
     return FspLdapGetValue(Ldap, Base, LDAP_SCOPE_ONELEVEL, Filter, L"trustPosixOffset", PValue);
+}
+
+ULONG FspLdapGetPosixIdBySid(PVOID Ldap, PWSTR Context, PSID Sid, PWSTR Attribute, PUINT32 PUid)
+{
+    WCHAR Filter[16 + SECURITY_MAX_SID_SIZE * 3];
+    PWSTR P = Filter, End = Filter + sizeof Filter / sizeof Filter[0];
+    PWSTR Value = 0;
+    PWSTR ValueEnd;
+    UINT32 Uid;
+    ULONG SidSize;
+    ULONG LdapResult;
+
+    if (!IsValidSid(Sid))
+        return LDAP_OTHER;
+
+    SidSize = GetLengthSid(Sid);
+    if (SECURITY_MAX_SID_SIZE < SidSize)
+        return LDAP_OTHER;
+
+    P += wsprintfW(P, L"(objectSid=");
+    for (ULONG I = 0; SidSize > I; I++)
+    {
+        if (4 > End - P)
+            return LDAP_OTHER;
+        P += wsprintfW(P, L"\\%02x", ((PUINT8)Sid)[I]);
+    }
+    if (2 > End - P)
+        return LDAP_OTHER;
+    *P++ = L')';
+    *P = L'\0';
+
+    LdapResult = FspLdapGetValue(Ldap, Context, LDAP_SCOPE_SUBTREE, Filter, Attribute, &Value);
+    if (LDAP_SUCCESS != LdapResult)
+        goto exit;
+
+    Uid = wcstouint(Value, &ValueEnd, 10, 0);
+    if (Value == ValueEnd || L'\0' != *ValueEnd)
+        LdapResult = LDAP_OTHER;
+    else
+        *PUid = Uid;
+
+exit:
+    MemFree(Value);
+
+    return LdapResult;
+}
+
+ULONG FspLdapGetSidByPosixId(PVOID Ldap, PWSTR Context, PWSTR Attribute, UINT32 Uid, PSID *PSid)
+{
+    WCHAR Filter[64];
+    PVOID Value = 0;
+    ULONG ValueSize = 0;
+    ULONG LdapResult;
+
+    *PSid = 0;
+
+    wsprintfW(Filter, L"(%s=%lu)", Attribute, Uid);
+    LdapResult = FspLdapGetValueBinary(Ldap, Context, LDAP_SCOPE_SUBTREE, Filter, L"objectSid",
+        &Value, &ValueSize);
+    if (LDAP_SUCCESS != LdapResult)
+        goto exit;
+
+    if (!IsValidSid(Value) || ValueSize < GetLengthSid(Value))
+    {
+        LdapResult = LDAP_OTHER;
+        goto exit;
+    }
+
+    *PSid = Value;
+    Value = 0;
+    LdapResult = LDAP_SUCCESS;
+
+exit:
+    MemFree(Value);
+
+    return LdapResult;
 }

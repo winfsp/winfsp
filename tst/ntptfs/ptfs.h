@@ -68,6 +68,7 @@ NTSTATUS PtfsCreate(
     ULONG FsAttributeMask,
     PWSTR VolumePrefix,
     PWSTR MountPoint,
+    const GUID *TargetSiloId,
     UINT32 DebugFlags,
     PTFS **PPtfs);
 VOID PtfsDelete(PTFS *Ptfs);

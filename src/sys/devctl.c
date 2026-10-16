@@ -251,6 +251,9 @@ static NTSTATUS FspFsvolDeviceControl(
     ULONG IoControlCode = IrpSp->Parameters.DeviceIoControl.IoControlCode;
     NTSTATUS Result;
 
+    if (FspMountdevDeviceControl(FsvolDeviceExtension->FsvrtDeviceObject, Irp, IrpSp, &Result))
+        return Result;
+
     /*
      * Possibly forward the IOCTL request to the user mode file system. The rules are:
      *
