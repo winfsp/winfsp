@@ -860,7 +860,7 @@ typedef struct _FSP_FILE_SYSTEM_INTERFACE
      * @param FileSystem
      *     The file system on which this request is posted.
      * @param FileContext
-     *     The file context of the file or directory to be controled.
+     *     The file context of the file or directory to be controlled.
      * @param ControlCode
      *     The control code for the operation. This code must have a DeviceType with bit
      *     0x8000 set and must have a TransferType of METHOD_BUFFERED.

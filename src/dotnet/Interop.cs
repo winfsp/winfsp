@@ -198,7 +198,7 @@ namespace Fsp.Interop
         /// </summary>
         public UInt64 LastAccessTime;
         /// <summary>
-        /// The time that the file or direcotry was last modified.
+        /// The time that the file or directory was last modified.
         /// </summary>
         public UInt64 LastWriteTime;
         /// <summary>
