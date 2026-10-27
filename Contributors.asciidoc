@@ -59,6 +59,7 @@ CONTRIBUTOR LIST
 |Bill Zissimopoulos                                             |billziss at navimatics.com
 |Brett Dutro                                                    |brett.dutro at gmail.com
 |Changjian Gao (Juicedata, https://juicefs.com)                 |gcj at juicedata.io
+|Christian Clauss                                               |cclauss at me.com
 |Colin Atkinson (Atakama, https://atakama.com)                  |colin at atakama.com
 |Ethan Chan (Juicedata, https://juicefs.com)                    |ethan at juicedata.io
 |Felix Croes                                                    |felix at dworkin.nl
