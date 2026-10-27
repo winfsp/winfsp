@@ -245,6 +245,7 @@ int main(int argc, char *argv[])
     TESTSUITE(exec_tests);
     TESTSUITE(devctl_tests);
     TESTSUITE(reparse_tests);
+    TESTSUITE(reparse_target_tests);
     TESTSUITE(ea_tests);
     TESTSUITE(stream_tests);
     TESTSUITE(oplock_tests);
