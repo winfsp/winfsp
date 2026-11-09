@@ -1433,6 +1433,123 @@ void rename_open_test(void)
     }
 }
 
+static void rename_open_delete_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout,
+    BOOLEAN KeepNewFileOpen)
+{
+    void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
+
+    NTSYSCALLAPI NTSTATUS NTAPI
+    NtSetInformationFile(
+        HANDLE FileHandle,
+        PIO_STATUS_BLOCK IoStatusBlock,
+        PVOID FileInformation,
+        ULONG Length,
+        FILE_INFORMATION_CLASS FileInformationClass);
+    typedef struct
+    {
+        BOOLEAN ReplaceIfExists;
+        HANDLE RootDirectory;
+        ULONG FileNameLength;
+        WCHAR FileName[1];
+    } FILE_RENAME_INFORMATION, *PFILE_RENAME_INFORMATION;
+
+    HANDLE Handle0, Handle1;
+    WCHAR File0Path[MAX_PATH];
+    WCHAR File2Path[MAX_PATH];
+    union
+    {
+        FILE_RENAME_INFORMATION I;
+        UINT8 B[sizeof(FILE_RENAME_INFORMATION) + MAX_PATH * sizeof(WCHAR)];
+    } RenameInfo;
+    IO_STATUS_BLOCK IoStatus;
+    MY_FILE_DISPOSITION_INFO DispositionInfo;
+    BOOLEAN Success;
+
+    /*
+     * Rename a file through an open handle, create a new file under its old name, then delete
+     * the renamed file through the first handle. The renamed file must go and the new file
+     * must stay. A file system that deletes by path must be told the current name of the
+     * file, not the name the handle was opened with.
+     */
+
+    StringCbPrintfW(File0Path, sizeof File0Path, L"%s%s\\file0",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    StringCbPrintfW(File2Path, sizeof File2Path, L"%s%s\\file2",
+        Prefix ? L"" : L"\\\\?\\GLOBALROOT", Prefix ? Prefix : memfs_volumename(memfs));
+
+    Handle0 = CreateFileW(File0Path,
+        GENERIC_READ | GENERIC_WRITE | DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle0);
+
+    memset(&RenameInfo.I, 0, sizeof RenameInfo.I);
+    RenameInfo.I.FileNameLength = (ULONG)(wcslen(L"file2") * sizeof(WCHAR));
+    memcpy(RenameInfo.I.FileName, L"file2", RenameInfo.I.FileNameLength);
+    IoStatus.Status = NtSetInformationFile(
+        Handle0, &IoStatus,
+        &RenameInfo.I, FIELD_OFFSET(FILE_RENAME_INFORMATION, FileName) + RenameInfo.I.FileNameLength,
+        10/*FileRenameInformation*/);
+    ASSERT(0 == IoStatus.Status);
+
+    Handle1 = CreateFileW(File0Path,
+        GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, 0);
+    ASSERT(INVALID_HANDLE_VALUE != Handle1);
+    if (!KeepNewFileOpen)
+    {
+        Success = CloseHandle(Handle1);
+        ASSERT(Success);
+    }
+
+    DispositionInfo.Disposition = TRUE;
+    Success = SetFileInformationByHandle(Handle0,
+        FileDispositionInfo, &DispositionInfo, sizeof DispositionInfo);
+    ASSERT(Success);
+    Success = CloseHandle(Handle0);
+    ASSERT(Success);
+
+    if (KeepNewFileOpen)
+    {
+        Success = CloseHandle(Handle1);
+        ASSERT(Success);
+    }
+
+    ASSERT(INVALID_FILE_ATTRIBUTES == GetFileAttributesW(File2Path));
+    ASSERT(ERROR_FILE_NOT_FOUND == GetLastError());
+    ASSERT(INVALID_FILE_ATTRIBUTES != GetFileAttributesW(File0Path));
+
+    Success = DeleteFileW(File0Path);
+    ASSERT(Success);
+
+    memfs_stop(memfs);
+}
+
+void rename_open_delete_test(void)
+{
+    if (NtfsTests)
+    {
+        WCHAR DirBuf[MAX_PATH];
+        GetTestDirectory(DirBuf);
+        rename_open_delete_dotest(-1, DirBuf, 0, FALSE);
+        rename_open_delete_dotest(-1, DirBuf, 0, TRUE);
+    }
+    if (WinFspDiskTests)
+    {
+        rename_open_delete_dotest(MemfsDisk, 0, 0, FALSE);
+        rename_open_delete_dotest(MemfsDisk, 0, 0, TRUE);
+        rename_open_delete_dotest(MemfsDisk, 0, 1000, FALSE);
+        rename_open_delete_dotest(MemfsDisk, 0, 1000, TRUE);
+    }
+    if (WinFspNetTests)
+    {
+        rename_open_delete_dotest(MemfsNet, L"\\\\memfs\\share", 0, FALSE);
+        rename_open_delete_dotest(MemfsNet, L"\\\\memfs\\share", 0, TRUE);
+        rename_open_delete_dotest(MemfsNet, L"\\\\memfs\\share", 1000, FALSE);
+        rename_open_delete_dotest(MemfsNet, L"\\\\memfs\\share", 1000, TRUE);
+    }
+}
+
 static void rename_caseins_dotest(ULONG Flags, PWSTR Prefix, ULONG FileInfoTimeout)
 {
     void *memfs = memfs_start_ex(Flags, FileInfoTimeout);
@@ -2529,6 +2646,7 @@ void info_tests(void)
     TEST(rename_test);
     TEST(rename_backslash_test);
     TEST(rename_open_test);
+    TEST(rename_open_delete_test);
     TEST(rename_caseins_test);
     if (!OptShareName)
         TEST(rename_flipflop_test);
