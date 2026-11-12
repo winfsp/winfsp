@@ -913,7 +913,12 @@ NTSTATUS FspEaBufferFromFileSystemValidate(
     /* EA buffers from the user mode file system are allowed to end with NextEntryOffset != 0 */
     for (PFILE_FULL_EA_INFORMATION Ea = Buffer, EaEnd = (PVOID)((PUINT8)Ea + Length);
         EaEnd > Ea; Ea = FSP_NEXT_EA(Ea, EaEnd))
+    {
+        if ((PUINT8)Ea + sizeof Ea->NextEntryOffset > (PUINT8)EaEnd ||
+            (PUINT8)Ea + Ea->NextEntryOffset < (PUINT8)Ea)
+            return STATUS_INTERNAL_ERROR;
         LastEa = Ea;
+    }
     if (0 != LastEa)
         LastEa->NextEntryOffset = 0;
 
