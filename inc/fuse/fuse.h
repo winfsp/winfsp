@@ -43,7 +43,14 @@ typedef int (*fuse_dirfil_t)(fuse_dirh_t h, const char *name,
 
 struct fuse_operations
 {
-    /* S - supported by WinFsp */
+    /*
+     * S - supported by WinFsp
+     *
+     * NOTE: for backwards compatibility, the WinFsp FUSE 2 ABI keeps getdir
+     * before readlink. This differs from libfuse 2.x, which places readlink
+     * before getdir. Language bindings that reproduce this structure layout
+     * must use the WinFsp ordering on Windows.
+     */
     /* S */ int (*getattr)(const char *path, struct fuse_stat *stbuf);
     /* S */ int (*getdir)(const char *path, fuse_dirh_t h, fuse_dirfil_t filler);
     /* S */ int (*readlink)(const char *path, char *buf, size_t size);
