@@ -33,6 +33,8 @@
 
 - [FIX] Fixes a problem with mounting on a directory with a trailing backslash. See issue #674.
 
+- [FIX] The install-time DLL `CustomActions.dll` is now signed. See issue #527.
+
 - [FUSE] Add FUSE option `FlushOnCleanup`. See PR #614 by @chenjie4255.
 
 - [FUSE] FUSE now respects the `direct_io` flag. See PR #646 by @chenjie4255.
