@@ -76,6 +76,7 @@ CONTRIBUTOR LIST
 |Sam Kelly (DuroSoft Technologies LLC, https://durosoft.com)    |sam at durosoft.com
 |Santiago Ganis                                                 |sganis at gmail.com
 |Seunghoon Yeon (Bdrive Inc, https://www.bdrive.com)            |ysh at bdrive.com
+|Stefan Reinauer                                                |stefan.reinauer at coreboot.org
 |Thomas Gibson-Robinson                                         |tom at cocotec.io
 |Tobias Urlaub                                                  |saibotu at outlook.de
 |Victor Gao                                                     |victgm at outlook.com

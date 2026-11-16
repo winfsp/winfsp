@@ -1335,12 +1335,40 @@ static NTSTATUS fsp_fuse_intf_Overwrite(FSP_FILE_SYSTEM *FileSystem,
         &Uid, &Gid, &Mode, FileInfo);
 }
 
+static char *fsp_fuse_intf_GetCurrentPosixPath(struct fsp_fuse_file_desc *filedesc,
+    PWSTR FileName)
+{
+    char *PosixPath;
+
+    /*
+     * The PosixPath of a file descriptor is the path the file was opened with. It goes stale
+     * when the file is renamed, through this or another handle, or when a directory above it
+     * is renamed. The FSD keeps the name of an open file current and passes it to some
+     * operations (Cleanup with Delete, CanDelete); prefer that name when we have it.
+     *
+     * The PosixPath of the file descriptor is not replaced: Read and Write are not guarded
+     * by the operation guard and may be using it concurrently.
+     */
+    if (0 != FileName && NT_SUCCESS(FspPosixMapWindowsToPosixPath(FileName, &PosixPath)))
+        return PosixPath;
+
+    return filedesc->PosixPath;
+}
+
+static VOID fsp_fuse_intf_DeleteCurrentPosixPath(struct fsp_fuse_file_desc *filedesc,
+    char *PosixPath)
+{
+    if (filedesc->PosixPath != PosixPath)
+        FspPosixDeletePath(PosixPath);
+}
+
 static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
     PVOID FileDesc, PWSTR FileName, ULONG Flags)
 {
     struct fuse *f = FileSystem->UserContext;
     struct fsp_fuse_file_desc *filedesc = FileDesc;
     struct fuse_file_info fi;
+    char *PosixPath;
 
     /*
      * In Windows a DeleteFile/RemoveDirectory is the sequence of the following:
@@ -1376,16 +1404,26 @@ static VOID fsp_fuse_intf_Cleanup(FSP_FILE_SYSTEM *FileSystem,
     }
 
     if (Flags & FspCleanupDelete)
+    {
+        /*
+         * Delete the file under its current name. After a rename through this handle, the
+         * path it was opened with may name another file by now.
+         */
+        PosixPath = fsp_fuse_intf_GetCurrentPosixPath(filedesc, FileName);
+
         if (filedesc->IsDirectory && !filedesc->IsReparsePoint)
         {
             if (0 != f->ops.rmdir)
-                f->ops.rmdir(filedesc->PosixPath);
+                f->ops.rmdir(PosixPath);
         }
         else
         {
             if (0 != f->ops.unlink)
-                f->ops.unlink(filedesc->PosixPath);
+                f->ops.unlink(PosixPath);
         }
+
+        fsp_fuse_intf_DeleteCurrentPosixPath(filedesc, PosixPath);
+    }
 }
 
 static VOID fsp_fuse_intf_Close(FSP_FILE_SYSTEM *FileSystem,
@@ -1768,18 +1806,22 @@ static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
     struct fsp_fuse_file_desc *filedesc = FileDesc;
     struct fuse_file_info fi;
     struct fuse_dirhandle dh;
+    char *PosixPath;
     int err;
+    NTSTATUS Result;
+
+    /* check the file under its current name; see fsp_fuse_intf_GetCurrentPosixPath */
+    PosixPath = fsp_fuse_intf_GetCurrentPosixPath(filedesc, FileName);
 
     if (0 != (f->conn_want & FSP_FUSE_CAP_DELETE_ACCESS) && 0 != f->ops.access)
     {
-        NTSTATUS Result;
-        err = f->ops.access(filedesc->PosixPath, FSP_FUSE_DELETE_OK);
+        err = f->ops.access(PosixPath, FSP_FUSE_DELETE_OK);
         Result = fsp_fuse_ntstatus_from_errno(f->env, err);
         if (!NT_SUCCESS(Result) && STATUS_INVALID_DEVICE_REQUEST != Result)
         {
             if (STATUS_ACCESS_DENIED == Result)
                 Result = STATUS_CANNOT_DELETE;
-            return Result;
+            goto exit;
         }
     }
 
@@ -1795,22 +1837,28 @@ static NTSTATUS fsp_fuse_intf_CanDelete(FSP_FILE_SYSTEM *FileSystem,
             fi.flags = filedesc->OpenFlags;
             fi.fh = filedesc->FileHandle;
 
-            err = f->ops.readdir(filedesc->PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfo, 0, &fi);
+            err = f->ops.readdir(PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfo, 0, &fi);
         }
         else if (0 != f->ops.getdir)
-            err = f->ops.getdir(filedesc->PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfoOld);
+            err = f->ops.getdir(PosixPath, &dh, fsp_fuse_intf_CanDeleteAddDirInfoOld);
         else
             err = 0;
 
         if (dh.HasChild)
-            return STATUS_DIRECTORY_NOT_EMPTY;
+            Result = STATUS_DIRECTORY_NOT_EMPTY;
         else if (dh.DotFiles)
-            return STATUS_SUCCESS;
+            Result = STATUS_SUCCESS;
         else
-            return fsp_fuse_ntstatus_from_errno(f->env, err);
+            Result = fsp_fuse_ntstatus_from_errno(f->env, err);
+        goto exit;
     }
 
-    return STATUS_SUCCESS;
+    Result = STATUS_SUCCESS;
+
+exit:
+    fsp_fuse_intf_DeleteCurrentPosixPath(filedesc, PosixPath);
+
+    return Result;
 }
 
 static NTSTATUS fsp_fuse_intf_Rename(FSP_FILE_SYSTEM *FileSystem,
